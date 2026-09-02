@@ -8,6 +8,23 @@
 
 ### Adicionado
 
+#### Core — Config Manager (`configs/manager.py`)
+- `ConfigManager` — gerenciador de configurações centralizado com:
+  - Carregamento de YAML + env vars com prioridade
+  - Validação via Pydantic (quando disponível)
+  - Chaves hierárquicas com dots (ex: `system.bridge.host`)
+  - Defaults configuráveis
+  - Override programático
+  - Watchers para notificação de mudanças
+  - Export/Import (YAML, JSON, dict)
+  - Reload/Reset lifecycle
+  - Audit logging via protocolo NICKY
+- `ConfigEntry` — dataclass com metadados (key, value, source, timestamp)
+- `ConfigSchema` — schema Pydantic com validação (50+ campos)
+- Singleton pattern via `get_config_manager()`
+- Configurações suportadas: sistema, servidor, LLM, database, segurança, rate limiting, memória, persistência, notificações, STT, TTS, RAG, Telegram, Home Assistant, MQTT, APIs externas
+- 46 testes unitários em `tests/test_config_manager.py`
+
 #### Core — Event Bus (`core/event_bus.py`)
 - `Event` — dataclass imutável com topic, data, priority, source, event_id, ts, ttl
 - `Event.matches()` — routing por padrão com `*` (single-level) e `**` (multi-level) wildcards
@@ -152,8 +169,9 @@
 ### Infraestrutura
 - Criado `core/__init__.py` com docstring canônico `OD // CORE`
 - Criado `tests/__init__.py` para pacote de testes
-- Configurado virtualenv em `.venv` com pytest e pytest-asyncio
-- Suíte completa: **179 testes, 0 falhas**
+- Criado `configs/__init__.py` com docstring canônico `OD // CORE`
+- Configurado virtualenv em `.venv` com pytest, pytest-asyncio e pyyaml
+- Suíte completa: **225 testes, 0 falhas**
 
 ---
 
