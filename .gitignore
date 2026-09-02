@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/*.log
+logs/*.jsonl
+
+# Backups (keep structure, ignore content)
+backups/*.bak
+backups/*.tar.gz
+
+# Archives (keep structure, ignore content)
+archive/*.txt
+
+# Runtime
+runtime/control_bridge/*.pyc
+
+# Memory (sensitive data)
+memory/*.db
+memory/*.json
+
+# Imports (quarantine zone)
+imports/*
+
+# Test coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Pytest
+.pytest_cache/
+
+# Mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Docker
+docker-compose.override.yml
+
+# Workspaces (OpenClaw agent environments)
+workspace/
+
+# Node (if used for tools)
+node_modules/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
