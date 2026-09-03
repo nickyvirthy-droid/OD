@@ -9,6 +9,41 @@
 
 ---
 
+## [0.8.0] — Fase 4 (item 4.1) — Coder Engine ✅ (2026-09-03)
+
+> **FASE 4 INICIADA — 1/4 itens (Coder Engine).** 17/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **4.1 Coder Engine** | `core/coder.py` | Pipeline **sandbox → testes → backup → promoção**: (1) conteúdo patcheado materializado em `<root>/.od_sandbox/<change_id>/` (original intocado); (2) testes = syntax check `compile` para `.py` + runner injetado sync/async OU `test_command` em subprocess (cwd=sandbox, tokens `{file}`/`{sandbox}`/`{root}`/`{relpath}`, timeout) — falha nunca promove; (3) backup versionado do original em `.od_backups/<arquivo>.<change_id>.bak` antes de qualquer escrita; (4) promoção por escrita atômica (tmp + `os.replace`) · diffs unificados nativos stdlib (`parse/apply/generate/diff_stats`): múltiplos hunks, arquivo vazio, sem-newline-final (marcador `\\ No newline`), **relocation** (arquivo derivado) e rejeição de diffs fora de ordem · escopo estrito §7.1 (root, proteção de `.git`/áreas internas, rejeição de caminhos fora do root) · gate Security Layer na promoção (`coder.promote`, fail-closed em strict) · eventos `coder.started`/`coder.completed` no Event Bus · `TestOutcome`/`CoderResult`/`CoderMetrics` + trilha + `dump()` · logging NICKY via `core/logger.py` · zero dependências novas |
+| — | `tests/test_coder.py` | **59 testes** (diffs, round-trips extremos, escopo, pipeline, falhas com arquivo intacto, runner/command/timeout, security, event bus, métricas) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_coder.py -q   → 59 passed
+.venv/bin/python -m pytest tests/ -q               → 756 passed, 0 falhas
+```
+
+### 3. O que NÃO foi feito
+
+- **Fase 4 (3/4 restantes)**: Self Repair (4.2), Perception (4.3), 56 Actions (4.4)
+- Suporte a multi-arquivos por mudança (patch de diretório inteiro) — o
+  Coder Engine opera por arquivo; sandbox de workspace completo é tema do
+  Self Repair/evolução futura
+- Mudanças exclusivas de quebra de linha final são tratadas como no-op
+  (normalização do difflib) — registrado aqui como decisão
+
+### 4. Próximo passo
+
+**Fase 4, item 4.2 — Self Repair** (`core/self_repair.py`) — detecção de
+falhas + geração de correção sobre o Coder Engine; depois Perception (4.3)
+e 56 Actions (4.4).
+
+---
+
 ## [0.7.0] — Fase 3 (item 3.4) — Orchestrator Pipeline ✅ (2026-09-03)
 
 > **FASE 3 COMPLETA — 4/4 itens (Workflow Engine, Tool Loader, Action
@@ -311,7 +346,8 @@ Vector Memory (RAG), Context Manager. → Concluída em [0.4.0].
 | 0.5.1 | Fase 3 (3.2) — Tool Loader | 2026-09-03 (publicado) | `3ee9616` |
 | 0.6.0 | Fase 3 (3.3) — Action Registry | 2026-09-03 (publicado) | `b37765f` |
 | 0.6.1 | Refatoração — Logger unificado | 2026-09-03 (publicado) | `6b54de5` |
-| 0.7.0 | **Fase 3 completa (3.4)** — Orchestrator Pipeline | 2026-09-03 (esta publicação) | commit desta entrega |
+| 0.7.0 | **Fase 3 completa (3.4)** — Orchestrator Pipeline | 2026-09-03 (publicado) | `cf4eefa` |
+| 0.8.0 | **Fase 4 (4.1)** — Coder Engine | 2026-09-03 (esta entrega) | commit desta entrega |
 
 > **Nota de transparência:** os relatórios §2.1 das Fases 1 e 2 foram
 > registrados retroativamente neste documento (2026-09-03) a partir dos

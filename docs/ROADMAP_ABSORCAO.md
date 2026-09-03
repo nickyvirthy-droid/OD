@@ -42,8 +42,10 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Workflow Engine** | `core/workflows.py` | 70 ✅ |
 | **Tool Loader** | `tools/loader.py` | 39 ✅ |
 | **Action Registry** | `tools/registry.py` | 33 ✅ |
+| **Orchestrator Pipeline** | `core/orchestrator.py` | 29 ✅ |
+| **Coder Engine** | `core/coder.py` | 59 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **15 componentes** | **668 testes** |
+| **Total** | **17 componentes** | **756 testes** |
 
 ---
 
@@ -384,8 +386,8 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] Action Registry registra actions tipadas com execução validada pelo Security Layer (`tools/registry.py`, 33 testes) — 2026-09-03
 - [x] Orchestrator executa pipeline de 8 etapas com fallbacks (`core/orchestrator.py`, 29 testes) — 2026-09-03
 
-### Fase 4 — Execução
-- [ ] Coder Engine executa sandbox → testes → backup → promoção
+### Fase 4 — Execução ✅ (iniciada — 2026-09-03)
+- [x] Coder Engine executa sandbox → testes → backup → promoção (`core/coder.py`, 59 testes) — 2026-09-03
 - [ ] Self Repair detecta falhas e gera correções
 - [ ] Perception coleta telemetria de hardware/serviços
 - [ ] 56 Actions executam com validação de Security Layer
@@ -447,7 +449,15 @@ memory/* (~155 linhas de boilerplate removidas; suíte mantida em 668 testes).
 (`core/orchestrator.py`, 29 testes novos, total **697**). Fase 3 encerrada com
 4/4 itens (Workflow Engine, Tool Loader, Action Registry, Orchestrator).
 
-1. **Fase 4 — Capacidades de Execução**: Coder Engine, Self Repair, Perception, 56 Actions (via `tools/registry.py` + Security Layer)
+✅ Concluído: **Fase 4, item 4.1 — Coder Engine** (`core/coder.py`, 59 testes
+novos, total **756**). Pipeline sandbox → testes → backup → promoção com
+patches unificados nativos (stdlib), escopo estrito §7.1, gate Security Layer
+na promoção e eventos coder.started/coder.completed. Fase 4 iniciada (1/4).
+
+1. **Fase 4, item 4.2 — Self Repair** (`core/self_repair.py`): detecção de
+   falhas + geração de correção (depende do Coder Engine 4.1 ✅ e Perception 4.3).
+   Depois: 4.3 Perception (`tools/telemetry.py`) e 4.4 as 56 Actions
+   (via `tools/registry.py` + Security Layer).
 
 ---
 
@@ -455,9 +465,9 @@ memory/* (~155 linhas de boilerplate removidas; suíte mantida em 668 testes).
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 16/32 | 32/32 |
-| Testes totais | 697 | ~600 |
-| Módulos core | 7 | ~15 |
+| Capacidades implementadas | 17/32 | 32/32 |
+| Testes totais | 756 | ~1100 |
+| Módulos core | 8 | ~15 |
 | Ferramentas (tools) | 2 | ~20 |
 | Módulos memory | 5 | 5 |
 | Integrações | 0 | ~8 |

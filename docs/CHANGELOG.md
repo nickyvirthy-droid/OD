@@ -4,6 +4,57 @@
 
 ---
 
+## [0.8.0] — 2026-09-03
+
+### Adicionado
+
+#### Core — Coder Engine (`core/coder.py`) — Fase 4, item 4.1 ✅
+
+**FASE 4 INICIADA** — modificação segura de código com pipeline
+**sandbox → testes → backup → promoção** (NV `core/coder.py`), sem nunca
+tocar o arquivo real antes da validação:
+
+1. **Sandbox** — o conteúdo patcheado é materializado em área isolada
+   (`<root>/.od_sandbox/<change_id>/<relpath>`) — o original permanece intocado
+2. **Testes** — syntax check (`compile`) para `.py` + runner injetado
+   (sync/async) ou `test_command` (subprocess com tokens `{file}`/`{sandbox}`/
+   `{root}`/`{relpath}`, cwd=sandbox, timeout) — falha aqui NUNCA promove
+3. **Backup** — o original é copiado para `<root>/.od_backups/`
+   (`<arquivo>.<change_id>.bak`) antes de qualquer escrita
+4. **Promoção** — escrita atômica (tmp + `os.replace`) do artefato validado
+
+- `CoderEngine` (`async apply_change`) — aceita `patch` (diff unificado) OU
+  `content` completo; `create=True` para arquivos novos; parâmetros de
+  message/role/session_id/metadata; `generate_patch()` para produzir diffs
+  seguros (round-trip garantido)
+- **Unified diff nativo (stdlib)**: `parse_unified_diff`/`apply_unified_diff`/
+  `generate_unified_patch`/`diff_stats` — múltiplos hunks, inserção/remoção,
+  arquivo vazio, sem newline final (marcador `\ No newline`), **relocation**
+  (hunk aplica mesmo com o arquivo derivado, estilo `patch --fuzz`) e
+  rejeição de diffs fora de ordem com erro descritivo
+- **Escopo estrito (spec §7.1)**: todo caminho resolve dentro do `root`;
+  `.git`, diretórios internos (`.od_sandbox`/`.od_backups`) e caminhos fora
+  do root são rejeitados (`CoderScopeError`); root padrão = projeto
+- **Security Layer (spec §7)**: gate opcional na promoção (action
+  `coder.promote`, paths + role) — fail-closed em modo `strict`;
+  compatibilidade/soft apenas sinalizam
+- **Event Bus**: publica `coder.started` / `coder.completed` (best-effort)
+- **TestOutcome/CoderResult/CoderMetrics**: resultados padronizados com
+  steps executados, backup_path, summary (`+N -M`), métricas por status,
+  trilha recente (com limite) e `dump()`
+- Logging via `core/logger.py` (protocolo NICKY + `log.audit("coder.promote")`)
+- Zero dependências externas novas (difflib/asyncio/subprocess/shutil stdlib)
+
+### Infraestrutura
+- **59 testes novos** em `tests/test_coder.py` (parse/aplicação de diffs,
+  round-trips com casos extremos, escopo, pipeline completo, falhas com
+  arquivo intacto, runner/command/timeout, Security Layer, Event Bus,
+  métricas/histórico/dump)
+- Suíte completa: **756 testes, 0 falhas** (697 + 59)
+- **ROADMAP: 17/32 capacidades absorvidas — Fase 4 iniciada (item 4.1 ✅)**
+
+---
+
 ## [0.7.0] — 2026-09-03
 
 ### Adicionado
