@@ -53,6 +53,10 @@ class TelegramTransport(Protocol):
 
     async def send_message(self, chat_id: int, text: str) -> bool: ...
 
+    async def send_voice(
+        self, chat_id: int, audio: bytes, duration_s: float = 0.0
+    ) -> bool: ...
+
     async def fetch_file(self, file_id: str) -> Optional[bytes]: ...
 
 
@@ -130,12 +134,29 @@ class InMemoryTransport:
         self.sent.append({"chat_id": chat_id, "text": text, "ts": time.time()})
         return True
 
+    async def send_voice(
+        self, chat_id: int, audio: bytes, duration_s: float = 0.0
+    ) -> bool:
+        self.sent.append(
+            {
+                "chat_id": chat_id,
+                "voice": audio,
+                "duration_s": duration_s,
+                "ts": time.time(),
+            }
+        )
+        return True
+
     async def fetch_file(self, file_id: str) -> Optional[bytes]:
         return self.files.get(file_id)
 
     @property
     def sent_texts(self) -> list[str]:
-        return [entry["text"] for entry in self.sent]
+        return [entry["text"] for entry in self.sent if "text" in entry]
+
+    @property
+    def sent_voices(self) -> list[bytes]:
+        return [entry["voice"] for entry in self.sent if "voice" in entry]
 
     def close(self) -> None:
         self.closed = True
@@ -232,6 +253,74 @@ class HTTPTransport:
 
     async def send_message(self, chat_id: int, text: str) -> bool:
         self._call("sendMessage", chat_id=chat_id, text=text)
+        return True
+
+    @staticmethod
+    def build_multipart(
+        fields: dict[str, Any],
+        file_field: str,
+        filename: str,
+        file_bytes: bytes,
+        content_type: str = "audio/ogg",
+    ) -> tuple[str, bytes]:
+        """Monta corpo multipart/form-data (stdlib) para upload de arquivo.
+
+        Retorna (boundary, body). Usado pelo sendVoice da Bot API.
+        """
+        boundary = f"----od{abs(hash((filename, len(file_bytes)))):x}"
+        parts: list[bytes] = []
+        for key, value in fields.items():
+            parts.append(
+                (
+                    f"--{boundary}\r\n"
+                    f'Content-Disposition: form-data; name="{key}"\r\n\r\n'
+                    f"{value}\r\n"
+                ).encode("utf-8")
+            )
+        parts.append(
+            (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="{file_field}"; '
+                f'filename="{filename}"\r\n'
+                f"Content-Type: {content_type}\r\n\r\n"
+            ).encode("utf-8")
+        )
+        parts.append(file_bytes)
+        parts.append(f"\r\n--{boundary}--\r\n".encode("utf-8"))
+        return boundary, b"".join(parts)
+
+    async def send_voice(
+        self, chat_id: int, audio: bytes, duration_s: float = 0.0
+    ) -> bool:
+        """Envia mensagem de voz via sendVoice (multipart upload)."""
+        if not audio:
+            raise TransportError("áudio vazio para sendVoice")
+        boundary, body = self.build_multipart(
+            {"chat_id": str(chat_id), "duration": str(int(duration_s))},
+            "voice",
+            filename="voz.ogg",
+            file_bytes=audio,
+        )
+        url = self.api_base.format(token=self.token, method="sendVoice")
+        request = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            body_err = exc.read().decode("utf-8", errors="replace")
+            raise TransportError(
+                f"Telegram sendVoice {exc.code}: {body_err[:300]}"
+            ) from exc
+        except urllib.error.URLError as exc:
+            raise TransportError(f"Telegram API indisponível: {exc}") from exc
+        if not data.get("ok"):
+            raise TransportError(f"Telegram sendVoice erro: {data}")
         return True
 
     async def fetch_file(self, file_id: str) -> Optional[bytes]:

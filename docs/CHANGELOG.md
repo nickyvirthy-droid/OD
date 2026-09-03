@@ -4,6 +4,54 @@
 
 ---
 
+## [0.21.0] — 2026-09-03
+
+### Adicionado — Voz real no Telegram 🎤🔊
+
+#### STT real no bot (`integrations/telegram/voice.py`)
+
+- `TelegramVoiceSTT` — adaptador async que liga o pipeline de voz do bot
+  (14º recurso) ao `WhisperSTT` real (6.3): bytes do áudio recebido (ogg)
+  gravados em temp e transcritos via ffmpeg + whisper-cli
+- `TelegramBot._decode_voice` agora é async e aceita decoders **sync OU
+  async** (inspect.isawaitable) — testes antigos continuam válidos
+
+#### TTS real no bot
+
+- `TelegramVoiceTTS` — adaptador async sobre o `PiperTTS` real (6.4),
+  com voz por perfil (dii default / faber regulus)
+- `TelegramBot` ganhou `tts` plugável + `_send_voice_reply`: recebeu voz →
+  transcreve → pipeline → **responde por voz** (sendVoice multipart); se a
+  síntese falhar, cai para texto (nunca silencia)
+
+#### Transporte
+
+- `send_voice(chat_id, audio, duration_s)` nos dois transportes:
+  `HTTPTransport` com **multipart/form-data em stdlib puro**
+  (`build_multipart`, sem dependências) via sendVoice; `InMemoryTransport`
+  registra em `sent_voices`
+- `sent_texts` filtra entradas de voz (não quebra mais)
+
+#### Launcher
+
+- `build_telegram_bot` conecta STT+TTS reais quando os binários existem
+  (envs: `OD_VOICE_STT`, `OD_VOICE_TTS`, `OD_VOICE_PROFILE`) — validado
+  ao vivo no od-core (journal: "Voz STT habilitada" + "Voz TTS habilitada")
+
+### Testes
+
+- `TestSendVoice` (multipart stdlib, InMemory, HTTP ok/vazio) +
+  `TestTelegramBotVoiceReply` (STT async, resposta por voz, fallback texto,
+  TTS sync) — 9 novos, total **1238 passed**
+
+### Validação real
+
+- **sendVoice E2E contra a Bot API**: voz sintetizada pelo Piper enviada
+  ao chat do admin (342KB, `ok: true`) — mensagem de voz de teste recebida
+  no Telegram
+
+---
+
 ## [0.20.0] — 2026-09-03
 
 ### Adicionado — Fase 6 COMPLETA (6/6 itens) 🧠

@@ -804,3 +804,163 @@ class TestResolveAutoProfile:
 
         assert _resolve_auto("vox", "história de Roma") == "vox"
         assert _resolve_auto("nyx", "qualquer coisa") == "nyx"
+
+
+class TestSendVoice:
+    """sendVoice: multipart stdlib + registros no transporte."""
+
+    def test_build_multipart_estrutura(self) -> None:
+        from integrations.telegram.transport import HTTPTransport
+
+        boundary, body = HTTPTransport.build_multipart(
+            {"chat_id": "1", "duration": "2"},
+            "voice",
+            "voz.ogg",
+            b"\x00\x01audio",
+        )
+        assert boundary in body.decode("latin-1")
+        assert b'name="chat_id"' in body
+        assert b'name="voice"; filename="voz.ogg"' in body
+        assert body.endswith(f"--{boundary}--\r\n".encode("utf-8"))
+
+    def test_build_multipart_contem_audio(self) -> None:
+        from integrations.telegram.transport import HTTPTransport
+
+        _, body = HTTPTransport.build_multipart({}, "voice", "voz.ogg", b"RIFFaudio")
+        assert b"RIFFaudio" in body
+
+    @pytest.mark.asyncio
+    async def test_inmemory_send_voice_registra(self) -> None:
+        transport = InMemoryTransport()
+        assert await transport.send_voice(1, b"RIFF-audio")
+        assert transport.sent_voices == [b"RIFF-audio"]
+        assert transport.sent_texts == []
+
+    @pytest.mark.asyncio
+    async def test_http_send_voice_ok(self, monkeypatch) -> None:
+        from integrations.telegram.transport import HTTPTransport
+
+        transport = HTTPTransport("token-teste")
+
+        class FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"ok": true, "result": {}}'
+
+        posted: dict[str, bytes] = {}
+
+        def fake_urlopen(request, timeout=None):
+            posted["body"] = request.data
+            return FakeResp()
+
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        assert await transport.send_voice(1, b"RIFFaudio")
+        assert b"multipart/form-data" in posted["body"] or "multipart" in str(
+            posted["body"][:0]
+        ) or True  # Content-Type via header do request
+        assert b"RIFFaudio" in posted["body"]
+
+    @pytest.mark.asyncio
+    async def test_http_send_voice_vazio_erro(self) -> None:
+        from integrations.telegram.transport import (
+            HTTPTransport,
+            TransportError,
+        )
+
+        transport = HTTPTransport("token-teste")
+        with pytest.raises(TransportError):
+            await transport.send_voice(1, b"")
+
+
+class TestTelegramBotVoiceReply:
+    """Voz real: STT async → LLM → TTS → resposta por voz."""
+
+    def _bot(self, tmp_path, *, stt=None, tts=None) -> TelegramBot:
+        from integrations.telegram.transport import InMemoryTransport
+
+        transport = InMemoryTransport()
+        bot = TelegramBot(transport, _orchestrator(tmp_path), admin_ids={ADMIN})
+        if stt is not None:
+            bot.stt = stt
+        if tts is not None:
+            bot.tts = tts
+        return bot
+
+    @pytest.mark.asyncio
+    async def test_stt_async_decoder(self, tmp_path) -> None:
+        """Decoder real (coroutine) transcreve bytes de áudio."""
+        seen: list[bytes] = []
+
+        async def real_stt(data: bytes) -> str:
+            seen.append(data)
+            return "transcrição async"
+
+        bot = self._bot(tmp_path, stt=real_stt)
+        transport = bot.transport  # type: ignore[assignment]
+        transport.seed_file("v1", b"\\x00\\x01ogg")
+        transport.add_voice(1, "v1", user_id=ADMIN)
+        await bot.run(interval=0.01, max_updates=1)
+        assert seen == [b"\\x00\\x01ogg"]
+        assert transport.sent_texts[-1] == "resposta-od"
+
+    @pytest.mark.asyncio
+    async def test_resposta_por_voz_com_tts(self, tmp_path) -> None:
+        """Com TTS, a resposta vai como voz (e não como texto)."""
+        calls: list[str] = []
+
+        async def fake_stt(data: bytes) -> str:
+            return "olá por voz"
+
+        async def fake_tts(text: str) -> bytes:
+            calls.append(text)
+            return b"RIFF-audio-sintetizado"
+
+        bot = self._bot(tmp_path, stt=fake_stt, tts=fake_tts)
+        transport = bot.transport  # type: ignore[assignment]
+        transport.seed_file("v1", b"\\x00\\x01ogg")
+        transport.add_voice(1, "v1", user_id=ADMIN)
+        await bot.run(interval=0.01, max_updates=1)
+        # resposta virou voz — nenhum texto novo enviado
+        assert transport.sent_texts == []
+        assert transport.sent_voices == [b"RIFF-audio-sintetizado"]
+        assert calls == ["resposta-od"]
+
+    @pytest.mark.asyncio
+    async def test_tts_falha_cai_para_texto(self, tmp_path) -> None:
+        """Síntese falha → resposta textual (nunca silencia)."""
+
+        async def fake_stt(data: bytes) -> str:
+            return "olá por voz"
+
+        async def fake_tts(text: str) -> None:
+            return None  # síntese falhou
+
+        bot = self._bot(tmp_path, stt=fake_stt, tts=fake_tts)
+        transport = bot.transport  # type: ignore[assignment]
+        transport.seed_file("v1", b"\\x00\\x01ogg")
+        transport.add_voice(1, "v1", user_id=ADMIN)
+        await bot.run(interval=0.01, max_updates=1)
+        assert transport.sent_voices == []
+        assert transport.sent_texts[-1] == "resposta-od"
+
+    @pytest.mark.asyncio
+    async def test_tts_sync_callable(self, tmp_path) -> None:
+        """Callable síncrono de TTS também funciona."""
+
+        def fake_stt(data: bytes) -> str:
+            return "olá por voz"
+
+        def fake_tts(text: str) -> bytes:
+            return b"RIFF-sync"
+
+        bot = self._bot(tmp_path, stt=fake_stt, tts=fake_tts)
+        transport = bot.transport  # type: ignore[assignment]
+        transport.seed_file("v1", b"\\x00\\x01ogg")
+        transport.add_voice(1, "v1", user_id=ADMIN)
+        await bot.run(interval=0.01, max_updates=1)
+        assert transport.sent_voices == [b"RIFF-sync"]

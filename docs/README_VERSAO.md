@@ -9,6 +9,49 @@
 
 ---
 
+## [0.21.0] — Voz real no Telegram: STT + TTS 🎤🔊 (2026-09-03)
+
+### 1. O que foi feito
+
+O 14º recurso do bot (voz) deixou de ser stub e agora usa os binários
+reais da Fase 6:
+
+| Fluxo | Como | Binário real |
+|---|---|---|
+| **Você envia áudio** | `fetch_file` baixa → `TelegramVoiceSTT` grava em temp → ffmpeg converte (WAV 16kHz) → whisper-cli transcreve | whisper.cpp (ggml-base) |
+| **OD responde falando** | texto da resposta → `TelegramVoiceTTS` → Piper sintetiza → `send_voice` (multipart stdlib) | Piper (dii/faber) |
+
+- Decoder do bot aceita callables sync **ou async**; se a síntese falhar,
+  cai para texto (nunca silencia)
+- Launcher conecta STT+TTS automaticamente (envs `OD_VOICE_STT/TTS/PROFILE`);
+  od-core reiniciado com **"Voz STT habilitada (whisper.cpp)"** e
+  **"Voz TTS habilitada (Piper)"** no journal
+
+### 2. Evidência
+
+```
+pytest tests/ -q                          → 1238 passed, 0 falhas  (1229 + 9)
+sendVoice E2E contra a Bot API real        → ok: true · 342KB de voz Piper enviados
+                                            (mensagem de voz recebida no Telegram)
+journal od-core (produção)                 → Voz STT habilitada · Voz TTS habilitada
+                                            · Presence Monitor · Face Detector
+```
+
+### 3. O que NÃO foi feito
+
+- Transcrição de voz ao vivo ainda não observada (nenhum áudio real
+  recebido após o deploy — envie um áudio ao @Nicky_Virthy_bot para
+  validar o caminho completo)
+- Streaming token-a-token (WebSocket) segue como evolução futura
+
+### 4. Próximo passo
+
+- **Validar ao vivo**: envie um áudio ao bot e eu confiro a transcrição no
+  journal + a resposta por voz
+- Ou **Fase 7 — Infraestrutura e Observabilidade**
+
+---
+
 ## [0.20.0] — Fase 6 COMPLETA: Sensorial e Inteligência 🧠 (2026-09-03)
 
 ### 1. O que foi feito

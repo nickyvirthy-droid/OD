@@ -18,6 +18,7 @@ Baseado em:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import os
 import time
 from dataclasses import dataclass, field
@@ -45,6 +46,7 @@ ChatId = Union[int, str]
 # Decodificador de voz (STT) plugável: recebe os bytes do áudio e devolve
 # texto transcrito (ou None se não conseguiu transcrever).
 STTDecoder = Callable[[bytes], Optional[str]]
+VoiceSynthesizer = Callable[[str], Optional[bytes]]
 
 
 @dataclass(slots=True)
@@ -97,6 +99,7 @@ class TelegramBot:
         admin_ids: Optional[set[int]] = None,
         commands: Optional[list[TelegramCommand]] = None,
         stt: Optional[STTDecoder] = None,
+        tts: Optional[VoiceSynthesizer] = None,
         default_profile: str = DEFAULT_PROFILE,
         offset_file: Optional[Union[str, os.PathLike]] = None,
     ) -> None:
@@ -107,6 +110,7 @@ class TelegramBot:
             commands if commands is not None else build_default_commands()
         )
         self.stt = stt
+        self.tts = tts
         self.default_profile = default_profile
         self.offset_file = (
             str(offset_file) if offset_file is not None else None
@@ -282,7 +286,7 @@ class TelegramBot:
             return await self._send_reply(
                 message.chat_id, "Áudio não encontrado (expirou?)."
             )
-        text = self._decode_voice(data)
+        text = await self._decode_voice(data)
         if not text:
             return await self._send_reply(
                 message.chat_id,
@@ -298,13 +302,16 @@ class TelegramBot:
             date=message.date,
         )
         reply = await self._ask_orchestrator(transcribed)
-        return await self._send_reply(message.chat_id, reply)
+        return await self._send_voice_reply(message.chat_id, reply)
 
-    def _decode_voice(self, data: bytes) -> str:
-        """Aplica o STT plugável ou fallback de texto puro (utf-8)."""
+    async def _decode_voice(self, data: bytes) -> str:
+        """Aplica o STT plugável (sync OU async) ou fallback utf-8."""
         if self.stt is not None:
             try:
-                return (self.stt(data) or "").strip()
+                result = self.stt(data)
+                if inspect.isawaitable(result):
+                    result = await result
+                return (result or "").strip()
             except Exception as exc:  # pragma: no cover — decoder externo
                 self.metrics.errors += 1
                 log.error("STT falhou", error=str(exc))
@@ -313,6 +320,22 @@ class TelegramBot:
             return data.decode("utf-8").strip()
         except UnicodeDecodeError:
             return ""
+
+    async def _send_voice_reply(self, chat_id: int, reply: str) -> str:
+        """Resposta por voz (TTS) com fallback de texto."""
+        if self.tts is not None and reply and reply.strip():
+            try:
+                result = self.tts(reply)
+                if inspect.isawaitable(result):
+                    result = await result
+                if result:
+                    ok = await self.transport.send_voice(chat_id, result)
+                    if ok:
+                        return reply
+            except Exception as exc:  # pragma: no cover — rede/TTS externo
+                self.metrics.errors += 1
+                log.error("TTS/reply por voz falhou", error=str(exc))
+        return await self._send_reply(chat_id, reply)
 
     def _run_command(
         self, command: TelegramCommand, message: Message, args: list[str]

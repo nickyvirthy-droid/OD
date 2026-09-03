@@ -36,6 +36,11 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
                         (default 0 — câmera só quando ativado).
     OD_VISION_DEVICE    Dispositivo da webcam (default /dev/video0).
     OD_VISION_POLL_S    Intervalo de captura (default 5).
+    OD_VOICE_STT        "0" desliga a transcrição de voz recebida
+                        (whisper.cpp) no bot (default 1).
+    OD_VOICE_TTS        "0" desliga a resposta por voz (Piper) no bot
+                        (default 1).
+    OD_VOICE_PROFILE    Voz do TTS (default dii; "regulus" = faber).
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
@@ -151,7 +156,12 @@ def build_api_server(orchestrator: Any):
 
 
 def build_telegram_bot(orchestrator: Any):
-    """TelegramBot real (HTTPTransport) sobre o Orchestrator."""
+    """TelegramBot real (HTTPTransport) sobre o Orchestrator.
+
+    Voz (v0.21.0): se os binários reais da Fase 6 existirem, o bot
+    transcreve áudios recebidos (whisper.cpp) e responde por voz (Piper)
+    — controlado por OD_VOICE_STT / OD_VOICE_TTS.
+    """
     from integrations.telegram import HTTPTransport, TelegramBot
 
     token = env("TELEGRAM_BOT_TOKEN", "")
@@ -162,10 +172,36 @@ def build_telegram_bot(orchestrator: Any):
     admins = _admin_ids()
     transport = HTTPTransport(token, timeout=30.0)
     offset_file = env("OD_TELEGRAM_OFFSET_FILE", "")
+
+    stt = tts = None
+    if env("OD_VOICE_STT", "1") != "0":
+        from integrations.telegram.voice import TelegramVoiceSTT
+        from tools.audio import WhisperSTT
+
+        whisper = WhisperSTT()
+        if whisper.available:
+            stt = TelegramVoiceSTT(whisper)
+            log.info("Voz STT habilitada (whisper.cpp)")
+        else:
+            log.warn("Voz STT indisponível — whisper.cpp ausente")
+    if env("OD_VOICE_TTS", "1") != "0":
+        from integrations.telegram.voice import TelegramVoiceTTS
+        from tools.audio import PiperTTS
+
+        piper = PiperTTS()
+        if piper.available:
+            profile = env("OD_VOICE_PROFILE", "default")
+            tts = TelegramVoiceTTS(piper, profile=profile)
+            log.info("Voz TTS habilitada (Piper)", voice=profile)
+        else:
+            log.warn("Voz TTS indisponível — Piper ausente")
+
     bot = TelegramBot(
         transport,
         orchestrator,
         admin_ids=admins,
+        stt=stt,
+        tts=tts,
         offset_file=(
             offset_file or str(DATA_DIR / "telegram_offset.json")
         ),
