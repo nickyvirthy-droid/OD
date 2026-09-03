@@ -77,6 +77,13 @@ coverage.xml
 .env.local
 .env.*.local
 
+# Secrets (real credentials stay local; commit only .example templates)
+config/iot_credentials.json
+config/*_credentials.json
+
+# Runtime state (conversations, caches)
+data/
+
 # Docker
 docker-compose.override.yml
 

@@ -265,6 +265,9 @@ class OrchestratorConfig:
     inject_datetime: bool = True
     max_history_turns: Optional[int] = DEFAULT_MAX_HISTORY_TURNS
     unavailable_message: str = DEFAULT_UNAVAILABLE_MESSAGE
+    # System prompt padrão (ex: identidade da Interface Viva) usado quando
+    # process() é chamado sem system_prompt explícito.
+    default_system_prompt: str = ""
 
 
 @dataclass(slots=True)
@@ -441,6 +444,8 @@ class Orchestrator:
         Returns:
             OrchestrationResult com a rota que produziu a resposta.
         """
+        if not system_prompt:
+            system_prompt = self._config.default_system_prompt
         started = time.perf_counter()
         result = OrchestrationResult(
             user_id=user_id,

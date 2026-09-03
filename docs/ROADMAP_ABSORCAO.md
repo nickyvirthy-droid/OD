@@ -51,8 +51,9 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **API REST** | `integrations/api/` | 46 ✅ |
 | **ProactiveNotifier** | `integrations/notifier.py` | 42 ✅ |
 | **IoT Manager** | `integrations/homeassistant/` | 45 ✅ |
-| Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **24 componentes** | **1037 testes** |
+| **LLM Provider** | `core/llm.py` | 17 ✅ |
+| Agent Nicky | `agents/nicky_virthy/` | 10 ✅ |
+| **Total** | **25 componentes** | **1064 testes** |
 
 ---
 
@@ -516,6 +517,20 @@ fake (mesma interface), e IoTManager com controle set_power/toggle, gate de
 segurança (allowed_domains + guard), eventos iot.command e métricas.
 Fase 5 com 4/5 itens.
 
+✅ Concluído: **v0.16.0 — ATIVAÇÃO REAL** (`core/llm.py` + `runtime/` +
+27 testes novos, total **1064**). O sistema saiu do código e foi colocado
+no ar de verdade no servidor: **LLM local gemma-4-E4B** rodando via llama.cpp
+(b10786, OpenAI-compat em 127.0.0.1:8081) com o `OpenAICompatProvider`
+conectando o Orchestrator a ele; **identidade da Nicky injetada**
+(`agents/nicky_virthy/personality.py` + `OrchestratorConfig.
+default_system_prompt`); **launcher real** (`runtime/launcher.py`: API 8000 +
+Telegram Bot em polling com o token legado @Nicky_Virthy_bot); **Home
+Assistant migrado** de dentro do nexus para `/srv/omegadrakon/homeassistant`
+(container recriado, OD autossuficiente) com o IoTManager validado contra
+**29 entidades reais**; segredos protegidos no `.gitignore`; **units systemd
+de usuário `od-llm`/`od-core` instaladas, habilitadas e ativas** (auto-start
+no boot). Capacidades do roadmap: 24/32 (ativação não adiciona item).
+
 1. **Fase 5 — Integrações Externas**: item 5.5 MQTT Bridge
    (`integrations/mqtt/`), que FECHA a Fase 5.
 
@@ -526,8 +541,8 @@ Fase 5 com 4/5 itens.
 | Métrica | Atual | Meta Final |
 |---|---|---|
 | Capacidades implementadas | 24/32 | 32/32 |
-| Testes totais | 1037 | ~1100 |
-| Módulos core | 9 | ~15 |
+| Testes totais | 1064 | ~1100 |
+| Módulos core | 10 | ~15 |
 | Ferramentas (tools) | 4 | ~20 |
 | Módulos memory | 5 | 5 |
 | Integrações | 4 | ~8 |

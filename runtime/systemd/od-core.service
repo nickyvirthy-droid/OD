@@ -1,0 +1,16 @@
+[Unit]
+Description=Omega Drakon — CORE (API REST 8000 + Telegram Bot)
+After=od-llm.service network.target
+Wants=od-llm.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/alex/OmegaDrakon
+EnvironmentFile=/home/alex/OmegaDrakon/.env
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python -m runtime.launcher all
+Restart=on-failure
+RestartSec=10
+# Lê TELEGRAM_BOT_TOKEN/OD_TELEGRAM_ADMINS/OD_API_* do .env (não versionado).
+
+[Install]
+WantedBy=default.target

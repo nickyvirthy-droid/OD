@@ -9,6 +9,53 @@
 
 ---
 
+## [0.16.0] — Ativação Real — Omega Drakon NO AR 🟢 (2026-09-03)
+
+> **Primeira entrega operacional**: LLM real + identidade + API + Telegram
+> Bot + Home Assistant rodando no servidor. Capacidades do roadmap: 24/32.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **LLM Provider** | `core/llm.py` | `OpenAICompatProvider` — o elo que faltava entre o Orchestrator e um LLM real: OpenAI-compat em **stdlib** (urllib), ChatML→`messages`, `chat()` sync/async, `is_available()`, timeout, erros tipados |
+| **LLM no ar** | `/opt/omegadrakon/ai/runtimes/llama` | llama.cpp b10786 (suporte a gemma4) + **gemma-4-E4B-it-Q4_K_M.gguf** servindo em `127.0.0.1:8081` — resposta real com raciocínio em ~17s (CPU, 4 núcleos) |
+| **Identidade** | `agents/nicky_virthy/personality.py` | System prompt da Nicky (SOUL/IDENTITY + Tríade) por perfil; injetado via `OrchestratorConfig.default_system_prompt` — o gemma responde como Nicky Virthy |
+| **Launcher** | `runtime/launcher.py` | Sobe o sistema real: Orchestrator + provider `gemma-local` + API REST (8000) + Telegram Bot em polling; logs em `runtime/logs/` |
+| **Segredos** | `.env` + `.gitignore` + `config/` | Token legado validado (**@Nicky_Virthy_bot**), admin `660518870`; `.env`, `config/iot_credentials.json` e `data/` protegidos; template commitável `.example.json` |
+| **Home Assistant** | `/srv/omegadrakon/homeassistant` | Config migrada de dentro do nexus (byte a byte, incl. auth) e container recriado — OD autossuficiente; IoTManager validado contra **29 entidades reais** |
+| **Auto-start** | `runtime/systemd/` | Units de usuário `od-llm.service` + `od-core.service` + `install-user.sh` — instaladas, habilitadas e **ativas** (linger on, sobrevive a reboot) |
+| — | `tests/test_llm.py` + `tests/test_personality.py` | **27 testes novos** (17 + 10) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/ -q        → 1064 passed, 0 falhas
+curl http://127.0.0.1:8081/health            → {"status":"ok"}
+curl http://127.0.0.1:8000/health            → ok, llms: [gemma-local]
+curl :8000/llms (X-API-Key)                  → OpenAICompatProvider "gemma-local"
+GET /api/ do HA + token legado                → 200 (29 entidades via IoTManager)
+systemctl --user status od-llm od-core        → active (running), enabled
+E2E: HTTP → Orchestrator → gemma             → responde como Nicky Virthy, OD
+```
+
+### 3. O que NÃO foi feito
+
+- **Fase 5 (1/5 restante)**: MQTT Bridge (5.5) — o Mosquitto systemd já está
+  ativo em 127.0.0.1:1883, aguardando a ponte
+- STT/TTS reais (Fase 6) — a voz entra via decoder plugável no Telegram
+- Units systemd de sistema (root): as atuais são de usuário (sem sudo
+  disponível); `runtime/systemd/` documenta a promoção futura
+- Docker/MariaDB legados parados permanecem como estão; nada do nexus é
+  necessário para o OD rodar
+
+### 4. Próximo passo
+
+**Fase 5, item 5.5 — MQTT Bridge** (`integrations/mqtt/`) — ponte para o
+broker Mosquitto já ativo, fechando a **Fase 5 (5/5)**.
+
+---
+
 ## [0.15.0] — Fase 5 (item 5.4) — IoT Manager ✅ (2026-09-03)
 
 > **FASE 5 — 4/5 itens (IoT Manager).** 24/32 capacidades no roadmap.

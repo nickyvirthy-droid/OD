@@ -1,0 +1,19 @@
+[Unit]
+Description=Omega Drakon — LLM local (llama-server / gemma-4-E4B)
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/omegadrakon/ai/runtimes/llama
+ExecStart=/opt/omegadrakon/ai/runtimes/llama/llama-server \
+    -m /home/alex/LLM/data/models/gemma-4-E4B-it-Q4_K_M.gguf \
+    --host 127.0.0.1 --port 8081 --ctx-size 16384 \
+    --parallel 1 -t 4 --repeat-penalty 1.15 --temp 0.7 --top-p 0.9
+Restart=on-failure
+RestartSec=5
+# O llama-server derrete sob pressão de RAM (7.7GB) — reinício limpo
+# e healthcheck do OD cuida do resto.
+
+[Install]
+WantedBy=default.target

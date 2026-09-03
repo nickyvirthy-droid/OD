@@ -4,6 +4,54 @@
 
 ---
 
+## [0.16.0] — 2026-09-03
+
+### Adicionado
+
+#### Ativação Real — Omega Drakon NO AR (LLM + API + Bot + HA) 🟢
+
+**Primeira entrega operacional.** O sistema saiu do código e foi colocado para
+funcionar de verdade no servidor (`nicky-server`, usuário `alex`):
+
+- **`core/llm.py`** — `OpenAICompatProvider`: o elo que faltava entre o
+  Orchestrator e um LLM real. Fala com servidores OpenAI-compat em **stdlib**
+  (urllib): converte o ChatML do Orchestrator em `messages` nativas,
+  `chat()` sync/async, `is_available()` (usado pelo ProactiveNotifier),
+  timeout configurável, erros tipados (`LLMError`/`LLMUnavailableError`)
+- **LLM local no ar** — llama.cpp atualizado (release b10786, com suporte à
+  arquitetura gemma4) instalado em `/opt/omegadrakon/ai/runtimes/llama` e
+  **gemma-4-E4B-it-Q4_K_M.gguf** (o que já estava baixado) servindo em
+  `127.0.0.1:8081` (OpenAI-compat, ctx 16k, 4 threads) — resposta real com
+  raciocínio em ~17s em CPU
+- **`agents/nicky_virthy/personality.py`** — monta o system prompt da Nicky
+  (SOUL/IDENTITY + hierarquia da Tríade) por perfil (default/guardian/creator/
+  analyst/fantasma→guardian) · injeção via
+  `OrchestratorConfig.default_system_prompt` (aditivo, default vazio). O gemma
+  agora responde como **Nicky Virthy, Interface Viva do Omega Drakon**
+- **`runtime/launcher.py`** — sobe o sistema real: Orchestrator com provider
+  `gemma-local` + identidade + API REST (8000) + Telegram Bot (polling); logs
+  em `runtime/logs/`
+- **Segredos** — `.env` do OD com o token legado do Telegram (validado via
+  getMe: **@Nicky_Virthy_bot**) e admin `660518870`; `.gitignore` protege
+  `.env`, `config/iot_credentials.json` e `data/`; template commitável
+  `config/iot_credentials.example.json`
+- **Home Assistant migrado e no ar** — config saiu de dentro do nexus
+  (`nexus/infra/ha/config`) para `/srv/omegadrakon/homeassistant` (byte a
+  byte, incluindo `.storage/` de auth via container root) e o container foi
+  recriado apontando para o novo caminho — **OD autossuficiente** (nexus pode
+  ser apagado sem levar o HA). Token legado validado contra a API real:
+  **IoTManager lendo 29 entidades reais**
+- **`runtime/systemd/`** — units de usuário `od-llm.service` (llama-server) e
+  `od-core.service` (launcher) + `install-user.sh` (instala, habilita e ativa
+  linger). **Instaladas e ATIVAS** sob systemd com auto-start no boot
+
+### Infraestrutura
+- **27 testes novos** (`tests/test_llm.py` 17 + `tests/test_personality.py` 10)
+- Suíte completa: **1064 testes, 0 falhas** (1037 + 27)
+- E2E real: HTTP → Orchestrator → gemma respondendo com identidade Nicky
+
+---
+
 ## [0.15.0] — 2026-09-03
 
 ### Adicionado
