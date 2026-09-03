@@ -378,11 +378,11 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] Vector Memory com thread safety e provider plugável (`memory/vector.py`, 36 testes) — *ChromaDB substituído por HashEmbeddingProvider stdlib; interface adaptável (EmbeddingProvider protocol)*
 - [x] Context Manager previne estouro de tokens (`memory/context.py`, 28 testes)
 
-### Fase 3 — Orquestração (em andamento)
+### Fase 3 — Orquestração ✅ (concluída — 2026-09-03)
 - [x] Workflow Engine suporta branching, nested, retries, timeouts (`core/workflows.py`, 70 testes) — 2026-09-03
 - [x] Tool Loader carrega plugins dinamicamente (`tools/loader.py`, 39 testes) — 2026-09-03
 - [x] Action Registry registra actions tipadas com execução validada pelo Security Layer (`tools/registry.py`, 33 testes) — 2026-09-03
-- [ ] Orchestrator executa pipeline de 8 etapas com fallbacks
+- [x] Orchestrator executa pipeline de 8 etapas com fallbacks (`core/orchestrator.py`, 29 testes) — 2026-09-03
 
 ### Fase 4 — Execução
 - [ ] Coder Engine executa sandbox → testes → backup → promoção
@@ -443,8 +443,11 @@ FASE 7 (Infraestrutura) ←── paralela
 `core/logger.make_audit_nicky()` em event_bus, router, state, security/* e
 memory/* (~155 linhas de boilerplate removidas; suíte mantida em 668 testes).
 
-1. **Implementar Orchestrator Pipeline** (`core/orchestrator.py`) — pipeline de 8 etapas (rate limit → datetime → AIML → cache → history → LLM → fallback → post-processing) — encerra a Fase 3
-2. **Fase 4 — Capacidades de Execução**: Coder Engine, Self Repair, Perception, 56 Actions (via `tools/registry.py` + Security Layer)
+✅ Concluído: **Fase 3 COMPLETA** — item 3.4 Orchestrator Pipeline
+(`core/orchestrator.py`, 29 testes novos, total **697**). Fase 3 encerrada com
+4/4 itens (Workflow Engine, Tool Loader, Action Registry, Orchestrator).
+
+1. **Fase 4 — Capacidades de Execução**: Coder Engine, Self Repair, Perception, 56 Actions (via `tools/registry.py` + Security Layer)
 
 ---
 
@@ -452,9 +455,9 @@ memory/* (~155 linhas de boilerplate removidas; suíte mantida em 668 testes).
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 15/32 | 32/32 |
-| Testes totais | 668 | ~600 |
-| Módulos core | 6 | ~15 |
+| Capacidades implementadas | 16/32 | 32/32 |
+| Testes totais | 697 | ~600 |
+| Módulos core | 7 | ~15 |
 | Ferramentas (tools) | 2 | ~20 |
 | Módulos memory | 5 | 5 |
 | Integrações | 0 | ~8 |

@@ -216,18 +216,20 @@ documentação atualizada. Qualquer item ausente = trabalho NÃO concluído.
 > com interface `EmbeddingProvider` adaptável para ChromaDB futuro — conforme
 > mitigação do roadmap ("preferir stdlib; isolar em adapters").
 
-### Fase 3 — Orquestração (EM ANDAMENTO — 2026-09-03)
+### Fase 3 — Orquestração ✅ (CONCLUÍDA — 2026-09-03)
 
 | Capacidade | Arquivo | Testes |
 |---|---|---|
 | 3.1 Workflow Engine | `core/workflows.py` | 70 ✅ |
 | 3.2 Tool Loader | `tools/loader.py` | 39 ✅ |
 | 3.3 Action Registry | `tools/registry.py` | 33 ✅ |
-| 3.4 Orchestrator Pipeline | `core/orchestrator.py` | ❌ pendente |
+| 3.4 Orchestrator Pipeline | `core/orchestrator.py` | 29 ✅ |
 
-> **Suíte atual:** **668 testes, 0 falhas** (635 das Fases 1–3.3 + 33 novos
-> do Action Registry). Publicado no GitHub com a Fase 3 em andamento — ver
-> `docs/README_VERSAO.md` §[0.6.0] para o relatório §2.1 completo.
+> **Suíte atual:** **697 testes, 0 falhas** (668 das Fases 1–3.3 + 29 novos
+> do Orchestrator). **16/32 capacidades** no roadmap. Publicado no GitHub —
+> ver `docs/README_VERSAO.md` §[0.7.0] para o relatório §2.1 completo.
+> **Próxima: Fase 4 — Execução** (Coder Engine, Self Repair, Perception,
+> 56 Actions).
 
 ---
 

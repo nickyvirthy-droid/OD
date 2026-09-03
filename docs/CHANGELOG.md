@@ -4,6 +4,39 @@
 
 ---
 
+## [0.7.0] — 2026-09-03
+
+### Adicionado
+
+#### Core — Orchestrator Pipeline (`core/orchestrator.py`) — Fase 3, item 3.4 ✅
+
+**FASE 3 COMPLETA** — pipeline de 8 etapas para processamento de mensagens:
+
+1. **Rate Limit** — janela deslizante por usuário (padrão 10 msg/60s), clock injetável
+2. **Datetime PT-BR** — detecta "que horas/dia" e responde sem LLM; injeta data/hora no
+   system prompt quando o caminho segue para o LLM
+3. **Quick Responses** — respostas instantâneas (AIML legado) via rota `quick_response`
+4. **Cache LLM** — consulta SHA-256 por prompt normalizado + perfil; hit responde sem LLM
+5. **Histórico** — monta contexto ChatML com os últimos N turns (ConversationHistory)
+6. **LLM** — providers plugáveis tentados em ordem (protocolo `LLMProvider`)
+7. **Fallback** — provider com falha é substituído pelo próximo; esgotados → `llm_unavailable`
+8. **Pós-processamento** — grava no cache + histórico e registra métricas
+
+- `Orchestrator`, `OrchestratorConfig`, `OrchestrationResult` (to_dict) — sem dependência
+  externa de LLM: sem providers, rotas curtas (datetime/quick) seguem funcionando
+- Componentes de memória opcionais (history/cache/quick ausentes → etapas puladas)
+- Publicação de evento `orchestrator.responded` no Event Bus (opcional)
+- Métricas por rota (processed, datetime, quick, llm, cache_hits, errors, avg_latency_ms)
+  + `dump()`; logging via `core/logger.py`
+
+### Infraestrutura
+- **29 testes novos** em `tests/test_orchestrator.py` (rate limit, datetime PT-BR,
+  quick responses, cache, histórico, fallback de providers, métricas, event bus)
+- Suíte completa: **697 testes, 0 falhas** (668 + 29)
+- **ROADMAP: 16/32 capacidades absorvidas (Fase 3 concluída)**
+
+---
+
 ## [0.6.1] — 2026-09-03
 
 ### Refatoração

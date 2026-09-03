@@ -9,6 +9,38 @@
 
 ---
 
+## [0.7.0] — Fase 3 (item 3.4) — Orchestrator Pipeline ✅ (2026-09-03)
+
+> **FASE 3 COMPLETA — 4/4 itens (Workflow Engine, Tool Loader, Action
+> Registry, Orchestrator Pipeline).** 16/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **3.4 Orchestrator Pipeline** | `core/orchestrator.py` | Pipeline de **8 etapas**: rate limit (10 msg/60s, janela deslizante) → datetime PT-BR (detecção + injeção no system prompt) → quick responses (AIML) → cache LLM (SHA-256 + perfil) → histórico (ChatML, N turns) → LLM (providers plugáveis) → fallback (próximo provider; esgotados → `llm_unavailable`) → pós-processamento (grava cache/histórico + métricas) · `Orchestrator`/`OrchestratorConfig`/`OrchestrationResult` · sem dependência externa de LLM (sem providers, rotas curtas funcionam) · componentes de memória opcionais (ausentes → etapas puladas) · evento `orchestrator.responded` no Event Bus · métricas por rota + `dump()` · logging via `core/logger.py` |
+| — | `tests/test_orchestrator.py` | **29 testes** (rate limit, datetime PT-BR, quick, cache, histórico, fallback de providers, métricas, event bus) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_orchestrator.py -q   → 29 passed
+.venv/bin/python -m pytest tests/ -q                       → 697 passed, 0 falhas
+```
+
+### 3. O que NÃO foi feito
+
+- **Fase 4 — Execução**: Coder Engine, Self Repair, Perception, 56 Actions
+- Refatoração cosmética dos call sites `_audit_nicky` (mantidos como alias)
+- Sandbox de execução de plugins (tema do `runtime/`, fases futuras)
+
+### 4. Próximo passo
+
+**Fase 4, item 4.1 — Coder Engine** (`core/coder_engine.py`) — sandbox →
+testes → backup → promoção.
+
+---
+
 ## [0.6.1] — Refatoração: Logger unificado ✅ (2026-09-03)
 
 ### 1. O que foi feito
@@ -278,7 +310,8 @@ Vector Memory (RAG), Context Manager. → Concluída em [0.4.0].
 | 0.5.0 | Fase 3 (3.1) — Workflow Engine | 2026-09-03 (publicado) | `7008035` |
 | 0.5.1 | Fase 3 (3.2) — Tool Loader | 2026-09-03 (publicado) | `3ee9616` |
 | 0.6.0 | Fase 3 (3.3) — Action Registry | 2026-09-03 (publicado) | `b37765f` |
-| 0.6.1 | Refatoração — Logger unificado | 2026-09-03 (esta publicação) | commit desta entrega |
+| 0.6.1 | Refatoração — Logger unificado | 2026-09-03 (publicado) | `6b54de5` |
+| 0.7.0 | **Fase 3 completa (3.4)** — Orchestrator Pipeline | 2026-09-03 (esta publicação) | commit desta entrega |
 
 > **Nota de transparência:** os relatórios §2.1 das Fases 1 e 2 foram
 > registrados retroativamente neste documento (2026-09-03) a partir dos
