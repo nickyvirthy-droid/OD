@@ -9,6 +9,41 @@
 
 ---
 
+## [0.11.0] — Fase 4 (item 4.4) — 56 Actions ✅ (2026-09-03)
+
+> **FASE 4 COMPLETA — 4/4 itens (Coder Engine, Self Repair, Perception,
+> 56 Actions).** 20/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **4.4 56 Actions** | `tools/actions/` | Catálogo de **56 actions** registradas no Action Registry (`build_registry`/`register_all`) com `permission` própria (gate do Security Layer na execução): 54 ações enumeradas no legado NV (sistema 13, processos 4, docker 4, serviços 3, arquivos 15, git 10, banco 3, introspecção 3) + **2 complementares documentadas** (`process_tree`, `action_list`) · `CATALOG` tipado (name/category/description/handler/params) · segurança por design: sem path padrão, `process_kill` protege pid<2, `system_env` sem keys só retorna nomes (anti-vazamento), `system_ping` TCP (sem root), escopo estrito §7.1 via Registry · degradação graciosa de docker/systemd/journald/db (`{ok:False,error}` — camada db é da Fase 7.5) · git com repo explícito (`git -C`); filesystem completo (write/read/delete/copy/move/archive/extract/tree/hash/search/...) · zero dependências novas |
+| — | `tests/test_actions_catalog.py` | **31 testes** (estrutura do catálogo, registro idempotente, execução funcional sistema/arquivos/processos/git/introspecção, degradação, Security Layer: role/escopo/deny, métricas) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_actions_catalog.py -q   → 31 passed
+.venv/bin/python -m pytest tests/ -q                           → 849 passed, 0 falhas
+```
+
+### 3. O que NÃO foi feito
+
+- **Fase 5 — Integrações Externas** (Telegram, API, Notifier, IoT, MQTT)
+- Ações com autenticação/credenciais e Docker SDK/contêineres detalhados
+  (sonda por CLI degrada sem daemon) — decisões registradas no CHANGELOG
+- Acoplamento das Actions ao Orchestrator (agente) — próximo passo natural
+  da Fase 5 (interface principal)
+
+### 4. Próximo passo
+
+**Fase 5, item 5.1 — Telegram Bot** (`integrations/telegram/`) — bot com
+comandos, STT/TTS e perfis sobre o Orchestrator; depois API REST (5.2),
+Notifier (5.3), IoT (5.4) e MQTT (5.5).
+
+---
+
 ## [0.10.0] — Fase 4 (item 4.3) — Perception Syncer ✅ (2026-09-03)
 
 > **FASE 4 — 3/4 itens (Perception).** 19/32 capacidades no roadmap.
@@ -421,8 +456,9 @@ Vector Memory (RAG), Context Manager. → Concluída em [0.4.0].
 | 0.6.1 | Refatoração — Logger unificado | 2026-09-03 (publicado) | `6b54de5` |
 | 0.7.0 | **Fase 3 completa (3.4)** — Orchestrator Pipeline | 2026-09-03 (publicado) | `cf4eefa` |
 | 0.8.0 | **Fase 4 (4.1)** — Coder Engine | 2026-09-03 (publicado) | `a97f9f5` |
-| 0.9.0 | **Fase 4 (4.2)** — Self Repair Engine | 2026-09-03 (publicado com a 0.10.0, mesma entrega) | commit desta entrega |
-| 0.10.0 | **Fase 4 (4.3)** — Perception Syncer | 2026-09-03 (esta entrega) | commit desta entrega |
+| 0.9.0 | **Fase 4 (4.2)** — Self Repair Engine | 2026-09-03 (publicado) | `8066ea4` |
+| 0.10.0 | **Fase 4 (4.3)** — Perception Syncer | 2026-09-03 (publicado) | `8066ea4` |
+| 0.11.0 | **Fase 4 COMPLETA (4.4)** — 56 Actions | 2026-09-03 (esta entrega) | commit desta entrega |
 
 > **Nota de transparência:** os relatórios §2.1 das Fases 1 e 2 foram
 > registrados retroativamente neste documento (2026-09-03) a partir dos

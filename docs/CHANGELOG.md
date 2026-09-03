@@ -4,6 +4,48 @@
 
 ---
 
+## [0.11.0] — 2026-09-03
+
+### Adicionado
+
+#### Tools — Catálogo de 56 Actions (`tools/actions/`) — Fase 4, item 4.4 ✅
+
+**FASE 4 COMPLETA — 4/4 itens.** Catálogo de **56 actions operacionais**
+registradas no Action Registry com `permission` própria (gate do Security
+Layer na execução):
+
+- **Origem:** 54 ações enumeradas na análise legada do NV (§3.3 — sistema,
+  processos, docker, serviços, arquivos, git, banco de dados, introspecção)
+  + **2 complementares documentadas**: `process_tree` (processos) e
+  `action_list` (introspecção)
+- **Por categoria:** system 13 · process 4 · docker 4 · service 3 ·
+  filesystem 15 · git 10 · database 3 · introspection 4
+- `CATALOG` (metadados tipados: name/category/description/handler/params) e
+  `build_registry(security=...)`/`register_all()` → ActionRegistry
+- **Segurança por design**: nenhum handler usa caminho padrão (parâmetros
+  de arquivo/git sempre explícitos); `process_kill` protege pid < 2;
+  `system_env` sem `keys` retorna apenas NOMES (anti-vazamento de segredos);
+  `system_ping` é sonda TCP (ICMP exigiria root); escopo estrito §7.1
+  aplicado pelo Security Layer no Registry (path fora da raiz → denied)
+- **Degradação graciosa**: docker/systemd/journald sem binário/daemon e
+  banco de dados (camada é da Fase 7.5) retornam dados `{ok: False, error}`
+  em vez de exceção — catálogo executável em qualquer ambiente
+- Git 100% via `git -C <repo>` com repositório sempre explícito
+  (branch/status/add/commit/log/diff/checkout/fetch/pull/push);
+  filesystem completo (search/read/write/delete/exists/info/list/mkdir/
+  move/copy/touch/tree/hash/archive/extract)
+- Zero dependências externas novas (stdlib)
+
+### Infraestrutura
+- **31 testes novos** em `tests/test_actions_catalog.py` (catálogo e
+  categorias, registro idempotente, execução funcional de sistema/arquivos/
+  processos/git/introspecção, degradação de docker/serviços/db, gate de
+  Security Layer — role desconhecida, path fora do escopo, deny pattern)
+- Suíte completa: **849 testes, 0 falhas** (818 + 31)
+- **FASE 4 CONCLUÍDA (4/4)** — **ROADMAP: 20/32 capacidades absorvidas**
+
+---
+
 ## [0.10.0] — 2026-09-03
 
 ### Adicionado

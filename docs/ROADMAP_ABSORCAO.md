@@ -46,8 +46,9 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Coder Engine** | `core/coder.py` | 59 ✅ |
 | **Self Repair** | `core/self_repair.py` | 41 ✅ |
 | **Perception Syncer** | `tools/telemetry.py` | 21 ✅ |
+| **56 Actions** | `tools/actions/` | 31 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **19 componentes** | **818 testes** |
+| **Total** | **20 componentes** | **849 testes** |
 
 ---
 
@@ -388,10 +389,11 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] Action Registry registra actions tipadas com execução validada pelo Security Layer (`tools/registry.py`, 33 testes) — 2026-09-03
 - [x] Orchestrator executa pipeline de 8 etapas com fallbacks (`core/orchestrator.py`, 29 testes) — 2026-09-03
 
-### Fase 4 — Execução ✅ (2/4 — 2026-09-03)
+### Fase 4 — Execução ✅ CONCLUÍDA (2026-09-03)
 - [x] Coder Engine executa sandbox → testes → backup → promoção (`core/coder.py`, 59 testes) — 2026-09-03
 - [x] Self Repair detecta falhas e gera correções mediadas pelo Coder Engine (`core/self_repair.py`, 41 testes) — 2026-09-03
 - [x] Perception coleta telemetria de hardware/serviços (`tools/telemetry.py`, 21 testes) — 2026-09-03
+- [x] 56 Actions executam com validação de Security Layer (`tools/actions/`, 31 testes) — 2026-09-03
 - [ ] Self Repair detecta falhas e gera correções
 - [ ] Perception coleta telemetria de hardware/serviços
 - [ ] 56 Actions executam com validação de Security Layer
@@ -471,9 +473,16 @@ memória, disco, rede, portas TCP, Docker (socket unix) e processos;
 snapshot resiliente com seções independentes e erros parciais; proc_root
 injetável. Fase 4 com 3/4 itens.
 
-1. **Fase 4, item 4.4 — 56 Actions** (via `tools/registry.py` + Security
-   Layer): catálogo de ações operacionais por categoria (sistema, fs, git,
-   docker, db, rede) registradas no Action Registry. Com ele, a Fase 4 fecha.
+✅ Concluído: **Fase 4 COMPLETA** — item 4.4 Catálogo de 56 Actions
+(`tools/actions/`, 31 testes novos, total **849**). 54 ações do legado NV
+(sistema, processos, docker, serviços, arquivos, git, db, introspecção)
++ 2 complementares (process_tree, action_list), todas com permission própria
+(gate Security Layer na execução) e degradação graciosa sem infra externa.
+Fase 4 encerrada com 4/4 itens (Coder, Self Repair, Perception, Actions).
+
+1. **Fase 5 — Integrações Externas**: item 5.1 Telegram Bot
+   (`integrations/telegram/`), depois API REST (5.2), Notifier (5.3),
+   IoT Manager (5.4) e MQTT Bridge (5.5).
 
 ---
 
@@ -481,13 +490,13 @@ injetável. Fase 4 com 3/4 itens.
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 19/32 | 32/32 |
-| Testes totais | 818 | ~1100 |
+| Capacidades implementadas | 20/32 | 32/32 |
+| Testes totais | 849 | ~1100 |
 | Módulos core | 9 | ~15 |
-| Ferramentas (tools) | 3 | ~20 |
+| Ferramentas (tools) | 4 | ~20 |
 | Módulos memory | 5 | 5 |
 | Integrações | 0 | ~8 |
-| Actions | 0 | 56 |
+| Actions | 56 | 56 |
 | Cobertura de código | — | >90% |
 
 ---
