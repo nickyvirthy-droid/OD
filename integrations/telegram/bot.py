@@ -18,8 +18,10 @@ Baseado em:
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
 from core.logger import get_logger
@@ -90,6 +92,7 @@ class TelegramBot:
         commands: Optional[list[TelegramCommand]] = None,
         stt: Optional[STTDecoder] = None,
         default_profile: str = DEFAULT_PROFILE,
+        offset_file: Optional[Union[str, os.PathLike]] = None,
     ) -> None:
         self.transport = transport
         self.orchestrator = orchestrator
@@ -99,6 +102,9 @@ class TelegramBot:
         )
         self.stt = stt
         self.default_profile = default_profile
+        self.offset_file = (
+            str(offset_file) if offset_file is not None else None
+        )
         self.started_at = time.time()
         self.metrics = BotMetrics()
         self._profiles: dict[int, str] = {}
@@ -109,7 +115,10 @@ class TelegramBot:
             for alias in command.aliases:
                 self._by_alias[alias] = command
         self._closed = False
-        self._offset: Optional[int] = None  # último update confirmado (polling)
+        # Offset do próximo update a buscar (semântica do servidor: confirma
+        # updates com update_id < offset). Persistido em arquivo para que
+        # reinícios nunca reprocessem updates já confirmados.
+        self._offset: Optional[int] = self._load_offset()
         log.info(
             "TelegramBot inicializado",
             commands=len(self.commands),
@@ -402,10 +411,39 @@ class TelegramBot:
                     return processed
                 await self.handle_update(update)
                 processed += 1
-                self._offset = update.update_id
+                # Telegram só confirma updates com update_id < offset: é
+                # preciso enviar o PRÓXIMO id (último + 1), senão o servidor
+                # reentrega o mesmo update para sempre (loop de respostas).
+                self._offset = update.update_id + 1
+                self._save_offset()
                 if max_updates is not None and processed >= max_updates:
                     return processed
         return processed
+
+    # -- Offset persistido ---------------------------------------------------
+
+    def _load_offset(self) -> Optional[int]:
+        """Lê o offset confirmado do arquivo (None se inexistente)."""
+        if not self.offset_file:
+            return None
+        try:
+            value = Path(self.offset_file).read_text(encoding="utf-8").strip()
+            return int(value) if value else None
+        except (OSError, ValueError):
+            return None
+
+    def _save_offset(self) -> None:
+        """Persiste o próximo offset em arquivo (atômico)."""
+        if not self.offset_file or self._offset is None:
+            return
+        try:
+            path = Path(self.offset_file)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(str(self._offset), encoding="utf-8")
+            tmp.replace(path)
+        except OSError:  # pragma: no cover — sem permissão
+            log.warn("Offset do bot não pôde ser salvo", path=self.offset_file)
 
     def close(self) -> None:
         self._closed = True

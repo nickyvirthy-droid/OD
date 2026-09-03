@@ -4,6 +4,46 @@
 
 ---
 
+## [0.17.1] — 2026-09-03
+
+### Corrigido
+
+#### Telegram — loop infinito de reprocessamento (offset) 🐛
+
+**Sintoma em produção:** o bot respondia/apitava sem parar, reprocessando a
+mesma mensagem a cada poll.
+
+- **Causa raiz:** `TelegramBot.run()` confirmava com `offset = update_id` em
+  vez de `update_id + 1`. O Telegram só confirma updates com `update_id <
+  offset` — sem o `+1`, o servidor **reentrega o mesmo update para sempre**
+  e o bot respondia em loop (agravado por respostas longas do LLM local). O
+  `InMemoryTransport` mascarava o bug (watermark avançava mesmo com offset
+  errado) — por isso os testes não pegaram
+- **Correção:** `self._offset = update.update_id + 1` (semântica real do
+  servidor) + **offset persistido em arquivo** (`offset_file`, default em
+  `data/telegram_offset.json`) — reinícios nunca reprocessam updates já
+  confirmados
+- **Testes alinhados:** `InMemoryTransport` agora imita o servidor real
+  (`getUpdates(offset=N)` confirma `update_id < N` e devolve `>= N`) — a
+  regressão do loop passa a ser detectável em teste; +2 testes novos
+  (offset avança para último+1 e persistência entre bots)
+- **Verificado ao vivo:** bot respondeu o backlog preso (1x via LLM + 1x
+  cache) e ficou **ocioso** — mensagens novas são respondidas uma única vez
+
+#### API REST — acesso pela LAN (site) 🐛
+
+- **Sintoma:** `http://192.168.0.250:8000` não abria de outro dispositivo
+- **Causa:** a API bindava só em `127.0.0.1` (hardcoded no launcher)
+- **Correção:** bind via `OD_API_HOST` (default **0.0.0.0** — LAN/site);
+  `OD_API_KEY` gerada e gravada no `.env` (endpoints protegidos seguem
+  exigindo `X-API-Key`; páginas públicas continuam abertas)
+
+### Infraestrutura
+- `runtime/launcher.py`: `offset_file` do bot + `OD_API_HOST` no docstring
+- Suíte: **1120 testes** (1118 + 2 de regressão)
+
+---
+
 ## [0.17.0] — 2026-09-03
 
 ### Adicionado

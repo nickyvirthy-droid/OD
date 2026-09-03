@@ -9,6 +9,35 @@
 
 ---
 
+## [0.17.1] — Correções de produção: Telegram loop + API na LAN 🐛 (2026-09-03)
+
+### 1. O que foi feito
+
+| Item | O que | Destaques |
+|---|---|---|
+| **Telegram loop** | `integrations/telegram/bot.py` | `offset = update_id + 1` (o servidor só confirma `update_id < offset` — sem o `+1` reentregava o mesmo update para sempre → bot respondia sem parar) · **offset persistido** em `data/telegram_offset.json` (reinícios não reprocessam) |
+| **Testes alinhados** | `transport.py` + `tests/test_telegram.py` | `InMemoryTransport` imita o servidor real (confirma `< offset`) — a regressão do loop agora é detectável · +2 testes (offset avança p/ último+1, persistência entre bots) |
+| **API na LAN** | `runtime/launcher.py` | Bind via `OD_API_HOST` (default `0.0.0.0`) — `http://192.168.0.250:8000` acessível · `OD_API_KEY` gerada no `.env` (endpoints protegidos com `X-API-Key`) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_telegram.py -q   → 57 passed
+.venv/bin/python -m pytest tests/ -q                     → 1120 passed, 0 falhas
+curl http://192.168.0.250:8000/health                    → 200 (LAN)
+curl sem X-API-Key /llms                                 → 401 (protegido)
+Bot: respondeu o backlog 1x e ficou ocioso; novas mensagens → 1 resposta
+```
+
+### 3. O que NÃO foi feito
+
+- MQTT: por decisão do usuário, broker segue **anônimo (só LAN)** — sem
+  usuário registrado; comandos sudo ficam prontos para quando quiser
+- HA: usuário Alex Projeti (`alex`) já existia como owner/admin — nada a
+  fazer; acesso em `http://192.168.0.250:8123`
+
+---
+
 ## [0.17.0] — Fase 5 (item 5.5) — MQTT Bridge ✅ (2026-09-03)
 
 > **FASE 5 — 5/5 COMPLETA (Telegram, API, Notifier, IoT, MQTT).**

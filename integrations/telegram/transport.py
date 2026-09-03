@@ -69,10 +69,10 @@ class InMemoryTransport:
         self._next_update_id = 1
         self.files: dict[str, bytes] = {}
         self.closed = False
-        # Watermark de consumo, como o offset mantido pelo servidor real:
-        # updates com update_id <= watermark já foram entregues ao bot e
-        # não voltam em polls seguintes (evita reprocessamento).
-        self._watermark = 0
+        # Confirmação, como o offset mantido pelo servidor real do Telegram:
+        # getUpdates(offset=N) confirma updates com update_id < N e devolve
+        # os com update_id >= N. O bot avança enviando offset = último + 1.
+        self._confirmed = 0
 
     # -- Helpers de teste ----------------------------------------------------
 
@@ -122,8 +122,8 @@ class InMemoryTransport:
 
     async def get_updates(self, offset: Optional[int] = None) -> list[Update]:
         if offset is not None:
-            self._watermark = max(self._watermark, int(offset))
-        pending = [u for u in self.incoming if u.update_id > self._watermark]
+            self._confirmed = max(self._confirmed, int(offset) - 1)
+        pending = [u for u in self.incoming if u.update_id > self._confirmed]
         return sorted(pending, key=lambda u: u.update_id)
 
     async def send_message(self, chat_id: int, text: str) -> bool:

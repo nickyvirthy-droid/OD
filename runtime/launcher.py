@@ -19,7 +19,9 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
     OD_LLM_URL          Endpoint OpenAI-compat (default 127.0.0.1:8081).
     OD_LLM_TIMEOUT_S    Timeout por chamada LLM (default 240).
     OD_API_PORT         Porta da API REST (default 8000).
-    OD_API_KEY          Chave X-API-Key opcional da API (default vazia).
+    OD_API_HOST         Bind da API (default 0.0.0.0 — LAN/site; use
+                        127.0.0.1 para só local).
+    OD_API_KEY          Chave X-API-Key da API (endpoints protegidos).
     OD_MQTT_ENABLED     "0" desliga a ponte MQTT no modo all (default 1).
     OD_MQTT_HOST/PORT   Broker Mosquitto (default 127.0.0.1:1883).
     OD_MQTT_CLIENT_ID   Identificador no broker (default od-core).
@@ -123,11 +125,12 @@ def build_api_server(orchestrator: Any):
     from integrations.api import APIConfig, APIServer
 
     api_key = env("OD_API_KEY", "")
+    host = env("OD_API_HOST", "0.0.0.0")  # LAN (site 192.168.0.250:8000)
     port = int(env("OD_API_PORT", "8000"))
     server = APIServer(
         orchestrator,
         config=APIConfig(
-            host="127.0.0.1",
+            host=host,
             port=port,
             api_key=api_key,
         ),
@@ -150,7 +153,15 @@ def build_telegram_bot(orchestrator: Any):
         if part.strip().isdigit()
     }
     transport = HTTPTransport(token, timeout=30.0)
-    bot = TelegramBot(transport, orchestrator, admin_ids=admins)
+    offset_file = env("OD_TELEGRAM_OFFSET_FILE", "")
+    bot = TelegramBot(
+        transport,
+        orchestrator,
+        admin_ids=admins,
+        offset_file=(
+            offset_file or str(DATA_DIR / "telegram_offset.json")
+        ),
+    )
     return bot
 
 

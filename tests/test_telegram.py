@@ -125,10 +125,11 @@ class TestInMemoryTransport:
         assert u1.update_id == 1 and u2.update_id == 2
         all_updates = await transport.get_updates()
         assert [u.update_id for u in all_updates] == [1, 2]
-        # Offset simula consumo incremental
-        after = await transport.get_updates(offset=1)
+        # Offset imita o servidor real: getUpdates(offset=N) confirma os
+        # updates com update_id < N e devolve os com update_id >= N.
+        after = await transport.get_updates(offset=2)
         assert [u.update_id for u in after] == [2]
-        assert await transport.get_updates(offset=2) == []
+        assert await transport.get_updates(offset=3) == []
 
     @pytest.mark.asyncio
     async def test_add_voice_message_shape(self) -> None:
@@ -666,6 +667,41 @@ class TestTelegramBotPolling:
         assert await bot.run(interval=0.01, max_updates=1) == 1
         assert len(transport.sent_texts) == 3
         assert await bot.run(interval=0.01, max_updates=1) == 0
+
+    @pytest.mark.asyncio
+    async def test_offset_advances_to_last_plus_one(self) -> None:
+        """Regressão do loop infinito: offset deve confirmar o update no
+        servidor (último id + 1), senão o Telegram o reentrega para sempre.
+        """
+        transport = InMemoryTransport()
+        bot = TelegramBot(transport, _orchestrator_for_polling(), admin_ids={ADMIN})
+        transport.add_message(1, "a", user_id=ADMIN)
+        assert await bot.run(interval=0.01, max_updates=1) == 1
+        assert bot._offset == 2  # confirma o update 1
+        # Sem nada novo, novo run não pode reprocessar o update 1
+        assert await bot.run(interval=0.01, max_updates=1) == 0
+
+    @pytest.mark.asyncio
+    async def test_offset_file_persisted_across_bots(self, tmp_path) -> None:
+        offset_file = tmp_path / "telegram_offset.json"
+        transport = InMemoryTransport()
+        bot = TelegramBot(
+            transport, _orchestrator_for_polling(), admin_ids={ADMIN},
+            offset_file=offset_file,
+        )
+        transport.add_message(1, "a", user_id=ADMIN)
+        transport.add_message(1, "b", user_id=ADMIN)
+        assert await bot.run(interval=0.01, max_updates=2) == 2
+        assert bot._offset == 3
+        # Novo bot (simula reinício) retoma do offset persistido
+        bot2 = TelegramBot(
+            transport, _orchestrator_for_polling(), admin_ids={ADMIN},
+            offset_file=offset_file,
+        )
+        assert bot2._offset == 3
+        transport.add_message(1, "c", user_id=ADMIN)  # id 3
+        assert await bot2.run(interval=0.01, max_updates=1) == 1
+        assert bot2._offset == 4
 
     @pytest.mark.asyncio
     async def test_run_survives_transport_error(self) -> None:
