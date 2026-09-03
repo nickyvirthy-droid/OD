@@ -48,7 +48,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import logging
+from core.logger import make_audit_nicky
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -57,9 +57,7 @@ from typing import Any, Callable, Coroutine, Optional, Union
 
 from core.event_bus import Event, EventBus, Priority
 
-logger = logging.getLogger("omega.core.router")
-
-NICKY_PREFIX = "[NICKY][{level}]"
+_audit_nicky = make_audit_nicky("omega.core.router")
 
 
 # ---------------------------------------------------------------------------
@@ -216,17 +214,6 @@ class DeadLetter:
     attempts: int
     ts: float = field(default_factory=time.time)
 
-
-# ---------------------------------------------------------------------------
-# Audit Logger (NICKY Protocol)
-# ---------------------------------------------------------------------------
-
-def _audit_nicky(level: str, message: str, **kwargs: Any) -> None:
-    prefix = NICKY_PREFIX.format(level=level)
-    extra = " ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
-    full = f"{prefix} {message}" + (f" | {extra}" if extra else "")
-    _LEVEL_MAP = {"INFO": logger.info, "WARN": logger.warning, "CRIT": logger.critical}
-    _LEVEL_MAP.get(level, logger.info)(full)
 
 
 # ---------------------------------------------------------------------------

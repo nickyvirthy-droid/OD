@@ -17,23 +17,16 @@ from __future__ import annotations
 __signature__ = "OD // CORE"
 
 import fnmatch
-import logging
+from core.logger import make_audit_nicky
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from core.security.models import ActionRequest, CheckResult
 
-logger = logging.getLogger("omega.core.security.permissions")
-
-NICKY_PREFIX = "[NICKY][{level}]"
+_audit_nicky = make_audit_nicky("omega.core.security.permissions")
 
 
-def _audit_nicky(level: str, message: str, **kwargs: Any) -> None:
-    prefix = NICKY_PREFIX.format(level=level)
-    extra = " ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
-    full = f"{prefix} {message}" + (f" | {extra}" if extra else "")
-    _LEVEL_MAP = {"INFO": logger.info, "WARN": logger.warning, "CRIT": logger.critical}
-    _LEVEL_MAP.get(level, logger.info)(full)
+
 
 
 # ---------------------------------------------------------------------------

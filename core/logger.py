@@ -48,7 +48,7 @@ import time
 from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, Optional, TextIO
+from typing import Any, Callable, Optional, TextIO
 
 __signature__ = "OD // CORE"
 
@@ -432,3 +432,37 @@ def reset_loggers() -> None:
         for logger in _loggers.values():
             logger.close()
         _loggers.clear()
+
+
+def make_audit_nicky(name: str) -> Callable[..., None]:
+    """Fábrica do emissor NICKY canônico, vinculado a um logger registrado.
+
+    Substitui as implementações de `_audit_nicky` que antes eram duplicadas
+    em cada módulo (event_bus, router, state, security, memory, ...). Cada
+    módulo agora faz apenas:
+
+        _audit_nicky = make_audit_nicky("omega.core.event_bus")
+
+    e segue chamando `_audit_nicky(level, message, **context)` — a formatação
+    do protocolo NICKY e a resolução de níveis ficam centralizadas aqui.
+
+    Args:
+        name: Nome do logger registrado (convenção "omega.<componente>").
+
+    Returns:
+        Emissor com assinatura (level, message, **context).
+    """
+    logger = get_logger(name)
+
+    def _emit(level: str, message: str, **context: Any) -> None:
+        normalized = str(level).upper()
+        if normalized == "WARNING":
+            normalized = "WARN"
+        if normalized == "CRITICAL":
+            normalized = "CRIT"
+        method = getattr(logger, normalized.lower(), None)
+        if method is None:
+            raise ValueError(f"nível de log desconhecido: {level!r}")
+        method(message, **context)
+
+    return _emit

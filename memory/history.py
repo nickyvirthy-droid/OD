@@ -34,26 +34,19 @@ Usage:
 from __future__ import annotations
 
 import json
-import logging
+from core.logger import make_audit_nicky
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-logger = logging.getLogger("omega.memory.history")
-
-NICKY_PREFIX = "[NICKY][{level}]"
+_audit_nicky = make_audit_nicky("omega.memory.history")
 
 __signature__ = "OD // CORE"
 
 
-def _audit_nicky(level: str, message: str, **kwargs: Any) -> None:
-    prefix = NICKY_PREFIX.format(level=level)
-    extra = " ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
-    full = f"{prefix} {message}" + (f" | {extra}" if extra else "")
-    _LEVEL_MAP = {"INFO": logger.info, "WARN": logger.warning, "CRIT": logger.critical}
-    _LEVEL_MAP.get(level, logger.info)(full)
+
 
 
 # ---------------------------------------------------------------------------

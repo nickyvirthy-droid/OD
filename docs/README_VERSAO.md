@@ -9,6 +9,46 @@
 
 ---
 
+## [0.6.1] — Refatoração: Logger unificado ✅ (2026-09-03)
+
+### 1. O que foi feito
+
+- `core/logger.py` — nova fábrica canônica **`make_audit_nicky(name)`**:
+  resolução de níveis (INFO/WARN/CRIT/ERROR/DEBUG/ONLINE) e emissão NICKY
+  centralizadas em um único ponto.
+- 13 módulos migrados (cada um agora com uma linha de assinatura, removendo
+  ~10 linhas de boilerplate idêntico por arquivo, ~155 no total):
+  - `core/event_bus.py`, `core/router.py`, `core/state.py`
+  - `core/security/`: `manager`, `policy`, `permissions`, `scope`,
+    `approval`, `audit`
+  - `memory/`: `history`, `cache`, `quick_responses`, `vector`, `context`
+- Chamadas `_audit_nicky("INFO"|...` preservadas (assinatura idêntica) —
+  comportamento inalterado; logs agora fluem pelo `core/logger.py`
+  (NickyLogger, protocolo NICKY).
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/ -q
+→ 668 passed, 0 falhas   (inalterado — refatoração sem mudança funcional)
+
+git diff --stat
+→ 15 arquivos, 70 inserções, 155 remoções
+```
+
+### 3. O que NÃO foi feito
+
+- Conversão dos call sites para `log.info(...)` direto — as chamadas mantêm
+  o nome `_audit_nicky` (agora um alias de `make_audit_nicky`), evitando
+  alteração em dezenas de pontos; a implementação duplicada foi removida.
+- Item 3.4 (Orchestrator Pipeline) — último da Fase 3 (próximo).
+
+### 4. Próximo passo
+
+**Fase 3, item 3.4 — Orchestrator Pipeline** (`core/orchestrator.py`).
+
+---
+
 ## [0.6.0] — Fase 3 (item 3.3) — Action Registry ✅ (2026-09-03)
 
 ### 1. O que foi feito
@@ -237,7 +277,8 @@ Vector Memory (RAG), Context Manager. → Concluída em [0.4.0].
 | 0.4.0 | Fase 1 completa + Fase 2 — Memória | 2026-09-03 (publicado) | `a604f7f`, `ebc7f04` |
 | 0.5.0 | Fase 3 (3.1) — Workflow Engine | 2026-09-03 (publicado) | `7008035` |
 | 0.5.1 | Fase 3 (3.2) — Tool Loader | 2026-09-03 (publicado) | `3ee9616` |
-| 0.6.0 | Fase 3 (3.3) — Action Registry | 2026-09-03 (esta publicação) | commit desta entrega |
+| 0.6.0 | Fase 3 (3.3) — Action Registry | 2026-09-03 (publicado) | `b37765f` |
+| 0.6.1 | Refatoração — Logger unificado | 2026-09-03 (esta publicação) | commit desta entrega |
 
 > **Nota de transparência:** os relatórios §2.1 das Fases 1 e 2 foram
 > registrados retroativamente neste documento (2026-09-03) a partir dos

@@ -4,6 +4,31 @@
 
 ---
 
+## [0.6.1] — 2026-09-03
+
+### Refatoração
+
+#### Logger unificado — `_audit_nicky` → `core/logger.py` ✅
+- Implementação canônica única do emissor NICKY: `core/logger.make_audit_nicky(name)`
+  (resolução de níveis INFO/WARN/CRIT/ERROR/DEBUG/ONLINE + formatação do
+  protocolo NICKY centralizadas em um único lugar)
+- 13 módulos deixaram de duplicar o helper `_audit_nicky` (removidos ~155
+  linhas de boilerplate idêntico) e agora fazem apenas:
+  `_audit_nicky = make_audit_nicky("omega.<componente>")`
+- Módulos migrados: `core/event_bus.py`, `core/router.py`, `core/state.py`,
+  `core/security/` (manager, policy, permissions, scope, approval, audit) e
+  `memory/` (history, cache, quick_responses, vector, context)
+- Chamadas existentes (`_audit_nicky("INFO", ...)`) preservadas — zero
+  mudança de comportamento; logs agora seguem o NickyLogger (protocolo NICKY
+  em console/arquivo) via `core/logger.py`
+
+### Infraestrutura
+- Suíte completa mantida: **668 testes, 0 falhas** (sem mudança funcional)
+- Pendência antiga do roadmap ("Integrar Logger nos componentes existentes")
+  resolvida — resta apenas o item 3.4 (Orchestrator) para fechar a Fase 3
+
+---
+
 ## [0.6.0] — 2026-09-03
 
 ### Adicionado

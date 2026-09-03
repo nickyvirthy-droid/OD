@@ -439,9 +439,12 @@ FASE 7 (Infraestrutura) ←── paralela
 
 ✅ Concluído: Fase 3 item 3.3 — Action Registry (`tools/registry.py`, 33 testes novos, total 668).
 
+✅ Concluído: v0.6.1 — Logger unificado: `_audit_nicky` duplicado substituído por
+`core/logger.make_audit_nicky()` em event_bus, router, state, security/* e
+memory/* (~155 linhas de boilerplate removidas; suíte mantida em 668 testes).
+
 1. **Implementar Orchestrator Pipeline** (`core/orchestrator.py`) — pipeline de 8 etapas (rate limit → datetime → AIML → cache → history → LLM → fallback → post-processing) — encerra a Fase 3
-2. **Integrar Logger nos componentes existentes** — substituir `_audit_nicky` duplicado (event_bus, router, state, memory) pelo `core/logger.py`
-3. **Fase 4 — Capacidades de Execução**: Coder Engine, Self Repair, Perception, 56 Actions (via `tools/registry.py` + Security Layer)
+2. **Fase 4 — Capacidades de Execução**: Coder Engine, Self Repair, Perception, 56 Actions (via `tools/registry.py` + Security Layer)
 
 ---
 

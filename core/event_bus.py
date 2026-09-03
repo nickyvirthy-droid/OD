@@ -37,14 +37,14 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import logging
+from core.logger import make_audit_nicky
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Callable, Coroutine, Optional, Union
 
-logger = logging.getLogger("omega.core.event_bus")
+_audit_nicky = make_audit_nicky("omega.core.event_bus")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -53,7 +53,6 @@ logger = logging.getLogger("omega.core.event_bus")
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY = 0.1  # seconds
 MAX_METRICS_WINDOW = 1000  # retain last N metric snapshots
-NICKY_PREFIX = "[NICKY][{level}]"
 
 
 # ---------------------------------------------------------------------------
@@ -188,21 +187,6 @@ class BusMetrics:
             "handler_count": self.handler_count,
         }
 
-
-# ---------------------------------------------------------------------------
-# Audit Logger (NICKY Protocol)
-# ---------------------------------------------------------------------------
-
-def _audit_nicky(level: str, message: str, **kwargs: Any) -> None:
-    """Structured audit log following the NICKY protocol.
-
-    Levels: INFO, WARN, CRIT
-    """
-    prefix = NICKY_PREFIX.format(level=level)
-    extra = " ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
-    full = f"{prefix} {message}" + (f" | {extra}" if extra else "")
-    _LEVEL_MAP = {"INFO": logger.info, "WARN": logger.warning, "CRIT": logger.critical}
-    _LEVEL_MAP.get(level, logger.info)(full)
 
 
 # ---------------------------------------------------------------------------
