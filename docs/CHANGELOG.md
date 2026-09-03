@@ -4,6 +4,91 @@
 
 ---
 
+## [0.10.0] — 2026-09-03
+
+### Adicionado
+
+#### Tools — Perception Syncer (`tools/telemetry.py`) — Fase 4, item 4.3 ✅
+
+**FASE 4 — 3/4 itens.** Telemetria de hardware/serviços 100% stdlib
+(leitura de `/proc`, `socket`, `shutil`), resiliente — falha de uma sonda
+nunca derruba o snapshot:
+
+- **CPU** — % de uso por delta entre amostras de `/proc/stat` (0.0 na
+  primeira, baseline por instância), load average 1/5/15, núcleos
+- **Memória** — `/proc/meminfo` em bytes: total/available/used/percent + swap
+- **Disco** — `shutil.disk_usage` por caminho configurável (`disk_paths`)
+- **Rede** — bytes rx/tx por interface (`/proc/net/dev`)
+- **Portas** — sonda TCP (`socket` connect com timeout); resultados por porta
+- **Docker** — daemon acessível? probe de socket unix (sem SDK externo)
+- **Processos** — contagem por nome (`/proc/*/comm`), totais por snapshot
+- **Host** — hostname, sistema, release, uptime (`/proc/uptime`), python
+- `Telemetry.collect()` → `TelemetrySnapshot` tipado com seções + `errors`
+  parciais; `dump()`; `proc_root`/`docker_socket` injetáveis (testes usam
+  `/proc` fictício para determinismo)
+- Seções independentes reportam `ok=False` + `error` sem levantar exceção;
+  erros de seções também acumulados em `snapshot.errors` (observável)
+- Logging via `core/logger.py` (protocolo NICKY); zero dependências novas
+
+### Infraestrutura
+- **21 testes novos** em `tests/test_telemetry.py` (/proc fictício: CPU delta,
+  memória em bytes, load, rede, processos, uptime, disco; sondas reais de
+  porta TCP aberta/fechada e socket unix do Docker; snapshot completo e
+  resiliência a falhas parciais)
+- Suíte completa: **818 testes, 0 falhas** (797 + 21)
+- Smoke real executado: coleta contra `/proc` da máquina — mem 14.7%, disco
+  27.8%, interfaces com bytes reais, Docker up, 0 erros
+- **ROADMAP: 19/32 capacidades absorvidas — Fase 4 com 3/4 itens (4.1 ✅, 4.2 ✅, 4.3 ✅)**
+
+---
+
+## [0.9.0] — 2026-09-03
+
+### Adicionado
+
+#### Core — Self Repair Engine (`core/self_repair.py`) — Fase 4, item 4.2 ✅
+
+**FASE 4 — 2/4 itens.** Auto-reparo com ciclo **detectar → gerar → reparar →
+verificar → (rollback)**, com TODA correção mediada pelo Coder Engine (4.1):
+
+1. **Detectar** — determinístico e sem efeitos colaterais: syntax check
+   (`compile`) para `.py` + import probe opcional (executa módulo isolado,
+   captura `ModuleNotFoundError`/falhas runtime) + oracle `check` injetado
+   (componente íntegro?) — `Detection` tipada (category syntax/import/
+   runtime/check, linha, coluna, mensagem)
+2. **Gerar** — estratégias determinísticas embutidas (`AddMissingColon`:
+   headers `def/class/if/elif/else/for/while/try/except/finally/with` sem
+   `:`), estratégias customizáveis e **providers plugáveis** (`FixProvider` —
+   ponto de extensão para auto-extensão via LLM no futuro, item 6.6)
+3. **Reparar** — cada candidato passa pelo `CoderEngine.apply_change()`
+   (sandbox → testes → backup → promoção + runner/test_command + Security
+   Layer) — promoção só ocorre com o pipeline do Coder aprovando
+4. **Verificar** — pós-promoção: oracle `check` (sync/async) e/ou
+   re-detecção do arquivo
+5. **Rollback automático** — se a verificação reprovar, snapshot pré-reparo
+   (bytes exatos, `.od_repair_backups/`) é restaurado e o próximo candidato
+   é tentado; `restore()` manual também disponível
+
+- `SelfRepairEngine` (`async repair`) + `detect()` público; escopo estrito
+  §7.1 (root, proteção de `.git`/áreas internas) — `SelfRepairScopeError`
+- Snapshots pré-reparo SEMPRE antes da primeira mudança (rollback devolve o
+  último estado conhecido, inclusive doente — fail-safe, documentado)
+- Eventos `self_repair.detected` / `self_repair.completed` (best-effort)
+- `Detection`/`RepairAttempt`/`RepairReport`/`RepairMetrics`: relatórios
+  padronizados com attempts (rejected/applied/rolled_back), trilha recente
+  e `dump()`; logging via `core/logger.py` (NICKY + audit)
+- Zero dependências externas novas (stdlib puro)
+
+### Infraestrutura
+- **41 testes novos** em `tests/test_self_repair.py` (detecção, estratégia de
+  colon, ciclos healthy/repaired/no_fix/error, oracle check sync/async,
+  rollback e restore, mediação do Coder (runner/security), providers e
+  dedupe/max_attempts, eventos, métricas/trilha/dump)
+- Suíte completa: **797 testes, 0 falhas** (756 + 41)
+- **ROADMAP: 18/32 capacidades absorvidas — Fase 4 com 2/4 itens (4.1 ✅, 4.2 ✅)**
+
+---
+
 ## [0.8.0] — 2026-09-03
 
 ### Adicionado

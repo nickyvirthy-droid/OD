@@ -9,6 +9,79 @@
 
 ---
 
+## [0.10.0] — Fase 4 (item 4.3) — Perception Syncer ✅ (2026-09-03)
+
+> **FASE 4 — 3/4 itens (Perception).** 19/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **4.3 Perception Syncer** | `tools/telemetry.py` | Telemetria de hardware/serviços 100% stdlib (leitura de `/proc`, `socket`, `shutil`): CPU (% por delta entre amostras de `/proc/stat` + load 1/5/15), memória (`/proc/meminfo` em bytes, +swap), disco (`shutil.disk_usage` por caminho), rede (`/proc/net/dev` rx/tx), portas TCP (socket connect com timeout), Docker (probe de socket unix, sem SDK), processos (`/proc/*/comm`), host/uptime · `Telemetry.collect()` → `TelemetrySnapshot` tipado com seções independentes (`ok=False` + `error` sem exceção) e erros parciais acumulados em `snapshot.errors` · `proc_root`/`docker_socket`/`disk_paths`/`port_timeout` injetáveis (testes com `/proc` fictício determinístico) · `dump()` · logging NICKY · zero dependências novas |
+| — | `tests/test_telemetry.py` | **21 testes** (/proc fictício: CPU delta, memória bytes, load, rede, processos, uptime; sondas reais porta TCP aberta/fechada + socket unix Docker; snapshot completo; resiliência a falhas parciais) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_telemetry.py -q   → 21 passed
+.venv/bin/python -m pytest tests/ -q                     → 818 passed, 0 falhas
+```
+
+Smoke real contra `/proc` da máquina: mem 14.7%, disco 27.8%, interfaces com
+bytes reais (lo/enp2s0/wlx...), Docker up, 0 erros.
+
+### 3. O que NÃO foi feito
+
+- **Fase 4 (1/4 restante)**: item 4.4 — as 56 Actions operacionais
+- Integração automática Perception → Self Repair (4.2): as seções de
+  telemetria estão prontas para alimentar oracles `check` do Self Repair,
+  mas o acoplamento por serviço fica para a fase de Actions/operação
+- Contêineres Docker listados (sem SDK externo, a sonda reporta apenas
+  daemon acessível/up) — decisão registrada
+- Monitoramento de thresholds/alertas (Fase 7 — observabilidade)
+
+### 4. Próximo passo
+
+**Fase 4, item 4.4 — 56 Actions** (via `tools/registry.py` + Security Layer):
+catálogo de ações operacionais por categoria. Com ele, a Fase 4 fecha.
+
+---
+
+## [0.9.0] — Fase 4 (item 4.2) — Self Repair Engine ✅ (2026-09-03)
+
+> **FASE 4 — 2/4 itens (Self Repair).** 18/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **4.2 Self Repair** | `core/self_repair.py` | Ciclo **detectar → gerar → reparar → verificar → (rollback)** com toda correção mediada pelo Coder Engine (4.1): detecção determinística (syntax `compile` para `.py`, import probe isolado opcional para import/runtime, oracle `check` sync/async injetado) · geração por estratégias embutidas (`AddMissingColon` — headers de bloco sem `:`) + estratégias customizadas + **providers plugáveis** (`FixProvider`, futuro ponto de auto-extensão LLM 6.6) · candidatos submetidos ao `CoderEngine.apply_change()` (sandbox→testes→backup→promoção, runner/test_command, Security Layer) · verificação pós-promoção (check/re-detecção) · **rollback automático** para snapshot pré-reparo (bytes exatos em `.od_repair_backups/`) quando a verificação reprova · `restore()` manual · escopo estrito §7.1 · eventos `self_repair.detected`/`self_repair.completed` · `Detection`/`RepairAttempt`/`RepairReport`/`RepairMetrics` + trilha + `dump()` · NICKY · zero dependências novas |
+| — | `tests/test_self_repair.py` | **41 testes** (detecção, estratégias, ciclos healthy/repaired/no_fix/error, check sync/async, rollback/restore, mediação do Coder, providers, dedupe/max_attempts, eventos, métricas) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_self_repair.py -q   → 41 passed
+.venv/bin/python -m pytest tests/ -q                       → 797 passed, 0 falhas
+```
+
+### 3. O que NÃO foi feito
+
+- **Fase 4 (2/4 restantes)**: Perception (4.3) e 56 Actions (4.4)
+- Correções assistidas por LLM (auto-extensão) — o `FixProvider` é o ponto de
+  extensão preparado, mas nenhum provider LLM foi acoplado (não há
+  `core/llm.py` ainda; decisão registrada)
+- Telemetria/Perception alimentando a detecção automaticamente (4.3)
+- Reparo de categorias runtime/import sem estratégia — reportadas como
+  `no_fix` com a falha registrada (comportamento seguro por design)
+
+### 4. Próximo passo
+
+**Fase 4, item 4.3 — Perception Syncer** (`tools/telemetry.py`) — telemetria
+de hardware/serviços para alimentar o Self Repair; depois as 56 Actions (4.4).
+
+---
+
 ## [0.8.0] — Fase 4 (item 4.1) — Coder Engine ✅ (2026-09-03)
 
 > **FASE 4 INICIADA — 1/4 itens (Coder Engine).** 17/32 capacidades no roadmap.
@@ -347,7 +420,9 @@ Vector Memory (RAG), Context Manager. → Concluída em [0.4.0].
 | 0.6.0 | Fase 3 (3.3) — Action Registry | 2026-09-03 (publicado) | `b37765f` |
 | 0.6.1 | Refatoração — Logger unificado | 2026-09-03 (publicado) | `6b54de5` |
 | 0.7.0 | **Fase 3 completa (3.4)** — Orchestrator Pipeline | 2026-09-03 (publicado) | `cf4eefa` |
-| 0.8.0 | **Fase 4 (4.1)** — Coder Engine | 2026-09-03 (esta entrega) | commit desta entrega |
+| 0.8.0 | **Fase 4 (4.1)** — Coder Engine | 2026-09-03 (publicado) | `a97f9f5` |
+| 0.9.0 | **Fase 4 (4.2)** — Self Repair Engine | 2026-09-03 (publicado com a 0.10.0, mesma entrega) | commit desta entrega |
+| 0.10.0 | **Fase 4 (4.3)** — Perception Syncer | 2026-09-03 (esta entrega) | commit desta entrega |
 
 > **Nota de transparência:** os relatórios §2.1 das Fases 1 e 2 foram
 > registrados retroativamente neste documento (2026-09-03) a partir dos

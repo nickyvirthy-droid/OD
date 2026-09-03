@@ -44,8 +44,10 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Action Registry** | `tools/registry.py` | 33 ✅ |
 | **Orchestrator Pipeline** | `core/orchestrator.py` | 29 ✅ |
 | **Coder Engine** | `core/coder.py` | 59 ✅ |
+| **Self Repair** | `core/self_repair.py` | 41 ✅ |
+| **Perception Syncer** | `tools/telemetry.py` | 21 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **17 componentes** | **756 testes** |
+| **Total** | **19 componentes** | **818 testes** |
 
 ---
 
@@ -386,8 +388,10 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] Action Registry registra actions tipadas com execução validada pelo Security Layer (`tools/registry.py`, 33 testes) — 2026-09-03
 - [x] Orchestrator executa pipeline de 8 etapas com fallbacks (`core/orchestrator.py`, 29 testes) — 2026-09-03
 
-### Fase 4 — Execução ✅ (iniciada — 2026-09-03)
+### Fase 4 — Execução ✅ (2/4 — 2026-09-03)
 - [x] Coder Engine executa sandbox → testes → backup → promoção (`core/coder.py`, 59 testes) — 2026-09-03
+- [x] Self Repair detecta falhas e gera correções mediadas pelo Coder Engine (`core/self_repair.py`, 41 testes) — 2026-09-03
+- [x] Perception coleta telemetria de hardware/serviços (`tools/telemetry.py`, 21 testes) — 2026-09-03
 - [ ] Self Repair detecta falhas e gera correções
 - [ ] Perception coleta telemetria de hardware/serviços
 - [ ] 56 Actions executam com validação de Security Layer
@@ -454,10 +458,22 @@ novos, total **756**). Pipeline sandbox → testes → backup → promoção com
 patches unificados nativos (stdlib), escopo estrito §7.1, gate Security Layer
 na promoção e eventos coder.started/coder.completed. Fase 4 iniciada (1/4).
 
-1. **Fase 4, item 4.2 — Self Repair** (`core/self_repair.py`): detecção de
-   falhas + geração de correção (depende do Coder Engine 4.1 ✅ e Perception 4.3).
-   Depois: 4.3 Perception (`tools/telemetry.py`) e 4.4 as 56 Actions
-   (via `tools/registry.py` + Security Layer).
+✅ Concluído: **Fase 4, item 4.2 — Self Repair** (`core/self_repair.py`, 41
+testes novos, total **797**). Ciclo detectar → gerar → reparar → verificar →
+(rollback) com correções SEMPRE mediadas pelo Coder Engine (4.1): detecção
+por compile/import probe/oracle `check`, estratégias determinísticas
+(header sem ":") + providers plugáveis (futura auto-extensão), verificação
+pós-promoção e rollback automático via snapshot pré-reparo. Fase 4 com 2/4.
+
+✅ Concluído: **Fase 4, item 4.3 — Perception Syncer** (`tools/telemetry.py`,
+21 testes novos, total **818**). Telemetria stdlib de CPU (delta + load),
+memória, disco, rede, portas TCP, Docker (socket unix) e processos;
+snapshot resiliente com seções independentes e erros parciais; proc_root
+injetável. Fase 4 com 3/4 itens.
+
+1. **Fase 4, item 4.4 — 56 Actions** (via `tools/registry.py` + Security
+   Layer): catálogo de ações operacionais por categoria (sistema, fs, git,
+   docker, db, rede) registradas no Action Registry. Com ele, a Fase 4 fecha.
 
 ---
 
@@ -465,10 +481,10 @@ na promoção e eventos coder.started/coder.completed. Fase 4 iniciada (1/4).
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 17/32 | 32/32 |
-| Testes totais | 756 | ~1100 |
-| Módulos core | 8 | ~15 |
-| Ferramentas (tools) | 2 | ~20 |
+| Capacidades implementadas | 19/32 | 32/32 |
+| Testes totais | 818 | ~1100 |
+| Módulos core | 9 | ~15 |
+| Ferramentas (tools) | 3 | ~20 |
 | Módulos memory | 5 | 5 |
 | Integrações | 0 | ~8 |
 | Actions | 0 | 56 |
