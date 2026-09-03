@@ -409,6 +409,11 @@ class Orchestrator:
     def limiter(self) -> RateLimiter:
         return self._limiter
 
+    @property
+    def providers(self) -> tuple[LLMProvider, ...]:
+        """Providers registrados, na ordem de fallback (leitura)."""
+        return tuple(self._providers)
+
     def add_provider(self, provider: LLMProvider) -> None:
         """Adiciona um provider ao final da lista (último = fallback)."""
         self._providers.append(provider)

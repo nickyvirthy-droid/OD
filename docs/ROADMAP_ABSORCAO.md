@@ -48,8 +48,9 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Perception Syncer** | `tools/telemetry.py` | 21 ✅ |
 | **56 Actions** | `tools/actions/` | 31 ✅ |
 | **Telegram Bot** | `integrations/telegram/` | 55 ✅ |
+| **API REST** | `integrations/api/` | 46 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **21 componentes** | **904 testes** |
+| **Total** | **22 componentes** | **950 testes** |
 
 ---
 
@@ -488,9 +489,17 @@ de texto do legado + voz/STT (14º recurso): transportes plugáveis
 perfis por chat, STT plugável, polling com offset persistente e métricas.
 Fase 5 iniciada (1/5 itens).
 
-1. **Fase 5 — Integrações Externas**: item 5.2 API REST
-   (`integrations/api/`), depois Notifier (5.3), IoT Manager (5.4) e
-   MQTT Bridge (5.5).
+✅ Concluído: **Fase 5, item 5.2 — API REST** (`integrations/api/`, 46
+ testes novos, total **950**). Os 17 endpoints do legado Nicky em http.server
+stdlib (sem FastAPI): /health, /profiles, /presence/today, /dashboard,
+/chat, /metrics, /dashboard/stats, /llms, POST /message (pipeline), transcribe/tts (handlers plugáveis),
+/history/{uid} e stats, RAG via
+VectorStore, ws/chat 501 registrado — API key X-API-Key + rate limit por IP
++ CORS. Fase 5 com 2/5 itens.
+
+1. **Fase 5 — Integrações Externas**: item 5.3 ProactiveNotifier
+   (`integrations/notifier.py`), depois IoT Manager (5.4) e MQTT Bridge
+   (5.5).
 
 ---
 
@@ -498,12 +507,12 @@ Fase 5 iniciada (1/5 itens).
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 21/32 | 32/32 |
-| Testes totais | 904 | ~1100 |
+| Capacidades implementadas | 22/32 | 32/32 |
+| Testes totais | 950 | ~1100 |
 | Módulos core | 9 | ~15 |
 | Ferramentas (tools) | 4 | ~20 |
 | Módulos memory | 5 | 5 |
-| Integrações | 1 | ~8 |
+| Integrações | 2 | ~8 |
 | Actions | 56 | 56 |
 | Cobertura de código | — | >90% |
 

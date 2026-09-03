@@ -9,6 +9,46 @@
 
 ---
 
+## [0.13.0] — Fase 5 (item 5.2) — API REST ✅ (2026-09-03)
+
+> **FASE 5 — 2/5 itens (API REST).** 22/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **5.2 API REST** | `integrations/api/` | Os **17 endpoints do legado Nicky** em **http.server stdlib** (ThreadingHTTPServer — sem FastAPI): `GET /` (info), `/health` (status + LLMs), `/profiles`, `/profiles/{name}`, `/presence/today`, `/dashboard` e `/chat` (HTML placeholder), `/metrics` (texto od_*), `/dashboard/stats` (JSON), `/llms`, `POST /message` (pipeline completo do Orchestrator: user_id/profile/text/system_prompt, perfil auto→default, validação 400), `POST /transcribe` e `/tts` (handlers plugáveis; sem handler 501 → Fase 6.3/6.4), `DELETE /history/{user_id}`, `GET /history/{user_id}/stats`, `GET /memory/{user_id}/search` (RAG via VectorStore, namespace por usuário, top_k clampado) · `GET /ws/chat` → **501 registrado** (WebSocket streaming exige servidor assíncrono dedicado) · **API key X-API-Key** nos mesmos endpoints protegidos do legado (compare_digest) · **rate limit por IP** (janela deslizante, 429+retry_after, buckets por instância) · CORS preflight · bind padrão 127.0.0.1 (sem auth nunca em 0.0.0.0) · roteamento declarativo `ROUTES` (method/path/auth) · erros JSON consistentes (400/401/404/405+Allow/413/429/500/501/502) · `max_body_bytes` · `snapshot()` · NICKY · **Core aditivo:** `Orchestrator.providers` público (usado por /llms e /health) |
+| — | `tests/test_api.py` | **46 testes** (tabela 17 rotas + flags de auth, servidor real em loopback por teste, auth 401/chave certa/sem chave, rate limit por IP e por instância, message com memória real (llm/cache/perfis/isolamento), history stats/delete/501, RAG com isolamento por namespace, áudio plugável 501→funcional, HTTP behavior 404/405/CORS/413/JSON inválido) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_api.py -q   → 46 passed
+.venv/bin/python -m pytest tests/ -q               → 950 passed, 0 falhas
+```
+
+Smoke real (servidor loopback): todos os 17 endpoints respondendo; rota
+llm→cache no POST /message; RAG retornando só o namespace do usuário.
+
+### 3. O que NÃO foi feito
+
+- **Fase 5 (3/5 restantes)**: ProactiveNotifier (5.3), IoT Manager (5.4) e
+  MQTT Bridge (5.5)
+- WebSocket `/ws/chat` (streaming token-a-token) — 501 com decisão
+  registrada; exige servidor assíncrono dedicado
+- STT/TTS reais (whisper.cpp/Piper são 6.3/6.4) — endpoints prontos com
+  handlers plugáveis
+- Dashboard/chat HTML interativos (Chart.js/PWA) — placeholder mínimo
+- Sem deploy de serviço (systemd) — camada de operação não faz parte da
+  absorção de capacidade
+
+### 4. Próximo passo
+
+**Fase 5, item 5.3 — ProactiveNotifier** (`integrations/notifier.py`) —
+health check, alertas e anti-spam; depois IoT Manager (5.4) e MQTT (5.5).
+
+---
+
 ## [0.12.0] — Fase 5 (item 5.1) — Telegram Bot ✅ (2026-09-03)
 
 > **FASE 5 INICIADA — 1/5 itens (Telegram Bot).** 21/32 capacidades no roadmap.

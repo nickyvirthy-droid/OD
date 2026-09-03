@@ -4,6 +4,53 @@
 
 ---
 
+## [0.13.0] — 2026-09-03
+
+### Adicionado
+
+#### Integrações — API REST (`integrations/api/`) — Fase 5, item 5.2 ✅
+
+**FASE 5 — 2/5 itens.** Os **17 endpoints do legado Nicky** (interfaces/api.py)
+reimplementados **100% stdlib** (http.server `ThreadingHTTPServer` — sem
+FastAPI/uvicorn), expondo o Orchestrator via HTTP:
+
+- **Endpoints (mesma tabela do legado §9):** `GET /` (info), `/health`
+  (status + LLMs), `/profiles`, `/profiles/{name}`, `/presence/today`,
+  `/dashboard` e `/chat` (HTML placeholder), `/metrics` (texto
+  Prometheus-style: od_processed_total, od_llm_total, od_api_requests...),
+  `/dashboard/stats` (JSON), `/llms` — **POST** `/message` (pipeline:
+  user_id/profile/text/system_prompt → `Orchestrator.process()`, perfil
+  auto→default, validação 400), `/transcribe` e `/tts` — **DELETE**
+  `/history/{user_id}` — `GET /history/{user_id}/stats` e
+  `/memory/{user_id}/search` (RAG via `VectorStore`, namespace por user,
+  `q` + `top_k` clampado)
+- **Segurança:** API key via header `X-API-Key` nos mesmos endpoints
+  protegidos do legado (`compare_digest`, 401), **rate limit por IP**
+  (janela deslizante, 429 + retry_after, buckets por instância) e CORS
+  (preflight OPTIONS 204). Bind padrão `127.0.0.1` (nunca expor sem auth)
+- **Camada de áudio plugável**: `config.stt`/`config.tts` injetáveis
+  (transcribe/tts funcionais com handler; sem handler → 501 apontando a
+  Fase 6.3/6.4)
+- `/ws/chat` → **501 registrado** (WebSocket streaming token-a-token exige
+  servidor assíncrono dedicado — decisão documentada)
+- Roteamento declarativo (`ROUTES` — method/path/auth), erros JSON
+  consistentes (400/401/404/405 com Allow/413/429/500/501/502), corpo
+  limitado (`max_body_bytes`), `snapshot()` + NICKY
+- **Core (aditivo):** `Orchestrator.providers` — propriedade pública
+  read-only da lista de providers (usada por `/llms` e `/health`)
+
+### Infraestrutura
+- **46 testes novos** em `tests/test_api.py` (tabela de rotas, servidor
+  real em loopback por teste, auth, rate limit por IP e por instância,
+  message/pipeline com memória real, history/RAG, áudio plugável,
+  HTTP behavior 404/405/CORS/413/JSON inválido)
+- Ajuste de runtime: `poll_interval` 0.05 no `serve_forever` (shutdown
+  rápido de servidores em testes)
+- Suíte completa: **950 testes, 0 falhas** (904 + 46)
+- **ROADMAP: 22/32 capacidades absorvidas** — Fase 5 com 2/5
+
+---
+
 ## [0.12.0] — 2026-09-03
 
 ### Adicionado
