@@ -4,6 +4,46 @@
 
 ---
 
+## [0.18.0] — 2026-09-03
+
+### Adicionado
+
+#### Sensorial — Presence Monitor (`integrations/homeassistant/presence.py`) — Fase 6, item 6.2 ✅
+
+**FASE 6 — 1/6 itens.** Monitor de presença que o OD não tinha — por isso
+nada era detectado quando o usuário aparecia no Home Assistant:
+
+- `PresenceMonitor` sobre o HA real: lê `person.*`/`device_tracker.*`
+  periodicamente (back-end plugável com `list_states()` — HAClient real ou
+  InMemoryHAServer nos testes), classifica home/away (**unknown conta como
+  away** — evita falso positivo no boot do HA) e detecta transições de
+  **chegada/saída**
+- Transição → **Event Bus** (`presence.changed`) + **sinks plugáveis**
+  (sync/async, Telegram no launcher) com texto formatado 🏠/🚶 · métricas
+  (polls/states_read/transitions/arrivals/departures/errors) · `history()`/
+  `snapshot()`/`dump()`/`health()` · NICKY
+- **Baseline silencioso + estado persistido** (`state_file` JSON): a
+  primeira observação registra sem evento e reinícios não disparam
+  transições falsas nem mensagens duplicadas
+- **Rodando no `od-core`**: launcher lê `config/iot_credentials.json`
+  (envs `OD_PRESENCE_ENABLED`/`OD_PRESENCE_POLL_S`/`OD_HA_CREDENTIALS`),
+  monitora o HA real (34 entidades) e **notifica o admin no Telegram**
+  quando alguém chega/sai · aviso único de ativação persistido (flag) —
+  sem spam em reinícios
+- **Decisão registrada:** presença via entidades do HA (person/device_tracker)
+  em vez de câmera — entregue antes da Face Detection (6.1), que continua
+  e alimentará o mesmo barramento
+
+### Infraestrutura
+- **26 testes novos** em `tests/test_presence.py` (classificação, nomes,
+  transições, filtros, Event Bus, sinks, persistência/restart, introspecção)
+- Suíte completa: **1151 testes, 0 falhas** (1125 + 26)
+- **ROADMAP: 26/32 capacidades** — Fase 6 com 1/6 itens
+- Validado ao vivo: leitura real do HA (34 estados, baseline silencioso) e
+  aviso de ativação enviado ao Telegram do admin
+
+---
+
 ## [0.17.2] — 2026-09-03
 
 ### Alterado

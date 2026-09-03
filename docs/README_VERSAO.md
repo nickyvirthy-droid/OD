@@ -9,6 +9,45 @@
 
 ---
 
+## [0.18.0] — Fase 6 (item 6.2) — Presence Monitor ✅ (2026-09-03)
+
+> **FASE 6 — 1/6 itens.** 26/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **6.2 Presence Monitor** | `integrations/homeassistant/presence.py` | Monitora `person.*`/`device_tracker.*` do HA (back-end plugável): classifica home/away (unknown → away), detecta chegada/saída, publica **Event Bus** `presence.changed`, sinks plugáveis (Telegram) com 🏠/🚶, **baseline silencioso + estado persistido** (reinício sem eventos falsos), métricas, `history()`/`dump()`/`health()` · **decisão:** presença via HA em vez de câmera — Face Detection (6.1) segue depois |
+| — | `tests/test_presence.py` | **26 testes** (classificação, nomes legíveis, transições, filtros, Event Bus, sinks sync/async, persistência/restart, introspecção) |
+| — | `runtime/launcher.py` | Presence no `od-core`: lê `config/iot_credentials.json` (envs `OD_PRESENCE_*`), notifica admin no Telegram + aviso único de ativação (flag persistida) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_presence.py -q   → 26 passed
+.venv/bin/python -m pytest tests/ -q                     → 1151 passed, 0 falhas
+HA real: 34 entidades lidas · baseline: person/device_tracker = away
+od-core: "Presence Monitor habilitado" + aviso de ativação enviado
+```
+
+### 3. O que NÃO foi feito
+
+- **Fase 6 restante (5/6)**: Face Detection (6.1, câmera), STT (6.3), TTS
+  (6.4), Profile Manager (6.5), Auto Extension (6.6)
+- Detecção por câmera/visão — a presença atual vem das entidades do HA
+  (person/device_tracker); para o OD avisar “chegou em casa”, o tracker do
+  celular precisa reportar `home` ao HA (app companion/GPS)
+- Aviso de “novo usuário” no Telegram (fluxo de onboarding do bot) — fora
+  do escopo desta entrega
+
+### 4. Próximo passo
+
+**Fase 6, item 6.1 — Face Detection** (`tools/vision/face_detector.py`) —
+Haar Cascade + CLAHE + buffer de confirmação, alimentando o mesmo
+barramento de presença.
+
+---
+
 ## [0.17.2] — API REST: X-API-Key em todos os endpoints 🔒 (2026-09-03)
 
 ### 1. O que foi feito

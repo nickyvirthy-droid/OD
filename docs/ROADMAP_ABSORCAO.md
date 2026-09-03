@@ -52,9 +52,10 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **ProactiveNotifier** | `integrations/notifier.py` | 42 ✅ |
 | **IoT Manager** | `integrations/homeassistant/` | 45 ✅ |
 | **MQTT Bridge** | `integrations/mqtt/` | 54 ✅ |
+| **Presence Monitor** | `integrations/homeassistant/presence.py` | 26 ✅ |
 | **LLM Provider** | `core/llm.py` | 17 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | 10 ✅ |
-| **Total** | **26 componentes** | **1118 testes** |
+| **Total** | **27 componentes** | **1151 testes** |
 
 ---
 
@@ -411,9 +412,11 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] IoT Manager controla dispositivos via Home Assistant
 - [x] MQTT Bridge publica/assina tópicos
 
-### Fase 6 — Sensorial
+### Fase 6 — Sensorial (2026-09-03: 6.2 concluído antes de 6.1 — decisão
+registrada: presença via HA person/device_tracker, sem câmera; Face
+Detection continua como item 6.1 e alimentará o mesmo barramento)
 - [ ] Face Detection usa CLAHE + buffer de confirmação
-- [ ] Presence Monitor publica eventos no Event Bus
+- [x] Presence Monitor publica eventos no Event Bus
 - [ ] STT transcreve áudio via whisper.cpp
 - [ ] TTS sintetiza voz via Piper com vozes por perfil
 - [ ] Profile Manager detecta perfil automaticamente
@@ -545,9 +548,20 @@ reconexão com re-assinatura, métricas. **Fase 5 encerrada com 5/5 itens**
 capacidades. Validado ao vivo contra o **Mosquitto real** (127.0.0.1:1883)
 e integrado ao launcher/od-core (subscrição `od/in/#`).
 
+✅ Concluído: **Fase 6, item 6.2 — Presence Monitor**
+(`integrations/homeassistant/presence.py`, 26 testes novos, total **1151**).
+Monitor de presença sobre o Home Assistant (em vez de câmera — decisão
+registrada): lê person.*/device_tracker.* periodicamente, classifica
+home/away (unknown conta como away), detecta transições de chegada/saída,
+publica **Event Bus** (`presence.changed`), notifica sinks plugáveis
+(Telegram do admin no launcher), baseline silencioso + estado persistido
+(reinícios não disparam eventos falsos), métricas e introspecção. Rodando
+no od-core contra o HA real (34 entidades lidas). Fase 6 com 1/6 itens —
+**26/32** capacidades.
+
 1. **Fase 6 — Sensorial e Inteligência**: item 6.1 Face Detection
-   (`tools/vision/face_detector.py`), depois Presence Monitor (6.2),
-   STT (6.3), TTS (6.4), Profile Manager (6.5) e Auto Extension (6.6).
+   (`tools/vision/face_detector.py`), depois STT (6.3), TTS (6.4),
+   Profile Manager (6.5) e Auto Extension (6.6).
 
 ---
 
@@ -555,8 +569,8 @@ e integrado ao launcher/od-core (subscrição `od/in/#`).
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 25/32 | 32/32 |
-| Testes totais | 1118 | ~1200 |
+| Capacidades implementadas | 26/32 | 32/32 |
+| Testes totais | 1151 | ~1200 |
 | Módulos core | 10 | ~15 |
 | Ferramentas (tools) | 4 | ~20 |
 | Módulos memory | 5 | 5 |

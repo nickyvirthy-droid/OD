@@ -28,6 +28,10 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
     OD_MQTT_HOST/PORT   Broker Mosquitto (default 127.0.0.1:1883).
     OD_MQTT_CLIENT_ID   Identificador no broker (default od-core).
     OD_MQTT_SUBSCRIBE   Filtros de entrada, vírgula (default "od/in/#").
+    OD_PRESENCE_ENABLED "0" desliga o Presence Monitor (default 1).
+    OD_HA_CREDENTIALS   Caminho das credenciais do HA (default
+                        config/iot_credentials.json).
+    OD_PRESENCE_POLL_S  Intervalo do poll de presença (default 30).
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
@@ -151,11 +155,7 @@ def build_telegram_bot(orchestrator: Any):
         raise SystemExit(
             "TELEGRAM_BOT_TOKEN ausente — configure o .env (veja runtime/launcher.py)"
         )
-    admins = {
-        int(part)
-        for part in env("OD_TELEGRAM_ADMINS", "").split(",")
-        if part.strip().isdigit()
-    }
+    admins = _admin_ids()
     transport = HTTPTransport(token, timeout=30.0)
     offset_file = env("OD_TELEGRAM_OFFSET_FILE", "")
     bot = TelegramBot(
@@ -167,6 +167,41 @@ def build_telegram_bot(orchestrator: Any):
         ),
     )
     return bot
+
+
+def build_presence_monitor() -> Any:
+    """PresenceMonitor (Fase 6.2) sobre o Home Assistant real.
+
+    Lê as credenciais de config/iot_credentials.json (token do HA),
+    monitora person.*/device_tracker.* e notifica o admin no Telegram
+    quando alguém chega ou sai de casa. Retorna None sem credenciais.
+    """
+    from integrations.homeassistant import (
+        HACredentials,
+        HAClient,
+        PresenceConfig,
+        PresenceMonitor,
+    )
+
+    creds_path = env("OD_HA_CREDENTIALS", "config/iot_credentials.json")
+    path = REPO_ROOT / creds_path
+    if not path.exists():
+        log.warn("Presence desativado — sem credenciais HA", path=str(path))
+        return None
+    try:
+        creds = HACredentials.from_file(path)
+    except Exception as exc:  # pragma: no cover — arquivo corrompido
+        log.warn("Presence desativado — credenciais HA inválidas", error=str(exc))
+        return None
+    client = HAClient(creds)
+    monitor = PresenceMonitor(
+        client,
+        config=PresenceConfig(
+            poll_interval_s=float(env("OD_PRESENCE_POLL_S", "30")),
+            state_file=str(DATA_DIR / "presence_state.json"),
+        ),
+    )
+    return monitor
 
 
 def build_mqtt_bridge(event_bus: Any):
@@ -217,10 +252,68 @@ async def _run_mqtt_forever(bridge: Any) -> None:
     await bridge.run()
 
 
+def _admin_ids() -> set[int]:
+    return {
+        int(part)
+        for part in env("OD_TELEGRAM_ADMINS", "").split(",")
+        if part.strip().isdigit()
+    }
+
+
+def build_telegram_sink() -> Optional[Any]:
+    """Sink de notificação: envia texto ao primeiro admin no Telegram."""
+    from integrations.telegram import HTTPTransport
+
+    token = env("TELEGRAM_BOT_TOKEN", "")
+    admins = sorted(_admin_ids())
+    if not token or not admins:
+        return None
+    transport = HTTPTransport(token, timeout=20.0)
+    chat_id = admins[0]
+
+    async def notify(text: str) -> None:
+        await transport.send_message(chat_id, text)
+
+    return notify
+
+
+async def _send_presence_welcome(sink: Any) -> None:
+    """Aviso único de ativação do presence (persistido — sem spam)."""
+    flag = DATA_DIR / "presence_welcome_sent.flag"
+    if flag.exists():
+        return
+    try:
+        await sink(
+            "🟢 Monitor de presença ativo — agora acompanho o Home "
+            "Assistant e aviso quando você chegar ou sair de casa."
+        )
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        flag.write_text("1", encoding="utf-8")
+    except Exception as exc:  # pragma: no cover — rede falhou
+        log.warn("Aviso de ativação não enviado", error=str(exc))
+
+
+async def _run_presence_forever(monitor: Any) -> None:
+    """Loop do Presence Monitor (poll no HA + notificação Telegram)."""
+    sink = build_telegram_sink()
+    if sink is not None:
+        from integrations.homeassistant import PresenceMonitor
+
+        async def notify(change: Any) -> None:
+            await sink(PresenceMonitor.format_change(change))
+
+        monitor.add_sink(notify)
+        await _send_presence_welcome(sink)
+    log.info("Presence Monitor iniciando poll no HA...")
+    await monitor.run()
+
+
 def main() -> int:
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
     orchestrator = build_orchestrator()
     mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
+    presence_enabled = env("OD_PRESENCE_ENABLED", "1") != "0"
+    presence_monitor = build_presence_monitor() if presence_enabled else None
 
     async def _all() -> None:
         # Event Bus único da entrega (bridge MQTT ↔ núcleo)
@@ -235,6 +328,9 @@ def main() -> int:
             bridge = build_mqtt_bridge(event_bus)
             tasks.append(_run_mqtt_forever(bridge))
             log.info("Ponte MQTT habilitada (od-core)")
+        if presence_monitor is not None:
+            tasks.append(_run_presence_forever(presence_monitor))
+            log.info("Presence Monitor habilitado (od-core)")
         await asyncio.gather(*tasks)
 
     if mode == "api":
@@ -246,10 +342,16 @@ def main() -> int:
 
         bridge = build_mqtt_bridge(EventBus())
         asyncio.run(_run_mqtt_forever(bridge))
+    elif mode == "presence":
+        monitor = presence_monitor or build_presence_monitor()
+        if monitor is None:
+            print("presence indisponível — credenciais HA ausentes")
+            return 2
+        asyncio.run(_run_presence_forever(monitor))
     elif mode == "all":
         asyncio.run(_all())
     else:
-        print(f"modo desconhecido: {mode!r} (api|telegram|mqtt|all)")
+        print(f"modo desconhecido: {mode!r} (api|telegram|mqtt|presence|all)")
         return 2
     return 0
 

@@ -36,6 +36,15 @@ from integrations.homeassistant.models import (
     EntityType,
     classify_entity,
 )
+from integrations.homeassistant.presence import (
+    PRESENCE_TOPIC,
+    PresenceChange,
+    PresenceConfig,
+    PresenceMetrics,
+    PresenceMonitor,
+    classify,
+    prettify_name,
+)
 
 __signature__ = "OD // CORE"
 __all__ = [
@@ -53,4 +62,11 @@ __all__ = [
     "ACTION_ON",
     "ACTION_OFF",
     "ACTION_TOGGLE",
+    "PRESENCE_TOPIC",
+    "PresenceMonitor",
+    "PresenceConfig",
+    "PresenceChange",
+    "PresenceMetrics",
+    "prettify_name",
+    "classify",
 ]
