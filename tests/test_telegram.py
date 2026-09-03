@@ -781,3 +781,26 @@ class TestTelegramBotDump:
         assert data["profiles"] == {"1": "luma"}
         assert data["metrics"]["messages"] == 1
         bot.close()
+
+
+class TestResolveAutoProfile:
+    """Fase 6.5 — detecção automática de perfil por domínio no bot."""
+
+    def test_auto_sem_contexto_usa_default(self) -> None:
+        from integrations.telegram.bot import AUTO_PROFILE, _resolve_auto
+
+        assert _resolve_auto(AUTO_PROFILE, "") == "guardian"
+        assert _resolve_auto(AUTO_PROFILE) == "guardian"
+
+    def test_auto_detecta_dominio(self) -> None:
+        from integrations.telegram.bot import AUTO_PROFILE, _resolve_auto
+
+        assert _resolve_auto(AUTO_PROFILE, "me explique a história de Roma") == "regulus"
+        assert _resolve_auto(AUTO_PROFILE, "quero aprender python") == "luma"
+        assert _resolve_auto(AUTO_PROFILE, "monitore a CPU do servidor") == "guardian"
+
+    def test_explicito_ignora_dominio(self) -> None:
+        from integrations.telegram.bot import _resolve_auto
+
+        assert _resolve_auto("vox", "história de Roma") == "vox"
+        assert _resolve_auto("nyx", "qualquer coisa") == "nyx"

@@ -9,6 +9,48 @@
 
 ---
 
+## [0.20.0] — Fase 6 COMPLETA: Sensorial e Inteligência 🧠 (2026-09-03)
+
+### 1. O que foi feito
+
+**Fase 6 encerrada com 6/6 itens — 32/32 capacidades do roadmap.**
+
+| Item | Entrega | Validação real |
+|---|---|---|
+| **6.1 Face Detection** | `tools/vision/face_detector.py` — Haar + CLAHE + ROI guard + buffer 3/2 (espelho do legado) | **Webcam real do servidor** (/dev/video0, Alcor 1080P): frame capturado, cascade ok, 0 rostos (ninguém na frente — correto). OpenCV 4.14 fixado (5.0 removeu o Haar) |
+| **6.2 Presence Monitor** | (0.18.0) HA person/device_tracker → Event Bus → Telegram | 34 entidades reais lidas no od-core |
+| **6.3 STT** | `tools/audio/stt.py` — whisper.cpp via subprocess + ffmpeg | Binários reais do legado: whisper-cli + ggml-base.bin (148MB) |
+| **6.4 TTS** | `tools/audio/tts.py` — Piper com vozes por perfil (dii/faber) | **E2E completo**: Piper sintetizou → whisper transcreveu de volta em 3.2s |
+| **6.5 Profile Manager** | `agents/profiles.py` — 6 perfis + detecção automática por domínio (radical ≥4 letras) | Plugado no bot: perfil `auto` detecta pelo texto |
+| **6.6 Auto Extension** | `tools/auto_extension/` — geração de ferramentas via LLM, compile + allowlist de imports, registro com permission mediada pelo Security Layer | 13 testes de pipeline (incl. código com `import os` barrado) |
+
+### 2. Evidência
+
+```
+pytest tests/ -q                          → 1229 passed, 0 falhas  (1153 + 76)
+E2E voz real (Piper → whisper)            → 3.2s: "Olá Alex, o OmegaDracom está funcionando de verdade."
+Webcam real /dev/video0                   → frame 1280×720, cascade ok, capturas_failed=0
+ROADMAP                                   → 32/32 capacidades · Fase 6 ✅ 6/6
+```
+
+### 3. O que NÃO foi feito
+
+- **Vision ativo no od-core**: `OD_VISION_ENABLED` existe mas fica **0**
+  (default) — câmera só liga quando você ativar (economiza CPU; sem gente
+  na frente não há evento). Comando: `OD_VISION_ENABLED=1` no `.env`
+- Face Detection sem validação de presença humana real (câmera sem gente)
+  — quando alguém ficar na frente, o buffer 3/2 confirma e notifica
+- Fase 7 (Infraestrutura e Observabilidade) ainda não iniciada
+
+### 4. Próximo passo
+
+**Fase 7 — Infraestrutura e Observabilidade** (paralela): dashboards de
+métricas, health checks centralizados, alertas de resiliência. Ou o que
+você quiser priorizar — o roadmap está com **todas as 32 capacidades
+entregues**.
+
+---
+
 ## [0.19.0] — Web: Chat funcional + shells públicos (sem chave manual) 💬 (2026-09-03)
 
 ### 1. O que foi feito

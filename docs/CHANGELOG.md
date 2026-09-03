@@ -4,6 +4,72 @@
 
 ---
 
+## [0.20.0] — 2026-09-03
+
+### Adicionado — Fase 6 COMPLETA (6/6 itens) 🧠
+
+#### 6.1 — Face Detection (`tools/vision/face_detector.py`)
+
+- Haar Cascade + CLAHE + ROI guard (10% bordas) + **buffer de confirmação**
+  3/2 (espelho do legado Nicky) — presença facial estável, sem alarme falso
+- Webcam **real do servidor** encontrada (/dev/video0, Alcor Micro 1080P) e
+  validada: frame 1280×720 capturado, cascade carregado, 0 rostos (correto)
+- **OpenCV 4.14.0 fixado** (pip install opencv-python-headless==4.14.0.88):
+  o OpenCV 5.0 removeu o `CascadeClassifier` (Haar) — decisão registrada
+- Capture plugável (testes sem webcam), Event Bus (`face.presence`),
+  métricas, salvamento de frames com limite diário
+
+#### 6.3 — Audio STT (`tools/audio/stt.py`)
+
+- `WhisperSTT`: whisper.cpp via subprocess assíncrono + ffmpeg (WAV 16kHz
+  mono) — padrão do legado `vision/audio_capture.py`, sem estado (modelo
+  não fica residente em RAM)
+- Binário e modelo **reais do legado reaproveitados** (whisper-cli
+  compilado + ggml-base.bin, 148MB) — nenhum download novo
+
+#### 6.4 — TTS Piper (`tools/audio/tts.py`)
+
+- `PiperTTS`: síntese por subprocess com **vozes por perfil** — `dii`
+  feminina (default) / `faber` masculina (regulus)
+- Binário e vozes pt-BR reais do legado (piper + 2 modelos .onnx)
+- **E2E real validado**: Piper sintetizou → whisper transcreveu de volta
+  (3.2s total) — o loop voz completo funciona no servidor
+
+#### 6.5 — Profile Manager (`agents/profiles.py`)
+
+- Os 6 perfis oficiais: Guardian 🛡️, Regulus ⚖️, Luma 🌟, Vox 📢,
+  Athenae 🏛️, Nyx 🌙 — com system prompts, domínios e prioridade
+- **Detecção automática por domínio**: tokenização + radical (≥4 letras),
+  stopwords curtas ignoradas — "aprender" casa com "aprendizado",
+  "monitore" com "monitoramento"
+- Plugada no bot: perfil `auto` agora detecta pelo texto da mensagem
+  (`_resolve_auto(profile, text)`) — antes caía sempre no default
+- `resolve(requested, context)`: explícito > detecção > default + perfis
+  customizados via `add_custom_profile`
+
+#### 6.6 — Auto Extension (`tools/auto_extension/`)
+
+- `AutoExtension`: geração de ferramentas via **LLM** (prompt com assinatura
+  fixa + allowlist) — extrai código dos fences, valida em 2 estágios
+  (**compile** sintático + **allowlist de imports** stdlib, sem executar o
+  corpo) e registra no Action Registry como Action com
+  `permission="auto_extension.generated"` — **toda execução futura é
+  mediada pelo Security Layer** (spec §7)
+
+#### Runtime
+
+- Launcher: modo `vision` + `OD_VISION_ENABLED` (default 0) — FaceDetector
+  com notificação Telegram na confirmação de presença; docs de env atualizados
+
+### Testes
+
+- `tests/test_audio.py` (16: STT + TTS com subprocess mockado),
+  `tests/test_profiles.py` (13), `tests/test_auto_extension.py` (13),
+  `tests/test_face_detector.py` (24) e `TestResolveAutoProfile` no bot (3)
+  — **1229 passed** (1153 + 76)
+
+---
+
 ## [0.19.0] — 2026-09-03
 
 ### Adicionado

@@ -412,15 +412,13 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] IoT Manager controla dispositivos via Home Assistant
 - [x] MQTT Bridge publica/assina tópicos
 
-### Fase 6 — Sensorial (2026-09-03: 6.2 concluído antes de 6.1 — decisão
-registrada: presença via HA person/device_tracker, sem câmera; Face
-Detection continua como item 6.1 e alimentará o mesmo barramento)
-- [ ] Face Detection usa CLAHE + buffer de confirmação
+### Fase 6 — Sensorial ✅ CONCLUÍDA (2026-09-03)
+- [x] Face Detection usa CLAHE + buffer de confirmação
 - [x] Presence Monitor publica eventos no Event Bus
-- [ ] STT transcreve áudio via whisper.cpp
-- [ ] TTS sintetiza voz via Piper com vozes por perfil
-- [ ] Profile Manager detecta perfil automaticamente
-- [ ] Auto Extension gera ferramentas mediada pelo Security Layer
+- [x] STT transcreve áudio via whisper.cpp
+- [x] TTS sintetiza voz via Piper com vozes por perfil
+- [x] Profile Manager detecta perfil automaticamente
+- [x] Auto Extension gera ferramentas mediada pelo Security Layer
 
 ### Fase 7 — Infraestrutura
 - [ ] Audit System registra todas as decisões de segurança
@@ -559,9 +557,23 @@ publica **Event Bus** (`presence.changed`), notifica sinks plugáveis
 no od-core contra o HA real (34 entidades lidas). Fase 6 com 1/6 itens —
 **26/32** capacidades.
 
-1. **Fase 6 — Sensorial e Inteligência**: item 6.1 Face Detection
-   (`tools/vision/face_detector.py`), depois STT (6.3), TTS (6.4),
-   Profile Manager (6.5) e Auto Extension (6.6).
+✅ Concluído: **Fase 6 COMPLETA** — itens 6.1 (Face Detection), 6.3 (STT),
+6.4 (TTS), 6.5 (Profile Manager) e 6.6 (Auto Extension) — 75 testes novos,
+total **1229**. **6.1** `tools/vision/face_detector.py` — Haar Cascade +
+CLAHE + ROI guard + buffer de confirmação 3/2 (espelho do legado Nicky),
+validado ao vivo contra a **webcam real do servidor** (/dev/video0, Alcor
+Micro 1080P); OpenCV 4.x fixado (o 5.0 removeu o CascadeClassifier).
+**6.3** `tools/audio/stt.py` — whisper.cpp via subprocess + ffmpeg,
+**6.4** `tools/audio/tts.py` — Piper com vozes por perfil (dii feminina /
+faber masculina), ambos **validados E2E reais** (Piper sintetizou →
+whisper transcreveu de volta em 3.2s). **6.5** `agents/profiles.py` — os 6
+perfis oficiais (guardian/regulus/luma/vox/athenae/nyx) com detecção
+automática por domínio (tokenização + radical), plugada no bot (perfil
+"auto" agora detecta pelo texto). **6.6** `tools/auto_extension/` —
+geração de ferramentas via LLM com validação (compile + allowlist de
+imports stdlib) e registro no Action Registry com permission mediada pelo
+Security Layer. Launcher ganhou o modo `vision` (OD_VISION_ENABLED).
+**Fase 6 encerrada com 6/6 itens — 32/32 capacidades do roadmap.**
 
 ---
 
@@ -569,10 +581,10 @@ no od-core contra o HA real (34 entidades lidas). Fase 6 com 1/6 itens —
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 26/32 | 32/32 |
-| Testes totais | 1151 | ~1200 |
+| Capacidades implementadas | 32/32 | 32/32 |
+| Testes totais | 1229 | ~1200 |
 | Módulos core | 10 | ~15 |
-| Ferramentas (tools) | 4 | ~20 |
+| Ferramentas (tools) | 7 | ~20 |
 | Módulos memory | 5 | 5 |
 | Integrações | 5 | ~8 |
 | Actions | 56 | 56 |

@@ -32,6 +32,10 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
     OD_HA_CREDENTIALS   Caminho das credenciais do HA (default
                         config/iot_credentials.json).
     OD_PRESENCE_POLL_S  Intervalo do poll de presença (default 30).
+    OD_VISION_ENABLED   "1" liga o Face Detector (webcam) no modo all
+                        (default 0 — câmera só quando ativado).
+    OD_VISION_DEVICE    Dispositivo da webcam (default /dev/video0).
+    OD_VISION_POLL_S    Intervalo de captura (default 5).
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
@@ -204,6 +208,31 @@ def build_presence_monitor() -> Any:
     return monitor
 
 
+def build_face_detector() -> Optional[Any]:
+    """FaceDetector real (Fase 6.1) sobre a webcam do servidor.
+
+    Retorna None se o OpenCV não estiver disponível ou a webcam não abrir.
+    Notifica o admin no Telegram quando uma presença facial é confirmada
+    (buffer 3 detecções consecutivas — sem alarme falso de sombra).
+    """
+    from tools.vision import CV2_AVAILABLE, FaceConfig, FaceDetector
+
+    if not CV2_AVAILABLE:
+        log.warn("Vision desativado — OpenCV ausente")
+        return None
+    detector = FaceDetector(
+        config=FaceConfig(
+            device=env("OD_VISION_DEVICE", "/dev/video0"),
+            poll_interval_s=float(env("OD_VISION_POLL_S", "5.0")),
+            captures_dir=str(DATA_DIR / "captures"),
+        )
+    )
+    if detector._cascade is None:
+        log.warn("Vision desativado — Haar Cascade indisponível")
+        return None
+    return detector
+
+
 def build_mqtt_bridge(event_bus: Any):
     """MQTTBridge real sobre o broker Mosquitto (env OD_MQTT_*)."""
     from integrations.mqtt import MQTTBridge, MQTTClient, MQTTConfig
@@ -293,6 +322,32 @@ async def _send_presence_welcome(sink: Any) -> None:
         log.warn("Aviso de ativação não enviado", error=str(exc))
 
 
+async def _run_vision_forever(detector: Any) -> None:
+    """Loop do Face Detector (webcam) com notificação de presença."""
+    sink = build_telegram_sink()
+    notified = False
+
+    async def on_change(data: Any) -> None:
+        nonlocal notified
+        if not data.get("confirmed"):
+            return
+        if sink is not None and not notified:
+            await sink(
+                "👤 Presença facial detectada na câmera do servidor "
+                "(alguém está na frente)."
+            )
+            notified = True
+
+    from core.event_bus import EventBus
+    from tools.vision import FACE_TOPIC
+
+    event_bus = EventBus()
+    event_bus.subscribe(FACE_TOPIC, on_change)
+    detector.event_bus = event_bus
+    log.info("Face Detector iniciando captura da webcam...")
+    await detector.run()
+
+
 async def _run_presence_forever(monitor: Any) -> None:
     """Loop do Presence Monitor (poll no HA + notificação Telegram)."""
     sink = build_telegram_sink()
@@ -314,6 +369,8 @@ def main() -> int:
     mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
     presence_enabled = env("OD_PRESENCE_ENABLED", "1") != "0"
     presence_monitor = build_presence_monitor() if presence_enabled else None
+    vision_enabled = env("OD_VISION_ENABLED", "0") != "0"
+    face_detector = build_face_detector() if vision_enabled else None
 
     async def _all() -> None:
         # Event Bus único da entrega (bridge MQTT ↔ núcleo)
@@ -331,6 +388,9 @@ def main() -> int:
         if presence_monitor is not None:
             tasks.append(_run_presence_forever(presence_monitor))
             log.info("Presence Monitor habilitado (od-core)")
+        if face_detector is not None:
+            tasks.append(_run_vision_forever(face_detector))
+            log.info("Face Detector habilitado (od-core)")
         await asyncio.gather(*tasks)
 
     if mode == "api":
@@ -348,10 +408,16 @@ def main() -> int:
             print("presence indisponível — credenciais HA ausentes")
             return 2
         asyncio.run(_run_presence_forever(monitor))
+    elif mode == "vision":
+        detector = face_detector or build_face_detector()
+        if detector is None:
+            print("vision indisponível — OpenCV ou webcam ausente")
+            return 2
+        asyncio.run(_run_vision_forever(detector))
     elif mode == "all":
         asyncio.run(_all())
     else:
-        print(f"modo desconhecido: {mode!r} (api|telegram|mqtt|presence|all)")
+        print(f"modo desconhecido: {mode!r} (api|telegram|mqtt|presence|vision|all)")
         return 2
     return 0
 

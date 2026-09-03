@@ -67,9 +67,15 @@ class BotMetrics:
         }
 
 
-def _resolve_auto(profile: str) -> str:
-    """'auto' significa deixar o OD escolher — hoje o perfil padrão."""
-    return DEFAULT_PROFILE if profile == AUTO_PROFILE else profile
+def _resolve_auto(profile: str, text: str = "") -> str:
+    """'auto' → o ProfileManager detecta o perfil pelo domínio do texto
+    (Fase 6.5, agents/profiles.py). Sem contexto, cai no padrão."""
+    if profile != AUTO_PROFILE:
+        return profile
+    from agents.profiles import ProfileManager
+
+    manager = ProfileManager()
+    return manager.resolve("auto", text or None)
 
 
 class TelegramBot:
@@ -342,7 +348,7 @@ class TelegramBot:
                 "Não consigo conversar agora — o Orchestrator não está "
                 "conectado. Use /help para os comandos disponíveis."
             )
-        profile = _resolve_auto(self.get_profile(message.chat_id))
+        profile = _resolve_auto(self.get_profile(message.chat_id), message.text)
         try:
             result: OrchestrationResult = await self.orchestrator.process(
                 str(message.chat_id),
