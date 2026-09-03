@@ -111,6 +111,70 @@ class ToolValidationError(ToolLoaderError, ValueError):
 
 
 # ---------------------------------------------------------------------------
+# Validação de schema de parâmetros (compartilhada por Tool e Action)
+# ---------------------------------------------------------------------------
+
+def validate_params(
+    schema: dict[str, Any],
+    params: Optional[dict[str, Any]] = None,
+) -> tuple[bool, list[str], dict[str, Any]]:
+    """Valida params contra um schema e aplica defaults.
+
+    Suporta o formato simplificado:
+        {"required": ["path"], "properties": {"path": {"type": "str"}}}
+    ou o formato plano:
+        {"path": {"type": "str", "required": True, "default": ""}}
+
+    Returns:
+        (ok, erros, preenchido) — `preenchido` é o dict com defaults aplicados.
+    """
+    schema = schema or {}
+    given = dict(params or {})
+    errors: list[str] = []
+
+    if "required" in schema or "properties" in schema:
+        required = list(schema.get("required", []))
+        props: dict[str, Any] = dict(schema.get("properties", {}))
+    else:
+        # formato plano: valor = spec do campo
+        required = [k for k, v in schema.items() if v.get("required")]
+        props = dict(schema)
+
+    # Aplica defaults
+    for key, spec in props.items():
+        if key not in given and spec.get("default") is not None:
+            given[key] = spec["default"]
+
+    # Obrigatórios presentes
+    for key in required:
+        if key not in given:
+            errors.append(f"parâmetro obrigatório ausente: {key}")
+
+    # Tipos (quando o valor foi fornecido)
+    for key, spec in props.items():
+        if key not in given:
+            continue
+        expected = spec.get("type", "any")
+        value = given[key]
+        if expected == "any":
+            continue
+        type_cls = PRIMITIVE_TYPES.get(expected)
+        if type_cls is None:
+            errors.append(f"tipo desconhecido no schema de {key!r}: {expected!r}")
+            continue
+        if expected == "bool":
+            ok_type = isinstance(value, bool)
+        elif expected == "int":
+            ok_type = isinstance(value, int) and not isinstance(value, bool)
+        else:
+            ok_type = isinstance(value, type_cls)
+        if not ok_type:
+            errors.append(f"tipo inválido para {key!r}: esperado {expected}")
+
+    return (not errors, errors, given)
+
+
+# ---------------------------------------------------------------------------
 # Tool
 # ---------------------------------------------------------------------------
 
@@ -172,58 +236,11 @@ class Tool:
     def validate(self, params: Optional[dict[str, Any]] = None) -> tuple[bool, list[str]]:
         """Valida parâmetros contra o schema da ferramenta.
 
-        Suporta o formato simplificado:
-            {"required": ["path"], "properties": {"path": {"type": "str"}}}
-        ou o formato plano:
-            {"path": {"type": "str", "required": True, "default": ""}}
-
         Returns:
             (ok, erros) — ok False quando há violações.
         """
-        schema = self.params or {}
-        given = dict(params or {})
-        errors: list[str] = []
-
-        if "required" in schema or "properties" in schema:
-            required = list(schema.get("required", []))
-            props: dict[str, Any] = dict(schema.get("properties", {}))
-        else:
-            # formato plano: valor = spec do campo
-            required = [k for k, v in schema.items() if v.get("required")]
-            props = schema
-
-        # Aplica defaults
-        for key, spec in props.items():
-            if key not in given and spec.get("default") is not None:
-                given[key] = spec["default"]
-
-        # Obrigatórios presentes
-        for key in required:
-            if key not in given:
-                errors.append(f"parâmetro obrigatório ausente: {key}")
-
-        # Tipos (quando o valor foi fornecido)
-        for key, spec in props.items():
-            if key not in given:
-                continue
-            expected = spec.get("type", "any")
-            value = given[key]
-            if expected == "any":
-                continue
-            type_cls = PRIMITIVE_TYPES.get(expected)
-            if type_cls is None:
-                errors.append(f"tipo desconhecido no schema de {key!r}: {expected!r}")
-                continue
-            if expected == "bool":
-                ok_type = isinstance(value, bool)
-            elif expected == "int":
-                ok_type = isinstance(value, int) and not isinstance(value, bool)
-            else:
-                ok_type = isinstance(value, type_cls)
-            if not ok_type:
-                errors.append(f"tipo inválido para {key!r}: esperado {expected}")
-
-        return (not errors, errors)
+        ok, errors, _filled = validate_params(self.params, params)
+        return ok, errors
 
     # -- Conversão -----------------------------------------------------------
 

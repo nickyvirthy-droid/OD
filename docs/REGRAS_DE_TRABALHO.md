@@ -222,12 +222,12 @@ documentação atualizada. Qualquer item ausente = trabalho NÃO concluído.
 |---|---|---|
 | 3.1 Workflow Engine | `core/workflows.py` | 70 ✅ |
 | 3.2 Tool Loader | `tools/loader.py` | 39 ✅ |
-| 3.3 Action Registry | `tools/registry.py` | ❌ pendente |
+| 3.3 Action Registry | `tools/registry.py` | 33 ✅ |
 | 3.4 Orchestrator Pipeline | `core/orchestrator.py` | ❌ pendente |
 
-> **Suíte atual:** **635 testes, 0 falhas** (596 das Fases 1–3.1 + 39 novos
-> do Tool Loader). Publicado no GitHub com a Fase 3 em andamento — ver
-> `docs/README_VERSAO.md` §[0.5.1] para o relatório §2.1 completo.
+> **Suíte atual:** **668 testes, 0 falhas** (635 das Fases 1–3.3 + 33 novos
+> do Action Registry). Publicado no GitHub com a Fase 3 em andamento — ver
+> `docs/README_VERSAO.md` §[0.6.0] para o relatório §2.1 completo.
 
 ---
 

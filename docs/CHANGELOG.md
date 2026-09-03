@@ -4,6 +4,38 @@
 
 ---
 
+## [0.6.0] — 2026-09-03
+
+### Adicionado
+
+#### Tools — Action Registry (`tools/registry.py`) — Fase 3, item 3.3 ✅
+- `Action` — ação tipada: name, handler (sync/async), description, category,
+  params (schema), permission (Security Layer), aliases, version, source
+- `ActionResult` — resultado padronizado: `ok | invalid | denied | error | not_found`
+  com data, error, errors, denied_by, role, params preenchidos e duração
+- `ActionRegistry` — registro central de ações com execução validada:
+  - Pipeline: resolução (nome/alias) → validação de schema (defaults aplicados)
+    → gate de segurança (permission + SecurityManager, spec §7) → handler
+  - Validação de params reutilizando o `validate_params` do Tool Loader
+    (extraído em refactor compartilhado)
+  - Registro por instância (`register`) ou conveniência (`register_action`)
+  - **Importação de ferramentas do Tool Loader** (`import_loader`) — cada Tool
+    vira Action reaproveitando schema, requires → permission e origem
+  - Aliases resolvidos em `get()`/`execute()`; duplicados com skip ou
+    `allow_overwrite=True`; `unregister` remove aliases
+  - Métricas (`RegistryMetrics`: ok/invalid/denied/errors/not_found, duração),
+    trilha recente com limite (`history`) e `dump()`
+  - Logging via `core/logger.py` (protocolo NICKY); execução negada registra CRIT
+- 33 testes unitários em `tests/test_registry.py`
+
+### Infraestrutura
+- Refactor: validação de schema extraída para `validate_params()` em
+  `tools/loader.py` (reutilizada por Tool e Action)
+- Suíte completa: **668 testes, 0 falhas** (635 anteriores + 33 novos)
+- Fase 3 do ROADMAP_ABSORCAO.md: itens 3.1 ✅, 3.2 ✅ e 3.3 ✅ — falta 3.4 (Orchestrator)
+
+---
+
 ## [0.5.1] — 2026-09-03
 
 ### Adicionado

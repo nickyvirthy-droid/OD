@@ -41,8 +41,9 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Context Manager** | `memory/context.py` | 28 ✅ |
 | **Workflow Engine** | `core/workflows.py` | 70 ✅ |
 | **Tool Loader** | `tools/loader.py` | 39 ✅ |
+| **Action Registry** | `tools/registry.py` | 33 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **14 componentes** | **635 testes** |
+| **Total** | **15 componentes** | **668 testes** |
 
 ---
 
@@ -380,7 +381,7 @@ FASE 7 (Infraestrutura) ←── paralela
 ### Fase 3 — Orquestração (em andamento)
 - [x] Workflow Engine suporta branching, nested, retries, timeouts (`core/workflows.py`, 70 testes) — 2026-09-03
 - [x] Tool Loader carrega plugins dinamicamente (`tools/loader.py`, 39 testes) — 2026-09-03
-- [ ] Action Registry registra 56 actions tipadas
+- [x] Action Registry registra actions tipadas com execução validada pelo Security Layer (`tools/registry.py`, 33 testes) — 2026-09-03
 - [ ] Orchestrator executa pipeline de 8 etapas com fallbacks
 
 ### Fase 4 — Execução
@@ -436,9 +437,11 @@ FASE 7 (Infraestrutura) ←── paralela
 
 ✅ Concluído: Fase 3 item 3.2 — Tool Loader (`tools/loader.py`, 39 testes novos, total 635).
 
-1. **Implementar Action Registry** (`tools/registry.py`) — registro tipado de ações validado pelo Security Layer
-2. **Implementar Orchestrator Pipeline** (`core/orchestrator.py`) — pipeline de 8 etapas (rate limit → datetime → AIML → cache → history → LLM → fallback → post-processing)
-3. **Integrar Logger nos componentes existentes** — substituir `_audit_nicky` duplicado (event_bus, router, state, memory) pelo `core/logger.py`
+✅ Concluído: Fase 3 item 3.3 — Action Registry (`tools/registry.py`, 33 testes novos, total 668).
+
+1. **Implementar Orchestrator Pipeline** (`core/orchestrator.py`) — pipeline de 8 etapas (rate limit → datetime → AIML → cache → history → LLM → fallback → post-processing) — encerra a Fase 3
+2. **Integrar Logger nos componentes existentes** — substituir `_audit_nicky` duplicado (event_bus, router, state, memory) pelo `core/logger.py`
+3. **Fase 4 — Capacidades de Execução**: Coder Engine, Self Repair, Perception, 56 Actions (via `tools/registry.py` + Security Layer)
 
 ---
 
@@ -446,10 +449,10 @@ FASE 7 (Infraestrutura) ←── paralela
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 14/32 | 32/32 |
-| Testes totais | 635 | ~600 |
+| Capacidades implementadas | 15/32 | 32/32 |
+| Testes totais | 668 | ~600 |
 | Módulos core | 6 | ~15 |
-| Ferramentas (tools) | 1 | ~20 |
+| Ferramentas (tools) | 2 | ~20 |
 | Módulos memory | 5 | 5 |
 | Integrações | 0 | ~8 |
 | Actions | 0 | 56 |

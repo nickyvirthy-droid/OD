@@ -9,6 +9,48 @@
 
 ---
 
+## [0.6.0] — Fase 3 (item 3.3) — Action Registry ✅ (2026-09-03)
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| 3.3 Action Registry | `tools/registry.py` | `Action` tipada (name, handler sync/async, params schema, permission, aliases); `ActionResult` padronizado (`ok/invalid/denied/error/not_found`); `ActionRegistry` com pipeline registro → validação de schema (defaults) → gate Security Layer (spec §7) → handler; `register`/`register_action`; **`import_loader()`** (Tool Loader → Actions, schema/requires reaproveitados); aliases; duplicados skip/overwrite; métricas, trilha recente e `dump()`; logging via `core/logger.py` |
+| — | `tools/loader.py` (refactor) | Validação de schema extraída para `validate_params()` compartilhada com o Registry |
+
+- Testes novos: `tests/test_registry.py` (33) — registro, aliases, execução
+  (ok/invalid/not_found/error), gate de segurança (strict/denied/admin),
+  integração com Tool Loader, métricas, trilha e dump.
+- Documentação atualizada: `docs/CHANGELOG.md` (0.6.0),
+  `docs/ROADMAP_ABSORCAO.md` (3.3 ✅, 15/32 capacidades).
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_registry.py -q
+→ 33 passed
+
+.venv/bin/python -m pytest tests/ -q
+→ 668 passed, 0 falhas   (635 anteriores + 33 novos)
+```
+
+### 3. O que NÃO foi feito
+
+- Item 3.4 (Orchestrator Pipeline) — último da Fase 3.
+- As 56 actions concretas do NV (Fase 4.4, `tools/actions/`) — o Registry de
+  3.3 é a infraestrutura tipada que vai catalogá-las.
+- Refatoração do `_audit_nicky` duplicado para o `core/logger.py` — pendente.
+- Nenhuma dependência externa adicionada (MariaDB/Docker não necessários
+  nesta fase; serão acionados quando a Fase 7.5 — Database Layer — exigir).
+
+### 4. Próximo passo
+
+**Fase 3, item 3.4 — Orchestrator Pipeline** (`core/orchestrator.py`):
+pipeline de 8 etapas (rate limit → datetime → AIML → cache → history → LLM
+→ fallback → post-processing). Com ele, a Fase 3 fecha.
+
+---
+
 ## [0.5.1] — Fase 3 (item 3.2) — Tool Loader ✅ (2026-09-03)
 
 ### 1. O que foi feito
@@ -194,7 +236,8 @@ Vector Memory (RAG), Context Manager. → Concluída em [0.4.0].
 | 0.3.0 | Fase 1 — Fundação | 2026-09-02 (histórico parcial) | `ab96952` (Config Manager) |
 | 0.4.0 | Fase 1 completa + Fase 2 — Memória | 2026-09-03 (publicado) | `a604f7f`, `ebc7f04` |
 | 0.5.0 | Fase 3 (3.1) — Workflow Engine | 2026-09-03 (publicado) | `7008035` |
-| 0.5.1 | Fase 3 (3.2) — Tool Loader | 2026-09-03 (esta publicação) | commit desta entrega |
+| 0.5.1 | Fase 3 (3.2) — Tool Loader | 2026-09-03 (publicado) | `3ee9616` |
+| 0.6.0 | Fase 3 (3.3) — Action Registry | 2026-09-03 (esta publicação) | commit desta entrega |
 
 > **Nota de transparência:** os relatórios §2.1 das Fases 1 e 2 foram
 > registrados retroativamente neste documento (2026-09-03) a partir dos
