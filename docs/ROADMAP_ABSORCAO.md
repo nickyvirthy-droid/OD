@@ -47,8 +47,9 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Self Repair** | `core/self_repair.py` | 41 ✅ |
 | **Perception Syncer** | `tools/telemetry.py` | 21 ✅ |
 | **56 Actions** | `tools/actions/` | 31 ✅ |
+| **Telegram Bot** | `integrations/telegram/` | 55 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **20 componentes** | **849 testes** |
+| **Total** | **21 componentes** | **904 testes** |
 
 ---
 
@@ -480,9 +481,16 @@ injetável. Fase 4 com 3/4 itens.
 (gate Security Layer na execução) e degradação graciosa sem infra externa.
 Fase 4 encerrada com 4/4 itens (Coder, Self Repair, Perception, Actions).
 
-1. **Fase 5 — Integrações Externas**: item 5.1 Telegram Bot
-   (`integrations/telegram/`), depois API REST (5.2), Notifier (5.3),
-   IoT Manager (5.4) e MQTT Bridge (5.5).
+✅ Concluído: **Fase 5, item 5.1 — Telegram Bot** (`integrations/telegram/`,
+55 testes novos, total **904**). Bot sobre o Orchestrator com os 13 comandos
+de texto do legado + voz/STT (14º recurso): transportes plugáveis
+(InMemoryTransport sem rede / HTTPTransport Bot API via urllib), admin gate,
+perfis por chat, STT plugável, polling com offset persistente e métricas.
+Fase 5 iniciada (1/5 itens).
+
+1. **Fase 5 — Integrações Externas**: item 5.2 API REST
+   (`integrations/api/`), depois Notifier (5.3), IoT Manager (5.4) e
+   MQTT Bridge (5.5).
 
 ---
 
@@ -490,12 +498,12 @@ Fase 4 encerrada com 4/4 itens (Coder, Self Repair, Perception, Actions).
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 20/32 | 32/32 |
-| Testes totais | 849 | ~1100 |
+| Capacidades implementadas | 21/32 | 32/32 |
+| Testes totais | 904 | ~1100 |
 | Módulos core | 9 | ~15 |
 | Ferramentas (tools) | 4 | ~20 |
 | Módulos memory | 5 | 5 |
-| Integrações | 0 | ~8 |
+| Integrações | 1 | ~8 |
 | Actions | 56 | 56 |
 | Cobertura de código | — | >90% |
 

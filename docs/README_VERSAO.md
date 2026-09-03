@@ -9,6 +9,42 @@
 
 ---
 
+## [0.12.0] — Fase 5 (item 5.1) — Telegram Bot ✅ (2026-09-03)
+
+> **FASE 5 INICIADA — 1/5 itens (Telegram Bot).** 21/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **5.1 Telegram Bot** | `integrations/telegram/` | Bot sobre o Orchestrator com os **14 recursos do legado** (13 comandos + voz/STT), em 4 camadas · `models.py`: User/Voice/Message/Update tipados (mesmo formato em memória e HTTP) · `transport.py`: protocolo `TelegramTransport` + `InMemoryTransport` (fila com watermark estilo servidor — polls nunca reprocessam; dev/testes sem rede) + `HTTPTransport` (Bot API via urllib stdlib, token obrigatório, getUpdates/sendMessage/getFile, erros mapeados) · `commands.py`: os 13 comandos do legado (start/help/perfil/limpar/status/uptime/stats/dashboard/historico/cache/presenca/codigo/rotacionar_key) com `admin_only` e aliases · `bot.py` — `TelegramBot`: admin gate, texto livre → `Orchestrator.process()` com perfil por chat (auto→default), voz → **STT plugável** (decoder injetável + fallback utf-8) → pipeline, hooks reais de histórico/cache (`/historico`, `/limpar`, `/cache`), métricas messages/commands/replies/voices/errors, **polling com offset persistente** + resiliência a falhas de transporte, `dump()` · comandos locais funcionam sem Orchestrator · NICKY · zero dependências novas |
+| — | `tests/test_telegram.py` | **55 testes** (modelos, InMemory/HTTP transports com rede stubada, parsing Bot API, catálogo/admin gate, voz/STT com decoder plugável, mensagens sobre o Orchestrator com memória real em tmp, polling/offset, transporte com falha) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_telegram.py -q   → 55 passed
+.venv/bin/python -m pytest tests/ -q                    → 904 passed, 0 falhas
+```
+
+### 3. O que NÃO foi feito
+
+- **Fase 5 (4/5 restantes)**: API REST (5.2), ProactiveNotifier (5.3),
+  IoT Manager (5.4) e MQTT Bridge (5.5)
+- STT real (whisper.cpp, item 6.3) e TTS (6.4) — a voz já entra no fluxo
+  via decoder plugável, mas a transcrição em produção fica na Fase 6
+- Perfis por chat em memória (persistência entre reinícios fica para o
+  Profile Manager 6.5) — decisão registrada
+- Deploy real contra o servidor do Telegram (token/config) — ambiente
+  controlado; transporte HTTP pronto e testado com rede stubada
+
+### 4. Próximo passo
+
+**Fase 5, item 5.2 — API REST** (`integrations/api/`) — endpoints sobre o
+Orchestrator; depois Notifier (5.3), IoT (5.4) e MQTT (5.5).
+
+---
+
 ## [0.11.0] — Fase 4 (item 4.4) — 56 Actions ✅ (2026-09-03)
 
 > **FASE 4 COMPLETA — 4/4 itens (Coder Engine, Self Repair, Perception,

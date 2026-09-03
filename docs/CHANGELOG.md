@@ -4,6 +4,50 @@
 
 ---
 
+## [0.12.0] — 2026-09-03
+
+### Adicionado
+
+#### Integrações — Telegram Bot (`integrations/telegram/`) — Fase 5, item 5.1 ✅
+
+**FASE 5 INICIADA — 1/5 itens.** Bot do Telegram sobre o Orchestrator com os
+**14 recursos do legado Nicky** (13 comandos de texto + voz/STT), desacoplado
+em 4 camadas e 100% testável sem rede:
+
+- `models.py` — `User`/`Voice`/`Message`/`Update` (tipos desacoplados do
+  transporte; mesmos formatos em memória e HTTP)
+- `transport.py` — protocolo `TelegramTransport` + 2 implementações:
+  `InMemoryTransport` (fila com watermark estilo servidor — polls
+  sucessivos nunca reprocessam; testes/dev sem rede nem token) e
+  `HTTPTransport` (Telegram Bot API via urllib **stdlib** — token
+  obrigatório, getUpdates/sendMessage/getFile, erros HTTP/rede mapeados
+  para `TransportError`)
+- `commands.py` — os **13 comandos do legado**: `start`, `help` (alias
+  `ajuda`), `perfil`, `limpar`, `status`, `uptime`, `stats`, `dashboard`,
+  `historico`, `cache`, `presenca`, `codigo`, `rotacionar_key` — com
+  `admin_only` por comando e o 14º recurso: **voz**
+- `bot.py` — `TelegramBot`: resolve comandos (alias + `@botname`, admin
+  gate) ou encaminha texto livre ao `Orchestrator.process()` com **perfil
+  por chat** (guardian/regulus/luma/vox/athenae/nyx/auto, auto → default) ·
+  **voz → STT plugável** (decoder injetável; fallback utf-8; sem STT
+  reporta com segurança) → pipeline normal · hooks de histórico/cache do
+  Orchestrator (`/historico`, `/limpar`, `/cache` reais) · métricas
+  (messages/commands/replies/voices/errors) · **polling com offset
+  persistente** e resiliência a falhas de transporte · `dump()` · NICKY
+
+- **Sem rede nem dependências novas**: comandos locais funcionam mesmo sem
+  Orchestrator conectado; segredos só no transporte HTTP (`TELEGRAM_BOT_TOKEN`)
+
+### Infraestrutura
+- **55 testes novos** em `tests/test_telegram.py` (modelos, transportes,
+  parsing da Bot API com rede stubada, catálogo/admin gate, voz/STT com
+  decoder plugável, mensagens sobre o Orchestrator com memória real,
+  polling/offset, resiliência a erros)
+- Suíte completa: **904 testes, 0 falhas** (849 + 55)
+- **ROADMAP: 21/32 capacidades absorvidas** — Fase 5 iniciada (1/5)
+
+---
+
 ## [0.11.0] — 2026-09-03
 
 ### Adicionado
