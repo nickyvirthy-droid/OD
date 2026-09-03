@@ -49,8 +49,9 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **56 Actions** | `tools/actions/` | 31 ✅ |
 | **Telegram Bot** | `integrations/telegram/` | 55 ✅ |
 | **API REST** | `integrations/api/` | 46 ✅ |
+| **ProactiveNotifier** | `integrations/notifier.py` | 42 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **22 componentes** | **950 testes** |
+| **Total** | **23 componentes** | **992 testes** |
 
 ---
 
@@ -497,9 +498,16 @@ stdlib (sem FastAPI): /health, /profiles, /presence/today, /dashboard,
 VectorStore, ws/chat 501 registrado — API key X-API-Key + rate limit por IP
 + CORS. Fase 5 com 2/5 itens.
 
-1. **Fase 5 — Integrações Externas**: item 5.3 ProactiveNotifier
-   (`integrations/notifier.py`), depois IoT Manager (5.4) e MQTT Bridge
-   (5.5).
+✅ Concluído: **Fase 5, item 5.3 — ProactiveNotifier**
+(`integrations/notifier.py`, 42 testes novos, total **992**). Notificações
+proativas do legado em stdlib: sondas embutidas (orchestrator, LLM offline
+com threshold de 300s, disco ≥85% warn/≥95% crit, restart por PID
+persistido), anti-spam com cooldown por chave (padrão 1/hora, persistido em
+state_file), sinks plugáveis sync/async, Event Bus (notifier.alert), loop
+run/start/stop, health(), métricas e relógio injetável. Fase 5 com 3/5.
+
+1. **Fase 5 — Integrações Externas**: item 5.4 IoT Manager
+   (`integrations/homeassistant/`), depois MQTT Bridge (5.5).
 
 ---
 
@@ -507,12 +515,12 @@ VectorStore, ws/chat 501 registrado — API key X-API-Key + rate limit por IP
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 22/32 | 32/32 |
-| Testes totais | 950 | ~1100 |
+| Capacidades implementadas | 23/32 | 32/32 |
+| Testes totais | 992 | ~1100 |
 | Módulos core | 9 | ~15 |
 | Ferramentas (tools) | 4 | ~20 |
 | Módulos memory | 5 | 5 |
-| Integrações | 2 | ~8 |
+| Integrações | 3 | ~8 |
 | Actions | 56 | 56 |
 | Cobertura de código | — | >90% |
 

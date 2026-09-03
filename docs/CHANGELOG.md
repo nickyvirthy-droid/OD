@@ -4,6 +4,50 @@
 
 ---
 
+## [0.14.0] — 2026-09-03
+
+### Adicionado
+
+#### Integrações — ProactiveNotifier (`integrations/notifier.py`) — Fase 5, item 5.3 ✅
+
+**FASE 5 — 3/5 itens.** Notificações proativas do legado Nicky reimplementadas
+**100% stdlib** (sem httpx), com health check periódico e alertas com
+anti-spam:
+
+- **Sondas embutidas** (contrato `CheckFn`: sync ou async, resultado único
+  ou múltiplo):
+  - `orchestrator` — conectado ou não (warn)
+  - `llm` — providers do Orchestrator com `is_available()` (provider sem
+    sonda = disponível); nenhum disponível → **CRIT após `emit_after_s`**
+    (padrão 300s — o "LLM offline >5min" do legado); health() acusa
+    imediatamente
+  - `disk` — `shutil.disk_usage` por path; ≥85% warn, ≥95% crit (padrão
+    do legado); path ilegível → `disk:unreadable` sem exceção
+  - `restart` — detecção por estado persistido (PID) entre reinícios
+- **Anti-spam**: cooldown por chave de alerta (padrão **3600s — 1
+  alerta/hora**, igual ao legado), override por chave (`cooldowns`),
+  persistido no `state_file` JSON (cooldowns e detecção de restart
+  sobrevivem a reinícios); `alerts_blocked` nas métricas
+- **Sinks plugáveis** (em vez de httpx acoplado ao Telegram): canais sync
+  ou async recebem o texto formatado 🟢🟡🔴 (ex: TelegramBot, log, stdout)
+- **Event Bus**: publica `notifier.alert` (payload tipado) quando conectado
+- `tick()` (sondas → threshold → anti-spam → sinks → bus → estado),
+  `run(interval, max_ticks)` (loop), `start()`/`stop()` (thread daemon),
+  `health()` (sondas sem emitir), `snapshot()`/`history()`/`dump()`,
+  `NotifierMetrics` (ticks/checks_run/problems/alerts_emitted/
+  alerts_blocked/errors) e relógio injetável (testes determinísticos)
+
+### Infraestrutura
+- **42 testes novos** em `tests/test_notifier.py` (tipos/formatação,
+  sondas com fakes — disco com monkeypatch e restart por estado,
+  threshold de LLM, anti-spam/cooldown por chave e persistido, sinks
+  sync/async e quebrados, Event Bus, checks customizados sync/lista/async,
+  loop e introspecção)
+- Suíte completa: **992 testes, 0 falhas** (950 + 42)
+- **ROADMAP: 23/32 capacidades absorvidas** — Fase 5 com 3/5
+
+---
+
 ## [0.13.0] — 2026-09-03
 
 ### Adicionado

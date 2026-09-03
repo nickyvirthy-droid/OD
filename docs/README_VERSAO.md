@@ -9,6 +9,39 @@
 
 ---
 
+## [0.14.0] — Fase 5 (item 5.3) — ProactiveNotifier ✅ (2026-09-03)
+
+> **FASE 5 — 3/5 itens (ProactiveNotifier).** 23/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **5.3 ProactiveNotifier** | `integrations/notifier.py` | Notificações proativas do legado em **stdlib** (sem httpx): **sondas embutidas** (`CheckFn` sync/async, resultado único ou múltiplo) — `orchestrator` (conectado?), `llm` (providers com `is_available()`; sem sonda = disponível; nenhum → **CRIT após 300s** = o "LLM offline >5min" do legado; health() acusa na hora), `disk` (`shutil.disk_usage` por path; ≥85% warn, ≥95% crit; ilegível → `disk:unreadable`), `restart` (PID persistido em `state_file` JSON) · **anti-spam** por chave de alerta (padrão 3600s — 1/hora, igual ao legado; override `cooldowns`; persistido entre instâncias) · **sinks plugáveis** sync/async com texto formatado 🟢🟡🔴 (canal desacoplado do transporte — decisão registrada) · **Event Bus** (`notifier.alert`) · `tick()`/`run(interval, max_ticks)`/`start()`/`stop()` (thread daemon)/`health()`/`snapshot()`/`history()`/`dump()` · `NotifierMetrics` · relógio injetável · NICKY |
+| — | `tests/test_notifier.py` | **42 testes** (tipos e formatação, sondas com fakes — disco monkeypatch e restart por estado, threshold de LLM, anti-spam/cooldown por chave e persistido, sinks sync/async e quebrados, Event Bus, checks customizados sync/lista/async, loop, dump/history limitada) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_notifier.py -q   → 42 passed
+.venv/bin/python -m pytest tests/ -q                    → 992 passed, 0 falhas
+```
+
+### 3. O que NÃO foi feito
+
+- **Fase 5 (2/5 restantes)**: IoT Manager (5.4) e MQTT Bridge (5.5)
+- Envio direto via Telegram (o legado usava httpx acoplado) — aqui o canal
+  é um sink plugável; o TelegramBot da 5.1 pode ser o sink de produção
+- Alertas de presença/visão (dependem da Fase 6 — sensorial)
+- Dashboards/UI de alertas (observabilidade é a Fase 7)
+
+### 4. Próximo passo
+
+**Fase 5, item 5.4 — IoT Manager** (`integrations/homeassistant/`) —
+controle de dispositivos; depois MQTT Bridge (5.5), que fecha a Fase 5.
+
+---
+
 ## [0.13.0] — Fase 5 (item 5.2) — API REST ✅ (2026-09-03)
 
 > **FASE 5 — 2/5 itens (API REST).** 22/32 capacidades no roadmap.
