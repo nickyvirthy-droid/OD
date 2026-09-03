@@ -9,6 +9,50 @@
 
 ---
 
+## [0.5.1] — Fase 3 (item 3.2) — Tool Loader ✅ (2026-09-03)
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| 3.2 Tool Loader | `tools/loader.py` | `Tool` (metadados + callable, async/sync); `ToolLoader` com contratos de plugin `PLUGIN`/`TOOLS`/`load_tools()`; descoberta recursiva (ignora não-.py e `_`); escopo estrito (`ToolScopeError`, spec §7.1); falha de import isolada com erro registrado; módulo sem contrato pulado com WARN; duplicados (skip ou `allow_overwrite`); hot-reload `reload()`/`reload_all()` preservando versão anterior em falha; `validate(params)` por schema (required + tipos com distinção bool/int + defaults); `invoke()` sync/async; `get/find/has/unload/clear/dump`; métricas `LoaderMetrics`; logging via `core/logger.py` |
+| — | `tools/__init__.py` | Pacote com docstring canônico `OD // CORE` |
+
+- Testes novos: `tests/test_tool_loader.py` (39) — contratos, descoberta,
+  robustez (falhas isoladas), escopo, registro/remoção, hot-reload,
+  invocação e validação de parâmetros, métricas/dump.
+- Documentação atualizada: `docs/CHANGELOG.md` (0.5.1),
+  `docs/ROADMAP_ABSORCAO.md` (3.2 ✅, 14/32 capacidades).
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_tool_loader.py -q
+→ 39 passed
+
+.venv/bin/python -m pytest tests/ -q
+→ 635 passed, 0 falhas   (596 anteriores + 39 novos)
+```
+
+### 3. O que NÃO foi feito
+
+- Itens 3.3 (Action Registry) e 3.4 (Orchestrator Pipeline) — próximos da
+  Fase 3. O Registry (3.3) vai consumir o loader e aplicar o Security Layer
+  na execução das ferramentas.
+- Execução de ferramentas com validação de segurança (3.3) — fora do escopo
+  do loader, que apenas carrega/cataloga.
+- Refatoração do `_audit_nicky` duplicado para o `core/logger.py` — pendente.
+- Sandbox de execução de plugins (código Python confiável executado no
+  import) — tema do `runtime/`/Fase 7, registrado aqui como decisão.
+
+### 4. Próximo passo
+
+**Fase 3, item 3.3 — Action Registry** (`tools/registry.py`): registro
+TIPADO de ações consumindo o Tool Loader e validando execução pelo Security
+Layer; depois Orchestrator Pipeline (3.4).
+
+---
+
 ## [0.5.0] — Fase 3 (item 3.1) — Workflow Engine ✅ (2026-09-03)
 
 ### 1. O que foi feito
@@ -149,7 +193,8 @@ Vector Memory (RAG), Context Manager. → Concluída em [0.4.0].
 | 0.2.0 | Core infra + análises legadas | 2026-09-02 (histórico) | `c02b9ec` |
 | 0.3.0 | Fase 1 — Fundação | 2026-09-02 (histórico parcial) | `ab96952` (Config Manager) |
 | 0.4.0 | Fase 1 completa + Fase 2 — Memória | 2026-09-03 (publicado) | `a604f7f`, `ebc7f04` |
-| 0.5.0 | Fase 3 (3.1) — Workflow Engine | 2026-09-03 (esta publicação) | commit desta entrega |
+| 0.5.0 | Fase 3 (3.1) — Workflow Engine | 2026-09-03 (publicado) | `7008035` |
+| 0.5.1 | Fase 3 (3.2) — Tool Loader | 2026-09-03 (esta publicação) | commit desta entrega |
 
 > **Nota de transparência:** os relatórios §2.1 das Fases 1 e 2 foram
 > registrados retroativamente neste documento (2026-09-03) a partir dos

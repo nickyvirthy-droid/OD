@@ -4,6 +4,33 @@
 
 ---
 
+## [0.5.1] — 2026-09-03
+
+### Adicionado
+
+#### Tools — Tool Loader (`tools/loader.py`) — Fase 3, item 3.2 ✅
+- `Tool` — metadados + callable (name, description, category, params, requires, version, tags, source/module, async)
+- `ToolLoader` — carregamento dinâmico de plugins Python:
+  - Contratos de plugin: `PLUGIN` (dict com `tools`), `TOOLS` (lista) ou função `load_tools()`
+  - Entrada de ferramenta aceita dict, `Tool` ou callable puro (nome/docstring derivados)
+  - Descoberta recursiva em diretórios, ignora não-`.py` e arquivos `_`/`.`
+  - Escopo estrito (`ToolScopeError`) — arquivos fora dos `dirs` são recusados (spec §7.1)
+  - Falha de import isolada (não derruba os demais módulos; erros registrados com CRIT)
+  - Módulo sem contrato é pulado com WARN; entrada inválida não derruba o módulo
+  - Nome duplicado: skip por padrão ou `allow_overwrite=True`
+  - Hot-reload: `reload(name)` / `reload_all()` — falha de reload preserva a versão anterior
+  - `validate(params)` — validação de schema (required + tipos com distinção bool/int, defaults)
+  - `invoke()` sync/async, `get/find/has/unload/clear/dump`, métricas (`LoaderMetrics`)
+  - Logging via `core/logger.py` (protocolo NICKY)
+- `tools/__init__.py` — pacote com docstring canônico `OD // CORE`
+- 39 testes unitários em `tests/test_tool_loader.py`
+
+### Infraestrutura
+- Suíte completa: **635 testes, 0 falhas** (596 anteriores + 39 novos)
+- Fase 3 do ROADMAP_ABSORCAO.md: itens 3.1 ✅ e 3.2 ✅ — próximos: 3.3 Action Registry, 3.4 Orchestrator
+
+---
+
 ## [0.5.0] — 2026-09-03
 
 ### Adicionado

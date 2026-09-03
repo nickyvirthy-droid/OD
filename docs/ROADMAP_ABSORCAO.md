@@ -40,8 +40,9 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Vector Memory** | `memory/vector.py` | 36 ✅ |
 | **Context Manager** | `memory/context.py` | 28 ✅ |
 | **Workflow Engine** | `core/workflows.py` | 70 ✅ |
+| **Tool Loader** | `tools/loader.py` | 39 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **13 componentes** | **596 testes** |
+| **Total** | **14 componentes** | **635 testes** |
 
 ---
 
@@ -378,7 +379,7 @@ FASE 7 (Infraestrutura) ←── paralela
 
 ### Fase 3 — Orquestração (em andamento)
 - [x] Workflow Engine suporta branching, nested, retries, timeouts (`core/workflows.py`, 70 testes) — 2026-09-03
-- [ ] Tool Loader carrega plugins dinamicamente
+- [x] Tool Loader carrega plugins dinamicamente (`tools/loader.py`, 39 testes) — 2026-09-03
 - [ ] Action Registry registra 56 actions tipadas
 - [ ] Orchestrator executa pipeline de 8 etapas com fallbacks
 
@@ -433,10 +434,11 @@ FASE 7 (Infraestrutura) ←── paralela
 
 ✅ Concluído: Fase 3 item 3.1 — Workflow Engine (`core/workflows.py`, 70 testes novos, total 596).
 
-1. **Implementar Tool Loader** (`tools/loader.py`) — carregamento dinâmico de plugins
-2. **Implementar Action Registry** (`tools/registry.py`) — registro tipado de ações validado pelo Security Layer
-3. **Implementar Orchestrator Pipeline** (`core/orchestrator.py`) — pipeline de 8 etapas (rate limit → datetime → AIML → cache → history → LLM → fallback → post-processing)
-4. **Integrar Logger nos componentes existentes** — substituir `_audit_nicky` duplicado (event_bus, router, state, memory) pelo `core/logger.py`
+✅ Concluído: Fase 3 item 3.2 — Tool Loader (`tools/loader.py`, 39 testes novos, total 635).
+
+1. **Implementar Action Registry** (`tools/registry.py`) — registro tipado de ações validado pelo Security Layer
+2. **Implementar Orchestrator Pipeline** (`core/orchestrator.py`) — pipeline de 8 etapas (rate limit → datetime → AIML → cache → history → LLM → fallback → post-processing)
+3. **Integrar Logger nos componentes existentes** — substituir `_audit_nicky` duplicado (event_bus, router, state, memory) pelo `core/logger.py`
 
 ---
 
@@ -444,9 +446,10 @@ FASE 7 (Infraestrutura) ←── paralela
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 13/32 | 32/32 |
-| Testes totais | 596 | ~600 |
+| Capacidades implementadas | 14/32 | 32/32 |
+| Testes totais | 635 | ~600 |
 | Módulos core | 6 | ~15 |
+| Ferramentas (tools) | 1 | ~20 |
 | Módulos memory | 5 | 5 |
 | Integrações | 0 | ~8 |
 | Actions | 0 | 56 |
