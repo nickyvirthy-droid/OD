@@ -58,6 +58,10 @@ DEFAULT_PROFILE = "guardian"
 
 API_NAME = "Omega Drakon REST API"
 
+# Shells de página (HTML estático, sem dados) — com page_shells_public,
+# continuam abertos para o navegador carregar a UI mesmo com auth_all.
+PAGE_PATHS = frozenset({"/chat", "/dashboard"})
+
 
 class APIError(Exception):
     """Erro de API com status HTTP correspondente."""
@@ -81,6 +85,11 @@ class APIConfig:
         auth_all:       Quando True, a API key passa a ser exigida em TODOS
                         os endpoints (inclusive os públicos) — modo para
                         bind exposto na LAN (0.0.0.0).
+        page_shells_public: Com auth_all=True, os SHELLS das páginas web
+                        (GET /chat e /dashboard — HTML estático sem dados)
+                        continuam abertos para o navegador carregar a UI; a
+                        chave é exigida em TODA chamada de dados/API. False
+                        fecha também os shells.
         rate_limit_max: Máximo de requests por IP na janela (0 desliga).
         rate_window_s:  Janela do rate limit em segundos.
         profiles:       Perfis válidos expostos em /profiles.
@@ -93,6 +102,7 @@ class APIConfig:
     port: int = 8000
     api_key: str = ""
     auth_all: bool = False
+    page_shells_public: bool = True
     rate_limit_max: int = 30
     rate_window_s: float = 60.0
     profiles: tuple[str, ...] = DEFAULT_PROFILES
@@ -146,6 +156,182 @@ ROUTES: list[_Route] = [
     _Route(method, path, _compile_route(path), handler, auth)
     for method, path, handler, auth in _ROUTE_SPECS
 ]
+
+# ---------------------------------------------------------------------------
+# Página de chat (shell público + chave no navegador + POST /message)
+# ---------------------------------------------------------------------------
+
+_CHAT_PAGE_HTML = """<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omega Drakon — Chat</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: #0d1117;
+         color: #e6edf3; display: flex; flex-direction: column; height: 100vh; }
+  header { padding: 12px 18px; background: #161b22; border-bottom: 1px solid #30363d;
+           display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  header span { color: #8b949e; font-size: 13px; }
+  #messages { flex: 1; overflow-y: auto; padding: 18px; display: flex;
+              flex-direction: column; gap: 10px; }
+  .bubble { max-width: 78%; padding: 10px 14px; border-radius: 12px;
+            white-space: pre-wrap; word-wrap: break-word; line-height: 1.45; }
+  .user { align-self: flex-end; background: #1f6feb; }
+  .od { align-self: flex-start; background: #21262d; border: 1px solid #30363d; }
+  .meta { font-size: 11px; color: #8b949e; margin-top: 4px; }
+  #composer { display: flex; gap: 8px; padding: 12px 18px; background: #161b22;
+              border-top: 1px solid #30363d; }
+  input, select, button { font: inherit; padding: 9px 12px; border-radius: 8px;
+              border: 1px solid #30363d; background: #0d1117; color: #e6edf3; }
+  #text { flex: 1; }
+  button { background: #238636; border-color: #238636; cursor: pointer;
+           font-weight: 600; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  #gate { display: flex; flex-direction: column; gap: 14px; margin: auto;
+          width: min(420px, 92vw); }
+  #gate h2 { margin: 0; }
+  #gate p { color: #8b949e; margin: 0; font-size: 14px; }
+  .hidden { display: none !important; }
+  .hint { color: #8b949e; font-size: 12px; }
+  #err { color: #f85149; font-size: 13px; min-height: 18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐉 Omega Drakon — Chat</h1>
+  <span id="who"></span>
+  <select id="profile" title="Perfil da resposta">
+    <option value="auto">auto</option>
+    <option value="guardian" selected>guardian</option>
+    <option value="regulus">regulus</option>
+    <option value="luma">luma</option>
+    <option value="vox">vox</option>
+    <option value="athenae">athenae</option>
+    <option value="nyx">nyx</option>
+  </select>
+</header>
+
+<div id="gate">
+  <h2>🔑 Chave da API</h2>
+  <p>Este chat conversa com o Omega Drakon pelo <code>POST /message</code>,
+     que exige a chave <code>X-API-Key</code>. Informe a chave uma vez — ela
+     fica só nesta aba (sessionStorage) e nunca vai para a URL.</p>
+  <input id="key" type="password" placeholder="Sua OD_API_KEY" autocomplete="off">
+  <div id="err"></div>
+  <button id="enter">Entrar no chat</button>
+</div>
+
+<div id="chat" class="hidden">
+  <div id="messages">
+    <div class="bubble od">👋 Olá! Sou a interface do Omega Drakon.
+      Pergunte qualquer coisa — cada mensagem passa pelo pipeline do Orchestrator.</div>
+  </div>
+  <div id="composer">
+    <input id="text" placeholder="Digite sua mensagem…" autocomplete="off">
+    <button id="send">Enviar</button>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const gate = $("gate"), chat = $("chat");
+  let key = sessionStorage.getItem("od_api_key") || "";
+  let busy = false;
+  const user_id = "web";
+
+  function applyKey() {
+    sessionStorage.setItem("od_api_key", key);
+    $("who").textContent = "usuário: " + user_id + " · perfil da resposta abaixo";
+  }
+  function showGate(msg) {
+    $("err").textContent = msg || "";
+    gate.classList.remove("hidden");
+    chat.classList.add("hidden");
+  }
+  function showChat() {
+    gate.classList.add("hidden");
+    chat.classList.remove("hidden");
+    $("text").focus();
+  }
+  function addBubble(who, text, meta) {
+    const div = document.createElement("div");
+    div.className = "bubble " + who;
+    div.textContent = text;
+    const m = document.createElement("div");
+    m.className = "meta";
+    m.textContent = meta || "";
+    div.appendChild(m);
+    $("messages").appendChild(div);
+    $("messages").scrollTop = $("messages").scrollHeight;
+  }
+
+  $("enter").onclick = async () => {
+    key = $("key").value.trim();
+    if (!key) { $("err").textContent = "Informe a chave."; return; }
+    // valida a chave com uma chamada leve antes de liberar
+    const probe = await fetch("/llms", { headers: { "X-API-Key": key } });
+    if (!probe.ok) { $("err").textContent = "Chave inválida (" + probe.status + ")."; return; }
+    applyKey();
+    showChat();
+  };
+
+  async function send() {
+    const text = $("text").value.trim();
+    if (!text || busy) return;
+    busy = true;
+    $("send").disabled = true;
+    $("text").value = "";
+    addBubble("user", text);
+    const t0 = Date.now();
+    try {
+      const resp = await fetch("/message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": key
+        },
+        body: JSON.stringify({
+          user_id: user_id,
+          profile: $("profile").value,
+          text: text
+        })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.status === 401) {
+        key = "";
+        sessionStorage.removeItem("od_api_key");
+        showGate("Chave expirada ou inválida — informe novamente.");
+        return;
+      }
+      if (!resp.ok) {
+        addBubble("od", "Erro " + resp.status + ": " + (data.error || "falha"), "API");
+        return;
+      }
+      const ms = ((Date.now() - t0) / 1000).toFixed(1);
+      const meta = (data.profile ? data.profile + " · " : "") +
+                   (data.route || "") + " · " + ms + "s";
+      addBubble("od", data.message || "(sem resposta)", meta);
+    } catch (e) {
+      addBubble("od", "Falha de rede: " + e.message, "API");
+    } finally {
+      busy = false;
+      $("send").disabled = false;
+      $("text").focus();
+    }
+  }
+
+  $("send").onclick = send;
+  $("text").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+  if (key) { applyKey(); showChat(); }
+  else { showGate(""); $("key").focus(); }
+</script>
+</body>
+</html>
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +431,7 @@ class APIHandler(BaseHTTPRequestHandler):
     """Dispatch dos 17 endpoints + JSON/HTML, auth e rate limit."""
 
     protocol_version = "HTTP/1.1"
-    server_version = "OmegaDrakon/0.13"
+    server_version = "OmegaDrakon/0.19"
     sys_version = ""
 
     @property
@@ -291,7 +477,17 @@ class APIHandler(BaseHTTPRequestHandler):
             if not self._check_rate_limit():
                 return
             # auth_all exige a chave também nos endpoints públicos
-            if (route.auth or self.api.config.auth_all) and not self._check_api_key():
+            # auth_all exige a chave também nos endpoints públicos, EXCETO
+            # nos shells de página (GET /chat, /dashboard): HTML estático
+            # sem dados — navegador não envia header X-API-Key. Os dados e
+            # serviços (incluindo POST /message) seguem exigindo a chave.
+            page_shell = bool(
+                method == "GET"
+                and route.path in PAGE_PATHS
+                and self.api.config.page_shells_public
+            )
+            if (route.auth or (self.api.config.auth_all and not page_shell)) \
+                    and not self._check_api_key():
                 return
             handler = getattr(self, route.handler)
             kwargs: dict[str, str] = dict(match.groupdict()) if match else {}
@@ -456,7 +652,7 @@ class APIHandler(BaseHTTPRequestHandler):
             {
                 "name": API_NAME,
                 "signature": __signature__,
-                "version": "0.17.2",
+                "version": "0.19.0",
                 "endpoints": len(ROUTES),
                 "orchestrator": self.api.orchestrator is not None,
                 "uptime_s": int(time.time() - self.api.started_at),
@@ -515,31 +711,22 @@ class APIHandler(BaseHTTPRequestHandler):
         )
 
     def dashboard_html(self) -> None:
-        stats = self._orch_snapshot()
+        # Shell estático SEM dados: métricas só via /dashboard/stats (chave)
         self._html(
             200,
             "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'>"
             "<title>Omega Drakon — Dashboard</title></head><body>"
             "<h1>🐉 Omega Drakon — Dashboard</h1>"
-            f"<p>Status: <strong>{stats.get('status', 'degraded')}</strong> · "
-            f"processadas: {stats.get('processed', 0)} · "
-            f"latência média: {stats.get('avg_latency_ms', 0)}ms</p>"
-            "<p>Dados estruturados em <code>/dashboard/stats</code> (API "
-            "Key). Dashboard interativo (Chart.js/PWA) é evolução da Fase "
-            "5 — placeholder mínimo por decisão registrada.</p>"
+            "<p>Shell da interface (sem dados). Métricas estruturadas em "
+            "<code>GET /dashboard/stats</code> — exige header "
+            "<code>X-API-Key</code>.</p>"
             "</body></html>",
         )
 
     def chat_html(self) -> None:
-        self._html(
-            200,
-            "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'>"
-            "<title>Omega Drakon — Chat</title></head><body>"
-            "<h1>💬 Omega Drakon — Chat</h1>"
-            "<p>Interface PWA/WebSocket do legado não foi transportada — "
-            "use <code>POST /message</code> (JSON) ou o Telegram Bot.</p>"
-            "</body></html>",
-        )
+        """Chat funcional: shell aberto + chave pedida UMA vez no navegador
+        (sessionStorage) e usada nas chamadas a POST /message."""
+        self._html(200, _CHAT_PAGE_HTML)
 
     def metrics_text(self) -> None:
         orch = self.api.orchestrator

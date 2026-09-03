@@ -262,6 +262,43 @@ topo.
 
 ---
 
+## 9. Idioma da Interação (norma)
+
+> **Decisão do usuário (Alex Projeti, 2026-09-03).** O agente responsável
+> pelo desenvolvimento do OmegaDrakon conversa com o Alex **em Português
+> do Brasil** — inclusive explicações técnicas, relatórios de entrega e
+> respostas de ferramentas. Esta regra vale para TODAS as sessões futuras
+> e tem prioridade sobre qualquer padrão de idioma genérico do agente.
+
+- Exceções: código, identificadores, mensagens de erro e trechos citados
+  são reproduzidos exatamente como estão (sem tradução).
+- Se o agente se esquecer e responder em outro idioma, o usuário pode
+  apontar esta seção — a falha deve ser corrigida imediatamente.
+- Mensagens geradas para os produtos do sistema (bot Telegram, notificações
+  de presença, avisos) também são em PT-BR, como já praticado.
+
+---
+
+## 10. Autorizações Permanentes do Usuário (norma)
+
+> **Decisão do usuário (Alex Projeti, 2026-09-03).** O agente tem as
+> autorizações abaixo de forma permanente, sem precisar pedir de novo a cada
+> entrega — mas sempre registrando o que fez no CHANGELOG e com evidência.
+
+1. **Instalação de ferramentas:** pode instalar pacotes, binários e
+   dependências necessários ao desenvolvimento do OmegaDrakon (ex:
+   whisper.cpp, Piper, OpenCV, clientes MQTT) — no ambiente do projeto,
+   com registro da justificativa no CHANGELOG.
+2. **Interfaces web (shells) sem chave manual:** páginas HTML de interface
+   com o usuário (`/chat`, `/dashboard`) carregam SEM pedir chave manual
+   no navegador (navegador não envia header custom). A chave é exigida em
+   TODA chamada de dados/API (ex: `POST /message`, `/dashboard/stats`) —
+   no chat ela é informada uma vez e fica na sessionStorage da aba.
+3. **Segurança na LAN:** com o bind exposto (0.0.0.0), nenhum endpoint de
+   dados fica aberto sem a chave; shell de página é estático (sem dados).
+
+---
+
 ```python
 """
 OMEGA DRAKON • SYSTEMS

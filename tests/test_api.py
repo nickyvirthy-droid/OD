@@ -196,8 +196,10 @@ class TestAPIPublicEndpoints:
         assert status == 200
         assert headers.get("Content-Type", "").startswith("text/html")
         assert b"Omega Drakon" in body
+        assert b"dashboard/stats" in body  # aponta para o endpoint com chave
         status, body, _ = _request(port, "GET", "/chat")
         assert status == 200 and b"POST /message" in body
+        assert b"X-API-Key" in body  # gate de chave no próprio navegador
 
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))
@@ -636,17 +638,52 @@ class TestAuthAll:
                 rate_limit_max=0,
             ),
         )
-        # Sem chave: públicos também negam
-        for path in ("/", "/health", "/profiles", "/metrics",
-                     "/dashboard", "/chat"):
+        # Sem chave: dados/públicos negam
+        for path in ("/", "/health", "/profiles", "/metrics"):
             status, _body, _h = _request(srv.bound_port, "GET", path)
             assert status == 401, path
-        # Com chave: públicos respondem
-        for path in ("/health", "/metrics"):
+        # Com chave: respondem
+        for path in ("/health", "/metrics", "/profiles"):
             status, _body, _h = _request(
                 srv.bound_port, "GET", path, api_key="segredo-lan"
             )
             assert status == 200, path
+
+    def test_page_shells_open_without_key_but_dataless(self, serve,
+                                                       tmp_path) -> None:
+        """Shells HTML (UI) carregam sem chave; dados continuam protegidos."""
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, api_key="segredo-lan", auth_all=True,
+                rate_limit_max=0,
+            ),
+        )
+        # Shell do chat carrega no navegador (sem header possível)
+        status, body, _h = _request(srv.bound_port, "GET", "/chat")
+        assert status == 200
+        assert b"X-API-Key" in body and b"sessionStorage" in body
+        # Shell do dashboard é estático (sem números vivos)
+        status, body, _h = _request(srv.bound_port, "GET", "/dashboard")
+        assert status == 200
+        assert b"Omega Drakon" in body
+        assert b"processed" not in body  # nenhum dado no shell
+        # Mas os DADOS seguem exigindo a chave
+        status, _body, _h = _request(
+            srv.bound_port, "GET", "/dashboard/stats"
+        )
+        assert status == 401
+
+    def test_page_shells_closed_when_flag_false(self, serve, tmp_path) -> None:
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, api_key="segredo-lan", auth_all=True,
+                page_shells_public=False, rate_limit_max=0,
+            ),
+        )
+        status, _body, _h = _request(srv.bound_port, "GET", "/chat")
+        assert status == 401
 
     def test_protected_endpoints_also_require_key(self, serve, tmp_path) -> None:
         srv = serve(

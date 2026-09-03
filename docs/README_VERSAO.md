@@ -9,6 +9,36 @@
 
 ---
 
+## [0.19.0] — Web: Chat funcional + shells públicos (sem chave manual) 💬 (2026-09-03)
+
+### 1. O que foi feito
+
+| Item | O que | Destaques |
+|---|---|---|
+| **Chat funcional** | `integrations/api/server.py` | `/chat` vira uma página real (HTML+JS vanilla): pede a `OD_API_KEY` **uma vez** (sessionStorage, nunca na URL), conversa com o OD via `POST /message` (perfil selecionável, bolhas, 401 → volta ao gate) |
+| **Shells públicos** | `APIConfig.page_shells_public` | Com `auth_all`, `/chat` e `/dashboard` (HTML estático sem dados) carregam sem chave; **dados** (`/message`, `/llms`, `/dashboard/stats`…) seguem exigindo `X-API-Key` |
+| **Dashboard** | estático | Sem números vivos no shell — métricas só via `/dashboard/stats` (chave) |
+| — | `docs/REGRAS_DE_TRABALHO.md` | §10: autorização permanente p/ instalar ferramentas + shells web sem chave manual (regra do usuário) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_api.py -q   → 53 passed
+.venv/bin/python -m pytest tests/ -q                → 1153 passed, 0 falhas
+GET /chat sem chave                                 → 200 (HTML com gate sessionStorage)
+GET /health, /llms, POST /message sem chave         → 401
+POST /message com chave                             → ok, rota llm, resposta do gemma
+```
+
+### 3. O que NÃO foi feito
+
+- WebSocket streaming (`/ws/chat` segue 501) — o chat usa request/response
+  no `POST /message`; streaming exige servidor async dedicado
+- Chat do Telegram e web compartilhando o mesmo histórico por usuário
+  (user `web` é separado) — possível evolução futura
+
+---
+
 ## [0.18.0] — Fase 6 (item 6.2) — Presence Monitor ✅ (2026-09-03)
 
 > **FASE 6 — 1/6 itens.** 26/32 capacidades no roadmap.

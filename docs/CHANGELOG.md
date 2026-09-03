@@ -4,6 +4,41 @@
 
 ---
 
+## [0.19.0] — 2026-09-03
+
+### Adicionado
+
+#### Web — Chat funcional + política de shells públicos (decisão do usuário) 💬
+
+Com o `auth_all` (0.17.2) o GET `/chat` passou a exigir `X-API-Key` — e
+navegador não envia header custom, então a página pedia chave e não abria.
+Correção com a arquitetura certa:
+
+- **Shells de página públicos (sem dados):** `APIConfig.page_shells_public`
+  (default True) — com `auth_all`, o GET de `/chat` e `/dashboard` (HTML
+  estático) continua aberto para o navegador carregar a UI; **toda** chamada
+  de dados/API (incluindo `POST /message`) segue exigindo a chave
+- **`/chat` funcional** (`_CHAT_PAGE_HTML`): página HTML+JS vanilla (sem
+  dependência) com gate da chave — informada **uma vez**, fica na
+  `sessionStorage` da aba (nunca na URL) — e conversa real com o OD via
+  `POST /message` (perfil selecionável, bolhas, erros tratados, 401 limpa a
+  chave e volta ao gate)
+- **`/dashboard` estático**: shell sem números vivos — métricas só via
+  `GET /dashboard/stats` (chave)
+- `page_shells_public=False` fecha também os shells (modo estrito)
+
+### Infraestrutura
+- **2 testes novos** (shells abrem sem chave mas sem dados + flag False
+  fecha; asserts no HTML do chat/dashboard)
+- Suíte completa: **1153 testes, 0 falhas** (1151 + 2)
+- **Regra nova** no `docs/REGRAS_DE_TRABALHO.md` §10: autorização
+  permanente do Alex para instalar ferramentas necessárias + shells web
+  nunca pedem chave manual (dados sempre com chave)
+- E2E ao vivo: `/chat` 200 sem chave · `/health`/`/llms` 401 sem chave ·
+  `/llms` 200 com chave · `POST /message` com chave → resposta real do gemma
+
+---
+
 ## [0.18.0] — 2026-09-03
 
 ### Adicionado
