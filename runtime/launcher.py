@@ -342,7 +342,7 @@ async def _run_vision_forever(detector: Any) -> None:
     from tools.vision import FACE_TOPIC
 
     event_bus = EventBus()
-    event_bus.subscribe(FACE_TOPIC, on_change)
+    event_bus.subscribe_handler(FACE_TOPIC, on_change)
     detector.event_bus = event_bus
     log.info("Face Detector iniciando captura da webcam...")
     await detector.run()
