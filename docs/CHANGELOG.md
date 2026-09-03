@@ -4,6 +4,36 @@
 
 ---
 
+## [0.17.2] — 2026-09-03
+
+### Alterado
+
+#### API REST — X-API-Key exigida em TODOS os endpoints (`auth_all`) 🔒
+
+Com o bind exposto na LAN (0.0.0.0, v0.17.1), os endpoints públicos
+(`/`, `/health`, `/profiles`, `/dashboard`, `/chat`, `/metrics`, ...)
+ficaram acessíveis sem chave de qualquer máquina da rede — agora exigem a
+chave também:
+
+- `APIConfig.auth_all` (default False): quando True, o gate de auth cobre
+  TODAS as rotas (públicas e protegidas) — header `X-API-Key` obrigatório
+- `auth_all=True` sem `api_key` configurada **nega tudo** com 401 + log de
+  erro (força o operador a definir `OD_API_KEY` antes de expor na LAN)
+- Launcher: `OD_API_AUTH_ALL` (default **1**) — o `od-core` em produção
+  roda com a chave exigida em todos os endpoints
+- CORS preflight (OPTIONS) permanece aberto por construção (o navegador
+  manda a chave na requisição real, não no preflight)
+
+### Infraestrutura
+- **5 testes novos** em `tests/test_api.py` (`TestAuthAll`: públicos negam
+  sem chave, protegidos idem, chave errada, auth_all sem chave nega tudo,
+  auth_all off preserva o comportamento dev/local)
+- Suíte completa: **1125 testes, 0 falhas** (1120 + 5)
+- Verificado ao vivo na LAN: sem `X-API-Key` → 401 em `/health`, `/metrics`,
+  `/llms`; com chave → 200 (inclusive `/dashboard`)
+
+---
+
 ## [0.17.1] — 2026-09-03
 
 ### Corrigido

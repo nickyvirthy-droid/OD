@@ -22,6 +22,8 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
     OD_API_HOST         Bind da API (default 0.0.0.0 — LAN/site; use
                         127.0.0.1 para só local).
     OD_API_KEY          Chave X-API-Key da API (endpoints protegidos).
+    OD_API_AUTH_ALL     "0" libera os endpoints públicos sem chave
+                        (default 1 — chave exigida em TODOS os endpoints).
     OD_MQTT_ENABLED     "0" desliga a ponte MQTT no modo all (default 1).
     OD_MQTT_HOST/PORT   Broker Mosquitto (default 127.0.0.1:1883).
     OD_MQTT_CLIENT_ID   Identificador no broker (default od-core).
@@ -127,12 +129,14 @@ def build_api_server(orchestrator: Any):
     api_key = env("OD_API_KEY", "")
     host = env("OD_API_HOST", "0.0.0.0")  # LAN (site 192.168.0.250:8000)
     port = int(env("OD_API_PORT", "8000"))
+    # auth_all: bind exposto na LAN exige X-API-Key em TODOS os endpoints
     server = APIServer(
         orchestrator,
         config=APIConfig(
             host=host,
             port=port,
             api_key=api_key,
+            auth_all=env("OD_API_AUTH_ALL", "1") != "0",
         ),
     )
     return server

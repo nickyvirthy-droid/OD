@@ -9,6 +9,32 @@
 
 ---
 
+## [0.17.2] — API REST: X-API-Key em todos os endpoints 🔒 (2026-09-03)
+
+### 1. O que foi feito
+
+| Item | O que | Destaques |
+|---|---|---|
+| **auth_all** | `integrations/api/server.py` | `APIConfig.auth_all=True` exige a chave em TODAS as rotas (inclusive públicas) — para bind exposto na LAN · sem chave configurada + auth_all → nega tudo (401 + log) · launcher: `OD_API_AUTH_ALL` default 1 |
+| — | `tests/test_api.py` | **5 testes novos** (`TestAuthAll`) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/ -q        → 1125 passed, 0 falhas
+LAN sem X-API-Key: /health /metrics /llms   → 401 em todos
+LAN com X-API-Key: /health /llms /dashboard → 200
+```
+
+### 3. O que NÃO foi feito
+
+- Páginas HTML (`/dashboard`, `/chat`) agora exigem a chave via header —
+  um navegador puro não envia header custom; se o site precisar abri-las
+  direto no browser, o caminho é um proxy que injeta a chave (ou `curl`
+  com `-H X-API-Key`)
+
+---
+
 ## [0.17.1] — Correções de produção: Telegram loop + API na LAN 🐛 (2026-09-03)
 
 ### 1. O que foi feito

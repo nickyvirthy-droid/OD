@@ -78,6 +78,9 @@ class APIConfig:
         port:           Porta (0 = efêmera, útil em testes).
         api_key:        Chave exigida nos endpoints protegidos (header
                         X-API-Key). Vazia = sem auth (uso local/dev).
+        auth_all:       Quando True, a API key passa a ser exigida em TODOS
+                        os endpoints (inclusive os públicos) — modo para
+                        bind exposto na LAN (0.0.0.0).
         rate_limit_max: Máximo de requests por IP na janela (0 desliga).
         rate_window_s:  Janela do rate limit em segundos.
         profiles:       Perfis válidos expostos em /profiles.
@@ -89,6 +92,7 @@ class APIConfig:
     host: str = "127.0.0.1"
     port: int = 8000
     api_key: str = ""
+    auth_all: bool = False
     rate_limit_max: int = 30
     rate_window_s: float = 60.0
     profiles: tuple[str, ...] = DEFAULT_PROFILES
@@ -286,7 +290,8 @@ class APIHandler(BaseHTTPRequestHandler):
                 return
             if not self._check_rate_limit():
                 return
-            if route.auth and not self._check_api_key():
+            # auth_all exige a chave também nos endpoints públicos
+            if (route.auth or self.api.config.auth_all) and not self._check_api_key():
                 return
             handler = getattr(self, route.handler)
             kwargs: dict[str, str] = dict(match.groupdict()) if match else {}
@@ -351,6 +356,19 @@ class APIHandler(BaseHTTPRequestHandler):
         """Header X-API-Key. Escreve 401 e retorna False quando negado."""
         expected = self.api.config.api_key
         if not expected:
+            # auth_all sem chave configurada = nega tudo (força o operador
+            # a definir OD_API_KEY antes de expor na LAN)
+            if self.api.config.auth_all:
+                log.error(
+                    "auth_all=True sem api_key — todas as requests negadas; "
+                    "defina OD_API_KEY no .env"
+                )
+                self._json(
+                    401,
+                    {"ok": False, "error": "unauthorized",
+                     "hint": "servidor sem chave configurada (auth_all)"},
+                )
+                return False
             return True  # auth desligada (uso local/dev explícito)
         provided = self.headers.get("X-API-Key", "")
         if not provided or not hmac.compare_digest(provided, expected):
@@ -438,7 +456,7 @@ class APIHandler(BaseHTTPRequestHandler):
             {
                 "name": API_NAME,
                 "signature": __signature__,
-                "version": "0.13.0",
+                "version": "0.17.2",
                 "endpoints": len(ROUTES),
                 "orchestrator": self.api.orchestrator is not None,
                 "uptime_s": int(time.time() - self.api.started_at),

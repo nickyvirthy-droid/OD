@@ -619,3 +619,81 @@ class TestOrchestratorProviders:
         snapshot = orch.providers
         snapshot  # tuple — mutações não afetam o registrado
         assert orch.providers[0].name == "x"
+
+
+# ===========================================================================
+# auth_all — API key exigida em TODOS os endpoints (bind na LAN)
+# ===========================================================================
+
+class TestAuthAll:
+    """Modo de segurança para bind exposto (0.0.0.0): chave em tudo."""
+
+    def test_public_endpoints_require_key(self, serve, tmp_path) -> None:
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, api_key="segredo-lan", auth_all=True,
+                rate_limit_max=0,
+            ),
+        )
+        # Sem chave: públicos também negam
+        for path in ("/", "/health", "/profiles", "/metrics",
+                     "/dashboard", "/chat"):
+            status, _body, _h = _request(srv.bound_port, "GET", path)
+            assert status == 401, path
+        # Com chave: públicos respondem
+        for path in ("/health", "/metrics"):
+            status, _body, _h = _request(
+                srv.bound_port, "GET", path, api_key="segredo-lan"
+            )
+            assert status == 200, path
+
+    def test_protected_endpoints_also_require_key(self, serve, tmp_path) -> None:
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, api_key="segredo-lan", auth_all=True,
+                rate_limit_max=0,
+            ),
+        )
+        status, _body, _h = _request(srv.bound_port, "GET", "/llms")
+        assert status == 401
+        status, _body, _h = _request(
+            srv.bound_port, "GET", "/llms", api_key="segredo-lan"
+        )
+        assert status == 200
+
+    def test_wrong_key_denied_everywhere(self, serve, tmp_path) -> None:
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, api_key="certa", auth_all=True, rate_limit_max=0
+            ),
+        )
+        status, _body, _h = _request(
+            srv.bound_port, "GET", "/health", api_key="errada"
+        )
+        assert status == 401
+
+    def test_auth_all_without_key_denies_all(self, serve, tmp_path) -> None:
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(port=0, auth_all=True, rate_limit_max=0),
+        )
+        status, body, _h = _request(srv.bound_port, "GET", "/health")
+        assert status == 401
+        assert "sem chave" in body.decode("utf-8")
+
+    def test_auth_all_off_keeps_public_open(self, serve, tmp_path) -> None:
+        # Padrão: sem auth_all, públicos continuam abertos (dev/local)
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, api_key="segredo", auth_all=False,
+                rate_limit_max=0,
+            ),
+        )
+        status, _body, _h = _request(srv.bound_port, "GET", "/health")
+        assert status == 200
+        status, _body, _h = _request(srv.bound_port, "GET", "/llms")
+        assert status == 401
