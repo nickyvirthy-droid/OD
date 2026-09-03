@@ -39,8 +39,9 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Quick Responses** | `memory/quick_responses.py` | 28 ✅ |
 | **Vector Memory** | `memory/vector.py` | 36 ✅ |
 | **Context Manager** | `memory/context.py` | 28 ✅ |
+| **Workflow Engine** | `core/workflows.py` | 70 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **12 componentes** | **526 testes** |
+| **Total** | **13 componentes** | **596 testes** |
 
 ---
 
@@ -375,8 +376,8 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] Vector Memory com thread safety e provider plugável (`memory/vector.py`, 36 testes) — *ChromaDB substituído por HashEmbeddingProvider stdlib; interface adaptável (EmbeddingProvider protocol)*
 - [x] Context Manager previne estouro de tokens (`memory/context.py`, 28 testes)
 
-### Fase 3 — Orquestração
-- [ ] Workflow Engine suporta branching, nested, retries, timeouts
+### Fase 3 — Orquestração (em andamento)
+- [x] Workflow Engine suporta branching, nested, retries, timeouts (`core/workflows.py`, 70 testes) — 2026-09-03
 - [ ] Tool Loader carrega plugins dinamicamente
 - [ ] Action Registry registra 56 actions tipadas
 - [ ] Orchestrator executa pipeline de 8 etapas com fallbacks
@@ -430,11 +431,12 @@ FASE 7 (Infraestrutura) ←── paralela
 
 ✅ Concluído: Fase 2 completa (5 capacidades, 163 testes novos, total 526).
 
-1. **Iniciar Fase 3 — Orquestração**: `core/workflows.py` (Workflow Engine) — dependência de Security e Memory
-2. **Implementar Tool Loader** (`tools/loader.py`) — carregamento dinâmico de plugins
-3. **Implementar Action Registry** (`tools/registry.py`) — registro tipado de ações validado pelo Security Layer
-4. **Implementar Orchestrator Pipeline** (`core/orchestrator.py`) — pipeline de 8 etapas (rate limit → datetime → AIML → cache → history → LLM → fallback → post-processing)
-5. **Integrar Logger nos componentes existentes** — substituir `_audit_nicky` duplicado (event_bus, router, state, memory) pelo `core/logger.py`
+✅ Concluído: Fase 3 item 3.1 — Workflow Engine (`core/workflows.py`, 70 testes novos, total 596).
+
+1. **Implementar Tool Loader** (`tools/loader.py`) — carregamento dinâmico de plugins
+2. **Implementar Action Registry** (`tools/registry.py`) — registro tipado de ações validado pelo Security Layer
+3. **Implementar Orchestrator Pipeline** (`core/orchestrator.py`) — pipeline de 8 etapas (rate limit → datetime → AIML → cache → history → LLM → fallback → post-processing)
+4. **Integrar Logger nos componentes existentes** — substituir `_audit_nicky` duplicado (event_bus, router, state, memory) pelo `core/logger.py`
 
 ---
 
@@ -442,9 +444,9 @@ FASE 7 (Infraestrutura) ←── paralela
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 12/32 | 32/32 |
-| Testes totais | 526 | ~600 |
-| Módulos core | 5 | ~15 |
+| Capacidades implementadas | 13/32 | 32/32 |
+| Testes totais | 596 | ~600 |
+| Módulos core | 6 | ~15 |
 | Módulos memory | 5 | 5 |
 | Integrações | 0 | ~8 |
 | Actions | 0 | 56 |

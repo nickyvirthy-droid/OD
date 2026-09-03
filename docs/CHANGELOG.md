@@ -4,6 +4,31 @@
 
 ---
 
+## [0.5.0] — 2026-09-03
+
+### Adicionado
+
+#### Core — Workflow Engine (`core/workflows.py`) — Fase 3, item 3.1 ✅
+- `WorkflowStep` / `WorkflowSpec` / `WorkflowContext` / `WorkflowExecution` — modelos tipados
+- **Execução linear** com entrada configurável (`entry_step`) e `next` explícito
+- **Branching condicional** (`if_true_next` / `if_false_next`) com salto explícito: um alvo de salto sem `next` próprio encerra o workflow (branches irmãos não vazam)
+- **Sub-workflows (nested)** — executa workflow registrado herdando input + variáveis do pai e propagando o output de volta
+- **Retries** automáticos por step com `retry_delay` e **timeout** individual
+- **on_error** por step ou `default_on_error` do workflow (`fail` | `continue`)
+- **Cancelamento cooperativo** via `engine.cancel()` (corre contra o step em andamento)
+- **Persistência** JSON atômica opcional em `data/workflows/executions/{execution_id}.json` + `load_execution()`/`list_executions()`
+- **Integração Security Layer** — steps com `requires` são validados antes de executar (fail-closed em modo strict)
+- **Integração Event Bus** — publica `workflow.started` / `workflow.finished`
+- **Métricas** (`WorkflowMetrics`), `dump()` e guarda anti-loop (`max_steps`)
+- Logging via `core/logger.py` (padrão-alvo da arquitetura, protocolo NICKY)
+- 70 testes unitários em `tests/test_workflows.py`
+
+### Infraestrutura
+- Suíte completa: **596 testes, 0 falhas** (526 anteriores + 70 novos)
+- Fase 3 do ROADMAP_ABSORCAO.md iniciada: item 3.1 (Workflow Engine) ✅ — próximos: 3.2 Tool Loader, 3.3 Action Registry, 3.4 Orchestrator
+
+---
+
 ## [0.4.1] — 2026-09-03
 
 ### Documentado

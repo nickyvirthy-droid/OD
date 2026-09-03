@@ -9,6 +9,48 @@
 
 ---
 
+## [0.5.0] — Fase 3 (item 3.1) — Workflow Engine ✅ (2026-09-03)
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| 3.1 Workflow Engine | `core/workflows.py` | Execução linear com `entry_step`/`next`; branching condicional (`if_true_next`/`if_false_next`); sub-workflows nested com herança de input+variáveis; retries com `retry_delay`; timeout por step; `on_error` fail/continue; cancelamento cooperativo (`engine.cancel()`); persistência JSON atômica; integração Security Layer (`requires`, fail-closed) e Event Bus (`workflow.started`/`workflow.finished`); métricas + `dump()`; guarda anti-loop; logging via `core/logger.py` |
+
+- Testes novos: `tests/test_workflows.py` (70) — validação de specs, linear,
+  branching, fallback, loops, nested, retries, timeouts, cancelamento,
+  segurança, persistência, event bus, métricas, cenário integrado.
+- Documentação atualizada: `docs/CHANGELOG.md` (0.5.0),
+  `docs/ROADMAP_ABSORCAO.md` (3.1 ✅, 13/32 capacidades).
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_workflows.py -q
+→ 70 passed
+
+.venv/bin/python -m pytest tests/ -q
+→ 596 passed, 0 falhas   (526 anteriores + 70 novos)
+```
+
+### 3. O que NÃO foi feito
+
+- Itens 3.2 (Tool Loader), 3.3 (Action Registry) e 3.4 (Orchestrator
+  Pipeline) — próximos da Fase 3.
+- Refatoração do `_audit_nicky` duplicado (`event_bus`, `router`, `state`,
+  `memory`) para o `core/logger.py` — pendente (o Workflow Engine já nasce
+  usando `core/logger.py`, padrão-alvo).
+- Persistência em `data/workflows/` não exercitada em produção (camada grava
+  sob demanda quando `base_dir` é informado).
+
+### 4. Próximo passo
+
+**Fase 3, item 3.2 — Tool Loader** (`tools/loader.py`): carregamento
+dinâmico de ferramentas/plugins, depois Action Registry (3.3) e
+Orchestrator Pipeline (3.4).
+
+---
+
 ## [0.4.0] — Fase 2 — Memória ✅ (2026-09-03)
 
 ### 1. O que foi feito
@@ -106,7 +148,8 @@ Vector Memory (RAG), Context Manager. → Concluída em [0.4.0].
 | 0.1.0 | Especificação + OD Control Bridge | 2026-08-25 (histórico) | `c02b9ec` |
 | 0.2.0 | Core infra + análises legadas | 2026-09-02 (histórico) | `c02b9ec` |
 | 0.3.0 | Fase 1 — Fundação | 2026-09-02 (histórico parcial) | `ab96952` (Config Manager) |
-| 0.4.0 | Fase 1 completa + Fase 2 — Memória | 2026-09-03 (esta publicação) | commit desta entrega |
+| 0.4.0 | Fase 1 completa + Fase 2 — Memória | 2026-09-03 (publicado) | `a604f7f`, `ebc7f04` |
+| 0.5.0 | Fase 3 (3.1) — Workflow Engine | 2026-09-03 (esta publicação) | commit desta entrega |
 
 > **Nota de transparência:** os relatórios §2.1 das Fases 1 e 2 foram
 > registrados retroativamente neste documento (2026-09-03) a partir dos
