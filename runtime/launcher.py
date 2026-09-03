@@ -10,7 +10,8 @@ Descrição: Launcher do sistema REAL — monta o Orchestrator com o provider
 Uso:
     .venv/bin/python -m runtime.launcher api       # sobe a API REST
     .venv/bin/python -m runtime.launcher telegram  # sobe o bot do Telegram
-    .venv/bin/python -m runtime.launcher all       # ambos (threads)
+    .venv/bin/python -m runtime.launcher mqtt      # sobe a ponte MQTT
+    .venv/bin/python -m runtime.launcher all       # api + bot + mqtt
 
 Configuração (variáveis de ambiente / .env no raiz do repo):
     TELEGRAM_BOT_TOKEN  Token do bot (obrigatório p/ telegram).
@@ -19,6 +20,10 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
     OD_LLM_TIMEOUT_S    Timeout por chamada LLM (default 240).
     OD_API_PORT         Porta da API REST (default 8000).
     OD_API_KEY          Chave X-API-Key opcional da API (default vazia).
+    OD_MQTT_ENABLED     "0" desliga a ponte MQTT no modo all (default 1).
+    OD_MQTT_HOST/PORT   Broker Mosquitto (default 127.0.0.1:1883).
+    OD_MQTT_CLIENT_ID   Identificador no broker (default od-core).
+    OD_MQTT_SUBSCRIBE   Filtros de entrada, vírgula (default "od/in/#").
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
@@ -149,6 +154,31 @@ def build_telegram_bot(orchestrator: Any):
     return bot
 
 
+def build_mqtt_bridge(event_bus: Any):
+    """MQTTBridge real sobre o broker Mosquitto (env OD_MQTT_*)."""
+    from integrations.mqtt import MQTTBridge, MQTTClient, MQTTConfig
+
+    client = MQTTClient(
+        env("OD_MQTT_HOST", "127.0.0.1"),
+        int(env("OD_MQTT_PORT", "1883")),
+        client_id=env("OD_MQTT_CLIENT_ID", "od-core"),
+        keepalive=30,
+    )
+    bridge = MQTTBridge(
+        client,
+        event_bus=event_bus,
+        config=MQTTConfig(poll_timeout_s=0.5, reconnect_delay_s=5.0),
+    )
+    # Tópicos de entrada (mensagens → Event Bus como mqtt.message)
+    topics = [
+        t.strip()
+        for t in env("OD_MQTT_SUBSCRIBE", "od/in/#").split(",")
+        if t.strip()
+    ]
+    bridge.subscribe(topics)
+    return bridge
+
+
 async def _run_api_forever(orchestrator: Any) -> None:
     server = build_api_server(orchestrator)
     server.serve_background()
@@ -166,24 +196,45 @@ async def _run_telegram_forever(orchestrator: Any) -> None:
     await bot.run(interval=1.0)
 
 
+async def _run_mqtt_forever(bridge: Any) -> None:
+    """Loop da ponte MQTT (reconecta sozinha se o broker cair)."""
+    log.info("Ponte MQTT iniciando loop...")
+    await bridge.run()
+
+
 def main() -> int:
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
     orchestrator = build_orchestrator()
+    mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
 
     async def _all() -> None:
-        await asyncio.gather(
+        # Event Bus único da entrega (bridge MQTT ↔ núcleo)
+        from core.event_bus import EventBus
+
+        tasks = [
             _run_api_forever(orchestrator),
             _run_telegram_forever(orchestrator),
-        )
+        ]
+        if mqtt_enabled:
+            event_bus = EventBus()
+            bridge = build_mqtt_bridge(event_bus)
+            tasks.append(_run_mqtt_forever(bridge))
+            log.info("Ponte MQTT habilitada (od-core)")
+        await asyncio.gather(*tasks)
 
     if mode == "api":
         asyncio.run(_run_api_forever(orchestrator))
     elif mode == "telegram":
         asyncio.run(_run_telegram_forever(orchestrator))
+    elif mode == "mqtt":
+        from core.event_bus import EventBus
+
+        bridge = build_mqtt_bridge(EventBus())
+        asyncio.run(_run_mqtt_forever(bridge))
     elif mode == "all":
         asyncio.run(_all())
     else:
-        print(f"modo desconhecido: {mode!r} (api|telegram|all)")
+        print(f"modo desconhecido: {mode!r} (api|telegram|mqtt|all)")
         return 2
     return 0
 

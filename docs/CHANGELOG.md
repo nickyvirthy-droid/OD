@@ -4,6 +4,52 @@
 
 ---
 
+## [0.17.0] — 2026-09-03
+
+### Adicionado
+
+#### Integrações — MQTT Bridge (`integrations/mqtt/`) — Fase 5, item 5.5 ✅
+
+**FASE 5 — 5/5 COMPLETA.** Ponte para broker MQTT 3.1.1 (Mosquitto) em
+**stdlib puro** (sem paho-mqtt — protocolo wire implementado):
+
+- `protocol.py` — codec MQTT 3.1.1: CONNECT/CONNACK (códigos tipados),
+  PUBLISH QoS 0 e 1 (PUBACK), SUBSCRIBE/SUBACK com grant por filtro,
+  UNSUBSCRIBE/UNSUBACK, PINGREQ/PINGRESP, DISCONNECT, retained ·
+  validação de tópicos e filtros (MQTT-4.7: '+' nível único, '#' final) ·
+  `topic_matches` com curingas · `MqttMessage` (bytes + helper `.text()`)
+- `client.py` — `MQTTClient` real sobre socket stdlib: handshake validado,
+  thread de leitura com fila + callbacks, **PUBACK síncrono (QoS 1)**,
+  SUBACK aguardado, keepalive (PINGREQ) em thread, `shutdown()` antes do
+  close (acorda recv bloqueado — sem thread presa), detecção de queda
+- `broker.py` — `InMemoryBroker`: broker fake em processo (TCP loopback)
+  com o MESMO wire protocol — CONNECT/CONNACK (com recusa configurável),
+  assinaturas com curingas, roteamento QoS mínimo entre publicação e
+  grant, retained (entrega a novos assinantes, limpeza por payload vazio),
+  drop de sessão, stats — testes determinísticos sem broker externo
+- `bridge.py` — `MQTTBridge`: assina filtros com handlers · mensagens
+  recebidas → **Event Bus** (`mqtt.message`) · roteamento **bus→MQTT**
+  (`route_bus`, default `od/<tópico do bus com . → />`) · reconexão com
+  re-assinatura automática · `poll_once`/`run`/`start`/`stop` (thread) ·
+  métricas (connects/reconnects/published/received/handlers/bus) ·
+  `health()`/`snapshot()`/`dump()` · NICKY
+- **Integração real**: `runtime/launcher.py` ganhou o modo `mqtt` e a
+  ponte no `all` (env `OD_MQTT_*`: host/port/client_id/subscribe,
+  `OD_MQTT_ENABLED=0` desliga) — o `od-core` em produção agora assina
+  `od/in/#` e repassa ao Event Bus
+
+### Infraestrutura
+- **54 testes novos** em `tests/test_mqtt.py` (codec, validação/curingas,
+  cliente real ↔ InMemoryBroker em loopback, QoS 0/1, retained, keepalive,
+  bridge com Event Bus, roteamento, reconexão, ciclo de vida)
+- Suíte completa: **1118 testes, 0 falhas** (1064 + 54)
+- **ROADMAP: 25/32 capacidades** — **Fase 5 FECHADA (5/5)**: Telegram
+  (5.1), API REST (5.2), Notifier (5.3), IoT Manager (5.4), MQTT (5.5)
+- **E2E ao vivo**: validação contra o Mosquitto real (127.0.0.1:1883,
+  anônimo): CONNECT ok, pub/sub com self-delivery, rota bus→MQTT→bus
+
+---
+
 ## [0.16.0] — 2026-09-03
 
 ### Adicionado

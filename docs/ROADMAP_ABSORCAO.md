@@ -51,9 +51,10 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **API REST** | `integrations/api/` | 46 ✅ |
 | **ProactiveNotifier** | `integrations/notifier.py` | 42 ✅ |
 | **IoT Manager** | `integrations/homeassistant/` | 45 ✅ |
+| **MQTT Bridge** | `integrations/mqtt/` | 54 ✅ |
 | **LLM Provider** | `core/llm.py` | 17 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | 10 ✅ |
-| **Total** | **25 componentes** | **1064 testes** |
+| **Total** | **26 componentes** | **1118 testes** |
 
 ---
 
@@ -403,12 +404,12 @@ FASE 7 (Infraestrutura) ←── paralela
 - [ ] Perception coleta telemetria de hardware/serviços
 - [ ] 56 Actions executam com validação de Security Layer
 
-### Fase 5 — Integrações
-- [ ] Telegram Bot suporta 14 comandos, STT, TTS, perfis
-- [ ] API REST expõe 17 endpoints com auth
-- [ ] Notificador envia alertas proativos com anti-spam
-- [ ] IoT Manager controla dispositivos via Home Assistant
-- [ ] MQTT Bridge publica/assina tópicos
+### Fase 5 — Integrações ✅ CONCLUÍDA (2026-09-03)
+- [x] Telegram Bot suporta 14 comandos, STT, TTS, perfis
+- [x] API REST expõe 17 endpoints com auth
+- [x] Notificador envia alertas proativos com anti-spam
+- [x] IoT Manager controla dispositivos via Home Assistant
+- [x] MQTT Bridge publica/assina tópicos
 
 ### Fase 6 — Sensorial
 - [ ] Face Detection usa CLAHE + buffer de confirmação
@@ -531,8 +532,22 @@ Assistant migrado** de dentro do nexus para `/srv/omegadrakon/homeassistant`
 de usuário `od-llm`/`od-core` instaladas, habilitadas e ativas** (auto-start
 no boot). Capacidades do roadmap: 24/32 (ativação não adiciona item).
 
-1. **Fase 5 — Integrações Externas**: item 5.5 MQTT Bridge
-   (`integrations/mqtt/`), que FECHA a Fase 5.
+✅ Concluído: **Fase 5 COMPLETA** — item 5.5 MQTT Bridge
+(`integrations/mqtt/`, 54 testes novos, total **1118**). Ponte MQTT 3.1.1
+em **stdlib puro** (sem paho-mqtt): codec do protocolo wire (CONNECT/
+CONNACK, PUBLISH QoS 0/1 com PUBACK, SUBSCRIBE/SUBACK, retained,
+validação de tópicos e curingas +/#), `MQTTClient` real sobre socket com
+reader/keepalive, `InMemoryBroker` fake em processo (testes determinísticos
+sem broker externo) e `MQTTBridge` sobre o Event Bus: mensagens recebidas
+→ `mqtt.message`, handlers por filtro, roteamento bus→MQTT (`od/<tópico>`),
+reconexão com re-assinatura, métricas. **Fase 5 encerrada com 5/5 itens**
+(Telegram, API REST, Notifier, IoT Manager, MQTT Bridge) — 25/32
+capacidades. Validado ao vivo contra o **Mosquitto real** (127.0.0.1:1883)
+e integrado ao launcher/od-core (subscrição `od/in/#`).
+
+1. **Fase 6 — Sensorial e Inteligência**: item 6.1 Face Detection
+   (`tools/vision/face_detector.py`), depois Presence Monitor (6.2),
+   STT (6.3), TTS (6.4), Profile Manager (6.5) e Auto Extension (6.6).
 
 ---
 
@@ -540,12 +555,12 @@ no boot). Capacidades do roadmap: 24/32 (ativação não adiciona item).
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 24/32 | 32/32 |
-| Testes totais | 1064 | ~1100 |
+| Capacidades implementadas | 25/32 | 32/32 |
+| Testes totais | 1118 | ~1200 |
 | Módulos core | 10 | ~15 |
 | Ferramentas (tools) | 4 | ~20 |
 | Módulos memory | 5 | 5 |
-| Integrações | 4 | ~8 |
+| Integrações | 5 | ~8 |
 | Actions | 56 | 56 |
 | Cobertura de código | — | >90% |
 

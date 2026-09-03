@@ -9,6 +9,43 @@
 
 ---
 
+## [0.17.0] — Fase 5 (item 5.5) — MQTT Bridge ✅ (2026-09-03)
+
+> **FASE 5 — 5/5 COMPLETA (Telegram, API, Notifier, IoT, MQTT).**
+> 25/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **5.5 MQTT Bridge** | `integrations/mqtt/` | Ponte MQTT 3.1.1 em **stdlib puro** (sem paho-mqtt): `protocol.py` — codec wire completo (CONNECT/CONNACK, PUBLISH QoS 0/1 + PUBACK, SUBSCRIBE/SUBACK, retained, validação e curingas +/#) · `client.py` — `MQTTClient` real (socket, reader + keepalive em threads, PUBACK síncrono, shutdown correto) · `broker.py` — `InMemoryBroker` fake em processo (mesmo wire, recusa configurável, roteamento, retained, drop de sessão) · `bridge.py` — `MQTTBridge`: mensagens → **Event Bus** `mqtt.message`, handlers por filtro, roteamento **bus→MQTT** (`od/<tópico>`), reconexão com re-assinatura, `run`/`start`/`stop`, métricas e `health()` |
+| — | `tests/test_mqtt.py` | **54 testes** (codec, cliente real ↔ broker fake em loopback, QoS 0/1, retained, bridge/Event Bus, roteamento, reconexão) |
+| — | `runtime/launcher.py` | Modo `mqtt` + ponte no `all` (envs `OD_MQTT_*`) — **od-core em produção assina `od/in/#`** |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_mqtt.py -q   → 54 passed
+.venv/bin/python -m pytest tests/ -q                 → 1118 passed, 0 falhas
+E2E Mosquitto real (127.0.0.1:1883)                  → pub/sub + rota bus→MQTT→bus OK
+journal od-core                                      → MQTT conectado, od/in/verificacao recebida
+```
+
+### 3. O que NÃO foi feito
+
+- **Fase 5 FECHADA.** Próxima: **Fase 6 — Sensorial e Inteligência**
+- QoS 2, Last Will e sessões persistentes no broker fake — fora do escopo
+  (decisões registradas no módulo)
+- Auth no broker (o Mosquitto local aceita anônimo; usuário/senha já são
+  suportados pelo cliente via `username`/`password`)
+
+### 4. Próximo passo
+
+**Fase 6, item 6.1 — Face Detection** (`tools/vision/face_detector.py`) —
+Haar Cascade + CLAHE + buffer de confirmação; depois Presence (6.2).
+
+---
+
 ## [0.16.0] — Ativação Real — Omega Drakon NO AR 🟢 (2026-09-03)
 
 > **Primeira entrega operacional**: LLM real + identidade + API + Telegram
