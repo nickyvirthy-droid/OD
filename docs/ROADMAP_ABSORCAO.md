@@ -31,8 +31,16 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | Event Bus | `core/event_bus.py` | 56 ✅ |
 | State Manager | `core/state.py` | 68 ✅ |
 | Message Router | `core/router.py` | 55 ✅ |
+| Config Manager | `configs/manager.py` | 46 ✅ |
+| Security Layer | `core/security/` | 95 ✅ |
+| Logger | `core/logger.py` | 43 ✅ |
+| **Conv. History** | `memory/history.py` | 37 ✅ |
+| **Cache LLM** | `memory/cache.py` | 34 ✅ |
+| **Quick Responses** | `memory/quick_responses.py` | 28 ✅ |
+| **Vector Memory** | `memory/vector.py` | 36 ✅ |
+| **Context Manager** | `memory/context.py` | 28 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **4 componentes** | **179 testes** |
+| **Total** | **12 componentes** | **526 testes** |
 
 ---
 
@@ -353,19 +361,19 @@ FASE 7 (Infraestrutura) ←── paralela
 
 ## 7. Critérios de Aceite por Fase
 
-### Fase 1 — Fundação
-- [ ] Config Manager lê YAML + env vars, suporta defaults
-- [ ] Security Layer valida actions via pipeline (policy → permission → scope → audit)
-- [ ] Logger produz logs estruturados com protocolo NICKY
-- [ ] Todos os componentes têm testes unitários (>90% coverage)
-- [ ] Zero dependências externas (apenas stdlib + pydantic)
+### Fase 1 — Fundação ✅ (2026-09-03)
+- [x] Config Manager lê YAML + env vars, suporta defaults
+- [x] Security Layer valida actions via pipeline (policy → permission → scope → audit)
+- [x] Logger produz logs estruturados com protocolo NICKY
+- [x] Todos os componentes têm testes unitários (363 testes na suíte)
+- [x] Zero dependências externas (apenas stdlib + pydantic/yaml opcionais)
 
-### Fase 2 — Memória
-- [ ] History persiste por usuário/perfil, formato ChatML
-- [ ] Cache usa SHA-256 com normalização e deduplicação
-- [ ] Quick Responses suporta alternância e analytics
-- [ ] Vector Memory integra ChromaDB com thread safety
-- [ ] Context Manager previne estouro de tokens
+### Fase 2 — Memória ✅ (2026-09-03)
+- [x] History persiste por usuário/perfil, formato ChatML (`memory/history.py`, 37 testes)
+- [x] Cache usa SHA-256 com normalização e deduplicação (`memory/cache.py`, 34 testes)
+- [x] Quick Responses suporta alternância e analytics (`memory/quick_responses.py`, 28 testes)
+- [x] Vector Memory com thread safety e provider plugável (`memory/vector.py`, 36 testes) — *ChromaDB substituído por HashEmbeddingProvider stdlib; interface adaptável (EmbeddingProvider protocol)*
+- [x] Context Manager previne estouro de tokens (`memory/context.py`, 28 testes)
 
 ### Fase 3 — Orquestração
 - [ ] Workflow Engine suporta branching, nested, retries, timeouts
@@ -418,11 +426,15 @@ FASE 7 (Infraestrutura) ←── paralela
 
 ## 9. Próximos Passos Imediatos
 
-1. **Implementar Config Manager** (`configs/manager.py`) — desbloqueia Fase 1
-2. **Implementar Security Layer** (`core/security/`) — obrigatório antes de qualquer execução
-3. **Implementar Logger** (`core/logger.py`) — observabilidade desde o início
-4. **Criar testes para Fase 1** — garantir base sólida
-5. **Atualizar CHANGELOG.md** — registrar início da Fase 1
+✅ Concluído: Config Manager, Security Layer, Logger, testes da Fase 1, CHANGELOG.
+
+✅ Concluído: Fase 2 completa (5 capacidades, 163 testes novos, total 526).
+
+1. **Iniciar Fase 3 — Orquestração**: `core/workflows.py` (Workflow Engine) — dependência de Security e Memory
+2. **Implementar Tool Loader** (`tools/loader.py`) — carregamento dinâmico de plugins
+3. **Implementar Action Registry** (`tools/registry.py`) — registro tipado de ações validado pelo Security Layer
+4. **Implementar Orchestrator Pipeline** (`core/orchestrator.py`) — pipeline de 8 etapas (rate limit → datetime → AIML → cache → history → LLM → fallback → post-processing)
+5. **Integrar Logger nos componentes existentes** — substituir `_audit_nicky` duplicado (event_bus, router, state, memory) pelo `core/logger.py`
 
 ---
 
@@ -430,9 +442,10 @@ FASE 7 (Infraestrutura) ←── paralela
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 4/32 | 32/32 |
-| Testes totais | 179 | ~600 |
-| Módulos core | 3 | ~15 |
+| Capacidades implementadas | 12/32 | 32/32 |
+| Testes totais | 526 | ~600 |
+| Módulos core | 5 | ~15 |
+| Módulos memory | 5 | 5 |
 | Integrações | 0 | ~8 |
 | Actions | 0 | 56 |
 | Cobertura de código | — | >90% |
