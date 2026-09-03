@@ -4,6 +4,47 @@
 
 ---
 
+## [0.15.0] — 2026-09-03
+
+### Adicionado
+
+#### Integrações — IoT Manager (`integrations/homeassistant/`) — Fase 5, item 5.4 ✅
+
+**FASE 5 — 4/5 itens.** Integração com Home Assistant do legado Nexus
+(`src/iot.py`) em **stdlib** (urllib, sem requests):
+
+- `models.py` — **taxonomia ambiental** (mapeamento por domínio do
+  entity_id): atuadores (light/switch/fan/cover/climate/lock/media_player/
+  vacuum/input_boolean/humidifier/...), sensores (sensor/binary_sensor/
+  number/select/input_number/...), móveis (person/device_tracker), infra
+  (camera/automation/script/scene/weather/group/...) e `unknown` ·
+  `EntityState` (espelho do `/api/states`; `is_on()`; to/from dict) ·
+  `HACredentials` (`base_url`+`token`, validação http(s), carregamento de
+  `config/iot_credentials.json` — spec §7: segredos fora do código)
+- `client.py` — `HAClient` REST: `GET /api/states` (lista e individual,
+  404→None), `POST /api/services/<domínio>/<serviço>` com **Bearer token**,
+  `service_available()` (probe), erros HTTP/rede/JSON mapeados para
+  `HAError` · **`InMemoryHAServer`** — fake determinístico com a MESMA
+  interface (`HABackend`) para testes/dev offline (seed, turn_on/off/toggle
+  por domínio, registro de service_calls)
+- `manager.py` — `IoTManager` sobre qualquer `HABackend`: `get_entity`/
+  `list_entities(filtro por tipo)`/`sensor_reading` (leitura) ·
+  `set_power`/`toggle` (controle; domínio do entity define o serviço) ·
+  **gate de segurança**: `is_controllable` (só atuadores + `allowed_domains`
+  configurável) e `guard(entity_id, action)` injetável — recusa → `denied`
+  sem exceção · `snapshot()` agrupado por tipo, `list_types()`, métricas
+  (reads/commands/commands_ok/denied/errors), **Event Bus** (`iot.command`)
+  e `dump()`
+
+### Infraestrutura
+- **45 testes novos** em `tests/test_homeassistant.py` (taxonomia completa,
+  EntityState/credenciais, HAClient com rede stubada — headers/erros,
+  InMemoryHAServer, controle com gates, Event Bus e métricas)
+- Suíte completa: **1037 testes, 0 falhas** (992 + 45)
+- **ROADMAP: 24/32 capacidades absorvidas** — Fase 5 com 4/5
+
+---
+
 ## [0.14.0] — 2026-09-03
 
 ### Adicionado

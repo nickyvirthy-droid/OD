@@ -50,8 +50,9 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Telegram Bot** | `integrations/telegram/` | 55 ✅ |
 | **API REST** | `integrations/api/` | 46 ✅ |
 | **ProactiveNotifier** | `integrations/notifier.py` | 42 ✅ |
+| **IoT Manager** | `integrations/homeassistant/` | 45 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | — ✅ |
-| **Total** | **23 componentes** | **992 testes** |
+| **Total** | **24 componentes** | **1037 testes** |
 
 ---
 
@@ -506,8 +507,17 @@ persistido), anti-spam com cooldown por chave (padrão 1/hora, persistido em
 state_file), sinks plugáveis sync/async, Event Bus (notifier.alert), loop
 run/start/stop, health(), métricas e relógio injetável. Fase 5 com 3/5.
 
-1. **Fase 5 — Integrações Externas**: item 5.4 IoT Manager
-   (`integrations/homeassistant/`), depois MQTT Bridge (5.5).
+✅ Concluído: **Fase 5, item 5.4 — IoT Manager**
+(`integrations/homeassistant/`, 45 testes novos, total **1037**). Integração
+Home Assistant em stdlib: taxonomia ambiental do legado Nexus (atuadores/
+móveis/sensores/infra por domínio), EntityState/HACredentials (arquivo JSON,
+segregios fora do código), HAClient REST com Bearer token + InMemoryHAServer
+fake (mesma interface), e IoTManager com controle set_power/toggle, gate de
+segurança (allowed_domains + guard), eventos iot.command e métricas.
+Fase 5 com 4/5 itens.
+
+1. **Fase 5 — Integrações Externas**: item 5.5 MQTT Bridge
+   (`integrations/mqtt/`), que FECHA a Fase 5.
 
 ---
 
@@ -515,12 +525,12 @@ run/start/stop, health(), métricas e relógio injetável. Fase 5 com 3/5.
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 23/32 | 32/32 |
-| Testes totais | 992 | ~1100 |
+| Capacidades implementadas | 24/32 | 32/32 |
+| Testes totais | 1037 | ~1100 |
 | Módulos core | 9 | ~15 |
 | Ferramentas (tools) | 4 | ~20 |
 | Módulos memory | 5 | 5 |
-| Integrações | 3 | ~8 |
+| Integrações | 4 | ~8 |
 | Actions | 56 | 56 |
 | Cobertura de código | — | >90% |
 

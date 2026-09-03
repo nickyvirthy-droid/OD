@@ -9,6 +9,39 @@
 
 ---
 
+## [0.15.0] — Fase 5 (item 5.4) — IoT Manager ✅ (2026-09-03)
+
+> **FASE 5 — 4/5 itens (IoT Manager).** 24/32 capacidades no roadmap.
+
+### 1. O que foi feito
+
+| Item | Arquivo | Destaques |
+|---|---|---|
+| **5.4 IoT Manager** | `integrations/homeassistant/` | Integração Home Assistant do legado Nexus em **stdlib**: `models.py` — **taxonomia ambiental** (atuadores/sensores/móveis/infra/unknown por domínio do entity_id) · `EntityState` (espelho /api/states, `is_on()`, to/from dict) · `HACredentials` (base_url+token, validação, `from_file` — segredos fora do código, spec §7) · `client.py` — `HAClient` REST (GET /api/states + POST /api/services com Bearer token, 404→None, `service_available`, erros→`HAError`) + **`InMemoryHAServer`** fake com a MESMA interface (`HABackend`) para testes/dev offline · `manager.py` — `IoTManager`: leitura (`get_entity`/`list_entities` por tipo/`sensor_reading`), controle (`set_power`/`toggle` — serviço pelo domínio), **gate de segurança** (`allowed_domains` + `guard(entity, action)` injetável; recusa → denied sem exceção), `snapshot()` por tipo, `list_types()`, métricas (reads/commands/ok/denied/errors), Event Bus (`iot.command`), `dump()` · NICKY |
+| — | `tests/test_homeassistant.py` | **45 testes** (taxonomia completa, EntityState/credenciais, HAClient com rede stubada — Bearer/payload/erros, InMemoryHAServer, controle com gates/guard, Event Bus, métricas, snapshot/dump) |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/test_homeassistant.py -q   → 45 passed
+.venv/bin/python -m pytest tests/ -q                          → 1037 passed, 0 falhas
+```
+
+### 3. O que NÃO foi feito
+
+- **Fase 5 (1/5 restante)**: MQTT Bridge (5.5) — com ele, a Fase 5 fecha
+- MQTT no IoT Manager: o legado também controlava via MQTT — aqui o
+  controle é REST; a ponte MQTT vem no item 5.5
+- Automações/script de cena via HA e long-lived tokens de usuário (usar
+  token de sistema HA) — detalhes de operação, fora da absorção
+
+### 4. Próximo passo
+
+**Fase 5, item 5.5 — MQTT Bridge** (`integrations/mqtt/`) — ponte para
+broker Mosquitto, fechando a **Fase 5 (5/5)**.
+
+---
+
 ## [0.14.0] — Fase 5 (item 5.3) — ProactiveNotifier ✅ (2026-09-03)
 
 > **FASE 5 — 3/5 itens (ProactiveNotifier).** 23/32 capacidades no roadmap.
