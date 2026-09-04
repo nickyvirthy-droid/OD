@@ -9,6 +9,63 @@
 
 ---
 
+## [0.28.2] — CONGELAMENTO DA SÉRIE 0.x ❄️ (2026-09-04)
+
+### 1. Decisão (Alex)
+
+- A **série 0.x está congelada** — a **v0.28.1** é o marco estável final
+  (PostgreSQL nativo no ar, loop de auto-recuperação fechado, fast path,
+  57 actions, 1453 testes verdes, GitHub espelhado, working tree limpo)
+- Marco marcado com a **tag git `v0.28.1`** (commit `ba2f7c8`)
+- **A partir de agora, toda nova entrega será v1.x — a primeira será
+  v1.0.0**
+
+### 2. Roadmap v1.x (evoluções registradas — nenhuma bloqueia o uso)
+
+1. CI no GitHub Actions + cobertura >90% (promessa do roadmap §8)
+2. WebSocket `/ws/chat` (streaming token-a-token — hoje 501)
+3. Plugins reais em `plugins/actions/` (sistema pronto, 0 plugins)
+4. `/codigo` completo no bot (hoje somente leitura)
+5. Cliente interno do Control Bridge (serviço ativo, OD não o chama)
+6. Migração JSON → PostgreSQL (histórico/cache/quick responses)
+7. Auditoria de integridade de arquivos/serviços do legado Nexus
+8. Health checks de serviços externos (HA, MQTT) no launcher
+
+### 3. Evidência
+
+```
+pytest tests/ -q  → 1453 passed, 0 falhas (16 skipped = testes pg sem DSN)
+git tag v0.28.1  → marco do congelamento (ba2f7c8)
+```
+
+---
+
+## [0.28.1] — Correção: crash do od-core + senha mascarada 🐛 (2026-09-04)
+
+### 1. O que foi feito
+
+- **Crash pré-existente**: `_run_vision_forever` (2 args na chamada, 1 na
+  assinatura) derrubava o od-core no startup com `OD_VISION_ENABLED=1` —
+  corrigido (Event Bus compartilhado; modo vision usa `_build_event_bus()`)
+- **Senha do banco em logs**: o journald exibia o DSN com a senha — agora
+  mascarado (`postgres://od@127.0.0.1:5432/od`), 0 ocorrências no journal
+- `_mask_dsn`/`_build_event_bus` antes de `main()` (NameError resolvido)
+- `OD_VERSION` → 0.28.0
+
+### 2. Evidência
+
+```
+pytest tests/ -q  → 1453 passed, 0 falhas
+od-core active     → Database Layer backend=postgres · /health up ·
+                     /capabilities v0.28.0 · 57 actions · loop_fechado: true
+```
+
+### 3. O que NÃO foi feito
+
+- Nada novo além da correção — sem features nesta entrega
+
+---
+
 ## [0.28.0] — Database Layer: PostgreSQL plugável 🗄️ (2026-09-04)
 
 ### 1. O que foi feito

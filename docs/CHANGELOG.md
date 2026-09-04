@@ -4,6 +4,68 @@
 
 ---
 
+## [0.28.2] — 2026-09-04
+
+### Decisão
+
+#### Congelamento da série 0.x ❄️
+
+**Decisão do Alex:** a série **0.x está congelada** — a v0.28.1 é o marco
+estável final do ciclo 0.x (PostgreSQL nativo no ar, loop de
+auto-recuperação fechado, fast path de intenções, 57 actions, 1453 testes
+verdes, GitHub espelhado). Marco marcado com a tag git **`v0.28.1`**.
+
+**A partir de agora, toda nova entrega será v1.x** (a primeira será
+**v1.0.0**). As evoluções registradas (nenhuma bloqueia o uso) viram o
+**roadmap v1.x**:
+
+1. **CI no GitHub Actions + cobertura >90%** (promessa do roadmap §8 — o
+   maior gap de maturidade para release-grade)
+2. **WebSocket `/ws/chat`** (streaming token-a-token — hoje 501)
+3. **Plugins reais** em `plugins/actions/` (sistema pronto, 0 plugins)
+4. **`/codigo` completo no bot** (hoje somente leitura: status/arvore)
+5. **Cliente interno do Control Bridge** (serviço ativo, OD não o chama)
+6. **Migração JSON → PostgreSQL** (histórico/cache/quick responses ainda
+   em arquivos JSON)
+7. **Auditoria de integridade de arquivos/serviços** do legado Nexus
+8. **Health checks de serviços externos** (HA, MQTT) no launcher
+
+### Verificação
+
+- Suíte completa: **1453 passed, 0 falhas** (16 skipped = testes Postgres
+  sem DSN — verdes contra servidor real) · working tree limpo · tudo no
+  GitHub
+
+---
+
+## [0.28.1] — 2026-09-04
+
+### Corrigido
+
+#### od-core: crash no startup (Face Detector) + senha do banco em logs 🐛
+
+- **Crash pré-existente**: `_run_vision_forever` era chamado com 2 args
+  (event_bus, detector) mas a assinatura aceitava 1 → o od-core entrava em
+  crash-loop no startup com `OD_VISION_ENABLED=1` (bug que só apareceu no
+  restart pós-provisionamento do PostgreSQL — o processo antigo rodava
+  desde 02/09). Corrigido: o Face Detector agora usa o **Event Bus
+  compartilhado** do núcleo; o modo `vision` passou a usar
+  `_build_event_bus()` (antes NameError)
+- **Senha do banco vazando para o journald**: o log "Database Layer ativo"
+  imprimia o DSN **com a senha em texto claro** (`postgres://od:<senha>@…`).
+  Agora mascarado: `postgres://od@127.0.0.1:5432/od` — confirmado 0
+  ocorrências da senha no journal
+- `_mask_dsn`/`_build_event_bus` movidos para antes de `main()` (definição
+  após o `if __name__` causava NameError)
+- `OD_VERSION` → 0.28.0 no manifesto/API
+
+### Verificação
+
+- Suíte completa: **1453 passed, 0 falhas** · od-core `active` com
+  `backend=postgres` · `/health` up · `/capabilities` v0.28.0 · 57 actions
+
+---
+
 ## [0.28.0] — 2026-09-04
 
 ### Alterado
