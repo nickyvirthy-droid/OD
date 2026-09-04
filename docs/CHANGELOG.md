@@ -4,6 +4,65 @@
 
 ---
 
+## [0.22.0] — 2026-09-04
+
+### Adicionado
+
+#### Observabilidade — Audit System (`observability/audit.py`) — Fase 7, item 7.1 ✅
+
+**FASE 7 INICIADA — 1/5 itens.** Trilha de auditoria contínua e PERSISTENTE
+de todas as decisões do sistema (spec §7.3), dedicada em `observability/`:
+
+- **`AuditEntry`** — registro tipado e imutável (ts, id, source, action,
+  outcome, severity, actor, session_id, detail, data) com round-trip
+  `to_dict`/`from_dict`
+- **`AuditSystem`** — serviço de auditoria:
+  - **Persistência JSONL append-only** (`file_path`, default `logs/`
+    audit.jsonl): rotação automática por tamanho (`max_bytes`, 5MB) com
+    retenção de backups (`keep`, 3) e recarga da trilha existente no
+    startup — a fonte de verdade é o arquivo, o ring buffer em memória é
+    só cache de consulta; sobrevive a reinícios
+  - **Registra TODA decisão de segurança**: `record_decision()` aceita
+    `SecurityDecision`/`AuditRecord` (outcome allowed/denied, CRIT para
+    negada, origem/modo/denied_by/reasons preservados) e `make_sink()`
+    pluga o AuditSystem direto no `AuditEngine` do Security Layer — toda
+    decisão do pipeline cai na trilha persistente
+  - **Event Bus** (`audit.record`) + sinks de encaminhamento (sync/async)
+    entregues no caminho `record_async` (padrão ProactiveNotifier — o
+    caminho sync `record()` nunca depende de event loop)
+  - Consultas: `history`/`search` (case-insensitive, inclui data
+    serializada)/`since`/`by_action`/`counts` · métricas (total, persisted,
+    failed, allowed, denied, errors) · `health()` (trilha gravável?) ·
+    `snapshot()`/`dump()`/`clear()` · clock injetável
+  - **Resiliente por construção**: sink quebrado, payload não serializável,
+    arquivo ilegível ou sem permissão NUNCA derrubam a trilha (contadores
+    `failed`/`errors` + log WARN) — `record()` nunca levanta exceção
+- **Launcher**: `build_audit_system()` + env `OD_AUDIT_FILE` (default
+  `logs/audit.jsonl` na raiz); o `od-core` registra `system.startup`
+  (modo + pid) em todos os modos
+
+### Testes
+
+- `tests/test_audit.py` — 36 testes: AuditEntry (round-trip, isolamento),
+  trilha em memória (ordem/limite/ring, busca, filtros, counts, clear),
+  persistência (JSONL, reload entre instâncias, linha corrompida, rotação
+  com keep, clear truncando, caminho sem permissão), integração Security
+  Layer (record_decision com SecurityDecision/AuditRecord, make_sink no
+  AuditEngine E2E, decisão persistida em arquivo, sink quebrado) e Event
+  Bus/sinks async (publicação `audit.record`, sync/async, sem duplicação,
+  sync não entrega fora de loop)
+- Suíte completa: **1272 passed** (1238 anteriores + 36 novos)
+
+### Observações de suíte
+
+- `test_config_manager.py::test_init_without_yaml` falha no ambiente por
+  variáveis `OD_*` presentes (`.env`/env do servidor) — falha PRÉ-EXISTENTE,
+  confirmada com as mudanças da 7.1 stashed (sem relação com esta entrega)
+- `test_mqtt.py::test_start_stop_thread` é flaky (timing de thread) — passa
+  consistentemente em execuções isoladas
+
+---
+
 ## [0.21.0] — 2026-09-03
 
 ### Adicionado — Voz real no Telegram 🎤🔊

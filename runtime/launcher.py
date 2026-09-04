@@ -41,6 +41,8 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
     OD_VOICE_TTS        "0" desliga a resposta por voz (Piper) no bot
                         (default 1).
     OD_VOICE_PROFILE    Voz do TTS (default dii; "regulus" = faber).
+    OD_AUDIT_FILE       Trilha de auditoria JSONL (Fase 7.1, default
+                        logs/audit.jsonl na raiz do repo).
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
@@ -89,6 +91,19 @@ def env(name: str, default: str = "") -> str:
         _ENV_CACHE = dict(os.environ)
         _ENV_CACHE.update(load_env())
     return _ENV_CACHE.get(name, default)
+
+
+def build_audit_system() -> Any:
+    """Audit System real (Fase 7.1): trilha persistente JSONL."""
+    from observability.audit import AuditSystem
+
+    configured = env("OD_AUDIT_FILE", "")
+    file_path = (
+        pathlib.Path(configured)
+        if configured
+        else REPO_ROOT / "logs" / "audit.jsonl"
+    )
+    return AuditSystem(file_path=file_path)
 
 
 def build_orchestrator() -> Any:
@@ -402,6 +417,18 @@ async def _run_presence_forever(monitor: Any) -> None:
 def main() -> int:
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
     orchestrator = build_orchestrator()
+    audit = build_audit_system()
+    audit.record(
+        source="launcher",
+        action="system.startup",
+        outcome="info",
+        detail=f"od-core no ar (modo {mode}).",
+        data={"mode": mode, "pid": os.getpid()},
+    )
+    log.info(
+        "Audit System ativo",
+        file=str(audit.file_path) if audit.file_path else "(memória)",
+    )
     mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
     presence_enabled = env("OD_PRESENCE_ENABLED", "1") != "0"
     presence_monitor = build_presence_monitor() if presence_enabled else None

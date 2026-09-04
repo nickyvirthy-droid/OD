@@ -9,6 +9,53 @@
 
 ---
 
+## [0.22.0] — Fase 7, item 7.1: Audit System 🛡️ (2026-09-04)
+
+### 1. O que foi feito
+
+**Fase 7 (Infraestrutura e Observabilidade) iniciada — 1/5 itens.**
+Trilha de auditoria contínua e PERSISTENTE dedicada em `observability/`:
+
+| Camada | Entrega |
+|---|---|
+| **Registro** | `AuditEntry` tipado e imutável (ts, id, source, action, outcome, severity, actor, session_id, detail, data) |
+| **Persistência** | JSONL append-only (`logs/audit.jsonl` default) com rotação por tamanho (5MB) + retenção (3 backups) e recarga no startup — a trilha sobrevive a reinícios |
+| **Segurança (critério da Fase 7)** | `record_decision()` + `make_sink()`: plugado no `AuditEngine` do Security Layer, TODA decisão (allow/deny/approval) cai na trilha persistente |
+| **Observabilidade** | Event Bus `audit.record`, consultas (history/search/since/by_action/counts), métricas, `health()`, `snapshot()`/`dump()` |
+| **Runtime** | `build_audit_system()` no launcher + `OD_AUDIT_FILE`; `system.startup` (modo + pid) registrado em todos os modos |
+
+Resiliência por construção: sink quebrado, payload não serializável, arquivo
+ilegível ou sem permissão nunca derrubam a trilha — `record()` não levanta
+exceção (contadores `failed`/`errors` + WARN). Zero dependências novas.
+
+### 2. Evidência
+
+```
+pytest tests/test_audit.py -q    → 36 passed
+pytest tests/ -q                 → 1272 passed (1238 anteriores + 36 novos)
+build_audit_system() ao vivo     → logs/audit.jsonl criado, health ok,
+                                   system.startup persistido
+```
+
+### 3. O que NÃO foi feito
+
+- Fase 7 ainda tem 4/5 itens em aberto: 7.2 Metrics Collector,
+  7.3 Health Check, 7.4 Plugin System, 7.5 Database Layer
+- Auditoria de integridade do legado Nexus (verificação de arquivos/serviços
+  e relatórios de conformidade) fica como evolução futura — o critério da
+  Fase 7 (registrar todas as decisões de segurança) está atendido
+- `test_config_manager.py::test_init_without_yaml` segue falhando no
+  ambiente (variáveis `OD_*` presentes) — PRÉ-EXISTENTE, sem relação com
+  esta entrega; `test_mqtt` é flaky (timing), verde isolado
+
+### 4. Próximo passo
+
+- **Fase 7, item 7.2 — Metrics Collector** (`observability/metrics.py`):
+  coletor Prometheus dedicado consolidando as métricas que hoje vivem
+  espalhadas (API `/metrics`, telemetria, audit)
+
+---
+
 ## [0.21.0] — Voz real no Telegram: STT + TTS 🎤🔊 (2026-09-03)
 
 ### 1. O que foi feito

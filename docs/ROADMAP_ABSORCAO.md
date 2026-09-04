@@ -55,7 +55,8 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Presence Monitor** | `integrations/homeassistant/presence.py` | 26 ✅ |
 | **LLM Provider** | `core/llm.py` | 17 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | 10 ✅ |
-| **Total** | **27 componentes** | **1151 testes** |
+| **Audit System** | `observability/audit.py` | 36 ✅ |
+| **Total** | **28 componentes** | **1272 testes** |
 
 ---
 
@@ -215,7 +216,7 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 
 | # | Capacidade | Origem | Destino | Esforço | Dependências |
 |---|---|---|---|---|---|
-| 7.1 | **Audit System** | Nexus `src/auditor.py` | `observability/audit.py` | Médio | Logger |
+| 7.1 | **Audit System** | Nexus `src/auditor.py` | `observability/audit.py` ✅ | Médio | Logger |
 | 7.2 | **Metrics Collector** | Nicky `/metrics` | `observability/metrics.py` | Médio | Logger |
 | 7.3 | **Health Check** | NV `observability/health/` | `observability/health.py` | Baixo | Config |
 | 7.4 | **Plugin System** | NV `plugins/` | `plugins/` | Alto | Loader, Registry |
@@ -421,7 +422,7 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] Auto Extension gera ferramentas mediada pelo Security Layer
 
 ### Fase 7 — Infraestrutura
-- [ ] Audit System registra todas as decisões de segurança
+- [x] Audit System registra todas as decisões de segurança (v0.22.0)
 - [ ] Metrics Collector expõe Prometheus metrics
 - [ ] Health Check verifica status de componentes
 - [ ] Plugin System carrega e registra plugins
@@ -575,14 +576,24 @@ imports stdlib) e registro no Action Registry com permission mediada pelo
 Security Layer. Launcher ganhou o modo `vision` (OD_VISION_ENABLED).
 **Fase 6 encerrada com 6/6 itens — 32/32 capacidades do roadmap.**
 
+✅ Concluído: **Fase 7, item 7.1 — Audit System** (`observability/audit.py`,
+36 testes novos, total **1272**). Trilha de auditoria contínua e PERSISTENTE
+(spec §7.3): `AuditEntry` tipado, persistência JSONL append-only com rotação
+por tamanho + retenção e recarga no startup, `record_decision()` +
+`make_sink()` registrando TODA decisão de segurança do AuditEngine do
+Security Layer, Event Bus (`audit.record`), consultas (history/search/since/
+by_action/counts), métricas, `health()`, sink resiliente (nunca quebra a
+trilha) e launcher com `OD_AUDIT_FILE` (evento system.startup). Fase 7
+iniciada (1/5 itens) — **33/37** capacidades do roadmap.
+
 ---
 
 ## 10. Métricas de Progressão
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 32/32 | 32/32 |
-| Testes totais | 1229 | ~1200 |
+| Capacidades implementadas | 33/37 | 37/37 |
+| Testes totais | 1272 | ~1300 |
 | Módulos core | 10 | ~15 |
 | Ferramentas (tools) | 7 | ~20 |
 | Módulos memory | 5 | 5 |
