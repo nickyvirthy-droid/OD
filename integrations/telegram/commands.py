@@ -17,6 +17,7 @@ Baseado em:
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Optional
@@ -35,6 +36,59 @@ LEGACY_COMMAND_NAMES = (
     "dashboard", "historico", "cache", "presenca", "codigo", "rotacionar_key",
 )
 TG_FEATURES = 14  # 13 comandos + voz (STT)
+
+NIVEL_0_PUBLICO = frozenset({
+    # Sistema — leitura apenas
+    "system_info", "datetime", "uptime", "cpu_info", "memory_usage",
+    "ip_address", "system_hostname", "system_user", "system_groups",
+    # Processos — leitura
+    "process_list", "process_info",
+    # Docker — leitura (se disponível)
+    "docker_list", "docker_stats",
+    # Serviços — leitura
+    "service_list", "service_status",
+    # Arquivos — leitura
+    "filesystem_search", "filesystem_read", "filesystem_exists",
+    "filesystem_info", "filesystem_list", "filesystem_tree",
+    "filesystem_hash",
+    # Git — leitura
+    "git_branch", "git_status", "git_log", "git_diff",
+    # Banco — leitura
+    "database_tables", "database_schema",
+    # Introspecção
+    "action_list", "action_info", "action_schema", "action_validate",
+})
+
+NIVEL_2_DESTRUTIVO = frozenset({
+    # Arquivos — escrita/remoção/alteração
+    "filesystem_write", "filesystem_delete", "filesystem_mkdir",
+    "filesystem_move", "filesystem_copy", "filesystem_touch",
+    "filesystem_archive", "filesystem_extract",
+    # Git — escrita/alteração (exceto fetch/pull que são leitura+rede)
+    "git_commit", "git_add", "git_checkout", "git_push", "git_pull",
+    # Processos — alteração/remoção
+    "process_kill",
+    # Serviços — controle de logs
+    "service_logs",
+    # Docker — operação de logs
+    "docker_logs",
+    # Banco — escrita (queries podem ser SELECT ou INSERT/UPDATE/DELETE)
+    "database_query",
+})
+
+NIVEL_1_ADMIN = frozenset({
+    "service_restart", "docker_ps", "docker_run", "docker_stop",
+    "docker_rm", "process_tree", "system_ping",
+    "git_fetch",
+})
+
+NIVEL_3_CRITICO = frozenset({
+    "system_reboot", "system_shutdown",
+    "process_kill",  # Remove processo (exige confirmação)
+    "filesystem_delete",  # Remove arquivo permanentemente
+    "git_push",  # Push para remote (modifica repositório remoto)
+    "docker_rm",  # Remove container
+})
 
 
 @dataclass(slots=True)
@@ -230,6 +284,192 @@ def _rotacionar_key(bot: "TelegramBot", ctx: CommandContext) -> str:
         "Rotação de API key não executada neste ambiente controlado — "
         "segredos são gerenciados via env vars / configs (spec §7)."
     )
+
+
+def _executa_handler(bot: "TelegramBot", ctx: CommandContext) -> str:
+    """Handler do comando /executa — executa actions do catálogo.
+
+    Uso:
+        /executa system_info                  (executa com params default)
+        /executa filesystem_read path=/tmp/x  (executa com params)
+        /executa action_list                 (lista todas as actions)
+
+    O parsing de parâmetros suporta:
+        key=value     → string
+        key=int:123  → inteiro
+        key=bool:1   → booleano (1/0, true/false)
+        key=123      → tenta int, depois float, depois string
+
+    Níveis de acesso (grau de interferência no sistema):
+        - NÍVEL 0 — PÚBLICO: leitura/pesquisa sem risco (system_info,
+          datetime, uptime, cpu_info, memory_usage, ip_address, process_list,
+          action_list, action_info, action_schema, action_validate, etc.).
+        - NÍVEL 1 — ADMIN: ações que afetam sistema/arquivos/serviços/
+          docker/git (filesystem_*, service_*, docker_*, git_*, process_kill,
+          process_tree, system_ping, etc.) — apenas admins.
+        - NÍVEL 2 — DESTRUTIVO: ações que removem/alteram estado (filesystem_delete,
+          filesystem_write, git_commit, git_push, process_kill com SIGKILL) —
+          admin + confirmação explícita.
+    """
+
+    registry = bot.action_registry
+    if registry is None:
+        return "Action Registry não disponível."
+
+    args = ctx.args
+    if not args:
+        return (
+            "*Uso:* `/executa <nome_action> [params]`\n"
+            "\n"
+            "*Examples:*\n"
+            "`/executa system_info`\n"
+            "`/executa filesystem_read path=/tmp/x`\n"
+            "`/executa action_list`\n"
+            "\n"
+            f"*Actions disponíveis:* {registry.metrics.actions} actions "
+            "cadastradas.\n"
+            "Use `/executa action_list` para ver a lista completa."
+        )
+
+    action_name = args[0].lower()
+
+    # action_list é especial: lista todas as actions
+    if action_name == "action_list":
+        try:
+            result = asyncio.run(
+                registry.execute("action_list", params={}, role="admin")
+            )
+            if result.status == "ok":
+                actions = result.data.get("actions", [])
+                lines = [f"*Actions ({len(actions)}):*"]
+                for name in actions[:20]:
+                    lines.append(f"  • `{name}`")
+                if len(actions) > 20:
+                    lines.append(f"  ... e mais {len(actions)-20}")
+                return "\n".join(lines)
+            return f"Erro: {result.error}"
+        except Exception as exc:
+            return f"Erro ao listar actions: {type(exc).__name__}: {exc}"
+
+    # Verifica se a action existe
+    if not registry.has(action_name):
+        all_names = [a.name for a in registry.find()]
+        suggestions = [n for n in all_names if action_name in n or n in action_name]
+        if suggestions:
+            return (
+                f"Action desconhecida: `{action_name}`.\n"
+                f"Actions similares: {', '.join(suggestions[:5])}"
+            )
+        return (
+            f"Action desconhecida: `{action_name}`.\n"
+            f"Use `/executa action_list` para ver as {registry.metrics.actions} actions disponíveis."
+        )
+
+    # Classificação de risco e controle de acesso
+    nivel = _classificar_risco(action_name)
+    if nivel == 0:
+        pass  # público — qualquer pessoa pode executar
+    elif nivel == 1:
+        if not ctx.is_admin:
+            return (
+                f"⛔ Action `{action_name}` requer privilégios de admin.\n"
+                f"Nível 1 — ações restritas (afetam sistema/arquivos/serviços)."
+            )
+    elif nivel == 2:
+        if not ctx.is_admin:
+            return (
+                f"⛔ Action `{action_name}` requer privilégios de admin.\n"
+                f"Nível 2 — ação destrutiva (modifica/remove estado)."
+            )
+        # Confirmação explícita para ações destrutivas
+        # Verifica se 'confirmar' ou 'confirm' está nos args (não apenas no arg_text)
+        args_lower = [a.lower() for a in ctx.args]
+        if "confirmar" not in args_lower and "confirm" not in args_lower:
+            return (
+                f"⚠️ Ação `{action_name}` é destrutiva (Nível 2).\n"
+                f"Para executar, adicione `confirmar` ou `confirm` nos args.\n"
+                f"Ex: `/executa filesystem_delete path=/tmp/x confirmar`"
+            )
+
+    # Constrói params a partir dos args restantes
+    params = {}
+    for arg in args[1:]:
+        if "=" not in arg:
+            continue
+        key, value = arg.split("=", 1)
+        params[key] = _parse_param_value(value)
+
+    # Executa a action
+    try:
+        result = asyncio.run(
+            registry.execute(action_name, params=params, role="admin")
+        )
+        if result.status == "ok":
+            data = result.data
+            if isinstance(data, dict):
+                lines = [f"*Resultado de `{action_name}`:*"]
+                for key, value in data.items():
+                    if isinstance(value, (dict, list)) and len(str(value)) > 200:
+                        lines.append(f"  {key}: <objeto grande, use action_info para detalhes>")
+                    else:
+                        lines.append(f"  {key}: {value}")
+                return "\n".join(lines)
+            elif isinstance(data, str):
+                return f"*Resultado:* {data}"
+            else:
+                return f"*Resultado:* {data}"
+        elif result.status == "denied":
+            return f"⛔ Negado: {result.error}"
+        elif result.status == "invalid":
+            return f"⚠️ Parâmetros inválidos: {'; '.join(result.errors)}"
+        elif result.status == "error":
+            return f"❌ Erro: {result.error}"
+        else:
+            return f"Resultado: status={result.status}, error={result.error}"
+    except Exception as exc:
+        return f"Erro ao executar: {type(exc).__name__}: {exc}"
+
+
+def _classificar_risco(action_name: str) -> int:
+    """Retorna o nível de risco de uma action (0, 1, ou 2).
+
+    0 = público (leitura/pesquisa),
+    1 = admin (afeta sistema/arquivos/serviços),
+    2 = destrutivo (remove/altera estado critical).
+    """
+    if action_name in NIVEL_0_PUBLICO:
+        return 0
+    if action_name in NIVEL_2_DESTRUTIVO:
+        return 2
+    if action_name in NIVEL_1_ADMIN:
+        return 1
+    # Por padrão, assume nível 0 (público) se não categorizado
+    return 0
+
+
+def _parse_param_value(value: str) -> Any:
+    """Parseia um valor de parâmetro: bool, int, float, ou string."""
+    # Bool
+    if value.lower() in ("true", "1", "yes", "t", "y"):
+        return True
+    if value.lower() in ("false", "0", "no", "f", "n"):
+        return False
+    # Int
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    # Float
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    # Remove aspas se presente
+    if value.startswith("'") and value.endswith("'"):
+        return value[1:-1]
+    if value.startswith('"') and value.endswith('"'):
+        return value[1:-1]
+    return value
 
 
 # ---------------------------------------------------------------------------

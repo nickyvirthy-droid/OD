@@ -4,6 +4,55 @@
 
 ---
 
+## [0.27.0] — 2026-09-04
+
+### Adicionado
+
+#### Orchestrator — Execução de Ações via ActionRegistry (`core/orchestrator.py`) — Fase 7.4 ✅
+
+**FASE 7.4 — Integração do Orchestrator com o Catálogo de Ações.** O
+Orchestrator agora suporta `execute_action()` para executar ações do catálogo
+via ActionRegistry, com controle de acesso via Security Layer:
+
+- **`Orchestrator.execute_action(action_name, params, user_id, role)`** —
+  executa uma ação via ActionRegistry (ou callable injetado via `add_action()`)
+- **`Orchestrator.set_action_registry(registry)`** — define o ActionRegistry
+- **`Orchestrator.add_action(name, handler)`** — adiciona uma ação injetável
+- **Controle de acesso**: role "admin" para ações restritas, "agent" para
+  públicas; Security Layer gate nas execuções
+
+### Testes
+
+- `tests/test_orchestrator.py` — 9 novos testes de integração (`TestOrchestratorActionRegistry`):
+  - `test_execute_action_with_registry` — registro conectado
+  - `test_execute_action_success` — system_info executado
+  - `test_execute_action_datetime` — datetime executado
+  - `test_execute_action_with_params` — action_info com params
+  - `test_execute_action_action_list` — listagem de 56 actions
+  - `test_execute_action_without_registry_raises` — RuntimeError sem registry
+  - `test_execute_action_denied_role` — role "agent" sem permissão
+  - `test_set_action_registry` — set_registry funciona
+  - `test_execute_action_after_set_registry` — execução após set
+- Suíte completa: **1344 passed, 0 falhas** (1335 + 9)
+
+### Corrigido
+
+- Documentação: SOUL.md e IDENTITY.md atualizados com catálogo de 56 actions
+  e níveis de acesso (§8 do SOUL.md)
+- Launcher: integração do ActionRegistry com o Orchestrator no telegram mode
+
+### Infraestrutura
+
+- `core/orchestrator.py` — propriedades `action_registry` e métodos
+  `set_action_registry()`, `add_action()`, `execute_action()`
+- `runtime/launcher.py` — `build_action_registry()` + integração com bot e
+  orchestrator no modo telegram
+- `integrations/telegram/commands.py` — comando `/executa` com classificação
+  de risco (3 níveis) e controle de acesso
+- `integrations/telegram/bot.py` — suporte a `action_registry` no construtor
+
+---
+
 ## [0.26.0] — 2026-09-04
 
 ### Adicionado

@@ -57,6 +57,7 @@ import threading
 import time
 from typing import Any, Optional
 
+from core.event_bus import EventBus
 from core.logger import get_logger
 
 __signature__ = "OD // CORE"
@@ -214,6 +215,29 @@ def build_plugins() -> Any:
     return manager
 
 
+def build_action_registry() -> Any:
+    """Action Registry com as 56 actions do catálogo.
+
+    Este registry é usado pelo Telegram Bot para executar actions via
+    comando /executa (admin_only). As actions são registradas com
+    permission própria (gate do Security Layer na execução).
+
+    Retorna um ActionRegistry populado com todas as actions.
+    """
+    from core.security import SecurityManager
+    from tools.actions import build_registry
+    from tools.registry import ActionRegistry
+
+    security = SecurityManager(mode="strict")
+    registry = build_registry(security=security)
+    log.info(
+        "Action Registry ativo",
+        actions=registry.metrics.actions,
+        security=True,
+    )
+    return registry
+
+
 def build_health(
     orchestrator: Any = None,
     audit: Any = None,
@@ -249,7 +273,8 @@ def build_health(
                 continue
         if available:
             return {
-                "ok": True, "status": "up",
+                "ok": True,
+                "status": "up",
                 "detail": f"{len(available)} provider(s): {', '.join(available)}",
             }
         return {"ok": False, "status": "down", "detail": "nenhum provider de LLM disponível"}
@@ -340,7 +365,10 @@ def build_metrics(orchestrator: Any = None, audit: Any = None) -> Any:
     return collector
 
 
-def build_telegram_bot(orchestrator: Any):
+def build_telegram_bot(
+    orchestrator: Any,
+    action_registry: Any = None,
+):
     """TelegramBot real (HTTPTransport) sobre o Orchestrator.
 
     Voz (v0.21.0): se os binários reais da Fase 6 existirem, o bot
@@ -390,6 +418,7 @@ def build_telegram_bot(orchestrator: Any):
         offset_file=(
             offset_file or str(DATA_DIR / "telegram_offset.json")
         ),
+        action_registry=action_registry,
     )
     return bot
 
@@ -492,10 +521,14 @@ async def _run_api_forever(
         server.stop()
 
 
-async def _run_telegram_forever(orchestrator: Any) -> None:
-    bot = build_telegram_bot(orchestrator)
+async def _run_telegram_forever(orchestrator: Any, action_registry: Any = None) -> None:
+    bot = build_telegram_bot(orchestrator, action_registry=action_registry)
     log.info("Telegram bot iniciando polling...", admins=len(bot.admin_ids))
     await bot.run(interval=1.0)
+    # Conecta ActionRegistry ao Orchestrator para execução de ações
+    if action_registry is not None:
+        orchestrator.set_action_registry(action_registry)
+        log.info("ActionRegistry conectado ao Orchestrator")
 
 
 async def _run_mqtt_forever(bridge: Any) -> None:
@@ -606,6 +639,7 @@ def main() -> int:
         "Metrics Collector ativo",
         sources=metrics.health()["sources"],
     )
+    database = build_database()
     health = build_health(
         orchestrator=orchestrator,
         audit=audit,
@@ -616,8 +650,12 @@ def main() -> int:
         "Health Monitor ativo",
         components=len(health.components),
     )
-    database = build_database()
+    # Plugin System: acessível via plugins.registry e plugins.engine
+    # (Fase 7.4) — carrega plugins de plugins/ com actions e workflows.
     plugins = build_plugins()
+    # Action Registry: o catálogo de 56 actions está disponível para
+    # execução via Telegram Bot (/executa) e Orchestrator.
+    action_registry = build_action_registry()
     mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
     presence_enabled = env("OD_PRESENCE_ENABLED", "1") != "0"
     presence_monitor = build_presence_monitor() if presence_enabled else None
@@ -626,14 +664,13 @@ def main() -> int:
 
     async def _all() -> None:
         # Event Bus único da entrega (bridge MQTT ↔ núcleo)
-        from core.event_bus import EventBus
-
+        event_bus = EventBus()
+        event_bus = EventBus()
         tasks = [
             _run_api_forever(orchestrator, metrics, health),
-            _run_telegram_forever(orchestrator),
+            _run_telegram_forever(orchestrator, action_registry=action_registry),
         ]
         if mqtt_enabled:
-            event_bus = EventBus()
             bridge = build_mqtt_bridge(event_bus)
             tasks.append(_run_mqtt_forever(bridge))
             log.info("Ponte MQTT habilitada (od-core)")
@@ -641,17 +678,15 @@ def main() -> int:
             tasks.append(_run_presence_forever(presence_monitor))
             log.info("Presence Monitor habilitado (od-core)")
         if face_detector is not None:
-            tasks.append(_run_vision_forever(face_detector))
+            tasks.append(_run_vision_forever(event_bus, face_detector))
             log.info("Face Detector habilitado (od-core)")
         await asyncio.gather(*tasks)
 
     if mode == "api":
         asyncio.run(_run_api_forever(orchestrator, metrics, health))
     elif mode == "telegram":
-        asyncio.run(_run_telegram_forever(orchestrator))
+        asyncio.run(_run_telegram_forever(orchestrator, action_registry=action_registry))
     elif mode == "mqtt":
-        from core.event_bus import EventBus
-
         bridge = build_mqtt_bridge(EventBus())
         asyncio.run(_run_mqtt_forever(bridge))
     elif mode == "presence":
@@ -665,7 +700,7 @@ def main() -> int:
         if detector is None:
             print("vision indisponível — OpenCV ou webcam ausente")
             return 2
-        asyncio.run(_run_vision_forever(detector))
+        asyncio.run(_run_vision_forever(event_bus, detector))
     elif mode == "all":
         asyncio.run(_all())
     else:
@@ -676,3 +711,8 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def _build_event_bus() -> EventBus:
+    """Cria o EventBus único usado em todos os modos (exceto modo dedicado)."""
+    return EventBus()

@@ -161,6 +161,16 @@ class PluginManager:
         return self._root
 
     @property
+    def registry(self) -> Any:
+        """ActionRegistry onde as actions dos plugins são registradas."""
+        return self._registry
+
+    @property
+    def engine(self) -> Any:
+        """WorkflowEngine onde os workflows dos plugins são registrados."""
+        return self._engine
+
+    @property
     def metrics(self) -> PluginMetrics:
         return self._metrics
 

@@ -422,3 +422,149 @@ class TestOrchestratorMetrics:
         assert data["route"] == "llm"
         assert data["ok"] is True
         assert data["message"] == "m"
+
+
+# ===========================================================================
+# Orchestrator — ActionRegistry integration (Fase 7.4)
+# ===========================================================================
+
+@pytest.mark.asyncio
+class TestOrchestratorActionRegistry:
+    """Integração do Orchestrator com ActionRegistry para execução de ações.
+
+    O Orchestrator agora suporta execute_action() para executar ações do
+    catálogo via ActionRegistry, com controle de acesso via Security Layer.
+    """
+
+    async def test_execute_action_with_registry(self, tmp_path: Path) -> None:
+        from tools.registry import ActionRegistry
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        security = SecurityManager(mode="strict")
+        registry = build_registry(security=security)
+        orch = Orchestrator(
+            providers=[StaticProvider("test", "ok")],
+            action_registry=registry,
+        )
+        assert orch.action_registry is not None
+        assert orch.action_registry.metrics.actions == 56
+
+    async def test_execute_action_success(self, tmp_path: Path) -> None:
+        from tools.registry import ActionRegistry
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        security = SecurityManager(mode="strict")
+        registry = build_registry(security=security)
+        orch = Orchestrator(
+            providers=[StaticProvider("test", "ok")],
+            action_registry=registry,
+        )
+        result = await orch.execute_action("system_info", role="admin")
+        assert result is not None
+        assert "system" in result
+        assert "node" in result
+
+    async def test_execute_action_datetime(self, tmp_path: Path) -> None:
+        from tools.registry import ActionRegistry
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        security = SecurityManager(mode="strict")
+        registry = build_registry(security=security)
+        orch = Orchestrator(
+            providers=[StaticProvider("test", "ok")],
+            action_registry=registry,
+        )
+        result = await orch.execute_action("datetime", role="admin")
+        assert result is not None
+        assert "date" in result
+        assert "time" in result
+
+    async def test_execute_action_with_params(self, tmp_path: Path) -> None:
+        """Testa execução de ação com parâmetros válidos.
+
+        action_info com name via params.
+        """
+        from tools.registry import ActionRegistry
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        security = SecurityManager(mode="strict")
+        registry = build_registry(security=security)
+        orch = Orchestrator(
+            providers=[StaticProvider("test", "ok")],
+            action_registry=registry,
+        )
+        result = await orch.execute_action(
+            "action_info",
+            params={"name": "system_info"},
+            role="admin",
+        )
+        assert result is not None
+        assert "name" in result
+        assert result["name"] == "system_info"
+
+    async def test_execute_action_action_list(self, tmp_path: Path) -> None:
+        from tools.registry import ActionRegistry
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        security = SecurityManager(mode="strict")
+        registry = build_registry(security=security)
+        orch = Orchestrator(
+            providers=[StaticProvider("test", "ok")],
+            action_registry=registry,
+        )
+        result = await orch.execute_action("action_list", role="admin")
+        assert result is not None
+        assert "actions" in result
+        assert len(result["actions"]) == 56
+
+    async def test_execute_action_without_registry_raises(self, tmp_path: Path) -> None:
+        orch = Orchestrator(providers=[StaticProvider("test", "ok")])
+        with pytest.raises(RuntimeError, match="ActionRegistry não disponível"):
+            await orch.execute_action("system_info", role="admin")
+
+    async def test_execute_action_denied_role(self, tmp_path: Path) -> None:
+        from tools.registry import ActionRegistry
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        security = SecurityManager(mode="strict")
+        registry = build_registry(security=security)
+        orch = Orchestrator(
+            providers=[StaticProvider("test", "ok")],
+            action_registry=registry,
+        )
+        # Role "agent" sem permissão deve retornar None
+        result = await orch.execute_action("system_info", role="agent")
+        assert result is None
+
+    async def test_set_action_registry(self, tmp_path: Path) -> None:
+        from tools.registry import ActionRegistry
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        security = SecurityManager(mode="strict")
+        registry = build_registry(security=security)
+        orch = Orchestrator(providers=[StaticProvider("test", "ok")])
+        assert orch.action_registry is None
+        orch.set_action_registry(registry)
+        assert orch.action_registry is not None
+        assert orch.action_registry.metrics.actions == 56
+
+    async def test_execute_action_after_set_registry(self, tmp_path: Path) -> None:
+        from tools.registry import ActionRegistry
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        security = SecurityManager(mode="strict")
+        registry = build_registry(security=security)
+        orch = Orchestrator(providers=[StaticProvider("test", "ok")])
+        orch.set_action_registry(registry)
+        result = await orch.execute_action("system_info", role="admin")
+        assert result is not None
+        assert "system" in result
+

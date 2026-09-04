@@ -31,6 +31,7 @@ from integrations.telegram.commands import (
     CommandContext,
     TelegramCommand,
     build_default_commands,
+    _executa_handler,
 )
 from integrations.telegram.models import Message, Update
 from integrations.telegram.transport import TelegramTransport, TransportError
@@ -89,6 +90,7 @@ class TelegramBot:
                       locais respondem).
         admin_ids:    IDs do Telegram com acesso a comandos admin_only.
         commands:     Catálogo de comandos (padrão: 13 do legado Nicky).
+        action_registry: ActionRegistry com as 56 actions (opcional).
     """
 
     def __init__(
@@ -102,13 +104,23 @@ class TelegramBot:
         tts: Optional[VoiceSynthesizer] = None,
         default_profile: str = DEFAULT_PROFILE,
         offset_file: Optional[Union[str, os.PathLike]] = None,
+        action_registry: Optional[Any] = None,
     ) -> None:
         self.transport = transport
         self.orchestrator = orchestrator
         self.admin_ids: set[int] = set(admin_ids or ())
+        self.action_registry = action_registry
         self.commands: list[TelegramCommand] = list(
             commands if commands is not None else build_default_commands()
         )
+        # Se tiver action_registry, adiciona o comando /executa
+        if action_registry is not None:
+            self.commands.append(TelegramCommand(
+                "executa",
+                _executa_handler,
+                "Executa uma action do catálogo (admin only)",
+                admin_only=True,
+            ))
         self.stt = stt
         self.tts = tts
         self.default_profile = default_profile

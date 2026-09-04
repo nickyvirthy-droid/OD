@@ -375,6 +375,7 @@ class Orchestrator:
         quick:      QuickResponses opcional (etapa 3).
         event_bus:  EventBus opcional (publica orchestrator.responded).
         config:     OrchestratorConfig.
+        action_registry: ActionRegistry opcional para execução de ações.
     """
 
     def __init__(
@@ -387,6 +388,7 @@ class Orchestrator:
         event_bus: Optional[EventBus] = None,
         config: Optional[OrchestratorConfig] = None,
         clock: Optional[Callable[[], float]] = None,
+        action_registry: Optional[Any] = None,
     ) -> None:
         self._providers = list(providers or [])
         self.history = history
@@ -401,6 +403,8 @@ class Orchestrator:
         )
         self._metrics = OrchestratorMetrics()
         self._lock = threading.RLock()
+        self._action_registry = action_registry
+        self._action_callables: dict[str, Callable] = {}  # ações injetadas pelo framework
 
     # -- Propriedades --------------------------------------------------------
 
@@ -416,6 +420,19 @@ class Orchestrator:
     def providers(self) -> tuple[LLMProvider, ...]:
         """Providers registrados, na ordem de fallback (leitura)."""
         return tuple(self._providers)
+
+    @property
+    def action_registry(self) -> Optional[Any]:
+        """ActionRegistry para execução de ações (opcional)."""
+        return self._action_registry
+
+    def set_action_registry(self, registry: Any) -> None:
+        """Define o ActionRegistry para execução de ações."""
+        self._action_registry = registry
+
+    def add_action(self, name: str, handler: Callable) -> None:
+        """Adiciona uma ação injetável pelo framework (não usa o registry)."""
+        self._action_callables[name] = handler
 
     def add_provider(self, provider: LLMProvider) -> None:
         """Adiciona um provider ao final da lista (último = fallback)."""
@@ -635,6 +652,50 @@ class Orchestrator:
             latency_ms=round(result.latency_ms, 3),
         )
         return result
+
+    async def execute_action(
+        self,
+        action_name: str,
+        params: Optional[dict[str, Any]] = None,
+        user_id: str = "",
+        role: str = "admin",
+    ) -> Any:
+        """Executa uma ação via ActionRegistry.
+
+        Args:
+            action_name: Nome da ação a executar.
+            params: Parâmetros da ação (opcional).
+            user_id: ID do usuário para registro de auditoria.
+            role: Papel do solicitante (para Security Layer).
+
+        Returns:
+            Resultado da ação (dados brutos) ou None em caso de erro.
+
+        Raises:
+            RuntimeError: Se ActionRegistry não estiver disponível.
+        """
+        if self._action_registry is None:
+            raise RuntimeError("ActionRegistry não disponível no Orchestrator")
+        import asyncio
+        result = await self._action_registry.execute(
+            action_name,
+            params=params or {},
+            role=role,
+        )
+        if result.status == "ok":
+            return result.data
+        elif result.status == "denied":
+            log.warn("Orchestrator action denied", action=action_name, error=result.error)
+            return None
+        elif result.status == "invalid":
+            log.warn("Orchestrator action invalid params", action=action_name, errors=result.errors)
+            return None
+        elif result.status == "not_found":
+            log.warn("Orchestrator action not found", action=action_name)
+            return None
+        else:
+            log.error("Orchestrator action error", action=action_name, error=result.error)
+            return None
 
     async def _publish_event(self, result: OrchestrationResult) -> None:
         """Publica orchestrator.responded no EventBus (best-effort)."""
