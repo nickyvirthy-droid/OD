@@ -12,6 +12,7 @@ Uso:
     .venv/bin/python -m runtime.launcher telegram  # sobe o bot do Telegram
     .venv/bin/python -m runtime.launcher mqtt      # sobe a ponte MQTT
     .venv/bin/python -m runtime.launcher all       # api + bot + mqtt
+    .venv/bin/python -m runtime.launcher capabilities  # manifesto JSON e sai
 
 Configuração (variáveis de ambiente / .env no raiz do repo):
     TELEGRAM_BOT_TOKEN  Token do bot (obrigatório p/ telegram).
@@ -621,6 +622,11 @@ async def _run_presence_forever(monitor: Any) -> None:
 
 def main() -> int:
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
+    # Modo de introspecção: imprime o manifesto de capacidades e sai.
+    if mode == "capabilities":
+        from core.capabilities import render_json
+        print(render_json())
+        return 0
     orchestrator = build_orchestrator()
     audit = build_audit_system()
     audit.record(
@@ -704,7 +710,10 @@ def main() -> int:
     elif mode == "all":
         asyncio.run(_all())
     else:
-        print(f"modo desconhecido: {mode!r} (api|telegram|mqtt|presence|vision|all)")
+        print(
+            f"modo desconhecido: {mode!r} "
+            "(api|telegram|mqtt|presence|vision|all|capabilities)"
+        )
         return 2
     return 0
 

@@ -36,7 +36,7 @@ from integrations.telegram.models import Message, Update, User, Voice
 ADMIN = 1
 USER = 2
 ADMIN_NAMES = {"status", "uptime", "stats", "dashboard", "historico",
-               "cache", "presenca", "codigo", "rotacionar_key"}
+               "cache", "presenca", "codigo", "capacidades", "rotacionar_key"}
 PUBLIC_NAMES = {"start", "help", "perfil", "limpar"}
 
 
@@ -344,7 +344,7 @@ class TestTelegramBotCommands:
         assert names == PUBLIC_NAMES | ADMIN_NAMES == {
             "start", "help", "perfil", "limpar", "status", "uptime",
             "stats", "dashboard", "historico", "cache", "presenca",
-            "codigo", "rotacionar_key",
+            "codigo", "capacidades", "rotacionar_key",
         }
         aliases = {a for c in commands for a in c.aliases}
         assert "ajuda" in aliases
@@ -776,7 +776,7 @@ class TestTelegramBotDump:
         data = bot.dump()
         assert data["transport"] == "InMemoryTransport"
         assert data["orchestrator"] is False
-        assert len(data["commands"]) == 13
+        assert len(data["commands"]) == 14
         assert data["admins"] == [ADMIN]
         assert data["profiles"] == {"1": "luma"}
         assert data["metrics"]["messages"] == 1

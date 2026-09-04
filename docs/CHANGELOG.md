@@ -4,6 +4,90 @@
 
 ---
 
+## [0.27.3] — 2026-09-04
+
+### Adicionado
+
+#### Manifesto de Capacidades — `core/capabilities.py` 📋
+
+Inventário estruturado de **TODAS** as capacidades do sistema (39
+componentes: core, memória, orquestração, execução, integrações, sensorial,
+observabilidade e runtime), com status de ativação no runtime
+(`active`/`available`/`partial`/`dormant`), origem legada, fase do roadmap e
+caminho do código — respondendo "o que o sistema consegue fazer?" de forma
+consultável:
+
+- **CLI** — novo modo `.venv/bin/python -m runtime.launcher capabilities`
+  (imprime o manifesto em JSON e sai)
+- **API** — novo endpoint `GET /capabilities` (exige X-API-Key) na API REST
+- **Bot** — novo comando `/capacidades` (admin) no Telegram
+- **Documento** — `docs/CAPACIDADES.md` (visão humana do manifesto)
+- O manifesto reporta explicitamente o estado do **loop de auto-recuperação**:
+  `auto_recovery.loop_fechado: false` com a lista dos 4 componentes dormentes
+  (self-repair, auto-extension, perception, notifier) e o caminho para ativá-los
+
+### Corrigido
+
+- **API `/info`**: `version` estava fixada em "0.19.0" — agora usa
+  `OD_VERSION` (0.27.3) do manifesto
+- Docstring do `APIHandler` atualizada (17 → 18 endpoints)
+
+### Infraestrutura
+
+- `tests/test_capabilities.py` — 11 testes: integridade do manifesto
+  (campos obrigatórios, status válidos, contagens by_status/by_category,
+  ≥37 capacidades, 56 actions, roadmap 37/37, dormentes), render_text,
+  render_json, exposição via API (401 sem chave / 200 com chave) e via bot
+  (comando registrado, resposta do admin, gate de não-admin)
+- `tests/test_api.py` — tabela de rotas atualizada: **18 rotas**
+  (17 do legado + `/capabilities`), auth inclui `/capabilities`
+- `tests/test_telegram.py` — catálogo de comandos: **14** (13 legado +
+  `/capacidades`)
+
+### Verificação
+
+- Suíte completa: **1393 passed, 0 falhas** (1382 + 11 novos)
+
+---
+
+## [0.27.2] — 2026-09-04
+
+### Adicionado
+
+#### Documentação — Tabela de correspondência das 56 actions (NV → OD) 📋
+
+Nova `docs/ACTIONS_CORRESPONDENCIA.md` com a correspondência completa entre
+o catálogo OD (`tools/actions/`, 56 actions) e o legado NV
+(`~/NV/plugins/actions/`, 58 módulos):
+
+- **54 portadas** com o mesmo nome
+- **1 renomeada**: `list_actions` → `action_list`
+- **3 excluídas com justificativa**:
+  - `system_exec` — execução arbitrária de comandos (`dangerous=True` no
+    próprio legado); no OD coberta por caminhos mediados (Control Bridge,
+    Coder Engine, Auto Extension)
+  - `database_backup` / `database_stats` — **stubs vazios (0 bytes)**, nunca
+    implementados no NV; métricas de banco cobertas por
+    `storage/database.py` + Metrics Collector
+- **1 complementar**: `process_tree` (não existia no NV)
+
+**Correção do registro histórico:** o CHANGELOG v0.11.0 atribuía "2
+complementares" (process_tree e action_list) — a verificação direta do
+legado mostra que `action_list` é renomeação de `list_actions` (que existia
+no NV); o único complementar real é `process_tree`. Conta final conferida:
+58 − 3 + 1 = **56** ✅
+
+Também corrigida a §3.3 do `docs/NV_LEGACY_ANALYSIS.md` (56 → 58 módulos,
+com as ações que faltavam: `system_exec`, `database_backup`,
+`database_stats`, `list_actions`).
+
+### Verificação
+
+- Suíte completa: **1382 passed, 0 falhas** (inalterada — mudanças apenas
+  de documentação)
+
+---
+
 ## [0.27.1] — 2026-09-04
 
 ### Corrigido

@@ -9,6 +9,94 @@
 
 ---
 
+## [0.27.3] — Manifesto de Capacidades 📋 (2026-09-04)
+
+### 1. O que foi feito
+
+O sistema passou a reportar **todas as suas capacidades** — resposta direta
+à pergunta "o que o OD consegue fazer?" (e, de quebra, ao objetivo de
+auto-recuperação e análise do ambiente):
+
+| Canal | Entrega |
+|---|---|
+| **Módulo** | `core/capabilities.py` — manifesto com **39 componentes** (core/memória/orquestração/execução/integrações/sensorial/observabilidade/runtime), cada um com status de ativação no runtime (`active`/`available`/`partial`/`dormant`), origem legada, fase do roadmap e caminho |
+| **CLI** | `.venv/bin/python -m runtime.launcher capabilities` → manifesto JSON |
+| **API** | `GET /capabilities` (X-API-Key) — 18ª rota |
+| **Bot** | `/capacidades` (admin) no Telegram |
+| **Documento** | `docs/CAPACIDADES.md` — visão humana do manifesto |
+
+O manifesto declara explicitamente `auto_recovery.loop_fechado: false` e
+lista os 4 componentes dormentes (self-repair, auto-extension, perception,
+notifier) com o caminho de ativação. Também corrigiu a versão fixa do
+`GET /` (`/info`) que reportava "0.19.0" → `OD_VERSION` (0.27.3).
+
+### 2. Evidência
+
+```
+pytest tests/ -q        → 1393 passed, 0 falhas  (1382 + 11 novos)
+python -m runtime.launcher capabilities
+                        → JSON: 39 capacidades · 56 actions ·
+                          by_status {active: 28, available: 5, partial: 2,
+                          dormant: 4} · loop_fechado: false
+```
+
+### 3. O que NÃO foi feito
+
+- **Loop de auto-recuperação segue dormente**: self-repair, auto-extension,
+  perception e notifier estão implementados e testados, mas sem trigger no
+  runtime (o manifesto reporta isso por construção)
+- `/codigo` continua só leitura (status/arvore) — patch completo do Coder
+  Engine via bot segue pendente
+- Control Bridge ativa como serviço, mas sem cliente interno no OD ainda
+
+### 4. Próximo passo
+
+- **Fechar o loop de auto-recuperação (P2)**: coletar `Telemetry.collect()`
+  periódica → alimentar Health Monitor e oracles do Self Repair; iniciar o
+  `SelfRepairEngine` com ciclo; expor trigger de Auto Extension;
+  iniciar o ProactiveNotifier com sink Telegram
+- Publicação: commit v0.27.3 + push (regra §2.1.2)
+
+---
+
+## [0.27.2] — Correspondência de Actions NV → OD 📋 (2026-09-04)
+
+### 1. O que foi feito
+
+Tabela de correspondência completa entre o catálogo OD (56 actions) e o
+legado NV (58 módulos em `plugins/actions/`) — nova
+`docs/ACTIONS_CORRESPONDENCIA.md`:
+
+- **54 portadas** com o mesmo nome · **1 renomeada** (`list_actions` →
+  `action_list`)
+- **3 excluídas com justificativa**: `system_exec` (execução arbitrária,
+  `dangerous=True` no legado — coberta por Control Bridge/Coder/Auto
+  Extension), `database_backup` e `database_stats` (**stubs vazios de 0
+  bytes**, nunca implementados no NV)
+- **1 complementar**: `process_tree` (não existia no NV)
+- Conta conferida: 58 − 3 + 1 = **56** ✅
+- Corrigida a §3.3 do `docs/NV_LEGACY_ANALYSIS.md` (56 → 58 módulos, com
+  `system_exec`/`database_backup`/`database_stats`/`list_actions`)
+- **Correção histórica**: o CHANGELOG v0.11.0 dizia "2 complementares"
+  (process_tree e action_list) — `action_list` é renomeação, não complemento
+
+### 2. Evidência
+
+```
+pytest tests/ -q   → 1382 passed, 0 falhas  (mudanças apenas de documentação)
+```
+
+### 3. O que NÃO foi feito
+
+- As 3 ações excluídas não foram portadas (decisões registradas no
+documento; `system_exec` exige autorização arquitetural antes de entrar)
+
+### 4. Próximo passo
+
+- Fechar o loop de auto-recuperação (P2 — ver [0.27.3])
+
+---
+
 ## [0.27.0] — Pós-Fase 7: Orchestrator × ActionRegistry ⚙️ (2026-09-04)
 
 ### 1. O que foi feito

@@ -84,15 +84,23 @@ O_kernel_ é o orquestrador central. Inicializa todos os subsistemas e os regist
 
 ### 3.3 Action System (`core/actions/`)
 
-- **56 actions operacionais** organizadas em categorias:
-  - **Sistema:** `system_info`, `datetime`, `uptime`, `disk_usage`, `memory_usage`, `cpu_info`, `ip_address`, `system_which`, `system_hostname`, `system_env`, `system_ping`, `system_user`, `system_groups`
+- **58 módulos de action** em `plugins/actions/` (56 implementados + 2 stubs
+  vazios `database_backup`/`database_stats` + helper `loader.py`), organizados
+  em categorias:
+  - **Sistema:** `system_info`, `datetime`, `uptime`, `disk_usage`, `memory_usage`, `cpu_info`, `ip_address`, `system_which`, `system_hostname`, `system_env`, `system_ping`, `system_user`, `system_groups`, `system_exec`
   - **Processos:** `process_list`, `process_info`, `process_kill`
   - **Docker:** `docker_list`, `docker_status`, `docker_logs`, `docker_stats`
   - **Serviços:** `service_list`, `service_status`, `service_logs`
   - **Arquivos:** `filesystem_search`, `filesystem_read`, `filesystem_write`, `filesystem_delete`, `filesystem_exists`, `filesystem_info`, `filesystem_list`, `filesystem_mkdir`, `filesystem_move`, `filesystem_copy`, `filesystem_touch`, `filesystem_tree`, `filesystem_hash`, `filesystem_archive`, `filesystem_extract`
   - **Git:** `git_branch`, `git_status`, `git_commit`, `git_add`, `git_log`, `git_diff`, `git_checkout`, `git_fetch`, `git_pull`, `git_push`
-  - **Banco de Dados:** `database_tables`, `database_schema`, `database_query`
-  - **Introspecção:** `action_info`, `action_schema`, `action_validate`
+  - **Banco de Dados:** `database_tables`, `database_schema`, `database_query`, `database_backup` (stub vazio), `database_stats` (stub vazio)
+  - **Introspecção:** `action_info`, `action_schema`, `action_validate`, `list_actions`
+
+> **Correspondência com o OD (56 actions):** ver
+> `docs/ACTIONS_CORRESPONDENCIA.md` — 54 portadas com o mesmo nome,
+> 1 renomeada (`list_actions` → `action_list`), 3 excluídas
+> (`system_exec` por segurança; `database_backup`/`database_stats` eram
+> stubs vazios) e 1 complementar (`process_tree`). Conta: 58 − 3 + 1 = 56.
 
 - **ActionManager** valida cada ação via SecurityManager antes de executar
 

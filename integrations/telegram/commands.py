@@ -3,9 +3,11 @@ OMEGA DRAKON • CORE
 Tecnologia que respira.
 Módulo: integrations/telegram/commands.py
 Descrição: Camada de comandos do Telegram Bot — os 13 comandos de texto do
-           legado Nicky + tratamento de voz (STT) como 14º recurso. Cada
-           comando é um handler (bot, ctx) -> texto de resposta; acesso
-           admin é controlado pelo bot antes da execução.
+           legado Nicky + tratamento de voz (STT) como 14º recurso, mais os
+           comandos OD /executa (actions do catálogo, v0.27.0) e
+           /capacidades (manifesto de capacidades, v0.27.3). Cada comando é
+           um handler (bot, ctx) -> texto de resposta; acesso admin é
+           controlado pelo bot antes da execução.
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 
@@ -286,6 +288,12 @@ def _rotacionar_key(bot: "TelegramBot", ctx: CommandContext) -> str:
     )
 
 
+def _capacidades(bot: "TelegramBot", ctx: CommandContext) -> str:
+    """Manifesto de capacidades do sistema (core/capabilities.py)."""
+    from core.capabilities import render_text
+    return render_text()
+
+
 def _executa_handler(bot: "TelegramBot", ctx: CommandContext) -> str:
     """Handler do comando /executa — executa actions do catálogo.
 
@@ -502,6 +510,12 @@ def build_default_commands() -> list[TelegramCommand]:
         ),
         TelegramCommand(
             "codigo", _codigo, "Operações do Coder Engine", admin_only=True
+        ),
+        TelegramCommand(
+            "capacidades",
+            _capacidades,
+            "Capacidades do sistema (manifesto)",
+            admin_only=True,
         ),
         TelegramCommand(
             "rotacionar_key",

@@ -40,6 +40,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import TYPE_CHECKING, Any, Callable, Optional
 from urllib.parse import parse_qs, unquote, urlsplit
 
+from core.capabilities import OD_VERSION, capabilities_manifest
 from core.logger import get_logger
 from core.orchestrator import OrchestrationResult, Orchestrator
 
@@ -137,6 +138,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/metrics", "metrics_text", False),
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
+    ("GET", "/capabilities", "capabilities", True),
     ("POST", "/message", "message", True),
     ("POST", "/transcribe", "transcribe", True),
     ("POST", "/tts", "tts", True),
@@ -454,7 +456,7 @@ class APIServer(ThreadingHTTPServer):
 # ---------------------------------------------------------------------------
 
 class APIHandler(BaseHTTPRequestHandler):
-    """Dispatch dos 17 endpoints + JSON/HTML, auth e rate limit."""
+    """Dispatch dos 18 endpoints + JSON/HTML, auth e rate limit."""
 
     protocol_version = "HTTP/1.1"
     server_version = "OmegaDrakon/0.19"
@@ -678,7 +680,7 @@ class APIHandler(BaseHTTPRequestHandler):
             {
                 "name": API_NAME,
                 "signature": __signature__,
-                "version": "0.19.0",
+                "version": OD_VERSION,
                 "endpoints": len(ROUTES),
                 "orchestrator": self.api.orchestrator is not None,
                 "uptime_s": int(time.time() - self.api.started_at),
@@ -826,6 +828,10 @@ class APIHandler(BaseHTTPRequestHandler):
                 }
             )
         self._json(200, {"ok": True, "llms": items})
+
+    def capabilities(self) -> None:
+        """Manifesto completo das capacidades do sistema (core/capabilities.py)."""
+        self._json(200, capabilities_manifest())
 
     async def _process_message(
         self, user_id: str, profile: str, text: str,

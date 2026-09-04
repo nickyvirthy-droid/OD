@@ -99,14 +99,16 @@ def serve():
 class TestAPIRoutes:
     """Registro declarativo: 17 rotas com método, handler e auth."""
 
-    def test_seventeen_routes_mirror_legacy(self) -> None:
-        assert len(ROUTES) == 17
+    def test_eighteen_routes_mirror_legacy(self) -> None:
+        """17 endpoints do legado + /capabilities (v0.27.3)."""
+        assert len(ROUTES) == 18
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
             ("GET", "/profiles/{name}"), ("GET", "/presence/today"),
             ("GET", "/dashboard"), ("GET", "/chat"), ("GET", "/metrics"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
+            ("GET", "/capabilities"),
             ("POST", "/message"), ("POST", "/transcribe"), ("POST", "/tts"),
             ("DELETE", "/history/{user_id}"),
             ("GET", "/history/{user_id}/stats"),
@@ -119,6 +121,7 @@ class TestAPIRoutes:
         auth = {(r.method, r.path) for r in ROUTES if r.auth}
         assert auth == {
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
+            ("GET", "/capabilities"),
             ("POST", "/message"), ("POST", "/transcribe"), ("POST", "/tts"),
             ("DELETE", "/history/{user_id}"),
             ("GET", "/history/{user_id}/stats"),
@@ -145,7 +148,7 @@ class TestAPIPublicEndpoints:
         data = _json_response((status, body, _))
         assert status == 200
         assert data["name"] == "Omega Drakon REST API"
-        assert data["endpoints"] == 17
+        assert data["endpoints"] == 18
         assert data["orchestrator"] is True
 
     def test_health_up_with_orchestrator(self, serve, tmp_path: Path) -> None:
