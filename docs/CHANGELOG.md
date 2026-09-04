@@ -4,6 +4,35 @@
 
 ---
 
+## [0.28.3] — 2026-09-04
+
+### Adicionado
+
+#### Roadmap v1.x + descoberta da Plêiade (7º agente) 📋
+
+- **`docs/ROADMAP_V1.md`** — planejamento da série v1 (primeira entrega
+  pós-congelamento):
+  - **v1.0.0** — fundação release-grade: CI + cobertura ≥90% (promessa do
+    roadmap §8), migração JSON → PostgreSQL, **7º perfil `nexus`**, health
+    checks externos (HA/MQTT), Control Bridge no repo;
+  - **v1.1.0** — acesso externo seguro via **Tailscale** (VPN mesh
+    WireGuard, sem abrir portas — pesquisa Gravity Index);
+  - **v1.2.0** — **app Android** (Flutter) consumindo a API REST existente
+    com push via FCM;
+  - **v1.3.0+** — WebSocket `/ws/chat`, plugins reais, `/codigo` completo,
+    cliente do Control Bridge, voz no app, auto-reparo LLM assistido.
+- **Descoberta da lacuna**: `~/nexus/config/pleiade.yaml` define as **7
+  entidades da Plêiade** — o OD absorveu 6 perfis, mas o **7º (o próprio
+  Nexus, "Conector e Sétima Entidade — o equilíbrio que une a plêiade")**
+  não existe como perfil. A v1.0.0 nasce completando a Plêiade.
+
+### Verificação
+
+- Mudanças apenas de documentação/planejamento — suíte inalterada
+  (**1453 passed**), série 0.x permanece congelada na tag `v0.28.1`
+
+---
+
 ## [0.28.2] — 2026-09-04
 
 ### Decisão
