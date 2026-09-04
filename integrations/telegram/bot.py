@@ -32,6 +32,7 @@ from integrations.telegram.commands import (
     TelegramCommand,
     build_default_commands,
     _executa_handler,
+    _gerar_handler,
 )
 from integrations.telegram.models import Message, Update
 from integrations.telegram.transport import TelegramTransport, TransportError
@@ -105,11 +106,13 @@ class TelegramBot:
         default_profile: str = DEFAULT_PROFILE,
         offset_file: Optional[Union[str, os.PathLike]] = None,
         action_registry: Optional[Any] = None,
+        auto_extension: Optional[Any] = None,
     ) -> None:
         self.transport = transport
         self.orchestrator = orchestrator
         self.admin_ids: set[int] = set(admin_ids or ())
         self.action_registry = action_registry
+        self.auto_extension = auto_extension
         self.commands: list[TelegramCommand] = list(
             commands if commands is not None else build_default_commands()
         )
@@ -119,6 +122,14 @@ class TelegramBot:
                 "executa",
                 _executa_handler,
                 "Executa uma action do catálogo (admin only)",
+                admin_only=True,
+            ))
+        # Se tiver Auto Extension, adiciona o comando /gerar (v0.27.4)
+        if auto_extension is not None:
+            self.commands.append(TelegramCommand(
+                "gerar",
+                _gerar_handler,
+                "Gera ferramenta via LLM (Auto Extension, admin only)",
                 admin_only=True,
             ))
         self.stt = stt
@@ -273,7 +284,7 @@ class TelegramBot:
         resolved = self.find_command(message.text)
         if resolved is not None:
             command, args = resolved
-            reply = self._run_command(command, message, args)
+            reply = await self._run_command(command, message, args)
         else:
             reply = await self._ask_orchestrator(message)
         return await self._send_reply(message.chat_id, reply)
@@ -349,10 +360,15 @@ class TelegramBot:
                 log.error("TTS/reply por voz falhou", error=str(exc))
         return await self._send_reply(chat_id, reply)
 
-    def _run_command(
+    async def _run_command(
         self, command: TelegramCommand, message: Message, args: list[str]
     ) -> str:
-        """Executa um comando com admin gate; devolve o texto de resposta."""
+        """Executa um comando com admin gate; devolve o texto de resposta.
+
+        Handlers podem ser sync OU async — coroutines são aguardadas aqui
+        (v0.27.4: corrige /executa, que usava asyncio.run() dentro do loop
+        do bot e quebrava com RuntimeError).
+        """
         self.metrics.commands += 1
         user = message.user
         ctx = CommandContext(
@@ -370,7 +386,10 @@ class TelegramBot:
             )
             return "⛔ Comando restrito ao administrador."
         try:
-            return command.handler(self, ctx)
+            out = command.handler(self, ctx)
+            if inspect.isawaitable(out):
+                out = await out
+            return out
         except Exception as exc:  # pragma: no cover — handler quebrou
             self.metrics.errors += 1
             log.error("Comando falhou", command=command.name, error=str(exc))

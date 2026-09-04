@@ -23,6 +23,7 @@ import urllib.error
 import pytest
 
 from core.orchestrator import Orchestrator, RecordingProvider
+from core.security import SecurityManager
 from integrations.telegram import (
     HTTPTransport,
     InMemoryTransport,
@@ -32,6 +33,7 @@ from integrations.telegram import (
     build_default_commands,
 )
 from integrations.telegram.models import Message, Update, User, Voice
+from tools.actions import build_registry
 
 ADMIN = 1
 USER = 2
@@ -964,3 +966,134 @@ class TestTelegramBotVoiceReply:
         transport.add_voice(1, "v1", user_id=ADMIN)
         await bot.run(interval=0.01, max_updates=1)
         assert transport.sent_voices == [b"RIFF-sync"]
+
+
+# ---------------------------------------------------------------------------
+# /executa (v0.27.0) — handlers async (correção v0.27.4)
+# ---------------------------------------------------------------------------
+
+class TestTelegramBotExecuta:
+    """Comando /executa executa actions do catálogo via ActionRegistry."""
+
+    @staticmethod
+    def _bot() -> TelegramBot:
+        transport = InMemoryTransport()
+        registry = build_registry(security=SecurityManager(mode="strict"))
+        return TelegramBot(transport, None, admin_ids={ADMIN},
+                           action_registry=registry)
+
+    @pytest.mark.asyncio
+    async def test_executa_system_info_admin(self) -> None:
+        """Admin executa system_info (bug asyncio.run corrigido em v0.27.4)."""
+        bot = self._bot()
+        bot.transport.add_message(1, "/executa system_info", user_id=ADMIN)
+        await bot.run(interval=0.01, max_updates=1)
+        text = bot.transport.sent_texts[-1]
+        assert "*Resultado de `system_info`:*" in text
+        assert "node" in text
+        assert "RuntimeError" not in text
+        bot.close()
+
+    @pytest.mark.asyncio
+    async def test_executa_requires_admin(self) -> None:
+        """Usuário não-admin é bloqueado no /executa."""
+        bot = self._bot()
+        bot.transport.add_message(1, "/executa system_info", user_id=USER)
+        await bot.run(interval=0.01, max_updates=1)
+        assert "⛔" in bot.transport.sent_texts[-1]
+        assert bot.metrics.errors == 1
+        bot.close()
+
+    @pytest.mark.asyncio
+    async def test_executa_destructive_requires_confirmation(self) -> None:
+        """Ação nível 2 exige 'confirmar' nos args."""
+        bot = self._bot()
+        bot.transport.add_message(
+            1, "/executa filesystem_write path=/tmp/x content=1", user_id=ADMIN
+        )
+        await bot.run(interval=0.01, max_updates=1)
+        text = bot.transport.sent_texts[-1]
+        assert "destrutiva" in text and "confirmar" in text
+        bot.close()
+
+    @pytest.mark.asyncio
+    async def test_executa_unknown_action_suggests(self) -> None:
+        bot = self._bot()
+        bot.transport.add_message(1, "/executa system_inf", user_id=ADMIN)
+        await bot.run(interval=0.01, max_updates=1)
+        assert "system_info" in bot.transport.sent_texts[-1]
+        bot.close()
+
+
+# ---------------------------------------------------------------------------
+# /gerar (v0.27.4) — Auto Extension via LLM
+# ---------------------------------------------------------------------------
+
+class _FakeExtension:
+    """AutoExtension fake com resultado configurável."""
+
+    def __init__(self, result: dict) -> None:
+        self._result = result
+        self.calls: list[tuple[str, str]] = []
+
+    async def extend(self, name: str, description: str) -> dict:
+        self.calls.append((name, description))
+        return self._result
+
+
+class TestTelegramBotGerar:
+    """Comando /gerar dispara o Auto Extension (gera ferramenta via LLM)."""
+
+    @staticmethod
+    def _bot(result: dict) -> TelegramBot:
+        transport = InMemoryTransport()
+        return TelegramBot(transport, None, admin_ids={ADMIN},
+                           auto_extension=_FakeExtension(result))
+
+    @pytest.mark.asyncio
+    async def test_gerar_ok_registers_tool(self) -> None:
+        bot = self._bot({
+            "status": "ok",
+            "action": "auto.fibonacci",
+            "description": "retorna os N primeiros números de Fibonacci",
+        })
+        bot.transport.add_message(
+            1, "/gerar fibonacci retorna os N primeiros números de Fibonacci",
+            user_id=ADMIN,
+        )
+        await bot.run(interval=0.01, max_updates=1)
+        text = bot.transport.sent_texts[-1]
+        assert "auto.fibonacci" in text
+        assert "/executa auto.fibonacci" in text
+        assert "Security Layer" in text
+        bot.close()
+
+    @pytest.mark.asyncio
+    async def test_gerar_invalid_reports_error(self) -> None:
+        bot = self._bot({"status": "invalid", "error": "import:requests"})
+        bot.transport.add_message(
+            1, "/gerar foo faz algo", user_id=ADMIN
+        )
+        await bot.run(interval=0.01, max_updates=1)
+        text = bot.transport.sent_texts[-1]
+        assert "import:requests" in text
+        bot.close()
+
+    @pytest.mark.asyncio
+    async def test_gerar_requires_admin(self) -> None:
+        bot = self._bot({"status": "ok", "action": "auto.x",
+                         "description": "x"})
+        bot.transport.add_message(1, "/gerar x faz algo", user_id=USER)
+        await bot.run(interval=0.01, max_updates=1)
+        assert "⛔" in bot.transport.sent_texts[-1]
+        bot.close()
+
+    @pytest.mark.asyncio
+    async def test_gerar_sem_auto_extension(self) -> None:
+        transport = InMemoryTransport()
+        bot = TelegramBot(transport, None, admin_ids={ADMIN})
+        bot.transport.add_message(1, "/gerar x faz algo", user_id=ADMIN)
+        await bot.run(interval=0.01, max_updates=1)
+        # comando desconhecido sem auto_extension → vai ao Orchestrator (None)
+        assert transport.sent_texts[-1]
+        bot.close()

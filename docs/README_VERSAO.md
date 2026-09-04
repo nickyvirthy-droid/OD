@@ -9,6 +9,111 @@
 
 ---
 
+## [0.27.5] — Fast Path de Intenções + Action de Rede ⚡ (2026-09-04)
+
+### 1. O que foi feito
+
+Resposta às três perguntas: (1) o OD sabe quantas pessoas estão na rede?
+→ **agora sabe**; (2) perguntas simples demorando → **fast path sem LLM**;
+(3) MariaDB → **não, é SQLite** (ver §3).
+
+| Entrega | Detalhe |
+|---|---|
+| **Action `network_hosts`** | Lê `/proc/net/arp` (stdlib, sem rede ativa): IP + MAC + interface + estado de cada vizinho. Catálogo 56 → **57** (complementar OD). Nível 0 (público) no `/executa` |
+| **Fast path (`core/intents.py`)** | Etapa 3.5 do pipeline (antes do cache/LLM): "quantas pessoas/dispositivos na rede?" → `network_hosts`; processos/memória/CPU/disco/uptime/sistema → actions de leitura; **matemática segura** (ast, nós numéricos apenas — "quanto é 2+2*3?" → 8). Allowlist só de LEITURA; falha/negação cai para o LLM (nunca responde vazio) |
+| **Rota/métrica novas** | `action_intent` no Orchestrator + métrica `intents` + config `enable_action_intents` (default True) |
+| **Quick Responses ampliadas** | Novos padrões (quem é você, o que é você, seu nome, quem te criou, você está aí, tudo bem, teste) + lookup ignora pontuação final ("Quem é você?" casa na etapa 3) |
+
+### 2. Evidência
+
+```
+pytest tests/ -q         → 1453 passed, 0 falhas  (1413 + 40 novos)
+Smoke ao vivo            → "quantas pessoas estão conectadas na rede?"
+                           → action_intent · 1.4ms · 6 dispositivos REAIS
+                           (192.168.0.x via ARP, com MAC/interface)
+                           "quanto é 2+2*3?" → 0.11ms
+                           "me escreva um poema" → LLM (fallback correto)
+Manifesto                → actions: 57 · OD_VERSION 0.27.5
+```
+
+### 3. MariaDB — resposta honesta
+
+**Não.** O OD usa **SQLite** (`storage/database.py`, Fase 7.5 — decisão
+registrada "preferir stdlib; isolar em adapters"). O MariaDB aparece no
+servidor apenas como **legado parado** (do NV/nexus, citado no CHANGELOG
+v0.16.0) — nunca foi ativado no OD. A camada é isolada em adapters, então
+migrar para MariaDB/Postgres é possível se você quiser — mas é trabalho
+decisão de arquitetura (ver próximo passo).
+
+### 4. O que NÃO foi feito
+
+- Fast path cobre um conjunto determinístico de intenções — perguntas
+  operacionais fora da lista seguem para o LLM (por design)
+- `network_hosts` mostra vizinhos da tabela ARP (quem trafegou/foi
+  consultado recentemente) — não é um scan ativo da sub-rede (decisão de
+  segurança; scan ativo exigiria sonda por host)
+- Migração para MariaDB/Postgres não iniciada
+
+### 5. Próximo passo
+
+- Publicação: commit v0.27.5 + push (regra §2.1.2)
+- **Decisão sua:** quer migrar a Database Layer para **MariaDB** (o
+  servidor já tem o serviço parado) ou manter SQLite? Se sim, é uma
+  entrega própria (adapter + testes + migração do `data/od.db`)
+
+---
+
+## [0.27.4] — LOOP DE AUTO-RECUPERAÇÃO FECHADO 🔄 (2026-09-04)
+
+### 1. O que foi feito
+
+**O ciclo perceber → decidir → agir → verificar agora roda no runtime.** Os 4
+motores que o manifesto [0.27.3] apontava como dormentes foram ativados:
+
+| Componente | Antes | Agora (v0.27.4) |
+|---|---|---|
+| **Self Repair** (4.2) | ⚪ dormente | 🟢 **RecoveryLoop** roda em ciclo (default 300s, `OD_RECOVERY_INTERVAL_S`): varre os `.py` do projeto, detecta falhas (compile determinístico) e repara mediado pelo Coder Engine (sandbox→testes→backup→promoção, rollback automático) |
+| **Perception** (4.3) | ⚪ dormente | 🟢 `Telemetry.collect()` periódica → check `perception` no Health Monitor (não-crítico) + evento `perception.snapshot` no audit |
+| **Auto Extension** (6.6) | ⚪ dormente | 🟢 trigger exposto: comando `/gerar <nome> <descrição>` (admin) — gera via LLM, valida e registra com permission `auto_extension.generated` (gate do Security Layer) |
+| **ProactiveNotifier** (5.3) | ⚪ dormente | 🟢 iniciado no launcher (modo `all`) com sink Telegram + estado persistido em `data/notifier_state.json` (`OD_NOTIFIER_ENABLED=0` desliga) |
+| **Ciclo** | — | 🟢 `core/recovery.py` novo — `RecoveryLoop` com métricas, `recovery.tick` no Event Bus e modo `recovery` no launcher (`OD_SELF_REPAIR_ENABLED=0` desliga) |
+
+**Bug corrigido de quebra:** `/executa` respondia `RuntimeError:
+asyncio.run()` em runtime (handler usava `asyncio.run()` dentro do loop do
+bot desde a v0.27.0, sem teste via bot). `_run_command` agora aguarda
+coroutines e os handlers `/executa` e `/gerar` são async puros.
+
+**Manifesto:** `core/capabilities.py` — `loop_fechado` agora **true**, zero
+dormentes, componentes do loop marcados `active`, `OD_VERSION` → 0.27.4.
+
+### 2. Evidência
+
+```
+pytest tests/ -q         → 1413 passed, 0 falhas  (1393 + 20)
+                           (12 de test_recovery + 8 de /executa e /gerar
+                           via bot em test_telegram)
+CLI capabilities          → loop_fechado: true · dormant: []
+python -m runtime.launcher recovery   → ciclo periódico ativo
+```
+
+### 3. O que NÃO foi feito
+
+- Correções de código gerado por LLM (auto-reparo LLM assistido) — o
+  RecoveryLoop aplica **apenas estratégias determinísticas** (ex:
+  AddMissingColon) mediadas pelo Coder; providers LLM seguem como ponto de
+  extensão (decisão conservadora por construção)
+- `/codigo` no bot segue somente leitura (status/arvore) — patch completo
+  via bot segue pendente
+- Control Bridge segue sem cliente interno no OD
+
+### 4. Próximo passo
+
+- Reiniciar o `od-core` (systemd) para o loop subir em produção e observar
+  o journal (RecoveryLoop + ProactiveNotifier ativos)
+- Publicação: commit v0.27.4 + push (regra §2.1.2)
+
+---
+
 ## [0.27.3] — Manifesto de Capacidades 📋 (2026-09-04)
 
 ### 1. O que foi feito

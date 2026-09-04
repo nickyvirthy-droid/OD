@@ -264,6 +264,34 @@ def system_ping(host: str, port: int = 443, timeout: float = 1.0) -> dict[str, A
     return {"ok": True, "host": host, "port": port, "reachable": reachable}
 
 
+def network_hosts() -> dict[str, Any]:
+    """Hosts da rede local via /proc/net/arp (vizinhança real IP+MAC).
+
+    Leitura 100% stdlib e sem rede ativa — responde "quantos dispositivos /
+    pessoas estão conectados na rede" com a tabela ARP do kernel (entradas
+    válidas = endereço MAC real). Complementar OD (não existia no NV).
+    """
+    raw = _read_proc("net/arp")
+    if not raw:
+        return _unavailable("network", "/proc/net/arp indisponível")
+    hosts: list[dict[str, Any]] = []
+    for line in raw.splitlines()[1:]:  # pula o cabeçalho
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+        ip, _hw_type, flags, mac, _mask, iface = parts[:6]
+        if mac == "00:00:00:00:00:00":
+            continue  # entrada sem vizinho resolvido
+        hosts.append({
+            "ip": ip,
+            "mac": mac,
+            "interface": iface,
+            "state": "reachable" if flags == "0x2" else "stale",
+        })
+    hosts.sort(key=lambda h: h["ip"])
+    return {"ok": True, "count": len(hosts), "hosts": hosts}
+
+
 def system_user() -> dict[str, Any]:
     """Usuário atual (uid/gid/nome/home)."""
     try:
@@ -891,6 +919,8 @@ CATALOG: list[dict[str, Any]] = [
           {"required": ["host"], "properties": {"host": S, "port": {**I, "default": 443}, "timeout": {**F, "default": 1.0}}}),
     _spec("system_user", "system", "Usuário atual", system_user),
     _spec("system_groups", "system", "Grupos do usuário atual", system_groups),
+    # --- Rede (1, complementar OD) ---
+    _spec("network_hosts", "system", "Dispositivos na rede local (ARP)", network_hosts),
     # --- Processos (4) ---
     _spec("process_list", "process", "Lista processos", process_list),
     _spec("process_info", "process", "Detalhes de um processo", process_info,

@@ -58,6 +58,21 @@ DEFAULT_RESPONSES: dict[str, list[str]] = {
     "boa noite": ["Boa noite! 🌙", "Boa noite! Descanse bem."],
     "obrigado": ["De nada! 😊", "Por nada!", "Sempre à disposição."],
     "obrigada": ["De nada! 😊", "Por nada!", "Sempre à disposição."],
+    "quem é você": [
+        "Eu sou o *Omega Drakon* — tecnologia que respira. 🐉",
+        "Sou o Omega Drakon, a Interface Viva do sistema.",
+    ],
+    "o que é você": [
+        "Sou o *Omega Drakon* — tecnologia que respira. 🐉",
+        "Sou o sistema vivo deste servidor — análise, ações e memória.",
+    ],
+    "qual seu nome": ["Meu nome é *Omega Drakon* (ou OD, para os íntimos). 🐉"],
+    "quem te criou": [
+        "Fui criado pelo Alex Projeti, com a Interface Viva Nicky Virthy.",
+    ],
+    "você está aí": ["Estou aqui! 👋 Pronto para ajudar.", "Presente! 😄"],
+    "tudo bem": ["Tudo ótimo! E com você? 😊", "Tudo em ordem por aqui!", "Tranquilo! E aí?"] ,
+    "teste": ["Funcionando! 🟢", "Recebido! Sistema operacional."],
 }
 
 
@@ -136,6 +151,14 @@ class QuickResponses:
 
     # -- Gestão --------------------------------------------------------------
 
+    @staticmethod
+    def _normalize(pattern: str) -> str:
+        """Normaliza o padrão para lookup: minúsculas, sem pontuação final
+        e espaços colapsados ("Quem é você?" casa com "quem é você")."""
+        import re as _re
+
+        return _re.sub(r"\s+", " ", pattern.strip().lower()).rstrip("?!.,;:")
+
     def add(
         self,
         pattern: str,
@@ -145,7 +168,7 @@ class QuickResponses:
         priority: int = 0,
     ) -> QuickResponse:
         """Adiciona (ou atualiza) um padrão com suas respostas."""
-        normalized = pattern.strip().lower()
+        normalized = self._normalize(pattern)
         if isinstance(responses, str):
             responses = [responses]
         responses = [r for r in responses if r]
@@ -173,7 +196,7 @@ class QuickResponses:
 
     def add_response(self, pattern: str, response: str) -> bool:
         """Adiciona uma variação a um padrão existente. Retorna False se não existe."""
-        normalized = pattern.strip().lower()
+        normalized = self._normalize(pattern)
         with self._lock:
             entry = self._entries.get(normalized)
             if entry is None:
@@ -185,7 +208,7 @@ class QuickResponses:
 
     def remove(self, pattern: str) -> bool:
         """Remove um padrão inteiro. Retorna True se existia."""
-        normalized = pattern.strip().lower()
+        normalized = self._normalize(pattern)
         with self._lock:
             if self._entries.pop(normalized, None) is not None:
                 self._persist()
@@ -194,7 +217,7 @@ class QuickResponses:
 
     def remove_response(self, pattern: str, response: str) -> bool:
         """Remove uma variação. Retorna True se existia e foi removida."""
-        normalized = pattern.strip().lower()
+        normalized = self._normalize(pattern)
         with self._lock:
             entry = self._entries.get(normalized)
             if entry is None or response not in entry.responses:
@@ -206,7 +229,7 @@ class QuickResponses:
             return True
 
     def has(self, pattern: str) -> bool:
-        return pattern.strip().lower() in self._entries
+        return self._normalize(pattern) in self._entries
 
     # -- Consulta ------------------------------------------------------------
 
@@ -216,7 +239,7 @@ class QuickResponses:
         Returns:
             A resposta escolhida, ou None se o padrão não existe.
         """
-        normalized = pattern.strip().lower()
+        normalized = self._normalize(pattern)
         with self._lock:
             entry = self._entries.get(normalized)
             if entry is None or not entry.responses:
@@ -236,7 +259,7 @@ class QuickResponses:
 
     def peek(self, pattern: str) -> Optional[str]:
         """Retorna a próxima resposta sem consumir (sem alternar nem contar)."""
-        normalized = pattern.strip().lower()
+        normalized = self._normalize(pattern)
         with self._lock:
             entry = self._entries.get(normalized)
             if entry is None or not entry.responses:
@@ -244,7 +267,7 @@ class QuickResponses:
             return entry.responses[entry.current_index]
 
     def get_entry(self, pattern: str) -> Optional[QuickResponse]:
-        normalized = pattern.strip().lower()
+        normalized = self._normalize(pattern)
         with self._lock:
             entry = self._entries.get(normalized)
             if entry is None:

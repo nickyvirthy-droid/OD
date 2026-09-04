@@ -4,10 +4,11 @@ Tecnologia que respira.
 Módulo: integrations/telegram/commands.py
 Descrição: Camada de comandos do Telegram Bot — os 13 comandos de texto do
            legado Nicky + tratamento de voz (STT) como 14º recurso, mais os
-           comandos OD /executa (actions do catálogo, v0.27.0) e
-           /capacidades (manifesto de capacidades, v0.27.3). Cada comando é
-           um handler (bot, ctx) -> texto de resposta; acesso admin é
-           controlado pelo bot antes da execução.
+           comandos OD /executa (actions do catálogo, v0.27.0),
+           /capacidades (manifesto de capacidades, v0.27.3) e /gerar
+           (Auto Extension, v0.27.4). Handlers podem ser sync ou async
+           (o bot aguarda coroutines); acesso admin é controlado pelo bot
+           antes da execução.
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 
@@ -43,6 +44,7 @@ NIVEL_0_PUBLICO = frozenset({
     # Sistema — leitura apenas
     "system_info", "datetime", "uptime", "cpu_info", "memory_usage",
     "ip_address", "system_hostname", "system_user", "system_groups",
+    "network_hosts",
     # Processos — leitura
     "process_list", "process_info",
     # Docker — leitura (se disponível)
@@ -294,7 +296,7 @@ def _capacidades(bot: "TelegramBot", ctx: CommandContext) -> str:
     return render_text()
 
 
-def _executa_handler(bot: "TelegramBot", ctx: CommandContext) -> str:
+async def _executa_handler(bot: "TelegramBot", ctx: CommandContext) -> str:
     """Handler do comando /executa — executa actions do catálogo.
 
     Uso:
@@ -344,8 +346,8 @@ def _executa_handler(bot: "TelegramBot", ctx: CommandContext) -> str:
     # action_list é especial: lista todas as actions
     if action_name == "action_list":
         try:
-            result = asyncio.run(
-                registry.execute("action_list", params={}, role="admin")
+            result = await registry.execute(
+                "action_list", params={}, role="admin"
             )
             if result.status == "ok":
                 actions = result.data.get("actions", [])
@@ -409,8 +411,8 @@ def _executa_handler(bot: "TelegramBot", ctx: CommandContext) -> str:
 
     # Executa a action
     try:
-        result = asyncio.run(
-            registry.execute(action_name, params=params, role="admin")
+        result = await registry.execute(
+            action_name, params=params, role="admin"
         )
         if result.status == "ok":
             data = result.data
@@ -436,6 +438,52 @@ def _executa_handler(bot: "TelegramBot", ctx: CommandContext) -> str:
             return f"Resultado: status={result.status}, error={result.error}"
     except Exception as exc:
         return f"Erro ao executar: {type(exc).__name__}: {exc}"
+
+
+async def _gerar_handler(bot: "TelegramBot", ctx: CommandContext) -> str:
+    """Handler do comando /gerar — Auto Extension: gera ferramenta via LLM.
+
+    Uso:
+        /gerar <nome> <descrição>
+
+    Exemplo:
+        /gerar fibonacci "retorna os N primeiros números de Fibonacci"
+
+    O código gerado é validado (compile + allowlist de imports stdlib) e
+    registrado no Action Registry com permission="auto_extension.generated"
+    — toda execução futura passa pelo Security Layer. Execute com
+    `/executa auto.<nome>`.
+    """
+
+    extension = getattr(bot, "auto_extension", None)
+    if extension is None:
+        return "Auto Extension não conectado."
+    args = ctx.args
+    if len(args) < 2:
+        return (
+            "*Uso:* `/gerar <nome> <descrição>`\n"
+            "\n"
+            "Gera uma ferramenta via LLM, valida (compile + allowlist de "
+            "imports) e registra no Action Registry.\n"
+            "Depois execute com `/executa auto.<nome>`.\n"
+            "\n"
+            "*Exemplo:* `/gerar fibonacci retorna os N primeiros números "
+            "de Fibonacci`"
+        )
+    name, description = args[0], " ".join(args[1:])
+    try:
+        result = await extension.extend(name, description)
+    except Exception as exc:  # pragma: no cover — LLM/rede falhou
+        return f"⚠️ Falha ao gerar: {type(exc).__name__}: {exc}"
+    if result.get("status") == "ok":
+        return (
+            f"✅ Ferramenta *{result['action']}* gerada e registrada.\n"
+            f"Descrição: {result['description']}\n"
+            f"Execute com: `/executa {result['action']}`\n"
+            "(toda execução passa pelo Security Layer — "
+            "permission `auto_extension.generated`)"
+        )
+    return f"⚠️ Falha: {result.get('error', 'desconhecida')}"
 
 
 def _classificar_risco(action_name: str) -> int:

@@ -11,7 +11,8 @@ Uso:
     .venv/bin/python -m runtime.launcher api       # sobe a API REST
     .venv/bin/python -m runtime.launcher telegram  # sobe o bot do Telegram
     .venv/bin/python -m runtime.launcher mqtt      # sobe a ponte MQTT
-    .venv/bin/python -m runtime.launcher all       # api + bot + mqtt
+    .venv/bin/python -m runtime.launcher recovery  # ciclo percepção + auto-reparo
+    .venv/bin/python -m runtime.launcher all       # api + bot + mqtt + recovery
     .venv/bin/python -m runtime.launcher capabilities  # manifesto JSON e sai
 
 Configuração (variáveis de ambiente / .env no raiz do repo):
@@ -44,6 +45,12 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
     OD_VOICE_PROFILE    Voz do TTS (default dii; "regulus" = faber).
     OD_AUDIT_FILE       Trilha de auditoria JSONL (Fase 7.1, default
                         logs/audit.jsonl na raiz do repo).
+    OD_SELF_REPAIR_ENABLED "0" desliga o RecoveryLoop (percepção + auto-reparo;
+                        default 1).
+    OD_RECOVERY_INTERVAL_S Intervalo do ciclo de auto-recuperação em segundos
+                        (default 300 — 5min, espelho do main_cycle do Nexus).
+    OD_NOTIFIER_ENABLED "0" desliga o ProactiveNotifier (alertas proativos;
+                        default 1).
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
@@ -369,12 +376,14 @@ def build_metrics(orchestrator: Any = None, audit: Any = None) -> Any:
 def build_telegram_bot(
     orchestrator: Any,
     action_registry: Any = None,
+    auto_extension: Any = None,
 ):
     """TelegramBot real (HTTPTransport) sobre o Orchestrator.
 
     Voz (v0.21.0): se os binários reais da Fase 6 existirem, o bot
     transcreve áudios recebidos (whisper.cpp) e responde por voz (Piper)
     — controlado por OD_VOICE_STT / OD_VOICE_TTS.
+    Auto Extension (v0.27.4): quando disponível, expõe /gerar no bot.
     """
     from integrations.telegram import HTTPTransport, TelegramBot
 
@@ -420,6 +429,7 @@ def build_telegram_bot(
             offset_file or str(DATA_DIR / "telegram_offset.json")
         ),
         action_registry=action_registry,
+        auto_extension=auto_extension,
     )
     return bot
 
@@ -522,14 +532,109 @@ async def _run_api_forever(
         server.stop()
 
 
-async def _run_telegram_forever(orchestrator: Any, action_registry: Any = None) -> None:
-    bot = build_telegram_bot(orchestrator, action_registry=action_registry)
+async def _run_telegram_forever(
+    orchestrator: Any,
+    action_registry: Any = None,
+    auto_extension: Any = None,
+) -> None:
+    bot = build_telegram_bot(
+        orchestrator,
+        action_registry=action_registry,
+        auto_extension=auto_extension,
+    )
     log.info("Telegram bot iniciando polling...", admins=len(bot.admin_ids))
     await bot.run(interval=1.0)
     # Conecta ActionRegistry ao Orchestrator para execução de ações
     if action_registry is not None:
         orchestrator.set_action_registry(action_registry)
         log.info("ActionRegistry conectado ao Orchestrator")
+
+
+def build_auto_extension(orchestrator: Any, action_registry: Any) -> Optional[Any]:
+    """Auto Extension (Fase 6.6): gera ferramentas via LLM no registry.
+
+    Usa o primeiro provider LLM do Orchestrator (generate/prompt, timeout)
+    e registra no ActionRegistry com permission auto_extension.generated
+    (Security Layer media toda execução). Exposto no bot via /gerar.
+    """
+    if action_registry is None or orchestrator is None:
+        return None
+    from core.security import SecurityManager
+    from tools.auto_extension import AutoExtension
+
+    providers = list(getattr(orchestrator, "providers", None) or [])
+    if not providers:
+        return None
+    return AutoExtension(
+        llm=providers[0],
+        registry=action_registry,
+        security=SecurityManager(mode="strict"),
+    )
+
+
+def build_recovery(
+    audit: Any = None,
+    health: Any = None,
+) -> Optional[Any]:
+    """RecoveryLoop (v0.27.4): percepção periódica + auto-reparo.
+
+    Fecha o loop de auto-recuperação: Telemetry.collect() periódica alimenta
+    o check "perception" do Health Monitor; SelfRepairEngine repara .py
+    quebrados mediado pelo Coder Engine. OD_SELF_REPAIR_ENABLED=0 desliga.
+    """
+    from core.coder import CoderEngine
+    from core.recovery import RecoveryLoop
+    from core.self_repair import SelfRepairEngine
+    from tools.telemetry import Telemetry
+
+    if env("OD_SELF_REPAIR_ENABLED", "1") == "0":
+        return None
+    coder = CoderEngine(root=REPO_ROOT)
+    repair = SelfRepairEngine(coder=coder)
+    loop = RecoveryLoop(
+        root=REPO_ROOT,
+        telemetry=Telemetry(),
+        repair=repair,
+        audit=audit,
+        interval_s=float(env("OD_RECOVERY_INTERVAL_S", "300")),
+    )
+    if health is not None:
+        health.register("perception", loop.perception_check, critical=False)
+    return loop
+
+
+def build_notifier(
+    orchestrator: Any,
+    *,
+    sink: Any = None,
+    event_bus: Any = None,
+) -> Optional[Any]:
+    """ProactiveNotifier (Fase 5.3): alertas proativos com sink Telegram.
+
+    Sondas padrão (orchestrator/llm/disco/restart) com anti-spam (1/hora) e
+    estado persistido em data/notifier_state.json. OD_NOTIFIER_ENABLED=0
+    desliga.
+    """
+    from integrations.notifier import NotifierConfig, ProactiveNotifier
+
+    if env("OD_NOTIFIER_ENABLED", "1") == "0":
+        return None
+    config = NotifierConfig(state_file=DATA_DIR / "notifier_state.json")
+    return ProactiveNotifier(
+        orchestrator,
+        config=config,
+        sinks=[sink] if sink is not None else [],
+        event_bus=event_bus,
+    )
+
+
+async def _run_recovery_forever(loop: Any) -> None:
+    """Ciclo de auto-recuperação: percepção + auto-reparo periódico."""
+    log.info(
+        "RecoveryLoop iniciando ciclo periódico...",
+        interval_s=loop.interval_s,
+    )
+    await loop.run()
 
 
 async def _run_mqtt_forever(bridge: Any) -> None:
@@ -662,6 +767,10 @@ def main() -> int:
     # Action Registry: o catálogo de 56 actions está disponível para
     # execução via Telegram Bot (/executa) e Orchestrator.
     action_registry = build_action_registry()
+    # Auto Extension (v0.27.4): gera ferramentas via LLM (/gerar no bot).
+    auto_extension = build_auto_extension(orchestrator, action_registry)
+    # RecoveryLoop (v0.27.4): fecha o loop — percepção + auto-reparo.
+    recovery = build_recovery(audit, health)
     mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
     presence_enabled = env("OD_PRESENCE_ENABLED", "1") != "0"
     presence_monitor = build_presence_monitor() if presence_enabled else None
@@ -671,11 +780,23 @@ def main() -> int:
     async def _all() -> None:
         # Event Bus único da entrega (bridge MQTT ↔ núcleo)
         event_bus = EventBus()
-        event_bus = EventBus()
         tasks = [
             _run_api_forever(orchestrator, metrics, health),
-            _run_telegram_forever(orchestrator, action_registry=action_registry),
+            _run_telegram_forever(
+                orchestrator,
+                action_registry=action_registry,
+                auto_extension=auto_extension,
+            ),
         ]
+        if recovery is not None:
+            tasks.append(_run_recovery_forever(recovery))
+            log.info("RecoveryLoop habilitado (percepção + auto-reparo)")
+        notifier = build_notifier(
+            orchestrator, sink=build_telegram_sink(), event_bus=event_bus
+        )
+        if notifier is not None:
+            notifier.start()
+            log.info("ProactiveNotifier habilitado (alertas proativos)")
         if mqtt_enabled:
             bridge = build_mqtt_bridge(event_bus)
             tasks.append(_run_mqtt_forever(bridge))
@@ -695,6 +816,12 @@ def main() -> int:
     elif mode == "mqtt":
         bridge = build_mqtt_bridge(EventBus())
         asyncio.run(_run_mqtt_forever(bridge))
+    elif mode == "recovery":
+        loop = recovery or build_recovery(audit, health)
+        if loop is None:
+            print("recovery indisponível (OD_SELF_REPAIR_ENABLED=0)")
+            return 2
+        asyncio.run(_run_recovery_forever(loop))
     elif mode == "presence":
         monitor = presence_monitor or build_presence_monitor()
         if monitor is None:
@@ -712,7 +839,7 @@ def main() -> int:
     else:
         print(
             f"modo desconhecido: {mode!r} "
-            "(api|telegram|mqtt|presence|vision|all|capabilities)"
+            "(api|telegram|mqtt|presence|vision|recovery|all|capabilities)"
         )
         return 2
     return 0

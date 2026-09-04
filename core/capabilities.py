@@ -18,9 +18,10 @@ Descrição: Manifesto de capacidades do OmegaDrakon — inventário estruturado
            Status:
              - active    → ligado no od-core em produção (launcher modo "all")
              - available → implementado + testado, utilizável, sem auto-start
-             - partial   → parcialmente exposto (ex.: /codigo só leitura)
+             - partial   → parcialmente exposto (ex.: face detection off por
+                           default)
              - dormant   → implementado + testado, MAS sem trigger no runtime
-                           (os componentes de auto-recuperação estão aqui)
+                           (nenhum dormente desde v0.27.4 — loop fechado)
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 
@@ -39,7 +40,7 @@ from typing import Any, Optional
 __signature__ = "OD // CORE"
 
 # Versão atual do sistema (usada pelo manifesto e pela API /info).
-OD_VERSION = "0.27.3"
+OD_VERSION = "0.27.5"
 
 # Status válidos.
 ACTIVE = "active"
@@ -223,41 +224,51 @@ CAPABILITIES: list[dict[str, str]] = [
         "id": "coder-engine",
         "name": "Coder Engine (sandbox→testes→backup→promoção)",
         "category": "execution",
-        "description": "Modificação segura de código com rollback. Exposto no bot apenas como /codigo status/arvore (leitura).",
+        "description": "Modificação segura de código com rollback. ATIVO via RecoveryLoop (auto-reparo); /codigo no bot segue somente leitura (status/arvore).",
         "source": "NV",
         "phase": "Fase 4.1",
-        "status": PARTIAL,
+        "status": ACTIVE,
         "path": "core/coder.py",
     },
     {
         "id": "self-repair",
         "name": "Self Repair (detectar→gerar→reparar→verificar→rollback)",
         "category": "execution",
-        "description": "Auto-correção mediada pelo Coder Engine. IMPLEMENTADO mas sem trigger no runtime (dormente).",
+        "description": "Auto-correção mediada pelo Coder Engine. ATIVO no runtime via RecoveryLoop (ciclo periódico, v0.27.4).",
         "source": "Nexus",
         "phase": "Fase 4.2",
-        "status": DORMANT,
+        "status": ACTIVE,
         "path": "core/self_repair.py",
     },
     {
         "id": "perception",
         "name": "Perception Syncer (telemetria CPU/RAM/disco/rede/portas/docker/processos)",
         "category": "execution",
-        "description": "Análise do ambiente via /proc. IMPLEMENTADO mas não coletado no runtime (dormente).",
+        "description": "Análise do ambiente via /proc. ATIVO no runtime: Telemetry.collect() periódica alimenta o check 'perception' do Health Monitor (v0.27.4).",
         "source": "Nexus",
         "phase": "Fase 4.3",
-        "status": DORMANT,
+        "status": ACTIVE,
         "path": "tools/telemetry.py",
     },
     {
         "id": "auto-extension",
         "name": "Auto Extension (geração de ferramentas via LLM)",
         "category": "execution",
-        "description": "Gera código de ferramentas, valida (compile + allowlist) e registra com permission mediada. IMPLEMENTADO mas sem trigger no runtime (dormente).",
+        "description": "Gera código de ferramentas, valida (compile + allowlist) e registra com permission mediada. ATIVO: trigger exposto via /gerar no bot (v0.27.4).",
         "source": "Nexus",
         "phase": "Fase 6.6",
-        "status": DORMANT,
+        "status": ACTIVE,
         "path": "tools/auto_extension/",
+    },
+    {
+        "id": "recovery-loop",
+        "name": "RecoveryLoop (percepção + auto-reparo cíclico)",
+        "category": "execution",
+        "description": "Ciclo periódico que fecha o loop de auto-recuperação: coleta telemetria → check 'perception' no health → varre .py e repara via Self Repair mediado pelo Coder (OD_RECOVERY_INTERVAL_S, default 300s).",
+        "source": "OD",
+        "phase": "v0.27.4",
+        "status": ACTIVE,
+        "path": "core/recovery.py",
     },
     {
         "id": "plugin-system",
@@ -294,10 +305,10 @@ CAPABILITIES: list[dict[str, str]] = [
         "id": "notifier",
         "name": "ProactiveNotifier (health + alertas anti-spam)",
         "category": "integrations",
-        "description": "Sondas (LLM offline, disco, restart) com cooldown 1/hora. IMPLEMENTADO mas não iniciado no launcher (dormente).",
+        "description": "Sondas (LLM offline, disco, restart) com cooldown 1/hora. ATIVO no launcher com sink Telegram e estado persistido (v0.27.4).",
         "source": "Nicky",
         "phase": "Fase 5.3",
-        "status": DORMANT,
+        "status": ACTIVE,
         "path": "integrations/notifier.py",
     },
     {
@@ -511,7 +522,7 @@ def capabilities_manifest(now: Optional[datetime] = None) -> dict[str, Any]:
         "roadmap": {
             "capacities": "37/37",
             "phases": "Fases 1–7 concluídas (2026-09-04)",
-            "status_geral": "implementado; loop de auto-recuperação dormente",
+            "status_geral": "implementado; loop de auto-recuperação ATIVO (v0.27.4)",
         },
         "counts": {
             "capabilities": len(CAPABILITIES),
@@ -531,20 +542,21 @@ def capabilities_manifest(now: Optional[datetime] = None) -> dict[str, Any]:
             "control_bridge": "http://127.0.0.1:8765",
         },
         "runtime": {
-            "modes": ["api", "telegram", "mqtt", "presence", "vision", "all", "capabilities"],
+            "modes": ["api", "telegram", "mqtt", "presence", "vision", "recovery", "all", "capabilities"],
             "services": ["od-core.service", "od-llm.service", "od-control-bridge.service"],
             "vision": "off por default (OD_VISION_ENABLED=0)",
             "plugins": "0 plugins reais (sistema pronto para receber)",
+            "auto_recovery": {
+                "interval_s": 300,
+                "env": "OD_SELF_REPAIR_ENABLED / OD_RECOVERY_INTERVAL_S / OD_NOTIFIER_ENABLED",
+            },
         },
         "auto_recovery": {
-            "loop_fechado": False,
+            "loop_fechado": True,
             "dormentes": dormant,
-            "para_ativar": [
-                "self-repair: iniciar SelfRepairEngine no launcher (ciclo periódico)",
-                "auto-extension: expor action/trigger para gerar ferramenta via LLM",
-                "perception: coletar Telemetry.collect() e alimentar health/self-repair",
-                "notifier: iniciar ProactiveNotifier com sink Telegram no launcher",
-            ],
+            "ciclo": "RecoveryLoop (v0.27.4): percepção periódica (Telemetry) → check perception no Health Monitor → auto-reparo (SelfRepair via Coder) → verificação/rollback; Auto Extension exposta via /gerar; ProactiveNotifier com sink Telegram ativo",
+            "conservador": "correções apenas determinísticas (ex: AddMissingColon) mediadas pelo Coder (sandbox→testes→backup→promoção); falhas nunca derrubam o ciclo",
+            "para_desligar": "OD_SELF_REPAIR_ENABLED=0 / OD_NOTIFIER_ENABLED=0 no .env",
         },
     }
 

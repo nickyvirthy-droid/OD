@@ -76,8 +76,8 @@ class TestCapabilitiesManifest:
         # 37 capacidades do roadmap estão inventariadas (mínimo realista)
         assert counts["capabilities"] >= 37
         # catálogo de actions
-        assert counts["actions"] == 56
-        assert m["actions"]["count"] == 56
+        assert counts["actions"] == 57
+        assert m["actions"]["count"] == 57
 
     def test_manifest_metadata(self) -> None:
         """Metadados: sistema, versão e timestamp ISO."""
@@ -87,27 +87,29 @@ class TestCapabilitiesManifest:
         assert "T" in m["generated_at"]  # timestamp ISO
 
     def test_manifest_roadmap_e_auto_recovery(self) -> None:
-        """Roadmap 37/37 e o loop de auto-recuperação reportado como aberto."""
+        """Roadmap 37/37 e o loop de auto-recuperação FECHADO (v0.27.4)."""
         m = capabilities_manifest()
         assert m["roadmap"]["capacities"] == "37/37"
-        assert m["auto_recovery"]["loop_fechado"] is False
-        assert "self-repair" in m["dormant"]
-        assert "auto-extension" in m["dormant"]
-        assert "perception" in m["dormant"]
-        assert "notifier" in m["dormant"]
+        assert m["auto_recovery"]["loop_fechado"] is True
+        assert m["dormant"] == []
+        # Componentes do loop agora ativos
+        status = {c["id"]: c["status"] for c in m["capabilities"]}
+        for cap_id in ("self-repair", "perception", "auto-extension",
+                       "notifier", "recovery-loop"):
+            assert status[cap_id] == ACTIVE, cap_id
 
     def test_render_text_resumo(self) -> None:
         """Resumo legível cobre as contagens principais."""
         text = render_text()
         assert "OMEGA DRAKON — Capacidades" in text
-        assert "56 actions" in text
+        assert "57 actions" in text
         assert OD_VERSION in text
         assert "dormente" in text  # status dormantes visíveis
 
     def test_render_json_serializable(self) -> None:
         """render_json produz JSON válido com o manifesto completo."""
         data = json.loads(render_json())
-        assert data["counts"]["actions"] == 56
+        assert data["counts"]["actions"] == 57
         assert len(data["capabilities"]) == len(CAPABILITIES)
 
 
@@ -157,9 +159,9 @@ class TestCapabilitiesAPI:
         data = json.loads(body.decode("utf-8"))
         assert data["system"] == "Omega Drakon"
         assert data["version"] == OD_VERSION
-        assert data["counts"]["actions"] == 56
+        assert data["counts"]["actions"] == 57
         assert len(data["capabilities"]) == len(CAPABILITIES)
-        assert data["auto_recovery"]["loop_fechado"] is False
+        assert data["auto_recovery"]["loop_fechado"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +187,7 @@ class TestCapabilitiesTelegram:
         await bot.run(interval=0.01, max_updates=1)
         text = transport.sent_texts[-1]
         assert "OMEGA DRAKON — Capacidades" in text
-        assert "56 actions" in text
+        assert "57 actions" in text
         bot.close()
 
     @pytest.mark.asyncio

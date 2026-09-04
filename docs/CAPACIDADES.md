@@ -17,14 +17,13 @@
 | Métrica | Valor |
 |---|---|
 | Capacidades do roadmap | **37/37** (Fases 1–7 concluídas) |
-| Actions no catálogo | **56** (sistema/processo/docker/serviços/arquivos/git/db/introspecção) |
-| Componentes inventariados | **39** |
-| Loop de auto-recuperação | ❌ **NÃO fechado** (componentes dormentes, sem trigger) |
+| Actions no catálogo | **57** (sistema/processo/docker/serviços/arquivos/git/db/introspecção/rede) |
+| Componentes inventariados | **40** |
+| Loop de auto-recuperação | ✅ **FECHADO** (RecoveryLoop ativo — v0.27.4) |
 | Runtime de produção | od-core + od-llm + od-control-bridge (systemd ativos) |
 
-**Status de ativação:** 🟢 ativa no runtime (28) · 🟡 disponível, sem
-auto-start (5) · 🟠 parcialmente exposta (2) · ⚪ dormente, implementada sem
-trigger (4).
+**Status de ativação:** 🟢 ativa no runtime (34) · 🟡 disponível, sem
+auto-start (5) · 🟠 parcialmente exposta (1) · ⚪ dormente (0).
 
 ---
 
@@ -39,10 +38,16 @@ trigger (4).
 | Logger NICKY | `core/logger.py` |
 | Event Bus / State Manager / Message Router | `core/` |
 | Memória (history, cache, quick, RAG, context) | `memory/` |
-| Action Registry (56) + Orchestrator (`execute_action`) | `tools/registry.py` · `core/orchestrator.py` |
-| Catálogo de 56 Actions | `tools/actions/` |
+| Action Registry (57) + Orchestrator (`execute_action` + fast path) | `tools/registry.py` · `core/orchestrator.py` · `core/intents.py` |
+| Catálogo de 57 Actions (incl. `network_hosts`) | `tools/actions/` |
+| Coder Engine (auto-reparo via RecoveryLoop) | `core/coder.py` |
+| Self Repair (ciclo periódico do RecoveryLoop) | `core/self_repair.py` |
+| Perception Syncer (Telemetry periódica → health) | `tools/telemetry.py` |
+| Auto Extension (trigger `/gerar` no bot) | `tools/auto_extension/` |
+| RecoveryLoop (percepção + auto-reparo cíclico) | `core/recovery.py` |
+| ProactiveNotifier (sink Telegram, estado persistido) | `integrations/notifier.py` |
 | Plugin System (0 plugins reais) | `plugins/` |
-| Telegram Bot (13 comandos + voz + /executa + /capacidades) | `integrations/telegram/` |
+| Telegram Bot (13 comandos + voz + /executa + /capacidades + /gerar) | `integrations/telegram/` |
 | API REST (8000, X-API-Key, 18 rotas) | `integrations/api/` |
 | MQTT Bridge (Mosquitto) | `integrations/mqtt/` |
 | Control Bridge (127.0.0.1:8765, odrunner) | `runtime/control_bridge/` |
@@ -66,18 +71,11 @@ trigger (4).
 
 | Capacidade | Caminho | Limitação |
 |---|---|---|
-| Coder Engine | `core/coder.py` | `/codigo` só `status`/`arvore` (leitura); patch completo via lib |
 | Face Detection | `tools/vision/face_detector.py` | off por default (`OD_VISION_ENABLED=0`) |
 | API WebSocket `/ws/chat` | `integrations/api/` | 501 registrado (exige servidor async) |
 
-### ⚪ DORMENTES (implementadas + testadas, SEM trigger no runtime)
-
-| Capacidade | Caminho | O que falta |
-|---|---|---|
-| Self Repair | `core/self_repair.py` | iniciar `SelfRepairEngine` no launcher (ciclo/trigger) |
-| Auto Extension | `tools/auto_extension/` | expor action/comando para gerar ferramenta via LLM |
-| Perception Syncer | `tools/telemetry.py` | coletar `Telemetry.collect()` e alimentar health/self-repair |
-| ProactiveNotifier | `integrations/notifier.py` | iniciar com sink Telegram no launcher |
+> ⚪ **Nenhum componente dormente desde a v0.27.4** — o loop de
+auto-recuperação está fechado (ver §4).
 
 ---
 
@@ -93,12 +91,12 @@ history · cache · quick-responses · vector-rag · context
 ### Orquestração (4) — Fase 3
 workflows 🟡 · tool-loader 🟡 · action-registry · orchestrator
 
-### Execução (6) — Fase 4 + 6.6 + 7.4
-actions-catalog · coder-engine 🟠 · self-repair ⚪ · perception ⚪ ·
-auto-extension ⚪ · plugin-system
+### Execução (7) — Fase 4 + 6.6 + 7.4 + v0.27.4
+actions-catalog · coder-engine · self-repair · perception · auto-extension ·
+recovery-loop · plugin-system
 
 ### Integrações (6) — Fase 5 + runtime
-telegram-bot · api-rest · notifier ⚪ · iot-manager 🟡 · mqtt-bridge ·
+telegram-bot · api-rest · notifier · iot-manager 🟡 · mqtt-bridge ·
 control-bridge
 
 ### Sensorial (6) — Fase 6
@@ -113,34 +111,54 @@ launcher · systemd
 
 ---
 
-## 4. Auto-recuperação — o loop NÃO está fechado
+## 4. Auto-recuperação — loop FECHADO (v0.27.4) ✅
 
 O objetivo declarado do sistema é **se auto recriar e analisar o ambiente**.
-Os blocos existem e estão testados, mas **nada os dispara no runtime**:
+Desde a v0.27.4 o ciclo roda no runtime via **RecoveryLoop**
+(`core/recovery.py`), em thread daemon no launcher (modo `all`, intervalo
+default 300s — `OD_RECOVERY_INTERVAL_S`):
 
 ```
-Perceber (telemetry) → Decidir (LLM) → Agir (auto-extension/coder) → Verificar (self-repair)
-        ⚪ dormente         🟢 ativo            ⚪ dormente                  ⚪ dormente
+Perceber (Telemetry.collect periódica) → Decidir (detecção determinística)
+→ Agir (SelfRepair via Coder: sandbox→testes→backup→promoção)
+→ Verificar (re-detecção pós-reparo + rollback automático)
+        🟢 ativo                            🟢 ativo
 ```
 
-O que **já funciona hoje**:
-- Análise do ambiente **sob pedido**: `/executa system_info|process_list|disk_usage|...`
-  (56 actions, leitura/controle com classificação de risco e gate de admin).
-- Execução de ações via `Orchestrator.execute_action()` e pelo bot.
-- Presença/MQTT/health/audit alimentando observabilidade em tempo real.
+O que **o loop faz a cada ciclo**:
+1. **Percepção** — `Telemetry.collect()` (CPU/mem/disco/rede/portas/docker/
+   processos) → check `perception` no Health Monitor (não-crítico: erro de
+   sonda degrada, nunca derruba) + evento `perception.snapshot` no audit;
+2. **Auto-reparo** — varre os `.py` do projeto (fora de `.venv`/`.git`/`data`/
+   `logs`/backups), detecta falhas (compile determinístico) e repara via
+   SelfRepairEngine mediado pelo Coder Engine — **conservador por
+   construção**: só estratégias determinísticas (ex: AddMissingColon);
+   correções LLM não entram sem o pipeline do Coder;
+3. **Verificação** — relatório por ciclo (`files_scanned`, `detections`,
+   `repairs_applied/failed`) + `recovery.tick` no Event Bus; falhas em
+   qualquer etapa nunca derrubam o ciclo (métricas + isolamento).
 
-O que **falta** (caminho para fechar o loop):
-1. **Perception**: coletar `Telemetry.collect()` periodicamente (ou sob pedido)
-   e alimentar o Health Monitor e os oracles do Self Repair.
-2. **Self Repair**: iniciar o `SelfRepairEngine` com um ciclo (ex.: a cada N
-   minutos, como o `main_cycle` do Nexus) ou expor como action `/executa`.
-3. **Auto Extension**: expor um trigger para gerar uma nova ferramenta via LLM
-   (validação compile + allowlist + Security Layer já prontas).
-4. **Notifier**: iniciar o `ProactiveNotifier` com sink Telegram (alertas de
-   LLM offline/disco/restart já prontos).
+**Fast path de respostas instantâneas (v0.27.5):** perguntas operacionais
+em PT-BR respondem SEM LLM, em milissegundos — "quantas pessoas estão
+conectadas na rede?" executa `network_hosts` (ARP), "quanta memória está
+em uso?" executa `memory_usage`, "quanto é 2+2*3?" é avaliado com
+matemática segura (ast). Detecção determinística em `core/intents.py`
+(etapa 3.5 do pipeline), restrita a actions de LEITURA; sem
+ActionRegistry ou com falha, a mensagem cai para o LLM normalmente.
+
+Além do ciclo, o trigger de criação de ferramentas está exposto:
+- **`/gerar <nome> <descrição>`** (admin) — Auto Extension gera via LLM,
+  valida (compile + allowlist de imports) e registra com permission
+  `auto_extension.generated` (gate do Security Layer); execute depois com
+  `/executa auto.<nome>`;
+- **ProactiveNotifier** ativo com sink Telegram (alertas de LLM offline /
+  disco / restart, anti-spam 1/hora, estado em `data/notifier_state.json`).
+
+Desligar (se necessário): `OD_SELF_REPAIR_ENABLED=0` e/ou
+`OD_NOTIFIER_ENABLED=0` no `.env`.
 
 > O manifesto (`core/capabilities.py`) reporta `auto_recovery.loop_fechado:
-> false` e lista exatamente esses 4 itens — é o contrato do próximo trabalho.
+> true` e `dormant: []` — zero componentes dormentes.
 
 ---
 
@@ -148,7 +166,7 @@ O que **falta** (caminho para fechar o loop):
 
 | Categoria | Qtd | Exemplos |
 |---|---|---|
-| sistema | 13 | system_info, uptime, disk_usage, system_env... |
+| sistema | 14 | system_info, uptime, disk_usage, system_env, network_hosts... |
 | processo | 4 | process_list/info/kill + process_tree |
 | docker | 4 | docker_list/status/logs/stats |
 | serviço | 3 | service_list/status/logs |
@@ -158,7 +176,8 @@ O que **falta** (caminho para fechar o loop):
 | introspecção | 4 | action_list/info/schema/validate |
 
 Detalhe por action (NV → OD, excluídas e renomeadas): ver
-`docs/ACTIONS_CORRESPONDENCIA.md`.
+`docs/ACTIONS_CORRESPONDENCIA.md`. `network_hosts` é complementar OD
+(v0.27.5) e alimenta o **fast path de intenções** (§4).
 
 ---
 
@@ -188,7 +207,8 @@ PY
 - `core/capabilities.py` — fonte de verdade do manifesto
 - `docs/ROADMAP_ABSORCAO.md` — 37/37 capacidades, Fases 1–7
 - `docs/ACTIONS_CORRESPONDENCIA.md` — catálogo de 56 actions (NV → OD)
-- `docs/CHANGELOG.md` — [0.27.3] (esta entrega)
+- `docs/CHANGELOG.md` — [0.27.5] (fast path + network_hosts) · [0.27.4]
+  (loop fechado) · [0.27.3] (manifesto)
 
 ```python
 """

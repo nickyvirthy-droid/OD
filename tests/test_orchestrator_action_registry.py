@@ -37,7 +37,7 @@ class TestOrchestratorActionIntegration:
             action_registry=registry,
         )
         assert orch.action_registry is not None
-        assert orch.action_registry.metrics.actions == 56
+        assert orch.action_registry.metrics.actions == 57
 
     @pytest.mark.asyncio
     async def test_execute_action_system_info(self) -> None:
@@ -99,7 +99,7 @@ class TestOrchestratorActionIntegration:
         result = await orch.execute_action("action_list", role="admin")
         assert result is not None
         assert "actions" in result
-        assert len(result["actions"]) == 56
+        assert len(result["actions"]) == 57
 
     @pytest.mark.asyncio
     async def test_execute_action_without_registry_raises(self) -> None:
@@ -129,7 +129,7 @@ class TestOrchestratorActionIntegration:
         assert orch.action_registry is None
         orch.set_action_registry(registry)
         assert orch.action_registry is not None
-        assert orch.action_registry.metrics.actions == 56
+        assert orch.action_registry.metrics.actions == 57
 
     @pytest.mark.asyncio
     async def test_execute_action_after_set_registry(self) -> None:

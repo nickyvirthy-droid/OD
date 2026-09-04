@@ -89,6 +89,7 @@ DEFAULT_UNAVAILABLE_MESSAGE = "Nenhum LLM disponível no momento."
 ROUTE_RATE_LIMITED = "rate_limited"
 ROUTE_DATETIME = "datetime"
 ROUTE_QUICK = "quick_response"
+ROUTE_INTENT = "action_intent"
 ROUTE_CACHE = "cache"
 ROUTE_LLM = "llm"
 ROUTE_FALLBACK = "fallback"
@@ -263,6 +264,7 @@ class OrchestratorConfig:
     rate_window_seconds: float = DEFAULT_RATE_LIMIT_WINDOW_S
     llm_timeout_s: float = DEFAULT_LLM_TIMEOUT_S
     inject_datetime: bool = True
+    enable_action_intents: bool = True  # fast path determinístico (v0.27.5)
     max_history_turns: Optional[int] = DEFAULT_MAX_HISTORY_TURNS
     unavailable_message: str = DEFAULT_UNAVAILABLE_MESSAGE
     # System prompt padrão (ex: identidade da Interface Viva) usado quando
@@ -333,6 +335,7 @@ class OrchestratorMetrics:
     rate_limited: int = 0
     datetime: int = 0
     quick: int = 0
+    intents: int = 0
     cache_hits: int = 0
     llm: int = 0
     fallback: int = 0
@@ -352,6 +355,7 @@ class OrchestratorMetrics:
             "rate_limited": self.rate_limited,
             "datetime": self.datetime,
             "quick": self.quick,
+            "intents": self.intents,
             "cache_hits": self.cache_hits,
             "llm": self.llm,
             "fallback": self.fallback,
@@ -493,6 +497,30 @@ class Orchestrator:
                 result.route = ROUTE_QUICK
                 result.message = quick_answer
                 self._metrics.quick += 1
+                return await self._finish(result, started)
+
+        # Etapa 3.5 — Fast path de intenções (v0.27.5): respostas
+        # operacionais sem LLM (matemática básica + actions de leitura),
+        # só quando o ActionRegistry está conectado.
+        if self._config.enable_action_intents and self._action_registry is not None:
+            from core.intents import detect_action_intent, format_intent_result, safe_math
+
+            answer: Optional[str] = safe_math(text)
+            route_detail = "math"
+            if answer is None:
+                intent = detect_action_intent(text)
+                if intent is not None:
+                    action_name, params = intent
+                    data = await self.execute_action(
+                        action_name, params, user_id, role="admin"
+                    )
+                    answer = format_intent_result(action_name, data)
+                    route_detail = action_name
+            if answer is not None:
+                result.route = ROUTE_INTENT
+                result.message = answer
+                result.llm_used = f"fastpath:{route_detail}"
+                self._metrics.intents += 1
                 return await self._finish(result, started)
 
         # Etapa 4 — Cache LLM (SHA-256, prompt normalizado + perfil)
@@ -735,6 +763,7 @@ class Orchestrator:
                 "rate_limit",
                 "datetime",
                 "quick_responses",
+                "action_intents",
                 "cache",
                 "history",
                 "llm",

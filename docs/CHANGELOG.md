@@ -4,7 +4,116 @@
 
 ---
 
-## [0.27.3] — 2026-09-04
+## [0.27.5] — 2026-09-04
+
+### Adicionado
+
+#### Fast Path de Intenções + Action `network_hosts` ⚡
+
+**Perguntas operacionais respondem em milissegundos, sem LLM** (o LLM
+local em CPU leva ~17s por resposta):
+
+- **`core/intents.py`** — detecção determinística de intenções PT-BR na
+  etapa 3.5 do pipeline (entre quick responses e cache):
+  - **Rede**: "quantas pessoas / dispositivos / equipamentos / pcs estão
+    conectados na rede/wifi/lan?" → `network_hosts`;
+  - **Operacionais**: processos, memória/RAM, CPU, disco, uptime e
+    informações do sistema → actions de leitura correspondentes;
+  - **Matemática segura**: "quanto é 2+2*3?" avaliado com nós `ast`
+    numéricos apenas (nunca executa código arbitrário — chamadas,
+    strings e atributos são rejeitados);
+  - **Segurança por construção**: allowlist `FASTPATH_ACTIONS` só com
+    actions de LEITURA (nenhuma escrita/destrutiva); falha ou negação
+    em qualquer etapa devolve `None` e a mensagem segue para o LLM
+    normalmente — nunca responde vazio.
+- **Action `network_hosts`** (complementar OD — não existia no NV): lê
+  `/proc/net/arp` (100% stdlib, sem rede ativa) e responde "quantos
+  dispositivos estão na rede" com IP + MAC + interface + estado;
+  categorizada como `system` (nível 0 — público/leitura no `/executa`).
+  Catálogo: **56 → 57 actions**.
+- **Orchestrator**: nova rota `action_intent` + métrica `intents` +
+  config `enable_action_intents` (default True — desliga com False);
+  `execute_action` só é chamado quando o ActionRegistry está conectado.
+- **Quick Responses ampliadas**: novos padrões (quem é você, o que é
+  você, qual seu nome, quem te criou, você está aí, tudo bem, teste) e
+  **lookup normalizado por pontuação** — "Quem é você?" casa com
+  "quem é você" (resposta instantânea na etapa 3).
+
+### Verificação
+
+```
+pytest tests/ -q         → 1453 passed, 0 falhas  (1413 + 40)
+Smoke ao vivo            → "quantas pessoas estão conectadas na rede?"
+                           → action_intent em 1.4ms: 6 dispositivos reais
+                           (ARP) · "quanto é 2+2*3?" → 0.11ms
+Manifesto                → actions: 57 · OD_VERSION 0.27.5
+```
+
+---
+
+
+### Adicionado
+
+#### Loop de Auto-Recuperação FECHADO — `core/recovery.py` 🔄
+
+**O loop perceber → decidir → agir → verificar agora roda no runtime.** Os 4
+motores que estavam dormentes (self-repair, auto-extension, perception,
+notifier) foram ativados e expostos:
+
+- **`RecoveryLoop`** (`core/recovery.py`) — ciclo periódico (default 300s,
+  `OD_RECOVERY_INTERVAL_S`):
+  1. **Percepção** — `Telemetry.collect()` periódica (CPU/mem/disco/rede/
+     portas/docker/processos) → check `perception` no Health Monitor
+     (não-crítico: erro de sonda degrada, nunca derruba) + evento
+     `perception.snapshot` no audit;
+  2. **Auto-reparo** — varre os `.py` do projeto (fora de `.venv`/`.git`/
+     `data`/`logs`/backups/etc.), detecta falhas (compile determinístico)
+     e repara via SelfRepairEngine — TODA correção passa pelo Coder Engine
+     (sandbox → testes → backup → promoção) com re-detecção pós-reparo;
+  3. **Verificação** — relatório por ciclo (`files_scanned`, `detections`,
+     `repairs_applied/failed`) + `recovery.tick` no Event Bus.
+     **Conservador por construção**: só estratégias determinísticas
+     (ex: AddMissingColon); falhas nunca derrubam o ciclo.
+- **Launcher** — modo `recovery` dedicado + RecoveryLoop no modo `all`
+  (`OD_SELF_REPAIR_ENABLED=0` desliga); **ProactiveNotifier** iniciado no
+  `all` com sink Telegram e estado persistido em `data/notifier_state.json`
+  (`OD_NOTIFIER_ENABLED=0` desliga); **AutoExtension** conectada ao bot
+  (`build_auto_extension`) com registro `auto_extension.generated` (gate do
+  Security Layer)
+- **Bot** — novo comando `/gerar <nome> <descrição>` (admin): gera
+  ferramenta via LLM, valida (compile + allowlist) e registra — execute
+  depois com `/executa auto.<nome>`
+- **Manifesto** — `core/capabilities.py`: `auto_recovery.loop_fechado`
+  agora **true**, zero dormentes, 4 componentes do loop marcados `active`
+  (self-repair, perception, auto-extension, notifier, recovery-loop);
+  `OD_VERSION` → 0.27.4
+
+### Corrigido
+
+#### `/executa` quebrado em runtime — handlers async 🐛
+
+- **Sintoma:** `/executa` respondia `RuntimeError: asyncio.run() cannot be
+  called from a running event loop` — o handler usava `asyncio.run()`
+  internamente, mas `_run_command` já roda dentro do loop do bot (desde a
+  v0.27.0, sem teste via bot)
+- **Correção:** `_run_command` agora aguarda coroutines (inspect.isawaitable)
+  e os handlers `/executa` e `/gerar` são async puros — confirmado com
+  testes via bot (`TestTelegramBotExecuta`/`TestTelegramBotGerar`)
+
+### Infraestrutura
+
+- `tests/test_recovery.py` — 12 testes: varredura (exclusões + ordenação),
+  tick com fakes (percepção ok/erro, reparo aplicado/sem detecção, audit),
+  check `perception` no Health Monitor (up/degraded), run/max_ticks,
+  snapshot/dump e **reparo REAL** de um `.py` quebrado mediado pelo Coder
+  (AddMissingColon) + projeto saudável sem reparos
+- `tests/test_telegram.py` — +8 testes: `/executa` via bot (system_info
+  admin, gate não-admin, confirmação de destrutiva, action desconhecida
+  com sugestão) e `/gerar` (ok registra tool, inválido reporta erro, gate
+  admin, sem auto_extension cai no pipeline)
+- Suíte completa: **1413 passed, 0 falhas** (1393 + 20)
+
+---
 
 ### Adicionado
 

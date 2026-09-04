@@ -18,13 +18,13 @@ entradas, incluindo o helper `loader.py`). Destes:
 | Módulos de action no NV (`plugins/actions/`) | **58** |
 | — implementados de verdade | 56 |
 | — **stubs vazios (0 bytes)** | 2 (`database_backup`, `database_stats`) |
-| Actions no catálogo OD (`tools/actions/`) | **56** |
+| Actions no catálogo OD (`tools/actions/`) | **57** |
 | — portadas com o **mesmo nome** | 54 |
 | — portadas com **nome alterado** | 1 (`list_actions` → `action_list`) |
 | — **excluídas** | 3 (`system_exec`, `database_backup`, `database_stats`) |
-| — **complementares** (não existiam no NV) | 1 (`process_tree`) |
+| — **complementares** (não existiam no NV) | 2 (`process_tree`, `network_hosts`) |
 
-**Conferência da conta:** 58 NV − 3 excluídas + 1 complementar = **56 OD** ✅
+**Conferência da conta:** 58 NV − 3 excluídas + 2 complementares = **57 OD** ✅
 
 > **Correção histórica:** o CHANGELOG v0.11.0 registrou "54 ações enumeradas
 > na análise legada + 2 complementares (process_tree, action_list)". A
@@ -36,7 +36,7 @@ entradas, incluindo o helper `loader.py`). Destes:
 
 ## 2. Tabela de Correspondência
 
-### 2.1 Sistema (NV 14 → OD 13)
+### 2.1 Sistema (NV 14 → OD 14)
 
 | NV (`plugins/actions/`) | OD (`tools/actions/`) | Status |
 |---|---|---|
@@ -54,6 +54,7 @@ entradas, incluindo o helper `loader.py`). Destes:
 | `system_user` | `system_user` | ✅ Portada |
 | `system_groups` | `system_groups` | ✅ Portada |
 | `system_exec` | — | ❌ **Excluída** (§3.1) |
+| — | `network_hosts` | ➕ Complementar (§4.3, v0.27.5) |
 
 ### 2.2 Processos (NV 3 → OD 4)
 
@@ -187,6 +188,15 @@ convenção de nomenclatura do catálogo OD (`<domínio>_<verbo>`).
 Não existia no NV. Adicionada ao catálogo OD como ação complementar de
 introspecção de processos (árvore a partir de um PID, default 1).
 
+### 4.3 `network_hosts` (OD) ➕ Complementar (v0.27.5)
+
+Não existia no NV. Adicionada ao catálogo OD (categoria `system`) para
+responder "quantas pessoas / dispositivos estão conectados na rede" — lê
+`/proc/net/arp` (100% stdlib, sem rede ativa) e devolve IP + MAC +
+interface + estado de cada vizinho. Também é a primeira action consumida
+pelo **fast path de intenções** (`core/intents.py`): a pergunta chega pelo
+bot e responde em milissegundos, sem LLM.
+
 ---
 
 ## 5. Modelo de Segurança no OD
@@ -206,8 +216,8 @@ introspecção de processos (árvore a partir de um PID, default 1).
 
 ## 6. Referências
 
-- CHANGELOG: `docs/CHANGELOG.md` [0.11.0] (criação do catálogo) e [0.27.2]
-  (esta tabela)
+- CHANGELOG: `docs/CHANGELOG.md` [0.11.0] (criação do catálogo), [0.27.2]
+  (esta tabela) e [0.27.5] (`network_hosts` complementar)
 - ROADMAP: `docs/ROADMAP_ABSORCAO.md` — Fase 4, item 4.4 (56 Actions)
 - Legado: `~/NV/plugins/actions/` (58 módulos) e `~/NV/core/actions/`
   (registry/executor)

@@ -25,6 +25,7 @@ from tools.actions.actions import (
     database_query,
     database_schema,
     database_tables,
+    network_hosts,
 )
 from tools.registry import Action, ActionRegistry
 
@@ -81,4 +82,5 @@ __all__ = [
     "database_tables",
     "database_schema",
     "database_query",
+    "network_hosts",
 ]
