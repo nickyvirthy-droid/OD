@@ -52,6 +52,24 @@ roadmap "preferir stdlib; isolar em adapters"):
   Health Check (7.3), Plugin System (7.4), Database Layer (7.5) —
   **37/37 capacidades do roadmap**
 
+### Corrigido
+
+#### MQTT — race de shutdown: disconnect durante o handshake deixava `_connected` preso 🐛
+
+- **Sintoma:** `test_start_stop_thread` falhava de forma intermitente sob
+  carga (suíte completa): o thread do bridge morria, mas
+  `bridge.is_connected` seguia True
+- **Causa raiz:** `MQTTClient.connect()` só atribuía `self._sock` DEPOIS
+  do handshake. Se `disconnect()` rodasse durante o handshake, não
+  encontrava sock para fechar; o connect em andamento completava em
+  seguida e setava `_connected = True` — para sempre (o disconnect já
+  tinha passado)
+- **Correção:** o sock é registrado em `self._sock` IMEDIATAMENTE após
+  `create_connection` (antes do handshake) e limpo nos caminhos de erro —
+  um disconnect durante o connect fecha o sock e aborta o handshake
+- **Verificação:** suíte completa **1359 passed** em 4 execuções seguidas
+  (antes: falha em ~2 de 3); 54 testes de MQTT verdes
+
 ---
 
 ## [0.25.0] — 2026-09-04

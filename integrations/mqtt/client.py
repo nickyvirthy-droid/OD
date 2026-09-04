@@ -101,6 +101,10 @@ class MQTTClient:
             (self.host, self.port), timeout=self._connect_timeout
         )
         sock.settimeout(None)
+        # Registra o sock ANTES do handshake: se disconnect() rodar durante
+        # a conexão, ele fecha este sock e o handshake aborta (sem isso, um
+        # disconnect durante o connect deixava _connected=True para sempre)
+        self._sock = sock
         packet = p.encode_connect(
             self.client_id,
             keepalive=self.keepalive,
@@ -112,16 +116,18 @@ class MQTTClient:
         try:
             ptype, _flags, body = p.read_packet(sock)
         except p.MQTTProtocolError:
+            self._sock = None
             sock.close()
             raise p.MQTTError("broker fechou durante o handshake")
         if ptype != p.PACKET_CONNACK:
+            self._sock = None
             sock.close()
             raise p.MQTTError("broker não respondeu CONNACK")
         _session_present, code = p.decode_connack(body)
         if code != p.CONNACK_ACCEPTED:
+            self._sock = None
             sock.close()
             raise p.MQTTConnectError(code)
-        self._sock = sock
         self._connected = True
         self._stop.clear()
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
