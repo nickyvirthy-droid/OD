@@ -401,27 +401,31 @@ Extensão v0.7.0 (RAG):
 
 ## 16. Mapeamento para OmegaDrakon
 
+> **Status (atualizado em 2026-09-04):** todas as capacidades abaixo foram
+> absorvidas e implementadas no OmegaDrakon — ver a tabela "Já Implementado"
+> em `docs/ROADMAP_ABSORCAO.md` (37/37 capacidades, 1382 testes).
+
 | Capacidade Nicky | Destino OmegaDrakon | Status |
 |---|---|---|
-| Event Bus | `core/event_bus.py` | ✅ Reescrito |
-| Orchestrator pipeline | `core/orchestration.py` | ❌ Não implementado |
+| Event Bus | `core/event_bus.py` | ✅ Implementado |
+| Orchestrator pipeline | `core/orchestrator.py` | ✅ Implementado (Fase 3.4 + `execute_action` Pós-Fase 7) |
 | State Manager | `core/state.py` | ✅ Implementado |
 | Message Router | `core/router.py` | ✅ Implementado |
-| Profiles (6 perfis) | `agents/nicky_virthy/` | ✅ Documentado |
-| Cache LLM (SHA-256) | `memory/` | ❌ Não implementado |
-| Conversation History | `memory/` | ❌ Não implementado |
-| Vector Memory (RAG) | `memory/` | ❌ Não implementado |
-| Quick Responses | `tools/` | ❌ Não implementado |
-| AIML Processor | `tools/` | ❌ Não implementado |
-| Vision (face detection) | `tools/vision/` | ❌ Não implementado |
-| Audio (STT) | `tools/audio/` | ❌ Não implementado |
-| TTS (Piper) | `tools/audio/` | ❌ Não implementado |
-| ProactiveNotifier | `integrations/telegram/` | ❌ Não implementado |
-| Telegram Bot | `integrations/telegram/` | ❌ Não implementado |
-| API REST | `integrations/api/` | ❌ Não implementado |
-| Config (Settings) | `configs/` | ❌ Não implementado |
-| Coder Engine | `core/coder.py` | ❌ Não implementado |
-| Tests (80+) | `tests/` | ❌ Não implementado |
+| Profiles (6 perfis) | `agents/profiles.py` + `agents/nicky_virthy/` | ✅ Implementado (Fase 6.5) |
+| Cache LLM (SHA-256) | `memory/cache.py` | ✅ Implementado (Fase 2.2) |
+| Conversation History | `memory/history.py` | ✅ Implementado (Fase 2.1) |
+| Vector Memory (RAG) | `memory/vector.py` | ✅ Implementado (Fase 2.4) |
+| Quick Responses | `memory/quick_responses.py` | ✅ Implementado (Fase 2.3) |
+| AIML Processor | rota "quick responses (AIML legado)" do Orchestrator | ✅ Substituído (Fase 2.3) |
+| Vision (face detection) | `tools/vision/face_detector.py` | ✅ Implementado (Fase 6.1) |
+| Audio (STT) | `tools/audio/stt.py` | ✅ Implementado (Fase 6.3) |
+| TTS (Piper) | `tools/audio/tts.py` | ✅ Implementado (Fase 6.4) |
+| ProactiveNotifier | `integrations/notifier.py` | ✅ Implementado (Fase 5.3) |
+| Telegram Bot | `integrations/telegram/` | ✅ Implementado (Fase 5.1) |
+| API REST | `integrations/api/` | ✅ Implementado (Fase 5.2) |
+| Config (Settings) | `configs/manager.py` | ✅ Implementado (Fase 1.1) |
+| Coder Engine | `core/coder.py` | ✅ Implementado (Fase 4.1) |
+| Tests (80+) | `tests/` | ✅ Implementado (1382 testes) |
 
 ---
 

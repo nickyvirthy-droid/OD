@@ -320,18 +320,22 @@ Sandbox → Erro → Rollback → Arquivo Original Preservado
 
 ## 9. Mapeamento para OmegaDrakon
 
+> **Status (atualizado em 2026-09-04):** todas as capacidades abaixo foram
+> absorvidas e implementadas no OmegaDrakon — ver `docs/ROADMAP_ABSORCAO.md`
+> (37/37 capacidades, 1382 testes).
+
 | Capacidade NV | Destino OmegaDrakon | Status |
 |---|---|---|
 | Event System | `core/event_bus.py` | ✅ Reescrito |
-| Security Layer | `core/security/` | ❌ Não implementado |
-| Action System (56 actions) | `tools/` | ❌ Não implementado |
-| Workflow Engine | `core/orchestration.py` | ❌ Não implementado |
-| Coder Engine | `core/coder.py` | ❌ Não implementado |
-| Memory Layer | `memory/` | ❌ Não implementado |
-| Database Layer | `memory/` ou `storage/` | ❌ Não implementado |
-| Plugin System | `plugins/` | ❌ Não implementado |
-| API Layer | `integrations/api/` | ❌ Não implementado |
-| Observability | `observability/` | ❌ Não implementado |
+| Security Layer | `core/security/` | ✅ Implementado (Fase 1.2) |
+| Action System (56 actions) | `tools/actions/` + `tools/registry.py` | ✅ Implementado (Fase 4.4) |
+| Workflow Engine | `core/workflows.py` | ✅ Implementado (Fase 3.1) |
+| Coder Engine | `core/coder.py` | ✅ Implementado (Fase 4.1) |
+| Memory Layer | `memory/` | ✅ Implementado (Fase 2) |
+| Database Layer | `storage/database.py` | ✅ Implementado (Fase 7.5) |
+| Plugin System | `plugins/` | ✅ Implementado (Fase 7.4) |
+| API Layer | `integrations/api/` | ✅ Implementado (Fase 5.2) |
+| Observability | `observability/` | ✅ Implementado (Fase 7) |
 
 ---
 
@@ -339,7 +343,7 @@ Sandbox → Erro → Rollback → Arquivo Original Preservado
 
 1. **Prioridade 1:** Security Layer → extrair pipeline de validação para `core/security/`.
 2. **Prioridade 2:** Action System → absorver as 56 actions para `tools/`.
-3. **Prioridade 3:** Workflow Engine → absorver para `core/orchestration.py`.
+3. **Prioridade 3:** Workflow Engine → absorver para `core/workflows.py`.
 4. **Prioridade 4:** Coder Engine → absorver para `core/coder.py`.
 5. **Prioridade 5:** Memory Layer → absorver para `memory/`.
 6. **Prioridade 6:** Database Layer → absorver para `storage/`.

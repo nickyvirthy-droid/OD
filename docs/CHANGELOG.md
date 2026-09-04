@@ -4,13 +4,47 @@
 
 ---
 
+## [0.27.1] — 2026-09-04
+
+### Corrigido
+
+#### Documentação — contagens de testes e status de integração 📝
+
+Correção das inconsistências entre a documentação e o estado real do
+sistema (suíte completa: **1382 passed, 0 falhas**):
+
+- **CHANGELOG [0.27.0]** — contagem corrigida de "1344 (1335 + 9)" para
+  **1382 (1359 + 23)**; base corrigida (1359 da v0.26.0); documentados os
+  **14 testes** de `tests/test_orchestrator_action_registry.py` (antes só
+  constavam os 9 de `test_orchestrator.py`); label "Fase 7.4" renomeado
+  para "Pós-Fase 7" (evita colisão com o item 7.4 do roadmap — Plugin
+  System)
+- **README_VERSAO.md** — adicionada a entrada **[0.27.0]** que faltava
+  (protocolo §2.1.1: toda versão/fase entrega relatório)
+- **ROADMAP_ABSORCAO.md** — contagens atualizadas (Orchestrator 38, total
+  1382); adicionadas as linhas "Orchestrator × ActionRegistry" e
+  "Control Bridge" na tabela "Já Implementado"; removidos os 3 checkboxes
+  duplicados dos critérios da Fase 4; WebSocket `/ws/chat` e auditoria de
+  integridade do Nexus registrados em "Capacidades Não Absorvidas" (§6)
+- **NICKY/NV/NEXUS_LEGACY_ANALYSIS.md** — seções "Mapeamento para
+  OmegaDrakon" atualizadas para ✅ implementado (estavam congeladas em
+  "❌ Não implementado" desde 02/09); corrigido o destino
+  `core/orchestration.py` → `core/orchestrator.py`
+
+### Verificação
+
+- Suíte completa: **1382 passed, 0 falhas** (inalterada — mudanças apenas
+  de documentação)
+
+---
+
 ## [0.27.0] — 2026-09-04
 
 ### Adicionado
 
-#### Orchestrator — Execução de Ações via ActionRegistry (`core/orchestrator.py`) — Fase 7.4 ✅
+#### Orchestrator — Execução de Ações via ActionRegistry (`core/orchestrator.py`) — Pós-Fase 7 ✅
 
-**FASE 7.4 — Integração do Orchestrator com o Catálogo de Ações.** O
+**PÓS-FASE 7 — Integração do Orchestrator com o Catálogo de Ações.** O
 Orchestrator agora suporta `execute_action()` para executar ações do catálogo
 via ActionRegistry, com controle de acesso via Security Layer:
 
@@ -33,7 +67,13 @@ via ActionRegistry, com controle de acesso via Security Layer:
   - `test_execute_action_denied_role` — role "agent" sem permissão
   - `test_set_action_registry` — set_registry funciona
   - `test_execute_action_after_set_registry` — execução após set
-- Suíte completa: **1344 passed, 0 falhas** (1335 + 9)
+- `tests/test_orchestrator_action_registry.py` — 14 novos testes de
+  integração (`TestOrchestratorActionIntegration`): registry injetado no
+  construtor, system_info, datetime, action_info com params, action_list
+  (56 actions), RuntimeError sem registry, role negada, set_action_registry,
+  execução após set, add_action com/sem registry, fallback, action inexistente
+  e denied pelo Security Layer
+- Suíte completa: **1382 passed, 0 falhas** (1359 + 23)
 
 ### Corrigido
 

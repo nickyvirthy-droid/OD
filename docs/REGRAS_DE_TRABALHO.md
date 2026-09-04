@@ -223,7 +223,7 @@ documentação atualizada. Qualquer item ausente = trabalho NÃO concluído.
 | 3.1 Workflow Engine | `core/workflows.py` | 70 ✅ |
 | 3.2 Tool Loader | `tools/loader.py` | 39 ✅ |
 | 3.3 Action Registry | `tools/registry.py` | 33 ✅ |
-| 3.4 Orchestrator Pipeline | `core/orchestrator.py` | 29 ✅ |
+| 3.4 Orchestrator Pipeline | `core/orchestrator.py` | 38 ✅ |
 
 > **Suíte atual:** **697 testes, 0 falhas** (668 das Fases 1–3.3 + 29 novos
 > do Orchestrator). **16/32 capacidades** no roadmap. Publicado no GitHub —

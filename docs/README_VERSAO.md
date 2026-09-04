@@ -9,6 +9,50 @@
 
 ---
 
+## [0.27.0] — Pós-Fase 7: Orchestrator × ActionRegistry ⚙️ (2026-09-04)
+
+### 1. O que foi feito
+
+**Integração pós-roadmap** — o Orchestrator passou a executar ações do
+catálogo via ActionRegistry, com controle de acesso do Security Layer:
+
+| Item | Entrega | Testes |
+|---|---|---|
+| `execute_action()` | `core/orchestrator.py` — executa ação via ActionRegistry (ou callable injetado via `add_action()`), gate de role (admin/agent) + Security Layer | 9 (`TestOrchestratorActionRegistry` em `test_orchestrator.py`) |
+| `set_action_registry()` / `add_action()` / property `action_registry` | injeção do registry após a construção | — |
+| Testes dedicados | `tests/test_orchestrator_action_registry.py` | 14 (`TestOrchestratorActionIntegration`) |
+| Launcher | `build_action_registry()` + `orchestrator.set_action_registry()` no modo telegram; bot com `action_registry` | — |
+| Comando `/executa` | `integrations/telegram/commands.py` — classificação de risco (3 níveis) + controle de acesso | — |
+
+### 2. Evidência
+
+```
+pytest tests/ -q  →  1382 passed, 0 falhas  (1359 da v0.26.0 + 23 novos)
+```
+
+### 3. O que NÃO foi feito
+
+- Ações do legado NV **não portadas** no catálogo: `system_exec`
+  (exclusão deliberada — execução arbitrária sem gate), `database_backup`
+  e `database_stats` — pendência P1: tabela de correspondência das 56
+  actions NV→OD com justificativas
+- Control Bridge sem testes no repo (pendência P1:
+  `tests/test_control_bridge.py` + versionar a unit em `runtime/systemd/`)
+- Publicação desta entrada: o commit v0.27.0 (`6ca5374`) já está no
+  GitHub; o protocolo §2.1.1 é que não foi cumprido na época — corrigido
+  nesta entrada retroativa
+
+### 4. Próximo passo
+
+- **P1 — fidelidade de integração**: tabela de correspondência das actions
+  NV→OD, unit do Control Bridge no repo, testes do Control Bridge, limpeza
+  do legado (HA duplicado em `~/nexus/infra/ha/config` com `.storage`,
+  resíduos de comandos quebrados em `~/nicky` e `~/nexus`)
+- **P2 — evolução**: WebSocket `/ws/chat` real, auditoria de integridade do
+  Nexus, health checks de serviços externos (HA/MQTT), plugins reais, CI
+
+---
+
 ## [0.26.0] — FASE 7 COMPLETA: Infraestrutura e Observabilidade 🏗️ (2026-09-04)
 
 ### 1. O que foi feito

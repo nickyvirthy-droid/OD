@@ -42,7 +42,8 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Workflow Engine** | `core/workflows.py` | 70 ✅ |
 | **Tool Loader** | `tools/loader.py` | 39 ✅ |
 | **Action Registry** | `tools/registry.py` | 33 ✅ |
-| **Orchestrator Pipeline** | `core/orchestrator.py` | 29 ✅ |
+| **Orchestrator Pipeline** | `core/orchestrator.py` | 38 ✅ |
+| **Orchestrator × ActionRegistry** | `core/orchestrator.py` + `tests/test_orchestrator_action_registry.py` | 14 ✅ |
 | **Coder Engine** | `core/coder.py` | 59 ✅ |
 | **Self Repair** | `core/self_repair.py` | 41 ✅ |
 | **Perception Syncer** | `tools/telemetry.py` | 21 ✅ |
@@ -60,7 +61,8 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Health Check** | `observability/health.py` | 17 ✅ |
 | **Plugin System** | `plugins/` | 20 ✅ |
 | **Database Layer** | `storage/database.py` | 24 ✅ |
-| **Total** | **32 componentes** | **1359 testes** |
+| **Control Bridge** | `runtime/control_bridge/bridge.py` | — ✅ (ver `docs/CONTROL_BRIDGE.md`) |
+| **Total** | **34 componentes** | **1382 testes** |
 
 ---
 
@@ -376,6 +378,8 @@ FASE 7 (Infraestrutura) ←── paralela
 | Docker SDK | Nexus | Ações Docker via shell são suficientes |
 | Nmap scanning | Nexus | Ferramenta de nicho, pode ser via action |
 | Gemini auto-extension | Nexus | Capacidade perigosa sem Security Layer robusto |
+| WebSocket `/ws/chat` (streaming token-a-token) | Nicky | Substituído por `POST /message` (request/response); streaming exige servidor async dedicado — evolução futura (CHANGELOG v0.13.0) |
+| Auditoria de integridade de arquivos/serviços | Nexus | Fase 7 absorveu as decisões de segurança (spec §7.3); integridade de arquivos fica como evolução futura (README_VERSAO [0.22.0]) |
 
 ---
 
@@ -406,9 +410,6 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] Self Repair detecta falhas e gera correções mediadas pelo Coder Engine (`core/self_repair.py`, 41 testes) — 2026-09-03
 - [x] Perception coleta telemetria de hardware/serviços (`tools/telemetry.py`, 21 testes) — 2026-09-03
 - [x] 56 Actions executam com validação de Security Layer (`tools/actions/`, 31 testes) — 2026-09-03
-- [ ] Self Repair detecta falhas e gera correções
-- [ ] Perception coleta telemetria de hardware/serviços
-- [ ] 56 Actions executam com validação de Security Layer
 
 ### Fase 5 — Integrações ✅ CONCLUÍDA (2026-09-03)
 - [x] Telegram Bot suporta 14 comandos, STT, TTS, perfis
@@ -644,7 +645,7 @@ capacidades do roadmap.**
 | Métrica | Atual | Meta Final |
 |---|---|---|
 | Capacidades implementadas | 37/37 | 37/37 |
-| Testes totais | 1359 | ~1400 |
+| Testes totais | 1382 | ~1400 |
 | Módulos core | 10 | ~15 |
 | Ferramentas (tools) | 7 | ~20 |
 | Módulos memory | 5 | 5 |

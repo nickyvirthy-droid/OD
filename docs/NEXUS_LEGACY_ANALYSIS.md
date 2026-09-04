@@ -258,18 +258,22 @@ Auditoria de integridade:
 
 ## 10. Mapeamento para OmegaDrakon
 
+> **Status (atualizado em 2026-09-04):** todas as capacidades abaixo foram
+> absorvidas e implementadas no OmegaDrakon — ver `docs/ROADMAP_ABSORCAO.md`
+> (37/37 capacidades, 1382 testes).
+
 | Capacidade Nexus | Destino OmegaDrakon | Status |
 |---|---|---|
-| Perception Syncer | `tools/vision/` ou `tools/telemetry/` | ❌ Não implementado |
-| IoT Manager | `integrations/homeassistant/` | ❌ Não implementado |
-| Context Manager | `memory/` ou `core/` | ❌ Não implementado |
-| Self Repair | `core/self_repair.py` | ❌ Não implementado |
-| Auto Extension | `tools/auto_extension/` | ❌ Não implementado |
-| Vox Messenger | `integrations/telegram/` | ❌ Não implementado |
-| Tool Loader | `tools/loader.py` | ❌ Não implementado |
-| Auditor | `observability/audit/` | ❌ Não implementado |
-| Brain (LLM) | `llm/` | ❌ Não implementado |
-| MQTT Broker | `integrations/mqtt/` | ❌ Não implementado |
+| Perception Syncer | `tools/telemetry.py` | ✅ Implementado (Fase 4.3) |
+| IoT Manager | `integrations/homeassistant/` | ✅ Implementado (Fase 5.4) |
+| Context Manager | `memory/context.py` | ✅ Implementado (Fase 2.5) |
+| Self Repair | `core/self_repair.py` | ✅ Implementado (Fase 4.2) |
+| Auto Extension | `tools/auto_extension/` | ✅ Implementado (Fase 6.6) |
+| Vox Messenger | `integrations/telegram/` | ✅ Implementado (Fase 5.1) |
+| Tool Loader | `tools/loader.py` | ✅ Implementado (Fase 3.2) |
+| Auditor | `observability/audit.py` | ✅ Implementado — decisões de segurança (spec §7.3); integridade de arquivos = evolução futura |
+| Brain (LLM) | `core/llm.py` | ✅ Implementado (v0.16.0) |
+| MQTT Broker | `integrations/mqtt/` | ✅ Implementado (Fase 5.5) |
 
 ---
 
