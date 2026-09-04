@@ -51,6 +51,11 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
                         (default 300 — 5min, espelho do main_cycle do Nexus).
     OD_NOTIFIER_ENABLED "0" desliga o ProactiveNotifier (alertas proativos;
                         default 1).
+    OD_DB_URL           DSN PostgreSQL (postgres://user:pass@host:port/db)
+                        — ativa o backend PostgreSQL da Database Layer
+                        (v0.28.0, driver pg8000). Sem a var, usa SQLite
+                        (data/od.db). Provisione com
+                        `sudo bash runtime/install_postgres.sh`.
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
@@ -183,7 +188,11 @@ def build_api_server(orchestrator: Any, metrics: Any = None, health: Any = None)
 
 
 def build_database() -> Any:
-    """Database Layer real (Fase 7.5): SQLite em data/od.db.
+    """Database Layer real (Fase 7.5): PostgreSQL (OD_DB_URL) ou SQLite.
+
+    - `OD_DB_URL=postgres://user:pass@host:port/db` → backend PostgreSQL
+      (driver pg8000, Python puro) — v0.28.0;
+    - sem OD_DB_URL → SQLite em data/od.db (comportamento legado).
 
     Conecta as actions de banco do catálogo (database_tables/schema/query)
     via configure_database().
@@ -191,9 +200,13 @@ def build_database() -> Any:
     from storage import Database
     from tools.actions import configure_database
 
-    db = Database(REPO_ROOT / "data" / "od.db", pool_size=5)
+    dsn = env("OD_DB_URL", "")
+    if dsn:
+        db = Database(pool_size=5, dsn=dsn)
+    else:
+        db = Database(REPO_ROOT / "data" / "od.db", pool_size=5)
     configure_database(db)
-    log.info("Database Layer ativo", path=db.path)
+    log.info("Database Layer ativo", backend=db.backend, path=db.path)
     return db
 
 

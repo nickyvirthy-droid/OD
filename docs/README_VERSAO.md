@@ -9,6 +9,50 @@
 
 ---
 
+## [0.28.0] — Database Layer: PostgreSQL plugável 🗄️ (2026-09-04)
+
+### 1. O que foi feito
+
+**Decisão do Alex:** migrar para um banco melhor que SQLite — **PostgreSQL
+local** (autorizado: "se tiver outro melhor, desinstale maria e instale o
+outro"). O Gravity Index recomendou bancos gerenciados na nuvem, mas o
+contexto é servidor local single-host — Postgres nativo é a escolha certa.
+
+| Camada | Entrega |
+|---|---|
+| **`storage/database.py`** | Backend plugável: `Database(dsn="postgres://...")` → PostgreSQL via **pg8000** (Python puro, sem extensão nativa); sem DSN → SQLite (`data/od.db`) — contrato idêntico: pool, execução, transações com afinidade de thread, schema (SERIAL no pg), tables/table_info (information_schema), Repository CRUD (RETURNING pk) |
+| **Launcher** | `build_database()` lê `OD_DB_URL` — sem a var, produção continua em SQLite (seguro até ativar) |
+| **Script** | `runtime/install_postgres.sh` (sudo): instala PostgreSQL, cria usuário/banco `od` com senha aleatória (openssl → só no `.env`, gitignored), **desinstala o MariaDB legado** e grava `OD_DB_URL` |
+
+### 2. Evidência
+
+```
+pytest tests/ -q         → 1453 passed, 0 falhas (16 skipped = testes pg sem DSN)
+OD_TEST_POSTGRES_DSN=postgres://od:od@127.0.0.1:55432/od \
+  pytest tests/test_database_postgres.py → 16 passed (PostgreSQL 16 real)
+Smoke via launcher        → Database Layer ativo backend=postgres · health ok
+                            · actions database_tables/database_query reais
+```
+
+### 3. O que NÃO foi feito (bloqueio de permissão)
+
+- **Instalação do PostgreSQL nativo e remoção do MariaDB exigem `sudo`
+  (com senha)** — não posso executar. Os comandos estão prontos em
+  `runtime/install_postgres.sh`:
+  ```bash
+  sudo bash runtime/install_postgres.sh
+  ```
+  Depois: `systemctl --user restart od-core` — o OD passa a usar Postgres
+  automaticamente (OD_DB_URL já gravada no `.env`)
+- O MariaDB segue instalado (inactive) até o script rodar
+
+### 4. Próximo passo
+
+- Você roda `sudo bash runtime/install_postgres.sh` → eu valido ao vivo o
+  od-core sobre PostgreSQL e publico o estado final
+
+---
+
 ## [0.27.5] — Fast Path de Intenções + Action de Rede ⚡ (2026-09-04)
 
 ### 1. O que foi feito

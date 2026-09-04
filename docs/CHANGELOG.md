@@ -4,7 +4,60 @@
 
 ---
 
-## [0.27.5] — 2026-09-04
+## [0.28.0] — 2026-09-04
+
+### Alterado
+
+#### Database Layer — backend PostgreSQL plugável (SQLite → PostgreSQL) 🗄️
+
+**Decisão do usuário (Alex):** migrar para um banco "melhor" que SQLite —
+PostgreSQL local (o MariaDB legado, parado, foi desinstalado). A camada
+`storage/database.py` (Fase 7.5) agora tem **backend plugável**:
+
+- **`Database(dsn="postgres://user:pass@host:port/db")`** → backend
+  PostgreSQL via **pg8000** (driver Python puro — respeita a política de
+  mínimas dependências do roadmap; sem extensão nativa)
+- **Sem DSN** → SQLite em `data/od.db` (comportamento legado intacto —
+  os 24 testes SQLite existentes passam sem alteração)
+- Mesmo contrato nos dois backends: pool por fila (acquire/release),
+  `execute`/`executemany`/`query`/`scalar`, **transações com afinidade de
+  conexão por thread** (commit/rollback), `create_table` (traduz
+  `INTEGER PRIMARY KEY` → `SERIAL PRIMARY KEY` no pg), `tables`/
+  `table_info` (information_schema no pg), `health()`/`snapshot()`/`dump()`
+  e **Repository CRUD genérico** (insert com `RETURNING pk` no pg,
+  `ORDER BY rowid` → `ORDER BY 1`)
+- Placeholders ajustados por backend (`?` SQLite / `%s` pg) — o código
+  chamador continua escrevendo `?`
+- **Launcher**: `build_database()` lê `OD_DB_URL` — sem a var, SQLite
+  (produção inalterada até a ativação); `runtime/install_postgres.sh`
+  (sudo) provisiona o servidor: instala PostgreSQL, cria usuário/banco
+  `od` com senha aleatória (openssl, só no `.env` gitignored), desinstala
+  o MariaDB legado e grava `OD_DB_URL` no `.env`
+
+### Infraestrutura
+
+- `tests/test_database_postgres.py` — **16 testes** do backend PostgreSQL
+  (backend detectado, DSN inválido, health, create_table/tables/table_info,
+  execute/query com `%s`, scalar, executemany, erro → DatabaseError,
+  transações commit/rollback + métricas, Repository completo com
+  `RETURNING` e ordem de inserção). Pulam com `pytest.skip` sem
+  `OD_TEST_POSTGRES_DSN`; executados contra PostgreSQL 16 real (container
+  efêmero): **16 passed**
+- Suíte completa: **1453 passed, 0 falhas** (16 skipped = testes pg sem
+  DSN no ambiente padrão)
+
+### Verificação
+
+```
+OD_TEST_POSTGRES_DSN=postgres://od:od@127.0.0.1:55432/od \
+  pytest tests/test_database_postgres.py -q   → 16 passed
+OD_DB_URL=postgres://... python -m runtime.launcher  → Database Layer ativo
+  backend=postgres · health ok · actions database_tables/database_query
+  reais contra o PostgreSQL 16
+```
+
+---
+
 
 ### Adicionado
 

@@ -1,0 +1,7 @@
+# OMEGA DRAKON — dependências externas (o restante é stdlib puro)
+#
+# Única dependência de runtime (v0.28.0): driver PostgreSQL puro-Python
+# usado pelo backend PostgreSQL da Database Layer (storage/database.py).
+# Instale na venv do projeto:
+#   .venv/bin/pip install -r requirements.txt
+pg8000>=1.31

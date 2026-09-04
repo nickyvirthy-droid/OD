@@ -104,10 +104,17 @@ face-detection 🟠 · presence-monitor · stt 🟡 · tts 🟡 · profiles ·
 llm-provider
 
 ### Observabilidade (4) — Fase 7
-audit · metrics · health · database-layer
+audit · metrics · health · database-layer 🗄️
 
 ### Runtime (2)
 launcher · systemd
+
+### 🗄️ Database Layer (v0.28.0)
+
+Backend plugável: **PostgreSQL** (`OD_DB_URL=postgres://user:pass@host:port/db`,
+driver pg8000 Python puro) ou **SQLite** (`data/od.db`, default). Provisione
+com `sudo bash runtime/install_postgres.sh` (instala Postgres, cria
+usuário/banco `od`, desinstala o MariaDB legado).
 
 ---
 

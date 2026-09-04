@@ -33,6 +33,7 @@ import queue
 import sqlite3
 import threading
 import time
+import urllib.parse
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,15 @@ from core.logger import get_logger
 __signature__ = "OD // CORE"
 
 log = get_logger("omega.storage.database")
+
+# Backends suportados pela Database Layer.
+BACKEND_SQLITE = "sqlite"
+BACKEND_POSTGRES = "postgres"
+
+
+def is_postgres_dsn(dsn: str) -> bool:
+    """True se o DSN aponta para um PostgreSQL (postgres:// ou postgresql://)."""
+    return dsn.strip().lower().startswith(("postgres://", "postgresql://"))
 
 
 class DatabaseError(Exception):
@@ -171,6 +181,110 @@ class ConnectionPool:
 
 
 # ---------------------------------------------------------------------------
+# PostgresConnectionPool (pg8000 — driver Python puro)
+# ---------------------------------------------------------------------------
+
+class PostgresConnectionPool:
+    """Pool de conexões PostgreSQL (pg8000) — mesma interface do
+    ConnectionPool (acquire/release/close), com criação sob demanda e
+    fila bloqueante quando esgotado.
+    """
+
+    def __init__(self, dsn: str, *, size: int = 5) -> None:
+        self._dsn = dsn
+        self._size = max(1, int(size))
+        self._queue: "queue.Queue[Any]" = queue.Queue(maxsize=self._size)
+        self._conns: list[Any] = []
+        self._lock = threading.Lock()
+        self._closed = False
+
+    @property
+    def path(self) -> str:
+        return self._dsn
+
+    def acquire(self) -> Any:
+        """Pega uma conexão do pool (cria sob demanda; bloqueia se esgotado)."""
+        if self._closed:
+            raise DatabaseError("pool fechado")
+        try:
+            return self._queue.get_nowait()
+        except queue.Empty:
+            pass
+        with self._lock:
+            if len(self._conns) < self._size:
+                conn = self._create()
+                self._conns.append(conn)
+                return conn
+        return self._queue.get()
+
+    def release(self, conn: Any) -> None:
+        try:
+            self._queue.put_nowait(conn)
+        except queue.Full:
+            self._close_conn(conn)
+
+    def close(self) -> None:
+        self._closed = True
+        with self._lock:
+            for conn in self._conns:
+                self._close_conn(conn)
+            self._conns.clear()
+        while True:
+            try:
+                self._close_conn(self._queue.get_nowait())
+            except queue.Empty:
+                break
+
+    def _create(self) -> Any:
+        import pg8000.dbapi
+
+        parsed = urllib.parse.urlparse(self._dsn)
+        raw = pg8000.dbapi.connect(
+            user=urllib.parse.unquote(parsed.username or ""),
+            password=urllib.parse.unquote(parsed.password or ""),
+            host=parsed.hostname or "127.0.0.1",
+            port=parsed.port or 5432,
+            database=(parsed.path or "/").lstrip("/"),
+        )
+        return _PgConn(raw)
+
+    @staticmethod
+    def _close_conn(conn: Any) -> None:
+        try:
+            conn.close()
+        except Exception:  # pragma: no cover — close defensivo
+            pass
+
+
+class _PgConn:
+    """Wrapper de conexão pg8000 com a MESMA superfície usada pelo
+    Database (execute/executemany/commit/rollback/close) — o pg8000 exige
+    cursor para executar, o sqlite3.Connection executa direto."""
+
+    def __init__(self, raw: Any) -> None:
+        self._raw = raw
+
+    def execute(self, sql: str, params: tuple[Any, ...] = ()) -> Any:
+        cur = self._raw.cursor()
+        cur.execute(sql, params)
+        return cur
+
+    def executemany(self, sql: str, seq: list[tuple[Any, ...]]) -> Any:
+        cur = self._raw.cursor()
+        cur.executemany(sql, seq)
+        return cur
+
+    def commit(self) -> None:
+        self._raw.commit()
+
+    def rollback(self) -> None:
+        self._raw.rollback()
+
+    def close(self) -> None:
+        self._raw.close()
+
+
+# ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
 
@@ -192,10 +306,27 @@ class Database:
         self,
         path: Union[str, Path] = ":memory:",
         *,
+        dsn: Optional[str] = None,
         pool_size: int = 5,
         clock: Optional[Callable[[], float]] = None,
     ) -> None:
-        self._pool = ConnectionPool(path, size=pool_size)
+        """Camada de persistência relacional com backend plugável.
+
+        - SQLite (default): `Database("data/od.db")` — stdlib puro;
+        - PostgreSQL: `Database(dsn="postgres://user:pass@host:port/db")`
+          via driver pg8000 (Python puro, sem extensão nativa).
+        """
+        if dsn:
+            if not is_postgres_dsn(dsn):
+                raise DatabaseError(
+                    "dsn deve ser postgres:// ou postgresql:// "
+                    "(backend PostgreSQL)"
+                )
+            self.backend = BACKEND_POSTGRES
+            self._pool = PostgresConnectionPool(dsn, size=pool_size)
+        else:
+            self.backend = BACKEND_SQLITE
+            self._pool = ConnectionPool(path, size=pool_size)
         self._metrics = DatabaseMetrics()
         self._clock = clock or time.monotonic
         self._lock = threading.RLock()
@@ -212,6 +343,24 @@ class Database:
     def metrics(self) -> DatabaseMetrics:
         return self._metrics
 
+    def _ph(self, sql: str) -> str:
+        """Ajusta os placeholders ao backend (? = SQLite, %s = PostgreSQL)."""
+        if self.backend == BACKEND_POSTGRES:
+            return sql.replace("?", "%s")
+        return sql
+
+    @staticmethod
+    def _error_types() -> tuple[type[Exception], ...]:
+        """Tipos de erro nativos dos backends suportados."""
+        types: list[type[Exception]] = [sqlite3.Error]
+        try:
+            import pg8000.dbapi
+
+            types.append(pg8000.dbapi.Error)
+        except ImportError:  # pragma: no cover — pg8000 opcional
+            pass
+        return tuple(types)
+
     # -- Execução -------------------------------------------------------------
 
     def execute(self, sql: str, params: tuple[Any, ...] = ()) -> int:
@@ -223,13 +372,13 @@ class Database:
         started = self._clock()
         conn, owned = self._conn_for_op()
         try:
-            cursor = conn.execute(sql, params)
+            cursor = conn.execute(self._ph(sql), params)
             if owned:
                 conn.commit()
             with self._lock:
                 self._metrics.writes += 1
             return int(cursor.rowcount)
-        except sqlite3.Error as exc:
+        except self._error_types() as exc:
             with self._lock:
                 self._metrics.errors += 1
             log.warn("DB execute falhou", error=str(exc), sql=sql[:120])
@@ -244,13 +393,13 @@ class Database:
         started = self._clock()
         conn, owned = self._conn_for_op()
         try:
-            cursor = conn.executemany(sql, seq)
+            cursor = conn.executemany(self._ph(sql), seq)
             if owned:
                 conn.commit()
             with self._lock:
                 self._metrics.writes += 1
             return int(cursor.rowcount)
-        except sqlite3.Error as exc:
+        except self._error_types() as exc:
             with self._lock:
                 self._metrics.errors += 1
             log.warn("DB executemany falhou", error=str(exc))
@@ -271,10 +420,16 @@ class Database:
         started = self._clock()
         conn, owned = self._conn_for_op()
         try:
-            cursor = conn.execute(sql, params)
-            rows = cursor.fetchmany(limit) if limit else cursor.fetchall()
-            return [dict(row) for row in rows]
-        except sqlite3.Error as exc:
+            cursor = conn.execute(self._ph(sql), params)
+            if self.backend == BACKEND_POSTGRES:
+                raw = cursor.fetchmany(limit) if limit else cursor.fetchall()
+                columns = [d[0] for d in (cursor.description or ())]
+                rows = [dict(zip(columns, row)) for row in raw]
+            else:
+                rows = cursor.fetchmany(limit) if limit else cursor.fetchall()
+                rows = [dict(row) for row in rows]
+            return rows
+        except self._error_types() as exc:
             with self._lock:
                 self._metrics.errors += 1
             log.warn("DB query falhou", error=str(exc), sql=sql[:120])
@@ -306,23 +461,45 @@ class Database:
         *,
         if_not_exists: bool = True,
     ) -> None:
-        """Cria uma tabela a partir de {coluna: tipo SQL}."""
+        """Cria uma tabela a partir de {coluna: tipo SQL}.
+
+        No PostgreSQL, `INTEGER PRIMARY KEY` (idioma SQLite) é traduzido
+        para `SERIAL PRIMARY KEY` (auto-incremento nativo).
+        """
+        if self.backend == BACKEND_POSTGRES:
+            schema = {
+                name: type_.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
+                for name, type_ in schema.items()
+            }
         columns = ", ".join(f"{name} {type_}" for name, type_ in schema.items())
         clause = "IF NOT EXISTS " if if_not_exists else ""
         self.execute(f"CREATE TABLE {clause}{table} ({columns})")
         return True
 
     def tables(self) -> list[str]:
-        """Tabelas do banco (sqlite_master, sem internos)."""
-        rows = self.query(
-            "SELECT name FROM sqlite_master "
-            "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
-        )
+        """Tabelas do banco (sem internos do backend)."""
+        if self.backend == BACKEND_POSTGRES:
+            rows = self.query(
+                "SELECT table_name AS name FROM information_schema.tables "
+                "WHERE table_schema = 'public' ORDER BY name"
+            )
+        else:
+            rows = self.query(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
         return [row["name"] for row in rows]
 
     def table_info(self, table: str) -> list[dict[str, Any]]:
-        """Colunas de uma tabela (PRAGMA table_info)."""
+        """Colunas de uma tabela (PRAGMA / information_schema)."""
         try:
+            if self.backend == BACKEND_POSTGRES:
+                return self.query(
+                    "SELECT column_name AS name, data_type AS type "
+                    "FROM information_schema.columns "
+                    "WHERE table_name = %s ORDER BY ordinal_position",
+                    (table,),
+                )
             return self.query(f"PRAGMA table_info({table})")
         except DatabaseError:  # tabela inexistente
             return []
@@ -384,13 +561,17 @@ class Database:
             return active, False
         return self._pool.acquire(), True
 
-    def _begin(self) -> sqlite3.Connection:
+    def _begin(self) -> Any:
         conn = self._pool.acquire()
-        if conn.in_transaction:  # nunca inicia transação sobre transação
+        if getattr(conn, "in_transaction", False):
             conn.rollback()
         conn.execute("BEGIN")
         self._local.tx_conn = conn
         return conn
+
+    def _order_identity(self) -> str:
+        """Expressão de ordenação 'ordem de inserção' por backend."""
+        return "rowid" if self.backend == BACKEND_SQLITE else "1"
 
 
 # ---------------------------------------------------------------------------
@@ -468,13 +649,20 @@ class Repository:
             raise DatabaseError("registro vazio")
         columns = list(record)
         placeholders = ", ".join("?" for _ in columns)
+        values = tuple(record[c] for c in columns)
         sql = (
             f"INSERT INTO {self.table} ({', '.join(columns)}) "
             f"VALUES ({placeholders})"
         )
-        self._db.execute(sql, tuple(record[c] for c in columns))
         if self.pk in record:
+            self._db.execute(sql, values)
             return record[self.pk]
+        if self._db.backend == BACKEND_POSTGRES:
+            # RETURNING devolve a pk gerada (SERIAL) numa única ida.
+            return self._db.scalar(
+                f"{sql} RETURNING {self.pk}", values
+            )
+        self._db.execute(sql, values)
         return self._db.scalar("SELECT last_insert_rowid()")
 
     def get(self, pk: Any) -> Optional[dict[str, Any]]:
@@ -506,7 +694,7 @@ class Repository:
 
     def all(self, limit: Optional[int] = None) -> list[dict[str, Any]]:
         """Todos os registros (em ordem de inserção)."""
-        sql = f"SELECT * FROM {self.table} ORDER BY rowid"
+        sql = f"SELECT * FROM {self.table} ORDER BY {self._db._order_identity()}"
         return self._db.query(sql, limit=limit)
 
     def find(self, **filters: Any) -> list[dict[str, Any]]:
