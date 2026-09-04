@@ -4,6 +4,56 @@
 
 ---
 
+## [0.26.0] — 2026-09-04
+
+### Adicionado
+
+#### Storage — Database Layer (`storage/database.py`) — Fase 7, item 7.5 ✅
+
+**FASE 7 COMPLETA — 5/5 itens · 37/37 capacidades do roadmap.** Camada de
+persistência relacional em **SQLite stdlib** (sem SQLAlchemy — decisão do
+roadmap "preferir stdlib; isolar em adapters"):
+
+- **`ConnectionPool`** — pool de conexões thread-safe por fila
+  (`queue.Queue`, criação sob demanda até `size`; acquire bloqueia quando
+  esgotado — sem estouro de conexões); **`:memory:` com URI única por
+  pool** (`file:od_mem_<uuid>?mode=memory&cache=shared`) — cada conexão
+  enxerga o MESMO banco (senão transações/queries entre conexões
+  quebrariam); WAL para banco em arquivo; `close()` limpo
+- **`Database`** — execução com pool:
+  - `execute`/`executemany` (commita, rowcount) · `query` (linhas como
+    dicts, `limit`) · `scalar`
+  - **`transaction()`** com **afinidade de conexão por thread**
+    (thread-local): operações dentro do bloco usam a MESMA conexão da
+    transação — commit no sucesso, **rollback total em erro** (corrigido
+    no desenvolvimento: sem afinidade, cada execute commitava fora da tx)
+  - `create_table(schema declarativo)`/`tables()`/`table_info()`
+  - Métricas (queries, writes, transactions, commits, rollbacks, errors,
+    avg_latency_ms) · `health()`/`snapshot()`/`dump()` · NICKY
+- **`Repository`** — repositório CRUD genérico (`insert`/`get`/`update`/
+  `delete`/`all`/`find(**filters)`/`count`/`exists`) com schema que
+  auto-cria a tabela e pk configurável
+- **Catálogo de actions plugado** — `configure_database(db)` liga as 3
+  actions de banco (`database_tables`/`database_schema`/`database_query`)
+  à camada real; sem injeção, continuam degradando graciosamente
+  (mensagem "Fase 7.5" preservada — testes antigos intactos)
+- **Launcher** — `build_database()` cria `data/od.db` e injeta no
+  catálogo; o Health Monitor ganhou o check `database` (não-crítico)
+
+### Infraestrutura
+
+- `tests/test_database.py` — 24 testes: Database (execução/schema/métricas/
+  health), transações (commit/rollback com afinidade de conexão), pool
+  (roundtrip/close), persistência em arquivo entre instâncias, isolamento
+  de `:memory:`, Repository (CRUD completo) e integração das actions de
+  banco (degradação sem DB + funcionamento com configure_database)
+- Suíte completa: **1359 passed, 0 falhas** (1335 + 24)
+- **FASE 7 FECHADA (5/5)**: Audit System (7.1), Metrics Collector (7.2),
+  Health Check (7.3), Plugin System (7.4), Database Layer (7.5) —
+  **37/37 capacidades do roadmap**
+
+---
+
 ## [0.25.0] — 2026-09-04
 
 ### Adicionado

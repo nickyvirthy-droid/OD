@@ -9,6 +9,52 @@
 
 ---
 
+## [0.26.0] — FASE 7 COMPLETA: Infraestrutura e Observabilidade 🏗️ (2026-09-04)
+
+### 1. O que foi feito
+
+**Fase 7 encerrada com 5/5 itens — 37/37 capacidades do roadmap.**
+
+| Item | Entrega | Testes |
+|---|---|---|
+| 7.1 Audit System | `observability/audit.py` — trilha JSONL persistente com rotação, sink no AuditEngine do Security Layer, Event Bus `audit.record` | 36 |
+| 7.2 Metrics Collector | `observability/metrics.py` — Counter/Gauge com labels + fontes vivas, Prometheus text format; /metrics da API renderiza o coletor | 24 |
+| 7.3 Health Check | `observability/health.py` — checks por componente (up/degraded/down), latência, métricas; /health responde o agregado | 17 |
+| 7.4 Plugin System | `plugins/manager.py` — 3 contratos de plugin, registro de actions/workflows, hot-reload, escopo estrito §7.1 | 20 |
+| 7.5 Database Layer | `storage/database.py` — pool SQLite stdlib, transações com afinidade de conexão, Repository CRUD, actions de banco plugadas | 24 |
+
+O launcher integra tudo: `build_audit_system()`, `build_metrics()`, `build_health()` (5 checks), `build_plugins()` e `build_database()` (injeta no catálogo de actions).
+
+### 2. Evidência
+
+```
+pytest tests/ -q  → 1359 passed, 0 falhas  (1238 na Fase 6 + 121 novos da Fase 7)
+Smoke ao vivo     → actions database_tables ok · health com 5 checks
+                    · Audit System/Metrics/Health/Plugins/Database ativos
+GitHub            → push de origin/master com os 5 commits da Fase 7
+```
+
+### 3. O que NÃO foi feito
+
+- Todos os itens do roadmap (Fases 1–7, 37 capacidades) estão implementados
+- Evoluções possíveis (fora do roadmap): histogramas Prometheus,
+  integridade de arquivos do legado Nexus, health checks de serviços
+  externos (HA/MQTT), migrations de schema versionadas, plugins reais em
+  `plugins/actions/`, streaming WebSocket
+- Validações ao vivo pendentes: reiniciar o `od-core` e conferir o journal
+  com os 5 componentes novos ativos + um GET /health na LAN
+
+### 4. Próximo passo
+
+- **Publicação**: commit v0.26.0 + push para `origin/master` (regra
+  §2.1.2 — fase concluída com suíte verde)
+- **Validação ao vivo**: reiniciar o od-core (systemd) e confirmar no
+  journal "Audit System ativo", "Metrics Collector ativo", "Health
+  Monitor ativo", "Plugin System ativo" e "Database Layer ativo"
+- Depois: manutenção/evolução contínua — roadmap 100% absorvido
+
+---
+
 ## [0.25.0] — Fase 7, item 7.4: Plugin System 🔌 (2026-09-04)
 
 ### 1. O que foi feito

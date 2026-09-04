@@ -17,7 +17,15 @@ __signature__ = "OD // CORE"
 
 from typing import Any, Optional
 
-from tools.actions.actions import CATALOG, CATEGORIES, ACTIONS_COUNT
+from tools.actions.actions import (
+    CATALOG,
+    CATEGORIES,
+    ACTIONS_COUNT,
+    configure_database,
+    database_query,
+    database_schema,
+    database_tables,
+)
 from tools.registry import Action, ActionRegistry
 
 
@@ -69,4 +77,8 @@ __all__ = [
     "ActionRegistry",
     "build_registry",
     "register_all",
+    "configure_database",
+    "database_tables",
+    "database_schema",
+    "database_query",
 ]

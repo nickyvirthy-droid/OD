@@ -173,6 +173,21 @@ def build_api_server(orchestrator: Any, metrics: Any = None, health: Any = None)
     return server
 
 
+def build_database() -> Any:
+    """Database Layer real (Fase 7.5): SQLite em data/od.db.
+
+    Conecta as actions de banco do catálogo (database_tables/schema/query)
+    via configure_database().
+    """
+    from storage import Database
+    from tools.actions import configure_database
+
+    db = Database(REPO_ROOT / "data" / "od.db", pool_size=5)
+    configure_database(db)
+    log.info("Database Layer ativo", path=db.path)
+    return db
+
+
 def build_plugins() -> Any:
     """Plugin System real (Fase 7.4): carrega plugins de plugins/.
 
@@ -199,11 +214,16 @@ def build_plugins() -> Any:
     return manager
 
 
-def build_health(orchestrator: Any = None, audit: Any = None, metrics: Any = None) -> Any:
+def build_health(
+    orchestrator: Any = None,
+    audit: Any = None,
+    metrics: Any = None,
+    database: Any = None,
+) -> Any:
     """HealthMonitor real (Fase 7.3): checks dos componentes do od-core.
 
     Orchestrator e LLM são críticos (derrubam o status para down);
-    Audit e Metrics degradam (não-críticos).
+    Audit, Metrics e Database degradam (não-críticos).
     """
     from observability.health import HealthMonitor
 
@@ -251,10 +271,21 @@ def build_health(orchestrator: Any = None, audit: Any = None, metrics: Any = Non
         h = metrics.health()
         return {"ok": bool(h.get("ok")), "status": "up", "detail": f"{h.get('metrics')} métricas"}
 
+    def _check_database(mon: Any) -> dict[str, Any]:
+        if database is None:
+            return {"ok": True, "status": "up", "detail": "database ausente (ok)"}
+        h = database.health()
+        return {
+            "ok": bool(h.get("ok")),
+            "status": "up" if h.get("ok") else "down",
+            "detail": f"{h.get('tables')} tabelas",
+        }
+
     monitor.register("orchestrator", _check_orchestrator, critical=True)
     monitor.register("llm", _check_llm, critical=True)
     monitor.register("audit", _check_audit, critical=False)
     monitor.register("metrics", _check_metrics, critical=False)
+    monitor.register("database", _check_database, critical=False)
     return monitor
 
 
@@ -576,12 +607,16 @@ def main() -> int:
         sources=metrics.health()["sources"],
     )
     health = build_health(
-        orchestrator=orchestrator, audit=audit, metrics=metrics
+        orchestrator=orchestrator,
+        audit=audit,
+        metrics=metrics,
+        database=database,
     )
     log.info(
         "Health Monitor ativo",
         components=len(health.components),
     )
+    database = build_database()
     plugins = build_plugins()
     mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
     presence_enabled = env("OD_PRESENCE_ENABLED", "1") != "0"

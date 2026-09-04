@@ -744,20 +744,56 @@ def git_push(repo: str, remote: str = "origin", branch: str = "") -> dict[str, A
 
 _DB_UNAVAILABLE = "database layer indisponível (Fase 7.5 — storage/database.py)"
 
+# Database Layer real — injetada via configure_database() (Fase 7.5)
+_DB: Any = None
+
+
+def configure_database(db: Any) -> None:
+    """Conecta o catálogo de actions de banco à Database Layer real.
+
+    Chamada pelo launcher com a instância de storage/database.py. Sem
+    injeção, as actions continuam degradando graciosamente (ok=False).
+    """
+    global _DB
+    _DB = db
+
 
 def database_tables() -> dict[str, Any]:
-    """Lista tabelas (requer Database Layer da Fase 7.5)."""
-    return _unavailable("database", _DB_UNAVAILABLE)
+    """Lista tabelas do banco (Database Layer da Fase 7.5)."""
+    if _DB is None:
+        return _unavailable("database", _DB_UNAVAILABLE)
+    try:
+        return {"ok": True, "tool": "database", "tables": _DB.tables()}
+    except Exception as exc:
+        return {"ok": False, "tool": "database", "error": str(exc)}
 
 
 def database_schema(table: str) -> dict[str, Any]:
-    """Schema de uma tabela (requer Database Layer da Fase 7.5)."""
-    return _unavailable("database", _DB_UNAVAILABLE)
+    """Schema de uma tabela (Database Layer da Fase 7.5)."""
+    if _DB is None:
+        return _unavailable("database", _DB_UNAVAILABLE)
+    try:
+        return {"ok": True, "tool": "database", "table": table,
+                "columns": _DB.table_info(table)}
+    except Exception as exc:
+        return {"ok": False, "tool": "database", "error": str(exc)}
 
 
 def database_query(query: str) -> dict[str, Any]:
-    """Consulta SQL (requer Database Layer da Fase 7.5)."""
-    return _unavailable("database", _DB_UNAVAILABLE)
+    """Consulta SQL (Database Layer da Fase 7.5, até 100 linhas)."""
+    if _DB is None:
+        return _unavailable("database", _DB_UNAVAILABLE)
+    try:
+        rows = _DB.query(query, limit=101)
+        return {
+            "ok": True,
+            "tool": "database",
+            "rows": rows[:100],
+            "count": len(rows[:100]),
+            "truncated": len(rows) > 100,
+        }
+    except Exception as exc:
+        return {"ok": False, "tool": "database", "error": str(exc)}
 
 
 # ---------------------------------------------------------------------------

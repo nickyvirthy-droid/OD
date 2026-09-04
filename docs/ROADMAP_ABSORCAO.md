@@ -59,7 +59,8 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Metrics Collector** | `observability/metrics.py` | 24 ✅ |
 | **Health Check** | `observability/health.py` | 17 ✅ |
 | **Plugin System** | `plugins/` | 20 ✅ |
-| **Total** | **31 componentes** | **1335 testes** |
+| **Database Layer** | `storage/database.py` | 24 ✅ |
+| **Total** | **32 componentes** | **1359 testes** |
 
 ---
 
@@ -223,7 +224,7 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | 7.2 | **Metrics Collector** | Nicky `/metrics` | `observability/metrics.py` ✅ | Médio | Logger |
 | 7.3 | **Health Check** | NV `observability/health/` | `observability/health.py` ✅ | Baixo | Config |
 | 7.4 | **Plugin System** | NV `plugins/` | `plugins/` ✅ | Alto | Loader, Registry |
-| 7.5 | **Database Layer** | NV `core/database/` | `storage/database.py` | Médio | Config |
+| 7.5 | **Database Layer** | NV `core/database/` | `storage/database.py` ✅ | Médio | Config |
 
 **Justificativa:**
 - Observabilidade é contínua (deve crescer com o sistema)
@@ -424,12 +425,12 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] Profile Manager detecta perfil automaticamente
 - [x] Auto Extension gera ferramentas mediada pelo Security Layer
 
-### Fase 7 — Infraestrutura
+### Fase 7 — Infraestrutura ✅ CONCLUÍDA (2026-09-04)
 - [x] Audit System registra todas as decisões de segurança (v0.22.0)
 - [x] Metrics Collector expõe Prometheus metrics (v0.23.0)
 - [x] Health Check verifica status de componentes (v0.24.0)
 - [x] Plugin System carrega e registra plugins (v0.25.0)
-- [ ] Database Layer gerencia conexões e repositórios
+- [x] Database Layer gerencia conexões e repositórios (v0.26.0)
 
 ---
 
@@ -624,14 +625,26 @@ estrito §7.1 (PluginScopeError), isolamento de falha por módulo, Event
 Bus best-effort e métricas. Launcher com `build_plugins()`. Suíte
 **1335 passed, 0 falhas**. Fase 7 com 4/5 — **36/37** capacidades.
 
+✅ Concluído: **Fase 7, item 7.5 — Database Layer** (`storage/database.py`,
+24 testes novos, total **1359**). Camada de persistência relacional em SQLite
+stdlib: `ConnectionPool` thread-safe por fila (com `:memory:` compartilhado
+por pool via URI única), `Database` com execute/executemany/query/scalar,
+**transações com afinidade de conexão por thread** (rollback total em erro),
+`create_table`/`tables`/`table_info`, métricas, health/dump, e `Repository`
+CRUD genérico (insert/get/update/delete/all/find/count/exists) com schema
+declarativo. Catálogo de actions plugado (`configure_database` — as 3
+actions de banco passam a funcionar) e launcher com `build_database()` +
+check `database` no Health Monitor. **FASE 7 FECHADA (5/5)** — **37/37
+capacidades do roadmap.**
+
 ---
 
 ## 10. Métricas de Progressão
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 36/37 | 37/37 |
-| Testes totais | 1335 | ~1500 |
+| Capacidades implementadas | 37/37 | 37/37 |
+| Testes totais | 1359 | ~1400 |
 | Módulos core | 10 | ~15 |
 | Ferramentas (tools) | 7 | ~20 |
 | Módulos memory | 5 | 5 |
