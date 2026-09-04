@@ -4,6 +4,54 @@
 
 ---
 
+## [0.25.0] — 2026-09-04
+
+### Adicionado
+
+#### Plugin System (`plugins/`) — Fase 7, item 7.4 ✅
+
+**FASE 7 — 4/5 itens.** Carregamento dinâmico de plugins Python com
+registro de actions no Action Registry e de workflows no Workflow Engine
+(espelho do PluginLoader legado NV: subdiretórios `actions/`, `providers/`,
+`workflows/`, `integrations/`):
+
+- **Contratos de plugin** (avaliados nesta ordem):
+  1. `PLUGIN = {"name", "version", "description", "actions": [...],
+     "workflows": [...]}`
+  2. `ACTIONS = [...]` e/ou `WORKFLOWS = [...]`
+  3. `register_actions(registry)` e/ou `register_workflows(engine)` —
+     nomes rastreados por diferença antes/depois da chamada
+- **`PluginManager`** (`plugins/manager.py`):
+  - Descoberta na raiz + subdiretórios do legado NV; `load_all()`/
+    `load_source()` — falha de import de um plugin NUNCA impede os demais
+    (isolamento por módulo, CRIT + contador failed)
+  - **Registro**: actions no `ActionRegistry` com `permission="plugin.<nome>"`
+    (gate do Security Layer na execução — padrão da auto_extension) e
+    `source="plugin:<nome>"`; workflows no `WorkflowEngine.register`
+  - **Hot-reload**: `reload(name)`/`reload_all()` desregistram os artefatos
+    ANTES de recarregar do disco; `unload(name)` remove actions
+    (`registry.unregister`) e workflows (`engine.unregister`)
+  - **Escopo estrito §7.1**: arquivo fora do root → `PluginScopeError`;
+    `__init__.py`/`manager.py` são internos e ignorados
+  - Event Bus best-effort (`plugin.loaded`/`failed`/`unloaded` — publica
+    só com loop ativo, nunca quebra a carga) · métricas (discovered,
+    loaded, failed, actions/workflows_registered, errors) · `health()`/
+    `snapshot()`/`dump()` · `list_plugins()`/`get()`/`has()` · NICKY
+- **Launcher** — `build_plugins()`: ActionRegistry + WorkflowEngine +
+  PluginManager sobre `plugins/` do repo (hoje 0 plugins — pronto para
+  receber plugins reais em `plugins/actions/` etc.)
+
+### Infraestrutura
+
+- `tests/test_plugins.py` — 20 testes: contratos (PLUGIN dict, vars,
+  register_*), registro/execução de actions + workflows, permission
+  namespaced, descoberta em subdiretórios, plugin quebrado isolado,
+  módulo sem contrato pulado, escopo estrito, arquivos internos ignorados,
+  unload/reload/reload_all, sem registry (0 artefatos) e introspecção
+- Suíte completa: **1335 passed, 0 falhas** (1315 + 20)
+
+---
+
 ## [0.24.0] — 2026-09-04
 
 ### Adicionado

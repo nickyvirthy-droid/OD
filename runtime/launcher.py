@@ -173,6 +173,32 @@ def build_api_server(orchestrator: Any, metrics: Any = None, health: Any = None)
     return server
 
 
+def build_plugins() -> Any:
+    """Plugin System real (Fase 7.4): carrega plugins de plugins/.
+
+    Actions vão para um ActionRegistry e workflows para um WorkflowEngine
+    (permission plugin.<nome> — gate do Security Layer na execução).
+    """
+    from core.workflows import WorkflowEngine
+    from plugins import PluginManager
+    from tools.registry import ActionRegistry
+
+    registry = ActionRegistry()
+    engine = WorkflowEngine()
+    manager = PluginManager(
+        root=REPO_ROOT / "plugins",
+        registry=registry,
+        workflow_engine=engine,
+    )
+    loaded = manager.load_all()
+    log.info(
+        "Plugin System ativo",
+        plugins=loaded,
+        root=str(manager.root),
+    )
+    return manager
+
+
 def build_health(orchestrator: Any = None, audit: Any = None, metrics: Any = None) -> Any:
     """HealthMonitor real (Fase 7.3): checks dos componentes do od-core.
 
@@ -556,6 +582,7 @@ def main() -> int:
         "Health Monitor ativo",
         components=len(health.components),
     )
+    plugins = build_plugins()
     mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
     presence_enabled = env("OD_PRESENCE_ENABLED", "1") != "0"
     presence_monitor = build_presence_monitor() if presence_enabled else None

@@ -9,6 +9,50 @@
 
 ---
 
+## [0.25.0] — Fase 7, item 7.4: Plugin System 🔌 (2026-09-04)
+
+### 1. O que foi feito
+
+**Fase 7 com 4/5 itens.** Carregamento dinâmico de plugins em `plugins/`
+(espelho do PluginLoader legado NV — subdiretórios actions/providers/
+workflows/integrations):
+
+| Contrato | Registro |
+|---|---|
+| `PLUGIN = {...}` dict | actions no ActionRegistry com permission `plugin.<nome>` + workflows no WorkflowEngine |
+| `ACTIONS`/`WORKFLOWS` | idem (variáveis de módulo) |
+| `register_actions`/`register_workflows` | funções de registro (nomes rastreados por diferença) |
+
+Hot-reload (reload/unload/reload_all desregistram antes de recarregar),
+escopo estrito §7.1 (PluginScopeError), falha de plugin isolada (não
+derruba os demais), Event Bus best-effort, métricas e health(). Launcher
+com `build_plugins()`.
+
+### 2. Evidência
+
+```
+pytest tests/test_plugins.py -q    → 20 passed
+pytest tests/ -q                   → 1335 passed, 0 falhas (1315 + 20)
+Smoke ao vivo                      → Plugin System ativo, 0 plugins
+                                    (plugins/ sem plugins reais ainda)
+```
+
+### 3. O que NÃO foi feito
+
+- Fase 7 com 1/5 em aberto: **7.5 Database Layer**
+- Nenhum plugin real no repo ainda — `plugins/` está pronto para receber
+  (ex: um plugin de exemplo em `plugins/actions/`)
+- Push no GitHub: pendente até o fechamento da Fase 7 (autorizado —
+  commits locais até v0.25.0)
+
+### 4. Próximo passo
+
+- **Fase 7, item 7.5 — Database Layer** (`storage/database.py`): camada de
+  persistência relacional (pool de conexões + repositórios) — ÚLTIMO item
+  da Fase 7; ao concluir, fechamos a fase e fazemos o push
+
+---
+
 ## [0.24.0] — Fase 7, item 7.3: Health Check 🩺 (2026-09-04)
 
 ### 1. O que foi feito

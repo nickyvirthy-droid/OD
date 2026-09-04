@@ -58,7 +58,8 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **Audit System** | `observability/audit.py` | 36 ✅ |
 | **Metrics Collector** | `observability/metrics.py` | 24 ✅ |
 | **Health Check** | `observability/health.py` | 17 ✅ |
-| **Total** | **30 componentes** | **1315 testes** |
+| **Plugin System** | `plugins/` | 20 ✅ |
+| **Total** | **31 componentes** | **1335 testes** |
 
 ---
 
@@ -221,7 +222,7 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | 7.1 | **Audit System** | Nexus `src/auditor.py` | `observability/audit.py` ✅ | Médio | Logger |
 | 7.2 | **Metrics Collector** | Nicky `/metrics` | `observability/metrics.py` ✅ | Médio | Logger |
 | 7.3 | **Health Check** | NV `observability/health/` | `observability/health.py` ✅ | Baixo | Config |
-| 7.4 | **Plugin System** | NV `plugins/` | `plugins/` | Alto | Loader, Registry |
+| 7.4 | **Plugin System** | NV `plugins/` | `plugins/` ✅ | Alto | Loader, Registry |
 | 7.5 | **Database Layer** | NV `core/database/` | `storage/database.py` | Médio | Config |
 
 **Justificativa:**
@@ -427,7 +428,7 @@ FASE 7 (Infraestrutura) ←── paralela
 - [x] Audit System registra todas as decisões de segurança (v0.22.0)
 - [x] Metrics Collector expõe Prometheus metrics (v0.23.0)
 - [x] Health Check verifica status de componentes (v0.24.0)
-- [ ] Plugin System carrega e registra plugins
+- [x] Plugin System carrega e registra plugins (v0.25.0)
 - [ ] Database Layer gerencia conexões e repositórios
 
 ---
@@ -612,14 +613,25 @@ com `build_health()` (orchestrator/llm críticos + audit/metrics
 não-críticos). Suíte **1315 passed, 0 falhas**. Fase 7 com 3/5 —
 **35/37** capacidades.
 
+✅ Concluído: **Fase 7, item 7.4 — Plugin System** (`plugins/manager.py`,
+20 testes novos, total **1335**). Carregamento dinâmico de plugins com 3
+contratos (PLUGIN dict, ACTIONS/WORKFLOWS, register_actions/
+register_workflows), registro de actions no ActionRegistry com
+permission `plugin.<nome>` e workflows no WorkflowEngine, descoberta em
+subdiretórios (actions/providers/workflows/integrations), hot-reload
+(reload/unload/reload_all desregistram antes de recarregar), escopo
+estrito §7.1 (PluginScopeError), isolamento de falha por módulo, Event
+Bus best-effort e métricas. Launcher com `build_plugins()`. Suíte
+**1335 passed, 0 falhas**. Fase 7 com 4/5 — **36/37** capacidades.
+
 ---
 
 ## 10. Métricas de Progressão
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 35/37 | 37/37 |
-| Testes totais | 1315 | ~1450 |
+| Capacidades implementadas | 36/37 | 37/37 |
+| Testes totais | 1335 | ~1500 |
 | Módulos core | 10 | ~15 |
 | Ferramentas (tools) | 7 | ~20 |
 | Módulos memory | 5 | 5 |
