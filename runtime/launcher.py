@@ -151,7 +151,7 @@ def build_orchestrator() -> Any:
     return orchestrator
 
 
-def build_api_server(orchestrator: Any, metrics: Any = None):
+def build_api_server(orchestrator: Any, metrics: Any = None, health: Any = None):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
 
@@ -167,9 +167,69 @@ def build_api_server(orchestrator: Any, metrics: Any = None):
             api_key=api_key,
             auth_all=env("OD_API_AUTH_ALL", "1") != "0",
             metrics=metrics,  # Fase 7.2: /metrics renderiza o coletor
+            health=health,  # Fase 7.3: /health responde o agregado
         ),
     )
     return server
+
+
+def build_health(orchestrator: Any = None, audit: Any = None, metrics: Any = None) -> Any:
+    """HealthMonitor real (Fase 7.3): checks dos componentes do od-core.
+
+    Orchestrator e LLM são críticos (derrubam o status para down);
+    Audit e Metrics degradam (não-críticos).
+    """
+    from observability.health import HealthMonitor
+
+    monitor = HealthMonitor()
+
+    def _check_orchestrator(mon: Any) -> dict[str, Any]:
+        if orchestrator is None:
+            return {"ok": False, "status": "down", "detail": "sem orchestrator"}
+        return {"ok": True, "status": "up", "detail": "orchestrator conectado"}
+
+    def _check_llm(mon: Any) -> dict[str, Any]:
+        if orchestrator is None:
+            return {"ok": True, "status": "up", "detail": "LLM não avaliável"}
+        available = []
+        for provider in orchestrator.providers:
+            probe = getattr(provider, "is_available", None)
+            try:
+                if probe is None or probe():
+                    available.append(
+                        getattr(provider, "name", "") or type(provider).__name__
+                    )
+            except Exception:  # pragma: no cover — sonda quebrou
+                continue
+        if available:
+            return {
+                "ok": True, "status": "up",
+                "detail": f"{len(available)} provider(s): {', '.join(available)}",
+            }
+        return {"ok": False, "status": "down", "detail": "nenhum provider de LLM disponível"}
+
+    def _check_audit(mon: Any) -> dict[str, Any]:
+        if audit is None:
+            return {"ok": True, "status": "up", "detail": "audit ausente (ok)"}
+        h = audit.health()
+        ok = bool(h.get("ok"))
+        return {
+            "ok": ok,
+            "status": "up" if ok else "down",
+            "detail": f"trilha {h.get('file')}",
+        }
+
+    def _check_metrics(mon: Any) -> dict[str, Any]:
+        if metrics is None:
+            return {"ok": True, "status": "up", "detail": "metrics ausente (ok)"}
+        h = metrics.health()
+        return {"ok": bool(h.get("ok")), "status": "up", "detail": f"{h.get('metrics')} métricas"}
+
+    monitor.register("orchestrator", _check_orchestrator, critical=True)
+    monitor.register("llm", _check_llm, critical=True)
+    monitor.register("audit", _check_audit, critical=False)
+    monitor.register("metrics", _check_metrics, critical=False)
+    return monitor
 
 
 def build_metrics(orchestrator: Any = None, audit: Any = None) -> Any:
@@ -362,8 +422,10 @@ def build_mqtt_bridge(event_bus: Any):
     return bridge
 
 
-async def _run_api_forever(orchestrator: Any, metrics: Any = None) -> None:
-    server = build_api_server(orchestrator, metrics=metrics)
+async def _run_api_forever(
+    orchestrator: Any, metrics: Any = None, health: Any = None
+) -> None:
+    server = build_api_server(orchestrator, metrics=metrics, health=health)
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
     try:
@@ -487,6 +549,13 @@ def main() -> int:
         "Metrics Collector ativo",
         sources=metrics.health()["sources"],
     )
+    health = build_health(
+        orchestrator=orchestrator, audit=audit, metrics=metrics
+    )
+    log.info(
+        "Health Monitor ativo",
+        components=len(health.components),
+    )
     mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
     presence_enabled = env("OD_PRESENCE_ENABLED", "1") != "0"
     presence_monitor = build_presence_monitor() if presence_enabled else None
@@ -498,7 +567,7 @@ def main() -> int:
         from core.event_bus import EventBus
 
         tasks = [
-            _run_api_forever(orchestrator, metrics),
+            _run_api_forever(orchestrator, metrics, health),
             _run_telegram_forever(orchestrator),
         ]
         if mqtt_enabled:
@@ -515,7 +584,7 @@ def main() -> int:
         await asyncio.gather(*tasks)
 
     if mode == "api":
-        asyncio.run(_run_api_forever(orchestrator, metrics))
+        asyncio.run(_run_api_forever(orchestrator, metrics, health))
     elif mode == "telegram":
         asyncio.run(_run_telegram_forever(orchestrator))
     elif mode == "mqtt":

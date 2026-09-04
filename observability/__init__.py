@@ -13,6 +13,8 @@ Módulos:
                segurança + Event Bus + métricas/health)
   - metrics.py → MetricsCollector (Counter/Gauge com labels + sources +
                  exposição Prometheus text format)
+  - health.py → HealthMonitor (checks registráveis por componente +
+                agregação up/degraded/down)
 """
 
 from observability.audit import (
@@ -38,6 +40,15 @@ from observability.metrics import (
     MetricSource,
     MetricsCollector,
 )
+from observability.health import (
+    STATUS_DEGRADED,
+    STATUS_DOWN,
+    STATUS_UP,
+    ComponentHealth,
+    HealthCheckFn,
+    HealthMetrics,
+    HealthMonitor,
+)
 
 __signature__ = "OD // CORE"
 __all__ = [
@@ -62,4 +73,12 @@ __all__ = [
     "MetricSource",
     "TYPE_COUNTER",
     "TYPE_GAUGE",
+    # Health Check (7.3)
+    "HealthMonitor",
+    "HealthCheckFn",
+    "ComponentHealth",
+    "HealthMetrics",
+    "STATUS_UP",
+    "STATUS_DEGRADED",
+    "STATUS_DOWN",
 ]

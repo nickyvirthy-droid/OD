@@ -57,7 +57,8 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | Agent Nicky | `agents/nicky_virthy/` | 10 ✅ |
 | **Audit System** | `observability/audit.py` | 36 ✅ |
 | **Metrics Collector** | `observability/metrics.py` | 24 ✅ |
-| **Total** | **29 componentes** | **1298 testes** |
+| **Health Check** | `observability/health.py` | 17 ✅ |
+| **Total** | **30 componentes** | **1315 testes** |
 
 ---
 
@@ -219,7 +220,7 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 |---|---|---|---|---|---|
 | 7.1 | **Audit System** | Nexus `src/auditor.py` | `observability/audit.py` ✅ | Médio | Logger |
 | 7.2 | **Metrics Collector** | Nicky `/metrics` | `observability/metrics.py` ✅ | Médio | Logger |
-| 7.3 | **Health Check** | NV `observability/health/` | `observability/health.py` | Baixo | Config |
+| 7.3 | **Health Check** | NV `observability/health/` | `observability/health.py` ✅ | Baixo | Config |
 | 7.4 | **Plugin System** | NV `plugins/` | `plugins/` | Alto | Loader, Registry |
 | 7.5 | **Database Layer** | NV `core/database/` | `storage/database.py` | Médio | Config |
 
@@ -425,7 +426,7 @@ FASE 7 (Infraestrutura) ←── paralela
 ### Fase 7 — Infraestrutura
 - [x] Audit System registra todas as decisões de segurança (v0.22.0)
 - [x] Metrics Collector expõe Prometheus metrics (v0.23.0)
-- [ ] Health Check verifica status de componentes
+- [x] Health Check verifica status de componentes (v0.24.0)
 - [ ] Plugin System carrega e registra plugins
 - [ ] Database Layer gerencia conexões e repositórios
 
@@ -600,14 +601,25 @@ modos. Suíte **1298 passed, 0 falhas** — primeira 100% verde (falha
 ambiental pré-existente do ConfigManager corrigida). Fase 7 com 2/5 —
 **34/37** capacidades.
 
+✅ Concluído: **Fase 7, item 7.3 — Health Check** (`observability/health.py`,
+17 testes novos, total **1315**). Verificação de status dos componentes em
+stdlib: `ComponentHealth` tipado, `HealthMonitor` com checks registráveis
+(sync/async), severidade por check (crítico → down, não-crítico → degraded),
+latência por check, métricas, snapshot/dump e resiliência (check quebrado
+nunca derruba). **API REST integrada** (`APIConfig.health`): /health responde
+o agregado do monitor com uptime_s; sem monitor, legado preservado. Launcher
+com `build_health()` (orchestrator/llm críticos + audit/metrics
+não-críticos). Suíte **1315 passed, 0 falhas**. Fase 7 com 3/5 —
+**35/37** capacidades.
+
 ---
 
 ## 10. Métricas de Progressão
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 34/37 | 37/37 |
-| Testes totais | 1298 | ~1400 |
+| Capacidades implementadas | 35/37 | 37/37 |
+| Testes totais | 1315 | ~1450 |
 | Módulos core | 10 | ~15 |
 | Ferramentas (tools) | 7 | ~20 |
 | Módulos memory | 5 | 5 |

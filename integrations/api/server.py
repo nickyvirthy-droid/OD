@@ -100,6 +100,10 @@ class APIConfig:
                         presente, o GET /metrics renderiza o coletor
                         (que inclui os contadores od_api_* e fontes
                         externas). Ausente = comportamento legado inline.
+        health:         HealthMonitor opcional (Fase 7.3): quando presente,
+                        o GET /health responde o agregado do monitor
+                        (up/degraded/down + checks por componente).
+                        Ausente = comportamento legado.
     """
 
     host: str = "127.0.0.1"
@@ -114,6 +118,7 @@ class APIConfig:
     stt: Optional[Callable[[bytes], Optional[str]]] = None
     tts: Optional[Callable[[str], Optional[bytes]]] = None
     metrics: Optional[Any] = None
+    health: Optional[Any] = None
 
 
 # ---------------------------------------------------------------------------
@@ -681,6 +686,23 @@ class APIHandler(BaseHTTPRequestHandler):
         )
 
     def health(self) -> None:
+        monitor = self.api.config.health
+        if monitor is not None:
+            # Fase 7.3: /health responde o agregado do HealthMonitor
+            import asyncio
+
+            try:
+                result = asyncio.run(monitor.health())
+            except RuntimeError:  # pragma: no cover — loop ativo
+                result = {
+                    "ok": False,
+                    "status": "down",
+                    "checks": {},
+                    "detail": "health indisponível em contexto async",
+                }
+            result["uptime_s"] = int(time.time() - self.api.started_at)
+            self._json(200, result)
+            return
         orch = self.api.orchestrator
         llms = self._provider_names()
         ok = orch is not None

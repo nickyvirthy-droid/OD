@@ -9,6 +9,45 @@
 
 ---
 
+## [0.24.0] — Fase 7, item 7.3: Health Check 🩺 (2026-09-04)
+
+### 1. O que foi feito
+
+**Fase 7 com 3/5 itens.** Verificação de status dos componentes em
+`observability/health.py` (stdlib puro):
+
+| Camada | Entrega |
+|---|---|
+| **`ComponentHealth`** | resultado tipado por componente (ok, status up/degraded/down, detail, latency_ms, critical) |
+| **`HealthMonitor`** | checks registráveis sync/async, severidade por check (crítico → down, não-crítico → degraded), latência, métricas, snapshot/dump, check quebrado resiliente |
+| **API REST** | `APIConfig.health`: /health responde o agregado do monitor (com uptime_s); sem monitor, legado preservado |
+| **Launcher** | `build_health()` — orchestrator/llm críticos + audit/metrics não-críticos |
+
+### 2. Evidência
+
+```
+pytest tests/test_health.py -q    → 17 passed
+pytest tests/ -q                  → 1315 passed, 0 falhas (1298 + 17)
+Smoke ao vivo                     → agregado com 4 checks (orchestrator/llm/
+                                    audit/metrics) + latência por check
+```
+
+### 3. O que NÃO foi feito
+
+- Fase 7 com 2/5 em aberto: 7.4 Plugin System, 7.5 Database Layer
+- Health checks de serviços externos (HA, MQTT, mosquitto) não registrados
+  no launcher — ficam para a 7.5/evolução (os componentes já existem)
+- Push no GitHub: pendente até o fechamento da Fase 7 (autorizado pelo
+  Alex — commits locais: v0.22.0 `3ed11c1`, v0.23.0 `4cbf1b7`)
+
+### 4. Próximo passo
+
+- **Fase 7, item 7.4 — Plugin System** (`plugins/`): carregamento dinâmico
+  de plugins sobre o Tool Loader + Action Registry (item mais pesado da
+  fase — Alto)
+
+---
+
 ## [0.23.0] — Fase 7, item 7.2: Metrics Collector 📊 (2026-09-04)
 
 ### 1. O que foi feito

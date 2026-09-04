@@ -4,6 +4,45 @@
 
 ---
 
+## [0.24.0] — 2026-09-04
+
+### Adicionado
+
+#### Observabilidade — Health Check (`observability/health.py`) — Fase 7, item 7.3 ✅
+
+**FASE 7 — 3/5 itens.** Verificação de status dos componentes do
+OmegaDrakon em módulo dedicado, 100% stdlib:
+
+- **`ComponentHealth`** — resultado tipado por componente (name, ok,
+  status up/degraded/down, detail, latency_ms, critical) com `to_dict()`
+- **`HealthMonitor`** — checks registráveis por componente (`register`/`unregister`,
+  sync OU async — inspeção de awaitable, padrão do ProactiveNotifier):
+  - **Agregação em 3 níveis**: check **crítico** falho → status geral `down`;
+    não-crítico falho → `degraded`; todos ok → `up`
+  - `check(name)` individual · `health()` agregado (ok/status/checks/ts) ·
+    métricas (runs, checks_run, ok/failed, errors, avg_latency_ms com
+    relógio injetável) · `snapshot()`/`dump()` · thread-safe
+  - **Resiliência**: check que levanta exceção vira falha do componente
+    (detail "check quebrado"), nunca derruba o monitor
+- **API REST integrada** — `APIConfig.health` (opcional): quando presente,
+  o GET /health responde o agregado do monitor (inclui `uptime_s`); sem
+  monitor, o comportamento legado (orchestrator/llms) é preservado
+- **Launcher** — `build_health(orchestrator, audit, metrics)` com 4 checks:
+  `orchestrator` e `llm` **críticos** (derrubam para down), `audit` e
+  `metrics` não-críticos (degradam); o monitor é passado à API em todos os
+  modos (`api`/`all`)
+
+### Infraestrutura
+
+- `tests/test_health.py` — 17 testes: ComponentHealth (defaults/to_dict),
+  HealthMonitor (registro, check individual, agregação up/degraded/down,
+  ComponentHealth direto, check async, check quebrado resiliente, latência,
+  unregister, snapshot/dump) e integração API (agregado no /health, status
+  down propagado, retrocompatibilidade sem monitor)
+- Suíte completa: **1315 passed, 0 falhas** (1298 + 17)
+
+---
+
 ## [0.23.0] — 2026-09-04
 
 ### Adicionado
