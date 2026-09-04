@@ -96,6 +96,10 @@ class APIConfig:
         max_body_bytes: Limite de corpo em POSTs (413 acima disso).
         stt:            Handler plugável de transcrição (bytes) -> texto.
         tts:            Handler plugável de síntese (texto) -> áudio bytes.
+        metrics:        MetricsCollector opcional (Fase 7.2): quando
+                        presente, o GET /metrics renderiza o coletor
+                        (que inclui os contadores od_api_* e fontes
+                        externas). Ausente = comportamento legado inline.
     """
 
     host: str = "127.0.0.1"
@@ -109,6 +113,7 @@ class APIConfig:
     max_body_bytes: int = 256_000
     stt: Optional[Callable[[bytes], Optional[str]]] = None
     tts: Optional[Callable[[str], Optional[bytes]]] = None
+    metrics: Optional[Any] = None
 
 
 # ---------------------------------------------------------------------------
@@ -369,6 +374,18 @@ class APIServer(ThreadingHTTPServer):
         self.errors_total = 0
         self._lock = threading.Lock()
         self._rate_buckets: dict[str, list[float]] = {}
+        # Fase 7.2: contadores espelhados no MetricsCollector (quando presente)
+        self._m_requests = None
+        self._m_errors = None
+        if self.config.metrics is not None:
+            self._m_requests = self.config.metrics.counter(
+                "od_api_requests_total",
+                "Requisições recebidas pela API REST.",
+            )
+            self._m_errors = self.config.metrics.counter(
+                "od_api_errors_total",
+                "Erros respondidos pela API REST.",
+            )
         super().__init__((self.config.host, self.config.port), APIHandler)
 
     # -- Métricas internas ---------------------------------------------------
@@ -385,10 +402,14 @@ class APIServer(ThreadingHTTPServer):
     def count_request(self) -> None:
         with self._lock:
             self.requests_total += 1
+        if self._m_requests is not None:
+            self._m_requests.inc()
 
     def count_error(self) -> None:
         with self._lock:
             self.errors_total += 1
+        if self._m_errors is not None:
+            self._m_errors.inc()
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
@@ -729,6 +750,10 @@ class APIHandler(BaseHTTPRequestHandler):
         self._html(200, _CHAT_PAGE_HTML)
 
     def metrics_text(self) -> None:
+        if self.api.config.metrics is not None:
+            # Fase 7.2: /metrics renderiza o MetricsCollector (fontes + api)
+            self._text(200, self.api.config.metrics.render())
+            return
         orch = self.api.orchestrator
         lines = [
             "# TYPE od_uptime_seconds gauge",

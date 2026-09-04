@@ -4,6 +4,62 @@
 
 ---
 
+## [0.23.0] — 2026-09-04
+
+### Adicionado
+
+#### Observabilidade — Metrics Collector (`observability/metrics.py`) — Fase 7, item 7.2 ✅
+
+**FASE 7 — 2/5 itens.** Coletor central de métricas operacionais com
+exposição no **Prometheus text exposition format**, 100% stdlib (sem
+prometheus_client — mesma linha das demais integrações):
+
+- **`Metric`** — métrica tipada counter/gauge com **labels** (`inc`/`dec`/
+  `set`/`value`), validação rígida de labels (faltando/extra → ValueError),
+  valores isolados por combinação de labels, `snapshot()` e `sample_lines()`
+  com escape correto de valores de label (`\`, `"`, `\n`)
+- **`MetricsCollector`** — registro central:
+  - `counter()`/`gauge()` com **registro idempotente por nome** (mesmo tipo
+    devolve a métrica existente; tipo diferente → ValueError) e validação de
+    nomes Prometheus (`od_*`); `get()`
+  - **Fontes vivas (`add_source`)** — componentes externos contribuem
+    linhas completas no `render()` sem registrar métrica por métrica
+    (uptime, Orchestrator, Audit); fonte quebrada NUNCA quebra o render
+    (contador `errors` + WARN)
+  - `render()`/`text()` — `# HELP` + `# TYPE` + amostras + fontes, ordem
+    determinística de registro · `snapshot()` · `health()` · `dump()`
+    · thread-safe
+- **API REST integrada** — `APIConfig.metrics` (opcional): quando presente,
+  o servidor registra `od_api_requests_total`/`od_api_errors_total` no
+  coletor (`count_request`/`count_error`) e o **GET /metrics renderiza o
+  coletor** (que inclui as fontes do launcher); sem coletor, o
+  comportamento inline legado é preservado (retrocompatível — testes
+  antigos intactos)
+- **Launcher** — `build_metrics(orchestrator, audit)` com fontes vivas de
+  uptime, Orchestrator (od_processed/llm/fallback/cache/quick/datetime/
+  rate_limited/errors) e Audit (od_audit_total/persisted/allowed/denied/
+  failed/errors); o coletor é passado à API em todos os modos
+  (`api`/`all`)
+
+### Infraestrutura
+
+- **Correção de teste pré-existente** (`tests/test_config_manager.py`):
+  `test_init_without_yaml` assumia ambiente sem vars `OD_*` — o servidor
+  define 5 (API key, admins, vision...). Teste agora isola o ambiente
+  (monkeypatch `OD_*`) — hermético em qualquer máquina. Alinha a suíte com
+  o §8 (nenhuma fase é promovida com testes vermelhos)
+- `tests/test_metrics.py` — 24 testes: Metric (counter/gauge, labels,
+  valores, amostras com escape), MetricsCollector (registro idempotente,
+  conflito de tipo, nomes inválidos, render Prometheus, fontes vivas,
+  resiliência, snapshot/health/dump) e integração API (GET /metrics
+  renderiza o coletor com od_api_*, contagem de requests e erros,
+  retrocompatibilidade sem coletor, fonte externa no mesmo render)
+- Suíte completa: **1298 passed, 0 falhas** (1274 + 24) — primeira suíte
+  100% verde desde a ativação (a falha ambiental pré-existente foi
+  corrigida)
+
+---
+
 ## [0.22.0] — 2026-09-04
 
 ### Adicionado

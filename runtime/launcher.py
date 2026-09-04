@@ -54,6 +54,7 @@ import os
 import pathlib
 import sys
 import threading
+import time
 from typing import Any, Optional
 
 from core.logger import get_logger
@@ -150,7 +151,7 @@ def build_orchestrator() -> Any:
     return orchestrator
 
 
-def build_api_server(orchestrator: Any):
+def build_api_server(orchestrator: Any, metrics: Any = None):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
 
@@ -165,9 +166,61 @@ def build_api_server(orchestrator: Any):
             port=port,
             api_key=api_key,
             auth_all=env("OD_API_AUTH_ALL", "1") != "0",
+            metrics=metrics,  # Fase 7.2: /metrics renderiza o coletor
         ),
     )
     return server
+
+
+def build_metrics(orchestrator: Any = None, audit: Any = None) -> Any:
+    """Metrics Collector real (Fase 7.2): fontes vivas do od-core.
+
+    Uptime, Orchestrator e Audit System expõem seus snapshots via sources;
+    a API REST adiciona os contadores od_api_* (config.metrics).
+    """
+    from observability.metrics import MetricsCollector
+
+    collector = MetricsCollector()
+    started = time.time()
+
+    def _uptime_source() -> list[str]:
+        return [f"od_uptime_seconds {int(time.time() - started)}"]
+
+    def _orchestrator_source() -> list[str]:
+        if orchestrator is None:
+            return []
+        m = orchestrator.metrics.snapshot()
+        lines = [
+            "# TYPE od_processed_total counter",
+            f"od_processed_total {m['processed']}",
+            f"od_llm_total {m['llm']}",
+            f"od_fallback_total {m['fallback']}",
+            f"od_cache_hits_total {m['cache_hits']}",
+            f"od_quick_total {m['quick']}",
+            f"od_datetime_total {m['datetime']}",
+            f"od_rate_limited_total {m['rate_limited']}",
+            f"od_errors_total {m['errors']}",
+        ]
+        return lines
+
+    def _audit_source() -> list[str]:
+        if audit is None:
+            return []
+        m = audit.metrics.snapshot()
+        return [
+            "# TYPE od_audit_total counter",
+            f"od_audit_total {m['total']}",
+            f"od_audit_persisted_total {m['persisted']}",
+            f"od_audit_allowed_total {m['allowed']}",
+            f"od_audit_denied_total {m['denied']}",
+            f"od_audit_failed_total {m['failed']}",
+            f"od_audit_errors_total {m['errors']}",
+        ]
+
+    collector.add_source(_uptime_source)
+    collector.add_source(_orchestrator_source)
+    collector.add_source(_audit_source)
+    return collector
 
 
 def build_telegram_bot(orchestrator: Any):
@@ -309,8 +362,8 @@ def build_mqtt_bridge(event_bus: Any):
     return bridge
 
 
-async def _run_api_forever(orchestrator: Any) -> None:
-    server = build_api_server(orchestrator)
+async def _run_api_forever(orchestrator: Any, metrics: Any = None) -> None:
+    server = build_api_server(orchestrator, metrics=metrics)
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
     try:
@@ -429,6 +482,11 @@ def main() -> int:
         "Audit System ativo",
         file=str(audit.file_path) if audit.file_path else "(memória)",
     )
+    metrics = build_metrics(orchestrator=orchestrator, audit=audit)
+    log.info(
+        "Metrics Collector ativo",
+        sources=metrics.health()["sources"],
+    )
     mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
     presence_enabled = env("OD_PRESENCE_ENABLED", "1") != "0"
     presence_monitor = build_presence_monitor() if presence_enabled else None
@@ -440,7 +498,7 @@ def main() -> int:
         from core.event_bus import EventBus
 
         tasks = [
-            _run_api_forever(orchestrator),
+            _run_api_forever(orchestrator, metrics),
             _run_telegram_forever(orchestrator),
         ]
         if mqtt_enabled:
@@ -457,7 +515,7 @@ def main() -> int:
         await asyncio.gather(*tasks)
 
     if mode == "api":
-        asyncio.run(_run_api_forever(orchestrator))
+        asyncio.run(_run_api_forever(orchestrator, metrics))
     elif mode == "telegram":
         asyncio.run(_run_telegram_forever(orchestrator))
     elif mode == "mqtt":

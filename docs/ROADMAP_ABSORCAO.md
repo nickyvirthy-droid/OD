@@ -56,7 +56,8 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | **LLM Provider** | `core/llm.py` | 17 ✅ |
 | Agent Nicky | `agents/nicky_virthy/` | 10 ✅ |
 | **Audit System** | `observability/audit.py` | 36 ✅ |
-| **Total** | **28 componentes** | **1272 testes** |
+| **Metrics Collector** | `observability/metrics.py` | 24 ✅ |
+| **Total** | **29 componentes** | **1298 testes** |
 
 ---
 
@@ -217,7 +218,7 @@ Este roadmap define a ordem de implementação das capacidades legadas no OmegaD
 | # | Capacidade | Origem | Destino | Esforço | Dependências |
 |---|---|---|---|---|---|
 | 7.1 | **Audit System** | Nexus `src/auditor.py` | `observability/audit.py` ✅ | Médio | Logger |
-| 7.2 | **Metrics Collector** | Nicky `/metrics` | `observability/metrics.py` | Médio | Logger |
+| 7.2 | **Metrics Collector** | Nicky `/metrics` | `observability/metrics.py` ✅ | Médio | Logger |
 | 7.3 | **Health Check** | NV `observability/health/` | `observability/health.py` | Baixo | Config |
 | 7.4 | **Plugin System** | NV `plugins/` | `plugins/` | Alto | Loader, Registry |
 | 7.5 | **Database Layer** | NV `core/database/` | `storage/database.py` | Médio | Config |
@@ -423,7 +424,7 @@ FASE 7 (Infraestrutura) ←── paralela
 
 ### Fase 7 — Infraestrutura
 - [x] Audit System registra todas as decisões de segurança (v0.22.0)
-- [ ] Metrics Collector expõe Prometheus metrics
+- [x] Metrics Collector expõe Prometheus metrics (v0.23.0)
 - [ ] Health Check verifica status de componentes
 - [ ] Plugin System carrega e registra plugins
 - [ ] Database Layer gerencia conexões e repositórios
@@ -586,14 +587,27 @@ by_action/counts), métricas, `health()`, sink resiliente (nunca quebra a
 trilha) e launcher com `OD_AUDIT_FILE` (evento system.startup). Fase 7
 iniciada (1/5 itens) — **33/37** capacidades do roadmap.
 
+✅ Concluído: **Fase 7, item 7.2 — Metrics Collector** (`observability/metrics.py`,
+24 testes novos, total **1298**). Coletor central de métricas em stdlib com
+exposição no Prometheus text format: `Metric` counter/gauge com labels e
+validação rígida, `MetricsCollector` com registro idempotente por nome,
+**fontes vivas** (uptime, Orchestrator, Audit contribuem linhas no render;
+fonte quebrada nunca derruba), `render()`/`snapshot()`/`health()`/`dump()`
+thread-safe. **API REST integrada** (`APIConfig.metrics`): /metrics renderiza
+o coletor com `od_api_requests_total`/`od_api_errors_total`; sem coletor,
+comportamento legado preservado. Launcher com `build_metrics()` em todos os
+modos. Suíte **1298 passed, 0 falhas** — primeira 100% verde (falha
+ambiental pré-existente do ConfigManager corrigida). Fase 7 com 2/5 —
+**34/37** capacidades.
+
 ---
 
 ## 10. Métricas de Progressão
 
 | Métrica | Atual | Meta Final |
 |---|---|---|
-| Capacidades implementadas | 33/37 | 37/37 |
-| Testes totais | 1272 | ~1300 |
+| Capacidades implementadas | 34/37 | 37/37 |
+| Testes totais | 1298 | ~1400 |
 | Módulos core | 10 | ~15 |
 | Ferramentas (tools) | 7 | ~20 |
 | Módulos memory | 5 | 5 |

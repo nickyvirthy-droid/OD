@@ -86,7 +86,11 @@ class TestConfigEntry:
 class TestInitialization:
     """Testes para inicialização do ConfigManager."""
     
-    def test_init_without_yaml(self) -> None:
+    def test_init_without_yaml(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Ambiente do servidor define vars OD_* — isola o teste delas
+        for key in list(os.environ):
+            if key.startswith("OD_"):
+                monkeypatch.delenv(key, raising=False)
         manager = ConfigManager(validate=False)
         assert manager is not None
         assert len(manager.keys()) == 0

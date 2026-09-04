@@ -9,6 +9,46 @@
 
 ---
 
+## [0.23.0] — Fase 7, item 7.2: Metrics Collector 📊 (2026-09-04)
+
+### 1. O que foi feito
+
+**Fase 7 com 2/5 itens.** Coletor central de métricas em `observability/`
+com exposição no **Prometheus text format** (stdlib puro):
+
+| Camada | Entrega |
+|---|---|
+| **`Metric`** | counter/gauge com labels, `inc`/`dec`/`set`/`value`, validação rígida de labels, amostras com escape correto |
+| **`MetricsCollector`** | registro idempotente por nome, fontes vivas (`add_source`), `render()` com HELP/TYPE + amostras, `snapshot()`/`health()`/`dump()`, thread-safe |
+| **API REST** | `APIConfig.metrics`: /metrics renderiza o coletor com `od_api_requests_total`/`od_api_errors_total`; sem coletor, legado preservado |
+| **Launcher** | `build_metrics()` — fontes vivas de uptime, Orchestrator e Audit em todos os modos |
+
+### 2. Evidência
+
+```
+pytest tests/test_metrics.py -q    → 24 passed
+pytest tests/ -q                   → 1298 passed, 0 falhas (1274 + 24)
+Suíte 100% verde                   → falha ambiental pré-existente do
+                                     ConfigManager corrigida (teste hermético)
+```
+
+### 3. O que NÃO foi feito
+
+- Fase 7 com 3/5 em aberto: 7.3 Health Check, 7.4 Plugin System,
+  7.5 Database Layer
+- Histogramas/summary Prometheus (distribuições) não implementados — só
+  counter e gauge, suficientes para as métricas atuais
+- Push no GitHub pendente: §2.1.2 exige publicar ao fim da FASE; itens 7.1
+  e 7.2 estão commitados localmente (v0.22.0 `3ed11c1` + v0.23.0 pendente)
+
+### 4. Próximo passo
+
+- **Fase 7, item 7.3 — Health Check** (`observability/health.py`): health
+  checks por componente, consolidando `/health` da API e `health()` dos
+  componentes num módulo dedicado
+
+---
+
 ## [0.22.0] — Fase 7, item 7.1: Audit System 🛡️ (2026-09-04)
 
 ### 1. O que foi feito

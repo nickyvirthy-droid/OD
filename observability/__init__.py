@@ -3,13 +3,16 @@ OMEGA DRAKON • OBSERVABILITY
 Tecnologia que respira.
 Pacote: observability/
 Descrição: Infraestrutura e observabilidade (Fase 7) — Audit System (7.1)
-           com trilha persistente JSONL das decisões do sistema (spec §7.3).
+           com trilha persistente JSONL e Metrics Collector (7.2) com
+           exposição Prometheus text format.
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 
 Módulos:
   - audit.py → AuditSystem (trilha persistente + sink de decisões de
                segurança + Event Bus + métricas/health)
+  - metrics.py → MetricsCollector (Counter/Gauge com labels + sources +
+                 exposição Prometheus text format)
 """
 
 from observability.audit import (
@@ -28,9 +31,17 @@ from observability.audit import (
     AuditMetrics,
     AuditSystem,
 )
+from observability.metrics import (
+    TYPE_COUNTER,
+    TYPE_GAUGE,
+    Metric,
+    MetricSource,
+    MetricsCollector,
+)
 
 __signature__ = "OD // CORE"
 __all__ = [
+    # Audit System (7.1)
     "AuditSystem",
     "AuditEntry",
     "AuditMetrics",
@@ -45,4 +56,10 @@ __all__ = [
     "DEFAULT_MAX_BYTES",
     "DEFAULT_KEEP",
     "DEFAULT_MAX_IN_MEMORY",
+    # Metrics Collector (7.2)
+    "MetricsCollector",
+    "Metric",
+    "MetricSource",
+    "TYPE_COUNTER",
+    "TYPE_GAUGE",
 ]
