@@ -40,7 +40,7 @@ from typing import Any, Optional
 __signature__ = "OD // CORE"
 
 # Versão atual do sistema (usada pelo manifesto e pela API /info).
-OD_VERSION = "0.27.5"
+OD_VERSION = "0.28.0"
 
 # Status válidos.
 ACTIVE = "active"

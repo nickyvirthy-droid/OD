@@ -203,10 +203,13 @@ def build_database() -> Any:
     dsn = env("OD_DB_URL", "")
     if dsn:
         db = Database(pool_size=5, dsn=dsn)
+        display = _mask_dsn(dsn)
     else:
         db = Database(REPO_ROOT / "data" / "od.db", pool_size=5)
+        display = db.path
     configure_database(db)
-    log.info("Database Layer ativo", backend=db.backend, path=db.path)
+    # path no log SEM credenciais (senha nunca vai para journald/syslog)
+    log.info("Database Layer ativo", backend=db.backend, path=display)
     return db
 
 
@@ -697,8 +700,14 @@ async def _send_presence_welcome(sink: Any) -> None:
         log.warn("Aviso de ativação não enviado", error=str(exc))
 
 
-async def _run_vision_forever(detector: Any) -> None:
-    """Loop do Face Detector (webcam) com notificação de presença."""
+async def _run_vision_forever(event_bus: Any, detector: Any) -> None:
+    """Loop do Face Detector (webcam) com notificação de presença.
+
+    Usa o MESMO Event Bus do núcleo (barramento único — presença/MQTT/
+    visão compartilham o bus). Correção v0.28.1: a chamada passava 2 args
+    e a assinatura aceitava 1 — crash no startup do modo all quando a
+    webcam está habilitada (OD_VISION_ENABLED=1).
+    """
     sink = build_telegram_sink()
     notified = False
 
@@ -713,10 +722,8 @@ async def _run_vision_forever(detector: Any) -> None:
             )
             notified = True
 
-    from core.event_bus import EventBus
     from tools.vision import FACE_TOPIC
 
-    event_bus = EventBus()
     event_bus.subscribe_handler(FACE_TOPIC, on_change)
     detector.event_bus = event_bus
     log.info("Face Detector iniciando captura da webcam...")
@@ -736,6 +743,27 @@ async def _run_presence_forever(monitor: Any) -> None:
         await _send_presence_welcome(sink)
     log.info("Presence Monitor iniciando poll no HA...")
     await monitor.run()
+
+
+def _mask_dsn(dsn: str) -> str:
+    """Mascara a senha de um DSN para logs (nunca expor credencial)."""
+    try:
+        import urllib.parse
+
+        parsed = urllib.parse.urlparse(dsn)
+        host = parsed.hostname or ""
+        port = parsed.port or ""
+        db = (parsed.path or "/").lstrip("/")
+        user = urllib.parse.unquote(parsed.username or "")
+        auth = f"{user}@" if user else ""
+        return f"postgres://{auth}{host}:{port}/{db}"
+    except Exception:  # pragma: no cover — fallback genérico
+        return "postgres://<dsn>"
+
+
+def _build_event_bus() -> EventBus:
+    """Cria o EventBus único usado em todos os modos (exceto modo dedicado)."""
+    return EventBus()
 
 
 def main() -> int:
@@ -846,7 +874,7 @@ def main() -> int:
         if detector is None:
             print("vision indisponível — OpenCV ou webcam ausente")
             return 2
-        asyncio.run(_run_vision_forever(event_bus, detector))
+        asyncio.run(_run_vision_forever(_build_event_bus(), detector))
     elif mode == "all":
         asyncio.run(_all())
     else:
@@ -860,8 +888,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
-def _build_event_bus() -> EventBus:
-    """Cria o EventBus único usado em todos os modos (exceto modo dedicado)."""
-    return EventBus()
