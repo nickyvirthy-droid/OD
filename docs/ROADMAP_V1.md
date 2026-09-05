@@ -41,10 +41,17 @@ não existe como perfil. A v1.0.0 nasce corrigindo isso.
 | 1.3 | **7º perfil: `nexus` (Conector)** | Lacuna da Plêiade (pleiade.yaml) | Novo perfil em `agents/profiles.py`: o equilíbrio que une a plêiade — domínio de **integração/coordenação** entre os perfis; detecção automática (domínio "conexão", "integração", "plêiade") |
 | 1.4 | **Health checks externos** | Pendência v0.24.0 | Registra no Health Monitor os checks não-críticos de **HA** e **MQTT/Mosquitto** (hoje só os internos) |
 | 1.5 | **Control Bridge no repo** | Pendência P1 (auditoria) | Testes do bridge (`tests/test_control_bridge.py`) + unit systemd versionada em `runtime/systemd/` |
+| 1.6 | **Systemd service `od-core`** | Análise do servidor (2026-09-05) | Service unit para o launcher `all` — sobe automaticamente no boot, restart on-failure, user `odrunner` com sandboxing |
+| 1.7 | **SWAP 4 GB** | Análise do servidor (2026-09-05) | Criar swap file (`/swapfile`) — o LLM local consome 4.8 GB de 7.7 GB RAM, sem swap o OOM killer derruba processos |
+| 1.8 | **UFW Firewall** | Análise do servidor (2026-09-05) | Configurar UFW: permitir 22 (SSH), 8000 (OD API), 8123 (HA); bloquear o resto; Tailscale já fornece acesso externo seguro |
+| 1.9 | **Variáveis de ambiente ausentes** | Análise do servidor (2026-09-05) | Configurar no `.env`: `OD_PRESENCE_ENABLED`, `OD_PRESENCE_POLL_S`, `OD_HA_CREDENTIALS`, `OD_RECOVERY_INTERVAL_S`, `OD_SELF_REPAIR_ENABLED`, `OD_NOTIFIER_ENABLED` |
+| 1.10 | **Montar disco sdb1** | Análise do servidor (2026-09-05) | Montar `/dev/sdb1` (Seagate 1 TB não montado) + configurar automount via `/etc/fstab` — +1 TB disponível para backups e dados |
 
 **Critérios de aceite:** CI verde no GitHub (push + PR) · cobertura ≥ 90% ·
 suíte local ≥ 1453 · perfil `nexus` selecionável e detectável · migração de
-dados sem perda · `/health` com 7 checks (5 internos + HA + MQTT).
+dados sem perda · `/health` com 7 checks (5 internos + HA + MQTT) ·
+od-core como systemd service · SWAP 4 GB ativo · UFW ativo ·
+todas as variáveis de ambiente configuradas.
 
 ---
 
@@ -134,7 +141,8 @@ vivo · 57 actions executáveis.
 
 - `~/nexus/config/pleiade.yaml` — as 7 entidades da Plêiade (fonte da lacuna)
 - `docs/ROADMAP_ABSORCAO.md` — Fases 1–7 (37/37 absorvidas, série 0.x)
-- `docs/README_VERSAO.md` [0.28.2] — congelamento da série 0.x
+- `docs/README_VERSAO.md` [0.28.4] — análise do servidor + atualização do roadmap
+- `docs/SERVER_ANALYSIS.md` — análise completa do servidor nicky-server (2026-09-05)
 - Gravity Index — Tailscale (VPN mesh) para acesso externo seguro
 - `agents/profiles.py` — perfis atuais (6 + auto)
 

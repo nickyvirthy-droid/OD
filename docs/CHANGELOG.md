@@ -4,6 +4,42 @@
 
 ---
 
+## [0.28.4] — 2026-09-05
+
+### Adicionado
+
+#### Análise completa do servidor nicky-server 🖥️
+
+- **`docs/SERVER_ANALYSIS.md`** — mapeamento completo do servidor para
+  habilitar controle total do OD na v1.x:
+  - **Hardware**: i5-6500, 7.7 GB RAM, 232 GB SSD + 2x Seagate 1 TB
+    (1 montado, 1 parado), câmera USB 1080P, áudio, 2x Wi-Fi USB
+  - **Rede**: IP LAN 192.168.0.250, Tailscale 100.77.67.53 (7 dispositivos)
+  - **Portas**: 22 (SSH), 1883 (MQTT), 5432 (PostgreSQL), 8000 (OD API),
+    8081 (LLM), 8123 (HA)
+  - **Docker**: Home Assistant (ativo), Mosquitto/MariaDB (legados parados)
+  - **LLM**: Gemma 4 (4.9 GB) via llama-server, 4.8 GB RAM (60% do total)
+  - **Voz**: Whisper (binário sem symlink), Piper (2 vozes pt-BR)
+  - **HA**: 7 switches Sonoff, Presence Monitor não configurado
+  - **Segurança**: UFW não configurado, fail2ban não instalado
+  - **Crítico**: od-core sem systemd service (roda como manual)
+
+#### Atualização do Roadmap v1.x com melhorias detectadas 📋
+
+- **`docs/ROADMAP_V1.md`** — v1.0.0 ampliada com 5 novos itens da análise:
+  - **1.6** — Systemd service `od-core` (sobe no boot)
+  - **1.7** — SWAP 4 GB (estabilidade com LLM)
+  - **1.8** — UFW Firewall (proteção de portas)
+  - **1.9** — Variáveis de ambiente ausentes (Presence, Recovery, etc.)
+  - **1.10** — Montar disco sdb1 (+1 TB disponível)
+
+### Verificação
+
+- Mudanças apenas de documentação — suíte inalterada
+  (**1469 collected**), série 0.x permanece congelada na tag `v0.28.1`
+
+---
+
 ## [0.28.3] — 2026-09-04
 
 ### Adicionado

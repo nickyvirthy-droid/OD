@@ -7,6 +7,46 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [0.28.4] — ANÁLISE DO SERVIDOR + ATUALIZAÇÃO DO ROADMAP 🖥️ (2026-09-05)
+
+### 1. O que foi feito
+
+Análise completa do servidor `nicky-server` para mapear tudo que existe e
+pode ser aproveitado pelo OD na v1.x:
+
+| Item | Entrega |
+|---|---|
+| **`docs/SERVER_ANALYSIS.md`** | Documento de referência completa: hardware, rede, portas, Docker, LLM, voz, HA, segurança, estrutura de diretórios |
+| **`docs/ROADMAP_V1.md`** | v1.0.0 ampliada com 5 novos itens: systemd service, SWAP, UFW, envs ausentes, disco sdb1 |
+
+### 2. Descobertas críticas da análise
+
+| Descoberta | Impacto |
+|---|---|
+| **od-core sem systemd** | Roda como processo manual — não sobe no boot |
+| **Sem SWAP** | LLM consome 4.8 GB de 7.7 GB RAM — OOM killer risco |
+| **UFW não configurado** | Portas 22, 8000, 8123 expostas sem filtro |
+| **Presence Monitor não configurado** | OD + HA não integrados apesar do módulo existir |
+| **Disco sdb1 não montado** | 1 TB Seagate desperdiçado |
+| **Whisper sem symlink** | STT não funciona apesar do binário existir |
+
+### 3. Novos itens no Roadmap v1.0.0
+
+| # | Item |
+|---|---|
+| 1.6 | Systemd service `od-core` (sobe no boot) |
+| 1.7 | SWAP 4 GB (estabilidade com LLM) |
+| 1.8 | UFW Firewall (proteção de portas) |
+| 1.9 | Variáveis de ambiente ausentes (Presence, Recovery, etc.) |
+| 1.10 | Montar disco sdb1 (+1 TB disponível) |
+
+### 4. Evidência
+
+```
+pytest tests/ -q  → 1469 collected (mudanças apenas de documentação)
+git status       → working tree limpo
+```
+
 ---
 
 ## [0.28.2] — CONGELAMENTO DA SÉRIE 0.x ❄️ (2026-09-04)
