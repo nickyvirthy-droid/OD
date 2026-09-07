@@ -70,8 +70,8 @@
       "runtime/control_bridge/README.md"
     ]
   },
-  "topic": "v1.0.0 itens 1.1–1.6 entregues (CI, nexus, health checks, Control Bridge, migracao JSON→DB, systemd od-core)",
-  "status": "completed",
+  "topic": "v1.0.0 COMPLETA — todos os 10 itens entregues",
+  "status": "v1.0.0_completa",
   "research_done": true,
   "session_rule_read_docs": "obrigacao da sessao: ler os arquivos de docs/ para saber do que estamos desenvolvendo",
   "session_rule_read_docs_status": "concluida",
@@ -155,10 +155,10 @@
     }
   ],
   "next": {
-    "action": "proximo item da v1.0.0 (1.7-1.10: SWAP, UFW, env vars, disco sdb1 — exigem acesso ao nicky-server)",
+    "action": "v1.0.0 completa! Proximo foco: v1.1.0 (Tailscale — acesso externo seguro)",
     "open": true,
-    "context": "itens 1.1 (CI), 1.2 (migracao JSON→DB), 1.3 (nexus), 1.4 (health checks), 1.5 (Control Bridge) e 1.6 (systemd od-core) entregues; suite 1582 passed; cobertura 95% (gate 90%); push feito no GitHub"
+    "context": "todos os 10 itens da v1.0.0 entregues (CI, migracao DB, nexus, health checks, Control Bridge, systemd, SWAP, UFW, env vars, sdb1); suite 1594 passed; cobertura 95%; v1.0.0 pronta para release"
   },
-  "notes": "Leu-se: spec, launcher, core, memory, storage, integrations, tools, observability, configs, plugins, agents, docs (OMEGADRAKON_SPEC.md, README_VERSAO.md, CAPACIDADES.md, ACTIONS_CORRESPONDENCIA.md, REGRAS_DE_TRABALHO.md, ROADMAP_ABSORCAO.md, ROADMAP_V1.md, CONTROL_BRIDGE.md, SERVER_ANALYSIS.md, NICKY_LEGACY_ANALYSIS.md, NV_LEGACY_ANALYSIS.md, NEXUS_LEGACY_ANALYSIS.md), knowledge (NICKY_VIRTHY_KNOWLEDGE.md, OMEGA_DRAKON_SOURCE_MAP.md). Migracao JSON→DB concluida (item 1.2): memory/adapters.py (schemas + migrate_all), history.py, cache.py, quick_responses.py, vector.py ganharam param database=None; launcher.py monta Database antes do Orchestrator e injeta nos modulos de memoria. 46 testes novos (test_memory_db.py). 1553 passed, cobertura 95%. Itens 1.1-1.5 + 1.2 da v1.0.0 entregues. Itens 1.6-1.10 dependem de acesso ao nicky-server. Regra de idioma: pt-BR obrigatorio. .env nao lido. OD tests green."
+  "notes": "Leu-se: spec, launcher, core, memory, storage, integrations, tools, observability, configs, plugins, agents, docs (OMEGADRAKON_SPEC.md, README_VERSAO.md, CAPACIDADES.md, ACTIONS_CORRESPONDENCIA.md, REGRAS_DE_TRABALHO.md, ROADMAP_ABSORCAO.md, ROADMAP_V1.md, CONTROL_BRIDGE.md, SERVER_ANALYSIS.md, NICKY_LEGACY_ANALYSIS.md, NV_LEGACY_ANALYSIS.md, NEXUS_LEGACY_ANALYSIS.md), knowledge (NICKY_VIRTHY_KNOWLEDGE.md, OMEGA_DRAKON_SOURCE_MAP.md). Migracao JSON→DB concluida (item 1.2): memory/adapters.py (schemas + migrate_all), history.py, cache.py, quick_responses.py, vector.py ganharam param database=None; launcher.py monta Database antes do Orchestrator e injeta nos modulos de memoria. 46 testes novos (test_memory_db.py). 1553 passed, cobertura 95%. V1.0.0 COMPLETA (todos os 10 itens). SWAP 8GB, UFW ativo (22/8000/8123), .env completo, sdb1 montado (801GB). Regra de idioma: pt-BR obrigatorio. OD tests green. Proxima frente: v1.1.0 (Tailscale)."
 }
 }
