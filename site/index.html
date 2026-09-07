@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmegaDrakon — Tecnologia que Respira 🐉</title>
+    <style>
+        :root {
+            --primary: #1a237e;
+            --primary-light: #3949ab;
+            --accent: #ff6f00;
+            --bg: #0a0a1a;
+            --bg-card: #12122a;
+            --text: #e8e8f0;
+            --text-muted: #8888aa;
+            --border: #2a2a4a;
+            --glow: rgba(26, 35, 126, 0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* --- Hero --- */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            position: relative;
+            background: radial-gradient(ellipse at 50% 0%, var(--glow) 0%, transparent 60%);
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+
+        .dragon-icon {
+            font-size: 6rem;
+            margin-bottom: 1rem;
+            animation: float 3s ease-in-out infinite;
+            position: relative;
+            z-index: 1;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            position: relative;
+            z-index: 1;
+            background: linear-gradient(135deg, #fff 0%, #90caf9 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            font-size: 1.4rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .version {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.3rem 1rem;
+            background: var(--primary-light);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, #e65100 100%);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(255, 111, 0, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(255, 111, 0, 0.5);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary-light);
+            background: var(--primary-light);
+        }
+
+        /* --- Features --- */
+        .features {
+            padding: 5rem 2rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 3rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--primary-light);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px var(--glow);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* --- Screenshots --- */
+        .screenshots {
+            padding: 5rem 2rem;
+            text-align: center;
+            background: linear-gradient(180deg, transparent 0%, var(--bg-card) 50%, transparent 100%);
+        }
+
+        .screenshots h2 {
+            font-size: 2.2rem;
+            margin-bottom: 1rem;
+        }
+
+        .screenshots p {
+            color: var(--text-muted);
+            margin-bottom: 3rem;
+        }
+
+        .phone-grid {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .phone-frame {
+            width: 220px;
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 24px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .phone-frame .screen {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 280px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .phone-frame .screen-icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .phone-frame .screen-title {
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .phone-frame .screen-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* --- Security --- */
+        .security {
+            padding: 5rem 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .security h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 2rem;
+        }
+
+        .security-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .security-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        .security-item .icon { font-size: 1.5rem; }
+        .security-item .label { font-weight: 600; }
+        .security-item .detail { font-size: 0.85rem; color: var(--text-muted); }
+
+        /* --- Download --- */
+        .download {
+            padding: 5rem 2rem;
+            text-align: center;
+            background: radial-gradient(ellipse at 50% 100%, var(--glow) 0%, transparent 60%);
+        }
+
+        .download h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .download p {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .download-card {
+            display: inline-block;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2.5rem 3rem;
+            text-align: center;
+        }
+
+        .download-card .apk-icon { font-size: 4rem; margin-bottom: 1rem; }
+        .download-card .apk-name { font-size: 1.2rem; font-weight: 700; }
+        .download-card .apk-size { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+        .download-card .apk-req { font-size: 0.8rem; color: var(--text-muted); margin-top: 1rem; }
+
+        /* --- Footer --- */
+        footer {
+            padding: 3rem 2rem;
+            text-align: center;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--primary-light);
+            text-decoration: none;
+        }
+
+        footer a:hover { text-decoration: underline; }
+
+        /* --- Responsive --- */
+        @media (max-width: 768px) {
+            h1 { font-size: 2.2rem; }
+            .tagline { font-size: 1.1rem; }
+            .features h2, .screenshots h2, .security h2, .download h2 { font-size: 1.6rem; }
+            .phone-frame { width: 160px; }
+            .phone-frame .screen { min-height: 200px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="dragon-icon">🐉</div>
+    <h1>OmegaDrakon</h1>
+    <p class="tagline">Tecnologia que Respira</p>
+    <span class="version">v1.2.0 — Plataforma Soberana de IA</span>
+    <div class="cta-group">
+        <a href="#download" class="btn btn-primary">📱 Download APK</a>
+        <a href="#features" class="btn btn-secondary">✨ Ver funcionalidades</a>
+    </div>
+</section>
+
+<!-- Features -->
+<section class="features" id="features">
+    <h2>O que o OD faz</h2>
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon">💬</div>
+            <h3>Chat com IA</h3>
+            <p>Converse com 8 perfis de agentes autônomos — cada um com personalidade, domínio e estilo próprios.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3>56 Ações</h3>
+            <p>Execute ações no servidor: informações do sistema, rede, disco, processos e muito mais.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🛡️</div>
+            <h3>Soberano</h3>
+            <p>Roda 100% no seu servidor. Sem nuvem, sem dados enviados para terceiros. Você é o dono.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🧠</div>
+            <h3>Memória</h3>
+            <p>Histórico de conversas, cache de respostas LLM, memória vetorial (RAG) e respostas rápidas.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🔄</div>
+            <h3>Auto-Reparo</h3>
+            <p>Ciclo fechado de percepção e recuperação — o OD detecta e corrige problemas automaticamente.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🏠</div>
+            <h3>IoT</h3>
+            <p>Integração com Home Assistant (presença), MQTT e monitoramento facial via webcam.</p>
+        </div>
+    </div>
+</section>
+
+<!-- Screenshots -->
+<section class="screenshots" id="screens">
+    <h2>4 Telas no App</h2>
+    <p>Interface limpa e rápida, feita com Flutter + Material 3</p>
+    <div class="phone-grid">
+        <div class="phone-frame">
+            <div class="screen">
+                <div class="screen-icon">💬</div>
+                <div class="screen-title">Chat</div>
+                <div class="screen-desc">Converse com a Plêiade</div>
+            </div>
+        </div>
+        <div class="phone-frame">
+            <div class="screen">
+                <div class="screen-icon">⚡</div>
+                <div class="screen-title">Ações</div>
+                <div class="screen-desc">56 ações executáveis</div>
+            </div>
+        </div>
+        <div class="phone-frame">
+            <div class="screen">
+                <div class="screen-icon">📊</div>
+                <div class="screen-title">Status</div>
+                <div class="screen-desc">Health + capabilities</div>
+            </div>
+        </div>
+        <div class="phone-frame">
+            <div class="screen">
+                <div class="screen-icon">⚙️</div>
+                <div class="screen-title">Config</div>
+                <div class="screen-desc">API key + Tailscale</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Security -->
+<section class="security" id="security">
+    <h2>🔒 Segurança em Camadas</h2>
+    <div class="security-grid">
+        <div class="security-item">
+            <span class="icon">🔐</span>
+            <div>
+                <div class="label">VPN WireGuard</div>
+                <div class="detail">Tailscale peer-to-peer</div>
+            </div>
+        </div>
+        <div class="security-item">
+            <span class="icon">🔑</span>
+            <div>
+                <div class="label">X-API-Key</div>
+                <div class="detail">Auth em todos endpoints</div>
+            </div>
+        </div>
+        <div class="security-item">
+            <span class="icon">🧱</span>
+            <div>
+                <div class="label">UFW Firewall</div>
+                <div class="detail">Portas 22/8000/8123</div>
+            </div>
+        </div>
+        <div class="security-item">
+            <span class="icon">🏠</span>
+            <div>
+                <div class="label">Self-hosted</div>
+                <div class="detail">Sem dados na nuvem</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Download -->
+<section class="download" id="download">
+    <h2>Baixe o App</h2>
+    <p>Converse com o OmegaDrakon de qualquer lugar via Tailscale</p>
+    <div class="download-card">
+        <div class="apk-icon">📱</div>
+        <div class="apk-name">OmegaDrakon.apk</div>
+        <div class="apk-size">v1.2.0 • ~15 MB • Android 5.0+</div>
+        <a href="OmegaDrakon.apk" class="btn btn-primary" download>
+            ⬇️ Download APK
+        </a>
+        <div class="apk-req">
+            Requisitos: Tailscale instalado no celular<br>
+            Configure a URL <code>http://100.77.67.53:8000</code> e sua API key
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <p>
+        🐉 OmegaDrakon v1.2.0 — Plataforma Soberana de IA Pessoal<br>
+        Interface Viva: Nicky Virthy • Arquiteto: Alex Projeti<br><br>
+        <a href="https://github.com/nickyvirthy-droid/OD">GitHub</a> •
+        <a href="#features">Funcionalidades</a> •
+        <a href="#download">Download</a>
+    </p>
+</footer>
+
+</body>
+</html>
