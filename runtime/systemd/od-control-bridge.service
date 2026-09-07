@@ -1,0 +1,18 @@
+[Unit]
+Description=Omega Drakon — Control Bridge (execução local allowlist 127.0.0.1:8765)
+After=od-core.service network.target
+Wants=od-core.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/alex/OmegaDrakon
+EnvironmentFile=/home/alex/OmegaDrakon/.env
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python /home/alex/OmegaDrakon/runtime/control_bridge/bridge.py
+Restart=on-failure
+RestartSec=5
+# Ponte de execução mediada: nunca roda como root (a própria bridge se
+# recusa), nunca expõe a rede (bind 127.0.0.1) e audita em
+# /home/alex/OmegaDrakon/logs/control_bridge.jsonl.
+
+[Install]
+WantedBy=default.target

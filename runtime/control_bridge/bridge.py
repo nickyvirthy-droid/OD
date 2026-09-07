@@ -97,6 +97,7 @@ def reject_path_escape(text: str) -> None:
         "/home/alex/nexus",
         "/home/alex/NV",
         "/home/alex/Legado",
+        "/opt/omegadrakon",
         "/etc",
         "/root",
         "/boot",
