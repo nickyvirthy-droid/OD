@@ -63,29 +63,26 @@ detectável por domínio).
 
 ---
 
-## 2. v1.1.0 — Acesso Externo Seguro 🔐
+## 2. v1.1.0 — Acesso Externo Seguro 🔐 ✅
 
 > Objetivo: acessar o OD de qualquer lugar **sem abrir portas públicas**.
-> Pesquisa (Gravity Index): **Tailscale** recomendado; Cloudflare Tunnel é a
-> alternativa.
 
-### 2.1 Recomendação: Tailscale (VPN mesh, WireGuard)
+### 2.1 Tailscale (VPN mesh, WireGuard) — ENTREGUE
 
 | Aspecto | Detalhe |
 |---|---|
-| **Por quê** | Zero-config, NAT traversal automático (sem port forwarding), **free tier generoso p/ uso pessoal**, clientes Linux + Android |
-| **Modelo** | Servidor entra no seu tailnet privado; o celular entra no MESMO tailnet → acessa `http://<ip-tailscale>:8000` como se estivesse na LAN |
-| **Segurança em camadas** | VPN (criptografia WireGuard) **+** o OD já exige `X-API-Key` em todos os endpoints (`auth_all`) **+** nada exposto à internet |
-| **Alternativa** | Cloudflare Tunnel — URLs públicas com domínio custom + Zero Trust, porém mais setup (DNS) e não exige app VPN no celular |
+| **IP Tailscale** | `100.77.67.53` |
+| **Tailnet** | `nickyvirthy` |
+| **Versão** | 1.102.2 |
+| **Interface** | `tailscale0` |
 
-**Passos (v1.1.0):**
-1. Instalar Tailscale no servidor (`curl -fsSL https://tailscale.com/install.sh | sh` + `tailscale up` com auth key)
-2. Instalar o app Tailscale no celular Android e entrar no mesmo tailnet
-3. Validar `https://<ip-tailscale>:8000` com `X-API-Key` de fora da LAN
-4. **Opcional:** proxy HTTPS local (Caddy) na frente da API para o app usar `https` + cert local
+**Acesso:** `http://100.77.67.53:8000` (exige `X-API-Key`)
 
-**Critérios de aceite:** acesso do celular (fora da LAN) à API com chave ·
-0 portas abertas no roteador · journal sem exposição de segredos.
+**Segurança em camadas:** VPN WireGuard + X-API-Key + UFW (22/8000/8123) + sem portas no roteador.
+
+**Documentação:** `docs/TAILSCALE_SETUP.md`
+
+**Critérios de aceite:** ✅ API acessível via Tailscale (100.77.67.53:8000) · ✅ 0 portas abertas no roteador · ✅ journal sem exposição de segredos.
 
 ---
 
