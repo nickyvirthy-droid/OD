@@ -238,6 +238,10 @@ class HealthMonitor:
             )
         latency_ms = (self._clock() - started) * 1000.0
         result.latency_ms = latency_ms
+        # A severidade registrada (critical/não-crítico) é carimbada no
+        # resultado: checks que devolvem dict não carregam o flag e o
+        # ComponentHealth default seria critical=True (v1.0.0 item 1.4).
+        result.critical = critical
         with self._lock:
             self._metrics.checks_run += 1
             if result.ok:

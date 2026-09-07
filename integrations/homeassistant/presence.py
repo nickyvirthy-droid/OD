@@ -176,6 +176,10 @@ class PresenceMonitor:
         # entity_id -> último estado normalizado ("home"/"away")
         self._last: dict[str, str] = self._load_state()
         self._trace: deque[PresenceChange] = deque(maxlen=TRACE_LIMIT)
+        # Alcance do Home Assistant: None até a primeira sondagem, True após
+        # um poll com sucesso, False após falha — alimenta o health check
+        # externo de HA (v1.0.0, item 1.4).
+        self._reachable: Optional[bool] = None
 
     # -- Ciclo de vida -------------------------------------------------------
 
@@ -221,8 +225,11 @@ class PresenceMonitor:
         except Exception as exc:
             with self._lock:
                 self.metrics.errors += 1
+                self._reachable = False
             log.warn("Falha ao ler presença do HA", error=str(exc))
             return []
+        with self._lock:
+            self._reachable = True
         wanted = self._watched_ids()
         changes: list[PresenceChange] = []
         with self._lock:
@@ -328,10 +335,16 @@ class PresenceMonitor:
         present = [
             eid for eid, state in self._last.items() if state == STATE_HOME
         ]
+        with self._lock:
+            reachable = self._reachable
+        # None (nunca sondou) não derruba: otimista até a primeira leitura
+        ok = reachable is not False
         return {
-            "ok": True,
-            "connected": True,
+            "ok": ok,
+            "connected": reachable is True,
+            "reachable": reachable,
             "home_now": sorted(present),
+            "detail": "HA alcançável" if ok else "HA inacessível no último poll",
             "ts": self._clock(),
         }
 
