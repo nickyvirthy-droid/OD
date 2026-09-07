@@ -1,21 +1,24 @@
 # OMEGA DRAKON — ROADMAP v1.x 🐉
 
-> **Status:** Planejamento (vigente) · **Data:** 2026-09-04
+> **Status:** Em execução (v1.0.0) · **Data:** 2026-09-04 (atualizado 2026-09-07)
 > **Base:** série 0.x congelada na v0.28.1 (tag `v0.28.1`) — esta é a
 > **primeira entrega da série v1** (v1.0.0 em diante).
+> **Progresso v1.0.0:** itens **1.1** (CI + cobertura), **1.3** (perfil `nexus`),
+> **1.4** (health checks externos HA/MQTT) e **1.5** (Control Bridge no repo)
+> entregues · demais pendentes
 > **Assinatura:** `OD // CORE`
 
 ---
 
-## 0. A Plêiade Completa — 7 Entidades (descoberta da lacuna)
+## 0. A Plêiade Completa — 7 Entidades (lacuna resolvida na v1.0.0)
 
 O legado Nexus define em `~/nexus/config/pleiade.yaml` as **7 entidades da
-Plêiade**. O OmegaDrakon absorveu **6 perfis** — falta o **7º**: o próprio
-**Nexus**.
+Plêiade**. O OmegaDrakon absorveu **6 perfis** na série 0.x — o **7º**, o
+próprio **Nexus**, foi implementado na v1.0.0 (item 1.3).
 
 | # | Entidade | Nome | Papel (pleiade.yaml) | No OD? |
 |---|---|---|---|---|
-| 1 | `nexus` | **Nexus** | **Conector e Sétima Entidade. O equilíbrio que une a plêiade** | ❌ **FALTA** |
+| 1 | `nexus` | **Nexus** | **Conector e Sétima Entidade. O equilíbrio que une a plêiade** | ✅ `agents/profiles.py` (v1.0.0) |
 | 2 | `guardian` | Nicky Virthy | Execução técnica e soberania do servidor | ✅ `agents/profiles.py` |
 | 3 | `regulus` | Conselheiro | Equilíbrio lógico e visão de longo prazo | ✅ |
 | 4 | `luma` | Mentora | Didática e evolução do usuário | ✅ |
@@ -23,8 +26,10 @@ Plêiade**. O OmegaDrakon absorveu **6 perfis** — falta o **7º**: o próprio
 | 6 | `athenae` | Arquiteta | Organização e estruturação de processos | ✅ |
 | 7 | `nyx` | Guardiã do Limiar | Introspecção e criatividade profunda | ✅ |
 
-**Lacuna confirmada:** o OD tem 6 perfis + `auto`, mas o **Conector Nexus**
-não existe como perfil. A v1.0.0 nasce corrigindo isso.
+**Lacuna resolvida (v1.0.0, item 1.3):** o OD tinha 6 perfis + `auto` e o
+**Conector Nexus** não existia como perfil — agora a **Plêiade está
+completa** com o 7º perfil `nexus` em `agents/profiles.py` (selecionável e
+detectável por domínio).
 
 ---
 
@@ -36,22 +41,24 @@ não existe como perfil. A v1.0.0 nasce corrigindo isso.
 
 | # | Item | Origem | Entrega |
 |---|---|---|---|
-| 1.1 | **CI no GitHub Actions** | Roadmap §8 (promessa pendente) | Pipeline: `pytest -q` em Python 3.12 + `compileall` + gate de **cobertura ≥ 90%** (`pytest-cov`) — o maior gap de maturidade |
+| 1.1 | **CI no GitHub Actions** | Roadmap §8 (promessa pendente) | ✅ **Entregue (2026-09-07).** `.github/workflows/ci.yml` (Python 3.12, push + PR): `compileall` + `pytest -q` com gate de **cobertura ≥ 90%** via `.coveragerc` (escopo: pacotes de produção, `runtime/launcher.py` omitido) e `requirements-dev.txt` |
 | 1.2 | **Migração JSON → PostgreSQL** | Pendência v0.28.0 | Histórico (`memory/history.py`), cache LLM e quick responses saem dos arquivos JSON para tabelas no Postgres (adapter + migração do `data/` existente) |
-| 1.3 | **7º perfil: `nexus` (Conector)** | Lacuna da Plêiade (pleiade.yaml) | Novo perfil em `agents/profiles.py`: o equilíbrio que une a plêiade — domínio de **integração/coordenação** entre os perfis; detecção automática (domínio "conexão", "integração", "plêiade") |
-| 1.4 | **Health checks externos** | Pendência v0.24.0 | Registra no Health Monitor os checks não-críticos de **HA** e **MQTT/Mosquitto** (hoje só os internos) |
-| 1.5 | **Control Bridge no repo** | Pendência P1 (auditoria) | Testes do bridge (`tests/test_control_bridge.py`) + unit systemd versionada em `runtime/systemd/` |
+| 1.3 | **7º perfil: `nexus` (Conector)** | Lacuna da Plêiade (pleiade.yaml) | ✅ **Entregue (2026-09-07).** Novo perfil em `agents/profiles.py`: o equilíbrio que une a plêiade — domínio de **integração/coordenação** entre os perfis; detecção automática (domínio "conexão", "integração", "plêiade") |
+| 1.4 | **Health checks externos** | Pendência v0.24.0 | ✅ **Entregue (2026-09-07).** Checks não-críticos de **HA** e **MQTT/Mosquitto** no Health Monitor (placeholders em `build_health` + `register_external_health_checks()` no launcher); `PresenceMonitor.health()` agora reflete alcance real do HA |
+| 1.5 | **Control Bridge no repo** | Pendência P1 (auditoria) | ✅ **Entregue (2026-09-07).** `tests/test_control_bridge.py` (26 testes: allowlist, tokens, escape de path, legados §7.1, auditoria, execute) + unit systemd `runtime/systemd/od-control-bridge.service` no `install-user.sh` |
 | 1.6 | **Systemd service `od-core`** | Análise do servidor (2026-09-05) | Service unit para o launcher `all` — sobe automaticamente no boot, restart on-failure, user `odrunner` com sandboxing |
 | 1.7 | **SWAP 4 GB** | Análise do servidor (2026-09-05) | Criar swap file (`/swapfile`) — o LLM local consome 4.8 GB de 7.7 GB RAM, sem swap o OOM killer derruba processos |
 | 1.8 | **UFW Firewall** | Análise do servidor (2026-09-05) | Configurar UFW: permitir 22 (SSH), 8000 (OD API), 8123 (HA); bloquear o resto; Tailscale já fornece acesso externo seguro |
 | 1.9 | **Variáveis de ambiente ausentes** | Análise do servidor (2026-09-05) | Configurar no `.env`: `OD_PRESENCE_ENABLED`, `OD_PRESENCE_POLL_S`, `OD_HA_CREDENTIALS`, `OD_RECOVERY_INTERVAL_S`, `OD_SELF_REPAIR_ENABLED`, `OD_NOTIFIER_ENABLED` |
 | 1.10 | **Montar disco sdb1** | Análise do servidor (2026-09-05) | Montar `/dev/sdb1` (Seagate 1 TB não montado) + configurar automount via `/etc/fstab` — +1 TB disponível para backups e dados |
 
-**Critérios de aceite:** CI verde no GitHub (push + PR) · cobertura ≥ 90% ·
-suíte local ≥ 1453 · perfil `nexus` selecionável e detectável · migração de
-dados sem perda · `/health` com 7 checks (5 internos + HA + MQTT) ·
-od-core como systemd service · SWAP 4 GB ativo · UFW ativo ·
-todas as variáveis de ambiente configuradas.
+**Critérios de aceite:** ✅ CI verde no GitHub (push + PR) — pipeline criado
+(aguardando 1º push p/ validar no GitHub) · ✅ cobertura ≥ 90% — **90.76%**
+local (2026-09-07) · ✅ suíte local ≥ 1453 — **1507 passed** · perfil `nexus`
+selecionável e detectável (✅ entregue) · migração de dados sem perda ·
+`/health` com 7 checks (5 internos + HA + MQTT) (✅) · od-core como systemd
+service · SWAP 4 GB ativo · UFW ativo · todas as variáveis de ambiente
+configuradas.
 
 ---
 

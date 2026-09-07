@@ -39,7 +39,10 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from storage.database import Database
 
 _audit_nicky = make_audit_nicky("omega.memory.history")
 
@@ -117,12 +120,15 @@ class Message:
 # ---------------------------------------------------------------------------
 
 class ConversationHistory:
-    """Histórico de conversas por usuário/perfil com persistência JSON.
+    """Histórico de conversas por usuário/perfil.
+
+    Persiste em JSON (default) ou Database (quando injetada).
 
     Attributes:
-        base_dir:    Diretório raiz dos arquivos de histórico.
+        base_dir:    Diretório raiz dos arquivos de histórico (JSON).
         max_entries: Número máximo de mensagens mantidas por conversa.
         users:       Cache em memória: user_id -> profile -> list[Message].
+        _database:   Database Layer opcional (取代 JSON quando presente).
     """
 
     def __init__(
@@ -130,20 +136,29 @@ class ConversationHistory:
         *,
         base_dir: str | Path = "data/conversations",
         max_entries: int = 20,
+        database: Optional["Database"] = None,
     ) -> None:
         self._base_dir = Path(base_dir)
         self._max_entries = max(1, max_entries)
         self._users: dict[str, dict[str, list[Message]]] = {}
         self._lock = threading.RLock()
+        self._database = database
+        if self._database is not None:
+            from memory.adapters import CONVERSATION_MESSAGES_SCHEMA
+            self._database.create_table(
+                "conversation_messages", CONVERSATION_MESSAGES_SCHEMA
+            )
 
     # -- Lifecycle -----------------------------------------------------------
 
     def load_all(self) -> int:
-        """Carrega todo o histórico do disco para a memória.
+        """Carrega todo o histórico do disco/DB para a memória.
 
         Returns:
             Número de conversas (user/profile) carregadas.
         """
+        if self._database is not None:
+            return self._load_all_db()
         with self._lock:
             self._users.clear()
             count = 0
@@ -161,6 +176,37 @@ class ConversationHistory:
             _audit_nicky("INFO", "History loaded", conversations=count)
             return count
 
+    def _load_all_db(self) -> int:
+        """Carrega histórico do Database para a memória."""
+        db = self._database
+        with self._lock:
+            self._users.clear()
+            rows = db.query(
+                "SELECT user_id, profile, role, content, ts, llm_used "
+                "FROM conversation_messages "
+                "ORDER BY ts"
+            )
+            count = 0
+            for row in rows:
+                uid = row["user_id"]
+                prof = row["profile"]
+                msg = Message(
+                    role=row["role"],
+                    content=row["content"],
+                    ts=row["ts"],
+                    llm_used=row.get("llm_used", ""),
+                )
+                conv = self._users.setdefault(uid, {}).setdefault(prof, [])
+                conv.append(msg)
+            # Trim excesso por conversa
+            for uid_profiles in self._users.values():
+                for prof, conv in uid_profiles.items():
+                    self._trim(conv)
+                    if conv:
+                        count += 1
+            _audit_nicky("INFO", "History loaded (db)", conversations=count)
+            return count
+
     # -- Escrita -------------------------------------------------------------
 
     def add_message(
@@ -174,11 +220,23 @@ class ConversationHistory:
     ) -> Message:
         """Adiciona uma mensagem avulsa à conversa e persiste."""
         msg = Message(role=role, content=content, llm_used=llm_used)
-        with self._lock:
-            conv = self._get_conversation(user_id, profile)
-            conv.append(msg)
-            self._trim(conv)
-            self._write(user_id, profile, conv)
+        if self._database is not None:
+            self._database.execute(
+                "INSERT INTO conversation_messages "
+                "(user_id, profile, role, content, ts, llm_used) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, profile, role, content, msg.ts, llm_used),
+            )
+            with self._lock:
+                conv = self._users.setdefault(user_id, {}).setdefault(profile, [])
+                conv.append(msg)
+                self._trim(conv)
+        else:
+            with self._lock:
+                conv = self._get_conversation(user_id, profile)
+                conv.append(msg)
+                self._trim(conv)
+                self._write(user_id, profile, conv)
         return msg
 
     def add_interaction(
@@ -195,12 +253,32 @@ class ConversationHistory:
         Returns:
             Número de mensagens adicionadas (2).
         """
-        with self._lock:
-            conv = self._get_conversation(user_id, profile)
-            conv.append(Message(role="user", content=user_message))
-            conv.append(Message(role="assistant", content=assistant_message, llm_used=llm_used))
-            self._trim(conv)
-            self._write(user_id, profile, conv)
+        if self._database is not None:
+            now = time.time()
+            self._database.execute(
+                "INSERT INTO conversation_messages "
+                "(user_id, profile, role, content, ts, llm_used) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, profile, "user", user_message, now, ""),
+            )
+            self._database.execute(
+                "INSERT INTO conversation_messages "
+                "(user_id, profile, role, content, ts, llm_used) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, profile, "assistant", assistant_message, now, llm_used),
+            )
+            with self._lock:
+                conv = self._users.setdefault(user_id, {}).setdefault(profile, [])
+                conv.append(Message(role="user", content=user_message))
+                conv.append(Message(role="assistant", content=assistant_message, llm_used=llm_used))
+                self._trim(conv)
+        else:
+            with self._lock:
+                conv = self._get_conversation(user_id, profile)
+                conv.append(Message(role="user", content=user_message))
+                conv.append(Message(role="assistant", content=assistant_message, llm_used=llm_used))
+                self._trim(conv)
+                self._write(user_id, profile, conv)
         _audit_nicky(
             "INFO",
             "Interaction recorded",
@@ -260,6 +338,8 @@ class ConversationHistory:
 
     def stats(self, user_id: Optional[str] = None) -> dict[str, Any]:
         """Estatísticas do histórico: mensagens por conversa, última atividade."""
+        if self._database is not None:
+            return self._stats_db(user_id)
         with self._lock:
             result: dict[str, Any] = {
                 "users": len(self._users),
@@ -284,10 +364,82 @@ class ConversationHistory:
                     result["per_user"][uid] = user_stats
             return result
 
+    def _stats_db(self, user_id: Optional[str] = None) -> dict[str, Any]:
+        """Estatísticas via Database."""
+        db = self._database
+        if user_id:
+            total = db.scalar(
+                "SELECT COUNT(*) FROM conversation_messages WHERE user_id = ?",
+                (user_id,),
+            ) or 0
+            profiles_rows = db.query(
+                "SELECT profile, COUNT(*) as cnt, MAX(ts) as last_ts "
+                "FROM conversation_messages WHERE user_id = ? "
+                "GROUP BY profile",
+                (user_id,),
+            )
+        else:
+            total = db.scalar(
+                "SELECT COUNT(*) FROM conversation_messages"
+            ) or 0
+            profiles_rows = db.query(
+                "SELECT user_id, profile, COUNT(*) as cnt, MAX(ts) as last_ts "
+                "FROM conversation_messages GROUP BY user_id, profile"
+            )
+        result: dict[str, Any] = {
+            "users": 0,
+            "conversations": len(profiles_rows),
+            "messages": total,
+            "per_user": {},
+        }
+        for row in profiles_rows:
+            uid = row.get("user_id", user_id or "")
+            if uid not in result["per_user"]:
+                result["per_user"][uid] = {
+                    "conversations": 0, "messages": 0, "profiles": {}
+                }
+            result["per_user"][uid]["conversations"] += 1
+            result["per_user"][uid]["messages"] += row["cnt"]
+            result["per_user"][uid]["profiles"][row["profile"]] = {
+                "messages": row["cnt"],
+                "last_ts": row["last_ts"],
+            }
+        result["users"] = len(result["per_user"])
+        return result
+
     # -- Remoção -------------------------------------------------------------
 
     def clear(self, user_id: str, profile: Optional[str] = None) -> int:
         """Limpa uma conversa (ou todas do usuário). Retorna nº removido."""
+        if self._database is not None:
+            if profile is not None:
+                existing = self._database.scalar(
+                    "SELECT COUNT(*) FROM conversation_messages "
+                    "WHERE user_id = ? AND profile = ?",
+                    (user_id, profile),
+                ) or 0
+                self._database.execute(
+                    "DELETE FROM conversation_messages "
+                    "WHERE user_id = ? AND profile = ?",
+                    (user_id, profile),
+                )
+            else:
+                existing = self._database.scalar(
+                    "SELECT COUNT(*) FROM conversation_messages "
+                    "WHERE user_id = ?",
+                    (user_id,),
+                ) or 0
+                self._database.execute(
+                    "DELETE FROM conversation_messages WHERE user_id = ?",
+                    (user_id,),
+                )
+            with self._lock:
+                if profile is not None:
+                    self._users.get(user_id, {}).pop(profile, None)
+                else:
+                    self._users.pop(user_id, None)
+            _audit_nicky("INFO", "History cleared (db)", user=user_id, profile=profile or "*", removed=existing)
+            return existing
         with self._lock:
             removed = 0
             if profile is not None:
@@ -304,7 +456,16 @@ class ConversationHistory:
             return removed
 
     def clear_all(self) -> int:
-        """Limpa todo o histórico em memória e no disco."""
+        """Limpa todo o histórico em memória e no disco/DB."""
+        if self._database is not None:
+            total = self._database.scalar(
+                "SELECT COUNT(*) FROM conversation_messages"
+            ) or 0
+            self._database.execute("DELETE FROM conversation_messages")
+            with self._lock:
+                self._users.clear()
+            _audit_nicky("INFO", "History cleared all (db)", removed=total)
+            return total
         with self._lock:
             removed = 0
             for user_id in list(self._users.keys()):
@@ -314,10 +475,26 @@ class ConversationHistory:
     # -- Interno -------------------------------------------------------------
 
     def _get_conversation(self, user_id: str, profile: str) -> list[Message]:
-        """Obtém a conversa em memória (carregando do disco se necessário)."""
+        """Obtém a conversa em memória (carregando do disco/DB se necessário)."""
         conv = self._users.get(user_id, {}).get(profile)
         if conv is None:
-            conv = self._read_file(user_id, profile)
+            if self._database is not None:
+                rows = self._database.query(
+                    "SELECT role, content, ts, llm_used FROM conversation_messages "
+                    "WHERE user_id = ? AND profile = ? ORDER BY ts",
+                    (user_id, profile),
+                )
+                conv = [
+                    Message(
+                        role=r["role"],
+                        content=r["content"],
+                        ts=r["ts"],
+                        llm_used=r.get("llm_used", ""),
+                    )
+                    for r in rows
+                ]
+            else:
+                conv = self._read_file(user_id, profile)
             self._users.setdefault(user_id, {})[profile] = conv
         return conv
 
@@ -380,8 +557,12 @@ class ConversationHistory:
     # -- Inspeção ------------------------------------------------------------
 
     def dump(self) -> dict[str, Any]:
-        return {
-            "base_dir": str(self._base_dir),
+        backend = "db" if self._database is not None else "json"
+        result: dict[str, Any] = {
+            "backend": backend,
             "max_entries": self._max_entries,
             "stats": self.stats(),
         }
+        if self._database is None:
+            result["base_dir"] = str(self._base_dir)
+        return result

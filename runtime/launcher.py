@@ -121,7 +121,7 @@ def build_audit_system() -> Any:
     return AuditSystem(file_path=file_path)
 
 
-def build_orchestrator() -> Any:
+def build_orchestrator(database: Any = None) -> Any:
     """Orchestrator real: LLM local + memórias persistentes em data/."""
     from core.llm import OpenAICompatProvider
     from core.orchestrator import Orchestrator, OrchestratorConfig
@@ -143,13 +143,18 @@ def build_orchestrator() -> Any:
     )
 
     profile = env("OD_PROFILE", DEFAULT_PROFILE)
+    # Mémoria: Database quando disponível, senão JSON (fallback)
+    db_kwargs = {"database": database} if database is not None else {}
     orchestrator = Orchestrator(
         providers=[provider],
-        history=ConversationHistory(base_dir=DATA_DIR / "conversations"),
+        history=ConversationHistory(
+            base_dir=DATA_DIR / "conversations", **db_kwargs
+        ),
         cache=LLMCache(
             cache_dir=DATA_DIR / "llm_cache",
             profile=profile,
             max_entries=int(env("OD_CACHE_ENTRIES", "2000")),
+            **db_kwargs,
         ),
         config=OrchestratorConfig(
             llm_timeout_s=llm_timeout,
@@ -161,6 +166,7 @@ def build_orchestrator() -> Any:
         llm=provider.name,
         url=provider.base_url,
         history=str(DATA_DIR / "conversations"),
+        backend="db" if database else "json",
     )
     return orchestrator
 
@@ -271,7 +277,11 @@ def build_health(
     """HealthMonitor real (Fase 7.3): checks dos componentes do od-core.
 
     Orchestrator e LLM são críticos (derrubam o status para down);
-    Audit, Metrics e Database degradam (não-críticos).
+    Audit, Metrics, Database, Home Assistant e MQTT degradam
+    (não-críticos). HA e MQTT são checks EXTERNOS (v1.0.0, item 1.4):
+    começam como "não configurado (ok)" e são substituídos pelos checks
+    reais via register_external_health_checks() quando os componentes
+    existem no runtime.
     """
     from observability.health import HealthMonitor
 
@@ -330,12 +340,87 @@ def build_health(
             "detail": f"{h.get('tables')} tabelas",
         }
 
+    def _check_homeassistant_placeholder(mon: Any) -> dict[str, Any]:
+        """Placeholder até o PresenceMonitor (cliente HA) ser construído."""
+        return {"ok": True, "status": "up", "detail": "homeassistant não configurado (ok)"}
+
+    def _check_mqtt_placeholder(mon: Any) -> dict[str, Any]:
+        """Placeholder até a ponte MQTT ser construída."""
+        return {"ok": True, "status": "up", "detail": "mqtt não configurado (ok)"}
+
     monitor.register("orchestrator", _check_orchestrator, critical=True)
     monitor.register("llm", _check_llm, critical=True)
     monitor.register("audit", _check_audit, critical=False)
     monitor.register("metrics", _check_metrics, critical=False)
     monitor.register("database", _check_database, critical=False)
+    # Checks externos não-críticos (v1.0.0 item 1.4) — sempre presentes;
+    # o estado real entra quando o componente existe (register substitui).
+    monitor.register("homeassistant", _check_homeassistant_placeholder, critical=False)
+    monitor.register("mqtt", _check_mqtt_placeholder, critical=False)
     return monitor
+
+
+def _homeassistant_check(presence: Any) -> Any:
+    """Check externo do Home Assistant: delega ao health() do monitor real.
+
+    presence.health() expõe ok/connected/detail a partir da última leitura
+    do HA (PresenceMonitor marca _reachable True/False em cada poll).
+    """
+
+    def check(mon: Any) -> dict[str, Any]:
+        try:
+            h = presence.health()
+        except Exception as exc:  # pragma: no cover — presença quebrada
+            return {"ok": False, "status": "down", "detail": f"check quebrado: {type(exc).__name__}"}
+        ok = bool(h.get("ok", True))
+        detail = str(h.get("detail") or ("HA ok" if ok else "HA inacessível"))
+        return {"ok": ok, "status": "up" if ok else "degraded", "detail": detail}
+
+    return check
+
+
+def _mqtt_check(bridge: Any) -> Any:
+    """Check externo do MQTT/Mosquitto: delega ao health() da ponte real.
+
+    MQTTBridge.health() reporta ok = conectado ao broker.
+    """
+
+    def check(mon: Any) -> dict[str, Any]:
+        try:
+            h = bridge.health()
+        except Exception as exc:  # pragma: no cover — ponte quebrada
+            return {"ok": False, "status": "down", "detail": f"check quebrado: {type(exc).__name__}"}
+        ok = bool(h.get("ok") or h.get("connected"))
+        host = h.get("host", "?")
+        return {
+            "ok": ok,
+            "status": "up" if ok else "degraded",
+            "detail": f"broker {host} " + ("conectado" if ok else "sem conexão"),
+        }
+
+    return check
+
+
+def register_external_health_checks(
+    health: Any,
+    *,
+    homeassistant: Any = None,
+    mqtt: Any = None,
+) -> None:
+    """Registra (ou substitui) os checks externos não-críticos no monitor.
+
+    v1.0.0 item 1.4: HA (via PresenceMonitor) e MQTT/Mosquitto (via ponte)
+    entram no /health assim que os componentes existem no runtime. Quando o
+    componente é None, o placeholder (ok) do build_health permanece.
+    """
+    if health is None:
+        return
+    if homeassistant is not None:
+        health.register(
+            "homeassistant", _homeassistant_check(homeassistant), critical=False
+        )
+    if mqtt is not None:
+        health.register("mqtt", _mqtt_check(mqtt), critical=False)
 
 
 def build_metrics(orchestrator: Any = None, audit: Any = None) -> Any:
@@ -773,7 +858,9 @@ def main() -> int:
         from core.capabilities import render_json
         print(render_json())
         return 0
-    orchestrator = build_orchestrator()
+    # Database Layer é montada PRIMEIRO (v1.0.0 item 1.2 — memória usa DB)
+    database = build_database()
+    orchestrator = build_orchestrator(database=database)
     audit = build_audit_system()
     audit.record(
         source="launcher",
@@ -791,7 +878,6 @@ def main() -> int:
         "Metrics Collector ativo",
         sources=metrics.health()["sources"],
     )
-    database = build_database()
     health = build_health(
         orchestrator=orchestrator,
         audit=audit,
@@ -817,6 +903,8 @@ def main() -> int:
     presence_monitor = build_presence_monitor() if presence_enabled else None
     vision_enabled = env("OD_VISION_ENABLED", "0") != "0"
     face_detector = build_face_detector() if vision_enabled else None
+    # Checks externos (v1.0.0 item 1.4): presence monitor pronto no main
+    register_external_health_checks(health, homeassistant=presence_monitor)
 
     async def _all() -> None:
         # Event Bus único da entrega (bridge MQTT ↔ núcleo)
@@ -840,6 +928,9 @@ def main() -> int:
             log.info("ProactiveNotifier habilitado (alertas proativos)")
         if mqtt_enabled:
             bridge = build_mqtt_bridge(event_bus)
+            register_external_health_checks(
+                health, homeassistant=presence_monitor, mqtt=bridge
+            )
             tasks.append(_run_mqtt_forever(bridge))
             log.info("Ponte MQTT habilitada (od-core)")
         if presence_monitor is not None:
@@ -856,6 +947,7 @@ def main() -> int:
         asyncio.run(_run_telegram_forever(orchestrator, action_registry=action_registry))
     elif mode == "mqtt":
         bridge = build_mqtt_bridge(EventBus())
+        register_external_health_checks(health, mqtt=bridge)
         asyncio.run(_run_mqtt_forever(bridge))
     elif mode == "recovery":
         loop = recovery or build_recovery(audit, health)
@@ -868,6 +960,7 @@ def main() -> int:
         if monitor is None:
             print("presence indisponível — credenciais HA ausentes")
             return 2
+        register_external_health_checks(health, homeassistant=monitor)
         asyncio.run(_run_presence_forever(monitor))
     elif mode == "vision":
         detector = face_detector or build_face_detector()

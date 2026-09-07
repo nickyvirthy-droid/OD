@@ -1,0 +1,164 @@
+{
+  "session_id": "conv-root-checkpoint-001",
+  "created_at": "2026-09-05T00:00:00Z",    "updated_at": "2026-09-07T12:00:00Z",
+  "language": "pt-BR",
+  "project": {
+    "root": ".",
+    "what_it_is": "OmegaDrakon v0.28.0 — plataforma soberana de IA pessoal, automação distribuída e orquestração de agentes autônomos. stdlib-first; única dependência externa de runtime eh pg8000 (PostgreSQL opcional). Interface viva: Nicky Virthy.",
+    "runtime_entry": "runtime/launcher.py (modos: api|telegram|mqtt|presence|vision|recovery|all|capabilities)",
+    "key_directories": {
+      "core": "espinha dorsal: event_bus, state, security pipeline, orchestrator, intents fast path, llm provider, workflows, coder, self_repair, recovery",
+      "memory": "history, cache, quick_responses, vector (RAG), context",
+      "storage": "database (SQLite + PostgreSQL via pg8000)",
+      "tools": "catalogo de 56 actions, action_registry, auto_extension, telemetry, audio (stt/tts), vision (face detector)",
+      "integrations": "telegram bot, api rest, home assistant, mqtt, notifier",
+      "observability": "audit (jsonl persistente), health monitor, metrics collector (prometheus text)",
+      "configs": "config manager (yaml + env OD_*)",
+      "plugins": "plugin manager (hot reload, actions/workflows)",
+      "agents": "profiles (7 perfis — Plêiade completa) + nicky_virthy identity/soul"
+    },
+    "recent_context_files": [
+      "conversation/README.md",
+      "conversation/session.json",
+      "docs/OMEGADRAKON_SPEC.md",
+      "runtime/launcher.py",
+      "core/orchestrator.py",
+      "core/intents.py",
+      "core/llm.py",
+      "core/event_bus.py",
+      "core/state.py",
+      "core/capabilities.py",
+      "core/security/manager.py",
+      "core/workflows.py",
+      "core/coder.py",
+      "core/self_repair.py",
+      "core/recovery.py",
+      "memory/history.py",
+      "memory/cache.py",
+      "memory/quick_responses.py",
+      "memory/vector.py",
+      "memory/context.py",
+      "storage/database.py",
+      "integrations/api/server.py",
+      "integrations/telegram/bot.py",
+      "integrations/telegram/commands.py",
+      "integrations/homeassistant/manager.py",
+      "integrations/homeassistant/presence.py",
+      "integrations/mqtt/client.py",
+      "integrations/mqtt/broker.py",
+      "integrations/mqtt/bridge.py",
+      "integrations/notifier.py",
+      "tools/actions/actions.py",
+      "tools/registry.py",
+      "tools/auto_extension/__init__.py",
+      "tools/telemetry.py",
+      "tools/audio/stt.py",
+      "tools/audio/tts.py",
+      "tools/vision/face_detector.py",
+      "observability/audit.py",
+      "observability/health.py",
+      "observability/metrics.py",
+      "configs/manager.py",
+      "plugins/manager.py",
+      "agents/profiles.py",
+      "agents/nicky_virthy/personality.py",
+      "tools/audio/tts.py",
+      "tools/audio/stt.py",
+      "agents/nicky_virthy/SOUL.md",
+      "tests/test_security.py",
+      "runtime/control_bridge/bridge.py",
+      "runtime/control_bridge/README.md"
+    ]
+  },
+  "topic": "v1.0.0 itens 1.1–1.5 + 1.2 entregues (CI, nexus, health checks, Control Bridge, migracao JSON→DB)",
+  "status": "completed",
+  "research_done": true,
+  "session_rule_read_docs": "obrigacao da sessao: ler os arquivos de docs/ para saber do que estamos desenvolvendo",
+  "session_rule_read_docs_status": "concluida",
+  "legacy_cleanup_task": {
+    "target": "nicky",
+    "status": "documentos_reintegr_matriz_analise",
+    "archive_path": "/home/alex/Projetos/nicky_legado.zip",
+    "manifest_path": "/home/alex/Projetos/nicky_legado-manifest.json",
+    "manual_delete": false,
+    "note": "a pasta /home/alex/nicky continua no servidor; so o fluxo atual eh reintegrar documentos ao Legado/Qi e ajustar referencias fora dela"
+  },
+  "nv_cleanup_task": {
+    "target": "NV",
+    "status": "documentos_reintegr_matriz_analise",
+    "archive_path": "/home/alex/Projetos/nv_legado.zip",
+    "manifest_path": "/home/alex/Projetos/nv_legado-manifest.json",
+    "manual_delete": false,
+    "note": "a pasta /home/alex/NV continua no servidor; so o fluxo atual eh reintegrar documentos ao Legado/Qi e ajustar referencias fora dela"
+  },
+  "nexus_cleanup_task": {
+    "target": "nexus",
+    "status": "documentos_reintegr_matriz_analise",
+    "archive_path": "/home/alex/Projetos/nx_legado.zip",
+    "note": "a pasta /home/alex/nexus continua no servidor; so o fluxo atual eh reintegrar documentos ao Legado/Qi e ajustar referencias fora dela; zip criado em Projetos/"
+  },
+  "decisions": [
+    {
+      "topic": "pasta de conversa",
+      "decision": "criar pasta conversation/ na raiz",
+      "rationale": "permitir retomada apos crash/reboot"
+    },
+    {
+      "topic": "formato do checkpoint",
+      "decision": "session.json com id, timestamps, contexto do projeto, topico atual e proxima pergunta",
+      "rationale": "facilita recarregar o estado apos interrupcao"
+    },
+    {
+      "topic": "leitura do sistema",
+      "decision": "ler espacos raiz, spec, launcher, core, memory, storage, tools, integrations, observability, configs, plugins, agents",
+      "rationale": "entender o sistema todo antes de decidir a proxima tarefa"
+    },
+    {
+      "topic": "leitura dos módulos audio/stt e audio/tts",
+      "decision": "ler tools/audio/stt.py, tools/audio/tts.py e agents/nicky_virthy/SOUL.md",
+      "rationale": "complementar o mapeamento da interface viva e da camada sensorial (fase 6)"
+    },
+    {
+      "topic": "leitura da security e do control bridge",
+      "decision": "ler tests/test_security.py, runtime/control_bridge/bridge.py e runtime/control_bridge/README.md",
+      "rationale": "entender o pipeline de segurança e a ponte de execução local (spec §7 + §2.2)"
+    },
+    {
+      "topic": "referencias de log/archive a caminhos legados",
+      "decision": "manter todas as referencias (archive/INITIAL_SYSTEM_STATE_SERVER_WIDE.txt, logs/control_bridge.jsonl, bridge.py, test_security.py, SOUL.md)",
+      "rationale": "archive/ e logs/*.jsonl sao registros imutaveis (snapshot do servidor e trilha de auditoria de negacao) e estao gitignored; as referencias em bridge.py/test_security.py/SOUL.md sao enforcement ativo do isolamento (spec §7.1) e nao dependencias de runtime. Nenhum codigo le esses caminhos para operar."
+    },
+    {
+      "topic": "v1.0.0 item 1.3 — perfil nexus (7º, Conector)",
+      "decision": "implementar o 7º perfil nexus em agents/profiles.py (domínios integracao/coordenacao/conexao/pleiade/ecossistema, prioridade 7) + tom em personality.py + listas em commands.py, api/server.py (DEFAULT_PROFILES + HTML) e capabilities.py",
+      "rationale": "completa a Pleiade (7 entidades do pleiade.yaml). Aceite: selecionavel e detectavel por dominio; suite 1453 passed apos a mudanca"
+    },
+    {
+      "topic": "v1.0.0 item 1.4 — health checks externos de HA/MQTT",
+      "decision": "registrar checks nao-criticos 'homeassistant' e 'mqtt' no Health Monitor (placeholders em build_health + register_external_health_checks() no launcher quando presence/bridge existem); PresenceMonitor.health() passa a refletir alcance real do HA; critical do registro carimbado no ComponentHealth",
+      "rationale": "/health passa a expor HA e MQTT (nao-criticos: degradam, nunca derrubam). Aceite do roadmap: /health com 7 checks (5 internos + HA + MQTT)"
+    },
+    {
+      "topic": "v1.0.0 item 1.5 — Control Bridge no repo",
+      "decision": "criar tests/test_control_bridge.py (26 testes: reject_path_escape, validate_command, audit, execute) + unit systemd runtime/systemd/od-control-bridge.service e incluir no install-user.sh",
+      "rationale": "fecha a pendencia P1 da auditoria: bridge testado e versionado no repo"
+    },
+    {
+      "topic": "v1.0.0 item 1.1 — CI no GitHub Actions + gate de cobertura",
+      "decision": "criar .github/workflows/ci.yml (Python 3.12, push + PR: compileall + pytest com gate >= 90% via pytest-cov), .coveragerc (escopo: pacotes de producao; runtime/launcher.py omitido por ser entrypoint de composicao) e requirements-dev.txt (pytest-cov, PyYAML, numpy, opencv-python-headless travado p/ determinismo dos testes de face). Novos testes p/ elevar cobertura: test_voice.py (STT/TTS), formatadores do intents (cpu/disco/uptime/sistema/fallback/truncacao) e _read_canonical",
+      "rationale": "fecha o maior gap de maturidade (roadmap §8). Aceite: CI verde (push + PR) + cobertura >= 90%. Medicao local 2026-09-07: 90.76% com 1507 passed; gate valida exit 0 localmente"
+    },
+    {
+      "topic": "v1.0.0 item 1.2 — Migracao JSON → PostgreSQL",
+      "decision": "adicionar param opcional database aos 4 modulos de memoria (history, cache, quick_responses, vector); criar memory/adapters.py com schemas das 4 tabelas e funcoes de migracao JSON→DB; launcher passa Database para os modulos; fallback JSON mantido quando database=None",
+      "rationale": "fecha a maior pendencia funcional da v1.0.0: dados saem de JSON files para tabelas SQL (SQLite local ou PostgreSQL em producao). 46 novos testes, 1553 passed, cobertura 95%. Migracao idempotente com migrate_all()."
+    }
+  ],
+  "next": {
+    "action": "proximo item da v1.0.0 (1.6-1.10 exigem acesso ao nicky-server: systemd, SWAP, UFW, env vars, disco sdb1)",
+    "open": true,
+    "context": "itens 1.1 (CI), 1.2 (migracao JSON→DB), 1.3 (nexus), 1.4 (health checks externos HA/MQTT) e 1.5 (Control Bridge) entregues; suite 1553 passed; cobertura 95% (gate 90%); falta CI rodar de verdade no GitHub (aguarda 1o push)"
+  },
+  "notes": "Leu-se: spec, launcher, core, memory, storage, integrations, tools, observability, configs, plugins, agents, docs (OMEGADRAKON_SPEC.md, README_VERSAO.md, CAPACIDADES.md, ACTIONS_CORRESPONDENCIA.md, REGRAS_DE_TRABALHO.md, ROADMAP_ABSORCAO.md, ROADMAP_V1.md, CONTROL_BRIDGE.md, SERVER_ANALYSIS.md, NICKY_LEGACY_ANALYSIS.md, NV_LEGACY_ANALYSIS.md, NEXUS_LEGACY_ANALYSIS.md), knowledge (NICKY_VIRTHY_KNOWLEDGE.md, OMEGA_DRAKON_SOURCE_MAP.md). Migracao JSON→DB concluida (item 1.2): memory/adapters.py (schemas + migrate_all), history.py, cache.py, quick_responses.py, vector.py ganharam param database=None; launcher.py monta Database antes do Orchestrator e injeta nos modulos de memoria. 46 testes novos (test_memory_db.py). 1553 passed, cobertura 95%. Itens 1.1-1.5 + 1.2 da v1.0.0 entregues. Itens 1.6-1.10 dependem de acesso ao nicky-server. Regra de idioma: pt-BR obrigatorio. .env nao lido. OD tests green."
+}
+}

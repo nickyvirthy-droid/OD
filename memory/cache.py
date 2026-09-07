@@ -38,7 +38,10 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from storage.database import Database
 
 _audit_nicky = make_audit_nicky("omega.memory.cache")
 
@@ -126,12 +129,15 @@ class CacheEntry:
 class LLMCache:
     """Cache de respostas LLM com chave SHA-256 normalizada.
 
+    Persiste em JSON (default) ou Database (quando injetada).
+
     Attributes:
-        cache_dir:   Diretório de persistência.
+        cache_dir:   Diretório de persistência (JSON).
         profile:     Perfil do agente incluído na chave (isolamento).
         max_entries: Número máximo de entradas (evicção LRU aproximada).
         ttl_seconds: Expiração em segundos (0 = sem expiração).
         metrics:     Contadores de acerto/erro/duplicatas.
+        _database:   Database Layer opcional (取代 JSON quando presente).
     """
 
     def __init__(
@@ -141,6 +147,7 @@ class LLMCache:
         profile: str = "",
         max_entries: int = 10000,
         ttl_seconds: float = 0.0,
+        database: Optional["Database"] = None,
     ) -> None:
         self._cache_dir = Path(cache_dir)
         self._profile = profile
@@ -149,6 +156,10 @@ class LLMCache:
         self._entries: dict[str, CacheEntry] = {}
         self._lock = threading.RLock()
         self._metrics = {"hits": 0, "misses": 0, "duplicates": 0, "evictions": 0}
+        self._database = database
+        if self._database is not None:
+            from memory.adapters import LLM_CACHE_SCHEMA
+            self._database.create_table("llm_cache", LLM_CACHE_SCHEMA)
 
     # -- Chave ---------------------------------------------------------------
 
@@ -185,6 +196,8 @@ class LLMCache:
             A resposta cacheada ou None.
         """
         key = self.make_key(prompt, **params)
+        if self._database is not None:
+            return self._get_db(key, prompt, params, update_metrics)
         with self._lock:
             entry = self._entries.get(key)
             if entry is None:
@@ -207,8 +220,45 @@ class LLMCache:
             self._persist()
             return entry.response
 
+    def _get_db(
+        self, key: str, prompt: str, params: dict[str, Any], update_metrics: bool
+    ) -> Optional[str]:
+        db = self._database
+        row = db.query(
+            "SELECT * FROM llm_cache WHERE key = ?", (key,), limit=1
+        )
+        if not row:
+            if update_metrics:
+                self._metrics["misses"] += 1
+            return None
+        r = row[0]
+        if self._ttl > 0 and (time.time() - r["created_ts"]) > self._ttl:
+            db.execute("DELETE FROM llm_cache WHERE key = ?", (key,))
+            if update_metrics:
+                self._metrics["misses"] += 1
+                self._metrics["evictions"] += 1
+            return None
+        db.execute(
+            "UPDATE llm_cache SET use_count = use_count + 1, last_used_ts = ? "
+            "WHERE key = ?",
+            (time.time(), key),
+        )
+        if update_metrics:
+            self._metrics["hits"] += 1
+        return r["response"]
+
     def has(self, prompt: str, **params: Any) -> bool:
         key = self.make_key(prompt, **params)
+        if self._database is not None:
+            row = self._database.query(
+                "SELECT key, created_ts FROM llm_cache WHERE key = ?",
+                (key,), limit=1,
+            )
+            if not row:
+                return False
+            if self._ttl > 0 and (time.time() - row[0]["created_ts"]) > self._ttl:
+                return False
+            return True
         with self._lock:
             entry = self._entries.get(key)
             if entry is None or self._is_expired(entry):
@@ -218,6 +268,21 @@ class LLMCache:
     def get_entry(self, prompt: str, **params: Any) -> Optional[CacheEntry]:
         """Retorna a entrada completa (com métricas) sem contabilizar hit."""
         key = self.make_key(prompt, **params)
+        if self._database is not None:
+            row = self._database.query(
+                "SELECT * FROM llm_cache WHERE key = ?", (key,), limit=1
+            )
+            if not row:
+                return None
+            r = row[0]
+            return CacheEntry(
+                key=r["key"], prompt=r["prompt"], response=r["response"],
+                profile=r["profile"], llm_used=r["llm_used"],
+                tokens_used=r["tokens_used"], use_count=r["use_count"],
+                duplicates=r["duplicates"], created_ts=r["created_ts"],
+                last_used_ts=r["last_used_ts"],
+                avg_response_time_ms=r["avg_response_time_ms"],
+            )
         with self._lock:
             entry = self._entries.get(key)
             if entry is None or self._is_expired(entry):
@@ -243,6 +308,43 @@ class LLMCache:
         """
         key = self.make_key(prompt, **params)
         normalized = normalize_prompt(prompt)
+        now = time.time()
+        if self._database is not None:
+            db = self._database
+            existing = db.query(
+                "SELECT * FROM llm_cache WHERE key = ?", (key,), limit=1
+            )
+            if existing:
+                db.execute(
+                    "UPDATE llm_cache SET duplicates = duplicates + 1, "
+                    "use_count = use_count + 1, last_used_ts = ?, "
+                    "response = ?, llm_used = COALESCE(NULLIF(?, ''), llm_used) "
+                    "WHERE key = ?",
+                    (now, response, llm_used, key),
+                )
+                self._metrics["duplicates"] += 1
+                return CacheEntry(
+                    key=key, prompt=normalized, response=response,
+                    profile=self._profile, llm_used=llm_used,
+                    tokens_used=tokens_used,
+                    avg_response_time_ms=response_time_ms,
+                )
+            db.execute(
+                "INSERT INTO llm_cache "
+                "(key, prompt, response, profile, llm_used, tokens_used, "
+                "use_count, duplicates, created_ts, last_used_ts, "
+                "avg_response_time_ms) "
+                "VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)",
+                (key, normalized, response, self._profile, llm_used,
+                 tokens_used, now, now, response_time_ms),
+            )
+            self._evict_if_needed_db()
+            return CacheEntry(
+                key=key, prompt=normalized, response=response,
+                profile=self._profile, llm_used=llm_used,
+                tokens_used=tokens_used,
+                avg_response_time_ms=response_time_ms,
+            )
         with self._lock:
             existing = self._entries.get(key)
             if existing is not None:
@@ -274,6 +376,11 @@ class LLMCache:
     def delete(self, prompt: str, **params: Any) -> bool:
         """Remove uma entrada pela chave. Retorna True se existia."""
         key = self.make_key(prompt, **params)
+        if self._database is not None:
+            rowcount = self._database.execute(
+                "DELETE FROM llm_cache WHERE key = ?", (key,)
+            )
+            return rowcount > 0
         with self._lock:
             if self._entries.pop(key, None) is not None:
                 self._persist()
@@ -282,6 +389,10 @@ class LLMCache:
 
     def clear(self) -> int:
         """Remove todas as entradas. Retorna quantidade removida."""
+        if self._database is not None:
+            count = self._database.scalar("SELECT COUNT(*) FROM llm_cache") or 0
+            self._database.execute("DELETE FROM llm_cache")
+            return count
         with self._lock:
             count = len(self._entries)
             self._entries.clear()
@@ -291,7 +402,9 @@ class LLMCache:
     # -- Persistência --------------------------------------------------------
 
     def load(self) -> int:
-        """Carrega o cache do disco. Retorna número de entradas."""
+        """Carrega o cache do disco/DB. Retorna número de entradas."""
+        if self._database is not None:
+            return self._load_db()
         path = self._file_path()
         if not path.exists():
             return 0
@@ -313,6 +426,24 @@ class LLMCache:
                     error=type(exc).__name__,
                 )
                 return 0
+
+    def _load_db(self) -> int:
+        """Carrega entradas do Database para a memória."""
+        db = self._database
+        rows = db.query("SELECT * FROM llm_cache")
+        with self._lock:
+            self._entries.clear()
+            for row in rows:
+                entry = CacheEntry(
+                    key=row["key"], prompt=row["prompt"],
+                    response=row["response"], profile=row["profile"],
+                    llm_used=row["llm_used"], tokens_used=row["tokens_used"],
+                    use_count=row["use_count"], duplicates=row["duplicates"],
+                    created_ts=row["created_ts"], last_used_ts=row["last_used_ts"],
+                    avg_response_time_ms=row["avg_response_time_ms"],
+                )
+                self._entries[entry.key] = entry
+            return len(self._entries)
 
     def _persist(self) -> None:
         try:
@@ -345,6 +476,17 @@ class LLMCache:
             self._entries.pop(oldest_key)
             self._metrics["evictions"] += 1
 
+    def _evict_if_needed_db(self) -> None:
+        db = self._database
+        count = db.scalar("SELECT COUNT(*) FROM llm_cache") or 0
+        while count > self._max_entries:
+            db.execute(
+                "DELETE FROM llm_cache WHERE key = ("
+                "SELECT key FROM llm_cache ORDER BY last_used_ts ASC LIMIT 1)"
+            )
+            count -= 1
+            self._metrics["evictions"] += 1
+
     def _is_expired(self, entry: CacheEntry) -> bool:
         if self._ttl <= 0:
             return False
@@ -357,6 +499,18 @@ class LLMCache:
             return dict(self._metrics)
 
     def stats(self) -> dict[str, Any]:
+        if self._database is not None:
+            db = self._database
+            count = db.scalar("SELECT COUNT(*) FROM llm_cache") or 0
+            return {
+                "entries": count,
+                "metrics": dict(self._metrics),
+                "total_use_count": 0,
+                "total_duplicates": 0,
+                "profile": self._profile,
+                "max_entries": self._max_entries,
+                "ttl_seconds": self._ttl,
+            }
         with self._lock:
             entries = list(self._entries.values())
             total_uses = sum(e.use_count for e in entries)
@@ -372,8 +526,11 @@ class LLMCache:
             }
 
     def dump(self) -> dict[str, Any]:
-        with self._lock:
-            return {
-                "cache_dir": str(self._cache_dir),
-                **self.stats(),
-            }
+        backend = "db" if self._database is not None else "json"
+        result: dict[str, Any] = {
+            "backend": backend,
+            **self.stats(),
+        }
+        if self._database is None:
+            result["cache_dir"] = str(self._cache_dir)
+        return result

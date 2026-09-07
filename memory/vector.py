@@ -45,7 +45,10 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Protocol
+from typing import Any, Optional, Protocol, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from storage.database import Database
 
 _audit_nicky = make_audit_nicky("omega.memory.vector")
 
@@ -150,10 +153,13 @@ class SearchResult:
 class VectorStore:
     """Memória vetorial com busca por similaridade de cosseno.
 
+    Persiste em JSON (default) ou Database (quando injetada).
+
     Attributes:
-        store_dir: Diretório de persistência.
+        store_dir: Diretório de persistência (JSON).
         provider:  Provider de embeddings (padrão: HashEmbeddingProvider).
         top_k:     Número padrão de resultados por busca.
+        _database: Database Layer opcional (取代 JSON quando presente).
     """
 
     def __init__(
@@ -162,12 +168,17 @@ class VectorStore:
         store_dir: str | Path = "data/vector_memory",
         provider: Optional[EmbeddingProvider] = None,
         top_k: int = 3,
+        database: Optional["Database"] = None,
     ) -> None:
         self._store_dir = Path(store_dir)
         self._provider: EmbeddingProvider = provider or HashEmbeddingProvider()
         self._top_k = max(1, top_k)
         self._docs: dict[str, dict[str, Any]] = {}  # doc_id -> registro
         self._lock = threading.RLock()
+        self._database = database
+        if self._database is not None:
+            from memory.adapters import VECTOR_DOCUMENTS_SCHEMA
+            self._database.create_table("vector_documents", VECTOR_DOCUMENTS_SCHEMA)
 
     # -- Escrita -------------------------------------------------------------
 
@@ -188,6 +199,16 @@ class VectorStore:
             raise ValueError("text não pode ser vazio")
         doc_id = doc_id or uuid.uuid4().hex[:16]
         vector = self._provider.embed([text])[0]
+        now = time.time()
+        if self._database is not None:
+            self._database.execute(
+                "INSERT INTO vector_documents "
+                "(doc_id, namespace, text, vector_json, metadata_json, created_ts) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (doc_id, namespace, text, json.dumps(vector),
+                 json.dumps(metadata or {}, ensure_ascii=False), now),
+            )
+            return doc_id
         with self._lock:
             self._docs[doc_id] = {
                 "doc_id": doc_id,
@@ -195,7 +216,7 @@ class VectorStore:
                 "text": text,
                 "vector": vector,
                 "metadata": dict(metadata or {}),
-                "created_ts": time.time(),
+                "created_ts": now,
             }
             self._persist()
         return doc_id
@@ -211,7 +232,22 @@ class VectorStore:
         if not texts:
             return []
         vectors = self._provider.embed(texts)
-        ids: list[str] = []
+        now = time.time()
+        if self._database is not None:
+            ids: list[str] = []
+            for i, text in enumerate(texts):
+                doc_id = uuid.uuid4().hex[:16]
+                meta = metadata_list[i] if metadata_list and i < len(metadata_list) else None
+                self._database.execute(
+                    "INSERT INTO vector_documents "
+                    "(doc_id, namespace, text, vector_json, metadata_json, created_ts) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (doc_id, namespace, text, json.dumps(vectors[i]),
+                     json.dumps(meta or {}, ensure_ascii=False), now),
+                )
+                ids.append(doc_id)
+            return ids
+        ids = []
         with self._lock:
             for i, text in enumerate(texts):
                 doc_id = uuid.uuid4().hex[:16]
@@ -222,7 +258,7 @@ class VectorStore:
                     "text": text,
                     "vector": vectors[i],
                     "metadata": dict(meta or {}),
-                    "created_ts": time.time(),
+                    "created_ts": now,
                 }
                 ids.append(doc_id)
             self._persist()
@@ -251,15 +287,39 @@ class VectorStore:
         """
         k = top_k or self._top_k
         query_vector = self._provider.embed([query])[0]
-        scored: list[tuple[float, dict[str, Any]]] = []
+        if self._database is not None:
+            db = self._database
+            rows = db.query(
+                "SELECT doc_id, namespace, text, vector_json, metadata_json "
+                "FROM vector_documents WHERE namespace = ?",
+                (namespace,),
+            )
+            scored: list[tuple[float, dict[str, Any]]] = []
+            for row in rows:
+                vector = json.loads(row["vector_json"])
+                score = cosine_similarity(query_vector, vector)
+                if score >= min_score:
+                    scored.append((score, row))
+            scored.sort(key=lambda item: item[0], reverse=True)
+            return [
+                SearchResult(
+                    doc_id=r["doc_id"],
+                    namespace=r["namespace"],
+                    text=r["text"],
+                    score=score,
+                    metadata=json.loads(r["metadata_json"]),
+                )
+                for score, r in scored[:k]
+            ]
+        scored_json: list[tuple[float, dict[str, Any]]] = []
         with self._lock:
             for doc in self._docs.values():
                 if doc["namespace"] != namespace:
                     continue
                 score = cosine_similarity(query_vector, doc["vector"])
                 if score >= min_score:
-                    scored.append((score, doc))
-        scored.sort(key=lambda item: item[0], reverse=True)
+                    scored_json.append((score, doc))
+        scored_json.sort(key=lambda item: item[0], reverse=True)
         return [
             SearchResult(
                 doc_id=doc["doc_id"],
@@ -268,13 +328,18 @@ class VectorStore:
                 score=score,
                 metadata=dict(doc["metadata"]),
             )
-            for score, doc in scored[:k]
+            for score, doc in scored_json[:k]
         ]
 
     # -- Gestão --------------------------------------------------------------
 
     def delete(self, doc_id: str) -> bool:
         """Remove um documento. Retorna True se existia."""
+        if self._database is not None:
+            rowcount = self._database.execute(
+                "DELETE FROM vector_documents WHERE doc_id = ?", (doc_id,)
+            )
+            return rowcount > 0
         with self._lock:
             if self._docs.pop(doc_id, None) is not None:
                 self._persist()
@@ -283,6 +348,21 @@ class VectorStore:
 
     def clear(self, namespace: Optional[str] = None) -> int:
         """Limpa um namespace (ou tudo). Retorna quantidade removida."""
+        if self._database is not None:
+            db = self._database
+            if namespace is None:
+                count = db.scalar("SELECT COUNT(*) FROM vector_documents") or 0
+                db.execute("DELETE FROM vector_documents")
+                return count
+            count = db.scalar(
+                "SELECT COUNT(*) FROM vector_documents WHERE namespace = ?",
+                (namespace,),
+            ) or 0
+            db.execute(
+                "DELETE FROM vector_documents WHERE namespace = ?",
+                (namespace,),
+            )
+            return count
         with self._lock:
             if namespace is None:
                 count = len(self._docs)
@@ -297,6 +377,22 @@ class VectorStore:
 
     def get(self, doc_id: str) -> Optional[dict[str, Any]]:
         """Retorna um documento (sem vetor)."""
+        if self._database is not None:
+            row = self._database.query(
+                "SELECT doc_id, namespace, text, metadata_json, created_ts "
+                "FROM vector_documents WHERE doc_id = ?",
+                (doc_id,), limit=1,
+            )
+            if not row:
+                return None
+            r = row[0]
+            return {
+                "doc_id": r["doc_id"],
+                "namespace": r["namespace"],
+                "text": r["text"],
+                "metadata": json.loads(r["metadata_json"]),
+                "created_ts": r["created_ts"],
+            }
         with self._lock:
             doc = self._docs.get(doc_id)
             if doc is None:
@@ -310,19 +406,33 @@ class VectorStore:
             }
 
     def count(self, namespace: Optional[str] = None) -> int:
+        if self._database is not None:
+            if namespace is None:
+                return self._database.scalar("SELECT COUNT(*) FROM vector_documents") or 0
+            return self._database.scalar(
+                "SELECT COUNT(*) FROM vector_documents WHERE namespace = ?",
+                (namespace,),
+            ) or 0
         with self._lock:
             if namespace is None:
                 return len(self._docs)
             return sum(1 for doc in self._docs.values() if doc["namespace"] == namespace)
 
     def list_namespaces(self) -> list[str]:
+        if self._database is not None:
+            rows = self._database.query(
+                "SELECT DISTINCT namespace FROM vector_documents ORDER BY namespace"
+            )
+            return [r["namespace"] for r in rows]
         with self._lock:
             return sorted({doc["namespace"] for doc in self._docs.values()})
 
     # -- Persistência --------------------------------------------------------
 
     def load(self) -> int:
-        """Carrega o armazenamento do disco. Retorna nº de documentos."""
+        """Carrega o armazenamento do disco/DB. Retorna nº de documentos."""
+        if self._database is not None:
+            return self._load_db()
         path = self._file_path()
         if not path.exists():
             return 0
@@ -337,6 +447,23 @@ class VectorStore:
             except Exception as exc:
                 _audit_nicky("WARN", "VectorStore load failed", error=type(exc).__name__)
                 return 0
+
+    def _load_db(self) -> int:
+        """Carrega documentos do Database para a memória."""
+        db = self._database
+        rows = db.query("SELECT * FROM vector_documents")
+        with self._lock:
+            self._docs.clear()
+            for row in rows:
+                self._docs[row["doc_id"]] = {
+                    "doc_id": row["doc_id"],
+                    "namespace": row["namespace"],
+                    "text": row["text"],
+                    "vector": json.loads(row["vector_json"]),
+                    "metadata": json.loads(row["metadata_json"]),
+                    "created_ts": row["created_ts"],
+                }
+            return len(self._docs)
 
     def _persist(self) -> None:
         try:
@@ -360,15 +487,18 @@ class VectorStore:
     # -- Inspeção ------------------------------------------------------------
 
     def dump(self) -> dict[str, Any]:
-        with self._lock:
-            return {
-                "store_dir": str(self._store_dir),
-                "provider": type(self._provider).__name__,
-                "dimension": self._provider.dimension,
-                "top_k": self._top_k,
-                "documents": len(self._docs),
-                "namespaces": self.list_namespaces(),
-            }
+        backend = "db" if self._database is not None else "json"
+        result: dict[str, Any] = {
+            "backend": backend,
+            "provider": type(self._provider).__name__,
+            "dimension": self._provider.dimension,
+            "top_k": self._top_k,
+            "documents": self.count(),
+            "namespaces": self.list_namespaces(),
+        }
+        if self._database is None:
+            result["store_dir"] = str(self._store_dir)
+        return result
 
 
 # ---------------------------------------------------------------------------

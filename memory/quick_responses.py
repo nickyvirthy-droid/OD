@@ -36,7 +36,10 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from storage.database import Database
 
 _audit_nicky = make_audit_nicky("omega.memory.quick_responses")
 
@@ -129,9 +132,12 @@ class QuickResponse:
 class QuickResponses:
     """Catálogo de respostas rápidas com alternância e analytics.
 
+    Persiste em JSON (default) ou Database (quando injetada).
+
     Attributes:
-        data_dir: Diretório de persistência.
+        data_dir: Diretório de persistência (JSON).
         profile:  Perfil padrão das respostas (isolamento por agente).
+        _database: Database Layer opcional (取代 JSON quando presente).
     """
 
     def __init__(
@@ -140,14 +146,42 @@ class QuickResponses:
         data_dir: str | Path = "data/quick_responses",
         profile: str = "",
         seed_defaults: bool = True,
+        database: Optional["Database"] = None,
     ) -> None:
         self._data_dir = Path(data_dir)
         self._profile = profile
         self._entries: dict[str, QuickResponse] = {}
         self._lock = threading.RLock()
+        self._database = database
+        if self._database is not None:
+            from memory.adapters import QUICK_RESPONSES_SCHEMA
+            self._database.create_table("quick_responses", QUICK_RESPONSES_SCHEMA)
         if seed_defaults:
             for pattern, responses in DEFAULT_RESPONSES.items():
                 self._entries[pattern] = QuickResponse(pattern=pattern, responses=list(responses), profile=profile)
+            if self._database is not None:
+                self._seed_defaults_db()
+
+    def _seed_defaults_db(self) -> None:
+        """Insere os padrões default no DB (apenas os que não existem)."""
+        db = self._database
+        for pattern, responses in DEFAULT_RESPONSES.items():
+            try:
+                existing = db.scalar(
+                    "SELECT COUNT(*) FROM quick_responses WHERE pattern = ?",
+                    (pattern,),
+                )
+                if existing and existing > 0:
+                    continue
+                db.execute(
+                    "INSERT INTO quick_responses "
+                    "(pattern, responses_json, category, profile, priority) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (pattern, json.dumps(responses, ensure_ascii=False),
+                     "", self._profile, 0),
+                )
+            except Exception:
+                pass  # pragma: no cover
 
     # -- Gestão --------------------------------------------------------------
 
@@ -174,6 +208,34 @@ class QuickResponses:
         responses = [r for r in responses if r]
         if not responses:
             raise ValueError("Pelo menos uma resposta é obrigatória")
+        if self._database is not None:
+            db = self._database
+            existing = db.query(
+                "SELECT pattern FROM quick_responses WHERE pattern = ?",
+                (normalized,), limit=1,
+            )
+            if existing:
+                db.execute(
+                    "UPDATE quick_responses SET responses_json = ?, category = ?, "
+                    "priority = ?, current_index = 0 WHERE pattern = ?",
+                    (json.dumps(responses, ensure_ascii=False),
+                     category, priority, normalized),
+                )
+            else:
+                db.execute(
+                    "INSERT INTO quick_responses "
+                    "(pattern, responses_json, category, profile, priority) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (normalized, json.dumps(responses, ensure_ascii=False),
+                     category, self._profile, priority),
+                )
+            entry = QuickResponse(
+                pattern=normalized, responses=list(responses),
+                category=category, profile=self._profile, priority=priority,
+            )
+            with self._lock:
+                self._entries[normalized] = entry
+            return entry
         with self._lock:
             existing = self._entries.get(normalized)
             if existing is not None:
@@ -197,6 +259,26 @@ class QuickResponses:
     def add_response(self, pattern: str, response: str) -> bool:
         """Adiciona uma variação a um padrão existente. Retorna False se não existe."""
         normalized = self._normalize(pattern)
+        if self._database is not None:
+            db = self._database
+            row = db.query(
+                "SELECT pattern, responses_json FROM quick_responses "
+                "WHERE pattern = ?", (normalized,), limit=1,
+            )
+            if not row:
+                return False
+            responses = json.loads(row[0]["responses_json"])
+            if response not in responses:
+                responses.append(response)
+                db.execute(
+                    "UPDATE quick_responses SET responses_json = ? WHERE pattern = ?",
+                    (json.dumps(responses, ensure_ascii=False), normalized),
+                )
+            with self._lock:
+                entry = self._entries.get(normalized)
+                if entry is not None and response not in entry.responses:
+                    entry.responses.append(response)
+            return True
         with self._lock:
             entry = self._entries.get(normalized)
             if entry is None:
@@ -209,6 +291,13 @@ class QuickResponses:
     def remove(self, pattern: str) -> bool:
         """Remove um padrão inteiro. Retorna True se existia."""
         normalized = self._normalize(pattern)
+        if self._database is not None:
+            rowcount = self._database.execute(
+                "DELETE FROM quick_responses WHERE pattern = ?", (normalized,)
+            )
+            with self._lock:
+                self._entries.pop(normalized, None)
+            return rowcount > 0
         with self._lock:
             if self._entries.pop(normalized, None) is not None:
                 self._persist()
@@ -218,6 +307,32 @@ class QuickResponses:
     def remove_response(self, pattern: str, response: str) -> bool:
         """Remove uma variação. Retorna True se existia e foi removida."""
         normalized = self._normalize(pattern)
+        if self._database is not None:
+            db = self._database
+            row = db.query(
+                "SELECT responses_json FROM quick_responses WHERE pattern = ?",
+                (normalized,), limit=1,
+            )
+            if not row:
+                return False
+            responses = json.loads(row[0]["responses_json"])
+            if response not in responses:
+                return False
+            responses.remove(response)
+            if not responses:
+                db.execute("DELETE FROM quick_responses WHERE pattern = ?", (normalized,))
+            else:
+                db.execute(
+                    "UPDATE quick_responses SET responses_json = ? WHERE pattern = ?",
+                    (json.dumps(responses, ensure_ascii=False), normalized),
+                )
+            with self._lock:
+                entry = self._entries.get(normalized)
+                if entry is not None and response in entry.responses:
+                    entry.responses.remove(response)
+                    if not entry.responses:
+                        self._entries.pop(normalized, None)
+            return True
         with self._lock:
             entry = self._entries.get(normalized)
             if entry is None or response not in entry.responses:
@@ -229,7 +344,13 @@ class QuickResponses:
             return True
 
     def has(self, pattern: str) -> bool:
-        return self._normalize(pattern) in self._entries
+        normalized = self._normalize(pattern)
+        if self._database is not None:
+            return self._database.scalar(
+                "SELECT COUNT(*) FROM quick_responses WHERE pattern = ?",
+                (normalized,),
+            ) > 0
+        return normalized in self._entries
 
     # -- Consulta ------------------------------------------------------------
 
@@ -240,6 +361,8 @@ class QuickResponses:
             A resposta escolhida, ou None se o padrão não existe.
         """
         normalized = self._normalize(pattern)
+        if self._database is not None:
+            return self._get_db(normalized, response_time_ms)
         with self._lock:
             entry = self._entries.get(normalized)
             if entry is None or not entry.responses:
@@ -257,9 +380,50 @@ class QuickResponses:
             self._persist()
             return response
 
+    def _get_db(self, normalized: str, response_time_ms: float) -> Optional[str]:
+        db = self._database
+        row = db.query(
+            "SELECT responses_json, current_index, use_count, "
+            "avg_response_time_ms FROM quick_responses WHERE pattern = ?",
+            (normalized,), limit=1,
+        )
+        if not row:
+            return None
+        r = row[0]
+        responses = json.loads(r["responses_json"])
+        if not responses:
+            return None
+        idx = r["current_index"] % len(responses)
+        response = responses[idx]
+        new_idx = (idx + 1) % len(responses)
+        new_count = r["use_count"] + 1
+        avg = r["avg_response_time_ms"]
+        if response_time_ms > 0:
+            if avg <= 0:
+                avg = response_time_ms
+            else:
+                avg = (avg + response_time_ms) / 2
+        db.execute(
+            "UPDATE quick_responses SET current_index = ?, use_count = ?, "
+            "last_used_ts = ?, avg_response_time_ms = ? WHERE pattern = ?",
+            (new_idx, new_count, time.time(), avg, normalized),
+        )
+        return response
+
     def peek(self, pattern: str) -> Optional[str]:
         """Retorna a próxima resposta sem consumir (sem alternar nem contar)."""
         normalized = self._normalize(pattern)
+        if self._database is not None:
+            row = self._database.query(
+                "SELECT responses_json, current_index FROM quick_responses "
+                "WHERE pattern = ?", (normalized,), limit=1,
+            )
+            if not row:
+                return None
+            responses = json.loads(row[0]["responses_json"])
+            if not responses:
+                return None
+            return responses[row[0]["current_index"] % len(responses)]
         with self._lock:
             entry = self._entries.get(normalized)
             if entry is None or not entry.responses:
@@ -268,6 +432,25 @@ class QuickResponses:
 
     def get_entry(self, pattern: str) -> Optional[QuickResponse]:
         normalized = self._normalize(pattern)
+        if self._database is not None:
+            row = self._database.query(
+                "SELECT * FROM quick_responses WHERE pattern = ?",
+                (normalized,), limit=1,
+            )
+            if not row:
+                return None
+            r = row[0]
+            return QuickResponse(
+                pattern=r["pattern"],
+                responses=json.loads(r["responses_json"]),
+                category=r["category"],
+                profile=r["profile"],
+                priority=r["priority"],
+                current_index=r["current_index"],
+                use_count=r["use_count"],
+                last_used_ts=r["last_used_ts"],
+                avg_response_time_ms=r["avg_response_time_ms"],
+            )
         with self._lock:
             entry = self._entries.get(normalized)
             if entry is None:
@@ -275,6 +458,11 @@ class QuickResponses:
             return QuickResponse.from_dict(entry.to_dict())  # cópia
 
     def list_patterns(self) -> list[str]:
+        if self._database is not None:
+            rows = self._database.query(
+                "SELECT pattern FROM quick_responses ORDER BY pattern"
+            )
+            return [r["pattern"] for r in rows]
         with self._lock:
             return sorted(self._entries.keys())
 
@@ -282,6 +470,41 @@ class QuickResponses:
 
     def analytics(self, pattern: Optional[str] = None) -> dict[str, Any]:
         """Estatísticas de uso por padrão (e por resposta)."""
+        if self._database is not None:
+            db = self._database
+            if pattern is not None:
+                normalized = self._normalize(pattern)
+                row = db.query(
+                    "SELECT pattern, category, use_count, last_used_ts, "
+                    "avg_response_time_ms, responses_json FROM quick_responses "
+                    "WHERE pattern = ?", (normalized,), limit=1,
+                )
+                if not row:
+                    return {}
+                r = row[0]
+                return {
+                    "pattern": r["pattern"],
+                    "category": r["category"],
+                    "use_count": r["use_count"],
+                    "last_used_ts": r["last_used_ts"],
+                    "avg_response_time_ms": r["avg_response_time_ms"],
+                    "responses": len(json.loads(r["responses_json"])),
+                }
+            rows = db.query(
+                "SELECT pattern, use_count, last_used_ts FROM quick_responses"
+            )
+            result: dict[str, Any] = {
+                "patterns": len(rows),
+                "total_uses": 0,
+                "per_pattern": {},
+            }
+            for r in rows:
+                result["total_uses"] += r["use_count"]
+                result["per_pattern"][r["pattern"]] = {
+                    "use_count": r["use_count"],
+                    "last_used_ts": r["last_used_ts"],
+                }
+            return result
         with self._lock:
             if pattern is not None:
                 normalized = pattern.strip().lower()
@@ -312,7 +535,9 @@ class QuickResponses:
     # -- Persistência --------------------------------------------------------
 
     def load(self) -> int:
-        """Carrega o catálogo do disco. Retorna nº de padrões carregados."""
+        """Carrega o catálogo do disco/DB. Retorna nº de padrões carregados."""
+        if self._database is not None:
+            return self._load_db()
         path = self._file_path()
         if not path.exists():
             return 0
@@ -328,6 +553,27 @@ class QuickResponses:
             except Exception as exc:
                 _audit_nicky("WARN", "QuickResponses load failed", error=type(exc).__name__)
                 return 0
+
+    def _load_db(self) -> int:
+        """Carrega padrões do Database para a memória."""
+        db = self._database
+        rows = db.query("SELECT * FROM quick_responses")
+        with self._lock:
+            self._entries.clear()
+            for row in rows:
+                entry = QuickResponse(
+                    pattern=row["pattern"],
+                    responses=json.loads(row["responses_json"]),
+                    category=row["category"],
+                    profile=row["profile"],
+                    priority=row["priority"],
+                    current_index=row["current_index"],
+                    use_count=row["use_count"],
+                    last_used_ts=row["last_used_ts"],
+                    avg_response_time_ms=row["avg_response_time_ms"],
+                )
+                self._entries[entry.pattern] = entry
+            return len(self._entries)
 
     def _persist(self) -> None:
         try:
@@ -350,9 +596,12 @@ class QuickResponses:
     # -- Inspeção ------------------------------------------------------------
 
     def dump(self) -> dict[str, Any]:
-        with self._lock:
-            return {
-                "data_dir": str(self._data_dir),
-                "profile": self._profile,
-                "analytics": self.analytics(),
-            }
+        backend = "db" if self._database is not None else "json"
+        result: dict[str, Any] = {
+            "backend": backend,
+            "profile": self._profile,
+            "analytics": self.analytics(),
+        }
+        if self._database is None:
+            result["data_dir"] = str(self._data_dir)
+        return result
