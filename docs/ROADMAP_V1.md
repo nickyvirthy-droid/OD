@@ -3,9 +3,10 @@
 > **Status:** Em execução (v1.0.0) · **Data:** 2026-09-04 (atualizado 2026-09-07)
 > **Base:** série 0.x congelada na v0.28.1 (tag `v0.28.1`) — esta é a
 > **primeira entrega da série v1** (v1.0.0 em diante).
-> **Progresso v1.0.0:** itens **1.1** (CI + cobertura), **1.3** (perfil `nexus`),
-> **1.4** (health checks externos HA/MQTT) e **1.5** (Control Bridge no repo)
-> entregues · demais pendentes
+> **Progresso v1.0.0:** itens **1.1** (CI + cobertura), **1.2** (migração JSON→DB),
+> **1.3** (perfil `nexus`), **1.4** (health checks externos HA/MQTT),
+> **1.5** (Control Bridge) e **1.6** (systemd `od-core`) entregues
+> · demais pendentes
 > **Assinatura:** `OD // CORE`
 
 ---
@@ -42,23 +43,22 @@ detectável por domínio).
 | # | Item | Origem | Entrega |
 |---|---|---|---|
 | 1.1 | **CI no GitHub Actions** | Roadmap §8 (promessa pendente) | ✅ **Entregue (2026-09-07).** `.github/workflows/ci.yml` (Python 3.12, push + PR): `compileall` + `pytest -q` com gate de **cobertura ≥ 90%** via `.coveragerc` (escopo: pacotes de produção, `runtime/launcher.py` omitido) e `requirements-dev.txt` |
-| 1.2 | **Migração JSON → PostgreSQL** | Pendência v0.28.0 | Histórico (`memory/history.py`), cache LLM e quick responses saem dos arquivos JSON para tabelas no Postgres (adapter + migração do `data/` existente) |
+| 1.2 | **Migração JSON → PostgreSQL** | Pendência v0.28.0 | ✅ **Entregue (2026-09-07).** `memory/adapters.py` (schemas + `migrate_all()` idempotente); `history.py`, `cache.py`, `quick_responses.py`, `vector.py` ganharam param `database=None`; launcher injeta Database; fallback JSON mantido. 46 testes novos |
 | 1.3 | **7º perfil: `nexus` (Conector)** | Lacuna da Plêiade (pleiade.yaml) | ✅ **Entregue (2026-09-07).** Novo perfil em `agents/profiles.py`: o equilíbrio que une a plêiade — domínio de **integração/coordenação** entre os perfis; detecção automática (domínio "conexão", "integração", "plêiade") |
 | 1.4 | **Health checks externos** | Pendência v0.24.0 | ✅ **Entregue (2026-09-07).** Checks não-críticos de **HA** e **MQTT/Mosquitto** no Health Monitor (placeholders em `build_health` + `register_external_health_checks()` no launcher); `PresenceMonitor.health()` agora reflete alcance real do HA |
 | 1.5 | **Control Bridge no repo** | Pendência P1 (auditoria) | ✅ **Entregue (2026-09-07).** `tests/test_control_bridge.py` (26 testes: allowlist, tokens, escape de path, legados §7.1, auditoria, execute) + unit systemd `runtime/systemd/od-control-bridge.service` no `install-user.sh` |
-| 1.6 | **Systemd service `od-core`** | Análise do servidor (2026-09-05) | Service unit para o launcher `all` — sobe automaticamente no boot, restart on-failure, user `odrunner` com sandboxing |
+| 1.6 | **Systemd service `od-core`** | Análise do servidor (2026-09-05) | ✅ **Entregue (2026-09-07).** `runtime/systemd/od-core.service` com hardening (NoNewPrivileges, ProtectSystem=strict, ProtectKernel*, MemoryMax=6G, CPUQuota=200%, ReadWritePaths); `install-user.sh` com verificação de linger; 29 testes (tests/test_systemd_units.py) |
 | 1.7 | **SWAP 4 GB** | Análise do servidor (2026-09-05) | Criar swap file (`/swapfile`) — o LLM local consome 4.8 GB de 7.7 GB RAM, sem swap o OOM killer derruba processos |
 | 1.8 | **UFW Firewall** | Análise do servidor (2026-09-05) | Configurar UFW: permitir 22 (SSH), 8000 (OD API), 8123 (HA); bloquear o resto; Tailscale já fornece acesso externo seguro |
 | 1.9 | **Variáveis de ambiente ausentes** | Análise do servidor (2026-09-05) | Configurar no `.env`: `OD_PRESENCE_ENABLED`, `OD_PRESENCE_POLL_S`, `OD_HA_CREDENTIALS`, `OD_RECOVERY_INTERVAL_S`, `OD_SELF_REPAIR_ENABLED`, `OD_NOTIFIER_ENABLED` |
 | 1.10 | **Montar disco sdb1** | Análise do servidor (2026-09-05) | Montar `/dev/sdb1` (Seagate 1 TB não montado) + configurar automount via `/etc/fstab` — +1 TB disponível para backups e dados |
 
 **Critérios de aceite:** ✅ CI verde no GitHub (push + PR) — pipeline criado
-(aguardando 1º push p/ validar no GitHub) · ✅ cobertura ≥ 90% — **90.76%**
-local (2026-09-07) · ✅ suíte local ≥ 1453 — **1507 passed** · perfil `nexus`
-selecionável e detectável (✅ entregue) · migração de dados sem perda ·
-`/health` com 7 checks (5 internos + HA + MQTT) (✅) · od-core como systemd
-service · SWAP 4 GB ativo · UFW ativo · todas as variáveis de ambiente
-configuradas.
+ · ✅ cobertura ≥ 90% — **95%** local (2026-09-07) · ✅ suíte local — **1582 passed**
+ · ✅ perfil `nexus` selecionável e detectável · ✅ migração JSON→DB sem perda ·
+ ✅ `/health` com 7 checks (5 internos + HA + MQTT) · ✅ od-core como systemd
+ service com sandboxing · SWAP 4 GB ativo · UFW ativo · todas as variáveis de
+ ambiente configuradas.
 
 ---
 
