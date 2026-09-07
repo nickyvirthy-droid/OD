@@ -1,5 +1,5 @@
 [Unit]
-Description=Omega Drakon — CORE (API REST 8000 + Telegram Bot)
+Description=Omega Drakon — CORE (API REST 8000 + Telegram Bot + MQTT + Recovery)
 After=od-llm.service network.target
 Wants=od-llm.service
 
@@ -10,7 +10,49 @@ EnvironmentFile=/home/alex/OmegaDrakon/.env
 ExecStart=/home/alex/OmegaDrakon/.venv/bin/python -m runtime.launcher all
 Restart=on-failure
 RestartSec=10
-# Lê TELEGRAM_BOT_TOKEN/OD_TELEGRAM_ADMINS/OD_API_* do .env (não versionado).
+
+# --- Segurança (sandboxing) ---
+# Roda como o usuário do sistema (nunca root)
+User=alex
+Group=alex
+NoNewPrivileges=true
+
+# Proteção do filesystem: somente leitura no /usr, /boot, /etc
+ProtectSystem=strict
+# Proteção do home: o OD só acessa /home/alex/OmegaDrakon e /home/alex/LLM
+ProtectHome=false
+# Permite escrever em diretórios específicos do projeto
+ReadWritePaths=/home/alex/OmegaDrakon/data
+ReadWritePaths=/home/alex/OmegaDrakon/logs
+ReadWritePaths=/home/alex/OmegaDrakon/.env
+
+# Proteção de kernel
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+
+# Isolamento de rede (mantém acesso: API 8000 + Telegram + MQTT + HA)
+PrivateNetwork=false
+
+# Restrição de syscalls
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+
+# Limites de recursos
+MemoryMax=6G
+CPUQuota=200%
+# O LLM local consome ~4.8GB; o OD core precisa de margem para
+# operações, plugins e recovery (6GB total garante folga)
+
+# Limpeza automática de PID/IPC/UTS namespaces
+ProtectProc=invisible
+ProcSubset=pid
+
+# Logs via journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=od-core
 
 [Install]
 WantedBy=default.target

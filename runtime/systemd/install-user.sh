@@ -22,3 +22,11 @@ systemctl --user status od-llm.service od-core.service od-control-bridge.service
 echo
 echo "💡 Para manter o OD no ar após logout/reboot (recomendado):"
 echo "   sudo loginctl enable-linger $USER"
+
+# Verifica se linger já está ativo
+if systemctl --user is-enabled od-core.service >/dev/null 2>&1; then
+    echo "✅ od-core.service habilitado (auto-start no boot)"
+else
+    echo "⚠️  od-core.service NÃO habilitado — rode:"
+    echo "   systemctl --user enable od-core.service"
+fi
