@@ -800,12 +800,14 @@ class TestResolveAutoProfile:
         assert _resolve_auto(AUTO_PROFILE, "me explique a história de Roma") == "regulus"
         assert _resolve_auto(AUTO_PROFILE, "quero aprender python") == "luma"
         assert _resolve_auto(AUTO_PROFILE, "monitore a CPU do servidor") == "guardian"
+        assert _resolve_auto(AUTO_PROFILE, "conexão da plêiade") == "nexus"
 
     def test_explicito_ignora_dominio(self) -> None:
         from integrations.telegram.bot import _resolve_auto
 
         assert _resolve_auto("vox", "história de Roma") == "vox"
         assert _resolve_auto("nyx", "qualquer coisa") == "nyx"
+        assert _resolve_auto("nexus", "qualquer coisa") == "nexus"
 
 
 class TestSendVoice:
