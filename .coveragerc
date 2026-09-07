@@ -1,0 +1,24 @@
+# OMEGA DRAKON • COVERAGE CONFIG
+# Escopo do gate de cobertura da v1.0.0 (item 1.1 — CI ≥ 90%):
+#   - source: pacotes de produção apenas (tests/ NUNCA entra na medição)
+#   - omit: runtime/launcher.py — entrypoint de composição (main() sobe
+#     servidores/threads/integrações reais e não é unit-testável); as funções
+#     registráveis dele (build_health, register_external_health_checks etc.)
+#     têm cobertura própria via tests/test_launcher_health_external.py
+[run]
+source =
+    core
+    agents
+    integrations
+    observability
+    plugins
+    storage
+    tools
+    runtime
+omit =
+    runtime/launcher.py
+
+[report]
+# Gate honesto: % de linhas de produção cobertas (sem entrypoint).
+show_missing = True
+skip_covered = True

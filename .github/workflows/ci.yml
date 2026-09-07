@@ -1,0 +1,42 @@
+# OMEGA DRAKON • CI (v1.0.0, item 1.1)
+# Pipeline: Python 3.12 + compileall + suíte completa com gate de cobertura
+# ≥ 90% (pytest-cov). Roda em push e pull request.
+#
+# Escopo do gate: ver .coveragerc — pacotes de produção (tests/ nunca entra
+# na medição); runtime/launcher.py (entrypoint) omitido. Meta do roadmap:
+# "CI verde no GitHub (push + PR) · cobertura ≥ 90% · suíte local ≥ 1453".
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    name: pytest + compileall + cobertura
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: compileall (erros de sintaxe/importer)
+        run: |
+          python -m compileall -q core agents integrations observability plugins storage tools runtime tests
+
+      - name: Suíte completa + gate de cobertura ≥ 90%
+        run: |
+          python -m pytest --cov --cov-config=.coveragerc --cov-fail-under=90 -q

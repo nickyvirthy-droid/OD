@@ -39,8 +39,8 @@ __signature__ = "OD // CORE"
 
 log = get_logger("omega.tools.audio.stt")
 
-DEFAULT_BINARY = "/home/alex/nicky/whisper.cpp/build/bin/whisper-cli"
-DEFAULT_MODEL = "/home/alex/nicky/whisper.cpp/models/ggml-base.bin"
+DEFAULT_BINARY = "/home/alex/OmegaDrakon/voice/stt/whisper-cli"
+DEFAULT_MODEL = "/home/alex/OmegaDrakon/voice/stt/ggml-base.bin"
 DEFAULT_FFMPEG = "/usr/bin/ffmpeg"
 DEFAULT_LANGUAGE = "pt"
 

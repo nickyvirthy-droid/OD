@@ -160,6 +160,14 @@ class TestSafeMath:
         assert safe_math("qual o sentido da vida?") is None
         assert safe_math("") is None
 
+    def test_expressao_longa_rejeitada(self) -> None:
+        """Expressões >120 chars saem (defesa contra abuso de CPU)."""
+        assert safe_math("quanto é " + "2" * 121) is None
+
+    def test_erro_aritmetico_retorna_none(self) -> None:
+        """Divisão por zero NUNCA estoura — devolve None."""
+        assert safe_math("quanto é 1/0") is None
+
 
 # ---------------------------------------------------------------------------
 # Formatação de resultados
@@ -205,6 +213,72 @@ class TestFormatIntentResult:
         })
         assert text is not None
         assert "42.5%" in text and "8.0 GB de 16.0 GB" in text
+
+    def test_network_hosts_mais_de_dez_trunca(self) -> None:
+        """>10 vizinhos: lista até 10 + linha '... e mais N'."""
+        hosts = [
+            {"ip": f"192.168.0.{i}", "mac": f"00:11:22:33:44:{i:02x}",
+             "interface": "enp2s0", "state": "reachable"}
+            for i in range(1, 12)
+        ]
+        text = format_intent_result(
+            "network_hosts", {"ok": True, "count": 11, "hosts": hosts}
+        )
+        assert text is not None
+        assert "11 dispositivo(s)" in text
+        assert text.count("192.168.0.") == 10
+        assert "... e mais 1" in text
+
+    def test_cpu_info(self) -> None:
+        text = format_intent_result("cpu_info", {
+            "ok": True, "cores": 8, "load1": 0.42,
+            "model": "AMD Ryzen 7 5700G",
+        })
+        assert text == "⚙️ CPU: 8 núcleos · load 0.42 · AMD Ryzen 7 5700G"
+
+    def test_cpu_info_modelo_longo_trunca(self) -> None:
+        """Modelo >40 chars é truncado com '…'."""
+        text = format_intent_result("cpu_info", {
+            "ok": True, "cores": 4, "load1": 0.1,
+            "model": "M" * 60,
+        })
+        assert text is not None
+        assert "M" * 40 + "…" in text
+        assert "M" * 41 not in text
+
+    def test_disk_usage(self) -> None:
+        text = format_intent_result("disk_usage", {
+            "ok": True, "percent": 63.2, "free": 512 * 1024 ** 3,
+            "total": 1024 * 1024 ** 3, "path": "/",
+        })
+        assert text == "💾 Disco /: 63.2% usado · 512.0 GB livres de 1024.0 GB"
+
+    def test_uptime(self) -> None:
+        text = format_intent_result("uptime", {
+            "ok": True, "days": 3.4, "seconds": 294_000,
+        })
+        assert text is not None
+        assert "3.4 dia(s)" in text and "294000 s" in text
+
+    def test_system_info(self) -> None:
+        text = format_intent_result("system_info", {
+            "ok": True, "system": "Linux", "release": "6.8.0",
+            "node": "nicky-server", "cores": 8, "python": "3.12.3",
+        })
+        assert text == ("🖥️ Linux 6.8.0 (nicky-server) · 8 núcleos · "
+                        "Python 3.12.3")
+
+    def test_fallback_generico(self) -> None:
+        text = format_intent_result("action_estranha", {
+            "nome": "alex", "ativo": 1, "_interno": True,
+            "aninhado": {"a": 1},
+        })
+        assert text == "nome: alex; ativo: 1"
+
+    def test_fallback_sem_pares_escalares(self) -> None:
+        assert format_intent_result("action_estranha", {
+            "aninhado": {"a": 1},
+        }) is None
 
     def test_dados_invalidos_ou_degradados(self) -> None:
         assert format_intent_result("network_hosts", None) is None

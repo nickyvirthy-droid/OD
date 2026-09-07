@@ -171,8 +171,9 @@ class TestAPIPublicEndpoints:
         status, body, _ = _request(srv.bound_port, "GET", "/profiles")
         data = _json_response((status, body, _))
         names = {p["name"] for p in data["profiles"]}
-        assert status == 200 and len(names) == 7
+        assert status == 200 and len(names) == 8
         assert "auto" in names and "guardian" in names and "nyx" in names
+        assert "nexus" in names
         guardian = next(p for p in data["profiles"] if p["name"] == "guardian")
         assert guardian["default"] is True
 

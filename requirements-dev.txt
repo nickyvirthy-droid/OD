@@ -1,0 +1,13 @@
+# OMEGA DRAKON • DEPENDÊNCIAS DE DESENVOLVIMENTO/TESTE (CI v1.0.0)
+# Instalar junto com requirements.txt: pip install -r requirements-dev.txt
+pytest>=8.0
+pytest-asyncio>=0.23
+pytest-cov>=5.0
+# test_config_manager.py lê YAML (configs/manager.py — módulo só de teste)
+PyYAML>=6.0
+# test_face_detector.py exercita tools/vision/face_detector.py com OpenCV real
+numpy>=1.26
+# Versão travada: os testes de detecção (test_center_face_kept etc.) são
+# pixel-exatos e dependem do cascade do OpenCV — mudar de versão pode
+# quebrá-los sem relação com o código do OD.
+opencv-python-headless==4.14.0.94

@@ -36,11 +36,11 @@ __signature__ = "OD // CORE"
 
 log = get_logger("omega.tools.audio.tts")
 
-DEFAULT_BINARY = "/home/alex/nicky/piper/piper/piper"
-DEFAULT_MODEL = "/home/alex/nicky/piper/voices/dii_pt-BR.onnx"
-DEFAULT_CONFIG = "/home/alex/nicky/piper/voices/dii_pt-BR.onnx.json"
-REGULUS_MODEL = "/home/alex/nicky/piper/voices/pt_BR-faber-medium.onnx"
-REGULUS_CONFIG = "/home/alex/nicky/piper/voices/pt_BR-faber-medium.onnx.json"
+DEFAULT_BINARY = "/home/alex/OmegaDrakon/voice/tts/piper"
+DEFAULT_MODEL = "/home/alex/OmegaDrakon/voice/tts/dii_pt-BR.onnx"
+DEFAULT_CONFIG = "/home/alex/OmegaDrakon/voice/tts/dii_pt-BR.onnx.json"
+REGULUS_MODEL = "/home/alex/OmegaDrakon/voice/tts/pt_BR-faber-medium.onnx"
+REGULUS_CONFIG = "/home/alex/OmegaDrakon/voice/tts/pt_BR-faber-medium.onnx.json"
 
 
 @dataclass(slots=True)
