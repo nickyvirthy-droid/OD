@@ -30,7 +30,7 @@ __signature__ = "OD // CORE"
 if TYPE_CHECKING:
     from integrations.telegram.bot import TelegramBot
 
-PROFILES = ("auto", "guardian", "regulus", "luma", "vox", "athenae", "nyx")
+PROFILES = ("auto", "guardian", "regulus", "luma", "vox", "athenae", "nyx", "nexus")
 DASHBOARD_URL = "https://localhost:8765"  # OD Control Bridge (docs/CONTROL_BRIDGE.md)
 
 # 13 comandos de texto (o 14º recurso é voz/STT — ver bot.handle_voice)

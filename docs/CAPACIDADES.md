@@ -52,7 +52,7 @@ auto-start (5) · 🟠 parcialmente exposta (1) · ⚪ dormente (0).
 | MQTT Bridge (Mosquitto) | `integrations/mqtt/` |
 | Control Bridge (127.0.0.1:8765, odrunner) | `runtime/control_bridge/` |
 | Presence Monitor (HA) | `integrations/homeassistant/presence.py` |
-| Profile Manager (6 perfis) | `agents/profiles.py` |
+| Profile Manager (7 perfis — Plêiade completa) | `agents/profiles.py` |
 | LLM local (gemma-4-E4B, 127.0.0.1:8081) | `core/llm.py` |
 | Audit / Metrics / Health / Database | `observability/` · `storage/database.py` |
 | Launcher + systemd | `runtime/launcher.py` · `runtime/systemd/` |

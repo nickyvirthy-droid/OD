@@ -20,6 +20,7 @@ import pytest
 from agents.nicky_virthy.personality import (
     DEFAULT_PROFILE,
     PROFILES,
+    _read_canonical,
     build_identity_prompt,
     get_system_prompt,
     profile_names,
@@ -32,7 +33,7 @@ class TestPersonality:
     def test_default_profile_is_guardian(self) -> None:
         assert DEFAULT_PROFILE == "guardian"
         assert "guardian" in PROFILES
-        assert len(PROFILES) == 6  # guardian/regulus/luma/vox/athenae/nyx
+        assert len(PROFILES) == 7  # guardian/regulus/luma/vox/athenae/nyx/nexus
 
     def test_identity_core_present(self) -> None:
         prompt = get_system_prompt("guardian")
@@ -65,6 +66,16 @@ class TestPersonality:
 
     def test_profile_names(self) -> None:
         assert set(profile_names()) == set(PROFILES)
+
+    def test_read_canonical_existente(self) -> None:
+        """Identidade canônica lida do disco (IDENTITY.md)."""
+        content = _read_canonical("IDENTITY.md")
+        assert content is not None
+        assert "Nicky Virthy" in content or "Omega Drakon" in content
+
+    def test_read_canonical_ausente_retorna_none(self) -> None:
+        """Arquivo inexistente degrada para None (best-effort)."""
+        assert _read_canonical("NAO_EXISTE.md") is None
 
 
 # ===========================================================================

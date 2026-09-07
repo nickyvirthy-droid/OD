@@ -51,9 +51,10 @@ if TYPE_CHECKING:
 
 log = get_logger("omega.integrations.api")
 
-# Perfis do agente (mesma lista do legado Nicky; Profile Manager é o 6.5).
+# Perfis do agente (mesma lista do legado Nicky; Profile Manager é o 6.5;
+# nexus/Conector = 7º perfil da Plêiade — v1.0.0, item 1.3).
 DEFAULT_PROFILES = (
-    "auto", "guardian", "regulus", "luma", "vox", "athenae", "nyx",
+    "auto", "guardian", "regulus", "luma", "vox", "athenae", "nyx", "nexus",
 )
 DEFAULT_PROFILE = "guardian"
 
@@ -224,6 +225,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
     <option value="vox">vox</option>
     <option value="athenae">athenae</option>
     <option value="nyx">nyx</option>
+    <option value="nexus">nexus</option>
   </select>
 </header>
 

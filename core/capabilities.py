@@ -384,9 +384,9 @@ CAPABILITIES: list[dict[str, str]] = [
     },
     {
         "id": "profiles",
-        "name": "Profile Manager (6 perfis + detecção automática)",
+        "name": "Profile Manager (7 perfis + detecção automática)",
         "category": "sensorial",
-        "description": "guardian/regulus/luma/vox/athenae/nyx com detecção por domínio.",
+        "description": "guardian/regulus/luma/vox/athenae/nyx/nexus com detecção por domínio.",
         "source": "Nicky",
         "phase": "Fase 6.5",
         "status": ACTIVE,

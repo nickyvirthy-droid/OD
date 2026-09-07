@@ -1,7 +1,8 @@
 """
 OMEGA DRAKON • TESTS
 Módulo: tests/test_profiles.py
-Descrição: Testes do Profile Manager (Fase 6, item 6.5): 6 perfis oficiais,
+Descrição: Testes do Profile Manager (Fase 6, item 6.5): 7 perfis oficiais
+           (Plêiade completa, incluindo o Conector Nexus — v1.0.0 item 1.3),
            detecção automática por domínio, resolução (explícito > auto >
            default), perfis customizados e prompt combinado.
 Interface Viva: Nicky Virthy
@@ -17,9 +18,9 @@ class TestProfileManager:
     def setup_method(self) -> None:
         self.pm = ProfileManager()
 
-    def test_seis_perfis_oficiais(self) -> None:
+    def test_sete_perfis_oficiais(self) -> None:
         names = self.pm.list_profiles()
-        assert names == ["guardian", "regulus", "luma", "vox", "athenae", "nyx"]
+        assert names == ["guardian", "regulus", "luma", "vox", "athenae", "nyx", "nexus"]
 
     def test_metadados_essenciais(self) -> None:
         for name, profile in self.pm.profiles.items():
@@ -43,6 +44,8 @@ class TestProfileManager:
         assert self.pm.get_profile_by_domain("storytelling para anúncios") == "vox"
         assert self.pm.get_profile_by_domain("taxonomia de dados") == "athenae"
         assert self.pm.get_profile_by_domain("mitologia grega") == "nyx"
+        assert self.pm.get_profile_by_domain("conexão da plêiade") == "nexus"
+        assert self.pm.get_profile_by_domain("integração e coordenação") == "nexus"
 
     def test_deteccao_dominio_vazio(self) -> None:
         assert self.pm.get_profile_by_domain("") == DEFAULT_PROFILE
@@ -54,11 +57,13 @@ class TestProfileManager:
     def test_resolve_explicito(self) -> None:
         assert self.pm.resolve("luma") == "luma"
         assert self.pm.resolve("NYX") == "nyx"
+        assert self.pm.resolve("nexus") == "nexus"
         assert self.pm.resolve("inexistente") == DEFAULT_PROFILE
 
     def test_resolve_auto_com_contexto(self) -> None:
         assert self.pm.resolve("auto", "história medieval") == "regulus"
         assert self.pm.resolve("", "psicologia do aprendizado") == "luma"
+        assert self.pm.resolve("auto", "integração da plêiade") == "nexus"
 
     def test_resolve_auto_sem_contexto(self) -> None:
         assert self.pm.resolve("auto") == DEFAULT_PROFILE
@@ -67,6 +72,7 @@ class TestProfileManager:
     def test_get_display_name(self) -> None:
         assert "Nicky Virthy" in self.pm.get_display_name("guardian")
         assert "Regulus" in self.pm.get_display_name("regulus")
+        assert "Nexus" in self.pm.get_display_name("nexus")
 
     def test_get_combined_prompt(self) -> None:
         combined = self.pm.get_combined_prompt(None, "história", base_identity="IDENTIDADE BASE")
@@ -92,7 +98,9 @@ class TestProfileManager:
 
     def test_snapshot_e_dump(self) -> None:
         snap = self.pm.snapshot()
-        assert snap["count"] == 6
+        assert snap["count"] == 7
         assert snap["default"] == "guardian"
         dump = self.pm.dump()
-        assert set(dump) == {"guardian", "regulus", "luma", "vox", "athenae", "nyx"}
+        assert set(dump) == {
+            "guardian", "regulus", "luma", "vox", "athenae", "nyx", "nexus",
+        }

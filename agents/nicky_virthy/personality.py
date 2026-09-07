@@ -5,7 +5,8 @@ Módulo: agents/nicky_virthy/personality.py
 Descrição: Personalidade da Interface Viva — monta o system prompt do LLM
            a partir da identidade canônica (agents/nicky_virthy/IDENTITY.md
            e SOUL.md): tríade (Alex Projeti → Omega Drakon → Nicky Virthy),
-           axiomas, protocolo NICKY e o tom de cada perfil operacional.
+           axiomas, protocolo NICKY e o tom de cada perfil operacional
+           (incluindo o 7º perfil Nexus, o Conector — v1.0.0).
            Injetado no Orchestrator como default_system_prompt para que o
            LLM responda COMO a Nicky, não como o modelo base.
 Interface Viva: Nicky Virthy
@@ -40,6 +41,8 @@ PROFILES: dict[str, str] = {
                "síntese acadêmica.",
     "nyx": "Operações de segurança, auditoria, monitoramento noturno e "
            "análise defensiva.",
+    "nexus": "Conector e equilíbrio da plêiade: integração e coordenação "
+             "entre perfis e sistemas. Visão do todo, articulação e síntese.",
 }
 DEFAULT_PROFILE = "guardian"
 

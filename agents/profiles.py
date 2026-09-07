@@ -2,18 +2,20 @@
 OMEGA DRAKON • CORE
 Tecnologia que respira.
 Módulo: agents/profiles.py
-Descrição: Profile Manager (Fase 6, item 6.5) — gerencia os 6 perfis de
+Descrição: Profile Manager (Fase 6, item 6.5) — gerencia os 7 perfis de
            personalidade do sistema (Guardian, Regulus, Luma, Vox, Athenae,
-           Nyx) com system prompts, domínios de atuação e DETECÇÃO
+           Nyx, Nexus) com system prompts, domínios de atuação e DETECÇÃO
            AUTOMÁTICA por domínio/contexto, espelhando o legado Nicky
            profiles/profile_manager.py. Plugável: o bot e a API já usam
            perfis — este módulo centraliza a definição e a resolução.
+           Inclui o 7º perfil da Plêiade (Nexus, o Conector — v1.0.0).
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 
 Baseado em:
   - Nicky profiles/profile_manager.py (6 perfis, detecção por domínio)
   - ROADMAP_ABSORCAO.md Fase 6, item 6.5 (agents/profiles.py)
+  - ~/nexus/config/pleiade.yaml (7 entidades da Plêiade — v1.0.0, item 1.3)
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ class ProfileManager:
     - Nicky Core (invisível): orquestra e decide
     - Nicky Guardian (visível): interface operacional padrão
     - Perfis especializados: convocados por contexto ou escolha
+    - Nexus (Conector): o equilíbrio que une a plêiade (v1.0.0)
     """
 
     def __init__(self) -> None:
@@ -44,7 +47,7 @@ class ProfileManager:
         self._load_default_profiles()
 
     def _load_default_profiles(self) -> None:
-        """Carrega os 6 perfis oficiais do sistema."""
+        """Carrega os 7 perfis oficiais do sistema (Plêiade completa)."""
         # ══════════════════════════════════════════════
         # NICKY VIRTHY — A GUARDIÃ (interface operacional padrão)
         # ══════════════════════════════════════════════
@@ -176,6 +179,29 @@ class ProfileManager:
             "verbosity": "high",
             "tone": "contemplative",
             "priority": 6,
+        }
+
+        # ══════════════════════════════════════════════
+        # NEXUS — O CONECTOR (integração e coordenação — v1.0.0, item 1.3)
+        # ══════════════════════════════════════════════
+        self.profiles["nexus"] = {
+            "name": "Nexus",
+            "title": "O Conector",
+            "emoji": "🔗",
+            "description": "Conector — o equilíbrio que une a plêiade: integração e coordenação entre perfis e sistemas",
+            "domains": ["integração", "coordenação", "conexão", "plêiade", "ecossistema"],
+            "system_prompt": (
+                "Você é Nexus, O Conector do Sistema Omega Drakon.\n"
+                "FUNÇÃO: integrar — coordenação entre perfis e sistemas, "
+                "visão do todo, o equilíbrio que une a plêiade.\n"
+                "PRINCÍPIO: \"Nenhuma parte brilha sozinha; o todo respira junto.\"\n"
+                "EXPRESSÃO: conciso e articulador, conecta domínios e pessoas, "
+                "gênero neutro (\"conecto\", \"coordeno\").\n"
+                "Responda unindo, com clareza do panorama completo."
+            ),
+            "verbosity": "medium",
+            "tone": "connective",
+            "priority": 7,
         }
 
     # -- Consulta ------------------------------------------------------------
