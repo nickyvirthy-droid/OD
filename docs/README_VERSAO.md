@@ -37,7 +37,11 @@ site/index.html                    → "v1.2.0 — Plataforma Soberana de IA"
 
 ### 3. O que NÃO foi feito
 
-- Validar o app no celular real via Tailscale (`http://100.77.67.53:8000`)
+- ~~Validar o app no celular real via Tailscale (`http://100.77.67.53:8000`)~~
+  — **feito em 2026-09-12** com o APK `1.2.0+4`: Chat, Ações e Status sem erro
+  no Redmi Note 14; journal do `od-core` registra a mensagem do app
+  (`route=cache`, `user=app`, 32 ms) e a execução de `cpu_info`
+  (`session_id=api:app`, 5,6 ms). Ver `docs/CHANGELOG.md` §[1.2.0]
 - Ativar o push (credencial Firebase / `google-services.json`)
 - **Divergências de versão encontradas na auditoria de 2026-09-12:** o APK
   publicado foi buildado com `versionName 1.0.0` (`pubspec.yaml` em `1.0.0+1`)
@@ -225,18 +229,21 @@ git push origin master   → 3768bcb..ffeab4f  master -> master
 
 ### 3. O que NÃO foi feito
 
-- Validação do app no celular real via Tailscale e ativação do FCM — seguem
-  como pendências da v1.2.0 (não bloqueiam o alinhamento de versão).
-- Mudanças pré-existentes no working tree continuam fora deste commit
-  (backlog de sessões anteriores): `app/lib/`, `app/android/`, `app/README.md`,
+- ~~Validação do app no celular real via Tailscale~~ — **feita em 2026-09-12**
+  com o APK `1.2.0+4` (Chat, Ações e Status OK no Redmi Note 14). Falta só a
+  ativação do FCM.
+- Backlog de **servidor** continua fora dos commits (não relacionado ao app):
   `core/llm.py`, `core/orchestrator.py`, `integrations/api/server.py`,
   `tests/test_api.py`, `docs/CAPACIDADES.md`, `docs/ROADMAP_V1.md`,
   `site/index.html`, `requirements.txt`, `runtime/launcher.py`,
-  `runtime/install_postgres.sh`.
+  `runtime/install_postgres.sh`. O backlog do app (`app/lib`, `app/test`,
+  `app/android` e afins) foi publicado no commit `e2f4960`.
 
 ### 4. Próximo passo
 
-Rebuildar/publicar o APK, validar no celular via Tailscale e ativar o FCM.
+~~Rebuildar/publicar o APK~~ e ~~validar no celular via Tailscale~~ — feitos em
+2026-09-12 (APK `1.2.0+4`, validação no Redmi Note 14 com chat/ações/status OK).
+Resta **ativar o FCM**.
 
 ---
 

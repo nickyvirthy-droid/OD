@@ -1,13 +1,16 @@
 # OMEGA DRAKON — ROADMAP v1.x 🐉
 
-> **Status:** Em execução (v1.0.0) · **Data:** 2026-09-04 (atualizado 2026-09-07)
+> **Status:** Em execução (v1.2.0) · **Data:** 2026-09-04 (atualizado 2026-09-08)
 > **Base:** série 0.x congelada na v0.28.1 (tag `v0.28.1`) — esta é a
 > **primeira entrega da série v1** (v1.0.0 em diante).
-> **Progresso v1.0.0:** itens **1.1** (CI + cobertura), **1.2** (migração JSON→DB),
-> **1.3** (perfil `nexus`), **1.4** (health checks externos HA/MQTT),
-> **1.5** (Control Bridge), **1.6** (systemd `od-core`), **1.7** (SWAP),
-> **1.8** (UFW), **1.9** (env vars) e **1.10** (disco sdb1) entregues
-> · **v1.0.0 COMPLETA!**
+> **Progresso v1.0.0:** itens **1.1** a **1.10** entregues — **v1.0.0 COMPLETA!**
+> **Progresso v1.1.0:** Tailscale (item 2.1) **ENTREGUE** (2026-09-07) —
+> **v1.1.0 COMPLETA!**
+> **Progresso v1.2.0:** app Flutter (chat/actions/status/config) + testes
+> (37 passed) + push FCM implementados; **APK release `1.2.0+4` publicado na
+> landing** (`site/OmegaDrakon.apk`). **Validado no Redmi Note 14 via Tailscale
+> em 2026-09-12** — chat, ações e status sem erro. Pendente: ativar o push
+> (credencial Firebase).
 > **Assinatura:** `OD // CORE`
 
 ---
@@ -86,10 +89,18 @@ detectável por domínio).
 
 ---
 
-## 3. v1.2.0 — App Android 📱
+## 3. v1.2.0 — App Android 📱 🚧
 
 > Objetivo: o OD no bolso — **novidade v1** (o roadmap antigo descartou o
 > Flutter em favor de PWA; agora o pedido é um app nativo Android).
+> **Status 2026-09-12:** **APK release `1.2.0+4`** (`app/build_apk.sh`, com
+> Flutter 3.47.2/JDK 17/Android SDK 36 — 51.9 MB, com desugaring) publicado em
+> `site/OmegaDrakon.apk`. Testes: **37 passed** + analyze limpo (suíte com
+> fixture do manifesto real do `/capabilities`). **Validado no aparelho**
+> (Redmi Note 14, `http://100.77.67.53:8000`): chat, ações e status OK —
+> journal do `od-core` registra a mensagem do app e a execução de `cpu_info`
+> via `session_id=api:app`. Falta: ativar o push com o `google-services.json`
+> (conta Firebase — `docs/FIREBASE_SETUP.md`).
 
 ### 3.1 Stack proposta
 

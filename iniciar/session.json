@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-12T12:20:00-03:00",
+  "updated_at": "2026-09-12T12:50:00-03:00",
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -111,6 +111,37 @@
       "Redmi Note 14 (redmi-note-14-1, 100.80.224.73) está ONLINE no tailnet, mas não há acesso ao aparelho: instalar/operar o APK é ação do usuário",
       "o APK publicado em site/ foi buildado ANTES da correção da tela Status — precisa de novo rebuild para o fix chegar ao celular"
     ],
+    "phone_test_evidence_2026_09_12": {
+      "status": "CONCLUÍDO — usuário reportou 'tudo funcionou'; o journal do servidor corrobora chat e ações",
+      "relato_do_usuario": "Tudo funcionou (Chat, Ações e Status sem erro)",
+      "comprovado_pelo_servidor": [
+        "CHAT — 11:25:58 no journal do od-core: 'Message processed | route=cache | user=app | profile=guardian | llm=- | latency_ms=32.325' — o app sempre manda user_id='app' e o request é posterior ao restart (11:14:52) → mensagem do app respondida pelo cache em 32 ms",
+        "AÇÕES — 11:27:58: 'Security decision | action=cpu_info | allowed=True | session_id=api:app' + 'Action executed | action=cpu_info | role=admin | duration_ms=5.608' → uma action FOI executada pelo app (cpu_info, aprovada pelo Security Layer)",
+        "nenhum '[NICKY][WARN] API erro' no journal depois do restart → nenhum 4xx vindo do app (nem 401 de chave, nem 404/422 de contrato)",
+        "o padrão de log de execução é 'Action executed | action=... | role=... | duration_ms=...' cópia confirmada no meu próprio teste pré-restart (system_info, filesystem_mkdir 422 e denied por escopo)"
+      ],
+      "nao_comprovado": [
+        "se o APK 1.2.0+4 foi baixado/instalado no aparelho (a API não loga acesso a /site) — o relato do usuário cobre isso",
+        "a tela Status: /health e /capabilities são GET e não ficam registrados no journal (a API não loga acesso) → só o relato do usuário atesta"
+      ],
+      "correcao_de_erro_meu_2026_09_12": "Primeiro eu registrei que 'nenhuma action foi executada via app' com base em zero entradas api:app em logs/audit.jsonl. Estava ERRADO: a trilha de auditoria só registra perception.snapshot (2267) e system.startup (643) — execuções de action NÃO vão para o audit, vão para o journal. A conclusão correta veio do journal (Action executed | cpu_info | session_id=api:app).",
+      "achados_incidentais_no_journal_confirmados": [
+        "SelfRepair no_fix repetindo a cada ~5 min: file=agent.py | failure=invalid syntax — o laço de auto-reparo tenta consertar agent.py e não acha estratégia (ruído recorrente, não relacionado ao app)",
+        "face.presence: handler _run_vision_forever.on_change falhou 3x com AttributeError → evento para dead letter (bug real no caminho de visão/presença)"
+      ],
+      "comandos_de_consulta": [
+        "journalctl --user -u od-core --since \"2026-09-12 11:14:00\" | grep -v 'Action registered'",
+        "grep -a api:app logs/audit.jsonl"
+      ]
+    },
+    "docs_pendencia_fechada_2026_09_12": {
+      "o_que": "fechada a pendência 'validar o APK no celular' na documentação",
+      "arquivos": [
+        "docs/CHANGELOG.md — nova seção 'Validado no aparelho (2026-09-12)' com a evidência do journal e nota do que não deixa rastro no servidor",
+        "docs/README_VERSAO.md — §[1.2.0] (entrega original) e §[1.2.0] AUDITORIA: itens riscados/atualizados; backlog do app marcado como publicado no e2f4960",
+        "docs/ROADMAP_V1.md — cabeçalho e §3: APK 1.2.0+4, 37 testes, validação no Redmi Note 14; pendente só o push FCM (arquivo carrega também mudanças pré-existentes de progresso v1.x)"
+      ]
+    },
     "published_fix_2026_09_12": {
       "commit": "e2f4960",
       "message": "feat(app): publica o código do app v1.2.0 e corrige a aba Status",
@@ -123,7 +154,6 @@
         "integrations/api/server.py",
         "tests/test_api.py",
         "docs/CAPACIDADES.md",
-        "docs/ROADMAP_V1.md",
         "site/index.html",
         "requirements.txt",
         "runtime/launcher.py",
@@ -172,8 +202,8 @@
   ],
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
-    "action": "Instalar o APK 1.2.0+4 (versionCode 1004) no Redmi Note 14 via Tailscale e testar chat/ações/status; ativar Firebase FCM; ou tratar o backlog de servidor que ficou fora do commit e2f4960.",
+    "action": "Seguir para: ativar Firebase FCM (docs/FIREBASE_SETUP.md) e validar o push no aparelho; tratar o backlog de servidor fora do e2f4960; e investigar os dois achados do journal (SelfRepair no_fix em agent.py e o handler face.presence com AttributeError → dead letter).",
     "open": true,
-    "context": "Correção publicada (e2f4960 em origin/master), APK 1.2.0+4 em site/, servidor ao vivo em 1.2.0."
+    "context": "Teste no celular concluído com sucesso (relato do usuário + journal: chat respondido pelo cache e cpu_info executada via api:app em 11:27:58). APK 1.2.0+4 em site/, servidor ao vivo em 1.2.0, correção publicada (e2f4960)."
   }
 }

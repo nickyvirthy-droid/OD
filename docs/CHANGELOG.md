@@ -92,12 +92,28 @@ Dois builds no mesmo dia:
 - Binários fora do repo por decisão desta entrega: `site/*.apk`,
   `backups/apk-*/` e `.od_repair_backups/` no `.gitignore`.
 
+### Validado no aparelho (2026-09-12) ✅
+
+Redmi Note 14 (`redmi-note-14-1`, Tailscale `100.80.224.73`) com o APK
+`1.2.0+4`: **Chat, Ações e Status funcionando sem erro**. Evidência do journal
+do `od-core` (processo novo, pós-restart de 11:14:52):
+
+```
+11:25:58  Message processed | route=cache | user=app | profile=guardian
+          llm=- | latency_ms=32.325          → chat do app respondido
+11:27:58  Security decision | action=cpu_info | allowed=True | session_id=api:app
+          Action executed    | action=cpu_info | role=admin | duration_ms=5.608
+                                            → action real executada pelo app
+sem "[NICKY][WARN] API erro" depois do restart → zero 4xx vindos do app
+```
+
+A tela Status e a instalação do APK não deixam rastro no servidor (GETs não são
+registrados e `/site` não tem log de acesso) — essas partes se apoiam no relato
+do usuário.
+
 ### Pendente
 
-- Validar o APK no celular real via Tailscale (`http://100.77.67.53:8000`).
 - Ativar o push (credencial Firebase / `google-services.json`).
-- Publicar a correção da tela Status (commit + push) — o APK já está
-  republicado com o fix (`1.2.0+4`), falta o commit do código.
 
 ---
 

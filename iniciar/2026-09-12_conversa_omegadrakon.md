@@ -174,9 +174,62 @@ core/orchestrator.py, integrations/api/server.py, tests/test_api.py,
 docs/CAPACIDADES.md, docs/ROADMAP_V1.md, site/index.html, requirements.txt,
 runtime/launcher.py, runtime/install_postgres.sh.
 
+Oitava rodada: registro do teste no celular — CONCLUÍDO COM SUCESSO
+
+Relato do usuário: **tudo funcionou** (Chat, Ações e Status sem erro).
+
+COMPROVADO PELO SERVIDOR (journal do od-core, pid 20419, pós-restart):
+- CHAT — 11:25:58: "Message processed | route=cache | user=app |
+  profile=guardian | llm=- | latency_ms=32.325" → o app sempre manda
+  user_id='app' e o request é posterior ao restart (11:14:52): mensagem do app
+  respondida pelo cache em 32 ms.
+- AÇÕES — 11:27:58: "Security decision | action=cpu_info | allowed=True |
+  session_id=api:app" + "Action executed | action=cpu_info | role=admin |
+  duration_ms=5.608" → uma action FOI executada pelo app, com o Security
+  Layer aprovando.
+- Nenhum "[NICKY][WARN] API erro" depois do restart → nenhum 4xx do app.
+
+CORREÇÃO DE UM ERRO MEU: eu havia registrado "nenhuma action executada via
+app", inferindo isso de zero entradas `api:app` em logs/audit.jsonl. Estava
+ERRADO — a trilha de auditoria só guarda perception.snapshot (2267 linhas) e
+system.startup (643); execuções de action não vão para lá, vão para o journal.
+O controle foi o meu próprio teste pré-restart, que aparece no journal como
+"Action executed | action=system_info" e "Action executed |
+filesystem_mkdir". Lição: ausência de evidência numa fonte não é evidência
+quando a fonte não cobre o evento.
+
+NÃO COMPROVADO (só o relato do usuário atesta):
+- se o APK 1.2.0+4 foi baixado/instalado (a API não loga acesso a /site)
+- a tela Status: /health e /capabilities são GET e não são registrados
+
+ACHADOS INCIDENTAIS NO JOURNAL (não relacionados ao app):
+- SelfRepair no_fix a cada ~5 min: file=agent.py | failure=invalid syntax —
+  o auto-reparo tenta consertar agent.py e não acha estratégia.
+- face.presence: handler _run_vision_forever.on_change falhou 3x com
+  AttributeError → evento para dead letter (bug real em visão/presença).
+
+Comandos de consulta: `journalctl --user -u od-core --since "2026-09-12
+11:14:00" | grep -v 'Action registered'` e `grep -a api:app
+logs/audit.jsonl`.
+
+Nona rodada: fechar a pendência na documentação e publicar a sessão
+
+A pendência "validar o APK no celular" foi riscada/atualizada em:
+- `docs/CHANGELOG.md` — nova seção "Validado no aparelho (2026-09-12)" com a
+  evidência do journal (11:25:58 chat, 11:27:58 cpu_info) e a nota de que a
+  tela Status e o download do APK não deixam rastro no servidor.
+- `docs/README_VERSAO.md` — §[1.2.0] da entrega original e §[1.2.0]
+  AUDITORIA: item riscado nos dois; o backlog do app passa a constar como
+  publicado no `e2f4960` (antes listado como pendente).
+- `docs/ROADMAP_V1.md` — cabeçalho e §3 atualizados: APK `1.2.0+4`, 37 testes,
+  validação no Redmi Note 14; resta só o push FCM. (O arquivo carrega também
+  as mudanças pré-existentes de progresso v1.x — foram commitadas junto, por
+  serem coerentes com a mesma entrega.)
+
 Ainda não foi feito:
-- Instalar/validar o APK 1.2.0+4 no aparelho (usuário) e ativar o FCM.
-- Tratar o backlog de servidor listado acima.
+- Ativar o FCM.
+- Tratar o backlog de servidor e os dois achados do journal
+  (SelfRepair no_fix em agent.py e o handler face.presence).
 
 Evidência da validação:
 - .venv/bin/python -m pytest tests/ -q → 1610 passed, 16 skipped (15.01s antes
