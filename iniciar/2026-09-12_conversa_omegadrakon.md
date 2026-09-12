@@ -152,11 +152,31 @@ Sexta rodada (autorizada): rebuild e republicação do APK
   51935299 bytes (igual ao arquivo local) — o download da landing entrega o
   build novo. `strings` no APK encontra a string nova ('modos') 3x.
 
+Sétima rodada (autorizada): commit + push do fix (e do backlog do app)
+
+DECISÃO sobre o backlog de `app/lib` e `app/test`: entraram no commit.
+Motivos: (1) o APK publicado foi buildado exatamente desse código, então
+manter fora do repo recria a divergência repo↔artefato que a auditoria de
+versão acabou de corrigir; (2) `status_screen.dart` não dá para separar do
+fix sem descartar as mudanças pré-existentes do arquivo, que só existiam no
+working tree; (3) a fixture/teste de regressão não fazem sentido sem a fonte.
+
+- Commit **e2f4960** — "feat(app): publica o código do app v1.2.0 e corrige a
+  aba Status" (41 arquivos, +2375/-98): app/lib, app/test (+fixture do
+  manifesto real), app/android, push_service.dart, build_apk.sh, run_tests.sh,
+  pubspec 1.2.0+4, docs/CHANGELOG, docs/README_VERSAO, iniciar/.
+- Push: `origin/master f42e5c5..e2f4960`.
+- Segredos conferidos: `app/android/app/google-services.json` segue ignorado
+  (nada de credencial entrou no commit).
+
+Ficou de fora (backlog de servidor, não relacionado ao app): core/llm.py,
+core/orchestrator.py, integrations/api/server.py, tests/test_api.py,
+docs/CAPACIDADES.md, docs/ROADMAP_V1.md, site/index.html, requirements.txt,
+runtime/launcher.py, runtime/install_postgres.sh.
+
 Ainda não foi feito:
-- Publicar a correção da tela Status (commit + push) — o APK já está
-  republicado com o fix, falta o commit do código.
-- Instalar/validar o APK no aparelho (usuário) e ativar o FCM.
-- Tratar o backlog pré-existente listado acima.
+- Instalar/validar o APK 1.2.0+4 no aparelho (usuário) e ativar o FCM.
+- Tratar o backlog de servidor listado acima.
 
 Evidência da validação:
 - .venv/bin/python -m pytest tests/ -q → 1610 passed, 16 skipped (15.01s antes
@@ -168,7 +188,7 @@ Evidência da validação:
 - app: flutter analyze → No issues found! · flutter test → 36 passed
 
 Próximos passos possíveis:
-- Publicar a correção da tela Status (commit + push).
 - Instalar/validar o APK 1.2.0+4 (1004) no Redmi Note 14 via Tailscale.
+- Tratar o backlog de servidor que ficou fora do commit e2f4960.
 - Ativar Firebase FCM (docs/FIREBASE_SETUP.md).
 - Retomar a Fase 4 (Execução) ou a v1.3.0 (WebSocket /ws/chat, plugins, voz).

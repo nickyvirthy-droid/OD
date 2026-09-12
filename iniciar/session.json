@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-12T12:05:00-03:00",
+  "updated_at": "2026-09-12T12:20:00-03:00",
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -111,6 +111,25 @@
       "Redmi Note 14 (redmi-note-14-1, 100.80.224.73) está ONLINE no tailnet, mas não há acesso ao aparelho: instalar/operar o APK é ação do usuário",
       "o APK publicado em site/ foi buildado ANTES da correção da tela Status — precisa de novo rebuild para o fix chegar ao celular"
     ],
+    "published_fix_2026_09_12": {
+      "commit": "e2f4960",
+      "message": "feat(app): publica o código do app v1.2.0 e corrige a aba Status",
+      "push": "origin/master f42e5c5..e2f4960",
+      "escopo": "41 arquivos, +2375/-98 — app/ inteiro (app/lib, app/test, app/android, push_service.dart, build_apk.sh, run_tests.sh, pubspec 1.2.0+4) + docs/CHANGELOG + docs/README_VERSAO + iniciar/",
+      "decisao_backlog_app": "incluir app/lib e app/test inteiros: o APK publicado foi buildado desse código, então deixar fora do repo recriaria a divergência repo↔artefato; além disso status_screen.dart não separa do fix sem descartar as mudanças pré-existentes do arquivo (que só existiam no working tree)",
+      "fora_deste_commit": [
+        "core/llm.py",
+        "core/orchestrator.py",
+        "integrations/api/server.py",
+        "tests/test_api.py",
+        "docs/CAPACIDADES.md",
+        "docs/ROADMAP_V1.md",
+        "site/index.html",
+        "requirements.txt",
+        "runtime/launcher.py",
+        "runtime/install_postgres.sh"
+      ]
+    },
     "rebuild_apk_2026_09_12": {
       "pubspec": "1.2.0+3 → 1.2.0+4 (build number subiu de propósito: com o mesmo versionCode o Android recusaria instalar por cima)",
       "versionName_versionCode": "1.2.0 / 1004-2004-4004",
@@ -153,8 +172,8 @@
   ],
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
-    "action": "Publicar a correção da tela Status (commit + push). Depois: instalar o APK 1.2.0+4 no Redmi Note 14 e testar chat/ações/status; ativar Firebase FCM.",
+    "action": "Instalar o APK 1.2.0+4 (versionCode 1004) no Redmi Note 14 via Tailscale e testar chat/ações/status; ativar Firebase FCM; ou tratar o backlog de servidor que ficou fora do commit e2f4960.",
     "open": true,
-    "context": "Servidor ao vivo em 1.2.0 (od-core reiniciado), tela Status corrigida com teste de regressão usando o manifesto real, APK 1.2.0+4 (1004) rebuildado e republicado em site/ com sha256 e download conferidos. Falta apenas o commit."
+    "context": "Correção publicada (e2f4960 em origin/master), APK 1.2.0+4 em site/, servidor ao vivo em 1.2.0."
   }
 }

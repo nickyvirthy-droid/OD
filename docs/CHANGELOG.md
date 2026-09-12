@@ -55,6 +55,12 @@
   subtype of type 'Map<String, dynamic>?'` e derrubava a seção "Sistema" da
   aba Status. A leitura agora usa `is` + fallback `'?'` (sem cast) e o card
   mostra versão, nº de modos de runtime, capacidades e actions.
+- Publicação: commit **`e2f4960`** — _feat(app): publica o código do app v1.2.0
+  e corrige a aba Status_ — em `origin/master` (`f42e5c5..e2f4960`). O commit
+  levou junto o código do app que gerou o APK (push FCM, resiliência de rede,
+  telas ligadas a `/actions` e `/executa`, projeto Android e testes), que
+  nunca tinha sido commitado.
+
 - **Contrato testado com payload real** —
   `app/test/fixtures/capabilities_manifest.json` (manifesto capturado do
   servidor em produção) + teste de regressão em `app/test/widget_test.dart`.

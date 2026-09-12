@@ -207,6 +207,11 @@ O build number subiu de `+3` para `+4` porque com o mesmo `versionCode` o
 Android recusaria instalar por cima do APK anterior. O build anterior (com o
 bug) ficou em `backups/apk-v1.2.0-1003/`.
 
+**Publicação (§2.1.2):** commit **`e2f4960`** publicado em `origin/master`
+(`f42e5c5..e2f4960`). O commit incluiu, além do fix, o código do app que gerou
+o APK (push FCM, resiliência de rede, telas de ações/status, projeto Android e
+testes) — até então o repositório não correspondia ao binário publicado.
+
 ### 2.3 Publicação (§2.1.2)
 
 ```
