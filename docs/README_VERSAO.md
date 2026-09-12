@@ -183,11 +183,27 @@ servidor: pytest tests/ -q → 1610 passed, 16 skipped in 15.72s
 APKs antigos (v1.0.0) preservados em `backups/apk-v1.0.0/` antes da
 sobrescrita de `site/`.
 
+### 2.3 Publicação (§2.1.2)
+
+```
+git push origin master   → 3768bcb..ffeab4f  master -> master
+```
+
+- Commit da correção: **`ffeab4f`** — `fix(version): alinha OD_VERSION,
+  pubspec e docs na v1.2.0` (9 arquivos, +600/-146).
+- Os binários ficaram fora do repo (`.gitignore`): `site/*.apk`,
+  `backups/apk-*/` e `.od_repair_backups/`.
+
 ### 3. O que NÃO foi feito
 
-- Publicação no GitHub (commit + push) — aguarda autorização do usuário.
 - Validação do app no celular real via Tailscale e ativação do FCM — seguem
   como pendências da v1.2.0 (não bloqueiam o alinhamento de versão).
+- Mudanças pré-existentes no working tree continuam fora deste commit
+  (backlog de sessões anteriores): `app/lib/`, `app/android/`, `app/README.md`,
+  `core/llm.py`, `core/orchestrator.py`, `integrations/api/server.py`,
+  `tests/test_api.py`, `docs/CAPACIDADES.md`, `docs/ROADMAP_V1.md`,
+  `site/index.html`, `requirements.txt`, `runtime/launcher.py`,
+  `runtime/install_postgres.sh`.
 
 ### 4. Próximo passo
 

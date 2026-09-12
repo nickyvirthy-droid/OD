@@ -55,11 +55,17 @@
   `backups/apk-v1.0.0/`.
 - `OD_VERSION=1.2.0` gravado no `.env`.
 
+### Publicação
+
+- Commit **`ffeab4f`** — _fix(version): alinha OD_VERSION, pubspec e docs na
+  v1.2.0_ — publicado em `origin/master` (`3768bcb..ffeab4f`).
+- Binários fora do repo por decisão desta entrega: `site/*.apk`,
+  `backups/apk-*/` e `.od_repair_backups/` no `.gitignore`.
+
 ### Pendente
 
 - Validar o APK no celular real via Tailscale (`http://100.77.67.53:8000`).
 - Ativar o push (credencial Firebase / `google-services.json`).
-- Publicar no GitHub (commit + push).
 
 ---
 

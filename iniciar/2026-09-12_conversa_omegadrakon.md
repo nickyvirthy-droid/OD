@@ -53,9 +53,27 @@ Segunda rodada (autorizada pelo usuário na mesma sessão):
   `backups/apk-v1.0.0/`; sha256 origem==site conferido
   (3b800c87...d978ff full · f3535e75...2f2fc6 arm64).
 
+Terceira rodada (autorizada pelo usuário): commit + push (§2.1.2)
+- Decisão sobre os binários: ficam FORA do repo — `.gitignore` ganhou
+  `site/*.apk`, `backups/apk-*/` e `.od_repair_backups/` (164 .bak do
+  self-repair). O APK oficial é republicado em `site/` pelo
+  `app/build_apk.sh`, não precisa ser versionado.
+- Staged: .gitignore, app/pubspec.yaml, core/capabilities.py,
+  docs/CHANGELOG.md, docs/README_VERSAO.md, iniciar/RULES.md,
+  iniciar/session.json, iniciar/2026-09-11_*.md, iniciar/2026-09-12_*.md.
+- Commit **ffeab4f** — "fix(version): alinha OD_VERSION, pubspec e docs na
+  v1.2.0" (9 arquivos, +600/-146).
+- Push: `origin/master 3768bcb..ffeab4f` (incluiu o commit local 87ee078
+  "fix: remove arquivo deletado", que já estava à frente do remoto).
+- Ficou de fora (backlog pré-existente, não relacionado): app/lib/,
+  app/android/, app/README.md, core/llm.py, core/orchestrator.py,
+  integrations/api/server.py, tests/test_api.py, docs/CAPACIDADES.md,
+  docs/ROADMAP_V1.md, site/index.html, requirements.txt,
+  runtime/launcher.py, runtime/install_postgres.sh.
+
 Ainda não foi feito:
-- Commit + push (publicação §2.1.2) — aguarda autorização explícita.
 - Validar o APK no celular via Tailscale e ativar o FCM (pendências da v1.2.0).
+- Tratar o backlog pré-existente listado acima.
 
 Evidência da validação:
 - .venv/bin/python -m pytest tests/ -q → 1610 passed, 16 skipped (15.01s antes
@@ -67,7 +85,6 @@ Evidência da validação:
 - app: flutter analyze → No issues found! · flutter test → 36 passed
 
 Próximos passos possíveis:
-- Publicar a correção no GitHub (commit + push) — aguarda autorização.
 - Validar o APK no celular via Tailscale.
 - Ativar Firebase FCM (docs/FIREBASE_SETUP.md).
 - Retomar a Fase 4 (Execução) ou a v1.3.0 (WebSocket /ws/chat, plugins, voz).

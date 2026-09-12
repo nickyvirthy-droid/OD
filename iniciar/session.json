@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-12T11:10:00-03:00",
+  "updated_at": "2026-09-12T11:25:00-03:00",
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -51,11 +51,35 @@
       "OD_VERSION=1.2.0 gravado no .env (autorizado pelo usuário) — grep -c '^OD_VERSION=' .env = 1",
       "APK rebuildado: versionName 1.2.0 / versionCode 1003-2003-4003; site/OmegaDrakon.apk (51.9MB) e site/OmegaDrakon-arm64.apk (18.5MB) republicados com sha256 conferido; APKs 1.0.0 preservados em backups/apk-v1.0.0/"
     ],
+    "published": {
+      "commit": "ffeab4f",
+      "message": "fix(version): alinha OD_VERSION, pubspec e docs na v1.2.0",
+      "push": "origin/master 3768bcb..ffeab4f",
+      "binarios_fora_do_repo": [
+        "site/*.apk",
+        "backups/apk-*/",
+        ".od_repair_backups/"
+      ],
+      "fora_deste_commit": [
+        "app/lib/",
+        "app/android/",
+        "app/README.md",
+        "core/llm.py",
+        "core/orchestrator.py",
+        "integrations/api/server.py",
+        "tests/test_api.py",
+        "docs/CAPACIDADES.md",
+        "docs/ROADMAP_V1.md",
+        "site/index.html",
+        "requirements.txt",
+        "runtime/launcher.py",
+        "runtime/install_postgres.sh"
+      ]
+    },
     "pending": [
-      "commit + push da correção (publicação §2.1.2 aguarda autorização)",
       "validar o APK no celular via Tailscale e ativar o FCM (pendências da v1.2.0)"
     ],
-    "status": "correções aplicadas, validadas e APK republicado em 2026-09-12"
+    "status": "correções aplicadas, validadas, APK republicado e commit ffeab4f publicado em 2026-09-12"
   },
   "transcript": "iniciar/2026-09-12_conversa_omegadrakon.md",
   "status": "em_andamento",
@@ -90,8 +114,8 @@
   ],
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
-    "action": "Autorizar a publicação (commit + push) da correção de versão. Depois: validar o APK no celular via Tailscale, ativar Firebase FCM, ou retomar a Fase 4 (Execução).",
+    "action": "Validar o APK 1.2.0 no celular via Tailscale (chat/ações/status), ativar Firebase FCM, tratar o backlog pré-existente do working tree, ou retomar a Fase 4 (Execução).",
     "open": true,
-    "context": "Auditoria de 2026-09-12 concluída: OD_VERSION no .env, pubspec 1.2.0+3, APK rebuildado e republicado em site/ com sha256 conferido, docs v1.x reconstruídas, CHANGELOG criado. Suíte 1610 passed + app 36 passed."
+    "context": "Auditoria de 2026-09-12 concluída e publicada (commit ffeab4f em origin/master): OD_VERSION no .env, pubspec 1.2.0+3, APK republicado em site/ com sha256 conferido, docs v1.x reconstruídas, CHANGELOG criado. Suíte 1610 passed + app 36 passed."
   }
 }
