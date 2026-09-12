@@ -136,6 +136,8 @@
     },
     "docs_pendencia_fechada_2026_09_12": {
       "o_que": "fechada a pendência 'validar o APK no celular' na documentação",
+      "commit": "68cf2e5",
+      "push": "origin/master a5ac3a5..68cf2e5",
       "arquivos": [
         "docs/CHANGELOG.md — nova seção 'Validado no aparelho (2026-09-12)' com a evidência do journal e nota do que não deixa rastro no servidor",
         "docs/README_VERSAO.md — §[1.2.0] (entrega original) e §[1.2.0] AUDITORIA: itens riscados/atualizados; backlog do app marcado como publicado no e2f4960",

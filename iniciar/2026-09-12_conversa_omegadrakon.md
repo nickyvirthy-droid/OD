@@ -213,6 +213,7 @@ Comandos de consulta: `journalctl --user -u od-core --since "2026-09-12
 logs/audit.jsonl`.
 
 Nona rodada: fechar a pendência na documentação e publicar a sessão
+(commit 68cf2e5, publicado em origin/master a5ac3a5..68cf2e5)
 
 A pendência "validar o APK no celular" foi riscada/atualizada em:
 - `docs/CHANGELOG.md` — nova seção "Validado no aparelho (2026-09-12)" com a
