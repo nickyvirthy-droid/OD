@@ -62,13 +62,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
-    // Recria a API com a nova URL
-    final newApi = OdApi(baseUrl: url);
-    await newApi.setApiKey(key);
-
-    // Copia referência
-    widget.api; // referência original — o caller deve recriar se necessário
-
+    // Aplica a nova URL e a chave na instância usada pelas telas
+    widget.api.setBaseUrl(url);
     await widget.api.setApiKey(key);
 
     if (mounted) {

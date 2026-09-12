@@ -97,7 +97,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   itemCount: _messages.length + (_isLoading ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (index == _messages.length) {
-                      return const MessageBubble(
+                      return MessageBubble(
                         message: OdMessage(
                           role: 'assistant',
                           content: 'Digitando...',

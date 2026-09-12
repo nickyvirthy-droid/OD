@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-12T11:25:00-03:00",
+  "updated_at": "2026-09-12T12:05:00-03:00",
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -81,6 +81,45 @@
     ],
     "status": "correções aplicadas, validadas, APK republicado e commit ffeab4f publicado em 2026-09-12"
   },
+  "validation_apk_2026_09_12": {
+    "metodo": "contrato do app exercitado contra http://100.77.67.53:8000 (mesmo caminho do celular via Tailscale), com a chave do .env; teste de widget temporário com o payload REAL do /capabilities (arquivo apagado depois)",
+    "ok": [
+      "GET /health autenticado -> ok=true, status=up; 401 sem chave",
+      "GET /capabilities -> 200 (40 capacidades, 57 actions)",
+      "GET /actions -> 57 ações com name/description/category/permission/params/risk",
+      "POST /message com payload do app (text/user_id=app/profile=auto) -> ok=true, campo message preenchido (109s)",
+      "POST /executa system_info -> status=ok com data",
+      "POST /executa filesystem_mkdir sem confirm -> HTTP 422 confirmacao_obrigatoria",
+      "POST /executa filesystem_mkdir com confirm e path no escopo -> status=ok",
+      "POST /executa action inexistente -> HTTP 404"
+    ],
+    "falhas": [
+      "BUG (app): status_screen.dart:136 faz _capabilities?['system'] as Map<String,dynamic>? mas o servidor devolve \"system\": \"Omega Drakon\" (String) -> _TypeError: type 'String' is not a subtype of type 'Map<String, dynamic>?'. A aba Status não renderiza a seção Sistema. O teste existente passa porque o mock usa um 'system' aninhado que o servidor real não tem.",
+      "SERVIDOR DESATUALIZADO: o processo od-core em execução ainda reporta version 0.28.0 (uptime ~8h, iniciado antes da correção) -> precisa de systemctl --user restart od-core para servir 1.2.0",
+      "GET /info -> 404 (não é rota; a raiz é GET / e exige chave) — não afeta o app, contradiz docs/README_VERSAO §0.27.3"
+    ],
+    "corrigido_2026_09_12": [
+      "app/lib/screens/status_screen.dart: _buildSystemInfo lê o manifesto plano com `is` + fallback '?' (sem cast); mostra Versão, 'N modos' (runtime.modes), Capacidades e Actions (counts). A linha 'Agentes: N perfis' saiu — o manifesto não expõe contagem de agentes (o /profiles existe, mas não é chamado pela tela).",
+      "app/test/widget_test.dart: mock de /capabilities alinhado à forma real + teste de regressão com o manifesto real do servidor",
+      "app/test/fixtures/capabilities_manifest.json: fixture capturada do /capabilities de produção (16 KB, v1.2.0, 40 capacidades, 57 actions, 8 modos)",
+      "od-core reiniciado: GET / e /capabilities agora reportam version 1.2.0; /health com 8 checks OK; 57 actions",
+      "teste do teste: reintroduzindo a linha antiga, 2 testes falham com o mesmo _TypeError (evidência de que a regressão é pega)"
+    ],
+    "observacoes": [
+      "chat levou 109s (LLM local gemma) — dentro do timeout de 240s do app, mas apertado",
+      "filesystem_mkdir com path fora de /home/alex/OmegaDrakon -> denied (Security Layer, esperado)",
+      "Redmi Note 14 (redmi-note-14-1, 100.80.224.73) está ONLINE no tailnet, mas não há acesso ao aparelho: instalar/operar o APK é ação do usuário",
+      "o APK publicado em site/ foi buildado ANTES da correção da tela Status — precisa de novo rebuild para o fix chegar ao celular"
+    ],
+    "rebuild_apk_2026_09_12": {
+      "pubspec": "1.2.0+3 → 1.2.0+4 (build number subiu de propósito: com o mesmo versionCode o Android recusaria instalar por cima)",
+      "versionName_versionCode": "1.2.0 / 1004-2004-4004",
+      "sha256": "6d3c73a5f742375739731d08af2c9b6e9a713d46823c8ed81f7b53a13b616ade (full) — origem == site",
+      "download_servido_pela_api": "GET /site/OmegaDrakon.apk → HTTP 200, 51935299 bytes (== arquivo local)",
+      "backup_do_build_anterior": "backups/apk-v1.2.0-1003/ (build 1.2.0+3, com o bug da aba Status)",
+      "status": "publicado em site/OmegaDrakon.apk e site/OmegaDrakon-arm64.apk"
+    }
+  },
   "transcript": "iniciar/2026-09-12_conversa_omegadrakon.md",
   "status": "em_andamento",
   "research_done": true,
@@ -114,8 +153,8 @@
   ],
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
-    "action": "Validar o APK 1.2.0 no celular via Tailscale (chat/ações/status), ativar Firebase FCM, tratar o backlog pré-existente do working tree, ou retomar a Fase 4 (Execução).",
+    "action": "Publicar a correção da tela Status (commit + push). Depois: instalar o APK 1.2.0+4 no Redmi Note 14 e testar chat/ações/status; ativar Firebase FCM.",
     "open": true,
-    "context": "Auditoria de 2026-09-12 concluída e publicada (commit ffeab4f em origin/master): OD_VERSION no .env, pubspec 1.2.0+3, APK republicado em site/ com sha256 conferido, docs v1.x reconstruídas, CHANGELOG criado. Suíte 1610 passed + app 36 passed."
+    "context": "Servidor ao vivo em 1.2.0 (od-core reiniciado), tela Status corrigida com teste de regressão usando o manifesto real, APK 1.2.0+4 (1004) rebuildado e republicado em site/ com sha256 e download conferidos. Falta apenas o commit."
   }
 }

@@ -10,13 +10,19 @@
 | **Ações** | Catálogo de ações do OD com busca, risco e execução |
 | **Status** | Health checks, capacidades e info do sistema |
 | **Config** | API key, URL do servidor, teste de conexão |
+| **Push 🔔** | Alertas do OD (proativos, recovery, presença) via FCM com notificações locais (Android 13+) |
 
 ## Requisitos
 
-- Flutter SDK >= 3.2.0
-- Android SDK (API 21+)
+- Flutter SDK >= 3.27 (Dart >= 3.6)
+- JDK 17 + Android SDK
 - Tailscale instalado no celular e no servidor
 - OmegaDrakon rodando no servidor nicky-server
+
+> **Push FCM:** o build funciona **sem** Firebase (o push fica desativado em
+> runtime). Para ativar as notificações, siga `docs/FIREBASE_SETUP.md`
+> (google-services.json + plugin gradle) — depois disso o build passa a
+> exigir o arquivo.
 
 ## Setup
 
@@ -26,12 +32,30 @@ flutter pub get
 flutter run
 ```
 
+> O scaffold Android (build.gradle.kts, gradle wrapper etc.) é gerado
+> automaticamente pelo `build_apk.sh` (via `flutter create .`, idempotente —
+> não sobrescreve o `lib/`).
+
 ## Build APK
 
 ```bash
-flutter build apk --release
+cd app
+./build_apk.sh
 # APK em: build/app/outputs/flutter-apk/app-release.apk
 ```
+
+Último build validado: **Flutter 3.47.2 · APK 51.6 MB** (com desugaring
+habilitado para o `flutter_local_notifications`).
+
+## Testes
+
+```bash
+cd app
+./run_tests.sh   # flutter analyze + flutter test
+```
+
+Cobertura: `test/od_api_test.dart` (cliente HTTP com mock), `test/models_test.dart`
+e `test/widget_test.dart` (smoke do app + 4 telas + bolha de mensagem).
 
 ## Conexão
 

@@ -1,0 +1,483 @@
+{
+  "system": "Omega Drakon",
+  "version": "1.2.0",
+  "generated_at": "2026-09-12T14:15:07.224737+00:00",
+  "roadmap": {
+    "capacities": "37/37",
+    "phases": "Fases 1–7 concluídas (2026-09-04)",
+    "status_geral": "implementado; loop de auto-recuperação ATIVO (v0.27.4)"
+  },
+  "counts": {
+    "capabilities": 40,
+    "by_status": {
+      "active": 34,
+      "available": 5,
+      "partial": 1
+    },
+    "by_category": {
+      "core": 6,
+      "memory": 5,
+      "orchestration": 4,
+      "execution": 7,
+      "integrations": 6,
+      "sensorial": 6,
+      "observability": 4,
+      "runtime": 2
+    },
+    "actions": 57
+  },
+  "actions": {
+    "count": 57,
+    "categories": {
+      "system": 14,
+      "process": 4,
+      "docker": 4,
+      "service": 3,
+      "filesystem": 15,
+      "git": 10,
+      "database": 3,
+      "introspection": 4
+    }
+  },
+  "capabilities": [
+    {
+      "id": "config-manager",
+      "name": "Config Manager (YAML + env)",
+      "category": "core",
+      "description": "Configuração centralizada com defaults, YAML e vars OD_*.",
+      "source": "Nicky",
+      "phase": "Fase 1.1",
+      "status": "active",
+      "path": "configs/manager.py"
+    },
+    {
+      "id": "security-layer",
+      "name": "Security Layer (policy→permission→scope→approval→audit)",
+      "category": "core",
+      "description": "Gate de TODA execução/ação; modos compatibility/soft/strict.",
+      "source": "NV",
+      "phase": "Fase 1.2",
+      "status": "active",
+      "path": "core/security/"
+    },
+    {
+      "id": "logger",
+      "name": "Logger NICKY (logs estruturados)",
+      "category": "core",
+      "description": "Protocolo [NICKY][INFO|WARN|CRIT|ONLINE] chave=valor.",
+      "source": "NV",
+      "phase": "Fase 1.3",
+      "status": "active",
+      "path": "core/logger.py"
+    },
+    {
+      "id": "event-bus",
+      "name": "Event Bus (pub/sub async)",
+      "category": "core",
+      "description": "Barramento de eventos (mqtt.message, presence.changed, audit.record...).",
+      "source": "Nicky",
+      "phase": "Fase 1",
+      "status": "active",
+      "path": "core/event_bus.py"
+    },
+    {
+      "id": "state-manager",
+      "name": "State Manager",
+      "category": "core",
+      "description": "Estado tipado do núcleo.",
+      "source": "Nicky",
+      "phase": "Fase 1",
+      "status": "active",
+      "path": "core/state.py"
+    },
+    {
+      "id": "message-router",
+      "name": "Message Router",
+      "category": "core",
+      "description": "Roteamento de mensagens entre camadas.",
+      "source": "Nicky",
+      "phase": "Fase 1",
+      "status": "active",
+      "path": "core/router.py"
+    },
+    {
+      "id": "history",
+      "name": "Conversation History (ChatML)",
+      "category": "memory",
+      "description": "Histórico por usuário/perfil em JSON.",
+      "source": "Nicky",
+      "phase": "Fase 2.1",
+      "status": "active",
+      "path": "memory/history.py"
+    },
+    {
+      "id": "cache",
+      "name": "Cache LLM (SHA-256 + deduplicação)",
+      "category": "memory",
+      "description": "Cache de respostas por hash normalizado + perfil.",
+      "source": "Nicky",
+      "phase": "Fase 2.2",
+      "status": "active",
+      "path": "memory/cache.py"
+    },
+    {
+      "id": "quick-responses",
+      "name": "Quick Responses (AIML legado)",
+      "category": "memory",
+      "description": "Respostas instantâneas sem LLM (etapa 3 do pipeline).",
+      "source": "Nicky",
+      "phase": "Fase 2.3",
+      "status": "active",
+      "path": "memory/quick_responses.py"
+    },
+    {
+      "id": "vector-rag",
+      "name": "Vector Memory / RAG",
+      "category": "memory",
+      "description": "Memória vetorial com provider plugável (stdlib).",
+      "source": "Nicky",
+      "phase": "Fase 2.4",
+      "status": "active",
+      "path": "memory/vector.py"
+    },
+    {
+      "id": "context",
+      "name": "Context Manager (anti-estouro de tokens)",
+      "category": "memory",
+      "description": "Truncamento inteligente do histórico para o LLM.",
+      "source": "Nexus",
+      "phase": "Fase 2.5",
+      "status": "active",
+      "path": "memory/context.py"
+    },
+    {
+      "id": "workflows",
+      "name": "Workflow Engine (branching/nested/retries/timeouts)",
+      "category": "orchestration",
+      "description": "Pipeline orquestrado de steps; registrado via build_plugins.",
+      "source": "NV",
+      "phase": "Fase 3.1",
+      "status": "available",
+      "path": "core/workflows.py"
+    },
+    {
+      "id": "tool-loader",
+      "name": "Tool Loader (plugins dinâmicos)",
+      "category": "orchestration",
+      "description": "Carregamento dinâmico de ferramentas/plugins.",
+      "source": "Nexus",
+      "phase": "Fase 3.2",
+      "status": "available",
+      "path": "tools/loader.py"
+    },
+    {
+      "id": "action-registry",
+      "name": "Action Registry (56 actions, gate Security Layer)",
+      "category": "orchestration",
+      "description": "Registro tipado de actions com execução validada.",
+      "source": "NV",
+      "phase": "Fase 3.3",
+      "status": "active",
+      "path": "tools/registry.py"
+    },
+    {
+      "id": "orchestrator",
+      "name": "Orchestrator (pipeline 8 etapas + execute_action)",
+      "category": "orchestration",
+      "description": "rate limit → datetime → quick → cache → history → LLM → fallback → pós; executa ações via ActionRegistry com gate de role.",
+      "source": "Nicky",
+      "phase": "Fase 3.4 / Pós-Fase 7",
+      "status": "active",
+      "path": "core/orchestrator.py"
+    },
+    {
+      "id": "actions-catalog",
+      "name": "Catálogo de 56 Actions (sistema/processo/docker/serviços/arquivos/git/db/introspecção)",
+      "category": "execution",
+      "description": "Ações operacionais executáveis via /executa e Orchestrator.execute_action.",
+      "source": "NV",
+      "phase": "Fase 4.4",
+      "status": "active",
+      "path": "tools/actions/"
+    },
+    {
+      "id": "coder-engine",
+      "name": "Coder Engine (sandbox→testes→backup→promoção)",
+      "category": "execution",
+      "description": "Modificação segura de código com rollback. ATIVO via RecoveryLoop (auto-reparo); /codigo no bot segue somente leitura (status/arvore).",
+      "source": "NV",
+      "phase": "Fase 4.1",
+      "status": "active",
+      "path": "core/coder.py"
+    },
+    {
+      "id": "self-repair",
+      "name": "Self Repair (detectar→gerar→reparar→verificar→rollback)",
+      "category": "execution",
+      "description": "Auto-correção mediada pelo Coder Engine. ATIVO no runtime via RecoveryLoop (ciclo periódico, v0.27.4).",
+      "source": "Nexus",
+      "phase": "Fase 4.2",
+      "status": "active",
+      "path": "core/self_repair.py"
+    },
+    {
+      "id": "perception",
+      "name": "Perception Syncer (telemetria CPU/RAM/disco/rede/portas/docker/processos)",
+      "category": "execution",
+      "description": "Análise do ambiente via /proc. ATIVO no runtime: Telemetry.collect() periódica alimenta o check 'perception' do Health Monitor (v0.27.4).",
+      "source": "Nexus",
+      "phase": "Fase 4.3",
+      "status": "active",
+      "path": "tools/telemetry.py"
+    },
+    {
+      "id": "auto-extension",
+      "name": "Auto Extension (geração de ferramentas via LLM)",
+      "category": "execution",
+      "description": "Gera código de ferramentas, valida (compile + allowlist) e registra com permission mediada. ATIVO: trigger exposto via /gerar no bot (v0.27.4).",
+      "source": "Nexus",
+      "phase": "Fase 6.6",
+      "status": "active",
+      "path": "tools/auto_extension/"
+    },
+    {
+      "id": "recovery-loop",
+      "name": "RecoveryLoop (percepção + auto-reparo cíclico)",
+      "category": "execution",
+      "description": "Ciclo periódico que fecha o loop de auto-recuperação: coleta telemetria → check 'perception' no health → varre .py e repara via Self Repair mediado pelo Coder (OD_RECOVERY_INTERVAL_S, default 300s).",
+      "source": "OD",
+      "phase": "v0.27.4",
+      "status": "active",
+      "path": "core/recovery.py"
+    },
+    {
+      "id": "plugin-system",
+      "name": "Plugin System (hot-reload, 3 contratos)",
+      "category": "execution",
+      "description": "Carrega plugins de plugins/ (hoje 0 plugins reais).",
+      "source": "NV",
+      "phase": "Fase 7.4",
+      "status": "active",
+      "path": "plugins/"
+    },
+    {
+      "id": "telegram-bot",
+      "name": "Telegram Bot (@Nicky_Virthy_bot)",
+      "category": "integrations",
+      "description": "13 comandos do legado + voz (STT/TTS) + /executa (actions) + /capacidades.",
+      "source": "Nicky",
+      "phase": "Fase 5.1",
+      "status": "active",
+      "path": "integrations/telegram/"
+    },
+    {
+      "id": "api-rest",
+      "name": "API REST (porta 8000, X-API-Key)",
+      "category": "integrations",
+      "description": "Endpoints /message, /health, /metrics, /llms, /capabilities, history, RAG... (WebSocket /ws/chat = 501 registrado).",
+      "source": "Nicky",
+      "phase": "Fase 5.2",
+      "status": "active",
+      "path": "integrations/api/"
+    },
+    {
+      "id": "notifier",
+      "name": "ProactiveNotifier (health + alertas anti-spam)",
+      "category": "integrations",
+      "description": "Sondas (LLM offline, disco, restart) com cooldown 1/hora. ATIVO no launcher com sink Telegram e estado persistido (v0.27.4).",
+      "source": "Nicky",
+      "phase": "Fase 5.3",
+      "status": "active",
+      "path": "integrations/notifier.py"
+    },
+    {
+      "id": "iot-manager",
+      "name": "IoT Manager (Home Assistant)",
+      "category": "integrations",
+      "description": "Leitura/controle de entidades HA (taxonomia ambiental, gate de segurança). Cliente disponível; presença já usa o HA.",
+      "source": "Nexus",
+      "phase": "Fase 5.4",
+      "status": "available",
+      "path": "integrations/homeassistant/"
+    },
+    {
+      "id": "mqtt-bridge",
+      "name": "MQTT Bridge (Mosquitto 127.0.0.1:1883)",
+      "category": "integrations",
+      "description": "Wire protocol MQTT 3.1.1 stdlib; assina od/in/# e roteia ao Event Bus.",
+      "source": "Nexus",
+      "phase": "Fase 5.5",
+      "status": "active",
+      "path": "integrations/mqtt/"
+    },
+    {
+      "id": "control-bridge",
+      "name": "Control Bridge (127.0.0.1:8765, usuário odrunner)",
+      "category": "integrations",
+      "description": "Ponte local de execução restrita (allowlist + escopo + auditoria). Serviço systemd ATIVO; sem cliente interno no OD ainda.",
+      "source": "OD",
+      "phase": "Runtime",
+      "status": "active",
+      "path": "runtime/control_bridge/"
+    },
+    {
+      "id": "face-detection",
+      "name": "Face Detection (webcam + OpenCV)",
+      "category": "sensorial",
+      "description": "Haar + CLAHE + buffer de confirmação. Off por default (OD_VISION_ENABLED=0).",
+      "source": "Nicky",
+      "phase": "Fase 6.1",
+      "status": "partial",
+      "path": "tools/vision/face_detector.py"
+    },
+    {
+      "id": "presence-monitor",
+      "name": "Presence Monitor (HA person/device_tracker)",
+      "category": "sensorial",
+      "description": "Detecta chegada/saída e notifica o admin no Telegram.",
+      "source": "Nicky",
+      "phase": "Fase 6.2",
+      "status": "active",
+      "path": "integrations/homeassistant/presence.py"
+    },
+    {
+      "id": "stt",
+      "name": "STT (whisper.cpp)",
+      "category": "sensorial",
+      "description": "Transcrição de voz no bot; ativo quando os binários existem (auto-detectado).",
+      "source": "Nicky",
+      "phase": "Fase 6.3",
+      "status": "available",
+      "path": "tools/audio/stt.py"
+    },
+    {
+      "id": "tts",
+      "name": "TTS (Piper, vozes por perfil)",
+      "category": "sensorial",
+      "description": "Respostas por voz no bot; ativo quando os binários existem.",
+      "source": "Nicky",
+      "phase": "Fase 6.4",
+      "status": "available",
+      "path": "tools/audio/tts.py"
+    },
+    {
+      "id": "profiles",
+      "name": "Profile Manager (7 perfis + detecção automática)",
+      "category": "sensorial",
+      "description": "guardian/regulus/luma/vox/athenae/nyx/nexus com detecção por domínio.",
+      "source": "Nicky",
+      "phase": "Fase 6.5",
+      "status": "active",
+      "path": "agents/profiles.py"
+    },
+    {
+      "id": "llm-provider",
+      "name": "LLM local (gemma-4-E4B via llama-server 127.0.0.1:8081)",
+      "category": "sensorial",
+      "description": "OpenAICompatProvider (stdlib) com identidade Nicky Virthy.",
+      "source": "Nexus",
+      "phase": "v0.16.0",
+      "status": "active",
+      "path": "core/llm.py"
+    },
+    {
+      "id": "audit",
+      "name": "Audit System (JSONL persistente, rotação)",
+      "category": "observability",
+      "description": "Toda decisão de segurança registrada (allowed/denied).",
+      "source": "Nexus",
+      "phase": "Fase 7.1",
+      "status": "active",
+      "path": "observability/audit.py"
+    },
+    {
+      "id": "metrics",
+      "name": "Metrics Collector (Prometheus text format)",
+      "category": "observability",
+      "description": "Métricas od_* + fontes vivas (orchestrator/audit/uptime); GET /metrics.",
+      "source": "Nicky",
+      "phase": "Fase 7.2",
+      "status": "active",
+      "path": "observability/metrics.py"
+    },
+    {
+      "id": "health",
+      "name": "Health Check por componente (up/degraded/down)",
+      "category": "observability",
+      "description": "Checks críticos (orchestrator/llm) e não-críticos (audit/metrics/database).",
+      "source": "NV",
+      "phase": "Fase 7.3",
+      "status": "active",
+      "path": "observability/health.py"
+    },
+    {
+      "id": "database-layer",
+      "name": "Database Layer (SQLite stdlib, pool + transações + Repository)",
+      "category": "observability",
+      "description": "data/od.db com pool por fila, transações com afinidade e CRUD genérico.",
+      "source": "NV",
+      "phase": "Fase 7.5",
+      "status": "active",
+      "path": "storage/database.py"
+    },
+    {
+      "id": "launcher",
+      "name": "Launcher (modos api|telegram|mqtt|presence|vision|all|capabilities)",
+      "category": "runtime",
+      "description": "Sobe o od-core com Audit/Metrics/Health/DB/Plugins/ActionRegistry; systemd od-core + od-llm ativos.",
+      "source": "OD",
+      "phase": "Runtime",
+      "status": "active",
+      "path": "runtime/launcher.py"
+    },
+    {
+      "id": "systemd",
+      "name": "Serviços systemd (od-core, od-llm, od-control-bridge)",
+      "category": "runtime",
+      "description": "Auto-start no boot (units de usuário + unit de sistema da Bridge).",
+      "source": "OD",
+      "phase": "Runtime",
+      "status": "active",
+      "path": "runtime/systemd/"
+    }
+  ],
+  "dormant": [],
+  "integrations": {
+    "api": "http://0.0.0.0:8000 (X-API-Key)",
+    "telegram": "@Nicky_Virthy_bot",
+    "llm": "127.0.0.1:8081 (gemma-4-E4B, OpenAI-compat)",
+    "mqtt": "127.0.0.1:1883 (Mosquitto)",
+    "home_assistant": "http://<host>:8123",
+    "control_bridge": "http://127.0.0.1:8765"
+  },
+  "runtime": {
+    "modes": [
+      "api",
+      "telegram",
+      "mqtt",
+      "presence",
+      "vision",
+      "recovery",
+      "all",
+      "capabilities"
+    ],
+    "services": [
+      "od-core.service",
+      "od-llm.service",
+      "od-control-bridge.service"
+    ],
+    "vision": "off por default (OD_VISION_ENABLED=0)",
+    "plugins": "0 plugins reais (sistema pronto para receber)",
+    "auto_recovery": {
+      "interval_s": 300,
+      "env": "OD_SELF_REPAIR_ENABLED / OD_RECOVERY_INTERVAL_S / OD_NOTIFIER_ENABLED"
+    }
+  },
+  "auto_recovery": {
+    "loop_fechado": true,
+    "dormentes": [],
+    "ciclo": "RecoveryLoop (v0.27.4): percepção periódica (Telemetry) → check perception no Health Monitor → auto-reparo (SelfRepair via Coder) → verificação/rollback; Auto Extension exposta via /gerar; ProactiveNotifier com sink Telegram ativo",
+    "conservador": "correções apenas determinísticas (ex: AddMissingColon) mediadas pelo Coder (sandbox→testes→backup→promoção); falhas nunca derrubam o ciclo",
+    "para_desligar": "OD_SELF_REPAIR_ENABLED=0 / OD_NOTIFIER_ENABLED=0 no .env"
+  }
+}

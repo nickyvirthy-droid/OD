@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'services/od_api.dart';
+import 'services/push_service.dart';
 import 'screens/chat_screen.dart';
 import 'screens/actions_screen.dart';
 import 'screens/status_screen.dart';
@@ -9,8 +12,22 @@ import 'screens/settings_screen.dart';
 ///
 /// App Android para conversar com o OD, executar ações e monitorar
 /// o sistema de qualquer lugar via Tailscale.
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Push FCM é best-effort e NUNCA bloqueia nem derruba o boot: roda em
+  // segundo plano, com try/catch em volta de TUDO (inclusive da criação
+  // do singleton) — qualquer falha do Firebase, o app abre normal.
+  unawaited(_initPushBestEffort());
   runApp(const OdApp());
+}
+
+/// Inicializa o push sem nunca deixar exceção escapar para o main().
+Future<void> _initPushBestEffort() async {
+  try {
+    await PushService.instance.init();
+  } catch (_) {
+    // Best-effort: push falhou, app segue funcionando.
+  }
 }
 
 class OdApp extends StatelessWidget {

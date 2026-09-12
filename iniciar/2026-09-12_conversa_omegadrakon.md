@@ -71,8 +71,91 @@ Terceira rodada (autorizada pelo usuário): commit + push (§2.1.2)
   docs/ROADMAP_V1.md, site/index.html, requirements.txt,
   runtime/launcher.py, runtime/install_postgres.sh.
 
+Quarta rodada: validação do contrato do APK 1.2.0 via Tailscale
+
+Método: exercitei os endpoints exatos que o app usa contra
+http://100.77.67.53:8000 (mesmo caminho do celular), com a chave do `.env`, e
+reproduzi a tela Status com o payload REAL do `/capabilities` num teste de
+widget temporário (apagado depois).
+
+PASSOU:
+- GET /health autenticado → ok=true, status=up; 401 sem chave
+- GET /capabilities → 200 (manifesto: 40 capacidades, 57 actions)
+- GET /actions → 57 ações com name/description/category/permission/params/risk
+- POST /message com o payload do app (text/user_id=app/profile=auto) → ok=true,
+  campo `message` preenchido. Levou 109s (LLM local gemma).
+- POST /executa system_info → status=ok com data
+- POST /executa filesystem_mkdir sem confirm → HTTP 422 confirmacao_obrigatoria
+- POST /executa filesystem_mkdir com confirm em path do projeto → status=ok
+- POST /executa action inexistente → HTTP 404
+
+FALHOU:
+1. BUG NO APP — a aba Status quebra com o payload real:
+   `_TypeError: type 'String' is not a subtype of type 'Map<String, dynamic>?'`
+   em `status_screen.dart:136` (`_capabilities?['system'] as Map<...>?`).
+   O servidor devolve `"system": "Omega Drakon"` (string) e a versão no
+   topo do manifesto; o app espera um `system` aninhado. O teste existente
+   passa porque o mock de `widget_test.dart:68` usa um `system` aninhado
+   (`{"version": "v0.28.0", ...}`) que o servidor real não tem.
+2. SERVIDOR DESATUALIZADO — o od-core em execução ainda reporta
+   `version: 0.28.0` (uptime ~29k s, subiu antes da correção). Precisa de
+   `systemctl --user restart od-core` para servir 1.2.0.
+3. GET /info → 404 (não é rota; a raiz é GET / e exige chave). Não afeta o
+   app (que não usa /info), mas contradiz o registro §0.27.3.
+
+OBSERVAÇÕES:
+- Chat: 109s — dentro do timeout de 240s do app, mas apertado.
+- `filesystem_mkdir` com path fora de /home/alex/OmegaDrakon → denied
+  (Security Layer; esperado, mas o app mostra o erro).
+- Redmi Note 14 (`redmi-note-14-1`, 100.80.224.73) está ONLINE no tailnet,
+  mas não tenho acesso ao aparelho: instalar e operar o APK é ação do usuário.
+
+Quinta rodada (autorizada): corrigir a tela Status + reiniciar o od-core
+
+1. od-core reiniciado (`systemctl --user restart od-core`):
+   - GET / autenticado → version 1.2.0 (antes 0.28.0, uptime 8h14)
+   - /capabilities → version 1.2.0
+   - /health → ok=true, 8 checks OK (orchestrator, llm, audit, metrics,
+     database, homeassistant, mqtt, perception)
+   - /actions → 57
+2. Correção do app:
+   - `app/lib/screens/status_screen.dart`: `_buildSystemInfo` passou a ler o
+     manifesto plano com `is` + fallback '?', sem cast. Mostra Versão,
+     'N modos' (runtime.modes), Capacidades e Actions (counts).
+     A linha "Agentes: N perfis" saiu: o manifesto não expõe contagem de
+     agentes (o endpoint /profiles existe, mas a tela não o chama).
+   - `app/test/widget_test.dart`: mock de /capabilities alinhado à forma real
+     (o antigo usava `system` aninhado — teste mentindo verde) e novo teste de
+     regressão que usa o manifesto real do servidor.
+   - `app/test/fixtures/capabilities_manifest.json` (16 KB): manifesto
+     capturado do servidor de produção (v1.2.0; 40 capacidades, 57 actions,
+     8 modos).
+3. Evidência:
+   - `flutter analyze` → No issues found!
+   - `flutter test` → 37 passed (36 + 1 regressão)
+   - TESTE DO TESTE: reintroduzindo a linha antiga, 2 testes falharam com o
+     mesmo `_TypeError: type 'String' is not a subtype of type
+     'Map<String, dynamic>'` → a regressão é realmente pega.
+   - suíte do servidor: 1610 passed, 16 skipped
+
+Sexta rodada (autorizada): rebuild e republicação do APK
+
+- `app/pubspec.yaml`: 1.2.0+3 → **1.2.0+4**. Motivo: com o mesmo
+  `versionCode` (1003) o Android recusaria instalar por cima do APK anterior.
+- Build: `flutter build apk --release` + `--split-per-abi`
+  → app-release.apk 51.9MB · arm64 18.5MB · armeabi-v7a 16.0MB · x86_64 20.0MB
+  → "versionName": "1.2.0" / versionCode 1004·2004·4004
+- Publicado em `site/OmegaDrakon.apk` e `site/OmegaDrakon-arm64.apk`,
+  sha256 origem==site (`6d3c73a5...b616ade` full); o build anterior (1.2.0+3,
+  com o bug) foi preservado em `backups/apk-v1.2.0-1003/`.
+- Confirmação extra: `GET /site/OmegaDrakon.apk` na API → HTTP 200,
+  51935299 bytes (igual ao arquivo local) — o download da landing entrega o
+  build novo. `strings` no APK encontra a string nova ('modos') 3x.
+
 Ainda não foi feito:
-- Validar o APK no celular via Tailscale e ativar o FCM (pendências da v1.2.0).
+- Publicar a correção da tela Status (commit + push) — o APK já está
+  republicado com o fix, falta o commit do código.
+- Instalar/validar o APK no aparelho (usuário) e ativar o FCM.
 - Tratar o backlog pré-existente listado acima.
 
 Evidência da validação:
@@ -85,6 +168,7 @@ Evidência da validação:
 - app: flutter analyze → No issues found! · flutter test → 36 passed
 
 Próximos passos possíveis:
-- Validar o APK no celular via Tailscale.
+- Publicar a correção da tela Status (commit + push).
+- Instalar/validar o APK 1.2.0+4 (1004) no Redmi Note 14 via Tailscale.
 - Ativar Firebase FCM (docs/FIREBASE_SETUP.md).
 - Retomar a Fase 4 (Execução) ou a v1.3.0 (WebSocket /ws/chat, plugins, voz).

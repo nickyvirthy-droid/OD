@@ -132,9 +132,24 @@ class _StatusScreenState extends State<StatusScreen> {
     );
   }
 
+  /// Card "Sistema" — lê o manifesto REAL de GET /capabilities.
+  ///
+  /// O manifesto é plano: `version` no topo, contagens em `counts`
+  /// (`capabilities`, `actions`) e modos de runtime em `runtime.modes`.
+  /// Importante: `system` é o NOME do sistema (string), NÃO um objeto —
+  /// ler com `as Map<String, dynamic>?` estourava
+  /// `type 'String' is not a subtype of type 'Map<String, dynamic>?'` e
+  /// derrubava a aba Status inteira. Por isso aqui só se usa `is` + fallback
+  /// '?', nunca cast: o card não pode quebrar a tela se o manifesto mudar.
   Widget _buildSystemInfo() {
-    final info = _capabilities?['system'] as Map<String, dynamic>?;
-    if (info == null) return const SizedBox.shrink();
+    final caps = _capabilities;
+    if (caps == null || caps.isEmpty) return const SizedBox.shrink();
+
+    final counts = caps['counts'];
+    final runtime = caps['runtime'];
+    final modes = runtime is Map ? runtime['modes'] : null;
+    final capabilities = counts is Map ? counts['capabilities'] : null;
+    final actions = counts is Map ? counts['actions'] : null;
 
     return Card(
       child: Padding(
@@ -147,10 +162,16 @@ class _StatusScreenState extends State<StatusScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const Divider(),
-            _infoRow('Versão', info['version'] ?? '?'),
-            _infoRow('Runtime', info['runtime'] ?? '?'),
-            _infoRow('Agentes', '${info['agents'] ?? '?'} perfis'),
-            _infoRow('Actions', '${info['actions'] ?? '?'}'),
+            _infoRow('Versão', '${caps['version'] ?? '?'}'),
+            _infoRow(
+              'Runtime',
+              modes is List && modes.isNotEmpty ? '${modes.length} modos' : '?',
+            ),
+            _infoRow(
+              'Capacidades',
+              capabilities == null ? '?' : '$capabilities',
+            ),
+            _infoRow('Actions', actions == null ? '?' : '$actions'),
           ],
         ),
       ),

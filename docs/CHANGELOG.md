@@ -46,13 +46,37 @@
 - `tests/` (servidor): **1610 passed, 16 skipped** (suíte completa, auditoria
   de 2026-09-12); marco da v1.0.0 registrado com **1594 passed**.
 
+### Corrigido (2026-09-12)
+
+- **Tela Status quebrava com o manifesto real** — `status_screen.dart` fazia
+  `_capabilities['system'] as Map<String, dynamic>?`, mas o servidor devolve
+  `"system": "Omega Drakon"` (string), com `version`, `counts` e `runtime` no
+  topo do manifesto. O cast estourava `_TypeError: type 'String' is not a
+  subtype of type 'Map<String, dynamic>?'` e derrubava a seção "Sistema" da
+  aba Status. A leitura agora usa `is` + fallback `'?'` (sem cast) e o card
+  mostra versão, nº de modos de runtime, capacidades e actions.
+- **Contrato testado com payload real** —
+  `app/test/fixtures/capabilities_manifest.json` (manifesto capturado do
+  servidor em produção) + teste de regressão em `app/test/widget_test.dart`.
+  O mock anterior usava um `system` aninhado que o servidor nunca devolveu —
+  o teste passava enquanto a tela quebrava no celular.
+
 ### APK republicado (2026-09-12)
 
-- `app-release.apk` (51.9 MB) e `app-arm64-v8a-release.apk` (18.5 MB)
-  buildados com **`versionName 1.2.0` / `versionCode 1003/2003/4003`** e
-  publicados em `site/OmegaDrakon.apk` e `site/OmegaDrakon-arm64.apk`
-  (sha256 conferido origem↔site). Os APKs antigos (1.0.0) ficaram em
-  `backups/apk-v1.0.0/`.
+Dois builds no mesmo dia:
+
+| Build | `versionName` / `versionCode` | sha256 (full) |
+|---|---|---|
+| 1º — alinhamento de versão | `1.2.0` / 1003·2003·4003 | `3b800c87…d978ff` |
+| 2º — com a correção da tela Status | `1.2.0` / **1004·2004·4004** | `6d3c73a5…b616ade` |
+
+- Publicados em `site/OmegaDrakon.apk` (51.9 MB) e
+  `site/OmegaDrakon-arm64.apk` (18.5 MB), com sha256 conferido origem↔site
+  e download servido pela API (`GET /site/OmegaDrakon.apk`) verificado.
+- O build number subiu para `+4` de propósito: com o mesmo `versionCode`
+  (1003) o Android recusaria instalar por cima do APK anterior.
+- APKs antigos preservados: `backups/apk-v1.0.0/` e
+  `backups/apk-v1.2.0-1003/`.
 - `OD_VERSION=1.2.0` gravado no `.env`.
 
 ### Publicação
@@ -66,6 +90,8 @@
 
 - Validar o APK no celular real via Tailscale (`http://100.77.67.53:8000`).
 - Ativar o push (credencial Firebase / `google-services.json`).
+- Publicar a correção da tela Status (commit + push) — o APK já está
+  republicado com o fix (`1.2.0+4`), falta o commit do código.
 
 ---
 

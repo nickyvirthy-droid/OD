@@ -183,6 +183,30 @@ servidor: pytest tests/ -q → 1610 passed, 16 skipped in 15.72s
 APKs antigos (v1.0.0) preservados em `backups/apk-v1.0.0/` antes da
 sobrescrita de `site/`.
 
+### 2.4 Segundo build — correção da aba Status (`1.2.0+4`)
+
+A validação de contrato contra o servidor (ver `iniciar/2026-09-12_*.md`)
+encontrou a aba Status quebrando com o manifesto real do `/capabilities`:
+`_TypeError: type 'String' is not a subtype of type 'Map<String, dynamic>?'`
+em `status_screen.dart` (o campo `system` é o **nome** do sistema em string; a
+versão está no topo do manifesto). Corrigido sem cast, com fixture do manifesto
+real e teste de regressão, e o APK foi refeito e republicado:
+
+```
+flutter build apk --release --split-per-abi
+  → "versionName": "1.2.0"  (versionCode 1004 / 2004 / 4004)
+sha256 app-release.apk == site/OmegaDrakon.apk
+  → 6d3c73a5f742375739731d08af2c9b6e9a713d46823c8ed81f7b53a13b616ade
+curl GET /site/OmegaDrakon.apk → HTTP 200 · 51935299 bytes (== arquivo local)
+
+flutter analyze → No issues found! · flutter test → 37 passed
+(testes antigos falham se a linha com cast voltar: +35 -2)
+```
+
+O build number subiu de `+3` para `+4` porque com o mesmo `versionCode` o
+Android recusaria instalar por cima do APK anterior. O build anterior (com o
+bug) ficou em `backups/apk-v1.2.0-1003/`.
+
 ### 2.3 Publicação (§2.1.2)
 
 ```
