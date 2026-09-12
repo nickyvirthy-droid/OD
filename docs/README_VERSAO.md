@@ -7,6 +7,194 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+> **Nota (2026-09-12):** as três seções abaixo (**v1.0.0, v1.1.0, v1.2.0**)
+> foram reconstruídas retroativamente em 2026-09-12, durante a auditoria de
+> alinhamento de versão — a série v1 havia sido entregue sem o relatório §2.1
+> persistido aqui (a última seção do arquivo era a [0.28.4]). A fonte dos
+> dados é `docs/ROADMAP_V1.md` e `docs/V1_0_0_ESCOPO.md`; os números de teste
+> são os registrados no roadmap na data da entrega, não uma reexecução.
+
+---
+
+## [1.2.0] — APP ANDROID 📱 (2026-09-08)
+
+### 1. O que foi feito
+
+| Item | Entrega |
+|---|---|
+| **App Flutter** | `app/` — chat, ações (catálogo de 57 actions via `/actions` + `/executa`), status (`/health` + capacidades) e configuração; auth por `OD_API_KEY` no `X-API-Key` |
+| **Compatibilidade de API** | `POST /message` aceita `{"message": ...}` (app) além do payload do bot |
+| **Push FCM** | `firebase_core` + `firebase_messaging` integrados (`docs/FIREBASE_SETUP.md`) |
+| **APK release** | `app/build_apk.sh` (Flutter 3.47.2 / JDK 17 / Android SDK 36, desugaring) → `site/OmegaDrakon.apk` publicado na landing |
+
+### 2. Evidência
+
+```
+app: flutter test + analyze        → 27 passed + analyze limpo
+APK release                        → ~51.6 MB, publicado em site/OmegaDrakon.apk
+site/index.html                    → "v1.2.0 — Plataforma Soberana de IA"
+```
+
+### 3. O que NÃO foi feito
+
+- Validar o app no celular real via Tailscale (`http://100.77.67.53:8000`)
+- Ativar o push (credencial Firebase / `google-services.json`)
+- **Divergências de versão encontradas na auditoria de 2026-09-12:** o APK
+  publicado foi buildado com `versionName 1.0.0` (`pubspec.yaml` em `1.0.0+1`)
+  enquanto a landing anunciava v1.2.0; e `OD_VERSION` não existia no `.env`,
+  então o servidor reportava `0.28.0`. Corrigido em 2026-09-12 (ver seção
+  **[AUDITORIA DE VERSÃO]** abaixo).
+
+### 4. Próximo passo
+
+Validar o APK no celular via Tailscale e ativar o FCM — depois seguir para a
+v1.3.0 (WebSocket `/ws/chat`, plugins reais, voz no app).
+
+---
+
+## [1.1.0] — ACESSO EXTERNO SEGURO 🔐 (2026-09-07)
+
+### 1. O que foi feito
+
+| Item | Entrega |
+|---|---|
+| **2.1 Tailscale (VPN mesh WireGuard)** | IP `100.77.67.53`, tailnet `nickyvirthy`, interface `tailscale0`, versão 1.102.2 |
+| **Documentação** | `docs/TAILSCALE_SETUP.md` |
+
+### 2. Evidência
+
+```
+API via Tailscale  → http://100.77.67.53:8000 (X-API-Key obrigatório)
+Segurança          → VPN + X-API-Key + UFW (22/8000/8123) + 0 portas no roteador
+```
+
+### 3. O que NÃO foi feito
+
+- Nada pendente deste item.
+
+### 4. Próximo passo
+
+v1.2.0 — app Android.
+
+---
+
+## [1.0.0] — FUNDAÇÃO v1 (release-grade) 🏛️ (2026-09-07)
+
+### 1. O que foi feito
+
+| # | Item | Entrega |
+|---|---|---|
+| 1.1 | **CI no GitHub Actions** | `.github/workflows/ci.yml` (Python 3.12, push + PR): `compileall` + `pytest -q` + gate de cobertura ≥ 90% |
+| 1.2 | **Migração JSON → PostgreSQL** | `memory/adapters.py` + `database=None` em history/cache/quick_responses/vector; fallback JSON mantido; 46 testes novos |
+| 1.3 | **7º perfil: `nexus`** | Plêiade completa em `agents/profiles.py` (detecção automática) |
+| 1.4 | **Health checks externos** | HA e MQTT/Mosquitto no Health Monitor; `/health` com 7 checks |
+| 1.5 | **Control Bridge no repo** | `tests/test_control_bridge.py` + unit systemd `od-control-bridge.service` |
+| 1.6 | **Systemd `od-core`** | `runtime/systemd/od-core.service` com hardening + `install-user.sh`; 29 testes |
+| 1.7 | **SWAP** | 8 GB em `/swapfile` + `vm.swappiness=10` |
+| 1.8 | **UFW** | 22 / 8000 / 8123 permitidos, resto bloqueado |
+| 1.9 | **Env vars ausentes** | 6 variáveis configuradas no `.env` |
+| 1.10 | **Disco sdb1** | Montado em `/home/alex/dados` (801 GB livres) + automount |
+
+### 2. Evidência
+
+```
+CI              → verde no GitHub (push + PR), cobertura 95% (gate ≥ 90%)
+Suíte local     → 1594 passed
+Perfil nexus    → selecionável e detectável
+Migração        → JSON→Postgres sem perda
+```
+
+### 3. O que NÃO foi feito
+
+- Nada pendente dos itens 1.1–1.10; a série v0.x (congelada na v0.28.1) segue
+  como base estável.
+
+### 4. Próximo passo
+
+v1.1.0 — acesso externo seguro (Tailscale).
+
+---
+
+## [1.2.0] — AUDITORIA DE VERSÃO + RETROFIT DOCUMENTAL 🔍 (2026-09-12)
+
+### 1. O que foi feito
+
+Auditoria de alinhamento de versão entre todas as fontes do sistema, com
+correção das divergências encontradas:
+
+| Arquivo | Antes | Depois |
+|---|---|---|
+| `core/capabilities.py` | fallback `0.28.0`; lia só `os.environ` (o `.env` nunca chegava) | fallback `1.2.0` + resolução `os.environ` → `OD_VERSION` do `.env` → fallback |
+| `app/pubspec.yaml` | `1.0.0+1` (APK reportava `versionName 1.0.0`) | `1.2.0+3` (rebuild do APK necessário para o `versionName` mudar) |
+| `docs/README_VERSAO.md` | última seção `[0.28.4]`, sem a série v1 | seções v1.0.0/v1.1.0/v1.2.0 reconstruídas |
+| `docs/CHANGELOG.md` | não existia (item 4 da Definition of Done sem arquivo-alvo) | criado com a série v0.x final + v1.x |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/ -q
+  → 1610 passed, 16 skipped in 15.01s
+
+.venv/bin/python -m pytest tests/test_capabilities.py tests/test_api.py -q
+  → 80 passed in 4.58s
+
+.venv/bin/python -c "from core.capabilities import OD_VERSION; print(OD_VERSION)"
+  → 1.2.0                       (sem OD_VERSION no .env — fallback)
+
+OD_VERSION=9.9.9 .venv/bin/python -c "from core.capabilities import OD_VERSION; print(OD_VERSION)"
+  → 9.9.9                       (env var tem precedência)
+
+grep -n "v1.2.0" site/index.html
+  → linhas 350, 472, 487 (landing — já estava alinhada)
+```
+
+### 2.1 `OD_VERSION` gravado no `.env`
+
+```
+grep -q '^OD_VERSION=' .env || printf 'OD_VERSION=1.2.0\n' >> .env
+grep -c '^OD_VERSION=' .env          → 1
+.venv/bin/python -c "from core.capabilities import OD_VERSION; print(OD_VERSION)"
+  → 1.2.0                            (agora vindo do .env, não do fallback)
+```
+
+### 2.2 Rebuild e publicação do APK (mesmo dia)
+
+```
+flutter pub get
+flutter build apk --release              → app-release.apk (51.9 MB)
+flutter build apk --release --split-per-abi
+  → app-arm64-v8a-release.apk (18.5 MB) · app-armeabi-v7a (16.0 MB) · app-x86_64 (20.0 MB)
+
+grep '"versionName"' app/build/app/intermediates/merged_manifests/release/\
+  processReleaseManifest/output-metadata.json
+  → "versionName": "1.2.0"  (versionCode 1003 / 2003 / 4003)
+    antes: "versionName": "1.0.0" (versionCode 1001 / 2001 / 4001)
+
+sha256  app-release.apk == site/OmegaDrakon.apk
+  → 3b800c87fc99d72d378cae8a9a6134de17240ab3181d051c4d008e7d1dd978ff
+sha256  app-arm64-v8a-release.apk == site/OmegaDrakon-arm64.apk
+  → f3535e75cd9b7553def12bc63269348546ae8bfd6ec3989b18fd014e486f2fc6
+
+app: flutter analyze → No issues found! (3.8s)
+app: flutter test    → 36 passed
+servidor: pytest tests/ -q → 1610 passed, 16 skipped in 15.72s
+```
+
+APKs antigos (v1.0.0) preservados em `backups/apk-v1.0.0/` antes da
+sobrescrita de `site/`.
+
+### 3. O que NÃO foi feito
+
+- Publicação no GitHub (commit + push) — aguarda autorização do usuário.
+- Validação do app no celular real via Tailscale e ativação do FCM — seguem
+  como pendências da v1.2.0 (não bloqueiam o alinhamento de versão).
+
+### 4. Próximo passo
+
+Rebuildar/publicar o APK, validar no celular via Tailscale e ativar o FCM.
+
+---
+
 ## [0.28.4] — ANÁLISE DO SERVIDOR + ATUALIZAÇÃO DO ROADMAP 🖥️ (2026-09-05)
 
 ### 1. O que foi feito

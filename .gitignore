@@ -20,6 +20,22 @@ wheels/
 .installed.cfg
 *.egg
 
+# Flutter app
+!app/lib/
+app/.dart_tool/
+app/.packages
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/pubspec.lock
+app/.metadata
+app/android/.gradle/
+app/android/app/google-services.json
+docs/google-services.json
+app/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+app/android/app/build/
+app/android/local.properties
+
 # Virtual Environment
 .venv/
 venv/
@@ -100,3 +116,12 @@ node_modules/
 
 # Voice binaries
 voice/
+.aider*
+
+# APKs publicados na landing e backups de APK (binários grandes — não versionar;
+# o APK oficial é republicado em site/ pelo app/build_apk.sh)
+site/*.apk
+backups/apk-*/
+
+# Backups automáticos do self-repair (.bak gerados pelo Coder Engine)
+.od_repair_backups/

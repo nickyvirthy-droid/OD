@@ -34,13 +34,50 @@ Baseado em:
 from __future__ import annotations
 
 import json
+import os
+import pathlib
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 __signature__ = "OD // CORE"
 
-# Versão atual do sistema (usada pelo manifesto e pela API /info).
-OD_VERSION = "0.28.0"
+# Raiz do repositório (core/capabilities.py → core/ → raiz).
+_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+_ENV_PATH = _REPO_ROOT / ".env"
+
+
+def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
+    """Lê um valor do `.env` da raiz (stdlib — sem python-dotenv)."""
+    if not path.exists():
+        return None
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        if key.strip() == name:
+            return value.strip().strip('"').strip("'")
+    return None
+
+
+# Versão atual do sistema.
+#
+# Regra de trabalho: a versão do sistema é mantida em OD_VERSION no `.env`
+# (raiz do projeto). Quando a versão mudar, atualize OD_VERSION no `.env`.
+# Qualquer lugar que exponha a versão (API, capabilities, bot, CLI) lê esse
+# valor em runtime, para que uma única atualização no `.env` refletir em todo
+# o sistema.
+#
+# Resolução (nesta ordem): os.environ → OD_VERSION do `.env` → fallback
+# congelado em disco (usado só em ambiente sem .env, ex: CI isolado).
+# O `.env` é lido aqui porque nem todo entrypoint passa pelo carregador do
+# launcher (ex: uvicorn subindo a API direto) — sem isso a versão do `.env`
+# não chegaria ao manifesto.
+OD_VERSION = (
+    os.environ.get("OD_VERSION")
+    or _env_file_value("OD_VERSION")
+    or "1.2.0"
+)
 
 # Status válidos.
 ACTIVE = "active"
