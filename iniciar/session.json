@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-13T14:23:28-03:00",
+  "updated_at": "2026-09-13T14:34:37-03:00",
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -23,10 +23,46 @@
   "topic": "Retomar trabalhos sobre o desenvolvimento do OmegaDrakon",
   "last_turn": {
     "when": "2026-09-13",
-    "what_user_said": "pediu \"leia iniciar\" para retomar a sessão; escolheu publicar a entrega de push FCM e aprovou o escopo de commit único (tudo que está em produção)",
+    "what_user_said": "pediu \"leia iniciar\" para retomar a sessão; escolheu publicar a entrega de push FCM (escopo aprovado: commit único com tudo que está em produção); pediu para preparar o push FCM para o teste de ponta a ponta (service account + POST /push/test); por fim pediu para verificar a pasta 000/ (arquivos de construção e ideias do projeto) e mantê-la fora do git",
     "what_agent_did": "leu iniciar/ + conferiu o git; revisou os 21 arquivos modificados e separou a entrega do backlog; revisou hunks reais de server.py, launcher.py, llm.py, orchestrator.py, site/index.html e requirements.txt; rodou as suítes (servidor 1647 passed/16 skipped; app analyze limpo + 42 testes); varreu o staged atrás de segredos (nada) e confirmou data/ e google-services.json ignorados; commitou 3b5599c (25 arquivos, +2456/-60) e publicou em origin/master 8c58520..3b5599c",
     "decisions": [],
-    "in_progress": "concluído: entrega de push FCM publicada. Aberto: service account do Firebase, instalar o APK 1.2.0+5 no aparelho e os achados do journal"
+    "in_progress": "segunda tentativa de transferência da service account também não chegou ao servidor (scp reportado como concluído, arquivo inexistente e nenhuma sessão SSH nova desde 14:13) — aguardando o comando/output exato do scp ou o JSON por outro caminho; o APK 1.2.0+5 segue pendente no Redmi Note 14 (offline no tailnet)"
+  },
+  "prep_push_fcm_2026_09_13": {
+    "pedido": "preparar o push FCM para o teste de ponta a ponta: configurar a service account e verificar POST /push/test com o aparelho registrado",
+    "estado_do_servidor": {
+      "od-core": "active (running) desde 2026-09-13 08:02:10, PID 133800, modo all",
+      "journal": "Push FCM inicializado | enabled=False | motivo=credencial_ausente | credencial=- | dispositivos=0 (em todos os restarts de hoje)",
+      "dependencia": "google-auth 2.58.0 instalado na .venv (nada a instalar)",
+      "credencial": "nenhum *service-account*.json / *firebase-adminsdk*.json no repo (find)",
+      "env": ".env sem OD_FCM_CREDENTIALS / OD_PUSH_ENABLED / OD_PUSH_PROJECT_ID — os defaults do core/push.py valem"
+    },
+    "verificacao_ao_vivo_contra_a_api": {
+      "GET /push/devices": "200 {enabled:false, reason:'credencial_ausente', devices:0}",
+      "POST /push/test": "HTTP 503 {ok:false, error:'push_desligado: credencial_ausente'} (esperado)",
+      "POST /push/test sem chave": "HTTP 401",
+      "POST /push/register (token fake)": "200 {devices:1, push_enabled:false} — registro funciona com o push desligado",
+      "POST /push/unregister": "200 {removed:true, devices:0} — registro limpo depois do teste",
+      "git check-ignore": "config/firebase-service-account.json coberto por .gitignore:134 (firebase-service-account*.json)"
+    },
+    "projeto_firebase": "nicky-e4f99 (project_number 582855984584, pacote com.omegadrakon.nicky) — confirmado nos dois google-services.json (000/ e app/android/app/)",
+    "bloqueios_do_usuario": [
+      "gerar a service account no console do Firebase (só a conta do usuário pode) e salvar em config/firebase-service-account.json",
+      "instalar/abrir o APK 1.2.0+5 no Redmi Note 14 (redmi-note-14-1, 100.80.224.73) para o token ser registrado — o aparelho está OFFLINE no tailnet (visto há 1 dia) e o registro está em 0 dispositivos"
+    ],
+    "validacao_da_credencial_2026_09_13": {
+      "relato_do_usuario": "disse que a service account já está em config/firebase-service-account.json",
+      "verificado": "NÃO EXISTE no servidor: `ls config/firebase-service-account.json` → No such file or directory; `find ~ -maxdepth 3` por *firebase*/*nicky-e4f99*/*service-account*/*adminsdk* → nada; `find /home /tmp /srv /opt /mnt /media -maxdepth 5` → nada; `find config -newermt 2026-09-12` → nada; config/ só tem iot_credentials.json e iot_credentials.example.json. A busca por JSONs novos em ~ (4 níveis) só achou arquivos do próprio sistema/manicode",
+      "leitura": "o download do console do Firebase provavelmente ficou na máquina onde o navegador roda (desktop Windows ou celular), não no nicky-server — que é headless; por isso o restart do od-core NÃO foi feito (subiria igual: enabled=False, credencial_ausente)",
+      "transferencia": "ssh está ativo no nicky-server (porta 22, usuário alex, tailnet 100.77.67.53) → scp do arquivo baixado direto para config/firebase-service-account.json, depois chmod 600",
+      "segunda_tentativa_2026_09_13": {
+        "relato_do_usuario": "disse que o scp terminou",
+        "verificado": "NÃO chegou nada: `ls config/` só tem iot_credentials*; `find / -xdev` + `find /home /home/alex/dados /mnt/Arquivos /srv /tmp` por *adminsdk*/*firebase-service-account*/*nicky-e4f99* → zero; `find /home/alex -maxdepth 3 -newermt 14:05 -type f` → só ruído conhecido (self-repair .bak, telemetry, data/, logs/, iniciar/); nenhum JSON novo em ~ (até 5 níveis). IPs do servidor: LAN 192.168.0.250 · tailnet 100.77.67.53",
+        "pista_no_journal": "nenhuma conexão SSH nova depois de 14:13:13 (a última sessão, pts/0 de 192.168.0.227, segue aberta); existem dois /usr/lib/openssh/sftp-server ociosos abertos às 14:08:32 e 14:09:02, também de 192.168.0.227, que não deixaram arquivo em nenhum caminho legível — se o upload saiu por ali, o destino não era este servidor/pasta (ou falhou silenciosamente no cliente)",
+        "observacao": "não reiniciei o od-core de novo (continua enabled=False, credencial_ausente) e não há o que carregar enquanto o arquivo não existir. /root não foi verificável (sudo pede senha): se o upload usou usuário root com caminho relativo, o arquivo pode estar em /root/config/"
+      }
+    },
+    "proximo": "com o arquivo em config/ (ou o caminho apontado por OD_FCM_CREDENTIALS): validar o JSON com google-auth (sem enviar nada), reiniciar o od-core e conferir o journal + GET /push/devices; com o aparelho registrado, POST /push/test é o teste de ponta a ponta"
   },
   "published_push_fcm_2026_09_13": {
     "commit": "3b5599c",
@@ -256,6 +292,22 @@
       "files_touched": []
     },
     {
+      "topic": "000/ fora do versionamento (2026-09-13)",
+      "decision": "adicionar a regra `000/` ao .gitignore",
+      "rationale": "a pasta guarda material do usuário (notas de construção, ideias, rascunhos e o google-services.json) — não é parte do sistema; até agora só o json interno estava coberto pelas regras de credencial Firebase e o resto aparecia como untracked pronto para um `git add -A`",
+      "files_touched": [
+        ".gitignore"
+      ]
+    },
+    {
+      "topic": "arquivos de trabalho local na raiz fora do versionamento (2026-09-13)",
+      "decision": "ignorar /agent.py, /agent.b64, /txt.txt, /GPT_preview.png, /executar.sh, /gemini_prompt.sh, /llama_prompt.sh, /od_aider.sh, /od_prompt.sh, /sandbox_agent/ e /assets/ (regras ancoradas na raiz)",
+      "rationale": "pedido do usuário: deixar a raiz livre de untracked. Nada disso é o sistema: agent.py e sandbox_agent/ são um par local (sandbox do agente híbrido, que é o arquivo que o SelfRepair tenta consertar), assets/ é saída de build do Flutter de 52 MB e os .sh são atalhos locais que carregam o .env. Barra inicial para não capturar homônimos dentro de core/, tools/ etc. Confirmado que nenhum arquivo já versionado passa a bater nas regras",
+      "files_touched": [
+        ".gitignore"
+      ]
+    },
+    {
       "topic": "publicação da entrega de push FCM (2026-09-13)",
       "decision": "commit único (3b5599c) levando tudo que está em produção: o push FCM e também os endpoints /actions, /executa e /site do app 1.2.0, os ajustes de latência do chat e a limpeza das menções de versão",
       "rationale": "o servidor em produção já roda esse código e o APK 1.2.0+5 foi buildado contra esses endpoints; commitar só o push recriaria a divergência repo↔artefato que a auditoria de versão de 2026-09-12 acabou de corrigir. server.py/launcher.py/test_api.py não separam por hunk, e os dois ajustes de latência (max_tokens 512 e ordem da data/hora no system prompt) são o que torna o chat do app viável em CPU",
@@ -287,7 +339,7 @@
   ],
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
-    "action": "Gerar a service account do Firebase (só o usuário pode) e rodar POST /push/test com o aparelho registrado; instalar o APK 1.2.0+5 no Redmi Note 14 para o token ser registrado; depois investigar os dois achados do journal (SelfRepair no_fix em agent.py e o handler face.presence com AttributeError).",
+    "action": "Aguardar a service account do Firebase em config/firebase-service-account.json (só o usuário pode gerar): validar o JSON, reiniciar o od-core, confirmar enabled=true no GET /push/devices e rodar POST /push/test com o Redmi Note 14 registrado (APK 1.2.0+5). Depois investigar os dois achados do journal (SelfRepair no_fix em agent.py e o handler face.presence com AttributeError).",
     "open": true,
     "context": "Push de ponta a ponta implementado, publicado (3b5599c) e no ar dormente: 26 endpoints, APK 1.2.0+5 em site/. O envio só sai quando a credencial existir — sem ela /push/test responde 503.",
     "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit."

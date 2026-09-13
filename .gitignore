@@ -132,3 +132,23 @@ google-services.json
 *firebase-adminsdk*.json
 service-account*.json
 firebase-service-account*.json
+
+# 000/ — pasta de trabalho local do projeto (notas de construção, ideias,
+# rascunhos e material do usuário; inclui 000/google-services.json).
+# Conteúdo pessoal, não parte do sistema: não versionar.
+000/
+
+# Trabalho local na raiz do servidor: scripts de apoio, rascunhos e saída de
+# build do Flutter. Não é o sistema e não deve ir para o repositório.
+# Ancorado na raiz para não capturar homônimos dentro do código.
+/agent.py
+/agent.b64
+/txt.txt
+/GPT_preview.png
+/executar.sh
+/gemini_prompt.sh
+/llama_prompt.sh
+/od_aider.sh
+/od_prompt.sh
+/sandbox_agent/
+/assets/
