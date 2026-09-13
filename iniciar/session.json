@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-13T14:20:31-03:00",
+  "updated_at": "2026-09-13T14:23:28-03:00",
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -23,10 +23,33 @@
   "topic": "Retomar trabalhos sobre o desenvolvimento do OmegaDrakon",
   "last_turn": {
     "when": "2026-09-13",
-    "what_user_said": "pediu \"leia iniciar\" para retomar a sessão",
-    "what_agent_did": "leu iniciar/README.md, RULES.md, session.json e a transcrição 2026-09-12; conferiu o estado do git (HEAD 8c58520) e verificou que a entrega de push FCM segue não commitada (core/push.py, tests/test_push.py, docs/FIREBASE_SETUP.md, app/lib/*, .gitignore); registrou este checkpoint em iniciar/2026-09-13_conversa_omegadrakon.md",
+    "what_user_said": "pediu \"leia iniciar\" para retomar a sessão; escolheu publicar a entrega de push FCM e aprovou o escopo de commit único (tudo que está em produção)",
+    "what_agent_did": "leu iniciar/ + conferiu o git; revisou os 21 arquivos modificados e separou a entrega do backlog; revisou hunks reais de server.py, launcher.py, llm.py, orchestrator.py, site/index.html e requirements.txt; rodou as suítes (servidor 1647 passed/16 skipped; app analyze limpo + 42 testes); varreu o staged atrás de segredos (nada) e confirmou data/ e google-services.json ignorados; commitou 3b5599c (25 arquivos, +2456/-60) e publicou em origin/master 8c58520..3b5599c",
     "decisions": [],
-    "in_progress": "aguardando o usuário escolher o ponto de retomada (publicar o push FCM, ativar o Firebase, tratar o backlog de servidor ou investigar os achados do journal)"
+    "in_progress": "concluído: entrega de push FCM publicada. Aberto: service account do Firebase, instalar o APK 1.2.0+5 no aparelho e os achados do journal"
+  },
+  "published_push_fcm_2026_09_13": {
+    "commit": "3b5599c",
+    "message": "feat(push): implanta o push FCM de ponta a ponta (servidor + app)",
+    "push": "origin/master 8c58520..3b5599c",
+    "escopo": "25 arquivos, +2456/-60",
+    "entraram": [
+      "push FCM: core/push.py, tests/test_push.py, docs/FIREBASE_SETUP.md, core/capabilities.py (push-fcm), requirements.txt (google-auth), .gitignore (regras de credencial Firebase)",
+      "app: app/lib/main.dart, app/lib/services/od_api.dart, app/lib/services/push_service.dart, app/test/od_api_test.dart, app/pubspec.yaml (1.2.0+5 — o build publicado)",
+      "colados nos mesmos arquivos (não separam por hunk): integrations/api/server.py e tests/test_api.py (trazem /actions, /executa e /site do app 1.2.0) e runtime/launcher.py (traz também max_tokens 512)",
+      "em produção junto: core/llm.py (512 tokens), core/orchestrator.py (data/hora após o system prompt → cache de KV), runtime/install_postgres.sh, docs/CAPACIDADES.md, site/index.html (landing do APK arm64)",
+      "docs/CHANGELOG.md, docs/README_VERSAO.md, docs/ROADMAP_V1.md e iniciar/*"
+    ],
+    "ficou_de_fora": [
+      "000/ (inclui google-services.json — ignorado), assets/ (build do Flutter), sandbox_agent/",
+      "arquivos soltos de trabalho local: agent.py, agent.b64, executar.sh, gemini_prompt.sh, llama_prompt.sh, od_aider.sh, od_prompt.sh, txt.txt, GPT_preview.png — não fazem parte do sistema em produção"
+    ],
+    "evidencia": {
+      "suite_servidor": "1647 passed, 16 skipped in 15.13s",
+      "app": "flutter analyze: No issues found! · flutter test: 42 passed",
+      "segredos": "varredura do staged por AIza/PRIVATE KEY/api_key sem ocorrências; git check-ignore confirma data/ (linha 101) e google-services.json (linha 131) fora do repo"
+    },
+    "nota": "o APK 1.2.0+5 já estava publicado em site/ antes deste commit — o commit não reconstrói nem republica binário"
   },
   "previous_turn": {
     "when": "2026-09-12",
@@ -231,13 +254,42 @@
       "decision": "continuar com os trabalhos sobre o desenvolvimento após regra de salvamento configurada",
       "rationale": "usuário pediu retomar os trabalhos agora",
       "files_touched": []
+    },
+    {
+      "topic": "publicação da entrega de push FCM (2026-09-13)",
+      "decision": "commit único (3b5599c) levando tudo que está em produção: o push FCM e também os endpoints /actions, /executa e /site do app 1.2.0, os ajustes de latência do chat e a limpeza das menções de versão",
+      "rationale": "o servidor em produção já roda esse código e o APK 1.2.0+5 foi buildado contra esses endpoints; commitar só o push recriaria a divergência repo↔artefato que a auditoria de versão de 2026-09-12 acabou de corrigir. server.py/launcher.py/test_api.py não separam por hunk, e os dois ajustes de latência (max_tokens 512 e ordem da data/hora no system prompt) são o que torna o chat do app viável em CPU",
+      "files_touched": [
+        "core/push.py",
+        "tests/test_push.py",
+        "docs/FIREBASE_SETUP.md",
+        ".gitignore",
+        "core/capabilities.py",
+        "requirements.txt",
+        "app/lib/main.dart",
+        "app/lib/services/od_api.dart",
+        "app/lib/services/push_service.dart",
+        "app/test/od_api_test.dart",
+        "app/pubspec.yaml",
+        "integrations/api/server.py",
+        "tests/test_api.py",
+        "runtime/launcher.py",
+        "core/llm.py",
+        "core/orchestrator.py",
+        "runtime/install_postgres.sh",
+        "docs/CAPACIDADES.md",
+        "site/index.html",
+        "docs/CHANGELOG.md",
+        "docs/README_VERSAO.md",
+        "docs/ROADMAP_V1.md"
+      ]
     }
   ],
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
-    "action": "Publicar esta entrega (commit + push). Depois: gerar a service account do Firebase e rodar POST /push/test com o aparelho registrado (teste de ponta a ponta); tratar o backlog de servidor fora do e2f4960; e investigar os achados do journal (SelfRepair no_fix em agent.py e o handler face.presence com AttributeError).",
+    "action": "Gerar a service account do Firebase (só o usuário pode) e rodar POST /push/test com o aparelho registrado; instalar o APK 1.2.0+5 no Redmi Note 14 para o token ser registrado; depois investigar os dois achados do journal (SelfRepair no_fix em agent.py e o handler face.presence com AttributeError).",
     "open": true,
-    "context": "Push de ponta a ponta implementado e no ar dormente (servidor reiniciado, 26 endpoints, APK 1.2.0+5 publicado). Falta a credencial de service account (só o usuário pode gerar) e publicar no GitHub.",
-    "estado_em_2026-09-13": "HEAD 8c58520 (último push: a5ac3a5..68cf2e5 + 8c58520). O commit da entrega de push FCM ainda NÃO foi feito: na árvore há core/push.py, tests/test_push.py, docs/FIREBASE_SETUP.md (novos) e app/lib/*, .gitignore, core/llm.py, core/orchestrator.py, integrations/api/server.py, requirements.txt, runtime/launcher.py, site/index.html, tests/test_api.py, docs/* (modificados)."
+    "context": "Push de ponta a ponta implementado, publicado (3b5599c) e no ar dormente: 26 endpoints, APK 1.2.0+5 em site/. O envio só sai quando a credencial existir — sem ela /push/test responde 503.",
+    "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit."
   }
 }

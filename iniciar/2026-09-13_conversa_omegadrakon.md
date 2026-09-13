@@ -32,4 +32,40 @@ Pontos abertos (do checkpoint anterior, ainda válidos):
 5. Achados do journal: SelfRepair no_fix em agent.py e o handler
    face.presence com AttributeError.
 
-Próximo passo: aguardando o usuário escolher o ponto de retomada.
+Rodada 1 (autorizada): publicar a entrega de push FCM
+
+Escolha do usuário: "Publicar o push FCM". Escopo aprovado por pergunta
+explícita: **commit único com tudo que está em produção** (opção A).
+
+Revisão do diff antes de commitar (21 modificados + 4 novos):
+- Da entrega: core/push.py, tests/test_push.py, docs/FIREBASE_SETUP.md,
+  .gitignore (regras de credencial Firebase), core/capabilities.py
+  (push-fcm + integrations.push), requirements.txt (google-auth), app/lib/*,
+  app/test/od_api_test.dart, app/pubspec.yaml (1.2.0+5).
+- Colados nos mesmos arquivos (não separam por hunk): server.py e
+  tests/test_api.py trazem também /actions, /executa e /site; launcher.py
+  traz também max_tokens 512.
+- Em produção junto: core/llm.py (512 tokens), core/orchestrator.py
+  (data/hora DEPOIS do system prompt — cache de KV), install_postgres.sh,
+  docs/CAPACIDADES.md, site/index.html (landing do APK arm64).
+- Fora: 000/, assets/, sandbox_agent/, agent.py, agent.b64, executar.sh,
+  gemini_prompt.sh, llama_prompt.sh, od_aider.sh, od_prompt.sh, txt.txt,
+  GPT_preview.png (arquivos soltos de trabalho local, não são o sistema).
+
+Verificação:
+- `.venv/bin/python -m pytest tests/ -q` → 1647 passed, 16 skipped (15.13s)
+- app: `flutter analyze` → No issues found! · `flutter test` → 42 passed
+- segredos: varredura do staged por AIza/PRIVATE KEY/api_key sem ocorrências;
+  `git check-ignore -v` confirma data/push_devices.json (.gitignore:101) e
+  app/android/app/google-services.json (.gitignore:131) fora do repo.
+
+Publicação:
+- Commit **3b5599c** — "feat(push): implanta o push FCM de ponta a ponta
+  (servidor + app)" (25 arquivos, +2456/-60).
+- Push: `origin/master 8c58520..3b5599c`.
+- O APK 1.2.0+5 já estava publicado em site/ — este commit não reconstruiu
+  nem republicou binário.
+
+Próximo passo: service account do Firebase + teste de ponta a ponta
+(POST /push/test com o aparelho registrado) e a instalação do APK 1.2.0+5 no
+Redmi Note 14; depois os dois achados do journal.
