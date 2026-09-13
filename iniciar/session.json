@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-12T12:50:00-03:00",
+  "updated_at": "2026-09-13T14:20:31-03:00",
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -22,6 +22,13 @@
   },
   "topic": "Retomar trabalhos sobre o desenvolvimento do OmegaDrakon",
   "last_turn": {
+    "when": "2026-09-13",
+    "what_user_said": "pediu \"leia iniciar\" para retomar a sessão",
+    "what_agent_did": "leu iniciar/README.md, RULES.md, session.json e a transcrição 2026-09-12; conferiu o estado do git (HEAD 8c58520) e verificou que a entrega de push FCM segue não commitada (core/push.py, tests/test_push.py, docs/FIREBASE_SETUP.md, app/lib/*, .gitignore); registrou este checkpoint em iniciar/2026-09-13_conversa_omegadrakon.md",
+    "decisions": [],
+    "in_progress": "aguardando o usuário escolher o ponto de retomada (publicar o push FCM, ativar o Firebase, tratar o backlog de servidor ou investigar os achados do journal)"
+  },
+  "previous_turn": {
     "when": "2026-09-12",
     "what_user_said": "pediu para ler a pasta iniciar e aprovou as três correções de alinhamento de versão (OD_VERSION, pubspec/app, documentação)",
     "what_agent_did": "auditou as fontes de versão com evidência; corrigiu core/capabilities.py (fallback 1.2.0 + resolução os.environ → .env → fallback), app/pubspec.yaml (1.0.0+1 → 1.2.0+3), criou docs/CHANGELOG.md e reconstruiu as seções v1.0.0/v1.1.0/v1.2.0 + [1.2.0] AUDITORIA DE VERSÃO em docs/README_VERSAO.md; validou com a suíte completa",
@@ -171,6 +178,30 @@
       "status": "publicado em site/OmegaDrakon.apk e site/OmegaDrakon-arm64.apk"
     }
   },
+  "push_fcm_2026_09_12": {
+    "pedido": "implementar o push do OD de ponta a ponta (o usuário escolheu essa opção; a service account será gerada depois por ele)",
+    "implementado": [
+      "core/push.py — DeviceRegistry (data/push_devices.json, upsert por token, escrita atômica), FcmSender (FCM HTTP v1 com google-auth + urllib), PushService (notify/sink/status, tokens mascarados)",
+      "API — POST /push/register, POST /push/unregister, POST /push/test, GET /push/devices (X-API-Key); rotas 22 → 26",
+      "launcher — build_push(); API e ProactiveNotifier recebem o serviço (alertas proativos viram push)",
+      "app — OdApi.registerPushToken/unregisterPushToken, PushService.attach(api) no boot/ao salvar config e a cada rotação de token, main.dart ligando",
+      "capabilities — capacidade push-fcm (integrations, partial) + integrations.push",
+      "requirements.txt — google-auth declarada com justificativa (HTTP segue urllib via adaptador UrllibRequest)",
+      "docs/FIREBASE_SETUP.md — passos 6 e 7 (service account + envs) e endpoints de push"
+    ],
+    "evidencia": {
+      "suite_servidor": "1647 passed, 16 skipped (29 novos em tests/test_push.py)",
+      "app": "flutter analyze sem issues · flutter test 42 passed (5 novos)",
+      "ao_vivo": "journal: Push FCM inicializado | enabled=False | motivo=credencial_ausente; GET /push/devices 200 (enabled=false); POST /push/test 503 push_desligado; POST /push/register 200 (token mascarado) e unregister limpo; sem chave 401; GET / endpoints=26",
+      "apk": "1.2.0+5 (1005/2005/4005) republicado em site/; sha256 00d72011...fbadd (full) e 1c5771c4...51623 (arm64); strings do APK contém 'push/register'"
+    },
+    "pendente": [
+      "service account do Firebase (console, conta do usuário) em config/firebase-service-account.json ou OD_FCM_CREDENTIALS — sem ela /push/test responde 503",
+      "instalar o APK 1.2.0+5 no Redmi Note 14 para o token ser registrado (o app registra sozinho ao abrir com a chave salva)",
+      "commit + push desta entrega (aguarda autorização)"
+    ],
+    "nota_flaky": "tests/test_mqtt.py::TestBridgeLifecycle::test_start_stop_thread falhou uma vez na suíte completa e passou nas duas execuções seguintes (isolado e suíte) — flaky de thread, não relacionado a esta entrega"
+  },
   "transcript": "iniciar/2026-09-12_conversa_omegadrakon.md",
   "status": "em_andamento",
   "research_done": true,
@@ -204,8 +235,9 @@
   ],
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
-    "action": "Seguir para: ativar Firebase FCM (docs/FIREBASE_SETUP.md) e validar o push no aparelho; tratar o backlog de servidor fora do e2f4960; e investigar os dois achados do journal (SelfRepair no_fix em agent.py e o handler face.presence com AttributeError → dead letter).",
+    "action": "Publicar esta entrega (commit + push). Depois: gerar a service account do Firebase e rodar POST /push/test com o aparelho registrado (teste de ponta a ponta); tratar o backlog de servidor fora do e2f4960; e investigar os achados do journal (SelfRepair no_fix em agent.py e o handler face.presence com AttributeError).",
     "open": true,
-    "context": "Teste no celular concluído com sucesso (relato do usuário + journal: chat respondido pelo cache e cpu_info executada via api:app em 11:27:58). APK 1.2.0+4 em site/, servidor ao vivo em 1.2.0, correção publicada (e2f4960)."
+    "context": "Push de ponta a ponta implementado e no ar dormente (servidor reiniciado, 26 endpoints, APK 1.2.0+5 publicado). Falta a credencial de service account (só o usuário pode gerar) e publicar no GitHub.",
+    "estado_em_2026-09-13": "HEAD 8c58520 (último push: a5ac3a5..68cf2e5 + 8c58520). O commit da entrega de push FCM ainda NÃO foi feito: na árvore há core/push.py, tests/test_push.py, docs/FIREBASE_SETUP.md (novos) e app/lib/*, .gitignore, core/llm.py, core/orchestrator.py, integrations/api/server.py, requirements.txt, runtime/launcher.py, site/index.html, tests/test_api.py, docs/* (modificados)."
   }
 }

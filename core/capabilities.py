@@ -369,6 +369,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "path": "integrations/mqtt/",
     },
     {
+        "id": "push-fcm",
+        "name": "Push FCM (alertas no app Android)",
+        "category": "integrations",
+        "description": "Registro dos tokens dos aparelhos (data/push_devices.json) e envio via FCM HTTP v1 (service account). Ligado no launcher e no ProactiveNotifier; envio dormente até a credencial existir (OD_FCM_CREDENTIALS).",
+        "source": "OD",
+        "phase": "v1.2.0",
+        "status": PARTIAL,
+        "path": "core/push.py",
+    },
+    {
         "id": "control-bridge",
         "name": "Control Bridge (127.0.0.1:8765, usuário odrunner)",
         "category": "integrations",
@@ -577,6 +587,7 @@ def capabilities_manifest(now: Optional[datetime] = None) -> dict[str, Any]:
             "mqtt": "127.0.0.1:1883 (Mosquitto)",
             "home_assistant": "http://<host>:8123",
             "control_bridge": "http://127.0.0.1:8765",
+            "push": "FCM (Firebase nicky-e4f99) — /push/register",
         },
         "runtime": {
             "modes": ["api", "telegram", "mqtt", "presence", "vision", "recovery", "all", "capabilities"],

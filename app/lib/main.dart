@@ -74,10 +74,21 @@ class _OdHomeState extends State<OdHome> {
 
   Future<void> _initApi() async {
     final loaded = await _api.loadSavedApiKey();
-    if (!loaded && mounted) {
+    if (loaded) {
+      // Com URL + chave válidas, registra o token FCM deste aparelho no OD
+      // (é o que permite o servidor mandar push para cá). Best-effort.
+      unawaited(PushService.instance.attach(_api));
+    } else if (mounted) {
       // Primeira vez — mostra settings
       setState(() => _currentIndex = 3);
     }
+  }
+
+  /// Chamado ao salvar as Configurações: re-tenta registrar o token com a
+  /// URL/chave novas (antes disso o push não tinha para onde ir).
+  void _onSettingsSaved() {
+    unawaited(PushService.instance.attach(_api));
+    setState(() => _currentIndex = 0);
   }
 
   @override
@@ -86,10 +97,7 @@ class _OdHomeState extends State<OdHome> {
       ChatScreen(api: _api),
       ActionsScreen(api: _api),
       StatusScreen(api: _api),
-      SettingsScreen(
-        api: _api,
-        onSaved: () => setState(() => _currentIndex = 0),
-      ),
+      SettingsScreen(api: _api, onSaved: _onSettingsSaved),
     ];
 
     return Scaffold(

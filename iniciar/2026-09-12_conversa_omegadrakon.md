@@ -227,8 +227,51 @@ A pendência "validar o APK no celular" foi riscada/atualizada em:
   as mudanças pré-existentes de progresso v1.x — foram commitadas junto, por
   serem coerentes com a mesma entrega.)
 
+Décima rodada: push FCM de ponta a ponta (implementação)
+
+Diagnóstico que abriu a rodada: o que a doc chamava de "push implementado" era
+só o RECEBIMENTO (console → celular). Faltava tudo do outro lado — sender no
+servidor, registro de tokens e o app enviando o token. Corrigido também um
+risco: `000/google-services.json` não estava no `.gitignore` (um `git add -A`
+levaria a credencial do Firebase para o repo); agora há regra genérica para
+`google-services.json`, `service-account*.json` e `*firebase-adminsdk*.json`.
+
+IMPLEMENTADO:
+- `core/push.py`: DeviceRegistry (data/push_devices.json, upsert por token,
+  escrita atômica, tolerante a arquivo corrompido), FcmSender (FCM HTTP v1:
+  OAuth2 da service account via google-auth + HTTP por urllib no adaptador
+  UrllibRequest) e PushService (notify/sink/status; tokens mascarados em log e
+  API; tokens mortos saem do registro sozinhos).
+- API: POST /push/register, POST /push/unregister, POST /push/test,
+  GET /push/devices — todos com X-API-Key. Rotas 22 → 26.
+- Launcher: build_push(); a API e o ProactiveNotifier recebem o serviço, então
+  os alertas proativos (LLM offline, disco, restart) também saem como push.
+- App: OdApi.registerPushToken/unregisterPushToken; PushService.attach(api)
+  registra o token no boot, ao salvar as Configurações e a cada rotação;
+  main.dart liga os dois.
+- Manifesto: capacidade `push-fcm` (integrations, partial) + integrations.push.
+- requirements.txt: google-auth declarada com justificativa (nenhum cliente
+  HTTP novo entrou — o projeto continua em urllib).
+- docs/FIREBASE_SETUP.md: passos 6 e 7 (service account + variáveis) e a
+  documentação dos endpoints de push.
+
+EVIDÊNCIA:
+- servidor: 1647 passed, 16 skipped (29 novos em tests/test_push.py)
+- app: flutter analyze sem issues · flutter test 42 passed (5 novos)
+- ao vivo após restart: journal "Push FCM inicializado | enabled=False |
+  motivo=credencial_ausente"; GET /push/devices 200 (enabled=false);
+  POST /push/test 503 push_desligado; POST /push/register 200 com token
+  mascarado; unregister limpou o registro; sem chave 401; GET / endpoints=26
+- APK 1.2.0+5 (1005/2005/4005) republicado em site/ com sha256 conferido
+  (00d72011...fbadd full) e strings contendo 'push/register'
+- flaky: test_mqtt::test_start_stop_thread falhou 1x na suíte e passou nas duas
+  execuções seguintes (isolado e suíte) — não relacionado a esta entrega
+
 Ainda não foi feito:
-- Ativar o FCM.
+- Gerar a service account do Firebase (só o usuário pode) — sem ela o envio
+  fica dormente e /push/test responde 503.
+- Instalar o APK 1.2.0+5 no Redmi Note 14 para o token ser registrado.
+- Publicar esta entrega (commit + push).
 - Tratar o backlog de servidor e os dois achados do journal
   (SelfRepair no_fix em agent.py e o handler face.presence).
 

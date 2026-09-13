@@ -32,19 +32,34 @@ import asyncio
 import base64
 import hmac
 import json
+import mimetypes
+import os
 import re
 import threading
 import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
 from urllib.parse import parse_qs, unquote, urlsplit
+
+from tools.registry import ActionRegistry
 
 from core.capabilities import OD_VERSION, capabilities_manifest
 from core.logger import get_logger
 from core.orchestrator import OrchestrationResult, Orchestrator
+from integrations.telegram.commands import (
+    _classificar_risco,
+    NIVEL_1_ADMIN,
+    NIVEL_2_DESTRUTIVO,
+)
+from tools.registry import ActionNotFoundError
 
 __signature__ = "OD // CORE"
+
+# Identificador de servidor HTTP, derivado da versão do sistema.
+# Quando a versão central mudar, aqui também se atualiza sem tocar no código.
+SERVER_VERSION = f"OmegaDrakon/{OD_VERSION}"
 
 if TYPE_CHECKING:
     from memory.vector import VectorStore
@@ -60,9 +75,15 @@ DEFAULT_PROFILE = "guardian"
 
 API_NAME = "Omega Drakon REST API"
 
+# Site do projeto (landing + APK) servido estaticamente em /site*.
+# Caminho padrão: pasta site/ na raiz do repo (config.site_dir sobrescreve).
+DEFAULT_SITE_DIR = Path(__file__).resolve().parents[2] / "site"
+
 # Shells de página (HTML estático, sem dados) — com page_shells_public,
 # continuam abertos para o navegador carregar a UI mesmo com auth_all.
-PAGE_PATHS = frozenset({"/chat", "/dashboard"})
+# /site* entra aqui para a landing + download do APK funcionarem no
+# celular (Tailscale) sem exigir X-API-Key no navegador.
+PAGE_PATHS = frozenset({"/chat", "/dashboard", "/site", "/site/{file}"})
 
 
 class APIError(Exception):
@@ -106,6 +127,9 @@ class APIConfig:
                         o GET /health responde o agregado do monitor
                         (up/degraded/down + checks por componente).
                         Ausente = comportamento legado.
+        site_dir:       Diretório do site estático servido em /site*
+                        (landing + OmegaDrakon.apk). None = padrão
+                        site/ na raiz do repo.
     """
 
     host: str = "127.0.0.1"
@@ -121,6 +145,12 @@ class APIConfig:
     tts: Optional[Callable[[str], Optional[bytes]]] = None
     metrics: Optional[Any] = None
     health: Optional[Any] = None
+    site_dir: Optional[str] = None
+    action_registry: Optional[Any] = None
+    push: Optional[Any] = None
+
+    # Nota (SLOTS): campos novos entram aqui, como `push` (core/push.py) —
+    # registro de dispositivos + envio FCM usados por /push/*.
 
 
 # ---------------------------------------------------------------------------
@@ -137,10 +167,18 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/dashboard", "dashboard_html", False),
     ("GET", "/chat", "chat_html", False),
     ("GET", "/metrics", "metrics_text", False),
+    ("GET", "/site", "site_index", False),
+    ("GET", "/site/{file}", "site_file", False),
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
     ("GET", "/capabilities", "capabilities", True),
+    ("GET", "/actions", "actions_catalog", True),
     ("POST", "/message", "message", True),
+    ("POST", "/executa", "executa", True),
+    ("POST", "/push/register", "push_register", True),
+    ("POST", "/push/unregister", "push_unregister", True),
+    ("POST", "/push/test", "push_test", True),
+    ("GET", "/push/devices", "push_devices", True),
     ("POST", "/transcribe", "transcribe", True),
     ("POST", "/tts", "tts", True),
     ("DELETE", "/history/{user_id}", "history_delete", True),
@@ -378,6 +416,14 @@ class APIServer(ThreadingHTTPServer):
         self.orchestrator = orchestrator
         self.config = config or APIConfig()
         self.vector = vector
+        # Registry usado por POST /executa e GET /actions (v1.2.0 app).
+        if self.config.action_registry is not None:
+            self._action_registry = self.config.action_registry
+        else:
+            self._action_registry = self.orchestrator.action_registry \
+                if self.orchestrator is not None else None
+        # Push FCM (core/push.py) — None = endpoints respondem 503.
+        self._push = self.config.push
         self.started_at = time.time()
         self.requests_total = 0
         self.errors_total = 0
@@ -461,7 +507,7 @@ class APIHandler(BaseHTTPRequestHandler):
     """Dispatch dos 18 endpoints + JSON/HTML, auth e rate limit."""
 
     protocol_version = "HTTP/1.1"
-    server_version = "OmegaDrakon/0.19"
+    server_version = SERVER_VERSION
     sys_version = ""
 
     @property
@@ -775,6 +821,83 @@ class APIHandler(BaseHTTPRequestHandler):
         (sessionStorage) e usada nas chamadas a POST /message."""
         self._html(200, _CHAT_PAGE_HTML)
 
+    def site_index(self) -> None:
+        """Landing do site (index.html) em GET /site e /site/."""
+        self._serve_site_file("index.html")
+
+    def site_file(self, file: str) -> None:
+        """Arquivo do site (ex.: OmegaDrakon.apk) em GET /site/{file}."""
+        self._serve_site_file(unquote(file))
+
+    def _serve_site_file(self, name: str) -> None:
+        """Serve um arquivo de site/ com streaming (o APK tem ~50MB).
+
+        Segurança: resolve() + is_relative_to() antes de abrir — GET
+        /site/../segredo ou /site/etc/passwd nunca escapa do diretório.
+        Sem auth (landing pública no tailnet); Cache-Control no-store
+        garante que o APK novo sempre baixa por inteiro.
+
+        Robustez p/ celular: suporta Range (o download manager do Android
+        retoma em bytes=-N após falha) e envia Content-Disposition
+        attachment em arquivos que não são HTML (o APK baixa como arquivo,
+        não abre no navegador).
+        """
+        base = Path(self.api.config.site_dir or DEFAULT_SITE_DIR).resolve()
+        target = (base / name).resolve()
+        if not target.is_relative_to(base) or not target.is_file():
+            raise APIError(404, "not_found")
+        ctype = (
+            mimetypes.guess_type(target.name)[0]
+            or "application/octet-stream"
+        )
+        size = target.stat().st_size
+        start, end = 0, size - 1
+        status = 200
+        range_header = self.headers.get("Range")
+        if range_header:
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header.strip())
+            if match and (match.group(1) or match.group(2)):
+                raw_start, raw_end = match.group(1), match.group(2)
+                if raw_start == "":  # sufixo: bytes=-N (últimos N bytes)
+                    length = int(raw_end)
+                    start = max(0, size - length)
+                else:
+                    start = int(raw_start)
+                    end = int(raw_end) if raw_end else size - 1
+                if start >= size or start > end:
+                    self.send_response(416)
+                    self._send_cors()
+                    self.send_header("Content-Range", f"bytes */{size}")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                end = min(end, size - 1)
+                status = 206
+        length = end - start + 1
+        self.send_response(status)
+        self._send_cors()
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(length))
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Cache-Control", "no-store")
+        if status == 206:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        if ctype != "text/html":
+            self.send_header(
+                "Content-Disposition",
+                f'attachment; filename="{target.name}"',
+            )
+        self.end_headers()
+        with target.open("rb") as fh:
+            fh.seek(start)
+            remaining = length
+            while remaining > 0:
+                chunk = fh.read(min(1 << 20, remaining))  # ≤ 1 MiB
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                remaining -= len(chunk)
+
     def metrics_text(self) -> None:
         if self.api.config.metrics is not None:
             # Fase 7.2: /metrics renderiza o MetricsCollector (fontes + api)
@@ -848,8 +971,11 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def message(self) -> None:
         data = self._read_json()
-        user_id = str(data.get("user_id") or "").strip()
-        text = str(data.get("text") or "").strip()
+        # Compat v1.2.0 (app Android): aceita {"message": ...} como alias de
+        # "text" e user_id implícito "app" quando ausente (o app não tem
+        # login por usuário; a API key já autentica o dispositivo).
+        text = str(data.get("text") or data.get("message") or "").strip()
+        user_id = str(data.get("user_id") or ("app" if data.get("message") else "")).strip()
         if not user_id:
             raise APIError(400, "user_id_obrigatorio")
         if not text:
@@ -869,6 +995,147 @@ class APIHandler(BaseHTTPRequestHandler):
         payload = result.to_dict()
         payload["ok"] = result.ok
         self._json(200, payload)
+
+    # -- Catálogo e execução de actions (v1.2.0 — app Android) ---------------
+
+    def actions_catalog(self) -> None:
+        """GET /actions — catálogo completo do ActionRegistry com risco.
+
+        Formato consumido pelo app (OdAction.fromJson): name, description,
+        category, permission, params (dict do schema) e risk ('low'|'medium'
+        |'high') derivado da classificação de risco do Telegram (nível 0/1/2).
+        """
+        registry = self.api._action_registry
+        if registry is None:
+            raise APIError(503, "action_registry_indisponivel")
+        items = []
+        for action in registry.list_actions():
+            nivel = _classificar_risco(action["name"])
+            items.append({
+                "name": action["name"],
+                "description": action["description"],
+                "category": action["category"],
+                "permission": action["permission"],
+                "params": action["params"],
+                "risk": {0: "low", 1: "medium", 2: "high"}.get(nivel, "low"),
+            })
+        self._json(200, {"ok": True, "count": len(items), "actions": items})
+
+    def executa(self) -> None:
+        """POST /executa — executa uma action do catálogo (paridade /executa
+        do Telegram). Body: {"action": str, "params"?: dict, "confirm"?: bool}.
+
+        Segurança (mesma semântica do Telegram):
+          - nível 2 (destrutivo) exige confirm=true → 422 sem ele;
+          - execução passa pelo pipeline completo do ActionRegistry
+            (validação de schema + gate do Security Layer, role admin).
+        """
+        registry = self.api._action_registry
+        if registry is None:
+            raise APIError(503, "action_registry_indisponivel")
+        data = self._read_json()
+        action_name = str(data.get("action") or "").strip().lower()
+        if not action_name:
+            raise APIError(400, "action_obrigatoria")
+        params = data.get("params") or {}
+        if not isinstance(params, dict):
+            raise APIError(400, "params_deve_ser_objeto")
+        try:
+            registry.get(action_name)
+        except ActionNotFoundError:
+            raise APIError(404, f"action_desconhecida: {action_name}")
+        if _classificar_risco(action_name) == 2 and not data.get("confirm"):
+            raise APIError(
+                422, f"confirmacao_obrigatoria: {action_name} é destrutiva; "
+                     "reenvie com confirm=true"
+            )
+        result = asyncio.run(registry.execute(
+            action_name, params=params, role="admin",
+            session_id="api:app",
+        ))
+        status_http = {
+            "ok": 200,
+            "invalid": 400,
+            "denied": 403,
+            "not_found": 404,
+            "error": 500,
+        }.get(result.status, 500)
+        payload = result.to_dict()
+        payload["ok"] = result.status == "ok"
+        self._json(status_http, payload)
+
+    # -- Push FCM (notificações no app) -------------------------------------
+
+    def _push_service(self) -> Any:
+        """PushService real, ou 503 quando o push não foi montado."""
+        push = self.api._push
+        if push is None:
+            raise APIError(503, "push_indisponivel")
+        return push
+
+    def push_register(self) -> None:
+        """POST /push/register — registra o token FCM deste dispositivo.
+
+        Body: {"token": str, "platform"?: str, "device"?: str}
+        O token é a chave (upsert): o app reenvia a cada boot e a cada
+        refresh, então registrar de novo só atualiza o aparelho.
+
+        Funciona mesmo com o push DESLIGADO (sem credencial): assim, quando a
+        service account chegar, o dispositivo já está registrado.
+        """
+        push = self._push_service()
+        data = self._read_json()
+        token = str(data.get("token") or "").strip()
+        if not token:
+            raise APIError(400, "token_obrigatorio")
+        device = push.register(
+            token,
+            platform=str(data.get("platform") or "android"),
+            device=str(data.get("device") or ""),
+        )
+        self._json(200, {
+            "ok": True,
+            "token": device.masked_token(),
+            "devices": push.registry.count(),
+            "push_enabled": push.enabled,
+        })
+
+    def push_unregister(self) -> None:
+        """POST /push/unregister — remove o dispositivo (logout/troca de aparelho)."""
+        push = self._push_service()
+        data = self._read_json()
+        token = str(data.get("token") or "").strip()
+        if not token:
+            raise APIError(400, "token_obrigatorio")
+        removed = push.unregister(token)
+        self._json(200, {
+            "ok": True,
+            "removed": removed,
+            "devices": push.registry.count(),
+        })
+
+    def push_devices(self) -> None:
+        """GET /push/devices — estado do push (tokens mascarados, nunca inteiros)."""
+        push = self._push_service()
+        self._json(200, {"ok": True, **push.status()})
+
+    def push_test(self) -> None:
+        """POST /push/test — notificação de teste para todos os aparelhos.
+
+        Body opcional: {"title": str, "body": str}. Responde 503 quando o
+        push está desligado (sem credencial) — é o teste de ponta a ponta.
+        """
+        push = self._push_service()
+        if not push.enabled:
+            raise APIError(
+                503, f"push_desligado: {push.sender.reason or 'sem credencial'}"
+            )
+        data = self._read_json()
+        result = push.test(
+            str(data.get("title") or "Teste OD"),
+            str(data.get("body") or "Push funcionando 🎉"),
+        )
+        self._json(200, {"ok": bool(result.get("ok")), **result})
 
     def transcribe(self) -> None:
         handler = self.api.config.stt

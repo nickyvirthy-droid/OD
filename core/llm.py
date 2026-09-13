@@ -34,7 +34,9 @@ log = get_logger("omega.core.llm")
 IM_START = "<|im_start|>"
 IM_END = "<|im_end|>"
 
-DEFAULT_MAX_TOKENS = 1024
+# 512 tokens ≈ resposta de chat completa em CPU (llama.cpp a ~5 tok/s):
+# mantém o pior caso < 2min. Aumente com OD_LLM_MAX_TOKENS se necessário.
+DEFAULT_MAX_TOKENS = 512
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_LLM_URL = "http://127.0.0.1:8081"  # llama-server local (legado)
 

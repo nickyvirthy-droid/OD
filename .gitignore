@@ -125,3 +125,10 @@ backups/apk-*/
 
 # Backups automáticos do self-repair (.bak gerados pelo Coder Engine)
 .od_repair_backups/
+
+# Credenciais Firebase — NUNCA versionar (ver docs/FIREBASE_SETUP.md).
+# O padrão sem barra vale para qualquer diretório (ex: 000/google-services.json).
+google-services.json
+*firebase-adminsdk*.json
+service-account*.json
+firebase-service-account*.json

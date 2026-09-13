@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# OMEGA DRAKON — Provisionamento PostgreSQL local (v0.28.0)
+# OMEGA DRAKON — Provisionamento PostgreSQL local
 # ============================================================================
 # Migra a Database Layer de SQLite para PostgreSQL no servidor:
 #   1. Instala o PostgreSQL (apt);

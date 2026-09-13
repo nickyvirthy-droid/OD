@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import 'od_api.dart';
 
 /// Callback executado quando uma mensagem chega com o app em background.
 /// Precisa ser uma função top-level anotada para o engine chamar.
@@ -36,7 +39,10 @@ class PushService {
 
   String? _token;
 
-  /// Token FCM deste dispositivo (para registrar no servidor, se desejado).
+  /// API do servidor — necessária para registrar o token (ver [attach]).
+  OdApi? _api;
+
+  /// Token FCM deste dispositivo (registrado no OD quando há conexão).
   String? get token => _token;
 
   /// Inicializa Firebase, notificações locais, permissão e handlers.
@@ -65,6 +71,27 @@ class PushService {
 
       final initial = await messaging.getInitialMessage();
       if (initial != null) await show(initial);
+    });
+  }
+
+  /// Liga o push ao servidor: guarda a API e registra o token atual.
+  ///
+  /// Chamar quando o app já tem URL + chave (boot com chave salva e ao
+  /// salvar as Configurações). É o que faz o OD poder mandar notificação
+  /// para este aparelho — sem o token registrado o servidor não tem para
+  /// onde enviar.
+  Future<void> attach(OdApi api) async {
+    _api = api;
+    await _uploadToken();
+  }
+
+  /// Manda o token atual ao servidor (best-effort, nunca lança).
+  Future<void> _uploadToken() async {
+    final api = _api;
+    final token = _token;
+    if (api == null || token == null || token.isEmpty) return;
+    await _safe(() async {
+      await api.registerPushToken(token);
     });
   }
 
@@ -139,6 +166,12 @@ class PushService {
     } catch (_) {
       // Sem token ainda — o listener abaixo atualiza quando chegar.
     }
-    messaging.onTokenRefresh.listen((token) => _token = token);
+    // Registra já no servidor (se a API já estiver ligada) — e de novo a
+    // cada rotação de token, senão o OD passa a enviar para o token velho.
+    await _uploadToken();
+    messaging.onTokenRefresh.listen((token) {
+      _token = token;
+      unawaited(_uploadToken());
+    });
   }
 }

@@ -575,7 +575,11 @@ class Orchestrator:
         system = system_prompt or ""
         if self._config.inject_datetime:
             context_line = build_datetime_line()
-            system = f"{context_line}\n{system}".strip() if system else context_line
+            # A linha de data/hora vai DEPOIS do system prompt: o prefixo
+            # (identidade estática) fica idêntico entre requests e o
+            # llama-server reaproveita o cache de KV (~25s economizados por
+            # mensagem em CPU; inverter a ordem invalida o cache todo minuto).
+            system = f"{system}\n{context_line}".strip() if system else context_line
 
         messages: list[dict[str, str]] = []
         if self.history is not None:

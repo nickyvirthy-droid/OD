@@ -92,6 +92,33 @@ Dois builds no mesmo dia:
 - Binários fora do repo por decisão desta entrega: `site/*.apk`,
   `backups/apk-*/` e `.od_repair_backups/` no `.gitignore`.
 
+### Adicionado — push FCM de ponta a ponta (2026-09-12)
+
+Fecha a pendência do push da v1.2.0: até aqui o app só **recebia** (console),
+agora o **OD também envia** para o aparelho.
+
+- **`core/push.py`** — `DeviceRegistry` (tokens em `data/push_devices.json`,
+  upsert por token, escrita atômica, tolerante a arquivo corrompido),
+  `FcmSender` (FCM HTTP v1: OAuth2 da service account + `messages:send`) e
+  `PushService` (fachada `notify`/`sink`/`status`, tokens mascarados em
+  log/API). Tokens que o FCM declara mortos (`UNREGISTERED`, `INVALID_ARGUMENT`,
+  `SENDER_ID_MISMATCH`) saem do registro sozinhos.
+- **API** — `POST /push/register`, `POST /push/unregister`, `POST /push/test` e
+  `GET /push/devices` (todos com `X-API-Key`); tabela de rotas 22 → **26**.
+- **Runtime** — `build_push()` no launcher; a API e o `ProactiveNotifier`
+  recebem o serviço, então os alertas proativos (LLM offline, disco, restart)
+  também saem como notificação no celular.
+- **App** — `OdApi.registerPushToken`/`unregisterPushToken`,
+  `PushService.attach(api)` (registra o token no boot, ao salvar as
+  Configurações e a cada rotação de token) e `main.dart` ligando os dois.
+- **Dependência nova:** `google-auth` (OAuth2/JWT RS256 da service account) —
+  justificativa no `requirements.txt`; o HTTP continua em urllib do stdlib
+  (adaptador `UrllibRequest`), então não entrou cliente HTTP novo.
+- **Dormente por padrão:** sem a credencial (`OD_FCM_CREDENTIALS` ou
+  `config/firebase-service-account.json`) o serviço sobe desligado e
+  `/push/test` responde **503** — o registro de tokens continua funcionando.
+  Ver `docs/FIREBASE_SETUP.md` (passos 6 e 7).
+
 ### Validado no aparelho (2026-09-12) ✅
 
 Redmi Note 14 (`redmi-note-14-1`, Tailscale `100.80.224.73`) com o APK
@@ -113,7 +140,9 @@ do usuário.
 
 ### Pendente
 
-- Ativar o push (credencial Firebase / `google-services.json`).
+- Gerar a **service account** no console do Firebase e gravá-la em
+  `config/firebase-service-account.json` para o envio sair do modo dormente
+  (o app já está registrando o token).
 
 ---
 

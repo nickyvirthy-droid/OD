@@ -25,6 +25,7 @@ from pathlib import Path
 import pytest
 
 from core.orchestrator import Orchestrator, RecordingProvider
+from core.security import SecurityManager
 from integrations.api import (
     APIConfig,
     APIServer,
@@ -34,9 +35,11 @@ from integrations.api import (
 from memory.cache import LLMCache
 from memory.history import ConversationHistory
 from memory.vector import VectorStore
+from tools.actions import build_registry
 
 
-def _request(port, method, path, api_key=None, body=None, raw_body=None):
+def _request(port, method, path, api_key=None, body=None, raw_body=None,
+             headers=None):
     """Faz uma requisição HTTP real; devolve (status, corpo, headers)."""
     import urllib.error
     import urllib.request
@@ -48,6 +51,8 @@ def _request(port, method, path, api_key=None, body=None, raw_body=None):
     request = urllib.request.Request(url, data=data, method=method)
     if api_key:
         request.add_header("X-API-Key", api_key)
+    for name, value in (headers or {}).items():
+        request.add_header(name, value)
     if data is not None:
         request.add_header("Content-Type", "application/json")
     try:
@@ -99,17 +104,22 @@ def serve():
 class TestAPIRoutes:
     """Registro declarativo: 17 rotas com método, handler e auth."""
 
-    def test_eighteen_routes_mirror_legacy(self) -> None:
-        """17 endpoints do legado + /capabilities (v0.27.3)."""
-        assert len(ROUTES) == 18
+    def test_routes_mirror_legacy(self) -> None:
+        """17 endpoints do legado + /capabilities (v0.27.3) + /site* +
+        /actions + /executa (v1.2.0 — app Android) + /push/* (push FCM)."""
+        assert len(ROUTES) == 26
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
             ("GET", "/profiles/{name}"), ("GET", "/presence/today"),
             ("GET", "/dashboard"), ("GET", "/chat"), ("GET", "/metrics"),
+            ("GET", "/site"), ("GET", "/site/{file}"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
-            ("GET", "/capabilities"),
-            ("POST", "/message"), ("POST", "/transcribe"), ("POST", "/tts"),
+            ("GET", "/capabilities"), ("GET", "/actions"),
+            ("POST", "/message"), ("POST", "/executa"),
+            ("POST", "/transcribe"), ("POST", "/tts"),
+            ("POST", "/push/register"), ("POST", "/push/unregister"),
+            ("POST", "/push/test"), ("GET", "/push/devices"),
             ("DELETE", "/history/{user_id}"),
             ("GET", "/history/{user_id}/stats"),
             ("GET", "/memory/{user_id}/search"), ("GET", "/ws/chat"),
@@ -121,8 +131,11 @@ class TestAPIRoutes:
         auth = {(r.method, r.path) for r in ROUTES if r.auth}
         assert auth == {
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
-            ("GET", "/capabilities"),
-            ("POST", "/message"), ("POST", "/transcribe"), ("POST", "/tts"),
+            ("GET", "/capabilities"), ("GET", "/actions"),
+            ("POST", "/message"), ("POST", "/executa"),
+            ("POST", "/push/register"), ("POST", "/push/unregister"),
+            ("POST", "/push/test"), ("GET", "/push/devices"),
+            ("POST", "/transcribe"), ("POST", "/tts"),
             ("DELETE", "/history/{user_id}"),
             ("GET", "/history/{user_id}/stats"),
             ("GET", "/memory/{user_id}/search"), ("GET", "/ws/chat"),
@@ -132,6 +145,7 @@ class TestAPIRoutes:
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
             ("GET", "/profiles/{name}"), ("GET", "/presence/today"),
             ("GET", "/dashboard"), ("GET", "/chat"), ("GET", "/metrics"),
+            ("GET", "/site"), ("GET", "/site/{file}"),
         }
 
 
@@ -148,7 +162,7 @@ class TestAPIPublicEndpoints:
         data = _json_response((status, body, _))
         assert status == 200
         assert data["name"] == "Omega Drakon REST API"
-        assert data["endpoints"] == 18
+        assert data["endpoints"] == len(ROUTES)
         assert data["orchestrator"] is True
 
     def test_health_up_with_orchestrator(self, serve, tmp_path: Path) -> None:
@@ -222,6 +236,115 @@ class TestAPIPublicEndpoints:
         )
         _, body2, _ = _request(port, "GET", "/metrics")
         assert "od_processed_total 1" in body2.decode()
+
+
+# ===========================================================================
+# Site estático (landing + APK) em /site*
+# ===========================================================================
+
+class TestAPISite:
+    """GET /site serve a landing e /site/{file} serve arquivos (APK).
+
+    Hermético: usa site_dir=tmp_path em vez do site/ real do repo.
+    """
+
+    def _cfg(self, tmp_path: Path, **kwargs) -> APIConfig:
+        return APIConfig(
+            port=0, rate_limit_max=0, site_dir=str(tmp_path), **kwargs
+        )
+
+    def test_site_serves_index_html(self, serve, tmp_path: Path) -> None:
+        (tmp_path / "index.html").write_text(
+            "<h1>OmegaDrakon</h1>baixar", encoding="utf-8"
+        )
+        srv = serve(None, config=self._cfg(tmp_path))
+        port = srv.bound_port
+        status, body, headers = _request(port, "GET", "/site")
+        assert status == 200
+        assert headers.get("Content-Type", "").startswith("text/html")
+        assert b"OmegaDrakon" in body and b"baixar" in body
+        # /site/ (barra final) resolve no mesmo index
+        status, body, _ = _request(port, "GET", "/site/")
+        assert status == 200 and b"OmegaDrakon" in body
+
+    def test_site_serves_apk_streaming(self, serve, tmp_path: Path) -> None:
+        # > 1 MiB para exercitar o streaming em chunks do handler
+        payload = b"x" * (2_500_000)
+        (tmp_path / "app.apk").write_bytes(payload)
+        srv = serve(None, config=self._cfg(tmp_path))
+        status, body, headers = _request(srv.bound_port, "GET", "/site/app.apk")
+        assert status == 200
+        assert body == payload
+        assert int(headers.get("Content-Length", "0")) == len(payload)
+        assert headers.get("Accept-Ranges") == "bytes"
+        assert headers.get("Content-Type", "") in (
+            "application/octet-stream",
+            "application/vnd.android.package-archive",
+        )
+        assert headers.get("Content-Disposition", "").startswith("attachment")
+
+    def test_site_range_requests(self, serve, tmp_path: Path) -> None:
+        """Range parcial, sufixo e fora do arquivo (retomada no Android)."""
+        payload = bytes(range(256)) * 2000  # 512 KB
+        (tmp_path / "app.apk").write_bytes(payload)
+        srv = serve(None, config=self._cfg(tmp_path))
+        port = srv.bound_port
+        status, body, headers = _request(
+            port, "GET", "/site/app.apk", headers={"Range": "bytes=1000-1999"}
+        )
+        assert status == 206
+        assert body == payload[1000:2000]
+        assert headers.get("Content-Range") == f"bytes 1000-1999/{len(payload)}"
+        status, body, _ = _request(
+            port, "GET", "/site/app.apk", headers={"Range": "bytes=-10"}
+        )
+        assert status == 206 and body == payload[-10:]
+        status, _, _ = _request(
+            port, "GET", "/site/app.apk",
+            headers={"Range": f"bytes={len(payload)}-"},
+        )
+        assert status == 416
+
+    def test_site_html_inline_sem_attachment(self, serve, tmp_path: Path) -> None:
+        """A landing continua abrindo no navegador (sem Content-Disposition)."""
+        (tmp_path / "index.html").write_text("<h1>OD</h1>", encoding="utf-8")
+        srv = serve(None, config=self._cfg(tmp_path))
+        status, _, headers = _request(srv.bound_port, "GET", "/site")
+        assert status == 200
+        assert "Content-Disposition" not in headers
+
+    def test_site_missing_file_404(self, serve, tmp_path: Path) -> None:
+        srv = serve(None, config=self._cfg(tmp_path))
+        status, _, _ = _request(srv.bound_port, "GET", "/site/nao_existe.apk")
+        assert status == 404
+
+    def test_site_path_traversal_blocked(self, serve, tmp_path: Path) -> None:
+        secret = tmp_path.parent / "segredo.txt"
+        secret.write_text("vazou", encoding="utf-8")
+        srv = serve(None, config=self._cfg(tmp_path))
+        # %2e%2e evita normalização do client — o handler decodifica o nome
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/site/%2e%2e/segredo.txt"
+        )
+        assert status == 404
+
+    def test_site_public_under_auth_all(self, serve, tmp_path: Path) -> None:
+        """Landing e APK abrem no navegador mesmo com auth_all."""
+        (tmp_path / "index.html").write_text("<h1>OmegaDrakon</h1>",
+                                             encoding="utf-8")
+        cfg = self._cfg(tmp_path, api_key="segredo123", auth_all=True)
+        srv = serve(None, config=cfg)
+        port = srv.bound_port
+        status, body, _ = _request(port, "GET", "/site")
+        assert status == 200 and b"OmegaDrakon" in body
+        # Sem page_shells_public, /site fecha e exige a chave
+        cfg2 = self._cfg(
+            tmp_path, api_key="segredo123", auth_all=True,
+            page_shells_public=False,
+        )
+        srv2 = serve(None, config=cfg2)
+        status, _, _ = _request(srv2.bound_port, "GET", "/site")
+        assert status == 401
 
 
 # ===========================================================================
@@ -348,6 +471,31 @@ class TestAPIMessage:
         assert data["message"] == "resposta-od"
         assert data["profile"] == DEFAULT_PROFILE  # padrão guardian
         assert "latency_ms" in data
+
+    def test_message_alias_message_and_implicit_user_id(
+        self, serve, tmp_path: Path
+    ) -> None:
+        """Compat v1.2.0 (app Android): {"message": ...} vira text e
+        user_id ausente vira 'app'."""
+        srv = serve(make_orch(tmp_path))
+        data = self._send(srv, {"message": "pergunta única alias"})
+        assert data["_status"] == 200
+        assert data["message"] == "resposta-od"
+        assert data["user_id"] == "app"
+
+    def test_message_explicit_fields_win_over_alias(
+        self, serve, tmp_path: Path
+    ) -> None:
+        """text/user_id explícitos têm precedência sobre o alias."""
+        srv = serve(make_orch(tmp_path))
+        data = self._send(
+            srv,
+            {"text": "pergunta única explícita", "message": "ignorado",
+             "user_id": "alex"},
+        )
+        assert data["_status"] == 200
+        assert data["message"] == "resposta-od"
+        assert data["user_id"] == "alex"
 
     def test_second_identical_message_hits_cache(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))
@@ -737,4 +885,257 @@ class TestAuthAll:
         status, _body, _h = _request(srv.bound_port, "GET", "/health")
         assert status == 200
         status, _body, _h = _request(srv.bound_port, "GET", "/llms")
+        assert status == 401
+
+
+# ===========================================================================
+# POST /executa + GET /actions (v1.2.0 — app Android)
+# ===========================================================================
+
+class TestAPIActions:
+    """Catálogo e execução de actions do ActionRegistry via API."""
+
+    @staticmethod
+    def _serve(serve, tmp_path: Path, *, with_registry: bool = True):
+        registry = (
+            build_registry(security=SecurityManager(mode="strict"))
+            if with_registry else None
+        )
+        return serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, rate_limit_max=0, action_registry=registry,
+            ),
+        )
+
+    def test_actions_catalog_lists_registry(self, serve, tmp_path: Path) -> None:
+        srv = self._serve(serve, tmp_path)
+        status, body, _h = _request(srv.bound_port, "GET", "/actions")
+        data = _json_response((status, body, _h))
+        assert status == 200
+        assert data["ok"] is True
+        assert data["count"] >= 50  # catálogo completo (56)
+        names = [a["name"] for a in data["actions"]]
+        assert "system_info" in names
+        for item in data["actions"]:
+            assert item["risk"] in ("low", "medium", "high")
+            assert "description" in item
+
+    def test_actions_catalog_without_registry_503(
+        self, serve, tmp_path: Path
+    ) -> None:
+        srv = self._serve(serve, tmp_path, with_registry=False)
+        status, body, _h = _request(srv.bound_port, "GET", "/actions")
+        data = _json_response((status, body, _h))
+        assert status == 503
+        assert data["error"] == "action_registry_indisponivel"
+
+    def test_executa_runs_action(self, serve, tmp_path: Path) -> None:
+        srv = self._serve(serve, tmp_path)
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/executa",
+            body={"action": "system_info"},
+        )
+        data = _json_response((status, body, _h))
+        assert status == 200
+        assert data["ok"] is True
+        assert data["status"] == "ok"
+        assert isinstance(data["data"], dict)
+
+    def test_executa_unknown_action_404(self, serve, tmp_path: Path) -> None:
+        srv = self._serve(serve, tmp_path)
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/executa",
+            body={"action": "nao_existe"},
+        )
+        data = _json_response((status, body, _h))
+        assert status == 404
+        assert "action_desconhecida" in data["error"]
+
+    def test_executa_destructive_requires_confirm(
+        self, serve, tmp_path: Path
+    ) -> None:
+        srv = self._serve(serve, tmp_path)
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/executa",
+            body={"action": "filesystem_write",
+                  "params": {"path": "/tmp/od-x", "content": "1"}},
+        )
+        data = _json_response((status, body, _h))
+        assert status == 422
+        assert "confirmacao_obrigatoria" in data["error"]
+
+    def test_executa_invalid_params_400(self, serve, tmp_path: Path) -> None:
+        srv = self._serve(serve, tmp_path)
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/executa",
+            body={"action": "filesystem_info"},  # path obrigatório ausente
+        )
+        data = _json_response((status, body, _h))
+        assert status == 400
+        assert data["ok"] is False
+        assert data["status"] == "invalid"
+
+    def test_executa_requires_auth(self, serve, tmp_path: Path) -> None:
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, api_key="s3cr3ta", auth_all=True, rate_limit_max=0,
+            ),
+        )
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/executa", body={"action": "system_info"}
+        )
+        assert status == 401
+        assert "unauthorized" in body.decode("utf-8")
+
+
+# ===========================================================================
+# Push FCM (/push/*) — notificações no app Android
+# ===========================================================================
+
+class TestAPIPush:
+    """Registro de dispositivos e envio de push pela API."""
+
+    @staticmethod
+    def _service(tmp_path: Path):
+        """PushService com sender dublê (nada sai na rede)."""
+        from core.push import DeviceRegistry, FcmSender, HttpResponse, PushService
+        from tests.test_push import FakeTransport
+
+        transport = FakeTransport(
+            HttpResponse(200, {}, b'{"name":"projects/p/messages/1"}')
+        )
+        sender = FcmSender(project_id="nicky-e4f99", transport=transport)
+        sender._credentials = type(
+            "Cred", (), {"valid": True, "token": "tok", "refresh": lambda s, r: None}
+        )()
+        sender._credentials_error = None
+        return PushService(
+            DeviceRegistry(tmp_path / "devices.json"), sender, enabled=True
+        )
+
+    def test_register_persiste_token(self, serve, tmp_path: Path) -> None:
+        push = self._service(tmp_path)
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(port=0, rate_limit_max=0, push=push),
+        )
+
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/push/register",
+            body={"token": "token-do-redmi", "device": "Redmi Note 14"},
+        )
+        data = _json_response((status, body, _h))
+
+        assert status == 200
+        assert data["ok"] is True
+        assert data["devices"] == 1
+        assert "token-do-redmi" not in json.dumps(data)  # mascarado na resposta
+        assert push.registry.tokens() == ["token-do-redmi"]
+
+    def test_register_sem_token_400(self, serve, tmp_path: Path) -> None:
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(port=0, rate_limit_max=0, push=self._service(tmp_path)),
+        )
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/push/register", body={}
+        )
+        assert status == 400
+        assert _json_response((status, body, _h))["error"] == "token_obrigatorio"
+
+    def test_unregister_remove(self, serve, tmp_path: Path) -> None:
+        push = self._service(tmp_path)
+        push.register("t1")
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(port=0, rate_limit_max=0, push=push),
+        )
+
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/push/unregister", body={"token": "t1"}
+        )
+        data = _json_response((status, body, _h))
+        assert status == 200 and data["removed"] is True
+        assert push.registry.tokens() == []
+
+    def test_devices_lista_sem_token_inteiro(self, serve, tmp_path: Path) -> None:
+        push = self._service(tmp_path)
+        push.register("token-bem-secreto-1234", device="Redmi")
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(port=0, rate_limit_max=0, push=push),
+        )
+
+        status, body, _h = _request(srv.bound_port, "GET", "/push/devices")
+        data = _json_response((status, body, _h))
+
+        assert status == 200
+        assert data["devices"] == 1
+        assert data["project_id"] == "nicky-e4f99"
+        assert "token-bem-secreto-1234" not in body.decode("utf-8")
+
+    def test_test_endpoint_envia(self, serve, tmp_path: Path) -> None:
+        push = self._service(tmp_path)
+        push.register("t1")
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(port=0, rate_limit_max=0, push=push),
+        )
+
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/push/test",
+            body={"title": "Oi", "body": "teste"},
+        )
+        data = _json_response((status, body, _h))
+
+        assert status == 200
+        assert data["ok"] is True and data["sent"] == 1
+
+    def test_test_endpoint_503_sem_credencial(self, serve, tmp_path: Path) -> None:
+        from core.push import DeviceRegistry, FcmSender, PushService
+
+        push = PushService(
+            DeviceRegistry(tmp_path / "d.json"),
+            FcmSender(credentials_file=tmp_path / "nao-existe.json"),
+            enabled=True,
+        )
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(port=0, rate_limit_max=0, push=push),
+        )
+
+        status, body, _h = _request(srv.bound_port, "POST", "/push/test", body={})
+        data = _json_response((status, body, _h))
+        assert status == 503
+        assert "push_desligado" in data["error"]
+
+    def test_push_indisponivel_503(self, serve, tmp_path: Path) -> None:
+        """Sem PushService montado, os endpoints avisam em vez de estourar."""
+        srv = serve(make_orch(tmp_path), config=APIConfig(port=0, rate_limit_max=0))
+
+        for method, path in (
+            ("POST", "/push/register"),
+            ("POST", "/push/unregister"),
+            ("POST", "/push/test"),
+            ("GET", "/push/devices"),
+        ):
+            status, body, _h = _request(
+                srv.bound_port, method, path, body={"token": "t"}
+            )
+            assert status == 503, path
+            assert _json_response((status, body, _h))["error"] == "push_indisponivel"
+
+    def test_push_requires_auth(self, serve, tmp_path: Path) -> None:
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, api_key="s3cr3ta", auth_all=True, rate_limit_max=0,
+                push=self._service(tmp_path),
+            ),
+        )
+        status, _body, _h = _request(
+            srv.bound_port, "POST", "/push/register", body={"token": "t"}
+        )
         assert status == 401

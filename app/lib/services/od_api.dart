@@ -316,6 +316,51 @@ class OdApi {
     }
   }
 
+  /// Registra o token FCM deste aparelho no servidor (push do OD).
+  ///
+  /// O OD passa a poder mandar notificação para cá mesmo com o app fechado.
+  /// O token é a chave do registro — reenviar só atualiza o aparelho.
+  ///
+  /// Best-effort de propósito: devolve false (sem lançar) quando não há token
+  /// ou chave, ou quando a rede/servidor falha. Push nunca pode atrapalhar o
+  /// uso do app.
+  Future<bool> registerPushToken(
+    String token, {
+    String platform = 'android',
+    String device = '',
+  }) async {
+    if (token.isEmpty || _apiKey.isEmpty) return false;
+    try {
+      final response = await _send(
+        'POST',
+        Uri.parse('$baseUrl/push/register'),
+        body: jsonEncode({
+          'token': token,
+          'platform': platform,
+          if (device.isNotEmpty) 'device': device,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Remove este aparelho do push (troca de conta/aparelho).
+  Future<bool> unregisterPushToken(String token) async {
+    if (token.isEmpty || _apiKey.isEmpty) return false;
+    try {
+      final response = await _send(
+        'POST',
+        Uri.parse('$baseUrl/push/unregister'),
+        body: jsonEncode({'token': token}),
+      );
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Verifica se a API está acessível (health check rápido).
   Future<bool> isAvailable() async {
     try {

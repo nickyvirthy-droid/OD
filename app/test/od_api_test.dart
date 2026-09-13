@@ -164,6 +164,69 @@ void main() {
     });
   });
 
+  group('OdApi.push (token FCM no servidor)', () {
+    test('registerPushToken envia token, plataforma e aparelho', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/push/register');
+        expect(request.method, 'POST');
+        final body = jsonDecode(request.body);
+        expect(body['token'], 'token-fcm-123');
+        expect(body['platform'], 'android');
+        expect(body['device'], 'Redmi Note 14');
+        return jsonResponse({'ok': true, 'devices': 1});
+      }));
+      await api.setApiKey('chave');
+
+      expect(
+        await api.registerPushToken('token-fcm-123', device: 'Redmi Note 14'),
+        isTrue,
+      );
+    });
+
+    test('sem device o campo não vai', () async {
+      final api = apiWith(MockClient((request) async {
+        final body = jsonDecode(request.body);
+        expect(body.containsKey('device'), isFalse);
+        return jsonResponse({'ok': true});
+      }));
+      await api.setApiKey('chave');
+
+      expect(await api.registerPushToken('token'), isTrue);
+    });
+
+    test('sem chave não chama a rede', () async {
+      var called = false;
+      final api = apiWith(MockClient((_) async {
+        called = true;
+        return jsonResponse({'ok': true});
+      }));
+
+      expect(await api.registerPushToken('token'), isFalse);
+      expect(called, isFalse);
+    });
+
+    test('falha de servidor devolve false sem lançar', () async {
+      final api = apiWith(MockClient((_) async => jsonResponse(
+            {'error': 'push_indisponivel'},
+            status: 503,
+          )));
+      await api.setApiKey('chave');
+
+      expect(await api.registerPushToken('token'), isFalse);
+    });
+
+    test('unregisterPushToken remove o aparelho', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/push/unregister');
+        expect(jsonDecode(request.body)['token'], 'token-fcm-123');
+        return jsonResponse({'ok': true, 'removed': true});
+      }));
+      await api.setApiKey('chave');
+
+      expect(await api.unregisterPushToken('token-fcm-123'), isTrue);
+    });
+  });
+
   group('OdApi.disponibilidade e configuração', () {
     test('isAvailable true quando health ok', () async {
       final api = apiWith(MockClient((_) async => jsonResponse({'ok': true})));

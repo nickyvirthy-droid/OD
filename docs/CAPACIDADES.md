@@ -109,7 +109,7 @@ audit · metrics · health · database-layer 🗄️
 ### Runtime (2)
 launcher · systemd
 
-### 🗄️ Database Layer (v0.28.0)
+### 🗄️ Database Layer
 
 Backend plugável: **PostgreSQL** (`OD_DB_URL=postgres://user:pass@host:port/db`,
 driver pg8000 Python puro) ou **SQLite** (`data/od.db`, default). Provisione

@@ -6,11 +6,12 @@
 > **Progresso v1.0.0:** itens **1.1** a **1.10** entregues — **v1.0.0 COMPLETA!**
 > **Progresso v1.1.0:** Tailscale (item 2.1) **ENTREGUE** (2026-09-07) —
 > **v1.1.0 COMPLETA!**
-> **Progresso v1.2.0:** app Flutter (chat/actions/status/config) + testes
-> (37 passed) + push FCM implementados; **APK release `1.2.0+4` publicado na
-> landing** (`site/OmegaDrakon.apk`). **Validado no Redmi Note 14 via Tailscale
-> em 2026-09-12** — chat, ações e status sem erro. Pendente: ativar o push
-> (credencial Firebase).
+> **Progresso v1.2.0:** app Flutter (chat/actions/status/config) + 42 testes;
+> **APK release `1.2.0+5` publicado na landing** (`site/OmegaDrakon.apk`).
+> **Validado no Redmi Note 14 via Tailscale em 2026-09-12** — chat, ações e
+> status sem erro. **Push de ponta a ponta implementado** (`core/push.py` +
+> `/push/*` + sink do Notifier + app registrando o token); falta só a service
+> account para o envio sair do modo dormente.
 > **Assinatura:** `OD // CORE`
 
 ---
@@ -93,14 +94,17 @@ detectável por domínio).
 
 > Objetivo: o OD no bolso — **novidade v1** (o roadmap antigo descartou o
 > Flutter em favor de PWA; agora o pedido é um app nativo Android).
-> **Status 2026-09-12:** **APK release `1.2.0+4`** (`app/build_apk.sh`, com
+> **Status 2026-09-12:** **APK release `1.2.0+5`** (`app/build_apk.sh`, com
 > Flutter 3.47.2/JDK 17/Android SDK 36 — 51.9 MB, com desugaring) publicado em
-> `site/OmegaDrakon.apk`. Testes: **37 passed** + analyze limpo (suíte com
+> `site/OmegaDrakon.apk`. Testes: **42 passed** + analyze limpo (suíte com
 > fixture do manifesto real do `/capabilities`). **Validado no aparelho**
 > (Redmi Note 14, `http://100.77.67.53:8000`): chat, ações e status OK —
 > journal do `od-core` registra a mensagem do app e a execução de `cpu_info`
-> via `session_id=api:app`. Falta: ativar o push com o `google-services.json`
-> (conta Firebase — `docs/FIREBASE_SETUP.md`).
+> via `session_id=api:app`. **Push implementado dos dois lados:** o app registra
+> o token em `/push/register` e o OD envia via FCM HTTP v1 (`core/push.py`),
+> com o Notifier usando o push como sink. Falta apenas gerar a **service
+> account** no console para o envio sair do modo dormente
+> (`docs/FIREBASE_SETUP.md`, passos 6 e 7).
 
 ### 3.1 Stack proposta
 
@@ -109,7 +113,7 @@ detectável por domínio).
 | Framework | **Flutter** | Um código para Android (+ iOS futuro), Dart, consumo direto da API REST existente; reavaliação do roadmap antigo (o app agora é requisito) |
 | Backend | **API REST do OD (já no ar)** | `POST /message` (chat), `GET /capabilities`, `GET /health`, `/executa` via Orchestrator — sem novo servidor |
 | Auth | **Chave do dispositivo** | App guarda `OD_API_KEY` (ou chave derivada por device) no keystore do Android (encrypted storage), nunca em texto; envio via `X-API-Key` |
-| Push | **Firebase Cloud Messaging (FCM)** | Alertas do ProactiveNotifier / RecoveryLoop / Presence chegam ao celular mesmo com o app fechado |
+| Push | **Firebase Cloud Messaging (FCM)** | Alertas do ProactiveNotifier / RecoveryLoop / Presence chegam ao celular mesmo com o app fechado — envio em `core/push.py` (FCM HTTP v1) e registro em `/push/register` |
 | Conectividade | REST hoje · **WebSocket `/ws/chat` na v1.3** | Streaming token-a-token quando o WebSocket sair do 501 |
 
 ### 3.2 Telas (MVP)
@@ -148,7 +152,7 @@ vivo · 57 actions executáveis.
 |---|---|---|
 | **v1.0.0** | Fundação + Plêiade completa | CI verde + cobertura ≥ 90% + perfil `nexus` + dados no Postgres |
 | **v1.1.0** | Acesso externo seguro | Tailscale ativo · celular acessa a API de fora da LAN · 0 portas abertas |
-| **v1.2.0** | App Android | App publicado (APK) · chat + actions + push funcionando via Tailscale |
+| **v1.2.0** | App Android | App publicado (APK) · ✅ chat + actions via Tailscale · ✅ push implementado (envio dormente até a service account) |
 | **v1.3.0+** | Evoluções/novidades | Conforme item (WebSocket, plugins, voz no app…) |
 
 ---

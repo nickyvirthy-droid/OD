@@ -7,6 +7,62 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.2.0] — PUSH DE PONTA A PONTA (ENVIO PELO OD) 🔔 (2026-09-12)
+
+### 1. O que foi feito
+
+Até aqui o app **recebia** push (console → celular); o **OD não tinha como
+enviar**. Esta entrega fecha as duas metades que faltavam:
+
+| Peça | Entrega |
+|---|---|
+| **`core/push.py`** | `DeviceRegistry` (tokens em `data/push_devices.json`, upsert por token, escrita atômica, tolerante a arquivo corrompido), `FcmSender` (FCM HTTP v1: OAuth2 da service account + `messages:send`) e `PushService` (fachada `notify`/`sink`/`status`, tokens mascarados em log/API) |
+| **API (22 → 26 endpoints)** | `POST /push/register`, `POST /push/unregister`, `POST /push/test`, `GET /push/devices` — todos com `X-API-Key` |
+| **Runtime** | `build_push()` no launcher; API e `ProactiveNotifier` recebem o serviço, então os alertas proativos também saem como push |
+| **App** | `OdApi.registerPushToken`/`unregisterPushToken` + `PushService.attach(api)` (registra o token no boot, ao salvar as Configurações e a cada rotação) + `main.dart` ligando os dois |
+| **Manifesto** | capacidade `push-fcm` (integrations, `partial`) e `integrations.push` |
+| **Dependência** | `google-auth` declarada com justificativa — o HTTP continua em urllib (adaptador `UrllibRequest`), sem cliente HTTP novo |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/ -q
+  → 1647 passed, 16 skipped      (29 novos em tests/test_push.py)
+app: flutter analyze → No issues found! · flutter test → 42 passed (5 novos)
+
+Ao vivo (após systemctl --user restart od-core):
+  journal: "Push FCM inicializado | enabled=False | motivo=credencial_ausente
+            | credencial=- | dispositivos=0"
+  GET  /push/devices  → 200 enabled=false reason=credencial_ausente devices=0
+  POST /push/test     → 503 push_desligado: credencial_ausente
+  POST /push/register → 200 (token mascarado na resposta), devices=1
+  POST /push/unregister → 200 removed=true, devices=0   (registro limpo)
+  POST /push/register sem chave → 401
+  GET  /              → endpoints=26
+
+APK 1.2.0+5 (versionCode 1005/2005/4005) republicado em site/
+  sha256 full  00d72011778e0b0cc8e5fe2a7d233641309f84781897d14a4834a672ae5fbadd
+  sha256 arm64 1c5771c46bc3b8d1c5e6540a40420be12c38cf242e67094a7639fbe8e8a51623
+  strings no APK → "push/register" presente; download pela API → HTTP 200
+```
+
+### 3. O que NÃO foi feito
+
+- **A credencial de service account não existe** — o push sobe **dormente**.
+  Ela precisa ser gerada no console do Firebase (só o dono da conta pode);
+  passos 6/7 em `docs/FIREBASE_SETUP.md`. Sem ela o envio responde 503, mas o
+  registro de tokens já funciona (o app grava o token ao abrir).
+- Push reativo a eventos internos além do Notifier (ex: fim de uma ação longa)
+  — hoje o sink é o canal genérico.
+- Publicação no GitHub desta entrega (commit + push) — pendente de autorização.
+
+### 4. Próximo passo
+
+Gerar a service account, reiniciar o `od-core` e rodar `POST /push/test` com o
+aparelho registrado — é o teste de ponta a ponta.
+
+---
+
 > **Nota (2026-09-12):** as três seções abaixo (**v1.0.0, v1.1.0, v1.2.0**)
 > foram reconstruídas retroativamente em 2026-09-12, durante a auditoria de
 > alinhamento de versão — a série v1 havia sido entregue sem o relatório §2.1

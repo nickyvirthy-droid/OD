@@ -52,8 +52,7 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
     OD_NOTIFIER_ENABLED "0" desliga o ProactiveNotifier (alertas proativos;
                         default 1).
     OD_DB_URL           DSN PostgreSQL (postgres://user:pass@host:port/db)
-                        — ativa o backend PostgreSQL da Database Layer
-                        (v0.28.0, driver pg8000). Sem a var, usa SQLite
+                        — ativa o backend PostgreSQL da Database Layer                         (driver pg8000). Sem a var, usa SQLite
                         (data/od.db). Provisione com
                         `sudo bash runtime/install_postgres.sh`.
 Interface Viva: Nicky Virthy
@@ -134,7 +133,8 @@ def build_orchestrator(database: Any = None) -> Any:
         name="gemma-local",
         base_url=env("OD_LLM_URL", "http://127.0.0.1:8081"),
         timeout=llm_timeout,
-        max_tokens=int(env("OD_LLM_MAX_TOKENS", "700")),
+        # 512: resposta completa em CPU (~5 tok/s) mantém pior caso < 2min
+        max_tokens=int(env("OD_LLM_MAX_TOKENS", "512")),
     )
     # Identidade da Interface Viva injetada por padrão (agents/personality)
     from agents.nicky_virthy.personality import (
@@ -171,7 +171,25 @@ def build_orchestrator(database: Any = None) -> Any:
     return orchestrator
 
 
-def build_api_server(orchestrator: Any, metrics: Any = None, health: Any = None):
+def build_push() -> Any:
+    """Push FCM (core/push.py): registro de dispositivos + envio ao celular.
+
+    Dormente por padrão: sem a service account (OD_FCM_CREDENTIALS ou
+    config/firebase-service-account.json) o serviço sobe desligado — o
+    registro de tokens continua funcionando, o envio é que não sai.
+    OD_PUSH_ENABLED=0 desliga de vez. Ver docs/FIREBASE_SETUP.md.
+    """
+    from core.push import build_push_service, configure_push
+
+    service = build_push_service(DATA_DIR)
+    configure_push(service)
+    return service
+
+
+def build_api_server(
+    orchestrator: Any, metrics: Any = None, health: Any = None,
+    action_registry: Any = None, push: Any = None,
+):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
 
@@ -188,6 +206,8 @@ def build_api_server(orchestrator: Any, metrics: Any = None, health: Any = None)
             auth_all=env("OD_API_AUTH_ALL", "1") != "0",
             metrics=metrics,  # Fase 7.2: /metrics renderiza o coletor
             health=health,  # Fase 7.3: /health responde o agregado
+            action_registry=action_registry,  # v1.2.0: /executa + /actions
+            push=push,  # v1.3.0: /push/* (app Android)
         ),
     )
     return server
@@ -196,8 +216,7 @@ def build_api_server(orchestrator: Any, metrics: Any = None, health: Any = None)
 def build_database() -> Any:
     """Database Layer real (Fase 7.5): PostgreSQL (OD_DB_URL) ou SQLite.
 
-    - `OD_DB_URL=postgres://user:pass@host:port/db` → backend PostgreSQL
-      (driver pg8000, Python puro) — v0.28.0;
+    - `OD_DB_URL=postgres://user:pass@host:port/db` → backend PostgreSQL       (driver pg8000, Python puro);
     - sem OD_DB_URL → SQLite em data/od.db (comportamento legado).
 
     Conecta as actions de banco do catálogo (database_tables/schema/query)
@@ -621,9 +640,13 @@ def build_mqtt_bridge(event_bus: Any):
 
 
 async def _run_api_forever(
-    orchestrator: Any, metrics: Any = None, health: Any = None
+    orchestrator: Any, metrics: Any = None, health: Any = None,
+    action_registry: Any = None, push: Any = None,
 ) -> None:
-    server = build_api_server(orchestrator, metrics=metrics, health=health)
+    server = build_api_server(
+        orchestrator, metrics=metrics, health=health,
+        action_registry=action_registry, push=push,
+    )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
     try:
@@ -709,22 +732,28 @@ def build_notifier(
     *,
     sink: Any = None,
     event_bus: Any = None,
+    push: Any = None,
 ) -> Optional[Any]:
-    """ProactiveNotifier (Fase 5.3): alertas proativos com sink Telegram.
+    """ProactiveNotifier (Fase 5.3): alertas proativos com sinks plugáveis.
 
     Sondas padrão (orchestrator/llm/disco/restart) com anti-spam (1/hora) e
     estado persistido em data/notifier_state.json. OD_NOTIFIER_ENABLED=0
     desliga.
+
+    Sinks: Telegram (texto ao admin) e push FCM (alerta no app — o mesmo
+    texto vira notificação no celular; push desligado não é erro).
     """
     from integrations.notifier import NotifierConfig, ProactiveNotifier
 
     if env("OD_NOTIFIER_ENABLED", "1") == "0":
         return None
+    sinks = [s for s in (sink, push.sink() if push is not None else None)
+             if s is not None]
     config = NotifierConfig(state_file=DATA_DIR / "notifier_state.json")
     return ProactiveNotifier(
         orchestrator,
         config=config,
-        sinks=[sink] if sink is not None else [],
+        sinks=sinks,
         event_bus=event_bus,
     )
 
@@ -905,12 +934,17 @@ def main() -> int:
     face_detector = build_face_detector() if vision_enabled else None
     # Checks externos (v1.0.0 item 1.4): presence monitor pronto no main
     register_external_health_checks(health, homeassistant=presence_monitor)
+    # Push FCM: registro de dispositivos + alertas no celular (v1.3.0).
+    push = build_push()
 
     async def _all() -> None:
         # Event Bus único da entrega (bridge MQTT ↔ núcleo)
         event_bus = EventBus()
         tasks = [
-            _run_api_forever(orchestrator, metrics, health),
+            _run_api_forever(
+                orchestrator, metrics, health,
+                action_registry=action_registry, push=push,
+            ),
             _run_telegram_forever(
                 orchestrator,
                 action_registry=action_registry,
@@ -921,7 +955,10 @@ def main() -> int:
             tasks.append(_run_recovery_forever(recovery))
             log.info("RecoveryLoop habilitado (percepção + auto-reparo)")
         notifier = build_notifier(
-            orchestrator, sink=build_telegram_sink(), event_bus=event_bus
+            orchestrator,
+            sink=build_telegram_sink(),
+            event_bus=event_bus,
+            push=push,
         )
         if notifier is not None:
             notifier.start()
@@ -942,7 +979,10 @@ def main() -> int:
         await asyncio.gather(*tasks)
 
     if mode == "api":
-        asyncio.run(_run_api_forever(orchestrator, metrics, health))
+        asyncio.run(_run_api_forever(
+            orchestrator, metrics, health,
+            action_registry=action_registry, push=push,
+        ))
     elif mode == "telegram":
         asyncio.run(_run_telegram_forever(orchestrator, action_registry=action_registry))
     elif mode == "mqtt":
