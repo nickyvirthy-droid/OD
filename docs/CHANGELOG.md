@@ -172,11 +172,42 @@ Dois achados levantados no journal, cada um com teste de regressão novo:
 - `od-core` reiniciado às 13:24:40 para subir as correções; `/health` ok (8
   checks) e o `RecoveryLoop` rodando sem detecções.
 
+### Ativado (2026-09-14) — push FCM em produção 🔔
+
+A service account chegou e o envio saiu do modo dormente **sem nenhuma mudança
+de código** (o que faltava era só a credencial):
+
+- Credencial instalada em `config/firebase-service-account.json`
+  (`chmod 600`), coberta pelo `.gitignore` — nada de credencial no repositório.
+- **Validação antes do restart**: o `FcmSender` do próprio `core/push.py`
+  (`available=True`, `project_id=nicky-e4f99`) emitiu um **access token OAuth2
+  real** — a chave é válida e tem permissão no FCM (nenhuma mensagem enviada
+  nessa etapa).
+- `od-core` reiniciado às 14:06:53: `Push FCM inicializado | enabled=True |
+  motivo= | credencial=config/firebase-service-account.json | dispositivos=1`
+  (todos os restarts desde 13/09 registravam `enabled=False |
+  credencial_ausente`).
+- **Teste de ponta a ponta**: `POST /push/test` → **HTTP 200**
+  `{ok:true, sent:1, failed:0, skipped:0, errors:[]}`; journal
+  `Push enviado | enviados=1 | falhas=0 | titulo=OmegaDrakon`; e o aparelho
+  registrado (Redmi Note 14) foi para `sent=1, failed=0` no
+  `GET /push/devices`. O token foi registrado pelo **próprio app**, sem ação
+  manual no servidor.
+- Nenhuma variável nova no `.env`: sem `OD_PUSH_ENABLED` o default é "ligado
+  se houver credencial" (`PushService.enabled` cai em `sender.available`).
+
+> ⚠️ **Achado de segurança desta rodada:** um dos dumps de tela guardados na
+> pasta local `000/` (fora do git) contém a **chave legada do servidor FCM**
+> (API legada, descontinuada em 2024) e um par de chaves de push da Web. A
+> chave legada **não** é usada pelo OD (o envio é HTTP v1 com service account) e
+> deve ser excluída no console — *Cloud Messaging → chave do servidor*.
+
 ### Pendente
 
-- Gerar a **service account** no console do Firebase e gravá-la em
+- ~~Gerar a **service account** no console do Firebase e gravá-la em
   `config/firebase-service-account.json` para o envio sair do modo dormente
-  (o app já está registrando o token).
+  (o app já está registrando o token).~~ **Feito em 2026-09-14** — ver
+  *Ativado (2026-09-14)* acima.
 
 ---
 

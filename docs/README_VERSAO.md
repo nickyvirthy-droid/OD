@@ -46,20 +46,59 @@ APK 1.2.0+5 (versionCode 1005/2005/4005) republicado em site/
   strings no APK → "push/register" presente; download pela API → HTTP 200
 ```
 
+> **Nota (2026-09-14):** o `enabled=False` e o `503` do bloco de evidência acima
+> são o estado **na entrega** (a credencial ainda não existia). Hoje o push está
+> **ativo** — ver §5.
+
 ### 3. O que NÃO foi feito
 
-- **A credencial de service account não existe** — o push sobe **dormente**.
+- ~~**A credencial de service account não existe** — o push sobe **dormente**.
   Ela precisa ser gerada no console do Firebase (só o dono da conta pode);
   passos 6/7 em `docs/FIREBASE_SETUP.md`. Sem ela o envio responde 503, mas o
-  registro de tokens já funciona (o app grava o token ao abrir).
+  registro de tokens já funciona (o app grava o token ao abrir).~~
+  **RESOLVIDO em 2026-09-14** — a chave foi gerada no console e instalada em
+  `config/firebase-service-account.json`; o envio está **ativo** (ver §5).
 - Push reativo a eventos internos além do Notifier (ex: fim de uma ação longa)
   — hoje o sink é o canal genérico.
-- Publicação no GitHub desta entrega (commit + push) — pendente de autorização.
+- ~~Publicação no GitHub desta entrega (commit + push) — pendente de autorização.~~
+  **Publicada** em `3b5599c` (2026-09-13, `origin/master 8c58520..3b5599c`).
 
-### 4. Próximo passo
+### 4. Próximo passo — CONCLUÍDO em 2026-09-14
 
-Gerar a service account, reiniciar o `od-core` e rodar `POST /push/test` com o
-aparelho registrado — é o teste de ponta a ponta.
+~~Gerar a service account, reiniciar o `od-core` e rodar `POST /push/test` com o
+aparelho registrado — é o teste de ponta a ponta.~~
+
+**Feito em 2026-09-14** (ver §5): service account instalada, `od-core`
+reiniciado com `enabled=True` e `POST /push/test` respondendo **200** com
+`sent=1/failed=0` para o aparelho que o próprio app registrou.
+
+### 5. ATIVAÇÃO DO PUSH (2026-09-14) — envio no ar 🔔
+
+```
+credencial : config/firebase-service-account.json (chmod 600, fora do git)
+             projeto nicky-e4f99 · conta firebase-adminsdk-*@nicky-e4f99.iam
+validação  : FcmSender (o próprio core/push.py) → available=True · reason=''
+             project_id=nicky-e4f99 · access token OAuth2 emitido
+             (o valor do token não é registrado aqui, de propósito)
+             → chave válida e autorizada, SEM enviar nenhuma mensagem
+journal    : "Push FCM inicializado | enabled=True | motivo= |
+              credencial=config/firebase-service-account.json | dispositivos=1"
+             (todo restart desde 13/09: enabled=False | credencial_ausente)
+teste E2E  : POST /push/test → HTTP 200
+              {ok:true, sent:1, failed:0, skipped:0, errors:[]}
+             14:07:20 "Push enviado | enviados=1 | falhas=0 | titulo=OmegaDrakon"
+             GET /push/devices → devices=1 · sent=1 · failed=0 (Redmi Note 14)
+             token registrado pelo PRÓPRIO app (~13:5x), sem ação manual
+.env       : nenhuma variável nova — sem OD_PUSH_ENABLED o default é "ligado
+             se houver credencial" (PushService.enabled → sender.available)
+```
+
+Não atestado pelo servidor: a **entrega no aparelho** (o OD vê a aceitação do
+FCM, não a notificação na tela) — confirmada pelo dono do aparelho.
+
+> ⚠️ O dump `000/farebase.txt` (pasta local, fora do git) mostra a **chave
+> legada do servidor FCM** (API descontinuada em 2024) — ela não é usada pelo OD
+> e deve ser excluída no console (*Cloud Messaging → chave do servidor*).
 
 ---
 

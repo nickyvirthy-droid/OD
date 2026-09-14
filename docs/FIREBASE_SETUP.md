@@ -9,7 +9,7 @@
 > | Metade | Estado |
 > |---|---|
 > | **App recebe** (FCM → celular) | ✅ configurado e no APK (console já entrega) |
-> | **OD envia** (servidor → celular) | ✅ implementado — `core/push.py` + `/push/*` + sink do Notifier. **Dormente até existir a service account** (passo 6 abaixo) |
+> | **OD envia** (servidor → celular) | ✅ **ATIVO e validado** (2026-09-14) — `core/push.py` + `/push/*` + sink do Notifier, com a service account do passo 6 instalada no `nicky-server` |
 
 ## Envio pelo OD (o que faltava) — passos 6 e 7
 
@@ -29,6 +29,17 @@ mv ~/Downloads/nicky-e4f99-*.json ~/OmegaDrakon/config/firebase-service-account.
 
 O arquivo é **segredo** e já está no `.gitignore` (`service-account*.json`,
 `*firebase-adminsdk*.json`). Alternativa: `OD_FCM_CREDENTIALS=/caminho/arquivo.json`.
+
+> **Já instalada no `nicky-server` (2026-09-14):**
+> `config/firebase-service-account.json` com `chmod 600`, validada com o
+> `FcmSender` do próprio `core/push.py` (access token OAuth2 emitido, sem enviar
+> nada) e com o `od-core` reportando `enabled=True`. **Só refaça estes passos se
+> rotacionar a chave** no console.
+
+> ⚠️ A aba **Cloud Messaging** do console ainda exibe a *chave do servidor* da
+> API legada (descontinuada em 2024). Ela **não** serve para o OD enviar — o
+> envio é HTTP v1 com a service account — e um dump/print dessa tela é
+> credencial exposta: exclua-a no console se ela ainda existir.
 
 ### 7. Variáveis de ambiente
 
@@ -154,6 +165,11 @@ cd app
    → `enabled: true`, `devices: 1`
 3. Dispare: `POST /push/test` (ver acima) → a notificação aparece mesmo com o
    app em background ou fechado
+
+> **Resultado real (2026-09-14):** `POST /push/test` → `200 {ok:true, sent:1,
+> failed:0, skipped:0}`; journal `Push enviado | enviados=1 | falhas=0`; e o
+> aparelho foi para `sent=1, failed=0` no `GET /push/devices`. O token foi
+> registrado pelo próprio app — nenhuma ação manual no servidor.
 
 ### Teste do canal (console → celular), sem depender do OD
 

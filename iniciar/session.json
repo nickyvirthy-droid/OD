@@ -1,7 +1,29 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-14T13:29:59-03:00",
+  "updated_at": "2026-09-14T14:07:32-03:00",
+  "push_fcm_ativo_2026_09_14": {
+    "status": "RESOLVIDO — push FCM de ponta a ponta funcionando",
+    "credencial": {
+      "origem": "o usuário deixou a service account em 000/nicky-e4f99-firebase-adminsdk-fh19o-ba704415d0.json (2.373 B, 14:01) + 000/farebase.txt e 000/google-services .json",
+      "conferido": "type=service_account, project_id=nicky-e4f99, client_email=firebase-adminsdk-fh19o@nicky-e4f99.iam.gserviceaccount.com, private_key PEM íntegra (1.704 B) — é o projeto certo",
+      "instalada": "cp para config/firebase-service-account.json + chmod 600 (ls: -rw------- alex alex 2373)",
+      "validacao": "FcmSender(credentials_file=config/firebase-service-account.json) → available=True, reason='', project_id=nicky-e4f99; _access_token() emitiu token OAuth2 REAL (1024 chars — o valor não é registrado aqui, de propósito) — a chave funciona e tem acesso ao FCM",
+      "git": "git check-ignore: config/firebase-service-account.json → .gitignore:134; 000/* → .gitignore:139 — nenhuma credencial entrou no repo (git status só mostra iniciar/)"
+    },
+    "servico": "od-core reiniciado 14:06:53 (PID 267461): 'Push FCM inicializado | enabled=True | motivo= | credencial=config/firebase-service-account.json | dispositivos=1' (antes de hoje: enabled=False em todos os restarts)",
+    "teste_ponta_a_ponta": {
+      "POST /push/test": "HTTP 200 {ok:true, sent:1, failed:0, skipped:0, errors:[]}",
+      "journal": "14:07:20 'Push enviado | enviados=1 | falhas=0 | titulo=OmegaDrakon'",
+      "aparelho": "GET /push/devices → enabled=true, project_id=nicky-e4f99, devices=1 {token d8Xhaf…Vj_0, android, sent=1, failed=0}",
+      "por_confirmar": "a entrega NO aparelho só o usuário atesta (o servidor vê a aceitação do Google); o token foi registrado pelo próprio app às ~13:5x"
+    },
+    "seguranca_a_tratar": [
+      "000/farebase.txt contém a CHAVE LEGADA do servidor FCM (material omitido de propósito) e um par de chaves de push da Web — a API legada foi descontinuada em 2024 (não envia), mas é credencial exposta; recomendo excluí-la no console (Cloud Messaging → chave do servidor)",
+      "a cópia da service account em 000/ pode ser apagada (canônica: config/firebase-service-account.json, 600)"
+    ],
+    "caminho_que_falhou": "Taildrop (2x) e a hipótese de inbox root — resolvido ao usuário depositar o JSON na própria 000/, que eu já leio"
+  },
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -369,6 +391,69 @@
       "limpeza_retroativa": "557 snapshots conferidos (3 conteúdos distintos); _prune_snapshots do engine removeu 552 e manteve os 5 mais novos (o mais novo, 13/09 15:42, preserva o estado anterior à troca do agent.py) — 8,8 MB → 116 KB",
       "acao": "aplicado e ativo em produção (od-core reiniciado 13:24:40)"
     }
+  },
+  "fcm_unblock_2026_09_14": {
+    "estado": "credencial continua ausente em config/ (só iot_credentials*); .env sem OD_FCM*/OD_PUSH*; od-core (PID 264390) em enabled=False/credencial_ausente; redmi-note-14-1 offline há 7h e /push/devices com 0",
+    "descoberta": "não é preciso mexer no .env: sem OD_PUSH_ENABLED o default é 'ligado se houver credencial' (PushService.enabled → sender.available); candidates = config/firebase-service-account.json → config/fcm-service-account.json → docs/firebase-service-account.json. Arquivo + restart = push ligado",
+    "transferencia": {
+      "escolha": "Taildrop (o usuário já tem o JSON baixado)",
+      "bloqueio": "`tailscale file get` exige root: 'Access denied: file access denied' e `sudo -n` pede senha (não tenho)",
+      "caminhos_oferecidos": [
+        "sudo tailscale set --operator=alex (uma vez; libera para mim e para as próximas)",
+        "sudo tailscale file get /tmp/od_taildrop (só desta vez)",
+        "scp do desktop para config/firebase-service-account.json + chmod 600",
+        "colar o JSON no chat (eu escrevo com chmod 600; a chave passaria pelo histórico — ideal rotacionar depois)"
+      ]
+    },
+    "ao_chegar": "validar com google-auth sem enviar nada → mover para config/firebase-service-account.json com chmod 600 → reiniciar o od-core → conferir journal + GET /push/devices (enabled=true, project_id=nicky-e4f99) → com o aparelho registrado, POST /push/test fecha a ponta a ponta",
+    "verificacao_2026_09_14_13_39": {
+      "pedido_do_usuario": "validar e instalar a service account que 'já chegou no servidor'",
+      "resultado": "NÃO ENCONTRADA em nenhum caminho acessível",
+      "evidencia": [
+        "config/ só tem iot_credentials* (ls -la)",
+        "/tmp/od_taildrop vazio",
+        "find /home/alex /tmp -newermt '-70 minutes' -type f → só arquivos do próprio trabalho de hoje (código, checkpoint, __pycache__, /tmp/pytest-of-alex)",
+        "find por *adminsdk*/*firebase-service-account*/*nicky-e4f99*/*service-account* em /home/alex /tmp /root → nada",
+        "grep -rl --include=*.json 'service_account' /home/alex /tmp → só iniciar/session.json (texto meu)",
+        "sinais reais de credencial em toda a home (private_key_id / base64 MIIE… / type=service_account / client_email @*.iam.gserviceaccount.com) → zero ocorrências; os 'hits' de 'private_key_id' no log do chat são texto meu (comando de validação e lista de campos)",
+        "/home/alex/OD (o outro checkout, com venv e .env) → nenhum JSON de credencial; .env sem OD_FCM*/OD_PUSH*"
+      ],
+      "hipotese_principal": "o arquivo está na CAIXA DE ENTRADA do Taildrop, que é do root: `ls /var/lib/tailscale` → Permission denied e `sudo -n` pede senha (não tenho). Se o envio pelo app concluiu, o arquivo fica lá até alguém rodar `sudo tailscale file get <dir>`",
+      "comando_para_destravar": [
+        "sudo tailscale set --operator=alex  → depois eu mesmo busco via `tailscale file get /tmp/od_taildrop`",
+        "ou  sudo tailscale file get /tmp/od_taildrop  (só desta vez)"
+      ],
+      "sessao_ssh_do_usuario": "ativa: logins aceitos de 192.168.0.111 às 13:16:55 e 13:33:21",
+      "taildrop_2026_09_14_13_48": {
+        "operator": "`sudo tailscale set --operator=alex` EXECUTADO pelo usuário → o fetch deixou de dar 'Access denied' (agora eu busco sem sudo)",
+        "resultado": "`tailscale file get` → 'moved 0/0 files' e receptor com --wait por 4 min sem receber nada: a inbox está VAZIA, o arquivo nunca chegou por Taildrop",
+        "busca_nova": "service_account / BEGIN PRIVATE KEY / firebase-adminsdk em /home/alex e /tmp → zero; sem Downloads/Documentos/Desktop no servidor",
+        "dado_novo": "redmi-note-14-1 voltou ao tailnet (estado 'idle') → o teste de ponta a ponta voltou a ser possível",
+        "caminhos_abertos": ["reenviar por Taildrop (agora eu busco sozinho)", "scp direto para config/firebase-service-account.json", "colar o JSON no chat (escrevo com chmod 600 sem exibir; rotacionar depois)"]
+      },
+      "marco_2026_09_14_13_55": {
+        "aparelho_registrado": "GET /push/devices → devices: 1, devices_detail[0] = {token: d8Xhaf…Vj_0, platform: android, sent: 0, failed: 0} — o app do Redmi Note 14 alcançou a API e registrou o token mesmo com o push desligado (comportamento previsto)",
+        "taildrop_de_novo": "receptor --wait por 5 min → nada; journal do tailscaled sem evento de arquivo; prefs com ShieldsUp=false (não é bloqueio nosso) — o envio não sai do aparelho",
+        "upload_descartado": "API sem rota de upload (só /message, /executa, /push/*, /transcribe, /tts); Telegram baixa só voice (sem documento); control bridge só POST /execute",
+        "restam": ["scp direto para config/firebase-service-account.json", "colar o JSON no chat (escrevo com chmod 600 sem exibir; rotacionar a chave depois)"],
+        "desfecho": "resolveu-se por fora do Taildrop: o usuário depositou a service account em 000/ e eu instalei → ver push_fcm_ativo_2026_09_14"
+      }
+    }
+  },
+  "inspecao_000_e_txt_2026_09_14": {
+    "pedido": "ler a pasta 000/ e o arquivo txt.txt",
+    "resultado": "nenhuma credencial em nenhum deles — o bloqueio do FCM não tem atalho ali",
+    "achados": {
+      "txt.txt": "dump do console do Firebase das páginas Geral/Integrações/Privacidade/Alertas + registro do app Android (com.omegadrakon.nicky, app id 1:582855984584:android:8fea63966ed40cdf). NÃO é a aba 'Contas de serviço' — não tem (nem pode ter) a chave privada",
+      "000/app.txt": "dump parecido: project_id nicky-e4f99, número 582855984584, e-mail de suporte nickyvirthy@gmail.com",
+      "000/freebuff-intencoes.md": "intenções de produto do Freebuff; nada de FCM",
+      "000/chatGPT.md": "53 KB de pesquisa/conversa sobre agentes locais (Open Interpreter, OpenHands, OpenCode, Freebuff) + estado do OD + prompt de continuidade; grep por conta de serviço/private_key/FCM/push/nicky-e4f99 → zero",
+      "000/google-services.json": "config CLIENTE do Firebase (api_key + project_id nicky-e4f99; sem private_key/client_email) — é o do APK, não serve para envio",
+      "000/Ferramenta IA local erotikk.pdf": "sem menção a firebase/service account"
+    },
+    "busca_da_credencial": "find por *adminsdk*/*firebase-service-account*/*nicky-e4f99* em /home /tmp /srv /opt /mnt /media → nada; grep -rl --include=*.json 'BEGIN PRIVATE KEY' /home/alex (sem .venv/.git/.config/.aider) → nenhum arquivo",
+    "git": "000/ segue fora do repositório (regra do .gitignore de 13/09) — inclusive o google-services.json",
+    "caminho_certo_da_chave": "console → Configurações do projeto → Contas de serviço → Gerar nova chave privada (JSON com type=service_account, private_key, client_email, project_id=nicky-e4f99)"
   },
   "published_2026_09_14": {
     "commit": "40d2bb0",
