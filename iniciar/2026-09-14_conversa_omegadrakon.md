@@ -169,4 +169,24 @@ rodou limpo no processo em produção.
 - RecoveryLoop pós-restart: "iniciando ciclo periódico | interval_s=300.0",
   nenhum snapshot/self-repair (nenhuma detecção — agent.py saudável).
 
-Pendente desta sessão: commit + push das duas correções (não foi pedido ainda).
+Rodada 3 (autorizada): commit + push das duas correções
+
+- Revisão antes de commitar: `git diff` dos quatro arquivos de código/teste +
+  `git log` para seguir o estilo do repo.
+- Ajuste de consistência de versão: as notas de código/teste diziam
+  "v1.2.1", mas `OD_VERSION` segue **1.2.0** — troquei por **(2026-09-14)**
+  (launcher, self_repair, os dois arquivos de teste) e registrei no
+  `docs/CHANGELOG.md` como **"### Corrigido (2026-09-14)"** dentro da seção
+  [1.2.0], em vez de inventar uma versão sem o bump correspondente.
+- `docs/CHANGELOG.md`: nova subseção com o diagnóstico, a correção, a
+  evidência de produção e a limpeza retroativa dos snapshots; cabeçalho da
+  [1.2.0] atualizado para "correções em 2026-09-12 e 2026-09-14".
+- Verificação: suíte completa **1655 passed, 16 skipped**; varredura do staged
+  por `AIza`/`PRIVATE KEY`/`api_key`/`password`/`secret` sem ocorrências.
+- **Commit `40d2bb0`** — _fix(core): corrige o handler de face.presence e
+  limita snapshots do SelfRepair_ (7 arquivos, +603/-19).
+- **Push**: `origin/master 8455493..40d2bb0`.
+
+Estado final da sessão: as duas correções estão no ar E publicadas; o
+checkpoint desta sessão foi atualizado com o hash (commit de docs separado,
+como nas entregas anteriores).

@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-14T13:27:55-03:00",
+  "updated_at": "2026-09-14T13:29:59-03:00",
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -30,7 +30,7 @@
       "tratar a amplificação do SelfRepair com DEDUP + RETENÇÃO de snapshots (sem mudar o escopo da varredura, que seguirá varrendo todo .py do root)",
       "reiniciar o od-core já, para o fix do face.presence entrar no ar"
     ],
-    "in_progress": "as duas correções de 09-14 aplicadas, testadas (1655 passed/16 skipped) e ativas em produção (od-core reiniciado 13:24:40; face.presence real às 13:25:09 sem dead letter; .od_repair_backups de 8,8 MB → 116 KB com 5 snapshots). Falta só commit + push das correções (não pedido) — e o push FCM continua bloqueado pela credencial"
+    "in_progress": "as duas correções de 09-14 foram aplicadas, testadas (1655 passed/16 skipped), ativadas em produção (od-core reiniciado 13:24:40; face.presence real às 13:25:09 sem dead letter; .od_repair_backups de 8,8 MB → 116 KB com 5 snapshots) e PUBLICADAS em 40d2bb0 (origin/master 8455493..40d2bb0)"
   },
   "prep_push_fcm_2026_09_13": {
     "pedido": "preparar o push FCM para o teste de ponta a ponta: configurar a service account e verificar POST /push/test com o aparelho registrado",
@@ -369,6 +369,14 @@
       "limpeza_retroativa": "557 snapshots conferidos (3 conteúdos distintos); _prune_snapshots do engine removeu 552 e manteve os 5 mais novos (o mais novo, 13/09 15:42, preserva o estado anterior à troca do agent.py) — 8,8 MB → 116 KB",
       "acao": "aplicado e ativo em produção (od-core reiniciado 13:24:40)"
     }
+  },
+  "published_2026_09_14": {
+    "commit": "40d2bb0",
+    "message": "fix(core): corrige o handler de face.presence e limita snapshots do SelfRepair",
+    "push": "origin/master 8455493..40d2bb0",
+    "escopo": "7 arquivos, +603/-19 — core/self_repair.py, runtime/launcher.py, tests/test_self_repair.py, tests/test_launcher_vision.py (novo), docs/CHANGELOG.md (### Corrigido 2026-09-14), iniciar/session.json e iniciar/2026-09-14_conversa_omegadrakon.md",
+    "verificacao": "suíte 1655 passed/16 skipped antes do commit; varredura do staged por AIza/PRIVATE KEY/api_key/password/secret sem ocorrências",
+    "nota": "o CHANGELOG registra a correção sob a [1.2.0] (OD_VERSION segue 1.2.0) — as notas de código/teste usam a data (2026-09-14), não uma versão nova"
   },
   "deploy_2026_09_14": {
     "o_que": "restart do od-core para subir as duas correções de 09-14",
