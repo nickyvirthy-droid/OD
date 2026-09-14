@@ -17,6 +17,7 @@ Baseado em:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -630,3 +631,104 @@ class TestSelfRepairObservability:
         assert dump["metrics"]["repaired"] == 1
         assert len(dump["history"]) == 1
         assert dump["snapshots_kept"] == 1
+        assert dump["max_snapshots_per_file"] == sr.DEFAULT_MAX_SNAPSHOTS_PER_FILE
+
+
+# ===========================================================================
+# Snapshots pré-reparo — dedup e retenção (2026-09-14)
+# ===========================================================================
+
+@pytest.mark.asyncio
+class TestSnapshotDedupERetencao:
+    """O ciclo periódico do RecoveryLoop não pode inflar o backup_dir.
+
+    Regressão: um arquivo doente no escopo gerava um .bak novo a cada tick
+    (5min) sem nenhuma mudança no conteúdo — 557 snapshots idênticos
+    (8,8 MB) na raiz do projeto em ~2 dias.
+    """
+
+    def _engine(self, tmp_path: Path, **kwargs) -> SelfRepairEngine:
+        return SelfRepairEngine(coder=CoderEngine(root=tmp_path), **kwargs)
+
+    def _baks(self, tmp_path: Path) -> list[Path]:
+        return sorted((tmp_path / sr.DEFAULT_BACKUP_DIR).glob("*.bak"))
+
+    def _prepara_snapshot(
+        self,
+        tmp_path: Path,
+        rel: str,
+        *,
+        conteudo: str,
+        carimbo: int = 1_700_000_000,
+    ) -> Path:
+        """Snapshot avulso, como se viesse de um ciclo anterior."""
+        backup = tmp_path / sr.DEFAULT_BACKUP_DIR
+        backup.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha1(rel.encode("utf-8")).hexdigest()[:12]
+        path = backup / f"{digest}.{carimbo}.bak"
+        path.write_text(conteudo, encoding="utf-8")
+        return path
+
+    def _prepara_historicos(
+        self, tmp_path: Path, rel: str, *, quantidade: int
+    ) -> list[Path]:
+        """Cria snapshots antigos com carimbos de tempo distintos."""
+        backup = tmp_path / sr.DEFAULT_BACKUP_DIR
+        backup.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha1(rel.encode("utf-8")).hexdigest()[:12]
+        criados: list[Path] = []
+        for i in range(quantidade):
+            path = backup / f"{digest}.{1_700_000_000 + i}.bak"
+            path.write_text(f"conteudo antigo {i}\n", encoding="utf-8")
+            criados.append(path)
+        return criados
+
+    async def test_ticks_repetidos_nao_duplicam_snapshot(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "weird.py").write_text("x = = 1\n", encoding="utf-8")
+        engine = self._engine(tmp_path)
+        anterior = self._prepara_snapshot(tmp_path, "weird.py", conteudo="x = = 1\n")
+        for _ in range(5):  # 5 ticks do RecoveryLoop, conteúdo inalterado
+            report = await engine.repair("weird.py")
+            assert report.status == STATUS_NO_FIX
+            assert report.snapshot_path == str(anterior)  # dedup: reutilizou
+        assert self._baks(tmp_path) == [anterior]
+
+    async def test_conteudo_novo_ainda_gera_snapshot(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "weird.py").write_text("x = = 1\n", encoding="utf-8")
+        engine = self._engine(tmp_path)
+        await engine.repair("weird.py")
+        (tmp_path / "weird.py").write_text("x = = 2\n", encoding="utf-8")
+        await engine.repair("weird.py")
+        baks = self._baks(tmp_path)
+        assert len(baks) == 2  # dedup só reutiliza conteúdo IDÊNTICO
+        assert baks[-1].read_bytes() == (tmp_path / "weird.py").read_bytes()
+
+    async def test_retencao_limita_snapshots_por_arquivo(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "weird.py").write_text("x = = 9\n", encoding="utf-8")
+        engine = self._engine(tmp_path, max_snapshots_per_file=2)
+        antigos = self._prepara_historicos(tmp_path, "weird.py", quantidade=3)
+        assert len(self._baks(tmp_path)) == 3
+
+        await engine.repair("weird.py")
+
+        baks = self._baks(tmp_path)
+        assert len(baks) == 2  # retenção cortou o excedente
+        assert antigos[0] not in baks  # o mais antigo saiu
+        # o snapshot mais recente é sempre o estado atual do arquivo
+        assert baks[-1].read_bytes() == (tmp_path / "weird.py").read_bytes()
+
+    async def test_retencao_respeita_o_minimo_de_um(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "weird.py").write_text("x = = 9\n", encoding="utf-8")
+        engine = self._engine(tmp_path, max_snapshots_per_file=0)
+        self._prepara_historicos(tmp_path, "weird.py", quantidade=3)
+        await engine.repair("weird.py")
+        assert engine.max_snapshots_per_file == 1
+        assert len(self._baks(tmp_path)) == 1

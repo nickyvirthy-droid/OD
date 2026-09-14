@@ -821,13 +821,21 @@ async def _run_vision_forever(event_bus: Any, detector: Any) -> None:
     visão compartilham o bus). Correção v0.28.1: a chamada passava 2 args
     e a assinatura aceitava 1 — crash no startup do modo all quando a
     webcam está habilitada (OD_VISION_ENABLED=1).
+
+    Correção (2026-09-14): o Event Bus entrega o `Event` ao handler (o payload
+    fica em `event.data`) — o handler antigo chamava `.get()` direto no
+    Event e caía em `AttributeError: 'Event' object has no attribute 'get'`
+    a cada `face.presence`, esgotando as 3 tentativas e indo para dead
+    letter (visível no journal do od-core até 2026-09-14).
     """
     sink = build_telegram_sink()
     notified = False
 
-    async def on_change(data: Any) -> None:
+    async def on_change(event: Any) -> None:
+        """Presença facial confirmada → aviso único no Telegram."""
         nonlocal notified
-        if not data.get("confirmed"):
+        data = getattr(event, "data", None) or {}
+        if not isinstance(data, dict) or not data.get("confirmed"):
             return
         if sink is not None and not notified:
             await sink(

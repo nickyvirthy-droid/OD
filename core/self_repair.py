@@ -88,6 +88,10 @@ log = get_logger("omega.core.self_repair")
 DEFAULT_BACKUP_DIR = ".od_repair_backups"
 DEFAULT_MAX_ATTEMPTS = 5
 DEFAULT_HISTORY_SIZE = 200
+# Retenção de snapshots por arquivo (dedup + limpeza por digest): o
+# RecoveryLoop chama o snapshot a cada ciclo (5min) e sem limite um arquivo
+# doente no escopo gerava um .bak novo por tick, indefinidamente.
+DEFAULT_MAX_SNAPSHOTS_PER_FILE = 5
 
 # Status de um relatório de reparo
 STATUS_HEALTHY = "healthy"
@@ -372,6 +376,8 @@ class SelfRepairEngine:
         coder:        CoderEngine usado para TODA mudança (obrigatório).
         root:         Raiz estrita (padrão: root do coder).
         backup_dir:   Diretório de snapshots pré-reparo sob o root.
+        max_snapshots_per_file: Retenção de snapshots por arquivo (dedup:
+                      conteúdo idêntico reutiliza o snapshot existente).
         strategies:   Estratégias determinísticas de correção.
         providers:    Providers plugáveis (ex: LLM/auto-extensão).
         event_bus:    EventBus opcional (self_repair.detected/completed).
@@ -390,6 +396,7 @@ class SelfRepairEngine:
         default_role: str = "coder",
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
         history_size: int = DEFAULT_HISTORY_SIZE,
+        max_snapshots_per_file: int = DEFAULT_MAX_SNAPSHOTS_PER_FILE,
     ) -> None:
         if coder is None:
             coder = CoderEngine(root=root or Path(__file__).resolve().parent.parent)
@@ -408,6 +415,7 @@ class SelfRepairEngine:
         self.default_role = default_role
         self.max_attempts = max(1, max_attempts)
         self._history_size = max(1, history_size)
+        self.max_snapshots_per_file = max(1, max_snapshots_per_file)
 
         self._snapshots: dict[str, Path] = {}  # rel -> snapshot
         self._history: list[dict[str, Any]] = []
@@ -832,16 +840,37 @@ class SelfRepairEngine:
     # -- Snapshot e restauração ---------------------------------------------
 
     def _take_snapshot(self, target: Path, rel: str) -> Optional[Path]:
-        """Copia os bytes exatos do estado atual para o diretório de backups."""
+        """Copia os bytes exatos do estado atual para o diretório de backups.
+
+        Correção (2026-09-14) — o RecoveryLoop chama isto a cada ciclo (5min) e,
+        antes, escrevia um .bak NOVO por tentativa mesmo sem nenhuma mudança
+        no arquivo: um arquivo doente no escopo gerou 557 snapshots
+        idênticos (8,8 MB) em ~2 dias. Agora:
+
+          1. DEDUP — se já existe snapshot com o MESMO conteúdo, ele é
+             reutilizado (nenhum arquivo novo é escrito);
+          2. RETENÇÃO — depois de criar um snapshot, mantém no máximo
+             `max_snapshots_per_file` por arquivo (os mais antigos saem).
+        """
         try:
             digest = hashlib.sha1(rel.encode("utf-8")).hexdigest()[:12]
-            snapshot = self.backup_dir / f"{digest}.{int(time.time())}.bak"
+            content = target.read_bytes()
+            previous = self._find_identical_snapshot(digest, content)
+            if previous is not None:
+                log.info(
+                    "SelfRepair snapshot reutilizado",
+                    file=rel,
+                    backup=str(previous),
+                )
+                return previous
+            snapshot = self._next_snapshot_path(digest)
             snapshot.parent.mkdir(parents=True, exist_ok=True)
             # Escrita atômica do snapshot
             tmp = snapshot.with_suffix(".tmp")
-            tmp.write_bytes(target.read_bytes())
+            tmp.write_bytes(content)
             os.replace(tmp, snapshot)
             log.info("SelfRepair snapshot created", file=rel, backup=str(snapshot))
+            self._prune_snapshots(digest, keep=snapshot)
             return snapshot
         except Exception as exc:
             log.crit(
@@ -850,6 +879,66 @@ class SelfRepairEngine:
                 error=f"{type(exc).__name__}: {exc}",
             )
             return None
+
+    def _next_snapshot_path(self, digest: str) -> Path:
+        """Caminho livre para o snapshot (nunca sobrescreve um anterior).
+
+        O carimbo é em segundos: dois ciclos do MESMO arquivo dentro do mesmo
+        segundo gerariam o mesmo nome e o snapshot anterior seria perdido.
+        """
+        stamp = int(time.time())
+        snapshot = self.backup_dir / f"{digest}.{stamp}.bak"
+        while snapshot.exists():
+            stamp += 1
+            snapshot = self.backup_dir / f"{digest}.{stamp}.bak"
+        return snapshot
+
+    def _snapshots_for(self, digest: str) -> list[Path]:
+        """Snapshots de um arquivo (digest), do mais antigo ao mais recente."""
+        if not self.backup_dir.is_dir():
+            return []
+        try:
+            return sorted(self.backup_dir.glob(f"{digest}.*.bak"))
+        except OSError:  # pragma: no cover — diretório ilegível
+            return []
+
+    def _find_identical_snapshot(
+        self, digest: str, content: bytes
+    ) -> Optional[Path]:
+        """Snapshot com os MESMOS bytes (dedup), o mais recente primeiro."""
+        for candidate in reversed(self._snapshots_for(digest)):
+            try:
+                if candidate.read_bytes() == content:
+                    return candidate
+            except OSError:  # pragma: no cover — sumiu entre glob e read
+                continue
+        return None
+
+    def _prune_snapshots(self, digest: str, *, keep: Path) -> int:
+        """Retenção: descarta os snapshots mais antigos (nunca o `keep`)."""
+        snapshots = self._snapshots_for(digest)
+        excess = snapshots[: max(0, len(snapshots) - self.max_snapshots_per_file)]
+        removed = 0
+        for old in excess:
+            if old == keep:
+                continue
+            try:
+                old.unlink()
+                removed += 1
+            except OSError as exc:  # pragma: no cover — permissão/IO
+                log.warn(
+                    "SelfRepair snapshot não removido",
+                    backup=str(old),
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+        if removed:
+            log.info(
+                "SelfRepair snapshots antigos removidos",
+                digest=digest,
+                removed=removed,
+                kept=len(snapshots) - removed,
+            )
+        return removed
 
     def _restore(self, target: Path, snapshot: Path) -> bool:
         """Restaura bytes exatos do snapshot sobre o alvo (escrita atômica).
@@ -1017,6 +1106,7 @@ class SelfRepairEngine:
             "coder_root": str(self.coder.root),
             "strategies": [getattr(s, "name", type(s).__name__) for s in self.strategies],
             "providers": [getattr(p, "name", type(p).__name__) for p in self.providers],
+            "max_snapshots_per_file": self.max_snapshots_per_file,
             "snapshots_kept": len(self._snapshots),
             "history_size": len(self._history),
             "metrics": self._metrics.snapshot(),

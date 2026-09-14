@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-13T14:34:37-03:00",
+  "updated_at": "2026-09-14T13:27:55-03:00",
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -22,11 +22,15 @@
   },
   "topic": "Retomar trabalhos sobre o desenvolvimento do OmegaDrakon",
   "last_turn": {
-    "when": "2026-09-13",
-    "what_user_said": "pediu \"leia iniciar\" para retomar a sessão; escolheu publicar a entrega de push FCM (escopo aprovado: commit único com tudo que está em produção); pediu para preparar o push FCM para o teste de ponta a ponta (service account + POST /push/test); por fim pediu para verificar a pasta 000/ (arquivos de construção e ideias do projeto) e mantê-la fora do git",
-    "what_agent_did": "leu iniciar/ + conferiu o git; revisou os 21 arquivos modificados e separou a entrega do backlog; revisou hunks reais de server.py, launcher.py, llm.py, orchestrator.py, site/index.html e requirements.txt; rodou as suítes (servidor 1647 passed/16 skipped; app analyze limpo + 42 testes); varreu o staged atrás de segredos (nada) e confirmou data/ e google-services.json ignorados; commitou 3b5599c (25 arquivos, +2456/-60) e publicou em origin/master 8c58520..3b5599c",
-    "decisions": [],
-    "in_progress": "segunda tentativa de transferência da service account também não chegou ao servidor (scp reportado como concluído, arquivo inexistente e nenhuma sessão SSH nova desde 14:13) — aguardando o comando/output exato do scp ou o JSON por outro caminho; o APK 1.2.0+5 segue pendente no Redmi Note 14 (offline no tailnet)"
+    "when": "2026-09-14",
+    "what_user_said": "pediu \"leia iniciar\" para retomar a sessão",
+    "what_agent_did": "leu iniciar/ (README, RULES, session.json e as transcrições de 09-12 e 09-13) e reconferiu o estado por evidência: git limpo com HEAD 8455493 — o commit do .gitignore (000/ + arquivos soltos da raiz) que a rodada 5 de ontem deixou pendente está feito, e 3b5599c segue no origin/master; od-core active desde 2026-09-13 15:56:17 (PID 191992) ainda em enabled=False/credencial_ausente; GET /push/devices → enabled:false, reason=credencial_ausente, devices:0; config/firebase-service-account.json continua AUSENTE; tailnet: nicky-server online, redmi-note-14-1 offline (visto há 7h). Depois, com a escolha do usuário pelos achados do journal: corrigiu o bug real do handler face.presence no launcher (AttributeError → dead letter) com teste de regressão novo (tests/test_launcher_vision.py, 4 testes; ver correções_do_journal_2026_09_14) e diagnosticou o SelfRepair no_fix como já cessado (origem removida às 02:17 de hoje), com a amplificação de snapshots ainda pendente de decisão",
+    "decisions": [
+      "corrigir o handler face.presence (event.data em vez de .get() no Event) — bug real, ativo no journal de hoje",
+      "tratar a amplificação do SelfRepair com DEDUP + RETENÇÃO de snapshots (sem mudar o escopo da varredura, que seguirá varrendo todo .py do root)",
+      "reiniciar o od-core já, para o fix do face.presence entrar no ar"
+    ],
+    "in_progress": "as duas correções de 09-14 aplicadas, testadas (1655 passed/16 skipped) e ativas em produção (od-core reiniciado 13:24:40; face.presence real às 13:25:09 sem dead letter; .od_repair_backups de 8,8 MB → 116 KB com 5 snapshots). Falta só commit + push das correções (não pedido) — e o push FCM continua bloqueado pela credencial"
   },
   "prep_push_fcm_2026_09_13": {
     "pedido": "preparar o push FCM para o teste de ponta a ponta: configurar a service account e verificar POST /push/test com o aparelho registrado",
@@ -88,11 +92,14 @@
     "nota": "o APK 1.2.0+5 já estava publicado em site/ antes deste commit — o commit não reconstrói nem republica binário"
   },
   "previous_turn": {
-    "when": "2026-09-12",
-    "what_user_said": "pediu para ler a pasta iniciar e aprovou as três correções de alinhamento de versão (OD_VERSION, pubspec/app, documentação)",
-    "what_agent_did": "auditou as fontes de versão com evidência; corrigiu core/capabilities.py (fallback 1.2.0 + resolução os.environ → .env → fallback), app/pubspec.yaml (1.0.0+1 → 1.2.0+3), criou docs/CHANGELOG.md e reconstruiu as seções v1.0.0/v1.1.0/v1.2.0 + [1.2.0] AUDITORIA DE VERSÃO em docs/README_VERSAO.md; validou com a suíte completa",
-    "decisions": [],
-    "in_progress": "concluído: OD_VERSION no .env, APK rebuildado e republicado; pendente apenas commit+push"
+    "when": "2026-09-13",
+    "what_user_said": "pediu \"leia iniciar\" para retomar a sessão; escolheu publicar a entrega de push FCM (escopo aprovado: commit único com tudo que está em produção); pediu para preparar o push FCM para o teste de ponta a ponta (service account + POST /push/test); por fim pediu para verificar a pasta 000/ e mantê-la fora do git",
+    "what_agent_did": "revisou os 21 arquivos modificados e publicou 3b5599c (25 arquivos, +2456/-60) em origin/master 8c58520..3b5599c; registrou a ausência da service account em duas tentativas de transferência (rodadas 3 e 4); adicionou 000/ e os 12 caminhos soltos da raiz ao .gitignore, verificou que nada versionado passou a ficar invisível e publicou tudo em 8455493",
+    "decisions": [
+      "commit único com tudo que está em produção (push FCM + endpoints do app 1.2.0 + ajustes de latência)",
+      "000/ e os arquivos soltos da raiz fora do versionamento"
+    ],
+    "in_progress": "service account do Firebase nunca chegou ao servidor; APK 1.2.0+5 pendente no Redmi Note 14 (offline no tailnet); detalhamento em iniciar/2026-09-13_conversa_omegadrakon.md"
   },
   "audit_2026-09-12": {
     "findings": [
@@ -261,7 +268,12 @@
     ],
     "nota_flaky": "tests/test_mqtt.py::TestBridgeLifecycle::test_start_stop_thread falhou uma vez na suíte completa e passou nas duas execuções seguintes (isolado e suíte) — flaky de thread, não relacionado a esta entrega"
   },
-  "transcript": "iniciar/2026-09-12_conversa_omegadrakon.md",
+  "transcripts": [
+    "iniciar/2026-09-14_conversa_omegadrakon.md",
+    "iniciar/2026-09-13_conversa_omegadrakon.md",
+    "iniciar/2026-09-12_conversa_omegadrakon.md",
+    "iniciar/2026-09-11_conversa_omegadrakon.md"
+  ],
   "status": "em_andamento",
   "research_done": true,
   "session_rule_read_docs": "regra reforçada: ler docs + iniciar antes de avançar",
@@ -337,11 +349,44 @@
       ]
     }
   ],
+  "session_2026_09_14": "Retomada por \"leia iniciar\". Estado conferido: git limpo em HEAD 8455493 (0dbd04a checkpoint + 3b5599c push FCM já publicados), od-core active desde 2026-09-13 15:56:17 ainda com enabled=False/credencial_ausente, config/firebase-service-account.json ausente e redmi-note-14-1 offline no tailnet. Escolha do usuário: investigar os dois achados do journal.",
+  "correcoes_do_journal_2026_09_14": {
+    "achado_1_face_presence": {
+      "sintoma": "a cada face.presence: Handler error (attempt 1/3, 2/3, 3/3) | handler=_run_vision_forever.<locals>.on_change | error=AttributeError → dead letter (09-14 09:29:55, 09:31:17, 10:27:10, 10:27:39)",
+      "causa_raiz": "core/event_bus.py:387 entrega o Event ao handler (payload em event.data); runtime/launcher.py registrava on_change(data) e chamava data.get('confirmed') → 'Event' object has no attribute 'get'. O bus loga só o NOME da exceção, por isso o journal não mostrava o motivo",
+      "correcao": "runtime/launcher.py::_run_vision_forever — handler passa a ler event.data com guarda de tipo + docstring com a nota da correção v1.2.1",
+      "teste": "tests/test_launcher_vision.py (novo): bus real + detector fake, 4 testes; com o handler antigo restaurado os 4 falham reproduzindo as linhas exatas do journal; com a correção, 4 passed",
+      "suite": "1651 passed, 16 skipped (1647 + 4 novos)"
+    },
+    "achado_2_self_repair_agent_py": {
+      "sintoma": "SelfRepair no_fix | file=agent.py | failure=invalid syntax a cada ~5min (1.578 linhas no journal em ~2 dias)",
+      "estado_agora": "CESSOU: último no_fix em 2026-09-13 15:42:16; agent.py foi substituído hoje às 02:17:47 por uma versão válida (ast.parse OK, 12.809 B, 'OmegaDrakon Agent - Versão estável') e o .bak de 15:42 (13.217 B) ainda tinha o erro na linha 325. O loop segue vivo: perception.snapshot às 13:06:11, 13:11:12 e 13:16:16 de 09-14 e /health com check perception ok=true",
+      "causa_raiz": "core/recovery.py::iter_py_files varre todo .py do root fora dos diretórios excluídos — arquivos soltos na raiz (agent.py, par local do sandbox_agent/ e agora ignorado no git) entram no escopo, gastam as 3 vagas de reparo do tick e geram snapshot+no_fix por tick",
+      "amplificacao_pendente": ".od_repair_backups/ com 557 arquivos (8,8 MB) TODOS do mesmo digest c3aa9f218ecd — um snapshot por tick, sem retenção/dedup (cresce indefinidamente enquanto um arquivo quebrado estiver no escopo)",
+      "decisao": "DEDUP + RETENÇÃO de snapshots (escolha do usuário) — escopo da varredura ficou como está",
+      "correcao": "core/self_repair.py — novo `max_snapshots_per_file` (DEFAULT_MAX_SNAPSHOTS_PER_FILE=5), `_take_snapshot` com dedup por bytes idênticos (`_find_identical_snapshot`) e retenção por digest (`_prune_snapshots`); `_next_snapshot_path` corrige colisão de nome dentro do mesmo segundo (antes o snapshot anterior era sobrescrito); `dump()` expõe max_snapshots_per_file",
+      "teste": "tests/test_self_repair.py::TestSnapshotDedupERetencao (4 novos) — com o comportamento anterior restaurado os 4 falham; com a correção passam",
+      "limpeza_retroativa": "557 snapshots conferidos (3 conteúdos distintos); _prune_snapshots do engine removeu 552 e manteve os 5 mais novos (o mais novo, 13/09 15:42, preserva o estado anterior à troca do agent.py) — 8,8 MB → 116 KB",
+      "acao": "aplicado e ativo em produção (od-core reiniciado 13:24:40)"
+    }
+  },
+  "deploy_2026_09_14": {
+    "o_que": "restart do od-core para subir as duas correções de 09-14",
+    "quando": "2026-09-14 13:24:40 -03 (PID 264390)",
+    "verificacao": {
+      "health": "ok=true, 8 checks",
+      "journal_pos_restart": "Push FCM (enabled=False/credencial_ausente), RecoveryLoop (interval_s=300), ProactiveNotifier, Presence Monitor e Face Detector habilitados",
+      "prova_ao_vivo_face_presence": "13:25:09 — 'Event published | topic=face.presence | subscribers=1' e NENHUM 'Handler error'/'dead letter' depois dele (antes da correção, todo face.presence gerava 3 WARN + 1 CRIT)",
+      "recovery": "nenhum snapshot/self-repair desde o restart (nenhuma detecção — agent.py saudável)"
+    },
+    "suite": "1655 passed, 16 skipped"
+  },
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
     "action": "Aguardar a service account do Firebase em config/firebase-service-account.json (só o usuário pode gerar): validar o JSON, reiniciar o od-core, confirmar enabled=true no GET /push/devices e rodar POST /push/test com o Redmi Note 14 registrado (APK 1.2.0+5). Depois investigar os dois achados do journal (SelfRepair no_fix em agent.py e o handler face.presence com AttributeError).",
     "open": true,
     "context": "Push de ponta a ponta implementado, publicado (3b5599c) e no ar dormente: 26 endpoints, APK 1.2.0+5 em site/. O envio só sai quando a credencial existir — sem ela /push/test responde 503.",
-    "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit."
+    "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit.",
+    "estado_em_2026-09-14": "HEAD 8455493 (chore(git): tira do repositório 000/ e os arquivos de trabalho local) e `git status` limpo — nada pendente de escrita. od-core active desde 2026-09-13 15:56:17 (PID 191992). O push segue dormente: enabled=false, credencial_ausente, 0 dispositivos. A service account continua ausente em config/; o Redmi Note 14 está offline no tailnet (visto há 7h)."
   }
 }

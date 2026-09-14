@@ -14,7 +14,7 @@
 
 ---
 
-## [1.2.0] — App Android 📱 (2026-09-08 · correção de versão em 2026-09-12)
+## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12 e 2026-09-14)
 
 ### Adicionado
 
@@ -137,6 +137,40 @@ sem "[NICKY][WARN] API erro" depois do restart → zero 4xx vindos do app
 A tela Status e a instalação do APK não deixam rastro no servidor (GETs não são
 registrados e `/site` não tem log de acesso) — essas partes se apoiam no relato
 do usuário.
+
+### Corrigido (2026-09-14) — achados do journal do `od-core`
+
+Dois achados levantados no journal, cada um com teste de regressão novo:
+
+- **`face.presence` ia para dead letter a cada evento** —
+  `runtime/launcher.py::_run_vision_forever` registrava o handler como
+  `on_change(data)` e chamava `data.get("confirmed")`, mas o Event Bus entrega
+  o **`Event`** (o payload vive em `event.data`, como no resto do projeto) →
+  `AttributeError: 'Event' object has no attribute 'get'` em todas as 3
+  tentativas, seguido de _dead letter_ (09-14: 09:29:55, 09:31:17, 10:27:10 e
+  10:27:39). O handler passou a ler `event.data` com guarda de tipo — o bus
+  grava apenas o **nome** da exceção no journal, por isso o motivo só apareceu
+  na leitura do código.
+  - Regressão: `tests/test_launcher_vision.py` (novo, **4 testes**, bus real +
+    detector fake) — com o handler anterior restaurado, os 4 falham
+    reproduzindo as linhas exatas do journal.
+  - Prova em produção: depois do restart de 13:24:40, o `face.presence` real
+    das 13:25:09 (`Event published | topic=face.presence | subscribers=1`)
+    **não** gerou nenhum `Handler error` nem `dead letter`.
+- **Snapshots do SelfRepair cresciam sem limite** — `core/self_repair.py`
+  criava um `.bak` por tentativa mesmo sem mudança no arquivo: um arquivo
+  doente no escopo do `RecoveryLoop` (ciclo de 5 min) rendeu **557 snapshots,
+  8,8 MB** em ~2 dias. Agora `_take_snapshot` faz **dedup** (bytes idênticos
+  reutilizam o snapshot existente) e **retenção** por arquivo
+  (`max_snapshots_per_file`, default `5`) via `_prune_snapshots`;
+  `_next_snapshot_path` evita a colisão de nome dentro do mesmo segundo (antes
+  o snapshot anterior era sobrescrito).
+  - Regressão: `TestSnapshotDedupERetencao` em `tests/test_self_repair.py`
+    (**4 testes**) — com o comportamento anterior restaurado, os 4 falham.
+  - Limpeza retroativa: dos 557 snapshots (3 conteúdos distintos), 552 saíram
+    e os 5 mais novos ficaram → `8,8 MB → 116 KB`.
+- `od-core` reiniciado às 13:24:40 para subir as correções; `/health` ok (8
+  checks) e o `RecoveryLoop` rodando sem detecções.
 
 ### Pendente
 
