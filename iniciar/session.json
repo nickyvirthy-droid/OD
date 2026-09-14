@@ -1,7 +1,20 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-14T14:07:32-03:00",
+  "updated_at": "2026-09-14T14:12:22-03:00",
+  "docs_push_ativo_2026_09_14": {
+    "commit": "bf25a12",
+    "message": "docs: registra a ativação do push FCM em produção",
+    "push": "origin/master 19afdde..bf25a12",
+    "escopo": "5 arquivos, +379/-10 — docs/CHANGELOG.md, docs/README_VERSAO.md (nova §5 ATIVAÇÃO DO PUSH), docs/FIREBASE_SETUP.md, iniciar/session.json e iniciar/2026-09-14_conversa_omegadrakon.md",
+    "o_que_mudou": [
+      "CHANGELOG: subseção 'Ativado (2026-09-14) — push FCM em produção' + item da seção Pendente riscado",
+      "README_VERSAO: nota de que enabled=False/503 eram o estado NA ENTREGA; §3 com o item da credencial riscado ('RESOLVIDO em 2026-09-14') e o da publicação riscado (publicado em 3b5599c); §4 'CONCLUÍDO'; nova §5 com a evidência completa do E2E",
+      "FIREBASE_SETUP: 'OD envia' marcado ATIVO e validado; passo 6 com 'já instalada, só refazer se rotacionar'; aviso sobre a chave legada da aba Cloud Messaging; resultado real no teste de ponta a ponta",
+      "nenhum fragmento de segredo escrito nos documentos (a menção à chave legada é descritiva)"
+    ],
+    "correcao_de_rumo": "A varredura do staged achou fragmentos de credencial nas MINHAS notas (chave legada truncada e prefixo de access token já expirado). O usuário autorizou reescrever o commit não publicado: o commit passou de f4518b9 → 858b072 → bf25a12 até a árvore ficar limpa (git grep por AAAA.../ya29. → vazio). O f4518b9 nunca foi publicado, então não há fragmento no histórico do origin."
+  },
   "push_fcm_ativo_2026_09_14": {
     "status": "RESOLVIDO — push FCM de ponta a ponta funcionando",
     "credencial": {

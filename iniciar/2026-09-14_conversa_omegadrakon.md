@@ -388,3 +388,17 @@ está fora do git).
 
 Verificação: suíte completa **1655 passed, 16 skipped** (nenhum código alterado,
 confirmação de que só houve documentação).
+
+Rodada 10 (autorizada): publicar
+
+- **Commit `bf25a12`** — _docs: registra a ativação do push FCM em produção_
+  (5 arquivos, +379/-10) → **`origin/master 19afdde..bf25a12`**.
+- **Correção de rumo antes de publicar:** a varredura do staged pegou fragmentos
+  de credencial nas MINHAS próprias notas (um pedaço da chave legada e o prefixo
+  de um access token já expirado). O usuário autorizou **reescrever o commit
+  ainda não publicado** em vez de deixar o fragmento no histórico:
+  `f4518b9` → `858b072` → `bf25a12`, até `git grep -E "AAAAh7Tshcg|ya29\." HEAD`
+  não retornar nada. O `f4518b9` nunca chegou ao origin (o push anterior estava
+  em `19afdde`), então o histórico remoto ficou limpo.
+- Lição registrada: as notas de sessão são arquivos versionados — fragmento de
+  segredo citado em texto tem o mesmo peso de segredo em código.
