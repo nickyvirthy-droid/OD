@@ -361,3 +361,80 @@ Rodada 9 (autorizada): publicar e implantar a rota e o CHANGELOG
   - sem chave → **HTTP 401**;
   - PID estável após 60 s: `tracebacks=0, TimeoutError=0, "Loop do núcleo
     caiu"=0, "API erro"=0`.
+
+Rodada 10 (pedido do usuário): supervisão na aba Status + republicar o APK
+
+IMPLEMENTAÇÃO NO APP:
+- **`app/lib/services/od_api.dart`** — novo `getSupervision()` (`GET
+  /supervision`). Ponto importante: `ok=false` + `status=degraded` são tratados
+  como **resposta válida** (HTTP 200); só `status != 200` vira erro. Degradado
+  não é falha de requisição — o core está de pé.
+- **`app/lib/screens/status_screen.dart`** — card **"Supervisão dos loops"**
+  com estado, janela, total de reinícios e uma linha por loop
+  (`name`, `restarts`, `last_kind`, `age_s`). O carregamento vive num
+  `_loadSupervision()` com try/catch **próprio**: se a rota falhar (servidor
+  antigo), o card avisa "Supervisão dos loops indisponível" e o resto da aba
+  continua funcionando — a mesma lição do bug do `system` aninhado no APK
+  1.2.0. Sem cast: só `is` + fallback.
+- **`app/pubspec.yaml`** — `1.2.0+5 → 1.2.0+6`. O `versionCode` tinha de subir:
+  com o mesmo código o Android recusaria instalar por cima do APK anterior.
+
+TESTES DO APP (+6 → **48 passed**; era 42):
+- `od_api_test.dart`: payload saudável; **degradado como sucesso**; `!= 200`
+  lança `OdApiError`;
+- `widget_test.dart`: supervisão sem quedas; **loop caído no card**; rota
+  indisponível **sem derrubar a tela** (o `_mockApi()` ganhou a rota).
+- `flutter analyze` → sem issues.
+- TESTE DO TESTE (2 mutações, revertidas): tratando `ok=false` como erro no
+  cliente e omitindo a chamada na `_refresh()` → **4 testes falham**.
+
+APK (build 1.2.0+6):
+- Backup antes de sobrescrever: o build anterior (1.2.0+5) foi para
+  `backups/apk-v1.2.0-1005/` e o `sha256sum` bateu com o registrado na entrega
+  de 1.2.0 (`00d72011…` full, `1c5771c4…` arm64) — confirmação de que o arquivo
+  preservado é o mesmo que estava publicado.
+- Build por `app/build_apk.sh` (PATH com `/home/alex/flutter/bin` e
+  `/home/alex/jdk/bin`; `ANDROID_HOME=/home/alex/android-sdk`).
+- `aapt dump badging`: **versionName 1.2.0 / versionCode 6** (completo) e
+  **2006** (arm64).
+- Publicado em `site/OmegaDrakon.apk` (51.935.427 B, sha256 `b325ad23…`) e
+  `site/OmegaDrakon-arm64.apk` (18.518.638 B, sha256 `f3f86059…`) — origem ==
+  site conferido nos dois.
+- `GET /site/OmegaDrakon.apk` pela API → HTTP 200, **mesmo tamanho e mesmo
+  sha256** do arquivo local (o celular baixa a build nova).
+- PROVA NO BINÁRIO: o primeiro intento (`unzip -p ... | strings`) deu **0 até
+  para a string de controle** `OmegaDrakon Online` — método errado, não APK
+  errado. O correto foi `grep -ac` no APK cru:
+
+  | string | APK anterior (1005) | APK novo (1006) |
+  |---|---|---|
+  | `OmegaDrakon Online` (controle) | 1 | 1 |
+  | `supervision` | 0 | **2** |
+  | `Nenhum loop reiniciado` | 0 | **1** |
+
+  O diferencial confirma que o código novo está dentro do binário.
+- `site/index.html` continua correto ("v1.2.0 • ~18 MB • Android 7.0+") — a
+  versão não mudou, então a landing não precisou de ajuste.
+
+Estado: app aplicado e verificado em sandbox; **APK já republicado em `site/`**
+(pedido explícito do usuário); **código do app NÃO commitado** — aguarda
+autorização para publicar.
+
+Rodada 11 (autorizada): publicar o app
+
+- **Commit `4be7af9`** — _feat(app): mostra a supervisão dos loops na aba
+  Status_ (5 arquivos, +313/-1: `status_screen.dart`, `od_api.dart`,
+  `pubspec.yaml` 1.2.0+6 e os dois arquivos de teste) →
+  **`origin/master ca64d96..4be7af9`**. Varredura do staged por padrões de
+  credencial: nenhuma ocorrência.
+- **Sem restart do `od-core`**: nada de servidor mudou nesta rodada — a rota
+  `GET /supervision` já está no ar desde `05cc30e` (10:06:37). O que se distribui
+  aqui é o binário do app, já republicado em `site/`.
+- **Limpeza colateral**: minhas próprias verificações deixaram um diretório
+  `classes.dex/` (20 MB, extração de APK) na raiz do repo — conferi que só tinha
+  conteúdo de APK (`AndroidManifest.xml`, `res/`, `assets/`, `.properties`) e
+  removi. `git status` voltou a mostrar só os arquivos da entrega, e `site/*.apk`
+  e `backups/apk-*/` seguem cobertos pelo `.gitignore` (linhas 123 e 124), então
+  nenhum binário entra no histórico.
+- **O que o servidor NÃO atesta**: a instalação do APK 1.2.0+6 no Redmi Note 14
+  e o card aparecendo na aba Status — isso é confirmação do usuário.

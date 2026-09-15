@@ -2,6 +2,27 @@
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
   "updated_at": "2026-09-15T09:36:00-03:00",
+  "app_supervision_2026_09_15": {
+    "pedido": "mostrar o estado da supervisão dos loops na aba Status do app e republicar o APK",
+    "implementacao": {
+      "cliente": "app/lib/services/od_api.dart — novo getSupervision(): GET /supervision; ok=false/degraded é RESPOSTA VÁLIDA (HTTP 200), só status != 200 vira erro",
+      "tela": "app/lib/screens/status_screen.dart — card 'Supervisão dos loops' (estado, janela, reinícios e uma linha por loop com name/restarts/last_kind/age_s), carregado em _loadSupervision() com try/catch próprio: falha na rota não derruba a aba (mostra 'Supervisão dos loops indisponível'), repetindo a lição do bug do `system` aninhado do APK 1.2.0",
+      "versao": "app/pubspec.yaml 1.2.0+5 → 1.2.0+6 (versionCode tinha de subir: com o mesmo código o Android recusaria instalar por cima)"
+    },
+    "testes_app": "+6 (42 → 48): 3 em app/test/od_api_test.dart (payload saudável; degradado como sucesso; != 200 lança OdApiError) e 3 em app/test/widget_test.dart (supervisão sem quedas; loop caído no card; rota indisponível sem derrubar a tela). flutter analyze sem issues",
+    "teste_do_teste": "2 mutações: getSupervision tratando `ok=false` como erro e _refresh() sem chamar _loadSupervision() → 4 testes falham; revertidas, 48 passed",
+    "apk": {
+      "build": "app/build_apk.sh (PATH com /home/alex/flutter/bin e /home/alex/jdk/bin; ANDROID_HOME=/home/alex/android-sdk)",
+      "versao": "versionName 1.2.0 / versionCode 6 (full) e 2006 (arm64) — conferido com aapt dump badging",
+      "publicado": "site/OmegaDrakon.apk 51.935.427 B (sha256 b325ad23…) e site/OmegaDrakon-arm64.apk 18.518.638 B (sha256 f3f86059…) — origem == site conferido",
+      "backup": "backups/apk-v1.2.0-1005/ com o build anterior (sha256 00d72011… full e 1c5771c4… arm64, batendo com o registrado na entrega de 1.2.0)",
+      "servido_pela_api": "GET /site/OmegaDrakon.apk → HTTP 200, 51.935.427 B, sha256 igual ao local",
+      "prova_no_binario": "grep -ac no APK cru (o `unzip -p ... | strings` dava 0 até para a string de controle): 'supervision' 2x no NOVO e 0x no anterior; 'Nenhum loop reiniciado' 1x contra 0x; controle 'OmegaDrakon Online' 1x nos dois"
+    },
+    "landing": "site/index.html segue correto ('v1.2.0 • ~18 MB • Android 7.0+') — nada a ajustar",
+    "docs": "docs/CHANGELOG.md — nova subseção 'App republicado (2026-09-15) — supervisão na aba Status'",
+    "estado": "PUBLICADO: commit 4be7af9 (origin/master ca64d96..4be7af9) + APK 1.2.0+6 republicado em site/. Sem restart do od-core (nada de servidor mudou — o /supervision já está no ar desde 05cc30e)"
+  },
   "rota_supervision_2026_09_15": {
     "pedido": "expor o estado da supervisão dos loops numa rota da API para consulta pelo app",
     "rota": "GET /supervision (X-API-Key, como as demais rotas de dados) → {ok, status, window_s, degraded[], restarts, loops[], ts}. ok=false + status=degraded = 'loop caiu dentro da janela' (HTTP 200: o core está de pé); passada a janela volta a ok sozinho. loops[] traz name, failures, restarts, last_kind, last_error, age_s, degraded e crash_loop",
@@ -614,10 +635,8 @@
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
     "estado_em_2026_09_15": "push FCM ATIVO e de ponta a ponta (enabled=true, 1 dispositivo, sent=1) e as duas correções de 09-14 no ar e publicadas (40d2bb0/bf25a12/f53ca72). A pendência antiga do next (aguardar a service account) está RESOLVIDA — ver push_fcm_ativo_2026_09_14.",
-    "pendente_de_autorizacao": [
-      "opcional/próximo: mostrar o estado da supervisão no app (exige mexer no Flutter e republicar o APK)"
-    ],
-    "action": "Rota GET /supervision implantada (10:06:37) e publicada (05cc30e). Aguardando a escolha do usuário para o próximo passo.",
+    "pendente_de_autorizacao": [],
+    "action": "App publicado (4be7af9) e APK 1.2.0+6 em site/. Falta só o usuário instalar o APK no Redmi Note 14 e abrir a aba Status para confirmar o card (entrega no aparelho é o que o servidor não atesta).",
     "open": true,
     "context": "Push de ponta a ponta implementado, publicado (3b5599c) e no ar dormente: 26 endpoints, APK 1.2.0+5 em site/. O envio só sai quando a credencial existir — sem ela /push/test responde 503.",
     "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit.",

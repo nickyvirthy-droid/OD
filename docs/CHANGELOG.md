@@ -250,6 +250,34 @@ de código** (o que faltava era só a credencial):
   falharam com as mutações da observabilidade e 2 falharam com as mutações da
   rota (flag de auth e sinal de degradação).
 
+### App republicado (2026-09-15) — supervisão na aba Status 📱
+
+- **Aba Status** ganhou o card **"Supervisão dos loops"**: mostra se há loop
+  reiniciado (`degraded`), a janela considerada, o total de reinícios e, por
+  loop, o nome, quantos reinícios e o tipo do último erro (`TimeoutError`…).
+  Até aqui o app só sabia de um loop caído pelo Telegram/push.
+- **`OdApi.getSupervision()`** consome o `GET /supervision`; `ok=false` +
+  `status=degraded` são tratados como **resposta válida** (HTTP 200) — o core
+  está de pé, e a tela mostra o loop caído em vez de erro de rede.
+- **Best-effort:** falha na rota não derruba a aba — o card avisa "Supervisão
+  dos loops indisponível" e o resto da tela continua (a lição do bug do
+  `system` aninhado no APK 1.2.0).
+- **APK 1.2.0+6** (versionCode 1006/2006/4006) publicado em
+  `site/OmegaDrakon.apk` (51.935.427 B) e `site/OmegaDrakon-arm64.apk`
+  (18.518.638 B), com sha256 origem == site (`b325ad23…` full · `f3f86059…`
+  arm64); o build anterior (**1.2.0+5**) foi preservado em
+  `backups/apk-v1.2.0-1005/`. O `versionCode` subiu de propósito: com o mesmo
+  código o Android recusa instalar por cima do anterior.
+- **Testes do app:** `flutter analyze` sem issues · `flutter test` →
+  **48 passed** (42 na entrega anterior; +6: 3 do cliente de API e 3 de
+  widget). Teste do teste: tratando `degraded` como erro e omitindo a chamada
+  na `_refresh()`, **4 testes falham**.
+- **Verificação do binário:** a string `supervision` aparece **2x** no APK novo
+  e **0x** no anterior, e `Nenhum loop reiniciado` **1x** contra **0x** —
+  diferencial que confirma que o código novo está no binário (a string de
+  controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
+  novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
+
 ### Pendente
 
 - ~~Gerar a **service account** no console do Firebase e gravá-la em
