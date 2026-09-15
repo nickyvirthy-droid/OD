@@ -231,6 +231,20 @@ class TestHAClient:
         with pytest.raises(HAError, match="401"):
             self._client().get_state("light.sala")
 
+    def test_read_timeout_raises_ha_error(self, monkeypatch) -> None:
+        """TimeoutError na leitura vira HAError (contrato do cliente).
+
+        Regressão (2026-09-15): só HTTPError/URLError eram envolvidos; um
+        timeout no socket da resposta escapava cru — mesma causa das quedas
+        do Telegram em 2026-09-13/15.
+        """
+        fake_urlopen(
+            monkeypatch,
+            raise_error=TimeoutError("The read operation timed out"),
+        )
+        with pytest.raises(HAError, match="leitura"):
+            self._client().get_state("light.sala")
+
     def test_list_states(self, monkeypatch) -> None:
         body = json.dumps(
             [

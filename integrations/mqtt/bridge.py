@@ -358,7 +358,17 @@ class MQTTBridge:
             if not self.connect():
                 await asyncio.sleep(self.config.reconnect_delay_s)
                 continue
-            await self.poll_once()
+            try:
+                await self.poll_once()
+            except Exception as exc:  # pragma: no cover — ciclo nunca morre
+                # Um erro inesperado do ciclo não pode encerrar a ponte: este
+                # loop roda dentro do `asyncio.gather` do launcher, e a
+                # exceção subiria derrubando o core inteiro (2026-09-15).
+                self._last_error = f"poll: {exc}"
+                self.metrics.errors += 1
+                log.error(
+                    "Ciclo da ponte MQTT falhou", error=type(exc).__name__
+                )
             polls += 1
             if max_polls is not None and polls >= max_polls:
                 break

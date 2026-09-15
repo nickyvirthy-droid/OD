@@ -67,7 +67,7 @@ import pathlib
 import sys
 import threading
 import time
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from core.event_bus import EventBus
 from core.logger import get_logger
@@ -867,6 +867,46 @@ async def _run_presence_forever(monitor: Any) -> None:
     await monitor.run()
 
 
+async def _supervise(
+    name: str,
+    factory: Callable[[], Awaitable[None]],
+    *,
+    restart: bool = True,
+    delay_s: float = 5.0,
+) -> None:
+    """Roda um loop do núcleo isolado: a morte dele não derruba o processo.
+
+    O `asyncio.gather(*tasks)` do modo all propaga qualquer exceção de
+    qualquer task — foi por isso que um timeout de rede do Telegram derrubou o
+    core INTEIRO 89 vezes entre 2026-09-13 e 2026-09-15 (o systemd reiniciava
+    o serviço a cada queda, ~10 s fora do ar). Aqui a exceção fica contida, é
+    registrada e, se o loop for reiniciável, ele volta com espera; os outros
+    loops nunca param.
+
+    Args:
+        name:     Rótulo do loop no log (api, telegram, mqtt, presence...).
+        restart:  False para loops que não podem ser recriados — a API sobe o
+                  servidor HTTP no primeiro build, então recriá-la conflita
+                  na porta.
+        delay_s:  Espera antes de reiniciar (evita laço quente).
+    """
+    while True:
+        try:
+            await factory()
+        except asyncio.CancelledError:  # pragma: no cover — shutdown normal
+            raise
+        except Exception as exc:  # pragma: no cover — loop quebrou
+            log.error(
+                "Loop do núcleo caiu",
+                loop=name, error=type(exc).__name__, detail=str(exc),
+            )
+        else:  # pragma: no cover — loop retornou sozinho
+            log.warn("Loop do núcleo retornou", loop=name)
+        if not restart:
+            return
+        await asyncio.sleep(delay_s)
+
+
 def _mask_dsn(dsn: str) -> str:
     """Mascara a senha de um DSN para logs (nunca expor credencial)."""
     try:
@@ -948,19 +988,23 @@ def main() -> int:
     async def _all() -> None:
         # Event Bus único da entrega (bridge MQTT ↔ núcleo)
         event_bus = EventBus()
+        # Cada loop vai supervisionado: um que cai sozinho não pode levar o
+        # core junto (o gather propaga a exceção de qualquer task).
         tasks = [
-            _run_api_forever(
+            _supervise("api", lambda: _run_api_forever(
                 orchestrator, metrics, health,
                 action_registry=action_registry, push=push,
-            ),
-            _run_telegram_forever(
+            ), restart=False),
+            _supervise("telegram", lambda: _run_telegram_forever(
                 orchestrator,
                 action_registry=action_registry,
                 auto_extension=auto_extension,
-            ),
+            )),
         ]
         if recovery is not None:
-            tasks.append(_run_recovery_forever(recovery))
+            tasks.append(
+                _supervise("recovery", lambda: _run_recovery_forever(recovery))
+            )
             log.info("RecoveryLoop habilitado (percepção + auto-reparo)")
         notifier = build_notifier(
             orchestrator,
@@ -976,13 +1020,23 @@ def main() -> int:
             register_external_health_checks(
                 health, homeassistant=presence_monitor, mqtt=bridge
             )
-            tasks.append(_run_mqtt_forever(bridge))
+            tasks.append(
+                _supervise("mqtt", lambda: _run_mqtt_forever(bridge))
+            )
             log.info("Ponte MQTT habilitada (od-core)")
         if presence_monitor is not None:
-            tasks.append(_run_presence_forever(presence_monitor))
+            tasks.append(
+                _supervise(
+                    "presence", lambda: _run_presence_forever(presence_monitor)
+                )
+            )
             log.info("Presence Monitor habilitado (od-core)")
         if face_detector is not None:
-            tasks.append(_run_vision_forever(event_bus, face_detector))
+            tasks.append(
+                _supervise(
+                    "vision", lambda: _run_vision_forever(event_bus, face_detector)
+                )
+            )
             log.info("Face Detector habilitado (od-core)")
         await asyncio.gather(*tasks)
 

@@ -304,6 +304,28 @@ class TestPresencePersistence:
         assert ticks == 3
         assert monitor.metrics.snapshot()["polls"] == 3
 
+    @pytest.mark.asyncio
+    async def test_run_survives_unexpected_tick_error(self) -> None:
+        """Falha inesperada do ciclo não derruba o monitor (nem o core).
+
+        Regressão (2026-09-15): o `run()` chamava `tick()` sem proteção — o
+        tick já trata a leitura do HA, mas I/O de estado, sink assíncrono e
+        bus ficavam de fora, e a exceção subiria pelo gather do launcher.
+        """
+        monitor = _monitor(InMemoryHAServer())
+        original = monitor.tick
+        calls: list[int] = []
+
+        async def boom():
+            calls.append(1)
+            if len(calls) == 1:
+                raise TimeoutError("The read operation timed out")
+            return await original()
+
+        monitor.tick = boom  # type: ignore[method-assign]
+        assert await monitor.run(interval=0.001, max_ticks=3) == 3
+        assert monitor.metrics.errors >= 1
+
 
 class TestPresenceIntrospection:
     @pytest.mark.asyncio

@@ -367,7 +367,16 @@ class FaceDetector:
         pause = interval if interval is not None else self.config.poll_interval_s
         ticks = 0
         while not self._closed:
-            await self.tick()
+            try:
+                await self.tick()
+            except Exception as exc:  # pragma: no cover — ciclo nunca morre
+                # A captura já trata a webcam; isto cobre detecção (cv2) e
+                # publicação no bus. Sem esta rede o loop subiria pelo
+                # `asyncio.gather` do launcher e mataria o core.
+                self.metrics.errors += 1
+                log.error(
+                    "Ciclo do face detector falhou", error=type(exc).__name__
+                )
             ticks += 1
             if max_ticks is not None and ticks >= max_ticks:
                 break

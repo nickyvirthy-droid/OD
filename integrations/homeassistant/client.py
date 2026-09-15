@@ -103,6 +103,13 @@ class HAClient:
             ) from exc
         except urllib.error.URLError as exc:
             raise HAError(f"Home Assistant indisponível: {exc}") from exc
+        except OSError as exc:
+            # TimeoutError/ConnectionResetError na LEITURA da resposta não
+            # passam pelo URLError (mesma causa das quedas do Telegram em
+            # 2026-09-13/15). O contrato deste cliente é levantar HAError.
+            raise HAError(
+                f"Home Assistant falhou na leitura: {type(exc).__name__}: {exc}"
+            ) from exc
         if not raw:
             return []
         try:

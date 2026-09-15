@@ -675,6 +675,30 @@ class TestBridgeLifecycle:
             bridge.disconnect()
             broker.stop()
 
+    @pytest.mark.asyncio
+    async def test_run_survives_unexpected_poll_error(self, monkeypatch) -> None:
+        """Erro inesperado no ciclo não encerra a ponte (nem o core).
+
+        Regressão (2026-09-15): o `run()` chamava `poll_once()` sem
+        proteção — a exceção subiria pelo gather do launcher e derrubaria o
+        processo inteiro, como aconteceu com o timeout do Telegram.
+        """
+        bridge = MQTTBridge(
+            MQTTClient("127.0.0.1", 1, client_id="od"), config=bridge_config()
+        )
+        calls: list[int] = []
+
+        async def boom(timeout=None):
+            calls.append(1)
+            if len(calls) == 1:
+                raise TimeoutError("The read operation timed out")
+            return None
+
+        monkeypatch.setattr(bridge, "connect", lambda: True)
+        monkeypatch.setattr(bridge, "poll_once", boom)
+        assert await bridge.run(max_polls=3) == 3
+        assert bridge.metrics.errors >= 1
+
     def test_start_stop_thread(self) -> None:
         broker = InMemoryBroker().start()
         bridge = MQTTBridge(

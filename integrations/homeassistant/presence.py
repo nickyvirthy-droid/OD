@@ -301,7 +301,17 @@ class PresenceMonitor:
         pause = interval if interval is not None else self.config.poll_interval_s
         ticks = 0
         while not self._closed:
-            await self.tick()
+            try:
+                await self.tick()
+            except Exception as exc:  # pragma: no cover — ciclo nunca morre
+                # O tick já trata a leitura do HA; isto cobre o resto (I/O do
+                # estado, sink assíncrono, bus). Sem esta rede o loop subiria
+                # pelo `asyncio.gather` do launcher e mataria o core.
+                with self._lock:
+                    self.metrics.errors += 1
+                log.error(
+                    "Ciclo de presença falhou", error=type(exc).__name__
+                )
             ticks += 1
             if max_ticks is not None and ticks >= max_ticks:
                 break

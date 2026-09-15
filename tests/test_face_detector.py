@@ -316,6 +316,31 @@ class TestLoopAndIntrospection:
         ticks = await detector.run(interval=0.001, max_ticks=3)
         assert ticks == 3
 
+    @pytest.mark.asyncio
+    async def test_run_survives_unexpected_tick_error(self, monkeypatch) -> None:
+        """Falha inesperada do ciclo não derruba o detector (nem o core).
+
+        Regressão (2026-09-15): o `run()` chamava `tick()` sem proteção — a
+        captura já trata a webcam, mas a detecção (cv2) e a publicação no bus
+        ficavam de fora, e a exceção subiria pelo gather do launcher.
+        """
+        detector = _detector(
+            capture=_capture_frame(synthetic_frame()),
+            config=FaceConfig(captures_enabled=False),
+        )
+        original = detector.tick
+        calls: list[int] = []
+
+        async def boom():
+            calls.append(1)
+            if len(calls) == 1:
+                raise TimeoutError("The read operation timed out")
+            return await original()
+
+        monkeypatch.setattr(detector, "tick", boom)
+        assert await detector.run(interval=0.001, max_ticks=3) == 3
+        assert detector.metrics.errors >= 1
+
     def test_start_stop_thread(self) -> None:
         detector = _detector(
             capture=_capture_frame(synthetic_frame()),
