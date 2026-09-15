@@ -1,7 +1,19 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-15T10:26:00-03:00",
+  "updated_at": "2026-09-15T10:40:00-03:00",
+  "ruido_handle_error_2026_09_15": {
+    "pedido": "reduzir o ruído dos tracebacks do http.server (achado 2 da checagem dos loops)",
+    "causa": "o handle_error herdado do socketserver imprime o traceback inteiro no stderr do processo quando o cliente aborta a conexão no meio do request — rotina (app Android sem rede, navegador fechando aba, health check com timeout). No journal do systemd isso vira ruído que esconde erro de verdade (foram os 2 ConnectionResetError de 10:14:41)",
+    "correcao": "integrations/api/server.py::APIServer.handle_error sobrescrito: se a exceção é ConnectionError (cobre Reset/BrokenPipe/Aborted) ou TimeoutError → log.debug de UMA linha ('Cliente desconectou durante o request | peer=… | error=…'), sem stack; qualquer outro erro continua em log.warn ('Erro inesperado ao atender request'). Instância None (sem exceção no sys.exc_info) também cai no ramo de debug",
+    "por_que_nao_perde_diagnostico": "os erros dos handlers já são tratados em APIHandler._handle: APIError → status proprio + log.warn('API erro'); Exception → 500 + log.error('API interna') + BrokenPipeError/ConnectionResetError da resposta são engolidos. Então o que chega ao handle_error é falha de socket, não bug de handler",
+    "testes": "+3 em tests/test_api.py::TestHandleErrorDoServidor: (1) handle_error está em APIServer.__dict__ e não é o do socketserver.BaseServer; (2) caminho REAL — socket abortado com RST durante uma request incompleta: espera o registro de debug aparecer (sem isso a ausência de traceback passaria por acidente) e confere 'Traceback' ausente do stderr capturado por capfd; (3) RuntimeError continua em WARN (o silenciamento é só para desconexão)",
+    "nota_de_teste": "capfd e não capsys porque o logger escreve no stream que capturou na criação — só a captura por file descriptor enxerga os dois sinks",
+    "teste_do_teste": "mutação A: handle_error loga o debug E delega ao super() → só o teste (2) falha, no assert do traceback (prova que o assert é o pino real); mutação B: renomear o método (deixa de sobrescrever) → os 3 falham. Revertidas",
+    "suite": "1689 passed, 16 skipped (1686 + 3)",
+    "nao_escopo": "runtime/control_bridge/bridge.py também cria um ThreadingHTTPServer (bridge local) e tem o mesmo handle_error herdado — NÃO tocado; candidato se o ruído aparecer no journal do bridge",
+    "estado": "aplicado e verificado em sandbox; NÃO implantado e NÃO commitado — aguarda autorização (regra 12)"
+  },
   "checagem_loops_2026_09_15": {
     "pedido": "verificar no journal se algum loop caiu ou foi reiniciado desde o deploy, e conferir /health e /supervision",
     "resultado": "NENHUM loop caído ou reiniciado desde o boot de 10:01:22 — /supervision {ok:true, status:up, degraded:[], restarts:0, loops:[]}; journal desde 10:01: no 'Loop do núcleo caiu', TimeoutError, 'Main process exited' e 'Transporte indisponível' todos em 0; systemd NRestarts=0. /health (com a chave) → ok=true, status=up, 9 checks todos ok, incluindo o novo 'loops' com detail 'nenhum loop supervisionado registrado'",

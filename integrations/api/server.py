@@ -35,6 +35,7 @@ import json
 import mimetypes
 import os
 import re
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -444,6 +445,47 @@ class APIServer(ThreadingHTTPServer):
                 "Erros respondidos pela API REST.",
             )
         super().__init__((self.config.host, self.config.port), APIHandler)
+
+    # -- Ruído de desconexão de cliente --------------------------------------
+    #
+    # O `handle_error` herdado do socketserver imprime o traceback inteiro no
+    # stderr do processo quando um cliente aborta a conexão no meio do request
+    # — e isso é rotina: app Android perdendo rede, navegador fechando a aba,
+    # health check que estoura o timeout. No journal do systemd esse traceback
+    # vira ruído que esconde erro de verdade (foi o que aconteceu em
+    # 2026-09-15 10:14:41, com dois `ConnectionResetError` de um peer do
+    # tailnet). Aqui a desconexão vira UMA linha de debug, sem stack.
+    #
+    # O que NÃO é desconexão continua avisando no nível WARN — e nada de
+    # diagnóstico se perde: os erros dos handlers já são tratados em
+    # `APIHandler._handle` (APIError → status próprio; Exception → 500 +
+    # log.error), então o que chega aqui é falha de socket.
+    _CLIENT_GONE_ERRORS = (
+        ConnectionError,  # cobre Reset/BrokenPipe/Aborted
+        TimeoutError,
+    )
+
+    def handle_error(self, request, client_address) -> None:
+        """Contém o erro de um request sem poluir o journal (ver acima)."""
+        exc = sys.exc_info()[1]
+        peer = (
+            f"{client_address[0]}:{client_address[1]}"
+            if isinstance(client_address, tuple)
+            else str(client_address)
+        )
+        if exc is None or isinstance(exc, self._CLIENT_GONE_ERRORS):
+            log.debug(
+                "Cliente desconectou durante o request",
+                peer=peer,
+                error=type(exc).__name__ if exc is not None else "unknown",
+            )
+            return
+        log.warn(
+            "Erro inesperado ao atender request",
+            peer=peer,
+            error=type(exc).__name__,
+            detail=str(exc)[:200],
+        )
 
     # -- Métricas internas ---------------------------------------------------
 

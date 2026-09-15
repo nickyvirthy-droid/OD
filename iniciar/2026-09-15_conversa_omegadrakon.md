@@ -559,3 +559,41 @@ regressão — é o `auth_all` intencional
 acima usaram a chave.
 
 Estado: nada de produção alterado; só `session.json` e esta transcrição.
+
+Rodada 15 (autorizada): matar o ruído do handle_error
+
+- O usuário autorizou a melhoria proposta no achado 2. Implementada em
+  `integrations/api/server.py`:
+  - `APIServer.handle_error` sobrescrito. Exceção de **desconexão**
+    (`ConnectionError`, que cobre `ConnectionResetError`/`BrokenPipeError`/
+    `ConnectionAbortedError`, mais `TimeoutError`) → uma linha de **DEBUG**
+    (`Cliente desconectou durante o request | peer=… | error=…`), sem stack;
+    **qualquer outro erro** continua em **WARN** (`Erro inesperado ao atender
+    request`). Assim o silenciamento não esconde defeito de verdade.
+- Não se perde diagnóstico: os erros dos handlers já são tratados em
+  `APIHandler._handle` (`APIError` → status próprio; `Exception` → 500 +
+  `log.error`; `BrokenPipeError`/`ConnectionResetError` da resposta são
+  engolidos). O que chega ao `handle_error` é falha de **socket**.
+- TESTES (+3, em `tests/test_api.py::TestHandleErrorDoServidor`):
+  1. `handle_error` está em `APIServer.__dict__` e **não** é o do
+     `socketserver.BaseServer` — pino que falha se alguém remover o override;
+  2. caminho **real**: socket abortado com `SO_LINGER` (RST) durante uma request
+     incompleta. O teste **espera o registro de debug aparecer** antes de
+     conferir o stderr — sem esse passo a "ausência de traceback" passaria por
+     acidente, sem nada ter sido processado;
+  3. `RuntimeError` continua em WARN (prova que o silenciamento é seletivo).
+- Nota de método: a captura é por `capfd` e não `capsys`, porque o logger
+  escreve no stream que capturou na **criação** — só a captura por file
+  descriptor enxerga os dois sinks (o do logger e o `print(file=sys.stderr)` do
+  `handle_error` padrão).
+- TESTE DO TESTE (2 mutações, revertidas):
+  - mutação A — `handle_error` loga o debug **e** delega ao `super()`: só o
+    teste (2) falha, exatamente no assert do traceback (o assert é o pino real);
+  - mutação B — renomear o método (deixa de sobrescrever): os **3** falham.
+- Suíte completa: **1689 passed, 16 skipped** (1686 + 3).
+- Fora de escopo, registrado: `runtime/control_bridge/bridge.py` também cria um
+  `ThreadingHTTPServer` (o bridge local) e tem o mesmo `handle_error` herdado —
+  não foi tocado. Candidato a correção se o ruído aparecer no journal do bridge.
+
+Estado: aplicado e verificado em sandbox; **NÃO implantado e NÃO commitado** —
+aguarda autorização (regra 12).

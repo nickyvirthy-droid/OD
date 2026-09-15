@@ -1210,3 +1210,94 @@ class TestAPISupervision:
         )
         assert status == 200
         assert _json_response((status, body, _h))["ok"] is True
+
+
+class TestHandleErrorDoServidor:
+    """Desconexão de cliente não pode virar traceback no journal.
+
+    Regressão do ruído observado em produção (2026-09-15 10:14:41): o
+    `handle_error` herdado do socketserver imprime o traceback inteiro no
+    stderr quando um cliente aborta a conexão no meio do request. O app
+    Android perdendo rede faz isso, e no journal do systemd o traceback
+    esconde erro de verdade.
+    """
+
+    def _log(self):
+        from core.logger import get_logger
+
+        return get_logger("omega.integrations.api")
+
+    def test_override_substitui_o_do_socketserver(self, serve) -> None:
+        import socketserver
+
+        assert "handle_error" in APIServer.__dict__
+        assert APIServer.handle_error is not socketserver.BaseServer.handle_error
+
+    def test_desconexao_vira_debug_sem_traceback(self, serve, capfd) -> None:
+        """Exercita o caminho real: socket abortado com RST durante o request.
+
+        `capfd` (e não `capsys`) porque o logger escreve no stream que capturou
+        na criação — só a captura por file descriptor enxerga os dois sinks.
+        """
+        import socket
+        import struct
+        import time
+
+        srv = serve()
+        log = self._log()
+        nivel_antigo = log.level
+        log.set_level("DEBUG")
+        log.clear_records()
+        try:
+            sock = socket.create_connection(
+                ("127.0.0.1", srv.bound_port), timeout=5
+            )
+            sock.sendall(b"GET /health HTTP/1.1\r\n")  # request incompleta
+            # SO_LINGER zerado manda RST no close: aborta em vez de fechar.
+            sock.setsockopt(
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+            )
+            sock.close()
+
+            # Espera o thread de request tratar a desconexão. Sem isso a
+            # ausência de traceback passaria por acidente (nada processado).
+            prazo = time.time() + 5
+            registros: list = []
+            while time.time() < prazo:
+                registros = [
+                    r for r in log.records
+                    if r.message == "Cliente desconectou durante o request"
+                ]
+                if registros:
+                    break
+                time.sleep(0.05)
+        finally:
+            log.set_level(nivel_antigo)
+
+        assert registros, "o handle_error não tratou a desconexão"
+        [registro] = registros
+        assert registro.level_name == "DEBUG"
+        assert registro.context["peer"].startswith("127.0.0.1:")
+        assert registro.context["error"] == "ConnectionResetError"
+        assert "Traceback" not in capfd.readouterr().err
+
+    def test_erro_que_nao_e_desconexao_continua_avisando(
+        self, serve, capfd
+    ) -> None:
+        """O silenciamento é só para desconexão — defeito de verdade continua
+        aparecendo (é o risco de tratar todo erro como ruído)."""
+        srv = serve()
+        log = self._log()
+        log.clear_records()
+        try:
+            raise RuntimeError("falha interna")
+        except RuntimeError:
+            srv.handle_error(None, ("127.0.0.1", 43210))
+
+        registros = [
+            r for r in log.records
+            if r.message == "Erro inesperado ao atender request"
+        ]
+        assert len(registros) == 1
+        assert registros[0].level_name == "WARN"
+        assert registros[0].context["error"] == "RuntimeError"

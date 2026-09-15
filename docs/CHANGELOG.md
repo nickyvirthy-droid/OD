@@ -222,6 +222,18 @@ de código** (o que faltava era só a credencial):
   derrubar o processo; a API entra com `restart=False`, porque recriar o
   servidor conflita na porta 8000). Commit **`0c5b9d8`**;
   `tests/test_launcher_supervisor.py` é novo.
+- **Traceback de cliente desconectado poluía o journal.** O `handle_error`
+  herdado do `socketserver` imprime o traceback inteiro no stderr do processo
+  quando um cliente aborta a conexão no meio do request — e isso é rotina (app
+  Android perdendo rede, navegador fechando a aba, health check com timeout):
+  em 2026-09-15 10:14:41 o journal ganhou dois `ConnectionResetError` de um peer
+  do tailnet, ruído que esconde erro de verdade. O `APIServer` passou a
+  sobrescrever `handle_error`: **desconexão** vira uma linha de **DEBUG** sem
+  stack, e erro que **não** é desconexão continua aparecendo em **WARN**. Nada
+  de diagnóstico se perde — os erros dos handlers já são tratados em
+  `APIHandler._handle` (`APIError` → status próprio; `Exception` → 500 +
+  `log.error`), então o que chega ali é falha de socket. +3 testes em
+  `tests/test_api.py` (um deles aborta um socket com RST de verdade).
 
 ### Adicionado (2026-09-15) — supervisão dos loops visível 🔍
 
@@ -245,10 +257,10 @@ de código** (o que faltava era só a credencial):
   `ok=false` + `status=degraded` significam "loop caiu dentro da janela" (o core
   segue de pé, HTTP 200); passada a janela volta a ok. A raiz (`GET /`) passou a
   reportar **27 endpoints**.
-- **Testes:** **1686 passed, 16 skipped** (1683 na observabilidade + 3 do
-  endpoint novo), com teste do teste nas duas rodadas — 15 de 18 testes-alvo
-  falharam com as mutações da observabilidade e 2 falharam com as mutações da
-  rota (flag de auth e sinal de degradação).
+- **Testes:** **1689 passed, 16 skipped**, com teste do teste nas três rodadas —
+  15 de 18 testes-alvo falharam com as mutações da observabilidade, 2 falharam
+  com as mutações da rota (flag de auth e sinal de degradação) e 3 falharam com
+  as mutações do `handle_error` (delegar ao `socketserver` e renomear o método).
 
 ### App republicado (2026-09-15) — supervisão na aba Status 📱
 
