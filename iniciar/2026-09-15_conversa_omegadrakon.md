@@ -292,7 +292,9 @@ Rodada 7 (autorizada): publicar e implantar o alerta
   `tests/test_supervision.py` são novos) → **`origin/master d06f44b..fc2abe0`**.
   Varredura do staged por padrões de credencial: nenhuma ocorrência.
 - **Deploy**: `systemctl --user restart od-core` → **active desde 2026-09-15
-  09:58:16** (PID 307723).
+  09:55:09** (PID 307723). *(Corrigido na rodada 14: eu havia registrado
+  09:58:16, que era a hora do meu comando de verificação e não o start do
+  serviço.)*
 - Verificação ao vivo:
   - `/health` → `ok=true, status=up` com **9 checks**; o novo `loops` aparece
     como não-crítico e ok: `{ok: true, status: "up", detail: "nenhum loop
@@ -352,7 +354,9 @@ Rodada 9 (autorizada): publicar e implantar a rota e o CHANGELOG
   loops do núcleo_ (2 arquivos, +99/-2) → **`origin/master 454967f..05cc30e`**.
   Varredura do staged por padrões de credencial: nenhuma ocorrência.
 - **Deploy**: `systemctl --user restart od-core` → **active desde 2026-09-15
-  10:06:37** (PID 309583).
+  10:01:22** (PID 309583). *(Corrigido na rodada 14: eu havia registrado
+  10:06:37, que era a hora do meu comando de verificação e não o start do
+  serviço.)*
 - Verificação ao vivo:
   - `GET /` → `version=1.2.0`, **`endpoints=27`**;
   - `GET /supervision` com a chave →
@@ -428,7 +432,7 @@ Rodada 11 (autorizada): publicar o app
   **`origin/master ca64d96..4be7af9`**. Varredura do staged por padrões de
   credencial: nenhuma ocorrência.
 - **Sem restart do `od-core`**: nada de servidor mudou nesta rodada — a rota
-  `GET /supervision` já está no ar desde `05cc30e` (10:06:37). O que se distribui
+  `GET /supervision` já está no ar desde `05cc30e` (10:01:22). O que se distribui
   aqui é o binário do app, já republicado em `site/`.
 - **Limpeza colateral**: minhas próprias verificações deixaram um diretório
   `classes.dex/` (20 MB, extração de APK) na raiz do repo — conferi que só tinha
@@ -494,3 +498,64 @@ Rodada 13 (autorizada): publicar o teste do contrato
 - **Sem restart do `od-core`** e **sem rebuild do APK**: nada de servidor e
   nada de código de produção do app mudou — só teste, fixture e documentação.
   O binário em `site/` continua sendo o 1.2.0+6 de 10:16.
+
+Rodada 14: checar loops caídos no journal + /health e /supervision
+
+Verificação ao vivo, sem alterar nada:
+
+- **Nenhum loop caído nem reiniciado desde o boot.** `/supervision` (com a
+  chave) → `{ok: true, status: "up", degraded: [], restarts: 0, loops: []}`.
+  No journal desde 10:01: **0** em `Loop do núcleo caiu`, `TimeoutError`,
+  `Main process exited` e `Transporte indisponível`; `NRestarts=0` no systemd.
+- `/health` (com a chave) → `ok=true, status=up`, **9 checks, todos ok**,
+  incluindo o novo `loops`: `nenhum loop supervisionado registrado`. É o estado
+  esperado — a lista vazia quer dizer que nada caiu desde o boot.
+
+ACHADO 1 — ERRO MEU NOS HORÁRIOS DE DEPLOY (corrigido):
+
+- Os horários que registrei nas **duas últimas** rodadas estavam errados: eu
+  anotei a hora do meu próprio comando de verificação (depois da cadeia de
+  `sleep`), não o start real do serviço. Fonte da verdade:
+  `systemctl show od-core -p ExecMainStartTimestamp` e a linha
+  `Started od-core.service` do journal.
+
+  | deploy | registrei | real (systemd) | PID |
+  |---|---|---|---|
+  | alerta de loop | 09:58:16 | **09:55:09** | 307723 ✓ |
+  | rota /supervision | 10:06:37 | **10:01:22** | 309583 ✓ |
+  | fix do Telegram | 09:40:29 | 09:40:29 | 303744 ✓ |
+  | auditoria dos loops | 09:48:05 | 09:48:05 | 305298 ✓ |
+
+  Corrigido no `session.json` e nesta transcrição. Os PIDs estavam certos em
+  todos; só a hora de dois deles estava — e o erro era de método, não de
+  observação.
+
+ACHADO 2 — 2 tracebacks que NÃO são queda de core:
+
+- Em 10:14:41 o journal tem dois `Traceback` com
+  `ConnectionResetError: [Errno 104] Connection reset by peer`, estourando
+  dentro do thread de request do `socketserver`/`http.server`. O peer
+  `100.80.224.73` (tailnet) abortou duas conexões.
+- Fica **contido no thread por request**: não passa pelo `asyncio.gather`, não
+  toca loop nenhum e não pode derrubar o core — o próprio `Main process
+  exited=0` confirma. É **ruído** no journal, porque o `handle_error` padrão do
+  `http.server` imprime o traceback inteiro.
+- **Não corrigi** (não foi pedido e mexe no servidor): a melhoria possível é
+  sobrescrever `handle_error` para logar em nível debug em vez de despejar
+  traceback.
+
+ACHADO 3 — o celular está falando com o servidor, mas isso não atesta o card:
+
+- 10:14:48 — `Dispositivo registrado para push | token=d8Xhaf…Vj_0 |
+  platform=android`, o **mesmo** token de 09-14 (13:40, 18:29, 18:31). Sem
+  token novo, **não há sinal de reinstalação**.
+- O servidor não registra qual build está instalada nem loga `GET /supervision`
+  — então continuo **sem poder atestar** que o card aparece na tela.
+
+Nota de contrato: `GET /` e `/health` devolvem **HTTP 401 sem a chave**. Não é
+regressão — é o `auth_all` intencional
+(`runtime/launcher.py:207`, `OD_API_AUTH_ALL` default `1`: bind na LAN exige
+`X-API-Key` em todos os endpoints, exceto shells de página). As verificações
+acima usaram a chave.
+
+Estado: nada de produção alterado; só `session.json` e esta transcrição.
