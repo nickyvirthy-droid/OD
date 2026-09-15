@@ -2,6 +2,16 @@
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
   "updated_at": "2026-09-15T09:36:00-03:00",
+  "fix_timeout_telegram_2026_09_15": {
+    "achado": "o defeito latente do journal NÃO era caso isolado: 89 quedas do od-core desde 2026-09-13, TODAS com 'TimeoutError: The read operation timed out' — 85 em 09-13 entre 02:53 e 07:25 (crash loop de ~4,5h, restart counter chegou a 99), 3 em 09-14 (14:56, 15:40, 16:06) e 1 em 09-15 05:10:29. Cada queda derruba o core INTEIRO (API, recovery, presença, MQTT, push) por ~10s até o systemd reiniciar; o serviço só está de pé desde 05:10:40 porque a janela de rede ruim passou",
+    "causa_raiz": "integrations/telegram/transport.py::HTTPTransport — as três chamadas de rede (_call, send_voice, fetch_file) só envolviam HTTPError/URLError. TimeoutError/ConnectionResetError/ssl.SSLError que estouram na LEITURA da resposta NÃO passam pelo URLError (o urllib só envolve falhas de conexão), então subiam cruas: bot.run() só tolera TransportError → _run_telegram_forever → asyncio.gather em launcher._all (sem return_exceptions) → SystemExit → systemd reinicia",
+    "correcao": "catch de OSError (cobre TimeoutError, ConnectionResetError e ssl.SSLError) nos três pontos, convertendo em TransportError — a camada de transporte volta a cumprir o contrato que o bot já trata com backoff ('Transporte indisponível — aguardando...')",
+    "testes": "tests/test_telegram.py +3: test_call_read_timeout_becomes_transport_error, test_fetch_file_read_timeout_becomes_transport_error e test_run_survives_read_timeout (polling com HTTPTransport real: o 1º getUpdates estoura timeout e o bot segue e processa o update seguinte)",
+    "teste_do_teste": "com o transporte antigo restaurado (git stash só da correção), os 3 testes FALHAM — o de polling com exatamente 'TimeoutError: The read operation timed out' escapando do bot.run(), a assinatura do journal; com a correção, 80 passed em tests/test_telegram.py",
+    "suite": "1658 passed, 16 skipped (1655 + 3 novos)",
+    "estado": "aplicado e verificado em sandbox (suite); NÃO implantado no sistema real e NÃO commitado — aguarda autorização",
+    "recomendacao_adicional": "launcher._all usa asyncio.gather(*tasks) sem return_exceptions: qualquer task que morra derruba o core inteiro por design. Vale decidir depois se cada loop deve ser isolado (task supervisionada) em vez de matar o processo"
+  },
   "retomada_2026_09_15": {
     "entrada": "usuário: \"leia iniciar\"",
     "leu": "iniciar/README.md, iniciar/RULES.md, iniciar/session.json (521 linhas), iniciar/2026-09-13_conversa_omegadrakon.md e iniciar/2026-09-14_conversa_omegadrakon.md (íntegra, rodadas 1 a 11)",
@@ -525,9 +535,11 @@
   "next": {
     "estado_em_2026_09_15": "push FCM ATIVO e de ponta a ponta (enabled=true, 1 dispositivo, sent=1) e as duas correções de 09-14 no ar e publicadas (40d2bb0/bf25a12/f53ca72). A pendência antiga do next (aguardar a service account) está RESOLVIDA — ver push_fcm_ativo_2026_09_14.",
     "pendente_de_autorizacao": [
-      "defeito latente: falha de rede do Telegram (transport._call em getUpdates) derruba o processo inteiro do core (asyncio.gather em launcher._all propaga → SystemExit). Não corrigido — depende de prioridade do usuário"
+      "implantar o fix do timeout do Telegram no sistema real: restart do od-core (sandbox já validado — suíte 1658 passed/16 skipped)",
+      "publicar o fix: commit + push de integrations/telegram/transport.py e tests/test_telegram.py",
+      "decidir sobre o launcher: asyncio.gather(*tasks) sem return_exceptions mata o core inteiro quando qualquer loop morre (isolamento de tasks)"
     ],
-    "action": "Aguardando a escolha do usuário sobre por onde seguir (retomada feita e registrada em iniciar/2026-09-15_conversa_omegadrakon.md).",
+    "action": "Aguardando autorização para implantar o fix do timeout do Telegram (restart do od-core) e publicar (commit + push). Retomada e fix registrados em iniciar/2026-09-15_conversa_omegadrakon.md.",
     "open": true,
     "context": "Push de ponta a ponta implementado, publicado (3b5599c) e no ar dormente: 26 endpoints, APK 1.2.0+5 em site/. O envio só sai quando a credencial existir — sem ela /push/test responde 503.",
     "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit.",

@@ -233,6 +233,40 @@ class TestHTTPTransport:
         with pytest.raises(TransportError, match="indispon"):
             HTTPTransport("token")._call("getMe")
 
+    def test_call_read_timeout_becomes_transport_error(self, monkeypatch) -> None:
+        """TimeoutError na leitura vira TransportError (2026-09-15).
+
+        Regressão: o TimeoutError do socket NÃO passa pelo URLError, então
+        escapava do bot.run() e derrubava o processo inteiro do core (89
+        restarts entre 13/09 e 15/09, todos com
+        "TimeoutError: The read operation timed out").
+        """
+
+        def boom(*args, **kwargs):
+            raise TimeoutError("The read operation timed out")
+
+        monkeypatch.setattr("urllib.request.urlopen", boom)
+        with pytest.raises(TransportError, match="falhou na leitura"):
+            HTTPTransport("token")._call("getMe")
+
+    @pytest.mark.asyncio
+    async def test_fetch_file_read_timeout_becomes_transport_error(
+        self, monkeypatch
+    ) -> None:
+        transport = HTTPTransport("token")
+        monkeypatch.setattr(
+            transport,
+            "_call",
+            lambda method, **p: {"ok": True, "result": {"file_path": "a/1.ogg"}},
+        )
+
+        def boom(*args, **kwargs):
+            raise TimeoutError("The read operation timed out")
+
+        monkeypatch.setattr("urllib.request.urlopen", boom)
+        with pytest.raises(TransportError, match="download falhou na leitura"):
+            await transport.fetch_file("f1")
+
     @staticmethod
     def _patch_urlopen(monkeypatch, body: bytes) -> None:
         """Substitui urlopen por uma resposta fake com `body` JSON."""
@@ -713,6 +747,46 @@ class TestTelegramBotPolling:
         bot = TelegramBot(flaky, _orchestrator_for_polling(), admin_ids={ADMIN})
         assert await bot.run(interval=0.001, max_updates=1) == 1
         assert len(inner.sent_texts) == 1
+
+    @pytest.mark.asyncio
+    async def test_run_survives_read_timeout(self, monkeypatch) -> None:
+        """Timeout de leitura não derruba o polling (assinatura do journal).
+
+        Espelha o crash real de 2026-09-15 05:10:29: o primeiro getUpdates
+        estoura TimeoutError no socket. Com o transporte corrigido o bot trata
+        como indisponibilidade e segue; antes ele propagava a exceção até o
+        asyncio.gather do launcher e matava o core inteiro.
+        """
+        calls: list[int] = []
+        body = json.dumps(
+            {"ok": True, "result": [_raw_update(1, text="oi")]}
+        ).encode()
+
+        class FakeResponse:
+            def read(self) -> bytes:
+                return body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc) -> None:
+                return None
+
+        def flaky(*args, **kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                raise TimeoutError("The read operation timed out")
+            return FakeResponse()
+
+        monkeypatch.setattr("urllib.request.urlopen", flaky)
+        bot = TelegramBot(
+            HTTPTransport("token"),
+            _orchestrator_for_polling(),
+            admin_ids={ADMIN},
+        )
+        assert await bot.run(interval=0.001, max_updates=1) == 1
+        # 1 poll que estourou timeout + ao menos 1 poll que entregou o update
+        assert len(calls) >= 2
 
     @pytest.mark.asyncio
     async def test_send_failure_counted_not_fatal(self) -> None:

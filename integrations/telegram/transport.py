@@ -206,6 +206,15 @@ class HTTPTransport:
             ) from exc
         except urllib.error.URLError as exc:
             raise TransportError(f"Telegram API indisponível: {exc}") from exc
+        except OSError as exc:
+            # TimeoutError/ConnectionResetError/ssl.SSLError estourando na
+            # LEITURA da resposta não passam pelo URLError (o urllib só envolve
+            # falhas de conexão). Sem esta captura a exceção escapava do loop
+            # de polling e derrubava o processo inteiro do core — foi a causa
+            # das 89 quedas entre 2026-09-13 e 2026-09-15.
+            raise TransportError(
+                f"Telegram API falhou na leitura: {type(exc).__name__}: {exc}"
+            ) from exc
         if not data.get("ok"):
             raise TransportError(f"Telegram API erro: {data}")
         return data
@@ -319,6 +328,11 @@ class HTTPTransport:
             ) from exc
         except urllib.error.URLError as exc:
             raise TransportError(f"Telegram API indisponível: {exc}") from exc
+        except OSError as exc:
+            # Mesmo motivo do _call: falha de rede na leitura vira TransportError.
+            raise TransportError(
+                f"Telegram sendVoice falhou na leitura: {type(exc).__name__}: {exc}"
+            ) from exc
         if not data.get("ok"):
             raise TransportError(f"Telegram sendVoice erro: {data}")
         return True
@@ -335,3 +349,8 @@ class HTTPTransport:
                 return resp.read()
         except urllib.error.URLError as exc:
             raise TransportError(f"download falhou: {exc}") from exc
+        except OSError as exc:
+            # Idem: sem isto um timeout no download do áudio derrubava o core.
+            raise TransportError(
+                f"download falhou na leitura: {type(exc).__name__}: {exc}"
+            ) from exc

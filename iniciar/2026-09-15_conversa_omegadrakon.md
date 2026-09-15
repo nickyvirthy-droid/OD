@@ -80,3 +80,62 @@ Rodada 1 (09-15): a divergência da 000/ foi resolvida pelo usuário
   histórico em momento algum.
 - Ação: publicar as notas que ficaram pendentes (rodada 11 de 09-14 + esta
   retomada), que era o item "pendente de autorização" do checkpoint.
+- Publicação: **commit `875be8d`** — _docs: registra a limpeza de credenciais e a
+  retomada de 2026-09-15_ (3 arquivos, +171/-2) → **`origin/master
+  f53ca72..875be8d`**. Verificação: suíte completa 1655 passed/16 skipped
+  (nenhum código alterado) e varredura do staged por padrões de credencial sem
+  material real (só nomes de campo e caminhos, texto descritivo).
+
+Rodada 2: o defeito latente do Telegram — 89 quedas do core, corrigido em
+
+**O achado era muito maior do que o caso das 05:10.** Contagem no journal desde
+2026-09-13: **89 quedas e 89 restarts**, TODAS com
+`TimeoutError: The read operation timed out`:
+
+- 09-13, entre 02:53 e 07:25: **85 quedas** — crash loop de ~4,5 h, uma a cada
+  2–3 min (restart counter chegou a **99**);
+- 09-14: 14:56, 15:40 e 16:06 (3 quedas);
+- 09-15: 05:10:29 (1 queda).
+
+Cada queda derruba o **core inteiro** (API REST, RecoveryLoop, Presence Monitor,
+Face Detector, MQTT, push) por ~10 s até o systemd reiniciar. O processo atual
+está de pé desde 05:10:40 só porque a janela de rede ruim passou.
+
+CAUSA RAIZ (confirmada no código, não deduzida):
+`integrations/telegram/transport.py::HTTPTransport` — as três chamadas de rede
+(`_call`, `send_voice`, `fetch_file`) só envolviam `HTTPError`/`URLError`.
+`TimeoutError`/`ConnectionResetError`/`ssl.SSLError` que estouram na **leitura da
+resposta** não passam pelo `URLError` (o urllib só envolve falhas de conexão),
+então subiam cruas por: `bot.run()` (que só tolera `TransportError`) →
+`_run_telegram_forever` → `asyncio.gather` do `launcher._all` (sem
+`return_exceptions`) → `SystemExit` → systemd reinicia.
+
+CORREÇÃO: captura de `OSError` (cobre `TimeoutError`, `ConnectionResetError` e
+`ssl.SSLError`) nos três pontos, convertendo em `TransportError` — a camada de
+transporte volta a cumprir o contrato que o bot já trata com backoff
+("Transporte indisponível — aguardando..."). A ordem das cláusulas foi mantida
+(`HTTPError` → `URLError` → `OSError`, que é a hierarquia correta).
+
+TESTES (`tests/test_telegram.py`, +3):
+- `test_call_read_timeout_becomes_transport_error`;
+- `test_fetch_file_read_timeout_becomes_transport_error`;
+- `test_run_survives_read_timeout` — polling com `HTTPTransport` REAL: o 1º
+  `getUpdates` estoura timeout e o bot segue e processa o update seguinte.
+
+TESTE DO TESTE: com o transporte antigo restaurado (`git stash` só da
+correção), os **3 testes falham** — o de polling com exatamente
+`TimeoutError: The read operation timed out` escapando do `bot.run()`, isto é,
+a assinatura do journal reproduzida. Com a correção: 80 passed em
+`tests/test_telegram.py`.
+
+Suíte completa: **1658 passed, 16 skipped** (1655 + 3 novos).
+
+Estado: **aplicado e verificado em sandbox (suíte); NÃO implantado no sistema
+real e NÃO commitado** — aguarda autorização (regra 12: validar em sandbox,
+só então ir ao sistema real).
+
+Recomendação registrada para decisão futura (não executada):
+`launcher._all` usa `asyncio.gather(*tasks)` **sem** `return_exceptions`, ou
+seja, qualquer loop que morra derruba o core inteiro por design. O fix acima
+fecha o caminho conhecido, mas o desenho continua frágil: o certo seria cada
+loop ser uma task supervisionada, reiniciada sem levar o processo junto.
