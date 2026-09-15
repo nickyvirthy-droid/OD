@@ -9,8 +9,22 @@
     "testes": "tests/test_telegram.py +3: test_call_read_timeout_becomes_transport_error, test_fetch_file_read_timeout_becomes_transport_error e test_run_survives_read_timeout (polling com HTTPTransport real: o 1º getUpdates estoura timeout e o bot segue e processa o update seguinte)",
     "teste_do_teste": "com o transporte antigo restaurado (git stash só da correção), os 3 testes FALHAM — o de polling com exatamente 'TimeoutError: The read operation timed out' escapando do bot.run(), a assinatura do journal; com a correção, 80 passed em tests/test_telegram.py",
     "suite": "1658 passed, 16 skipped (1655 + 3 novos)",
-    "estado": "aplicado e verificado em sandbox (suite); NÃO implantado no sistema real e NÃO commitado — aguarda autorização",
+    "estado": "IMPLANTADO e PUBLICADO: commit b215d07 (origin/master 875be8d..b215d07) + restart do od-core em 2026-09-15 09:40:29 (PID 303744)",
     "recomendacao_adicional": "launcher._all usa asyncio.gather(*tasks) sem return_exceptions: qualquer task que morra derruba o core inteiro por design. Vale decidir depois se cada loop deve ser isolado (task supervisionada) em vez de matar o processo"
+  },
+  "deploy_timeout_telegram_2026_09_15": {
+    "quando": "2026-09-15 09:40:29 -03 (PID 303744)",
+    "commit": "b215d07 — fix(telegram): converte timeouts de rede em TransportError (4 arquivos, +166/-2: transport.py, tests/test_telegram.py, iniciar/session.json e a transcrição de 09-15)",
+    "push": "origin/master 875be8d..b215d07",
+    "verificacao_pos_restart": {
+      "processo": "PID 303744 estável após 60s de observação (nenhum restart)",
+      "health": "ok=true, 8 checks",
+      "push": "enabled=true, project_id=nicky-e4f99, devices=1",
+      "journal": "Push FCM inicializado enabled=True; API REST no ar; TelegramBot inicializado | transport=HTTPTransport; Presence Monitor e Face Detector ativos",
+      "contadores_desde_o_restart": "tracebacks=0, TimeoutError=0, 'Transporte indisponível'=0 (nenhuma falha de rede na janela), Handler error=0, no_fix=0",
+      "prova_face_presence": "09:40:55 — 'Presença facial confirmada' + 'Event published | topic=face.presence | subscribers=1' sem dead letter"
+    },
+    "ressalva": "o fix elimina o caminho de queda conhecido; a prova de que não haverá nova queda só virá da próxima janela de rede ruim (antes: 85 quedas em 4h30 em 13/09). Daqui em diante, a assinatura a procurar no journal é 'Transporte indisponível — aguardando...' (tratado) e NÃO 'TimeoutError' + 'Main process exited'"
   },
   "retomada_2026_09_15": {
     "entrada": "usuário: \"leia iniciar\"",
@@ -535,11 +549,9 @@
   "next": {
     "estado_em_2026_09_15": "push FCM ATIVO e de ponta a ponta (enabled=true, 1 dispositivo, sent=1) e as duas correções de 09-14 no ar e publicadas (40d2bb0/bf25a12/f53ca72). A pendência antiga do next (aguardar a service account) está RESOLVIDA — ver push_fcm_ativo_2026_09_14.",
     "pendente_de_autorizacao": [
-      "implantar o fix do timeout do Telegram no sistema real: restart do od-core (sandbox já validado — suíte 1658 passed/16 skipped)",
-      "publicar o fix: commit + push de integrations/telegram/transport.py e tests/test_telegram.py",
-      "decidir sobre o launcher: asyncio.gather(*tasks) sem return_exceptions mata o core inteiro quando qualquer loop morre (isolamento de tasks)"
+      "decidir sobre o launcher: asyncio.gather(*tasks) sem return_exceptions mata o core inteiro quando qualquer loop morre (isolamento/supervisão de tasks) — recomendação registrada no fix de 09-15, não executada"
     ],
-    "action": "Aguardando autorização para implantar o fix do timeout do Telegram (restart do od-core) e publicar (commit + push). Retomada e fix registrados em iniciar/2026-09-15_conversa_omegadrakon.md.",
+    "action": "Fix do timeout do Telegram implantado (09:40:29) e publicado (b215d07). Aguardando a escolha do usuário sobre o próximo passo (sugestão aberta: isolamento das tasks do launcher).",
     "open": true,
     "context": "Push de ponta a ponta implementado, publicado (3b5599c) e no ar dormente: 26 endpoints, APK 1.2.0+5 em site/. O envio só sai quando a credencial existir — sem ela /push/test responde 503.",
     "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit.",

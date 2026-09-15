@@ -139,3 +139,28 @@ Recomendação registrada para decisão futura (não executada):
 seja, qualquer loop que morra derruba o core inteiro por design. O fix acima
 fecha o caminho conhecido, mas o desenho continua frágil: o certo seria cada
 loop ser uma task supervisionada, reiniciada sem levar o processo junto.
+
+Rodada 3 (autorizada): publicar e implantar o fix
+
+- Revisão do diff antes de commitar: só os três _except OSError_ acrescentados
+  em `integrations/telegram/transport.py` (19 linhas), os 3 testes novos
+  (74 linhas) e o registro da sessão; varredura do staged por AIza/PEM/ya29/sk-/
+  padrão de token do Telegram → **nenhuma ocorrência**.
+- **Commit `b215d07`** — _fix(telegram): converte timeouts de rede em
+  TransportError_ (4 arquivos, +166/-2) → **`origin/master 875be8d..b215d07`**.
+- **Deploy**: `systemctl --user restart od-core` → **active desde 2026-09-15
+  09:40:29** (PID 303744).
+- Verificação ao vivo (60 s de observação, mesmo PID — nenhum restart):
+  - `/health` → `ok=true`, 8 checks;
+  - `GET /push/devices` → `enabled=true, project_id=nicky-e4f99, devices=1`;
+  - journal do restart: Push FCM `enabled=True`, API REST no ar, TelegramBot
+    `transport=HTTPTransport`, Presence Monitor e Face Detector ativos;
+  - contadores desde o restart: **tracebacks=0, TimeoutError=0,**
+    "Transporte indisponível"=0**, Handler error=0, no_fix=0**;
+  - 09:40:55 → "Presença facial confirmada" + "Event published |
+    topic=face.presence" sem dead letter.
+- Ressalva registrada (honestidade sobre o que a evidência cobre): o fix
+  elimina o **caminho** de queda, mas a prova de que não haverá nova queda só
+  vem na próxima janela de rede ruim (antes: 85 quedas em 4h30 no 13/09).
+  A assinatura a procurar de agora em diante é "Transporte indisponível —
+  aguardando..." (tratado) e **não** `TimeoutError` + "Main process exited".
