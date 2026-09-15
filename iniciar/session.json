@@ -1,7 +1,41 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-14T14:12:22-03:00",
+  "updated_at": "2026-09-15T09:36:00-03:00",
+  "retomada_2026_09_15": {
+    "entrada": "usuário: \"leia iniciar\"",
+    "leu": "iniciar/README.md, iniciar/RULES.md, iniciar/session.json (521 linhas), iniciar/2026-09-13_conversa_omegadrakon.md e iniciar/2026-09-14_conversa_omegadrakon.md (íntegra, rodadas 1 a 11)",
+    "git": "HEAD f53ca72 (docs do registro de push no checkpoint); antes bf25a12, 19afdde, 40d2bb0, 8455493. `git status --short` → DOIS modificados e NÃO commitados: iniciar/2026-09-14_conversa_omegadrakon.md (+49) e iniciar/session.json (+25) — a rodada 11 (cópia da credencial removida + varredura do disco + zip de referência) ficou registrada mas não publicada; o f53ca72 cobre só até a rodada 10. Nada untracked",
+    "push_fcm": "ATIVO: od-core active desde 2026-09-15 05:10:40 (PID 293371, subiu sozinho de madrugada, não foi restart meu); journal 05:10:41 'Push FCM inicializado | enabled=True | credencial=config/firebase-service-account.json | dispositivos=1'; GET /push/devices → enabled:true, project_id=nicky-e4f99, devices:1, aparelho sent:1/failed:0; GET / → version 1.2.0, 26 endpoints",
+    "config": "firebase-service-account.json (600, 2.373 B) em uso; iot_credentials.json agora 600 (limpeza da rodada 11 persistiu)",
+    "correcoes_09_14_em_producao": "dead_letter=0, handler_error=0, no_fix=0 desde o restart; face.presence reais entre 07:07 e 07:20 de hoje sem nenhum erro; .od_repair_backups com 5 arquivos / 116 KB",
+    "divergencia_000": "RESOLVIDA pelo usuário: a pasta 000/ NÃO existe mais no repo (`ls -la 000` → No such file or directory) e /home/alex/000-omegadrakon-referencia-2026-09-14.zip também sumiu. Confirmado em 09-15: **o usuário apagou a pasta 000/ de propósito e fez uma cópia em HD externo** — regra 9 satisfeita (backup pronto fora do servidor + confirmação explícita). A regra 000/ segue no .gitignore:139 e nada untracked aparece → nenhum arquivo da pasta entrou no repo em momento nenhum. Nada a fazer (a cópia de referência agora vive fora do servidor)",
+    "achado_incidental": "05:10:29 — o processo antigo (PID 271319) morreu com traceback: a task do Telegram (launcher._run_telegram_forever → bot.run() → transport._call('getUpdates') → urllib) lançou exceção de rede e o asyncio.gather de _all() propagou → SystemExit → systemd reiniciou às 05:10:40. Depois do restart o transporte usou o aviso tratado 'Transporte indisponível — aguardando...' (722 ocorrências, última 05:14:23). Defeito latente registrado (falha de rede do Telegram derruba o core inteiro), NÃO corrigido — depende de prioridade do usuário",
+    "acao": "nenhuma alteração no servidor além do registro da sessão (iniciar/); aguardando a escolha do usuário"
+  },
+  "inventario_credenciais_2026_09_14": {
+    "pedido": "apagar a cópia da service account em 000/ e conferir se sobrou outra credencial solta no disco",
+    "remocao": "000/nicky-e4f99-firebase-adminsdk-fh19o-ba704415d0.json — sha256 conferido ANTES (824ca02dd7… idêntico ao canônico config/firebase-service-account.json), então nada se perdeu; push segue enabled=True após a remoção",
+    "metodo": "find curado (893 candidatos: json/env/txt/md/pem/key/crt/conf/ini/cfg, sem venv/node_modules/flutter/jdk/.git) + varredura por padrão com saída MASCARADA (primeiros 4 chars + tamanho; nenhum segredo exibido)",
+    "chave_privada_no_disco": "apenas UMA: config/firebase-service-account.json (600) — a credencial em uso",
+    "achados": [
+      "config/iot_credentials.json — token de longa duração do Home Assistant, permissão 664 (sugiro 600); ignorado pelo git (.gitignore:98)",
+      "000/farebase.txt — contém a CHAVE LEGADA FCM COMPLETA (152 chars) + e-mail da service account; ignorado pelo git (000/), mas é credencial exposta em texto claro → excluir no console + apagar o arquivo",
+      "000/google-services.json E '000/google-services .json' — duplicatas do config CLIENTE do app (api_key AIza, sem private_key); ignoradas pelo git; a segunda tem espaço no nome",
+      "app/android/app/google-services.json — config cliente necessária ao build do APK; ignorada pelo git (esperado)",
+      "repo .env (600) — TELEGRAM_BOT_TOKEN, OD_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, OD_DB_URL; ignorado pelo git (nome já no padrão)",
+      "/home/alex/OD/.env (600) — OUTRO projeto (checkout do aider): TELEGRAM_BOT_TOKEN DIFERENTE do repo + GEMINI/OPENAI/GROQ; .env ignorado no .gitignore dele (linha 2) e não rastreado — só registro, nada a fazer",
+      "iniciar/session.json e a transcrição — contêm apenas o E-MAIL da service account e o literal 'firebase-adminsdk'; nenhum material de chave",
+      "nenhuma ocorrência de sk-… (OpenAI-like) e nenhuma PEM fora da credencial canônica"
+    ],
+    "git": "git ls-files não rastreia nenhuma credencial (só config/iot_credentials.example.json, que é o exemplo); iot_credentials.json → .gitignore:98; o .env do outro projeto → ignorado e não rastreado",
+    "limpezas_aplicadas": [
+      "config/iot_credentials.json → chmod 600 (era 664)",
+      "000/'google-services .json' (duplicata com espaço no nome) → APAGADA; o 000/google-services.json fica"
+    ],
+    "decisao_do_usuario_sobre_000": "NÃO apagar a pasta — compactar para possível referência. Aplicado: 000/ intacta (6 arquivos) + arquivo compactado /home/alex/000-omegadrakon-referencia-2026-09-14.zip (462 KB; 1.1 MB originais), integridade conferida com zipfile.testzip → OK. Gerado com o zipfile do Python porque o binário `zip` não existe no servidor (e o `unzip` de /home/alex/bin é um stub em Python). O arquivo está FORA do repo (home), então não corre risco de ser commitado.",
+    "ressalva": "o zip guarda o 000/farebase.txt com a chave legada do FCM em TEXTO CLARO (zip não cifra) — a correção real continua sendo excluir a chave no console; o arquivo segue em 000/ e agora também na cópia compactada"
+  },
   "docs_push_ativo_2026_09_14": {
     "commit": "bf25a12",
     "message": "docs: registra a ativação do push FCM em produção",
@@ -489,7 +523,11 @@
   },
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
-    "action": "Aguardar a service account do Firebase em config/firebase-service-account.json (só o usuário pode gerar): validar o JSON, reiniciar o od-core, confirmar enabled=true no GET /push/devices e rodar POST /push/test com o Redmi Note 14 registrado (APK 1.2.0+5). Depois investigar os dois achados do journal (SelfRepair no_fix em agent.py e o handler face.presence com AttributeError).",
+    "estado_em_2026_09_15": "push FCM ATIVO e de ponta a ponta (enabled=true, 1 dispositivo, sent=1) e as duas correções de 09-14 no ar e publicadas (40d2bb0/bf25a12/f53ca72). A pendência antiga do next (aguardar a service account) está RESOLVIDA — ver push_fcm_ativo_2026_09_14.",
+    "pendente_de_autorizacao": [
+      "defeito latente: falha de rede do Telegram (transport._call em getUpdates) derruba o processo inteiro do core (asyncio.gather em launcher._all propaga → SystemExit). Não corrigido — depende de prioridade do usuário"
+    ],
+    "action": "Aguardando a escolha do usuário sobre por onde seguir (retomada feita e registrada em iniciar/2026-09-15_conversa_omegadrakon.md).",
     "open": true,
     "context": "Push de ponta a ponta implementado, publicado (3b5599c) e no ar dormente: 26 endpoints, APK 1.2.0+5 em site/. O envio só sai quando a credencial existir — sem ela /push/test responde 503.",
     "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit.",

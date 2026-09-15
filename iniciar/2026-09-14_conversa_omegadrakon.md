@@ -402,3 +402,52 @@ Rodada 10 (autorizada): publicar
   em `19afdde`), então o histórico remoto ficou limpo.
 - Lição registrada: as notas de sessão são arquivos versionados — fragmento de
   segredo citado em texto tem o mesmo peso de segredo em código.
+
+Rodada 11: limpar a cópia da credencial e varrer o disco
+
+1. **Remoção da cópia** — antes de apagar, conferi `sha256sum` dos dois
+   arquivos: `824ca02dd712b06182fe17bdd3de67d20e638a2cd41ea26967b762cfc09798ae`
+   em `config/firebase-service-account.json` **e** em
+   `000/nicky-e4f99-firebase-adminsdk-fh19o-ba704415d0.json` → byte-idênticos,
+   então apagar a cópia não perde nada. Apagada; `GET /push/devices` continuou
+   `enabled=True, devices=1` (a canônica segue em uso pelo serviço).
+
+2. **Varredura do disco** — a primeira tentativa (walk completo em python) e a
+   segunda (lista com globs sem aspas) falharam: a home tem Flutter SDK, JDK,
+   `venv` etc., e a lista saiu vazia, fazendo os `grep -r` varrerem o repo
+   inteiro sem os filtros. Correção: lista curada por `find` (893 candidatos:
+   json/env/txt/md/pem/key/crt/conf/ini/cfg/sh, excluindo venv/node_modules/
+   flutter/jdk/.git) + padrões por regex com **saída mascarada** (4 primeiros
+   chars + tamanho). Resultado:
+   - **Uma única chave privada no disco**: `config/firebase-service-account.json`
+     (600) — a credencial em uso.
+   - `000/farebase.txt`: contém a **chave legada FCM COMPLETA** (152 chars).
+   - `config/iot_credentials.json` (token HA) está com permissão 664.
+   - `000/google-services.json` e `000/google-services .json` (nome com espaço):
+     duplicatas do config cliente do app.
+   - `.env` do repo (600) com TELEGRAM_BOT_TOKEN, OD_API_KEY, GEMINI_API_KEY,
+     OPENAI_API_KEY, OD_DB_URL; e `/home/alex/OD/.env` (600, outro projeto) com
+     um **TELEGRAM_BOT_TOKEN diferente** (comparado por hash dos dois).
+   - Nenhum `sk-…` e nenhuma PEM fora da canônica.
+   - Git: `git ls-files` não rastreia credencial nenhuma; `iot_credentials.json`
+     coberto por `.gitignore:98`; o `.env` do outro projeto está no `.gitignore`
+     de lá (linha 2) e não é rastreado.
+3. **Limpezas aplicadas** (decisão do usuário):
+   - `chmod 600` no `config/iot_credentials.json` (era `664`) — token do HA
+     agora só para o dono.
+   - `000/google-services .json` (duplicata com espaço no nome) **apagada**;
+     o `000/google-services.json` fica.
+   - `000/farebase.txt` **NÃO apagado**: o usuário pediu para não apagar a
+     pasta e **compactar para possível referência**.
+4. **Arquivo compactado de referência:** `000/` segue intacta (6 arquivos) e
+   foi gerada `/home/alex/000-omegadrakon-referencia-2026-09-14.zip`
+   (**462 KB** contra 1,1 MB originais), integridade conferida com
+   `zipfile.testzip()` → OK, listando os 6 arquivos. Detalhe: o binário `zip`
+   não existe no servidor (o `command -v zip` falhou e o primeiro intento caiu
+   em `tar.gz`), então gerei o `.zip` com o `zipfile` do Python — melhor para
+   abrir no Windows. O `tar.gz` intermediário foi removido.
+   O arquivo está **fora do repo** (em `/home/alex/`), logo não há risco de
+   commit acidental.
+   ⚠️ O zip carrega o `farebase.txt` com a **chave legada do FCM em texto
+   claro** (zip não cifra) — a correção real segue sendo excluir a chave no
+   console.
