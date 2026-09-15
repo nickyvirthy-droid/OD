@@ -307,3 +307,57 @@ Rodada 7 (autorizada): publicar e implantar o alerta
   introspecção no código implantado + os testes. **O primeiro alerta real**
   aparecerá no Telegram/push quando (e se) um loop cair — e o `/health` ficará
   `degraded` por até 300 s com o nome do loop no detalhe.
+
+Rodada 8 (pedido do usuário): rota da API para o app consultar
+
+**`GET /supervision`** (com `X-API-Key`, como as demais rotas de dados):
+
+```json
+{ "ok": true, "status": "up", "window_s": 300.0, "degraded": [],
+  "restarts": 0, "loops": [], "ts": 1773... }
+```
+
+Semântica alinhada à do `/health`: `ok=false` + `status=degraded` significam
+"loop caiu dentro da janela" e a resposta continua **HTTP 200** (o core está de
+pé — degradado não é erro de requisição). Cada item de `loops[]` traz `name`,
+`failures`, `restarts`, `last_kind`, `last_error`, `age_s`, `degraded` e
+`crash_loop`.
+
+Implementação: entrada em `_ROUTE_SPECS` (depois de `/push/devices`) + handler
+`supervision()` que delega a `get_supervision().evaluate()`. O `GET /` passou a
+reportar **27 endpoints** (o `len(ROUTES)` é calculado, não fixo).
+
+TESTES: tabela de rotas atualizada (26 → 27, com `/supervision` no conjunto
+**autenticado**) + `TestAPISupervision` (3): sem quedas; loop caído degradando o
+payload; e 401 sem chave / 200 com chave.
+
+TESTE DO TESTE (2 mutações, revertidas): rota com `auth=False` →
+`test_auth_flags_follow_legacy` **falha**; handler com `ok=True` fixo →
+`test_loop_caido_degrada` **falha**. `tests/test_api.py` → 80 passed.
+
+Suíte completa: **1686 passed, 16 skipped** (1683 + 3 novos).
+
+DOCUMENTAÇÃO (item 4 da Definition of Done — `docs/REGRAS_DE_TRABALHO.md` §2):
+`docs/CHANGELOG.md` ganhou as subseções **"Corrigido (2026-09-15)"** (timeout do
+Telegram + isolamento dos loops, que ainda não estavam registrados no arquivo) e
+**"Adicionado (2026-09-15) — supervisão dos loops visível"** (registro, check no
+`/health`, alerta do notifier e a rota). O cabeçalho da `[1.2.0]` passou a citar
+2026-09-15. As menções históricas a "26 endpoints" no `docs/README_VERSAO.md`
+foram **mantidas** (são evidência da entrega 1.2.0, não estado atual); o número
+corrente (27) está no CHANGELOG.
+
+Rodada 9 (autorizada): publicar e implantar a rota e o CHANGELOG
+
+- **Commit `05cc30e`** — _feat(api): expõe GET /supervision com o estado dos
+  loops do núcleo_ (2 arquivos, +99/-2) → **`origin/master 454967f..05cc30e`**.
+  Varredura do staged por padrões de credencial: nenhuma ocorrência.
+- **Deploy**: `systemctl --user restart od-core` → **active desde 2026-09-15
+  10:06:37** (PID 309583).
+- Verificação ao vivo:
+  - `GET /` → `version=1.2.0`, **`endpoints=27`**;
+  - `GET /supervision` com a chave →
+    `{ok:true, status:"up", window_s:300.0, degraded:[], restarts:0, loops:[],
+    ts:...}` — lista vazia é o esperado (nenhum loop caiu desde o boot);
+  - sem chave → **HTTP 401**;
+  - PID estável após 60 s: `tracebacks=0, TimeoutError=0, "Loop do núcleo
+    caiu"=0, "API erro"=0`.

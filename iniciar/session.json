@@ -2,6 +2,20 @@
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
   "updated_at": "2026-09-15T09:36:00-03:00",
+  "rota_supervision_2026_09_15": {
+    "pedido": "expor o estado da supervisão dos loops numa rota da API para consulta pelo app",
+    "rota": "GET /supervision (X-API-Key, como as demais rotas de dados) → {ok, status, window_s, degraded[], restarts, loops[], ts}. ok=false + status=degraded = 'loop caiu dentro da janela' (HTTP 200: o core está de pé); passada a janela volta a ok sozinho. loops[] traz name, failures, restarts, last_kind, last_error, age_s, degraded e crash_loop",
+    "implementacao": "integrations/api/server.py — entrada na _ROUTE_SPECS (após /push/devices) + handler supervision() que delega a get_supervision().evaluate(); o GET / passa a reportar 27 endpoints (len(ROUTES) é calculado)",
+    "testes": "tests/test_api.py: tabela de rotas atualizada (26 → 27, com /supervision no conjunto autenticado) + TestAPISupervision (3: sem quedas; loop caído degrada o payload; 401 sem chave e 200 com chave)",
+    "teste_do_teste": "2 mutações: rota com auth=False → test_auth_flags_follow_legacy FALHA; handler com ok=True fixo → test_loop_caido_degrada FALHA. Revertidas, tests/test_api.py 80 passed",
+    "suite": "1686 passed, 16 skipped (1683 + 3 novos)",
+    "docs": "docs/CHANGELOG.md — novas subseções 'Corrigido (2026-09-15)' (timeout do Telegram + isolamento dos loops, que ainda não estavam documentados) e 'Adicionado (2026-09-15) — supervisão dos loops visível' (registro, check no /health, alerta do notifier e a rota); cabeçalho da [1.2.0] atualizado para incluir 2026-09-15. A menção histórica a '26 endpoints' no README_VERSAO ficou como está (é evidência da entrega de 1.2.0); o número atual (27) está no CHANGELOG",
+    "estado": "IMPLANTADO e PUBLICADO: commit 05cc30e (origin/master 454967f..05cc30e) + restart do od-core em 2026-09-15 10:06:37 (PID 309583)",
+    "deploy": {
+      "quando": "2026-09-15 10:06:37 -03 (PID 309583)",
+      "verificacao": "GET / → version 1.2.0, endpoints=27; GET /supervision (com X-API-Key) → {ok:true, status:'up', window_s:300.0, degraded:[], restarts:0, loops:[], ts:...} — lista vazia é o esperado, nenhum loop caiu desde o boot; sem chave → HTTP 401; PID estável após 60s; tracebacks=0, TimeoutError=0, 'Loop do núcleo caiu'=0, 'API erro'=0"
+    }
+  },
   "alerta_loops_2026_09_15": {
     "pedido": "fazer o health monitor e o notificador alertarem quando um loop for reiniciado pela supervisão",
     "contexto": "a supervisão continha a queda, mas ela virava SILENCIOSA — foi exatamente esse silêncio que deixou as 89 quedas de 13/09 a 15/09 passarem até eu ler o journal",
@@ -600,8 +614,10 @@
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
     "estado_em_2026_09_15": "push FCM ATIVO e de ponta a ponta (enabled=true, 1 dispositivo, sent=1) e as duas correções de 09-14 no ar e publicadas (40d2bb0/bf25a12/f53ca72). A pendência antiga do next (aguardar a service account) está RESOLVIDA — ver push_fcm_ativo_2026_09_14.",
-    "pendente_de_autorizacao": [],
-    "action": "Alerta de loop reiniciado implantado (09:58:16) e publicado (fc2abe0). Ferramenta de observabilidade fechada: queda contida (supervisão) + visível (/health e alerta).",
+    "pendente_de_autorizacao": [
+      "opcional/próximo: mostrar o estado da supervisão no app (exige mexer no Flutter e republicar o APK)"
+    ],
+    "action": "Rota GET /supervision implantada (10:06:37) e publicada (05cc30e). Aguardando a escolha do usuário para o próximo passo.",
     "open": true,
     "context": "Push de ponta a ponta implementado, publicado (3b5599c) e no ar dormente: 26 endpoints, APK 1.2.0+5 em site/. O envio só sai quando a credencial existir — sem ela /push/test responde 503.",
     "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit.",

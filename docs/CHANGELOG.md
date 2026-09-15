@@ -14,7 +14,7 @@
 
 ---
 
-## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12 e 2026-09-14)
+## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14 e 2026-09-15)
 
 ### Adicionado
 
@@ -201,6 +201,54 @@ de código** (o que faltava era só a credencial):
 > (API legada, descontinuada em 2024) e um par de chaves de push da Web. A
 > chave legada **não** é usada pelo OD (o envio é HTTP v1 com service account) e
 > deve ser excluída no console — *Cloud Messaging → chave do servidor*.
+
+### Corrigido (2026-09-15) — resiliência do core
+
+- **Timeout de rede do Telegram derrubava o core.** O `HTTPTransport` só
+  envolvia `HTTPError`/`URLError`; um `TimeoutError` estourando na **leitura da
+  resposta** não passa pelo `URLError` e escapava do `bot.run()` (que tolera
+  apenas `TransportError`) até o `asyncio.gather` do launcher, matando o
+  **processo inteiro**: 89 quedas e 89 restarts do `od-core` entre 2026-09-13 e
+  2026-09-15, uma delas num **crash loop de 4h30** (85 quedas a cada 2–3 min).
+  As três chamadas de rede do transporte passaram a capturar `OSError` (cobre
+  `TimeoutError`, `ConnectionResetError` e `ssl.SSLError`). Commit **`b215d07`**
+  (regressão em `tests/test_telegram.py`, 3 testes).
+- **Loops do core sem rede de segurança.** Os laços de **MQTT**, **presença** e
+  **visão** chamavam `poll_once()`/`tick()` sem proteção, e o `HAClient` deixava
+  `TimeoutError` de leitura escapar cru (mesma classe do bug acima). Cada loop
+  ganhou o try/except do "ciclo nunca morre" — a disciplina que o
+  `RecoveryLoop` já tinha — e o `launcher._all` passou a **supervisionar** cada
+  loop (`_supervise`: contém a exceção, registra e reinicia com espera em vez de
+  derrubar o processo; a API entra com `restart=False`, porque recriar o
+  servidor conflita na porta 8000). Commit **`0c5b9d8`**;
+  `tests/test_launcher_supervisor.py` é novo.
+
+### Adicionado (2026-09-15) — supervisão dos loops visível 🔍
+
+- **`core/supervision.py`** (novo) — registro thread-safe das quedas e
+  reinícios de cada loop do modo `all` (`failures`, `restarts`, `last_kind`,
+  `last_error`, `age_s`). "Degradado" = queda dentro da **janela de 300 s**;
+  passada a janela o estado volta a ok sozinho, sem intervenção. O objetivo é
+  direto: a supervisão da rodada anterior continha a queda, mas ela ficava
+  silenciosa — e foi esse silêncio que deixou as 89 quedas passarem até a
+  leitura do journal.
+- **Check `loops` no `/health`** — não-crítico (`critical=False`): loop
+  reiniciado **degrada** o agregado em vez de derrubá-lo, com o nome do loop e
+  o erro no detalhe.
+- **Alerta pelo notifier** — nova sonda `_check_loops` nas sondas padrão
+  (`integrations/notifier.py`): alerta **WARN** por loop reiniciado, escalando
+  para **CRIT** com 3+ reinícios (laço de falha) e limpando o problema quando o
+  loop estabiliza; o anti-spam continua o do notifier (1 alerta/hora por loop).
+  Commit **`fc2abe0`**.
+- **`GET /supervision`** (novo endpoint com `X-API-Key`) — expõe o mesmo estado
+  para o app: `{ok, status, window_s, degraded[], restarts, loops[], ts}`.
+  `ok=false` + `status=degraded` significam "loop caiu dentro da janela" (o core
+  segue de pé, HTTP 200); passada a janela volta a ok. A raiz (`GET /`) passou a
+  reportar **27 endpoints**.
+- **Testes:** **1686 passed, 16 skipped** (1683 na observabilidade + 3 do
+  endpoint novo), com teste do teste nas duas rodadas — 15 de 18 testes-alvo
+  falharam com as mutações da observabilidade e 2 falharam com as mutações da
+  rota (flag de auth e sinal de degradação).
 
 ### Pendente
 
