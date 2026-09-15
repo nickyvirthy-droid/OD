@@ -238,3 +238,72 @@ Rodada 5 (autorizada): publicar e implantar a auditoria
   registrado na rodada 4) e do código em execução; a assinatura a observar daqui
   em diante é `Loop do núcleo caiu | loop=...` (contido e reiniciado) em vez de
   `Traceback` + "Main process exited" (processo morto).
+
+Rodada 6 (pedido do usuário): alertar quando um loop é reiniciado
+
+**O problema do fix da rodada 5:** a supervisão continha a queda, mas ela virava
+**silenciosa** — e foi exatamente esse silêncio que deixou as 89 quedas de 13/09
+a 15/09 passarem até eu ler o journal. Agora a queda fica visível nos dois
+canais que o usuário já acompanha.
+
+DESENHO:
+
+1. **`core/supervision.py` (novo)** — `LoopSupervision` (failures, restarts,
+   last_drop_ts, last_kind, last_error) e `SupervisionRegistry` thread-safe
+   (o launcher escreve na thread do asyncio; o health/notifier leem de outras),
+   com `evaluate()` (degradado = queda dentro da janela de 300s), `health()` no
+   contrato do Health Monitor, `snapshot()` e `reset()`. Instância única do
+   processo em `SUPERVISION` / `get_supervision()`.
+2. **`runtime/launcher.py`** — `_supervise` passa a registrar `record_drop`
+   (tipo + detalhe truncado em 300 chars) e `record_restart`; loop que
+   **retorna sozinho** também conta como queda (`kind=Returned`).
+   `build_health` registra o check **`loops`** (critical=False): queda recente
+   **degrada** o /health em vez de derrubá-lo, e passada a janela ele volta a ok
+   sozinho.
+3. **`integrations/notifier.py`** — `_check_loops` entra em `_default_checks()`:
+   um `CheckResult` por loop conhecido — `ok=False` com key `loop:<nome>` quando
+   degradado (**WARN**) e **CRIT** se o loop já reiniciou 3+ vezes
+   (`CRASH_LOOP_RESTARTS`); quando estável devolve `ok=True`, o que **limpa** o
+   problema dentro do notifier. O anti-spam continua sendo o do notifier
+   (1 alerta/hora por loop).
+
+TESTES (+17): `tests/test_supervision.py` (novo, 12), `TestLoopsCheck` em
+`tests/test_launcher_health_external.py` (3) e 2 em
+`tests/test_launcher_supervisor.py` (queda e retorno entrando no registro).
+`tests/test_notifier.py::test_dump_shape` passou a pinar as 5 sondas padrão em
+vez do número 4.
+
+TESTE DO TESTE (3 mutações, revertidas depois):
+- tirar `_check_loops` de `_default_checks()` → `test_dump_shape` **falha**;
+- tirar o `register("loops", ...)` do `build_health` →
+  `TestLoopsCheck::test_check_registrado` **falha**;
+- `record_drop` sem registrar os dados → os testes de registro e de health
+  **falham**.
+Resultado: **15 dos 18 testes-alvo falharam**, incluindo os dois pinos de
+fiação. Suíte completa: **1683 passed, 16 skipped** (1666 + 17 novos).
+
+Estado: aplicado e verificado em sandbox; **NÃO implantado e NÃO commitado** —
+aguarda autorização (regra 12).
+
+Rodada 7 (autorizada): publicar e implantar o alerta
+
+- **Commit `fc2abe0`** — _feat(observability): torna visível a queda de loop
+  reiniciado pela supervisão_ (7 arquivos, +659/-7; `core/supervision.py` e
+  `tests/test_supervision.py` são novos) → **`origin/master d06f44b..fc2abe0`**.
+  Varredura do staged por padrões de credencial: nenhuma ocorrência.
+- **Deploy**: `systemctl --user restart od-core` → **active desde 2026-09-15
+  09:58:16** (PID 307723).
+- Verificação ao vivo:
+  - `/health` → `ok=true, status=up` com **9 checks**; o novo `loops` aparece
+    como não-crítico e ok: `{ok: true, status: "up", detail: "nenhum loop
+    supervisionado registrado", critical: false}` — o estado correto, já que
+    nenhum loop caiu desde o boot;
+  - PID estável, `tracebacks=0, TimeoutError=0, "Loop do núcleo caiu"=0`;
+  - introspecção do código implantado: as sondas padrão do notifier são
+    `[_check_orchestrator, _check_llm, _check_disk, _check_loops,
+    _check_restart]` → o alerta de loop está ativo em produção.
+- Limitação registrada com honestidade: a API não tem rota do notifier, então a
+  lista de sondas dele não é observável pelo `/health`; a prova é a
+  introspecção no código implantado + os testes. **O primeiro alerta real**
+  aparecerá no Telegram/push quando (e se) um loop cair — e o `/health` ficará
+  `degraded` por até 300 s com o nome do loop no detalhe.

@@ -2,6 +2,29 @@
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
   "updated_at": "2026-09-15T09:36:00-03:00",
+  "alerta_loops_2026_09_15": {
+    "pedido": "fazer o health monitor e o notificador alertarem quando um loop for reiniciado pela supervisão",
+    "contexto": "a supervisão continha a queda, mas ela virava SILENCIOSA — foi exatamente esse silêncio que deixou as 89 quedas de 13/09 a 15/09 passarem até eu ler o journal",
+    "desenho": {
+      "novo_modulo": "core/supervision.py — LoopSupervision (failures/restarts/last_drop_ts/last_kind/last_error) + SupervisionRegistry thread-safe com evaluate() (degradado = queda dentro da janela de 300s), health() no contrato do Health Monitor, snapshot(), reset() e a instância única do processo (SUPERVISION/get_supervision())",
+      "escrita": "runtime/launcher.py::_supervise registra record_drop (tipo + detalhe truncado em 300 chars) e record_restart; loop que RETORNA sozinho também conta como queda (kind=Returned) em vez de passar em branco",
+      "health": "build_health registra o check 'loops' (critical=False): queda recente degrada o /health em vez de derrubá-lo, e passada a janela ele volta a ok sozinho (sem intervenção)",
+      "notifier": "_check_loops entra em _default_checks(): um CheckResult por loop conhecido — ok=False com key 'loop:<nome>' quando degradado (WARN) e CRIT se o loop já reiniciou 3+ vezes (CRASH_LOOP_RESTARTS); quando estável devolve ok=True para LIMPAR o problema no notifier; o anti-spam é o do próprio notifier (1 alerta/hora por loop)"
+    },
+    "testes": "+17: tests/test_supervision.py (novo, 12), TestLoopsCheck em tests/test_launcher_health_external.py (3) e 2 em tests/test_launcher_supervisor.py (queda e retorno entrando no registro); tests/test_notifier.py::test_dump_shape passou a pinar as 5 sondas padrão em vez do número 4",
+    "teste_do_teste": "3 mutações (tirar _check_loops das sondas padrão; tirar o register do check 'loops'; record_drop sem registrar os dados) → 15 dos 18 testes-alvo FALHAM, incluindo os dois pinos de fiação (test_dump_shape e TestLoopsCheck::test_check_registrado); revertido, suíte verde",
+    "suite": "1683 passed, 16 skipped (1666 + 17 novos)",
+    "estado": "IMPLANTADO e PUBLICADO: commit fc2abe0 (origin/master d06f44b..fc2abe0) + restart do od-core em 2026-09-15 09:58:16 (PID 307723)",
+    "deploy": {
+      "quando": "2026-09-15 09:58:16 -03 (PID 307723)",
+      "verificacao": {
+        "health": "ok=true, status=up, com 9 checks — o novo 'loops' aparece como não-crítico: {name: loops, ok: true, status: up, detail: 'nenhum loop supervisionado registrado'} (estado correto: nenhuma queda desde o boot)",
+        "processo": "PID 307723 estável após 60s; tracebacks=0, TimeoutError=0, 'Loop do núcleo caiu'=0",
+        "notifier": "as sondas padrão do código implantado são ['_check_orchestrator', '_check_llm', '_check_disk', '_check_loops', '_check_restart'] (introspecção read-only) — o alerta de loop está ativo",
+        "limitacao": "a API não expõe rota do notifier, então a lista de sondas dele não é observável pelo /health; a prova é a introspecção no código implantado + os testes. O primeiro alerta real vai aparecer no Telegram/push quando um loop cair"
+      }
+    }
+  },
   "auditoria_loops_2026_09_15": {
     "pedido": "auditar as outras integrações de rede (MQTT, Home Assistant, FCM) pelo mesmo padrão de exceção crua que derruba o core",
     "metodo": "o critério não foi a integração em si, e sim o que roda DENTRO do `asyncio.gather` do `launcher._all` — é o gather que converte qualquer exceção não tratada em queda do processo inteiro. Cada loop foi lido procurando exceção que escaparia dele.",
@@ -578,7 +601,7 @@
   "next": {
     "estado_em_2026_09_15": "push FCM ATIVO e de ponta a ponta (enabled=true, 1 dispositivo, sent=1) e as duas correções de 09-14 no ar e publicadas (40d2bb0/bf25a12/f53ca72). A pendência antiga do next (aguardar a service account) está RESOLVIDA — ver push_fcm_ativo_2026_09_14.",
     "pendente_de_autorizacao": [],
-    "action": "Auditoria dos loops implantada (09:48:05) e publicada (0c5b9d8). Sem pendência técnica aberta; aguardando a escolha do usuário para o próximo passo.",
+    "action": "Alerta de loop reiniciado implantado (09:58:16) e publicado (fc2abe0). Ferramenta de observabilidade fechada: queda contida (supervisão) + visível (/health e alerta).",
     "open": true,
     "context": "Push de ponta a ponta implementado, publicado (3b5599c) e no ar dormente: 26 endpoints, APK 1.2.0+5 em site/. O envio só sai quando a credencial existir — sem ela /push/test responde 503.",
     "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit.",
