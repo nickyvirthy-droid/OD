@@ -2,6 +2,35 @@
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
   "updated_at": "2026-09-15T09:36:00-03:00",
+  "auditoria_loops_2026_09_15": {
+    "pedido": "auditar as outras integrações de rede (MQTT, Home Assistant, FCM) pelo mesmo padrão de exceção crua que derruba o core",
+    "metodo": "o critério não foi a integração em si, e sim o que roda DENTRO do `asyncio.gather` do `launcher._all` — é o gather que converte qualquer exceção não tratada em queda do processo inteiro. Cada loop foi lido procurando exceção que escaparia dele.",
+    "mapa": [
+      "API REST (_run_api_forever): o servidor sobe em thread, o lado asyncio só dorme → seguro, não derruba",
+      "Telegram (bot.run): só tolerava TransportError → corrigido hoje (b215d07)",
+      "Recovery (loop.run): `except Exception` no tick → já protegido",
+      "MQTT (bridge.run): `await self.poll_once()` SEM try → DERRUBAVA o core",
+      "Presence (monitor.run): `await self.tick()` SEM try — o tick só protege a leitura do HA; I/O do estado, sink assíncrono e bus ficavam de fora → DERRUBAVA",
+      "Vision (detector.run): `await self.tick()` SEM try — só a captura era protegida; detecção (cv2) e publicação no bus ficavam de fora → DERRUBAVA",
+      "Notifier: thread própria + `except Exception` no loop e nos sinks → seguro",
+      "FCM (core/push.py): `http_request` JÁ capturava `(URLError, OSError, ValueError)` e vira PushError; `notify` pega PushError; sinks do notifier pegam Exception → já correto (o autor cobriu OSError)",
+      "HAClient._request: só HTTPError/URLError → um TimeoutError na LEITURA escapava cru (mesma classe do bug do Telegram), ainda que o tick do presence capture Exception",
+      "launcher._all: `asyncio.gather(*tasks)` sem isolamento → MECANISMO que converte qualquer item acima em queda total do core"
+    ],
+    "correcoes": [
+      "integrations/mqtt/bridge.py, integrations/homeassistant/presence.py e tools/vision/face_detector.py: try/except Exception em volta de poll_once/tick — a mesma disciplina que o RecoveryLoop já tinha ('ciclo nunca morre'), contando o erro na métrica e logando sem derrubar o loop",
+      "integrations/homeassistant/client.py: `except OSError` → HAError no _request (contrato do cliente: quem consome trata HAError)",
+      "runtime/launcher.py: novo `_supervise(name, factory, restart=True, delay_s=5.0)` — contém a exceção, registra 'Loop do núcleo caiu' e reinicia com espera; a API entra com restart=False (recriar conflita na porta 8000). O `_all` agora monta todos os loops supervisionados"
+    ],
+    "testes": "+8: tests/test_launcher_supervisor.py (novo, 4) e 1 em cada de test_mqtt.py, test_presence.py, test_face_detector.py e test_homeassistant.py",
+    "teste_do_teste": "com as 4 redes de segurança revertidas (stash), os 4 testes de loop FALHAM com TimeoutError escapando; no demo do gather, sem supervisão sobe `TimeoutError: The read operation timed out` (a assinatura do journal) e com supervisão o gather conclui logando 'Loop do núcleo caiu | loop=telegram'",
+    "suite": "1666 passed, 16 skipped (1658 + 8 novos)",
+    "estado": "IMPLANTADO e PUBLICADO: commit 0c5b9d8 (origin/master ec246ac..0c5b9d8) + restart do od-core em 2026-09-15 09:48:05 (PID 305298)",
+    "deploy": {
+      "quando": "2026-09-15 09:48:05 -03 (PID 305298)",
+      "verificacao": "PID estável após ~75s; /health ok=true com os 8 checks ok (orchestrator, llm, audit, metrics, database, homeassistant, mqtt, perception); push enabled=true/dispositivos=1; journal do restart: RecoveryLoop, ProactiveNotifier, Presence Monitor, Face Detector, API REST e TelegramBot habilitados + 'Ponte MQTT habilitada' → 'MQTT conectado | host=127.0.0.1:1883'; contadores: tracebacks=0, TimeoutError=0, 'Loop do núcleo caiu'=0"
+    }
+  },
   "fix_timeout_telegram_2026_09_15": {
     "achado": "o defeito latente do journal NÃO era caso isolado: 89 quedas do od-core desde 2026-09-13, TODAS com 'TimeoutError: The read operation timed out' — 85 em 09-13 entre 02:53 e 07:25 (crash loop de ~4,5h, restart counter chegou a 99), 3 em 09-14 (14:56, 15:40, 16:06) e 1 em 09-15 05:10:29. Cada queda derruba o core INTEIRO (API, recovery, presença, MQTT, push) por ~10s até o systemd reiniciar; o serviço só está de pé desde 05:10:40 porque a janela de rede ruim passou",
     "causa_raiz": "integrations/telegram/transport.py::HTTPTransport — as três chamadas de rede (_call, send_voice, fetch_file) só envolviam HTTPError/URLError. TimeoutError/ConnectionResetError/ssl.SSLError que estouram na LEITURA da resposta NÃO passam pelo URLError (o urllib só envolve falhas de conexão), então subiam cruas: bot.run() só tolera TransportError → _run_telegram_forever → asyncio.gather em launcher._all (sem return_exceptions) → SystemExit → systemd reinicia",
@@ -548,10 +577,8 @@
   "notes": "Regra nova codificada em iniciar/RULES.md: (3) nenhuma sessão começa do zero — ao entrar, ler iniciar/session.json e iniciar/ primeiro; (4) salvamento obrigatório a cada troca — session.json com updated_at + resumo do que foi dito/decidido; arquivo de transcrição por data quando houver mudança de contexto ou conclusão de ponto. Esta sessão registrada em iniciar/session.json e resumida em iniciar/2026-09-11_conversa_omegadrakon.md.",
   "next": {
     "estado_em_2026_09_15": "push FCM ATIVO e de ponta a ponta (enabled=true, 1 dispositivo, sent=1) e as duas correções de 09-14 no ar e publicadas (40d2bb0/bf25a12/f53ca72). A pendência antiga do next (aguardar a service account) está RESOLVIDA — ver push_fcm_ativo_2026_09_14.",
-    "pendente_de_autorizacao": [
-      "decidir sobre o launcher: asyncio.gather(*tasks) sem return_exceptions mata o core inteiro quando qualquer loop morre (isolamento/supervisão de tasks) — recomendação registrada no fix de 09-15, não executada"
-    ],
-    "action": "Fix do timeout do Telegram implantado (09:40:29) e publicado (b215d07). Aguardando a escolha do usuário sobre o próximo passo (sugestão aberta: isolamento das tasks do launcher).",
+    "pendente_de_autorizacao": [],
+    "action": "Auditoria dos loops implantada (09:48:05) e publicada (0c5b9d8). Sem pendência técnica aberta; aguardando a escolha do usuário para o próximo passo.",
     "open": true,
     "context": "Push de ponta a ponta implementado, publicado (3b5599c) e no ar dormente: 26 endpoints, APK 1.2.0+5 em site/. O envio só sai quando a credencial existir — sem ela /push/test responde 503.",
     "estado_em_2026-09-13": "HEAD 3b5599c, publicado em origin/master (8c58520..3b5599c). Fora do repo restam apenas arquivos soltos de trabalho local e builds (000/, assets/, sandbox_agent/, agent.py, scripts .sh, txt.txt, GPT_preview.png). Backlog de servidor fora do e2f4960: fechado neste commit.",

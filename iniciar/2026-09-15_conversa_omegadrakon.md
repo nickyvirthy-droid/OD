@@ -164,3 +164,77 @@ Rodada 3 (autorizada): publicar e implantar o fix
   vem na próxima janela de rede ruim (antes: 85 quedas em 4h30 no 13/09).
   A assinatura a procurar de agora em diante é "Transporte indisponível —
   aguardando..." (tratado) e **não** `TimeoutError` + "Main process exited".
+
+Rodada 4 (pedido do usuário): auditar as outras integrações de rede
+
+Método: o critério não é a integração em si, e sim **o que roda dentro do
+`asyncio.gather` do `launcher._all`** — é o gather que transforma qualquer
+exceção não tratada em queda do processo inteiro. Cada loop foi lido
+procurando qual exceção escaparia dele.
+
+| loop no gather | protegia-se? | risco |
+|---|---|---|
+| API REST (`_run_api_forever`) | servidor sobe em thread; o lado asyncio só dorme | seguro |
+| Telegram (`bot.run`) | só `TransportError` | corrigido hoje (`b215d07`) |
+| Recovery (`loop.run`) | `except Exception` no tick | já protegido |
+| **MQTT (`bridge.run`)** | **`await self.poll_once()` sem try** | **derrubava o core** |
+| **Presence (`monitor.run`)** | **`await self.tick()` sem try** — o tick só protege a leitura do HA; I/O do estado, sink e bus ficavam fora | **derrubava o core** |
+| **Vision (`detector.run`)** | **`await self.tick()` sem try** — só a captura era protegida; detecção (cv2) e publish no bus ficavam fora | **derrubava o core** |
+| Notifier | thread própria + `except Exception` no loop e nos sinks | seguro |
+| FCM (`core/push.py`) | `http_request` **já** capturava `(URLError, OSError, ValueError)` → PushError; `notify` pega `PushError`; sinks do notifier pegam `Exception` | já correto |
+| `HAClient._request` | só `HTTPError`/`URLError` | ⚠️ `TimeoutError` na leitura escapava cru |
+| `launcher._all` | `asyncio.gather(*tasks)` **sem isolamento** | ⚠️ o mecanismo que converte qualquer linha acima em queda total |
+
+CORREÇÕES:
+1. **Redes de segurança nos 3 loops** (`integrations/mqtt/bridge.py`,
+   `integrations/homeassistant/presence.py`, `tools/vision/face_detector.py`):
+   `try/except Exception` em volta de `poll_once()`/`tick()` — a mesma
+   disciplina que o `RecoveryLoop` já tinha ("ciclo nunca morre"), contando o
+   erro na métrica e logando sem encerrar o loop.
+2. **`integrations/homeassistant/client.py`**: `except OSError` → `HAError` no
+   `_request` (contrato do cliente é levantar `HAError`).
+3. **`runtime/launcher.py`**: novo `_supervise(name, factory, restart=True,
+   delay_s=5.0)` — contém a exceção, registra "Loop do núcleo caiu" e reinicia
+   com espera; a API entra com `restart=False` (recriar o servidor conflita na
+   porta 8000). O `_all` agora monta todos os loops supervisionados.
+
+TESTES (+8): `tests/test_launcher_supervisor.py` (novo, 4) e 1 em cada de
+`test_mqtt.py`, `test_presence.py`, `test_face_detector.py` e
+`test_homeassistant.py`.
+
+TESTE DO TESTE:
+- com as 4 redes de segurança revertidas (`git stash`), os **4 testes de loop
+  falham** com `TimeoutError` escapando do ciclo;
+- demo do gather com o código novo: `sem_supervisao` →
+  `TimeoutError: The read operation timed out` sobe (a assinatura do journal);
+  `com_supervisao` → o gather **conclui sem exceção** e o log mostra
+  `[NICKY][ERROR] Loop do núcleo caiu | loop=telegram | error=TimeoutError`.
+
+Suíte completa: **1666 passed, 16 skipped** (1658 + 8 novos).
+
+Estado: aplicado e verificado em sandbox; **NÃO implantado e NÃO commitado** —
+aguarda autorização (regra 12).
+
+Rodada 5 (autorizada): publicar e implantar a auditoria
+
+- Revisão do diff antes de commitar (10 arquivos, +283/-12) e varredura do
+  staged por AIza/PEM/ya29/sk-/token do Telegram → **nenhuma ocorrência**.
+- **Commit `0c5b9d8`** — _fix(runtime): isola os loops do core para uma falha
+  não derrubar o processo_ → **`origin/master ec246ac..0c5b9d8`** (o
+  `tests/test_launcher_supervisor.py` é novo no repo).
+- **Deploy**: `systemctl --user restart od-core` → **active desde 2026-09-15
+  09:48:05** (PID 305298).
+- Verificação ao vivo (~75 s, mesmo PID — nenhum restart):
+  - `/health` → `ok=true` com os **8 checks ok** (orchestrator, llm, audit,
+    metrics, database, homeassistant, mqtt, perception);
+  - `GET /push/devices` → `enabled=true, project_id=nicky-e4f99, devices=1`;
+  - journal: RecoveryLoop, ProactiveNotifier, Presence Monitor, Face Detector,
+    API REST e TelegramBot habilitados; "Ponte MQTT habilitada" →
+    "MQTT conectado | host=127.0.0.1:1883 | client_id=od-core";
+  - contadores desde o restart: **tracebacks=0, TimeoutError=0,
+    "Loop do núcleo caiu"=0**.
+- Nota de método: o deploy não pode forçar uma falha de rede para ver a
+  supervisão agir ao vivo — a garantia vem dos testes (teste do teste já
+  registrado na rodada 4) e do código em execução; a assinatura a observar daqui
+  em diante é `Loop do núcleo caiu | loop=...` (contido e reiniciado) em vez de
+  `Traceback` + "Main process exited" (processo morto).
