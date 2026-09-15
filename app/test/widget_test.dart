@@ -300,6 +300,41 @@ void main() {
       );
     });
 
+    // Regressão de FORMA, no mesmo espírito do teste do manifesto acima: usa o
+    // payload REAL de GET /supervision capturado em 2026-09-15 (od-core
+    // v1.2.0+6). Mock com payload inventado passa mesmo se o servidor mudar o
+    // contrato — foi assim que o bug do `system` aninhado escapou até o APK.
+    testWidgets('renderiza os payloads REAIS de /supervision (up e degradado)',
+        (tester) async {
+      final payloads = jsonDecode(
+        File('test/fixtures/supervision_payloads.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+
+      await tester.pumpWidget(_wrap(
+        StatusScreen(api: _apiWithSupervision(payloads['up'] as Object)),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('Supervisão dos loops'), findsOneWidget);
+      expect(find.text('Nenhum loop reiniciado desde o boot'), findsOneWidget);
+
+      // Pump de um widget vazio no meio: sem isso o Flutter reaproveita o State
+      // (mesmo tipo, sem key) e o `initState` não roda de novo — a segunda
+      // renderização ficaria com o payload 'up'.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(_wrap(
+        StatusScreen(api: _apiWithSupervision(payloads['degraded'] as Object)),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('1 reiniciado(s)'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'telegram'), findsOneWidget);
+      expect(
+        find.text('1 reinício(s) • último: TimeoutError • há 0s'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('supervisão indisponível não derruba a aba Status',
         (tester) async {
       // Servidor antigo (sem a rota): o resto da tela tem que continuar.

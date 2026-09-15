@@ -398,7 +398,7 @@ APK (build 1.2.0+6):
 - `aapt dump badging`: **versionName 1.2.0 / versionCode 6** (completo) e
   **2006** (arm64).
 - Publicado em `site/OmegaDrakon.apk` (51.935.427 B, sha256 `b325ad23…`) e
-  `site/OmegaDrakon-arm64.apk` (18.518.638 B, sha256 `f3f86059…`) — origem ==
+  `site/OmegaDrakon-arm64.apk` (18.518.770 B, sha256 `f3f86059…`) — origem ==
   site conferido nos dois.
 - `GET /site/OmegaDrakon.apk` pela API → HTTP 200, **mesmo tamanho e mesmo
   sha256** do arquivo local (o celular baixa a build nova).
@@ -438,3 +438,48 @@ Rodada 11 (autorizada): publicar o app
   nenhum binário entra no histórico.
 - **O que o servidor NÃO atesta**: a instalação do APK 1.2.0+6 no Redmi Note 14
   e o card aparecendo na aba Status — isso é confirmação do usuário.
+
+Rodada 12: instalar no aparelho e conferir o card na aba Status
+
+- Primeiro tentei o caminho técnico: `adb` em
+  `/home/alex/android-sdk/platform-tools/adb` não alcança o aparelho —
+  `adb devices` vazio e timeout na conexão. Não há device anexado nem
+  pareamento de depuração sem fio, e eu não tenho como instalar daqui. Em vez de
+  dizer "não dá", fiz a verificação mais próxima possível: **renderizar a aba
+  Status com os payloads REAIS do servidor**.
+- Payloads capturados do próprio `od-core` v1.2.0+6: o `up` pelo IP do tailnet
+  (o mesmo caminho que o celular usa) e o `degraded` do endpoint rodando em
+  processo com um loop `telegram` caído.
+- Primeira tentativa FALHOU — e a causa era do teste, não do app: com o
+  `/health` real (8 checks) o card de supervisão fica **abaixo da dobra** e o
+  `ListView` só constrói o que está visível. Precisei rolar até ele.
+- O teste temporário virou **teste permanente**, no mesmo precedente do
+  `capabilities_manifest.json`: fixture
+  `app/test/fixtures/supervision_payloads.json` (payloads reais, com uma nota
+  dizendo de onde vieram) + `renderiza os payloads REAIS de /supervision (up e
+  degradado)` em `app/test/widget_test.dart`.
+- Armadilha encontrada no caminho: o segundo `pumpWidget` **reaproveitava o
+  `State`** (mesmo tipo, sem key), então o `initState` não rodava de novo e a
+  segunda renderização continuava com o payload `up` — o teste falhou com
+  `Found 0 widgets with text "1 reiniciado(s)"`. Resolvido com um pump de
+  `SizedBox` no meio, comentado no próprio teste.
+- TESTE DO TESTE: mutando a fixture (renomeando `last_kind` → `kind`, isto é,
+  simulando uma mudança de contrato do servidor) o teste **FALHA** — a fixture
+  é um pino real do contrato, não uma tautologia. Fixture restaurada e conferida
+  idêntica ao original (diff de JSON canônico).
+- Suíte do app: `flutter analyze` sem issues · `flutter test` → **49 passed**
+  (48 → 49). Os arquivos temporários da verificação (teste e payload em /tmp)
+  foram removidos.
+
+Correção de um erro meu nesta rodada:
+
+- Eu havia registrado o tamanho do arm64 como **18.518.638 B** — e esse número é
+  o do **APK anterior**. Eu li o `ls -la` antes do build. O APK 1.2.0+6 tem
+  **18.518.770 B** (`stat`, igual em `app/build/.../app-arm64-v8a-release.apk`,
+  em `site/` e no download pelo tailnet). Corrigido em `docs/CHANGELOG.md`, no
+  `session.json` e aqui; o `sha256` (`f3f86059…`) sempre esteve certo.
+
+Estado: verificação forte do lado que consigo medir (payload real → renderização
+comprovada por teste); **o que segue dependendo de você** é instalar o APK no
+aparelho e ver o card na aba Status. `app/test/widget_test.dart` e a fixture
+nova **não foram commitados** — aguardam autorização (regra 12).

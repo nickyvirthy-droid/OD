@@ -264,7 +264,7 @@ de código** (o que faltava era só a credencial):
   `system` aninhado no APK 1.2.0).
 - **APK 1.2.0+6** (versionCode 1006/2006/4006) publicado em
   `site/OmegaDrakon.apk` (51.935.427 B) e `site/OmegaDrakon-arm64.apk`
-  (18.518.638 B), com sha256 origem == site (`b325ad23…` full · `f3f86059…`
+  (18.518.770 B), com sha256 origem == site (`b325ad23…` full · `f3f86059…`
   arm64); o build anterior (**1.2.0+5**) foi preservado em
   `backups/apk-v1.2.0-1005/`. O `versionCode` subiu de propósito: com o mesmo
   código o Android recusa instalar por cima do anterior.

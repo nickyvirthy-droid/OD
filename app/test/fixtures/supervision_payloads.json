@@ -1,0 +1,35 @@
+{
+  "_nota": "Payloads REAIS de GET /supervision (od-core v1.2.0+6, 2026-09-15). 'up' veio do servidor em produção pelo IP do tailnet; 'degraded' veio do próprio endpoint rodando em processo com um loop 'telegram' caído. Servem de regressão de FORMA: mock com payload inventado não pega mudança do contrato.",
+  "up": {
+    "ok": true,
+    "status": "up",
+    "window_s": 300.0,
+    "degraded": [],
+    "restarts": 0,
+    "loops": [],
+    "ts": 1789478091.8046288
+  },
+  "degraded": {
+    "ok": false,
+    "status": "degraded",
+    "window_s": 300.0,
+    "degraded": [
+      "telegram"
+    ],
+    "restarts": 1,
+    "loops": [
+      {
+        "name": "telegram",
+        "failures": 1,
+        "restarts": 1,
+        "last_drop_ts": 1789478091.902367,
+        "last_kind": "TimeoutError",
+        "last_error": "The read operation timed out",
+        "age_s": 0.001,
+        "degraded": true,
+        "crash_loop": false
+      }
+    ],
+    "ts": 1789478091.903544
+  }
+}
