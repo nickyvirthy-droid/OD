@@ -106,8 +106,9 @@ class TestAPIRoutes:
 
     def test_routes_mirror_legacy(self) -> None:
         """17 endpoints do legado + /capabilities (v0.27.3) + /site* +
-        /actions + /executa (v1.2.0 — app Android) + /push/* (push FCM)."""
-        assert len(ROUTES) == 26
+        /actions + /executa (v1.2.0 — app Android) + /push/* (push FCM) +
+        /supervision (observabilidade dos loops, 2026-09-15)."""
+        assert len(ROUTES) == 27
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -120,6 +121,7 @@ class TestAPIRoutes:
             ("POST", "/transcribe"), ("POST", "/tts"),
             ("POST", "/push/register"), ("POST", "/push/unregister"),
             ("POST", "/push/test"), ("GET", "/push/devices"),
+            ("GET", "/supervision"),
             ("DELETE", "/history/{user_id}"),
             ("GET", "/history/{user_id}/stats"),
             ("GET", "/memory/{user_id}/search"), ("GET", "/ws/chat"),
@@ -135,6 +137,7 @@ class TestAPIRoutes:
             ("POST", "/message"), ("POST", "/executa"),
             ("POST", "/push/register"), ("POST", "/push/unregister"),
             ("POST", "/push/test"), ("GET", "/push/devices"),
+            ("GET", "/supervision"),
             ("POST", "/transcribe"), ("POST", "/tts"),
             ("DELETE", "/history/{user_id}"),
             ("GET", "/history/{user_id}/stats"),
@@ -1139,3 +1142,71 @@ class TestAPIPush:
             srv.bound_port, "POST", "/push/register", body={"token": "t"}
         )
         assert status == 401
+
+
+# ===========================================================================
+# GET /supervision — observabilidade dos loops (2026-09-15)
+# ===========================================================================
+
+class TestAPISupervision:
+    """/supervision expõe o estado dos loops supervisionados (X-API-Key)."""
+
+    @pytest.fixture(autouse=True)
+    def _registro_limpo(self):
+        from core.supervision import get_supervision
+
+        get_supervision().reset()
+        yield
+        get_supervision().reset()
+
+    def test_sem_quedas(self, serve, tmp_path: Path) -> None:
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/supervision")
+        data = _json_response((status, body, _h))
+        assert status == 200
+        assert data["ok"] is True
+        assert data["status"] == "up"
+        assert data["degraded"] == []
+        assert data["restarts"] == 0
+        assert data["loops"] == []
+        assert data["window_s"] > 0
+        assert isinstance(data["ts"], float)
+
+    def test_loop_caido_degrada(self, serve, tmp_path: Path) -> None:
+        from core.supervision import get_supervision
+
+        registro = get_supervision()
+        registro.record_drop(
+            "telegram", kind="TimeoutError",
+            detail="The read operation timed out",
+        )
+        registro.record_restart("telegram")
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/supervision")
+        data = _json_response((status, body, _h))
+        assert status == 200  # o core está de pé: degradado, não erro HTTP
+        assert data["ok"] is False
+        assert data["status"] == "degraded"
+        assert data["degraded"] == ["telegram"]
+        assert data["restarts"] == 1
+        [loop] = data["loops"]
+        assert loop["name"] == "telegram"
+        assert loop["degraded"] is True
+        assert loop["last_kind"] == "TimeoutError"
+        assert loop["last_error"] == "The read operation timed out"
+        assert loop["age_s"] is not None
+
+    def test_requer_api_key(self, serve, tmp_path: Path) -> None:
+        srv = serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, api_key="s3cr3ta", auth_all=True, rate_limit_max=0
+            ),
+        )
+        status, _body, _h = _request(srv.bound_port, "GET", "/supervision")
+        assert status == 401
+        status, body, _h = _request(
+            srv.bound_port, "GET", "/supervision", api_key="s3cr3ta"
+        )
+        assert status == 200
+        assert _json_response((status, body, _h))["ok"] is True

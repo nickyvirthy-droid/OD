@@ -48,6 +48,7 @@ from tools.registry import ActionRegistry
 from core.capabilities import OD_VERSION, capabilities_manifest
 from core.logger import get_logger
 from core.orchestrator import OrchestrationResult, Orchestrator
+from core.supervision import get_supervision
 from integrations.telegram.commands import (
     _classificar_risco,
     NIVEL_1_ADMIN,
@@ -179,6 +180,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/push/unregister", "push_unregister", True),
     ("POST", "/push/test", "push_test", True),
     ("GET", "/push/devices", "push_devices", True),
+    ("GET", "/supervision", "supervision", True),
     ("POST", "/transcribe", "transcribe", True),
     ("POST", "/tts", "tts", True),
     ("DELETE", "/history/{user_id}", "history_delete", True),
@@ -1118,6 +1120,30 @@ class APIHandler(BaseHTTPRequestHandler):
         """GET /push/devices — estado do push (tokens mascarados, nunca inteiros)."""
         push = self._push_service()
         self._json(200, {"ok": True, **push.status()})
+
+    def supervision(self) -> None:
+        """GET /supervision — estado dos loops do núcleo (quedas e reinícios).
+
+        Cada loop do modo all é isolado pelo launcher (`_supervise`): uma
+        falha não derruba o core. Este endpoint expõe o MESMO estado que o
+        check "loops" do /health degrada e que a sonda `_check_loops` do
+        notifier alerta — para o app mostrar sem depender do Telegram.
+
+        `ok=false` e `status=degraded` significam "loop caiu dentro da
+        janela" (o core segue de pé); passada a janela, volta a ok sozinho.
+        """
+        registro = get_supervision()
+        loops = registro.evaluate()
+        degradados = [item["name"] for item in loops if item["degraded"]]
+        self._json(200, {
+            "ok": not degradados,
+            "status": "degraded" if degradados else "up",
+            "window_s": registro.degraded_window_s,
+            "degraded": degradados,
+            "restarts": sum(int(item["restarts"]) for item in loops),
+            "loops": loops,
+            "ts": time.time(),
+        })
 
     def push_test(self) -> None:
         """POST /push/test — notificação de teste para todos os aparelhos.
