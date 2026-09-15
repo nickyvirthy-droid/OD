@@ -243,6 +243,30 @@ class OdApi {
     throw OdApiError('Capabilities falhou: ${response.statusCode}');
   }
 
+  /// Estado da supervisão dos loops do núcleo (GET /supervision).
+  ///
+  /// O OD roda vários loops no MESMO processo (API, Telegram, recovery, MQTT,
+  /// presença, visão). Cada um é isolado pelo launcher: um loop que cai é
+  /// CONTIDO e reiniciado em vez de derrubar o core — este endpoint conta esse
+  /// rastro. `ok=false` + `status=degraded` significam "loop caiu nos últimos
+  /// `window_s` segundos" e vêm com **HTTP 200**: degradado não é erro de
+  /// requisição, o servidor está de pé.
+  ///
+  /// Contrato: `{ok, status, window_s, degraded[], restarts, loops[], ts}`,
+  /// com cada item de `loops[]` trazendo `name`, `failures`, `restarts`,
+  /// `last_kind`, `last_error`, `age_s`, `degraded` e `crash_loop`.
+  Future<Map<String, dynamic>> getSupervision() async {
+    final response = await _send(
+      'GET',
+      Uri.parse('$baseUrl/supervision'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw OdApiError('Supervisão falhou: ${response.statusCode}');
+  }
+
   /// Catálogo de actions (GET /actions — ActionRegistry com risco).
   Future<List<Map<String, dynamic>>> getActions() async {
     final response = await _send(

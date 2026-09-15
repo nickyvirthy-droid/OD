@@ -64,6 +64,17 @@ OdApi _mockApi() => OdApi(
                 },
               ],
             });
+          case '/supervision':
+            // Mesma FORMA do GET /supervision (sem loop caído desde o boot).
+            return _json({
+              'ok': true,
+              'status': 'up',
+              'window_s': 300.0,
+              'degraded': <String>[],
+              'restarts': 0,
+              'loops': <Object>[],
+              'ts': 1789477297.6,
+            });
           case '/capabilities':
             // Mesma FORMA do manifesto real do servidor (plano, com `system`
             // sendo o nome em string e as contagens em `counts`). O mock antigo
@@ -84,6 +95,37 @@ OdApi _mockApi() => OdApi(
     );
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+
+/// API fake com um payload controlado de /supervision (a aba Status é
+/// best-effort: a supervisão não pode derrubar a tela).
+OdApi _apiWithSupervision(Object supervision, {int status = 200}) => OdApi(
+      baseUrl: 'http://od.test:8000',
+      client: MockClient((request) async {
+        switch (request.url.path) {
+          case '/health':
+            return _json({
+              'ok': true,
+              'status': 'up',
+              'checks': {
+                'core': {'ok': true, 'detail': 'ok'},
+              },
+            });
+          case '/capabilities':
+            return _json({
+              'system': 'Omega Drakon',
+              'version': '1.2.0',
+              'counts': {'capabilities': 40, 'actions': 57},
+              'runtime': {
+                'modes': ['api', 'all'],
+              },
+            });
+          case '/supervision':
+            return _json(supervision, status: status);
+          default:
+            return http.Response('not found', 404);
+        }
+      }),
+    );
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -212,6 +254,66 @@ void main() {
       expect(find.text('${modes.length} modos'), findsOneWidget);
       expect(find.text('${counts['capabilities']}'), findsOneWidget);
       expect(find.text('${counts['actions']}'), findsOneWidget);
+    });
+
+    testWidgets('mostra a supervisão sem nenhum loop caído', (tester) async {
+      await tester.pumpWidget(_wrap(StatusScreen(api: _mockApi())));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Supervisão dos loops'), findsOneWidget);
+      expect(find.text('Todos de pé'), findsOneWidget);
+      expect(find.text('Nenhum loop reiniciado desde o boot'), findsOneWidget);
+    });
+
+    testWidgets('mostra o loop caído quando a supervisão está degradada',
+        (tester) async {
+      // Payload real do GET /supervision com um loop reiniciado.
+      final api = _apiWithSupervision({
+        'ok': false,
+        'status': 'degraded',
+        'window_s': 300.0,
+        'degraded': ['telegram'],
+        'restarts': 1,
+        'loops': [
+          {
+            'name': 'telegram',
+            'failures': 1,
+            'restarts': 1,
+            'last_kind': 'TimeoutError',
+            'last_error': 'The read operation timed out',
+            'age_s': 12.0,
+            'degraded': true,
+            'crash_loop': false,
+          }
+        ],
+      });
+
+      await tester.pumpWidget(_wrap(StatusScreen(api: api)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Supervisão dos loops'), findsOneWidget);
+      expect(find.text('1 reiniciado(s)'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'telegram'), findsOneWidget);
+      expect(
+        find.textContaining('TimeoutError'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('supervisão indisponível não derruba a aba Status',
+        (tester) async {
+      // Servidor antigo (sem a rota): o resto da tela tem que continuar.
+      final api = _apiWithSupervision({'ok': false}, status: 404);
+
+      await tester.pumpWidget(_wrap(StatusScreen(api: api)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('OmegaDrakon Online'), findsOneWidget);
+      expect(find.text('1.2.0'), findsOneWidget);
+      expect(
+        find.textContaining('Supervisão dos loops indisponível'),
+        findsOneWidget,
+      );
     });
   });
 

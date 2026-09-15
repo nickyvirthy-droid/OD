@@ -13,6 +13,8 @@ class StatusScreen extends StatefulWidget {
 class _StatusScreenState extends State<StatusScreen> {
   Map<String, dynamic>? _health;
   Map<String, dynamic>? _capabilities;
+  Map<String, dynamic>? _supervision;
+  bool _supervisionFailed = false;
   bool _loading = true;
 
   @override
@@ -37,6 +39,26 @@ class _StatusScreenState extends State<StatusScreen> {
         _loading = false;
       });
     }
+    await _loadSupervision();
+  }
+
+  /// Supervisão dos loops é BEST-EFFORT: um erro aqui não pode derrubar a aba
+  /// Status inteira (a mesma lição do bug do `system` aninhado no APK 1.2.0).
+  Future<void> _loadSupervision() async {
+    try {
+      final supervision = await widget.api.getSupervision();
+      if (!mounted) return;
+      setState(() {
+        _supervision = supervision;
+        _supervisionFailed = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _supervision = null;
+        _supervisionFailed = true;
+      });
+    }
   }
 
   @override
@@ -55,6 +77,9 @@ class _StatusScreenState extends State<StatusScreen> {
           const SizedBox(height: 16),
           // Checks
           _buildChecksCard(),
+          const SizedBox(height: 16),
+          // Supervisão dos loops do núcleo
+          _buildSupervisionCard(),
           const SizedBox(height: 16),
           // Info do sistema
           _buildSystemInfo(),
@@ -129,6 +154,110 @@ class _StatusScreenState extends State<StatusScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Card "Supervisão dos loops" — lê GET /supervision.
+  ///
+  /// Cada loop do núcleo (API, Telegram, recovery, MQTT, presença, visão) roda
+  /// no MESMO processo e é isolado pelo launcher: uma falha é CONTIDA e o loop
+  /// reiniciado, no lugar de derrubar o core — antes de 2026-09-15 um timeout
+  /// de rede do Telegram derrubou o processo inteiro 89 vezes. O card mostra
+  /// esse rastro: `degraded` quer dizer "caiu nos últimos `window_s` segundos"
+  /// e volta a ok sozinho depois da janela.
+  ///
+  /// Sem cast (só `is` + fallback): o formato do endpoint pode evoluir sem
+  /// quebrar a tela.
+  Widget _buildSupervisionCard() {
+    if (_supervisionFailed) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Icon(Icons.help_outline, color: Colors.grey, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Supervisão dos loops indisponível '
+                  '(servidor sem a rota /supervision?)',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final supervision = _supervision;
+    if (supervision == null) return const SizedBox.shrink();
+
+    final loops = supervision['loops'];
+    final list = loops is List ? loops : const [];
+    final degradados = supervision['degraded'];
+    final nDegradados = degradados is List ? degradados.length : 0;
+    final janela = supervision['window_s'];
+    final restarts = supervision['restarts'];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Supervisão dos loops',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const Divider(),
+            _infoRow(
+              'Estado',
+              nDegradados == 0
+                  ? 'Todos de pé'
+                  : '$nDegradados reiniciado(s)',
+            ),
+            _infoRow(
+              'Janela',
+              janela is num ? '${janela.toInt()} s' : '?',
+            ),
+            _infoRow('Reinícios', restarts == null ? '0' : '$restarts'),
+            if (list.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Nenhum loop reiniciado desde o boot'),
+              )
+            else
+              ...list.map(_loopTile),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Linha de um loop supervisionado (nome + reinícios + último erro).
+  Widget _loopTile(dynamic raw) {
+    if (raw is! Map) return const SizedBox.shrink();
+    final name = '${raw['name'] ?? '?'}';
+    final degraded = raw['degraded'] == true;
+    final restarts = raw['restarts'] ?? 0;
+    final kind = raw['last_kind'];
+    final age = raw['age_s'];
+
+    final detalhe = StringBuffer('$restarts reinício(s)');
+    if (kind != null && '$kind'.isNotEmpty) {
+      detalhe.write(' • último: $kind');
+    }
+    if (age is num) detalhe.write(' • há ${age.toInt()}s');
+
+    return ListTile(
+      dense: true,
+      leading: Icon(
+        degraded ? Icons.warning_amber : Icons.check,
+        color: degraded ? Colors.orange : Colors.green,
+        size: 20,
+      ),
+      title: Text(name),
+      subtitle: Text(detalhe.toString()),
     );
   }
 

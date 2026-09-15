@@ -100,6 +100,63 @@ void main() {
       expect(() => api.getHealth(), throwsA(isA<OdApiError>()));
     });
 
+    test('getSupervision decodifica o estado dos loops', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.toString(), 'http://od.test:8000/supervision');
+        return jsonResponse({
+          'ok': true,
+          'status': 'up',
+          'window_s': 300.0,
+          'degraded': <String>[],
+          'restarts': 0,
+          'loops': <Object>[],
+          'ts': 1789477297.6,
+        });
+      }));
+
+      final data = await api.getSupervision();
+      expect(data['ok'], isTrue);
+      expect(data['status'], 'up');
+      expect(data['window_s'], 300.0);
+      expect(data['loops'], isEmpty);
+    });
+
+    test('getSupervision degradado é resposta válida (HTTP 200)', () async {
+      // Degradado NÃO é erro de requisição: o core está de pé e o app precisa
+      // ler o payload normalmente para mostrar o loop caído.
+      final api = apiWith(MockClient((_) async => jsonResponse({
+            'ok': false,
+            'status': 'degraded',
+            'window_s': 300.0,
+            'degraded': ['telegram'],
+            'restarts': 1,
+            'loops': [
+              {
+                'name': 'telegram',
+                'failures': 1,
+                'restarts': 1,
+                'last_kind': 'TimeoutError',
+                'last_error': 'The read operation timed out',
+                'age_s': 12.0,
+                'degraded': true,
+                'crash_loop': false,
+              }
+            ],
+          })));
+
+      final data = await api.getSupervision();
+      expect(data['ok'], isFalse);
+      expect(data['degraded'], ['telegram']);
+      expect(data['loops'], hasLength(1));
+    });
+
+    test('getSupervision falha com status != 200', () async {
+      final api = apiWith(
+        MockClient((_) async => jsonResponse({}, status: 404)),
+      );
+      expect(() => api.getSupervision(), throwsA(isA<OdApiError>()));
+    });
+
     test('getActions extrai o catálogo de /actions', () async {
       final api = apiWith(MockClient((request) async {
         expect(request.url.path, '/actions');
