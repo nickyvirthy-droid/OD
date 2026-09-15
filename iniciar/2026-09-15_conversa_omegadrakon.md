@@ -597,3 +597,32 @@ Rodada 15 (autorizada): matar o ruído do handle_error
 
 Estado: aplicado e verificado em sandbox; **NÃO implantado e NÃO commitado** —
 aguarda autorização (regra 12).
+
+Rodada 16 (autorizada): implantar o silenciamento do handle_error
+
+- **Commit `a568748`** — _fix(api): contém o erro de request sem despejar
+  traceback no journal_ (5 arquivos, +200/-5: `server.py`, `test_api.py`,
+  `docs/CHANGELOG.md`, `session.json` e esta transcrição) →
+  **`origin/master 7e64553..a568748`**. Varredura do diff por padrões de
+  credencial: nenhuma ocorrência.
+- **Deploy**: `systemctl --user restart od-core` → **`ExecMainStartTimestamp`
+  2026-09-15 10:43:54** (PID 314992). Desta vez a hora saiu da fonte da
+  verdade, não do relógio do meu comando — a correção da rodada 14 em uso.
+- Verificação pós-restart: `/health` (com chave) → `ok=true`, 9 checks **todos
+  ok**; `/supervision` → `{ok:true, status:"up", degraded:[], restarts:0,
+  loops:[]}`; boot limpo (Push FCM `enabled=True/dispositivos=1`, API REST no ar
+  `auth=True`, TelegramBot com `HTTPTransport`, `MQTT conectado`); `NRestarts=0`
+  e PID estável. Contadores: Traceback=0, ConnectionResetError=0, `Loop do
+  núcleo caiu`=0, TimeoutError=0, `Main process exited`=0.
+- **PROVA AO VIVO (antes/depois com a mesma assinatura):** disparei 2 conexões
+  abortadas com RST (request incompleta + `SO_LINGER` 0) contra `127.0.0.1:8000`.
+  O journal desde a marca veio **`-- No entries --`**. Antes do fix, exatamente
+  essa assinatura gerava 2 `Traceback` + `ConnectionResetError` (10:14:41).
+- **Limite honesto dessa prova:** no nível de log do serviço (INFO —
+  `OD_LOG_LEVEL` não está no `.env`) a linha de DEBUG fica abaixo do limiar e
+  não entra no journal. Então o "No entries" prova que **o ruído sumiu**, mas a
+  prova **positiva** de que o `handle_error` tratou a desconexão vem do teste
+  (socket real com RST → registro de debug) e do código em execução — o PID
+  314992 subiu depois do commit `a568748`.
+
+Estado: PUBLICADO e no ar (`origin/master` em `a568748`).

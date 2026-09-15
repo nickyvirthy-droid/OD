@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-15T10:40:00-03:00",
+  "updated_at": "2026-09-15T10:47:00-03:00",
   "ruido_handle_error_2026_09_15": {
     "pedido": "reduzir o ruído dos tracebacks do http.server (achado 2 da checagem dos loops)",
     "causa": "o handle_error herdado do socketserver imprime o traceback inteiro no stderr do processo quando o cliente aborta a conexão no meio do request — rotina (app Android sem rede, navegador fechando aba, health check com timeout). No journal do systemd isso vira ruído que esconde erro de verdade (foram os 2 ConnectionResetError de 10:14:41)",
@@ -12,7 +12,13 @@
     "teste_do_teste": "mutação A: handle_error loga o debug E delega ao super() → só o teste (2) falha, no assert do traceback (prova que o assert é o pino real); mutação B: renomear o método (deixa de sobrescrever) → os 3 falham. Revertidas",
     "suite": "1689 passed, 16 skipped (1686 + 3)",
     "nao_escopo": "runtime/control_bridge/bridge.py também cria um ThreadingHTTPServer (bridge local) e tem o mesmo handle_error herdado — NÃO tocado; candidato se o ruído aparecer no journal do bridge",
-    "estado": "aplicado e verificado em sandbox; NÃO implantado e NÃO commitado — aguarda autorização (regra 12)"
+    "estado": "IMPLANTADO e PUBLICADO: commit a568748 (origin/master 7e64553..a568748) + restart do od-core em 2026-09-15 10:43:54 (PID 314992, ExecMainStartTimestamp)",
+    "deploy": {
+      "quando": "2026-09-15 10:43:54 -03 (PID 314992)",
+      "verificacao": "/health (com chave) → ok=true, status=up, 9 checks todos ok, 'loops' com detail 'nenhum loop supervisionado registrado'; /supervision → {ok:true, status:up, degraded:[], restarts:0, loops:[]}; boot limpo (Push FCM enabled=True/dispositivos=1, API REST no ar auth=True, TelegramBot com HTTPTransport, MQTT conectado | host=127.0.0.1:1883); NRestarts=0 e PID estável",
+      "prova_ao_vivo": "dispares 2 conexões abortadas com RST (request incompleta, SO_LINGER 0) contra 127.0.0.1:8000 → journal desde a marca: 'No entries'. Antes do fix, a MESMA assinatura produziu 2 Traceback + ConnectionResetError (10:14:41). Contadores pós-restart: Traceback=0, ConnectionResetError=0, Loop do núcleo caiu=0, TimeoutError=0, Main process exited=0",
+      "limite_da_prova_ao_vivo": "no nível de log do serviço (INFO, OD_LOG_LEVEL não definido) a linha de DEBUG não entra no journal — então o 'No entries' prova que o ruído sumiu, mas a prova POSITIVA de que o handle_error tratou a desconexão está no teste (socket real com RST → registro de debug) e no código implantado; o PID 314992 subiu depois do commit a568748"
+    }
   },
   "checagem_loops_2026_09_15": {
     "pedido": "verificar no journal se algum loop caiu ou foi reiniciado desde o deploy, e conferir /health e /supervision",
