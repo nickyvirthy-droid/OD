@@ -26,6 +26,7 @@ from observability.health import (
     STATUS_UP,
     HealthMonitor,
 )
+from core.supervision import get_supervision
 from runtime.launcher import (
     _homeassistant_check,
     _mqtt_check,
@@ -65,6 +66,45 @@ class TestBuildHealthPlaceholders:
         assert result["checks"]["homeassistant"]["critical"] is False
         assert result["checks"]["mqtt"]["ok"] is True
         assert result["checks"]["mqtt"]["critical"] is False
+
+
+# ---------------------------------------------------------------------------
+# Check "loops" — supervisão dos loops do núcleo (2026-09-15)
+# ---------------------------------------------------------------------------
+
+class TestLoopsCheck:
+    """/health expõe o estado da supervisão dos loops — sempre não-crítico."""
+
+    def test_check_registrado(self) -> None:
+        assert "loops" in build_health().components
+
+    @pytest.mark.asyncio
+    async def test_sem_quedas_e_ok(self) -> None:
+        get_supervision().reset()
+        monitor = build_health()
+        result = await monitor.health()
+        assert result["checks"]["loops"]["ok"] is True
+        assert result["checks"]["loops"]["critical"] is False
+
+    @pytest.mark.asyncio
+    async def test_queda_degrada_mas_nao_derruba(self) -> None:
+        """Loop reiniciado pela supervisão degrada o /health, não o derruba."""
+        registro = get_supervision()
+        registro.reset()
+        registro.record_drop(
+            "telegram", kind="TimeoutError", detail="The read operation timed out"
+        )
+        try:
+            monitor = build_health()
+            result = await monitor.health()
+            check = result["checks"]["loops"]
+            assert check["ok"] is False
+            assert check["status"] == STATUS_DEGRADED
+            assert check["critical"] is False  # degrada; não vira "down"
+            assert "telegram" in check["detail"]
+            assert "TimeoutError" in check["detail"]
+        finally:
+            registro.reset()
 
 
 # ---------------------------------------------------------------------------

@@ -71,6 +71,7 @@ from typing import Any, Awaitable, Callable, Optional
 
 from core.event_bus import EventBus
 from core.logger import get_logger
+from core.supervision import SupervisionRegistry, get_supervision
 
 __signature__ = "OD // CORE"
 
@@ -367,6 +368,14 @@ def build_health(
         """Placeholder até a ponte MQTT ser construída."""
         return {"ok": True, "status": "up", "detail": "mqtt não configurado (ok)"}
 
+    def _check_loops(mon: Any) -> dict[str, Any]:
+        """Loops do núcleo (2026-09-15): queda recente degrada o /health.
+
+        Cada loop do modo all é supervisionado (não pode derrubar o core);
+        este check é o que torna a queda visível em vez de silenciosa.
+        """
+        return get_supervision().health()
+
     monitor.register("orchestrator", _check_orchestrator, critical=True)
     monitor.register("llm", _check_llm, critical=True)
     monitor.register("audit", _check_audit, critical=False)
@@ -376,6 +385,7 @@ def build_health(
     # o estado real entra quando o componente existe (register substitui).
     monitor.register("homeassistant", _check_homeassistant_placeholder, critical=False)
     monitor.register("mqtt", _check_mqtt_placeholder, critical=False)
+    monitor.register("loops", _check_loops, critical=False)
     return monitor
 
 
@@ -873,6 +883,7 @@ async def _supervise(
     *,
     restart: bool = True,
     delay_s: float = 5.0,
+    registry: Optional[SupervisionRegistry] = None,
 ) -> None:
     """Roda um loop do núcleo isolado: a morte dele não derruba o processo.
 
@@ -883,27 +894,44 @@ async def _supervise(
     registrada e, se o loop for reiniciável, ele volta com espera; os outros
     loops nunca param.
 
+    Cada queda entra no registro de supervisão (core/supervision.py), que
+    alimenta o check "loops" do /health e o alerta do notifier.
+
     Args:
         name:     Rótulo do loop no log (api, telegram, mqtt, presence...).
         restart:  False para loops que não podem ser recriados — a API sobe o
                   servidor HTTP no primeiro build, então recriá-la conflita
                   na porta.
         delay_s:  Espera antes de reiniciar (evita laço quente).
+        registry: Registro de supervisão (default: o do processo).
     """
+    supervision = registry if registry is not None else get_supervision()
     while True:
         try:
             await factory()
         except asyncio.CancelledError:  # pragma: no cover — shutdown normal
             raise
         except Exception as exc:  # pragma: no cover — loop quebrou
+            queda = supervision.record_drop(
+                name, kind=type(exc).__name__, detail=str(exc)
+            )
             log.error(
                 "Loop do núcleo caiu",
                 loop=name, error=type(exc).__name__, detail=str(exc),
+                quedas=queda.failures,
             )
         else:  # pragma: no cover — loop retornou sozinho
+            supervision.record_drop(
+                name, kind="Returned", detail="loop retornou sozinho"
+            )
             log.warn("Loop do núcleo retornou", loop=name)
         if not restart:
             return
+        restarts = supervision.record_restart(name)
+        log.warn(
+            "Loop do núcleo reiniciando", loop=name,
+            delay_s=delay_s, reinicios=restarts,
+        )
         await asyncio.sleep(delay_s)
 
 

@@ -611,7 +611,14 @@ class TestNotifierLoop:
         notifier = make_notifier(orch(OnlineProvider()), sinks=[lambda t: None])
         data = notifier.dump()
         assert data["pid"] >= 0
-        assert len(data["checks"]) == 4
+        # Sondas padrão: orchestrator, llm, disk, loops (supervisão) e restart
+        assert data["checks"] == [
+            "_check_orchestrator",
+            "_check_llm",
+            "_check_disk",
+            "_check_loops",
+            "_check_restart",
+        ]
         assert data["sinks"] == 1
         assert data["metrics"]["ticks"] == 0
         assert data["alerts"] == []

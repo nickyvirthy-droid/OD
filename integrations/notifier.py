@@ -43,6 +43,7 @@ from typing import Any, Awaitable, Callable, Optional, Protocol, Union
 
 from core.logger import get_logger
 from core.orchestrator import Orchestrator
+from core.supervision import CRASH_LOOP_RESTARTS, get_supervision
 
 __signature__ = "OD // CORE"
 
@@ -266,6 +267,58 @@ def _check_disk(notifier: "ProactiveNotifier") -> list[CheckResult]:
     return results
 
 
+def _check_loops(notifier: "ProactiveNotifier") -> list[CheckResult]:
+    """Alerta quando um loop do núcleo cai e é reiniciado pela supervisão.
+
+    Os loops do modo all rodam no MESMO processo e são isolados pelo launcher
+    (`runtime.launcher._supervise`): a queda fica contida em vez de derrubar o
+    core — mas precisa aparecer. Antes da supervisão (2026-09-15) ela era
+    justamente o motivo de 89 restarts silenciosos do od-core.
+
+    O anti-spam é o do notifier (1 alerta/hora por loop); a severidade sobe
+    para `crit` quando o loop já reiniciou 3+ vezes (laço de falha).
+    """
+    resultados: list[CheckResult] = []
+    for estado in get_supervision().evaluate():
+        nome = estado["name"]
+        if estado["degraded"]:
+            queda = estado.get("last_kind") or "?"
+            erro = (estado.get("last_error") or "").strip()
+            sufixo = f": {erro}" if erro else ""
+            acao = (
+                f"reiniciado {estado['restarts']}x pela supervisão"
+                if estado["restarts"]
+                else "sem reinício automático"
+            )
+            # ex: "Loop telegram caiu (TimeoutError), reiniciado 1x pela
+            #      supervisão: The read operation timed out."
+            resultados.append(
+                CheckResult(
+                    ok=False,
+                    severity=(
+                        SEVERITY_CRIT
+                        if estado["crash_loop"]
+                        else SEVERITY_WARN
+                    ),
+                    source=f"loop:{nome}",
+                    key=f"loop:{nome}",
+                    detail=f"Loop {nome} caiu ({queda}), {acao}{sufixo}.",
+                )
+            )
+        else:
+            resultados.append(
+                CheckResult(
+                    ok=True,
+                    source=f"loop:{nome}",
+                    detail=(
+                        f"Loop {nome} estável "
+                        f"({estado['restarts']} reinício(s) acumulado(s))."
+                    ),
+                )
+            )
+    return resultados
+
+
 def _check_restart(notifier: "ProactiveNotifier") -> CheckResult:
     if notifier._restart_detected and not notifier._restart_reported:
         return CheckResult(
@@ -372,6 +425,7 @@ class ProactiveNotifier:
             _check_orchestrator,
             _check_llm,
             _check_disk,
+            _check_loops,
             _check_restart,
         ]
 
