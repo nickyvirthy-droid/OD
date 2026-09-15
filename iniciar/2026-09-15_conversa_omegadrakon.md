@@ -481,5 +481,16 @@ Correção de um erro meu nesta rodada:
 
 Estado: verificação forte do lado que consigo medir (payload real → renderização
 comprovada por teste); **o que segue dependendo de você** é instalar o APK no
-aparelho e ver o card na aba Status. `app/test/widget_test.dart` e a fixture
-nova **não foram commitados** — aguardam autorização (regra 12).
+aparelho e ver o card na aba Status.
+
+Rodada 13 (autorizada): publicar o teste do contrato
+
+- **Commit `d6bd93e`** — _test(app): pina o contrato de /supervision com
+  payloads reais do servidor_ (5 arquivos, +132/-5: `widget_test.dart`, a
+  fixture nova, `docs/CHANGELOG.md`, o `session.json` e esta transcrição) →
+  **`origin/master 3aadfb1..d6bd93e`**. Varredura do diff staged e da fixture
+  por padrões de credencial (AIza, chave privada, token, api_key): nenhuma
+  ocorrência.
+- **Sem restart do `od-core`** e **sem rebuild do APK**: nada de servidor e
+  nada de código de produção do app mudou — só teste, fixture e documentação.
+  O binário em `site/` continua sendo o 1.2.0+6 de 10:16.

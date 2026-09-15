@@ -11,7 +11,7 @@
     "teste_do_teste": "mutando a fixture (renomeando last_kind → kind, simulando mudança de contrato do servidor) o teste FALHA; fixture restaurada e conferida idêntica ao original (diff de JSON canônico). Os temporários da verificação foram apagados",
     "suite_app": "flutter analyze sem issues · flutter test 49 passed (48 → 49)",
     "correcao_de_erro_meu": "o tamanho registrado do arm64 (18.518.638 B) era o do APK ANTERIOR — eu li o `ls -la` antes do build. O 1.2.0+6 tem 18.518.770 B (stat; igual no build, em site/ e no download pelo tailnet). Corrigido em docs/CHANGELOG.md, no session.json e na transcrição; o sha256 (f3f86059…) sempre esteve certo",
-    "estado": "verificação de forma concluída (payload real → renderização comprovada por teste); app/test/widget_test.dart e a fixture nova NÃO commitados — aguardam autorização"
+    "estado": "PUBLICADO: commit d6bd93e (origin/master 3aadfb1..d6bd93e) — teste, fixture e notas. Sem restart do od-core e sem rebuild do APK (nada de servidor nem de código de produção do app mudou; o binário em site/ segue o 1.2.0+6 de 10:16)"
   },
   "app_supervision_2026_09_15": {
     "pedido": "mostrar o estado da supervisão dos loops na aba Status do app e republicar o APK",
