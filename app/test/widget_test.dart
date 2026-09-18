@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,8 +13,58 @@ import 'package:omegadrakon/screens/chat_screen.dart';
 import 'package:omegadrakon/screens/settings_screen.dart';
 import 'package:omegadrakon/screens/status_screen.dart';
 import 'package:omegadrakon/services/od_api.dart';
+import 'package:omegadrakon/services/od_ws.dart';
 import 'package:omegadrakon/widgets/message_bubble.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// Canal WebSocket falso: responde o `auth` e chama o roteiro no `message`.
+class _ScriptedChannel implements OdWsChannel {
+  _ScriptedChannel({this.onMessage});
+
+  final FutureOr<void> Function(_ScriptedChannel channel)? onMessage;
+  final List<Map<String, dynamic>> sent = [];
+  final _controller = StreamController<String>();
+
+  @override
+  Stream<String> get incoming => _controller.stream;
+
+  @override
+  void send(String data) {
+    final frame = jsonDecode(data) as Map<String, dynamic>;
+    sent.add(frame);
+    if (frame['type'] == 'auth') {
+      _controller.add('{"type":"authenticated"}');
+    } else if (frame['type'] == 'message') {
+      onMessage?.call(this);
+    }
+  }
+
+  @override
+  Future<void> close() async {
+    if (!_controller.isClosed) await _controller.close();
+  }
+
+  void emit(Object frame) {
+    if (_controller.isClosed) return;
+    _controller.add(frame is String ? frame : jsonEncode(frame));
+  }
+
+  void fail(Object error) {
+    if (_controller.isClosed) return;
+    _controller.addError(error);
+  }
+}
+
+OdWsConnector _connectorFor(_ScriptedChannel channel) =>
+    (url, timeout) async => channel;
+
+/// Falha de rede usada nos testes de widget (sem socket real).
+class _OfflineException implements Exception {
+  const _OfflineException();
+
+  @override
+  String toString() => 'SocketException: Connection refused';
+}
 
 http.Response _json(Object body, {int status = 200}) => http.Response(
       jsonEncode(body),
@@ -188,6 +239,96 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('⚠️ Erro'), findsOneWidget);
+    });
+
+    // -- Streaming (WebSocket) -------------------------------------------------
+
+    testWidgets('mostra a resposta conforme os tokens chegam (não de uma vez)',
+        (tester) async {
+      final channel = _ScriptedChannel(
+        onMessage: (c) async {
+          c.emit({'type': 'processing'});
+          c.emit({'type': 'token', 'content': 'Olá'});
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          c.emit({'type': 'token', 'content': ', humano'});
+          c.emit({'type': 'done', 'content': 'Olá, humano'});
+        },
+      );
+      final api = _mockApi(); // o REST responde 'Resposta do OD' se for chamado
+      await tester.pumpWidget(_wrap(ChatScreen(
+        api: api,
+        chat: OdStreamingChat(api, connector: _connectorFor(channel)),
+      )));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'oi');
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump(); // dispara o envio
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Primeiro token já na tela; o "Digitando..." já saiu.
+      expect(find.text('Olá'), findsOneWidget);
+      expect(find.text('Digitando...'), findsNothing);
+      expect(find.text('Olá, humano'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Olá, humano'), findsOneWidget);
+      expect(find.text('Streaming ativo'), findsOneWidget);
+      // Se o streaming funcionou, o REST não foi usado.
+      expect(find.text('Resposta do OD'), findsNothing);
+      // E o envio destravou: o botão voltou a ser o de enviar (o spinner só
+      // some quando o stream termina de fato — foi o que sumiu primeiro quando
+      // o gerador ficava preso no encerramento do canal).
+      expect(find.byIcon(Icons.send), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('sem WebSocket cai para o POST /message e avisa o transporte',
+        (tester) async {
+      final api = _mockApi();
+      await tester.pumpWidget(_wrap(ChatScreen(
+        api: api,
+        chat: OdStreamingChat(
+          api,
+          connector: (_, __) async => throw const _OfflineException(),
+        ),
+      )));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'oi');
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Resposta do OD'), findsOneWidget);
+      expect(find.text('Resposta via REST'), findsOneWidget);
+    });
+
+    testWidgets('streaming cortado no meio mantém o texto e avisa na mesma bolha',
+        (tester) async {
+      final channel = _ScriptedChannel(
+        onMessage: (c) {
+          c.emit({'type': 'token', 'content': 'começou bem'});
+          c.fail(const _OfflineException());
+        },
+      );
+      final api = _mockApi();
+      await tester.pumpWidget(_wrap(ChatScreen(
+        api: api,
+        chat: OdStreamingChat(api, connector: _connectorFor(channel)),
+      )));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'oi');
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      // O texto parcial continua e o aviso fica na MESMA bolha (uma bolha de
+      // erro nova pareceria uma segunda resposta).
+      expect(find.textContaining('começou bem'), findsOneWidget);
+      expect(find.textContaining('interrompida no meio do streaming'), findsOneWidget);
+      expect(find.text('Resposta do OD'), findsNothing); // não duplicou pelo REST
     });
   });
 

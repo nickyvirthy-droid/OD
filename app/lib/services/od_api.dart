@@ -48,7 +48,7 @@ class OdApi {
   final int maxAttempts;
   final Duration retryDelay;
   String baseUrl;
-  String _apiKey = '';
+  String _apiKey;
 
   OdApi({
     required this.baseUrl,
@@ -57,7 +57,14 @@ class OdApi {
     this.requestTimeout = odRequestTimeout,
     this.maxAttempts = odMaxAttempts,
     this.retryDelay = odRetryDelay,
-  }) : _injectedClient = client;
+    String apiKey = '',
+  })  : _injectedClient = client,
+        // Chave SÓ em memória (sem SharedPreferences): usado por testes e
+        // verificações vivas que rodam sem o binding do Flutter — o binding
+        // troca o HttpClient por um dublê que responde 400 e aí não haveria
+        // socket real para exercitar. Em produção use setApiKey(), que
+        // persiste.
+        _apiKey = apiKey;
 
   /// API key para autenticação X-API-Key.
   String get apiKey => _apiKey;

@@ -331,7 +331,19 @@ de código** (o que faltava era só a credencial):
   `stop()` sem fechar o servidor → 2 falhas; launcher sem o `try/except` →
   falha a contenção; `serve()` sem o `_LibraryLogger` e handler sem o
   tratamento de desconexão → 1 falha cada.
-- **Suíte:** **1717 passed, 16 skipped** (17,50s).
+- **Corrigido no caminho (2026-09-18):** o `POST /message` **valida o perfil**
+  e resolve `auto` → `guardian` (`DEFAULT_PROFILE`), mas o WebSocket mandava
+  `auto` cru — como o app manda `profile: auto` por padrão, a MESMA conversa
+  cairia em baldes diferentes de cache/histórico conforme o transporte (e
+  perfil inválido era aceito no WS e recusado no REST). O `ws_server` agora
+  importa `DEFAULT_PROFILE`/`DEFAULT_PROFILES` de `integrations.api.server`
+  (mesma fonte, sem duplicar a lista), resolve `auto` e recusa perfil
+  desconhecido com o mesmo texto do REST. **+2 testes** (`perfil auto vira o
+  padrão`, `perfil desconhecido é recusado sem processar`); mutações G/H
+  (aceitar perfil inválido e não resolver `auto`) → os 2 falham. Prova ao vivo
+  após o deploy: `profile: auto` pelo WebSocket registra
+  `Interaction recorded | profile=guardian`.
+- **Suíte:** **1719 passed, 16 skipped** (17,29s).
 - **Sandbox (antes do sistema real):** `sandbox_agent/ws_sandbox.py` (pasta
   ignorada pelo git) contra o **llama-server real** em `127.0.0.1:8081` →
   **11/11 checagens OK e stderr com 0 bytes**: 35 frames de token com
@@ -351,6 +363,64 @@ de código** (o que faltava era só a credencial):
   cliente WebSocket no app; esta entrega é o lado servidor. `process_stream`
   também **não publica** `orchestrator.responded` no EventBus (o `process`
   publica); hoje ninguém assina esse tópico em produção.
+
+### App — chat em streaming com fallback (2026-09-18) 📱
+
+- **`app/lib/services/od_ws.dart` (novo)** — `OdStreamingChat`: fala o
+  protocolo do `ws_server` (`auth`/`message` → `authenticated`, `processing`,
+  `token`… `done`) e entrega a resposta em `OdChatDelta`s. Deriva a porta do
+  streaming da URL já configurada (`http://host:8000` → `ws://host:8001`,
+  `https` → `wss`; `wsPort` configurável). Usa `dart:io WebSocket` — **nenhum
+  pacote novo no pubspec** (mesmo caminho de rede do `OdApi`).
+- **Fallback automático para `POST /message`** quando o WebSocket não estiver
+  disponível (core antigo, porta fechada, chave recusada, rede trocando de
+  rota) — e **cooldown de 2 min** depois de uma falha, senão toda mensagem
+  pagaria o timeout de conexão antes de cair para o REST (o chat ficaria mais
+  lento que antes da entrega).
+- **Interrupção no meio do stream não repete a mensagem**: se já apareceu
+  texto, o app NÃO refaz a chamada pelo REST (duplicaria a resposta e faria
+  uma segunda inferência no servidor) — mostra o parcial e avisa na mesma
+  bolha (`OdStreamingError`).
+- **`chat_screen.dart`** — a bolha do assistente nasce no primeiro token e é
+  reescrita a cada frame; o "Digitando..." só aparece enquanto nada chegou; e
+  há um selo discreto do transporte da última resposta (⚡ **Streaming ativo**
+  ou ↔ **Resposta via REST**), que é o que permite conferir no celular se o
+  streaming está de pé.
+- **Encerramento best-effort do canal**: nem o `cancel()` do iterador nem o
+  `close()` do socket podem segurar a resposta — esperar por eles travava a
+  tela com o texto já pronto (bug pego por teste de widget e depois pinado em
+  teste unitário com um canal que nunca fecha).
+- **`OdApi(apiKey:)`** — chave só em memória, para verificações vivas e testes
+  que rodam sem o binding do Flutter (o binding troca o `HttpClient` por um
+  dublê que responde 400 e não haveria socket real para exercitar).
+- **Testes do app:** `flutter analyze` sem issues · `flutter test` →
+  **67 passed, 2 skipped** (49 → 67). Novos: `test/od_ws_test.dart` (12:
+  derivação da URL, protocolo com canal roteirizado, frames desconhecidos,
+  fallback, interrupção sem duplicar, cooldown, 401) e 3 de widget em
+  `test/widget_test.dart` (render incremental token-a-token, fallback com
+  selo do transporte, corte no meio mantendo o texto). `test/ws_live_test.dart`
+  (2, **opt-in por `OD_LIVE_WS=1`**) fala com o core REAL pelo conector de
+  produção.
+- **Teste do teste (3 mutações, revertidas):** sem a guarda de texto parcial →
+  2 falhas (fallback indevido depois do parcial); com o encerramento aguardado
+  (`await cancel` + `await close`) → 3 falhas (unitário do canal que não fecha
+  e os 2 de widget, que ficam com o spinner preso); sem o cooldown → 1 falha.
+- **Validação viva (sandbox, antes de publicar):** no nicky-server, contra o
+  `od-core` em produção → **36 deltas pelo WebSocket** (`transport=webSocket`,
+  35 frames de token) respondendo "1 a 15" em ~8s; e chave errada → o
+  streaming recusa e o app cai para o REST, que devolve **401**
+  (`OdAuthError`).
+- **APK 1.2.0+7 publicado** — `site/OmegaDrakon.apk` **52.230.399 B** (sha256
+  `c69f2ccd…`, `versionCode 7`) e `site/OmegaDrakon-arm64.apk` **18.649.902 B**
+  (sha256 `a5015cd7…`, `versionCode 2007`), com `versionName 1.2.0` conferido
+  no `aapt dump badging`; origem == `site/` (sha256 idêntico). O `versionCode`
+  subiu de propósito (o Android recusa instalar por cima com o mesmo código) e
+  o build anterior (**1.2.0+6**, 51.935.427 B em `b325ad23…` e 18.518.770 B
+  em `f3f86059…`) ficou em `backups/apk-v1.2.0-1006/`. Servido pela API: `GET /site/OmegaDrakon.apk` →
+  HTTP 200 com o mesmo tamanho e sha256.
+- **Prova no binário:** `Streaming ativo` **1x** no APK novo contra **0x** no
+  anterior e `Resposta via REST` **1x** contra **0x** (controle
+  `OmegaDrakon Online` **1x** nos dois).
 
 ### Pendente
 

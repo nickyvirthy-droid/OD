@@ -6,7 +6,7 @@
 
 | Tela | Função |
 |---|---|
-| **Chat** | Conversa com o OD (8 perfis: auto, guardian, regulus, luma, vox, athenae, nyx, nexus) |
+| **Chat** | Conversa com o OD **em streaming** (8 perfis: auto, guardian, regulus, luma, vox, athenae, nyx, nexus) — resposta token-a-token pelo WebSocket, com fallback automático para `POST /message` |
 | **Ações** | Catálogo de ações do OD com busca, risco e execução |
 | **Status** | Health checks, capacidades e info do sistema |
 | **Config** | API key, URL do servidor, teste de conexão |
@@ -67,6 +67,19 @@ e `test/widget_test.dart` (smoke do app + 4 telas + bolha de mensagem).
 4. Teste a conexão
 5. Comece a conversar!
 
+### Streaming
+
+O chat usa o WebSocket do core (`OD_WS_PORT`, padrão **8001**) para mostrar a
+resposta conforme ela é gerada — o app deriva `ws://host:8001` da URL acima
+(`https` vira `wss`). Se o WebSocket não estiver disponível (core
+antigo, porta fechada, chave recusada, rede trocando de rota), o app cai
+sozinho para `POST /message` e fica 2 minutos sem tentar de novo. O selo acima
+do campo de texto diz qual caminho respondeu: **⚡ Streaming ativo** ou
+**↔ Resposta via REST**.
+
+> Teste vivo do caminho real (roda no servidor, fala com o core de verdade):
+> `OD_LIVE_WS=1 OD_API_KEY=... flutter test test/ws_live_test.dart`
+
 ## Arquitetura
 
 ```
@@ -81,7 +94,8 @@ app/lib/
 │   ├── status_screen.dart # Health + capabilities
 │   └── settings_screen.dart # Config + API key
 ├── services/
-│   └── od_api.dart        # Cliente HTTP da API
+│   ├── od_api.dart        # Cliente HTTP da API (+ fallback do chat)
+│   └── od_ws.dart         # Streaming do chat por WebSocket (com fallback)
 └── widgets/
     └── message_bubble.dart # Bolha de mensagem
 ```

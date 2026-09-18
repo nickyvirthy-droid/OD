@@ -337,6 +337,48 @@ class TestWebSocketProtocolo:
         finally:
             server.stop()
 
+    def test_perfil_auto_vira_o_padrao_igual_ao_rest(self, servidor):
+        """Paridade com POST /message: `auto` resolve para guardian.
+
+        O app manda `profile: auto` por padrão; se o streaming passasse
+        `auto` adiante, a MESMA conversa cairia em baldes diferentes de
+        cache/histórico conforme o transporte.
+        """
+        from integrations.api.server import DEFAULT_PROFILE
+
+        server, orchestra = servidor
+        from websockets.asyncio.client import connect
+
+        async def _fluxo():
+            async with connect(f"ws://127.0.0.1:{server.bound_port}") as ws:
+                await ws.send(json.dumps({"type": "auth", "api_key": "chave-certa"}))
+                await ws.recv()
+                await ws.send(json.dumps({"type": "message", "text": "oi", "profile": "auto"}))
+                while True:
+                    msg = json.loads(await ws.recv())
+                    if msg["type"] in ("done", "error"):
+                        return msg
+
+        _run(_fluxo())
+        assert orchestra.calls[0]["profile"] == DEFAULT_PROFILE
+
+    def test_perfil_desconhecido_e_recusado_sem_processar(self, servidor):
+        server, orchestra = servidor
+        from websockets.asyncio.client import connect
+
+        async def _fluxo():
+            async with connect(f"ws://127.0.0.1:{server.bound_port}") as ws:
+                await ws.send(json.dumps({"type": "auth", "api_key": "chave-certa"}))
+                await ws.recv()
+                await ws.send(
+                    json.dumps({"type": "message", "text": "oi", "profile": "frodo"})
+                )
+                return json.loads(await ws.recv())
+
+        erro = _run(_fluxo())
+        assert erro == {"type": "error", "message": "perfil_desconhecido: frodo"}
+        assert orchestra.calls == []
+
     def test_texto_vazio_e_tipo_desconhecido(self, servidor):
         server, orchestra = servidor
         from websockets.asyncio.client import connect

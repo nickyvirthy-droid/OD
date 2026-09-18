@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../services/od_api.dart';
+import '../services/od_ws.dart';
 import '../widgets/message_bubble.dart';
 
 /// Tela de conversa com o OmegaDrakon.
 class ChatScreen extends StatefulWidget {
   final OdApi api;
-  const ChatScreen({super.key, required this.api});
+
+  /// Chat com streaming (WebSocket) e fallback para `POST /message`.
+  ///
+  /// Injetável para os testes; em produção a tela cria o padrão, que deriva a
+  /// porta do streaming (8001) da URL do servidor já configurada.
+  final OdStreamingChat? chat;
+
+  const ChatScreen({super.key, required this.api, this.chat});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -18,6 +26,18 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<OdMessage> _messages = [];
   bool _isLoading = false;
   String _selectedProfile = 'auto';
+
+  /// Chat de streaming — mantido entre mensagens de propósito: a instância
+  /// guarda o cooldown do WebSocket, e recriá-la a cada envio faria o app
+  /// tentar a porta fechada toda vez, pagando o timeout antes do fallback.
+  late final OdStreamingChat _chat;
+
+  /// Índice da bolha que está sendo preenchida token-a-token (null = não há
+  /// streaming em curso).
+  int? _liveIndex;
+
+  /// De onde veio a última resposta (selo discreto acima do campo de texto).
+  OdChatTransport? _lastTransport;
 
   static const _profiles = {
     'auto': {'name': 'Auto', 'icon': '🤖'},
@@ -31,12 +51,24 @@ class _ChatScreenState extends State<ChatScreen> {
   };
 
   @override
+  void initState() {
+    super.initState();
+    _chat = widget.chat ?? OdStreamingChat(widget.api);
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
+  /// Envia a mensagem e mostra a resposta conforme ela chega.
+  ///
+  /// O transporte é escolhido pelo [OdStreamingChat]: WebSocket quando o core
+  /// aceita (resposta token-a-token) e `POST /message` como fallback. A bolha
+  /// do assistente nasce no primeiro pedaço recebido e é reescrita a cada
+  /// token — até lá a lista mostra "Digitando...".
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
@@ -44,18 +76,35 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _messages.add(OdMessage(role: 'user', content: text));
       _isLoading = true;
+      _liveIndex = null;
     });
     _controller.clear();
     _scrollToBottom();
 
+    final buffer = StringBuffer();
+
     try {
-      final response = await widget.api.sendMessage(
-        text,
-        profile: _selectedProfile,
-      );
-      setState(() {
-        _messages.add(OdMessage(role: 'assistant', content: response));
-      });
+      await for (final delta in _chat.send(text, profile: _selectedProfile)) {
+        if (!mounted) return;
+        buffer.write(delta.text);
+        setState(() {
+          _lastTransport = delta.transport;
+          if (_liveIndex == null) {
+            _messages.add(
+              OdMessage(role: 'assistant', content: buffer.toString()),
+            );
+            _liveIndex = _messages.length - 1;
+          } else {
+            _messages[_liveIndex!] = OdMessage(
+              role: 'assistant',
+              content: buffer.toString(),
+            );
+          }
+        });
+        _scrollToBottom();
+      }
+    } on OdStreamingError catch (e) {
+      _showInterruption(e.message, buffer.toString());
     } catch (e) {
       setState(() {
         _messages.add(OdMessage(
@@ -64,9 +113,29 @@ class _ChatScreenState extends State<ChatScreen> {
         ));
       });
     } finally {
-      setState(() => _isLoading = false);
-      _scrollToBottom();
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _scrollToBottom();
+      }
     }
+  }
+
+  /// Resposta cortada no meio do streaming: mantém o que chegou e avisa na
+  /// MESMA bolha (uma bolha nova de erro pareceria uma segunda resposta).
+  void _showInterruption(String notice, String partial) {
+    if (!mounted) return;
+    setState(() {
+      final aviso = '⚠️ $notice';
+      final index = _liveIndex;
+      if (index == null) {
+        _messages.add(OdMessage(role: 'assistant', content: aviso));
+      } else {
+        _messages[index] = OdMessage(
+          role: 'assistant',
+          content: '$partial\n\n$aviso',
+        );
+      }
+    });
   }
 
   void _scrollToBottom() {
@@ -94,7 +163,10 @@ class _ChatScreenState extends State<ChatScreen> {
               : ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
-                  itemCount: _messages.length + (_isLoading ? 1 : 0),
+                  // "Digitando..." só enquanto NADA chegou: com o streaming, a
+                  // bolha do assistente já aparece com o primeiro token.
+                  itemCount: _messages.length +
+                      (_isLoading && _liveIndex == null ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (index == _messages.length) {
                       return MessageBubble(
@@ -163,6 +235,29 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// Selo discreto do transporte da última resposta — é o que permite ver no
+  /// celular se o streaming (⚡) está ativo ou se o app caiu para o REST (↔).
+  Widget _buildTransportBadge() {
+    final transporte = _lastTransport;
+    if (transporte == null) return const SizedBox.shrink();
+    final streaming = transporte == OdChatTransport.webSocket;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          streaming ? Icons.bolt : Icons.swap_horiz,
+          size: 14,
+          color: Colors.grey,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          streaming ? 'Streaming ativo' : 'Resposta via REST',
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
   Widget _buildInput() {
     return Container(
       padding: const EdgeInsets.all(8),
@@ -177,31 +272,37 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       child: SafeArea(
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: TextField(
-                controller: _controller,
-                decoration: const InputDecoration(
-                  hintText: 'Digite sua mensagem...',
-                  border: OutlineInputBorder(),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            _buildTransportBadge(),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      hintText: 'Digite sua mensagem...',
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    onSubmitted: (_) => _sendMessage(),
+                    textInputAction: TextInputAction.send,
+                  ),
                 ),
-                onSubmitted: (_) => _sendMessage(),
-                textInputAction: TextInputAction.send,
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              onPressed: _isLoading ? null : _sendMessage,
-              icon: _isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.send),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  onPressed: _isLoading ? null : _sendMessage,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                ),
+              ],
             ),
           ],
         ),

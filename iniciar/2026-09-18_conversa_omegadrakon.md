@@ -159,6 +159,86 @@ Não escopo (registrado para decisão):
   autorização explícita. O od-core segue no PID 314992 (2026-09-15 10:43:54) e a
   :8001 não está escutando.
 
+Rodada 3 (09-18): app Flutter — cliente WebSocket no chat, com fallback para o REST
+
+Pedido: *"Adicione o cliente WebSocket no app Flutter e ligue o chat nele, com
+fallback para POST /message"*.
+
+Implementação:
+
+- **`app/lib/services/od_ws.dart` (novo)** — `OdStreamingChat` fala o protocolo
+  do `ws_server` (`auth`/`message` → `authenticated`, `processing`, `token`…
+  `done`) e entrega `OdChatDelta`s. Deriva a porta do streaming da URL já
+  configurada (`http://host:8000` → `ws://host:8001`; `https` → `wss`;
+  `wsPort` configurável). Usa `dart:io WebSocket` — **nenhum pacote novo no
+  pubspec**.
+- **Fallback automático para `POST /message`** + **cooldown de 2 min** depois
+  de uma falha: sem o cooldown, toda mensagem pagaria o timeout de conexão
+  antes de cair para o REST e o chat ficaria mais lento do que antes.
+- **Interrupção no meio do stream não repete a mensagem**: com texto já na
+  tela, um novo POST duplicaria a resposta (e a inferência no servidor); o app
+  mostra o parcial e avisa na mesma bolha (`OdStreamingError`).
+- **`chat_screen.dart`** — bolha nasce no primeiro token e é reescrita a cada
+  frame, "Digitando..." só enquanto nada chegou, e um selo discreto do
+  transporte (⚡ Streaming ativo / ↔ Resposta via REST) para conferir no
+  celular. O `OdStreamingChat` é mantido entre mensagens (guarda o cooldown).
+- **`OdApi(apiKey:)`** — chave só em memória, para os testes vivos rodarem sem
+  o binding do Flutter (o binding troca o `HttpClient` por um dublê 400 e não
+  haveria socket real).
+
+Bug pego pelo teste de widget (e que valeu a rodada): o `await` no
+encerramento do canal (`frames.cancel()` + `channel.close()`) **segurava o
+gerador** — a bolha já final aparecia, mas o spinner do app não destravava.
+Agora o encerramento é best-effort e sem `await`, e há um teste unitário com um
+canal que **nunca fecha** (que penduraria com o `await`).
+
+Testes: `flutter analyze` sem issues · `flutter test` **67 passed, 2 skipped**
+(49 → 67) — `test/od_ws_test.dart` (12) e 3 de widget (render incremental,
+fallback com selo, corte no meio). `test/ws_live_test.dart` (2) é **opt-in**
+(`OD_LIVE_WS=1`) e usa o conector de PRODUÇÃO.
+
+Teste do teste (3 mutações, revertidas): sem a guarda de texto parcial → 2
+falhas; com o encerramento aguardado → 3 falhas (unitário + os 2 de widget com
+spinner preso); sem cooldown → 1 falha.
+
+Validação viva (sandbox) no nicky-server, contra o `od-core` de produção:
+**36 deltas pelo WebSocket** (`transport=webSocket`, 35 frames de token)
+listando "1 a 15" em ~8,6s; e com chave errada o streaming recusa e o app cai
+para o REST, que devolve **401** (`OdAuthError`).
+
+Achado no caminho (correção no servidor): o REST (`POST /message`) **valida o
+perfil** e resolve `auto` → `guardian` (`DEFAULT_PROFILE`); o WebSocket mandava
+`auto` cru. Como o app manda `profile: auto` por padrão, a MESMA conversa
+cairia em baldes diferentes de cache/histórico conforme o transporte — e perfil
+inválido era aceito no WS e recusado no REST (400). Corrigido em
+`ws_server.py`, que agora importa `DEFAULT_PROFILE`/`DEFAULT_PROFILES` de
+`integrations.api.server` (mesma fonte, sem duplicar a lista), resolve `auto` e
+recusa perfil desconhecido com o mesmo texto do REST. +2 testes (suíte
+**1719 passed, 16 skipped**) e mutações G/H provando que os dois pinam.
+
+O usuário autorizou **tudo**: restart + APK + commit.
+
+Restart (04:49:39, PID 399298, `NRestarts=0`) — paridade de perfil no ar, com
+prova ao vivo: `profile: auto` pelo WebSocket registra
+`Interaction recorded | user=deploy-check-2 | profile=guardian`, e `frodo`
+recebe `perfil_desconhecido: frodo` sem processar. Journal com 0 Traceback.
+
+APK **1.2.0+7** (`app/pubspec.yaml` 1.2.0+6 → +7) buildado por
+`app/build_apk.sh` (Gradle `assembleRelease` em 45s) e publicado:
+
+- `site/OmegaDrakon.apk` **52.230.399 B** — sha256 `c69f2ccd…`,
+  `versionCode 7`;
+- `site/OmegaDrakon-arm64.apk` **18.649.902 B** — sha256 `a5015cd7…`,
+  `versionCode 2007`; `versionName 1.2.0` no `aapt dump badging`;
+- sha256 **origem == site** e `GET /site/OmegaDrakon.apk` → HTTP 200 com o
+  mesmo tamanho e hash;
+- **prova no binário:** `Streaming ativo` 1x no novo contra 0x no anterior e
+  `Resposta via REST` 1x contra 0x (controle `OmegaDrakon Online` 1x nos dois);
+- build anterior (**1.2.0+6**) preservado em `backups/apk-v1.2.0-1006/`.
+
+Instalar no Redmi Note 14 é atestação do usuário (o `adb` daqui não alcança o
+aparelho) — **pendente**.
+
 Encaminhamento (fim da rodada 2)
 
 - Checkpoint atualizado (session.json: `updated_at` = 2026-09-18T05:05:00-03:00,
@@ -168,6 +248,11 @@ Encaminhamento (fim da rodada 2)
   stream), `runtime/launcher.py` (contenção da falha), `requirements.txt`
   (websockets), `tests/test_websocket.py` (reescrito, 28 testes) e
   `sandbox_agent/ws_sandbox.py` (novo, ignorado pelo git).
-- **Nada implantado e nada commitado.** Aguardando: (a) autorização para o
-  restart do od-core (deploy do streaming) e/ou commit; (b) decisão sobre o
-  monitor do roteador (untracked e ativo em produção).
+- Streaming do core: **implantado** em produção (PID 395579, :8001 no ar) e
+  **commitado** em `7f2c004` (ainda **não** empurrado para o `origin`).
+- App: cliente WebSocket + fallback **implementado, testado e validado ao vivo**,
+  mas **não commitado** e **sem APK novo** (o celular segue no 1.2.0+6).
+- Monitor do roteador: segue untracked e **ativo** em produção (timer systemd
+  desde 09-17 10:26) — aguardando decisão sobre versionar.
+- Pendências de decisão do usuário: publicar/apontar o commit no `origin`;
+  rebuildar o APK (subir `versionCode`); versionar o monitor.

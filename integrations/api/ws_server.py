@@ -37,6 +37,12 @@ from typing import Any, Optional
 from core.logger import get_logger
 from core.orchestrator import Orchestrator
 
+# Mesma lista/registro do REST (`/message`) — o streaming precisa resolver
+# `auto` e recusar perfil desconhecido IGUAL, senão a mesma conversa cai em
+# baldes diferentes de cache/histórico conforme o transporte (o app manda
+# `auto` por padrão).
+from integrations.api.server import DEFAULT_PROFILE, DEFAULT_PROFILES
+
 __signature__ = "OD // CORE"
 
 log = get_logger("omega.integrations.api.ws")
@@ -101,11 +107,13 @@ class WebSocketServer:
         port: int = DEFAULT_WS_PORT,
         api_keys: Optional[set[str]] = None,
         host: str = "0.0.0.0",
+        profiles: tuple[str, ...] = DEFAULT_PROFILES,
     ) -> None:
         self.orchestrator = orchestrator
         self.host = host
         self.port = port
         self.api_keys = api_keys or set()
+        self.profiles = profiles
         self._server = None
         self._serve: Any = None
         self._thread: Optional[threading.Thread] = None
@@ -158,7 +166,19 @@ class WebSocketServer:
                         await ws.send(json.dumps({"type": "error", "message": "text_obrigatorio"}))
                         continue
                     
-                    profile = data.get("profile", "guardian")
+                    # Mesma resolução do REST: perfil desconhecido é erro,
+                    # `auto` vira o perfil padrão (guardian).
+                    profile = str(
+                        data.get("profile") or DEFAULT_PROFILE
+                    ).strip()
+                    if profile not in self.profiles:
+                        await ws.send(json.dumps({
+                            "type": "error",
+                            "message": f"perfil_desconhecido: {profile}",
+                        }))
+                        continue
+                    if profile == "auto":
+                        profile = DEFAULT_PROFILE
                     session_id = data.get("session_id", f"ws:{user_id}")
                     
                     # Enviar confirmação de recebimento

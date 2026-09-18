@@ -240,6 +240,45 @@
     }
   },
   "topic": "OmegaDrakon v1.3.0 em curso (streaming WebSocket) + monitor do roteador",
+  "app_streaming_2026_09_18": {
+    "pedido": "adicionar o cliente WebSocket no app Flutter e ligar o chat nele, com fallback para POST /message",
+    "implementacao": {
+      "servico": "app/lib/services/od_ws.dart (novo) — OdStreamingChat: protocolo do ws_server (auth/message -> authenticated/processing/token/done) traduzido em OdChatDelta; deriva a porta da URL já configurada (http://host:8000 -> ws://host:8001, https -> wss, wsPort configurável); usa dart:io WebSocket (NENHUM pacote novo no pubspec)",
+      "fallback": "POST /message quando o WS não está de pé (core antigo, porta fechada, chave recusada, rede trocando) + COOLDOWN de 2 min depois da falha, senão toda mensagem pagaria o timeout de conexão antes de cair para o REST (o chat ficaria mais lento que antes da entrega)",
+      "interrupcao": "queda DEPOIS de já ter texto NÃO refaz a chamada pelo REST (duplicaria a resposta e faria segunda inferência no servidor): mostra o parcial e avisa na mesma bolha (OdStreamingError)",
+      "tela": "app/lib/screens/chat_screen.dart — bolha do assistente nasce no primeiro token e é reescrita a cada frame; 'Digitando...' só enquanto nada chegou; selo discreto do transporte (⚡ Streaming ativo / ↔ Resposta via REST) para conferir no celular; chat mantido entre mensagens (a instância guarda o cooldown)",
+      "od_api": "OdApi(apiKey:) — chave só em memória, para testes/verificações vivas sem o binding do Flutter (o binding troca o HttpClient por um dublê que responde 400 e não haveria socket real)",
+      "bug_pego_pelo_teste": "o `await` no encerramento do canal (frames.cancel + channel.close) segurava o gerador: a bolha final aparecia mas o spinner do app não destravava. Agora é best-effort sem await — e tem teste unitário com um canal que NUNCA fecha (com o await, o teste pendura)"
+    },
+    "testes": "app: flutter analyze sem issues · flutter test 67 passed, 2 skipped (49 -> 67). Novos: test/od_ws_test.dart (12) e 3 de widget (render incremental token-a-token, fallback com selo, corte no meio mantendo o texto). test/ws_live_test.dart (2, OPT-IN por OD_LIVE_WS=1) usa o conector de PRODUÇÃO contra o core real",
+    "teste_do_teste": "3 mutações, revertidas: (A) sem a guarda de texto parcial -> 2 falhas; (B) com o encerramento aguardado (await cancel + await close) -> 3 falhas (unitário do canal que não fecha + os 2 de widget, com o spinner preso); (C) sem o cooldown -> 1 falha",
+    "sandbox_vivo": "no nicky-server contra o od-core de produção, com o conector real: 36 deltas pelo WebSocket (transport=webSocket, 35 frames de token) listando '1 a 15' em ~8,6s; e chave errada -> o streaming recusa e o app cai para o REST, que devolve 401 (OdAuthError). Comando: cd app && OD_LIVE_WS=1 OD_API_KEY=$(grep '^OD_API_KEY=' ../.env | cut -d= -f2) flutter test test/ws_live_test.dart",
+    "docs": "docs/CHANGELOG.md — nova subseção 'App — chat em streaming com fallback (2026-09-18)' sob a [1.2.0]",
+    "correcao_no_servidor_descoberta_ao_ligar_o_app": {
+      "achado": "DIVERGÊNCIA com o POST /message: o REST valida o perfil e resolve 'auto' -> guardian (DEFAULT_PROFILE); o WebSocket mandava 'auto' cru. Como o app manda 'auto' por padrão, a MESMA conversa cairia em baldes diferentes de cache/histórico conforme o transporte (e perfil inválido era aceito no WS e recusado no REST com 400)",
+      "correcao": "integrations/api/ws_server.py importa DEFAULT_PROFILE/DEFAULT_PROFILES de integrations.api.server (mesma fonte, sem duplicar a lista), resolve 'auto' -> DEFAULT_PROFILE e recusa perfil desconhecido com o MESMO texto do REST ('perfil_desconhecido: X'), sem processar a mensagem",
+      "testes": "+2 em tests/test_websocket.py (perfil 'auto' chega como guardian no orchestrator; perfil inválido -> error e orchestra.calls vazio) — suíte 1719 passed, 16 skipped",
+      "teste_do_teste": "mutações G/H (aceitar perfil inválido e não resolver 'auto') -> os 2 testes novos falham; revertidas",
+      "estado": "CORRIGIDO E TESTADO, AINDA NÃO IMPLANTADO: o od-core em produção (PID 395579, de 04:35:09) roda o ws_server SEM esta correção — precisa de outro restart para valer (o app na loja/celular ainda é o 1.2.0+6 sem streaming, então nada está quebrado em produção neste momento)"
+    },
+    "nao_feito": "APK NÃO rebuildado nem republicado (o app instalado no celular continua o 1.2.0+6, sem streaming). Publicar exige subir o versionCode em app/pubspec.yaml (hoje 1.2.0+6) e rodar app/build_apk.sh — aguardando decisão do usuário, junto com o commit",
+    "deploy_paridade_perfil": {
+      "quando": "2026-09-18 04:49:39 -03 (PID 399298, NRestarts=0)",
+      "boot": "'WebSocket server no ar | host=0.0.0.0 | port=8001 | auth=True'; :8000 e :8001 escutando",
+      "prova_ao_vivo": "cliente WS com profile='auto' -> route=llm e o journal registrou 'Interaction recorded | user=deploy-check-2 | profile=guardian' (paridade com o REST); profile='frodo' -> {error: 'perfil_desconhecido: frodo'} sem processar",
+      "journal": "0 Traceback, 0 'opening handshake failed', 0 'WebSocket processing error' na janela"
+    },
+    "apk": {
+      "versao": "1.2.0+7 — versionName 1.2.0; aapt dump badging: versionCode 7 (completo) e 2007 (arm64), conferido em 2026-09-18",
+      "publicado": "site/OmegaDrakon.apk 52.230.399 B (sha256 c69f2ccd…) e site/OmegaDrakon-arm64.apk 18.649.902 B (sha256 a5015cd7…) — sha256 origem == site conferido",
+      "build": "app/build_apk.sh (PATH com /home/alex/flutter/bin e /home/alex/jdk/bin; ANDROID_HOME=/home/alex/android-sdk) — Gradle assembleRelease em 45s",
+      "backup": "backups/apk-v1.2.0-1006/ com o build anterior (51.935.427 B b325ad23… full e 18.518.770 B f3f86059… arm64)",
+      "servido_pela_api": "GET /site/OmegaDrakon.apk -> HTTP 200, 52.230.399 B, sha256 igual ao local; arm64 -> HTTP 200, 18.649.902 B",
+      "prova_no_binario": "grep -ac no APK: 'Streaming ativo' 1x no novo contra 0x no anterior; 'Resposta via REST' 1x contra 0x; controle 'OmegaDrakon Online' 1x nos dois",
+      "nao_confirmado": "a instalação no Redmi Note 14 é atestação do usuário (o adb daqui não alcança o aparelho) — pendente"
+    },
+    "estado": "IMPLEMENTADO, TESTADO, VALIDADO AO VIVO, paridade de perfil IMPLANTADA (PID 399298) e APK 1.2.0+7 PUBLICADO em site/. Falta: commit e a instalação no celular (atestação do usuário)"
+  },
   "streaming_ws_2026_09_18": {
     "pedido": "corrigir e validar o streaming WebSocket (v1.3.0) que estava no working tree sem registro, sem funcionar e nunca implantado",
     "causa_raiz": "integrations/api/ws_server.py::start() fazia `import websockets.serve` -> ModuleNotFoundError: No module named 'websockets.serve'. A suíte passava 14/14 porque os testes só conferiam formato de dict e existência de método: nada chamava start(). Além disso asyncio.set_event_loop era chamado na thread do caller (não na thread do loop), o stop() fechava o loop por baixo do websockets e a dependência não estava no requirements.txt",
@@ -303,7 +342,7 @@
       "corrigir e validar o streaming WebSocket (escolha do usuário entre as frentes abertas)",
       "não tocar no od-core sem autorização explícita: sandbox antes do sistema real (regra 12)"
     ],
-    "in_progress": "streaming WebSocket corrigido, testado (28 testes, 4 mutações), validado em sandbox (11/11 contra o llama-server real) e IMPLANTADO em produção (PID 395579, :8001 no ar com auth=True, prova ao vivo + journal sem ruído). Monitor do roteador segue untracked e ativo em produção (timer systemd desde 09-17 10:26) — aguardando decisão sobre versionar ou não"
+    "in_progress": "(1) streaming do core IMPLANTADO em produção (PID 395579, :8001 no ar, prova ao vivo, journal sem ruído) e commitado em 7f2c004 (não publicado no origin); (2) app com cliente WebSocket + fallback implementado, testado (67 passed + 2 skipped) e validado AO VIVO contra o core, mas NÃO commitado e SEM APK novo; (3) monitor do roteador segue untracked e ativo em produção (timer systemd desde 09-17 10:26)"
   },
   "prep_push_fcm_2026_09_13": {
     "pedido": "preparar o push FCM para o teste de ponta a ponta: configurar a service account e verificar POST /push/test com o aparelho registrado",
