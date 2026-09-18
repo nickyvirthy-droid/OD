@@ -347,15 +347,41 @@ Prova no systemd (unidades instaladas, sem tocar no `od-core`):
 
 Suíte completa ao fim da rodada: **1743 passed, 16 skipped**.
 
+Rodada 6 (09-18): a alteração que sobrava (teste vivo do app)
+
+Pedido: *"prossiga"* — fechar a única modificação pendente no working tree.
+
+A correção do teste vivo ja existia; faltava commitá-la. Antes disso, a
+verificação que importa: `flutter analyze` sem issues, `flutter test`
+**67 passed, 2 skipped**, e o teste **opt-in** (`OD_LIVE_WS=1`) rodado duas
+vezes contra o `od-core` de produção (PID 399298) — **2 passed** nas duas.
+
+A segunda rodada deu a prova de por que a mudança era necessária:
+
+```
+LIVE deltas=2 transport=OdChatTransport.webSocket texto=1
+```
+
+**2 deltas**, o modelo respondendo "1" num chunk só — exatamente o caso que
+falhava a asserção antiga (`>= 3` frames) sem haver regressão nenhuma. Com o
+teste pinando o protocolo (transporte WebSocket + frame de token + `done` +
+texto não vazio), ele passa e continua provando o caminho real; a entrega
+**incremental** (primeiro token na tela antes do último) fica determinística nos
+testes de widget, que têm canal roteirizado e não dependem do LLM.
+
+Commit `381e9d3` (1 arquivo, +11/-5). Working tree **limpo**.
+
 Encaminhamento
 
-- Checkpoint (session.json): blocos `monitor_roteador_2026_09_18`,
+- Checkpoint (session.json): blocos `teste_vivo_app_2026_09_18`,
+  `monitor_roteador_2026_09_18`,
   `app_streaming_2026_09_18`, `streaming_ws_2026_09_18` e `last_turn`.
-- Commits locais de 09-18: `7f2c004` (streaming do core), `a7ea223` (app) e
-  `892eac4` (monitor versionado + correção do `down`; 8 arquivos, +818/-7) —
-  **nenhum empurrado** para o `origin`.
+- Commits locais de 09-18: `7f2c004` (streaming do core), `a7ea223` (app),
+  `892eac4` (monitor versionado + correção do `down`; 8 arquivos, +818/-7),
+  `4a8da8f` (checkpoint) e `381e9d3` (teste vivo do app) — **nenhum empurrado**
+  para o `origin`.
 - Monitor: versionado, corrigido, testado, instalado e rodando (timer ativo).
-- Pendências de decisão do usuário: `git push origin master`; commitar a
-  correção do teste vivo do app (`app/test/ws_live_test.dart`, única alteração
-  não commitada no working tree); instalar o **1.2.0+7** no Redmi Note 14
-  (atestação do usuário — o `adb` daqui não alcança o aparelho).
+- Pendências de decisão do usuário: `git push origin master` (todos os commits
+  de 09-18 seguem locais: `7f2c004`, `a7ea223`, `892eac4` e os de checkpoint) e
+  instalar o **1.2.0+7** no Redmi Note 14 (atestação do usuário — o `adb` daqui
+  não alcança o aparelho).
