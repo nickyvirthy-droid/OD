@@ -1,0 +1,22 @@
+[Unit]
+Description=Monitoramento do Roteador - OmegaDrakon
+Documentation=file:/home/alex/OmegaDrakon/tools/monitor/README.md
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alex/OmegaDrakon
+ExecStart=/bin/bash /home/alex/OmegaDrakon/tools/monitor/router_monitor.sh --once
+
+# Overrides opcionais (o script já tem estes padrões; veja tools/monitor/README.md):
+#   OD_ROUTER_IP=192.168.0.1
+#   OD_NETWORK_INTERFACE=wlx000f0037acf0
+#   OD_LOG_DIR=/home/alex/OmegaDrakon/logs
+Environment=HOME=/home/alex
+
+# O monitor NÃO falha quando o roteador cai: o estado vai para o log
+# (logs/router_monitor.log). Um `exit != 0` aqui marcaria falha no journal a
+# cada minuto durante toda a queda — ruído pelo motivo errado.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=router-monitor

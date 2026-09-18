@@ -1,0 +1,12 @@
+[Unit]
+Description=Timer para monitoramento do roteador - OmegaDrakon
+
+[Timer]
+# Primeira verificação 1 min após o boot e, daí em diante, a cada minuto
+# contado do fim da execução anterior (o service é oneshot).
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

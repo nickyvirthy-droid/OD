@@ -2,8 +2,9 @@
 OMEGA DRAKON * TESTS
 Modulo: tests/test_systemd_units.py
 Descricao: Testes de integridade das units systemd do OmegaDrakon —
-           valida estrutura, sandboxing e configuração das 3 units
-           (od-core, od-llm, od-control-bridge).
+           valida estrutura, sandboxing e configuração das units do núcleo
+           (od-core, od-llm, od-control-bridge) e o timer do monitor do
+           roteador (router-monitor.service/timer).
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
@@ -133,6 +134,46 @@ class TestControlBridgeService:
 
 
 # ---------------------------------------------------------------------------
+# router-monitor.service / router-monitor.timer
+# ---------------------------------------------------------------------------
+
+
+class TestRouterMonitorUnits:
+    """Monitor do roteador: service oneshot disparado por timer de 1 minuto."""
+
+    def test_files_exist(self) -> None:
+        assert (SYSTEMD_DIR / "router-monitor.service").exists()
+        assert (SYSTEMD_DIR / "router-monitor.timer").exists()
+
+    def test_service_runs_script_once(self) -> None:
+        unit = (SYSTEMD_DIR / "router-monitor.service").read_text(encoding="utf-8")
+        assert "router_monitor.sh --once" in unit
+        assert "/bin/bash" in unit
+
+    def test_service_uses_repo_working_directory(self) -> None:
+        unit = (SYSTEMD_DIR / "router-monitor.service").read_text(encoding="utf-8")
+        assert "WorkingDirectory=/home/alex/OmegaDrakon" in unit
+
+    def test_service_does_not_restart(self) -> None:
+        # oneshot por minuto: Restart= aqui só multiplicaria a execução.
+        unit = (SYSTEMD_DIR / "router-monitor.service").read_text(encoding="utf-8")
+        assert "Restart=" not in unit
+
+    def test_service_journal_identifier(self) -> None:
+        unit = (SYSTEMD_DIR / "router-monitor.service").read_text(encoding="utf-8")
+        assert "SyslogIdentifier=router-monitor" in unit
+
+    def test_timer_fires_every_minute(self) -> None:
+        timer = (SYSTEMD_DIR / "router-monitor.timer").read_text(encoding="utf-8")
+        assert "OnBootSec=1min" in timer
+        assert "OnUnitActiveSec=1min" in timer
+
+    def test_timer_install_target(self) -> None:
+        timer = (SYSTEMD_DIR / "router-monitor.timer").read_text(encoding="utf-8")
+        assert "WantedBy=timers.target" in timer
+
+
+# ---------------------------------------------------------------------------
 # install-user.sh
 # ---------------------------------------------------------------------------
 
@@ -158,3 +199,13 @@ class TestInstallScript:
     def test_mentions_linger(self) -> None:
         script = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
         assert "loginctl enable-linger" in script
+
+    def test_installs_router_monitor_units(self) -> None:
+        script = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
+        assert "router-monitor.service" in script
+        assert "router-monitor.timer" in script
+
+    def test_enables_router_monitor_timer(self) -> None:
+        # Quem manda é o timer (o service é oneshot por minuto).
+        script = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
+        assert "enable --now router-monitor.timer" in script

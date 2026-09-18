@@ -422,6 +422,45 @@ de código** (o que faltava era só a credencial):
   anterior e `Resposta via REST` **1x** contra **0x** (controle
   `OmegaDrakon Online` **1x** nos dois).
 
+### Infraestrutura — monitor do roteador versionado e corrigido (2026-09-18) 📡
+
+- **Versionado o que já rodava solto em produção:**
+  `tools/monitor/router_monitor.sh` (ping no gateway + estado da interface +
+  link changes do Tailscale, em JSON-lines) e as units, que saíram de
+  `tools/monitor/` para `runtime/systemd/router-monitor.{service,timer}` —
+  junto das units do núcleo. O `install-user.sh` passa a copiar e a ligar o
+  timer (`enable --now router-monitor.timer`), e `tools/monitor/README.md`
+  documenta uso, variáveis (`OD_ROUTER_IP`, `OD_NETWORK_INTERFACE`,
+  `OD_MONITOR_*`, `OD_LOG_DIR`) e limites.
+- **Bug corrigido (o monitor era cego para o que existe para medir):** em 17h
+  de operação havia **1086 registros `up` e ZERO `down`**. Causa raiz: `set -e`
+  combinado com `x=$(comando que falha)` — o ping que falhava (roteador fora)
+  derrubava o script **antes** do registro do `down`, e o `cat` de
+  `/sys/class/net/<if>/carrier` com a interface ausente abortava antes da linha
+  da interface. Correção na raiz: o script **não usa mais `set -e`** (monitor
+  precisa sobreviver a falha transitória), todo comando externo tem fallback
+  explícito, e `carrier`/`speed` são forçados a numérico (senão o JSON-lines
+  sairia inválido). `--once` passa a sair **0 mesmo com o roteador fora** — o
+  estado fica no log e um unit em falha a cada minuto durante a queda seria
+  ruído pelo motivo errado.
+- **Adicionado:** rotação do log (`OD_MONITOR_MAX_BYTES`, padrão 5 MiB,
+  mantendo uma geração `<arquivo>.1`) — 1 linha/min ≈ 130 MB/ano sem teto —,
+  `journalctl` opcional, e o relatório deixou de prometer "janelas >30s" que
+  nunca calculou (agora descreve o que faz: incidentes por dia).
+- **Testes:** `tests/test_router_monitor.py` (novo, **15**) roda o script de
+  verdade em sandbox (diretório temporário + gateway de teste do RFC 5737) e
+  pina os dois casos do bug, o contrato do log, a rotação e o `--report`;
+  `tests/test_systemd_units.py` ganhou **10** asserções (units do monitor +
+  instalador). **Suíte: 1743 passed, 16 skipped.**
+- **Teste do teste:** reintroduzindo a forma original (`set -euo pipefail` +
+  `ping_result=$(...)` + chamada sem guarda) → **6 falhas**, incluindo as três
+  que pinam "o `down` é registrado"; revertido.
+- **Prova no systemd:** o timer dispara de 1 em 1 minuto com
+  `SyslogIdentifier=router-monitor` e registra `up` no log; e um `systemd-run`
+  com `OD_ROUTER_IP=192.0.2.1` (inalcançável) **conclui com sucesso**
+  enquanto grava `{"status":"down","detail":"ping_failed"}` — exatamente o
+  que não acontecia antes. `od-core` não foi reiniciado (PID 399298 intacto).
+
 ### Pendente
 
 - ~~Gerar a **service account** no console do Firebase e gravá-la em
