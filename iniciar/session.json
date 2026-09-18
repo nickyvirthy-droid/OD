@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-18T05:05:00-03:00",
+  "updated_at": "2026-09-18T05:20:00-03:00",
   "ruido_handle_error_2026_09_15": {
     "pedido": "reduzir o ruído dos tracebacks do http.server (achado 2 da checagem dos loops)",
     "causa": "o handle_error herdado do socketserver imprime o traceback inteiro no stderr do processo quando o cliente aborta a conexão no meio do request — rotina (app Android sem rede, navegador fechando aba, health check com timeout). No journal do systemd isso vira ruído que esconde erro de verdade (foram os 2 ConnectionResetError de 10:14:41)",
@@ -240,6 +240,38 @@
     }
   },
   "topic": "OmegaDrakon v1.3.0 em curso (streaming WebSocket) + monitor do roteador",
+  "monitor_roteador_2026_09_18": {
+    "pedido": "versionar o monitor do roteador (script + units) que rodava untracked em produção (timer systemd desde 09-17 10:26)",
+    "bug_encontrado": "CAUSA RAIZ: `set -euo pipefail` + `x=$(comando que falha)`. Em 17h o log tinha 1086 registros 'up' e ZERO 'down': o ping que falhava (roteador fora) derrubava o script ANTES do registro do down, e o `cat` de /sys/class/net/<if>/carrier com a interface ausente abortava antes da linha da interface. O monitor era cego para o único evento que existe para medir, e a unit terminava em falha a cada minuto (ruído no journal)",
+    "reproducao_em_sandbox": "gateway 192.0.2.1 (TEST-NET, RFC 5737): antes NENHUMA linha de log e exit 1; interface inexistente: abortava depois do 'UP' sem gravar a interface",
+    "correcoes": [
+      "removido o `set -e` (fica `set -uo pipefail`) — monitor precisa sobreviver a falha transitória, não morrer por ela",
+      "`if ping_result=$(...)` em vez de `cmd; local code=$?` (não depende mais da semântica do -e)",
+      "`|| true` no fim das pipelines do /sys/class/net + default 'unknown'/0",
+      "carrier/speed forçados a numérico (senão o JSON-lines sairia inválido, tipo carrier:unknown sem aspas)",
+      "detail com aspas sanitizadas (mantém o JSON-lines válido)",
+      "`--once` sai 0 mesmo com o roteador fora (o estado fica no log; exit != 0 marcaria falha a cada minuto durante a queda)",
+      "check_tailscale_links só roda se houver journalctl",
+      "ROTAÇÃO de log: OD_MONITOR_MAX_BYTES (padrão 5 MiB) mantendo uma geração .1 — 1 linha/min ≈ 130 MB/ano sem teto",
+      "relatório: o rótulo 'janelas >30s' prometia o que o código nunca calculou; agora descreve o que faz (incidentes por dia) e avisa se python3 faltar"
+    ],
+    "versionamento": {
+      "script": "tools/monitor/router_monitor.sh (rastreado agora)",
+      "units": "movidas de tools/monitor/ para runtime/systemd/router-monitor.service e runtime/systemd/router-monitor.timer (junto das units do núcleo)",
+      "instalador": "runtime/systemd/install-user.sh copia as duas units e habilita o timer (enable --now router-monitor.timer); o status final reporta o timer",
+      "docs": "tools/monitor/README.md (novo: uso, envs, saída, limites, histórico) + docs/CHANGELOG.md"
+    },
+    "testes": "tests/test_router_monitor.py (novo, 15: executa o script de verdade em sandbox com gateway de teste, pina os dois casos do bug, o contrato do log, JSON válido, rotação e o --report) + 10 asserções novas em tests/test_systemd_units.py (units do monitor + instalador). Suíte: 1743 passed, 16 skipped",
+    "teste_do_teste": "restaurando a forma original (set -euo pipefail + ping_result=$(...) + chamada sem guarda) -> 6 FALHAS, incluindo as 3 que pinam 'o down é registrado'; revertido",
+    "instalacao": "cp das units para ~/.config/systemd/user/ + daemon-reload + restart do router-monitor.timer (NÃO toquei no od-core: PID 399298 intacto)",
+    "prova_no_systemd": {
+      "timer": "list-timers mostra o próximo disparo em 1 min; journal de 05:04:23 com SyslogIdentifier=router-monitor e 'Finished router-monitor.service' (sucesso)",
+      "log": "logs/router_monitor.log crescendo (última linha 05:04:23, status=up, 1.07ms)",
+      "roteador_fora": "systemd-run --user -E OD_ROUTER_IP=192.0.2.1 ... --once -> CONCLUIU COM SUCESSO (exit 0) e gravou {status:down, detail:ping_failed} no log de sandbox — exatamente o que não acontecia antes"
+    },
+    "nao_escopo": "o monitor NÃO alerta sozinho (só registra em log; quem avisa é o notificador do núcleo) e a correlação com o Tailscale é só contagem de 'LinkChange: major' da última hora",
+    "estado": "VERSIONADO E COMMITADO em 892eac4 (não publicado), CORRIGIDO, TESTADO, INSTALADO E RODANDO (timer ativo, units instaladas idênticas às versionadas). Falta só o push"
+  },
   "app_streaming_2026_09_18": {
     "pedido": "adicionar o cliente WebSocket no app Flutter e ligar o chat nele, com fallback para POST /message",
     "implementacao": {
@@ -342,7 +374,8 @@
       "corrigir e validar o streaming WebSocket (escolha do usuário entre as frentes abertas)",
       "não tocar no od-core sem autorização explícita: sandbox antes do sistema real (regra 12)"
     ],
-    "in_progress": "(1) streaming do core IMPLANTADO em produção (PID 395579, :8001 no ar, prova ao vivo, journal sem ruído) e commitado em 7f2c004 (não publicado no origin); (2) app com cliente WebSocket + fallback implementado, testado (67 passed + 2 skipped) e validado AO VIVO contra o core, mas NÃO commitado e SEM APK novo; (3) monitor do roteador segue untracked e ativo em produção (timer systemd desde 09-17 10:26)"
+    "in_progress": "(1) streaming do core IMPLANTADO em produção, commitado em 7f2c004 (não publicado); (2) app com cliente WebSocket + fallback implementado/validado ao vivo, APK 1.2.0+7 publicado e commitado em a7ea223 (não publicado), com app/test/ws_live_test.dart (correção do teste flaky) pendente de commit; (3) monitor do roteador VERSIONADO+CORRIGIDO+INSTALADO+COMMITADO em 892eac4 (timer ativo; o bug do set -e que o deixava cego está corrigido)",
+    "pendente_decisao_usuario": "git push origin master (os 3 commits de 09-18 seguem locais); commitar a correção do teste vivo do app; instalar o APK 1.2.0+7 no Redmi Note 14 (atestação do usuário)"
   },
   "prep_push_fcm_2026_09_13": {
     "pedido": "preparar o push FCM para o teste de ponta a ponta: configurar a service account e verificar POST /push/test com o aparelho registrado",

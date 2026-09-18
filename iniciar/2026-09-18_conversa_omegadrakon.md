@@ -239,20 +239,123 @@ APK **1.2.0+7** (`app/pubspec.yaml` 1.2.0+6 → +7) buildado por
 Instalar no Redmi Note 14 é atestação do usuário (o `adb` daqui não alcança o
 aparelho) — **pendente**.
 
-Encaminhamento (fim da rodada 2)
+Rodada 4 (09-18): commit do app + publicação do APK 1.2.0+7
 
-- Checkpoint atualizado (session.json: `updated_at` = 2026-09-18T05:05:00-03:00,
-  blocos `streaming_ws_2026_09_18`, `retomada_2026_09_18` e `last_turn`).
-- Arquivos tocados na rodada 2: `integrations/api/ws_server.py` (reescrito o
-  ciclo de vida + `_LibraryLogger`), `core/llm.py` (reasoning fallback no
-  stream), `runtime/launcher.py` (contenção da falha), `requirements.txt`
-  (websockets), `tests/test_websocket.py` (reescrito, 28 testes) e
-  `sandbox_agent/ws_sandbox.py` (novo, ignorado pelo git).
-- Streaming do core: **implantado** em produção (PID 395579, :8001 no ar) e
-  **commitado** em `7f2c004` (ainda **não** empurrado para o `origin`).
-- App: cliente WebSocket + fallback **implementado, testado e validado ao vivo**,
-  mas **não commitado** e **sem APK novo** (o celular segue no 1.2.0+6).
-- Monitor do roteador: segue untracked e **ativo** em produção (timer systemd
-  desde 09-17 10:26) — aguardando decisão sobre versionar.
-- Pendências de decisão do usuário: publicar/apontar o commit no `origin`;
-  rebuildar o APK (subir `versionCode`); versionar o monitor.
+O usuário autorizou "tudo" (restart + APK + commit) — o restart já havia sido
+feito na rodada 3; faltavam o APK e o commit.
+
+- `app/pubspec.yaml` 1.2.0+6 → **1.2.0+7**; build por `app/build_apk.sh`
+  (Gradle `assembleRelease`, 45s).
+- **Publicado**: `site/OmegaDrakon.apk` **52.230.399 B** (sha256 `c69f2ccd…`,
+  `versionCode 7`) e `site/OmegaDrakon-arm64.apk` **18.649.902 B**
+  (sha256 `a5015cd7…`, `versionCode 2007`), `versionName 1.2.0` conferido com
+  `aapt dump badging`; sha256 origem == site e `GET /site/OmegaDrakon.apk`
+  devolve HTTP 200 com o mesmo tamanho/hash. O build anterior (1.2.0+6) foi
+  preservado em `backups/apk-v1.2.0-1006/`.
+- **Prova no binário**: a string `Streaming ativo` aparece **1x** no APK novo e
+  **0x** no anterior; `Resposta via REST` **1x** contra **0x** (controle
+  `OmegaDrakon Online` **1x** nos dois).
+- `app/README.md` atualizado (streaming no chat + selo de transporte);
+  `docs/CHANGELOG.md` com a subseção do app.
+- **Commit `a7ea223`** (13 arquivos, +1384/-45) — o app inteiro.
+
+Pendência aberta aqui: o teste vivo (`app/test/ws_live_test.dart`) se prendia à
+**quantidade de frames** e ficou flaky (o modelo respondeu "1" em um chunk só
+numa das rodadas). Reescrito para pinar o **protocolo** (transporte WebSocket +
+frame de token + conteúdo) e não o tamanho da resposta; duas rodadas seguidas
+verdes. A alteração **ficou fora do commit** — é a única modificação pendente no
+working tree no fim desta rodada.
+
+Rodada 5 (09-18): monitor do roteador versionado (script + units)
+
+Pedido: *"Versione o monitor do roteador (script + units) que hoje roda untracked
+em produção"*.
+
+Antes de versionar, um sinal forte no log em produção: **1086 registros `up` e
+ZERO `down`** em 17h de operação. Não era um roteador perfeito.
+
+Causa raiz (uma só): `set -euo pipefail` combinado com `x=$(comando que falha)`.
+
+- o **ping que falha** (roteador fora) derrubava o script **antes** do registro
+  do `down` — o monitor era cego para o único evento que ele existe para medir;
+- o `cat` de `/sys/class/net/<if>/carrier` com a interface ausente (nome trocado
+  ou adaptador desconectado) abortava o script antes de gravar a linha da
+  interface. Somado: com `set -e`, a unit terminava em **falha a cada minuto**
+  durante uma queda — ruído pelo motivo errado.
+
+Reprodução em sandbox (regra 12): gateway `192.0.2.1` (TEST-NET, RFC 5737) →
+**nenhuma linha** de log e exit 1; interface inexistente → abortava depois do
+"UP" sem gravar a interface.
+
+Correções (raiz, em `tools/monitor/router_monitor.sh`):
+
+- **removido o `set -e`** (fica `set -uo pipefail`): monitor precisa sobreviver a
+  falha transitória, não morrer por causa dela;
+- `if ping_result=$(...)` em vez de `cmd; local code=$?` — não depende mais da
+  semântica do `-e`, e o `down` é registrado com `detail=ping_failed`;
+- `|| true` no fim das pipelines do `/sys/class/net` + defaults (`unknown`, 0) e
+  **`carrier`/`speed` forçados a numérico** (sem isso o JSON-lines sairia com
+  `"carrier":unknown`, inválido);
+- aspas do `detail` sanitizadas (mantém o JSON-lines válido);
+- `--once` sai **0 mesmo com o roteador fora** (o estado fica no log);
+- `check_tailscale_links` só roda se houver `journalctl`;
+- **rotação de log** (`OD_MONITOR_MAX_BYTES`, padrão 5 MiB, uma geração `.1`):
+  1 linha/min ≈ 130 MB/ano sem teto;
+- relatório: o rótulo "janelas >30s" prometia o que o código nunca calculou —
+  agora descreve o que faz (incidentes por dia) e avisa se `python3` faltar.
+
+Versionamento no padrão do projeto:
+
+- o script passa a ser **rastreado** em `tools/monitor/router_monitor.sh`;
+- as units saíram de `tools/monitor/` para
+  `runtime/systemd/router-monitor.{service,timer}` — junto das units do núcleo;
+- `runtime/systemd/install-user.sh` copia e liga o timer
+  (`systemctl --user enable --now router-monitor.timer`); o service é `oneshot`,
+  então habilitar o service não faria sentido; o status final reporta o timer;
+- `tools/monitor/README.md` (novo): uso, variáveis, saída, limites conhecidos
+  (não alerta sozinho; correlação com Tailscale é só contagem de
+  `LinkChange: major` da última hora) e o histórico do bug.
+
+Testes:
+
+- `tests/test_router_monitor.py` (**15**, novo) roda o script de verdade em
+  sandbox (diretório temporário + gateway de teste) e pina os dois casos do bug,
+  o contrato do log, JSON válido, a rotação e o `--report`;
+- `tests/test_systemd_units.py` ganhou **10** asserções (units do monitor +
+  instalador); `53 passed` nos dois arquivos.
+
+Teste do teste: restaurando a forma original (`set -euo pipefail` +
+`ping_result=$(...)` + chamada sem guarda) → **6 falhas**, incluindo as três que
+pinam "o `down` é registrado"; revertido (o `|| true` no chamador mascarava o
+`-e` dentro da função — a mutação precisou restaurar o local da chamada também,
+que era o estado original).
+
+Estado final conferido: `diff` das units instaladas em
+`~/.config/systemd/user/` contra as versionadas → **idênticas**; timer
+`enabled`/`active` e log crescendo; `od-core` intacto (PID 399298).
+
+Prova no systemd (unidades instaladas, sem tocar no `od-core`):
+
+- timer `enabled`/`active`, próximo disparo em 1 min, journal com
+  `SyslogIdentifier=router-monitor` e `Finished router-monitor.service`
+  (**sucesso**), log crescendo (`status=up`, ~1 ms);
+- `systemd-run --user -E OD_ROUTER_IP=192.0.2.1 … --once` → **concluiu com
+  sucesso** (exit 0) e gravou `{"status":"down","detail":"ping_failed"}` —
+  exatamente o que não acontecia antes;
+- `diff` das duas units instaladas em `~/.config/systemd/user/` contra as
+  versionadas: **idênticas**; `od-core` intacto (PID 399298).
+
+Suíte completa ao fim da rodada: **1743 passed, 16 skipped**.
+
+Encaminhamento
+
+- Checkpoint (session.json): blocos `monitor_roteador_2026_09_18`,
+  `app_streaming_2026_09_18`, `streaming_ws_2026_09_18` e `last_turn`.
+- Commits locais de 09-18: `7f2c004` (streaming do core), `a7ea223` (app) e
+  `892eac4` (monitor versionado + correção do `down`; 8 arquivos, +818/-7) —
+  **nenhum empurrado** para o `origin`.
+- Monitor: versionado, corrigido, testado, instalado e rodando (timer ativo).
+- Pendências de decisão do usuário: `git push origin master`; commitar a
+  correção do teste vivo do app (`app/test/ws_live_test.dart`, única alteração
+  não commitada no working tree); instalar o **1.2.0+7** no Redmi Note 14
+  (atestação do usuário — o `adb` daqui não alcança o aparelho).
