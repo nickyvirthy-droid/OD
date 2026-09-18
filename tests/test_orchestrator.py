@@ -17,11 +17,15 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from core.event_bus import EventBus
 from core.orchestrator import (
+    DEFAULT_UNAVAILABLE_ERROR,
+    DEFAULT_UNAVAILABLE_MESSAGE,
+    RATE_LIMITED_MESSAGE,
     Orchestrator,
     OrchestratorConfig,
     OrchestrationResult,
@@ -339,9 +343,45 @@ class TestOrchestratorRateLimit:
 # Orchestrator — Event Bus
 # ===========================================================================
 
+class StreamingProvider:
+    """Provider com `generate_stream` de verdade (o `process` usa `generate`).
+
+    As duas vias rendem o mesmo texto, então os registros do pipeline podem ser
+    comparados entre os transportes.
+    """
+
+    def __init__(self, chunks: list[str]) -> None:
+        self.name = "stream-fake"
+        self.chunks = chunks
+        self.text = "".join(chunks)
+        self.stream_calls = 0
+        self.generate_calls = 0
+
+    async def generate_stream(self, prompt: str, **options: Any):
+        self.stream_calls += 1
+        for chunk in self.chunks:
+            yield chunk
+
+    async def generate(self, prompt: str, **options: Any) -> str:
+        self.generate_calls += 1
+        return self.text
+
+
 @pytest.mark.asyncio
 class TestOrchestratorEventBus:
     """Publicação do evento orchestrator.responded."""
+
+    async def _bus_com_eventos(self) -> tuple[EventBus, list[Any]]:
+        """EventBus no ar + lista que coleta orchestrator.responded."""
+        bus = EventBus()
+        await bus.start()
+        recebidos: list[Any] = []
+
+        async def on_event(e: Any) -> None:
+            recebidos.append(e)
+
+        bus.subscribe_handler("orchestrator.responded", on_event)
+        return bus, recebidos
 
     async def test_publishes_responded(self, tmp_path: Path) -> None:
         bus = EventBus()
@@ -367,6 +407,118 @@ class TestOrchestratorEventBus:
         orch = Orchestrator(providers=[StaticProvider("qwen", "oi")])
         result = await orch.process("alex", "guardian", "olá")  # não deve quebrar
         assert result.route == "llm"
+
+    async def test_stream_publica_o_mesmo_evento_do_process(self) -> None:
+        """Mesma conversa, mesmo evento — REST e WebSocket não divergem."""
+        bus_rest, eventos_rest = await self._bus_com_eventos()
+        bus_ws, eventos_ws = await self._bus_com_eventos()
+        provider_rest = StreamingProvider(["olá", " do", " REST"])
+        provider_ws = StreamingProvider(["olá", " do", " REST"])
+        orch_rest = Orchestrator(providers=[provider_rest], event_bus=bus_rest)
+        orch_ws = Orchestrator(providers=[provider_ws], event_bus=bus_ws)
+
+        await orch_rest.process("alex", "guardian", "oi")
+        async for _ in orch_ws.process_stream("alex", "guardian", "oi"):
+            pass
+
+        assert len(eventos_rest) == 1
+        assert len(eventos_ws) == 1, "o stream deve finalizar uma única vez"
+        assert eventos_ws[0].data == eventos_rest[0].data
+        assert eventos_ws[0].data["route"] == "llm"
+        assert eventos_ws[0].data["message"] == "olá do REST"
+        assert eventos_ws[0].source == "orchestrator"
+        # O stream prova que streamou (não caiu no `generate`).
+        assert provider_ws.stream_calls == 1
+        assert provider_ws.generate_calls == 0
+
+    async def test_stream_finaliza_atalhos_sem_llm(self) -> None:
+        """datetime/quick/cache também contam e publicam (antes só o LLM)."""
+        bus, eventos = await self._bus_com_eventos()
+        orch = Orchestrator(
+            providers=[StaticProvider("qwen", "x")],
+            event_bus=bus,
+            config=OrchestratorConfig(inject_datetime=True),
+        )
+
+        chunks = [
+            c async for c in orch.process_stream("alex", "guardian", "que horas são?")
+        ]
+
+        assert chunks[-1]["route"] == "datetime"
+        assert len(eventos) == 1
+        assert eventos[0].data["route"] == "datetime"
+        assert eventos[0].data["message"] == chunks[-1]["content"]
+        assert orch.metrics.processed == 1
+        assert orch.metrics.datetime == 1
+
+    async def test_stream_rate_limit_publica_a_mesma_mensagem(self) -> None:
+        """Cliente recebe o código curto; o evento casa com o do `process`."""
+        bus, eventos = await self._bus_com_eventos()
+        orch = Orchestrator(
+            providers=[StaticProvider("qwen", "oi")],
+            event_bus=bus,
+            config=OrchestratorConfig(rate_limit_max=1, rate_window_seconds=60.0),
+        )
+
+        async for _ in orch.process_stream("alex", "guardian", "m1"):
+            pass
+        chunks = [c async for c in orch.process_stream("alex", "guardian", "m2")]
+
+        assert {"type": "error", "message": "rate_limited"} in chunks
+        assert len(eventos) == 2, "a mensagem limitada também é registrada"
+        assert eventos[1].data["route"] == "rate_limited"
+        assert eventos[1].data["message"] == RATE_LIMITED_MESSAGE
+        assert orch.metrics.processed == 2
+        assert orch.metrics.rate_limited == 1
+
+    async def test_stream_sem_providers_registra_indisponivel(self) -> None:
+        """Sem provider, o evento sai igual ao do `process` (llm_unavailable)."""
+        bus, eventos = await self._bus_com_eventos()
+        orch = Orchestrator(providers=[], event_bus=bus)
+
+        chunks = [c async for c in orch.process_stream("alex", "guardian", "oi")]
+
+        assert chunks[-1] == {"type": "error", "message": "providers_indisponiveis"}
+        assert len(eventos) == 1
+        # O evento carrega o mesmo shape do `process` (user_id, profile, route,
+        # message, llm_used): o motivo do erro fica no resultado, não no evento.
+        dados = eventos[0].data
+        assert dados == {
+            "user_id": "alex",
+            "profile": "guardian",
+            "route": "llm_unavailable",
+            "message": DEFAULT_UNAVAILABLE_MESSAGE,
+            "llm_used": "",
+        }
+        assert orch.metrics.processed == 1
+        assert orch.metrics.unavailable == 1
+
+    async def test_stream_sem_bus_nao_quebra(self) -> None:
+        provider = StreamingProvider(["olá"])
+        orch = Orchestrator(providers=[provider])
+
+        chunks = [c async for c in orch.process_stream("alex", "guardian", "oi")]
+
+        assert chunks[-1]["type"] == "done"
+        assert chunks[-1]["content"] == "olá"
+        assert orch.metrics.processed == 1
+
+    async def test_stream_atende_provider_sync(self) -> None:
+        """Provider sync responde no stream, como já respondia no REST."""
+        provider = StaticProvider("qwen", "oi")
+        orch = Orchestrator(providers=[provider])
+
+        chunks = [c async for c in orch.process_stream("alex", "guardian", "olá")]
+        assert chunks[-1]["type"] == "done", chunks
+        assert chunks[-1]["content"] == "oi"
+        assert chunks[-1]["route"] == "llm"
+        assert chunks[-1]["llm_used"] == "qwen"
+
+        result = await Orchestrator(providers=[StaticProvider("qwen", "oi")]).process(
+            "alex", "guardian", "olá"
+        )
+        assert result.route == "llm"
+        assert result.message == "oi"
 
 
 # ===========================================================================

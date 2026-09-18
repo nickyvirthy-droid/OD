@@ -461,6 +461,39 @@ de código** (o que faltava era só a credencial):
   enquanto grava `{"status":"down","detail":"ping_failed"}` — exatamente o
   que não acontecia antes. `od-core` não foi reiniciado (PID 399298 intacto).
 
+### Corrigido (2026-09-18) — paridade do `orchestrator.responded` entre REST e WebSocket 🔔
+
+- **A mesma conversa era registrada de dois jeitos.** `process` (REST) passa
+  **todo** desfecho por `_finish` — métricas, evento e log `Message processed` —,
+  enquanto `process_stream` (WebSocket) só contava `processed` no caminho do LLM
+  e **nunca publicava** `orchestrator.responded` (havia até um comentário
+  `# Publicar evento` órfão onde a publicação deveria estar). Atalhos (datetime,
+  quick, cache, intents) e falhas (rate limit, indisponível) simplesmente não
+  apareciam em quem observa o núcleo. Agora **toda saída terminal do stream
+  passa pelo `_finish`**, com um `OrchestrationResult` montado por
+  `_stream_result` — mesmas métricas, mesmo evento, mesmo log.
+- **Provider sync voltou a responder no WebSocket.** O fallback não-streaming do
+  stream fazia `await provider.generate(...)`; com um provider **sync** (ex.:
+  `StaticProvider`) isso levantava `TypeError`, ninguém tratava e o resultado era
+  `todos_providers_falharam` — o mesmo provider respondia no REST (que já usava
+  `inspect.isawaitable`) e falhava no WebSocket. A chamada foi extraída para
+  `_generate_one`, usada pelos dois caminhos.
+- **Paridade de textos:** `RATE_LIMITED_MESSAGE` e `DEFAULT_UNAVAILABLE_ERROR`
+  viraram constantes, em vez de literais repetidos — o evento/log do stream
+  carrega exatamente o que o REST carregaria. O cliente continua recebendo o
+  código curto no chunk de erro (`rate_limited`), que é contrato do protocolo.
+- **Testes:** +6 em `tests/test_orchestrator.py` (classe `TestOrchestratorEventBus`),
+  incluindo a comparação direta `evento do REST == evento do WebSocket` para o
+  mesmo texto. **Suíte: 1749 passed, 16 skipped.**
+- **Teste do teste:** 4 mutações — tirar o `_finish` do atalho datetime → 1
+  falha; exigir provider async outra vez → 1 falha; evento do rate limit com o
+  código curto → 1 falha; voltar o caminho do LLM ao estado original (sem
+  evento) → 2 falhas. Revertidas.
+- **Validação em sandbox** (`sandbox_agent/event_parity_sandbox.py`, contra o
+  llama-server real): **7/7 OK**, incluindo `evento do REST == evento do
+  WebSocket` e o atalho datetime publicando. `od-core` **não** foi reiniciado —
+  a mudança ainda não está em produção (PID 399298 de 04:49).
+
 ### Pendente
 
 - ~~Gerar a **service account** no console do Firebase e gravá-la em

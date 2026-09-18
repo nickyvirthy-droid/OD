@@ -84,6 +84,9 @@ DEFAULT_RATE_LIMIT_WINDOW_S = 60.0
 DEFAULT_LLM_TIMEOUT_S = 60.0
 DEFAULT_MAX_HISTORY_TURNS = 3  # legado: 3 turns = 6 mensagens
 DEFAULT_UNAVAILABLE_MESSAGE = "Nenhum LLM disponível no momento."
+# Motivo registrado no resultado/evento quando nenhum provider responde — o
+# mesmo em `process` e `process_stream`.
+DEFAULT_UNAVAILABLE_ERROR = "todos os providers de LLM falharam"
 
 # Rotas possíveis do pipeline
 ROUTE_RATE_LIMITED = "rate_limited"
@@ -95,6 +98,11 @@ ROUTE_LLM = "llm"
 ROUTE_FALLBACK = "fallback"
 ROUTE_UNAVAILABLE = "llm_unavailable"
 ROUTE_ERROR = "error"
+
+# Texto da resposta de rate limit. É constante (e não literal solto em cada
+# caminho) porque `process` e `process_stream` precisam registrar e publicar a
+# MESMA mensagem para a mesma situação.
+RATE_LIMITED_MESSAGE = "Muitas mensagens em pouco tempo. Aguarde um instante."
 
 TERMINAL_NO_LLM = {ROUTE_RATE_LIMITED, ROUTE_DATETIME, ROUTE_QUICK, ROUTE_CACHE}
 PERSISTED_ROUTES = {ROUTE_LLM, ROUTE_FALLBACK}
@@ -457,6 +465,11 @@ class Orchestrator:
 
         Yields chunks de texto conforme o LLM os produz.
         No final, yields um dict com metadados da resposta.
+
+        Os MESMOS desfechos do `process` são registrados aqui: toda saída
+        terminal passa pelo `_finish`, então métricas, evento
+        `orchestrator.responded` e o log "Message processed" saem iguais nos
+        dois transportes (REST e WebSocket).
         """
         if not system_prompt:
             system_prompt = self._config.default_system_prompt
@@ -465,6 +478,12 @@ class Orchestrator:
         # Etapa 1 — Rate limit
         if not self._limiter.allow(user_id):
             self._metrics.rate_limited += 1
+            # O cliente recebe o código curto no chunk de erro; o evento e o
+            # log levam a mesma mensagem que o `process` publicaria.
+            result = self._stream_result(
+                user_id, profile, text, ROUTE_RATE_LIMITED, RATE_LIMITED_MESSAGE
+            )
+            await self._finish(result, started)
             yield {"type": "error", "message": "rate_limited"}
             return
 
@@ -473,6 +492,10 @@ class Orchestrator:
             answer = detect_datetime_question(text)
             if answer is not None:
                 self._metrics.datetime += 1
+                result = self._stream_result(
+                    user_id, profile, text, ROUTE_DATETIME, answer
+                )
+                await self._finish(result, started)
                 yield {"type": "token", "content": answer}
                 yield {
                     "type": "done",
@@ -487,6 +510,10 @@ class Orchestrator:
             quick_answer = self.quick.get(text.strip().lower())
             if quick_answer is not None:
                 self._metrics.quick += 1
+                result = self._stream_result(
+                    user_id, profile, text, ROUTE_QUICK, quick_answer
+                )
+                await self._finish(result, started)
                 yield {"type": "token", "content": quick_answer}
                 yield {
                     "type": "done",
@@ -513,6 +540,15 @@ class Orchestrator:
                     route_detail = action_name
             if answer is not None:
                 self._metrics.intents += 1
+                result = self._stream_result(
+                    user_id,
+                    profile,
+                    text,
+                    ROUTE_INTENT,
+                    answer,
+                    llm_used=f"fastpath:{route_detail}",
+                )
+                await self._finish(result, started)
                 yield {"type": "token", "content": answer}
                 yield {
                     "type": "done",
@@ -527,6 +563,10 @@ class Orchestrator:
             cached = self.cache.get(text, profile=profile)
             if cached is not None:
                 self._metrics.cache_hits += 1
+                result = self._stream_result(
+                    user_id, profile, text, ROUTE_CACHE, cached, cached=True
+                )
+                await self._finish(result, started)
                 yield {"type": "token", "content": cached}
                 yield {
                     "type": "done",
@@ -543,6 +583,15 @@ class Orchestrator:
         # Etapas 6 e 7 — LLM com streaming
         if not self._providers:
             self._metrics.unavailable += 1
+            result = self._stream_result(
+                user_id,
+                profile,
+                text,
+                ROUTE_UNAVAILABLE,
+                self._config.unavailable_message,
+                error=DEFAULT_UNAVAILABLE_ERROR,
+            )
+            await self._finish(result, started)
             yield {"type": "error", "message": "providers_indisponiveis"}
             return
 
@@ -572,25 +621,42 @@ class Orchestrator:
                     provider=provider.name,
                     error=f"{type(exc).__name__}: {exc}",
                 )
-                # Fallback para non-streaming neste provider
+                # Fallback para non-streaming NESTE provider, com a mesma
+                # tolerância do `_generate` (provider sync também vale).
                 try:
-                    message = await provider.generate(
-                        prompt, timeout=self._config.llm_timeout_s
-                    )
-                    if message:
-                        full_response = message
-                        yield {"type": "token", "content": message}
-                        break
+                    message = await self._generate_one(provider, prompt)
                 except Exception:
-                    pass
+                    continue
+                if message:
+                    full_response = message
+                    yield {"type": "token", "content": message}
+                    break
         else:
             # Todos os providers falharam
             self._metrics.unavailable += 1
+            result = self._stream_result(
+                user_id,
+                profile,
+                text,
+                ROUTE_UNAVAILABLE,
+                self._config.unavailable_message,
+                error=DEFAULT_UNAVAILABLE_ERROR,
+            )
+            await self._finish(result, started)
             yield {"type": "error", "message": "todos_providers_falharam"}
             return
 
         if not full_response:
             self._metrics.unavailable += 1
+            result = self._stream_result(
+                user_id,
+                profile,
+                text,
+                ROUTE_UNAVAILABLE,
+                self._config.unavailable_message,
+                error=DEFAULT_UNAVAILABLE_ERROR,
+            )
+            await self._finish(result, started)
             yield {"type": "error", "message": "resposta_vazia"}
             return
 
@@ -603,18 +669,26 @@ class Orchestrator:
         # Etapa 8 — Pós-processamento
         await self._post_process(user_id, profile, text, full_response, llm_used)
 
-        # Publicar evento
-        latency_ms = (time.perf_counter() - started) * 1000.0
-        with self._lock:
-            self._metrics.processed += 1
-            self._metrics.total_latency_ms += latency_ms
+        # Finalização igual à do `process`: métricas, evento no EventBus, log.
+        # (O `processed`/`total_latency_ms` sai daqui — não somar de novo.)
+        result = self._stream_result(
+            user_id,
+            profile,
+            text,
+            route,
+            full_response,
+            llm_used=llm_used,
+            fallback_used=fallback_used,
+            prompt=prompt,
+        )
+        await self._finish(result, started)
 
         yield {
             "type": "done",
             "content": full_response,
             "route": route,
             "llm_used": llm_used,
-            "latency_ms": latency_ms,
+            "latency_ms": result.latency_ms,
         }
 
     async def process(
@@ -650,7 +724,7 @@ class Orchestrator:
         # Etapa 1 — Rate limit (janela deslizante por usuário)
         if not self._limiter.allow(user_id):
             result.route = ROUTE_RATE_LIMITED
-            result.message = "Muitas mensagens em pouco tempo. Aguarde um instante."
+            result.message = RATE_LIMITED_MESSAGE
             self._metrics.rate_limited += 1
             return await self._finish(result, started)
 
@@ -714,7 +788,7 @@ class Orchestrator:
         if message is None:
             result.route = ROUTE_UNAVAILABLE
             result.message = self._config.unavailable_message
-            result.error = "todos os providers de LLM falharam"
+            result.error = DEFAULT_UNAVAILABLE_ERROR
             result.prompt = prompt
             self._metrics.unavailable += 1
             return await self._finish(result, started)
@@ -768,24 +842,30 @@ class Orchestrator:
         messages.append({"role": "user", "content": text})
         return build_chatml(messages, system_prompt=system)
 
+    async def _generate_one(self, provider: Any, prompt: str) -> Optional[str]:
+        """Chama `provider.generate` aceitando implementação sync OU async.
+
+        Serve os dois caminhos: o não-streaming (`_generate`) e o fallback do
+        streaming. Sem isso, um provider sync responderia no REST e falharia no
+        WebSocket — a mesma conversa mudando de comportamento por transporte.
+        """
+        call = provider.generate(prompt, timeout=self._config.llm_timeout_s)
+        if inspect.isawaitable(call):
+            output = await asyncio.wait_for(call, timeout=self._config.llm_timeout_s)
+        else:
+            output = call
+        if output is None:
+            raise RuntimeError("provider retornou vazio")
+        return str(output)
+
     async def _generate(self, prompt: str) -> tuple[Optional[str], str, bool]:
         """Tenta providers em ordem; retorna (texto, nome, usou_fallback)."""
         if not self._providers:
             return None, "", False
         for index, provider in enumerate(self._providers):
             try:
-                call = provider.generate(
-                    prompt, timeout=self._config.llm_timeout_s
-                )
-                if inspect.isawaitable(call):
-                    output = await asyncio.wait_for(
-                        call, timeout=self._config.llm_timeout_s
-                    )
-                else:
-                    output = call
-                if output is None:
-                    raise RuntimeError("provider retornou vazio")
-                return str(output), provider.name, index > 0
+                output = await self._generate_one(provider, prompt)
+                return output, provider.name, index > 0
             except asyncio.TimeoutError:
                 log.warn(
                     "LLM provider timeout",
@@ -833,6 +913,41 @@ class Orchestrator:
                     "Orchestrator history write failed",
                     error=f"{type(exc).__name__}: {exc}",
                 )
+
+    def _stream_result(
+        self,
+        user_id: str,
+        profile: str,
+        text: str,
+        route: str,
+        message: str,
+        *,
+        llm_used: str = "",
+        cached: bool = False,
+        fallback_used: bool = False,
+        prompt: str = "",
+        error: str = "",
+    ) -> OrchestrationResult:
+        """Monta o `OrchestrationResult` equivalente ao fim de um stream.
+
+        O streaming devolve chunks (e não um resultado), mas a resposta precisa
+        ser registrada da MESMA forma que no caminho não-streaming: sem isto, a
+        mesma conversa contava nas métricas e era publicada em
+        `orchestrator.responded` de um jeito diferente só por causa do
+        transporte (REST x WebSocket) — ou simplesmente não era publicada.
+        """
+        return OrchestrationResult(
+            user_id=user_id,
+            profile=profile,
+            text=text,
+            route=route,
+            message=message,
+            llm_used=llm_used,
+            cached=cached,
+            fallback_used=fallback_used,
+            prompt=prompt,
+            error=error,
+        )
 
     async def _finish(self, result: OrchestrationResult, started: float) -> OrchestrationResult:
         """Finaliza o resultado: duração, métricas e evento opcional."""
