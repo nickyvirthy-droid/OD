@@ -45,8 +45,6 @@ void main() {
         final api = OdApi(baseUrl: base, apiKey: chave);
 
         final chat = chatPara(api);
-        // Prompt que rende VÁRIOS tokens: a resposta curta vem num chunk só e
-        // não provaria entrega incremental (mesma lição do sandbox do core).
         final deltas = await chat
             .send('Liste os números de 1 a 15, um por linha, sem comentários.',
                 profile: 'guardian')
@@ -65,9 +63,17 @@ void main() {
         );
         expect(deltas.last.done, isTrue);
         expect(texto.trim(), isNotEmpty);
-        // Streaming de verdade: VÁRIOS frames de token (o `done` vem vazio).
-        expect(deltas.where((d) => !d.done && d.text.isNotEmpty).length,
-            greaterThanOrEqualTo(3));
+        // Pelo menos um frame de token (o `done` vem vazio). NÃO se prende à
+        // QUANTIDADE de frames: o número de chunks depende de quanto o modelo
+        // responde — numa rodada ele soltou 35 tokens, na seguinte respondeu
+        // "1" num chunk só. A entrega incremental (primeiro token na tela
+        // antes do último) é pinada de forma determinística no teste de widget
+        // com canal roteirizado; aqui o que se prova é o protocolo real.
+        expect(
+          deltas.where((d) => !d.done && d.text.isNotEmpty),
+          isNotEmpty,
+          reason: 'nenhum frame de token: o core mandou só o done?',
+        );
       },
       skip: habilitado ? false : 'defina OD_LIVE_WS=1 para falar com o core real',
     );
