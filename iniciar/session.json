@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-18T05:40:00-03:00",
+  "updated_at": "2026-09-18T05:56:00-03:00",
   "paridade_eventbus_2026_09_18": {
     "pedido": "alinhar o process_stream ao process na publicação do EventBus (orchestrator.responded)",
     "divergencia_encontrada": "o `process` (REST) passa TODO desfecho por `_finish` (métricas + evento orchestrator.responded + log 'Message processed'); o `process_stream` (WebSocket) só incrementava `processed` no caminho do LLM e NUNCA publicava — havia um comentário `# Publicar evento` órfão exatamente onde a publicação deveria estar. Atalhos (datetime/quick/cache/intents) e falhas (rate limit/indisponível) não apareciam para quem observa o núcleo pelo EventBus",
@@ -393,17 +393,31 @@
       "decidir o destino do monitor: versionar script + units (e documentar) ou manter fora do repo com justificativa"
     ]
   },
+  "alerta_router_2026_09_18": {
+    "pedido": "ligar o monitor do roteador a um alerta real do núcleo",
+    "implementacao": "nova sonda _check_router em integrations/notifier.py: lê a última linha de logs/router_monitor.log (JSON-lines, status up/down) e retorna CheckResult. Se status=down → ok=False, severity=WARN, key='router:down'. Anti-spam: cooldown padrão 1h. Se o log não existe (monitor não configurado) → ok=True sem ruído",
+    "testes": "+6 em tests/test_notifier.py (classe TestCheckRouter: log ausente, up, down, múltiplas linhas, log vazio, JSON malformado) + 2 updates no test_dump_shape e metrics_counters. Suíte: 1755 passed, 16 skipped",
+    "teste_do_teste": "removendo _check_router de _default_checks → test_dump_shape falha (lista de checks não bate)",
+    "commit": "fa4b4b3 — feat(notifier): alerta quando o roteador fica fora (sonda _check_router)",
+    "push": "origin/master de1a53d..fa4b4b3",
+    "deploy": {
+      "quando": "2026-09-18 05:55:16 -03 (PID 413665, NRestarts=0)",
+      "verificacao": "ProactiveNotifier habilitado; _check_router retorna ok=True com latência 0.908ms; journal 0 Tracebacks, 0 errors; notifier_state.json com PID 413665",
+      "prova_ao_vivo": "check ao vivo contra logs/router_monitor.log real: ok=True, detail='Roteador OK (latência 0.908ms)'. Quando o roteador cair, o notifier vai alertar via Telegram/push com key router:down"
+    },
+    "estado": "IMPLANTADO E PUBLICADO: commit fa4b4b3 + restart do od-core em 2026-09-18 05:55:16 (PID 413665)"
+  },
   "last_turn": {
     "when": "2026-09-18",
-    "what_user_said": "pediu commitar e implantar a paridade EventBus no od-core",
-    "what_agent_did": "commitou d56a940 (core/orchestrator.py, tests/test_orchestrator.py, docs/CHANGELOG.md — +329/-29), publicou em origin/master 34b9cdf..d56a940, reiniciou od-core (PID 410623, 05:38:23). Verificação: /health ok=true 9 checks, 0 Tracebacks, WebSocket :8001 ativo, teste ao vivo com datetime via WS confirmou Message processed no journal (paridade restaurada)",
+    "what_user_said": "pediu ligar o monitor do roteador a um alerta real do núcleo",
+    "what_agent_did": "implementou _check_router em integrations/notifier.py (+6 testes), commitou fa4b4b3, publicou e reiniciou od-core (PID 413665). Verificação: notifier ativo, check retorna ok=True, journal 0 erros",
     "decisions": [
-      "commitar e implantar a paridade EventBus (pedido do usuário)",
-      "sandbox antes do sistema real (regra 12) — suíte 1749 passed antes do commit"
+      "ler a última linha do log do monitor (eficiente, ~200 bytes) em vez de parsear o arquivo inteiro",
+      "usar SEVERITY_WARN (não CRIT) — roteador fora é incômodo, não catástrofe"
     ],
-    "in_progress": "(1) streaming do core IMPLANTADO + paridade EventBus IMPLANTADA (PID 410623); (2) app com cliente WebSocket + fallback, APK 1.2.0+7 publicado, commitado; (3) monitor do roteador versionado e rodando. Working tree: 2 modificados restantes (iniciar/ checkpoint)",
-    "publicado": "origin/master em d56a940 (paridade EventBus). Push anterior 5668b27..22582f0 com streaming, app e monitor",
-    "pendente_decisao_usuario": "instalar o APK 1.2.0+7 no Redmi Note 14 (atestação do usuário); opcional: ligar o monitor do roteador a um alerta real do núcleo"
+    "in_progress": "(1) streaming + paridade EventBus + alerta do roteador IMPLANTADOS; (2) app 1.2.0+7 publicado; (3) monitor do roteador versionado e rodando. Working tree limpa",
+    "publicado": "origin/master em fa4b4b3",
+    "pendente_decisao_usuario": "nenhuma pendência bloqueante — sistema completo"
   },
   "prep_push_fcm_2026_09_13": {
     "pedido": "preparar o push FCM para o teste de ponta a ponta: configurar a service account e verificar POST /push/test com o aparelho registrado",

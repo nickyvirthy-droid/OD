@@ -470,3 +470,30 @@ Usuário: "Commitar e implantar a paridade EventBus no od-core"
   - **Prova ao vivo**: cliente WS mandou 'que horas sao?' → route=datetime, 1 token, `Message processed | route=datetime | user=ws_user | profile=guardian` registrado no journal — **paridade confirmada** (antes do fix, o atalho datetime no stream NÃO gerava esse log)
 
 Checkpoint (session.json): bloco `paridade_eventbus_2026_09_18` atualizado com commit, push e deploy; `last_turn` atualizado.
+
+---
+
+## Rodada 3 — alerta do roteador pelo notifier
+
+Usuário: "Ligar o monitor do roteador a um alerta real do núcleo"
+
+- O monitor do roteador já escrevia `logs/router_monitor.log` (JSON-lines,
+  status up/down), mas só registrava — não alertava.
+- Implementado `_check_router` em `integrations/notifier.py`: lê a **última
+  linha** do log e retorna `CheckResult(ok=False, SEVERITY_WARN,
+  key='router:down')` quando `status=down`. Anti-spam: cooldown padrão 1h.
+- Adicionado a `_default_checks` (sondas padrão do notifier).
+- Testes: +6 (classe `TestCheckRouter`): log ausente, up, down, múltiplas
+  linhas, log vazio, JSON malformado. Atualizados `test_dump_shape` e
+  `test_metrics_counters` para incluir o novo check.
+- Suíte: **1755 passed, 16 skipped**.
+- Commit: `fa4b4b3` — `feat(notifier): alerta quando o roteador fica fora`
+- Push: `origin/master de1a53d..fa4b4b3`
+- Deploy: restart od-core → PID 413665, 05:55:16
+- Verificação: notifier ativo, `_check_router` retorna ok=True (roteador
+  UP, latência 0.9ms), journal 0 erros, `notifier_state.json` com PID novo
+- **Prova ao vivo**: check contra logs/router_monitor.log real →
+  `ok=True, detail='Roteador OK (latência 0.908ms)'`
+
+Checkpoint (session.json): bloco `alerta_router_2026_09_18` e `last_turn`
+atualizados.
