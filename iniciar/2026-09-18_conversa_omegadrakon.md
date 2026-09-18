@@ -371,10 +371,69 @@ testes de widget, que têm canal roteirizado e não dependem do LLM.
 
 Commit `381e9d3` (1 arquivo, +11/-5). Working tree **limpo**.
 
+Rodada 7 (09-18): paridade do `orchestrator.responded` entre REST e WebSocket
+
+Pedido: *"Alinhe o process_stream ao process na publicação do EventBus
+(orchestrator.responded)"*.
+
+Divergência (uma só, e do tamanho do pedido): `process` passa **todo** desfecho
+por `_finish` — métricas, evento `orchestrator.responded` e log
+`Message processed` —, enquanto `process_stream` só incrementava `processed` no
+caminho do LLM e **nunca publicava**. Ficava até um comentário `# Publicar
+evento` órfão exatamente onde a publicação deveria estar. Consequência: atalhos
+(datetime, quick, cache, intents) e falhas (rate limit, indisponível) não
+existiam para quem observa o núcleo pelo EventBus — a mesma conversa rendia
+observabilidade diferente conforme o transporte.
+
+Correção: cada saída terminal do stream (7 caminhos) monta um
+`OrchestrationResult` (novo helper `_stream_result`) e passa por `_finish`.
+O **payload do wire não mudou** — `done`/`error` seguem com as mesmas chaves.
+
+Segunda divergência achada no caminho (e essa é um bug de verdade): **provider
+sync respondia no REST e falhava no WebSocket.** O fallback não-streaming do
+stream fazia `await provider.generate(...)`; com um provider sync (ex.:
+`StaticProvider`) isso levanta `TypeError`, era engolido pelo `except` e virava
+`todos_providers_falharam` — sendo que o `_generate` do `process` já usava
+`inspect.isawaitable`. A chamada foi extraída para `_generate_one`, usada pelos
+dois caminhos. Quem achou foi um teste meu com `StaticProvider`, que falhou.
+
+Paridade de textos: `RATE_LIMITED_MESSAGE` e `DEFAULT_UNAVAILABLE_ERROR`
+viraram constantes (eram literais repetidos), então o evento/log do stream
+carrega exatamente o que o REST carregaria. O cliente continua recebendo o
+código curto no chunk de erro (`rate_limited`), que é contrato do protocolo —
+meu primeiro teste, aliás, supôs que o evento levava o campo `error`; não leva
+(shape é `user_id, profile, route, message, llm_used` nos dois caminhos), e o
+teste foi corrigido para pinar o shape real.
+
+Testes: **+6** em `tests/test_orchestrator.py` (`TestOrchestratorEventBus`),
+com a comparação direta `evento do REST == evento do WebSocket` para o mesmo
+texto e provider (provider fake com `generate_stream` real, para o stream
+realmente streamar). **Suíte: 1749 passed, 16 skipped.**
+
+Teste do teste (4 mutações, todas detectadas e revertidas):
+
+| Mutação | Falhas |
+|---|---|
+| tirar o `_finish` do atalho datetime | 1 (`test_stream_finaliza_atalhos_sem_llm`) |
+| voltar a exigir provider async | 1 (`test_stream_atende_provider_sync`) |
+| evento do rate limit com o código curto | 1 (`test_stream_rate_limit_publica_a_mesma_mensagem`) |
+| caminho LLM de volta ao original (sem evento) | 2 (paridade + rate limit) |
+
+Sandbox (regra 12) — `sandbox_agent/event_parity_sandbox.py` (novo), contra o
+**llama-server real**: **7/7 OK** — evento único por mensagem, tokens
+concatenados == `message` do evento, `evento do REST == evento do WebSocket`,
+`metrics.processed` contando uma vez, atalho datetime publicando e o rate limit
+levando a mensagem canônica. O journal do sandbox mostra o log que antes não
+existia para o stream: `Message processed | route=llm | latency_ms=4583`.
+
+**Não implantado:** o `od-core` segue no **PID 399298 de 04:49** com o código
+anterior — o deploy exige restart em produção (autorização do usuário), e nada
+foi commitado ainda.
+
 Encaminhamento
 
-- Checkpoint (session.json): blocos `teste_vivo_app_2026_09_18`,
-  `monitor_roteador_2026_09_18`,
+- Checkpoint (session.json): blocos `paridade_eventbus_2026_09_18`,
+  `teste_vivo_app_2026_09_18`, `monitor_roteador_2026_09_18`,
   `app_streaming_2026_09_18`, `streaming_ws_2026_09_18` e `last_turn`.
 - Commits locais de 09-18: `7f2c004` (streaming do core), `a7ea223` (app),
   `892eac4` (monitor versionado + correção do `down`; 8 arquivos, +818/-7),
@@ -390,3 +449,24 @@ Encaminhamento
 - Pendência de decisão do usuário: instalar o **1.2.0+7** no Redmi Note 14
   (atestação do usuário — o `adb` daqui não alcança o aparelho). Opcional: ligar
   o monitor do roteador a um alerta real do núcleo.
+
+---
+
+## Rodada 2 — commit + deploy da paridade EventBus
+
+Usuário: "Commitar e implantar a paridade EventBus no od-core"
+
+- Suíte: **1749 passed, 16 skipped** (verde antes do commit).
+- Commit: `d56a940` — `fix(orchestrator): alinha process_stream ao process no EventBus`
+  - 3 arquivos: core/orchestrator.py, tests/test_orchestrator.py, docs/CHANGELOG.md
+  - +329/-29 (novo helper `_stream_result`, `_generate_one`, constantes `RATE_LIMITED_MESSAGE`/`DEFAULT_UNAVAILABLE_ERROR`, +6 testes)
+- Push: `origin/master 34b9cdf..d56a940`
+- Deploy: `systemctl --user restart od-core` → PID 410623, `ExecMainStartTimestamp=2026-09-18 05:38:23`
+- Verificação:
+  - `/health`: ok=true, 9 checks todos up, uptime_s=8
+  - `ss -ltnp`: `:8000` e `:8001` escutando (PID 410623)
+  - Journal desde 05:38:00: 0 Traceback, 0 error, 0 fail
+  - Boot limpo: Push FCM enabled=True/dispositivos=1, TelegramBot, MQTT, Face Detector, Presence, RecoveryLoop, WebSocket :8001 com auth=True
+  - **Prova ao vivo**: cliente WS mandou 'que horas sao?' → route=datetime, 1 token, `Message processed | route=datetime | user=ws_user | profile=guardian` registrado no journal — **paridade confirmada** (antes do fix, o atalho datetime no stream NÃO gerava esse log)
+
+Checkpoint (session.json): bloco `paridade_eventbus_2026_09_18` atualizado com commit, push e deploy; `last_turn` atualizado.

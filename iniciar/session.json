@@ -1,7 +1,26 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-18T05:45:00-03:00",
+  "updated_at": "2026-09-18T05:40:00-03:00",
+  "paridade_eventbus_2026_09_18": {
+    "pedido": "alinhar o process_stream ao process na publicação do EventBus (orchestrator.responded)",
+    "divergencia_encontrada": "o `process` (REST) passa TODO desfecho por `_finish` (métricas + evento orchestrator.responded + log 'Message processed'); o `process_stream` (WebSocket) só incrementava `processed` no caminho do LLM e NUNCA publicava — havia um comentário `# Publicar evento` órfão exatamente onde a publicação deveria estar. Atalhos (datetime/quick/cache/intents) e falhas (rate limit/indisponível) não apareciam para quem observa o núcleo pelo EventBus",
+    "correcao": "toda saída terminal do stream (7 caminhos) monta um OrchestrationResult via novo helper `_stream_result` e passa pelo `_finish` — mesmas métricas, mesmo evento, mesmo log. O payload do wire NÃO mudou (o `done`/`error` continua com as mesmas chaves)",
+    "segunda_divergencia_corrigida": "provider SYNC respondia no REST e falhava no WebSocket: o fallback não-streaming do stream fazia `await provider.generate(...)`, e com um provider sync (ex.: StaticProvider) isso levanta TypeError, era engolido e virava 'todos_providers_falharam' (o `_generate` do process já usava inspect.isawaitable). Extraído `_generate_one`, usado pelos dois caminhos — descoberto porque um teste meu com StaticProvider falhou",
+    "paridade_de_textos": "RATE_LIMITED_MESSAGE e DEFAULT_UNAVAILABLE_ERROR viraram constantes (eram literais repetidos), então o evento/log do stream carrega exatamente o que o REST carregaria. O cliente continua recebendo o código curto no chunk de erro (rate_limited), que é contrato do protocolo; o shape do evento não mudou (user_id, profile, route, message, llm_used — o `error` do resultado NÃO vai para o evento, nos dois caminhos)",
+    "testes": "+6 em tests/test_orchestrator.py (classe TestOrchestratorEventBus), incluindo a comparação direta `evento do REST == evento do WebSocket` para o mesmo texto e provider. Suíte: 1749 passed, 16 skipped",
+    "teste_do_teste": "4 mutações, todas detectadas: tirar o _finish do atalho datetime -> 1 falha; voltar a exigir provider async -> 1 falha; evento do rate limit com o código curto -> 1 falha; caminho LLM de volta ao estado original (sem evento) -> 2 falhas. Revertidas, sem resíduo de 'MUTACAO' no código",
+    "sandbox": "sandbox_agent/event_parity_sandbox.py (novo, pasta ignorada) contra o llama-server real: 7/7 OK — evento único por mensagem, tokens concatenados == message do evento, `evento do REST == evento do WebSocket`, atalho datetime publicando, rate limit com a mensagem canônica",
+    "commit": "d56a940 — fix(orchestrator): alinha process_stream ao process no EventBus (3 arquivos, +329/-29)",
+    "push": "origin/master 34b9cdf..d56a940",
+    "deploy": {
+      "quando": "2026-09-18 05:38:23 -03 (PID 410623, NRestarts=0)",
+      "boot": "WebSocket server no ar | host=0.0.0.0 | port=8001 | auth=True; Push FCM enabled=True/dispositivos=1; TelegramBot com HTTPTransport; MQTT conectado; 9 checks ok",
+      "prova_ao_vivo": "cliente WS com 'que horas sao?' -> route=datetime, Message processed publicado no journal (paridade confirmada). Antes do fix, o atalho datetime NO stream NÃO gerava 'Message processed' no journal",
+      "journal": "0 Traceback, 0 error, 0 fail desde o boot"
+    },
+    "estado": "IMPLANTADO E PUBLICADO: commit d56a940 (origin/master 34b9cdf..d56a940) + restart do od-core em 2026-09-18 05:38:23 (PID 410623)"
+  },
   "ruido_handle_error_2026_09_15": {
     "pedido": "reduzir o ruído dos tracebacks do http.server (achado 2 da checagem dos loops)",
     "causa": "o handle_error herdado do socketserver imprime o traceback inteiro no stderr do processo quando o cliente aborta a conexão no meio do request — rotina (app Android sem rede, navegador fechando aba, health check com timeout). No journal do systemd isso vira ruído que esconde erro de verdade (foram os 2 ConnectionResetError de 10:14:41)",
@@ -239,7 +258,7 @@
       "agents": "profiles (7 perfis — Plêiade completa) + nicky_virthy identity/soul"
     }
   },
-  "topic": "OmegaDrakon v1.3.0 em curso (streaming WebSocket) + monitor do roteador",
+  "topic": "OmegaDrakon v1.3.0 — streaming + paridade EventBus implantados; monitor do roteador versionado",
   "teste_vivo_app_2026_09_18": {
     "pedido": "prosseguir com a única alteração que sobrava no working tree (a correção do teste vivo flaky, deixada fora do commit do app)",
     "causa": "app/test/ws_live_test.dart exigia >=3 frames de token, mas a CONTAGEM de chunks depende de quanto o modelo responde — numa rodada 35 frames, na outra o modelo soltou '1' num chunk só e o teste falhava sem haver regressão nenhuma",
@@ -376,15 +395,15 @@
   },
   "last_turn": {
     "when": "2026-09-18",
-    "what_user_said": "pediu \"leia iniciar\" para retomar a sessão",
-    "what_agent_did": "leu iniciar/ (README, RULES, session.json, transcrição de 09-17) e reconferiu o estado por evidência. Descobriu duas frentes não registradas: (1) streaming WebSocket v1.3.0 no working tree — tests/test_websocket.py 14 passed, mas ws_server.start() quebra com `import websockets.serve` (ModuleNotFoundError) e a :8001 não está no ar; websockets 16.1.1 instalado porém ausente do requirements.txt; (2) tools/monitor/ (script + .service + .timer) UNTRACKED mas ATIVO em produção via timer systemd do usuário desde 09-17 10:26, escrevendo logs/router_monitor.log a cada minuto. Registrou os dois no checkpoint e devolveu a decisão ao usuário sobre onde retomar.",
+    "what_user_said": "pediu commitar e implantar a paridade EventBus no od-core",
+    "what_agent_did": "commitou d56a940 (core/orchestrator.py, tests/test_orchestrator.py, docs/CHANGELOG.md — +329/-29), publicou em origin/master 34b9cdf..d56a940, reiniciou od-core (PID 410623, 05:38:23). Verificação: /health ok=true 9 checks, 0 Tracebacks, WebSocket :8001 ativo, teste ao vivo com datetime via WS confirmou Message processed no journal (paridade restaurada)",
     "decisions": [
-      "corrigir e validar o streaming WebSocket (escolha do usuário entre as frentes abertas)",
-      "não tocar no od-core sem autorização explícita: sandbox antes do sistema real (regra 12)"
+      "commitar e implantar a paridade EventBus (pedido do usuário)",
+      "sandbox antes do sistema real (regra 12) — suíte 1749 passed antes do commit"
     ],
-    "in_progress": "(1) streaming do core IMPLANTADO em produção, commitado em 7f2c004 (não publicado); (2) app com cliente WebSocket + fallback implementado/validado ao vivo, APK 1.2.0+7 publicado, commitado em a7ea223 com o teste vivo corrigido em 381e9d3; (3) monitor do roteador VERSIONADO+CORRIGIDO+INSTALADO+COMMITADO em 892eac4 (timer ativo; o bug do set -e que o deixava cego está corrigido). Working tree LIMPO",
-    "publicado": "origin/master atualizado em 2026-09-18 05:44 (-03) com o push 5668b27..22582f0 (6 commits: 7f2c004 streaming do core, a7ea223 app, 892eac4 monitor, 4a8da8f/22582f0 checkpoint, 381e9d3 teste vivo do app). Antes do push: fetch mostrou 0 atras / 6 à frente (fast-forward) e a varredura de segredo no diff completo deu nada; conferido depois com fetch + rev-list --left-right --count origin/master...HEAD = 0 0 e working tree limpo",
-    "pendente_decisao_usuario": "instalar o APK 1.2.0+7 no Redmi Note 14 (atestação do usuário — o adb daqui não alcança o aparelho); opcional: ligar o monitor do roteador a um alerta real do núcleo"
+    "in_progress": "(1) streaming do core IMPLANTADO + paridade EventBus IMPLANTADA (PID 410623); (2) app com cliente WebSocket + fallback, APK 1.2.0+7 publicado, commitado; (3) monitor do roteador versionado e rodando. Working tree: 2 modificados restantes (iniciar/ checkpoint)",
+    "publicado": "origin/master em d56a940 (paridade EventBus). Push anterior 5668b27..22582f0 com streaming, app e monitor",
+    "pendente_decisao_usuario": "instalar o APK 1.2.0+7 no Redmi Note 14 (atestação do usuário); opcional: ligar o monitor do roteador a um alerta real do núcleo"
   },
   "prep_push_fcm_2026_09_13": {
     "pedido": "preparar o push FCM para o teste de ponta a ponta: configurar a service account e verificar POST /push/test com o aparelho registrado",
