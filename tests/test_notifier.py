@@ -347,8 +347,8 @@ class TestNotifierTick:
         await notifier.tick()
         snapshot = notifier.metrics.snapshot()
         assert snapshot["ticks"] == 1
-        # checks: orchestrator + llm + disk + restart = 4
-        assert snapshot["checks_run"] == 4
+        # checks: orchestrator + llm + disk + restart + router = 5
+        assert snapshot["checks_run"] == 5
         assert snapshot["problems"] == 0
 
     @pytest.mark.asyncio
@@ -356,7 +356,7 @@ class TestNotifierTick:
         notifier = make_notifier(orch(OfflineProvider()))
         await notifier.tick()
         snapshot = notifier.metrics.snapshot()
-        assert snapshot["checks_run"] == 4
+        assert snapshot["checks_run"] == 5
         assert snapshot["problems"] == 1  # apenas llm (abaixo do threshold)
 
 
@@ -611,13 +611,14 @@ class TestNotifierLoop:
         notifier = make_notifier(orch(OnlineProvider()), sinks=[lambda t: None])
         data = notifier.dump()
         assert data["pid"] >= 0
-        # Sondas padrão: orchestrator, llm, disk, loops (supervisão) e restart
+        # Sondas padrão: orchestrator, llm, disk, loops (supervisão), restart e router
         assert data["checks"] == [
             "_check_orchestrator",
             "_check_llm",
             "_check_disk",
             "_check_loops",
             "_check_restart",
+            "_check_router",
         ]
         assert data["sinks"] == 1
         assert data["metrics"]["ticks"] == 0
@@ -639,3 +640,125 @@ class TestNotifierLoop:
         for _ in range(120):
             asyncio.run(notifier.tick())
         assert len(notifier.history()) == 100  # ALERT_TRACE_LIMIT
+
+
+# ===========================================================================
+# _check_router
+# ===========================================================================
+
+
+class TestCheckRouter:
+    """Sonda de saúde do roteador (ler logs/router_monitor.log)."""
+
+    def test_log_ausente_retorna_ok(self, tmp_path: Path) -> None:
+        """Sem log, o roteador é considerado ok (monitor não configurado)."""
+        from integrations.notifier import _check_router
+
+        notifier = make_notifier(orch(OnlineProvider()))
+        # Força o caminho do log para um diretório vazio
+        import os
+        os.environ["OD_LOG_DIR"] = str(tmp_path)
+        try:
+            result = _check_router(notifier)
+            assert result.ok is True
+            assert result.source == "router"
+            assert "ausente" in result.detail
+        finally:
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_router_up(self, tmp_path: Path) -> None:
+        """Última linha com status=up → ok=True."""
+        from integrations.notifier import _check_router
+
+        log = tmp_path / "router_monitor.log"
+        log.write_text(
+            '{"ts":"2026-09-18T08:00:00Z","local":"2026-09-18 05:00:00 -0300",'
+            '"gateway":"192.168.0.1","status":"up","latency_ms":1.2}\n'
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        import os
+        os.environ["OD_LOG_DIR"] = str(tmp_path)
+        try:
+            result = _check_router(notifier)
+            assert result.ok is True
+            assert "Roteador OK" in result.detail
+            assert "1.2" in result.detail
+        finally:
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_router_down(self, tmp_path: Path) -> None:
+        """Última linha com status=down → ok=False, WARN, key router:down."""
+        from integrations.notifier import _check_router
+
+        log = tmp_path / "router_monitor.log"
+        log.write_text(
+            '{"ts":"2026-09-18T08:00:00Z","local":"2026-09-18 05:00:00 -0300",'
+            '"gateway":"192.168.0.1","status":"down","latency_ms":2001, '
+            '"detail":"ping_failed"}\n'
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        import os
+        os.environ["OD_LOG_DIR"] = str(tmp_path)
+        try:
+            result = _check_router(notifier)
+            assert result.ok is False
+            assert result.severity == SEVERITY_WARN
+            assert result.key == "router:down"
+            assert "Roteador fora" in result.detail
+            assert "ping_failed" in result.detail
+        finally:
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_router_down_multiplas_linhas(self, tmp_path: Path) -> None:
+        """Lê só a última linha — up antes, down agora = down."""
+        from integrations.notifier import _check_router
+
+        log = tmp_path / "router_monitor.log"
+        log.write_text(
+            '{"ts":"2026-09-18T07:59:00Z","local":"2026-09-18 04:59:00 -0300",'
+            '"gateway":"192.168.0.1","status":"up","latency_ms":1.0}\n'
+            '{"ts":"2026-09-18T08:00:00Z","local":"2026-09-18 05:00:00 -0300",'
+            '"gateway":"192.168.0.1","status":"down","latency_ms":2001, '
+            '"detail":"ping_failed"}\n'
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        import os
+        os.environ["OD_LOG_DIR"] = str(tmp_path)
+        try:
+            result = _check_router(notifier)
+            assert result.ok is False
+            assert result.key == "router:down"
+        finally:
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_router_log_vazio(self, tmp_path: Path) -> None:
+        """Log existe mas vazio → ok=True (sem dados)."""
+        from integrations.notifier import _check_router
+
+        log = tmp_path / "router_monitor.log"
+        log.write_text("")
+        notifier = make_notifier(orch(OnlineProvider()))
+        import os
+        os.environ["OD_LOG_DIR"] = str(tmp_path)
+        try:
+            result = _check_router(notifier)
+            assert result.ok is True
+            assert "vazio" in result.detail
+        finally:
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_router_log_malformado(self, tmp_path: Path) -> None:
+        """Log com JSON inválido → ok=True (não derruba o notifier)."""
+        from integrations.notifier import _check_router
+
+        log = tmp_path / "router_monitor.log"
+        log.write_text("nao eh json\n")
+        notifier = make_notifier(orch(OnlineProvider()))
+        import os
+        os.environ["OD_LOG_DIR"] = str(tmp_path)
+        try:
+            result = _check_router(notifier)
+            assert result.ok is True
+            assert "erro ao ler" in result.detail
+        finally:
+            os.environ.pop("OD_LOG_DIR", None)

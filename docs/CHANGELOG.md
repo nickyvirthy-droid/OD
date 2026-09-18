@@ -494,6 +494,22 @@ de código** (o que faltava era só a credencial):
   WebSocket` e o atalho datetime publicando. `od-core` **não** foi reiniciado —
   a mudança ainda não está em produção (PID 399298 de 04:49).
 
+### Adicionado (2026-09-18) — alerta do roteador pelo notifier 📡
+
+- **Nova sonda `_check_router`** no `ProactiveNotifier`: lê a última linha
+  de `logs/router_monitor.log` (escrita pelo `router_monitor.sh` a cada
+  minuto) e alerta quando `status=down`. O monitor do roteador já registrava
+  quedas no log, mas quem avisa é agora o notifier (Telegram/push) — o mesmo
+  canal dos alertas de loop e disco.
+- **Integração zero-config:** se o log não existe (monitor não configurado),
+  a sonda retorna `ok=True` sem ruído. Anti-spam: cooldown padrão 1h por
+  chave `router:down`.
+- **Testes:** +6 em `tests/test_notifier.py` (classe `TestCheckRouter`):
+  log ausente, router up, router down, múltiplas linhas, log vazio, JSON
+  malformado. Suíte: 1755 passed, 16 skipped.
+- **Teste do teste:** removendo `_check_router` de `_default_checks`,
+  `test_dump_shape` falha (lista de checks não bate).
+
 ### Pendente
 
 - ~~Gerar a **service account** no console do Firebase e gravá-la em

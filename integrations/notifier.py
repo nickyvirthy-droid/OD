@@ -328,9 +328,75 @@ def _check_restart(notifier: "ProactiveNotifier") -> CheckResult:
             key="restart",
             detail="Sistema foi reiniciado (PID mudou desde o último estado).",
         )
-    return CheckResult(
-        ok=True, source="restart", detail="Sem reinício detectado."
-    )
+    return CheckResult(ok=True, source="restart", detail="Sem reinício detectado.")
+
+
+def _check_router(notifier: "ProactiveNotifier") -> CheckResult:
+    """Alerta quando o roteador está fora (monitor do roteador detectou 'down').
+
+    O monitor do roteador (tools/monitor/router_monitor.sh) escreve
+    JSON-lines em ``<OD_LOG_DIR>/router_monitor.log`` a cada minuto.
+    Esta sonda lê a **última linha** e verifica se ``status`` é ``down``.
+
+    O monitor NÃO alerta sozinho — ele só registra no log. Esta sonda
+    é a ponte entre o log e o notificador (Telegram/push).
+
+    Anti-spam: cooldown padrão do notifier (1 hora por chave
+    ``router:down``). Quando o roteador volta, ``ok=True`` limpa o
+    problema no notifier.
+    """
+    log_dir = os.environ.get("OD_LOG_DIR", "logs")
+    log_path = Path(log_dir) / "router_monitor.log"
+
+    if not log_path.exists():
+        return CheckResult(
+            ok=True,
+            source="router",
+            detail="Monitor do roteador não configurado (log ausente).",
+        )
+
+    try:
+        # Lê só os últimos 1 KB — uma linha típica tem ~200 bytes.
+        with open(log_path, "rb") as fh:
+            fh.seek(0, 2)
+            size = fh.tell()
+            if size == 0:
+                return CheckResult(
+                    ok=True,
+                    source="router",
+                    detail="Monitor do roteador: log vazio.",
+                )
+            fh.seek(max(0, size - 1024))
+            chunk = fh.read().decode("utf-8", errors="replace")
+            lines = chunk.strip().split("\n")
+            last_line = lines[-1].strip()
+
+        data = json.loads(last_line)
+        status = data.get("status", "unknown")
+
+        if status == "down":
+            detail_msg = data.get("detail", "ping_failed")
+            gateway = data.get("gateway", "?")
+            return CheckResult(
+                ok=False,
+                severity=SEVERITY_WARN,
+                source="router",
+                key="router:down",
+                detail=f"Roteador fora (gateway {gateway}: {detail_msg}).",
+            )
+
+        latency = data.get("latency_ms", "?")
+        return CheckResult(
+            ok=True,
+            source="router",
+            detail=f"Roteador OK (latência {latency}ms).",
+        )
+    except Exception as exc:
+        return CheckResult(
+            ok=True,
+            source="router",
+            detail=f"Monitor do roteador: erro ao ler log: {exc}.",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +493,7 @@ class ProactiveNotifier:
             _check_disk,
             _check_loops,
             _check_restart,
+            _check_router,
         ]
 
     # -- Pipeline do tick -----------------------------------------------------
