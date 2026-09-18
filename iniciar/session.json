@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-18T05:32:00-03:00",
+  "updated_at": "2026-09-18T05:45:00-03:00",
   "ruido_handle_error_2026_09_15": {
     "pedido": "reduzir o ruído dos tracebacks do http.server (achado 2 da checagem dos loops)",
     "causa": "o handle_error herdado do socketserver imprime o traceback inteiro no stderr do processo quando o cliente aborta a conexão no meio do request — rotina (app Android sem rede, navegador fechando aba, health check com timeout). No journal do systemd isso vira ruído que esconde erro de verdade (foram os 2 ConnectionResetError de 10:14:41)",
@@ -278,7 +278,7 @@
       "roteador_fora": "systemd-run --user -E OD_ROUTER_IP=192.0.2.1 ... --once -> CONCLUIU COM SUCESSO (exit 0) e gravou {status:down, detail:ping_failed} no log de sandbox — exatamente o que não acontecia antes"
     },
     "nao_escopo": "o monitor NÃO alerta sozinho (só registra em log; quem avisa é o notificador do núcleo) e a correlação com o Tailscale é só contagem de 'LinkChange: major' da última hora",
-    "estado": "VERSIONADO E COMMITADO em 892eac4 (não publicado), CORRIGIDO, TESTADO, INSTALADO E RODANDO (timer ativo, units instaladas idênticas às versionadas). Falta só o push"
+    "estado": "VERSIONADO E COMMITADO em 892eac4, CORRIGIDO, TESTADO, INSTALADO E RODANDO (timer ativo, units instaladas idênticas às versionadas). PUBLICADO no origin em 2026-09-18 (push 5668b27..22582f0)"
   },
   "app_streaming_2026_09_18": {
     "pedido": "adicionar o cliente WebSocket no app Flutter e ligar o chat nele, com fallback para POST /message",
@@ -383,7 +383,8 @@
       "não tocar no od-core sem autorização explícita: sandbox antes do sistema real (regra 12)"
     ],
     "in_progress": "(1) streaming do core IMPLANTADO em produção, commitado em 7f2c004 (não publicado); (2) app com cliente WebSocket + fallback implementado/validado ao vivo, APK 1.2.0+7 publicado, commitado em a7ea223 com o teste vivo corrigido em 381e9d3; (3) monitor do roteador VERSIONADO+CORRIGIDO+INSTALADO+COMMITADO em 892eac4 (timer ativo; o bug do set -e que o deixava cego está corrigido). Working tree LIMPO",
-    "pendente_decisao_usuario": "git push origin master (todos os commits de 09-18 seguem locais: 7f2c004 streaming do core, a7ea223 app, 892eac4 monitor, + os de checkpoint); instalar o APK 1.2.0+7 no Redmi Note 14 (atestação do usuário — o adb daqui não alcança o aparelho)"
+    "publicado": "origin/master atualizado em 2026-09-18 05:44 (-03) com o push 5668b27..22582f0 (6 commits: 7f2c004 streaming do core, a7ea223 app, 892eac4 monitor, 4a8da8f/22582f0 checkpoint, 381e9d3 teste vivo do app). Antes do push: fetch mostrou 0 atras / 6 à frente (fast-forward) e a varredura de segredo no diff completo deu nada; conferido depois com fetch + rev-list --left-right --count origin/master...HEAD = 0 0 e working tree limpo",
+    "pendente_decisao_usuario": "instalar o APK 1.2.0+7 no Redmi Note 14 (atestação do usuário — o adb daqui não alcança o aparelho); opcional: ligar o monitor do roteador a um alerta real do núcleo"
   },
   "prep_push_fcm_2026_09_13": {
     "pedido": "preparar o push FCM para o teste de ponta a ponta: configurar a service account e verificar POST /push/test com o aparelho registrado",

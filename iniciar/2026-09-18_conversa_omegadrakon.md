@@ -381,7 +381,12 @@ Encaminhamento
   `4a8da8f` (checkpoint) e `381e9d3` (teste vivo do app) — **nenhum empurrado**
   para o `origin`.
 - Monitor: versionado, corrigido, testado, instalado e rodando (timer ativo).
-- Pendências de decisão do usuário: `git push origin master` (todos os commits
-  de 09-18 seguem locais: `7f2c004`, `a7ea223`, `892eac4` e os de checkpoint) e
-  instalar o **1.2.0+7** no Redmi Note 14 (atestação do usuário — o `adb` daqui
-  não alcança o aparelho).
+- **Publicado**: `git push origin master` → `5668b27..22582f0` (6 commits).
+  Antes: `fetch` mostrou **0 atrás / 6 à frente** (fast-forward) e a varredura
+  de segredo no diff completo (`git diff origin/master..HEAD`) não achou
+  credencial real — só nomes de variável e um literal de teste. Depois:
+  `fetch` + `rev-list --left-right --count origin/master...HEAD` → **`0 0`** e
+  working tree limpo.
+- Pendência de decisão do usuário: instalar o **1.2.0+7** no Redmi Note 14
+  (atestação do usuário — o `adb` daqui não alcança o aparelho). Opcional: ligar
+  o monitor do roteador a um alerta real do núcleo.
