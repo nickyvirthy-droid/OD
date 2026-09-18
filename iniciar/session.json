@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-15T10:47:00-03:00",
+  "updated_at": "2026-09-18T05:05:00-03:00",
   "ruido_handle_error_2026_09_15": {
     "pedido": "reduzir o ruído dos tracebacks do http.server (achado 2 da checagem dos loops)",
     "causa": "o handle_error herdado do socketserver imprime o traceback inteiro no stderr do processo quando o cliente aborta a conexão no meio do request — rotina (app Android sem rede, navegador fechando aba, health check com timeout). No journal do systemd isso vira ruído que esconde erro de verdade (foram os 2 ConnectionResetError de 10:14:41)",
@@ -38,7 +38,7 @@
     "teste_do_teste": "mutando a fixture (renomeando last_kind → kind, simulando mudança de contrato do servidor) o teste FALHA; fixture restaurada e conferida idêntica ao original (diff de JSON canônico). Os temporários da verificação foram apagados",
     "suite_app": "flutter analyze sem issues · flutter test 49 passed (48 → 49)",
     "correcao_de_erro_meu": "o tamanho registrado do arm64 (18.518.638 B) era o do APK ANTERIOR — eu li o `ls -la` antes do build. O 1.2.0+6 tem 18.518.770 B (stat; igual no build, em site/ e no download pelo tailnet). Corrigido em docs/CHANGELOG.md, no session.json e na transcrição; o sha256 (f3f86059…) sempre esteve certo",
-    "estado": "PUBLICADO: commit d6bd93e (origin/master 3aadfb1..d6bd93e) — teste, fixture e notas. Sem restart do od-core e sem rebuild do APK (nada de servidor nem de código de produção do app mudou; o binário em site/ segue o 1.2.0+6 de 10:16)"
+    "estado": "CONFIRMADO PELO USUÁRIO (2026-09-17): APK 1.2.0+6 instalado no Redmi Note 14, card de supervisão apareceu normal na aba Status. Validação E2E completa."
   },
   "app_supervision_2026_09_15": {
     "pedido": "mostrar o estado da supervisão dos loops na aba Status do app e republicar o APK",
@@ -239,17 +239,71 @@
       "agents": "profiles (7 perfis — Plêiade completa) + nicky_virthy identity/soul"
     }
   },
-  "topic": "Retomar trabalhos sobre o desenvolvimento do OmegaDrakon",
+  "topic": "OmegaDrakon v1.3.0 em curso (streaming WebSocket) + monitor do roteador",
+  "streaming_ws_2026_09_18": {
+    "pedido": "corrigir e validar o streaming WebSocket (v1.3.0) que estava no working tree sem registro, sem funcionar e nunca implantado",
+    "causa_raiz": "integrations/api/ws_server.py::start() fazia `import websockets.serve` -> ModuleNotFoundError: No module named 'websockets.serve'. A suíte passava 14/14 porque os testes só conferiam formato de dict e existência de método: nada chamava start(). Além disso asyncio.set_event_loop era chamado na thread do caller (não na thread do loop), o stop() fechava o loop por baixo do websockets e a dependência não estava no requirements.txt",
+    "correcoes": {
+      "ws_server": "import tardio e correto (`from websockets.asyncio.server import serve`); import tardio mantém o resto do núcleo de pé se a dependência faltar (mesmo padrão do google-auth no push)",
+      "ciclo_de_vida": "start() virou SÍNCRONO de verdade (espera o bind via threading.Event, prazo de 5s, levanta RuntimeError com o motivo); set_event_loop dentro da thread (_thread_main); bound_port (suporta port=0 dos testes); stop() idempotente via call_soon_threadsafe(server.close) — close é síncrono no websockets.asyncio; is_running só é True sem _start_error (thread que falhou no bind fica viva alguns instantes)",
+      "ruido_no_journal": "_LibraryLogger (logging.LoggerAdapter) passa o log da biblioteca para o log do OD: era `logger.error('opening handshake failed', exc_info=True)` — um TCP cru que abre e fecha (sonda de porta, health check) despejava traceback inteiro no stderr, o mesmo ruído do handle_error de 2026-09-15. Agora vira UMA linha de debug, sem stack. Desconexão de cliente no meio do stream (ws.send levanta ConnectionClosedError) também saiu de log.error('WebSocket processing error') para debug",
+      "llm": "core/llm.py::_post_chat_stream ganhou a mesma tolerância do caminho não-streaming: modelos de raciocínio que mandam só `reasoning_content` devolvem o raciocínio como melhor esforço em vez de stream vazio",
+      "launcher": "build_ws_server/start dentro de try/except: falha do WS (porta ocupada, dependência ausente) é logada e o REST + núcleo seguem de pé — um extra de chat não pode derrubar o processo (lição do isolamento de loops de 2026-09-15)",
+      "requirements": "websockets>=14.0 declarado como item 3, com justificativa (API websockets.asyncio.server, import tardio, único servidor não-stdlib)"
+    },
+    "testes": "tests/test_websocket.py reescrito: 14 -> 28 (as antigas eram de formato). Agora: ciclo de vida real (start abre socket, bound_port > 0, stop libera a porta, start idempotente, porta ocupada -> RuntimeError sem derrubar o primeiro), protocolo com cliente real (auth/message/processing/token/done, chave inválida -> close 4001, sem auth rejeitado, json inválido não mata a conexão, falha do orchestrator vira error e a conexão sobrevive), queda no meio do stream sem ERROR e servidor sobrevivendo, sonda TCP crua sem traceback, SSE do provider (chunks, linhas inválidas, reasoning fallback, stream vazio, erro de rede -> LLMError), process_stream do Orchestrator (rate limit, datetime, token-a-token com provider de streaming, fallback para generate) e fiação do launcher (env/porta/chave, falha do WS não derruba a API, caminho feliz sobe e para o WS)",
+    "teste_do_teste": "4 mutações, todas revertidas: (A) volta do `import websockets.serve` -> 5 failed + 6 errors; (B) checagem de api_key removida -> test_chave_invalida falha (e revelou que o teste PENDURAVA: por isso todo fluxo de cliente hoje tem teto de 10s, FLOW_TIMEOUT_S); (C) stop() sem fechar o servidor -> 2 falhas (porta não liberada); (D) launcher sem o try/except -> test_falha_do_ws_nao_derruba_o_loop_da_api falha; (E) serve() sem o _LibraryLogger -> test_sonda_tcp_cru falha; (F) sem o tratamento de desconexão no handler -> test_queda_no_meio_do_stream falha. E e F só ficaram confiáveis depois de trocar capfd pelo ring buffer do NickyLogger + coletor no logging da biblioteca: com capfd os dois passavam por engano conforme a ordem dos testes (o stream capturado na criação do logger fica obsoleto)",
+    "suite": "1717 passed, 16 skipped in 17.50s (a suíte não tinha nenhum teste de websocket antes deste trabalho)",
+    "sandbox": {
+      "script": "sandbox_agent/ws_sandbox.py (pasta ignorada pelo git, não entra no repo)",
+      "o_que_valida": "contra o llama-server REAL (127.0.0.1:8081, qwen2.5-coder-3b) e não contra mock: 11/11 checagens OK, stderr 0 bytes",
+      "evidencia": "35 frames de token com espalhamento de 2.67s (1º em 2.04s, último em 4.71s) -> streaming incremental de verdade; tokens concatenados == content do done (route=llm); reuso da conexão; chave inválida -> close 4001; desconexão abrupta no meio do stream sem derrubar o servidor; sonda TCP crua sem traceback; stop() libera a porta",
+      "achados_do_sandbox": "foi ele que expôs os dois problemas que os testes não pegavam: (1) o traceback do 'opening handshake failed' no stderr de uma sonda TCP crua; (2) o ConnectionClosedError do cliente abortado virando 'WebSocket processing error' em ERROR. Os dois viraram teste",
+      "correcao_de_erro_meu_no_sandbox": "a checagem 2 comparava tempo absoluto (perf_counter) com tempo relativo e dava FALHA falsa; corrigida antes de concluir"
+    },
+    "nao_escopo": "o protocolo/arquitetura do app Flutter para consumir o streaming (o app ainda usa POST /message, sem cliente WebSocket) e a paridade de eventos: process_stream NÃO publica `orchestrator.responded` no EventBus, ao contrário de process() — hoje ninguém assina esse tópico em produção (grep), mas é uma diferença a decidir",
+    "estado": "IMPLANTADO (autorizado pelo usuário em 2026-09-18) e registrado no CHANGELOG",
+    "deploy": {
+      "quando": "2026-09-18 04:35:09 -03 (PID 395579, NRestarts=0, ActiveState=active)",
+      "boot": "journal: 'WebSocket server configurado | port=8001' + 'WebSocket server no ar | host=0.0.0.0 | port=8001 | auth=True'; ss -ltn mostra 0.0.0.0:8000 E 0.0.0.0:8001",
+      "health": "/health (com X-API-Key) -> ok=true, status=up, 9 checks up (orchestrator, llm, audit, metrics, database, homeassistant, mqtt, loops, perception); sem chave -> HTTP 401 (auth_all segue valendo)",
+      "prova_ao_vivo": "cliente WebSocket real contra 127.0.0.1:8001 com a OD_API_KEY de produção: auth -> authenticated; mensagem -> 7 frames de token, 'tokens == content do done' True, route=llm, llm_used=gemma-local, latency_ms=8749; journal registrou 'Interaction recorded | user=deploy-check' (cache/histórico do caminho de streaming funcionando); chave errada -> {error: api_key_invalida} + close 4001",
+      "prova_do_silencio": "3 sondas TCP cruas (abre e fecha sem handshake) na 8001 -> journal pós-deploy com 0 Traceback, 0 'opening handshake failed', 0 'WebSocket processing error', 0 'WebSocket server não subiu', 0 TimeoutError, 0 'Loop do núcleo caiu', 0 'API erro' (94 linhas de journal conferidas)",
+      "exposicao": "a 8001 escuta em 0.0.0.0 (mesma exposição da 8000: LAN + tailnet) e exige a OD_API_KEY quando configurada — está configurada no .env -> auth=True"
+    },
+    "docs": "docs/CHANGELOG.md — nova subseção 'Adicionado (2026-09-18) — streaming do chat por WebSocket' sob a [1.2.0] (OD_VERSION continua 1.2.0; as notas de código falam em v1.3.0, divergência registrada)"
+  },
+  "retomada_2026_09_18": {
+    "entrada": "usuário: \"leia iniciar\"",
+    "leu": "iniciar/README.md, iniciar/RULES.md, iniciar/session.json (680 linhas), iniciar/2026-09-17_conversa_omegadrakon.md",
+    "git": "HEAD 5668b27; working tree NÃO limpa — 3 modificados (core/llm.py +94, core/orchestrator.py +173, runtime/launcher.py +33) e 3 untracked (integrations/api/ws_server.py, tests/test_websocket.py, tools/monitor/ com 4 arquivos). NADA disso estava registrado em session.json nem em transcrição → trabalho de 09-17/09-18 não persistido (regra 4 violada até agora)",
+    "achado_1_streaming_websocket_v1_3_0": {
+      "o_que_esta_no_tree": "core/llm.py::OpenAICompatProvider.generate_stream + _post_chat_stream (SSE); core/orchestrator.py::process_stream (pipeline espelhado do process com yields de token/done/error); integrations/api/ws_server.py (WebSocketServer, porta padrão 8001, auth por api_key); runtime/launcher.py::build_ws_server + start no _run_api_forever; tests/test_websocket.py",
+      "testes": ".venv/bin/python -m pytest tests/test_websocket.py -q → 14 passed em 0.08s (MAS são em maioria asserções de formato de dict e existência de método — não cobrem start(), nem auth real, nem o caminho de socket)",
+      "bug_que_impede_subir": "ws_server.py::start() faz `import websockets.serve` → ModuleNotFoundError: No module named 'websockets.serve' (websockets 16.1.1 instalado na .venv; o certo é `from websockets.asyncio.server import serve` ou `import websockets` + `websockets.serve`)",
+      "dependencia": "websockets 16.1.1 está INSTALADO na .venv mas NÃO declarado em requirements.txt (grep por websocket → nenhuma linha)",
+      "nao_implantado": "od-core continua no PID 314992 de 2026-09-15 10:43:54 (NRestarts=0); ss -ltnp → só a :8000 escutando, a :8001 NÃO existe → o código de streaming nunca subiu"
+    },
+    "achado_2_monitor_do_roteador_ATIVO_em_producao": {
+      "o_que": "tools/monitor/router_monitor.sh (~200 linhas; --once/--report/loop, ping no gateway + operstate da interface + LinkChange do Tailscale, log JSON-lines) + router-monitor.service (Type=oneshot) + router-monitor.timer (OnUnitActiveSec=1min)",
+      "estado": "systemctl --user: router-monitor.timer LOADED, enabled, active (waiting) desde 2026-09-17 10:26:09 (17h), disparando a cada 1 min; logs/router_monitor.log com 128.551 B e última linha 04:19:39 de hoje (status=up, latency 0.8ms)",
+      "problema": "o monitor está RODANDO em produção e é o único item da sessão nesse estado — e os 4 arquivos estão untracked (nem commit, nem checkpoint). Também: gateway/interface fixos no script (192.168.0.1 / wlx000f0037acf0, com override por OD_ROUTER_IP/OD_NETWORK_INTERFACE) e o .sh não é citado em docs/"
+    },
+    "pendencias_de_registro": [
+      "registrar as duas frentes em session.json (feito nesta rodada)",
+      "decidir o destino do streaming v1.3.0: corrigir o import, cobrir start()/auth com teste real, declarar websockets em requirements.txt e só então validar em sandbox antes do od-core",
+      "decidir o destino do monitor: versionar script + units (e documentar) ou manter fora do repo com justificativa"
+    ]
+  },
   "last_turn": {
-    "when": "2026-09-14",
+    "when": "2026-09-18",
     "what_user_said": "pediu \"leia iniciar\" para retomar a sessão",
-    "what_agent_did": "leu iniciar/ (README, RULES, session.json e as transcrições de 09-12 e 09-13) e reconferiu o estado por evidência: git limpo com HEAD 8455493 — o commit do .gitignore (000/ + arquivos soltos da raiz) que a rodada 5 de ontem deixou pendente está feito, e 3b5599c segue no origin/master; od-core active desde 2026-09-13 15:56:17 (PID 191992) ainda em enabled=False/credencial_ausente; GET /push/devices → enabled:false, reason=credencial_ausente, devices:0; config/firebase-service-account.json continua AUSENTE; tailnet: nicky-server online, redmi-note-14-1 offline (visto há 7h). Depois, com a escolha do usuário pelos achados do journal: corrigiu o bug real do handler face.presence no launcher (AttributeError → dead letter) com teste de regressão novo (tests/test_launcher_vision.py, 4 testes; ver correções_do_journal_2026_09_14) e diagnosticou o SelfRepair no_fix como já cessado (origem removida às 02:17 de hoje), com a amplificação de snapshots ainda pendente de decisão",
+    "what_agent_did": "leu iniciar/ (README, RULES, session.json, transcrição de 09-17) e reconferiu o estado por evidência. Descobriu duas frentes não registradas: (1) streaming WebSocket v1.3.0 no working tree — tests/test_websocket.py 14 passed, mas ws_server.start() quebra com `import websockets.serve` (ModuleNotFoundError) e a :8001 não está no ar; websockets 16.1.1 instalado porém ausente do requirements.txt; (2) tools/monitor/ (script + .service + .timer) UNTRACKED mas ATIVO em produção via timer systemd do usuário desde 09-17 10:26, escrevendo logs/router_monitor.log a cada minuto. Registrou os dois no checkpoint e devolveu a decisão ao usuário sobre onde retomar.",
     "decisions": [
-      "corrigir o handler face.presence (event.data em vez de .get() no Event) — bug real, ativo no journal de hoje",
-      "tratar a amplificação do SelfRepair com DEDUP + RETENÇÃO de snapshots (sem mudar o escopo da varredura, que seguirá varrendo todo .py do root)",
-      "reiniciar o od-core já, para o fix do face.presence entrar no ar"
+      "corrigir e validar o streaming WebSocket (escolha do usuário entre as frentes abertas)",
+      "não tocar no od-core sem autorização explícita: sandbox antes do sistema real (regra 12)"
     ],
-    "in_progress": "as duas correções de 09-14 foram aplicadas, testadas (1655 passed/16 skipped), ativadas em produção (od-core reiniciado 13:24:40; face.presence real às 13:25:09 sem dead letter; .od_repair_backups de 8,8 MB → 116 KB com 5 snapshots) e PUBLICADAS em 40d2bb0 (origin/master 8455493..40d2bb0)"
+    "in_progress": "streaming WebSocket corrigido, testado (28 testes, 4 mutações), validado em sandbox (11/11 contra o llama-server real) e IMPLANTADO em produção (PID 395579, :8001 no ar com auth=True, prova ao vivo + journal sem ruído). Monitor do roteador segue untracked e ativo em produção (timer systemd desde 09-17 10:26) — aguardando decisão sobre versionar ou não"
   },
   "prep_push_fcm_2026_09_13": {
     "pedido": "preparar o push FCM para o teste de ponta a ponta: configurar a service account e verificar POST /push/test com o aparelho registrado",

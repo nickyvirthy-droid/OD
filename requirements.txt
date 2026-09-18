@@ -14,3 +14,11 @@ pg8000>=1.31
 #    projeto continua usando urllib do stdlib (adaptador UrllibRequest).
 #    Sem ela, o push fica dormente (import tardio, nada mais quebra).
 google-auth>=2.0
+#
+# 3) websockets — servidor de streaming token-a-token do chat
+#    (integrations/api/ws_server.py, porta OD_WS_PORT, padrão 8001).
+#    É o ÚNICO servidor que não é stdlib: a API REST continua em http.server.
+#    Usa a API moderna (websockets.asyncio.server.serve, exige >=14); o import
+#    é tardio e a falha fica contida, então sem ela o núcleo sobe normal e só o
+#    streaming fica indisponível.
+websockets>=14.0

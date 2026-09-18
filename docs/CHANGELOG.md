@@ -14,7 +14,7 @@
 
 ---
 
-## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14 e 2026-09-15)
+## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15 e 2026-09-18)
 
 ### Adicionado
 
@@ -289,6 +289,68 @@ de código** (o que faltava era só a credencial):
   diferencial que confirma que o código novo está no binário (a string de
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
+
+### Adicionado (2026-09-18) — streaming do chat por WebSocket 🌊
+
+- **Novo `integrations/api/ws_server.py`** — servidor WebSocket
+  (`websockets.asyncio.server.serve`, porta `OD_WS_PORT` padrão **8001**,
+  ligado por `OD_WS_ENABLED`) que fala com o **mesmo `Orchestrator`** da API
+  REST. Protocolo: `auth`/`message` do cliente → `authenticated`,
+  `processing`, `token`… e `done` (`route`, `llm_used`, `latency_ms`); auth
+  pela mesma `OD_API_KEY` (`api_key` inválida → close **4001**).
+- **`core/llm.py`** — `OpenAICompatProvider.generate_stream` +
+  `_post_chat_stream`: parser de SSE do formato OpenAI (`data: {...}` /
+  `data: [DONE]`) com import tardio do `websockets` (sem ele o core sobe
+  normal e só o streaming fica indisponível, como o push sem google-auth).
+- **`core/orchestrator.py`** — `process_stream`: o mesmo pipeline de etapas
+  (rate limit → datetime → quick → intents → cache → LLM com fallback para
+  `generate`) emitindo `token`/`done`/`error`; pós-processamento (cache +
+  histórico) preservado.
+- **`runtime/launcher.py`** — `build_ws_server` + subida no `_run_api_forever`
+  com a falha **contida** em `try/except`: WS que não sobe (porta ocupada,
+  dependência ausente) é logado e o REST + o resto do núcleo seguem de pé.
+- **`requirements.txt`** — `websockets>=14.0` declarado (item 3), com
+  justificativa: é o único servidor não-stdlib do projeto.
+- **Ruído no journal:** o `websockets` loga `opening handshake failed` com
+  `exc_info=True` — um TCP cru que abre e fecha (sonda de porta, health check)
+  despejava **traceback inteiro no stderr**, o mesmo defeito que o
+  `handle_error` do `http.server` tinha (correção de 2026-09-15). Agora um
+  `_LibraryLogger` (LoggerAdapter) leva o log da biblioteca para o log do OD
+  em **UMA linha de debug**; cliente que cai no meio do stream também saiu de
+  `log.error` para debug.
+- **Testes:** `tests/test_websocket.py` **reescrito (14 → 28)**. Os 14
+  anteriores só conferiam formato de dict e existência de método — a suíte
+  passava enquanto `start()` quebrava com `import websockets.serve`
+  (`ModuleNotFoundError`). Agora há ciclo de vida real (sobe e escuta,
+  `bound_port`, `stop` libera a porta, porta ocupada → `RuntimeError` sem
+  derrubar o primeiro), protocolo com **cliente WebSocket real**, queda no
+  meio do stream, sonda TCP crua sem traceback, SSE do provider, `process_stream`
+  e fiação do launcher. **Teste do teste (4 mutações, todas revertidas):**
+  import quebrado → *5 failed + 6 errors*; checagem de `api_key` removida →
+  falha (revelou que o teste **pendurava** — daí o teto de 10s por fluxo);
+  `stop()` sem fechar o servidor → 2 falhas; launcher sem o `try/except` →
+  falha a contenção; `serve()` sem o `_LibraryLogger` e handler sem o
+  tratamento de desconexão → 1 falha cada.
+- **Suíte:** **1717 passed, 16 skipped** (17,50s).
+- **Sandbox (antes do sistema real):** `sandbox_agent/ws_sandbox.py` (pasta
+  ignorada pelo git) contra o **llama-server real** em `127.0.0.1:8081` →
+  **11/11 checagens OK e stderr com 0 bytes**: 35 frames de token com
+  espalhamento de **2,67s** (1º em 2,04s, último em 4,71s) — streaming
+  incremental de verdade, não um bloco no fim; tokens concatenados ==
+  `content` do `done` (`route=llm`); reuso da conexão; chave inválida →
+  close 4001; desconexão abrupta sem derrubar o servidor; sonda TCP crua sem
+  traceback. Foi o sandbox que expôs os dois ruídos acima.
+- **Deploy:** `od-core` reiniciado em **2026-09-18 04:35:09** (PID 395579,
+  `NRestarts=0`) — `[NICKY][INFO] WebSocket server no ar | host=0.0.0.0 |
+  port=8001 | auth=True`, `:8001` escutando e `/health` com os 9 checks `up`.
+  **Prova ao vivo:** mensagem real pelo WebSocket em produção → 7 frames de
+  token, `tokens == content do done`, `route=llm`; chave errada → close 4001;
+  3 sondas TCP cruas → journal com **0** `Traceback`, **0**
+  `opening handshake failed`, **0** `WebSocket processing error`.
+- **Nota de escopo:** o **app Flutter ainda usa `POST /message`** — não há
+  cliente WebSocket no app; esta entrega é o lado servidor. `process_stream`
+  também **não publica** `orchestrator.responded` no EventBus (o `process`
+  publica); hoje ninguém assina esse tópico em produção.
 
 ### Pendente
 

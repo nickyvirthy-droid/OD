@@ -214,6 +214,31 @@ def build_api_server(
     return server
 
 
+def build_ws_server(orchestrator: Any) -> Optional[Any]:
+    """WebSocket server para streaming token-a-token (v1.3.0).
+
+    Roda em porta separada (OD_WS_PORT, padrão 8001) e compartilha
+    o Orchestrator com a API REST.
+    """
+    # Verificar se streaming está habilitado
+    if env("OD_WS_ENABLED", "1") == "0":
+        return None
+
+    api_key = env("OD_API_KEY", "")
+    port = int(env("OD_WS_PORT", "8001"))
+    api_keys = {api_key} if api_key else set()
+
+    from integrations.api.ws_server import WebSocketServer
+
+    server = WebSocketServer(
+        orchestrator,
+        port=port,
+        api_keys=api_keys,
+    )
+    log.info("WebSocket server configurado", port=port)
+    return server
+
+
 def build_database() -> Any:
     """Database Layer real (Fase 7.5): PostgreSQL (OD_DB_URL) ou SQLite.
 
@@ -659,11 +684,29 @@ async def _run_api_forever(
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
+
+    # WebSocket server para streaming (v1.3.0). Opcional por natureza: se não
+    # subir (porta ocupada, websockets ausente), a falha fica contida aqui — o
+    # REST e o resto do núcleo NÃO podem cair por causa de um extra de chat.
+    ws_server = None
+    try:
+        ws_server = build_ws_server(orchestrator)
+        if ws_server:
+            ws_server.start()
+    except Exception as exc:
+        log.warn(
+            "WebSocket server não subiu — seguindo sem streaming",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        ws_server = None
+
     try:
         while True:
             await asyncio.sleep(3600)
     except asyncio.CancelledError:  # pragma: no cover
         server.stop()
+        if ws_server:
+            ws_server.stop()
 
 
 async def _run_telegram_forever(

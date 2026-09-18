@@ -444,6 +444,179 @@ class Orchestrator:
 
     # -- Pipeline ------------------------------------------------------------
 
+    async def process_stream(
+        self,
+        user_id: str,
+        profile: str,
+        text: str,
+        *,
+        system_prompt: str = "",
+        session_id: str = "",
+    ):
+        """Processa uma mensagem com streaming token-a-token.
+
+        Yields chunks de texto conforme o LLM os produz.
+        No final, yields um dict com metadados da resposta.
+        """
+        if not system_prompt:
+            system_prompt = self._config.default_system_prompt
+        started = time.perf_counter()
+
+        # Etapa 1 — Rate limit
+        if not self._limiter.allow(user_id):
+            self._metrics.rate_limited += 1
+            yield {"type": "error", "message": "rate_limited"}
+            return
+
+        # Etapa 2 — Datetime (resposta direta)
+        if self._config.inject_datetime:
+            answer = detect_datetime_question(text)
+            if answer is not None:
+                self._metrics.datetime += 1
+                yield {"type": "token", "content": answer}
+                yield {
+                    "type": "done",
+                    "content": answer,
+                    "route": ROUTE_DATETIME,
+                    "llm_used": "",
+                }
+                return
+
+        # Etapa 3 — Quick responses
+        if self.quick is not None:
+            quick_answer = self.quick.get(text.strip().lower())
+            if quick_answer is not None:
+                self._metrics.quick += 1
+                yield {"type": "token", "content": quick_answer}
+                yield {
+                    "type": "done",
+                    "content": quick_answer,
+                    "route": ROUTE_QUICK,
+                    "llm_used": "",
+                }
+                return
+
+        # Etapa 3.5 — Fast path de intenções
+        if self._config.enable_action_intents and self._action_registry is not None:
+            from core.intents import detect_action_intent, format_intent_result, safe_math
+
+            answer = safe_math(text)
+            route_detail = "math"
+            if answer is None:
+                intent = detect_action_intent(text)
+                if intent is not None:
+                    action_name, params = intent
+                    data = await self.execute_action(
+                        action_name, params, user_id, role="admin"
+                    )
+                    answer = format_intent_result(action_name, data)
+                    route_detail = action_name
+            if answer is not None:
+                self._metrics.intents += 1
+                yield {"type": "token", "content": answer}
+                yield {
+                    "type": "done",
+                    "content": answer,
+                    "route": ROUTE_INTENT,
+                    "llm_used": f"fastpath:{route_detail}",
+                }
+                return
+
+        # Etapa 4 — Cache LLM
+        if self.cache is not None:
+            cached = self.cache.get(text, profile=profile)
+            if cached is not None:
+                self._metrics.cache_hits += 1
+                yield {"type": "token", "content": cached}
+                yield {
+                    "type": "done",
+                    "content": cached,
+                    "route": ROUTE_CACHE,
+                    "llm_used": "",
+                    "cached": True,
+                }
+                return
+
+        # Etapa 5 — Histórico: monta contexto ChatML
+        prompt = self._build_prompt(user_id, profile, text, system_prompt)
+
+        # Etapas 6 e 7 — LLM com streaming
+        if not self._providers:
+            self._metrics.unavailable += 1
+            yield {"type": "error", "message": "providers_indisponiveis"}
+            return
+
+        # Tentar streaming com fallback para non-streaming
+        full_response = ""
+        llm_used = ""
+        fallback_used = False
+        route = ROUTE_LLM
+
+        for index, provider in enumerate(self._providers):
+            try:
+                llm_used = provider.name
+                fallback_used = index > 0
+                if fallback_used:
+                    route = ROUTE_FALLBACK
+
+                # Tentar streaming
+                async for chunk in provider.generate_stream(
+                    prompt, timeout=self._config.llm_timeout_s
+                ):
+                    full_response += chunk
+                    yield {"type": "token", "content": chunk}
+                break  # Sucesso, sair do loop
+            except Exception as exc:
+                log.warn(
+                    "LLM provider streaming failed",
+                    provider=provider.name,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                # Fallback para non-streaming neste provider
+                try:
+                    message = await provider.generate(
+                        prompt, timeout=self._config.llm_timeout_s
+                    )
+                    if message:
+                        full_response = message
+                        yield {"type": "token", "content": message}
+                        break
+                except Exception:
+                    pass
+        else:
+            # Todos os providers falharam
+            self._metrics.unavailable += 1
+            yield {"type": "error", "message": "todos_providers_falharam"}
+            return
+
+        if not full_response:
+            self._metrics.unavailable += 1
+            yield {"type": "error", "message": "resposta_vazia"}
+            return
+
+        # Atualizar métricas
+        if fallback_used:
+            self._metrics.fallback += 1
+        else:
+            self._metrics.llm += 1
+
+        # Etapa 8 — Pós-processamento
+        await self._post_process(user_id, profile, text, full_response, llm_used)
+
+        # Publicar evento
+        latency_ms = (time.perf_counter() - started) * 1000.0
+        with self._lock:
+            self._metrics.processed += 1
+            self._metrics.total_latency_ms += latency_ms
+
+        yield {
+            "type": "done",
+            "content": full_response,
+            "route": route,
+            "llm_used": llm_used,
+            "latency_ms": latency_ms,
+        }
+
     async def process(
         self,
         user_id: str,
