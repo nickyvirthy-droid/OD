@@ -220,70 +220,145 @@ _CHAT_PAGE_HTML = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Omega Drakon — Chat</title>
+<title>OmegaDrakon — Chat</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: system-ui, sans-serif; background: #0d1117;
-         color: #e6edf3; display: flex; flex-direction: column; height: 100vh; }
-  header { padding: 12px 18px; background: #161b22; border-bottom: 1px solid #30363d;
-           display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  header h1 { font-size: 16px; margin: 0; }
-  header span { color: #8b949e; font-size: 13px; }
-  #messages { flex: 1; overflow-y: auto; padding: 18px; display: flex;
-              flex-direction: column; gap: 10px; }
-  .bubble { max-width: 78%; padding: 10px 14px; border-radius: 12px;
-            white-space: pre-wrap; word-wrap: break-word; line-height: 1.45; }
-  .user { align-self: flex-end; background: #1f6feb; }
-  .od { align-self: flex-start; background: #21262d; border: 1px solid #30363d; }
-  .meta { font-size: 11px; color: #8b949e; margin-top: 4px; }
-  #composer { display: flex; gap: 8px; padding: 12px 18px; background: #161b22;
-              border-top: 1px solid #30363d; }
-  input, select, button { font: inherit; padding: 9px 12px; border-radius: 8px;
-              border: 1px solid #30363d; background: #0d1117; color: #e6edf3; }
-  #text { flex: 1; }
-  button { background: #238636; border-color: #238636; cursor: pointer;
-           font-weight: 600; }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-  #gate { display: flex; flex-direction: column; gap: 14px; margin: auto;
-          width: min(420px, 92vw); }
-  #gate h2 { margin: 0; }
-  #gate p { color: #8b949e; margin: 0; font-size: 14px; }
+  :root {
+    --bg: #06080f; --bg2: #0c1120; --bg3: #111830;
+    --text: #e8eaf0; --muted: #7a839a; --border: #1c2440;
+    --accent: #f59e0b; --accent-glow: rgba(245,158,11,0.2);
+    --user-bg: #1a3a7a; --od-bg: #111830;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column; height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* --- Header --- */
+  header {
+    padding: 12px 20px; background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .h-brand { display: flex; align-items: center; gap: 8px; }
+  .h-brand a { color: var(--text); text-decoration: none; font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 6px; }
+  .h-brand a:hover { color: var(--accent); }
+  .h-sep { color: var(--border); font-size: 1.2rem; }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; color: var(--text); }
+  .h-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  #profile {
+    padding: 5px 10px; border-radius: 8px; font-size: 0.8rem;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  .transport-badge {
+    font-size: 0.7rem; padding: 3px 8px; border-radius: 6px;
+    font-weight: 600; display: none;
+  }
+  .transport-badge.active { display: inline-block; }
+  .transport-badge.ws { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .transport-badge.rest { background: rgba(245,158,11,0.15); color: var(--accent); }
+  /* --- Messages --- */
+  #messages {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .bubble {
+    max-width: 75%; padding: 12px 16px; border-radius: 14px;
+    white-space: pre-wrap; word-wrap: break-word; line-height: 1.5;
+    font-size: 0.92rem; animation: fadeIn 0.15s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } }
+  .user { align-self: flex-end; background: var(--user-bg); border-bottom-right-radius: 4px; }
+  .od { align-self: flex-start; background: var(--od-bg); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .meta { font-size: 0.7rem; color: var(--muted); margin-top: 6px; }
+  .typing { align-self: flex-start; padding: 12px 16px; font-size: 0.85rem; color: var(--muted); }
+  .typing::after { content: '...'; animation: dots 1.2s infinite; }
+  @keyframes dots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
+  /* --- Composer --- */
+  #composer {
+    display: flex; gap: 10px; padding: 14px 20px; background: var(--bg2);
+    border-top: 1px solid var(--border); align-items: center;
+  }
+  #text {
+    flex: 1; padding: 10px 14px; border-radius: 10px; font-size: 0.92rem;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    outline: none; transition: border-color 0.2s;
+  }
+  #text:focus { border-color: var(--accent); }
+  #send {
+    padding: 10px 20px; border-radius: 10px; font-size: 0.9rem; font-weight: 600;
+    border: none; background: var(--accent); color: #000; cursor: pointer;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  #send:hover { box-shadow: 0 0 20px var(--accent-glow); }
+  #send:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+  /* --- Gate --- */
+  #gate {
+    display: flex; flex-direction: column; gap: 16px; margin: auto;
+    width: min(420px, 90vw); padding: 2rem; background: var(--bg2);
+    border-radius: 16px; border: 1px solid var(--border);
+  }
+  #gate h2 { margin: 0; font-size: 1.3rem; }
+  #gate p { color: var(--muted); margin: 0; font-size: 0.88rem; line-height: 1.5; }
+  #gate input {
+    padding: 10px 14px; border-radius: 10px; font-size: 0.92rem;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  #gate button {
+    padding: 10px; border-radius: 10px; font-size: 0.95rem; font-weight: 600;
+    border: none; background: var(--accent); color: #000; cursor: pointer;
+  }
+  #gate button:hover { box-shadow: 0 0 20px var(--accent-glow); }
+  #err { color: #f85149; font-size: 0.82rem; min-height: 18px; }
   .hidden { display: none !important; }
-  .hint { color: #8b949e; font-size: 12px; }
-  #err { color: #f85149; font-size: 13px; min-height: 18px; }
+  /* --- Welcome --- */
+  .welcome { text-align: center; margin: auto; color: var(--muted); }
+  .welcome .icon { font-size: 3rem; margin-bottom: 0.5rem; }
+  .welcome h2 { color: var(--text); font-size: 1.2rem; margin-bottom: 0.3rem; }
+  .welcome p { font-size: 0.85rem; }
 </style>
 </head>
 <body>
+
 <header>
-  <h1>🐉 Omega Drakon — Chat</h1>
-  <span id="who"></span>
-  <select id="profile" title="Perfil da resposta">
-    <option value="auto">auto</option>
-    <option value="guardian" selected>guardian</option>
-    <option value="regulus">regulus</option>
-    <option value="luma">luma</option>
-    <option value="vox">vox</option>
-    <option value="athenae">athenae</option>
-    <option value="nyx">nyx</option>
-    <option value="nexus">nexus</option>
-  </select>
+  <div class="h-brand">
+    <a href="/site">🐉 OD</a>
+    <span class="h-sep">|</span>
+    <h1>Chat</h1>
+  </div>
+  <div class="h-right">
+    <span id="transport" class="transport-badge"></span>
+    <select id="profile" title="Perfil">
+      <option value="auto">🤖 Auto</option>
+      <option value="guardian">🐉 Nicky Virthy</option>
+      <option value="regulus">⚖️ Regulus</option>
+      <option value="luma">🌟 Luma</option>
+      <option value="vox">📜 Vox</option>
+      <option value="athenae">🏛️ Athenae</option>
+      <option value="nyx">🌙 Nyx</option>
+      <option value="nexus">🔗 Nexus</option>
+    </select>
+  </div>
 </header>
 
 <div id="gate">
-  <h2>🔑 Chave da API</h2>
-  <p>Este chat conversa com o Omega Drakon pelo <code>POST /message</code>,
-     que exige a chave <code>X-API-Key</code>. Informe a chave uma vez — ela
-     fica só nesta aba (sessionStorage) e nunca vai para a URL.</p>
+  <h2>🔑 Entrar no Chat</h2>
+  <p>Informe sua API key (X-API-Key) para conversar com o OmegaDrakon via POST /message.
+     A chave fica apenas neste navegador (localStorage) e nunca é enviada pela URL.</p>
   <input id="key" type="password" placeholder="Sua OD_API_KEY" autocomplete="off">
   <div id="err"></div>
-  <button id="enter">Entrar no chat</button>
+  <button id="enter">Entrar</button>
 </div>
 
 <div id="chat" class="hidden">
   <div id="messages">
-    <div class="bubble od">👋 Olá! Sou a interface do Omega Drakon.
-      Pergunte qualquer coisa — cada mensagem passa pelo pipeline do Orchestrator.</div>
+    <div class="welcome">
+      <div class="icon">🐉</div>
+      <h2>OmegaDrakon</h2>
+      <p>Envie uma mensagem para começar a conversa.</p>
+    </div>
   </div>
   <div id="composer">
     <input id="text" placeholder="Digite sua mensagem…" autocomplete="off">
@@ -292,97 +367,184 @@ _CHAT_PAGE_HTML = """<!doctype html>
 </div>
 
 <script>
-  const $ = (id) => document.getElementById(id);
-  const gate = $("gate"), chat = $("chat");
-  let key = sessionStorage.getItem("od_api_key") || "";
-  let busy = false;
-  const user_id = "web";
+const $ = (id) => document.getElementById(id);
+const gate = $("gate"), chat = $("chat");
+let key = localStorage.getItem("od_api_key") || "";
+let busy = false;
+let ws = null;
+let wsReady = false;
+const user_id = "web";
+const WS_PORT = 8001;
 
-  function applyKey() {
-    sessionStorage.setItem("od_api_key", key);
-    $("who").textContent = "usuário: " + user_id + " · perfil da resposta abaixo";
-  }
-  function showGate(msg) {
-    $("err").textContent = msg || "";
-    gate.classList.remove("hidden");
-    chat.classList.add("hidden");
-  }
-  function showChat() {
-    gate.classList.add("hidden");
-    chat.classList.remove("hidden");
-    $("text").focus();
-  }
-  function addBubble(who, text, meta) {
-    const div = document.createElement("div");
-    div.className = "bubble " + who;
-    div.textContent = text;
+function applyKey() {
+  localStorage.setItem("od_api_key", key);
+}
+function showGate(msg) {
+  $("err").textContent = msg || "";
+  gate.classList.remove("hidden");
+  chat.classList.add("hidden");
+}
+function showChat() {
+  gate.classList.add("hidden");
+  chat.classList.remove("hidden");
+  $("text").focus();
+  tryConnectWs();
+}
+function setTransport(type) {
+  const el = $("transport");
+  el.className = "transport-badge active " + type;
+  el.textContent = type === "ws" ? "⚡ Streaming" : "↔ REST";
+}
+function clearWelcome() {
+  const w = $("messages").querySelector(".welcome");
+  if (w) w.remove();
+}
+function addBubble(who, text, meta) {
+  clearWelcome();
+  const div = document.createElement("div");
+  div.className = "bubble " + who;
+  div.textContent = text;
+  if (meta) {
     const m = document.createElement("div");
     m.className = "meta";
-    m.textContent = meta || "";
+    m.textContent = meta;
     div.appendChild(m);
-    $("messages").appendChild(div);
-    $("messages").scrollTop = $("messages").scrollHeight;
   }
+  $("messages").appendChild(div);
+  $("messages").scrollTop = $("messages").scrollHeight;
+  return div;
+}
+let typingEl = null;
+function showTyping() {
+  clearWelcome();
+  typingEl = document.createElement("div");
+  typingEl.className = "typing";
+  typingEl.textContent = "Digitando";
+  $("messages").appendChild(typingEl);
+  $("messages").scrollTop = $("messages").scrollHeight;
+}
+function removeTyping() {
+  if (typingEl) { typingEl.remove(); typingEl = null; }
+}
 
-  $("enter").onclick = async () => {
-    key = $("key").value.trim();
-    if (!key) { $("err").textContent = "Informe a chave."; return; }
-    // valida a chave com uma chamada leve antes de liberar
-    const probe = await fetch("/llms", { headers: { "X-API-Key": key } });
-    if (!probe.ok) { $("err").textContent = "Chave inválida (" + probe.status + ")."; return; }
-    applyKey();
-    showChat();
-  };
+// --- WebSocket ---
+function tryConnectWs() {
+  if (ws && ws.readyState <= 1) return;
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const host = location.hostname;
+  const url = proto + "://" + host + ":" + WS_PORT;
+  try {
+    ws = new WebSocket(url);
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: "auth", api_key: key, user_id: user_id }));
+    };
+    ws.onmessage = (ev) => {
+      try {
+        const frame = JSON.parse(ev.data);
+        if (frame.type === "authenticated") { wsReady = true; }
+        if (frame.type === "error") { wsReady = false; ws.close(); }
+      } catch(e) {}
+    };
+    ws.onerror = () => { wsReady = false; };
+    ws.onclose = () => { wsReady = false; ws = null; };
+  } catch(e) { wsReady = false; }
+}
 
-  async function send() {
-    const text = $("text").value.trim();
-    if (!text || busy) return;
-    busy = true;
-    $("send").disabled = true;
-    $("text").value = "";
-    addBubble("user", text);
-    const t0 = Date.now();
-    try {
-      const resp = await fetch("/message", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": key
-        },
-        body: JSON.stringify({
-          user_id: user_id,
-          profile: $("profile").value,
-          text: text
-        })
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (resp.status === 401) {
-        key = "";
-        sessionStorage.removeItem("od_api_key");
-        showGate("Chave expirada ou inválida — informe novamente.");
-        return;
-      }
-      if (!resp.ok) {
-        addBubble("od", "Erro " + resp.status + ": " + (data.error || "falha"), "API");
-        return;
-      }
-      const ms = ((Date.now() - t0) / 1000).toFixed(1);
-      const meta = (data.profile ? data.profile + " · " : "") +
-                   (data.route || "") + " · " + ms + "s";
-      addBubble("od", data.message || "(sem resposta)", meta);
-    } catch (e) {
-      addBubble("od", "Falha de rede: " + e.message, "API");
-    } finally {
-      busy = false;
-      $("send").disabled = false;
-      $("text").focus();
+function sendWs(text, profile) {
+  return new Promise((resolve, reject) => {
+    if (!wsReady || !ws || ws.readyState !== 1) return reject("no ws");
+    removeTyping();
+    showTyping();
+    let buffer = "";
+    let gotToken = false;
+    let bubble = null;
+    const timeout = setTimeout(() => { ws.onmessage = null; reject("timeout"); }, 240000);
+    ws.onmessage = (ev) => {
+      try {
+        const frame = JSON.parse(ev.data);
+        if (frame.type === "token" && frame.content) {
+          if (!gotToken) { removeTyping(); gotToken = true; bubble = addBubble("od", ""); }
+          buffer += frame.content;
+          bubble.textContent = buffer;
+          $("messages").scrollTop = $("messages").scrollHeight;
+        }
+        if (frame.type === "done") {
+          clearTimeout(timeout);
+          ws.onmessage = null;
+          removeTyping();
+          if (bubble && frame.route) {
+            const m = document.createElement("div");
+            m.className = "meta";
+            m.textContent = "WebSocket · " + (frame.route || "") + (frame.latency_ms ? " · " + (frame.latency_ms/1000).toFixed(1) + "s" : "");
+            bubble.appendChild(m);
+          }
+          setTransport("ws");
+          resolve(buffer);
+        }
+        if (frame.type === "error") {
+          clearTimeout(timeout);
+          ws.onmessage = null;
+          removeTyping();
+          reject(frame.message || "erro");
+        }
+      } catch(e) {}
+    };
+    ws.send(JSON.stringify({ type: "message", text: text, profile: profile, user_id: user_id }));
+  });
+}
+
+// --- REST fallback ---
+async function sendRest(text, profile) {
+  showTyping();
+  const t0 = Date.now();
+  const resp = await fetch("/message", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-API-Key": key },
+    body: JSON.stringify({ user_id, profile, text })
+  });
+  removeTyping();
+  const data = await resp.json().catch(() => ({}));
+  if (resp.status === 401) {
+    key = ""; localStorage.removeItem("od_api_key");
+    showGate("Chave inválida — informe novamente.");
+    throw new Error("auth");
+  }
+  if (!resp.ok) throw new Error(data.error || "erro " + resp.status);
+  const ms = ((Date.now() - t0) / 1000).toFixed(1);
+  const meta = (data.profile ? data.profile + " · " : "") + (data.route || "") + " · " + ms + "s";
+  addBubble("od", data.message || "(sem resposta)", meta);
+  setTransport("rest");
+  return data.message;
+}
+
+// --- Send ---
+async function send() {
+  const text = $("text").value.trim();
+  if (!text || busy) return;
+  busy = true; $("send").disabled = true; $("text").value = "";
+  addBubble("user", text);
+  const profile = $("profile").value;
+  try {
+    await sendWs(text, profile);
+  } catch(e) {
+    try { await sendRest(text, profile); } catch(e2) {
+      if (e2.message !== "auth") addBubble("od", "Erro: " + e2.message, "API");
     }
   }
+  busy = false; $("send").disabled = false; $("text").focus();
+}
 
-  $("send").onclick = send;
-  $("text").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
-  if (key) { applyKey(); showChat(); }
-  else { showGate(""); $("key").focus(); }
+$("enter").onclick = async () => {
+  key = $("key").value.trim();
+  if (!key) { $("err").textContent = "Informe a chave."; return; }
+  const probe = await fetch("/llms", { headers: { "X-API-Key": key } });
+  if (!probe.ok) { $("err").textContent = "Chave inválida (" + probe.status + ")."; return; }
+  applyKey(); showChat();
+};
+$("send").onclick = send;
+$("text").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+if (key) { applyKey(); showChat(); }
+else { showGate(""); $("key").focus(); }
 </script>
 </body>
 </html>

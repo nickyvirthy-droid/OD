@@ -848,7 +848,7 @@ class TestAuthAll:
         # Shell do chat carrega no navegador (sem header possível)
         status, body, _h = _request(srv.bound_port, "GET", "/chat")
         assert status == 200
-        assert b"X-API-Key" in body and b"sessionStorage" in body
+        assert b"X-API-Key" in body and b"localStorage" in body
         # Shell do dashboard é estático (sem números vivos)
         status, body, _h = _request(srv.bound_port, "GET", "/dashboard")
         assert status == 200
