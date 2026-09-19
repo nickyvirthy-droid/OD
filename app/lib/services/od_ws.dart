@@ -160,11 +160,21 @@ class OdStreamingChat {
   /// Derivado da URL que o usuário já configura: a porta do streaming é a
   /// mesma do core, só troca o esquema. Servidor com `OD_WS_PORT` fora do
   /// padrão simplesmente cai no fallback REST.
-  Uri get wsUri {
-    final base = Uri.parse(api.baseUrl);
+  ///
+  /// Quando há [fallbackUrl], tenta a primária e depois a secundária.
+  Uri get wsUri => _deriveWsUri(api.baseUrl);
+
+  Uri? get _wsUriFallback {
+    final alt = api.fallbackUrl;
+    if (alt == null || alt == api.baseUrl) return null;
+    return _deriveWsUri(alt);
+  }
+
+  Uri _deriveWsUri(String base) {
+    final parsed = Uri.parse(base);
     return Uri(
-      scheme: base.scheme == 'https' ? 'wss' : 'ws',
-      host: base.host,
+      scheme: parsed.scheme == 'https' ? 'wss' : 'ws',
+      host: parsed.host,
       port: wsPort,
     );
   }
@@ -177,23 +187,31 @@ class OdStreamingChat {
   Stream<OdChatDelta> send(String text, {String profile = 'auto'}) async* {
     if (streamingPreferred) {
       var recebidos = 0;
-      try {
-        await for (final delta in _sendViaWs(text, profile: profile)) {
-          recebidos++;
-          yield delta;
+      // Tenta a URL primária e, se houver fallback, a secundária.
+      final uris = [wsUri, if (_wsUriFallback != null) _wsUriFallback!];
+      for (final uri in uris) {
+        try {
+          await for (final delta in _sendViaWs(text, profile: profile, uri: uri)) {
+            recebidos++;
+            yield delta;
+          }
+          return;
+        } catch (error) {
+          // Se já chegou texto ao usuário, não tenta a outra URL (duplicaria).
+          if (recebidos > 0) {
+            _markWsFailure();
+            throw OdStreamingError(
+              'A resposta foi interrompida no meio do streaming '
+              '(${_describe(error)}). O texto acima pode estar incompleto.',
+            );
+          }
+          // Se esta foi a última URI, marca falha e cai pro REST.
+          if (uri == uris.last) {
+            _markWsFailure();
+          }
         }
-        return;
-      } catch (error) {
-        _markWsFailure();
-        // Já apareceu texto na tela: repetir pelo REST duplicaria a resposta.
-        if (recebidos > 0) {
-          throw OdStreamingError(
-            'A resposta foi interrompida no meio do streaming '
-            '(${_describe(error)}). O texto acima pode estar incompleto.',
-          );
-        }
-        // Nada chegou ao usuário: cai para o REST, como antes deste recurso.
       }
+      // Se chegou aqui, todas as URIs falharam antes de receber algo.
     }
 
     final resposta = await api.sendMessage(text, profile: profile);
@@ -208,8 +226,9 @@ class OdStreamingChat {
   Stream<OdChatDelta> _sendViaWs(
     String text, {
     required String profile,
+    Uri? uri,
   }) async* {
-    final channel = await _connector(wsUri, connectTimeout);
+    final channel = await _connector(uri ?? wsUri, connectTimeout);
     final frames = StreamIterator<String>(channel.incoming);
     try {
       // 1) Autenticação — o core recusa mensagem de sessão não autenticada.

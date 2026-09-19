@@ -271,41 +271,39 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildTransportBadge(),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      hintText: 'Digite sua mensagem...',
-                      border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    ),
-                    onSubmitted: (_) => _sendMessage(),
-                    textInputAction: TextInputAction.send,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildTransportBadge(),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  decoration: const InputDecoration(
+                    hintText: 'Digite sua mensagem...',
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
+                  onSubmitted: (_) => _sendMessage(),
+                  textInputAction: TextInputAction.send,
                 ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: _isLoading ? null : _sendMessage,
-                  icon: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                onPressed: _isLoading ? null : _sendMessage,
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -68,7 +68,10 @@ class _OdHomeState extends State<OdHome> {
   @override
   void initState() {
     super.initState();
-    _api = OdApi(baseUrl: 'http://100.77.67.53:8000');
+    _api = OdApi(
+      baseUrl: 'http://100.77.67.53:8000',
+      fallbackUrl: 'http://nicky.theworkpc.com',
+    );
     _initApi();
   }
 
@@ -101,7 +104,9 @@ class _OdHomeState extends State<OdHome> {
     ];
 
     return Scaffold(
-      body: screens[_currentIndex],
+      body: SafeArea(
+        child: screens[_currentIndex],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {

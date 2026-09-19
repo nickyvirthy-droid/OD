@@ -48,10 +48,16 @@ class OdApi {
   final int maxAttempts;
   final Duration retryDelay;
   String baseUrl;
+
+  /// URL de fallback (ex.: externa quando a primária é Tailscale).
+  /// Quando definida, o [_tryWithFallback] tenta a URL primária e, se
+  /// falhar por rede, repete pela secundária.
+  String? fallbackUrl;
   String _apiKey;
 
   OdApi({
     required this.baseUrl,
+    this.fallbackUrl,
     http.Client? client,
     this.connectTimeout = odConnectTimeout,
     this.requestTimeout = odRequestTimeout,
@@ -74,6 +80,11 @@ class OdApi {
     baseUrl = url.trim();
   }
 
+  /// Troca a URL de fallback em runtime.
+  void setFallbackUrl(String? url) {
+    fallbackUrl = url?.trim().isEmpty == true ? null : url?.trim();
+  }
+
   /// Salva a API key (persistida em SharedPreferences).
   Future<void> setApiKey(String key) async {
     _apiKey = key;
@@ -81,10 +92,33 @@ class OdApi {
     await prefs.setString('od_api_key', key);
   }
 
-  /// Carrega a API key salva.
+  /// Salva ambas as URLs (primária e fallback) em SharedPreferences.
+  Future<void> saveUrls() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('od_server_url', baseUrl);
+    if (fallbackUrl != null) {
+      await prefs.setString('od_server_url_fallback', fallbackUrl!);
+    } else {
+      await prefs.remove('od_server_url_fallback');
+    }
+  }
+
+  /// Carrega a API key e as URLs salvas.
+  ///
+  /// Retorna `true` se a chave estava configurada (mesmo que as URLs tenham
+  /// vindo do default).
   Future<bool> loadSavedApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     _apiKey = prefs.getString('od_api_key') ?? '';
+    // URL primária salva sobrescreve o default do construtor.
+    final savedUrl = prefs.getString('od_server_url');
+    if (savedUrl != null && savedUrl.isNotEmpty) {
+      baseUrl = savedUrl;
+    }
+    final savedFallback = prefs.getString('od_server_url_fallback');
+    if (savedFallback != null && savedFallback.isNotEmpty) {
+      fallbackUrl = savedFallback;
+    }
     return _apiKey.isNotEmpty;
   }
 
@@ -393,13 +427,34 @@ class OdApi {
   }
 
   /// Verifica se a API está acessível (health check rápido).
+  ///
+  /// Se houver [fallbackUrl], tenta a primária e, se falhar, a secundária.
   Future<bool> isAvailable() async {
     try {
       final health = await getHealth();
-      return health['ok'] == true;
+      if (health['ok'] == true) return true;
     } catch (_) {
-      return false;
+      // Cai no fallback abaixo.
     }
+    // Tenta a URL de fallback se a primária falhou.
+    final alt = fallbackUrl;
+    if (alt != null && alt != baseUrl) {
+      try {
+        final prev = baseUrl;
+        baseUrl = alt;
+        final health = await getHealth();
+        if (health['ok'] == true) {
+          // Troca as URLs: a que funciona agora é a primária.
+          baseUrl = alt;
+          fallbackUrl = prev;
+          return true;
+        }
+        baseUrl = prev;
+      } catch (_) {
+        baseUrl = fallbackUrl ?? baseUrl;
+      }
+    }
+    return false;
   }
 }
 

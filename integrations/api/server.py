@@ -85,7 +85,7 @@ DEFAULT_SITE_DIR = Path(__file__).resolve().parents[2] / "site"
 # continuam abertos para o navegador carregar a UI mesmo com auth_all.
 # /site* entra aqui para a landing + download do APK funcionarem no
 # celular (Tailscale) sem exigir X-API-Key no navegador.
-PAGE_PATHS = frozenset({"/chat", "/dashboard", "/site", "/site/{file}"})
+PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/site", "/site/{file}"})
 
 
 class APIError(Exception):
@@ -606,6 +606,18 @@ class APIHandler(BaseHTTPRequestHandler):
                 and route.path in PAGE_PATHS
                 and self.api.config.page_shells_public
             )
+            # Redirect de / para /site quando navegador pede HTML: assim
+            # nicky.theworkpc.com mostra a landing sem /site. O redirect
+            # é sem conteúdo sensível, então passa sem auth.
+            if route.path == "/" and method == "GET" and page_shell:
+                accept = self.headers.get("Accept", "")
+                if "text/html" in accept and "application/json" not in accept:
+                    self.send_response(302)
+                    self._send_cors()
+                    self.send_header("Location", "/site")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
             if (route.auth or (self.api.config.auth_all and not page_shell)) \
                     and not self._check_api_key():
                 return
@@ -767,6 +779,17 @@ class APIHandler(BaseHTTPRequestHandler):
     # -- Info/health (sem auth, como no legado) ---------------------------
 
     def info(self) -> None:
+        # Navegadores (Accept: text/html) vão direto para /site — assim
+        # nicky.theworkpc.com mostra a landing page sem o /site. APIs e
+        # curl continuam recebendo o JSON normalmente.
+        accept = self.headers.get("Accept", "")
+        if "text/html" in accept and "application/json" not in accept:
+            self.send_response(302)
+            self._send_cors()
+            self.send_header("Location", "/site")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         self._json(
             200,
             {

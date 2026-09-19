@@ -38,6 +38,15 @@ from memory.vector import VectorStore
 from tools.actions import build_registry
 
 
+import urllib.request as _urllib_req
+
+
+class _NoRedirectHandler(_urllib_req.HTTPRedirectHandler):
+    """Redirect handler que NÃO segue 3xx — captura o 302 no teste."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def _request(port, method, path, api_key=None, body=None, raw_body=None,
              headers=None):
     """Faz uma requisição HTTP real; devolve (status, corpo, headers)."""
@@ -793,10 +802,32 @@ class TestAuthAll:
                 rate_limit_max=0,
             ),
         )
-        # Sem chave: dados/públicos negam
-        for path in ("/", "/health", "/profiles", "/metrics"):
+        # Sem chave: dados/públicos negam (exceto / que é página pública
+        # e redireciona 302 para /site quando o Accept é text/html)
+        for path in ("/health", "/profiles", "/metrics"):
             status, _body, _h = _request(srv.bound_port, "GET", path)
             assert status == 401, path
+        # / sem Accept:text/html sem chave → 200 (redirect 302 seguido
+        # pelo opener, que chega em /site — página pública sem auth)
+        status, _body, _h = _request(srv.bound_port, "GET", "/")
+        assert status == 200
+        # / com Accept:text/html sem chave → redirect 302 para /site
+        # (verificado pelo redirect_no_follow abaixo)
+        import urllib.request as _urllib_req
+        import urllib.error as _urllib_err
+        url = f"http://127.0.0.1:{srv.bound_port}/"
+        req = _urllib_req.Request(url, method="GET")
+        req.add_header("Accept", "text/html")
+        # opener sem redirect handler: captura o 302 sem seguir
+        opener = _urllib_req.build_opener(_NoRedirectHandler)
+        try:
+            with opener.open(req, timeout=10) as resp:
+                loc = resp.headers.get("Location", "")
+                assert resp.status == 302
+        except _urllib_err.HTTPError as exc:
+            loc = exc.headers.get("Location", "")
+            assert exc.code == 302
+        assert loc.endswith("/site")
         # Com chave: respondem
         for path in ("/health", "/metrics", "/profiles"):
             status, _body, _h = _request(

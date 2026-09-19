@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/od_api.dart';
 
-/// Tela de configurações (API key + servidor).
+/// Tela de configurações (API key + servidor com URL primária e fallback).
 class SettingsScreen extends StatefulWidget {
   final OdApi api;
   final VoidCallback onSaved;
@@ -17,20 +17,25 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _urlController;
+  late final TextEditingController _fallbackController;
   late final TextEditingController _keyController;
   bool _testing = false;
   bool? _connected;
+  String? _connectedVia;
 
   @override
   void initState() {
     super.initState();
     _urlController = TextEditingController(text: widget.api.baseUrl);
+    _fallbackController =
+        TextEditingController(text: widget.api.fallbackUrl ?? '');
     _keyController = TextEditingController(text: widget.api.apiKey);
   }
 
   @override
   void dispose() {
     _urlController.dispose();
+    _fallbackController.dispose();
     _keyController.dispose();
     super.dispose();
   }
@@ -39,16 +44,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _testing = true;
       _connected = null;
+      _connectedVia = null;
     });
 
-    final tempApi = OdApi(baseUrl: _urlController.text.trim());
+    final tempApi = OdApi(
+      baseUrl: _urlController.text.trim(),
+      fallbackUrl: _fallbackController.text.trim().isEmpty
+          ? null
+          : _fallbackController.text.trim(),
+    );
     await tempApi.setApiKey(_keyController.text.trim());
-    final ok = await tempApi.isAvailable();
+
+    // Tenta a URL primária primeiro.
+    final primary = await _testUrl(tempApi, _urlController.text.trim());
+    if (primary) {
+      setState(() {
+        _testing = false;
+        _connected = true;
+        _connectedVia = _urlController.text.trim();
+      });
+      return;
+    }
+
+    // Tenta a fallback.
+    final fallback = _fallbackController.text.trim();
+    if (fallback.isNotEmpty) {
+      final secondary = await _testUrl(tempApi, fallback);
+      if (secondary) {
+        setState(() {
+          _testing = false;
+          _connected = true;
+          _connectedVia = fallback;
+        });
+        return;
+      }
+    }
 
     setState(() {
       _testing = false;
-      _connected = ok;
+      _connected = false;
     });
+  }
+
+  Future<bool> _testUrl(OdApi api, String url) async {
+    api.setBaseUrl(url);
+    return api.isAvailable();
   }
 
   Future<void> _save() async {
@@ -64,7 +104,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     // Aplica a nova URL e a chave na instância usada pelas telas
     widget.api.setBaseUrl(url);
+    widget.api.setFallbackUrl(
+      _fallbackController.text.trim().isEmpty
+          ? null
+          : _fallbackController.text.trim(),
+    );
     await widget.api.setApiKey(key);
+    await widget.api.saveUrls();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -85,14 +131,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 24),
 
-        // URL do servidor
+        // URL primária (Tailscale)
         TextField(
           controller: _urlController,
           decoration: const InputDecoration(
-            labelText: 'URL do servidor',
+            labelText: 'URL do servidor (rede local)',
             hintText: 'http://100.77.67.53:8000',
             border: OutlineInputBorder(),
             prefixIcon: Icon(Icons.dns),
+          ),
+          keyboardType: TextInputType.url,
+        ),
+        const SizedBox(height: 12),
+
+        // URL fallback (externa)
+        TextField(
+          controller: _fallbackController,
+          decoration: const InputDecoration(
+            labelText: 'URL externa (internet)',
+            hintText: 'http://nicky.theworkpc.com',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.language),
           ),
           keyboardType: TextInputType.url,
         ),
@@ -150,10 +209,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.only(top: 16),
             child: Card(
               color: Colors.green.shade50,
-              child: const ListTile(
-                leading: Icon(Icons.check_circle, color: Colors.green),
-                title: Text('Conexão OK'),
-                subtitle: Text('Servidor acessível via Tailscale'),
+              child: ListTile(
+                leading: const Icon(Icons.check_circle, color: Colors.green),
+                title: const Text('Conexão OK'),
+                subtitle: Text('Conectado via $_connectedVia'),
               ),
             ),
           ),
@@ -166,7 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: const ListTile(
                 leading: Icon(Icons.error, color: Colors.red),
                 title: Text('Sem conexão'),
-                subtitle: Text('Verifique a URL e a API key'),
+                subtitle: Text('Verifique as URLs e a API key'),
               ),
             ),
           ),
@@ -186,10 +245,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(),
                 const Text(
-                  '1. Instale o Tailscale no celular\n'
-                  '2. Entre no mesmo tailnet\n'
-                  '3. Use a URL: http://100.77.67.53:8000\n'
-                  '4. Cole a API key do .env do servidor',
+                  'Rede local (Tailscale):)\n'
+                  '  1. Instale o Tailscale no celular\n'
+                  '  2. Entre no mesmo tailnet\n'
+                  '  3. URL: http://100.77.67.53:8000\n\n'
+                  'Internet (externa):\n'
+                  '  1. URL: http://nicky.theworkpc.com\n'
+                  '  2. Funciona de qualquer lugar\n\n'
+                  'Cole a API key do .env do servidor.',
                   style: TextStyle(height: 1.5),
                 ),
               ],
