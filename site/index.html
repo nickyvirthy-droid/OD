@@ -3,492 +3,629 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OmegaDrakon — Tecnologia que Respira 🐉</title>
+    <title>OmegaDrakon — Plataforma Soberana de IA Pessoal</title>
+    <meta name="description" content="OmegaDrakon: plataforma soberana de inteligência artificial pessoal, automação distribuída e orquestração de agentes autônomos. Soberana, local, sua.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
     <style>
         :root {
-            --primary: #1a237e;
-            --primary-light: #3949ab;
-            --accent: #ff6f00;
-            --bg: #0a0a1a;
-            --bg-card: #12122a;
-            --text: #e8e8f0;
-            --text-muted: #8888aa;
-            --border: #2a2a4a;
-            --glow: rgba(26, 35, 126, 0.4);
+            --primary: #0d1b3e;
+            --primary-light: #1a3a7a;
+            --accent: #f59e0b;
+            --accent-glow: rgba(245, 158, 11, 0.25);
+            --bg: #06080f;
+            --bg-card: #0c1120;
+            --bg-card-hover: #111830;
+            --text: #e8eaf0;
+            --text-muted: #7a839a;
+            --border: #1c2440;
+            --border-light: #2a3460;
+            --gradient-hero: linear-gradient(180deg, #0d1b3e 0%, #06080f 100%);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        html { scroll-behavior: smooth; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg);
             color: var(--text);
-            line-height: 1.6;
+            line-height: 1.7;
             overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* --- Hero --- */
-        .hero {
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 2rem;
-            position: relative;
-            background: radial-gradient(ellipse at 50% 0%, var(--glow) 0%, transparent 60%);
-        }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-            opacity: 0.5;
-        }
-
-        .dragon-icon {
-            font-size: 6rem;
-            margin-bottom: 1rem;
-            animation: float 3s ease-in-out infinite;
-            position: relative;
-            z-index: 1;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-12px); }
-        }
-
-        h1 {
-            font-size: 3.5rem;
-            font-weight: 800;
-            letter-spacing: -1px;
-            position: relative;
-            z-index: 1;
-            background: linear-gradient(135deg, #fff 0%, #90caf9 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .tagline {
-            font-size: 1.4rem;
-            color: var(--text-muted);
-            margin-top: 0.5rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        .version {
-            display: inline-block;
-            margin-top: 1rem;
-            padding: 0.3rem 1rem;
-            background: var(--primary-light);
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            position: relative;
-            z-index: 1;
-        }
-
-        .cta-group {
-            display: flex;
-            gap: 1rem;
-            margin-top: 2.5rem;
-            flex-wrap: wrap;
-            justify-content: center;
-            position: relative;
-            z-index: 1;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
+        /* === NAV === */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
             padding: 1rem 2rem;
-            border-radius: 12px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            border: none;
+            background: rgba(6, 8, 15, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .nav-brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 1.1rem; text-decoration: none; color: var(--text); }
+        .nav-brand span { font-size: 1.5rem; }
+        .nav-links { display: flex; gap: 2rem; align-items: center; }
+        .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--text); }
+        .nav-cta {
+            padding: 0.5rem 1.2rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
+            background: var(--accent); color: #000; text-decoration: none; transition: all 0.2s;
+        }
+        .nav-cta:hover { box-shadow: 0 0 20px var(--accent-glow); transform: translateY(-1px); }
+
+        /* === HERO === */
+        .hero {
+            min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; text-align: center; padding: 6rem 2rem 4rem;
+            background: var(--gradient-hero); position: relative; overflow: hidden;
+        }
+        .hero::before {
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(ellipse at 50% 30%, rgba(26, 58, 122, 0.2) 0%, transparent 70%);
+        }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.8rem; font-weight: 500;
+            border: 1px solid var(--border-light); color: var(--text-muted);
+            margin-bottom: 2rem; position: relative; z-index: 1;
+        }
+        .hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 800; letter-spacing: -2px;
+            line-height: 1.1; position: relative; z-index: 1;
+            background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .hero .subtitle {
+            font-size: clamp(1rem, 2vw, 1.35rem); color: var(--text-muted);
+            margin-top: 1rem; max-width: 600px; position: relative; z-index: 1;
+        }
+        .hero-actions {
+            display: flex; gap: 1rem; margin-top: 2.5rem; flex-wrap: wrap;
+            justify-content: center; position: relative; z-index: 1;
+        }
+        .btn {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.9rem 2rem; border-radius: 10px; font-size: 1rem; font-weight: 600;
+            text-decoration: none; transition: all 0.25s; cursor: pointer; border: none;
+        }
+        .btn-accent { background: var(--accent); color: #000; }
+        .btn-accent:hover { box-shadow: 0 4px 30px var(--accent-glow); transform: translateY(-2px); }
+        .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border-light); }
+        .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+        .hero-stats {
+            display: flex; gap: 3rem; margin-top: 4rem; position: relative; z-index: 1;
+        }
+        .hero-stat { text-align: center; }
+        .hero-stat .num { font-size: 2rem; font-weight: 800; color: var(--accent); }
+        .hero-stat .label { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+        /* === SECTIONS === */
+        section { padding: 6rem 2rem; }
+        .section-inner { max-width: 1100px; margin: 0 auto; }
+        .section-label {
+            font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 2px; color: var(--accent); margin-bottom: 0.5rem;
+        }
+        .section-title {
+            font-size: clamp(1.8rem, 3.5vw, 2.8rem); font-weight: 800;
+            letter-spacing: -1px; margin-bottom: 1rem;
+        }
+        .section-desc { color: var(--text-muted); font-size: 1.05rem; max-width: 650px; margin-bottom: 3rem; }
+
+        /* === VISION === */
+        .vision { background: var(--bg-card); }
+        .vision-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+        .vision-card {
+            padding: 2rem; border-radius: 16px; border: 1px solid var(--border);
+            background: var(--bg); transition: all 0.3s;
+        }
+        .vision-card:hover { border-color: var(--border-light); transform: translateY(-2px); }
+        .vision-card .icon { font-size: 2rem; margin-bottom: 1rem; }
+        .vision-card h3 { font-size: 1.15rem; margin-bottom: 0.5rem; }
+        .vision-card p { color: var(--text-muted); font-size: 0.92rem; }
+
+        /* === ARCHITECTURE === */
+        .arch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+        .arch-item {
+            padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);
+            background: var(--bg-card); text-align: center; transition: all 0.3s;
+        }
+        .arch-item:hover { border-color: var(--primary-light); }
+        .arch-item .icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .arch-item h4 { font-size: 0.95rem; margin-bottom: 0.3rem; }
+        .arch-item p { font-size: 0.8rem; color: var(--text-muted); }
+
+        /* === PLEIADE === */
+        .pleiade { background: var(--bg-card); }
+        .pleiade-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+        .agent-card {
+            padding: 1.5rem 1rem; border-radius: 14px; border: 1px solid var(--border);
+            background: var(--bg); text-align: center; transition: all 0.3s;
+        }
+        .agent-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+        .agent-card .emoji { font-size: 2.2rem; margin-bottom: 0.5rem; }
+        .agent-card .name { font-weight: 700; font-size: 0.95rem; }
+        .agent-card .role { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+        /* === CAPABILITIES === */
+        .cap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+        .cap-item {
+            display: flex; align-items: flex-start; gap: 1rem; padding: 1.2rem;
+            border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card);
+        }
+        .cap-item .num {
+            flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px;
+            background: var(--accent); color: #000; font-weight: 800; font-size: 0.85rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .cap-item h4 { font-size: 0.95rem; margin-bottom: 0.2rem; }
+        .cap-item p { font-size: 0.82rem; color: var(--text-muted); }
+
+        /* === APP === */
+        .app-section { background: var(--bg-card); }
+        .app-content { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
+        .app-text h3 { font-size: 1.5rem; margin-bottom: 1rem; }
+        .app-text p { color: var(--text-muted); margin-bottom: 1rem; font-size: 0.95rem; }
+        .app-features { list-style: none; margin-top: 1.5rem; }
+        .app-features li { padding: 0.5rem 0; display: flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; }
+        .app-features li::before { content: '✓'; color: var(--accent); font-weight: 700; }
+        .app-phone {
+            display: flex; justify-content: center;
+        }
+        .phone-mockup {
+            width: 260px; background: var(--bg); border: 2px solid var(--border);
+            border-radius: 28px; padding: 0.8rem; position: relative;
+        }
+        .phone-notch {
+            width: 80px; height: 6px; background: var(--border); border-radius: 3px;
+            margin: 0 auto 0.8rem;
+        }
+        .phone-screen {
+            background: var(--bg-card); border-radius: 16px; padding: 1.2rem;
+            min-height: 360px; display: flex; flex-direction: column;
+        }
+        .phone-header { text-align: center; margin-bottom: 1rem; }
+        .phone-header .icon { font-size: 1.8rem; }
+        .phone-header .title { font-weight: 700; font-size: 0.9rem; }
+        .phone-msg {
+            background: var(--primary); border-radius: 12px; padding: 0.7rem 1rem;
+            font-size: 0.8rem; margin-bottom: 0.5rem; max-width: 85%;
+        }
+        .phone-msg.user { background: var(--accent); color: #000; margin-left: auto; border-radius: 12px 12px 0 12px; }
+        .phone-msg.assistant { border-radius: 12px 12px 12px 0; }
+        .phone-badge {
+            margin-top: auto; text-align: center; font-size: 0.7rem;
+            color: var(--text-muted); padding-top: 0.8rem;
         }
 
-        .btn-primary {
-            background: linear-gradient(135deg, var(--accent) 0%, #e65100 100%);
-            color: #fff;
-            box-shadow: 0 4px 20px rgba(255, 111, 0, 0.3);
+        /* === SECURITY === */
+        .sec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+        .sec-item {
+            padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);
+            background: var(--bg-card); display: flex; align-items: flex-start; gap: 1rem;
+        }
+        .sec-item .icon { font-size: 1.5rem; flex-shrink: 0; }
+        .sec-item h4 { font-size: 0.95rem; margin-bottom: 0.2rem; }
+        .sec-item p { font-size: 0.82rem; color: var(--text-muted); }
+
+        /* === STACK === */
+        .stack { background: var(--bg-card); }
+        .stack-grid { display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: center; }
+        .stack-tag {
+            padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.82rem; font-weight: 500;
+            border: 1px solid var(--border); background: var(--bg); color: var(--text-muted);
         }
 
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 30px rgba(255, 111, 0, 0.5);
+        /* === DOWNLOAD === */
+        .download { text-align: center; background: radial-gradient(ellipse at 50% 80%, rgba(245, 158, 11, 0.08) 0%, transparent 60%); }
+        .dl-card {
+            display: inline-block; background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 20px; padding: 2.5rem 3rem; max-width: 420px;
         }
+        .dl-card .icon { font-size: 3rem; margin-bottom: 0.8rem; }
+        .dl-card .name { font-size: 1.2rem; font-weight: 700; }
+        .dl-card .version { font-size: 0.85rem; color: var(--text-muted); margin: 0.3rem 0 1.5rem; }
+        .dl-links { display: flex; flex-direction: column; gap: 0.8rem; }
+        .dl-links a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; }
+        .dl-links a:hover { color: var(--accent); }
 
-        .btn-secondary {
-            background: var(--bg-card);
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-
-        .btn-secondary:hover {
-            border-color: var(--primary-light);
-            background: var(--primary-light);
-        }
-
-        /* --- Features --- */
-        .features {
-            padding: 5rem 2rem;
-            max-width: 1100px;
-            margin: 0 auto;
-        }
-
-        .features h2 {
-            text-align: center;
-            font-size: 2.2rem;
-            margin-bottom: 3rem;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .feature-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 2rem;
-            transition: all 0.3s ease;
-        }
-
-        .feature-card:hover {
-            border-color: var(--primary-light);
-            transform: translateY(-4px);
-            box-shadow: 0 8px 30px var(--glow);
-        }
-
-        .feature-icon {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .feature-card h3 {
-            font-size: 1.2rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .feature-card p {
-            color: var(--text-muted);
-            font-size: 0.95rem;
-        }
-
-        /* --- Screenshots --- */
-        .screenshots {
-            padding: 5rem 2rem;
-            text-align: center;
-            background: linear-gradient(180deg, transparent 0%, var(--bg-card) 50%, transparent 100%);
-        }
-
-        .screenshots h2 {
-            font-size: 2.2rem;
-            margin-bottom: 1rem;
-        }
-
-        .screenshots p {
-            color: var(--text-muted);
-            margin-bottom: 3rem;
-        }
-
-        .phone-grid {
-            display: flex;
-            gap: 2rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        .phone-frame {
-            width: 220px;
-            background: var(--bg);
-            border: 2px solid var(--border);
-            border-radius: 24px;
-            padding: 1rem;
-            text-align: center;
-        }
-
-        .phone-frame .screen {
-            background: var(--bg-card);
-            border-radius: 12px;
-            padding: 1.5rem;
-            min-height: 280px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .phone-frame .screen-icon {
-            font-size: 3rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .phone-frame .screen-title {
-            font-weight: 700;
-            font-size: 1rem;
-            margin-bottom: 0.3rem;
-        }
-
-        .phone-frame .screen-desc {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        /* --- Security --- */
-        .security {
-            padding: 5rem 2rem;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .security h2 {
-            text-align: center;
-            font-size: 2.2rem;
-            margin-bottom: 2rem;
-        }
-
-        .security-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-
-        .security-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 1rem;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-        }
-
-        .security-item .icon { font-size: 1.5rem; }
-        .security-item .label { font-weight: 600; }
-        .security-item .detail { font-size: 0.85rem; color: var(--text-muted); }
-
-        /* --- Download --- */
-        .download {
-            padding: 5rem 2rem;
-            text-align: center;
-            background: radial-gradient(ellipse at 50% 100%, var(--glow) 0%, transparent 60%);
-        }
-
-        .download h2 {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .download p {
-            color: var(--text-muted);
-            margin-bottom: 2rem;
-            font-size: 1.1rem;
-        }
-
-        .download-card {
-            display: inline-block;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 2.5rem 3rem;
-            text-align: center;
-        }
-
-        .download-card .apk-icon { font-size: 4rem; margin-bottom: 1rem; }
-        .download-card .apk-name { font-size: 1.2rem; font-weight: 700; }
-        .download-card .apk-size { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
-        .download-card .apk-req { font-size: 0.8rem; color: var(--text-muted); margin-top: 1rem; }
-
-        /* --- Footer --- */
+        /* === FOOTER === */
         footer {
-            padding: 3rem 2rem;
-            text-align: center;
-            border-top: 1px solid var(--border);
-            color: var(--text-muted);
-            font-size: 0.9rem;
+            padding: 3rem 2rem; text-align: center; border-top: 1px solid var(--border);
+            color: var(--text-muted); font-size: 0.85rem;
         }
+        footer a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+        footer a:hover { color: var(--accent); }
+        .footer-links { display: flex; gap: 2rem; justify-content: center; margin-bottom: 1rem; }
 
-        footer a {
-            color: var(--primary-light);
-            text-decoration: none;
-        }
-
-        footer a:hover { text-decoration: underline; }
-
-        /* --- Responsive --- */
+        /* === RESPONSIVE === */
         @media (max-width: 768px) {
-            h1 { font-size: 2.2rem; }
-            .tagline { font-size: 1.1rem; }
-            .features h2, .screenshots h2, .security h2, .download h2 { font-size: 1.6rem; }
-            .phone-frame { width: 160px; }
-            .phone-frame .screen { min-height: 200px; }
+            .nav-links { display: none; }
+            .hero-stats { gap: 1.5rem; }
+            .hero-stat .num { font-size: 1.5rem; }
+            .app-content { grid-template-columns: 1fr; gap: 2rem; }
+            .app-phone { order: -1; }
+            section { padding: 4rem 1.5rem; }
         }
     </style>
 </head>
 <body>
 
-<!-- Hero -->
+<!-- NAV -->
+<nav>
+    <a href="#" class="nav-brand"><span>🐉</span> OmegaDrakon</a>
+    <div class="nav-links">
+        <a href="#visao">Visão</a>
+        <a href="#arquitetura">Arquitetura</a>
+        <a href="#pleiade">Plêiade</a>
+        <a href="#capacidades">Capacidades</a>
+        <a href="#app">App</a>
+        <a href="#download" class="nav-cta">Baixar APK</a>
+    </div>
+</nav>
+
+<!-- HERO -->
 <section class="hero">
-    <div class="dragon-icon">🐉</div>
-    <h1>OmegaDrakon</h1>
-    <p class="tagline">Tecnologia que Respira</p>
-    <span class="version">v1.2.0 — Plataforma Soberana de IA</span>
-    <div class="cta-group">
-        <a href="#download" class="btn btn-primary">📱 Download APK</a>
-        <a href="#features" class="btn btn-secondary">✨ Ver funcionalidades</a>
+    <div class="hero-badge"><span class="dot"></span> v1.2.8 — Sistema ativo</div>
+    <h1>Plataforma Soberana<br>de IA Pessoal</h1>
+    <p class="subtitle">
+        Inteligência artificial que roda inteiramente no seu servidor.
+        Sem nuvem, sem terceiros, sem limites. Soberana por design.
+    </p>
+    <div class="hero-actions">
+        <a href="#download" class="btn btn-accent">📱 Baixar APK</a>
+        <a href="#visao" class="btn btn-outline">Conhecer o projeto ↓</a>
+    </div>
+    <div class="hero-stats">
+        <div class="hero-stat"><div class="num">37</div><div class="label">Capacidades</div></div>
+        <div class="hero-stat"><div class="num">57</div><div class="label">Actions</div></div>
+        <div class="hero-stat"><div class="num">7</div><div class="label">Agentes</div></div>
+        <div class="hero-stat"><div class="num">1755+</div><div class="label">Testes</div></div>
     </div>
 </section>
 
-<!-- Features -->
-<section class="features" id="features">
-    <h2>O que o OD faz</h2>
-    <div class="features-grid">
-        <div class="feature-card">
-            <div class="feature-icon">💬</div>
-            <h3>Chat com IA</h3>
-            <p>Converse com 8 perfis de agentes autônomos — cada um com personalidade, domínio e estilo próprios.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">⚡</div>
-            <h3>56 Ações</h3>
-            <p>Execute ações no servidor: informações do sistema, rede, disco, processos e muito mais.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">🛡️</div>
-            <h3>Soberano</h3>
-            <p>Roda 100% no seu servidor. Sem nuvem, sem dados enviados para terceiros. Você é o dono.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">🧠</div>
-            <h3>Memória</h3>
-            <p>Histórico de conversas, cache de respostas LLM, memória vetorial (RAG) e respostas rápidas.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">🔄</div>
-            <h3>Auto-Reparo</h3>
-            <p>Ciclo fechado de percepção e recuperação — o OD detecta e corrige problemas automaticamente.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">🏠</div>
-            <h3>IoT</h3>
-            <p>Integração com Home Assistant (presença), MQTT e monitoramento facial via webcam.</p>
-        </div>
-    </div>
-</section>
-
-<!-- Screenshots -->
-<section class="screenshots" id="screens">
-    <h2>4 Telas no App</h2>
-    <p>Interface limpa e rápida, feita com Flutter + Material 3</p>
-    <div class="phone-grid">
-        <div class="phone-frame">
-            <div class="screen">
-                <div class="screen-icon">💬</div>
-                <div class="screen-title">Chat</div>
-                <div class="screen-desc">Converse com a Plêiade</div>
+<!-- VISÃO -->
+<section class="vision" id="visao">
+    <div class="section-inner">
+        <div class="section-label">Visão</div>
+        <div class="section-title">O que é o OmegaDrakon</div>
+        <p class="section-desc">
+            Uma plataforma completa de IA pessoal que combina orquestração de agentes autônomos,
+            automação distribuída e memória persistente — tudo rodando em hardware que você controla.
+        </p>
+        <div class="vision-grid">
+            <div class="vision-card">
+                <div class="icon">🏠</div>
+                <h3>100% Soberano</h3>
+                <p>Roda no seu servidor, na sua rede. Nenhum dado sai da sua infraestrutura. Você é o único dono da sua IA.</p>
             </div>
-        </div>
-        <div class="phone-frame">
-            <div class="screen">
-                <div class="screen-icon">⚡</div>
-                <div class="screen-title">Ações</div>
-                <div class="screen-desc">56 ações executáveis</div>
+            <div class="vision-card">
+                <div class="icon">🧠</div>
+                <h3>Agentes Autônomos</h3>
+                <p>7 entidades com personalidades distintas formam a Plêiade — cada uma especializada em um domínio, trabalhando em conjunto.</p>
             </div>
-        </div>
-        <div class="phone-frame">
-            <div class="screen">
-                <div class="screen-icon">📊</div>
-                <div class="screen-title">Status</div>
-                <div class="screen-desc">Health + capabilities</div>
+            <div class="vision-card">
+                <div class="icon">🔄</div>
+                <h3>Auto-Recuperação</h3>
+                <p>Ciclo fechado de percepção, diagnóstico e reparo. O sistema monitora a si mesmo e corrige problemas automaticamente.</p>
             </div>
-        </div>
-        <div class="phone-frame">
-            <div class="screen">
-                <div class="screen-icon">⚙️</div>
-                <div class="screen-title">Config</div>
-                <div class="screen-desc">API key + Tailscale</div>
+            <div class="vision-card">
+                <div class="icon">🌊</div>
+                <h3>Streaming em Tempo Real</h3>
+                <p>Respostas token-a-token pelo WebSocket. A primeira palavra aparece em segundos, não minutos.</p>
+            </div>
+            <div class="vision-card">
+                <div class="icon">📱</div>
+                <h3>App Mobile</h3>
+                <p>Interface Flutter nativa com chat streaming, catálogo de ações, monitoramento de status e notificações push.</p>
+            </div>
+            <div class="vision-card">
+                <div class="icon">🌐</div>
+                <h3>Acesso em Qualquer Lugar</h3>
+                <p>Via Tailscale (rede privada) ou internet (via DDNS). O app faz fallback automático entre os dois.</p>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Security -->
-<section class="security" id="security">
-    <h2>🔒 Segurança em Camadas</h2>
-    <div class="security-grid">
-        <div class="security-item">
-            <span class="icon">🔐</span>
-            <div>
-                <div class="label">VPN WireGuard</div>
-                <div class="detail">Tailscale peer-to-peer</div>
+<!-- ARQUITETURA -->
+<section class="arquitetura" id="arquitetura">
+    <div class="section-inner">
+        <div class="section-label">Arquitetura</div>
+        <div class="section-title">Construído para durar</div>
+        <p class="section-desc">
+            Camadas isoladas, testáveis e independentes. Cada componente pode falhar sem derrubar o sistema.
+        </p>
+        <div class="arch-grid">
+            <div class="arch-item">
+                <div class="icon">⚡</div>
+                <h4>Core</h4>
+                <p>Event Bus, State Manager, Orchestrator, Security Pipeline</p>
             </div>
-        </div>
-        <div class="security-item">
-            <span class="icon">🔑</span>
-            <div>
-                <div class="label">X-API-Key</div>
-                <div class="detail">Auth em todos endpoints</div>
+            <div class="arch-item">
+                <div class="icon">🧠</div>
+                <h4>Memória</h4>
+                <p>Histórico, Cache, RAG vetorial, Respostas rápidas</p>
             </div>
-        </div>
-        <div class="security-item">
-            <span class="icon">🧱</span>
-            <div>
-                <div class="label">UFW Firewall</div>
-                <div class="detail">Portas 22/8000/8123</div>
+            <div class="arch-item">
+                <div class="icon">🔧</div>
+                <h4>Tools</h4>
+                <p>57 actions, auto-extensão, telemetria, visão, áudio</p>
             </div>
-        </div>
-        <div class="security-item">
-            <span class="icon">🏠</span>
-            <div>
-                <div class="label">Self-hosted</div>
-                <div class="detail">Sem dados na nuvem</div>
+            <div class="arch-item">
+                <div class="icon">🔗</div>
+                <h4>Integrações</h4>
+                <p>Telegram, REST API, WebSocket, MQTT, Home Assistant</p>
+            </div>
+            <div class="arch-item">
+                <div class="icon">📊</div>
+                <h4>Observabilidade</h4>
+                <p>Audit JSONL, métricas Prometheus, health checks</p>
+            </div>
+            <div class="arch-item">
+                <div class="icon">🛡️</div>
+                <h4>Supervisão</h4>
+                <p>Isolamento de loops, auto-restart, alertas proativos</p>
+            </div>
+            <div class="arch-item">
+                <div class="icon">🗄️</div>
+                <h4>Storage</h4>
+                <p>PostgreSQL ou SQLite, migração automática</p>
+            </div>
+            <div class="arch-item">
+                <div class="icon">🔌</div>
+                <h4>Plugins</h4>
+                <p>Hot reload, actions e workflows customizáveis</p>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Download -->
+<!-- PLÊIADE -->
+<section class="pleiade" id="pleiade">
+    <div class="section-inner">
+        <div class="section-label">Plêiade</div>
+        <div class="section-title">7 Agentes, 7 Personalidades</div>
+        <p class="section-desc">
+            Cada agente tem um domínio, um estilo e uma voz própria. Juntos, eles formam um sistema de IA completo e multifacetado.
+        </p>
+        <div class="pleiade-grid">
+            <div class="agent-card">
+                <div class="emoji">🐉</div>
+                <div class="name">Nicky Virthy</div>
+                <div class="role">Guardião</div>
+            </div>
+            <div class="agent-card">
+                <div class="emoji">⚖️</div>
+                <div class="name">Regulus</div>
+                <div class="role">Conselheiro</div>
+            </div>
+            <div class="agent-card">
+                <div class="emoji">🌟</div>
+                <div class="name">Luma</div>
+                <div class="role">Mentora</div>
+            </div>
+            <div class="agent-card">
+                <div class="emoji">📜</div>
+                <div class="name">Vox</div>
+                <div class="role">Arauta</div>
+            </div>
+            <div class="agent-card">
+                <div class="emoji">🏛️</div>
+                <div class="name">Athenae</div>
+                <div class="role">Arquiteta</div>
+            </div>
+            <div class="agent-card">
+                <div class="emoji">🌙</div>
+                <div class="name">Nyx</div>
+                <div class="role">Guardiã</div>
+            </div>
+            <div class="agent-card">
+                <div class="emoji">🔗</div>
+                <div class="name">Nexus</div>
+                <div class="role">Conector</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CAPACIDADES -->
+<section class="capacidades" id="capacidades">
+    <div class="section-inner">
+        <div class="section-label">Capacidades</div>
+        <div class="section-title">O que ele faz</div>
+        <p class="section-desc">
+            37 capacidades implementadas, 57 actions executáveis, ciclo de auto-recuperação fechado.
+        </p>
+        <div class="cap-grid">
+            <div class="cap-item">
+                <div class="num">01</div>
+                <div><h4>Chat com IA</h4><p>Conversa com streaming token-a-token, 8 perfis, memória persistente</p></div>
+            </div>
+            <div class="cap-item">
+                <div class="num">02</div>
+                <div><h4>57 Actions</h4><p>Sistema, rede, disco, Docker, Git, banco de dados, arquivos</p></div>
+            </div>
+            <div class="cap-item">
+                <div class="num">03</div>
+                <div><h4>Fast Path</h4><p>Respostas instantâneas sem LLM para perguntas operacionais</p></div>
+            </div>
+            <div class="cap-item">
+                <div class="num">04</div>
+                <div><h4>Memória RAG</h4><p>Histórico, cache, vector store e respostas rápidas</p></div>
+            </div>
+            <div class="cap-item">
+                <div class="num">05</div>
+                <div><h4>Auto-Reparo</h4><p>Detecção e correção automática de código corrompido</p></div>
+            </div>
+            <div class="cap-item">
+                <div class="num">06</div>
+                <div><h4>Supervisão</h4><p>Isolamento de loops, restart automático, alertas proativos</p></div>
+            </div>
+            <div class="cap-item">
+                <div class="num">07</div>
+                <div><h4>Push FCM</h4><p>Notificações push no celular para alertas do sistema</p></div>
+            </div>
+            <div class="cap-item">
+                <div class="num">08</div>
+                <div><h4>Monitor de Rede</h4><p>Monitoramento do roteador com alertas de queda</p></div>
+            </div>
+            <div class="cap-item">
+                <div class="num">09</div>
+                <div><h4>IoT & Presença</h4><p>Home Assistant, MQTT, detecção facial via webcam</p></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- APP -->
+<section class="app-section" id="app">
+    <div class="section-inner">
+        <div class="app-content">
+            <div class="app-text">
+                <div class="section-label">App Mobile</div>
+                <h3>O OmegaDrakon no seu bolso</h3>
+                <p>
+                    Interface Flutter nativa com Material 3. Chat com streaming, catálogo de ações,
+                    monitoramento de status e configuração — tudo em 4 telas.
+                </p>
+                <ul class="app-features">
+                    <li>Chat com streaming WebSocket + fallback REST</li>
+                    <li>57 ações executáveis com formulário de parâmetros</li>
+                    <li>Status do sistema: health, capacidades, supervisão</li>
+                    <li>Duas URLs: Tailscale (local) + internet (externa)</li>
+                    <li>Notificações push para alertas do servidor</li>
+                    <li>Selo de transporte: Streaming ativo ou Resposta via REST</li>
+                </ul>
+            </div>
+            <div class="app-phone">
+                <div class="phone-mockup">
+                    <div class="phone-notch"></div>
+                    <div class="phone-screen">
+                        <div class="phone-header">
+                            <div class="icon">🐉</div>
+                            <div class="title">OmegaDrakon</div>
+                        </div>
+                        <div class="phone-msg user">Que horas são?</div>
+                        <div class="phone-msg assistant">São 14:32. Posso ajudar com mais alguma coisa?</div>
+                        <div class="phone-msg user">Mostre o status do servidor</div>
+                        <div class="phone-msg assistant">🟢 OmegaDrakon Online<br>9 checks OK<br>Uptime: 3d 12h</div>
+                        <div class="phone-badge">⚡ Streaming ativo</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- SEGURANÇA -->
+<section class="seguranca" id="seguranca">
+    <div class="section-inner">
+        <div class="section-label">Segurança</div>
+        <div class="section-title">Protegido em camadas</div>
+        <p class="section-desc">
+            Segurança defense-in-depth: VPN + autenticação + firewall + isolamento de processos.
+        </p>
+        <div class="sec-grid">
+            <div class="sec-item">
+                <div class="icon">🔐</div>
+                <div><h4>Tailscale / WireGuard</h4><p>VPN mesh peer-to-peer. Acessa de qualquer lugar sem expor portas.</p></div>
+            </div>
+            <div class="sec-item">
+                <div class="icon">🔑</div>
+                <div><h4>X-API-Key</h4><p>Autenticação em todos os endpoints. Chave única por instalação.</p></div>
+            </div>
+            <div class="sec-item">
+                <div class="icon">🧱</div>
+                <div><h4>Firewall UFW</h4><p>Apenas SSH e portas essenciais abertas. O resto bloqueado.</p></div>
+            </div>
+            <div class="sec-item">
+                <div class="icon">🔒</div>
+                <div><h4>Isolamento de Loops</h4><p>Cada componente roda isolado. Um erro não derruba o sistema.</p></div>
+            </div>
+            <div class="sec-item">
+                <div class="icon">🛡️</div>
+                <div><h4>Security Pipeline</h4><p>Controle de acesso por ação, confirmação para ações destrutivas.</p></div>
+            </div>
+            <div class="sec-item">
+                <div class="icon">📝</div>
+                <div><h4>Audit Trail</h4><p>Log persistente de todas as ações executadas, com timestamp e contexto.</p></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- STACK -->
+<section class="stack" id="stack">
+    <div class="section-inner" style="text-align: center;">
+        <div class="section-label">Stack</div>
+        <div class="section-title">Tecnologias</div>
+        <p class="section-desc" style="margin: 0 auto 2rem;">
+            Construído com ferramentas maduras e testadas, escolhidas por confiabilidade e performance.
+        </p>
+        <div class="stack-grid">
+            <div class="stack-tag">Python 3.12</div>
+            <div class="stack-tag">Flutter / Dart</div>
+            <div class="stack-tag">PostgreSQL</div>
+            <div class="stack-tag">SQLite</div>
+            <div class="stack-tag">asyncio</div>
+            <div class="stack-tag">WebSocket</div>
+            <div class="stack-tag">REST API</div>
+            <div class="stack-tag">Telegram Bot</div>
+            <div class="stack-tag">MQTT</div>
+            <div class="stack-tag">Home Assistant</div>
+            <div class="stack-tag">Firebase FCM</div>
+            <div class="stack-tag">Tailscale</div>
+            <div class="stack-tag">systemd</div>
+            <div class="stack-tag">Prometheus</div>
+            <div class="stack-tag">Material 3</div>
+            <div class="stack-tag">llama.cpp</div>
+        </div>
+    </div>
+</section>
+
+<!-- DOWNLOAD -->
 <section class="download" id="download">
-    <h2>Baixe o App</h2>
-    <p>Converse com o OmegaDrakon de qualquer lugar via Tailscale</p>
-    <div class="download-card">
-        <div class="apk-icon">📱</div>
-        <div class="apk-name">OmegaDrakon.apk</div>
-        <div class="apk-size">v1.2.0 • ~18 MB • Android 7.0+</div>
-        <a href="/site/OmegaDrakon-arm64.apk" class="btn btn-primary" download>
-            ⬇️ Download APK (recomendado)
-        </a>
-        <div class="apk-req">
-            <a href="/site/OmegaDrakon.apk" download>Precisa de outra arquitetura? Baixar versão completa (~50 MB)</a><br><br>
-            Requisitos: Tailscale instalado no celular<br>
-            Configure a URL <code>http://100.77.67.53:8000</code> e sua API key
+    <div class="section-inner">
+        <div class="section-label">Download</div>
+        <div class="section-title">Comece agora</div>
+        <p class="section-desc" style="margin: 0 auto 2rem;">
+            Instale o app, configure a conexão e comece a conversar com o OmegaDrakon.
+        </p>
+        <div class="dl-card">
+            <div class="icon">📱</div>
+            <div class="name">OmegaDrakon APK</div>
+            <div class="version">v1.2.8 • ~18 MB • Android 7.0+</div>
+            <div class="dl-links">
+                <a href="/site/OmegaDrakon-arm64.apk" download class="btn btn-accent" style="justify-content: center;">⬇ Download (Arm64 — recomendado)</a>
+                <a href="/site/OmegaDrakon.apk" download>Download completa (~52 MB, todas as arquiteturas)</a>
+            </div>
         </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2rem;">
+            Configure a URL do servidor e sua API key nas Configurações do app.<br>
+            Acesse de qualquer lugar: <code style="color: var(--accent);">nicky.theworkpc.com</code>
+        </p>
     </div>
 </section>
 
-<!-- Footer -->
+<!-- FOOTER -->
 <footer>
-    <p>
-        🐉 OmegaDrakon v1.2.0 — Plataforma Soberana de IA Pessoal<br>
-        Interface Viva: Nicky Virthy • Arquiteto: Alex Projeti<br><br>
-        <a href="https://github.com/nickyvirthy-droid/OD">GitHub</a> •
-        <a href="#features">Funcionalidades</a> •
+    <div class="footer-links">
+        <a href="https://github.com/nickyvirthy-droid/OD">GitHub</a>
+        <a href="#visao">Visão</a>
+        <a href="#arquitetura">Arquitetura</a>
+        <a href="#pleiade">Plêiade</a>
+        <a href="#capacidades">Capacidades</a>
         <a href="#download">Download</a>
+    </div>
+    <p>
+        🐉 OmegaDrakon — Plataforma Soberana de IA Pessoal<br>
+        Interface Viva: Nicky Virthy • Arquiteto: Alex Projeti<br>
+        <span style="color: var(--border-light);">Tecnologia que respira.</span>
     </p>
 </footer>
 
