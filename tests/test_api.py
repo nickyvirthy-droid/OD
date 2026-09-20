@@ -117,13 +117,15 @@ class TestAPIRoutes:
         """17 endpoints do legado + /capabilities (v0.27.3) + /site* +
         /actions + /executa (v1.2.0 — app Android) + /push/* (push FCM) +
         /supervision (observabilidade dos loops, 2026-09-15)."""
-        assert len(ROUTES) == 27
+        assert len(ROUTES) == 31
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
             ("GET", "/profiles/{name}"), ("GET", "/presence/today"),
             ("GET", "/dashboard"), ("GET", "/chat"), ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
+            ("POST", "/auth/register"), ("POST", "/auth/login"),
+            ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/executa"),
@@ -148,6 +150,7 @@ class TestAPIRoutes:
             ("POST", "/push/test"), ("GET", "/push/devices"),
             ("GET", "/supervision"),
             ("POST", "/transcribe"), ("POST", "/tts"),
+            ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("DELETE", "/history/{user_id}"),
             ("GET", "/history/{user_id}/stats"),
             ("GET", "/memory/{user_id}/search"), ("GET", "/ws/chat"),
@@ -158,6 +161,7 @@ class TestAPIRoutes:
             ("GET", "/profiles/{name}"), ("GET", "/presence/today"),
             ("GET", "/dashboard"), ("GET", "/chat"), ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
+            ("POST", "/auth/register"), ("POST", "/auth/login"),
         }
 
 
@@ -228,8 +232,8 @@ class TestAPIPublicEndpoints:
         assert b"Omega Drakon" in body
         assert b"dashboard/stats" in body  # aponta para o endpoint com chave
         status, body, _ = _request(port, "GET", "/chat")
-        assert status == 200 and b"POST /message" in body
-        assert b"X-API-Key" in body  # gate de chave no próprio navegador
+        assert status == 200 and b"/auth/login" in body
+        assert b"localStorage" in body  # token salvo no navegador
 
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))

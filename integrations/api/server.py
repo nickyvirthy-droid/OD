@@ -85,7 +85,7 @@ DEFAULT_SITE_DIR = Path(__file__).resolve().parents[2] / "site"
 # continuam abertos para o navegador carregar a UI mesmo com auth_all.
 # /site* entra aqui para a landing + download do APK funcionarem no
 # celular (Tailscale) sem exigir X-API-Key no navegador.
-PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/site", "/site/{file}"})
+PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/site", "/site/{file}", "/auth/register", "/auth/login"})
 
 
 class APIError(Exception):
@@ -150,6 +150,7 @@ class APIConfig:
     site_dir: Optional[str] = None
     action_registry: Optional[Any] = None
     push: Optional[Any] = None
+    user_store: Optional[Any] = None  # integrations.api.auth.UserStore
 
     # Nota (SLOTS): campos novos entram aqui, como `push` (core/push.py) —
     # registro de dispositivos + envio FCM usados por /push/*.
@@ -171,6 +172,12 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/metrics", "metrics_text", False),
     ("GET", "/site", "site_index", False),
     ("GET", "/site/{file}", "site_file", False),
+    # Auth — sem auth (o handler valida internamente)
+    ("POST", "/auth/register", "auth_register", False),
+    ("POST", "/auth/login", "auth_login", False),
+    ("POST", "/auth/logout", "auth_logout", True),
+    ("GET", "/auth/me", "auth_me", True),
+    # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
     ("GET", "/capabilities", "capabilities", True),
@@ -311,8 +318,11 @@ _CHAT_PAGE_HTML = """<!doctype html>
     border: none; background: var(--accent); color: #000; cursor: pointer;
   }
   #gate button:hover { box-shadow: 0 0 20px var(--accent-glow); }
-  #err { color: #f85149; font-size: 0.82rem; min-height: 18px; }
+  #err, #err2, #err3 { color: #f85149; font-size: 0.82rem; min-height: 18px; }
   .hidden { display: none !important; }
+  .gate-switch { font-size: 0.82rem; color: var(--muted); margin-top: 0.5rem; }
+  .gate-switch a { color: var(--accent); text-decoration: none; }
+  .gate-switch a:hover { text-decoration: underline; }
   /* --- Welcome --- */
   .welcome { text-align: center; margin: auto; color: var(--muted); }
   .welcome .icon { font-size: 3rem; margin-bottom: 0.5rem; }
@@ -344,12 +354,34 @@ _CHAT_PAGE_HTML = """<!doctype html>
 </header>
 
 <div id="gate">
-  <h2>🔑 Entrar no Chat</h2>
-  <p>Informe sua API key (X-API-Key) para conversar com o OmegaDrakon via POST /message.
-     A chave fica apenas neste navegador (localStorage) e nunca é enviada pela URL.</p>
-  <input id="key" type="password" placeholder="Sua OD_API_KEY" autocomplete="off">
-  <div id="err"></div>
-  <button id="enter">Entrar</button>
+  <div id="gate-login">
+    <h2>🐉 Entrar no Chat</h2>
+    <p>Faça login para conversar com o OmegaDrakon.</p>
+    <input id="login-user" type="text" placeholder="Username" autocomplete="username">
+    <input id="login-pass" type="password" placeholder="Senha" autocomplete="current-password">
+    <div id="err"></div>
+    <button id="enter">Entrar</button>
+    <p class="gate-switch">Não tem conta? <a href="#" id="show-register">Registrar</a></p>
+    <p class="gate-switch" style="font-size:0.75rem;color:var(--muted);">Ou use sua API key: <a href="#" id="show-apikey">Modo avançado</a></p>
+  </div>
+  <div id="gate-register" class="hidden">
+    <h2>📝 Criar Conta</h2>
+    <p>Registre-se para começar a conversar.</p>
+    <input id="reg-user" type="text" placeholder="Username (mín. 3 caracteres)" autocomplete="username">
+    <input id="reg-email" type="email" placeholder="Email" autocomplete="email">
+    <input id="reg-pass" type="password" placeholder="Senha (mín. 6 caracteres)" autocomplete="new-password">
+    <div id="err2"></div>
+    <button id="register">Criar conta</button>
+    <p class="gate-switch">Já tem conta? <a href="#" id="show-login">Fazer login</a></p>
+  </div>
+  <div id="gate-apikey" class="hidden">
+    <h2>🔑 API Key</h2>
+    <p>Use sua API key para acessar diretamente.</p>
+    <input id="key" type="password" placeholder="Sua OD_API_KEY" autocomplete="off">
+    <div id="err3"></div>
+    <button id="enter-key">Entrar</button>
+    <p class="gate-switch"><a href="#" id="show-login2">← Voltar ao login</a></p>
+  </div>
 </div>
 
 <div id="chat" class="hidden">
@@ -369,6 +401,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
 <script>
 const $ = (id) => document.getElementById(id);
 const gate = $("gate"), chat = $("chat");
+let token = localStorage.getItem("od_session_token") || "";
 let key = localStorage.getItem("od_api_key") || "";
 let busy = false;
 let ws = null;
@@ -376,11 +409,20 @@ let wsReady = false;
 const user_id = "web";
 const WS_PORT = 8001;
 
-function applyKey() {
-  localStorage.setItem("od_api_key", key);
+// --- Gate switching ---
+function showGateView(view) {
+  $("gate-login").classList.toggle("hidden", view !== "login");
+  $("gate-register").classList.toggle("hidden", view !== "register");
+  $("gate-apikey").classList.toggle("hidden", view !== "apikey");
+  ["err","err2","err3"].forEach(id => $(id).textContent = "");
 }
-function showGate(msg) {
-  $("err").textContent = msg || "";
+$("show-register").onclick = (e) => { e.preventDefault(); showGateView("register"); };
+$("show-login").onclick = (e) => { e.preventDefault(); showGateView("login"); };
+$("show-login2").onclick = (e) => { e.preventDefault(); showGateView("login"); };
+$("show-apikey").onclick = (e) => { e.preventDefault(); showGateView("apikey"); };
+
+function showGate(msg, errId) {
+  if (msg) $(errId || "err").textContent = msg;
   gate.classList.remove("hidden");
   chat.classList.add("hidden");
 }
@@ -436,7 +478,8 @@ function tryConnectWs() {
   try {
     ws = new WebSocket(url);
     ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "auth", api_key: key, user_id: user_id }));
+      const wsKey = key || "";
+      ws.send(JSON.stringify({ type: "auth", api_key: wsKey, user_id: user_id }));
     };
     ws.onmessage = (ev) => {
       try {
@@ -494,12 +537,18 @@ function sendWs(text, profile) {
 }
 
 // --- REST fallback ---
+function authHeaders() {
+  const h = {"Content-Type": "application/json"};
+  if (token) h["Authorization"] = "Bearer " + token;
+  else if (key) h["X-API-Key"] = key;
+  return h;
+}
 async function sendRest(text, profile) {
   showTyping();
   const t0 = Date.now();
   const resp = await fetch("/message", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-API-Key": key },
+    headers: authHeaders(),
     body: JSON.stringify({ user_id, profile, text })
   });
   removeTyping();
@@ -534,17 +583,83 @@ async function send() {
   busy = false; $("send").disabled = false; $("text").focus();
 }
 
+// --- Login ---
 $("enter").onclick = async () => {
+  const user = $("login-user").value.trim();
+  const pass = $("login-pass").value.trim();
+  if (!user || !pass) { $("err").textContent = "Preencha username e senha."; return; }
+  try {
+    const resp = await fetch("/auth/login", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username: user, password: pass})
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) { $("err").textContent = data.error || "Falha no login."; return; }
+    token = data.token;
+    localStorage.setItem("od_session_token", token);
+    showChat();
+  } catch(e) { $("err").textContent = "Falha de rede."; }
+};
+// --- Registro ---
+$("register").onclick = async () => {
+  const user = $("reg-user").value.trim();
+  const email = $("reg-email").value.trim();
+  const pass = $("reg-pass").value.trim();
+  if (!user || !email || !pass) { $("err2").textContent = "Preencha todos os campos."; return; }
+  try {
+    const resp = await fetch("/auth/register", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username: user, email: email, password: pass})
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) { $("err2").textContent = data.error || "Falha no registro."; return; }
+    // Auto-login após registro
+    const loginResp = await fetch("/auth/login", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username: user, password: pass})
+    });
+    const loginData = await loginResp.json().catch(() => ({}));
+    if (loginData.ok && loginData.token) {
+      token = loginData.token;
+      localStorage.setItem("od_session_token", token);
+      showChat();
+    } else { showGate("Conta criada. Faça login.", "err"); showGateView("login"); }
+  } catch(e) { $("err2").textContent = "Falha de rede."; }
+};
+// --- API Key (modo avançado) ---
+$("enter-key").onclick = async () => {
   key = $("key").value.trim();
-  if (!key) { $("err").textContent = "Informe a chave."; return; }
+  if (!key) { $("err3").textContent = "Informe a chave."; return; }
   const probe = await fetch("/llms", { headers: { "X-API-Key": key } });
-  if (!probe.ok) { $("err").textContent = "Chave inválida (" + probe.status + ")."; return; }
-  applyKey(); showChat();
+  if (!probe.ok) { $("err3").textContent = "Chave inválida (" + probe.status + ")."; return; }
+  localStorage.setItem("od_api_key", key);
+  showChat();
 };
 $("send").onclick = send;
 $("text").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
-if (key) { applyKey(); showChat(); }
-else { showGate(""); $("key").focus(); }
+async function tryAutoLogin() {
+  // Tenta relogar com session token salvo
+  if (token) {
+    try {
+      const resp = await fetch("/auth/me", { headers: {"Authorization": "Bearer " + token} });
+      if (resp.ok) { showChat(); return; }
+    } catch(e) {}
+    token = ""; localStorage.removeItem("od_session_token");
+  }
+  // Tenta com API key salva
+  if (key) {
+    try {
+      const resp = await fetch("/llms", { headers: {"X-API-Key": key} });
+      if (resp.ok) { showChat(); return; }
+    } catch(e) {}
+    key = ""; localStorage.removeItem("od_api_key");
+  }
+  showGate("");
+}
+tryAutoLogin();
 </script>
 </body>
 </html>
@@ -589,6 +704,8 @@ class APIServer(ThreadingHTTPServer):
                 if self.orchestrator is not None else None
         # Push FCM (core/push.py) — None = endpoints respondem 503.
         self._push = self.config.push
+        # User auth (integrations/api/auth.py) — None = auth desabilitado
+        self._user_store = self.config.user_store
         self.started_at = time.time()
         self.requests_total = 0
         self.errors_total = 0
@@ -741,6 +858,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def _handle(self, method: str) -> None:
         self.api.count_request()
+        self._current_user = None  # preenchido pelo _check_api_key (sessão/API key de usuário)
+        self._auth_via = None  # 'session' | 'api_key' — de onde veio a credencial
         try:
             path = urlsplit(self.path).path
             route, match = self._match_route(method, path)
@@ -780,7 +899,13 @@ class APIHandler(BaseHTTPRequestHandler):
                     self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
-            if (route.auth or (self.api.config.auth_all and not page_shell)) \
+            # auth_all: chave exigida em TODOS os endpoints, exceto:
+            # - shells de página (GET /chat, /dashboard, /site) — HTML
+            #   estático sem dados, navegador não envia X-API-Key
+            # - endpoints de auth (POST /auth/register, /auth/login)
+            #   — o próprio fluxo de autenticação não pode exigir auth
+            auth_exempt = route.path in {"/auth/register", "/auth/login"}
+            if (route.auth or (self.api.config.auth_all and not page_shell and not auth_exempt)) \
                     and not self._check_api_key():
                 return
             handler = getattr(self, route.handler)
@@ -843,11 +968,46 @@ class APIHandler(BaseHTTPRequestHandler):
             return True
 
     def _check_api_key(self) -> bool:
-        """Header X-API-Key. Escreve 401 e retorna False quando negado."""
+        """Autentica por sessão (Bearer), API key de usuário ou API key do servidor.
+
+        Ordem de checagem:
+          1. Authorization: Bearer <session_token> — valida via UserStore;
+          2. X-API-Key de usuário (od_...) — valida via UserStore;
+          3. X-API-Key do servidor — compara com OD_API_KEY do .env.
+
+        Com UserStore configurada (auth de usuários ligada), uma credencial
+        válida passa a ser obrigatória: sem OD_API_KEY configurada, a request é
+        negada em vez de liberada — senão um token Bearer inválido cairia no
+        caminho "auth desligada" e passaria. A exceção continua sendo o dev
+        local explícito: sem auth_all e sem UserStore, tudo fica aberto.
+
+        Retorna False e escreve 401 quando negado.
+        """
+        store = self.api._user_store
+        # 1) Session token (chat web)
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+            if token and store is not None:
+                user = store.validate_session(token)
+                if user is not None:
+                    self._current_user = user
+                    self._auth_via = "session"
+                    return True
+            # Token inválido ou sem UserStore — cai para checagem de API key
+
+        provided = self.headers.get("X-API-Key", "")
+        # 2) API key de usuário (registro/login web) — só quando há UserStore
+        if provided and store is not None:
+            user = store.login_with_api_key(provided)
+            if user is not None:
+                self._current_user = user
+                self._auth_via = "api_key"
+                return True
+
+        # 3) API key do servidor (legado / app mobile)
         expected = self.api.config.api_key
         if not expected:
-            # auth_all sem chave configurada = nega tudo (força o operador
-            # a definir OD_API_KEY antes de expor na LAN)
             if self.api.config.auth_all:
                 log.error(
                     "auth_all=True sem api_key — todas as requests negadas; "
@@ -859,13 +1019,20 @@ class APIHandler(BaseHTTPRequestHandler):
                      "hint": "servidor sem chave configurada (auth_all)"},
                 )
                 return False
+            if store is not None:
+                # Auth de usuários ligada sem OD_API_KEY: exige credencial
+                self._json(
+                    401,
+                    {"ok": False, "error": "unauthorized",
+                     "hint": "envie X-API-Key ou faça login"},
+                )
+                return False
             return True  # auth desligada (uso local/dev explícito)
-        provided = self.headers.get("X-API-Key", "")
         if not provided or not hmac.compare_digest(provided, expected):
             self._json(
                 401,
                 {"ok": False, "error": "unauthorized",
-                 "hint": "envie X-API-Key"},
+                 "hint": "envie X-API-Key ou faça login"},
             )
             return False
         return True
@@ -1347,6 +1514,100 @@ class APIHandler(BaseHTTPRequestHandler):
         """GET /push/devices — estado do push (tokens mascarados, nunca inteiros)."""
         push = self._push_service()
         self._json(200, {"ok": True, **push.status()})
+
+    # -- Auth (registro, login, sessão) ------------------------------------
+
+    def auth_register(self) -> None:
+        """POST /auth/register — registra um novo usuário.
+
+        Body: {"username": ..., "email": ..., "password": ...}
+        Retorna o usuário (sem password_hash) e a API key.
+        """
+        if self.api._user_store is None:
+            raise APIError(503, "auth não configurado")
+        data = self._read_json()
+        username = (data.get("username") or "").strip()
+        email = (data.get("email") or "").strip()
+        password = (data.get("password") or "").strip()
+        if not username or not email or not password:
+            raise APIError(400, "username, email e password são obrigatórios")
+        try:
+            from integrations.api.auth import AuthError
+            user = self.api._user_store.register(username, email, password)
+        except AuthError as exc:
+            raise APIError(exc.status, str(exc))
+        self._json(201, {
+            "ok": True,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "api_key": user.api_key,
+            },
+        })
+
+    def auth_login(self) -> None:
+        """POST /auth/login — autentica e retorna session token.
+
+        Body: {"username": ..., "password": ...}
+        Retorna {token, user} — o chat web salva o token em localStorage.
+        """
+        if self.api._user_store is None:
+            raise APIError(503, "auth não configurado")
+        data = self._read_json()
+        username = (data.get("username") or "").strip()
+        password = (data.get("password") or "").strip()
+        if not username or not password:
+            raise APIError(400, "username e password são obrigatórios")
+        try:
+            from integrations.api.auth import AuthError
+            token = self.api._user_store.login(username, password)
+        except AuthError as exc:
+            raise APIError(exc.status, str(exc))
+        user = self.api._user_store.validate_session(token)
+        self._json(200, {
+            "ok": True,
+            "token": token,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+            } if user else None,
+        })
+
+    def auth_logout(self) -> None:
+        """POST /auth/logout — encerra a sessão atual.
+
+        Requer Authorization: Bearer <token>.
+        """
+        if self.api._user_store is None:
+            raise APIError(503, "auth não configurado")
+        auth_header = self.headers.get("Authorization", "")
+        token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
+        if not token:
+            raise APIError(400, "token não fornecido")
+        self.api._user_store.logout(token)
+        self._json(200, {"ok": True})
+
+    def auth_me(self) -> None:
+        """GET /auth/me — retorna o usuário logado (session token ou API key).
+
+        Requer Authorization: Bearer <token> ou X-API-Key.
+        """
+        if self.api._user_store is None:
+            raise APIError(503, "auth não configurado")
+        # Se _current_user foi preenchido pelo middleware de sessão
+        # _check_api_key já resolveu a credencial (sessão OU API key de usuário)
+        # antes do handler — aqui só resta reportar quem é o usuário.
+        if self._current_user is not None:
+            u = self._current_user
+            self._json(200, {
+                "ok": True,
+                "user": {"id": u.id, "username": u.username, "email": u.email},
+                "via": self._auth_via or "session",
+            })
+            return
+        raise APIError(401, "não autenticado")
 
     def supervision(self) -> None:
         """GET /supervision — estado dos loops do núcleo (quedas e reinícios).

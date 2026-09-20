@@ -290,6 +290,46 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
+### Adicionado (2026-09-19/20) — autenticação de usuários no chat web 🔐
+
+- **`integrations/api/auth.py` (novo)** — `UserStore` sobre a Database Layer:
+  registro (validação de username/email/senha), login e sessões com token
+  UUID4 e expiração configurável, API keys de usuário (`od_` + 40 hex),
+  rotação de chave e limpeza de sessões expiradas. Hash de senha em
+  **PBKDF2-SHA256** (260k iterações) com salt aleatório — stdlib, sem bcrypt.
+- **Rotas `/auth/*`** — `POST /auth/register`, `POST /auth/login` (públicas:
+  o próprio fluxo de autenticação não pode exigir auth), `POST /auth/logout`
+  e `GET /auth/me` (protegidas). O chat web (`GET /chat`) trocou o gate de
+  API key por **login/registro**, com o modo `X-API-Key` preservado como
+  "avançado"; a sessão é enviada em `Authorization: Bearer` e persistida em
+  `localStorage`.
+- **`runtime/launcher.py`** — `build_api_server`/`_run_api_forever` recebem a
+  `Database` e montam o `UserStore`; `OD_AUTH_ENABLED=0` desliga.
+- **Corrigido no caminho — bypass de auth:** com a auth de usuários ligada
+  mas **sem** `OD_API_KEY`, um `Bearer` inválido caía no caminho "auth
+  desligada" de `_check_api_key` e **passava**. Agora, com `UserStore`
+  configurada, credencial válida é obrigatória (o dev local sem `UserStore`
+  segue aberto). O mesmo ajuste fez o gate aceitar **API key de usuário**
+  (antes só `OD_API_KEY` do `.env`), alinhando o comportamento ao que o
+  `GET /auth/me` já documentava.
+- **Testes:** `tests/test_auth.py` (**novo, 45 testes**) — hash/salt e senha
+  nunca em claro, validação e unicidade do registro, login/sessão/expiração/
+  logout, API keys, e os endpoints `/auth/*` por HTTP real, incluindo o
+  caminho do chat (`login → Bearer → POST /message`). A feature havia subido
+  em produção (2026-09-19) **sem cobertura dedicada** e com uma rota
+  protegida não refletida em `test_api.py` (`test_auth_flags_follow_legacy`
+  falhava) — ambos corrigidos.
+- **Teste do teste (5 mutações, todas revertidas):** remover o bloqueio do
+  bypass → 1 falha; remover o caminho de API key de usuário no gate → 2;
+  `_verify_password` sempre aceita → 3; `validate_session` ignorar a
+  expiração → 1; `register` sem checar duplicata → 3.
+- **Sandbox (antes do sistema real):** `sandbox_agent/auth_sandbox.py` (pasta
+  ignorada pelo git) sobre um `APIServer` real com SQLite de arquivo →
+  **16/16 OK**: register/login/Bearer, `/auth/me` por sessão e por API key de
+  usuário, `POST /message` autenticado pela sessão, casos negativos (token
+  inválido, sem credencial, chave errada → 401) e o cenário do bypass.
+- **Suíte:** **1800 passed, 16 skipped** (39,49s).
+
 ### Adicionado (2026-09-18) — streaming do chat por WebSocket 🌊
 
 - **Novo `integrations/api/ws_server.py`** — servidor WebSocket

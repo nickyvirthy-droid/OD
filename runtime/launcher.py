@@ -189,7 +189,7 @@ def build_push() -> Any:
 
 def build_api_server(
     orchestrator: Any, metrics: Any = None, health: Any = None,
-    action_registry: Any = None, push: Any = None,
+    action_registry: Any = None, push: Any = None, database: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -197,6 +197,17 @@ def build_api_server(
     api_key = env("OD_API_KEY", "")
     host = env("OD_API_HOST", "0.0.0.0")  # LAN (site 192.168.0.250:8000)
     port = int(env("OD_API_PORT", "8000"))
+
+    # UserStore (auth de usuários) — habilitado quando há database
+    user_store = None
+    if database is not None and env("OD_AUTH_ENABLED", "1") != "0":
+        try:
+            from integrations.api.auth import UserStore
+            user_store = UserStore(database)
+            log.info("Auth de usuários habilitado")
+        except Exception as exc:
+            log.warn("Auth desabilitado", error=str(exc))
+
     # auth_all: bind exposto na LAN exige X-API-Key em TODOS os endpoints
     server = APIServer(
         orchestrator,
@@ -209,6 +220,7 @@ def build_api_server(
             health=health,  # Fase 7.3: /health responde o agregado
             action_registry=action_registry,  # v1.2.0: /executa + /actions
             push=push,  # v1.3.0: /push/* (app Android)
+            user_store=user_store,  # auth de usuários (registro/login/sessão)
         ),
     )
     return server
@@ -676,11 +688,11 @@ def build_mqtt_bridge(event_bus: Any):
 
 async def _run_api_forever(
     orchestrator: Any, metrics: Any = None, health: Any = None,
-    action_registry: Any = None, push: Any = None,
+    action_registry: Any = None, push: Any = None, database: Any = None,
 ) -> None:
     server = build_api_server(
         orchestrator, metrics=metrics, health=health,
-        action_registry=action_registry, push=push,
+        action_registry=action_registry, push=push, database=database,
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
@@ -1064,7 +1076,7 @@ def main() -> int:
         tasks = [
             _supervise("api", lambda: _run_api_forever(
                 orchestrator, metrics, health,
-                action_registry=action_registry, push=push,
+                action_registry=action_registry, push=push, database=database,
             ), restart=False),
             _supervise("telegram", lambda: _run_telegram_forever(
                 orchestrator,
