@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-19T10:55:00-03:00",
+  "updated_at": "2026-09-20T00:00:00-03:00",
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -42,16 +42,48 @@
       "apk 1.2.8 publicado"
     ]
   },
+  "estado_2026_09_19_nao_registrado": {
+    "nota": "Sessão de 09-19 reconstruída por evidência (git + systemd). NÃO havia transcrição nem checkpoint para este trecho até agora.",
+    "commits_09_19": [
+      "22eae1c 11:02 feat(app+api): v1.2.8 — SafeArea, URLs Tailscale/externa, redirect /->/site",
+      "e0b0222 11:07 feat(site): site profissional do OmegaDrakon",
+      "587012b 11:17 feat(chat): chat web com streaming WebSocket e design profissional"
+    ],
+    "auth_usuarios": {
+      "status": "IMPLANTADO EM PRODUÇÃO mas NÃO COMMITADO e SEM TESTE DEDICADO",
+      "deploy": "od-core restart 2026-09-19 11:39:02 (PID 543923) — journal: 'Auth de usuários habilitado'; /auth/login responde 400 (existe); /chat contém auth/login; usuário 'alex' (user_id=1) registrado 11:39:05",
+      "arquivos": {
+        "novo_untracked": "integrations/api/auth.py (UserStore: register/login/sessions PBKDF2-SHA256, API keys)",
+        "modificados": ["integrations/api/server.py (+295) rotas /auth/*, middleware Bearer, gate do chat web", "runtime/launcher.py (+20) passa database -> UserStore (OD_AUTH_ENABLED)", "tests/test_api.py (+9/-... ) só ajusta contagem de ROUTES"]
+      },
+      "lacuna": "nenhum teste cobre registro/login/sessão/Bearer — só a contagem de rotas em test_api.py"
+    },
+    "git": "origin/master == HEAD (587012b); working tree sujo (3 M + 1 ??)",
+    "acesso_externo_08_19": "rest: http://nicky.theworkpc.com (80->8000); websocket :8001 escutando no PID 543923"
+  },
+  "auth_testado_2026_09_20": {
+    "commit": "4337d02 — feat(api): autentica usuários no chat web (registro, login, sessão) — 6 arquivos +1289/-32",
+    "cobertura": "tests/test_auth.py (novo, 45 testes); suíte 1800 passed, 16 skipped",
+    "bugs_corrigidos": [
+      "bypass: UserStore ligada SEM OD_API_KEY aceitava Bearer inválido (caía no caminho 'auth desligada')",
+      "API key de usuário não autenticava no gate _check_api_key (só OD_API_KEY do .env)",
+      "tests/test_api.py::test_auth_flags_follow_legacy não listava /auth/logout e /auth/me (suíte quebrada pela feature)"
+    ],
+    "teste_do_teste": "5 mutações, todas detectadas e revertidas",
+    "sandbox": "sandbox_agent/auth_sandbox.py → 16/16 OK",
+    "deploy": "NÃO implantado — od-core segue no PID 543923 (11:39, antes do fix do bypass). Restart aguarda autorização. No cenário real OD_API_KEY está definida, então o bypass não estava exposto."
+  },
   "last_turn": {
-    "date": "2026-09-19",
-    "action": "APK 1.2.8 gerado com SafeArea + URLs Tailscale/externa. Usuário pendente de instalar no Redmi Note 14.",
-    "next": "aguardando: (1) port forwarding 8001 no roteador, (2) instalar APK 1.2.8 no celular"
+    "date": "2026-09-20",
+    "action": "Usuário pediu 'leia iniciar'. Reconstruído por evidência que a feature de auth subiu em 09-19 11:39 sem commit/teste. Usuário escolheu 'testar e travar': escritos 45 testes (tests/test_auth.py), corrigido bypass de auth + API key de usuário no gate + teste quebrado em test_api.py, validado em sandbox (16/16) e commitado em 4337d02.",
+    "next": "aguardando: (1) autorização para restart do od-core (levar o fix do bypass), (2) port forwarding 8001 no roteador, (3) instalar APK 1.2.8 no Redmi Note 14."
   },
   "decisions": [
     {"topic": "versão do app", "decision": "1.2.8 (não 1.2.0+8) — mudanças significativas desde a 1.2.0 justificam bump de versão"},
     {"topic": "URLs do app", "decision": "OdApi com fallbackUrl: Tailscale primário, nicky.theworkpc.com externo. Autodetecta qual funciona."},
     {"topic": "domínio externo", "decision": "nicky.theworkpc.com (Dynu DDNS, IP 189.124.4.56, porta 80→8000)"},
-    {"topic": "status bar fix", "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"}
+    {"topic": "status bar fix", "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"},
+    {"topic": "auth de usuários (09-19)", "decision": "Chat web passa a exigir login (UserStore próprio, PBKDF2-SHA256, sessão UUID + Bearer), mantendo X-API-Key como modo legado/avançado. Registrado retroativamente em 09-20 após achado de que subiu sem commit/teste."}
   ],
-  "transcripts": ["iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
+  "transcripts": ["iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
 }
