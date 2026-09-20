@@ -406,7 +406,9 @@ let key = localStorage.getItem("od_api_key") || "";
 let busy = false;
 let ws = null;
 let wsReady = false;
-const user_id = "web";
+// Identidade enviada ao servidor. Com sessão, o servidor usa o usuário
+// autenticado de qualquer forma; este valor só importa no modo API key (WS).
+let user_id = "web";
 const WS_PORT = 8001;
 
 // --- Gate switching ---
@@ -597,6 +599,7 @@ $("enter").onclick = async () => {
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok || !data.ok) { $("err").textContent = data.error || "Falha no login."; return; }
     token = data.token;
+    if (data.user && data.user.username) { user_id = data.user.username; }
     localStorage.setItem("od_session_token", token);
     showChat();
   } catch(e) { $("err").textContent = "Falha de rede."; }
@@ -624,6 +627,7 @@ $("register").onclick = async () => {
     const loginData = await loginResp.json().catch(() => ({}));
     if (loginData.ok && loginData.token) {
       token = loginData.token;
+      if (loginData.user && loginData.user.username) { user_id = loginData.user.username; }
       localStorage.setItem("od_session_token", token);
       showChat();
     } else { showGate("Conta criada. Faça login.", "err"); showGateView("login"); }
@@ -645,7 +649,11 @@ async function tryAutoLogin() {
   if (token) {
     try {
       const resp = await fetch("/auth/me", { headers: {"Authorization": "Bearer " + token} });
-      if (resp.ok) { showChat(); return; }
+      if (resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        if (data.user && data.user.username) { user_id = data.user.username; }
+        showChat(); return;
+      }
     } catch(e) {}
     token = ""; localStorage.removeItem("od_session_token");
   }
@@ -1371,9 +1379,20 @@ class APIHandler(BaseHTTPRequestHandler):
         # "text" e user_id implícito "app" quando ausente (o app não tem
         # login por usuário; a API key já autentica o dispositivo).
         text = str(data.get("text") or data.get("message") or "").strip()
-        user_id = str(data.get("user_id") or ("app" if data.get("message") else "")).strip()
-        if not user_id:
-            raise APIError(400, "user_id_obrigatorio")
+        # Identidade: quando a credencial é de usuário (sessão Bearer ou API key
+        # od_...), o servidor usa o usuário AUTENTICADO e ignora o user_id do
+        # corpo — antes o chat web mandava sempre "web", o que fazia contas
+        # diferentes dividirem o mesmo balde de histórico/cache e permitia
+        # postar como qualquer nome. Sem credencial de usuário (OD_API_KEY
+        # legado/app), segue valendo o user_id do corpo.
+        if self._current_user is not None:
+            user_id = self._current_user.username
+        else:
+            user_id = str(
+                data.get("user_id") or ("app" if data.get("message") else "")
+            ).strip()
+            if not user_id:
+                raise APIError(400, "user_id_obrigatorio")
         if not text:
             raise APIError(400, "text_obrigatorio")
         profile = str(data.get("profile") or DEFAULT_PROFILE).strip()

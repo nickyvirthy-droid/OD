@@ -567,6 +567,64 @@ class TestAuthGate:
         assert status == 200 and data["ok"] is True
         assert data["route"] == "llm" and data["message"] == "resposta-od"
 
+    def test_chat_page_derives_user_id_from_login(
+        self, serve, tmp_path, store
+    ) -> None:
+        """O chat web passa a mandar o username logado (não mais \"web\")."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        status, body, _ = _request(srv.bound_port, "GET", "/chat")
+        assert status == 200
+        assert b"user_id = data.user.username" in body
+        assert b'let user_id = "web"' in body
+
+    def test_message_identity_comes_from_session(
+        self, serve, tmp_path, store
+    ) -> None:
+        """A sessão manda: o user_id do corpo é ignorado."""
+        srv = serve(
+            make_orch(tmp_path), config=self._cfg(store, api_key="segredo123")
+        )
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/message", bearer=token,
+            body={"user_id": "outro", "profile": "auto", "text": "quem sou eu"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["user_id"] == "alex"
+        history = srv.orchestrator.history
+        assert history is not None
+        assert history.get_history("alex", data["profile"])
+        assert not history.get_history("outro", data["profile"])
+
+    def test_message_identity_comes_from_user_api_key(
+        self, serve, tmp_path, store
+    ) -> None:
+        srv = serve(
+            make_orch(tmp_path), config=self._cfg(store, api_key="segredo123")
+        )
+        user = store.register("alex", "alex@example.com", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/message", api_key=user.api_key,
+            body={"user_id": "outro", "profile": "auto", "text": "quem sou eu 2"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["user_id"] == "alex"
+
+    def test_message_legacy_server_key_keeps_client_user_id(
+        self, serve, tmp_path, store
+    ) -> None:
+        """OD_API_KEY (app/bot) não tem usuário — mantém o user_id do corpo."""
+        srv = serve(
+            make_orch(tmp_path), config=self._cfg(store, api_key="segredo123")
+        )
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/message", api_key="segredo123",
+            body={"user_id": "app", "profile": "auto", "text": "legado"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["user_id"] == "app"
+
     def test_auth_endpoints_exempt_under_auth_all(
         self, serve, tmp_path, store
     ) -> None:
