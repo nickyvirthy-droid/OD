@@ -92,9 +92,30 @@ Usuário escolheu: **"Testar e travar a feature"** (cobertura + sandbox + commit
   `OD_API_KEY` está definida, então o bypass não estava exposto — o fix é
   defesa em profundidade.
 
+---
+
+## Rodada — deploy do fix do auth
+
+Usuário: "Autorize o restart do od-core para levar o fix do bypass de auth".
+
+- `systemctl --user restart od-core` → **13:50:09**, PID **659601**,
+  `NRestarts=0`, `:8000` e `:8001` escutando; journal com **0**
+  `Traceback`/`ERROR`.
+- `/health` exige a chave (`OD_API_AUTH_ALL` tem default `1` no launcher —
+  comportamento **pré-existente**, não do fix): com a chave → `ok=true`,
+  **9 checks up**.
+- **Prova viva** (bug do gate + fix):
+  - `GET /llms` com **API key do usuário 'alex'** → **200** (no código antigo
+    seria 401 — o gate só aceitava `OD_API_KEY`);
+  - `GET /auth/me` com a mesma API key → `200`, `via=api_key`;
+  - `POST /auth/login` com usuário inexistente → 401;
+  - `GET /llms` com Bearer falso → 401.
+- Obs.: a chave do usuário foi lida do Postgres de produção (`OD_DB_URL`),
+  sem imprimir o segredo; o segredo não aparece em log nem em commit.
+
 ### Pendências
 
-- Restart do `od-core` para levar o fix do bypass (autorização).
 - Port forwarding 8001 no roteador e instalação do APK 1.2.8 no Redmi Note 14.
+- Opcional: publicar os commits locais (`origin/master` está atrás).
 - Decidir se `/message` deve registrar o `user_id` derivado da sessão em vez
   do que o cliente manda (hoje o cliente manda `user_id: "web"`).

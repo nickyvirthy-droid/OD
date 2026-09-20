@@ -71,12 +71,12 @@
     ],
     "teste_do_teste": "5 mutações, todas detectadas e revertidas",
     "sandbox": "sandbox_agent/auth_sandbox.py → 16/16 OK",
-    "deploy": "NÃO implantado — od-core segue no PID 543923 (11:39, antes do fix do bypass). Restart aguarda autorização. No cenário real OD_API_KEY está definida, então o bypass não estava exposto."
+    "deploy": "IMPLANTADO — restart autorizado em 2026-09-20 13:50:09 (PID 659601, NRestarts=0). :8000 e :8001 escutando; journal com 0 Traceback/ERROR. Prova viva: GET /llms e GET /auth/me com API key do usuário 'alex' → 200 (via=api_key); Bearer falso → 401; login de usuário inexistente → 401. /health exige a chave porque OD_API_AUTH_ALL tem default 1 (pré-existente): com a chave → ok=true, 9 checks up."
   },
   "last_turn": {
     "date": "2026-09-20",
     "action": "Usuário pediu 'leia iniciar'. Reconstruído por evidência que a feature de auth subiu em 09-19 11:39 sem commit/teste. Usuário escolheu 'testar e travar': escritos 45 testes (tests/test_auth.py), corrigido bypass de auth + API key de usuário no gate + teste quebrado em test_api.py, validado em sandbox (16/16) e commitado em 4337d02.",
-    "next": "aguardando: (1) autorização para restart do od-core (levar o fix do bypass), (2) port forwarding 8001 no roteador, (3) instalar APK 1.2.8 no Redmi Note 14."
+    "next": "restart do od-core feito (13:50:09, PID 659601) e fix do auth no ar com prova viva. Pendências: (1) port forwarding 8001 no roteador, (2) instalar APK 1.2.8 no Redmi Note 14, (3) opcional — publicar os commits locais no origin."
   },
   "decisions": [
     {"topic": "versão do app", "decision": "1.2.8 (não 1.2.0+8) — mudanças significativas desde a 1.2.0 justificam bump de versão"},
