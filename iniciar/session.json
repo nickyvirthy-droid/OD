@@ -73,10 +73,16 @@
     "sandbox": "sandbox_agent/auth_sandbox.py → 16/16 OK",
     "deploy": "IMPLANTADO — restart autorizado em 2026-09-20 13:50:09 (PID 659601, NRestarts=0). :8000 e :8001 escutando; journal com 0 Traceback/ERROR. Prova viva: GET /llms e GET /auth/me com API key do usuário 'alex' → 200 (via=api_key); Bearer falso → 401; login de usuário inexistente → 401. /health exige a chave porque OD_API_AUTH_ALL tem default 1 (pré-existente): com a chave → ok=true, 9 checks up."
   },
+  "identidade_sessao_2026_09_20": {
+    "commit": "9bdc5ea — feat(api): /message usa o usuário da sessão e ignora o user_id do corpo (3 arquivos +94/-9)",
+    "regra": "Com sessão Bearer ou API key de usuário, POST /message usa self._current_user.username e ignora o user_id do corpo. OD_API_KEY legado/app segue usando o user_id do corpo.",
+    "cobertura": "tests/test_auth.py agora 48 testes; suíte 1804 passed, 16 skipped; 2 mutações (override removido e chat web com 'web' fixo) detectadas; sandbox 18/18 OK",
+    "deploy": "PENDENTE — od-core segue no PID 659601 (código do commit 4337d02, sem o override de identidade). Restart aguarda autorização."
+  },
   "last_turn": {
     "date": "2026-09-20",
     "action": "Usuário pediu 'leia iniciar'. Reconstruído por evidência que a feature de auth subiu em 09-19 11:39 sem commit/teste. Usuário escolheu 'testar e travar': escritos 45 testes (tests/test_auth.py), corrigido bypass de auth + API key de usuário no gate + teste quebrado em test_api.py, validado em sandbox (16/16) e commitado em 4337d02.",
-    "next": "restart do od-core feito (13:50:09, PID 659601) e fix do auth no ar com prova viva. Pendências: (1) port forwarding 8001 no roteador, (2) instalar APK 1.2.8 no Redmi Note 14, (3) opcional — publicar os commits locais no origin."
+    "next": "identidade da sessão implementada e commitada (9bdc5ea) — aguardando autorização para restart do od-core levar ao ar. Pendências: (1) port forwarding 8001 no roteador, (2) instalar APK 1.2.8 no Redmi Note 14, (3) opcional — publicar os commits no origin."
   },
   "decisions": [
     {"topic": "versão do app", "decision": "1.2.8 (não 1.2.0+8) — mudanças significativas desde a 1.2.0 justificam bump de versão"},

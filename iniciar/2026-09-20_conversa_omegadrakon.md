@@ -113,9 +113,42 @@ Usuário: "Autorize o restart do od-core para levar o fix do bypass de auth".
 - Obs.: a chave do usuário foi lida do Postgres de produção (`OD_DB_URL`),
   sem imprimir o segredo; o segredo não aparece em log nem em commit.
 
+---
+
+## Rodada — identidade da sessão em POST /message
+
+Usuário: "Faça o chat web usar o user_id da sessão autenticada em vez do que o
+cliente envia".
+
+Problema: o chat web mandava `user_id = "web"` fixo; contas diferentes
+compartilhavam o mesmo balde de histórico/cache e dava para postar como
+qualquer nome.
+
+Implementação:
+
+- `server.py::message` — quando há credencial de usuário (`_current_user`
+  setado por sessão Bearer ou API key `od_...`), o `user_id` passa a ser
+  `self._current_user.username` e o do corpo é **ignorado**. Sem `UserStore`
+  (OD_API_KEY legado/app), mantém o `user_id` do corpo — comportamento antigo.
+- Chat web (`_CHAT_PAGE_HTML`) — `user_id` deixou de ser `const "web"`;
+  agora é preenchido com o `username` retornado por `/auth/login`, pelo
+  auto-login do registro e pelo `/auth/me` no `tryAutoLogin`.
+
+Testes:
+
+- +3 em `tests/test_auth.py` (session, API key de usuário, e OD_API_KEY
+  mantendo o corpo) + 1 pino do fio JS do chat (`user_id = data.user.username`).
+- Teste do teste: M6 (servidor volta ao `user_id` do corpo) → 2 falhas;
+  M7 (chat web volta ao "web" fixo) → 1 falha. Revertidas.
+- Sandbox `sandbox_agent/auth_sandbox.py` atualizado: **18/18 OK**, log
+  confirma `Message processed | user=alex` e `user=app` no caminho legado.
+- Suíte: **1804 passed, 16 skipped**.
+
+Commit: `9bdc5ea` (3 arquivos, +94/-9). **Não implantado** — o `od-core`
+segue no PID 659601 com o código anterior; restart aguarda autorização.
+
 ### Pendências
 
+- Restart do `od-core` para levar a identidade da sessão ao ar (autorização).
 - Port forwarding 8001 no roteador e instalação do APK 1.2.8 no Redmi Note 14.
 - Opcional: publicar os commits locais (`origin/master` está atrás).
-- Decidir se `/message` deve registrar o `user_id` derivado da sessão em vez
-  do que o cliente manda (hoje o cliente manda `user_id: "web"`).
