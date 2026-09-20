@@ -82,7 +82,7 @@
   "last_turn": {
     "date": "2026-09-20",
     "action": "Usuário pediu 'leia iniciar'. Reconstruído por evidência que a feature de auth subiu em 09-19 11:39 sem commit/teste. Usuário escolheu 'testar e travar': escritos 45 testes (tests/test_auth.py), corrigido bypass de auth + API key de usuário no gate + teste quebrado em test_api.py, validado em sandbox (16/16) e commitado em 4337d02.",
-    "next": "identidade da sessão implantada (restart 14:01:48, PID 662233) com prova viva. Pendências: (1) port forwarding 8001 no roteador, (2) instalar APK 1.2.8 no Redmi Note 14, (3) opcional — publicar os commits no origin."
+    "next": "tudo implantado e publicado: origin/master == HEAD (push 587012b..52a3f2d, 6 commits). Pendências: (1) port forwarding 8001 no roteador, (2) instalar APK 1.2.8 no Redmi Note 14."
   },
   "decisions": [
     {"topic": "versão do app", "decision": "1.2.8 (não 1.2.0+8) — mudanças significativas desde a 1.2.0 justificam bump de versão"},

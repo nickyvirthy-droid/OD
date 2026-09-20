@@ -158,7 +158,16 @@ O corpo foi ignorado e a credencial mandou — override no ar.
 Observação: isso gravou **1 interação** (o texto de prova) no histórico de
 `alex`; não há como apagar uma única entrada sem apagar o histórico inteiro.
 
+### Publicação
+
+Autorizada. Antes do push: `git fetch` → **0 atrás / 6 à frente** (fast-forward)
+e varredura de segredo no diff (`git diff origin/master..HEAD`) sem credencial
+real — só nomes de variável, o literal de teste `senha123` e o IP
+`189.124.4.56` (já versionado antes). `git push origin master` →
+**`587012b..52a3f2d`**. Depois: `rev-list --left-right --count
+origin/master...HEAD` → **`0 0`** e working tree limpo.
+
 ### Pendências
 
 - Port forwarding 8001 no roteador e instalação do APK 1.2.8 no Redmi Note 14.
-- Opcional: publicar os commits locais (`origin/master` está atrás).
+
