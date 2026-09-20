@@ -144,11 +144,21 @@ Testes:
   confirma `Message processed | user=alex` e `user=app` no caminho legado.
 - Suíte: **1804 passed, 16 skipped**.
 
-Commit: `9bdc5ea` (3 arquivos, +94/-9). **Não implantado** — o `od-core`
-segue no PID 659601 com o código anterior; restart aguarda autorização.
+Commit: `9bdc5ea` (3 arquivos, +94/-9).
+
+### Deploy da identidade
+
+Autorizado. `systemctl --user restart od-core` → **14:01:48**, PID **662233**,
+`NRestarts=0`; `:8000`/`:8001` escutando; journal **0** `Traceback`/`ERROR`.
+
+Prova viva: `POST /message` com a API key de `alex` e corpo
+`user_id: "deploy-check-3"` → resposta `user_id=alex`, `route=llm`,
+`profile=guardian`; journal `Message processed | user=alex | llm=gemma-local`.
+O corpo foi ignorado e a credencial mandou — override no ar.
+Observação: isso gravou **1 interação** (o texto de prova) no histórico de
+`alex`; não há como apagar uma única entrada sem apagar o histórico inteiro.
 
 ### Pendências
 
-- Restart do `od-core` para levar a identidade da sessão ao ar (autorização).
 - Port forwarding 8001 no roteador e instalação do APK 1.2.8 no Redmi Note 14.
 - Opcional: publicar os commits locais (`origin/master` está atrás).
