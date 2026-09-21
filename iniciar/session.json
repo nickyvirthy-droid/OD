@@ -1,7 +1,31 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-20T00:00:00-03:00",
+  "updated_at": "2026-09-21T00:00:00-03:00",
+  "dono_historico_2026_09_21": {
+    "pedido": "Usuário: 'Adicione checagem de dono em /history e /memory (usuário só acessa o próprio histórico; OD_API_KEY como admin)'.",
+    "implementacao": "integrations/api/server.py: novo APIHandler._check_owner(user_id) — credencial de usuário (Bearer ou API key od_...) só acessa o próprio username (403 acesso_negado + log de aviso); _current_user None (OD_API_KEY do servidor / dev sem UserStore) segue como admin. Aplicado em history_delete, history_stats e memory_search (este ANTES do 501 do VectorStore).",
+    "testes": "tests/test_auth.py — nova classe TestHistoryOwnership (+11 testes, total 70 no arquivo); fixture `serve` passou a aceitar `vector=`.",
+    "teste_do_teste": "5 mutações, todas detectadas e revertidas — sempre-libera (5 falhas), só Bearer (1), case-sensitive (1), delete sem checagem (1), /memory checando após o 501 (2).",
+    "sandbox": "sandbox_agent/auth_sandbox.py — terceiro cenário (alex/bia + histórico real): 27/27 OK (era 18).",
+    "suite": "1825 passed, 16 skipped. (1 falha isolada em test_mqtt.py::test_start_stop_thread no 1º run — flaky de timing no assert `not bridge.is_connected`; passa isolado, no arquivo repetido 3x e no run completo seguinte.)",
+    "arquivos": ["integrations/api/server.py", "tests/test_auth.py", "sandbox_agent/auth_sandbox.py (gitignored)", "docs/CHANGELOG.md"],
+    "status": "IMPLANTADO NO SISTEMA REAL em 2026-09-21 09:05:45 (PID 749398, NRestarts=0, 0 Traceback/ERROR no journal) e COMMITADO em 09:2x.",
+    "commits": [
+      "6c888bf feat(api): freio contra força bruta no login (LoginGuard) — auth.py, server.py, launcher.py, test_auth.py, CHANGELOG (5 arquivos, +355)",
+      "7ca6eec fix(api): histórico e memória só para o dono da conta (OD_API_KEY é admin) — server.py, test_auth.py, CHANGELOG (3 arquivos, +256/-5)"
+    ],
+    "verificacao_dos_commits": "Os 4 arquivos de código batem bit-exatamente (sha256) com o estado que foi implantado e provado no ar: os commits contêm exatamente o que roda no PID 749398. A divisão em dois commits passou por estados intermediários verificados (LOGIN: 1814/16 na suíte; final: 1825/16).",
+    "subiu_junto": "O restart levou também o LoginGuard (mesmos arquivos) — o freio de força bruta está no ar e foi provado: 6ª tentativa de login do mesmo usuário/IP → 429 too_many_attempts.",
+    "prova_viva": {
+      "contas": "alex (id=1) + prova-dono (id=2, criada só para a prova em 09:05)",
+      "ok": "13/13 — alex → /history/prova-dono/stats = 403 acesso_negado; alex → DELETE /history/prova-dono = 403 com o histórico do alvo INTACTO (2 msgs conferidas depois com o admin); alex → /memory/prova-dono/search = 403 (antes do 501); prova-dono lê o próprio = 200; alex lê o próprio = 200; OD_API_KEY (admin) lê os dois = 200; sem credencial = 401; API key errada = 401.",
+      "journal": "3 linhas 'Acesso a recurso de outro usuário negado | autenticado=alex | alvo=prova-dono' + status=403 no mesmo segundo (09:06:04).",
+      "limpeza": "Conta de prova REMOVIDA em 2026-09-21 09:07: users 2→1, conversation_messages 88→86, 0 sessões (a conta nunca logou). Snapshot de rollback em backups/prova-dono-removido-20260921-090719.bak (gitignored). Prova pós-remoção: chave da conta removida → 401; admin → /history/alex/stats = 200 com 2 mensagens; balde /history/prova-dono = 0 mensagens.",
+      "ressalvas": ["O probe do LoginGuard travou '__probe_deploy__' por 900s e deixou 5 falhas na chave de IP 127.0.0.1 (limite 15, janela 300s) — expira sozinho."]
+    },
+    "pendente_no_working_tree": "LoginGuard + checagem de dono seguem sem commit (6 arquivos modificados)."
+  },
   "language": "pt-BR",
   "project": {
     "root": ".",
@@ -79,10 +103,27 @@
     "cobertura": "tests/test_auth.py agora 48 testes; suíte 1804 passed, 16 skipped; 2 mutações (override removido e chat web com 'web' fixo) detectadas; sandbox 18/18 OK",
     "deploy": "IMPLANTADO — restart autorizado em 2026-09-20 14:01:48 (PID 662233, NRestarts=0). :8000/:8001 escutando, journal 0 Traceback/ERROR. Prova viva: POST /message com API key de 'alex' e corpo user_id='deploy-check-3' → resposta user_id='alex' e journal 'Message processed | user=alex | llm=gemma-local'. Isso gravou 1 interação (texto 'prova de identidade da sessao no deploy') no histórico de alex."
   },
+  "estado_2026_09_21": {
+    "verificacao": "Sessão de 09-21: 'verifique o estado geral do sistema' + se usuários e conversas usam o banco.",
+    "runtime": "od-core (systemd --user) active desde 2026-09-20 14:01:48, PID 662233, NRestarts=0; :8000 REST, :8001 WS, :1883 Mosquitto, :5432 PostgreSQL. /supervision: 0 quedas.",
+    "suite": "1814 passed, 16 skipped (era 1804 em 09-20 — os +10 são os testes do LoginGuard).",
+    "banco": {
+      "dsn": "OD_DB_URL no .env → postgres://od@127.0.0.1:5432/od (driver pg8000 1.31.5); health ok, 4 tabelas",
+      "tabelas": {"users": 1, "sessions": 1, "conversation_messages": 86, "llm_cache": 43},
+      "usuario": "alex (id=1, alex@omegadrakon.dev, criado 2026-09-19 11:38)",
+      "sessao_ativa": "1 sessão válida até 2026-09-26 11:38 (TTL 7 dias)",
+      "conclusao": "SIM — usuários (users/sessions) e conversas (conversation_messages) estão no PostgreSQL. Legado inerte: data/conversations (JSON, último write 09-03) e data/od.db (SQLite com 0 tabelas)."
+    },
+    "historico_por_username": "Desde 9bdc5ea o user_id do histórico é o username autenticado (conta 'alex' = 2 msgs). Baldes antigos ficaram órfãos: web=14, web/nyx=6, app=36, 660518870 (Telegram)=20, ws_user=4, deploy-check(-2)=4.",
+    "lacunas_encontradas": [
+      "LoginGuard (freio de força bruta) existe no working tree (+321 linhas nos 4 arquivos), sem commit, SEM deploy (mtime 14:07-14:16 de 09-20 > restart 14:01:48) e não registrado em iniciar/ — a sessão anterior fechou como 'tudo implantado e publicado'.",
+      "/history/{user_id} e /memory/{user_id}/search não checam dono: qualquer credencial válida lê ou apaga o histórico de outro username."
+    ]
+  },
   "last_turn": {
-    "date": "2026-09-20",
-    "action": "Usuário pediu 'leia iniciar'. Reconstruído por evidência que a feature de auth subiu em 09-19 11:39 sem commit/teste. Usuário escolheu 'testar e travar': escritos 45 testes (tests/test_auth.py), corrigido bypass de auth + API key de usuário no gate + teste quebrado em test_api.py, validado em sandbox (16/16) e commitado em 4337d02.",
-    "next": "tudo implantado e publicado: origin/master == HEAD (push 587012b..52a3f2d, 6 commits). Pendências: (1) port forwarding 8001 no roteador, (2) instalar APK 1.2.8 no Redmi Note 14."
+    "date": "2026-09-21",
+    "action": "(1) Estado geral verificado — usuários e conversas no PostgreSQL; (2) checagem de dono implementada (_check_owner, +11 testes, 5 mutações, sandbox 27/27, suíte 1825/16); (3) IMPLANTADA em 09:05:45 (PID 749398) com prova viva de 13 checagens em duas contas; (4) conta de prova 'prova-dono' removida com snapshot de rollback; (5) COMMITADO: 6c888bf (LoginGuard) e 7ca6eec (dono do histórico) + registro em iniciar/.",
+    "next": "(1) Push para origin (não feito — 2 commits à frente); (2) migrar histórico órfão ('web', 'app', 'ws_user') para as contas; (3) validar em sandbox o que subiu sem regra 12 (LoginGuard — a prova viva no ar cobre). Pendências antigas: port forwarding 8001 e APK 1.2.8 no Redmi Note 14."
   },
   "decisions": [
     {"topic": "versão do app", "decision": "1.2.8 (não 1.2.0+8) — mudanças significativas desde a 1.2.0 justificam bump de versão"},
@@ -91,5 +132,5 @@
     {"topic": "status bar fix", "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"},
     {"topic": "auth de usuários (09-19)", "decision": "Chat web passa a exigir login (UserStore próprio, PBKDF2-SHA256, sessão UUID + Bearer), mantendo X-API-Key como modo legado/avançado. Registrado retroativamente em 09-20 após achado de que subiu sem commit/teste."}
   ],
-  "transcripts": ["iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
+  "transcripts": ["iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
 }
