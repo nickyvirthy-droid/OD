@@ -290,6 +290,32 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
+### Alterado (2026-09-21) — histórico órfão reatribuído à conta 🔁
+
+- **`runtime/migrate_history_owner.py` (novo)** — one-off, **idempotente** e
+  **dry-run por padrão**: reatribui baldes antigos para a conta do dono
+  (`UPDATE conversation_messages SET user_id = ?`, preservando o perfil de
+  cada conversa) e grava um snapshot de rollback em `backups/`. Os baldes
+  nasceram de cada transporte antes do login (chat web em `web`, streaming em
+  `ws_user`, app em `app`, bot no id do Telegram); com a identidade vindo da
+  credencial, eles ficaram órfãos — a conta não enxergava o que foi
+  conversado por eles.
+- **Migrado no sistema real:** `web` (14) + `web/nyx` (6) + `ws_user` (4) →
+  `alex` (2 → **26** mensagens, perfis guardian 20 / nyx 6). O total da tabela
+  não mudou (**86** antes e depois) e a API no ar confirma pelo
+  `/history/alex/stats`. Snapshot:
+  `backups/history-owner-20260921-093127.bak`.
+- **O que ficou de fora, de propósito:** `app` (36) — o app manda
+  `user_id: "app"` fixo, então o balde nasceria de novo na próxima mensagem
+  do celular; e `660518870` (20, Telegram) — o bot identifica a pessoa pelo id
+  do Telegram e faria o mesmo. Migrar os dois é um comando
+  (`--de app,660518870`) quando o app autenticar por sessão. `deploy-check*`
+  (4) são mensagens sintéticas de prova de deploy, não conversa.
+- **Testes:** `tests/test_migrate_history_owner.py` (**novo, 8**) — plan sem
+  escrever, preservação de conteúdo/perfil/ordem cronológica, total
+  inalterado, idempotência, múltiplas origens e rollback pelo snapshot.
+- **Suíte:** **1850 passed, 16 skipped**.
+
 ### Corrigido (2026-09-21) — streaming: a identidade vem da credencial 🔌
 
 - **`integrations/api/ws_server.py`** — o frame `auth` só aceitava a
