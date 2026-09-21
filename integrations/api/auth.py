@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import os
 import secrets
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -346,3 +347,128 @@ class UserStore:
             "SELECT id, username, email, api_key, created_at FROM users "
             "ORDER BY created_at"
         )
+
+
+# ---------------------------------------------------------------------------
+# LoginGuard — freio contra força bruta em POST /auth/login
+# ---------------------------------------------------------------------------
+
+class LoginGuard:
+    """Limita tentativas de login para conter força bruta / password spraying.
+
+    Conta falhas em duas chaves independentes:
+      - ``("user", ip, username)`` — trava a conta para aquele IP depois de
+        ``max_attempts`` falhas na janela;
+      - ``("ip", ip)`` — soma falhas de QUALQUER username e trava o IP
+        inteiro depois de ``ip_max_attempts`` (default ``3 × max_attempts``;
+        pega o ataque que troca o username a cada tentativa).
+
+    Um login bem-sucedido zera a chave da conta — mas NÃO a do IP, senão o
+    atacante com uma conta válida reiniciaria o contador de spraying.
+
+    O ``clock`` é injetável (default ``time.monotonic``) para teste
+    determinístico. Thread-safe (o APIServer é multi-thread).
+
+    Limitação conhecida: atrás de reverse proxy, ``client_address`` é o IP do
+    proxy; a chave por username continua valendo, mas a de IP agrupa todo o
+    tráfego externo. Não interpretar ``X-Forwarded-For`` sem proxy confiável
+    (seria trivialmente forjável).
+    """
+
+    def __init__(
+        self,
+        *,
+        max_attempts: int = 5,
+        window_s: float = 300.0,
+        lockout_s: float = 900.0,
+        ip_max_attempts: Optional[int] = None,
+        clock: Optional[Any] = None,
+    ) -> None:
+        self.max_attempts = max(1, int(max_attempts))
+        # O teto do IP é mais folgado que o da conta: o do IP soma falhas de
+        # vários usernames (spraying), mas não pode punir um usuário legítimo
+        # que erra a senha algumas vezes em contas diferentes do mesmo NAT.
+        self.ip_max_attempts = max(
+            1,
+            int(ip_max_attempts)
+            if ip_max_attempts is not None
+            else self.max_attempts * 3,
+        )
+        self.window_s = max(1.0, float(window_s))
+        self.lockout_s = max(1.0, float(lockout_s))
+        self._clock = clock or time.monotonic
+        self._lock = threading.RLock()
+        self._failures: dict[tuple[str, ...], list[float]] = {}
+        self._locked_until: dict[tuple[str, ...], float] = {}
+
+    def retry_after(self, ip: str, username: str) -> float:
+        """Segundos restantes de bloqueio para (ip, username); 0 = liberado."""
+        with self._lock:
+            now = self._clock()
+            return max(
+                self._remaining(("user", ip, username), now),
+                self._remaining(("ip", ip), now),
+            )
+
+    def register_failure(self, ip: str, username: str) -> float:
+        """Conta uma falha de login; retorna os segundos de bloqueio agora."""
+        with self._lock:
+            now = self._clock()
+            self._bump(("user", ip, username), self.max_attempts, now)
+            self._bump(("ip", ip), self.ip_max_attempts, now)
+            self._gc(now)
+            return max(
+                self._remaining(("user", ip, username), now),
+                self._remaining(("ip", ip), now),
+            )
+
+    def reset(self, ip: str, username: str) -> None:
+        """Login bem-sucedido: limpa as falhas da conta (não as do IP)."""
+        with self._lock:
+            key = ("user", ip, username)
+            self._failures.pop(key, None)
+            self._locked_until.pop(key, None)
+
+    # -- Internos -------------------------------------------------------------
+
+    def _remaining(self, key: tuple[str, ...], now: float) -> float:
+        until = self._locked_until.get(key)
+        if until is None:
+            return 0.0
+        if until <= now:
+            self._locked_until.pop(key, None)
+            return 0.0
+        return until - now
+
+    def _bump(self, key: tuple[str, ...], limit: int, now: float) -> None:
+        # Já bloqueado: não estende a punição com cada nova tentativa.
+        if now < self._locked_until.get(key, 0.0):
+            return
+        stamps = self._failures.setdefault(key, [])
+        cutoff = now - self.window_s
+        stamps[:] = [t for t in stamps if t > cutoff]
+        stamps.append(now)
+        if len(stamps) >= limit:
+            self._locked_until[key] = now + self.lockout_s
+            stamps.clear()
+
+    def _gc(self, now: float) -> None:
+        """Descarta chaves expiradas — memória limitada pelo tráfego recente."""
+        cutoff = now - self.window_s
+        for key, until in list(self._locked_until.items()):
+            if until <= now:
+                self._locked_until.pop(key, None)
+        for key, stamps in list(self._failures.items()):
+            if not stamps or stamps[-1] <= cutoff:
+                self._failures.pop(key, None)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Estado atual (observabilidade/teste)."""
+        with self._lock:
+            now = self._clock()
+            return {
+                "locked_keys": sum(
+                    1 for until in self._locked_until.values() if until > now
+                ),
+                "tracked_keys": len(self._failures),
+            }

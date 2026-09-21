@@ -221,6 +221,10 @@ def build_api_server(
             action_registry=action_registry,  # v1.2.0: /executa + /actions
             push=push,  # v1.3.0: /push/* (app Android)
             user_store=user_store,  # auth de usuários (registro/login/sessão)
+            # Freio contra força bruta no login (LoginGuard)
+            login_max_attempts=int(env("OD_LOGIN_MAX_ATTEMPTS", "5")),
+            login_window_s=float(env("OD_LOGIN_WINDOW_S", "300")),
+            login_lockout_s=float(env("OD_LOGIN_LOCKOUT_S", "900")),
         ),
     )
     return server

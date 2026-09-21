@@ -290,6 +290,39 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
+### Corrigido (2026-09-21) — freio contra força bruta no login 🛡️
+
+- **`LoginGuard` (`integrations/api/auth.py`)** — `POST /auth/login` é
+  público por definição (o fluxo de autenticação não pode exigir
+  autenticação) e, com o login por senha no ar, aceitava tentativas
+  ilimitadas. O guard conta falhas em **duas chaves independentes**:
+  `(ip, username)` — trava a conta para aquele IP; e `(ip)` — soma falhas de
+  **qualquer** username e trava o IP inteiro (pega o *password spraying* que
+  troca o username a cada tentativa). Login bem-sucedido zera a chave da
+  conta, mas **não** a do IP. Janela de 300s, lockout de 900s, thread-safe,
+  `clock` injetável para teste determinístico e GC das chaves antigas
+  (memória limitada pelo tráfego recente).
+- **`integrations/api/server.py`** — `APIConfig` ganhou `login_guard`,
+  `login_max_attempts` (5), `login_window_s` (300) e `login_lockout_s`
+  (900); o servidor constrói o guard quando há `UserStore`. O freio roda
+  **antes** de tocar no banco: tentativa bloqueada responde **429
+  `too_many_attempts`** com `retry_after_s` e não consome PBKDF2 (260k
+  iterações seriam trabalho de graça para o atacante).
+- **`runtime/launcher.py`** — repassa `OD_LOGIN_MAX_ATTEMPTS`,
+  `OD_LOGIN_WINDOW_S` e `OD_LOGIN_LOCKOUT_S` para a config da API.
+- **Testes:** `tests/test_auth.py` **+11** — limites por conta e por IP,
+  janela deslizante (falhas fora dela não acumulam), expiração do lockout,
+  `reset` que não zera o IP, o 429 por HTTP real (inclusive bloqueando a
+  **senha correta** durante o lockout) e o spraying que troca o username.
+- **Suíte:** **1814 passed, 16 skipped**.
+- **Implantado em 2026-09-21 09:05:45** (PID 749398) — subiu junto com a
+  checagem de dono do histórico; provado no ar: 6ª tentativa do mesmo
+  usuário/IP → `429 too_many_attempts`.
+- **Ressalva de processo:** o código foi escrito em 2026-09-20 e ficou sem
+  commit e sem registro em `iniciar/` até 09-21, quando entrou no restart
+  seguinte. Não passou pelo sandbox da regra 12 **antes** do deploy (só
+  pelos testes); a prova viva no ar é o que sustenta o comportamento hoje.
+
 ### Adicionado (2026-09-19/20) — autenticação de usuários no chat web 🔐
 
 - **`integrations/api/auth.py` (novo)** — `UserStore` sobre a Database Layer:

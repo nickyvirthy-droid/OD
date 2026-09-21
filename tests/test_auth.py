@@ -28,6 +28,7 @@ from core.orchestrator import Orchestrator, RecordingProvider
 from integrations.api import APIConfig, APIServer
 from integrations.api.auth import (
     AuthError,
+    LoginGuard,
     UserStore,
     _hash_password,
     _verify_password,
@@ -625,6 +626,71 @@ class TestAuthGate:
         data = _json_response((status, body, _))
         assert status == 200 and data["user_id"] == "app"
 
+    def test_login_lockout_blocks_even_correct_password(
+        self, serve, tmp_path, store
+    ) -> None:
+        cfg = self._cfg(store, login_max_attempts=3, login_lockout_s=60.0)
+        srv = serve(make_orch(tmp_path), config=cfg)
+        store.register("alex", "alex@example.com", "senha123")
+        for _ in range(3):
+            status, _, _ = _request(
+                srv.bound_port, "POST", "/auth/login",
+                body={"username": "alex", "password": "errada"},
+            )
+            assert status == 401
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/auth/login",
+            body={"username": "alex", "password": "senha123"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 429
+        assert data["error"] == "too_many_attempts"
+        assert data["retry_after_s"] >= 1
+
+    def test_login_success_resets_account_counter(
+        self, serve, tmp_path, store
+    ) -> None:
+        cfg = self._cfg(store, login_max_attempts=3, login_lockout_s=60.0)
+        srv = serve(make_orch(tmp_path), config=cfg)
+        store.register("alex", "alex@example.com", "senha123")
+        for _ in range(2):
+            assert _request(
+                srv.bound_port, "POST", "/auth/login",
+                body={"username": "alex", "password": "errada"},
+            )[0] == 401
+        assert _request(
+            srv.bound_port, "POST", "/auth/login",
+            body={"username": "alex", "password": "senha123"},
+        )[0] == 200
+        # Contador zerado: mais 2 falhas ainda não travam
+        for _ in range(2):
+            assert _request(
+                srv.bound_port, "POST", "/auth/login",
+                body={"username": "alex", "password": "errada"},
+            )[0] == 401
+        assert _request(
+            srv.bound_port, "POST", "/auth/login",
+            body={"username": "alex", "password": "senha123"},
+        )[0] == 200
+
+    def test_login_ip_lock_across_usernames(self, serve, tmp_path, store) -> None:
+        """Password spraying: trocar o username não escapa do freio do IP."""
+        guard = LoginGuard(max_attempts=10, ip_max_attempts=3, lockout_s=60.0)
+        cfg = self._cfg(store, login_guard=guard)
+        srv = serve(make_orch(tmp_path), config=cfg)
+        store.register("alex", "alex@example.com", "senha123")
+        store.register("bia", "bia@example.com", "senha123")
+        for name in ("alex", "bia", "alex"):
+            assert _request(
+                srv.bound_port, "POST", "/auth/login",
+                body={"username": name, "password": "errada"},
+            )[0] == 401
+        # 4a tentativa, agora no usuário bia (sem falhas da conta dela): IP travado
+        assert _request(
+            srv.bound_port, "POST", "/auth/login",
+            body={"username": "bia", "password": "senha123"},
+        )[0] == 429
+
     def test_auth_endpoints_exempt_under_auth_all(
         self, serve, tmp_path, store
     ) -> None:
@@ -648,3 +714,98 @@ class TestAuthGate:
         # logout/me são protegidos: sem credencial → 401; com token → 200
         assert _request(port, "POST", "/auth/logout", body={})[0] == 401
         assert _request(port, "GET", "/auth/me", bearer=token)[0] == 200
+
+
+# ===========================================================================
+# LoginGuard — freio contra força bruta (unitário, clock falso)
+# ===========================================================================
+
+class _Clock:
+    """Relógio monotônico controlável para o LoginGuard."""
+
+    def __init__(self, start: float = 1000.0) -> None:
+        self.now = start
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+class TestLoginGuard:
+    """Limites por conta e por IP, janela, lockout e reset."""
+
+    def _guard(self, clock: _Clock, **kwargs) -> LoginGuard:
+        params = {"max_attempts": 3, "window_s": 60.0, "lockout_s": 120.0}
+        params.update(kwargs)
+        return LoginGuard(clock=clock, **params)
+
+    def test_releases_until_threshold(self) -> None:
+        clock = _Clock()
+        guard = self._guard(clock)
+        assert guard.retry_after("10.0.0.1", "alex") == 0.0
+        assert guard.register_failure("10.0.0.1", "alex") == 0.0
+        assert guard.register_failure("10.0.0.1", "alex") == 0.0
+        assert guard.retry_after("10.0.0.1", "alex") == 0.0
+
+    def test_locks_at_threshold_and_counts_down(self) -> None:
+        clock = _Clock()
+        guard = self._guard(clock)
+        for _ in range(2):
+            guard.register_failure("10.0.0.1", "alex")
+        remaining = guard.register_failure("10.0.0.1", "alex")
+        assert remaining == 120.0
+        clock.advance(30)
+        assert guard.retry_after("10.0.0.1", "alex") == 90.0
+
+    def test_lockout_expires(self) -> None:
+        # ip_max_attempts=3 trava as DUAS chaves — sem isso, o max() com a
+        # chave de IP liberada mascara um _remaining que devolvesse negativo.
+        clock = _Clock()
+        guard = self._guard(clock, ip_max_attempts=3)
+        for _ in range(3):
+            guard.register_failure("10.0.0.1", "alex")
+        assert guard.retry_after("10.0.0.1", "alex") > 0
+        clock.advance(121)
+        assert guard.retry_after("10.0.0.1", "alex") == 0.0
+
+    def test_failures_outside_window_do_not_accumulate(self) -> None:
+        clock = _Clock()
+        guard = self._guard(clock)
+        for _ in range(3):
+            guard.register_failure("10.0.0.1", "alex")
+            clock.advance(61)  # cada falha sai da janela de 60s
+        assert guard.retry_after("10.0.0.1", "alex") == 0.0
+
+    def test_reset_clears_account_but_not_ip(self) -> None:
+        clock = _Clock()
+        guard = self._guard(clock, ip_max_attempts=3)
+        for _ in range(3):
+            guard.register_failure("10.0.0.1", "alex")
+        assert guard.retry_after("10.0.0.1", "alex") > 0
+        guard.reset("10.0.0.1", "alex")
+        # Conta liberada, mas o IP continua travado (o reset não zera o IP)
+        assert guard.retry_after("10.0.0.1", "alex") > 0
+        assert guard.retry_after("10.0.0.1", "bia") > 0
+
+    def test_ip_lock_catches_username_spraying(self) -> None:
+        clock = _Clock()
+        guard = self._guard(clock, max_attempts=10, ip_max_attempts=3, lockout_s=120.0)
+        assert guard.register_failure("10.0.0.1", "alex") == 0.0
+        assert guard.register_failure("10.0.0.1", "bia") == 0.0
+        # 3ª falha do IP (username novo, conta sem histórico) já trava
+        assert guard.register_failure("10.0.0.1", "carol") > 0
+        assert guard.retry_after("10.0.0.1", "dave") > 0
+        # Outro IP não foi afetado
+        assert guard.retry_after("10.0.0.2", "dave") == 0.0
+
+    def test_gc_bounds_tracked_keys(self) -> None:
+        clock = _Clock()
+        guard = self._guard(clock)
+        for i in range(50):
+            guard.register_failure("10.0.0.1", f"u{i}")
+        clock.advance(61)
+        guard.register_failure("10.0.0.2", "alex")  # dispara o _gc
+        assert guard.snapshot()["tracked_keys"] <= 2
+

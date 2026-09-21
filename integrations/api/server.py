@@ -151,6 +151,13 @@ class APIConfig:
     action_registry: Optional[Any] = None
     push: Optional[Any] = None
     user_store: Optional[Any] = None  # integrations.api.auth.UserStore
+    # Freio contra força bruta em POST /auth/login (integrations.api.auth
+    # .LoginGuard). `login_guard` permite injetar uma instância (testes);
+    # ausente = o servidor constrói uma a partir dos números abaixo.
+    login_guard: Optional[Any] = None
+    login_max_attempts: int = 5
+    login_window_s: float = 300.0
+    login_lockout_s: float = 900.0
 
     # Nota (SLOTS): campos novos entram aqui, como `push` (core/push.py) —
     # registro de dispositivos + envio FCM usados por /push/*.
@@ -714,6 +721,15 @@ class APIServer(ThreadingHTTPServer):
         self._push = self.config.push
         # User auth (integrations/api/auth.py) — None = auth desabilitado
         self._user_store = self.config.user_store
+        # Freio contra força bruta no login — construído só quando há auth
+        self._login_guard = self.config.login_guard
+        if self._login_guard is None and self._user_store is not None:
+            from integrations.api.auth import LoginGuard
+            self._login_guard = LoginGuard(
+                max_attempts=self.config.login_max_attempts,
+                window_s=self.config.login_window_s,
+                lockout_s=self.config.login_lockout_s,
+            )
         self.started_at = time.time()
         self.requests_total = 0
         self.errors_total = 0
@@ -1578,11 +1594,26 @@ class APIHandler(BaseHTTPRequestHandler):
         password = (data.get("password") or "").strip()
         if not username or not password:
             raise APIError(400, "username e password são obrigatórios")
+        ip = self.client_address[0]
+        guard = self.api._login_guard
+        # Freio ANTES de tocar no banco: tentativa bloqueada não consome hash
+        retry = guard.retry_after(ip, username) if guard is not None else 0.0
+        if retry > 0:
+            self._json(
+                429,
+                {"ok": False, "error": "too_many_attempts",
+                 "retry_after_s": int(retry) + 1},
+            )
+            return
         try:
             from integrations.api.auth import AuthError
             token = self.api._user_store.login(username, password)
         except AuthError as exc:
+            if guard is not None:
+                guard.register_failure(ip, username)
             raise APIError(exc.status, str(exc))
+        if guard is not None:
+            guard.reset(ip, username)
         user = self.api._user_store.validate_session(token)
         self._json(200, {
             "ok": True,
