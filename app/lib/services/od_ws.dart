@@ -132,6 +132,7 @@ class OdStreamingChat {
     this.api, {
     OdWsConnector? connector,
     this.wsPort = 8001,
+    this.wsPath = '/ws',
     this.connectTimeout = odWsConnectTimeout,
     this.frameTimeout = odWsFrameTimeout,
     this.cooldown = odWsCooldown,
@@ -142,6 +143,11 @@ class OdStreamingChat {
 
   /// Porta do servidor WebSocket no core (`OD_WS_PORT`).
   final int wsPort;
+
+  /// Caminho do streaming quando ele vai pelo **mesmo host/porta** da API
+  /// (HTTPS na 443 atrás de proxy reverso — Tailscale serve/Funnel): o proxy
+  /// publica tudo numa porta só, então o WS vai por caminho (`/ws`).
+  final String wsPath;
 
   final Duration connectTimeout;
   final Duration frameTimeout;
@@ -155,11 +161,16 @@ class OdStreamingChat {
     return until == null || DateTime.now().isAfter(until);
   }
 
-  /// `http://host:8000` → `ws://host:8001` (`https` → `wss`).
+  /// Deriva o endpoint do streaming da URL que o usuário já configura, **por
+  /// URL** (a primária e a externa podem ter formatos diferentes):
   ///
-  /// Derivado da URL que o usuário já configura: a porta do streaming é a
-  /// mesma do core, só troca o esquema. Servidor com `OD_WS_PORT` fora do
-  /// padrão simplesmente cai no fallback REST.
+  ///   - `https://host` (sem porta, isto é, 443): `wss://host` + [wsPath] —
+  ///     caso do proxy reverso (Tailscale serve/Funnel), que só tem a 443;
+  ///   - qualquer outra: troca o esquema e usa a porta do streaming
+  ///     (`http://host:8000` → `ws://host:8001`).
+  ///
+  /// Servidor com `OD_WS_PORT` fora do padrão simplesmente cai no fallback
+  /// REST.
   ///
   /// Quando há [fallbackUrl], tenta a primária e depois a secundária.
   Uri get wsUri => _deriveWsUri(api.baseUrl);
@@ -172,8 +183,15 @@ class OdStreamingChat {
 
   Uri _deriveWsUri(String base) {
     final parsed = Uri.parse(base);
+    final seguro = parsed.scheme == 'https';
+    final semPortaPropria = !parsed.hasPort || parsed.port == 443;
+    if (seguro && semPortaPropria) {
+      // Sem `port:` de propósito: o Dart não conhece a porta padrão do `wss`
+      // e imprimiria `:443` à toa.
+      return Uri(scheme: 'wss', host: parsed.host, path: wsPath);
+    }
     return Uri(
-      scheme: parsed.scheme == 'https' ? 'wss' : 'ws',
+      scheme: seguro ? 'wss' : 'ws',
       host: parsed.host,
       port: wsPort,
     );

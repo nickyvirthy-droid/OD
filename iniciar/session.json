@@ -146,7 +146,8 @@
       "alternativa": "pedir liberação de portas/IP público à Algar (TCV) ou túnel até um VPS; criar mais regras no roteador NÃO resolve (comprovado).",
       "descartado": "mudar a porta no roteador (a 8443, que é do próprio roteador, também está fechada de fora).",
       "nota_ipv6": "esta máquina tem IPv6 global nativo (2804:428:3:6340:20f:ff:fe37:acf0) — caminho possível, mas exige liberar o firewall IPv6 no roteador e AAAA (prefixo dinâmico).",
-      "pendente": "decisão do usuário (clique do Funnel); depois disso, atualizar o campo externo do app e o default do próximo APK."
+      "app_revisado": "app/lib/services/od_ws.dart: o endpoint do streaming agora é derivado POR URL — https sem porta (443) vira wss://host/ws (proxy reverso/Funnel) e o resto segue ws://host:8001. Sem isso a primária Tailscale e a externa HTTPS não conviveriam (uma cairia no fallback REST). +4 testes (19 no arquivo, 71 no app), 2 mutações detectadas.",
+      "pendente": "decisão do usuário (clique do Funnel); depois disso: publicar, conferir DE FORA e mudar o default externo do app (fallbackUrl) + gerar o APK novo."
     },
     "5_menores": {
       "commit": "6af4d2f fix(api): 404 em /history só quando o nome não é de ninguém",

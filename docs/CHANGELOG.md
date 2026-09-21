@@ -290,29 +290,46 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
-### Documentado (2026-09-21) — acesso externo: diagnóstico e o caminho do Funnel 🌐
+### Corrigido (2026-09-21) — app: o streaming se adapta à URL externa 📱
+
+- **`app/lib/services/od_ws.dart`** — o endpoint do streaming passou a ser
+  derivado **por URL**, em vez de uma porta única para todas: `https://host`
+  sem porta (isto é, a 443) vira **`wss://host/ws`** — o formato que proxy
+  reverso publica (Tailscale serve/Funnel, que só tem a 443) — enquanto
+  qualquer outra mantém o comportamento antigo (`http://host:8000` →
+  `ws://host:8001`). Sem isso a primária (Tailscale, porta própria) e a
+  externa HTTPS (por caminho) não conviveriam: uma delas cairia sempre no
+  fallback REST e o chat perderia o token-a-token. `wsPath` é configurável
+  (`/ws` por padrão).
+- **Provas:** +4 testes em `app/test/od_ws_test.dart` (19 no arquivo, **71** na
+  suíte do app, 2 skip); teste do teste com 2 mutações, ambas detectadas
+  (tirar o ramo de caminho → 4 falhas; `wsPath` para `/` → 3 falhas).
+
+### Documentado (2026-09-21) — acesso externo: o bloqueio é da operadora 🌐
 
 - **`docs/ACESSO_EXTERNO.md` (novo)** — o app não acessa pela internet, só pelo
-  Tailscale. Medições: de **dentro** da LAN o domínio responde `401` em 0,31s
-  (chegou na API, mas por hairpin NAT — **não** prova acesso externo); de
-  **fora** (serviço público, com `example.com` como controle) o domínio **e o
-  IP puro** `189.124.4.56` dão **timeout**. DNS está em dia (aponta para o IP
-  público atual) e o `tracepath` mostra que **não é CGNAT**. Conclusão: o
-  servidor responde, mas nada entra pela porta 80 — causa provável é bloqueio
-  da operadora nessa porta, ou a regra de encaminhamento do roteador inativa
-  (ou apontando para outro IP interno; a máquina hoje é `.250`).
-- **O APK não é o problema:** `app/lib/main.dart` já traz primária Tailscale +
-  externa `http://nicky.theworkpc.com`, a tela de Configurações separa "rede
-  local" de "internet" e o manifesto libera HTTP (`usesCleartextTraffic`).
-  Falta o caminho de entrada, não o app.
-- **Caminho pronto para ligar (recomendado):** `tailscale funnel --bg 8000`
-  publicaria **`https://nicky-server.tail1b1f51.ts.net`** → `127.0.0.1:8000`,
-  sem tocar no roteador nem depender de porta. O CLI respondeu que o Funnel
-  **não está habilitado no tailnet** e deu o link de um clique para habilitar
-  (`login.tailscale.com/f/funnel?node=…`).
-- **Alternativa:** encaminhar **8443** no roteador → `192.168.0.250:8000` e usar
-  `http://nicky.theworkpc.com:8443` — e testar **de fora** (o comando está no
-  documento; testar de dentro sempre dá falso positivo).
+  Tailscale. **Diagnóstico fechado com prova de mão dupla:** o pedido feito
+  **ao IP público pela porta 80**, de dentro, chega na nossa API (`401` com
+  `Server: OmegaDrakon/1.2.0`) e o `/supervision` é **idêntico** ao local (só o
+  campo `ts` difere) — ou seja, **a regra `80 → 192.168.0.250:8000` está ativa
+  e apontando certo**. O roteador ainda responde com a própria UI em
+  `189.124.4.56:8443`, o que prova que **ele é o dono do IP público** (PPPoE,
+  hop 2 já na agregação da operadora: **sem CGNAT**). Mesmo assim, **de fora**
+  a `80` e a `8000` dão timeout (sonda com 4–6 nós independentes) e a varredura
+  externa mostra **80, 443, 8000, 8443, 22 e 1883 fechadas** — inclusive a
+  `8443` do próprio roteador.
+- **Conclusão:** não é o app e não é o roteador — o filtro de entrada está
+  **acima** do roteador (operadora). Criar mais regras não resolve; `curl` de
+  dentro da rede sempre dá falso positivo (hairpin NAT), que foi como a
+  verificação de 09-19 concluiu "FUNCIONANDO" sem estar.
+- **Caminho recomendado:** `tailscale funnel --bg --https=443 8000` publica
+  **`https://nicky-server.tail1b1f51.ts.net`** → `127.0.0.1:8000` com TLS, sem
+  tocar no roteador nem depender de porta; o streaming vai no mesmo host por
+  `--set-path=/ws` → `8001`. O CLI respondeu que o Funnel **não está habilitado
+  no tailnet** e deu o link de um clique (`login.tailscale.com/f/funnel?node=…`).
+- **Alternativas registradas:** pedir liberação de portas/IP público à
+  operadora, ou IPv6 nativo (esta máquina tem `2804:428:3:6340:…/64`, mas exige
+  liberar o firewall IPv6 no roteador e AAAA com prefixo dinâmico).
 
 ### Corrigido (2026-09-21) — /history devolve 404 para nome que não é de ninguém 🧭
 

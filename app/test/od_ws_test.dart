@@ -126,6 +126,40 @@ void main() {
       expect(chat.wsUri.port, 8001);
     });
 
+    test('https sem porta (Funnel/serve) vai por caminho na 443', () {
+      final chat = OdStreamingChat(
+        OdApi(baseUrl: 'https://nicky-server.tail1b1f51.ts.net'),
+      );
+      expect(chat.wsUri.toString(), 'wss://nicky-server.tail1b1f51.ts.net/ws');
+    });
+
+    test('https na 443 explícita usa o caminho também', () {
+      final chat = OdStreamingChat(OdApi(baseUrl: 'https://od.exemplo:443'));
+      expect(chat.wsUri.toString(), 'wss://od.exemplo/ws');
+    });
+
+    test('o caminho do streaming é configurável', () {
+      final chat = OdStreamingChat(
+        OdApi(baseUrl: 'https://od.exemplo'),
+        wsPath: '/stream',
+      );
+      expect(chat.wsUri.toString(), 'wss://od.exemplo/stream');
+    });
+
+    test('a externa HTTPS não muda o endpoint da primária (e vice-versa)', () {
+      // É o desenho do app: Tailscale primário (porta própria) + externa HTTPS
+      // por caminho — cada URL deriva o seu, em vez de uma porta única para as
+      // duas.
+      final viaTailscale = OdStreamingChat(
+        OdApi(baseUrl: 'http://100.77.67.53:8000'),
+      );
+      final viaFunnel = OdStreamingChat(
+        OdApi(baseUrl: 'https://nicky-server.tail1b1f51.ts.net'),
+      );
+      expect(viaTailscale.wsUri.toString(), 'ws://100.77.67.53:8001');
+      expect(viaFunnel.wsUri.toString(), 'wss://nicky-server.tail1b1f51.ts.net/ws');
+    });
+
     test('porta do streaming é configurável (OD_WS_PORT fora do padrão)', () {
       final chat = OdStreamingChat(
         OdApi(baseUrl: 'http://od.test:8000'),
