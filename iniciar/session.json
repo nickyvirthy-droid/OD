@@ -139,24 +139,26 @@
       "o_que": "cenário do freio no auth_sandbox.py (erro isolado não trava, sucesso zera o contador da CONTA, falhas consecutivas travam até a senha certa, IP travado pega o spraying, tentativa bloqueada não estende) → 36/36 OK (era 27)."
     },
     "4_app_acesso_externo": {
-      "commits": ["03580ba docs: diagnóstico do acesso externo e o caminho via Tailscale Funnel"],
+      "commit": "03580ba + revisão 09-21 (docs/ACESSO_EXTERNO.md reescrito com a prova de mão dupla)",
       "documento": "docs/ACESSO_EXTERNO.md",
-      "diagnostico": "de dentro da LAN o domínio responde 401 em 0,31s (hairpin NAT — não prova nada); de FORA (serviço público, com example.com como controle) o domínio e o IP puro 189.124.4.56 dão TIMEOUT. DNS em dia, não é CGNAT (tracepath). Conclusão: nada entra pela porta 80 — bloqueio da operadora ou encaminhamento do roteador inativo/apontando para outro IP (a máquina é .250). O APK não tem defeito.",
-      "caminho_recomendado": "Tailscale Funnel: precisa de UM clique em https://login.tailscale.com/f/funnel?node=nutTa2mhy521CNTRL (o CLI respondeu 'Funnel is not enabled on your tailnet'); depois `tailscale funnel --bg 8000` publica https://nicky-server.tail1b1f51.ts.net → 127.0.0.1:8000.",
-      "alternativa": "encaminhar 8443 no roteador → 192.168.0.250:8000 e usar http://nicky.theworkpc.com:8443 (testar de fora).",
-      "pendente": "decisão do usuário entre Funnel e roteador; depois disso, atualizar o campo externo do app (e o default do próximo APK)."
+      "diagnostico_fechado": "NÃO é o app e NÃO é o roteador: a regra existe e está certa, quem barra é a OPERADORA. Provas: (a) GET http://189.124.4.56/health (porta 80, de dentro) devolve 401 com Server: OmegaDrakon/1.2.0 e o /supervision é idêntico ao local (mesmo processo, só o campo ts difere) -> a regra 80 → 192.168.0.250:8000 está ativa e apontando certo; (b) o roteador responde com a própria UI em 189.124.4.56:8443, ou seja ele é o dono do IP público (sem CGNAT, hop 2 = 189.124.0.25, PPPoE MTU 1480); (c) mesmo assim, de FORA, 80 e 8000 dão timeout (check-host, 4-6 nós) e a varredura externa (portchecker.io) mostra 80/443/8000/8443/22/1883 TODAS fechadas — inclusive a 8443 do roteador. Serviço do roteador e porta encaminhada, ambos inacessíveis -> filtro de entrada acima do roteador.",
+      "caminho_recomendado": "Tailscale Funnel (não depende de porta/operadora, entrega TLS): UM clique em https://login.tailscale.com/f/funnel?node=nutTa2mhy521CNTRL (o CLI responde 'Funnel is not enabled on your tailnet'); depois `tailscale funnel --bg --https=443 8000` publica https://nicky-server.tail1b1f51.ts.net → 127.0.0.1:8000; o WS pode ir no mesmo host via `tailscale serve --bg --https=443 --set-path=/ws 8001`.",
+      "alternativa": "pedir liberação de portas/IP público à Algar (TCV) ou túnel até um VPS; criar mais regras no roteador NÃO resolve (comprovado).",
+      "descartado": "mudar a porta no roteador (a 8443, que é do próprio roteador, também está fechada de fora).",
+      "nota_ipv6": "esta máquina tem IPv6 global nativo (2804:428:3:6340:20f:ff:fe37:acf0) — caminho possível, mas exige liberar o firewall IPv6 no roteador e AAAA (prefixo dinâmico).",
+      "pendente": "decisão do usuário (clique do Funnel); depois disso, atualizar o campo externo do app e o default do próximo APK."
     },
     "5_menores": {
       "commit": "6af4d2f fix(api): 404 em /history só quando o nome não é de ninguém",
       "o_que": "404 historico_inexistente para nome que não é conta e não tem mensagem; 200/zero para conta nova, para quem apagou o próprio histórico e para balde legado com mensagens; sem UserStore mantém o antigo. +4 testes, 4 mutações, suíte 1854/16.",
-      "legado": "backup backups/legacy-json-sqlite-20260921.tar.gz (3,2KB, sha256 545c29e3…, gzip verificado) com data/od.db (SQLite sem tabelas) e data/conversations/ (20/2/2 msgs = subconjunto do que já está no Postgres). REMOÇÃO PENDENTE DE CONFIRMAÇÃO (regra 9)."
+      "legado": "backup backups/legacy-json-sqlite-20260921.tar.gz (3,2KB, gzip verificado) com data/od.db (SQLite sem tabelas) e data/conversations/ (20/2/2 msgs = subconjunto do que já está no Postgres); REMOVIDO em 09-21 com autorização do usuário — histórico do Postgres intacto (conferido pela API)."
     },
-    "nao_implantado": "TODO o trabalho desde 09:05:45 (WS identidade + 404) está commitado e publicado mas NÃO está no processo em execução — o od-core roda o código do deploy da manhã. Restart pendente de autorização (regra 7.1)."
+    "implantado": "O restart autorizado de 09-21 subiu o WS por credencial + o 404 (prova viva 7/7 no ar: cliente pediu o balde 'intruso-ws' e a mensagem caiu no alex). PID 762754, NRestarts=0."
   },
   "last_turn": {
     "date": "2026-09-21",
-    "action": "Sequência completa dos 5 pendentes: identidade no WS (d8374e2), migração do histórico órfão (a630b47), sandbox do LoginGuard (d42e2be), diagnóstico do acesso externo + Tailscale Funnel (03580ba) e o 404 do /history (6af4d2f). Tudo commitado e publicado (origin = HEAD).",
-    "next": "(1) Decidir o caminho externo (clique do Funnel vs porta 8443 no roteador) e ajustar o campo externo do app; (2) autorizar o restart do od-core (o processo está no código da manhã); (3) confirmar a remoção do legado inerte (data/conversations + data/od.db, backup pronto). Pendências antigas: port forwarding 8001 e APK no Redmi Note 14."
+    "action": "Sequência dos 5 pendentes concluída e implantada (commits d8374e2, a630b47, d42e2be, 03580ba, 6af4d2f + fd3d6f4; restart autorizado, prova viva 7/7; legado inerte removido). Em seguida, investigação do acesso externo fechada com prova de mão dupla: a regra do roteador está certa e quem bloqueia a entrada é a operadora (Algar/TCV) — ver docs/ACESSO_EXTERNO.md.",
+    "next": "(1) O usuário clicar em https://login.tailscale.com/f/funnel?node=nutTa2mhy521CNTRL para eu publicar o Funnel (https://nicky-server.tail1b1f51.ts.net) e então ajustar o campo externo/WS do app; (2) revisar o APK: defaults de URL + WS por caminho quando for https. Pendências antigas: APK no Redmi Note 14 (instalado; só acessa via Tailscale)."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},

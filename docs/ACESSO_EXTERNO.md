@@ -1,54 +1,66 @@
 # OmegaDrakon — acesso externo (internet)
 
-> Diagnóstico de 2026-09-21. Objetivo: o app (e o site) funcionarem **fora** da
-> LAN/Tailscale. Hoje só o Tailscale funciona.
+> Diagnóstico de 2026-09-21 (revisado com prova de mão dupla). Objetivo: o app
+> funcionar **fora** da LAN/Tailscale. Hoje só o Tailscale funciona.
 
 ## O que está configurado
 
 | Elemento | Valor |
 |---|---|
-| Servidor | `192.168.0.250` (Wi-Fi), gateway `192.168.0.1` |
+| Servidor | `192.168.0.250` (Wi-Fi, **IP fixo** — rota `proto static`), gateway `192.168.0.1` |
+| Roteador | TP-Link, UI `tpos` (firmware `c80_1.14.0_2024-10-08`), MAC `5c:62:8b:b7:0e:5c` |
+| Link | PPPoE (MTU 1480) com IP público próprio: **189.124.4.56** (PTR `189-124-4-56.tcvnet.com.br`) |
 | Tailscale | `100.77.67.53` — `nicky-server.tail1b1f51.ts.net` |
-| Domínio (Dynu DDNS) | `nicky.theworkpc.com` → **189.124.4.56** |
-| API REST | `:8000` (TLS não; exige `X-API-Key` em tudo — `OD_API_AUTH_ALL=1`) |
-| WebSocket | `:8001` |
+| Domínio (Dynu DDNS) | `nicky.theworkpc.com` → **189.124.4.56** (em dia) |
+| API REST | `:8000` (sem TLS; exige `X-API-Key`/sessão em tudo — `OD_API_AUTH_ALL=1`) |
+| WebSocket | `:8001` (sem TLS) |
+| IPv6 nativo | `2804:428:3:6340:20f:ff:fe37:acf0/64` (global, dinâmico por RA) |
 | App Flutter | primária `http://100.77.67.53:8000`, externa `http://nicky.theworkpc.com` |
 
-## Diagnóstico (o que as medições dizem)
+## Diagnóstico fechado: a regra existe, quem barra é a operadora
 
-Feito em 2026-09-21 com os serviços no ar:
+Medições de 2026-09-21, com os serviços no ar:
 
 | Teste | Origem | Resultado |
 |---|---|---|
-| `curl http://nicky.theworkpc.com/health` | **de dentro** da LAN | **401 em 0,31s** (chegou na API — hairpin NAT do roteador) |
-| `dig +short nicky.theworkpc.com` | público | `189.124.4.56` = IP público **atual** (DDNS em dia) |
-| HTTP do domínio | **de fora** (hackertarget, EUA) | **timeout** |
-| HTTP do IP puro `189.124.4.56` (sem DNS) | **de fora** | **timeout** |
-| Controle `http://example.com` no mesmo serviço | de fora | 200 + headers (o serviço funciona) |
-| Caminho da rota (`tracepath`) | no servidor | `192.168.0.1` → `189.124.0.25` → internet: **não é CGNAT** |
+| `GET http://189.124.4.56/health` (porta 80) | **de dentro** | `401` com `Server: OmegaDrakon/1.2.0` — **é a nossa API** |
+| `GET /supervision` local × via IP público | de dentro | **idênticos** (só o campo `ts` difere) — **mesmo processo** |
+| `GET https://189.124.4.56:8443/` | de dentro | `403` do **próprio roteador** (mesmo perfil do `192.168.0.1`) |
+| Sonda externa (check-host, 4–6 nós) | **de fora** | timeout em `80` e `8000` |
+| Varredura externa (portchecker.io) | de fora | **fechadas**: 80, 443, 8000, 8443, 22, 1883 |
+| `dig +short nicky.theworkpc.com` | público | `189.124.4.56` ✔ |
+| `tracepath 8.8.8.8` | no servidor | hop 1 `192.168.0.1`, hop 2 `189.124.0.25` (público) → **NAT único, sem CGNAT** |
 
-**Conclusão:** o servidor responde, o DNS está certo e o IP é público — mas
-**nada chega da internet na porta 80**. O timeout no IP puro elimina DNS e
-descarta o próprio servidor. Causas prováveis, em ordem:
+Leitura dessas medições:
 
-1. **bloqueio da porta 80 pela operadora** (comum em plano residencial); ou
-2. **a regra de encaminhamento do roteador não está ativa** (ou aponta para
-   outro IP interno — a máquina hoje é `.250`).
+1. **A regra de encaminhamento do roteador está ativa e certa** (80 → `192.168.0.250:8000`).
+   O pedido feito ao IP público, por dentro, chega na nossa API — com o mesmo
+   processo (o `/supervision` bate). Se a regra fosse inativa ou apontasse para
+   IP antigo, isso não aconteceria.
+2. **O roteador é o dono do IP público** (não há CGNAT nem segundo NAT): ele
+   respondeu com a própria UI na `189.124.4.56:8443`, e só quem possui o IP
+   pode fazer isso. O hop 2 já é a agregação da operadora.
+3. **A `8443` do roteador também está fechada de fora.** Ou seja: não é só a
+   porta 80. Um serviço que o roteador expõe na WAN e uma porta encaminhada
+   ficam ambos inacessíveis a partir da internet → **o filtro de entrada está
+   acima do roteador (operadora — Algar/TCV)**.
 
-O `curl` de dentro da rede **não** prova acesso externo: o roteador devolve a
-conexão internamente (hairpin NAT). Foi assim que a verificação de 09-19
-concluiu "FUNCIONANDO" sem estar.
+**Conclusão:** o app não tem defeito e o roteador não tem erro de configuração.
+**Criar mais regras no roteador não resolve** — o tráfego de entrada não chega
+na WAN. `curl` de dentro da rede **não** prova acesso externo (hairpin NAT);
+foi assim que a verificação de 09-19 concluiu "FUNCIONANDO" sem estar.
 
-## Opção A — Tailscale Funnel (recomendada: não depende de roteador/operadora)
+## Opção A — Tailscale Funnel (recomendada)
 
-Publica a API na internet com **HTTPS** e sem abrir porta nenhuma:
+Publica a API na internet com **HTTPS**, sem abrir porta e **sem depender da
+operadora**:
 
 ```bash
 # 1. habilitar o Funnel no tailnet (clique único, dono da conta):
 #    https://login.tailscale.com/f/funnel?node=nutTa2mhy521CNTRL
 
-# 2. publicar a 8000 (o CLI já resolve o TLS):
-tailscale funnel --bg 8000
+# 2. publicar a 8000 (o CLI resolve o TLS sozinho):
+tailscale funnel --bg --https=443 8000
 
 # 3. conferir / desligar:
 tailscale funnel status
@@ -58,30 +70,47 @@ tailscale funnel --bg off
 Resultado: **`https://nicky-server.tail1b1f51.ts.net`** → `127.0.0.1:8000`.
 No app, esse é o valor do campo **"URL externa (internet)"**.
 
-Por que é a melhor opção aqui: sobrevive à troca de IP da operadora, não
-depende da porta 80 (que não está passando), e entrega TLS (a Play Store e as
-operadoras tratam HTTPS melhor que HTTP puro na 80).
+Para o streaming (WS `:8001`) no mesmo host, o `serve` aceita caminho:
 
-## Opção B — encaminhamento no roteador (porta alternativa)
+```bash
+tailscale serve --bg --https=443 --set-path=/ws 8001
+```
 
-Se preferir manter o domínio próprio:
+(o app passa a montar `wss://<host>/ws` quando a URL for `https://` sem porta).
 
-1. No roteador (`192.168.0.1`): encaminhar **8443** (ou 8080) → `192.168.0.250:8000`.
-2. Testar **de fora** (não vale testar de dentro!):
-   `https://api.hackertarget.com/httpheaders/?q=http://nicky.theworkpc.com:8443/health`
-   — a resposta esperada é o JSON de erro `401 unauthorized` da própria API.
-3. No app: campo externo = `http://nicky.theworkpc.com:8443`.
+Motivo da recomendação: sobrevive à troca de IP da operadora, não depende de
+porta (nenhuma entrada passa hoje) e entrega TLS — melhor para o app do que
+HTTP puro.
 
-Se o teste continuar em timeout, a operadora bloqueia entrada nessa porta
-também e a Opção A é o caminho.
+## Opção B — pedir abertura à operadora (Algar/TCV)
+
+Se quiser manter o domínio próprio (`nicky.theworkpc.com`) e o caminho sem
+VPN, é com a operadora: planos residenciais brasileiros normalmente filtram a
+entrada (80/443/25 e, neste caso, mais portas). Alternativas: pedir liberação
+de portas / plano com IP público fixo, ou contratar um VPS e fazer túnel até
+ele. Não há ajuste local que resolva.
+
+## Opção C — IPv6 nativo (a testar, exige roteador)
+
+Esta máquina tem **IPv6 global próprio** (`2804:428:3:6340:20f:ff:fe37:acf0`)
+e a operadora não faz NAT nele. Se o firewall IPv6 do roteador permitir
+entrada, o caminho externo vira AAAA + porta — **precisa de login no
+roteador** para liberar e de AAAA no DNS; o prefixo é dinâmico (muda com RA),
+o que exigiria atualização automática do registro.
 
 ## Como testar de fora (referência)
 
 ```bash
 # dentro (hairpin — NÃO prova nada sobre a internet)
 curl -s -o /dev/null -w "%{http_code}\n" http://nicky.theworkpc.com/health
-# de fora, via serviço público (controle: example.com responde headers)
-# https://api.hackertarget.com/httpheaders/?q=http://<host>/health
+
+# de fora: sonda com nós independentes (TCP)
+#   https://check-host.net/check-tcp?host=<ip>:<porta>&max_nodes=4
+#   -> depois https://check-host.net/check-result/<request_id>
+# de fora: varredura de portas
+curl -s -X POST https://portchecker.io/api/v1/query \
+     -H 'Content-Type: application/json' \
+     -d '{"host":"189.124.4.56","ports":[80,443,8000,8443]}'
 ```
 
 ## Segurança
@@ -91,5 +120,4 @@ curl -s -o /dev/null -w "%{http_code}\n" http://nicky.theworkpc.com/health
   Expor a 8000 na internet é o desenho previsto; o que **não** pode é expor sem
   chave (`OD_API_AUTH_ALL=0` só para uso local).
 - O WebSocket (`:8001`) autentica por credencial desde 2026-09-21 (sessão ou
-  API key), mas **não tem TLS**: para streaming externo, o Funnel só publica a
-  8000. Streaming na internet hoje passa pelo Tailscale (que é cifrado).
+  API key) e, no Funnel, deve ir por `wss://` (caminho `/ws`).
