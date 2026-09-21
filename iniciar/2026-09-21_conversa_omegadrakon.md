@@ -330,3 +330,49 @@ app (`odWsFrameTimeout` 240 s). A prova confirma também o combinado de
 identidade: chave do servidor (`via=server`) respeita o `user_id="app"` do
 frame — o balde do app segue único até o app autenticar por sessão.
 
+---
+
+## 10. Prova de boot autônomo (em andamento — checkpoint pré-reboot)
+
+Pedido: "Prove que o Funnel sobrevive a reboot do servidor sem intervenção
+manual".
+
+### Pré-checagem (o que o boot autônomo exige)
+
+| Requisito | Estado |
+|---|---|
+| `Linger=yes` para alex (gerenciador de usuário sobe sem login) | ✔ |
+| `tailscaled` (sistema) enabled+active (Funnel é estado do daemon) | ✔ |
+| `od-core` (usuário) enabled | ✔ |
+| LUKS/crypt no disco (exigiria senha no boot) | não há |
+| Boot target | `graphical.target` |
+
+Limitação declarada: `sudo` de `alex` é `ALL` **com** senha (NOPASSWD só para
+`mariadb`/`nexus-router`) e não há sessão gráfica ativa — reboot com polkit
+não autorizaria sem senha. Instalação do provador e o reboot serão executados
+pelo dono, **um comando só** (sudo com senha), registrado aqui.
+
+### Provador de boot (regra 12)
+
+- `tools/monitor/od_boot_prover.sh` — roda no boot como one-shot do SYSTEM
+  (`od-boot-prover.service` → `multi-user.target`), **não inicia nada: só
+  observa** e grava `/var/lib/od-boot-prover/last.txt`: boot_id, linger,
+  user@1000, tailscaled, Funnel (2 caminhos), od-core+PID, probes locais
+  8000/8001 e probe HTTPS pela URL pública.
+- **Ensaio no sistema vivo** (override de diretório): todos os 7 checks OK →
+  `RESULTADO: BOOT_AUTONOMO_OK` (1º ensaio pegou bug de contagem — o
+  cabeçalho `# Funnel on:` duplicava o grep; corrigido para `"(Funnel on)"`).
+
+### Critério de sucesso pós-reboot
+
+1. `/var/lib/od-boot-prover/last.txt` termina com `RESULTADO:
+   BOOT_AUTONOMO_OK` e o `boot_id` **diferente** do atual
+   (`3f33b3fe-0028-40a0-a9b3-41b023dc0fe8`);
+2. journal do `od-boot-prover` mostra a execução no boot;
+3. probe de fora (check-host) com 401 da API pela URL do Funnel;
+4. TUDO sem ninguém ter logado no servidor (só SSH para **ler** a evidência,
+   depois do fato).
+
+> **Checkpoint gravado antes do reboot de propósito:** o reboot mata a
+> sessão; a retomada parte deste arquivo + `session.json`.
+

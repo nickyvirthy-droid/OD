@@ -1,7 +1,16 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-21T10:55:00-03:00",
+  "updated_at": "2026-09-21T11:05:00-03:00",
+  "prova_reboot_2026_09_21": {
+    "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
+    "pre_checagem": "Linger=yes para alex; tailscaled enabled+active; od-core (usuário) enabled; SEM LUKS; boot target graphical. sudo de alex = ALL COM senha (NOPASSWD só mariadb/nexus-router) e sem sessão gráfica ativa → reboot polkit não autoriza sem senha; instalação do provador + reboot = comando único do dono com sudo.",
+    "provador": "tools/monitor/od_boot_prover.sh + od-boot-prover.service (one-shot do SYSTEM, multi-user.target) — não inicia nada, só observa e grava /var/lib/od-boot-prover/last.txt (boot_id, linger, user@1000, tailscaled, Funnel 2 caminhos, od-core+PID, probes 8000/8001 locais e HTTPS pela URL pública). Ensaio no sistema vivo: 7/7 OK → BOOT_AUTONOMO_OK (1º ensaio pegou bug de contagem do grep 'Funnel on' — cabeçalho duplicava; corrigido para '(Funnel on)').",
+    "boot_id_antes": "3f33b3fe-0028-40a0-a9b3-41b023dc0fe8",
+    "criterio_sucesso": "last.txt com RESULTADO: BOOT_AUTONOMO_OK e boot_id DIFERENTE do de antes; journal do od-boot-prover mostra execução no boot; probe de fora (check-host) 401 pela URL; tudo sem login no servidor (SSH só para ler evidência depois).",
+    "estado": "PROVADOR CRIADO E ENSAIADO; commit pré-reboot feito; FALTA: usuário instala (sudo cp unit + daemon-reload + enable) e reinicia (sudo reboot); depois retomar aqui e ler a evidência.",
+    "comando_do_dono": "sudo cp /home/alex/OmegaDrakon/tools/monitor/od-boot-prover.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable od-boot-prover.service && sudo reboot"
+  },
   "prova_e2e_funnel_2026_09_21": {
     "pedido": "Usuário: 'Instalei o APK novo no celular — faça a prova de chat ponta a ponta pela URL do Funnel com minha credencial'.",
     "metodo": "sandbox_agent/app_funnel_sandbox.py (gitignored) reproduz o protocolo de od_ws.dart: REST POST /message (X-API-Key, user_id 'app') e WS wss://…/ws (frames auth→message→token*→done), TLS validado, prompt único por execução (uuid) para não cair no cache do LLM.",
@@ -188,7 +197,7 @@
   "last_turn": {
     "date": "2026-09-21",
     "action": "Prova ponta a ponta do chat pela URL do Funnel concluída (2/2 OK: REST route=llm com gemma-local; WS com 512 tokens em streaming; journal limpo). APK 1.2.8+9 instalado no celular pelo usuário. Transcrição §9.",
-    "next": "(1) Migrar os baldes 'app' e '660518870' quando o app autenticar por sessão; (2) conferir se o Funnel sobrevive a reboot (persistência de serve/funnel); (3) nada mais crítico — caminho externo fechado e provado."
+    "next": "(1) REBOOT pendente: dono executa o comando registrado em prova_reboot_2026_09_21.comando_do_dono (instala od-boot-prover + reboot); (2) pós-boot: ler /var/lib/od-boot-prover/last.txt (boot_id novo + BOOT_AUTONOMO_OK), journal, probe de fora, registrar e commitar; (3) depois: migrar baldes 'app'/'660518870' quando o app autenticar por sessão."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},

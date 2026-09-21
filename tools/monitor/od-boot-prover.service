@@ -1,0 +1,16 @@
+[Unit]
+Description=OmegaDrakon - prova de boot autonomo (od-core + Tailscale Funnel)
+Documentation=file:/home/alex/OmegaDrakon/tools/monitor/od_boot_prover.sh
+# Espera a rede (para o probe do Funnel) e o gerenciador de usuario do alex
+# (linger=yes), que e quem sobe o od-core. O prover nao INICIA nada: so observa.
+After=network-online.target tailscaled.service user@1000.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/alex/OmegaDrakon/tools/monitor/od_boot_prover.sh
+# Registro completo tambem no journal (journalctl -u od-boot-prover)
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target
