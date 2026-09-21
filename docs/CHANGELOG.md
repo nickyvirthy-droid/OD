@@ -290,6 +290,30 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
+### Documentado (2026-09-21) — acesso externo: diagnóstico e o caminho do Funnel 🌐
+
+- **`docs/ACESSO_EXTERNO.md` (novo)** — o app não acessa pela internet, só pelo
+  Tailscale. Medições: de **dentro** da LAN o domínio responde `401` em 0,31s
+  (chegou na API, mas por hairpin NAT — **não** prova acesso externo); de
+  **fora** (serviço público, com `example.com` como controle) o domínio **e o
+  IP puro** `189.124.4.56` dão **timeout**. DNS está em dia (aponta para o IP
+  público atual) e o `tracepath` mostra que **não é CGNAT**. Conclusão: o
+  servidor responde, mas nada entra pela porta 80 — causa provável é bloqueio
+  da operadora nessa porta, ou a regra de encaminhamento do roteador inativa
+  (ou apontando para outro IP interno; a máquina hoje é `.250`).
+- **O APK não é o problema:** `app/lib/main.dart` já traz primária Tailscale +
+  externa `http://nicky.theworkpc.com`, a tela de Configurações separa "rede
+  local" de "internet" e o manifesto libera HTTP (`usesCleartextTraffic`).
+  Falta o caminho de entrada, não o app.
+- **Caminho pronto para ligar (recomendado):** `tailscale funnel --bg 8000`
+  publicaria **`https://nicky-server.tail1b1f51.ts.net`** → `127.0.0.1:8000`,
+  sem tocar no roteador nem depender de porta. O CLI respondeu que o Funnel
+  **não está habilitado no tailnet** e deu o link de um clique para habilitar
+  (`login.tailscale.com/f/funnel?node=…`).
+- **Alternativa:** encaminhar **8443** no roteador → `192.168.0.250:8000` e usar
+  `http://nicky.theworkpc.com:8443` — e testar **de fora** (o comando está no
+  documento; testar de dentro sempre dá falso positivo).
+
 ### Corrigido (2026-09-21) — /history devolve 404 para nome que não é de ninguém 🧭
 
 - **`GET /history/{user_id}/stats` e `DELETE /history/{user_id}`** — nome que
