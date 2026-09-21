@@ -64,9 +64,9 @@ def serve():
     """Sobe APIServers sob demanda e derruba todos no fim do teste."""
     servers: list[APIServer] = []
 
-    def _start(orch=None, *, config=None) -> APIServer:
+    def _start(orch=None, *, config=None, vector=None) -> APIServer:
         cfg = config or APIConfig(port=0, rate_limit_max=0)
-        srv = APIServer(orch, config=cfg)
+        srv = APIServer(orch, config=cfg, vector=vector)
         srv.serve_background()
         servers.append(srv)
         return srv
@@ -809,3 +809,188 @@ class TestLoginGuard:
         guard.register_failure("10.0.0.2", "alex")  # dispara o _gc
         assert guard.snapshot()["tracked_keys"] <= 2
 
+
+# ===========================================================================
+# Dono do recurso — /history e /memory por username
+# ===========================================================================
+
+class TestHistoryOwnership:
+    """Cada usuário só lê/apaga o PRÓPRIO histórico; OD_API_KEY é admin.
+
+    Antes, qualquer credencial válida acessava o histórico de qualquer
+    username — inofensivo enquanto todos eram o balde "web"; desde que cada
+    pessoa tem conta e senha, era leitura (e exclusão) de conversa alheia.
+    """
+
+    @staticmethod
+    def _cfg(store, **kwargs) -> APIConfig:
+        return APIConfig(port=0, rate_limit_max=0, user_store=store, **kwargs)
+
+    @staticmethod
+    def _seed(srv, user: str, texto: str) -> None:
+        """Escreve uma interação no histórico do usuário (backend do servidor)."""
+        history = srv.orchestrator.history
+        assert history is not None
+        history.add_message(user, "guardian", "user", texto)
+
+    def test_user_reads_own_history_stats(self, serve, tmp_path, store) -> None:
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        self._seed(srv, "alex", "minha conversa")
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/history/alex/stats", bearer=token
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["ok"] is True
+        assert data["stats"]["messages"] == 1
+
+    def test_username_case_does_not_open_another_bucket(
+        self, serve, tmp_path, store
+    ) -> None:
+        """`/history/Alex` casa com a conta 'alex' (o registro é lowercase)."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        self._seed(srv, "alex", "minha conversa")
+        status, _, _ = _request(
+            srv.bound_port, "GET", "/history/Alex/stats", bearer=token
+        )
+        assert status == 200
+        # 'Alex' (maiúsculo) também não é um balde separado: nada para 'alex2'
+        status, _, _ = _request(
+            srv.bound_port, "GET", "/history/alex2/stats", bearer=token
+        )
+        assert status == 403
+
+    def test_user_denied_read_of_other_history(self, serve, tmp_path, store) -> None:
+        srv = serve(make_orch(tmp_path), config=self._cfg(store, api_key="segredo123"))
+        store.register("alex", "alex@example.com", "senha123")
+        store.register("bia", "bia@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        self._seed(srv, "bia", "conversa privada da bia")
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/history/bia/stats", bearer=token
+        )
+        assert status == 403
+        assert _json_response((status, body, _))["error"] == "acesso_negado"
+
+    def test_user_denied_delete_of_other_history(
+        self, serve, tmp_path, store
+    ) -> None:
+        """O furo mais grave: apagar a conversa de outra conta."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        store.register("alex", "alex@example.com", "senha123")
+        store.register("bia", "bia@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        self._seed(srv, "bia", "conversa privada da bia")
+        status, _, _ = _request(
+            srv.bound_port, "DELETE", "/history/bia", bearer=token
+        )
+        assert status == 403
+        # Nada foi apagado: a conversa da bia continua inteira
+        history = srv.orchestrator.history
+        assert history is not None
+        assert len(history.get_history("bia", "guardian")) == 1
+
+    def test_user_api_key_follows_the_same_rule(
+        self, serve, tmp_path, store
+    ) -> None:
+        """Vale para os dois tipos de credencial de usuário, não só o Bearer."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        alex = store.register("alex", "alex@example.com", "senha123")
+        store.register("bia", "bia@example.com", "senha123")
+        self._seed(srv, "bia", "conversa privada da bia")
+        status, _, _ = _request(
+            srv.bound_port, "GET", "/history/bia/stats", api_key=alex.api_key
+        )
+        assert status == 403
+        status, _, _ = _request(
+            srv.bound_port, "GET", "/history/alex/stats", api_key=alex.api_key
+        )
+        assert status == 200
+
+    def test_user_deletes_own_history(self, serve, tmp_path, store) -> None:
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        self._seed(srv, "alex", "minha conversa")
+        status, body, _ = _request(
+            srv.bound_port, "DELETE", "/history/alex", bearer=token
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["removed"] == 1
+        history = srv.orchestrator.history
+        assert history is not None
+        assert history.get_history("alex", "guardian") == []
+
+    def test_server_api_key_is_admin(self, serve, tmp_path, store) -> None:
+        """OD_API_KEY não tem usuário associado: segue acessando qualquer um."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store, api_key="segredo123"))
+        store.register("bia", "bia@example.com", "senha123")
+        self._seed(srv, "bia", "conversa privada da bia")
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/history/bia/stats", api_key="segredo123"
+        )
+        assert status == 200 and _json_response((status, body, _))["stats"]["messages"] == 1
+        status, body, _ = _request(
+            srv.bound_port, "DELETE", "/history/bia", api_key="segredo123"
+        )
+        assert status == 200 and _json_response((status, body, _))["removed"] == 1
+
+    def test_dev_without_user_store_stays_open(self, serve, tmp_path) -> None:
+        """Sem UserStore (dev local) não há dono — o comportamento legado fica."""
+        srv = serve(make_orch(tmp_path), config=APIConfig(port=0, rate_limit_max=0))
+        self._seed(srv, "alex", "minha conversa")
+        status, _, _ = _request(srv.bound_port, "DELETE", "/history/alex")
+        assert status == 200
+
+    def test_memory_search_denied_before_store_check(
+        self, serve, tmp_path, store
+    ) -> None:
+        """403 precede o 501: sem VectorStore, não conta que o store não existe."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/memory/bia/search?q=oi", bearer=token
+        )
+        assert status == 403
+        assert _json_response((status, body, _))["error"] == "acesso_negado"
+        # O próprio usuário cai no 501 real (memória vetorial não conectada)
+        status, _, _ = _request(
+            srv.bound_port, "GET", "/memory/alex/search?q=oi", bearer=token
+        )
+        assert status == 501
+
+    def test_memory_search_own_namespace_only(
+        self, serve, tmp_path, store
+    ) -> None:
+        from urllib.parse import quote
+
+        from memory.vector import VectorStore
+
+        vector = VectorStore(store_dir=tmp_path / "vec")
+        vector.add("alex", "documento do alex sobre brasília")
+        vector.add("bia", "documento da bia sobre outro assunto")
+        srv = serve(
+            make_orch(tmp_path), config=self._cfg(store), vector=vector
+        )
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "GET",
+            f"/memory/alex/search?q={quote('brasília')}", bearer=token,
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["user_id"] == "alex"
+        assert all("da bia" not in r["text"] for r in data["results"])
+
+    def test_no_credential_still_401(self, serve, tmp_path, store) -> None:
+        """A checagem de dono não afrouxa o gate: sem credencial → 401."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store, api_key="segredo123"))
+        assert _request(srv.bound_port, "GET", "/history/alex/stats")[0] == 401
+        assert _request(srv.bound_port, "DELETE", "/history/alex")[0] == 401
+        assert _request(
+            srv.bound_port, "GET", "/memory/alex/search?q=oi"
+        )[0] == 401

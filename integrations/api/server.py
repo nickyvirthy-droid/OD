@@ -1061,6 +1061,39 @@ class APIHandler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _check_owner(self, user_id: str) -> str:
+        """Autoriza o acesso a um recurso por username (histórico/memória).
+
+        Credencial de USUÁRIO (sessão Bearer ou API key ``od_...``) só acessa o
+        PRÓPRIO recurso: o ``{user_id}`` do caminho tem de ser o username
+        autenticado. A ``OD_API_KEY`` do servidor é o passe de admin — não tem
+        usuário associado (``_current_user is None``), é a chave do operador e
+        do app/bot, e continua lendo e apagando qualquer histórico.
+
+        Antes, qualquer credencial válida lia ou **apagava** o histórico de
+        qualquer username: inofensivo enquanto todo mundo era o balde "web",
+        inaceitável desde que cada pessoa tem conta e senha.
+
+        Retorna:
+            O username já decodificado (``unquote`` + strip).
+
+        Raises:
+            APIError: 403 quando o username do caminho não é o autenticado.
+        """
+        uid = unquote(user_id).strip()
+        user = self._current_user
+        if user is None:  # OD_API_KEY (admin/app) ou dev local sem auth
+            return uid
+        if uid.lower() != user.username.lower():
+            log.warn(
+                "Acesso a recurso de outro usuário negado",
+                autenticado=user.username,
+                alvo=uid,
+                path=urlsplit(self.path).path,
+            )
+            raise APIError(403, "acesso_negado")
+        return uid
+
     # -- Helpers de corpo/resposta -------------------------------------------
 
     def _read_json(self) -> dict[str, Any]:
@@ -1748,7 +1781,7 @@ class APIHandler(BaseHTTPRequestHandler):
         orch = self.api.orchestrator
         if orch is None or orch.history is None:
             raise APIError(501, "historico_indisponivel")
-        uid = unquote(user_id)
+        uid = self._check_owner(user_id)
         removed = orch.history.clear(uid)
         self._json(
             200,
@@ -1759,7 +1792,7 @@ class APIHandler(BaseHTTPRequestHandler):
         orch = self.api.orchestrator
         if orch is None or orch.history is None:
             raise APIError(501, "historico_indisponivel")
-        uid = unquote(user_id)
+        uid = self._check_owner(user_id)
         stats = orch.history.stats(user_id=uid)
         self._json(
             200,
@@ -1767,6 +1800,9 @@ class APIHandler(BaseHTTPRequestHandler):
         )
 
     def memory_search(self, user_id: str) -> None:
+        # Dono ANTES da disponibilidade: não revela se o store existe para o
+        # histórico de outra pessoa (403 precede o 501).
+        uid = self._check_owner(user_id)
         vector = self.api.vector
         if vector is None:
             raise APIError(
@@ -1782,7 +1818,6 @@ class APIHandler(BaseHTTPRequestHandler):
             top_k = max(1, min(int(raw_top), 20))
         except ValueError:
             top_k = 3
-        uid = unquote(user_id)
         results = vector.search(uid, query, top_k=top_k)
         self._json(
             200,

@@ -290,6 +290,37 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
+### Corrigido (2026-09-21) — dono do histórico: cada conta só acessa a sua 🚪
+
+- **`DELETE /history/{user_id}`, `GET /history/{user_id}/stats` e
+  `GET /memory/{user_id}/search`** passam a checar o dono do recurso: com
+  credencial de USUÁRIO (sessão `Bearer` ou API key `od_...`), o `{user_id}`
+  do caminho tem de ser o **username autenticado** — do contrário **403**
+  (`acesso_negado`, com log `Acesso a recurso de outro usuário negado`). A
+  `OD_API_KEY` do servidor é o passe de admin: não tem usuário associado
+  (`_current_user is None`), é a chave do operador e do app/bot, e continua
+  lendo/apagando **qualquer** histórico. Sem `UserStore` (dev local) o
+  comportamento legado permanece. Em `/memory` a checagem vem **antes** do
+  501 — não conta para o histórico de outra pessoa se o `VectorStore` existe.
+- **O que estava aberto:** qualquer credencial válida lia — e **apagava** —
+  a conversa de qualquer username. Era inofensivo enquanto todo mundo era o
+  balde `"web"`; deixou de ser desde que cada pessoa tem conta e senha
+  (leitura e exclusão de conversa alheia por quem estivesse logado).
+- **Testes:** `tests/test_auth.py` **+11** (`TestHistoryOwnership`): stats e
+  DELETE do próprio histórico, 403 na leitura e na exclusão de outro
+  username, o histórico do alvo **intacto** após o 403, a mesma regra para
+  API key de usuário, `OD_API_KEY` como admin, caixa do username no caminho
+  (`/history/Alex`), 403 antes do 501 em `/memory`, isolamento do namespace
+  na busca semântica e 401 para quem não tem credencial.
+- **Teste do teste (5 mutações, todas revertidas):** `_check_owner` sempre
+  libera → **5 falhas**; checar só o `Bearer` (API key de usuário passando)
+  → 1; comparação case-sensitive → 1; `history_delete` sem checagem → 1;
+  `/memory` checando depois do 501 → 2.
+- **Sandbox (antes do sistema real):** `sandbox_agent/auth_sandbox.py` ganhou
+  um terceiro cenário (dois usuários + histórico real) → **27/27 OK** (18
+  antes).
+- **Suíte:** **1825 passed, 16 skipped** (49,52s).
+
 ### Corrigido (2026-09-21) — freio contra força bruta no login 🛡️
 
 - **`LoginGuard` (`integrations/api/auth.py`)** — `POST /auth/login` é
