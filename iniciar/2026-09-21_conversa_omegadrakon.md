@@ -256,3 +256,38 @@ externo ao serviço.
 `wss://host/ws`, que o app já deriva desde o commit `57c4710`. Falta atualizar
 o default externo no app e gerar o APK novo.
 
+---
+
+## 8. APK 1.2.8+9 com a URL externa do Funnel
+
+Pedido: "Atualize o default externo do app para
+https://nicky-server.tail1b1f51.ts.net e gere o APK novo".
+
+### Mudanças no app
+
+- `app/lib/main.dart`: `fallbackUrl` `http://nicky.theworkpc.com` →
+  **`https://nicky-server.tail1b1f51.ts.net`**.
+- `app/lib/screens/settings_screen.dart`: hint do campo externo e o texto
+  "Como acessar" apontam para a URL do Funnel.
+- `app/pubspec.yaml`: `1.2.8+8` → **`1.2.8+9`** (versionCode 9).
+- Build com o ambiente do servidor (`~/flutter`, `JAVA_HOME=~/jdk` JDK 17,
+  `ANDROID_SDK_ROOT=~/android-sdk`) via `app/build_apk.sh` — full + arm64
+  publicados em `site/`; anterior preservado em
+  `backups/apk-v1.2.8+8-20260921/`.
+
+### Verificação
+
+| Prova | Resultado |
+|---|---|
+| `flutter analyze` | sem issues |
+| `flutter test` | **71 passed, 2 skip** |
+| Binário (strings no `libapp.so` arm64) | novo: **1× `tail1b1f51`**, 0× `theworkpc`; antigo: 0 e 2 |
+| `aapt2 dump badging` | `versionCode='9'`, `versionName='1.2.8'` |
+| Download via Funnel | `GET /site/OmegaDrakon.apk` → HTTP 200, 52.247.003 B, **sha256 idêntico ao local** (`a3c53494…`) |
+
+A API no ar serve o APK novo pela URL pública — ninguém precisa de rede local
+para instalar.
+
+**Pendente:** instalar no Redmi Note 14 (o 1.2.8+8 atual instala por cima sem
+conflito, versionCode 9 > 8).
+

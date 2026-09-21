@@ -149,7 +149,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           controller: _fallbackController,
           decoration: const InputDecoration(
             labelText: 'URL externa (internet)',
-            hintText: 'http://nicky.theworkpc.com',
+            hintText: 'https://nicky-server.tail1b1f51.ts.net',
             border: OutlineInputBorder(),
             prefixIcon: Icon(Icons.language),
           ),
@@ -249,9 +249,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   '  1. Instale o Tailscale no celular\n'
                   '  2. Entre no mesmo tailnet\n'
                   '  3. URL: http://100.77.67.53:8000\n\n'
-                  'Internet (externa):\n'
-                  '  1. URL: http://nicky.theworkpc.com\n'
-                  '  2. Funciona de qualquer lugar\n\n'
+                  'Internet (externa — Tailscale Funnel):\n'
+                  '  1. URL: https://nicky-server.tail1b1f51.ts.net\n'
+                  '  2. Funciona de qualquer lugar (HTTPS)\n\n'
                   'Cole a API key do .env do servidor.',
                   style: TextStyle(height: 1.5),
                 ),

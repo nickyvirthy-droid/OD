@@ -1,7 +1,14 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-21T10:20:00-03:00",
+  "updated_at": "2026-09-21T10:35:00-03:00",
+  "apk_1_2_8_9_2026_09_21": {
+    "pedido": "Usuário: 'Atualize o default externo do app para https://nicky-server.tail1b1f51.ts.net e gere o APK novo'.",
+    "mudancas": ["app/lib/main.dart: fallbackUrl http://nicky.theworkpc.com → https://nicky-server.tail1b1f51.ts.net (Funnel)", "app/lib/screens/settings_screen.dart: hint do campo externo + texto 'Como acessar' com a URL do Funnel", "app/pubspec.yaml: 1.2.8+8 → 1.2.8+9"],
+    "build": "app/build_apk.sh com ambiente do servidor (PATH ~/flutter/bin, JAVA_HOME ~/jdk JDK 17, ANDROID_SDK_ROOT ~/android-sdk); full 52.247.003 B + arm64 18.650.118 B publicados em site/; anterior preservado em backups/apk-v1.2.8+8-20260921/",
+    "provas": "flutter analyze 0 issues · flutter test 71 passed, 2 skip · strings no libapp.so arm64: novo 1× tail1b1f51 / 0× theworkpc (antigo 0/2) · aapt2: versionCode='9' versionName='1.2.8' · download via Funnel (GET /site/OmegaDrakon.apk, 200, sha256 a3c53494… idêntico ao local)",
+    "status": "COMMITADO e PUSHED (regra 7.1); instalar no Redmi Note 14 (versionCode 9 > 8 instala por cima)"
+  },
   "dono_historico_2026_09_21": {
     "pedido": "Usuário: 'Adicione checagem de dono em /history e /memory (usuário só acessa o próprio histórico; OD_API_KEY como admin)'.",
     "implementacao": "integrations/api/server.py: novo APIHandler._check_owner(user_id) — credencial de usuário (Bearer ou API key od_...) só acessa o próprio username (403 acesso_negado + log de aviso); _current_user None (OD_API_KEY do servidor / dev sem UserStore) segue como admin. Aplicado em history_delete, history_stats e memory_search (este ANTES do 501 do VectorStore).",
@@ -171,8 +178,8 @@
   },
   "last_turn": {
     "date": "2026-09-21",
-    "action": "Funnel habilitado pelo usuário e publicado: https://nicky-server.tail1b1f51.ts.net no ar com REST (/ → 8000) e streaming (/ws → 8001), TLS emitido, DNS público propagado e acesso provado DE FORA (401 da API em 4/5 nós check-host; 426 do WS). Registrado em docs/ACESSO_EXTERNO.md, CHANGELOG e transcrição.",
-    "next": "(1) Mudar o default externo do app (fallbackUrl) para https://nicky-server.tail1b1f51.ts.net e gerar o APK novo; (2) migrar os baldes 'app' e '660518870' quando o app autenticar por sessão; (3) pendências antigas: APK no Redmi Note 14, nada mais crítico."
+    "action": "Funnel publicado e provado de fora (d8bf561) e APK 1.2.8+9 com a URL externa do Funnel gerado, publicado em site/ e servido pela API na URL pública (sha256 conferido). Transcrição §8.",
+    "next": "(1) Instalar o 1.2.8+9 no Redmi Note 14 e testar chat fora da LAN (4G/Wi-Fi de fora); (2) migrar os baldes 'app' e '660518870' quando o app autenticar por sessão; (3) considerar persistência do Funnel após reboot (serve/funnel sobrevivem? conferir)."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},

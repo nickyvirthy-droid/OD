@@ -70,7 +70,8 @@ class _OdHomeState extends State<OdHome> {
     super.initState();
     _api = OdApi(
       baseUrl: 'http://100.77.67.53:8000',
-      fallbackUrl: 'http://nicky.theworkpc.com',
+      // Externa: Tailscale Funnel (TLS, sem depender de porta da operadora).
+      fallbackUrl: 'https://nicky-server.tail1b1f51.ts.net',
     );
     _initApi();
   }

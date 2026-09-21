@@ -290,6 +290,25 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
+### Corrigido (2026-09-21) — app: a URL externa padrão passa a ser o Funnel 📱
+
+- **`app/lib/main.dart`** — o `fallbackUrl` padrão era `http://nicky.theworkpc.com`
+  (porta 80, que a operadora bloqueia — ver diagnóstico abaixo) e passou a ser
+  **`https://nicky-server.tail1b1f51.ts.net`** (Tailscale Funnel, TLS, sem
+  depender de porta). A tela Configurações ganhou o novo hint e o texto
+  "Como acessar" ensina o novo endereço; o streaming já deriva `wss://host/ws`
+  para https sem porta (commit `57c4710`).
+- **APK 1.2.8+9 publicado em `site/`** — o anterior (1.2.8+8) foi preservado
+  em `backups/apk-v1.2.8+8-20260921/`; `versionCode` 8 → 9 (o Android recusa
+  instalar versionCode menor por cima).
+- **Provas:** `flutter analyze` sem issues · `flutter test` **71 passed, 2
+  skip**; binário: o `libapp.so` do APK novo contém **1× `tail1b1f51`** e
+  **0× `theworkpc`** (o antigo: 0 e 2 — strings diferenciais que confirmam o
+  código novo no binário); o APK baixado de
+  `https://nicky-server.tail1b1f51.ts.net/site/OmegaDrakon.apk` (HTTP 200,
+  52.247.003 B) tem **sha256 idêntico** ao local — a API no ar já serve o
+  binário novo pela URL pública.
+
 ### Documentado (2026-09-21) — acesso externo publicado via Tailscale Funnel 🌐
 
 - **O caminho recomendado saiu do papel:** com o dono habilitando o Funnel no
