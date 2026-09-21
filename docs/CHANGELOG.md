@@ -421,6 +421,12 @@ de código** (o que faltava era só a credencial):
   commit e sem registro em `iniciar/` até 09-21, quando entrou no restart
   seguinte. Não passou pelo sandbox da regra 12 **antes** do deploy (só
   pelos testes); a prova viva no ar é o que sustenta o comportamento hoje.
+- **Lacuna da regra 12 fechada (2026-09-21):** `sandbox_agent/auth_sandbox.py`
+  ganhou o cenário do freio sobre um `APIServer` real — erro isolado não trava,
+  login certo zera o contador da conta, falhas **consecutivas** travam até a
+  senha correta (**429 `too_many_attempts`** com `retry_after_s`), o mesmo IP
+  travado pega o *spraying* de outro username e tentativa bloqueada não estende
+  a punição → **36/36 OK** (era 27).
 
 ### Adicionado (2026-09-19/20) — autenticação de usuários no chat web 🔐
 
