@@ -290,6 +290,28 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
+### Corrigido (2026-09-21) — /history devolve 404 para nome que não é de ninguém 🧭
+
+- **`GET /history/{user_id}/stats` e `DELETE /history/{user_id}`** — nome que
+  não é conta e não tem mensagem alguma devolve **404
+  `historico_inexistente`**, em vez de 200 com zero (pega erro de digitação).
+  Continuam **200 com zero**: conta recém-criada e quem acabou de apagar o
+  próprio histórico — a conta existe, e 404 ali quebraria a tela de histórico
+  vazio. Balde legado com mensagens (ex.: `app` do celular) segue 200. Sem
+  `UserStore` (dev local) o comportamento antigo permanece: sem contas não há
+  como afirmar que um nome é de alguém. A checagem de dono (403) continua vindo
+  antes, então ninguém descobre nada sobre o balde alheio.
+- **Testes:** `tests/test_auth.py` **+4** (conta nova → 200/zero, apagou o
+  próprio histórico → 200/zero, nome inexistente → 404 no GET e no DELETE,
+  balde legado com mensagens → 200) e **4 mutações** detectadas (nunca 404;
+  404 ignorando a conta; 404 no dev sem `UserStore`; 404 sempre).
+- **Suíte:** **1854 passed, 16 skipped**.
+- **Legado inerte com backup pronto:** `backups/legacy-json-sqlite-20260921.tar.gz`
+  (3,2 KB, sha256 `545c29e3…`, gzip verificado) com `data/od.db` (SQLite
+  sem tabelas) e `data/conversations/` (subconjunto antigo do que já está no
+  PostgreSQL — 20/2/2 mensagens). A remoção do diretório depende da confirmação
+  do dono (regra 9).
+
 ### Alterado (2026-09-21) — histórico órfão reatribuído à conta 🔁
 
 - **`runtime/migrate_history_owner.py` (novo)** — one-off, **idempotente** e

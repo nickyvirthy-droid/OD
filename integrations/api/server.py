@@ -1795,11 +1795,37 @@ class APIHandler(BaseHTTPRequestHandler):
             },
         )
 
+    def _historico_existe(self, uid: str) -> bool:
+        """True quando o `user_id` é uma CONTA ou um balde com mensagens.
+
+        404 é só para nome que **não é de ninguém** (`/history/jonas` digitado
+        errado). Conta recém-criada responde 200 com zero mensagens — e também
+        quem acabou de apagar o próprio histórico (a conta existe) —, senão a
+        tela de histórico vazio viraria erro.
+
+        Sem `UserStore` (dev local) não há como dizer que um nome é de alguém:
+        o comportamento antigo (sempre 200) permanece.
+        """
+        store = self.api._user_store
+        if store is None:
+            return True
+        try:
+            if store.get_user_by_username(uid) is not None:
+                return True
+        except Exception:  # pragma: no cover — store indisponível
+            return True
+        orch = self.api.orchestrator
+        if orch is None or orch.history is None:  # pragma: no cover — 501 antes
+            return True
+        return bool(orch.history.stats(user_id=uid).get("per_user"))
+
     def history_delete(self, user_id: str) -> None:
         orch = self.api.orchestrator
         if orch is None or orch.history is None:
             raise APIError(501, "historico_indisponivel")
         uid = self._check_owner(user_id)
+        if not self._historico_existe(uid):
+            raise APIError(404, "historico_inexistente")
         removed = orch.history.clear(uid)
         self._json(
             200,
@@ -1811,6 +1837,8 @@ class APIHandler(BaseHTTPRequestHandler):
         if orch is None or orch.history is None:
             raise APIError(501, "historico_indisponivel")
         uid = self._check_owner(user_id)
+        if not self._historico_existe(uid):
+            raise APIError(404, "historico_inexistente")
         stats = orch.history.stats(user_id=uid)
         self._json(
             200,

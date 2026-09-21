@@ -1020,6 +1020,55 @@ class TestHistoryOwnership:
         assert status == 200 and data["user_id"] == "alex"
         assert all("da bia" not in r["text"] for r in data["results"])
 
+    def test_conta_nova_responde_200_com_zero(self, serve, tmp_path, store) -> None:
+        """Recém-registrado não pode levar 404 no próprio histórico vazio."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/history/alex/stats", bearer=token
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["stats"]["messages"] == 0
+
+    def test_nome_que_nao_e_de_ninguem_da_404(self, serve, tmp_path, store) -> None:
+        """Conta inexistente e sem mensagens → 404 (pega erro de digitação)."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store, api_key="segredo123"))
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/history/jonas/stats", api_key="segredo123"
+        )
+        assert status == 404
+        assert _json_response((status, body, _))["error"] == "historico_inexistente"
+        status, _, _ = _request(
+            srv.bound_port, "DELETE", "/history/jonas", api_key="segredo123"
+        )
+        assert status == 404
+
+    def test_apos_apagar_o_proprio_historico_volta_200_com_zero(
+        self, serve, tmp_path, store
+    ) -> None:
+        """A conta existe: apagar tudo dá 200/zero, não 404."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        self._seed(srv, "alex", "minha conversa")
+        assert _request(
+            srv.bound_port, "DELETE", "/history/alex", bearer=token
+        )[0] == 200
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/history/alex/stats", bearer=token
+        )
+        assert status == 200 and _json_response((status, body, _))["stats"]["messages"] == 0
+
+    def test_balde_legado_com_mensagens_responde_200(self, serve, tmp_path, store) -> None:
+        """Balde sem conta (ex.: `app` do celular) que tem mensagens: 200."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store, api_key="segredo123"))
+        self._seed(srv, "app", "do celular")
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/history/app/stats", api_key="segredo123"
+        )
+        assert status == 200 and _json_response((status, body, _))["stats"]["messages"] == 1
+
     def test_no_credential_still_401(self, serve, tmp_path, store) -> None:
         """A checagem de dono não afrouxa o gate: sem credencial → 401."""
         srv = serve(make_orch(tmp_path), config=self._cfg(store, api_key="segredo123"))
