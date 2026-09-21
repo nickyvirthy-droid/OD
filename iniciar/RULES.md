@@ -10,7 +10,9 @@ Esta pasta rege o modo como a sessão é conduzida. When in doubt, these rules w
 
 5. **Código antes de suposições:** quando houver dúvida sobre um comportamento, leia o código ou os testes antes de inferir. Não altere arquivos sem verificar o que já existe.
 6. **Teste antes de afirmar:** mudanças não triviais devem ter verificação (typecheck, testes, ou pelo menos um run local válido) sempre que possível.
-7. **Segurança e escopo:** não executar ações destrutivas ou fora do projeto (push, reset, deploy, mutação de estado externo) sem pedido explícito.
+7. **Segurança e escopo:** não executar ações destrutivas ou fora do projeto (reset, deploy, mutação de estado externo) sem pedido explícito.
+   - **7.1 Commit e push — autorização permanente (2026-09-21):** depois de concluir e validar uma atualização, `git commit` e `git push origin master` estão **autorizados por padrão** — não esperar confirmação a cada passo (uma queda de conexão ou fim de cota no meio da espera já custou trabalho). Vale para o código, para o `docs/CHANGELOG.md` e para o registro em `iniciar/`. **Deploy/restart** de serviço (`systemctl --user restart od-core`) e outras mutações de estado externo **continuam** exigindo autorização explícita.
+   - **7.2 Sistema sempre limpo e atualizado:** ao fechar uma etapa, deixar a árvore de trabalho sem resíduos (temporários/patches removidos), o `HEAD` publicado em `origin/master` e o registro da sessão em `iniciar/` atualizado.
 8. **Formato direto:** responder de forma clara e objetiva, mas sem perder o tom da sessão quando necessário.
 9. **Legado imóvel até a aprovação:** limpeza de diretórios legados sairá do servidor apenas depois que o zip/backup estiver pronto e o usuário confirmar.
 10. **Sandbox antes do sistema real:** toda mudança deve ser validada em sandbox antes de ir para o sistema real. Só implantar no sistema real quando não houver mais erros. Mudanças no sistema real sem validação prévia não são aceitas.

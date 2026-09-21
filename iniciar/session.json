@@ -126,6 +126,7 @@
     "next": "(1) Push para origin (não feito — 2 commits à frente); (2) migrar histórico órfão ('web', 'app', 'ws_user') para as contas; (3) validar em sandbox o que subiu sem regra 12 (LoginGuard — a prova viva no ar cobre). Pendências antigas: port forwarding 8001 e APK 1.2.8 no Redmi Note 14."
   },
   "decisions": [
+    {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
     {"topic": "versão do app", "decision": "1.2.8 (não 1.2.0+8) — mudanças significativas desde a 1.2.0 justificam bump de versão"},
     {"topic": "URLs do app", "decision": "OdApi com fallbackUrl: Tailscale primário, nicky.theworkpc.com externo. Autodetecta qual funciona."},
     {"topic": "domínio externo", "decision": "nicky.theworkpc.com (Dynu DDNS, IP 189.124.4.56, porta 80→8000)"},
