@@ -82,6 +82,40 @@ Motivo da recomendação: sobrevive à troca de IP da operadora, não depende de
 porta (nenhuma entrada passa hoje) e entrega TLS — melhor para o app do que
 HTTP puro.
 
+## Estado: Funnel publicado (2026-09-21)
+
+A Opção A foi **executada e provada de fora**:
+
+| Item | Valor |
+|---|---|
+| URL pública | **https://nicky-server.tail1b1f51.ts.net** |
+| REST | `/` → `127.0.0.1:8000` (`tailscale funnel --bg --https=443 8000`) |
+| Streaming | `/ws` → `127.0.0.1:8001` (`tailscale serve --bg --https=443 --set-path=/ws 8001`) |
+| TLS | cert emitido via ACME dns-01 (journal `got cert` 10:06:23) |
+| DNS público | `209.177.145.97` / `209.177.145.192` (ingress Tailscale; propagou ~4 min após publicar) |
+
+Provas de fora:
+
+- `/health` sem credencial → **401 `unauthorized` da nossa API** em 4/5 nós
+  externos do check-host (Israel, Irã, Itália, Eslovênia; ingress
+  `209.177.145.97`) — com `OD_API_AUTH_ALL=1`, o 401 é a prova de que a
+  requisição chegou no od-core.
+- `GET https://nicky-server.tail1b1f51.ts.net/ws` → **HTTP 426** com
+  `server: Python/3.12 websockets/16.1.1` — o servidor WS do od-core responde
+  pelo mesmo host (426 = handshake válido recusado sem `Upgrade`).
+
+Notas de operação:
+
+- `tailscale serve status` mostra `# Funnel on`; para desligar:
+  `tailscale funnel --bg --https=443 off`.
+- `serve` e `funnel` compartilham a 443 — o primeiro `serve --set-path`
+  **derruba** o `funnel` da porta; republicar os dois resolve (estado final:
+  `/` e `/ws` com `Funnel on`).
+- No app, esta é a URL do campo **"URL externa (internet)"**; o streaming
+  deriva `wss://host/ws` quando a URL é https sem porta (commit `57c4710`).
+- `nicky.theworkpc.com` (porta 80) segue bloqueado pela operadora — dentro da
+  LAN a primária continua sendo o Tailscale direto (`100.77.67.53:8000`).
+
 ## Opção B — pedir abertura à operadora (Algar/TCV)
 
 Se quiser manter o domínio próprio (`nicky.theworkpc.com`) e o caminho sem

@@ -290,6 +290,30 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
+### Documentado (2026-09-21) — acesso externo publicado via Tailscale Funnel 🌐
+
+- **O caminho recomendado saiu do papel:** com o dono habilitando o Funnel no
+  tailnet (clique único em `login.tailscale.com/f/funnel?node=…`), foi
+  publicado `tailscale funnel --bg --https=443 8000` (REST) +
+  `tailscale serve --bg --https=443 --set-path=/ws 8001` (streaming).
+  Resultado: **`https://nicky-server.tail1b1f51.ts.net`** na internet, com TLS
+  emitido pelo Tailscale (ACME dns-01, journal `got cert` às 10:06:23).
+- **DNS público:** não resolveu de imediato — o autoritativo (dnsimple)
+  respondeu NODATA por ~4 min; depois propagou para os ingress
+  `209.177.145.97` / `209.177.145.192` (TTL 300). Esperar e reconsultar o
+  autoritativo antes de diagnosticar mais nada.
+- **Prova de fora (check-host):** `/health` sem credencial devolveu **HTTP 401
+  `unauthorized` da nossa API** em 4/5 nós externos (Israel, Irã, Itália,
+  Eslovênia — 1,1–1,4 s; ingress `209.177.145.97`). Com `OD_API_AUTH_ALL=1`, o
+  401 É a prova: a requisição atravessou a internet e chegou no od-core.
+- **Prova do streaming:** `GET https://…/ws` → **HTTP 426** com
+  `server: Python/3.12 websockets/16.1.1` — o próprio servidor WS do od-core
+  responde pelo mesmo host (426 = falta o `Upgrade`, esperado num GET simples).
+- **Nota de operação:** `serve` e `funnel` dividem a 443 — o primeiro
+  `serve --set-path` derruba o `funnel` da porta; republicar os dois resolve
+  (estado final: `/` e `/ws` com `# Funnel on`). Detalhes em
+  `docs/ACESSO_EXTERNO.md` (§ Estado).
+
 ### Corrigido (2026-09-21) — app: o streaming se adapta à URL externa 📱
 
 - **`app/lib/services/od_ws.dart`** — o endpoint do streaming passou a ser

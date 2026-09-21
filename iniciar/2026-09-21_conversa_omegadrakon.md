@@ -210,12 +210,49 @@ que ele não está habilitado no tailnet e deu o link de um clique; depois,
   gzip verificado, sha256 `545c29e3…`); a remoção de `data/conversations/` e
   `data/od.db` aguarda confirmação (regra 9).
 - **Histórico ainda separado:** `app` (36) e `660518870` (20, Telegram) ficaram
-  fora da migração de propósito — migrar depois que o app autenticar por sessão.
-- **Regra 12 do `LoginGuard`:** ele subiu no restart de 09-21 sem passar pelo
+  fora da migração de propósito — migrar depois que o app autenticar por sessão.- **Regra 12 do `LoginGuard`:** ele subiu no restart de 09-21 sem passar pelo
   sandbox antes do deploy (foi escrito em 09-20 e ficou sem registro). A
   cobertura são os 11 testes + a prova viva no ar; se quiser fechar a lacuna,
   vale um cenário no `auth_sandbox.py`.
 - **Probe do LoginGuard:** travou `__probe_deploy__` por 900s e deixou 5
   falhas na chave de IP 127.0.0.1 (limite 15, janela 300s) — expira sozinho.
-- **Antigas:** port forwarding 8001 no roteador e APK no Redmi Note 14 (o APK já
-  está instalado; o que falta é o acesso externo — ver §6).
+- **Antigas:** port forwarding 8001 no roteador e APK no Redmi Note 14 (o APK
+  já está instalado; o que falta é o acesso externo — ver §6).
+
+---
+
+## 7. Funnel publicado e provado de fora
+
+Pedido: "Habilitei o Funnel no tailnet (cliquei no link) — publique o Funnel e
+confira de fora".
+
+### Publicação
+
+- `tailscale funnel --bg --https=443 8000` → REST (`/` → `127.0.0.1:8000`)
+- `tailscale serve --bg --https=443 --set-path=/ws 8001` → streaming
+  (`/ws` → `127.0.0.1:8001`)
+- **Detalhe de operação:** o primeiro `serve --set-path` **derrubou** o
+  `funnel` da 443 (`serve` e `funnel` dividem a mesma porta); republicar os
+  dois resolveu — estado final `# Funnel on` com `/` e `/ws`.
+- TLS emitido via ACME **dns-01** (journal: `got cert` às **10:06:23**).
+- **DNS público demorou ~4 min** para aparecer: o autoritativo (dnsimple)
+  respondeu NODATA e depois publicou os ingress `209.177.145.97` /
+  `209.177.145.192` (TTL 300). Registrado para não repetir falso diagnóstico.
+
+### Prova de fora
+
+| Teste | Resultado |
+|---|---|
+| check-host `/health` (5 nós) | **4/5 → HTTP 401 `unauthorized` da nossa API** (Israel, Irã, Itália, Eslovênia; 1,1–1,4 s; ingress `209.177.145.97`). Com `OD_API_AUTH_ALL=1`, o 401 **é** a prova de chegada ao od-core. O 5º nó (Ucrânia) deu erro interno do próprio nó. |
+| `GET https://nicky-server.tail1b1f51.ts.net/ws` | **HTTP 426** com `server: Python/3.12 websockets/16.1.1` — o próprio WS do od-core responde pelo mesmo host |
+| `curl` do servidor pela URL pública | `/health` → 401 em 0,03–0,4 s |
+| DNS público | Google/Cloudflare resolvem os dois ingress (TTL 300) |
+
+`od-core` **não foi reiniciado** (segue PID 762754, NRestarts=0) — o Funnel é
+externo ao serviço.
+
+**Resultado:** a URL externa do app passa a ser
+**`https://nicky-server.tail1b1f51.ts.net`** — o streaming nela é
+`wss://host/ws`, que o app já deriva desde o commit `57c4710`. Falta atualizar
+o default externo no app e gerar o APK novo.
+

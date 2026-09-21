@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-21T00:00:00-03:00",
+  "updated_at": "2026-09-21T10:20:00-03:00",
   "dono_historico_2026_09_21": {
     "pedido": "Usuário: 'Adicione checagem de dono em /history e /memory (usuário só acessa o próprio histórico; OD_API_KEY como admin)'.",
     "implementacao": "integrations/api/server.py: novo APIHandler._check_owner(user_id) — credencial de usuário (Bearer ou API key od_...) só acessa o próprio username (403 acesso_negado + log de aviso); _current_user None (OD_API_KEY do servidor / dev sem UserStore) segue como admin. Aplicado em history_delete, history_stats e memory_search (este ANTES do 501 do VectorStore).",
@@ -156,10 +156,23 @@
     },
     "implantado": "O restart autorizado de 09-21 subiu o WS por credencial + o 404 (prova viva 7/7 no ar: cliente pediu o balde 'intruso-ws' e a mensagem caiu no alex). PID 762754, NRestarts=0."
   },
+  "funnel_2026_09_21": {
+    "pedido": "Usuário: 'Habilitei o Funnel no tailnet (cliquei no link) — publique o Funnel e confira de fora'.",
+    "publicacao": "tailscale funnel --bg --https=443 8000 (REST) + tailscale serve --bg --https=443 --set-path=/ws 8001 (streaming). Nota: o 1º serve --set-path derrubou o funnel da 443 (serve e funnel dividem a porta); republicar os dois resolveu — estado final '/' + '/ws' com '# Funnel on'.",
+    "url_publica": "https://nicky-server.tail1b1f51.ts.net (TLS via ACME dns-01, journal 'got cert' 10:06:23; DNS público propagou ~4 min depois: ingress 209.177.145.97 / 209.177.145.192, TTL 300)",
+    "prova_de_fora": {
+      "rest": "check-host (5 nós): 4 devolveram HTTP 401 'unauthorized' da nossa API em 1,1–1,4 s (Israel, Irã, Itália, Eslovênia; ingress 209.177.145.97) — com OD_API_AUTH_ALL=1 o 401 É a prova de chegada ao od-core; 1 nó (Ucrânia) deu erro interno do próprio nó ('No such device or address', igual na 1ª rodada antes do DNS existir).",
+      "ws": "GET https://nicky-server.tail1b1f51.ts.net/ws → HTTP 426 com server 'Python/3.12 websockets/16.1.1' — o próprio WS do od-core responde pelo mesmo host (426 = faltou o Upgrade, esperado).",
+      "local": "curl do servidor pela URL pública: /health 401 em 0,03-0,4s (sai para a internet e volta pelo ingress)."
+    },
+    "servico": "od-core segue active PID 762754 NRestarts=0 — nada foi reiniciado (o Funnel é externo ao serviço).",
+    "docs": ["docs/CHANGELOG.md (nova entrada no topo da seção 1.2.0)", "docs/ACESSO_EXTERNO.md (novo § 'Estado: Funnel publicado')", "iniciar/2026-09-21_conversa_omegadrakon.md (§7)"],
+    "commit": "pendente de commit+push (regra 7.1)"
+  },
   "last_turn": {
     "date": "2026-09-21",
-    "action": "Sequência dos 5 pendentes concluída e implantada (commits d8374e2, a630b47, d42e2be, 03580ba, 6af4d2f + fd3d6f4; restart autorizado, prova viva 7/7; legado inerte removido). Em seguida, investigação do acesso externo fechada com prova de mão dupla: a regra do roteador está certa e quem bloqueia a entrada é a operadora (Algar/TCV) — ver docs/ACESSO_EXTERNO.md.",
-    "next": "(1) O usuário clicar em https://login.tailscale.com/f/funnel?node=nutTa2mhy521CNTRL para eu publicar o Funnel (https://nicky-server.tail1b1f51.ts.net) e então ajustar o campo externo/WS do app; (2) revisar o APK: defaults de URL + WS por caminho quando for https. Pendências antigas: APK no Redmi Note 14 (instalado; só acessa via Tailscale)."
+    "action": "Funnel habilitado pelo usuário e publicado: https://nicky-server.tail1b1f51.ts.net no ar com REST (/ → 8000) e streaming (/ws → 8001), TLS emitido, DNS público propagado e acesso provado DE FORA (401 da API em 4/5 nós check-host; 426 do WS). Registrado em docs/ACESSO_EXTERNO.md, CHANGELOG e transcrição.",
+    "next": "(1) Mudar o default externo do app (fallbackUrl) para https://nicky-server.tail1b1f51.ts.net e gerar o APK novo; (2) migrar os baldes 'app' e '660518870' quando o app autenticar por sessão; (3) pendências antigas: APK no Redmi Note 14, nada mais crítico."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
