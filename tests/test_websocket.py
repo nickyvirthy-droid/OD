@@ -534,6 +534,212 @@ class TestWebSocketProtocolo:
 
 
 # ---------------------------------------------------------------------------
+# Identidade pela credencial (v1.2.9)
+# ---------------------------------------------------------------------------
+
+
+class TestWebSocketIdentidade:
+    """Quem manda no `user_id` é a credencial, não o cliente.
+
+    Antes o frame `auth` só aceitava a OD_API_KEY global e o próprio cliente
+    dizia quem era (`user_id`) — qualquer portador da chave escrevia no
+    histórico de qualquer username pelo streaming. Agora sessão e API key de
+    usuário autenticam aqui igual ao REST, e a identidade sai da credencial.
+    """
+
+    @pytest.fixture
+    def servidor(self, tmp_path):
+        from integrations.api.auth import UserStore
+        from integrations.api.ws_server import WebSocketServer
+        from storage.database import Database
+
+        db = Database(tmp_path / "ws-auth.db")
+        store = UserStore(db)
+        orchestra = StubOrchestrator()
+        server = WebSocketServer(
+            orchestra,
+            port=0,
+            host="127.0.0.1",
+            api_keys={"chave-certa"},
+            user_store=store,
+        )
+        server.start()
+        try:
+            yield server, orchestra, store
+        finally:
+            server.stop()
+            db.close()
+
+    def _url(self, server):
+        return f"ws://127.0.0.1:{server.bound_port}"
+
+    def _uma_mensagem(self, server, auth_frame: dict, *, user_id: str | None = None):
+        """Autentica, manda uma mensagem e devolve o que o Orchestrator recebeu."""
+        from websockets.asyncio.client import connect
+
+        async def _fluxo():
+            async with connect(self._url(server)) as ws:
+                await ws.send(json.dumps(auth_frame))
+                autenticado = json.loads(await ws.recv())
+                corpo = {"type": "message", "text": "oi", "profile": "guardian"}
+                if user_id is not None:
+                    corpo["user_id"] = user_id
+                await ws.send(json.dumps(corpo))
+                while True:
+                    msg = json.loads(await ws.recv())
+                    if msg["type"] in ("done", "error"):
+                        return autenticado, msg
+
+        return _run(_fluxo())
+
+    def test_token_de_sessao_manda_na_identidade(self, servidor):
+        server, orchestra, store = servidor
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        autenticado, fim = self._uma_mensagem(
+            server, {"type": "auth", "token": token}, user_id="outro"
+        )
+        assert autenticado == {"type": "authenticated"}
+        assert fim["type"] == "done"
+        # O user_id do frame foi ignorado; vale o usuário da sessão
+        assert orchestra.calls[0]["user_id"] == "alex"
+        assert orchestra.calls[0]["session_id"] == "ws:alex"
+
+    def test_api_key_de_usuario_manda_na_identidade(self, servidor):
+        server, orchestra, store = servidor
+        user = store.register("alex", "alex@example.com", "senha123")
+        _, fim = self._uma_mensagem(
+            server, {"type": "auth", "api_key": user.api_key}, user_id="outro"
+        )
+        assert fim["type"] == "done"
+        assert orchestra.calls[0]["user_id"] == "alex"
+
+    def test_od_api_key_escolhe_o_bucket(self, servidor):
+        """O app/bot não tem usuário: segue mandando `user_id` no `auth`."""
+        server, orchestra, _ = servidor
+        _, fim = self._uma_mensagem(
+            server,
+            {"type": "auth", "api_key": "chave-certa", "user_id": "app"},
+        )
+        assert fim["type"] == "done"
+        assert orchestra.calls[0]["user_id"] == "app"
+
+    def test_user_id_so_no_frame_de_message_nao_troca_o_balde(self, servidor):
+        """Identidade fixada no `auth`: mandar `user_id` depois não vale."""
+        server, orchestra, _ = servidor
+        self._uma_mensagem(
+            server, {"type": "auth", "api_key": "chave-certa"}, user_id="alex"
+        )
+        assert orchestra.calls[0]["user_id"] == "ws_user"
+
+    def test_sem_user_id_no_auth_legado_vira_ws_user(self, servidor):
+        server, orchestra, _ = servidor
+        self._uma_mensagem(server, {"type": "auth", "api_key": "chave-certa"})
+        assert orchestra.calls[0]["user_id"] == "ws_user"
+
+    def test_token_invalido_recebe_erro_e_close_4001(self, servidor):
+        server, orchestra, _ = servidor
+        from websockets.asyncio.client import connect
+        from websockets.exceptions import ConnectionClosed
+
+        async def _fluxo():
+            async with connect(self._url(server)) as ws:
+                await ws.send(json.dumps({"type": "auth", "token": "token-falso"}))
+                erro = json.loads(await ws.recv())
+                with pytest.raises(ConnectionClosed) as info:
+                    await ws.recv()
+                return erro, info.value
+
+        erro, fechamento = _run(_fluxo())
+        assert erro == {"type": "error", "message": "api_key_invalida"}
+        assert fechamento.rcvd is not None and fechamento.rcvd.code == 4001
+        assert orchestra.calls == []
+
+    def test_api_key_de_usuario_inexistente_nao_autentica(self, servidor):
+        server, orchestra, _ = servidor
+        from websockets.asyncio.client import connect
+        from websockets.exceptions import ConnectionClosed
+
+        async def _fluxo():
+            async with connect(self._url(server)) as ws:
+                await ws.send(json.dumps({"type": "auth", "api_key": "od_nao_existe"}))
+                erro = json.loads(await ws.recv())
+                with pytest.raises(ConnectionClosed):
+                    await ws.recv()
+                return erro
+
+        assert _run(_fluxo()) == {"type": "error", "message": "api_key_invalida"}
+        assert orchestra.calls == []
+
+    @pytest.mark.parametrize("ruim", ["../../etc/passwd", "com espaço", "..", "x" * 65])
+    def test_user_id_invalido_e_recusado(self, servidor, ruim):
+        server, orchestra, _ = servidor
+        from websockets.asyncio.client import connect
+        from websockets.exceptions import ConnectionClosed
+
+        async def _fluxo():
+            async with connect(self._url(server)) as ws:
+                await ws.send(json.dumps({
+                    "type": "auth", "api_key": "chave-certa", "user_id": ruim,
+                }))
+                erro = json.loads(await ws.recv())
+                with pytest.raises(ConnectionClosed) as info:
+                    await ws.recv()
+                return erro, info.value
+
+        erro, fechamento = _run(_fluxo())
+        assert erro == {"type": "error", "message": "user_id_invalido"}
+        assert fechamento.rcvd is not None and fechamento.rcvd.code == 4002
+        assert orchestra.calls == []
+
+    def test_user_store_sem_od_api_key_exige_credencial(self, tmp_path):
+        """Mesmo bypass do REST, fechado aqui: UserStore ligada sem
+        OD_API_KEY não pode deixar um `auth` vazio passar."""
+        from integrations.api.auth import UserStore
+        from integrations.api.ws_server import WebSocketServer
+        from storage.database import Database
+        from websockets.asyncio.client import connect
+        from websockets.exceptions import ConnectionClosed
+
+        db = Database(tmp_path / "ws-auth2.db")
+        store = UserStore(db)
+        orchestra = StubOrchestrator()
+        server = WebSocketServer(orchestra, port=0, host="127.0.0.1", user_store=store)
+        server.start()
+        try:
+            async def _sem_credencial():
+                async with connect(self._url(server)) as ws:
+                    await ws.send(json.dumps({"type": "auth"}))
+                    erro = json.loads(await ws.recv())
+                    with pytest.raises(ConnectionClosed):
+                        await ws.recv()
+                    return erro
+
+            assert _run(_sem_credencial()) == {
+                "type": "error", "message": "api_key_invalida"
+            }
+
+            store.register("alex", "alex@example.com", "senha123")
+            token = store.login("alex", "senha123")
+
+            async def _com_sessao():
+                async with connect(self._url(server)) as ws:
+                    await ws.send(json.dumps({"type": "auth", "token": token}))
+                    await ws.recv()  # authenticated
+                    await ws.send(json.dumps({"type": "message", "text": "oi"}))
+                    while True:
+                        msg = json.loads(await ws.recv())
+                        if msg["type"] in ("done", "error"):
+                            return msg
+
+            assert _run(_com_sessao())["type"] == "done"
+            assert orchestra.calls[0]["user_id"] == "alex"
+        finally:
+            server.stop()
+            db.close()
+
+
+# ---------------------------------------------------------------------------
 # Streaming do provider LLM (core/llm.py)
 # ---------------------------------------------------------------------------
 

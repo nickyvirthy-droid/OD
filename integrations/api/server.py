@@ -211,6 +211,19 @@ def _compile_route(pattern: str) -> re.Pattern[str]:
     return re.compile(regex + r"/?\Z")
 
 
+# Formato aceito para `user_id` vindo do CLIENTE (corpo de /message, frame de
+# auth do WebSocket). O id entra em nome de arquivo no backend JSON
+# (`data/conversations/{user_id}`) e no cache — sem essa peneira, um `../..`
+# escaparia do diretório. Os ids legados casam todos: "web", "app",
+# "ws_user", "deploy-check-2", "660518870" (Telegram) e os usernames das contas.
+_USER_ID_RE = re.compile(r"[A-Za-z0-9._-]{1,64}\Z")
+
+
+def valid_user_id(user_id: str) -> bool:
+    """True quando o `user_id` é seguro para virar chave de histórico/cache."""
+    return bool(_USER_ID_RE.fullmatch(user_id)) and user_id not in (".", "..")
+
+
 @dataclass(slots=True)
 class _Route:
     method: str
@@ -1442,6 +1455,11 @@ class APIHandler(BaseHTTPRequestHandler):
             ).strip()
             if not user_id:
                 raise APIError(400, "user_id_obrigatorio")
+            # Sem credencial de usuário o cliente escolhe o balde — mas só com
+            # id de formato conhecido (o legado/app usa "app", o bot usa o id
+            # do Telegram, o chat antigo usava "web").
+            if not valid_user_id(user_id):
+                raise APIError(400, "user_id_invalido")
         if not text:
             raise APIError(400, "text_obrigatorio")
         profile = str(data.get("profile") or DEFAULT_PROFILE).strip()

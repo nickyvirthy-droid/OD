@@ -187,9 +187,30 @@ def build_push() -> Any:
     return service
 
 
+def build_user_store(database: Any) -> Optional[Any]:
+    """UserStore (auth de usuários) — habilitado quando há Database.
+
+    Compartilhado entre a API REST e o WebSocket: mesmas sessões e mesmas API
+    keys nos dois transportes (o streaming precisa resolver a identidade igual
+    ao POST /message). OD_AUTH_ENABLED=0 desliga.
+    """
+    if database is None or env("OD_AUTH_ENABLED", "1") == "0":
+        return None
+    try:
+        from integrations.api.auth import UserStore
+
+        store = UserStore(database)
+        log.info("Auth de usuários habilitado")
+        return store
+    except Exception as exc:
+        log.warn("Auth desabilitado", error=str(exc))
+        return None
+
+
 def build_api_server(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
+    user_store: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -199,14 +220,8 @@ def build_api_server(
     port = int(env("OD_API_PORT", "8000"))
 
     # UserStore (auth de usuários) — habilitado quando há database
-    user_store = None
-    if database is not None and env("OD_AUTH_ENABLED", "1") != "0":
-        try:
-            from integrations.api.auth import UserStore
-            user_store = UserStore(database)
-            log.info("Auth de usuários habilitado")
-        except Exception as exc:
-            log.warn("Auth desabilitado", error=str(exc))
+    if user_store is None:
+        user_store = build_user_store(database)
 
     # auth_all: bind exposto na LAN exige X-API-Key em TODOS os endpoints
     server = APIServer(
@@ -230,11 +245,11 @@ def build_api_server(
     return server
 
 
-def build_ws_server(orchestrator: Any) -> Optional[Any]:
+def build_ws_server(orchestrator: Any, user_store: Any = None) -> Optional[Any]:
     """WebSocket server para streaming token-a-token (v1.3.0).
 
     Roda em porta separada (OD_WS_PORT, padrão 8001) e compartilha
-    o Orchestrator com a API REST.
+    o Orchestrator e o UserStore com a API REST.
     """
     # Verificar se streaming está habilitado
     if env("OD_WS_ENABLED", "1") == "0":
@@ -250,8 +265,13 @@ def build_ws_server(orchestrator: Any) -> Optional[Any]:
         orchestrator,
         port=port,
         api_keys=api_keys,
+        user_store=user_store,  # sessão/API key de usuário também autenticam
     )
-    log.info("WebSocket server configurado", port=port)
+    log.info(
+        "WebSocket server configurado",
+        port=port,
+        auth="usuário+sessão" if user_store is not None else "OD_API_KEY",
+    )
     return server
 
 
@@ -694,9 +714,12 @@ async def _run_api_forever(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
 ) -> None:
+    # Um único UserStore para REST e WebSocket: mesma sessão vale nos dois.
+    user_store = build_user_store(database)
     server = build_api_server(
         orchestrator, metrics=metrics, health=health,
         action_registry=action_registry, push=push, database=database,
+        user_store=user_store,
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
@@ -706,7 +729,7 @@ async def _run_api_forever(
     # REST e o resto do núcleo NÃO podem cair por causa de um extra de chat.
     ws_server = None
     try:
-        ws_server = build_ws_server(orchestrator)
+        ws_server = build_ws_server(orchestrator, user_store=user_store)
         if ws_server:
             ws_server.start()
     except Exception as exc:

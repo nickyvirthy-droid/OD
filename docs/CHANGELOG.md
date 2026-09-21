@@ -290,6 +290,48 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
+### Corrigido (2026-09-21) — streaming: a identidade vem da credencial 🔌
+
+- **`integrations/api/ws_server.py`** — o frame `auth` só aceitava a
+  `OD_API_KEY` global e o **próprio cliente dizia quem era** (`user_id`):
+  qualquer portador da chave escrevia no histórico de qualquer username pelo
+  streaming — a mesma família do furo fechado no REST no item abaixo. Agora o
+  `auth` aceita `token` de sessão (`UserStore.validate_session`) e API key de
+  usuário (`od_...`), e a identidade sai da **credencial**: o `user_id` do
+  frame é ignorado. A `OD_API_KEY` continua sendo o caminho do app/bot — sem
+  usuário associado, vale o `user_id` do frame, agora validado.
+- **Streaming volta a funcionar no chat web logado:** o chat usava o campo de
+  chave do "modo avançado" (vazio quando se entra por login/senha), a auth
+  falhava e ele caía no fallback REST. Com o `token` de sessão no frame, o
+  token-a-token passa a ser o caminho normal de quem está logado.
+- **`valid_user_id` (`integrations/api/server.py`)** — o id escolhido pelo
+  cliente vira nome de arquivo no backend JSON
+  (`data/conversations/{user_id}`): um `../../` escaparia do diretório. Vale
+  para o `/message` no modo `OD_API_KEY` e para o frame de `auth` do WS →
+  **400** `user_id_invalido` / close **4002**. Os ids legados casam todos
+  (`web`, `app`, `ws_user`, `deploy-check-2`, `660518870`).
+- **`runtime/launcher.py`** — `build_user_store(database)` passa a ser único e
+  compartilhado por REST e WebSocket: a sessão criada no login vale nos dois
+  transportes (antes o WS nem enxergava o UserStore).
+- **Bypass fechado no WS:** com `UserStore` ligada e **sem** `OD_API_KEY`, um
+  `auth` sem credencial autenticava — o mesmo defeito corrigido no REST em
+  09-20, que seguia aberto no streaming.
+- **Testes:** `tests/test_websocket.py` **+12** (`TestWebSocketIdentidade`:
+  sessão manda na identidade, API key de usuário, `OD_API_KEY` mantendo o
+  balde, `user_id` só no `message` não troca nada, token falso → 4001, ids
+  inválidos → 4002, UserStore sem `OD_API_KEY` exigindo credencial) e
+  `tests/test_auth.py` **+5** (ids inválidos no `/message` legado e o id do
+  corpo ignorado quando há credencial de usuário).
+- **Teste do teste (4 mutações, todas revertidas):** identidade voltar a vir
+  do cliente → **2 falhas**; validação de `user_id` removida → 4; token
+  aceito sem validar → 3; `api_keys` vazio + `UserStore` voltando a abrir sem
+  credencial → 4.
+- **Sandbox (regra 12):** `sandbox_agent/ws_sandbox.py` ganhou o cenário de
+  identidade contra o **llama-server real** — sessão → histórico do usuário da
+  sessão (balde pedido pelo cliente fica vazio), `OD_API_KEY` mantendo o balde
+  do app, `user_id` inválido → 4002, token falso → 4001 → **18/18 OK**.
+- **Suíte:** **1842 passed, 16 skipped**.
+
 ### Corrigido (2026-09-21) — dono do histórico: cada conta só acessa a sua 🚪
 
 - **`DELETE /history/{user_id}`, `GET /history/{user_id}/stats` e

@@ -626,6 +626,40 @@ class TestAuthGate:
         data = _json_response((status, body, _))
         assert status == 200 and data["user_id"] == "app"
 
+    @pytest.mark.parametrize(
+        "ruim", ["../../etc/passwd", "com espaço", "..", "x" * 65]
+    )
+    def test_message_legacy_rejects_bad_user_id(
+        self, serve, tmp_path, store, ruim
+    ) -> None:
+        """No modo OD_API_KEY o cliente escolhe o balde — mas só com id de
+        formato conhecido (o id vira nome de arquivo no backend JSON)."""
+        srv = serve(
+            make_orch(tmp_path), config=self._cfg(store, api_key="segredo123")
+        )
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/message", api_key="segredo123",
+            body={"user_id": ruim, "profile": "auto", "text": "oi"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 400 and data["error"] == "user_id_invalido"
+
+    def test_message_ignores_user_id_from_body_when_authenticated(
+        self, serve, tmp_path, store
+    ) -> None:
+        """Com credencial de usuário o id do corpo é irrelevante — nem chega a
+        ser validado, porque a identidade vem da credencial."""
+        srv = serve(
+            make_orch(tmp_path), config=self._cfg(store, api_key="segredo123")
+        )
+        user = store.register("alex", "alex@example.com", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/message", api_key=user.api_key,
+            body={"user_id": "../../etc/passwd", "profile": "auto", "text": "oi"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["user_id"] == "alex"
+
     def test_login_lockout_blocks_even_correct_password(
         self, serve, tmp_path, store
     ) -> None:

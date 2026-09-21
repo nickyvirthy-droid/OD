@@ -10,8 +10,18 @@ Arquiteto: Alex Projeti
 
 Protocolo:
   Cliente -> Servidor:
-    {"type": "auth", "api_key": "..."}
+    {"type": "auth", "api_key": "..."}                    # OD_API_KEY (app/bot)
+    {"type": "auth", "api_key": "...", "user_id": "..."}   # idem, escolhe o balde
+    {"type": "auth", "token": "..."}                      # sessão do chat web
+    {"type": "auth", "api_key": "od_..."}                 # API key de usuário
     {"type": "message", "text": "...", "profile": "...", "session_id": "..."}
+
+Identidade (mesma regra do POST /message do REST):
+  - credencial de USUÁRIO (sessão `token` ou API key `od_...`) → o servidor usa
+    o username autenticado e IGNORA o `user_id` do frame;
+  - OD_API_KEY do servidor (app/bot, sem usuário associado) → vale o `user_id`
+    do frame, validado por `valid_user_id`;
+  - sem chaves e sem UserStore (dev local) → aberto, vale o `user_id` do frame.
 
   Servidor -> Cliente:
     {"type": "authenticated"}
@@ -29,6 +39,7 @@ resto do sistema continua de pé e o WebSocket simplesmente não sobe.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import threading
@@ -41,7 +52,7 @@ from core.orchestrator import Orchestrator
 # `auto` e recusar perfil desconhecido IGUAL, senão a mesma conversa cai em
 # baldes diferentes de cache/histórico conforme o transporte (o app manda
 # `auto` por padrão).
-from integrations.api.server import DEFAULT_PROFILE, DEFAULT_PROFILES
+from integrations.api.server import DEFAULT_PROFILE, DEFAULT_PROFILES, valid_user_id
 
 __signature__ = "OD // CORE"
 
@@ -108,12 +119,17 @@ class WebSocketServer:
         api_keys: Optional[set[str]] = None,
         host: str = "0.0.0.0",
         profiles: tuple[str, ...] = DEFAULT_PROFILES,
+        user_store: Optional[Any] = None,
     ) -> None:
         self.orchestrator = orchestrator
         self.host = host
         self.port = port
         self.api_keys = api_keys or set()
         self.profiles = profiles
+        # UserStore (integrations/api/auth.py): quando presente, sessão e API
+        # key de usuário passam a autenticar aqui também — é o que dá identidade
+        # ao stream (antes o cliente dizia quem era).
+        self.user_store = user_store
         self._server = None
         self._serve: Any = None
         self._thread: Optional[threading.Thread] = None
@@ -123,6 +139,39 @@ class WebSocketServer:
         self._ready = threading.Event()
         self._start_error: Optional[BaseException] = None
         
+    def _authenticate(self, data: dict[str, Any]) -> tuple[bool, str, str]:
+        """Resolve o frame `auth` em (ok, identidade, via).
+
+        Ordem espelha o gate do REST (`APIHandler._check_api_key`):
+          1. `token` de sessão (chat web) → `UserStore.validate_session`;
+          2. `api_key` de USUÁRIO (`od_...`) → `UserStore.login_with_api_key`;
+          3. `api_key` do SERVIDOR (OD_API_KEY) → sem usuário associado, quem
+             escolhe o balde é o cliente (é assim que o app fala hoje).
+
+        `identidade` vazia significa "sem usuário": o `user_id` do frame vale.
+        Com UserStore configurada e sem OD_API_KEY a credencial é obrigatória
+        (mesma correção do bypass feita no REST em 2026-09-20) — sem isso, um
+        `auth` vazio passaria no caminho "auth desligada".
+        """
+        store = self.user_store
+        token = str(data.get("token") or "").strip()
+        if token and store is not None:
+            user = store.validate_session(token)
+            if user is not None:
+                return True, user.username, "session"
+        api_key = str(data.get("api_key") or "").strip()
+        if api_key and store is not None:
+            user = store.login_with_api_key(api_key)
+            if user is not None:
+                return True, user.username, "api_key"
+        if api_key:
+            for valida in self.api_keys:
+                if hmac.compare_digest(api_key, valida):
+                    return True, "", "server"
+        if not self.api_keys and store is None:
+            return True, "", "dev"  # dev local explícito, sem auth configurada
+        return False, "", "api_key_invalida"
+
     async def _handle_connection(self, ws: Any) -> None:
         """Lida com uma conexão WebSocket."""
         conn_id = f"{ws.remote_address[0]}:{ws.remote_address[1]}" if ws.remote_address else "unknown"
@@ -130,6 +179,7 @@ class WebSocketServer:
         
         authenticated = False
         user_id = "ws_user"
+        identidade = ""  # username vindo da credencial ("" = sem usuário)
         
         try:
             async for message in ws:
@@ -143,15 +193,27 @@ class WebSocketServer:
                 
                 # Autenticação
                 if msg_type == "auth":
-                    api_key = data.get("api_key", "")
-                    if self.api_keys and api_key not in self.api_keys:
-                        await ws.send(json.dumps({"type": "error", "message": "api_key_invalida"}))
+                    ok, identidade, via = self._authenticate(data)
+                    if not ok:
+                        await ws.send(json.dumps({"type": "error", "message": via}))
                         await ws.close(code=4001, reason="Unauthorized")
                         return
+                    pedido = str(data.get("user_id") or "").strip()
+                    if pedido and not valid_user_id(pedido):
+                        await ws.send(json.dumps({
+                            "type": "error", "message": "user_id_invalido",
+                        }))
+                        await ws.close(code=4002, reason="Invalid user_id")
+                        return
                     authenticated = True
-                    user_id = data.get("user_id", "ws_user")
+                    # Com usuário autenticado a credencial manda; sem usuário
+                    # (OD_API_KEY do app/bot) vale o user_id do frame.
+                    user_id = identidade or pedido or "ws_user"
                     await ws.send(json.dumps({"type": "authenticated"}))
-                    log.info("WebSocket authenticated", conn_id=conn_id, user_id=user_id)
+                    log.info(
+                        "WebSocket authenticated",
+                        conn_id=conn_id, user_id=user_id, via=via,
+                    )
                     continue
                 
                 # Se não autenticado e tem chaves configuradas, rejeitar
@@ -179,7 +241,10 @@ class WebSocketServer:
                         continue
                     if profile == "auto":
                         profile = DEFAULT_PROFILE
-                    session_id = data.get("session_id", f"ws:{user_id}")
+                    # Identidade fixada na credencial: um `user_id` enviado
+                    # depois do auth não troca de balde (mesma regra do REST).
+                    efetivo = identidade or user_id
+                    session_id = data.get("session_id", f"ws:{efetivo}")
                     
                     # Enviar confirmação de recebimento
                     await ws.send(json.dumps({"type": "processing"}))
@@ -187,7 +252,7 @@ class WebSocketServer:
                     # Processar com streaming
                     try:
                         async for chunk in self.orchestrator.process_stream(
-                            user_id=user_id,
+                            user_id=efetivo,
                             profile=profile,
                             text=text,
                             session_id=session_id,
