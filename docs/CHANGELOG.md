@@ -290,6 +290,22 @@ de código** (o que faltava era só a credencial):
   controle `OmegaDrakon Online` aparece 1x nos dois). A API serviu o arquivo
   novo em `GET /site/OmegaDrakon.apk` (HTTP 200, mesmo tamanho e sha256).
 
+### Provado (2026-09-21) — chat ponta a ponta pela URL do Funnel ✅
+
+- **Prova viva do fluxo real do APK 1.2.8+9**
+  (`sandbox_agent/app_funnel_sandbox.py`, gitignored — reproduz o protocolo de
+  `od_ws.dart` com TLS validado e prompt único por execução, sem cair no
+  cache): **REST** `POST /message` com `X-API-Key` → HTTP 200, `route=llm`,
+  `llm=gemma-local`, eco `user_id=app`; **WS** `wss://…/ws` → frame `auth`
+  aceito (`via=server`), **512 tokens em streaming**, `route=llm`.
+- **Journal do od-core:** `WebSocket authenticated … user_id=app | via=server`
+  e 2× `Message processed | route=llm | user=app | llm=gemma-local`
+  (latência 94,8 s e 112,5 s em CPU — folga contra o timeout de 240 s do
+  app), **0 Traceback/ERROR**.
+- **Efeito colateral esperado:** balde `app` no histórico cresceu (as trocas
+  das provas entram nele, como qualquer conversa do app); `/supervision` pela
+  URL pública: `up`, `restarts: 0`.
+
 ### Corrigido (2026-09-21) — app: a URL externa padrão passa a ser o Funnel 📱
 
 - **`app/lib/main.dart`** — o `fallbackUrl` padrão era `http://nicky.theworkpc.com`

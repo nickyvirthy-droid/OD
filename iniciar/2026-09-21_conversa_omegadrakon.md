@@ -291,3 +291,42 @@ para instalar.
 **Pendente:** instalar no Redmi Note 14 (o 1.2.8+8 atual instala por cima sem
 conflito, versionCode 9 > 8).
 
+---
+
+## 9. Prova ponta a ponta do chat pela URL do Funnel
+
+Pedido: "Instalei o APK novo no celular — faça a prova de chat ponta a ponta
+pela URL do Funnel com minha credencial".
+
+### Método (regra 12)
+
+`sandbox_agent/app_funnel_sandbox.py` (gitignored) reproduz **exatamente** o
+protocolo de `app/lib/services/od_ws.dart`: REST `POST /message` com
+`X-API-Key` e `{"message", "user_id": "app"}` (o fallback do app) e WS
+`wss://…/ws` com frames `auth` → `message` → `token`* → `done` (o caminho
+preferido). TLS **validado** (`ssl.create_default_context`, sem desligar
+verificação) e **prompt único por execução** (`uuid` no texto) para não cair
+no cache do LLM — nas 1ªs rodadas o cache respondeu (`route=cache`), o que
+não exercita o streaming real.
+
+| Correção no próprio script durante a prova | Efeito |
+|---|---|
+| `OD_API_KEY` lida do `.env` (não só do ambiente) | 1º run abortou antes de conectar |
+| campo de resposta é `message` (não `response`) — `OrchestrationResult.to_dict()` | 1º run marcou FALHA com HTTP 200 em mãos |
+| prompt com sufixo único | cache devolvia a resposta anterior (`route=cache`) |
+
+### Resultado final (2/2 OK)
+
+| Prova | Resultado |
+|---|---|
+| REST `POST /message` via Funnel | HTTP 200 · `route=llm` · `llm=gemma-local` · eco `user_id=app` |
+| WS `wss://…/ws` via Funnel | `authenticated` (`via=server`) · **512 tokens em streaming** · `route=llm` · `done` |
+| Journal | `WebSocket authenticated … user_id=app \| via=server`; 2× `Message processed \| route=llm \| user=app \| llm=gemma-local` (94,8 s e 112,5 s); **0 Traceback/ERROR** |
+| Histórico | balde `app`: 36 → **44** (+6 das provas; as outras 2 sugerem teste real do celular) |
+| `/supervision` pela URL pública | `up`, `restarts: 0` |
+
+Latência do LLM em CPU (~1,5–2 min/mensagem) tem folga contra os timeouts do
+app (`odWsFrameTimeout` 240 s). A prova confirma também o combinado de
+identidade: chave do servidor (`via=server`) respeita o `user_id="app"` do
+frame — o balde do app segue único até o app autenticar por sessão.
+

@@ -1,7 +1,16 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-21T10:35:00-03:00",
+  "updated_at": "2026-09-21T10:55:00-03:00",
+  "prova_e2e_funnel_2026_09_21": {
+    "pedido": "Usuário: 'Instalei o APK novo no celular — faça a prova de chat ponta a ponta pela URL do Funnel com minha credencial'.",
+    "metodo": "sandbox_agent/app_funnel_sandbox.py (gitignored) reproduz o protocolo de od_ws.dart: REST POST /message (X-API-Key, user_id 'app') e WS wss://…/ws (frames auth→message→token*→done), TLS validado, prompt único por execução (uuid) para não cair no cache do LLM.",
+    "correcoes_no_script": ["OD_API_KEY lida do .env (não só do ambiente)", "campo de resposta é 'message' (OrchestrationResult.to_dict), não 'response'", "prompt com uuid — 1ªs rodadas caíram em route=cache"],
+    "resultado": "2/2 OK — REST: HTTP 200, route=llm, llm=gemma-local, eco user_id=app; WS: authenticated (via=server), 512 tokens em streaming, route=llm.",
+    "journal": "'WebSocket authenticated | user_id=app | via=server' + 2× 'Message processed | route=llm | user=app | llm=gemma-local' (94,8s e 112,5s) — 0 Traceback/ERROR.",
+    "historico": "balde app 36 → 44 (+6 das provas; as outras 2 sugerem teste real do celular).",
+    "supervision": "up, restarts: 0 (PID 762754 intocado — prova não reiniciou nada)."
+  },
   "apk_1_2_8_9_2026_09_21": {
     "pedido": "Usuário: 'Atualize o default externo do app para https://nicky-server.tail1b1f51.ts.net e gere o APK novo'.",
     "mudancas": ["app/lib/main.dart: fallbackUrl http://nicky.theworkpc.com → https://nicky-server.tail1b1f51.ts.net (Funnel)", "app/lib/screens/settings_screen.dart: hint do campo externo + texto 'Como acessar' com a URL do Funnel", "app/pubspec.yaml: 1.2.8+8 → 1.2.8+9"],
@@ -178,8 +187,8 @@
   },
   "last_turn": {
     "date": "2026-09-21",
-    "action": "Funnel publicado e provado de fora (d8bf561) e APK 1.2.8+9 com a URL externa do Funnel gerado, publicado em site/ e servido pela API na URL pública (sha256 conferido). Transcrição §8.",
-    "next": "(1) Instalar o 1.2.8+9 no Redmi Note 14 e testar chat fora da LAN (4G/Wi-Fi de fora); (2) migrar os baldes 'app' e '660518870' quando o app autenticar por sessão; (3) considerar persistência do Funnel após reboot (serve/funnel sobrevivem? conferir)."
+    "action": "Prova ponta a ponta do chat pela URL do Funnel concluída (2/2 OK: REST route=llm com gemma-local; WS com 512 tokens em streaming; journal limpo). APK 1.2.8+9 instalado no celular pelo usuário. Transcrição §9.",
+    "next": "(1) Migrar os baldes 'app' e '660518870' quando o app autenticar por sessão; (2) conferir se o Funnel sobrevive a reboot (persistência de serve/funnel); (3) nada mais crítico — caminho externo fechado e provado."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
