@@ -165,13 +165,57 @@ O CHANGELOG ficou com as duas seções (`dono do histórico` e `freio contra
 força bruta`), ambas de 2026-09-21. Push para o `origin` **não** foi feito
 (2 commits à frente).
 
+## 6. Sequência dos 5 pendentes (autorizada: "faça todos na sequencia")
+
+Antes: o usuário liberou **commit e push por padrão** (regra 7.1 do RULES.md) e
+pediu sistema limpo e atualizado; informou que o **APK já está instalado**, mas
+só acessa pela internet via Tailscale.
+
+| # | Item | Commit | Prova |
+|---|---|---|---|
+| 1 | Identidade do WS vem da credencial | `d8374e2` | +17 testes, 4 mutações, sandbox `ws_sandbox.py` **18/18** (llama real), suíte 1842/16 |
+| 2 | Histórico órfão migrado | `a630b47` | `web`+`web/nyx`+`ws_user` = 24 msgs → `alex` (2 → **26**), total 86 intacto, confirmado pela API no ar |
+| 3 | Sandbox do `LoginGuard` (regra 12) | `d42e2be` | `auth_sandbox.py` **36/36** (era 27) |
+| 4 | Acesso externo: diagnóstico | `03580ba` | `docs/ACESSO_EXTERNO.md` + medições externas |
+| 5 | 404 em `/history` e backup do legado | `6af4d2f` | +4 testes, 4 mutações, suíte **1854/16** |
+
+### 4 — o que o app tem (e o que não tem)
+
+O APK **não está com defeito**: `app/lib/main.dart` já traz primária Tailscale +
+externa `http://nicky.theworkpc.com`, a tela de Configurações separa "rede
+local" de "internet" e o manifesto libera HTTP (`usesCleartextTraffic`). O que
+falta é o caminho de entrada, e as medições fecharam o caso:
+
+| Teste | Origem | Resultado |
+|---|---|---|
+| `curl http://nicky.theworkpc.com/health` | dentro da LAN | **401 em 0,31s** (hairpin NAT — não prova acesso externo) |
+| DNS do domínio | público | `189.124.4.56` = IP público atual (DDNS em dia) |
+| domínio + IP puro, HTTP | **de fora** (hackertarget) | **timeout** (controle `example.com` → 200) |
+| `tracepath` | no servidor | `192.168.0.1` → `189.124.0.25` → internet: **não é CGNAT** |
+
+Conclusão: nada entra pela **porta 80**; provavelmente bloqueio da operadora ou
+a regra do roteador inativa/apontando para outro IP interno (a máquina hoje é
+`192.168.0.250`). Caminho recomendado: **Tailscale Funnel** — o CLI respondeu
+que ele não está habilitado no tailnet e deu o link de um clique; depois,
+`tailscale funnel --bg 8000` publica `https://nicky-server.tail1b1f51.ts.net`.
+
 ### Pendências abertas
 
-- **Push:** 2 commits locais à frente do `origin/master`.
+- **Caminho externo:** decisão do usuário (Funnel × porta 8443 no roteador) e,
+  depois, ajustar o campo externo do app.
+- **Restart do `od-core`:** o processo em execução é o do deploy da manhã
+  (09:05:45) — o WS por credencial e o 404 ainda **não estão no ar**.
+  Deploy/restart continua exigindo autorização explícita (regra 7.1).
+- **Legado inerte:** backup pronto (`backups/legacy-json-sqlite-20260921.tar.gz`,
+  gzip verificado, sha256 `545c29e3…`); a remoção de `data/conversations/` e
+  `data/od.db` aguarda confirmação (regra 9).
+- **Histórico ainda separado:** `app` (36) e `660518870` (20, Telegram) ficaram
+  fora da migração de propósito — migrar depois que o app autenticar por sessão.
 - **Regra 12 do `LoginGuard`:** ele subiu no restart de 09-21 sem passar pelo
   sandbox antes do deploy (foi escrito em 09-20 e ficou sem registro). A
   cobertura são os 11 testes + a prova viva no ar; se quiser fechar a lacuna,
   vale um cenário no `auth_sandbox.py`.
 - **Probe do LoginGuard:** travou `__probe_deploy__` por 900s e deixou 5
   falhas na chave de IP 127.0.0.1 (limite 15, janela 300s) — expira sozinho.
-- **Antigas:** port forwarding 8001 no roteador e APK 1.2.8 no Redmi Note 14.
+- **Antigas:** port forwarding 8001 no roteador e APK no Redmi Note 14 (o APK já
+  está instalado; o que falta é o acesso externo — ver §6).

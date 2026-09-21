@@ -120,10 +120,43 @@
       "/history/{user_id} e /memory/{user_id}/search não checam dono: qualquer credencial válida lê ou apaga o histórico de outro username."
     ]
   },
+  "sequencia_2026_09_21_pendencias": {
+    "pedido": "'faça todos na sequencia' — os 5 pendentes levantados na verificação (o APK já está instalado, mas só acessa via Tailscale).",
+    "1_websocket_identidade": {
+      "commit": "d8374e2 fix(api): identidade do streaming vem da credencial, não do cliente",
+      "o_que": "auth do WS aceita token de sessão e API key de usuário; identidade sai da credencial e o user_id do frame é ignorado (OD_API_KEY segue escolhendo o balde); valid_user_id novo (400/close 4002) também no /message; UserStore único compartilhado por REST+WS; bypass 'UserStore sem OD_API_KEY' fechado no WS.",
+      "provas": "+17 testes (12 WS + 5 REST), 4 mutações detectadas, sandbox ws_sandbox.py 18/18 com llama-server real, suíte 1842/16",
+      "efeito_colateral": "o streaming volta a funcionar no chat web logado (antes caía no fallback REST porque mandava o campo de chave avançada vazio)"
+    },
+    "2_migracao_historico": {
+      "commit": "a630b47 feat(runtime): migra o histórico órfão dos baldes antigos para a conta",
+      "o_que": "runtime/migrate_history_owner.py (one-off, dry-run por padrão, idempotente, snapshot em backups/): web (14) + web/nyx (6) + ws_user (4) → alex (2 → 26 msgs). Total da tabela intacto (86); confirmado pela API no ar.",
+      "fora_de_proposito": "app (36) e 660518870 (20, Telegram) — os dois voltariam a nascer na próxima mensagem (user_id fixo do app, id numérico do bot); migrar depois que o app autenticar por sessão. deploy-check* (4) são provas de deploy.",
+      "snapshot": "backups/history-owner-20260921-093127.bak"
+    },
+    "3_sandbox_loginguard": {
+      "commit": "d42e2be docs(changelog): fecha a lacuna de sandbox do LoginGuard",
+      "o_que": "cenário do freio no auth_sandbox.py (erro isolado não trava, sucesso zera o contador da CONTA, falhas consecutivas travam até a senha certa, IP travado pega o spraying, tentativa bloqueada não estende) → 36/36 OK (era 27)."
+    },
+    "4_app_acesso_externo": {
+      "commits": ["03580ba docs: diagnóstico do acesso externo e o caminho via Tailscale Funnel"],
+      "documento": "docs/ACESSO_EXTERNO.md",
+      "diagnostico": "de dentro da LAN o domínio responde 401 em 0,31s (hairpin NAT — não prova nada); de FORA (serviço público, com example.com como controle) o domínio e o IP puro 189.124.4.56 dão TIMEOUT. DNS em dia, não é CGNAT (tracepath). Conclusão: nada entra pela porta 80 — bloqueio da operadora ou encaminhamento do roteador inativo/apontando para outro IP (a máquina é .250). O APK não tem defeito.",
+      "caminho_recomendado": "Tailscale Funnel: precisa de UM clique em https://login.tailscale.com/f/funnel?node=nutTa2mhy521CNTRL (o CLI respondeu 'Funnel is not enabled on your tailnet'); depois `tailscale funnel --bg 8000` publica https://nicky-server.tail1b1f51.ts.net → 127.0.0.1:8000.",
+      "alternativa": "encaminhar 8443 no roteador → 192.168.0.250:8000 e usar http://nicky.theworkpc.com:8443 (testar de fora).",
+      "pendente": "decisão do usuário entre Funnel e roteador; depois disso, atualizar o campo externo do app (e o default do próximo APK)."
+    },
+    "5_menores": {
+      "commit": "6af4d2f fix(api): 404 em /history só quando o nome não é de ninguém",
+      "o_que": "404 historico_inexistente para nome que não é conta e não tem mensagem; 200/zero para conta nova, para quem apagou o próprio histórico e para balde legado com mensagens; sem UserStore mantém o antigo. +4 testes, 4 mutações, suíte 1854/16.",
+      "legado": "backup backups/legacy-json-sqlite-20260921.tar.gz (3,2KB, sha256 545c29e3…, gzip verificado) com data/od.db (SQLite sem tabelas) e data/conversations/ (20/2/2 msgs = subconjunto do que já está no Postgres). REMOÇÃO PENDENTE DE CONFIRMAÇÃO (regra 9)."
+    },
+    "nao_implantado": "TODO o trabalho desde 09:05:45 (WS identidade + 404) está commitado e publicado mas NÃO está no processo em execução — o od-core roda o código do deploy da manhã. Restart pendente de autorização (regra 7.1)."
+  },
   "last_turn": {
     "date": "2026-09-21",
-    "action": "(1) Estado geral verificado — usuários e conversas no PostgreSQL; (2) checagem de dono implementada (_check_owner, +11 testes, 5 mutações, sandbox 27/27, suíte 1825/16); (3) IMPLANTADA em 09:05:45 (PID 749398) com prova viva de 13 checagens em duas contas; (4) conta de prova 'prova-dono' removida com snapshot de rollback; (5) COMMITADO: 6c888bf (LoginGuard) e 7ca6eec (dono do histórico) + registro em iniciar/.",
-    "next": "(1) Push para origin (não feito — 2 commits à frente); (2) migrar histórico órfão ('web', 'app', 'ws_user') para as contas; (3) validar em sandbox o que subiu sem regra 12 (LoginGuard — a prova viva no ar cobre). Pendências antigas: port forwarding 8001 e APK 1.2.8 no Redmi Note 14."
+    "action": "Sequência completa dos 5 pendentes: identidade no WS (d8374e2), migração do histórico órfão (a630b47), sandbox do LoginGuard (d42e2be), diagnóstico do acesso externo + Tailscale Funnel (03580ba) e o 404 do /history (6af4d2f). Tudo commitado e publicado (origin = HEAD).",
+    "next": "(1) Decidir o caminho externo (clique do Funnel vs porta 8443 no roteador) e ajustar o campo externo do app; (2) autorizar o restart do od-core (o processo está no código da manhã); (3) confirmar a remoção do legado inerte (data/conversations + data/od.db, backup pronto). Pendências antigas: port forwarding 8001 e APK no Redmi Note 14."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
