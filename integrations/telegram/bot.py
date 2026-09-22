@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
+from core.identity import resolve_account
 from core.logger import get_logger
 from core.orchestrator import OrchestrationResult, Orchestrator
 from integrations.telegram.commands import (
@@ -92,6 +93,12 @@ class TelegramBot:
         admin_ids:    IDs do Telegram com acesso a comandos admin_only.
         commands:     Catálogo de comandos (padrão: 13 do legado Nicky).
         action_registry: ActionRegistry com as 56 actions (opcional).
+        account_aliases: Mapa id-de-chat → conta do dono (core/identity.py,
+                      `OD_ACCOUNT_ALIASES`): o balde do Telegram é o id
+                      numérico do chat; apontar para a conta faz a conversa
+                      cair no histórico do dono (o que ele lê no app/web).
+                      Vazio = cada chat no próprio balde (comportamento
+                      antigo).
     """
 
     def __init__(
@@ -107,10 +114,15 @@ class TelegramBot:
         offset_file: Optional[Union[str, os.PathLike]] = None,
         action_registry: Optional[Any] = None,
         auto_extension: Optional[Any] = None,
+        account_aliases: Optional[dict[str, str]] = None,
     ) -> None:
         self.transport = transport
         self.orchestrator = orchestrator
         self.admin_ids: set[int] = set(admin_ids or ())
+        # Alias id-de-chat → conta do dono (core/identity.py): o bot identifica
+        # a pessoa pelo id do Telegram; sem o mapa, a conversa fica num balde
+        # que a conta não enxerga.
+        self.account_aliases = dict(account_aliases or {})
         self.action_registry = action_registry
         self.auto_extension = auto_extension
         self.commands: list[TelegramCommand] = list(
@@ -171,6 +183,10 @@ class TelegramBot:
     def is_admin(self, user_id: int) -> bool:
         return user_id in self.admin_ids
 
+    def _account_for(self, chat_id: ChatId) -> str:
+        """Balde de histórico/cache de um chat: a conta do dono, se houver alias."""
+        return resolve_account(str(chat_id), self.account_aliases)
+
     def get_profile(self, chat_id: int) -> str:
         return self._profiles.get(int(chat_id), self.default_profile)
 
@@ -209,7 +225,9 @@ class TelegramBot:
             return None
         profile = self.default_profile
         chat_id = self._chat_from_target(target_id)
-        messages = self.orchestrator.history.get_history(str(chat_id), profile)
+        messages = self.orchestrator.history.get_history(
+            self._account_for(chat_id), profile
+        )
         lines = []
         for msg in messages[-limit:]:
             lines.append(f"• {msg.role}: {str(msg.content)[:200]}")
@@ -220,7 +238,9 @@ class TelegramBot:
         if self.orchestrator is None or self.orchestrator.history is None:
             return None
         profile = self.get_profile(chat_id)
-        removed = self.orchestrator.history.clear(str(chat_id), profile=profile)
+        removed = self.orchestrator.history.clear(
+            self._account_for(chat_id), profile=profile
+        )
         return f"Histórico de {chat_id} ({profile}) removido — {removed} mensagens."
 
     def cache_stats(self) -> Optional[str]:
@@ -405,7 +425,7 @@ class TelegramBot:
         profile = _resolve_auto(self.get_profile(message.chat_id), message.text)
         try:
             result: OrchestrationResult = await self.orchestrator.process(
-                str(message.chat_id),
+                self._account_for(message.chat_id),
                 profile,
                 message.text,
                 session_id=f"tg:{message.chat_id}",

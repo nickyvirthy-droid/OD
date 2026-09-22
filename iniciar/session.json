@@ -24,7 +24,24 @@
     },
     "ressalva": "A prova retroativa mostra que o Funnel sobrevive ao boot, mas NÃO cumpre o critério formal (last.txt com BOOT_AUTONOMO_OK + boot_id novo + prova de fora), porque o provador ficou sem instalar. Decisão pendente do usuário: aceitar a evidência retroativa OU rodar o reboot instrumentado.",
     "estado": "AGUARDANDO decisão do usuário; nada foi reiniciado nesta retomada.",
-    "repositorio": "working tree limpo; HEAD == origin/master em e44c4d5 (o checkpoint foi editado e commitado em seguida)."
+    "repositorio": "working tree limpo; HEAD == origin/master em e44c4d5 (o checkpoint foi editado e commitado em seguida as c3f3954)."
+  },
+  "alias_transporte_2026_09_22": {
+    "pedido": "Usuário escolheu 'Migrar + rotear Telegram e app por código' e autorizou incluir o balde 'web' no mesmo alias + o restart do od-core.",
+    "motivo": "O app manda `user_id: \"app\"` fixo (OD_API_KEY), o bot usa o id numérico do chat e o chat web em modo avançado usa 'web' — os três baldes ficavam fora da conta do dono (e renasciam a cada mensagem).",
+    "implementacao": [
+      "core/identity.py (NOVO): parse_aliases('app=alex,...') + resolve_account(id, mapa) — case-insensitive, entradas malformadas ignoradas, mapa vazio = comportamento antigo.",
+      "integrations/api/server.py: APIConfig.account_aliases + resolve_account no caminho SEM usuário do POST /message.",
+      "integrations/api/ws_server.py: WebSocketServer(account_aliases=...) aplicado quando não há identidade de usuário no frame auth.",
+      "integrations/telegram/bot.py: TelegramBot(account_aliases=...) + _account_for(chat) usado em process(), history_lines() e clear_chat().",
+      "runtime/launcher.py: monta o mapa de OD_ACCOUNT_ALIASES e injeta no REST, WS e bot.",
+      ".env: OD_ACCOUNT_ALIASES=app=alex,660518870=alex,web=alex (backup em backups/env-20260922-pre-alias.bak)."
+    ],
+    "migracao": "runtime.migrate_history_owner --de app,660518870,web --para alex --apply → 70 msgs (app 44 + Telegram 20 + web 6); alex 28 → 98; total da tabela INTACTO (102); resíduo na origem: nenhum. Snapshot backups/history-owner-20260922-020027.bak. Restaram fora só deploy-check(-2) = 4 msgs sintéticas.",
+    "testes": "tests/test_identity.py novo (12) + alias no REST (test_auth.py, +2), no WS (test_websocket.py, +1) e no bot (test_telegram.py, +2). Suíte 1870 passed, 16 skipped.",
+    "teste_do_teste": "4 mutações, todas detectadas e revertidas: resolve_account sempre devolvendo o id bruto (6 falhas), alias removido do REST (1), do WS (1) e do bot (1).",
+    "sandbox": "sandbox_agent/auth_sandbox.py 5º cenário (REST + WS + Telegram, protocolo real) → 44/44 OK (era 36).",
+    "estado": "MIGRADO no banco real; código validado (testes+sandbox). FALTA: deploy (restart od-core autorizado pelo usuário) e a prova viva do alias no ar."
   },
   "prova_e2e_funnel_2026_09_21": {
     "pedido": "Usuário: 'Instalei o APK novo no celular — faça a prova de chat ponta a ponta pela URL do Funnel com minha credencial'.",
@@ -211,8 +228,8 @@
   },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Retomada: 'leia iniciar'. Reli README/RULES/session.json + transcrição 09-21 e conferi o estado vivo. Achado: o reboot de 09-21 11:01 já ocorreu e o Funnel sobreviveu sozinho, MAS o provador não foi instalado (prova formal ausente). Registrado em reboot_prova_2026_09_22.",
-    "next": "(1) Decisão do usuário sobre a prova de reboot: aceitar a evidência retroativa (systemd/journal/funnel status) OU instalar o od-boot-prover e reiniciar de fato (exige sudo do dono); (2) depois: migrar baldes 'app' (36) e '660518870' (20, Telegram) quando o app autenticar por sessão; (3) legado inerte (data/conversations + data/od.db) já têm backup pronto aguardando confirmação."
+    "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot (boot de 09-21 11:01, Funnel de pé, provador não instalado); implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; os baldes app+Telegram+web (70 msgs) foram migrados para alex (28 → 98).",
+    "next": "(1) DEPLOY autorizado: restart do od-core e prova viva (app/'web'/Telegram → alex no journal) + re-rodar a migração se houver resíduo; (2) depois: legado inerte (data/conversations + data/od.db) com backup pronto aguardando confirmação (regra 9); (3) prova de boot instrumentada segue opcional (usuário aceitou a evidência retroativa)."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
@@ -222,5 +239,5 @@
     {"topic": "status bar fix", "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"},
     {"topic": "auth de usuários (09-19)", "decision": "Chat web passa a exigir login (UserStore próprio, PBKDF2-SHA256, sessão UUID + Bearer), mantendo X-API-Key como modo legado/avançado. Registrado retroativamente em 09-20 após achado de que subiu sem commit/teste."}
   ],
-  "transcripts": ["iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
+  "transcripts": ["iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
 }

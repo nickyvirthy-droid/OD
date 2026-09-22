@@ -624,6 +624,32 @@ class TestWebSocketIdentidade:
         assert fim["type"] == "done"
         assert orchestra.calls[0]["user_id"] == "app"
 
+    def test_alias_de_transporte_cai_na_conta(self):
+        """`OD_ACCOUNT_ALIASES` mapeia o `user_id` legado (app) para a conta.
+
+        Vale para o stream do app sem tocar no cliente — mesma regra do REST.
+        """
+        from integrations.api.ws_server import WebSocketServer
+
+        orchestra = StubOrchestrator()
+        server = WebSocketServer(
+            orchestra,
+            port=0,
+            host="127.0.0.1",
+            api_keys={"chave-certa"},
+            account_aliases={"app": "alex"},
+        )
+        server.start()
+        try:
+            _, fim = self._uma_mensagem(
+                server,
+                {"type": "auth", "api_key": "chave-certa", "user_id": "app"},
+            )
+            assert fim["type"] == "done"
+            assert orchestra.calls[0]["user_id"] == "alex"
+        finally:
+            server.stop()
+
     def test_user_id_so_no_frame_de_message_nao_troca_o_balde(self, servidor):
         """Identidade fixada no `auth`: mandar `user_id` depois não vale."""
         server, orchestra, _ = servidor

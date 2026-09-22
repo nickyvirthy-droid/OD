@@ -70,6 +70,7 @@ import time
 from typing import Any, Awaitable, Callable, Optional
 
 from core.event_bus import EventBus
+from core.identity import parse_aliases
 from core.logger import get_logger
 from core.supervision import SupervisionRegistry, get_supervision
 
@@ -240,6 +241,10 @@ def build_api_server(
             login_max_attempts=int(env("OD_LOGIN_MAX_ATTEMPTS", "5")),
             login_window_s=float(env("OD_LOGIN_WINDOW_S", "300")),
             login_lockout_s=float(env("OD_LOGIN_LOCKOUT_S", "900")),
+            # Alias de transporte legado → conta do dono (core/identity.py):
+            # o app manda `user_id: "app"` fixo; apontar para a conta faz a
+            # conversa do celular cair no histórico do dono.
+            account_aliases=parse_aliases(env("OD_ACCOUNT_ALIASES", "")),
         ),
     )
     return server
@@ -266,6 +271,8 @@ def build_ws_server(orchestrator: Any, user_store: Any = None) -> Optional[Any]:
         port=port,
         api_keys=api_keys,
         user_store=user_store,  # sessão/API key de usuário também autenticam
+        # Mesmo mapa do REST: o streaming do app cai no balde da conta.
+        account_aliases=parse_aliases(env("OD_ACCOUNT_ALIASES", "")),
     )
     log.info(
         "WebSocket server configurado",
@@ -621,6 +628,8 @@ def build_telegram_bot(
         ),
         action_registry=action_registry,
         auto_extension=auto_extension,
+        # Mesmo mapa do REST/WS: o chat do Telegram cai no balde da conta.
+        account_aliases=parse_aliases(env("OD_ACCOUNT_ALIASES", "")),
     )
     return bot
 

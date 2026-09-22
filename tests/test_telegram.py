@@ -526,6 +526,37 @@ class TestTelegramBotOrchestrator:
         assert msgs and msgs[-1].content == "resposta-od"
 
     @pytest.mark.asyncio
+    async def test_account_aliases_gravam_na_conta_do_dono(self, tmp_path) -> None:
+        """`OD_ACCOUNT_ALIASES` leva o balde do chat (id do Telegram) à conta.
+
+        Sem o mapa o bot grava sob o id numérico do chat — um balde que a
+        conta do dono nunca enxerga no app/web.
+        """
+        transport = InMemoryTransport()
+        bot = TelegramBot(
+            transport,
+            _orchestrator(tmp_path),
+            admin_ids={ADMIN},
+            account_aliases={"1": "alex"},
+        )
+        reply = await self._send(bot, "do telegram")
+        assert reply == "resposta-od"
+        history = bot.orchestrator.history
+        assert history is not None
+        assert history.get_history("alex", "guardian")
+        assert history.get_history("1", "guardian") == []
+
+    @pytest.mark.asyncio
+    async def test_sem_alias_o_balde_e_o_id_do_chat(self, tmp_path) -> None:
+        """Sem mapa, o comportamento antigo fica (balde = id do chat)."""
+        bot = self._bot(tmp_path)
+        await self._send(bot, "sem alias")
+        history = bot.orchestrator.history
+        assert history is not None
+        assert history.get_history("1", "guardian")
+        assert history.get_history("alex", "guardian") == []
+
+    @pytest.mark.asyncio
     async def test_text_uses_selected_profile(self, tmp_path) -> None:
         bot = self._bot(tmp_path)
         await self._send(bot, "/perfil regulus", ADMIN)

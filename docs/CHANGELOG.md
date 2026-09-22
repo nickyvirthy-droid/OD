@@ -14,7 +14,43 @@
 
 ---
 
-## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15 e 2026-09-18)
+## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21 e 2026-09-22)
+
+### Adicionado (2026-09-22) — o histórico do app e do Telegram vai para a conta 🔗
+
+- **`core/identity.py` (novo)** — resolvedor do DONO de identificadores
+  legados de transporte. `OD_ACCOUNT_ALIASES` (ex.:
+  `app=alex,660518870=alex,web=alex`) aponta o `user_id: "app"` fixo do app,
+  o id numérico do chat do Telegram e o `web` do chat em modo avançado para a
+  conta: a conversa dos três cai no mesmo histórico/cache da conta, **sem
+  mudança nenhuma no cliente**. `parse_aliases` ignora entradas malformadas
+  (uma env torta não derruba a identidade) e `resolve_account` casa sem
+  diferenciar maiúsculas, devolvendo o id original quando não há alias (mapa
+  vazio = comportamento antigo).
+- **REST, WebSocket e Telegram** — os três resolvem o MESMO mapa
+  (`APIConfig.account_aliases`, `WebSocketServer(account_aliases=...)`,
+  `TelegramBot(account_aliases=...)`). O alias só vale no caminho SEM usuário
+  (`OD_API_KEY`): credencial de usuário (sessão `Bearer` ou API key `od_...`)
+  continua mandando na identidade e o alias é ignorado. No bot, `/historico`
+  e `/limpar` leem/limpam o mesmo balde da conta.
+- **`runtime/launcher.py`** — monta o mapa de `OD_ACCOUNT_ALIASES` em um único
+  lugar e injeta no REST, no WS e no bot.
+- **Baldes órfãos migrados:** `app` (44) + `660518870` (20, Telegram) +
+  `web` (6, chat em modo avançado) → `alex` (**28 → 98** mensagens), via
+  `runtime.migrate_history_owner --de app,660518870,web`. O total da tabela
+  não mudou (**102** antes e depois) e a API no ar confirma pelo
+  `/history/alex/stats`. Snapshot:
+  `backups/history-owner-20260922-020027.bak`. Ficaram de fora, de propósito,
+  só os baldes `deploy-check*` (4) — mensagens sintéticas de prova de deploy.
+- **Testes:** `tests/test_identity.py` (**novo, 12**) e o alias exercitado no
+  REST (`tests/test_auth.py`, +2), no WS (`tests/test_websocket.py`, +1) e no
+  bot (`tests/test_telegram.py`, +2). **Teste do teste (4 mutações, todas
+  revertidas):** `resolve_account` devolvendo sempre o id bruto (6 falhas) e o
+  alias removido do REST (1), do WS (1) e do bot (1). **Suíte:** **1870
+  passed, 16 skipped**.
+- **Sandbox (regra 12):** `sandbox_agent/auth_sandbox.py` ganhou o 5º cenário
+  (REST + WebSocket + Telegram com protocolo real, mais os negativos) →
+  **44/44 OK** (era 36).
 
 ### Adicionado
 

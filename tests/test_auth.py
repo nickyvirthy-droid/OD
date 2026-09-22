@@ -626,6 +626,49 @@ class TestAuthGate:
         data = _json_response((status, body, _))
         assert status == 200 and data["user_id"] == "app"
 
+    def test_message_alias_de_transporte_cai_na_conta(
+        self, serve, tmp_path, store
+    ) -> None:
+        """`OD_ACCOUNT_ALIASES` mapeia o `user_id` legado (app) para a conta.
+
+        O app manda `user_id: "app"` fixo; com o alias, a conversa do celular
+        cai no mesmo balde da conta do dono — sem tocar no cliente.
+        """
+        srv = serve(
+            make_orch(tmp_path),
+            config=self._cfg(
+                store, api_key="segredo123", account_aliases={"app": "alex"}
+            ),
+        )
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/message", api_key="segredo123",
+            body={"user_id": "app", "profile": "auto", "text": "do celular"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["user_id"] == "alex"
+        history = srv.orchestrator.history
+        assert history is not None
+        assert history.get_history("alex", data["profile"])
+        assert not history.get_history("app", data["profile"])
+
+    def test_message_alias_nao_vale_para_credencial_de_usuario(
+        self, serve, tmp_path, store
+    ) -> None:
+        """A credencial de usuário segue mandando: o alias é só do legado."""
+        srv = serve(
+            make_orch(tmp_path),
+            config=self._cfg(
+                store, api_key="segredo123", account_aliases={"app": "alex"}
+            ),
+        )
+        user = store.register("bia", "bia@example.com", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/message", api_key=user.api_key,
+            body={"user_id": "app", "profile": "auto", "text": "quem sou eu"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["user_id"] == "bia"
+
     @pytest.mark.parametrize(
         "ruim", ["../../etc/passwd", "com espaço", "..", "x" * 65]
     )

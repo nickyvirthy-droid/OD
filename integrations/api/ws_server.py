@@ -52,6 +52,7 @@ from core.orchestrator import Orchestrator
 # `auto` e recusar perfil desconhecido IGUAL, senão a mesma conversa cai em
 # baldes diferentes de cache/histórico conforme o transporte (o app manda
 # `auto` por padrão).
+from core.identity import resolve_account
 from integrations.api.server import DEFAULT_PROFILE, DEFAULT_PROFILES, valid_user_id
 
 __signature__ = "OD // CORE"
@@ -120,12 +121,17 @@ class WebSocketServer:
         host: str = "0.0.0.0",
         profiles: tuple[str, ...] = DEFAULT_PROFILES,
         user_store: Optional[Any] = None,
+        account_aliases: Optional[dict[str, str]] = None,
     ) -> None:
         self.orchestrator = orchestrator
         self.host = host
         self.port = port
         self.api_keys = api_keys or set()
         self.profiles = profiles
+        # Alias de transporte legado → conta do dono (core/identity.py): o app
+        # manda `user_id: "app"` fixo no frame de auth; apontar para a conta
+        # faz o stream gravar no mesmo balde do REST e do chat web.
+        self.account_aliases = dict(account_aliases or {})
         # UserStore (integrations/api/auth.py): quando presente, sessão e API
         # key de usuário passam a autenticar aqui também — é o que dá identidade
         # ao stream (antes o cliente dizia quem era).
@@ -207,8 +213,14 @@ class WebSocketServer:
                         return
                     authenticated = True
                     # Com usuário autenticado a credencial manda; sem usuário
-                    # (OD_API_KEY do app/bot) vale o user_id do frame.
-                    user_id = identidade or pedido or "ws_user"
+                    # (OD_API_KEY do app/bot) vale o user_id do frame — passando
+                    # pelo alias de transporte legado → conta do dono.
+                    if identidade:
+                        user_id = identidade
+                    else:
+                        user_id = resolve_account(
+                            pedido or "ws_user", self.account_aliases
+                        )
                     await ws.send(json.dumps({"type": "authenticated"}))
                     log.info(
                         "WebSocket authenticated",

@@ -38,7 +38,7 @@ import re
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
@@ -47,6 +47,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from tools.registry import ActionRegistry
 
 from core.capabilities import OD_VERSION, capabilities_manifest
+from core.identity import resolve_account
 from core.logger import get_logger
 from core.orchestrator import OrchestrationResult, Orchestrator
 from core.supervision import get_supervision
@@ -132,6 +133,12 @@ class APIConfig:
         site_dir:       Diretório do site estático servido em /site*
                         (landing + OmegaDrakon.apk). None = padrão
                         site/ na raiz do repo.
+        account_aliases: Mapa id-legado → conta do dono (core/identity.py,
+                        `OD_ACCOUNT_ALIASES`). O app manda `user_id: "app"`
+                        fixo e o bot do Telegram usa o id numérico do chat;
+                        apontar esses ids para a conta faz a conversa cair no
+                        balde do dono. Vazio = desligado (comportamento
+                        antigo). Só vale no caminho SEM usuário (OD_API_KEY).
     """
 
     host: str = "127.0.0.1"
@@ -158,6 +165,8 @@ class APIConfig:
     login_max_attempts: int = 5
     login_window_s: float = 300.0
     login_lockout_s: float = 900.0
+    # Alias de transporte legado → conta do dono (core/identity.py).
+    account_aliases: dict[str, str] = field(default_factory=dict)
 
     # Nota (SLOTS): campos novos entram aqui, como `push` (core/push.py) —
     # registro de dispositivos + envio FCM usados por /push/*.
@@ -1460,6 +1469,10 @@ class APIHandler(BaseHTTPRequestHandler):
             # do Telegram, o chat antigo usava "web").
             if not valid_user_id(user_id):
                 raise APIError(400, "user_id_invalido")
+            # Alias de transporte legado → conta do dono (OD_ACCOUNT_ALIASES):
+            # o app ("app") e o bot (id do Telegram) passam a gravar no balde
+            # da conta, sem mudança no cliente.
+            user_id = resolve_account(user_id, self.api.config.account_aliases)
         if not text:
             raise APIError(400, "text_obrigatorio")
         profile = str(data.get("profile") or DEFAULT_PROFILE).strip()
