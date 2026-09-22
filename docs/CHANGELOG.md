@@ -16,6 +16,34 @@
 
 ## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21 e 2026-09-22)
 
+### Adicionado (2026-09-22) — tela de login/registro no app Flutter + APK 1.2.8+10 📱
+
+> Fase 2 da unificação de contas: o app agora suporta autenticação por conta
+> (`POST /auth/login` e `/auth/register`), enviando token `Bearer` no REST e no
+> frame `auth` do WebSocket. A mesma conta continua a conversa no app, no
+> navegador e no Telegram.
+
+- **Tela de entrada (`LoginScreen`)** em `app/lib/screens/login_screen.dart` — login
+  e registro com validação de campos, mensagens de erro da API e alternância
+  suave. Inclui botão de "Modo avançado (API key)" para quem usa credencial direta.
+- **Sessão persistida no `OdApi`** (`app/lib/services/od_api.dart`) — métodos
+  `login()`, `register()`, `logout()` e `setToken()`. Com token ativo, o app
+  adiciona `Authorization: Bearer <token>` nas requisições HTTP (com precedência
+  sobre `X-API-Key`). Credenciais salvas em SharedPreferences (`od_session_token`,
+  `od_username`).
+- **WebSocket por token de conta** (`app/lib/services/od_ws.dart`) — frame `auth`
+  transmite `'token': api.token` quando logado, associando o stream diretamente
+  à conta do usuário no core.
+- **Bootstrap no `OdApp`** (`app/lib/main.dart`) — `OdRoot` verifica se há
+  credencial salva (`hasCredential`): abre a `LoginScreen` caso não haja, ou vai
+  direto ao chat principal (`OdHome`).
+- **Versão bump para 1.2.8+10** em `app/pubspec.yaml`.
+- **Testes:** `app/test/od_api_test.dart` com 5 novos testes de login/registro/sessão
+  e `app/test/widget_test.dart` atualizado com smoke test do login. Total: 77 passed,
+  2 skipped (`flutter test`), `flutter analyze` 0 issues.
+- **Build APK:** `site/OmegaDrakon.apk` (52.394.459 B) e `site/OmegaDrakon-arm64.apk`
+  (18.715.654 B), `versionCode='10' versionName='1.2.8'`.
+
 ### Adicionado (2026-09-22) — papéis: dono, conta comum e anônimo 🎚️
 
 > Modelo pedido pelo usuário: **cada pessoa com a própria conta, a mesma em

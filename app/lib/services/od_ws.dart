@@ -250,9 +250,11 @@ class OdStreamingChat {
     final frames = StreamIterator<String>(channel.incoming);
     try {
       // 1) Autenticação — o core recusa mensagem de sessão não autenticada.
+      // Com sessão de conta, manda o token (a identidade sai da credencial e
+      // o histórico é o da conta); senão, o caminho avançado por API key.
       channel.send(jsonEncode({
         'type': 'auth',
-        'api_key': api.apiKey,
+        if (api.token.isNotEmpty) 'token': api.token else 'api_key': api.apiKey,
         'user_id': 'app',
       }));
       final auth = await _nextFrame(frames, connectTimeout);

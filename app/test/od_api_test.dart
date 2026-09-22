@@ -20,6 +20,92 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  group('OdApi.login/registro (sessão de conta)', () {
+    test('login guarda o token e passa a mandar Bearer', () async {
+      final api = apiWith(MockClient((request) async {
+        if (request.url.path == '/auth/login') {
+          final body = jsonDecode(request.body);
+          expect(body['username'], 'alex');
+          expect(body['password'], 'senha123');
+          return jsonResponse({
+            'ok': true,
+            'token': 'tok-123',
+            'user': {'username': 'alex'},
+          });
+        }
+        // Depois do login, o /message leva o Bearer (e não a API key).
+        expect(request.headers['Authorization'], 'Bearer tok-123');
+        expect(request.headers.containsKey('X-API-Key'), isFalse);
+        return jsonResponse({'ok': true, 'message': 'oi'});
+      }));
+
+      expect(await api.login('alex', 'senha123'), isTrue);
+      expect(api.token, 'tok-123');
+      expect(api.username, 'alex');
+      expect(await api.sendMessage('oi'), 'oi');
+    });
+
+    test('login com erro lança OdApiError com a mensagem do servidor',
+        () async {
+      final api = apiWith(MockClient((_) async => jsonResponse(
+            {'ok': false, 'error': 'Usuário ou senha inválidos'},
+            status: 401,
+          )));
+      expect(
+        () => api.login('alex', 'errada'),
+        throwsA(isA<OdApiError>()
+            .having((e) => e.message, 'message', contains('inválidos'))),
+      );
+    });
+
+    test('registro chama /auth/register', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/auth/register');
+        final body = jsonDecode(request.body);
+        expect(body['email'], 'bia@example.com');
+        return jsonResponse(
+          {'ok': true, 'user': {'username': 'bia'}},
+          status: 201,
+        );
+      }));
+      await api.register('bia', 'bia@example.com', 'senha123');
+    });
+
+    test('a sessão salva sobrevive ao loadSavedApiKey', () async {
+      final api = apiWith(MockClient((_) async => jsonResponse({
+            'ok': true,
+            'token': 'tok-9',
+            'user': {'username': 'alex'},
+          })));
+      await api.login('alex', 'senha123');
+
+      final outro = OdApi(
+        baseUrl: 'http://od.test:8000',
+        client: MockClient((_) async => jsonResponse({})),
+      );
+      expect(await outro.loadSavedApiKey(), isTrue);
+      expect(outro.token, 'tok-9');
+      expect(outro.username, 'alex');
+    });
+
+    test('logout limpa a sessão local', () async {
+      final api = apiWith(MockClient((request) async {
+        if (request.url.path == '/auth/login') {
+          return jsonResponse({
+            'ok': true,
+            'token': 'tok-x',
+            'user': {'username': 'alex'},
+          });
+        }
+        return jsonResponse({'ok': true});
+      }));
+      await api.login('alex', 'senha123');
+      await api.logout();
+      expect(api.token, isEmpty);
+      expect(api.hasCredential, isFalse);
+    });
+  });
+
   group('OdApi.sendMessage', () {
     test('retorna a resposta do assistente no sucesso', () async {
       final api = apiWith(MockClient((request) async {

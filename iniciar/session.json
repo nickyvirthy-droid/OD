@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-22T02:17:00-03:00",
+  "updated_at": "2026-09-22T03:28:00-03:00",
   "prova_reboot_2026_09_21": {
     "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
     "pre_checagem": "Linger=yes para alex; tailscaled enabled+active; od-core (usuário) enabled; SEM LUKS; boot target graphical. sudo de alex = ALL COM senha (NOPASSWD só mariadb/nexus-router) e sem sessão gráfica ativa → reboot polkit não autoriza sem senha; instalação do provador + reboot = comando único do dono com sudo.",
@@ -258,7 +258,7 @@
       "1a) papéis + OD_API_KEY assume a conta + /executa por papel + papel no fast path — FEITO",
       "1b) Telegram: /entrar usuário senha (vínculo chat → conta) persistido — FEITO",
       "1c) chat anônimo (só conversar, nada no banco) — FEITO",
-      "2) tela de login no app Flutter + rebuild do APK — PENDENTE"
+      "2) tela de login no app Flutter + rebuild do APK (1.2.8+10) — FEITO"
     ],
     "fase_1a": {
       "implementacao": [
@@ -290,6 +290,18 @@
       "regras": "papel anonymous (nunca aciona action) · persist=False (sem histórico nem cache no banco) · sem credencial, mesmo com auth_all · rate limit por IP segue.",
       "testes": "tests/test_api.py +3, tests/test_orchestrator.py +3."
     },
+    "fase_2": {
+      "implementacao": [
+        "app/lib/screens/login_screen.dart: tela de login e registro com alternância, mensagens de erro e modo avançado (API key).",
+        "app/lib/services/od_api.dart: login(), register(), logout(), setToken(), hasCredential, header Authorization: Bearer <token>.",
+        "app/lib/services/od_ws.dart: frame de auth manda token quando logado.",
+        "app/lib/main.dart: OdRoot faz bootstrap e direciona para LoginScreen ou OdHome.",
+        "app/pubspec.yaml: versão 1.2.8+10."
+      ],
+      "testes": "flutter test 77 passed, 2 skipped · flutter analyze 0 issues.",
+      "build": "site/OmegaDrakon.apk (52.394.459 B) + site/OmegaDrakon-arm64.apk (18.715.654 B), versionCode 10 versionName 1.2.8.",
+      "estado": "CONCLUÍDO e validado."
+    },
     "sandbox": "auth_sandbox.py 6º cenário (papéis + /entrar + anônimo, sockets reais) → 57/57 OK (era 44). Suíte 1887 passed, 16 skipped.",
     "deploy": "IMPLANTADO — restart autorizado em 2026-09-22 02:38:52 (PID 77701, NRestarts=0); 0 Traceback/ERROR/CRIT; tabela telegram_links criada (0 vínculos).",
     "prova_viva": {
@@ -298,12 +310,12 @@
       "sem_rastro": "balde 'anonimo' = 0; total da tabela 104 e alex 100 (intactos) — a prova anônima não gravou nada."
     },
     "commits": ["d64e930 papéis", "859b624 /entrar + anônimo", "dd0428c launcher (UserStore no bot)"],
-    "estado": "1a+1b+1c CONCLUÍDAS, IMPLANTADAS e PROVADAS no ar. Falta só a fase 2 (app)."
+    "estado": "1a+1b+1c+2 CONCLUÍDAS e validadas. Servidor no ar (PID 77701); APK 1.2.8+10 pronto para instalação."
   },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot; implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; baldes app+Telegram+web (70 msgs) migrados para alex (28 → 98); deploy autorizado em 02:01:13 (PID 67589) com prova viva REST (user_id 'app' → alex) e zero resíduo. Legado: data/conversations + data/od.db já estavam removidos desde 09-21 (backup restaurável conferido) e o último resíduo JSON, data/llm_cache/cache.json, recebeu backup próprio e foi removido agora.",
-    "next": "Fases 1a/1b/1c FEITAS, implantadas (PID 77701) e provadas (suíte 1887/16, sandbox 57/57, provas vivas 4/4). Próximo: fase 2 — tela de login/registro no app Flutter (Bearer no REST, token no WS, API key como modo avançado) + rebuild do APK (1.2.8+10). Ver §papeis_contas_2026_09_22."
+    "action": "Retomada com 'leia iniciar'. Conferidos session.json, RULES.md e estado vivo do sistema (od-core ativo PID 77701, suíte 1887/16, sandbox 57/57). Fase 2 (app Flutter com login/registro por conta, Bearer REST, token WS, modo avançado e bump para 1.2.8+10) validada com 77 testes do Flutter, analyze sem issues e APKs versionCode 10 em site/.",
+    "next": "Instalar APK 1.2.8+10 no aparelho e validar login/chat com a conta de usuário alex; od-core segue no ar com papéis e vínculos ativos."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},

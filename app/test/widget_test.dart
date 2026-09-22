@@ -182,17 +182,23 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('OdApp (smoke)', () {
-    testWidgets('sem chave salva abre na Config e navega para o Chat',
-        (tester) async {
+    testWidgets('sem credencial abre na tela de entrada', (tester) async {
       await tester.pumpWidget(const OdApp());
       await tester.pumpAndSettle();
 
-      // Sem API key salva, cai direto nas configurações
-      expect(find.text('Configurações'), findsOneWidget);
+      // Sem sessão nem API key salvas, o app abre no login.
+      expect(find.text('Entrar no OmegaDrakon'), findsOneWidget);
+      expect(find.text('Modo avançado (API key)'), findsOneWidget);
+    });
 
-      await tester.tap(find.text('Chat'));
+    testWidgets('modo avançado leva às Configurações', (tester) async {
+      await tester.pumpWidget(const OdApp());
       await tester.pumpAndSettle();
-      expect(find.text('Envie uma mensagem para começar'), findsOneWidget);
+
+      await tester.tap(find.text('Modo avançado (API key)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Configurações'), findsOneWidget);
       expect(find.byType(NavigationBar), findsOneWidget);
     });
   });

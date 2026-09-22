@@ -7,6 +7,7 @@ import 'screens/chat_screen.dart';
 import 'screens/actions_screen.dart';
 import 'screens/status_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/login_screen.dart';
 
 /// OmegaDrakon — Interface Viva no bolso 🐉
 ///
@@ -49,21 +50,27 @@ class OdApp extends StatelessWidget {
         brightness: Brightness.dark,
       ),
       themeMode: ThemeMode.system,
-      home: const OdHome(),
+      home: const OdRoot(),
     );
   }
 }
 
-class OdHome extends StatefulWidget {
-  const OdHome({super.key});
+/// Decide entre a tela de entrada e o app, conforme a credencial salva.
+///
+/// Sem sessão nenhuma na primeira vez, abre o login (a API key continua
+/// acessível pelo "modo avançado", que leva às Configurações).
+class OdRoot extends StatefulWidget {
+  const OdRoot({super.key});
 
   @override
-  State<OdHome> createState() => _OdHomeState();
+  State<OdRoot> createState() => _OdRootState();
 }
 
-class _OdHomeState extends State<OdHome> {
-  int _currentIndex = 0;
+class _OdRootState extends State<OdRoot> {
   late final OdApi _api;
+  bool _ready = false;
+  bool _authenticated = false;
+  int _initialIndex = 0;
 
   @override
   void initState() {
@@ -73,35 +80,97 @@ class _OdHomeState extends State<OdHome> {
       // Externa: Tailscale Funnel (TLS, sem depender de porta da operadora).
       fallbackUrl: 'https://nicky-server.tail1b1f51.ts.net',
     );
-    _initApi();
+    _bootstrap();
   }
 
-  Future<void> _initApi() async {
-    final loaded = await _api.loadSavedApiKey();
-    if (loaded) {
-      // Com URL + chave válidas, registra o token FCM deste aparelho no OD
-      // (é o que permite o servidor mandar push para cá). Best-effort.
+  Future<void> _bootstrap() async {
+    final has = await _api.loadSavedApiKey();
+    if (!mounted) return;
+    setState(() {
+      _authenticated = has;
+      _ready = true;
+    });
+    if (has) {
+      // Sessão/API key válidas: registra o token FCM deste aparelho.
       unawaited(PushService.instance.attach(_api));
-    } else if (mounted) {
-      // Primeira vez — mostra settings
-      setState(() => _currentIndex = 3);
     }
   }
 
-  /// Chamado ao salvar as Configurações: re-tenta registrar o token com a
-  /// URL/chave novas (antes disso o push não tinha para onde ir).
+  void _onAuthenticated() {
+    unawaited(PushService.instance.attach(_api));
+    setState(() {
+      _authenticated = true;
+      _initialIndex = 0;
+    });
+  }
+
+  void _onAdvanced() {
+    // Modo avançado: vai direto às Configurações (API key do servidor).
+    setState(() {
+      _authenticated = true;
+      _initialIndex = 3;
+    });
+  }
+
   void _onSettingsSaved() {
     unawaited(PushService.instance.attach(_api));
-    setState(() => _currentIndex = 0);
+    setState(() => _initialIndex = 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (!_authenticated) {
+      return LoginScreen(
+        api: _api,
+        onAuthenticated: _onAuthenticated,
+        onAdvanced: _onAdvanced,
+      );
+    }
+    return OdHome(
+      api: _api,
+      initialIndex: _initialIndex,
+      onSettingsSaved: _onSettingsSaved,
+    );
+  }
+}
+
+class OdHome extends StatefulWidget {
+  const OdHome({
+    super.key,
+    required this.api,
+    this.initialIndex = 0,
+    required this.onSettingsSaved,
+  });
+
+  final OdApi api;
+  final int initialIndex;
+  final VoidCallback onSettingsSaved;
+
+  @override
+  State<OdHome> createState() => _OdHomeState();
+}
+
+class _OdHomeState extends State<OdHome> {
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
   }
 
   @override
   Widget build(BuildContext context) {
     final screens = [
-      ChatScreen(api: _api),
-      ActionsScreen(api: _api),
-      StatusScreen(api: _api),
-      SettingsScreen(api: _api, onSaved: _onSettingsSaved),
+      ChatScreen(api: widget.api),
+      ActionsScreen(api: widget.api),
+      StatusScreen(api: widget.api),
+      SettingsScreen(api: widget.api, onSaved: widget.onSettingsSaved),
     ];
 
     return Scaffold(

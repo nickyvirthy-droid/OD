@@ -54,6 +54,11 @@ class OdApi {
   /// falhar por rede, repete pela secundária.
   String? fallbackUrl;
   String _apiKey;
+  // Sessão de conta (login/registro). Com token, o servidor usa o USUÁRIO
+  // autenticado e ignora o user_id do corpo — é o que faz o histórico ser o
+  // mesmo no app, no chat e no Telegram.
+  String _token;
+  String _username;
 
   OdApi({
     required this.baseUrl,
@@ -64,16 +69,29 @@ class OdApi {
     this.maxAttempts = odMaxAttempts,
     this.retryDelay = odRetryDelay,
     String apiKey = '',
+    String token = '',
+    String username = '',
   })  : _injectedClient = client,
-        // Chave SÓ em memória (sem SharedPreferences): usado por testes e
-        // verificações vivas que rodam sem o binding do Flutter — o binding
+        // Credenciais SÓ em memória (sem SharedPreferences): usado por testes
+        // e verificações vivas que rodam sem o binding do Flutter — o binding
         // troca o HttpClient por um dublê que responde 400 e aí não haveria
-        // socket real para exercitar. Em produção use setApiKey(), que
-        // persiste.
-        _apiKey = apiKey;
+        // socket real para exercitar. Em produção use setApiKey()/setToken(),
+        // que persistem.
+        _apiKey = apiKey,
+        _token = token,
+        _username = username;
 
-  /// API key para autenticação X-API-Key.
+  /// API key para autenticação X-API-Key (modo avançado).
   String get apiKey => _apiKey;
+
+  /// Token da sessão de conta (login/registro).
+  String get token => _token;
+
+  /// Username da conta logada ("" quando é só API key).
+  String get username => _username;
+
+  /// Há alguma credencial utilizável (sessão de conta OU API key).
+  bool get hasCredential => _token.isNotEmpty || _apiKey.isNotEmpty;
 
   /// Troca a URL do servidor em runtime (usada ao salvar as configurações).
   void setBaseUrl(String url) {
@@ -90,6 +108,70 @@ class OdApi {
     _apiKey = key;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('od_api_key', key);
+  }
+
+  /// Salva (ou limpa, com string vazia) a sessão de conta.
+  Future<void> setToken(String token, {String username = ''}) async {
+    _token = token;
+    _username = token.isEmpty ? '' : username;
+    final prefs = await SharedPreferences.getInstance();
+    if (token.isEmpty) {
+      await prefs.remove('od_session_token');
+      await prefs.remove('od_username');
+    } else {
+      await prefs.setString('od_session_token', token);
+      await prefs.setString('od_username', _username);
+    }
+  }
+
+  /// Entra com usuário e senha (POST /auth/login) e guarda a sessão.
+  Future<bool> login(String username, String password) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/auth/login'),
+      body: jsonEncode({'username': username.trim(), 'password': password}),
+    );
+    final data = _tryJson(response.body);
+    final token = (data?['token'] as String?) ?? '';
+    if (response.statusCode == 200 && data?['ok'] == true && token.isNotEmpty) {
+      await setToken(token, username: (data?['user']?['username'] as String?) ?? username);
+      return true;
+    }
+    throw OdApiError(
+      (data?['error'] as String?) ?? 'Falha no login (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// Cria a conta (POST /auth/register). O login é um passo separado.
+  Future<void> register(String username, String email, String password) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/auth/register'),
+      body: jsonEncode({
+        'username': username.trim(),
+        'email': email.trim(),
+        'password': password,
+      }),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 201 && data?['ok'] == true) return;
+    throw OdApiError(
+      (data?['error'] as String?) ?? 'Falha ao criar a conta (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// Encerra a sessão no servidor (best-effort) e apaga o token local.
+  Future<void> logout() async {
+    try {
+      if (_token.isNotEmpty) {
+        await _send('POST', Uri.parse('$baseUrl/auth/logout'));
+      }
+    } catch (_) {
+      // Best-effort: sair localmente vale mesmo se o servidor não responder.
+    }
+    await setToken('');
   }
 
   /// Salva ambas as URLs (primária e fallback) em SharedPreferences.
@@ -110,6 +192,8 @@ class OdApi {
   Future<bool> loadSavedApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     _apiKey = prefs.getString('od_api_key') ?? '';
+    _token = prefs.getString('od_session_token') ?? '';
+    _username = prefs.getString('od_username') ?? '';
     // URL primária salva sobrescreve o default do construtor.
     final savedUrl = prefs.getString('od_server_url');
     if (savedUrl != null && savedUrl.isNotEmpty) {
@@ -119,13 +203,16 @@ class OdApi {
     if (savedFallback != null && savedFallback.isNotEmpty) {
       fallbackUrl = savedFallback;
     }
-    return _apiKey.isNotEmpty;
+    return hasCredential;
   }
 
   /// Headers padrão para requisições.
+  ///
+  /// A sessão de conta tem prioridade; a API key entra só como modo avançado.
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
-        if (_apiKey.isNotEmpty) 'X-API-Key': _apiKey,
+        if (_token.isNotEmpty) 'Authorization': 'Bearer $_token',
+        if (_token.isEmpty && _apiKey.isNotEmpty) 'X-API-Key': _apiKey,
       };
 
   /// Executa a requisição com resiliência (ver doc da classe).
@@ -394,7 +481,7 @@ class OdApi {
     String platform = 'android',
     String device = '',
   }) async {
-    if (token.isEmpty || _apiKey.isEmpty) return false;
+    if (token.isEmpty || !hasCredential) return false;
     try {
       final response = await _send(
         'POST',
@@ -413,7 +500,7 @@ class OdApi {
 
   /// Remove este aparelho do push (troca de conta/aparelho).
   Future<bool> unregisterPushToken(String token) async {
-    if (token.isEmpty || _apiKey.isEmpty) return false;
+    if (token.isEmpty || !hasCredential) return false;
     try {
       final response = await _send(
         'POST',

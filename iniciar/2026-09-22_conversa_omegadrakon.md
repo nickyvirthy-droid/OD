@@ -80,7 +80,48 @@ Regra mantida: **credencial de usuário manda** — sessão `Bearer` ou API key
 - Snapshot de rollback: `backups/history-owner-20260922-020027.bak`.
 - Fora da migração, de propósito: `deploy-check(-2)` (4 msgs sintéticas).
 
-## 3. Deploy
+## 3. Deploy do Alias de Transporte
 
 Restart do `od-core` autorizado pelo usuário — registrado com a prova viva no
 §`alias_transporte_2026_09_22` do `iniciar/session.json` após o deploy.
+
+---
+
+## 4. Papéis, Vínculo do Telegram e Modo Anônimo (Fases 1a, 1b, 1c)
+
+Decisão do usuário: **cada pessoa com a própria conta, a mesma em qualquer plataforma (chat/app/Telegram)**, continuando a conversa de onde parou; dono confirmado por `OD_API_KEY` tem privilégio total; no chat web, quem quer só conversar entra como anônimo sem privilégios.
+
+- **Fase 1a (Papéis & Gate):** `OD_OWNER_USERNAME=alex`; a `OD_API_KEY` assume a conta do dono com `role="admin"`; `POST /executa` restringe níveis 1 e 2 apenas ao dono (403 fora dele, 422 sem confirmação para nível 2); papel `user` com lista explícita de actions de leitura; papel `anonymous` bloqueia qualquer action.
+- **Fase 1b (Telegram `/entrar`):** tabela `telegram_links` no PostgreSQL (`UserStore.link_telegram` / `unlink_telegram`); comandos `/entrar <user> <pass>` e `/sair` no bot. Chat vinculado roteia para o balde da conta.
+- **Fase 1c (Chat Anônimo):** rota pública `POST /anon/message` em `AUTH_EXEMPT_PATHS`; botão "Entrar como anônimo" na UI web; histórico mantido estritamente no navegador (`persist=False` no backend, zero mensagens gravadas em banco).
+- **Validação e Deploy:** Suíte 1887 passed, 16 skipped; sandbox `auth_sandbox.py` 57/57 OK. Deploy com restart autorizado em 02:38:52 (PID 77701, NRestarts=0); provas vivas 4/4 OK. Commits: `d64e930`, `859b624`, `dd0428c`.
+
+---
+
+## 5. Fase 2 — Login/Registro no App Flutter e APK 1.2.8+10
+
+Objetivo: permitir autenticação por conta no aplicativo móvel com token de sessão, unificando o histórico do celular com o chat web e o Telegram.
+
+### Implementação
+- **`app/lib/screens/login_screen.dart` (novo):** tela de entrada para entrar ou registrar conta (`/auth/login` e `/auth/register`), exibição de erros da API, alternância entre modos e botão de "Modo avançado (API key)".
+- **`app/lib/services/od_api.dart`:** suporte a token de sessão (`login`, `register`, `logout`, `setToken`), persistência em SharedPreferences (`od_session_token`, `od_username`), envio de header `Authorization: Bearer <token>` prioritário sobre `X-API-Key`.
+- **`app/lib/services/od_ws.dart`:** frame `auth` transmite `token` quando logado, atrelando o canal WebSocket à identidade da conta no servidor.
+- **`app/lib/main.dart`:** `OdRoot` faz bootstrap inicial — direciona para `LoginScreen` se não houver credencial salva ou `OdHome` se autenticado/modo avançado.
+- **`app/pubspec.yaml`:** versão incrementada de `1.2.8+9` para `1.2.8+10`.
+
+### Verificação e Build
+- `flutter analyze` — 0 issues.
+- `flutter test` — 77 passed, 2 skipped (smoke tests e testes de API com Bearer e sessão validados).
+- `app/build_apk.sh` — APKs gerados e publicados em `site/`:
+  - `site/OmegaDrakon.apk` (52.394.459 B, universal)
+  - `site/OmegaDrakon-arm64.apk` (18.715.654 B, arm64)
+  - `versionCode='10'`, `versionName='1.2.8'` conferidos via `aapt2`.
+
+---
+
+## 6. Retomada: "leia iniciar" (03:20)
+
+Retomada da sessão e leitura do checkpoint.
+- Sistema em execução: `od-core` ativo (PID 77701, 0 restarts), Funnel ativo (`https://nicky-server.tail1b1f51.ts.net`), banco de dados Postgres saudável.
+- Fase 2 (App Flutter) finalizada e validada; pronta para instalação no dispositivo e commit.
+
