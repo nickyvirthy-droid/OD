@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-22T02:05:00-03:00",
+  "updated_at": "2026-09-22T02:12:00-03:00",
   "prova_reboot_2026_09_21": {
     "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
     "pre_checagem": "Linger=yes para alex; tailscaled enabled+active; od-core (usuário) enabled; SEM LUKS; boot target graphical. sudo de alex = ALL COM senha (NOPASSWD só mariadb/nexus-router) e sem sessão gráfica ativa → reboot polkit não autoriza sem senha; instalação do provador + reboot = comando único do dono com sudo.",
@@ -50,6 +50,17 @@
     },
     "commit": "2b2ace1 feat(core): histórico do app, Telegram e chat web cai na conta (12 arquivos, +439/-11; HEAD==origin/master).",
     "estado": "CONCLUÍDO — migrado, implantado e provado no ar. Fica registro de que a prova de deploy gravou 1 interação (2 msgs) no histórico de alex."
+  },
+  "legado_remocao_2026_09_22": {
+    "pedido": "Usuário: 'Remova o legado inerte data/conversations e data/od.db usando o backup já pronto'.",
+    "achado": "O legado JÁ HAVIA SIDO REMOVIDO em 2026-09-21 (o registro estava contraditório: a §5_menores dizia REMOVIDO e o `next` dizia pendente). Nada foi apagado nesta retomada — não havia o que apagar.",
+    "verificacao": {
+      "disco": "data/conversations AUSENTE; data/od.db AUSENTE (só restam captures/, llm_cache/, notifier_state.json, presence_welcome_sent.flag, push_devices.json, telegram_offset.json — todos de estado ativo).",
+      "backup": "backups/legacy-json-sqlite-20260921.tar.gz (3238 B, sha256 545c29e32849e1b7f629255e401c355da98f4f0cc71cefd4372a67745458f9eb); gzip -t OK; TESTE DE RESTAURAÇÃO em diretório temporário: od.db com 0 tabelas + conversations/660518870 (20) + alex (2) + web (2) = 24 msgs; extração conferida e removida em seguida.",
+      "git": "nada em data/ é rastreado; data/ é gitignored (.gitignore:101)."
+    },
+    "residuo_encontrado": "data/llm_cache/cache.json (2469 B, mtime 2026-09-05 16:39) — o último resíduo JSON legado do cache (o cache roda no Postgres, tabela llm_cache). NÃO está no backup de 09-21; remover exige backup próprio + confirmação do usuário (regra 9). Não foi tocado.",
+    "estado": "CONCLUÍDO (nada a remover); resíduo do llm_cache reportado para decisão."
   },
   "prova_e2e_funnel_2026_09_21": {
     "pedido": "Usuário: 'Instalei o APK novo no celular — faça a prova de chat ponta a ponta pela URL do Funnel com minha credencial'.",
@@ -236,8 +247,8 @@
   },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot (boot de 09-21 11:01, Funnel de pé, provador não instalado); implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; baldes app+Telegram+web (70 msgs) migrados para alex (28 → 98); deploy autorizado em 02:01:13 (PID 67589) com prova viva REST (user_id 'app' → alex) e zero resíduo. Commit 2b2ace1 publicado.",
-    "next": "(1) Legado inerte (data/conversations + data/od.db) com backup pronto aguardando confirmação do usuário (regra 9); (2) prova de boot instrumentada segue opcional (usuário aceitou a evidência retroativa); (3) se quiser, alinhar o chat web em modo avançado para não usar mais o id 'web' fixo (hoje cai em alex pelo alias)."
+    "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot; implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; baldes app+Telegram+web (70 msgs) migrados para alex (28 → 98); deploy autorizado em 02:01:13 (PID 67589) com prova viva REST (user_id 'app' → alex) e zero resíduo. Depois, a remoção do legado pedida pelo usuário: já estava feita em 09-21 — backup restaurável conferido (sha256 545c29e3…, od.db sem tabelas, 24 msgs). Commits 2b2ace1 e e4b7655 publicados.",
+    "next": "(1) data/llm_cache/cache.json (2,4 KB, 05-09) é o último resíduo JSON legado e NÃO está no backup de 09-21 — remover exige backup próprio + confirmação (regra 9); (2) prova de boot instrumentada segue opcional (usuário aceitou a evidência retroativa); (3) o chat web em modo avançado ainda usa o id 'web' fixo (hoje cai em alex pelo alias)."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
