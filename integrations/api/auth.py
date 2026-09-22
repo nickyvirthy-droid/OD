@@ -128,6 +128,14 @@ class UserStore:
         "expires_at": "REAL NOT NULL",
     }
 
+    # Vínculo de um chat do Telegram a uma conta (comando /entrar). O balde do
+    # Telegram é o id numérico do chat; vinculado, a conversa cai na conta.
+    SCHEMA_TELEGRAM_LINKS = {
+        "chat_id": "TEXT PRIMARY KEY",
+        "username": "TEXT NOT NULL",
+        "linked_at": "REAL NOT NULL",
+    }
+
     def __init__(
         self,
         db: Database,
@@ -139,6 +147,7 @@ class UserStore:
         # Cria tabelas se não existirem
         db.create_table("users", self.SCHEMA_USERS)
         db.create_table("sessions", self.SCHEMA_SESSIONS)
+        db.create_table("telegram_links", self.SCHEMA_TELEGRAM_LINKS)
 
     # -- Registro -------------------------------------------------------------
 
@@ -326,6 +335,58 @@ class UserStore:
             api_key=row["api_key"],
             created_at=row["created_at"],
         )
+
+    def verify_credentials(self, username: str, password: str) -> bool:
+        """Confere usuário+senha **sem** abrir sessão.
+
+        Usado no vínculo do Telegram (`/entrar`): valida a credencial da conta
+        sem criar uma sessão web que ninguém vai usar.
+        """
+        rows = self._db.query(
+            "SELECT password_hash FROM users WHERE username = ?",
+            (username.strip().lower(),),
+            limit=1,
+        )
+        return bool(rows) and _verify_password(password, rows[0]["password_hash"])
+
+    # -- Vínculo do Telegram (chat_id → conta) --------------------------------
+
+    def link_telegram(self, chat_id: Any, username: str) -> bool:
+        """Vincula um chat do Telegram a uma conta. False se a conta não existe."""
+        nome = username.strip().lower()
+        if self.get_user_by_username(nome) is None:
+            return False
+        chave = str(chat_id)
+        agora = time.time()
+        if self.telegram_username(chave) is None:
+            self._db.execute(
+                "INSERT INTO telegram_links (chat_id, username, linked_at) "
+                "VALUES (?, ?, ?)",
+                (chave, nome, agora),
+            )
+        else:
+            self._db.execute(
+                "UPDATE telegram_links SET username = ?, linked_at = ? "
+                "WHERE chat_id = ?",
+                (nome, agora, chave),
+            )
+        log.info("Chat do Telegram vinculado", chat_id=chave, username=nome)
+        return True
+
+    def telegram_username(self, chat_id: Any) -> Optional[str]:
+        """Conta vinculada a um chat do Telegram (ou None)."""
+        rows = self._db.query(
+            "SELECT username FROM telegram_links WHERE chat_id = ?",
+            (str(chat_id),),
+            limit=1,
+        )
+        return rows[0]["username"] if rows else None
+
+    def unlink_telegram(self, chat_id: Any) -> bool:
+        """Remove o vínculo de um chat. True quando havia vínculo."""
+        return bool(self._db.execute(
+            "DELETE FROM telegram_links WHERE chat_id = ?", (str(chat_id),)
+        ))
 
     def rotate_api_key(self, user_id: int) -> str:
         """Gera uma nova API key para o usuário. Retorna a nova chave."""

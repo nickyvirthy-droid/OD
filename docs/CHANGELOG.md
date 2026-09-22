@@ -18,11 +18,11 @@
 
 ### Adicionado (2026-09-22) — papéis: dono, conta comum e anônimo 🎚️
 
-> Primeira fase do modelo pedido pelo usuário: **cada pessoa com a própria
-> conta, a mesma em qualquer plataforma**; o dono confirmado pela `OD_API_KEY`
-> tem privilégio máximo (com confirmação); o chat aceita quem só quer
-> conversar, sem conta e sem comando. Esta fase entrega o **núcleo de
-> privilégio**; o vínculo do Telegram e o modo anônimo vêm nas fases seguintes.
+> Modelo pedido pelo usuário: **cada pessoa com a própria conta, a mesma em
+> qualquer plataforma**; o dono confirmado pela `OD_API_KEY` tem privilégio
+> máximo (com confirmação); o chat aceita quem só quer conversar, sem conta e
+> sem comando. Esta entrada cobre o **núcleo de privilégio**, o **vínculo do
+> Telegram** e o **modo anônimo**. A tela de login do app é a fase seguinte.
 
 - **`OD_OWNER_USERNAME` (default `alex`)** — a `OD_API_KEY` é a chave do
   DONO. Com a conta configurada, a chave **assume a conta**: o histórico do
@@ -50,11 +50,28 @@
   WebSocket o da sessão/API key e o bot o do chat admin. O papel
   `anonymous` **não aciona action nenhuma**. `process` também aceita
   `persist=False` (não grava cache nem histórico) — base do modo anônimo.
+- **Telegram: `/entrar <usuário> <senha>` e `/sair`.** O vínculo vive no
+  banco (tabela `telegram_links`, `UserStore.link_telegram` /
+  `telegram_username` / `unlink_telegram`, com `verify_credentials` sem abrir
+  sessão). Com o chat vinculado, o histórico do Telegram passa a ser o da
+  conta — **a conversa continua de onde parou no chat ou no app**; sem vínculo
+  (ou após `/sair`), cada chat segue no próprio balde. O vínculo tem
+  prioridade sobre o `OD_ACCOUNT_ALIASES`.
+- **Conversa anônima no chat web.** Novo `POST /anon/message` (público —
+  `AUTH_EXEMPT_PATHS`, responde mesmo com `auth_all`) + botão "Entrar como
+  anônimo" na página: o contexto da conversa vem do **navegador**
+  (`history` no corpo → `Orchestrator.process(extra_history=...)`), o papel é
+  `anonymous` (não aciona action nenhuma) e `persist=False` — **nada é
+  gravado**: sem histórico e sem cache no banco. Rate limit por IP continua.
 - **Testes:** `tests/test_auth.py` +6 (dono assume a conta, conta comum é
   `"user"`, dono lê qualquer histórico, `/executa` por papel, destrutiva ainda
-  pede confirmação) e `tests/test_websocket.py` +1 (papel chega ao
-  orchestrator: dono `admin`, conta `user`). **Suíte:** **1876 passed,
-  16 skipped**.
+  pede confirmação); `tests/test_websocket.py` +1 (papel chega ao
+  orchestrator); `tests/test_telegram.py` +5 (`/entrar`, senha errada, `/sair`,
+  vínculo acima do alias, sem UserStore); `tests/test_api.py` +3 e
+  `tests/test_orchestrator.py` +3 (endpoint anônimo, nada gravado, contexto do
+  cliente, anônimo não aciona action). **Suíte:** **1887 passed, 16 skipped**.
+- **Sandbox (regra 12):** `sandbox_agent/auth_sandbox.py` ganhou o 6º cenário
+  (papéis + `/entrar` + anônimo, com socket real) → **57/57 OK** (era 44).
 
 ### Adicionado (2026-09-22) — o histórico do app e do Telegram vai para a conta 🔗
 

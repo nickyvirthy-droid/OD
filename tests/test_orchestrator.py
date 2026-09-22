@@ -187,6 +187,64 @@ class TestOrchestratorShortCircuits:
 # ===========================================================================
 
 @pytest.mark.asyncio
+class TestOrchestratorAnonimo:
+    """Conversa sem conta: papel "anonymous" e persist=False (nada no banco)."""
+
+    async def test_persist_false_nao_grava_nada(self, tmp_path: Path) -> None:
+        history = _history(tmp_path)
+        cache = _cache(tmp_path)
+        orch = Orchestrator(
+            providers=[RecordingProvider("echo", reply="resposta")],
+            history=history,
+            cache=cache,
+        )
+        result = await orch.process(
+            "anonimo", "guardian", "oi", role="anonymous", persist=False
+        )
+        assert result.route == "llm"
+        assert history.get_history("anonimo", "guardian") == []
+        assert cache.stats()["entries"] == 0
+
+    async def test_contexto_vem_do_cliente(self, tmp_path: Path) -> None:
+        provider = RecordingProvider("echo", reply="ok")
+        orch = Orchestrator(providers=[provider], history=_history(tmp_path))
+        await orch.process(
+            "anonimo", "guardian", "e agora?",
+            role="anonymous", persist=False,
+            extra_history=[
+                {"role": "user", "content": "pergunta anterior"},
+                {"role": "assistant", "content": "resposta anterior"},
+            ],
+        )
+        prompt = provider.prompts[-1]
+        assert "pergunta anterior" in prompt
+        assert "resposta anterior" in prompt
+
+    async def test_anonymous_nao_aciona_action(self, tmp_path: Path) -> None:
+        from core.security.manager import SecurityManager
+        from tools.actions import build_registry
+
+        registry = build_registry(security=SecurityManager(mode="strict"))
+        orch = Orchestrator(
+            providers=[RecordingProvider("echo", reply="ok")],
+            history=_history(tmp_path),
+        )
+        orch.set_action_registry(registry)
+
+        anonimo = await orch.process(
+            "anonimo", "guardian", "quantos processos estão rodando?",
+            role="anonymous", persist=False,
+        )
+        assert anonimo.route != "action_intent"
+
+        # o dono aciona o fast path de leitura normalmente
+        dono = await orch.process(
+            "alex", "guardian", "quantos processos estão rodando?", role="admin"
+        )
+        assert dono.route == "action_intent"
+
+
+@pytest.mark.asyncio
 class TestOrchestratorLLM:
     """Etapas 5–8: histórico, LLM, fallback e pós-processamento."""
 

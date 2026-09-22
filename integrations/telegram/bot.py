@@ -115,10 +115,14 @@ class TelegramBot:
         action_registry: Optional[Any] = None,
         auto_extension: Optional[Any] = None,
         account_aliases: Optional[dict[str, str]] = None,
+        user_store: Optional[Any] = None,
     ) -> None:
         self.transport = transport
         self.orchestrator = orchestrator
         self.admin_ids: set[int] = set(admin_ids or ())
+        # UserStore: dá o /entrar (vínculo chat → conta) e o papel da conta no
+        # fast path de intenções. Ausente = só o alias estático do ambiente.
+        self.user_store = user_store
         # Alias id-de-chat → conta do dono (core/identity.py): o bot identifica
         # a pessoa pelo id do Telegram; sem o mapa, a conversa fica num balde
         # que a conta não enxerga.
@@ -184,7 +188,19 @@ class TelegramBot:
         return user_id in self.admin_ids
 
     def _account_for(self, chat_id: ChatId) -> str:
-        """Balde de histórico/cache de um chat: a conta do dono, se houver alias."""
+        """Balde de histórico/cache de um chat: a conta vinculada, se houver.
+
+        Ordem: vínculo do `/entrar` (users/telegram_links) → alias estático de
+        `OD_ACCOUNT_ALIASES` → o próprio id do chat (comportamento antigo).
+        """
+        if self.user_store is not None:
+            try:
+                vinculado = self.user_store.telegram_username(str(chat_id))
+            except Exception as exc:  # pragma: no cover — store indisponível
+                log.warn("Falha ao ler o vínculo do Telegram", error=str(exc))
+                vinculado = None
+            if vinculado:
+                return vinculado
         return resolve_account(str(chat_id), self.account_aliases)
 
     def get_profile(self, chat_id: int) -> str:

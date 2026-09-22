@@ -183,6 +183,42 @@ def _limpar(bot: "TelegramBot", ctx: CommandContext) -> str:
     return cleared
 
 
+def _entrar(bot: "TelegramBot", ctx: CommandContext) -> str:
+    """Vincula este chat a uma conta (mesmas credenciais do chat/app).
+
+    A partir do vínculo, o histórico do Telegram é o da CONTA: a conversa
+    continua de onde parou em qualquer plataforma. Sem vínculo, o chat fica
+    no próprio balde (id numérico) e não enxerga a conta.
+    """
+    store = getattr(bot, "user_store", None)
+    if store is None:
+        return "Login indisponível: o servidor está sem banco de contas."
+    if len(ctx.args) < 2:
+        return "Uso: /entrar <usuário> <senha>"
+    usuario = ctx.args[0]
+    senha = " ".join(ctx.args[1:])
+    if not store.verify_credentials(usuario, senha):
+        return "⛔ Usuário ou senha inválidos."
+    if not store.link_telegram(ctx.chat_id, usuario):
+        return "Conta não encontrada."
+    return (
+        f"✅ Este chat agora conversa como *{usuario.strip().lower()}* — mesmo "
+        f"histórico do chat e do app. Use /sair para desvincular."
+    )
+
+
+def _sair(bot: "TelegramBot", ctx: CommandContext) -> str:
+    """Remove o vínculo deste chat com a conta."""
+    store = getattr(bot, "user_store", None)
+    if store is None:
+        return "Sem vínculo para remover."
+    removido = store.unlink_telegram(ctx.chat_id)
+    return (
+        "✅ Vínculo removido; este chat volta a ter histórico próprio."
+        if removido else "Este chat não tinha vínculo."
+    )
+
+
 def _status(bot: "TelegramBot", ctx: CommandContext) -> str:
     system = bot.system_status()
     lines = ["*Status do sistema:*"]
@@ -533,7 +569,7 @@ def _parse_param_value(value: str) -> Any:
 # ---------------------------------------------------------------------------
 
 def build_default_commands() -> list[TelegramCommand]:
-    """Constrói os 13 comandos de texto do legado Nicky."""
+    """Constrói os comandos de texto do bot (os 13 do legado + /entrar e /sair)."""
     return [
         TelegramCommand("start", _welcome, "Boas-vindas"),
         TelegramCommand("help", _help, "Lista de comandos", aliases=("ajuda",)),
@@ -541,6 +577,10 @@ def build_default_commands() -> list[TelegramCommand]:
             "perfil", _perfil, "Trocar/listar perfis (auto/guardian/...)"
         ),
         TelegramCommand("limpar", _limpar, "Limpar histórico do chat"),
+        TelegramCommand(
+            "entrar", _entrar, "Entrar na sua conta: /entrar <usuário> <senha>"
+        ),
+        TelegramCommand("sair", _sair, "Desvincular este chat da conta"),
         TelegramCommand("status", _status, "Status do sistema", admin_only=True),
         TelegramCommand(
             "uptime", _uptime, "Tempo ativo + métricas", admin_only=True

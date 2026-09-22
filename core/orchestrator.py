@@ -707,6 +707,7 @@ class Orchestrator:
         session_id: str = "",
         role: str = "admin",
         persist: bool = True,
+        extra_history: Optional[list[dict[str, str]]] = None,
     ) -> OrchestrationResult:
         """Processa uma mensagem pelo pipeline de 8 etapas.
 
@@ -722,6 +723,10 @@ class Orchestrator:
                           action nenhuma).
             persist:      Quando False, não grava cache nem histórico (a
                           conversa anônima vive só no navegador do cliente).
+            extra_history: Conversa vinda do CLIENTE (lista de {"role",
+                          "content"}), usada no lugar do histórico do banco.
+                          É o que dá contexto à conversa anônima sem gravar
+                          nada.
 
         Returns:
             OrchestrationResult com a rota que produziu a resposta.
@@ -803,7 +808,9 @@ class Orchestrator:
                 return await self._finish(result, started)
 
         # Etapa 5 — Histórico: monta contexto ChatML
-        prompt = self._build_prompt(user_id, profile, text, system_prompt)
+        prompt = self._build_prompt(
+            user_id, profile, text, system_prompt, extra_history=extra_history
+        )
 
         # Etapas 6 e 7 — LLM com fallback
         message, llm_used, fallback_used = await self._generate(prompt)
@@ -839,8 +846,13 @@ class Orchestrator:
         profile: str,
         text: str,
         system_prompt: str,
+        extra_history: Optional[list[dict[str, str]]] = None,
     ) -> str:
-        """Monta o prompt ChatML com histórico (últimos N turns) + datetime."""
+        """Monta o prompt ChatML com histórico (últimos N turns) + datetime.
+
+        Com `extra_history`, o contexto vem do cliente (conversa anônima) em
+        vez do banco — mesma regra de truncamento por turnos.
+        """
         from memory.history import build_chatml
 
         system = system_prompt or ""
@@ -853,8 +865,20 @@ class Orchestrator:
             system = f"{system}\n{context_line}".strip() if system else context_line
 
         messages: list[dict[str, str]] = []
-        if self.history is not None:
-            turn_limit = self._config.max_history_turns
+        turn_limit = self._config.max_history_turns
+        if extra_history is not None:
+            # Contexto vindo do cliente (anônimo): nada é lido do banco.
+            turnos = list(extra_history)
+            if turn_limit is not None:
+                turnos = turnos[-(turn_limit * 2):]
+            for msg in turnos:
+                if not isinstance(msg, dict):
+                    continue
+                papel = str(msg.get("role") or "")
+                conteudo = str(msg.get("content") or "")
+                if papel in ("user", "assistant") and conteudo:
+                    messages.append({"role": papel, "content": conteudo})
+        elif self.history is not None:
             history_messages = self.history.get_history(user_id, profile)
             if turn_limit is not None:
                 max_msgs = turn_limit * 2

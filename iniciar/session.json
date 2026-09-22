@@ -256,8 +256,8 @@
     },
     "fases": [
       "1a) papéis + OD_API_KEY assume a conta + /executa por papel + papel no fast path — FEITO",
-      "1b) Telegram: /entrar usuário senha (vínculo chat → conta) persistido — PENDENTE",
-      "1c) chat anônimo (só conversar, nada no banco) — PENDENTE",
+      "1b) Telegram: /entrar usuário senha (vínculo chat → conta) persistido — FEITO",
+      "1c) chat anônimo (só conversar, nada no banco) — FEITO",
       "2) tela de login no app Flutter + rebuild do APK — PENDENTE"
     ],
     "fase_1a": {
@@ -270,13 +270,33 @@
       ],
       "testes": "Suíte 1876 passed, 16 skipped (test_auth +6, test_websocket +1, ajustes em test_security/test_orchestrator stubs).",
       "lacuna_encontrada": "Os padrões com ponto do papel 'agent' (spec) não casam com os nomes reais das actions (underscore) — o 'agent' efetivamente nega tudo. Pré-existente; registrado no CHANGELOG.",
-      "estado": "CONCLUÍDA em código+testes; falta sandbox (regra 12), deploy e prova viva — adiados para o fim da fase 1."
-    }
+      "estado": "CONCLUÍDA em código+testes+sandbox; falta deploy e prova viva."
+    },
+    "fase_1b": {
+      "implementacao": [
+        "integrations/api/auth.py: tabela telegram_links + verify_credentials (sem abrir sessão) + link_telegram/telegram_username/unlink_telegram.",
+        "integrations/telegram/commands.py: comandos públicos /entrar <usuario> <senha> e /sair.",
+        "integrations/telegram/bot.py: user_store no bot; _account_for passa a preferir o vínculo (vínculo > OD_ACCOUNT_ALIASES > id do chat).",
+        "runtime/launcher.py: build_telegram_bot/_run_telegram_forever recebem user_store (do database)."
+      ],
+      "efeito": "chat vinculado conversa no MESMO balde da conta — continua de onde parou no chat/app.",
+      "testes": "tests/test_telegram.py +5; catálogo agora com 16 comandos."
+    },
+    "fase_1c": {
+      "implementacao": [
+        "integrations/api/server.py: rota POST /anon/message (pública, em AUTH_EXEMPT_PATHS) + botão 'Entrar como anônimo' na página /chat com histórico no NAVEGADOR.",
+        "core/orchestrator.py: process ganha extra_history (contexto vindo do cliente) além de persist=False."
+      ],
+      "regras": "papel anonymous (nunca aciona action) · persist=False (sem histórico nem cache no banco) · sem credencial, mesmo com auth_all · rate limit por IP segue.",
+      "testes": "tests/test_api.py +3, tests/test_orchestrator.py +3."
+    },
+    "sandbox": "auth_sandbox.py 6º cenário (papéis + /entrar + anônimo, sockets reais) → 57/57 OK (era 44). Suíte 1887 passed, 16 skipped.",
+    "estado": "1a+1b+1c CONCLUÍDAS em código+testes+sandbox; FALTA deploy e prova viva (autorização a pedir) e a fase 2 (app)."
   },
   "last_turn": {
     "date": "2026-09-22",
     "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot; implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; baldes app+Telegram+web (70 msgs) migrados para alex (28 → 98); deploy autorizado em 02:01:13 (PID 67589) com prova viva REST (user_id 'app' → alex) e zero resíduo. Legado: data/conversations + data/od.db já estavam removidos desde 09-21 (backup restaurável conferido) e o último resíduo JSON, data/llm_cache/cache.json, recebeu backup próprio e foi removido agora.",
-    "next": "Modelo de contas/papéis (pedido do usuário) em andamento: 1a FEITA (papéis + OD_API_KEY assume a conta + /executa por papel + papel no fast path, 1876/16); próximas: 1b Telegram /entrar usuário senha, 1c chat anônimo (nada no banco), 2 tela de login no app + APK; depois sandbox (regra 12), deploy e prova viva de toda a fase 1. Ver §papeis_contas_2026_09_22."
+    "next": "Fases 1a/1b/1c FEITAS e validadas (suíte 1887/16 e sandbox 57/57): papéis, OD_API_KEY assume a conta, /executa por papel, /entrar no Telegram e chat anônimo. Próximos passos: (1) pedir autorização, reiniciar o od-core e fazer a prova viva; (2) fase 2 — tela de login no app Flutter + rebuild do APK. Ver §papeis_contas_2026_09_22."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},

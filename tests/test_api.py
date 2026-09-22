@@ -117,7 +117,7 @@ class TestAPIRoutes:
         """17 endpoints do legado + /capabilities (v0.27.3) + /site* +
         /actions + /executa (v1.2.0 — app Android) + /push/* (push FCM) +
         /supervision (observabilidade dos loops, 2026-09-15)."""
-        assert len(ROUTES) == 31
+        assert len(ROUTES) == 32
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -128,7 +128,8 @@ class TestAPIRoutes:
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
-            ("POST", "/message"), ("POST", "/executa"),
+            ("POST", "/message"), ("POST", "/anon/message"),
+            ("POST", "/executa"),
             ("POST", "/transcribe"), ("POST", "/tts"),
             ("POST", "/push/register"), ("POST", "/push/unregister"),
             ("POST", "/push/test"), ("GET", "/push/devices"),
@@ -162,6 +163,7 @@ class TestAPIRoutes:
             ("GET", "/dashboard"), ("GET", "/chat"), ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
+            ("POST", "/anon/message"),
         }
 
 
@@ -929,6 +931,57 @@ class TestAuthAll:
 # ===========================================================================
 # POST /executa + GET /actions (v1.2.0 — app Android)
 # ===========================================================================
+
+class TestAPIAnonimo:
+    """POST /anon/message — conversar sem conta, sem credencial e sem rastro."""
+
+    @staticmethod
+    def _serve(serve, tmp_path: Path):
+        # auth_all ligado: mesmo assim o endpoint anônimo responde sem chave.
+        return serve(
+            make_orch(tmp_path),
+            config=APIConfig(
+                port=0, rate_limit_max=0, auth_all=True, api_key="s3cr3ta",
+            ),
+        )
+
+    def test_conversa_sem_credencial(self, serve, tmp_path: Path) -> None:
+        srv = self._serve(serve, tmp_path)
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/anon/message",
+            body={"message": "oi anônimo", "profile": "guardian"},
+        )
+        data = _json_response((status, body, _h))
+        assert status == 200 and data["ok"] is True
+        assert data["anonimo"] is True
+        assert data["user_id"] == "anonimo"
+
+    def test_nada_e_gravado_no_historico(self, serve, tmp_path: Path) -> None:
+        srv = self._serve(serve, tmp_path)
+        status, _body, _h = _request(
+            srv.bound_port, "POST", "/anon/message",
+            body={
+                "message": "primeira mensagem anônima",
+                "profile": "guardian",
+                "history": [
+                    {"role": "user", "content": "antes"},
+                    {"role": "assistant", "content": "ok"},
+                ],
+            },
+        )
+        assert status == 200
+        history = srv.orchestrator.history
+        assert history is not None
+        assert history.get_history("anonimo", "guardian") == []
+
+    def test_texto_vazio_400(self, serve, tmp_path: Path) -> None:
+        srv = self._serve(serve, tmp_path)
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/anon/message", body={"message": "   "},
+        )
+        data = _json_response((status, body, _h))
+        assert status == 400 and data["error"] == "text_obrigatorio"
+
 
 class TestAPIActions:
     """Catálogo e execução de actions do ActionRegistry via API."""

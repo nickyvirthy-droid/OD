@@ -88,6 +88,11 @@ DEFAULT_SITE_DIR = Path(__file__).resolve().parents[2] / "site"
 # celular (Tailscale) sem exigir X-API-Key no navegador.
 PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/site", "/site/{file}", "/auth/register", "/auth/login"})
 
+# Endpoints que NÃO passam pela chave mesmo com auth_all ligado: o fluxo de
+# autenticação em si (register/login) e a conversa ANÔNIMA (quem só quer
+# conversar, sem conta — privilégio mínimo, nada é gravado).
+AUTH_EXEMPT_PATHS = frozenset({"/auth/register", "/auth/login", "/anon/message"})
+
 
 class APIError(Exception):
     """Erro de API com status HTTP correspondente."""
@@ -209,6 +214,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/capabilities", "capabilities", True),
     ("GET", "/actions", "actions_catalog", True),
     ("POST", "/message", "message", True),
+    ("POST", "/anon/message", "anon_message", False),
     ("POST", "/executa", "executa", True),
     ("POST", "/push/register", "push_register", True),
     ("POST", "/push/unregister", "push_unregister", True),
@@ -236,6 +242,10 @@ def _compile_route(pattern: str) -> re.Pattern[str]:
 # escaparia do diretório. Os ids legados casam todos: "web", "app",
 # "ws_user", "deploy-check-2", "660518870" (Telegram) e os usernames das contas.
 _USER_ID_RE = re.compile(r"[A-Za-z0-9._-]{1,64}\Z")
+
+
+# Teto de contexto aceito na conversa anônima (mensagens do cliente).
+ANON_HISTORY_MAX = 20
 
 
 def valid_user_id(user_id: str) -> bool:
@@ -402,6 +412,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
     <button id="enter">Entrar</button>
     <p class="gate-switch">Não tem conta? <a href="#" id="show-register">Registrar</a></p>
     <p class="gate-switch" style="font-size:0.75rem;color:var(--muted);">Ou use sua API key: <a href="#" id="show-apikey">Modo avançado</a></p>
+    <p class="gate-switch" style="font-size:0.75rem;color:var(--muted);">Só conversar? <a href="#" id="anon">Entrar como anônimo</a> — sem histórico salvo, sem comandos</p>
   </div>
   <div id="gate-register" class="hidden">
     <h2>📝 Criar Conta</h2>
@@ -448,6 +459,10 @@ let wsReady = false;
 // Identidade enviada ao servidor. Com sessão, o servidor usa o usuário
 // autenticado de qualquer forma; este valor só importa no modo API key (WS).
 let user_id = "web";
+// Modo anônimo: quem só quer conversar. O contexto fica AQUI no navegador
+// (o servidor não grava nada) e nenhum comando/action é autorizado.
+let anonMode = false;
+let anonHistory = [];
 const WS_PORT = 8001;
 
 // --- Gate switching ---
@@ -461,6 +476,13 @@ $("show-register").onclick = (e) => { e.preventDefault(); showGateView("register
 $("show-login").onclick = (e) => { e.preventDefault(); showGateView("login"); };
 $("show-login2").onclick = (e) => { e.preventDefault(); showGateView("login"); };
 $("show-apikey").onclick = (e) => { e.preventDefault(); showGateView("apikey"); };
+$("anon").onclick = (e) => {
+  e.preventDefault();
+  anonMode = true; anonHistory = [];
+  showChat();
+  const el = $("transport"); el.className = "transport-badge active";
+  el.textContent = "🕶 anônimo";
+};
 
 function showGate(msg, errId) {
   if (msg) $(errId || "err").textContent = msg;
@@ -471,7 +493,7 @@ function showChat() {
   gate.classList.add("hidden");
   chat.classList.remove("hidden");
   $("text").focus();
-  tryConnectWs();
+  if (!anonMode) tryConnectWs();  // o anônimo não tem credencial para o WS
 }
 function setTransport(type) {
   const el = $("transport");
@@ -607,6 +629,26 @@ async function sendRest(text, profile) {
   return data.message;
 }
 
+// --- Anônimo (nada é gravado no servidor; o contexto vem daqui) ---
+async function sendAnon(text, profile) {
+  showTyping();
+  const t0 = Date.now();
+  const resp = await fetch("/anon/message", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ message: text, profile: profile, history: anonHistory })
+  });
+  removeTyping();
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || "erro " + resp.status);
+  anonHistory.push({ role: "user", content: text });
+  anonHistory.push({ role: "assistant", content: data.message || "" });
+  if (anonHistory.length > 20) anonHistory = anonHistory.slice(-20);
+  const ms = ((Date.now() - t0) / 1000).toFixed(1);
+  addBubble("od", data.message || "(sem resposta)", "anônimo · " + (data.route || "") + " · " + ms + "s");
+  return data.message;
+}
+
 // --- Send ---
 async function send() {
   const text = $("text").value.trim();
@@ -614,11 +656,16 @@ async function send() {
   busy = true; $("send").disabled = true; $("text").value = "";
   addBubble("user", text);
   const profile = $("profile").value;
-  try {
-    await sendWs(text, profile);
-  } catch(e) {
-    try { await sendRest(text, profile); } catch(e2) {
-      if (e2.message !== "auth") addBubble("od", "Erro: " + e2.message, "API");
+  if (anonMode) {
+    try { await sendAnon(text, profile); }
+    catch(e) { addBubble("od", "Erro: " + e.message, "anônimo"); }
+  } else {
+    try {
+      await sendWs(text, profile);
+    } catch(e) {
+      try { await sendRest(text, profile); } catch(e2) {
+        if (e2.message !== "auth") addBubble("od", "Erro: " + e2.message, "API");
+      }
     }
   }
   busy = false; $("send").disabled = false; $("text").focus();
@@ -978,7 +1025,7 @@ class APIHandler(BaseHTTPRequestHandler):
             #   estático sem dados, navegador não envia X-API-Key
             # - endpoints de auth (POST /auth/register, /auth/login)
             #   — o próprio fluxo de autenticação não pode exigir auth
-            auth_exempt = route.path in {"/auth/register", "/auth/login"}
+            auth_exempt = route.path in AUTH_EXEMPT_PATHS
             if (route.auth or (self.api.config.auth_all and not page_shell and not auth_exempt)) \
                     and not self._check_api_key():
                 return
@@ -1496,14 +1543,45 @@ class APIHandler(BaseHTTPRequestHandler):
         self, user_id: str, profile: str, text: str,
         system_prompt: str, session_id: str,
         *, role: str = "admin", persist: bool = True,
+        extra_history: Optional[list[dict[str, str]]] = None,
     ) -> OrchestrationResult:
         if self.api.orchestrator is None:
             raise APIError(503, "orchestrator_indisponivel")
         return await self.api.orchestrator.process(
             user_id, profile, text,
             system_prompt=system_prompt, session_id=session_id,
-            role=role, persist=persist,
+            role=role, persist=persist, extra_history=extra_history,
         )
+
+    def anon_message(self) -> None:
+        """POST /anon/message — conversa ANÔNIMA (sem conta, sem rastro).
+
+        Não exige credencial (mesmo com auth_all). O contexto da conversa vem
+        do CLIENTE (`history`), porque nada é gravado no banco: sem cache e
+        sem histórico, e o papel "anonymous" não aciona action nenhuma. O
+        limite por IP do servidor continua valendo.
+        """
+        data = self._read_json()
+        text = str(data.get("message") or data.get("text") or "").strip()
+        if not text:
+            raise APIError(400, "text_obrigatorio")
+        profile = str(data.get("profile") or DEFAULT_PROFILE).strip()
+        if profile not in self.api.config.profiles:
+            raise APIError(400, f"perfil_desconhecido: {profile}")
+        if profile == "auto":
+            profile = DEFAULT_PROFILE
+        historico = data.get("history") or []
+        if not isinstance(historico, list):
+            raise APIError(400, "history_deve_ser_lista")
+        # Anti-abuso: o cliente não manda um prompt gigante de contexto.
+        result = asyncio.run(self._process_message(
+            "anonimo", profile, text, "", "anon",
+            role="anonymous", persist=False, extra_history=historico[-ANON_HISTORY_MAX:],
+        ))
+        payload = result.to_dict()
+        payload["ok"] = result.ok
+        payload["anonimo"] = True
+        self._json(200, payload)
 
     def message(self) -> None:
         data = self._read_json()

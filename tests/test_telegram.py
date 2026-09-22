@@ -39,7 +39,7 @@ ADMIN = 1
 USER = 2
 ADMIN_NAMES = {"status", "uptime", "stats", "dashboard", "historico",
                "cache", "presenca", "codigo", "capacidades", "rotacionar_key"}
-PUBLIC_NAMES = {"start", "help", "perfil", "limpar"}
+PUBLIC_NAMES = {"start", "help", "perfil", "limpar", "entrar", "sair"}
 
 
 def _raw_update(update_id: int, **msg_fields) -> dict:
@@ -378,9 +378,9 @@ class TestTelegramBotCommands:
         commands = build_default_commands()
         names = {c.name for c in commands}
         assert names == PUBLIC_NAMES | ADMIN_NAMES == {
-            "start", "help", "perfil", "limpar", "status", "uptime",
-            "stats", "dashboard", "historico", "cache", "presenca",
-            "codigo", "capacidades", "rotacionar_key",
+            "start", "help", "perfil", "limpar", "entrar", "sair",
+            "status", "uptime", "stats", "dashboard", "historico",
+            "cache", "presenca", "codigo", "capacidades", "rotacionar_key",
         }
         aliases = {a for c in commands for a in c.aliases}
         assert "ajuda" in aliases
@@ -497,6 +497,89 @@ class TestTelegramBotCommands:
         await self._run(bot, (1, "/rotacionar_key", ADMIN))
         text = bot.transport.sent_texts[-1]  # type: ignore[union-attr]
         assert "não executada" in text
+
+
+class TestTelegramVinculoConta:
+    """/entrar liga o chat à conta: a conversa passa a ser a mesma do chat/app."""
+
+    def _bot(self, tmp_path, *, aliases=None):
+        from integrations.api.auth import UserStore
+        from storage.database import Database
+
+        db = Database(tmp_path / "tg.db")
+        store = UserStore(db)
+        store.register("alex", "alex@example.com", "senha123")
+        transport = InMemoryTransport()
+        bot = TelegramBot(
+            transport, _orchestrator(tmp_path), admin_ids={ADMIN},
+            account_aliases=aliases, user_store=store,
+        )
+        return bot, store, db
+
+    @staticmethod
+    async def _run(bot: TelegramBot, *messages: tuple[int, str, int]) -> None:
+        transport = bot.transport  # type: ignore[assignment]
+        for chat_id, text, user_id in messages:
+            transport.add_message(chat_id, text, user_id=user_id)
+        await bot.run(interval=0.01, max_updates=len(messages))
+        transport.incoming.clear()
+
+    @pytest.mark.asyncio
+    async def test_entrar_vincula_e_historico_vai_para_a_conta(self, tmp_path) -> None:
+        bot, store, db = self._bot(tmp_path)
+        try:
+            await self._run(bot, (5, "/entrar alex senha123", USER))
+            assert "alex" in bot.transport.sent_texts[-1]  # type: ignore[union-attr]
+            assert store.telegram_username("5") == "alex"
+
+            await self._run(bot, (5, "oi depois do login", USER))
+            history = bot.orchestrator.history
+            assert history is not None
+            assert history.get_history("alex", "guardian")
+            assert history.get_history("5", "guardian") == []
+        finally:
+            db.close()
+
+    @pytest.mark.asyncio
+    async def test_entrar_com_senha_errada_nao_vincula(self, tmp_path) -> None:
+        bot, store, db = self._bot(tmp_path)
+        try:
+            await self._run(bot, (5, "/entrar alex errada", USER))
+            assert store.telegram_username("5") is None
+            assert "inválidos" in bot.transport.sent_texts[-1]  # type: ignore[union-attr]
+        finally:
+            db.close()
+
+    @pytest.mark.asyncio
+    async def test_sair_remove_o_vinculo(self, tmp_path) -> None:
+        bot, store, db = self._bot(tmp_path)
+        try:
+            await self._run(bot, (5, "/entrar alex senha123", USER))
+            await self._run(bot, (5, "/sair", USER))
+            assert store.telegram_username("5") is None
+            assert "removido" in bot.transport.sent_texts[-1]  # type: ignore[union-attr]
+        finally:
+            db.close()
+
+    @pytest.mark.asyncio
+    async def test_vinculo_tem_prioridade_sobre_o_alias(self, tmp_path) -> None:
+        bot, store, db = self._bot(tmp_path, aliases={"5": "web"})
+        try:
+            await self._run(bot, (5, "/entrar alex senha123", USER))
+            await self._run(bot, (5, "oi", USER))
+            history = bot.orchestrator.history
+            assert history is not None
+            assert history.get_history("alex", "guardian")
+            assert history.get_history("web", "guardian") == []
+        finally:
+            db.close()
+
+    @pytest.mark.asyncio
+    async def test_sem_user_store_entrar_avisa(self, tmp_path) -> None:
+        transport = InMemoryTransport()
+        bot = TelegramBot(transport, _orchestrator(tmp_path), admin_ids={ADMIN})
+        await self._run(bot, (5, "/entrar alex senha123", USER))
+        assert "indisponível" in bot.transport.sent_texts[-1]  # type: ignore[union-attr]
 
 
 class TestTelegramBotOrchestrator:
@@ -883,7 +966,7 @@ class TestTelegramBotDump:
         data = bot.dump()
         assert data["transport"] == "InMemoryTransport"
         assert data["orchestrator"] is False
-        assert len(data["commands"]) == 14
+        assert len(data["commands"]) == 16
         assert data["admins"] == [ADMIN]
         assert data["profiles"] == {"1": "luma"}
         assert data["metrics"]["messages"] == 1
