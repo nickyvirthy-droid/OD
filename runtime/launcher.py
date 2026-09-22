@@ -580,6 +580,7 @@ def build_telegram_bot(
     orchestrator: Any,
     action_registry: Any = None,
     auto_extension: Any = None,
+    user_store: Any = None,
 ):
     """TelegramBot real (HTTPTransport) sobre o Orchestrator.
 
@@ -635,6 +636,8 @@ def build_telegram_bot(
         auto_extension=auto_extension,
         # Mesmo mapa do REST/WS: o chat do Telegram cai no balde da conta.
         account_aliases=parse_aliases(env("OD_ACCOUNT_ALIASES", "")),
+        # UserStore: /entrar vincula o chat a uma conta (histórico contínuo).
+        user_store=user_store,
     )
     return bot
 
@@ -766,11 +769,13 @@ async def _run_telegram_forever(
     orchestrator: Any,
     action_registry: Any = None,
     auto_extension: Any = None,
+    database: Any = None,
 ) -> None:
     bot = build_telegram_bot(
         orchestrator,
         action_registry=action_registry,
         auto_extension=auto_extension,
+        user_store=build_user_store(database),
     )
     log.info("Telegram bot iniciando polling...", admins=len(bot.admin_ids))
     await bot.run(interval=1.0)
@@ -1123,6 +1128,7 @@ def main() -> int:
                 orchestrator,
                 action_registry=action_registry,
                 auto_extension=auto_extension,
+                database=database,
             )),
         ]
         if recovery is not None:
@@ -1170,7 +1176,9 @@ def main() -> int:
             action_registry=action_registry, push=push,
         ))
     elif mode == "telegram":
-        asyncio.run(_run_telegram_forever(orchestrator, action_registry=action_registry))
+        asyncio.run(_run_telegram_forever(
+            orchestrator, action_registry=action_registry, database=database
+        ))
     elif mode == "mqtt":
         bridge = build_mqtt_bridge(EventBus())
         register_external_health_checks(health, mqtt=bridge)
