@@ -291,12 +291,19 @@
       "testes": "tests/test_api.py +3, tests/test_orchestrator.py +3."
     },
     "sandbox": "auth_sandbox.py 6º cenário (papéis + /entrar + anônimo, sockets reais) → 57/57 OK (era 44). Suíte 1887 passed, 16 skipped.",
-    "estado": "1a+1b+1c CONCLUÍDAS em código+testes+sandbox; FALTA deploy e prova viva (autorização a pedir) e a fase 2 (app)."
+    "deploy": "IMPLANTADO — restart autorizado em 2026-09-22 02:38:52 (PID 77701, NRestarts=0); 0 Traceback/ERROR/CRIT; tabela telegram_links criada (0 vínculos).",
+    "prova_viva": {
+      "dono": "GET /auth/me com OD_API_KEY → user alex, via=server, role=admin; POST /executa system_info → HTTP 200 (admin).",
+      "anonimo": "POST /anon/message SEM credencial (auth_all ligado) → HTTP 200 em 11,5s, ok/anonimo=true, user_id=anonimo, route=llm (gemma-local).",
+      "sem_rastro": "balde 'anonimo' = 0; total da tabela 104 e alex 100 (intactos) — a prova anônima não gravou nada."
+    },
+    "commits": ["d64e930 papéis", "859b624 /entrar + anônimo", "dd0428c launcher (UserStore no bot)"],
+    "estado": "1a+1b+1c CONCLUÍDAS, IMPLANTADAS e PROVADAS no ar. Falta só a fase 2 (app)."
   },
   "last_turn": {
     "date": "2026-09-22",
     "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot; implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; baldes app+Telegram+web (70 msgs) migrados para alex (28 → 98); deploy autorizado em 02:01:13 (PID 67589) com prova viva REST (user_id 'app' → alex) e zero resíduo. Legado: data/conversations + data/od.db já estavam removidos desde 09-21 (backup restaurável conferido) e o último resíduo JSON, data/llm_cache/cache.json, recebeu backup próprio e foi removido agora.",
-    "next": "Fases 1a/1b/1c FEITAS e validadas (suíte 1887/16 e sandbox 57/57): papéis, OD_API_KEY assume a conta, /executa por papel, /entrar no Telegram e chat anônimo. Próximos passos: (1) pedir autorização, reiniciar o od-core e fazer a prova viva; (2) fase 2 — tela de login no app Flutter + rebuild do APK. Ver §papeis_contas_2026_09_22."
+    "next": "Fases 1a/1b/1c FEITAS, implantadas (PID 77701) e provadas (suíte 1887/16, sandbox 57/57, provas vivas 4/4). Próximo: fase 2 — tela de login/registro no app Flutter (Bearer no REST, token no WS, API key como modo avançado) + rebuild do APK (1.2.8+10). Ver §papeis_contas_2026_09_22."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
