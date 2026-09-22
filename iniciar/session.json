@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-22T03:28:00-03:00",
+  "updated_at": "2026-09-22T03:48:00-03:00",
   "prova_reboot_2026_09_21": {
     "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
     "pre_checagem": "Linger=yes para alex; tailscaled enabled+active; od-core (usuário) enabled; SEM LUKS; boot target graphical. sudo de alex = ALL COM senha (NOPASSWD só mariadb/nexus-router) e sem sessão gráfica ativa → reboot polkit não autoriza sem senha; instalação do provador + reboot = comando único do dono com sudo.",
@@ -312,10 +312,24 @@
     "commits": ["d64e930 papéis", "859b624 /entrar + anônimo", "dd0428c launcher (UserStore no bot)"],
     "estado": "1a+1b+1c+2 CONCLUÍDAS e validadas. Servidor no ar (PID 77701); APK 1.2.8+10 pronto para instalação."
   },
+  "senha_alex_2026_09_22": {
+    "pedido": "Usuário: 'ainda não funciona. o usuario é alex mas senha não entra, seria senha123'.",
+    "causa": "O usuário alex foi criado em 2026-09-19 com hash diferente; a senha 'senha123' não batia contra o hash antigo.",
+    "snapshot": "backups/users-pre-password-reset-20260922-034629.bak",
+    "atualizacao": "Hash PBKDF2-SHA256 atualizado na tabela users do PostgreSQL com 'senha123'.",
+    "provas_vivas": {
+      "local_login": "POST http://127.0.0.1:8000/auth/login com alex / senha123 → HTTP 200, token gerado.",
+      "local_me": "GET /auth/me com token Bearer → HTTP 200, user alex, role admin.",
+      "funnel_login": "POST https://nicky-server.tail1b1f51.ts.net/auth/login com alex / senha123 → HTTP 200, token gerado.",
+      "telegram_cred": "UserStore.verify_credentials('alex', 'senha123') == True (para /entrar alex senha123).",
+      "historico": "100 mensagens da conta alex preservadas e intactas."
+    },
+    "estado": "CONCLUÍDO — senha123 ativa e provada em produção."
+  },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Retomada com 'leia iniciar'. Conferidos session.json, RULES.md e estado vivo do sistema (od-core ativo PID 77701, suíte 1887/16, sandbox 57/57). Fase 2 (app Flutter com login/registro por conta, Bearer REST, token WS, modo avançado e bump para 1.2.8+10) validada com 77 testes do Flutter, analyze sem issues e APKs versionCode 10 em site/.",
-    "next": "Instalar APK 1.2.8+10 no aparelho e validar login/chat com a conta de usuário alex; od-core segue no ar com papéis e vínculos ativos."
+    "action": "Senha da conta 'alex' atualizada no PostgreSQL para 'senha123' após verificação de hash divergente. Backup salvo em backups/users-pre-password-reset-20260922-034629.bak. Provas vivas 4/4 OK (login local 200, /auth/me role admin, login pelo Funnel 200, verify_credentials do Telegram True; 100 mensagens da conta alex intactas).",
+    "next": "Usuário pode fazer login no app Android, no chat web ou no Telegram (/entrar alex senha123)."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},

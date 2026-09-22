@@ -123,5 +123,27 @@ Objetivo: permitir autenticação por conta no aplicativo móvel com token de se
 
 Retomada da sessão e leitura do checkpoint.
 - Sistema em execução: `od-core` ativo (PID 77701, 0 restarts), Funnel ativo (`https://nicky-server.tail1b1f51.ts.net`), banco de dados Postgres saudável.
-- Fase 2 (App Flutter) finalizada e validada; pronta para instalação no dispositivo e commit.
+- Fase 2 (App Flutter) finalizada e validada; pronta para instalação no dispositivo e commit `721927e`.
+
+---
+
+## 7. Ajuste de Senha da Conta `alex` (03:45)
+
+Pedido: "ainda não funciona. o usuario é alex mas senha não entra, seria senha123".
+
+### Diagnóstico
+- Consulta ao PostgreSQL revelou que o hash armazenado para o usuário `alex` (criado em 19/09) não correspondia à senha `senha123` (`_verify_password` retornava `False`).
+- Tentativa registrada no journal com `401: Usuário ou senha inválidos`.
+- `LoginGuard` não bloqueou a conta (apenas 1 tentativa na janela, teto é 5).
+
+### Ação e Verificação
+1. **Snapshot de segurança:** `backups/users-pre-password-reset-20260922-034629.bak`.
+2. **Atualização:** novo hash PBKDF2-SHA256 gravado no PostgreSQL para o usuário `alex`.
+3. **Provas vivas:**
+   - `POST http://127.0.0.1:8000/auth/login` → **HTTP 200** com token de sessão gerado.
+   - `GET /auth/me` com o token → **HTTP 200**, `role="admin"`, `username="alex"`.
+   - `POST https://nicky-server.tail1b1f51.ts.net/auth/login` (via Funnel público) → **HTTP 200** com sessão ativa.
+   - `UserStore.verify_credentials('alex', 'senha123')` → **True** (habilita login no Telegram via `/entrar alex senha123`).
+   - Mensagens da tabela `conversation_messages`: 100 mensagens da conta `alex` intactas.
+
 
