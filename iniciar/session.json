@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-22T02:12:00-03:00",
+  "updated_at": "2026-09-22T02:17:00-03:00",
   "prova_reboot_2026_09_21": {
     "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
     "pre_checagem": "Linger=yes para alex; tailscaled enabled+active; od-core (usuário) enabled; SEM LUKS; boot target graphical. sudo de alex = ALL COM senha (NOPASSWD só mariadb/nexus-router) e sem sessão gráfica ativa → reboot polkit não autoriza sem senha; instalação do provador + reboot = comando único do dono com sudo.",
@@ -59,8 +59,8 @@
       "backup": "backups/legacy-json-sqlite-20260921.tar.gz (3238 B, sha256 545c29e32849e1b7f629255e401c355da98f4f0cc71cefd4372a67745458f9eb); gzip -t OK; TESTE DE RESTAURAÇÃO em diretório temporário: od.db com 0 tabelas + conversations/660518870 (20) + alex (2) + web (2) = 24 msgs; extração conferida e removida em seguida.",
       "git": "nada em data/ é rastreado; data/ é gitignored (.gitignore:101)."
     },
-    "residuo_encontrado": "data/llm_cache/cache.json (2469 B, mtime 2026-09-05 16:39) — o último resíduo JSON legado do cache (o cache roda no Postgres, tabela llm_cache). NÃO está no backup de 09-21; remover exige backup próprio + confirmação do usuário (regra 9). Não foi tocado.",
-    "estado": "CONCLUÍDO (nada a remover); resíduo do llm_cache reportado para decisão."
+    "residuo_encontrado": "data/llm_cache/cache.json (2469 B, mtime 2026-09-05 16:39, 2 entradas, profile guardian) — último resíduo JSON do cache (o cache roda no Postgres, tabela llm_cache com 53 entradas). REMOVIDO em 2026-09-22 com autorização: backup PRÓPRIO criado e restaurável — backups/legacy-llm-cache-20260922-020404.tar.gz (1314 B, sha256 42146d69be606c1d0a541614f20f9dfb9b05d0c8d8cbf7132b060a3404e97ca7, gzip OK, restauração conferida: 2 entradas). O diretório data/llm_cache/ ficou vazio e foi removido; o cache do Postgres ficou intacto (53) e o sistema seguiu up/restarts=0 (nada reiniciado).",
+    "estado": "CONCLUÍDO — árvore data/ sem legado JSON/SQLite."
   },
   "prova_e2e_funnel_2026_09_21": {
     "pedido": "Usuário: 'Instalei o APK novo no celular — faça a prova de chat ponta a ponta pela URL do Funnel com minha credencial'.",
@@ -247,8 +247,8 @@
   },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot; implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; baldes app+Telegram+web (70 msgs) migrados para alex (28 → 98); deploy autorizado em 02:01:13 (PID 67589) com prova viva REST (user_id 'app' → alex) e zero resíduo. Depois, a remoção do legado pedida pelo usuário: já estava feita em 09-21 — backup restaurável conferido (sha256 545c29e3…, od.db sem tabelas, 24 msgs). Commits 2b2ace1 e e4b7655 publicados.",
-    "next": "(1) data/llm_cache/cache.json (2,4 KB, 05-09) é o último resíduo JSON legado e NÃO está no backup de 09-21 — remover exige backup próprio + confirmação (regra 9); (2) prova de boot instrumentada segue opcional (usuário aceitou a evidência retroativa); (3) o chat web em modo avançado ainda usa o id 'web' fixo (hoje cai em alex pelo alias)."
+    "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot; implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; baldes app+Telegram+web (70 msgs) migrados para alex (28 → 98); deploy autorizado em 02:01:13 (PID 67589) com prova viva REST (user_id 'app' → alex) e zero resíduo. Legado: data/conversations + data/od.db já estavam removidos desde 09-21 (backup restaurável conferido) e o último resíduo JSON, data/llm_cache/cache.json, recebeu backup próprio e foi removido agora.",
+    "next": "(1) Prova de boot instrumentada segue opcional (usuário aceitou a evidência retroativa); (2) o chat web em modo avançado ainda usa o id 'web' fixo (hoje cai em alex pelo alias); (3) árvore data/ limpa — próximos trabalhos podem focar no app/celular (login por sessão no app)."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
