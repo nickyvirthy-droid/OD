@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-22T01:52:00-03:00",
+  "updated_at": "2026-09-22T02:05:00-03:00",
   "prova_reboot_2026_09_21": {
     "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
     "pre_checagem": "Linger=yes para alex; tailscaled enabled+active; od-core (usuário) enabled; SEM LUKS; boot target graphical. sudo de alex = ALL COM senha (NOPASSWD só mariadb/nexus-router) e sem sessão gráfica ativa → reboot polkit não autoriza sem senha; instalação do provador + reboot = comando único do dono com sudo.",
@@ -41,7 +41,15 @@
     "testes": "tests/test_identity.py novo (12) + alias no REST (test_auth.py, +2), no WS (test_websocket.py, +1) e no bot (test_telegram.py, +2). Suíte 1870 passed, 16 skipped.",
     "teste_do_teste": "4 mutações, todas detectadas e revertidas: resolve_account sempre devolvendo o id bruto (6 falhas), alias removido do REST (1), do WS (1) e do bot (1).",
     "sandbox": "sandbox_agent/auth_sandbox.py 5º cenário (REST + WS + Telegram, protocolo real) → 44/44 OK (era 36).",
-    "estado": "MIGRADO no banco real; código validado (testes+sandbox). FALTA: deploy (restart od-core autorizado pelo usuário) e a prova viva do alias no ar."
+    "deploy": "IMPLANTADO — restart autorizado em 2026-09-22 02:01:13 (PID 67589, NRestarts=0); :8000/:8001 escutando; journal 0 Traceback/ERROR/CRIT; 'Auth de usuários habilitado' + 'WebSocket server no ar'.",
+    "prova_viva": {
+      "rest": "POST /message com OD_API_KEY e user_id='app' → HTTP 200, user_id na resposta = alex (route=llm, gemma-local); journal 'Message processed | user=alex'.",
+      "residuo": "dry-run pós-deploy em app,660518870,web → 'nada a migrar' (nenhum balde renasceu).",
+      "banco_final": "alex = 100 msgs (98 + 2 da prova de deploy); total da tabela 104; fora dele só deploy-check(-2) = 4 sintéticas.",
+      "supervision": "up, restarts: 0."
+    },
+    "commit": "2b2ace1 feat(core): histórico do app, Telegram e chat web cai na conta (12 arquivos, +439/-11; HEAD==origin/master).",
+    "estado": "CONCLUÍDO — migrado, implantado e provado no ar. Fica registro de que a prova de deploy gravou 1 interação (2 msgs) no histórico de alex."
   },
   "prova_e2e_funnel_2026_09_21": {
     "pedido": "Usuário: 'Instalei o APK novo no celular — faça a prova de chat ponta a ponta pela URL do Funnel com minha credencial'.",
@@ -228,8 +236,8 @@
   },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot (boot de 09-21 11:01, Funnel de pé, provador não instalado); implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; os baldes app+Telegram+web (70 msgs) foram migrados para alex (28 → 98).",
-    "next": "(1) DEPLOY autorizado: restart do od-core e prova viva (app/'web'/Telegram → alex no journal) + re-rodar a migração se houver resíduo; (2) depois: legado inerte (data/conversations + data/od.db) com backup pronto aguardando confirmação (regra 9); (3) prova de boot instrumentada segue opcional (usuário aceitou a evidência retroativa)."
+    "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot (boot de 09-21 11:01, Funnel de pé, provador não instalado); implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; baldes app+Telegram+web (70 msgs) migrados para alex (28 → 98); deploy autorizado em 02:01:13 (PID 67589) com prova viva REST (user_id 'app' → alex) e zero resíduo. Commit 2b2ace1 publicado.",
+    "next": "(1) Legado inerte (data/conversations + data/od.db) com backup pronto aguardando confirmação do usuário (regra 9); (2) prova de boot instrumentada segue opcional (usuário aceitou a evidência retroativa); (3) se quiser, alinhar o chat web em modo avançado para não usar mais o id 'web' fixo (hoje cai em alex pelo alias)."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
