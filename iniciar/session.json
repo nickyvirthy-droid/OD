@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-21T11:05:00-03:00",
+  "updated_at": "2026-09-22T01:52:00-03:00",
   "prova_reboot_2026_09_21": {
     "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
     "pre_checagem": "Linger=yes para alex; tailscaled enabled+active; od-core (usuário) enabled; SEM LUKS; boot target graphical. sudo de alex = ALL COM senha (NOPASSWD só mariadb/nexus-router) e sem sessão gráfica ativa → reboot polkit não autoriza sem senha; instalação do provador + reboot = comando único do dono com sudo.",
@@ -10,6 +10,21 @@
     "criterio_sucesso": "last.txt com RESULTADO: BOOT_AUTONOMO_OK e boot_id DIFERENTE do de antes; journal do od-boot-prover mostra execução no boot; probe de fora (check-host) 401 pela URL; tudo sem login no servidor (SSH só para ler evidência depois).",
     "estado": "PROVADOR CRIADO E ENSAIADO; commit pré-reboot feito; FALTA: usuário instala (sudo cp unit + daemon-reload + enable) e reinicia (sudo reboot); depois retomar aqui e ler a evidência.",
     "comando_do_dono": "sudo cp /home/alex/OmegaDrakon/tools/monitor/od-boot-prover.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable od-boot-prover.service && sudo reboot"
+  },
+  "reboot_prova_2026_09_22": {
+    "pedido": "Usuário: 'leia iniciar' — retomada da sessão após o checkpoint pré-reboot de 09-21.",
+    "descoberta": "O reboot JÁ ACONTECEU (2026-09-21 11:01) e o sistema subiu sozinho, mas o provador NUNCA foi instalado — então não há /var/lib/od-boot-prover/last.txt nem prova instrumentada; a evidência do boot é retroativa (systemd/journal).",
+    "evidencia": {
+      "boot_id": "antes (checkpoint)=3f33b3fe-0028-40a0-a9b3-41b023dc0fe8 -> agora=64896b18-300d-45ac-a043-120078cdceae (DIFERENTE = reboot confirmado)",
+      "boot_time": "who -b = 2026-09-21 11:01; journal: od-core 'Stopping' 11:00:51 -> '-- Boot 64896b18...' -> 'Started od-core' 11:01:36 (PID 1130, NRestarts=0)",
+      "autonomia": "Linger=yes para alex; tailscaled enabled+active; od-core enabled+active; systemd --user subiu sem login (linger).",
+      "funnel_pos_boot": "tailscale funnel status = '# Funnel on' https://nicky-server.tail1b1f51.ts.net com '/' -> 127.0.0.1:8000 e '/ws' -> 127.0.0.1:8001 (config persistida no tailscaled, sem re-publicação manual registrada).",
+      "probe_servidor": "curl https://nicky-server.tail1b1f51.ts.net/health -> HTTP 401 (nossa API, esperado com OD_API_AUTH_ALL=1); /ws -> HTTP 426 (nosso WS). Latências 0,03 s.",
+      "od_boot_prover": "systemctl is-enabled od-boot-prover.service = not-found; sem /var/lib/od-boot-prover/last.txt -> instalação nunca ocorreu."
+    },
+    "ressalva": "A prova retroativa mostra que o Funnel sobrevive ao boot, mas NÃO cumpre o critério formal (last.txt com BOOT_AUTONOMO_OK + boot_id novo + prova de fora), porque o provador ficou sem instalar. Decisão pendente do usuário: aceitar a evidência retroativa OU rodar o reboot instrumentado.",
+    "estado": "AGUARDANDO decisão do usuário; nada foi reiniciado nesta retomada.",
+    "repositorio": "working tree limpo; HEAD == origin/master em e44c4d5 (o checkpoint foi editado e commitado em seguida)."
   },
   "prova_e2e_funnel_2026_09_21": {
     "pedido": "Usuário: 'Instalei o APK novo no celular — faça a prova de chat ponta a ponta pela URL do Funnel com minha credencial'.",
@@ -195,9 +210,9 @@
     "commit": "pendente de commit+push (regra 7.1)"
   },
   "last_turn": {
-    "date": "2026-09-21",
-    "action": "Prova ponta a ponta do chat pela URL do Funnel concluída (2/2 OK: REST route=llm com gemma-local; WS com 512 tokens em streaming; journal limpo). APK 1.2.8+9 instalado no celular pelo usuário. Transcrição §9.",
-    "next": "(1) REBOOT pendente: dono executa o comando registrado em prova_reboot_2026_09_21.comando_do_dono (instala od-boot-prover + reboot); (2) pós-boot: ler /var/lib/od-boot-prover/last.txt (boot_id novo + BOOT_AUTONOMO_OK), journal, probe de fora, registrar e commitar; (3) depois: migrar baldes 'app'/'660518870' quando o app autenticar por sessão."
+    "date": "2026-09-22",
+    "action": "Retomada: 'leia iniciar'. Reli README/RULES/session.json + transcrição 09-21 e conferi o estado vivo. Achado: o reboot de 09-21 11:01 já ocorreu e o Funnel sobreviveu sozinho, MAS o provador não foi instalado (prova formal ausente). Registrado em reboot_prova_2026_09_22.",
+    "next": "(1) Decisão do usuário sobre a prova de reboot: aceitar a evidência retroativa (systemd/journal/funnel status) OU instalar o od-boot-prover e reiniciar de fato (exige sudo do dono); (2) depois: migrar baldes 'app' (36) e '660518870' (20, Telegram) quando o app autenticar por sessão; (3) legado inerte (data/conversations + data/od.db) já têm backup pronto aguardando confirmação."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
