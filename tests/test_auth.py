@@ -669,6 +669,149 @@ class TestAuthGate:
         data = _json_response((status, body, _))
         assert status == 200 and data["user_id"] == "bia"
 
+    # -- Papéis: dono (OD_API_KEY → conta) x usuário comum -------------------
+
+    @staticmethod
+    def _with_registry(serve, tmp_path, store, **kwargs):
+        """Serve com ActionRegistry real para exercitar o gate de ações."""
+        from core.security.manager import SecurityManager
+        from tools.actions import build_registry
+
+        registry = build_registry(security=SecurityManager(mode="strict"))
+        return serve(
+            make_orch(tmp_path),
+            config=TestAuthGate._cfg(
+                store, action_registry=registry, **kwargs
+            ),
+        )
+
+    def test_od_api_key_assume_a_conta_do_dono(
+        self, serve, tmp_path, store
+    ) -> None:
+        """Com OD_OWNER_USERNAME, a chave do servidor vira a conta do dono."""
+        srv = serve(
+            make_orch(tmp_path),
+            config=self._cfg(
+                store, api_key="segredo123", owner_username="alex"
+            ),
+        )
+        store.register("alex", "alex@example.com", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/auth/me", api_key="segredo123"
+        )
+        data = _json_response((status, body, _))
+        assert status == 200
+        assert data["user"]["username"] == "alex"
+        assert data["via"] == "server" and data["role"] == "admin"
+
+        # E o histórico do dono fica contínuo: a chave grava sob a conta,
+        # mesmo mandando ``user_id: "app"`` no corpo (o app do dono).
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/message", api_key="segredo123",
+            body={"user_id": "app", "profile": "auto", "text": "do app"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["user_id"] == "alex"
+
+    def test_conta_comum_tem_papel_user(self, serve, tmp_path, store) -> None:
+        srv = serve(
+            make_orch(tmp_path),
+            config=self._cfg(
+                store, api_key="segredo123", owner_username="alex"
+            ),
+        )
+        bia = store.register("bia", "bia@example.com", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/auth/me", api_key=bia.api_key
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["role"] == "user"
+
+    def test_dono_le_qualquer_historico(self, serve, tmp_path, store) -> None:
+        """O dono (OD_API_KEY) é admin: lê o histórico de qualquer conta."""
+        srv = serve(
+            make_orch(tmp_path),
+            config=self._cfg(
+                store, api_key="segredo123", owner_username="alex"
+            ),
+        )
+        store.register("alex", "alex@example.com", "senha123")
+        bia = store.register("bia", "bia@example.com", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/message", api_key=bia.api_key,
+            body={"profile": "guardian", "text": "conversa da bia"},
+        )
+        assert status == 200
+        # bia não lê o alex; o dono lê a bia
+        status, _, _ = _request(
+            srv.bound_port, "GET", "/history/alex/stats", api_key=bia.api_key
+        )
+        assert status == 403
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/history/bia/stats", api_key="segredo123"
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["stats"]["messages"] >= 1
+
+    def test_executa_acao_de_admin_e_do_dono(self, serve, tmp_path, store) -> None:
+        """A conta comum não roda ação de nível 1 nem destrutiva; o dono roda."""
+        srv = self._with_registry(
+            serve, tmp_path, store,
+            api_key="segredo123", owner_username="alex",
+        )
+        store.register("alex", "alex@example.com", "senha123")
+        bia = store.register("bia", "bia@example.com", "senha123")
+
+        # nível 1 (admin) com conta comum → 403 antes de executar
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/executa", api_key=bia.api_key,
+            body={"action": "system_ping", "params": {"host": "127.0.0.1"}},
+        )
+        data = _json_response((status, body, _))
+        assert status == 403 and "acao_restrita_ao_dono" in data["error"]
+
+        # destrutiva com conta comum → 403 (nem chega à confirmação)
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/executa", api_key=bia.api_key,
+            body={"action": "filesystem_write",
+                  "params": {"path": "/tmp/od-x", "content": "1"},
+                  "confirm": True},
+        )
+        data = _json_response((status, body, _))
+        assert status == 403 and "acao_restrita_ao_dono" in data["error"]
+
+        # leitura (nível 0) com conta comum → roda
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/executa", api_key=bia.api_key,
+            body={"action": "system_info"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["status"] == "ok"
+
+        # o dono passa pelo gate de admin
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/executa", api_key="segredo123",
+            body={"action": "system_info"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["status"] == "ok"
+
+    def test_executa_destrutiva_do_dono_ainda_pede_confirmacao(
+        self, serve, tmp_path, store
+    ) -> None:
+        srv = self._with_registry(
+            serve, tmp_path, store,
+            api_key="segredo123", owner_username="alex",
+        )
+        store.register("alex", "alex@example.com", "senha123")
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/executa", api_key="segredo123",
+            body={"action": "filesystem_write",
+                  "params": {"path": "/tmp/od-x", "content": "1"}},
+        )
+        data = _json_response((status, body, _))
+        assert status == 422 and "confirmacao_obrigatoria" in data["error"]
+
     @pytest.mark.parametrize(
         "ruim", ["../../etc/passwd", "com espaço", "..", "x" * 65]
     )

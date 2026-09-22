@@ -80,9 +80,12 @@ class StubOrchestrator:
         ]
         self._error = error
 
-    async def process_stream(self, user_id, profile, text, *, session_id=""):
+    async def process_stream(
+        self, user_id, profile, text, *, session_id="", role="admin"
+    ):
         self.calls.append(
-            {"user_id": user_id, "profile": profile, "text": text, "session_id": session_id}
+            {"user_id": user_id, "profile": profile, "text": text,
+             "session_id": session_id, "role": role}
         )
         if self._error is not None:
             raise self._error
@@ -280,7 +283,8 @@ class TestWebSocketProtocolo:
         assert recebidos[-1]["content"] == "Olá, mundo"
         assert recebidos[-1]["route"] == "llm"
         assert orchestra.calls == [
-            {"user_id": "ws_user", "profile": "guardian", "text": "oi", "session_id": "s1"}
+            {"user_id": "ws_user", "profile": "guardian", "text": "oi",
+             "session_id": "s1", "role": "admin"}
         ]
 
     def test_chave_invalida_recebe_erro_e_close_4001(self, servidor):
@@ -418,7 +422,9 @@ class TestWebSocketProtocolo:
             def __init__(self):
                 self.chunks = 200
 
-            async def process_stream(self, user_id, profile, text, *, session_id=""):
+            async def process_stream(
+                self, user_id, profile, text, *, session_id="", role="admin"
+            ):
                 for _ in range(self.chunks):
                     yield {"type": "token", "content": "x"}
                     await asyncio.sleep(0.01)
@@ -649,6 +655,36 @@ class TestWebSocketIdentidade:
             assert orchestra.calls[0]["user_id"] == "alex"
         finally:
             server.stop()
+
+    def test_papel_da_credencial_chega_ao_orchestrator(self, tmp_path):
+        """O papel vai junto no stream: dono = admin, conta comum = user."""
+        from integrations.api.auth import UserStore
+        from integrations.api.ws_server import WebSocketServer
+        from storage.database import Database
+
+        db = Database(tmp_path / "ws-role.db")
+        store = UserStore(db)
+        store.register("alex", "alex@example.com", "senha123")
+        bia = store.register("bia", "bia@example.com", "senha123")
+        orchestra = StubOrchestrator()
+        server = WebSocketServer(
+            orchestra, port=0, host="127.0.0.1", api_keys={"chave-certa"},
+            user_store=store, owner_username="alex",
+        )
+        server.start()
+        try:
+            _, fim = self._uma_mensagem(
+                server, {"type": "auth", "api_key": bia.api_key}
+            )
+            assert fim["type"] == "done"
+            assert orchestra.calls[-1]["role"] == "user"
+
+            token = store.login("alex", "senha123")
+            self._uma_mensagem(server, {"type": "auth", "token": token})
+            assert orchestra.calls[-1]["role"] == "admin"
+        finally:
+            server.stop()
+            db.close()
 
     def test_user_id_so_no_frame_de_message_nao_troca_o_balde(self, servidor):
         """Identidade fixada no `auth`: mandar `user_id` depois não vale."""

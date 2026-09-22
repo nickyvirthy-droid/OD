@@ -49,6 +49,26 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "config.read",
         "config.get",
     ],
+    # Conta de usuário comum: conversa e AÇÕES DE LEITURA sobre a própria
+    # máquina/conversa. Nada de escrever, executar serviço ou ação destrutiva —
+    # isso é do papel admin (o dono, confirmado pela OD_API_KEY).
+    #
+    # Os nomes são os das actions reais (tools/actions, com underscore) — os
+    # padrões com ponto abaixo ("agent") são a nomenclatura da spec e NÃO casam
+    # com o ActionRegistry real; por isso a lista do "user" é explícita.
+    # Ficam de fora, de propósito: `system_env` (segredos), `filesystem_read`
+    # (ler qualquer arquivo), `database_*` e `network_hosts`.
+    "user": [
+        "system_info", "uptime", "datetime", "disk_usage",
+        "memory_usage", "cpu_info", "ip_address",
+        "process_list", "process_info",
+        "service_list", "service_status",
+        "docker_list", "docker_status", "docker_stats",
+        "filesystem_list", "filesystem_info", "filesystem_exists",
+        "filesystem_tree", "filesystem_hash", "filesystem_search",
+        "git_status", "git_branch", "git_log", "git_diff",
+        "action_list", "action_info", "action_schema",
+    ],
     "admin": ["*"],
     "router": ["router.*"],
 }

@@ -245,10 +245,38 @@
     "docs": ["docs/CHANGELOG.md (nova entrada no topo da seção 1.2.0)", "docs/ACESSO_EXTERNO.md (novo § 'Estado: Funnel publicado')", "iniciar/2026-09-21_conversa_omegadrakon.md (§7)"],
     "commit": "pendente de commit+push (regra 7.1)"
   },
+  "papeis_contas_2026_09_22": {
+    "pedido": "Usuário: cada pessoa com a própria conta, a MESMA em qualquer plataforma (chat/app/Telegram) e a conversa continua de onde parou; o dono confirmado pela OD_API_KEY tem privilégio máximo, com confirmação; no chat, quem só quer conversar entra como anônimo, sem autorizar comando (privilégio mínimo).",
+    "decisoes": {
+      "dono": "OD_API_KEY = conta 'alex' (papel owner/admin).",
+      "vinculo_telegram": "comando /entrar <usuario> <senha> (mesmas credenciais da conta).",
+      "usuario_comum": "conversar + ações da própria conta (implementado como conjunto de leitura; sem sistema/destrutivo).",
+      "anonimo": "nada no banco — a conversa vive só no navegador.",
+      "app": "tela de login no app (exige novo APK/rebuild)."
+    },
+    "fases": [
+      "1a) papéis + OD_API_KEY assume a conta + /executa por papel + papel no fast path — FEITO",
+      "1b) Telegram: /entrar usuário senha (vínculo chat → conta) persistido — PENDENTE",
+      "1c) chat anônimo (só conversar, nada no banco) — PENDENTE",
+      "2) tela de login no app Flutter + rebuild do APK — PENDENTE"
+    ],
+    "fase_1a": {
+      "implementacao": [
+        "integrations/api/server.py: APIConfig.owner_username; _check_api_key faz a OD_API_KEY assumir a conta do dono; _owner_user(); _is_owner_username(); _role(); _check_owner libera admin para o dono; /executa usa _role() e bloqueia nível>=1 fora do dono; /auth/me devolve role.",
+        "core/security/permissions.py: papel 'user' (lista explícita com os nomes REAIS das actions).",
+        "core/orchestrator.py: process/process_stream ganham role (e process ganha persist=False); anonymous não aciona action.",
+        "integrations/api/ws_server.py: owner_username + papel no stream; runtime/launcher.py passa OD_OWNER_USERNAME; integrations/telegram/bot.py passa role admin/user.",
+        ".env: OD_OWNER_USERNAME=alex."
+      ],
+      "testes": "Suíte 1876 passed, 16 skipped (test_auth +6, test_websocket +1, ajustes em test_security/test_orchestrator stubs).",
+      "lacuna_encontrada": "Os padrões com ponto do papel 'agent' (spec) não casam com os nomes reais das actions (underscore) — o 'agent' efetivamente nega tudo. Pré-existente; registrado no CHANGELOG.",
+      "estado": "CONCLUÍDA em código+testes; falta sandbox (regra 12), deploy e prova viva — adiados para o fim da fase 1."
+    }
+  },
   "last_turn": {
     "date": "2026-09-22",
     "action": "Retomada com 'leia iniciar' (regra 4); aceita a evidência retroativa do reboot; implementado o alias de transporte legado → conta (core/identity.py + REST/WS/Telegram/launcher) com testes, mutações e sandbox 44/44; baldes app+Telegram+web (70 msgs) migrados para alex (28 → 98); deploy autorizado em 02:01:13 (PID 67589) com prova viva REST (user_id 'app' → alex) e zero resíduo. Legado: data/conversations + data/od.db já estavam removidos desde 09-21 (backup restaurável conferido) e o último resíduo JSON, data/llm_cache/cache.json, recebeu backup próprio e foi removido agora.",
-    "next": "(1) Prova de boot instrumentada segue opcional (usuário aceitou a evidência retroativa); (2) o chat web em modo avançado ainda usa o id 'web' fixo (hoje cai em alex pelo alias); (3) árvore data/ limpa — próximos trabalhos podem focar no app/celular (login por sessão no app)."
+    "next": "Modelo de contas/papéis (pedido do usuário) em andamento: 1a FEITA (papéis + OD_API_KEY assume a conta + /executa por papel + papel no fast path, 1876/16); próximas: 1b Telegram /entrar usuário senha, 1c chat anônimo (nada no banco), 2 tela de login no app + APK; depois sandbox (regra 12), deploy e prova viva de toda a fase 1. Ver §papeis_contas_2026_09_22."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},

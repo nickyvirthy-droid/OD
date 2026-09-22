@@ -277,7 +277,7 @@ class TestPermissionEngine:
     def test_revoke_role(self) -> None:
         engine = PermissionEngine()
         assert engine.revoke_role("agent") is True
-        assert engine.list_roles() == ["admin", "router"]
+        assert engine.list_roles() == ["admin", "router", "user"]
 
     def test_evaluate_denied_reason(self) -> None:
         engine = PermissionEngine()

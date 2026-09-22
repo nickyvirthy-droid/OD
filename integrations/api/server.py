@@ -139,6 +139,14 @@ class APIConfig:
                         apontar esses ids para a conta faz a conversa cair no
                         balde do dono. Vazio = desligado (comportamento
                         antigo). Só vale no caminho SEM usuário (OD_API_KEY).
+        owner_username: conta do DONO (`OD_OWNER_USERNAME`, ex.: "alex").
+                        A `OD_API_KEY` é a chave do dono: com esse nome
+                        configurado e a conta existindo, a chave assume a
+                        conta (histórico contínuo) e ganha o papel admin —
+                        inclusive para ler qualquer histórico. Essa conta
+                        também é admin quando entra por sessão/API key
+                        própria. Vazio = sem dono (OD_API_KEY segue sem
+                        conta, comportamento anterior).
     """
 
     host: str = "127.0.0.1"
@@ -167,6 +175,8 @@ class APIConfig:
     login_lockout_s: float = 900.0
     # Alias de transporte legado → conta do dono (core/identity.py).
     account_aliases: dict[str, str] = field(default_factory=dict)
+    # Conta do dono: OD_API_KEY assume essa conta e ganha papel admin.
+    owner_username: str = ""
 
     # Nota (SLOTS): campos novos entram aqui, como `push` (core/push.py) —
     # registro de dispositivos + envio FCM usados por /push/*.
@@ -771,6 +781,24 @@ class APIServer(ThreadingHTTPServer):
             )
         super().__init__((self.config.host, self.config.port), APIHandler)
 
+    def _owner_user(self) -> Optional[Any]:
+        """Conta do dono (`OD_OWNER_USERNAME`) no UserStore, ou None.
+
+        É a conta que a `OD_API_KEY` assume: o histórico do dono fica contínuo
+        entre o app, o curl e o chat, e o gate de actions trata como admin.
+        Sem dono configurado ou sem UserStore, devolve None (comportamento
+        anterior: a chave não tem conta).
+        """
+        store = self.config.user_store
+        nome = (self.config.owner_username or "").strip()
+        if store is None or not nome:
+            return None
+        try:
+            return store.get_user_by_username(nome)
+        except Exception as exc:  # pragma: no cover — store indisponível
+            log.warn("Falha ao resolver a conta do dono", error=str(exc))
+            return None
+
     # -- Ruído de desconexão de cliente --------------------------------------
     #
     # O `handle_error` herdado do socketserver imprime o traceback inteiro no
@@ -1081,6 +1109,14 @@ class APIHandler(BaseHTTPRequestHandler):
                  "hint": "envie X-API-Key ou faça login"},
             )
             return False
+        # OD_API_KEY é a chave do DONO (OD_OWNER_USERNAME): com a conta
+        # configurada, a chave assume a conta — o histórico do dono fica
+        # contínuo entre app, curl e chat — e o papel vira admin. Sem dono
+        # configurado, segue como antes (chave sem conta).
+        owner = self.api._owner_user()
+        if owner is not None:
+            self._current_user = owner
+            self._auth_via = "server"
         return True
 
     def _check_owner(self, user_id: str) -> str:
@@ -1104,8 +1140,10 @@ class APIHandler(BaseHTTPRequestHandler):
         """
         uid = unquote(user_id).strip()
         user = self._current_user
-        if user is None:  # OD_API_KEY (admin/app) ou dev local sem auth
+        if user is None:  # OD_API_KEY sem dono configurado ou dev sem auth
             return uid
+        if self._is_owner_username(user.username):
+            return uid  # o dono é admin: lê e apaga qualquer histórico
         if uid.lower() != user.username.lower():
             log.warn(
                 "Acesso a recurso de outro usuário negado",
@@ -1115,6 +1153,27 @@ class APIHandler(BaseHTTPRequestHandler):
             )
             raise APIError(403, "acesso_negado")
         return uid
+
+    def _is_owner_username(self, username: str) -> bool:
+        """True quando o username é a conta do dono (OD_OWNER_USERNAME)."""
+        owner = (self.api.config.owner_username or "").strip().lower()
+        return bool(owner) and str(username or "").strip().lower() == owner
+
+    def _role(self) -> str:
+        """Papel de quem chama, para o gate de actions e da segurança.
+
+        - conta do dono (`OD_OWNER_USERNAME`, inclusive assumida pela
+          `OD_API_KEY`) → **admin** (pode tudo; destrutiva pede confirmação);
+        - demais contas → **user** (conversa + ações sobre os próprios dados);
+        - sem conta e autenticado pela chave do servidor/dev → **admin**, para
+          preservar o comportamento anterior (chave de operador).
+        """
+        user = self._current_user
+        if user is None:
+            return "admin"
+        if self._is_owner_username(user.username):
+            return "admin"
+        return "user"
 
     # -- Helpers de corpo/resposta -------------------------------------------
 
@@ -1436,12 +1495,14 @@ class APIHandler(BaseHTTPRequestHandler):
     async def _process_message(
         self, user_id: str, profile: str, text: str,
         system_prompt: str, session_id: str,
+        *, role: str = "admin", persist: bool = True,
     ) -> OrchestrationResult:
         if self.api.orchestrator is None:
             raise APIError(503, "orchestrator_indisponivel")
         return await self.api.orchestrator.process(
             user_id, profile, text,
             system_prompt=system_prompt, session_id=session_id,
+            role=role, persist=persist,
         )
 
     def message(self) -> None:
@@ -1484,7 +1545,8 @@ class APIHandler(BaseHTTPRequestHandler):
         session_id = str(data.get("session_id") or f"api:{user_id}")
         result = asyncio.run(
             self._process_message(
-                user_id, profile, text, system_prompt, session_id
+                user_id, profile, text, system_prompt, session_id,
+                role=self._role(),
             )
         )
         payload = result.to_dict()
@@ -1539,13 +1601,22 @@ class APIHandler(BaseHTTPRequestHandler):
             registry.get(action_name)
         except ActionNotFoundError:
             raise APIError(404, f"action_desconhecida: {action_name}")
-        if _classificar_risco(action_name) == 2 and not data.get("confirm"):
+        # Papel de quem chama: o dono é admin; a conta comum é 'user' e só
+        # passa nas ações sobre os próprios dados (leitura + memória). O
+        # nível 1 (admin) e o 2 (destrutivo) são do dono — o destrutivo ainda
+        # exige confirm=true. Antes o `/executa` mandava role="admin" fixo,
+        # então QUALQUER credencial válida rodava ação destrutiva.
+        role = self._role()
+        nivel = _classificar_risco(action_name)  # 0 público · 1 admin · 2 destrutivo
+        if nivel >= 1 and role != "admin":
+            raise APIError(403, f"acao_restrita_ao_dono: {action_name}")
+        if nivel >= 2 and not data.get("confirm"):
             raise APIError(
                 422, f"confirmacao_obrigatoria: {action_name} é destrutiva; "
                      "reenvie com confirm=true"
             )
         result = asyncio.run(registry.execute(
-            action_name, params=params, role="admin",
+            action_name, params=params, role=role,
             session_id="api:app",
         ))
         status_http = {
@@ -1719,6 +1790,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "ok": True,
                 "user": {"id": u.id, "username": u.username, "email": u.email},
                 "via": self._auth_via or "session",
+                "role": self._role(),
             })
             return
         raise APIError(401, "não autenticado")

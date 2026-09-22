@@ -122,12 +122,16 @@ class WebSocketServer:
         profiles: tuple[str, ...] = DEFAULT_PROFILES,
         user_store: Optional[Any] = None,
         account_aliases: Optional[dict[str, str]] = None,
+        owner_username: str = "",
     ) -> None:
         self.orchestrator = orchestrator
         self.host = host
         self.port = port
         self.api_keys = api_keys or set()
         self.profiles = profiles
+        # Conta do dono (OD_OWNER_USERNAME): quem se autentica nela fala como
+        # admin no fast path de intenções; as demais contas, como "user".
+        self.owner_username = (owner_username or "").strip().lower()
         # Alias de transporte legado → conta do dono (core/identity.py): o app
         # manda `user_id: "app"` fixo no frame de auth; apontar para a conta
         # faz o stream gravar no mesmo balde do REST e do chat web.
@@ -186,6 +190,7 @@ class WebSocketServer:
         authenticated = False
         user_id = "ws_user"
         identidade = ""  # username vindo da credencial ("" = sem usuário)
+        papel = "admin"  # papel no fast path de intenções (ver o frame `auth`)
         
         try:
             async for message in ws:
@@ -227,7 +232,7 @@ class WebSocketServer:
                         conn_id=conn_id, user_id=user_id, via=via,
                     )
                     continue
-                
+
                 # Se não autenticado e tem chaves configuradas, rejeitar
                 if not authenticated and self.api_keys:
                     await ws.send(json.dumps({"type": "error", "message": "nao_autenticado"}))
@@ -256,6 +261,13 @@ class WebSocketServer:
                     # Identidade fixada na credencial: um `user_id` enviado
                     # depois do auth não troca de balde (mesma regra do REST).
                     efetivo = identidade or user_id
+                    # Papel para o fast path de intenções: a conta do dono (ou
+                    # a OD_API_KEY do servidor, sem usuário) fala como admin;
+                    # as demais contas, como "user".
+                    papel = "admin"
+                    if identidade and self.owner_username and \
+                            identidade.strip().lower() != self.owner_username:
+                        papel = "user"
                     session_id = data.get("session_id", f"ws:{efetivo}")
                     
                     # Enviar confirmação de recebimento
@@ -268,6 +280,7 @@ class WebSocketServer:
                             profile=profile,
                             text=text,
                             session_id=session_id,
+                            role=papel,
                         ):
                             await ws.send(json.dumps(chunk))
                     except Exception as exc:

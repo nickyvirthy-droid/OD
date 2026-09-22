@@ -16,6 +16,46 @@
 
 ## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21 e 2026-09-22)
 
+### Adicionado (2026-09-22) — papéis: dono, conta comum e anônimo 🎚️
+
+> Primeira fase do modelo pedido pelo usuário: **cada pessoa com a própria
+> conta, a mesma em qualquer plataforma**; o dono confirmado pela `OD_API_KEY`
+> tem privilégio máximo (com confirmação); o chat aceita quem só quer
+> conversar, sem conta e sem comando. Esta fase entrega o **núcleo de
+> privilégio**; o vínculo do Telegram e o modo anônimo vêm nas fases seguintes.
+
+- **`OD_OWNER_USERNAME` (default `alex`)** — a `OD_API_KEY` é a chave do
+  DONO. Com a conta configurada, a chave **assume a conta**: o histórico do
+  dono fica contínuo entre app, `curl` e chat (antes a chave não tinha conta e
+  caía no `user_id` do corpo), o `/auth/me` responde `via="server"` +
+  `role="admin"` e a conta do dono lê/apaga **qualquer** histórico (admin).
+  Entrando por sessão ou API key própria, a conta do dono também é admin.
+- **`POST /executa` passa a usar o papel de quem chama.** Antes o handler
+  mandava `role="admin"` fixo, então **qualquer** credencial válida —
+  inclusive a de um usuário comum — rodava ação destrutiva. Agora:
+  - nível 1 (admin) e nível 2 (destrutivo) → **só o dono** (403
+    `acao_restrita_ao_dono` antes de executar);
+  - nível 2 continua exigindo `confirm=true` (422 sem ele);
+  - conta comum roda só o que o papel `user` permite.
+- **Papel `user` no Permission Engine** (`core/security/permissions.py`) —
+  lista **explícita** com os nomes REAIS das actions (leitura de sistema,
+  processos, serviços, docker, arquivos e git + introspecção), deixando de
+  fora `system_env` (segredos), `filesystem_read` (ler qualquer arquivo),
+  `database_*` e `network_hosts`. **Lacuna registrada:** os padrões com ponto
+  do papel `agent` ("filesystem.read") não casam com o ActionRegistry real
+  ("filesystem_read"), então o `agent` efetivamente nega tudo — pré-existente,
+  fora do escopo desta fase.
+- **O papel flui até o fast path de intenções** (`Orchestrator.process` e
+  `process_stream` ganharam `role`): REST passa o papel da credencial, o
+  WebSocket o da sessão/API key e o bot o do chat admin. O papel
+  `anonymous` **não aciona action nenhuma**. `process` também aceita
+  `persist=False` (não grava cache nem histórico) — base do modo anônimo.
+- **Testes:** `tests/test_auth.py` +6 (dono assume a conta, conta comum é
+  `"user"`, dono lê qualquer histórico, `/executa` por papel, destrutiva ainda
+  pede confirmação) e `tests/test_websocket.py` +1 (papel chega ao
+  orchestrator: dono `admin`, conta `user`). **Suíte:** **1876 passed,
+  16 skipped**.
+
 ### Adicionado (2026-09-22) — o histórico do app e do Telegram vai para a conta 🔗
 
 - **`core/identity.py` (novo)** — resolvedor do DONO de identificadores

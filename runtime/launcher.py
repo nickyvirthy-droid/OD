@@ -245,6 +245,9 @@ def build_api_server(
             # o app manda `user_id: "app"` fixo; apontar para a conta faz a
             # conversa do celular cair no histórico do dono.
             account_aliases=parse_aliases(env("OD_ACCOUNT_ALIASES", "")),
+            # Conta do dono: a OD_API_KEY é a chave dele (o dono pode tudo,
+            # com confirmação nas destrutivas).
+            owner_username=env("OD_OWNER_USERNAME", "alex"),
         ),
     )
     return server
@@ -273,6 +276,8 @@ def build_ws_server(orchestrator: Any, user_store: Any = None) -> Optional[Any]:
         user_store=user_store,  # sessão/API key de usuário também autenticam
         # Mesmo mapa do REST: o streaming do app cai no balde da conta.
         account_aliases=parse_aliases(env("OD_ACCOUNT_ALIASES", "")),
+        # Mesma conta do dono do REST: define quem fala como admin no stream.
+        owner_username=env("OD_OWNER_USERNAME", "alex"),
     )
     log.info(
         "WebSocket server configurado",

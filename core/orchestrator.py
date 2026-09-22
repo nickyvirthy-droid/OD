@@ -460,6 +460,7 @@ class Orchestrator:
         *,
         system_prompt: str = "",
         session_id: str = "",
+        role: str = "admin",
     ):
         """Processa uma mensagem com streaming token-a-token.
 
@@ -523,8 +524,13 @@ class Orchestrator:
                 }
                 return
 
-        # Etapa 3.5 — Fast path de intenções
-        if self._config.enable_action_intents and self._action_registry is not None:
+        # Etapa 3.5 — Fast path de intenções (mesma regra do `process`: papel
+        # vem da credencial; "anonymous" não aciona action).
+        if (
+            self._config.enable_action_intents
+            and self._action_registry is not None
+            and role != "anonymous"
+        ):
             from core.intents import detect_action_intent, format_intent_result, safe_math
 
             answer = safe_math(text)
@@ -534,7 +540,7 @@ class Orchestrator:
                 if intent is not None:
                     action_name, params = intent
                     data = await self.execute_action(
-                        action_name, params, user_id, role="admin"
+                        action_name, params, user_id, role=role
                     )
                     answer = format_intent_result(action_name, data)
                     route_detail = action_name
@@ -699,6 +705,8 @@ class Orchestrator:
         *,
         system_prompt: str = "",
         session_id: str = "",
+        role: str = "admin",
+        persist: bool = True,
     ) -> OrchestrationResult:
         """Processa uma mensagem pelo pipeline de 8 etapas.
 
@@ -708,6 +716,12 @@ class Orchestrator:
             text:         Mensagem do usuário.
             system_prompt: Prompt de sistema (identidade/instruções).
             session_id:   Identificador de sessão (auditoria/eventos).
+            role:         Papel de quem fala, para o fast path de intenções
+                          (o dono é "admin"; a conta comum, "user"; quem
+                          conversa sem conta, "anonymous" — que NÃO aciona
+                          action nenhuma).
+            persist:      Quando False, não grava cache nem histórico (a
+                          conversa anônima vive só no navegador do cliente).
 
         Returns:
             OrchestrationResult com a rota que produziu a resposta.
@@ -748,8 +762,14 @@ class Orchestrator:
 
         # Etapa 3.5 — Fast path de intenções (v0.27.5): respostas
         # operacionais sem LLM (matemática básica + actions de leitura),
-        # só quando o ActionRegistry está conectado.
-        if self._config.enable_action_intents and self._action_registry is not None:
+        # só quando o ActionRegistry está conectado. Quem conversa sem conta
+        # (papel "anonymous") não aciona action nenhuma: a matemática continua,
+        # mas a intenção operacional cai para o LLM.
+        if (
+            self._config.enable_action_intents
+            and self._action_registry is not None
+            and role != "anonymous"
+        ):
             from core.intents import detect_action_intent, format_intent_result, safe_math
 
             answer: Optional[str] = safe_math(text)
@@ -759,7 +779,7 @@ class Orchestrator:
                 if intent is not None:
                     action_name, params = intent
                     data = await self.execute_action(
-                        action_name, params, user_id, role="admin"
+                        action_name, params, user_id, role=role
                     )
                     answer = format_intent_result(action_name, data)
                     route_detail = action_name
@@ -770,8 +790,10 @@ class Orchestrator:
                 self._metrics.intents += 1
                 return await self._finish(result, started)
 
-        # Etapa 4 — Cache LLM (SHA-256, prompt normalizado + perfil)
-        if self.cache is not None:
+        # Etapa 4 — Cache LLM (SHA-256, prompt normalizado + perfil).
+        # `persist=False` (conversa anônima) NÃO usa o cache: ele vive no
+        # banco e serviria resposta de outra conversa.
+        if self.cache is not None and persist:
             cached = self.cache.get(text, profile=profile)
             if cached is not None:
                 result.route = ROUTE_CACHE
@@ -804,7 +826,9 @@ class Orchestrator:
             self._metrics.llm += 1
 
         # Etapa 8 — Pós-processamento: persiste cache + histórico
-        await self._post_process(user_id, profile, text, message, llm_used)
+        # (a conversa anônima não grava nada — "nada no banco").
+        if persist:
+            await self._post_process(user_id, profile, text, message, llm_used)
         return await self._finish(result, started)
 
     # -- Etapas internas -----------------------------------------------------

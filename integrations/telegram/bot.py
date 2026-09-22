@@ -424,11 +424,15 @@ class TelegramBot:
             )
         profile = _resolve_auto(self.get_profile(message.chat_id), message.text)
         try:
+            # Papel no fast path de intenções: admin do bot fala como admin
+            # (actions de leitura/sistema); os demais, como conta comum.
+            is_admin = bool(message.user) and self.is_admin(message.user.id)
             result: OrchestrationResult = await self.orchestrator.process(
                 self._account_for(message.chat_id),
                 profile,
                 message.text,
                 session_id=f"tg:{message.chat_id}",
+                role="admin" if is_admin else "user",
             )
             if not result.ok:
                 self.metrics.errors += 1
