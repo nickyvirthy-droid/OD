@@ -373,6 +373,79 @@ class ConversationHistory:
             all_msgs.sort(key=lambda m: m.ts)
             return all_msgs[-limit:]
 
+    def get_messages_page(
+        self,
+        user_id: str,
+        profile: Optional[str] = None,
+        limit: int = 50,
+        *,
+        before_id: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """Página do histórico ANTES do cursor `before_id` (paginação infinita).
+
+        Retorna {'messages': [...cronológico...], 'has_more': bool,
+        'oldest_id': int|None}. `oldest_id` é o cursor da próxima página
+        (None em memória, onde não há id estável — has_more fica False).
+        No banco, `before_id` referencia a PK `id` de conversation_messages.
+        """
+        limit = max(1, min(limit, 200))
+        prof = None if profile in (None, "", "all", "auto") else profile
+        msgs: list[Message] = []
+        oldest_id: Optional[int] = None
+        has_more = False
+        if self._database is not None:
+            where = "user_id = ?"
+            params: list[Any] = [user_id]
+            if prof:
+                where += " AND profile = ?"
+                params.append(prof)
+            if before_id is not None:
+                where += " AND id < ?"
+                params.append(int(before_id))
+            rows = self._database.query(
+                "SELECT id, role, content, ts, llm_used "
+                "FROM conversation_messages "
+                f"WHERE {where} "
+                "ORDER BY id DESC",
+                tuple(params),
+                limit=limit + 1,  # +1 para saber se há página seguinte
+            )
+            if len(rows) > limit:
+                has_more = True
+                rows = rows[:limit]
+            if rows:
+                oldest_id = int(rows[-1]["id"])
+            msgs = [
+                Message(
+                    role=r["role"],
+                    content=r["content"],
+                    ts=r["ts"],
+                    llm_used=r.get("llm_used", ""),
+                )
+                for r in reversed(rows)
+            ]
+        else:
+            with self._lock:
+                all_msgs: list[Message] = []
+                for conv in self._users.get(user_id, {}).values():
+                    all_msgs.extend(conv)
+                all_msgs.sort(key=lambda m: m.ts)
+                # Memória não tem id estável: o cursor vira "janela pelo fim".
+                # before_id negativo = limite superior da fatia (as -before
+                # mensagens mais recentes já foram carregadas pelo cliente).
+                inicio = 0
+                fim = len(all_msgs)
+                if before_id is not None and before_id < 0:
+                    fim = max(0, fim + before_id)
+                inicio = max(0, fim - limit)
+                msgs = all_msgs[inicio:fim]
+                has_more = inicio > 0
+        return {
+            "messages": msgs,
+            "has_more": has_more,
+            "oldest_id": oldest_id,
+        }
+
     # -- Consulta ------------------------------------------------------------
 
     def list_users(self) -> list[str]:

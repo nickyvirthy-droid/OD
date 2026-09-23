@@ -16,11 +16,121 @@ from pathlib import Path
 import pytest
 
 from memory.history import ConversationHistory, Message, build_chatml
+from storage.database import Database
 
 
 @pytest.fixture
 def history(tmp_path: Path) -> ConversationHistory:
     return ConversationHistory(base_dir=tmp_path / "conversations")
+
+
+# ===========================================================================
+# Paginação (get_messages_page — cursor before_id)
+# ===========================================================================
+
+class TestGetMessagesPage:
+
+    def _seed(self, hist: ConversationHistory, n: int, user: str = "alex") -> None:
+        """n interações = 2n mensagens (msg-000..msg-{n-1} + resp-*)."""
+        for i in range(n):
+            hist.add_message(user, "guardian", "user", f"msg-{i:03d}")
+            hist.add_message(user, "guardian", "assistant", f"resp-{i:03d}")
+
+    def test_db_first_page_cronologica_e_cursor(self, tmp_path: Path) -> None:
+        db = Database(tmp_path / "hist.db")
+        hist = ConversationHistory(database=db)
+        self._seed(hist, 30)  # 60 msgs: msg-000..resp-029
+        page = hist.get_messages_page("alex", limit=20)
+        assert len(page["messages"]) == 20
+        assert page["has_more"] is True
+        assert page["oldest_id"] is not None
+        contents = [m.content for m in page["messages"]]
+        assert contents[0] == "msg-020"  # as 20 mais recentes, em ordem
+        assert contents[-1] == "resp-029"
+        db.close()
+
+    def test_db_pagina_encadeada_before_id(self, tmp_path: Path) -> None:
+        db = Database(tmp_path / "hist.db")
+        hist = ConversationHistory(database=db)
+        self._seed(hist, 30)
+        primeira = hist.get_messages_page("alex", limit=20)
+        segunda = hist.get_messages_page(
+            "alex", limit=20, before_id=primeira["oldest_id"]
+        )
+        assert len(segunda["messages"]) == 20
+        assert segunda["has_more"] is True
+        terceira = hist.get_messages_page(
+            "alex", limit=20, before_id=segunda["oldest_id"]
+        )
+        assert len(terceira["messages"]) == 20
+        assert terceira["has_more"] is False  # 60 msgs = 3 páginas cheias
+        # Sem sobreposição e sem buraco entre páginas.
+        todos = [m.content for m in primeira["messages"]]
+        todos += [m.content for m in segunda["messages"]]
+        todos += [m.content for m in terceira["messages"]]
+        assert len(set(todos)) == 60
+        db.close()
+
+    def test_db_before_no_inicio_devolve_vazio(self, tmp_path: Path) -> None:
+        db = Database(tmp_path / "hist.db")
+        hist = ConversationHistory(database=db)
+        self._seed(hist, 5)
+        primeira = hist.get_messages_page("alex", limit=10)
+        assert primeira["has_more"] is False
+        segunda = hist.get_messages_page(
+            "alex", limit=10, before_id=primeira["oldest_id"]
+        )
+        assert segunda["messages"] == []
+        assert segunda["has_more"] is False
+        assert segunda["oldest_id"] is None
+        db.close()
+
+    def test_db_isola_usuario_e_perfil(self, tmp_path: Path) -> None:
+        db = Database(tmp_path / "hist.db")
+        hist = ConversationHistory(database=db)
+        self._seed(hist, 3, user="alex")
+        self._seed(hist, 2, user="bia")
+        page = hist.get_messages_page("alex", limit=50)
+        assert len(page["messages"]) == 6
+        assert all(m.content for m in page["messages"])
+        page_prof = hist.get_messages_page("alex", profile="regulus", limit=50)
+        assert page_prof["messages"] == []
+        assert page_prof["has_more"] is False
+        db.close()
+
+    def test_memoria_sem_id_estavel(self, history: ConversationHistory) -> None:
+        """Memória: cursor por offset (negativo) — sem oldest_id estável."""
+        self._seed(history, 10)  # 20 msgs
+        page = history.get_messages_page("alex", limit=8)
+        assert len(page["messages"]) == 8
+        assert page["has_more"] is True
+        assert page["oldest_id"] is None
+        assert page["messages"][0].content == "msg-006"
+        assert page["messages"][-1].content == "resp-009"
+        # Página anterior: as 8 anteriores às 8 já carregadas (ainda sobra).
+        segunda = history.get_messages_page("alex", limit=8, before_id=-8)
+        assert len(segunda["messages"]) == 8
+        assert segunda["messages"][0].content == "msg-002"
+        assert segunda["messages"][-1].content == "resp-005"
+        assert segunda["has_more"] is True  # restam 4 anteriores
+        # Página final: as 4 primeiras, e acaba.
+        terceira = history.get_messages_page("alex", limit=8, before_id=-16)
+        assert len(terceira["messages"]) == 4
+        assert terceira["messages"][0].content == "msg-000"
+        assert terceira["messages"][-1].content == "resp-001"
+        assert terceira["has_more"] is False
+        # Além do começo: vazio.
+        quarta = history.get_messages_page("alex", limit=8, before_id=-20)
+        assert quarta["messages"] == []
+
+    def test_limit_clamp(self, tmp_path: Path) -> None:
+        db = Database(tmp_path / "hist.db")
+        hist = ConversationHistory(database=db)
+        self._seed(hist, 5)
+        page = hist.get_messages_page("alex", limit=10_000)
+        assert len(page["messages"]) == 10  # clamp 200; só existem 10
+        assert page["has_more"] is False
+        db.close()
 
 
 # ===========================================================================

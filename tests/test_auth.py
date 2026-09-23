@@ -446,6 +446,82 @@ class TestAuthEndpoints:
         status, _, _ = _request(srv.bound_port, "GET", "/auth/me", bearer=token)
         assert status == 401
 
+    def test_paginacao_history_before_cursor(
+        self, serve, tmp_path, store
+    ) -> None:
+        """Paginação infinita do chat web: 1ª página (recentes) → ?before=cursor
+        traz as antigas; has_more/oldest_id encadeiam; before inválido é 400.
+        Histórico em MEMÓRIA (make_orch sem database): cursor é offset negativo
+        (before=-N carrega as N anteriores às já carregadas); oldest_id None."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        port = srv.bound_port
+
+        # Conta + 15 interações (30 msgs): o ConversationHistory do make_orch
+        # usa max_entries=20 (trim), então se apenas 8 (16 msgs) para caber.
+        status, body, _ = _request(
+            port, "POST", "/auth/register",
+            body={"username": "paginado", "email": "p@example.com",
+                  "password": "senha123"},
+        )
+        assert status == 201
+        status, body, _ = _request(
+            port, "POST", "/auth/login",
+            body={"username": "paginado", "password": "senha123"},
+        )
+        token = _json_response((status, body, _))["token"]
+        orch = srv.orchestrator
+        assert orch is not None and orch.history is not None
+        # 30 interações (60 msgs) — MAIOR que o max_entries=20 do histórico em
+        # memória: o trim só corta a cópia em memória/arquivo, então a página
+        # do endpoint (limit≤200 lido direto) vê tudo. Para o teste com memória
+        # JSON, semeamos apenas o que o trim preserva: 8 interações (16 msgs).
+        for i in range(8):
+            orch.history.add_message(
+                "paginado", "guardian", "user", f"pergunta-{i:03d}",
+                llm_used="echo" if i % 2 else "",
+            )
+            orch.history.add_message(
+                "paginado", "guardian", "assistant", f"resposta-{i:03d}",
+            )
+
+        # 1ª página: as 10 mais recentes, com cursor para a próxima.
+        status, body, _ = _request(
+            port, "GET", "/history/me?limit=10", bearer=token
+        )
+        assert status == 200
+        p1 = _json_response((status, body, _))
+        assert p1["total"] == 10 and p1["has_more"] is True
+        assert p1["oldest_id"] is None  # memória: sem id estável
+        assert p1["messages"][0]["content"] == "pergunta-003"
+        assert p1["messages"][-1]["content"] == "resposta-007"
+
+        # 2ª página: ?before=-10 traz as 10 anteriores SEM sobreposição.
+        status, body, _ = _request(
+            port, "GET",
+            "/history/me?limit=10&before=-10", bearer=token,
+        )
+        assert status == 200
+        p2 = _json_response((status, body, _))
+        assert p2["total"] == 6 and p2["has_more"] is False  # 16 msgs: [0:6]
+        conteudos_p1 = {m["content"] for m in p1["messages"]}
+        conteudos_p2 = {m["content"] for m in p2["messages"]}
+        assert conteudos_p1.isdisjoint(conteudos_p2)
+
+        # Fim da fila: before=-20 devolve vazio (nada antes das 6 primeiras).
+        status, body, _ = _request(
+            port, "GET",
+            "/history/me?limit=10&before=-20", bearer=token,
+        )
+        p3 = _json_response((status, body, _))
+        assert p3["total"] == 0 and p3["has_more"] is False
+
+        # Cursor inválido é recusado com 400 (não vira 500 nem é ignorado).
+        status, body, _ = _request(
+            port, "GET", "/history/me?before=abc", bearer=token
+        )
+        assert status == 400
+        assert _json_response((status, body, _))["error"] == "before_invalido"
+
     def test_fluxo_do_site_registra_conversa_e_sai(
         self, serve, tmp_path, store
     ) -> None:

@@ -258,6 +258,9 @@ class TestAPIPublicEndpoints:
         assert b"hist-time" in body and b"addHistoryBubble" in body
         # Abre rolado até a mensagem mais recente (scroll único pós-pintura).
         assert b"scrollToLatest" in body and b"noScroll" in body
+        # Paginação infinita: pill no topo + cursor + gatilho por scroll.
+        assert b"hist-top" in body and b"loadOlder" in body
+        assert b"histOldestId" in body and b"has_more" in body
 
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))

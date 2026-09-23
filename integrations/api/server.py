@@ -359,6 +359,14 @@ _CHAT_PAGE_HTML = """<!doctype html>
     color: var(--muted); opacity: 0.85; text-align: right;
   }
   .bubble.od .hist-time { text-align: left; }
+  #hist-top {
+    align-self: center; margin: 0 0 10px; padding: 6px 14px;
+    font-size: 0.75rem; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg2);
+    color: var(--accent); border-radius: 999px; display: none;
+  }
+  #hist-top.active { display: inline-block; }
+  #hist-top:disabled { opacity: 0.5; cursor: wait; }
   /* --- Composer --- */
   #composer {
     display: flex; gap: 10px; padding: 14px 20px; background: var(--bg2);
@@ -474,14 +482,13 @@ _CHAT_PAGE_HTML = """<!doctype html>
     <button id="enter-key">Entrar</button>
     <p class="gate-switch"><a href="#" id="show-login2">← Voltar ao login</a></p>
   </div>
-</div>
-
-<div id="chat" class="hidden">
+</div>  <div id="chat" class="hidden">
   <div id="messages">
+    <button id="hist-top">↑ Carregar conversas anteriores</button>
     <div class="welcome">
       <div class="icon">🐉</div>
       <h2>OmegaDrakon</h2>
-      <p>Envie uma mensagem para começar a conversa.</p>
+      <p>Envie uma mensagem para começar a conversar.</p>
     </div>
   </div>
   <div id="hist-note"></div>
@@ -506,6 +513,10 @@ let user_id = "web";
 // (o servidor não grava nada) e nenhum comando/action é autorizado.
 let anonMode = false;
 let anonHistory = [];
+// Paginação do histórico: cursor = id da mensagem mais antiga já carregada.
+let histOldestId = null;
+let histHasMore = false;
+let histLoading = false;
 const WS_PORT = 8001;
 
 // --- Gate switching ---
@@ -555,13 +566,84 @@ function histNote(msg) {
   if (msg) { el.textContent = msg; el.classList.add("active"); }
   else { el.textContent = ""; el.classList.remove("active"); }
 }
-async function loadHistory() {
-  histNote("");
+function histAuthHeaders() {
+  return token ? {"Authorization": "Bearer " + token} : (key ? {"X-API-Key": key} : {});
+}
+function setHistTop(visible, loading) {
+  const btn = $("hist-top");
+  btn.classList.toggle("active", !!visible);
+  btn.disabled = !!loading;
+  btn.textContent = loading ? "Carregando…" : "↑ Carregar conversas anteriores";
+}
+async function loadOlder() {
+  // Página ANTERIOR via cursor: mensagens mais antigas que a 1ª já na tela.
+  if (!histHasMore || histLoading || histOldestId == null) return;
+  histLoading = true;
+  setHistTop(true, true);
   try {
     const prof = $("profile").value;
-    const authHdr = token ? {"Authorization": "Bearer " + token} : (key ? {"X-API-Key": key} : {});
+    const url = "/history/" + encodeURIComponent(user_id || "me")
+      + "?limit=50&profile=" + prof + "&before=" + histOldestId;
+    const res = await fetch(url, { headers: histAuthHeaders() });
+    if (!res.ok) { setHistTop(histHasMore, false); return; }
+    const data = await res.json();
+    const msgs = data.messages || [];
+    if (msgs.length > 0) {
+      // Preserva a posição: âncora é o 1º elemento visível antes do prepend.
+      const box = $("messages");
+      const anchor = box.firstChild;
+      const antesTop = anchor ? anchor.offsetTop : 0;
+      let diaCorrente = dayLabel(new Date(msgs[msgs.length - 1].ts * 1000));
+      // O separador do dia da página atual pode já existir: msgs da página
+      // anterior mais antigas que ele entram ANTES, então removemos e
+      // re-agrupamos só o início da janela.
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const m = msgs[i];
+        const dia = m.ts ? dayLabel(new Date(m.ts * 1000)) : "";
+        if (dia && dia !== diaCorrente) {
+          addDaySeparatorBefore(anchor, new Date(m.ts * 1000));
+          diaCorrente = dia;
+        }
+        prependHistoryBubble(m, anchor);
+      }
+      // Mantém o usuário na mesma mensagem (sem "pulo").
+      if (anchor) box.scrollTop += anchor.offsetTop - antesTop;
+    }
+    histHasMore = !!data.has_more;
+    if (data.oldest_id != null) histOldestId = data.oldest_id;
+    setHistTop(histHasMore, false);
+    if (!histHasMore) {
+      const fim = document.createElement("div");
+      fim.className = "day-sep";
+      fim.textContent = "Início da conversa";
+      $("messages").insertBefore(fim, $("messages").firstChild);
+    }
+  } catch(e) {
+    setHistTop(histHasMore, false);
+  } finally {
+    histLoading = false;
+  }
+}
+function addDaySeparatorBefore(anchor, d) {
+  const sep = document.createElement("div");
+  sep.className = "day-sep";
+  sep.textContent = dayLabel(d);
+  $("messages").insertBefore(sep, anchor);
+}
+function prependHistoryBubble(m, anchor) {
+  // Reaproveita addHistoryBubble com insertBefore: constrói fora e move.
+  const div = addHistoryBubble(m);
+  $("messages").insertBefore(div, anchor);
+}
+async function loadHistory() {
+  histNote("");
+  histOldestId = null;
+  histHasMore = false;
+  setHistTop(false, false);
+  try {
+    const prof = $("profile").value;
     const res = await fetch("/history/" + encodeURIComponent(user_id || "me") + "?limit=50&profile=" + prof, {
-      headers: authHdr
+      headers: histAuthHeaders()
     });
     if (res.ok) {
       const data = await res.json();
@@ -578,6 +660,11 @@ async function loadHistory() {
           addHistoryBubble(m);
         });
         scrollToLatest();  // abre na conversa mais recente, não no topo
+        // Cursor da paginação: 1ª mensagem carregada (a mais antiga na tela).
+        const first = data.messages[0];
+        histHasMore = !!data.has_more;
+        histOldestId = data.oldest_id != null ? data.oldest_id : null;
+        setHistTop(histHasMore, false);
       } else {
         histNote("Nenhuma conversa anterior nesta conta.");
       }
@@ -588,6 +675,13 @@ async function loadHistory() {
     histNote("Histórico indisponível agora (falha de rede) — a conversa nova funciona normalmente.");
   }
 }
+// Rolar até o topo dispara a página anterior (com folga para não piscar).
+$("messages").addEventListener("scroll", () => {
+  if (!histHasMore || histLoading) return;
+  const box = $("messages");
+  if (box.scrollTop <= 60) loadOlder();
+});
+$("hist-top").addEventListener("click", loadOlder);
 // --- Logout ---
 $("btn-logout").onclick = async () => {
   // O token morre no SERVIDOR (POST /auth/logout) e no navegador; a API key
@@ -2189,6 +2283,34 @@ class APIHandler(BaseHTTPRequestHandler):
             limit = max(1, min(int(raw_limit), 200))
         except ValueError:
             limit = 50
+        # Paginação por cursor: ?before=<id> devolve a página ANTERIOR (mensagens
+        # mais antigas que o id), com has_more/oldest_id para encadear.
+        before_raw = query.get("before", [""])[0].strip()
+        before_id: Optional[int] = None
+        if before_raw:
+            try:
+                before_id = int(before_raw)
+            except ValueError:
+                raise APIError(400, "before_invalido")
+        has_page = hasattr(orch.history, "get_messages_page")
+        if has_page:
+            page = orch.history.get_messages_page(
+                uid, profile=profile, limit=limit, before_id=before_id
+            )
+            messages = [m.to_dict() for m in page["messages"]]
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "user_id": uid,
+                    "profile": profile,
+                    "messages": messages,
+                    "total": len(messages),
+                    "has_more": page["has_more"],
+                    "oldest_id": page["oldest_id"],
+                },
+            )
+            return
         msgs = orch.history.get_messages(uid, profile=profile, limit=limit)
         messages = [m.to_dict() for m in msgs]
         self._json(
