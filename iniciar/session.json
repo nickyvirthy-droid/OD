@@ -397,6 +397,18 @@
     "deploy": "IMPLANTADO — restart 2026-09-23 ~13:5x (PID 241843, NRestarts=0); GET /chat 200 com as 3 correções no HTML (min-height ×2, user-badge ×5, setUserBadge(user_id) ×1); login alex 200; 0 erros no journal.",
     "estado": "CONCLUÍDO E NO AR — aguardando confirmação visual do usuário (rolar a tela: header e caixa ficam; nome alex no canto direito do cabeçalho)."
   },
+  "site_hist_agrupado_2026_09_23": {
+    "pedido": "Usuário: 'Ajustar o estilo das bolhas do histórico carregado (agrupar por horário ou mostrar timestamps discretos)'.",
+    "implementacao": [
+      "Separador de dia (.day-sep): pílula centralizada quando a data muda entre mensagens — Hoje/Ontem/dd MMM (pt-BR) via dayLabel().",
+      "Hora discreta (.hist-time): HH:MM no canto da bolha (direita nas do usuário, esquerda nas do OD), apenas no histórico carregado — conversa ao vivo intocada.",
+      "Meta do OD: 'llm_used · HH:MM' nas respostas carregadas; função nova addHistoryBubble(m) + agrupamento no loadHistory()."
+    ],
+    "testes": "Suíte 1888 passed, 16 skipped; test_api.py: /chat exige day-sep, dayLabel, hist-time e addHistoryBubble.",
+    "commit": "383217a feat(api): histórico do chat agrupado por dia com hora discreta nas bolhas (HEAD==origin/master).",
+    "deploy": "IMPLANTADO — restart (PID 243498, NRestarts=0); GET /chat 200 com day-sep/hist-time/addHistoryBubble no HTML; 0 erros no journal.",
+    "estado": "CONCLUÍDO E NO AR — transcrição de 2026-09-23 criada (iniciar/2026-09-23_conversa_omegadrakon.md)."
+  },
   "last_turn": {
     "date": "2026-09-22",
     "action": "Básico do chat do site consertado e no ar: bug do frame auth do WS (token não era mandado → streaming sempre caía no REST), botão SAIR (logout no servidor + limpeza local + fecha WS) e hist-note com o motivo quando o histórico não carrega. Prova viva 6/6 com conta de prova criada, usada e removida. Regra atualizada: restart NÃO precisa mais de pedido.",
@@ -411,5 +423,5 @@
     {"topic": "status bar fix", "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"},
     {"topic": "auth de usuários (09-19)", "decision": "Chat web passa a exigir login (UserStore próprio, PBKDF2-SHA256, sessão UUID + Bearer), mantendo X-API-Key como modo legado/avançado. Registrado retroativamente em 09-20 após achado de que subiu sem commit/teste."}
   ],
-  "transcripts": ["iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
+  "transcripts": ["iniciar/2026-09-23_conversa_omegadrakon.md", "iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
 }
