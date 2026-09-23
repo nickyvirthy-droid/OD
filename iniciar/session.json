@@ -348,12 +348,26 @@
         "me": "GET /history/me → user_id=alex (resolução do 'me' no ar).",
         "gate": "sem credencial → HTTP 401 (auth_all).",
         "ws": "GET :8001 → HTTP 426 (nosso WS no ar)."
+      },
+      "estado": "CONCLUÍDO — código commitado (b3d767d), implantado e provado no ar; APK 1.2.8+11 conferido pela URL do Funnel (52.410.843 B, sha256 fa5f0db23f7cfecee036c671643b393d2d9495528ec32924666c2362b2174d9a, idêntico ao local; aapt2 versionCode='11') — resta instalar no celular."
+    }
+  },
+  "historico_visual_app_2026_09_23": {
+    "pedido": "Usuário: 'Após instalar o APK 1.2.8+11, validar que as conversas anteriores aparecem ao abrir o chat e registrar a prova em iniciar/'.",
+    "provas_servidor_13_31": {
+      "protocolo_do_app": "POST /auth/login (alex/senha123) → HTTP 200, token de sessão de 36 chars (journal 'Login realizado | username=alex | user_id=1'); GET /history/me?limit=50 com Bearer → HTTP 200 em 0,004s: ok=true, user=alex, total=50, ordem cronológica True, roles só user/assistant (conteúdo real: 'Qual o IP do servidor', 'logout', etc.).",
+      "caminho_do_dado": "GET /history/{user_id} → history_get → _check_owner (Bearer → sessão → 'me' → alex) → history.get_messages → PostgreSQL.",
+      "ws_do_app": "frame auth do 1.2.8+11 manda o token; servidor autentica via=session e define identidade=alex (código conferido em ws_server.py + _check_credential).",
+      "banco": "alex=106 msgs INTACTAS (as 6 novas são de 09-22 13:01, teste pós-troca de senha — nada gravado hoje); tabela total 110 (alex 106 + deploy-check 4).",
+      "celular": "NENHUMA conexão WS e nenhum 'Message processed' desde o restart 13:23:22 — o app 1.2.8+11 ainda não foi aberto no celular (ou ainda não instalado)."
     },
-    "estado": "CONCLUÍDO — código commitado (b3d767d), implantado e provado no ar; APK 1.2.8+11 conferido pela URL do Funnel (52.410.843 B, sha256 fa5f0db23f7cfecee036c671643b393d2d9495528ec32924666c2362b2174d9a, idêntico ao local; aapt2 versionCode='11') — resta instalar no celular."
+    "evidencia_esperada_quando_abrir": "journal: 'WebSocket authenticated | user_id=alex | via=session' (e, se mandar mensagem, 'Message processed | user=alex'); na tela: as últimas 50 conversas aparecem imediatamente ao abrir o chat. Se NÃO aparecer: confirmar versionCode 11 (o +10 não busca histórico) e colar o que vê.",
+    "estado": "PROVA SERVIDOR 5/5 OK; aguardando a abertura do app no celular para a confirmação visual."
+  },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Implementação completa do histórico visual + deploy: GET /history/{user_id} no backend (dono/'me'/limit/profile), loadHistory() no chat web, OdApi.getHistory() + ChatScreen._loadHistory() no app, APK 1.2.8+11 buildado. Suíte 1887/16 python e 81/2 flutter; analyze 0 issues. Commit b3d767d + push. Restart autorizado 13:23:22 (PID 235324) e prova viva no ar.",
-    "next": "Usuário instala o APK 1.2.8+11 no celular (versionCode 11 > 10 instala por cima) e confere as conversas anteriores ao abrir o chat."
+    "action": "Validação pós-instalação pelo protocolo exato do app: login alex→200 + GET /history/me com Bearer→200 (50 msgs, cronológico, roles user/assistant) + banco intacto (alex=106, 0 msgs hoje). Celular ainda NÃO conectou desde o restart (0 WS) — confirmação visual pendente da abertura do app.",
+    "next": "Usuário abre o app 1.2.8+11 no celular; conferir journal 'WebSocket authenticated | user_id=alex | via=session' e as conversas na tela; se não aparecer, checar versionCode 11 e relatar o que vê na tela."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
