@@ -14,7 +14,57 @@
 
 ---
 
-## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21 e 2026-09-22)
+## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21, 2026-09-22 e 2026-09-23)
+
+### Adicionado (2026-09-23) — chat web: menu da conta (Limpar + Sair), paginação e agrupamento do histórico 🖥️
+
+> Polimento do chat do site: gestão de conta no próprio nome do usuário e
+> histórico organizado no tempo, carregando as conversas antigas sob demanda.
+
+- **Menu da conta** — o badge **👤 nome** virou botão: clicar abre dropdown com
+  **🧹 Limpar conversa** (`DELETE /history/me` com dupla confirmação — apaga
+  TODA a conversa da conta no servidor, zera a tela e a paginação) e
+  **🚪 Sair** (`POST /auth/logout` mata a sessão no servidor + limpeza local +
+  fecha o WS + volta ao gate). Menu fecha com clique fora ou Esc; anônimo não
+  tem menu. O botão solto "Sair" do header foi removido.
+- **Paginação por cursor** — `GET /history/{user_id}?before=` devolve a página
+  anterior: no banco o cursor é a PK `id` (`has_more`/`oldest_id` encadeiam as
+  páginas; `before` inválido → 400 `before_invalido`); em memória/JSON (sem id
+  estável) o cursor é offset negativo. `history.get_messages_page()` nova em
+  `memory/history.py`.
+- **Chat web carrega antigas ao rolar o topo** — pill "↑ Carregar conversas
+  anteriores" (clique ou scroll ao topo com folga de 60px) faz prepend
+  preservando a posição da leitura, re-agrupa os separadores de dia e mostra
+  "Início da conversa" quando acaba.
+- **Histórico agrupado por dia com hora discreta** — separador `Hoje`/`Ontem`/
+  `dd MMM` (pt-BR) quando a data muda e `HH:MM` no canto de cada bolha do
+  histórico (respostas do OD incluem o LLM usado no meta); conversa ao vivo
+  intocada.
+- **Histórico abre no fim** — a lista carregada rola uma única vez até a
+  mensagem mais recente (scroll pós-pintura via duplo `requestAnimationFrame`).
+
+### Corrigido (2026-09-23) — chat web 🔧
+
+- **WebSocket negado para quem logava** — o frame `auth` da página `/chat` só
+  enviava `api_key`: com sessão Bearer o servidor sempre respondia
+  `api_key_invalida` (close 4001) e o streaming caía no REST silenciosamente.
+  A página agora envia `token` no frame (o servidor já aceitava desde
+  `d8374e2`).
+- **Layout fixo** — o `#chat` crescia com o histórico e empurrava header e
+  caixa de digitação para fora da tela. Agora ocupa o espaço restante
+  (`flex: 1` + `min-height: 0`) e o scroll fica dentro da lista: header e
+  composer fixos por estrutura.
+- **Nome do usuário visível** — badge **👤 username** no cabeçalho (login,
+  registro e auto-login; limpo no Sair).
+- **hist-note** — aviso visível quando o histórico não carrega (status HTTP ou
+  falha de rede) ou quando a conta não tem mensagens, em vez de falhar calado.
+
+- **Testes (2026-09-23):** suíte 1896 passed, 16 skipped (+9: fluxo do site —
+  registra → conversa → histórico → sair com sessão morta; limpar zera o
+  balde; paginação encadeando páginas; asserts do HTML da página `/chat`).
+- **Deploys provados no ar** — GET /history (PID 235324), Sair+WS (239235),
+  layout+badge (241843), agrupamento (243498), scroll no fim (245159),
+  paginação (252797) e menu da conta (255429); todos com 0 erros no journal.
 
 ### Adicionado (2026-09-22) — histórico visível: GET /history/{user_id} + carregamento no app e chat web (APK 1.2.8+11) 💬
 
