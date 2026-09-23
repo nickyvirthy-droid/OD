@@ -166,6 +166,26 @@ zera a conversa".
 
 ---
 
+## 10. BUG do menu: site não entrava nem no anônimo (~16:0x) — CORRIGIDO
+
+Reporte do usuário: "você destruiu alguma coisa no site, não entra nem no
+modo anônimo". **Causa raiz (erro meu):** a string do `window.confirm` do
+Limpar saiu com **quebra de linha literal dentro das aspas** — o `<script>`
+inteiro não compilava, e uma página sem JS não tem NENHUM handler: nem
+anônimo, nem login, nem API key.
+
+- **Correção:** string reescrita sem quebra (`...conta? Essa ação não tem
+  volta.`), menu e todos os handlers de volta.
+- **Guarda de regressão:** o teste do `/chat` agora extrai o `<script>` e
+  valida com **`node --check`** — bug reinjetado em prova → detectado;
+  script atual → compila.
+- Suíte 1896/16. Commits `fce680e` (fix). Deploy PID 258445: JS no ar
+  compila, todos os handlers presentes, `/anon/message` 200/ok, 0 erros.
+- **Lição:** toda edição do HTML/JS embutido em `_CHAT_PAGE_HTML` passa a ser
+  coberta pelo `node --check` do teste — não depende de mim lembrar.
+
+---
+
 ## Estado da sessão
 
 - **Site:** histórico visual completo (GET /history + carregamento + agrupamento
