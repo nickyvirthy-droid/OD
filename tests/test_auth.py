@@ -522,6 +522,52 @@ class TestAuthEndpoints:
         assert status == 400
         assert _json_response((status, body, _))["error"] == "before_invalido"
 
+    def test_limpar_conversa_zera_o_balde(
+        self, serve, tmp_path, store
+    ) -> None:
+        """Menu da conta → Limpar: apaga TODA a conversa da conta no servidor
+        (DELETE /history/me); depois disso o balde fica sem mensagens e a
+        2ª limpeza devolve 404 (nada a apagar)."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        port = srv.bound_port
+        store.register("limpa", "limpa@example.com", "senha123")
+        token = store.login("limpa", "senha123")
+        orch = srv.orchestrator
+        assert orch is not None and orch.history is not None
+        for i in range(3):
+            orch.history.add_message(
+                "limpa", "guardian", "user", f"msg-{i}",
+            )
+            orch.history.add_message(
+                "limpa", "guardian", "assistant", f"resp-{i}",
+            )
+
+        # Antes: 6 mensagens no balde.
+        status, body, _ = _request(
+            port, "GET", "/history/me/stats", bearer=token
+        )
+        assert _json_response((status, body, _))["stats"]["messages"] == 6
+
+        # Limpar (o botão do menu chama DELETE /history/me).
+        status, body, _ = _request(
+            port, "DELETE", "/history/me", bearer=token
+        )
+        assert status == 200
+        data = _json_response((status, body, _))
+        assert data["ok"] is True and data["removed"] == 6
+
+        # Depois: balde zero; limpar de novo é 200/removed=0 (a conta existe —
+        # 404 é só para nome que não é de ninguém, contrato de 6af4d2f).
+        status, body, _ = _request(
+            port, "GET", "/history/me/stats", bearer=token
+        )
+        assert _json_response((status, body, _))["stats"]["messages"] == 0
+        status, body, _ = _request(
+            port, "DELETE", "/history/me", bearer=token
+        )
+        assert status == 200
+        assert _json_response((status, body, _))["removed"] == 0
+
     def test_fluxo_do_site_registra_conversa_e_sai(
         self, serve, tmp_path, store
     ) -> None:

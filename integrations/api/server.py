@@ -413,13 +413,36 @@ _CHAT_PAGE_HTML = """<!doctype html>
     flex: 1; min-height: 0; display: flex; flex-direction: column;
   }
   #chat.hidden { display: none; }
+  /* Menu da conta: clicar no nome abre Limpar/Sair. */
+  #user-menu { position: relative; display: none; }
+  #user-menu.active { display: inline-block; }
   #user-badge {
     font-size: 0.78rem; font-weight: 600; color: var(--text);
     background: var(--bg3); border: 1px solid var(--border);
-    border-radius: 8px; padding: 5px 10px; display: none;
+    border-radius: 8px; padding: 5px 10px; cursor: pointer;
   }
-  #user-badge.active { display: inline-block; }
   #user-badge::before { content: "👤 "; }
+  #user-badge::after { content: " ▾"; font-size: 0.65rem; color: var(--muted); }
+  #user-dropdown {
+    position: absolute; right: 0; top: calc(100% + 6px); min-width: 200px;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 6px; display: none; z-index: 50;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  }
+  #user-dropdown.active { display: block; }
+  #user-dropdown .menu-hint {
+    font-size: 0.66rem; color: var(--muted); padding: 2px 10px 6px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  #user-dropdown button {
+    display: flex; width: 100%; gap: 8px; align-items: center;
+    padding: 8px 10px; border-radius: 8px; font-size: 0.82rem;
+    font-weight: 600; border: none; background: transparent;
+    color: var(--text); cursor: pointer; text-align: left;
+  }
+  #user-dropdown button:hover { background: var(--bg3); }
+  #btn-limpar:hover { color: var(--accent); }
+  #btn-logout:hover { color: #f85149; }
   /* --- Welcome --- */
   .welcome { text-align: center; margin: auto; color: var(--muted); }
   .welcome .icon { font-size: 3rem; margin-bottom: 0.5rem; }
@@ -436,7 +459,6 @@ _CHAT_PAGE_HTML = """<!doctype html>
     <h1>Chat</h1>
   </div>
   <div class="h-right">
-    <span id="user-badge"></span>
     <span id="transport" class="transport-badge"></span>
     <select id="profile" title="Perfil">
       <option value="auto">🤖 Auto</option>
@@ -448,7 +470,14 @@ _CHAT_PAGE_HTML = """<!doctype html>
       <option value="nyx">🌙 Nyx</option>
       <option value="nexus">🔗 Nexus</option>
     </select>
-    <button id="btn-logout" title="Encerra a sessão neste navegador e no servidor">Sair</button>
+    <span id="user-menu">
+      <button id="user-badge" title="Opções da conta"></button>
+      <div id="user-dropdown">
+        <div class="menu-hint">Conta</div>
+        <button id="btn-limpar" title="Apaga TODA a conversa salva desta conta">🧹 Limpar conversa</button>
+        <button id="btn-logout" title="Encerra a sessão neste navegador e no servidor">🚪 Sair</button>
+      </div>
+    </span>
   </div>
 </header>
 
@@ -544,16 +573,27 @@ function showGate(msg, errId) {
   chat.classList.add("hidden");
 }
 function setUserBadge(name) {
-  const el = $("user-badge");
-  if (name) { el.textContent = name; el.classList.add("active"); }
-  else { el.textContent = ""; el.classList.remove("active"); }
+  const menu = $("user-menu");
+  $("user-badge").textContent = name;
+  menu.classList.toggle("active", !!name);
+  closeUserMenu();
 }
+function closeUserMenu() { $("user-dropdown").classList.remove("active"); }
+$("user-badge").addEventListener("click", (e) => {
+  e.stopPropagation();
+  $("user-dropdown").classList.toggle("active");
+});
+document.addEventListener("click", (e) => {
+  if (!$("user-dropdown").contains(e.target)) closeUserMenu();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeUserMenu();
+});
 function showChat() {
   gate.classList.add("hidden");
   chat.classList.remove("hidden");
   $("text").focus();
   if (!anonMode) {
-    $("btn-logout").classList.add("active");
     setUserBadge(user_id);
     tryConnectWs();  // o anônimo não tem credencial para o WS
     loadHistory();
@@ -682,8 +722,33 @@ $("messages").addEventListener("scroll", () => {
   if (box.scrollTop <= 60) loadOlder();
 });
 $("hist-top").addEventListener("click", loadOlder);
-// --- Logout ---
+// --- Limpar conversa (menu da conta) ---
+$("btn-limpar").onclick = async () => {
+  closeUserMenu();
+  if (anonMode) { histNote("Anônimo não tem conversa salva para limpar."); return; }
+  // Dupla confirmação: apaga TODA a conversa da conta no servidor.
+  if (!window.confirm("Apagar TODA a conversa salva desta conta?\n\nEssa ação não tem volta.")) return;
+  if (!window.confirm("Confirma de novo? As mensagens não voltam.")) return;
+  try {
+    const res = await fetch("/history/" + encodeURIComponent(user_id || "me"), {
+      method: "DELETE",
+      headers: histAuthHeaders()
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      histOldestId = null; histHasMore = false; setHistTop(false, false);
+      $("messages").innerHTML = '<div class="welcome"><div class="icon">🐉</div><h2>OmegaDrakon</h2><p>Conversa limpa. Envie uma mensagem para começar de novo.</p></div>';
+      histNote("Conversa apagada (" + (data.removed ?? 0) + " mensagens). A IA começa sem memória desta conta.");
+    } else {
+      histNote("Não deu para limpar agora (HTTP " + res.status + (") — tente novamente."));
+    }
+  } catch(e) {
+    histNote("Não deu para limpar agora (falha de rede) — tente novamente.");
+  }
+};
+// --- Logout (menu da conta) ---
 $("btn-logout").onclick = async () => {
+  closeUserMenu();
   // O token morre no SERVIDOR (POST /auth/logout) e no navegador; a API key
   // do modo avançado sai só daqui (não há como revogá-la por request).
   try {
@@ -699,7 +764,6 @@ $("btn-logout").onclick = async () => {
   anonMode = false; anonHistory = [];
   setUserBadge("");
   if (ws) { try { ws.close(); } catch(e) {} ws = null; wsReady = false; }
-  $("btn-logout").classList.remove("active");
   setTransport("");
   const el = $("transport"); el.className = "transport-badge"; el.textContent = "";
   user_id = "web";

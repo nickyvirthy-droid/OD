@@ -238,10 +238,11 @@ class TestAPIPublicEndpoints:
         status, body, _ = _request(port, "GET", "/chat")
         assert status == 200 and b"/auth/login" in body
         assert b"localStorage" in body  # token salvo no navegador
-        # Sessão tem SAÍDA: botão Sair chama /auth/logout e limpa a credencial
-        # local (acesso por computador alheio não pode deixar a sessão aberta).
+        # Sessão tem SAÍDA: menu da conta (clique no nome) com Limpar e Sair.
         assert b"btn-logout" in body
         assert b"/auth/logout" in body
+        assert b"btn-limpar" in body
+        assert "Opções da conta".encode() in body or b"user-dropdown" in body
         # O frame auth do WebSocket leva o token da sessão (sem ele o servidor
         # nega com 4001 e o streaming nunca conecta para quem logou).
         assert b'type: "auth", token: token' in body
