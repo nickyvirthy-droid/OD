@@ -727,7 +727,7 @@ $("btn-limpar").onclick = async () => {
   closeUserMenu();
   if (anonMode) { histNote("Anônimo não tem conversa salva para limpar."); return; }
   // Dupla confirmação: apaga TODA a conversa da conta no servidor.
-  if (!window.confirm("Apagar TODA a conversa salva desta conta?\n\nEssa ação não tem volta.")) return;
+  if (!window.confirm("Apagar TODA a conversa salva desta conta? Essa ação não tem volta.")) return;
   if (!window.confirm("Confirma de novo? As mensagens não voltam.")) return;
   try {
     const res = await fetch("/history/" + encodeURIComponent(user_id || "me"), {

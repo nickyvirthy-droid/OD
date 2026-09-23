@@ -262,6 +262,23 @@ class TestAPIPublicEndpoints:
         # Paginação infinita: pill no topo + cursor + gatilho por scroll.
         assert b"hist-top" in body and b"loadOlder" in body
         assert b"histOldestId" in body and b"has_more" in body
+        # Guarda de regressão (2026-09-23): o <script> da página tem que ser JS
+        # VÁLIDO — um erro de sintaxe (ex.: quebra de linha dentro de string)
+        # mata TODOS os handlers e o site não entra nem no anônimo.
+        import re as _re
+        import shutil as _shutil
+        import subprocess as _subprocess
+        import tempfile as _tempfile
+        script = _re.search(r"<script>(.*)</script>", body.decode(), _re.S).group(1)
+        node = _shutil.which("node")
+        if node:  # node é opcional no ambiente de teste
+            with _tempfile.NamedTemporaryFile(suffix=".js", mode="wb") as _tmp:
+                _tmp.write(script.encode())
+                _tmp.flush()
+                check = _subprocess.run(
+                    [node, "--check", _tmp.name], capture_output=True,
+                )
+            assert check.returncode == 0, check.stderr.decode()[:400]
 
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))
