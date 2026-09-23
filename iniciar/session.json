@@ -349,7 +349,7 @@
         "gate": "sem credencial → HTTP 401 (auth_all).",
         "ws": "GET :8001 → HTTP 426 (nosso WS no ar)."
     },
-    "estado": "CONCLUÍDO — código commitado (b3d767d), implantado e provado no ar; resta o usuário instalar o APK 1.2.8+11 no celular."  },
+    "estado": "CONCLUÍDO — código commitado (b3d767d), implantado e provado no ar; APK 1.2.8+11 conferido pela URL do Funnel (52.410.843 B, sha256 fa5f0db23f7cfecee036c671643b393d2d9495528ec32924666c2362b2174d9a, idêntico ao local; aapt2 versionCode='11') — resta instalar no celular."
   "last_turn": {
     "date": "2026-09-22",
     "action": "Implementação completa do histórico visual + deploy: GET /history/{user_id} no backend (dono/'me'/limit/profile), loadHistory() no chat web, OdApi.getHistory() + ChatScreen._loadHistory() no app, APK 1.2.8+11 buildado. Suíte 1887/16 python e 81/2 flutter; analyze 0 issues. Commit b3d767d + push. Restart autorizado 13:23:22 (PID 235324) e prova viva no ar.",
