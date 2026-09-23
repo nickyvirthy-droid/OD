@@ -197,5 +197,28 @@ no app Flutter não havia nada).
 - **PENDENTE:** restart autorizado do `od-core` (endpoint no ar + prova viva
   `GET /history/alex` com credencial) e instalação do APK 1.2.8+11 no celular.
 
+---
+
+## 10. Deploy do Histórico Visual (2026-09-23 13:23)
+
+Restart do `od-core` **autorizado pelo usuário** nesta retomada.
+
+- **Serviço:** active desde 13:23:22 — PID 235324, `NRestarts=0`; :8000 e :8001
+  escutando; journal sem nenhum err/Traceback desde o restart; `/health` ok/up;
+  `/supervision` up, restarts: 0; Funnel on (`# Funnel on` na URL pública) e
+  `/health` de fora → 401 em 0,06s.
+- **Prova viva do endpoint (no ar):**
+  - `GET /history/alex?limit=5` com `OD_API_KEY` → HTTP 200 em 0,05s, 5
+    mensagens em ordem cronológica (roles user/assistant reais da conta).
+  - `GET /history/me` → `user_id: alex` (resolução do `me` funcionando).
+  - Sem credencial → HTTP 401 (`OD_API_AUTH_ALL=1`).
+  - `GET :8001` → HTTP 426 (WS no ar).
+- **Commit:** `b3d767d` (12 arquivos, +394/-10; `HEAD == origin/master`).
+
+### Estado final
+CONCLUÍDO — resta o usuário instalar o **APK 1.2.8+11** no celular
+(versionCode 11 > 10 instala por cima) e conferir as conversas anteriores ao
+abrir o chat.
+
 
 

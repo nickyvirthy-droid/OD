@@ -342,14 +342,18 @@
       ],
       "testes": "Backend: +5 (GET lista com dono, /history/me resolve, 404 não aberto) — suíte 1887 passed, 16 skipped. App: flutter analyze 0 issues; flutter test 81 passed, 2 skipped (+4: getHistory com Bearer, sem credencial não chama, best-effort em 501, widget carrega o histórico ao abrir).",
       "apk": "Buildado e publicado em site/: OmegaDrakon.apk (52.410.843 B) e OmegaDrakon-arm64.apk (18.715.654 B); aapt2 versionCode='11' versionName='1.2.8'.",
-      "deploy": "PENDENTE de restart autorizado do od-core (o endpoint GET /history ainda não está no ar)."
+      "deploy": "IMPLANTADO — restart autorizado em 2026-09-23 13:23:22 (PID 235324, NRestarts=0); :8000/:8001 escutando; journal 0 err/Traceback; /health ok/up; /supervision up, restarts: 0; Funnel on e /health pela URL pública 401 em 0,06s.",
+      "prova_viva": {
+        "rest": "GET /history/alex?limit=5 com OD_API_KEY → HTTP 200 em 0,05s, 5 msgs em ordem cronológica (role user/assistant).",
+        "me": "GET /history/me → user_id=alex (resolução do 'me' no ar).",
+        "gate": "sem credencial → HTTP 401 (auth_all).",
+        "ws": "GET :8001 → HTTP 426 (nosso WS no ar)."
     },
-    "estado": "CÓDIGO COMPLETO, VALIDADO E COMMITADO; falta restart do od-core + instalar o APK no celular."
-  },
+    "estado": "CONCLUÍDO — código commitado (b3d767d), implantado e provado no ar; resta o usuário instalar o APK 1.2.8+11 no celular."  },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Implementação completa do histórico visual: GET /history/{user_id} no backend (dono/'me'/limit/profile), loadHistory() no chat web, OdApi.getHistory() + ChatScreen._loadHistory() no app, APK 1.2.8+11 buildado. Suíte 1887/16 python e 81/2 flutter; analyze 0 issues. Commit + push feitos.",
-    "next": "Restart autorizado do od-core para o endpoint entrar no ar (prova viva GET /history/alex com credencial) e instalação do APK 1.2.8+11 no celular."
+    "action": "Implementação completa do histórico visual + deploy: GET /history/{user_id} no backend (dono/'me'/limit/profile), loadHistory() no chat web, OdApi.getHistory() + ChatScreen._loadHistory() no app, APK 1.2.8+11 buildado. Suíte 1887/16 python e 81/2 flutter; analyze 0 issues. Commit b3d767d + push. Restart autorizado 13:23:22 (PID 235324) e prova viva no ar.",
+    "next": "Usuário instala o APK 1.2.8+11 no celular (versionCode 11 > 10 instala por cima) e confere as conversas anteriores ao abrir o chat."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
