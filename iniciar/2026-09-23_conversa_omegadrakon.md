@@ -102,6 +102,42 @@ recente".
 
 ---
 
+## 8. Paginação do histórico: carregar antigas ao rolar o topo (~15:1x)
+
+Pedido: "carregar conversas mais antigas ao rolar até o topo do chat
+(paginação por before/cursor)".
+
+### Backend
+- **`memory/history.py: get_messages_page(user_id, profile, limit, before_id)`**
+  — devolve `{messages (cronológico), has_more, oldest_id}`. No **banco**, o
+  cursor é a PK `id` (`WHERE id < before_id`, `limit+1` para detectar a próxima
+  página). Em **memória/JSON** (sem id estável) o cursor é offset negativo:
+  `before=-N` devolve a janela imediatamente anterior às N já carregadas.
+- **`GET /history/{user_id}?before=`** — `before` inválido → **400
+  `before_invalido`**; resposta agora sempre inclui `has_more` e `oldest_id`
+  (o caminho antigo, sem `before`, segue idêntico mais os campos novos).
+
+### Chat web
+- Pill **"↑ Carregar conversas anteriores"** no topo da lista (`hist-top`):
+  clicável E disparada ao rolar ao topo (folga 60px), com estado
+  "Carregando…" e desaparece quando não há mais páginas.
+- `loadOlder()` faz **prepend preservando a posição** da leitura (âncora no
+  1º elemento + ajuste de `scrollTop`), re-agrupa separadores de dia e insere
+  selo **"Início da conversa"** quando `has_more` fica False.
+
+### Verificação (regra 12)
+- Suíte **1895 passed, 16 skipped** (+7: `get_messages_page` no banco/memória,
+  fluxo HTTP encadeando páginas, asserts do HTML).
+- **Prova viva no ar** (PID 252797, 0 erros): p1 (10 recentes, oldest_id=103)
+  → `?before=103` (10 anteriores, oldest_id=93, sem sobreposição) → p3
+  (oldest_id=81); `before=abc` → 400; `hist-top` no HTML.
+- Nota: o par user/assistant de um mesmo turno compartilha o `ts` — a partição
+  entre páginas é por **id**, sem sobreposição; ts empatado é o par cortado.
+
+- Commits: `54a3120` (feature) · deploy com restart (PID 252797).
+
+---
+
 ## Estado da sessão
 
 - **Site:** histórico visual completo (GET /history + carregamento + agrupamento

@@ -418,9 +418,27 @@
     "deploy": "IMPLANTADO — restart (PID 245159, NRestarts=0); GET /chat 200 com scrollToLatest/noScroll/duplo rAF; 0 erros no journal.",
     "estado": "CONCLUÍDO E NO AR — abrir o chat deve mostrar direto a conversa mais recente."
   },
+  "site_hist_paginacao_2026_09_23": {
+    "pedido": "Usuário: 'Carregar conversas mais antigas ao rolar até o topo do chat (paginação por before/cursor)'.",
+    "implementacao": {
+      "backend": [
+        "memory/history.py: get_messages_page(user_id, profile, limit, before_id) → {messages cronológicos, has_more, oldest_id}. Banco: cursor = PK id (WHERE id < before, limit+1 para detectar próxima). Memória/JSON: cursor = offset negativo (before=-N = janela anterior às N carregadas).",
+        "GET /history/{user_id}: aceita ?before= (inválido → 400 before_invalido); resposta sempre com has_more/oldest_id.",
+        "Nota: add_interaction grava o MESMO ts para o par user+assistant — a partição entre páginas é por id (sem sobreposição); ts empatado é par cortado entre páginas."
+      ],
+      "chat_web": [
+        "Pill '↑ Carregar conversas anteriores' (hist-top): clicável + disparada por scroll ao topo (folga 60px), com 'Carregando…' e escondida quando acaba.",
+        "loadOlder(): prepend com posição preservada (âncora + scrollTop), re-agrupa separadores de dia, selo 'Início da conversa' no fim."
+      ],
+      "testes": "Suíte 1895 passed, 16 skipped (+7)."
+    },
+    "commit": "54a3120 feat(api,history): paginação do histórico por cursor (HEAD==origin/master).",
+    "deploy": "IMPLANTADO — restart (PID 252797, NRestarts=0); prova viva: p1 oldest_id=103 → ?before=103 → p2 (sem sobreposição, oldest_id=93) → p3 (81); before=abc → 400 before_invalido; hist-top no HTML; 0 erros no journal.",
+    "estado": "CONCLUÍDO E NO AR — rolar ao topo carrega as conversas antigas sem 'pulo'."
+  },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Polimento do chat web concluído no ar: histórico agrupado por dia (Hoje/Ontem/dd MMM) com hora discreta nas bolhas e abertura já rolada até a mensagem mais recente (scroll único pós-pintura via duplo rAF). Suíte 1888/16. Commits 383217a e e61becb.",
+    "action": "Paginação do histórico entregue no ar: GET /history com ?before= (cursor por id no banco, offset negativo em memória) + pill 'Carregar conversas anteriores' disparada por scroll/clique com prepend preservando posição. Suíte 1895/16. Commit 54a3120; prova viva encadeando 3 páginas no ar.",
     "next": "Confirmação visual do usuário no site; depois partir para o 'outro sistema' mencionado (ainda não especificado).",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
