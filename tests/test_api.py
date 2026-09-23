@@ -238,6 +238,15 @@ class TestAPIPublicEndpoints:
         status, body, _ = _request(port, "GET", "/chat")
         assert status == 200 and b"/auth/login" in body
         assert b"localStorage" in body  # token salvo no navegador
+        # Sessão tem SAÍDA: botão Sair chama /auth/logout e limpa a credencial
+        # local (acesso por computador alheio não pode deixar a sessão aberta).
+        assert b"btn-logout" in body
+        assert b"/auth/logout" in body
+        # O frame auth do WebSocket leva o token da sessão (sem ele o servidor
+        # nega com 4001 e o streaming nunca conecta para quem logou).
+        assert b'type: "auth", token: token' in body
+        # Histórico carrega ao abrir e avisa quando não carrega.
+        assert b"loadHistory" in body and b"hist-note" in body
 
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))

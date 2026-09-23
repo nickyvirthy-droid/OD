@@ -446,6 +446,60 @@ class TestAuthEndpoints:
         status, _, _ = _request(srv.bound_port, "GET", "/auth/me", bearer=token)
         assert status == 401
 
+    def test_fluxo_do_site_registra_conversa_e_sai(
+        self, serve, tmp_path, store
+    ) -> None:
+        """O fluxo pedido pelo dono (2026-09-23): cadastrar usuário e senha no
+        chat do site, conversar e SAIR — sem deixar sessão aberta em computador
+        alheio. Registra → conversa → histórico visível → logout mata a sessão."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        port = srv.bound_port
+
+        # 1) Cadastro pelo site (o botão "Criar conta" chama /auth/register).
+        status, body, _ = _request(
+            port, "POST", "/auth/register",
+            body={"username": "visitante", "email": "v@example.com",
+                  "password": "senha123"},
+        )
+        assert status == 201
+
+        # 2) Login com a conta criada.
+        status, body, _ = _request(
+            port, "POST", "/auth/login",
+            body={"username": "visitante", "password": "senha123"},
+        )
+        assert status == 200
+        token = _json_response((status, body, _))["token"]
+
+        # 3) Conversa (POST /message com Bearer cai na conta do visitante).
+        status, body, _ = _request(
+            port, "POST", "/message", bearer=token,
+            body={"user_id": "web", "text": "primeira conversa do site"},
+        )
+        assert status == 200
+        assert _json_response((status, body, _))["user_id"] == "visitante"
+
+        # 4) O histórico aparece ao abrir o chat (o que faltava no app/web).
+        status, body, _ = _request(
+            port, "GET", "/history/me?limit=50", bearer=token
+        )
+        assert status == 200
+        data = _json_response((status, body, _))
+        assert data["user_id"] == "visitante"
+        assert any(
+            m["content"] == "primeira conversa do site"
+            for m in data["messages"]
+        )
+
+        # 5) Sair: a sessão morre no servidor; token reaproveitado é recusado.
+        status, body, _ = _request(
+            port, "POST", "/auth/logout", bearer=token
+        )
+        assert status == 200 and _json_response((status, body, _))["ok"] is True
+        status, _, _ = _request(port, "GET", "/history/me", bearer=token)
+        assert status == 401
+        assert store.validate_session(token) is None
+
     def test_logout_without_bearer_400(self, serve, tmp_path, store) -> None:
         srv = serve(
             make_orch(tmp_path), config=self._cfg(store, api_key="segredo123")

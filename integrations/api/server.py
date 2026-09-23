@@ -316,6 +316,19 @@ _CHAT_PAGE_HTML = """<!doctype html>
   .transport-badge.active { display: inline-block; }
   .transport-badge.ws { background: rgba(34,197,94,0.15); color: #22c55e; }
   .transport-badge.rest { background: rgba(245,158,11,0.15); color: var(--accent); }
+  #btn-logout {
+    padding: 5px 12px; border-radius: 8px; font-size: 0.78rem; font-weight: 600;
+    border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+    cursor: pointer; display: none;
+  }
+  #btn-logout.active { display: inline-block; }
+  #btn-logout:hover { color: #f85149; border-color: #f85149; }
+  #hist-note {
+    display: none; margin: 10px auto 0; width: fit-content; max-width: 90%;
+    font-size: 0.78rem; color: var(--muted); background: var(--bg2);
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px;
+  }
+  #hist-note.active { display: block; }
   /* --- Messages --- */
   #messages {
     flex: 1; overflow-y: auto; padding: 20px;
@@ -400,6 +413,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
       <option value="nyx">🌙 Nyx</option>
       <option value="nexus">🔗 Nexus</option>
     </select>
+    <button id="btn-logout" title="Encerra a sessão neste navegador e no servidor">Sair</button>
   </div>
 </header>
 
@@ -443,6 +457,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
       <p>Envie uma mensagem para começar a conversa.</p>
     </div>
   </div>
+  <div id="hist-note"></div>
   <div id="composer">
     <input id="text" placeholder="Digite sua mensagem…" autocomplete="off">
     <button id="send">Enviar</button>
@@ -495,11 +510,18 @@ function showChat() {
   chat.classList.remove("hidden");
   $("text").focus();
   if (!anonMode) {
+    $("btn-logout").classList.add("active");
     tryConnectWs();  // o anônimo não tem credencial para o WS
     loadHistory();
   }
 }
+function histNote(msg) {
+  const el = $("hist-note");
+  if (msg) { el.textContent = msg; el.classList.add("active"); }
+  else { el.textContent = ""; el.classList.remove("active"); }
+}
 async function loadHistory() {
+  histNote("");
   try {
     const prof = $("profile").value;
     const authHdr = token ? {"Authorization": "Bearer " + token} : (key ? {"X-API-Key": key} : {});
@@ -513,10 +535,39 @@ async function loadHistory() {
         data.messages.forEach(m => {
           addBubble(m.role === "user" ? "user" : "od", m.content);
         });
+      } else {
+        histNote("Nenhuma conversa anterior nesta conta.");
       }
+      return;
+    }
+    histNote("Histórico indisponível agora (HTTP " + res.status + ") — a conversa nova funciona normalmente.");
+  } catch(e) {
+    histNote("Histórico indisponível agora (falha de rede) — a conversa nova funciona normalmente.");
+  }
+}
+// --- Logout ---
+$("btn-logout").onclick = async () => {
+  // O token morre no SERVIDOR (POST /auth/logout) e no navegador; a API key
+  // do modo avançado sai só daqui (não há como revogá-la por request).
+  try {
+    if (token) {
+      await fetch("/auth/logout", {
+        method: "POST",
+        headers: {"Authorization": "Bearer " + token}
+      });
     }
   } catch(e) {}
-}
+  token = ""; localStorage.removeItem("od_session_token");
+  key = ""; localStorage.removeItem("od_api_key");
+  anonMode = false; anonHistory = [];
+  if (ws) { try { ws.close(); } catch(e) {} ws = null; wsReady = false; }
+  $("btn-logout").classList.remove("active");
+  setTransport("");
+  const el = $("transport"); el.className = "transport-badge"; el.textContent = "";
+  user_id = "web";
+  $("messages").innerHTML = '<div class="welcome"><div class="icon">🐉</div><h2>OmegaDrakon</h2><p>Envie uma mensagem para começar a conversar.</p></div>';
+  showGate("");
+};
 function setTransport(type) {
   const el = $("transport");
   el.className = "transport-badge active " + type;
@@ -563,8 +614,10 @@ function tryConnectWs() {
   try {
     ws = new WebSocket(url);
     ws.onopen = () => {
-      const wsKey = key || "";
-      ws.send(JSON.stringify({ type: "auth", api_key: wsKey, user_id: user_id }));
+      // O token da sessão TEM que ir no frame auth: sem ele o servidor nega
+      // (api_key_invalida → close 4001) e o streaming nunca conecta para quem
+      // entrou por login/senha. A API key entra quando é o modo avançado.
+      ws.send(JSON.stringify({ type: "auth", token: token || "", api_key: key || "", user_id: user_id }));
     };
     ws.onmessage = (ev) => {
       try {
