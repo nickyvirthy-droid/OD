@@ -577,6 +577,7 @@ async function loadHistory() {
           }
           addHistoryBubble(m);
         });
+        scrollToLatest();  // abre na conversa mais recente, não no topo
       } else {
         histNote("Nenhuma conversa anterior nesta conta.");
       }
@@ -643,7 +644,7 @@ function addHistoryBubble(m) {
   const meta = m.role === "user"
     ? null
     : (m.llm_used ? (m.llm_used + (hora ? " · " + hora : "")) : (hora || null));
-  const div = addBubble(m.role === "user" ? "user" : "od", m.content, meta);
+  const div = addBubble(m.role === "user" ? "user" : "od", m.content, meta, { noScroll: true });
   if (hora) {
     const t = document.createElement("span");
     t.className = "hist-time";
@@ -652,7 +653,15 @@ function addHistoryBubble(m) {
   }
   return div;
 }
-function addBubble(who, text, meta) {
+// Leva a conversa para a mensagem mais recente. O duplo rAF garante que a
+// rolagem acontece DEPOIS da pintura do último elemento — sem isso o
+// scrollHeight ainda é o antigo e a lista abre no meio.
+function scrollToLatest() {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    $("messages").scrollTop = $("messages").scrollHeight;
+  }));
+}
+function addBubble(who, text, meta, opts) {
   clearWelcome();
   const div = document.createElement("div");
   div.className = "bubble " + who;
@@ -664,7 +673,11 @@ function addBubble(who, text, meta) {
     div.appendChild(m);
   }
   $("messages").appendChild(div);
-  $("messages").scrollTop = $("messages").scrollHeight;
+  // Durante a montagem do histórico o scroll é feito uma única vez no final
+  // (scrollToLatest, pós-pintura) — rolar bolha a bolha para no meio.
+  if (!(opts && opts.noScroll)) {
+    $("messages").scrollTop = $("messages").scrollHeight;
+  }
   return div;
 }
 let typingEl = null;

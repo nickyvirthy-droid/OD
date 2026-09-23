@@ -256,6 +256,8 @@ class TestAPIPublicEndpoints:
         # discreta dentro da bolha (.hist-time).
         assert b"day-sep" in body and b"dayLabel" in body
         assert b"hist-time" in body and b"addHistoryBubble" in body
+        # Abre rolado até a mensagem mais recente (scroll único pós-pintura).
+        assert b"scrollToLatest" in body and b"noScroll" in body
 
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))
