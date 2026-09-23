@@ -346,6 +346,19 @@ _CHAT_PAGE_HTML = """<!doctype html>
   .typing { align-self: flex-start; padding: 12px 16px; font-size: 0.85rem; color: var(--muted); }
   .typing::after { content: '...'; animation: dots 1.2s infinite; }
   @keyframes dots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
+  /* Histórico carregado: agrupamento por dia + hora discreta na bolha. */
+  .day-sep {
+    align-self: center; margin: 8px 0 2px; padding: 3px 12px;
+    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--muted);
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+  .bubble .hist-time {
+    display: block; margin-top: 4px; font-size: 0.64rem;
+    color: var(--muted); opacity: 0.85; text-align: right;
+  }
+  .bubble.od .hist-time { text-align: left; }
   /* --- Composer --- */
   #composer {
     display: flex; gap: 10px; padding: 14px 20px; background: var(--bg2);
@@ -554,8 +567,15 @@ async function loadHistory() {
       const data = await res.json();
       if (data.messages && data.messages.length > 0) {
         clearWelcome();
+        let diaCorrente = "";
         data.messages.forEach(m => {
-          addBubble(m.role === "user" ? "user" : "od", m.content);
+          // Agrupa por dia: separador quando a data muda de uma msg para outra.
+          const dia = m.ts ? dayLabel(new Date(m.ts * 1000)) : "";
+          if (dia && dia !== diaCorrente) {
+            addDaySeparator(new Date(m.ts * 1000));
+            diaCorrente = dia;
+          }
+          addHistoryBubble(m);
         });
       } else {
         histNote("Nenhuma conversa anterior nesta conta.");
@@ -599,6 +619,38 @@ function setTransport(type) {
 function clearWelcome() {
   const w = $("messages").querySelector(".welcome");
   if (w) w.remove();
+}
+// Rótulo do agrupamento por dia do histórico (dias recentes por nome).
+function dayLabel(d) {
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const dia = new Date(d); dia.setHours(0,0,0,0);
+  const dias = Math.round((hoje - dia) / 86400000);
+  if (dias === 0) return "Hoje";
+  if (dias === 1) return "Ontem";
+  return dia.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+function addDaySeparator(d) {
+  const sep = document.createElement("div");
+  sep.className = "day-sep";
+  sep.textContent = dayLabel(d);
+  $("messages").appendChild(sep);
+}
+function addHistoryBubble(m) {
+  const d = m.ts ? new Date(m.ts * 1000) : null;
+  const hora = d
+    ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    : "";
+  const meta = m.role === "user"
+    ? null
+    : (m.llm_used ? (m.llm_used + (hora ? " · " + hora : "")) : (hora || null));
+  const div = addBubble(m.role === "user" ? "user" : "od", m.content, meta);
+  if (hora) {
+    const t = document.createElement("span");
+    t.className = "hist-time";
+    t.textContent = hora;
+    div.appendChild(t);
+  }
+  return div;
 }
 function addBubble(who, text, meta) {
   clearWelcome();

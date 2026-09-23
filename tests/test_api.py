@@ -252,6 +252,10 @@ class TestAPIPublicEndpoints:
         assert b"min-height: 0" in body
         # Nome do usuário logado visível no cabeçalho.
         assert b"user-badge" in body and b"setUserBadge" in body
+        # Histórico agrupado: separador por dia (Hoje/Ontem/data) e hora
+        # discreta dentro da bolha (.hist-time).
+        assert b"day-sep" in body and b"dayLabel" in body
+        assert b"hist-time" in body and b"addHistoryBubble" in body
 
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))
