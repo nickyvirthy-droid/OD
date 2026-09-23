@@ -386,6 +386,19 @@ _CHAT_PAGE_HTML = """<!doctype html>
   .gate-switch { font-size: 0.82rem; color: var(--muted); margin-top: 0.5rem; }
   .gate-switch a { color: var(--accent); text-decoration: none; }
   .gate-switch a:hover { text-decoration: underline; }
+  /* --- Layout fixo: header e composer sempre visíveis --- */
+  #gate { flex: 1; min-height: 0; overflow-y: auto; }
+  #chat {
+    flex: 1; min-height: 0; display: flex; flex-direction: column;
+  }
+  #chat.hidden { display: none; }
+  #user-badge {
+    font-size: 0.78rem; font-weight: 600; color: var(--text);
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 10px; display: none;
+  }
+  #user-badge.active { display: inline-block; }
+  #user-badge::before { content: "👤 "; }
   /* --- Welcome --- */
   .welcome { text-align: center; margin: auto; color: var(--muted); }
   .welcome .icon { font-size: 3rem; margin-bottom: 0.5rem; }
@@ -402,6 +415,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
     <h1>Chat</h1>
   </div>
   <div class="h-right">
+    <span id="user-badge"></span>
     <span id="transport" class="transport-badge"></span>
     <select id="profile" title="Perfil">
       <option value="auto">🤖 Auto</option>
@@ -505,14 +519,22 @@ function showGate(msg, errId) {
   gate.classList.remove("hidden");
   chat.classList.add("hidden");
 }
+function setUserBadge(name) {
+  const el = $("user-badge");
+  if (name) { el.textContent = name; el.classList.add("active"); }
+  else { el.textContent = ""; el.classList.remove("active"); }
+}
 function showChat() {
   gate.classList.add("hidden");
   chat.classList.remove("hidden");
   $("text").focus();
   if (!anonMode) {
     $("btn-logout").classList.add("active");
+    setUserBadge(user_id);
     tryConnectWs();  // o anônimo não tem credencial para o WS
     loadHistory();
+  } else {
+    setUserBadge("");  // anônimo não expõe nome (não há)
   }
 }
 function histNote(msg) {
@@ -560,6 +582,7 @@ $("btn-logout").onclick = async () => {
   token = ""; localStorage.removeItem("od_session_token");
   key = ""; localStorage.removeItem("od_api_key");
   anonMode = false; anonHistory = [];
+  setUserBadge("");
   if (ws) { try { ws.close(); } catch(e) {} ws = null; wsReady = false; }
   $("btn-logout").classList.remove("active");
   setTransport("");
@@ -822,7 +845,7 @@ async function tryAutoLogin() {
   if (key) {
     try {
       const resp = await fetch("/llms", { headers: {"X-API-Key": key} });
-      if (resp.ok) { showChat(); return; }
+      if (resp.ok) { user_id = "web"; showChat(); return; }
     } catch(e) {}
     key = ""; localStorage.removeItem("od_api_key");
   }

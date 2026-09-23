@@ -247,6 +247,11 @@ class TestAPIPublicEndpoints:
         assert b'type: "auth", token: token' in body
         # Histórico carrega ao abrir e avisa quando não carrega.
         assert b"loadHistory" in body and b"hist-note" in body
+        # Layout fixo (2026-09-23): header e composer nunca saem da tela —
+        # o #chat ocupa o resto com min-height 0 e o scroll fica na lista.
+        assert b"min-height: 0" in body
+        # Nome do usuário logado visível no cabeçalho.
+        assert b"user-badge" in body and b"setUserBadge" in body
 
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))
