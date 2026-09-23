@@ -138,11 +138,42 @@ Pedido: "carregar conversas mais antigas ao rolar até o topo do chat
 
 ---
 
+## 9. Menu da conta: Limpar conversa + Sair dentro do nome (~15:4x)
+
+Pedido: "consegue colocar o botão sair dentro do nome do usuário? Quando o
+usuário clica no nome aparece a opção sair, também quero a opção limpar que
+zera a conversa".
+
+### Implementação
+- O badge **👤 nome** virou **botão** (`#user-menu` + `#user-badge`): clicar
+  abre dropdown com as opções da conta; fecha com clique fora ou **Esc**.
+- **🧹 Limpar conversa** — `DELETE /history/me` com **dupla confirmação**
+  (apaga TODA a conversa da conta no servidor), zera a tela (welcome de volta)
+  e avisa quantas mensagens foram removidas. Paginação resetada (`hist-top`
+  some). Anônimo recebe aviso específico (não tem conversa salva).
+- **🚪 Sair** — como antes: `POST /auth/logout` (mata a sessão no servidor) +
+  limpa credenciais do navegador + fecha o WS + volta ao gate.
+- O botão solto "Sair" do cabeçalho foi removido (agora vive no menu).
+
+### Verificação (regra 12)
+- Suíte **1896 passed, 16 skipped** (+1: `test_limpar_conversa_zera_o_balde` —
+  6 mensagens removidas, stats 0, 2ª limpeza 200/removed=0, conforme o
+  contrato de 404 de `6af4d2f`: conta existe → 200).
+- **Prova viva no ar** (PID 255429, 0 erros): HTML com dropdown/limpar/.dupla
+  confirmação; conta descartável `menu-limpa`: conversou (2 msgs) → DELETE
+  `/history/me` → 200 `removed=2` → stats 0. Conta removida depois.
+- Commits: `d610ff9` (feature) · restart para o deploy.
+
+---
+
 ## Estado da sessão
 
 - **Site:** histórico visual completo (GET /history + carregamento + agrupamento
-  por dia + hora), login/registro/anônimo, botão Sair, streaming WS consertado,
-  layout fixo, badge do usuário. Pronto para o usuário testar e polir.
+  por dia + hora + paginação por cursor), login/registro/anônimo, **menu da
+  conta no nome (Limpar + Sair)**, streaming WS consertado, layout fixo.
+- **App 1.2.8+11:** publicado e conferido; ainda sem conexão do celular.
+- **Próximo passo:** confirmação visual do usuário no site; depois "partir para
+  outro sistema" (não especificado ainda).
 - **App 1.2.8+11:** publicado e conferido; ainda sem conexão do celular.
 - **Próximo passo:** confirmação visual do usuário no site; depois "partir para
   outro sistema" (não especificado ainda).

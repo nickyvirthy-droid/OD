@@ -436,9 +436,22 @@
     "deploy": "IMPLANTADO — restart (PID 252797, NRestarts=0); prova viva: p1 oldest_id=103 → ?before=103 → p2 (sem sobreposição, oldest_id=93) → p3 (81); before=abc → 400 before_invalido; hist-top no HTML; 0 erros no journal.",
     "estado": "CONCLUÍDO E NO AR — rolar ao topo carrega as conversas antigas sem 'pulo'."
   },
+  "site_menu_conta_2026_09_23": {
+    "pedido": "Usuário: 'colocar o botão sair dentro do nome do usuário — clicar no nome aparece a opção sair; também quero a opção limpar que zera a conversa'.",
+    "implementacao": [
+      "Badge 👤 virou botão: clicar no nome abre dropdown (#user-dropdown) com as opções da conta; fecha com clique fora ou Esc.",
+      "🧹 Limpar conversa: DELETE /history/me com DUPLA confirmação (window.confirm ×2), zera a tela (welcome volta), avisa quantas msgs foram removidas e reseta a paginação (hist-top esconde). Anônimo: aviso específico.",
+      "🚪 Sair: POST /auth/logout + limpeza local + fecha WS + volta ao gate. O botão solto do header foi removido.",
+      "Contrato preservado: 2ª limpeza em conta existente é 200/removed=0 (404 só para nome que não é de ninguém — 6af4d2f)."
+    ],
+    "testes": "Suíte 1896 passed, 16 skipped (+1: test_limpar_conversa_zera_o_balde — 6 removidas, stats 0, 2ª limpeza 200/0).",
+    "commit": "d610ff9 feat(api): menu da conta no chat — Limpar conversa e Sair dentro do nome (HEAD==origin/master).",
+    "deploy": "IMPLANTADO — restart (PID 255429, NRestarts=0); prova viva: conta descartável menu-limpa conversou (2 msgs) → DELETE /history/me → 200 removed=2 → stats 0; conta removida depois; 0 erros no journal.",
+    "estado": "CONCLUÍDO E NO AR — clicar no 👤 nome abre Limpar + Sair."
+  },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Paginação do histórico entregue no ar: GET /history com ?before= (cursor por id no banco, offset negativo em memória) + pill 'Carregar conversas anteriores' disparada por scroll/clique com prepend preservando posição. Suíte 1895/16. Commit 54a3120; prova viva encadeando 3 páginas no ar.",
+    "action": "Menu da conta entregue no ar: clicar no 👤 nome abre dropdown com 🧹 Limpar conversa (DELETE /history/me, dupla confirmação, zera tela e balde) e 🚪 Sair. Suíte 1896/16. Commit d610ff9; prova viva com conta descartável (limpeza 200/removed=2/stats 0).",
     "next": "Confirmação visual do usuário no site; depois partir para o 'outro sistema' mencionado (ainda não especificado).",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
