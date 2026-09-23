@@ -449,9 +449,15 @@
     "deploy": "IMPLANTADO — restart (PID 255429, NRestarts=0); prova viva: conta descartável menu-limpa conversou (2 msgs) → DELETE /history/me → 200 removed=2 → stats 0; conta removida depois; 0 erros no journal.",
     "estado": "CONCLUÍDO E NO AR — clicar no 👤 nome abre Limpar + Sair."
   },
+  "changelog_chat_web_2026_09_23": {
+    "pedido": "Usuário: 'Registrar o estado final do chat web no CHANGELOG da versão'.",
+    "registro": "docs/CHANGELOG.md: nova seção 'Adicionado (2026-09-23) — chat web: menu da conta (Limpar + Sair), paginação e agrupamento do histórico' + 'Corrigido (2026-09-23) — chat web' (WS para sessão Bearer, layout fixo, badge do usuário, hist-note); suíte 1896/16 e os 7 deploys provados listados. Título do [1.2.0] atualizado com 2026-09-23.",
+    "commit": "5515e6d docs(changelog): registra o polimento do chat web de 2026-09-23 (HEAD==origin/master).",
+    "estado": "CONCLUÍDO — CHANGELOG fechado para o chat web da série 1.2.0."
+  },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Menu da conta entregue no ar: clicar no 👤 nome abre dropdown com 🧹 Limpar conversa (DELETE /history/me, dupla confirmação, zera tela e balde) e 🚪 Sair. Suíte 1896/16. Commit d610ff9; prova viva com conta descartável (limpeza 200/removed=2/stats 0).",
+    "action": "Estado final do chat web registrado no docs/CHANGELOG.md (Adicionado + Corrigido de 2026-09-23, com testes e deploys). Commit 5515e6d.",
     "next": "Confirmação visual do usuário no site; depois partir para o 'outro sistema' mencionado (ainda não especificado).",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
