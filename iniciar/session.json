@@ -364,10 +364,32 @@
     "evidencia_esperada_quando_abrir": "journal: 'WebSocket authenticated | user_id=alex | via=session' (e, se mandar mensagem, 'Message processed | user=alex'); na tela: as últimas 50 conversas aparecem imediatamente ao abrir o chat. Se NÃO aparecer: confirmar versionCode 11 (o +10 não busca histórico) e colar o que vê.",
     "estado": "PROVA SERVIDOR 5/5 OK; aguardando a abertura do app no celular para a confirmação visual."
   },
+  "chat_site_sair_e_ws_2026_09_23": {
+    "pedido": "Usuário: 'não está aparecendo o histórico. vamos começar pelo básico: conectar pelo chat do site (lá dá para cadastrar usuário e senha). coloque um logout também, porque em computador não seguro a conexão não pode ficar aberta.'",
+    "achados_e_correcoes": [
+      "BUG real encontrado: o frame auth do WS na página /chat só mandava api_key — quem entrava por login/senha tinha o WS SEMPRE negado (close 4001) e caía no REST. O servidor já aceitava token (ws_server._authenticate) desde d8374e2; a página agora manda token no frame.",
+      "Botão SAIR no cabeçalho do chat (só aparece logado): POST /auth/logout (mata a sessão NO SERVIDOR) + limpa od_session_token/od_api_key do localStorage + fecha o WS + volta ao gate com estado zerado.",
+      "hist-note: aviso visível sob a conversa quando o histórico não carrega (HTTP status ou falha de rede) ou quando a conta não tem mensagens — o básico ficou diagnosticável em vez de falhar calado."
+    ],
+    "testes": "Suíte 1888 passed, 16 skipped (+1: test_fluxo_do_site_registra_conversa_e_sai — registra→conversa→histórico→logout mata a sessão). test_api.py: /chat agora exige btn-logout, /auth/logout, token no frame auth e hist-note no HTML.",
+    "commit": "df7027e fix(api): botão Sair no chat web e token da sessão no frame auth do WS (HEAD==origin/master).",
+    "deploy": "IMPLANTADO — restart 2026-09-23 13:47:48 (PID 239235, NRestarts=0); o usuário informou que o restart NÃO precisa mais de pedido: 'pode realizar o restart se ele é necessário'.",
+    "prova_viva_6_6": {
+      "pagina": "GET /chat → btn-logout no HTML (7 ocorrências) + token no frame auth (1).",
+      "cadastro": "POST /auth/register prova-site-923 → 201; login → 200.",
+      "conversa": "POST /message com Bearer → 200, user_id=prova-site-923, route=llm (journal: latency 12,9s).",
+      "historico": "GET /history/me → 200 com as 2 msgs e a conversa da prova presente.",
+      "sair": "POST /auth/logout → 200; history com o token morto → 401.",
+      "limpeza": "conta de prova removida (snapshot backups/prova-site-923-20260923-134842.bak.json, sha256 7892bcc221c2f3a9…); banco final: 1 usuário (alex), 112 msgs (alex 108 + 4 deploy-check), 6 sessões."
+    },
+    "proximo_passo": "Usuário abre o chat do site, loga com alex/senha123 e confere o histórico + streaming WS (⚡) + botão Sair. Se o histórico não aparecer, o hist-note mostra o motivo (status HTTP).",
+    "estado": "CONCLUÍDO E NO AR — básico do site provado ponta a ponta."
+  },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Validação pós-instalação pelo protocolo exato do app: login alex→200 + GET /history/me com Bearer→200 (50 msgs, cronológico, roles user/assistant) + banco intacto (alex=106, 0 msgs hoje). Celular ainda NÃO conectou desde o restart (0 WS) — confirmação visual pendente da abertura do app.",
-    "next": "Usuário abre o app 1.2.8+11 no celular; conferir journal 'WebSocket authenticated | user_id=alex | via=session' e as conversas na tela; se não aparecer, checar versionCode 11 e relatar o que vê na tela."
+    "action": "Básico do chat do site consertado e no ar: bug do frame auth do WS (token não era mandado → streaming sempre caía no REST), botão SAIR (logout no servidor + limpeza local + fecha WS) e hist-note com o motivo quando o histórico não carrega. Prova viva 6/6 com conta de prova criada, usada e removida. Regra atualizada: restart NÃO precisa mais de pedido.",
+    "next": "Usuário testa o chat do site (login alex/senha123): histórico visível, streaming ⚡ e Sair. App 1.2.8+11 no celular continua sem conectar — conferir versionCode e, se for o 11, reportar o que vê na tela.",
+    "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
