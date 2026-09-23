@@ -326,6 +326,53 @@ class ConversationHistory:
         conv = self.get_history(user_id, profile)
         return conv[-1] if conv else None
 
+    def get_messages(
+        self,
+        user_id: str,
+        profile: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[Message]:
+        """Retorna mensagens recentes da conta, consultando o banco quando disponível."""
+        limit = max(1, min(limit, 500))
+        prof = None if profile in (None, "", "all", "auto") else profile
+        if self._database is not None:
+            if prof:
+                rows = self._database.query(
+                    "SELECT role, content, ts, llm_used "
+                    "FROM conversation_messages "
+                    "WHERE user_id = ? AND profile = ? "
+                    "ORDER BY id DESC",
+                    (user_id, prof),
+                    limit=limit,
+                )
+            else:
+                rows = self._database.query(
+                    "SELECT role, content, ts, llm_used "
+                    "FROM conversation_messages "
+                    "WHERE user_id = ? "
+                    "ORDER BY id DESC",
+                    (user_id,),
+                    limit=limit,
+                )
+            return [
+                Message(
+                    role=r["role"],
+                    content=r["content"],
+                    ts=r["ts"],
+                    llm_used=r.get("llm_used", ""),
+                )
+                for r in reversed(rows)
+            ]
+        with self._lock:
+            if prof:
+                conv = self._users.get(user_id, {}).get(prof, [])
+                return list(conv[-limit:])
+            all_msgs: list[Message] = []
+            for conv in self._users.get(user_id, {}).values():
+                all_msgs.extend(conv)
+            all_msgs.sort(key=lambda m: m.ts)
+            return all_msgs[-limit:]
+
     # -- Consulta ------------------------------------------------------------
 
     def list_users(self) -> list[str]:

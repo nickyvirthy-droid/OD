@@ -232,6 +232,33 @@ void main() {
       expect(find.text('Resposta do OD'), findsOneWidget);
     });
 
+    testWidgets('carrega o histórico da conta ao abrir', (tester) async {
+      final api = OdApi(
+        baseUrl: 'http://od.test:8000',
+        apiKey: 'chave-teste',
+        client: MockClient((request) async {
+          if (request.url.path == '/history/me') {
+            return _json({
+              'ok': true,
+              'user_id': 'alex',
+              'messages': [
+                {'role': 'user', 'content': 'mensagem antiga do usuário', 'ts': 1789477200.0},
+                {'role': 'assistant', 'content': 'resposta antiga do OD', 'ts': 1789477260.0},
+              ],
+            });
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+      await tester.pumpWidget(_wrap(ChatScreen(api: api)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('mensagem antiga do usuário'), findsOneWidget);
+      expect(find.text('resposta antiga do OD'), findsOneWidget);
+      // A tela de boas-vindas deu lugar à conversa.
+      expect(find.text('Envie uma mensagem para começar'), findsNothing);
+    });
+
     testWidgets('mostra erro quando a API falha', (tester) async {
       final api = OdApi(
         baseUrl: 'http://od.test:8000',

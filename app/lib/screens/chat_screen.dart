@@ -4,6 +4,9 @@ import '../services/od_api.dart';
 import '../services/od_ws.dart';
 import '../widgets/message_bubble.dart';
 
+/// Quantas mensagens do histórico buscar ao abrir a conversa.
+const int odHistoryLimit = 50;
+
 /// Tela de conversa com o OmegaDrakon.
 class ChatScreen extends StatefulWidget {
   final OdApi api;
@@ -54,6 +57,31 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _chat = widget.chat ?? OdStreamingChat(widget.api);
+    _loadHistory();
+  }
+
+  /// Busca as mensagens salvas da conta (GET /history/{user_id}) para a
+  /// conversa continuar de onde parou — mesmo balde do chat web e do Telegram.
+  /// Best-effort: falha de rede/404/501 só deixa a lista como está.
+  Future<void> _loadHistory() async {
+    try {
+      final history = await widget.api.getHistory(limit: odHistoryLimit);
+      if (!mounted || history.isEmpty || _messages.isNotEmpty) return;
+      setState(() {
+        _messages.addAll(
+          history.map(
+            (m) => OdMessage(
+              role: m.isUser ? 'user' : 'assistant',
+              content: m.content,
+              timestamp: m.timestamp,
+            ),
+          ),
+        );
+      });
+      _scrollToBottom();
+    } catch (_) {
+      // Sem histórico visual não trava o chat.
+    }
   }
 
   @override

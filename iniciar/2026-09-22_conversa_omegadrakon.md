@@ -146,4 +146,56 @@ Pedido: "ainda não funciona. o usuario é alex mas senha não entra, seria senh
    - `UserStore.verify_credentials('alex', 'senha123')` → **True** (habilita login no Telegram via `/entrar alex senha123`).
    - Mensagens da tabela `conversation_messages`: 100 mensagens da conta `alex` intactas.
 
+---
+
+## 8. Diagnóstico: Histórico Visual no App e Web (03:55)
+
+Pedido: "feito, mas nada mudou, não deveria aparecer as conversas".
+
+### Diagnóstico
+- As 104 mensagens da conta `alex` estão salvas no banco PostgreSQL e são carregadas no contexto da IA (memória ativa do assistente ao responder).
+- No entanto, a interface visual do app Flutter (`ChatScreen`) e do chat web iniciavam com lista de mensagens vazia (`_messages = []`) e nunca faziam requisição para buscar o histórico salvo.
+- Na API REST (`integrations/api/server.py`), só existiam rotas para estatísticas (`/history/{user_id}/stats`) e exclusão (`DELETE`), sem rota `GET /history/{user_id}` para fornecer as mensagens anteriores para a tela.
+- Proposta: criar a rota `GET /history/{user_id}` na API e fazer o app carregar e exibir as mensagens anteriores automaticamente ao abrir o chat.
+
+---
+
+## 9. Implementação do Histórico Visual (retomada)
+
+A sessão anterior foi interrompida com o backend parcialmente pronto no working
+tree. Esta retomada completou o trabalho (achado pela regra 5 — código antes de
+suposições: `git diff` mostrou backend + chat web já implementados e testados;
+no app Flutter não havia nada).
+
+### Backend (já pronto no working tree, conferido)
+- **`GET /history/{user_id}`** — rota `history_get` com `?limit=N` (1–200,
+  default 50) e `?profile=` (default `auto`). `_check_owner` ANTES do 404/501
+  (não revela existência de histórico alheio); aceita `me`/`@me` resolvendo para
+  a própria conta.
+- **`memory/history.py: get_messages()`** — consulta direta no banco
+  (`ORDER BY id DESC`, devolvido em ordem cronológica) com fallback em memória.
+- **Chat web** — `loadHistory()` carrega 50 msgs ao entrar (não roda no anônimo).
+
+### App Flutter (implementado nesta retomada)
+- **`OdApi.getHistory({userId='me', limit=50})`** — best-effort (lista vazia em
+  erro; sem credencial não chama); modelo `OdHistoryMessage` com `ts` em
+  segundos → `DateTime`.
+- **`ChatScreen._loadHistory()`** no `initState`: as últimas 50 mensagens da
+  conta aparecem ao abrir a conversa; falha silenciosa não trava o chat.
+- **`app/pubspec.yaml`**: `1.2.8+10` → `1.2.8+11`.
+
+### Verificação (regra 12)
+| Prova | Resultado |
+|---|---|
+| Suíte python | **1887 passed, 16 skipped** (+5 do GET) |
+| flutter analyze | **0 issues** |
+| flutter test | **81 passed, 2 skipped** (+4 do histórico) |
+| APK | `site/OmegaDrakon.apk` 52.410.843 B · arm64 18.715.654 B · aapt2 `versionCode='11'` |
+
+### Estado
+- COMMITADO e PUSHED (regra 7.1).
+- **PENDENTE:** restart autorizado do `od-core` (endpoint no ar + prova viva
+  `GET /history/alex` com credencial) e instalação do APK 1.2.8+11 no celular.
+
+
 

@@ -225,6 +225,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/tts", "tts", True),
     ("DELETE", "/history/{user_id}", "history_delete", True),
     ("GET", "/history/{user_id}/stats", "history_stats", True),
+    ("GET", "/history/{user_id}", "history_get", True),
     ("GET", "/memory/{user_id}/search", "memory_search", True),
     ("GET", "/ws/chat", "ws_chat", True),
 ]
@@ -493,7 +494,28 @@ function showChat() {
   gate.classList.add("hidden");
   chat.classList.remove("hidden");
   $("text").focus();
-  if (!anonMode) tryConnectWs();  // o anônimo não tem credencial para o WS
+  if (!anonMode) {
+    tryConnectWs();  // o anônimo não tem credencial para o WS
+    loadHistory();
+  }
+}
+async function loadHistory() {
+  try {
+    const prof = $("profile").value;
+    const authHdr = token ? {"Authorization": "Bearer " + token} : (key ? {"X-API-Key": key} : {});
+    const res = await fetch("/history/" + encodeURIComponent(user_id || "me") + "?limit=50&profile=" + prof, {
+      headers: authHdr
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.messages && data.messages.length > 0) {
+        clearWelcome();
+        data.messages.forEach(m => {
+          addBubble(m.role === "user" ? "user" : "od", m.content);
+        });
+      }
+    }
+  } catch(e) {}
 }
 function setTransport(type) {
   const el = $("transport");
@@ -1185,8 +1207,12 @@ class APIHandler(BaseHTTPRequestHandler):
         Raises:
             APIError: 403 quando o username do caminho não é o autenticado.
         """
-        uid = unquote(user_id).strip()
+        raw = unquote(user_id).strip()
         user = self._current_user
+        if raw.lower() in ("me", "@me"):
+            uid = user.username if user else ((self.api.config.owner_username or "alex").strip().lower())
+        else:
+            uid = raw
         if user is None:  # OD_API_KEY sem dono configurado ou dev sem auth
             return uid
         if self._is_owner_username(user.username):
@@ -2006,6 +2032,33 @@ class APIHandler(BaseHTTPRequestHandler):
         self._json(
             200,
             {"ok": True, "user_id": uid, "stats": stats},
+        )
+
+    def history_get(self, user_id: str) -> None:
+        orch = self.api.orchestrator
+        if orch is None or orch.history is None:
+            raise APIError(501, "historico_indisponivel")
+        uid = self._check_owner(user_id)
+        if not self._historico_existe(uid):
+            raise APIError(404, "historico_inexistente")
+        query = parse_qs(urlsplit(self.path).query)
+        profile = query.get("profile", ["auto"])[0].strip() or "auto"
+        raw_limit = query.get("limit", ["50"])[0]
+        try:
+            limit = max(1, min(int(raw_limit), 200))
+        except ValueError:
+            limit = 50
+        msgs = orch.history.get_messages(uid, profile=profile, limit=limit)
+        messages = [m.to_dict() for m in msgs]
+        self._json(
+            200,
+            {
+                "ok": True,
+                "user_id": uid,
+                "profile": profile,
+                "messages": messages,
+                "total": len(messages),
+            },
         )
 
     def memory_search(self, user_id: str) -> None:

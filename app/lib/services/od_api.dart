@@ -345,6 +345,39 @@ class OdApi {
     }
   }
 
+  /// Carrega as mensagens recentes da conta (GET /history/{user_id}).
+  ///
+  /// Com sessão Bearer o servidor usa o usuário autenticado e o [userId] é
+  /// ignorado; com API key (modo avançado) usa o balde informado. [me] resolve
+  /// para a própria conta. Falha silenciosa (best-effort): histórico é
+  /// conveniência — a conversa nova nunca deve depender dele.
+  Future<List<OdHistoryMessage>> getHistory({
+    String userId = 'me',
+    int limit = 50,
+  }) async {
+    if (!hasCredential) return const [];
+    final response = await _send(
+      'GET',
+      Uri.parse(
+        '$baseUrl/history/${Uri.encodeComponent(userId)}'
+        '?limit=$limit',
+      ),
+    );
+    if (response.statusCode != 200) return const [];
+    final data = _tryJson(response.body);
+    final raw = data?['messages'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((m) => OdHistoryMessage(
+              role: (m['role'] as String?) ?? 'user',
+              content: (m['content'] as String?) ?? '',
+              ts: (m['ts'] as num?)?.toDouble(),
+            ))
+        .where((m) => m.content.isNotEmpty)
+        .toList(growable: false);
+  }
+
   /// Verifica a saúde do sistema.
   Future<Map<String, dynamic>> getHealth() async {
     final response = await _send(
@@ -543,6 +576,26 @@ class OdApi {
     }
     return false;
   }
+}
+
+/// Mensagem vinda do histórico da conta (GET /history/{user_id}).
+///
+/// O servidor grava role 'user'/'assistant' (e 'system' para avisos); o app
+/// exibe 'assistant' e 'system' como lado do OD.
+class OdHistoryMessage {
+  final String role;
+  final String content;
+  final DateTime timestamp;
+
+  OdHistoryMessage({
+    required this.role,
+    required this.content,
+    double? ts,
+  }) : timestamp = ts == null
+            ? DateTime.now()
+            : DateTime.fromMillisecondsSinceEpoch((ts * 1000).round());
+
+  bool get isUser => role == 'user';
 }
 
 class OdApiError implements Exception {

@@ -117,7 +117,7 @@ class TestAPIRoutes:
         """17 endpoints do legado + /capabilities (v0.27.3) + /site* +
         /actions + /executa (v1.2.0 — app Android) + /push/* (push FCM) +
         /supervision (observabilidade dos loops, 2026-09-15)."""
-        assert len(ROUTES) == 32
+        assert len(ROUTES) == 33
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -136,6 +136,7 @@ class TestAPIRoutes:
             ("GET", "/supervision"),
             ("DELETE", "/history/{user_id}"),
             ("GET", "/history/{user_id}/stats"),
+            ("GET", "/history/{user_id}"),
             ("GET", "/memory/{user_id}/search"), ("GET", "/ws/chat"),
         }
         assert set(by) == expected
@@ -154,6 +155,7 @@ class TestAPIRoutes:
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("DELETE", "/history/{user_id}"),
             ("GET", "/history/{user_id}/stats"),
+            ("GET", "/history/{user_id}"),
             ("GET", "/memory/{user_id}/search"), ("GET", "/ws/chat"),
         }
         public = {(r.method, r.path) for r in ROUTES if not r.auth}
@@ -563,10 +565,11 @@ class TestAPIHistoryAndMemory:
         port = srv.bound_port
         _request(port, "POST", "/message",
                  body={"user_id": "alex", "text": "pergunta única 7"})
-        status, body, _ = _request(port, "GET", "/history/alex/stats")
-        data = _json_response((status, body, _))
-        assert data["ok"] is True and data["user_id"] == "alex"
-        assert data["stats"]["users"] == 1
+        status, body, _ = _request(port, "GET", "/history/alex")
+        data_get = _json_response((status, body, _))
+        assert data_get["ok"] is True
+        assert len(data_get["messages"]) >= 1
+        assert any(m["content"] == "pergunta única 7" for m in data_get["messages"])
         status, body, _ = _request(port, "DELETE", "/history/alex")
         data = _json_response((status, body, _))
         assert data["ok"] is True and data["removed"] >= 1

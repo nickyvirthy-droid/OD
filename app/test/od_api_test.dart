@@ -58,6 +58,64 @@ void main() {
       );
     });
 
+    test('getHistory lista as mensagens da conta com Bearer', () async {
+      final api = apiWith(MockClient((request) async {
+        if (request.url.path == '/auth/login') {
+          return jsonResponse({
+            'ok': true,
+            'token': 'tok-h',
+            'user': {'username': 'alex'},
+          });
+        }
+        expect(request.url.path, '/history/me');
+        expect(request.url.queryParameters['limit'], '50');
+        expect(request.headers['Authorization'], 'Bearer tok-h');
+        return jsonResponse({
+          'ok': true,
+          'user_id': 'alex',
+          'messages': [
+            {
+              'role': 'user',
+              'content': 'pergunta antiga',
+              'ts': 1789477200.0,
+              'llm_used': '',
+            },
+            {
+              'role': 'assistant',
+              'content': 'resposta antiga',
+              'ts': 1789477260.5,
+              'llm_used': 'gemma-local',
+            },
+          ],
+        });
+      }));
+
+      await api.login('alex', 'senha123');
+      final msgs = await api.getHistory();
+      expect(msgs.length, 2);
+      expect(msgs[0].isUser, isTrue);
+      expect(msgs[0].content, 'pergunta antiga');
+      expect(msgs[1].isUser, isFalse);
+      expect(msgs[1].content, 'resposta antiga');
+      expect(msgs[1].timestamp.isAfter(msgs[0].timestamp), isTrue);
+    });
+
+    test('getHistory sem credencial não chama o servidor', () async {
+      final api = apiWith(
+        MockClient((_) async => fail('não deveria chamar a API')),
+      );
+      expect(await api.getHistory(), isEmpty);
+    });
+
+    test('getHistory best-effort: erro HTTP devolve lista vazia', () async {
+      final api = OdApi(
+        baseUrl: 'http://od.test:8000',
+        apiKey: 'chave',
+        client: MockClient((_) async => http.Response('', 501)),
+      );
+      expect(await api.getHistory(), isEmpty);
+    });
+
     test('registro chama /auth/register', () async {
       final api = apiWith(MockClient((request) async {
         expect(request.url.path, '/auth/register');

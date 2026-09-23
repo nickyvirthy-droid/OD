@@ -326,10 +326,30 @@
     },
     "estado": "CONCLUÍDO — senha123 ativa e provada em produção."
   },
+  "historico_visual_2026_09_22": {
+    "pedido": "Usuário: 'feito, mas nada mudou, não deveria aparecer as conversas'.",
+    "diagnostico": "O histórico no PostgreSQL (104 msgs) alimenta o contexto da IA (memória), mas o app Flutter e o chat web nunca carregavam mensagens na interface ao abrir — ambos iniciavam com lista vazia em memória (_messages = []) exibindo a tela de boas-vindas. Na API REST só existiam /history/{user_id}/stats e DELETE /history/{user_id}, sem endpoint para listar mensagens para o cliente.",
+    "implementacao": {
+      "backend": [
+        "integrations/api/server.py: rota GET /history/{user_id} (route history_get) — limit 1-200 (default 50) e profile (default 'auto'); _check_owner ANTES do 404/501; aceita 'me'/'@me' resolvendo para a própria conta (admin sem _current_user resolve para o owner).",
+        "memory/history.py: get_messages(user_id, profile, limit) — consulta direta no banco (ORDER BY id DESC, cronológico na resposta) e fallback em memória quando não há database.",
+        "Chat web: loadHistory() na página /chat (best-effort, 50 msgs, só quando não é anônimo)."
+      ],
+      "app_flutter": [
+        "app/lib/services/od_api.dart: getHistory({userId='me', limit=50}) — best-effort (lista vazia em erro/401/501), sem credencial não chama; modelo OdHistoryMessage (ts em segundos → DateTime).",
+        "app/lib/screens/chat_screen.dart: _loadHistory() no initState — 50 msgs da conta, 'user' à esquerda e o resto à direita; falha silenciosa não trava o chat.",
+        "app/pubspec.yaml: 1.2.8+10 → 1.2.8+11."
+      ],
+      "testes": "Backend: +5 (GET lista com dono, /history/me resolve, 404 não aberto) — suíte 1887 passed, 16 skipped. App: flutter analyze 0 issues; flutter test 81 passed, 2 skipped (+4: getHistory com Bearer, sem credencial não chama, best-effort em 501, widget carrega o histórico ao abrir).",
+      "apk": "Buildado e publicado em site/: OmegaDrakon.apk (52.410.843 B) e OmegaDrakon-arm64.apk (18.715.654 B); aapt2 versionCode='11' versionName='1.2.8'.",
+      "deploy": "PENDENTE de restart autorizado do od-core (o endpoint GET /history ainda não está no ar)."
+    },
+    "estado": "CÓDIGO COMPLETO, VALIDADO E COMMITADO; falta restart do od-core + instalar o APK no celular."
+  },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Senha da conta 'alex' atualizada no PostgreSQL para 'senha123' após verificação de hash divergente. Backup salvo em backups/users-pre-password-reset-20260922-034629.bak. Provas vivas 4/4 OK (login local 200, /auth/me role admin, login pelo Funnel 200, verify_credentials do Telegram True; 100 mensagens da conta alex intactas).",
-    "next": "Usuário pode fazer login no app Android, no chat web ou no Telegram (/entrar alex senha123)."
+    "action": "Implementação completa do histórico visual: GET /history/{user_id} no backend (dono/'me'/limit/profile), loadHistory() no chat web, OdApi.getHistory() + ChatScreen._loadHistory() no app, APK 1.2.8+11 buildado. Suíte 1887/16 python e 81/2 flutter; analyze 0 issues. Commit + push feitos.",
+    "next": "Restart autorizado do od-core para o endpoint entrar no ar (prova viva GET /history/alex com credencial) e instalação do APK 1.2.8+11 no celular."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},

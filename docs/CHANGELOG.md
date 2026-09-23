@@ -16,6 +16,32 @@
 
 ## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21 e 2026-09-22)
 
+### Adicionado (2026-09-22) — histórico visível: GET /history/{user_id} + carregamento no app e chat web (APK 1.2.8+11) 💬
+
+> As mensagens ficavam no PostgreSQL e alimentavam a memória da IA, mas a
+> interface iniciava vazia. Agora a conversa aparece de onde parou no app,
+> no chat web e (via API) em qualquer cliente da conta.
+
+- **`GET /history/{user_id}`** (`integrations/api/server.py`, `memory/history.py`)
+  — lista as mensagens recentes da conta com `?limit=N` (1–200, default 50) e
+  `?profile=` (default `auto` = todos). Passa pela checagem de dono
+  (`_check_owner`: usuário só lê o próprio; OD_API_KEY é admin) e pelo 404 de
+  histórico inexistente. `history.get_messages()` consulta direto do banco
+  (ordem cronológica, fallback em memória sem database); suporta `user_id=me`
+  (resolve para a própria conta).
+- **Chat web** — a página `/chat` carrega o histórico ao entrar (`loadHistory()`,
+  best-effort: falha não impede a conversa).
+- **App Flutter** — `OdApi.getHistory()` (`od_api.dart`, best-effort com lista
+  vazia em erro) e `ChatScreen._loadHistory()` no `initState` (`chat_screen.dart`):
+  ao abrir a conversa, as últimas 50 mensagens da conta aparecem na tela.
+  Sem credencial não chama a API.
+- **Testes:** suíte 1887 passed, 16 skipped (+5 no backend: GET lista, dono,
+  `me`); flutter analyze 0 issues; flutter test 81 passed, 2 skipped (+4:
+  getHistory com Bearer, sem credencial, best-effort e carregamento no widget).
+- **Versão bump para 1.2.8+11** em `app/pubspec.yaml`; APKs 52.410.843 B (full)
+  e 18.715.654 B (arm64) publicados em `site/` (versionCode 11 conferido via
+  aapt2).
+
 ### Adicionado (2026-09-22) — tela de login/registro no app Flutter + APK 1.2.8+10 📱
 
 > Fase 2 da unificação de contas: o app agora suporta autenticação por conta

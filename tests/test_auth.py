@@ -1065,6 +1065,23 @@ class TestHistoryOwnership:
         assert status == 200 and data["ok"] is True
         assert data["stats"]["messages"] == 1
 
+        # GET /history/alex lista as mensagens
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/history/alex", bearer=token
+        )
+        data_msgs = _json_response((status, body, _))
+        assert status == 200 and data_msgs["ok"] is True
+        assert len(data_msgs["messages"]) == 1
+        assert data_msgs["messages"][0]["content"] == "minha conversa"
+
+        # GET /history/me resolve para a própria conta
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/history/me", bearer=token
+        )
+        data_me = _json_response((status, body, _))
+        assert status == 200 and data_me["user_id"] == "alex"
+        assert len(data_me["messages"]) == 1
+
     def test_username_case_does_not_open_another_bucket(
         self, serve, tmp_path, store
     ) -> None:
