@@ -86,6 +86,22 @@ horário ou mostrar timestamps discretos)".
 
 ---
 
+## 7. Histórico abre rolado até a mensagem mais recente (~14:2x)
+
+Pedido: "fazer o histórico carregado abrir já rolado até a mensagem mais
+recente".
+
+- **Causa raiz:** a montagem rolava a cada bolha com o `scrollHeight` parcial —
+  a lista abria no meio do histórico.
+- **Correção:** as bolhas do histórico montam **sem rolar** (`noScroll` em
+  `addBubble`) e um único `scrollToLatest()` roda ao final da montagem, dentro
+  de **duplo `requestAnimationFrame`** — garante rolagem DEPOIS da pintura do
+  último elemento.
+- Suíte 1888/16. Commit `e61becb`. Deploy PID 245159, 0 erros no journal,
+  `GET /chat` 200 com `scrollToLatest`/`noScroll` no HTML.
+
+---
+
 ## Estado da sessão
 
 - **Site:** histórico visual completo (GET /history + carregamento + agrupamento

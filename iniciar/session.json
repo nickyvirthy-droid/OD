@@ -409,10 +409,19 @@
     "deploy": "IMPLANTADO — restart (PID 243498, NRestarts=0); GET /chat 200 com day-sep/hist-time/addHistoryBubble no HTML; 0 erros no journal.",
     "estado": "CONCLUÍDO E NO AR — transcrição de 2026-09-23 criada (iniciar/2026-09-23_conversa_omegadrakon.md)."
   },
+  "site_hist_scroll_fim_2026_09_23": {
+    "pedido": "Usuário: 'Fazer o histórico carregado abrir já rolado até a mensagem mais recente'.",
+    "causa_raiz": "addBubble rolava a cada bolha com o scrollHeight parcial durante a montagem — a lista abria no meio do histórico.",
+    "correcao": "Bolhas do histórico montam sem rolar (opts.noScroll em addBubble); após a montagem, scrollToLatest() roda UMA vez dentro de duplo requestAnimationFrame (rolagem garantida após a pintura do último elemento).",
+    "testes": "Suíte 1888 passed, 16 skipped; test_api.py: /chat exige scrollToLatest e noScroll no HTML.",
+    "commit": "e61becb fix(api): histórico carregado abre rolado até a mensagem mais recente (HEAD==origin/master).",
+    "deploy": "IMPLANTADO — restart (PID 245159, NRestarts=0); GET /chat 200 com scrollToLatest/noScroll/duplo rAF; 0 erros no journal.",
+    "estado": "CONCLUÍDO E NO AR — abrir o chat deve mostrar direto a conversa mais recente."
+  },
   "last_turn": {
     "date": "2026-09-22",
-    "action": "Básico do chat do site consertado e no ar: bug do frame auth do WS (token não era mandado → streaming sempre caía no REST), botão SAIR (logout no servidor + limpeza local + fecha WS) e hist-note com o motivo quando o histórico não carrega. Prova viva 6/6 com conta de prova criada, usada e removida. Regra atualizada: restart NÃO precisa mais de pedido.",
-    "next": "Usuário testa o chat do site (login alex/senha123): histórico visível, streaming ⚡ e Sair. App 1.2.8+11 no celular continua sem conectar — conferir versionCode e, se for o 11, reportar o que vê na tela.",
+    "action": "Polimento do chat web concluído no ar: histórico agrupado por dia (Hoje/Ontem/dd MMM) com hora discreta nas bolhas e abertura já rolada até a mensagem mais recente (scroll único pós-pintura via duplo rAF). Suíte 1888/16. Commits 383217a e e61becb.",
+    "next": "Confirmação visual do usuário no site; depois partir para o 'outro sistema' mencionado (ainda não especificado).",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "decisions": [
