@@ -172,14 +172,41 @@ class TestOrchestratorShortCircuits:
         second = await orch.process("alex", "luma", "olá mundo")
         assert second.route == "llm"  # perfil diferente = cache diferente
 
-    async def test_short_circuit_does_not_persist_history(self, tmp_path: Path) -> None:
+    async def test_short_circuit_persiste_a_interacao_no_historico(
+        self, tmp_path: Path
+    ) -> None:
+        """Resposta terminal sem LLM TAMBÉM entra no histórico (2026-09-24).
+
+        Antes só a etapa 8 (LLM) gravava: quem repetia uma pergunta caía no
+        cache/datetime/quick e via a conversa "sumir" do histórico — o
+        usuário teste do chat web nem via as próprias mensagens.
+        """
         history = _history(tmp_path)
+        cache = _cache(tmp_path)
+        quick = _quick(tmp_path)
+        quick.add("oi", "Olá! 😊")
+        provider = RecordingProvider("qwen", "resposta cacheada")
         orch = Orchestrator(
-            providers=[RecordingProvider("qwen", "x")],
-            history=history,
+            providers=[provider], history=history, cache=cache, quick=quick
         )
-        await orch.process("alex", "guardian", "que dia é hoje?")
-        assert len(history.get_history("alex", "guardian")) == 0
+
+        r_cache = await orch.process("alex", "guardian", "qual a capital do brasil?")
+        assert r_cache.route == "llm"
+        r_cache2 = await orch.process("alex", "guardian", "qual a capital do brasil?")
+        assert r_cache2.route == "cache"
+        r_dt = await orch.process("alex", "guardian", "que dia é hoje?")
+        assert r_dt.route == "datetime"
+        r_quick = await orch.process("alex", "guardian", "oi")
+        assert r_quick.route == "quick_response"
+
+        msgs = history.get_history("alex", "guardian")
+        textos = [(m.role, m.content) for m in msgs]
+        # 1º turno (llm) + turno da rota cache + datetime + quick
+        assert len(msgs) == 8
+        assert ("user", "qual a capital do brasil?") in textos
+        assert ("assistant", "resposta cacheada") in textos
+        assert ("user", "que dia é hoje?") in textos
+        assert ("assistant", "Olá! 😊") in textos
 
 
 # ===========================================================================
@@ -204,6 +231,36 @@ class TestOrchestratorAnonimo:
         assert result.route == "llm"
         assert history.get_history("anonimo", "guardian") == []
         assert cache.stats()["entries"] == 0
+
+    async def test_anonimo_nao_usa_cache_nem_grava(self, tmp_path: Path) -> None:
+        """persist=False: anônimo nem consulta o cache (evita servir resposta
+        de outra conversa) e não grava histórico — nem na rota LLM."""
+        history = _history(tmp_path)
+        cache = _cache(tmp_path)
+        provider = RecordingProvider("echo", reply="resposta")
+        orch = Orchestrator(providers=[provider], history=history, cache=cache)
+        await orch.process("alex", "guardian", "pergunta repetida")
+        resultado = await orch.process(
+            "anonimo", "guardian", "pergunta repetida",
+            role="anonymous", persist=False,
+        )
+        assert resultado.route == "llm"  # cache pulado de propósito
+        assert history.get_history("anonimo", "guardian") == []
+
+    async def test_anonimo_rota_datetime_tambem_nao_grava(self, tmp_path: Path) -> None:
+        """persist=False vale para TODAS as rotas terminais (datetime incluso)."""
+        history = _history(tmp_path)
+        orch = Orchestrator(
+            providers=[RecordingProvider("echo", reply="ok")],
+            history=history,
+            config=OrchestratorConfig(inject_datetime=True),
+        )
+        resultado = await orch.process(
+            "anonimo", "guardian", "que dia é hoje?",
+            role="anonymous", persist=False,
+        )
+        assert resultado.route == "datetime"
+        assert history.get_history("anonimo", "guardian") == []
 
     async def test_contexto_vem_do_cliente(self, tmp_path: Path) -> None:
         provider = RecordingProvider("echo", reply="ok")
@@ -508,6 +565,24 @@ class TestOrchestratorEventBus:
         assert eventos[0].data["message"] == chunks[-1]["content"]
         assert orch.metrics.processed == 1
         assert orch.metrics.datetime == 1
+
+    async def test_stream_grava_a_interacao_terminal_sem_llm(self, tmp_path: Path) -> None:
+        """WS com rota terminal (datetime) registra o turno no histórico."""
+        history = _history(tmp_path)
+        orch = Orchestrator(
+            providers=[StaticProvider("qwen", "x")],
+            history=history,
+            config=OrchestratorConfig(inject_datetime=True),
+        )
+
+        chunks = [
+            c async for c in orch.process_stream("alex", "guardian", "que horas são?")
+        ]
+
+        assert chunks[-1]["route"] == "datetime"
+        msgs = history.get_history("alex", "guardian")
+        assert [m.role for m in msgs] == ["user", "assistant"]
+        assert msgs[-1].content == chunks[-1]["content"]
 
     async def test_stream_rate_limit_publica_a_mesma_mensagem(self) -> None:
         """Cliente recebe o código curto; o evento casa com o do `process`."""

@@ -105,7 +105,14 @@ ROUTE_ERROR = "error"
 RATE_LIMITED_MESSAGE = "Muitas mensagens em pouco tempo. Aguarde um instante."
 
 TERMINAL_NO_LLM = {ROUTE_RATE_LIMITED, ROUTE_DATETIME, ROUTE_QUICK, ROUTE_CACHE}
-PERSISTED_ROUTES = {ROUTE_LLM, ROUTE_FALLBACK}
+# Rotas que registram a interação no histórico (quando persist): além do
+# caminho LLM, as respostas terminais sem LLM também entram na conta —
+# antes só a etapa 8 gravava e quem repetia uma pergunta (caía no cache,
+# datetime ou quick) via a conversa sumir do histórico (2026-09-24).
+# Rate limit e indisponível NÃO registram (não houve resposta da conta).
+PERSISTED_ROUTES = {
+    ROUTE_DATETIME, ROUTE_QUICK, ROUTE_INTENT, ROUTE_CACHE, ROUTE_LLM, ROUTE_FALLBACK,
+}
 
 # ---------------------------------------------------------------------------
 # Providers de LLM
@@ -488,7 +495,8 @@ class Orchestrator:
             yield {"type": "error", "message": "rate_limited"}
             return
 
-        # Etapa 2 — Datetime (resposta direta)
+        # Etapa 2 — Datetime (resposta direta). O stream NÃO tem persist:
+        # só é chamado com conta autenticada (REST/WS), então registra.
         if self._config.inject_datetime:
             answer = detect_datetime_question(text)
             if answer is not None:
@@ -496,6 +504,7 @@ class Orchestrator:
                 result = self._stream_result(
                     user_id, profile, text, ROUTE_DATETIME, answer
                 )
+                await self._record_terminal(result, text, persist=True)
                 await self._finish(result, started)
                 yield {"type": "token", "content": answer}
                 yield {
@@ -514,6 +523,7 @@ class Orchestrator:
                 result = self._stream_result(
                     user_id, profile, text, ROUTE_QUICK, quick_answer
                 )
+                await self._record_terminal(result, text, persist=True)
                 await self._finish(result, started)
                 yield {"type": "token", "content": quick_answer}
                 yield {
@@ -554,6 +564,7 @@ class Orchestrator:
                     answer,
                     llm_used=f"fastpath:{route_detail}",
                 )
+                await self._record_terminal(result, text, persist=True)
                 await self._finish(result, started)
                 yield {"type": "token", "content": answer}
                 yield {
@@ -572,6 +583,7 @@ class Orchestrator:
                 result = self._stream_result(
                     user_id, profile, text, ROUTE_CACHE, cached, cached=True
                 )
+                await self._record_terminal(result, text, persist=True)
                 await self._finish(result, started)
                 yield {"type": "token", "content": cached}
                 yield {
@@ -754,6 +766,7 @@ class Orchestrator:
                 result.route = ROUTE_DATETIME
                 result.message = answer
                 self._metrics.datetime += 1
+                await self._record_terminal(result, text, persist=persist)
                 return await self._finish(result, started)
 
         # Etapa 3 — Quick responses (AIML legado)
@@ -763,6 +776,7 @@ class Orchestrator:
                 result.route = ROUTE_QUICK
                 result.message = quick_answer
                 self._metrics.quick += 1
+                await self._record_terminal(result, text, persist=persist)
                 return await self._finish(result, started)
 
         # Etapa 3.5 — Fast path de intenções (v0.27.5): respostas
@@ -793,6 +807,7 @@ class Orchestrator:
                 result.message = answer
                 result.llm_used = f"fastpath:{route_detail}"
                 self._metrics.intents += 1
+                await self._record_terminal(result, text, persist=persist)
                 return await self._finish(result, started)
 
         # Etapa 4 — Cache LLM (SHA-256, prompt normalizado + perfil).
@@ -805,6 +820,7 @@ class Orchestrator:
                 result.message = cached
                 result.cached = True
                 self._metrics.cache_hits += 1
+                await self._record_terminal(result, text, persist=persist)
                 return await self._finish(result, started)
 
         # Etapa 5 — Histórico: monta contexto ChatML
@@ -927,6 +943,35 @@ class Orchestrator:
                     error=f"{type(exc).__name__}: {exc}",
                 )
         return None, "", False
+
+    async def _record_terminal(
+        self,
+        result: OrchestrationResult,
+        text: str,
+        *,
+        persist: bool,
+    ) -> None:
+        """Registra a interação de uma rota terminal SEM LLM (melhor esforço).
+
+        Só o histórico é gravado aqui — o cache é printo da ETAPA que respondeu
+        (a rota cache já veio dele; datetime/quick/intent não são LLM). Respeita
+        `persist` (conversa anônima continua sem deixar rastro) e NUNCA quebra a
+        resposta: falha de escrita vira log de aviso, igual à etapa 8.
+        """
+        if not persist or self.history is None:
+            return
+        if result.route not in PERSISTED_ROUTES:
+            return
+        try:
+            self.history.add_interaction(
+                result.user_id, result.profile, text, result.message or "",
+                llm_used=result.llm_used,
+            )
+        except Exception as exc:
+            log.warn(
+                "Orchestrator history write failed",
+                error=f"{type(exc).__name__}: {exc}",
+            )
 
     async def _post_process(
         self,
