@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-22T03:48:00-03:00",
+  "updated_at": "2026-09-24T15:30:00-03:00",
   "prova_reboot_2026_09_21": {
     "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
     "pre_checagem": "Linger=yes para alex; tailscaled enabled+active; od-core (usuário) enabled; SEM LUKS; boot target graphical. sudo de alex = ALL COM senha (NOPASSWD só mariadb/nexus-router) e sem sessão gráfica ativa → reboot polkit não autoriza sem senha; instalação do provador + reboot = comando único do dono com sudo.",
@@ -465,10 +465,33 @@
     "commit": "5515e6d docs(changelog): registra o polimento do chat web de 2026-09-23 (HEAD==origin/master).",
     "estado": "CONCLUÍDO — CHANGELOG fechado para o chat web da série 1.2.0."
   },
+  "cache_historico_2026_09_24": {
+    "pedido": "Usuário: 'site funcionando normal. erro localizado, usuário teste não salvou a conversa'.",
+    "causa_raiz": "No core/orchestrator.py, as rotas TERMINAIS sem LLM (cache, datetime, quick_response, action_intent) respondiam ANTES da etapa 8 de persistência — o turno nunca chegava ao ConversationHistory. As mensagens repetidas do usuário teste ('oi' e afins) caíam na rota cache (journal 2026-09-23 15:28-15:31: 5x route=cache e ZERO 'Interaction recorded') e a conversa 'sumia'. Vale para REST e WS.",
+    "implementacao": [
+      "core/orchestrator.py: novo _record_terminal() — grava o turno nas rotas terminais (melhor esforço, nunca quebra a resposta), respeitando persist=False (anônimo segue sem rastro; o anônimo nem consulta o cache).",
+      "PERSISTED_ROUTES agora inclui ROUTE_DATETIME, ROUTE_QUICK, ROUTE_INTENT e ROUTE_CACHE além de LLM/FALLBACK; rate limit e indisponível NÃO registram (não houve resposta).",
+      "Ganchos nos 4 retornos antecipados do process() E nos 4 do process_stream()."
+    ],
+    "testes": "tests/test_orchestrator.py: +5 (turnos de cache/datetime/quick gravados; anônimo não usa cache nem grava; anônimo em rota datetime não grava; WS grava datetime). Suíte 1899 passed, 16 skipped (ambiente canônico: .venv SEM OD_TEST_POSTGRES_DSN — com DSN os 15 testes Postgres tentam rodar e travam; mqtt flaky passa isolado).",
+    "teste_do_teste": "4 mutações, todas detectadas e revertidas (hash restaurado): gravação removida da rota cache (1 falha), persist ignorado no _record_terminal (1), gravação datetime removida do stream (1), ROUTE_CACHE fora do PERSISTED_ROUTES (1).",
+    "commit": "2ee947b fix(core): interação servida do cache/datetime/quick/intent entra no histórico (HEAD==origin/master).",
+    "deploy": "IMPLANTADO — restart autorizado em 2026-09-24 15:2x (PID 367729, NRestarts=0); /health 200 com chave; WS 426; 0 Traceback/ERROR/CRIT no journal.",
+    "prova_viva": {
+      "login": "POST /auth/login teste/teste123 → 200 (a senha do teste NÃO é senha123; alex continua senha123).",
+      "mensagens": "'oi' → route=cache · 'prova cache historico 924' → route=llm · 'oi' de novo → route=cache.",
+      "historico": "GET /history/me (Bearer) → 6 mensagens: os 3 turnos COMPLETOS, incluindo os DOIS de cache (antes sumiriam).",
+      "journal": "3x 'Interaction recorded | user=teste' — um antes de cada 'Message processed' (2 com route=cache).",
+      "observacao": "A prova gravou 3 interações (6 msgs) no balde do usuário teste — conteúdo real, deixado no banco.",
+      "resposta_do_llm": "msg2 devolveu '[NICKY][CRIT] Erro: Não foi possível carregar' (gemma-local alucinou sobre o prompt de prova) — conteúdo irrelevante para o bug; registrar caso apareça de novo."
+    },
+    "estado": "CONCLUÍDO E NO AR — histórico registra interações de TODAS as rotas (menos rate limit/indisponível); anônimo segue sem rastro."
+  },
   "last_turn": {
-    "date": "2026-09-22",
+    "date": "2026-09-24",
     "action": "Bug crítico do menu da conta corrigido: quebra de linha literal dentro de string JS no confirm do Limpar matava o <script> inteiro (site sem nenhum handler). Corrigido + guarda permanente com node --check no teste do /chat. Site de volta ao ar operacional.",
-    "next": "Confirmação visual do usuário no site; depois partir para o 'outro sistema' mencionado (ainda não especificado).",
+    "action": "Bug do histórico do usuário teste corrigido: rotas terminais sem LLM (cache/datetime/quick/intent) agora registram a interação (REST e WS), respeitando persist=False do anônimo. Commit 2ee947b, implantado (PID 367729) e provado no ar.",
+    "next": "Usuário confirma no chat do site que as conversas do usuário teste aparecem; depois o 'outro sistema' (ainda não especificado). Reset de senha do 'teste' (não é senha123) só se o usuário pedir.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "decisions": [

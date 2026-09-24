@@ -14,7 +14,25 @@
 
 ---
 
-## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21, 2026-09-22 e 2026-09-23)
+## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21, 2026-09-22, 2026-09-23 e 2026-09-24)
+
+### Corrigido (2026-09-24) — interações de rota terminal sem LLM sumiam do histórico 🧠
+
+- **Sintoma** — o usuário teste conversava no chat web e a conversa não
+  aparecia no histórico: as mensagens repetidas ("oi" e afins) caíam na rota
+  `cache` do orquestrador, que respondia ANTES da etapa de persistência — o
+  turno nunca chegava ao `ConversationHistory`. Mesmo vale para
+  `datetime`/`quick_response`/`action_intent`, no REST e no WS.
+- **Correção** — `core/orchestrator.py`: novo `_record_terminal()` registra o
+  turno nas rotas terminais (_datetime/quick/intent/cache) também no
+  `process_stream`; `PERSISTED_ROUTES` passa a incluí-las. `persist=False`
+  (anônimo) segue SEM rastro em todas as rotas; rate limit e indisponível
+  não registram (não houve resposta).
+- **Prova viva** — login do usuário `teste` + 3 mensagens ("oi" → cache,
+  nova → llm, "oi" de novo → cache): as 3 interações aparecem no
+  `GET /history/me` (6 msgs) e o journal mostra `Interaction recorded` antes
+de cada `Message processed | route=cache`. Suíte 1899 passed, 16 skipped;
+  4 mutações detectadas.
 
 ### Adicionado (2026-09-23) — chat web: menu da conta (Limpar + Sair), paginação e agrupamento do histórico 🖥️
 
