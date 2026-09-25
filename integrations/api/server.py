@@ -611,6 +611,7 @@ function histAuthHeaders() {
 }
 function setHistTop(visible, loading) {
   const btn = $("hist-top");
+  if (!btn) return;  // resetMessages preserva o botão; guarda defensiva
   btn.classList.toggle("active", !!visible);
   btn.disabled = !!loading;
   btn.textContent = loading ? "Carregando…" : "↑ Carregar conversas anteriores";
@@ -742,8 +743,8 @@ $("btn-limpar").onclick = async () => {
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
-      histOldestId = null; histHasMore = false; setHistTop(false, false);
-      $("messages").innerHTML = '<div class="welcome"><div class="icon">🐉</div><h2>OmegaDrakon</h2><p>Conversa limpa. Envie uma mensagem para começar de novo.</p></div>';
+      histOldestId = null; histHasMore = false;
+      resetMessages('<div class="welcome"><div class="icon">🐉</div><h2>OmegaDrakon</h2><p>Conversa limpa. Envie uma mensagem para começar de novo.</p></div>');
       histNote("Conversa apagada (" + (data.removed ?? 0) + " mensagens). A IA começa sem memória desta conta.");
     } else {
       histNote("Não deu para limpar agora (HTTP " + res.status + (") — tente novamente."));
@@ -773,7 +774,8 @@ $("btn-logout").onclick = async () => {
   setTransport("");
   const el = $("transport"); el.className = "transport-badge"; el.textContent = "";
   user_id = "web";
-  $("messages").innerHTML = '<div class="welcome"><div class="icon">🐉</div><h2>OmegaDrakon</h2><p>Envie uma mensagem para começar a conversar.</p></div>';
+  histOldestId = null; histHasMore = false;
+  resetMessages('<div class="welcome"><div class="icon">🐉</div><h2>OmegaDrakon</h2><p>Envie uma mensagem para começar a conversar.</p></div>');
   showGate("");
 };
 function setTransport(type) {
@@ -784,6 +786,19 @@ function setTransport(type) {
 function clearWelcome() {
   const w = $("messages").querySelector(".welcome");
   if (w) w.remove();
+}
+function resetMessages(welcomeHTML) {
+  // Zera a lista de mensagens PRESERVANDO o #hist-top: ele é elemento
+  // PERMANENTE da lista (paginação). Substituir o innerHTML inteiro o
+  // destruiria — e o próximo loadHistory quebraria em setHistTop (botão
+  // null) ANTES do fetch do histórico: mensagens só apareciam depois de
+  // atualizar a página (F5 recria o botão). Causa do bug de 2026-09-25.
+  const box = $("messages");
+  const hist = $("hist-top");
+  box.innerHTML = "";
+  if (hist) box.appendChild(hist);
+  box.insertAdjacentHTML("beforeend", welcomeHTML);
+  setHistTop(false, false);
 }
 // Rótulo do agrupamento por dia do histórico (dias recentes por nome).
 function dayLabel(d) {

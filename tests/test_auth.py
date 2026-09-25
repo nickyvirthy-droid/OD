@@ -760,6 +760,13 @@ class TestAuthGate:
         # Nos 3 pontos de entrada (login, auto-login do registro, API key):
         # um só bastaria para deixar a troca de conta com o perfil do anterior.
         assert body.count(b"resetProfileFilter();") == 3
+        # 2026-09-25 (2ª rodada): reset de Sair/Limpar PRESERVA o #hist-top —
+        # substituir o innerHTML da lista destruiria o botão de paginação e o
+        # próximo loadHistory quebraria antes do fetch (histórico só aparecia
+        # após F5). resetMessages + guarda em setHistTop são o contrato.
+        assert b"function resetMessages(" in body
+        assert b'if (!btn) return;' in body
+        assert body.count(b"resetMessages(") >= 3  # definição + 2 chamadas
 
     def test_message_identity_comes_from_session(
         self, serve, tmp_path, store

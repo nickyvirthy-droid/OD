@@ -499,7 +499,14 @@
     "testes": "Suíte 1899 passed, 16 skipped; 3 mutações detectadas e revertidas (no-store removido; user_id do cliente de volta; resetProfileFilter removido — endurecido para count==3 após presença simples deixar a mutação passar).",
     "licao": "A guarda node --check de 09-23 pegou NOVO bug de sintaxe introduzido na edição (comentário engolindo function) ANTES do deploy.",
     "deploy": "IMPLANTADO — restart (PID 479051, NRestarts=0); /chat com no-store no ar; node --check OK no JS servido; /history/me user_id=alex total=50 has_more=true; /health 200; WS 426; 0 erros no journal.",
-    "estado": "CONCLUÍDO E NO AR — aguardando confirmação visual do dono (reload forçado 1× para descartar página em cache)."
+    "estado": "CONCLUÍDO E NO AR — aguardando confirmação visual do dono (reload forçado 1× para descartar página em cache).",
+    "rodada_2": {
+      "pedido": "Dono: 'mensagens só aparecem se atualizar pagina ou sair do chat e voltar' + confirmou que o balde teste está vazio porque ELE testou o Limpar nele (não é bug).",
+      "causa_raiz": "O #hist-top (botão de paginação) é elemento PERMANENTE dentro de #messages; Sair e 🧹 Limpar substituíam o innerHTML INTEIRO da lista e DESTRUÍAM o botão; o próximo loadHistory chamava setHistTop → $() null → TypeError ANTES do fetch → histórico só aparecia após F5. Contraste: via curl sempre funcionava (não há DOM).",
+      "correcao": "resetMessages(welcomeHTML) preserva #hist-top ao zerar a lista (Sair e Limpar usam); setHistTop com guarda if (!btn) return.",
+      "teste_do_teste": "1 mutação (Sair voltando ao innerHTML cru) → detectada e revertida.",
+      "deploy": "IMPLANTADO — suíte 1899/16; restart (PID 481232, NRestarts=0); resetMessages no ar (4 ocorrências); 0 erros no journal."
+    }
   },
   "last_turn": {
     "date": "2026-09-25",
