@@ -1,11 +1,11 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-25T00:00:00-03:00",
+  "updated_at": "2026-09-25T14:30:00-03:00",
   "retomada_2026_09_25": {
     "pedido": "Usuário: 'leia inicir' — retomada da sessão.",
     "verificacao": "od-core active, PID 367729 (o mesmo do deploy de 09-24), NRestarts=0; HEAD==origin/master b7fd767; working tree limpo exceto backups/prova-site-923-20260923-134842.bak.json (untracked, fora do .gitignore).",
-    "estado": "AGUARDANDO confirmação do usuário (conversas do teste no site) e especificação do 'outro sistema'."
+    "estado": "RETOMADA CONCLUÍDA — confirmação do usuário recebida; ponto do histórico do teste FECHADO em 2026-09-25 14:30 (ver cache_historico_2026_09_24_fechamento)."
   },
   "prova_reboot_2026_09_21": {
     "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
@@ -493,11 +493,14 @@
     "estado": "CONCLUÍDO E NO AR — histórico registra interações de TODAS as rotas (menos rate limit/indisponível); anônimo segue sem rastro."
   },
   "last_turn": {
-    "date": "2026-09-24",
-    "action": "Bug crítico do menu da conta corrigido: quebra de linha literal dentro de string JS no confirm do Limpar matava o <script> inteiro (site sem nenhum handler). Corrigido + guarda permanente com node --check no teste do /chat. Site de volta ao ar operacional.",
-    "action": "Bug do histórico do usuário teste corrigido: rotas terminais sem LLM (cache/datetime/quick/intent) agora registram a interação (REST e WS), respeitando persist=False do anônimo. Commit 2ee947b, implantado (PID 367729) e provado no ar.",
-    "next": "Usuário confirma no chat do site que as conversas do usuário teste aparecem; depois o 'outro sistema' (ainda não especificado). Reset de senha do 'teste' (não é senha123) só se o usuário pedir.",
+    "date": "2026-09-25",
+    "action": "Dono CONFIRMOU no site que as conversas do usuário teste aparecem — correção das rotas terminais (2ee947b) validada de ponta a ponta (prova servidor 6/6 em 09-24 + confirmação visual do dono em 09-25). Ponto FECHADO.",
+    "next": "O 'outro sistema' (ainda não especificado pelo dono). Pendente opcional: reset de senha do 'teste' (não é senha123) só se o dono pedir.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
+  },
+  "cache_historico_2026_09_24_fechamento": {
+    "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
+    "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
   },
   "decisions": [
     {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},

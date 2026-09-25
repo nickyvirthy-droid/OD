@@ -120,8 +120,15 @@ da release ganhou 2026-09-24.
 - **Contrato novo:** TODA resposta da conta registra o turno no
   histórico, venha de `llm`, `fallback`, `cache`, `datetime`, `quick`
   ou `action_intent` (REST e WS). Anônimo: zero rastro em qualquer rota.
-- **Próximo passo:** confirmação do usuário no chat do site (conversar
-  com o `teste` e ver o histórico persistir, inclusive repetindo
-  mensagens); depois o "outro sistema" (ainda não especificado).
+- **Próximo passo:** ~~confirmação do usuário no chat do site~~ **CONFIRMADO PELO DONO em 2026-09-25 14:30** — as conversas do usuário teste aparecem no site; ponto FECHADO. Depois: o "outro sistema" (ainda não especificado).
 - **Pendente opcional:** reset de senha do `teste` (não é `senha123`)
   se o dono quiser padronizar.
+
+---
+
+## 4. Encerramento do ponto (2026-09-25 14:30)
+
+O dono confirmou no chat do site que as conversas do usuário `teste`
+aparecem — a correção de `2ee947b` (rotas terminais gravam o turno) está
+validada de ponta a ponta: servidor provado em 09-24 (6/6) + confirmação
+visual do dono em 09-25. Ponto encerrado; nada mais pendente nele.
