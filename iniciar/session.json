@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-25T14:30:00-03:00",
+  "updated_at": "2026-09-25T15:5x:00-03:00",
   "retomada_2026_09_25": {
     "pedido": "Usuário: 'leia inicir' — retomada da sessão.",
     "verificacao": "od-core active, PID 367729 (o mesmo do deploy de 09-24), NRestarts=0; HEAD==origin/master b7fd767; working tree limpo exceto backups/prova-site-923-20260923-134842.bak.json (untracked, fora do .gitignore).",
@@ -492,10 +492,20 @@
     },
     "estado": "CONCLUÍDO E NO AR — histórico registra interações de TODAS as rotas (menos rate limit/indisponível); anônimo segue sem rastro."
   },
+  "troca_usuario_historico_2026_09_25": {
+    "pedido": "Dono: 'quando troco usuário ou entro pela primeira vez as conversas não atualizam'.",
+    "causa_raiz": "3 defeitos no CLIENTE (página /chat): (1) página sem Cache-Control: no-store — navegador podia rodar JS velho do cache; (2) loadHistory/loadOlder/Limpar usavam o user_id DO NAVEGADOR (defasado na troca ou 'web' no modo API key) em vez do /history/me que o servidor resolve pela credencial; (3) filtro de perfil do dropdown persistia entre usuários (perfil com 0 msgs → histórico 'vazio').",
+    "correcao": "server.py: _html() com no-store; histórico por /history/me + badge corrigido com data.user_id da resposta; resetProfileFilter() nos 3 pontos de entrada.",
+    "testes": "Suíte 1899 passed, 16 skipped; 3 mutações detectadas e revertidas (no-store removido; user_id do cliente de volta; resetProfileFilter removido — endurecido para count==3 após presença simples deixar a mutação passar).",
+    "licao": "A guarda node --check de 09-23 pegou NOVO bug de sintaxe introduzido na edição (comentário engolindo function) ANTES do deploy.",
+    "deploy": "IMPLANTADO — restart (PID 479051, NRestarts=0); /chat com no-store no ar; node --check OK no JS servido; /history/me user_id=alex total=50 has_more=true; /health 200; WS 426; 0 erros no journal.",
+    "estado": "CONCLUÍDO E NO AR — aguardando confirmação visual do dono (reload forçado 1× para descartar página em cache)."
+  },
   "last_turn": {
     "date": "2026-09-25",
+    "action": "Bug 'conversas não atualizam ao trocar de usuário' corrigido: página /chat com Cache-Control no-store, histórico por /history/me (identidade do servidor) e filtro de perfil resetado por sessão. Commit do dia, implantado (PID 479051) e provado no ar.",
     "action": "Dono CONFIRMOU no site que as conversas do usuário teste aparecem — correção das rotas terminais (2ee947b) validada de ponta a ponta (prova servidor 6/6 em 09-24 + confirmação visual do dono em 09-25). Ponto FECHADO.",
-    "next": "O 'outro sistema' (ainda não especificado pelo dono). Pendente opcional: reset de senha do 'teste' (não é senha123) só se o dono pedir.",
+    "next": "Dono confirma visualmente a troca de usuário no site (com reload forçado 1×); depois o 'outro sistema' (ainda não especificado). Pendente opcional: reset de senha do 'teste' (não é senha123) só se o dono pedir.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
@@ -510,5 +520,5 @@
     {"topic": "status bar fix", "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"},
     {"topic": "auth de usuários (09-19)", "decision": "Chat web passa a exigir login (UserStore próprio, PBKDF2-SHA256, sessão UUID + Bearer), mantendo X-API-Key como modo legado/avançado. Registrado retroativamente em 09-20 após achado de que subiu sem commit/teste."}
   ],
-  "transcripts": ["iniciar/2026-09-23_conversa_omegadrakon.md", "iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
+  "transcripts": ["iniciar/2026-09-25_conversa_omegadrakon.md", "iniciar/2026-09-23_conversa_omegadrakon.md", "iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
 }

@@ -235,8 +235,11 @@ class TestAPIPublicEndpoints:
         assert headers.get("Content-Type", "").startswith("text/html")
         assert b"Omega Drakon" in body
         assert b"dashboard/stats" in body  # aponta para o endpoint com chave
-        status, body, _ = _request(port, "GET", "/chat")
-        assert status == 200 and b"/auth/login" in body
+        status, body, headers = _request(port, "GET", "/chat")
+        assert status == 200
+        # 2026-09-25: página EVOLUI com o servidor — sem no-store o navegador
+        # roda JS velho do cache (histórico "não atualiza" na troca de conta).
+        assert headers.get("Cache-Control", "") == "no-store"
         assert b"localStorage" in body  # token salvo no navegador
         # Sessão tem SAÍDA: menu da conta (clique no nome) com Limpar e Sair.
         assert b"btn-logout" in body
@@ -257,6 +260,10 @@ class TestAPIPublicEndpoints:
         # discreta dentro da bolha (.hist-time).
         assert b"day-sep" in body and b"dayLabel" in body
         assert b"hist-time" in body and b"addHistoryBubble" in body
+        # 2026-09-25: histórico e badge pela identidade do SERVIDOR (/history/me
+        # + user_id da resposta) e filtro de perfil por sessão (reset no login).
+        assert b'/history/me?limit=50' in body
+        assert b"resetProfileFilter" in body
         # Abre rolado até a mensagem mais recente (scroll único pós-pintura).
         assert b"scrollToLatest" in body and b"noScroll" in body
         # Paginação infinita: pill no topo + cursor + gatilho por scroll.

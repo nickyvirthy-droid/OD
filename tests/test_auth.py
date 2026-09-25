@@ -753,6 +753,13 @@ class TestAuthGate:
         assert status == 200
         assert b"user_id = data.user.username" in body
         assert b'let user_id = "web"' in body
+        # 2026-09-25: troca de usuário / 1º acesso — o histórico NÃO depende
+        # do user_id do navegador: busca por "me" (identidade da credencial)
+        # e o filtro de perfil é da sessão (resetado no login).
+        assert b'fetch("/history/me?limit=50&profile=' in body
+        # Nos 3 pontos de entrada (login, auto-login do registro, API key):
+        # um só bastaria para deixar a troca de conta com o perfil do anterior.
+        assert body.count(b"resetProfileFilter();") == 3
 
     def test_message_identity_comes_from_session(
         self, serve, tmp_path, store

@@ -622,8 +622,10 @@ async function loadOlder() {
   setHistTop(true, true);
   try {
     const prof = $("profile").value;
-    const url = "/history/" + encodeURIComponent(user_id || "me")
-      + "?limit=50&profile=" + prof + "&before=" + histOldestId;
+    // "me": a identidade vem da CREDENCIAL no servidor — nunca do estado do
+    // navegador. Na troca de usuário ou no 1º acesso, um user_id defasado
+    // aqui buscaria o balde errado (ou 403) e o histórico "não atualizaria".
+    const url = "/history/me?limit=50&profile=" + prof + "&before=" + histOldestId;
     const res = await fetch(url, { headers: histAuthHeaders() });
     if (!res.ok) { setHistTop(histHasMore, false); return; }
     const data = await res.json();
@@ -682,11 +684,15 @@ async function loadHistory() {
   setHistTop(false, false);
   try {
     const prof = $("profile").value;
-    const res = await fetch("/history/" + encodeURIComponent(user_id || "me") + "?limit=50&profile=" + prof, {
+    // "me" (igual ao loadOlder): servidor resolve quem é pela credencial.
+    const res = await fetch("/history/me?limit=50&profile=" + prof, {
       headers: histAuthHeaders()
     });
     if (res.ok) {
       const data = await res.json();
+      // O servidor é a fonte da verdade da identidade: se o navegador achava
+      // que era outro usuário, o badge corrige na hora.
+      if (data.user_id) setUserBadge(data.user_id);
       if (data.messages && data.messages.length > 0) {
         clearWelcome();
         let diaCorrente = "";
@@ -730,7 +736,7 @@ $("btn-limpar").onclick = async () => {
   if (!window.confirm("Apagar TODA a conversa salva desta conta? Essa ação não tem volta.")) return;
   if (!window.confirm("Confirma de novo? As mensagens não voltam.")) return;
   try {
-    const res = await fetch("/history/" + encodeURIComponent(user_id || "me"), {
+    const res = await fetch("/history/me", {
       method: "DELETE",
       headers: histAuthHeaders()
     });
@@ -993,6 +999,11 @@ async function send() {
 }
 
 // --- Login ---
+function resetProfileFilter() {
+  // O filtro é da SESSÃO, não do navegador: um perfil com 0 mensagens para
+  // o próximo usuário faria o histórico parecer vazio.
+  $("profile").value = "auto";
+}
 $("enter").onclick = async () => {
   const user = $("login-user").value.trim();
   const pass = $("login-pass").value.trim();
@@ -1008,6 +1019,7 @@ $("enter").onclick = async () => {
     token = data.token;
     if (data.user && data.user.username) { user_id = data.user.username; }
     localStorage.setItem("od_session_token", token);
+    resetProfileFilter();
     showChat();
   } catch(e) { $("err").textContent = "Falha de rede."; }
 };
@@ -1036,6 +1048,7 @@ $("register").onclick = async () => {
       token = loginData.token;
       if (loginData.user && loginData.user.username) { user_id = loginData.user.username; }
       localStorage.setItem("od_session_token", token);
+      resetProfileFilter();
       showChat();
     } else { showGate("Conta criada. Faça login.", "err"); showGateView("login"); }
   } catch(e) { $("err2").textContent = "Falha de rede."; }
@@ -1047,6 +1060,7 @@ $("enter-key").onclick = async () => {
   const probe = await fetch("/llms", { headers: { "X-API-Key": key } });
   if (!probe.ok) { $("err3").textContent = "Chave inválida (" + probe.status + ")."; return; }
   localStorage.setItem("od_api_key", key);
+  resetProfileFilter();
   showChat();
 };
 $("send").onclick = send;
@@ -1582,6 +1596,11 @@ class APIHandler(BaseHTTPRequestHandler):
         self._send_cors()
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
+        # Páginas embutidas EVOLUEM junto com o servidor (o JS do /chat é
+        # parte do contrato da API). Sem no-store o navegador pode rodar
+        # uma versão antiga do script do cache e o site parece "não atualizar"
+        # ao trocar de usuário ou depois de um deploy.
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(encoded)
 

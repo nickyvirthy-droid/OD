@@ -14,7 +14,27 @@
 
 ---
 
-## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21, 2026-09-22, 2026-09-23 e 2026-09-24)
+## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21, 2026-09-22, 2026-09-23, 2026-09-24 e 2026-09-25)
+
+### Corrigido (2026-09-25) — histórico do chat não atualizava ao trocar de usuário 🔄
+
+- **Sintoma** — no chat web, ao trocar de usuário ou no primeiro acesso,
+  as conversas não atualizavam (ou apareciam as de outra conta / nada).
+- **Causa** — 3 defeitos no cliente (página /chat): a página era servida
+  SEM `Cache-Control: no-store` (navegador podia rodar JS velho do
+  cache); o histórico era buscado por `/history/<user_id do navegador>`
+  — defasado na troca ou `web` no modo API key — em vez do
+  `/history/me`, que o servidor resolve pela credencial; e o filtro de
+  perfil do dropdown persistia entre usuários (perfil com 0 mensagens
+  fazia o histórico parecer vazio).
+- **Correção** — `integrations/api/server.py`: `_html()` manda
+  `Cache-Control: no-store`; `loadHistory`/`loadOlder`/Limpar usam
+  `/history/me` e o badge do cabeçalho é corrigido com o `user_id` DA
+  RESPOSTA; novo `resetProfileFilter()` volta o dropdown para `auto` nos
+  3 pontos de entrada (login, auto-login do registro, API key).
+- **Verificação** — suíte 1899 passed, 16 skipped; 3 mutações detectadas
+  e revertidas; a guarda `node --check` do teste pegou (antes do deploy)
+  um novo bug de sintaxe introduzido na edição.
 
 ### Corrigido (2026-09-24) — interações de rota terminal sem LLM sumiam do histórico 🧠
 
