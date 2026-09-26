@@ -48,6 +48,8 @@ from tools.registry import ActionRegistry
 
 from core.capabilities import OD_VERSION, capabilities_manifest
 from core.identity import resolve_account
+from agents.profiles import resolve_auto as resolve_auto_profile
+from core.orchestrator import cache_failure_reason as _cache_failure_reason
 from core.logger import get_logger
 from core.orchestrator import OrchestrationResult, Orchestrator
 from core.supervision import get_supervision
@@ -217,6 +219,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/admin/users", "admin_users", True),
     ("POST", "/admin/users/{username}/password", "admin_reset_password", True),
     ("DELETE", "/admin/users/{username}", "admin_delete_user", True),
+    ("POST", "/admin/cache/prune", "admin_cache_prune", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -233,6 +236,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/transcribe", "transcribe", True),
     ("POST", "/tts", "tts", True),
     ("DELETE", "/history/{user_id}", "history_delete", True),
+    ("DELETE", "/history/{user_id}/messages/{message_id}", "history_delete_message", True),
     ("GET", "/history/{user_id}/stats", "history_stats", True),
     ("GET", "/history/{user_id}", "history_get", True),
     ("GET", "/memory/{user_id}/search", "memory_search", True),
@@ -2041,6 +2045,13 @@ class APIHandler(BaseHTTPRequestHandler):
 
     # -- Helpers de corpo/resposta -------------------------------------------
 
+    def _has_body(self) -> bool:
+        """True quando há corpo na requisição (Content-Length > 0)."""
+        try:
+            return int(self.headers.get("Content-Length") or 0) > 0
+        except ValueError:
+            return False
+
     def _read_json(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
@@ -2390,7 +2401,8 @@ class APIHandler(BaseHTTPRequestHandler):
         if profile not in self.api.config.profiles:
             raise APIError(400, f"perfil_desconhecido: {profile}")
         if profile == "auto":
-            profile = DEFAULT_PROFILE
+            # Mesma detecção por domínio do /message (Plêiade).
+            profile = resolve_auto_profile(text)
         historico = data.get("history") or []
         if not isinstance(historico, list):
             raise APIError(400, "history_deve_ser_lista")
@@ -2439,7 +2451,10 @@ class APIHandler(BaseHTTPRequestHandler):
         if profile not in self.api.config.profiles:
             raise APIError(400, f"perfil_desconhecido: {profile}")
         if profile == "auto":
-            profile = DEFAULT_PROFILE  # auto = OD escolhe (hoje o padrão)
+            # Modo auto: o perfil é detectado pelo DOMÍNIO do texto
+            # (ProfileManager — Plêiade). Antes forçava guardian, e uma
+            # pergunta de religião respondia como Guardian em vez de Nyx.
+            profile = resolve_auto_profile(text)
         system_prompt = str(data.get("system_prompt") or "")
         session_id = str(data.get("session_id") or f"api:{user_id}")
         result = asyncio.run(
@@ -2995,6 +3010,98 @@ class APIHandler(BaseHTTPRequestHandler):
             200,
             {"ok": True, "user_id": uid, "removed": removed},
         )
+
+    def admin_cache_prune(self) -> None:
+        """POST /admin/cache/prune — saneia o cache LLM (admin/dono).
+
+        Body: {"dry_run"?: bool, "keys"?: [str, ...]}
+        - Sem `keys`: varre a tabela e remove entradas de FALHA (respostas
+          com etiqueta de log [CRIT]/[WARN]/..., vazias ou truncadas) — as
+          "respostas de cache sem nexo" que renasciam a cada repetição.
+        - Com `keys`: remove exatamente as chaves passadas (poda cirúrgica).
+        dry_run=true devolve o que SERIA removido, sem tocar nos dados.
+        """
+        orch = self.api.orchestrator
+        cache = orch.cache if orch is not None else None
+        if cache is None:
+            raise APIError(503, "cache_indisponivel")
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        dry_run = bool(data.get("dry_run", False))
+        keys = data.get("keys")
+        database = getattr(cache, "_database", None)
+        if keys is not None:
+            if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+                raise APIError(400, "keys_deve_ser_lista_de_strings")
+            targets = [(k, "", "", "chave informada") for k in keys]
+        elif database is not None:
+            rows = database.query(
+                "SELECT key, response FROM llm_cache", (), limit=100000
+            )
+            targets = []
+            for r in rows or []:
+                resp = str(r.get("response") or "")
+                reason = _cache_failure_reason(resp)
+                if reason:
+                    targets.append((r["key"], resp, "", reason))
+        elif isinstance(getattr(cache, "_entries", None), dict):
+            # Modo JSON: varre as entradas em memória/disco.
+            targets = []
+            for key, entry in list(cache._entries.items()):
+                resp = str(getattr(entry, "response", "") or "")
+                reason = _cache_failure_reason(resp)
+                if reason:
+                    targets.append((key, resp, "", reason))
+        else:
+            raise APIError(501, "cache_json_sem_varredura")
+        removed = 0
+        details = []
+        for key, preview, _profile, reason in targets:
+            details.append({"key": key, "motivo": reason,
+                            "resposta": preview[:80]})
+            if not dry_run and key:
+                if database is not None:
+                    database.execute(
+                        "DELETE FROM llm_cache WHERE key = ?", (key,)
+                    )
+                elif isinstance(getattr(cache, "_entries", None), dict):
+                    with cache._lock:
+                        cache._entries.pop(key, None)
+                        cache._persist()
+                removed += 1
+        self._json(
+            200,
+            {
+                "ok": True,
+                "dry_run": dry_run,
+                "total_varrido": len(targets) if keys is None else None,
+                "removidas": removed if not dry_run else 0,
+                "candidatas": len(targets),
+                "detalhes": details[:200],
+            },
+        )
+
+    def history_delete_message(self, user_id: str, message_id: str) -> None:
+        """DELETE /history/{user_id}/messages/{message_id} — apaga UMA mensagem.
+
+        Dono ou admin (mesmo gate do /history). A mensagem tem de pertencer
+        ao balde do user_id — 404 caso contrário (não revela existência).
+        Uso: remover do histórico uma resposta sem nexo (ex.: falha cacheada
+        que o cache antigo guardou).
+        """
+        orch = self.api.orchestrator
+        if orch is None or orch.history is None:
+            raise APIError(501, "historico_indisponivel")
+        uid = self._check_owner(user_id)
+        try:
+            mid = int(message_id)
+        except ValueError:
+            raise APIError(400, "message_id_invalido")
+        removed = orch.history.delete_message(uid, mid)
+        if not removed:
+            raise APIError(404, "mensagem_inexistente")
+        self._json(200, {"ok": True, "user_id": uid, "message_id": mid})
 
     def history_stats(self, user_id: str) -> None:
         orch = self.api.orchestrator

@@ -94,6 +94,47 @@ ROUTE_DATETIME = "datetime"
 ROUTE_QUICK = "quick_response"
 ROUTE_INTENT = "action_intent"
 ROUTE_CACHE = "cache"
+
+# Respostas que NUNCA entram no cache: são falha do momento (LLM alucinou
+# etiqueta de log, recusou por prompt interno, truncou) e não conhecimento.
+# Cacheadas, renasciam a cada repetição da pergunta — "resposta de cache sem
+# nexo" (2026-09-26). Casada contra o INÍCIO da resposta, sanitizada.
+_CACHE_BAN_PREFIXES = (
+    "[nicky][crit]",
+    "[crit]",
+    "[nicky][warn]",
+    "[warn]",
+    "[nicky][online]",
+    "[online]",
+    "[nicky][info]",
+    "[info]",
+    # Vazamento de raciocínio do modelo (CoT em inglês) não é resposta.
+    "here's a thinking process",
+    "here is a thinking process",
+)
+
+
+def _cacheable(text: str) -> bool:
+    """True quando a resposta pode ser cacheada (não é falha/truncamento)."""
+    return cache_failure_reason(text) == ""
+
+
+def cache_failure_reason(text: str) -> str:
+    """Motivo pelo qual a resposta NÃO deve ser cacheada ('' = cacheável).
+
+    Usado pela guarda da etapa 8 e pelo saneamento /admin/cache/prune.
+    """
+    candidate = (text or "").strip()
+    if not candidate:
+        return "vazia"
+    lowered = candidate.lower()
+    for prefix in _CACHE_BAN_PREFIXES:
+        if lowered.startswith(prefix):
+            return f"etiqueta de log/falha: {prefix}"
+    # Truncamento no meio da frase (max_tokens estourou): incompleto.
+    if candidate[-1] in ",;:-":
+        return "truncada (pontuação final aberta)"
+    return ""
 ROUTE_LLM = "llm"
 ROUTE_FALLBACK = "fallback"
 ROUTE_UNAVAILABLE = "llm_unavailable"
@@ -981,8 +1022,13 @@ class Orchestrator:
         message: str,
         llm_used: str,
     ) -> None:
-        """Grava cache + histórico (melhor esforço, nunca quebra a resposta)."""
-        if self.cache is not None:
+        """Grava cache + histórico (melhor esforço, nunca quebra a resposta).
+
+        Respostas de falha (etiqueta de log [CRIT]/[WARN]..., truncadas no
+        meio) NÃO vão para o cache: cacheadas, a mesma pergunta devolvia a
+        falha para sempre — "resposta de cache sem nexo" (2026-09-26).
+        """
+        if self.cache is not None and _cacheable(message):
             try:
                 self.cache.set(
                     text,

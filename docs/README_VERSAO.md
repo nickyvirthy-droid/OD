@@ -7,6 +7,35 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.4.0] — PLÊIADE PELO DOMÍNIO + CACHE SANEADO + PODA ADMIN 🧹 (2026-09-26)
+
+### 1. O que foi feito
+
+Lote de 2026-09-26 (manhã): correções na personalidade e no cache + duas
+rotas novas de administração/higiene.
+
+| Peça | Entrega |
+|---|---|
+| **Cânone da Plêiade** | Nyx = Guardiã do Limiar (religião, mitologia, esoterismo) e Regulus = Conselheiro (história, direito, ética) — alinhados a `~/Legado/Nexus/docs/Personagens.md` em `agents/nicky_virthy/{IDENTITY,SOUL}.md` e `personality.py` (antes trocados) |
+| **Perfil auto por domínio** | `agents/profiles.resolve_auto()` compartilhada por REST, WS, Telegram e anônimo — antes só o bot detectava; REST e WS forçavam `guardian` e a Nyx nunca era convocada |
+| **Cache sem falhas** | `Orchestrator._cacheable`/`cache_failure_reason`: resposta com etiqueta de log (`[NICKY][CRIT]`…), vazia ou truncada não entra no cache — a mesma pergunta devolvia a falha para sempre |
+| **`POST /admin/cache/prune`** | saneamento do cache LLM pelo dono: `dry_run` lista candidatas, varredura remove falhas, `keys` faz poda cirúrgica (admin; 33 → 41 endpoints) |
+| **`DELETE /history/{u}/messages/{id}`** | remoção de UMA mensagem pela PK (`Message.id` + `delete_message`), gate de dono igual ao `/history` |
+
+### 2. Evidência
+
+```
+.venv/bin/python -m pytest tests/ -q
+  → 1932 passed, 16 skipped      (+13 em tests/test_api.py)
+sandbox_agent/auth_sandbox.py → 57 OK, 0 FALHA (REST + WS + Telegram)
+
+Deploy: systemctl --user restart od-core → PID <ver prova viva>, NRestarts=0
+Prova viva: /admin/cache/prune dry_run no ar; perfil auto por domínio;
+           /capabilities → 1.4.0; journal 0 Traceback/ERROR.
+
+APK 1.4.0+13 (versionCode 13) publicado em site/
+```
+
 ## [1.2.0] — PUSH DE PONTA A PONTA (ENVIO PELO OD) 🔔 (2026-09-12)
 
 ### 1. O que foi feito

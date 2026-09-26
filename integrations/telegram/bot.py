@@ -73,14 +73,13 @@ class BotMetrics:
 
 
 def _resolve_auto(profile: str, text: str = "") -> str:
-    """'auto' → o ProfileManager detecta o perfil pelo domínio do texto
-    (Fase 6.5, agents/profiles.py). Sem contexto, cai no padrão."""
+    """'auto' → detecção por domínio (agents/profiles.resolve_auto — função
+    compartilhada com REST/WS/anônimo). Sem contexto, cai no padrão."""
     if profile != AUTO_PROFILE:
         return profile
-    from agents.profiles import ProfileManager
+    from agents.profiles import resolve_auto as _detect
 
-    manager = ProfileManager()
-    return manager.resolve("auto", text or None)
+    return _detect(text)
 
 
 class TelegramBot:

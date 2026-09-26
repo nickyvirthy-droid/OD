@@ -52,6 +52,7 @@ from core.orchestrator import Orchestrator
 # `auto` e recusar perfil desconhecido IGUAL, senão a mesma conversa cai em
 # baldes diferentes de cache/histórico conforme o transporte (o app manda
 # `auto` por padrão).
+from agents.profiles import resolve_auto
 from core.identity import resolve_account
 from integrations.api.server import DEFAULT_PROFILE, DEFAULT_PROFILES, valid_user_id
 
@@ -245,8 +246,9 @@ class WebSocketServer:
                         await ws.send(json.dumps({"type": "error", "message": "text_obrigatorio"}))
                         continue
                     
-                    # Mesma resolução do REST: perfil desconhecido é erro,
-                    # `auto` vira o perfil padrão (guardian).
+                    # Mesma resolução do REST: perfil desconhecido é erro;
+                    # `auto` é detectado pelo DOMÍNIO do texto (Plêiade) —
+                    # antes virava guardian fixo e a Nyx nunca era convocada.
                     profile = str(
                         data.get("profile") or DEFAULT_PROFILE
                     ).strip()
@@ -257,7 +259,7 @@ class WebSocketServer:
                         }))
                         continue
                     if profile == "auto":
-                        profile = DEFAULT_PROFILE
+                        profile = resolve_auto(text)
                     # Identidade fixada na credencial: um `user_id` enviado
                     # depois do auth não troca de balde (mesma regra do REST).
                     efetivo = identidade or user_id

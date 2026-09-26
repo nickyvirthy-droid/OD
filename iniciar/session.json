@@ -1,7 +1,15 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T05:05:00-03:00",
+  "updated_at": "2026-09-26T11:15:00-03:00",
+  "retomada_2026_09_26_3": {
+    "pedido": "Usuário: 'leia iniciar' — nova retomada (~11:05).",
+    "verificacao": "od-core active, PID 547622 (deploy do versionamento 1.3.0), desde 2026-09-26 04:46:22, NRestarts=0, journal sem err; HEAD==origin/master fe820ae (guardas de coerência da versão).",
+    "lote_nao_registrado": "Working tree com 10 arquivos modificados (+488/-34, mtimes 05:22–05:52 — DEPOIS da transcrição de 04:54): (1) cânone da Plêiade corrigido — Nyx=Guardiã do Limiar (religião/mitologia), Regulus=Conselheiro (história/direito/ética) em IDENTITY.md/SOUL.md/personality.py; (2) perfil 'auto' resolve pelo DOMÍNIO do texto em TODOS os transportes (agents/profiles.resolve_auto compartilhada; antes REST/WS forçavam guardian e a Nyx nunca era convocada); (3) respostas de FALHA (etiqueta [NICKY][CRIT]/[WARN], vazias, truncadas) não entram no cache LLM (orchestrator._cacheable/cache_failure_reason) — bug 'resposta de cache sem nexo'; (4) rota nova POST /admin/cache/prune (dry_run/keys/varredura, admin); (5) rota nova DELETE /history/{user_id}/messages/{message_id} (delete_message pela PK; Message ganha id); (6) tests/test_api.py com 13 testes novos (auto por domínio, sanidade de cache, delete de mensagem, prune).",
+    "validacao": "Suíte completa 1932 passed, 16 skipped; sandbox auth_sandbox.py 57 OK, 0 FALHA. O od-core no ar (PID 547622, 04:46) é ANTERIOR ao lote — /admin/cache/prune dá 404 no ar (não implantado).",
+    "residuo": "Diretório 'postgres:/od:c088f04f...@127.0.0.1:5432/od' untracked na raiz (SQLite vazio de 1 página, criado 05:02 — provável sqlite3.connect acidental com o path do DSN).",
+    "estado": "RETOMADA CONCLUÍDA — aguardando decisão do dono: implantar/publicar o lote (com bump 1.4.0 pela política) ou revisar antes; e remoção do resíduo postgres:/."
+  },
   "retomada_2026_09_26": {
     "pedido": "Usuário: 'leia iniciar' — retomada da sessão (01:48).",
     "verificacao": "od-core active, PID 481232 (o mesmo da rodada 2 de 09-25), desde 2026-09-25 15:32:18, NRestarts=0; HEAD==origin/master f522abe (Sair/Limpar preservam o botão de paginação); working tree limpo exceto backups/prova-site-923-20260923-134842.bak.json (untracked, já conhecido).",

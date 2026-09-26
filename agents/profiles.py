@@ -365,3 +365,14 @@ def default_manager() -> ProfileManager:
 
 
 default_manager._instance = None  # type: ignore[attr-defined]
+
+
+def resolve_auto(text: str = "") -> str:
+    """Resolve o perfil para o modo 'auto' a partir do texto da mensagem.
+
+    Função compartilhada por TODOS os transportes (REST, WebSocket, Telegram
+    e anônimo) — antes só o bot detectava; REST e WS forçavam guardian, o
+    que fazia uma pergunta de religião cair na Guardian em vez da Nyx.
+    Texto sem domínio mapeado cai no perfil padrão (guardian).
+    """
+    return default_manager().resolve("auto", (text or "").strip() or None)

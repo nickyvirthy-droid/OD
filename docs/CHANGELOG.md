@@ -14,6 +14,44 @@
 
 ---
 
+## [1.4.0] — Plêiade pelo domínio, cache saneado e poda admin 🧹 (2026-09-26)
+
+> **Política:** feature nova compatível = MINOR (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.4.0` · app `1.4.0+13` (versionCode 13).
+
+### Adicionado (2026-09-26)
+
+- **feat(api):** `POST /admin/cache/prune` — saneamento do cache LLM pelo
+  admin/dono: `dry_run` lista as candidatas sem tocar nos dados; varredura
+  remove entradas de FALHA (etiqueta de log `[NICKY][CRIT]`/`[WARN]`/`[INFO]`,
+  respostas vazias ou truncadas no meio da frase — as "respostas de cache sem
+  nexo" que renasciam a cada repetição); `keys` faz poda cirúrgica por chave.
+- **feat(api,history):** `DELETE /history/{user_id}/messages/{message_id}` —
+  remoção de UMA mensagem pela PK (`Message.id` exposto; `delete_message` na
+  ConversationHistory), com dono conferido pelo mesmo gate do `/history` e
+  404 quando a mensagem não é do balde informado.
+
+### Corrigido (2026-09-26)
+
+- **fix(cache):** respostas de FALHA não entram mais no cache
+  (`_cacheable`/`cache_failure_reason` no Orchestrator) — etiqueta de log,
+  vazia ou truncada não é conhecimento; cacheada, a mesma pergunta devolvia
+  a falha para sempre.
+- **fix(profiles):** o perfil `auto` é detectado pelo DOMÍNIO do texto em
+  TODOS os transportes (`agents/profiles.resolve_auto` compartilhada) — REST
+  e WS forçavam `guardian` e uma pergunta de religião/mitologia respondia
+  como Guardian em vez de Nyx.
+- **fix(agents):** cânone da Plêiade alinhado (Personagens.md) — Nyx é a
+  Guardiã do Limiar (religião, mitologia, esoterismo) e Regulus é o
+  Conselheiro (história, direito, ética); antes estavam trocados em
+  IDENTITY.md, SOUL.md e personality.py.
+
+### Cobertura
+
+- Suíte: 1932 passed, 16 skipped (+13 em tests/test_api.py: auto por domínio,
+  sanidade de cache, remoção de mensagem individual, prune do cache).
+- Sandbox: auth_sandbox.py 57 OK, 0 FALHA (REST + WS + Telegram reais).
+
 ## [1.3.0] — Papéis, histórico vivo e painéis 🎚️ (2026-09-19 a 2026-09-26 · saneamento de versão 2026-09-26)
 
 > **Política (2026-09-26):** o projeto aderiu ao Versionamento Semântico 2.0.0

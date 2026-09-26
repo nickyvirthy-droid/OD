@@ -84,11 +84,14 @@
 
 ## Perfis Operacionais
 
-Nicky opera em 6 modos de personalidade, sendo **Guardian** o padrão:
+Nicky opera em 7 modos de personalidade (Plêiade completa), sendo
+**Guardian** o padrão — cânone: `~/Legado/Nexus/docs/Personagens.md`
+(alinhado em 2026-09-26; antes Nyx e Regulus estavam trocados aqui):
 
 1. **guardian** — Guardiã técnica, vigilante e objetiva do sistema. *(Modo padrão)*
-2. **regulus** — Engenharia sistêmica, automações, scripts e infraestrutura.
+2. **regulus** — O Conselheiro: história, direito, ética e filosofia.
 3. **luma** — Assistente geral, conversação empática, explicações didáticas e criatividade.
 4. **vox** — Locução, comunicação fluida, chamadas curtas e dinamismo radiofônico.
 5. **athenae** — Estruturação de dados, pesquisa factual, documentação e síntese acadêmica.
-6. **nyx** — Operações de segurança, auditoria, monitoramento noturno e análise defensiva.
+6. **nyx** — A Guardiã do Limiar: religião comparada, mitologia, esoterismo e sentido existencial.
+7. **nexus** — O Conector: integração e coordenação da Plêiade; visão do todo.

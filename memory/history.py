@@ -96,14 +96,18 @@ class Message:
     content: str
     ts: float = field(default_factory=time.time)
     llm_used: str = ""
+    id: Optional[int] = None  # PK no banco (None em modo JSON/memória)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "role": self.role,
             "content": self.content,
             "ts": self.ts,
             "llm_used": self.llm_used,
         }
+        if self.id is not None:
+            payload["id"] = self.id
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Message":
@@ -338,7 +342,7 @@ class ConversationHistory:
         if self._database is not None:
             if prof:
                 rows = self._database.query(
-                    "SELECT role, content, ts, llm_used "
+                    "SELECT id, role, content, ts, llm_used "
                     "FROM conversation_messages "
                     "WHERE user_id = ? AND profile = ? "
                     "ORDER BY id DESC",
@@ -347,7 +351,7 @@ class ConversationHistory:
                 )
             else:
                 rows = self._database.query(
-                    "SELECT role, content, ts, llm_used "
+                    "SELECT id, role, content, ts, llm_used "
                     "FROM conversation_messages "
                     "WHERE user_id = ? "
                     "ORDER BY id DESC",
@@ -360,6 +364,7 @@ class ConversationHistory:
                     content=r["content"],
                     ts=r["ts"],
                     llm_used=r.get("llm_used", ""),
+                    id=int(r["id"]) if r.get("id") is not None else None,
                 )
                 for r in reversed(rows)
             ]
@@ -421,6 +426,7 @@ class ConversationHistory:
                     content=r["content"],
                     ts=r["ts"],
                     llm_used=r.get("llm_used", ""),
+                    id=int(r["id"]) if r.get("id") is not None else None,
                 )
                 for r in reversed(rows)
             ]
@@ -528,6 +534,46 @@ class ConversationHistory:
         return result
 
     # -- Remoção -------------------------------------------------------------
+
+    def delete_message(self, user_id: str, message_id: int) -> bool:
+        """Remove UMA mensagem do banco pela PK (dono conferido pelo chamador).
+
+        Também expulsa a cópia em RAM (dict[uid][profile]). Em modo JSON
+        (sem database) não há id estável → retorna False.
+
+        Returns:
+            True se a mensagem existia e foi removida.
+        """
+        if self._database is None:
+            return False
+        row = self._database.query(
+            "SELECT user_id, profile FROM conversation_messages WHERE id = ?",
+            (int(message_id),),
+            limit=1,
+        )
+        if not row or row[0]["user_id"] != user_id:
+            return False
+        profile = row[0]["profile"]
+        self._database.execute(
+            "DELETE FROM conversation_messages WHERE id = ?", (int(message_id),)
+        )
+        with self._lock:
+            conv = self._users.get(user_id, {}).get(profile)
+            if conv:
+                # A cópia em RAM não guarda id; remove a primeira com mesmo
+                # papel/conteúdo/ts (a página vem do banco, não da RAM).
+                self._users[user_id][profile] = [
+                    m for m in conv if m.role not in ("user", "assistant")
+                ] or []
+                # Recarrega a conversa do banco para manter a RAM fiel.
+                self._users[user_id][profile] = []
+        # Recarrega do banco (simples e à prova de divergência).
+        self.load_all()
+        _audit_nicky(
+            "INFO", "History message deleted (db)",
+            user=user_id, message_id=int(message_id),
+        )
+        return True
 
     def clear(self, user_id: str, profile: Optional[str] = None) -> int:
         """Limpa uma conversa (ou todas do usuário). Retorna nº removido."""

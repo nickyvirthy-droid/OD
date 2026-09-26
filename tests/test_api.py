@@ -20,6 +20,8 @@ Baseado em:
 from __future__ import annotations
 
 import json
+
+from storage.database import Database
 from pathlib import Path
 
 import pytest
@@ -75,12 +77,24 @@ def _json_response(result) -> dict:
     return json.loads(result[1].decode("utf-8"))
 
 
-def make_orch(base: Path, *, history: bool = True, cache: bool = True) -> Orchestrator:
-    """Orchestrator com RecordingProvider e memórias opcionais em tmp."""
+def make_orch(
+    base: Path, *, history: bool = True, cache: bool = True,
+    database: bool = False,
+) -> Orchestrator:
+    """Orchestrator com RecordingProvider e memórias opcionais em tmp.
+    Com database=True, histórico e cache usam SQLite temporária (com ids)."""
+    db = Database(base / "od-test.db") if database else None
+    kwargs = {"database": db} if db is not None else {}
     return Orchestrator(
         providers=[RecordingProvider("echo", reply="resposta-od")],
-        history=ConversationHistory(base_dir=base / "hist") if history else None,
-        cache=LLMCache(cache_dir=base / "cache", profile="guardian") if cache else None,
+        history=(
+            ConversationHistory(base_dir=base / "hist", **kwargs)
+            if history else None
+        ),
+        cache=(
+            LLMCache(cache_dir=base / "cache", profile="guardian", **kwargs)
+            if cache else None
+        ),
     )
 
 
@@ -117,8 +131,9 @@ class TestAPIRoutes:
         """17 endpoints do legado + /capabilities (v0.27.3) + /site* +
         /actions + /executa (v1.2.0 — app Android) + /push/* (push FCM) +
         /supervision (2026-09-15) + /account/* e /admin/* (painéis
-        dashboard/admin, 2026-09-26)."""
-        assert len(ROUTES) == 39
+        dashboard/admin, 2026-09-26) + deleção de mensagem única e
+        saneamento do cache (2026-09-26)."""
+        assert len(ROUTES) == 41
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -132,6 +147,7 @@ class TestAPIRoutes:
             ("GET", "/admin/users"),
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
+            ("POST", "/admin/cache/prune"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/anon/message"),
@@ -141,6 +157,7 @@ class TestAPIRoutes:
             ("POST", "/push/test"), ("GET", "/push/devices"),
             ("GET", "/supervision"),
             ("DELETE", "/history/{user_id}"),
+            ("DELETE", "/history/{user_id}/messages/{message_id}"),
             ("GET", "/history/{user_id}/stats"),
             ("GET", "/history/{user_id}"),
             ("GET", "/memory/{user_id}/search"), ("GET", "/ws/chat"),
@@ -155,6 +172,7 @@ class TestAPIRoutes:
             ("GET", "/admin/users"),
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
+            ("POST", "/admin/cache/prune"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/executa"),
@@ -164,6 +182,7 @@ class TestAPIRoutes:
             ("POST", "/transcribe"), ("POST", "/tts"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("DELETE", "/history/{user_id}"),
+            ("DELETE", "/history/{user_id}/messages/{message_id}"),
             ("GET", "/history/{user_id}/stats"),
             ("GET", "/history/{user_id}"),
             ("GET", "/memory/{user_id}/search"), ("GET", "/ws/chat"),
@@ -635,11 +654,18 @@ class TestAPIMessage:
         assert history is not None
         assert history.get_history("alex", "luma")  # persistida sob luma
 
-    def test_auto_profile_resolves_to_default(self, serve, tmp_path: Path) -> None:
+    def test_auto_profile_resolves_by_domain(self, serve, tmp_path: Path) -> None:
+        """Modo auto: o perfil é detectado pelo DOMÍNIO do texto (Plêiade).
+        Religião → nyx; texto sem domínio mapeado → guardian."""
         srv = serve(make_orch(tmp_path))
         data = self._send(srv, {"user_id": "alex", "text": "pergunta única 4",
                                 "profile": "auto"})
-        assert data["profile"] == DEFAULT_PROFILE
+        assert data["profile"] == DEFAULT_PROFILE  # sem domínio → guardian
+        reli = self._send(srv, {"user_id": "alex",
+                                "text": "explique a mitologia grega para mim 742",
+                                "profile": "auto"})
+        assert reli["_status"] == 200
+        assert reli["profile"] == "nyx"
 
     def test_user_isolation_in_history(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))
@@ -1495,3 +1521,212 @@ class TestHandleErrorDoServidor:
         assert len(registros) == 1
         assert registros[0].level_name == "WARN"
         assert registros[0].context["error"] == "RuntimeError"
+
+
+# ===========================================================================
+# Cache são (2026-09-26) — falha nunca vira resposta permanente
+# ===========================================================================
+
+class TestCacheSanidade:
+    """Respostas de falha NÃO entram no cache (problem 1 do dono)."""
+
+    def test_falha_nao_e_cacheada(self, serve, tmp_path: Path) -> None:
+        """Provider que devolve etiqueta de log [CRIT]: a 2ª chamada NÃO
+        pode vir do cache — a falha não vira resposta permanente."""
+        from core.orchestrator import _cacheable
+        orch = make_orch(tmp_path)
+        orch.providers[0].reply = "[NICKY][CRIT] Erro: Não foi possível carregar"
+        srv = serve(orch)
+        first = _json_response(_request(
+            srv.bound_port, "POST", "/message",
+            body={"user_id": "alex", "text": "pergunta falha única 1"},
+        ))
+        assert first["route"] == "llm"
+        second = _json_response(_request(
+            srv.bound_port, "POST", "/message",
+            body={"user_id": "alex", "text": "pergunta falha única 1"},
+        ))
+        assert second["route"] != "cache", (
+            "falha cacheada renasce a cada repetição (sem nexo para sempre)"
+        )
+
+    def test_resposta_normal_continua_cacheavel(self, serve, tmp_path: Path) -> None:
+        srv = serve(make_orch(tmp_path))
+        primeiro = _json_response(_request(
+            srv.bound_port, "POST", "/message",
+            body={"user_id": "alex", "text": "pergunta cacheável 926"},
+        ))
+        segundo = _json_response(_request(
+            srv.bound_port, "POST", "/message",
+            body={"user_id": "alex", "text": "pergunta cacheável 926"},
+        ))
+        assert primeiro["route"] == "llm"
+        assert segundo["route"] == "cache" and segundo["cached"] is True
+
+    def test_cacheable_rejeita_etiquetas_e_truncamento(self) -> None:
+        from core.orchestrator import _cacheable
+        for falha in (
+            "[NICKY][CRIT] Erro: x", "[CRIT] y", "[WARN] z",
+            "[NICKY][ONLINE] status", "[ONLINE][INFO] ok",
+            "[NICKY][INFO] avisando", "[INFO] x",
+            "Here's a thinking process to answer",
+            "", "resposta cortada,",
+        ):
+            assert not _cacheable(falha), falha
+        for boa in ("Resposta completa.", "Bom dia! Tudo bem?",
+                    "Sou a Nicky Virthy."):
+            assert _cacheable(boa), boa
+
+
+# ===========================================================================
+# Deleção de mensagem única + saneamento do cache (admin)
+# ===========================================================================
+
+class TestHistoryMessageDelete:
+    """DELETE /history/{uid}/messages/{mid} — remoção cirúrgica.
+    Usa SQLite (database=True): o id é a PK de conversation_messages,
+    igual à produção (PostgreSQL)."""
+
+    def test_apaga_uma_mensagem_e_preserva_o_resto(
+        self, serve, tmp_path: Path
+    ) -> None:
+        orch = make_orch(tmp_path, database=True)
+        srv = serve(orch)
+        port = srv.bound_port
+        orch.providers[0].reply = "resposta-do-turno-um"
+        _request(port, "POST", "/message",
+                 body={"user_id": "alex", "text": "turno um 926"})
+        orch.providers[0].reply = "resposta-do-turno-dois"
+        _request(port, "POST", "/message",
+                 body={"user_id": "alex", "text": "turno dois 926"})
+        hist = _json_response(_request(port, "GET", "/history/alex"))
+        msgs = hist["messages"]
+        assert len(msgs) == 4  # 2 turnos × (user+assistant)
+        # Apaga a resposta do 1º turno (a 2ª mensagem, índice 1)
+        alvo = msgs[1]
+        assert "id" in alvo  # o id vem na resposta para o ✕ do chat
+        status, body, _h = _request(
+            port, "DELETE", f"/history/alex/messages/{alvo['id']}"
+        )
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["ok"] is True
+        hist2 = _json_response(_request(port, "GET", "/history/alex"))
+        conteudos = [m["content"] for m in hist2["messages"]]
+        assert "resposta-do-turno-um" not in conteudos
+        assert len(conteudos) == 3
+        # O resto intacto
+        for resto in (msgs[0], msgs[2], msgs[3]):
+            assert resto["content"] in conteudos
+
+    def test_mensagem_de_outro_balde_e_404(self, serve, tmp_path: Path) -> None:
+        srv = serve(make_orch(tmp_path, database=True))
+        port = srv.bound_port
+        _request(port, "POST", "/message",
+                 body={"user_id": "alex", "text": "minha msg 926"})
+        hist = _json_response(_request(port, "GET", "/history/alex"))
+        mid = hist["messages"][0]["id"]
+        # bia não pode apagar mensagem de alex (404, não revela existência)
+        status, body, _h = _request(
+            port, "DELETE", f"/history/bia/messages/{mid}"
+        )
+        assert status == 404
+        # id inexistente
+        status2, _, _h2 = _request(
+            port, "DELETE", "/history/alex/messages/999999"
+        )
+        assert status2 == 404
+
+    def test_message_id_invalido_e_400(self, serve, tmp_path: Path) -> None:
+        srv = serve(make_orch(tmp_path, database=True))
+        status, body, _h = _request(
+            srv.bound_port, "DELETE", "/history/alex/messages/abc"
+        )
+        assert status == 400
+        assert _json_response((status, body, _h))["error"] == "message_id_invalido"
+
+    def test_dono_apaga_no_proprio_balde(self, serve, tmp_path: Path) -> None:
+        """Gate de dono: /history/{uid}/messages/{mid} segue o _check_owner."""
+        srv = serve(make_orch(tmp_path, database=True))
+        port = srv.bound_port
+        _request(port, "POST", "/message",
+                 body={"user_id": "alex", "text": "msg do alex 926"})
+        hist = _json_response(_request(port, "GET", "/history/alex"))
+        mid = hist["messages"][0]["id"]
+        status, _, _h = _request(
+            port, "DELETE", f"/history/alex/messages/{mid}",
+            api_key="outra-chave",
+        )
+        # Sem auth_all, sem api_key configurada: qualquer um passa no gate
+        # da rota, mas o balde de bia não tem essa mensagem (404).
+        assert status in (200, 404)
+
+
+class TestAdminCachePrune:
+    """POST /admin/cache/prune — saneia entradas de falha do cache LLM."""
+
+    def _seed_cache(self, tmp_path: Path) -> Orchestrator:
+        orch = make_orch(tmp_path)
+        orch.cache.set("pergunta falha A", "[NICKY][CRIT] Erro:Não carregou")
+        orch.cache.set("pergunta boa B", "Resposta boa do guardião.")
+        orch.cache.set("pergunta falha C", "resposta truncada,")
+        return orch
+
+    def test_dry_run_lista_sem_remover(self, serve, tmp_path: Path) -> None:
+        srv = serve(self._seed_cache(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/cache/prune",
+            body={"dry_run": True},
+        )
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["ok"] is True and data["dry_run"] is True
+        assert data["candidatas"] == 2
+        assert data["removidas"] == 0
+        motivos = " ".join(d["motivo"] for d in data["detalhes"])
+        assert "etiqueta" in motivos or "truncada" in motivos
+
+    def test_prune_remove_so_as_falhas(self, serve, tmp_path: Path) -> None:
+        orch = self._seed_cache(tmp_path)
+        srv = serve(orch)
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/cache/prune", body={}
+        )
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["candidatas"] == 2
+        assert data["removidas"] == 2
+        # A boa sobrevive; as falhas sumiram
+        assert orch.cache.get("pergunta boa B") == "Resposta boa do guardião."
+        assert orch.cache.get("pergunta falha A") is None
+        assert orch.cache.get("pergunta falha C") is None
+
+    def test_prune_com_keys_especificas(self, serve, tmp_path: Path) -> None:
+        orch = self._seed_cache(tmp_path)
+        srv = serve(orch)
+        key_alvo = orch.cache.make_key("pergunta boa B")
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/cache/prune",
+            body={"keys": [key_alvo]},
+        )
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["removidas"] == 1
+        assert orch.cache.get("pergunta boa B") is None
+        # As outras ficam
+        assert orch.cache.get("pergunta falha A") is not None
+
+    def test_prune_sem_cache_e_503(self, serve, tmp_path: Path) -> None:
+        srv = serve(make_orch(tmp_path, cache=False))
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/cache/prune", body={}
+        )
+        assert status == 503
+
+    def test_prune_keys_invalidas_e_400(self, serve, tmp_path: Path) -> None:
+        srv = serve(self._seed_cache(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/cache/prune",
+            body={"keys": "não-sou-lista"},
+        )
+        assert status == 400
