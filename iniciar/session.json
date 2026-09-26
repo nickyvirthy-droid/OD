@@ -1,11 +1,16 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T01:49:00-03:00",
+  "updated_at": "2026-09-26T04:00:00-03:00",
   "retomada_2026_09_26": {
     "pedido": "Usuário: 'leia iniciar' — retomada da sessão (01:48).",
     "verificacao": "od-core active, PID 481232 (o mesmo da rodada 2 de 09-25), desde 2026-09-25 15:32:18, NRestarts=0; HEAD==origin/master f522abe (Sair/Limpar preservam o botão de paginação); working tree limpo exceto backups/prova-site-923-20260923-134842.bak.json (untracked, já conhecido).",
     "estado": "RETOMADA CONCLUÍDA — pendente do ponto anterior: confirmação visual do dono da troca de usuário no site + definição do 'outro sistema'."
+  },
+  "retomada_2026_09_26_2": {
+    "pedido": "Usuário: 'leia iniciar' — nova retomada (~04:00).",
+    "verificacao": "od-core active, PID 535581 (deploy dos painéis), desde 2026-09-26 02:37:49, NRestarts=0; HEAD==origin/master a1b1490 (painéis /dashboard e /admin); working tree limpo exceto backups/prova-site-923-20260923-134842.bak.json (untracked, já conhecido).",
+    "estado": "RETOMADA CONCLUÍDA — pendente do ponto anterior: confirmação visual do dono nos painéis /dashboard e /admin."
   },
   "prova_reboot_2026_09_21": {
     "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
@@ -526,14 +531,14 @@
       "reset_real": "conta prova-dash criada → reset pelo admin → login com senha NOVA 200 → remoção 200; /admin/users/jonas → 404; reset em alex → 403 dono_nao_removivel",
       "js_no_ar": "node --check OK no HTML servido das duas páginas"
     },
-    "estado": "CONCLUÍDO E NO AR (PID 535581) — aguardando confirmação visual do dono nos painéis."
+    "estado": "CONCLUÍDO E NO AR (PID 535581) — CONFIRMADO VISUALMENTE PELO DONO em 2026-09-26 ~04:00. Ponto FECHADO."
   },
   "last_turn": {
     "date": "2026-09-26",
     "action": "Bug 'conversas não atualizam ao trocar de usuário' corrigido: página /chat com Cache-Control no-store, histórico por /history/me (identidade do servidor) e filtro de perfil resetado por sessão. Commit do dia, implantado (PID 479051) e provado no ar.",
     "action": "Dono CONFIRMOU no site que as conversas do usuário teste aparecem — correção das rotas terminais (2ee947b) validada de ponta a ponta (prova servidor 6/6 em 09-24 + confirmação visual do dono em 09-25). Ponto FECHADO.",
     "action": "Painéis entregues: /dashboard (usuário) e /admin (dono) com 6 rotas novas (conta + gestão de usuários), implantados e provados 7/7 no ar. Detalhe em paineis_2026_09_26.",
-    "next": "Dono confirma visualmente os painéis (/dashboard com a conta dele, /admin com a OD_API_KEY/sessão do alex); reset de senha do 'teste' agora é 1 clique no /admin se o dono quiser.",
+    "next": "Painéis FECHADOS com confirmação visual do dono (2026-09-26 ~04:00). Próximo assunto a definir pelo dono.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

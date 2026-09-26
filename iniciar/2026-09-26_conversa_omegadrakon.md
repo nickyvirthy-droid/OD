@@ -93,8 +93,13 @@ fusão/edição dobrou a barra depois. Correção: onclick inline trocado por
 - /admin/users/jonas → 404; reset em alex → 403 dono_nao_removivel.
 - Journal: 0 Traceback/ERROR/CRIT.
 
-## 4. Estado da sessão
+## 4. Confirmação do dono nos painéis (~04:00)
 
-- **Código:** commitado (ver git log) e NO AR (PID 535581).
+"Confirmei os painéis visualmente, fechamos esse ponto." — /dashboard e
+/admin validados pelo dono. Ponto FECHADO; suíte 1913/16; PID 535581.
+
+## 5. Estado da sessão
+
+- **Código:** commitado (a1b1490) e NO AR (PID 535581).
 - **Suíte:** 1913 passed, 16 skipped.
-- **Pendente:** confirmação visual do dono no /dashboard e /admin.
+- **Pendente:** nada nos painéis — próximo assunto a definir pelo dono.
