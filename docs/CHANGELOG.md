@@ -14,6 +14,29 @@
 
 ---
 
+## [1.5.0] — App sem configuração de URL: conexão por localização + conta do site 📱 (2026-09-26)
+
+> **Política:** feature nova compatível = MINOR (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.5.0` · app `1.5.0+14` (versionCode 14).
+
+### Adicionado (2026-09-26 — app Flutter)
+
+- **feat(app): conexão automática pela LOCALIZAÇÃO da rede** —
+  `OdApi.pickBestUrl()` sonda a rede local (Tailscale, timeout de 4s) e,
+  sem rota, usa a externa (Funnel/TLS); a que responder vira primária e a
+  escolha é persistida. O usuário nunca digita URL.
+- **feat(app): URLs ocultas** — removidas da tela principal; ficam dentro
+  de "Avançado", atrás do switch "Mostrar URLs" (padrão do sistema: ocultas).
+- **feat(app): seção Conta nas Configurações** — login com o MESMO
+  nome/senha do site (POST /auth/login) direto do app; logado, mostra o
+  usuário com botão Sair (logout mata a sessão no servidor).
+
+### Cobertura
+
+- flutter analyze 0 issues; flutter test 84 passed, 2 skipped (+3: URLs
+  ocultas no Avançado, login da conta na Configurações, logado com Sair).
+- Suíte do servidor verda (guardas de versão) após o bump 1.5.0.
+
 ## [1.4.0] — Plêiade pelo domínio, cache saneado e poda admin 🧹 (2026-09-26)
 
 > **Política:** feature nova compatível = MINOR (`docs/VERSIONAMENTO.md` §1).

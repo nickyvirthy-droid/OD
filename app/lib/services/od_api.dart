@@ -25,6 +25,20 @@ const int odMaxAttempts = 3;
 /// Janela base do backoff exponencial entre tentativas (400ms, 800ms, ...).
 const Duration odRetryDelay = Duration(milliseconds: 400);
 
+/// URLs padrão do OmegaDrakon — ocultas na configuração do usuário.
+///
+/// O app escolhe sozinho pela LOCALIZAÇÃO da rede ([OdApi.pickBestUrl]):
+/// com rota até o tailnet usa a URL local (latência mínima) e, fora de
+/// casa, a externa (Tailscale Funnel — TLS, funciona de qualquer lugar).
+/// O usuário nunca digita URL.
+const String odDefaultLocalUrl = 'http://100.77.67.53:8000';
+const String odDefaultExternalUrl = 'https://nicky-server.tail1b1f51.ts.net';
+
+/// Tempo da sonda de localização: curto de propósito — a rede local
+/// responde em milissegundos; sem rota, o erro é no timeout e não vale
+/// esperar os 8s do connectTimeout padrão.
+const Duration odProbeTimeout = Duration(seconds: 4);
+
 /// Cliente da API REST do OmegaDrakon.
 ///
 /// Uso:
@@ -98,9 +112,71 @@ class OdApi {
     baseUrl = url.trim();
   }
 
-  /// Troca a URL de fallback em runtime.
+  /// Troca a URL de fallback em runtime (null/vazia limpa o fallback).
   void setFallbackUrl(String? url) {
     fallbackUrl = url?.trim().isEmpty == true ? null : url?.trim();
+  }
+
+  /// A URL ativa é a da rede local? (classificação por formato: https =
+  /// externa; o resto — http/100.x — é local). É o rótulo exibido nas
+  /// Configurações; a URL em si fica oculta.
+  bool get usingLocalUrl => !baseUrl.startsWith('https://');
+
+  /// Escolhe a melhor URL pela LOCALIZAÇÃO da rede.
+  ///
+  /// Sonda primeiro a rede local (Tailscale 100.x — responde em
+  /// milissegundos quando o celular está no tailnet/em casa) e, sem rota,
+  /// usa a externa (Funnel, funciona de qualquer lugar). A que responder
+  /// vira a primária; a outra fica de fallback. A escolha é persistida.
+  ///
+  /// Prefere a URL salva do último uso (quando existir) sobre os padrões —
+  /// é o que faz o app voltar ao caminho que já funcionou.
+  ///
+  /// Nada alcançável: mantém local como primária (é a única hipótese que
+  /// pode voltar a funcionar sozinha quando a rede voltar).
+  Future<String> pickBestUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    final local = prefs.getString('od_server_url')?.isNotEmpty == true
+        ? prefs.getString('od_server_url')!
+        : odDefaultLocalUrl;
+    final external =
+        prefs.getString('od_server_url_fallback')?.isNotEmpty == true
+            ? prefs.getString('od_server_url_fallback')!
+            : odDefaultExternalUrl;
+
+    String escolhida;
+    if (await isReachable(local)) {
+      baseUrl = local;
+      fallbackUrl = external;
+      escolhida = local;
+    } else if (await isReachable(external)) {
+      baseUrl = external;
+      fallbackUrl = local;
+      escolhida = external;
+    } else {
+      baseUrl = local;
+      fallbackUrl = external;
+      escolhida = local;
+    }
+    await saveUrls();
+    return escolhida;
+  }
+
+  /// True quando o servidor respondeu na [url] — QUALQUER status HTTP conta
+  /// (o 401 do gate com OD_API_AUTH_ALL=1 prova que a rota existe). Uma
+  /// tentativa só, sem retry de rede e com timeout curto ([odProbeTimeout]).
+  Future<bool> isReachable(String url) async {
+    try {
+      final response = await _send(
+        'GET',
+        Uri.parse('$url/health'),
+        attempts: 1,
+        timeout: odProbeTimeout,
+      );
+      return response.statusCode >= 200 && response.statusCode < 600;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Salva a API key (persistida em SharedPreferences).
@@ -216,12 +292,17 @@ class OdApi {
       };
 
   /// Executa a requisição com resiliência (ver doc da classe).
+  ///
+  /// [attempts] sobrescreve o máximo de tentativas (a sonda de localização
+  /// usa 1 — retry em sonda só multiplicaria a espera).
   Future<http.Response> _send(
     String method,
     Uri uri, {
     String? body,
     Duration? timeout,
+    int? attempts,
   }) async {
+    final maxTentativas = attempts ?? maxAttempts;
     var attempt = 0;
     while (true) {
       attempt++;
@@ -253,7 +334,7 @@ class OdApi {
         final networkError = _asNetworkError(error, uri);
         // Erro de aplicação (resposta 4xx/5xx etc.): não é rede, não retenta.
         if (networkError == null) rethrow;
-        if (attempt >= maxAttempts || !_mayRetry(method, error)) {
+        if (attempt >= maxTentativas || !_mayRetry(method, error)) {
           throw networkError;
         }
       } finally {

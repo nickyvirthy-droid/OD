@@ -7,6 +7,25 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.5.0] — APP SEM URL MANUAL: CONEXÃO POR LOCALIZAÇÃO + CONTA DO SITE 📱 (2026-09-26)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Conexão por localização** | `OdApi.pickBestUrl()`: sonda a rede local (Tailscale, 4s) e usa a externa (Funnel) sem rota; escolha persistida — o usuário nunca digita URL |
+| **URLs ocultas** | Removidas da tela; em "Avançado", atrás do switch "Mostrar URLs" |
+| **Conta nas Configurações** | Login com o mesmo nome/senha do site; logado exibe o usuário + Sair (logout no servidor) |
+| **Bootstrap** | `main.dart` chama `pickBestUrl()` antes do login — o login já entra pelo caminho que funciona |
+
+### 2. Evidência
+
+```
+app: flutter analyze → No issues found! · flutter test → 84 passed (2 skipped)
+servidor: pytest tests/ → 1932+ passed (guardas de versão fixam 1.5.0)
+APK 1.5.0+14 (versionCode 14) publicado em site/ — aapt2 versionName='1.5.0'
+```
+
 ## [1.4.0] — PLÊIADE PELO DOMÍNIO + CACHE SANEADO + PODA ADMIN 🧹 (2026-09-26)
 
 ### 1. O que foi feito

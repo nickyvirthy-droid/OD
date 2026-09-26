@@ -75,16 +75,19 @@ class _OdRootState extends State<OdRoot> {
   @override
   void initState() {
     super.initState();
-    _api = OdApi(
-      baseUrl: 'http://100.77.67.53:8000',
-      // Externa: Tailscale Funnel (TLS, sem depender de porta da operadora).
-      fallbackUrl: 'https://nicky-server.tail1b1f51.ts.net',
-    );
+    // URLs padrão do sistema — o usuário NUNCA configura URL: o app escolhe
+    // sozinho pela localização da rede (ver pickBestUrl).
+    _api = OdApi(baseUrl: odDefaultLocalUrl, fallbackUrl: odDefaultExternalUrl);
     _bootstrap();
   }
 
   Future<void> _bootstrap() async {
+    // 1) Credenciais salvas + URLs do último uso.
     final has = await _api.loadSavedApiKey();
+    // 2) Localização de rede: sonda a rede local (Tailscale) e usa a externa
+    //    quando ela não responde. Antes do login, para o login já entrar
+    //    pelo caminho que funciona.
+    await _api.pickBestUrl();
     if (!mounted) return;
     setState(() {
       _authenticated = has;

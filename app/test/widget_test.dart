@@ -527,15 +527,67 @@ void main() {
   });
 
   group('SettingsScreen', () {
-    testWidgets('valida URL vazia ao salvar', (tester) async {
+    testWidgets('URLs ficam ocultas por padrão (só no Avançado com switch)',
+        (tester) async {
       await tester.pumpWidget(_wrap(SettingsScreen(
         api: _mockApi(),
         onSaved: () {},
       )));
 
-      // Campo de URL já vem preenchido com a baseUrl — esvazia para validar
-      await tester.enterText(find.byType(TextField).first, '');
-      await tester.tap(find.text('Salvar'));
+      // A conexão é automática — nada de campo de URL à vista.
+      expect(find.text('URL local (Tailscale)'), findsNothing);
+      expect(find.text('URL externa (Funnel)'), findsNothing);
+      expect(
+        find.textContaining('conexão é automática'),
+        findsOneWidget,
+      );
+
+      // Dentro do Avançado, as URLs só aparecem após o switch.
+      await tester.scrollUntilVisible(
+        find.text('Avançado'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Avançado'));
+      await tester.pumpAndSettle();
+      expect(find.text('URL local (Tailscale)'), findsNothing);
+      await tester.tap(find.text('Mostrar URLs'));
+      await tester.pumpAndSettle();
+      expect(find.text('URL local (Tailscale)'), findsOneWidget);
+      expect(find.text('URL externa (Funnel)'), findsOneWidget);
+    });
+
+    testWidgets('valida URL vazia ao salvar (Avançado)', (tester) async {
+      await tester.pumpWidget(_wrap(SettingsScreen(
+        api: _mockApi(),
+        onSaved: () {},
+      )));
+
+      await tester.scrollUntilVisible(
+        find.text('Avançado'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Avançado'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mostrar URLs'));
+      await tester.pumpAndSettle();
+
+      // Campo de URL já vem preenchido com a baseUrl — esvazia para validar.
+      await tester.enterText(
+        find.widgetWithText(TextField, 'URL local (Tailscale)'),
+        '',
+      );
+      // O teclado virtual empurra o botão para fora da tela: rolar até ele
+      // e fechar o teclado (o foco no campo mantém o inset ativo).
+      await tester.scrollUntilVisible(
+        find.text('Salvar avançado'),
+        -80,
+        scrollable: find.byType(Scrollable).first,
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Salvar avançado'));
       await tester.pumpAndSettle();
 
       expect(
@@ -544,7 +596,8 @@ void main() {
       );
     });
 
-    testWidgets('salvar aplica URL e API key na instância', (tester) async {
+    testWidgets('salvar avançado aplica URL e API key na instância',
+        (tester) async {
       final api = _mockApi();
       var saved = false;
       await tester.pumpWidget(_wrap(SettingsScreen(
@@ -552,18 +605,110 @@ void main() {
         onSaved: () => saved = true,
       )));
 
+      await tester.scrollUntilVisible(
+        find.text('Avançado'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Avançado'));
+      await tester.pumpAndSettle();
       await tester.enterText(
-        find.byType(TextField).first,
+        find.widgetWithText(TextField, 'API Key (chave do servidor)'),
+        'chave-nova',
+      );
+      await tester.tap(find.text('Mostrar URLs'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'URL local (Tailscale)'),
         'http://nova.od:9000',
       );
-      await tester.enterText(find.byType(TextField).last, 'chave-nova');
-      await tester.tap(find.text('Salvar'));
+      // O teclado virtual empurra o botão para fora da tela: rolar até ele
+      // e fechar o teclado (o foco no campo mantém o inset ativo).
+      await tester.scrollUntilVisible(
+        find.text('Salvar avançado'),
+        -80,
+        scrollable: find.byType(Scrollable).first,
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Salvar avançado'));
       await tester.pumpAndSettle();
 
       expect(saved, isTrue);
       expect(api.baseUrl, 'http://nova.od:9000');
       expect(api.apiKey, 'chave-nova');
       expect(find.text('Configurações salvas!'), findsOneWidget);
+    });
+
+    testWidgets('seção Conta: login com as credenciais do site',
+        (tester) async {
+      OdApi? capturada;
+      final api = OdApi(
+        baseUrl: 'http://od.test:8000',
+        client: MockClient((request) async {
+          expect(request.url.path, '/auth/login');
+          final body = jsonDecode(request.body);
+          expect(body['username'], 'alex');
+          expect(body['password'], 'senha123');
+          return _json({
+            'ok': true,
+            'token': 'tok-site',
+            'user': {'username': 'alex'},
+          });
+        }),
+      );
+      capturada = api;
+
+      await tester.pumpWidget(_wrap(SettingsScreen(
+        api: capturada,
+        onSaved: () {},
+      )));
+
+      // Sem sessão, a seção mostra nome + senha (as mesmas do site).
+      expect(
+        find.textContaining('MESMO nome e senha'),
+        findsOneWidget,
+      );
+      expect(find.text('Nome de usuário'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Nome de usuário'),
+        'alex',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Senha'),
+        'senha123',
+      );
+      await tester.tap(find.text('Entrar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Conectado como alex'), findsOneWidget);
+      expect(capturada.token, 'tok-site');
+    });
+
+    testWidgets('seção Conta: logado mostra o usuário e o Sair',
+        (tester) async {
+      final api = OdApi(
+        baseUrl: 'http://od.test:8000',
+        token: 'tok-ativo',
+        username: 'alex',
+        client: MockClient((request) async {
+          expect(request.url.path, '/auth/logout');
+          return _json({'ok': true});
+        }),
+      );
+      await tester.pumpWidget(_wrap(SettingsScreen(
+        api: api,
+        onSaved: () {},
+      )));
+
+      expect(find.text('alex'), findsOneWidget);
+      expect(find.text('Sair da conta'), findsOneWidget);
+      expect(find.text('Nome de usuário'), findsNothing);
+
+      await tester.tap(find.text('Sair da conta'));
+      await tester.pumpAndSettle();
+      expect(api.token, isEmpty);
+      expect(find.text('Sessão encerrada.'), findsOneWidget);
     });
   });
 
