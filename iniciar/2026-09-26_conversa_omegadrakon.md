@@ -272,3 +272,28 @@ Prova (4/4):
 
 Conclusão: cache limpo operando fim a fim pela URL pública — grava só
 resposta real e a serve em ~4 ms na repetição.
+
+## 11. Checagem de fechamento do dia (11:3x)
+
+Pedido: "Verificar o estado geral do sistema (od-core, supervision,
+Funnel, banco) para fechar o dia".
+
+| Frente | Estado |
+|---|---|
+| **od-core** | active, PID 586587 (deploy v1.4.0, 11:10:36), NRestarts=0, enabled |
+| **od-llm** | active (llama-server 127.0.0.1:8081 no ar) |
+| **od-control-bridge** | active (system), :8765 escutando |
+| **Portas** | 8000 REST · 8001 WS · 8081 LLM · 1883 Mosquitto · 5432 Postgres · 8765 Bridge — todas escutando |
+| **/health** | 200 ok=true · 9/9 checks up (nenhum degradado/down) |
+| **/supervision** | up · restarts 0 · 0 degradados na janela |
+| **Funnel** | on — `/` → 127.0.0.1:8000; prova pública: `/capabilities` 200 **1.4.0**, `/ws` 426 (nosso WS), `/health` sem chave 401 (auth_all ativo) |
+| **Banco (Postgres)** | users 2 · sessões válidas 18 · conversation_messages 140 (alex 132; provas 2+2+2+2) · telegram_links 1 · **llm_cache 23 (só entradas saudáveis — 0 falhas)** |
+| **Journal do dia** | 0 Traceback/ERROR/CRIT desde 00:00 |
+| **Git** | árvore limpa · HEAD `befcf51` == origin/master |
+
+Observações: llm_cache 23 = as entradas gravadas APÓS a poda (prova do
+Funnel + conversas reais) — todas saudáveis pela guarda `_cacheable`.
+Sessões válidas 18 incluem as do dono (TTL 7 dias). Última interação
+gravada 10:56. Nada reiniciado nesta checagem.
+
+**Dia FECHADO — sistema verde em todas as frentes.**
