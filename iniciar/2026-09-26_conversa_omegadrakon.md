@@ -361,3 +361,37 @@ escolheu no site".
 - **Instalar o APK 1.5.0+14 no celular** (14 > 13 instala por cima) e
   confirmar: entrar com alex/senha123 na seção Conta, conferir o rótulo
   local/internet e o streaming no chat.
+
+## 13. Dono confirma o APK 1.5.0+14 no celular (12:0x–12:1x)
+
+Pedido: "Instalar o APK 1.5.0+14 no celular e confirmar o login pela
+seção Conta e o rótulo de rede" → confirmação: "Confirmado — confira no
+journal o rastro do celular".
+
+### Rastro no journal (todos do PID 594542, deploy 1.5.0)
+
+- **12:08:48 · Login realizado | username=alex | user_id=1** — o celular
+  entrou pela seção Conta (mesmas credenciais do site).
+- **12:09:22 · Login realizado | username=alex** — segundo login
+  (reconexão/abertura do app).
+- **12:15:45 · Login realizado | username=alex** — sessão do chat.
+- **12:17:45 · WebSocket authenticated | user_id=alex | via=session** —
+  o streaming do app autenticou pela SESSÃO da conta (não API key): a
+  identidade sai da credencial, como projetado.
+- **2× Message processed | route=llm | user=alex | llm=gemma-local**
+  (16,8s e 9,8s) — respostas reais, gravadas na conta certa.
+- **0 Traceback/ERROR/CRIT** no período.
+
+### Banco (Postgres)
+
+- Sessões novas do celular: 12:08:48 e 12:15:12 (user_id 1, válidas).
+- Interações da hora na conta alex: "qual o ip do servidor" → resposta
+  da Guardian recusando IP privado; "mas eu sou o ADM" → resposta da
+  Guardian — perfil guardian convocado, como esperado no modo auto para
+  texto técnico.
+
+### Estado
+
+- **PONTO FECHADO** — APK 1.5.0+14 instalado, login pela seção Conta
+  confirmado pelo dono, rastro no journal e no banco batendo com o
+  desenho (via=session, user=alex, guardian no auto).

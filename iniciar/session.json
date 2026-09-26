@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T12:05:00-03:00",
+  "updated_at": "2026-09-26T12:25:00-03:00",
   "retomada_2026_09_26_3": {
     "pedido": "Usuário: 'leia iniciar' — nova retomada (~11:05).",
     "verificacao": "od-core active, PID 547622 (deploy do versionamento 1.3.0), desde 2026-09-26 04:46:22, NRestarts=0, journal sem err; HEAD==origin/master fe820ae (guardas de coerência da versão).",
@@ -569,6 +569,12 @@
     "testes": "Suíte 1920 passed, 16 skipped (+6).",
     "estado": "CONCLUÍDO — bump parcial de versão agora quebra a suíte."
   },
+  "apk_v150_confirmado_2026_09_26": {
+    "pedido": "Dono instalou o 1.5.0+14 no celular e confirmou: 'Confirmado — confira no journal o rastro do celular'.",
+    "rastro": "3x Login realizado username=alex (12:08, 12:09, 12:15); WebSocket authenticated user_id=alex via=session (12:17:45); 2x Message processed route=llm user=alex llm=gemma-local (16,8s/9,8s); 0 erros.",
+    "banco": "Sessões novas do celular (user_id 1, válidas, 12:08 e 12:15); interações gravadas na conta alex ('qual o ip do servidor' / 'mas eu sou o ADM' — guardian no auto, como esperado).",
+    "estado": "PONTO FECHADO — APK 1.5.0+14 instalado e operando fim a fim pela conta do site."
+  },
   "apk_v150_2026_09_26": {
     "pedido": "Dono: 'refaça ele com todas as melhorias que fizemos até aqui. na configuração as url devem ficar ocultas, a melhor maneira de acesso seria pela localização se existir, assim escolher url local ou externa. na configuração alem da chave API o usuário cadastra o nome e senha que escolheu no site'.",
     "implementacao": ["OdApi.pickBestUrl: sonda a rede local (Tailscale, 4s; qualquer HTTP prova a rota) e usa a externa (Funnel) sem rota; escolha persistida; main.dart escolhe ANTES do login", "SettingsScreen reescrita: Conta (login com o MESMO nome/senha do site + Sair com logout no servidor), Servidor (conexão automática, só o rótulo local/internet) e Avançado (API key + URLs atrás do switch 'Mostrar URLs')"],
@@ -613,7 +619,7 @@
   "last_turn": {
     "date": "2026-09-26",
     "action": "Lote não registrado validado (1932/16 + sandbox 57), bump SemVer 1.4.0 pelo checklist, APK 1.4.0+13, deploy provado no ar 5/5 e publicado (7d29592). Resíduo postgres:/ removido.",
-    "next": "Instalar o APK 1.5.0+14 no celular (14 > 13) e confirmar: login na seção Conta com alex/senha123, rótulo local/internet e streaming no chat.",
+    "next": "Nada pendente no servidor e no app — próximos passos são novos pedidos do dono.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
