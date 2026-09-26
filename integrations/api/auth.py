@@ -398,6 +398,67 @@ class UserStore:
         log.info("API key rotacionada", user_id=user_id)
         return new_key
 
+    def change_password(self, user_id: int, current: str, new: str) -> None:
+        """Troca a senha do usuário — EXIGE a senha atual.
+
+        Mesmo com a sessão válida, a troca sem a senha atual permitiria que
+        quem roubar o token assumisse a conta permanentemente. O mínimo de 6
+        caracteres é o mesmo do registro.
+
+        Raises:
+            AuthError: 400 senha nova curta; 401 senha atual errada.
+        """
+        rows = self._db.query(
+            "SELECT password_hash FROM users WHERE id = ?",
+            (user_id,),
+            limit=1,
+        )
+        if not rows or not _verify_password(current, rows[0]["password_hash"]):
+            raise AuthError("Senha atual incorreta", 401)
+        if len(new) < 6:
+            raise AuthError("Senha deve ter pelo menos 6 caracteres", 400)
+        new_hash = _hash_password(new)
+        self._db.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (new_hash, user_id),
+        )
+        log.info("Senha alterada pelo próprio usuário", user_id=user_id)
+
+    def delete_user(self, user_id: int) -> bool:
+        """Remove a conta (admin). False quando o id não existe.
+
+        O histórico de conversas NÃO é apagado aqui — é balde separado
+        (conversation_messages por username) e o admin usa DELETE /history/
+        quando quiser removê-lo também.
+        """
+        rows = self._db.query(
+            "SELECT id FROM users WHERE id = ?", (user_id,), limit=1
+        )
+        if not rows:
+            return False
+        # Sessões e vínculo do Telegram morrem junto com a conta — sem eles
+        # sobrariam linhas órfãs e tokens ainda válidos de conta inexistente.
+        self._db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        self._db.execute(
+            "DELETE FROM telegram_links WHERE username = ("
+            "SELECT username FROM users WHERE id = ?)",
+            (user_id,),
+        )
+        self._db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        log.info("Conta removida pelo admin", user_id=user_id)
+        return True
+
+    def count_sessions(self, user_id: int) -> int:
+        """Sessões VÁLIDAS (não expiradas) de um usuário."""
+        now = time.time()
+        rows = self._db.query(
+            "SELECT COUNT(*) AS cnt FROM sessions "
+            "WHERE user_id = ? AND expires_at > ?",
+            (user_id, now),
+            limit=1,
+        )
+        return int(rows[0]["cnt"]) if rows else 0
+
     def count(self) -> int:
         """Quantidade de usuários registrados."""
         return int(self._db.scalar("SELECT COUNT(*) FROM users") or 0)

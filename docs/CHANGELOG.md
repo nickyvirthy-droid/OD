@@ -14,7 +14,42 @@
 
 ---
 
-## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21, 2026-09-22, 2026-09-23, 2026-09-24 e 2026-09-25)
+## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21, 2026-09-22, 2026-09-23, 2026-09-24, 2026-09-25 e 2026-09-26)
+
+### Adicionado (2026-09-26) — painéis: dashboard do usuário e backend do admin 🛡️
+
+- **/dashboard (painel do usuário)** — a página antes morta virou painel
+  autenticado: uso da própria conta (mensagens, conversas, última atividade
+  via `/history/me/stats`), últimas 20 mensagens do histórico e gestão da
+  conta — troca de SENHA (exigindo a atual) e ROTAÇÃO da própria API key
+  (via `/account/*`, novos endpoints). Sem login, o navegador é mandado
+  para /chat. O menu 👤 do chat ganhou o atalho "📊 Meu painel".
+- **/admin (painel do dono, papel admin)** — contas (lista com mensagens,
+  sessões ativas, criação e marcação de dono), baldes legados sem conta,
+  saúde do sistema (/health, /supervision, /dashboard/stats) e AÇÕES:
+  reset de senha e remoção de conta (`/admin/users/*`, novos endpoints).
+  A conta do DONO não é alvo (`dono_nao_removivel`) — protege a
+  OD_API_KEY de operador. Remover conta NÃO apaga o histórico (balde é
+  separado; limpar histórico continua sendo ação própria do admin).
+- **Backend (integrations/api/)** — `auth.py`: `UserStore.change_password`
+  (exige a senha atual), `delete_user` (mata sessões + vínculo do
+  Telegram) e `count_sessions` (sessões válidas). `server.py`: 6 rotas
+  novas (33 → 39), gate `_require_admin` (403 para não-admin) e as duas
+  páginas embutidas.
+- **Segurança** — troca de senha encerra TODAS as sessões da conta (token
+  roubado não sobrevive); reset pelo admin idem; sem credencial tudo
+  devolve 401; usuário comum em rota admin devolve 403 com log de aviso.
+- **Provas** — suíte 1913 passed, 16 skipped (+14: 9 admin, 5 conta);
+  4 mutações detectadas e revertidas (papel user→admin, troca sem senha
+  atual, dono removível, reset sem fechar sessões); prova viva 7/7 no
+  sistema real (shells 200, dados 401 sem credencial, 403 para usuário
+  comum, reset+login+remoção de conta de prova, dono protegido, 404
+  para conta inexistente, 0 erros no journal).
+- **Lição (regra de guarda estendida)** — a página /admin pegou no AR um
+  bug de escape JS nos `onclick` gerados (o `node --check` do deploy
+  provou). Contrato endurecido: as DUAS páginas novas agora têm a mesma
+  guarda `node --check` do /chat (`test_painel_pages_js_compiles`), e os
+  onclick inline foram trocados por `data-*` + addEventListener.
 
 ### Corrigido (2026-09-25) — histórico do chat não atualizava ao trocar de usuário 🔄
 

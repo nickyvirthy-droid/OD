@@ -116,16 +116,22 @@ class TestAPIRoutes:
     def test_routes_mirror_legacy(self) -> None:
         """17 endpoints do legado + /capabilities (v0.27.3) + /site* +
         /actions + /executa (v1.2.0 — app Android) + /push/* (push FCM) +
-        /supervision (observabilidade dos loops, 2026-09-15)."""
-        assert len(ROUTES) == 33
+        /supervision (2026-09-15) + /account/* e /admin/* (painéis
+        dashboard/admin, 2026-09-26)."""
+        assert len(ROUTES) == 39
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
             ("GET", "/profiles/{name}"), ("GET", "/presence/today"),
-            ("GET", "/dashboard"), ("GET", "/chat"), ("GET", "/metrics"),
+            ("GET", "/dashboard"), ("GET", "/admin"), ("GET", "/chat"),
+            ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
+            ("POST", "/account/password"), ("POST", "/account/api-key"),
+            ("GET", "/admin/users"),
+            ("POST", "/admin/users/{username}/password"),
+            ("DELETE", "/admin/users/{username}"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/anon/message"),
@@ -145,6 +151,10 @@ class TestAPIRoutes:
         """Somente os endpoints operacionais pedem API Key (como no legado)."""
         auth = {(r.method, r.path) for r in ROUTES if r.auth}
         assert auth == {
+            ("POST", "/account/password"), ("POST", "/account/api-key"),
+            ("GET", "/admin/users"),
+            ("POST", "/admin/users/{username}/password"),
+            ("DELETE", "/admin/users/{username}"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/executa"),
@@ -162,7 +172,8 @@ class TestAPIRoutes:
         assert public == {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
             ("GET", "/profiles/{name}"), ("GET", "/presence/today"),
-            ("GET", "/dashboard"), ("GET", "/chat"), ("GET", "/metrics"),
+            ("GET", "/dashboard"), ("GET", "/admin"), ("GET", "/chat"),
+            ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/anon/message"),
@@ -233,8 +244,20 @@ class TestAPIPublicEndpoints:
         status, body, headers = _request(port, "GET", "/dashboard")
         assert status == 200
         assert headers.get("Content-Type", "").startswith("text/html")
-        assert b"Omega Drakon" in body
-        assert b"dashboard/stats" in body  # aponta para o endpoint com chave
+        # 2026-09-26: o /dashboard é o PAINEL DO USUÁRIO (uso, histórico e
+        # conta) — não é mais o shell morto com link para /dashboard/stats.
+        assert b"Meu painel" in body
+        assert b"/history/me/stats" in body
+        assert b"/account/password" in body and b"/account/api-key" in body
+        assert b"btn-limpar" in body and b"/history/me" in body
+        assert headers.get("Cache-Control", "") == "no-store"
+        # /admin: shell do painel do dono (dados só nos handlers /admin/users*)
+        status, admin_body, admin_headers = _request(port, "GET", "/admin")
+        assert status == 200
+        assert admin_headers.get("Cache-Control", "") == "no-store"
+        assert b"/admin/users" in admin_body
+        assert b"/supervision" in admin_body and b"/dashboard/stats" in admin_body
+        assert b"resetPass" in admin_body and b"delUser" in admin_body
         status, body, headers = _request(port, "GET", "/chat")
         assert status == 200
         # 2026-09-25: página EVOLUI com o servidor — sem no-store o navegador
@@ -269,6 +292,8 @@ class TestAPIPublicEndpoints:
         # Paginação infinita: pill no topo + cursor + gatilho por scroll.
         assert b"hist-top" in body and b"loadOlder" in body
         assert b"histOldestId" in body and b"has_more" in body
+        # Link para o painel do usuário (2026-09-26).
+        assert b'href="/dashboard"' in body
         # Guarda de regressão (2026-09-23): o <script> da página tem que ser JS
         # VÁLIDO — um erro de sintaxe (ex.: quebra de linha dentro de string)
         # mata TODOS os handlers e o site não entra nem no anônimo.
@@ -286,6 +311,34 @@ class TestAPIPublicEndpoints:
                     [node, "--check", _tmp.name], capture_output=True,
                 )
             assert check.returncode == 0, check.stderr.decode()[:400]
+
+    def test_painel_pages_js_compiles(self, serve, tmp_path: Path) -> None:
+        """Guarda de regressão (2026-09-26) para os painéis novos: o <script>
+        de /dashboard e /admin tem de ser JS VÁLIDO — o bug de escape nos
+        onclick do /admin só foi pego no AR porque as páginas não tinham a
+        guarda que o /chat ganhou em 2026-09-23."""
+        import re as _re
+        import shutil as _shutil
+        import subprocess as _subprocess
+        import tempfile as _tempfile
+        srv = serve(make_orch(tmp_path))
+        node = _shutil.which("node")
+        if not node:
+            return
+        for path in ("/dashboard", "/admin"):
+            _status, body, _h = _request(srv.bound_port, "GET", path)
+            script = _re.search(
+                r"<script>(.*)</script>", body.decode(), _re.S
+            ).group(1)
+            with _tempfile.NamedTemporaryFile(suffix=".js", mode="wb") as _tmp:
+                _tmp.write(script.encode())
+                _tmp.flush()
+                check = _subprocess.run(
+                    [node, "--check", _tmp.name], capture_output=True,
+                )
+            assert check.returncode == 0, (
+                f"{path}: " + check.stderr.decode()[:400]
+            )
 
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))
@@ -906,11 +959,13 @@ class TestAuthAll:
         status, body, _h = _request(srv.bound_port, "GET", "/chat")
         assert status == 200
         assert b"X-API-Key" in body and b"localStorage" in body
-        # Shell do dashboard é estático (sem números vivos)
+        # Shell do dashboard (2026-09-26: painel do usuário) carrega sem
+        # chave e SEM dados — números só chegam via fetch autenticado.
         status, body, _h = _request(srv.bound_port, "GET", "/dashboard")
         assert status == 200
-        assert b"Omega Drakon" in body
-        assert b"processed" not in body  # nenhum dado no shell
+        assert b"Meu painel" in body
+        assert b"<tbody" in body  # tabelas existem, VAZIAS no shell
+        assert b"carregar" not in body and b"od_processed" not in body
         # Mas os DADOS seguem exigindo a chave
         status, _body, _h = _request(
             srv.bound_port, "GET", "/dashboard/stats"

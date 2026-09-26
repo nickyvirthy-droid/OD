@@ -1470,3 +1470,205 @@ class TestHistoryOwnership:
         assert _request(
             srv.bound_port, "GET", "/memory/alex/search?q=oi"
         )[0] == 401
+
+
+# ===========================================================================
+# Painéis (2026-09-26): conta do usuário (/account/*) e admin (/admin/*)
+# ===========================================================================
+
+class TestAccountEndpoints:
+    """POST /account/password e POST /account/api-key — a conta de si mesma."""
+
+    def _cfg(self, **kwargs) -> APIConfig:
+        return APIConfig(port=0, rate_limit_max=0, **kwargs)
+
+    def _login(self, serve, tmp_path, store, username="bia"):
+        srv = serve(make_orch(tmp_path), config=self._cfg(user_store=store))
+        store.register(username, f"{username}@example.com", "senha123")
+        token = store.login(username, "senha123")
+        return srv, token
+
+    def test_change_password_requires_current(self, serve, tmp_path, store) -> None:
+        srv, token = self._login(serve, tmp_path, store)
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/account/password", bearer=token,
+            body={"current_password": "ERRADA", "new_password": "novaSenha1"},
+        )
+        assert status == 401 and _json_response((status, body, _))["ok"] is False
+        # A senha antiga continua valendo — nada mudou.
+        assert store.verify_credentials("bia", "senha123") is True
+
+    def test_change_password_rejects_short_new(self, serve, tmp_path, store) -> None:
+        srv, token = self._login(serve, tmp_path, store)
+        status, _, _ = _request(
+            srv.bound_port, "POST", "/account/password", bearer=token,
+            body={"current_password": "senha123", "new_password": "curta"},
+        )
+        assert status == 400
+
+    def test_change_password_ok_closes_sessions(self, serve, tmp_path, store) -> None:
+        srv, token = self._login(serve, tmp_path, store)
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/account/password", bearer=token,
+            body={"current_password": "senha123", "new_password": "novaSenha1"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["ok"] is True
+        assert data["sessions_closed"] == 1
+        # Sessão antiga morreu e a nova senha vale — a antiga não.
+        assert store.validate_session(token) is None
+        assert store.verify_credentials("bia", "novaSenha1") is True
+        assert store.verify_credentials("bia", "senha123") is False
+
+    def test_change_password_without_credential_401(self, serve, tmp_path, store) -> None:
+        srv, _ = self._login(serve, tmp_path, store)
+        assert _request(
+            srv.bound_port, "POST", "/account/password",
+            body={"current_password": "x", "new_password": "novaSenha1"},
+        )[0] == 401
+
+    def test_rotate_api_key_returns_new_and_kills_old(self, serve, tmp_path, store) -> None:
+        srv, token = self._login(serve, tmp_path, store)
+        old_key = store.get_user_by_username("bia").api_key
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/account/api-key", bearer=token
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["ok"] is True
+        assert data["api_key"].startswith("od_")
+        assert data["api_key"] != old_key
+        # A antiga não autentica mais; a nova sim.
+        status, _, _ = _request(
+            srv.bound_port, "GET", "/auth/me", api_key=old_key
+        )
+        assert status == 401
+        status, _, _ = _request(
+            srv.bound_port, "GET", "/auth/me", api_key=data["api_key"]
+        )
+        assert status == 200
+
+
+class TestAdminEndpoints:
+    """GET /admin/users, reset de senha e remoção — papel admin só."""
+
+    def _cfg(self, **kwargs) -> APIConfig:
+        return APIConfig(port=0, rate_limit_max=0, **kwargs)
+
+    def _setup(self, serve, tmp_path, store, *, owner=True):
+        """Dono alex + usuário comum bia; retorna (srv, token_admin, token_user)."""
+        cfg_kwargs = {"owner_username": "alex"} if owner else {}
+        srv = serve(
+            make_orch(tmp_path),
+            config=self._cfg(
+                api_key="segredo123", user_store=store, **cfg_kwargs
+            ),
+        )
+        store.register("alex", "alex@example.com", "senha123")
+        store.register("bia", "bia@example.com", "senha123")
+        t_admin = store.login("alex", "senha123")
+        t_user = store.login("bia", "senha123")
+        return srv, t_admin, t_user
+
+    def test_admin_users_lists_accounts_and_usage(self, serve, tmp_path, store) -> None:
+        srv, t_admin, _ = self._setup(serve, tmp_path, store)
+        history = srv.orchestrator.history
+        history.add_message("bia", "guardian", "user", "oi do balde da bia")
+        history.add_message("app", "guardian", "user", "legado do app")
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/admin/users", bearer=t_admin
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["ok"] is True and data["total"] == 2
+        bia = next(u for u in data["users"] if u["username"] == "bia")
+        assert bia["messages"] == 1 and bia["email"] == "bia@example.com"
+        assert bia["sessions"] == 1
+        alex = next(u for u in data["users"] if u["username"] == "alex")
+        # O dono vem marcado para a UI inibir reset/remoção.
+        assert alex["owner"] is True and bia.get("owner", False) is False
+        baldes = {b["user_id"]: b["messages"] for b in data["legacy_buckets"]}
+        assert baldes.get("app") == 1
+
+    def test_admin_users_denied_for_common_user(self, serve, tmp_path, store) -> None:
+        srv, _, t_user = self._setup(serve, tmp_path, store)
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/admin/users", bearer=t_user
+        )
+        assert status == 403 and _json_response((status, body, _))["error"] == "acesso_negado"
+
+    def test_admin_reset_password_and_sessions_die(self, serve, tmp_path, store) -> None:
+        srv, t_admin, t_user = self._setup(serve, tmp_path, store)
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/admin/users/bia/password", bearer=t_admin,
+            body={"new_password": "resetada9"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["sessions_closed"] == 1
+        assert store.validate_session(t_user) is None
+        assert store.verify_credentials("bia", "resetada9") is True
+        # Sem a senha atual — é reset, não troca.
+        assert store.verify_credentials("bia", "senha123") is False
+
+    def test_admin_reset_rejects_short_password(self, serve, tmp_path, store) -> None:
+        srv, t_admin, _ = self._setup(serve, tmp_path, store)
+        status, _, _ = _request(
+            srv.bound_port, "POST", "/admin/users/bia/password", bearer=t_admin,
+            body={"new_password": "curta"},
+        )
+        assert status == 400
+
+    def test_admin_cannot_reset_owner(self, serve, tmp_path, store) -> None:
+        """A conta do dono é a da OD_API_KEY — não é alvo do painel."""
+        srv, t_admin, _ = self._setup(serve, tmp_path, store)
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/admin/users/alex/password", bearer=t_admin,
+            body={"new_password": "resetada9"},
+        )
+        assert status == 403
+        assert _json_response((status, body, _))["error"] == "dono_nao_removivel"
+        assert store.verify_credentials("alex", "senha123") is True
+
+    def test_admin_delete_user_removes_account_not_history(self, serve, tmp_path, store) -> None:
+        srv, t_admin, _ = self._setup(serve, tmp_path, store)
+        history = srv.orchestrator.history
+        history.add_message("bia", "guardian", "user", "conversa fica")
+        status, body, _ = _request(
+            srv.bound_port, "DELETE", "/admin/users/bia", bearer=t_admin
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["user"] == "bia"
+        assert store.get_user_by_username("bia") is None
+        # Conta morreu, balde continua (o admin limpa à parte, se quiser).
+        assert history.stats(user_id="bia")["messages"] == 1
+
+    def test_admin_delete_unknown_404(self, serve, tmp_path, store) -> None:
+        srv, t_admin, _ = self._setup(serve, tmp_path, store)
+        assert _request(
+            srv.bound_port, "DELETE", "/admin/users/jonas", bearer=t_admin
+        )[0] == 404
+
+    def test_admin_delete_by_api_key_owner(self, serve, tmp_path, store) -> None:
+        """A OD_API_KEY do dono também opera o painel (via=server)."""
+        srv, _, _ = self._setup(serve, tmp_path, store)
+        status, body, _ = _request(
+            srv.bound_port, "DELETE", "/admin/users/bia", api_key="segredo123"
+        )
+        assert status == 200
+        assert store.get_user_by_username("bia") is None
+
+    def test_admin_requires_store(self, serve, tmp_path) -> None:
+        """Sem UserStore (dev puro): 401 sem credencial; com credencial, 503."""
+        srv = serve(make_orch(tmp_path), config=APIConfig(port=0, rate_limit_max=0))
+        status, _, _ = _request(srv.bound_port, "GET", "/admin/users")
+        # Dev sem auth: papel admin (comportamento do _role), cai no 503.
+        assert status == 503
+        srv2 = serve(
+            make_orch(tmp_path),
+            config=APIConfig(port=0, rate_limit_max=0, api_key="segredo123",
+                             auth_all=True),
+        )
+        status, _, _ = _request(srv2.bound_port, "GET", "/admin/users")
+        assert status == 401  # sem credencial nem passa do gate
+        status, body, _ = _request(
+            srv2.bound_port, "GET", "/admin/users", api_key="segredo123"
+        )
+        assert status == 503

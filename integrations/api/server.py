@@ -56,6 +56,7 @@ from integrations.telegram.commands import (
     NIVEL_1_ADMIN,
     NIVEL_2_DESTRUTIVO,
 )
+from integrations.api.auth import AuthError, _hash_password
 from tools.registry import ActionNotFoundError
 
 __signature__ = "OD // CORE"
@@ -86,7 +87,7 @@ DEFAULT_SITE_DIR = Path(__file__).resolve().parents[2] / "site"
 # continuam abertos para o navegador carregar a UI mesmo com auth_all.
 # /site* entra aqui para a landing + download do APK funcionarem no
 # celular (Tailscale) sem exigir X-API-Key no navegador.
-PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/site", "/site/{file}", "/auth/register", "/auth/login"})
+PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/admin", "/site", "/site/{file}", "/auth/register", "/auth/login"})
 
 # Endpoints que NÃO passam pela chave mesmo com auth_all ligado: o fluxo de
 # autenticação em si (register/login) e a conversa ANÔNIMA (quem só quer
@@ -199,6 +200,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/profiles/{name}", "profile_detail", False),
     ("GET", "/presence/today", "presence_today", False),
     ("GET", "/dashboard", "dashboard_html", False),
+    ("GET", "/admin", "admin_html", False),
     ("GET", "/chat", "chat_html", False),
     ("GET", "/metrics", "metrics_text", False),
     ("GET", "/site", "site_index", False),
@@ -208,6 +210,13 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/auth/login", "auth_login", False),
     ("POST", "/auth/logout", "auth_logout", True),
     ("GET", "/auth/me", "auth_me", True),
+    # Conta do usuário logado (dashboard do usuário)
+    ("POST", "/account/password", "account_password", True),
+    ("POST", "/account/api-key", "account_api_key", True),
+    # Admin — handlers exigem papel admin (403 para os demais)
+    ("GET", "/admin/users", "admin_users", True),
+    ("POST", "/admin/users/{username}/password", "admin_reset_password", True),
+    ("DELETE", "/admin/users/{username}", "admin_delete_user", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -271,6 +280,453 @@ ROUTES: list[_Route] = [
 # ---------------------------------------------------------------------------
 # Página de chat (shell público + chave no navegador + POST /message)
 # ---------------------------------------------------------------------------
+
+_DASHBOARD_PAGE_HTML = """<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OmegaDrakon — Meu painel</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
+<style>
+  :root {
+    --bg: #06080f; --bg2: #0c1120; --bg3: #111830;
+    --text: #e8eaf0; --muted: #7a839a; --border: #1c2440;
+    --accent: #f59e0b; --ok: #34d399; --err: #f87171;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    padding: 12px 20px; background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+  }
+  header a { color: var(--text); text-decoration: none; font-weight: 700; }
+  header a:hover { color: var(--accent); }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; color: var(--muted); }
+  #badge { margin-left: auto; font-size: 0.85rem; color: var(--muted); }
+  #badge b { color: var(--accent); }
+  main { max-width: 960px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .card .k { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .card .v { font-size: 1.6rem; font-weight: 700; margin-top: 4px; }
+  section h2 { font-size: 1rem; margin-bottom: 10px; color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; }
+  td.num, th.num { text-align: right; }
+  .muted { color: var(--muted); }
+  .msg { font-size: 0.85rem; min-height: 1.2em; margin-top: 8px; }
+  .msg.ok { color: var(--ok); }
+  .msg.err { color: var(--err); }
+  button {
+    background: var(--bg3); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 14px; font-size: 0.85rem; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.danger:hover { border-color: var(--err); color: var(--err); }
+  label { display: block; font-size: 0.8rem; color: var(--muted); margin: 8px 0 4px; }
+  input {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 0.9rem; width: 260px; max-width: 100%;
+  }
+  .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+  code { color: var(--accent); font-size: 0.8rem; word-break: break-all; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">🐉</a><h1>Meu painel</h1>
+  <div id="badge"></div>
+</header>
+<main>
+  <section>
+    <h2>Uso da conta</h2>
+    <div class="grid" id="stats"></div>
+    <div class="muted msg" id="stats-note"></div>
+  </section>
+
+  <section>
+    <h2>Minha conversa</h2>
+    <table><tbody id="hist"></tbody></table>
+    <div class="row">
+      <button class="danger" id="btn-limpar">🧹 Limpar meu histórico</button>
+      <span class="muted msg" id="limpar-msg"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Conta</h2>
+    <div class="card">
+      <b>Trocar senha</b>
+      <div class="row">
+        <div><label>Senha atual</label><input type="password" id="cur-pass"></div>
+        <div><label>Nova senha (mín. 6)</label><input type="password" id="new-pass"></div>
+        <button id="btn-trocar-senha">Trocar</button>
+      </div>
+      <div class="msg" id="senha-msg"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <b>API key</b>
+      <p class="muted" style="font-size:0.8rem;margin-top:4px">Chave de app/curl. Rotacionar invalida a antiga na hora.</p>
+      <div class="row" style="margin-top:8px">
+        <code id="api-key" class="muted">rotacionar gera uma chave nova</code>
+        <button class="danger" id="btn-rotacionar">Rotacionar</button>
+      </div>
+      <div class="msg" id="key-msg"></div>
+    </div>
+  </section>
+</main>
+<script>
+let token = localStorage.getItem("od_session_token") || "";
+let key = localStorage.getItem("od_api_key") || "";
+
+function authHeaders(extra) {
+  const h = extra || {};
+  if (token) h["Authorization"] = "Bearer " + token;
+  else if (key) h["X-API-Key"] = key;
+  return h;
+}
+
+async function whoAmI() {
+  const resp = await fetch("/auth/me", { headers: authHeaders() });
+  if (!resp.ok) { location.href = "/chat"; return null; }
+  const data = await resp.json();
+  const role = data.role || "user";
+  document.getElementById("badge").innerHTML =
+    "👤 <b>" + data.user.username + "</b> · " + role +
+    ' · <a href="/chat">💬 Chat</a>' + (role === "admin" ? ' · <a href="/admin">🛡 Admin</a>' : "");
+  return data;
+}
+
+async function loadStats() {
+  const resp = await fetch("/history/me/stats", { headers: authHeaders() });
+  const note = document.getElementById("stats-note");
+  if (!resp.ok) { note.textContent = "Stats indisponível (HTTP " + resp.status + ")."; return; }
+  const data = await resp.json();
+  const s = data.stats || {};
+  const cards = [
+    ["Mensagens", s.messages != null ? s.messages : "—"],
+    ["Conversas", s.conversations != null ? s.conversations : "—"],
+  ];
+  const profiles = s.profiles || (s.per_user && s.per_user[data.user_id] ? s.per_user[data.user_id].profiles : {});
+  let last = null;
+  for (const p of Object.values(profiles)) {
+    if (p.last_ts && (!last || p.last_ts > last)) last = p.last_ts;
+  }
+  cards.push(["Última atividade", last ? new Date(last * 1000).toLocaleString("pt-BR") : "—"]);
+  document.getElementById("stats").innerHTML = cards.map(c =>
+    '<div class="card"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + "</div></div>"
+  ).join("");
+}
+
+async function loadHistory() {
+  const resp = await fetch("/history/me?limit=20", { headers: authHeaders() });
+  const tbody = document.getElementById("hist");
+  if (!resp.ok) { tbody.innerHTML = '<tr><td class="muted">Histórico indisponível (HTTP ' + resp.status + ").</td></tr>"; return; }
+  const data = await resp.json();
+  const msgs = data.messages || [];
+  if (!msgs.length) { tbody.innerHTML = '<tr><td class="muted">Nenhuma mensagem ainda.</td></tr>'; return; }
+  tbody.innerHTML = msgs.slice(-20).map(m => {
+    const who = m.role === "user" ? "🙋" : "🐉";
+    const when = m.ts ? new Date(m.ts * 1000).toLocaleString("pt-BR") : "";
+    const text = String(m.content || "").slice(0, 140);
+    return "<tr><td>" + who + " " + escapeHtml(text) +
+      '</td><td class="muted" style="white-space:nowrap">' + when + "</td></tr>";
+  }).join("");
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+document.getElementById("btn-limpar").onclick = async () => {
+  if (!window.confirm("Apagar TODAS as suas conversas?") ) return;
+  if (!window.confirm("Confirma de novo? Não dá para desfazer.")) return;
+  const resp = await fetch("/history/me", { method: "DELETE", headers: authHeaders() });
+  const data = await resp.json().catch(() => ({}));
+  const el = document.getElementById("limpar-msg");
+  el.textContent = resp.ok ? ("Removidas: " + (data.removed || 0)) : ("Erro HTTP " + resp.status);
+  el.className = "msg " + (resp.ok ? "ok" : "err");
+  loadStats(); loadHistory();
+};
+
+document.getElementById("btn-trocar-senha").onclick = async () => {
+  const msg = document.getElementById("senha-msg");
+  const cur = document.getElementById("cur-pass").value;
+  const nova = document.getElementById("new-pass").value;
+  if (!cur || nova.length < 6) { msg.textContent = "Preencha a atual e a nova (mín. 6)."; msg.className = "msg err"; return; }
+  const resp = await fetch("/account/password", {
+    method: "POST", headers: authHeaders({"Content-Type": "application/json"}),
+    body: JSON.stringify({current_password: cur, new_password: nova})
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (resp.ok && data.ok) {
+    msg.textContent = "Senha trocada. Faça login novamente com a nova.";
+    msg.className = "msg ok";
+    localStorage.removeItem("od_session_token");
+    setTimeout(() => { location.href = "/chat"; }, 1500);
+  } else {
+    msg.textContent = data.error || ("Erro HTTP " + resp.status);
+    msg.className = "msg err";
+  }
+};
+
+document.getElementById("btn-rotacionar").onclick = async () => {
+  if (!window.confirm("Rotacionar a API key? A antiga para de valer AGORA.")) return;
+  const resp = await fetch("/account/api-key", { method: "POST", headers: authHeaders() });
+  const data = await resp.json().catch(() => ({}));
+  const msg = document.getElementById("key-msg");
+  if (resp.ok && data.ok) {
+    msg.textContent = "Nova chave: " + data.api_key;
+    msg.className = "msg ok";
+  } else {
+    msg.textContent = data.error || ("Erro HTTP " + resp.status);
+    msg.className = "msg err";
+  }
+};
+
+whoAmI().then(u => { if (u) { loadStats(); loadHistory(); } });
+</script>
+</body>
+</html>
+"""
+
+
+_ADMIN_PAGE_HTML = """<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OmegaDrakon — Admin</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
+<style>
+  :root {
+    --bg: #06080f; --bg2: #0c1120; --bg3: #111830;
+    --text: #e8eaf0; --muted: #7a839a; --border: #1c2440;
+    --accent: #f59e0b; --ok: #34d399; --err: #f87171; --warn: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    padding: 12px 20px; background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+  }
+  header a { color: var(--text); text-decoration: none; font-weight: 700; }
+  header a:hover { color: var(--accent); }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; color: var(--warn); }
+  #badge { margin-left: auto; font-size: 0.85rem; color: var(--muted); }
+  #badge b { color: var(--accent); }
+  main { max-width: 1080px; margin: 0 auto; padding: 20px; display: grid; gap: 18px; }
+  section h2 { font-size: 1rem; margin-bottom: 10px; color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .card .k { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .card .v { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
+  .card .v.ok { color: var(--ok); }
+  .card .v.err { color: var(--err); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; }
+  td.num, th.num { text-align: right; }
+  .muted { color: var(--muted); }
+  .msg { font-size: 0.85rem; min-height: 1.2em; margin-top: 8px; }
+  .msg.ok { color: var(--ok); }
+  .msg.err { color: var(--err); }
+  button {
+    background: var(--bg3); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.danger:hover { border-color: var(--err); color: var(--err); }
+  input {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; font-size: 0.85rem; width: 180px; max-width: 100%;
+  }
+  .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; background: var(--bg3); border: 1px solid var(--border); }
+  .pill.ok { color: var(--ok); }
+  .pill.err { color: var(--err); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; margin: 6px 0; }
+  pre {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; font-size: 0.75rem; overflow-x: auto; color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">🐉</a><h1>🛡 Admin</h1>
+  <div id="badge"></div>
+</header>
+<main>
+  <section>
+    <h2>Sistema</h2>
+    <div class="grid" id="sys"></div>
+    <details><summary>Loops do núcleo (/supervision)</summary><pre id="loops">—</pre></details>
+    <details><summary>Métricas do orquestrador (/dashboard/stats)</summary><pre id="metrics">—</pre></details>
+    <div class="row" style="margin-top:8px">
+      <button id="btn-refresh">↻ Atualizar</button>
+      <span class="muted msg" id="sys-msg"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Contas</h2>
+    <table>
+      <thead><tr>
+        <th>Usuário</th><th>E-mail</th><th class="num">Msgs</th>
+        <th class="num">Sessões</th><th>Criada em</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="users"></tbody>
+    </table>
+    <div class="msg" id="users-msg"></div>
+  </section>
+
+  <section>
+    <h2>Baldes sem conta (legado)</h2>
+    <table><tbody id="buckets"></tbody></table>
+  </section>
+</main>
+<script>
+let token = localStorage.getItem("od_session_token") || "";
+let key = localStorage.getItem("od_api_key") || "";
+
+function authHeaders(extra) {
+  const h = extra || {};
+  if (token) h["Authorization"] = "Bearer " + token;
+  else if (key) h["X-API-Key"] = key;
+  return h;
+}
+
+async function whoAmI() {
+  const resp = await fetch("/auth/me", { headers: authHeaders() });
+  if (!resp.ok) { location.href = "/chat"; return null; }
+  const data = await resp.json();
+  const role = data.role || "user";
+  document.getElementById("badge").innerHTML =
+    "👤 <b>" + data.user.username + "</b> · " + role + ' · <a href="/chat">💬 Chat</a>';
+  if (role !== "admin") {
+    document.body.innerHTML = "<main><h2>Acesso restrito ao admin.</h2><p class='muted'>Sua conta não tem papel admin. <a href='/chat'>Voltar ao chat</a></p></main>";
+    return null;
+  }
+  return data;
+}
+
+async function loadSystem() {
+  const msg = document.getElementById("sys-msg");
+  try {
+    const [health, sup, stats] = await Promise.all([
+      fetch("/health", { headers: authHeaders() }).then(r => r.json()),
+      fetch("/supervision", { headers: authHeaders() }).then(r => r.json()),
+      fetch("/dashboard/stats", { headers: authHeaders() }).then(r => r.json())
+    ]);
+    const cards = [
+      ["Estado", health.status || (health.ok ? "up" : "?"), health.ok ? "ok" : "err"],
+      ["Uptime", fmtUptime(stats.uptime_s != null ? stats.uptime_s : health.uptime_s), ""],
+      ["Processadas", stats.processed != null ? stats.processed : "—", ""],
+      ["Latência média", stats.avg_latency_ms != null ? stats.avg_latency_ms + " ms" : "—", ""],
+      ["Loops", sup.restarts + " restart", sup.ok ? "ok" : "err"],
+      ["Cache LLM", stats.cache && stats.cache.entries != null ? stats.cache.entries : "—", ""],
+    ];
+    document.getElementById("sys").innerHTML = cards.map(c =>
+      '<div class="card"><div class="k">' + c[0] + '</div><div class="v ' + c[2] + '">' + c[1] + "</div></div>"
+    ).join("");
+    document.getElementById("loops").textContent = JSON.stringify(sup, null, 2);
+    document.getElementById("metrics").textContent = JSON.stringify(stats, null, 2);
+    msg.textContent = "Atualizado " + new Date().toLocaleTimeString("pt-BR");
+    msg.className = "muted msg";
+  } catch (e) {
+    msg.textContent = "Falha ao carregar: " + e.message;
+    msg.className = "msg err";
+  }
+}
+
+function fmtUptime(s) {
+  if (s == null) return "—";
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  return (d ? d + "d " : "") + (h ? h + "h " : "") + m + "m";
+}
+
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+async function loadUsers() {
+  const resp = await fetch("/admin/users", { headers: authHeaders() });
+  const msg = document.getElementById("users-msg");
+  if (!resp.ok) { msg.textContent = "Erro HTTP " + resp.status; msg.className = "msg err"; return; }
+  const data = await resp.json();
+  document.getElementById("users").innerHTML = (data.users || []).map(u => {
+    const isOwner = !!u.owner;
+    const actions = isOwner
+      ? '<span class="pill ok">dono</span>'
+      : '<input type="password" class="admin-pass" data-user="' + esc(u.username) + '" placeholder="nova senha" style="width:120px"> ' +
+        '<button class="admin-reset" data-user="' + esc(u.username) + '">Reset</button> ' +
+        '<button class="danger admin-del" data-user="' + esc(u.username) + '">Remover</button>';
+    return "<tr><td><b>" + esc(u.username) + "</b>" + "</td><td class='muted'>" + esc(u.email) + '</td><td class="num">' + (u.messages || 0) +
+      '</td><td class="num">' + (u.sessions || 0) + "</td><td class='muted'>" +
+      new Date(u.created_at * 1000).toLocaleDateString("pt-BR") + "</td><td>" + actions + "</td></tr>";
+  }).join("");
+  document.querySelectorAll(".admin-reset").forEach(b =>
+    b.addEventListener("click", () => resetPass(b.dataset.user)));
+  document.querySelectorAll(".admin-del").forEach(b =>
+    b.addEventListener("click", () => delUser(b.dataset.user)));
+  document.getElementById("buckets").innerHTML = (data.legacy_buckets || []).length
+    ? (data.legacy_buckets || []).map(b =>
+        "<tr><td>" + esc(b.user_id) + '</td><td class="num">' + (b.messages || 0) + " msgs</td></tr>"
+      ).join("")
+    : '<tr><td class="muted">Nenhum balde legado.</td></tr>';
+}
+
+async function resetPass(username) {
+  const inp = document.getElementById("pass-" + username);
+  const nova = (inp && inp.value || "").trim();
+  if (nova.length < 6) { alert("Senha nova deve ter pelo menos 6 caracteres."); return; }
+  if (!window.confirm("Resetar a senha de '" + username + "'? As sessões da conta caem.")) return;
+  const resp = await fetch("/admin/users/" + encodeURIComponent(username) + "/password", {
+    method: "POST", headers: authHeaders({"Content-Type": "application/json"}),
+    body: JSON.stringify({new_password: nova})
+  });
+  const data = await resp.json().catch(() => ({}));
+  const msg = document.getElementById("users-msg");
+  msg.textContent = resp.ok ? ("Senha de " + username + " resetada. Sessões fechadas: " + data.sessions_closed) : (data.error || "Erro HTTP " + resp.status);
+  msg.className = "msg " + (resp.ok ? "ok" : "err");
+  if (resp.ok) loadUsers();
+}
+
+async function delUser(username) {
+  if (!window.confirm("REMOVER a conta '" + username + "'? Sessões e vínculo do Telegram caem. O histórico de conversas NÃO é apagado.")) return;
+  if (!window.confirm("Confirma de novo? Não dá para desfazer.")) return;
+  const resp = await fetch("/admin/users/" + encodeURIComponent(username), { method: "DELETE", headers: authHeaders() });
+  const data = await resp.json().catch(() => ({}));
+  const msg = document.getElementById("users-msg");
+  msg.textContent = resp.ok ? ("Conta removida: " + username) : (data.error || "Erro HTTP " + resp.status);
+  msg.className = "msg " + (resp.ok ? "ok" : "err");
+  if (resp.ok) loadUsers();
+}
+
+document.getElementById("btn-refresh").onclick = () => { loadSystem(); loadUsers(); };
+whoAmI().then(u => { if (u) { loadSystem(); loadUsers(); } });
+</script>
+</body>
+</html>
+"""
+
 
 _CHAT_PAGE_HTML = """<!doctype html>
 <html lang="pt-BR">
@@ -441,6 +897,12 @@ _CHAT_PAGE_HTML = """<!doctype html>
     color: var(--text); cursor: pointer; text-align: left;
   }
   #user-dropdown button:hover { background: var(--bg3); }
+  #btn-painel {
+    display: flex; width: 100%; gap: 8px; align-items: center;
+    padding: 8px 10px; border-radius: 8px; font-size: 0.82rem;
+    font-weight: 600; color: var(--text); text-decoration: none;
+  }
+  #btn-painel:hover { background: var(--bg3); color: var(--accent); }
   #btn-limpar:hover { color: var(--accent); }
   #btn-logout:hover { color: #f85149; }
   /* --- Welcome --- */
@@ -474,6 +936,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
       <button id="user-badge" title="Opções da conta"></button>
       <div id="user-dropdown">
         <div class="menu-hint">Conta</div>
+        <a id="btn-painel" href="/dashboard" title="Meu painel: uso, histórico e conta">📊 Meu painel</a>
         <button id="btn-limpar" title="Apaga TODA a conversa salva desta conta">🧹 Limpar conversa</button>
         <button id="btn-logout" title="Encerra a sessão neste navegador e no servidor">🚪 Sair</button>
       </div>
@@ -1744,17 +2207,16 @@ class APIHandler(BaseHTTPRequestHandler):
         )
 
     def dashboard_html(self) -> None:
-        # Shell estático SEM dados: métricas só via /dashboard/stats (chave)
-        self._html(
-            200,
-            "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'>"
-            "<title>Omega Drakon — Dashboard</title></head><body>"
-            "<h1>🐉 Omega Drakon — Dashboard</h1>"
-            "<p>Shell da interface (sem dados). Métricas estruturadas em "
-            "<code>GET /dashboard/stats</code> — exige header "
-            "<code>X-API-Key</code>.</p>"
-            "</body></html>",
-        )
+        """Painel do USUÁRIO logado: uso da própria conta, histórico e conta
+        (troca de senha / API key). Shell aberto; dados só via credencial —
+        sem login o navegador é redirecionado para /chat."""
+        self._html(200, _DASHBOARD_PAGE_HTML)
+
+    def admin_html(self) -> None:
+        """Painel do DONO (papel admin): contas, uso e saúde do sistema.
+        O gate de dados é o _require_admin nos handlers /admin/users* — aqui
+        é só o shell; sem papel admin a própria página se desliga."""
+        self._html(200, _ADMIN_PAGE_HTML)
 
     def chat_html(self) -> None:
         """Chat funcional: shell aberto + chave pedida UMA vez no navegador
@@ -2231,6 +2693,186 @@ class APIHandler(BaseHTTPRequestHandler):
             })
             return
         raise APIError(401, "não autenticado")
+
+    # -- Conta do usuário logado (dashboard do usuário) ---------------------
+
+    def _user_store_or_503(self) -> Any:
+        store = self.api._user_store
+        if store is None:
+            raise APIError(503, "auth não configurado")
+        return store
+
+    def account_password(self) -> None:
+        """POST /account/password — troca a PRÓPRIA senha (exige a atual).
+
+        Body: {"current_password": ..., "new_password": ...}. Com a troca
+        feita, TODAS as sessões da conta são encerradas — força novo login em
+        todos os aparelhos, inclusive o de quem trocou.
+        """
+        store = self._user_store_or_503()
+        if self._current_user is None:
+            raise APIError(401, "não autenticado")
+        data = self._read_json()
+        current = str(data.get("current_password") or "")
+        new = str(data.get("new_password") or "").strip()
+        try:
+            store.change_password(self._current_user.id, current, new)
+        except AuthError as exc:
+            raise APIError(exc.status, str(exc))
+        sessions_killed = store.logout_all(self._current_user.id)
+        log.info(
+            "Senha trocada — sessões encerradas",
+            user=self._current_user.username,
+            sessoes=int(sessions_killed),
+        )
+        self._json(200, {
+            "ok": True,
+            "sessions_closed": int(sessions_killed),
+            "message": "Senha trocada. Entre novamente com a nova senha.",
+        })
+
+    def account_api_key(self) -> None:
+        """POST /account/api-key — rotaciona a PRÓPRIA API key.
+
+        A antiga deixa de valer na hora (app/curl que a usavam recebem 401
+        até atualizarem a chave). """
+        store = self._user_store_or_503()
+        if self._current_user is None:
+            raise APIError(401, "não autenticado")
+        new_key = store.rotate_api_key(self._current_user.id)
+        log.info(
+            "API key rotacionada pelo usuário",
+            user=self._current_user.username,
+        )
+        self._json(200, {"ok": True, "api_key": new_key})
+
+    # -- Admin — gestão de contas (papel admin, 403 para os demais) ---------
+
+    def _require_admin(self) -> None:
+        """403 para quem NÃO é admin (dono pela OD_API_KEY/sessão própria).
+
+        Com auth desligada (dev local sem api_key), o papel resolve admin —
+        preserva o uso local sem bloquear o painel.
+        """
+        if self._role() != "admin":
+            log.warn(
+                "Acesso admin negado",
+                autenticado=(
+                    self._current_user.username
+                    if self._current_user is not None else "-"
+                ),
+                path=urlsplit(self.path).path,
+            )
+            raise APIError(403, "acesso_negado")
+
+    def _admin_store(self) -> Any:
+        self._require_admin()
+        return self._user_store_or_503()
+
+    def admin_users(self) -> None:
+        """GET /admin/users — lista contas com uso real (admin).
+
+        Junto de cada conta: sessões ativas e o MESMO agregado de histórico
+        que o /history/{user_id}/stats devolve para cada balde — inclusive
+        baldes legados sem conta (app, web, ids do Telegram), porque quem
+        conversa sem login também ocupa o banco.
+        """
+        store = self._admin_store()
+        orch = self.api.orchestrator
+        hist_stats = (
+            orch.history.stats() if orch is not None and orch.history is not None
+            else {"per_user": {}}
+        )
+        per_user = hist_stats.get("per_user", {})
+        users = []
+        for row in store.list_users():
+            uid = row["username"]
+            usage = per_user.get(uid, {})
+            users.append({
+                "id": row["id"],
+                "username": uid,
+                "email": row["email"],
+                "created_at": row["created_at"],
+                "sessions": store.count_sessions(row["id"]),
+                "messages": usage.get("messages", 0),
+                "conversations": usage.get("conversations", 0),
+                # A UI usa para inibir reset/remoção da conta do dono.
+                "owner": self._is_owner_username(uid),
+            })
+        # Baldes sem conta (app/web/Telegram legado) — visíveis para o admin
+        # decidir limpar, e para o total de mensagens bater com o banco.
+        orfaos = sorted(
+            (name for name in per_user if name not in {
+                u["username"] for u in users
+            }),
+        )
+        buckets = [
+            {
+                "user_id": name,
+                "messages": per_user.get(name, {}).get("messages", 0),
+            }
+            for name in orfaos
+        ]
+        self._json(200, {
+            "ok": True,
+            "users": users,
+            "legacy_buckets": buckets,
+            "total": len(users),
+        })
+
+    def _admin_target(self, username: str) -> tuple[Any, Any]:
+        """Resolve a conta alvo do admin. 404 quando não existe.
+
+        O dono NÃO pode ser alvo: é a conta da OD_API_KEY — removê-la/resetar
+        por engano derrubaria o operador de fora do painel.
+        """
+        store = self._admin_store()
+        target = store.get_user_by_username(unquote(username).strip())
+        if target is None:
+            raise APIError(404, "usuario_inexistente")
+        if self._is_owner_username(target.username):
+            raise APIError(403, "dono_nao_removivel")
+        return store, target
+
+    def admin_reset_password(self, username: str) -> None:
+        """POST /admin/users/{username}/password — reset da senha pelo admin.
+
+        Body: {"new_password": ...}. Sem a senha atual (admin não tem): o
+        reset é para "esqueci minha senha", não para troca do dia a dia. Mata
+        todas as sessões da conta — token antigo não continua valendo.
+        """
+        store, target = self._admin_target(username)
+        data = self._read_json()
+        new = str(data.get("new_password") or "").strip()
+        if len(new) < 6:
+            raise APIError(400, "senha_deve_ter_pelo_menos_6_caracteres")
+        store._db.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (_hash_password(new), target.id),
+        )
+        sessions_killed = store.logout_all(target.id)
+        log.info(
+            "Senha resetada pelo admin",
+            alvo=target.username,
+            sessoes=int(sessions_killed),
+        )
+        self._json(200, {
+            "ok": True,
+            "user": target.username,
+            "sessions_closed": int(sessions_killed),
+        })
+
+    def admin_delete_user(self, username: str) -> None:
+        """DELETE /admin/users/{username} — remove a conta (admin).
+
+        Sessões e vínculo do Telegram morrem junto. O histórico de conversas
+        NÃO é apagado aqui: balde é separado e o admin usa o botão de
+        limpar histórico quando quiser removê-lo também.
+        """
+        store, target = self._admin_target(username)
+        store.delete_user(target.id)
+        log.info("Conta removida pelo admin", alvo=target.username)
+        self._json(200, {"ok": True, "user": target.username})
 
     def supervision(self) -> None:
         """GET /supervision — estado dos loops do núcleo (quedas e reinícios).

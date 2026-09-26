@@ -1,11 +1,11 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-25T15:5x:00-03:00",
-  "retomada_2026_09_25": {
-    "pedido": "Usuário: 'leia inicir' — retomada da sessão.",
-    "verificacao": "od-core active, PID 367729 (o mesmo do deploy de 09-24), NRestarts=0; HEAD==origin/master b7fd767; working tree limpo exceto backups/prova-site-923-20260923-134842.bak.json (untracked, fora do .gitignore).",
-    "estado": "RETOMADA CONCLUÍDA — confirmação do usuário recebida; ponto do histórico do teste FECHADO em 2026-09-25 14:30 (ver cache_historico_2026_09_24_fechamento)."
+  "updated_at": "2026-09-26T01:49:00-03:00",
+  "retomada_2026_09_26": {
+    "pedido": "Usuário: 'leia iniciar' — retomada da sessão (01:48).",
+    "verificacao": "od-core active, PID 481232 (o mesmo da rodada 2 de 09-25), desde 2026-09-25 15:32:18, NRestarts=0; HEAD==origin/master f522abe (Sair/Limpar preservam o botão de paginação); working tree limpo exceto backups/prova-site-923-20260923-134842.bak.json (untracked, já conhecido).",
+    "estado": "RETOMADA CONCLUÍDA — pendente do ponto anterior: confirmação visual do dono da troca de usuário no site + definição do 'outro sistema'."
   },
   "prova_reboot_2026_09_21": {
     "pedido": "Usuário: 'Prove que o Funnel sobrevive a reboot do servidor sem intervenção manual'.",
@@ -508,11 +508,32 @@
       "deploy": "IMPLANTADO — suíte 1899/16; restart (PID 481232, NRestarts=0); resetMessages no ar (4 ocorrências); 0 erros no journal."
     }
   },
+  "paineis_2026_09_26": {
+    "pedido": "Dono: 'site funcionando normal, atualizou sem f5. vamos criar um dashboard para os user e um backend para o admin'. Escopo fechado por perguntas: user = completo (stats+histórico+conta), admin = completo (usuários+ações+métricas), formato = estender /dashboard + criar /admin.",
+    "implementacao": [
+      "auth.py: UserStore.change_password (exige senha atual), delete_user (mata sessões + vínculo Telegram, PRESERVA histórico) e count_sessions.",
+      "server.py: 6 rotas novas (33→39): POST /account/password, POST /account/api-key, GET /admin/users, POST /admin/users/{u}/password, DELETE /admin/users/{u}, GET /admin (shell); gate _require_admin (403 + log).",
+      "Páginas embutidas: _DASHBOARD_PAGE_HTML (stats, últimas 20 msgs, limpar, trocar senha, rotacionar key) e _ADMIN_PAGE_HTML (contas com ações, baldes legados, saúde /health+/supervision+/dashboard/stats). Menu 👤 do /chat ganhou '📊 Meu painel'.",
+      "Segurança: trocar/resetar senha encerra TODAS as sessões da conta; dono não é alvo (403 dono_nao_removivel); reset é sem senha atual (esqueci)."
+    ],
+    "testes": "Suíte 1913 passed, 16 skipped (+14: TestAccountEndpoints 5 + TestAdminEndpoints 9; contrato ROUTES 33→39). mqtt flaky em 1 run completo — passa isolado.",
+    "teste_do_teste": "4 mutações, TODAS detectadas e revertidas: user com papel admin (1 falha), troca aceitando senha errada (1), dono removível (1), reset sem fechar sessões (1).",
+    "licao": "GUARDAS: o node --check do deploy pegou bug de escape (barra literal nos onclick do /admin) que o pré-deploy deixou passar — onclick inline trocado por data-* + addEventListener e CONTRATO ENDURECIDO: test_painel_pages_js_compiles cobre /dashboard e /admin (3ª página com guarda).",
+    "deploy": "IMPLANTADO — restarts em 02:2x (PID 533533) e 03:4x (PID 535581, final), NRestarts=0; /health 200; 0 Traceback/ERROR/CRIT.",
+    "prova_viva": {
+      "shells": "/dashboard /admin /chat → 200 (com no-store)",
+      "gates": "/admin/users e /account/password sem credencial → 401; Bearer do 'teste' (role user) → 403; /admin/users com OD_API_KEY → lista (alex owner=true 11 sessões 110 msgs; teste; baldes deploy-check*)",
+      "reset_real": "conta prova-dash criada → reset pelo admin → login com senha NOVA 200 → remoção 200; /admin/users/jonas → 404; reset em alex → 403 dono_nao_removivel",
+      "js_no_ar": "node --check OK no HTML servido das duas páginas"
+    },
+    "estado": "CONCLUÍDO E NO AR (PID 535581) — aguardando confirmação visual do dono nos painéis."
+  },
   "last_turn": {
-    "date": "2026-09-25",
+    "date": "2026-09-26",
     "action": "Bug 'conversas não atualizam ao trocar de usuário' corrigido: página /chat com Cache-Control no-store, histórico por /history/me (identidade do servidor) e filtro de perfil resetado por sessão. Commit do dia, implantado (PID 479051) e provado no ar.",
     "action": "Dono CONFIRMOU no site que as conversas do usuário teste aparecem — correção das rotas terminais (2ee947b) validada de ponta a ponta (prova servidor 6/6 em 09-24 + confirmação visual do dono em 09-25). Ponto FECHADO.",
-    "next": "Dono confirma visualmente a troca de usuário no site (com reload forçado 1×); depois o 'outro sistema' (ainda não especificado). Pendente opcional: reset de senha do 'teste' (não é senha123) só se o dono pedir.",
+    "action": "Painéis entregues: /dashboard (usuário) e /admin (dono) com 6 rotas novas (conta + gestão de usuários), implantados e provados 7/7 no ar. Detalhe em paineis_2026_09_26.",
+    "next": "Dono confirma visualmente os painéis (/dashboard com a conta dele, /admin com a OD_API_KEY/sessão do alex); reset de senha do 'teste' agora é 1 clique no /admin se o dono quiser.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
@@ -527,5 +548,5 @@
     {"topic": "status bar fix", "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"},
     {"topic": "auth de usuários (09-19)", "decision": "Chat web passa a exigir login (UserStore próprio, PBKDF2-SHA256, sessão UUID + Bearer), mantendo X-API-Key como modo legado/avançado. Registrado retroativamente em 09-20 após achado de que subiu sem commit/teste."}
   ],
-  "transcripts": ["iniciar/2026-09-25_conversa_omegadrakon.md", "iniciar/2026-09-23_conversa_omegadrakon.md", "iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
+  "transcripts": ["iniciar/2026-09-26_conversa_omegadrakon.md", "iniciar/2026-09-25_conversa_omegadrakon.md", "iniciar/2026-09-23_conversa_omegadrakon.md", "iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
 }
