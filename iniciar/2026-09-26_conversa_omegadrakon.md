@@ -395,3 +395,55 @@ journal o rastro do celular".
 - **PONTO FECHADO** — APK 1.5.0+14 instalado, login pela seção Conta
   confirmado pelo dono, rastro no journal e no banco batendo com o
   desenho (via=session, user=alex, guardian no auto).
+
+## 14. Resposta transparente — quem respondeu, hora, admin com acesso pleno (12:3x–12:5x)
+
+Pedido do dono (4 pontos): (1) mensagem no app sem hora nem quem respondeu
+(gemma, cache...); (2) chips de perfil sem os NOMES — onde deveria constar
+Regulus estava "Conselheiro"; (3) recusa de IP/portas está CERTA para
+visitante, mas o dono (admin) DEVE ter essas respostas.
+
+### Causas e correções
+
+1. **Hora/quem respondeu**: o frame `done` do WS JÁ trazia route/llm_used,
+   mas o app ignorava. Agora: `profile_name` injetado em TODOS os frames
+   `done` (5 pontos) e no `to_dict()` (REST); app guarda `answeredBy`/`route`
+   no OdMessage e exibe cabeçalho da bolha (ícone + nome) e hora em toda
+   mensagem (usuário e assistente).
+2. **Chips**: labels canônicos da Plêiade — Regulus, Nyx, Luma, Vox, Athenae,
+   Nexus (antes: 'Conselheiro', 'Guardiã'...). `/profiles` agora expõe
+   `display_name` via `profile_display_name()` (chave desconhecida devolve a
+   própria chave — nunca atribui ao perfil padrão).
+3. **Admin com acesso pleno**: `Orchestrator._resolve_system()` reconstrói o
+   system prompt com o PERFIL pedido E o PAPEL de quem fala (antes era o
+   prompt estático do launcher, que vedava até o dono). Admin: "TODOS os
+   dados do SISTEMA são dele... Não esconda". User: vedação mantida.
+
+### Verificação
+
+- Servidor: tests/test_resposta_transparente.py (NOVO, 10) — suíte
+  **1945 passed, 16 skipped**.
+- App: +4 widget tests (nome+hora, cache, hora no usuário, selo); flutter
+  analyze 0 issues · flutter test **87 passed, 2 skipped**.
+- Bump pela política: **1.6.0** (MINOR) — .env, capabilities, pubspec
+  1.6.0+15, site, CHANGELOG, README_VERSAO.
+- APK 1.6.0+15 (aapt2 versionCode='15'; full 52.723.923 B sha256
+  e2834a95…) publicado em site/.
+
+### Deploy e prova viva (4/4)
+
+- Restart od-core: **PID 602708, NRestarts=0** desde 12:49:50.
+- `/capabilities` → 1.6.0; `/profiles` → display_name de todos (Regulus —
+  O Conselheiro, Nyx — A Guardiã do Limiar...).
+- **Admin pergunta o IP e RECEBE**: "O IP local deste servidor é 127.0.0.1"
+  (sem recusa) — a vedação indevida do dono acabou; profile_name = Nicky
+  Virthy.
+- **WS `done` no ar com**: profile_name=Nicky Virthy · route=llm ·
+  llm_used=gemma-local.
+
+### Publicação
+
+- Commit **5efdcdf** (16 arquivos, +454/−34); HEAD == origin/master; árvore
+  limpa.
+- Pendência: instalar o APK 1.6.0+15 no celular (15 > 14) e conferir
+  hora/entidade nas bolhas e os nomes nos chips.

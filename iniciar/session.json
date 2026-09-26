@@ -1,7 +1,15 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T12:30:00-03:00",
+  "updated_at": "2026-09-26T13:00:00-03:00",
+  "resposta_transparente_2026_09_26": {
+    "pedido": "Dono: (1) app sem hora nem quem respondeu (gemma, cache...); (2) chips sem os NOMES da entidade (Regulus aparecia como 'Conselheiro'); (3) admin DEVE ter respostas de IP/portas — vedação só para visitante.",
+    "implementacao": ["profile_name em TODOS os frames done do streaming e no to_dict (REST); app exibe cabeçalho da bolha (ícone + nome) e hora em toda mensagem", "profile_display_name: nome canônico da Plêiade; /profiles expõe display_name; app usa nomes nos chips (Regulus, Nyx, Luma, Vox, Athenae, Nexus)", "Orchestrator._resolve_system: system prompt por PERFIL pedido + PAPEL de quem fala — admin (dono) com acesso pleno aos dados do sistema, user mantém a vedação (antes era o prompt estático do launcher)"],
+    "testes": "Servidor 1945/16 (+10 em tests/test_resposta_transparente.py); app 87/2, analyze 0 issues. Bump 1.6.0 (MINOR): .env, capabilities, pubspec 1.6.0+15, site, CHANGELOG, README_VERSAO. APK 1.6.0+15 (aapt2 versionCode='15', sha256 e2834a95…) publicado.",
+    "deploy": "IMPLANTADO — restart 12:49:50, PID 602708, NRestarts=0. Prova viva 4/4: /capabilities 1.6.0; /profiles com display_name; ADMIN perguntou IP e recebeu 127.0.0.1 sem recusa; WS done com profile_name=Nicky Virthy route=llm llm_used=gemma-local.",
+    "commit": "5efdcdf feat(core,agents,app): resposta transparente — prompt por papel, quem respondeu e hora (v1.6.0) — 16 arquivos +454/−34; HEAD==origin/master.",
+    "estado": "CONCLUÍDO E NO AR — pendência: instalar o APK 1.6.0+15 no celular (15 > 14) e conferir hora/entidade nas bolhas e nomes nos chips."
+  },
   "encerramento_2026_09_26": {
     "pedido": "Dono: 'Encerrar por aqui — o checkpoint em iniciar/ já guarda tudo para a próxima sessão'.",
     "estado_final": "od-core active PID 594542 NRestarts=0 (v1.5.0); árvore limpa; HEAD f680c57 == origin/master; suíte 1932/16; app 1.5.0+14 confirmado no celular pelo dono (via=session, user=alex).",
@@ -625,7 +633,7 @@
   "last_turn": {
     "date": "2026-09-26",
     "action": "Lote não registrado validado (1932/16 + sandbox 57), bump SemVer 1.4.0 pelo checklist, APK 1.4.0+13, deploy provado no ar 5/5 e publicado (7d29592). Resíduo postgres:/ removido.",
-    "next": "Nada pendente no servidor e no app — próximos passos são novos pedidos do dono.",
+    "next": "Instalar o APK 1.6.0+15 no celular (15 > 14) e conferir hora/quem respondeu nas bolhas e os nomes nos chips.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
