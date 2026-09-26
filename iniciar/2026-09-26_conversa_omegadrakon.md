@@ -141,8 +141,24 @@ e aplique no sistema".
   OmegaDrakon/1.3.0; /capabilities → 1.3.0; site local e pela URL pública
   do Funnel (200) exibindo v1.3.0 (4 ocorrências); REST 401/WS 426 no ar.
 
-## 6. Estado da sessão
+## 6. Guardas de coerência da versão (04:5x–05:0x)
 
-- **Código:** commitado (a1b1490) e NO AR (PID 535581).
-- **Suíte:** 1913 passed, 16 skipped.
-- **Pendente:** nada nos painéis — próximo assunto a definir pelo dono.
+Pedido: "Guardar guardas de teste que fixem a coerência da versão entre
+.env, capabilities, pubspec e site".
+
+- **tests/test_version_policy.py (NOVO, 6 testes)** — SemVer válido;
+  .env = OD_VERSION resolvida; fallback congelado = versão vigente;
+  pubspec versionName = versão do sistema (+N inteiro positivo); site
+  com ≥ 2 ocorrências de v{versão} e sem resíduo v1.2.8; CHANGELOG com
+  '## [X.Y.Z]' da versão vigente.
+- **Teste do teste: 5 mutações, TODAS detectadas e revertidas** (.env
+  antiga → 3 falhas; pubspec antigo, site antigo, fallback antigo e
+  CHANGELOG renomeado → 1 falha cada).
+- **Suíte: 1920 passed, 16 skipped** (+6).
+- docs/VERSIONAMENTO.md ganhou §6 (Guardas de coerência).
+
+## 7. Estado da sessão
+
+- **Código:** commitado (ver git log) e NO AR (PID 547622, v1.3.0).
+- **Suíte:** 1920 passed, 16 skipped.
+- **Pendente:** instalar o APK 1.3.0+12 no celular (confirmação do dono).

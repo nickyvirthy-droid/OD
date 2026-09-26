@@ -66,7 +66,16 @@ versão congelada recebendo features por baixo do pano.
 6. `docs/README_VERSAO.md`: relatório §2.1 da versão (§2.1.1)
 7. Suíte verde + prova viva da versão no ar (regra 10 das Regras)
 
-## 6. Histórico de saneamento (2026-09-26)
+## 6. Guardas de coerência (2026-09-26)
+
+`tests/test_version_policy.py` fixa a política na suíte: OD_VERSION em
+formato SemVer, `.env` = capabilities resolvida = fallback congelado,
+`pubspec.yaml` com versionName = versão do sistema e build inteiro,
+site anunciando a versão vigente (≥ 2 ocorrências) e CHANGELOG com a
+seção `## [X.Y.Z]`. Bump parcial quebra a suíte. Verificado com 5
+mutações (todas detectadas e revertidas).
+
+## 7. Histórico de saneamento (2026-09-26)
 
 - Até aqui o sistema rodou `OD_VERSION=1.2.0` (de 09-12) enquanto o app
   empilhava `1.2.8+8…+11` — o `+N` fazia o papel que era do X.Y.Z.

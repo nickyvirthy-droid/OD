@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T04:55:00-03:00",
+  "updated_at": "2026-09-26T05:05:00-03:00",
   "retomada_2026_09_26": {
     "pedido": "Usuário: 'leia iniciar' — retomada da sessão (01:48).",
     "verificacao": "od-core active, PID 481232 (o mesmo da rodada 2 de 09-25), desde 2026-09-25 15:32:18, NRestarts=0; HEAD==origin/master f522abe (Sair/Limpar preservam o botão de paginação); working tree limpo exceto backups/prova-site-923-20260923-134842.bak.json (untracked, já conhecido).",
@@ -551,10 +551,21 @@
     "prova_viva": "GET / → 1.3.0; Server: OmegaDrakon/1.3.0; /capabilities → 1.3.0; site local e pelo Funnel (200) com v1.3.0; REST 401/WS 426.",
     "estado": "CONCLUÍDO E NO AR — v1.3.0 no servidor, no site e no APK (instalar 1.3.0+12 no celular quando quiser; 12 > 11 instala por cima)."
   },
+  "guardas_versao_2026_09_26": {
+    "pedido": "Dono: 'Guardar guardas de teste que fixem a coerência da versão entre .env, capabilities, pubspec e site'.",
+    "implementacao": [
+      "tests/test_version_policy.py (NOVO, 6 testes): formato SemVer de OD_VERSION; .env = capabilities resolvida; fallback congelado = versão vigente; pubspec versionName = versão do sistema com build inteiro; site com ≥ 2 ocorrências de v{versão} e sem resíduo v1.2.8; CHANGELOG com '## [X.Y.Z]' da versão vigente.",
+      "docs/VERSIONAMENTO.md: novo §6 'Guardas de coerência'."
+    ],
+    "teste_do_teste": "5 mutações, TODAS detectadas e revertidas: .env antiga (3 falhas), pubspec antigo (1), site antigo (1), fallback antigo (1), CHANGELOG renomeado (1).",
+    "testes": "Suíte 1920 passed, 16 skipped (+6).",
+    "estado": "CONCLUÍDO — bump parcial de versão agora quebra a suíte."
+  },
   "last_turn": {
     "date": "2026-09-26",
     "action": "Política de versionamento SemVer aplicada: docs/VERSIONAMENTO.md + regra 12 (RULES.md) + saneamento para 1.3.0 (servidor, app 1.3.0+12, site, CHANGELOG). Implantado (PID 547622) e provado no ar 7/7.",
-    "next": "Instalar o APK 1.3.0+12 no celular (12 > 11 instala por cima); a partir da próxima entrega, bump no deploy pelo checklist da política.",
+    "action": "Guardas de coerência da versão em tests/test_version_policy.py (6 testes, 5 mutações detectadas) — bump parcial quebra a suíte. Suíte 1920/16.",
+    "next": "Instalar o APK 1.3.0+12 no celular (12 > 11 instala por cima); a partir da próxima entrega, bump no deploy pelo checklist da política (agora com guardas na suíte).",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
