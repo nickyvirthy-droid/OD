@@ -1,7 +1,13 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T12:25:00-03:00",
+  "updated_at": "2026-09-26T12:30:00-03:00",
+  "encerramento_2026_09_26": {
+    "pedido": "Dono: 'Encerrar por aqui — o checkpoint em iniciar/ já guarda tudo para a próxima sessão'.",
+    "estado_final": "od-core active PID 594542 NRestarts=0 (v1.5.0); árvore limpa; HEAD f680c57 == origin/master; suíte 1932/16; app 1.5.0+14 confirmado no celular pelo dono (via=session, user=alex).",
+    "resumo_do_dia": "Retomada com lote órfão validado e implantado (v1.4.0); poda do cache LLM (47 falhas) + prova do cache limpo pela URL do Funnel; checagem de fechamento verde; APK 1.5.0+14 (conexão por localização, URLs ocultas, conta do site) construído, implantado e CONFIRMADO no celular.",
+    "proximo_encontro": "Nada pendente no servidor nem no app — a próxima sessão começa de novo pedido do dono. Regras de retomada (leia iniciar/ primeiro) continuam valendo."
+  },
   "retomada_2026_09_26_3": {
     "pedido": "Usuário: 'leia iniciar' — nova retomada (~11:05).",
     "verificacao": "od-core active, PID 547622 (deploy do versionamento 1.3.0), desde 2026-09-26 04:46:22, NRestarts=0, journal sem err; HEAD==origin/master fe820ae (guardas de coerência da versão).",
