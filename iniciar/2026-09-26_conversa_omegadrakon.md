@@ -447,3 +447,72 @@ visitante, mas o dono (admin) DEVE ter essas respostas.
   limpa.
 - Pendência: instalar o APK 1.6.0+15 no celular (15 > 14) e conferir
   hora/entidade nas bolhas e os nomes nos chips.
+
+## 15. Chat seguindo bloqueando IP/portas do dono — causa raiz no launcher (v1.6.1)
+
+Pedido do dono: "continua bloqueando a informação. dentro de ações
+ip_address ele me da o ip, porém no chat não. a porta foi a mesma coisa...
+a ideia central é que se não houver resposta no momento o sistema vai criar
+um script que consiga me trazer essa resposta".
+
+### Diagnóstico (3 camadas)
+
+1. **CAUSA RAIZ do "continua bloqueando"**: `set_action_registry` era
+   chamado SÓ no loop do TELEGRAM (`_run_telegram_forever`, linha 784) —
+   o loop da API (`_run_api_forever`) nunca conectava o registry ao
+   Orchestrator. Resultado: a AÇÃO ip_address respondia (`/executa` usa o
+   registry passado ao server), mas o CHAT ficava sem registry e a
+   Etapa 3.5 (fast path de intenções) nunca disparava — "qual o ip do
+   servidor?" ia para o LLM, que recusava ("não posso fornecer", "sem
+   acesso físico") ou alucinava etiqueta de log.
+2. **Falta de intenção**: o fast path não cobria "ip" nem "portas" —
+   `detect_action_intent` não tinha padrão para isso.
+3. **Anti-recusa inexistente**: mesmo com o prompt de dono (v1.6.0), o
+   gemma às vezes ignora; não havia retry nem roteamento alternativo.
+
+### Correções (v1.6.1)
+
+- **launcher**: `set_action_registry` AGORA também no loop da API (log
+  "ActionRegistry conectado ao Orchestrator (API)").
+- **intents**: "qual o ip do servidor/meu ip local..." → `ip_address`;
+  "quais portas estão abertas/escutando" → `listening_ports` (negativos:
+  "roteador do mercado" NÃO casa; "quantos processos" segue process_list).
+- **actions**: nova `listening_ports` — portas TCP em escuta via
+  `/proc/net/tcp{,6}` com IPv4+IPv6 decodificados (DWORD little-endian do
+  kernel, validado com socket real em ::1) e processo por inode. Catálogo
+  57 → 58.
+- **orchestrator**: `_refusal_reason` (dono/admin) detecta recusas
+  ("não posso fornecer", "não tenho acesso", "por razões de segurança",
+  etiqueta [NICKY][...]); se recusar, refaz UMA geração com REFORÇO
+  anti-recusa; user mantém a vedação de direito.
+- **auto_extension**: allowlist cresce — `socket`, `os`, `platform`,
+  `subprocess` (comandos SÓ de leitura: ss/df/ls/hostname/uname/uptime/id)
+  + descrição do PROMPT ajustada para "função pura de leitura". É a base
+  para o plano do dono: dado sem resposta → o sistema gera a ferramenta
+  que traz a resposta.
+
+### Verificação
+
+- Suíte: **1955 passed, 16 skipped** (+9: anti-recusa, intenções
+  IP/portas, negativos, listening_ports no catálogo).
+- **Teste do teste (5 mutações, TODAS DETECTADAS)**: prompt sem IPs;
+  detector de recusa desligado; intent de IP desligada; done sem
+  profile_name; listening_ports fora do catálogo. (Na 1ª rodada 3
+  passaram despercebidas — faltavam os testes; criados e re-rodado.)
+- **Prova viva (2/2)**, chat admin pela API:
+  - "qual o ip do servidor?" → route=**action_intent** ·
+    `🌐 IP do servidor: 127.0.1.1 · 192.168.0.250 (saída padrão)`
+  - "quais portas estão abertas?" → route=**action_intent** ·
+    `🔌 16 porta(s): 22, 53, 443 (Funnel), 1883, 5432, 8000, 8001, 8081
+    (llama-server)...` com processo por porta.
+  - ZERO LLM na resposta (dado real do sistema, latência ~6ms).
+- Bump 1.6.1 (PATCH: correção + capacidade pontual de leitura) — .env,
+  capabilities, pubspec 1.6.1+16, site, CHANGELOG. APK 1.6.1+16 (aapt2
+  versionCode='16', sha256 0c724db4…) publicado em site/.
+
+### Publicação
+
+- Commit **a43912c** (15 arquivos, +392/−41); HEAD == origin/master;
+  árvore limpa.
+- Pendência: instalar o APK 1.6.1+16 no celular (16 > 15) e conferir
+  "qual o ip do servidor?" no chat do app.

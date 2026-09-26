@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T13:00:00-03:00",
+  "updated_at": "2026-09-26T14:20:00-03:00",
   "resposta_transparente_2026_09_26": {
     "pedido": "Dono: (1) app sem hora nem quem respondeu (gemma, cache...); (2) chips sem os NOMES da entidade (Regulus aparecia como 'Conselheiro'); (3) admin DEVE ter respostas de IP/portas — vedação só para visitante.",
     "implementacao": ["profile_name em TODOS os frames done do streaming e no to_dict (REST); app exibe cabeçalho da bolha (ícone + nome) e hora em toda mensagem", "profile_display_name: nome canônico da Plêiade; /profiles expõe display_name; app usa nomes nos chips (Regulus, Nyx, Luma, Vox, Athenae, Nexus)", "Orchestrator._resolve_system: system prompt por PERFIL pedido + PAPEL de quem fala — admin (dono) com acesso pleno aos dados do sistema, user mantém a vedação (antes era o prompt estático do launcher)"],
@@ -583,6 +583,16 @@
     "testes": "Suíte 1920 passed, 16 skipped (+6).",
     "estado": "CONCLUÍDO — bump parcial de versão agora quebra a suíte."
   },
+  "chat_ip_portas_2026_09_26": {
+    "pedido": "Dono: 'continua bloqueando a informação. dentro de ações ip_address ele me da o ip, porém no chat não. a porta foi a mesma coisa... a ideia central é que se não houver resposta no momento o sistema vai criar um script que consiga me trazer essa resposta'.",
+    "causa_raiz": "set_action_registry SÓ no loop do Telegram — o chat (REST/WS) ficava sem registry e a Etapa 3.5 (fast path) nunca disparava; a pergunta caía no LLM que recusava ou alucinava etiqueta. /executa funcionava porque o server recebe o registry por parâmetro.",
+    "correcoes": ["launcher: set_action_registry também no loop da API", "intents: 'qual o ip do servidor' → ip_address; 'portas abertas/escutando' → listening_ports (negativos cobertos)", "actions: NOVA listening_ports (/proc/net/tcp{,6}, IPv4+IPv6 DWORD-LE validado, processo por inode) — catálogo 57→58", "orchestrator: _refusal_reason detecta recusa do modelo para o ADMIN e refaz UMA geração com reforço; user mantém vedação", "auto_extension: allowlist cresce (socket/os/platform/subprocess de leitura) — base para gerar a ferramenta que faltou"],
+    "testes": "Suíte 1955/16 (+9). Teste do teste: 5 mutações TODAS detectadas (1ª rodada: 3 passaram — criados os testes que faltavam e re-rodado).",
+    "prova_viva": "CHAT admin: 'qual o ip do servidor?' → route=action_intent, 🌐 127.0.1.1 + 192.168.0.250 (saída); 'quais portas abertas?' → route=action_intent, 🔌 16 portas com processo; ZERO LLM (~6ms).",
+    "bump": "1.6.1 (PATCH) — .env, capabilities, pubspec 1.6.1+16, site, CHANGELOG. APK 1.6.1+16 (aapt2 versionCode='16', sha256 0c724db4…) publicado em site/.",
+    "commit": "a43912c fix(core,intents,launcher): IP/portas pela ACTION no chat do dono + anti-recusa (v1.6.1) — 15 arquivos +392/−41; HEAD==origin/master.",
+    "estado": "CONCLUÍDO E NO AR — pendência: instalar o APK 1.6.1+16 no celular (16 > 15) e conferir no chat do app."
+  },
   "apk_v150_confirmado_2026_09_26": {
     "pedido": "Dono instalou o 1.5.0+14 no celular e confirmou: 'Confirmado — confira no journal o rastro do celular'.",
     "rastro": "3x Login realizado username=alex (12:08, 12:09, 12:15); WebSocket authenticated user_id=alex via=session (12:17:45); 2x Message processed route=llm user=alex llm=gemma-local (16,8s/9,8s); 0 erros.",
@@ -633,7 +643,7 @@
   "last_turn": {
     "date": "2026-09-26",
     "action": "Lote não registrado validado (1932/16 + sandbox 57), bump SemVer 1.4.0 pelo checklist, APK 1.4.0+13, deploy provado no ar 5/5 e publicado (7d29592). Resíduo postgres:/ removido.",
-    "next": "Instalar o APK 1.6.0+15 no celular (15 > 14) e conferir hora/quem respondeu nas bolhas e os nomes nos chips.",
+    "next": "Instalar o APK 1.6.1+16 no celular (16 > 15) e conferir 'qual o ip do servidor?' no chat do app — deve responder route=action_intent com o IP real.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
