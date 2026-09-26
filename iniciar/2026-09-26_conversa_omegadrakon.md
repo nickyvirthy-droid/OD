@@ -246,3 +246,29 @@ Pedido: "Executar a poda real do cache LLM (remove as 47 falhas cacheadas)".
   journal 0 Traceback/ERROR/CRIT. Nada foi reiniciado.
 - **Daqui em diante** a guarda `_cacheable` (7d29592) impede que falha
   nova entre no cache — a tabela volta a crescer só com resposta real.
+
+## 10. Prova do cache limpo pela URL do Funnel (11:2x)
+
+Pedido: "Rodar uma conversa de teste pela URL do Funnel e conferir que a
+resposta real entrou no cache limpo".
+
+Método: `POST https://nicky-server.tail1b1f51.ts.net/message` (X-API-Key,
+user_id deploy-check) com prompt único (uuid) enviado DUAS vezes — a 1ª
+ida deve ir ao LLM e gravar o cache; a 2ª, idêntica, deve ser servida do
+cache. (1ª rodada da prova usou prompt que ficou só em memória do script;
+a rodada final é autocontida e reproduz o par llm→cache.)
+
+Prova (4/4):
+
+- **1ª ida:** HTTP 200 · `route=llm` · `llm=gemma-local` · cached=False ·
+  resposta real ("Memorizar ajuda no acesso rápido aos dados…").
+- **2ª ida (mesma mensagem):** HTTP 200 · **`route=cache`** ·
+  **cached=True** · MESMA resposta · latência 4,5 ms (LLM levou 8,7 s).
+- **dry_run do prune após a prova:** 200 · varridas 0 · **candidatas 0** —
+  a entrada gravada é SAUDÁVEL (a guarda `_cacheable` só deixa resposta
+  real passar; 0 falsas entraram).
+- **Journal:** `Message processed | route=llm` + `route=cache | user=alex`
+  · 0 Traceback/ERROR/CRIT. Nada reiniciado.
+
+Conclusão: cache limpo operando fim a fim pela URL pública — grava só
+resposta real e a serve em ~4 ms na repetição.
