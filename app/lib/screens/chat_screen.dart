@@ -42,14 +42,16 @@ class _ChatScreenState extends State<ChatScreen> {
   /// De onde veio a última resposta (selo discreto acima do campo de texto).
   OdChatTransport? _lastTransport;
 
+  // Nomes CANÔNICOS da Plêiade (cânone Personagens.md) — o chip mostra
+  // QUEM vai responder (Regulus), não só o cargo (Conselheiro).
   static const _profiles = {
     'auto': {'name': 'Auto', 'icon': '🤖'},
     'guardian': {'name': 'Nicky Virthy', 'icon': '🐉'},
-    'regulus': {'name': 'Conselheiro', 'icon': '⚖️'},
-    'luma': {'name': 'Mentora', 'icon': '🌟'},
-    'vox': {'name': 'Arauta', 'icon': '📜'},
-    'athenae': {'name': 'Arquiteta', 'icon': '🏛️'},
-    'nyx': {'name': 'Guardiã', 'icon': '🌙'},
+    'regulus': {'name': 'Regulus', 'icon': '⚖️'},
+    'luma': {'name': 'Luma', 'icon': '🌟'},
+    'vox': {'name': 'Vox', 'icon': '📜'},
+    'athenae': {'name': 'Athenae', 'icon': '🏛️'},
+    'nyx': {'name': 'Nyx', 'icon': '🌙'},
     'nexus': {'name': 'Nexus', 'icon': '🔗'},
   };
 
@@ -74,6 +76,7 @@ class _ChatScreenState extends State<ChatScreen> {
               role: m.isUser ? 'user' : 'assistant',
               content: m.content,
               timestamp: m.timestamp,
+              answeredBy: m.answeredBy,
             ),
           ),
         );
@@ -110,22 +113,35 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     final buffer = StringBuffer();
+    // Quem/resposta do frame `done` (profile_name/llm_used/route). O streaming
+    // só mostra o TEXTO; os metadados chegam no final.
+    var answeredBy = '';
+    var route = '';
 
     try {
       await for (final delta in _chat.send(text, profile: _selectedProfile)) {
         if (!mounted) return;
         buffer.write(delta.text);
+        if (delta.answeredBy.isNotEmpty) answeredBy = delta.answeredBy;
+        if (delta.route.isNotEmpty) route = delta.route;
         setState(() {
           _lastTransport = delta.transport;
           if (_liveIndex == null) {
             _messages.add(
-              OdMessage(role: 'assistant', content: buffer.toString()),
+              OdMessage(
+                role: 'assistant',
+                content: buffer.toString(),
+                answeredBy: answeredBy,
+                route: route,
+              ),
             );
             _liveIndex = _messages.length - 1;
           } else {
             _messages[_liveIndex!] = OdMessage(
               role: 'assistant',
               content: buffer.toString(),
+              answeredBy: answeredBy,
+              route: route,
             );
           }
         });

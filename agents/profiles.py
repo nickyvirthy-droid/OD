@@ -376,3 +376,23 @@ def resolve_auto(text: str = "") -> str:
     Texto sem domínio mapeado cai no perfil padrão (guardian).
     """
     return default_manager().resolve("auto", (text or "").strip() or None)
+
+
+def profile_display_name(profile: str) -> str:
+    """Nome canônico da entidade da Plêiade ('regulus' → 'Regulus').
+
+    Usado pelo frame `done` do WS e pelos catálogos — o app exibe QUEM
+    respondeu em vez da chave técnica. Chave desconhecida (ou vazia)
+    devolve a própria chave — NUNCA o perfil padrão, para não atribuir a
+    resposta à entidade errada.
+    """
+    key = (profile or "").strip()
+    if not key:
+        return ""
+    try:
+        manager = default_manager()
+        if key not in manager.profiles:
+            return key
+        return manager.get_display_name(key)
+    except Exception:
+        return key

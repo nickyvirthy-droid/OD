@@ -57,20 +57,28 @@ enum OdChatTransport {
 ///
 /// O consumidor concatena os [text] em ordem e para quando [done] for `true`.
 /// No transporte [OdChatTransport.rest] vem um único delta com o texto todo.
+/// [answeredBy] e [route] só vêm preenchidos no delta final (frame `done`):
+/// QUEM respondeu (nome canônico do perfil — Regulus, Nyx...) e por qual
+/// caminho (llm/cache/datetime/quick_response/action_intent).
 class OdChatDelta {
   final String text;
   final bool done;
   final OdChatTransport transport;
+  final String answeredBy;
+  final String route;
 
   const OdChatDelta({
     required this.text,
     required this.done,
     required this.transport,
+    this.answeredBy = '',
+    this.route = '',
   });
 
   @override
   String toString() =>
-      'OdChatDelta("$text", done: $done, transport: ${transport.name})';
+      'OdChatDelta("$text", done: $done, transport: ${transport.name}, '
+      'answeredBy: $answeredBy, route: $route)';
 }
 
 /// Falha do streaming depois que parte da resposta já foi exibida.
@@ -288,10 +296,13 @@ class OdStreamingChat {
               );
             }
           case 'done':
-            yield const OdChatDelta(
+            yield OdChatDelta(
               text: '',
               done: true,
               transport: OdChatTransport.webSocket,
+              answeredBy: (frame['profile_name'] as String?) ??
+                  ((frame['llm_used'] as String?) ?? ''),
+              route: (frame['route'] as String?) ?? '',
             );
             return;
           case 'error':

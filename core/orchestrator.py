@@ -65,6 +65,23 @@ from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 
 from core.logger import get_logger
 
+if TYPE_CHECKING:  # pragma: no cover — só tipagem (evita ciclo de import)
+    pass
+
+
+def _profile_display_name(profile: str) -> str:
+    """Nome canônico da entidade (agents.profiles.profile_display_name).
+
+    Import tardio em função (profiles importa logger; evita ciclo no módulo).
+    Falha silenciosa: devolve a própria chave.
+    """
+    try:
+        from agents.profiles import profile_display_name
+
+        return profile_display_name(profile)
+    except Exception:
+        return (profile or "").strip()
+
 if TYPE_CHECKING:
     from core.event_bus import EventBus
     from memory.cache import LLMCache
@@ -371,6 +388,7 @@ class OrchestrationResult:
         return {
             "user_id": self.user_id,
             "profile": self.profile,
+            "profile_name": _profile_display_name(self.profile),
             "text": self.text,
             "route": self.route,
             "ok": self.ok,
@@ -550,6 +568,7 @@ class Orchestrator:
                 yield {"type": "token", "content": answer}
                 yield {
                     "type": "done",
+                    "profile_name": _profile_display_name(profile),
                     "content": answer,
                     "route": ROUTE_DATETIME,
                     "llm_used": "",
@@ -569,6 +588,7 @@ class Orchestrator:
                 yield {"type": "token", "content": quick_answer}
                 yield {
                     "type": "done",
+                    "profile_name": _profile_display_name(profile),
                     "content": quick_answer,
                     "route": ROUTE_QUICK,
                     "llm_used": "",
@@ -610,6 +630,7 @@ class Orchestrator:
                 yield {"type": "token", "content": answer}
                 yield {
                     "type": "done",
+                    "profile_name": _profile_display_name(profile),
                     "content": answer,
                     "route": ROUTE_INTENT,
                     "llm_used": f"fastpath:{route_detail}",
@@ -629,6 +650,7 @@ class Orchestrator:
                 yield {"type": "token", "content": cached}
                 yield {
                     "type": "done",
+                    "profile_name": _profile_display_name(profile),
                     "content": cached,
                     "route": ROUTE_CACHE,
                     "llm_used": "",
@@ -637,7 +659,9 @@ class Orchestrator:
                 return
 
         # Etapa 5 — Histórico: monta contexto ChatML
-        prompt = self._build_prompt(user_id, profile, text, system_prompt)
+        prompt = self._build_prompt(
+            user_id, profile, text, self._resolve_system(system_prompt, profile, role),
+        )
 
         # Etapas 6 e 7 — LLM com streaming
         if not self._providers:
@@ -744,6 +768,7 @@ class Orchestrator:
 
         yield {
             "type": "done",
+            "profile_name": _profile_display_name(profile),
             "content": full_response,
             "route": route,
             "llm_used": llm_used,
@@ -866,7 +891,11 @@ class Orchestrator:
 
         # Etapa 5 — Histórico: monta contexto ChatML
         prompt = self._build_prompt(
-            user_id, profile, text, system_prompt, extra_history=extra_history
+            user_id,
+            profile,
+            text,
+            self._resolve_system(system_prompt, profile, role),
+            extra_history=extra_history,
         )
 
         # Etapas 6 e 7 — LLM com fallback
@@ -896,6 +925,24 @@ class Orchestrator:
         return await self._finish(result, started)
 
     # -- Etapas internas -----------------------------------------------------
+
+    def _resolve_system(self, system_prompt: str, profile: str, role: str) -> str:
+        """System prompt efetivo: explícito > identidade por perfil+papel.
+
+        O padrão do launcher (`default_system_prompt`) é um prompt ESTÁTICO
+        (guardian, limites genéricos) — para o chat de verdade o prompt é
+        reconstruído com o PERFIL pedido (Nyx responde como Nyx) e o PAPEL
+        de quem fala: o dono (admin) tem acesso pleno aos dados do sistema;
+        o papel user mantém a vedação.
+        """
+        if system_prompt:
+            return system_prompt
+        try:
+            from agents.nicky_virthy.personality import get_system_prompt
+
+            return get_system_prompt(profile, role)
+        except Exception:
+            return self._config.default_system_prompt
 
     def _build_prompt(
         self,

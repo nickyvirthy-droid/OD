@@ -7,6 +7,25 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.6.0] — RESPOSTA TRANSPARENTE: QUEM RESPONDEU, HORA E ADMIN COM ACESSO PLENO 🔍 (2026-09-26)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Prompt por papel** | `_resolve_system`: dono (admin) tem acesso pleno aos dados do sistema (IPs, portas, serviços); user mantém a vedação — fim da recusa injustificada ao dono |
+| **`profile_display_name`** | Nome canônico da Plêiade ('regulus' → 'Regulus — O Conselheiro') em `/profiles`, frames `done` e `to_dict` |
+| **App: bolha** | Cabeçalho com ícone + nome de quem respondeu e hora em toda mensagem |
+| **App: chips** | Nomes canônicos nos chips de perfil (Regulus, Nyx…) em vez do cargo |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 1945 passed, 16 skipped (+10 em test_resposta_transparente.py)
+app: flutter analyze → No issues found! · flutter test → 87 passed (2 skipped)
+APK 1.6.0+15 (versionCode 15) publicado em site/
+```
+
 ## [1.5.0] — APP SEM URL MANUAL: CONEXÃO POR LOCALIZAÇÃO + CONTA DO SITE 📱 (2026-09-26)
 
 ### 1. O que foi feito

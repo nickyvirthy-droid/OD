@@ -726,8 +726,54 @@ void main() {
 
       expect(find.text('minha msg'), findsOneWidget);
       expect(find.text('resposta'), findsOneWidget);
-      // Assistente exibe o selo 🐉 OD
+      // Assistente sem answeredBy exibe o selo 🐉 OD
       expect(find.text('🐉 OD'), findsOneWidget);
+    });
+
+    testWidgets('bolha mostra QUEM respondeu (nome canônico) e a hora',
+        (tester) async {
+      final ts = DateTime(2026, 9, 26, 12, 5); // 12:05
+      await tester.pumpWidget(_wrap(MessageBubble(
+        message: OdMessage(
+          role: 'assistant',
+          content: 'a resposta técnica',
+          timestamp: ts,
+          answeredBy: 'Regulus — O Conselheiro',
+          route: 'llm',
+        ),
+      )));
+
+      expect(find.text('Regulus — O Conselheiro'), findsOneWidget);
+      expect(find.text('12:05'), findsOneWidget);
+      expect(find.text('🐉 OD'), findsNothing);
+    });
+
+    testWidgets('resposta do cache exibe o rótulo cache e a hora',
+        (tester) async {
+      final ts = DateTime(2026, 9, 26, 9, 7);
+      await tester.pumpWidget(_wrap(MessageBubble(
+        message: OdMessage(
+          role: 'assistant',
+          content: 'resposta repetida',
+          timestamp: ts,
+          answeredBy: 'cache',
+          route: 'cache',
+        ),
+      )));
+
+      expect(find.text('cache'), findsOneWidget);
+      expect(find.text('09:07'), findsOneWidget);
+    });
+
+    testWidgets('bolha do usuário mostra a hora (sem cabeçalho de entidade)',
+        (tester) async {
+      final ts = DateTime(2026, 9, 26, 23, 59);
+      await tester.pumpWidget(_wrap(MessageBubble(
+        message: OdMessage(role: 'user', content: 'oi', timestamp: ts),
+      )));
+
+      expect(find.text('23:59'), findsOneWidget);
+      expect(find.text('🐉 OD'), findsNothing);
     });
   });
 }

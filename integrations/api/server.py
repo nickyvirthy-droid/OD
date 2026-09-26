@@ -49,6 +49,7 @@ from tools.registry import ActionRegistry
 from core.capabilities import OD_VERSION, capabilities_manifest
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
+from agents.profiles import profile_display_name as _profile_display_name
 from core.orchestrator import cache_failure_reason as _cache_failure_reason
 from core.logger import get_logger
 from core.orchestrator import OrchestrationResult, Orchestrator
@@ -2187,6 +2188,7 @@ class APIHandler(BaseHTTPRequestHandler):
             items.append(
                 {
                     "name": name,
+                    "display_name": _profile_display_name(name),
                     "default": name == DEFAULT_PROFILE,
                 }
             )

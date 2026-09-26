@@ -454,6 +454,7 @@ class OdApi {
               role: (m['role'] as String?) ?? 'user',
               content: (m['content'] as String?) ?? '',
               ts: (m['ts'] as num?)?.toDouble(),
+              answeredBy: (m['llm_used'] as String?) ?? '',
             ))
         .where((m) => m.content.isNotEmpty)
         .toList(growable: false);
@@ -668,10 +669,14 @@ class OdHistoryMessage {
   final String content;
   final DateTime timestamp;
 
+  /// Quem/resposta gravada pelo servidor (llm_used do turno).
+  final String answeredBy;
+
   OdHistoryMessage({
     required this.role,
     required this.content,
     double? ts,
+    this.answeredBy = '',
   }) : timestamp = ts == null
             ? DateTime.now()
             : DateTime.fromMillisecondsSinceEpoch((ts * 1000).round());

@@ -60,12 +60,47 @@ def _read_canonical(name: str) -> Optional[str]:
         return None
 
 
-def build_identity_prompt(profile: str = DEFAULT_PROFILE) -> str:
-    """Monta o system prompt canônico para o perfil solicitado."""
+def build_identity_prompt(
+    profile: str = DEFAULT_PROFILE,
+    role: str = "admin",
+) -> str:
+    """Monta o system prompt canônico para o perfil solicitado.
+
+    [role] adapta os limites ao papel de quem fala: o dono (admin — conta
+    confirmada pela credencial do servidor) tem acesso pleno aos dados do
+    SISTEMA (IP, portas, serviços — é o operador da máquina); o papel user
+    mantém a vedação de dados do sistema; anônimo não existe aqui (nunca
+    chega ao LLM com identidade).
+    """
     profile = (profile or DEFAULT_PROFILE).lower()
     if profile not in PROFILES:
         profile = DEFAULT_PROFILE  # perfil desconhecido cai no padrão
     tone = PROFILES[profile]
+
+    if role == "admin":
+        limites = (
+            "Limites: você fala com o Arquiteto Criador (Alex) autenticado "
+            "como dono/admin do sistema — TODOS os dados do SISTEMA são "
+            "dele e devem ser respondidos completos quando pedidos: IPs, "
+            "portas, serviços, paths, usuários, métricas, logs. Não esconda, "
+            "não se recuse e não pata para 'segurança' o que é informação "
+            "operacional da PRÓPRIA máquina dele. Ações externas ao sistema "
+            "(enviar a terceiros, publicar na internet) continuam exigindo "
+            "confirmação dele."
+        )
+    elif role == "user":
+        limites = (
+            "Limites: dados privados e de infraestrutura do sistema (IPs, "
+            "portas, paths internos, credenciais) ficam privados; ações "
+            "externas exigem aprovação do dono; respostas completas, nunca "
+            "pela metade."
+        )
+    else:
+        limites = (
+            "Limites: dados privados ficam privados; ações externas (enviar, "
+            "publicar, modificar sistemas) exigem aprovação do Arquiteto; "
+            "respostas completas, nunca pela metade."
+        )
 
     lines = [
         "Você é Nicky Virthy — a Interface Viva do ecossistema Omega Drakon.",
@@ -82,9 +117,7 @@ def build_identity_prompt(profile: str = DEFAULT_PROFILE) -> str:
         "Protocolo: todo log segue [NICKY][INFO|WARN|CRIT|ONLINE]. "
         "Precisão sobre velocidade: resposta errada rápida é pior que "
         "resposta correta devagar.",
-        "Limites: dados privados ficam privados; ações externas (enviar, "
-        "publicar, modificar sistemas) exigem aprovação do Arquiteto; "
-        "respostas completas, nunca pela metade.",
+        limites,
         "",
         f"Perfil ativo: {profile}.",
         f"Tom do perfil: {tone}",
@@ -94,9 +127,12 @@ def build_identity_prompt(profile: str = DEFAULT_PROFILE) -> str:
     return "\n".join(lines)
 
 
-def get_system_prompt(profile: str = DEFAULT_PROFILE) -> str:
-    """System prompt completo (identidade + perfil)."""
-    return build_identity_prompt(profile)
+def get_system_prompt(
+    profile: str = DEFAULT_PROFILE,
+    role: str = "admin",
+) -> str:
+    """System prompt completo (identidade + perfil, com limites por papel)."""
+    return build_identity_prompt(profile, role)
 
 
 def profile_names() -> list[str]:

@@ -14,6 +14,39 @@
 
 ---
 
+## [1.6.0] — Resposta transparente: quem respondeu, hora e admin com acesso pleno 🔍 (2026-09-26)
+
+> **Política:** feature nova compatível = MINOR (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.6.0` · app `1.6.0+15` (versionCode 15).
+
+### Adicionado (2026-09-26)
+
+- **feat(core,agents): system prompt por PAPEL** — `Orchestrator._resolve_system`
+  reconstrói a identidade com o perfil pedido E o papel de quem fala: o dono
+  (admin, autenticado pela credencial do servidor) tem acesso pleno aos dados
+  do SISTEMA (IPs, portas, serviços, paths, logs — não esconde nada do
+  operador da própria máquina); o papel user mantém a vedação de
+  infraestrutura. Antes o prompt era estático e a vedação genérica travava
+  até o dono.
+- **feat(agents): `profile_display_name()`** — nome canônico da Plêiade
+  ('regulus' → 'Regulus — O Conselheiro'); `/profiles` expõe `display_name`;
+  chave desconhecida devolve a própria chave (nunca atribui ao perfil
+  padrão).
+- **feat(core): `profile_name` na resposta** — `to_dict()` (REST) e TODOS os
+  frames `done` do streaming trazem quem respondeu.
+- **feat(app): bolha com QUEM respondeu + hora** — cabeçalho da bolha do OD
+  com ícone e nome (Nicky Virthy, Regulus, Nyx…, 'cache', 'ação: X') e a
+  hora em toda mensagem (usuário e assistente).
+- **feat(app): chips de perfil com o nome canônico** — Regulus, Nyx, Luma,
+  Vox, Athenae, Nexus (antes mostrava só o cargo: 'Conselheiro', 'Guardiã').
+
+### Cobertura
+
+- Servidor: tests/test_resposta_transparente.py (NOVO, 10 testes); suíte
+  1945 passed, 16 skipped.
+- App: +4 testes de widget (nome+hora, cache, hora no usuário, selo);
+  flutter analyze 0 issues · flutter test 87 passed, 2 skipped.
+
 ## [1.5.0] — App sem configuração de URL: conexão por localização + conta do site 📱 (2026-09-26)
 
 > **Política:** feature nova compatível = MINOR (`docs/VERSIONAMENTO.md` §1).
