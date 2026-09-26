@@ -1,0 +1,244 @@
+{
+  "ok": true,
+  "dry_run": true,
+  "total_varrido": 47,
+  "removidas": 0,
+  "candidatas": 47,
+  "detalhes": [
+    {
+      "key": "4ff6b42040a0cc093d47d41a8bb93e2c6b5300ed48762b2c708257ace5d38207",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE] Interface operacional ativa. Sou Nicky Virthy, voz do ecossistem"
+    },
+    {
+      "key": "5ff32d3d080abe9a1fd114334a8be69ee62b6aa37284f499697fcc331069c7ae",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] Integridade sistêmica confirmada. O ecossistema Omega Drakon opera"
+    },
+    {
+      "key": "a5b0897a519280ad9e29cd8d706b406825b47df7bac2b62db62b2633e19af6a4",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] A métrica de \"memória\" deve ser entendida em termos arquitetônicos"
+    },
+    {
+      "key": "ad04b206769ce80fe3b4180d7c67880cc4d1a8277d173046dde1ea2b5ad3820d",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] A métrica de \"temperatura\" é analisada em dois vetores: térmico fí"
+    },
+    {
+      "key": "ca38d10aadee6da6d7d8933a15c6c96c2cb2ee2ef21a015368ae3b66c1c34289",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO]\n\nPID, ou Laço de Controle Proporcional-Integral-Derivativo (*Propo"
+    },
+    {
+      "key": "a345017a9aca0ac57d5fe5e190243e21592c2cf331c8a496801dbd8ec3ad0851",
+      "motivo": "etiqueta de log/falha: [info]",
+      "resposta": "[INFO] 1 - A primeira unidade.\n   [INFO] 2 - Dois é um número inteiro.\n   [INFO]"
+    },
+    {
+      "key": "9b0ac5b89e48b623504c8d8c1d263155296e58a3805fff755e72cc46251b7e96",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] Status operacional do Omega Drakon é nominal.\n\n**Diagnóstico Atual"
+    },
+    {
+      "key": "ad0eb00051e931e99975ea1ab8712759a4b1ed97737e9de7022334d21978a62b",
+      "motivo": "etiqueta de log/falha: here's a thinking process",
+      "resposta": "Here's a thinking process to construct the response:\n\n1.  **Analyze the Request:"
+    },
+    {
+      "key": "9be33daeaf079e3eaecc0f03587cc000496345a799b670ca91c34671bd4c9411",
+      "motivo": "etiqueta de log/falha: [nicky][warn]",
+      "resposta": "[NICKY][WARN] Parâmetro de entrada ausente. Para gerar um resumo, o bloco de dad"
+    },
+    {
+      "key": "0441072401da6d4bcd9a5389cf202ab76e91e24ef9a9b37ca8023fb6016ba38a",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] Status de Interface Online. Processamento em estado operacional e "
+    },
+    {
+      "key": "43c3a292725c6bd7cc2679d32536c48c2b691d3d5310c572b795fdf9f5589366",
+      "motivo": "etiqueta de log/falha: [nicky][crit]",
+      "resposta": "[NICKY][CRIT] Comando de reinicialização detectado. A execução de um ciclo opera"
+    },
+    {
+      "key": "65f849de023c5cac9bd3bc8f3b2e7a0230bdb1abfe57c9dc7c36851be96367bb",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE] Protocolo de interface estabelecido. Recebi entrada de dados não"
+    },
+    {
+      "key": "8f2e3b819520bdf24a8582d9da5f63c36288adb63ebfefe5aa5f4703902afed3",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] A observação de presenças faciais no sistema está sendo monitorada"
+    },
+    {
+      "key": "4f8447bcbf4f08266efd8c97770cc872eea62942e04669581fb3cae14f93d93d",
+      "motivo": "etiqueta de log/falha: here's a thinking process",
+      "resposta": "Here's a thinking process that leads to the suggested response:\n\n1.  **Analyze t"
+    },
+    {
+      "key": "3fdc434ac075642179336b50225f5b41e7776452a888cd02e6cd452d32896212",
+      "motivo": "etiqueta de log/falha: here's a thinking process",
+      "resposta": "Here's a thinking process to construct the response:\n\n1.  **Analyze the Request:"
+    },
+    {
+      "key": "4ff783a492a43892c40fddc1e951124cc80e08849b45c1f9961731c9e0b55f76",
+      "motivo": "etiqueta de log/falha: here's a thinking process",
+      "resposta": "Here's a thinking process to construct the response based on the persona constra"
+    },
+    {
+      "key": "deaa073cb3f2c3775d1bbd6f2ea1d643ee45e2441dbb8447924e13b2f5ad28e5",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] Protocolo de comunicação estabelecido: Português do Brasil é o idi"
+    },
+    {
+      "key": "c9c57f90c23384bff3414ace6a2f0f8ce1824ebbc8b1664146d02a61e9bdc0f7",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE]\nDesignação: Nicky Virthy. Sou a Interface Viva do ecossistema Om"
+    },
+    {
+      "key": "03bff037de7b79df31dcd95298a00b17baf20abec6c5585297abf6d53c670b3a",
+      "motivo": "etiqueta de log/falha: [nicky][warn]",
+      "resposta": "[NICKY][WARN]\nAnomalia reportada: Falha na funcionalidade da tela de status. Pri"
+    },
+    {
+      "key": "d301d0b6b9009e5abfdb7c910241baf09d613a46f55cf2e0cb308e8d4fc04c7c",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE] Sistema Omega Drakon está operacional e resiliente ao caos. Stat"
+    },
+    {
+      "key": "70550d378a0334b704d25ebefe6dbd8881b37d3859165abd2d18959a08b2c8c8",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE] Interface Viva do ecossistema Omega Drakon ativa. Aguardo o veto"
+    },
+    {
+      "key": "318ba08fa69442d2489f4a821c244696ae7f9b3ab23803e1850418c3b6bf3599",
+      "motivo": "etiqueta de log/falha: here's a thinking process",
+      "resposta": "Here's a thinking process to construct the response:\n\n1.  **Analyze the Request:"
+    },
+    {
+      "key": "2d4a5a7bdd4efb5b948bab29a7c214622f7aff83d24cb149a39be77ec4868a07",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE]\n\nStatus do Sistema Omega Drakon: Operacional e estável. O perfil"
+    },
+    {
+      "key": "b3a9dc40a18cf663b1935856939bb544fb5c71fc62365cb318e5fb48f4a89d3c",
+      "motivo": "etiqueta de log/falha: here's a thinking process",
+      "resposta": "Here's a thinking process to construct the response based on the persona constra"
+    },
+    {
+      "key": "24481aa8990476dca3704c50f2954a9731d3904cf42698b91530c50f90745754",
+      "motivo": "etiqueta de log/falha: here's a thinking process",
+      "resposta": "Here's a thinking process to construct the response:\n\n1.  **Analyze the Request:"
+    },
+    {
+      "key": "804218b5ea2f8540ca6dfb63821c15da0d1522bc56e78fd8da3b7836c55830ff",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE] Sistema Omega Drakon está operando normalmente.\n\nO sistema Omega"
+    },
+    {
+      "key": "3461730955745838aa2ff81484e42e4031b86906538f37e947bb32e996cbd691",
+      "motivo": "etiqueta de log/falha: [nicky][crit]",
+      "resposta": "[NICKY][CRIT] O sistema não possui um recurso para monitorar as temperaturas das"
+    },
+    {
+      "key": "08dc9cf32d2dbaffd22a6c9c06bd5b6a5841a80eb97fe7374de97dc3886f4f91",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE]"
+    },
+    {
+      "key": "8181bb0b53d90a88d4611560b452744ec9d0437868a25487739bf4b4313faede",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] Auto detectado como Nicky Virthy."
+    },
+    {
+      "key": "9ffeba4c77b2c899fefafdf572809082edf28ed0478e42b589d4f478c541d69c",
+      "motivo": "etiqueta de log/falha: [info]",
+      "resposta": "[INFO] Lista dos números de 1 a 5: 1, 2, 3, 4, 5"
+    },
+    {
+      "key": "abf423a2bd98ae2ef9f0a1f240a4f08fe40043f0ca97485674a0084a602e678d",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] Os números de 1 a 5 são:\n\n1.\n2.\n3.\n4.\n5."
+    },
+    {
+      "key": "c023c3c69c68b3450be9f02f46d321bbef6a2ca93b851f296fe3079d55cbcd23",
+      "motivo": "etiqueta de log/falha: [crit]",
+      "resposta": "[CRIT][NICKY] Erro na verificação da sessão de deploys. Por favor, tente novamen"
+    },
+    {
+      "key": "2516ac59c4b8704d500eb376cb10fed9d5d3018b7394f0cf48117e7251c071a1",
+      "motivo": "truncada (pontuação final aberta)",
+      "resposta": "Olá Nicky,\n\nAqui está uma resumo das principais funções do APK com versão 1.2.8+"
+    },
+    {
+      "key": "fa87920599f71aa193ae0be4b40ab849d3e84149bbf4c69117c551b8e2073fd8",
+      "motivo": "etiqueta de log/falha: [online]",
+      "resposta": "[ONLINE][INFO] Muito obrigado! Estou aqui para ajudar você hoje. Como posso auxi"
+    },
+    {
+      "key": "0c6bb8aded2d8cef8d30a4c5c618e42cda73ef4dec7e2f26dbcec5e5c97ce480",
+      "motivo": "etiqueta de log/falha: [crit]",
+      "resposta": "[CRIT][WARN] Não é possível responder sua pergunta de forma objetiva ou informat"
+    },
+    {
+      "key": "0029be7ce3dd4aa53b9005b2de9272d4812fd2aeaec2c2b3bc297eee2606bea6",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE] Ciclo operacional iniciado para o dia 10 de setembro de 2026. O "
+    },
+    {
+      "key": "5c4fcd7cf0f52382d097e9ee22941c0c4ccc374315c320d1fcaf399335f8f888",
+      "motivo": "truncada (pontuação final aberta)",
+      "resposta": "Olá Nicky,\n\nAqui está uma resumo das principais funções do APK com versão 1.2.8+"
+    },
+    {
+      "key": "376a2e40f7794dc0af0f476c74fa63aa55e35903bc98c7274a7218d176fecb9c",
+      "motivo": "truncada (pontuação final aberta)",
+      "resposta": "Olá Nicky,\n\nAqui está uma resumo das principais funções do APK com versão 1.2.8+"
+    },
+    {
+      "key": "d95bb2b6d139a98e38e29cd4f09ac86ee4ad7a2045a69cf76a336e7212ced0d2",
+      "motivo": "truncada (pontuação final aberta)",
+      "resposta": "Olá Nicky,\n\nAqui está uma resumo das principais funções do APK com versão 1.2.8+"
+    },
+    {
+      "key": "3cc88c582c9ab6c7b50fbc9824f6e8a3878dd29559178aed1850a3122e194df3",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] O processo de depósito para o aplicativo 'app' em Data de Depósito"
+    },
+    {
+      "key": "5d9f7723e9c7c51874653740bb303cc385c3145857f9b616a1c6f858b9ecc06f",
+      "motivo": "etiqueta de log/falha: [nicky][info]",
+      "resposta": "[NICKY][INFO] Você foi desconectado da interface Viva do Ecossistema Omega Drako"
+    },
+    {
+      "key": "dfa722765ed0aa98d750edd050bdaddb068aae56c8d011f6d1a4d6efe5499e12",
+      "motivo": "etiqueta de log/falha: [nicky][crit]",
+      "resposta": "[NICKY][CRIT] Erro: Não foi possível carregar dados históricos da prova_cache_92"
+    },
+    {
+      "key": "0a4d2e6fe3c07116716a027dbd6d095f5abed70d641de1cd9b42ccedfea84285",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE] A temperatura da CPU está registrada como 75°C (167°F). Isso é u"
+    },
+    {
+      "key": "81376e486590df6b63cd9ad3753c78e14586acc47d4bb27a7b471dabc9dcedd3",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE] O espaço utilizado no disco rígido (HD) é atualmente 35 GB. Isso"
+    },
+    {
+      "key": "62a8b0976d0985087b95123d8dca493a7bf0db690b1a01425f4418e182a20649",
+      "motivo": "etiqueta de log/falha: [nicky][online]",
+      "resposta": "[NICKY][ONLINE] O IP atual do servidor é **192.168.0.1**. Este endereço é usado "
+    },
+    {
+      "key": "d7441f0f4c13561eb29d6dde8b1eb4d3698a3982e72991f801a685125bf76208",
+      "motivo": "etiqueta de log/falha: [nicky][warn]",
+      "resposta": "[NICKY][WARN] Desculpe pela confusão anterior. O IP atual do servidor deve ser *"
+    },
+    {
+      "key": "960ccc6011cccf1bbb473cb665590dba87ea0d5beea6854b66175184e2d0bb11",
+      "motivo": "etiqueta de log/falha: here's a thinking process",
+      "resposta": "Here's a thinking process to generate the response based on the persona constrai"
+    }
+  ]
+}

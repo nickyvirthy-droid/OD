@@ -230,3 +230,19 @@ DSN acidental como path) encontrado na raiz e removido com autorização.
 1. **Prune real do cache** (47 falhas cacheadas): `POST
    /admin/cache/prune` sem `dry_run` — aguardando o dono.
 2. **Instalar o APK 1.4.0+13 no celular** (13 > 12 instala por cima).
+
+## 9. Poda real do cache LLM (11:1x)
+
+Pedido: "Executar a poda real do cache LLM (remove as 47 falhas cacheadas)".
+
+- **Snapshot pré-poda:** `backups/llm-cache-antes-poda-20260926-111519.json`
+  (resposta completa do dry_run: 47 chaves com preview e motivo; sha256
+  cbbad7c9fbcd289f…).
+- **Execução:** `POST /admin/cache/prune` sem `dry_run` → 200,
+  **varrido 47 · removidas 47 · candidatas 47** — a tabela `llm_cache`
+  ficou vazia (era 100% falha `[NICKY][ONLINE] …`).
+- **Prova pós-poda (3/3):** dry_run → 200 varrido 0, candidatas 0
+  (nenhuma falha renasceu); `/health` 200 ok=true com database up;
+  journal 0 Traceback/ERROR/CRIT. Nada foi reiniciado.
+- **Daqui em diante** a guarda `_cacheable` (7d29592) impede que falha
+  nova entre no cache — a tabela volta a crescer só com resposta real.
