@@ -19,7 +19,9 @@ Esta pasta rege o modo como a sessão é conduzida. When in doubt, these rules w
 
 11. **Regras do projeto valem para a sessão:** as regras normativas do projeto (docs/REGRAS_DE_TRABALHO.md) se aplicam aqui: PT-BR obrigatório, evidência antes de afirmar, Definition of Done, registro e publicação conforme o documento.
 
-12. **Formalização do fluxo de mudança (3 passos):**
+12. **Versionamento SemVer obrigatório (2026-09-26):** versão em X.Y.Z conforme `docs/VERSIONAMENTO.md` (base: semver.org). Feature nova compatível = MINOR (`x.Y.0`), fix sem feature = PATCH (`x.y.Z+1`), quebra de API = MAJOR. O sufixo `+N` (versionCode do app) é metadado de build e NUNCA substitui o incremento da versão. Bump acontece no deploy da mudança, pelo checklist da política (`.env`, capabilities, pubspec, site, CHANGELOG, README_VERSAO).
+
+13. **Formalização do fluxo de mudança (3 passos):**
 - 1) Validar em sandbox antes do sistema real.
 - 2) Só implantar no sistema real quando a mudança estiver estável em sandbox.
 - 3) Se houver erro em sandbox, parar, reportar com a saída, corrigir causa raiz e reexecutar até não haver mais erros.

@@ -14,7 +14,31 @@
 
 ---
 
+## [1.3.0] — Papéis, histórico vivo e painéis 🎚️ (2026-09-19 a 2026-09-26 · saneamento de versão 2026-09-26)
+
+> **Política (2026-09-26):** o projeto aderiu ao Versionamento Semântico 2.0.0
+> — ver `docs/VERSIONAMENTO.md` e a regra 12 de `iniciar/RULES.md`. Feature
+> nova compatível sobe o MINOR; fix sobe o PATCH; o sufixo `+N` do app é
+> versionCode (metadado de build) e NUNCA substitui a versão.
+>
+> **Saneamento:** até aqui o servidor rodou `OD_VERSION=1.2.0` (de 09-12)
+> enquanto o app empilhava `1.2.8+8…+11` — o `+N` fazia o papel que era do
+> X.Y.Z. A release **1.3.0** contempla as entregas de 2026-09-19 a 2026-09-26
+> (autenticação de usuários, LoginGuard, dono do histórico, identidade pela
+> credencial, papéis, vínculo Telegram, anônimo, histórico visível/paginado
+> no app e no chat, painéis /dashboard e /admin, rotas terminais no
+> histórico). As entradas detalhadas permanecem na seção [1.2.0] abaixo por
+> ordem cronológica de registro; **a partir daqui, entradas novas nascem na
+> seção da release vigente.**
+>
+> **Versões:** servidor `OD_VERSION=1.3.0` · app `1.3.0+12` (versionCode 12).
+
 ## [1.2.0] — App Android 📱 (2026-09-08 · correções em 2026-09-12, 2026-09-14, 2026-09-15, 2026-09-18, 2026-09-21, 2026-09-22, 2026-09-23, 2026-09-24, 2026-09-25 e 2026-09-26)
+
+> **Nota (2026-09-26):** as entregas datadas de 2026-09-19 a 2026-09-26
+> abaixo pertencem à release **[1.3.0]** (saneamento de versão —
+> `docs/VERSIONAMENTO.md` §6); permanecem aqui por ordem cronológica de
+> registro.
 
 ### Adicionado (2026-09-26) — painéis: dashboard do usuário e backend do admin 🛡️
 

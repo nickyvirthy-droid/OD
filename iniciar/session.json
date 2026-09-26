@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T04:00:00-03:00",
+  "updated_at": "2026-09-26T04:55:00-03:00",
   "retomada_2026_09_26": {
     "pedido": "Usuário: 'leia iniciar' — retomada da sessão (01:48).",
     "verificacao": "od-core active, PID 481232 (o mesmo da rodada 2 de 09-25), desde 2026-09-25 15:32:18, NRestarts=0; HEAD==origin/master f522abe (Sair/Limpar preservam o botão de paginação); working tree limpo exceto backups/prova-site-923-20260923-134842.bak.json (untracked, já conhecido).",
@@ -533,12 +533,28 @@
     },
     "estado": "CONCLUÍDO E NO AR (PID 535581) — CONFIRMADO VISUALMENTE PELO DONO em 2026-09-26 ~04:00. Ponto FECHADO."
   },
+  "versionamento_2026_09_26": {
+    "pedido": "Dono: 'vamos colocar a regra da versão, voce parou na 1.2.8 quando na verdade já fez implementações e colocou um + alguma coisa na frente ao invez de inclementar a contagem. leia na internet sobre regras de versão e aplique no sistema'.",
+    "especificacao": "SemVer 2.0.0 (semver.org/lang/pt-BR): feature compatível = MINOR, fix = PATCH, quebra = MAJOR; +N é metadado de build e NÃO substitui a versão.",
+    "implementacao": [
+      "docs/VERSIONAMENTO.md (NOVO): política formal + checklist de bump + fonte da verdade.",
+      "iniciar/RULES.md: nova regra 12 (versionamento obrigatório; antiga 12 virou 13).",
+      ".env: OD_VERSION 1.2.0 → 1.3.0 (congelada desde 09-12, com features entrando por baixo).",
+      "core/capabilities.py: fallback 1.2.0 → 1.3.0.",
+      "app/pubspec.yaml: 1.2.8+11 → 1.3.0+12 (versionCode monotônico preservado).",
+      "site/index.html: badge hero + card do APK → v1.3.0.",
+      "docs/CHANGELOG.md: seção [1.3.0] no topo com nota de mapeamento (entradas 09-19→09-26 permanecem na [1.2.0] por ordem de registro)."
+    ],
+    "testes": "Suíte 1914 passed, 16 skipped; flutter analyze 0 issues; flutter test 81 passed, 2 skipped.",
+    "apk": "versionCode='12' versionName='1.3.0' (aapt2); full 52.410.843 B sha256 1efa5b22… + arm64 18.715.654 B sha256 36934ff9…; anterior em backups/apk-v1.2.8+11-20260926/.",
+    "deploy": "IMPLANTADO — restart autorizado (regra de 09-23): PID 547622, NRestarts=0, journal 0 erros.",
+    "prova_viva": "GET / → 1.3.0; Server: OmegaDrakon/1.3.0; /capabilities → 1.3.0; site local e pelo Funnel (200) com v1.3.0; REST 401/WS 426.",
+    "estado": "CONCLUÍDO E NO AR — v1.3.0 no servidor, no site e no APK (instalar 1.3.0+12 no celular quando quiser; 12 > 11 instala por cima)."
+  },
   "last_turn": {
     "date": "2026-09-26",
-    "action": "Bug 'conversas não atualizam ao trocar de usuário' corrigido: página /chat com Cache-Control no-store, histórico por /history/me (identidade do servidor) e filtro de perfil resetado por sessão. Commit do dia, implantado (PID 479051) e provado no ar.",
-    "action": "Dono CONFIRMOU no site que as conversas do usuário teste aparecem — correção das rotas terminais (2ee947b) validada de ponta a ponta (prova servidor 6/6 em 09-24 + confirmação visual do dono em 09-25). Ponto FECHADO.",
-    "action": "Painéis entregues: /dashboard (usuário) e /admin (dono) com 6 rotas novas (conta + gestão de usuários), implantados e provados 7/7 no ar. Detalhe em paineis_2026_09_26.",
-    "next": "Painéis FECHADOS com confirmação visual do dono (2026-09-26 ~04:00). Próximo assunto a definir pelo dono.",
+    "action": "Política de versionamento SemVer aplicada: docs/VERSIONAMENTO.md + regra 12 (RULES.md) + saneamento para 1.3.0 (servidor, app 1.3.0+12, site, CHANGELOG). Implantado (PID 547622) e provado no ar 7/7.",
+    "next": "Instalar o APK 1.3.0+12 no celular (12 > 11 instala por cima); a partir da próxima entrega, bump no deploy pelo checklist da política.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

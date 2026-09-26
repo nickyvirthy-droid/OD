@@ -98,7 +98,50 @@ fusão/edição dobrou a barra depois. Correção: onclick inline trocado por
 "Confirmei os painéis visualmente, fechamos esse ponto." — /dashboard e
 /admin validados pelo dono. Ponto FECHADO; suíte 1913/16; PID 535581.
 
-## 5. Estado da sessão
+## 5. Regra da versão — SemVer aplicado (04:1x–04:5x)
+
+Pedido: "vamos colocar a regra da versão, voce parou na 1.2.8 quando na
+verdade já fez implementações e colocou um + alguma coisa na frente ao
+invez de inclementar a contagem. leia na internet sobre regras de versão
+e aplique no sistema".
+
+### Diagnóstico (confere com o dono)
+
+- Servidor: `OD_VERSION=1.2.0` no `.env` CONGELADA desde 09-12, enquanto
+  entravam auth, papéis, histórico, painéis (tudo feature = MINOR).
+- App: `1.2.8+8…+11` — features entrando com o versionName parado e o
+  `+N` (versionCode Android, metadado de build) fazendo o papel do X.Y.Z.
+- Especificação aplicada: **SemVer 2.0.0** (semver.org/lang/pt-BR).
+
+### Implementação
+
+- **docs/VERSIONAMENTO.md (NOVO)** — política formal: formato X.Y.Z,
+  quando bumpar MINOR/PATCH/MAJOR, `+N` = metadado (nunca substitui a
+  versão), fonte da verdade (`.env` → capabilities → pubspec/site/docs),
+  checklist de bump, histórico do saneamento. Referenciada na regra 12
+  de `iniciar/RULES.md` (a antiga 12 virou 13).
+- **Saneamento → 1.3.0:** `.env` OD_VERSION=1.3.0; fallback de
+  `core/capabilities.py` 1.3.0; `app/pubspec.yaml` 1.3.0+12 (versionCode
+  12); `site/index.html` badge hero + card do APK v1.3.0;
+  `docs/CHANGELOG.md` seção **[1.3.0]** no topo com a nota de mapeamento
+  (entradas 09-19→09-26 ficam na [1.2.0] por ordem de registro; de agora
+  em diante nascem na release vigente).
+
+### Verificação
+
+- Suíte completa: **1914 passed, 16 skipped**; test_capabilities/test_api
+  (98) verdes; OD_VERSION resolvido = 1.3.0 e fallback = 1.3.0.
+- flutter analyze 0 issues; flutter test 81 passed, 2 skipped.
+- APK publicado: `aapt2` → **versionCode='12' versionName='1.3.0'**;
+  full 52.410.843 B (sha256 1efa5b22…) + arm64 18.715.654 B (36934ff9…);
+  anterior preservado em `backups/apk-v1.2.8+11-20260926/`.
+- Deploy: restart do od-core (autorização permanente de 09-23) — **PID
+  547622, NRestarts=0**; journal 0 Traceback/ERROR/CRIT.
+- Prova viva 7/7: GET / → version 1.3.0; Server header
+  OmegaDrakon/1.3.0; /capabilities → 1.3.0; site local e pela URL pública
+  do Funnel (200) exibindo v1.3.0 (4 ocorrências); REST 401/WS 426 no ar.
+
+## 6. Estado da sessão
 
 - **Código:** commitado (a1b1490) e NO AR (PID 535581).
 - **Suíte:** 1913 passed, 16 skipped.
