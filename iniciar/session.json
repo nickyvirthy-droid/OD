@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T11:15:00-03:00",
+  "updated_at": "2026-09-26T11:25:00-03:00",
   "retomada_2026_09_26_3": {
     "pedido": "Usuário: 'leia iniciar' — nova retomada (~11:05).",
     "verificacao": "od-core active, PID 547622 (deploy do versionamento 1.3.0), desde 2026-09-26 04:46:22, NRestarts=0, journal sem err; HEAD==origin/master fe820ae (guardas de coerência da versão).",
@@ -569,11 +569,22 @@
     "testes": "Suíte 1920 passed, 16 skipped (+6).",
     "estado": "CONCLUÍDO — bump parcial de versão agora quebra a suíte."
   },
+  "lote_v140_2026_09_26": {
+    "pedido": "Retomada 'leia iniciar' encontrou lote de 10 arquivos (mtimes 05:22–05:52) sem commit/registro/deploy; dono escolheu 'Implantar e publicar' + remover o resíduo 'postgres:/'.",
+    "conteudo": "Cânone da Plêiade corrigido (Nyx=Guardiã do Limiar, Regulus=Conselheiro em IDENTITY/SOUL/personality); perfil 'auto' pelo DOMÍNIO em todos os transportes (agents/profiles.resolve_auto; antes REST/WS forçavam guardian); respostas de FALHA (etiqueta [NICKY][CRIT]/[WARN]/[INFO]/[ONLINE], vazias, truncadas) não entram no cache (orchestrator._cacheable/cache_failure_reason); rotas novas POST /admin/cache/prune (dry_run/varredura/keys) e DELETE /history/{u}/messages/{id} (Message.id + delete_message); +13 testes.",
+    "validacao": "Suíte 1932 passed, 16 skipped; sandbox auth_sandbox.py 57 OK 0 FALHA; flutter analyze 0 issues, flutter test 81/2.",
+    "bump": "Política (feature=MINOR): 1.4.0 em .env, fallback capabilities, pubspec 1.4.0+13, site (2x), CHANGELOG seção [1.4.0], README_VERSAO §1.4.0. APK 1.4.0+13 buildado e publicado (aapt2 versionCode='13'; full 52.410.843 B sha256 bb3919b5…; arm64 4914be4e…).",
+    "deploy": "IMPLANTADO — restart 2026-09-26 11:10:36, PID 586587, NRestarts=0, journal 0 erros.",
+    "prova_viva": "/capabilities 200 versão 1.4.0 (Server OmegaDrakon/1.4.0); /admin/cache/prune dry_run 200 — 47/47 entradas candidatas (cache inteiro é [NICKY][ONLINE], o bug em ação; poda real NÃO executada); /history/alex 200 com id nas msgs; /health 9/9 up; WS 426; Funnel /capabilities 1.4.0 pela URL pública.",
+    "commit": "7d29592 feat(api,agents): perfil auto pelo domínio, cache sem falhas e poda admin (v1.4.0) — 17 arquivos +569/−39; HEAD==origin/master; árvore limpa.",
+    "residuo": "Diretório 'postgres:/' (SQLite vazio, DSN acidental como path) removido com autorização.",
+    "pendencias": ["Prune REAL do cache (47 falhas cacheadas) aguardando o dono — POST /admin/cache/prune sem dry_run", "Instalar o APK 1.4.0+13 no celular (13 > 12)"],
+    "estado": "CONCLUÍDO E NO AR — v1.4.0 implantada, provada e publicada."
+  },
   "last_turn": {
     "date": "2026-09-26",
-    "action": "Política de versionamento SemVer aplicada: docs/VERSIONAMENTO.md + regra 12 (RULES.md) + saneamento para 1.3.0 (servidor, app 1.3.0+12, site, CHANGELOG). Implantado (PID 547622) e provado no ar 7/7.",
-    "action": "Guardas de coerência da versão em tests/test_version_policy.py (6 testes, 5 mutações detectadas) — bump parcial quebra a suíte. Suíte 1920/16.",
-    "next": "Instalar o APK 1.3.0+12 no celular (12 > 11 instala por cima); a partir da próxima entrega, bump no deploy pelo checklist da política (agora com guardas na suíte).",
+    "action": "Lote não registrado validado (1932/16 + sandbox 57), bump SemVer 1.4.0 pelo checklist, APK 1.4.0+13, deploy provado no ar 5/5 e publicado (7d29592). Resíduo postgres:/ removido.",
+    "next": "Prune real do cache LLM (47 falhas cacheadas) quando o dono autorizar; instalar o APK 1.4.0+13 no celular.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

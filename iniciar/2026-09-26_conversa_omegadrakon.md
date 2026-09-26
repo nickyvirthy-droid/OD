@@ -162,3 +162,71 @@ Pedido: "Guardar guardas de teste que fixem a coerência da versão entre
 - **Código:** commitado (ver git log) e NO AR (PID 547622, v1.3.0).
 - **Suíte:** 1920 passed, 16 skipped.
 - **Pendente:** instalar o APK 1.3.0+12 no celular (confirmação do dono).
+
+## 8. Retomada (~11:05) — lote não registrado + v1.4.0
+
+Pedido: "leia iniciar". O working tree tinha 10 arquivos modificados
+(mtimes 05:22–05:52, DEPOIS da transcrição de 04:54) sem commit, sem
+registro em iniciar/ e SEM deploy — provavelmente de uma sessão anterior
+que fechou sem salvar. Resíduo `postgres:/` (SQLite vazio de 1 página,
+DSN acidental como path) encontrado na raiz e removido com autorização.
+
+### Conteúdo do lote (analisado por diff)
+
+- **Cânone da Plêiade corrigido** (`IDENTITY.md`, `SOUL.md`,
+  `personality.py`): Nyx = Guardiã do Limiar (religião, mitologia,
+  esoterismo); Regulus = Conselheiro (história, direito, ética) — antes
+  trocados. Cânone: `~/Legado/Nexus/docs/Personagens.md`.
+- **Perfil `auto` pelo domínio em TODOS os transportes**: nova
+  `agents/profiles.resolve_auto()` compartilhada — REST (`/message`,
+  `/anon/message`), WS e bot usavam caminhos próprios e REST/WS forçavam
+  `guardian` (pergunta de religião respondia como Guardian, a Nyx nunca
+  era convocada).
+- **Cache LLM saneado** (`core/orchestrator.py`):
+  `_cacheable`/`cache_failure_reason` — resposta com etiqueta de log
+  (`[NICKY][CRIT]`/`[WARN]`/`[INFO]`/`[ONLINE]`), vazia ou truncada no
+  meio da frase NÃO entra no cache (bug "resposta de cache sem nexo").
+- **Rotas novas** (`integrations/api/server.py`, 33 → 41):
+  `POST /admin/cache/prune` (dry_run/varredura/keys, admin) e
+  `DELETE /history/{u}/messages/{id}` (`memory/history.py` ganha
+  `delete_message` pela PK; `Message.id` exposto nas listagens).
+- **+13 testes** em `tests/test_api.py`.
+
+### Validação e bump (decisão do dono: implantar e publicar)
+
+- Suíte completa: **1932 passed, 16 skipped** (antes e depois do bump).
+- Sandbox: `auth_sandbox.py` **57 OK, 0 FALHA**.
+- **Bump pela política (feature = MINOR → 1.4.0)**: `.env` OD_VERSION,
+  fallback de `core/capabilities.py`, `app/pubspec.yaml` 1.4.0+13,
+  `site/index.html` (2 ocorrências), `docs/CHANGELOG.md` (seção [1.4.0]
+  no topo), `docs/README_VERSAO.md` (seção 1.4.0).
+- APK 1.4.0+13: buildado e publicado em `site/` (aapt2
+  versionCode='13' versionName='1.4.0'; full 52.410.843 B sha256
+  bb3919b5…; arm64 18.715.658 B sha256 4914be4e…); flutter analyze
+  0 issues; flutter test 81 passed, 2 skipped.
+
+### Deploy e prova viva (5/5)
+
+- `systemctl --user restart od-core` (autorização permanente de 09-23):
+  **PID 586587, NRestarts=0** desde 11:10:36; journal 0
+  Traceback/ERROR/CRIT.
+- `/capabilities` → 200 **1.4.0**; Server header `OmegaDrakon/1.4.0`.
+- `/admin/cache/prune` dry_run → 200, **47 entradas varridas e 47
+  candidatas** (o cache inteiro é `[NICKY][ONLINE] …` — o bug em
+  ação); poda real NÃO executada (fica a decisão do dono).
+- `/history/alex` → 200 com `id` nas mensagens (base do DELETE
+  individual).
+- `/health` → 200 ok=true, 9/9 checks up; WS :8001 → 426; Funnel
+  `/capabilities` pela URL pública → 200 versão 1.4.0.
+
+### Publicação
+
+- Commit **7d29592** `feat(api,agents): perfil auto pelo domínio, cache
+  sem falhas e poda admin (v1.4.0)` — 17 arquivos, +569/−39; HEAD ==
+  origin/master; árvore limpa (regras 7.1/7.2).
+
+### Pendências abertas
+
+1. **Prune real do cache** (47 falhas cacheadas): `POST
+   /admin/cache/prune` sem `dry_run` — aguardando o dono.
+2. **Instalar o APK 1.4.0+13 no celular** (13 > 12 instala por cima).
