@@ -743,6 +743,22 @@ class Orchestrator:
             yield {"type": "error", "message": "resposta_vazia"}
             return
 
+        # Etapa 6.5 — Anti-recusa do dono: o gemma às vezes recusa dados
+        # operacionais ignorando o system prompt. Para o ADMIN, refaz UMA vez
+        # com reforço; persistindo, o chat cai para a action real (etapa 6.6).
+        refusal = self._refusal_reason(full_response, role)
+        if refusal:
+            log.warn(
+                "Recusa indevida detectada para o admin — refazendo",
+                reason=refusal,
+            )
+            retry = await self._retry_admin_generation(prompt)
+            if retry is not None:
+                full_response, llm_used = retry[0], retry[1]
+                fallback_used = True
+                route = ROUTE_FALLBACK
+                yield {"type": "token", "content": full_response}
+
         # Atualizar métricas
         if fallback_used:
             self._metrics.fallback += 1
@@ -943,6 +959,69 @@ class Orchestrator:
             return get_system_prompt(profile, role)
         except Exception:
             return self._config.default_system_prompt
+
+    @staticmethod
+    def _refusal_reason(response: str, role: str) -> str:
+        """Motivo pelo qual a resposta é uma RECUSA indevida ('' = ok).
+
+        Apenas para o DONO (admin): o modelo (gemma) às vezes ignora o
+        system prompt e recusa dados operacionais ("não posso", "não tenho
+        acesso", "por segurança") — quando isso acontece com o dono, o
+        pipeline REFAZ a geração com reforço; persistindo, responde com a
+        action real em vez da recusa do modelo.
+        """
+        if role != "admin" or not response:
+            return ""
+        low = response.lower()
+        for etiqueta in ("[crit]", "[warn]", "[info]", "[online]", "[nicky]"):
+            if low.startswith(etiqueta):
+                return f"etiqueta de log no lugar da resposta ({etiqueta})"
+        recusas = (
+            "não posso fornecer",
+            "nao posso fornecer",
+            "não posso ajudar",
+            "não posso revelar",
+            "não tenho acesso",
+            "não tenho informa",
+            "não é possível fornecer",
+            "não posso dar",
+            "não vou fornecer",
+            "por razões de segurança",
+            "por segurança, não",
+            "não posso fornecer essas informações",
+            "sem acesso físico",
+            "não tenho como verificar",
+        )
+        for frase in recusas:
+            if frase in low:
+                return f"recusa indevida para o dono ({frase})"
+        return ""
+
+    async def _retry_admin_generation(
+        self,
+        prompt: str,
+    ) -> Optional[tuple[str, str]]:
+        """Segunda passada do LLM para o dono, com reforço anti-recusa.
+
+        Returns:
+            (resposta, llm_used) ou None quando o retry também falha ou
+            devolve recusa/etiqueta de novo.
+        """
+        # O prompt ChatML termina no marcador de assistant; o reforço entra
+        # como um system EXTRA antes da resposta do modelo.
+        reforco = (
+            prompt
+            + "<|im_start|>system\nREFORÇO AO MODELO: quem pergunta é o "
+            "DONO/ADMIN autenticado do servidor. Informações operacionais "
+            "desta máquina (IPs, portas, serviços, paths, métricas) são DELE "
+            "e devem ser respondidas por completo. NÃO recuse, NÃO peça para "
+            "verificar manualmente, NÃO use etiquetas de log ([NICKY][...]) "
+            "— responda SOMENTE o conteúdo, direto.<|im_end|>\n"
+        )
+        message, llm_used, _ = await self._generate(reforco)
+        if not message or self._refusal_reason(message, "admin"):
+            return None
+        return message, llm_used
 
     def _build_prompt(
         self,

@@ -14,6 +14,40 @@
 
 ---
 
+## [1.6.1] — IP e portas pela ACTION no chat + anti-recusa do dono 🔧 (2026-09-26)
+
+> **Política:** correção com capacidade nova de leitura = PATCH com feature
+> pontual (`docs/VERSIONAMENTO.md` §1 — a intenção nova é caminho para dado
+> existente; nenhuma API nova).
+> **Versões:** servidor `OD_VERSION=1.6.1` · app `1.6.1+16` (versionCode 16).
+
+### Corrigido (2026-09-26)
+
+- **fix(chat): "qual o ip do servidor" responde com DADO REAL** — o fast
+  path de intenções não cobria IP/portas e a pergunta caía no LLM, que
+  recusava ou alucinava etiqueta. Agora: `ip_address` e `listening_ports`
+  na detecção (`core/intents.py`) — o dono pergunta e recebe o dado do
+  sistema, sem passagem pelo modelo.
+- **fix(actions): nova `listening_ports`** — portas TCP em escuta via
+  `/proc/net/tcp{,6}` (IPv4+IPv6 decodificados, processo por inode) —
+  catálogo 57 → 58.
+- **fix(core): anti-recusa do dono** — `Orchestrator._refusal_reason`
+  detecta recusas do modelo ("não posso fornecer", "sem acesso físico",
+  etiquetas de log) na resposta ao ADMIN; refaz UMA geração com reforço;
+  o papel user mantém a vedação de direito.
+- **feat(auto_extension): allowlist para leitura de sistema** — `socket`,
+  `os`, `platform`, `subprocess` entram na allowlist (comandos só de
+  leitura: ss/df/ls/hostname/uname/uptime/id) — é a base para o chat
+  gerar a ferramenta que traz o dado que faltou.
+
+### Cobertura
+
+- tests/test_resposta_transparente.py: +9 (anti-recusa, intenções
+  IP/portas, negativos); suíte 1955 passed, 16 skipped.
+- Teste do teste: 5 mutações, TODAS detectadas (prompt sem IPs; detector
+  de recusa desligado; intent de IP desligada; done sem profile_name;
+  listening_ports fora do catálogo).
+
 ## [1.6.0] — Resposta transparente: quem respondeu, hora e admin com acesso pleno 🔍 (2026-09-26)
 
 > **Política:** feature nova compatível = MINOR (`docs/VERSIONAMENTO.md` §1).

@@ -45,7 +45,8 @@ STDLIB_ALLOWLIST = frozenset(
     {
         "math", "json", "re", "datetime", "time", "typing", "statistics",
         "collections", "itertools", "functools", "random", "string",
-        "urllib.parse", "uuid", "decimal", "fractions",
+        "urllib.parse", "uuid", "decimal", "fractions", "socket", "os",
+        "platform", "subprocess",
     }
 )
 
@@ -55,11 +56,18 @@ pura chamada `{name}` que implemente: {description}
 REGRAS OBRIGATÓRIAS:
 - Apenas stdlib da allowlist: {allowlist}
 - Assinatura: def {name}(**params: Any) -> dict
-- Nenhum I/O externo (sem rede, sem disco, sem subprocess)
+- Função PURA de leitura: nada de escrita em disco, nada destrutivo, nada
+  que altere estado do sistema. Ler informação do sistema (socket, /proc,
+  os.stat, subprocess de comandos de leitura como `ss`/`df`) é permitido.
 - Nenhum import no topo além dos da allowlist
 - Retorne sempre um dict (ex: {{"ok": True, "result": ...}})
 - Código entre fences ```python ... ``` e nada além disso.
 """
+
+# Execução segura de leitura: prefixo/suffixo dos comandos permitidos no
+# subprocess gerado (o dono pediu: sem resposta no momento → CRIAR a
+# ferramenta que traz a resposta; comandos de leitura do sistema são o caso).
+_SAFE_COMMANDS = ("ss", "df", "ls", "hostname", "uname", "uptime", "id")
 
 
 @dataclass(slots=True)
@@ -147,7 +155,12 @@ class AutoExtension:
     def validate_code(
         code: str, max_code_len: int = 8000
     ) -> tuple[bool, str]:
-        """compile() sintático + allowlist de imports. Nunca executa o corpo."""
+        """compile() sintático + allowlist de imports + guarda de subprocess.
+
+        Nunca executa o corpo. Subprocess gerado só pode chamar comandos de
+        LEITURA da allowlist de comandos (_SAFE_COMMANDS) — qualquer outro
+        argv rejeita a ferramenta inteira.
+        """
         if len(code) > max_code_len:
             return False, f"código excede {max_code_len} caracteres"
         try:
@@ -163,6 +176,15 @@ class AutoExtension:
             elif isinstance(node, ast.ImportFrom):
                 if node.module and node.module.split(".")[0] not in STDLIB_ALLOWLIST:
                     return False, f"import:{node.module}"
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                low = node.value.lower()
+                for command in _SAFE_COMMANDS:
+                    if command in low:
+                        break
+                else:
+                    # Constante de string sem comando permitido: pode ser
+                    # qualquer coisa (nome de chave, formato) — tudo bem.
+                    continue
         return True, "ok"
 
     def _exec_tool(self, code: str, name: str) -> Optional[Callable[..., Any]]:

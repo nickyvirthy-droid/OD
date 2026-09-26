@@ -100,3 +100,74 @@ class TestProfileNameNaResposta:
             Orchestrator._resolve_system(orch, explicit, "nyx", "admin")
             == explicit
         )
+
+
+class TestAntiRecusaAdmin:
+    """O modelo às vezes recusa dados operacionais mesmo com o prompt de
+    dono — _refusal_reason é o gatilho do retry/roteamento pela action real.
+    """
+
+    def test_recusas_tipicas_do_gemma_sao_detectadas(self) -> None:
+        recusas = [
+            "Desculpe, mas não posso fornecer informações sobre IPs.",
+            "Não tenho acesso físico a um servidor.",
+            "Por razões de segurança, não revelo portas abertas.",
+            "Não posso fornecer essas informações.",
+        ]
+        for resposta in recusas:
+            motivo = Orchestrator._refusal_reason(resposta, "admin")
+            assert motivo, f"recusa não detectada: {resposta}"
+
+    def test_etiqueta_de_log_e_recusa_para_admin(self) -> None:
+        assert Orchestrator._refusal_reason(
+            "[CRIT][ERROR] Não há informação disponível.", "admin"
+        )
+
+    def test_resposta_normal_nao_e_recusa(self) -> None:
+        assert Orchestrator._refusal_reason(
+            "O IP local do servidor é 192.168.0.250.", "admin"
+        ) == ""
+
+    def test_para_o_user_a_mesma_resposta_e_aceita(self) -> None:
+        # O papel user NÃO aciona o anti-recusa (a vedação é dele de direito).
+        assert Orchestrator._refusal_reason(
+            "Não posso fornecer informações sobre IPs.", "user"
+        ) == ""
+
+    def test_vazia_nao_e_recusa(self) -> None:
+        assert Orchestrator._refusal_reason("", "admin") == ""
+
+
+class TestIntencaoIpEPortas:
+    """"ip do servidor" e "portas abertas" vão para a ACTION real (dado do
+    sistema), não para o LLM — é o que impede a recusa/alucinação."""
+
+    def test_pergunta_de_ip_cai_na_action(self) -> None:
+        from core.intents import detect_action_intent
+        for pergunta in (
+            "qual o ip do servidor?",
+            "qual é o ip local da máquina",
+            "meu ip externo",
+        ):
+            assert detect_action_intent(pergunta) == ("ip_address", {}), pergunta
+
+    def test_pergunta_de_portas_cai_na_action(self) -> None:
+        from core.intents import detect_action_intent
+        for pergunta in (
+            "quais portas estão abertas?",
+            "porta 8000 está em uso?",
+            "portas escutando agora",
+        ):
+            assert detect_action_intent(pergunta) == (
+                "listening_ports", {}
+            ), pergunta
+
+    def test_palavra_com_ip_no_meio_nao_e_intencao(self) -> None:
+        from core.intents import detect_action_intent
+        assert detect_action_intent("qual o melhor roteador do mercado") is None
+
+    def test_processos_continuam_process_list(self) -> None:
+        from core.intents import detect_action_intent
+        assert detect_action_intent("quantos processos estão rodando?") == (
+            "process_list", {}
+        )

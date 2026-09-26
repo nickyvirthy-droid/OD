@@ -40,6 +40,7 @@ from __future__ import annotations
 import datetime
 import fnmatch
 import hashlib
+import ipaddress
 import os
 import pwd
 import re
@@ -227,6 +228,78 @@ def ip_address() -> dict[str, Any]:
     except OSError:
         pass
     return {"ok": True, "addresses": ips, "outbound": outbound}
+
+
+def listening_ports() -> dict[str, Any]:
+    """Portas TCP em escuta (via /proc/net/tcp — stdlib, sem root para as
+    do próprio usuário; portas de outros usuários aparecem sem processo)."""
+    # Mapeia inode → processo (via /proc/<pid>/fd, best-effort).
+    inode_process: dict[str, str] = {}
+    try:
+        for pid_dir in os.listdir("/proc"):
+            if not pid_dir.isdigit():
+                continue
+            try:
+                with open(f"/proc/{pid_dir}/comm", encoding="utf-8") as fh:
+                    comm = fh.read().strip()
+                fd_dir = f"/proc/{pid_dir}/fd"
+                for fd in os.listdir(fd_dir):
+                    try:
+                        link = os.readlink(os.path.join(fd_dir, fd))
+                        if link.startswith("socket:["):
+                            inode = link[8:-1]
+                            inode_process.setdefault(inode, comm)
+                    except OSError:
+                        continue
+            except (OSError, PermissionError):
+                continue
+    except OSError:
+        pass
+
+    def _parse(path: str) -> list[dict[str, Any]]:
+        ports: list[dict[str, Any]] = []
+        try:
+            with open(path, encoding="utf-8") as fh:
+                fh.readline()  # cabeçalho
+                for line in fh:
+                    cols = line.split()
+                    if len(cols) < 4 or cols[3] != "0A":  # 0A = LISTEN
+                        continue
+                    local = cols[1]
+                    port = int(local.split(":")[1], 16)
+                    address_hex = local.split(":")[0]
+                    if len(address_hex) == 8:  # IPv4
+                        raw = bytes.fromhex(address_hex)
+                        addr = ".".join(str(b) for b in raw[::-1])
+                    else:  # IPv6: 4 DWORDs little-endian (formato do kernel)
+                        raw = bytes.fromhex(address_hex)
+                        dwords = [
+                            int.from_bytes(raw[i:i + 4], "little")
+                            for i in range(0, 16, 4)
+                        ]
+                        groups: list[int] = []
+                        for dword in dwords:
+                            groups.append((dword >> 16) & 0xFFFF)
+                            groups.append(dword & 0xFFFF)
+                        value = sum(
+                            g << (16 * (7 - i)) for i, g in enumerate(groups)
+                        )
+                        addr = str(ipaddress.IPv6Address(value))
+                    inode = cols[9] if len(cols) > 9 else ""
+                    ports.append({
+                        "port": port,
+                        "addr": addr,
+                        "process": inode_process.get(inode, ""),
+                    })
+        except OSError:
+            pass
+        return ports
+
+    seen: dict[int, dict[str, Any]] = {}
+    for entry in _parse("/proc/net/tcp") + _parse("/proc/net/tcp6"):
+        seen[entry["port"]] = entry
+    ports = sorted(seen.values(), key=lambda e: e["port"])
+    return {"ok": True, "count": len(ports), "ports": ports}
 
 
 def system_which(command: str) -> dict[str, Any]:
@@ -910,6 +983,8 @@ CATALOG: list[dict[str, Any]] = [
     _spec("memory_usage", "system", "Uso de memória RAM/swap", memory_usage),
     _spec("cpu_info", "system", "Núcleos/modelo/carga da CPU", cpu_info),
     _spec("ip_address", "system", "Endereços IP do host", ip_address),
+    _spec("listening_ports", "system", "Portas TCP em escuta", listening_ports),
+    
     _spec("system_which", "system", "Localiza executável no PATH", system_which,
           {"required": ["command"], "properties": {"command": S}}),
     _spec("system_hostname", "system", "Nome do host", system_hostname),

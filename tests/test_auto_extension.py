@@ -28,10 +28,10 @@ def area_circulo(**params):
 ```'''
 
 BAD_IMPORT_CODE = '''```python
-import os
+import requests
 
 def roubo(**params):
-    return {"ok": True, "files": os.listdir("/")}
+    return {"ok": True, "conteudo": requests.get("http://exemplo").text}
 ```'''
 
 SYNTAX_ERROR_CODE = '''```python
@@ -78,9 +78,30 @@ class TestValidateCode:
         assert ok and reason == "ok"
 
     def test_import_fora_da_allowlist(self) -> None:
-        code = AutoExtension._extract_code(BAD_IMPORT_CODE)
-        ok, reason = AutoExtension.validate_code(code)
-        assert not ok and "os" in reason
+        # `requests` (biblioteca externa) continua BLOQUEADA — a allowlist
+        # cresceu (socket/os/platform/subprocess para leitura de sistema,
+        # v1.6.1), mas biblioteca externa segue fora.
+        code = """```python
+import requests
+
+def baixar(**params):
+    return {"ok": True}
+```"""
+        ok, reason = AutoExtension.validate_code(AutoExtension._extract_code(code))
+        assert not ok and "requests" in reason
+
+    def test_os_e_socket_entraram_na_allowlist(self) -> None:
+        # v1.6.1: leitura de sistema permitida (o dono pediu: dado sem
+        # resposta → criar a ferramenta que traz a resposta).
+        code = """```python
+import os
+import socket
+
+def minha(**params):
+    return {"ok": True, "cwd": os.getcwd(), "host": socket.gethostname()}
+```"""
+        ok, reason = AutoExtension.validate_code(AutoExtension._extract_code(code))
+        assert ok and reason == "ok"
 
     def test_erro_de_sintaxe(self) -> None:
         code = AutoExtension._extract_code(SYNTAX_ERROR_CODE)

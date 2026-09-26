@@ -42,13 +42,15 @@ __signature__ = "OD // CORE"
 
 # Actions de LEITURA seguras para o fast path (nunca escrita/destrutiva).
 FASTPATH_ACTIONS: frozenset[str] = frozenset({
-    "network_hosts",   # dispositivos na rede (ARP)
-    "process_list",    # processos ativos
-    "memory_usage",    # RAM/swap
-    "cpu_info",        # núcleos/modelo/load
-    "disk_usage",      # disco
-    "uptime",          # tempo no ar
-    "system_info",     # sistema geral
+    "network_hosts",       # dispositivos na rede (ARP)
+    "process_list",        # processos ativos
+    "memory_usage",        # RAM/swap
+    "cpu_info",            # núcleos/modelo/load
+    "disk_usage",          # disco
+    "uptime",              # tempo no ar
+    "system_info",         # sistema geral
+    "ip_address",          # endereços IP do host
+    "listening_ports",     # portas abertas/escutando
 })
 
 # ---------------------------------------------------------------------------
@@ -75,8 +77,19 @@ def _detect_network(text: str) -> Optional[str]:
 
 
 def _detect_operational(text: str) -> Optional[str]:
-    """Padrões operacionais diretos (processos/memória/cpu/disco/uptime)."""
+    """Padrões operacionais diretos (processos/memória/cpu/disco/uptime/ip/portas)."""
     low = text.lower()
+    # IP do servidor — o dono pergunta e recebe (dado REAL, não LLM).
+    # Palavra 'ip' como token inteiro (evita casar em 'descriptor', 'particular').
+    if re.search(r"\b(ip|ipv[46]|endere[çc]o\s+de\s+ip)\b", low) and re.search(
+        r"(servidor|m[aá]quina|host|local|externo|p[uú]blico|meu|privado)", low
+    ):
+        return "ip_address"
+    # Portas abertas/escutando.
+    if re.search(r"\bportas?\b", low) and re.search(
+        r"(abertas?|escutando|listening|em\s+uso|livres?|ocupadas?)", low
+    ):
+        return "listening_ports"
     # processos
     if re.search(r"(quantos|lista|ver).{0,12}processos", low):
         return "process_list"
@@ -244,6 +257,35 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
         return (f"🖥️ {data.get('system')} {data.get('release')} "
                 f"({data.get('node')}) · {data.get('cores')} núcleos · "
                 f"Python {data.get('python')}")
+
+    if action == "ip_address":
+        addresses = data.get("addresses") or []
+        outbound = data.get("outbound") or ""
+        if not addresses and not outbound:
+            return None  # nada identificado — deixa o LLM responder
+        parts = ["🌐 IP do servidor:"]
+        for ip in addresses[:8]:
+            marker = " (saída)" if ip == outbound else ""
+            parts.append(f"  • {ip}{marker}")
+        if outbound and outbound not in addresses:
+            parts.append(f"  • {outbound} (saída padrão)")
+        return "\n".join(parts)
+
+    if action == "listening_ports":
+        ports = data.get("ports") or []
+        if not ports:
+            return "🔌 Nenhuma porta TCP escutando agora."
+        parts = [f"🔌 {len(ports)} porta(s) TCP escutando:"]
+        for entry in ports[:12]:
+            addr = entry.get("addr") or ""
+            parts.append(
+                f"  • {entry.get('port')} ({addr}" +
+                (f" · {entry.get('process')}" if entry.get("process") else "") +
+                ")"
+            )
+        if len(ports) > 12:
+            parts.append(f"  • … e mais {len(ports) - 12}")
+        return "\n".join(parts)
 
     # Fallback genérico: pares chave=valor escalares (sem aninhados).
     parts = [

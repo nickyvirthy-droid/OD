@@ -733,7 +733,7 @@ class TestOrchestratorActionRegistry:
             action_registry=registry,
         )
         assert orch.action_registry is not None
-        assert orch.action_registry.metrics.actions == 57
+        assert orch.action_registry.metrics.actions == 58
 
     async def test_execute_action_success(self, tmp_path: Path) -> None:
         from tools.registry import ActionRegistry
@@ -805,7 +805,7 @@ class TestOrchestratorActionRegistry:
         result = await orch.execute_action("action_list", role="admin")
         assert result is not None
         assert "actions" in result
-        assert len(result["actions"]) == 57
+        assert len(result["actions"]) == 58
 
     async def test_execute_action_without_registry_raises(self, tmp_path: Path) -> None:
         orch = Orchestrator(providers=[StaticProvider("test", "ok")])
@@ -838,7 +838,7 @@ class TestOrchestratorActionRegistry:
         assert orch.action_registry is None
         orch.set_action_registry(registry)
         assert orch.action_registry is not None
-        assert orch.action_registry.metrics.actions == 57
+        assert orch.action_registry.metrics.actions == 58
 
     async def test_execute_action_after_set_registry(self, tmp_path: Path) -> None:
         from tools.registry import ActionRegistry

@@ -733,6 +733,13 @@ async def _run_api_forever(
 ) -> None:
     # Um único UserStore para REST e WebSocket: mesma sessão vale nos dois.
     user_store = build_user_store(database)
+    # Conecta o ActionRegistry ao Orchestrador TAMBÉM no caminho da API:
+    # sem isto o fast path de intenções (Etapa 3.5) fica desligado no chat —
+    # "qual o ip do servidor?" caía no LLM em vez da action real (v1.6.1).
+    # Antes o connect era feito só no loop do Telegram.
+    if action_registry is not None:
+        orchestrator.set_action_registry(action_registry)
+        log.info("ActionRegistry conectado ao Orchestrator (API)")
     server = build_api_server(
         orchestrator, metrics=metrics, health=health,
         action_registry=action_registry, push=push, database=database,
