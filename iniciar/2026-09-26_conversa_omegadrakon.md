@@ -297,3 +297,67 @@ Sessões válidas 18 incluem as do dono (TTL 7 dias). Última interação
 gravada 10:56. Nada reiniciado nesta checagem.
 
 **Dia FECHADO — sistema verde em todas as frentes.**
+
+## 12. APK 1.5.0+14 — conexão por localização, URLs ocultas, conta do site (11:4x–11:5x)
+
+Pedido: "refaça ele com todas as melhorias que fizemos até aqui. na
+configuração as url devem ficar ocultas, a melhor maneira de acesso seria
+pela localização se existir, assim escolher url local ou externa. na
+configuração alem da chave API o usuário cadastra o nome e senha que
+escolheu no site".
+
+### Implementação
+
+- **Conexão automática por LOCALIZAÇÃO** (`OdApi.pickBestUrl`): sonda a
+  rede local (Tailscale 100.x, sonda de 4s — QUALQUER status HTTP prova a
+  rota, inclusive o 401 do auth_all) e, sem resposta, usa a externa
+  (Funnel/TLS). A que responder vira primária, a outra fallback, e a
+  escolha é persistida. Nada de GPS/permissão nova: "localização" aqui é
+  a rede que o celular está usando. O `main.dart` escolhe a URL ANTES do
+  login (o login já entra pelo caminho que funciona).
+- **URLs ocultas**: removidas da tela; dentro de "Avançado", atrás do
+  switch "Mostrar URLs" (padrão: ocultas). API key também no Avançado.
+- **Seção Conta** nas Configurações: login com o MESMO nome/senha do site
+  (`POST /auth/login`); logado, exibe o usuário com botão Sair (logout
+  mata a sessão no servidor). Mensagem explicando que a conversa é a
+  mesma no app, no chat e no Telegram.
+- A tela Servidor mostra SÓ o rótulo ("Conectado pela rede local" /
+  "pela internet (Funnel)") + botão Reconectar.
+
+### Verificação
+
+- flutter analyze 0 issues · flutter test **84 passed, 2 skipped** (+3:
+  URLs ocultas por padrão e visíveis só no Avançado com switch; login da
+  conta pela seção Conta; logado mostra usuário e Sair limpa a sessão).
+- Lição de teste: o teclado virtual no widget test empurra o botão
+  "Salvar avançado" para fora da tela (y=609 > 600) e o tap cai no vazio —
+  rolar até o botão (`scrollUntilVisible` -80) e fechar o teclado
+  (`primaryFocus?.unfocus()`) antes do tap.
+- Suíte do servidor: **1932 passed, 16 skipped** (guardas de versão
+  fixando 1.5.0 em .env/capabilities/pubspec/site/CHANGELOG).
+
+### Bump, deploy e prova viva
+
+- **Bump pela política (feature = MINOR → 1.5.0)**: .env, fallback
+  capabilities, pubspec 1.5.0+14, site (2x), CHANGELOG [1.5.0],
+  README_VERSAO §1.5.0.
+- **APK 1.5.0+14** (aapt2 versionCode='14' versionName='1.5.0'; full
+  52.722.903 B sha256 5afd21ae…; arm64 18.781.958 B sha256 2c7d28b7…)
+  publicado em site/ e conferido pela URL do Funnel (200, sha256
+  idêntico). APK anterior 1.4.0+13 preservado em /tmp (site/ APK é
+  gitignored).
+- Deploy: restart od-core (autorização permanente) — **PID 594542,
+  NRestarts=0** desde 11:58:38; /capabilities → **1.5.0**; /health 9/9
+  up; WS 426; journal 0 erros.
+
+### Publicação
+
+- Commit **8069cba** `feat(app): conexão por localização, URLs ocultas e
+  conta do site nas Configurações (v1.5.0)` — 9 arquivos, +584/−172;
+  HEAD == origin/master; árvore limpa.
+
+### Pendência
+
+- **Instalar o APK 1.5.0+14 no celular** (14 > 13 instala por cima) e
+  confirmar: entrar com alex/senha123 na seção Conta, conferir o rótulo
+  local/internet e o streaming no chat.

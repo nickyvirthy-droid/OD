@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T11:40:00-03:00",
+  "updated_at": "2026-09-26T12:05:00-03:00",
   "retomada_2026_09_26_3": {
     "pedido": "Usuário: 'leia iniciar' — nova retomada (~11:05).",
     "verificacao": "od-core active, PID 547622 (deploy do versionamento 1.3.0), desde 2026-09-26 04:46:22, NRestarts=0, journal sem err; HEAD==origin/master fe820ae (guardas de coerência da versão).",
@@ -569,6 +569,16 @@
     "testes": "Suíte 1920 passed, 16 skipped (+6).",
     "estado": "CONCLUÍDO — bump parcial de versão agora quebra a suíte."
   },
+  "apk_v150_2026_09_26": {
+    "pedido": "Dono: 'refaça ele com todas as melhorias que fizemos até aqui. na configuração as url devem ficar ocultas, a melhor maneira de acesso seria pela localização se existir, assim escolher url local ou externa. na configuração alem da chave API o usuário cadastra o nome e senha que escolheu no site'.",
+    "implementacao": ["OdApi.pickBestUrl: sonda a rede local (Tailscale, 4s; qualquer HTTP prova a rota) e usa a externa (Funnel) sem rota; escolha persistida; main.dart escolhe ANTES do login", "SettingsScreen reescrita: Conta (login com o MESMO nome/senha do site + Sair com logout no servidor), Servidor (conexão automática, só o rótulo local/internet) e Avançado (API key + URLs atrás do switch 'Mostrar URLs')"],
+    "testes": "flutter analyze 0 issues; flutter test 84/2 (+3); suíte servidor 1932/16 com guardas fixando 1.5.0. Lição: teclado virtual no widget test empurra o botão para fora da tela — scrollUntilVisible + unfocus antes do tap.",
+    "bump": "1.5.0 (MINOR): .env, capabilities, pubspec 1.5.0+14, site 2x, CHANGELOG [1.5.0], README_VERSAO §1.5.0.",
+    "apk": "1.5.0+14 (aapt2 versionCode='14'); full 52.722.903 B sha256 5afd21ae…; arm64 2c7d28b7…; publicado em site/ e conferido pela URL do Funnel (sha256 idêntico); 1.4.0+13 preservado em /tmp (APK é gitignored).",
+    "deploy": "IMPLANTADO — restart 11:58:38, PID 594542, NRestarts=0; /capabilities 1.5.0; /health 9/9; WS 426; journal 0 erros.",
+    "commit": "8069cba feat(app): conexão por localização, URLs ocultas e conta do site nas Configurações (v1.5.0) — 9 arquivos +584/−172; HEAD==origin/master.",
+    "estado": "CONCLUÍDO E NO AR — aguardando instalação no celular (14 > 13) e confirmação visual do dono."
+  },
   "fechamento_dia_2026_09_26": {
     "pedido": "Dono: 'Verificar o estado geral do sistema (od-core, supervision, Funnel, banco) para fechar o dia'.",
     "verificacao": "od-core active PID 586587 (v1.4.0) NRestarts=0; od-llm e control-bridge active; portas 8000/8001/8081/1883/5432/8765 no ar; /health 9/9 up; /supervision up restarts 0; Funnel on com prova pública (/capabilities 1.4.0, /ws 426, /health 401 sem chave); Postgres: users 2, sessões válidas 18, msgs 140 (alex 132), telegram_links 1, llm_cache 23 TODAS saudáveis; journal do dia 0 erros; git limpo HEAD befcf51 == origin/master.",
@@ -603,7 +613,7 @@
   "last_turn": {
     "date": "2026-09-26",
     "action": "Lote não registrado validado (1932/16 + sandbox 57), bump SemVer 1.4.0 pelo checklist, APK 1.4.0+13, deploy provado no ar 5/5 e publicado (7d29592). Resíduo postgres:/ removido.",
-    "next": "Instalar o APK 1.4.0+13 no celular; a guarda de cache impede falhas novas — nada mais pendente no servidor.",
+    "next": "Instalar o APK 1.5.0+14 no celular (14 > 13) e confirmar: login na seção Conta com alex/senha123, rótulo local/internet e streaming no chat.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
