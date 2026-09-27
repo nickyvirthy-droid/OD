@@ -658,6 +658,12 @@
     "banco": "2 sessões novas válidas do alex (12:08 e 12:15, até 03/10); interações gravadas na conta ('bom dia' → gemma-local); 184 msgs. Schema: conversation_messages.user_id é USERNAME (texto); sessions.expires_at é REAL/epoch; push_devices é JSON (data/push_devices.json), não tabela.",
     "estado": "PONTO FECHADO — APK 1.7.0+2017 instalado e operando fim a fim; auto-atualização assume a partir daqui (versionCode cru monotônico)."
   },
+  "fechamento_dia_2026_09_27": {
+    "pedido": "Dono: 'Verificar o estado geral do sistema (od-core, supervision, Funnel, banco) para fechar o dia'.",
+    "verificacao": "od-core active PID 727041 (v1.7.0) NRestarts=0; od-llm active; portas 8000/8001/1883/5432/8765 no ar; /health 9/9 up; /supervision up restarts 0; Funnel on com prova pública (/app/version 1.7.0 code 2017, /ws 426, /health 401); Postgres: users 2, sessões válidas 19, msgs 202 (alex 186), llm_cache 37 (36 ok + 1 pré-guarda); journal do dia 0 erros; git limpo HEAD aa236a3 == origin/master.",
+    "cache_nota": "1 entrada com etiqueta [NICKY][ ('mas eu sou o ADM', 26/09 12:17) é PRÉ-guarda _cacheable (7d29592, no ar 11:10 de 26/09) — não é regressão; se quiser, POST /admin/cache/prune com keys específicas remove (pedir autorização).",
+    "estado": "DIA FECHADO — sistema verde. Nada reiniciado nesta verificação."
+  },
   "last_turn": {
     "date": "2026-09-27",
     "action": "v1.7.0 completa: lote resgatado (c2b4508), 401 de /app/version corrigido (43746fd), 'pacote inválido' diagnosticado como downgrade de versionCode e corrigido com piso 2017 (8475b6a) — dono instalou e o rastro foi provado no journal e no banco (sessão 12:46–12:48, via=session, llm+cache gravados).",

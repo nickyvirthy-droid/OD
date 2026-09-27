@@ -170,6 +170,27 @@ interações gravadas na conta ("bom dia" → gemma-local); 184 msgs.
 Schema anotado: conversation_messages.user_id é o USERNAME (texto);
 sessions.expires_at é REAL/epoch (to_timestamp para ler).
 
+## 5. Fechamento do dia — verificação geral (12:5x)
+
+- **Serviços**: od-core active PID 727041 NRestarts=0 (12:41:42);
+  od-llm active. Portas 8000, 8001, 1883 (MQTT), 5432 (Postgres) e
+  8765 escutando.
+- **Health**: ok=True, 9/9 checks up (orchestrator, llm, audit,
+  metrics, database, homeassistant, mqtt, loops, perception).
+- **Supervision**: up, restarts 0, nada degradado na janela de 300s.
+- **Funnel**: on — https://nicky-server.tail1b1f51.ts.net; prova de
+  fora: /app/version 200 (1.7.0, code 2017, sha256 88cf9876…), /ws 426,
+  /health 401 (auth_all) — tudo pela URL pública.
+- **Banco**: users 2; sessões válidas 19; total 202 msgs (alex 186,
+  teste 8, baldes de prova/deploy o resto); llm_cache 37 (36 ok + 1
+  pré-guarda).
+- **Cache**: 1 única entrada com etiqueta [NICKY][ é o 'mas eu sou o
+  ADM' de 2026-09-26 12:17:20 — criada ANTES da guarda _cacheable
+  (7d29592, implantado 11:10 de 26/09); não é regressão. Não removida
+  sem autorização (a poda admin existe: POST /admin/cache/prune).
+- **Journal do dia**: 0 Traceback/ERROR/CRIT.
+- **Git**: HEAD aa236a3 == origin/master, árvore limpa.
+
 ## Estado final
 
 - **CONCLUÍDO E NO AR** — v1.7.0 implantada, provada e publicada.
