@@ -100,6 +100,55 @@ HEAD `43746fd` == origin/master; árvore limpa (regra 7.2).
 
 ---
 
+## 3. "Pacote parece ser inválido" — downgrade de versionCode (12:3x)
+
+Relato do dono: baixou o APK pelo site e o celular (1.6.1) recusou a
+instalação. Provas antes de mexer:
+
+- **NÃO** é assinatura: apksigner com cert idêntico ao do backup 1.2.8+11
+  (SHA-256 252cf0fe…) — mesma debug key de TODA a linhagem.
+- **NÃO** é corrupção: apksigner verify OK e o download veio do /site
+  intocado (no-store, attachment).
+- **CAUSA RAIZ**: o lote v1.7.0 passou a forçar o versionCode CRU do
+  pubspec (`force-version-code-ignoring-abi`), e o APK nasceu com code
+  **17**. O backup 1.2.8+11 PROVA o offset antigo (arm64 = 2011, +2000):
+  o celular do dono está na linhagem arm64 (1.6.1 = **2016**) → 17 é
+  DOWNGRADE → o instalador recusa com "pacote parece ser inválido".
+- Confirmado pelo dono: download do site + linhagem arm64.
+
+### Correção (commit 8475b6a)
+
+1. **pubspec 1.7.0+2017** e `_APP_VERSION_CODE = 2017` no server — piso
+   acima de qualquer linhagem antiga (2011–2016 e 11–16); bumps futuros
+   seguem monotônicos (2018, 2019…).
+2. **OdUpdateInfo.isNewer**: comparação DIRETA, sem normalização de
+   offset — a fórmula que o lote trouxe (desconto de 1000) transformaria
+   o 2017 cru em 1017 e ofereceria a MESMA atualização para sempre; e
+   uma primeira tentativa de correção (desconto de 2000) foi pegada
+   pelos PRÓPRIOS testes antes do deploy (2017 viraria 17).
+3. **+9 testes** (app/test/od_updater_test.dart): linhagens 2011/2014/
+   2016/16/11 recebem o 2017; 2017 instalado é estável; servidor 17
+   nunca derrapa 2017; bump 2018 é oferecido; downgrade nunca.
+
+### Validação, build e prova
+
+- flutter analyze 0 issues; flutter test **96 passed, 2 skipped** (+9).
+- Suíte servidor **1967 passed, 16 skipped**.
+- APKs rebuildados e publicados em site/: aapt2 versionCode='2017'
+  versionName='1.7.0' nos DOIS (full e arm64); apksigner verify OK;
+  assinatura idêntica à linhagem; anterior preservado em
+  backups/apk-v1.7.0+17-20260927/.
+- Restart: **PID 727041, NRestarts=0**; /app/version → `{version_code:
+  2017, sha256 88cf9876…}` e o hash anunciado == binário de site/;
+  journal 0 erros.
+
+### Commits
+
+- `8475b6a` fix(app,api): versionCode 2017 — downgrade era recusado
+  como 'pacote inválido' — 4 arquivos +97/−18.
+
+HEAD `8475b6a` == origin/master; árvore limpa.
+
 ## Estado final
 
 - **CONCLUÍDO E NO AR** — v1.7.0 implantada, provada e publicada.
@@ -107,3 +156,9 @@ HEAD `43746fd` == origin/master; árvore limpa (regra 7.2).
   o banner de atualização → baixar (progresso) → SHA-256 conferido →
   Android pede confirmação da instalação do 1.7.0+17. A partir daí o
   app se atualiza sozinho nas próximas versões.
+- **ATUALIZAÇÃO (12:3x):** a instalação do 1.7.0+17 foi RECUSADA pelo
+  celular (downgrade de versionCode) — ver §3. APK corrigido: 1.7.0+2017
+  no ar. O dono deve baixar de novo (pelo app 1.6.1+16, quando ele
+  ganhar a checagem, ou pelo site) e instalar. NOTA: o app 1.6.1+16
+  NÃO tem OdUpdater — a checagem automática só existe a partir do
+  1.7.0; a primeira instalação do 2017 é manual pelo site.
