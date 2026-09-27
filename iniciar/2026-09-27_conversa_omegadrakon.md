@@ -149,6 +149,27 @@ instalação. Provas antes de mexer:
 
 HEAD `8475b6a` == origin/master; árvore limpa.
 
+## 4. Confirmação do dono: 1.7.0+2017 instalado (~12:45)
+
+Dono: "Instalei o 1.7.0+2017 no celular — confirme no journal o rastro
+e feche o ponto". Rastro no journal (PID 727041, NRestarts=0, 0 erros):
+
+- 12:46:20 — `Dispositivo registrado para push | platform=android`
+  (bootstrap do app NOVO autenticado); push_devices é arquivo JSON
+  (data/push_devices.json), não tabela.
+- 12:47:08 — `Action executed | action=uptime | role=admin`.
+- 12:47:26 — `WebSocket authenticated | user_id=alex | via=session`
+  (mesmo protocolo provado nos deploys anteriores).
+- 12:47:46 — `Message processed | route=llm | user=alex |
+  profile=guardian | llm=gemma-local` (18,4s).
+- 12:48:06 — `Message processed | route=cache` (17ms) — rota terminal
+  de cache gravando no histórico (2ee947b) no app novo.
+
+Banco: 2 sessões novas válidas do alex (12:08 e 12:15, até 03/10);
+interações gravadas na conta ("bom dia" → gemma-local); 184 msgs.
+Schema anotado: conversation_messages.user_id é o USERNAME (texto);
+sessions.expires_at é REAL/epoch (to_timestamp para ler).
+
 ## Estado final
 
 - **CONCLUÍDO E NO AR** — v1.7.0 implantada, provada e publicada.
@@ -162,3 +183,6 @@ HEAD `8475b6a` == origin/master; árvore limpa.
   ganhar a checagem, ou pelo site) e instalar. NOTA: o app 1.6.1+16
   NÃO tem OdUpdater — a checagem automática só existe a partir do
   1.7.0; a primeira instalação do 2017 é manual pelo site.
+- **FECHADO (12:45):** dono instalou o 1.7.0+2017 e o rastro está no
+  journal e no banco (ver §4). Auto-atualização operando: daqui em
+  diante o versionCode é cru monotônico e o app se atualiza sozinho.
