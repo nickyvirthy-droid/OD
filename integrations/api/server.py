@@ -50,8 +50,11 @@ from core.capabilities import OD_VERSION, capabilities_manifest
 
 # versionCode do APK publicado em site/ — sincronizado no bump (v1.7.0:
 # auto-atualização do app compara este número com o dele).
+# 2017 (e não 17): builds ATÉ a 1.6.1 somavam 2000 no split arm64 — o
+# celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
+# downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 17
+_APP_VERSION_CODE = 2017  # versionCode cru do APK publicado (v1.7.0+2017)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name

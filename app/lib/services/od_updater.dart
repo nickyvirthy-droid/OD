@@ -17,12 +17,11 @@
 /// publicado pelo servidor — download truncado ou corrompido (rede ruim,
 /// Funnel instável) NUNCA chega a ser instalado.
 ///
-/// Sobre versionCode e APKs divididos por ABI: o build completo
-/// (OmegaDrakon.apk) usa o +N cru; o split arm64 ganha +1000 do plugin
-/// Flutter (17 → 1017). O build normaliza isso ([OdUpdateInfo.localBaseCode])
-/// e o `build_apk.sh` força o versionCode exato com
-/// `-Pforce-version-code-ignoring-abi=true` — então a comparação e a
-/// troca arm64 ↔ completo ficam sempre válidas.
+/// Sobre versionCode e APKs divididos por ABI: builds ATÉ a 1.6.1 somavam
+/// 2000 no split arm64 (o celular do dono ficou na linhagem 2011–2016).
+/// Da v1.7.0 em diante o `build_apk.sh` força o versionCode CRU do pubspec
+/// com `-Pforce-version-code-ignoring-abi=true` e o piso é 2017 — a
+/// comparação ([OdUpdateInfo.isNewer]) é inteira e direta, sem offsets.
 library;
 
 import 'dart:async';
@@ -76,17 +75,23 @@ class OdUpdateInfo {
     this.sha256 = '',
   });
 
-  /// versionCode local SEM o deslocamento de ABI (+1000 do split arm64).
-  ///
-  /// É contra ESTA base que comparamos: com ela, um app instalado do
-  /// split arm64 (1017) e um do completo (17) aceitam a mesma atualização.
-  int get localBaseCode =>
-      localVersionCode >= 1000 && localVersionCode % 1000 != 0
-          ? localVersionCode - 1000
-          : localVersionCode;
-
   /// Há versão mais nova no servidor?
-  bool get isNewer => versionCode > localBaseCode;
+  ///
+  /// Comparação DIRETA de inteiros — sem normalização de offset. Funciona
+  /// porque os builds publicados passaram a forçar o versionCode CRU do
+  /// pubspec (`force-version-code-ignoring-abi`) e o piso subiu para 2017
+  /// (> 2016, maior code da linhagem antiga arm64 que somava 2000). Assim:
+  ///   - arm64 antigo 2011–2016 recebe 2017 (2017 > 2016);
+  ///   - completo antigo 11–16 recebe 2017;
+  ///   - app 2017 instalado vs servidor 2017 = estável (nunca re-oferece);
+  ///   - futuros bumps (2018, 2019…) são monotônicos para todos.
+  ///
+  /// Bug fixado (2026-09-27): a v1.7.0 nasceu com code 17 — downgrade
+  /// contra a linhagem arm64 2016 no celular do dono → instalador recusou
+  /// ("pacote parece ser inválido"). E uma normalização com desconto fixo
+  /// transformaria o 2017 cru em 17/1017, oferecendo a mesma atualização
+  /// para sempre.
+  bool get isNewer => versionCode > localVersionCode;
 
   /// Tamanho em MB, pronto para exibição ('' quando desconhecido).
   String get sizeMb =>
