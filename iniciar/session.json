@@ -664,6 +664,11 @@
     "cache_nota": "1 entrada com etiqueta [NICKY][ ('mas eu sou o ADM', 26/09 12:17) é PRÉ-guarda _cacheable (7d29592, no ar 11:10 de 26/09) — não é regressão; se quiser, POST /admin/cache/prune com keys específicas remove (pedir autorização).",
     "estado": "DIA FECHADO — sistema verde. Nada reiniciado nesta verificação."
   },
+  "poda_cache_pre_guarda_2026_09_27": {
+    "pedido": "Dono: 'Remover do cache a única entrada antiga pré-guarda (mas eu sou o ADM) via /admin/cache/prune'.",
+    "execucao": "Snapshot de rollback backups/cache-entrada-pre-guarda-20260927.json (381 B, sha256 b21583bc…); dry_run com keys → 1 candidata (exata); poda real → removidas 1 (key 27498274fd8c67c8…). Pós: 0 entradas com etiqueta [NICKY][ no cache; total da tabela 39; /health ok; journal 0 erros; nada reiniciado.",
+    "estado": "CONCLUÍDO — cache 100% saudável, sem falhas e sem resíduo pré-guarda."
+  },
   "last_turn": {
     "date": "2026-09-27",
     "action": "v1.7.0 completa: lote resgatado (c2b4508), 401 de /app/version corrigido (43746fd), 'pacote inválido' diagnosticado como downgrade de versionCode e corrigido com piso 2017 (8475b6a) — dono instalou e o rastro foi provado no journal e no banco (sessão 12:46–12:48, via=session, llm+cache gravados).",

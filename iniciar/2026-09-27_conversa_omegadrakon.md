@@ -191,6 +191,21 @@ sessions.expires_at é REAL/epoch (to_timestamp para ler).
 - **Journal do dia**: 0 Traceback/ERROR/CRIT.
 - **Git**: HEAD aa236a3 == origin/master, árvore limpa.
 
+## 6. Poda cirúrgica do cache: entrada pré-guarda removida (13:0x)
+
+Pedido do dono: remover a única entrada pré-guarda ('mas eu sou o ADM')
+via /admin/cache/prune.
+
+- **Snapshot de rollback**: backups/cache-entrada-pre-guarda-20260927.json
+  (381 B, sha256 b21583bcbbb695c1…, 1 entrada completa: key, prompt,
+  response, profile, llm_used).
+- **Dry run** com keys=[27498274fd8c67c8…] → candidatas: 1 (exatamente
+  a alvo, nada mais).
+- **Poda real** → removidas: 1.
+- **Pós-prova**: chave alvo ausente; restantes com etiqueta [NICKY][: 0
+  (zero falhas em cache); total da tabela 39 (36+ das saudáveis +
+  novas do uso do dia); /health ok; journal 0 erros; nada reiniciado.
+
 ## Estado final
 
 - **CONCLUÍDO E NO AR** — v1.7.0 implantada, provada e publicada.
