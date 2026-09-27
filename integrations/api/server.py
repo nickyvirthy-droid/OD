@@ -98,9 +98,13 @@ DEFAULT_SITE_DIR = Path(__file__).resolve().parents[2] / "site"
 PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/admin", "/site", "/site/{file}", "/auth/register", "/auth/login"})
 
 # Endpoints que NÃO passam pela chave mesmo com auth_all ligado: o fluxo de
-# autenticação em si (register/login) e a conversa ANÔNIMA (quem só quer
-# conversar, sem conta — privilégio mínimo, nada é gravado).
-AUTH_EXEMPT_PATHS = frozenset({"/auth/register", "/auth/login", "/anon/message"})
+# autenticação em si (register/login), a conversa ANÔNIMA (quem só quer
+# conversar, sem conta — privilégio mínimo, nada é gravado) e o anúncio de
+# versão (o app consulta /app/version SEM credencial no boot — e o APK em si
+# já é público por /site/, coberto por test_site_public_under_auth_all).
+AUTH_EXEMPT_PATHS = frozenset(
+    {"/auth/register", "/auth/login", "/anon/message", "/app/version"}
+)
 
 
 class APIError(Exception):

@@ -546,6 +546,31 @@ class TestAPIAppVersion:
         assert status == 200 and data["ok"] is True
         assert "size" not in data and "sha256" not in data
 
+    def test_app_version_public_under_auth_all(self, serve, tmp_path: Path) -> None:
+        """auth_all (produção): o app consulta /app/version SEM credencial
+        no boot — deve continuar 200 (mesma natureza do /site public).
+        Bug que este teste fixa: no deploy real de 2026-09-27 a rota dava
+        401 e a auto-atualização morria calada."""
+        (tmp_path / "OmegaDrakon.apk").write_bytes(b"PK\x03\x04" + b"x" * 64)
+        cfg = self._cfg(tmp_path, api_key="segredo123", auth_all=True)
+        srv = serve(None, config=cfg)
+        status, body, headers = _request(srv.bound_port, "GET", "/app/version")
+        data = _json_response((status, body, headers))
+        assert status == 200, (
+            "/app/version deve ser público mesmo com auth_all — o app "
+            "checa atualização antes de ter credencial\n" + body
+        )
+        assert data["ok"] is True
+        assert data["version_code"] == _APP_VERSION_CODE
+        # Com a chave continua 200 (contrato não muda para quem tem credencial).
+        status, _, _ = _request(
+            srv.bound_port,
+            "GET",
+            "/app/version",
+            headers={"X-API-Key": "segredo123"},
+        )
+        assert status == 200
+
 
 class TestAPISiteCache:
     """Cache da landing (site demorava para carregar às vezes — v1.7.0).
