@@ -1,7 +1,17 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-26T14:20:00-03:00",
+  "updated_at": "2026-09-27T12:20:00-03:00",
+  "autoatualizacao_2026_09_27": {
+    "pedido": "Usuário: 'leia iniciar' — retomada (~12:00). Encontrado lote órfão v1.7.0 (19 arquivos, mtimes 26/09 14:19–15:17) — a sessão anterior morreu no meio: código completo + bump + APK publicado em site/, mas SEM commit/deploy/registro; /app/version dava 404 no ar (PID 619998 ainda em 1.6.1).",
+    "conteudo": "GET /app/version público {version, version_code, apk, size, sha256} com hash em streaming; app/services/od_updater.dart (NOVO) — checa versionCode, baixa com progresso, confere SHA-256 antes de instalar, FileProvider (canal nativo + file_paths.xml + manifest); site mais rápido (debug.apk 155 MB para backups/, ETag + max-age=60 + 304 na landing, APK no-store); trava de infra para não-dono; bump 1.7.0 (MINOR): .env, capabilities, pubspec 1.7.0+17, site, CHANGELOG, README_VERSAO.",
+    "validacao": "Suíte 1966 passed, 16 skipped; flutter analyze 0 issues; flutter test 87 passed, 2 skipped.",
+    "bug_deployment": "1º restart (PID 720009) provou /app/version com 401 sob OD_API_AUTH_ALL=1 — o app chama SEM credencial (best-effort) e silencia; auto-atualização NUNCA funcionaria. Causa: gate do auth_all cobria a rota; testes herméticos não pegaram porque a fixture sobe sem auth_all. Correção: /app/version em AUTH_EXEMPT_PATHS (mesma natureza do /site já público) + test_app_version_public_under_auth_all fixando o contrato. Suíte 1967/16.",
+    "commits": ["c2b4508 feat(app,api): auto-atualização do APK pelo próprio app + site mais rápido (v1.7.0) — 19 arquivos +1025/−21", "43746fd fix(api): /app/version público sob auth_all — auto-atualização morria com 401 — 2 arquivos +32/−3"],
+    "deploy": "IMPLANTADO — restart 2026-09-27 12:0x, PID 721757, NRestarts=0. Prova viva 7/7: /app/version 200 sem chave (1.7.0, vc 17, sha256 804db579…); sha256 anunciado == binário de site/; aapt2 versionCode='17' versionName='1.7.0'; /health 200; WS 426; /site ETag→304; journal 0 erros.",
+    "estado": "CONCLUÍDO E NO AR — pendência: abrir o app 1.6.1+16 no celular e deixar o banner de atualização instalar o 1.7.0+17 (a partir daí o app se atualiza sozinho).",
+    "transcricao": "iniciar/2026-09-27_conversa_omegadrakon.md"
+  },
   "resposta_transparente_2026_09_26": {
     "pedido": "Dono: (1) app sem hora nem quem respondeu (gemma, cache...); (2) chips sem os NOMES da entidade (Regulus aparecia como 'Conselheiro'); (3) admin DEVE ter respostas de IP/portas — vedação só para visitante.",
     "implementacao": ["profile_name em TODOS os frames done do streaming e no to_dict (REST); app exibe cabeçalho da bolha (ícone + nome) e hora em toda mensagem", "profile_display_name: nome canônico da Plêiade; /profiles expõe display_name; app usa nomes nos chips (Regulus, Nyx, Luma, Vox, Athenae, Nexus)", "Orchestrator._resolve_system: system prompt por PERFIL pedido + PAPEL de quem fala — admin (dono) com acesso pleno aos dados do sistema, user mantém a vedação (antes era o prompt estático do launcher)"],
@@ -641,9 +651,9 @@
     "estado": "CONCLUÍDO E NO AR — v1.4.0 implantada, provada e publicada."
   },
   "last_turn": {
-    "date": "2026-09-26",
-    "action": "Lote não registrado validado (1932/16 + sandbox 57), bump SemVer 1.4.0 pelo checklist, APK 1.4.0+13, deploy provado no ar 5/5 e publicado (7d29592). Resíduo postgres:/ removido.",
-    "next": "Instalar o APK 1.6.1+16 no celular (16 > 15) e conferir 'qual o ip do servidor?' no chat do app — deve responder route=action_intent com o IP real.",
+    "date": "2026-09-27",
+    "action": "Retomada 'leia iniciar': lote órfão v1.7.0 (auto-atualização do APK pelo app + site rápido) resgatado — validado 1966/16, commitado c2b4508, bug 401 de /app/version sob auth_all pego no deploy e corrigido (43746fd, suíte 1967/16), deploy provado no ar 7/7 (PID 721757).",
+    "next": "Dono abre o app 1.6.1+16 no celular: banner de atualização → download com progresso → SHA-256 conferido → instalação do 1.7.0+17. Depois conferir que a checagem roda no boot sem credencial (journal: GET /app/version sem 401).",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
@@ -658,5 +668,5 @@
     {"topic": "status bar fix", "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"},
     {"topic": "auth de usuários (09-19)", "decision": "Chat web passa a exigir login (UserStore próprio, PBKDF2-SHA256, sessão UUID + Bearer), mantendo X-API-Key como modo legado/avançado. Registrado retroativamente em 09-20 após achado de que subiu sem commit/teste."}
   ],
-  "transcripts": ["iniciar/2026-09-26_conversa_omegadrakon.md", "iniciar/2026-09-25_conversa_omegadrakon.md", "iniciar/2026-09-23_conversa_omegadrakon.md", "iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
+  "transcripts": ["iniciar/2026-09-27_conversa_omegadrakon.md", "iniciar/2026-09-26_conversa_omegadrakon.md", "iniciar/2026-09-25_conversa_omegadrakon.md", "iniciar/2026-09-23_conversa_omegadrakon.md", "iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
 }
