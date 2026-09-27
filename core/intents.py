@@ -76,6 +76,29 @@ def _detect_network(text: str) -> Optional[str]:
     return None
 
 
+def detect_infra_intent(text: str) -> bool:
+    """True quando a mensagem pede INFRAESTRUTURA do servidor (IP, portas,
+    topologia de rede).
+
+    Usada pela guarda do pipeline (Etapa 3.4): para quem NÃO é o dono, a
+    pergunta é negada determinísticamente — nem chega ao LLM (o modelo
+    entregava o IP mesmo com a vedação no prompt). Os MESMOS padrões que
+    disparam as actions `ip_address`/`listening_ports` para o dono.
+    """
+    if not text or not text.strip():
+        return False
+    low = text.lower()
+    if re.search(r"\b(ip|ipv[46]|endere[çc]o\s+de\s+ip)\b", low) and re.search(
+        r"(servidor|m[aá]quina|host|local|externo|p[uú]blico|meu|privado)", low
+    ):
+        return True
+    if re.search(r"\bportas?\b", low) and re.search(
+        r"(abertas?|escutando|listening|em\s+uso|livres?|ocupadas?)", low
+    ):
+        return True
+    return False
+
+
 def _detect_operational(text: str) -> Optional[str]:
     """Padrões operacionais diretos (processos/memória/cpu/disco/uptime/ip/portas)."""
     low = text.lower()
@@ -298,6 +321,7 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
 __all__ = [
     "FASTPATH_ACTIONS",
     "detect_action_intent",
+    "detect_infra_intent",
     "safe_math",
     "format_intent_result",
 ]

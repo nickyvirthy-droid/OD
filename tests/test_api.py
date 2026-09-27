@@ -26,6 +26,7 @@ from pathlib import Path
 
 import pytest
 
+from core.capabilities import OD_VERSION
 from core.orchestrator import Orchestrator, RecordingProvider
 from core.security import SecurityManager
 from integrations.api import (
@@ -34,6 +35,7 @@ from integrations.api import (
     DEFAULT_PROFILE,
     ROUTES,
 )
+from integrations.api.server import _APP_VERSION_CODE
 from memory.cache import LLMCache
 from memory.history import ConversationHistory
 from memory.vector import VectorStore
@@ -132,8 +134,9 @@ class TestAPIRoutes:
         /actions + /executa (v1.2.0 — app Android) + /push/* (push FCM) +
         /supervision (2026-09-15) + /account/* e /admin/* (painéis
         dashboard/admin, 2026-09-26) + deleção de mensagem única e
-        saneamento do cache (2026-09-26)."""
-        assert len(ROUTES) == 41
+        saneamento do cache (2026-09-26) + /app/version (v1.7.0,
+        auto-atualização do app)."""
+        assert len(ROUTES) == 42
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -141,6 +144,7 @@ class TestAPIRoutes:
             ("GET", "/dashboard"), ("GET", "/admin"), ("GET", "/chat"),
             ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
+            ("GET", "/app/version"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("POST", "/account/password"), ("POST", "/account/api-key"),
@@ -194,6 +198,7 @@ class TestAPIRoutes:
             ("GET", "/dashboard"), ("GET", "/admin"), ("GET", "/chat"),
             ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
+            ("GET", "/app/version"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/anon/message"),
         }
@@ -485,6 +490,111 @@ class TestAPISite:
         srv2 = serve(None, config=cfg2)
         status, _, _ = _request(srv2.bound_port, "GET", "/site")
         assert status == 401
+
+
+# ===========================================================================
+# /app/version — contrato da auto-atualização do app (v1.7.0)
+# ===========================================================================
+
+class TestAPIAppVersion:
+    """GET /app/version — sem auth, aponta para o APK publicado em site/.
+
+    Hermético: usa site_dir=tmp_path em vez do site/ real do repo.
+    """
+
+    def _cfg(self, tmp_path: Path, **kwargs) -> APIConfig:
+        return APIConfig(
+            port=0, rate_limit_max=0, site_dir=str(tmp_path), **kwargs
+        )
+
+    def test_app_version_public_and_payload(self, serve, tmp_path: Path) -> None:
+        """Sem chave nenhuma: ok, versão do sistema e version_code do APK."""
+        apk = tmp_path / "OmegaDrakon.apk"
+        apk.write_bytes(b"PK\x03\x04" + b"x" * 4096)
+        srv = serve(None, config=self._cfg(tmp_path))
+        status, body, headers = _request(srv.bound_port, "GET", "/app/version")
+        data = _json_response((status, body, headers))
+        assert status == 200
+        assert data["ok"] is True
+        assert data["version"] == OD_VERSION
+        assert data["version_code"] == _APP_VERSION_CODE
+        assert data["apk"] == "/site/OmegaDrakon.apk"
+        assert data["size"] == apk.stat().st_size
+        assert len(data["sha256"]) == 64  # hex SHA-256
+
+    def test_app_version_matches_published_apk(self, serve, tmp_path: Path) -> None:
+        """sha256/size descrevem EXATAMENTE o binário que /site/ entregar —
+        é o que permite ao app conferir o download antes de instalar."""
+        import hashlib
+
+        payload = b"PK\x03\x04" + bytes(range(256)) * 1024  # 256 KB
+        (tmp_path / "OmegaDrakon.apk").write_bytes(payload)
+        srv = serve(None, config=self._cfg(tmp_path))
+        port = srv.bound_port
+        _, body, _ = _request(port, "GET", "/app/version")
+        data = _json_response((_, body, _))
+        status, got, _ = _request(port, "GET", "/site/OmegaDrakon.apk")
+        assert status == 200 and got == payload
+        assert data["size"] == len(payload)
+        assert data["sha256"] == hashlib.sha256(payload).hexdigest()
+
+    def test_app_version_without_apk(self, serve, tmp_path: Path) -> None:
+        """Sem APK publicado, o endpoint responde o básico (sem size/sha)."""
+        srv = serve(None, config=self._cfg(tmp_path))
+        status, body, headers = _request(srv.bound_port, "GET", "/app/version")
+        data = _json_response((status, body, headers))
+        assert status == 200 and data["ok"] is True
+        assert "size" not in data and "sha256" not in data
+
+
+class TestAPISiteCache:
+    """Cache da landing (site demorava para carregar às vezes — v1.7.0).
+
+    HTML: ETag + max-age=60 com revalidação If-None-Match → 304 barato.
+    APK: no-store (download sempre completo, sem cache parcial).
+    """
+
+    def test_html_etag_and_304(self, serve, tmp_path: Path) -> None:
+        (tmp_path / "index.html").write_text("<h1>OD</h1>", encoding="utf-8")
+        srv = serve(None, config=APIConfig(
+            port=0, rate_limit_max=0, site_dir=str(tmp_path)
+        ))
+        port = srv.bound_port
+        _, _, headers = _request(port, "GET", "/site")
+        etag = headers.get("ETag", "")
+        assert etag, "HTML sem ETag — navegador baixa a landing inteira de novo"
+        assert headers.get("Cache-Control", "") == "max-age=60"
+        status, _, _ = _request(
+            port, "GET", "/site", headers={"If-None-Match": etag}
+        )
+        assert status == 304, "ETag válido deve dar 304 (landing abre na hora)"
+
+    def test_html_etag_changes_when_file_changes(self, serve, tmp_path: Path) -> None:
+        """Deploy novo (mtime/size mudam) → ETag nova → cliente rebaixa."""
+        (tmp_path / "index.html").write_text("<h1>v1</h1>", encoding="utf-8")
+        srv = serve(None, config=APIConfig(
+            port=0, rate_limit_max=0, site_dir=str(tmp_path)
+        ))
+        port = srv.bound_port
+        _, _, h1 = _request(port, "GET", "/site")
+        etag1 = h1.get("ETag", "")
+        # Depois de 60s o mtime fica idêntico → força uma diferença de tamanho.
+        (tmp_path / "index.html").write_text(
+            "<h1>v2 agora com conteudo maior</h1>", encoding="utf-8"
+        )
+        _, _, h2 = _request(port, "GET", "/site")
+        assert h2.get("ETag", "") != etag1
+
+    def test_apk_stays_no_store(self, serve, tmp_path: Path) -> None:
+        """APK NÃO é cacheado: download de atualização sempre completo."""
+        (tmp_path / "OmegaDrakon.apk").write_bytes(b"PK\x03\x04")
+        srv = serve(None, config=APIConfig(
+            port=0, rate_limit_max=0, site_dir=str(tmp_path)
+        ))
+        _, _, headers = _request(
+            srv.bound_port, "GET", "/site/OmegaDrakon.apk"
+        )
+        assert headers.get("Cache-Control", "") == "no-store"
 
 
 # ===========================================================================

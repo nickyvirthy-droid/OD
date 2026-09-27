@@ -57,10 +57,12 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
     # padrões com ponto abaixo ("agent") são a nomenclatura da spec e NÃO casam
     # com o ActionRegistry real; por isso a lista do "user" é explícita.
     # Ficam de fora, de propósito: `system_env` (segredos), `filesystem_read`
-    # (ler qualquer arquivo), `database_*` e `network_hosts`.
+    # (ler qualquer arquivo), `database_*`, `network_hosts` (topologia da
+    # rede), `ip_address` e `listening_ports` (superfície de rede do servidor
+    # — v1.7.0: vazavam para o papel user pela intenção do chat).
     "user": [
         "system_info", "uptime", "datetime", "disk_usage",
-        "memory_usage", "cpu_info", "ip_address",
+        "memory_usage", "cpu_info",
         "process_list", "process_info",
         "service_list", "service_status",
         "docker_list", "docker_status", "docker_stats",

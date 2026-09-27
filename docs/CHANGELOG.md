@@ -14,6 +14,45 @@
 
 ---
 
+## [1.7.0] — AUTO-ATUALIZAÇÃO DO APP + SITE MAIS RÁPIDO + TRAVA DE INFRA PARA NÃO-DONO 🚀 (2026-09-26)
+
+> **Política:** capacidade nova para o usuário final (o app se atualiza
+> sozinho, sem site) = MINOR (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.7.0` · app `1.7.0+17` (versionCode 17).
+
+### Adicionado (2026-09-26)
+
+| Peça | Entrega |
+|---|---|
+| **GET /app/version** | Contrato público (sem auth) da auto-atualização: `{version, version_code, apk, size, sha256}` — hash calculado em streaming, sem carregar o binário de ~50 MB na memória |
+| **App: OdUpdater** | Checa /app/version, compara o versionCode local (package_info_plus), baixa o APK com progresso, confere o SHA-256 ANTES de instalar (download corrompido nunca vira instalação) e dispara a instalação via FileProvider (canal nativo `com.omegadrakon.nicky/updater`) |
+| **App: banner + Config** | Banner fino no topo ("Nova versão X disponível → Atualizar", com % do download) + seção Atualização nas Configurações (Verificar / Baixar e instalar) |
+| **Android** | Permissão REQUEST_INSTALL_PACKAGES + FileProvider (cache-path em res/xml/file_paths.xml) + canal `installApk`/`cacheDir` no MainActivity.kt |
+
+### Corrigido (2026-09-26)
+
+| Sintoma | Causa | Correção |
+|---|---|---|
+| **SEGURANÇA: usuário de teste (papel user, não admin) recebia lista de IPs e portas abertas pelo chat** | Permissão `ip_address` estava na allowlist do papel user e o LLM entregava o dado mesmo com vedação no prompt | `ip_address` removida de `DEFAULT_ROLE_PERMISSIONS["user"]` (listening_ports nunca esteve lá) + guarda determinística Etapa 3.4 nos DOIS caminhos (`process` e `process_stream`): `detect_infra_intent` → resposta 🔒 fixa SEM LLM para user/anonymous; admin continua com dado real |
+| **Site demorava para carregar às vezes** | `OmegaDrakon-debug.apk` de 155 MB em site/ + landing HTML sem cache | debug.apk movido para backups/apk-debug-20260926/; `_serve_site_file` agora manda ETag + `Cache-Control: max-age=60` no HTML com revalidação If-None-Match → 304 barato; APK continua no-store (download sempre completo) |
+
+### Evidência (2026-09-26)
+
+```
+servidor: pytest tests/ → 1966 passed, 16 skipped (+6 em test_api.py: contrato
+          de rotas 42, /app/version 200/sem auth, sha256 == binário de /site/,
+          ETag + 304 da landing, no-store do APK)
+app: flutter analyze → No issues found! · flutter test → 87 passed (2 skipped)
+APK 1.7.0+17 (versionCode 17) publicado em site/OmegaDrakon.apk
+```
+
+### Nota
+
+- A resposta transparente do dono (v1.6.0/1.6.1) NÃO mudou: admin segue com
+  IP/portas reais pelo chat (ação + anti-recusa). O que entra em v1.7.0 é a
+  trava para os DEMAIS papéis, com teste de regressão
+  (TestGuardaInfraParaNaoDono em tests/test_resposta_transparente.py).
+
 ## [1.6.1] — IP e portas pela ACTION no chat + anti-recusa do dono 🔧 (2026-09-26)
 
 > **Política:** correção com capacidade nova de leitura = PATCH com feature

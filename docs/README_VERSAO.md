@@ -7,6 +7,34 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.7.0] — AUTO-ATUALIZAÇÃO DO APP + SITE MAIS RÁPIDO + TRAVA DE INFRA PARA NÃO-DONO 🚀 (2026-09-26)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono (3)** | Site lento às vezes · app deve se auto-atualizar sem site · BUG: usuário teste (não-admin) recebia IP/portas pelo chat |
+| **Auto-atualização** | GET /app/version (público) + OdUpdater no app: compara versionCode, baixa com progresso, confere SHA-256, instala via FileProvider; banner no topo + seção Atualização nas Configurações |
+| **Trava de infra** | Etapa 3.4 nos dois caminhos do Orchestrator (`process` e `process_stream`): user/anonymous pedindo IP/portas → resposta 🔒 determinística sem LLM; admin mantém acesso pleno |
+| **Site rápido** | debug.apk de 155 MB fora de site/; ETag + max-age=60 no HTML (304 na revalidação); APK no-store |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 1966 passed, 16 skipped
+app: flutter analyze → No issues found! · flutter test → 87 passed (2 skipped)
+APK 1.7.0+17 (versionCode 17) publicado em site/OmegaDrakon.apk
+Provas vivas: user teste "qual o ip" → 🔒 negado sem LLM · admin → IP/portas
+reais · GET /app/version → {version, version_code, sha256} · /site com
+If-None-Match → 304
+```
+
+### 3. Pendências / próximos passos
+
+- Dono instalar o APK 1.7.0+17 no celular uma ÚNICA vez (a partir daí o app
+  se atualiza sozinho a cada versão nova) e conceder "Instalar apps
+  desconhecidos" quando o Android pedir.
+
 ## [1.6.0] — RESPOSTA TRANSPARENTE: QUEM RESPONDEU, HORA E ADMIN COM ACESSO PLENO 🔍 (2026-09-26)
 
 ### 1. O que foi feito

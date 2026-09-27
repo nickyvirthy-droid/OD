@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Caminhos expostos pelo FileProvider (authority .fileprovider).
+     O APK de auto-atualização é baixado no cache privado do app e lido
+     pelo instalador do sistema via content:// — nunca file:// (proibido
+     desde o Android 7). -->
+<paths>
+    <cache-path name="apk_updates" path="." />
+</paths>

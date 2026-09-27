@@ -19,7 +19,11 @@ import pytest
 
 from agents.nicky_virthy.personality import get_system_prompt
 from agents.profiles import profile_display_name
-from core.orchestrator import Orchestrator, OrchestrationResult
+from core.orchestrator import (
+    Orchestrator,
+    OrchestratorConfig,
+    OrchestrationResult,
+)
 
 
 class TestSystemPromptPorPapel:
@@ -171,3 +175,80 @@ class TestIntencaoIpEPortas:
         assert detect_action_intent("quantos processos estão rodando?") == (
             "process_list", {}
         )
+
+
+class TestGuardaInfraParaNaoDono:
+    """v1.7.0 — o papel user NÃO pode receber IP/portas nem da action nem do
+    LLM (o gemma entregava o IP mesmo com a vedação no prompt, reportado
+    pelo dono): negação determinística na Etapa 3.4, sem LLM."""
+
+    @staticmethod
+    def _orch() -> tuple[Orchestrator, "FakeLLM"]:
+        class FakeLLM:
+            name = "fake"
+            async def generate(self, prompt, timeout=None, **kw):
+                return "RESPOSTA_DO_LLM_FAKE"  # o LLM NÃO deve ser consultado
+            async def generate_stream(self, prompt, timeout=None, **kw):
+                yield "RESPOSTA_DO_LLM_FAKE"
+
+        from tools.actions import build_registry
+        from core.security import SecurityManager
+        llm = FakeLLM()
+        orch = Orchestrator(
+            providers=[llm],
+            config=OrchestratorConfig(default_system_prompt="x"),
+        )
+        orch.set_action_registry(
+            build_registry(security=SecurityManager(mode="strict"))
+        )
+        return orch, llm
+
+    def _llm_nao_foi_consultado(self, llm) -> bool:
+        # O FakeLLM não registra chamadas; a prova é o TEXT da resposta:
+        # se fosse o LLM, seria RESPOSTA_DO_LLM_FAKE.
+        return True
+
+    def test_user_pedindo_ip_recebe_negacao_sem_llm(self) -> None:
+        import asyncio
+        orch, _ = self._orch()
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian", "qual o ip do servidor?", role="user"
+        ))
+        assert r.route == "action_intent"
+        assert "restrita ao dono" in r.message
+        assert r.message != "RESPOSTA_DO_LLM_FAKE"
+        assert orch.metrics.infra_denied >= 1
+
+    def test_user_pedindo_portas_recebe_negacao_sem_llm(self) -> None:
+        import asyncio
+        orch, _ = self._orch()
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian", "quais portas estão abertas?",
+            role="user",
+        ))
+        assert r.route == "action_intent"
+        assert "restrita ao dono" in r.message
+
+    def test_admin_continua_recebendo_o_dado_real(self) -> None:
+        import asyncio
+        orch, _ = self._orch()
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "qual o ip do servidor?", role="admin"
+        ))
+        assert r.route == "action_intent"
+        assert "IP do servidor" in r.message
+
+    def test_pergunta_normal_do_user_nao_e_bloqueada(self) -> None:
+        import asyncio
+        orch, _ = self._orch()
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian", "qual o melhor roteador do mercado?",
+            role="user",
+        ))
+        assert r.route == "llm"  # passou pela guarda e foi ao LLM
+
+    def test_ip_address_e_listening_ports_fora_da_allowlist_user(self) -> None:
+        from core.security.permissions import DEFAULT_ROLE_PERMISSIONS
+        user_actions = DEFAULT_ROLE_PERMISSIONS["user"]
+        assert "ip_address" not in user_actions
+        assert "listening_ports" not in user_actions

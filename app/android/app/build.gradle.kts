@@ -48,6 +48,9 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // FileProvider da auto-atualização (v1.7.0) — o Flutter puxa o
+    // androidx.core transitivamente, mas o MainActivity usa direto.
+    implementation("androidx.core:core-ktx:1.13.1")
 }
 
 flutter {

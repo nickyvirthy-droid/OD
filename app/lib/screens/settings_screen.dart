@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/od_api.dart';
+import '../services/od_updater.dart';
 
 /// Tela de configurações.
 ///
@@ -39,9 +40,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _testing = false;
   bool? _connected;
 
+  // -- Atualização (auto-atualização v1.7.0) --
+  String _appVersion = '';
+  OdUpdateInfo? _update;
+  bool _checkingUpdate = false;
+  bool _downloadingUpdate = false;
+  double _downloadProgress = 0;
+  String _updateMsg = '';
+
   @override
   void initState() {
     super.initState();
+    OdUpdater(api: widget.api).localVersion().then((version) {
+      if (mounted) setState(() => _appVersion = version);
+    });
     _keyController = TextEditingController(text: widget.api.apiKey);
     _urlController = TextEditingController(text: widget.api.baseUrl);
     _fallbackController =
@@ -131,6 +143,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     debugPrint(escolhida); // URL fica em log de depuração, não na tela.
+  }
+
+  // -------------------------------------------------------------------------
+  // Atualização — o servidor anuncia a versão nova (GET /app/version), o
+  // app baixa o APK e o instala; sem site, sem loja.
+  // -------------------------------------------------------------------------
+  Future<void> _checkUpdate() async {
+    setState(() {
+      _checkingUpdate = true;
+      _updateMsg = '';
+    });
+    final info = await OdUpdater(api: widget.api).check();
+    if (!mounted) return;
+    setState(() {
+      _checkingUpdate = false;
+      _update = info;
+      _updateMsg = info == null
+          ? 'Não consegui verificar agora (sem rede ou servidor antigo).'
+          : info.isNewer
+              ? 'Nova versão ${info.version} disponível${info.sizeMb}.'
+              : 'Você já está na versão mais recente.';
+    });
+  }
+
+  Future<void> _downloadAndInstall() async {
+    final info = _update;
+    if (info == null || _downloadingUpdate) return;
+    setState(() => _downloadingUpdate = true);
+    try {
+      final apk = await OdUpdater(api: widget.api).download(
+        info,
+        onProgress: (progress) {
+          if (mounted) setState(() => _downloadProgress = progress);
+        },
+      );
+      await OdUpdater(api: widget.api).install(apk);
+    } on OdApiError catch (error) {
+      if (mounted) {
+        setState(() => _updateMsg = error.message);
+      }
+    } finally {
+      if (mounted) setState(() => _downloadingUpdate = false);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -304,6 +359,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                   label: Text(_testing ? 'Procurando...' : 'Reconectar agora'),
                 ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // -- ATUALIZAÇÃO (auto-atualização, v1.7.0) ---------------------------
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.system_update_alt),
+                  const SizedBox(width: 8),
+                  Text('Atualização', style: theme.textTheme.titleMedium),
+                ]),
+                const Divider(),
+                Text(
+                  _appVersion.isEmpty
+                      ? 'Verificando versão do app...'
+                      : 'App instalado: v$_appVersion',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                if (_updateMsg.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(_updateMsg),
+                ],
+                if (_downloadingUpdate) ...[
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(value: _downloadProgress),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Baixando v${_update!.version}… '
+                    '${(100 * _downloadProgress).toStringAsFixed(0)}%',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed:
+                      (_checkingUpdate || _downloadingUpdate)
+                          ? null
+                          : _checkUpdate,
+                  icon: _checkingUpdate
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.search),
+                  label: const Text('Verificar atualização'),
+                ),
+                if (_update != null && _update!.isNewer) ...[
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: _downloadingUpdate ? null : _downloadAndInstall,
+                    icon: const Icon(Icons.download),
+                    label: Text(
+                      'Baixar e instalar v${_update!.version}',
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

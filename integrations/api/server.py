@@ -47,6 +47,11 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from tools.registry import ActionRegistry
 
 from core.capabilities import OD_VERSION, capabilities_manifest
+
+# versionCode do APK publicado em site/ — sincronizado no bump (v1.7.0:
+# auto-atualização do app compara este número com o dele).
+# O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
+_APP_VERSION_CODE = 17
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -208,6 +213,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/metrics", "metrics_text", False),
     ("GET", "/site", "site_index", False),
     ("GET", "/site/{file}", "site_file", False),
+    ("GET", "/app/version", "app_version", False),
     # Auth — sem auth (o handler valida internamente)
     ("POST", "/auth/register", "auth_register", False),
     ("POST", "/auth/login", "auth_login", False),
@@ -2240,6 +2246,42 @@ class APIHandler(BaseHTTPRequestHandler):
         """Landing do site (index.html) em GET /site e /site/."""
         self._serve_site_file("index.html")
 
+    def app_version(self) -> None:
+        """GET /app/version — versão do APK publicada em site/ (sem auth).
+
+        Contrato para a AUTO-ATUALIZAÇÃO do app (v1.7.0):
+          {"ok": true, "version": "1.7.0", "version_code": 17,
+           "apk": "/site/OmegaDrakon.apk", "size": 52723923,
+           "sha256": "..."}
+
+        O app compara `version_code` com o seu (o do pubspec via
+        package_info) e baixa /site/OmegaDrakon.apk quando o do servidor é
+        maior — sem o usuário precisar entrar no site. `sha256` permite ao
+        app conferir o download antes de instalar.
+
+        Metadados do APK são lidos de forma LAZY: o hash de um binário de
+        ~50 MB não deve pesar na memória nem na CPU de quem só checa se há
+        atualização (o endpoint é público e o app o sonda a cada aberto).
+        """
+        import hashlib
+
+        base = Path(self.api.config.site_dir or DEFAULT_SITE_DIR).resolve()
+        apk = base / "OmegaDrakon.apk"
+        payload: dict[str, Any] = {
+            "ok": True,
+            "version": OD_VERSION,
+            "version_code": _APP_VERSION_CODE,
+            "apk": "/site/OmegaDrakon.apk",
+        }
+        if apk.is_file():
+            payload["size"] = apk.stat().st_size
+            digest = hashlib.sha256()
+            with apk.open("rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    digest.update(chunk)
+            payload["sha256"] = digest.hexdigest()
+        self._json(200, payload)
+
     def site_file(self, file: str) -> None:
         """Arquivo do site (ex.: OmegaDrakon.apk) em GET /site/{file}."""
         self._serve_site_file(unquote(file))
@@ -2249,8 +2291,14 @@ class APIHandler(BaseHTTPRequestHandler):
 
         Segurança: resolve() + is_relative_to() antes de abrir — GET
         /site/../segredo ou /site/etc/passwd nunca escapa do diretório.
-        Sem auth (landing pública no tailnet); Cache-Control no-store
-        garante que o APK novo sempre baixa por inteiro.
+        Sem auth (landing pública no tailnet).
+
+        Cache (v1.7.0 — site demorava para carregar às vezes):
+          - HTML (index): ETag + Cache-Control max-age=60 — o navegador
+            revalida por If-None-Match (304 barato) e a landing abre na
+            hora nas visitas repetidas; mtime novo gera ETag nova.
+          - APK/outros binários: continuam no-store (download sempre
+            completo, sem cache parcial corrompido).
 
         Robustez p/ celular: suporta Range (o download manager do Android
         retoma em bytes=-N após falha) e envia Content-Disposition
@@ -2266,6 +2314,15 @@ class APIHandler(BaseHTTPRequestHandler):
             or "application/octet-stream"
         )
         size = target.stat().st_size
+        etag = f'"{int(target.stat().st_mtime)}-{size}"'
+        # Revalidação condicional (só para HTML — o APK baixa por inteiro).
+        if ctype == "text/html" and self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self._send_cors()
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "max-age=60")
+            self.end_headers()
+            return
         start, end = 0, size - 1
         status = 200
         range_header = self.headers.get("Range")
@@ -2294,7 +2351,13 @@ class APIHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(length))
         self.send_header("Accept-Ranges", "bytes")
-        self.send_header("Cache-Control", "no-store")
+        if ctype == "text/html":
+            # HTML estático: cache curtíssimo + revalidação por ETag.
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "max-age=60")
+        else:
+            # Binário (APK): baixar por inteiro, sem cache parcial.
+            self.send_header("Cache-Control", "no-store")
         if status == 206:
             self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
         if ctype != "text/html":

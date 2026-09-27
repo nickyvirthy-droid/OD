@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'services/od_api.dart';
+import 'services/od_updater.dart';
 import 'services/push_service.dart';
 import 'screens/chat_screen.dart';
 import 'screens/actions_screen.dart';
@@ -72,6 +73,12 @@ class _OdRootState extends State<OdRoot> {
   bool _authenticated = false;
   int _initialIndex = 0;
 
+  // Auto-atualização (v1.7.0): o servidor anuncia a versão publicada e o
+  // app oferece a troca sem ninguém abrir o site.
+  OdUpdateInfo? _update;
+  bool _downloading = false;
+  double _downloadProgress = 0;
+
   @override
   void initState() {
     super.initState();
@@ -97,6 +104,91 @@ class _OdRootState extends State<OdRoot> {
       // Sessão/API key válidas: registra o token FCM deste aparelho.
       unawaited(PushService.instance.attach(_api));
     }
+    // Checagem de atualização: best-effort, nunca bloqueia nem derruba o
+    // boot (servidor fora / sem rota → simplesmente não há banner).
+    unawaited(_checkUpdateBestEffort());
+  }
+
+  Future<void> _checkUpdateBestEffort() async {
+    final info = await OdUpdater(api: _api).check();
+    if (info == null || !info.isNewer || !mounted) return;
+    setState(() => _update = info);
+  }
+
+  Future<void> _applyUpdate() async {
+    final info = _update;
+    if (info == null || _downloading) return;
+    setState(() {
+      _downloading = true;
+      _downloadProgress = 0;
+    });
+    try {
+      final apk = await OdUpdater(api: _api).download(
+        info,
+        onProgress: (progress) {
+          if (mounted) setState(() => _downloadProgress = progress);
+        },
+      );
+      await OdUpdater(api: _api).install(apk);
+    } on OdApiError catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _downloadProgress = 0;
+        });
+      }
+    }
+  }
+
+  /// Banner fino no topo enquanto há atualização disponível/em download.
+  Widget? get _updateBanner {
+    final info = _update;
+    if (info == null) return null;
+    return Material(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.system_update_alt, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _downloading
+                      ? 'Baixando v${info.version}… '
+                          '${(100 * _downloadProgress).toStringAsFixed(0)}%'
+                      : 'Nova versão ${info.version} disponível'
+                          '${info.sizeMb}',
+                ),
+              ),
+              if (_downloading)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else TextButton(
+                onPressed: _applyUpdate,
+                child: const Text('Atualizar'),
+              ),
+              if (!_downloading)
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => setState(() => _update = null),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _onAuthenticated() {
@@ -127,18 +219,23 @@ class _OdRootState extends State<OdRoot> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
+    final Widget home;
     if (!_authenticated) {
-      return LoginScreen(
+      home = LoginScreen(
         api: _api,
         onAuthenticated: _onAuthenticated,
         onAdvanced: _onAdvanced,
       );
+    } else {
+      home = OdHome(
+        api: _api,
+        initialIndex: _initialIndex,
+        onSettingsSaved: _onSettingsSaved,
+      );
     }
-    return OdHome(
-      api: _api,
-      initialIndex: _initialIndex,
-      onSettingsSaved: _onSettingsSaved,
-    );
+    final banner = _updateBanner;
+    if (banner == null) return home;
+    return Column(children: [banner, Expanded(child: home)]);
   }
 }
 

@@ -162,6 +162,13 @@ ROUTE_ERROR = "error"
 # MESMA mensagem para a mesma situação.
 RATE_LIMITED_MESSAGE = "Muitas mensagens em pouco tempo. Aguarde um instante."
 
+# Negação de infraestrutura para quem NÃO é o dono (v1.7.0): resposta
+# determinística, sem passar pelo LLM — a pergunta nem chega ao modelo.
+INFRA_DENIED_MESSAGE = (
+    "🔒 Informação de infraestrutura (IP, portas, topologia de rede) é "
+    "restrita ao dono do sistema."
+)
+
 TERMINAL_NO_LLM = {ROUTE_RATE_LIMITED, ROUTE_DATETIME, ROUTE_QUICK, ROUTE_CACHE}
 # Rotas que registram a interação no histórico (quando persist): além do
 # caminho LLM, as respostas terminais sem LLM também entram na conta —
@@ -415,6 +422,7 @@ class OrchestratorMetrics:
     fallback: int = 0
     unavailable: int = 0
     errors: int = 0
+    infra_denied: int = 0  # v1.7.0: IP/portas negados a não-dono (Etapa 3.4)
     total_latency_ms: float = 0.0
 
     @property
@@ -591,6 +599,35 @@ class Orchestrator:
                     "profile_name": _profile_display_name(profile),
                     "content": quick_answer,
                     "route": ROUTE_QUICK,
+                    "llm_used": "",
+                }
+                return
+
+        # Etapa 3.4 — GUARDA de infraestrutura: perguntas de IP/portas/topologia
+        # só o dono (admin) faz. Para user/anônimo é NEGAÇÃO determinística —
+        # a pergunta NEM chega ao LLM (o gemma entregava o IP mesmo com a
+        # vedação no prompt — v1.7.0, reportado pelo dono).
+        if role != "admin":
+            from core.intents import detect_infra_intent
+
+            if detect_infra_intent(text):
+                self._metrics.infra_denied += 1
+                result = self._stream_result(
+                    user_id,
+                    profile,
+                    text,
+                    ROUTE_INTENT,
+                    INFRA_DENIED_MESSAGE,
+                    llm_used="",
+                )
+                await self._record_terminal(result, text, persist=True)
+                await self._finish(result, started)
+                yield {"type": "token", "content": INFRA_DENIED_MESSAGE}
+                yield {
+                    "type": "done",
+                    "profile_name": _profile_display_name(profile),
+                    "content": INFRA_DENIED_MESSAGE,
+                    "route": ROUTE_INTENT,
                     "llm_used": "",
                 }
                 return
@@ -858,6 +895,19 @@ class Orchestrator:
                 result.route = ROUTE_QUICK
                 result.message = quick_answer
                 self._metrics.quick += 1
+                await self._record_terminal(result, text, persist=persist)
+                return await self._finish(result, started)
+
+        # Etapa 3.4 — GUARDA de infraestrutura: IP/portas/topologia são do
+        # dono. Para user/anônimo é NEGAÇÃO determinística, sem LLM (o gemma
+        # entregava o IP mesmo com a vedação no prompt — v1.7.0).
+        if role != "admin":
+            from core.intents import detect_infra_intent
+
+            if detect_infra_intent(text):
+                self._metrics.infra_denied += 1
+                result.route = ROUTE_INTENT
+                result.message = INFRA_DENIED_MESSAGE
                 await self._record_terminal(result, text, persist=persist)
                 return await self._finish(result, started)
 
