@@ -783,13 +783,14 @@ class Orchestrator:
         # Etapa 6.5 — Anti-recusa do dono: o gemma às vezes recusa dados
         # operacionais ignorando o system prompt. Para o ADMIN, refaz UMA vez
         # com reforço; persistindo, o chat cai para a action real (etapa 6.6).
-        refusal = self._refusal_reason(full_response, role)
+        refusal = self._refusal_reason(full_response, role, text)
         if refusal:
             log.warn(
-                "Recusa indevida detectada para o admin — refazendo",
+                "Recusa indevida detectada — refazendo",
                 reason=refusal,
+                role=role,
             )
-            retry = await self._retry_admin_generation(prompt)
+            retry = await self._retry_generation(prompt, role, text)
             if retry is not None:
                 full_response, llm_used = retry[0], retry[1]
                 fallback_used = True
@@ -974,6 +975,25 @@ class Orchestrator:
             self._metrics.unavailable += 1
             return await self._finish(result, started)
 
+        # Etapa 6.5 — Anti-recusa (2026-09-28): o REST não tinha esta etapa
+        # (assimetria com o WS) e a recusa-alucinação do gemma chegava
+        # INTEIRA ao usuário — caso real: 'temperatura em presidente
+        # venceslau sp' respondida com 'informação de infraestrutura é
+        # restrita ao dono'. Para admin é a recusa de dados operacionais de
+        # sempre; para user/anônimo só aciona quando o ASSUNTO é do mundo
+        # externo (o 'não posso' na vedação de infra é de direito do papel).
+        refusal = self._refusal_reason(message, role, text)
+        if refusal:
+            log.warn(
+                "Recusa indevida detectada — refazendo",
+                reason=refusal,
+                role=role,
+            )
+            retry = await self._retry_generation(prompt, role, text)
+            if retry is not None:
+                message, llm_used = retry
+                fallback_used = True
+
         result.route = ROUTE_FALLBACK if fallback_used else ROUTE_LLM
         result.message = message
         result.llm_used = llm_used
@@ -1011,17 +1031,28 @@ class Orchestrator:
             return self._config.default_system_prompt
 
     @staticmethod
-    def _refusal_reason(response: str, role: str) -> str:
+    def _refusal_reason(
+        response: str, role: str, text: str = ""
+    ) -> str:
         """Motivo pelo qual a resposta é uma RECUSA indevida ('' = ok).
 
-        Apenas para o DONO (admin): o modelo (gemma) às vezes ignora o
-        system prompt e recusa dados operacionais ("não posso", "não tenho
+        Para o DONO (admin): o modelo (gemma) às vezes ignora o system
+        prompt e recusa dados operacionais ("não posso", "não tenho
         acesso", "por segurança") — quando isso acontece com o dono, o
         pipeline REFAZ a geração com reforço; persistindo, responde com a
         action real em vez da recusa do modelo.
+
+        Para user/anonymous (2026-09-28): a recusa só é "indevida" quando
+        o ASSUNTO é do mundo externo (clima/geografia/conhecimento geral)
+        — a vedação de infraestrutura é de DIREITO do papel user, e um
+        "não posso" nela não é recusa, é o sistema funcionando. Com assunto
+        externo, porém, o modelo ALUCINA a vedação ('restrita ao dono' para
+        uma pergunta de clima) — caso real do dono no ar.
         """
-        if role != "admin" or not response:
+        if not response:
             return ""
+        from core.intents import detect_external_intent
+
         low = response.lower()
         # Etiqueta de log em QUALQUER posição (o gemma entregava
         # '[NICKY][WARN] Não posso...' — startswith deixava passar quando
@@ -1029,6 +1060,26 @@ class Orchestrator:
         for etiqueta in ("[crit]", "[warn]", "[info]", "[online]", "[nicky]"):
             if etiqueta in low:
                 return f"etiqueta de log no lugar da resposta ({etiqueta})"
+        if role != "admin":
+            # Só interessa quando a pergunta é do MUNDO EXTERNO: recusa
+            # nela é alucinação da vedação — nunca é a proteção funcionando
+            # (a proteção determinística de IP/portas é Etapa 3.4, antes do
+            # LLM; um 'não posso' vindo DO LLM sobre IP/portas com a
+            # Etapa 3.4 no ar é desculpa inventada, não direito do user).
+            if not detect_external_intent(text):
+                return ""
+            recusas_user = (
+                "não posso",
+                "nao posso",
+                "não tenho",
+                "restri[tc]ad[oa]",
+                "restrita ao dono",
+                "restritas ao dono",
+            )
+            for frase in recusas_user:
+                if re.search(frase, low):
+                    return f"alucinação de vedação para assunto externo ({frase})"
+            return ""
         recusas = (
             "não posso fornecer",
             "nao posso fornecer",
@@ -1059,11 +1110,20 @@ class Orchestrator:
                 return f"recusa indevida para o dono ({frase})"
         return ""
 
-    async def _retry_admin_generation(
+    async def _retry_generation(
         self,
         prompt: str,
+        role: str = "admin",
+        text: str = "",
     ) -> Optional[tuple[str, str]]:
-        """Segunda passada do LLM para o dono, com reforço anti-recusa.
+        """Segunda passada do LLM com reforço anti-recusa (por papel).
+
+        Para o DONO: dados operacionais da máquina são DELE — responda por
+        completo.
+        Para user/anônimo: só chega aqui com assunto do MUNDO EXTERNO (a
+        Etapa 3.4 já negou infra antes do LLM) — o reforço reafirma a
+        vedação real do papel e manda responder o assunto externo sem
+        inventar restrição.
 
         Returns:
             (resposta, llm_used) ou None quando o retry também falha ou
@@ -1071,20 +1131,33 @@ class Orchestrator:
         """
         # O prompt ChatML termina no marcador de assistant; o reforço entra
         # como um system EXTRA antes da resposta do modelo.
-        reforco = (
-            prompt
-            + "<|im_start|>system\nREFORÇO AO MODELO: quem pergunta é o "
-            "DONO/ADMIN autenticado do servidor. Informações operacionais "
-            "desta máquina (IPs, portas, serviços, paths, métricas, "
-            "temperatura, sensores) são DELE e devem ser respondidas por "
-            "completo. Perguntas do MUNDO EXTERNO (clima de cidade, "
-            "temperatura de lugar, geografia) são CONVERSA LIVRE — responda "
-            "com o que souber, sem inventar restrição. NÃO recuse, NÃO peça "
-            "para verificar manualmente, NÃO use etiquetas de log "
-            "([NICKY][...]) — responda SOMENTE o conteúdo, direto.<|im_end|>\n"
-        )
+        if role == "admin":
+            reforco = (
+                prompt
+                + "<|im_start|>system\nREFORÇO AO MODELO: quem pergunta é o "
+                "DONO/ADMIN autenticado do servidor. Informações operacionais "
+                "desta máquina (IPs, portas, serviços, paths, métricas, "
+                "temperatura, sensores) são DELE e devem ser respondidas por "
+                "completo. Perguntas do MUNDO EXTERNO (clima de cidade, "
+                "temperatura de lugar, geografia) são CONVERSA LIVRE — responda "
+                "com o que souber, sem inventar restrição. NÃO recuse, NÃO peça "
+                "para verificar manualmente, NÃO use etiquetas de log "
+                "([NICKY][...]) — responda SOMENTE o conteúdo, direto.<|im_end|>\n"
+            )
+        else:
+            reforco = (
+                prompt
+                + "<|im_start|>system\nREFORÇO AO MODELO: a pergunta é sobre o "
+                "MUNDO EXTERNO (clima, lugar, geografia, conhecimento geral) — "
+                "NÃO é dado deste servidor. Responda com o que souber, direto "
+                "e por completo. A única vedação real deste sistema é de dados "
+                "que podem PREJUDICAR O SERVIDOR (IPs, portas, paths, "
+                "credenciais) — e não é o caso desta pergunta. NÃO recuse, NÃO "
+                "invente restrição, NÃO use etiquetas de log ([NICKY][...]) — "
+                "responda SOMENTE o conteúdo.<|im_end|>\n"
+            )
         message, llm_used, _ = await self._generate(reforco)
-        if not message or self._refusal_reason(message, "admin"):
+        if not message or self._refusal_reason(message, role, text):
             return None
         return message, llm_used
 

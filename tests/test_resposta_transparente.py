@@ -172,6 +172,59 @@ class TestAntiRecusaAdmin:
             "admin",
         ) == ""
 
+    # ---- Recusa-alucinação do USER em assunto externo (2026-09-28) ----
+
+    def test_user_alucinando_vedacao_em_assunto_externo_e_recusa(self) -> None:
+        """BUG REAL NO AR (28/09): user perguntou 'temperatura em presidente
+        venceslau sp', o sistema roteou CERTO para o LLM, mas o gemma
+        ALUCINOU a vedação — 'informação de infraestrutura é restrita ao
+        dono'. Para assunto externo isso é recusa indevida também para o
+        papel user (não há infra na pergunta)."""
+        motivo = Orchestrator._refusal_reason(
+            "Informação de infraestrutura (IP, portas, topologia de rede) "
+            "é restrita ao dono do sistema.",
+            "user",
+            text="qual a temperatura em presidente venceslau sp",
+        )
+        assert motivo, "alucinação de vedação para user não detectada"
+
+    def test_user_normal_nao_aciona_deteccao_sem_assunto_externo(self) -> None:
+        """Sem assunto externo, o 'não posso' do user NÃO é recusa indevida:
+        a vedação de infra é de direito do papel (e a negação real de
+        IP/portas é determinística, Etapa 3.4 — nunca sai do LLM)."""
+        assert Orchestrator._refusal_reason(
+            "Não posso fornecer essas informações.",
+            "user",
+            text="qual o ip do servidor",
+        ) == ""
+        assert Orchestrator._refusal_reason(
+            "Não posso ajudar com isso.",
+            "user",
+            text="qual o melhor roteador do mercado",
+        ) == ""
+
+    def test_anonymous_com_assunto_externo_e_alucinacao_e_recusa(self) -> None:
+        """O anônimo também conversa sobre o mundo externo — mesma regra."""
+        assert Orchestrator._refusal_reason(
+            "[NICKY][WARN] Não tenho informações sobre o clima.",
+            "anonymous",
+            text="como está o clima em são paulo",
+        )
+
+    def test_resposta_normal_do_user_para_clima_nao_e_recusa(self) -> None:
+        assert Orchestrator._refusal_reason(
+            "Hoje em Presidente Venceslau SP faz 24°C com céu aberto.",
+            "user",
+            text="qual a temperatura em presidente venceslau sp",
+        ) == ""
+
+    def test_texto_padrao_ignora_deteccao_para_user(self) -> None:
+        """Sem `text` (chamadas antigas), a detecção para user fica neutra —
+        conservadorismo: só admin tem a detecção plena de recusas."""
+        assert Orchestrator._refusal_reason(
+            "Não posso fornecer essas informações.", "user"
+        ) == ""
+
 
 class TestIntencaoIpEPortas:
     """"ip do servidor" e "portas abertas" vão para a ACTION real (dado do
@@ -335,3 +388,55 @@ class TestGuardaInfraParaNaoDono:
         ))
         assert r.route == "action_intent"
         assert "fastpath:cpu_temp" in (r.llm_used or "")
+
+    def test_user_com_clima_e_llm_alucinando_recebe_retry_seguro(self) -> None:
+        """CASO REAL NO AR (28/09): user perguntou a temperatura de cidade,
+        o sistema roteou CERTO para o LLM, mas o gemma ALUCINOU a vedação
+        ('restrita ao dono'). O pipeline refaz UMA vez e a resposta real
+        chega ao user. O reforço do retry NÃO libera infra (fala de user):
+        sem 'DONO/ADMIN', reafirma a vedação real do papel."""
+        import asyncio
+
+        class LLMAlucinador:
+            name = "fake"
+
+            def __init__(self) -> None:
+                self.calls = 0
+                self.prompts: list[str] = []
+
+            async def generate(self, prompt, timeout=None, **kw):
+                self.calls += 1
+                self.prompts.append(prompt)
+                if self.calls == 1:
+                    return (
+                        "Informação de infraestrutura (IP, portas, "
+                        "topologia de rede) é restrita ao dono do sistema."
+                    )
+                return "Hoje em Presidente Venceslau SP faz 24°C."
+
+            async def generate_stream(self, prompt, timeout=None, **kw):
+                yield await self.generate(prompt, timeout, **kw)
+
+        from tools.actions import build_registry
+        from core.security import SecurityManager
+        llm = LLMAlucinador()
+        orch = Orchestrator(
+            providers=[llm],
+            config=OrchestratorConfig(default_system_prompt="x"),
+        )
+        orch.set_action_registry(
+            build_registry(security=SecurityManager(mode="strict"))
+        )
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian",
+            "qual a temperatura em presidente venceslau sp",
+            role="user",
+        ))
+        assert llm.calls == 2  # 1ª alucinou a vedação; 2ª respondeu
+        assert r.route == "fallback"  # retry bem-sucedido marca fallback
+        assert "24°C" in r.message
+        assert "restrita ao dono" not in r.message
+        reforco = llm.prompts[1]
+        assert "DONO/ADMIN" not in reforco  # reforço NÃO vira dados de dono
+        assert "MUNDO EXTERNO" in reforco
+        assert "PREJUDICAR O SERVIDOR" in reforco  # vedação reafirmada
