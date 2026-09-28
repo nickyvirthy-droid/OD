@@ -128,6 +128,9 @@ _CACHE_BAN_PREFIXES = (
     # Vazamento de raciocínio do modelo (CoT em inglês) não é resposta.
     "here's a thinking process",
     "here is a thinking process",
+    # Aviso honesto de indisponibilidade de recusa (2026-09-28) — o turno
+    # seguinte tem que ir de novo ao modelo, nunca servir este aviso.
+    "🤔 o modelo local não conseguiu responder",
 )
 
 # Recusa do modelo não é resposta cacheável (2026-09-28): o cache é
@@ -191,6 +194,16 @@ RATE_LIMITED_MESSAGE = "Muitas mensagens em pouco tempo. Aguarde um instante."
 INFRA_DENIED_MESSAGE = (
     "🔒 Informação de infraestrutura (IP, portas, topologia de rede) é "
     "restrita ao dono do sistema."
+)
+
+# Recusa persistente do modelo em ASSUNTO EXTERNO (2026-09-28): esgotados
+# os retries (2 para assunto externo), quem pergunta recebe este aviso
+# honesto — NUNCA a recusa falsa do modelo (que alega vedação de sistema
+# que não existe para a pergunta). Não é cacheável (prefixo banido em
+# _CACHE_BAN_PREFIXES) para a próxima tentativa ir de novo ao modelo.
+EXTERNAL_UNAVAILABLE_MESSAGE = (
+    "🤔 O modelo local não conseguiu responder agora. Tente perguntar de "
+    "novo em instantes."
 )
 
 TERMINAL_NO_LLM = {ROUTE_RATE_LIMITED, ROUTE_DATETIME, ROUTE_QUICK, ROUTE_CACHE}
@@ -814,7 +827,7 @@ class Orchestrator:
                 reason=refusal,
                 role=role,
             )
-            retry = await self._retry_generation(prompt, role, text)
+            retry = await self._resolve_refusal(prompt, role, text)
             if retry is not None:
                 full_response, llm_used = retry[0], retry[1]
                 fallback_used = True
@@ -1013,7 +1026,7 @@ class Orchestrator:
                 reason=refusal,
                 role=role,
             )
-            retry = await self._retry_generation(prompt, role, text)
+            retry = await self._resolve_refusal(prompt, role, text)
             if retry is not None:
                 message, llm_used = retry
                 fallback_used = True
@@ -1133,6 +1146,42 @@ class Orchestrator:
             if frase in low:
                 return f"recusa indevida para o dono ({frase})"
         return ""
+
+    async def _resolve_refusal(
+        self,
+        prompt: str,
+        role: str,
+        text: str,
+    ) -> Optional[tuple[str, str]]:
+        """Resolve uma recusa detectada: retries + fallback honesto.
+
+        ASSUNTO EXTERNO (qualquer papel): até 2 retries (3 gerações no
+        total) — recusar clima/geografia é alucinação, e quem pergunta
+        não deve ver a mentira do modelo; esgotando, devolve o aviso
+        honesto EXTERNAL_UNAVAILABLE_MESSAGE (não cacheável; a próxima
+        tentativa vai de novo ao modelo).
+        DADO DE SISTEMA (admin): 1 retry, como sempre — persistindo, o
+        chamador (WS) cai para a action real e o REST devolve a recusa
+        original (que, para IP/portas de fato vedados ao user, é a
+        resposta certa).
+        """
+        from core.intents import detect_external_intent
+
+        attempts = 2 if detect_external_intent(text) else 1
+        result: Optional[tuple[str, str]] = await self._retry_generation(
+            prompt, role, text
+        )
+        for _ in range(attempts - 1):
+            if result is not None:
+                return result
+            result = await self._retry_generation(prompt, role, text)
+        if result is not None:
+            return result
+        if attempts > 1:
+            # Assunto externo: o fallback é honesto e não cacheável — nunca
+            # a recusa falsa do modelo.
+            return EXTERNAL_UNAVAILABLE_MESSAGE, ""
+        return None
 
     async def _retry_generation(
         self,

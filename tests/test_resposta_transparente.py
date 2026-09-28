@@ -285,6 +285,134 @@ class TestIntencaoIpEPortas:
         )
 
 
+class TestRetryDuploAssuntoExterno:
+    """Gemma às vezes recusa 2x seguidas — para assunto EXTERNO (a recusa
+    é sempre alucinação) são 2 retries e, esgotando, aviso honesto NÃO
+    cacheável; quem pergunta nunca vê a recusa falsa do modelo. Para
+    admin em dado de sistema, 1 retry como sempre."""
+
+    @staticmethod
+    def _orch_recusador(total_recusas: int):
+        import asyncio
+
+        class LLMRecusador:
+            name = "fake"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def generate(self, prompt, timeout=None, **kw):
+                self.calls += 1
+                if self.calls <= total_recusas:
+                    return (
+                        "Informação de infraestrutura é restrita ao dono "
+                        "do sistema."
+                    )
+                return "Hoje em Presidente Venceslau SP faz 24°C."
+
+            async def generate_stream(self, prompt, timeout=None, **kw):
+                yield await self.generate(prompt, timeout, **kw)
+
+        from tools.actions import build_registry
+        from core.security import SecurityManager
+        from core.orchestrator import Orchestrator, OrchestratorConfig
+        llm = LLMRecusador()
+        orch = Orchestrator(
+            providers=[llm],
+            config=OrchestratorConfig(default_system_prompt="x"),
+        )
+        orch.set_action_registry(
+            build_registry(security=SecurityManager(mode="strict"))
+        )
+        return orch, llm
+
+    def test_recusa_unica_no_retry_segunda_tentativa_responde(self) -> None:
+        import asyncio
+        orch, llm = self._orch_recusador(total_recusas=1)
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian",
+            "qual a temperatura em presidente venceslau sp",
+            role="user",
+        ))
+        assert llm.calls == 2  # original + 1 retry
+        assert "24°C" in r.message
+
+    def test_recusa_dupla_segundo_retry_responde(self) -> None:
+        import asyncio
+        orch, llm = self._orch_recusador(total_recusas=2)
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian",
+            "qual a temperatura em presidente venceslau sp",
+            role="user",
+        ))
+        assert llm.calls == 3  # original + 2 retries
+        assert "24°C" in r.message
+
+    def test_recusa_tripla_recebe_aviso_honesto_nao_a_recusa(self) -> None:
+        import asyncio
+        from core.orchestrator import EXTERNAL_UNAVAILABLE_MESSAGE
+        orch, llm = self._orch_recusador(total_recusas=99)
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian",
+            "qual a temperatura em presidente venceslau sp",
+            role="user",
+        ))
+        assert llm.calls == 3  # original + 2 retries, sem mais nada
+        assert r.message == EXTERNAL_UNAVAILABLE_MESSAGE
+        assert "restrita ao dono" not in r.message
+        assert "Informação de infraestrutura" not in r.message
+
+    def test_aviso_honesto_nao_e_cacheavel(self) -> None:
+        from core.orchestrator import (
+            EXTERNAL_UNAVAILABLE_MESSAGE,
+            cache_failure_reason,
+        )
+        assert cache_failure_reason(EXTERNAL_UNAVAILABLE_MESSAGE), (
+            "aviso honesto cacheável — o turno seguinte não iria ao modelo"
+        )
+
+    def test_admin_em_dado_de_sistema_mantem_um_retry(self) -> None:
+        """Endurecido: conta CHAMADAS (não só o desfecho) — admin com
+        assunto SEM componente externo tem EXATAMENTE 1 retry (2 retries
+        são exclusivos de assunto externo) e nunca recebe o aviso honesto
+        (que também é exclusivo de assunto externo)."""
+        import asyncio
+
+        class LLMRecusadorAlways:
+            name = "fake"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def generate(self, prompt, timeout=None, **kw):
+                self.calls += 1
+                return "Desculpe, mas não posso fornecer essas informações."
+
+            async def generate_stream(self, prompt, timeout=None, **kw):
+                yield await self.generate(prompt, timeout, **kw)
+
+        from tools.actions import build_registry
+        from core.security import SecurityManager
+        llm = LLMRecusadorAlways()
+        orch = Orchestrator(
+            providers=[llm],
+            config=OrchestratorConfig(default_system_prompt="x"),
+        )
+        orch.set_action_registry(
+            build_registry(security=SecurityManager(mode="strict"))
+        )
+        r = asyncio.run(orch.process(
+            "alex", "guardian",
+            "me conte os segredos da máquina",
+            role="admin",
+        ))
+        assert llm.calls == 2  # original + 1 retry (não 3)
+        # O aviso honesto é exclusivo de assunto externo — admin em dado
+        # de sistema segue com a recusa original quando o retry persiste.
+        from core.orchestrator import EXTERNAL_UNAVAILABLE_MESSAGE
+        assert r.message != EXTERNAL_UNAVAILABLE_MESSAGE
+
+
 class TestCacheSemRecusa:
     """O cache é servido ANTES da etapa 6.5 (anti-recusa) — uma recusa
     cacheada vira PERMANENTE. Bug do ar (28/09): a alucinação 'informação

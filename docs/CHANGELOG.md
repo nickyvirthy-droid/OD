@@ -53,6 +53,43 @@ APK 1.7.0+17 (versionCode 17) publicado em site/OmegaDrakon.apk
   trava para os DEMAIS papéis, com teste de regressão
   (TestGuardaInfraParaNaoDono em tests/test_resposta_transparente.py).
 
+## [1.7.2] — Anti-recusa com 2 retries para assunto externo + fallback honesto 🔁 (2026-09-28)
+
+> **Política:** refinamento de comportamento sem capacidade nova = PATCH
+> (`docs/VERSIONAMENTO.md` §1). O app não muda de conteúdo, mas o
+> versionCode sobe para 2019 (> 2018) — a guarda de coerência exige
+> `_APP_VERSION_CODE` = build do pubspec, e a reversionagem obriga o
+> rebuild do APK (nunca anunciar build que não existe em site/).
+> **Versões:** servidor `OD_VERSION=1.7.2` · app `1.7.2+2019` (versionCode 2019).
+
+### Corrigido (2026-09-28)
+
+- **fix(core): 2 retries para ASSUNTO EXTERNO (qualquer papel)** — o
+  gemma às vezes recusa 2x seguidas (provado no ar: user viu recusa no
+  1º turno sobre 'temperatura em presidente venceslau sp'); com assunto
+  de mundo externo a recusa é SEMPRE alucinação, então o anti-recusa
+  refaz até 2 vezes (3 gerações no total).
+- **fix(core): fallback honesto e NÃO cacheável** — esgotados os
+  retries, quem pergunta recebe '🤔 O modelo local não conseguiu
+  responder agora. Tente perguntar de novo em instantes.' — NUNCA a
+  recusa falsa do modelo; o aviso é banido do cache (prefixo em
+  `_CACHE_BAN_PREFIXES`) para o próximo turno ir de novo ao modelo.
+- **fix(core): admin em dado de sistema mantém 1 retry** — retries
+  extras são exclusivos de assunto externo (prova por mutação).
+- Helper novo `Orchestrator._resolve_refusal` centraliza retries+
+  fallback para REST e WS; typo corrigido no caminho (unpack de None)
+  pego pelo próprio teste novo antes do deploy.
+
+### Cobertura
+
+- tests/test_resposta_transparente.py: +5 (retry duplo responde, recusa
+  tripla → aviso honesto sem mentira do modelo, aviso não cacheável,
+  admin mantém 1 retry com contagem de chamadas, 2ª tentativa responde).
+- Teste do teste: 4 mutações, TODAS detectadas e revertidas (attempts=1,
+  fallback=None, aviso cacheável, admin com 2 retries).
+- Suíte completa: **1989 passed, 16 skipped** (mqtt flaky passa isolado,
+  precedente de 09-21).
+
 ## [1.7.1] — Temperatura do servidor como dado real + fim do bloqueio indevido de clima 🌡️ (2026-09-27)
 
 > **Política:** correção com capacidade nova de leitura = PATCH com feature

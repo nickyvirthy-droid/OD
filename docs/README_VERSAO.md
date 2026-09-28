@@ -7,6 +7,33 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.7.2] — Anti-recusa com 2 retries para assunto externo + fallback honesto 🔁 (2026-09-28)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | user não deve ver recusa no 1º turno quando o assunto é mundo externo (o gemma às vezes recusa 2x seguidas) |
+| **2 retries** | assunto externo (qualquer papel): até 2 refazimentos (3 gerações) — recusa neles é sempre alucinação |
+| **Fallback honesto** | esgotando: '🤔 Tente perguntar de novo em instantes' — nunca a recusa falsa; NÃO cacheável |
+| **Admin preservado** | dado de sistema segue com 1 retry (prova por mutação) |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 1989 passed, 16 skipped (mqtt flaky passa isolado)
+4 mutações detectadas e revertidas (attempts=1, fallback=None, aviso
+cacheável, admin com 2 retries)
+APK 1.7.2+2019 (versionCode 2019) publicado em site/ — reversionagem
+obrigatória: a guarda exige _APP_VERSION_CODE == pubspec e /app/version
+nunca pode anunciar build que não está publicado
+```
+
+### 3. Pendências / próximos passos
+
+- Nenhuma funcional pendente; o app 1.7.1+2018 recebe o 1.7.2+2019 pela
+  auto-atualização (conteúdo do app é o mesmo).
+
 ## [1.7.1] — Temperatura do servidor como dado real + fim do bloqueio indevido de clima 🌡️ (2026-09-27)
 
 ### 1. O que foi feito
