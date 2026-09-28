@@ -1023,8 +1023,11 @@ class Orchestrator:
         if role != "admin" or not response:
             return ""
         low = response.lower()
+        # Etiqueta de log em QUALQUER posição (o gemma entregava
+        # '[NICKY][WARN] Não posso...' — startswith deixava passar quando
+        # o modelo embutia a etiqueta depois de um texto) (2026-09-27).
         for etiqueta in ("[crit]", "[warn]", "[info]", "[online]", "[nicky]"):
-            if low.startswith(etiqueta):
+            if etiqueta in low:
                 return f"etiqueta de log no lugar da resposta ({etiqueta})"
         recusas = (
             "não posso fornecer",
@@ -1041,6 +1044,15 @@ class Orchestrator:
             "não posso fornecer essas informações",
             "sem acesso físico",
             "não tenho como verificar",
+            # Novos padrões vistos no ar (27/09): 'não posso fornecer
+            # informações sobre o clima' e variantes com 'informação'.
+            "não posso fornecer informações sobre",
+            "não posso fornecer informações de",
+            "informações sobre o clima específico",
+            "são restritas ao dono",
+            "é restrita ao dono",
+            "não posso fornecer o clima",
+            "não posso informar",
         )
         for frase in recusas:
             if frase in low:
@@ -1063,10 +1075,13 @@ class Orchestrator:
             prompt
             + "<|im_start|>system\nREFORÇO AO MODELO: quem pergunta é o "
             "DONO/ADMIN autenticado do servidor. Informações operacionais "
-            "desta máquina (IPs, portas, serviços, paths, métricas) são DELE "
-            "e devem ser respondidas por completo. NÃO recuse, NÃO peça para "
-            "verificar manualmente, NÃO use etiquetas de log ([NICKY][...]) "
-            "— responda SOMENTE o conteúdo, direto.<|im_end|>\n"
+            "desta máquina (IPs, portas, serviços, paths, métricas, "
+            "temperatura, sensores) são DELE e devem ser respondidas por "
+            "completo. Perguntas do MUNDO EXTERNO (clima de cidade, "
+            "temperatura de lugar, geografia) são CONVERSA LIVRE — responda "
+            "com o que souber, sem inventar restrição. NÃO recuse, NÃO peça "
+            "para verificar manualmente, NÃO use etiquetas de log "
+            "([NICKY][...]) — responda SOMENTE o conteúdo, direto.<|im_end|>\n"
         )
         message, llm_used, _ = await self._generate(reforco)
         if not message or self._refusal_reason(message, "admin"):

@@ -7,6 +7,31 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.7.1] — Temperatura do servidor como dado real + fim do bloqueio indevido de clima 🌡️ (2026-09-27)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono (2)** | "temperatuda em presidente venceslau sp" recebia 🔒 (vedação indevida de infra capturando 'temperatura') · "temperatura do servidor" não tinha dado real (LLM recusava/alucinava) |
+| **Mundo externo** | `detect_external_intent` (core/intents.py): clima/lugar = conversa livre para qualquer papel; 'temperatura do servidor' segue para a action real |
+| **Action cpu_temp** | Catálogo 58 → 59: `/sys/class/thermal` + fallback `/sys/class/hwmon` (stdlib, sem root); sensor mais quente + zonas; liberada para o papel user (leitura não prejudica) |
+| **Anti-recusa** | Etiqueta `[NICKY][...]` em qualquer posição + 7 padrões novos de recusa do gemma; reforço cita 'mundo externo = conversa livre' |
+| **Prompt do user** | Limites agora vedam APENAS o que pode prejudicar o sistema; resto é conversa livre (sem inventar restrição) |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 1974 passed, 16 skipped
+APK 1.7.1+2018 (versionCode 2018) publicado em site/ — sem mudança de
+conteúdo no app; bump só para manter a linhagem monotônica (2018 > 2017)
+```
+
+### 3. Pendências / próximos passos
+
+- Nenhuma funcional pendente; o app 1.7.1+2018 deve ser oferecido pela
+  auto-atualização ao celular (versionCode maior) — o conteúdo é o mesmo.
+
 ## [1.7.0] — AUTO-ATUALIZAÇÃO DO APP + SITE MAIS RÁPIDO + TRAVA DE INFRA PARA NÃO-DONO 🚀 (2026-09-26)
 
 ### 1. O que foi feito

@@ -211,6 +211,66 @@ def cpu_info() -> dict[str, Any]:
     }
 
 
+def cpu_temp() -> dict[str, Any]:
+    """Temperatura do servidor (zones térmicos do kernel, via
+    /sys/class/thermal e /sys/class/hwmon — stdlib, sem root).
+
+    Motivação (2026-09-27): o dono perguntou a temperatura do servidor no
+    chat e o LLM recusou/alucinou — não existia action para o dado real.
+    """
+    readings: list[dict[str, Any]] = []
+    try:
+        for zone in sorted(os.listdir("/sys/class/thermal")):
+            if not zone.startswith("thermal_zone"):
+                continue
+            base = f"/sys/class/thermal/{zone}"
+            try:
+                with open(f"{base}/temp", encoding="utf-8") as fh:
+                    millideg = int(fh.read().strip())
+                with open(f"{base}/type", encoding="utf-8") as fh:
+                    ztype = fh.read().strip() or zone
+                readings.append(
+                    {"zone": zone, "type": ztype, "celsius": round(millideg / 1000, 1)}
+                )
+            except (OSError, ValueError):
+                continue
+    except OSError:
+        pass
+    if not readings:
+        # Fallback hwmon (máquinas sem thermal_zone exposto).
+        try:
+            for hw in sorted(os.listdir("/sys/class/hwmon")):
+                base = f"/sys/class/hwmon/{hw}"
+                try:
+                    with open(f"{base}/name", encoding="utf-8") as fh:
+                        name = fh.read().strip() or hw
+                    for label_file in sorted(os.listdir(base)):
+                        if not label_file.startswith("temp") or not label_file.endswith("_input"):
+                            continue
+                        with open(f"{base}/{label_file}", encoding="utf-8") as fh:
+                            millideg = int(fh.read().strip())
+                        readings.append(
+                            {"zone": f"{hw}/{label_file}", "type": name,
+                             "celsius": round(millideg / 1000, 1)}
+                        )
+                except (OSError, ValueError):
+                    continue
+        except OSError:
+            pass
+    if not readings:
+        return _unavailable(
+            "cpu_temp",
+            "nenhum sensor térmico exposto (/sys/class/thermal e hwmon vazios)",
+        )
+    hottest = max(readings, key=lambda r: r["celsius"])
+    return {
+        "ok": True,
+        "readings": readings,
+        "hottest": hottest,
+        "celsius": hottest["celsius"],
+    }
+
+
 def ip_address() -> dict[str, Any]:
     """Endereços IP do host (best-effort, sem root)."""
     try:
@@ -982,6 +1042,7 @@ CATALOG: list[dict[str, Any]] = [
           {"path": {**S, "default": "/"}}),
     _spec("memory_usage", "system", "Uso de memória RAM/swap", memory_usage),
     _spec("cpu_info", "system", "Núcleos/modelo/carga da CPU", cpu_info),
+    _spec("cpu_temp", "system", "Temperatura do servidor (zones térmicos)", cpu_temp),
     _spec("ip_address", "system", "Endereços IP do host", ip_address),
     _spec("listening_ports", "system", "Portas TCP em escuta", listening_ports),
     

@@ -90,10 +90,13 @@ def build_identity_prompt(
         )
     elif role == "user":
         limites = (
-            "Limites: dados privados e de infraestrutura do sistema (IPs, "
-            "portas, paths internos, credenciais) ficam privados; ações "
-            "externas exigem aprovação do dono; respostas completas, nunca "
-            "pela metade."
+            "Limites: APENAS dados que possam PREJUDICAR O SISTEMA ficam "
+            "privados — IPs, portas, paths internos, credenciais, variáveis "
+            "de ambiente e segredos. TUDO o mais é conversa livre: clima, "
+            "temperatura de cidade, geografia, notícias, cultura, matemática "
+            "— responda completo e NUNCA invente restrição que não existe. "
+            "Ações externas ao sistema exigem aprovação do dono; respostas "
+            "completas, nunca pela metade."
         )
     else:
         limites = (

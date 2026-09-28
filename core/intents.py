@@ -46,6 +46,7 @@ FASTPATH_ACTIONS: frozenset[str] = frozenset({
     "process_list",        # processos ativos
     "memory_usage",        # RAM/swap
     "cpu_info",            # núcleos/modelo/load
+    "cpu_temp",            # temperatura do servidor (zones térmicos)
     "disk_usage",          # disco
     "uptime",              # tempo no ar
     "system_info",         # sistema geral
@@ -84,8 +85,18 @@ def detect_infra_intent(text: str) -> bool:
     pergunta é negada determinísticamente — nem chega ao LLM (o modelo
     entregava o IP mesmo com a vedação no prompt). Os MESMOS padrões que
     disparam as actions `ip_address`/`listening_ports` para o dono.
+
+    Bug fixado (2026-09-27, reportado pelo dono): perguntas do MUNDO
+    EXTERNO (clima/temperatura de cidade) NÃO são infraestrutura —
+    "temperatura em presidente venceslau sp" nunca deve ser bloqueada.
+    A vedação é para dados que possam PREJUDICAR O SISTEMA (IP, portas,
+    paths, credenciais), não para conhecimento geral.
     """
     if not text or not text.strip():
+        return False
+    # Perguntas sobre o mundo externo valem antes de qualquer padrão de
+    # infra: "qual a temperatura em <cidade>" não é do servidor.
+    if detect_external_intent(text):
         return False
     low = text.lower()
     if re.search(r"\b(ip|ipv[46]|endere[çc]o\s+de\s+ip)\b", low) and re.search(
@@ -95,6 +106,41 @@ def detect_infra_intent(text: str) -> bool:
     if re.search(r"\bportas?\b", low) and re.search(
         r"(abertas?|escutando|listening|em\s+uso|livres?|ocupadas?)", low
     ):
+        return True
+    return False
+
+
+# Assuntos do MUNDO EXTERNO — conhecimento geral, livre para qualquer
+# usuário autenticado (o dono reportou: bloquear "temperatura em cidade"
+# era vedação indevida — a proteção é para o que pode PREJUDICAR O
+# SISTEMA, não para curiosidades gerais). 'tempo' só conta com sujeito
+# de clima — não pega "quanto tempo de uptime".
+_EXTERNAL_SUBJECTS = re.compile(
+    r"\b(temperatura|temperatuda|clima|umidade|previs[aã]o\s+do\s+tempo|"
+    r"chover|chove|vento)\b|\btempo\s+(em|agora|hoje|amanh[aã])"
+)
+_EXTERNAL_PLACE = re.compile(r"\b(em|no|na|para)\s+\w")
+
+
+def detect_external_intent(text: str) -> bool:
+    """True quando a pergunta é do MUNDO EXTERNO (clima/temperatura de
+    lugar, tempo em cidade) — conhecimento geral, NÃO dado do sistema.
+
+    Conservador: só escapa da vedação de infra quando o sujeito é
+    claramente de clima OU 'temperatura/clima' seguido de lugar ("em X").
+    Temperatura DO SERVIDOR segue para a action cpu_temp (dado real).
+    """
+    if not text or not text.strip():
+        return False
+    low = text.lower()
+    # 'temperatura do servidor/da máquina/cpu' NÃO é externo (dado real).
+    if re.search(r"\b(temperatura|temperatuda)\b", low) and re.search(
+        r"(servidor|m[aá]quina|cpu|sistema|host)", low
+    ):
+        return False
+    if _EXTERNAL_SUBJECTS.search(low):
+        return True
+    if re.search(r"\b(temperatura|temperatuda|clima)\b", low) and _EXTERNAL_PLACE.search(low):
         return True
     return False
 
@@ -124,6 +170,12 @@ def _detect_operational(text: str) -> Optional[str]:
     # cpu
     if re.search(r"(uso\s+da\s+cpu|cpu\s+em|quanto\s+.*cpu|processador)", low):
         return "cpu_info"
+    # temperatura DO SERVIDOR (a de cidade é do mundo externo — LLM sabe
+    # responder; a da máquina é dado real: cpu_temp via sensors térmicos)
+    if re.search(r"\b(temperatura|temperatuda)\b", low) and re.search(
+        r"(servidor|m[aá]quina|cpu|sistema|host|rodando)", low
+    ):
+        return "cpu_temp"
     # disco
     if re.search(r"(disco|espa[çc]o|armazenamento|hd|ssd)", low) and \
        re.search(r"(us[oa]do|livre|quanto|como est[áa])", low):
@@ -262,6 +314,18 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
             model = model[:40] + "…"
         return (f"⚙️ CPU: {data.get('cores', 0)} núcleos · load {data.get('load1', 0)} · "
                 f"{model}")
+
+    if action == "cpu_temp":
+        readings = data.get("readings") or []
+        hottest = data.get("hottest") or {}
+        temp = data.get("celsius", hottest.get("celsius"))
+        if temp is None:
+            return None
+        lines = [f"🌡️ Temperatura do servidor: {temp}°C (sensor mais quente: "
+                 f"{hottest.get('type', '?')})"]
+        for r in readings[:5]:
+            lines.append(f"  • {r.get('type', r.get('zone', '?'))}: {r.get('celsius')}°C")
+        return "\n".join(lines)
 
     if action == "disk_usage":
         percent = data.get("percent", 0)

@@ -141,6 +141,37 @@ class TestAntiRecusaAdmin:
     def test_vazia_nao_e_recusa(self) -> None:
         assert Orchestrator._refusal_reason("", "admin") == ""
 
+    def test_etiqueta_embutida_no_meio_e_recusa(self) -> None:
+        """Bug do ar (27/09): o gemma entregou '[NICKY][WARN] Não posso
+        fornecer informações sobre o clima...' — startswith pegava só
+        etiqueta no INÍCIO; a guard vale em qualquer posição."""
+        respostas = [
+            "[NICKY][WARN] Não posso fornecer informações sobre o clima ou "
+            "localização geográfica de um país específico.",
+            "Entendo. [NICKY][INFO] segue a resposta",
+        ]
+        for resposta in respostas:
+            motivo = Orchestrator._refusal_reason(resposta, "admin")
+            assert motivo, f"etiqueta embutida não detectada: {resposta}"
+
+    def test_bloqueio_falso_de_infra_para_dono_e_recusa(self) -> None:
+        """O modelo imitando a vedação do sistema ('restrita ao dono')
+        para o PRÓPRIO dono é recusa — refaz."""
+        assert Orchestrator._refusal_reason(
+            "🔒 Informação de infraestrutura (IP, portas, topologia de rede) "
+            "é restrita ao dono do sistema.",
+            "admin",
+        )
+
+    def test_clima_para_o_dono_nao_e_recusa(self) -> None:
+        """Pergunta de temperatura de cidade respondida normal NÃO é recusa
+        (o dono reportou: o sistema bloqueava clima — vedação indevida)."""
+        assert Orchestrator._refusal_reason(
+            "A temperatura em Presidente Venceslau SP hoje é de 24°C com "
+            "céu aberto.",
+            "admin",
+        ) == ""
+
 
 class TestIntencaoIpEPortas:
     """"ip do servidor" e "portas abertas" vão para a ACTION real (dado do
@@ -169,6 +200,30 @@ class TestIntencaoIpEPortas:
     def test_palavra_com_ip_no_meio_nao_e_intencao(self) -> None:
         from core.intents import detect_action_intent
         assert detect_action_intent("qual o melhor roteador do mercado") is None
+
+    def test_temperatura_do_servidor_cai_na_cpu_temp(self) -> None:
+        """'temperatura do servidor' é dado REAL da máquina (cpu_temp —
+        sensors térmicos), não conversa: o LLM recusava/alucinava."""
+        from core.intents import detect_action_intent
+        for pergunta in (
+            "qual a temperatura do servidor",
+            "qual a temperatuda do servidor",  # typo real do dono
+            "qual a temperatura da cpu",
+        ):
+            assert detect_action_intent(pergunta) == ("cpu_temp", {}), pergunta
+
+    def test_temperatura_de_cidade_nao_e_infra_nem_action(self) -> None:
+        """Clima/tempo de CIDADE é mundo externo — nunca bloqueado como
+        infra e sem action (o LLM responde). Caso real do dono (27/09):
+        'qual a temperatuda em presidente venceslau sp' recebia 🔒."""
+        from core.intents import detect_action_intent, detect_infra_intent
+        for pergunta in (
+            "qual a temperatuda em presidente venceslau sp",
+            "qual a temperatura em presidente venceslau sp",
+            "como está o clima em são paulo",
+        ):
+            assert detect_infra_intent(pergunta) is False, pergunta
+            assert detect_action_intent(pergunta) is None, pergunta
 
     def test_processos_continuam_process_list(self) -> None:
         from core.intents import detect_action_intent
@@ -252,3 +307,31 @@ class TestGuardaInfraParaNaoDono:
         user_actions = DEFAULT_ROLE_PERMISSIONS["user"]
         assert "ip_address" not in user_actions
         assert "listening_ports" not in user_actions
+
+    def test_clima_do_user_nao_e_bloqueado_como_infra(self) -> None:
+        """Caso real do dono (27/09): 'temperatuda em presidente venceslau
+        sp' do papel user recebia 🔒 — o bloqueio é só para o que pode
+        PREJUDICAR O SISTEMA (IP/portas), não para conhecimento geral."""
+        import asyncio
+        orch, _ = self._orch()
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian",
+            "qual a temperatuda em presidente venceslau sp",
+            role="user",
+        ))
+        assert r.route == "llm"
+        assert "restrita ao dono" not in r.message
+        assert r.message == "RESPOSTA_DO_LLM_FAKE"  # foi ao LLM de verdade
+
+    def test_temperatura_do_servidor_para_user_vai_via_cpu_temp(self) -> None:
+        """A temperatura DA MÁQUINA é dado de leitura (não prejudica o
+        sistema): permitida para user via cpu_temp — diferente de
+        IP/portas, que continuam vedados."""
+        import asyncio
+        orch, _ = self._orch()
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian", "qual a temperatura do servidor",
+            role="user",
+        ))
+        assert r.route == "action_intent"
+        assert "fastpath:cpu_temp" in (r.llm_used or "")

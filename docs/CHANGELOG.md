@@ -53,6 +53,47 @@ APK 1.7.0+17 (versionCode 17) publicado em site/OmegaDrakon.apk
   trava para os DEMAIS papéis, com teste de regressão
   (TestGuardaInfraParaNaoDono em tests/test_resposta_transparente.py).
 
+## [1.7.1] — Temperatura do servidor como dado real + fim do bloqueio indevido de clima 🌡️ (2026-09-27)
+
+> **Política:** correção com capacidade nova de leitura = PATCH com feature
+> pontual (`docs/VERSIONAMENTO.md` §1 — precedente [1.6.1]: a intenção nova
+> é caminho para dado existente; nenhuma API nova). O app não muda de
+> conteúdo, mas o versionCode sobe para 2018 (> 2017) para manter a
+> linhagem monotônica da auto-atualização.
+> **Versões:** servidor `OD_VERSION=1.7.1` · app `1.7.1+2018` (versionCode 2018).
+
+### Corrigido (2026-09-27)
+
+- **fix(intents): clima/temperatura de CIDADE não é infraestrutura** —
+  o dono perguntou "temperatuda em presidente venceslau sp" e recebeu 🔒
+  (a vedação de infra capturava a palavra 'temperatura'). Novo
+  `detect_external_intent`: assunto de clima/lugar = mundo externo,
+  conversa livre para qualquer papel autenticado. 'tempo' só conta como
+  clima com sujeito de clima — "quanto tempo de uptime" segue intacto.
+- **fix(chat): "temperatura do servidor" responde com DADO REAL** —
+  nova action `cpu_temp` (catálogo 58 → 59): `/sys/class/thermal` +
+  fallback `/sys/class/hwmon` (stdlib, sem root), leitura do sensor mais
+  quente + zonas. Intenção operacional nova em `core/intents.py`.
+- **fix(permissions): `cpu_temp` liberada para o papel user** — leitura
+  de temperatura não prejudica o sistema (diferente de IP/portas, que
+  seguem vedados).
+- **fix(core): anti-recusa do dono endurecido** — etiqueta de log
+  `[NICKY][...]` detectada em QUALQUER posição (o gemma entregava
+  '[NICKY][WARN] Não posso fornecer informações sobre o clima...' e o
+  `startswith` deixava passar) + 7 padrões novos de recusa vistos no ar.
+- **fix(personality): limites do papel user sem excesso** — o prompt
+  agora veda APENAS o que pode PREJUDICAR O SISTEMA (IPs, portas, paths,
+  credenciais, segredos); o resto é conversa livre — o modelo não tem
+  mais desculpa para inventar restrição de clima/geografia/notícias.
+
+### Cobertura
+
+- tests/test_resposta_transparente.py: +8 (etiqueta embutida, clima do
+  dono não é recusa, cpu_temp por typo real, cidade não é infra nem
+  action, clima do user sem bloqueio, cpu_temp para user); +1 mutação
+  corrigida no comentário (v1.7.2 → v1.7.1).
+- Suíte completa: **1974 passed, 16 skipped** (+7 sobre a 1.7.0).
+
 ## [1.6.1] — IP e portas pela ACTION no chat + anti-recusa do dono 🔧 (2026-09-26)
 
 > **Política:** correção com capacidade nova de leitura = PATCH com feature
