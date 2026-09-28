@@ -1,7 +1,26 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-28T19:5x:00-03:00",
+  "updated_at": "2026-09-28T20:3x:00-03:00",
+  "v180_home_assistant_2026_09_28": {
+    "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
+    "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
+    "implementacao": [
+      "tools/actions: ha_weather (weather.* real), ha_lights (switch.*/light.*, leitura), ha_summary (clima+luzes+people+bateria+roteador) — categoria nova iot (3), catálogo 59 → 62; configure_ha_client injetado pelo build_action_registry (config/iot_credentials.json); degradam ok=False sem HA.",
+      "core/intents: clima/cidade/agora → ha_weather (dado REAL, sem LLM; 'tempo em média/demora' não é clima); luzes acesas → ha_lights; 'como está a casa' → ha_summary; senha/credencial/token → __secrets_denied__ (negação determinística para TODOS, avaliada antes do gate de anonymous em process e process_stream).",
+      "core/orchestrator: SECRETS_DENIED_MESSAGE + gate nos dois caminhos.",
+      "permissions: user ganha ha_weather + ha_lights (ha_summary só admin).",
+      "personality: 'Casa de Conhecimento' — tempo real sem fonte de ferramenta é DESCONHECIDO ('não tenho esse dado agora'); fatos incertos → admitir incerteza; senha nunca.",
+      "launcher: build_action_registry liga o HAClient às actions iot_*."
+    ],
+    "bump": "1.8.0 (MINOR): .env, capabilities, pubspec 1.8.0+2020, _APP_VERSION_CODE=2020, site (2x), CHANGELOG [1.8.0], README_VERSAO §1.8.0. APK rebuildado (aapt2 versionCode='2020').",
+    "validacao": "Suíte 1994 passed, 16 skipped; flutter analyze 0 issues; flutter test 96/2.",
+    "deploy": "IMPLANTADO — restart 20:2x, PID 883071, NRestarts=0. Prova viva 5/5: (1) admin 'temperatura agora em presidente venceslau' → fastpath:ha_weather 31.7°C REAL (antes: 23°C inventado); (2) user 'clima hoje' → 31.7°C real; (3) admin 'luzes acesas' → 2 acesas de 6 com nomes reais; (4) 'qual a senha do mqtt' → 🔐 negação determinística sem LLM; (5) /app/version 1.8.0 code 2020 sha==binário; capabilities 62 actions; journal 0 erros.",
+    "commit": "6d68780 feat(iot,intents): o chat fala com o lar (v1.8.0) — 17 arquivos +518/−37; HEAD==origin/master.",
+    "estado": "CONCLUÍDO E NO AR — clima e lar com dado real; segredo nunca mais sai do modelo.",
+    "pendente_dono": "Controle de luzes (ligar/desligar) desenhado e NÃO implementado — gate de papel + confirmação; aguardando aprovação.",
+    "transcricao": "iniciar/2026-09-28_conversa_omegadrakon.md (§10)"
+  },
   "v172_dois_retries_2026_09_28": {
     "pedido": "Dono: 'Avaliar 2 retries no anti-recusa quando o assunto é mundo externo, para o user não ver recusa no 1º turno'.",
     "implementacao": [
@@ -720,7 +739,7 @@
   "last_turn": {
     "date": "2026-09-28",
     "action": "v1.7.1 completa: lote órfão resgatado (b0961aa — cpu_temp, clima sem bloqueio indevido, anti-recusa endurecido), /app/version anunciando APK errado corrigido (4384e5b), deploy provado 6/6 (temperatura real 57°C via fastpath:cpu_temp, ZERO LLM).",
-    "next": "Nada pendente no servidor nem no app. Próxima sessão começa de novo pedido do dono. Anti-recusa fechado: 2 retries para assunto externo + fallback honesto (v1.7.2, 35a7b34); _APP_VERSION_CODE com guarda na suíte e item 4 no checklist §5.",
+    "next": "Pendente do dono: aprovar (ou não) o CONTROLE de luzes pelo chat (ligar/desligar com gate de papel + confirmação) — leitura do lar já no ar (v1.8.0). Na próxima reversionagem do app: versionCode 2021+.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

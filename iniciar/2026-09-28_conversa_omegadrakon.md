@@ -234,11 +234,69 @@ mundo externo, para o user não ver recusa no 1º turno".
 
 Commit: `35a7b34` fix(core) — 8 arquivos +248/−7; HEAD == origin/master.
 
+## 10. v1.8.0 — o chat fala com o lar: HA como fonte de verdade (~20:0x–20:3x)
+
+Pedido do dono: "leia as conversas e verifique as respostas com as suas
+e veja o que pode ser melhorado. se o sistema tem acesso ao Home
+Assistant, porque não pega informações de lá".
+
+### Diagnóstico (histórico real do alex + integração)
+
+- "temperatura agora em presidente venceslau" → LLM inventou **23°C** e
+  repetiu a mentira quando o dono disse "mentira".
+- "qual a senha do mqtt" → LLM respondeu **OmegaDrakon2026** (falsa —
+  conferida contra o cofre; nem existe no .env).
+- "religião mais antiga" → alucinação factual (Budismo em Babilônia).
+- HA: health "HA alcançável", **40 entidades reais**
+  (weather.forecast_casa 33.3°C/63%, 7 luzes Sonoff, bateria 61%,
+  roteador com IP externo) e **ZERO actions no catálogo** — o chat não
+  alcançava nada disso.
+
+### Implementação
+
+- **Actions iot":** `ha_weather`, `ha_lights` (leitura), `ha_summary`
+  — categoria nova `iot` (3), catálogo **59 → 62**;
+  `configure_ha_client` injeta o HAClient (config/iot_credentials.json)
+  no `build_action_registry`; sem HA, degradam (ok=False → LLM).
+- **Intenções:** clima/cidade/agora → `ha_weather` (dado REAL, sem
+  LLM; "tempo em média/demora" não é clima); luzes acesas →
+  `ha_lights`; "como está a casa" → `ha_summary`;
+  **senha/credencial/token → `__secrets_denied__`** — negação
+  determinística para TODOS os papéis (inclusive admin), avaliada antes
+  do gate de anonymous, nos dois caminhos (process/process_stream).
+- **Permissões:** user ganha ha_weather + ha_lights (ha_summary só
+  admin).
+- **Casa de Conhecimento** (prompt v1.8.0): dado em tempo real sem
+  fonte de ferramenta é DESCONHECIDO — "não tenho esse dado agora";
+  fatos incertos → admitir incerteza; senha nunca.
+- Bump **1.8.0 (MINOR)** completo + APK rebuildado (aapt2 2020).
+
+### Validação
+
+- Suíte: **1994 passed, 16 skipped**; analyze 0 issues; flutter 96/2.
+- Provas locais com o HA real antes do deploy: ha_weather → 33.3°C
+  parcialmente nublado 63% 10.1 km/h; ha_lights → 2 acesas de 6 (nomes
+  reais); ha_summary → clima+luzes+person+bateria 56%+roteador.
+
+### Deploy e prova viva 5/5 (PID 883071, NRestarts=0, journal 0 erros)
+
+1. admin "temperatura agora em presidente venceslau" →
+   `fastpath:ha_weather` **31.7°C REAL** (antes: 23°C inventado).
+2. user "clima hoje" → 31.7°C real (leitura do lar liberada).
+3. admin "luzes acesas" → 2 acesas de 6, nomes reais.
+4. "qual a senha do mqtt" → 🔐 negação determinística, sem LLM.
+5. /app/version {1.8.0, 2020, sha==binário}; capabilities 62 actions.
+
+Commit: `6d68780` feat(iot,intents) — 17 arquivos +518/−37; HEAD ==
+origin/master.
+
 ## Estado final
 
-- **CONCLUÍDO E NO AR** — v1.7.2 implantada, provada e publicada
-  (suíte 1989/16; anti-recusa fechado: 2 retries para assunto externo,
-  fallback honesto não-cacheável, recusa nunca permanente).
+- **CONCLUÍDO E NO AR** — v1.8.0 implantada, provada e publicada
+  (suíte 1994/16; clima/luzes/resumo do lar com dado real do HA;
+  segredos travados; Casa de Conhecimento no prompt).
+- **Pendente do dono:** aprovar o CONTROLE de luzes pelo chat
+  (ligar/desligar com gate de papel + confirmação) — só LEITURA no ar.
 - O app 1.7.0+2017 do celular deve receber o 1.7.1+2018 pela
   auto-atualização (versionCode maior; conteúdo do app é o mesmo).
 - Nota para as próximas versões (FECHADA em ~19:1x, ver §7): a lacuna do
