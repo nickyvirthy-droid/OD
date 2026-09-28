@@ -98,13 +98,31 @@ HEAD `4384e5b` == origin/master; árvore limpa (só o snapshot de
 rollback `backups/cache-entrada-pre-guarda-20260927.json` untracked,
 da poda cirúrgica registrada em 27/09).
 
+## 7. Guarda de versionCode na suíte (~19:1x) — lacuna fechada
+
+Pedido do dono: "Adicionar guarda de teste que fixe `_APP_VERSION_CODE ==`
+`versionCode do pubspec`, fechando a lacuna do checklist".
+
+- **tests/test_version_policy.py**: 7º teste,
+  `test_app_version_code_bate_com_o_pubspec` — lê
+  `integrations/api/server.py` do disco (regex, hermético, sem importar o
+  server) e exige `_APP_VERSION_CODE == build do pubspec`; docstring
+  registra o bug do ar (28/09: anunciava 2017 com o binário 2018).
+- **docs/VERSIONAMENTO.md**: checklist §5 ganha o item 4
+  (`_APP_VERSION_CODE = <novo build>`, com a motivação); §6 registra a
+  6ª mutação (2018→2017).
+- **Teste do teste**: mutação `2018→2017` em server.py:57 →
+  `1 failed` (a guarda pegou); revertida bit-exata (git diff vazio) →
+  7/7 no arquivo.
+- **Suíte completa: 1975 passed, 16 skipped** (+1).
+- Nota: mudança só de teste/docs — sem deploy (nada muda no runtime).
+
 ## Estado final
 
 - **CONCLUÍDO E NO AR** — v1.7.1 implantada, provada e publicada.
 - O app 1.7.0+2017 do celular deve receber o 1.7.1+2018 pela
   auto-atualização (versionCode maior; conteúdo do app é o mesmo).
-- Nota para as próximas versões: quando o app reversionar, o checklist
-  ganha o item `_APP_VERSION_CODE` (server.py) — hoje a guarda de
-  coerência cobre .env/capabilities/pubspec/site/CHANGELOG, mas NÃO a
-  constante; o bug de hoje veio dessa lacuna (pegos pela prova viva).
+- Nota para as próximas versões (FECHADA em ~19:1x, ver §7): a lacuna do
+  `_APP_VERSION_CODE` virou guarda na suíte + item 4 do checklist §5 do
+  VERSIONAMENTO.md — bump parcial do versionCode agora quebra os testes.
 

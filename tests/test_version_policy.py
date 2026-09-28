@@ -9,9 +9,13 @@ Descrição: Guardas da política de versionamento (docs/VERSIONAMENTO.md,
              2. Coerência .env ↔ core/capabilities.py (fonte da verdade).
              3. Fallback congelado em disco = versão vigente.
              4. app/pubspec.yaml: versionName = versão do sistema e build
-                (+N) é inteiro (versionCode Android monotônico).
-             5. site/index.html anuncia a versão vigente (badge + card).
-             6. docs/CHANGELOG.md tem seção da versão vigente.
+                (+N) é inteiro (versionCode Android monotônico).           5. site/index.html anuncia a versão vigente (badge + card).
+           6. docs/CHANGELOG.md tem seção da versão vigente.
+           7. _APP_VERSION_CODE (integrations/api/server.py) == build do
+              pubspec — o /app/version anuncia o versionCode do APK
+              publicado; errado aqui mata a auto-atualização em silêncio
+              (bug provado no ar em 2026-09-28: anunciava 2017 com o
+              binário 2018 em site/).
            Qualquer bump parcial (uma fonte esquecida) quebra a suíte.
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
@@ -64,6 +68,19 @@ def _pubspec_version() -> tuple[str, int]:
     return version_name, int(match.group(4))
 
 
+def _app_version_code() -> int:
+    match = re.search(
+        r"^_APP_VERSION_CODE\s*=\s*(\d+)",
+        _read("integrations/api/server.py"),
+        re.MULTILINE,
+    )
+    assert match, (
+        "integrations/api/server.py sem '_APP_VERSION_CODE = <int>' — "
+        "o GET /app/version perdeu a fonte do versionCode anunciado"
+    )
+    return int(match.group(1))
+
+
 class TestVersionPolicy:
     """Guardas da coerência de versão (docs/VERSIONAMENTO.md)."""
 
@@ -94,6 +111,22 @@ class TestVersionPolicy:
             "o +N é versionCode, NUNCA substitui a versão (política §2)"
         )
         assert build >= 1, "versionCode deve ser inteiro positivo monotônico"
+
+    def test_app_version_code_bate_com_o_pubspec(self) -> None:
+        """O versionCode anunciado em /app/version é o do APK publicado.
+
+        Bug do ar (2026-09-28): o lote v1.7.1 reversionou o pubspec para
+        +2018 mas _APP_VERSION_CODE ficou em 2017 — o servidor anunciava
+        o versionCode que o celular JÁ TINHA com o sha256 do binário novo;
+        a auto-atualização nunca dispararia. Pego só pela prova viva
+        pós-deploy; esta guarda fixa o contrato na suíte.
+        """
+        _, build = _pubspec_version()
+        assert _app_version_code() == build, (
+            f"_APP_VERSION_CODE={_app_version_code()} mas o pubspec declara "
+            f"+{build} — /app/version anunciaria o versionCode errado e a "
+            "auto-atualização morreria (checklist §5.4 do VERSIONAMENTO.md)"
+        )
 
     def test_site_anuncia_a_versao_vigente(self) -> None:
         """Landing anuncia a versão vigente no badge do hero e no card do APK."""

@@ -1,7 +1,17 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-28T18:55:00-03:00",
+  "updated_at": "2026-09-28T19:2x:00-03:00",
+  "guarda_versioncode_2026_09_28": {
+    "pedido": "Dono: 'Adicionar guarda de teste que fixe _APP_VERSION_CODE == versionCode do pubspec, fechando a lacuna do checklist'.",
+    "implementacao": [
+      "tests/test_version_policy.py: NOVO test_app_version_code_bate_com_o_pubspec (7º teste) — lê integrations/api/server.py do disco (regex, hermético) e exige _APP_VERSION_CODE == build do pubspec; docstring conta o bug do ar de 28/09.",
+      "docs/VERSIONAMENTO.md: checklist §5 ganha o item 4 (_APP_VERSION_CODE = novo build, com a motivação e o bug real); §6 registra a 6ª mutação (2018→2017, detectada e revertida bit-exata)."
+    ],
+    "teste_do_teste": "Mutação 2018→2017 em server.py:57 → 1 failed (test_app_version_code_bate_com_o_pubspec); revertida bit-exata (git diff vazio) → 7/7 no arquivo.",
+    "suíte": "1975 passed, 16 skipped (+1 sobre a 1.7.1).",
+    "estado": "LACUNA FECHADA — bump parcial do versionCode agora quebra a suíte; só falta commit+push (regra 7.1) e registro final."
+  },
   "lote_v171_2026_09_28": {
     "pedido": "Usuário: 'leia iniciar' — retomada (~18:1x). Lote órfão de 10 arquivos (+257/−31, comentários de 27/09) sem commit/registro/deploy: action cpu_temp (catálogo 58→59, /sys/class/thermal + hwmon), detect_external_intent (clima de cidade NÃO é infra — 'temperatuda em presidente venceslau sp' recebia 🔒), cpu_temp liberada para o papel user, anti-recusa pega etiqueta [NICKY][...] em qualquer posição + 7 padrões novos, limites do user vedam só o que prejudica o sistema.",
     "bump": "1.7.1 (PATCH, precedente 1.6.1): .env, capabilities, pubspec 1.7.1+2018, site (2x), CHANGELOG [1.7.1], README_VERSAO §1.7.1. APKs versionCode='2018' (aapt2), sha256 full 5c6c05fb…, arm64 4f41ff45….",
@@ -682,7 +692,7 @@
   "last_turn": {
     "date": "2026-09-28",
     "action": "v1.7.1 completa: lote órfão resgatado (b0961aa — cpu_temp, clima sem bloqueio indevido, anti-recusa endurecido), /app/version anunciando APK errado corrigido (4384e5b), deploy provado 6/6 (temperatura real 57°C via fastpath:cpu_temp, ZERO LLM).",
-    "next": "Nada pendente no servidor nem no app. Próxima sessão começa de novo pedido do dono. Na próxima versão que reversionar o app: _APP_VERSION_CODE (server.py) entra no checklist do bump (lacuna anotada na transcrição de 28/09).",
+    "next": "Nada pendente no servidor nem no app. Próxima sessão começa de novo pedido do dono. _APP_VERSION_CODE (server.py) agora tem GUARDA na suíte (test_app_version_code_bate_com_o_pubspec) e item 4 no checklist §5 do VERSIONAMENTO.md — lacuna de 28/09 fechada.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

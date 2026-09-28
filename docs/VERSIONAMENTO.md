@@ -60,20 +60,29 @@ versão congelada recebendo features por baixo do pano.
 1. `.env`: `OD_VERSION=novo.x.y`
 2. `core/capabilities.py`: fallback congelado alinhado
 3. `app/pubspec.yaml`: `version: novo.x.y+<build+1>` (se o app mudou)
-4. `site/index.html`: badge do hero + card do APK (se o app mudou)
-5. `docs/CHANGELOG.md`: seção `## [novo.x.y]` no topo (ou subseção datada
+4. `integrations/api/server.py`: `_APP_VERSION_CODE = <novo build>` — o
+   versionCode que o `GET /app/version` anuncia TEM que ser o do APK
+   publicado em `site/`; errado aqui mata a auto-atualização em silêncio
+   (o servidor anunciaria o build que o celular já tem com o sha256 do
+   binário novo). Pegado no ar em 2026-09-28 (v1.7.1 anunciava 2017 com
+   o binário 2018) — hoje a guarda `test_app_version_code_bate_com_o_pubspec`
+   quebra a suíte se ficar para trás.
+5. `site/index.html`: badge do hero + card do APK (se o app mudou)
+6. `docs/CHANGELOG.md`: seção `## [novo.x.y]` no topo (ou subseção datada
    dentro da seção vigente, quando o bump é retroativo/lote)
-6. `docs/README_VERSAO.md`: relatório §2.1 da versão (§2.1.1)
-7. Suíte verde + prova viva da versão no ar (regra 10 das Regras)
+7. `docs/README_VERSAO.md`: relatório §2.1 da versão (§2.1.1)
+8. Suíte verde + prova viva da versão no ar (regra 10 das Regras)
 
 ## 6. Guardas de coerência (2026-09-26)
 
 `tests/test_version_policy.py` fixa a política na suíte: OD_VERSION em
 formato SemVer, `.env` = capabilities resolvida = fallback congelado,
 `pubspec.yaml` com versionName = versão do sistema e build inteiro,
-site anunciando a versão vigente (≥ 2 ocorrências) e CHANGELOG com a
-seção `## [X.Y.Z]`. Bump parcial quebra a suíte. Verificado com 5
-mutações (todas detectadas e revertidas).
+`_APP_VERSION_CODE` (server.py) = build do pubspec, site anunciando a
+versão vigente (≥ 2 ocorrências) e CHANGELOG com a seção `## [X.Y.Z]`.
+Bump parcial quebra a suíte. Verificado com 5 mutações (todas detectadas
+e revertidas) + a mutação 2018→2017 de 2026-09-28 (detectada, revertida
+bit-exata).
 
 ## 7. Histórico de saneamento (2026-09-26)
 
