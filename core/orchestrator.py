@@ -130,6 +130,25 @@ _CACHE_BAN_PREFIXES = (
     "here is a thinking process",
 )
 
+# Recusa do modelo não é resposta cacheável (2026-09-28): o cache é
+# servido ANTES da etapa 6.5 (anti-recusa), então uma recusa cacheada
+# vira PERMANENTE — bug do ar: o gemma alucinou 'informação de
+# infraestrutura é restrita ao dono' para uma pergunta de clima, a
+# resposta entrou no cache e a pergunta seguinte recebia a alucinação
+# instantaneamente, sem chance de retry. Frases fortes de recusa
+# (a lista é conservadora: hedging tipo 'não posso garantir, mas...'
+# continua cacheável).
+_CACHE_BAN_REFUSALS = (
+    r"restri(?:c)?t[oa]s?\s+ao\s+dono",
+    r"n[aã]o posso fornecer",
+    r"nao posso fornecer",
+    r"n[aã]o posso informar",
+    r"n[aã]o tenho acesso",
+    r"sem acesso f[íi]sico",
+    r"por raz[õo]es de seguran[çc]a",
+    r"n[aã]o [ée] poss[íi]vel fornecer",
+)
+
 
 def _cacheable(text: str) -> bool:
     """True quando a resposta pode ser cacheada (não é falha/truncamento)."""
@@ -148,6 +167,11 @@ def cache_failure_reason(text: str) -> str:
     for prefix in _CACHE_BAN_PREFIXES:
         if lowered.startswith(prefix):
             return f"etiqueta de log/falha: {prefix}"
+    # Recusa do modelo (alucinação de vedação ou desculpa): se entrar no
+    # cache, é servida antes do anti-recusa e vira permanente.
+    for frase in _CACHE_BAN_REFUSALS:
+        if re.search(frase, lowered):
+            return f"recusa do modelo: {frase}"
     # Truncamento no meio da frase (max_tokens estourou): incompleto.
     if candidate[-1] in ",;:-":
         return "truncada (pontuação final aberta)"
@@ -1069,12 +1093,12 @@ class Orchestrator:
             if not detect_external_intent(text):
                 return ""
             recusas_user = (
-                "não posso",
-                "nao posso",
-                "não tenho",
-                "restri[tc]ad[oa]",
-                "restrita ao dono",
-                "restritas ao dono",
+                r"n[aã]o posso",
+                r"nao posso",
+                r"n[aã]o tenho",
+                r"restri(?:c)?t[oa]s?",
+                r"restrita ao dono",
+                r"restritas ao dono",
             )
             for frase in recusas_user:
                 if re.search(frase, low):

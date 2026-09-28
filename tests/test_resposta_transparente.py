@@ -285,6 +285,44 @@ class TestIntencaoIpEPortas:
         )
 
 
+class TestCacheSemRecusa:
+    """O cache é servido ANTES da etapa 6.5 (anti-recusa) — uma recusa
+    cacheada vira PERMANENTE. Bug do ar (28/09): a alucinação 'informação
+    de infraestrutura é restrita ao dono' (sem etiqueta [NICKY][...])
+    entrou no cache e a pergunta seguinte recebia a alucinação na rota
+    cache, instantânea, sem chance de retry."""
+
+    def test_alucinacao_de_vedacao_nao_e_cacheavel(self) -> None:
+        from core.orchestrator import cache_failure_reason
+        motivo = cache_failure_reason(
+            "Informação de infraestrutura (IP, portas, topologia de rede) "
+            "é restrita ao dono do sistema."
+        )
+        assert motivo, "recusa cacheável — o cache envenena as próximas respostas"
+
+    def test_recusas_tipicas_nao_sao_cacheaveis(self) -> None:
+        from core.orchestrator import cache_failure_reason
+        for recusa in (
+            "Não posso fornecer essas informações.",
+            "Não tenho acesso a dados em tempo real.",
+            "Por razões de segurança, não revelo portas abertas.",
+            "Não é possível fornecer esse dado agora.",
+        ):  
+            assert cache_failure_reason(recusa), f"recusa cacheável: {recusa}"
+
+    def test_respostas_normais_continuam_cacheaveis(self) -> None:
+        from core.orchestrator import cache_failure_reason
+        for resposta in (
+            "Hoje em Presidente Venceslau SP faz 24°C com céu aberto.",
+            "O IP do servidor é 192.168.0.250.",  # sair do LLM p/ user já é
+            "Não posso garantir, mas acho que sim.",  # hedging é conteúdo
+            "A temperatura do servidor está em 55°C (pch_skylake).",
+        ):  
+            assert cache_failure_reason(resposta) == "", (
+                f"resposta normal banida do cache: {resposta}"
+            )
+
+
 class TestGuardaInfraParaNaoDono:
     """v1.7.0 — o papel user NÃO pode receber IP/portas nem da action nem do
     LLM (o gemma entregava o IP mesmo com a vedação no prompt, reportado
