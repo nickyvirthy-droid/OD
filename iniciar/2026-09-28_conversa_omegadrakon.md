@@ -186,11 +186,59 @@ papel user (não só admin).
 Commits: `88c846e` fix(core) anti-recusa por papel · `a7b762d` fix(core)
 recusa não cacheável. Deploys: PID 867743 e PID 869597, NRestarts=0.
 
+## 9. v1.7.2 — 2 retries para assunto externo + fallback honesto (~19:3x–19:5x)
+
+Pedido do dono: "Avaliar 2 retries no anti-recusa quando o assunto é
+mundo externo, para o user não ver recusa no 1º turno".
+
+### Implementação
+
+- **`Orchestrator._resolve_refusal`** (novo, REST + WS):
+  - ASSUNTO EXTERNO (qualquer papel): até **2 retries** (3 gerações no
+    total) — recusa neles é sempre alucinação;
+  - esgotando: **`EXTERNAL_UNAVAILABLE_MESSAGE`** — "🤔 O modelo local
+    não conseguiu responder agora. Tente perguntar de novo em
+    instantes." — NUNCA a recusa falsa do modelo; o aviso é prefixo
+    banido do cache (`_CACHE_BAN_PREFIXES`) para o próximo turno ir de
+    novo ao modelo;
+  - DADO DE SISTEMA (admin): mantém 1 retry (exclusividade de assunto
+    externo provada por mutação).
+- **Bug pego pelo teste novo antes do deploy**: unpack de `None` quando
+  `_retry_generation` devolve None (recusa persistente) → TypeError;
+  corrigido com `Optional[tuple[str, str]]`.
+- Bump **1.7.2 (PATCH)** completo: .env, capabilities, pubspec
+  1.7.2+2019, **_APP_VERSION_CODE=2019**, site (2×), CHANGELOG,
+  README_VERSAO; **APK rebuildado** (aapt2 versionCode='2019'; sha256
+  full 7837e15a…, arm64 a7ebb7c6…) — a guarda de coerência (43da804)
+  obriga o rebuild: nunca anunciar build não publicado.
+
+### Validação
+
+- Suíte: **1989 passed, 16 skipped** (mqtt flaky passa isolado);
+  analyze 0 issues; flutter test 96/2.
+- Teste do teste: 4 mutações TODAS detectadas e revertidas (attempts=1
+  → 2 falhas; fallback=None → 1; aviso cacheável → 1; admin com 2
+  retries → 1 — o teste do admin foi endurecido com contagem de
+  chamadas depois que a 1ª versão fraca deixou a mutação passar).
+- **Lição de processo (repetida)**: backup /tmp defasado fez o restore
+  regravar versão bugada 2× — o backup DEVE ser refeito APÓS cada
+  correção, antes das mutações; validação final com `diff -q`.
+
+### Deploy e prova viva (PID 876982, NRestarts=0, journal 0 erros)
+
+1. `/app/version` → {1.7.2, code 2019, sha256 == binário}.
+2. user "clima em campo grande hoje" → route=fallback com RESPOSTA do
+   clima — o journal mostra 1 recusa detectada → retry respondeu (o
+   user não viu recusa).
+3. user temperatura do servidor → 55.0°C real, zero LLM.
+
+Commit: `35a7b34` fix(core) — 8 arquivos +248/−7; HEAD == origin/master.
+
 ## Estado final
 
-- **CONCLUÍDO E NO AR** — v1.7.1 implantada, provada e publicada
-  (+2 fixes de recusa em 28/09: 88c846e, a7b762d — cache saudável,
-  0 recusas; suíte 1984/16).
+- **CONCLUÍDO E NO AR** — v1.7.2 implantada, provada e publicada
+  (suíte 1989/16; anti-recusa fechado: 2 retries para assunto externo,
+  fallback honesto não-cacheável, recusa nunca permanente).
 - O app 1.7.0+2017 do celular deve receber o 1.7.1+2018 pela
   auto-atualização (versionCode maior; conteúdo do app é o mesmo).
 - Nota para as próximas versões (FECHADA em ~19:1x, ver §7): a lacuna do

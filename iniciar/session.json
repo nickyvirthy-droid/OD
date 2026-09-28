@@ -1,7 +1,23 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-28T19:35:00-03:00",
+  "updated_at": "2026-09-28T19:5x:00-03:00",
+  "v172_dois_retries_2026_09_28": {
+    "pedido": "Dono: 'Avaliar 2 retries no anti-recusa quando o assunto é mundo externo, para o user não ver recusa no 1º turno'.",
+    "implementacao": [
+      "Orchestrator._resolve_refusal (NOVO, REST+WS): assunto EXTERNO (qualquer papel) → até 2 retries (3 gerações) — recusa neles é sempre alucinação; esgotando, EXTERNAL_UNAVAILABLE_MESSAGE ('🤔 Tente perguntar de novo em instantes') — NUNCA a recusa falsa do modelo, e o aviso é prefixo banido do cache (_CACHE_BAN_PREFIXES) para o próximo turno ir ao modelo.",
+      "Admin em dado de sistema mantém 1 retry (exclusividade de assunto externo provada por mutação).",
+      "Bug real pego pelo teste novo antes do deploy: unpack de None quando _retry_generation devolve None (recusa persistente) — TypeError; corrigido com Optional[tuple]."
+    ],
+    "bump": "1.7.2 (PATCH): .env, capabilities, pubspec 1.7.2+2019, _APP_VERSION_CODE=2019, site (2x), CHANGELOG [1.7.2], README_VERSAO §1.7.2. APK rebuildado (aapt2 versionCode='2019', sha256 full 7837e15a…, arm64 a7ebb7c6…) — a guarda de coerência (43da804) obriga o rebuild: nunca anunciar build não publicado.",
+    "validacao": "Suíte 1989 passed, 16 skipped (mqtt flaky passa isolado, precedente 09-21); flutter analyze 0 issues; flutter test 96/2.",
+    "teste_do_teste": "4 mutações TODAS detectadas e revertidas (attempts=1 → 2 falhas; fallback=None → 1; aviso cacheável → 1; admin com 2 retries → 1, teste endurecido com contagem de chamadas depois de M8 passar com o teste fraco original).",
+    "licao_processo": "2ª rodada de mutação repetiu o erro do backup defasado (restore regravou versão com bug do unpack e depois com M8) — o backup /tmp DEVE ser refeito APÓS cada correção, antes das mutações; validado no estado final com diff -q.",
+    "deploy": "IMPLANTADO — restart 19:3x, PID 876982, NRestarts=0. Prova viva: /app/version {1.7.2, 2019, sha256 == binário}; user 'clima em campo grande hoje' → route=fallback com resposta do clima (o journal mostra 1 recusa detectada → retry respondeu); user temperatura do servidor → 55.0°C real; journal 0 erros.",
+    "commit": "35a7b34 fix(core): 2 retries no anti-recusa para assunto externo + fallback honesto (v1.7.2) — 8 arquivos +248/−7; HEAD==origin/master.",
+    "estado": "CONCLUÍDO E NO AR — user com assunto externo tem 2 chances extras antes do aviso honesto; recusa falsa nunca é a resposta final; nada do que é recusa/aviso entra no cache.",
+    "transcricao": "iniciar/2026-09-28_conversa_omegadrakon.md (§9)"
+  },
   "prova_user_recusa_2026_09_28": {
     "pedido": "Dono: provar 'qual a temperatura do servidor' e de cidade pelo chat com papel user (não só admin). A prova pegou DOIS bugs novos no ar.",
     "bug_1_alucinacao_user": "user + 'temperatura em presidente venceslau sp' roteava CERTO para o LLM, mas o gemma alucinava a vedação ('restrita ao dono'). O anti-recusa só valia para admin e só existia no streaming (REST sem Etapa 6.5). Correção 88c846e: _refusal_reason(role, text) detecta alucinação para user/anônimo quando o assunto é MUNDO EXTERNO; _retry_generation com reforço por papel (user NUNCA recebe reforço de dono); Etapa 6.5 no REST. +6 testes; 3 mutações detectadas.",
@@ -704,7 +720,7 @@
   "last_turn": {
     "date": "2026-09-28",
     "action": "v1.7.1 completa: lote órfão resgatado (b0961aa — cpu_temp, clima sem bloqueio indevido, anti-recusa endurecido), /app/version anunciando APK errado corrigido (4384e5b), deploy provado 6/6 (temperatura real 57°C via fastpath:cpu_temp, ZERO LLM).",
-    "next": "Nada pendente no servidor nem no app. Próxima sessão começa de novo pedido do dono. Pendências opcionais registradas: (a) gemma às vezes recusa 2x seguidas — avaliar 2 retries quando o assunto é externo; (b) _APP_VERSION_CODE tem guarda na suíte e item 4 no checklist §5.",
+    "next": "Nada pendente no servidor nem no app. Próxima sessão começa de novo pedido do dono. Anti-recusa fechado: 2 retries para assunto externo + fallback honesto (v1.7.2, 35a7b34); _APP_VERSION_CODE com guarda na suíte e item 4 no checklist §5.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
