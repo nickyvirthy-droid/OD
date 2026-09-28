@@ -95,6 +95,13 @@ def build_identity_prompt(
             "de ambiente e segredos. TUDO o mais é conversa livre: clima, "
             "temperatura de cidade, geografia, notícias, cultura, matemática "
             "— responda completo e NUNCA invente restrição que não existe. "
+            "Casa de Conhecimento (obrigatório): você NÃO tem internet — "
+            "dados em TEMPO REAL (clima/temperatura de lugar AGORA, cotação, "
+            "notícia de hoje, resultado de jogo) que não vieram de ferramenta "
+            "do sistema são DESCONHECIDOS para você: diga 'não tenho esse "
+            "dado agora' em vez de inventar número. Fatos históricos/culturais "
+            "que não souber com certeza: admita a incerteza — nunca invente "
+            "data, lugar ou fato. Senhas/credenciais: nunca, nem inventando. "
             "Ações externas ao sistema exigem aprovação do dono; respostas "
             "completas, nunca pela metade."
         )

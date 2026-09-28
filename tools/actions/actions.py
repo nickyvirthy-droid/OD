@@ -52,9 +52,13 @@ import subprocess
 import time
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
+
+from core.logger import get_logger
 
 __signature__ = "OD // CORE"
+
+log = get_logger("omega.tools.actions")
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +272,178 @@ def cpu_temp() -> dict[str, Any]:
         "readings": readings,
         "hottest": hottest,
         "celsius": hottest["celsius"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Home Assistant (v1.8.0) — o sistema tem HA no ar (health "HA alcançável")
+# com 40 entidades reais, mas o catálogo do chat não expunha NADA: perguntas
+# de clima/luzes caíam no LLM que alucinava ("23°C" inventado p/ cidade).
+# As actions abaixo leem o HA via IoTManager/HAClient injetado pelo launcher
+# (configure_ha_client); SEM client configurado degradam com ok=False e a
+# resposta cai para o LLM — igual às demais actions do catálogo.
+# ---------------------------------------------------------------------------
+
+_HA_CLIENT: Optional[Any] = None
+
+
+def configure_ha_client(client: Any) -> None:
+    """Injeta o HAClient/IoTManager do launcher (idempotente)."""
+    global _HA_CLIENT
+    _HA_CLIENT = client
+
+
+def _ha() -> Any:
+    if _HA_CLIENT is None:
+        return None
+    return _HA_CLIENT
+
+
+def _ha_states() -> Optional[list[Any]]:
+    client = _ha()
+    if client is None:
+        return None
+    try:
+        return client.list_states()
+    except Exception as exc:  # HAError ou rede — degrada, nunca estoura
+        log.warning("ha action: falha ao listar entidades", error=str(exc))
+        return None
+
+
+def _ha_state(entity_id: str) -> Optional[Any]:
+    client = _ha()
+    if client is None:
+        return None
+    try:
+        return client.get_state(entity_id)
+    except Exception as exc:
+        log.warning("ha action: falha ao ler entidade", entity_id=entity_id,
+                    error=str(exc))
+        return None
+
+
+def ha_weather() -> dict[str, Any]:
+    """Clima REAL da região da casa, do Home Assistant (weather.*).
+
+    Motivação (2026-09-28): 'temperatura agora em presidente venceslau'
+    era respondida com temperatura INVENTADA pelo LLM ('23°C' e, quando o
+    dono disse 'mentira', repetiu a mentira). O HA tem weather.forecast_casa
+    com leitura real da região — o dado agora vem da fonte.
+    """
+    states = _ha_states()
+    if states is None:
+        return _unavailable(
+            "ha_weather",
+            "Home Assistant não configurado ou inacessível",
+        )
+    weather = [s for s in states if s.entity_id.startswith("weather.")]
+    if not weather:
+        return _unavailable(
+            "ha_weather", "nenhuma entidade weather.* no Home Assistant"
+        )
+    w = weather[0]
+    attrs = w.attributes or {}
+    temp = attrs.get("temperature")
+    return {
+        "ok": True,
+        "entity": w.entity_id,
+        "condition": w.state,
+        "temperature": temp,
+        "temperature_unit": attrs.get("temperature_unit", "°C"),
+        "humidity": attrs.get("humidity"),
+        "wind_speed": attrs.get("wind_speed"),
+        "wind_speed_unit": attrs.get("wind_speed_unit"),
+        "pressure": attrs.get("pressure"),
+        "dew_point": attrs.get("dew_point"),
+        "uv_index": attrs.get("uv_index"),
+        "cloud_coverage": attrs.get("cloud_coverage"),
+    }
+
+
+def ha_lights() -> dict[str, Any]:
+    """Estado das luzes/interruptores do HA (switch.*/light.*) — leitura.
+
+    O dono pergunta 'que luzes estão acesas' e recebe o estado REAL das
+    entidades (leitura; controle liga/desliga fica para fase futura).
+    """
+    states = _ha_states()
+    if states is None:
+        return _unavailable(
+            "ha_lights",
+            "Home Assistant não configurado ou inacessível",
+        )
+    lights: list[dict[str, Any]] = []
+    for s in states:
+        domain = s.entity_id.split(".", 1)[0]
+        if domain not in ("switch", "light"):
+            continue
+        if s.state in ("unavailable", "unknown", None):
+            continue
+        name = (s.attributes or {}).get("friendly_name") or s.entity_id
+        lights.append(
+            {"entity": s.entity_id, "name": name, "state": s.state,
+             "on": s.state == "on"}
+        )
+    on_count = sum(1 for l in lights if l["on"])
+    return {
+        "ok": True,
+        "lights": lights,
+        "total": len(lights),
+        "on": on_count,
+        "off": len(lights) - on_count,
+    }
+
+
+def ha_summary() -> dict[str, Any]:
+    """Raio-X do lar no HA: clima, luzes, pessoas, bateria do celular e
+    rede (roteador). Somente leitura — a visão geral que o dono pede."""
+    states = _ha_states()
+    if states is None:
+        return _unavailable(
+            "ha_summary",
+            "Home Assistant não configurado ou inacessível",
+        )
+    weather = next(
+        (s for s in states if s.entity_id.startswith("weather.")), None
+    )
+    people = [
+        {"entity": s.entity_id, "state": s.state}
+        for s in states if s.entity_id.startswith("person.")
+    ]
+    batteries = []
+    for s in states:
+        if s.entity_id.endswith("_battery_level") and s.state not in (
+            "unknown", "unavailable"
+        ):
+            name = (s.attributes or {}).get("friendly_name") or s.entity_id
+            batteries.append({"name": name, "level": s.state})
+    router: dict[str, Any] = {}
+    for s in states:
+        if "router" in s.entity_id and "external_ip" in s.entity_id:
+            router["external_ip"] = s.state
+        if "router" in s.entity_id and "download_speed" in s.entity_id:
+            router["download_kib_s"] = s.state
+        if "router" in s.entity_id and "upload_speed" in s.entity_id:
+            router["upload_kib_s"] = s.state
+    lights_out = ha_lights()
+    lights_data = lights_out if lights_out.get("ok") else {"total": 0, "on": 0}
+    w_attrs = (weather.attributes or {}) if weather else {}
+    return {
+        "ok": True,
+        "total_entities": len(states),
+        "weather": {
+            "condition": weather.state if weather else None,
+            "temperature": w_attrs.get("temperature"),
+            "temperature_unit": w_attrs.get("temperature_unit", "°C"),
+            "humidity": w_attrs.get("humidity"),
+        } if weather else None,
+        "lights": {
+            "total": lights_data.get("total", 0),
+            "on": lights_data.get("on", 0),
+        },
+        "people": people,
+        "batteries": batteries,
+        "router": router,
     }
 
 
@@ -1043,6 +1219,9 @@ CATALOG: list[dict[str, Any]] = [
     _spec("memory_usage", "system", "Uso de memória RAM/swap", memory_usage),
     _spec("cpu_info", "system", "Núcleos/modelo/carga da CPU", cpu_info),
     _spec("cpu_temp", "system", "Temperatura do servidor (zones térmicos)", cpu_temp),
+    _spec("ha_weather", "iot", "Clima real da região da casa (Home Assistant)", ha_weather),
+    _spec("ha_lights", "iot", "Estado das luzes e interruptores (Home Assistant)", ha_lights),
+    _spec("ha_summary", "iot", "Raio-X do lar: clima, luzes, pessoas, bateria, rede", ha_summary),
     _spec("ip_address", "system", "Endereços IP do host", ip_address),
     _spec("listening_ports", "system", "Portas TCP em escuta", listening_ports),
     

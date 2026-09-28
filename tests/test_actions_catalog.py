@@ -38,6 +38,7 @@ from tools.registry import ActionRegistry
 
 EXPECTED_CATEGORIES = {
     "system": 16,  # + network_hosts (v0.27.5) + listening_ports (v1.6.1) + cpu_temp (v1.7.1)
+    "iot": 3,  # ha_weather/ha_lights/ha_summary (v1.8.0 — Home Assistant)
     "process": 4,
     "docker": 4,
     "service": 3,
@@ -62,10 +63,10 @@ class TestActionsCatalog:
     """56 ações catalogadas por categoria com metadados consistentes."""
 
     def test_catalog_count_and_categories(self) -> None:
-        assert ACTIONS_COUNT == 59
-        assert len(CATALOG) == 59
+        assert ACTIONS_COUNT == 62
+        assert len(CATALOG) == 62
         assert CATEGORIES == EXPECTED_CATEGORIES
-        assert sum(CATEGORIES.values()) == 59
+        assert sum(CATEGORIES.values()) == 62
 
     def test_names_unique_and_dotted_clean(self) -> None:
         names = [spec["name"] for spec in CATALOG]
@@ -120,8 +121,8 @@ class TestActionsRegistration:
 
     def test_build_registry_registers_56(self) -> None:
         registry = build_registry()
-        assert len(registry.list_actions()) == 59
-        assert registry.metrics.actions == 59
+        assert len(registry.list_actions()) == 62
+        assert registry.metrics.actions == 62
 
     def test_every_action_has_permission_and_schema(self) -> None:
         registry = build_registry()
@@ -136,7 +137,7 @@ class TestActionsRegistration:
         registry = ActionRegistry()
         first = register_all(registry)
         second = register_all(registry)
-        assert first == 59
+        assert first == 62
         assert second == 0
 
     def test_find_by_category(self) -> None:
@@ -211,7 +212,7 @@ class TestSystemActions:
         registry = self._registry()
         listed = await registry.execute("action_list", role="admin")
         assert listed.status == "ok"
-        assert listed.data["count"] == 59
+        assert listed.data["count"] == 62
         info = await registry.execute(
             "action_info", params={"name": "git_status"}, role="admin"
         )
@@ -564,4 +565,4 @@ class TestActionsSecurity:
         assert snap["ok"] == 1
         assert snap["denied"] == 1
         assert registry.history[0]["status"] == "denied"
-        assert registry.dump()["actions"] == 59
+        assert registry.dump()["actions"] == 62

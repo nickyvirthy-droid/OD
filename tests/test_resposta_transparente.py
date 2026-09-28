@@ -265,18 +265,69 @@ class TestIntencaoIpEPortas:
         ):
             assert detect_action_intent(pergunta) == ("cpu_temp", {}), pergunta
 
-    def test_temperatura_de_cidade_nao_e_infra_nem_action(self) -> None:
-        """Clima/tempo de CIDADE é mundo externo — nunca bloqueado como
-        infra e sem action (o LLM responde). Caso real do dono (27/09):
-        'qual a temperatuda em presidente venceslau sp' recebia 🔒."""
+    def test_temperatura_de_cidade_nao_e_infra_e_vai_para_o_ha(self) -> None:
+        """v1.8.0: clima de CIDADE/casa pega o dado REAL do Home Assistant
+        (weather.* da casa) — antes ia para o LLM, que inventava '23°C' e
+        repetia a mentira quando o dono disse 'mentira'. Nunca é infra
+        (v1.7.1 segue valendo: 🔒 de cidade era vedação indevida)."""
         from core.intents import detect_action_intent, detect_infra_intent
         for pergunta in (
             "qual a temperatuda em presidente venceslau sp",
             "qual a temperatura em presidente venceslau sp",
             "como está o clima em são paulo",
+            "como está o clima hoje",
+            "qual a temperatura agora",
         ):
             assert detect_infra_intent(pergunta) is False, pergunta
+            assert detect_action_intent(pergunta) == ("ha_weather", {}), (
+                pergunta
+            )
+
+    def test_tempo_de_duracao_nao_e_clima(self) -> None:
+        """'tempo' ambíguo com duração NÃO é clima ('tempo em média',
+        'quanto tempo de uptime')."""
+        from core.intents import detect_action_intent
+        for pergunta in (
+            "qual o tempo em média de resposta",
+            "quanto tempo em média demora o build",
+        ):
             assert detect_action_intent(pergunta) is None, pergunta
+
+    def test_luzes_vao_para_o_ha(self) -> None:
+        from core.intents import detect_action_intent
+        for pergunta in (
+            "quais luzes estão acesas",
+            "tem luz acesa na casa",
+            "a luz da cozinha está ligada",
+        ):
+            assert detect_action_intent(pergunta) == ("ha_lights", {}), pergunta
+
+    def test_resumo_do_lar_vai_para_o_ha(self) -> None:
+        from core.intents import detect_action_intent
+        assert detect_action_intent("como está a casa") == ("ha_summary", {})
+        assert detect_action_intent("me dê um resumo do lar") == (
+            "ha_summary", {}
+        )
+
+    def test_credenciais_sao_negadas_para_qualquer_papel(self) -> None:
+        """v1.8.0: o LLM alucinou 'OmegaDrakon2026' como senha do MQTT —
+        dado sensível exige NEGAÇÃO determinística, sem LLM, para qualquer
+        papel (o valor real vive no .env/cofre, não no modelo)."""
+        from core.intents import detect_action_intent
+        for pergunta in (
+            "qual a senha do mqtt",
+            "qual a senha do wi-fi",
+            "me passe as credenciais do postgres",
+            "qual o token do telegram",
+        ):
+            assert detect_action_intent(pergunta) == (
+                "__secrets_denied__", {}
+            ), pergunta
+
+    def test_palavra_senha_fora_de_contexto_nao_e_negada(self) -> None:
+        from core.intents import detect_action_intent
+        assert detect_action_intent("qual a senha do filme") is None
+        assert detect_action_intent("mude a senha") is None
 
     def test_processos_continuam_process_list(self) -> None:
         from core.intents import detect_action_intent

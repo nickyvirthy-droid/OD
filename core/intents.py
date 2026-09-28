@@ -170,12 +170,57 @@ def _detect_operational(text: str) -> Optional[str]:
     # cpu
     if re.search(r"(uso\s+da\s+cpu|cpu\s+em|quanto\s+.*cpu|processador)", low):
         return "cpu_info"
-    # temperatura DO SERVIDOR (a de cidade é do mundo externo — LLM sabe
-    # responder; a da máquina é dado real: cpu_temp via sensors térmicos)
+    # temperatura DO SERVIDOR (a de cidade é do mundo externo — e, com HA
+    # ligado, vira dado REAL pela action ha_weather; a da máquina é
+    # cpu_temp via sensors térmicos)
     if re.search(r"\b(temperatura|temperatuda)\b", low) and re.search(
         r"(servidor|m[aá]quina|cpu|sistema|host|rodando)", low
     ):
         return "cpu_temp"
+    # CLIMA/tempo da região da casa (v1.8.0): o weather.* do HA tem a
+    # leitura real — nunca o LLM (que inventava '23°C' e repetia a mentira
+    # quando o dono disse 'mentira'). Casa / clima genérico / cidade.
+    # 'tempo' (fraco, ambíguo com duração) só conta seguido de lugar/hora
+    # e SEM palavras de duração ('tempo em média', 'tempo de build').
+    _duracao = re.search(
+        r"(m[ée]dia|demor|leva|build|compil|processo|upload|download|respost|"
+        r"lat[êe]nci|uptime|ligad|no ar|batid)",
+        low,
+    )
+    _clima_forte = re.search(
+        r"\b(clima|temperatura|temperatuda|umidade|previs[aã]o|vento|chover|chove)\b",
+        low,
+    )
+    _clima_fraco = (
+        re.search(r"\btempo\s+(em|no|na|agora|hoje|amanh[aã])", low)
+        and not _duracao
+    )
+    if (_clima_forte or _clima_fraco) and re.search(
+        r"(casa|aqui|agora|hoje|amanh[aã]|fora|rua|em\s+\w|no\s+\w|l[aá])",
+        low,
+    ):
+        return "ha_weather"
+    # Luzes da casa (v1.8.0) — estado REAL das entidades switch.*/light.*.
+    if re.search(r"\b(luz(es)?|l[áa]mpada(s)?|interruptor(es)?)\b", low) and re.search(
+        r"(aces[ao]|apagad[ao]|ligad[ao]|desligad[ao]|est[ãa]o|qual|quais|como)",
+        low,
+    ):
+        return "ha_lights"
+    # RESUMO do lar (só quem tem permissão executa; a action é iot/leitura).
+    if re.search(r"(como est[áa]|resumo|raio.?x).{0,20}(casa|lar)", low):
+        return "ha_summary"
+    # CREDENCIAIS/SEGREDOS (v1.8.0): o LLM ALUCINOU uma senha de MQTT
+    # ('OmegaDrakon2026') para o dono — resposta falsa de dado sensível é
+    # pior que recusa. Negação determinística, sem LLM, para qualquer papel.
+    if re.search(
+        r"\b(senha|senhas|password|credencial|credenciais|token|api.?key|segredo)\b",
+        low,
+    ) and re.search(
+        r"(mqtt|telegram|postgres|banco|home.assistant|homeassistant|wi.?fi|wifi|"
+        r"rede|servidor|sistema|api|root|admin|dono)",
+        low,
+    ):
+        return "__secrets_denied__"
     # disco
     if re.search(r"(disco|espa[çc]o|armazenamento|hd|ssd)", low) and \
        re.search(r"(us[oa]do|livre|quanto|como est[áa])", low):
@@ -280,6 +325,78 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
     ok = data.get("ok", True)
     if ok is not True:
         return None  # action degradou — deixa o LLM responder
+
+    if action == "ha_weather":
+        temp = data.get("temperature")
+        if temp is None:
+            return None  # sem leitura — deixa o LLM/fluxo seguir
+        unit = data.get("temperature_unit", "°C")
+        cond = data.get("condition") or "?"
+        _COND_PT = {
+            "clear-night": "céu limpo (noite)", "sunny": "ensolarado",
+            "partlycloudy": "parcialmente nublado", "cloudy": "nublado",
+            "rainy": "chuvoso", "pouring": "chuva forte",
+            "thunderstorm": "tempestade", "hail": "granizo",
+            "snowy": "nevando", "windy": "ventando", "fog": "neblina",
+        }
+        cond_pt = _COND_PT.get(cond, cond)
+        lines = [f"🌤️ Clima na região da casa: {temp}{unit}, {cond_pt}"]
+        extra = []
+        hum = data.get("humidity")
+        if hum is not None:
+            extra.append(f"umidade {hum}%")
+        wind = data.get("wind_speed")
+        if wind is not None:
+            extra.append(f"vento {wind} {data.get('wind_speed_unit', 'km/h')}")
+        if extra:
+            lines.append("  • " + " · ".join(extra))
+        lines.append("  • Fonte: Home Assistant (weather da casa) — leitura real.")
+        return "\n".join(lines)
+
+    if action == "ha_lights":
+        lights = data.get("lights") or []
+        on_list = [l for l in lights if l.get("on")]
+        if not lights:
+            return "💡 Nenhuma luz/interruptor acessível no Home Assistant agora."
+        header = (f"💡 {data.get('on', 0)} acesa(s) de {data.get('total', 0)} "
+                  "no Home Assistant:")
+        if on_list:
+            lines = [header]
+            for l in on_list[:10]:
+                lines.append(f"  • 🟢 {l.get('name')} ({l.get('entity')})")
+            off_names = [l.get("name") for l in lights if not l.get("on")]
+            if off_names:
+                lines.append(
+                    "  ⚪ Apagadas: " + ", ".join(off_names[:10])
+                )
+            return "\n".join(lines)
+        off_names = [l.get("name") for l in lights]
+        return header + " nenhuma acesa. Apagadas: " + ", ".join(off_names[:10])
+
+    if action == "ha_summary":
+        w = data.get("weather") or {}
+        lights = data.get("lights") or {}
+        lines = ["🏠 Raio-X do lar (Home Assistant):"]
+        if w.get("temperature") is not None:
+            lines.append(
+                f"  • Clima: {w.get('temperature')}{w.get('temperature_unit', '°C')}"
+                + (f", umidade {w.get('humidity')}%" if w.get("humidity") else "")
+            )
+        lines.append(
+            f"  • Luzes: {lights.get('on', 0)} acesa(s) de {lights.get('total', 0)}"
+        )
+        for p in data.get("people", [])[:5]:
+            lines.append(f"  • {p.get('entity')}: {p.get('state')}")
+        for b in data.get("batteries", [])[:5]:
+            lines.append(f"  • Bateria {b.get('name')}: {b.get('level')}%")
+        router = data.get("router") or {}
+        if router.get("external_ip"):
+            lines.append(
+                f"  • Roteador: IP externo {router.get('external_ip')}"
+                + (f", download {router.get('download_kib_s')} KiB/s"
+                   if router.get("download_kib_s") else "")
+            )
+        return "\n".join(lines)
 
     if action == "network_hosts":
         hosts = data.get("hosts", [])

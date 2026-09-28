@@ -53,6 +53,43 @@ APK 1.7.0+17 (versionCode 17) publicado em site/OmegaDrakon.apk
   trava para os DEMAIS papéis, com teste de regressão
   (TestGuardaInfraParaNaoDono em tests/test_resposta_transparente.py).
 
+## [1.8.0] — O CHAT FALA COM O LAR: clima, luzes e resumo do Home Assistant como dado real 🏠 (2026-09-28)
+
+> **Política:** capacidade nova para o usuário final (clima REAL da região
+> e estado do lar no chat — dados que o LLM alucinava) = MINOR
+> (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.8.0` · app `1.8.0+2020` (versionCode 2020).
+
+### Diagnóstico (leitura das conversas + integração)
+
+- **Clima alucinado**: "temperatura agora em presidente venceslau" → o
+  LLM inventou "23°C" e REPETIU a mentira quando o dono disse "mentira"
+  — o sistema não tinha fonte de clima.
+- **Senha alucinada**: "qual a senha do mqtt" → o LLM respondeu
+  "OmegaDrakon2026" (FALSA — conferido contra o cofre) — dado sensível
+  não pode vir do modelo.
+- **Home Assistant ocioso**: integração no ar (health "HA alcançável",
+  40 entidades: weather com 33.3°C reais, 7 luzes, bateria, roteador) e
+  ZERO actions no catálogo — o chat não alcançava nenhum dado de lá.
+
+### Adicionado (2026-09-28)
+
+| Peça | Entrega |
+|---|---|
+| **Actions iot*** | `ha_weather` (weather.* real), `ha_lights` (estado das luzes, leitura), `ha_summary` (clima+luzes+pessoas+bateria+roteador; só admin) — catálogo 59 → 62, categoria nova `iot` (3) |
+| **Intenções novas** | "clima/temperatura/umidade em casa/cidade/agora" → ha_weather (dado REAL, sem LLM); "quais luzes acesas" → ha_lights; "como está a casa" → ha_summary; 'tempo em média/demora' NÃO é clima |
+| **Trava de credenciais** | "qual a senha do mqtt/wi-fi/postgres/telegram" → 🔐 NEGAÇÃO determinística para TODOS os papéis (inclusive admin), sem LLM — o valor real vive no .env/cofre, não no modelo |
+| **Wiring** | `build_action_registry` injeta o HAClient (config/iot_credentials.json) nas actions iot_*; sem credenciais, degradam (ok=False → LLM) |
+| **Casa de Conhecimento** | prompt v1.8.0: dado em TEMPO REAL sem fonte de ferramenta é DESCONHECIDO — 'não tenho esse dado agora' em vez de inventar; fatos incertos → admitir incerteza |
+| **Permissões** | papel user ganha ha_weather + ha_lights (leitura do lar, sem ha_summary) |
+
+### Cobertura
+
+- tests/test_resposta_transparente.py: +5 (clima de cidade → ha_weather
+  para qualquer papel, 'tempo em média' não é clima, luzes, resumo,
+  credenciais negadas + negativo sem contexto).
+- Suíte completa: **1994 passed, 16 skipped**.
+
 ## [1.7.2] — Anti-recusa com 2 retries para assunto externo + fallback honesto 🔁 (2026-09-28)
 
 > **Política:** refinamento de comportamento sem capacidade nova = PATCH

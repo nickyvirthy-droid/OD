@@ -196,6 +196,16 @@ INFRA_DENIED_MESSAGE = (
     "restrita ao dono do sistema."
 )
 
+# Credenciais/segredos (v1.8.0): negação determinística para TODOS os
+# papéis — o LLM alucinou uma senha de MQTT no ar ('OmegaDrakon2026',
+# falsa). O valor real de um segredo nunca vive no modelo; vive no
+# .env/cofre — e nem o dono pede isso pelo chat.
+SECRETS_DENIED_MESSAGE = (
+    "🔐 Senhas e credenciais não são respondidas pelo chat — nem para o "
+    "dono. O valor real vive no .env/cofre do servidor; para trocar ou "
+    "consultar, acesse o servidor diretamente."
+)
+
 # Recusa persistente do modelo em ASSUNTO EXTERNO (2026-09-28): esgotados
 # os retries (2 para assunto externo), quem pergunta recebe este aviso
 # honesto — NUNCA a recusa falsa do modelo (que alega vedação de sistema
@@ -670,14 +680,33 @@ class Orchestrator:
                 return
 
         # Etapa 3.5 — Fast path de intenções (mesma regra do `process`: papel
-        # vem da credencial; "anonymous" não aciona action).
+        # vem da credencial; "anonymous" não aciona action). v1.8.0: trava de
+        # credenciais ANTES do gate de anonymous (mesma regra do `process`).
+        from core.intents import detect_action_intent, format_intent_result, safe_math
+
+        intent = detect_action_intent(text)
+        if intent is not None and intent[0] == "__secrets_denied__":
+            self._metrics.infra_denied += 1
+            result = self._stream_result(
+                user_id, profile, text, ROUTE_INTENT, SECRETS_DENIED_MESSAGE,
+                llm_used="",
+            )
+            await self._record_terminal(result, text, persist=True)
+            await self._finish(result, started)
+            yield {"type": "token", "content": SECRETS_DENIED_MESSAGE}
+            yield {
+                "type": "done",
+                "profile_name": _profile_display_name(profile),
+                "content": SECRETS_DENIED_MESSAGE,
+                "route": ROUTE_INTENT,
+                "llm_used": "",
+            }
+            return
         if (
             self._config.enable_action_intents
             and self._action_registry is not None
             and role != "anonymous"
         ):
-            from core.intents import detect_action_intent, format_intent_result, safe_math
-
             answer = safe_math(text)
             route_detail = "math"
             if answer is None:
@@ -954,13 +983,25 @@ class Orchestrator:
         # só quando o ActionRegistry está conectado. Quem conversa sem conta
         # (papel "anonymous") não aciona action nenhuma: a matemática continua,
         # mas a intenção operacional cai para o LLM.
+        # v1.8.0: a intenção __secrets_denied__ é avaliada ANTES do gate de
+        # anonymous — credencial/segredo é negação determinística para
+        # TODOS (o LLM alucinou uma senha de MQTT no ar; para o papel user
+        # a negação é de direito; para o dono, o valor real não vive no
+        # modelo — viver no .env/cofre).
+        from core.intents import detect_action_intent, format_intent_result, safe_math
+
+        intent = detect_action_intent(text)
+        if intent is not None and intent[0] == "__secrets_denied__":
+            self._metrics.infra_denied += 1
+            result.route = ROUTE_INTENT
+            result.message = SECRETS_DENIED_MESSAGE
+            await self._record_terminal(result, text, persist=persist)
+            return await self._finish(result, started)
         if (
             self._config.enable_action_intents
             and self._action_registry is not None
             and role != "anonymous"
         ):
-            from core.intents import detect_action_intent, format_intent_result, safe_math
-
             answer: Optional[str] = safe_math(text)
             route_detail = "math"
             if answer is None:

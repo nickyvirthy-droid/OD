@@ -63,6 +63,7 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
     "user": [
         "system_info", "uptime", "datetime", "disk_usage",
         "memory_usage", "cpu_info", "cpu_temp",
+        "ha_weather", "ha_lights",  # v1.8.0: leitura do lar (sem ha_summary)
         "process_list", "process_info",
         "service_list", "service_status",
         "docker_list", "docker_status", "docker_stats",

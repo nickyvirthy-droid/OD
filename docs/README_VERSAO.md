@@ -7,6 +7,34 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.8.0] — O CHAT FALA COM O LAR: clima, luzes e resumo do Home Assistant como dado real 🏠 (2026-09-28)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | "leia as conversas, verifique as respostas e veja o que pode ser melhorado; se o sistema tem acesso ao Home Assistant, por que não pega informações de lá" |
+| **Diagnóstico** | clima alucinado ("23°C" e a mentira repetida), senha de MQTT alucinada ("OmegaDrakon2026", falsa), HA no ar com 40 entidades e ZERO actions no chat |
+| **Actions iot*** | ha_weather · ha_lights · ha_summary (catálogo 59 → 62, categoria nova iot); HAClient injetado no launcher; degradam sem HA |
+| **Trava de segredos** | senha/credencial/token → 🔐 negação determinística para qualquer papel, sem LLM |
+| **Casa de Conhecimento** | tempo real sem fonte = desconhecido; incerteza admitida; senha nunca |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 1994 passed, 16 skipped
+Provas locais com o HA real:
+  ha_weather → 33.3°C, parcialmente nublado, umidade 63%, vento 10.1 km/h
+  ha_lights → 2 acesas de 6 (Cozinha, Varanda) · apagadas: Corredor, Nicoly, Suíte, nota
+  ha_summary → clima + luzes + person + bateria 56% + roteador 189.124.4.56
+APK 1.8.0+2020 (versionCode 2020) publicado em site/
+```
+
+### 3. Pendências / próximos passos
+
+- Controle (ligar/desligar luz) desenhado e NÃO implementado — fica para
+  o dono aprovar (gate de papel + confirmação).
+
 ## [1.7.2] — Anti-recusa com 2 retries para assunto externo + fallback honesto 🔁 (2026-09-28)
 
 ### 1. O que foi feito

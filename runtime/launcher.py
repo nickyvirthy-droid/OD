@@ -353,6 +353,25 @@ def build_action_registry() -> Any:
 
     security = SecurityManager(mode="strict")
     registry = build_registry(security=security)
+    # Home Assistant (v1.8.0): injeta o cliente HA nas actions iot_* — o
+    # HA está no ar (health "HA alcançável") e as conversas mostravam o
+    # LLM alucinando clima que o weather.* do HA sabe de verdade. Sem
+    # credenciais, as actions degradam (ok=False) e o chat cai no LLM.
+    try:
+        from integrations.homeassistant import HAClient, HACredentials
+
+        creds_path = REPO_ROOT / env(
+            "OD_HA_CREDENTIALS", "config/iot_credentials.json"
+        )
+        if creds_path.exists():
+            from tools.actions.actions import configure_ha_client
+
+            configure_ha_client(
+                HAClient(HACredentials.from_file(str(creds_path)))
+            )
+            log.info("Actions iot_* ligadas ao Home Assistant")
+    except Exception as exc:  # pragma: no cover — degrada sem HA
+        log.warn("Actions iot_* sem Home Assistant", error=str(exc))
     log.info(
         "Action Registry ativo",
         actions=registry.metrics.actions,
