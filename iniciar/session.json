@@ -1,7 +1,19 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-28T19:2x:00-03:00",
+  "updated_at": "2026-09-28T19:35:00-03:00",
+  "prova_user_recusa_2026_09_28": {
+    "pedido": "Dono: provar 'qual a temperatura do servidor' e de cidade pelo chat com papel user (não só admin). A prova pegou DOIS bugs novos no ar.",
+    "bug_1_alucinacao_user": "user + 'temperatura em presidente venceslau sp' roteava CERTO para o LLM, mas o gemma alucinava a vedação ('restrita ao dono'). O anti-recusa só valia para admin e só existia no streaming (REST sem Etapa 6.5). Correção 88c846e: _refusal_reason(role, text) detecta alucinação para user/anônimo quando o assunto é MUNDO EXTERNO; _retry_generation com reforço por papel (user NUNCA recebe reforço de dono); Etapa 6.5 no REST. +6 testes; 3 mutações detectadas.",
+    "bug_2_recusa_cacheada": "Pós-deploy do 88c846e, a 2ª prova devolveu a alucinação na rota cache (17ms): a recusa da 1ª prova entrou no cache LLM — guard _cacheable só conhecia etiquetas [NICKY][...] e o cache é servido ANTES da etapa 6.5 → recusa permanente, sem retry. Correção a7b762d: cache_failure_reason ban frases fortes de recusa (_CACHE_BAN_REFUSALS regex; hedging continua cacheável). Typo de regex (restri[tc]ad[oa]) pego pelo próprio teste novo. +3 testes; 1 mutação detectada.",
+    "poda": "Cache com 10 recusas acumuladas → snapshot backups/cache-recusas-20260928.json (sha256 0b004d4e…) → poda real removidas 10 → pós 0 candidatas.",
+    "prova_final_5_5": "user+servidor → 54.5°C real zero LLM; user+cidade 1ª ida → recusa detectada/refeita (retry também recusou — gemma teimoso, 1 retry é o desenho; recusa NÃO entrou no cache); 2ª ida → retry entregou o clima (fallback) e a resposta BOA entrou no cache; user+IP → 🔒 de direito sem LLM; admin → 59.0°C real. PID 869597 NRestarts=0, journal 0 erros.",
+    "licao_processo": "1ª rodada de mutação usou git checkout para reverter e DESCARTEOU edições não-commitadas (refeito na mão); rodadas seguintes: backup em /tmp + restore — 0 perda.",
+    "commits": ["88c846e fix(core): anti-recusa por papel — alucinação de vedação para assunto externo é refeita (user e anônimo)", "a7b762d fix(core): recusa do modelo não entra no cache — alucinação cacheada virava permanente"],
+    "suíte": "1984 passed, 16 skipped.",
+    "estado": "CONCLUÍDO E NO AR — garantias provadas: recusa nunca vira permanente, cada recusa dispara retry, resposta boa cacheada, vedação de IP/portas do user intacta, admin com dado real. Nota: gemma às vezes recusa 2x seguidas — mais retries é ajuste futuro se o dono quiser.",
+    "transcricao": "iniciar/2026-09-28_conversa_omegadrakon.md (§8)"
+  },
   "guarda_versioncode_2026_09_28": {
     "pedido": "Dono: 'Adicionar guarda de teste que fixe _APP_VERSION_CODE == versionCode do pubspec, fechando a lacuna do checklist'.",
     "implementacao": [
@@ -692,7 +704,7 @@
   "last_turn": {
     "date": "2026-09-28",
     "action": "v1.7.1 completa: lote órfão resgatado (b0961aa — cpu_temp, clima sem bloqueio indevido, anti-recusa endurecido), /app/version anunciando APK errado corrigido (4384e5b), deploy provado 6/6 (temperatura real 57°C via fastpath:cpu_temp, ZERO LLM).",
-    "next": "Nada pendente no servidor nem no app. Próxima sessão começa de novo pedido do dono. _APP_VERSION_CODE (server.py) agora tem GUARDA na suíte (test_app_version_code_bate_com_o_pubspec) e item 4 no checklist §5 do VERSIONAMENTO.md — lacuna de 28/09 fechada.",
+    "next": "Nada pendente no servidor nem no app. Próxima sessão começa de novo pedido do dono. Pendências opcionais registradas: (a) gemma às vezes recusa 2x seguidas — avaliar 2 retries quando o assunto é externo; (b) _APP_VERSION_CODE tem guarda na suíte e item 4 no checklist §5.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

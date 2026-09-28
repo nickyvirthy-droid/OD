@@ -117,9 +117,80 @@ Pedido do dono: "Adicionar guarda de teste que fixe `_APP_VERSION_CODE ==`
 - **Suíte completa: 1975 passed, 16 skipped** (+1).
 - Nota: mudança só de teste/docs — sem deploy (nada muda no runtime).
 
+## 8. Prova com papel user + dois bugs novos pegos no ar (~19:0x–19:3x)
+
+Pedido do dono: provar 'qual a temperatura do servidor' e de cidade com
+papel user (não só admin).
+
+### 8.1 A prova revelou o bug 1: alucinação de vedação do LLM (88c846e)
+
+- user + 'temperatura do servidor' → ✅ fastpath:cpu_temp real, zero LLM.
+- user + 'temperatura em presidente venceslau sp' → o sistema roteou
+  CERTO para o LLM (sem 🔒 do sistema), mas o **gemma ALUCINOU a
+  vedação**: 'Informação de infraestrutura… é restrita ao dono'.
+- user + IP → ✅ 🔒 determinística sem LLM (vedação de direito intacta).
+- **Causa**: o anti-recusa só valia para admin — e só existia no
+  streaming (o REST nem tinha a Etapa 6.5).
+- **Correção**: `_refusal_reason` generalizada (assina `text`; para
+  user/anônimo só aciona com assunto do MUNDO EXTERNO — o 'não posso'
+  na vedação de infra é de direito do papel); Etapa 6.5 chega ao REST;
+  `_retry_admin_generation` → `_retry_generation` com reforço POR PAPEL
+  (o de user reafirma a vedação real, nunca vira dados de dono).
+- Testes: +6 (5 de detecção + 1 ponta a ponta do retry seguro que
+  confere que o reforço NÃO contém 'DONO/ADMIN'); 3 mutações detectadas
+  e revertidas (guarda sem assunto, retry removido, reforço trocado).
+  Suíte 1981/16.
+- Lição de processo: a 1ª rodada de mutação usou `git checkout` para
+  reverter e DESCARTOU edições não-commitadas — refeito na mão; as
+  próximas rodadas usam backup em /tmp + restore (0 perda).
+
+### 8.2 A prova revelou o bug 2: recusa cacheada virava PERMANENTE (a7b762d)
+
+- Pós-deploy do 88c846e, a 2ª prova da cidade devolveu a alucinação na
+  rota **cache** (17ms): a 1ª resposta alucinada tinha entrado no LLM
+  cache — o guard `_cacheable` (v1.4.0) só conhecia etiquetas
+  [NICKY][...] e o cache é servido ANTES da etapa 6.5, então a recusa
+  virava permanente, sem chance de retry.
+- **Correção**: `cache_failure_reason` ban frases fortes de recusa
+  (`_CACHE_BAN_REFUSALS`, regex; conservador — hedging 'não posso
+  garantir, mas…' continua cacheável). Typo de regex
+  (`restri[tc]ad[oa]`) pego pelo PRÓPRIO teste novo antes do deploy.
+- Testes: +3 (alucinação não cacheável, recusas típicas não cacheáveis,
+  respostas normais/hedging continuam cacheáveis); +1 mutação detectada
+  e revertida (varredura removida do guard). Suíte **1984/16**.
+
+### 8.3 Poda do cache envenenado + prova final 5/5
+
+- `/admin/cache/prune` dry_run → **10 candidatas** (recusas acumuladas,
+  inclusive 2 da série de provas de hoje); snapshot de rollback
+  `backups/cache-recusas-20260928.json` (sha256 0b004d4e…); poda real →
+  removidas 10; pós → 0 candidatas.
+- **Prova final (PID 869597, NRestarts=0, journal 0 erros)**:
+  1. user + temperatura do servidor → ✅ 54.5°C real, zero LLM.
+  2. user + cidade 1ª ida → gemma recusou, DETECTADO (journal 'Recusa
+     indevida | role=user') e refeito; o retry também recusou (gemma
+     teimoso, 1 retry é o desenho) e a recusa FOI entregue — mas NÃO
+     entrou no cache.
+  3. user + cidade 2ª ida → recusa de novo, retry entregou a resposta
+     do clima (route=fallback) e a resposta BOA entrou no cache.
+  4. user + IP → ✅ 🔒 de direito, sem LLM.
+  5. admin + temperatura do servidor → ✅ 59.0°C real.
+- **Garantias provadas**: recusa nunca mais vira permanente (nada de
+  recusa no cache); cada recusa dispara retry; resposta boa cacheada;
+  vedação de IP/portas do user intacta; admin com dado real.
+- Nota: o gemma local às vezes recusa 2x seguidas — com 1 retry o user
+  pode ver uma recusa na 1ª pergunta, mas a resposta chega na repetição
+  e a recusa não contamina o cache. Mais retries é ajuste futuro se o
+  dono quiser.
+
+Commits: `88c846e` fix(core) anti-recusa por papel · `a7b762d` fix(core)
+recusa não cacheável. Deploys: PID 867743 e PID 869597, NRestarts=0.
+
 ## Estado final
 
-- **CONCLUÍDO E NO AR** — v1.7.1 implantada, provada e publicada.
+- **CONCLUÍDO E NO AR** — v1.7.1 implantada, provada e publicada
+  (+2 fixes de recusa em 28/09: 88c846e, a7b762d — cache saudável,
+  0 recusas; suíte 1984/16).
 - O app 1.7.0+2017 do celular deve receber o 1.7.1+2018 pela
   auto-atualização (versionCode maior; conteúdo do app é o mesmo).
 - Nota para as próximas versões (FECHADA em ~19:1x, ver §7): a lacuna do
