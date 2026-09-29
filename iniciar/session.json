@@ -806,11 +806,20 @@
     "estado": "DIA FECHADO — sistema verde. v1.9.1 no ar e no celular (§10); cache 100% saudável; HEAD f352f2e == origin/master; nada pendente.",
     "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§11)"
   },
+  "changelog_reordenado_2026_09_29": {
+    "pedido": "Dono: 'Reordenar o CHANGELOG com a [1.7.0] na posição cronológica correta, com guardas de teste' (~13:3x).",
+    "reordenacao": "[1.7.0] movida de cima da [1.8.0] para entre [1.7.1] e [1.6.1]; conteúdo intacto; ordem final 1.9.1→1.9.0→1.8.1→1.8.0→1.7.2→1.7.1→1.7.0→1.6.1→1.6.0→1.5.0→1.4.0→1.3.0→1.2.0→1.1.0→1.0.0.",
+    "guarda": "test_changelog_secoes_em_ordem_cronologica (8º em test_version_policy.py): ordem ESTRITAMENTE descendente (sem cabeçalho repetido) + sanidade ≥10 seções; registrada no VERSIONAMENTO.md §6.",
+    "teste_do_teste": "Guarda vista FALHAR no estado desordenado; 1ª rodada pegou guarda fraca (sorted aceitava duplicado) — endurecida para par a par estrita; 2ª rodada 3/3 mutações detectadas e revertidas bit-exata (desordem real, duplicado, seção vigente renomeada). Backup /tmp, sem git checkout.",
+    "validacao": "Suíte completa 2015 passed, 16 skipped (68s, ambiente canônico). Sem bump (docs + guarda, mesmo precedente dos commits de registro).",
+    "estado": "CONCLUÍDO — nota menor herdada desde 28/09 encerrada; commit/push na sequência (regra 7.1).",
+    "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§12)"
+  },
   "last_turn": {
     "date": "2026-09-29",
     "retomada": "13:07 — dono pediu 'leia iniciar'; checkpoint lido, estado do sistema conferido (HEAD 1ec0393 == origin/master, od-core ativo PID 966981 NRestarts=0, v1.9.1 no ar). Aguardando o próximo pedido do dono.",
     "action": "v1.9.1 completa e NO AR: coerência do lar — 'luzes acessas' vira leitura real, 'sim' incoerente é recusado genericamente sem LLM, plural nunca inventa entidade, confirmações/execuções fora do cache. Casos reais do dono reproduzidos e corrigidos.",
-    "next": "Dia fechado (§11): verificação geral verde, poda das 5 entradas pré-guarda do cache executada com snapshot — nada pendente. Nota menor: docs/CHANGELOG.md tem a [1.7.0] desordenada (acima da [1.8.0]) — reordenar numa sessão futura se o dono quiser.",
+    "next": "Dia fechado (§11) e CHANGELOG reordenado com guarda (§12) — nada pendente no servidor, no app e nos docs.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

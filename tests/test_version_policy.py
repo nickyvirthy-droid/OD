@@ -144,3 +144,29 @@ class TestVersionPolicy:
         assert re.search(
             rf"^## \[{re.escape(OD_VERSION)}\]", changelog, re.MULTILINE
         ), f"docs/CHANGELOG.md sem seção '## [{OD_VERSION}]' — checklist §5.5"
+
+    def test_changelog_secoes_em_ordem_cronologica(self) -> None:
+        """As seções ## [X.Y.Z] do CHANGELOG estão em ordem DESCENDENTE
+        (mais recente no topo).
+
+        A [1.7.0] ficou desordenada — gravada ACIMA da [1.8.0] — porque a
+        regra 'mais recente no topo' foi aplicada como 'última seção
+        gravada no topo' nas sessões de 28/09. Ordem errada engana quem
+        lê o histórico e a nota de mapeamento da [1.3.0] perde o sentido.
+        Esta guarda fixa a regra do próprio arquivo como contrato.
+        """
+        changelog = _read("docs/CHANGELOG.md")
+        matches = re.findall(
+            r"^## \[(\d+)\.(\d+)\.(\d+)\]", changelog, re.MULTILINE
+        )
+        assert len(matches) >= 10, (
+            "poucas seções ## [X.Y.Z] no CHANGELOG — a regex da guarda "
+            "deixou de casar com o formato do arquivo?"
+        )
+        versions = [tuple(int(p) for p in m) for m in matches]
+        estrita = all(a > b for a, b in zip(versions, versions[1:]))
+        assert estrita, (
+            "seções ## [X.Y.Z] fora da ordem cronológica ESTRITA (esperado: "
+            "mais recente no topo, sem cabeçalho repetido): "
+            + " → ".join(f"{a}.{b}.{c}" for a, b, c in versions)
+        )

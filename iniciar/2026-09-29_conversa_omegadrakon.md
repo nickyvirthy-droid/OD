@@ -401,3 +401,45 @@ Pedido do dono: "Rodar a verificação geral do sistema para fechar o dia
 - **DIA FECHADO — sistema verde.** v1.9.1 no ar e confirmada no celular
   (§10); cache 100% saudável e sem resíduo pré-guarda; HEAD f352f2e ==
   origin/master. Nada pendente.
+
+## 12. Reordenação do CHANGELOG + guarda de ordem (~13:3x)
+
+Pedido do dono: "Reordenar o CHANGELOG com a [1.7.0] na posição
+cronológica correta, com guardas de teste".
+
+### Reordenação (conteúdo intacto, só posição)
+
+- A [1.7.0] (26/09) saiu de cima da [1.8.0] e foi para o lugar certo:
+  entre a [1.7.1] (27/09) e a [1.6.1] (26/09). Ordem final no topo:
+  1.9.1 → 1.9.0 → 1.8.1 → 1.8.0 → 1.7.2 → 1.7.1 → 1.7.0 → 1.6.1 →
+  1.6.0 → 1.5.0 → 1.4.0 → 1.3.0 → 1.2.0 → 1.1.0 → 1.0.0.
+- Duas âncoras erradas da minha parte no meio do caminho (bloco caiu
+  antes da [1.7.2] e depois antes da [1.7.1]) — ambas pegadas pela
+  própria guarda na hora, antes de qualquer commit.
+
+### Guarda nova
+
+- tests/test_version_policy.py: `test_changelog_secoes_em_ordem_
+  cronologica` (8º teste) — seções `## [X.Y.Z]` em ordem ESTRITAMENTE
+  descendente (mais recente no topo, sem cabeçalho repetido) + sanidade
+  de ≥ 10 seções (regex parou de casar = teste grita).
+- docs/VERSIONAMENTO.md §6: guarda registrada com a motivação.
+
+### Teste do teste
+
+- Guarda vista FALHAR no estado desordenado (1.7.0 no índice 3) antes
+  da correção.
+- 1ª rodada de mutação pegou guarda FRACA: `sorted(reverse=True)`
+  aceitava cabeçalho DUPLICADO (1.6.1 duas vezes) — endurecida para
+  comparação par a par estrita (precedente de guarda fraca de 28/09).
+- 2ª rodada: 3/3 mutações detectadas e revertidas bit-exata (M1
+  desordem real, M2 cabeçalho duplicado, M3 seção da versão vigente
+  renomeada — esta pela guarda pré-existente). Backup/restore em /tmp,
+  sem git checkout (lição de 28/09).
+
+### Validação e publicação
+
+- Suíte completa (ambiente canônico, sem OD_TEST_POSTGRES_DSN):
+  **2015 passed, 16 skipped** (68s).
+- Sem bump: mudança é documentação + guarda (sem .env/pubspec/server/
+  APK) — mesmo precedente dos commits de registro.

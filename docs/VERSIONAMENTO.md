@@ -84,6 +84,17 @@ Bump parcial quebra a suíte. Verificado com 5 mutações (todas detectadas
 e revertidas) + a mutação 2018→2017 de 2026-09-28 (detectada, revertida
 bit-exata).
 
+**Guarda de ordem do CHANGELOG (2026-09-29):**
+`test_changelog_secoes_em_ordem_cronologica` exige as seções `## [X.Y.Z]`
+em ordem ESTRITAMENTE descendente (mais recente no topo, sem cabeçalho
+repetido). Motivação: a `[1.7.0]` foi gravada ACIMA da `[1.8.0]` nas
+sessões de 28/09 ('última seção gravada no topo' em vez de 'mais recente
+no topo') e só foi reordenada em 29/09. Teste do teste: 1ª rodada com
+`sorted(reverse=True)` aceitou cabeçalho duplicado (mutação fraca,
+precedente de 28/09) — endurecida para comparação par a par estrita; 3/3
+mutações detectadas e revertidas bit-exata (desordem real, cabeçalho
+duplicado, seção da versão vigente renomeada).
+
 ## 7. Histórico de saneamento (2026-09-26)
 
 - Até aqui o sistema rodou `OD_VERSION=1.2.0` (de 09-12) enquanto o app
