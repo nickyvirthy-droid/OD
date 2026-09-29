@@ -14,6 +14,29 @@
 
 ---
 
+## [1.10.0] — PAINÉIS NO APP: dashboard e admin com as mesmas funcionalidades do site 📊 (2026-09-29)
+
+> **Política:** capacidade nova para o usuário final (o app ganha a aba
+> Painel com conta e gestão admin) = MINOR (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.10.0` · app `1.10.0+2024`
+> (versionCode 2024).
+
+### Adicionado (2026-09-29)
+
+| Peça | Entrega |
+|---|---|
+| **OdApi** | 7 métodos novos consumindo os contratos JÁ existentes do servidor: `getMe` (/auth/me com role), `getDashboardStats` (/dashboard/stats), `changePassword` (/account/password — devolve `sessions_closed`), `rotateApiKey` (/account/api-key), `getAdminUsers` (/admin/users), `adminResetPassword` e `adminDeleteUser` |
+| **Tela Painel (nova aba)** | `DashboardScreen` como 3ª aba (Chat · Ações · **Painel** · Status · Config): conta logada com papel, mensagens da conta, stats do sistema, troca da própria senha (encerra sessões e volta ao login) e rotação da API key |
+| **Seção Admin (gate por papel)** | Visível só com `role=admin` do /auth/me (o gate de verdade segue no servidor com 403): lista de contas com sessões/msgs, reset de senha, remoção de conta (dono não é alvo) e baldes legados — mesmo conteúdo do /admin do site |
+| **Modo avançado** | `_onAdvanced` atualizado para o índice 4 (Config) — regressão pega pelo teste de widget antes do deploy |
+
+### Cobertura
+
+- app/test/od_api_test.dart: +9 (role do /auth/me, stats, troca de senha
+  ok e com erro do servidor, rotação de key, /admin/users com Bearer e o
+  403 propagado para papel user, reset e remoção na rota certa).
+- flutter analyze 0 issues · flutter test 105 passed, 2 skipped.
+
 ## [1.9.1] — COERÊNCIA DO LAR: o chat nunca mais responde por dispositivo errado 🎯 (2026-09-29)
 
 > **Política:** correção de incoerência nas respostas (sem capacidade nova)

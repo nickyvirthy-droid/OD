@@ -6,6 +6,7 @@ import 'services/od_updater.dart';
 import 'services/push_service.dart';
 import 'screens/chat_screen.dart';
 import 'screens/actions_screen.dart';
+import 'screens/dashboard_screen.dart';
 import 'screens/status_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
@@ -201,9 +202,10 @@ class _OdRootState extends State<OdRoot> {
 
   void _onAdvanced() {
     // Modo avançado: vai direto às Configurações (API key do servidor).
+    // 5ª aba: Chat(0) · Ações(1) · Painel(2) · Status(3) · Config(4).
     setState(() {
       _authenticated = true;
-      _initialIndex = 3;
+      _initialIndex = 4;
     });
   }
 
@@ -269,6 +271,7 @@ class _OdHomeState extends State<OdHome> {
     final screens = [
       ChatScreen(api: widget.api),
       ActionsScreen(api: widget.api),
+      DashboardScreen(api: widget.api),
       StatusScreen(api: widget.api),
       SettingsScreen(api: widget.api, onSaved: widget.onSettingsSaved),
     ];
@@ -292,6 +295,11 @@ class _OdHomeState extends State<OdHome> {
             icon: Icon(Icons.bolt_outlined),
             selectedIcon: Icon(Icons.bolt),
             label: 'Ações',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: 'Painel',
           ),
           NavigationDestination(
             icon: Icon(Icons.monitor_heart_outlined),

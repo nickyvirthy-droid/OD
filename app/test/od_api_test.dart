@@ -574,4 +574,125 @@ void main() {
       expect(calls, 1);
     });
   });
+
+// ---------------------------------------------------------------------------
+// Painéis do app — mesmas funcionalidades do /dashboard e /admin do site.
+// ---------------------------------------------------------------------------
+
+group('OdApi.painéis (conta e admin)', () {
+  test('getMe retorna role do usuário logado', () async {
+    final api = apiWith(MockClient((request) async {
+      expect(request.url.path, '/auth/me');
+      expect(request.headers['Authorization'], 'Bearer tok-me');
+      return jsonResponse({
+        'ok': true,
+        'user': {'id': 1, 'username': 'alex', 'email': 'a@x.dev'},
+        'via': 'session',
+        'role': 'admin',
+      });
+    }));
+    await api.setToken('tok-me');
+    final me = await api.getMe();
+    expect(me['role'], 'admin');
+    expect(me['user']['username'], 'alex');
+  });
+
+  test('getDashboardStats consome /dashboard/stats', () async {
+    final api = apiWith(MockClient((request) async {
+      expect(request.url.path, '/dashboard/stats');
+      return jsonResponse({
+        'ok': true,
+        'history': {'per_user': {}},
+        'cache': {'entries': 0},
+      });
+    }));
+    final stats = await api.getDashboardStats();
+    expect(stats['ok'], isTrue);
+  });
+
+  test('changePassword devolve sessions_closed', () async {
+    final api = apiWith(MockClient((request) async {
+      expect(request.url.path, '/account/password');
+      final body = jsonDecode(request.body);
+      expect(body['current_password'], 'antiga');
+      expect(body['new_password'], 'nova123');
+      return jsonResponse({'ok': true, 'sessions_closed': 2});
+    }));
+    expect(await api.changePassword('antiga', 'nova123'), 2);
+  });
+
+  test('changePassword com senha errada lança erro do servidor', () async {
+    final api = apiWith(MockClient((_) async =>
+        jsonResponse({'ok': false, 'error': 'senha_incorreta'}, status: 403)));
+    expect(
+      () => api.changePassword('errada', 'nova123'),
+      throwsA(isA<OdApiError>()
+          .having((e) => e.message, 'message', 'senha_incorreta')
+          .having((e) => e.statusCode, 'status', 403)),
+    );
+  });
+
+  test('rotateApiKey devolve a nova chave', () async {
+    final api = apiWith(
+        MockClient((request) async {
+          expect(request.url.path, '/account/api-key');
+          expect(request.method, 'POST');
+          return jsonResponse({'ok': true, 'api_key': 'od_nova'});
+        }));
+    expect(await api.rotateApiKey(), 'od_nova');
+  });
+
+  test('getAdminUsers passa o Bearer e devolve contas', () async {
+    final api = apiWith(MockClient((request) async {
+      expect(request.url.path, '/admin/users');
+      expect(request.headers['Authorization'], 'Bearer tok-adm');
+      return jsonResponse({
+        'ok': true,
+        'users': [
+          {
+            'id': 1,
+            'username': 'alex',
+            'email': 'a@x.dev',
+            'sessions': 3,
+            'messages': 10,
+            'owner': true,
+          },
+        ],
+        'legacy_buckets': [],
+        'total': 1,
+      });
+    }));
+    await api.setToken('tok-adm');
+    final data = await api.getAdminUsers();
+    expect((data['users'] as List).length, 1);
+  });
+
+  test('getAdminUsers para papel user propaga o 403', () async {
+    final api = apiWith(MockClient((_) async =>
+        jsonResponse({'ok': false, 'error': 'acesso_negado'}, status: 403)));
+    await api.setToken('tok-user');
+    expect(
+      () => api.getAdminUsers(),
+      throwsA(isA<OdApiError>().having((e) => e.statusCode, 'status', 403)),
+    );
+  });
+
+  test('adminResetPassword manda new_password na rota certa', () async {
+    final api = apiWith(MockClient((request) async {
+      expect(request.url.path, '/admin/users/bia/password');
+      expect(jsonDecode(request.body)['new_password'], 'se Nova6');
+      return jsonResponse({'ok': true, 'username': 'bia'});
+    }));
+    await api.adminResetPassword('bia', 'se Nova6');
+  });
+
+  test('adminDeleteUser faz DELETE na rota certa', () async {
+    final api = apiWith(MockClient((request) async {
+      expect(request.url.path, '/admin/users/bia');
+      expect(request.method, 'DELETE');
+      return jsonResponse({'ok': true, 'username': 'bia'});
+    }));
+    await api.adminDeleteUser('bia');
+  });
+});
 }

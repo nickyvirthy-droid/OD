@@ -7,6 +7,46 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.10.0] — PAINÉIS NO APP: dashboard e admin com as mesmas funcionalidades do site 📊 (2026-09-29)
+
+### 1. O que foi feito
+
+Pedido do dono: "deixar o app com as mesmas funcionalidades do site.
+dashboard e admin" — os painéis /dashboard e /admin do site (v1.4.0 de
+26/09) levados para o app Flutter consumindo os MESMOS contratos REST
+(nenhuma rota nova no servidor).
+
+- **OdApi (+7 métodos):** `getMe` (/auth/me com role), `getDashboardStats`
+  (/dashboard/stats), `changePassword` (/account/password, devolve
+  `sessions_closed`), `rotateApiKey` (/account/api-key), `getAdminUsers`
+  (/admin/users), `adminResetPassword` (/admin/users/{u}/password) e
+  `adminDeleteUser` (DELETE /admin/users/{u}).
+- **Tela Painel (nova aba, posição 3):** conta logada com papel/via,
+  mensagens da conta, stats do sistema, troca da própria senha (o
+  servidor mata TODAS as sessões → app volta ao login automaticamente)
+  e rotação da API key com exibição da chave nova.
+- **Seção Admin:** visível só com role=admin (vindo do /auth/me); o gate
+  de verdade segue no servidor (403). Lista contas com sessões/msgs,
+  reset de senha, remoção (dono não é alvo) e baldes legados.
+- **Modo avançado:** índice do Config 3 → 4 — regressão pega pelo teste
+  de widget de smoke (pumpAndSettle não achava 'Configurações') ANTES do
+  deploy.
+
+### 2. Validação
+
+- flutter analyze: 0 issues · flutter test: **105 passed, 2 skipped**
+  (+9 no grupo 'OdApi.painéis (conta e admin)').
+- Suíte do servidor com o bump: sem regressão (guardas de versão
+  fixam 1.10.0 em .env/capabilities/pubspec/site/CHANGELOG e
+  _APP_VERSION_CODE=2024).
+
+### 3. Versão
+
+- Bump 1.10.0 (MINOR — capacidade nova no app): .env, capabilities,
+  pubspec 1.10.0+2024, _APP_VERSION_CODE=2024, site (2×), CHANGELOG
+  [1.10.0], README_VERSAO §1.10.0. APK rebuildado com versionCode 2024
+  (> 2023 mantém a auto-atualização monotônica).
+
 ## [1.9.1] — COERÊNCIA DO LAR: o chat nunca mais responde por dispositivo errado 🎯 (2026-09-29)
 
 ### 1. O que foi feito

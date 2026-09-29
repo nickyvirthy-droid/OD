@@ -460,6 +460,119 @@ class OdApi {
         .toList(growable: false);
   }
 
+  // ------------------------------------------------------------------
+  // Painéis: mesma funcionalidade do /dashboard e /admin do site.
+  // ------------------------------------------------------------------
+
+  /// Quem está logado e com qual papel (GET /auth/me).
+  ///
+  /// Contrato: `{ok, user{id,username,email}, via, role}` — role 'admin' é
+  /// o dono (OD_API_KEY ou sessão própria); 'user' é conta comum;
+  /// 'anonymous' é conversa sem conta.
+  Future<Map<String, dynamic>> getMe() async {
+    final response = await _send('GET', Uri.parse('$baseUrl/auth/me'));
+    if (response.statusCode != 200) {
+      throw OdApiError('auth/me falhou: ${response.statusCode}');
+    }
+    return jsonDecode(response.body);
+  }
+
+  /// GET /dashboard/stats — agregados do orquestrador (histórico, cache,
+  /// vector store, métricas). Disponível para qualquer conta logada.
+  Future<Map<String, dynamic>> getDashboardStats() async {
+    final response = await _send('GET', Uri.parse('$baseUrl/dashboard/stats'));
+    if (response.statusCode != 200) {
+      throw OdApiError('dashboard/stats falhou: ${response.statusCode}');
+    }
+    return jsonDecode(response.body);
+  }
+
+  /// POST /account/password — troca a PRÓPRIA senha (exige a atual).
+  ///
+  /// O servidor encerra TODAS as sessões da conta — inclusive a do app que
+  /// fez a troca (resposta `sessions_closed`); quem chama deve deslogar
+  /// localmente e voltar ao login.
+  Future<int> changePassword(String current, String next) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/account/password'),
+      body: jsonEncode({'current_password': current, 'new_password': next}),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) {
+      return (data?['sessions_closed'] as num?)?.toInt() ?? 0;
+    }
+    throw OdApiError(
+      (data?['error'] as String?) ??
+          'Falha ao trocar a senha (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// POST /account/api-key — rotaciona a PRÓPRIA API key.
+  Future<String> rotateApiKey() async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/account/api-key'),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) {
+      return (data?['api_key'] as String?) ?? '';
+    }
+    throw OdApiError(
+      (data?['error'] as String?) ??
+          'Falha ao rotacionar a API key (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// GET /admin/users — contas + baldes legados (só admin; 403 fora).
+  Future<Map<String, dynamic>> getAdminUsers() async {
+    final response = await _send('GET', Uri.parse('$baseUrl/admin/users'));
+    if (response.statusCode != 200) {
+      throw OdApiError(
+        'admin/users falhou: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
+    return jsonDecode(response.body);
+  }
+
+  /// POST /admin/users/{username}/password — reset da senha pelo admin
+  /// (sem senha atual; mata as sessões da conta). O dono não é alvo (403).
+  Future<void> adminResetPassword(String username, String newPassword) async {
+    final response = await _send(
+      'POST',
+      Uri.parse(
+        '$baseUrl/admin/users/${Uri.encodeComponent(username)}/password',
+      ),
+      body: jsonEncode({'new_password': newPassword}),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return;
+    throw OdApiError(
+      (data?['error'] as String?) ??
+          'Falha no reset (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// DELETE /admin/users/{username} — remove a conta (mantém o histórico).
+  /// O dono não é alvo (403 dono_nao_removivel).
+  Future<void> adminDeleteUser(String username) async {
+    final response = await _send(
+      'DELETE',
+      Uri.parse('$baseUrl/admin/users/${Uri.encodeComponent(username)}'),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return;
+    throw OdApiError(
+      (data?['error'] as String?) ??
+          'Falha ao remover a conta (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
   /// Verifica a saúde do sistema.
   Future<Map<String, dynamic>> getHealth() async {
     final response = await _send(
