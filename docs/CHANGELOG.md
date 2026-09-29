@@ -14,6 +14,39 @@
 
 ---
 
+## [1.9.1] — COERÊNCIA DO LAR: o chat nunca mais responde por dispositivo errado 🎯 (2026-09-29)
+
+> **Política:** correção de incoerência nas respostas (sem capacidade nova)
+> = PATCH (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.9.1` · app `1.9.1+2023` (versionCode 2023).
+
+### Diagnóstico (conversas reais do dono, 29/09)
+
+| Caso | O que apareceu | Causa raiz |
+|---|---|---|
+| 09:36 — 'acenda a luz do corredor' + 'sim' | '✅ Luz da Varanda: desligar executado' | LLM imitou o formato determinístico em turnos errados (journal: route=llm) e executou intenção velha |
+| 09:41 — 'luzes acessas' | 'Confirmar: ligar Luzes Acessas (off)?' | 'acessas' (erro de digitação) não era reconhecido como estado → caiu no LLM, que INVENTOU a entidade |
+| (sistema) | Confirmações/execuções do lar no cache LLM | 'sim' virava confirmação velha eternamente |
+
+### Corrigido (2026-09-29)
+
+| Peça | Entrega |
+|---|---|
+| **Vocabulário a prova de digitação** | 'acenda/acessas/acesso' entram nos padrões de comando e estado — 'luzes acessas' → LEITURA real (nunca LLM) |
+| **Coerência do 'sim'** | confirmação que menciona OUTRO lugar ('sim, da sala' com pendente do corredor) NÃO executa: recusa genérica honesta, sem LLM, e a intenção velha é descartada |
+| **Plural nunca inventa entidade** | 'liga as luzes (da sala)' → resposta genérica ('não aciono várias luzes de uma vez') — nunca 'Confirmar: ligar Luzes Acessas' |
+| **Cache coerente** | '💡 Confirmar:…' e '✅ … executado' são estado de conversa: NUNCA mais entram no cache LLM |
+
+### Evidência (2026-09-29)
+
+```
+servidor: pytest tests/ → 2013 passed, 16 skipped (+6 testes de coerência;
+          mqtt test_start_stop_thread flaky passa isolado — precedente 09-21)
+teste do teste: 4/4 mutações detectadas e revertidas (coerência do sim,
+          caminhos do plural, cache de confirmação, regex do 'sim')
+APK 1.9.1+2023 (versionCode 2023) publicado em site/
+```
+
 ## [1.9.0] — CONTROLE DO LAR EXPANDIDO: tomadas e dispositivos com o mesmo padrão 🔌 (2026-09-29)
 
 > **Política:** capacidade nova para o usuário final (o dono controla

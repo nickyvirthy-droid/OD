@@ -206,8 +206,8 @@ def _detect_operational(text: str) -> Optional[str]:
     # + confirmação de 2 passos. v1.9.0: comando estendido a TOMADAS e
     # dispositivos switch.* ('liga a tomada do servidor').
     _comando = re.search(
-        r"\b(liga|ligue|acende|acende|desliga|desligue|apaga|apague|toggle|"
-        r"desconecta|desconecte|desplug|conecta|conecte|plug)\b",
+        r"\b(liga|ligue|acende|acenda|acende|desliga|desligue|apaga|apague|"
+        r"toggle|desconecta|desconecte|desplug|conecta|conecte|plug)\b",
         low,
     )
     _cmd_luz = bool(re.search(r"\b(luz|luzes|l[áa]mpada|interruptor)\b", low))
@@ -217,27 +217,52 @@ def _detect_operational(text: str) -> Optional[str]:
         low,
     ))
     if _comando and (_cmd_luz or _cmd_tomada):
+        # v1.9.1: comando em PLURAL/sem alvo ('luzes acesas' dito de forma
+        # ambígua, 'as luzes') NUNCA vira confirmação com entidade
+        # inventada ('Luzes Acessas') — o alvo específico é OBRIGATÓRIO;
+        # sem ele, a resposta é genérica e honesta.
+        _plural = bool(re.search(
+            r"\b(luzes|l[áa]mpadas|tomadas|soquetes|dispositivos|interruptores)\b",
+            low,
+        ))
         from core.intents import resolve_light_target
 
         target = resolve_light_target(low)
+        # Plural SEM entidade casada ('liga as luzes', 'luzes acessas'):
+        # resposta genérica — o verbo/substantivo NUNCA vira nome de
+        # entidade (BUG-B real de 09:41: 'Confirmar: ligar Luzes Acessas').
+        if target is not None and target[0] is None and _plural:
+            return "ha_device_control", {
+                "entity_id": "", "on": target[1], "plural": True,
+            }
         if target is not None:
             entity_id, on, alvo = target
             if entity_id is None:
+                if _plural:
+                    # 'liga as luzes'/'luzes acessas': sem alvo específico —
+                    # a action responde o pedido genérico de alvo (o verbo
+                    # de liga/desliga NÃO vira nome de entidade).
+                    return "ha_device_control", {
+                        "entity_id": "", "on": on, "plural": True,
+                    }
                 # Nomeou uma luz/dispositivo que não existe no HA — a action
                 # responde 'entidade_inexistente' com o termo procurado.
                 return "ha_device_control", {
                     "entity_id": "", "on": on, "termo": alvo,
                 }
-            return "ha_device_control", {"entity_id": entity_id, "on": on}
+            return "ha_device_control", {
+                "entity_id": entity_id, "on": on, "alvo": alvo,
+            }
         # Comando de luz/tomada SEM alvo específico: nunca executa em lote
-        # — pergunta qual dispositivo (resposta guiada sai do formatador da
-        # action quando o dono nomear; aqui devolve o pedido de alvo).
+        # — pede o alvo genérico (o formatador responde 'Qual luz ou
+        # tomada?'). Nunca inventa entidade a partir do próprio comando.
         return "ha_device_control", {"entity_id": "", "on": bool(
             _comando.group(1) not in ("desliga", "desligue", "apaga", "apague",
                                       "desconecta", "desconecte", "desplug")
         )}
     if re.search(r"\b(luz(es)?|l[áa]mpada(s)?|interruptor(es)?)\b", low) and re.search(
-        r"(aces[ao]|apagad[ao]|ligad[ao]|desligad[ao]|est[ãa]o|qual|quais|como)",
+        r"(aces[ao]s?|apagad[ao]s?|acesas|acessas|ligad[ao]s?|desligad[ao]s?|"
+        r"est[ãa]o|qual|quais|como|quantas)",
         low,
     ):
         return "ha_lights"
@@ -389,7 +414,7 @@ _HA_ENTITIES: list[Any] = []
 
 _CONFIRM_YES = re.compile(
     r"\s*(sim|si|sim!|s|ok|okay|pode|confirmo|confirmado|isso|isso mesmo|"
-    r"pode sim|manda|executa|beleza|blz|va|vai|manda ver|pode mandar)\s*[.!]*\s*$",
+    r"pode sim|manda|executa|beleza|blz|va|vai|manda ver|pode mandar)\b.*$",
     re.IGNORECASE,
 )
 
@@ -522,10 +547,18 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
                 "sua conta não pode ligar/desligar dispositivos."
             )
         if data.get("error") == "alvo_obrigatorio":
+            if data.get("plural"):
+                # v1.9.1: comando em plural/sem alvo ('liga as luzes') —
+                # resposta genérica e honesta, SEM inventar entidade.
+                return (
+                    "💡 Não posso acionar várias luzes de uma vez — diga "
+                    "qual luz ou tomada (ex: 'liga a luz da cozinha').\n"
+                    "(Para ver o estado: 'luzes acesas'.)"
+                )
             return (
                 "💡 Qual luz ou tomada? Diga, por exemplo: 'liga a luz da "
                 "cozinha' ou 'desliga a tomada do servidor'.\n"
-                "(Para ver o estado: 'quais luzes estão acesas'.)"
+                "(Para ver o estado: 'luzes acesas'.)"
             )
         if data.get("error") == "entidade_inexistente":
             return f"🤔 {data.get('hint', 'entidade não encontrada')}"

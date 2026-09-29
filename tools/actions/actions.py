@@ -286,11 +286,13 @@ def cpu_temp() -> dict[str, Any]:
 
 _HA_CLIENT: Optional[Any] = None
 # Confirmações pendentes do controle do lar (v1.8.0 luzes; v1.9.0 também
-# tomadas/dispositivos): chave (user_id, entity_id, on) -> timestamp da
-# intenção. 2 passos: 'liga a luz/tomada X' cria a intenção e responde
-# pedindo confirmação; o SIM do mesmo user executa.
+# tomadas/dispositivos): chave (user_id, entity_id, on) -> (timestamp da
+# intenção, alvo falado pelo user). 2 passos: 'liga a luz/tomada X' cria a
+# intenção e responde pedindo confirmação; o SIM do mesmo user executa —
+# e o alvo falado permite conferir a coerência do 'sim' (v1.9.1: 'sim'
+# seguido de OUTRO dispositivo não executa o anterior).
 # Expira em 120s (regra de _device_confirm_check).
-_LIGHT_CONFIRMATIONS: dict[tuple[str, str, bool], float] = {}
+_LIGHT_CONFIRMATIONS: dict[tuple[str, str, bool], tuple[float, str]] = {}
 _LIGHT_CONFIRM_TTL = 120.0
 
 
@@ -411,10 +413,14 @@ def _light_name_for(entity_id: str, states: Optional[list[Any]]) -> str:
 
 def _light_confirm_check(
     user_id: str, entity_id: str, on: bool,
-    *, now: Optional[float] = None,
+    *, now: Optional[float] = None, alvo: str = "",
 ) -> str:
     """Estado da confirmação de 2 passos para a intenção (user, entidade,
     ação) — luz OU tomada/dispositivo (v1.9.0).
+
+    Args:
+        alvo: dispositivo que o user nomeou no comando ('corredor');
+        guardado para a conferência de coerência do 'sim' (v1.9.1).
 
     Returns:
         "required" — primeira menção à intenção (ou anterior expirada):
@@ -424,24 +430,76 @@ def _light_confirm_check(
     stamp = time.time() if now is None else now
     key = (user_id, entity_id, bool(on))
     pending = _LIGHT_CONFIRMATIONS.get(key)
-    if pending is not None and (stamp - pending) <= _LIGHT_CONFIRM_TTL:
+    if pending is not None and (stamp - pending[0]) <= _LIGHT_CONFIRM_TTL:
         return "confirmed"
-    _LIGHT_CONFIRMATIONS[key] = stamp
+    _LIGHT_CONFIRMATIONS[key] = (stamp, alvo)
     return "required"
 
 
-def peek_pending_light_confirmation(user_id: str) -> Optional[tuple[str, bool]]:
+def drop_pending_light_confirmation(user_id: str) -> None:
+    """Descarta TODAS as intenções pendentes do user (incoerência v1.9.1):
+    confirmação que não bate com o que está pendente invalida a intenção
+    velha — o dono precisa pedir de novo.
+    """
+    for key in [k for k in _LIGHT_CONFIRMATIONS if k[0] == user_id]:
+        _LIGHT_CONFIRMATIONS.pop(key, None)
+
+
+# Palavras de LUGAR usadas para conferir a coerência do 'sim': se o 'sim'
+# menciona um lugar que NÃO está no alvo pendente (nem no nome nem no id
+# da entidade), a confirmação não bate (v1.9.1).
+_PLACE_WORDS = re.compile(
+    r"\b(sala|cozinha|quarto|su[íi]te|corredor|varanda|[áa]rea|oficina|"
+    r"garagem|escrit[óo]rio|banheiro|lavanderia|quintal|jardim| servidor|"
+    r"notebook|escritorio)\b",
+    re.IGNORECASE,
+)
+
+
+def confirm_texts_match_pending(
+    text: str, alvo: str, entity_id: str,
+) -> bool:
+    """Coerência do 'sim' (v1.9.1): a confirmação menciona LUGAR que não
+    está no pedido pendente? Caso real (29/09): pendente 'liga a luz do
+    corredor' → dono disse 'sim' → executa; a resposta da execução ANTERIOR
+    vazou como se fosse a deste turno. Guarda: 'sim, da sala' quando a
+    pendente é o corredor NÃO executa o corredor — recusa genérica.
+
+    Regras:
+    - 'sim' puro (sem lugar mencionado) → coerente (caso normal).
+    - lugar mencionado E contido no alvo/entidade pendente → coerente
+      ('sim, a do corredor' quando a pendente é a do corredor).
+    - lugar mencionado e FORA do alvo pendente → INCOERENTE (não executa).
+    """
+    lugares = set(_PLACE_WORDS.findall(text or ""))
+    if not lugares:
+        return True
+    haystack = f"{alvo} {entity_id}".lower()
+    for lugar in lugares:
+        if lugar.lower() not in haystack:
+            return False
+    return True
+
+
+def peek_pending_light_confirmation(
+    user_id: str,
+) -> Optional[tuple[str, bool, str]]:
     """Intenção de controle pendente mais recente do user (dentro do TTL).
 
-    O 'sim' do user não gera intenção de action — o orchestrator consulta
-    aqui o que está pendente e executa. NÃO consome: o consumo acontece
-    dentro de ha_device_control APÓS a execução bem-sucedida. Entradas
-    expiradas são descartadas na varredura.
+    Retorna (entity_id, on, alvo) — alvo é o dispositivo que o user NOMEAR
+    no comando original ('luz do corredor' → 'corredor'); '' quando o
+    comando original não nomeou nada. O 'sim' do user não gera intenção de
+    action — o orchestrator consulta aqui o que está pendente, confere a
+    coerência com o texto do 'sim' (v1.9.1) e executa. NÃO consome: o
+    consumo acontece dentro de ha_device_control APÓS a execução
+    bem-sucedida. Entradas expiradas são descartadas na varredura.
     """
     now = time.time()
-    best: Optional[tuple[str, bool]] = None
+    best: Optional[tuple[str, bool, str]] = None
     best_stamp = -1.0
-    for (uid, entity_id, on), stamp in list(_LIGHT_CONFIRMATIONS.items()):
+    for (uid, entity_id, on), (stamp, alvo) in list(
+        _LIGHT_CONFIRMATIONS.items()
+    ):
         if uid != user_id:
             continue
         if (now - stamp) > _LIGHT_CONFIRM_TTL:
@@ -449,12 +507,13 @@ def peek_pending_light_confirmation(user_id: str) -> Optional[tuple[str, bool]]:
             continue
         if stamp > best_stamp:
             best_stamp = stamp
-            best = (entity_id, bool(on))
+            best = (entity_id, bool(on), alvo)
     return best
 
 
 def ha_device_control(
     entity_id: str = "", on: bool = True, user_id: str = "", termo: str = "",
+    alvo: str = "", plural: bool = False,
 ) -> dict[str, Any]:
     """Liga/desliga UM dispositivo do HA (luz OU tomada), com gate e
     confirmação.
@@ -476,6 +535,16 @@ def ha_device_control(
                 "ok": False,
                 "error": "entidade_inexistente",
                 "hint": f"'{termo}' não existe no Home Assistant",
+            }
+        if plural:
+            return {
+                "ok": False,
+                "error": "alvo_obrigatorio",
+                "plural": True,
+                "hint": (
+                    "não aciono várias luzes de uma vez — diga qual luz ou "
+                    "tomada (ex: 'liga a luz da cozinha')"
+                ),
             }
         return {
             "ok": False,
@@ -510,8 +579,11 @@ def ha_device_control(
         }
     states = _ha_states()
     name = _light_name_for(entity_id, states)
-    # Confirmação de 2 passos (por user + luz + ação).
-    stage = _light_confirm_check(user_id or "desconhecido", entity_id, on)
+    # Confirmação de 2 passos (por user + luz + ação). O alvo falado é
+    # guardado para a coerência do 'sim' (v1.9.1).
+    stage = _light_confirm_check(
+        user_id or "desconhecido", entity_id, on, alvo=alvo,
+    )
     if stage == "required":
         return {
             "ok": True,
@@ -1387,6 +1459,8 @@ CATALOG: list[dict[str, Any]] = [
               "on": {**B, "default": True},
               "user_id": {**S, "default": ""},
               "termo": {**S, "default": ""},
+              "alvo": {**S, "default": ""},
+              "plural": {**B, "default": False},
           }}),
     _spec("ip_address", "system", "Endereços IP do host", ip_address),
     _spec("listening_ports", "system", "Portas TCP em escuta", listening_ports),

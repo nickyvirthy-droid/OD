@@ -178,6 +178,12 @@ def cache_failure_reason(text: str) -> str:
     # Truncamento no meio da frase (max_tokens estourou): incompleto.
     if candidate[-1] in ",;:-":
         return "truncada (pontuação final aberta)"
+    # Controle do lar (v1.9.1): confirmação e execução são ESTADO DE
+    # CONVERSA, não conhecimento — cacheadas, viravam incoerência
+    # ('sim' servia a confirmação velha; 'luzes acesas' podia responder
+    # 'Confirmar: ligar Luzes Acessas' — casos reais de 29/09).
+    if candidate.startswith(("💡 Confirmar:", "✅ ")):
+        return "confirmação/execução do lar (estado de conversa)"
     return ""
 ROUTE_LLM = "llm"
 ROUTE_FALLBACK = "fallback"
@@ -715,24 +721,31 @@ class Orchestrator:
             answer = safe_math(text)
             route_detail = "math"
             if answer is None:
-                # Confirmação de 2 passos do controle de luzes (v1.8.1):
+                # Confirmação de 2 passos do controle do lar (v1.8.1):
                 # 'sim' não gera intenção — consulta a intenção pendente do
                 # user e executa a MESMA luz/ação que ele pediu antes.
-                from tools.actions.actions import peek_pending_light_confirmation
+                # v1.9.1: COERÊNCIA obrigatória — o 'sim' que menciona outro
+                # dispositivo NÃO executa o anterior: recusa genérica e
+                # honesta, sem LLM, e a intenção velha é descartada.
+                from tools.actions.actions import (
+                    confirm_texts_match_pending,
+                    peek_pending_light_confirmation,
+                )
 
                 pending = peek_pending_light_confirmation(user_id)
                 if pending is not None and detect_confirmation(text):
-                    entity_id, on = pending
-                    data = await self.execute_action(
-                        "ha_device_control",
-                        {"entity_id": entity_id, "on": on,
-                         "user_id": user_id},
-                        user_id,
-                        role=role,
-                    )
-                    answer = format_intent_result("ha_device_control", data)
-                    if answer is not None:
-                        self._metrics.intents += 1
+                    entity_id, on, alvo = pending
+                    if not confirm_texts_match_pending(text, alvo, entity_id):
+                        from tools.actions.actions import (
+                            drop_pending_light_confirmation,
+                        )
+
+                        drop_pending_light_confirmation(user_id)
+                        answer = (
+                            "🤔 Essa confirmação não bate com o que você "
+                            "pediu antes (que já expirou). Diga de novo o "
+                            "que quer — por exemplo: 'liga a luz da sala'."
+                        )
                         done_result = self._stream_result(
                             user_id, profile, text, ROUTE_INTENT, answer,
                             llm_used="fastpath:ha_device_control",
@@ -748,7 +761,14 @@ class Orchestrator:
                             "llm_used": "fastpath:ha_device_control",
                         }
                         return
-                    answer = None  # não confirmou nada — segue o fluxo
+                    data = await self.execute_action(
+                        "ha_device_control",
+                        {"entity_id": entity_id, "on": on,
+                         "user_id": user_id},
+                        user_id,
+                        role=role,
+                    )
+                    answer = format_intent_result("ha_device_control", data)
             if answer is None:
                 intent = detect_action_intent(text)
                 if intent is not None:
@@ -1053,23 +1073,44 @@ class Orchestrator:
             answer: Optional[str] = safe_math(text)
             route_detail = "math"
             if answer is None:
-                # Confirmação de 2 passos do controle de luzes (v1.8.1):
+                # Confirmação de 2 passos do controle do lar (v1.8.1):
                 # 'sim' não gera intenção — consulta a intenção pendente do
                 # user e executa a MESMA luz/ação que ele pediu antes.
-                from tools.actions.actions import peek_pending_light_confirmation
+                # v1.9.1: COERÊNCIA obrigatória — o 'sim' que menciona outro
+                # dispositivo NÃO executa o anterior: recusa genérica e
+                # honesta, sem LLM, e a intenção velha é descartada.
+                from tools.actions.actions import (
+                    confirm_texts_match_pending,
+                    peek_pending_light_confirmation,
+                )
 
                 pending = peek_pending_light_confirmation(user_id)
                 if pending is not None and detect_confirmation(text):
-                    entity_id, on = pending
-                    data = await self.execute_action(
-                        "ha_device_control",
-                        {"entity_id": entity_id, "on": on,
-                         "user_id": user_id},
-                        user_id,
-                        role=role,
-                    )
-                    answer = format_intent_result("ha_device_control", data)
-                    route_detail = "ha_device_control"
+                    entity_id, on, alvo = pending
+                    if not confirm_texts_match_pending(text, alvo, entity_id):
+                        from tools.actions.actions import (
+                            drop_pending_light_confirmation,
+                        )
+
+                        drop_pending_light_confirmation(user_id)
+                        answer = (
+                            "🤔 Essa confirmação não bate com o que você "
+                            "pediu antes (que já expirou). Diga de novo o "
+                            "que quer — por exemplo: 'liga a luz da sala'."
+                        )
+                        route_detail = "ha_device_control"
+                    else:
+                        data = await self.execute_action(
+                            "ha_device_control",
+                            {"entity_id": entity_id, "on": on,
+                             "user_id": user_id},
+                            user_id,
+                            role=role,
+                        )
+                        answer = format_intent_result(
+                            "ha_device_control", data,
+                        )
+                        route_detail = "ha_device_control"
             if answer is None:
                 intent = detect_action_intent(text)
                 if intent is not None:

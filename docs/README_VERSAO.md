@@ -7,6 +7,29 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.9.1] — COERÊNCIA DO LAR: o chat nunca mais responde por dispositivo errado 🎯 (2026-09-29)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | "leia as conversas, algumas respostas não condizem, se vai colocar no cache pelo menos deve ser coerente, tipo da luz, não posso pedir sala e ele responder cozinha, diga simplesmente que não pode ou algo mais explicativo porem genérico" |
+| **Diagnóstico** | 2 bugs reais nas conversas de 29/09: (A) 'acenda a luz do corredor' + 'sim' executou a Luz da Varanda (LLM imitou o formato determinístico — route=llm no journal); (B) 'luzes acessas' virou 'Confirmar: ligar Luzes Acessas' (entidade inventada pelo LLM); e confirmações/execuções do lar entravam no cache LLM |
+| **Correções** | vocabulário a prova de digitação (acenda/acessas); coerência do 'sim' (menciona outro lugar → recusa genérica, sem LLM, intenção descartada); plural nunca inventa entidade ('liga as luzes da sala' → genérica); confirmação/execução NUNCA vão ao cache |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 2013 passed, 16 skipped (+6 testes em
+          TestCoerenciaDoLar, com os casos REAIS do dono)
+teste do teste: 4/4 mutações detectadas e revertidas
+APK 1.9.1+2023 (versionCode 2023) publicado em site/
+```
+
+### 3. Pendências / próximos passos
+
+- Instalar o APK 1.9.1+2023 no celular (auto-atualização, 2023 > 2022).
+
 ## [1.9.0] — CONTROLE DO LAR EXPANDIDO: tomadas e dispositivos com o mesmo padrão 🔌 (2026-09-29)
 
 ### 1. O que foi feito

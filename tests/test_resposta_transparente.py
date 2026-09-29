@@ -594,7 +594,7 @@ class TestControleLuzes:
         assert key in _LIGHT_CONFIRMATIONS
         # Envelhece a confirmação por 121s FIXOS (TTL do contrato: 120s) —
         # NÃO usa a constante: a mutação do TTL tem que ser pega pelo teste.
-        _LIGHT_CONFIRMATIONS[key] -= 121.0
+        _LIGHT_CONFIRMATIONS[key] = (_LIGHT_CONFIRMATIONS[key][0] - 121.0, "")
         r2 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
         # O 'sim' recria a intenção (confirmação expirada) — NÃO executa.
         assert server.service_calls == []
@@ -721,6 +721,148 @@ class TestControleTomadas:
         ))
         assert "não existe no Home Assistant" in r.message
         assert server.service_calls == []
+
+
+class TestCoerenciaDoLar:
+    """v1.9.1 — casos REAIS do dono (conversas de 29/09): o chat do lar
+    nunca pode responder com dispositivo diferente do pedido nem inventar
+    entidade a partir do próprio comando.
+
+    BUG-A (09:36): pendente 'liga a luz do corredor' → 'sim' executou a
+    'Luz da Varanda' (intenção velha de outro turno).
+    BUG-B (09:41): 'luzes acessas' (pergunta/comando sem alvo) → 'Confirmar:
+    ligar Luzes Acessas' (entidade inventada a partir do comando).
+    """
+
+    def test_estado_de_luzes_nunca_vira_confirmacao(self) -> None:
+        """BUG-B: 'luzes acessas' tem que cair na LEITURA (ha_lights) —
+        nunca gerar 'Confirmar: ligar Luzes Acessas'."""
+        from core.intents import detect_action_intent
+        for frase in (
+            "luzes acessas",
+            "luzes acesas",
+            "quais as luzes acessas",
+            "as luzes estão acesas",
+        ):
+            intent = detect_action_intent(frase)
+            assert intent is not None, frase
+            assert intent[0] == "ha_lights", (frase, intent)
+
+    def test_comando_plural_sem_alvo_responde_generico(self) -> None:
+        """'liga as luzes' (comando, sem alvo): resposta genérica honesta —
+        NUNCA entidade inventada, NUNCA execução."""
+        import asyncio
+        orch, llm, server, client = TestControleLuzes._setup()
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "liga as luzes", role="admin",
+        ))
+        # A resposta TEM que ser o pedido genérico de alvo — nunca
+        # confirmação de entidade inventada nem erro de entidade inexistente
+        # (o comando em plural não nomeia nada).
+        assert "várias" in r.message.lower() or "qual luz" in r.message.lower()
+        assert "Confirmar" not in r.message
+        assert "não existe" not in r.message
+        assert server.service_calls == []
+        # Variação real do dono (09:41): 'luzes acessas' SEM verbo de
+        # comando tem que ir para a LEITURA — nunca para o controle.
+        from core.intents import detect_action_intent
+        assert detect_action_intent("luzes acessas") == ("ha_lights", {})
+
+    def test_estado_de_luzes_nunca_vira_confirmacao_e_plural_vai_ao_generico(self) -> None:
+        """Endurecimento do M2: com o caminho do plural REMOVIDO, 'liga as
+        luzes' precisa continuar com resposta determinística de alvo — e
+        NUNCA virar entidade inventada nem LLM. Variação crítica: plural com
+        lugar ('liga as luzes da sala') NÃO responde 'não existe' — é
+        pedido plural, resposta genérica."""
+        import asyncio
+        from core.intents import detect_action_intent
+        assert detect_action_intent("luzes acessas") == ("ha_lights", {})
+        orch, llm, server, client = TestControleLuzes._setup()
+        for frase in ("liga as luzes", "liga as luzes da sala"):
+            r = asyncio.run(orch.process(
+                "alex", "guardian", frase, role="admin",
+            ))
+            assert r.route == "action_intent", frase  # determinístico
+            assert "várias" in r.message.lower() or "qual luz" in r.message.lower(), (
+                frase, r.message,
+            )
+            assert "não existe" not in r.message.lower(), (frase, r.message)
+
+    def test_sim_apos_pedido_executa_o_alvo_certo(self) -> None:
+        """Fluxo normal preservado: 'liga a luz do corredor' + 'sim'
+        executa o CORREDOR (não outra luz de turno anterior)."""
+        import asyncio
+        orch, llm, server, client = self._setup_com_corredor()
+        asyncio.run(orch.process(
+            "alex", "guardian", "liga a luz da cozinha", role="admin",
+        ))
+        asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        # Novo pedido + confirmação: executa o alvo do novo pedido.
+        r1 = asyncio.run(orch.process(
+            "alex", "guardian", "liga a luz do corredor", role="admin",
+        ))
+        assert "Corredor" in r1.message
+        r2 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        assert "Corredor" in r2.message, r2.message
+        assert "Varanda" not in r2.message
+        ultima = server.service_calls[-1]
+        assert ultima["entity_id"] == "switch.luz_corredor_sonoff_1"
+
+    def test_sim_com_outro_dispositivo_nao_executa(self) -> None:
+        """v1.9.1: 'sim, da sala' quando a pendente é a do corredor →
+        recusa genérica honesta, sem LLM, sem executar NADA; a intenção
+        velha é descartada (o próximo 'sim' puro não executa nada)."""
+        import asyncio
+        orch, llm, server, client = self._setup_com_corredor()
+        r1 = asyncio.run(orch.process(
+            "alex", "guardian", "liga a luz do corredor", role="admin",
+        ))
+        assert "Confirmar" in r1.message
+        r2 = asyncio.run(orch.process(
+            "alex", "guardian", "sim, da sala", role="admin",
+        ))
+        assert server.service_calls == []  # NADA executado
+        assert r2.route == "action_intent"  # resposta determinística
+        assert "não bate" in r2.message or "diga de novo" in r2.message.lower()
+        assert r2.message != "RESPOSTA_DO_LLM_FAKE"  # zero LLM
+        # Intenção velha descartada: 'sim' puro não executa nada agora.
+        r3 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        assert server.service_calls == []
+        assert r3.message == "RESPOSTA_DO_LLM_FAKE"
+
+    @staticmethod
+    def _setup_com_corredor():
+        """Seed do TestControleLuzes + a Luz Corredor (a vítima do bug real
+        de 09:36 — o dono pediu o corredor e o sistema executou a varanda)."""
+        base = TestControleLuzes._setup()
+        orch, llm, server, client = base
+        server.seed(
+            "switch.luz_corredor_sonoff_1", "off",
+            {"friendly_name": "Luz Corredor"},
+        )
+        from core.intents import configure_ha_entities
+        configure_ha_entities(server.list_states())
+        return orch, llm, server, client
+
+    def test_confirmacao_e_execucao_nao_vao_ao_cache(self) -> None:
+        """v1.9.1: 'Confirmar:…' e '✅ … executado' são ESTADO DE CONVERSA —
+        cacheados, viravam incoerência eterna ('luzes acesas' respondendo
+        'Confirmar: ligar Luzes Acessas' — caso real de 09:41)."""
+        from core.orchestrator import _cacheable
+        assert not _cacheable(
+            "💡 Confirmar: ligar 'Luz da Varanda' (agora: off)?\n"
+            "Responda **sim** para executar — a confirmação vale por 2 minutos."
+        )
+        assert not _cacheable(
+            "✅ Luz da Varanda: desligar executado (⚪ estado agora: off)."
+        )
+        # Leitura do lar continua cacheável (dado real, resposta estável).
+        assert _cacheable(
+            "💡 0 acesa(s) de 6 no Home Assistant: nenhuma acesa."
+        )
+        assert _cacheable(
+            "🌤️ Clima na região da casa: 31.7°C, parcialmente nublado"
+        )
 
 
 class TestCacheSemRecusa:
