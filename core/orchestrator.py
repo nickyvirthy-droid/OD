@@ -724,18 +724,18 @@ class Orchestrator:
                 if pending is not None and detect_confirmation(text):
                     entity_id, on = pending
                     data = await self.execute_action(
-                        "ha_light_control",
+                        "ha_device_control",
                         {"entity_id": entity_id, "on": on,
                          "user_id": user_id},
                         user_id,
                         role=role,
                     )
-                    answer = format_intent_result("ha_light_control", data)
+                    answer = format_intent_result("ha_device_control", data)
                     if answer is not None:
                         self._metrics.intents += 1
                         done_result = self._stream_result(
                             user_id, profile, text, ROUTE_INTENT, answer,
-                            llm_used="fastpath:ha_light_control",
+                            llm_used="fastpath:ha_device_control",
                         )
                         await self._record_terminal(done_result, text, persist=True)
                         await self._finish(done_result, started)
@@ -745,7 +745,7 @@ class Orchestrator:
                             "profile_name": _profile_display_name(profile),
                             "content": answer,
                             "route": ROUTE_INTENT,
-                            "llm_used": "fastpath:ha_light_control",
+                            "llm_used": "fastpath:ha_device_control",
                         }
                         return
                     answer = None  # não confirmou nada — segue o fluxo
@@ -753,7 +753,7 @@ class Orchestrator:
                 intent = detect_action_intent(text)
                 if intent is not None:
                     action_name, params = intent
-                    if action_name == "ha_light_control":
+                    if action_name == "ha_device_control":
                         params = dict(params)
                         params["user_id"] = user_id
                     data = await self.execute_action(
@@ -1062,19 +1062,19 @@ class Orchestrator:
                 if pending is not None and detect_confirmation(text):
                     entity_id, on = pending
                     data = await self.execute_action(
-                        "ha_light_control",
+                        "ha_device_control",
                         {"entity_id": entity_id, "on": on,
                          "user_id": user_id},
                         user_id,
                         role=role,
                     )
-                    answer = format_intent_result("ha_light_control", data)
-                    route_detail = "ha_light_control"
+                    answer = format_intent_result("ha_device_control", data)
+                    route_detail = "ha_device_control"
             if answer is None:
                 intent = detect_action_intent(text)
                 if intent is not None:
                     action_name, params = intent
-                    if action_name == "ha_light_control":
+                    if action_name == "ha_device_control":
                         params = dict(params)
                         params["user_id"] = user_id
                     data = await self.execute_action(
@@ -1592,10 +1592,11 @@ class Orchestrator:
             return result.data
         elif result.status == "denied":
             log.warn("Orchestrator action denied", action=action_name, error=result.error)
-            # Controle de luzes pelo chat (v1.8.1): a negação do Registry é
-            # o GATE DE PAPEL determinístico — vira resposta guiada em vez
-            # de cair no LLM (que podia alucinar confirmação).
-            if action_name == "ha_light_control":
+            # Controle do lar pelo chat (v1.8.1 luzes; v1.9.0 tomadas): a
+            # negação do Registry é o GATE DE PAPEL determinístico — vira
+            # resposta guiada em vez de cair no LLM (que podia alucinar
+            # confirmação).
+            if action_name == "ha_device_control":
                 return {"ok": False, "error": "permissao_negada"}
             return None
         elif result.status == "invalid":

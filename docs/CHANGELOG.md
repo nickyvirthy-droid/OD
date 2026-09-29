@@ -14,6 +14,39 @@
 
 ---
 
+## [1.9.0] — CONTROLE DO LAR EXPANDIDO: tomadas e dispositivos com o mesmo padrão 🔌 (2026-09-29)
+
+> **Política:** capacidade nova para o usuário final (o dono controla
+> tomadas/soquetes pelo chat, não só luzes) = MINOR (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.9.0` · app `1.9.0+2022` (versionCode 2022).
+
+### Adicionado (2026-09-29)
+
+| Peça | Entrega |
+|---|---|
+| **Vocabulário de tomada** | 'liga/desliga a tomada do servidor', 'soquete da oficina', 'desconecta', 'plug' — tudo cai no controle com gate + confirmação |
+| **Leitura de tomadas** | 'quais tomadas estão ligadas' / 'quantos soquetes conectados' → ha_lights (os switches SONOFF do dono JÁ são o domínio switch) |
+| **Resolução de alvo estendida** | stopwords cobrem tomada/soquete/socket/dispositivo — 'desliga a tomada do servidor' casa com switch.note_servidor_socket_1 |
+| **Action renomeada** | ha_light_control → ha_device_control (mesmas camadas: gate de papel + alvo específico obrigatório + confirmação de 2 passos TTL 120s) |
+| **Mensagens honestas** | 'Qual luz ou tomada?' e 'luzes e tomadas são só o dono' — a fala acompanha o escopo |
+
+### Segurança
+
+- Gate de papel INTACTO: user continua com só leitura (a tomada do
+  servidor é infraestrutura crítica — negação determinística sem LLM).
+- Sem comando em lote: 'desliga as tomadas' pede alvo específico.
+- 4 mutações detectadas e revertidas (peek, ramo de negação, vocabulário,
+  TTL).
+
+### Evidência (2026-09-29)
+
+```
+servidor: pytest tests/ → 2007 passed, 16 skipped (+4 testes de tomadas;
+          mqtt test_start_stop_thread flaky no run completo, passa isolado
+          e por classe — precedente 09-21)
+APK 1.9.0+2022 (versionCode 2022) publicado em site/
+```
+
 ## [1.8.1] — CONTROLE DE LUZES PELO CHAT: ligar/desligar com confirmação de 2 passos 💡 (2026-09-29)
 
 > **Política:** correção/completamento da capacidade do lar da 1.8.0

@@ -302,6 +302,28 @@ class TestIntencaoIpEPortas:
         ):
             assert detect_action_intent(pergunta) == ("ha_lights", {}), pergunta
 
+    def test_estado_das_tomadas_vai_para_o_ha(self) -> None:
+        """v1.9.0: leitura de tomada/soquete entra na MESMA action de
+        leitura (os switches SONOFF do dono são o domínio switch)."""
+        from core.intents import detect_action_intent
+        for pergunta in (
+            "quais tomadas estão ligadas",
+            "a tomada do servidor está conectada",
+            "quantos soquetes estão ligados",
+        ):
+            assert detect_action_intent(pergunta) == ("ha_lights", {}), pergunta
+
+    def test_comando_de_tomada_cai_no_controle(self) -> None:
+        """v1.9.0: 'liga/desliga a tomada' gera intenção de CONTROLE (mesmo
+        gate de papel + confirmação de 2 passos das luzes)."""
+        from core.intents import detect_action_intent
+        intent = detect_action_intent("desliga a tomada do servidor")
+        assert intent is not None and intent[0] == "ha_device_control"
+        assert intent[1]["on"] is False
+        intent2 = detect_action_intent("liga o soquete da oficina")
+        assert intent2 is not None and intent2[0] == "ha_device_control"
+        assert intent2[1]["on"] is True
+
     def test_resumo_do_lar_vai_para_o_ha(self) -> None:
         from core.intents import detect_action_intent
         assert detect_action_intent("como está a casa") == ("ha_summary", {})
@@ -619,6 +641,86 @@ class TestControleLuzes:
         assert server.service_calls == []
         # Sem intenção pendente, o 'sim' é só conversa — cai no LLM normal.
         assert r.message == "RESPOSTA_DO_LLM_FAKE"
+
+
+class TestControleTomadas:
+    """v1.9.0: o MESMO padrão de confirmação de 2 passos e gate de papel
+    das luzes estendido a tomadas/soquetes (switch.* com nome de tomada).
+    Caso real do dono: 'note servidor Socket 1' — a tomada que alimenta o
+    servidor NÃO pode cair num desligar ambíguo nem num lote.
+    """
+
+    @staticmethod
+    def _setup():
+        # Mesma infra do TestControleLuzes + tomadas reais da casa.
+        base = TestControleLuzes._setup()
+        orch, llm, server, client = base
+        server.seed(
+            "switch.note_servidor_socket_1", "on",
+            {"friendly_name": "note servidor Socket 1"},
+        )
+        server.seed(
+            "switch.luz_oficina_socket_1", "off",
+            {"friendly_name": "Luz Oficina Socket 1"},
+        )
+        from core.intents import configure_ha_entities
+        configure_ha_entities(server.list_states())
+        return orch, llm, server, client
+
+    def test_tomada_fluxo_completo_pedir_confirmar_executar(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r1 = asyncio.run(orch.process(
+            "alex", "guardian", "desliga a tomada do servidor", role="admin",
+        ))
+        # 1º passo: pedido de confirmação com o nome REAL da tomada — nada
+        # executa ainda.
+        assert "Confirmar" in r1.message
+        assert "note servidor Socket 1" in r1.message
+        assert "desligar" in r1.message.lower()
+        assert server.service_calls == []
+        r2 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        assert "executado" in r2.message
+        assert len(server.service_calls) == 1
+        assert server.service_calls[0]["service"] == "turn_off"
+        assert server.service_calls[0]["entity_id"] == "switch.note_servidor_socket_1"
+
+    def test_tomada_ligar_com_apelido_socket(self) -> None:
+        """A fala usa 'socket'/'soquete' — resolução casa com a entidade
+        cujo nome contém Socket."""
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r1 = asyncio.run(orch.process(
+            "alex", "guardian", "liga o soquete da oficina", role="admin",
+        ))
+        assert "Confirmar" in r1.message
+        assert "Luz Oficina Socket 1" in r1.message
+        r2 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        assert "executado" in r2.message
+        assert server.service_calls[0]["entity_id"] == "switch.luz_oficina_socket_1"
+        assert server.service_calls[0]["service"] == "turn_on"
+
+    def test_user_nao_controla_tomada(self) -> None:
+        """O gate de papel vale para tomadas: user → negação determinística
+        (a tomada do servidor é infraestrutura crítica)."""
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian", "desliga a tomada do servidor",
+            role="user",
+        ))
+        assert r.route == "action_intent"
+        assert "só o dono" in r.message.lower()
+        assert server.service_calls == []
+
+    def test_tomada_inexistente_erro_amigavel(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "liga a tomada da garagem", role="admin",
+        ))
+        assert "não existe no Home Assistant" in r.message
+        assert server.service_calls == []
 
 
 class TestCacheSemRecusa:

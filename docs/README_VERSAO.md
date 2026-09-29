@@ -7,6 +7,34 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.9.0] — CONTROLE DO LAR EXPANDIDO: tomadas e dispositivos com o mesmo padrão 🔌 (2026-09-29)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | "Estender o controle do lar para tomadas e outros dispositivos do HA com o mesmo padrão de confirmação" |
+| **Inventário real antes do código** | HA do dono: 9 switches SONOFF (7 luzes + 2 tomadas: 'note servidor Socket 1' — a tomada que alimenta o servidor — e 'Luz Oficina Socket 1'); sem fan/climate/TV/cortina — o domínio switch já era a fronteira certa |
+| **Vocabulário novo** | tomada(s), soquete(s), socket, dispositivo, aparelho, desconecta/plug — no comando e na leitura |
+| **Action renomeada** | ha_light_control → ha_device_control (gate de papel + alvo específico + confirmação de 2 passos TTL 120s INTACTOS) |
+| **Resolução de alvo** | 'desliga a tomada do servidor' → switch.note_servidor_socket_1 via entidades do HA |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 2007 passed, 16 skipped (+4 testes de tomadas
+          em TestControleTomadas; mqtt flaky passa isolado)
+teste do teste: 4/4 mutações detectadas e revertidas (peek da intenção
+          pendente, ramo de negação do gate, vocabulário de tomada, TTL)
+APK 1.9.0+2022 (versionCode 2022) publicado em site/
+```
+
+### 3. Pendências / próximos passos
+
+- Instalar o APK 1.9.0+2022 no celular (auto-atualização, 2022 > 2021).
+- Futuro (se o dono quiser): domínio fan/climate/cover quando entrar
+  hardware novo na casa — o padrão de confirmação já cobre.
+
 ## [1.8.1] — CONTROLE DE LUZES PELO CHAT: ligar/desligar com confirmação de 2 passos 💡 (2026-09-29)
 
 ### 1. O que foi feito

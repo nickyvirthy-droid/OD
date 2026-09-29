@@ -285,10 +285,11 @@ def cpu_temp() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 _HA_CLIENT: Optional[Any] = None
-# Confirmações pendentes do controle de luzes (v1.8.0): chave (user_id,
-# entity_id, on) -> timestamp da intenção. 2 passos: 'liga a luz X' cria a
-# intenção e responde pedindo confirmação; o SIM do mesmo user executa.
-# Expira em 120s (regra de _light_confirm_check).
+# Confirmações pendentes do controle do lar (v1.8.0 luzes; v1.9.0 também
+# tomadas/dispositivos): chave (user_id, entity_id, on) -> timestamp da
+# intenção. 2 passos: 'liga a luz/tomada X' cria a intenção e responde
+# pedindo confirmação; o SIM do mesmo user executa.
+# Expira em 120s (regra de _device_confirm_check).
 _LIGHT_CONFIRMATIONS: dict[tuple[str, str, bool], float] = {}
 _LIGHT_CONFIRM_TTL = 120.0
 
@@ -412,7 +413,8 @@ def _light_confirm_check(
     user_id: str, entity_id: str, on: bool,
     *, now: Optional[float] = None,
 ) -> str:
-    """Estado da confirmação de 2 passos para a intenção (user, luz, ação).
+    """Estado da confirmação de 2 passos para a intenção (user, entidade,
+    ação) — luz OU tomada/dispositivo (v1.9.0).
 
     Returns:
         "required" — primeira menção à intenção (ou anterior expirada):
@@ -433,7 +435,7 @@ def peek_pending_light_confirmation(user_id: str) -> Optional[tuple[str, bool]]:
 
     O 'sim' do user não gera intenção de action — o orchestrator consulta
     aqui o que está pendente e executa. NÃO consome: o consumo acontece
-    dentro de ha_light_control APÓS a execução bem-sucedida. Entradas
+    dentro de ha_device_control APÓS a execução bem-sucedida. Entradas
     expiradas são descartadas na varredura.
     """
     now = time.time()
@@ -451,18 +453,22 @@ def peek_pending_light_confirmation(user_id: str) -> Optional[tuple[str, bool]]:
     return best
 
 
-def ha_light_control(
+def ha_device_control(
     entity_id: str = "", on: bool = True, user_id: str = "", termo: str = "",
 ) -> dict[str, Any]:
-    """Liga/desliga UMA luz específica do HA, com gate e confirmação.
+    """Liga/desliga UM dispositivo do HA (luz OU tomada), com gate e
+    confirmação.
 
-    Camadas (v1.8.0):
+    Camadas (v1.8.0/1.8.1/1.9.0):
     1. Permissão: a action fica FORA da allowlist do papel user — só o
        admin/dono chega aqui (negação do Registry, denied).
     2. Alvo específico obrigatório: entity_id resolvido pela intenção;
        genérico ("as luzes") nunca executa em lote.
     3. Confirmação de 2 passos: 1ª chamada da intenção registra e pede
        confirmação; o SIM do mesmo user dentro de 120s executa.
+
+    v1.9.0: era ha_light_control — mesmas camadas, domínio switch
+    explicitamente na fala ('tomada') e na mensagem.
     """
     if not entity_id:
         if termo:
@@ -474,17 +480,18 @@ def ha_light_control(
         return {
             "ok": False,
             "error": "alvo_obrigatorio",
-            "hint": "diga qual luz (ex: 'liga a luz da cozinha')",
+            "hint": "diga qual luz ou tomada (ex: 'liga a luz da cozinha')",
         }
     client = _ha()
     if client is None:
-        return _unavailable("ha_light_control", "Home Assistant não configurado")
-    # A entidade tem que existir e ser atuador de luz (switch/light).
+        return _unavailable("ha_device_control", "Home Assistant não configurado")
+    # A entidade tem que existir e ser atuador (switch/light — v1.9.0:
+    # tomadas e interruptores SONOFF já são o domínio switch do dono).
     entity = None
     try:
         entity = client.get_state(entity_id)
     except Exception as exc:
-        return _unavailable("ha_light_control", f"falha ao ler {entity_id}: {exc}")
+        return _unavailable("ha_device_control", f"falha ao ler {entity_id}: {exc}")
     if entity is None:
         return {
             "ok": False,
@@ -496,7 +503,10 @@ def ha_light_control(
         return {
             "ok": False,
             "error": "nao_e_luz",
-            "hint": f"'{entity_id}' não é luz/interruptor (domínio '{domain}')",
+            "hint": (
+                f"'{entity_id}' não é luz/tomada/interruptor "
+                f"(domínio '{domain}' não é controlável aqui)"
+            ),
         }
     states = _ha_states()
     name = _light_name_for(entity_id, states)
@@ -521,7 +531,7 @@ def ha_light_control(
         client.call_service(domain, service, entity_id=entity_id)
     except Exception as exc:
         return _unavailable(
-            "ha_light_control", f"falha ao {service} {entity_id}: {exc}"
+            "ha_device_control", f"falha ao {service} {entity_id}: {exc}"
         )
     # Lê o estado pós-comando (o HA pode levar um instante; o valor lido
     # é best-effort — o comando foi aceito).
@@ -1371,7 +1381,7 @@ CATALOG: list[dict[str, Any]] = [
     _spec("ha_weather", "iot", "Clima real da região da casa (Home Assistant)", ha_weather),
     _spec("ha_lights", "iot", "Estado das luzes e interruptores (Home Assistant)", ha_lights),
     _spec("ha_summary", "iot", "Raio-X do lar: clima, luzes, pessoas, bateria, rede", ha_summary),
-    _spec("ha_light_control", "iot", "Liga/desliga UMA luz específica (dono, com confirmação)", ha_light_control,
+    _spec("ha_device_control", "iot", "Liga/desliga UMA luz ou tomada específica (dono, com confirmação)", ha_device_control,
           {"required": ["entity_id"], "properties": {
               "entity_id": S,
               "on": {**B, "default": True},
