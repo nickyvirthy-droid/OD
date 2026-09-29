@@ -201,6 +201,31 @@ def _detect_operational(text: str) -> Optional[str]:
     ):
         return "ha_weather"
     # Luzes da casa (v1.8.0) — estado REAL das entidades switch.*/light.*.
+    # v1.8.1: COMANDO (liga/desliga) separado da LEITURA — a intenção carrega
+    # o alvo resolvido; a execução tem gate de papel + confirmação de 2 passos.
+    _comando = re.search(
+        r"\b(liga|ligue|acende|acende|desliga|desligue|apaga|apague|toggle)\b",
+        low,
+    )
+    if _comando and re.search(r"\b(luz|luzes|l[áa]mpada|interruptor)\b", low):
+        from core.intents import resolve_light_target
+
+        target = resolve_light_target(low)
+        if target is not None:
+            entity_id, on, alvo = target
+            if entity_id is None:
+                # Nomeou uma luz que não existe no HA — a action responde
+                # 'entidade_inexistente' com o termo procurado.
+                return "ha_light_control", {
+                    "entity_id": "", "on": on, "termo": alvo,
+                }
+            return "ha_light_control", {"entity_id": entity_id, "on": on}
+        # Comando de luz SEM alvo específico: nunca executa em lote —
+        # pergunta qual luz (resposta guiada sai do formatador da action
+        # quando o dono nomear; aqui devolve o pedido de alvo).
+        return "ha_light_control", {"entity_id": "", "on": bool(
+            _comando.group(1) not in ("desliga", "desligue", "apaga", "apague")
+        )}
     if re.search(r"\b(luz(es)?|l[áa]mpada(s)?|interruptor(es)?)\b", low) and re.search(
         r"(aces[ao]|apagad[ao]|ligad[ao]|desligad[ao]|est[ãa]o|qual|quais|como)",
         low,
@@ -247,9 +272,112 @@ def detect_action_intent(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     action = _detect_network(text) or _detect_operational(text)
     if action is None:
         return None
+    # Intenções com params próprios (controle de luzes: entity_id/on)
+    # retornam (nome, params) completo de _detect_operational.
+    if isinstance(action, tuple):
+        return action
     if action == "disk_usage":
         return action, {"path": "/"}
     return action, {}
+
+
+# ---------------------------------------------------------------------------
+# Resolução de alvo de luz (v1.8.1) — nome falado → entity_id do HA
+# ---------------------------------------------------------------------------
+
+# Palavras que a fala costuma omitir do nome oficial da entidade.
+_LIGHT_STOPWORDS = ("da", "de", "do", "das", "dos", "a", "o", "luz", "lámpada")
+_LIGHT_ON_WORDS = ("liga", "ligue", "acende", "acende")
+
+
+def resolve_light_target(
+    text: str,
+) -> Optional[tuple[Optional[str], bool, str]]:
+    """Resolve (entity_id, on, alvo) a partir de 'liga a luz da cozinha'.
+
+    A resolução consulta as entidades do Home Assistant (injetadas pelo
+    launcher em core.intents.configure_ha_entities) e casa o nome falado
+    com friendly_name/entity_id (case/acento-insensível, stopwords
+    ignoradas).
+
+    Returns:
+        None — a frase não tem alvo específico ('liga as luzes').
+        (entity_id, on, alvo) — alvo casado com uma entidade real.
+        (None, on, alvo) — alvo NOMEADO mas nenhuma entidade casou
+        ('quartinho'); o termo cru volta para a mensagem de erro.
+    """
+    # Remove o verbo e conectores: 'liga a luz da cozinha' → 'cozinha'.
+    alvo = re.sub(
+        r"\b(liga|ligue|acende|desliga|desligue|apaga|apague|toggle|a|o|as|os|"
+        r"luz|luzes|l[áa]mpada|interruptor|por favor|agora)\b",
+        " ",
+        text,
+    )
+    alvo = re.sub(r"\s+", " ", alvo).strip(" ?!.,")
+    if not alvo or len(alvo) < 3:
+        return None
+    states = _HA_ENTITIES
+    if not states:
+        return None
+
+    def _norm(s: str) -> str:
+        s = s.lower()
+        for a, b in (("á", "a"), ("ã", "a"), ("â", "a"), ("à", "a"),
+                     ("é", "e"), ("ê", "e"), ("í", "i"),
+                     ("ó", "o"), ("õ", "o"), ("ô", "o"),
+                     ("ú", "u"), ("ç", "c")):
+            s = s.replace(a, b)
+        return " ".join(w for w in s.split() if w not in _LIGHT_STOPWORDS)
+
+    alvo_n = _norm(alvo)
+    on = not any(w in text for w in ("desliga", "desligue", "apaga", "apague"))
+    best: Optional[tuple[int, int, str]] = None
+    for s in states:
+        eid = s.entity_id
+        if eid.split(".", 1)[0] not in ("switch", "light"):
+            continue
+        name = (s.attributes or {}).get("friendly_name") or eid
+        haystack = _norm(f"{name} {eid}")
+        score = sum(1 for word in alvo_n.split() if word and word in haystack)
+        if score == 0:
+            continue
+        # Mais palavras casadas = melhor; empate: entidade mais curta.
+        cand = (-score, len(haystack), eid)
+        if best is None or cand < best:
+            best = cand
+    if best is None:
+        return None, on, alvo
+    return best[2], on, alvo
+
+
+def configure_ha_entities(states: list[Any]) -> None:
+    """Injeta as entidades do HA (launcher) para resolução de alvo."""
+    global _HA_ENTITIES
+    _HA_ENTITIES = states
+
+
+_HA_ENTITIES: list[Any] = []
+
+
+_CONFIRM_YES = re.compile(
+    r"\s*(sim|si|sim!|s|ok|okay|pode|confirmo|confirmado|isso|isso mesmo|"
+    r"pode sim|manda|executa|beleza|blz|va|vai|manda ver|pode mandar)\s*[.!]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def detect_confirmation(text: str) -> bool:
+    """True quando a mensagem é uma CONFIRMAÇÃO curta ('sim', 'pode').
+
+    Conservador: frase longa ou com verbo de luz não é confirmação — é
+    comando novo (que vai pedir confirmação de novo).
+    """
+    if not text or len(text.strip()) > 40:
+        return False
+    low = text.lower()
+    if re.search(r"\b(luz|l[áa]mpada|interruptor|liga|desliga|acende|apaga)\b", low):
+        return False
+    return bool(_CONFIRM_YES.match(low))
 
 
 # ---------------------------------------------------------------------------
@@ -323,8 +451,10 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
     if not isinstance(data, dict):
         return None
     ok = data.get("ok", True)
-    if ok is not True:
+    if ok is not True and action != "ha_light_control":
         return None  # action degradou — deixa o LLM responder
+    # Controle de luzes: erros guiados (alvo/entidade/permissão) SÃO a
+    # resposta certa — nunca caem no LLM (que alucinaria a execução).
 
     if action == "ha_weather":
         temp = data.get("temperature")
@@ -352,6 +482,36 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
             lines.append("  • " + " · ".join(extra))
         lines.append("  • Fonte: Home Assistant (weather da casa) — leitura real.")
         return "\n".join(lines)
+
+    if action == "ha_light_control":
+        if data.get("error") == "permissao_negada":
+            return (
+                "🔒 Controle de luzes é só o dono do sistema — a sua conta "
+                "não pode ligar/desligar dispositivos."
+            )
+        if data.get("error") == "alvo_obrigatorio":
+            return (
+                "💡 Qual luz? Diga, por exemplo: 'liga a luz da cozinha'.\n"
+                "(Para ver o estado: 'quais luzes estão acesas'.)"
+            )
+        if data.get("error") == "entidade_inexistente":
+            return f"🤔 {data.get('hint', 'entidade não encontrada')}"
+        if data.get("error") == "nao_e_luz":
+            return f"🤔 {data.get('hint', 'não é luz/interruptor')}"
+        if data.get("needs_confirmation"):
+            return (
+                f"💡 Confirmar: {data.get('action')} '{data.get('name')}' "
+                f"(agora: {data.get('current')})?\n"
+                "Responda **sim** para executar — a confirmação vale por 2 minutos."
+            )
+        if data.get("executed"):
+            estado = data.get("state_after") or ("on" if data.get("action") == "ligar" else "off")
+            emoji = "🟢" if estado == "on" else "⚪"
+            return (
+                f"✅ {data.get('name')}: {data.get('action')} executado "
+                f"({emoji} estado agora: {estado})."
+            )
+        return None
 
     if action == "ha_lights":
         lights = data.get("lights") or []

@@ -464,6 +464,163 @@ class TestRetryDuploAssuntoExterno:
         assert r.message != EXTERNAL_UNAVAILABLE_MESSAGE
 
 
+class TestControleLuzes:
+    """Controle de luzes pelo chat (v1.8.1): gate de papel determinístico
+    (user → denied pelo Registry, sem LLM), alvo específico obrigatório,
+    confirmação de 2 passos expirável (120s) e consumo da confirmação.
+    Integração real com o InMemoryHAServer (mesma interface do HAClient).
+    """
+
+    @staticmethod
+    def _setup(total_recusas: int = 0):
+        import asyncio
+        from core.intents import configure_ha_entities
+        from integrations.homeassistant.client import HAClient, InMemoryHAServer
+        from tools.actions import build_registry
+        from tools.actions.actions import configure_ha_client
+        from core.orchestrator import Orchestrator, OrchestratorConfig
+        from core.security import SecurityManager
+
+        server = InMemoryHAServer()
+        server.seed(
+            "switch.luz_cozinha_sonoff_1", "off",
+            {"friendly_name": "Luz Cozinha"},
+        )
+        server.seed(
+            "switch.luz_da_varanda_sonoff_2", "on",
+            {"friendly_name": "Luz da Varanda"},
+        )
+        client = server  # o InMemoryHAServer implementa o HABackend inteiro
+        configure_ha_client(client)
+        configure_ha_entities(client.list_states())
+
+        class FakeLLM:
+            name = "fake"
+
+            async def generate(self, prompt, timeout=None, **kw):
+                return "RESPOSTA_DO_LLM_FAKE"
+
+            async def generate_stream(self, prompt, timeout=None, **kw):
+                yield "RESPOSTA_DO_LLM_FAKE"
+
+        llm = FakeLLM()
+        orch = Orchestrator(
+            providers=[llm],
+            config=OrchestratorConfig(default_system_prompt="x"),
+        )
+        orch.set_action_registry(
+            build_registry(security=SecurityManager(mode="strict"))
+        )
+        return orch, llm, server, client
+
+    def test_user_nao_controla_luz_denied_sem_llm(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian", "liga a luz da cozinha",
+            role="user",
+        ))
+        assert r.route == "action_intent"
+        assert "não pode" in r.message.lower()
+        assert "só o dono" in r.message.lower()
+        assert r.message != "RESPOSTA_DO_LLM_FAKE"  # zero LLM
+        assert server.service_calls == []  # nada executado
+
+    def test_admin_fluxo_completo_pedir_confirmar_executar(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r1 = asyncio.run(orch.process(
+            "alex", "guardian", "liga a luz da cozinha", role="admin",
+        ))
+        assert "Confirmar" in r1.message and "sim" in r1.message.lower()
+        assert server.service_calls == []  # 1º passo NÃO executa
+        r2 = asyncio.run(orch.process(
+            "alex", "guardian", "sim", role="admin",
+        ))
+        assert r2.route == "action_intent"
+        assert "executado" in r2.message
+        assert len(server.service_calls) == 1
+        assert server.service_calls[0]["service"] == "turn_on"
+        assert server.service_calls[0]["entity_id"] == "switch.luz_cozinha_sonoff_1"
+
+    def test_comando_sem_alvo_pede_qual_luz(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "liga as luzes", role="admin",
+        ))
+        assert "Qual luz" in r.message
+        assert server.service_calls == []
+
+    def test_entidade_inexistente_recebe_erro_amigavel(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "liga a luz do quartinho", role="admin",
+        ))
+        assert "não existe no Home Assistant" in r.message
+        assert server.service_calls == []
+
+    def test_confirmacao_expira(self) -> None:
+        import asyncio
+        from tools.actions.actions import _LIGHT_CONFIRMATIONS
+        orch, llm, server, client = self._setup()
+        asyncio.run(orch.process(
+            "alex", "guardian", "liga a luz da cozinha", role="admin",
+        ))
+        key = ("alex", "switch.luz_cozinha_sonoff_1", True)
+        assert key in _LIGHT_CONFIRMATIONS
+        # Envelhece a confirmação por 121s FIXOS (TTL do contrato: 120s) —
+        # NÃO usa a constante: a mutação do TTL tem que ser pega pelo teste.
+        _LIGHT_CONFIRMATIONS[key] -= 121.0
+        r2 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        # O 'sim' recria a intenção (confirmação expirada) — NÃO executa.
+        assert server.service_calls == []
+
+    def test_confirmacao_e_consumida_um_uso(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        asyncio.run(orch.process("alex", "guardian", "liga a luz da cozinha", role="admin"))
+        asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        assert len(server.service_calls) == 1
+        # Repetir o 'sim' SEM intenção pendente: é só conversa — cai no
+        # LLM (a confirmação não é reutilizável e nada executa).
+        r3 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        assert len(server.service_calls) == 1
+        assert r3.message == "RESPOSTA_DO_LLM_FAKE"
+
+    def test_ws_tambem_injeta_user_id_e_executa(self) -> None:
+        """O MESMO fluxo (pedir → confirmar → executar) no process_stream
+        (WS): user_id injetado nos params e confirmação consumida — mutação
+        no ramo do stream tem que ser pega por este teste."""
+        import asyncio
+
+        async def _run() -> tuple[object, object, list[dict]]:
+            orch, llm, server, client = self._setup()
+            chunks1 = [c async for c in orch.process_stream(
+                "alex", "guardian", "liga a luz da cozinha", role="admin",
+            )]
+            chunks2 = [c async for c in orch.process_stream(
+                "alex", "guardian", "sim", role="admin",
+            )]
+            return chunks1, chunks2, server.service_calls
+
+        chunks1, chunks2, calls = asyncio.run(_run())
+        done1 = [c for c in chunks1 if c.get("type") == "done"]
+        assert done1 and "Confirmar" in done1[0]["content"]
+        done2 = [c for c in chunks2 if c.get("type") == "done"]
+        assert done2 and "executado" in done2[0]["content"]
+        assert len(calls) == 1 and calls[0]["service"] == "turn_on"
+
+    def test_sim_solto_sem_intencao_nao_executa_nada(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        assert server.service_calls == []
+        # Sem intenção pendente, o 'sim' é só conversa — cai no LLM normal.
+        assert r.message == "RESPOSTA_DO_LLM_FAKE"
+
+
 class TestCacheSemRecusa:
     """O cache é servido ANTES da etapa 6.5 (anti-recusa) — uma recusa
     cacheada vira PERMANENTE. Bug do ar (28/09): a alucinação 'informação

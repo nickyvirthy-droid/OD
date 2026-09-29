@@ -366,9 +366,17 @@ def build_action_registry() -> Any:
         if creds_path.exists():
             from tools.actions.actions import configure_ha_client
 
-            configure_ha_client(
-                HAClient(HACredentials.from_file(str(creds_path)))
-            )
+            client = HAClient(HACredentials.from_file(str(creds_path)))
+            configure_ha_client(client)
+            # Resolução de alvo do controle de luzes ('liga a luz da
+            # cozinha' → switch.luz_cozinha_...): as entidades ficam em
+            # memória no import; comandos revalidam o estado na execução.
+            try:
+                from core.intents import configure_ha_entities
+
+                configure_ha_entities(client.list_states())
+            except Exception as exc:  # pragma: no cover
+                log.warn("Resolução de alvo de luzes sem entidades", error=str(exc))
             log.info("Actions iot_* ligadas ao Home Assistant")
     except Exception as exc:  # pragma: no cover — degrada sem HA
         log.warn("Actions iot_* sem Home Assistant", error=str(exc))

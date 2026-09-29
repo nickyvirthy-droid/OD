@@ -14,6 +14,34 @@
 
 ---
 
+## [1.8.1] — CONTROLE DE LUZES PELO CHAT: ligar/desligar com confirmação de 2 passos 💡 (2026-09-29)
+
+> **Política:** correção/completamento da capacidade do lar da 1.8.0
+> (controle desenhado na 1.8.0 entra aqui) = PATCH (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.8.1` · app `1.8.1+2021` (versionCode 2021).
+
+### Adicionado (2026-09-29)
+
+| Peça | Entrega |
+|---|---|
+| **Action ha_light_control** | Liga/desliga UMA luz específica (catálogo 62 → 63, categoria iot=4) — papel admin; confirmação de 2 passos com TTL 120s (intenção pendente por user+luz+ação, consumo só após execução bem-sucedida) |
+| **Resolução de alvo** | Nome falado → entity_id via entidades do HA carregadas no launcher (`configure_ha_entities`); 'liga a luz da cozinha' acha o switch real |
+| **Confirmação no fastpath** | O 'sim' do user executa a intenção pendente SEM passar pelo LLM (`detect_confirmation` + `peek_pending_light_confirmation`), nos dois caminhos (process/process_stream) |
+| **Gate determinístico** | Negação do Registry para ha_light_control vira resposta guiada `permissao_negada` — nunca cai no LLM (que podia alucinar confirmação) |
+
+### Segurança
+
+- Papel user mantém só LEITURA do lar (ha_weather/ha_lights); controle é do dono.
+- A action recusa o apagão total (sempre resta ao menos 1 luz acesa) e o
+  desligar de entidade inexistente.
+
+### Evidência (2026-09-29)
+
+```
+servidor: pytest tests/ → 2002 passed, 16 skipped
+APK 1.8.1+2021 (versionCode 2021) publicado em site/
+```
+
 ## [1.7.0] — AUTO-ATUALIZAÇÃO DO APP + SITE MAIS RÁPIDO + TRAVA DE INFRA PARA NÃO-DONO 🚀 (2026-09-26)
 
 > **Política:** capacidade nova para o usuário final (o app se atualiza

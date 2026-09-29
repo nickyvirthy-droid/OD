@@ -7,6 +7,32 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.8.1] — CONTROLE DE LUZES PELO CHAT: ligar/desligar com confirmação de 2 passos 💡 (2026-09-29)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | aprovação (na prática) do controle de luzes desenhado na v1.8.0 — lote órfão resgatado na retomada de 29/09 (a sessão anterior morreu com o código pronto, sem bump/commit/deploy/registro) |
+| **Action ha_light_control** | liga/desliga UMA luz (catálogo 62 → 63, categoria iot=4), papel admin, papel user mantém só leitura; recusa o apagão total (fica ao menos 1 luz acesa) e o desligar de entidade inexistente |
+| **Confirmação de 2 passos** | 'liga a luz X' registra a intenção (TTL 120s) e pede confirmação; o SIM do MESMO user executa a MESMA luz/ação — confirmação não vai para o LLM (fastpath determinístico) |
+| **Resolução de alvo** | nome falado → entity_id via entidades do HA carregadas no launcher ('luz da cozinha' → switch real); comandos revalidam o estado na execução |
+| **Gate determinístico** | negação do Registry vira resposta guiada ("apenas o dono...") em vez de cair no LLM — sem alucinação de confirmação |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 2002 passed, 16 skipped (ambiente canônico .venv
+          SEM OD_TEST_POSTGRES_DSN; +157 linhas de testes em
+          test_resposta_transparente.py; catálogo 62→63 fixado em 4 arquivos)
+APK 1.8.1+2021 (versionCode 2021) publicado em site/
+```
+
+### 3. Pendências / próximos passos
+
+- Nenhuma pendente desta versão — leitura (v1.8.0) e controle (v1.8.1) do
+  lar operando pelo chat.
+
 ## [1.8.0] — O CHAT FALA COM O LAR: clima, luzes e resumo do Home Assistant como dado real 🏠 (2026-09-28)
 
 ### 1. O que foi feito

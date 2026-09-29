@@ -736,10 +736,17 @@
     "execucao": "Snapshot de rollback backups/cache-entrada-pre-guarda-20260927.json (381 B, sha256 b21583bc…); dry_run com keys → 1 candidata (exata); poda real → removidas 1 (key 27498274fd8c67c8…). Pós: 0 entradas com etiqueta [NICKY][ no cache; total da tabela 39; /health ok; journal 0 erros; nada reiniciado.",
     "estado": "CONCLUÍDO — cache 100% saudável, sem falhas e sem resíduo pré-guarda."
   },
+  "retomada_2026_09_29_lote_luzes": {
+    "pedido": "Usuário: 'leia iniciar, houve falha na ultima vez. melhor fazer um resumo antes de implementar para saber o que estava fazendo' (~09:1x).",
+    "verificacao": "od-core no ar era o deploy v1.8.0 (PID 883071); HEAD 7798f5c == origin/master (sessão v1.8.0 registrada); working tree com lote órfão de 9 arquivos (+582/−27, mtimes 20:12–21:07 de 28/09 — DEPOIS da transcrição ~20:3x e do commit 6d68780).",
+    "lote_orfao": "CONTROLE DE LUZES pelo chat (v1.8.1), pendência explícita da v1.8.0: (1) action nova ha_light_control (catálogo 62→63, categoria iot=4, papel admin, confirmação de 2 passos com TTL 120s em _LIGHT_CONFIRMATIONS, consumo só após execução bem-sucedida); (2) detect_confirmation + resolve_light_target + configure_ha_entities em core/intents.py (casa nome falado → entity_id via _HA_ENTITIES); (3) orchestrator process/process_stream: 'sim' consulta peek_pending_light_confirmation e executa a MESMA luz/ação; negação do Registry vira {permissao_negada} guiada (não cai no LLM); (4) launcher injeta user_id e carrega entidades do HA no build_action_registry; (5) +157 linhas de testes em test_resposta_transparente.py, catálogo 62→63 em 4 arquivos.",
+    "estado": "CÓDIGO COMPLETO E SUÍTE VERDE — 2002 passed, 16 skipped (ambiente canônico .venv SEM OD_TEST_POSTGRES_DSN). Falta: bump 1.8.1 (PATCH), commit, deploy, prova viva e registro em iniciar/.",
+    "resumo_para_o_dono": "Resumo apresentado: v1.8.0 no ar (clima/luzes/resumo do HA + segredos travados) e o lote órfão é o CONTROLE de luzes (ligar/desligar com confirmação) que ficou pendente — a sessão anterior morreu com o código pronto e a suíte verde, mas SEM bump/commit/deploy/registro."
+  },
   "last_turn": {
-    "date": "2026-09-28",
-    "action": "v1.7.1 completa: lote órfão resgatado (b0961aa — cpu_temp, clima sem bloqueio indevido, anti-recusa endurecido), /app/version anunciando APK errado corrigido (4384e5b), deploy provado 6/6 (temperatura real 57°C via fastpath:cpu_temp, ZERO LLM).",
-    "next": "Pendente do dono: aprovar (ou não) o CONTROLE de luzes pelo chat (ligar/desligar com gate de papel + confirmação) — leitura do lar já no ar (v1.8.0). Na próxima reversionagem do app: versionCode 2021+.",
+    "date": "2026-09-29",
+    "action": "Retomada 29/09: lote órfão v1.8.1 (controle de luzes) identificado — código completo, suíte 2002/16 verde, falta bump/commit/deploy/registro.",
+    "next": "Completar a v1.8.1: bump PATCH (.env, capabilities, pubspec 1.8.1+2021, site, CHANGELOG, README_VERSAO), commit+push (regra 7.1), deploy, prova viva do controle de luzes e registro em iniciar/. Pending antigo do dono (aprovar controle de luzes) está RESOLVIDO na prática — o lote implementa exatamente isso.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

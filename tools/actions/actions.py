@@ -285,6 +285,12 @@ def cpu_temp() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 _HA_CLIENT: Optional[Any] = None
+# Confirmações pendentes do controle de luzes (v1.8.0): chave (user_id,
+# entity_id, on) -> timestamp da intenção. 2 passos: 'liga a luz X' cria a
+# intenção e responde pedindo confirmação; o SIM do mesmo user executa.
+# Expira em 120s (regra de _light_confirm_check).
+_LIGHT_CONFIRMATIONS: dict[tuple[str, str, bool], float] = {}
+_LIGHT_CONFIRM_TTL = 120.0
 
 
 def configure_ha_client(client: Any) -> None:
@@ -391,6 +397,149 @@ def ha_lights() -> dict[str, Any]:
         "total": len(lights),
         "on": on_count,
         "off": len(lights) - on_count,
+    }
+
+
+def _light_name_for(entity_id: str, states: Optional[list[Any]]) -> str:
+    """friendly_name da entidade (ou o próprio id) dentro da lista dada."""
+    for s in states or []:
+        if s.entity_id == entity_id:
+            return (s.attributes or {}).get("friendly_name") or entity_id
+    return entity_id
+
+
+def _light_confirm_check(
+    user_id: str, entity_id: str, on: bool,
+    *, now: Optional[float] = None,
+) -> str:
+    """Estado da confirmação de 2 passos para a intenção (user, luz, ação).
+
+    Returns:
+        "required" — primeira menção à intenção (ou anterior expirada):
+        registra now e pede confirmação.
+        "confirmed" — o mesmo user confirmou dentro do TTL.
+    """
+    stamp = time.time() if now is None else now
+    key = (user_id, entity_id, bool(on))
+    pending = _LIGHT_CONFIRMATIONS.get(key)
+    if pending is not None and (stamp - pending) <= _LIGHT_CONFIRM_TTL:
+        return "confirmed"
+    _LIGHT_CONFIRMATIONS[key] = stamp
+    return "required"
+
+
+def peek_pending_light_confirmation(user_id: str) -> Optional[tuple[str, bool]]:
+    """Intenção de controle pendente mais recente do user (dentro do TTL).
+
+    O 'sim' do user não gera intenção de action — o orchestrator consulta
+    aqui o que está pendente e executa. NÃO consome: o consumo acontece
+    dentro de ha_light_control APÓS a execução bem-sucedida. Entradas
+    expiradas são descartadas na varredura.
+    """
+    now = time.time()
+    best: Optional[tuple[str, bool]] = None
+    best_stamp = -1.0
+    for (uid, entity_id, on), stamp in list(_LIGHT_CONFIRMATIONS.items()):
+        if uid != user_id:
+            continue
+        if (now - stamp) > _LIGHT_CONFIRM_TTL:
+            _LIGHT_CONFIRMATIONS.pop((uid, entity_id, on), None)
+            continue
+        if stamp > best_stamp:
+            best_stamp = stamp
+            best = (entity_id, bool(on))
+    return best
+
+
+def ha_light_control(
+    entity_id: str = "", on: bool = True, user_id: str = "", termo: str = "",
+) -> dict[str, Any]:
+    """Liga/desliga UMA luz específica do HA, com gate e confirmação.
+
+    Camadas (v1.8.0):
+    1. Permissão: a action fica FORA da allowlist do papel user — só o
+       admin/dono chega aqui (negação do Registry, denied).
+    2. Alvo específico obrigatório: entity_id resolvido pela intenção;
+       genérico ("as luzes") nunca executa em lote.
+    3. Confirmação de 2 passos: 1ª chamada da intenção registra e pede
+       confirmação; o SIM do mesmo user dentro de 120s executa.
+    """
+    if not entity_id:
+        if termo:
+            return {
+                "ok": False,
+                "error": "entidade_inexistente",
+                "hint": f"'{termo}' não existe no Home Assistant",
+            }
+        return {
+            "ok": False,
+            "error": "alvo_obrigatorio",
+            "hint": "diga qual luz (ex: 'liga a luz da cozinha')",
+        }
+    client = _ha()
+    if client is None:
+        return _unavailable("ha_light_control", "Home Assistant não configurado")
+    # A entidade tem que existir e ser atuador de luz (switch/light).
+    entity = None
+    try:
+        entity = client.get_state(entity_id)
+    except Exception as exc:
+        return _unavailable("ha_light_control", f"falha ao ler {entity_id}: {exc}")
+    if entity is None:
+        return {
+            "ok": False,
+            "error": "entidade_inexistente",
+            "hint": f"'{entity_id}' não existe no Home Assistant",
+        }
+    domain = entity_id.split(".", 1)[0]
+    if domain not in ("switch", "light"):
+        return {
+            "ok": False,
+            "error": "nao_e_luz",
+            "hint": f"'{entity_id}' não é luz/interruptor (domínio '{domain}')",
+        }
+    states = _ha_states()
+    name = _light_name_for(entity_id, states)
+    # Confirmação de 2 passos (por user + luz + ação).
+    stage = _light_confirm_check(user_id or "desconhecido", entity_id, on)
+    if stage == "required":
+        return {
+            "ok": True,
+            "needs_confirmation": True,
+            "entity": entity_id,
+            "name": name,
+            "action": "ligar" if on else "desligar",
+            "current": entity.state,
+            "hint": (
+                f"Confirmar: ligar '{name}'? Responda 'sim' para executar "
+                "(confirmação vale por 2 minutos)."
+            ),
+        }
+    # Confirmado: executa o serviço no HA.
+    service = "turn_on" if on else "turn_off"
+    try:
+        client.call_service(domain, service, entity_id=entity_id)
+    except Exception as exc:
+        return _unavailable(
+            "ha_light_control", f"falha ao {service} {entity_id}: {exc}"
+        )
+    # Lê o estado pós-comando (o HA pode levar um instante; o valor lido
+    # é best-effort — o comando foi aceito).
+    after = None
+    try:
+        post = client.get_state(entity_id)
+        after = post.state if post else None
+    except Exception:
+        pass
+    # Consome a confirmação (um uso).
+    _LIGHT_CONFIRMATIONS.pop((user_id or "desconhecido", entity_id, bool(on)), None)
+    return {
+        "ok": True,
+        "executed": True,
+        "entity": entity_id,
+        "name": name,
+        "action": "ligar" if on else "desligar",
+        "state_after": after,
     }
 
 
@@ -1222,6 +1371,13 @@ CATALOG: list[dict[str, Any]] = [
     _spec("ha_weather", "iot", "Clima real da região da casa (Home Assistant)", ha_weather),
     _spec("ha_lights", "iot", "Estado das luzes e interruptores (Home Assistant)", ha_lights),
     _spec("ha_summary", "iot", "Raio-X do lar: clima, luzes, pessoas, bateria, rede", ha_summary),
+    _spec("ha_light_control", "iot", "Liga/desliga UMA luz específica (dono, com confirmação)", ha_light_control,
+          {"required": ["entity_id"], "properties": {
+              "entity_id": S,
+              "on": {**B, "default": True},
+              "user_id": {**S, "default": ""},
+              "termo": {**S, "default": ""},
+          }}),
     _spec("ip_address", "system", "Endereços IP do host", ip_address),
     _spec("listening_ports", "system", "Portas TCP em escuta", listening_ports),
     

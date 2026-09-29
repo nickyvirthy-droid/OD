@@ -682,7 +682,12 @@ class Orchestrator:
         # Etapa 3.5 — Fast path de intenções (mesma regra do `process`: papel
         # vem da credencial; "anonymous" não aciona action). v1.8.0: trava de
         # credenciais ANTES do gate de anonymous (mesma regra do `process`).
-        from core.intents import detect_action_intent, format_intent_result, safe_math
+        from core.intents import (
+            detect_action_intent,
+            detect_confirmation,
+            format_intent_result,
+            safe_math,
+        )
 
         intent = detect_action_intent(text)
         if intent is not None and intent[0] == "__secrets_denied__":
@@ -710,9 +715,47 @@ class Orchestrator:
             answer = safe_math(text)
             route_detail = "math"
             if answer is None:
+                # Confirmação de 2 passos do controle de luzes (v1.8.1):
+                # 'sim' não gera intenção — consulta a intenção pendente do
+                # user e executa a MESMA luz/ação que ele pediu antes.
+                from tools.actions.actions import peek_pending_light_confirmation
+
+                pending = peek_pending_light_confirmation(user_id)
+                if pending is not None and detect_confirmation(text):
+                    entity_id, on = pending
+                    data = await self.execute_action(
+                        "ha_light_control",
+                        {"entity_id": entity_id, "on": on,
+                         "user_id": user_id},
+                        user_id,
+                        role=role,
+                    )
+                    answer = format_intent_result("ha_light_control", data)
+                    if answer is not None:
+                        self._metrics.intents += 1
+                        done_result = self._stream_result(
+                            user_id, profile, text, ROUTE_INTENT, answer,
+                            llm_used="fastpath:ha_light_control",
+                        )
+                        await self._record_terminal(done_result, text, persist=True)
+                        await self._finish(done_result, started)
+                        yield {"type": "token", "content": answer}
+                        yield {
+                            "type": "done",
+                            "profile_name": _profile_display_name(profile),
+                            "content": answer,
+                            "route": ROUTE_INTENT,
+                            "llm_used": "fastpath:ha_light_control",
+                        }
+                        return
+                    answer = None  # não confirmou nada — segue o fluxo
+            if answer is None:
                 intent = detect_action_intent(text)
                 if intent is not None:
                     action_name, params = intent
+                    if action_name == "ha_light_control":
+                        params = dict(params)
+                        params["user_id"] = user_id
                     data = await self.execute_action(
                         action_name, params, user_id, role=role
                     )
@@ -988,7 +1031,12 @@ class Orchestrator:
         # TODOS (o LLM alucinou uma senha de MQTT no ar; para o papel user
         # a negação é de direito; para o dono, o valor real não vive no
         # modelo — viver no .env/cofre).
-        from core.intents import detect_action_intent, format_intent_result, safe_math
+        from core.intents import (
+            detect_action_intent,
+            detect_confirmation,
+            format_intent_result,
+            safe_math,
+        )
 
         intent = detect_action_intent(text)
         if intent is not None and intent[0] == "__secrets_denied__":
@@ -1005,9 +1053,30 @@ class Orchestrator:
             answer: Optional[str] = safe_math(text)
             route_detail = "math"
             if answer is None:
+                # Confirmação de 2 passos do controle de luzes (v1.8.1):
+                # 'sim' não gera intenção — consulta a intenção pendente do
+                # user e executa a MESMA luz/ação que ele pediu antes.
+                from tools.actions.actions import peek_pending_light_confirmation
+
+                pending = peek_pending_light_confirmation(user_id)
+                if pending is not None and detect_confirmation(text):
+                    entity_id, on = pending
+                    data = await self.execute_action(
+                        "ha_light_control",
+                        {"entity_id": entity_id, "on": on,
+                         "user_id": user_id},
+                        user_id,
+                        role=role,
+                    )
+                    answer = format_intent_result("ha_light_control", data)
+                    route_detail = "ha_light_control"
+            if answer is None:
                 intent = detect_action_intent(text)
                 if intent is not None:
                     action_name, params = intent
+                    if action_name == "ha_light_control":
+                        params = dict(params)
+                        params["user_id"] = user_id
                     data = await self.execute_action(
                         action_name, params, user_id, role=role
                     )
@@ -1523,6 +1592,11 @@ class Orchestrator:
             return result.data
         elif result.status == "denied":
             log.warn("Orchestrator action denied", action=action_name, error=result.error)
+            # Controle de luzes pelo chat (v1.8.1): a negação do Registry é
+            # o GATE DE PAPEL determinístico — vira resposta guiada em vez
+            # de cair no LLM (que podia alucinar confirmação).
+            if action_name == "ha_light_control":
+                return {"ok": False, "error": "permissao_negada"}
             return None
         elif result.status == "invalid":
             log.warn("Orchestrator action invalid params", action=action_name, errors=result.errors)
