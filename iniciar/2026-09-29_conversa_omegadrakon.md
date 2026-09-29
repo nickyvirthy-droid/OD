@@ -161,6 +161,85 @@ auto-atualização para o 1.8.1+2021". Dono confirmou: **"funcionou"**.
 - Confirmação do dono às ~09:4x: "funcionou" — prova no celular
   fechada (§7). PONTO ENCERRADO.
 
+## 9. v1.9.1 — Coerência do lar: nunca responde por dispositivo errado (~10:3x–11:2x)
+
+Pedido do dono: "leia as conversas, algumas respostas não condizem, se
+vai colocar no cache pelo menos deve ser coerente, tipo da luz, não
+posso pedir sala e ele responder cozinha, diga simplesmente que não
+pode ou algo mais explicativo porem genérico".
+
+### Diagnóstico (leitura das conversas REAIS de 29/09)
+
+- **BUG-A (09:36)**: 'acenda a luz do corredor' + 'sim' → '✅ Luz da
+  Varanda: desligar executado'. Journal: os turnos com resposta errada
+  têm `route=llm` — o gemma IMITOU o formato determinístico
+  ('💡 Confirmar'/'✅ executado') em turnos que não casaram intenção
+  (o 'acenda' com erro de digitação não era reconhecido).
+- **BUG-B (09:41)**: 'luzes acessas' → '💡 Confirmar: ligar Luzes
+  Acessas (off)?' — entidade INVENTADA a partir do próprio comando.
+- **Cache**: confirmações ('💡 Confirmar:…') e execuções ('✅ …
+  executado') do lar ERAM cacheáveis — servidas depois como resposta
+  de outra pergunta (incoerência eterna).
+
+### Correções (todas determinísticas, sem LLM)
+
+1. **Vocabulário a prova de digitação**: 'acenda' entra nos verbos de
+   comando; 'acessas/acesso' entra nos padrões de estado → 'luzes
+   acessas' vai para a LEITURA real (ha_lights).
+2. **Coerência do 'sim'** (nova `confirm_texts_match_pending`): a
+   confirmação que menciona OUTRO lugar ('sim, da sala' com pendente do
+   corredor) NÃO executa — recusa genérica e honesta ('Essa confirmação
+   não bate com o que você pediu antes'), sem LLM, e a intenção velha
+   é descartada (o 'sim' seguinte não executa nada).
+3. **Plural nunca inventa entidade**: 'liga as luzes (da sala)' →
+   '💡 Não posso acionar várias luzes de uma vez — diga qual luz ou
+   tomada' (resposta genérica pedida pelo dono).
+4. **Cache coerente**: '💡 Confirmar:…' e '✅ … executado' NUNCA
+   entram no cache LLM (`cache_failure_reason`); leitura do lar continua
+   cacheável.
+
+### Teste do teste
+
+- **4/4 mutações detectadas e revertidas**: (M1) coerência do 'sim'
+  desligada; (M2) caminhos do plural removidos; (M3) cache aceitando
+  confirmação/execução; (M4) regex do 'sim' de volta ao strict
+  (confirmação com lugar deixaria de ser detectada). 1ª rodada pegou
+  2 mutações FRACAS (testes não distinguiam os caminhos) — endurecidos
+  com 'liga as luzes da sala' e o caso real do corredor.
+- +6 testes em TestCoerenciaDoLar (casos REAIS do dono).
+
+### Validação, bump 1.9.1 (PATCH) e publicação
+
+- Suíte: **2013 passed, 16 skipped** (+6).
+- Checklist completo: .env 1.9.1, capabilities, pubspec **1.9.1+2023**,
+  **_APP_VERSION_CODE=2023**, site 2×, CHANGELOG [1.9.1],
+  README_VERSAO §1.9.1. APK rebuildado (aapt2 versionCode='2023'; full
+  sha256 49dbba94…; arm64 19844d9e…; anteriores em
+  backups/apk-v1.9.0+2022-20260929/).
+- Commit: `0988021` fix(intents,core): coerência do lar (v1.9.1) — 10
+  arquivos +403/−57; HEAD == origin/master.
+
+### Deploy e prova viva (PID 966981, restart 11:17:51, NRestarts=0)
+
+1. **BUG-B corrigido**: 'luzes acessas' → 💡 LEITURA real
+   (fastpath:ha_lights) — nunca mais 'Confirmar: ligar Luzes Acessas'.
+2. **Plural genérico**: 'liga as luzes da sala' → 'Não posso acionar
+   várias luzes de uma vez' (determinístico; a 'Luz Sala' existe e está
+   unavailable — o plural NÃO a aciona).
+3. **BUG-A corrigido**: 'acenda a luz do corredor' → 'Confirmar: ligar
+   Luz Corredor' + 'sim, da sala' → 🤔 'Essa confirmação não bate com o
+   que você pediu antes' (ZERO LLM, nada executado) + 'sim' puro → não
+   executa nada (intenção descartada).
+4. **Fluxo normal preservado**: corredor + 'sim' puro → executa o
+   CORREDOR; varanda ligar/desligar com 'sim' puro → executa a VARANDA.
+5. **Cache**: 2ª 'luzes acessas' idêntica → served do cache como LEITURA
+   (route=cache) — coerente; confirmações/execuções não entram mais.
+6. /health 200; journal 0 Traceback/ERROR/CRIT; casa de volta ao estado
+   original (0 luzes acesas além da tomada do servidor, que estava on).
+
+Pendente: instalar o APK 1.9.1+2023 no celular (auto-atualização,
+2023 > 2022).
+
 ## 8. v1.9.0 — Controle do lar expandido: tomadas com o mesmo padrão (~09:5x–10:2x)
 
 Pedido do dono: "Estender o controle do lar para tomadas e outros

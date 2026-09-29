@@ -736,6 +736,18 @@
     "execucao": "Snapshot de rollback backups/cache-entrada-pre-guarda-20260927.json (381 B, sha256 b21583bc…); dry_run com keys → 1 candidata (exata); poda real → removidas 1 (key 27498274fd8c67c8…). Pós: 0 entradas com etiqueta [NICKY][ no cache; total da tabela 39; /health ok; journal 0 erros; nada reiniciado.",
     "estado": "CONCLUÍDO — cache 100% saudável, sem falhas e sem resíduo pré-guarda."
   },
+  "v191_coerencia_lar_2026_09_29": {
+    "pedido": "Dono: 'leia as conversas, algumas respostas não condizem, se vai colocar no cache pelo menos deve ser coerente, tipo da luz, não posso pedir sala e ele responder cozinha, diga simplesmente que não pode ou algo mais explicativo porem genérico' (~10:3x).",
+    "diagnostico": "Conversas REAIS de 29/09: BUG-A (09:36) 'acenda a luz do corredor'+'sim' executou a Luz da Varanda — journal mostra route=llm nos turnos errados (gemma imitou o formato determinístico; 'acenda' com erro de digitação não casava intenção); BUG-B (09:41) 'luzes acessas' virou 'Confirmar: ligar Luzes Acessas' (entidade inventada); confirmações/execuções do lar ERAM cacheáveis.",
+    "correcoes": ["vocabulário a prova de digitação: acenda (comando) e acessas/acesso (estado) → 'luzes acessas' vai para LEITURA real", "coerência do 'sim': confirm_texts_match_pending — confirmação que menciona OUTRO lugar não executa; recusa genérica sem LLM; intenção velha descartada (drop_pending_light_confirmation)", "plural nunca inventa entidade: 'liga as luzes (da sala)' → 'não aciono várias luzes de uma vez' (genérica)", "cache: '💡 Confirmar:' e '✅ … executado' NUNCA entram no cache (cache_failure_reason); leitura continua cacheável"],
+    "teste_do_teste": "4/4 mutações detectadas e revertidas (coerência do sim, caminhos do plural, cache, regex do sim). 1ª rodada pegou 2 mutações fracas — testes endurecidos com 'liga as luzes da sala' e o caso real do corredor.",
+    "bump": "1.9.1 (PATCH): .env, capabilities, pubspec 1.9.1+2023, _APP_VERSION_CODE=2023, site 2x, CHANGELOG [1.9.1], README_VERSAO §1.9.1. APK rebuildado (aapt2 2023; full 49dbba94…, arm64 19844d9e…; anteriores em backups/apk-v1.9.0+2022-20260929/).",
+    "validacao": "Suíte 2013 passed, 16 skipped (+6 TestCoerenciaDoLar com os casos REAIS do dono); mqtt flaky passa isolado.",
+    "commit": "0988021 fix(intents,core): coerência do lar (v1.9.1) — 10 arquivos +403/−57; HEAD==origin/master.",
+    "deploy": "IMPLANTADO — restart 11:17:51, PID 966981, NRestarts=0; /health 200; journal 0 erros.",
+    "prova_viva": {"bug_b": "'luzes acessas' → 💡 LEITURA real (fastpath:ha_lights) — nunca mais entidade inventada", "plural": "'liga as luzes da sala' → 'Não posso acionar várias luzes de uma vez' (determinístico)", "bug_a": "corredor + 'sim, da sala' → 🤔 'Essa confirmação não bate' (zero LLM, nada executado) + 'sim' puro não executa (intenção descartada)", "fluxo_normal": "corredor/varanda + 'sim' puro executam o alvo CERTO", "cache": "2ª 'luzes acessas' → route=cache como LEITURA coerente; confirmações/execuções fora do cache"},
+    "estado": "CONCLUÍDO E NO AR — pendente: instalar o APK 1.9.1+2023 no celular (auto-atualização, 2023 > 2022)."
+  },
   "v190_tomadas_2026_09_29": {
     "pedido": "Dono: 'Estender o controle do lar para tomadas e outros dispositivos do HA com o mesmo padrão de confirmação' (~09:5x).",
     "inventario": "HA real: 9 switches SONOFF (7 luzes + 2 tomadas: 'note servidor Socket 1' alimenta o SERVIDOR e 'Luz Oficina Socket 1' indisponível); sem fan/climate/TV/cortina — o domínio switch já era a fronteira certa.",
@@ -777,8 +789,8 @@
   },
   "last_turn": {
     "date": "2026-09-29",
-    "action": "v1.9.0 completa e NO AR: controle do lar expandido a tomadas (ha_device_control) com o mesmo padrão de confirmação; 4/4 mutações; deploy provado 6/6 (gate na tomada do servidor provado SEM desligá-la).",
-    "next": "Instalar o APK 1.9.0+2022 no celular pela auto-atualização (2022 > 2021) e conferir o comando de tomada pelo chat do app. Na próxima reversionagem do app: versionCode 2023+. Nota menor: docs/CHANGELOG.md tem a [1.7.0] desordenada (acima da [1.8.0]) — reordenar numa sessão futura se o dono quiser.",
+    "action": "v1.9.1 completa e NO AR: coerência do lar — 'luzes acessas' vira leitura real, 'sim' incoerente é recusado genericamente sem LLM, plural nunca inventa entidade, confirmações/execuções fora do cache. Casos reais do dono reproduzidos e corrigidos.",
+    "next": "Instalar o APK 1.9.1+2023 no celular (auto-atualização, 2023 > 2022). Nota menor: docs/CHANGELOG.md tem a [1.7.0] desordenada (acima da [1.8.0]) — reordenar numa sessão futura se o dono quiser.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
