@@ -736,6 +736,25 @@
     "execucao": "Snapshot de rollback backups/cache-entrada-pre-guarda-20260927.json (381 B, sha256 b21583bc…); dry_run com keys → 1 candidata (exata); poda real → removidas 1 (key 27498274fd8c67c8…). Pós: 0 entradas com etiqueta [NICKY][ no cache; total da tabela 39; /health ok; journal 0 erros; nada reiniciado.",
     "estado": "CONCLUÍDO — cache 100% saudável, sem falhas e sem resíduo pré-guarda."
   },
+  "v190_tomadas_2026_09_29": {
+    "pedido": "Dono: 'Estender o controle do lar para tomadas e outros dispositivos do HA com o mesmo padrão de confirmação' (~09:5x).",
+    "inventario": "HA real: 9 switches SONOFF (7 luzes + 2 tomadas: 'note servidor Socket 1' alimenta o SERVIDOR e 'Luz Oficina Socket 1' indisponível); sem fan/climate/TV/cortina — o domínio switch já era a fronteira certa.",
+    "implementacao": ["ha_light_control → ha_device_control (gate de papel + alvo específico + confirmação 2 passos TTL 120s intactos)", "vocabulário: tomada(s)/soquete(s)/socket/dispositivo/aparelho/desconecta/plug no comando; leitura de tomadas → ha_lights", "resolução de alvo: 'desliga a tomada do servidor' → switch.note_servidor_socket_1", "formatter honesto: 'Qual luz ou tomada?' / 'luzes e tomadas é só o dono'"],
+    "teste_do_teste": "4/4 mutações detectadas e revertidas (peek da intenção, ramo de negação do gate, vocabulário, TTL). 1ª rodada: M2 mal desenhada (role nos params) passou — redesenhada para o ramo de negação do orchestrator → pega. Roteiro efêmero removido antes do commit.",
+    "bump": "1.9.0 (MINOR): .env, capabilities, pubspec 1.9.0+2022, _APP_VERSION_CODE=2022, site 2x, CHANGELOG [1.9.0], README_VERSAO §1.9.0. APK rebuildado (aapt2 2022; full 10ea1e29…, arm64 479b0684…; anteriores em backups/apk-v1.8.1+2021-20260929/).",
+    "validacao": "Suíte 2007 passed, 16 skipped (+4 TestControleTomadas); mqtt test_start_stop_thread flaky no run completo — passa isolado e por classe (precedente 09-21).",
+    "commit": "4bf239d feat(iot,intents): controle do lar expandido a tomadas (v1.9.0) — 10 arquivos +270/−63; HEAD==origin/master.",
+    "deploy": "IMPLANTADO — restart 10:18:41, PID 958615, NRestarts=0; /health 200; journal 0 Traceback/ERROR (2 [NICKY][CRIT] = log da negação do gate na prova).",
+    "prova_viva_6_6": {
+      "1": "/app/version {1.9.0, code 2022, sha256 == binário}",
+      "2": "leitura 'quais tomadas estão ligadas' → fastpath:ha_lights (estado real)",
+      "3": "'liga o soquete da oficina' → Confirmar 'Luz Oficina Socket 1' (unavailable aparece honesto)",
+      "4": "gate: user 'desliga a tomada do servidor' → 🔒 negação determinística sem LLM",
+      "5": "admin na tomada do servidor → confirmação pedida; 'sim' NÃO executado pela prova (derrubaria o od-core) — expira em 120s",
+      "6": "regressão: ciclo ligar/desligar Luz Cozinha com confirmação → ✅ casa 0 acesas"
+    },
+    "estado": "CONCLUÍDO E NO AR — pendente: instalar o APK 1.9.0+2022 no celular pela auto-atualização (2022 > 2021)."
+  },
   "retomada_2026_09_29_lote_luzes": {
     "pedido": "Usuário: 'leia iniciar, houve falha na ultima vez. melhor fazer um resumo antes de implementar para saber o que estava fazendo' (~09:1x).",
     "verificacao": "od-core no ar era o deploy v1.8.0 (PID 883071); HEAD 7798f5c == origin/master (sessão v1.8.0 registrada); working tree com lote órfão de 9 arquivos (+582/−27, mtimes 20:12–21:07 de 28/09 — DEPOIS da transcrição ~20:3x e do commit 6d68780).",
@@ -758,8 +777,8 @@
   },
   "last_turn": {
     "date": "2026-09-29",
-    "action": "v1.8.1 completa, NO AR e CONFIRMADA NO CELULAR: controle de luzes com confirmação de 2 passos provado no servidor (6/6) e no app (auto-atualização 2020→2021 pela 1ª vez + ciclo ligar/desligar pelo chat; dono confirmou 'funcionou').",
-    "next": "PONTO ENCERRADO — nada pendente do servidor nem do app; próxima sessão começa de novo pedido do dono. Na próxima reversionagem do app: versionCode 2022+. Nota menor: docs/CHANGELOG.md tem a [1.7.0] desordenada (acima da [1.8.0]) — reordenar numa sessão futura se o dono quiser.",
+    "action": "v1.9.0 completa e NO AR: controle do lar expandido a tomadas (ha_device_control) com o mesmo padrão de confirmação; 4/4 mutações; deploy provado 6/6 (gate na tomada do servidor provado SEM desligá-la).",
+    "next": "Instalar o APK 1.9.0+2022 no celular pela auto-atualização (2022 > 2021) e conferir o comando de tomada pelo chat do app. Na próxima reversionagem do app: versionCode 2023+. Nota menor: docs/CHANGELOG.md tem a [1.7.0] desordenada (acima da [1.8.0]) — reordenar numa sessão futura se o dono quiser.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

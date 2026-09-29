@@ -160,3 +160,75 @@ auto-atualização para o 1.8.1+2021". Dono confirmou: **"funcionou"**.
   aprovou ao escolher "Concluir tudo" nesta sessão.
 - Confirmação do dono às ~09:4x: "funcionou" — prova no celular
   fechada (§7). PONTO ENCERRADO.
+
+## 8. v1.9.0 — Controle do lar expandido: tomadas com o mesmo padrão (~09:5x–10:2x)
+
+Pedido do dono: "Estender o controle do lar para tomadas e outros
+dispositivos do HA com o mesmo padrão de confirmação".
+
+### Inventário ANTES do código (evidência, não suposição)
+
+- HA do dono: **9 switches SONOFF** = 7 luzes + 2 tomadas
+  ('note servidor Socket 1' — a tomada que ALIMENTA O SERVIDOR — e
+  'Luz Oficina Socket 1', indisponível). **Sem** fan/climate/TV/
+  cortina — o domínio `switch` já era a fronteira certa (o
+  ha_light_control da 1.8.1 já aceitava switch; faltava vocabulário).
+
+### Implementação
+
+- **Action renomeada**: `ha_light_control` → `ha_device_control`
+  (mesmas camadas: gate de papel + alvo específico obrigatório +
+  confirmação de 2 passos TTL 120s; sem comando em lote).
+- **Vocabulário novo** (comando): tomada(s), soquete(s), socket,
+  dispositivo(s), aparelho, desconecta/desconecte/desplug,
+  conecta/plug — tudo cai no controle com gate + confirmação.
+- **Leitura de tomadas**: 'quais tomadas estão ligadas' → ha_lights.
+- **Resolução de alvo**: stopwords cobrem tomada/soquete/socket —
+  'desliga a tomada do servidor' → switch.note_servidor_socket_1.
+- **Mensagens honestas**: 'Qual luz ou tomada?' e 'luzes e tomadas é
+  só o dono' (formatter generalizado).
+
+### Teste do teste (mutações, roteiro efêmero)
+
+- **4/4 mutações detectadas e revertidas**: (M1) peek não acha a
+  intenção pendente → confirmação nunca executa; (M2) ramo de negação
+  do gate removido → negado cairia no LLM; (M3) vocabulário de tomada
+  removido; (M4) TTL 120s → 1h. O roteiro (tools/actions/
+  mutacoes_lar.py, efêmero) foi removido antes do commit.
+- Nota: 1ª rodada teve M2 mal desenhada (injetava 'role' nos params —
+  o gate é por papel no Registry, não por param) e PASSOU; redesenhada
+  para remover o ramo de negação do orchestrator → pega.
+
+### Validação e bump 1.9.0 (MINOR)
+
+- Suíte: **2007 passed, 16 skipped** (+4 em TestControleTomadas,
+  incluindo a tomada do servidor). mqtt test_start_stop_thread flaky
+  no run completo — passa isolado e por classe (precedente 09-21).
+- Checklist completo: .env, capabilities, pubspec **1.9.0+2022**,
+  **_APP_VERSION_CODE=2022**, site 2×, CHANGELOG [1.9.0],
+  README_VERSAO §1.9.0. APK rebuildado (aapt2 versionCode='2022';
+  full sha256 10ea1e29…; arm64 479b0684…; anteriores em
+  backups/apk-v1.8.1+2021-20260929/).
+- Commit: `4bf239d` feat(iot,intents): controle do lar expandido a
+  tomadas (v1.9.0) — 10 arquivos +270/−63; HEAD == origin/master.
+
+### Deploy e prova viva 6/6 (PID 958615, NRestarts=0, restart 10:18:41)
+
+1. `/app/version` → {1.9.0, code 2022, sha256 == binário}.
+2. **Leitura**: 'quais tomadas estão ligadas' → fastpath:ha_lights
+   (lista real: só a tomada do servidor estava off, Luz Cozinha on —
+   o dono tinha acendido pelo app na prova de ~09:4x).
+3. **Comando com apelido**: 'liga o soquete da oficina' → 💡 Confirmar
+   ligar 'Luz Oficina Socket 1' (agora: unavailable) — resolução de
+   nome funcionou; a indisponibilidade do HA aparece honesta.
+4. **Gate de papel na tomada do servidor**: user → 🔒 negação
+   determinística sem LLM (a 2 entradas [NICKY][CRIT] no journal são o
+   LOG dessa negação — não é erro).
+5. **Admin na mesma tomada** → 💡 'Confirmar: desligar note servidor
+   Socket 1 (agora: off)?' — o 'sim' NÃO foi executado pela prova
+   (derrubaria o próprio od-core); confirmação expira sozinha em 120s.
+6. **Ciclo real de luz** (regressão do padrão): liga Luz Cozinha +
+   'sim' → ✅ on; desliga + 'sim' → ✅ off — casa de volta a 0 acesas.
+
+/health 200; journal 0 Traceback/ERROR. Pendente: instalar o APK
+1.9.0+2022 no celular pela auto-atualização (2022 > 2021).
