@@ -822,6 +822,16 @@
     "estado": "VERDE — nada pendente; dia encerrado de fato (v1.9.1 no ar, CHANGELOG reordenado com guarda, cache saudável).",
     "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§13)"
   },
+  "v110_paineis_app_2026_09_29": {
+    "pedido": "Dono: 'ainda não tenho conversas para analisar. vamos fazer outra coisa. deixar o app com as mesmas funcionalidades do site. dashboard e admin' (~14:0x).",
+    "implementacao": "OdApi +7 métodos (getMe, getDashboardStats, changePassword, rotateApiKey, getAdminUsers, adminResetPassword, adminDeleteUser) consumindo os contratos JÁ existentes (zero rota nova); DashboardScreen como 3ª aba (Chat · Ações · Painel · Status · Config) com painel do usuário + seção Admin gated por role do /auth/me; modo avançado índice 3→4 (regressão pega pelo teste de widget de smoke antes do deploy).",
+    "validacao": "flutter analyze 0 issues; flutter test 105 passed, 2 skipped (+9 painéis); suíte 2015 passed, 16 skipped (guarda de ordem pegou CHANGELOG faltante na 1ª rodada do bump); APKs 1.10.0+2024 (aapt2 2024, full c1b6fe56…, arm64 97e008c0…).",
+    "bump": "1.10.0 (MINOR): .env, capabilities, pubspec 1.10.0+2024, _APP_VERSION_CODE=2024, site 2×, CHANGELOG [1.10.0], README_VERSAO §1.10.0.",
+    "commit": "4a09fd1 feat(app): painéis no app — 10 arquivos +759/−7; HEAD==origin/master.",
+    "deploy": "IMPLANTADO — restart PID 986662 NRestarts=0; prova viva 6/6 (/app/version 1.10.0+2024 sha256==binário, /capabilities, /health, /dashboard/stats, /admin/users 2 contas 0 baldes, WS 426, journal 0).",
+    "estado": "CONCLUÍDO E NO AR — pendente: instalar o APK 1.10.0+2024 no celular (auto-atualização 2024>2023) e conferir a aba Painel.",
+    "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§15)"
+  },
   "zerada_conversas_2026_09_29": {
     "pedido": "Dono: 'vamos zerar todas as conversas, e começar as analizar as conversas para saber se esta respondendo com coerencia ou devaneios' (~13:5x).",
     "contexto": "Dono já tinha limpado a alex pela interface às 13:47:02 (History cleared | user=alex | removed=342) — contagem 454→112 antes do pedido; snapshot do restante em backups/conversas-pre-zerada-20260929.json (112 msgs, sha256 4242af4dc45b474d…).",
@@ -834,7 +844,7 @@
     "date": "2026-09-29",
     "retomada": "13:07 — dono pediu 'leia iniciar'; checkpoint lido, estado do sistema conferido (HEAD 1ec0393 == origin/master, od-core ativo PID 966981 NRestarts=0, v1.9.1 no ar). Aguardando o próximo pedido do dono.",
     "action": "v1.9.1 completa e NO AR: coerência do lar — 'luzes acessas' vira leitura real, 'sim' incoerente é recusado genericamente sem LLM, plural nunca inventa entidade, confirmações/execuções fora do cache. Casos reais do dono reproduzidos e corrigidos.",
-    "next": "Conversas ZERADAS (§14, snapshot restaurável em backups/) — protocolo de análise de coerência/devaneio pronto (§14): dono conversa normalmente; quando pedir a análise, aplico os 5 critérios sobre as conversas acumuladas desde a zerada.",
+    "next": "v1.10.0 NO AR (§15): painéis dashboard/admin no app. Pendente: dono instalar o APK 1.10.0+2024 no celular (auto-atualização) e conferir a aba Painel. Análise de coerência das conversas continua em standby até acumular conversas novas (§14).",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

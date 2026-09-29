@@ -511,3 +511,56 @@ das conversas antigas — as primeiras respostas podem parecer 'perdidas'
 sem memória; isso é efeito esperado da zerada, não devaneio novo.
 Quando o dono pedir ('analise as conversas'), aplico o protocolo sobre
 as conversas acumuladas desde a zerada e reporto turno a turno.
+
+## 15. v1.10.0 — Painéis no app: dashboard e admin como no site (~14:0x–14:2x)
+
+Pedido do dono: "ainda não tenho conversas para analisar. vamos fazer
+outra coisa. deixar o app com as mesmas funcionalidades do site.
+dashboard e admin".
+
+### Implementação (consumindo os contratos JÁ existentes — zero rota nova)
+
+- **OdApi (+7 métodos):** getMe (/auth/me com role), getDashboardStats
+  (/dashboard/stats), changePassword (/account/password, sessions_closed),
+  rotateApiKey (/account/api-key), getAdminUsers (/admin/users),
+  adminResetPassword, adminDeleteUser.
+- **Tela Painel (nova aba, 3ª posição):** conta logada com papel/via,
+  mensagens da conta, stats do sistema, troca da própria senha (servidor
+  mata TODAS as sessões → app volta ao login) e rotação da API key.
+- **Seção Admin:** visível só com role=admin do /auth/me (gate real no
+  servidor, 403): contas com sessões/msgs, reset, remoção (dono não é
+  alvo), baldes legados — mesmo conteúdo do /admin do site.
+- **Modo avançado:** índice do Config 3 → 4 — REGRESSÃO PEGA PELO TESTE
+  DE WIDGET de smoke antes do deploy ('Configurações' não era achada).
+
+### Validação
+
+- flutter analyze 0 issues · flutter test **105 passed, 2 skipped**
+  (+9 no grupo 'OdApi.painéis (conta e admin)').
+- Suíte do servidor com o bump: **2015 passed, 16 skipped** (66s) — a
+  guarda de ordem nova pegou o CHANGELOG faltante na 1ª rodada do bump.
+- Bump 1.10.0 (MINOR): .env, capabilities, pubspec 1.10.0+2024,
+  _APP_VERSION_CODE=2024, site 2×, CHANGELOG [1.10.0], README_VERSAO
+  §1.10.0. APKs: aapt2 versionCode='2024' nos dois; full sha256
+  c1b6fe56…, arm64 97e008c0….
+
+### Commit e deploy
+
+- `4a09fd1` feat(app): painéis no app — 10 arquivos +759/−7;
+  push 79b6366..4a09fd1.
+- Restart 14:2x → **PID 986662, NRestarts=0**.
+
+### Prova viva 6/6
+
+1. /app/version {1.10.0, code 2024, sha256 anunciado}
+2. /capabilities 1.10.0
+3. /health ok/up
+4. /dashboard/stats 200 (admin)
+5. /admin/users 200 — 2 contas, 0 baldes legados (zerada confirmada)
+6. sha256 anunciado == binário de site/ (IDÊNTICOS) · WS 426 · journal 0
+
+### Estado final
+
+CONCLUÍDO E NO AR — pendente: instalar o APK 1.10.0+2024 no celular
+(auto-atualização, 2024 > 2023) e conferir a aba Painel (admin vê a
+seção Admin; papel user não vê).
