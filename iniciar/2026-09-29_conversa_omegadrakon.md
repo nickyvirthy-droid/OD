@@ -311,3 +311,36 @@ dispositivos do HA com o mesmo padrão de confirmação".
 
 /health 200; journal 0 Traceback/ERROR. Pendente: instalar o APK
 1.9.0+2022 no celular pela auto-atualização (2022 > 2021).
+
+## 10. Prova no celular: auto-atualização para o 1.9.1+2023 (~13:0x–13:1x)
+
+Pedido do dono: "Confirme no journal o rastro da auto-atualização do
+celular para o 1.9.1+2023 e feche o ponto" (~13:07, após 'leia iniciar').
+
+### Rastro no journal (PID 966981, desde o deploy 11:17:51)
+
+- **13:00:31** — `Dispositivo registrado para push | token=d8Xhaf…crcY |
+  platform=android`: o app foi aberto no celular (bootstrap de push; o log
+  dispara a cada abertura, core/push.py).
+- **13:03:13** — `Action executed | action=ha_lights` (4,4ms) para alex —
+  leitura do lar já na versão nova.
+- **13:04:28** — `Action executed | action=cpu_temp` (2,1ms).
+- **13:05:04** — `Message processed | route=llm | llm=gemma-local` (21,6s).
+- **0 Traceback/ERROR/CRIT** no período inteiro; NRestarts=0.
+- `/app/version` no ar: {1.9.1, code 2023, sha256 49dbba94… == binário}.
+
+### Limitação honesta do rastro
+
+Por design (v1.7.0), `GET /app/version` e o download `/site/…apk` são
+SILENCIOSOS — o download/instalação não deixam log no servidor. O rastro
+de 13:00–13:05 (abertura + uso imediato sem novo login: token de sessão
+persiste na reinstalação) é CONSISTENTE com o fluxo de auto-atualização;
+a versão instalada foi CONFIRMADA PELO DONO no app: **"Está na 1.9.1"**.
+
+### Estado final
+
+- **PONTO FECHADO** — auto-atualização 1.9.0+2022 → 1.9.1+2023 operou no
+  celular; app operando fim a fim (push + leitura do lar + temperatura +
+  conversa LLM) sem erro no servidor.
+- Sem pendência de APK; nota menor herdada: CHANGELOG [1.7.0]
+  desordenada — reordenar numa sessão futura, se o dono quiser.
