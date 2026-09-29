@@ -471,3 +471,43 @@ tudo segue verde após as mudanças de hoje".
 
 **VERDE** — as únicas variações desde a verificação de 13:2x (msgs,
 cache, telegram_links) são USO do dono, não falhas.
+
+## 14. Zerada das conversas + protocolo de análise de coerência (~13:5x)
+
+Pedido do dono: "vamos zerar todas as conversas, e começar as analizar
+as conversas para saber se esta respondendo com coerencia ou devaneios".
+
+### Contexto da zerada (rastro, não suposição)
+
+- Às 13:47:02 o próprio dono já tinha limpado a conta alex pela
+  interface (`History cleared (db) | user=alex | removed=342` — por isso
+  a contagem caiu de 454 para 112 entre as verificações).
+- Snapshot ANTES da zerada: `backups/conversas-pre-zerada-20260929.json`
+  (112 msgs: teste 82, alex 22, deploy-check 4+2, prova-site-923 2;
+  sha256 4242af4dc45b474d…).
+- Zerada real: DELETE completo → **0 mensagens** (provado por count e
+  por /history/{alex,teste}/stats = 0). users/sessions/llm_cache/
+  telegram_links INTACTOS.
+
+### Protocolo de análise de coerência vs devaneio (amostra = conversas NOVAS)
+
+Para cada turno novo (fonte: journal + /history):
+1. **Rota certa?** journal mostra route=action_intent (fastpath, zero
+   LLM) para pedidos de lar/temperatura/IP? route=cache só para pergunta
+   IDÊNTICA (cache coerente não é devaneio).
+2. **Resposta bate com a pergunta?** (assunto, dispositivo, papel —
+   regressão dos bugs do BUG-A/BUG-B da 1.9.1).
+3. **Dado real vs inventado?** resposta com action tem o dado do
+   dispositivo real; resposta SEM fonte que afirma dado em tempo real
+   = devaneio (a personalidade deveria dizer 'não tenho esse dado').
+4. **Vedações corretas?** senha/credencial 🔐 sempre; IP/porta 🔒 só
+   para user/anonymous (admin recebe); negação que não existe no
+   sistema = alucinação de vedação (anti-recusa deve pegar).
+5. **Formato imitado?** LLM imitando '💡 Confirmar:'/'✅ executado' em
+   turno route=llm = devaneio (o padrão determinístico é do fastpath).
+
+**Nota de método:** com o histórico zerado, o gemma perde o CONTEXTO
+das conversas antigas — as primeiras respostas podem parecer 'perdidas'
+sem memória; isso é efeito esperado da zerada, não devaneio novo.
+Quando o dono pedir ('analise as conversas'), aplico o protocolo sobre
+as conversas acumuladas desde a zerada e reporto turno a turno.

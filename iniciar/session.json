@@ -822,11 +822,19 @@
     "estado": "VERDE — nada pendente; dia encerrado de fato (v1.9.1 no ar, CHANGELOG reordenado com guarda, cache saudável).",
     "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§13)"
   },
+  "zerada_conversas_2026_09_29": {
+    "pedido": "Dono: 'vamos zerar todas as conversas, e começar as analizar as conversas para saber se esta respondendo com coerencia ou devaneios' (~13:5x).",
+    "contexto": "Dono já tinha limpado a alex pela interface às 13:47:02 (History cleared | user=alex | removed=342) — contagem 454→112 antes do pedido; snapshot do restante em backups/conversas-pre-zerada-20260929.json (112 msgs, sha256 4242af4dc45b474d…).",
+    "zerada": "DELETE completo → 0 mensagens (provado por count e /history/{alex,teste}/stats=0); users 2, sessions 29, llm_cache 49, telegram_links 0 INTACTOS.",
+    "protocolo": "§14 da transcrição: 5 critérios por turno (rota certa, resposta bate com pergunta, dado real vs inventado, vedações corretas, formato imitado); amostra = conversas NOVAS desde a zerada; nota de método: perda de contexto é efeito esperado, não devaneio.",
+    "estado": "ZERADA PROVADA — análise começa quando o dono mandar conversar e pedir ('analise as conversas'); protocolo pronto.",
+    "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§14)"
+  },
   "last_turn": {
     "date": "2026-09-29",
     "retomada": "13:07 — dono pediu 'leia iniciar'; checkpoint lido, estado do sistema conferido (HEAD 1ec0393 == origin/master, od-core ativo PID 966981 NRestarts=0, v1.9.1 no ar). Aguardando o próximo pedido do dono.",
     "action": "v1.9.1 completa e NO AR: coerência do lar — 'luzes acessas' vira leitura real, 'sim' incoerente é recusado genericamente sem LLM, plural nunca inventa entidade, confirmações/execuções fora do cache. Casos reais do dono reproduzidos e corrigidos.",
-    "next": "Tudo verde e nada pendente (§13): v1.9.1 no ar e no celular, CHANGELOG reordenado com guarda (§12), cache saudável. A próxima sessão começa de novo pedido do dono — retomada pelo 'leia iniciar'.",
+    "next": "Conversas ZERADAS (§14, snapshot restaurável em backups/) — protocolo de análise de coerência/devaneio pronto (§14): dono conversa normalmente; quando pedir a análise, aplico os 5 critérios sobre as conversas acumuladas desde a zerada.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
