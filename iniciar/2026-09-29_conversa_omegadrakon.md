@@ -121,12 +121,36 @@ NRestarts=0** (09:27:53).
   6 (`action=ha_light_control | allowed=False | denied_by=permission |
   role=user`) — o gate funcionando como desenhado, não é erro.
 
+## 7. Prova pelo celular: auto-atualização + controle de luzes no app (~09:35–09:44)
+
+Pedido do dono: "Testar o controle de luzes pelo app no celular após a
+auto-atualização para o 1.8.1+2021". Dono confirmou: **"funcionou"**.
+
+- **Auto-atualização provada fim a fim pela 1ª vez desde a 1.7.0:** o
+  app 1.8.0+2020 do celular recebeu o banner (2021 > 2020), baixou o
+  APK (~53 MB), conferiu o SHA-256 e instalou o 1.8.1+2021 — sem site,
+  sem cabo, sem loja.
+- **Rastro no journal (user_id=alex, via=session — WS do app):**
+  - 09:41:53 · ha_light_control · 531ms (execução real no HA)
+  - 09:42:48 · ha_lights · 5ms (leitura "luzes acesas")
+  - 09:43:12→16 · confirmação (6ms) + **ligar executado (454ms)**
+  - 09:43:35→40 · confirmação (6.8ms) + **desligar executado (479ms)**
+  - 09:43:50→58 · outro ciclo confirmação (6.2ms) + execução (1.472s)
+  - Padrão 2 passos visível: chamadas rápidas (~5–15ms) = pedidos/
+    confirmações no fastpath; chamadas de ~0,5s = service call real do
+    HA. ZERO LLM em toda a sequência de luzes.
+- **Estado final do lar:** 0 acesa(s) de 6 — o dono ligou e desligou e
+  a casa voltou ao estado original (o ciclo fechou pelo próprio app).
+- Servidor durante a prova: /health 200 · PID 949403 · NRestarts=0 ·
+  journal 0 erros. Nada reiniciado nesta prova.
+
 ## Estado final
 
-- **CONCLUÍDO E NO AR** — v1.8.1 implantada, provada e publicada
-  (suíte 2002/16; leitura da v1.8.0 + CONTROLE de luzes da v1.8.1
-  operando pelo chat; confirmação de 2 passos; gate de papel provado;
-  lar de volta ao estado original).
+- **CONCLUÍDO E NO AR** — v1.8.1 implantada, provada no servidor (6/6)
+  E NO CELULAR: auto-atualização 1.8.0+2020 → 1.8.1+2021 funcionando
+  pela 1ª vez e CONTROLE de luzes operando pelo chat do app
+  (confirmação de 2 passos + gate de papel). Ciclo ligar→desligar
+  fechado pelo dono; lar no estado original.
 - HEAD `218f174` == origin/master; árvore limpa (só os snapshots
   untracked de podas de cache conhecidos em backups/).
 - O app 1.8.0+2020 do celular recebe o 1.8.1+2021 pela auto-atualização
@@ -134,3 +158,5 @@ NRestarts=0** (09:27:53).
 - Pendência herdada encerrada: o "aguardando aprovação do dono" para o
   controle de luzes (registrado desde a v1.8.0) está resolvido — o dono
   aprovou ao escolher "Concluir tudo" nesta sessão.
+- Confirmação do dono às ~09:4x: "funcionou" — prova no celular
+  fechada (§7). PONTO ENCERRADO.

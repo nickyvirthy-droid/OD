@@ -751,14 +751,15 @@
       "6": "gate de papel: user (teste) 'liga a luz da cozinha' → 🔒 negação determinística (4.5ms, sem LLM)"
     },
     "journal_nota": "Os 2 [NICKY][CRIT] pós-deploy são o LOG de negação de segurança da prova do gate (denied_by=permission, role=user) — não é erro.",
+    "prova_celular": "CONFIRMADA PELO DONO ('funcionou', ~09:4x): auto-atualização 1.8.0+2020 → 1.8.1+2021 fim a fim pela 1ª vez (banner → download ~53 MB → SHA-256 → instalação) + ciclo ligar/desligar pelo chat do app com confirmação de 2 passos. Journal: 6 WebSocket authenticated user=alex via=session entre 09:41–09:44; padrão 2 passos visível (confirmações ~5–15ms vs service calls reais ~0,5s, 09:43:16 ligar 454ms, 09:43:40 desligar 479ms); ZERO LLM; estado final do lar 0 de 6 (dono fechou o ciclo). /health 200, NRestarts=0.",
     "commit": "218f174 feat(iot,intents): controle de luzes pelo chat — ligar/desligar com confirmação de 2 passos (v1.8.1) — 16 arquivos +651/−35; HEAD==origin/master.",
     "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md",
     "resumo_para_o_dono": "Resumo apresentado: v1.8.0 no ar (clima/luzes/resumo do HA + segredos travados) e o lote órfão é o CONTROLE de luzes (ligar/desligar com confirmação) que ficou pendente — a sessão anterior morreu com o código pronto e a suíte verde, mas SEM bump/commit/deploy/registro."
   },
   "last_turn": {
     "date": "2026-09-29",
-    "action": "v1.8.1 completa e NO AR: lote órfão do controle de luzes resgatado, bump PATCH, commit 218f174, deploy (PID 949403) e prova viva 6/6 (ligar/desligar com confirmação de 2 passos, gate de papel provado, lar de volta ao estado original).",
-    "next": "Nada pendente do servidor — próxima sessão começa de novo pedido do dono. App 1.8.0+2020 do celular recebe o 1.8.1+2021 pela auto-atualização. Na próxima reversionagem do app: versionCode 2022+. Nota menor: docs/CHANGELOG.md tem a [1.7.0] desordenada (acima da [1.8.0]) — reordenar numa sessão futura se o dono quiser.",
+    "action": "v1.8.1 completa, NO AR e CONFIRMADA NO CELULAR: controle de luzes com confirmação de 2 passos provado no servidor (6/6) e no app (auto-atualização 2020→2021 pela 1ª vez + ciclo ligar/desligar pelo chat; dono confirmou 'funcionou').",
+    "next": "PONTO ENCERRADO — nada pendente do servidor nem do app; próxima sessão começa de novo pedido do dono. Na próxima reversionagem do app: versionCode 2022+. Nota menor: docs/CHANGELOG.md tem a [1.7.0] desordenada (acima da [1.8.0]) — reordenar numa sessão futura se o dono quiser.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
