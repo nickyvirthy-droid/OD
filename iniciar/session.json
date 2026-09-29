@@ -795,11 +795,22 @@
     "estado": "PONTO FECHADO — app 1.9.1+2023 no celular operando fim a fim; sem pendência de APK. Nota menor herdada: CHANGELOG [1.7.0] desordenada (reordenar numa sessão futura se o dono quiser).",
     "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§10)"
   },
+  "fechamento_dia_2026_09_29": {
+    "pedido": "Dono: 'Rodar a verificação geral do sistema para fechar o dia (od-core, supervision, Funnel, banco, journal)' (~13:1x).",
+    "servicos": "od-core active PID 966981 (v1.9.1) NRestarts=0 desde 11:17:51; od-llm active; omega-drakon (user, bot) active desde 22/09; od-control-bridge (system) active desde 25/09, :8765 escutando; portas 8000/8001/1883/5432/8765 no ar.",
+    "api": "/health ok 9/9 up; /supervision up restarts 0 degraded [].",
+    "funnel": "Funnel on (/ → 8000, /ws → 8001); prova de fora: /health 401 0,048s · /ws 426 0,034s · /app/version {1.9.1, 2023, sha256 == binário}.",
+    "banco": "users 2 · sessions 28 (25 válidas) · conversation_messages 432 (alex 350) · telegram_links 1 · llm_cache 50 → 45 após poda.",
+    "journal": "6 [NICKY][CRIT] do dia = TODAS negação do gate (denied_by=permission, role=user) nas provas de 09:29/09:59/10:19 — falso positivo conhecido; 0 Traceback/ERROR reais.",
+    "poda_cache": "Dry-run achou 5 candidatas pré-guarda do próprio dia (confirmações/execuções do lar cacheadas entre ~09:36 e ~11:17, antes do deploy 1.9.1 — incluindo a 'Luzes Acessas' do BUG-B); dono autorizou; snapshot backups/cache-lar-pre-guarda-20260929.json (5 entradas, sha256 57103775466364b2…); poda real → removidas 5; pós: 0 candidatas; /health ok; 0 erros; nada reiniciado.",
+    "estado": "DIA FECHADO — sistema verde. v1.9.1 no ar e no celular (§10); cache 100% saudável; HEAD f352f2e == origin/master; nada pendente.",
+    "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§11)"
+  },
   "last_turn": {
     "date": "2026-09-29",
     "retomada": "13:07 — dono pediu 'leia iniciar'; checkpoint lido, estado do sistema conferido (HEAD 1ec0393 == origin/master, od-core ativo PID 966981 NRestarts=0, v1.9.1 no ar). Aguardando o próximo pedido do dono.",
     "action": "v1.9.1 completa e NO AR: coerência do lar — 'luzes acessas' vira leitura real, 'sim' incoerente é recusado genericamente sem LLM, plural nunca inventa entidade, confirmações/execuções fora do cache. Casos reais do dono reproduzidos e corrigidos.",
-    "next": "Nada pendente de APK — v1.9.1+2023 confirmada no celular pelo dono (§10 da transcrição). Nota menor: docs/CHANGELOG.md tem a [1.7.0] desordenada (acima da [1.8.0]) — reordenar numa sessão futura se o dono quiser.",
+    "next": "Dia fechado (§11): verificação geral verde, poda das 5 entradas pré-guarda do cache executada com snapshot — nada pendente. Nota menor: docs/CHANGELOG.md tem a [1.7.0] desordenada (acima da [1.8.0]) — reordenar numa sessão futura se o dono quiser.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

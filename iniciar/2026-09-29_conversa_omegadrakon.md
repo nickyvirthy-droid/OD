@@ -344,3 +344,60 @@ a versão instalada foi CONFIRMADA PELO DONO no app: **"Está na 1.9.1"**.
   conversa LLM) sem erro no servidor.
 - Sem pendência de APK; nota menor herdada: CHANGELOG [1.7.0]
   desordenada — reordenar numa sessão futura, se o dono quiser.
+
+## 11. Verificação geral para fechar o dia (~13:1x–13:2x)
+
+Pedido do dono: "Rodar a verificação geral do sistema para fechar o dia
+(od-core, supervision, Funnel, banco, journal)".
+
+### Serviços
+
+- **od-core** active, PID 966981 (v1.9.1), desde 11:17:51, NRestarts=0.
+- **od-llm** active · **omega-drakon** (user, bot @Nexus_Nicky_bot) active
+  desde 22/09 · **od-control-bridge** (system, odrunner) active desde
+  25/09, :8765 escutando.
+- Portas: 8000 REST · 8001 WS · 1883 Mosquitto · 5432 Postgres · 8765
+  Bridge — todas escutando.
+
+### API
+
+- `/health` com chave → ok/up, **9/9 checks up** (orchestrator, llm,
+  audit, metrics, database, homeassistant, mqtt, loops, perception).
+- `/supervision` → up, **restarts 0**, degraded [].
+
+### Funnel (prova pública)
+
+- `tailscale funnel status`: **Funnel on** — `/` → 127.0.0.1:8000 e
+  `/ws` → 127.0.0.1:8001.
+- De fora: `/health` 401 em 0,048s · `/ws` 426 em 0,034s ·
+  `/app/version` {1.9.1, code 2023, sha256 == binário}.
+
+### Banco (PostgreSQL, via camada do projeto)
+
+- users 2 · sessions 28 (25 válidas) · conversation_messages 432 (alex
+  350) · telegram_links 1 · llm_cache 50 → **45** após a poda.
+- `/health` database up pós-poda; journal pós-poda 0 erros.
+
+### Journal do dia
+
+- 6 linhas [NICKY][CRIT] — TODAS negação de segurança do gate
+  (allowed=False, denied_by=permission, role=user) das provas de 09:29,
+  09:59 e 10:19. Falso positivo conhecido; **0 Traceback/ERROR reais**.
+
+### Poda do cache: 5 entradas pré-guarda (autorizada pelo dono)
+
+- Achado: dry_run do `/admin/cache/prune` → 5 candidatas
+  "confirmação/execução do lar (estado de conversa)" — resíduo do PRÓPRIO
+  dia (cacheadas entre ~09:36 e ~11:17, ANTES do deploy 1.9.1; a guarda
+  nova impede entrada nova, mas as velhas continuam servíveis — incluir
+  a 'Luzes Acessas' do BUG-B).
+- Snapshot de rollback: `backups/cache-lar-pre-guarda-20260929.json`
+  (5 entradas completas do Postgres, sha256 57103775466364b2…).
+- Poda real → **removidas 5**; prova pós: dry_run varridas 0,
+  candidatas 0. `/health` ok; 0 erros no journal. Nada reiniciado.
+
+### Estado final do dia
+
+- **DIA FECHADO — sistema verde.** v1.9.1 no ar e confirmada no celular
+  (§10); cache 100% saudável e sem resíduo pré-guarda; HEAD f352f2e ==
+  origin/master. Nada pendente.
