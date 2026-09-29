@@ -741,12 +741,24 @@
     "verificacao": "od-core no ar era o deploy v1.8.0 (PID 883071); HEAD 7798f5c == origin/master (sessão v1.8.0 registrada); working tree com lote órfão de 9 arquivos (+582/−27, mtimes 20:12–21:07 de 28/09 — DEPOIS da transcrição ~20:3x e do commit 6d68780).",
     "lote_orfao": "CONTROLE DE LUZES pelo chat (v1.8.1), pendência explícita da v1.8.0: (1) action nova ha_light_control (catálogo 62→63, categoria iot=4, papel admin, confirmação de 2 passos com TTL 120s em _LIGHT_CONFIRMATIONS, consumo só após execução bem-sucedida); (2) detect_confirmation + resolve_light_target + configure_ha_entities em core/intents.py (casa nome falado → entity_id via _HA_ENTITIES); (3) orchestrator process/process_stream: 'sim' consulta peek_pending_light_confirmation e executa a MESMA luz/ação; negação do Registry vira {permissao_negada} guiada (não cai no LLM); (4) launcher injeta user_id e carrega entidades do HA no build_action_registry; (5) +157 linhas de testes em test_resposta_transparente.py, catálogo 62→63 em 4 arquivos.",
     "estado": "CÓDIGO COMPLETO E SUÍTE VERDE — 2002 passed, 16 skipped (ambiente canônico .venv SEM OD_TEST_POSTGRES_DSN). Falta: bump 1.8.1 (PATCH), commit, deploy, prova viva e registro em iniciar/.",
+    "desdobramento": "Dono escolheu 'Concluir tudo': bump 1.8.1 completo (.env, capabilities, pubspec 1.8.1+2021, _APP_VERSION_CODE=2021, site 2x, CHANGELOG [1.8.1], README_VERSAO §1.8.1); suíte 2002/16 com o bump; APKs rebuildados (aapt2 versionCode='2021', full 52.937.991 B sha256 189462ea…, arm64 13d93ff8…; anteriores em backups/apk-v1.8.0+2020-20260929/); app analyze 0 issues e flutter 96/2; commit 218f174 (16 arquivos +651/−35) e push; deploy PID 949403 NRestarts=0.",
+    "prova_viva_6_6": {
+      "1": "/health 200 · /app/version {1.8.1, code 2021, sha256 == binário} · /capabilities 1.8.1 · WS 426",
+      "2": "leitura 'luzes acesas' → fastpath:ha_lights, 0 de 6 acesas (estado REAL do HA, ~11ms, ZERO LLM)",
+      "3": "'liga a luz da varanda' → 💡 Confirmar: ligar 'Luz da Varanda' (agora: off)? — confirmação vale 2 min",
+      "4": "'sim' → ✅ ligar executado (🟢 on) — chamada real ao HA (449ms), ZERO LLM",
+      "5": "estado 1 de 6 com entity_id real + 'desliga a luz da varanda' + 'sim' → ⚪ off (lar de volta ao estado original)",
+      "6": "gate de papel: user (teste) 'liga a luz da cozinha' → 🔒 negação determinística (4.5ms, sem LLM)"
+    },
+    "journal_nota": "Os 2 [NICKY][CRIT] pós-deploy são o LOG de negação de segurança da prova do gate (denied_by=permission, role=user) — não é erro.",
+    "commit": "218f174 feat(iot,intents): controle de luzes pelo chat — ligar/desligar com confirmação de 2 passos (v1.8.1) — 16 arquivos +651/−35; HEAD==origin/master.",
+    "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md",
     "resumo_para_o_dono": "Resumo apresentado: v1.8.0 no ar (clima/luzes/resumo do HA + segredos travados) e o lote órfão é o CONTROLE de luzes (ligar/desligar com confirmação) que ficou pendente — a sessão anterior morreu com o código pronto e a suíte verde, mas SEM bump/commit/deploy/registro."
   },
   "last_turn": {
     "date": "2026-09-29",
-    "action": "Retomada 29/09: lote órfão v1.8.1 (controle de luzes) identificado — código completo, suíte 2002/16 verde, falta bump/commit/deploy/registro.",
-    "next": "Completar a v1.8.1: bump PATCH (.env, capabilities, pubspec 1.8.1+2021, site, CHANGELOG, README_VERSAO), commit+push (regra 7.1), deploy, prova viva do controle de luzes e registro em iniciar/. Pending antigo do dono (aprovar controle de luzes) está RESOLVIDO na prática — o lote implementa exatamente isso.",
+    "action": "v1.8.1 completa e NO AR: lote órfão do controle de luzes resgatado, bump PATCH, commit 218f174, deploy (PID 949403) e prova viva 6/6 (ligar/desligar com confirmação de 2 passos, gate de papel provado, lar de volta ao estado original).",
+    "next": "Nada pendente do servidor — próxima sessão começa de novo pedido do dono. App 1.8.0+2020 do celular recebe o 1.8.1+2021 pela auto-atualização. Na próxima reversionagem do app: versionCode 2022+. Nota menor: docs/CHANGELOG.md tem a [1.7.0] desordenada (acima da [1.8.0]) — reordenar numa sessão futura se o dono quiser.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
