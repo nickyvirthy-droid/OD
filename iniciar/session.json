@@ -815,11 +815,18 @@
     "estado": "CONCLUÍDO — nota menor herdada desde 28/09 encerrada; commit/push na sequência (regra 7.1).",
     "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§12)"
   },
+  "verificacao_pos_mudancas_2026_09_29": {
+    "pedido": "Dono: 'Rodar a verificação geral do sistema para conferir que tudo segue verde após as mudanças de hoje' (~13:4x).",
+    "resultado": "TUDO VERDE — od-core PID 966981 NRestarts=0 · od-llm · od-control-bridge · omega-drakon (bot) · portas 8000/8001/1883/5432/8765 · /health 9/9 · /supervision restarts 0 · /capabilities 1.9.1 · 63 actions · Funnel on com prova de fora (401/426/1.9.1+2023) · HEAD 7d75c39 == origin/master.",
+    "banco": "msgs 454 (eram 432) · llm_cache 49 (eram 45) · telegram_links 0 (era 1) — variações atribuídas a USO do dono: ciclo de ha_device_control com confirmação/execução às 13:33–13:39, ip_address, 2 conversas LLM; /sair no Telegram explica o vínculo (unlink silencioso por design, auth.py:385; remoção de conta não atinge o dono). 2 [NICKY][CRIT] = negação do gate (role=user, 13:32:56) — falso positivo conhecido.",
+    "estado": "VERDE — nada pendente; dia encerrado de fato (v1.9.1 no ar, CHANGELOG reordenado com guarda, cache saudável).",
+    "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§13)"
+  },
   "last_turn": {
     "date": "2026-09-29",
     "retomada": "13:07 — dono pediu 'leia iniciar'; checkpoint lido, estado do sistema conferido (HEAD 1ec0393 == origin/master, od-core ativo PID 966981 NRestarts=0, v1.9.1 no ar). Aguardando o próximo pedido do dono.",
     "action": "v1.9.1 completa e NO AR: coerência do lar — 'luzes acessas' vira leitura real, 'sim' incoerente é recusado genericamente sem LLM, plural nunca inventa entidade, confirmações/execuções fora do cache. Casos reais do dono reproduzidos e corrigidos.",
-    "next": "Dia fechado (§11) e CHANGELOG reordenado com guarda (§12) — nada pendente no servidor, no app e nos docs.",
+    "next": "Tudo verde e nada pendente (§13): v1.9.1 no ar e no celular, CHANGELOG reordenado com guarda (§12), cache saudável. A próxima sessão começa de novo pedido do dono — retomada pelo 'leia iniciar'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

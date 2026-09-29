@@ -443,3 +443,31 @@ cronológica correta, com guardas de teste".
   **2015 passed, 16 skipped** (68s).
 - Sem bump: mudança é documentação + guarda (sem .env/pubspec/server/
   APK) — mesmo precedente dos commits de registro.
+
+## 13. Verificação pós-mudanças (~13:4x)
+
+Pedido do dono: "Rodar a verificação geral do sistema para conferir que
+tudo segue verde após as mudanças de hoje".
+
+- od-core active PID 966981 NRestarts=0 (desde 11:17:51) · od-llm active ·
+  od-control-bridge (system) active · omega-drakon (user, bot) active ·
+  portas 8000/8001/1883/5432/8765 no ar.
+- /health ok 9/9 · /supervision up restarts 0 degraded [] ·
+  /capabilities 1.9.1 · 63 actions (iot 4).
+- Funnel on; prova de fora: /health 401 0,034s · /ws 426 0,034s ·
+  /app/version {1.9.1, 2023, sha256 == binário}.
+- Banco: users 2 · sessions 28 (25 válidas) · msgs 454 · llm_cache 49 ·
+  telegram_links 0 — o vínculo saiu de 1 para 0: /sair do dono no
+  Telegram (unlink silencioso por design, auth.py:385; não há outra
+  mutação possível — remoção de conta não atinge o dono). Uso, não
+  falha.
+- Journal 13:30+: 2 [NICKY][CRIT] = negação do gate (role=user em
+  ha_device_control, 13:32:56) — falso positivo conhecido; 0 erros
+  reais. Uso VIVO do dono visível (13:33–13:39): ciclo de
+  ha_device_control com confirmação (~6–15ms) + execução real
+  (~513ms/1485ms), ip_address admin, 2 conversas LLM — explica
+  msgs 432→454 e cache 45→49.
+- Git: HEAD 7d75c39 == origin/master, árvore limpa.
+
+**VERDE** — as únicas variações desde a verificação de 13:2x (msgs,
+cache, telegram_links) são USO do dono, não falhas.
