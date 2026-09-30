@@ -314,3 +314,78 @@ prompt do perfil e a inexistência de agenda".
 honestidade no prompt canônico e o legado pré-guarda do cache limpo
 (dólar + agenda). Pendência do dono: auto-atualização do celular
 (2027 > 2026).
+
+---
+
+## 11. Retomada "continue" + v1.12.0: clima de cidade real (~16:1x–16:3x)
+
+### Retomada (~16:1x)
+
+"continue" → o lote weather_city (código + testes) já estava no working
+tree da sessão anterior, SEM validação/bump/deploy. Ordens executadas:
+validação → teste do teste → bump → APK → deploy.
+
+### Validação
+
+- 1 teste v1.8.0 quebrado (`test_resposta_transparente.py` fixava
+  cidade → `ha_weather`) — atualizado ao contrato da 1.12.0 (cidade
+  EXPLÍCITA → `weather_city`; genérico → `ha_weather` INTACTO).
+- Endurecimento: teste da M3 era réplica inline do contrato (mutação
+  sobreviveria); extraída a conversão real `_wmo_condition`
+  (falsy-safe: `is not None`, nunca `or` — weather_code 0 é céu limpo).
+- Suíte: **2075 passed, 16 skipped** (ambiente canônico .venv).
+
+### Teste do teste — 4/4 mutações detectadas e revertidas bit-exata
+
+- M1 rota de cidade desligada → **9 falhas**; M2 extração só com a
+  última palavra → **8 falhas**; M3 falsy engole o 0 → **1 falha**;
+  M4 degradação respondendo texto quebrado → 1ª rodada **SOBREVIVEU**
+  (teste fraco) → endurecido com os 4 erros + contrato sem
+  `temperature` → re-detectada (1 falha). Lição da casa repetida: teste
+  fraco passa mutação — endurecer antes de declarar coberto.
+
+### Bump MINOR 1.12.0 (action nova: catálogo 63 → 64, iot=5)
+
+- `.env` OD_VERSION=1.12.0 · capabilities fallback · pubspec
+  **1.12.0+2028** · `_APP_VERSION_CODE=2028` · site (2x) · CHANGELOG
+  [1.12.0] · README_VERSAO §1.12.0. Zero sobra de "1.11.1" nas fontes.
+- JAVA_HOME para o gradle: `~/jdk` (novo no ambiente; antes o build
+  achava o java sozinho). flutter analyze **0 issues** · flutter test
+  **114 passed, 2 skipped**. APKs publicados em site/ — versionName
+  1.12.0 e versionCode 2028 confirmados DENTRO do binário (sem aapt2:
+  manifest UTF-16 + resources.arsc). sha256 full `92e9b71b…`.
+
+### Deploy e prova viva (~16:3x)
+
+- Restart do od-core — PID **1136569**, NRestarts=0.
+- Prova viva: (1) `/executa` weather_city(presidente venceslau) →
+  **31.2°C, parcialmente nublado, sensação 32.9°C, umidade 51%, vento
+  14.6 km/h** · city "Presidente Venceslau, São Paulo, Brasil" ·
+  Open-Meteo · duration 1568ms; (2) /app/version {1.12.0, 2028,
+  sha256 == binário}; (3) /capabilities 1.12.0 · 64 actions ·
+  loop_fechado=true; (4) GET / → 45 endpoints.
+
+### Publicação no GitHub (pedido do dono)
+
+- Commit **`0206d7c`** `feat(iot): clima de cidade real via Open-Meteo —
+  'temperatura em presidente venceslau' responde a CIDADE pedida
+  (v1.12.0)` (14 arquivos, +445/−40) → push `813c71f..0206d7c master
+  -> master`. Working tree limpo; APKs fora do repo (gitignore).
+
+### Verificação geral pós-publicação (pedido do dono) — 4/4 verde
+
+- Serviço: active (running), NRestarts=0, mem 126M.
+- /health **9/9 up** (orchestrator, llm=gemma-local, audit, metrics,
+  database 5 tabelas, homeassistant, mqtt, loops, perception — CPU 0% ·
+  mem 89% · disco 30%).
+- Contratos: /app/version 1.12.0/2028 com sha256 == site/ ·
+  /capabilities 1.12.0/64/loop_fechado=true · GET / 45 endpoints ·
+  journal "Action registered | action=weather_city | category=iot".
+- Journal desde o restart: **0 Traceback · 0 ERROR/CRIT**.
+- Guardas na suíte: test_version_policy + test_api + test_capabilities
+  → **135 passed** (coerência .env/capabilities/pubspec/_APP_VERSION_CODE).
+
+**Estado: CONCLUÍDO, PUBLICADO E NO AR — v1.12.0.** Pendências do dono:
+instalar o APK 1.12.0+2028 no celular (auto-atualização, 2028 > 2027) e
+provar "clima em presidente venceslau" pelo chat/app. Pendência do
+sistema: nenhuma desta entrega.
