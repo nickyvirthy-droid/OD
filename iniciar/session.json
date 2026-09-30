@@ -886,11 +886,27 @@
     "estado": "CONCLUÍDO E NO AR — canal de desenvolvimento funciona FIM A FIM: painel /admin → POST /admin/dev/pedido → fila → serviço → cascata de CLIs → codigo_gerado.py. Freebuff segue indisponível como gerador (wrapper sem modo não-interativo) — cascata cobre com OpenCode→Kilo.",
     "transcricao": "iniciar/2026-09-30_conversa_omegadrakon.md (§7)"
   },
+  "retomada_2026_09_30_2": {
+    "pedido": "Usuário: 'leia iniciar' — retomada da sessão.",
+    "verificacao": "od-core active PID 1097167 (v1.11.0) NRestarts=0; od-orchestrator active PID 1104579 NRestarts=0 — canal de desenvolvimento no ar; HEAD c96a2f4 == origin/master (transcrição §7 commitada).",
+    "residuo": "4 backups untracked em backups/ (snapshots de podas/zerada de 27–29/09) — precedentemente deixados fora do git por conterem dados pessoais.",
+    "estado": "RETOMADA CONCLUÍDA — pendências do dono intactas: (1) abrir o app para auto-atualização 1.11.0+2026; (2) prova de acesso externo sem Tailscale; (3) análise de coerência pós-zerada aguarda conversas novas; (4) 2 achados de infra (cobertura 89.44% < gate 90%; CI vs .env gitignored)."
+  },
+  "fechamento_verificacao_2026_09_30": {
+    "pedido": "Dono: 'Rodar a verificação geral do sistema (od-core, supervision, Funnel, banco, journal)'.",
+    "servicos": "od-core active PID 1097167 (v1.11.0) NRestarts=0 desde 12:34; od-orchestrator active PID 1104579 (canal de desenvolvimento); od-llm active (unit do USUÁRIO — nota: 'omega-drakon.service' não existe mais, o bot foi embutido no od-core); od-control-bridge active (system, :8765); portas 8000/8001/1883/5432/8765 no ar.",
+    "api": "/health ok 9/9 up · /supervision up restarts 0 degraded [] · /capabilities 1.11.0 com 63 actions · /app/version {1.11.0, code 2026, sha256 a0ced701… == binário de site/} · WS 426.",
+    "funnel": "Funnel on; prova de fora: /health 401 0,047s · /ws 426 0,034s · /app/version 200 0,159s.",
+    "banco": "users 2 · sessions 31 (25 válidas) · conversation_messages 32 (alex 30, teste 2 — CONVERSAS NOVAS pós-zerada já disponíveis para a análise de coerência) · telegram_links 0 · llm_cache 55 com 0 etiquetadas (100% saudável, sem poda necessária).",
+    "journal": "0 Traceback/ERROR/CRIT desde os restarts de 12:34/13:12 (od-core e od-orchestrator); 0 [NICKY][CRIT]; 1 Login realizado alex 12:58. Fila pedido.txt 0 bytes.",
+    "git": "HEAD c96a2f4 == origin/master; session.json atualizado (retomada + verificação) commitado e publicado; 4 backups untracked mantidos fora do git (dados pessoais).",
+    "estado": "VERDE — sistema íntegro, nada reiniciado, nada pendente de correção."
+  },
   "last_turn": {
     "date": "2026-09-30",
-    "retomada": "13:0x de 30/09 — serviço od-orchestrator no ar (PID 1104579); prova fim a fim pegou 3 bugs de contrato das CLIs, corrigidos (d790e0b) e reprovação OK: pedido injetado pelo painel gerou codigo_gerado.py válido via OpenCode. Canal 100% operacional.",
-    "action": "Serviço criado/instalado/ativado + 3 bugs das CLIs corrigidos com teste do teste (3 mutações) e suíte 2052/16; commit d790e0b publicado.",
-    "next": "Pendências: (1) dono abre o app para a auto-atualização 1.11.0+2026; (2) prova de acesso externo sem Tailscale; (3) análise de coerência pós-zerada aguarda conversas; (4) 2 achados de infra (cobertura 89.44%, CI vs .env); (5) opcional: Freebuff como 1ª CLI quando o wrapper público ganhar modo não-interativo.",
+    "retomada": "14:3x de 30/09 — verificação geral VERDE: od-core 1097167 (v1.11.0) 9/9 · od-orchestrator 1104579 · Funnel provado de fora · banco saudável (cache 0 etiquetadas) · journal 0 erros · HEAD c96a2f4 == origin/master.",
+    "action": "Verificação geral completa sem intervenção no sistema; session.json atualizado e publicado.",
+    "next": "Pendências: (1) dono abre o app para a auto-atualização 1.11.0+2026; (2) prova de acesso externo sem Tailscale; (3) análise de coerência pós-zerada (alex já tem 30 msgs novas para analisar); (4) 2 achados de infra (cobertura 89.44%, CI vs .env); (5) opcional: Freebuff como 1ª CLI quando o wrapper público ganhar modo não-interativo.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
