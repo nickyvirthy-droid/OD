@@ -214,3 +214,103 @@ Arquivo da prova removido em seguida.
 `/admin` → `POST /admin/dev/pedido` → fila → serviço → cascata
 (OpenCode → Kilo; Freebuff entra quando o wrapper público ganhar modo
 não-interativo) → `codigo_gerado.py`.
+
+---
+
+## 8. Retomada + verificação geral (~14:3x)
+
+Pedido: "leia iniciar" → depois "Rodar a verificação geral do sistema".
+
+- Retomada: od-core PID 1097167 (v1.11.0) e od-orchestrator PID 1104579
+  no ar; HEAD c96a2f4 == origin/master. Nota: `omega-drakon.service` não
+  existe mais — o bot Telegram foi embutido no od-core.
+- **Verificação VERDE:** /health 9/9 · /supervision restarts 0 ·
+  /capabilities 1.11.0 · 63 actions · /app/version {1.11.0, 2026,
+  sha256 == binário} · Funnel provado de fora (401/426/200) · banco
+  users 2 · sessions 31 (25 válidas) · msgs 32 (alex 30) · llm_cache 55
+  com 0 etiquetadas · journal 0 erros. Nada reiniciado.
+
+## 9. Análise de coerência §14 (~15:0x)
+
+Pedido: "Analisar as 30 conversas novas do alex com o protocolo de
+coerência §14" — 15 turnos (29/09 14:00 → 30/09 07:53).
+
+**Veredicto: 11 coerentes · 3 devaneios · 1 inconclusivo.**
+
+- **D1 (T12):** 'sou o dono adm' → o gemma INVENTOU uma agenda com 3
+  tarefas falsas — o sistema NÃO tem agenda (0 ocorrências em
+  tools/actions; 41 capacidades sem calendário).
+- **D2 (T14):** 'qual o LLM que está usando' → 'Estou utilizando a
+  OpenAI GPT-4' FALSO (roda gemma-4-E4B local; nenhum prompt declarava
+  o motor).
+- **D3 (T10):** dólar servido do route=cache — a entrada foi CRIADA
+  PELO GEMMA às 13:34 com 'US$ 1 = R$ 4,73 · Atualizado: 29/09 às
+  13h56' (nem o horário bate) — alucinação PRÉ-guarda perpetuada pelo
+  cache.
+- Coerentes: rotas datetime/action_intent todas corretas com dado real
+  (IP, temperatura 52.5°C, clima HA 36.1°C), 'Alex Projeti' confirmado
+  no prompt, cache só para pergunta idêntica. Critério 5 (formato
+  imitado): ZERO.
+- Inconclusivo: T13 recusou 'configuração do llama.cpp' como 'código
+  proprietário' (é open-source) — motivo errado, não devaneio estrito.
+
+## 10. Poda do dólar + prompt honesto v1.11.1 (~15:2x)
+
+### Poda (D3)
+
+- Snapshot `backups/cache-dolar-pre-guarda-20260930.json` (1 entrada,
+  sha256 cf9c6c0224f5d4e…).
+- POST /admin/cache/prune com a key → removidas 1; provado no BANCO:
+  total 55 → 54, entrada 6873cd7d… = 0. /health ok; journal 0 erros.
+- Nota de método: o dry_run com keys ecoa a chave como candidata mesmo
+  depois de removida ('motivo: chave informada') — a prova é o SELECT.
+
+### Prompt honesto (v1.11.1)
+
+Pedido (ações 2 e 3 da §14): "Declarar o LLM real (gemma local) no
+prompt do perfil e a inexistência de agenda".
+
+- `agents/nicky_virthy/personality.py` — prompt canônico de TODOS os
+  perfis e papéis ganha dois blocos:
+  - **Motor real:** gemma (gemma-4-E4B) via llama-server local; nunca
+    afirmar ser GPT/OpenAI, Claude ou Gemini.
+  - **Capacidades inexistentes:** agenda/calendário/lembretes/e-mail
+    não existem — 'isso não existe no sistema'; NUNCA inventar tarefas
+    ou conteúdo para preencher a lacuna.
+- Guardas: +3 testes em test_personality.py (motor em 3 papéis · motor
+  nos 7 perfis · agenda em 3 papéis). Teste do teste: 3/3 mutações
+  detectadas (bloco removido → 3 falhas · NÃO→não → 1 ·
+  llama-server removido → 1), restaurações bit-exata.
+- Suíte completa: **2055 passed, 16 skipped** (+3).
+- Bump PATCH 1.11.1: .env · capabilities fallback · pubspec
+  1.11.1+2027 · _APP_VERSION_CODE=2027 · site 2x · CHANGELOG [1.11.1] ·
+  README_VERSAO §1.11.1. APKs rebuildados e publicados.
+
+**Estado:** ver o checkpoint (§`analise_coerencia_2026_09_30` e
+§`poda_dolar_2026_09_30`); deploy e prova viva registrados ao concluir.
+
+### Deploy e prova viva da 1.11.1 (~15:2x–15:4x)
+
+- Deploy IMPLANTADO — restart, PID **1121164**, NRestarts=0.
+- Prova viva 7/7: (1) /app/version {1.11.1, code **2027**, sha256
+  `ebfb3970…` == binário de site/}; (2) /capabilities 1.11.1;
+  (3) /health 9/9 · supervision restarts 0; (4) WS 426; (5)
+  **D2 eliminado:** 'qual o LLM que esta usando' → 'O sistema utiliza um
+  modelo de linguagem local chamado "gemma"' (route=llm, ZERO alucinação
+  de GPT); (6) **D1 eliminado:** 'como esta minha agenda' → 'não tenho a
+  capacidade de gerenciar agendas ou calendários' (honesto); (7) prova
+  de fora pelo Funnel: /health 401 · /ws 426 · /app/version 2027.
+- **BUG pego pela prova 7:** 'sou o dono adm' → route=cache serviu a
+  agenda inventada de 29/09 21:36 (pré-guarda, key 45a33548…) — o
+  prompt novo não alcança entrada JÁ CACHEADA (mesma classe do D3).
+  Snapshot `backups/cache-agenda-pre-guarda-20260930.json` (sha256
+  `12d16b30…`) → poda real removidas 1 (cache 55 → 54, entrada 0 no
+  banco) → reprova: 'sou o dono adm' agora responde honesto (route=llm,
+  sem inventar tarefas).
+- App: flutter analyze 0 issues · flutter test **114 passed, 2 skipped**.
+- Journal da janela do deploy/provas: 0 Traceback/ERROR/CRIT.
+
+**Estado: CONCLUÍDO E NO AR — v1.11.1** com as duas declarações de
+honestidade no prompt canônico e o legado pré-guarda do cache limpo
+(dólar + agenda). Pendência do dono: auto-atualização do celular
+(2027 > 2026).

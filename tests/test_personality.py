@@ -77,6 +77,35 @@ class TestPersonality:
         """Arquivo inexistente degrada para None (best-effort)."""
         assert _read_canonical("NAO_EXISTE.md") is None
 
+    def test_motor_real_declarado_em_todos_os_papeis(self) -> None:
+        """Caso real §14 (30/09): 'qual o LLM que está usando' → o gemma
+        respondeu 'OpenAI GPT-4' (falso). O prompt DEVE declarar o motor
+        local em TODOS os papéis (identidade não é segredo — o
+        /capabilities já publica 'gemma-4-E4B via llama-server')."""
+        for role in ("admin", "user", "anon"):
+            prompt = get_system_prompt("guardian", role=role)
+            assert "gemma" in prompt.lower(), f"motor real ausente no papel {role}"
+            assert "llama-server" in prompt.lower(), f"llama-server ausente no papel {role}"
+            # proibição explícita de assumir identidade de serviço de nuvem
+            assert "Nunca afirme ser" in prompt, f"proibição ausente no papel {role}"
+
+    def test_motor_real_em_todos_os_perfis(self) -> None:
+        prompt_por_perfil = {
+            perfil: get_system_prompt(perfil).lower() for perfil in PROFILES
+        }
+        for perfil, prompt in prompt_por_perfil.items():
+            assert "gemma" in prompt, f"motor real ausente no perfil {perfil}"
+
+    def test_agenda_inexistente_declarada_em_todos_os_papeis(self) -> None:
+        """Caso real §14 (30/09): 'sou o dono adm' → o gemma INVENTOU 3
+        tarefas falsas de agenda. O prompt DEVE dizer que agenda/calendário
+        não existem e proibir inventar conteúdo para preencher a lacuna, em
+        TODOS os papéis (o dono também merece a verdade)."""
+        for role in ("admin", "user", "anon"):
+            prompt = get_system_prompt("guardian", role=role)
+            assert "NÃO tem agenda" in prompt, f"agenda inexistente ausente no papel {role}"
+            assert "NUNCA invente" in prompt, f"proibição de inventar ausente no papel {role}"
+
 
 # ===========================================================================
 # Injeção no Orchestrator (default_system_prompt)

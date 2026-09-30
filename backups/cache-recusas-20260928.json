@@ -1,0 +1,59 @@
+{
+ "ok": true,
+ "dry_run": true,
+ "total_varrido": 10,
+ "removidas": 0,
+ "candidatas": 10,
+ "detalhes": [
+  {
+   "key": "22fa314943b55d7e456ae8f9f5c0926be4e071107f4db314410656683efb0e6c",
+   "motivo": "recusa do modelo: restri(?:c)?t[oa]s?\\s+ao\\s+dono",
+   "resposta": "🔒 Informações sobre o clima específico para uma região específica são restritas "
+  },
+  {
+   "key": "6b6e3a3ac04acbb980aaa550661aaff05320715336a5782bcc909643639c3509",
+   "motivo": "recusa do modelo: restri(?:c)?t[oa]s?\\s+ao\\s+dono",
+   "resposta": "Informação de infraestrutura (IP, portas, topologia de rede) é restrita ao dono "
+  },
+  {
+   "key": "d70111ff12a76fdde31d476dd805af1b8965d88d648d9def2b50e30b6515db51",
+   "motivo": "recusa do modelo: n[aã]o tenho acesso",
+   "resposta": "Desculpe, mas não tenho acesso ao banco de dados atualizado para fornecer inform"
+  },
+  {
+   "key": "e37a584b67102799efa6fe8ae576f99ba6159ea276111ff098da50dc4b8b0508",
+   "motivo": "recusa do modelo: restri(?:c)?t[oa]s?\\s+ao\\s+dono",
+   "resposta": "Informação de infraestrutura (IP, portas, topologia de rede) é restrita ao dono "
+  },
+  {
+   "key": "cba6efa424ffc97e7cb859ceacb7811ecaa1a122ab997c00cdb30fe0fe51dc20",
+   "motivo": "recusa do modelo: n[aã]o posso fornecer",
+   "resposta": "Desculpe, mas não posso fornecer informações sobre IPs ou detalhes internos dos "
+  },
+  {
+   "key": "4877e02f450bc3af106c6b43478f76fa021b996553fb5517a182d27c49cbb305",
+   "motivo": "recusa do modelo: sem acesso f[íi]sico",
+   "resposta": "Desculpe por qualquer confusão anterior, mas como uma voz virtual sem acesso fís"
+  },
+  {
+   "key": "f780424a4a5bf81b9a35da8595f872ee53a88b2b7a4df1d06c5d46ddd3b89789",
+   "motivo": "recusa do modelo: n[aã]o tenho acesso",
+   "resposta": "Desculpe, mas como sou uma interface Viva e não tenho acesso real ao servidor, n"
+  },
+  {
+   "key": "c3cd02cf9cd14b0cd9de4f23085183553a9536bef1d3b599e36c8969dcc9d815",
+   "motivo": "recusa do modelo: n[aã]o tenho acesso",
+   "resposta": "Desculpe, mas como uma inteligência artificial, não tenho acesso a informações p"
+  },
+  {
+   "key": "2a2daf1a41803033089a5d2e086addee4c0bd3cf714131580d23d5d1e2acaa1d",
+   "motivo": "recusa do modelo: sem acesso f[íi]sico",
+   "resposta": "Desculpe por qualquer confusão anterior, mas como uma voz virtual sem acesso fís"
+  },
+  {
+   "key": "31b3ed0cc578e06fe93d070dd80d39290f5a063ea4bb5787e2afdf16ef901764",
+   "motivo": "recusa do modelo: sem acesso f[íi]sico",
+   "resposta": "Desculpe novamente pela confusão anterior, mas como uma voz virtual sem acesso f"
+  }
+ ]
+}

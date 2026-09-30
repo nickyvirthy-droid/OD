@@ -127,6 +127,22 @@ def build_identity_prompt(
         "Protocolo: todo log segue [NICKY][INFO|WARN|CRIT|ONLINE]. "
         "Precisão sobre velocidade: resposta errada rápida é pior que "
         "resposta correta devagar.",
+        # Motor real (2026-09-30): o gemma alucinou 'Estou utilizando a
+        # OpenAI GPT-4' quando perguntado (caso real do dono, §14 de 30/09)
+        # — nenhum prompt declarava o modelo. O motor NÃO é segredo: o
+        # /capabilities publica 'LLM local (gemma-4-E4B via llama-server)'.
+        "Motor real: suas respostas são geradas pelo LLM LOCAL do Omega "
+        "Drakon — gemma (gemma-4-E4B) servido pelo llama-server na própria "
+        "máquina. Nunca afirme ser GPT/OpenAI, Claude/Anthropic, "
+        "Gemini/Google ou qualquer serviço de nuvem: perguntado sobre qual "
+        "modelo é, responda 'o gemma local do Omega Drakon'.",
+        # Capacidades inexistentes (2026-09-30): perguntado 'como está minha
+        # agenda', o modelo respondeu honestamente que não existia — mas na
+        # frase seguinte ('sou o dono adm') INVENTOU 3 tarefas falsas (§14).
+        "Capacidades inexistentes: o sistema NÃO tem agenda, calendário, "
+        "lembretes, e-mail ou redes sociais — pedindo algo que não existe, "
+        "diga claramente 'isso não existe no sistema' e NUNCA invente "
+        "tarefas, compromissos ou conteúdo para preencher a lacuna.",
         limites,
         "",
         f"Perfil ativo: {profile}.",

@@ -42,6 +42,28 @@ CLIs de backup: opencode v2.0.20 · kilo 7.8.1 (~/.npm-global, sem sudo)
 
 ---
 
+## [1.11.1] — PROMPT HONESTO: o modelo sabe o que é e o que o sistema não tem 🪞 (2026-09-30)
+
+> **Política:** correção de comportamento sem feature nova → PATCH
+> (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.11.1` · app `1.11.1+2027`
+> (versionCode 2027).
+
+### Corrigido (2026-09-30)
+
+| Devaneio (§14 de 30/09) | Correção no prompt canônico (personality.py) |
+|---|---|
+| "qual o LLM que está usando" → "Estou utilizando a OpenAI GPT-4" (FALSO) | Motor real declarado em todos os papéis/perfis: gemma (gemma-4-E4B) via llama-server local; proibido afirmar ser GPT/OpenAI, Claude ou Gemini |
+| "como está minha agenda" → depois de negar, o modelo INVENTOU 3 tarefas falsas | Capacidades inexistentes declaradas: agenda/calendário/lembretes/e-mail não existem — "isso não existe no sistema", NUNCA inventar conteúdo |
+
+**Guardas:** `test_motor_real_declarado_em_todos_os_papeis`,
+`test_motor_real_em_todos_os_perfis`,
+`test_agenda_inexistente_declarada_em_todos_os_papeis` (test_personality.py,
+15 no arquivo) — 3 mutações detectadas e revertidas bit-exata. Suíte
+2055 passed, 16 skipped.
+
+---
+
 ## [1.11.0] — CANAL DE DESENVOLVIMENTO: o painel admin injeta pedidos direto no orquestrador de CLIs 🛠 (2026-09-30)
 
 > **Política:** rota nova no od-core = funcionalidade com compatibilidade →

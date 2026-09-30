@@ -918,10 +918,27 @@
     "saude": "/health ok up · journal 0 erros na janela da poda · nada reiniciado.",
     "estado": "CONCLU\u00cdDO — devaneio D3 da an\u00e1lise §14 eliminado do cache; restam as a\u00e7\u00f5es 2 (prompt declara LLM) e 3 (agenda inexistente) sugeridas."
   },
+  "v1111_prompt_honesto_2026_09_30": {
+    "pedido": "Dono: 'Declarar o LLM real (gemma local) no prompt do perfil e a inexistência de agenda' (ações 2 e 3 da análise §14).",
+    "implementacao": [
+      "agents/nicky_virthy/personality.py — prompt canônico de TODOS os perfis (7) e papéis (admin/user/anon) ganha: bloco 'Motor real' (gemma gemma-4-E4B via llama-server local; nunca afirmar ser GPT/OpenAI/Claude/Gemini — resposta canônica 'o gemma local do Omega Drakon') e bloco 'Capacidades inexistentes' (agenda/calendário/lembretes/e-mail não existem — 'isso não existe no sistema', NUNCA inventar tarefas/conteúdo).",
+      "Guardas: +3 testes em test_personality.py (motor em 3 papéis · motor nos 7 perfis · agenda em 3 papéis).",
+      "Justificativa do escopo: o motor e as capacidades NÃO são segredo — o /capabilities já publica 'LLM local (gemma-4-E4B via llama-server)'; declaração vale para todos os papéis.",
+      "Bump PATCH 1.11.1: .env · capabilities fallback · pubspec 1.11.1+2027 · _APP_VERSION_CODE=2027 · site 2x · CHANGELOG [1.11.1] · README_VERSAO §1.11.1."
+    ],
+    "teste_do_teste": "3/3 mutações detectadas e revertidas bit-exata (backup /tmp): bloco das declarações removido → 3 falhas; NÃO→não na agenda → 1; llama-server removido da declaração → 1.",
+    "validacao": "Suíte 2055 passed, 16 skipped (+3) · flutter analyze 0 issues · flutter test 114 passed, 2 skipped · APKs 1.11.1+2027 (aapt2 versionCode='2027'; full ebfb3970…, arm64 06ae5284…) publicados em site/.",
+    "deploy": "IMPLANTADO — restart, PID 1121164, NRestarts=0. Prova viva 7/7: /app/version {1.11.1, 2027, sha256 == binário} · /capabilities 1.11.1 · /health 9/9 · supervision restarts 0 · WS 426 · D2 eliminado ('qual o LLM que esta usando' → 'modelo de linguagem local chamado gemma', route=llm) · D1 eliminado ('como esta minha agenda' → 'não tenho a capacidade de gerenciar agendas ou calendários') · Funnel 401/426/200.",
+    "bug_pego_pela_prova": "'sou o dono adm' → route=cache SERVIU a agenda inventada de 29/09 21:36 (pré-guarda, key 45a33548…) — prompt novo não alcança entrada JÁ CACHEADA (mesma classe do D3). Snapshot backups/cache-agenda-pre-guarda-20260930.json (sha256 12d16b30…) → poda real removidas 1 (cache 55→54, entrada 0 no banco) → reprova: resposta honesta via route=llm, sem tarefas inventadas.",
+    "licao": "Correções de prompt exigem varredura do cache por respostas pré-guardas relacionadas — a prova viva com o par de perguntas original (agenda + 'sou o dono') é o detector.",
+    "journal": "0 Traceback/ERROR/CRIT na janela do deploy/provas.",
+    "estado": "CONCLUÍDO E NO AR — v1.11.1 com prompt honesto e legado pré-guarda do cache limpo (dólar + agenda). Pendência do dono: auto-atualização do celular (2027 > 2026). Melhoria futura da §14: action de clima por cidade.",
+    "transcricao": "iniciar/2026-09-30_conversa_omegadrakon.md (§10)"
+  },
   "last_turn": {
     "date": "2026-09-30",
-    "retomada": "15:2x de 30/09 — poda do dólar pré-guarda executada (snapshot cf9c6c02…, removidas 1, cache 54, provado no banco); devaneio D3 eliminado. Restam: prompt declarar LLM real, agenda inexistente na personalidade, clima por cidade.",
-    "action": "Poda do cache com snapshot de rollback; registro no checkpoint.",
+    "retomada": "15:4x de 30/09 — v1.11.1 NO AR (PID 1121164): prompt honesto (motor real + capacidades inexistentes) provado com os casos reais da §14; prova viva pegou a agenda inventada ainda no cache — podada com snapshot (12d16b30…). Cache 54 entradas 100% saudável.",
+    "action": "v1.11.1 implantada, provada 7/7 e publicada; commit/push na sequência (regra 7.1).",
     "next": "Pendências: (1) dono abre o app para a auto-atualização 1.11.0+2026; (2) prova de acesso externo sem Tailscale; (3) análise de coerência pós-zerada (alex já tem 30 msgs novas para analisar); (4) 2 achados de infra (cobertura 89.44%, CI vs .env); (5) opcional: Freebuff como 1ª CLI quando o wrapper público ganhar modo não-interativo.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."

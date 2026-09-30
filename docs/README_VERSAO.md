@@ -7,6 +7,37 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.11.1] — PROMPT HONESTO: o modelo sabe o que é e o que o sistema não tem 🪞 (2026-09-30)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | Ação 2 e 3 da análise de coerência §14 (30/09): "Declarar o LLM real (gemma local) no prompt do perfil e a inexistência de agenda" |
+| **Diagnóstico** | Devaneios reais no ar: T14 'qual o LLM que está usando' → 'Estou utilizando a OpenAI GPT-4' (falso — nenhum prompt declarava o motor); T12 'sou o dono adm' → agenda INVENTADA com 3 tarefas falsas (sistema não tem agenda) |
+| **Correção** | personality.py (prompt canônico de TODOS os perfis e papéis): bloco 'Motor real' (gemma-4-E4B via llama-server local; nunca GPT/OpenAI/Claude/Gemini) + bloco 'Capacidades inexistentes' (agenda/calendário/lembretes/e-mail não existem — nunca inventar conteúdo) |
+| **Guardas** | +3 testes em test_personality.py (motor em 3 papéis, motor nos 7 perfis, agenda nos 3 papéis); teste do teste 3/3 mutações detectadas e revertidas bit-exata |
+| **Cache** | Entrada pré-guarda do dólar (devaneio D3) podada antes, com snapshot backups/cache-dolar-pre-guarda-20260930.json |
+
+### 2. Evidência
+
+```
+servidor: pytest → 2055 passed, 16 skipped (+3)
+teste do teste: 3/3 mutações detectadas (bloco removido → 3 falhas;
+  NÃO→não → 1; llama-server removido → 1) — restaurações bit-exata
+bump PATCH: .env 1.11.1 · capabilities fallback · pubspec 1.11.1+2027 ·
+  _APP_VERSION_CODE=2027 · site 2x · CHANGELOG [1.11.1] · README_VERSAO §1.11.1
+APK 1.11.1+2027 (versionCode 2027) publicado em site/
+```
+
+### 3. Pendências / próximos passos
+
+- Instalar o APK 1.11.1+2027 no celular (auto-atualização, 2027 > 2026).
+- Melhoria futura (da §14): action de clima por cidade (hoje o HA responde
+  o clima da casa para qualquer cidade pedida).
+
+---
+
 ## [1.11.0] — CANAL DE DESENVOLVIMENTO: painel admin injeta pedidos no orquestrador de CLIs 🛠 (2026-09-30)
 
 ### 1. O que foi feito

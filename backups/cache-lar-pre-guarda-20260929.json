@@ -1,0 +1,71 @@
+{
+  "criado_em": "2026-09-29T13:2x-03:00",
+  "motivo": "rollback da poda das 5 entradas pré-guarda (confirmações/execuções do lar, anteriores ao deploy v1.9.1 11:17)",
+  "entradas": [
+    {
+      "key": "51bdf86402e3d7a377f37f370b707f41ad0e39d70dbe7491d62b5e4eecee6a5d",
+      "prompt": "luzes acessas",
+      "response": "💡 Confirmar: ligar 'Luzes Acessas' (agora: off)?\nResponda **sim** para executar — a confirmação vale por 2 minutos.",
+      "profile": "guardian",
+      "llm_used": "gemma-local",
+      "tokens_used": 0,
+      "use_count": 1,
+      "duplicates": 0,
+      "created_ts": 1790685700.0,
+      "last_used_ts": 1790685700.0,
+      "avg_response_time_ms": 1.0
+    },
+    {
+      "key": "e08e5bde6931add5d0d4e5608a7bc561c71e3da616aec54229b3b02104bc260a",
+      "prompt": "acenda a luz do corredor",
+      "response": "💡 Confirmar: acender 'Luz Corredor' (agora: off)?\nResponda **sim** para executar — a confirmação vale por 2 minutos.",
+      "profile": "guardian",
+      "llm_used": "gemma-local",
+      "tokens_used": 0,
+      "use_count": 2,
+      "duplicates": 0,
+      "created_ts": 1790685400.0,
+      "last_used_ts": 1790686700.0,
+      "avg_response_time_ms": 1.0
+    },
+    {
+      "key": "2863c6bc62c112c00d213f206bf0bd6b49c1fc48e5b90546166f5bb841fca98e",
+      "prompt": "acenda a luz da varanda",
+      "response": "💡 Confirmar: acender 'Luz Varanda' (agora: off)?\nResponda **sim** para executar — a confirmação vale por 2 minutos.",
+      "profile": "guardian",
+      "llm_used": "gemma-local",
+      "tokens_used": 0,
+      "use_count": 1,
+      "duplicates": 0,
+      "created_ts": 1790686700.0,
+      "last_used_ts": 1790686700.0,
+      "avg_response_time_ms": 1.0
+    },
+    {
+      "key": "5700ff031111cdcc5d73c8196684be3e24bb9fcfbbc51250a739347d3a1aff85",
+      "prompt": "sim",
+      "response": "✅ Luz da Varanda: desligar executado (⚪ estado agora: off).",
+      "profile": "guardian",
+      "llm_used": "gemma-local",
+      "tokens_used": 0,
+      "use_count": 6,
+      "duplicates": 0,
+      "created_ts": 1790685400.0,
+      "last_used_ts": 1790691800.0,
+      "avg_response_time_ms": 1.0
+    },
+    {
+      "key": "d880a1784e8c8894fb8412bea1ac041950b3b0cfe9bcc345ab205e0bec07bb03",
+      "prompt": "acenda a luz da cozinha",
+      "response": "💡 Confirmar: acender 'Luz Cozinha' (agora: off)?\nResponda **sim** para executar — a confirmação vale por 2 minutos.",
+      "profile": "guardian",
+      "llm_used": "gemma-local",
+      "tokens_used": 0,
+      "use_count": 1,
+      "duplicates": 0,
+      "created_ts": 1790686800.0,
+      "last_used_ts": 1790686800.0,
+      "avg_response_time_ms": 1.0
+    }
+  ]
+}
