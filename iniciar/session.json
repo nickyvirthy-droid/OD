@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-29T21:10:00-03:00",
+  "updated_at": "2026-09-29T21:16:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -842,8 +842,8 @@
   },
   "last_turn": {
     "date": "2026-09-29",
-    "retomada": "21:09 — dono pediu 'leia iniciar'; checkpoint lido, estado conferido: HEAD 4a3d282 == origin/master (v1.10.0 registrada), od-core active PID 986662 NRestarts=0 desde 14:29:26 (deploy v1.10.0). Aguardando o próximo pedido do dono.",
-    "action": "v1.10.0 completa e NO AR: painéis dashboard/admin no app (aba Painel com seção Admin gated por role), consumindo contratos já existentes (zero rota nova). Registrada no commit 4a3d282.",
+    "retomada": "21:15 — verificação geral pós-v1.10.0 rodada (§16 da transcrição): SISTEMA VERDE — od-core PID 986662 NRestarts=0, /health 9/9, supervision restarts 0, Funnel on com prova de fora (401/426/1.10.0+2024), banco users 2 · sessões 30 (27 válidas) · msgs 22 · llm_cache 50 (0 candidatas de falha), journal 0 erros. Nada reiniciado. Registrado no commit ea69c0d.",
+    "action": "v1.10.0 NO AR: painéis dashboard/admin no app (aba Painel com seção Admin gated por role), consumindo contratos já existentes (zero rota nova). Registrada no commit 4a3d282.",
     "next": "Pendente do dono: instalar o APK 1.10.0+2024 no celular (auto-atualização 2024>2023) e conferir a aba Painel. Análise de coerência das conversas em standby até acumular conversas novas pós-zerada (protocolo §14).",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
