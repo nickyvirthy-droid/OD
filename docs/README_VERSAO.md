@@ -7,6 +7,36 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.11.0] — CANAL DE DESENVOLVIMENTO: painel admin injeta pedidos no orquestrador de CLIs 🛠 (2026-09-30)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | "orquestrador não vai ser standalone, o objetivo dele é um canal direto de desenvolvimento e melhorias do sistema direto com ferramentas mais potentes como freebuff. o sistema não está criando as ações necessárias para responder as perguntas que não estão prontas. crie um campo dentro de admin que injeta textos diretamente no arquivo pedido.txt" |
+| **3 rotas novas** | POST /admin/dev/pedido (injeção no pedido.txt com escrita ATÔMICA tmp+rename, limpar_antes default true, teto 20k chars) · GET (estado: monitor_ativo via /proc, monitor_pid, tem_conteudo, bytes_fila, preview 400) · DELETE (esvazia fila, idempotente) — todas com `_require_admin` |
+| **Painel /admin** | seção "Canal de desenvolvimento": textarea, checkbox substituir/acumular, pill do monitor (NO AR/PARADO + pid), preview, botão esvaziar |
+| **Integração** | orquestrador.py (30/09) deixa de ser standalone — é o canal de desenvolvimento do sistema: o dono injeta o pedido pelo painel, o monitor executa com Freebuff → OpenCode → Kilo e o código validado (ast.parse) sai em codigo_gerado.py |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 2049 passed, 16 skipped (+9 em TestAdminDevPedido)
+guarda de rotas: 42 → 45 (3 novas, todas admin)
+teste do teste: 4/4 mutações detectadas e revertidas bit-exata
+JS do painel: validado por test_painel_pages_js_compiles (pegou bug real
+na 1ª rodada — newline literal em string JS)
+APK 1.11.0+2026 (versionCode 2026) publicado em site/
+```
+
+### 3. Pendências / próximos passos
+
+- Subir o monitor (`python orquestrador.py` ou serviço systemd --user) e
+  provar o ciclo completo: injeção pelo painel → execução → codigo_gerado.py.
+- Instalar o APK 1.11.0+2026 no celular (auto-atualização, 2026 > 2025).
+
+---
+
 ## [1.10.1] — CONEXÃO COM 4 CAMINHOS: LAN, tailnet, Funnel e DDNS sondados sozinhos 🔌 (2026-09-29)
 
 ### 1. O que foi feito

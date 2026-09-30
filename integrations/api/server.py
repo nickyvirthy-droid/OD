@@ -54,7 +54,7 @@ from core.capabilities import OD_VERSION, capabilities_manifest
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2025  # versionCode cru do APK publicado (v1.10.1+2025)
+_APP_VERSION_CODE = 2026  # versionCode cru do APK publicado (v1.11.0+2026)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -234,6 +234,10 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/admin/users/{username}/password", "admin_reset_password", True),
     ("DELETE", "/admin/users/{username}", "admin_delete_user", True),
     ("POST", "/admin/cache/prune", "admin_cache_prune", True),
+    # Canal de desenvolvimento (orquestrador.py) — só admin/dono
+    ("POST", "/admin/dev/pedido", "admin_dev_pedido", True),
+    ("GET", "/admin/dev/pedido", "admin_dev_pedido_status", True),
+    ("DELETE", "/admin/dev/pedido", "admin_dev_pedido_clear", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -262,6 +266,49 @@ def _compile_route(pattern: str) -> re.Pattern[str]:
     """Converte '/history/{user_id}/stats' em regex de fullmatch."""
     regex = re.sub(r"\{(\w+)\}", r"(?P<\1>[^/]+)", pattern)
     return re.compile(regex + r"/?\Z")
+
+
+# --- Canal de desenvolvimento (orquestrador.py) ----------------------------
+
+#: Nome do processo monitor que o orquestrador deixa no argv
+#: (`python orquestrador.py`). Usado por _monitor_vivo()/_monitor_pid().
+_MONITOR_ARGV_MARK = "orquestrador.py"
+
+
+def _monitor_pids() -> list[int]:
+    """PIDs dos processos `orquestrador.py` desta máquina (varredura /proc).
+
+    stdlib puro: cada diretivo numérico de /proc é um processo; o cmdline é
+    NUL-separado. Custo O(n_processos) por chamada — chamada só nos handlers
+    do canal admin (baixa frequência).
+    """
+    pids: list[int] = []
+    try:
+        entradas = os.listdir("/proc")
+    except OSError:
+        return pids
+    for nome in entradas:
+        if not nome.isdigit():
+            continue
+        try:
+            bruto = Path("/proc", nome, "cmdline").read_bytes()
+        except OSError:
+            continue
+        partes = [p.decode("utf-8", "replace") for p in bruto.split(b"\x00") if p]
+        if any(p.endswith(_MONITOR_ARGV_MARK) for p in partes):
+            pids.append(int(nome))
+    return pids
+
+
+def _monitor_vivo() -> bool:
+    """True quando o monitor do orquestrador está rodando nesta máquina."""
+    return bool(_monitor_pids())
+
+
+def _monitor_pid() -> int | None:
+    """PID do monitor (o menor — o mais antigo), ou None."""
+    pids = _monitor_pids()
+    return min(pids) if pids else None
 
 
 # Formato aceito para `user_id` vindo do CLIENTE (corpo de /message, frame de
@@ -606,6 +653,33 @@ _ADMIN_PAGE_HTML = """<!doctype html>
   </section>
 
   <section>
+    <h2>Canal de desenvolvimento</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Injeta texto direto no <code>pedido.txt</code> — a fila que o
+      orquestrador de CLIs (Freebuff → OpenCode → Kilo) executa e devolve
+      código validado em <code>codigo_gerado.py</code>. É o canal de
+      melhorias do sistema sem SSH.
+    </p>
+    <div class="row">
+      <button id="dev-status">📊 Estado da fila</button>
+      <button id="dev-clear" class="danger">🗑 Esvaziar fila</button>
+      <span class="pill" id="dev-monitor">monitor: —</span>
+      <span class="muted msg" id="dev-msg"></span>
+    </div>
+    <pre id="dev-preview" style="display:none;max-height:160px;overflow:auto">—</pre>
+    <div class="row" style="margin-top:10px">
+      <textarea id="dev-texto" placeholder="Ex.: crie o arquivo previsao_tempo.py que consulta a API do Open-Meteo e imprime o clima de Presidente Venceslau..."
+        style="width:100%;min-height:110px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:0.85rem;font-family:inherit"></textarea>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label class="muted" style="font-size:0.8rem;display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="dev-limpar" checked style="width:auto"> substituir a fila (desmarque para ACUMULAR)
+      </label>
+      <button id="dev-injetar" style="border-color:var(--accent);color:var(--accent)">▶ Injetar no pedido.txt</button>
+    </div>
+  </section>
+
+  <section>
     <h2>Contas</h2>
     <table>
       <thead><tr>
@@ -738,8 +812,65 @@ async function delUser(username) {
   if (resp.ok) loadUsers();
 }
 
-document.getElementById("btn-refresh").onclick = () => { loadSystem(); loadUsers(); };
-whoAmI().then(u => { if (u) { loadSystem(); loadUsers(); } });
+// --- Canal de desenvolvimento (orquestrador.py) ---------------------
+const devMsg = document.getElementById("dev-msg");
+
+function devSetMsg(texto, cls) {
+  devMsg.textContent = texto;
+  devMsg.className = cls ? "msg " + cls : "muted msg";
+}
+
+async function devStatus() {
+  try {
+    const resp = await fetch("/admin/dev/pedido", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { devSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    const pill = document.getElementById("dev-monitor");
+    pill.textContent = "monitor: " + (data.monitor_ativo ? "NO AR" : "PARADO") + (data.monitor_pid ? " (pid " + data.monitor_pid + ")" : "");
+    pill.className = "pill " + (data.monitor_ativo ? "ok" : "err");
+    const pre = document.getElementById("dev-preview");
+    pre.style.display = data.tem_conteudo ? "block" : "none";
+    pre.textContent = data.tem_conteudo
+      ? "fila (" + data.bytes_fila + " bytes): " + data.preview
+      : "—";
+  } catch (e) { devSetMsg("Falha ao consultar: " + e.message, "err"); }
+}
+
+async function devInjetar() {
+  const texto = document.getElementById("dev-texto").value.trim();
+  if (!texto) { devSetMsg("Escreva o pedido antes de injetar.", "err"); return; }
+  if (!window.confirm("Injetar este texto no pedido.txt? O orquestrador executa com as CLIs (Freebuff/OpenCode/Kilo).")) return;
+  const limpar = document.getElementById("dev-limpar").checked;
+  try {
+    const resp = await fetch("/admin/dev/pedido", {
+      method: "POST", headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify({texto: texto, limpar_antes: limpar})
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { devSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    devSetMsg("✅ Injetado (" + data.bytes_fila + " bytes na fila)" +
+      (data.monitor_ativo ? " — monitor NO AR" : " — ⚠ monitor PARADO: suba com .venv/bin/python orquestrador.py"), data.monitor_ativo ? "ok" : "err");
+    document.getElementById("dev-texto").value = "";
+    devStatus();
+  } catch (e) { devSetMsg("Falha ao injetar: " + e.message, "err"); }
+}
+
+async function devClear() {
+  if (!window.confirm("Esvaziar a fila pedido.txt? O conteúdo atual será perdido.")) return;
+  try {
+    const resp = await fetch("/admin/dev/pedido", { method: "DELETE", headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    devSetMsg(resp.ok ? "🗑 Fila esvaziada." : (data.error || "Erro HTTP " + resp.status), resp.ok ? "ok" : "err");
+    if (resp.ok) devStatus();
+  } catch (e) { devSetMsg("Falha ao esvaziar: " + e.message, "err"); }
+}
+
+document.getElementById("dev-injetar").onclick = devInjetar;
+document.getElementById("dev-status").onclick = devStatus;
+document.getElementById("dev-clear").onclick = devClear;
+
+document.getElementById("btn-refresh").onclick = () => { loadSystem(); loadUsers(); devStatus(); };
+whoAmI().then(u => { if (u) { loadSystem(); loadUsers(); devStatus(); } });
 </script>
 </body>
 </html>
@@ -3153,6 +3284,115 @@ class APIHandler(BaseHTTPRequestHandler):
                 "detalhes": details[:200],
             },
         )
+
+    # --- Canal de desenvolvimento (orquestrador.py) ----------------------
+
+    #: Caminho do pedido.txt — a fila do orquestrador de CLIs. Âncora na
+    #: raiz do projeto (mesmo padrão de /pedido.txt no .gitignore).
+    PEDIDO_FILE = Path("pedido.txt")
+
+    #: Teto do corpo injetado (o prompt final já recebe o reforço de sistema).
+    PEDIDO_MAX_CHARS = 20_000
+
+    def admin_dev_pedido(self) -> None:
+        """POST /admin/dev/pedido — injeta texto na fila do orquestrador.
+
+        O orquestrador de CLIs (`orquestrador.py`) varre `pedido.txt` a cada
+        5s e executa o pedido em cascata (Freebuff → OpenCode → Kilo),
+        gravando o código validado (ast.parse) em `codigo_gerado.py`. Esta
+        rota é o canal do DONO para alimentar essa fila pelo painel /admin —
+        sem SSH.
+
+        Body: {"texto": str (obrigatório, 1..20000 chars), "limpar_antes"?: bool}
+        - Com `limpar_antes=true` (default): substitui o conteúdo da fila;
+        - Com `limpar_antes=false`: ACUMULA (a fila suporta múltiplos
+          pedidos separados por linha em branco — o orquestrador processa
+          tudo e limpa de uma vez).
+
+        409 `monitor_nao_rodando`: o GET /admin/dev/pedido já responde
+        monitor_ativo=false — o dono sabe antes de injetar.
+        """
+        self._require_admin()
+        data = self._read_json()
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        texto = data.get("texto")
+        if not isinstance(texto, str) or not texto.strip():
+            raise APIError(400, "texto_obrigatorio")
+        if len(texto) > self.PEDIDO_MAX_CHARS:
+            raise APIError(400, "texto_muito_longo")
+
+        caminho = self.PEDIDO_FILE
+        existe = caminho.is_file()
+        if data.get("limpar_antes", True) or not existe:
+            conteudo = texto
+        else:
+            anterior = caminho.read_text(encoding="utf-8", errors="replace").strip()
+            conteudo = (anterior + "\n\n" + texto) if anterior else texto
+        # Escrita ATÔMICA (tmp + rename) — o orquestrador lê a cada 5s;
+        # um arquivo pela metade seria lido truncado.
+        tmp = caminho.with_suffix(".txt.tmp")
+        tmp.write_text(conteudo, encoding="utf-8")
+        tmp.replace(caminho)
+
+        ativo = _monitor_vivo()
+        log.info(
+            "Pedido injetado na fila do orquestrador",
+            chars=len(texto),
+            limpar_antes=bool(data.get("limpar_antes", True)),
+            monitor_ativo=ativo,
+        )
+        self._json(
+            200,
+            {
+                "ok": True,
+                "bytes_fila": len(conteudo.encode("utf-8")),
+                "limpar_antes": bool(data.get("limpar_antes", True)),
+                "monitor_ativo": ativo,
+            },
+        )
+
+    def admin_dev_pedido_status(self) -> None:
+        """GET /admin/dev/pedido — estado da fila + do monitor.
+
+        Contrato do painel: {ok, monitor_ativo, tem_conteudo, bytes_fila,
+        preview} — preview dos PRIMEIROS 400 chars para o dono conferir o
+        que está na fila antes de injetar mais.
+        """
+        self._require_admin()
+        caminho = self.PEDIDO_FILE
+        if not caminho.is_file():
+            self._json(200, {
+                "ok": True, "monitor_ativo": _monitor_vivo(),
+                "tem_conteudo": False, "bytes_fila": 0, "preview": "",
+            })
+            return
+        bruto = caminho.read_text(encoding="utf-8", errors="replace")
+        self._json(200, {
+            "ok": True,
+            "monitor_ativo": _monitor_vivo(),
+            "tem_conteudo": bool(bruto.strip()),
+            "bytes_fila": len(bruto.encode("utf-8")),
+            "preview": bruto.strip()[:400],
+            "monitor_pid": _monitor_pid(),
+        })
+
+    def admin_dev_pedido_clear(self) -> None:
+        """DELETE /admin/dev/pedido — esvazia a fila sem esperar o monitor.
+        Idempotente: limpa também é o que o orquestrador faz ao processar.
+        """
+        self._require_admin()
+        tmp = self.PEDIDO_FILE.with_suffix(".txt.tmp")
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        try:
+            self.PEDIDO_FILE.write_text("", encoding="utf-8")
+        except OSError as erro:
+            raise APIError(500, "falha_ao_limpar") from erro
+        log.info("Fila do orquestrador esvaziada pelo painel admin")
+        self._json(200, {"ok": True, "bytes_fila": 0})
 
     def history_delete_message(self, user_id: str, message_id: str) -> None:
         """DELETE /history/{user_id}/messages/{message_id} — apaga UMA mensagem.

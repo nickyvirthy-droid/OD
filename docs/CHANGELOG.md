@@ -42,6 +42,35 @@ CLIs de backup: opencode v2.0.20 · kilo 7.8.1 (~/.npm-global, sem sudo)
 
 ---
 
+## [1.11.0] — CANAL DE DESENVOLVIMENTO: o painel admin injeta pedidos direto no orquestrador de CLIs 🛠 (2026-09-30)
+
+> **Política:** rota nova no od-core = funcionalidade com compatibilidade →
+> MINOR (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.11.0` · app `1.11.0+2026`
+> (versionCode 2026 — bump de linhagem; o app não muda de conteúdo).
+
+### Adicionado (2026-09-30)
+
+| Peça | Entrega |
+|---|---|
+| **`POST /admin/dev/pedido`** | injeta texto direto no `pedido.txt` (a fila do `orquestrador.py`); `limpar_antes=true` (default) substitui, `false` ACUMULA múltiplos pedidos; escrita ATÔMICA (tmp+rename) — o monitor lê a cada 5s e nunca pega arquivo pela metade; teto de 20.000 chars |
+| **`GET /admin/dev/pedido`** | estado da fila para o painel: {monitor_ativo, monitor_pid, tem_conteudo, bytes_fila, preview 400 chars} — detecção do monitor por varredura de `/proc` (argv `orquestrador.py`), stdlib puro |
+| **`DELETE /admin/dev/pedido`** | esvazia a fila sem esperar o monitor (idempotente, limpa também o .tmp) |
+| **Painel `/admin`** | nova seção "Canal de desenvolvimento": textarea de injeção, checkbox substituir/acumular, estado da fila com pill do monitor (NO AR/PARADO + pid), preview e esvaziar — o dono alimenta o canal sem SSH |
+| **Contexto** | o orquestrador de CLIs (Freebuff → OpenCode → Kilo, entrada da sessão de 30/09) deixa de ser standalone: é o canal oficial de desenvolvimento/melhorias do sistema, com fila alimentável pelo painel; resposta a "o sistema não está criando as ações necessárias para responder as perguntas que não estão prontas" |
+
+### Validação
+
+- `tests/test_api.py`: +9 testes (`TestAdminDevPedido` — injeção/criação,
+  acumular/substituir, status vazio/com fila, delete, 400 texto vazio/longo,
+  gate 403 com usuário comum cujo pedido NÃO toca a fila). Guarda de rotas
+  42 → **45**. O teste `test_painel_pages_js_compiles` pegou um bug REAL do
+  JS novo na 1ª rodada (newline literal dentro de string) — a guarda
+  funcionando como desenhada.
+- Teste do teste: 4 mutações detectadas e revertidas bit-exata.
+
+---
+
 ## [1.10.1] — CONEXÃO COM 4 CAMINHOS: LAN, tailnet, Funnel e DDNS sondados sozinhos 🔌 (2026-09-29)
 
 > **Política:** correção de conexão sem capacidade nova = PATCH

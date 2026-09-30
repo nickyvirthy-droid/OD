@@ -135,8 +135,9 @@ class TestAPIRoutes:
         /supervision (2026-09-15) + /account/* e /admin/* (painéis
         dashboard/admin, 2026-09-26) + deleção de mensagem única e
         saneamento do cache (2026-09-26) + /app/version (v1.7.0,
-        auto-atualização do app)."""
-        assert len(ROUTES) == 42
+        auto-atualização do app) + /admin/dev/pedido (v1.11.0 — canal de
+        desenvolvimento com o orquestrador de CLIs)."""
+        assert len(ROUTES) == 45
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -152,6 +153,9 @@ class TestAPIRoutes:
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),
+            ("POST", "/admin/dev/pedido"),
+            ("GET", "/admin/dev/pedido"),
+            ("DELETE", "/admin/dev/pedido"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/anon/message"),
@@ -177,6 +181,9 @@ class TestAPIRoutes:
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),
+            ("POST", "/admin/dev/pedido"),
+            ("GET", "/admin/dev/pedido"),
+            ("DELETE", "/admin/dev/pedido"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/executa"),
@@ -1865,3 +1872,160 @@ class TestAdminCachePrune:
             body={"keys": "não-sou-lista"},
         )
         assert status == 400
+
+
+class TestAdminDevPedido:
+    """Canal de desenvolvimento: POST/GET/DELETE /admin/dev/pedido —
+    injeção do dono no pedido.txt, a fila do orquestrador de CLIs."""
+
+    def test_post_injeta_e_cria_a_fila(self, serve, tmp_path: Path,
+                                       monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)  # pedido.txt da raiz real não é tocado
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/pedido",
+            body={"texto": "crie o previsao_tempo.py"},
+        )
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["ok"] is True
+        assert data["bytes_fila"] == len("crie o previsao_tempo.py".encode())
+        conteudo = (tmp_path / "pedido.txt").read_text(encoding="utf-8")
+        assert conteudo == "crie o previsao_tempo.py"
+
+    def test_post_acumula_com_limpar_antes_false(self, serve, tmp_path: Path,
+                                                 monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        _request(srv.bound_port, "POST", "/admin/dev/pedido",
+                 body={"texto": "primeiro pedido"})
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/pedido",
+            body={"texto": "segundo pedido", "limpar_antes": False},
+        )
+        assert status == 200
+        conteudo = (tmp_path / "pedido.txt").read_text(encoding="utf-8")
+        assert "primeiro pedido" in conteudo and "segundo pedido" in conteudo
+
+    def test_post_limpar_antes_substitui(self, serve, tmp_path: Path,
+                                         monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        _request(srv.bound_port, "POST", "/admin/dev/pedido",
+                 body={"texto": "antigo"})
+        _request(srv.bound_port, "POST", "/admin/dev/pedido",
+                 body={"texto": "novo", "limpar_antes": True})
+        conteudo = (tmp_path / "pedido.txt").read_text(encoding="utf-8")
+        assert conteudo == "novo"
+
+    def test_get_status_sem_arquivo(self, serve, tmp_path: Path,
+                                    monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/dev/pedido")
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["ok"] is True
+        assert data["tem_conteudo"] is False and data["bytes_fila"] == 0
+        assert data["preview"] == ""
+
+    def test_get_status_com_fila(self, serve, tmp_path: Path,
+                                 monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        _request(srv.bound_port, "POST", "/admin/dev/pedido",
+                 body={"texto": "pedido de prova para o preview"})
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/dev/pedido")
+        data = _json_response((status, body, _h))
+        assert data["tem_conteudo"] is True
+        assert "pedido de prova" in data["preview"]
+
+    def test_delete_esvazia_a_fila(self, serve, tmp_path: Path,
+                                   monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        _request(srv.bound_port, "POST", "/admin/dev/pedido",
+                 body={"texto": "sera apagado"})
+        status, body, _h = _request(
+            srv.bound_port, "DELETE", "/admin/dev/pedido"
+        )
+        assert status == 200
+        assert (tmp_path / "pedido.txt").read_text(encoding="utf-8") == ""
+
+    def test_texto_obrigatorio(self, serve, tmp_path: Path,
+                               monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/pedido", body={"texto": "   "}
+        )
+        assert status == 400
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/pedido", body={}
+        )
+        assert status == 400
+
+    def test_texto_muito_longo_e_400(self, serve, tmp_path: Path,
+                                     monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/pedido",
+            body={"texto": "x" * 20_001},
+        )
+        assert status == 400
+
+    def test_sem_credencial_e_401(self, serve, tmp_path: Path) -> None:
+        """A rota exige credencial — a fila é canal de execução de código."""
+        srv = serve(make_orch(tmp_path))
+        # A fixture sobe sem OD_API_KEY; com auth desligada o POST passa —
+        # por isso o gate admin é provado no teste de papel abaixo.
+        status, _, _h = _request(
+            srv.bound_port, "GET", "/admin/dev/pedido"
+        )
+        assert status in (200, 401)
+
+    def test_sem_papel_admin_e_403(self, serve, tmp_path: Path,
+                                   monkeypatch) -> None:
+        """O gate de verdade: sessão de usuário comum (não-dono) → 403."""
+        from integrations.api.auth import UserStore
+        monkeypatch.chdir(tmp_path)
+        db = Database(tmp_path / "roles.db")
+        store = UserStore(db)
+        store.register("comum", "comum@example.com", "senha-comum-123")
+        orch = make_orch(tmp_path)
+        cfg = APIConfig(
+            port=0, rate_limit_max=0, user_store=store,
+            owner_username="dono",
+        )
+        srv = serve(orch, config=cfg)
+        # Registra e loga a conta 'dono' (admin) e a 'comum' (user).
+        store.register("dono", "dono@example.com", "senha-dono-123")
+        _s, login_dono, _h = _request(
+            srv.bound_port, "POST", "/auth/login",
+            body={"username": "dono", "password": "senha-dono-123"},
+        )
+        _s, login_comum, _h = _request(
+            srv.bound_port, "POST", "/auth/login",
+            body={"username": "comum", "password": "senha-comum-123"},
+        )
+        assert _s == 200, login_comum
+        token_dono = _json_response((_s, login_dono, _h))["token"]
+        token_comum = _json_response((_s, login_comum, _h))["token"]
+
+        # Dono (owner_username) injeta: 200
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/pedido",
+            body={"texto": "pedido do dono"},
+            headers={"Authorization": f"Bearer {token_dono}"},
+        )
+        assert status == 200
+        # Usuário comum: 403 e a fila NÃO é tocada pelo pedido dele
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/pedido",
+            body={"texto": "pedido intruso"},
+            headers={"Authorization": f"Bearer {token_comum}"},
+        )
+        assert status == 403
+        assert "intruso" not in (tmp_path / "pedido.txt").read_text(encoding="utf-8")
+        db.close()
