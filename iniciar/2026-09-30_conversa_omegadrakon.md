@@ -492,3 +492,56 @@ renascer. **Decisão pendente do dono.**
 só poda operacional de cache).** Pendências novas: rotacionar senha do
 MQTT; decidir o rumo do gap (a)/(b)/(c).
 
+## 13. v1.14.0 — Câmbio real: 'cotação do dólar' vem da FONTE, não da alucinação (~20:4x–21:1x)
+
+**Decisão do dono:** "consegue concluir" → fechado o gap do §12.1 pela
+receita (b) + espírito da (a): a pergunta de câmbio NUNCA chega ao gemma
+— action intercepta antes do modelo com dado REAL (a casa nunca depende
+da honestidade do modelo para dado que tem fonte).
+
+**Entregado:**
+- **Action `exchange_rate`** (catálogo 64 → 65, system=17): AwesomeAPI
+  (economia.awesomeapi.com.br, gratuita, sem chave, urllib stdlib —
+  mesma receita da weather_city); USD/EUR/GBP/ARS/JPY/CNY/CAD/AUD/CHF/
+  BTC contra o real; bid/ask/variação %/faixa do dia; aliases da fala
+  ('dólar', 'libra', 'iene', 'bitcoin'…) + sigla solta ('usd').
+- **Detecção** (core/intents.py, ANTES do bloco de clima): moeda + sinal
+  de cotação ('cotação', 'quanto está/custa/vale', 'valor', 'preço').
+  'história do dólar' e 'quantos dólares cabem numa mala' NÃO pegam.
+- **Formatter pt-BR**: `_brl()` 4 casas sem zeros à direita, SEM
+  notação científica (o `.4g` viraria '3.501e+05' pro BTC); seta
+  📈/📉; degradado → None → degradação guiada + Casa de Limitações.
+- **3 bugs LATENTES corrigidos:** `log.warning` não existe no
+  NickyLogger (só `.warn`) — ha_states, ha_state e weather_city usavam
+  `.warning` no except de rede: o AttributeError esconderia o erro real
+  exatamente numa queda de rede. Achado ao vivo: o novo código reproduziu
+  o padrão e a suíte de mutação/settings expôs.
+
+**Teste do teste — 4/4 mutações bit-exata:** M1 detecção desligada
+(`if False and`) → 6 falhas; M2 formatter zumbi (return "zumbi" nos 2
+None do bloco) → 1 falha (nota: os 2 primeiros replaces não aplicaram
+por encoding — verificação bit-exata com diff obrigatória antes de
+correr a suíte); M3 validação de entrada morta (`moeda or "usd"`) → 1
+falha; M4 spec fora do catálogo → 6 falhas.
+
+**Evidência:** pytest tests/ → **2113 passed, 16 skipped** (+6
+TestExchangeRate; guardas 64 → 65 em 4 arquivos). APK 1.14.0+2030
+publicado em site/ (manifest 1.14.0 UTF-16LE ✓, versionCode 2030 ✓,
+sem resquício de 1.13.0; sha256 babe2169…/4577dc61…). Guardas de versão:
+143 passed.
+
+**Prova viva no ar** (restart od-core): /app/version 1.14.0/2030 ·
+A PERGUNTA DO DONO: 'quanto está a cotação do dólar hoje?' →
+**route: action_intent · fastpath:exchange_rate · R$ 5,1844 REAL**
+(não mais 'US$ 5.20' inventado) · health 9/9 · capabilities 65 actions ·
+journal 0 erros. Mentira renascida do dólar (regravada pelo LLM no §12.1)
+deletada do Postgres antes do teste.
+
+**Commit:** `744d9fc` feat(actions) — 14 arquivos, +389/−30, push
+818a182..744d9fc. Nota: site/*.apk é ignorado por design (.gitignore —
+APK não versiona, é publicado no site).
+
+**Estado: CONCLUÍDO, PUBLICADO E NO AR — v1.14.0.** Pendências do dono:
+instalar o APK 1.14.0+2030 (2030 > 2029) e perguntar o dólar no app/chato;
+ROTACIONAR a senha do MQTT (§12.1). Pendência do sistema: nenhuma.
+
