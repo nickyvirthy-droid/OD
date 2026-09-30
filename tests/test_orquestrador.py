@@ -175,13 +175,47 @@ class TestCiclo:
 
 class TestCascataOficial:
     def test_ordem_e_contrato_das_clis(self) -> None:
+        """Contratos PROVADOS no ar (30/09, prova do serviço):
+
+        - Freebuff: o wrapper público (0.2.1) só tem 'login'; o binário real
+          (~/.config/manicode/freebuff) aceita PROMPT posicional. 'ask'
+          dava 'too many arguments' → cascade inteira caía.
+        - OpenCode: 'run PROMPT' + modelo FREE (default 'build' →
+          'credit_balance_exhausted'); binário só em ~/.npm-global/bin.
+        - Kilo: 'run PROMPT --auto --pure' + modelo free (gemini → quota;
+          groq → TPM 8000 estourado pelo prompt de sistema).
+        """
         nomes = [spec.nome for spec in orch.CLIS]
         assert nomes == ["Freebuff", "OpenCode", "Kilo"]
         freebuff, opencode, kilo = orch.CLIS
-        assert freebuff.binario == "freebuff" and freebuff.args_antes == ("ask",)
-        assert opencode.binario == "opencode" and opencode.args_antes == ("run",)
+        assert freebuff.binario == "freebuff"
+        assert freebuff.args_antes == ()  # prompt posicional direto
+        assert freebuff.caminho_candidato.endswith(".config/manicode/freebuff")
+        assert opencode.binario == "opencode"
+        assert opencode.args_antes[:2] == ("run", "-m")
+        assert "free" in orch.OPENCODE_MODELO  # default pago → sem créditos
+        assert opencode.caminho_candidato.endswith(".npm-global/bin/opencode")
         assert kilo.binario == "kilo"
-        assert kilo.args_antes == ("run",) and kilo.args_depois == ("--auto",)
+        assert kilo.args_antes == ("run", "-m", orch.KILO_MODELO, "--pure")
+        assert kilo.args_depois == ("--auto",)
+        assert kilo.caminho_candidato.endswith(".npm-global/bin/kilo")
+
+    def test_comando_base_prefere_path_e_cai_para_candidato(self, monkeypatch) -> None:
+        """PATH primeiro; sem PATH, o candidato expandido e executável vence."""
+        spec = CliSpec(
+            nome="X",
+            binario="fantasma",
+            args_antes=(),
+            caminho_candidato="~/caminho/fantasma",
+        )
+        monkeypatch.setattr(orch.shutil, "which", lambda nome: None)
+        monkeypatch.setattr(orch.Path, "is_file", lambda self: False)
+        assert spec.comando_base() == ["fantasma"]  # nada resolve → binário
+
+        monkeypatch.setattr(orch.Path, "is_file", lambda self: True)
+        monkeypatch.setattr(orch.os, "access", lambda p, m: True)
+        base = spec.comando_base()
+        assert len(base) == 1 and base[0].startswith("/")  # expandido absoluto
 
     def test_env_keys_contrato(self) -> None:
         # As chaves do .env exigidas pelo instrucoes_projeto.txt.
@@ -224,6 +258,49 @@ class TestAmbienteComChaves:
         assert vistos["env"]["GROQ_API_KEY"] == "chave-groq"  # chave do .env repassada
 
     def test_executar_cli_binario_ausente(self, monkeypatch) -> None:
+        """Sem PATH e sem candidato: NADA é executado (guarda de indisponível).
+
+        Endurecido após a mutação M2 (guarda removida) sobreviver — o teste
+        antigo só conferia None e um subprocess.run inexiste não reclamaria
+        (binário inexistente → OSError → None do mesmo jeito, por sorte).
+        Aqui a chamada ao subprocess.run é FALHA DE TESTE se acontecer.
+        """
+
+        def proibido_run(*args, **kwargs):
+            raise AssertionError("subprocess.run não deveria ser chamado")
+
         monkeypatch.setattr(orch.shutil, "which", lambda nome: None)
+        monkeypatch.setattr(orch.subprocess, "run", proibido_run)
         spec = CliSpec(nome="Falso", binario="fantasma", args_antes=("run",))
         assert orch.executar_cli(spec, "PROMPT") is None
+
+    def test_executar_cli_usa_caminho_candidato_sem_path(self, monkeypatch) -> None:
+        """Serviço sem ~/.npm-global no PATH: o candidato resolve a CLI."""
+        vistos: dict[str, object] = {}
+
+        class FalsoCompleted:
+            returncode = 0
+            stdout = "x = 2\n"
+            stderr = ""
+
+        def falso_run(comando, **kwargs):
+            vistos["comando"] = comando
+            return FalsoCompleted()
+
+        monkeypatch.setattr(orch.shutil, "which", lambda nome: None)
+        monkeypatch.setattr(orch.subprocess, "run", falso_run)
+        monkeypatch.setattr(
+            orch.Path, "is_file", lambda self: ".npm-global" in str(self)
+        )
+        monkeypatch.setattr(orch.os, "access", lambda p, m: True)
+
+        spec = CliSpec(
+            nome="Opencode",
+            binario="opencode",
+            args_antes=("run",),
+            caminho_candidato="~/.npm-global/bin/opencode",
+        )
+        saida = orch.executar_cli(spec, "PROMPT")
+
+        assert saida == "x = 2"
+        assert vistos["comando"][0].endswith("/.npm-global/bin/opencode")

@@ -1,0 +1,20 @@
+[Unit]
+Description=Omega Drakon — Orquestrador de CLIs (fila pedido.txt -> codigo_gerado.py)
+# O canal completo é od-core (rotas /admin/dev/pedido) + este monitor.
+After=od-core.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/alex/OmegaDrakon
+# .env carrega GEMINI_API_KEY/GROQ_API_KEY (o orquestrador também faz
+# load_dotenv; o EnvironmentFile cobre o caso de restart do user session).
+EnvironmentFile=/home/alex/OmegaDrakon/.env
+# Cascata de fallback precisa achar freebuff (/usr/local/bin), opencode e
+# kilo (~/.npm-global/bin — prefix de usuário, fora do PATH default).
+Environment=PATH=/home/alex/OmegaDrakon/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python /home/alex/OmegaDrakon/orquestrador.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

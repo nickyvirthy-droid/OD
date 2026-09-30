@@ -48,6 +48,14 @@ CLI_TIMEOUT_S: int = 600
 #: Chaves carregadas do .env que são repassadas ao ambiente dos subprocessos.
 ENV_KEYS: tuple[str, ...] = ("GEMINI_API_KEY", "GROQ_API_KEY")
 
+#: Modelo grátis do provedor opencode (o default 'build' usa OpenAI e morre
+#: sem créditos — 'credit_balance_exhausted'; o provedor opencode/* é free).
+OPENCODE_MODELO: str = "opencode/nemotron-3-ultra-free"
+
+#: Modelo grátis do provedor kilo (gemini default exige chave/quota; os
+#: modelos groq estouram o TPM 8000 do tier free com o prompt do sistema).
+KILO_MODELO: str = "kilo/inclusionai/ling-3.0-flash-sante:free"
+
 #: Reforço de sistema embutido no prompt blindado (sem markdown, sem cercas).
 INSTRUCAO_BLINDADA: str = (
     "Você é um gerador de código. Responda APENAS com o conteúdo do arquivo "
@@ -73,17 +81,58 @@ class CliSpec:
     nome: str
     #: Executável procurado no PATH.
     binario: str
-    #: Argumentos fixos ANTES do prompt (ex: ['ask']).
+    #: Argumentos fixos ANTES do prompt (ex: ['run', '-m', 'modelo']).
     args_antes: tuple[str, ...]
     #: Argumentos fixos DEPOIS do prompt (ex: ['--auto']).
     args_depois: tuple[str, ...] = ()
+    #: Caminho alternativo quando o binário NÃO está no PATH do serviço
+    #: (instalação com prefix de usuário, fora do PATH default).
+    caminho_candidato: str = ""
+
+    def comando_base(self) -> list[str]:
+        """Executável resolvido: PATH primeiro, candidato depois.
+
+        Expande '~' do caminho_candidato; devolve o binário do PATH quando
+        existir, senão o candidato se existir, senão o binário (para o erro
+        de execução padrão ser o mesmo de antes).
+        """
+        if shutil.which(self.binario):
+            return [self.binario]
+        if self.caminho_candidato:
+            candidato = Path(self.caminho_candidato).expanduser()
+            if candidato.is_file() and os.access(candidato, os.X_OK):
+                return [str(candidato)]
+        return [self.binario]
 
 
 #: Cascata oficial de fallback — a ordem É a política (Freebuff primeiro).
 CLIS: tuple[CliSpec, ...] = (
-    CliSpec(nome="Freebuff", binario="freebuff", args_antes=("ask",)),
-    CliSpec(nome="OpenCode", binario="opencode", args_antes=("run",)),
-    CliSpec(nome="Kilo", binario="kilo", args_antes=("run",), args_depois=("--auto",)),
+    # Freebuff: wrapper Node sem subcomando de prompt não-interativo no
+    # PATH público (0.2.1 aceita só 'login'); o binário real
+    # (~/.config/manicode/freebuff) aceita PROMPT posicional direto.
+    CliSpec(
+        nome="Freebuff",
+        binario="freebuff",
+        args_antes=(),
+        caminho_candidato="~/.config/manicode/freebuff",
+    ),
+    # OpenCode: 'run PROMPT' — modelo grátis por padrão (o default 'build'
+    # usa OpenAI e morre sem créditos; o provedor opencode/* é free).
+    CliSpec(
+        nome="OpenCode",
+        binario="opencode",
+        args_antes=("run", "-m", OPENCODE_MODELO),
+        caminho_candidato="~/.npm-global/bin/opencode",
+    ),
+    # Kilo: 'run PROMPT --auto --pure' — modelo free do provedor kilo
+    # (gemini default exige chave/quota; groq default estoura o TPM).
+    CliSpec(
+        nome="Kilo",
+        binario="kilo",
+        args_antes=("run", "-m", KILO_MODELO, "--pure"),
+        args_depois=("--auto",),
+        caminho_candidato="~/.npm-global/bin/kilo",
+    ),
 )
 
 
@@ -163,11 +212,12 @@ def executar_cli(spec: CliSpec, prompt: str, timeout_s: int = CLI_TIMEOUT_S) -> 
     (ex: falta de créditos), timeout ou saída vazia. O stderr é capturado para
     o log — nunca engolido.
     """
-    if shutil.which(spec.binario) is None:
+    base = spec.comando_base()
+    if base == [spec.binario] and shutil.which(spec.binario) is None:
         log.info("%s indisponível (binário '%s' não encontrado)", spec.nome, spec.binario)
         return None
 
-    comando: list[str] = [spec.binario, *spec.args_antes, prompt, *spec.args_depois]
+    comando: list[str] = [*base, *spec.args_antes, prompt, *spec.args_depois]
     try:
         resultado = subprocess.run(  # noqa: S603 — comando fixo da cascata oficial
             comando,
