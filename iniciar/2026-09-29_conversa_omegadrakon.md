@@ -564,3 +564,64 @@ dashboard e admin".
 CONCLUÍDO E NO AR — pendente: instalar o APK 1.10.0+2024 no celular
 (auto-atualização, 2024 > 2023) e conferir a aba Painel (admin vê a
 seção Admin; papel user não vê).
+
+---
+
+## §16 — Verificação geral pós-v1.10.0 (~21:09–21:15)
+
+Pedido: "Rodar a verificação geral do sistema (od-core, supervision,
+Funnel, banco, journal)".
+
+### Serviços e portas
+
+- od-core **active** PID 986662 (v1.10.0), NRestarts=0, desde
+  14:29:26; od-llm active; omega-drakon (bot) active;
+  od-control-bridge (system) active.
+- Portas no ar: 8000 (REST), 8001 (WS), 1883 (MQTT), 5432 (Postgres),
+  8765 (control-bridge).
+- Git: HEAD `5ae8bee` == origin/master; árvore limpa (só os 4
+  snapshots de backup untracked, já conhecidos).
+
+### API e saúde
+
+- `/health` com chave → 200, **9/9 checks up** (orchestrator, llm
+  gemma-local, audit, metrics, database 5 tabelas, homeassistant
+  alcançável, mqtt, loops, perception CPU 4% · mem 27% · disco 28%);
+  sem chave → 401 (auth_all correto).
+- `/supervision` → up, restarts 0, degraded [].
+- `/capabilities` → 1.10.0, **63 actions**.
+- `/app/version` → {1.10.0, code 2024, sha256 c1b6fe56…} — hash
+  anunciado == binário de site/ conferido localmente.
+
+### Funnel (prova de fora pela URL pública)
+
+- `tailscale funnel status`: Funnel on, `/` → 127.0.0.1:8000 e `/ws`
+  → 127.0.0.1:8001.
+- `/health` → 401 em 0,035s · `/ws` → 426 em 0,034s ·
+  `/app/version` → 200 com {1.10.0, 2024}.
+
+### Banco (Postgres, leitura via pg8000)
+
+- users 2 · sessions 30 (27 válidas) · conversation_messages **22**
+  (crescimento normal pós-zerada: uso do dono + provas) · llm_cache
+  50 · telegram_links 0.
+
+### Cache LLM (dry-run da poda)
+
+- POST /admin/cache/prune dry_run → varredura **0 candidatas** (50
+  entradas, todas respostas reais — nota de método: o campo
+  total_varrido conta só as CANDIDATAS de falha, não a tabela; 0 =
+  cache 100% saudável). Nada removido.
+
+### Journal
+
+- Desde o restart 14:29:26: **0 Traceback/ERROR/CRITICAL**. Apenas
+  [NICKY][WARN] "Transporte indisponível" (3x, transiente),
+  [NICKY][INFO] de presença facial 18:11 e eventos do bus — nada
+  real.
+
+### Estado
+
+DIA RE-CONFERIDO — **SISTEMA VERDE**. v1.10.0 no ar; nada reiniciado,
+nada alterado (só leitura). Pendências intactas: APK 1.10.0+2024 no
+celular + análise de coerência (§14) aguardando conversas novas.
