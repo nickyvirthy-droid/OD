@@ -389,3 +389,66 @@ validação → teste do teste → bump → APK → deploy.
 instalar o APK 1.12.0+2028 no celular (auto-atualização, 2028 > 2027) e
 provar "clima em presidente venceslau" pelo chat/app. Pendência do
 sistema: nenhuma desta entrega.
+
+## 12. v1.13.0 — Casa de limitações + canal de ideias: o sistema percebe o que não sabe (~16:4x–19:5x)
+
+**Pedido do dono:** o sistema não sabia responder dólar/temperatura de
+outra cidade e não PERCEBEU a própria limitação — a action só nasceu
+porque o agente criou na mão, e ele NÃO quer isso. Além disso, o txt.txt
+viraria canal de interação (ideias de melhoria), com entrada no painel
+admin e paridade total no app (o app deve refletir o site).
+
+**Decisões (via ask_user):** (1) separar em 2 arquivos — `txt.txt` fica
+100% do dono (ideias); o sistema auto-registra limitações em
+`limitacoes.txt`, com seção própria no painel; (2) zerar txt.txt com
+snapshot em backups/; (3) app com paridade total: pedidos + ideias +
+limitações (escrever/ler/limpar).
+
+**Entregado:**
+- `core/limitacoes.py` (NOVO): `registrar_limitacao(motivo, pergunta)`
+  com teto 128 KB (poda por blocos `\n\n`), dedup 6h, append atômico,
+  defesa TOTAL (nunca propaga exceção). **Bug real corrigido:** separador
+  era 1 `\n` — leitura juntava entradas e o teto nunca podava.
+- 3 hooks no orchestrator: fallback honesto esgotado (`_resolve_refusal`)
+  e 2 caminhos de action degradada (stream + REST).
+- 5 rotas admin: GET/PUT/DELETE `/admin/ideias` (txt.txt, 20 KB, escrita
+  atômica tmp+rename) + GET/DELETE `/admin/limitacoes`; `do_PUT` novo no
+  handler; guarda de rotas 45 → 50.
+- Painel /admin: seções Ideias e Limitações. **Bug de escape pego pela
+  guarda node --check:** `\n` em triple-quoted Python é escape real — JS
+  precisava `\\n`.
+- App: `od_api.dart` +8 métodos; dashboard com cards Pedido de
+  desenvolvimento / Ideias / Limitações (paridade total com o site).
+- Snapshot do txt.txt (dump roteador TP-Link) em
+  `backups/txt-pre-canal-ideias-20260930.txt` (sha256 e3c7305c…) e zerado.
+
+**Teste do teste — 4/4 mutações bit-exata:** M1 dedup `if False` → 2
+falhas; M2 defesa `raise` → 1 falha — 1ª rodada SOBREVIVEU por falta de
+teste; criado TestDefesaDoPipeline (monkeypatch `_append_atomico` com
+OSError), mutação re-detectada; M3 teto `while False` → 1; M4 hook
+desligado no orchestrator → 1.
+
+**Evidência:** pytest tests/ → **2097 passed, 16 skipped** (+14
+test_limitacoes, +10 test_api); flutter analyze **0 issues**; flutter test
+**125 passed, 2 skipped** (+11 dart). APK 1.13.0+2029 publicado em site/
+(OmegaDrakon.apk armv7 + arm64; manifest 1.13.0 UTF-16LE ✓, versionCode
+2029 ✓). Guardas de versão: 143 passed.
+
+**Prova viva no ar** (restart od-core): /app/version 1.13.0/2029 com
+sha256 965a6f4a… == site/ · /capabilities 1.13.0 · 64 actions · /health
+9/9 checks up · GET /admin/limitacoes com 13 entradas reais (o sistema
+já se auto-registrou: action_degradada:network_hosts, weather_city,
+fallback_honesto_esgotado) · PUT/GET/DELETE /admin/ideias ok no ar
+(1ª tentativa com campo errado `texto` → 400 conteudo_obrigatorio;
+contrato correto é `conteudo`) · journal 0 Traceback/ERROR. Reparo na
+mão: entradas antigas gravadas antes do fix do separador estavam coladas
+(1º bloco continha 5) — re-splitadas por `\n(?=## \[)`.
+
+**Commit:** `0cd74a2` feat(api,admin): canal de ideias do dono + casa de
+limitações — o sistema percebe o que não sabe (v1.13.0) — 15 arquivos,
++1478/−10, push 32aa7ee..0cd74a2.
+
+**Estado: CONCLUÍDO, PUBLICADO E NO AR — v1.13.0.** Pendências do dono:
+instalar o APK 1.13.0+2029 (auto-atualização, 2029 > 2028) e usar o canal
+de ideias pelo painel /admin (ou pelo app). Pendência do sistema: nenhuma.
+
