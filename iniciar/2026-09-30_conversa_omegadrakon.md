@@ -100,3 +100,51 @@ descendentes e as existentes permanecem intactas).
 - Pendências do dono INTACTAS (APK 1.10.1+2025 no celular, prova externa,
   análise de coerência pós-zerada) + 2 achados de infra para decisão
   (cobertura/CI).
+
+---
+
+## 6. Retomada: "leia iniciar" (~12:2x)
+
+Pedido: "leia iniciar". Lidos `iniciar/README.md`, `iniciar/RULES.md`,
+`iniciar/session.json` e esta transcrição.
+
+- Estado herdado: HEAD 79a20f1 == origin/master (orquestrador de CLIs);
+  v1.10.1 NO AR.
+- **Lote órfão encontrado:** 7 arquivos (+472/−9, mtimes 04:57–04:59 de
+  30/09 — DEPOIS desta transcrição) — **v1.11.0 CANAL DE DESENVOLVIMENTO**:
+  3 rotas `/admin/dev/pedido` (POST injeta no `pedido.txt` com escrita
+  atômica e modo acumular; GET estado da fila + detecção do monitor por
+  `/proc`; DELETE esvazia) + seção nova no painel `/admin` + bump completo
+  (pubspec 1.11.0+2026, `_APP_VERSION_CODE=2026`, .env, capabilities,
+  site 2x, CHANGELOG, README_VERSAO) + 10 testes novos
+  (`TestAdminDevPedido`, guarda de rotas 42→45).
+- Validação: TestAdminDevPedido 10/10 · guardas 26 passed · **suíte
+  completa 2050 passed, 16 skipped** (66s).
+- **Lacuna:** APK de `site/` ainda é **1.10.1+2025** (aapt2; mtimes 29/09
+  22:18) — o lote anunciou 1.11.0+2026 sem rebuild/publicar o APK. Pelo
+  precedente 4384e5b, rebuild é obrigatório ANTES de deploy/prova viva.
+- Sessão registrada em `session.json`
+  (§`retomada_2026_09_30_lote_dev_channel`). Dono escolheu: **concluir o
+  fluxo**.
+
+### Conclusão do fluxo (~12:3x)
+
+1. **APKs rebuildados** (backup dos anteriores em
+   `/tmp/apk-v1.10.1+2025-*.bak`): full 53.168.295 B (sha256
+   `a0ced701…`) · arm64 18.916.050 B (sha256 `8425f219…`) — aapt2
+   versionCode='2026' versionName='1.11.0' nos dois; publicados em
+   `site/`.
+2. **Commit db74fa2** (7 arquivos +472/−9) e push — HEAD ==
+   origin/master (regra 7.1).
+3. **Deploy IMPLANTADO** — restart 12:34, PID 1097167, NRestarts=0.
+4. **Prova viva 7/7**: (1) /health 200 · /app/version {1.11.0, code 2026,
+   sha256 == binário}; (2) /capabilities 1.11.0; (3) WS 426 · supervision
+   up restarts 0; (4) GET /admin/dev/pedido fila vazia → ok;
+   (5) POST injeta → 60 bytes no disco, preview confere; (6) DELETE → 0
+   bytes · POST sem credencial → 401 · painel /admin com a seção nova;
+   (7) prova de fora pelo Funnel: /health 401 · /ws 426 · /app/version
+   code 2026. Journal 0 Traceback/ERROR/CRIT.
+
+**Estado: CONCLUÍDO E NO AR — v1.11.0.** Pendências: auto-atualização do
+celular (2026 > 2025); decisão do dono sobre subir o `orquestrador.py`
+como serviço (systemd --user) para o canal funcionar fim a fim.

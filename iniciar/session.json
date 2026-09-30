@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-30T04:25:00-03:00",
+  "updated_at": "2026-09-30T12:27:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -853,11 +853,23 @@
     "estado": "EXECUÇÃO CONCLUÍDA — monitor NÃO deixado rodando (mutação de estado externo exige pedido); pendências do dono intactas (APK 1.10.1+2025, prova externa, análise pós-zerada) + 2 achados de infra para decisão.",
     "transcricao": "iniciar/2026-09-30_conversa_omegadrakon.md"
   },
+  "retomada_2026_09_30_lote_dev_channel": {
+    "pedido": "Dono: 'leia iniciar' (~12:2x de 30/09).",
+    "verificacao": "HEAD 79a20f1 == origin/master (orquestrador de CLIs commitado na sessão de 03:3x–04:2x); working tree com LOTE ÓRFÃO de 7 arquivos (+472/−9, mtimes 04:57–04:59 de 30/09 — DEPOIS da transcrição de 04:2x): CANAL DE DESENVOLVIMENTO v1.11.0 — 3 rotas /admin/dev/pedido (POST injeta com escrita atômica tmp+rename + acumular; GET estado da fila + monitor por varredura de /proc; DELETE esvazia), seção nova no painel /admin (textarea + pill do monitor + preview), bump completo (pubspec 1.11.0+2026, _APP_VERSION_CODE=2026, .env 1.11.0, capabilities, site 2x, CHANGELOG [1.11.0], README_VERSAO §1.11.0) e +10 testes (TestAdminDevPedido) com guarda de rotas 42→45.",
+    "validacao": "TestAdminDevPedido 10/10; guardas de versão/painel 26 passed; SUÍTE COMPLETA 2050 passed, 16 skipped (66s) — código e bump coerentes.",
+    "lacuna_encontrada": "APK de site/ AINDA É 1.10.1+2025 (aapt2, mtimes 29/09 22:18) — o bump do lote anunciou 1.11.0+2026 mas o APK NÃO foi rebuildado nem publicado. A guarda de coerência (_APP_VERSION_CODE == sha256 do binário) exige rebuild ANTES de qualquer deploy/prova viva (precedente 4384e5b).",
+    "desdobramento": "Dono escolheu 'Concluir o fluxo': APKs rebuildados (full 53168295 B sha256 a0ced701…, arm64 18916050 B sha256 8425f219…; aapt2 versionCode='2026' versionName='1.11.0'; anteriores em /tmp/apk-v1.10.1+2025-*.bak); commit db74fa2 (7 arquivos +472/−9) e push (HEAD==origin/master); deploy IMPLANTADO — restart 12:34, PID 1097167, NRestarts=0.",
+    "prova_viva_7_7": {"1": "/health 200 com chave; /app/version {1.11.0, code 2026, sha256 a0ced701… == binário de site/}", "2": "/capabilities 1.11.0", "3": "WS 426; supervision up restarts 0", "4": "GET /admin/dev/pedido (fila vazia) → ok/monitor_ativo=false", "5": "POST injeta → bytes_fila 60; pedido.txt no disco confere; GET mostra preview", "6": "DELETE esvazia → fila 0 bytes; POST sem credencial → 401; painel /admin com a seção nova (8 ocorrências)", "7": "prova de fora pelo Funnel: /health 401 · /ws 426 · /app/version code 2026"},
+    "journal": "0 Traceback/ERROR/CRIT desde o restart.",
+    "estado": "CONCLUÍDO E NO AR — v1.11.0 implantada, provada e publicada. Pendência do dono: auto-atualização do celular (2026 > 2025) e decidir se o monitor (orquestrador.py) sobe como serviço (systemd --user) para o canal funcionar fim a fim.",
+    "transcricao": "iniciar/2026-09-30_conversa_omegadrakon.md (§6)"
+  },
   "last_turn": {
     "date": "2026-09-30",
-    "retomada": "03:3x–04:2x de 30/09 — retomada tripla (iniciar → docs → instrucoes_projeto.txt) e execução do instruções autorizada pelo dono: orquestrador de fallback de CLIs criado, testado (25 novos) e registrado; suíte 2040/16. v1.10.1 segue NO AR (PID 1026393) — nada do sistema foi alterado ou reiniciado.",
+    "retomada": "12:2x de 30/09 — 'leia iniciar' encontrou lote órfão v1.11.0 (canal de desenvolvimento), dono autorizou concluir: APKs rebuildados (2026), commit db74fa2, deploy PID 1097167, prova viva 7/7. v1.11.0 NO AR.",
     "action": "Orquestrador de CLIs executado e validado (25 testes novos, suíte 2040/16, 4 mutações); registrado no CHANGELOG (sem bump) + §1-5 da transcrição de 30/09.",
-    "next": "Decisão do dono: (a) rodar o monitor como serviço (systemd --user)? (b) fechar os 2 achados de infra (gate de cobertura 89.44% no HEAD e CI quebrado por acoplamento ao .env)? Pendências intactas: APK 1.10.1+2025 no celular e prova de acesso externo; análise de coerência aguarda conversas novas.",
+    "next": "Pendências: (1) dono abre o app para a auto-atualização 1.11.0+2026 (2026 > 2025); (2) decisão: monitor orquestrador.py como serviço systemd --user? (3) prova de acesso externo sem Tailscale; (4) análise de coerência pós-zerada aguarda conversas; (5) 2 achados de infra (cobertura 89.44%, CI vs .env).",
+    "pedidos_suficiente": "Se o dono pedir para concluir, seguir o fluxo padrão: rebuild APK → commit (regra 7.1) → restart (autorizado desde 23/09) → prova viva → registro.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
