@@ -14,6 +14,47 @@
 
 ---
 
+## [1.14.0] — CÂMBIO REAL: 'cotação do dólar' vem da FONTE, não da alucinação do modelo 💱 (2026-09-30)
+
+> **Política:** action nova no catálogo (64 → 65) = funcionalidade com
+> compatibilidade → MINOR (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.14.0` · app `1.14.0+2030`
+> (versionCode 2030 — auto-atualização do celular).
+
+### Adicionado (2026-09-30)
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | Prova viva da 1.13.0 (§12.1): 'quanto está a cotação do dólar hoje?' → o gemma INVENTOU 'US$ 5.20' com confiança (e a mentira entrou no cache e renascia). O gap: mentira confiante não é recusa — os hooks da 1.13.0 não pegam. Solução da casa: interceptar ANTES do modelo com dado REAL (mesma receita da weather_city) |
+| **Action `exchange_rate`** | catálogo 64 → 65 (system=17): **AwesomeAPI** (economia.awesomeapi.com.br, gratuita, sem chave, urllib stdlib); USD/EUR/GBP/ARS/JPY/CNY/CAD/AUD/CHF/BTC contra o real; bid/ask/variação %/faixa do dia; aliases da fala do dono ('dólar', 'libra', 'iene', 'bitcoin'…) + sigla solta ('usd') |
+| **Detecção de intenção** | moeda + sinal de cotação ('cotação', 'quanto está/custa/vale', 'valor', 'preço') → `exchange_rate`; 'história do dólar' e 'quantos dólares cabem numa mala' NÃO pegam (sem sinal de cotação); 'temperatura do servidor' segue cpu_temp |
+| **Formatter pt-BR** | `_brl()` com 4 casas sem zeros à direita e SEM notação científica (o `.4g` viraria '3.501e+05' para o BTC); seta 📈/📉 na variação; degradação → None (nunca LLM inventa) |
+| **Honestidade** | sem rede → `fonte_indisponivel`; moeda desconhecida → lista de opções; formatter devolve None e o pipeline degrada guiado + Casa de Limitações registra sozinho |
+
+### Corrigido
+
+- **3 bugs LATENTES de `log.warning`:** o NickyLogger não tem `.warning()`
+  (só `.warn`) — `ha_states`, `ha_state` e `weather_city` usavam `.warning`
+  no tratamento de falha de rede: o AttributeError esconderia o erro real
+  exatamente quando a rede caísse. Corrigidos os 3 + o novo código já nasce
+  com `.warn`.
+
+### Evidência
+
+```
+servidor: pytest tests/ → 2103 passed, 16 skipped
+  (+6 test_intents TestExchangeRate · guardas 64 → 65 em 4 arquivos de teste)
+Teste do teste: 4/4 mutações detectadas e revertidas bit-exata —
+  M1 detecção desligada (`if False and`) → 6 falhas;
+  M2 formatter zumbi (return "zumbi" nos 2 None do bloco) → 1 falha;
+  M3 validação de entrada morta (`moeda or "usd"`) → 1 falha;
+  M4 spec fora do catálogo → 6 falhas
+bump MINOR: .env 1.14.0 · capabilities fallback · pubspec 1.14.0+2030 ·
+  _APP_VERSION_CODE=2030 · site (2x)
+```
+
+---
+
 ## [1.13.0] — CASA DE LIMITAÇÕES + CANAL DE IDEIAS: o sistema percebe o que não sabe 🪞💡 (2026-09-30)
 
 > **Política:** canais novos de interação dono↔sistema (painel admin + API

@@ -7,6 +7,37 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.14.0] — CÂMBIO REAL: 'cotação do dólar' vem da FONTE, não da alucinação do modelo 💱 (2026-09-30)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | Prova viva da 1.13.0 (§12.1): 'quanto está a cotação do dólar hoje?' → o gemma inventou 'US$ 5.20' com confiança; mentira confiante não é recusa — nem hook pegou, e a mentira entrou no cache. Interceptação na FONTE: action de câmbio real (mesma receita da weather_city) |
+| **Action `exchange_rate`** | catálogo 64 → 65: AwesomeAPI (gratuita, sem chave); USD/EUR/GBP/ARS/JPY/CNY/CAD/AUD/CHF/BTC; bid/ask/variação/faixa do dia; aliases ('dólar', 'libra', 'bitcoin'…) + sigla ('usd') |
+| **Detecção** | moeda + sinal de cotação ('cotação', 'quanto está/custa/vale', 'valor', 'preço'); 'história do dólar' NÃO pega; sem cidade de clima envolvida |
+| **Formatter** | pt-BR (5,1844), anti-notação-científica pro BTC, seta da variação; degradado → None → degradação guiada + limitação registrada |
+| **Bônus — 3 bugs latentes** | `log.warning` (não existe) em ha_states/ha_state/weather_city dispararia AttributeError NO MEIO de uma falha de rede — corrigidos para `.warn` |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 2103 passed, 16 skipped (+6 TestExchangeRate)
+teste do teste: 4/4 mutações bit-exata
+  (M1 detecção off → 6; M2 formatter zumbi → 1; M3 validação morta → 1;
+   M4 spec fora do catálogo → 6)
+bump MINOR: .env 1.14.0 · capabilities · pubspec 1.14.0+2030 ·
+  _APP_VERSION_CODE=2030 · site 2x · CHANGELOG [1.14.0] · README §1.14.0
+```
+
+### 3. Pendências / próximos passos
+
+- Instalar o APK 1.14.0+2030 (auto-atualização, 2030 > 2029).
+- ROTACIONAR a senha do MQTT (vazou no cache podre podado na §12.1).
+- Cache podre re-podável a qualquer momento via POST /admin/cache/prune.
+
+---
+
 ## [1.13.0] — CASA DE LIMITAÇÕES + CANAL DE IDEIAS: o sistema percebe o que não sabe 🪞💡 (2026-09-30)
 
 ### 1. O que foi feito

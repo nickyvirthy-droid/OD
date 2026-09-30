@@ -54,7 +54,7 @@ from core.capabilities import OD_VERSION, capabilities_manifest
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2029  # versionCode cru do APK publicado (v1.13.0+2029)
+_APP_VERSION_CODE = 2030  # versionCode cru do APK publicado (v1.14.0+2030)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name

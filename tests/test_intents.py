@@ -162,6 +162,106 @@ class TestWeatherCity:
         assert _wmo_condition(None) == "código -1"
         assert _wmo_condition(1234).startswith("código ")
 
+class TestExchangeRate:
+    """v1.14.0 (§12.1 de 30/09): cotação de moeda → exchange_rate
+    (AwesomeAPI, dado REAL) — o LLM inventava 'US$ 5.20' e a mentira
+    entrava no cache e renascia. A action intercepta ANTES do modelo.
+    """
+
+    @pytest.mark.parametrize(
+        "text,moeda",
+        [
+            ("quanto está a cotação do dólar hoje?", "dólar"),
+            ("qual o valor do euro", "euro"),
+            ("quanto custa o bitcoin", "bitcoin"),
+            ("preço da libra", "libra"),
+            ("quanto vale o iene", "iene"),
+            ("cotação do USD", "usd"),  # group(1) é lower — a action normaliza
+        ],
+    )
+    def test_cambio_detecta(self, text, moeda):
+        resultado = detect_action_intent(text)
+        assert resultado is not None
+        action, params = resultado
+        assert action == "exchange_rate"
+        assert params == {"moeda": moeda}
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "clima hoje",
+            "qual a temperatura do servidor",
+            "quanto tempo demora o build",
+            "me conta sobre a história do dólar",
+            "quantos dólares cabem numa mala",
+        ],
+    )
+    def test_nao_confunde_com_clima_sistema_ou_historia(self, text):
+        resultado = detect_action_intent(text)
+        action = resultado[0] if resultado else None
+        assert action != "exchange_rate"
+
+    def test_moeda_vazia_degrada_sem_mentir(self):
+        """Sem moeda → erro claro (nada de dado inventado)."""
+        from tools.actions.actions import exchange_rate
+
+        resultado = exchange_rate("")
+        assert resultado["ok"] is False
+        assert resultado["error"] == "moeda_vazia"
+
+    def test_moeda_desconhecida_degrada_sem_mentir(self):
+        from tools.actions.actions import exchange_rate
+
+        resultado = exchange_rate("franco constellation")
+        assert resultado["ok"] is False
+        assert resultado["error"] == "moeda_desconhecida"
+
+    def test_formatter_exchange_rate(self):
+        resposta = format_intent_result(
+            "exchange_rate",
+            {
+                "ok": True,
+                "codigo": "USD",
+                "moeda": "dólar americano",
+                "bid": 5.184,
+                "ask": 5.1844,
+                "variacao_pct": -0.367093,
+                "maximo": 5.2138,
+                "minimo": 5.1633,
+            },
+        )
+        assert "Dólar americano" in resposta
+        assert "R$ 5,184" in resposta
+        assert "Variação hoje: -0.37%" in resposta
+        assert "AwesomeAPI" in resposta
+
+    def test_formatter_btc_sem_notacao_cientifica(self):
+        """.4g viraria '3.501e+05' para o BTC — formatação pt-BR segura."""
+        resposta = format_intent_result(
+            "exchange_rate",
+            {
+                "ok": True,
+                "codigo": "BTC",
+                "moeda": "bitcoin",
+                "bid": 350123.45,
+                "variacao_pct": 2.51,
+            },
+        )
+        assert "R$ 350123,45" in resposta
+        assert "e+05" not in resposta
+
+    def test_formatter_exchange_rate_degradada_cai_ao_llm(self):
+        """Action degradada (error/sem bid) → None: o pipeline cai para o
+        LLM/degradação guiada — NUNCA devolve texto quebrado."""
+        for data in (
+            {"ok": False, "error": "fonte_indisponivel"},
+            {"ok": False, "error": "moeda_desconhecida"},
+            {"ok": False, "error": "moeda_vazia"},
+            {"ok": True},  # sem bid (contrato quebrado)
+        ):
+            assert format_intent_result("exchange_rate", data) is None, data
+
+
 class TestDetectActionIntent:
     """Mapeamento PT-BR de perguntas operacionais → actions de leitura."""
 

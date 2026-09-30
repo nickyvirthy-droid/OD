@@ -315,7 +315,7 @@ def _ha_states() -> Optional[list[Any]]:
     try:
         return client.list_states()
     except Exception as exc:  # HAError ou rede — degrada, nunca estoura
-        log.warning("ha action: falha ao listar entidades", error=str(exc))
+        log.warn("ha action: falha ao listar entidades", error=str(exc))
         return None
 
 
@@ -326,8 +326,8 @@ def _ha_state(entity_id: str) -> Optional[Any]:
     try:
         return client.get_state(entity_id)
     except Exception as exc:
-        log.warning("ha action: falha ao ler entidade", entity_id=entity_id,
-                    error=str(exc))
+        log.warn("ha action: falha ao ler entidade", entity_id=entity_id,
+                 error=str(exc))
         return None
 
 
@@ -379,7 +379,7 @@ def weather_city(city: str) -> dict[str, Any]:
             with urllib.request.urlopen(url, timeout=timeout) as resp:
                 return _json.loads(resp.read().decode("utf-8"))
         except Exception as exc:
-            log.warning("weather_city: falha na chamada externa", url=url,
+            log.warn("weather_city: falha na chamada externa", url=url,
                         error=str(exc))
             return None
 
@@ -428,6 +428,97 @@ def weather_city(city: str) -> dict[str, Any]:
         "condition": _wmo_condition(raw_code),
         "source": "Open-Meteo",
         "observed_at": cur.get("time"),
+    }
+
+
+# Par de moedas → descrição pt-BR (cotação SEMPRE contra o real — a casa
+# fala português; o dono pergunta 'quanto está o dólar', não 'USD/BRL').
+_MOEDAS_PT = {
+    "USD": "dólar americano",
+    "EUR": "euro",
+    "GBP": "libra esterlina",
+    "ARS": "peso argentino",
+    "JPY": "iene japonês",
+    "CNY": "yuan chinês",
+    "CAD": "dólar canadense",
+    "AUD": "dólar australiano",
+    "CHF": "franco suíço",
+    "BTC": "bitcoin",
+}
+
+# Alias da fala do dono → código da moeda ('dólar'/'dolar' → USD).
+_MOEDAS_ALIAS = {
+    "dolar": "USD", "dólar": "USD", "dolares": "USD", "dólares": "USD",
+    "dollar": "USD", "usd": "USD",
+    "euro": "EUR", "eur": "EUR", "euros": "EUR",
+    "libra": "GBP", "libras": "GBP", "gbp": "GBP",
+    "peso": "ARS", "pesos": "ARS", "ars": "ARS",
+    "iene": "JPY", "ienes": "JPY", "jpy": "JPY", "yen": "JPY",
+    "yuan": "CNY", "cny": "CNY", "renminbi": "CNY",
+    "dolar canadense": "CAD", "cad": "CAD",
+    "dolar australiano": "AUD", "aud": "AUD",
+    "franco suico": "CHF", "franco suíço": "CHF", "chf": "CHF",
+    "bitcoin": "BTC", "btc": "BTC",
+}
+
+
+def exchange_rate(moeda: str) -> dict[str, Any]:
+    """Cotação REAL de moeda contra o real, via AwesomeAPI (sem chave).
+
+    Motivação (2026-09-30, §12.1): 'quanto está a cotação do dólar hoje?'
+    era respondida com valor INVENTADO pelo LLM ('US$ 5.20' — e a mentira
+    entrou no cache e renascia). A action intercepta a pergunta ANTES do
+    modelo: dado real da fonte ou erro honesto (nunca inventa).
+    """
+    import json
+    import urllib.parse
+    import urllib.request
+
+    bruto = (moeda or "").strip().lower()
+    if not bruto:
+        return {"ok": False, "error": "moeda_vazia",
+                "message": "Informe a moeda: 'cotação do dólar', 'euro'."}
+
+    codigo = _MOEDAS_ALIAS.get(bruto)
+    if codigo is None:
+        # Última chance: sigla de 3 letras direto (ex: 'usd-brl').
+        sigla = bruto.replace("-brl", "").replace("brl", "").strip()
+        if len(sigla) == 3 and sigla.isalpha():
+            codigo = sigla.upper()
+    if codigo is None:
+        return {"ok": False, "error": "moeda_desconhecida",
+                "message": f"Não conheço a moeda '{moeda}'. Tente: "
+                           "dólar, euro, libra, peso, iene, yuan, bitcoin."}
+
+    url = (
+        "https://economia.awesomeapi.com.br/json/last/"
+        + urllib.parse.quote(f"{codigo}-BRL")
+    )
+    try:
+        with urllib.request.urlopen(url, timeout=8.0) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        log.warn("exchange_rate: falha na chamada externa", url=url,
+                    error=str(exc))
+        return {"ok": False, "error": "fonte_indisponivel",
+                "message": "Serviço de câmbio indisponível agora — "
+                           "não invento o dado."}
+
+    entrada = payload.get(f"{codigo}BRL")
+    if not isinstance(entrada, dict) or not entrada.get("bid"):
+        return {"ok": False, "error": "par_indisponivel",
+                "message": f"Sem cotação de {codigo} contra o real agora."}
+    return {
+        "ok": True,
+        "codigo": codigo,
+        "moeda": _MOEDAS_PT.get(codigo, codigo),
+        "bid": float(entrada["bid"]),
+        "ask": float(entrada["ask"]) if entrada.get("ask") else None,
+        "variacao_pct": float(entrada["pctChange"]) if entrada.get("pctChange") else None,
+        "maximo": float(entrada["high"]) if entrada.get("high") else None,
+        "minimo": float(entrada["low"]) if entrada.get("low") else None,
+        "timestamp": int(entrada["timestamp"]) if entrada.get("timestamp") else None,
+        "source": "AwesomeAPI",
     }
 
 
@@ -1553,6 +1644,8 @@ CATALOG: list[dict[str, Any]] = [
     _spec("ha_weather", "iot", "Clima real da região da casa (Home Assistant)", ha_weather),
     _spec("weather_city", "iot", "Clima real de uma cidade informada (Open-Meteo, sem chave)", weather_city,
           {"required": ["city"], "properties": {"city": S}}),
+    _spec("exchange_rate", "system", "Cotação real de moeda contra o real (AwesomeAPI, sem chave)", exchange_rate,
+          {"required": ["moeda"], "properties": {"moeda": S}}),
     _spec("ha_lights", "iot", "Estado das luzes e interruptores (Home Assistant)", ha_lights),
     _spec("ha_summary", "iot", "Raio-X do lar: clima, luzes, pessoas, bateria, rede", ha_summary),
     _spec("ha_device_control", "iot", "Liga/desliga UMA luz ou tomada específica (dono, com confirmação)", ha_device_control,

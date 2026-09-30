@@ -159,6 +159,21 @@ def _detect_operational(text: str) -> Optional[str]:
         r"(abertas?|escutando|listening|em\s+uso|livres?|ocupadas?)", low
     ):
         return "listening_ports"
+    # CÂMBIO (v1.14.0, §12.1): cotação de moeda é dado REAL de fonte
+    # externa — o LLM inventava 'US$ 5.20' e a mentira entrava no cache.
+    # A action intercepta ANTES do modelo: AwesomeAPI (sem chave) ou erro
+    # honesto. Casa moeda + sinal de cotação ('cotação', 'quanto está',
+    # 'valor', 'preço'); sigla USD/EUR/BTC direta também.
+    _moeda = re.search(
+        r"\b(d[oó]lar|dolar|euro|libra|peso|iene|yen|yuan|franco\s+su[ií]ço|"
+        r"bitcoin|btc|usd|eur|gbp|ars|jpy|cny|cad|aud|chf)\b",
+        low,
+    )
+    if _moeda and re.search(
+        r"(cota[çc][aã]o|cota\s|quanto\s+(est[áa]|custa|vale)|valor|pre[çc]o)",
+        low,
+    ):
+        return "exchange_rate", {"moeda": _moeda.group(1)}
     # processos
     if re.search(r"(quantos|lista|ver).{0,12}processos", low):
         return "process_list"
@@ -650,6 +665,34 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
             lines.append("  • " + " · ".join(extra))
         lines.append("  • Fonte: Open-Meteo — leitura real de agora.")
         return "\n".join(lines)
+
+    if action == "exchange_rate":
+        if data.get("error"):
+            return None  # degradação guiada — nunca o LLM inventa cotação
+        bid = data.get("bid")
+        if bid is None:
+            return None
+
+        def _brl(v: float) -> str:
+            # pt-BR: 5.1844 → '5,1844'; 350123.45 → '350123,45' — 4 casas
+            # (padrão do câmbio) sem zeros à direita, SEM notação científica
+            # (o BTC derrubaria o .4g).
+            return f"{v:.4f}".rstrip("0").rstrip(".").replace(".", ",")
+
+        nome = data.get("moeda") or data.get("codigo") or "moeda"
+        linhas = [f"💱 {nome.capitalize()}: R$ {_brl(bid)}"]
+        ask = data.get("ask")
+        if ask is not None:
+            linhas[0] += f" (venda R$ {_brl(ask)})"
+        var = data.get("variacao_pct")
+        if var is not None:
+            seta = "📈" if var >= 0 else "📉"
+            linhas.append(f"  • {seta} Variação hoje: {var:+.2f}%")
+        mx, mn = data.get("maximo"), data.get("minimo")
+        if mx is not None and mn is not None:
+            linhas.append(f"  • Faixa do dia: R$ {_brl(mn)} – R$ {_brl(mx)}")
+        linhas.append("  • Fonte: AwesomeAPI — cotação real de agora.")
+        return "\n".join(linhas)
 
     if action == "ha_device_control":
         if data.get("error") == "permissao_negada":
