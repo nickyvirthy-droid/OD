@@ -452,3 +452,43 @@ limitações — o sistema percebe o que não sabe (v1.13.0) — 15 arquivos,
 instalar o APK 1.13.0+2029 (auto-atualização, 2029 > 2028) e usar o canal
 de ideias pelo painel /admin (ou pelo app). Pendência do sistema: nenhuma.
 
+### §12.1 — Prova viva do dono: teste da limitação auto-registrada (~20:1x–20:3x)
+
+**Pedido:** testar pergunta que o sistema não sabe (cotação do dólar) e
+conferir o auto-registro no painel. Resultado em 3 atos:
+
+1. **Cache podre interceptou a pergunta.** 'quanto está a cotação do
+   dólar hoje?' → `route: cache` com alucinação antiga pré-1.11.1: 'US$
+   5.20 por real' (inventada). Auditoria do `llm_cache` (Postgres, 57
+   entradas): **18 podres** — mentiras (dólar, 'temperatura em PV é
+   23°C', 'clima em campo grande', religião mais antiga=Budismo),
+   **'Estou utilizando a OpenAI GPT-4'** (a mentira que a 1.11.1
+   enterrou — renascia do cache!), estado efêmero (IP/portas/memória/
+   arquivos) e **1 SEGREDO VAZADO: senha do MQTT em texto plano**
+   ('OmegaDrakon2026'). **Podadas as 18** via POST /admin/cache/prune
+   cirúrgico (removidas: 18; restaram 39 limpas). NOTA: a senha do MQTT
+   aparece no cache antigo — ROTACIONAR a senha no broker/HA.
+2. **Sem cache, o gemma alucinou de novo** ('US$ 5.20', `route: llm`,
+   confiança, sem recusa). **GAP REAL descoberto:** os 3 hooks da
+   1.13.0 pegam RECUSA esgotada e ACTION DEGRADADA — mentira confiante
+   não é recusa, passa reto e nem registra limitação. E a mentira nova
+   entrou no cache de novo (mesma chave) — precisa de nova poda ou
+   guarda anti-mentira-tempo-real.
+3. **O caminho desenhado FUNCIONA quando o pipeline falha de verdade:**
+   'qual a temperatura em atlantis sul?' (cidade inexistente) →
+   `route: fallback`, resposta honesta no ar, **limitações 13 → 15**
+   (action_degradada:weather_city + fallback_honesto_esgotado
+   registrados sozinhos, dedup 6h ativo).
+
+**Conclusão:** a casa de limitações cumpre o contrato nos casos de falha
+real; o caso dólar é uma NOVA classe (alucinação confiante de dado
+tempo-sensível) — candidata a: (a) guardian anti-mentira para temas de
+dado em tempo real (câmbio/temperatura/quote) que exija action ou recusa
+honesta; (b) action de câmbio (mesma receita da weather_city, API
+awesomeapi/open.erapi gratuita); (c) re-podar o cache quando a mentira
+renascer. **Decisão pendente do dono.**
+
+**Estado pós-teste: no ar (sem bump — nenhuma linha de código mudada;
+só poda operacional de cache).** Pendências novas: rotacionar senha do
+MQTT; decidir o rumo do gap (a)/(b)/(c).
+
