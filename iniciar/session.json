@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-29T21:16:00-03:00",
+  "updated_at": "2026-09-29T22:25:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -842,9 +842,9 @@
   },
   "last_turn": {
     "date": "2026-09-29",
-    "retomada": "21:15 — verificação geral pós-v1.10.0 rodada (§16 da transcrição): SISTEMA VERDE — od-core PID 986662 NRestarts=0, /health 9/9, supervision restarts 0, Funnel on com prova de fora (401/426/1.10.0+2024), banco users 2 · sessões 30 (27 válidas) · msgs 22 · llm_cache 50 (0 candidatas de falha), journal 0 erros. Nada reiniciado. Registrado no commit ea69c0d.",
-    "action": "v1.10.0 NO AR: painéis dashboard/admin no app (aba Painel com seção Admin gated por role), consumindo contratos já existentes (zero rota nova). Registrada no commit 4a3d282.",
-    "next": "Pendente do dono: instalar o APK 1.10.0+2024 no celular (auto-atualização 2024>2023) e conferir a aba Painel. Análise de coerência das conversas em standby até acumular conversas novas pós-zerada (protocolo §14).",
+    "retomada": "22:2x — v1.10.1 NO AR (§17): app sonda sozinho os 4 caminhos do servidor (LAN 192.168.0.250 → tailnet 100.77.67.53 → Funnel → DDNS nicky.theworkpc.com) em paralelo, com re-sondagem quando a rede troca em pleno uso. Deploy PID 1026393 NRestarts=0; prova viva 6/6 com os 4 caminhos respondendo. HEAD 536be8b == origin/master.",
+    "action": "v1.10.1 (PATCH) completa e NO AR: pickBestUrl com 4 caminhos + re-sondagem; flutter 114/2, suíte 2015/16, 4 mutações detectadas; APK 1.10.1+2025 buildado (aapt2 2025, sha256 2c6345a8…). Registrada no commit d4d04b0 + §17.",
+    "next": "Pendente do dono: abrir o app no celular para a auto-atualização 2025 > 2024 e provar o acesso EXTERNO (sem Tailscale no celular: Funnel ou DDNS). Análise de coerência das conversas em standby até acumular conversas novas pós-zerada (protocolo §14).",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
