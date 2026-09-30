@@ -148,3 +148,69 @@ Pedido: "leia iniciar". Lidos `iniciar/README.md`, `iniciar/RULES.md`,
 **Estado: CONCLUÍDO E NO AR — v1.11.0.** Pendências: auto-atualização do
 celular (2026 > 2025); decisão do dono sobre subir o `orquestrador.py`
 como serviço (systemd --user) para o canal funcionar fim a fim.
+
+---
+
+## 7. Serviço od-orchestrator — canal fim a fim (~13:0x)
+
+Pedido (follow-up do dono): subir o `orquestrador.py` como serviço
+`systemd --user` para o canal de desenvolvimento funcionar fim a fim.
+
+### Implementação
+
+- `deploy/od-orchestrator.service` (NOVO, padrão do `od-core.service`):
+  WorkingDirectory do projeto, `EnvironmentFile=.env`, PATH com
+  `~/.npm-global/bin` (opencode/kilo ficam fora do PATH default do
+  systemd), ExecStart pela `.venv`, `Restart=on-failure`/10s,
+  `WantedBy=default.target` (Linger=yes já ativo). Instalado com
+  `daemon-reload` + `enable --now`.
+
+### 3 bugs reais pegos pela 1ª prova fim a fim
+
+1. **Freebuff `ask` não existe** no wrapper público 0.2.1 (só `login`) →
+   "too many arguments". O binário real `~/.config/manicode/freebuff`
+   aceita PROMPT posicional direto.
+2. **OpenCode default `build` morre sem créditos** OpenAI
+   (`credit_balance_exhausted`). Modelo grátis
+   `opencode/nemotron-3-ultra-free` responde certo.
+3. **Kilo default gemini → quota 0** e modelos groq → TPM 8000 estourado
+   pelo prompt de sistema (`Compaction exhausted`). Modelo grátis
+   `kilo/inclusionai/ling-3.0-flash-sante:free` + `--pure` responde certo.
+
+### Correção (`orquestrador.py`)
+
+- `CliSpec` ganha `caminho_candidato` (binário fora do PATH do serviço) e
+  `comando_base()` (PATH → candidato expandido);
+- Freebuff sem `ask` (prompt posicional); `OPENCODE_MODELO`/`KILO_MODELO`
+  grátis como constantes do contrato;
+- `tests/test_orquestrador.py`: +2 testes e guarda de binário ausente
+  endurecida (M2 sobreviveu à 1ª rodada — `subprocess.run` agora é
+  proibido no teste); 27 passed no arquivo.
+
+### Teste do teste (3 mutações, todas detectadas e revertidas bit-exata)
+
+- M1 candidato removido de `comando_base()` → 2 falhas;
+- M2 guarda de indisponível removida → 1ª rodada SOBREVIVEU (teste fraco,
+  precedente de 28–30/09), teste endurecido, 2ª rodada 1 falha;
+- M3 modelo pago de volta → 1 falha.
+
+### Validação e deploy
+
+- Suíte completa: **2052 passed, 16 skipped** (67s).
+- Commit `d790e0b` (3 arquivos +156/−9) e push — HEAD == origin/master.
+- Serviço NO AR: `od-orchestrator` active **PID 1104579** NRestarts=0
+  (restart 13:12 com o fix); API vê `monitor_ativo=true` com pid.
+
+### Prova fim a fim (pós-fix)
+
+`POST /admin/dev/pedido` ("crie o arquivo prova_canal.py com uma funcao
+saudacao()...") → 95 bytes na fila → journal: `Pedido recebido` →
+`Freebuff falhou` (BUG-1, cai para OpenCode) → **`Código válido gravado
+em codigo_gerado.py (via OpenCode)`** → fila 0 bytes (anti-loop) →
+`codigo_gerado.py` executado: `saudacao()` → **"canal fim a fim ok"**.
+Arquivo da prova removido em seguida.
+
+**Estado: CONCLUÍDO E NO AR — o canal funciona FIM A FIM:** painel
+`/admin` → `POST /admin/dev/pedido` → fila → serviço → cascata
+(OpenCode → Kilo; Freebuff entra quando o wrapper público ganhar modo
+não-interativo) → `codigo_gerado.py`.

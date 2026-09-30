@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-30T12:27:00-03:00",
+  "updated_at": "2026-09-30T13:3x:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -864,12 +864,34 @@
     "estado": "CONCLUÍDO E NO AR — v1.11.0 implantada, provada e publicada. Pendência do dono: auto-atualização do celular (2026 > 2025) e decidir se o monitor (orquestrador.py) sobe como serviço (systemd --user) para o canal funcionar fim a fim.",
     "transcricao": "iniciar/2026-09-30_conversa_omegadrakon.md (§6)"
   },
+  "servico_orquestrador_2026_09_30": {
+    "pedido": "Dono clicou o follow-up: 'Subir o orquestrador.py como serviço systemd --user para o canal de desenvolvimento funcionar fim a fim' (~13:0x).",
+    "implementacao": [
+      "deploy/od-orchestrator.service (NOVO, padrão do od-core): WorkingDirectory do projeto, EnvironmentFile=.env, PATH com ~/.npm-global/bin (binários opencode/kilo fora do PATH default do systemd), ExecStart pela .venv, Restart=on-failure/10s, WantedBy=default.target (Linger=yes já ativo).",
+      "Instalação: cp para ~/.config/systemd/user/ + daemon-reload + enable --now.",
+      "orquestrador.py: CliSpec ganha caminho_candidato (fallback fora do PATH) + comando_base() (PATH → candidato); Freebuff sem 'ask' (prompt posicional direto no binário real); OPENCODE_MODELO/KILO_MODELO grátis como constantes do contrato.",
+      "tests/test_orquestrador.py: +2 testes (contratos provados no ar + candidato sem PATH); guarda de binário ausente endurecida (subprocess.run é proibido). 27 passed no arquivo."
+    ],
+    "bugs_reais_pegos_pela_prova": [
+      "BUG-1: freebuff 'ask' não existe no wrapper público 0.2.1 (só 'login') → 'too many arguments' na 1ª prova; o binário real ~/.config/manicode/freebuff aceita PROMPT posicional.",
+      "BUG-2: opencode run default 'build' usa OpenAI → 'credit_balance_exhausted'; modelo free opencode/nemotron-3-ultra-free responde correto.",
+      "BUG-3: kilo default gemini → quota free tier 0; modelos groq → TPM 8000 estourado pelo prompt de sistema (Compaction exhausted); kilo/inclusionai/ling-3.0-flash-sante:free responde correto.",
+      "Lição M2: 1ª mutação da guarda de binário ausente SOBREVIVEU (teste fraco) — endurecido com subprocess.run proibido; 2ª rodada pegou."
+    ],
+    "teste_do_teste": "3 mutações, TODAS detectadas e revertidas bit-exata (backup /tmp, sha256 conferido): M1 candidato removido → 2 falhas; M2 guarda removida → 1ª rodada sobreviveu, teste endurecido, 2ª rodada 1 falha; M3 modelo pago de volta → 1 falha.",
+    "validacao": "Suíte completa 2052 passed, 16 skipped (67s) — +2 sobre 2050.",
+    "commit": "d790e0b fix(tools): cascata de CLIs operacional no serviço — contratos provados no ar — 3 arquivos +156/−9; HEAD==origin/master.",
+    "deploy": "SERVIÇO NO AR — od-orchestrator active PID 1104579 NRestarts=0 (após restart 13:12 com o fix); monitor_ativo=true na API com monitor_pid.",
+    "prova_fim_a_fim": "POST /admin/dev/pedido ('crie o arquivo prova_canal.py com uma funcao saudacao()...') → 95 bytes na fila; journal: Pedido recebido → Freebuff falhou (BUG-1, cai para OpenCode) → 'Código válido gravado em codigo_gerado.py (via OpenCode)'; fila 0 bytes (anti-loop); codigo_gerado.py executado: saudacao() → 'canal fim a fim ok'. Prova removida em seguida.",
+    "estado": "CONCLUÍDO E NO AR — canal de desenvolvimento funciona FIM A FIM: painel /admin → POST /admin/dev/pedido → fila → serviço → cascata de CLIs → codigo_gerado.py. Freebuff segue indisponível como gerador (wrapper sem modo não-interativo) — cascata cobre com OpenCode→Kilo.",
+    "transcricao": "iniciar/2026-09-30_conversa_omegadrakon.md (§7)"
+  },
   "last_turn": {
     "date": "2026-09-30",
-    "retomada": "12:2x de 30/09 — 'leia iniciar' encontrou lote órfão v1.11.0 (canal de desenvolvimento), dono autorizou concluir: APKs rebuildados (2026), commit db74fa2, deploy PID 1097167, prova viva 7/7. v1.11.0 NO AR.",
-    "action": "Orquestrador de CLIs executado e validado (25 testes novos, suíte 2040/16, 4 mutações); registrado no CHANGELOG (sem bump) + §1-5 da transcrição de 30/09.",
-    "next": "Pendências: (1) dono abre o app para a auto-atualização 1.11.0+2026 (2026 > 2025); (2) decisão: monitor orquestrador.py como serviço systemd --user? (3) prova de acesso externo sem Tailscale; (4) análise de coerência pós-zerada aguarda conversas; (5) 2 achados de infra (cobertura 89.44%, CI vs .env).",
-    "pedidos_suficiente": "Se o dono pedir para concluir, seguir o fluxo padrão: rebuild APK → commit (regra 7.1) → restart (autorizado desde 23/09) → prova viva → registro.",
+    "retomada": "13:0x de 30/09 — serviço od-orchestrator no ar (PID 1104579); prova fim a fim pegou 3 bugs de contrato das CLIs, corrigidos (d790e0b) e reprovação OK: pedido injetado pelo painel gerou codigo_gerado.py válido via OpenCode. Canal 100% operacional.",
+    "action": "Serviço criado/instalado/ativado + 3 bugs das CLIs corrigidos com teste do teste (3 mutações) e suíte 2052/16; commit d790e0b publicado.",
+    "next": "Pendências: (1) dono abre o app para a auto-atualização 1.11.0+2026; (2) prova de acesso externo sem Tailscale; (3) análise de coerência pós-zerada aguarda conversas; (4) 2 achados de infra (cobertura 89.44%, CI vs .env); (5) opcional: Freebuff como 1ª CLI quando o wrapper público ganhar modo não-interativo.",
+    "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {
