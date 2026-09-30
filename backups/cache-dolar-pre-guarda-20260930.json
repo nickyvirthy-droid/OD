@@ -1,0 +1,15 @@
+[
+  {
+    "key": "6873cd7d896c771c44bdca8709361af4694108374f75d384e876f9c8fac5e878",
+    "prompt": "qual o valor do dólar",
+    "response": "💰 Valor do Dólar hoje em R$:\n  - US$ 1 = R$ 4,73\n  - Atualizado: 29/09 às 13h56",
+    "profile": "guardian",
+    "llm_used": "gemma-local",
+    "tokens_used": 0,
+    "use_count": 2,
+    "duplicates": 0,
+    "created_ts": 1790699600.0,
+    "last_used_ts": 1790701800.0,
+    "avg_response_time_ms": 1.0
+  }
+]

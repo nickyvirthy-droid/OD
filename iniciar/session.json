@@ -910,10 +910,18 @@
     "acoes_sugeridas": "(1) Poda da entrada dólar pré-guarda (POST /admin/cache/prune com keys, pedindo autorização) OU poda de TODAS as 55 (nenhuma pós-guarda é devaneio, mas limpar o legado previne); (2) prompt do perfil declarar 'LLM local gemma' para matar devaneios de identidade; (3) melhoria futura: action clima por cidade (hoje o HA responde o clima da casa para qualquer cidade pedida); (4) agenda: não existe — LLM deve responder 'não tenho agenda' em vez de inventar (personalidade/prompt).",
     "transcricao": "iniciar/2026-09-30_conversa_omegadrakon.md (§8)"
   },
+  "poda_dolar_2026_09_30": {
+    "pedido": "Dono: 'Podar a entrada pré-guarda do dólar do cache LLM com snapshot de rollback' (ação 1 sugerida pela análise de coerência §14).",
+    "snapshot": "backups/cache-dolar-pre-guarda-20260930.json (1 entrada completa, sha256 cf9c6c0224f5d4e…, criada em 29/09 13:33:20 — restaura\u00e7\u00e3o poss\u00edvel por INSERT se um dia precisar).",
+    "execucao": "POST /admin/cache/prune com keys=[6873cd7d896c771c…] → dry_run 1 candidata exata → poda real removidas 1. Pós provado no BANCO: total 55→54, entrada 6873cd7d… = 0. Nota de método: o dry_run com keys específicas ecoa a chave pedida como candidata ('motivo: chave informada') mesmo após removida — a prova de remo\u00e7\u00e3o \u00e9 o SELECT no banco, n\u00e3o o dry_run p\u00f3s.",
+    "efeito": "Pergunta 'qual o valor do dólar' deixa de ser servida do cache com dado inventado — próxima ida vai ao LLM (que continuará sem fonte para c\u00e2mbio; a corre\u00e7\u00e3o de fundo \u00e9 a action de clima/esternal por cidade ou a personalidade 'n\u00e3o tenho esse dado agora').",
+    "saude": "/health ok up · journal 0 erros na janela da poda · nada reiniciado.",
+    "estado": "CONCLU\u00cdDO — devaneio D3 da an\u00e1lise §14 eliminado do cache; restam as a\u00e7\u00f5es 2 (prompt declara LLM) e 3 (agenda inexistente) sugeridas."
+  },
   "last_turn": {
     "date": "2026-09-30",
-    "retomada": "15:0x de 30/09 — análise de coerência §14 sobre 15 turnos novos do alex: 11 coerentes, 3 devaneios (agenda inventada, 'GPT-4' falso, dólar pré-guarda sem fonte) e 1 inconclusivo; zero imitação de formato. Detalhes em analise_coerencia_2026_09_30.",
-    "action": "Análise registrada; podas/correções de prompt sugeridas aguardando decisão do dono.",
+    "retomada": "15:2x de 30/09 — poda do dólar pré-guarda executada (snapshot cf9c6c02…, removidas 1, cache 54, provado no banco); devaneio D3 eliminado. Restam: prompt declarar LLM real, agenda inexistente na personalidade, clima por cidade.",
+    "action": "Poda do cache com snapshot de rollback; registro no checkpoint.",
     "next": "Pendências: (1) dono abre o app para a auto-atualização 1.11.0+2026; (2) prova de acesso externo sem Tailscale; (3) análise de coerência pós-zerada (alex já tem 30 msgs novas para analisar); (4) 2 achados de infra (cobertura 89.44%, CI vs .env); (5) opcional: Freebuff como 1ª CLI quando o wrapper público ganhar modo não-interativo.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
