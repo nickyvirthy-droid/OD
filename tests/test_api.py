@@ -136,8 +136,10 @@ class TestAPIRoutes:
         dashboard/admin, 2026-09-26) + deleção de mensagem única e
         saneamento do cache (2026-09-26) + /app/version (v1.7.0,
         auto-atualização do app) + /admin/dev/pedido (v1.11.0 — canal de
-        desenvolvimento com o orquestrador de CLIs)."""
-        assert len(ROUTES) == 45
+        desenvolvimento com o orquestrador de CLIs) + /admin/ideias e
+        /admin/limitacoes (v1.13.0 — canal do dono no txt.txt + Casa de
+        Limitações)."""
+        assert len(ROUTES) == 50
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -156,6 +158,9 @@ class TestAPIRoutes:
             ("POST", "/admin/dev/pedido"),
             ("GET", "/admin/dev/pedido"),
             ("DELETE", "/admin/dev/pedido"),
+            ("GET", "/admin/ideias"), ("PUT", "/admin/ideias"),
+            ("DELETE", "/admin/ideias"),
+            ("GET", "/admin/limitacoes"), ("DELETE", "/admin/limitacoes"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/anon/message"),
@@ -184,6 +189,9 @@ class TestAPIRoutes:
             ("POST", "/admin/dev/pedido"),
             ("GET", "/admin/dev/pedido"),
             ("DELETE", "/admin/dev/pedido"),
+            ("GET", "/admin/ideias"), ("PUT", "/admin/ideias"),
+            ("DELETE", "/admin/ideias"),
+            ("GET", "/admin/limitacoes"), ("DELETE", "/admin/limitacoes"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/executa"),
@@ -2029,3 +2037,115 @@ class TestAdminDevPedido:
         assert status == 403
         assert "intruso" not in (tmp_path / "pedido.txt").read_text(encoding="utf-8")
         db.close()
+
+
+# ===========================================================================
+# Canal de ideias do dono (txt.txt) + Casa de Limitações (v1.13.0)
+# ===========================================================================
+
+class TestAdminIdeias:
+    """GET/PUT/DELETE /admin/ideias — o dono escreve ideias e pedidos de
+    informação no txt.txt pelo painel (site/app), sem SSH."""
+
+    def test_put_grava_e_get_le(self, serve, tmp_path: Path,
+                                monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "PUT", "/admin/ideias",
+            body={"conteudo": "ideia: action de cotação do dólar"},
+        )
+        assert status == 200
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/ideias")
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["ok"] is True
+        assert "cotação do dólar" in data["conteudo"]
+        assert (tmp_path / "txt.txt").read_text(encoding="utf-8") == (
+            "ideia: action de cotação do dólar"
+        )
+
+    def test_put_vazio_e_valido(self, serve, tmp_path: Path,
+                                monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "PUT", "/admin/ideias", body={"conteudo": ""},
+        )
+        assert status == 200
+        assert (tmp_path / "txt.txt").read_text(encoding="utf-8") == ""
+
+    def test_put_muito_longo_400(self, serve, tmp_path: Path,
+                                 monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "PUT", "/admin/ideias",
+            body={"conteudo": "x" * 20001},
+        )
+        assert status == 400
+
+    def test_delete_zera_idempotente(self, serve, tmp_path: Path,
+                                     monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        _request(srv.bound_port, "PUT", "/admin/ideias",
+                 body={"conteudo": "algo"})
+        for _ in range(2):  # idempotente
+            status, body, _h = _request(
+                srv.bound_port, "DELETE", "/admin/ideias")
+            assert status == 200
+        assert (tmp_path / "txt.txt").read_text(encoding="utf-8") == ""
+
+    def test_sem_admin_401(self, serve, tmp_path: Path,
+                           monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        cfg = APIConfig(port=0, api_key="segredo123", rate_limit_max=0)
+        srv = serve(make_orch(tmp_path), config=cfg)
+        status, _, _h = _request(srv.bound_port, "GET", "/admin/ideias",
+                                 api_key="errada")
+        assert status == 401
+
+
+class TestAdminLimitacoes:
+    """GET/DELETE /admin/limitacoes — o que o sistema NÃO soube responder,
+    registrado sozinho (Casa de Limitações, v1.13.0)."""
+
+    def test_vazio_quando_nunca_registrou(self, serve, tmp_path: Path,
+                                          monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "GET", "/admin/limitacoes")
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["ok"] is True and data["total"] == 0
+
+    def test_entrada_registrada_aparece(self, serve, tmp_path: Path,
+                                        monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        from core.limitacoes import registrar_limitacao
+        registrar_limitacao(
+            "fallback_honesto_esgotado", "qual o valor do dólar"
+        )
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "GET", "/admin/limitacoes")
+        data = _json_response((status, body, _h))
+        assert data["total"] == 1
+        e = data["entradas"][0]
+        assert e["motivo"] == "fallback_honesto_esgotado"
+        assert e["pergunta"] == "qual o valor do dólar"
+        assert e["ts"]  # ISO presente
+
+    def test_delete_limpa(self, serve, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        from core.limitacoes import registrar_limitacao, limpar_limitacoes
+        registrar_limitacao("action_degradada:weather_city", "clima em X")
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "DELETE", "/admin/limitacoes")
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["ok"] is True and data["total"] == 0
+        limpar_limitacoes()  # higiene entre testes

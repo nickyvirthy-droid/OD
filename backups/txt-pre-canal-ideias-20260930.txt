@@ -1,0 +1,97 @@
+|
+Archer C6
+Procurar
+ID TP-Link
+Sair
+ATUALIZAR
+
+    Mapa de Rede
+    Internet
+    Wi-Fi
+    Avançado
+
+    Configuração Rápida
+    Modo de operação
+    Rede
+    ID TP-Link
+    EasyMesh
+    Wi-Fi
+    Encaminhamento NAT
+        Port Forwarding
+        Port Triggering
+        UPnP
+        DMZ
+    Controlo Parental
+    QoS
+    Segurança
+    Servidor VPN
+    IPv6
+    Assistente Smart Life
+    Sistema
+
+Port Forwarding
+Especifique portas para que dispositivos ou serviços específicos na sua rede local possam ser acedidos a partir da internet.
+Adicionar
+	Nome de Serviço	Endereço de IP do Dispositivo	Porta Externa	Porta Interna	Protocolo	Estado	Modificar
+	
+SSH
+	
+192.168.0.250
+	
+22
+	
+22
+	
+Tudo
+	
+	
+	
+HTTP
+	
+192.168.0.250
+	
+80
+	
+8000
+	
+Tudo
+	
+	
+	
+HTTPS
+	
+192.168.0.250
+	
+443
+	
+443
+	
+Tudo
+	
+	
+	
+Controle
+	
+192.168.0.250
+	
+81
+	
+81
+	
+Tudo
+	
+	
+	
+Teste
+	
+192.168.0.250
+	
+82
+	
+443
+	
+TCP
+	
+	
+Suporte
+VOLTAR AO INICIO

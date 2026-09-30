@@ -780,6 +780,15 @@ class Orchestrator:
                         action_name, params, user_id, role=role
                     )
                     answer = format_intent_result(action_name, data)
+                    if answer is None:
+                        # Casa de Limitações (v1.13.0): a action degradou
+                        # (sem rede, fonte indisponível) — registro honesto
+                        # do que o sistema NÃO conseguiu entregar agora.
+                        try:
+                            from core.limitacoes import registrar_action_degradada
+                            registrar_action_degradada(action_name, text)
+                        except Exception:
+                            pass
                     route_detail = action_name
             if answer is not None:
                 self._metrics.intents += 1
@@ -1122,6 +1131,13 @@ class Orchestrator:
                         action_name, params, user_id, role=role
                     )
                     answer = format_intent_result(action_name, data)
+                    if answer is None:
+                        # Casa de Limitações (v1.13.0) — igual ao stream.
+                        try:
+                            from core.limitacoes import registrar_action_degradada
+                            registrar_action_degradada(action_name, text)
+                        except Exception:
+                            pass
                     route_detail = action_name
             if answer is not None:
                 result.route = ROUTE_INTENT
@@ -1331,6 +1347,13 @@ class Orchestrator:
         if attempts > 1:
             # Assunto externo: o fallback é honesto e não cacheável — nunca
             # a recusa falsa do modelo.
+            # Casa de Limitações (v1.13.0): o sistema não soube responder —
+            # registra como candidata a melhoria (nunca derruba o pipeline).
+            try:
+                from core.limitacoes import registrar_fallback_honesto
+                registrar_fallback_honesto(text)
+            except Exception:
+                pass
             return EXTERNAL_UNAVAILABLE_MESSAGE, ""
         return None
 

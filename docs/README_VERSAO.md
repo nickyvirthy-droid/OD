@@ -7,6 +7,44 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.13.0] — CASA DE LIMITAÇÕES + CANAL DE IDEIAS: o sistema percebe o que não sabe 🪞💡 (2026-09-30)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | O dono perguntou valor do dólar e temperatura de outra cidade e o sistema não soube responder — mas não PERCEBEU a própria limitação (a action weather_city só nasceu porque o agente criou na mão). Duas entregas: (1) o sistema se auto-registra quando percebe que não sabe; (2) o txt.txt vira canal de IDEIAS do dono, com painel no admin e paridade no app |
+| **core/limitacoes.py (NOVO)** | `registrar_limitacao(motivo, pergunta)` → `limitacoes.txt`: teto 128 KB com poda por blocos (`\n\n`), dedup 6h por (motivo, pergunta), append atômico; defesa TOTAL — nunca propaga exceção (falha vira `log.warn` e False, o atendimento segue) |
+| **Hooks (3 pontos)** | fallback honesto esgotado (`_resolve_refusal`) e os 2 caminhos de action degradada (stream + REST, quando `format_intent_result` → None): o sistema percebe e registra sozinho |
+| **Rotas admin (5)** | `GET/PUT/DELETE /admin/ideias` (txt.txt, 20 KB, escrita atômica) + `GET/DELETE /admin/limitacoes` — todas auth=True; `do_PUT` novo no handler HTTP (Allow do OPTIONS atualizado) |
+| **Painel /admin** | Seção "Ideias (txt.txt)" (ler/escrever/limpar) + "Limitações (registro automático)" (listar/limpar) — o dono escreve ideias e vê o que o sistema percebeu que não sabe |
+| **App — paridade total** | `od_api.dart` +8 métodos; dashboard com 3 cards: Pedido de desenvolvimento (injetar/limpar), Ideias (escrever/ler/limpar), Limitações (listar/limpar) — o app reflete o site |
+| **Snapshot** | txt.txt arquivado (`backups/txt-pre-canal-ideias-20260930.txt`, sha256 e3c7305c…) e zerado — canal puro de ideias |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 2097 passed, 16 skipped
+  (+14 test_limitacoes · +10 test_api · guardas de rotas 45 → 50)
+app: flutter analyze 0 issues · flutter test 125 passed, 2 skipped (+11 dart)
+teste do teste: 4/4 mutações detectadas e revertidas bit-exata
+  (M1 dedup if False → 2; M2 defesa raise → 1 — 1ª rodada SOBREVIVEU,
+   TestDefesaDoPipeline criado, re-detectada; M3 teto while False → 1;
+   M4 hook desligado no orchestrator → 1)
+bug real corrigido: separador de bloco 1 \n não criava bloco vazio —
+  leitura juntava entradas e o teto nunca podava → \n\n
+bump MINOR: .env 1.13.0 · capabilities fallback · pubspec 1.13.0+2029 ·
+  _APP_VERSION_CODE=2029 · site 2x · CHANGELOG [1.13.0] · README_VERSAO §1.13.0
+```
+
+### 3. Pendências / próximos passos
+
+- Instalar o APK 1.13.0+2029 no celular (auto-atualização, 2029 > 2028).
+- Usar o canal: ideias no txt.txt pelo painel /admin; conferir limitações
+  se acumularem em `limitacoes.txt`.
+
+---
+
 ## [1.12.0] — CLIMA DE CIDADE REAL: 'temperatura em presidente venceslau' responde a CIDADE pedida 🌤 (2026-09-30)
 
 ### 1. O que foi feito

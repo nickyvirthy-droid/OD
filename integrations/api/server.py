@@ -54,7 +54,7 @@ from core.capabilities import OD_VERSION, capabilities_manifest
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2028  # versionCode cru do APK publicado (v1.12.0+2028)
+_APP_VERSION_CODE = 2029  # versionCode cru do APK publicado (v1.13.0+2029)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -238,6 +238,13 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/admin/dev/pedido", "admin_dev_pedido", True),
     ("GET", "/admin/dev/pedido", "admin_dev_pedido_status", True),
     ("DELETE", "/admin/dev/pedido", "admin_dev_pedido_clear", True),
+    # Canal de ideias do dono (txt.txt) + Casa de Limitações (limitacoes.txt)
+    # — v1.13.0, mesmo gate do canal de pedidos
+    ("GET", "/admin/ideias", "admin_ideias_status", True),
+    ("PUT", "/admin/ideias", "admin_ideias_write", True),
+    ("DELETE", "/admin/ideias", "admin_ideias_clear", True),
+    ("GET", "/admin/limitacoes", "admin_limitacoes_status", True),
+    ("DELETE", "/admin/limitacoes", "admin_limitacoes_clear", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -680,6 +687,41 @@ _ADMIN_PAGE_HTML = """<!doctype html>
   </section>
 
   <section>
+    <h2>Ideias (txt.txt)</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Canal do DONO: ideias de melhoria e pedidos de informação que o
+      sistema ainda não cobre. Escreva aqui e leia de qualquer lugar
+      (site ou app) — é o mesmo arquivo que o orquestrador/leitura do
+      sistema consomem.
+    </p>
+    <textarea id="ideias-texto" placeholder="Ex.: o sistema não sabe o valor do dólar — criar action de cotação..."
+      style="width:100%;min-height:110px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:0.85rem;font-family:inherit"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button id="ideias-load">↻ Carregar</button>
+      <button id="ideias-save" style="border-color:var(--accent);color:var(--accent)">💾 Salvar txt.txt</button>
+      <button id="ideias-clear" class="danger">🗑 Zerar</button>
+      <span class="muted msg" id="ideias-msg"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Limitações (registro automático)</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      O que o sistema NÃO soube responder — registrado sozinho:
+      fallback honesto esgotado e action degradada (sem rede, fonte
+      indisponível). Cada linha é uma candidata a melhoria: resolva,
+      teste e limpe.
+    </p>
+    <div class="row">
+      <button id="lim-load">↻ Carregar</button>
+      <button id="lim-clear" class="danger">🗑 Limpar registro</button>
+      <span class="pill" id="lim-total">total: —</span>
+      <span class="muted msg" id="lim-msg"></span>
+    </div>
+    <pre id="lim-lista" style="display:none;max-height:220px;overflow:auto">—</pre>
+  </section>
+
+  <section>
     <h2>Contas</h2>
     <table>
       <thead><tr>
@@ -869,8 +911,78 @@ document.getElementById("dev-injetar").onclick = devInjetar;
 document.getElementById("dev-status").onclick = devStatus;
 document.getElementById("dev-clear").onclick = devClear;
 
-document.getElementById("btn-refresh").onclick = () => { loadSystem(); loadUsers(); devStatus(); };
-whoAmI().then(u => { if (u) { loadSystem(); loadUsers(); devStatus(); } });
+// --- Ideias (txt.txt) — v1.13.0 -------------------------------------
+function ideiasSetMsg(t, cls) {
+  const el = document.getElementById("ideias-msg");
+  el.textContent = t;
+  el.className = "muted msg " + (cls || "");
+}
+async function ideiasLoad() {
+  try {
+    const resp = await fetch("/admin/ideias", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { ideiasSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    document.getElementById("ideias-texto").value = data.conteudo || "";
+    ideiasSetMsg("Carregado (" + (data.bytes || 0) + " bytes).", "ok");
+  } catch (e) { ideiasSetMsg("Falha ao carregar: " + e.message, "err"); }
+}
+async function ideiasSave() {
+  try {
+    const resp = await fetch("/admin/ideias", {
+      method: "PUT", headers: authHeaders(),
+      body: JSON.stringify({ conteudo: document.getElementById("ideias-texto").value }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    ideiasSetMsg(resp.ok ? "💾 Salvo (" + (data.bytes || 0) + " bytes)." : (data.error || "Erro HTTP " + resp.status), resp.ok ? "ok" : "err");
+  } catch (e) { ideiasSetMsg("Falha ao salvar: " + e.message, "err"); }
+}
+async function ideiasClear() {
+  if (!window.confirm("Zerar o txt.txt? (snapshot manual recomendado)")) return;
+  try {
+    const resp = await fetch("/admin/ideias", { method: "DELETE", headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok) { document.getElementById("ideias-texto").value = ""; ideiasSetMsg("🗑 Zerado.", "ok"); }
+    else ideiasSetMsg(data.error || "Erro HTTP " + resp.status, "err");
+  } catch (e) { ideiasSetMsg("Falha ao zerar: " + e.message, "err"); }
+}
+document.getElementById("ideias-load").onclick = ideiasLoad;
+document.getElementById("ideias-save").onclick = ideiasSave;
+document.getElementById("ideias-clear").onclick = ideiasClear;
+
+// --- Limitações (registro automático) — v1.13.0 -----------------------
+function limSetMsg(t, cls) {
+  const el = document.getElementById("lim-msg");
+  el.textContent = t;
+  el.className = "muted msg " + (cls || "");
+}
+async function limLoad() {
+  try {
+    const resp = await fetch("/admin/limitacoes", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { limSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    document.getElementById("lim-total").textContent = "total: " + (data.total || 0);
+    const pre = document.getElementById("lim-lista");
+    pre.style.display = "block";
+    pre.textContent = (data.entradas || []).length
+      ? (data.entradas || []).map(e => "[" + e.ts + "] " + e.motivo + "\\n  " + e.pergunta).join("\\n\\n")
+      : "— nenhuma limitação registrada —";
+    limSetMsg("Carregado.", "ok");
+  } catch (e) { limSetMsg("Falha ao carregar: " + e.message, "err"); }
+}
+async function limClear() {
+  if (!window.confirm("Limpar o registro de limitações?")) return;
+  try {
+    const resp = await fetch("/admin/limitacoes", { method: "DELETE", headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok) { limSetMsg("🗑 Registro limpo.", "ok"); limLoad(); }
+    else limSetMsg(data.error || "Erro HTTP " + resp.status, "err");
+  } catch (e) { limSetMsg("Falha ao limpar: " + e.message, "err"); }
+}
+document.getElementById("lim-load").onclick = limLoad;
+document.getElementById("lim-clear").onclick = limClear;
+
+document.getElementById("btn-refresh").onclick = () => { loadSystem(); loadUsers(); devStatus(); ideiasLoad(); limLoad(); };
+whoAmI().then(u => { if (u) { loadSystem(); loadUsers(); devStatus(); ideiasLoad(); limLoad(); } });
 </script>
 </body>
 </html>
@@ -1928,6 +2040,9 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         self._handle("POST")
 
+    def do_PUT(self) -> None:
+        self._handle("PUT")
+
     def do_DELETE(self) -> None:
         self._handle("DELETE")
 
@@ -1935,7 +2050,7 @@ class APIHandler(BaseHTTPRequestHandler):
         # CORS preflight
         self.send_response(204)
         self._send_cors()
-        self.send_header("Allow", "GET, POST, DELETE, OPTIONS")
+        self.send_header("Allow", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Content-Length", "0")
         self.end_headers()
 
@@ -3393,6 +3508,92 @@ class APIHandler(BaseHTTPRequestHandler):
             raise APIError(500, "falha_ao_limpar") from erro
         log.info("Fila do orquestrador esvaziada pelo painel admin")
         self._json(200, {"ok": True, "bytes_fila": 0})
+
+    # -- Canal de ideias (txt.txt) + Casa de Limitações (v1.13.0) ------------
+
+    IDEIAS_FILE = Path("txt.txt")
+    IDEIAS_MAX_CHARS = 20000  # mesmo teto do canal de pedidos
+
+    def admin_ideias_status(self) -> None:
+        """GET /admin/ideias — conteúdo do txt.txt (canal do DONO).
+
+        O dono escreve ideias/pedidos de informação aqui (pelo painel do
+        site ou do app); v1.13.0. Contrato: {ok, existe, conteudo, bytes}.
+        """
+        self._require_admin()
+        caminho = self.IDEIAS_FILE
+        if not caminho.is_file():
+            self._json(200, {"ok": True, "existe": False, "conteudo": "", "bytes": 0})
+            return
+        bruto = caminho.read_text(encoding="utf-8", errors="replace")
+        self._json(200, {
+            "ok": True,
+            "existe": True,
+            "conteudo": bruto,
+            "bytes": len(bruto.encode("utf-8")),
+        })
+
+    def admin_ideias_write(self) -> None:
+        """PUT /admin/ideias — o dono escreve no txt.txt (substitui).
+
+        Body: {"conteudo": str (0..20000 chars)} — vazio é válido (rascunho
+        limpo). Escrita ATÔMICA (tmp + rename), padrão do canal de pedidos.
+        """
+        self._require_admin()
+        data = self._read_json()
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        conteudo = data.get("conteudo")
+        if not isinstance(conteudo, str):
+            raise APIError(400, "conteudo_obrigatorio")
+        if len(conteudo) > self.IDEIAS_MAX_CHARS:
+            raise APIError(400, "conteudo_muito_longo")
+        tmp = self.IDEIAS_FILE.with_suffix(".txt.tmp")
+        try:
+            tmp.write_text(conteudo, encoding="utf-8")
+            tmp.replace(self.IDEIAS_FILE)
+        except OSError as erro:
+            raise APIError(500, "falha_ao_gravar") from erro
+        log.info(
+            "txt.txt gravado pelo painel admin", chars=len(conteudo)
+        )
+        self._json(200, {
+            "ok": True,
+            "bytes": len(conteudo.encode("utf-8")),
+        })
+
+    def admin_ideias_clear(self) -> None:
+        """DELETE /admin/ideias — zera o txt.txt (idempotente)."""
+        self._require_admin()
+        tmp = self.IDEIAS_FILE.with_suffix(".txt.tmp")
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        try:
+            self.IDEIAS_FILE.write_text("", encoding="utf-8")
+        except OSError as erro:
+            raise APIError(500, "falha_ao_limpar") from erro
+        log.info("txt.txt zerado pelo painel admin")
+        self._json(200, {"ok": True, "bytes": 0})
+
+    def admin_limitacoes_status(self) -> None:
+        """GET /admin/limitacoes — o que o sistema NÃO soube responder.
+
+        Registro AUTOMÁTICO (core/limitacoes.py): fallback honesto esgotado
+        e action de fastpath degradada. O dono lê aqui as candidatas a
+        melhoria — o sistema percebendo as próprias limitações (v1.13.0).
+        Contrato: {ok, existe, entradas: [{ts, motivo, pergunta}], total, bytes}.
+        """
+        self._require_admin()
+        from core.limitacoes import ler_limitacoes
+        self._json(200, ler_limitacoes())
+
+    def admin_limitacoes_clear(self) -> None:
+        """DELETE /admin/limitacoes — limpa o registro (idempotente)."""
+        self._require_admin()
+        from core.limitacoes import limpar_limitacoes
+        self._json(200, limpar_limitacoes())
 
     def history_delete_message(self, user_id: str, message_id: str) -> None:
         """DELETE /history/{user_id}/messages/{message_id} — apaga UMA mensagem.

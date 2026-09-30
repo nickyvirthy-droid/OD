@@ -696,6 +696,148 @@ group('OdApi.painéis (conta e admin)', () {
   });
   });
 
+  group('OdApi.canal de desenvolvimento + ideias + limitações (v1.13.0)', () {
+    test('getDevPedidoStatus consome o estado da fila', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/admin/dev/pedido');
+        expect(request.method, 'GET');
+        return jsonResponse({
+          'ok': true,
+          'monitor_ativo': true,
+          'tem_conteudo': false,
+          'bytes_fila': 0,
+          'preview': '',
+        });
+      }));
+      await api.setToken('tok-adm');
+      final data = await api.getDevPedidoStatus();
+      expect(data['monitor_ativo'], isTrue);
+    });
+
+    test('adminInjectPedido manda texto e limpar_antes', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/admin/dev/pedido');
+        expect(request.method, 'POST');
+        final body = jsonDecode(request.body);
+        expect(body['texto'], 'crie o previsao_tempo.py');
+        expect(body['limpar_antes'], isTrue);
+        return jsonResponse({'ok': true, 'bytes_fila': 30});
+      }));
+      await api.setToken('tok-adm');
+      final data = await api.adminInjectPedido('crie o previsao_tempo.py');
+      expect(data['bytes_fila'], 30);
+    });
+
+    test('adminInjectPedido acumula com limpar_antes false', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(jsonDecode(request.body)['limpar_antes'], isFalse);
+        return jsonResponse({'ok': true, 'bytes_fila': 60});
+      }));
+      await api.setToken('tok-adm');
+      await api.adminInjectPedido('segundo', limparAntes: false);
+    });
+
+    test('adminInjectPedido propaga erro do servidor', () async {
+      final api = apiWith(MockClient((_) async =>
+          jsonResponse({'ok': false, 'error': 'texto_obrigatorio'}, status: 400)));
+      await api.setToken('tok-adm');
+      expect(
+        () => api.adminInjectPedido(''),
+        throwsA(isA<OdApiError>()
+            .having((e) => e.message, 'message', 'texto_obrigatorio')
+            .having((e) => e.statusCode, 'status', 400)),
+      );
+    });
+
+    test('adminClearPedido faz DELETE', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/admin/dev/pedido');
+        expect(request.method, 'DELETE');
+        return jsonResponse({'ok': true, 'bytes_fila': 0});
+      }));
+      await api.setToken('tok-adm');
+      await api.adminClearPedido();
+    });
+
+    test('getIdeias devolve o conteúdo do txt.txt', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/admin/ideias');
+        expect(request.method, 'GET');
+        return jsonResponse({
+          'ok': true,
+          'existe': true,
+          'conteudo': 'ideia: action do dólar',
+          'bytes': 22,
+        });
+      }));
+      await api.setToken('tok-adm');
+      final data = await api.getIdeias();
+      expect(data['conteudo'], 'ideia: action do dólar');
+    });
+
+    test('adminWriteIdeias faz PUT com conteudo', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/admin/ideias');
+        expect(request.method, 'PUT');
+        expect(jsonDecode(request.body)['conteudo'], 'nova ideia');
+        return jsonResponse({'ok': true, 'bytes': 10});
+      }));
+      await api.setToken('tok-adm');
+      await api.adminWriteIdeias('nova ideia');
+    });
+
+    test('adminWriteIdeias aceita vazio (rascunho limpo)', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(jsonDecode(request.body)['conteudo'], '');
+        return jsonResponse({'ok': true, 'bytes': 0});
+      }));
+      await api.setToken('tok-adm');
+      await api.adminWriteIdeias('');
+    });
+
+    test('adminClearIdeias faz DELETE', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/admin/ideias');
+        expect(request.method, 'DELETE');
+        return jsonResponse({'ok': true, 'bytes': 0});
+      }));
+      await api.setToken('tok-adm');
+      await api.adminClearIdeias();
+    });
+
+    test('getLimitacoes devolve as entradas do registro', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/admin/limitacoes');
+        return jsonResponse({
+          'ok': true,
+          'existe': true,
+          'total': 1,
+          'entradas': [
+            {
+              'ts': '2026-09-30T17:00:00',
+              'motivo': 'fallback_honesto_esgotado',
+              'pergunta': 'qual o valor do dólar',
+            },
+          ],
+        });
+      }));
+      await api.setToken('tok-adm');
+      final data = await api.getLimitacoes();
+      expect(data['total'], 1);
+      expect(data['entradas'][0]['motivo'], 'fallback_honesto_esgotado');
+    });
+
+    test('adminClearLimitacoes faz DELETE', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/admin/limitacoes');
+        expect(request.method, 'DELETE');
+        return jsonResponse({'ok': true, 'total': 0});
+      }));
+      await api.setToken('tok-adm');
+      await api.adminClearLimitacoes();
+    });
+  });
+
   group('OdApi.pickBestUrl — 4 caminhos (regra do dono, 29/09)', () {
     const lan = 'http://192.168.0.250:8000';
     const tail = 'http://100.77.67.53:8000';

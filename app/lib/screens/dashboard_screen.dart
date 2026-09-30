@@ -12,6 +12,9 @@ import '../services/od_api.dart';
 ///   remoção de conta — e baldes legados. O gate é duplo: a seção só
 ///   aparece com role=admin (que vem do /auth/me) e o servidor recusa
 ///   403 de qualquer forma (o gate de verdade é do lado do servidor).
+/// - v1.13.0 (paridade total com o site): canal de desenvolvimento
+///   (/admin/dev/pedido), Ideias do dono (/admin/ideias — txt.txt) e
+///   Limitações registradas pelo sistema (/admin/limitacoes).
 class DashboardScreen extends StatefulWidget {
   final OdApi api;
   const DashboardScreen({super.key, required this.api});
@@ -24,6 +27,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? _me;
   Map<String, dynamic>? _stats;
   Map<String, dynamic>? _admin;
+  Map<String, dynamic>? _devPedido;
+  String _ideias = '';
+  List<Map<String, dynamic>> _limitacoes = const [];
+  final TextEditingController _ideiasController = TextEditingController();
+  final TextEditingController _pedidoController = TextEditingController();
+  bool _pedidoLimparAntes = true;
   String? _error;
   bool _loading = true;
   bool _isAdmin = false;
@@ -57,6 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (!mounted) return;
           setState(() => _admin = null);
         }
+        await _refreshDev();
       }
       if (!mounted) return;
       setState(() => _loading = false);
@@ -74,6 +84,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<bool> _confirm(String message) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   Future<void> _confirmAndRun(
@@ -351,11 +382,254 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Text('Admin', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             _buildAdminCard(),
+            const SizedBox(height: 16),
+            _buildDevPedidoCard(),
+            const SizedBox(height: 16),
+            _buildIdeiasCard(),
+            const SizedBox(height: 16),
+            _buildLimitacoesCard(),
           ],
           const SizedBox(height: 24),
         ],
       ),
     );
+  }
+
+  // -- Canal de desenvolvimento + ideias + limitações (v1.13.0) -------------
+
+  Future<void> _refreshDev() async {
+    try {
+      final pedido = await widget.api.getDevPedidoStatus();
+      final ideias = await widget.api.getIdeias();
+      final limitacoes = await widget.api.getLimitacoes();
+      if (!mounted) return;
+      setState(() {
+        _devPedido = pedido;
+        _ideias = (ideias['conteudo'] as String?) ?? '';
+        _ideiasController.text = _ideias;
+        _limitacoes = ((limitacoes['entradas'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
+      });
+    } catch (_) {
+      // Best-effort: seção de dev não derruba o painel.
+    }
+  }
+
+  Widget _buildDevPedidoCard() {
+    final monitor = _devPedido?['monitor_ativo'] == true;
+    final bytes = _devPedido?['bytes_fila'] ?? 0;
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.build_outlined),
+            title: const Text('Canal de desenvolvimento'),
+            subtitle: Text(
+              'Fila do orquestrador: $bytes bytes · monitor '
+              '${monitor ? 'NO AR' : 'PARADO'}',
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              controller: _pedidoController,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                hintText:
+                    'Ex.: crie o previsao_tempo.py que consulta o Open-Meteo...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Wrap(
+              spacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Checkbox(
+                  value: _pedidoLimparAntes,
+                  onChanged: (v) => setState(
+                    () => _pedidoLimparAntes = v ?? true,
+                  ),
+                ),
+                const Text('substituir (desmarque p/ acumular)'),
+                FilledButton.icon(
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Injetar'),
+                  onPressed: _injectPedido,
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Esvaziar'),
+                  onPressed: _clearPedido,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _injectPedido() async {
+    final texto = _pedidoController.text.trim();
+    if (texto.isEmpty) {
+      _snack('Escreva o pedido antes de injetar.');
+      return;
+    }
+    try {
+      await widget.api.adminInjectPedido(
+        texto,
+        limparAntes: _pedidoLimparAntes,
+      );
+      _snack('Pedido injetado na fila.');
+      await _refreshDev();
+    } on OdApiError catch (e) {
+      _snack(e.message);
+    }
+  }
+
+  Future<void> _clearPedido() async {
+    final ok = await _confirm('Esvaziar a fila do orquestrador?');
+    if (!ok) return;
+    try {
+      await widget.api.adminClearPedido();
+      _snack('Fila esvaziada.');
+      await _refreshDev();
+    } on OdApiError catch (e) {
+      _snack(e.message);
+    }
+  }
+
+  Widget _buildIdeiasCard() {
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const ListTile(
+            leading: Icon(Icons.lightbulb_outline),
+            title: Text('Ideias (txt.txt)'),
+            subtitle: Text(
+              'Seu canal: ideias de melhoria e o que o sistema ainda não cobre',
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              controller: _ideiasController,
+              maxLines: 6,
+              decoration: const InputDecoration(
+                hintText: 'Ex.: o sistema não sabe o valor do dólar — criar action...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Wrap(
+              spacing: 12,
+              children: [
+                FilledButton.icon(
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Salvar'),
+                  onPressed: _saveIdeias,
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Recarregar'),
+                  onPressed: _refreshDev,
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Zerar'),
+                  onPressed: _clearIdeias,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveIdeias() async {
+    try {
+      await widget.api.adminWriteIdeias(_ideiasController.text);
+      _snack('txt.txt salvo.');
+    } on OdApiError catch (e) {
+      _snack(e.message);
+    }
+  }
+
+  Future<void> _clearIdeias() async {
+    final ok = await _confirm('Zerar o txt.txt? (o conteúdo atual é perdido)');
+    if (!ok) return;
+    try {
+      await widget.api.adminClearIdeias();
+      _snack('txt.txt zerado.');
+      await _refreshDev();
+    } on OdApiError catch (e) {
+      _snack(e.message);
+    }
+  }
+
+  Widget _buildLimitacoesCard() {
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.report_problem_outlined),
+            title: Text('Limitações (${_limitacoes.length})'),
+            subtitle: const Text(
+              'O que o sistema NÃO soube responder — registro automático',
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _refreshDev,
+            ),
+          ),
+          if (_limitacoes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Text(
+                'Nenhuma limitação registrada — o sistema respondeu tudo.',
+              ),
+            )
+          else
+            for (final e in _limitacoes)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.help_outline, size: 18),
+                title: Text('${e['pergunta'] ?? ''}'),
+                subtitle: Text('[${e['ts'] ?? ''}] ${e['motivo'] ?? ''}'),
+              ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: TextButton.icon(
+              icon: const Icon(Icons.delete_sweep_outlined),
+              label: const Text('Limpar registro'),
+              onPressed: _clearLimitacoes,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _clearLimitacoes() async {
+    final ok = await _confirm('Limpar o registro de limitações?');
+    if (!ok) return;
+    try {
+      await widget.api.adminClearLimitacoes();
+      _snack('Registro de limitações limpo.');
+      await _refreshDev();
+    } on OdApiError catch (e) {
+      _snack(e.message);
+    }
   }
 
   Widget _buildAdminCard() {

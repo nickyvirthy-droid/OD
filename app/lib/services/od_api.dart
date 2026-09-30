@@ -609,6 +609,121 @@ class OdApi {
     );
   }
 
+  // -- Canal de desenvolvimento + ideias + limitações (v1.13.0) -------------
+
+  /// GET /admin/dev/pedido — estado da fila do orquestrador + do monitor.
+  Future<Map<String, dynamic>> getDevPedidoStatus() async {
+    final response = await _send('GET', Uri.parse('$baseUrl/admin/dev/pedido'));
+    if (response.statusCode != 200) {
+      throw OdApiError(
+        'admin/dev/pedido falhou: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
+    return jsonDecode(response.body);
+  }
+
+  /// POST /admin/dev/pedido — injeta texto na fila do orquestrador.
+  /// [limparAntes] true (default) substitui a fila; false acumula.
+  Future<Map<String, dynamic>> adminInjectPedido(
+    String texto, {
+    bool limparAntes = true,
+  }) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/admin/dev/pedido'),
+      body: jsonEncode({'texto': texto, 'limpar_antes': limparAntes}),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return data!;
+    throw OdApiError(
+      (data?['error'] as String?) ??
+          'Falha ao injetar o pedido (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// DELETE /admin/dev/pedido — esvazia a fila do orquestrador.
+  Future<void> adminClearPedido() async {
+    final response =
+        await _send('DELETE', Uri.parse('$baseUrl/admin/dev/pedido'));
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return;
+    throw OdApiError(
+      (data?['error'] as String?) ??
+          'Falha ao esvaziar a fila (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// GET /admin/ideias — conteúdo do txt.txt (canal de ideias do dono).
+  Future<Map<String, dynamic>> getIdeias() async {
+    final response = await _send('GET', Uri.parse('$baseUrl/admin/ideias'));
+    if (response.statusCode != 200) {
+      throw OdApiError(
+        'admin/ideias falhou: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
+    return jsonDecode(response.body);
+  }
+
+  /// PUT /admin/ideias — grava o txt.txt (substitui; vazio é válido).
+  Future<void> adminWriteIdeias(String conteudo) async {
+    final response = await _send(
+      'PUT',
+      Uri.parse('$baseUrl/admin/ideias'),
+      body: jsonEncode({'conteudo': conteudo}),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return;
+    throw OdApiError(
+      (data?['error'] as String?) ??
+          'Falha ao salvar txt.txt (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// DELETE /admin/ideias — zera o txt.txt (idempotente).
+  Future<void> adminClearIdeias() async {
+    final response =
+        await _send('DELETE', Uri.parse('$baseUrl/admin/ideias'));
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return;
+    throw OdApiError(
+      (data?['error'] as String?) ??
+          'Falha ao zerar txt.txt (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// GET /admin/limitacoes — o que o sistema NÃO soube responder
+  /// (registro automático da Casa de Limitações).
+  Future<Map<String, dynamic>> getLimitacoes() async {
+    final response =
+        await _send('GET', Uri.parse('$baseUrl/admin/limitacoes'));
+    if (response.statusCode != 200) {
+      throw OdApiError(
+        'admin/limitacoes falhou: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
+    return jsonDecode(response.body);
+  }
+
+  /// DELETE /admin/limitacoes — limpa o registro de limitações.
+  Future<void> adminClearLimitacoes() async {
+    final response =
+        await _send('DELETE', Uri.parse('$baseUrl/admin/limitacoes'));
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return;
+    throw OdApiError(
+      (data?['error'] as String?) ??
+          'Falha ao limpar limitações (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
   /// Verifica a saúde do sistema.
   Future<Map<String, dynamic>> getHealth() async {
     final response = await _send(

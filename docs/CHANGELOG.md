@@ -14,6 +14,50 @@
 
 ---
 
+## [1.13.0] — CASA DE LIMITAÇÕES + CANAL DE IDEIAS: o sistema percebe o que não sabe 🪞💡 (2026-09-30)
+
+> **Política:** canais novos de interação dono↔sistema (painel admin + API
+> + app) = funcionalidade com compatibilidade → MINOR (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.13.0` · app `1.13.0+2029`
+> (versionCode 2029 — auto-atualização do celular).
+
+### Adicionado (2026-09-30)
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | O dono perguntou valor do dólar e temperatura de outra cidade e o sistema não sabia — mas não PERCEBEU que não sabia (a action só nasceu porque o agente criou na mão). O sistema deve se auto-observar; e o canal do dono (txt.txt) vira canal de IDEIAS |
+| **core/limitacoes.py (NOVO)** | Casa de limitações: `registrar_limitacao(motivo, pergunta)` grava em `limitacoes.txt` (teto 128 KB, dedup 6h por (motivo, pergunta), append atômico com separador de bloco `\n\n` e poda por blocos) — NUNCA propaga exceção (defesa total: qualquer falha vira `log.warn` e False); hooks `registrar_fallback_honesto(pergunta)` (fallback honesto esgotado na `_resolve_refusal`) e `registrar_action_degradada(action, pergunta)` (action degradou, `format_intent_result` → None) |
+| **Hooks no orchestrator** | 3 pontos: fallback honesto esgotado (~:1334) e os 2 caminhos de action degradada (stream ~:782 e REST ~:1124) — o sistema registra sozinho quando percebe que falhou |
+| **Rotas admin (5)** | `GET/PUT/DELETE /admin/ideias` (txt.txt — canal do DONO: ideias de melhoria, 20 KB, escrita atômica tmp+rename) e `GET /admin/limitacoes` + `DELETE /admin/limitacoes` (registro AUTOMÁTICO do sistema) — todas auth=True; `do_PUT` no handler HTTP e PUT no Allow do OPTIONS |
+| **Painel /admin** | Seção "Ideias (txt.txt)" (ler/escrever/limpar) e "Limitações (registro automático)" (listar/limpar) — o dono vê e escreve pelo navegador |
+| **App (paridade total)** | `od_api.dart` +8 métodos (dev-pedido + ideias + limitações); dashboard com 3 cards novos: Pedido de desenvolvimento (injetar/limpar), Ideias (escrever/ler/limpar) e Limitações (listar/limpar) — o app reflete o site |
+| **Snapshot** | txt.txt (dump de roteador TP-Link) arquivado em `backups/txt-pre-canal-ideias-20260930.txt` (sha256 e3c7305c…) e zerado — vira canal puro de ideias |
+
+### Corrigido
+
+- **Bug real no módulo novo:** separador de bloco era 1 `\n` (a leitura
+  juntava as entradas e o teto nunca podava) — corrigido para `\n\n`.
+- **Escape JS no painel:** `\n` dentro de triple-quoted string Python é
+  escape real — JS precisava `\\n`; quebra pega pela guarda
+  `test_painel_pages_js_compiles` (node --check).
+
+### Evidência
+
+```
+servidor: pytest tests/ → 2097 passed, 16 skipped
+  (+14 test_limitacoes · +10 test_api: TestAdminIdeias 5 + TestAdminLimitacoes 3
+   + guardas de rotas 45 → 50)
+app: flutter analyze 0 issues · flutter test 125 passed, 2 skipped (+11 dart)
+Teste do teste: 4/4 mutações detectadas e revertidas bit-exata —
+  M1 dedup `if False` → 2 falhas;
+  M2 defesa `raise` no lugar do except → 1 falha (1ª rodada SOBREVIVEU —
+  TestDefesaDoPipeline criado, mutação re-detectada);
+  M3 teto `while False` → 1 falha;
+  M4 hook desligado no orchestrator → 1 falha
+```
+
+---
+
 ## [1.12.0] — CLIMA DE CIDADE REAL: 'temperatura em presidente venceslau' responde a CIDADE pedida 🌤 (2026-09-30)
 
 > **Política:** action nova no catálogo (63 → 64) = funcionalidade com
