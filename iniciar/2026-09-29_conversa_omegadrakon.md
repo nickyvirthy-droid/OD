@@ -625,3 +625,78 @@ Funnel, banco, journal)".
 DIA RE-CONFERIDO — **SISTEMA VERDE**. v1.10.0 no ar; nada reiniciado,
 nada alterado (só leitura). Pendências intactas: APK 1.10.0+2024 no
 celular + análise de coerência (§14) aguardando conversas novas.
+
+---
+
+## §17 — Conexão com 4 caminhos no app (v1.10.1) (~21:3x–22:2x)
+
+Pedido: "apk no celular não acessa com rede externa. apenas rede interna
+e tailscale. existem pelo menos quatro maneiras de fazer. ele pode tentar
+todas automaticamente. ip interno da rede 192.168.0.250, ip interno do
+tail. o funnel do tail e o ip externo do roteador que usa o url
+http://nicky.theworkpc.com".
+
+### Causa raiz
+
+O `pickBestUrl` só conhecia 2 caminhos (tailnet 100.77.67.53 e Funnel) —
+a LAN 192.168.0.250 e o DDNS nicky.theworkpc.com não participavam da
+sonda. Fora de casa com o Tailscale deslogado no celular, nenhum dos 2
+respondia e o app ficava sem servidor.
+
+### Implementação
+
+- **`OdApi.pickBestUrl` reescrito:** sonda os 4 caminhos EM PARALELO
+  (pior caso = 1 timeout de ~4s) e usa o primeiro vivo na ordem
+  LAN → tailnet → Funnel → roteador; o segundo vivo fica de fallback.
+  URLs manuais (Avançado) têm prioridade, mas nunca substituem a lista.
+- **Re-sondagem em pleno uso:** `isAvailable` re-sonda os 4 caminhos
+  quando primária E fallback morrem; o fallback REST do streaming
+  (`od_ws.dart`) re-sonda em erro de rede e tenta de novo (seguro: erro
+  de transporte = a requisição nem chegou a estabelecer conexão).
+- **`usingLocalUrl` por HOST:** 192.168.x/100.x = local; o DDNS http é
+  internet.
+- **Configurações:** textos atualizados (sonda todos os caminhos e
+  re-sonda sozinho).
+
+### Validação
+
+- flutter analyze 0 issues; flutter test **114 passed, 2 skipped**
+  (+10 testes novos: 6 da sonda, 2 da re-sondagem, 1 do streaming,
+  1 de rótulo).
+- Teste do teste: **4 mutações TODAS detectadas** e revertidas
+  bit-exata (M1 ordem trocada → 2; M2 re-sondagem isAvailable → 1;
+  M3 re-sondagem REST do streaming → 1; M4 fallback guardado → 2).
+  1ª rodada: M2 rodou com M1 aplicada (ambígua) e M3 passou por falta
+  de teste — reffeito com teste novo no od_ws_test.dart e mutações
+  isoladas.
+- Suíte do servidor: **2015 passed, 16 skipped** (com o bump).
+
+### Bump 1.10.1 (PATCH) e APK
+
+- `.env` OD_VERSION=1.10.1 · capabilities fallback · pubspec
+  1.10.1+2025 · `_APP_VERSION_CODE = 2025` · site (2×) · CHANGELOG
+  [1.10.1] no topo · README_VERSAO §1.10.1.
+- APKs anteriores (1.10.0+2024) em `backups/apk-v1.10.0+2024-20260929/`.
+- Build: full **53.168.295 B** sha256 2c6345a8… + arm64 sha256
+  570a43f2…; aapt2 `versionCode='2025' versionName='1.10.1'` nos DOIS.
+
+### Deploy e prova viva 6/6 (~22:20)
+
+Restart com autorização permanente: **PID 1026393, active, NRestarts=0**;
+journal "API REST no ar | port=8000 | auth=True" + "WebSocket server no
+ar | port=8001".
+
+1. `/app/version` local → {1.10.1, 2025, sha256 2c6345a8… == binário}.
+2. `/health` com chave → 200 · WS → 426.
+3. Funnel (URL pública) → /app/version {1.10.1, 2025} em 0,17s.
+4. **DDNS nicky.theworkpc.com → 200 em 0,49s** (o caminho que faltava).
+5. **LAN 192.168.0.250 → 200 em 0,13s.**
+6. **Tail 100.77.67.53 → 200 em 0,12s.**
+
+Os 4 caminhos respondem no ar — o app agora tenta TODOS sozinho.
+
+### Estado
+
+CONCLUÍDO E NO AR — pendente: instalar o APK 1.10.1+2025 no celular
+(auto-atualização, 2025 > 2024) e provar o acesso externo pelo celular
+(Funnel ou DDNS, sem Tailscale).
