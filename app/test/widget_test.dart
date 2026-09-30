@@ -535,10 +535,10 @@ void main() {
       )));
 
       // A conexão é automática — nada de campo de URL à vista.
-      expect(find.text('URL local (Tailscale)'), findsNothing);
+      expect(find.text('URL do servidor (deixe o padrão para automático)'), findsNothing);
       expect(find.text('URL externa (Funnel)'), findsNothing);
       expect(
-        find.textContaining('conexão é automática'),
+        find.textContaining('sonda a rede local'),
         findsOneWidget,
       );
 
@@ -550,10 +550,10 @@ void main() {
       );
       await tester.tap(find.text('Avançado'));
       await tester.pumpAndSettle();
-      expect(find.text('URL local (Tailscale)'), findsNothing);
+      expect(find.text('URL do servidor (deixe o padrão para automático)'), findsNothing);
       await tester.tap(find.text('Mostrar URLs'));
       await tester.pumpAndSettle();
-      expect(find.text('URL local (Tailscale)'), findsOneWidget);
+      expect(find.text('URL do servidor (deixe o padrão para automático)'), findsOneWidget);
       expect(find.text('URL externa (Funnel)'), findsOneWidget);
     });
 
@@ -575,7 +575,7 @@ void main() {
 
       // Campo de URL já vem preenchido com a baseUrl — esvazia para validar.
       await tester.enterText(
-        find.widgetWithText(TextField, 'URL local (Tailscale)'),
+        find.widgetWithText(TextField, 'URL do servidor (deixe o padrão para automático)'),
         '',
       );
       // O teclado virtual empurra o botão para fora da tela: rolar até ele
@@ -619,7 +619,7 @@ void main() {
       await tester.tap(find.text('Mostrar URLs'));
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.widgetWithText(TextField, 'URL local (Tailscale)'),
+        find.widgetWithText(TextField, 'URL do servidor (deixe o padrão para automático)'),
         'http://nova.od:9000',
       );
       // O teclado virtual empurra o botão para fora da tela: rolar até ele

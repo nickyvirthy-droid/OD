@@ -7,6 +7,53 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.10.1] — CONEXÃO COM 4 CAMINHOS: LAN, tailnet, Funnel e DDNS sondados sozinhos 🔌 (2026-09-29)
+
+### 1. O que foi feito
+
+Pedido do dono: "apk no celular não acessa com rede externa. apenas rede
+interna e tailscale. existem pelo menos quatro maneiras de fazer. ele pode
+tentar todas automaticamente. ip interno da rede 192.168.0.250, ip interno
+do tail. o funnel do tail e o ip externo do roteador que usa o url
+http://nicky.theworkpc.com".
+
+- **`OdApi.pickBestUrl` reescrito:** sonda TODOS os 4 caminhos publicados
+  do servidor EM PARALELO (pior caso = 1 timeout de ~4s) e usa o primeiro
+  vivo na ordem LAN → tailnet → Funnel → roteador; o segundo vivo fica de
+  fallback. URLs manuais (Avançado) têm prioridade mas nunca substituem a
+  lista padrão.
+- **Re-sondagem em pleno uso:** `isAvailable` re-sonda quando primária E
+  fallback morrem (rede trocou em pleno uso); o fallback REST do streaming
+  (`od_ws.dart`) re-sonda em erro de rede e tenta mais uma vez (seguro:
+  erro de transporte = a requisição nem chegou a estabelecer conexão).
+- **Rótulo por HOST:** `usingLocalUrl` classifica 192.168.x/100.x como
+  local — o DDNS http é internet.
+- **Configurações:** textos atualizados (sonda todos os caminhos, re-sonda
+  sozinho); hint do campo URL ajustado.
+
+### 2. Validação
+
+- flutter analyze **0 issues**; flutter test **114 passed, 2 skipped**
+  (+10 testes novos).
+- Teste do teste: **4 mutações TODAS detectadas** e revertidas bit-exata
+  (M1 ordem de preferência trocada → 2 falhas; M2 re-sondagem do
+  `isAvailable` desligada → 1; M3 re-sondagem do REST no streaming
+  removida → 1; M4 fallback guardado removido → 2).
+- Suíte do servidor: **2015 passed, 16 skipped** (ambiente canônico
+  `.venv` sem `OD_TEST_POSTGRES_DSN`).
+- 1ª rodada de mutação rodou M2 com M1 ainda aplicada (evidência
+  ambígua) e M3 passou por falta de teste — reffeito com teste novo no
+  `od_ws_test.dart` e mutações isoladas; lição registrada.
+
+### 3. Deploy
+
+- Bump **1.10.1 (PATCH)**: `.env` OD_VERSION, capabilities fallback,
+  pubspec `1.10.1+2025`, `_APP_VERSION_CODE = 2025` (guarda de coerência),
+  site (2×), CHANGELOG [1.10.1] no topo, README_VERSAO §1.10.1.
+- APKs rebuildados e publicados em `site/` (aapt2 versionCode='2025').
+
+---
+
 ## [1.10.0] — PAINÉIS NO APP: dashboard e admin com as mesmas funcionalidades do site 📊 (2026-09-29)
 
 ### 1. O que foi feito

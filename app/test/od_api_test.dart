@@ -694,5 +694,113 @@ group('OdApi.painéis (conta e admin)', () {
     }));
     await api.adminDeleteUser('bia');
   });
-});
+  });
+
+  group('OdApi.pickBestUrl — 4 caminhos (regra do dono, 29/09)', () {
+    const lan = 'http://192.168.0.250:8000';
+    const tail = 'http://100.77.67.53:8000';
+    const funnel = 'https://nicky-server.tail1b1f51.ts.net';
+    const router = 'http://nicky.theworkpc.com';
+
+    OdApi apiPorHost(Map<String, int> porHost) => OdApi(
+              baseUrl: tail,
+              client: MockClient((request) async => http.Response(
+                  '', porHost[request.url.host] ?? 0)),
+            );
+
+    test('só a LAN responde → usa a LAN (e não o tailnet)', () async {
+      final api = apiPorHost({'192.168.0.250': 401});
+      expect(await api.pickBestUrl(), lan);
+      expect(api.baseUrl, lan);
+      expect(api.fallbackUrl, isNull); // Nenhum outro caminho vivo.
+    });
+
+    test('LAN morta + tailnet vivo → tailnet com a LAN de volta se voltar',
+        () async {
+      final api = apiPorHost({'100.77.67.53': 401});
+      expect(await api.pickBestUrl(), tail);
+      expect(api.baseUrl, tail);
+    });
+
+    test('casa com tudo vivo → prefere a LAN (rota mais direta)', () async {
+      final api = apiPorHost({
+        '192.168.0.250': 401,
+        '100.77.67.53': 401,
+        'nicky-server.tail1b1f51.ts.net': 401,
+        'nicky.theworkpc.com': 401,
+      });
+      expect(await api.pickBestUrl(), lan);
+      expect(api.fallbackUrl, tail); // Segunda da ordem fica de reserva.
+    });
+
+    test('fora de casa sem Tailscale → Funnel OU roteador, nessa ordem',
+        () async {
+      final api =
+          apiPorHost({'nicky-server.tail1b1f51.ts.net': 401, 'nicky.theworkpc.com': 401});
+      expect(await api.pickBestUrl(), funnel);
+      expect(api.fallbackUrl, router);
+
+      // Funnel fora (Tailscale deslogado no celular): cai pro roteador.
+      final soRot = apiPorHost({'nicky.theworkpc.com': 401});
+      expect(await soRot.pickBestUrl(), router);
+      expect(soRot.usingLocalUrl, isFalse);
+    });
+
+    test('nenhum caminho responde → mantém o par atual', () async {
+      final api = OdApi(
+        baseUrl: tail,
+        fallbackUrl: funnel,
+        client: MockClient((_) async => throw const SocketException('sem rota')),
+      );
+      expect(await api.pickBestUrl(), tail);
+      expect(api.baseUrl, tail);
+      expect(api.fallbackUrl, funnel);
+    });
+
+    test('classificação local/internet por HOST (DDNS http é internet)',
+        () async {
+      expect(apiPorHost({}).usingLocalUrl, isTrue); // 100.x
+      expect(OdApi(
+        baseUrl: router,
+        client: MockClient((_) async => http.Response('', 401)),
+      ).usingLocalUrl, isFalse);
+      expect(OdApi(
+        baseUrl: funnel,
+        client: MockClient((_) async => http.Response('', 401)),
+      ).usingLocalUrl, isFalse);
+    });
+  });
+
+  group('OdApi.isAvailable — re-sondagem quando o par salvo morre', () {
+    test('primária morta + fallback vivo → promove o fallback', () async {
+      final api = OdApi(
+        baseUrl: 'http://morto.od:8000',
+        fallbackUrl: 'http://vivo.od:8000',
+        client: MockClient((request) async {
+          if (request.url.host == 'vivo.od') {
+            return jsonResponse({'ok': true});
+          }
+          throw const SocketException('sem rota');
+        }),
+      );
+      expect(await api.isAvailable(), isTrue);
+      expect(api.baseUrl, 'http://vivo.od:8000');
+    });
+
+    test('par salvo morto mas OUTRO caminho vive → re-sonda e acha',
+        () async {
+      final api = OdApi(
+        baseUrl: 'http://morto1.od:8000',
+        fallbackUrl: 'http://morto2.od:8000',
+        client: MockClient((request) async {
+          if (request.url.host == '100.77.67.53') {
+            return jsonResponse({'ok': true});
+          }
+          throw const SocketException('sem rota');
+        }),
+      );
+      expect(await api.isAvailable(), isTrue);
+      expect(api.baseUrl, 'http://100.77.67.53:8000');
+    });
+  });
 }

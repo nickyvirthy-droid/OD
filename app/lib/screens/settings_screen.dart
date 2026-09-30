@@ -319,9 +319,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ]),
                 const Divider(),
                 const Text(
-                  'A conexão é automática: em casa o app usa a rede local '
-                  '(mais rápida); fora de casa, vai pela internet com '
-                  'segurança (HTTPS). Você não precisa configurar nada.',
+                  'A conexão é automática: o app sonda a rede local '
+                  '(192.168.x), o Tailscale (100.x) e a internet (com e sem '
+                  'criptografia) e usa o primeiro caminho que responder. Você '
+                  'não precisa configurar nada.',
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -335,7 +336,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Text(
                       widget.api.usingLocalUrl
                           ? 'Conectado pela rede local'
-                          : 'Conectado pela internet (Funnel)',
+                          : 'Conectado pela internet',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                   ],
@@ -467,7 +468,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextField(
                   controller: _urlController,
                   decoration: const InputDecoration(
-                    labelText: 'URL local (Tailscale)',
+                    labelText: 'URL do servidor (deixe o padrão para automático)',
                     hintText: odDefaultLocalUrl,
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.dns),
@@ -510,9 +511,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   '• Conta: crie no site (ou aqui mesmo pelo login do app) e '
                   'sua conversa é a mesma no app, no chat e no Telegram.\n'
                   '• Sem conta, o "Avançado" aceita a API key do servidor.\n'
-                  '• Em casa o app fala com o servidor pela rede local; fora, '
-                  'pela internet com criptografia — sozinho, sem você '
-                  'escolher nada.',
+                  '• O app sonda sozinho TODOS os caminhos do servidor — rede '
+                  'local (192.168.x), Tailscale (100.x), internet com '
+                  'criptografia e internet direta — e usa o primeiro que '
+                  'responder. Trocou de rede? Ele re-sonda sem você fazer '
+                  'nada.',
                   style: TextStyle(height: 1.5),
                 ),
               ],

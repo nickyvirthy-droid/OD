@@ -244,6 +244,43 @@ void main() {
   });
 
   group('OdStreamingChat — fallback para POST /message', () {
+    test('REST com erro de REDE re-sonda os 4 caminhos e tenta de novo',
+        () async {
+      // 1ª chamada: /health e /message falham por rede (socket morto).
+      // Depois do pickBestUrl, o host vivo passa a ser o baseUrl e o 2º
+      // /message responde.
+      var mensagens = 0;
+      final api = OdApi(
+        baseUrl: 'http://morto.od:8000',
+        client: MockClient((request) async {
+          if (request.url.host == 'morto.od') {
+            // http.ClientException É reconhecida como erro de rede por
+            // _asNetworkError (a SocketException real também é — é
+            // IOException); a mensagem 'Connection refused' habilita o
+            // retry do POST.
+            throw http.ClientException('Connection refused');
+          }
+          if (request.url.path == '/message') {
+            mensagens++;
+            return http.Response(jsonEncode({'message': 'pós-ressonda'}), 200,
+                headers: {'content-type': 'application/json'});
+          }
+          return http.Response('{"ok":true}', 200);
+        }),
+      );
+      // Sem par salvo, o pickBestUrl acha a LAN viva (1º da ordem padrão).
+      SharedPreferences.setMockInitialValues({});
+
+      final connector = FakeConnector((_) => throw const SocketExceptionStub());
+      final chat = OdStreamingChat(api, connector: connector.connect);
+      final deltas = await chat.send('oi').toList();
+
+      expect(deltas.single.text, 'pós-ressonda');
+      expect(deltas.single.transport, OdChatTransport.rest);
+      expect(mensagens, 1); // 1ª falhou por rede (morto.od), 2ª (LAN) passou.
+      expect(api.baseUrl, 'http://192.168.0.250:8000');
+    });
+
     test('WebSocket inacessível cai para o REST com um único delta', () async {
       final connector = FakeConnector((_) => throw const SocketExceptionStub());
       final api = apiWith(restOk('Resposta inteira do REST'));

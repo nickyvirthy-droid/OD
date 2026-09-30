@@ -28,11 +28,31 @@ const Duration odRetryDelay = Duration(milliseconds: 400);
 /// URLs padrão do OmegaDrakon — ocultas na configuração do usuário.
 ///
 /// O app escolhe sozinho pela LOCALIZAÇÃO da rede ([OdApi.pickBestUrl]):
-/// com rota até o tailnet usa a URL local (latência mínima) e, fora de
-/// casa, a externa (Tailscale Funnel — TLS, funciona de qualquer lugar).
+/// sonda TODOS os caminhos publicados do servidor e usa o primeiro que
+/// responder, em ordem de preferência (o mais direto primeiro):
+///
+///   1. **LAN pura** `http://192.168.0.250:8000` — casa, sem Tailscale;
+///   2. **Tailnet direto** `http://100.77.67.53:8000` — Tailscale ativo;
+///   3. **Funnel** `https://nicky-server.tail1b1f51.ts.net` — internet,
+///      TLS, depende do Tailscale estar logado no celular;
+///   4. **DDNS/roteador** `http://nicky.theworkpc.com` — internet sem
+///      depender do Tailscale (quando a operadora deixa a porta passar).
+///
 /// O usuário nunca digita URL.
+const String odDefaultLanUrl = 'http://192.168.0.250:8000';
 const String odDefaultLocalUrl = 'http://100.77.67.53:8000';
 const String odDefaultExternalUrl = 'https://nicky-server.tail1b1f51.ts.net';
+const String odDefaultRouterUrl = 'http://nicky.theworkpc.com';
+
+/// Ordem de sonda do [OdApi.pickBestUrl]: da rota mais direta (menor
+/// latência) para a mais indireta. É a lista COMPLETA de caminhos —
+/// qualquer um que responder serve.
+const List<String> odDefaultUrls = [
+  odDefaultLanUrl,
+  odDefaultLocalUrl,
+  odDefaultExternalUrl,
+  odDefaultRouterUrl,
+];
 
 /// Tempo da sonda de localização: curto de propósito — a rede local
 /// responde em milissegundos; sem rota, o erro é no timeout e não vale
@@ -117,49 +137,65 @@ class OdApi {
     fallbackUrl = url?.trim().isEmpty == true ? null : url?.trim();
   }
 
-  /// A URL ativa é a da rede local? (classificação por formato: https =
-  /// externa; o resto — http/100.x — é local). É o rótulo exibido nas
-  /// Configurações; a URL em si fica oculta.
-  bool get usingLocalUrl => !baseUrl.startsWith('https://');
+  /// A URL ativa é de uma rede local de verdade (LAN/tailnet)? É o rótulo
+  /// exibido nas Configurações; a URL em si fica oculta.
+  ///
+  /// Classifica por HOST, não por esquema: o caminho do DDNS do roteador
+  /// (`http://nicky.theworkpc.com`) é http mas é INTERNET; o do Funnel é
+  /// https e também é internet. Local = 192.168.x (LAN), 100.x (Tailscale)
+  /// e loopback.
+  bool get usingLocalUrl {
+    final host = Uri.parse(baseUrl).host;
+    return host.startsWith('192.168.') ||
+        host.startsWith('100.') ||
+        host == 'localhost' ||
+        host == '127.0.0.1';
+  }
 
   /// Escolhe a melhor URL pela LOCALIZAÇÃO da rede.
   ///
-  /// Sonda primeiro a rede local (Tailscale 100.x — responde em
-  /// milissegundos quando o celular está no tailnet/em casa) e, sem rota,
-  /// usa a externa (Funnel, funciona de qualquer lugar). A que responder
-  /// vira a primária; a outra fica de fallback. A escolha é persistida.
+  /// Sonda TODOS os caminhos conhecidos do servidor ([odDefaultUrls] —
+  /// LAN, tailnet, Funnel e DDNS do roteador) EM PARALELO e usa o PRIMEIRO
+  /// que responder na ordem de preferência (rota mais direta primeiro).
+  /// O segundo que responde fica de fallback. A escolha é persistida.
   ///
-  /// Prefere a URL salva do último uso (quando existir) sobre os padrões —
-  /// é o que faz o app voltar ao caminho que já funcionou.
+  /// URLs salvas de uso manual (Avançado) entram na frente da lista —
+  /// quem configurou algo à mão tem prioridade — mas NUNCA substituem a
+  /// lista: os 4 caminhos padrão continuam sendo sondados.
   ///
-  /// Nada alcançável: mantém local como primária (é a única hipótese que
-  /// pode voltar a funcionar sozinha quando a rede voltar).
+  /// Sonda paralela de propósito: o pior caso (nada responde) custa UM
+  /// timeout de sonda (~4s), não um por URL.
+  ///
+  /// Nada alcançável: mantém o último caminho usado (é o que tem mais
+  /// chance de voltar a funcionar sozinho quando a rede voltar).
   Future<String> pickBestUrl() async {
     final prefs = await SharedPreferences.getInstance();
-    final local = prefs.getString('od_server_url')?.isNotEmpty == true
-        ? prefs.getString('od_server_url')!
-        : odDefaultLocalUrl;
-    final external =
-        prefs.getString('od_server_url_fallback')?.isNotEmpty == true
-            ? prefs.getString('od_server_url_fallback')!
-            : odDefaultExternalUrl;
+    final manual = prefs.getString('od_server_url') ?? '';
+    final manualFallback = prefs.getString('od_server_url_fallback') ?? '';
+    final ordem = <String>{
+      // Prioridade manual (Avançado), sem duplicar os padrões.
+      if (manual.trim().isNotEmpty) manual.trim(),
+      if (manualFallback.trim().isNotEmpty) manualFallback.trim(),
+      ...odDefaultUrls,
+    };
+    final urls = <String>[...ordem];
 
-    String escolhida;
-    if (await isReachable(local)) {
-      baseUrl = local;
-      fallbackUrl = external;
-      escolhida = local;
-    } else if (await isReachable(external)) {
-      baseUrl = external;
-      fallbackUrl = local;
-      escolhida = external;
-    } else {
-      baseUrl = local;
-      fallbackUrl = external;
-      escolhida = local;
+    final resultados = await Future.wait([
+      for (final url in urls) isReachable(url),
+    ]);
+    final vivos = <String>[
+      for (var i = 0; i < urls.length; i++)
+        if (resultados[i]) urls[i],
+    ];
+
+    if (vivos.isNotEmpty) {
+      baseUrl = vivos.first;
+      fallbackUrl = vivos.length > 1 ? vivos[1] : null;
     }
+    // Nada vivo: mantém o par atual (pode voltar sozinho).
+    if (fallbackUrl == baseUrl) fallbackUrl = null;
     await saveUrls();
-    return escolhida;
+    return baseUrl;
   }
 
   /// True quando o servidor respondeu na [url] — QUALQUER status HTTP conta
@@ -744,6 +780,10 @@ class OdApi {
   /// Verifica se a API está acessível (health check rápido).
   ///
   /// Se houver [fallbackUrl], tenta a primária e, se falhar, a secundária.
+  /// Se AMBAS falharem, re-sonda TODOS os caminhos padrão — a rede pode
+  /// ter trocado em pleno uso (Wi-Fi ↔ dados, Tailscale subiu/caiu) e o
+  /// par salvo de URLs ficou velho. Achando outro caminho, promove-o a
+  /// primário (a escolha é persistida).
   Future<bool> isAvailable() async {
     try {
       final health = await getHealth();
@@ -768,6 +808,17 @@ class OdApi {
       } catch (_) {
         baseUrl = fallbackUrl ?? baseUrl;
       }
+    }
+    // Nem primária nem fallback: re-sonda os 4 caminhos do sistema.
+    final reescolhida = await pickBestUrl();
+    try {
+      final prev = baseUrl;
+      baseUrl = reescolhida;
+      final health = await getHealth();
+      if (health['ok'] == true) return true;
+      baseUrl = prev;
+    } catch (_) {
+      // Segue falso — nada respondeu em caminho nenhum.
     }
     return false;
   }

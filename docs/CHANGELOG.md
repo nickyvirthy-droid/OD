@@ -14,6 +14,35 @@
 
 ---
 
+## [1.10.1] — CONEXÃO COM 4 CAMINHOS: LAN, tailnet, Funnel e DDNS sondados sozinhos 🔌 (2026-09-29)
+
+> **Política:** correção de conexão sem capacidade nova = PATCH
+> (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.10.1` · app `1.10.1+2025`
+> (versionCode 2025).
+
+### Corrigido (2026-09-29)
+
+| Peça | Entrega |
+|---|---|
+| **4 caminhos sondados** | `pickBestUrl` sonda EM PARALELO a LAN (`http://192.168.0.250:8000`), o tailnet (`http://100.77.67.53:8000`), o Funnel (`https://nicky-server.tail1b1f51.ts.net`) e o DDNS do roteador (`http://nicky.theworkpc.com`) — antes só 2 (tailnet/Funnel); o DDNS http não ficava de fora quando o Tailscale do celular estava deslogado |
+| **Ordem de preferência** | rota mais direta primeiro: LAN → tailnet → Funnel → roteador; o segundo vivo fica de fallback |
+| **Re-sondagem em pleno uso** | `isAvailable` re-sonda os 4 caminhos quando primária E fallback morrem (rede trocou — Wi-Fi ↔ dados, Tailscale subiu/caiu); o fallback REST do streaming também re-sonda em erro de rede |
+| **Rótulo local/internet** | classificação por HOST (192.168.x/100.x = local) — o DDNS http é internet, não "rede local" |
+
+### Validação
+
+- App: flutter analyze 0 issues; flutter test 114 passed, 2 skipped
+  (+10: 6 da sonda de 4 caminhos, 2 da re-sondagem, 1 do streaming com
+  re-sondagem e 1 de rótulo/contrato).
+- Teste do teste: 4 mutações TODAS detectadas e revertidas bit-exata
+  (ordem trocada → 2 falhas; re-sondagem do isAvailable → 1; do REST →
+  1; fallback guardado → 2).
+- Suíte do servidor: 2015 passed, 16 skipped (sem mudança de backend;
+  apenas `_APP_VERSION_CODE` 2024 → 2025).
+
+---
+
 ## [1.10.0] — PAINÉIS NO APP: dashboard e admin com as mesmas funcionalidades do site 📊 (2026-09-29)
 
 > **Política:** capacidade nova para o usuário final (o app ganha a aba

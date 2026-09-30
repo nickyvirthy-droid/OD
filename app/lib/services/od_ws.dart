@@ -240,7 +240,18 @@ class OdStreamingChat {
       // Se chegou aqui, todas as URIs falharam antes de receber algo.
     }
 
-    final resposta = await api.sendMessage(text, profile: profile);
+    // REST com re-sondagem: se a rede trocou de rota em pleno uso (Wi-Fi ↔
+    // dados, Tailscale subiu/caiu), o par de URLs salvo pode ter ficado
+    // velho. Um erro de REDE (não de aplicação) re-sonda os 4 caminhos e
+    // tenta mais uma vez — seguro, porque erro de transporte significa que
+    // a requisição original nem chegou a estabelecer conexão.
+    String resposta;
+    try {
+      resposta = await api.sendMessage(text, profile: profile);
+    } on OdNetworkError {
+      await api.pickBestUrl();
+      resposta = await api.sendMessage(text, profile: profile);
+    }
     yield OdChatDelta(
       text: resposta,
       done: true,
