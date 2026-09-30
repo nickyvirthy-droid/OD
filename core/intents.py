@@ -199,6 +199,14 @@ def _detect_operational(text: str) -> Optional[str]:
         r"(casa|aqui|agora|hoje|amanh[aã]|fora|rua|em\s+\w|no\s+\w|l[aá])",
         low,
     ):
+        # v1.12.0: cidade EXPLÍCITA na pergunta de clima → weather_city
+        # (leitura externa Open-Meteo). Caso real §14 (30/09): 'qual a
+        # temperatura em presidente venceslau' recebia o clima DA CASA —
+        # honesto sobre a fonte, mas não era o pedido. Sem cidade (ou só
+        # 'aqui/casa/hoje'), continua ha_weather (weather.* do HA).
+        cidade = extract_city_from_weather_text(text)
+        if cidade:
+            return "weather_city", {"city": cidade}
         return "ha_weather"
     # Luzes/dispositivos do lar (v1.8.0) — estado REAL das entidades
     # switch.*/light.*. v1.8.1: COMANDO (liga/desliga) separado da LEITURA
@@ -321,6 +329,85 @@ def detect_action_intent(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     if action == "disk_usage":
         return action, {"path": "/"}
     return action, {}
+
+
+# ---------------------------------------------------------------------------
+# Extração de cidade de frases de clima (v1.12.0)
+# ---------------------------------------------------------------------------
+
+# Gatilhos de clima — mesma família dos padrões de ha_weather.
+_CLIMA_CITY_RE = re.compile(
+    r"\b(clima|temp(eratura|eratuda)?|umidade|previs[aã]o|vento|chove[r]?)\b"
+)
+
+# Padrões de lugar: 'em X', 'no X', 'na X', 'para X', 'pra X', 'de X' —
+# captura o resto da frase e remove ruído de tempo/agregado.
+_LUGAR_RE = re.compile(
+    r"\b(?:em|no|na|para|pra|de|da|do)\s+(?P<lugar>[a-záàâãéêíóôõúüç]+"
+    r"(?:\s+[a-záàâãéêíóôõúüç]+)*)",
+    re.IGNORECASE,
+)
+
+# Ruído nas PONTAS do lugar (tempo relativo, gatilhos de clima, artigo):
+# 'tempo no rio de janeiro' → ponta esquerda 'tempo no' sai, 'de' do MEIO
+# fica (pertence à cidade). A extração recorta só das extremidades.
+_RUIDO_PONTA_ESQ = (
+    "hoje", "amanha", "amanhã", "ontem", "agora", "nesta", "neste",
+    "nessa", "nesse", "aqui", "casa", "regiao", "região", "media",
+    "média", "maxima", "máxima", "minima", "mínima", "max", "min",
+    "tempo", "clima", "temperatura", "temperatuda", "umidade",
+    "previsao", "previsão", "vento", "graus", "o", "a", "os", "as",
+    "em", "no", "na", "do", "da", "para", "pra", "de", "minha",
+    "meu", "minhas", "meus", "essa", "esse", "isso",
+)
+_RUIDO_PONTA_DIR = (
+    "hoje", "amanha", "amanhã", "ontem", "agora", "max", "min",
+    "maxima", "máxima", "minima", "mínima", "graus",
+)
+
+# UF/sigla solta no final ('em presidente venceslau sp') — faz parte do lugar.
+_UF_RE = re.compile(r"\s*\b(sp|rj|mg|es|pr|sc|rs|ba|pe|ce|go|mt|ms|df|ma|pi|pa|"
+                    r"am|rr|ap|ac|ro|to|al|pb|rn|se)\s*$", re.IGNORECASE)
+
+def _sem_acento(p: str) -> str:
+    """Normaliza para comparação de stopwords (aextração de cidade)."""
+    return (
+        p.replace("á", "a").replace("ã", "a").replace("â", "a")
+        .replace("à", "a").replace("é", "e").replace("ê", "e")
+        .replace("í", "i").replace("ó", "o").replace("õ", "o")
+        .replace("ô", "o").replace("ú", "u").replace("ü", "u")
+        .replace("ç", "c")
+    )
+
+def extract_city_from_weather_text(text: str) -> Optional[str]:
+    """Extrai o nome de cidade de frases como 'clima em presidente venceslau'.
+
+    Regra das PONTAS: stopwords/gatilhos saem apenas das extremidades do
+    lugar casado — 'previsão do tempo no rio de janeiro' → 'rio de
+    janeiro' (o 'de' do MEIO pertence à cidade).
+
+    Returns:
+        Nome da cidade, ou None quando a frase não menciona lugar explícito
+        (aí o clima é o DA CASA — ha_weather).
+    """
+    if not text:
+        return None
+    low = text.lower()
+    if not _CLIMA_CITY_RE.search(low):
+        return None
+    melhor: Optional[str] = None
+    for m in _LUGAR_RE.finditer(low):
+        lugar = _UF_RE.sub("", (m.group("lugar") or "").strip()).strip()
+        palavras = lugar.split() if lugar else []
+        # recorta ruído da ESQUERDA (gatilhos/artigos/preposições)
+        while palavras and _sem_acento(palavras[0]) in _RUIDO_PONTA_ESQ:
+            palavras.pop(0)
+        # recorta ruído da DIREITA (tempo relativo/qualificador)
+        while palavras and _sem_acento(palavras[-1]) in _RUIDO_PONTA_DIR:
+            palavras.pop()
+        if palavras:
+            melhor = " ".join(palavras)
+    return melhor
 
 
 # ---------------------------------------------------------------------------
@@ -538,6 +625,30 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
         if extra:
             lines.append("  • " + " · ".join(extra))
         lines.append("  • Fonte: Home Assistant (weather da casa) — leitura real.")
+        return "\n".join(lines)
+
+    if action == "weather_city":
+        if data.get("error"):
+            return None  # degradação guiada pelo fluxo normal (nunca LLM inventa)
+        temp = data.get("temperature")
+        if temp is None:
+            return None
+        unit = data.get("temperature_unit", "°C")
+        cond = data.get("condition") or "?"
+        lines = [f"🌤️ Clima em {data.get('city')}: {temp}{unit}, {cond}"]
+        extra = []
+        sens = data.get("apparent_temperature")
+        if sens is not None:
+            extra.append(f"sensação {sens}{unit}")
+        hum = data.get("humidity")
+        if hum is not None:
+            extra.append(f"umidade {hum}%")
+        wind = data.get("wind_speed")
+        if wind is not None:
+            extra.append(f"vento {wind} {data.get('wind_speed_unit', 'km/h')}")
+        if extra:
+            lines.append("  • " + " · ".join(extra))
+        lines.append("  • Fonte: Open-Meteo — leitura real de agora.")
         return "\n".join(lines)
 
     if action == "ha_device_control":

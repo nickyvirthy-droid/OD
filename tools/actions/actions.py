@@ -331,6 +331,106 @@ def _ha_state(entity_id: str) -> Optional[Any]:
         return None
 
 
+# Códigos WMO (Open-Meteo) → descrição pt-BR (o modelo nunca traduz —
+# o formatter entrega o texto pronto).
+_WMO_PT: dict[int, str] = {
+    0: "céu limpo", 1: "predominantemente limpo", 2: "parcialmente nublado",
+    3: "nublado", 45: "neblina", 48: "neblina com geada",
+    51: "garoa leve", 53: "garoa", 55: "garoa forte",
+    56: "garoa congelante leve", 57: "garoa congelante forte",
+    61: "chuva fraca", 63: "chuva", 65: "chuva forte",
+    66: "chuva congelante fraca", 67: "chuva congelante forte",
+    71: "neve fraca", 73: "neve", 75: "neve forte", 77: "grãos de neve",
+    80: "pancadas leves", 81: "pancadas de chuva", 82: "pancadas fortes",
+    85: "pancadas de neve fracas", 86: "pancadas de neve fortes",
+    95: "tempestade", 96: "tempestade com granizo leve",
+    99: "tempestade com granizo forte",
+}
+
+def _wmo_condition(raw_code: Any) -> str:
+    """Código WMO (Open-Meteo) → descrição pt-BR.
+
+    0 é código VÁLIDO (céu limpo) — a conversão é falsy-safe:
+    `is not None`, nunca `or` (o 0 seria engolido)."""
+    code = int(raw_code) if raw_code is not None else -1
+    return _WMO_PT.get(code, f"código {code}")
+
+
+def weather_city(city: str) -> dict[str, Any]:
+    """Clima REAL de uma cidade informada, via Open-Meteo (sem chave).
+
+    Motivação (2026-09-30, §14): 'qual a temperatura em presidente
+    venceslau' recebia o clima DA CASA (weather.* do HA é da região do
+    servidor) — resposta honesta sobre a fonte, mas o pedido não era
+    atendido. A leitura aqui é de uma API externa gratuita com geocoding
+    próprio; sem rede, degrada com mensagem clara (nunca inventa).
+    """
+    import json as _json
+    import urllib.parse
+    import urllib.request
+
+    city = (city or "").strip()
+    if not city:
+        return {"ok": False, "error": "cidade_vazia",
+                "message": "Informe a cidade: 'clima em presidente venceslau'."}
+
+    def _get(url: str, timeout: float = 8.0) -> Optional[dict]:
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as resp:
+                return _json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            log.warning("weather_city: falha na chamada externa", url=url,
+                        error=str(exc))
+            return None
+
+    geo = _get(
+        "https://geocoding-api.open-meteo.com/v1/search?"
+        + urllib.parse.urlencode(
+            {"name": city, "count": 1, "language": "pt", "format": "json"}
+        )
+    )
+    if not geo or not geo.get("results"):
+        return {"ok": False, "error": "cidade_nao_encontrada",
+                "message": f"Não encontrei a cidade '{city}' no geocoding."}
+    r = geo["results"][0]
+    lat, lon = r.get("latitude"), r.get("longitude")
+    nome = ", ".join(
+        str(r[k]) for k in ("name", "admin1", "country")
+        if r.get(k) and str(r[k]).strip()
+    )
+    forecast = _get(
+        "https://api.open-meteo.com/v1/forecast?"
+        + urllib.parse.urlencode({
+            "latitude": lat,
+            "longitude": lon,
+            "current": "temperature_2m,relative_humidity_2m,"
+                       "apparent_temperature,weather_code,wind_speed_10m",
+        })
+    )
+    if not forecast or not forecast.get("current"):
+        return {"ok": False, "error": "fonte_indisponivel",
+                "message": "Serviço de clima indisponível agora — não invento o dado."}
+    cur = forecast["current"]
+    raw_code = cur.get("weather_code")
+    return {
+        "ok": True,
+        "city": nome,
+        "latitude": lat,
+        "longitude": lon,
+        "temperature": cur.get("temperature_2m"),
+        "temperature_unit": forecast.get("current_units", {}).get(
+            "temperature_2m", "°C"),
+        "apparent_temperature": cur.get("apparent_temperature"),
+        "humidity": cur.get("relative_humidity_2m"),
+        "wind_speed": cur.get("wind_speed_10m"),
+        "wind_speed_unit": forecast.get("current_units", {}).get(
+            "wind_speed_10m", "km/h"),
+        "condition": _wmo_condition(raw_code),
+        "source": "Open-Meteo",
+        "observed_at": cur.get("time"),
+    }
+
+
 def ha_weather() -> dict[str, Any]:
     """Clima REAL da região da casa, do Home Assistant (weather.*).
 
@@ -1451,6 +1551,8 @@ CATALOG: list[dict[str, Any]] = [
     _spec("cpu_info", "system", "Núcleos/modelo/carga da CPU", cpu_info),
     _spec("cpu_temp", "system", "Temperatura do servidor (zones térmicos)", cpu_temp),
     _spec("ha_weather", "iot", "Clima real da região da casa (Home Assistant)", ha_weather),
+    _spec("weather_city", "iot", "Clima real de uma cidade informada (Open-Meteo, sem chave)", weather_city,
+          {"required": ["city"], "properties": {"city": S}}),
     _spec("ha_lights", "iot", "Estado das luzes e interruptores (Home Assistant)", ha_lights),
     _spec("ha_summary", "iot", "Raio-X do lar: clima, luzes, pessoas, bateria, rede", ha_summary),
     _spec("ha_device_control", "iot", "Liga/desliga UMA luz ou tomada específica (dono, com confirmação)", ha_device_control,

@@ -265,23 +265,25 @@ class TestIntencaoIpEPortas:
         ):
             assert detect_action_intent(pergunta) == ("cpu_temp", {}), pergunta
 
-    def test_temperatura_de_cidade_nao_e_infra_e_vai_para_o_ha(self) -> None:
-        """v1.8.0: clima de CIDADE/casa pega o dado REAL do Home Assistant
-        (weather.* da casa) — antes ia para o LLM, que inventava '23°C' e
-        repetia a mentira quando o dono disse 'mentira'. Nunca é infra
-        (v1.7.1 segue valendo: 🔒 de cidade era vedação indevida)."""
+    def test_temperatura_de_cidade_nao_e_infra_e_clima_real(self) -> None:
+        """v1.8.0: clima pega dado REAL, nunca inventado pelo LLM; nunca é
+        infra (v1.7.1: 🔒 de cidade era vedação indevida).
+        v1.12.0: CIDADE EXPLÍCITA → weather_city (Open-Meteo — o weather.*
+        do HA é da região da CASA, não da cidade pedida); sem cidade →
+        ha_weather (clima da casa)."""
         from core.intents import detect_action_intent, detect_infra_intent
-        for pergunta in (
-            "qual a temperatuda em presidente venceslau sp",
-            "qual a temperatura em presidente venceslau sp",
-            "como está o clima em são paulo",
-            "como está o clima hoje",
-            "qual a temperatura agora",
+        for pergunta, esperado in (
+            ("qual a temperatuda em presidente venceslau sp",
+             ("weather_city", {"city": "presidente venceslau"})),
+            ("qual a temperatura em presidente venceslau sp",
+             ("weather_city", {"city": "presidente venceslau"})),
+            ("como está o clima em são paulo",
+             ("weather_city", {"city": "são paulo"})),
+            ("como está o clima hoje", ("ha_weather", {})),
+            ("qual a temperatura agora", ("ha_weather", {})),
         ):
             assert detect_infra_intent(pergunta) is False, pergunta
-            assert detect_action_intent(pergunta) == ("ha_weather", {}), (
-                pergunta
-            )
+            assert detect_action_intent(pergunta) == esperado, pergunta
 
     def test_tempo_de_duracao_nao_e_clima(self) -> None:
         """'tempo' ambíguo com duração NÃO é clima ('tempo em média',

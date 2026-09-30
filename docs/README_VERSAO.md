@@ -7,6 +7,38 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.12.0] — CLIMA DE CIDADE REAL: 'temperatura em presidente venceslau' responde a CIDADE pedida 🌤 (2026-09-30)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | Pendência da 1.11.1 (ação 3 da §14 de 30/09): "action de clima por cidade — hoje o HA responde o clima da casa para qualquer cidade pedida"; caso real: 'qual a temperatura em presidente venceslau' recebia o clima DA CASA |
+| **Action `weather_city`** | catálogo 63 → 64 (iot=5): Open-Meteo (geocoding + forecast, gratuita sem chave, urllib stdlib); temperatura, sensação, umidade, vento, condição WMO em pt-BR; nome resolvido ('Presidente Venceslau, São Paulo, Brasil') |
+| **Detecção** | cidade EXPLÍCITA → weather_city; sem cidade ('clima hoje', 'aqui') → ha_weather INTACTO; regra das PONTAS ('previsão do tempo no rio de janeiro' → 'rio de janeiro' — o 'de' do meio é da cidade); UF solta removida; 'temperatura do servidor' segue cpu_temp |
+| **Honestidade** | sem rede/cidade desconhecida → erro claro e degradação guiada — nunca dado inventado; weather_code 0 (céu limpo) tratado falsy-safe |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 2075 passed, 16 skipped (+20 em TestWeatherCity)
+teste do teste: 4/4 mutações detectadas e revertidas bit-exata
+  (M1 rota desligada → 9; M2 extração quebrada → 8; M3 falsy engole 0 → 1;
+   M4 degradação com texto quebrado → 1 — 1ª rodada sobreviveu por teste
+   fraco, endurecido, re-detectada)
+bump MINOR: .env 1.12.0 · capabilities fallback · pubspec 1.12.0+2028 ·
+  _APP_VERSION_CODE=2028 · site 2x · CHANGELOG [1.12.0] · README_VERSAO §1.12.0
+APK 1.12.0+2028 (versionCode 2028) publicado em site/
+```
+
+### 3. Pendências / próximos passos
+
+- Instalar o APK 1.12.0+2028 no celular (auto-atualização, 2028 > 2027).
+- Prova viva no ar: restart do od-core e 'clima em presidente venceslau'
+  pelo chat/app.
+
+---
+
 ## [1.11.1] — PROMPT HONESTO: o modelo sabe o que é e o que o sistema não tem 🪞 (2026-09-30)
 
 ### 1. O que foi feito

@@ -23,6 +23,7 @@ import pytest
 from core.intents import (
     FASTPATH_ACTIONS,
     detect_action_intent,
+    extract_city_from_weather_text,
     format_intent_result,
     safe_math,
 )
@@ -43,6 +44,123 @@ ARP_SAMPLE = (
 # ---------------------------------------------------------------------------
 # Detecção de intenções
 # ---------------------------------------------------------------------------
+
+
+class TestWeatherCity:
+    """v1.12.0 (§14 de 30/09): clima de CIDADE EXPLÍCITA → weather_city
+    (Open-Meteo); clima da casa/genérico → ha_weather (intacto).
+
+    Caso real: 'qual a temperatura em presidente venceslau' recebia o
+    clima DA CASA (weather.* do HA) — honesto sobre a fonte, mas o
+    pedido não era atendido.
+    """
+
+    @pytest.mark.parametrize(
+        "text,city",
+        [
+            ("qual a temperatura em presidente venceslau",
+             "presidente venceslau"),
+            ("temperatura agora em presidente venceslau sp",
+             "presidente venceslau"),
+            ("clima em campo grande hoje", "campo grande"),
+            ("qual o clima em são paulo", "são paulo"),
+            ("previsão do tempo no rio de janeiro", "rio de janeiro"),
+            ("umidade em sorocaba", "sorocaba"),
+            ("vento na lapa", "lapa"),
+            ("temperatura em presidente prudente", "presidente prudente"),
+        ],
+    )
+    def test_cidade_explícita_vai_para_weather_city(self, text, city):
+        resultado = detect_action_intent(text)
+        assert resultado is not None
+        action, params = resultado
+        assert action == "weather_city"
+        assert params == {"city": city}
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "clima hoje",
+            "qual a temperatura agora aqui",
+            "clima da casa",
+        ],
+    )
+    def test_sem_cidade_continua_ha_weather(self, text):
+        resultado = detect_action_intent(text)
+        assert resultado is not None
+        action, params = resultado
+        assert action == "ha_weather"
+        assert params == {}
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "qual a temperatura do servidor",
+            "temperatura da máquina",
+            "quanto tempo demora o build",
+            "tempo em média de resposta",
+        ],
+    )
+    def test_nao_confunde_com_sistema_ou_duracao(self, text):
+        resultado = detect_action_intent(text)
+        action = resultado[0] if resultado else None
+        assert action != "weather_city"
+
+    def test_stopword_de_ligacao_fica_na_cidade(self):
+        """'rio DE janeiro': 'de' no MEIO pertence à cidade — só ponta sai."""
+        assert extract_city_from_weather_text(
+            "previsão do tempo no rio de janeiro"
+        ) == "rio de janeiro"
+
+    def test_sem_rede_degrada_sem_mentir(self):
+        """weather_city sem rede → error claro (nada de dado inventado)."""
+        from tools.actions.actions import weather_city
+
+        resultado = weather_city("")
+        assert resultado["ok"] is False
+        assert resultado["error"] == "cidade_vazia"
+
+    def test_formatter_weather_city(self):
+        resposta = format_intent_result(
+            "weather_city",
+            {
+                "ok": True,
+                "city": "Presidente Venceslau, São Paulo, Brasil",
+                "temperature": 31.5,
+                "temperature_unit": "°C",
+                "apparent_temperature": 32.4,
+                "humidity": 45,
+                "wind_speed": 14.0,
+                "wind_speed_unit": "km/h",
+                "condition": "céu limpo",
+            },
+        )
+        assert "Presidente Venceslau" in resposta
+        assert "31.5°C" in resposta
+        assert "Open-Meteo" in resposta
+
+    def test_formatter_weather_city_degradada_cai_ao_llm(self):
+        """Action degradada (error/sem temperatura) → None: o pipeline cai
+        para o LLM/degradação guiada — NUNCA devolve texto quebrado."""
+        for data in (
+            {"ok": False, "error": "cidade_nao_encontrada"},
+            {"ok": False, "error": "cidade_vazia"},
+            {"ok": False, "error": "fonte_indisponivel"},
+            {"ok": True},  # sem temperature (contrato quebrado)
+        ):
+            assert format_intent_result("weather_city", data) is None, data
+
+    def test_weather_code_zero_e_clima_limpo(self):
+        """M3 (30/09): `int(code or -1)` engolia o código 0 (céu limpo) —
+        weather_code 0 é VÁLIDO. Fixa a conversão falsy-safe real
+        (_wmo_condition), não uma réplica inline do contrato."""
+        from tools.actions.actions import _wmo_condition
+
+        assert _wmo_condition(0) == "céu limpo"
+        assert _wmo_condition("0") == "céu limpo"
+        assert _wmo_condition(61) == "chuva fraca"
+        assert _wmo_condition(None) == "código -1"
+        assert _wmo_condition(1234).startswith("código ")
 
 class TestDetectActionIntent:
     """Mapeamento PT-BR de perguntas operacionais → actions de leitura."""

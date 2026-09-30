@@ -14,6 +14,46 @@
 
 ---
 
+## [1.12.0] — CLIMA DE CIDADE REAL: 'temperatura em presidente venceslau' responde a CIDADE pedida 🌤 (2026-09-30)
+
+> **Política:** action nova no catálogo (63 → 64) = funcionalidade com
+> compatibilidade → MINOR (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.12.0` · app `1.12.0+2028`
+> (versionCode 2028 — bump de linhagem; o app não muda de conteúdo).
+
+### Adicionado (2026-09-30)
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | Ação 3 da análise de coerência §14 (30/09): pendência da 1.11.1 — "action de clima por cidade (hoje o HA responde o clima da casa para qualquer cidade pedida)" |
+| **Action `weather_city`** | catálogo 63 → 64 (categoria iot=5): geocoding + forecast atuais da **Open-Meteo** (gratuita, sem chave, urllib stdlib — sem dependência nova); nome resolvido ('Presidente Venceslau, São Paulo, Brasil'), temperatura, sensação, umidade, vento e condição WMO traduzida pt-BR (o formatter entrega o texto pronto — o modelo nunca traduz) |
+| **Detecção de intenção** | `detect_action_intent`: cidade EXPLÍCITA na frase de clima → `weather_city`; sem cidade ('clima hoje', 'aqui') → `ha_weather` INTACTO. Extração pela regra das PONTAS: stopwords/gatilhos saem só das extremidades — 'previsão do tempo no rio de janeiro' → 'rio de janeiro' (o 'de' do MEIO pertence à cidade); UF solta ('...sp') é removida; 'temperatura do servidor' segue cpu_temp (nunca clima) |
+| **Honestidade** | sem rede/cidade desconhecida → `ok=False` com erro claro ('cidade_nao_encontrada'/'fonte_indisponivel') — o formatter devolve None e o pipeline degrada guiado; NUNCA dado inventado (padrão da casa) |
+| **Falsy-safe** | weather_code 0 (céu limpo) é VÁLIDO — conversão via `_wmo_condition` com `is not None`, não `or` |
+
+### Corrigido
+
+- Teste v1.8.0 que fixava cidade → `ha_weather` atualizado ao contrato da
+  1.12.0 (cidade explícita → `weather_city`; genérico segue `ha_weather`).
+
+### Evidência
+
+```
+servidor: pytest tests/ → 2075 passed, 16 skipped (+20 no TestWeatherCity)
+ambiente canônico: .venv SEM OD_TEST_POSTGRES_DSN
+Teste do teste: 4/4 mutações detectadas e revertidas bit-exata —
+  M1 rota de cidade desligada → 9 falhas;
+  M2 extração só com a última palavra → 8 falhas;
+  M3 conversão falsy (or engole o 0) → 1 falha;
+  M4 degradação respondendo texto quebrado → 1 falha (1ª rodada
+  SOBREVIVEU por teste fraco — teste endurecido com os 4 erros + contrato
+  sem temperature, mutação re-detectada)
+guarda de coerência de versões: 1.12.0 em .env · capabilities ·
+  pubspec 1.12.0+2028 · _APP_VERSION_CODE=2028 · site (2x)
+```
+
+---
+
 ## Ferramenta — Orquestrador de fallback de CLIs (2026-09-30, sem bump)
 
 > **Sem bump:** ferramenta standalone na raiz (`orquestrador.py`), fora do
