@@ -14,6 +14,34 @@
 
 ---
 
+## Ferramenta — Orquestrador de fallback de CLIs (2026-09-30, sem bump)
+
+> **Sem bump:** ferramenta standalone na raiz (`orquestrador.py`), fora do
+> od-core e do app — não altera a API pública nem o runtime implantado
+> (mesmo precedente de `runtime/migrate_history_owner.py` e do
+> reordenamento deste arquivo em 29/09). Política: `docs/VERSIONAMENTO.md`.
+
+| Peça | Entrega |
+|---|---|
+| **`orquestrador.py`** | monitor de `pedido.txt` (varredura a cada 5s, leitura+limpeza anti-loop); prompt blindado (código puro, sem markdown/cercas); cascata **Freebuff → OpenCode → Kilo** via subprocesso (`shutil.which` + timeout 600s); extração de cerca markdown como defesa; validação `ast.parse` — sintaxe inválida pula para a próxima CLI; resultado gravado em `codigo_gerado.py`; tipado, `CliSpec`/`ResultadoPedido` como dataclasses |
+| **Dependências** | `requirements.txt` ganha `python-dotenv>=1.0` (carga do .env: GEMINI_API_KEY, GROQ_API_KEY para o ambiente dos subprocessos) e `requests>=2.31`; instaladas na `.venv` |
+| **Higiene** | `pedido.txt` criado em branco; `.gitignore` ganha `/pedido.txt`, `/codigo_gerado.py` e `/instrucoes_projeto.txt` (material local da raiz) |
+
+### Evidência
+
+```
+pytest tests/test_orquestrador.py -q → 25 passed
+Suíte completa: 2040 passed, 16 skipped (66s, .venv sem OD_TEST_POSTGRES_DSN)
+Teste do teste: 4 mutações — M1 validação desligada → 4 falhas;
+M2 falha tratada como sucesso → 4; M3 limpeza anti-loop desligada → 2;
+M4 chaves não repassadas → 2 (1ª rodada sobreviveu por teste fraco —
+dict(os.environ) já continha as chaves; teste endurecido para o contrato
+de executar_cli, mutação re-detectada, revertida bit-exata)
+CLIs de backup: opencode v2.0.20 · kilo 7.8.1 (~/.npm-global, sem sudo)
+```
+
+---
+
 ## [1.10.1] — CONEXÃO COM 4 CAMINHOS: LAN, tailnet, Funnel e DDNS sondados sozinhos 🔌 (2026-09-29)
 
 > **Política:** correção de conexão sem capacidade nova = PATCH

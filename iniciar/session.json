@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-29T22:25:00-03:00",
+  "updated_at": "2026-09-30T04:25:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -840,11 +840,24 @@
     "estado": "ZERADA PROVADA — análise começa quando o dono mandar conversar e pedir ('analise as conversas'); protocolo pronto.",
     "transcricao": "iniciar/2026-09-29_conversa_omegadrakon.md (§14)"
   },
+  "retomada_2026_09_30": {
+    "pedido": "Dono: 'leia iniciar, depois leia docs e por fim leia o arquivo instrucoes_projeto.txt' (~03:3x de 30/09). Depois: autorizou EXECUTAR o instruções.",
+    "leitura": "iniciar/ (session.json, RULES.md, README.md, transcrições) + docs/ (README_VERSAO até 1.10.1, REGRAS_DE_TRABALHO, VERSIONAMENTO) + instrucoes_projeto.txt na raiz.",
+    "execucao": {
+      "dependencias": "Node 18.19.1/NPM 9.2.0 OK; opencode v2.0.20 + kilo 7.8.1 instalados em ~/.npm-global (EACCES em /usr/local, sudo com senha → prefix do usuário; 1ª rodada abortada por timeout, 2ª completou em 9m via cache); requirements.txt ganha python-dotenv>=1.0 e requests>=2.31, instaladas na .venv.",
+      "orquestrador": "orquestrador.py (raiz, standalone): monitor de pedido.txt (5s) com limpeza anti-loop, prompt blindado sem markdown, cascata Freebuff→OpenCode→Kilo (CliSpec, timeout 600s), ast.parse OBRIGATÓRIO (sintaxe inválida pula CLI), saída em codigo_gerado.py; pedido.txt criado em branco; .gitignore ganha /pedido.txt, /codigo_gerado.py e /instrucoes_projeto.txt.",
+      "validacao": "tests/test_orquestrador.py 25 passed; suíte 2040 passed, 16 skipped (66s); teste do teste 4 mutações — M1 validação → 4 falhas, M2 falha como sucesso → 4, M3 anti-loop → 2, M4 chaves → 1ª rodada SOBREVIVEU (teste fraco, dict(os.environ) já tinha as chaves), endurecido para o contrato de executar_cli, re-detectada (2), revertida bit-exata (backup /tmp, sha conferido).",
+      "versionamento": "SEM BUMP (precedente migrate_history_owner): standalone na raiz, fora do od-core/app, não altera API nem runtime; CHANGELOG com seção datada 'Ferramenta — Orquestrador de fallback de CLIs (2026-09-30, sem bump)'."
+    },
+    "achados_infra": "(1) Gate de cobertura JÁ vermelho no HEAD: --cov-fail-under=90 → 89.44%, TOTAL idêntico (12191/1287) com e sem esta entrega — lacuna em módulos antigos (migrate_history_owner 59%, control_bridge 62%, actions 68%); sessões recentes rodavam só pytest -q. (2) CI quebra em checkout limpo: test_env_e_capabilities_na_mesma_versao lê o .env (gitignored) — acoplamento pré-existente.",
+    "estado": "EXECUÇÃO CONCLUÍDA — monitor NÃO deixado rodando (mutação de estado externo exige pedido); pendências do dono intactas (APK 1.10.1+2025, prova externa, análise pós-zerada) + 2 achados de infra para decisão.",
+    "transcricao": "iniciar/2026-09-30_conversa_omegadrakon.md"
+  },
   "last_turn": {
-    "date": "2026-09-29",
-    "retomada": "22:2x — v1.10.1 NO AR (§17): app sonda sozinho os 4 caminhos do servidor (LAN 192.168.0.250 → tailnet 100.77.67.53 → Funnel → DDNS nicky.theworkpc.com) em paralelo, com re-sondagem quando a rede troca em pleno uso. Deploy PID 1026393 NRestarts=0; prova viva 6/6 com os 4 caminhos respondendo. HEAD 536be8b == origin/master.",
-    "action": "v1.10.1 (PATCH) completa e NO AR: pickBestUrl com 4 caminhos + re-sondagem; flutter 114/2, suíte 2015/16, 4 mutações detectadas; APK 1.10.1+2025 buildado (aapt2 2025, sha256 2c6345a8…). Registrada no commit d4d04b0 + §17.",
-    "next": "Pendente do dono: abrir o app no celular para a auto-atualização 2025 > 2024 e provar o acesso EXTERNO (sem Tailscale no celular: Funnel ou DDNS). Análise de coerência das conversas em standby até acumular conversas novas pós-zerada (protocolo §14).",
+    "date": "2026-09-30",
+    "retomada": "03:3x–04:2x de 30/09 — retomada tripla (iniciar → docs → instrucoes_projeto.txt) e execução do instruções autorizada pelo dono: orquestrador de fallback de CLIs criado, testado (25 novos) e registrado; suíte 2040/16. v1.10.1 segue NO AR (PID 1026393) — nada do sistema foi alterado ou reiniciado.",
+    "action": "Orquestrador de CLIs executado e validado (25 testes novos, suíte 2040/16, 4 mutações); registrado no CHANGELOG (sem bump) + §1-5 da transcrição de 30/09.",
+    "next": "Decisão do dono: (a) rodar o monitor como serviço (systemd --user)? (b) fechar os 2 achados de infra (gate de cobertura 89.44% no HEAD e CI quebrado por acoplamento ao .env)? Pendências intactas: APK 1.10.1+2025 no celular e prova de acesso externo; análise de coerência aguarda conversas novas.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
   "cache_historico_2026_09_24_fechamento": {

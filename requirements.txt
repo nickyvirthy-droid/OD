@@ -22,3 +22,13 @@ google-auth>=2.0
 #    é tardio e a falha fica contida, então sem ela o núcleo sobe normal e só o
 #    streaming fica indisponível.
 websockets>=14.0
+#
+# 4) python-dotenv — carregamento do .env pelo orquestrador de CLIs
+#    (orquestrador.py): chaves como GEMINI_API_KEY/GROQ_API_KEY viram
+#    variáveis de ambiente para os subprocessos de fallback.
+python-dotenv>=1.0
+#
+# 5) requests — cliente HTTP de apoio para ferramentas locais (ex:
+#    orquestrador.py). Fora do caminho crítico do od-core, que segue em
+#    urllib do stdlib.
+requests>=2.31

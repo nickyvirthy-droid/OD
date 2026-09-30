@@ -109,6 +109,12 @@ workspace/
 # Node (if used for tools)
 node_modules/
 
+# Orquestrador de CLIs (orquestrador.py) — fila de pedidos e código gerado
+# ficam locais; nunca versionar. Logs (incl. Home Assistant) já caem no *.log.
+/pedido.txt
+/codigo_gerado.py
+/instrucoes_projeto.txt
+
 # Temporary files
 *.tmp
 *.temp
