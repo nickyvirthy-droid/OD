@@ -583,3 +583,36 @@ de produto mudou: launcher recebe env que antes não existia; docs/iniciar
 registram).** Pendência do sistema: nenhuma. Pendência do dono: só o APK
 1.14.0+2030 no celular.
 
+## 15. Auditoria final do cache LLM — as 39 restantes (~21:2x)
+
+**Varredura completa das 39 entradas** (post-rotação) contra padrões de
+segredo/mentira/estado efêmero. Veredito:
+- **4 PODRES removidas** (prune cirúrgico, removidas 4/4):
+  - [14] resposta de limpeza com **vazamento de etiqueta interna**
+    ('[INFO] Limpeza solicitada no dia…' embutido no texto) — o ban
+    oficial só pega etiqueta no INÍCIO da resposta (`startswith`), esta
+    tinha no meio;
+  - [18] resposta quebrada '"Em construção..."' (estado de página, não
+    conhecimento);
+  - [29] **controle do lar** 'Acesse a luz do corredor!' — estado de
+    conversa (o ban da v1.9.1 pega '💡 Confirmar:' e '✅ ', não a
+    frase seca);
+  - [36] **recusa falsa** 'Não posso compartilhar detalhes específicos
+    sobre configurações do llama.cpp' — o llama.cpp é do PRÓPRIO dono e
+    open-source; recusa-alucinação que renascia do cache.
+- **35 OK mantidas:** saudações, identidade Nicky Virthy, factoides
+  (Brasília), instruções genéricas — zero segredos (regex de
+  senha/password/token/api_key/secret/IPs = 0 real; a única casada é o
+  tutorial do HA com IP de EXEMPLO 192.168.0.100, placeholder de
+  documentação) e zero mentiras conhecidas (GPT-4/US$ 5.20/23°C = 0).
+
+**Achado estrutural para o futuro:** o `cache_failure_reason` tem 3
+cegas — etiqueta no MEIO do texto, frase seca de controle do lar, e
+recusas de "código proprietário". Candidata a v1.15.x: estender os
+padrões (regex de etiqueta em qualquer posição + verbos imperativos do
+lar + 'código proprietário'). **Decisão pendente do dono.**
+
+**Estado: AUDITORIA CONCLUÍDA — cache 39 → 35, zero segredos, zero
+mentiras conhecidas.** Pendência do sistema: nenhuma. Pendência do
+dono: APK no celular; decidir se endurece os padrões de ban (v1.15.x).
+
