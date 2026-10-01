@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-01T16:2x:00-03:00",
+  "updated_at": "2026-10-01T17:1x:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -990,11 +990,28 @@
     "estado": "CONCLUÍDO E NO AR — v1.17.1. Divergência motor/declaração FECHADA.",
     "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md (§7)"
   },
+  "v172_guarda_limitacoes_2026_10_01": {
+    "pedido": "Dono: 'Investigar por que network_hosts e weather_city degradam só no caminho do chat, não por /executa'.",
+    "investigacao": [
+      "Journal do od-core VAZIO nos horários dos eventos (16:21) — o chat NUNCA passou pelo servidor naqueles segundos.",
+      "Pistas: sempre as MESMAS 3 perguntas (incl. o typo 'temperatuda') em blocos idênticos; dedup de 6h não bloqueava porque cada restart zerava a memória.",
+      "Processos com cwd=OmegaDrakon: só launcher + orquestrador (que não toca limitações) — eliminou chat e background jobs.",
+      "PROVA: pytest isolado (test_intents.py::TestFastPathOrchestrator::test_acao_degradada_cai_ao_llm) gerou entrada nova no arquivo real (47→50 linhas, ts 16:46:16)."
+    ],
+    "causa_raiz": "Os testes de integração simulam ações degradadas com frases literais ('quantas pessoas na rede?' com /proc vazio, 'qual a temperatuda em presidente venceslau sp' sem fonte) e os hooks registrar_action_degradada/registrar_fallback_honesto gravavam no limitacoes.txt REAL a cada rodada da suíte. Os horários batiam com rodadas de pytest. O CHAT DO DONO NUNCA DEGRADOU.",
+    "fix": "tests/conftest.py (NOVO): fixture autouse redireciona LIMITACOES_FILE para tmp_path por teste + isola o dedup em memória. Testes com monkeypatch.chdir continuam válidos. Arquivo real LIMPO (0 linhas).",
+    "teste_do_teste": "Mutação no-op na fixture → gravação no real volta (detectada, 2 linhas); guarda restaurada → suíte completa 2139 passed e 0 linhas no real.",
+    "bump": "1.17.2 (PATCH): .env, capabilities, pubspec 1.17.2+2035, _APP_VERSION_CODE=2035, site 2x, CHANGELOG [1.17.2], README §1.17.2. APK rebuildado (aapt2 2035/1.17.2).",
+    "commit": "36a317f fix(tests) + 083dab8 chore(release) — HEAD==origin/master.",
+    "deploy": "IMPLANTADO — restart, PID 1281250, NRestarts=0. Prova viva: /health 9/9 · /app/version {1.17.2, 2035} · fastpath network_hosts ok (6 dispositivos) · limitacoes.txt 0 linhas · journal 0 Traceback.",
+    "estado": "CONCLUÍDO E NO AR — v1.17.2. O 'problema do chat' era contaminação da suíte; Casa de Limitações segue funcional no runtime.",
+    "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md (§8)"
+  },
   "last_turn": {
     "date": "2026-10-01",
-    "retomada": "16:1x de 01/10 — 'verifique onde parou na atualização e termine o serviço'. Auditoria final da v1.17.1: HEAD==origin/master (432ec74), árvore limpa, od-core (1270259) e od-llm (1270257) ativos NRestarts=0, journal 0 Traceback (única linha = WARN do anti-recusa funcionando), resíduos do sandbox em /tmp removidos (5 logs + backup de mutação), porta 8082 livre.",
-    "action": "Verificação final completa: suíte 2139/16 · /health 9/9 · /app/version {1.17.1, 2034, sha256==binário} · network_hosts ok no fastpath · 8081 ok. Serviço TERMINADO — sessão fechada verde.",
-    "next": "Pendências: (1) APK 1.17.1+2034 no celular (auto-atualização); (2) desejos do txt.txt: voz, Google Drive, Agenda, Gmail (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura documentada: gemma quando o hardware crescer.",
+    "retomada": "16:4x–17:1x de 01/10 — pedido do dono: investigar degradações recorrentes de network_hosts/weather_city. Investigação fechou em contaminação da suíte de testes (pytest gravava no limitacoes.txt real com as frases literais dos testes, incluindo o typo 'temperatuda'). v1.17.2 com guarda no conftest.",
+    "action": "v1.17.2 NO AR (PID 1281250): conftest autouse isola a Casa de Limitações por teste; arquivo real limpo e provado 0 gravações na suíte completa; teste do teste 1 mutação detectada. Commits 36a317f + 083dab8 publicados.",
+    "next": "Pendências: (1) APK 1.17.2+2035 no celular (auto-atualização); (2) desejos do txt.txt: voz, Google Drive, Agenda, Gmail (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura documentada: gemma quando o hardware crescer.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
