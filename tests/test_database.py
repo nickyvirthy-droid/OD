@@ -19,9 +19,12 @@ Baseado em:
 
 from __future__ import annotations
 
+import unittest.mock
+
 import pytest
 
 from storage import ConnectionPool, Database, DatabaseError, Repository
+from storage.database import PostgresConnectionPool
 from tools.actions import (
     configure_database,
     database_query,
@@ -273,3 +276,105 @@ class TestDatabaseActions:
         result = database_query("SELECT * FROM nao_existe")
         assert result["ok"] is False
         assert result["error"]
+
+
+# ---------------------------------------------------------------------------
+# PostgresConnectionPool — auto-cura de conexão morta (bug real de 01/10)
+# ---------------------------------------------------------------------------
+
+class _FakePgConn:
+    """Conexão pg8000 falsa: responde SELECT 1 ou levanta (socket morto)."""
+
+    def __init__(self, viva: bool = True) -> None:
+        self.viva = viva
+        self.fechada = False
+
+    def execute(self, sql, params=()):
+        if not self.viva:
+            raise OSError("network error")  # pg8000: socket morto
+        return self
+
+    def fetchall(self):
+        return [(1,)]
+
+    def close(self):
+        self.fechada = True
+
+
+class TestPoolPostgresConexaoMorta:
+    """O pool NÃO pode servir conexão morta (bug real de 01/10: o
+    Postgres reiniciou de madrugada e o od-core de pé ficou com as
+    conexões podres — toda query falhava com 'network error' e o chat
+    dava erro interno)."""
+
+    def _pool_com(self, conns):
+        pool = PostgresConnectionPool.__new__(PostgresConnectionPool)
+        import queue as _queue
+        import threading
+        pool._dsn = "postgres://falso@127.0.0.1:1/falso"
+        pool._size = 3
+        pool._queue = _queue.Queue(maxsize=3)
+        pool._conns = list(conns)
+        pool._lock = threading.Lock()
+        pool._closed = False
+        for conn in conns:
+            pool._queue.put_nowait(conn)
+        return pool
+
+    def test_conexao_morta_e_descartada_e_substituida(self):
+        podre = _FakePgConn(viva=False)
+        fresca = _FakePgConn(viva=True)
+        pool = self._pool_com([podre])
+        with unittest.mock.patch.object(pool, "_create", return_value=fresca):
+            acquired = pool.acquire()
+        assert acquired is fresca
+        assert podre.fechada is True          # descartada de verdade
+        assert podre not in pool._conns       # fora da contagem do pool
+
+    def test_pool_se_recupera_quando_todas_morrem(self):
+        podres = [_FakePgConn(viva=False) for _ in range(3)]
+        fresca = _FakePgConn(viva=True)
+        pool = self._pool_com(podres)
+        with unittest.mock.patch.object(pool, "_create", return_value=fresca):
+            acquired = pool.acquire()
+        assert acquired is fresca
+        assert all(c.fechada for c in podres)
+        assert pool._conns == [fresca]
+
+    def test_conexao_viva_passa_sem_descarte(self):
+        viva = _FakePgConn(viva=True)
+        pool = self._pool_com([viva])
+        with unittest.mock.patch.object(
+            pool, "_create", side_effect=AssertionError("não devia criar")
+        ):
+            assert pool.acquire() is viva
+        assert pool._conns == [viva]
+
+    def test_pool_fechado_recusa_acquire(self):
+        pool = self._pool_com([])
+        pool._closed = True
+        with pytest.raises(DatabaseError):
+            pool.acquire()
+
+    def test_pool_esgotado_bloquea_ao_inves_de_estourar(self):
+        """Contrato do cabeçalho do módulo: pool esgotado BLOQUEIA até uma
+        liberação — nunca cria conexão fora do lock (estouro)."""
+        # 3 conexões ativas de 3 e fila VAZIA = todas em uso: esgotado
+        ativas = [_FakePgConn(viva=True) for _ in range(3)]
+        pool = self._pool_com(ativas)
+        while not pool._queue.empty():
+            pool._queue.get_nowait()
+        criadas = []
+
+        def _create_falsa():
+            criadas.append(1)
+            raise AssertionError("pool esgotado não pode criar conexão")
+
+        with unittest.mock.patch.object(pool, "_create", _create_falsa):
+            import threading
+
+            t = threading.Thread(target=pool.acquire, daemon=True)
+            t.start()
+            t.join(timeout=1.0)
+        assert t.is_alive()          # ainda bloqueando na fila
+        assert not criadas           # nenhuma criação fora do lock

@@ -14,6 +14,48 @@
 
 ---
 
+## [1.16.0] — POOL POSTGRES AUTO-CURÁVEL: conexão morta nunca mais vira erro interno no chat 🩹 (2026-10-01)
+
+> **Política:** correção de robustez interna (sem rota/endpoint/action
+> nova) com testes novos = MINOR conservador (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.16.0` · app `1.16.0+2032`
+> (versionCode 2032 — auto-atualização do celular).
+
+### Corrigido (bug real de 01/10, §17 da sessão)
+
+O Postgres reiniciou de madrugada (06:31) e o od-core (de pé desde
+30/09 21:36) manteve no pool as conexões que o banco encerrou: toda
+query de usuário/sessão/cache falhava com `network error` (pg8000 para
+socket morto) e o chat devolvia **erro interno** — o pool
+(`PostgresConnectionPool.acquire`) servia conexão podre PARA SEMPRE,
+pois nunca validava o que entregava.
+
+| Peça | Entrega |
+|---|---|
+| **Validação no acquire** | conexão ociosa só é entregue após `SELECT 1` (`_conn_viva`); qualquer falha = podre |
+| **Auto-cura** | conexão morta é fechada, removida da contagem (`_discard`) e substituída por uma nova — o sistema se recupera sozinho quando o Postgres reinicia (sem restart do od-core) |
+| **Contrato intacto** | pool esgotado continua BLOQUEANDO na fila (sem estouro de conexões) — agora fixado por teste |
+| **SQLite intacto** | `ConnectionPool` (SQLite) não muda uma linha |
+
+### Evidência
+
+```
+servidor: pytest tests/ → 2130 passed, 16 skipped
+  (+5 TestPoolPostgresConexaoMorta em test_database.py)
+Teste do teste: 3/3 mutações detectadas e revertidas bit-exata —
+  M1 validação desligada (if True) → 2 falhas;
+  M2 socket morto tratado como vivo (except Exception → RuntimeError)
+    → 2 falhas;
+  M3 fila bloqueante virou criação fora do lock → 1ª rodada SOBREVIVEU
+    por teste fraco (pool não estava esgotado) — teste endurecido com o
+    contrato do cabeçalho do módulo (bloqueia, nunca estoura), mutação
+    re-detectada (1 falha)
+bump MINOR: .env 1.16.0 · capabilities · pubspec 1.16.0+2032 ·
+  _APP_VERSION_CODE=2032 · site 2x · CHANGELOG [1.16.0] · README §1.16.0
+```
+
+---
+
 ## [1.15.0] — GUARDAS DO CACHE ENDURECIDAS: as 3 cegas do cache_failure_reason fechadas 🛡 (2026-09-30)
 
 > **Política:** correção de robustez interna (sem rota/endpoint/action

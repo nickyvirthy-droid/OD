@@ -203,9 +203,37 @@ class PostgresConnectionPool:
         return self._dsn
 
     def acquire(self) -> Any:
-        """Pega uma conexão do pool (cria sob demanda; bloqueia se esgotado)."""
+        """Pega uma conexão do pool (cria sob demanda; bloqueia se esgotado).
+
+        Conexões ociosas são VALIDADAS antes de serem entregues: o
+        PostgreSQL encerra conexões ao reiniciar (e a rede pode derrubar
+        conexões ociosas) — sem a validação, o pool serve conexão morta
+        para sempre e toda query falha com 'network error' (bug real de
+        01/10: Postgres reiniciou de madrugada, od-core de pé manteve as
+        conexões podres e o chat ficou com erro interno).
+        """
         if self._closed:
             raise DatabaseError("pool fechado")
+        for _ in range(self._size + 1):
+            conn = self._take()
+            if conn is None:
+                raise DatabaseError("pool fechado durante acquire")
+            if self._conn_viva(conn):
+                return conn
+            # Conexão morta: descarta e busca outra (auto-cura)
+            log.warn("DB conexão morta descartada pelo pool (postgres)")
+            self._discard(conn)
+        # Todas as tentativas vieram podres: cria uma NOVA fora do pool
+        # (com o slot liberado pelo _discard, o pool volta a se completar)
+        with self._lock:
+            if len(self._conns) < self._size:
+                conn = self._create()
+                self._conns.append(conn)
+                return conn
+        raise DatabaseError("pool esgotado com conexões inválidas")
+
+    def _take(self) -> Optional[Any]:
+        """Fonte de conexão: fila → criação sob demanda → bloqueante."""
         try:
             return self._queue.get_nowait()
         except queue.Empty:
@@ -215,7 +243,25 @@ class PostgresConnectionPool:
                 conn = self._create()
                 self._conns.append(conn)
                 return conn
+        # Pool esgotado: aguarda uma liberação (sem estourar conexões)
         return self._queue.get()
+
+    @staticmethod
+    def _conn_viva(conn: Any) -> bool:
+        """SELECT 1 na conexão — False se a conexão está morta."""
+        try:
+            cursor = conn.execute("SELECT 1")
+            cursor.fetchall()
+            return True
+        except Exception:  # noqa: BLE001 — qualquer falha = conexão podre
+            return False
+
+    def _discard(self, conn: Any) -> None:
+        """Fecha a conexão podre e a remove da contagem do pool."""
+        self._close_conn(conn)
+        with self._lock:
+            if conn in self._conns:
+                self._conns.remove(conn)
 
     def release(self, conn: Any) -> None:
         try:

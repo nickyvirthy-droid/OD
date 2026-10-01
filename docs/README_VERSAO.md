@@ -7,6 +7,28 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.16.0] — POOL POSTGRES AUTO-CURÁVEL: conexão morta nunca mais vira erro interno no chat 🩹 (2026-10-01)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Origem** | chat com erro interno na manhã de 01/10: Postgres reiniciou às 06:31 e o od-core (de pé desde 30/09 21:36) ficou com as conexões mortas no pool — `network error` em toda query (pg8000 para socket morto) |
+| **Validação no acquire** | `PostgresConnectionPool.acquire` só entrega conexão após `SELECT 1` (`_conn_viva`); falha = podre |
+| **Auto-cura** | podre é fechada, removida da contagem (`_discard`) e substituída — o od-core se recupera sozinho de restart do Postgres, sem restart próprio |
+| **Contrato intacto** | pool esgotado segue BLOQUEANDO na fila (sem estouro) — contrato do cabeçalho do módulo agora fixado por teste |
+| **Alcance** | só o pool PostgreSQL; SQLite (`ConnectionPool`) e toda a API pública intactos |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 2130 passed, 16 skipped (+5 TestPoolPostgresConexaoMorta)
+teste do teste: 3/3 mutações bit-exata (2/2/1 falhas; M3 pegou teste
+  fraco na 1ª rodada — endurecido, precedente da casa)
+bump MINOR: .env 1.16.0 · capabilities · pubspec 1.16.0+2032 ·
+  _APP_VERSION_CODE=2032 · site 2x · CHANGELOG [1.16.0] · README §1.16.0
+```
+
 ## [1.15.0] — GUARDAS DO CACHE ENDURECIDAS: as 3 cegas do cache_failure_reason fechadas 🛡 (2026-09-30)
 
 ### 1. O que foi feito
