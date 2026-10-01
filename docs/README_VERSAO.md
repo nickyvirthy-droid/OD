@@ -7,6 +7,29 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.17.0] — PERSONALIDADES REALMENTE DISTINTAS: a Plêiade deixa de responder num só jeito 🎭 (2026-10-01)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| Diagnóstico | Queixa do dono: "as personalidades são diferentes, porque todas respondem do mesmo jeito". Causa provada no código: `agents/nicky_virthy/personality.py` (a fonte usada pelo chat via `Orchestrator._resolve_system`) montava o prompt com ~95% de texto idêntico entre perfis — a única linha variável era `Tom do perfil: <resumo de uma linha>`. O `agents/profiles.py` tem prompts ricos, mas nunca é injetado no caminho do LLM. Cache já isola por perfil (não é causa). |
+| Implementação | `VOICE_BLOCKS` em `personality.py`: bloco `COMO VOCÊ FALA` por perfil (7) com identidade no papel, registro, ritmo, o que faz, o que NUNCA faz, frase-assinatura e micro-exemplo (começo literal de resposta). Injeção em `build_identity_prompt` com precedência sobre o resumo curto (que permanece por compatibilidade) e perto do fim do prompt (distância mínima da geração). Prefixo de identidade intacto (preserva reuso de KV no llama-server). |
+| Testes | +9 em `TestVoiceBlocks` (tests/test_personality.py): presença em todos os perfis, estrutura completa, unicidade par a par, auto-nomeação, precedência, micro-exemplos distintos, guarda da causa raiz (>400 chars de divergência entre perfis), resumo antigo preservado. Suíte 2139 passed, 16 skipped. |
+| Teste do teste | 3/3 mutações bit-exata (backup /tmp, sha256 conferido): M1 Nyx clona bloco da Athenae → 4 falhas · M2 `voice = ""` → 3 falhas · M3 bloco antes do resumo → 1 falha. |
+
+### 2. bump MINOR
+
+Política: feature nova compatível (sem rota/endpoint/action nova; comportamento
+resposta dos perfis muda por desenho). `.env 1.17.0` · capabilities ·
+`pubspec 1.17.0+2033` · `_APP_VERSION_CODE=2033` · site 2x · CHANGELOG
+`[1.17.0]` · este README. APKs rebuildados com `JAVA_HOME=~/jdk` e
+`PATH += ~/flutter/bin`.
+
+### 3. Prova viva (pós-deploy)
+
+Registrada na transcrição do dia (`iniciar/2026-10-01_conversa_omegadrakon.md`).
+
 ## [1.16.0] — POOL POSTGRES AUTO-CURÁVEL: conexão morta nunca mais vira erro interno no chat 🩹 (2026-10-01)
 
 ### 1. O que foi feito

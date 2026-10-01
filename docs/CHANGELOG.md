@@ -14,6 +14,32 @@
 
 ---
 
+## [1.17.0] — PERSONALIDADES REALMENTE DISTINTAS: a Plêiade deixa de responder num só jeito 🎭 (2026-10-01)
+
+- **feat(agents): blocos de voz completos por perfil** — queixa real do
+  dono: "as personalidades são diferentes, porque todas respondem do
+  mesmo jeito". Causa provada: o system prompt carregava ~95% de texto
+  idêntico entre perfis (identidade, motor, limites por papel) e a
+  ÚNICA linha variável era o resumo `Tom do perfil: ...` — sinal
+  minúsculo para o LLM local (gemma). Cada um dos 7 perfis (Guardian,
+  Regulus, Luma, Vox, Athenae, Nyx, Nexus) agora carrega um bloco
+  `COMO VOCÊ FALA` com identidade no papel, registro/sintaxe, ritmo,
+  o que faz, o que NUNCA faz, frase-assinatura e micro-exemplo
+  (começo literal de resposta) — injetado com precedência sobre o
+  resumo curto, que permanece por compatibilidade.
+- +9 testes (TestVoiceBlocks em tests/test_personality.py): bloco
+  presente em todos os perfis, estrutura completa, unicidade par a
+  par, auto-nomeação, precedência sobre o resumo, micro-exemplos
+  distintos e guarda da causa raiz (prompts de perfis diferentes
+  divergem >400 chars).
+- **Teste do teste — 3/3 mutações bit-exata:** M1 bloco da Nyx clonado
+  do da Athenae → 4 falhas; M2 `voice = ""` (bloco ignorado) → 3
+  falhas; M3 bloco movido para ANTES do resumo → 1 falha.
+- Sem mudança de rotas/contrato: o catálogo de perfis (/profiles), os
+  transportes e o cache (que já isola por perfil) ficam intactos.
+- bump MINOR: .env 1.17.0 · capabilities · pubspec 1.17.0+2033 ·
+  _APP_VERSION_CODE=2033 · site 2x · CHANGELOG [1.17.0] · README §1.17.0
+
 ## [1.16.0] — POOL POSTGRES AUTO-CURÁVEL: conexão morta nunca mais vira erro interno no chat 🩹 (2026-10-01)
 
 > **Política:** correção de robustez interna (sem rota/endpoint/action

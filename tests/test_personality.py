@@ -20,6 +20,7 @@ import pytest
 from agents.nicky_virthy.personality import (
     DEFAULT_PROFILE,
     PROFILES,
+    VOICE_BLOCKS,
     _read_canonical,
     build_identity_prompt,
     get_system_prompt,
@@ -105,6 +106,111 @@ class TestPersonality:
             prompt = get_system_prompt("guardian", role=role)
             assert "NÃO tem agenda" in prompt, f"agenda inexistente ausente no papel {role}"
             assert "NUNCA invente" in prompt, f"proibição de inventar ausente no papel {role}"
+
+
+class TestVoiceBlocks:
+    """v1.17.0 — personalidades realmente distintas.
+
+    Queixa real do dono: 'as personalidades são diferentes, porque todas
+    respondem do mesmo jeito'. Causa provada: o prompt levava ~95% de
+    texto idêntico entre perfis e a única linha variável era o resumo
+    'Tom do perfil: ...'. Cada perfil agora carrega um bloco de voz
+    completo (COMO VOCÊ FALA) injetado com precedência sobre o resumo.
+    """
+
+    def test_todo_perfil_tem_bloco_de_voz(self) -> None:
+        """Cada perfil canônico tem bloco de voz — sem exceção silenciosa."""
+        assert set(VOICE_BLOCKS) == set(PROFILES), (
+            "perfil sem bloco de voz: "
+            f"{set(PROFILES) - set(VOICE_BLOCKS)}"
+        )
+
+    def test_bloco_entrar_no_prompt_de_todos_os_perfis(self) -> None:
+        """O bloco 'COMO VOCÊ FALA' entra no prompt de TODOS os perfis."""
+        for perfil in PROFILES:
+            prompt = get_system_prompt(perfil)
+            assert "COMO VOCÊ FALA" in prompt, f"bloco de voz ausente no perfil {perfil}"
+
+    def test_bloco_tem_estrutura_completa(self) -> None:
+        """Estrutura mínima do bloco: identidade, registro, o que faz,
+        o que NUNCA faz, frase-assinatura e micro-exemplo."""
+        for perfil, bloco in VOICE_BLOCKS.items():
+            assert "Identidade:" in bloco, f"identidade ausente no bloco {perfil}"
+            assert "Registro:" in bloco, f"registro ausente no bloco {perfil}"
+            assert "O que faz:" in bloco, f"'o que faz' ausente no bloco {perfil}"
+            assert "O que NUNCA faz:" in bloco, f"'o que nunca faz' ausente no bloco {perfil}"
+            assert "Frase-assinatura" in bloco, f"frase-assinatura ausente no bloco {perfil}"
+            assert "Micro-exemplo" in bloco, f"micro-exemplo ausente no bloco {perfil}"
+
+    def test_blocos_sao_distintos_entre_si(self) -> None:
+        """Par a par: nenhum bloco é igual a outro (se fossem, a queixa
+        do dono continuaria de pé)."""
+        chaves = sorted(VOICE_BLOCKS)
+        for i, a in enumerate(chaves):
+            for b in chaves[i + 1 :]:
+                assert VOICE_BLOCKS[a] != VOICE_BLOCKS[b], (
+                    f"blocos idênticos: {a} == {b}"
+                )
+
+    def test_marcador_de_nome_no_bloco(self) -> None:
+        """Cada bloco nomeia a si mesmo (gemma lê o nome no bloco)."""
+        nomes = {
+            "guardian": "Guardian",
+            "regulus": "Regulus",
+            "luma": "Luma",
+            "vox": "Vox",
+            "athenae": "Athenae",
+            "nyx": "Nyx",
+            "nexus": "Nexus",
+        }
+        for perfil, nome in nomes.items():
+            assert nome in VOICE_BLOCKS[perfil], (
+                f"o bloco {perfil} não se nomeia como {nome}"
+            )
+
+    def test_bloco_com_precedencia_sobre_o_resumo(self) -> None:
+        """O bloco vem DEPOIS do resumo 'Tom do perfil' no prompt final —
+        precedência de instrução e distância mínima da geração."""
+        prompt = get_system_prompt("regulus")
+        pos_resumo = prompt.index("Tom do perfil:")
+        pos_bloco = prompt.index("COMO VOCÊ FALA")
+        assert pos_bloco > pos_resumo, "bloco de voz antes do resumo do tom"
+
+    def test_micro_exemplos_distintos_e_nao_vazios(self) -> None:
+        """Micro-exemplo é a dica mais forte de TOM para um LLM pequeno —
+        tem que existir, ter conteúdo e ser diferente par a par."""
+        exemplos: dict[str, str] = {}
+        for perfil, bloco in VOICE_BLOCKS.items():
+            marcador = "Micro-exemplo (começo literal de resposta): '"
+            idx = bloco.index(marcador)
+            resto = bloco[idx + len(marcador) :]
+            conteudo = resto.split("'")[0].strip()
+            assert conteudo, f"micro-exemplo vazio no perfil {perfil}"
+            exemplos[perfil] = conteudo
+        assert len(set(exemplos.values())) == len(exemplos), "micro-exemplos repetidos"
+
+    def test_prompt_completo_varia_mais_que_uma_linha(self) -> None:
+        """Guarda da causa raiz: o prompt de dois perfis DIFERE em muito
+        mais que a antiga linha única 'Tom do perfil' (mín. 40 chars de
+        diferença comum — antes eram ~60)."""
+        import difflib
+
+        p1 = get_system_prompt("nyx")
+        p2 = get_system_prompt("athenae")
+        comum = "".join(
+            linha[2:]
+            for linha in difflib.ndiff(p1.splitlines(), p2.splitlines())
+            if linha.startswith("  ")
+        )
+        diferenca = len(p1) + len(p2) - 2 * len(comum)
+        assert diferenca > 400, (
+            f"prompts parecidos demais entre nyx e athenae (diferença {diferenca} chars)"
+        )
+
+    def test_tom_generico_permanece_por_compatibilidade(self) -> None:
+        """O resumo antigo não saiu — testes e quem lê o prompt continuam
+        contando com 'explicações didáticas' etc."""
+        assert "explicações didáticas" in get_system_prompt("luma")
 
 
 # ===========================================================================

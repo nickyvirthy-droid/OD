@@ -1,7 +1,7 @@
 name: omegadrakon
 description: OmegaDrakon — Interface Viva no bolso 🐉
 publish_to: 'none'
-version: 1.16.0+2032
+version: 1.17.0+2033
 
 environment:
   sdk: '>=3.6.0 <4.0.0'   # Dart 3.6+ (Flutter 3.27+) — o código usa withValues
