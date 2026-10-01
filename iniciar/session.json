@@ -1007,6 +1007,16 @@
     "estado": "CONCLUÍDO E NO AR — v1.17.2. O 'problema do chat' era contaminação da suíte; Casa de Limitações segue funcional no runtime.",
     "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md (§8)"
   },
+  "retomada_2026_10_01_2": {
+    "pedido": "Usuário: 'leia iniciar' — retomada (~17:2x de 01/10).",
+    "verificacao": "HEAD 8c1a2a9 == origin/master (v1.17.2 registrada — §8); working tree limpo; estado herdado: v1.17.2 NO AR (PID 1281250, restart 16:4x), od-llm ativo (qwen2.5-coder-3b), od-orchestrator ativo (canal de desenvolvimento).",
+    "estado": "RETOMADA CONCLUÍDA — pendências do dono intactas: (1) APK 1.17.2+2035 no celular; (2) desejos do txt.txt (voz, Drive, Agenda, Gmail); (3) 2 achados de infra (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer."
+  },
+  "retomada_2026_10_01_2": {
+    "pedido": "Usuário: 'leia iniciar' — retomada (~17:2x de 01/10).",
+    "verificacao": "HEAD 8c1a2a9 == origin/master (v1.17.2 registrada — §8); working tree limpo; estado herdado: v1.17.2 NO AR (PID 1281250, restart 16:4x), od-llm ativo (qwen2.5-coder-3b), od-orchestrator ativo (canal de desenvolvimento).",
+    "estado": "RETOMADA CONCLUÍDA — pendências do dono intactas: (1) APK 1.17.2+2035 no celular; (2) desejos do txt.txt (voz, Drive, Agenda, Gmail); (3) 2 achados de infra (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer."
+  },
   "last_turn": {
     "date": "2026-10-01",
     "retomada": "16:4x–17:1x de 01/10 — pedido do dono: investigar degradações recorrentes de network_hosts/weather_city. Investigação fechou em contaminação da suíte de testes (pytest gravava no limitacoes.txt real com as frases literais dos testes, incluindo o typo 'temperatuda'). v1.17.2 com guarda no conftest.",
