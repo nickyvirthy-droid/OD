@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-01T16:1x:00-03:00",
+  "updated_at": "2026-10-01T16:2x:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -992,8 +992,8 @@
   },
   "last_turn": {
     "date": "2026-10-01",
-    "retomada": "15:0x–16:0x de 01/10 — pedido do dono: trocar o motor para o gemma declarado. Sandbox 8082 provou: gemma carrega mas não serve (content vazio com o prompt OD, 5 tok/s, risco OOM). Dono decidiu: qwen com nome honesto. v1.17.1 implantada e provada.",
-    "action": "v1.17.1 NO AR (od-core PID 1270259, od-llm PID 1270257): prompt/capabilities/unit declaram qwen2.5-coder-3b; prova decisiva no chat: 'o Qwen local do Omega Drakon'. 4 commits publicados (c2bc637, c891d45, c88042c/240f95b docs, e020aec, 961c609).",
+    "retomada": "16:1x de 01/10 — 'verifique onde parou na atualização e termine o serviço'. Auditoria final da v1.17.1: HEAD==origin/master (432ec74), árvore limpa, od-core (1270259) e od-llm (1270257) ativos NRestarts=0, journal 0 Traceback (única linha = WARN do anti-recusa funcionando), resíduos do sandbox em /tmp removidos (5 logs + backup de mutação), porta 8082 livre.",
+    "action": "Verificação final completa: suíte 2139/16 · /health 9/9 · /app/version {1.17.1, 2034, sha256==binário} · network_hosts ok no fastpath · 8081 ok. Serviço TERMINADO — sessão fechada verde.",
     "next": "Pendências: (1) APK 1.17.1+2034 no celular (auto-atualização); (2) desejos do txt.txt: voz, Google Drive, Agenda, Gmail (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura documentada: gemma quando o hardware crescer.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
