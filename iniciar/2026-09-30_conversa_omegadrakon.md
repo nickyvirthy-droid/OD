@@ -545,3 +545,41 @@ APK não versiona, é publicado no site).
 instalar o APK 1.14.0+2030 (2030 > 2029) e perguntar o dólar no app/chato;
 ROTACIONAR a senha do MQTT (§12.1). Pendência do sistema: nenhuma.
 
+## 14. Rotação da senha do MQTT — vazamento do §12.1 fechado (~21:0x)
+
+**Inventário (achado importante):** o Home Assistant NÃO usa MQTT — zero
+integração mqtt no `core.config_entries` do container (docker, rede host;
+chegou a abrir 127.0.0.1:1883 mas nunca se autenticou). A senha
+'OmegaDrakon2026' era alucinação do LLM que NINGUÉM usava: o od-core
+conectava ANÔNIMO (o launcher nem passava credenciais) e o broker aceitava
+anônimo (`allow_anonymous` default, sem password_file). Rotação real =
+ativar auth no broker + cabeamento de credenciais no od-core.
+
+**Entregado:**
+- Nova senha forte (secrets.token_urlsafe(24), 32 chars) — nunca exibida
+  em log/chat; vive SÓ no `.env` (OD_MQTT_USERNAME=od-core /
+  OD_MQTT_PASSWORD) e no hash do mosquitto.
+- `runtime/launcher.py`: MQTTClient agora recebe OD_MQTT_USERNAME/
+  OD_MQTT_PASSWORD do `.env` (documentado no header de OD_MQTT_*).
+- Broker: `/etc/mosquitto/conf.d/od-auth.conf` (allow_anonymous false +
+  password_file) + `/etc/mosquitto/passwd` — instalado pelo DONO via
+  `rotacionar_mqtt.sh` (sudo manual; o agente não tem senha de sudo).
+  Broker continua ONLY LOCAL (listener 127.0.0.1:1883).
+
+**Validação (5 provas):** (1) anônimo REJEITADO ('broker recusou a
+conexão: não autorizado'); (2) credencial nova ACEITA; (3) pub/sub fim a
+fim ok (od/rot/teste); (4) senha VELHA 'OmegaDrakon2026' REJEITADA;
+(5) od-core no ar: ponte conectada ('MQTT conectado | client_id=od-core'),
+health 9/9 com mqtt up, e prova no ar: publish em od/in/prova-rotacao →
+'Mensagem MQTT recebida | topic=od/in/prova-rotacao' no journal do
+processo novo (pid 1173039, 0 erros — os WARNs de 21:02 eram do processo
+velho na janela de transição). /app/version segue 1.14.0/2030.
+
+**Higiene:** script rotacionar_mqtt.sh e artefatos de /tmp (senha plana,
+passwd) apagados após o uso.
+
+**Estado: ROTAÇÃO CONCLUÍDA E VALIDADA NO AR — sem bump (nenhuma linha
+de produto mudou: launcher recebe env que antes não existia; docs/iniciar
+registram).** Pendência do sistema: nenhuma. Pendência do dono: só o APK
+1.14.0+2030 no celular.
+

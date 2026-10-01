@@ -29,6 +29,11 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
     OD_MQTT_ENABLED     "0" desliga a ponte MQTT no modo all (default 1).
     OD_MQTT_HOST/PORT   Broker Mosquitto (default 127.0.0.1:1883).
     OD_MQTT_CLIENT_ID   Identificador no broker (default od-core).
+    OD_MQTT_USERNAME    Usuário do broker (vazio = anônimo).
+    OD_MQTT_PASSWORD    Senha do broker (vazia = sem senha). Rotação
+                        2026-09-30: senha alucinada vazou no cache LLM
+                        (§12.1) e o broker aceitava anônimo — agora auth
+                        obrigatória no mosquitto + credencial aqui.
     OD_MQTT_SUBSCRIBE   Filtros de entrada, vírgula (default "od/in/#").
     OD_PRESENCE_ENABLED "0" desliga o Presence Monitor (default 1).
     OD_HA_CREDENTIALS   Caminho das credenciais do HA (default
@@ -737,6 +742,8 @@ def build_mqtt_bridge(event_bus: Any):
         env("OD_MQTT_HOST", "127.0.0.1"),
         int(env("OD_MQTT_PORT", "1883")),
         client_id=env("OD_MQTT_CLIENT_ID", "od-core"),
+        username=env("OD_MQTT_USERNAME", "") or None,
+        password=env("OD_MQTT_PASSWORD", "") or None,
         keepalive=30,
     )
     bridge = MQTTBridge(
