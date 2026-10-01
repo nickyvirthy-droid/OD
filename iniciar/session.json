@@ -935,11 +935,27 @@
     "estado": "CONCLUÍDO E NO AR — v1.11.1 com prompt honesto e legado pré-guarda do cache limpo (dólar + agenda). Pendência do dono: auto-atualização do celular (2027 > 2026). Melhoria futura da §14: action de clima por cidade.",
     "transcricao": "iniciar/2026-09-30_conversa_omegadrakon.md (§10)"
   },
+  "pool_postgres_auto_cura_2026_10_01": {
+    "pedido": "Dono: 'leia iniciar. chat esta dando erro interno' (retomada ~09:5x de 01/10).",
+    "diagnostico": "Journal: 'DB query falhou | error=network error' + DatabaseError em toda query (sessions/users/llm_cache/telegram_links) desde 08:26 — pg8000 para socket morto. Causa raiz: Postgres reiniciou 06:31 e o od-core (de pé desde 30/09 21:36, PID 1178955) manteve no pool as conexões que o banco encerrou; PostgresConnectionPool.acquire NUNCA validava o que entregava → conexão podre servida para sempre → chat com erro interno.",
+    "implementacao": [
+      "storage/database.py: acquire valida cada conexão ociosa com SELECT 1 (_conn_viva); morta → fechada, removida da contagem (_discard) e substituída (auto-cura); retry limitado (size+1) e contrato de fila bloqueante intacto (sem estouro de conexões); log 'DB conexão morta descartada pelo pool (postgres)'.",
+      "SQLite (ConnectionPool) intacto; API pública intacta."
+    ],
+    "testes": "+5 TestPoolPostgresConexaoMorta (fake _FakePgConn): morta descartada/substituída · pool se recupera de todas mortas · viva passa sem criar · pool fechado recusa · esgotado BLOQUEIA (endurecido). Suíte 2130 passed, 16 skipped.",
+    "teste_do_teste": "3/3 mutações bit-exata: M1 validação desligada (if True) → 2 falhas; M2 except Exception→RuntimeError → 2; M3 fila bloqueante→criação fora do lock → 1ª rodada SOBREVIVEU (teste fraco: pool não estava esgotado) → endurecido com o contrato do cabeçalho do módulo (bloqueia, nunca estoura) → 1 falha. Lição da casa de novo.",
+    "bump": "1.16.0 (MINOR, política 'robustez interna com testes novos'): .env · capabilities fallback · pubspec 1.16.0+2032 · _APP_VERSION_CODE=2032 · site 2x · CHANGELOG [1.16.0] · README_VERSAO §1.16.0. APKs rebuildados (JAVA_HOME=~/jdk, PATH += ~/flutter/bin): aapt2 versionCode='2032' versionName='1.16.0' nos dois; sha256 full c80b9c1b…, arm64 30607f36….",
+    "commit": "925baba fix(storage): pool postgres auto-curável — conexão morta não vira mais erro interno no chat (v1.16.0) — 9 arquivos +288/−7; HEAD==origin/master (regra 7.1).",
+    "deploy": "IMPLANTADO — restart 10:15, PID 1238524, NRestarts=0. Prova viva: /health ok 9/9 · /app/version {1.16.0, 2032, sha256==binário de site/} · /capabilities 1.16.0/65 · WS 8001 handshake ok · journal 0 Traceback/ERROR.",
+    "prova_da_cura": "pg_terminate_backend derrubou as conexões do od-core (simulação do evento de 06:31) → journal 'DB conexão morta descartada pelo pool (postgres)' → action seguinte ok:True SEM restart — auto-cura provada no ar.",
+    "estado": "CONCLUÍDO, PUBLICADO E NO AR — v1.16.0. O sistema se recupera sozinho de restart do Postgres. Pendência do dono: APK 1.16.0+2032 no celular (2032 > 2031).",
+    "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md"
+  },
   "last_turn": {
-    "date": "2026-09-30",
-    "retomada": "15:4x de 30/09 — v1.11.1 NO AR (PID 1121164): prompt honesto (motor real + capacidades inexistentes) provado com os casos reais da §14; prova viva pegou a agenda inventada ainda no cache — podada com snapshot (12d16b30…). Cache 54 entradas 100% saudável.",
-    "action": "v1.11.1 implantada, provada 7/7 e publicada; commit/push na sequência (regra 7.1).",
-    "next": "Pendências: (1) dono abre o app para a auto-atualização 1.11.0+2026; (2) prova de acesso externo sem Tailscale; (3) análise de coerência pós-zerada (alex já tem 30 msgs novas para analisar); (4) 2 achados de infra (cobertura 89.44%, CI vs .env); (5) opcional: Freebuff como 1ª CLI quando o wrapper público ganhar modo não-interativo.",
+    "date": "2026-10-01",
+    "retomada": "09:5x de 01/10 — 'leia iniciar. chat esta dando erro interno'. v1.15.0 no ar com o pool podre (Postgres reiniciou 06:31; conexões mortas servidas para sempre → erro interno no chat).",
+    "action": "v1.16.0 implantada: pool postgres auto-curável (validação SELECT 1 no acquire + descarte/substituição), provada no ar com pg_terminate_backend; commit 925baba publicado; 2130 passed/16 skipped; 3/3 mutações.",
+    "next": "Pendências: (1) dono instala o APK 1.16.0+2032 no celular (auto-atualização, 2032 > 2031); (2) 2 achados de infra de 30/09 abertos (cobertura 89.44% vs gate 90; CI vs .env); (3) opcional: Freebuff como 1ª CLI quando o wrapper público ganhar modo não-interativo.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
