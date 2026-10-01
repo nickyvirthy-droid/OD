@@ -616,3 +616,45 @@ lar + 'código proprietário'). **Decisão pendente do dono.**
 mentiras conhecidas.** Pendência do sistema: nenhuma. Pendência do
 dono: APK no celular; decidir se endurece os padrões de ban (v1.15.x).
 
+## 16. v1.15.0 — Guardas do cache endurecidas: as 3 cegas fechadas (~21:3x–21:5x)
+
+**Decisão do dono:** endurecer os padrões de ban (a pendência deixada na
+§15). As 4 podas manuais da §15 NÃO deviam ter nascido no cache.
+
+**Entregado (core/orchestrator.py, cache_failure_reason):**
+- **Etiqueta em QUALQUER posição:** `_CACHE_ETIQUETA_EM_QUALQUER_POSICAO`
+  (regex `\[(nicky])?(crit|warn|online|info)]`, case-insensitive) — antes
+  só `startswith`; a resposta de limpeza com '[INFO] …' NO MEIO entrava.
+- **Lar seco:** `_CACHE_BAN_LAR_SECOS` (imperativo
+  acessa/acenda/apague/desligue/ligue ancorado no início) — 'Acesse a luz
+  do corredor!' era estado de conversa cacheado (o ban v1.9.1 só pegava
+  '💡 Confirmar:'/'✅ ' com emoji).
+- **Recusa falsa de código:** 'código proprietário' + 'não posso
+  compartilhar detalhes específicos' em `_CACHE_BAN_REFUSALS` — llama.cpp
+  é open-source E do próprio dono.
+- **Placeholder:** `_CACHE_BAN_ESTADO_PAGINA` ('Em construção…' âncora no
+  início) — 'obra em construção avança' no MEIO segue cacheável (prova
+  nos testes).
+
+**Teste do teste — 4/4 mutações bit-exata:** M1 etiqueta-em-qualquer-
+posição desligada → 3 falhas; M2 lar seco desligado → 4; M3 recusa
+código proprietário removida → 1; M4 estado de página desligado → 2.
+
+**Evidência:** pytest tests/ → **2125 passed, 16 skipped** (+12
+TestCacheBansV115 com os casos REAIS do cache da §15). APK 1.15.0+2031
+publicado (manifest ✓, code 2031 ✓, sem resquício de 1.14.0; sha256
+161501ca…/6e646e75…). Guardas de versão verdes.
+
+**Prova viva no ar** (restart od-core): /app/version 1.15.0/2031 ·
+sha256 == site/ · health 9/9 (mqtt conectado) · **prune dry_run = 0
+candidatas** (as classes novas não acham NADA — o cache já está são e
+agora as classes podres NÃO entram mais) · journal 0 erros.
+
+**Commit:** `2a3c173` feat(orchestrator) — 8 arquivos, +182/−5, push
+93f073f..2a3c173. Nota: .env é ignorado por design (gitignore) — o bump
+de versão nele não versiona (capacities fallback carrega a versão).
+
+**Estado: CONCLUÍDO, PUBLICADO E NO AR — v1.15.0.** Pendência do
+dono: APK 1.15.0+2031 no celular (ou pular direto para a próxima).
+Pendência do sistema: nenhuma.
+
