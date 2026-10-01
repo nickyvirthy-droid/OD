@@ -14,6 +14,25 @@
 
 ---
 
+## [1.17.2] — GUARDA DA CASA DE LIMITAÇÕES: pytest não suja mais o registro real 🧪 (2026-10-01)
+
+- **fix(tests): fixture autouse isola `limitacoes.txt` em tmp_path** —
+  causa raiz provada dos "eventos recorrentes" (13:47, 14:47, 15:41,
+  16:21 — sempre as MESMAS 3 perguntas, incluindo o typo 'temperatuda'):
+  os testes de integração simulam ações degradadas com frases literais
+  ('quantas pessoas na rede?' com /proc vazio, 'qual a temperatuda em
+  presidente venceslau sp' sem fonte) e os hooks do Orchestrator
+  gravavam no arquivo REAL da raiz a cada rodada de pytest. Prova:
+  teste isolado gerou entrada nova (47→50 linhas, ts 16:46).
+- `tests/conftest.py` (NOVO): redireciona LIMITACOES_FILE para tmp_path
+  por teste + isola o dedup em memória. Arquivo real limpo (o conteúdo
+  era 100% artefato de teste — **o chat do dono NUNCA degradou**;
+  network_hosts e weather_city respondem ok pelo fastpath no ar).
+- Teste do teste: mutação no-op na fixture → gravação volta (detectada);
+  guarda restaurada → 0 gravações na suíte completa (2139 passed).
+- bump PATCH: .env 1.17.2 · capabilities · pubspec 1.17.2+2035 ·
+  _APP_VERSION_CODE=2035 · site 2x · CHANGELOG [1.17.2] · README §1.17.2
+
 ## [1.17.1] — HONESTIDADE DO MOTOR: o prompt declara o QWEN servido, não o gemma que não roda 🏷 (2026-10-01)
 
 - **fix(agents,capabilities): motor declarado == motor servido** — o

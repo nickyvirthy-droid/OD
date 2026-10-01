@@ -7,6 +7,36 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.17.2] — GUARDA DA CASA DE LIMITAÇÕES: pytest não suja mais o registro real 🧪 (2026-10-01)
+
+### 1. Investigação e causa raiz
+
+| Passo | Evidência |
+|---|---|
+| Suspeita inicial | Degrações recorrentes de network_hosts/weather_city "no caminho do chat" — mas o journal do od-core estava VAZIO nos horários (16:21) e o fastpath respondia ok no ar. |
+| Pistas | Sempre as MESMAS 3 perguntas (incl. o typo 'temperatuda') em blocos idênticos; dedup de 6h não bloqueava porque cada restart de od-core zerava a memória — mas o journal vazio eliminava o chat de vez. |
+| Prova | Processos python com cwd=OmegaDrakon: só launcher + orquestrador (que não toca limitações). Rodar `pytest tests/test_intents.py::TestFastPathOrchestrator::test_acao_degradada_cai_ao_llm` isolado GEROU entrada nova no arquivo real (47→50 linhas, ts 16:46:16). |
+| Causa raiz | Os testes de integração simulam ações degradadas com frases literais (incl. o typo do dono preservado como caso real) e os hooks `registrar_action_degradada`/`registrar_fallback_honesto` gravavam no `limitacoes.txt` REAL a cada rodada da suíte. Os horários batiam com rodadas de pytest das sessões. |
+
+### 2. Correção
+
+- `tests/conftest.py` (NOVO): fixture autouse redireciona
+  `core.limitacoes.LIMITACOES_FILE` para `tmp_path` por teste e isola o
+  dedup em memória. Testes que usam `monkeypatch.chdir` continuam
+  válidos (a fixture só muda o default).
+- Arquivo real LIMPO: o conteúdo era 100% artefato de teste. **O chat do
+  dono nunca degradou** — network_hosts e weather_city respondem ok pelo
+  fastpath no ar (provado 3x nesta sessão).
+- Teste do teste: mutação no-op na fixture → gravação no real volta
+  (detectada, 2 linhas); guarda restaurada → suíte completa 2139 passed
+  e 0 linhas no arquivo real.
+
+### 3. bump PATCH
+
+Infra de teste visível no repo: `.env 1.17.2` · capabilities ·
+`pubspec 1.17.2+2035` · `_APP_VERSION_CODE=2035` · site 2x · CHANGELOG
+`[1.17.2]` · este README.
+
 ## [1.17.1] — HONESTIDADE DO MOTOR: o prompt declara o QWEN servido, não o gemma que não roda 🏷 (2026-10-01)
 
 ### 1. O que foi feito
