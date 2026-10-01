@@ -905,6 +905,88 @@ class TestCacheSemRecusa:
             )
 
 
+class TestCacheBansV115:
+    """v1.15.0 (§15 de 30/09): auditoria das 39 entradas do cache expôs
+    3 cegas no cache_failure_reason — as 4 entradas podadas à mão não
+    deviam ter NASCIDO no cache:
+    1. etiqueta [INFO]/[WARN]/… NO MEIO da resposta (o ban só-prefixo
+       deixou passar a resposta de limpeza com '[INFO] …' embutido);
+    2. frase SECA de execução do lar ('Acesse a luz do corredor!' — o
+       ban da v1.9.1 só pegava '💡 Confirmar:'/'✅ ' com emoji);
+    3. recusa falsa de 'código proprietário' (llama.cpp é open-source
+       E do próprio dono — vedação alucinada de prompt interno);
+    4. bônus: placeholder do sistema como resposta ('Em construção…').
+    """
+
+    @pytest.mark.parametrize("resposta", [
+        # [14] real do cache — etiqueta NO MEIO:
+        "Estou pronto para começar a limpeza. Por favor, me dê os "
+        "detalhes do que você gostaria de ser limpo ou apagado.\n\n"
+        "[INFO] Limpeza solicitada no dia 30/09.",
+        # variante com [WARN]:
+        "Feito! [WARN] cache parcial descartado durante a operação.",
+        # variante [CRIT] minúscula no fim:
+        "Serviço reiniciado com sucesso. [crit] fallback acionado antes.",
+    ])
+    def test_etiqueta_no_meio_nao_e_cacheavel(self, resposta: str) -> None:
+        from core.orchestrator import cache_failure_reason
+        motivo = cache_failure_reason(resposta)
+        assert motivo, f"etiqueta embutida cacheável: {resposta!r}"
+        assert "etiqueta" in motivo
+
+    @pytest.mark.parametrize("resposta", [
+        "Acesse a luz do corredor!",           # [29] real do cache
+        "Ligue a tomada do servidor",           # imperativo sem emoji
+        "Desligue tudo",                        # plural sem alvo
+        "  acenda a luz da sala",               # espaço inicial
+    ])
+    def test_lar_seco_nao_e_cacheavel(self, resposta: str) -> None:
+        from core.orchestrator import cache_failure_reason
+        motivo = cache_failure_reason(resposta)
+        assert motivo, f"execução seca do lar cacheável: {resposta!r}"
+        assert "lar" in motivo
+
+    @pytest.mark.parametrize("resposta", [
+        # [36] real do cache — llama.cpp é open-source E do dono:
+        "Não posso compartilhar detalhes específicos sobre configurações "
+        "do llama.cpp ou qualquer outro código proprietário sem "
+        "autorização expressa.",
+        "Isso é código proprietário e não posso revelar.",
+    ])
+    def test_recusa_codigo_proprietario_nao_e_cacheavel(
+        self, resposta: str,
+    ) -> None:
+        from core.orchestrator import cache_failure_reason
+        motivo = cache_failure_reason(resposta)
+        assert motivo, f"recusa de 'código proprietário' cacheável: {resposta!r}"
+        assert "recusa" in motivo
+
+    @pytest.mark.parametrize("resposta", [
+        '"Em construção..."',   # [18] real do cache
+        "Em construção…",       # reticência unicode
+    ])
+    def test_estado_de_pagina_nao_e_cacheavel(self, resposta: str) -> None:
+        from core.orchestrator import cache_failure_reason
+        motivo = cache_failure_reason(resposta)
+        assert motivo, f"placeholder cacheável: {resposta!r}"
+        assert "Em construção" in motivo
+
+    def test_textos_legitimos_continuam_cacheaveis(self) -> None:
+        """Nada de falso positivo: 'em construção' no MEIO é conteúdo
+        (obra, projeto), e a leitura do lar com 💡 segue cacheável."""
+        from core.orchestrator import cache_failure_reason
+        for resposta in (
+            "Estamos construindo a futura sede — obra em construção avança.",
+            "O projeto segue em construção com prazo de março.",
+            "💡 0 acesa(s) de 6 no Home Assistant: nenhuma acesa.",
+            "Bom dia! Como posso ajudar você hoje?",
+            "A capital do Brasil é Brasília.",
+        ):
+            assert cache_failure_reason(resposta) == "", (
+                f"resposta legítima banida: {resposta!r}"
+            )
+
+
 class TestGuardaInfraParaNaoDono:
     """v1.7.0 — o papel user NÃO pode receber IP/portas nem da action nem do
     LLM (o gemma entregava o IP mesmo com a vedação no prompt, reportado

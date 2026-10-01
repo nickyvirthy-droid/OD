@@ -150,6 +150,30 @@ _CACHE_BAN_REFUSALS = (
     r"sem acesso f[íi]sico",
     r"por raz[õo]es de seguran[çc]a",
     r"n[aã]o [ée] poss[íi]vel fornecer",
+    # v1.15.0 (§15): 'llama.cpp' é open-source E do próprio dono — a
+    # 'vedação de código proprietário' é alucinação de prompt interno.
+    r"c[óo]digo propriet[áa]rio",
+    r"n[aã]o posso compartilhar detalhes espec[íi]ficos",
+)
+
+# v1.15.0 (§15): etiqueta de log ESPIADA em QUALQUER posição da resposta
+# (o ban por prefixo só pegava no início — a resposta de limpeza com
+# '[INFO] Limpeza solicitada no dia…' NO MEIO entrou no cache).
+_CACHE_ETIQUETA_EM_QUALQUER_POSICAO = re.compile(
+    r"\[(?:nicky\])?(?:crit|warn|online|info)\]", re.IGNORECASE
+)
+
+# v1.15.0 (§15): frase SECA de execução do lar ('Acesse a luz do corredor!')
+# também é ESTADO DE CONVERSA — o ban da v1.9.1 só pegava '💡 Confirmar:' e
+# '✅ ' no início. Imperativo + alvo do lar = execução, nunca conhecimento.
+_CACHE_BAN_LAR_SECOS = re.compile(
+    r"^\s*(?:acesse?|acenda?|apague?|desligue?|ligue?)\s+", re.IGNORECASE
+)
+
+# v1.15.0 (§15): estado de página/resposta vazia ('Em construção...') — o
+# modelo devolvendo o placeholder do sistema como se fosse conteúdo.
+_CACHE_BAN_ESTADO_PAGINA = re.compile(
+    r'^\s*["\u201c]?em constru[çc][aã]o', re.IGNORECASE
 )
 
 
@@ -170,6 +194,10 @@ def cache_failure_reason(text: str) -> str:
     for prefix in _CACHE_BAN_PREFIXES:
         if lowered.startswith(prefix):
             return f"etiqueta de log/falha: {prefix}"
+    # v1.15.0 (§15): etiqueta de log em QUALQUER posição — a resposta de
+    # limpeza com '[INFO] …' NO MEIO entrou no cache pelo ban só-prefixo.
+    if _CACHE_ETIQUETA_EM_QUALQUER_POSICAO.search(candidate):
+        return "etiqueta de log no meio da resposta"
     # Recusa do modelo (alucinação de vedação ou desculpa): se entrar no
     # cache, é servida antes do anti-recusa e vira permanente.
     for frase in _CACHE_BAN_REFUSALS:
@@ -184,6 +212,13 @@ def cache_failure_reason(text: str) -> str:
     # 'Confirmar: ligar Luzes Acessas' — casos reais de 29/09).
     if candidate.startswith(("💡 Confirmar:", "✅ ")):
         return "confirmação/execução do lar (estado de conversa)"
+    # v1.15.0 (§15): frase SECA de execução ('Acesse a luz do corredor!')
+    # — mesmo estado de conversa, sem o emoji da confirmação.
+    if _CACHE_BAN_LAR_SECOS.match(candidate):
+        return "execução do lar em frase seca (estado de conversa)"
+    # v1.15.0 (§15): placeholder do sistema como resposta ('Em construção…').
+    if _CACHE_BAN_ESTADO_PAGINA.match(lowered):
+        return "estado de página (Em construção) — não é conteúdo"
     return ""
 ROUTE_LLM = "llm"
 ROUTE_FALLBACK = "fallback"

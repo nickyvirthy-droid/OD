@@ -14,6 +14,38 @@
 
 ---
 
+## [1.15.0] — GUARDAS DO CACHE ENDURECIDAS: as 3 cegas do cache_failure_reason fechadas 🛡 (2026-09-30)
+
+> **Política:** correção de robustez interna (sem rota/endpoint/action
+> nova) com testes novos = MINOR conservador (`docs/VERSIONAMENTO.md` §1).
+> **Versões:** servidor `OD_VERSION=1.15.0` · app `1.15.0+2031`
+> (versionCode 2031 — auto-atualização do celular).
+
+### Corrigido (2026-09-30, §15 — auditoria das 39 entradas do cache)
+
+| Cega (as 4 podas manuais NÃO deviam ter nascido) | Fix |
+|---|---|
+| **Etiqueta de log no MEIO** ('…limpeza. [INFO] Limpeza solicitada…' — o ban só-prefixo via `startswith` não via) | `_CACHE_ETIQUETA_EM_QUALQUER_POSICAO`: regex `\[(nicky])?(crit\|warn\|online\|info)\]` em qualquer posição |
+| **Frase seca de execução do lar** ('Acesse a luz do corredor!' — o ban da v1.9.1 só pegava '💡 Confirmar:'/'✅ ' com emoji) | `_CACHE_BAN_LAR_SECOS`: imperativo (`acessa/acenda/apague/desligue/ligue`) ancorado no início |
+| **Recusa falsa de 'código proprietário'** (llama.cpp é open-source E do próprio dono) | 2 novos padrões em `_CACHE_BAN_REFUSALS`: `c[óo]digo propriet[áa]rio` + `n[aã]o posso compartilhar detalhes espec[íi]ficos` |
+| **Placeholder como resposta** ('"Em construção..."') | `_CACHE_BAN_ESTADO_PAGINA` ancorado no início (o 'obra em construção avança' no MEIO continua cacheável) |
+
+### Evidência
+
+```
+servidor: pytest tests/ → 2125 passed, 16 skipped
+  (+12 TestCacheBansV115 em test_resposta_transparente)
+Teste do teste: 4/4 mutações detectadas e revertidas bit-exata —
+  M1 etiqueta-em-qualquer-posição desligada → 3 falhas;
+  M2 ban do lar seco desligado → 4 falhas;
+  M3 recusa 'código proprietário' removida → 1 falha;
+  M4 estado de página desligado → 2 falhas
+bump MINOR: .env 1.15.0 · capabilities fallback · pubspec 1.15.0+2031 ·
+  _APP_VERSION_CODE=2031 · site (2x)
+```
+
+---
+
 ## [1.14.0] — CÂMBIO REAL: 'cotação do dólar' vem da FONTE, não da alucinação do modelo 💱 (2026-09-30)
 
 > **Política:** action nova no catálogo (64 → 65) = funcionalidade com

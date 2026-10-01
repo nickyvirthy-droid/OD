@@ -7,6 +7,34 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.15.0] — GUARDAS DO CACHE ENDURECIDAS: as 3 cegas do cache_failure_reason fechadas 🛡 (2026-09-30)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Origem** | §15 (auditoria das 39 entradas do cache): as 4 podas manuais NÃO deviam ter nascido — 3 cegas no `cache_failure_reason` + placeholder |
+| **Etiqueta no meio** | `[INFO]`/`[WARN]`/`[CRIT]`/`[ONLINE]` em QUALQUER posição da resposta bane (antes: só `startswith`) |
+| **Lar seco** | 'Acesse a luz do corredor!' / 'Ligue a tomada do servidor' — imperativo ancorado no início = execução, nunca conhecimento |
+| **Recusa falsa** | 'código proprietário' + 'não posso compartilhar detalhes específicos' — llama.cpp é open-source e do próprio dono |
+| **Placeholder** | '"Em construção..."' âncora no início — 'obra em construção avança' no meio segue cacheável |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 2125 passed, 16 skipped (+12 TestCacheBansV115)
+teste do teste: 4/4 mutações bit-exata (3/4/1/2 falhas)
+bump MINOR: .env 1.15.0 · capabilities · pubspec 1.15.0+2031 ·
+  _APP_VERSION_CODE=2031 · site 2x · CHANGELOG [1.15.0] · README §1.15.0
+```
+
+### 3. Pendências / próximos passos
+
+- Instalar o APK 1.15.0+2031 (auto-atualização, 2031 > 2030).
+- Cache limpo: 35 entradas sãs; as classes podres agora NÃO entram mais.
+
+---
+
 ## [1.14.0] — CÂMBIO REAL: 'cotação do dólar' vem da FONTE, não da alucinação do modelo 💱 (2026-09-30)
 
 ### 1. O que foi feito
