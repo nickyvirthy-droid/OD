@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-01T14:4x:00-03:00",
+  "updated_at": "2026-10-01T16:1x:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -971,11 +971,30 @@
     "estado": "CONCLUÍDO, PUBLICADO E NO AR — v1.17.0. Os 7 perfis têm blocos de voz próprios, provados no motor real.",
     "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md (§6)"
   },
+  "v171_honestidade_motor_2026_10_01": {
+    "pedido": "Dono: 'Trocar o modelo servido no llama-server para o gemma-4-E4B declarado no prompt e provar no ar' (achado 6.5.2).",
+    "sandbox_8082": "gemma-4-E4B-it-Q4_K_M (4,98 GB) carregado em 2ª instância na 8082 (ctx 4096, 2 threads — 1ª tentativa morreu sob RAM/swap). Qualidade muito superior (Nyx poética coerente com max_tokens 2000), MAS com o system prompt OD (~800 tok) o pensamento estoura os 512 tok do max_tokens → content VAZIO 100%; ~5 tok/s vs 8,5 do qwen; 2 instâncias = swap 88–100% (OOM real).",
+    "decisao_dono": "Qwen com nome honesto — manter qwen2.5-coder-3b no ar e corrigir a declaração (prompt, capabilities, unit); personalidade pelos blocos de voz (provados com o qwen).",
+    "implementacao": [
+      "personality.py: motor declarado = 'Qwen (qwen2.5-coder-3b)' em todos os papéis/perfis + comentário com a prova e a decisão.",
+      "capabilities.py: llm-provider → 'LLM local (qwen2.5-coder-3b via llama-server 127.0.0.1:8081)'.",
+      "od-llm.service: Description honesta + alternativa gemma documentada (ctx 16384, max_tokens >= 1500, RAM dedicada). daemon-reload ok.",
+      "Provider 'gemma-local' (nome interno) permanece."
+    ],
+    "testes": "test_motor_real endurecido: 'qwen' presente E 'gemma-4-e4b' AUSENTE em todos os papéis/perfis. Suíte 2139 passed, 16 skipped.",
+    "bump": "1.17.1 (PATCH): .env, capabilities, pubspec 1.17.1+2034, _APP_VERSION_CODE=2034, site 2x, CHANGELOG [1.17.1], README §1.17.1. APKs rebuildados (aapt2 2034/1.17.1; sha256 full 1bca0fed…, arm64 e55196c8…).",
+    "commit": "e020aec fix(agents,capabilities): honestidade do motor — 8 arquivos +73/−18; depois 961c609 chore(runtime) — limitacoes.txt com degradações transientes.",
+    "deploy": "IMPLANTADO — restart od-llm + od-core 15:52. od-core PID 1270259 NRestarts=0; od-llm PID 1270257 NRestarts=0. Prova viva: 8081 ok · /health 9/9 · /app/version {1.17.1, 2034, sha256==binário} · /capabilities 'qwen2.5-coder-3b' · journal 0 erros.",
+    "prova_decisiva": "'qual modelo de linguagem você usa?' → 'Você está usando o Qwen local do Omega Drakon.' (route=llm) — declaração == motor real.",
+    "residuos": "Sandbox 8082 encerrado, log removido; swap 7/8 GB (drenagem natural). limitacoes.txt: degradações transientes 13:47/14:47/15:41 não reproduzíveis pós-liberação de RAM (coincidem com o sandbox gemma vivo); commitadas (961c609). Anônimo sem fastpath = desenho (privilégio mínimo).",
+    "estado": "CONCLUÍDO E NO AR — v1.17.1. Divergência motor/declaração FECHADA.",
+    "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md (§7)"
+  },
   "last_turn": {
     "date": "2026-10-01",
-    "retomada": "11:0x–14:3x de 01/10 — 'continue' → decisões do dono: personalidades distintas + commitar limitacoes.txt vazio. Executado em uma passada: commit c2bc637 (limitacoes) → diagnóstico → v1.17.0 implementada, testada (3/3 mutações), bumpada, commitada (c891d45), implantada e provada no ar.",
-    "action": "v1.17.0 NO AR (PID 1258460): VOICE_BLOCKS por perfil com frase-assinatura e micro-exemplo; diferenciação provada no motor real. Transcrição §6 e README_VERSAO §1.17.0 completos.",
-    "next": "Decisões do dono: (1) Motor vs prompt — trocar o modelo servido para gemma-4-E4B ou corrigir a declaração no prompt (achado 6.5.2; alucinações factuais vêm do qwen-coder); (2) desejos restantes do txt.txt (voz, Drive, Agenda, Gmail — feature MINOR, exige credencial OAuth); (3) APK 1.17.0+2033 no celular; (4) 2 achados de infra de 30/09 (cobertura vs gate 90; CI vs .env).",
+    "retomada": "15:0x–16:0x de 01/10 — pedido do dono: trocar o motor para o gemma declarado. Sandbox 8082 provou: gemma carrega mas não serve (content vazio com o prompt OD, 5 tok/s, risco OOM). Dono decidiu: qwen com nome honesto. v1.17.1 implantada e provada.",
+    "action": "v1.17.1 NO AR (od-core PID 1270259, od-llm PID 1270257): prompt/capabilities/unit declaram qwen2.5-coder-3b; prova decisiva no chat: 'o Qwen local do Omega Drakon'. 4 commits publicados (c2bc637, c891d45, c88042c/240f95b docs, e020aec, 961c609).",
+    "next": "Pendências: (1) APK 1.17.1+2034 no celular (auto-atualização); (2) desejos do txt.txt: voz, Google Drive, Agenda, Gmail (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura documentada: gemma quando o hardware crescer.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },

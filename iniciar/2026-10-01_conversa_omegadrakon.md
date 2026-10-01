@@ -197,3 +197,86 @@ respondem do mesmo jeito") e **commitar o limitacoes.txt vazio**.
 blocos de voz próprios, provados no motor real. Pendências: APK
 1.17.0+2033 no celular; achados 6.5 para decisão; desejos restantes do
 txt.txt (voz, Drive, Agenda, Gmail).
+
+---
+
+## 7. Honestidade do motor — sandbox com o gemma real e decisão (§6.5.2) (~15:0x–16:0x)
+
+Pedido do dono (3ª troca): "Trocar o modelo servido no llama-server para
+o gemma-4-E4B declarado no prompt e provar no ar".
+
+### 7.1 Sandbox (8082, regra 10 — sem tocar o chat)
+
+- O unit `od-llm.service` se descreve como gemma mas o ExecStart ativo
+  serve qwen2.5-coder-3b (rastro de troca sem revisão — linhas do gemma
+  comentadas no próprio unit).
+- gemma-4-E4B-it-Q4_K_M (4,98 GB) carregado em 2ª instância na 8082:
+  sobe e atende; 1ª tentativa (ctx 6144, 3 threads) morreu em silêncio
+  sob pressão de RAM/swap; com ctx 4096 e 2 threads ficou estável.
+- Qualidade REAL: com prompt simples e max_tokens 2000 a resposta da
+  Nyx é poética e coerente ("A noite é o manto de veludo onde o Limiar
+  se abre...") — muito superior ao qwen.
+- PORÉM com o system prompt OD completo (~800 tok): o pensamento do
+  modelo estoura os 512 tok do max_tokens do OD → content VAZIO
+  (finish=length) em 100% das tentativas (2 rodadas: 138s e 106s).
+- Velocidade: ~5 tok/s (gemma, 2 threads) vs ~8,5 tok/s (qwen, 4
+  threads). 2 instâncias simultâneas = swap 88–100% (OOM real).
+- Nota de método: processos filhos do agente morrem ao fim da chamada
+  de terminal; `setsid nohup` + disown manteve o sandbox de pé entre
+  chamadas.
+
+### 7.2 Decisão do dono (ask_user): QWEN COM NOME HONESTO
+
+Manter o qwen-coder-3b no ar (rápido, estável) e corrigir a mentira da
+declaração. Personalidade fica por conta dos blocos de voz (provados
+com o qwen na v1.17.0).
+
+### 7.3 Implementação (v1.17.1 PATCH)
+
+- `personality.py`: prompt do motor declara **Qwen (qwen2.5-coder-3b)**
+  em todos os papéis/perfis; comentário registra a prova do sandbox e a
+  decisão.
+- `capabilities.py`: llm-provider → 'LLM local (qwen2.5-coder-3b via
+  llama-server 127.0.0.1:8081)'.
+- `od-llm.service`: Description honesta + comentário com a alternativa
+  gemma documentada para hardware maior (ctx 16384 + max_tokens >=
+  1500 + RAM dedicada). daemon-reload ok.
+- Provider 'gemma-local' (nome interno do core) permanece — não é
+  declaração de modelo.
+- Testes endurecidos: test_motor_real fixa 'qwen' presente E
+  'gemma-4-e4b' AUSENTE em todos os papéis e perfis. Suíte 2139
+  passed, 16 skipped.
+
+### 7.4 Bump, deploy e prova viva
+
+- bump PATCH: .env 1.17.1 · capabilities · pubspec **1.17.1+2034** ·
+  `_APP_VERSION_CODE=2034` · site 2x · CHANGELOG [1.17.1] · README
+  §1.17.1. APKs rebuildados (aapt2 2034/1.17.1; sha256 full `1bca0fed…`,
+  arm64 `e55196c8…`).
+- Commit **`e020aec`** fix(agents,capabilities) — 8 arquivos +73/−18 →
+  push (regra 7.1). Depois: `961c609` chore(runtime) — limitacoes.txt.
+- Deploy: restart **od-llm + od-core** 15:52. **od-core** PID 1270259,
+  NRestarts=0; **od-llm** PID 1270257, NRestarts=0.
+- Prova viva: 8081 health ok · `/health` 9/9 up · `/app/version`
+  {1.17.1, 2034, sha256 == binário} · `/capabilities` publica
+  'qwen2.5-coder-3b' · journal 0 Traceback/ERROR.
+- **Prova decisiva no ar:** 'qual modelo de linguagem você usa?' →
+  "Você está usando o **Qwen local** do Omega Drakon." (route=llm) e,
+  com ref única: Nome Qwen, versão qwen2.5-coder-3b, servido pelo
+  llama-server — **declaração == motor real**.
+
+### 7.5 Resíduos e encerramento do sandbox
+
+- Sandbox 8082 encerrado (kill), log temporário removido; swap segue
+  alto (7/8 GB) — drenagem natural no uso; drop_caches sem sudo.
+- `limitacoes.txt` acumulou degradações transientes de 13:47/14:47/
+  15:41 (network_hosts/weather_city): NÃO reproduzíveis pós-liberação
+  de RAM (o fastpath responde ok agora — 5 dispositivos; clima ok) e
+  as 15:41 coincidem com o sandbox gemma vivo comendo RAM. Commitado
+  como dado de runtime (961c609). Ação do anônimo seguiu o desenho:
+  sem fastpath (privilégio mínimo), resposta honesta do LLM.
+
+**Estado: CONCLUÍDO E NO AR — v1.17.1.** A divergência motor/declaração
+está FECHADA: o que o sistema diz que é é o que ele é. Pendências: APK
+1.17.1+2034 no celular; desejos restantes do txt.txt (voz, Drive,
+Agenda, Gmail); cobertura vs gate 90; CI vs .env.
