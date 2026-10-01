@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-09-30T13:3x:00-03:00",
+  "updated_at": "2026-10-01T14:4x:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -951,11 +951,31 @@
     "estado": "CONCLUÍDO, PUBLICADO E NO AR — v1.16.0. O sistema se recupera sozinho de restart do Postgres. Pendência do dono: APK 1.16.0+2032 no celular (2032 > 2031).",
     "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md"
   },
+  "v170_personalidades_2026_10_01": {
+    "pedido": "Dono (ask_user): atacar 'personalidades distintas' do txt.txt ('as personalidades são diferentes, porque todas respondem do mesmo jeito') e commitar o limitacoes.txt vazio.",
+    "diagnostico": "Causa provada: a fonte usada pelo chat é agents/nicky_virthy/personality.py (Orchestrator._resolve_system → get_system_prompt(profile, role)); o agents/profiles.py tem prompts ricos mas nunca é injetado no LLM. O prompt levava ~95% de texto idêntico entre perfis — única linha variável era 'Tom do perfil: <resumo>'. Cache já isola por perfil (make_key) — descartado como causa.",
+    "implementacao": [
+      "personality.py: VOICE_BLOCKS — bloco 'COMO VOCÊ FALA' por perfil (7) com identidade no papel, registro, ritmo, o que faz, o que NUNCA faz, frase-assinatura e micro-exemplo (começo literal de resposta).",
+      "build_identity_prompt injeta o bloco com precedência sobre o resumo curto (mantido por compatibilidade), perto do fim do prompt; prefixo de identidade intacto (preserva reuso de KV no llama-server)."
+    ],
+    "testes": "+9 TestVoiceBlocks (presença, estrutura, unicidade par a par, precedência, micro-exemplos distintos, guarda da causa raiz >400 chars). Suíte 2139 passed, 16 skipped. Teste do teste 3/3 mutações bit-exata: M1 Nyx clona Athenae → 4 falhas; M2 voice='' → 3; M3 bloco antes do resumo → 1.",
+    "bump": "1.17.0 (MINOR): .env (gitignored, em disco), capabilities fallback, pubspec 1.17.0+2033, _APP_VERSION_CODE=2033, site 2x, CHANGELOG [1.17.0], README_VERSAO §1.17.0. APKs rebuildados: aapt2 versionCode='2033' nos dois; sha256 full 67bc629b…, arm64 6cce66ad….",
+    "commit": "c891d45 feat(agents): personalidades realmente distintas — blocos de voz completos por perfil (v1.17.0) — 8 arquivos +304/−5; push (regra 7.1). Antes: c2bc637 chore(runtime) — limitacoes.txt esvaziado.",
+    "deploy": "IMPLANTADO — restart 14:06, PID 1258460, NRestarts=0. Prova viva: /health ok · /app/version {1.17.0, 2033, sha256==binário full} · /capabilities 1.17.0 · 65 actions · WS 8001 vivo (426) · journal 0 Traceback/ERROR.",
+    "prova_de_diferenciacao": "Controle direto no llama-server (parse_chatml igual ao core, 2 rodadas por perfil): vox #2 usou a frase-assinatura literal ('Ouvam bem: …'); nyx 2/2 gravitou para mistério e no REST citou mitologia grega espontaneamente; guardian 2/2 seco; regulus 2/2 ponderado. O bloco DIRIGE as respostas no modelo real.",
+    "achados": [
+      "Coluna profile do llm_cache guarda o perfil do construtor (metadado errado, SEM efeito funcional): o set passa o perfil como PARAM DA CHAVE, igual ao get — isolamento entre personalidades correto. Cosmético, sem PATCH.",
+      "Motor real é qwen2.5-coder-3b, NÃO gemma-4-E4B: llama-server no ar (PID 1129, desde 21/09) carrega qwen2.5-coder-3b-instruct-q4_k_m.gguf; o gemma está no diretório mas não servido. Explica alucinações factuais nas provas ('Lua é o segundo maior planeta'). Prompt declara 'gemma' — declaração e motor divergem; decisão do dono pendente.",
+      "Achados de infra de 30/09 intactos (cobertura 89.44% vs gate 90; CI vs .env)."
+    ],
+    "estado": "CONCLUÍDO, PUBLICADO E NO AR — v1.17.0. Os 7 perfis têm blocos de voz próprios, provados no motor real.",
+    "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md (§6)"
+  },
   "last_turn": {
     "date": "2026-10-01",
-    "retomada": "09:5x de 01/10 — 'leia iniciar. chat esta dando erro interno'. v1.15.0 no ar com o pool podre (Postgres reiniciou 06:31; conexões mortas servidas para sempre → erro interno no chat).",
-    "action": "v1.16.0 implantada: pool postgres auto-curável (validação SELECT 1 no acquire + descarte/substituição), provada no ar com pg_terminate_backend; commit 925baba publicado; 2130 passed/16 skipped; 3/3 mutações.",
-    "next": "Pendências: (1) dono instala o APK 1.16.0+2032 no celular (auto-atualização, 2032 > 2031); (2) 2 achados de infra de 30/09 abertos (cobertura 89.44% vs gate 90; CI vs .env); (3) opcional: Freebuff como 1ª CLI quando o wrapper público ganhar modo não-interativo.",
+    "retomada": "11:0x–14:3x de 01/10 — 'continue' → decisões do dono: personalidades distintas + commitar limitacoes.txt vazio. Executado em uma passada: commit c2bc637 (limitacoes) → diagnóstico → v1.17.0 implementada, testada (3/3 mutações), bumpada, commitada (c891d45), implantada e provada no ar.",
+    "action": "v1.17.0 NO AR (PID 1258460): VOICE_BLOCKS por perfil com frase-assinatura e micro-exemplo; diferenciação provada no motor real. Transcrição §6 e README_VERSAO §1.17.0 completos.",
+    "next": "Decisões do dono: (1) Motor vs prompt — trocar o modelo servido para gemma-4-E4B ou corrigir a declaração no prompt (achado 6.5.2; alucinações factuais vêm do qwen-coder); (2) desejos restantes do txt.txt (voz, Drive, Agenda, Gmail — feature MINOR, exige credencial OAuth); (3) APK 1.17.0+2033 no celular; (4) 2 achados de infra de 30/09 (cobertura vs gate 90; CI vs .env).",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },

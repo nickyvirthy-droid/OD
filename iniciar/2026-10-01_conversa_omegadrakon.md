@@ -110,3 +110,90 @@ chat estava na camada de persistência, não no LLM/orquestrador; a
 classe inteira de falha (restart do banco com o servidor de pé) está
 fechada. Pendência do dono: instalar o APK 1.16.0+2032 no celular
 (2032 > 2031). Pendência do sistema: nenhuma desta entrega.
+
+---
+
+## 6. Personalidades realmente distintas — v1.17.0 (~11:0x–14:3x)
+
+Pedido do dono (ask_user, 2ª troca): "continue" → escolhas **personalidades
+distintas** (do txt.txt: "as personalidades são diferentes, porque todas
+respondem do mesmo jeito") e **commitar o limitacoes.txt vazio**.
+
+### 6.1 Diagnóstico (causa provada no código)
+
+- A fonte usada pelo chat é `agents/nicky_virthy/personality.py`
+  (`Orchestrator._resolve_system` → `get_system_prompt(profile, role)`);
+  o `agents/profiles.py` tem prompts ricos (FUNÇÃO/PRINCÍPIO/EXPRESSÃO)
+  mas NUNCA é injetado no caminho do LLM.
+- O prompt carregava ~95% de texto idêntico entre perfis (identidade,
+  tríade, motor, limites por papel) — a ÚNICA linha variável era
+  `Tom do perfil: <resumo de uma linha>`. Sinal minúsculo para o LLM
+  local.
+- Cache já isola por perfil (`make_key` inclui perfil) — descartado
+  como causa.
+
+### 6.2 Implementação
+
+- `VOICE_BLOCKS` em `personality.py`: bloco `COMO VOCÊ FALA` para cada
+  um dos 7 perfis com identidade no papel, registro/sintaxe, ritmo, o
+  que faz, o que NUNCA faz, frase-assinatura e micro-exemplo (começo
+  literal de resposta).
+- Injeção em `build_identity_prompt` com precedência sobre o resumo
+  curto (que permanece por compatibilidade) e perto do fim do prompt
+  (distância mínima da geração). Prefixo de identidade intacto
+  (preserva reuso de KV no llama-server).
+
+### 6.3 Testes e teste do teste
+
+- +9 `TestVoiceBlocks` (presença em todos os perfis, estrutura
+  completa, unicidade par a par, auto-nomeação, precedência,
+  micro-exemplos distintos, guarda da causa raiz >400 chars, resumo
+  antigo preservado). Suíte completa **2139 passed, 16 skipped**.
+- **3/3 mutações bit-exata** (backup /tmp, sha256 conferido): M1 Nyx
+  clona bloco da Athenae → 4 falhas · M2 `voice = ""` → 3 falhas ·
+  M3 bloco antes do resumo → 1 falha.
+
+### 6.4 Bump MINOR, commit, deploy e prova viva
+
+- Bump: `.env 1.17.0` (gitignored, em disco) · capabilities fallback
+  · pubspec **1.17.0+2033** · `_APP_VERSION_CODE=2033` · site 2x ·
+  CHANGELOG [1.17.0] · README §1.17.0. Guardas de versão verdes
+  (inclui `_APP_VERSION_CODE == pubspec`).
+- APKs rebuildados e publicados: aapt2 `versionCode='2033'
+  versionName='1.17.0'` nos dois; sha256 full `67bc629b…`, arm64
+  `6cce66ad…`. App: analyze 0 issues, testes 125/2.
+- Commit **`c891d45`** feat(agents) — 8 arquivos +304/−5 → push
+  (regra 7.1). Deploy: restart 14:06, **PID 1258460**, NRestarts=0.
+- Prova viva: `/health` ok · `/app/version` {1.17.0, 2033, sha256 ==
+  binário full} · `/capabilities` 1.17.0 · 65 actions · WS 8001 vivo
+  (426) · journal **0 Traceback/ERROR**.
+- **Prova de diferenciação** (controle direto no llama-server,
+  parse_chatml igual ao core, 2 rodadas por perfil): **vox #2 usou a
+  frase-assinatura literal** ("Ouvam bem: …"); nyx 2/2 gravitou para
+  mistério ("…guardam secretos…", e no REST citou mitologia grega
+  espontaneamente); guardian 2/2 seco; regulus 2/2 ponderado. O bloco
+  DIRIGE as respostas no modelo real.
+
+### 6.5 Achados (registrados com honestidade, fora do escopo)
+
+1. **Coluna `profile` do llm_cache guarda o perfil default** —
+   auditado após o registro inicial: o `cache.set(..., profile=profile)`
+   do `_post_process` passa o perfil como **param da chave**
+   (`make_key` inclui `profile=<perfil>`), igual ao `get` — o
+   ISOLAMENTO entre personalidades está correto. A coluna gravada no
+   banco é o `self._profile` do construtor (launcher passa OD_PROFILE)
+   — metadado de telemetria errado, sem efeito funcional (o
+   /admin/cache/prune varre `key, response`, não a coluna). Cosmético;
+   sem PATCH dedicado.
+2. **Motor real é qwen2.5-coder-3b, não gemma-4-E4B**: o llama-server
+   no ar (PID 1129, desde 21/09) carrega
+   `qwen2.5-coder-3b-instruct-q4_k_m.gguf`; o gemma-4-E4B está no
+   diretório mas não servido. Explica alucinações factuais nas provas
+   ("Lua é o segundo maior planeta"). O prompt declara 'gemma' —
+   declaração e motor divergem; decisão do dono pendente (trocar o
+   modelo servido OU o texto do prompt).
+
+**Estado: CONCLUÍDO, PUBLICADO E NO AR — v1.17.0.** Os 7 perfis têm
+blocos de voz próprios, provados no motor real. Pendências: APK
+1.17.0+2033 no celular; achados 6.5 para decisão; desejos restantes do
+txt.txt (voz, Drive, Agenda, Gmail).
