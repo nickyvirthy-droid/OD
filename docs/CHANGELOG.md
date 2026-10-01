@@ -14,6 +14,27 @@
 
 ---
 
+## [1.17.1] — HONESTIDADE DO MOTOR: o prompt declara o QWEN servido, não o gemma que não roda 🏷 (2026-10-01)
+
+- **fix(agents,capabilities): motor declarado == motor servido** — o
+  sandbox da 8082 (01/10) provou com o gemma-4-E4B real: carrega nesta
+  máquina (4,98 GB em disco), mas não serve o chat — ~5 tok/s em CPU
+  (2 threads), o pensamento do modelo estoura os 512 tok do max_tokens
+  do OD (resposta vazia) e 2 instâncias simultâneas ameaçam OOM (RAM
+  7,7 GB, swap 88–100%). Decisão do dono: manter o **qwen2.5-coder-3b**
+  no ar e declarar a verdade — o system prompt dizia 'gemma (gemma-4-E4B)'
+  e o unit do systemd se descrevia como gemma com o binário real sendo
+  qwen (rastro de troca sem revisão).
+- Corrigidos: prompt do motor (personality.py, todos os papéis e
+  perfis), capabilities (llm-provider), Description do unit od-llm
+  (com a alternativa gemma documentada para hardware maior) e
+  Comentários. Provider 'gemma-local' (nome interno do core) permanece
+  — não é declaração de modelo.
+- Testes endurecidos: test_motor_real fixa 'qwen' presente + 'gemma-4-e4b'
+  AUSENTE em todos os papéis e perfis. Suíte 2139 passed, 16 skipped.
+- bump PATCH: .env 1.17.1 · capabilities · pubspec 1.17.1+2034 ·
+  _APP_VERSION_CODE=2034 · site 2x · CHANGELOG [1.17.1] · README §1.17.1
+
 ## [1.17.0] — PERSONALIDADES REALMENTE DISTINTAS: a Plêiade deixa de responder num só jeito 🎭 (2026-10-01)
 
 - **feat(agents): blocos de voz completos por perfil** — queixa real do

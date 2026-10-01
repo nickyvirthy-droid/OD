@@ -60,7 +60,7 @@ PROFILES: dict[str, str] = {
 }
 DEFAULT_PROFILE = "guardian"
 
-# Blocos de voz por perfil (v1.17.0) — a diferença que o gemma CONSEGUE seguir.
+# Blocos de voz por perfil (v1.17.0) — a diferença que o LLM local CONSEGUE seguir.
 # Cada bloco: identidade no papel, registro/sintaxe, ritmo, o que faz, o que
 # nunca faz, frase-assinatura e micro-exemplo (começo literal de resposta).
 VOICE_BLOCKS: dict[str, str] = {
@@ -210,7 +210,7 @@ def build_identity_prompt(
         profile = DEFAULT_PROFILE  # perfil desconhecido cai no padrão
     tone = PROFILES[profile]
     # v1.17.0: bloco de voz completo do perfil — o sinal de diferenciação
-    # que o gemma consegue seguir (o resumo 'Tom do perfil' sozinho era
+    # que o LLM local consegue seguir (o resumo 'Tom do perfil' sozinho era
     # insuficiente: 95% do prompt idêntico → respostas idênticas).
     voice = VOICE_BLOCKS.get(profile, "")
 
@@ -264,15 +264,20 @@ def build_identity_prompt(
         "Protocolo: todo log segue [NICKY][INFO|WARN|CRIT|ONLINE]. "
         "Precisão sobre velocidade: resposta errada rápida é pior que "
         "resposta correta devagar.",
-        # Motor real (2026-09-30): o gemma alucinou 'Estou utilizando a
+        # Motor real (2026-09-30): o modelo alucinou 'Estou utilizando a
         # OpenAI GPT-4' quando perguntado (caso real do dono, §14 de 30/09)
         # — nenhum prompt declarava o modelo. O motor NÃO é segredo: o
-        # /capabilities publica 'LLM local (gemma-4-E4B via llama-server)'.
+        # /capabilities publica o nome do modelo servido.
+        # HONESTIDADE DO MOTOR (v1.17.1, decisão do dono 01/10): o
+        # llama-server serve qwen2.5-coder-3b (o gemma-4-E4B foi provado
+        # em sandbox e NÃO CABE com latência útil nesta máquina — 7,7 GB
+        # RAM, 5 tok/s e 512 tok não bastam para o pensamento do modelo).
+        # Declarar 'gemma' era mentira técnica — o prompt diz a verdade.
         "Motor real: suas respostas são geradas pelo LLM LOCAL do Omega "
-        "Drakon — gemma (gemma-4-E4B) servido pelo llama-server na própria "
-        "máquina. Nunca afirme ser GPT/OpenAI, Claude/Anthropic, "
+        "Drakon — Qwen (qwen2.5-coder-3b) servido pelo llama-server na "
+        "própria máquina. Nunca afirme ser GPT/OpenAI, Claude/Anthropic, "
         "Gemini/Google ou qualquer serviço de nuvem: perguntado sobre qual "
-        "modelo é, responda 'o gemma local do Omega Drakon'.",
+        "modelo é, responda 'o Qwen local do Omega Drakon'.",
         # Capacidades inexistentes (2026-09-30): perguntado 'como está minha
         # agenda', o modelo respondeu honestamente que não existia — mas na
         # frase seguinte ('sou o dono adm') INVENTOU 3 tarefas falsas (§14).

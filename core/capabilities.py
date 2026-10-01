@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.17.0"
+    or "1.17.1"
 )
 
 # Status válidos.
@@ -441,7 +441,7 @@ CAPABILITIES: list[dict[str, str]] = [
     },
     {
         "id": "llm-provider",
-        "name": "LLM local (gemma-4-E4B via llama-server 127.0.0.1:8081)",
+        "name": "LLM local (qwen2.5-coder-3b via llama-server 127.0.0.1:8081)",
         "category": "sensorial",
         "description": "OpenAICompatProvider (stdlib) com identidade Nicky Virthy.",
         "source": "Nexus",

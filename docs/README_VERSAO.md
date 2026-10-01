@@ -7,6 +7,27 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.17.1] — HONESTIDADE DO MOTOR: o prompt declara o QWEN servido, não o gemma que não roda 🏷 (2026-10-01)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| Sandbox (8082) | gemma-4-E4B-it-Q4_K_M (4,98 GB) carregado em 2ª instância: sobe e atende, mas ~5 tok/s em CPU; com o system prompt OD completo o pensamento do modelo estoura os 512 tok do max_tokens → content vazio (finish=length) em 100% das tentativas; com 2000 tok e prompt simples responde com qualidade (Nyx poética e coerente). 2 instâncias simultâneas = swap 88–100% (risco OOM real). |
+| Decisão do dono | Manter o qwen2.5-coder-3b no ar (rápido, estável, ~8,5 tok/s) e declarar a verdade — personalidade fica por conta dos blocos de voz (provados com o qwen na v1.17.0). |
+| Correções | personality.py (prompt do motor em todos os papéis/perfis: 'Qwen (qwen2.5-coder-3b)'), capabilities (llm-provider), unit od-llm.service (Description + comentário com a alternativa gemma documentada), comentários de código. Provider 'gemma-local' (nome interno) permanece. |
+| Testes | test_motor_real endurecido: 'qwen' presente E 'gemma-4-e4b' ausente em todos os papéis e perfis. Suíte 2139 passed, 16 skipped. |
+
+### 2. bump PATCH
+
+Fix de declaração (sem feature): `.env 1.17.1` · capabilities ·
+`pubspec 1.17.1+2034` · `_APP_VERSION_CODE=2034` · site 2x · CHANGELOG
+`[1.17.1]` · este README.
+
+### 3. Prova viva (pós-deploy)
+
+Registrada na transcrição do dia (`iniciar/2026-10-01_conversa_omegadrakon.md`).
+
 ## [1.17.0] — PERSONALIDADES REALMENTE DISTINTAS: a Plêiade deixa de responder num só jeito 🎭 (2026-10-01)
 
 ### 1. O que foi feito

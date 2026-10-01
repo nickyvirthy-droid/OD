@@ -79,14 +79,21 @@ class TestPersonality:
         assert _read_canonical("NAO_EXISTE.md") is None
 
     def test_motor_real_declarado_em_todos_os_papeis(self) -> None:
-        """Caso real §14 (30/09): 'qual o LLM que está usando' → o gemma
+        """Caso real §14 (30/09): 'qual o LLM que está usando' → o modelo
         respondeu 'OpenAI GPT-4' (falso). O prompt DEVE declarar o motor
         local em TODOS os papéis (identidade não é segredo — o
-        /capabilities já publica 'gemma-4-E4B via llama-server')."""
+        /capabilities publica o modelo servido).
+
+        v1.17.1 (decisão do dono): o motor servido é QWEN
+        (qwen2.5-coder-3b) — o gemma-4-E4B foi provado em sandbox (01/10)
+        e não cabe com latência útil na máquina (7,7 GB RAM). Declarar
+        'gemma' era mentira técnica; o teste fixa a verdade."""
         for role in ("admin", "user", "anon"):
             prompt = get_system_prompt("guardian", role=role)
-            assert "gemma" in prompt.lower(), f"motor real ausente no papel {role}"
+            assert "qwen" in prompt.lower(), f"motor real (qwen) ausente no papel {role}"
             assert "llama-server" in prompt.lower(), f"llama-server ausente no papel {role}"
+            # a mentira antiga NÃO pode voltar
+            assert "gemma-4-e4b" not in prompt.lower(), f"declaração falsa de gemma no papel {role}"
             # proibição explícita de assumir identidade de serviço de nuvem
             assert "Nunca afirme ser" in prompt, f"proibição ausente no papel {role}"
 
@@ -95,7 +102,8 @@ class TestPersonality:
             perfil: get_system_prompt(perfil).lower() for perfil in PROFILES
         }
         for perfil, prompt in prompt_por_perfil.items():
-            assert "gemma" in prompt, f"motor real ausente no perfil {perfil}"
+            assert "qwen" in prompt, f"motor real (qwen) ausente no perfil {perfil}"
+            assert "gemma-4-e4b" not in prompt, f"declaração falsa de gemma no perfil {perfil}"
 
     def test_agenda_inexistente_declarada_em_todos_os_papeis(self) -> None:
         """Caso real §14 (30/09): 'sou o dono adm' → o gemma INVENTOU 3
@@ -153,7 +161,7 @@ class TestVoiceBlocks:
                 )
 
     def test_marcador_de_nome_no_bloco(self) -> None:
-        """Cada bloco nomeia a si mesmo (gemma lê o nome no bloco)."""
+        """Cada bloco nomeia a si mesmo (o LLM local lê o nome no bloco)."""
         nomes = {
             "guardian": "Guardian",
             "regulus": "Regulus",
