@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-02T16:27:00-03:00",
+  "updated_at": "2026-10-02T16:28:48-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1157,7 +1157,8 @@
     "pedido": "Usuário: 'leia iniciar' — retomada (16:2x de 02/10).",
     "leitura": "README.md, RULES.md, session.json e transcrição 2026-10-01 (§1–§11). Estado herdado: v1.17.4 NO AR.",
     "verificacao_no_ar": "HEAD a8c659b == origin/master; working tree LIMPO; od-core active desde 2026-10-01 23:48:57 (PID 10933, NRestarts=0); od-llm active; /app/version {1.17.4, code 2037, size 53972629, sha256 6a10064b…}; /health 401 sem chave (portão por design); journal do boot 0 Traceback/[NICKY][ERROR]/[NICKY][CRIT].",
-    "estado": "RETOMADA CONCLUÍDA — v1.17.4 NO AR, nada pendente de correção. Pendências do dono intactas: (1) instalar APK 1.17.4+2037 no celular (site/OmegaDrakon-arm64.apk); (2) Drive/Agenda/Gmail do txt.txt (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89,44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer."
+    "estado": "RETOMADA CONCLUÍDA — v1.17.4 NO AR, nada pendente de correção. Pendências do dono intactas: (1) instalar APK 1.17.4+2037 no celular (site/OmegaDrakon-arm64.apk); (2) Drive/Agenda/Gmail do txt.txt (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89,44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer.",
+    "push_2026_10_02": "Commit de registro da retomada (3ebba79) estava 1 à frente de origin/master → PUSH feito (regra 7.1): a8c659b..3ebba79; HEAD==origin/master, working tree limpo."
   },
   "last_turn": {
     "date": "2026-10-01",
