@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-01T23:12:00-03:00",
+  "updated_at": "2026-10-01T23:24:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1040,11 +1040,27 @@
     "achado_registro": "Transcrição 2026-10-01 termina na §7 (v1.17.1), mas session.json referencia §8 (v1.17.2, commit 8c1a2a9) e §9 (v1.17.3) — faltam as duas seções no arquivo de transcrição. A completar a partir das entradas v172/v1173 do próprio session.json.",
     "estado": "RETOMADA CONCLUÍDA — v1.17.3 NO AR. Pendências do dono intactas: (1) APK 1.17.3+2036 no celular; (2) desejos do txt.txt: Google Drive, Agenda, Gmail (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer. Pendência de registro: §8/§9 da transcrição de 01/10."
   },
+  "completude_transcricao_2026_10_01": {
+    "pedido": "Usuário: 'complete' — completar as §8/§9 que faltavam na transcrição de 01/10 (~23:1x).",
+    "execucao": [
+      "Transcrição 2026-10-01: §8 (v1.17.2 — Casa de Limitações) e §9 (v1.17.3 — voz/TTS) reconstruídas a partir de session.json + CHANGELOG + commits, com nota de reconstrução; §10 NOVA documenta os 2 reboots da noite.",
+      "Validação do HEAD: suíte completa 2148 passed, 16 skipped (84s, .venv canônico SEM OD_TEST_POSTGRES_DSN) — bate com o registro da v1.17.3.",
+      "Prova viva: POST /tts → HTTP 200 com WAV real de 83.616 bytes (journal 'Síntese TTS concluída | elapsed_s=1.32') — voz no REST no ar após o reboot."
+    ],
+    "achados_novos": [
+      "REBOOTS DA NOITE: alex rodou 'sudo reboot now' às 22:55:46 (kernel 139→142) e 'apt upgrade' 22:59:16–23:05:27 (kernel 6.8.0-146, tailscale 1.102.4, docker-ce) + 'sudo reboot' 23:05:56; boot atual desde 23:06:38. Serviços voltaram AUTONOMAMENTE 2/2: od-core PID 1239 NRestarts=0 (23:06:41), od-llm, od-orchestrator, omega-drakon (bot 18 comandos), od-control-bridge; 6/6 portas; Funnel on; journal do boot 0 [NICKY][ERROR]; prova de fora /app/version 200 em 0,084s.",
+      "Deploy real da v1.17.3 foi o restart das 22:10:02 (journal do boot anterior) — o last_turn dizia 'PID pendente restart', estava desatualizado.",
+      "RÓTULO 'v1.18.0' nos comentários do código (launcher, chat web, test_voice_api, voice_api_test.dart) vs bump PATCH 1.17.3 — /transcribe + /tts + voz no app são feature (regra 12 = MINOR); decisão do dono pendente.",
+      "APK 'full' 1.17.3 (19.496.875 B) só tem arm64-v8a COMPLETO (libflutter 11,2 MB); armeabi-v7a e x86_64 têm 2 arquivos de ~0,1 MB SEM libflutter.so — full antigo (1.10.0) tinha 49,4 MB nos 3 ABIs; provável efeito do AGP 9.2.0/Gradle 9.4.1. Registro afirmava 'full (54.0 MB)' — não bate com o disco.",
+      "txt.txt ainda contém a linha 'comunicação por voz' (mtime 01/10 20:34) — o checkpoint dizia 'voz removido, restam Drive/Agenda/Gmail'."
+    ],
+    "estado": "CONCLUÍDO — transcrição de 01/10 completa (§1–§10), suíte verde, função voz provada no ar; 4 pontos novos para decisão do dono registrados em last_turn.next."
+  },
   "last_turn": {
     "date": "2026-10-01",
-    "retomada": "16:4x–17:1x de 01/10 — pedido do dono: investigar degradações recorrentes de network_hosts/weather_city. Investigação fechou em contaminação da suíte de testes (pytest gravava no limitacoes.txt real com as frases literais dos testes, incluindo o typo 'temperatuda'). v1.17.2 com guarda no conftest. 17:2x–22:0x — TTS robusto (v1.17.3): LD_LIBRARY_PATH forçado no launcher + env no subprocesso Piper; APKs 1.17.3+2036 buildados/publicados. Voz no app pronta (mic + speaker).",
-    "action": "v1.17.3 NO AR (PID pendente restart): conftest autouse isola Casa de Limitações; TTS imune a poluição de env. Commits b3a350d publicados. txt.txt atualizado (voz removido, restam Drive/Agenda/Gmail).",
-    "next": "Pendências: (1) APK 1.17.3+2036 no celular; (2) desejos do txt.txt: Google Drive, Agenda, Gmail (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer.",
+    "retomada": "Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2.",
+    "action": "v1.17.3 NO AR (PID 1239, NRestarts=0, pós-reboot 23:06:38); transcrição de 01/10 COMPLETA (§1–§10); HEAD publicado em origin/master; voz (/transcribe + /tts) operando; suíte 2148 passed/16 skipped no HEAD.",
+    "next": "Pendências: (1) APK 1.17.3+2036 no celular; (2) DECISÃO: rótulo 'v1.18.0' no código vs bump 1.17.3 — voz é feature, regra 12 dita MINOR; (3) DECISÃO: APK full sem libflutter em armeabi-v7a/x86_64 (só arm64 completo; provável efeito do AGP 9.2/Gradle 9.4) — corrigir o build ou aceitar como é; (4) txt.txt: linha 'comunicação por voz' ainda presente (checkpoint dizia removida) + Drive/Agenda/Gmail (MINOR, credencial OAuth do dono); (5) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (6) alternativa futura: gemma quando o hardware crescer.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },

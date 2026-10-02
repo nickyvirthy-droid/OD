@@ -280,3 +280,184 @@ com o qwen na v1.17.0).
 está FECHADA: o que o sistema diz que é é o que ele é. Pendências: APK
 1.17.1+2034 no celular; desejos restantes do txt.txt (voz, Drive,
 Agenda, Gmail); cobertura vs gate 90; CI vs .env.
+
+---
+
+## 8. A Casa de Limitações estava sendo sujada pela própria suíte — v1.17.2 (~16:4x–17:1x)
+
+> **Nota de reconstrução (01/10 ~23:2x):** esta seção foi reescrita a
+> partir da entrada `v172_guarda_limitacoes_2026_10_01` do
+> `session.json`, do CHANGELOG [1.17.2] e dos commits `d4daa53`,
+> `36a317f`, `083dab8`, `8c1a2a9` — a sessão original encerrou sem
+> gravar a §8.
+
+**Pedido do dono:** "Investigar por que `network_hosts` e
+`weather_city` degradam só no caminho do chat, não por `/executa`"
+(~16:4x).
+
+### 8.1 Investigação
+
+- Journal do od-core **VAZIO** nos horários dos eventos (16:21) — o
+  chat NUNCA passou pelo servidor naqueles segundos.
+- Pistas: sempre as **MESMAS 3 perguntas** (incl. o typo
+  `temperatuda`) em blocos idênticos; o dedup de 6h não bloqueava
+  porque cada restart zerava a memória.
+- Processos com cwd=`OmegaDrakon`: só `launcher` + `orquestrador` (que
+  não toca limitações) — chat e jobs de fundo eliminados.
+- **PROVA**: `pytest` isolado
+  (`test_intents.py::TestFastPathOrchestrator::test_acao_degradada_cai_ao_llm`)
+  gerou entrada NOVA no arquivo real (47 → 50 linhas, ts 16:46:16).
+
+### 8.2 Causa raiz
+
+Os testes de integração simulam ações degradadas com frases literais
+("quantas pessoas na rede?" com `/proc` vazio; "qual a temperatuda em
+presidente venceslau sp" sem fonte) e os hooks
+`registrar_action_degradada`/`registrar_fallback_honesto` gravavam no
+`limitacoes.txt` REAL a cada rodada da suíte. Os horários batiam com
+rodadas de pytest. **O chat do dono NUNCA degradou** — network_hosts e
+weather_city respondem ok pelo fastpath no ar.
+
+### 8.3 Correção, teste do teste, bump e deploy
+
+- `tests/conftest.py` (NOVO): fixture autouse redireciona
+  `core.limitacoes.LIMITACOES_FILE` para `tmp_path` por teste + isola
+  o dedup em memória (`_ultimo_registro`) — testes com
+  `monkeypatch.chdir` seguem válidos (a fixture só muda o default).
+- **Teste do teste**: mutação no-op na fixture → gravação no arquivo
+  real volta (detectada, 2 linhas); guarda restaurada → suíte completa
+  2139 passed e **0 linhas** no real.
+- Commits: `d4daa53` (os eventos de 16:0x commitados como dado de
+  runtime — padrão da casa) → `36a317f` (fix + limpeza: `limitacoes.txt`
+  −47 linhas, `conftest.py` +39) → `083dab8` (bump) → `8c1a2a9`
+  (registro).
+- Bump **PATCH 1.17.2**: .env · capabilities · pubspec 1.17.2+2035 ·
+  `_APP_VERSION_CODE=2035` · site 2x · CHANGELOG [1.17.2] · README
+  §1.17.2.
+- **Deploy**: restart **17:03:16**, PID 1281250, NRestarts=0. Prova
+  viva: `/health` 9/9 · `/app/version` {1.17.2, 2035} · fastpath
+  `network_hosts` ok (6 dispositivos) · `limitacoes.txt` 0 linhas ·
+  journal 0 Traceback.
+
+**Estado: CONCLUÍDO E NO AR — v1.17.2.** O "problema do chat" era
+contaminação da suíte; a Casa de Limitações continua funcional no
+runtime.
+
+---
+
+## 9. Voz ponta a ponta e TTS imune a poluição de ambiente — v1.17.3 (~17:2x–22:1x)
+
+> **Nota de reconstrução (01/10 ~23:2x):** esta seção foi reescrita a
+> partir da entrada `v1173_tts_robusto_2026_10_01` do `session.json`,
+> do CHANGELOG [1.17.3] e do commit `b3a350d` (19 arquivos,
+> +902/−14) — a sessão original encerrou sem gravar a §9.
+
+**Pedido:** corrigir o TTS flaky da suíte — `test_tts_handler_devolve_wav_real`
+falhava intermitentemente.
+
+### 9.1 Causa raiz
+
+`test_audio.py` cria instâncias `PiperTTS` com paths falsos em
+`tmp_path` e polui `LD_LIBRARY_PATH`; o `build_voice_handlers()` do
+launcher só SETAVA a variável se estivesse ausente — não corrigia valor
+errado. Resultado: Piper morria com `exit 127`
+`libespeak-ng.so.1: cannot open shared object file`.
+
+### 9.2 Implementação (muito além do fix de env)
+
+- **runtime/launcher.py**: `build_voice_handlers()` **FORÇA**
+  `LD_LIBRARY_PATH` (ordem: `/opt/omegadrakon/voice/piper` →
+  `REPO_ROOT/voice/tts`) e **pluga WhisperSTT + PiperTTS nos handlers
+  da API** — `/transcribe` e `/tts` eram SEMPRE `None` no REST (501 no
+  ar; voz só no Telegram). Os comentários do código rotulam esta
+  entrega de `v1.18.0` — ver achado 9.4.
+- **tools/audio/tts.py**: `PiperTTS._piper_env()` (NOVO) +
+  `synthesize_to_file()` passa `env` customizado direto no
+  `asyncio.create_subprocess_exec()` — imune a poluição global; flag
+  `--espeak_data` ANTES de `--output_file` (contrato de parse).
+- **Chat web**: microfone no composer (`microfone → /transcribe →
+  texto no campo; resposta por voz via /tts`).
+- **App Flutter**: `OdVoice` (record AAC/M4A + audioplayers), permissão
+  `RECORD_AUDIO` em runtime, `OdApi.transcribe()/synthesize()`, botão
+  de microfone no chat; `compileSdk 37`, AGP 9.2.0, Gradle 9.4.1
+  (`permission_handler_android` exige SDK 37).
+
+### 9.3 Validação, bump e deploy
+
+- **Suíte completa 2148 passed, 16 skipped** — 5 rodadas seguidas sem
+  falha (o flaky morreu). App: `flutter test` 131 passed, 2 skipped ·
+  `analyze` 0 issues. Testes novos: `tests/test_voice_api.py` (+239) e
+  `app/test/voice_api_test.dart` (+115).
+- Bump **PATCH 1.17.3**: .env · capabilities · pubspec 1.17.3+2036 ·
+  `_APP_VERSION_CODE=2036` · site 2x · CHANGELOG [1.17.3] · README
+  §1.17.3. APKs rebuildados (aapt2 `versionCode='2036'
+  versionName='1.17.3'`) e publicados em `site/` (21:31 full,
+  21:59 arm64).
+- **Commit `b3a350d`** → push (regra 7.1); **deploy: restart
+  22:10:02** (journal do boot -2 — o checkpoint dizia "PID pendente
+  restart", mas o restart ACONTECEU e a v1.17.3 entrou no ar às 22:10;
+  depois sobreviveu aos 2 reboots da §10).
+- **Prova viva pós-reboot (23:19)**: `POST /tts` → HTTP 200,
+  `audio_b64` com RIFF/WAV real de 83.616 bytes (journal: `Síntese TTS
+  concluída | elapsed_s=1.32`) — voz no REST operando no ar.
+
+### 9.4 Achados desta entrega (decisão do dono pendente)
+
+1. **Rótulo v1.18.0 no código vs bump 1.17.3** — `launcher.py`,
+   `server.py` (chat), `test_voice_api.py` e `voice_api_test.dart`
+   descrevem a entrega como "v1.18.0". Pela regra 12 (feature nova
+   compatível = MINOR), `/transcribe` + `/tts` + voz no app são
+   FEATURE; o bump PATCH 1.17.3 rotulou a entrega só como fix de TTS.
+   Divergência comentário/versão: aceitar como está ou corrigir no
+   próximo bump (ex.: declarar 1.18.0 quando a voz for confirmada).
+2. **APK "completo" deixou de ser completo** — `site/OmegaDrakon.apk`
+   (1.17.3) tem 19.496.875 B (o mesmo tamanho do arm64; sha256
+   diferentes) e só `arm64-v8a` está COMPLETO (17,0 MB com
+   `libflutter.so`); `armeabi-v7a` e `x86_64` têm só 2 arquivos de
+   ~0,1 MB cada (`libdartjni.so`, `libdatastore_shared_counter.so`)
+   **sem `libflutter.so`**. O full antigo (backups/apk-v1.10.0) tinha
+   49,4 MB de libs nos 3 ABIs completos. Efeito provável do upgrade
+   AGP 9.2.0/Gradle 9.4.1 (do próprio commit). No Redmi (arm64)
+   instala e roda; aparelho 32-bit/x86 receberia app quebrado. O
+   registro do `session.json` afirma "full (54.0 MB)" — não bate com o
+   disco.
+3. **txt.txt** — a linha `comunicação por voz` SEGUE no arquivo
+   (mtime 01/10 20:34); o checkpoint dizia "voz removido, restam
+   Drive/Agenda/Gmail". Ou a voz ainda não foi considerada pronta pelo
+   dono, ou a remoção não aconteceu.
+
+**Estado: CONCLUÍDO E NO AR — v1.17.3.** Voz no app, no chat web e no
+REST; TTS imune a poluição de ambiente. Pendências do dono: APK
+1.17.3+2036 no celular; Drive/Agenda/Gmail no txt.txt.
+
+---
+
+## 10. Dois reboots do servidor — recuperação autônoma provada de novo (22:55–23:1x)
+
+Achado desta retomada (23:1x), durante a verificação do estado — nada
+disso estava no checkpoint:
+
+- **Reboot 1 — 22:55:46**: `sudo reboot now` do **alex** (pts/1, no
+  journal do boot anterior). Boot limpo de `6.8.0-139` →
+  **`6.8.0-142`** (kernel já instalado, pendente de ativação). od-core
+  voltou sozinho às **22:56:32** (PID 1129) com a v1.17.3.
+- **`apt upgrade` — 22:59:16 → 23:05:27**: alex (SSH de
+  192.168.0.111) rodou `apt update` + `apt upgrade`: kernel
+  **`6.8.0-146`**, tailscale 1.102.4, docker-ce, apparmor, etc.
+- **Reboot 2 — 23:05:56**: `sudo reboot` do alex. Boot atual
+  (`2d7a3002…`) desde **23:06:38**.
+- **Recuperação autônoma 2/2** — sem ninguém tocar em nada: od-core
+  23:06:41 (PID 1239, **NRestarts=0**), od-llm (qwen2.5-coder-3b,
+  health ok), od-orchestrator, omega-drakon (bot, 18 comandos),
+  od-control-bridge; 6/6 portas no ar; `Funnel on` (`/` → 8000,
+  `/ws` → 8001); journal do boot **0 `[NICKY][ERROR]`**. Prova de fora
+  pela URL pública: `/app/version` 200 em 0,084 s.
+- Warnings transitórios do boot (tailscale bootstrapDNS antes da rede
+  subir; 1× `Transporte indisponível` em 23:06:43) — normais, sem
+  persistência; HA sem timeout neste boot; Telegram em polling.
+- **Efeito prático**: a v1.17.3 está viva desde o restart das 22:10 e
+  sobreviveu aos 2 boots — a classe "servidor de pé" revalidada na
+  prática (além da prova formal do boot autônomo de 21/09).
+
+**Estado: VERDE — sistema íntegro após 2 reboots, v1.17.3 no ar,
+função voz provada (§9.3).**
