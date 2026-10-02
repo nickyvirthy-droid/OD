@@ -1184,7 +1184,8 @@
     "validacao": "Suíte 2229 passed, 16 skipped (mqtt flaky passa isolado); gate de cobertura 90,24% (reached); pacote importa; launcher constrói o registry com 71 actions (HA segue ligado); `python -m runtime.google_auth --check` reporta credenciais ausentes sem crash.",
     "achado": "A guarda test_nenhuma_referencia_a_versao_futura_no_codigo (v1.17.4) pegou meus rótulos 'v1.18.0' — versão NÃO lançada. Removidos (labels neutros; manifest phase 'Fase 5.6'); o bump MINOR fica para o deploy com credencial.",
     "sem_bump": "Dormente até a credencial OAuth do dono; a prova viva com dados reais vem no deploy (que exige autorização — regra 7.1). Escopo: SOMENTE LEITURA; escrita = 2º lote.",
-    "estado": "CONCLUÍDO (código + testes + docs) — aguardando a credencial OAuth do dono para autorizar (runtime/google_auth.py), implantar (deploy + bump MINOR) e provar com dados reais.",
+    "commit": "20b724d feat(integrations): Google Drive/Agenda/Gmail em leitura — OAuth stdlib (arquitetura pronta) — 26 arquivos +2502/−39; HEAD==origin/master.",
+    "estado": "CONCLUÍDO, PUBLICADO (código + testes + docs) — aguardando a credencial OAuth do dono para autorizar (runtime/google_auth.py), implantar (deploy + bump MINOR) e provar com dados reais.",
     "transcricao": "iniciar/2026-10-02_conversa_omegadrakon.md (§8)"
   },
   "last_turn": {
