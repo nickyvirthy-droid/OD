@@ -18,10 +18,11 @@
 
 - **fix(app,build): o APK "completo" publicado não era completo** — os
   artefatos de 19,5 MB publicados em 01/10 (21:31 e 21:59) tinham
-  `libflutter.so` APENAS em arm64-v8a; armeabi-v7a e x86_64 ficavam com
-  2 stubs de ~100 KB e o app **não instalava** nessas arquiteturas
-  (engenharia reversa dos ZIPs publicados: v7a=159.580 B e
-  x86_64=163.776 B de libs, contra 17,2 MB do arm64). Causa raiz:
+  `libflutter.so` APENAS em arm64-v8a; armeabi-v7a e x86_64 ficavam
+  com só 2 arquivos de ~0,1 MB por ABI **sem `libflutter.so`** — o app
+  não subia nelas (análise dos ZIPs publicados registrada no achado da
+  v1.17.3; os artefatos quebrados foram sobrescritos por este rebuild,
+  por isso sem bytes exatos aqui). Causa raiz:
   `intermediates/flutter/release/` do build de ontem só continha
   `arm64-v8a/` — estado incremental envenenado; **não** era configuração
   (AGP 9.2/Gradle 9.4 íntegros, `-Ptarget-platform` sem override).

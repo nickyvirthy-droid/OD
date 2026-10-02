@@ -461,3 +461,75 @@ disso estava no checkpoint:
 
 **Estado: VERDE — sistema íntegro após 2 reboots, v1.17.3 no ar,
 função voz provada (§9.3).**
+
+---
+
+## 11. Os 4 pontos fechados — v1.17.4: APK íntegro, rótulo honesto, guarda nova (01/10 23:2x–23:5x)
+
+Pedido do dono: *"pode concluir esses pontos antes. deixe o programa
+pronto, sem problemas"* — os 4 achados pendentes (§10/checkpoint)
+fechados um a um, com validação antes de cada commit (regra 7.1).
+
+### 11.1 Rótulo `v1.18.0` → 1.17.3 (sem reescrever a história)
+
+- Os **14 comentários** (.py/.dart) que rotulavam a entrega de voz de
+  `v1.18.0` — versão que **nunca existiu** — passaram a dizer
+  `v1.17.3`, a release real já anunciada no ar (`/app/version`,
+  header `Server:`, CHANGELOG). Release no ar não se reescreve; a
+  `v1.18.0` fica livre para a **próxima** feature.
+- Desvio da regra 12 registrado honestamente: voz era feature (MINOR),
+  mas saiu como PATCH (1.17.3) — história aceita, não retroagida.
+- **Guarda nova** (cobertura 9 do `tests/test_version_policy.py`):
+  `test_nenhuma_referencia_a_versao_futura_no_codigo` — nenhum
+  `.py`/`.dart` pode citar `vX.Y.Z` maior que `OD_VERSION` vigente.
+  Testada por mutação: `v9.9.9` injetado em `runtime/launcher.py` →
+  vermelho → restaurado bit-exato (sha igual).
+
+### 11.2 APK "completo" — a causa era o build, não o AGP
+
+- A hipótese do checkpoint (AGP 9.2/Gradle 9.4) **não se confirmou**:
+  a inspeção provou que `intermediates/flutter/release/` do build de
+  01/10 continha **apenas `arm64-v8a/`** — os artefatos publicados
+  (19.496.875 B, 21:31 e 21:59) tinham `libflutter.so` só no arm64;
+  v7a/x86_64 só com 2 arquivos de ~0,1 MB sem o engine. Sem
+  `-Ptarget-platform` override em gradle.properties/env/local.properties.
+- Correção: `flutter clean` + `./build_apk.sh` canônico →
+  **universal 53.972.629 B (~54,0 MB)** com as **3 ABIs completas**
+  (libflutter 11,7/8,6/13,0 MB + libapp 5,9/6,6/6,1 MB) e **split
+  arm64 19.245.103 B (~19,2 MB)**; `aapt2`: `versionCode=2037
+  versionName=1.17.4` nos dois; publicados em `site/`.
+- Site ajustado aos tamanhos reais: card `~19 MB`, link full `~54 MB`
+  (diziam 18/52 MB).
+
+### 11.3 txt.txt — voz removida
+
+Linha *"comunicação por voz"* apagada (entrega é fato desde a
+v1.17.3: mic + transcrição + TTS no app, no web e no REST). Restam:
+**Google Drive, Agenda e Gmail** — exigem OAuth do dono (credencial
+própria, decisão dele).
+
+### 11.4 Bump + deploy — v1.17.4+2037 no ar
+
+- **bump PATCH** (regra 12: fix deployado), checklist completo:
+  `.env` · `capabilities` fallback · `pubspec 1.17.4+2037` ·
+  `_APP_VERSION_CODE=2037` · `site` 2× · `CHANGELOG [1.17.4]` ·
+  `README_VERSAO §1.17.4`.
+- **Validação**: suíte completa **2149 passed, 16 skipped** (2148 + a
+  guarda nova, 88,57 s) · `flutter analyze` sem problemas ·
+  `flutter test` **131 passed, 2 skipped** · guarda de versão 9/9.
+- **Commit `d94a191`** pushado; **deploy** od-core reiniciado
+  **23:48:57** (PID 10933). Provas ao vivo:
+  - `GET /app/version` → `1.17.4` / `2037` / `53972629` /
+    `sha256=6a10064b…` **==** hash de `site/OmegaDrakon.apk`;
+  - `GET /health` (com `X-API-Key`) → **200**, `status=up`, 8 checks
+    (sem a chave → 401 é o portão por design: `AUTH_EXEMPT_PATHS`
+    = register/login/anon/version);
+  - `POST /tts` → **200**, WAV `RIFF` de 146.592 B
+    (`Síntese TTS concluída | elapsed_s=0.79`);
+  - header `Server: OmegaDrakon/1.17.4`; journal do boot
+    **0 `[NICKY][ERROR]`**; od-core/llm/orchestrator ativos.
+
+**Estado: VERDE — v1.17.4 no ar, 4/4 pontos fechados. Restam:
+instalar o APK 1.17.4+2037 no celular do dono; Drive/Agenda/Gmail
+(OAuth do dono); 2 achados de infra de 30/09 (cobertura 89,44% vs
+gate 90; CI vs .env).**

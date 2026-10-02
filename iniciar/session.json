@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-01T23:24:00-03:00",
+  "updated_at": "2026-10-01T23:55:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -44,7 +44,10 @@
     "poda": "Cache com 10 recusas acumuladas → snapshot backups/cache-recusas-20260928.json (sha256 0b004d4e…) → poda real removidas 10 → pós 0 candidatas.",
     "prova_final_5_5": "user+servidor → 54.5°C real zero LLM; user+cidade 1ª ida → recusa detectada/refeita (retry também recusou — gemma teimoso, 1 retry é o desenho; recusa NÃO entrou no cache); 2ª ida → retry entregou o clima (fallback) e a resposta BOA entrou no cache; user+IP → 🔒 de direito sem LLM; admin → 59.0°C real. PID 869597 NRestarts=0, journal 0 erros.",
     "licao_processo": "1ª rodada de mutação usou git checkout para reverter e DESCARTEOU edições não-commitadas (refeito na mão); rodadas seguintes: backup em /tmp + restore — 0 perda.",
-    "commits": ["88c846e fix(core): anti-recusa por papel — alucinação de vedação para assunto externo é refeita (user e anônimo)", "a7b762d fix(core): recusa do modelo não entra no cache — alucinação cacheada virava permanente"],
+    "commits": [
+      "88c846e fix(core): anti-recusa por papel — alucinação de vedação para assunto externo é refeita (user e anônimo)",
+      "a7b762d fix(core): recusa do modelo não entra no cache — alucinação cacheada virava permanente"
+    ],
     "suíte": "1984 passed, 16 skipped.",
     "estado": "CONCLUÍDO E NO AR — garantias provadas: recusa nunca vira permanente, cada recusa dispara retry, resposta boa cacheada, vedação de IP/portas do user intacta, admin com dado real. Nota: gemma às vezes recusa 2x seguidas — mais retries é ajuste futuro se o dono quiser.",
     "transcricao": "iniciar/2026-09-28_conversa_omegadrakon.md (§8)"
@@ -64,7 +67,10 @@
     "bump": "1.7.1 (PATCH, precedente 1.6.1): .env, capabilities, pubspec 1.7.1+2018, site (2x), CHANGELOG [1.7.1], README_VERSAO §1.7.1. APKs versionCode='2018' (aapt2), sha256 full 5c6c05fb…, arm64 4f41ff45….",
     "validacao": "Suíte 1974 passed, 16 skipped; flutter analyze 0 issues; flutter test 96/2.",
     "bug_deployment": "Prova viva pós-deploy pegou: /app/version anunciava version_code 2017 com o sha256 do binário 2018 — o lote reversionou o pubspec mas ninguém atualizou _APP_VERSION_CODE (server.py:57); a auto-atualização nunca dispararia. Correção 4384e5b; lacuna anotada: a guarda de coerência cobre .env/capabilities/pubspec/site/CHANGELOG mas NÃO a constante — item novo do checklist quando o app reversionar.",
-    "commits": ["b0961aa fix(core,intents,actions): temperatura do servidor como dado real + clima de cidade sem bloqueio indevido (v1.7.1) — 15 arquivos +327/−35", "4384e5b fix(api): _APP_VERSION_CODE 2017→2018 — /app/version anunciava o APK errado"],
+    "commits": [
+      "b0961aa fix(core,intents,actions): temperatura do servidor como dado real + clima de cidade sem bloqueio indevido (v1.7.1) — 15 arquivos +327/−35",
+      "4384e5b fix(api): _APP_VERSION_CODE 2017→2018 — /app/version anunciava o APK errado"
+    ],
     "deploy": "IMPLANTADO — restart 2026-09-28 18:4x, PID 861815, NRestarts=0. Prova viva 6/6: /app/version {1.7.1, code 2018, sha256 == binário}; /capabilities 1.7.1 · 59 actions; 'qual a temperatura do servidor' → route=action_intent fastpath:cpu_temp → 🌡️ 57.0°C (pch_skylake) ZERO LLM; /health ok/up; WS 426; journal 0 erros; /supervision up restarts 0.",
     "estado": "CONCLUÍDO E NO AR — app 1.7.0+2017 do celular recebe o 1.7.1+2018 pela auto-atualização (conteúdo do app é o mesmo).",
     "transcricao": "iniciar/2026-09-28_conversa_omegadrakon.md"
@@ -76,14 +82,21 @@
     "bug_deployment": "1º restart (PID 720009) provou /app/version com 401 sob OD_API_AUTH_ALL=1 — o app chama SEM credencial (best-effort) e silencia; auto-atualização NUNCA funcionaria. Causa: gate do auth_all cobria a rota; testes herméticos não pegaram porque a fixture sobe sem auth_all. Correção: /app/version em AUTH_EXEMPT_PATHS (mesma natureza do /site já público) + test_app_version_public_under_auth_all fixando o contrato. Suíte 1967/16.",
     "bug_pacote_invalido": "Dono: 'celular avisa que pacote parece ser invalido'. Causa raiz PROVADA: o lote forçou versionCode CRU (17) enquanto o celular está na linhagem arm64 antiga (offset +2000: 1.6.1 = 2016 — o backup 1.2.8+11 mostra o arm64 com 2011) → downgrade → instalador recusa. NÃO era assinatura (cert idêntico 252cf0fe… apksigner) nem corrupção. Correção (8475b6a): pubspec 1.7.0+2017, _APP_VERSION_CODE=2017, isNewer com comparação DIRETA (a fórmula do lote descontaria 1000 e ofereceria a mesma update para sempre; a 1ª tentativa de fix com desconto 2000 foi pega pelos próprios testes: 2017 viraria 17) e +9 testes do app. APKs rebuildados: versionCode='2017' nos dois (aapt2), sha256 88cf9876…; anterior em backups/apk-v1.7.0+17-20260927/. Restart PID 727041 NRestarts=0; /app/version anuncia 2017 e o hash bate com o binário; app 96/2, suíte 1967/16, journal 0 erros.",
     "nota_primeira_instalacao": "O app 1.6.1+16 do celular NÃO tem OdUpdater — a checagem automática só existe a partir do 1.7.0. A instalação do 1.7.0+2017 é MANUAL pelo site (OmegaDrakon-arm64.apk); a partir dela a auto-atualização assume.",
-    "commits": ["c2b4508 feat(app,api): auto-atualização do APK pelo próprio app + site mais rápido (v1.7.0) — 19 arquivos +1025/−21", "43746fd fix(api): /app/version público sob auth_all — auto-atualização morria com 401 — 2 arquivos +32/−3"],
+    "commits": [
+      "c2b4508 feat(app,api): auto-atualização do APK pelo próprio app + site mais rápido (v1.7.0) — 19 arquivos +1025/−21",
+      "43746fd fix(api): /app/version público sob auth_all — auto-atualização morria com 401 — 2 arquivos +32/−3"
+    ],
     "deploy": "IMPLANTADO — restart 2026-09-27 12:0x, PID 721757, NRestarts=0. Prova viva 7/7: /app/version 200 sem chave (1.7.0, vc 17, sha256 804db579…); sha256 anunciado == binário de site/; aapt2 versionCode='17' versionName='1.7.0'; /health 200; WS 426; /site ETag→304; journal 0 erros.",
     "estado": "CONCLUÍDO E NO AR — pendência: abrir o app 1.6.1+16 no celular e deixar o banner de atualização instalar o 1.7.0+17 (a partir daí o app se atualiza sozinho).",
     "transcricao": "iniciar/2026-09-27_conversa_omegadrakon.md"
   },
   "resposta_transparente_2026_09_26": {
     "pedido": "Dono: (1) app sem hora nem quem respondeu (gemma, cache...); (2) chips sem os NOMES da entidade (Regulus aparecia como 'Conselheiro'); (3) admin DEVE ter respostas de IP/portas — vedação só para visitante.",
-    "implementacao": ["profile_name em TODOS os frames done do streaming e no to_dict (REST); app exibe cabeçalho da bolha (ícone + nome) e hora em toda mensagem", "profile_display_name: nome canônico da Plêiade; /profiles expõe display_name; app usa nomes nos chips (Regulus, Nyx, Luma, Vox, Athenae, Nexus)", "Orchestrator._resolve_system: system prompt por PERFIL pedido + PAPEL de quem fala — admin (dono) com acesso pleno aos dados do sistema, user mantém a vedação (antes era o prompt estático do launcher)"],
+    "implementacao": [
+      "profile_name em TODOS os frames done do streaming e no to_dict (REST); app exibe cabeçalho da bolha (ícone + nome) e hora em toda mensagem",
+      "profile_display_name: nome canônico da Plêiade; /profiles expõe display_name; app usa nomes nos chips (Regulus, Nyx, Luma, Vox, Athenae, Nexus)",
+      "Orchestrator._resolve_system: system prompt por PERFIL pedido + PAPEL de quem fala — admin (dono) com acesso pleno aos dados do sistema, user mantém a vedação (antes era o prompt estático do launcher)"
+    ],
     "testes": "Servidor 1945/16 (+10 em tests/test_resposta_transparente.py); app 87/2, analyze 0 issues. Bump 1.6.0 (MINOR): .env, capabilities, pubspec 1.6.0+15, site, CHANGELOG, README_VERSAO. APK 1.6.0+15 (aapt2 versionCode='15', sha256 e2834a95…) publicado.",
     "deploy": "IMPLANTADO — restart 12:49:50, PID 602708, NRestarts=0. Prova viva 4/4: /capabilities 1.6.0; /profiles com display_name; ADMIN perguntou IP e recebeu 127.0.0.1 sem recusa; WS done com profile_name=Nicky Virthy route=llm llm_used=gemma-local.",
     "commit": "5efdcdf feat(core,agents,app): resposta transparente — prompt por papel, quem respondeu e hora (v1.6.0) — 16 arquivos +454/−34; HEAD==origin/master.",
@@ -176,7 +189,11 @@
   "prova_e2e_funnel_2026_09_21": {
     "pedido": "Usuário: 'Instalei o APK novo no celular — faça a prova de chat ponta a ponta pela URL do Funnel com minha credencial'.",
     "metodo": "sandbox_agent/app_funnel_sandbox.py (gitignored) reproduz o protocolo de od_ws.dart: REST POST /message (X-API-Key, user_id 'app') e WS wss://…/ws (frames auth→message→token*→done), TLS validado, prompt único por execução (uuid) para não cair no cache do LLM.",
-    "correcoes_no_script": ["OD_API_KEY lida do .env (não só do ambiente)", "campo de resposta é 'message' (OrchestrationResult.to_dict), não 'response'", "prompt com uuid — 1ªs rodadas caíram em route=cache"],
+    "correcoes_no_script": [
+      "OD_API_KEY lida do .env (não só do ambiente)",
+      "campo de resposta é 'message' (OrchestrationResult.to_dict), não 'response'",
+      "prompt com uuid — 1ªs rodadas caíram em route=cache"
+    ],
     "resultado": "2/2 OK — REST: HTTP 200, route=llm, llm=gemma-local, eco user_id=app; WS: authenticated (via=server), 512 tokens em streaming, route=llm.",
     "journal": "'WebSocket authenticated | user_id=app | via=server' + 2× 'Message processed | route=llm | user=app | llm=gemma-local' (94,8s e 112,5s) — 0 Traceback/ERROR.",
     "historico": "balde app 36 → 44 (+6 das provas; as outras 2 sugerem teste real do celular).",
@@ -184,7 +201,11 @@
   },
   "apk_1_2_8_9_2026_09_21": {
     "pedido": "Usuário: 'Atualize o default externo do app para https://nicky-server.tail1b1f51.ts.net e gere o APK novo'.",
-    "mudancas": ["app/lib/main.dart: fallbackUrl http://nicky.theworkpc.com → https://nicky-server.tail1b1f51.ts.net (Funnel)", "app/lib/screens/settings_screen.dart: hint do campo externo + texto 'Como acessar' com a URL do Funnel", "app/pubspec.yaml: 1.2.8+8 → 1.2.8+9"],
+    "mudancas": [
+      "app/lib/main.dart: fallbackUrl http://nicky.theworkpc.com → https://nicky-server.tail1b1f51.ts.net (Funnel)",
+      "app/lib/screens/settings_screen.dart: hint do campo externo + texto 'Como acessar' com a URL do Funnel",
+      "app/pubspec.yaml: 1.2.8+8 → 1.2.8+9"
+    ],
     "build": "app/build_apk.sh com ambiente do servidor (PATH ~/flutter/bin, JAVA_HOME ~/jdk JDK 17, ANDROID_SDK_ROOT ~/android-sdk); full 52.247.003 B + arm64 18.650.118 B publicados em site/; anterior preservado em backups/apk-v1.2.8+8-20260921/",
     "provas": "flutter analyze 0 issues · flutter test 71 passed, 2 skip · strings no libapp.so arm64: novo 1× tail1b1f51 / 0× theworkpc (antigo 0/2) · aapt2: versionCode='9' versionName='1.2.8' · download via Funnel (GET /site/OmegaDrakon.apk, 200, sha256 a3c53494… idêntico ao local)",
     "status": "COMMITADO e PUSHED (regra 7.1); instalar no Redmi Note 14 (versionCode 9 > 8 instala por cima)"
@@ -196,7 +217,12 @@
     "teste_do_teste": "5 mutações, todas detectadas e revertidas — sempre-libera (5 falhas), só Bearer (1), case-sensitive (1), delete sem checagem (1), /memory checando após o 501 (2).",
     "sandbox": "sandbox_agent/auth_sandbox.py — terceiro cenário (alex/bia + histórico real): 27/27 OK (era 18).",
     "suite": "1825 passed, 16 skipped. (1 falha isolada em test_mqtt.py::test_start_stop_thread no 1º run — flaky de timing no assert `not bridge.is_connected`; passa isolado, no arquivo repetido 3x e no run completo seguinte.)",
-    "arquivos": ["integrations/api/server.py", "tests/test_auth.py", "sandbox_agent/auth_sandbox.py (gitignored)", "docs/CHANGELOG.md"],
+    "arquivos": [
+      "integrations/api/server.py",
+      "tests/test_auth.py",
+      "sandbox_agent/auth_sandbox.py (gitignored)",
+      "docs/CHANGELOG.md"
+    ],
     "status": "IMPLANTADO NO SISTEMA REAL em 2026-09-21 09:05:45 (PID 749398, NRestarts=0, 0 Traceback/ERROR no journal) e COMMITADO em 09:2x.",
     "commits": [
       "6c888bf feat(api): freio contra força bruta no login (LoginGuard) — auth.py, server.py, launcher.py, test_auth.py, CHANGELOG (5 arquivos, +355)",
@@ -209,7 +235,9 @@
       "ok": "13/13 — alex → /history/prova-dono/stats = 403 acesso_negado; alex → DELETE /history/prova-dono = 403 com o histórico do alvo INTACTO (2 msgs conferidas depois com o admin); alex → /memory/prova-dono/search = 403 (antes do 501); prova-dono lê o próprio = 200; alex lê o próprio = 200; OD_API_KEY (admin) lê os dois = 200; sem credencial = 401; API key errada = 401.",
       "journal": "3 linhas 'Acesso a recurso de outro usuário negado | autenticado=alex | alvo=prova-dono' + status=403 no mesmo segundo (09:06:04).",
       "limpeza": "Conta de prova REMOVIDA em 2026-09-21 09:07: users 2→1, conversation_messages 88→86, 0 sessões (a conta nunca logou). Snapshot de rollback em backups/prova-dono-removido-20260921-090719.bak (gitignored). Prova pós-remoção: chave da conta removida → 401; admin → /history/alex/stats = 200 com 2 mensagens; balde /history/prova-dono = 0 mensagens.",
-      "ressalvas": ["O probe do LoginGuard travou '__probe_deploy__' por 900s e deixou 5 falhas na chave de IP 127.0.0.1 (limite 15, janela 300s) — expira sozinho."]
+      "ressalvas": [
+        "O probe do LoginGuard travou '__probe_deploy__' por 900s e deixou 5 falhas na chave de IP 127.0.0.1 (limite 15, janela 300s) — expira sozinho."
+      ]
     },
     "pendente_no_working_tree": "LoginGuard + checagem de dono seguem sem commit (6 arquivos modificados)."
   },
@@ -265,7 +293,11 @@
       "deploy": "od-core restart 2026-09-19 11:39:02 (PID 543923) — journal: 'Auth de usuários habilitado'; /auth/login responde 400 (existe); /chat contém auth/login; usuário 'alex' (user_id=1) registrado 11:39:05",
       "arquivos": {
         "novo_untracked": "integrations/api/auth.py (UserStore: register/login/sessions PBKDF2-SHA256, API keys)",
-        "modificados": ["integrations/api/server.py (+295) rotas /auth/*, middleware Bearer, gate do chat web", "runtime/launcher.py (+20) passa database -> UserStore (OD_AUTH_ENABLED)", "tests/test_api.py (+9/-... ) só ajusta contagem de ROUTES"]
+        "modificados": [
+          "integrations/api/server.py (+295) rotas /auth/*, middleware Bearer, gate do chat web",
+          "runtime/launcher.py (+20) passa database -> UserStore (OD_AUTH_ENABLED)",
+          "tests/test_api.py (+9/-... ) só ajusta contagem de ROUTES"
+        ]
       },
       "lacuna": "nenhum teste cobre registro/login/sessão/Bearer — só a contagem de rotas em test_api.py"
     },
@@ -296,7 +328,12 @@
     "suite": "1814 passed, 16 skipped (era 1804 em 09-20 — os +10 são os testes do LoginGuard).",
     "banco": {
       "dsn": "OD_DB_URL no .env → postgres://od@127.0.0.1:5432/od (driver pg8000 1.31.5); health ok, 4 tabelas",
-      "tabelas": {"users": 1, "sessions": 1, "conversation_messages": 86, "llm_cache": 43},
+      "tabelas": {
+        "users": 1,
+        "sessions": 1,
+        "conversation_messages": 86,
+        "llm_cache": 43
+      },
       "usuario": "alex (id=1, alex@omegadrakon.dev, criado 2026-09-19 11:38)",
       "sessao_ativa": "1 sessão válida até 2026-09-26 11:38 (TTL 7 dias)",
       "conclusao": "SIM — usuários (users/sessions) e conversas (conversation_messages) estão no PostgreSQL. Legado inerte: data/conversations (JSON, último write 09-03) e data/od.db (SQLite com 0 tabelas)."
@@ -353,7 +390,11 @@
       "local": "curl do servidor pela URL pública: /health 401 em 0,03-0,4s (sai para a internet e volta pelo ingress)."
     },
     "servico": "od-core segue active PID 762754 NRestarts=0 — nada foi reiniciado (o Funnel é externo ao serviço).",
-    "docs": ["docs/CHANGELOG.md (nova entrada no topo da seção 1.2.0)", "docs/ACESSO_EXTERNO.md (novo § 'Estado: Funnel publicado')", "iniciar/2026-09-21_conversa_omegadrakon.md (§7)"],
+    "docs": [
+      "docs/CHANGELOG.md (nova entrada no topo da seção 1.2.0)",
+      "docs/ACESSO_EXTERNO.md (novo § 'Estado: Funnel publicado')",
+      "iniciar/2026-09-21_conversa_omegadrakon.md (§7)"
+    ],
     "commit": "pendente de commit+push (regra 7.1)"
   },
   "papeis_contas_2026_09_22": {
@@ -420,7 +461,11 @@
       "anonimo": "POST /anon/message SEM credencial (auth_all ligado) → HTTP 200 em 11,5s, ok/anonimo=true, user_id=anonimo, route=llm (gemma-local).",
       "sem_rastro": "balde 'anonimo' = 0; total da tabela 104 e alex 100 (intactos) — a prova anônima não gravou nada."
     },
-    "commits": ["d64e930 papéis", "859b624 /entrar + anônimo", "dd0428c launcher (UserStore no bot)"],
+    "commits": [
+      "d64e930 papéis",
+      "859b624 /entrar + anônimo",
+      "dd0428c launcher (UserStore no bot)"
+    ],
     "estado": "1a+1b+1c+2 CONCLUÍDAS e validadas. Servidor no ar (PID 77701); APK 1.2.8+10 pronto para instalação."
   },
   "senha_alex_2026_09_22": {
@@ -665,7 +710,13 @@
   "chat_ip_portas_2026_09_26": {
     "pedido": "Dono: 'continua bloqueando a informação. dentro de ações ip_address ele me da o ip, porém no chat não. a porta foi a mesma coisa... a ideia central é que se não houver resposta no momento o sistema vai criar um script que consiga me trazer essa resposta'.",
     "causa_raiz": "set_action_registry SÓ no loop do Telegram — o chat (REST/WS) ficava sem registry e a Etapa 3.5 (fast path) nunca disparava; a pergunta caía no LLM que recusava ou alucinava etiqueta. /executa funcionava porque o server recebe o registry por parâmetro.",
-    "correcoes": ["launcher: set_action_registry também no loop da API", "intents: 'qual o ip do servidor' → ip_address; 'portas abertas/escutando' → listening_ports (negativos cobertos)", "actions: NOVA listening_ports (/proc/net/tcp{,6}, IPv4+IPv6 DWORD-LE validado, processo por inode) — catálogo 57→58", "orchestrator: _refusal_reason detecta recusa do modelo para o ADMIN e refaz UMA geração com reforço; user mantém vedação", "auto_extension: allowlist cresce (socket/os/platform/subprocess de leitura) — base para gerar a ferramenta que faltou"],
+    "correcoes": [
+      "launcher: set_action_registry também no loop da API",
+      "intents: 'qual o ip do servidor' → ip_address; 'portas abertas/escutando' → listening_ports (negativos cobertos)",
+      "actions: NOVA listening_ports (/proc/net/tcp{,6}, IPv4+IPv6 DWORD-LE validado, processo por inode) — catálogo 57→58",
+      "orchestrator: _refusal_reason detecta recusa do modelo para o ADMIN e refaz UMA geração com reforço; user mantém vedação",
+      "auto_extension: allowlist cresce (socket/os/platform/subprocess de leitura) — base para gerar a ferramenta que faltou"
+    ],
     "testes": "Suíte 1955/16 (+9). Teste do teste: 5 mutações TODAS detectadas (1ª rodada: 3 passaram — criados os testes que faltavam e re-rodado).",
     "prova_viva": "CHAT admin: 'qual o ip do servidor?' → route=action_intent, 🌐 127.0.1.1 + 192.168.0.250 (saída); 'quais portas abertas?' → route=action_intent, 🔌 16 portas com processo; ZERO LLM (~6ms).",
     "bump": "1.6.1 (PATCH) — .env, capabilities, pubspec 1.6.1+16, site, CHANGELOG. APK 1.6.1+16 (aapt2 versionCode='16', sha256 0c724db4…) publicado em site/.",
@@ -680,7 +731,10 @@
   },
   "apk_v150_2026_09_26": {
     "pedido": "Dono: 'refaça ele com todas as melhorias que fizemos até aqui. na configuração as url devem ficar ocultas, a melhor maneira de acesso seria pela localização se existir, assim escolher url local ou externa. na configuração alem da chave API o usuário cadastra o nome e senha que escolheu no site'.",
-    "implementacao": ["OdApi.pickBestUrl: sonda a rede local (Tailscale, 4s; qualquer HTTP prova a rota) e usa a externa (Funnel) sem rota; escolha persistida; main.dart escolhe ANTES do login", "SettingsScreen reescrita: Conta (login com o MESMO nome/senha do site + Sair com logout no servidor), Servidor (conexão automática, só o rótulo local/internet) e Avançado (API key + URLs atrás do switch 'Mostrar URLs')"],
+    "implementacao": [
+      "OdApi.pickBestUrl: sonda a rede local (Tailscale, 4s; qualquer HTTP prova a rota) e usa a externa (Funnel) sem rota; escolha persistida; main.dart escolhe ANTES do login",
+      "SettingsScreen reescrita: Conta (login com o MESMO nome/senha do site + Sair com logout no servidor), Servidor (conexão automática, só o rótulo local/internet) e Avançado (API key + URLs atrás do switch 'Mostrar URLs')"
+    ],
     "testes": "flutter analyze 0 issues; flutter test 84/2 (+3); suíte servidor 1932/16 com guardas fixando 1.5.0. Lição: teclado virtual no widget test empurra o botão para fora da tela — scrollUntilVisible + unfocus antes do tap.",
     "bump": "1.5.0 (MINOR): .env, capabilities, pubspec 1.5.0+14, site 2x, CHANGELOG [1.5.0], README_VERSAO §1.5.0.",
     "apk": "1.5.0+14 (aapt2 versionCode='14'); full 52.722.903 B sha256 5afd21ae…; arm64 2c7d28b7…; publicado em site/ e conferido pela URL do Funnel (sha256 idêntico); 1.4.0+13 preservado em /tmp (APK é gitignored).",
@@ -716,7 +770,10 @@
     "prova_viva": "/capabilities 200 versão 1.4.0 (Server OmegaDrakon/1.4.0); /admin/cache/prune dry_run 200 — 47/47 entradas candidatas (cache inteiro é [NICKY][ONLINE], o bug em ação; poda real NÃO executada); /history/alex 200 com id nas msgs; /health 9/9 up; WS 426; Funnel /capabilities 1.4.0 pela URL pública.",
     "commit": "7d29592 feat(api,agents): perfil auto pelo domínio, cache sem falhas e poda admin (v1.4.0) — 17 arquivos +569/−39; HEAD==origin/master; árvore limpa.",
     "residuo": "Diretório 'postgres:/' (SQLite vazio, DSN acidental como path) removido com autorização.",
-    "pendencias": ["Prune REAL do cache (47 falhas cacheadas) aguardando o dono — POST /admin/cache/prune sem dry_run", "Instalar o APK 1.4.0+13 no celular (13 > 12)"],
+    "pendencias": [
+      "Prune REAL do cache (47 falhas cacheadas) aguardando o dono — POST /admin/cache/prune sem dry_run",
+      "Instalar o APK 1.4.0+13 no celular (13 > 12)"
+    ],
     "estado": "CONCLUÍDO E NO AR — v1.4.0 implantada, provada e publicada."
   },
   "apk_v170_confirmado_2026_09_27": {
@@ -739,19 +796,35 @@
   "v191_coerencia_lar_2026_09_29": {
     "pedido": "Dono: 'leia as conversas, algumas respostas não condizem, se vai colocar no cache pelo menos deve ser coerente, tipo da luz, não posso pedir sala e ele responder cozinha, diga simplesmente que não pode ou algo mais explicativo porem genérico' (~10:3x).",
     "diagnostico": "Conversas REAIS de 29/09: BUG-A (09:36) 'acenda a luz do corredor'+'sim' executou a Luz da Varanda — journal mostra route=llm nos turnos errados (gemma imitou o formato determinístico; 'acenda' com erro de digitação não casava intenção); BUG-B (09:41) 'luzes acessas' virou 'Confirmar: ligar Luzes Acessas' (entidade inventada); confirmações/execuções do lar ERAM cacheáveis.",
-    "correcoes": ["vocabulário a prova de digitação: acenda (comando) e acessas/acesso (estado) → 'luzes acessas' vai para LEITURA real", "coerência do 'sim': confirm_texts_match_pending — confirmação que menciona OUTRO lugar não executa; recusa genérica sem LLM; intenção velha descartada (drop_pending_light_confirmation)", "plural nunca inventa entidade: 'liga as luzes (da sala)' → 'não aciono várias luzes de uma vez' (genérica)", "cache: '💡 Confirmar:' e '✅ … executado' NUNCA entram no cache (cache_failure_reason); leitura continua cacheável"],
+    "correcoes": [
+      "vocabulário a prova de digitação: acenda (comando) e acessas/acesso (estado) → 'luzes acessas' vai para LEITURA real",
+      "coerência do 'sim': confirm_texts_match_pending — confirmação que menciona OUTRO lugar não executa; recusa genérica sem LLM; intenção velha descartada (drop_pending_light_confirmation)",
+      "plural nunca inventa entidade: 'liga as luzes (da sala)' → 'não aciono várias luzes de uma vez' (genérica)",
+      "cache: '💡 Confirmar:' e '✅ … executado' NUNCA entram no cache (cache_failure_reason); leitura continua cacheável"
+    ],
     "teste_do_teste": "4/4 mutações detectadas e revertidas (coerência do sim, caminhos do plural, cache, regex do sim). 1ª rodada pegou 2 mutações fracas — testes endurecidos com 'liga as luzes da sala' e o caso real do corredor.",
     "bump": "1.9.1 (PATCH): .env, capabilities, pubspec 1.9.1+2023, _APP_VERSION_CODE=2023, site 2x, CHANGELOG [1.9.1], README_VERSAO §1.9.1. APK rebuildado (aapt2 2023; full 49dbba94…, arm64 19844d9e…; anteriores em backups/apk-v1.9.0+2022-20260929/).",
     "validacao": "Suíte 2013 passed, 16 skipped (+6 TestCoerenciaDoLar com os casos REAIS do dono); mqtt flaky passa isolado.",
     "commit": "0988021 fix(intents,core): coerência do lar (v1.9.1) — 10 arquivos +403/−57; HEAD==origin/master.",
     "deploy": "IMPLANTADO — restart 11:17:51, PID 966981, NRestarts=0; /health 200; journal 0 erros.",
-    "prova_viva": {"bug_b": "'luzes acessas' → 💡 LEITURA real (fastpath:ha_lights) — nunca mais entidade inventada", "plural": "'liga as luzes da sala' → 'Não posso acionar várias luzes de uma vez' (determinístico)", "bug_a": "corredor + 'sim, da sala' → 🤔 'Essa confirmação não bate' (zero LLM, nada executado) + 'sim' puro não executa (intenção descartada)", "fluxo_normal": "corredor/varanda + 'sim' puro executam o alvo CERTO", "cache": "2ª 'luzes acessas' → route=cache como LEITURA coerente; confirmações/execuções fora do cache"},
+    "prova_viva": {
+      "bug_b": "'luzes acessas' → 💡 LEITURA real (fastpath:ha_lights) — nunca mais entidade inventada",
+      "plural": "'liga as luzes da sala' → 'Não posso acionar várias luzes de uma vez' (determinístico)",
+      "bug_a": "corredor + 'sim, da sala' → 🤔 'Essa confirmação não bate' (zero LLM, nada executado) + 'sim' puro não executa (intenção descartada)",
+      "fluxo_normal": "corredor/varanda + 'sim' puro executam o alvo CERTO",
+      "cache": "2ª 'luzes acessas' → route=cache como LEITURA coerente; confirmações/execuções fora do cache"
+    },
     "estado": "CONCLUÍDO E NO AR — pendente: instalar o APK 1.9.1+2023 no celular (auto-atualização, 2023 > 2022)."
   },
   "v190_tomadas_2026_09_29": {
     "pedido": "Dono: 'Estender o controle do lar para tomadas e outros dispositivos do HA com o mesmo padrão de confirmação' (~09:5x).",
     "inventario": "HA real: 9 switches SONOFF (7 luzes + 2 tomadas: 'note servidor Socket 1' alimenta o SERVIDOR e 'Luz Oficina Socket 1' indisponível); sem fan/climate/TV/cortina — o domínio switch já era a fronteira certa.",
-    "implementacao": ["ha_light_control → ha_device_control (gate de papel + alvo específico + confirmação 2 passos TTL 120s intactos)", "vocabulário: tomada(s)/soquete(s)/socket/dispositivo/aparelho/desconecta/plug no comando; leitura de tomadas → ha_lights", "resolução de alvo: 'desliga a tomada do servidor' → switch.note_servidor_socket_1", "formatter honesto: 'Qual luz ou tomada?' / 'luzes e tomadas é só o dono'"],
+    "implementacao": [
+      "ha_light_control → ha_device_control (gate de papel + alvo específico + confirmação 2 passos TTL 120s intactos)",
+      "vocabulário: tomada(s)/soquete(s)/socket/dispositivo/aparelho/desconecta/plug no comando; leitura de tomadas → ha_lights",
+      "resolução de alvo: 'desliga a tomada do servidor' → switch.note_servidor_socket_1",
+      "formatter honesto: 'Qual luz ou tomada?' / 'luzes e tomadas é só o dono'"
+    ],
     "teste_do_teste": "4/4 mutações detectadas e revertidas (peek da intenção, ramo de negação do gate, vocabulário, TTL). 1ª rodada: M2 mal desenhada (role nos params) passou — redesenhada para o ramo de negação do orchestrator → pega. Roteiro efêmero removido antes do commit.",
     "bump": "1.9.0 (MINOR): .env, capabilities, pubspec 1.9.0+2022, _APP_VERSION_CODE=2022, site 2x, CHANGELOG [1.9.0], README_VERSAO §1.9.0. APK rebuildado (aapt2 2022; full 10ea1e29…, arm64 479b0684…; anteriores em backups/apk-v1.8.1+2021-20260929/).",
     "validacao": "Suíte 2007 passed, 16 skipped (+4 TestControleTomadas); mqtt test_start_stop_thread flaky no run completo — passa isolado e por classe (precedente 09-21).",
@@ -859,7 +932,15 @@
     "validacao": "TestAdminDevPedido 10/10; guardas de versão/painel 26 passed; SUÍTE COMPLETA 2050 passed, 16 skipped (66s) — código e bump coerentes.",
     "lacuna_encontrada": "APK de site/ AINDA É 1.10.1+2025 (aapt2, mtimes 29/09 22:18) — o bump do lote anunciou 1.11.0+2026 mas o APK NÃO foi rebuildado nem publicado. A guarda de coerência (_APP_VERSION_CODE == sha256 do binário) exige rebuild ANTES de qualquer deploy/prova viva (precedente 4384e5b).",
     "desdobramento": "Dono escolheu 'Concluir o fluxo': APKs rebuildados (full 53168295 B sha256 a0ced701…, arm64 18916050 B sha256 8425f219…; aapt2 versionCode='2026' versionName='1.11.0'; anteriores em /tmp/apk-v1.10.1+2025-*.bak); commit db74fa2 (7 arquivos +472/−9) e push (HEAD==origin/master); deploy IMPLANTADO — restart 12:34, PID 1097167, NRestarts=0.",
-    "prova_viva_7_7": {"1": "/health 200 com chave; /app/version {1.11.0, code 2026, sha256 a0ced701… == binário de site/}", "2": "/capabilities 1.11.0", "3": "WS 426; supervision up restarts 0", "4": "GET /admin/dev/pedido (fila vazia) → ok/monitor_ativo=false", "5": "POST injeta → bytes_fila 60; pedido.txt no disco confere; GET mostra preview", "6": "DELETE esvazia → fila 0 bytes; POST sem credencial → 401; painel /admin com a seção nova (8 ocorrências)", "7": "prova de fora pelo Funnel: /health 401 · /ws 426 · /app/version code 2026"},
+    "prova_viva_7_7": {
+      "1": "/health 200 com chave; /app/version {1.11.0, code 2026, sha256 a0ced701… == binário de site/}",
+      "2": "/capabilities 1.11.0",
+      "3": "WS 426; supervision up restarts 0",
+      "4": "GET /admin/dev/pedido (fila vazia) → ok/monitor_ativo=false",
+      "5": "POST injeta → bytes_fila 60; pedido.txt no disco confere; GET mostra preview",
+      "6": "DELETE esvazia → fila 0 bytes; POST sem credencial → 401; painel /admin com a seção nova (8 ocorrências)",
+      "7": "prova de fora pelo Funnel: /health 401 · /ws 426 · /app/version code 2026"
+    },
     "journal": "0 Traceback/ERROR/CRIT desde o restart.",
     "estado": "CONCLUÍDO E NO AR — v1.11.0 implantada, provada e publicada. Pendência do dono: auto-atualização do celular (2026 > 2025) e decidir se o monitor (orquestrador.py) sobe como serviço (systemd --user) para o canal funcionar fim a fim.",
     "transcricao": "iniciar/2026-09-30_conversa_omegadrakon.md (§6)"
@@ -912,11 +993,11 @@
   },
   "poda_dolar_2026_09_30": {
     "pedido": "Dono: 'Podar a entrada pré-guarda do dólar do cache LLM com snapshot de rollback' (ação 1 sugerida pela análise de coerência §14).",
-    "snapshot": "backups/cache-dolar-pre-guarda-20260930.json (1 entrada completa, sha256 cf9c6c0224f5d4e…, criada em 29/09 13:33:20 — restaura\u00e7\u00e3o poss\u00edvel por INSERT se um dia precisar).",
-    "execucao": "POST /admin/cache/prune com keys=[6873cd7d896c771c…] → dry_run 1 candidata exata → poda real removidas 1. Pós provado no BANCO: total 55→54, entrada 6873cd7d… = 0. Nota de método: o dry_run com keys específicas ecoa a chave pedida como candidata ('motivo: chave informada') mesmo após removida — a prova de remo\u00e7\u00e3o \u00e9 o SELECT no banco, n\u00e3o o dry_run p\u00f3s.",
-    "efeito": "Pergunta 'qual o valor do dólar' deixa de ser servida do cache com dado inventado — próxima ida vai ao LLM (que continuará sem fonte para c\u00e2mbio; a corre\u00e7\u00e3o de fundo \u00e9 a action de clima/esternal por cidade ou a personalidade 'n\u00e3o tenho esse dado agora').",
+    "snapshot": "backups/cache-dolar-pre-guarda-20260930.json (1 entrada completa, sha256 cf9c6c0224f5d4e…, criada em 29/09 13:33:20 — restauração possível por INSERT se um dia precisar).",
+    "execucao": "POST /admin/cache/prune com keys=[6873cd7d896c771c…] → dry_run 1 candidata exata → poda real removidas 1. Pós provado no BANCO: total 55→54, entrada 6873cd7d… = 0. Nota de método: o dry_run com keys específicas ecoa a chave pedida como candidata ('motivo: chave informada') mesmo após removida — a prova de remoção é o SELECT no banco, não o dry_run pós.",
+    "efeito": "Pergunta 'qual o valor do dólar' deixa de ser servida do cache com dado inventado — próxima ida vai ao LLM (que continuará sem fonte para câmbio; a correção de fundo é a action de clima/esternal por cidade ou a personalidade 'não tenho esse dado agora').",
     "saude": "/health ok up · journal 0 erros na janela da poda · nada reiniciado.",
-    "estado": "CONCLU\u00cdDO — devaneio D3 da an\u00e1lise §14 eliminado do cache; restam as a\u00e7\u00f5es 2 (prompt declara LLM) e 3 (agenda inexistente) sugeridas."
+    "estado": "CONCLUÍDO — devaneio D3 da análise §14 eliminado do cache; restam as ações 2 (prompt declara LLM) e 3 (agenda inexistente) sugeridas."
   },
   "v1111_prompt_honesto_2026_09_30": {
     "pedido": "Dono: 'Declarar o LLM real (gemma local) no prompt do perfil e a inexistência de agenda' (ações 2 e 3 da análise §14).",
@@ -1056,11 +1137,27 @@
     ],
     "estado": "CONCLUÍDO — transcrição de 01/10 completa (§1–§10), suíte verde, função voz provada no ar; 4 pontos novos para decisão do dono registrados em last_turn.next."
   },
+  "conclusao_pendencias_2026_10_01": {
+    "pedido": "Usuário (~23:2x): 'pode concluir esses pontos antes. deixe o programa pronto, sem problemas' — fechar os 4 achados de last_turn.next (rótulo v1.18.0, APK full incompleto, txt.txt voz, instalar APK).",
+    "execucao": [
+      "(1) RÓTULO: 14 comentários 'v1.18.0' (versão inexistente) → 'v1.17.3' (release REAL já anunciada no ar — não se reescreve; v1.18.0 fica livre p/ próxima feature; desvio da regra 12 registrado como história, não retroagido). Guarda NOVA test_nenhuma_referencia_a_versao_futura_no_codigo (cobertura 9 do test_version_policy): nenhum .py/.dart cita vX.Y.Z > OD_VERSION; mutação v9.9.9 em launcher.py → vermelho → restaurado bit-exato.",
+      "(2) APK FULL: hipótese AGP 9.2/Gradle 9.4 NÃO confirmada — causa raiz = estado incremental envenenado (intermediates/flutter/release do build de 01/10 só tinha arm64-v8a; artefatos publicados 19.496.875 B de 21:31/21:59 com libflutter.so só no arm64, v7a/x86_64 só 2 arquivos de ~0,1 MB). Correção: flutter clean + ./build_apk.sh canônico → universal 53.972.629 B com as 3 ABIs COMPLETAS (libflutter 11,7/8,6/13,0 MB + libapp 5,9/6,6/6,1 MB) + split arm64 19.245.103 B; aapt2 dos dois: versionCode=2037 versionName=1.17.4; publicados em site/; site com tamanhos reais (~19 MB / ~54 MB).",
+      "(3) txt.txt (gitignored): linha 'comunicação por voz' REMOVIDA (voz entregue desde a 1.17.3) — restam Drive/Agenda/Gmail (OAuth do dono).",
+      "(4) bump PATCH 1.17.4+2037 (regra 12: fix deployado), checklist completo: .env · capabilities fallback · pubspec · _APP_VERSION_CODE · site 2x · CHANGELOG [1.17.4] · README_VERSAO §1.17.4. Honestidade: bytes exatos dos APKs quebrados não citados (artefatos sobrescritos) — só os fatos registrados na v1.17.3."
+    ],
+    "validacao": [
+      "pytest completo: 2149 passed, 16 skipped (2148+1 guarda nova, 88,57s, .venv canônico SEM OD_TEST_POSTGRES_DSN)",
+      "flutter analyze: No issues (6,3s); flutter test: 131 passed, 2 skipped",
+      "commit d94a191 pushado; od-core restartado 23:48:57 (PID 10933): /app/version 1.17.4/2037/53972629/sha256 6a10064b… == site/OmegaDrakon.apk; /health 200 (X-API-Key) status=up 8 checks (401 sem chave = portão por design, AUTH_EXEMPT_PATHS); POST /tts 200 WAV RIFF 146.592 B (elapsed 0,79s); header Server OmegaDrakon/1.17.4; journal do boot 0 [NICKY][ERROR]; od-core/llm/orchestrator ativos"
+    ],
+    "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md §11 escrita (mesma sessão, 23:2x–23:5x).",
+    "estado": "CONCLUÍDO — 4/4 pontos fechados, v1.17.4 no ar, HEAD d94a191 em origin/master; restam Drive/Agenda/Gmail (OAuth do dono), instalar APK 1.17.4+2037 no celular e os 2 achados de infra de 30/09."
+  },
   "last_turn": {
     "date": "2026-10-01",
-    "retomada": "Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2.",
-    "action": "v1.17.3 NO AR (PID 1239, NRestarts=0, pós-reboot 23:06:38); transcrição de 01/10 COMPLETA (§1–§10); HEAD publicado em origin/master; voz (/transcribe + /tts) operando; suíte 2148 passed/16 skipped no HEAD.",
-    "next": "Pendências: (1) APK 1.17.3+2036 no celular; (2) DECISÃO: rótulo 'v1.18.0' no código vs bump 1.17.3 — voz é feature, regra 12 dita MINOR; (3) DECISÃO: APK full sem libflutter em armeabi-v7a/x86_64 (só arm64 completo; provável efeito do AGP 9.2/Gradle 9.4) — corrigir o build ou aceitar como é; (4) txt.txt: linha 'comunicação por voz' ainda presente (checkpoint dizia removida) + Drive/Agenda/Gmail (MINOR, credencial OAuth do dono); (5) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (6) alternativa futura: gemma quando o hardware crescer.",
+    "retomada": "Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2. (8) 23:2x 'conclua os pontos' → 4/4 FECHADOS: rótulo voz=1.17.3+guarda, APK full corrigido (causa=incremental envenenado, não AGP), txt.txt limpo, bump 1.17.4+2037 no ar (restart 23:48:57).",
+    "action": "v1.17.4 NO AR (PID 10933, restart 23:48:57): APK full 53.972.629 B (3 ABIs completas) + arm64 19.245.103 B publicados (2037/1.17.4); suíte 2149 passed/16 skipped + flutter analyze limpo + flutter test 131/2; transcrição 01/10 completa (§1–§11); HEAD d94a191 em origin/master; /app/version sha==site, /health 200 up, /tts 200 WAV, journal 0 ERROR.",
+    "next": "Pendências: (1) instalar APK 1.17.4+2037 no celular do dono (site/OmegaDrakon-arm64.apk); (2) Drive/Agenda/Gmail do txt.txt (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer. Resolvidos em 01/10 23:2x–23:5x: rótulo v1.18.0→1.17.3+guarda; APK full (causa raiz incremental envenenado); txt.txt voz removida.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
@@ -1069,12 +1166,43 @@
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
   },
   "decisions": [
-    {"topic": "commit e push", "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.", "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."},
-    {"topic": "versão do app", "decision": "1.2.8 (não 1.2.0+8) — mudanças significativas desde a 1.2.0 justificam bump de versão"},
-    {"topic": "URLs do app", "decision": "OdApi com fallbackUrl: Tailscale primário, nicky.theworkpc.com externo. Autodetecta qual funciona."},
-    {"topic": "domínio externo", "decision": "nicky.theworkpc.com (Dynu DDNS, IP 189.124.4.56, porta 80→8000)"},
-    {"topic": "status bar fix", "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"},
-    {"topic": "auth de usuários (09-19)", "decision": "Chat web passa a exigir login (UserStore próprio, PBKDF2-SHA256, sessão UUID + Bearer), mantendo X-API-Key como modo legado/avançado. Registrado retroativamente em 09-20 após achado de que subiu sem commit/teste."}
+    {
+      "topic": "commit e push",
+      "decision": "Autorização PERMANENTE (2026-09-21): depois de validar uma atualização, commitar e publicar (`git push origin master`) sem esperar confirmação por passo — a espera já custou trabalho numa queda de conexão/fim de cota. Registrado como regra 7.1 do iniciar/RULES.md. Deploy/restart seguem exigindo autorização explícita.",
+      "motivo": "O usuário pediu para não ficar esperando autorização a cada commit; o registro em iniciar/ entra junto (regra 7.2: sistema limpo e atualizado)."
+    },
+    {
+      "topic": "versão do app",
+      "decision": "1.2.8 (não 1.2.0+8) — mudanças significativas desde a 1.2.0 justificam bump de versão"
+    },
+    {
+      "topic": "URLs do app",
+      "decision": "OdApi com fallbackUrl: Tailscale primário, nicky.theworkpc.com externo. Autodetecta qual funciona."
+    },
+    {
+      "topic": "domínio externo",
+      "decision": "nicky.theworkpc.com (Dynu DDNS, IP 189.124.4.56, porta 80→8000)"
+    },
+    {
+      "topic": "status bar fix",
+      "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"
+    },
+    {
+      "topic": "auth de usuários (09-19)",
+      "decision": "Chat web passa a exigir login (UserStore próprio, PBKDF2-SHA256, sessão UUID + Bearer), mantendo X-API-Key como modo legado/avançado. Registrado retroativamente em 09-20 após achado de que subiu sem commit/teste."
+    }
   ],
-  "transcripts": ["iniciar/2026-10-01_conversa_omegadrakon.md", "iniciar/2026-09-28_conversa_omegadrakon.md", "iniciar/2026-09-27_conversa_omegadrakon.md", "iniciar/2026-09-26_conversa_omegadrakon.md", "iniciar/2026-09-25_conversa_omegadrakon.md", "iniciar/2026-09-23_conversa_omegadrakon.md", "iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
+  "transcripts": [
+    "iniciar/2026-10-01_conversa_omegadrakon.md",
+    "iniciar/2026-09-28_conversa_omegadrakon.md",
+    "iniciar/2026-09-27_conversa_omegadrakon.md",
+    "iniciar/2026-09-26_conversa_omegadrakon.md",
+    "iniciar/2026-09-25_conversa_omegadrakon.md",
+    "iniciar/2026-09-23_conversa_omegadrakon.md",
+    "iniciar/2026-09-22_conversa_omegadrakon.md",
+    "iniciar/2026-09-21_conversa_omegadrakon.md",
+    "iniciar/2026-09-20_conversa_omegadrakon.md",
+    "iniciar/2026-09-18_conversa_omegadrakon.md",
+    "iniciar/2026-09-17_conversa_omegadrakon.md"
+  ]
 }
