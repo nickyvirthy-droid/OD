@@ -14,6 +14,30 @@
 
 ---
 
+## Integração Google Workspace — leitura (2026-10-02, sem bump)
+
+- **Nova integração `integrations/google/` (stdlib puro):** OAuth 2.0
+  (URL de consentimento, troca de código, refresh) + cliente Bearer com
+  renovação automática e persistência do token (`data/google_token.json`,
+  `0600`); serviços de **leitura** de Drive, Agenda e Gmail. Sem token salvo,
+  o cliente degrada com erro legível — nunca estoura no pipeline.
+- **6 actions novas (catálogo 65 → 71, categoria `google`):**
+  `google_drive_list`, `google_drive_read`, `google_calendar_events`,
+  `google_gmail_list`, `google_gmail_read`, `google_gmail_labels`.
+  Degradam com `ok=False` sem credencial (padrão do HA).
+- **Chat:** intents determinísticas — "meus e-mails", "minha agenda" e "meus
+  arquivos no google drive" vão para as actions (dado REAL). Sem autorização,
+  a resposta é HONESTA ('ainda não configurado'), nunca um e-mail/compromisso
+  inventado. Prompt por perfil atualizado: o Google (leitura) existe quando
+  configurado; escrita/lembretes/redes sociais continuam inexistentes.
+- **Papéis:** admin pleno; `user` com **leitura** (decisão explícita do dono).
+- **Autorização headless:** `runtime/google_auth.py` (abre a URL no navegador
+  e recebe a URL de retorno colada) + `config/google_credentials.example.json`
+  + guia `docs/GOOGLE.md`.
+- **Sem bump:** dormente até a credencial OAuth do dono (o código e a suíte
+  estão prontos; a prova viva com dados reais vem no deploy). Suíte:
+  **2229 passed, 16 skipped** (+54 testes novos); cobertura 90,24%.
+
 ## Infra — CI verde em checkout limpo + gate de cobertura ≥ 90% (2026-10-02, sem bump)
 
 - **CI quebrava em checkout limpo:** `tests/test_version_policy.py` lia o `.env`

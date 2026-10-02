@@ -869,6 +869,125 @@ def ha_summary() -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# Google Workspace (Drive/Agenda/Gmail) — SOMENTE LEITURA
+# (decisão do dono, 2026-10-02: leitura primeiro; escrita em 2º lote).
+# O cliente OAuth é injetado pelo launcher (configure_google_client); sem
+# credenciais/token as actions degradam com ok=False e o chat responde que
+# o Google não está configurado — NUNCA inventa e-mail/evento/arquivo.
+# ---------------------------------------------------------------------------
+
+_GOOGLE_CLIENT: Optional[Any] = None
+
+
+def configure_google_client(client: Any) -> None:
+    """Injeta o GoogleClient do launcher (idempotente)."""
+    global _GOOGLE_CLIENT
+    _GOOGLE_CLIENT = client
+
+
+def _google() -> Any:
+    return _GOOGLE_CLIENT
+
+
+def _google_unavailable() -> dict[str, Any]:
+    return _unavailable(
+        "google", "Google não configurado/autorizado (rode runtime/google_auth.py)"
+    )
+
+
+def _google_error(exc: Exception) -> dict[str, Any]:
+    return {"ok": False, "tool": "google", "error": str(exc)}
+
+
+def google_drive_list(query: str = "", limit: int = 20) -> dict[str, Any]:
+    """Lista/busca arquivos do Google Drive (somente leitura)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    try:
+        from integrations.google import DriveService
+
+        data = DriveService(client).list_files(query=query, limit=limit)
+        return {"ok": True, "tool": "google_drive", **data}
+    except Exception as exc:  # noqa: BLE001 — degrada, nunca estoura
+        return _google_error(exc)
+
+
+def google_drive_read(file_id: str, max_bytes: int = 200_000) -> dict[str, Any]:
+    """Lê o conteúdo textual de um arquivo do Drive (exporta nativos Google)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    try:
+        from integrations.google import DriveService
+
+        data = DriveService(client).read_text(file_id, max_bytes=max_bytes)
+        return {"ok": True, "tool": "google_drive", **data}
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+
+
+def google_calendar_events(
+    days: int = 7, limit: int = 10, calendar_id: str = "primary"
+) -> dict[str, Any]:
+    """Próximos eventos da Google Agenda (somente leitura)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    try:
+        from integrations.google import CalendarService
+
+        data = CalendarService(client).list_events(
+            calendar_id=calendar_id or "primary", days=days, limit=limit
+        )
+        return {"ok": True, "tool": "google_calendar", **data}
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+
+
+def google_gmail_list(query: str = "", limit: int = 10) -> dict[str, Any]:
+    """Lista/busca mensagens do Gmail (somente leitura)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    try:
+        from integrations.google import GmailService
+
+        data = GmailService(client).list_messages(query=query, limit=limit)
+        return {"ok": True, "tool": "google_gmail", **data}
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+
+
+def google_gmail_read(message_id: str) -> dict[str, Any]:
+    """Lê uma mensagem do Gmail (cabeçalhos + corpo textual)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    try:
+        from integrations.google import GmailService
+
+        data = GmailService(client).get_message(message_id)
+        return {"ok": True, "tool": "google_gmail", **data}
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+
+
+def google_gmail_labels() -> dict[str, Any]:
+    """Lista os rótulos do Gmail (somente leitura)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    try:
+        from integrations.google import GmailService
+
+        data = GmailService(client).list_labels()
+        return {"ok": True, "tool": "google_gmail", **data}
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+
+
 def ip_address() -> dict[str, Any]:
     """Endereços IP do host (best-effort, sem root)."""
     try:
@@ -1657,6 +1776,18 @@ CATALOG: list[dict[str, Any]] = [
               "alvo": {**S, "default": ""},
               "plural": {**B, "default": False},
           }}),
+    # --- Google Workspace (leitura) ---
+    _spec("google_drive_list", "google", "Lista/busca arquivos do Google Drive", google_drive_list,
+          {"query": {**S, "default": ""}, "limit": {**I, "default": 20}}),
+    _spec("google_drive_read", "google", "Lê o conteúdo textual de um arquivo do Drive", google_drive_read,
+          {"required": ["file_id"], "properties": {"file_id": S, "max_bytes": {**I, "default": 200000}}}),
+    _spec("google_calendar_events", "google", "Próximos eventos da Google Agenda", google_calendar_events,
+          {"days": {**I, "default": 7}, "limit": {**I, "default": 10}, "calendar_id": {**S, "default": "primary"}}),
+    _spec("google_gmail_list", "google", "Lista/busca mensagens do Gmail", google_gmail_list,
+          {"query": {**S, "default": ""}, "limit": {**I, "default": 10}}),
+    _spec("google_gmail_read", "google", "Lê uma mensagem do Gmail", google_gmail_read,
+          {"required": ["message_id"], "properties": {"message_id": S}}),
+    _spec("google_gmail_labels", "google", "Lista os rótulos do Gmail", google_gmail_labels),
     _spec("ip_address", "system", "Endereços IP do host", ip_address),
     _spec("listening_ports", "system", "Portas TCP em escuta", listening_ports),
     

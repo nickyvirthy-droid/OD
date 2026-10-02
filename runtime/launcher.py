@@ -461,6 +461,32 @@ def build_action_registry() -> Any:
             log.info("Actions iot_* ligadas ao Home Assistant")
     except Exception as exc:  # pragma: no cover — degrada sem HA
         log.warn("Actions iot_* sem Home Assistant", error=str(exc))
+    # Google Workspace: injeta o GoogleClient nas actions google_*
+    # — SOMENTE LEITURA. Sem credenciais/token, as actions degradam com
+    # ok=False (o chat responde que o Google não está configurado) e nada
+    # mais quebra; `runtime/google_auth.py` faz a autorização.
+    try:
+        from integrations.google import build_google_client
+
+        google_creds = REPO_ROOT / env(
+            "OD_GOOGLE_CREDENTIALS", "config/google_credentials.json"
+        )
+        google_token = REPO_ROOT / env(
+            "OD_GOOGLE_TOKEN", "data/google_token.json"
+        )
+        if google_creds.exists():
+            from tools.actions.actions import configure_google_client
+
+            google_client = build_google_client(
+                str(google_creds), str(google_token)
+            )
+            configure_google_client(google_client)
+            log.info(
+                "Actions google_* ligadas ao Google Workspace",
+                autorizado=google_client.authorized,
+            )
+    except Exception as exc:  # pragma: no cover — degrada sem Google
+        log.warn("Actions google_* sem credenciais do Google", error=str(exc))
     log.info(
         "Action Registry ativo",
         actions=registry.metrics.actions,

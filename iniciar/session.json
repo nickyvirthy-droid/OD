@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-02T16:46:38-03:00",
+  "updated_at": "2026-10-02T17:22:22-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1175,6 +1175,17 @@
     "commit": "12c34c1 test(ci,docs): CI verde em checkout limpo + gate de cobertura >= 90% (infra, sem bump) — 8 arquivos +560/−6; HEAD==origin/master.",
     "estado": "CONCLUÍDO, PUBLICADO — CI verde em checkout limpo e gate de cobertura ≥ 90% (90,17%); suíte 2175/16. Faltam as pendências do dono: Drive/Agenda/Gmail (OAuth) e a alternativa futura do gemma.",
     "transcricao": "iniciar/2026-10-02_conversa_omegadrakon.md"
+  },
+  "integracao_google_2026_10_02": {
+    "pedido": "Dono: 'Preparar a arquitetura OAuth do Google Drive/Agenda/Gmail (sem credencial ainda)' (~16:5x de 02/10). Decisões (ask_user): stdlib puro (zero deps novas); leitura primeiro; dono + user (leitura).",
+    "arquitetura": "integrations/google/ (NOVO): transport.py (urllib + GoogleError + checked), models.py (GoogleCredentials/GoogleToken/escopos), oauth.py (URL de consentimento, extract_code, exchange_code, refresh_access_token), client.py (GoogleClient Bearer + renovação + persistência do token), drive.py/calendar.py/gmail.py (serviços de leitura). runtime/google_auth.py (autorização headless: imprime a URL → dono cola a URL de retorno) + config/google_credentials.example.json + docs/GOOGLE.md.",
+    "wiring": "6 actions novas categoria 'google' (catálogo 65→71) com configure_google_client injetado pelo launcher (config/google_credentials.json; degradam ok=False sem credencial); permissions: user ganha as 6 de leitura; intents determinísticas (gmail/agenda/drive) + formatters honestos; prompt por perfil atualizado (Google leitura existe quando configurado; escrita/lembretes/redes sociais seguem inexistentes); capabilities ganha 'google-workspace' (PARTIAL, phase 'Fase 5.6').",
+    "testes": "+54 em tests/test_google.py (HTTP 100% mockado: OAuth, client, serviços, actions degradando, intents, CLI). Contagem 65→71 em test_actions_catalog (EXPECTED_CATEGORIES + 'google':6), test_capabilities, test_orchestrator, test_orchestrator_action_registry; test_personality renomeado para a declaração condicional (Google/LEITURA).",
+    "validacao": "Suíte 2229 passed, 16 skipped (mqtt flaky passa isolado); gate de cobertura 90,24% (reached); pacote importa; launcher constrói o registry com 71 actions (HA segue ligado); `python -m runtime.google_auth --check` reporta credenciais ausentes sem crash.",
+    "achado": "A guarda test_nenhuma_referencia_a_versao_futura_no_codigo (v1.17.4) pegou meus rótulos 'v1.18.0' — versão NÃO lançada. Removidos (labels neutros; manifest phase 'Fase 5.6'); o bump MINOR fica para o deploy com credencial.",
+    "sem_bump": "Dormente até a credencial OAuth do dono; a prova viva com dados reais vem no deploy (que exige autorização — regra 7.1). Escopo: SOMENTE LEITURA; escrita = 2º lote.",
+    "estado": "CONCLUÍDO (código + testes + docs) — aguardando a credencial OAuth do dono para autorizar (runtime/google_auth.py), implantar (deploy + bump MINOR) e provar com dados reais.",
+    "transcricao": "iniciar/2026-10-02_conversa_omegadrakon.md (§8)"
   },
   "last_turn": {
     "date": "2026-10-01",

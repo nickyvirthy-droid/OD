@@ -359,6 +359,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "path": "integrations/homeassistant/",
     },
     {
+        "id": "google-workspace",
+        "name": "Google Workspace (Drive/Agenda/Gmail — leitura)",
+        "category": "integrations",
+        "description": "OAuth 2.0 + REST em stdlib puro: leitura de arquivos do Drive, próximos eventos da Agenda e mensagens do Gmail. Código pronto; dormente até a credencial do dono (config/google_credentials.json + runtime/google_auth.py). Escrita entra em 2º lote.",
+        "source": "OD",
+        "phase": "Fase 5.6",
+        "status": PARTIAL,
+        "path": "integrations/google/",
+    },
+    {
         "id": "mqtt-bridge",
         "name": "MQTT Bridge (Mosquitto 127.0.0.1:1883)",
         "category": "integrations",

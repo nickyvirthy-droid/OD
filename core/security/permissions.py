@@ -64,6 +64,12 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "system_info", "uptime", "datetime", "disk_usage",
         "memory_usage", "cpu_info", "cpu_temp",
         "ha_weather", "ha_lights",  # v1.8.0: leitura do lar (sem ha_summary)
+        # Google Workspace SOMENTE LEITURA — decisão explícita do
+        # dono (2026-10-02: 'dono + usuário leitura'). Toda a escrita é do
+        # admin (2º lote). Sem credencial configurada as actions degradam.
+        "google_drive_list", "google_drive_read",
+        "google_calendar_events",
+        "google_gmail_list", "google_gmail_read", "google_gmail_labels",
         "process_list", "process_info",
         "service_list", "service_status",
         "docker_list", "docker_status", "docker_stats",

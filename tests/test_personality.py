@@ -105,14 +105,16 @@ class TestPersonality:
             assert "qwen" in prompt, f"motor real (qwen) ausente no perfil {perfil}"
             assert "gemma-4-e4b" not in prompt, f"declaração falsa de gemma no perfil {perfil}"
 
-    def test_agenda_inexistente_declarada_em_todos_os_papeis(self) -> None:
+    def test_google_declarado_em_todos_os_papeis(self) -> None:
         """Caso real §14 (30/09): 'sou o dono adm' → o gemma INVENTOU 3
-        tarefas falsas de agenda. O prompt DEVE dizer que agenda/calendário
-        não existem e proibir inventar conteúdo para preencher a lacuna, em
-        TODOS os papéis (o dono também merece a verdade)."""
+        tarefas falsas de agenda. Em 02/10 o Google (Drive/Agenda/Gmail)
+        passou a existir em LEITURA: o prompt DEVE declarar a existência
+        condicional e seguir proibindo inventar conteúdo, em TODOS os papéis
+        (o dono também merece a verdade)."""
         for role in ("admin", "user", "anon"):
             prompt = get_system_prompt("guardian", role=role)
-            assert "NÃO tem agenda" in prompt, f"agenda inexistente ausente no papel {role}"
+            assert "Google" in prompt, f"declaração do Google ausente no papel {role}"
+            assert "LEITURA" in prompt, f"escopo (leitura) ausente no papel {role}"
             assert "NUNCA invente" in prompt, f"proibição de inventar ausente no papel {role}"
 
 

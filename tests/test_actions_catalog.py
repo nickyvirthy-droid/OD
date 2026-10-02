@@ -46,6 +46,7 @@ EXPECTED_CATEGORIES = {
     "git": 10,
     "database": 3,
     "introspection": 4,
+    "google": 6,  # google_drive_list/read, google_calendar_events, google_gmail_list/read/labels
 }
 
 
@@ -63,10 +64,10 @@ class TestActionsCatalog:
     """56 ações catalogadas por categoria com metadados consistentes."""
 
     def test_catalog_count_and_categories(self) -> None:
-        assert ACTIONS_COUNT == 65
-        assert len(CATALOG) == 65
+        assert ACTIONS_COUNT == 71
+        assert len(CATALOG) == 71
         assert CATEGORIES == EXPECTED_CATEGORIES
-        assert sum(CATEGORIES.values()) == 65
+        assert sum(CATEGORIES.values()) == 71
 
     def test_names_unique_and_dotted_clean(self) -> None:
         names = [spec["name"] for spec in CATALOG]
@@ -121,8 +122,8 @@ class TestActionsRegistration:
 
     def test_build_registry_registers_56(self) -> None:
         registry = build_registry()
-        assert len(registry.list_actions()) == 65
-        assert registry.metrics.actions == 65
+        assert len(registry.list_actions()) == 71
+        assert registry.metrics.actions == 71
 
     def test_every_action_has_permission_and_schema(self) -> None:
         registry = build_registry()
@@ -137,7 +138,7 @@ class TestActionsRegistration:
         registry = ActionRegistry()
         first = register_all(registry)
         second = register_all(registry)
-        assert first == 65
+        assert first == 71
         assert second == 0
 
     def test_find_by_category(self) -> None:
@@ -212,7 +213,7 @@ class TestSystemActions:
         registry = self._registry()
         listed = await registry.execute("action_list", role="admin")
         assert listed.status == "ok"
-        assert listed.data["count"] == 65
+        assert listed.data["count"] == 71
         info = await registry.execute(
             "action_info", params={"name": "git_status"}, role="admin"
         )
@@ -565,4 +566,4 @@ class TestActionsSecurity:
         assert snap["ok"] == 1
         assert snap["denied"] == 1
         assert registry.history[0]["status"] == "denied"
-        assert registry.dump()["actions"] == 65
+        assert registry.dump()["actions"] == 71

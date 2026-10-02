@@ -80,13 +80,69 @@ escolheu **infra primeiro** (`ask_user`).
   `PROFILES` **inclui** `"auto"`. Na prática `/perfil auto` define o
   perfil `auto` (comportamento válido) — por isso não foi alterado.
 
-## 7. Estado final
+## 7. Estado final (ponto de infra)
 
 - CI verde em checkout limpo e **gate de cobertura ≥ 90%** (90,17%).
 - Commit + push do lote (regra 7.1).
-- Pendências do dono intactas: **Drive/Agenda/Gmail** (MINOR, credencial
-  OAuth), **2 achados restantes** (nenhum — os dois eram estes),
-  alternativa futura do **gemma**.
+
+## 8. Integração Google (Drive/Agenda/Gmail) — arquitetura OAuth (leitura)
+
+Pedido do dono (~16:5x): **"Preparar a arquitetura OAuth do Google
+Drive/Agenda/Gmail (sem credencial ainda)"**. Decisões (ask_user): **stdlib
+puro** (zero deps novas), **leitura primeiro**, **dono + user (leitura)**.
+
+### 8.1 Pacote novo `integrations/google/`
+
+- `transport.py` — `UrllibTransport` (stdlib) + `GoogleError` + `checked`.
+- `models.py` — `GoogleCredentials` (aceita o JSON do Cloud Console),
+  `GoogleToken` (access+refresh+expiração) e os escopos de leitura.
+- `oauth.py` — URL de consentimento (`access_type=offline`,
+  `prompt=consent`), `extract_code` (URL colada ou código), `exchange_code`
+  e `refresh_access_token`.
+- `client.py` — `GoogleClient` (Bearer, renovação automática, persistência
+  em `data/google_token.json` 0600) e `load_token`/`save_token`.
+- `drive.py` / `calendar.py` / `gmail.py` — serviços de LEITURA.
+
+Sem token salvo, `ensure_access_token` levanta `GoogleError` legível — nada
+estoura no pipeline.
+
+### 8.2 Ligação no sistema
+
+- 6 actions novas (categoria `google`, catálogo **65 → 71**):
+  `google_drive_list`, `google_drive_read`, `google_calendar_events`,
+  `google_gmail_list`, `google_gmail_read`, `google_gmail_labels`. Degradam
+  com `ok=False` sem credencial (mesmo padrão do HA).
+- Launcher injeta o cliente (`config/google_credentials.json`).
+- `permissions.py`: admin pleno; `user` com as 6 de leitura.
+- Intents determinísticas no chat ("meus e-mails", "minha agenda", "meus
+  arquivos no google drive") + formatters HONESTOS quando não configurado.
+- Prompt por perfil atualizado: o Google (leitura) existe quando
+  configurado; escrita/lembretes/redes sociais continuam inexistentes.
+- `capabilities`: `google-workspace` (PARTIAL).
+
+### 8.3 Autorização e docs
+
+- `runtime/google_auth.py`: CLI headless (imprime a URL → o dono cola a URL
+  de retorno) + `--check`/`--url`/`--code`.
+- `config/google_credentials.example.json` e `docs/GOOGLE.md` (passo a passo
+  do Cloud Console, escopos, troubleshooting).
+
+### 8.4 Validação
+
+- `tests/test_google.py` (+54 testes, HTTP 100% mockado).
+- Suíte **2229 passed, 16 skipped**; gate de cobertura **90,24%**.
+- Launcher smoke: registry 71 actions, HA segue ligado; `google_auth --check`
+  reporta credencial ausente sem crash.
+
+### 8.5 Achado e pendência
+
+- A guarda `test_nenhuma_referencia_a_versao_futura_no_codigo` (v1.17.4)
+  pegou os rótulos `v1.18.0` (versão não lançada) → removidos; o bump MINOR
+  fica para o deploy com credencial.
+- **Pendência do dono:** criar o OAuth client no Google Cloud Console,
+  salvar `config/google_credentials.json` e rodar `runtime/google_auth.py`.
+  Depois: deploy + bump + prova viva com dados reais. Escrita = 2º lote.
+- Pendências restantes: alternativa futura do **gemma** (hardware).
 
 ---
 

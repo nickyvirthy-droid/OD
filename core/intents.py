@@ -52,6 +52,13 @@ FASTPATH_ACTIONS: frozenset[str] = frozenset({
     "system_info",         # sistema geral
     "ip_address",          # endereços IP do host
     "listening_ports",     # portas abertas/escutando
+    # Google Workspace — SOMENTE LEITURA (Drive/Agenda/Gmail)
+    "google_drive_list",
+    "google_drive_read",
+    "google_calendar_events",
+    "google_gmail_list",
+    "google_gmail_read",
+    "google_gmail_labels",
 })
 
 # ---------------------------------------------------------------------------
@@ -325,6 +332,60 @@ def _detect_operational(text: str) -> Optional[str]:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Google Workspace — leitura determinística
+#
+# Antes destas intenções, perguntas de e-mail/agenda caíam no LLM que
+# inventava conteúdo (a 'agenda' nem existia até aqui — ver a v1.11.1).
+# Agora vão para as actions google_* (dado REAL). Sem credencial, a resposta
+# é honesta ('ainda não autorizado'), NUNCA um e-mail/compromisso inventado.
+# ---------------------------------------------------------------------------
+
+_GOOGLE_MAIL_RE = re.compile(
+    r"\b(gmail|e-?mails|caixa\s+de\s+entrada|correio)\b", re.IGNORECASE
+)
+_GOOGLE_CAL_RE = re.compile(
+    r"\b(agenda|calend[aá]rio|compromissos?|reuni[õo]es|meus?\s+eventos|"
+    r"minha\s+agenda)\b",
+    re.IGNORECASE,
+)
+_GOOGLE_DRIVE_RE = re.compile(r"\b(drive|google\s+drive)\b", re.IGNORECASE)
+_GOOGLE_MAIL_ASK_RE = re.compile(
+    r"\b(meus?|minha|minhas|ver|listar|ler|leia|checar|checa|conferir|"
+    r"tenho|[uú]ltim[oa]s?|novos?|n[ãa]o\s+lid[ao]s?)\b",
+    re.IGNORECASE,
+)
+_GOOGLE_ASK_RE = re.compile(
+    r"\b(meus?|minha|minhas|ver|listar|ler|leia|quais|quantos|"
+    r"[uú]ltim[oa]s?|pr[óo]xim[oa]s?|hoje|amanh[ãa]|semana)\b",
+    re.IGNORECASE,
+)
+_GOOGLE_SECRET_RE = re.compile(
+    r"\b(senha|password|token|credencial|credenciais|api.?key|segredo)\b",
+    re.IGNORECASE,
+)
+
+
+def _detect_google(text: str) -> Optional[tuple[str, dict[str, Any]]]:
+    """E-mail/Agenda/Drive → action google_* de leitura."""
+    low = text.lower()
+    if _GOOGLE_SECRET_RE.search(low):
+        # 'qual a senha do gmail' NUNCA vira listagem de e-mails.
+        return None
+    if _GOOGLE_MAIL_RE.search(low) and _GOOGLE_MAIL_ASK_RE.search(low):
+        return "google_gmail_list", {"limit": 10}
+    if _GOOGLE_CAL_RE.search(low) and _GOOGLE_ASK_RE.search(low):
+        days = 7
+        if re.search(r"\bhoje\b", low):
+            days = 1
+        elif re.search(r"\bamanh[ãa]\b", low):
+            days = 2
+        return "google_calendar_events", {"days": days, "limit": 10}
+    if _GOOGLE_DRIVE_RE.search(low) and _GOOGLE_ASK_RE.search(low):
+        return "google_drive_list", {"limit": 20}
+    return None
+
+
 def detect_action_intent(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     """Detecta uma intenção operacional de LEITURA na mensagem.
 
@@ -334,7 +395,11 @@ def detect_action_intent(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     """
     if not text or not text.strip():
         return None
-    action = _detect_network(text) or _detect_operational(text)
+    action = (
+        _detect_network(text)
+        or _detect_operational(text)
+        or _detect_google(text)
+    )
     if action is None:
         return None
     # Intenções com params próprios (controle de luzes: entity_id/on)
@@ -600,6 +665,22 @@ def _gb(bytes_value: float) -> str:
     return f"{bytes_value / (1024 ** 3):.1f}"
 
 
+def _gcal_when(event: dict[str, Any]) -> str:
+    """Início de um evento do Google Calendar → texto curto (pt-BR)."""
+    raw = str(event.get("start") or "")
+    if not raw:
+        return "?"
+    if event.get("all_day"):
+        return f"{raw} (dia inteiro)"
+    try:
+        from datetime import datetime
+
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return dt.strftime("%d/%m %H:%M")
+    except ValueError:
+        return raw
+
+
 def format_intent_result(action: str, data: Any) -> Optional[str]:
     """Converte o retorno da action em uma resposta PT-BR curta.
 
@@ -610,7 +691,11 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
     if not isinstance(data, dict):
         return None
     ok = data.get("ok", True)
-    if ok is not True and action != "ha_device_control":
+    if (
+        ok is not True
+        and action != "ha_device_control"
+        and not action.startswith("google_")
+    ):
         return None  # action degradou — deixa o LLM responder
     # Controle de luzes: erros guiados (alvo/entidade/permissão) SÃO a
     # resposta certa — nunca caem no LLM (que alucinaria a execução).
@@ -870,6 +955,56 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
         if len(ports) > 12:
             parts.append(f"  • … e mais {len(ports) - 12}")
         return "\n".join(parts)
+
+    if action.startswith("google_"):
+        # Google Workspace: sem credencial/autorização a resposta é HONESTA (nunca o
+        # LLM inventando e-mail/compromisso/arquivo).
+        if ok is not True:
+            err = str(data.get("error", ""))
+            if "não configurado" in err or "não autorizado" in err:
+                return (
+                    "🔗 O acesso ao Google (Drive/Agenda/Gmail) ainda não está "
+                    "configurado/autorizado neste sistema.\n"
+                    "  • Veja docs/GOOGLE.md e rode `python -m runtime.google_auth`."
+                )
+            return f"⚠️ Google indisponível agora: {err or 'falha na consulta.'}"
+        if action == "google_gmail_list":
+            msgs = data.get("messages") or []
+            if not msgs:
+                return "📧 Nenhuma mensagem encontrada no Gmail."
+            lines = [f"📧 {len(msgs)} mensagem(ns) no Gmail:"]
+            for m in msgs[:10]:
+                lines.append(f"  • {(m.get('subject') or '(sem assunto)')[:80]}")
+                if m.get("from"):
+                    lines.append(f"      de {str(m['from'])[:60]}")
+            return "\n".join(lines)
+        if action == "google_calendar_events":
+            events = data.get("events") or []
+            if not events:
+                return (
+                    f"📅 Nenhum compromisso nos próximos {data.get('days', 7)} "
+                    "dia(s) na sua Agenda."
+                )
+            lines = [f"📅 Próximos {len(events)} compromisso(s):"]
+            for e in events[:10]:
+                lines.append(
+                    f"  • {_gcal_when(e)} — {e.get('summary', '(sem título)')}"
+                )
+                if e.get("location"):
+                    lines.append(f"      📍 {e['location']}")
+            return "\n".join(lines)
+        if action == "google_drive_list":
+            files = data.get("files") or []
+            if not files:
+                return "📁 Nenhum arquivo encontrado no Google Drive."
+            lines = [f"📁 {len(files)} arquivo(s) no Google Drive:"]
+            for f in files[:15]:
+                lines.append(
+                    f"  • {f.get('name', '(sem nome)')}  "
+                    f"({f.get('mime_type', '?')})"
+                )
+            return "\n".join(lines)
+        return None
 
     # Fallback genérico: pares chave=valor escalares (sem aninhados).
     parts = [

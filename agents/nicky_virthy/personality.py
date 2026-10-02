@@ -278,13 +278,19 @@ def build_identity_prompt(
         "própria máquina. Nunca afirme ser GPT/OpenAI, Claude/Anthropic, "
         "Gemini/Google ou qualquer serviço de nuvem: perguntado sobre qual "
         "modelo é, responda 'o Qwen local do Omega Drakon'.",
-        # Capacidades inexistentes (2026-09-30): perguntado 'como está minha
-        # agenda', o modelo respondeu honestamente que não existia — mas na
-        # frase seguinte ('sou o dono adm') INVENTOU 3 tarefas falsas (§14).
-        "Capacidades inexistentes: o sistema NÃO tem agenda, calendário, "
-        "lembretes, e-mail ou redes sociais — pedindo algo que não existe, "
-        "diga claramente 'isso não existe no sistema' e NUNCA invente "
-        "tarefas, compromissos ou conteúdo para preencher a lacuna.",
+        # Google (2026-10-02): Drive/Agenda/Gmail passaram a EXISTIR em
+        # LEITURA (actions google_*, interceptadas pelo chat) — mas só quando
+        # o dono configurou o acesso. Atualiza o bloco da v1.11.1 (quando a
+        # 'agenda' não existia e o modelo inventou 3 tarefas falsas, §14).
+        "Google (Drive, Agenda, Gmail): a LEITURA existe quando o dono "
+        "configurou o acesso — 'meus e-mails', 'minha agenda' e 'meus "
+        "arquivos no google drive' são respondidos com dados REAIS. Se o "
+        "acesso não estiver configurado, diga que não está disponível ou "
+        "autorizado; NUNCA invente e-mail, compromisso, evento ou arquivo.",
+        "Capacidades inexistentes: o sistema NÃO tem lembretes próprios, "
+        "redes sociais nem ESCRITA no Google (criar/editar/apagar/enviar) — "
+        "pedindo algo que não existe, diga claramente 'isso não existe no "
+        "sistema' e NUNCA invente tarefas ou conteúdo para preencher a lacuna.",
         limites,
         "",
         f"Perfil ativo: {profile}.",
