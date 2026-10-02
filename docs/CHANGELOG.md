@@ -14,6 +14,41 @@
 
 ---
 
+## [1.17.4] — APK UNIVERSAL ÍNTEGRO: 3 ABIs com libflutter+libapp de verdade 📦 (2026-10-01)
+
+- **fix(app,build): o APK "completo" publicado não era completo** — os
+  artefatos de 19,5 MB publicados em 01/10 (21:31 e 21:59) tinham
+  `libflutter.so` APENAS em arm64-v8a; armeabi-v7a e x86_64 ficavam com
+  2 stubs de ~100 KB e o app **não instalava** nessas arquiteturas
+  (engenharia reversa dos ZIPs publicados: v7a=159.580 B e
+  x86_64=163.776 B de libs, contra 17,2 MB do arm64). Causa raiz:
+  `intermediates/flutter/release/` do build de ontem só continha
+  `arm64-v8a/` — estado incremental envenenado; **não** era configuração
+  (AGP 9.2/Gradle 9.4 íntegros, `-Ptarget-platform` sem override).
+- Correção: `flutter clean` + rebuild pelo `app/build_apk.sh`
+  canônico → universal **53.972.629 B (~54,0 MB)** com as 3 ABIs
+  completas (libflutter 11,7/8,6/13,0 MB + libapp 5,9/6,6/6,1 MB) e
+  split arm64 **19.245.103 B (~19,2 MB)**; ambos
+  `versionCode=2037 versionName=1.17.4` (aapt2). Publicados em `site/`.
+- **fix(docs): rótulo da entrega de voz alinhado à release real** —
+  14 comentários (.py/.dart) diziam `v1.18.0` (versão inexistente); a
+  voz saiu mesmo é na **1.17.3** (já anunciada no ar — release no ar
+  não se reescreve, regra do registro honesto). `v1.18.0` fica livre
+  para a PRÓXIMA feature (regra 12: voz era MINOR, mas a 1.17.3 já
+  foi para o ar como PATCH — desvio registrado, não corrigido retroativamente).
+- **test(guarda nova): `test_nenhuma_referencia_a_versao_futura_no_codigo`**
+  (`tests/test_version_policy.py`, cobertura 9) — nenhum `.py`/`.dart`
+  pode citar `vX.Y.Z` maior que `OD_VERSION` vigente; mutação
+  `v9.9.9` em `runtime/launcher.py` → vermelho → restaurado bit-exato.
+- Registro: `txt.txt` (gitignored) teve "comunicação por voz" removida
+  — restam Drive/Agenda/Gmail.
+- Evidência: suíte Python **2149 passed, 16 skipped**; `flutter analyze`
+  sem problemas; `flutter test` **131 passed, 2 skipped**.
+- bump PATCH: `.env 1.17.4` · `capabilities` fallback `1.17.4` ·
+  `pubspec 1.17.4+2037` · `_APP_VERSION_CODE=2037` · `site 2x` +
+  tamanhos reais (~19 MB / ~54 MB) · `CHANGELOG [1.17.4]` ·
+  `README_VERSAO §1.17.4`
+
 ## [1.17.3] — TTS ROBUSTO: LD_LIBRARY_PATH forçado no handler + env do subprocesso 🔊 (2026-10-01)
 
 - **fix(runtime,tools): Piper TTS nunca mais falha por libs compartilhadas ausentes** —

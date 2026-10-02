@@ -333,7 +333,7 @@ class TestAPIPublicEndpoints:
         assert b"histOldestId" in body and b"has_more" in body
         # Link para o painel do usuário (2026-09-26).
         assert b'href="/dashboard"' in body
-        # Voz (v1.18.0): microfone no composer + resposta por voz opcional.
+        # Voz (v1.17.3): microfone no composer + resposta por voz opcional.
         assert b'id="mic"' in body and b"toggleMic" in body
         assert b'MediaRecorder' in body and b'"/transcribe"' in body
         assert b'id="speaker"' in body and b'"/tts"' in body

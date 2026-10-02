@@ -43,7 +43,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// De onde veio a última resposta (selo discreto acima do campo de texto).
   OdChatTransport? _lastTransport;
 
-  /// Voz (v1.18.0): estado do microfone — o botão alterna gravar/parar e
+  /// Voz (v1.17.3): estado do microfone — o botão alterna gravar/parar e
   /// mostra progresso enquanto o servidor transcreve.
   OdVoiceState _voiceState = OdVoiceState.idle;
   bool _speakOn = false;
@@ -405,7 +405,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _buildTransportBadge(),
           Row(
             children: [
-              // Voz (v1.18.0): gravar → transcrever → texto no campo.
+              // Voz (v1.17.3): gravar → transcrever → texto no campo.
               IconButton(
                 onPressed: _isLoading ? null : _toggleMic,
                 tooltip: 'Falar com o OmegaDrakon',

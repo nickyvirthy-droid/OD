@@ -2,7 +2,7 @@
 OMEGA DRAKON • TESTS
 Tecnologia que respira.
 Módulo: tests/test_voice_api.py
-Descrição: Voz na API REST (v1.18.0) — o launcher pluga WhisperSTT/PiperTTS
+Descrição: Voz na API REST (v1.17.3) — o launcher pluga WhisperSTT/PiperTTS
            nos handlers de /transcribe e /tts (build_voice_handlers), que
            antes eram SEMPRE None no REST (501 no ar; voz só no Telegram).
            Cobre: contratos dos adaptadores sync (loop próprio por chamada),
@@ -13,7 +13,7 @@ Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 
 Baseado em:
-  - runtime/launcher.py (build_voice_handlers, v1.18.0)
+  - runtime/launcher.py (build_voice_handlers, v1.17.3)
   - tools/audio/tts.py (espeak_data no TTSConfig)
   - integrations/api/server.py (/transcribe, /tts)
 """

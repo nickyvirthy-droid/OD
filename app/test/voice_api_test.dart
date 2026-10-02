@@ -8,7 +8,7 @@ import 'package:http/testing.dart';
 
 import 'package:omegadrakon/services/od_api.dart';
 
-/// Voz no app (v1.18.0): [OdApi.transcribe] e [OdApi.synthesize] contra os
+/// Voz no app (v1.17.3): [OdApi.transcribe] e [OdApi.synthesize] contra os
 /// contratos do servidor (POST /transcribe {audio_b64} → {ok, text};
 /// POST /tts {text} → {ok, audio_b64, bytes}).
 ///

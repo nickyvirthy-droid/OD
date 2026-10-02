@@ -54,7 +54,7 @@ from core.capabilities import OD_VERSION, capabilities_manifest
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2036  # versionCode cru do APK publicado (v1.17.3+2036)
+_APP_VERSION_CODE = 2037  # versionCode cru do APK publicado (v1.17.4+2037)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -1102,7 +1102,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
   }
   #send:hover { box-shadow: 0 0 20px var(--accent-glow); }
   #send:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
-  /* --- Voz (v1.18.0): microfone no composer --- */
+  /* --- Voz (v1.17.3): microfone no composer --- */
   #mic {
     padding: 10px 12px; border-radius: 10px; font-size: 0.95rem; line-height: 1;
     border: 1px solid var(--border); background: var(--bg); color: var(--text);
@@ -1736,7 +1736,7 @@ async function sendAnon(text, profile) {
   return data.message;
 }
 
-// --- Voz (v1.18.0): microfone → /transcribe → texto no campo; resposta por voz via /tts ---
+// --- Voz (v1.17.3): microfone → /transcribe → texto no campo; resposta por voz via /tts ---
 let mediaRecorder = null;
 let micChunks = [];
 let speakOn = localStorage.getItem("od_speak") === "1";

@@ -8,7 +8,7 @@ import 'package:record/record.dart';
 /// Estado do gravador para a UI (botão do microfone).
 enum OdVoiceState { idle, recording, transcribing }
 
-/// Voz no app (v1.18.0): captura de microfone + reprodução da resposta.
+/// Voz no app (v1.17.3): captura de microfone + reprodução da resposta.
 ///
 /// - Gravação: pacote `record`, codec AAC em M4A (universal no Android);
 ///   o servidor converte qualquer formato com ffmpeg antes do whisper.cpp.

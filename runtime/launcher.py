@@ -217,7 +217,7 @@ def build_user_store(database: Any) -> Optional[Any]:
 def build_voice_handlers() -> tuple[Any, Any]:
     """Adaptadores SYNC de voz para a API REST (/transcribe e /tts).
 
-    v1.18.0: o REST nunca teve os motores plugados — /transcribe e /tts
+    v1.17.3: o REST nunca teve os motores plugados — /transcribe e /tts
     respondiam 501 no ar; só o Telegram falava. Os handlers do APIServer são
     sync (BaseHTTPRequestHandler), então cada adaptador roda o motor async
     (WhisperSTT/PiperTTS) num event loop próprio por chamada — 1 thread por
@@ -299,7 +299,7 @@ def build_api_server(
     if user_store is None:
         user_store = build_user_store(database)
 
-    # Voz (v1.18.0): motores reais na API — /transcribe e /tts deixam de
+    # Voz (v1.17.3): motores reais na API — /transcribe e /tts deixam de
     # ser 501 quando os binários da Fase 6 existem (mesmos do Telegram).
     voice_stt, voice_tts = build_voice_handlers()
 
@@ -316,8 +316,8 @@ def build_api_server(
             action_registry=action_registry,  # v1.2.0: /executa + /actions
             push=push,  # v1.3.0: /push/* (app Android)
             user_store=user_store,  # auth de usuários (registro/login/sessão)
-            stt=voice_stt,  # v1.18.0: /transcribe real (whisper.cpp)
-            tts=voice_tts,  # v1.18.0: /tts real (Piper)
+            stt=voice_stt,  # v1.17.3: /transcribe real (whisper.cpp)
+            tts=voice_tts,  # v1.17.3: /tts real (Piper)
             # Freio contra força bruta no login (LoginGuard)
             login_max_attempts=int(env("OD_LOGIN_MAX_ATTEMPTS", "5")),
             login_window_s=float(env("OD_LOGIN_WINDOW_S", "300")),

@@ -7,6 +7,22 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.17.4] — APK UNIVERSAL ÍNTEGRO: 3 ABIs com libflutter+libapp de verdade 📦 (2026-10-01)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Problema** | O APK "completo" publicado em 01/10 (19,5 MB ×2 builds) tinha `libflutter.so` SÓ em arm64-v8a — v7a/x86_64 só com stubs de ~100 KB (ZIPs: v7a=159.580 B / x86_64=163.776 B de libs vs 17,2 MB do arm64). Causa raiz: `intermediates/flutter/release/` do build continha apenas `arm64-v8a/` — estado incremental envenenado (não era AGP/Gradle nem `-Ptarget-platform`). |
+| **Correção** | `flutter clean` + `./build_apk.sh` canônico → universal **53.972.629 B (~54,0 MB)** com as 3 ABIs completas; split arm64 **19.245.103 B (~19,2 MB)**; `versionCode=2037 versionName=1.17.4` nos dois (aapt2); publicados em `site/`. |
+| **Rótulo da voz** | 14 comentários diziam `v1.18.0` (versão inexistente) → alinhados para **1.17.3** (a release real, já no ar). Release anunciada não se reescreve; `v1.18.0` fica livre p/ a próxima feature. Desvio da regra 12 (voz era MINOR) registrado como história, não retroagido. |
+| **Guarda nova** | `test_nenhuma_referencia_a_versao_futura_no_codigo` (cobertura 9 do `test_version_policy`): nenhum `.py`/`.dart` cita `vX.Y.Z` > `OD_VERSION`. Muta `v9.9.9` → vermelho → restaurado bit-exato. |
+| **Resultado** | Suíte Python **2149 passed, 16 skipped** · `flutter analyze` sem problemas · `flutter test` **131 passed, 2 skipped** · `txt.txt` (gitignored): voz removida, restam Drive/Agenda/Gmail. |
+
+### 2. bump PATCH
+
+Infra de teste visível no repo: `.env 1.17.4` · capabilities fallback `1.17.4` · `pubspec 1.17.4+2037` · `_APP_VERSION_CODE=2037` · `site 2x` · `CHANGELOG [1.17.4]` · este README.
+
 ## [1.17.3] — TTS ROBUSTO: LD_LIBRARY_PATH forçado no handler + env do subprocesso 🔊 (2026-10-01)
 
 ### 1. O que foi feito

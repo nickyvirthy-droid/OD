@@ -16,6 +16,12 @@ Descrição: Guardas da política de versionamento (docs/VERSIONAMENTO.md,
               publicado; errado aqui mata a auto-atualização em silêncio
               (bug provado no ar em 2026-09-28: anunciava 2017 com o
               binário 2018 em site/).
+           8. docs/CHANGELOG.md: seções ## [X.Y.Z] em ordem estrita
+              descendente (mais recente no topo).
+           9. Nenhum código (.py/.dart) rotula uma entrega com versão
+              MAIOR que a vigente (achado de 2026-10-01: a voz saiu
+              anunciada como 1.17.3, mas 14 comentários diziam uma
+              versão futura — 1.18.0).
            Qualquer bump parcial (uma fonte esquecida) quebra a suíte.
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
@@ -169,4 +175,61 @@ class TestVersionPolicy:
             "seções ## [X.Y.Z] fora da ordem cronológica ESTRITA (esperado: "
             "mais recente no topo, sem cabeçalho repetido): "
             + " → ".join(f"{a}.{b}.{c}" for a, b, c in versions)
+        )
+
+
+class TestReferenciasDeVersao:
+    """Nenhum código rotula uma entrega com versão FUTURA (cobertura 9)."""
+
+    DIRS_CODIGO = (
+        "agents",
+        "configs",
+        "core",
+        "integrations",
+        "memory",
+        "observability",
+        "plugins",
+        "runtime",
+        "storage",
+        "tests",
+        "tools",
+        "app/lib",
+        "app/test",
+    )
+    ARQUIVOS_RAIZ = ("orquestrador.py",)
+    # Prefixo 'v' obrigatório: números avulsos são dependências
+    # (ex.: desugar_jdk_libs 2.1.4) e não rótulos de release.
+    RELEASE_RE = re.compile(r"\bv(\d+)\.(\d+)\.(\d+)\b")
+
+    def test_nenhuma_referencia_a_versao_futura_no_codigo(self) -> None:
+        """Nenhum .py/.dart cita 'vFUTURA' maior que OD_VERSION vigente.
+
+        Achado de 2026-10-01: a voz (STT/TTS na API) foi entregue e
+        anunciada como 1.17.3, mas 14 comentários no código rotulavam a
+        entrega como 1.18.0 — uma versão que não existia. Quando a
+        PRÓXIMA feature subir mesmo para 1.18.0, o rótulo velho passa a
+        mentir sobre o histórico: o registro da entrega tem de ser a
+        release que saiu (regra 12 de iniciar/RULES.md + registro
+        honesto).
+        """
+        atual = tuple(int(p) for p in OD_VERSION.split("."))
+        candidatos: list[Path] = []
+        for rel in self.DIRS_CODIGO:
+            base = ROOT / rel
+            candidatos += list(base.rglob("*.py")) + list(base.rglob("*.dart"))
+        candidatos += [ROOT / rel for rel in self.ARQUIVOS_RAIZ]
+
+        futuras: list[str] = []
+        for path in candidatos:
+            texto = path.read_text(encoding="utf-8")
+            for match in self.RELEASE_RE.finditer(texto):
+                versao = tuple(int(match.group(i)) for i in (1, 2, 3))
+                if versao > atual:
+                    futuro = match.group(0)
+                    futuras.append(f"{path.relative_to(ROOT)}: {futuro}")
+
+        assert not futuras, (
+            f"código rotulado com versão MAIOR que a vigente ({OD_VERSION}) "
+            "— comentário mentindo sobre a release que saiu: "
+            + " · ".join(sorted(futuras))
         )

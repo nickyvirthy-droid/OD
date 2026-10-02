@@ -497,7 +497,7 @@ class OdApi {
   }
 
   // ------------------------------------------------------------------
-  // Voz (v1.18.0): transcrição e síntese pelos endpoints da API.
+  // Voz (v1.17.3): transcrição e síntese pelos endpoints da API.
   // Contratos: POST /transcribe {audio_b64} → {ok, text};
   //            POST /tts {text} → {ok, audio_b64, bytes}.
   // ------------------------------------------------------------------
