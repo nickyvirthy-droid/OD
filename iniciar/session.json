@@ -1172,7 +1172,8 @@
     "docs": "docs/CHANGELOG.md ganha seção datada 'Infra — CI verde em checkout limpo + gate de cobertura ≥ 90% (2026-10-02, sem bump)'; docs/VERSIONAMENTO.md §6 ganha a 'Guarda de checkout limpo (2026-10-02)'.",
     "bonus_achado": "Ramo morto (NÃO tocado): commands.py:169 — 'if name == \"auto\" and name not in PROFILES' é INALCANÇÁVEL porque PROFILES INCLUI 'auto'; na prática /perfil auto define o perfil 'auto' (comportamento válido, então não mexido).",
     "sem_bump": "Infraestrutura de teste/CI, sem mudança de comportamento em produção — mesmo precedente do orquestrador de CLIs (2026-09-30).",
-    "estado": "CONCLUÍDO — CI verde em checkout limpo e gate de cobertura ≥ 90%; commit + push na sequência (regra 7.1).",
+    "commit": "12c34c1 test(ci,docs): CI verde em checkout limpo + gate de cobertura >= 90% (infra, sem bump) — 8 arquivos +560/−6; HEAD==origin/master.",
+    "estado": "CONCLUÍDO, PUBLICADO — CI verde em checkout limpo e gate de cobertura ≥ 90% (90,17%); suíte 2175/16. Faltam as pendências do dono: Drive/Agenda/Gmail (OAuth) e a alternativa futura do gemma.",
     "transcricao": "iniciar/2026-10-02_conversa_omegadrakon.md"
   },
   "last_turn": {
