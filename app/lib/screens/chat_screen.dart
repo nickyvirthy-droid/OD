@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../services/od_api.dart';
+import '../services/od_voice.dart';
 import '../services/od_ws.dart';
 import '../widgets/message_bubble.dart';
 
@@ -42,6 +43,14 @@ class _ChatScreenState extends State<ChatScreen> {
   /// De onde veio a última resposta (selo discreto acima do campo de texto).
   OdChatTransport? _lastTransport;
 
+  /// Voz (v1.18.0): estado do microfone — o botão alterna gravar/parar e
+  /// mostra progresso enquanto o servidor transcreve.
+  OdVoiceState _voiceState = OdVoiceState.idle;
+  bool _speakOn = false;
+  late final OdVoice _voice;
+
+  static const _voiceTag = 'voz';
+
   // Nomes CANÔNICOS da Plêiade (cânone Personagens.md) — o chip mostra
   // QUEM vai responder (Regulus), não só o cargo (Conselheiro).
   static const _profiles = {
@@ -59,7 +68,81 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _chat = widget.chat ?? OdStreamingChat(widget.api);
+    _voice = OdVoice();
     _loadHistory();
+  }
+
+  /// Ciclo do microfone: 1º toque grava, 2º para e manda transcrever;
+  /// o texto reconhecido entra no campo (o usuário revisa antes de enviar).
+  Future<void> _toggleMic() async {
+    if (_voiceState == OdVoiceState.recording) {
+      await _voice.stopRecording();
+      return;
+    }
+    if (_voiceState != OdVoiceState.idle) return;
+    setState(() => _voiceState = OdVoiceState.recording);
+    try {
+      final audio = await _voice.record();
+      setState(() => _voiceState = OdVoiceState.transcribing);
+      final text = await widget.api.transcribe(audio);
+      if (mounted) {
+        setState(() {
+          _controller.text = _controller.text.isEmpty
+              ? text
+              : '${_controller.text.trim()} $text';
+        });
+      }
+    } on OdVoiceError catch (e) {
+      if (mounted) {
+        setState(() {
+          _messages.add(OdMessage(role: 'assistant', content: '🎙 ${e.message}'));
+        });
+        _scrollToBottom();
+      }
+    } on OdApiError catch (e) {
+      if (mounted) {
+        setState(() {
+          _messages.add(
+            OdMessage(
+              role: 'assistant',
+              content: '🎙 ${e.message}',
+              route: _voiceTag,
+            ),
+          );
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _messages.add(
+            OdMessage(role: 'assistant', content: '🎙 Falha na voz: $e'),
+          );
+        });
+        _scrollToBottom();
+      }
+    } finally {
+      if (mounted) setState(() => _voiceState = OdVoiceState.idle);
+    }
+  }
+
+  /// Resposta por voz: sintetiza a ÚLTIMA bolha do assistente e toca.
+  /// Best-effort — falha de voz nunca remove/altera o texto na tela.
+  Future<void> _speakLast() async {
+    if (!_speakOn) {
+      setState(() => _speakOn = true);
+    }
+    final last = _messages.lastWhere(
+      (m) => m.role == 'assistant' && !m.content.startsWith('⚠️') && !m.content.startsWith('🎙'),
+      orElse: () => OdMessage(role: 'assistant', content: ''),
+    );
+    if (last.content.isEmpty) return;
+    try {
+      final wav = await widget.api.synthesize(last.content);
+      await _voice.play(wav);
+    } catch (_) {
+      // Voz é opcional.
+    }
   }
 
   /// Busca as mensagens salvas da conta (GET /history/{user_id}) para a
@@ -89,6 +172,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _voice.dispose();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -321,6 +405,20 @@ class _ChatScreenState extends State<ChatScreen> {
           _buildTransportBadge(),
           Row(
             children: [
+              // Voz (v1.18.0): gravar → transcrever → texto no campo.
+              IconButton(
+                onPressed: _isLoading ? null : _toggleMic,
+                tooltip: 'Falar com o OmegaDrakon',
+                icon: _voiceState == OdVoiceState.recording
+                    ? const Icon(Icons.stop_circle, color: Colors.red)
+                    : _voiceState == OdVoiceState.transcribing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.mic),
+              ),
               Expanded(
                 child: TextField(
                   controller: _controller,
@@ -335,6 +433,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               const SizedBox(width: 8),
+              IconButton(
+                onPressed: _speakLast,
+                tooltip: 'Ouvir a última resposta',
+                icon: Icon(
+                  _speakOn ? Icons.volume_up : Icons.volume_off,
+                  color: _speakOn ? Theme.of(context).colorScheme.primary : null,
+                ),
+              ),
               IconButton.filled(
                 onPressed: _isLoading ? null : _sendMessage,
                 icon: _isLoading

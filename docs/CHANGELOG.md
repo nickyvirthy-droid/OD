@@ -14,6 +14,23 @@
 
 ---
 
+## [1.17.3] — TTS ROBUSTO: LD_LIBRARY_PATH forçado no handler + env do subprocesso 🔊 (2026-10-01)
+
+- **fix(runtime,tools): Piper TTS nunca mais falha por libs compartilhadas ausentes** —
+  o `build_voice_handlers()` (launcher) agora **FORÇA** o `LD_LIBRARY_PATH` para
+  `/opt/omegadrakon/voice/piper` (onde as libs do deploy moram) em vez de só
+  setar se ausente; o `PiperTTS.synthesize_to_file()` passa `env` customizado
+  com o caminho correto direto no `asyncio.create_subprocess_exec()` —
+  imune a poluição de env por testes/outros processos.
+- Causa raiz: a suíte completa rodava 2148 testes, mas o teste
+  `test_tts_handler_devolve_wav_real` falhava intermitentemente porque
+  `test_audio.py` criava instâncias `PiperTTS` com paths falsos e o launcher
+  via `LD_LIBRARY_PATH` já setado (ainda que vazio/errado) e não corrigia.
+- Evidência: suíte completa **2148 passed, 16 skipped** (era 1 falha flaky).
+- bump PATCH: `.env 1.17.3` · `capabilities` fallback `1.17.3` ·
+  `pubspec 1.17.3+2036` · `_APP_VERSION_CODE=2036` · `site 2x` ·
+  `CHANGELOG [1.17.3]` · `README_VERSAO §1.17.3`
+
 ## [1.17.2] — GUARDA DA CASA DE LIMITAÇÕES: pytest não suja mais o registro real 🧪 (2026-10-01)
 
 - **fix(tests): fixture autouse isola `limitacoes.txt` em tmp_path** —

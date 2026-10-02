@@ -7,6 +7,21 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.17.3] — TTS ROBUSTO: LD_LIBRARY_PATH forçado no handler + env do subprocesso 🔊 (2026-10-01)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Problema** | Teste `test_tts_handler_devolve_wav_real` falhava intermitentemente na suíte completa (2148 testes): `Piper falhou | returncode=127 | libespeak-ng.so.1: cannot open shared object file`. O `test_audio.py` criava instâncias `PiperTTS` com paths falsos e o launcher via `LD_LIBRARY_PATH` já setado (vazio/errado) e **não corrigia** (só setava se ausente). |
+| **Correção 1** | `runtime/launcher.py:build_voice_handlers()` — **FORÇA** o `LD_LIBRARY_PATH` para `/opt/omegadrakon/voice/piper` (deploy real) em vez de só setar se ausente. Ordem de preferência: 1) `/opt/omegadrakon/voice/piper`, 2) `REPO_ROOT/voice/tts`. |
+| **Correção 2** | `tools/audio/tts.py:PiperTTS._piper_env()` (NOVO) + `synthesize_to_file()` — passa `env` customizado com o caminho correto direto no `asyncio.create_subprocess_exec()`. Imune a poluição global. |
+| **Resultado** | Suíte completa **2148 passed, 16 skipped** (era 1 falha flaky). Zero falhas nas 5+ rodadas de validação. |
+
+### 2. bump PATCH
+
+Infra de teste visível no repo: `.env 1.17.3` · capabilities fallback `1.17.3` · `pubspec 1.17.3+2036` · `_APP_VERSION_CODE=2036` · `site 2x` · `CHANGELOG [1.17.3]` · este README.
+
 ## [1.17.2] — GUARDA DA CASA DE LIMITAÇÕES: pytest não suja mais o registro real 🧪 (2026-10-01)
 
 ### 1. Investigação e causa raiz

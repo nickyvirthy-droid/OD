@@ -333,6 +333,11 @@ class TestAPIPublicEndpoints:
         assert b"histOldestId" in body and b"has_more" in body
         # Link para o painel do usuário (2026-09-26).
         assert b'href="/dashboard"' in body
+        # Voz (v1.18.0): microfone no composer + resposta por voz opcional.
+        assert b'id="mic"' in body and b"toggleMic" in body
+        assert b'MediaRecorder' in body and b'"/transcribe"' in body
+        assert b'id="speaker"' in body and b'"/tts"' in body
+        assert b"speakOn" in body and b"localStorage" in body
         # Guarda de regressão (2026-09-23): o <script> da página tem que ser JS
         # VÁLIDO — um erro de sintaxe (ex.: quebra de linha dentro de string)
         # mata TODOS os handlers e o site não entra nem no anônimo.

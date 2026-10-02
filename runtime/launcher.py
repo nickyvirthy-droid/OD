@@ -44,9 +44,9 @@ Configuração (variáveis de ambiente / .env no raiz do repo):
     OD_VISION_DEVICE    Dispositivo da webcam (default /dev/video0).
     OD_VISION_POLL_S    Intervalo de captura (default 5).
     OD_VOICE_STT        "0" desliga a transcrição de voz recebida
-                        (whisper.cpp) no bot (default 1).
-    OD_VOICE_TTS        "0" desliga a resposta por voz (Piper) no bot
-                        (default 1).
+                        (whisper.cpp) no bot E na API /transcribe (default 1).
+    OD_VOICE_TTS        "0" desliga a resposta por voz (Piper) no bot E na
+                        API /tts (default 1).
     OD_VOICE_PROFILE    Voz do TTS (default dii; "regulus" = faber).
     OD_AUDIT_FILE       Trilha de auditoria JSONL (Fase 7.1, default
                         logs/audit.jsonl na raiz do repo).
@@ -70,6 +70,7 @@ import asyncio
 import os
 import pathlib
 import sys
+import tempfile
 import threading
 import time
 from typing import Any, Awaitable, Callable, Optional
@@ -213,6 +214,75 @@ def build_user_store(database: Any) -> Optional[Any]:
         return None
 
 
+def build_voice_handlers() -> tuple[Any, Any]:
+    """Adaptadores SYNC de voz para a API REST (/transcribe e /tts).
+
+    v1.18.0: o REST nunca teve os motores plugados — /transcribe e /tts
+    respondiam 501 no ar; só o Telegram falava. Os handlers do APIServer são
+    sync (BaseHTTPRequestHandler), então cada adaptador roda o motor async
+    (WhisperSTT/PiperTTS) num event loop próprio por chamada — 1 thread por
+    request, padrão do ThreadingHTTPServer.
+
+    Retorna (stt, tts); um dos dois pode ser None quando o binário não existe
+    ou OD_VOICE_STT/OD_VOICE_TTS=0 — a rota correspondente segue 501.
+    """
+    stt = tts = None
+    loop_runner = asyncio.run
+
+    # O binário Piper precisa das libs próprias (libespeak-ng, libpiper_phonemize,
+    # libonnxruntime) que NÃO estão no loader path do sistema: sem
+    # LD_LIBRARY_PATH ele morre com exit 127 — causa silenciosa de síntese
+    # vazia. O deploy em /opt/omegadrakon/voice/piper traz as libs junto; o
+    # diretório do próprio binário e o paralelo em /opt são os candidatos.
+    # FORÇA o caminho correto (testes podem poluir o env com valor vazio/errado).
+    lib_dir = None
+    for candidato in (
+        "/opt/omegadrakon/voice/piper",  # deploy real tem as libs
+        str(REPO_ROOT / "voice" / "tts"),  # fallback repo
+    ):
+        if pathlib.Path(candidato, "libpiper_phonemize.so.1").is_file():
+            lib_dir = candidato
+            break
+    if lib_dir:
+        os.environ["LD_LIBRARY_PATH"] = lib_dir
+
+    if env("OD_VOICE_STT", "1") != "0":
+        from tools.audio import WhisperSTT
+
+        whisper = WhisperSTT()
+        if whisper.available:
+
+            def _stt_handler(audio: bytes) -> Optional[str]:
+                """bytes de áudio → texto (whisper.cpp via ffmpeg)."""
+                with tempfile.TemporaryDirectory(prefix="od_api_stt_") as tmp_dir:
+                    audio_path = pathlib.Path(tmp_dir) / "voz.webm"
+                    audio_path.write_bytes(audio)
+                    return loop_runner(whisper.transcribe(audio_path))
+
+            stt = _stt_handler
+            log.info("Voz STT habilitada na API (whisper.cpp)")
+        else:
+            log.warn("Voz STT indisponível na API — whisper.cpp ausente")
+
+    if env("OD_VOICE_TTS", "1") != "0":
+        from tools.audio import PiperTTS
+
+        piper = PiperTTS()
+        if piper.available:
+            profile = env("OD_VOICE_PROFILE", "default")
+
+            def _tts_handler(text: str) -> Optional[bytes]:
+                """texto → bytes WAV (Piper, voz do perfil)."""
+                return loop_runner(piper.synthesize(text, profile=profile))
+
+            tts = _tts_handler
+            log.info("Voz TTS habilitada na API (Piper)", voice=profile)
+        else:
+            log.warn("Voz TTS indisponível na API — Piper ausente")
+
+    return stt, tts
+
+
 def build_api_server(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
@@ -229,6 +299,10 @@ def build_api_server(
     if user_store is None:
         user_store = build_user_store(database)
 
+    # Voz (v1.18.0): motores reais na API — /transcribe e /tts deixam de
+    # ser 501 quando os binários da Fase 6 existem (mesmos do Telegram).
+    voice_stt, voice_tts = build_voice_handlers()
+
     # auth_all: bind exposto na LAN exige X-API-Key em TODOS os endpoints
     server = APIServer(
         orchestrator,
@@ -242,6 +316,8 @@ def build_api_server(
             action_registry=action_registry,  # v1.2.0: /executa + /actions
             push=push,  # v1.3.0: /push/* (app Android)
             user_store=user_store,  # auth de usuários (registro/login/sessão)
+            stt=voice_stt,  # v1.18.0: /transcribe real (whisper.cpp)
+            tts=voice_tts,  # v1.18.0: /tts real (Piper)
             # Freio contra força bruta no login (LoginGuard)
             login_max_attempts=int(env("OD_LOGIN_MAX_ATTEMPTS", "5")),
             login_window_s=float(env("OD_LOGIN_WINDOW_S", "300")),

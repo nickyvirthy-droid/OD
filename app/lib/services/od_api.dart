@@ -497,6 +497,68 @@ class OdApi {
   }
 
   // ------------------------------------------------------------------
+  // Voz (v1.18.0): transcrição e síntese pelos endpoints da API.
+  // Contratos: POST /transcribe {audio_b64} → {ok, text};
+  //            POST /tts {text} → {ok, audio_b64, bytes}.
+  // ------------------------------------------------------------------
+
+  /// Transcreve áudio gravado (bytes do MediaRecorder, ex.: audio/webm).
+  /// Retorna o texto reconhecido; [OdApiError] quando o servidor não
+  /// consegue transcrever (501 = STT ausente no servidor; 400 = áudio
+  /// inválido; timeout do whisper pode ser longo — 240s, igual ao chat).
+  Future<String> transcribe(List<int> audioBytes) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/transcribe'),
+      body: jsonEncode({'audio_b64': base64Encode(audioBytes)}),
+      timeout: odChatTimeout,
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final text = (data['text'] as String?) ?? '';
+      if (data['ok'] == true && text.isNotEmpty) return text;
+      throw OdApiError(
+        'Não entendi o áudio — fale mais perto do microfone.',
+        statusCode: response.statusCode,
+      );
+    } else if (response.statusCode == 401) {
+      throw OdAuthError('API key inválida ou ausente');
+    } else if (response.statusCode == 501) {
+      throw OdApiError(
+        'Transcrição indisponível no servidor (STT ausente).',
+        statusCode: response.statusCode,
+      );
+    }
+    throw OdApiError(
+      'Erro ${response.statusCode} na transcrição.',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// Sintetiza a resposta em voz (WAV bytes). [OdApiError] quando o TTS
+  /// não está disponível (501) ou a síntese falha (502).
+  Future<List<int>> synthesize(String text) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/tts'),
+      body: jsonEncode({'text': text}),
+      timeout: odRequestTimeout,
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final b64 = (data['audio_b64'] as String?) ?? '';
+      if (data['ok'] == true && b64.isNotEmpty) return base64Decode(b64);
+      throw OdApiError('Síntese veio vazia.', statusCode: response.statusCode);
+    } else if (response.statusCode == 401) {
+      throw OdAuthError('API key inválida ou ausente');
+    }
+    throw OdApiError(
+      'Voz indisponível (erro ${response.statusCode}).',
+      statusCode: response.statusCode,
+    );
+  }
+
+  // ------------------------------------------------------------------
   // Painéis: mesma funcionalidade do /dashboard e /admin do site.
   // ------------------------------------------------------------------
 

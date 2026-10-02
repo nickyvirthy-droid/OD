@@ -41,6 +41,11 @@ DEFAULT_MODEL = "/home/alex/OmegaDrakon/voice/tts/dii_pt-BR.onnx"
 DEFAULT_CONFIG = "/home/alex/OmegaDrakon/voice/tts/dii_pt-BR.onnx.json"
 REGULUS_MODEL = "/home/alex/OmegaDrakon/voice/tts/pt_BR-faber-medium.onnx"
 REGULUS_CONFIG = "/home/alex/OmegaDrakon/voice/tts/pt_BR-faber-medium.onnx.json"
+#: Dados do espeak-ng (fonemização) — o piper exige `--espeak_data` quando o
+#: diretório não está no padrão do sistema (/usr/share/espeak-ng-data). Deploy
+#: OD: /opt/omegadrakon/voice/espeak-ng-data. Vazio = flag omitida (piper
+#: usa o default do sistema).
+DEFAULT_ESPEAK_DATA = "/opt/omegadrakon/voice/espeak-ng-data"
 
 
 @dataclass(slots=True)
@@ -52,6 +57,7 @@ class TTSConfig:
     config: Union[str, Path] = DEFAULT_CONFIG
     regulus_model: Union[str, Path] = REGULUS_MODEL
     regulus_config: Union[str, Path] = REGULUS_CONFIG
+    espeak_data: Union[str, Path, None] = DEFAULT_ESPEAK_DATA
     enabled: bool = True
     timeout_s: float = 60.0
 
@@ -91,6 +97,20 @@ class PiperTTS:
         key = (profile or "default").lower()
         return self._voice_map.get(key, self._voice_map["default"])
 
+    def _piper_env(self) -> dict[str, str]:
+        """Environment para o subprocesso do Piper com LD_LIBRARY_PATH correto."""
+        import os
+        env = os.environ.copy()
+        # Garante LD_LIBRARY_PATH apontando para as libs do Piper (deploy /opt ou repo)
+        for candidato in (
+            "/opt/omegadrakon/voice/piper",
+            str(Path(__file__).resolve().parent.parent.parent / "voice" / "tts"),
+        ):
+            if Path(candidato, "libpiper_phonemize.so.1").is_file():
+                env["LD_LIBRARY_PATH"] = candidato
+                break
+        return env
+
     async def synthesize_to_file(
         self,
         text: str,
@@ -108,6 +128,14 @@ class PiperTTS:
         model_path, config_path = self._resolve_voice(profile)
         cmd = [
             str(self.config.binary),
+            # Fonemização: o piper morre com 'Error processing phontab' quando
+            # os dados do espeak-ng não estão no default do sistema — flag
+            # explícita ANTES do --output_file, que segue sendo o último arg
+            # (contrato usado por testes e por quem parseia a linha).
+        ]
+        if self.config.espeak_data and Path(self.config.espeak_data).is_dir():
+            cmd += ["--espeak_data", str(self.config.espeak_data)]
+        cmd += [
             "--model", model_path,
             "--config", config_path,
             "--output_file", str(output_path),
@@ -119,6 +147,7 @@ class PiperTTS:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=self._piper_env(),
             )
             _, stderr = await asyncio.wait_for(
                 proc.communicate(input=text.encode("utf-8")),

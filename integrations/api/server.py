@@ -54,7 +54,7 @@ from core.capabilities import OD_VERSION, capabilities_manifest
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2035  # versionCode cru do APK publicado (v1.17.2+2035)
+_APP_VERSION_CODE = 2036  # versionCode cru do APK publicado (v1.17.3+2036)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -1102,6 +1102,25 @@ _CHAT_PAGE_HTML = """<!doctype html>
   }
   #send:hover { box-shadow: 0 0 20px var(--accent-glow); }
   #send:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+  /* --- Voz (v1.18.0): microfone no composer --- */
+  #mic {
+    padding: 10px 12px; border-radius: 10px; font-size: 0.95rem; line-height: 1;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  #mic:hover { border-color: var(--accent); }
+  #mic.rec {
+    background: #f85149; border-color: #f85149; color: #fff;
+    animation: mic-pulse 1.2s infinite;
+  }
+  @keyframes mic-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+  #mic:disabled { opacity: 0.4; cursor: not-allowed; }
+  #speaker { background: none; border: none; cursor: pointer;
+    font-size: 0.95rem; color: var(--muted); padding: 4px; }
+  #speaker.on { color: var(--accent); }
   /* --- Gate --- */
   #gate {
     display: flex; flex-direction: column; gap: 16px; margin: auto;
@@ -1246,7 +1265,9 @@ _CHAT_PAGE_HTML = """<!doctype html>
   </div>
   <div id="hist-note"></div>
   <div id="composer">
+    <button id="mic" title="Falar com o OmegaDrakon">🎤</button>
     <input id="text" placeholder="Digite sua mensagem…" autocomplete="off">
+    <button id="speaker" title="Resposta por voz (liga/desliga)" aria-pressed="false">🔇</button>
     <button id="send">Enviar</button>
   </div>
 </div>
@@ -1715,6 +1736,93 @@ async function sendAnon(text, profile) {
   return data.message;
 }
 
+// --- Voz (v1.18.0): microfone → /transcribe → texto no campo; resposta por voz via /tts ---
+let mediaRecorder = null;
+let micChunks = [];
+let speakOn = localStorage.getItem("od_speak") === "1";
+const micBtn = $("mic"), speakerBtn = $("speaker");
+function setSpeak(on) {
+  speakOn = on;
+  localStorage.setItem("od_speak", on ? "1" : "0");
+  speakerBtn.textContent = on ? "🔊" : "🔇";
+  speakerBtn.classList.toggle("on", on);
+  speakerBtn.setAttribute("aria-pressed", on ? "true" : "false");
+}
+setSpeak(speakOn);
+speakerBtn.onclick = () => setSpeak(!speakOn);
+
+async function speak(text) {
+  // Sintetiza e toca. Best-effort: falha de voz NUNCA derruba a resposta.
+  if (!speakOn || !text) return;
+  try {
+    const resp = await fetch("/tts", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ text: text.slice(0, 600) })
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data.audio_b64) return;
+    const audio = new Audio("data:audio/wav;base64," + data.audio_b64);
+    await audio.play().catch(() => {});
+  } catch (e) { /* voz é opcional */ }
+}
+
+async function toggleMic() {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    return;
+  }
+  if (!window.MediaRecorder || !navigator.mediaDevices) {
+    addBubble("od", "Este navegador não suporta captura de áudio.", "voz");
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size) micChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      micBtn.classList.remove("rec");
+      micBtn.disabled = true;
+      micBtn.textContent = "⏳";
+      const blob = new Blob(micChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+      try {
+        const b64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(String(r.result).split(",")[1]);
+          r.onerror = rej;
+          r.readAsDataURL(blob);
+        });
+        const resp = await fetch("/transcribe", {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ audio_b64: b64 })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) {
+          addBubble("od", data.error || "Não consegui transcrever o áudio.", "voz");
+          return;
+        }
+        $("text").value = data.text;
+        $("send").click();
+      } catch (e) {
+        addBubble("od", "Falha na transcrição: " + e.message, "voz");
+      } finally {
+        micBtn.disabled = false;
+        micBtn.textContent = "🎤";
+      }
+    };
+    mediaRecorder.start();
+    micBtn.classList.add("rec");
+    micBtn.textContent = "⏹";
+  } catch (e) {
+    addBubble("od", "Microfone indisponível: " + e.message, "voz");
+  }
+}
+micBtn.onclick = toggleMic;
+
 // --- Send ---
 async function send() {
   const text = $("text").value.trim();
@@ -1723,13 +1831,14 @@ async function send() {
   addBubble("user", text);
   const profile = $("profile").value;
   if (anonMode) {
-    try { await sendAnon(text, profile); }
+    try { const msg = await sendAnon(text, profile); }
     catch(e) { addBubble("od", "Erro: " + e.message, "anônimo"); }
   } else {
     try {
-      await sendWs(text, profile);
+      const msg = await sendWs(text, profile);
+      speak(msg);
     } catch(e) {
-      try { await sendRest(text, profile); } catch(e2) {
+      try { const msg = await sendRest(text, profile); speak(msg); } catch(e2) {
         if (e2.message !== "auth") addBubble("od", "Erro: " + e2.message, "API");
       }
     }
