@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-02T16:28:48-03:00",
+  "updated_at": "2026-10-02T16:46:38-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1160,6 +1160,21 @@
     "estado": "RETOMADA CONCLUÍDA — v1.17.4 NO AR, nada pendente de correção. Pendências do dono intactas: (1) instalar APK 1.17.4+2037 no celular (site/OmegaDrakon-arm64.apk); (2) Drive/Agenda/Gmail do txt.txt (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89,44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer.",
     "push_2026_10_02": "Commit de registro da retomada (3ebba79) estava 1 à frente de origin/master → PUSH feito (regra 7.1): a8c659b..3ebba79; HEAD==origin/master, working tree limpo."
   },
+  "infra_ci_cobertura_2026_10_02": {
+    "pedido": "Dono: '1 ja foi feito. vamos aos proximos' → escolheu 'Infra primeiro (cobertura + CI)' (ask_user, ~16:4x de 02/10).",
+    "achado_1_ci": "tests/test_version_policy.py lia o .env (gitignored) SEM guarda de existência → em checkout limpo (GitHub) a suíte morria com FileNotFoundError ANTES de rodar; o CI estava vermelho por infra, não por teste falhando.",
+    "achado_2_cobertura": "Gate --cov-fail-under=90 com cobertura real de 89,33% (12592 stmts, 1343 perdidas) — 2º achado de 30/09 reproduzido.",
+    "correcoes": [
+      "test_version_policy.py: _env_version() devolve None quando o .env não existe; test_env_e_capabilities_na_mesma_versao pula com motivo (no CI sem .env a verdade é o fallback congelado, coberto pelo próprio teste do fallback). Validado à mão: com .env → 1.17.4; sem .env → None.",
+      "Testes novos (+26) focados em RAMOS REAIS sem teste: test_telegram.py TestHandlersBorda (action_list com truncamento, gate nível 1/2, statuses denied/invalid/error/desconhecido, parsing de params + objeto grande, /entrar, /sair, /historico, /cache, /gerar, classificar_risco, parse_param_value); test_migrate_history_owner.py TestMainCli (nada a migrar, dry-run e --apply, com o snapshot redirecionado a tmp_path — nenhum teste toca backups/); test_audio.py (_convert_to_wav sucesso/falha/timeout, transcrição vazia, WAV inválido no pipeline)."
+    ],
+    "validacao": "Cobertura 89,33% → 90,17% (12592 stmts, 1238 perdidas); pytest-cov: 'Required test coverage of 90% reached'; suíte 2175 passed, 16 skipped (+26); compileall limpo; ambiente canônico .venv SEM OD_TEST_POSTGRES_DSN.",
+    "docs": "docs/CHANGELOG.md ganha seção datada 'Infra — CI verde em checkout limpo + gate de cobertura ≥ 90% (2026-10-02, sem bump)'; docs/VERSIONAMENTO.md §6 ganha a 'Guarda de checkout limpo (2026-10-02)'.",
+    "bonus_achado": "Ramo morto (NÃO tocado): commands.py:169 — 'if name == \"auto\" and name not in PROFILES' é INALCANÇÁVEL porque PROFILES INCLUI 'auto'; na prática /perfil auto define o perfil 'auto' (comportamento válido, então não mexido).",
+    "sem_bump": "Infraestrutura de teste/CI, sem mudança de comportamento em produção — mesmo precedente do orquestrador de CLIs (2026-09-30).",
+    "estado": "CONCLUÍDO — CI verde em checkout limpo e gate de cobertura ≥ 90%; commit + push na sequência (regra 7.1).",
+    "transcricao": "iniciar/2026-10-02_conversa_omegadrakon.md"
+  },
   "last_turn": {
     "date": "2026-10-01",
     "retomada": "Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2. (8) 23:2x 'conclua os pontos' → 4/4 FECHADOS: rótulo voz=1.17.3+guarda, APK full corrigido (causa=incremental envenenado, não AGP), txt.txt limpo, bump 1.17.4+2037 no ar (restart 23:48:57).",
@@ -1200,6 +1215,7 @@
     }
   ],
   "transcripts": [
+    "iniciar/2026-10-02_conversa_omegadrakon.md",
     "iniciar/2026-10-01_conversa_omegadrakon.md",
     "iniciar/2026-09-28_conversa_omegadrakon.md",
     "iniciar/2026-09-27_conversa_omegadrakon.md",

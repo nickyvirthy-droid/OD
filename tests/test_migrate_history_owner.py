@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+import runtime.migrate_history_owner as mig
 from runtime.migrate_history_owner import apply, plan
 from storage.database import Database
 
@@ -143,3 +144,54 @@ class TestApply:
         assert db.scalar(
             "SELECT COUNT(*) FROM conversation_messages WHERE user_id IN ('web', 'ws_user')"
         ) == 0
+
+
+class TestMainCli:
+    """CLI main() — dry-run, nada a migrar e --apply (regra: snapshot em tmp).
+
+    `main()` abre a própria Database a partir de OD_DB_URL e grava o
+    snapshot no BACKUP_DIR real; aqui o banco é injetado e o `apply` é
+    embrulhado para redirecionar o snapshot a `tmp_path` — nenhum teste
+    toca `backups/`.
+    """
+
+    def _patch(self, monkeypatch, db, tmp_path: Path) -> None:
+        monkeypatch.setattr(
+            "runtime.launcher.env", lambda name, default="": str(tmp_path / "h.db")
+        )
+        monkeypatch.setattr("storage.Database", lambda **kw: db)
+        original = mig.apply
+        monkeypatch.setattr(
+            mig,
+            "apply",
+            lambda d, o, t: original(d, o, t, backup_dir=tmp_path / "bk"),
+        )
+        monkeypatch.setattr(db, "close", lambda: None)  # main fecha; fixture também
+
+    def test_nada_a_migrar(self, db, tmp_path, monkeypatch, capsys) -> None:
+        self._patch(monkeypatch, db, tmp_path)
+        assert mig.main(["--de", "web", "--para", "alex"]) == 0
+        assert "nada a migrar" in capsys.readouterr().out
+
+    def test_dry_run_nao_move(self, db, tmp_path, monkeypatch, capsys) -> None:
+        _semear(db, "web", "guardian", ["a", "b"])
+        self._patch(monkeypatch, db, tmp_path)
+        assert mig.main(["--de", "web", "--para", "alex"]) == 0
+        out = capsys.readouterr().out
+        assert "baldes encontrados" in out and "dry-run" in out
+        assert db.scalar(
+            "SELECT COUNT(*) FROM conversation_messages WHERE user_id = 'web'"
+        ) == 2
+
+    def test_apply_migra(self, db, tmp_path, monkeypatch, capsys) -> None:
+        _semear(db, "web", "guardian", ["a"])
+        self._patch(monkeypatch, db, tmp_path)
+        assert mig.main(["--de", "web", "--para", "alex", "--apply"]) == 0
+        out = capsys.readouterr().out
+        assert "movidas: 1" in out
+        assert db.scalar(
+            "SELECT COUNT(*) FROM conversation_messages WHERE user_id = 'web'"
+        ) == 0
+        assert db.scalar(
+            "SELECT COUNT(*) FROM conversation_messages WHERE user_id = 'alex'"
+        ) == 1

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import io
 import json
+import types
 import urllib.error
 
 import pytest
@@ -31,6 +32,18 @@ from integrations.telegram import (
     TransportConfigError,
     TransportError,
     build_default_commands,
+)
+from integrations.telegram.commands import (
+    CommandContext,
+    _cache,
+    _classificar_risco,
+    _entrar,
+    _executa_handler,
+    _gerar_handler,
+    _historico,
+    _parse_param_value,
+    _perfil,
+    _sair,
 )
 from integrations.telegram.models import Message, Update, User, Voice
 from tools.actions import build_registry
@@ -1287,3 +1300,252 @@ class TestTelegramBotGerar:
         # comando desconhecido sem auto_extension → vai ao Orchestrator (None)
         assert transport.sent_texts[-1]
         bot.close()
+
+
+# ===========================================================================
+# Bordas dos handlers (chamada direta — sem polling)
+# ===========================================================================
+
+def _ctx(args=None, *, is_admin=True, chat_id=10, command="executa") -> CommandContext:
+    """CommandContext para exercitar um handler direto."""
+    return CommandContext(
+        command=command,
+        raw="/" + command,
+        chat_id=chat_id,
+        user_id=ADMIN if is_admin else USER,
+        is_admin=is_admin,
+        args=list(args or []),
+    )
+
+
+class _StubBot:
+    """Bot mínimo: só os métodos que os handlers locais usam."""
+
+    def __init__(self, **attrs) -> None:
+        self._profile = "guardian"
+        for key, value in attrs.items():
+            setattr(self, key, value)
+
+    def get_profile(self, chat_id: int) -> str:
+        return self._profile
+
+    def set_profile(self, chat_id: int, name: str) -> None:
+        self._profile = name
+
+
+class _FakeUserStore:
+    """UserStore falso para /entrar e /sair."""
+
+    def __init__(self, *, verify=True, link=True, unlink=True) -> None:
+        self._verify = verify
+        self._link = link
+        self._unlink = unlink
+
+    def verify_credentials(self, usuario: str, senha: str) -> bool:
+        return self._verify
+
+    def link_telegram(self, chat_id: int, usuario: str) -> bool:
+        return self._link
+
+    def unlink_telegram(self, chat_id: int) -> bool:
+        return self._unlink
+
+
+class _FakeResult:
+    def __init__(self, status="ok", data=None, error=None, errors=None) -> None:
+        self.status = status
+        self.data = {} if data is None else data
+        self.error = error
+        self.errors = list(errors or [])
+
+
+class _FakeRegistry:
+    """ActionRegistry falso: resultado (ou exceção) configurável."""
+
+    class metrics:  # noqa: N801 — espelha o atributo real do registry
+        actions = 4
+
+    def __init__(self, result=None, *, has=True, names=None) -> None:
+        self._result = result if result is not None else _FakeResult()
+        self._has = has
+        self._names = names or []
+
+    def has(self, name: str) -> bool:
+        return self._has
+
+    def find(self):
+        return [types.SimpleNamespace(name=n) for n in self._names]
+
+    async def execute(self, name, params=None, role=None):
+        if isinstance(self._result, BaseException):
+            raise self._result
+        return self._result
+
+
+class TestHandlersBorda:
+    """Ramos não triviais dos handlers locais (erros, bordas e parsing)."""
+
+    # -- /perfil ---------------------------------------------------------
+    def test_perfil_define_e_rejeita_desconhecido(self) -> None:
+        bot = _StubBot()
+        assert _perfil(bot, _ctx(["nyx"])) == "Perfil alterado para *nyx*."
+        assert "desconhecido" in _perfil(bot, _ctx(["inexistente"]))
+
+    # -- /entrar e /sair -------------------------------------------------
+    def test_entrar_bordas(self) -> None:
+        assert "Login indisponível" in _entrar(_StubBot(), _ctx(["a", "b"]))
+        assert "Uso" in _entrar(_StubBot(user_store=_FakeUserStore()), _ctx(["a"]))
+        assert "inválidos" in _entrar(
+            _StubBot(user_store=_FakeUserStore(verify=False)), _ctx(["a", "b"])
+        )
+        assert "não encontrada" in _entrar(
+            _StubBot(user_store=_FakeUserStore(link=False)), _ctx(["a", "b"])
+        )
+        assert "✅" in _entrar(
+            _StubBot(user_store=_FakeUserStore()), _ctx(["a", "b"])
+        )
+
+    def test_sair_bordas(self) -> None:
+        assert "Sem vínculo" in _sair(_StubBot(), _ctx([]))
+        assert "removido" in _sair(
+            _StubBot(user_store=_FakeUserStore(unlink=True)), _ctx([])
+        )
+        assert "não tinha vínculo" in _sair(
+            _StubBot(user_store=_FakeUserStore(unlink=False)), _ctx([])
+        )
+
+    # -- /historico ------------------------------------------------------
+    def test_historico_bordas(self) -> None:
+        assert "indisponível" in _historico(
+            _StubBot(history_lines=lambda uid, lim: None), _ctx([])
+        )
+        assert "Nenhuma mensagem" in _historico(
+            _StubBot(history_lines=lambda uid, lim: []), _ctx(["5"])
+        )
+        # arg não numérico → ValueError tratado; '7' define o limite
+        assert _historico(
+            _StubBot(history_lines=lambda uid, lim: ["linha"]),
+            _ctx(["abc", "7"]),
+        ) == "linha"
+
+    # -- /cache ----------------------------------------------------------
+    def test_cache_bordas(self) -> None:
+        assert "Orchestrator" in _cache(_StubBot(cache_stats=lambda: None), _ctx(["x"]))
+        bot = _StubBot(cache_stats=lambda: "stats", clear_cache=lambda: "limpo")
+        assert "Cache LLM" in _cache(bot, _ctx(["x"]))
+        assert _cache(bot, _ctx(["limpar"])) == "limpo"
+
+    # -- /executa --------------------------------------------------------
+    @pytest.mark.asyncio
+    async def test_executa_sem_registry(self) -> None:
+        bot = _StubBot(action_registry=None)
+        assert "não disponível" in await _executa_handler(bot, _ctx([]))
+
+    @pytest.mark.asyncio
+    async def test_executa_sem_args_mostra_uso(self) -> None:
+        bot = _StubBot(action_registry=_FakeRegistry())
+        assert "Uso" in await _executa_handler(bot, _ctx([]))
+
+    @pytest.mark.asyncio
+    async def test_executa_action_list_trunca_e_conta(self) -> None:
+        reg = _FakeRegistry(_FakeResult(data={"actions": [f"a{i}" for i in range(25)]}))
+        txt = await _executa_handler(_StubBot(action_registry=reg), _ctx(["action_list"]))
+        assert "*Actions (25):*" in txt and "e mais 5" in txt
+
+    @pytest.mark.asyncio
+    async def test_executa_action_list_erro_e_excecao(self) -> None:
+        reg = _FakeRegistry(_FakeResult(status="error", error="falhou"))
+        assert await _executa_handler(
+            _StubBot(action_registry=reg), _ctx(["action_list"])
+        ) == "Erro: falhou"
+        reg_exc = _FakeRegistry(RuntimeError("boom"))
+        assert "Erro ao listar actions" in await _executa_handler(
+            _StubBot(action_registry=reg_exc), _ctx(["action_list"])
+        )
+
+    @pytest.mark.asyncio
+    async def test_executa_desconhecida_sem_sugestao(self) -> None:
+        reg = _FakeRegistry(has=False, names=[])
+        txt = await _executa_handler(_StubBot(action_registry=reg), _ctx(["zzz"]))
+        assert "Use `/executa action_list`" in txt
+
+    @pytest.mark.asyncio
+    async def test_executa_gate_por_nivel_sem_admin(self) -> None:
+        reg = _FakeRegistry()
+        nivel1 = await _executa_handler(
+            _StubBot(action_registry=reg), _ctx(["service_restart"], is_admin=False)
+        )
+        assert "Nível 1" in nivel1
+        nivel2 = await _executa_handler(
+            _StubBot(action_registry=reg), _ctx(["filesystem_delete"], is_admin=False)
+        )
+        assert "Nível 2" in nivel2
+
+    @pytest.mark.asyncio
+    async def test_executa_parametros_e_objeto_grande(self) -> None:
+        reg = _FakeRegistry(_FakeResult(data={"grande": list(range(100)), "n": 1}))
+        txt = await _executa_handler(
+            _StubBot(action_registry=reg),
+            _ctx(["system_info", "semigual", "path=/tmp/x"]),
+        )
+        assert "objeto grande" in txt and "n: 1" in txt
+
+    @pytest.mark.asyncio
+    async def test_executa_data_string_e_escalar(self) -> None:
+        reg = _FakeRegistry(_FakeResult(data="texto puro"))
+        assert await _executa_handler(
+            _StubBot(action_registry=reg), _ctx(["system_info"])
+        ) == "*Resultado:* texto puro"
+        reg2 = _FakeRegistry(_FakeResult(data=42))
+        assert await _executa_handler(
+            _StubBot(action_registry=reg2), _ctx(["system_info"])
+        ) == "*Resultado:* 42"
+
+    @pytest.mark.asyncio
+    async def test_executa_status_alternativos(self) -> None:
+        negado = _FakeRegistry(_FakeResult(status="denied", error="sem permissão"))
+        assert "⛔ Negado" in await _executa_handler(
+            _StubBot(action_registry=negado), _ctx(["system_info"])
+        )
+        invalido = _FakeRegistry(_FakeResult(status="invalid", errors=["faltou x"]))
+        assert "Parâmetros inválidos: faltou x" in await _executa_handler(
+            _StubBot(action_registry=invalido), _ctx(["system_info"])
+        )
+        erro = _FakeRegistry(_FakeResult(status="error", error="quebrou"))
+        assert "❌ Erro: quebrou" in await _executa_handler(
+            _StubBot(action_registry=erro), _ctx(["system_info"])
+        )
+        estranho = _FakeRegistry(_FakeResult(status="weird", error="?") )
+        assert "status=weird" in await _executa_handler(
+            _StubBot(action_registry=estranho), _ctx(["system_info"])
+        )
+        exc = _FakeRegistry(RuntimeError("kaboom"))
+        assert "Erro ao executar" in await _executa_handler(
+            _StubBot(action_registry=exc), _ctx(["system_info"])
+        )
+
+    # -- /gerar ----------------------------------------------------------
+    @pytest.mark.asyncio
+    async def test_gerar_sem_extension_direto(self) -> None:
+        assert "não conectado" in await _gerar_handler(_StubBot(), _ctx(["x", "y"]))
+
+    @pytest.mark.asyncio
+    async def test_gerar_uso_curto(self) -> None:
+        bot = _StubBot(auto_extension=object())
+        assert "Uso" in await _gerar_handler(bot, _ctx(["x"]))
+
+    # -- helpers puros ---------------------------------------------------
+    def test_classificar_risco_niveis(self) -> None:
+        assert _classificar_risco("system_info") == 0
+        assert _classificar_risco("service_restart") == 1
+        assert _classificar_risco("filesystem_delete") == 2
+        assert _classificar_risco("inexistente_xyz") == 0
+
+    def test_parse_param_value_tipos(self) -> None:
+        assert _parse_param_value("true") is True
+        assert _parse_param_value("no") is False
+        assert _parse_param_value("42") == 42
+        assert _parse_param_value("3.5") == 3.5
+        assert _parse_param_value("'x'") == "x"
+        assert _parse_param_value('"y"') == "y"
+        assert _parse_param_value("texto") == "texto"

@@ -84,6 +84,14 @@ Bump parcial quebra a suíte. Verificado com 5 mutações (todas detectadas
 e revertidas) + a mutação 2018→2017 de 2026-09-28 (detectada, revertida
 bit-exata).
 
+**Guarda de checkout limpo (2026-10-02):** a CI roda em checkout limpo onde o
+próprio `.env` (gitignored) não existe. `test_env_e_capabilities_na_mesma_versao`
+lia o `.env` sem guarda e derrubava a suíte com `FileNotFoundError` ANTES de
+rodar os testes. `_env_version()` agora devolve `None` quando o arquivo não
+existe e o teste pula com motivo — sem `.env` não há estado local a validar, e
+a verdade passa a ser o fallback congelado (coberto por
+`test_fallback_congelado_e_a_versao_vigente`).
+
 **Guarda de ordem do CHANGELOG (2026-09-29):**
 `test_changelog_secoes_em_ordem_cronologica` exige as seções `## [X.Y.Z]`
 em ordem ESTRITAMENTE descendente (mais recente no topo, sem cabeçalho

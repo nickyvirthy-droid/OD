@@ -14,6 +14,26 @@
 
 ---
 
+## Infra — CI verde em checkout limpo + gate de cobertura ≥ 90% (2026-10-02, sem bump)
+
+- **CI quebrava em checkout limpo:** `tests/test_version_policy.py` lia o `.env`
+  (gitignored) sem guarda de existência — no GitHub o arquivo não existe e a
+  suíte morria com `FileNotFoundError` antes de rodar. Correção:
+  `_env_version()` devolve `None` quando o `.env` não existe e o teste
+  `test_env_e_capabilities_na_mesma_versao` **pula com motivo** (sem `.env`
+  não há estado local a validar; a verdade passa a ser o fallback congelado,
+  coberto por `test_fallback_congelado_e_a_versao_vigente`).
+- **Gate de cobertura ≥ 90% estava vermelho** (89,33%): cobertura focada em
+  ramos reais sem teste — `/executa` (action_list, gate por nível, status
+  denied/invalid/error, parsing de params), `/entrar`, `/sair`, `/historico`,
+  `/cache` e `/gerar`; CLI `migrate_history_owner.main()` (dry-run/apply, com o
+  snapshot redirecionado para `tmp_path`); `WhisperSTT._convert_to_wav` +
+  transcrição vazia/WAV inválido. Resultado: **90,17%** (12592 stmts, 1238
+  perdidas).
+- Suíte: **2175 passed, 16 skipped** (+26); `compileall` limpo. Sem bump: é
+  infraestrutura de teste/CI, sem mudança de comportamento em produção (mesmo
+  precedente do orquestrador de CLIs de 2026-09-30).
+
 ## [1.17.4] — APK UNIVERSAL ÍNTEGRO: 3 ABIs com libflutter+libapp de verdade 📦 (2026-10-01)
 
 - **fix(app,build): o APK "completo" publicado não era completo** — os

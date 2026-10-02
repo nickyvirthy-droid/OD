@@ -36,6 +36,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Optional
+
+import pytest
 
 from core.capabilities import OD_VERSION
 
@@ -48,8 +51,20 @@ def _read(rel_path: str) -> str:
     return (ROOT / rel_path).read_text(encoding="utf-8")
 
 
-def _env_version() -> str:
-    match = re.search(r"^OD_VERSION=(\S+)\s*$", _read(".env"), re.MULTILINE)
+def _env_version() -> Optional[str]:
+    """OD_VERSION do `.env` da raiz, ou None em checkout limpo (sem .env).
+
+    O `.env` é gitignored — no CI ele não existe e a versão vigente passa a
+    ser o fallback congelado de core/capabilities.py (garantido pelo teste
+    `test_fallback_congelado_e_a_versao_vigente`). Sem esta guarda o CI
+    quebrava com FileNotFoundError em checkout limpo (achado de 2026-09-30).
+    """
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return None
+    match = re.search(
+        r"^OD_VERSION=(\S+)\s*$", env_path.read_text(encoding="utf-8"), re.MULTILINE
+    )
     assert match, ".env sem a linha OD_VERSION — política §3 violada"
     return match.group(1)
 
@@ -97,9 +112,17 @@ class TestVersionPolicy:
         )
 
     def test_env_e_capabilities_na_mesma_versao(self) -> None:
-        """A fonte da verdade (.env) bate com a versão resolvida em runtime."""
-        assert _env_version() == OD_VERSION, (
-            f".env tem {_env_version()} mas core.capabilities resolveu {OD_VERSION}"
+        """A fonte da verdade (.env) bate com a versão resolvida em runtime.
+
+        Em checkout limpo (CI) o `.env` não existe: não há estado local a
+        validar, então o teste é pulado — o fallback congelado continua
+        coberto por `test_fallback_congelado_e_a_versao_vigente`.
+        """
+        env_version = _env_version()
+        if env_version is None:
+            pytest.skip(".env ausente (checkout limpo/CI) — fallback é a verdade")
+        assert env_version == OD_VERSION, (
+            f".env tem {env_version} mas core.capabilities resolveu {OD_VERSION}"
         )
 
     def test_fallback_congelado_e_a_versao_vigente(self) -> None:

@@ -196,6 +196,85 @@ class TestSTT:
         assert snap["enabled"] is True
         assert "binary" in snap and "model" in snap
 
+    def test_convert_to_wav_sucesso(self, tmp_path: Path, monkeypatch) -> None:
+        stt = WhisperSTT(stt_config(tmp_path))
+
+        async def fake_exec(*args, **kwargs):
+            return FakeProc(returncode=0)
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+        async def run() -> None:
+            assert await stt._convert_to_wav(
+                tmp_path / "in.ogg", tmp_path / "out.wav"
+            ) is True
+
+        asyncio.run(run())
+
+    def test_convert_to_wav_falha_returncode(self, tmp_path: Path, monkeypatch) -> None:
+        stt = WhisperSTT(stt_config(tmp_path))
+
+        async def fake_exec(*args, **kwargs):
+            return FakeProc(returncode=1, stderr=b"codec invalido")
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+        async def run() -> None:
+            assert await stt._convert_to_wav(
+                tmp_path / "in.ogg", tmp_path / "out.wav"
+            ) is False
+
+        asyncio.run(run())
+
+    def test_convert_to_wav_timeout(self, tmp_path: Path, monkeypatch) -> None:
+        stt = WhisperSTT(stt_config(tmp_path))
+
+        class SlowProc(FakeProc):
+            async def communicate(self, input: bytes = b""):
+                raise asyncio.TimeoutError()
+
+        async def fake_exec(*args, **kwargs):
+            return SlowProc()
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+        async def run() -> None:
+            assert await stt._convert_to_wav(
+                tmp_path / "in.ogg", tmp_path / "out.wav"
+            ) is False
+
+        asyncio.run(run())
+
+    def test_transcribe_wav_texto_vazio(self, tmp_path: Path, monkeypatch) -> None:
+        stt = WhisperSTT(stt_config(tmp_path))
+
+        async def fake_exec(*args, **kwargs):
+            return FakeProc(returncode=0)
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+        wav = make_wav(tmp_path / "fala.wav")
+        (tmp_path / "fala.txt").write_text("\n", encoding="utf-8")
+
+        async def run() -> None:
+            assert await stt.transcribe_wav(wav) is None
+
+        asyncio.run(run())
+
+    def test_transcribe_sem_wav_valido(self, tmp_path: Path, monkeypatch) -> None:
+        """Conversão retorna True mas não gera WAV → transcribe devolve None."""
+        stt = WhisperSTT(stt_config(tmp_path))
+
+        async def fake_convert(input_path, wav_path) -> bool:
+            return True  # não cria o arquivo de propósito
+
+        monkeypatch.setattr(stt, "_convert_to_wav", fake_convert)
+        inp = make_wav(tmp_path / "entrada.ogg")
+
+        async def run() -> None:
+            assert await stt.transcribe(inp) is None
+
+        asyncio.run(run())
+
 
 # ─── TTS ───────────────────────────────────────────────────────────────────
 
