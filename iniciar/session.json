@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-01T22:0x:00-03:00",
+  "updated_at": "2026-10-01T23:12:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1028,10 +1028,17 @@
     "verificacao": "HEAD 8c1a2a9 == origin/master (v1.17.2 registrada — §8); working tree limpo; estado herdado: v1.17.2 NO AR (PID 1281250, restart 16:4x), od-llm ativo (qwen2.5-coder-3b), od-orchestrator ativo (canal de desenvolvimento).",
     "estado": "RETOMADA CONCLUÍDA — pendências do dono intactas: (1) APK 1.17.2+2035 no celular; (2) desejos do txt.txt (voz, Drive, Agenda, Gmail); (3) 2 achados de infra (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer."
   },
-  "retomada_2026_10_01_2": {
-    "pedido": "Usuário: 'leia iniciar' — retomada (~17:2x de 01/10).",
-    "verificacao": "HEAD 8c1a2a9 == origin/master (v1.17.2 registrada — §8); working tree limpo; estado herdado: v1.17.2 NO AR (PID 1281250, restart 16:4x), od-llm ativo (qwen2.5-coder-3b), od-orchestrator ativo (canal de desenvolvimento).",
-    "estado": "RETOMADA CONCLUÍDA — pendências do dono intactas: (1) APK 1.17.2+2035 no celular; (2) desejos do txt.txt (voz, Drive, Agenda, Gmail); (3) 2 achados de infra (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer."
+  "retomada_2026_10_01_3": {
+    "pedido": "Usuário: 'leia os arquivos da pasta iniciar' — retomada (~23:12 de 01/10).",
+    "leitura": "README.md, RULES.md, session.json (integro, 1057 linhas) e transcrição de 01/10 (§1–§7).",
+    "verificacao_no_ar": "od-core active desde 23:06:41 (PID 1239, NRestarts=0); /app/version {1.17.3, code 2036}; /health 200; working tree LIMPO.",
+    "acoes": [
+      "HEAD 402072f (checkpoint v1.17.3) estava 1 commit à frente de origin/master → PUSH feito (regra 7.1): b3a350d..402072f; agora HEAD == origin/master.",
+      "Chave 'retomada_2026_10_01_2' DUPLICADA no session.json (2 blocos idênticos adjacentes) → cópia repetida removida nesta edição.",
+      "updated_at era placeholder '22:0x' → corrigido para 23:12."
+    ],
+    "achado_registro": "Transcrição 2026-10-01 termina na §7 (v1.17.1), mas session.json referencia §8 (v1.17.2, commit 8c1a2a9) e §9 (v1.17.3) — faltam as duas seções no arquivo de transcrição. A completar a partir das entradas v172/v1173 do próprio session.json.",
+    "estado": "RETOMADA CONCLUÍDA — v1.17.3 NO AR. Pendências do dono intactas: (1) APK 1.17.3+2036 no celular; (2) desejos do txt.txt: Google Drive, Agenda, Gmail (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer. Pendência de registro: §8/§9 da transcrição de 01/10."
   },
   "last_turn": {
     "date": "2026-10-01",
