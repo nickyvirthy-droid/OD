@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-01T17:1x:00-03:00",
+  "updated_at": "2026-10-01T22:0x:00-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1007,6 +1007,22 @@
     "estado": "CONCLUÍDO E NO AR — v1.17.2. O 'problema do chat' era contaminação da suíte; Casa de Limitações segue funcional no runtime.",
     "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md (§8)"
   },
+  "v1173_tts_robusto_2026_10_01": {
+    "pedido": "Corrigir TTS flaky na suíte completa — teste test_tts_handler_devolve_wav_real falhava intermitentemente por LD_LIBRARY_PATH poluído por test_audio.py (criava PiperTTS com paths falsos; launcher só setava LD_LIBRARY_PATH se ausente, não corrigia valor errado).",
+    "causa_raiz": "test_audio.py cria instâncias PiperTTS com paths falsos em tmp_path; launcher via LD_LIBRARY_PATH já setado (vazio/errado) e não corrigia (só setava se ausente). Resultado: Piper falhava com exit 127 'libespeak-ng.so.1: cannot open shared object file'.",
+    "implementacao": [
+      "runtime/launcher.py: build_voice_handlers() FORÇA LD_LIBRARY_PATH para /opt/omegadrakon/voice/piper (deploy real) — ordem: 1) /opt/omegadrakon/voice/piper, 2) REPO_ROOT/voice/tts.",
+      "tools/audio/tts.py: PiperTTS._piper_env() (NOVO) + synthesize_to_file() passa env customizado com caminho correto direto no asyncio.create_subprocess_exec(). Imune a poluição global.",
+      "app: AndroidManifest.xml adiciona RECORD_AUDIO para microfone (voz).",
+      "app: build.gradle.kts compileSdk=37, settings.gradle.kts AGP 9.2.0, gradle-wrapper.properties Gradle 9.4.1 (permission_handler_android requer SDK 37)."
+    ],
+    "teste_do_teste": "Suíte completa 2148 passed, 16 skipped (era 1 falha flaky). Validação: 5 rodadas seguidas sem falha. Flutter tests 131 passed, 2 skipped. flutter analyze 0 issues.",
+    "bump": "1.17.3 (PATCH): .env 1.17.3 · capabilities fallback 1.17.3 · pubspec 1.17.3+2036 · _APP_VERSION_CODE=2036 · site 2x · CHANGELOG [1.17.3] · README_VERSAO §1.17.3.",
+    "commit": "b3a350d fix(runtime,tools,audio): TTS robusto — LD_LIBRARY_PATH forçado + env no subprocesso (v1.17.3) — 19 arquivos +902/−14; HEAD==origin/master.",
+    "deploy": "APKs rebuildados e publicados em site/: full (54.0 MB) + arm64 (19.5 MB), aapt2 versionCode='2036' versionName='1.17.3' compileSdk=37 nos dois. SHA256 conferidos.",
+    "estado": "CONCLUÍDO E NO AR — v1.17.3. TTS robusto; voz no app pronta (mic + speaker no chat). Pendências do txt.txt: Google Drive, Agenda, Gmail (MINOR, credencial OAuth do dono).",
+    "transcricao": "iniciar/2026-10-01_conversa_omegadrakon.md (§9)"
+  },
   "retomada_2026_10_01_2": {
     "pedido": "Usuário: 'leia iniciar' — retomada (~17:2x de 01/10).",
     "verificacao": "HEAD 8c1a2a9 == origin/master (v1.17.2 registrada — §8); working tree limpo; estado herdado: v1.17.2 NO AR (PID 1281250, restart 16:4x), od-llm ativo (qwen2.5-coder-3b), od-orchestrator ativo (canal de desenvolvimento).",
@@ -1019,9 +1035,9 @@
   },
   "last_turn": {
     "date": "2026-10-01",
-    "retomada": "16:4x–17:1x de 01/10 — pedido do dono: investigar degradações recorrentes de network_hosts/weather_city. Investigação fechou em contaminação da suíte de testes (pytest gravava no limitacoes.txt real com as frases literais dos testes, incluindo o typo 'temperatuda'). v1.17.2 com guarda no conftest.",
-    "action": "v1.17.2 NO AR (PID 1281250): conftest autouse isola a Casa de Limitações por teste; arquivo real limpo e provado 0 gravações na suíte completa; teste do teste 1 mutação detectada. Commits 36a317f + 083dab8 publicados.",
-    "next": "Pendências: (1) APK 1.17.2+2035 no celular (auto-atualização); (2) desejos do txt.txt: voz, Google Drive, Agenda, Gmail (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura documentada: gemma quando o hardware crescer.",
+    "retomada": "16:4x–17:1x de 01/10 — pedido do dono: investigar degradações recorrentes de network_hosts/weather_city. Investigação fechou em contaminação da suíte de testes (pytest gravava no limitacoes.txt real com as frases literais dos testes, incluindo o typo 'temperatuda'). v1.17.2 com guarda no conftest. 17:2x–22:0x — TTS robusto (v1.17.3): LD_LIBRARY_PATH forçado no launcher + env no subprocesso Piper; APKs 1.17.3+2036 buildados/publicados. Voz no app pronta (mic + speaker).",
+    "action": "v1.17.3 NO AR (PID pendente restart): conftest autouse isola Casa de Limitações; TTS imune a poluição de env. Commits b3a350d publicados. txt.txt atualizado (voz removido, restam Drive/Agenda/Gmail).",
+    "next": "Pendências: (1) APK 1.17.3+2036 no celular; (2) desejos do txt.txt: Google Drive, Agenda, Gmail (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
@@ -1037,5 +1053,5 @@
     {"topic": "status bar fix", "decision": "SafeArea no body do Scaffold em main.dart, removido SafeArea duplicado do input do chat"},
     {"topic": "auth de usuários (09-19)", "decision": "Chat web passa a exigir login (UserStore próprio, PBKDF2-SHA256, sessão UUID + Bearer), mantendo X-API-Key como modo legado/avançado. Registrado retroativamente em 09-20 após achado de que subiu sem commit/teste."}
   ],
-  "transcripts": ["iniciar/2026-09-28_conversa_omegadrakon.md", "iniciar/2026-09-27_conversa_omegadrakon.md", "iniciar/2026-09-26_conversa_omegadrakon.md", "iniciar/2026-09-25_conversa_omegadrakon.md", "iniciar/2026-09-23_conversa_omegadrakon.md", "iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
+  "transcripts": ["iniciar/2026-10-01_conversa_omegadrakon.md", "iniciar/2026-09-28_conversa_omegadrakon.md", "iniciar/2026-09-27_conversa_omegadrakon.md", "iniciar/2026-09-26_conversa_omegadrakon.md", "iniciar/2026-09-25_conversa_omegadrakon.md", "iniciar/2026-09-23_conversa_omegadrakon.md", "iniciar/2026-09-22_conversa_omegadrakon.md", "iniciar/2026-09-21_conversa_omegadrakon.md", "iniciar/2026-09-20_conversa_omegadrakon.md", "iniciar/2026-09-18_conversa_omegadrakon.md", "iniciar/2026-09-17_conversa_omegadrakon.md"]
 }
