@@ -22,11 +22,11 @@ from core.logger import LogLevel, get_logger
 WS_LOG_NAME = "omega.integrations.api.ws"
 
 
-def _espera_registro(logger, trecho: str, timeout: float = 3.0) -> bool:
-    """Espera um registro com `trecho` na mensagem (evidência positiva)."""
+def _espera_registro(logger, *trechos: str, timeout: float = 3.0) -> bool:
+    """Espera um registro com UM dos `trechos` na mensagem (evidência positiva)."""
     limite = time.time() + timeout
     while time.time() < limite:
-        if any(trecho in r.message for r in logger.records):
+        if any(any(t in r.message for t in trechos) for r in logger.records):
             return True
         time.sleep(0.05)
     return False
@@ -488,7 +488,12 @@ class TestWebSocketProtocolo:
                     sock.settimeout(2.0)
                     sock.connect(("127.0.0.1", server.bound_port))
                 # Fecha sem enviar nada: o servidor vê EOF no handshake.
-            assert _espera_registro(ws_log, "opening handshake failed")
+            # websockets ≤16 loga `opening handshake failed`; a 17+ virou
+            # `no valid HTTP request` (mudança de mensagem, mesma prova: o log
+            # da biblioteca saiu pelo NOSSO logger — pino (a) acima).
+            assert _espera_registro(
+                ws_log, "opening handshake failed", "no valid HTTP request"
+            )
 
             # Nada saiu direto pelo logging da biblioteca (nem traceback).
             assert coletor.records == []
