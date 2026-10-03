@@ -7,6 +7,23 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.18.0] — GOOGLE DRIVE/AGENDA/GMAIL EM LEITURA + CI VERDE 🌐 (2026-10-03)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | Pendência do txt.txt desde 30/09: "acessar meu google drive/agenda/caixa de e-mail (ler)" — a integração de 02/10 estava commitada mas dormente até a credencial OAuth do dono. |
+| **OAuth sem copiar/colar** | Rota B (túnel) concluída: capturador no servidor (`127.0.0.1:8766`, helper em modo servidor) + `tools/google_oauth_helper.py` + `/site/google_auth.html` + `/site/google_apis.html` (3 botões ENABLE). Token em `data/google_token.json` (0600, refresh, 3 escopos readonly). **Regra 14** criada no `iniciar/RULES.md`: o dono não copia/colava no terminal — canal de troca = `txt.txt`, de preferência páginas clicáveis. |
+| **Prova viva 3/3** | e-mails → 10 mensagens com assunto/remetente reais; agenda → consulta real; Drive → 20 arquivos reais; `/capabilities` 71 actions; journal 0 erros. |
+| **fix(google)** | `urlencode` sem `doseq` fazia `metadataHeaders` virar repr de Python → Gmail sem cabeçalhos ("(sem assunto)" em tudo). Corrigido nos 2 métodos do `GoogleClient` + teste (mutação detectada). Achado pela própria prova viva. |
+| **fix(test,ci) — CI VERDE** | 177 runs vermelhos desde 15/09 (o "CI verde" de 02/10 era local). Causas: websockets 17.1 (mensagem do handshake) + 5 testes dependentes do HOST. Fixes: trechos alternativos no `_espera_registro`; `THERMAL_DIR`/`HWMON_DIR` + sysfs de fixture; STT/Piper dublês; `--espeak_data` com diretório fixture; 2 canários `skipif` (cobertura única medida: 90,19% sem eles); anotações `::error::` públicas no `ci.yml` (diagnóstico sem login). Run **`433458e` = success**. |
+| **Resultado** | Suíte Python **2241 passed, 16 skipped** · `flutter analyze` 0 issues · `flutter test` **131 passed, 2 skipped** · simulação CI-exata **2240 passed, 90,15%**. |
+
+### 2. bump MINOR
+
+Infra de teste visível no repo: `.env 1.18.0` · capabilities fallback `1.18.0` · `pubspec 1.18.0+2038` · `_APP_VERSION_CODE=2038` · `site 2x` · APKs rebuildados (aapt2 `versionCode='2038' versionName='1.18.0'`; full 53.972.629 B `cbe5b390…`, arm64 19.245.103 B `7618fb6e…`; anteriores em `backups/apk-v1.17.4+2037-20261003/`) · `CHANGELOG [1.18.0]` · este README.
+
 ## [1.17.4] — APK UNIVERSAL ÍNTEGRO: 3 ABIs com libflutter+libapp de verdade 📦 (2026-10-01)
 
 ### 1. O que foi feito

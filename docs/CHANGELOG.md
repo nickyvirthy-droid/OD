@@ -14,7 +14,47 @@
 
 ---
 
-## Integração Google Workspace — leitura (2026-10-02, sem bump)
+## [1.18.0] — GOOGLE DRIVE/AGENDA/GMAIL EM LEITURA + CI VERDE 🌐 (2026-10-03)
+
+- **feat(google): OAuth do dono concluído e provado no ar** — fluxo SEM
+  copiar/colar (regra 14): `tools/google_oauth_helper.py` + página pública
+  `/site/google_auth.html` + redirect `localhost:8766` com capturador no
+  servidor (Rota B/Túnel). Token em `data/google_token.json` (0600,
+  `refresh` presente, 3 escopos readonly); od-core reiniciado com
+  `autorizado=True`.
+- **Prova viva 3/3 no chat:** "liste meus emails recentes" → 10 mensagens
+  com assunto e remetente REAIS; agenda → consulta real (0 compromissos em
+  7 dias); Drive → 20 arquivos reais. `/capabilities` 71 actions · journal
+  0 erros · `/supervision` restarts 0.
+- **fix(google): `metadataHeaders` vira parâmetro repetido (doseq)** — a
+  prova pegou os 10 e-mails "sem assunto": `urlencode` sem `doseq`
+  codificava a lista como repr de Python na URL e o Gmail respondia sem
+  cabeçalhos. Corrigido nos dois métodos do `GoogleClient` + teste que
+  fixa o contrato (mutação detectada e revertida).
+- **Ativação sem digitar:** `/site/google_apis.html` (3 botões ENABLE →
+  Console) + links no `txt.txt` (canal do dono). **Regra 14** do
+  `iniciar/RULES.md`: o dono não copia/colava no terminal — troca de
+  informação pelo `txt.txt` e páginas clicáveis em `site/`.
+- **fix(test,ci): CI VERDE no GitHub** — 177 runs vermelhos desde 15/09
+  (último verde `5668b27`): websockets 17.1 trocou a mensagem de log do
+  handshake e 5 testes dependiam do HOST (sysfs térmico, whisper-cli,
+  piper, `/opt/omegadrakon`). Correções: `_espera_registro` com trechos
+  alternativos; `cpu_temp` lendo `THERMAL_DIR`/`HWMON_DIR` (constantes) com
+  sysfs de fixture + teste de degradação sem sensor; gates de voz com
+  STT/Piper dublê; flag `--espeak_data` com diretório fixture; 2 canários
+  reais com `skipif` (cobertura única deles medida: 90,19% sem eles).
+  `ci.yml` ganhou anotações `::error::` públicas (diagnóstico sem login).
+  Run **`433458e` = success**.
+- **bump MINOR:** `.env 1.18.0` · capabilities `1.18.0` · `pubspec
+  1.18.0+2038` · `_APP_VERSION_CODE=2038` · `site 2x` · APKs rebuildados
+  (aapt2 `versionCode='2038' versionName='1.18.0'`; full `cbe5b390…`,
+  arm64 `7618fb6e…`; anteriores em `backups/apk-v1.17.4+2037-20261003/`).
+- **Evidência:** suíte **2241 passed, 16 skipped** · cobertura ≥ 90% ·
+  `flutter analyze` 0 issues · `flutter test` **131 passed, 2 skipped** ·
+  simulação CI-exata (checkout limpo + venv nova + `env -i`):
+  **2240 passed, 90,15%**.
+
+### Integração Google Workspace — leitura (2026-10-02)
 
 - **Nova integração `integrations/google/` (stdlib puro):** OAuth 2.0
   (URL de consentimento, troca de código, refresh) + cliente Bearer com
@@ -38,7 +78,7 @@
   estão prontos; a prova viva com dados reais vem no deploy). Suíte:
   **2229 passed, 16 skipped** (+54 testes novos); cobertura 90,24%.
 
-## Infra — CI verde em checkout limpo + gate de cobertura ≥ 90% (2026-10-02, sem bump)
+### Infra — CI verde em checkout limpo + gate de cobertura ≥ 90% (2026-10-02, sem bump)
 
 - **CI quebrava em checkout limpo:** `tests/test_version_policy.py` lia o `.env`
   (gitignored) sem guarda de existência — no GitHub o arquivo não existe e a
