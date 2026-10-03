@@ -387,15 +387,32 @@ class TestGoogleActions:
         finally:
             actions.configure_google_client(None)
 
-    def test_catalogo_tem_as_6_actions_de_leitura(self) -> None:
+    def test_catalogo_tem_as_6_de_leitura_e_7_de_escrita(self) -> None:
         from tools.actions import CATALOG, CATEGORIES
 
         names = {spec["name"] for spec in CATALOG if spec["category"] == "google"}
         assert names == {
+            # leitura (allowlist do papel user)
             "google_drive_list", "google_drive_read", "google_calendar_events",
             "google_gmail_list", "google_gmail_read", "google_gmail_labels",
+            # escrita (FORA da allowlist — só admin, com confirmação)
+            "google_drive_create", "google_drive_update", "google_drive_delete",
+            "google_calendar_create", "google_calendar_delete",
+            "google_gmail_send", "google_gmail_delete",
         }
-        assert CATEGORIES["google"] == 6
+        assert CATEGORIES["google"] == 13
+
+    def test_escrita_nunca_entra_na_allowlist_do_user(self) -> None:
+        """Papel user NÃO pode escrever no Google (gate admin, lote 2)."""
+        from core.security.permissions import DEFAULT_ROLE_PERMISSIONS
+
+        permitidas = set(DEFAULT_ROLE_PERMISSIONS["user"])
+        escrita = {
+            "google_drive_create", "google_drive_update", "google_drive_delete",
+            "google_calendar_create", "google_calendar_delete",
+            "google_gmail_send", "google_gmail_delete",
+        }
+        assert not (escrita & permitidas)
 
 
 # ---------------------------------------------------------------------------
@@ -749,3 +766,620 @@ class TestGmailExtras:
         assert data["count"] == 2
         assert data["messages"][0]["subject"] == ""  # placeholder da que falhou
         assert data["messages"][1]["subject"] == "Bom"
+
+
+# ---------------------------------------------------------------------------
+# Escrita (lote 2, 2026-10-03) — serviços com HTTP 100% mockado
+# ---------------------------------------------------------------------------
+
+class TestDriveEscrita:
+    def test_find_by_name_escapa_aspas_e_exige_nao_lixeira(self) -> None:
+        transport = FakeTransport(lambda m, u, d: (200, b'{"files": []}'))
+        DriveService(_client(transport)).find_by_name("o'neill\\x")
+        url = transport.calls[0]["url"]
+        assert "name+%3D+%27" in url  # name = '...'
+        assert "trashed+%3D+false" in url
+        assert "o%5C%27neill" in url  # aspas simples escapadas (URL-encoded)
+
+    def test_create_file_multipart(self) -> None:
+        transport = FakeTransport(
+            lambda m, u, d: (200, b'{"id": "f1", "name": "atas", "mimeType": "text/plain",'
+                             b' "webViewLink": "https://x/f1"}')
+        )
+        data = DriveService(_client(transport)).create_file("atas", "conteudo")
+        call = transport.calls[0]
+        assert call["method"] == "POST"
+        assert "uploadType=multipart" in call["url"]
+        assert b"multipart/related" in call["headers"]["Content-Type"].encode()
+        assert b"conteudo" in call["data"] and b'"atas"' in call["data"]
+        assert data["id"] == "f1" and data["web_view_link"] == "https://x/f1"
+
+    def test_update_content_put_media(self) -> None:
+        transport = FakeTransport(lambda m, u, d: (200, b'{"id": "f1", "name": "n"}'))
+        data = DriveService(_client(transport)).update_content("f1", "novo")
+        call = transport.calls[0]
+        assert call["method"] == "PUT" and "uploadType=media" in call["url"]
+        assert call["data"] == b"novo"
+        assert data["file_id"] == "f1"
+
+    def test_delete_file(self) -> None:
+        transport = FakeTransport(lambda m, u, d: (200, b"{}"))
+        data = DriveService(_client(transport)).delete_file("f9")
+        assert transport.calls[0]["method"] == "DELETE"
+        assert transport.calls[0]["url"].endswith("/files/f9")
+        assert data == {"file_id": "f9", "deleted": True}
+
+
+class TestCalendarEscrita:
+    def test_parse_when_hoje_e_amanha_com_e_sem_hora(self) -> None:
+        from integrations.google.calendar import parse_when
+        import datetime as dt
+
+        agora = dt.datetime(2026, 10, 3, 9, 0, tzinfo=dt.timezone(dt.timedelta(hours=-3)))
+        com_hora = parse_when("amanhã às 15h", now=agora)
+        # 15h no fuso -03 → 18:00Z (o serviço grava em UTC)
+        assert com_hora is not None and com_hora["start"] == "2026-10-04T18:00:00Z"
+        dia = parse_when("hoje", now=agora)
+        assert dia is not None and dia["start"] == "2026-10-03"
+        assert "T" not in dia["start"]  # dia inteiro
+        assert parse_when("nunca nunca", now=agora) is None
+        assert parse_when("amanhã às 27h", now=agora) is None
+
+    def test_find_events_by_title_exato_casefold(self) -> None:
+        payload = {"items": [
+            {"id": "e1", "summary": "Reunião", "start": {"date": "2026-10-05"}},
+            {"id": "e2", "summary": "Reunião extra", "start": {"date": "2026-10-06"}},
+        ]}
+        transport = FakeTransport(lambda m, u, d: (200, json.dumps(payload).encode()))
+        achados = CalendarService(_client(transport)).find_events_by_title("reunião")
+        assert [e["id"] for e in achados] == ["e1"]  # exato, não prefixo
+
+    def test_create_event_com_hora_e_dia_inteiro(self) -> None:
+        transport = FakeTransport(
+            lambda m, u, d: (200, b'{"id": "ev1", "summary": "Dentista", '
+                             b'"start": {"dateTime": "2026-10-04T15:00:00Z"}}')
+        )
+        svc = CalendarService(_client(transport))
+        data = svc.create_event(summary="Dentista", when={
+            "start": "2026-10-04T15:00:00Z", "end": "2026-10-04T16:00:00Z",
+        })
+        call = transport.calls[0]
+        assert call["method"] == "POST"
+        assert b'"dateTime"' in call["data"]
+        assert data["id"] == "ev1"
+
+        transport2 = FakeTransport(lambda m, u, d: (200, b'{"id": "ev2"}'))
+        CalendarService(_client(transport2)).create_event(
+            summary="Feriado", when={"start": "2026-10-05", "end": "2026-10-06"}
+        )
+        assert b'"date"' in transport2.calls[0]["data"]
+
+    def test_delete_event(self) -> None:
+        transport = FakeTransport(lambda m, u, d: (200, b"{}"))
+        CalendarService(_client(transport)).delete_event("ev1")
+        assert transport.calls[0]["method"] == "DELETE"
+        assert transport.calls[0]["url"].endswith("/events/ev1")
+
+
+class TestGmailEscrita:
+    def test_send_message_monta_mime_e_base64url(self) -> None:
+        import base64 as b64
+        import urllib.parse
+
+        sent: list[dict[str, Any]] = []
+
+        def handler(method, url, data):
+            sent.append(json.loads(data.decode("utf-8")))
+            return 200, b'{"id": "m1", "threadId": "t1"}'
+
+        transport = FakeTransport(handler)
+        data = GmailService(_client(transport)).send_message(
+            to="ana@ex.com", subject="Oi", body="tudo bem"
+        )
+        assert "/messages/send" in transport.calls[0]["url"]
+        raw = sent[0]["raw"]
+        raw += "=" * (-len(raw) % 4)  # padding removido pelo serviço
+        mime = b64.urlsafe_b64decode(raw).decode("utf-8")
+        assert "To: ana@ex.com" in mime
+        assert "Subject: Oi" in mime
+        assert "tudo bem" in mime
+        assert data["id"] == "m1" and data["to"] == "ana@ex.com"
+
+    def test_trash_message(self) -> None:
+        transport = FakeTransport(
+            lambda m, u, d: (200, b'{"id": "m1", "labelIds": ["TRASH"]}')
+        )
+        data = GmailService(_client(transport)).trash_message("m1")
+        assert transport.calls[0]["method"] == "POST"
+        assert transport.calls[0]["url"].endswith("/messages/m1/trash")
+        assert data["trashed"] is True
+
+
+class TestRequestBody:
+    def test_request_body_corpo_cru_e_content_type(self) -> None:
+        transport = FakeTransport(lambda m, u, d: (200, b'{"ok": 1}'))
+        data = _client(transport).request_body(
+            "PUT", "https://g.example/u", body=b"ola", content_type="text/plain",
+            params={"uploadType": "media", "vazio": ""},
+        )
+        call = transport.calls[0]
+        assert data == {"ok": 1}
+        assert call["method"] == "PUT" and call["data"] == b"ola"
+        assert call["headers"]["Content-Type"] == "text/plain"
+        assert call["url"].endswith("?uploadType=media")  # vazio removido
+
+    def test_request_body_erro_http_vira_googleerror(self) -> None:
+        transport = FakeTransport(lambda m, u, d: (403, b'{"error": {"message": "sem escopo"}}'))
+        with pytest.raises(GoogleError, match="sem escopo"):
+            _client(transport).request_body(
+                "POST", "https://g.example/u", body=b"x", content_type="text/plain"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Confirmação de 2 passos da ESCRITA (espelho do ha_device_control)
+# ---------------------------------------------------------------------------
+
+def _write_client(handler=None) -> GoogleClient:
+    return _client(FakeTransport(handler))
+
+
+class TestEscritaConfirmacao:
+    """1ª menção pede 'sim'; o MESMO user executa dentro do TTL; consumo
+    só após sucesso; alvo ausente/ambíguo/não-existente recusam ANTES."""
+
+    def _drive_unico(self) -> GoogleClient:
+        # find_by_name devolve UM arquivo → resolve o alvo falado.
+        def handler(method, url, data):
+            if method == "GET" and "files?" in url:
+                return 200, json.dumps({"files": [{
+                    "id": "f1", "name": "notas", "mimeType": "text/plain",
+                    "modifiedTime": "2026-10-01T00:00:00Z",
+                }]}).encode()
+            if method == "PUT":
+                return 200, b'{"id": "f1", "name": "notas"}'
+            if method == "DELETE":
+                return 200, b"{}"
+            return 200, b'{"files": []}'
+
+        return _write_client(handler)
+
+    def setup_method(self) -> None:
+        from tools.actions import actions
+
+        actions.configure_google_client(None)
+        actions._WRITE_CONFIRMATIONS.clear()
+
+    def teardown_method(self) -> None:
+        from tools.actions import actions
+
+        actions.configure_google_client(None)
+        actions._WRITE_CONFIRMATIONS.clear()
+
+    def test_sem_cliente_degrada_para_todos(self) -> None:
+        from tools.actions import actions
+
+        for nome, kwargs in (
+            ("google_drive_create", {"name": "x"}),
+            ("google_drive_update", {"name": "x", "content": "y"}),
+            ("google_drive_delete", {"name": "x"}),
+            ("google_calendar_create", {"titulo": "x"}),
+            ("google_calendar_delete", {"titulo": "x"}),
+            ("google_gmail_send", {"para": "a@b.com", "corpo": "oi"}),
+            ("google_gmail_delete", {"termo": "x"}),
+        ):
+            result = getattr(actions, nome)(user_id="alex", **kwargs)
+            assert result["ok"] is False, nome
+            assert "Google" in result["error"], nome
+
+    def test_cria_arquivo_dois_passos(self) -> None:
+        from tools.actions import actions
+
+        calls: list[bytes] = []
+
+        def handler(method, url, data):
+            calls.append(data or b"")
+            return 200, b'{"id": "f1", "name": "atas", "webViewLink": "https://x/f1"}'
+
+        actions.configure_google_client(_write_client(handler))
+        r1 = actions.google_drive_create(
+            name="atas", content="reunião", user_id="alex", alvo="atas"
+        )
+        assert r1["ok"] is True and r1["needs_confirmation"] is True
+        assert "sim" in r1["hint"].lower() and "atas" in r1["hint"]
+        assert calls == []  # 1º passo NÃO escreve
+        # 'sim' do MESMO user → mesmo chave → executa
+        r2 = actions.google_drive_create(
+            name="atas", content="reunião", user_id="alex", alvo="atas"
+        )
+        assert r2["ok"] is True and r2["executed"] is True
+        assert r2["file_id"] == "f1" and len(calls) == 1
+        # consumo: um terceiro chamado recomeça o ciclo
+        r3 = actions.google_drive_create(
+            name="atas", content="reunião", user_id="alex", alvo="atas"
+        )
+        assert r3.get("needs_confirmation") is True
+
+    def test_user_diferente_nao_confirmacao_alheia(self) -> None:
+        from tools.actions import actions
+
+        actions.configure_google_client(_write_client())
+        r1 = actions.google_drive_create(name="a", user_id="alex")
+        assert r1.get("needs_confirmation") is True
+        r2 = actions.google_drive_create(name="a", user_id="outro")
+        assert r2.get("needs_confirmation") is True  # chave por USER
+        actions.drop_pending_google_write("outro")
+        actions.drop_pending_google_write("alex")
+
+    def test_ttl_do_pending(self) -> None:
+        from tools.actions import actions
+
+        actions.configure_google_client(_write_client())
+        actions.google_drive_create(name="a", user_id="alex")
+        assert actions.peek_pending_google_write("alex") is not None
+        # envelhece 121s (TTL do contrato é 120s — mutação pega pelo teste)
+        key = next(iter(actions._WRITE_CONFIRMATIONS))
+        stamp, alvo, params = actions._WRITE_CONFIRMATIONS[key]
+        actions._WRITE_CONFIRMATIONS[key] = (stamp - 121.0, alvo, params)
+        assert actions.peek_pending_google_write("alex") is None
+
+    def test_peek_e_drop_devolvem_a_acao_e_alvo(self) -> None:
+        from tools.actions import actions
+
+        actions.configure_google_client(_write_client())
+        actions.google_drive_create(name="atas", user_id="alex", alvo="atas")
+        pend = actions.peek_pending_google_write("alex")
+        assert pend is not None
+        acao, params, alvo = pend
+        assert acao == "google_drive_create" and alvo == "atas"
+        assert params["name"] == "atas"
+        actions.drop_pending_google_write("alex")
+        assert actions.peek_pending_google_write("alex") is None
+
+    def test_alvo_nao_encontrado_e_ambiguo_nao_pedem_confirmacao(self) -> None:
+        from tools.actions import actions
+
+        nenhum = _write_client(lambda m, u, d: (200, b'{"files": []}'))
+        actions.configure_google_client(nenhum)
+        r = actions.google_drive_delete(name="fantasma", user_id="alex")
+        assert r["ok"] is False and r["error"] == "nao_encontrado"
+        assert actions.peek_pending_google_write("alex") is None
+
+        dois = _write_client(lambda m, u, d: (200, json.dumps({"files": [
+            {"id": "1", "name": "notas", "mimeType": "text/plain"},
+            {"id": "2", "name": "notas", "mimeType": "text/plain"},
+        ]}).encode()))
+        actions.configure_google_client(dois)
+        r2 = actions.google_drive_delete(name="notas", user_id="alex")
+        assert r2["ok"] is False and r2["error"] == "alvo_ambiguo"
+        assert actions.peek_pending_google_write("alex") is None
+
+    def test_alvo_obrigatorio_sem_nome(self) -> None:
+        from tools.actions import actions
+
+        actions.configure_google_client(_write_client())
+        r = actions.google_drive_delete(user_id="alex")
+        assert r["ok"] is False and r["error"] == "alvo_obrigatorio"
+        assert "hint" in r
+
+    def test_arquivo_nativo_do_google_recusa_edicao(self) -> None:
+        from tools.actions import actions
+
+        nativo = _write_client(lambda m, u, d: (200, json.dumps({"files": [{
+            "id": "1", "name": "doc", "mimeType": "application/vnd.google-apps.document",
+        }]}).encode()))
+        actions.configure_google_client(nativo)
+        r = actions.google_drive_update(name="doc", content="novo", user_id="alex")
+        assert r["ok"] is False and r["error"] == "nativo_google"
+
+    def test_update_exige_conteudo(self) -> None:
+        from tools.actions import actions
+
+        actions.configure_google_client(self._drive_unico())
+        r = actions.google_drive_update(name="notas", content="   ", user_id="alex")
+        assert r["ok"] is False and r["error"] == "conteudo_obrigatorio"
+
+    def test_update_e_delete_resolvem_nome_depois_do_sim(self) -> None:
+        from tools.actions import actions
+
+        calls: list[tuple[str, bytes]] = []
+
+        def handler(method, url, data):
+            calls.append((method, data or b""))
+            if method == "GET" and "files?" in url:
+                return 200, json.dumps({"files": [{
+                    "id": "f1", "name": "notas", "mimeType": "text/plain",
+                }]}).encode()
+            if method == "PUT":
+                return 200, b'{"id": "f1", "name": "notas"}'
+            return 200, b"{}"
+
+        actions.configure_google_client(_write_client(handler))
+        r1 = actions.google_drive_update(
+            name="notas", content="novo", user_id="alex", alvo="notas"
+        )
+        assert r1.get("needs_confirmation") is True
+        r2 = actions.google_drive_update(
+            name="notas", content="novo", user_id="alex", alvo="notas"
+        )
+        assert r2["executed"] is True and r2["file_id"] == "f1"
+        # resolve o alvo de NOVO no 2º passo (mesma precisão) e só entao grava
+        assert [m for m, _ in calls] == ["GET", "GET", "PUT"]
+
+        # apagar: GET resolve → DELETE executa após o 'sim'
+        calls.clear()
+        d1 = actions.google_drive_delete(name="notas", user_id="alex")
+        assert d1.get("needs_confirmation") is True
+        d2 = actions.google_drive_delete(name="notas", user_id="alex")
+        assert d2["executed"] is True
+        assert [m for m, _ in calls] == ["GET", "GET", "DELETE"]
+
+    def test_erro_do_google_no_meio_nao_consome_a_confirmacao(self) -> None:
+        from tools.actions import actions
+
+        estado = {"falha": False}
+
+        def handler(method, url, data):
+            if method == "GET" and "files?" in url:
+                return 200, json.dumps({"files": [{
+                    "id": "f1", "name": "notas", "mimeType": "text/plain",
+                }]}).encode()
+            if estado["falha"]:
+                return 500, b'{"error": {"message": "explodeu"}}'
+            return 200, b"{}"
+
+        actions.configure_google_client(_write_client(handler))
+        d1 = actions.google_drive_delete(name="notas", user_id="alex")
+        assert d1.get("needs_confirmation") is True
+        estado["falha"] = True
+        d2 = actions.google_drive_delete(name="notas", user_id="alex")
+        assert d2["ok"] is False and "explodeu" in d2["error"]
+        # consumo é PÓS-sucesso: a intenção continua pendente
+        assert actions.peek_pending_google_write("alex") is not None
+
+    def test_agenda_dois_passos_e_quando_obrigatorio(self) -> None:
+        from tools.actions import actions
+
+        created: list[bytes] = []
+
+        def handler(method, url, data):
+            created.append(data or b"")
+            return 200, b'{"id": "ev1", "summary": "Dentista"}'
+
+        actions.configure_google_client(_write_client(handler))
+        r1 = actions.google_calendar_create(
+            titulo="Dentista", quando="amanhã às 15h", user_id="alex", alvo="Dentista"
+        )
+        assert r1.get("needs_confirmation") is True and created == []
+        r2 = actions.google_calendar_create(
+            titulo="Dentista", quando="amanhã às 15h", user_id="alex", alvo="Dentista"
+        )
+        assert r2["executed"] is True and r2["event_id"] == "ev1"
+        assert len(created) == 1 and b'"Dentista"' in created[0]
+
+        # sem 'hoje'/'amanhã' a action recusa (nunca inventa data)
+        r3 = actions.google_calendar_create(titulo="X", quando="qualquer dia", user_id="alex")
+        assert r3["ok"] is False and r3["error"] == "quando_obrigatorio"
+        r4 = actions.google_calendar_create(user_id="alex")
+        assert r4["ok"] is False and r4["error"] == "alvo_obrigatorio"
+
+    def test_agenda_delete_dois_passos(self) -> None:
+        from tools.actions import actions
+
+        methods: list[str] = []
+
+        def handler(method, url, data):
+            methods.append(method)
+            if method == "GET":
+                return 200, json.dumps({"items": [{
+                    "id": "ev1", "summary": "Reunião", "start": {"date": "2026-10-05"},
+                }]}).encode()
+            return 200, b"{}"
+
+        actions.configure_google_client(_write_client(handler))
+        r1 = actions.google_calendar_delete(titulo="Reunião", user_id="alex")
+        assert r1.get("needs_confirmation") is True and methods == ["GET"]
+        r2 = actions.google_calendar_delete(titulo="Reunião", user_id="alex")
+        assert r2["executed"] is True and r2["event_id"] == "ev1"
+        assert methods == ["GET", "GET", "DELETE"]  # resolve de novo e apaga
+        # título sem evento futuro → nao_encontrado
+        r3 = actions.google_calendar_delete(titulo="Nada", user_id="alex")
+        assert r3["error"] == "nao_encontrado"
+
+    def test_gmail_enviar_dois_passos_e_validacoes(self) -> None:
+        from tools.actions import actions
+
+        sent: list[bytes] = []
+
+        def handler(method, url, data):
+            sent.append(data or b"")
+            return 200, b'{"id": "m1"}'
+
+        actions.configure_google_client(_write_client(handler))
+        r0 = actions.google_gmail_send(para="banana", corpo="oi", user_id="alex")
+        assert r0["error"] == "destinatario_invalido"
+        r0b = actions.google_gmail_send(para="a@b.com", corpo=" ", user_id="alex")
+        assert r0b["error"] == "conteudo_obrigatorio"
+
+        r1 = actions.google_gmail_send(
+            para="ana@ex.com", assunto="Oi", corpo="tudo bem",
+            user_id="alex", alvo="ana@ex.com",
+        )
+        assert r1.get("needs_confirmation") is True and sent == []
+        r2 = actions.google_gmail_send(
+            para="ana@ex.com", assunto="Oi", corpo="tudo bem",
+            user_id="alex", alvo="ana@ex.com",
+        )
+        assert r2["executed"] is True and r2["message_id"] == "m1"
+        assert len(sent) == 1
+
+    def test_gmail_delete_dois_passos(self) -> None:
+        from tools.actions import actions
+
+        methods: list[str] = []
+
+        def handler(method, url, data):
+            methods.append(method)
+            if method == "GET" and "/messages/" in url:
+                return 200, b'{"id": "m1", "payload": {"headers": []}}'
+            if method == "GET":
+                return 200, b'{"messages": [{"id": "m1"}]}'
+            return 200, b'{"id": "m1", "labelIds": ["TRASH"]}'
+
+        actions.configure_google_client(_write_client(handler))
+        r1 = actions.google_gmail_delete(termo="ana", user_id="alex")
+        assert r1.get("needs_confirmation") is True
+        r2 = actions.google_gmail_delete(termo="ana", user_id="alex")
+        assert r2["executed"] is True and r2["message_id"] == "m1"
+        assert methods[-1] == "POST"
+
+        # nenhum bate → honesto, nada pendente
+        actions.drop_pending_google_write("alex")
+        actions.configure_google_client(_write_client(
+            lambda m, u, d: (200, b'{"messages": []}')
+        ))
+        r3 = actions.google_gmail_delete(termo="fantasma", user_id="alex")
+        assert r3["error"] == "nao_encontrado"
+
+
+class TestEscritaFormatter:
+    """format_intent_result: permissão/alvo/pendência/execução — nunca LLM."""
+
+    def test_permissao_negada_e_honesta(self) -> None:
+        msg = format_intent_result("google_drive_delete", {
+            "ok": False, "error": "permissao_negada",
+        })
+        assert msg is not None
+        assert "dono" in msg and "🔒" in msg
+
+    def test_needs_confirmation_usa_o_hint(self) -> None:
+        msg = format_intent_result("google_drive_delete", {
+            "ok": True, "needs_confirmation": True,
+            "hint": "Confirmar: apagar 'notas'? Responda 'sim'.",
+        })
+        assert msg is not None and "Confirmar" in msg and "sim" in msg
+
+    def test_erros_de_alvo_viram_dica(self) -> None:
+        for acao, dados in (
+            ("google_drive_delete", {"ok": False, "error": "nao_encontrado",
+                                     "hint": "nenhum arquivo chamado 'x'"}),
+            ("google_drive_delete", {"ok": False, "error": "alvo_ambiguo",
+                                     "hint": "2 arquivos"}),
+            ("google_gmail_send", {"ok": False, "error": "destinatario_invalido",
+                                   "hint": "preciso do endereço"}),
+            ("google_calendar_create", {"ok": False, "error": "quando_obrigatorio",
+                                        "hint": "não entendi quando"}),
+        ):
+            msg = format_intent_result(acao, dados)
+            assert msg is not None and "🤔" in msg, acao
+
+    def test_execucao_tem_texto_por_acao(self) -> None:
+        casos = {
+            "google_drive_create": ({"ok": True, "executed": True, "alvo": "atas",
+                                     "link": "https://x/f1"}, "criado"),
+            "google_drive_update": ({"ok": True, "executed": True, "alvo": "n"},
+                                     "substituído"),
+            "google_drive_delete": ({"ok": True, "executed": True, "alvo": "n"},
+                                     "apagado"),
+            "google_calendar_create": ({"ok": True, "executed": True, "alvo": "d",
+                                        "start": "2026-10-04T15:00"}, "criado"),
+            "google_calendar_delete": ({"ok": True, "executed": True, "alvo": "d"},
+                                        "apagado"),
+            "google_gmail_send": ({"ok": True, "executed": True, "alvo": "a@b.com",
+                                   "para": "a@b.com", "assunto": "Oi"}, "enviado"),
+            "google_gmail_delete": ({"ok": True, "executed": True, "alvo": "x"},
+                                     "lixeira"),
+        }
+        for acao, (dados, termo) in casos.items():
+            msg = format_intent_result(acao, dados)
+            assert msg is not None and termo in msg, acao
+
+    def test_sem_credencial_continua_honesto(self) -> None:
+        msg = format_intent_result("google_gmail_send", {
+            "ok": False, "error": "Google não configurado/autorizado",
+        })
+        assert msg is not None and "não está" in msg
+
+
+# ---------------------------------------------------------------------------
+# Intents do chat (escrita)
+# ---------------------------------------------------------------------------
+
+class TestGoogleWriteIntents:
+    """Escrita detectada SEM LLM e ANTES da leitura; alvo falado extraído."""
+
+    @pytest.mark.parametrize(
+        ("frase", "acao"),
+        [
+            ("crie o arquivo atas no drive", "google_drive_create"),
+            ("crie o arquivo notas com conteúdo: reunião de sexta",
+             "google_drive_create"),
+            ("edite o arquivo notas com o texto: novo conteúdo",
+             "google_drive_update"),
+            ("apague o arquivo notas do drive", "google_drive_delete"),
+            ("crie o compromisso dentista amanhã às 15h",
+             "google_calendar_create"),
+            ("apague o compromisso reunião", "google_calendar_delete"),
+            ("envie um e-mail para ana@ex.com assunto: oi corpo: tudo bem",
+             "google_gmail_send"),
+            ("apague o e-mail da ana", "google_gmail_delete"),
+        ],
+    )
+    def test_detecta_escrita(self, frase: str, acao: str) -> None:
+        intent = detect_action_intent(frase)
+        assert intent is not None and intent[0] == acao, frase
+
+    def test_extrai_parametros(self) -> None:
+        assert detect_action_intent("crie o arquivo atas no drive")[1] == {
+            "name": "atas", "content": "", "alvo": "atas",
+        }
+        cria = detect_action_intent("crie o arquivo notas com conteúdo: reunião")[1]
+        assert cria["name"] == "notas" and cria["content"] == "reunião"
+        agenda = detect_action_intent(
+            "crie o compromisso dentista amanhã às 15h"
+        )[1]
+        assert agenda["titulo"] == "dentista" and agenda["quando"] == "amanhã às 15h"
+        mail = detect_action_intent(
+            "envie e-mail para ana@ex.com assunto: oi corpo: tudo bem"
+        )[1]
+        assert mail == {
+            "para": "ana@ex.com", "assunto": "oi", "corpo": "tudo bem",
+            "alvo": "ana@ex.com",
+        }
+        assert detect_action_intent("apague o e-mail da ana")[1] == {
+            "termo": "ana", "alvo": "ana",
+        }
+
+    def test_escrita_vem_antes_da_leitura(self) -> None:
+        """'apague o e-mail de X' NUNCA casa como listagem de leitura."""
+        assert detect_action_intent("apague o e-mail da ana")[0] == "google_gmail_delete"
+        assert detect_action_intent("apague meus e-mails")[0] == "google_gmail_delete"
+        # leitura continua indo para as actions de leitura
+        assert detect_action_intent("meus e-mails")[0] == "google_gmail_list"
+        assert detect_action_intent("minha agenda de hoje")[0] == "google_calendar_events"
+
+    def test_leitura_de_arquivos_locais_nao_vira_escrita_google(self) -> None:
+        assert detect_action_intent("liste meus arquivos") is None
+        assert detect_action_intent("qual a senha do gmail") is None
+
+    def test_gmail_sem_verbo_de_envio_nao_vira_send(self) -> None:
+        intent = detect_action_intent("sobre e-mail para ana")
+        assert intent is None or intent[0] != "google_gmail_send"
+
+    def test_escrita_nunca_entra_no_fastpath(self) -> None:
+        from core.intents import FASTPATH_ACTIONS, GOOGLE_WRITE_ACTIONS
+
+        assert not (set(GOOGLE_WRITE_ACTIONS) & set(FASTPATH_ACTIONS))
+        assert GOOGLE_WRITE_ACTIONS == {
+            "google_drive_create", "google_drive_update", "google_drive_delete",
+            "google_calendar_create", "google_calendar_delete",
+            "google_gmail_send", "google_gmail_delete",
+        }
+
+    def test_detect_confirmation_aceita_sim_curto(self) -> None:
+        from core.intents import detect_confirmation
+
+        for frase in ("sim", "sim!", "pode", "ok", "isso", "pode sim"):
+            assert detect_confirmation(frase) is True, frase
+        # frase longa ou comando novo NÃO é confirmação
+        assert detect_confirmation("sim, apague o arquivo de ontem que eu quero ver") is False

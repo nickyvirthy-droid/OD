@@ -2,9 +2,9 @@
 OMEGA DRAKON • CORE
 Tecnologia que respira.
 Módulo: integrations/google/gmail.py
-Descrição: GmailService — leitura do Gmail (listar/buscar mensagens, ler uma
-           mensagem e listar rótulos). SOMENTE LEITURA (gmail.readonly);
-           enviar/apagar/marcar ficam para o 2º lote.
+Descrição: GmailService — Gmail: leitura (listar/buscar mensagens, ler uma
+           mensagem e listar rótulos) + ESCRITA (enviar/para lixeira) do
+           lote 2 (escopos gmail.modify + gmail.send, 2026-10-03).
 
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
@@ -107,6 +107,40 @@ class GmailService:
         summary = self._summary(raw)
         summary.update({"body": body, "label_ids": raw.get("labelIds", []) if isinstance(raw, dict) else []})
         return summary
+
+    # -- Escrita (lote 2, 2026-10-03) --------------------------------------
+
+    def send_message(self, *, to: str, subject: str, body: str) -> dict[str, Any]:
+        """Envia UM e-mail (MIME RFC5322 via EmailMessage, raw base64url)."""
+        from email.message import EmailMessage
+
+        msg = EmailMessage()
+        msg["To"] = to
+        msg["Subject"] = subject
+        msg.set_content(body or "")
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii").rstrip("=")
+        data = self.client.request(
+            "POST",
+            f"{GMAIL_BASE}/users/me/messages/send",
+            json_body={"raw": raw},
+        )
+        return {
+            "id": data.get("id", "") if isinstance(data, dict) else "",
+            "thread_id": data.get("threadId", "") if isinstance(data, dict) else "",
+            "to": to,
+            "subject": subject,
+        }
+
+    def trash_message(self, message_id: str) -> dict[str, Any]:
+        """Move UMA mensagem para a lixeira (gmail.modify)."""
+        data = self.client.request(
+            "POST", f"{GMAIL_BASE}/users/me/messages/{message_id}/trash"
+        )
+        labels = data.get("labelIds", []) if isinstance(data, dict) else []
+        return {
+            "id": data.get("id", message_id) if isinstance(data, dict) else message_id,
+            "trashed": "TRASH" in labels,
+        }
 
     def list_labels(self) -> dict[str, Any]:
         data = self.client.get(f"{GMAIL_BASE}/users/me/labels")

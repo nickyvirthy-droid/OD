@@ -386,8 +386,215 @@ def _detect_google(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Google Workspace — ESCRITA determinística (lote 2, 2026-10-03)
+#
+# Espelho do ha_device_control: o pedido de ESCRITA é detectado SEM LLM e
+# vai para a action com gate de papel (só admin) + confirmação de 2 passos.
+# Roda ANTES de _detect_google (leitura) — 'apague o e-mail da ana' jamais
+# pode casar como listagem. NUNCA entra no FASTPATH_ACTIONS (allowlist de
+# leitura é verificada por teste).
+# ---------------------------------------------------------------------------
+
+GOOGLE_WRITE_ACTIONS: frozenset[str] = frozenset({
+    "google_drive_create", "google_drive_update", "google_drive_delete",
+    "google_calendar_create", "google_calendar_delete",
+    "google_gmail_send", "google_gmail_delete",
+})
+
+_GOOGLE_W_ARQUIVO_RE = re.compile(
+    r"\b(arquivos?|ficheiros?|documentos?)\b", re.IGNORECASE
+)
+_GOOGLE_W_CAL_RE = re.compile(
+    r"\b(compromissos?|reuni[õo]es?|agendamentos?|agenda|calend[aá]rio)\b",
+    re.IGNORECASE,
+)
+_GOOGLE_W_CRIAR_RE = re.compile(
+    r"\b(criar|crie|cria|criamos|fazer|faz|fa[çc]a|gerar|gere|cria-me|crie-me)\b",
+    re.IGNORECASE,
+)
+_GOOGLE_W_EDITAR_RE = re.compile(
+    r"\b(editar|edite|edita|alterar|altere|atualizar|atualize|modificar|"
+    r"modifica|substituir|substitua|mudar|mude|reescrever|reescreva|"
+    r"ajustar|ajuste|troc[ae]r?|troque)\b",
+    re.IGNORECASE,
+)
+_GOOGLE_W_APAGAR_RE = re.compile(
+    r"\b(apagar|apague|apaga|excluir|exclua|exclui|remover|remova|remove|"
+    r"deletar|deleta|eliminar|elimine|jogar fora|joga fora|manda pr[oa] lixeira)\b",
+    re.IGNORECASE,
+)
+_GOOGLE_W_ENVIAR_RE = re.compile(
+    r"\b(enviar|envie|envia|manda|mande|disparar|dispare|manda pr[oa])\b",
+    re.IGNORECASE,
+)
+_GOOGLE_W_EMAIL_NOME_RE = re.compile(
+    r"\b(gmail|e-?mails?|email|caixa\s+de\s+entrada|correio)\b",
+    re.IGNORECASE,
+)
+_GOOGLE_W_EMAIL_RE = re.compile(
+    r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}"
+)
+_GOOGLE_W_CONTEUDO_RE = re.compile(
+    r"\b(?:conte[uú]do|texto)\s*[:=]\s*(.+)$", re.IGNORECASE
+)
+_GOOGLE_W_DIZENDO_RE = re.compile(
+    r"\b(?:que\s+diga|dizendo|com\s+o\s+texto)\s*[:=]?\s*(.+)$",
+    re.IGNORECASE,
+)
+_GOOGLE_W_QUANDO_RE = re.compile(
+    r"\b(hoje|amanh[ãa])\b(?:\s*[àa]s\s+\d{1,2}(?:[:.]\d{2})?\s*h?)?",
+    re.IGNORECASE,
+)
+_GOOGLE_W_STOP_NOME_RE = re.compile(
+    r"\s+(?:no|na|do|da|em)\s+(?:google\s+)?(?:drive|agenda|calend[aá]rio)\b"
+    r"|\s+com\s+(?:o\s+)?(?:texto|conte[uú]do)\s*[:=]?"
+    r"|\s+(?:texto|conte[uú]do)\s*[:=]"
+    r"|\s+(?:que\s+)?(?:diga|dizendo|contenha|tenha)\b"
+    r"|[.!?;]\s*$",
+    re.IGNORECASE,
+)
+_GOOGLE_W_ARTIGO_RE = re.compile(
+    r"^(?:o|a|os|as|um|uma|chamado|chamada|nomeado|nomeada|de|do|da|dos|das)\s+",
+    re.IGNORECASE,
+)
+_GOOGLE_W_LIXEIRA_RE = re.compile(
+    r"\s+(?:para|pra|pro)\s+(?:a\s+)?lixeira\b", re.IGNORECASE
+)
+
+
+def _google_limpa_nome(nome: str) -> str:
+    """Corta conectores que encerram o nome e remove artigo/preposição inicial."""
+    partes = _GOOGLE_W_STOP_NOME_RE.split(nome, maxsplit=1)
+    nome = partes[0] if partes else nome
+    nome = re.sub(r"^[\s:;,\-–]+", "", nome)
+    # artigo/preposição inicial (' o chamado notas' → 'notas')
+    for _ in range(3):
+        limpo = _GOOGLE_W_ARTIGO_RE.sub("", nome.strip(), count=1)
+        if limpo == nome.strip():
+            break
+        nome = limpo
+    return nome.strip().strip("\"'“”").strip()
+
+
+def _google_nome_depois_do_substantivo(text: str, substantivo: re.Pattern) -> str:
+    """Nome/título que vem DEPOIS do substantivo ('o arquivo atas no drive'
+    → 'atas')."""
+    m = substantivo.search(text)
+    if m is None:
+        return ""
+    return _google_limpa_nome(text[m.end():])
+
+
+def _google_conteudo(text: str) -> str:
+    """Corpo do arquivo/e-mail pedido ('conteúdo: X' / 'texto: X' / 'que diga X')."""
+    m = _GOOGLE_W_CONTEUDO_RE.search(text)
+    if m:
+        return m.group(1).strip().strip("\"'“”").strip()
+    m = _GOOGLE_W_DIZENDO_RE.search(text)
+    if m:
+        return m.group(1).strip().strip("\"'“”").strip()
+    return ""
+
+
+def _google_quando_e_titulo(text: str) -> tuple[str, str]:
+    """'o compromisso dentista amanhã às 15h' → (titulo, quando)."""
+    m = _GOOGLE_W_CAL_RE.search(text)
+    resto = text[m.end():] if m else text
+    qm = _GOOGLE_W_QUANDO_RE.search(resto)
+    quando = qm.group(0).strip() if qm else ""
+    if qm:
+        titulo = resto[:qm.start()] + " " + resto[qm.end():]
+    else:
+        titulo = resto
+    return _google_limpa_nome(titulo), quando
+
+
+def _google_termo_email(text: str) -> str:
+    """'apague o e-mail da ana' → 'ana' (busca livre no Gmail)."""
+    m = _GOOGLE_W_EMAIL_NOME_RE.search(text)
+    resto = text[m.end():] if m else text
+    resto = _GOOGLE_W_LIXEIRA_RE.sub("", resto)
+    nome = re.sub(r"^[\s:;,\-–]+", "", resto)
+    for _ in range(4):
+        limpo = _GOOGLE_W_ARTIGO_RE.sub("", nome.strip(), count=1)
+        if limpo == nome.strip():
+            break
+        nome = limpo
+    return re.sub(r"[.!?;,]+$", "", nome.strip()).strip()
+
+
+def _detect_google_write(text: str) -> Optional[tuple[str, dict[str, Any]]]:
+    """Escrita no Drive/Agenda/Gmail → action google_* (gate + confirmação).
+
+    Conservador: cada domínio exige o SUBSTANTIVO do objeto (arquivo +
+    drive; compromisso/agenda; e-mail) — sem ele a frase nem casa aqui.
+    """
+    if not text or not text.strip():
+        return None
+    low = text.lower()
+    if _GOOGLE_SECRET_RE.search(low):
+        return None
+    apagar = _GOOGLE_W_APAGAR_RE.search(low)
+    criar = _GOOGLE_W_CRIAR_RE.search(low)
+    editar = _GOOGLE_W_EDITAR_RE.search(low)
+    enviar = _GOOGLE_W_ENVIAR_RE.search(low)
+    tem_mail = bool(_GOOGLE_W_EMAIL_NOME_RE.search(low))
+
+    # -- Gmail -------------------------------------------------------------
+    if tem_mail and enviar:
+        m = _GOOGLE_W_EMAIL_RE.search(text)
+        ms = re.search(
+            r"\bassunto\s*[:=]\s*(.+?)(?=\s+\bcorpo\s*[:=]|$)",
+            text, re.IGNORECASE,
+        )
+        mc = re.search(r"\bcorpo\s*[:=]\s*(.+)$", text, re.IGNORECASE)
+        params: dict[str, Any] = {
+            "para": m.group(0) if m else "",
+            "assunto": ms.group(1).strip() if ms else "",
+            "corpo": mc.group(1).strip() if mc else "",
+            "alvo": (m.group(0) if m else ""),
+        }
+        return "google_gmail_send", params
+    if tem_mail and apagar:
+        termo = _google_termo_email(text)
+        return "google_gmail_delete", {"termo": termo, "alvo": termo}
+
+    # -- Drive -------------------------------------------------------------
+    # O SUBSTANTIVO 'arquivo' basta (sem exigir a palavra 'drive'): a
+    # confirmação de 2 passos mostra 'no Google Drive' antes de qualquer
+    # execução, então um pedido ambíguo nunca passa em silêncio.
+    if _GOOGLE_W_ARQUIVO_RE.search(low):
+        nome = _google_nome_depois_do_substantivo(text, _GOOGLE_W_ARQUIVO_RE)
+        if apagar:
+            return "google_drive_delete", {"name": nome, "alvo": nome}
+        if editar:
+            return "google_drive_update", {
+                "name": nome,
+                "content": _google_conteudo(text),
+                "alvo": nome,
+            }
+        if criar:
+            return "google_drive_create", {
+                "name": nome,
+                "content": _google_conteudo(text),
+                "alvo": nome,
+            }
+
+    # -- Agenda ------------------------------------------------------------
+    if _GOOGLE_W_CAL_RE.search(low):
+        titulo, quando = _google_quando_e_titulo(text)
+        if criar:
+            return "google_calendar_create", {
+                "titulo": titulo, "quando": quando, "alvo": titulo,
+            }
+        if apagar:
+            return "google_calendar_delete", {"titulo": titulo, "alvo": titulo}
+    return None
+
+
 def detect_action_intent(text: str) -> Optional[tuple[str, dict[str, Any]]]:
-    """Detecta uma intenção operacional de LEITURA na mensagem.
+    """Detecta uma intenção operacional (leitura OU escrita) na mensagem.
 
     Returns:
         (action_name, params) quando casou uma intenção conhecida, senão
@@ -398,6 +605,7 @@ def detect_action_intent(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     action = (
         _detect_network(text)
         or _detect_operational(text)
+        or _detect_google_write(text)
         or _detect_google(text)
     )
     if action is None:
@@ -681,6 +889,67 @@ def _gcal_when(event: dict[str, Any]) -> str:
         return raw
 
 
+def _format_google_write(action: str, data: dict[str, Any], ok: Any) -> str:
+    """Resposta da ESCRITA Google (lote 2) — sempre guiada, nunca LLM.
+
+    Espelho do ramo ha_device_control: permissão negada, alvo ausente/
+    ambíguo/não encontrado, pendência de confirmação e execução têm textos
+    próprios; erro do Google degrada honesto.
+    """
+    err = str(data.get("error") or "")
+    hint = str(data.get("hint") or "")
+    if err == "permissao_negada":
+        return (
+            "🔒 Escrita no Google (criar/editar/apagar arquivos, compromissos "
+            "ou e-mails) é só do dono do sistema — a sua conta pode ler, "
+            "não escrever."
+        )
+    if data.get("needs_confirmation"):
+        return f"✍️ {hint}" if hint else (
+            "✍️ Confirmar a operação? Responda 'sim' para executar (vale por "
+            "2 minutos)."
+        )
+    if data.get("executed"):
+        alvo = data.get("alvo") or ""
+        if action == "google_drive_create":
+            extra = f" ({data['link']})" if data.get("link") else ""
+            return f"✅ Arquivo '{alvo}' criado no Google Drive{extra}."
+        if action == "google_drive_update":
+            return f"✅ Conteúdo de '{alvo}' substituído no Google Drive."
+        if action == "google_drive_delete":
+            return f"🗑️ Arquivo '{alvo}' apagado do Google Drive."
+        if action == "google_calendar_create":
+            quando = str(data.get("start") or "").replace("T", " ")[:16]
+            sufixo = f" em {quando}" if quando else ""
+            return f"✅ Compromisso '{alvo}' criado na sua Agenda{sufixo}."
+        if action == "google_calendar_delete":
+            return f"🗑️ Compromisso '{alvo}' apagado da sua Agenda."
+        if action == "google_gmail_send":
+            assunto = data.get("assunto") or "(sem assunto)"
+            return (
+                f"✅ E-mail enviado para {data.get('para') or alvo} — "
+                f"assunto '{assunto}'."
+            )
+        if action == "google_gmail_delete":
+            return f"🗑️ E-mail '{alvo}' movido para a lixeira do Gmail."
+        return f"✅ Operação '{action}' executada."
+    if ok is not True:
+        if "não configurado" in err or "não autorizado" in err:
+            return (
+                "🔗 O acesso ao Google (Drive/Agenda/Gmail) ainda não está "
+                "configurado/autorizado neste sistema.\n"
+                "  • Veja docs/GOOGLE.md e rode `python -m runtime.google_auth`."
+            )
+        if hint:
+            return f"🤔 {hint}"
+        if err in {"alvo_obrigatorio", "nao_encontrado", "alvo_ambiguo",
+                   "conteudo_obrigatorio", "destinatario_invalido",
+                   "quando_obrigatorio", "nativo_google"}:
+            return f"🤔 {err} — nada foi alterado."
+        return f"⚠️ Google indisponível agora: {err or 'falha na operação.'}"
+    return f"✅ Operação '{action}' concluída."
+
+
 def format_intent_result(action: str, data: Any) -> Optional[str]:
     """Converte o retorno da action em uma resposta PT-BR curta.
 
@@ -959,6 +1228,8 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
     if action.startswith("google_"):
         # Google Workspace: sem credencial/autorização a resposta é HONESTA (nunca o
         # LLM inventando e-mail/compromisso/arquivo).
+        if action in GOOGLE_WRITE_ACTIONS:
+            return _format_google_write(action, data, ok)
         if ok is not True:
             err = str(data.get("error", ""))
             if "não configurado" in err or "não autorizado" in err:
@@ -1016,6 +1287,7 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
 
 __all__ = [
     "FASTPATH_ACTIONS",
+    "GOOGLE_WRITE_ACTIONS",
     "detect_action_intent",
     "detect_infra_intent",
     "safe_math",

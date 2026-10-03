@@ -76,8 +76,8 @@ class TestCapabilitiesManifest:
         # 37 capacidades do roadmap estão inventariadas (mínimo realista)
         assert counts["capabilities"] >= 37
         # catálogo de actions
-        assert counts["actions"] == 71
-        assert m["actions"]["count"] == 71
+        assert counts["actions"] == 78
+        assert m["actions"]["count"] == 78
 
     def test_manifest_metadata(self) -> None:
         """Metadados: sistema, versão e timestamp ISO."""
@@ -102,14 +102,14 @@ class TestCapabilitiesManifest:
         """Resumo legível cobre as contagens principais."""
         text = render_text()
         assert "OMEGA DRAKON — Capacidades" in text
-        assert "71 actions" in text
+        assert "78 actions" in text
         assert OD_VERSION in text
         assert "dormente" in text  # status dormantes visíveis
 
     def test_render_json_serializable(self) -> None:
         """render_json produz JSON válido com o manifesto completo."""
         data = json.loads(render_json())
-        assert data["counts"]["actions"] == 71
+        assert data["counts"]["actions"] == 78
         assert len(data["capabilities"]) == len(CAPABILITIES)
 
 
@@ -159,7 +159,7 @@ class TestCapabilitiesAPI:
         data = json.loads(body.decode("utf-8"))
         assert data["system"] == "Omega Drakon"
         assert data["version"] == OD_VERSION
-        assert data["counts"]["actions"] == 71
+        assert data["counts"]["actions"] == 78
         assert len(data["capabilities"]) == len(CAPABILITIES)
         assert data["auto_recovery"]["loop_fechado"] is True
 
@@ -187,7 +187,7 @@ class TestCapabilitiesTelegram:
         await bot.run(interval=0.01, max_updates=1)
         text = transport.sent_texts[-1]
         assert "OMEGA DRAKON — Capacidades" in text
-        assert "71 actions" in text
+        assert "78 actions" in text
         bot.close()
 
     @pytest.mark.asyncio

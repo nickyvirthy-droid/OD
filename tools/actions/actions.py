@@ -996,6 +996,569 @@ def google_gmail_labels() -> dict[str, Any]:
         return _google_error(exc)
 
 
+# ---------------------------------------------------------------------------
+# Google Workspace — ESCRITA (lote 2, 2026-10-03)
+#
+# Escopo cheio aprovado pelo dono (txt.txt: criar/editar/apagar arquivos,
+# criar/apagar compromissos, enviar/apagar e-mail). Mesmas camadas do
+# ha_device_control (v1.8.1):
+# 1. Permissão: FORA da allowlist do papel user — só admin/dono executa
+#    (a negação do Registry vira permissao_negada guiada, sem LLM).
+# 2. Alvo específico obrigatório: nada de operação em lote; alvo falado é
+#    resolvido (nome → id) ANTES da confirmação, com 0 ou N>1 recusados.
+# 3. Confirmação de 2 passos: 1ª menção registra e pede 'sim'; o mesmo
+#    user dentro de 120s executa; consumo só após sucesso.
+# ---------------------------------------------------------------------------
+
+_WRITE_CONFIRMATIONS: dict[
+    tuple[str, str, str], tuple[float, str, dict[str, Any]]
+] = {}
+_WRITE_CONFIRM_TTL = 120.0
+
+
+def _write_chave(action: str, params: dict[str, Any]) -> str:
+    """Chave estável da intenção: mesmo pedido = mesma chave."""
+    import hashlib
+
+    bruto = repr(sorted((k, str(v)) for k, v in params.items()))
+    return hashlib.sha1(bruto.encode("utf-8")).hexdigest()[:32]
+
+
+def _write_confirm_check(
+    user_id: str,
+    action: str,
+    chave: str,
+    *,
+    alvo: str,
+    params: dict[str, Any],
+    now: Optional[float] = None,
+) -> str:
+    """Confirmação de 2 passos da escrita Google (espelho de
+    _light_confirm_check): "required" na 1ª menção, "confirmed" quando o
+    mesmo user repete dentro do TTL."""
+    stamp = time.time() if now is None else now
+    key = (user_id, action, chave)
+    pending = _WRITE_CONFIRMATIONS.get(key)
+    if pending is not None and (stamp - pending[0]) <= _WRITE_CONFIRM_TTL:
+        return "confirmed"
+    _WRITE_CONFIRMATIONS[key] = (stamp, alvo, dict(params))
+    return "required"
+
+
+def peek_pending_google_write(
+    user_id: str,
+) -> Optional[tuple[str, dict[str, Any], str]]:
+    """Intenção de escrita Google pendente mais recente do user (TTL).
+
+    Retorna (action, params, alvo) — params é EXATAMENTO o que o 'sim'
+    reexecuta (resolução do alvo já embutida); alvo é o texto que o user
+    nomeou, para a conferência de coerência (v1.9.1).
+    """
+    now = time.time()
+    best: Optional[tuple[str, dict[str, Any], str]] = None
+    best_stamp = -1.0
+    for (uid, action, chave), (stamp, alvo, params) in list(
+        _WRITE_CONFIRMATIONS.items()
+    ):
+        if uid != user_id:
+            continue
+        if (now - stamp) > _WRITE_CONFIRM_TTL:
+            _WRITE_CONFIRMATIONS.pop((uid, action, chave), None)
+            continue
+        if stamp > best_stamp:
+            best_stamp = stamp
+            best = (action, dict(params), alvo)
+    return best
+
+
+def drop_pending_google_write(user_id: str) -> None:
+    """Descarta as intenções de escrita pendentes do user (incoerência)."""
+    for key in [k for k in _WRITE_CONFIRMATIONS if k[0] == user_id]:
+        _WRITE_CONFIRMATIONS.pop(key, None)
+
+
+def _write_denied() -> dict[str, Any]:
+    return {"ok": False, "error": "permissao_negada"}
+
+
+def google_drive_create(
+    name: str = "", content: str = "", user_id: str = "", alvo: str = ""
+) -> dict[str, Any]:
+    """Cria UM arquivo de texto no Drive (admin + confirmação)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    name = (name or "").strip()
+    if not name:
+        return {
+            "ok": False,
+            "error": "alvo_obrigatorio",
+            "hint": "diga o nome do arquivo (ex: 'crie o arquivo atas no drive')",
+        }
+    uid = user_id or "desconhecido"
+    action = "google_drive_create"
+    params: dict[str, Any] = {"name": name, "content": content or ""}
+    chave = _write_chave(action, params)
+    stage = _write_confirm_check(uid, action, chave, alvo=alvo or name, params=params)
+    if stage == "required":
+        resumo = f"criar o arquivo '{name}'"
+        if params["content"]:
+            resumo += f" com {len(str(params['content']))} caractere(s) de conteúdo"
+        return {
+            "ok": True,
+            "needs_confirmation": True,
+            "alvo": name,
+            "hint": (
+                f"Confirmar: {resumo} no Google Drive? Responda 'sim' para "
+                "executar (a confirmação vale por 2 minutos)."
+            ),
+        }
+    try:
+        from integrations.google import DriveService
+
+        data = DriveService(client).create_file(name, str(params["content"]))
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+    _WRITE_CONFIRMATIONS.pop((uid, action, chave), None)
+    return {
+        "ok": True,
+        "executed": True,
+        "alvo": name,
+        "file_id": data.get("id", ""),
+        "link": data.get("web_view_link", ""),
+    }
+
+
+def google_drive_update(
+    name: str = "",
+    content: str = "",
+    file_id: str = "",
+    user_id: str = "",
+    alvo: str = "",
+) -> dict[str, Any]:
+    """Substitui o conteúdo de UM arquivo de texto do Drive."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    content = content or ""
+    if not content.strip():
+        return {
+            "ok": False,
+            "error": "conteudo_obrigatorio",
+            "hint": (
+                "diga o novo conteúdo (ex: 'edite o arquivo notas com o "
+                "texto: ...')"
+            ),
+        }
+    uid = user_id or "desconhecido"
+    action = "google_drive_update"
+    alvo_txt = alvo or name
+    if not file_id:
+        name = (name or "").strip()
+        if not name:
+            return {
+                "ok": False,
+                "error": "alvo_obrigatorio",
+                "hint": "diga qual arquivo editar (ex: 'edite o arquivo notas ...')",
+            }
+        try:
+            from integrations.google import DriveService
+
+            matches = DriveService(client).find_by_name(name)
+        except Exception as exc:  # noqa: BLE001
+            return _google_error(exc)
+        if not matches:
+            return {
+                "ok": False,
+                "error": "nao_encontrado",
+                "hint": f"nenhum arquivo chamado '{name}' no Drive",
+            }
+        if len(matches) > 1:
+            return {
+                "ok": False,
+                "error": "alvo_ambiguo",
+                "hint": (
+                    f"{len(matches)} arquivos se chamam '{name}' — renomeie "
+                    "um deles ou me diga o id"
+                ),
+            }
+        alvo_txt = alvo or name
+        file_id = str(matches[0].get("id") or "")
+        mime = str(matches[0].get("mime_type") or "")
+        if mime.startswith("application/vnd.google-apps."):
+            return {
+                "ok": False,
+                "error": "nativo_google",
+                "hint": (
+                    f"'{name}' é um arquivo nativo do Google (Docs/Planilha) — "
+                    "não edito o conteúdo dele por aqui; posso criar um arquivo "
+                    "de texto novo com esse conteúdo (peça: 'crie o arquivo ...')"
+                ),
+            }
+    params = {"file_id": file_id, "content": content}
+    chave = _write_chave(action, params)
+    stage = _write_confirm_check(uid, action, chave, alvo=alvo_txt, params=params)
+    if stage == "required":
+        return {
+            "ok": True,
+            "needs_confirmation": True,
+            "alvo": alvo_txt,
+            "hint": (
+                f"Confirmar: substituir o conteúdo de '{alvo_txt}' no Drive "
+                f"({len(content)} caractere(s))? Responda 'sim' para executar "
+                "(a confirmação vale por 2 minutos)."
+            ),
+        }
+    try:
+        from integrations.google import DriveService
+
+        data = DriveService(client).update_content(file_id, content)
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+    _WRITE_CONFIRMATIONS.pop((uid, action, chave), None)
+    return {
+        "ok": True,
+        "executed": True,
+        "alvo": alvo_txt,
+        "file_id": file_id,
+        "bytes": len(content.encode("utf-8")),
+    }
+
+
+def google_drive_delete(
+    name: str = "", file_id: str = "", user_id: str = "", alvo: str = ""
+) -> dict[str, Any]:
+    """Apaga UM arquivo do Drive (alvo resolvido por nome exato)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    uid = user_id or "desconhecido"
+    action = "google_drive_delete"
+    alvo_txt = alvo or name
+    if not file_id:
+        name = (name or "").strip()
+        if not name:
+            return {
+                "ok": False,
+                "error": "alvo_obrigatorio",
+                "hint": "diga qual arquivo apagar (ex: 'apague o arquivo notas do drive')",
+            }
+        try:
+            from integrations.google import DriveService
+
+            matches = DriveService(client).find_by_name(name)
+        except Exception as exc:  # noqa: BLE001
+            return _google_error(exc)
+        if not matches:
+            return {
+                "ok": False,
+                "error": "nao_encontrado",
+                "hint": f"nenhum arquivo chamado '{name}' no Drive — nada foi apagado",
+            }
+        if len(matches) > 1:
+            return {
+                "ok": False,
+                "error": "alvo_ambiguo",
+                "hint": (
+                    f"{len(matches)} arquivos se chamam '{name}' — não apago "
+                    "em lote; renomeie ou me diga o id"
+                ),
+            }
+        alvo_txt = alvo or name
+        file_id = str(matches[0].get("id") or "")
+    params = {"file_id": file_id}
+    chave = _write_chave(action, params)
+    stage = _write_confirm_check(uid, action, chave, alvo=alvo_txt, params=params)
+    if stage == "required":
+        return {
+            "ok": True,
+            "needs_confirmation": True,
+            "alvo": alvo_txt,
+            "hint": (
+                f"Confirmar: apagar '{alvo_txt}' do Google Drive (definitivo)? "
+                "Responda 'sim' para executar (a confirmação vale por 2 minutos)."
+            ),
+        }
+    try:
+        from integrations.google import DriveService
+
+        DriveService(client).delete_file(file_id)
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+    _WRITE_CONFIRMATIONS.pop((uid, action, chave), None)
+    return {"ok": True, "executed": True, "alvo": alvo_txt, "file_id": file_id}
+
+
+def google_calendar_create(
+    titulo: str = "",
+    quando: str = "",
+    start: str = "",
+    end: str = "",
+    user_id: str = "",
+    alvo: str = "",
+) -> dict[str, Any]:
+    """Cria UM compromisso na Agenda (dia inteiro ou com hora)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    titulo = (titulo or "").strip()
+    if not titulo:
+        return {
+            "ok": False,
+            "error": "alvo_obrigatorio",
+            "hint": "diga o título do compromisso (ex: 'crie o compromisso reunião amanhã às 15h')",
+        }
+    if not start:
+        from integrations.google.calendar import parse_when
+
+        parsed = parse_when(quando or titulo)
+        if not parsed:
+            return {
+                "ok": False,
+                "error": "quando_obrigatorio",
+                "hint": (
+                    "não entendi quando — diga 'hoje' ou 'amanhã' (com "
+                    "'às 15h' se tiver hora)"
+                ),
+            }
+        start, end = parsed["start"], parsed["end"]
+    uid = user_id or "desconhecido"
+    action = "google_calendar_create"
+    alvo_txt = alvo or titulo
+    params = {"titulo": titulo, "start": start, "end": end}
+    chave = _write_chave(action, params)
+    stage = _write_confirm_check(uid, action, chave, alvo=alvo_txt, params=params)
+    if stage == "required":
+        quando_txt = start.replace("T", " ")[:16] if "T" in start else start
+        return {
+            "ok": True,
+            "needs_confirmation": True,
+            "alvo": alvo_txt,
+            "hint": (
+                f"Confirmar: criar o compromisso '{titulo}' em {quando_txt} "
+                "na sua Agenda? Responda 'sim' para executar (a confirmação "
+                "vale por 2 minutos)."
+            ),
+        }
+    try:
+        from integrations.google import CalendarService
+
+        data = CalendarService(client).create_event(
+            summary=titulo, when={"start": start, "end": end}
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+    _WRITE_CONFIRMATIONS.pop((uid, action, chave), None)
+    return {
+        "ok": True,
+        "executed": True,
+        "alvo": titulo,
+        "start": start,
+        "event_id": data.get("id", ""),
+        "link": data.get("link", ""),
+    }
+
+
+def google_calendar_delete(
+    titulo: str = "", event_id: str = "", user_id: str = "", alvo: str = ""
+) -> dict[str, Any]:
+    """Apaga UM compromisso da Agenda (título exato nos próximos 60 dias)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    uid = user_id or "desconhecido"
+    action = "google_calendar_delete"
+    alvo_txt = alvo or titulo
+    if not event_id:
+        titulo = (titulo or "").strip()
+        if not titulo:
+            return {
+                "ok": False,
+                "error": "alvo_obrigatorio",
+                "hint": "diga qual compromisso apagar (ex: 'apague o compromisso reunião')",
+            }
+        try:
+            from integrations.google import CalendarService
+
+            matches = CalendarService(client).find_events_by_title(titulo)
+        except Exception as exc:  # noqa: BLE001
+            return _google_error(exc)
+        if not matches:
+            return {
+                "ok": False,
+                "error": "nao_encontrado",
+                "hint": f"nenhum compromisso com o título '{titulo}' nos próximos 60 dias",
+            }
+        if len(matches) > 1:
+            return {
+                "ok": False,
+                "error": "alvo_ambiguo",
+                "hint": (
+                    f"{len(matches)} compromissos com o título '{titulo}' — "
+                    "especifique qual (ex: data)"
+                ),
+            }
+        alvo_txt = alvo or titulo
+        event_id = str(matches[0].get("id") or "")
+    params = {"event_id": event_id}
+    chave = _write_chave(action, params)
+    stage = _write_confirm_check(uid, action, chave, alvo=alvo_txt, params=params)
+    if stage == "required":
+        return {
+            "ok": True,
+            "needs_confirmation": True,
+            "alvo": alvo_txt,
+            "hint": (
+                f"Confirmar: apagar o compromisso '{alvo_txt}' da sua Agenda? "
+                "Responda 'sim' para executar (a confirmação vale por 2 minutos)."
+            ),
+        }
+    try:
+        from integrations.google import CalendarService
+
+        CalendarService(client).delete_event(event_id)
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+    _WRITE_CONFIRMATIONS.pop((uid, action, chave), None)
+    return {"ok": True, "executed": True, "alvo": alvo_txt, "event_id": event_id}
+
+
+def google_gmail_send(
+    para: str = "",
+    assunto: str = "",
+    corpo: str = "",
+    user_id: str = "",
+    alvo: str = "",
+) -> dict[str, Any]:
+    """Envia UM e-mail (admin + confirmação)."""
+    import re as _re
+
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    para = (para or "").strip()
+    corpo = corpo or ""
+    if not para or not _re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", para):
+        return {
+            "ok": False,
+            "error": "destinatario_invalido",
+            "hint": (
+                "preciso do endereço de e-mail (ex: 'envie um e-mail para "
+                "fulano@exemplo.com assunto: oi corpo: tudo bem')"
+            ),
+        }
+    if not corpo.strip():
+        return {
+            "ok": False,
+            "error": "conteudo_obrigatorio",
+            "hint": "diga o corpo do e-mail (ex: 'corpo: tudo bem')",
+        }
+    uid = user_id or "desconhecido"
+    action = "google_gmail_send"
+    alvo_txt = alvo or para
+    params = {"para": para, "assunto": assunto or "", "corpo": corpo}
+    chave = _write_chave(action, params)
+    stage = _write_confirm_check(uid, action, chave, alvo=alvo_txt, params=params)
+    if stage == "required":
+        assunto_txt = assunto or "(sem assunto)"
+        return {
+            "ok": True,
+            "needs_confirmation": True,
+            "alvo": alvo_txt,
+            "hint": (
+                f"Confirmar: enviar e-mail para {para} — assunto "
+                f"'{assunto_txt}' ({len(corpo)} caractere(s))? Responda 'sim' "
+                "para executar (a confirmação vale por 2 minutos)."
+            ),
+        }
+    try:
+        from integrations.google import GmailService
+
+        data = GmailService(client).send_message(
+            to=para, subject=assunto or "(sem assunto)", body=corpo
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+    _WRITE_CONFIRMATIONS.pop((uid, action, chave), None)
+    return {
+        "ok": True,
+        "executed": True,
+        "alvo": para,
+        "para": para,
+        "assunto": assunto or "(sem assunto)",
+        "message_id": data.get("id", ""),
+    }
+
+
+def google_gmail_delete(
+    termo: str = "", message_id: str = "", user_id: str = "", alvo: str = ""
+) -> dict[str, Any]:
+    """Move UM e-mail para a lixeira (busca livre → alvo único)."""
+    client = _google()
+    if client is None:
+        return _google_unavailable()
+    uid = user_id or "desconhecido"
+    action = "google_gmail_delete"
+    alvo_txt = alvo or termo
+    if not message_id:
+        termo = (termo or "").strip()
+        if not termo:
+            return {
+                "ok": False,
+                "error": "alvo_obrigatorio",
+                "hint": "diga qual e-mail apagar (ex: 'apague o e-mail da ana')",
+            }
+        try:
+            from integrations.google import GmailService
+
+            found = GmailService(client).list_messages(query=termo, limit=5)
+        except Exception as exc:  # noqa: BLE001
+            return _google_error(exc)
+        msgs = found.get("messages") or []
+        if not msgs:
+            return {
+                "ok": False,
+                "error": "nao_encontrado",
+                "hint": f"nenhum e-mail bate com '{termo}' — nada foi apagado",
+            }
+        if len(msgs) > 1:
+            assuntos = ", ".join(
+                f"'{m.get('subject') or '(sem assunto)'}'" for m in msgs[:3]
+            )
+            return {
+                "ok": False,
+                "error": "alvo_ambiguo",
+                "hint": (
+                    f"{len(msgs)} e-mails batem com '{termo}' ({assuntos}) — "
+                    "especifique qual apagar"
+                ),
+            }
+        alvo_txt = alvo or termo
+        message_id = str(msgs[0].get("id") or "")
+    params = {"message_id": message_id}
+    chave = _write_chave(action, params)
+    stage = _write_confirm_check(uid, action, chave, alvo=alvo_txt, params=params)
+    if stage == "required":
+        return {
+            "ok": True,
+            "needs_confirmation": True,
+            "alvo": alvo_txt,
+            "hint": (
+                f"Confirmar: mover o e-mail '{alvo_txt}' para a lixeira do "
+                "Gmail? Responda 'sim' para executar (a confirmação vale por "
+                "2 minutos)."
+            ),
+        }
+    try:
+        from integrations.google import GmailService
+
+        GmailService(client).trash_message(message_id)
+    except Exception as exc:  # noqa: BLE001
+        return _google_error(exc)
+    _WRITE_CONFIRMATIONS.pop((uid, action, chave), None)
+    return {"ok": True, "executed": True, "alvo": alvo_txt, "message_id": message_id}
+
+
 def ip_address() -> dict[str, Any]:
     """Endereços IP do host (best-effort, sem root)."""
     try:
@@ -1733,7 +2296,7 @@ def action_validate(name: str, params: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Catálogo (56 actions)
+# Catálogo (78 actions)
 # ---------------------------------------------------------------------------
 
 def _spec(
@@ -1796,6 +2359,60 @@ CATALOG: list[dict[str, Any]] = [
     _spec("google_gmail_read", "google", "Lê uma mensagem do Gmail", google_gmail_read,
           {"required": ["message_id"], "properties": {"message_id": S}}),
     _spec("google_gmail_labels", "google", "Lista os rótulos do Gmail", google_gmail_labels),
+    # --- Google Workspace (escrita — admin + confirmação de 2 passos) ---
+    _spec("google_drive_create", "google", "Cria UM arquivo de texto no Drive (dono, com confirmação)", google_drive_create,
+          {"required": ["name"], "properties": {
+              "name": S,
+              "content": {**S, "default": ""},
+              "user_id": {**S, "default": ""},
+              "alvo": {**S, "default": ""},
+          }}),
+    _spec("google_drive_update", "google", "Substitui o conteúdo de UM arquivo do Drive (dono, com confirmação)", google_drive_update,
+          {"required": ["content"], "properties": {
+              "name": {**S, "default": ""},
+              "content": S,
+              "file_id": {**S, "default": ""},
+              "user_id": {**S, "default": ""},
+              "alvo": {**S, "default": ""},
+          }}),
+    _spec("google_drive_delete", "google", "Apaga UM arquivo do Drive (dono, com confirmação)", google_drive_delete,
+          {"properties": {
+              "name": {**S, "default": ""},
+              "file_id": {**S, "default": ""},
+              "user_id": {**S, "default": ""},
+              "alvo": {**S, "default": ""},
+          }}),
+    _spec("google_calendar_create", "google", "Cria UM compromisso na Agenda (dono, com confirmação)", google_calendar_create,
+          {"required": ["titulo"], "properties": {
+              "titulo": S,
+              "quando": {**S, "default": ""},
+              "start": {**S, "default": ""},
+              "end": {**S, "default": ""},
+              "user_id": {**S, "default": ""},
+              "alvo": {**S, "default": ""},
+          }}),
+    _spec("google_calendar_delete", "google", "Apaga UM compromisso da Agenda (dono, com confirmação)", google_calendar_delete,
+          {"properties": {
+              "titulo": {**S, "default": ""},
+              "event_id": {**S, "default": ""},
+              "user_id": {**S, "default": ""},
+              "alvo": {**S, "default": ""},
+          }}),
+    _spec("google_gmail_send", "google", "Envia UM e-mail (dono, com confirmação)", google_gmail_send,
+          {"required": ["para"], "properties": {
+              "para": S,
+              "assunto": {**S, "default": ""},
+              "corpo": {**S, "default": ""},
+              "user_id": {**S, "default": ""},
+              "alvo": {**S, "default": ""},
+          }}),
+    _spec("google_gmail_delete", "google", "Move UM e-mail para a lixeira (dono, com confirmação)", google_gmail_delete,
+          {"properties": {
+              "termo": {**S, "default": ""},
+              "message_id": {**S, "default": ""},
+              "user_id": {**S, "default": ""},
+              "alvo": {**S, "default": ""},
+          }}),
     _spec("ip_address", "system", "Endereços IP do host", ip_address),
     _spec("listening_ports", "system", "Portas TCP em escuta", listening_ports),
     

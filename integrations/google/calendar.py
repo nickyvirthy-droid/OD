@@ -2,9 +2,9 @@
 OMEGA DRAKON • CORE
 Tecnologia que respira.
 Módulo: integrations/google/calendar.py
-Descrição: CalendarService — leitura da Google Agenda (calendários e
-           próximos eventos). SOMENTE LEITURA (calendar.readonly); criar/
-           apagar compromissos ficam para o 2º lote.
+Descrição: CalendarService — Google Agenda: leitura (calendários e
+           próximos eventos) + ESCRITA (criar/apagar compromissos) do lote 2
+           (escopo calendar.events, 2026-10-03).
 
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
@@ -12,8 +12,9 @@ Arquiteto: Alex Projeti
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional
 
 from integrations.google.client import CALENDAR_BASE, GoogleClient
 
@@ -24,6 +25,36 @@ _EVENT_FIELDS = "items(id,summary,start,end,location,htmlLink,status,attendees(e
 
 def _iso_z(when: datetime) -> str:
     return when.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def parse_when(text: str, *, now: Optional[datetime] = None) -> Optional[dict[str, str]]:
+    """'hoje'/'amanhã' [às HHh|às HH:MM] → start/end do evento.
+
+    Determinístico e conservador: fora do par dia+hora opcional devolve
+    None — a action responde com dica em vez de inventar data.
+    """
+    low = (text or "").lower()
+    base = now or datetime.now().astimezone()
+    day = None
+    if re.search(r"\bhoje\b", low):
+        day = base.date()
+    elif re.search(r"\bamanh[ãa]\b", low):
+        day = base.date() + timedelta(days=1)
+    if day is None:
+        return None
+    hora = re.search(r"[àa]s\s+(\d{1,2})(?:[:hH](\d{2}))?", low)
+    if hora:
+        hour, minute = int(hora.group(1)), int(hora.group(2) or 0)
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            return None
+        start = datetime(day.year, day.month, day.day, hour, minute,
+                         tzinfo=base.tzinfo)
+        end = start + timedelta(hours=1)
+        return {"start": _iso_z(start), "end": _iso_z(end)}
+    return {
+        "start": day.isoformat(),
+        "end": (day + timedelta(days=1)).isoformat(),
+    }
 
 
 class CalendarService:
@@ -80,6 +111,50 @@ class CalendarService:
             "count": len(items),
             "days": window_days,
         }
+
+    def find_events_by_title(
+        self, title: str, *, days: int = 60, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Eventos futuros com título EXATO (case-insensitive) — resolve o
+        alvo falado do apagar sem arriscar apagar o errado."""
+        data = self.list_events(days=days, limit=limit)
+        wanted = (title or "").strip().casefold()
+        return [
+            e for e in data.get("events", [])
+            if str(e.get("summary") or "").strip().casefold() == wanted
+        ]
+
+    def create_event(
+        self,
+        *,
+        summary: str,
+        when: dict[str, str],
+        calendar_id: str = "primary",
+    ) -> dict[str, Any]:
+        """Cria UM compromisso (dia inteiro ou com hora)."""
+        body: dict[str, Any] = {"summary": summary}
+        if "T" in when.get("start", ""):
+            body["start"] = {"dateTime": when["start"]}
+            body["end"] = {"dateTime": when.get("end") or when["start"]}
+        else:
+            body["start"] = {"date": when["start"]}
+            body["end"] = {"date": when.get("end") or when["start"]}
+        data = self.client.request(
+            "POST",
+            f"{CALENDAR_BASE}/calendars/{calendar_id}/events",
+            json_body=body,
+            params={"fields": "id,summary,start,end,htmlLink"},
+        )
+        return self._summary(data if isinstance(data, dict) else {})
+
+    def delete_event(
+        self, event_id: str, *, calendar_id: str = "primary"
+    ) -> dict[str, Any]:
+        """Apaga UM compromisso pelo id."""
+        self.client.request(
+            "DELETE", f"{CALENDAR_BASE}/calendars/{calendar_id}/events/{event_id}"
+        )
+        return {"event_id": event_id, "deleted": True}
 
     @staticmethod
     def _summary(raw: dict[str, Any]) -> dict[str, Any]:

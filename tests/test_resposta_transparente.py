@@ -15,6 +15,8 @@ Arquiteto: Alex Projeti
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from agents.nicky_virthy.personality import get_system_prompt
@@ -1175,3 +1177,210 @@ class TestGuardaInfraParaNaoDono:
         assert "DONO/ADMIN" not in reforco  # reforço NÃO vira dados de dono
         assert "MUNDO EXTERNO" in reforco
         assert "PREJUDICAR O SERVIDOR" in reforco  # vedação reafirmada
+
+
+# ---------------------------------------------------------------------------
+# Escrita Google no chat (lote 2, 2026-10-03) — gate de papel + confirmação
+# ---------------------------------------------------------------------------
+
+class _GoogleFakeTransport:
+    """Transporte fake do GoogleClient para os testes de escrita."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def __call__(self, method, url, *, headers=None, data=None, timeout=30.0):
+        self.calls.append({"method": method, "url": url, "data": data})
+        if method == "GET" and "/files" in url:
+            return 200, json.dumps({"files": [{
+                "id": "f1", "name": "notas", "mimeType": "text/plain",
+                "modifiedTime": "2026-10-01T00:00:00Z",
+            }]}).encode()
+        if method == "GET":
+            return 200, b'{"messages": [], "items": [], "labels": []}'
+        return 200, b'{"id": "f1", "name": "notas"}'
+
+
+class TestEscritaGoogleNoChat:
+    """O MESMO contrato do ha_device_control para o Drive/Agenda/Gmail:
+    user → negação determinística (zero LLM, zero escrita); admin → 1ª
+    menção pede 'sim' (nada executa) e o 'sim' executa; incoerência e TTL
+    descartam a intenção."""
+
+    @staticmethod
+    def _setup():
+        import time as _time
+
+        from core.intents import configure_ha_entities
+        from integrations.google import GoogleClient, GoogleCredentials, GoogleToken
+        from tools.actions import build_registry
+        from tools.actions.actions import (
+            _WRITE_CONFIRMATIONS,
+            configure_google_client,
+        )
+        from core.orchestrator import Orchestrator, OrchestratorConfig
+        from core.security import SecurityManager
+
+        _WRITE_CONFIRMATIONS.clear()
+        transport = _GoogleFakeTransport()
+        client = GoogleClient(
+            GoogleCredentials(client_id="cid", client_secret="sec"),
+            GoogleToken(access_token="at", refresh_token="rt",
+                        expires_at=_time.time() + 3600),
+            transport=transport,
+        )
+        configure_google_client(client)
+        configure_ha_entities([])
+
+        class FakeLLM:
+            name = "fake"
+
+            async def generate(self, prompt, timeout=None, **kw):
+                return "RESPOSTA_DO_LLM_FAKE"
+
+            async def generate_stream(self, prompt, timeout=None, **kw):
+                yield "RESPOSTA_DO_LLM_FAKE"
+
+        orch = Orchestrator(
+            providers=[FakeLLM()],
+            config=OrchestratorConfig(default_system_prompt="x"),
+        )
+        orch.set_action_registry(
+            build_registry(security=SecurityManager(mode="strict"))
+        )
+        return orch, transport, _WRITE_CONFIRMATIONS
+
+    @staticmethod
+    def _writes(transport) -> list[dict[str, object]]:
+        return [
+            c for c in transport.calls
+            if c["method"] in ("POST", "PUT", "DELETE")
+        ]
+
+    def test_user_e_negado_sem_llm_e_sem_escrita(self) -> None:
+        import asyncio
+        orch, transport, store = self._setup()
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian", "apague o arquivo notas do drive",
+            role="user",
+        ))
+        assert r.route == "action_intent"
+        assert r.message != "RESPOSTA_DO_LLM_FAKE"  # zero LLM
+        assert "dono" in r.message.lower()
+        assert self._writes(transport) == []  # nada gravado
+        assert store == {}  # nem confirmação registrada
+
+    def test_admin_fluxo_completo_dois_passos(self) -> None:
+        import asyncio
+        orch, transport, store = self._setup()
+        r1 = asyncio.run(orch.process(
+            "alex", "guardian", "apague o arquivo notas do drive", role="admin",
+        ))
+        assert "Confirmar" in r1.message and "sim" in r1.message.lower()
+        assert "notas" in r1.message
+        assert self._writes(transport) == []  # 1º passo NÃO escreve
+        assert store  # intenção pendente registrada
+
+        r2 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        assert r2.route == "action_intent"
+        assert r2.message != "RESPOSTA_DO_LLM_FAKE"
+        writes = self._writes(transport)
+        assert len(writes) == 1 and writes[0]["method"] == "DELETE"
+        assert "f1" in str(writes[0]["url"])
+
+    def test_user_no_sim_tambem_e_negado(self) -> None:
+        """O 'sim' de quem não é dono NÃO contorna o gate: a execução
+        passa pelo Registry com o papel de quem falou."""
+        import asyncio
+        orch, transport, store = self._setup()
+        asyncio.run(orch.process(
+            "alex", "guardian", "apague o arquivo notas do drive", role="admin",
+        ))
+        assert store  # intenção pendente do 'alex'
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "sim", role="user",
+        ))
+        assert self._writes(transport) == []
+        assert "dono" in r.message.lower()
+        assert r.message != "RESPOSTA_DO_LLM_FAKE"
+
+    def test_incoerencia_descarta_a_intencao(self) -> None:
+        """'sim' que menciona LUGAR fora do alvo pendente não executa —
+        a intenção velha é descartada (espelho v1.9.1)."""
+        import asyncio
+        orch, transport, store = self._setup()
+        asyncio.run(orch.process(
+            "alex", "guardian", "apague o arquivo notas do drive", role="admin",
+        ))
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "sim, da cozinha", role="admin",
+        ))
+        assert self._writes(transport) == []
+        assert store == {}  # descartada
+        assert "não bate" in r.message or "não" in r.message.lower()
+
+    def test_ttl_da_confirmacao_expira(self) -> None:
+        import asyncio
+        orch, transport, store = self._setup()
+        asyncio.run(orch.process(
+            "alex", "guardian", "apague o arquivo notas do drive", role="admin",
+        ))
+        assert store
+        key = next(iter(store))
+        stamp, alvo, params = store[key]
+        # 121s FIXOS (TTL do contrato é 120s — mutação pega pelo teste)
+        store[key] = (stamp - 121.0, alvo, params)
+        asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        # expirado → o 'sim' NÃO executa a intenção velha
+        assert self._writes(transport) == []
+
+    def test_ws_stream_tambem_confirma_e_executa(self) -> None:
+        import asyncio
+
+        async def _run():
+            orch, transport, store = self._setup()
+            chunks1 = [c async for c in orch.process_stream(
+                "alex", "guardian", "apague o arquivo notas do drive",
+                role="admin",
+            )]
+            chunks2 = [c async for c in orch.process_stream(
+                "alex", "guardian", "sim", role="admin",
+            )]
+            return chunks1, chunks2, transport
+
+        chunks1, chunks2, transport = asyncio.run(_run())
+        done1 = [c for c in chunks1 if c.get("type") == "done"]
+        assert done1 and "Confirmar" in done1[0]["content"]
+        done2 = [c for c in chunks2 if c.get("type") == "done"]
+        assert done2 and done2[0]["content"] != "RESPOSTA_DO_LLM_FAKE"
+        assert self._writes(transport) and \
+            self._writes(transport)[0]["method"] == "DELETE"
+
+    def test_ws_user_negado_sem_llm(self) -> None:
+        import asyncio
+
+        async def _run():
+            orch, transport, store = self._setup()
+            chunks = [c async for c in _stream(orch, "usuario-teste", "user")]
+            return chunks, transport
+
+        chunks, transport = asyncio.run(_run())
+        done = [c for c in chunks if c.get("type") == "done"]
+        assert done and "dono" in done[0]["content"].lower()
+        assert done[0]["content"] != "RESPOSTA_DO_LLM_FAKE"
+        assert self._writes(transport) == []
+
+    def test_sim_solto_sem_intencao_vai_para_o_llm(self) -> None:
+        import asyncio
+        orch, transport, store = self._setup()
+        r = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        assert r.message == "RESPOSTA_DO_LLM_FAKE"
+        assert self._writes(transport) == []
+
+
+async def _stream(orch, user_id: str, role: str):
+    """Atalho: 'apague o arquivo notas do drive' no caminho WS."""
+    async for chunk in orch.process_stream(
+        user_id, "guardian", "apague o arquivo notas do drive", role=role
+    ):
+        yield chunk

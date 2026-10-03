@@ -2,9 +2,9 @@
 OMEGA DRAKON • CORE
 Tecnologia que respira.
 Módulo: integrations/google/drive.py
-Descrição: DriveService — leitura do Google Drive (listar/buscar arquivos,
-           metadados e conteúdo de texto). SOMENTE LEITURA (escopo
-           drive.readonly); criar/editar/apagar ficam para o 2º lote.
+Descrição: DriveService — Google Drive: leitura (listar/buscar arquivos,
+           metadados e conteúdo de texto) + ESCRITA (criar/editar/apagar)
+           do lote 2 (escopo drive, 2026-10-03).
 
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
@@ -12,6 +12,8 @@ Arquiteto: Alex Projeti
 
 from __future__ import annotations
 
+import json
+import uuid
 from typing import Any, Optional
 
 from integrations.google.client import DRIVE_BASE, GoogleClient
@@ -92,6 +94,65 @@ class DriveService:
             "bytes": len(raw),
             "truncated": len(raw) > limit,
         }
+
+    # -- Escrita (lote 2, 2026-10-03 — escopo `drive`) --------------------
+
+    def find_by_name(self, name: str) -> list[dict[str, Any]]:
+        """Arquivos NÃO lixeira com nome EXATO (para resolver alvo falado)."""
+        safe = (name or "").replace("\\", "\\\\").replace("'", "\\'")
+        data = self.client.get(
+            f"{DRIVE_BASE}/files",
+            params={
+                "q": f"name = '{safe}' and trashed = false",
+                "fields": f"files({_FIELDS})",
+                "pageSize": 10,
+            },
+        )
+        return [self._summary(f) for f in (data.get("files") or [])]
+
+    def create_file(
+        self, name: str, content: str = "", *, mime_type: str = "text/plain"
+    ) -> dict[str, Any]:
+        """Cria arquivo de texto (upload multipart/related)."""
+        boundary = f"od{uuid.uuid4().hex}"
+        meta = json.dumps({"name": name}, ensure_ascii=False).encode("utf-8")
+        body = (
+            f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
+            .encode("utf-8")
+            + meta
+            + f"\r\n--{boundary}\r\nContent-Type: {mime_type}\r\n\r\n".encode("utf-8")
+            + (content or "").encode("utf-8")
+            + f"\r\n--{boundary}--\r\n".encode("utf-8")
+        )
+        data = self.client.request_body(
+            "POST",
+            f"{DRIVE_BASE}/files",
+            body=body,
+            content_type=f"multipart/related; boundary={boundary}",
+            params={"uploadType": "multipart", "fields": _FIELDS},
+        )
+        return self._summary(data if isinstance(data, dict) else {})
+
+    def update_content(self, file_id: str, content: str) -> dict[str, Any]:
+        """Substitui o CONTEÚDO de um arquivo de texto (upload de mídia).
+
+        Arquivos Nativos do Google (Docs/Sheets) não aceitam mídia direta —
+        quem detecta é a action (resolve o nome e vê o mimeType) e responde
+        honesto; aqui um erro do Google sobe como GoogleError.
+        """
+        data = self.client.request_body(
+            "PUT",
+            f"{DRIVE_BASE}/files/{file_id}",
+            body=(content or "").encode("utf-8"),
+            content_type="text/plain; charset=utf-8",
+            params={"uploadType": "media"},
+        )
+        return {"file_id": file_id, **self._summary(data if isinstance(data, dict) else {})}
+
+    def delete_file(self, file_id: str) -> dict[str, Any]:
+        """Apaga o arquivo (para a lixeira/definitivo conforme a API)."""
+        self.client.request("DELETE", f"{DRIVE_BASE}/files/{file_id}")
+        return {"file_id": file_id, "deleted": True}
 
     @staticmethod
     def _summary(raw: dict[str, Any]) -> dict[str, Any]:

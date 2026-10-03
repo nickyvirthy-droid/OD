@@ -96,6 +96,16 @@ log = get_logger("omega.core.orchestrator")
 # Constantes
 # ---------------------------------------------------------------------------
 
+# Actions cuja NEGAÇÃO de papel vira resposta guiada (permissao_negada)
+# em vez de cair no LLM. v1.8.1: ha_device_control; lote 2 (escrita
+# Google, 2026-10-03) — leitura Google continua allowlist do papel user.
+_PAPEL_GATE_ACTIONS: frozenset[str] = frozenset({
+    "ha_device_control",
+    "google_drive_create", "google_drive_update", "google_drive_delete",
+    "google_calendar_create", "google_calendar_delete",
+    "google_gmail_send", "google_gmail_delete",
+})
+
 DEFAULT_RATE_LIMIT_MAX = 10
 DEFAULT_RATE_LIMIT_WINDOW_S = 60.0
 DEFAULT_LLM_TIMEOUT_S = 60.0
@@ -764,10 +774,16 @@ class Orchestrator:
                 # honesta, sem LLM, e a intenção velha é descartada.
                 from tools.actions.actions import (
                     confirm_texts_match_pending,
+                    drop_pending_google_write,
+                    peek_pending_google_write,
                     peek_pending_light_confirmation,
                 )
+                from core.intents import GOOGLE_WRITE_ACTIONS
 
                 pending = peek_pending_light_confirmation(user_id)
+                pending_gw = (
+                    peek_pending_google_write(user_id) if pending is None else None
+                )
                 if pending is not None and detect_confirmation(text):
                     entity_id, on, alvo = pending
                     if not confirm_texts_match_pending(text, alvo, entity_id):
@@ -804,11 +820,32 @@ class Orchestrator:
                         role=role,
                     )
                     answer = format_intent_result("ha_device_control", data)
+                elif pending_gw is not None and detect_confirmation(text):
+                    # Escrita Google (lote 2): o 'sim' do MESMO user executa a
+                    # intenção pendente — mesmo espelho das luzes.
+                    gw_action, gw_params, gw_alvo = pending_gw
+                    if not confirm_texts_match_pending(text, gw_alvo, ""):
+                        drop_pending_google_write(user_id)
+                        answer = (
+                            "🤔 Essa confirmação não bate com o que você "
+                            "pediu antes (a intenção expirou). Diga de novo "
+                            "o que quer."
+                        )
+                        route_detail = gw_action
+                    else:
+                        gw_exec = dict(gw_params)
+                        gw_exec["user_id"] = user_id
+                        gw_exec["alvo"] = gw_alvo
+                        data = await self.execute_action(
+                            gw_action, gw_exec, user_id, role=role
+                        )
+                        answer = format_intent_result(gw_action, data)
+                        route_detail = gw_action
             if answer is None:
                 intent = detect_action_intent(text)
                 if intent is not None:
                     action_name, params = intent
-                    if action_name == "ha_device_control":
+                    if action_name == "ha_device_control" or action_name in GOOGLE_WRITE_ACTIONS:
                         params = dict(params)
                         params["user_id"] = user_id
                     data = await self.execute_action(
@@ -1125,10 +1162,16 @@ class Orchestrator:
                 # honesta, sem LLM, e a intenção velha é descartada.
                 from tools.actions.actions import (
                     confirm_texts_match_pending,
+                    drop_pending_google_write,
+                    peek_pending_google_write,
                     peek_pending_light_confirmation,
                 )
+                from core.intents import GOOGLE_WRITE_ACTIONS
 
                 pending = peek_pending_light_confirmation(user_id)
+                pending_gw = (
+                    peek_pending_google_write(user_id) if pending is None else None
+                )
                 if pending is not None and detect_confirmation(text):
                     entity_id, on, alvo = pending
                     if not confirm_texts_match_pending(text, alvo, entity_id):
@@ -1155,11 +1198,31 @@ class Orchestrator:
                             "ha_device_control", data,
                         )
                         route_detail = "ha_device_control"
+                elif pending_gw is not None and detect_confirmation(text):
+                    # Escrita Google (lote 2): o 'sim' do MESMO user executa a
+                    # intenção pendente — mesmo espelho das luzes.
+                    gw_action, gw_params, gw_alvo = pending_gw
+                    if not confirm_texts_match_pending(text, gw_alvo, ""):
+                        drop_pending_google_write(user_id)
+                        answer = (
+                            "🤔 Essa confirmação não bate com o que você "
+                            "pediu antes (a intenção expirou). Diga de novo "
+                            "o que quer."
+                        )
+                    else:
+                        gw_exec = dict(gw_params)
+                        gw_exec["user_id"] = user_id
+                        gw_exec["alvo"] = gw_alvo
+                        data = await self.execute_action(
+                            gw_action, gw_exec, user_id, role=role
+                        )
+                        answer = format_intent_result(gw_action, data)
+                    route_detail = gw_action
             if answer is None:
                 intent = detect_action_intent(text)
                 if intent is not None:
                     action_name, params = intent
-                    if action_name == "ha_device_control":
+                    if action_name == "ha_device_control" or action_name in GOOGLE_WRITE_ACTIONS:
                         params = dict(params)
                         params["user_id"] = user_id
                     data = await self.execute_action(
@@ -1695,7 +1758,7 @@ class Orchestrator:
             # negação do Registry é o GATE DE PAPEL determinístico — vira
             # resposta guiada em vez de cair no LLM (que podia alucinar
             # confirmação).
-            if action_name == "ha_device_control":
+            if action_name in _PAPEL_GATE_ACTIONS:
                 return {"ok": False, "error": "permissao_negada"}
             return None
         elif result.status == "invalid":

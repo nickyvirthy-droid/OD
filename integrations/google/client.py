@@ -166,3 +166,29 @@ class GoogleClient:
 
     def get(self, url: str, **kw: Any) -> Any:
         return self.request("GET", url, **kw)
+
+    def request_body(
+        self,
+        method: str,
+        url: str,
+        *,
+        body: bytes,
+        content_type: str,
+        params: Optional[dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> Any:
+        """Requisição com corpo CRU — upload multipart/mídia do Drive e
+        envio de e-mail (lote 2 de escrita, 2026-10-03)."""
+        if params:
+            clean = {k: v for k, v in params.items() if v is not None and v != ""}
+            if clean:
+                url = f"{url}?{urlencode(clean, doseq=True)}"
+        headers = {
+            "Authorization": f"Bearer {self.ensure_access_token()}",
+            "Accept": "application/json",
+            "Content-Type": content_type,
+        }
+        status, raw = self._transport(
+            method, url, headers=headers, data=body, timeout=timeout or self.timeout
+        )
+        return checked(status, raw, context=f"{method} {url.split('?')[0]}")
