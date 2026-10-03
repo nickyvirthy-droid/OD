@@ -121,7 +121,11 @@ class GoogleClient:
         if params:
             clean = {k: v for k, v in params.items() if v is not None and v != ""}
             if clean:
-                url = f"{url}?{urlencode(clean)}"
+                # doseq: valores em lista viram parâmetros REPETIDOS
+                # (metadataHeaders=From&metadataHeaders=Subject), como o Google
+                # espera — sem isso a lista vira repr de Python na URL e o
+                # Gmail responde sem cabeçalhos (bug da prova viva 03/10).
+                url = f"{url}?{urlencode(clean, doseq=True)}"
         data = None
         if json_body is not None:
             data = json.dumps(json_body).encode("utf-8")
@@ -147,7 +151,7 @@ class GoogleClient:
         if params:
             clean = {k: v for k, v in params.items() if v is not None and v != ""}
             if clean:
-                url = f"{url}?{urlencode(clean)}"
+                url = f"{url}?{urlencode(clean, doseq=True)}"
         headers = {
             "Authorization": f"Bearer {self.ensure_access_token()}",
             "Accept": accept,

@@ -183,6 +183,22 @@ class TestClient:
         assert call["headers"]["Authorization"] == "Bearer access-old"
         assert "a=1" in call["url"] and "vazio" not in call["url"]
 
+    def test_params_lista_viram_parametros_repetidos(self) -> None:
+        """Lista vira chaves repetidas na URL (doseq) — não o repr de Python.
+
+        Bug achado na prova viva de 03/10: sem doseq, o metadataHeaders
+        do Gmail chegava como %5B%27From%27... e a API devolvia as 10
+        mensagens sem assunto e sem remetente.
+        """
+        transport = FakeTransport(lambda m, u, d: (200, b"{}"))
+        _client(transport).get(
+            "https://g.example/m",
+            params={"format": "metadata", "metadataHeaders": ["From", "Subject"]},
+        )
+        url = transport.calls[0]["url"]
+        assert "metadataHeaders=From&metadataHeaders=Subject" in url
+        assert "%5B" not in url
+
     def test_erro_http_vira_googleerror(self) -> None:
         transport = FakeTransport(
             lambda m, u, d: (403, b'{"error": {"message": "insufficient scopes"}}')
