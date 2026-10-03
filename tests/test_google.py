@@ -90,7 +90,7 @@ class TestModels:
             }}
         )
         assert console.redirect_uri == "http://localhost:9/cb"
-        assert len(console.scopes) == 3
+        assert len(console.scopes) == 4  # lote 2 (03/10): escopo cheio
 
     def test_credentials_incompletas_falham(self) -> None:
         with pytest.raises(ValueError):
@@ -110,12 +110,19 @@ class TestModels:
 
 class TestOAuth:
     def test_build_authorization_url(self) -> None:
+        from urllib.parse import unquote
+
         url = oauth.build_authorization_url(_creds(), state="xyz")
         assert "accounts.google.com" in url
         assert "client_id=cid" in url
         assert "access_type=offline" in url and "prompt=consent" in url
         assert "state=xyz" in url
-        assert "drive.readonly" in url and "gmail.readonly" in url
+        livre = unquote(url)
+        # Lote 2 (03/10): escopo cheio aprovado pelo dono.
+        for escopo in ("/auth/drive", "/auth/calendar.events",
+                       "/auth/gmail.modify", "/auth/gmail.send"):
+            assert escopo in livre, escopo
+        assert "drive.readonly" not in livre  # lote 1 superado
 
     def test_extract_code_de_url_e_de_codigo(self) -> None:
         assert oauth.extract_code("http://localhost:8766/?code=abc&scope=z") == "abc"

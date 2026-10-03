@@ -43,7 +43,7 @@ from integrations.google.drive import DriveService
 from integrations.google.gmail import GmailService
 from integrations.google.models import (
     DEFAULT_REDIRECT_URI,
-    SCOPES_READ,
+    SCOPES_FULL,
     GoogleCredentials,
     GoogleToken,
 )
@@ -59,7 +59,7 @@ __all__ = [
     "GoogleCredentials",
     "GoogleError",
     "GoogleToken",
-    "SCOPES_READ",
+    "SCOPES_FULL",
     "DEFAULT_REDIRECT_URI",
     "DRIVE_BASE",
     "CALENDAR_BASE",

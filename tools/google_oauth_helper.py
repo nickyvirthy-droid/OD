@@ -48,14 +48,19 @@ LOCAL_FILE = pathlib.Path("google_auth_url.txt")
 
 # Mesma URL que o servidor gera com: .venv/bin/python -m runtime.google_auth --url
 # (redirect_uri=http://localhost:8766/ confere com config/google_credentials.json)
+# Escopos do LOTE 2 (03/10, escopo cheio) — tem que bater com
+# integrations.google.models.SCOPES_FULL (fixo no teste
+# test_consent_url_bate_com_os_escopos_do_servidor, porque este arquivo roda
+# sozinho no PC do dono e não importa o projeto).
 CONSENT_URL = (
     "https://accounts.google.com/o/oauth2/v2/auth"
     "?client_id=582855984584-2mm9i3i9p3np8jtdtink43rlao4lgtak.apps.googleusercontent.com"
     "&redirect_uri=http%3A%2F%2Flocalhost%3A8766%2F"
     "&response_type=code"
-    "&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.readonly"
-    "+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar.readonly"
-    "+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly"
+    "&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive"
+    "+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar.events"
+    "+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.modify"
+    "+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.send"
     "&access_type=offline"
     "&prompt=consent"
     "&include_granted_scopes=true"

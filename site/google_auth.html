@@ -31,15 +31,17 @@
 </head>
 <body>
 <main>
-  <h1>🐉 Autorizar o Google no OmegaDrakon</h1>
-  <p class="sub">Drive · Agenda · Gmail — <strong>somente leitura</strong>
-     (escopo decidido pelo dono em 02/10/2026: ler primeiro, escrever depois).</p>
+  <h1>🐉 Autorizar o Google no OmegaDrakon</h1>  <p class="sub">Drive · Agenda · Gmail — <strong>leitura + escrita</strong>
+     (lote 1 leitura em 02/10; escrita aprovada pelo dono em 03/10, com
+     gate de papel e confirmação de 2 passos no chat).</p>
 
-  <p class="aviso">O que é pedido: <code>drive.readonly</code>,
-     <code>calendar.readonly</code> e <code>gmail.readonly</code>.
-     Nada de enviar e-mail, criar evento ou apagar arquivo.</p>
+  <p class="aviso">O que é pedido: <code>drive</code> (criar/editar/apagar
+     arquivos), <code>calendar.events</code> (criar/apagar compromissos),
+     <code>gmail.modify</code> (ler/apagar e-mails) e <code>gmail.send</code>
+     (enviar). O Google pode avisar que o app tem acesso amplo ao Drive — é
+     você autorizando você mesmo.</p>
 
-  <a class="btn" href="https://accounts.google.com/o/oauth2/v2/auth?client_id=582855984584-2mm9i3i9p3np8jtdtink43rlao4lgtak.apps.googleusercontent.com&amp;redirect_uri=http%3A%2F%2Flocalhost%3A8766%2F&amp;response_type=code&amp;scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.readonly+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar.readonly+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly&amp;access_type=offline&amp;prompt=consent&amp;include_granted_scopes=true">▶ Autorizar no Google</a>
+  <a class="btn" href="https://accounts.google.com/o/oauth2/v2/auth?client_id=582855984584-2mm9i3i9p3np8jtdtink43rlao4lgtak.apps.googleusercontent.com&amp;redirect_uri=http%3A%2F%2Flocalhost%3A8766%2F&amp;response_type=code&amp;scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar.events+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.modify+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.send&amp;access_type=offline&amp;prompt=consent&amp;include_granted_scopes=true">▶ Autorizar no Google</a>
 
   <p>Depois de permitir, o Google te manda para
      <code>http://localhost:8766/</code> — a página pode não abrir.

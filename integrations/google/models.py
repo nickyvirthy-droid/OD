@@ -35,13 +35,18 @@ TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 # servidor não tem navegador, então o código é capturado por colagem).
 DEFAULT_REDIRECT_URI = "http://localhost:8766/"
 
-# PRIMEIRO LOTE = SOMENTE LEITURA (decisão do dono, 2026-10-02). Escrita
-# (criar/editar/apagar no Drive, criar/apagar eventos, enviar/apagar e-mail)
-# entra num 2º lote com o mesmo gate de papel + confirmação de 2 passos.
-SCOPES_READ: tuple[str, ...] = (
-    "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/calendar.readonly",
-    "https://www.googleapis.com/auth/gmail.readonly",
+# LOTE 1 (decisão do dono, 2026-10-02) = SOMENTE LEITURA. LOTE 2 = ESCRITA
+# aprovada pelo dono (2026-10-03, "escopo cheio: atende o txt.txt inteiro"):
+# criar/editar/apagar no Drive, criar/apagar eventos, enviar/apagar e-mail.
+# As actions de escrita continuam atrás do gate de papel (admin) +
+# confirmação de 2 passos, como o controle do lar (v1.8.1).
+# Escopos: drive ⊃ drive.readonly · calendar.events ⊃ leitura de eventos +
+# CRUD · gmail.modify (ler/mover para lixeira) + gmail.send (enviar).
+SCOPES_FULL: tuple[str, ...] = (
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/gmail.send",
 )
 
 
@@ -52,7 +57,7 @@ class GoogleCredentials:
     client_id: str
     client_secret: str
     redirect_uri: str = DEFAULT_REDIRECT_URI
-    scopes: tuple[str, ...] = SCOPES_READ
+    scopes: tuple[str, ...] = SCOPES_FULL
 
     # -- Carregamento -------------------------------------------------------
 
@@ -88,7 +93,7 @@ class GoogleCredentials:
             client_id=client_id,
             client_secret=client_secret,
             redirect_uri=redirect_uri,
-            scopes=tuple(str(s) for s in scopes) if scopes else SCOPES_READ,
+            scopes=tuple(str(s) for s in scopes) if scopes else SCOPES_FULL,
         )
 
     def to_dict(self, *, include_secret: bool = False) -> dict[str, Any]:

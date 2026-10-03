@@ -1,8 +1,10 @@
 # OMEGA DRAKON — INTEGRAÇÃO GOOGLE (Drive · Agenda · Gmail)
 
-> **Status:** código pronto, **dormente até a credencial do dono**.
-> **Escopo atual:** SOMENTE LEITURA (decisão do dono em 2026-10-02 — "leitura
-> primeiro"; a ESCRITA entra num 2º lote com gate de papel + confirmação).
+> **Status:** leitura NO AR (provada em 03/10) · escrita em implementação.
+> **Escopo atual:** LOTE 1 = SOMENTE LEITURA (dono, 2026-10-02). LOTE 2 =
+> **ESCRITA aprovada** (dono, 2026-10-03 — "escopo cheio: atende o txt.txt
+> inteiro") com **gate de papel (admin) + confirmação de 2 passos**, mesmo
+> padrão do controle do lar. Token novo com os 4 escopos abaixo.
 > **Base técnica:** OAuth 2.0 + REST em **stdlib puro** (urllib) — sem
 > `google-api-python-client`, sem novas dependências.
 > **Assinatura:** `OD // CORE`
@@ -111,9 +113,14 @@ Sem credencial, nada quebra: as actions `google_*` apenas degradam.
 
 | Escopo | Para quê |
 |---|---|
-| `.../auth/drive.readonly` | listar/ler arquivos do Drive |
-| `.../auth/calendar.readonly` | listar/ler eventos da Agenda |
-| `.../auth/gmail.readonly` | listar/ler mensagens do Gmail |
+| `.../auth/drive` | listar/ler **e criar/editar/apagar** arquivos do Drive (⊃ o antigo `drive.readonly`) |
+| `.../auth/calendar.events` | listar/ler **e criar/apagar** eventos da Agenda (⊃ o antigo `calendar.readonly` para eventos) |
+| `.../auth/gmail.modify` | listar/ler **e apagar (lixeira)** mensagens do Gmail (⊃ o antigo `gmail.readonly`) |
+| `.../auth/gmail.send` | enviar e-mails do Gmail |
+
+> Lote 1 (02/10) usava os três `*.readonly`. Em 03/10 o dono aprovou o
+> escopo cheio — a autorização precisa ser FEITA DE NOVO com os escopos
+> novos (`include_granted_scopes=true` preserva o já concedido).
 
 Para revogar o acesso a qualquer momento:
 <https://myaccount.google.com/permissions>.

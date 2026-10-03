@@ -53,11 +53,28 @@ class TestUrlEmbutida:
         # o que o navegador pede é EXATAMENTE o que o servidor troca
         assert "redirect_uri=http%3A%2F%2Flocalhost%3A8766%2F" in helper.CONSENT_URL
 
-    def test_os_tres_escopos_de_leitura(self):
-        for escopo in ("drive.readonly", "calendar.readonly", "gmail.readonly"):
-            assert escopo in helper.CONSENT_URL
-        # escrita não existe (decisão do dono: leitura primeiro)
-        assert "gmail.compose" not in helper.CONSENT_URL
+    def test_escopos_do_lote2_escrita(self):
+        from urllib.parse import unquote
+
+        livre = unquote(helper.CONSENT_URL)
+        for escopo in ("/auth/drive", "/auth/calendar.events",
+                       "/auth/gmail.modify", "/auth/gmail.send"):
+            assert escopo in livre, escopo
+        # lote 2 (03/10): escopo cheio — o readonly do lote 1 saiu
+        assert "drive.readonly" not in livre
+
+    def test_consent_url_bate_com_os_escopos_do_servidor(self):
+        """O helper roda SOZINHO no PC do dono (arquivo copiado isolado),
+        então os escopos são literais aqui — e este teste obriga a manter
+        em sincronia com integrations.google.models.SCOPES_FULL."""
+        from urllib.parse import parse_qs, urlparse
+
+        from integrations.google.models import GoogleCredentials
+
+        query = parse_qs(urlparse(helper.CONSENT_URL).query)
+        pedidos = set(query["scope"][0].split(" "))
+        servidor = GoogleCredentials(client_id="cid", client_secret="sec")
+        assert pedidos == set(servidor.scopes)
 
     def test_nao_vaza_client_secret(self):
         assert "client_secret" not in helper.CONSENT_URL
