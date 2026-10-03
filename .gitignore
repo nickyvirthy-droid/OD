@@ -159,3 +159,4 @@ firebase-service-account*.json
 /sandbox_agent/
 /assets/
 docs/client_secret_*.json
+config/client_secret_*.json
