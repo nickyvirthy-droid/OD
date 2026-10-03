@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-02T17:22:22-03:00",
+  "updated_at": "2026-10-03T09:41:15-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1188,11 +1188,18 @@
     "estado": "CONCLUÍDO, PUBLICADO (código + testes + docs) — aguardando a credencial OAuth do dono para autorizar (runtime/google_auth.py), implantar (deploy + bump MINOR) e provar com dados reais.",
     "transcricao": "iniciar/2026-10-02_conversa_omegadrakon.md (§8)"
   },
+  "retomada_2026_10_03": {
+    "pedido": "Usuário: 'leia iniciar' — retomada (09:41 de 03/10).",
+    "leitura": "iniciar/README.md, RULES.md, session.json (íntegro, 1244 linhas) e transcrição 2026-10-02 (§1–§8).",
+    "verificacao_no_ar": "Working tree LIMPO; HEAD 4d2c937 (registro do hash da integração Google) == origin/master (0 à frente); od-core, od-llm e od-orchestrator active; /app/version {1.17.4, code 2037, size 53972629, sha256 6a10064b…}; /health 401 sem chave (portão por design); /supervision up, restarts 0, degraded []; /capabilities 1.17.4; journal de hoje 0 Traceback/ERROR/CRIT.",
+    "estado": "RETOMADA CONCLUÍDA — v1.17.4 NO AR, nada pendente de correção. Pendências do dono intactas: (1) instalar APK 1.17.4+2037 no celular (site/OmegaDrakon-arm64.apk); (2) credencial OAuth do Google — arquitetura de leitura JÁ publicada (20b724d), falta o dono criar o OAuth client, rodar runtime/google_auth.py e aí deploy + bump MINOR + prova viva; (3) alternativa futura: gemma quando o hardware crescer.",
+    "resolvido_em_02_10": "2 achados de infra de 30/09 FECHADOS (CI verde em checkout limpo + gate de cobertura 90,17% ≥ 90, commit 12c34c1); arquitetura Google Drive/Agenda/Gmail (leitura) publicada (20b724d)."
+  },
   "last_turn": {
-    "date": "2026-10-01",
-    "retomada": "Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2. (8) 23:2x 'conclua os pontos' → 4/4 FECHADOS: rótulo voz=1.17.3+guarda, APK full corrigido (causa=incremental envenenado, não AGP), txt.txt limpo, bump 1.17.4+2037 no ar (restart 23:48:57).",
-    "action": "v1.17.4 NO AR (PID 10933, restart 23:48:57): APK full 53.972.629 B (3 ABIs completas) + arm64 19.245.103 B publicados (2037/1.17.4); suíte 2149 passed/16 skipped + flutter analyze limpo + flutter test 131/2; transcrição 01/10 completa (§1–§11); HEAD d94a191 em origin/master; /app/version sha==site, /health 200 up, /tts 200 WAV, journal 0 ERROR.",
-    "next": "Pendências: (1) instalar APK 1.17.4+2037 no celular do dono (site/OmegaDrakon-arm64.apk); (2) Drive/Agenda/Gmail do txt.txt (MINOR, credencial OAuth do dono); (3) 2 achados de infra de 30/09 (cobertura 89.44% vs gate 90; CI vs .env); (4) alternativa futura: gemma quando o hardware crescer. Resolvidos em 01/10 23:2x–23:5x: rótulo v1.18.0→1.17.3+guarda; APK full (causa raiz incremental envenenado); txt.txt voz removida.",
+    "date": "2026-10-03",
+    "retomada": "Retomada 03/10 09:41 ('leia iniciar'): verificação verde — HEAD 4d2c937 == origin/master, árvore limpa, od-core/llm/orchestrator active, v1.17.4 no ar (sha do APK == site), supervision restarts 0, journal de hoje 0 erros. Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2. (8) 23:2x 'conclua os pontos' → 4/4 FECHADOS: rótulo voz=1.17.3+guarda, APK full corrigido (causa=incremental envenenado, não AGP), txt.txt limpo, bump 1.17.4+2037 no ar (restart 23:48:57).",
+    "action": "v1.17.4 NO AR e verificada em 03/10 09:41: /app/version {1.17.4, 2037, sha256 == site/OmegaDrakon.apk 53.972.629 B}; /supervision restarts 0; journal 0 erros; HEAD 4d2c937 == origin/master; árvore limpa. Em 02/10: infra fechada (CI limpo + cobertura 90,17%, 12c34c1) e arquitetura Google publicada (20b724d).",
+    "next": "Pendências: (1) instalar APK 1.17.4+2037 no celular do dono (site/OmegaDrakon-arm64.apk); (2) credencial OAuth do Google (Drive/Agenda/Gmail) — dono cria o OAuth client em config/google_credentials.json e roda runtime/google_auth.py → depois deploy + bump MINOR + prova viva; (3) alternativa futura: gemma quando o hardware crescer. FECHADOS: 2 achados de infra de 30/09 (cobertura + CI); rótulo v1.18.0; APK full; txt.txt voz.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
