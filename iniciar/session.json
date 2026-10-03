@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-03T09:51:47-03:00",
+  "updated_at": "2026-10-03T10:00:30-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1213,6 +1213,17 @@
     "estado_base_verificado": "google_auth --check → 'credencial ausentes' exit 1; data/google_token.json e config/google_credentials.json inexistentes; config/*_credentials.json no .gitignore (96–98).",
     "aguarda": "AÇÃO DO DONO no Google Cloud Console (passos 1–5) + colar o JSON em config/google_credentials.json e o resultado do --code. Depois: restart od-core + prova viva + bump 1.18.0 (fica para a próxima etapa).",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§3)"
+  },
+  "oauth_google_prova_bloqueada_2026_10_03": {
+    "pedido": "Dono: 'Já autorizei — reinicie o od-core e faça a prova viva do Google' (~09:58 de 03/10).",
+    "evidencia": "ANTES de reiniciar: config/google_credentials.json e data/google_token.json INEXISTENTES; find em /home/alex e /tmp → nenhum google_token*.json. Ou seja: o troca-código NUNCA rodou no servidor — a autorização não terminou aqui (a credencial baixada existe: config/client_secret_…json e docs/client_secret_…json, mtime 01/10 18:12). Sem token, reiniciar só faria as actions google_* degradarem com 'não autorizado' — prova viva impossível.",
+    "acoes": [
+      "cp config/client_secret_….json → config/google_credentials.json (chmod 600) — passo 4 do guia; --check agora reconhece a credencial (token AUSENTE, exit 1).",
+      "ACHADO de segurança: config/client_secret_*.json estava UNTRACKED e FORA do .gitignore (só docs/client_secret_*.json estava coberto) → risco de commitar o segredo. Corrigido: .gitignore ganha config/client_secret_*.json (commit 5ab0d87, push; config/*_credentials.json já cobre o google_credentials.json).",
+      "URL de consentimento gerada (runtime.google_auth --url) e entregue ao dono para concluir o fluxo."
+    ],
+    "estado": "BLOQUEADO EM UMA AÇÃO DO DONO — precisa abrir a URL do consentimento e colar de volta a URL de retorno (http://localhost/?code=…, página não abre = normal; redirect sai como http://localhost porque o JSON do Console é Desktop app e models.py usa redirect_uris[0]). Depois: --code → --check → restart od-core → prova viva → bump MINOR 1.18.0 com checklist + APK (regra 12).",
+    "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§4)"
   },
   "last_turn": {
     "date": "2026-10-03",

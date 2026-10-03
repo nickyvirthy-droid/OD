@@ -110,6 +110,38 @@ credencial"**. Guia entregue no chat, conferido contra o código
 **Aguarda:** ação do dono no Console (passos 1–5) e o resultado do
 `--code`.
 
+## 4. Prova viva do Google — bloqueio (~09:58)
+
+Pedido: **"Já autorizei — reinicie o od-core e faça a prova viva do
+Google"**. Antes de reiniciar (evidência primeiro):
+
+- `config/google_credentials.json` e `data/google_token.json`
+  **inexistentes**; `find` em `/home/alex` e `/tmp` → nenhum
+  `google_token*.json` — o troca-código **nunca rodou no servidor**.
+- A credencial baixada existe (`config/client_secret_….json` e
+  `docs/client_secret_….json`, de 01/10 18:12), mas com o nome errado.
+- Sem token, reiniciar só faria as actions `google_*` degradarem com
+  "não autorizado" — **prova viva impossível**; reinício adiado.
+
+**Ações:**
+
+1. `cp config/client_secret_….json → config/google_credentials.json`
+   (0600) — passo 4 do guia; `--check` agora reconhece a credencial
+   (token AUSENTE, exit 1).
+2. **Achado de segurança:** `config/client_secret_*.json` estava
+   *untracked* e **fora** do `.gitignore` (só `docs/client_secret_*.json`
+   era coberto) → risco de commitar o segredo. Corrigido no `.gitignore`
+   (commit `5ab0d87`, publicado).
+3. URL de consentimento gerada (`runtime.google_auth --url`) e entregue
+   ao dono.
+
+**Estado: BLOQUEADO numa ação do dono** — abrir a URL, autorizar e colar
+a URL de retorno (`http://localhost/?code=…`; a página não abre = normal;
+o redirect sai como `http://localhost` porque o JSON do Console é
+*Desktop app* e `models.py` usa `redirect_uris[0]`). Depois: `--code` →
+`--check` → restart do od-core → prova viva → bump MINOR 1.18.0 com
+checklist + APK (regra 12).
+
 ---
 
 Interface Viva: Nicky Virthy · Arquiteto: Alex Projeti
