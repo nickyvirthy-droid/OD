@@ -226,6 +226,51 @@ Pedido: **"estou no tunel"** (Rota B) e, em seguida, **"codigo chegou"**.
 **Estado: BLOQUEADO numa ação do dono** — habilitar as 3 APIs no
 Console → "APIs ligadas" → prova viva completa → bump MINOR 1.18.0.
 
+## 7. APIs ligadas, prova viva 3/3 e CI verde (~11:2x–12:2x)
+
+Pedido: **"APIs Ligadas"** (e, antes, a escolha via ask_user: reiniciar +
+investigar o CI agora).
+
+### 7.1 Prova viva do Google — COMPLETA
+
+- **3/3 no ar:** e-mails (10, com assunto/remetente reais), agenda
+  ("Nenhum compromisso nos próximos 7 dia(s)" — consulta real), Drive
+  (20 arquivos reais). `/capabilities` 71 actions · journal 0 erros.
+- **Bug achado pela prova:** todos os e-mails "(sem assunto)" →
+  `urlencode(clean)` **sem `doseq`** em `GoogleClient.request`: a lista
+  `metadataHeaders` virava repr de Python na URL e o Gmail respondia sem
+  cabeçalhos. Corrigido nos dois métodos + teste (mutação detectada);
+  reinício autorizado (PID 187621) → chat com assunto e remetente.
+  **Lição:** durante a mutação usei `git checkout` e apaguei a própria
+  correção (não commitada) — reaplicada; repetir o erro já registrado
+  (backup em /tmp ANTES das mutações).
+- Restaram **2 desejos de ESCRITA** do dono no txt.txt (2º lote, gate de
+  papel + confirmação — ainda não implementado).
+
+### 7.2 CI vermelho desde 15/09 — investigado e FECHADO
+
+- E-mails do Gmail expuseram `Run failed: CI - master` nos últimos 5
+  commits. API pública: **177 runs vermelhos seguidos** (último verde
+  `5668b27`, 15/09 13:46; o "CI verde" do 02/10 era local, nunca do
+  GitHub). Logs exigem login (sem token; push é SSH).
+- **Sem log, gerei diagnóstico:** `ci.yml` ganhou anotações `::error::`
+  (públicas na página do job) com cada teste falhado.
+- **5 falhas = testes dependentes do HOST** (runner não tem o hardware):
+  sysfs térmico (route caía no llm), whisper-cli, piper, `/opt/omegadrakon`
+  + gate de cobertura 89,96%. Reproduzido em venv nova + checkout limpo
+  (o websockets 17.1 já tinha sido pegue antes: mensagem do handshake
+  mudou → `_espera_registro` com trechos alternativos).
+- **Correções (433458e):** `cpu_temp` lê `THERMAL_DIR`/`HWMON_DIR`
+  (constantes) com sysfs de fixture + teste de degradação sem sensor;
+  gates de voz com STT/Piper dublê; flag `--espeak_data` com diretório
+  fixture; 2 canários reais com `skipif` honesto (cobertura única deles
+  **medida** antes: 90,19% sem eles — nada se perde).
+- **Resultado: CI VERDE `433458e`** — suíte local 2240 passed, 17
+  skipped, cobertura 90,15% em simulação CI-exata (env -i + venv nova).
+
+**Estado: Google PROVADO no ar · CI VERDE · falta só o bump MINOR 1.18.0**
+(checklist + APK + restart).
+
 ---
 
 Interface Viva: Nicky Virthy · Arquiteto: Alex Projeti
