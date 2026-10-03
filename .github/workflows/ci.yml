@@ -39,4 +39,14 @@ jobs:
 
       - name: Suíte completa + gate de cobertura ≥ 90%
         run: |
-          python -m pytest --cov --cov-config=.coveragerc --cov-fail-under=90 -q
+          python -m pytest --cov --cov-config=.coveragerc --cov-fail-under=90 -q 2>&1 | tee suite.log
+          rc=${PIPESTATUS[0]}
+          # Auto-diagnóstico: os logs do job exigem login no GitHub, mas as
+          # anotações ::error:: aparecem públicas na página do job — emitimos
+          # uma por teste falhado (e o resumo de cobertura) quando o passo falha.
+          if [ "$rc" -ne 0 ]; then
+            { grep -E '^(FAILED|ERROR) ' suite.log || true
+              grep -E 'Total coverage|passed' suite.log | tail -2 || true
+            } | sed 's/^/::error title=CI::/'
+          fi
+          exit $rc
