@@ -50,22 +50,46 @@ cp ~/Downloads/client_secret_XXXX.json config/google_credentials.json
 
 Se preferir o formato achatado, use `config/google_credentials.example.json`
 como base (o campo `redirect_uris`/`redirect_uri` é opcional; o padrão é
-`http://localhost:8766/`).
+`http://localhost:8766/`).## 4. Autorizar (headless: o servidor não tem navegador)
 
-## 4. Autorizar (headless: colar a URL de retorno)
+A autorização acontece no navegador de quem usa, e o código precisa voltar
+ao servidor. Três rotas — **A e B não exigem copiar/colar nada**:
 
-O servidor não tem navegador. O fluxo é "autorizar no navegador → colar a URL
-de volta":
+### Rota A — helper no PC (recomendada)
+
+```bash
+scp alex@192.168.0.250:OmegaDrakon/tools/google_oauth_helper.py .
+python3 google_oauth_helper.py
+```
+
+O helper sobe `http://localhost:8766/` só na sua máquina, abre o navegador
+já na página de consentimento e, quando o Google redirecionar, **captura o
+código sozinho** e o envia ao servidor por SSH
+(`~/OmegaDrakon/data/google_auth_url.txt`). Sem SSH ele deixa o arquivo
+pronto — é só mandar por `scp`. Depois diga no chat que o código chegou.
+
+### Rota B — túnel SSH
+
+```bash
+ssh -L 8766:127.0.0.1:8766 alex@192.168.0.250
+```
+
+Com a sessão aberta, use o botão de consentimento em
+`/site/google_auth.html` (pública): o `localhost:8766` do navegador cai no
+servidor pelo túnel e quem captura é o próprio servidor.
+
+### Rota C — colar a URL (reserva)
 
 ```bash
 .venv/bin/python -m runtime.google_auth
 ```
 
-1. o script imprime uma URL — abra no navegador (do PC ou celular) e autorize;
+1. o script imprime uma URL — abra no navegador e autorize;
 2. o Google redireciona para `http://localhost:8766/?code=...` (a página pode
    não abrir — normal);
-3. copie a **URL inteira** da barra de endereço e cole de volta no terminal;
-4. o token é salvo em `data/google_token.json` (permissão `0600`).
+3. copie a **URL inteira** da barra de endereço e cole de volta no terminal
+   (`--code "<url>"` em modo não interativo);
+4. em qualquer rota o token é salvo em `data/google_token.json` (`0600`).
 
 Conferir o estado a qualquer momento:
 
@@ -116,11 +140,9 @@ controle do lar: gate de papel (admin) + **confirmação de 2 passos**.
 |---|---|---|
 | `autorização recusada (access_denied)` | conta não autorizada / consentimento negado | refaça o passo 4 e aceite os escopos |
 | `invalid_grant` na renovação | token revogado/expirado ou sem refresh | rode o passo 4 de novo (`prompt=consent`) |
-| `redirect_uri_mismatch` | URI de redirecionamento divergente | mantenha `http://localhost:8766/` no Console e no config |
+| `redirect_uri_mismatch` | o que foi pedido não bate com o que o servidor troca | o valor que vale é o `redirect_uri` de `config/google_credentials.json` (padrão `http://localhost:8766/`) — troque os dois juntos ou nenhum |
+| o navegador abre e nada chega | porta 8766 ocupada no seu PC, ou você autorizou de outra máquina | feche quem estiver na porta, ou use a rota B (túnel) |
 | Chat responde "ainda não configurado" | credencial/token ausentes ou od-core não reiniciado | passos 3–5 |
 | Sem `refresh_token` | consentimento anterior sem `prompt=consent` | o script já força `access_type=offline` + `prompt=consent` |
 
----
-
-**Arquivos:** `integrations/google/` (oauth, client, drive, calendar, gmail) +
-`runtime/google_auth.py` (autorização) + `config/google_credentials.example.json`.
+---**Arquivos:** `integrations/google/` (oauth, client, drive, calendar, gmail) + `runtime/google_auth.py` (autorização) + `tools/google_oauth_helper.py` (captura no PC, sem copiar) + `site/google_auth.html` (botão público) + `config/google_credentials.example.json`.

@@ -142,6 +142,57 @@ o redirect sai como `http://localhost` porque o JSON do Console é
 `--check` → restart do od-core → prova viva → bump MINOR 1.18.0 com
 checklist + APK (regra 12).
 
+## 5. "Faça por arquivos" — fluxo sem copiar/colar (~10:0x–10:3x)
+
+Dono: **"não consigo copiar nada. faça por arquivos"** — ele lê o chat
+pelo terminal (freebuff) e não consegue mover a URL longa até o navegador.
+
+### 5.1 Evidência antes de propor (curl no endpoint de consentimento)
+
+- Servidor **sem navegador** (`loginctl`: só sessões tty/ssh) — a
+  autorização precisa do navegador dele e o código precisa voltar por
+  arquivo.
+- **Desktop client aceita só loopback**: redirect não-loopback
+  (`https://nicky-server…/site/oauth_cb.html`) → `redirect_uri_mismatch`;
+  `postmessage` → `invalid_client (no registered origin)`;
+  `urn:ietf:wg:oauth:2.0:oob` → removido pelo Google.
+- `http://localhost:8766/` é aceito (302 → sign-in) — porta escolhida.
+
+### 5.2 O que foi construído
+
+1. `config/google_credentials.json` (novo, 0600 — cópia do JSON baixado
+   em 01/10) com `redirect_uri http://localhost:8766/` (o `models.py` lê
+   `redirect_uri` antes de `redirect_uris`).
+2. **`tools/google_oauth_helper.py`** (roda no PC do dono): sobe
+   `127.0.0.1:8766`, abre a URL de consentimento, captura `?code=`, grava
+   `google_auth_url.txt` e envia ao servidor por SSH
+   (`alex@192.168.0.250:OmegaDrakon/data/google_auth_url.txt`); flags
+   `--no-open/--no-ssh/--dry-run`; recusa porta ocupada. **Bug pego no
+   1º teste manual:** `NameError: 'corro'` (typo de `corpo`) na resposta
+   HTTP — corrigido e coberto por teste.
+3. **`site/google_auth.html`** (público): botão ▶ Autorizar com a URL
+   idêntica à do CLI + Rota A (helper) e Rota B (túnel SSH).
+4. `docs/GOOGLE.md` §4 reescrito (3 rotas) + troubleshooting ampliado.
+5. `tests/test_google_oauth_helper.py` — **9 testes** (URL = redirect do
+   config, 3 escopos, sem `client_secret`, captura→arquivo, página 200,
+   `access_denied` → rc 1, porta ocupada → 1, SSH falha com mensagem).
+
+### 5.3 Validação
+
+- **Suíte completa: 2238 passed, 16 skipped** (86s) · gate de cobertura
+  **90,20% ≥ 90%** (helper 86%).
+- A suíte pegou uma **dependência de estado do repo**:
+  `test_main_sem_flags_usa_defaults` assumia `config/google_credentials.json`
+  inexistente → teste tornado hermético (arquivo fantasma em `tmp_path`).
+- Página servida: `GET /site/google_auth.html` → **200** local **e** pela
+  URL pública do Funnel; `redirect_uri` da página == o do CLI.
+- **Sem bump**: ferramenta do dono + página estática + docs/testes — o
+  od-core nem foi reiniciado.
+
+**Estado: PRONTO, aguardando o dono escolher a rota (A: helper / B:
+túnel).** Depois que o código chegar: `--code` → `--check` → restart →
+prova viva → bump MINOR 1.18.0.
+
 ---
 
 Interface Viva: Nicky Virthy · Arquiteto: Alex Projeti

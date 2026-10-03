@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-03T10:00:30-03:00",
+  "updated_at": "2026-10-03T10:33:45-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1225,11 +1225,32 @@
     "estado": "BLOQUEADO EM UMA AÇÃO DO DONO — precisa abrir a URL do consentimento e colar de volta a URL de retorno (http://localhost/?code=…, página não abre = normal; redirect sai como http://localhost porque o JSON do Console é Desktop app e models.py usa redirect_uris[0]). Depois: --code → --check → restart od-core → prova viva → bump MINOR 1.18.0 com checklist + APK (regra 12).",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§4)"
   },
+  "oauth_google_por_arquivos_2026_10_03": {
+    "pedido": "Dono: 'não consigo copiar nada. faça por arquivos' (~10:0x de 03/10) — ele não consegue mover a URL longa entre o chat (freebuff no terminal) e o navegador.",
+    "diagnostico_antes_de_mexer": [
+      "Servidor sem navegador/sessão gráfica (loginctl: só tty/ssh) — a autorização precisa do navegador DELE e o código precisa voltar por arquivo.",
+      "Testado com curl no endpoint de consentimento (evidência antes de propor): Desktop client aceita APENAS loopback — redirect não-loopback (https://nicky-server…/site/oauth_cb.html) → redirect_uri_mismatch; 'postmessage' → invalid_client 'no registered origin'; 'oob' → removido pelo Google. Só http://localhost[:porta] vale.",
+      "Testado: http://localhost:8766/ é aceito (302 → sign-in) — porta livre escolhida."
+    ],
+    "implementacao": [
+      "config/google_credentials.json (novo, 0600, cópia do client_secret baixado em 01/10) ganha redirect_uri http://localhost:8766/ — models.py lê redirect_uri antes de redirect_uris; backup do original em /tmp.",
+      "tools/google_oauth_helper.py (NOVO, roda no PC do dono): sobe 127.0.0.1:8766, abre a URL de consentimento no navegador, captura ?code=, grava google_auth_url.txt e envia ao servidor por SSH (alex@192.168.0.250:OmegaDrakon/data/google_auth_url.txt); flags --no-open/--no-ssh/--dry-run/--porta/--timeout; recusa porta ocupada; página de confirmação 200 em pt-BR. BUG pego no 1º teste manual: NameError 'corro' (typo de 'corpo') na resposta HTTP — corrigido e coberto por teste.",
+      "site/google_auth.html (NOVO, público em /site/google_auth.html): botão ▶ Autorizar (URL embutida == a do CLI) + Rota A (helper scp+python3) e Rota B (túnel ssh -L 8766).",
+      "docs/GOOGLE.md §4 reescrito com as 3 rotas (A helper, B túnel, C colar URL como reserva) + 2 linhas novas na tabela de troubleshooting.",
+      "tests/test_google_oauth_helper.py (NOVO, 9 testes): URL embutida = redirect do config + 3 escopos de leitura + sem client_secret; captura vira arquivo; página 200; error=access_denied → rc 1 sem arquivo; porta ocupada → 1; falha de SSH vira mensagem legível."
+    ],
+    "teste_do_teste": "A suíte COMPLETA pegou a dependência de estado do repo: test_main_sem_flags_usa_defaults (test_google.py) assumia config/google_credentials.json INEXISTENTE e agora devolvia 0 em vez de 1 — teste tornado hermético (aponta para arquivo fantasma em tmp_path, mesma intenção).",
+    "validacao": "Suíte completa 2238 passed, 16 skipped (86s, .venv canônico SEM OD_TEST_POSTGRES_DSN) + gate de cobertura: 'Required test coverage of 90% reached' — 90,20% (helper 86%). mqtt flaky passou nesta rodada (test_start_stop_thread 3/3 isolado).",
+    "prova_do_site": "GET /site/google_auth.html → 200 (3917 B) local E pela URL pública do Funnel; redirect_uri da página == o do CLI (localhost%3A8766%2F).",
+    "sem_bump": "Ferramenta do dono + página estática + docs/testes — nenhum comportamento do od-core muda (servidor nem reiniciado); mesmo precedente da infra de 02/10.",
+    "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
+    "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
+  },
   "last_turn": {
     "date": "2026-10-03",
     "retomada": "Retomada 03/10 09:41 ('leia iniciar'): verificação verde — HEAD 4d2c937 == origin/master, árvore limpa, od-core/llm/orchestrator active, v1.17.4 no ar (sha do APK == site), supervision restarts 0, journal de hoje 0 erros. Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2. (8) 23:2x 'conclua os pontos' → 4/4 FECHADOS: rótulo voz=1.17.3+guarda, APK full corrigido (causa=incremental envenenado, não AGP), txt.txt limpo, bump 1.17.4+2037 no ar (restart 23:48:57).",
     "action": "v1.17.4 NO AR e verificada em 03/10 09:4x (verificação geral completa: serviços, API, Funnel, banco, journal, git — TUDO VERDE; único achado = DNS transitório do bot Telegram, auto-recuperado): /app/version {1.17.4, 2037, sha256 == site/OmegaDrakon.apk 53.972.629 B}; /supervision restarts 0; journal od-core 0 erros desde 01/10; HEAD 63502ad == origin/master; árvore limpa. Em 02/10: infra fechada (CI limpo + cobertura 90,17%, 12c34c1) e arquitetura Google publicada (20b724d).",
-    "next": "Pendências: (1) instalar APK 1.17.4+2037 no celular do dono (site/OmegaDrakon-arm64.apk); (2) Drive/Agenda/Gmail do txt.txt — passo a passo do OAuth ENTREGUE em 03/10 09:5x; dono cria a credencial (config/google_credentials.json) e autoriza (runtime/google_auth.py) → depois restart + prova viva + bump MINOR 1.18.0; (3) alternativa futura: gemma quando o hardware crescer. FECHADOS: 2 achados de infra de 30/09; rótulo v1.18.0; APK full; txt.txt voz.",
+    "next": "Pendências: (1) instalar APK 1.17.4+2037 no celular do dono (site/OmegaDrakon-arm64.apk); (2) Drive/Agenda/Gmail — fluxo SEM COPIA pronto (helper tools/google_oauth_helper.py + página /site/google_auth.html + redirect localhost:8766); dono roda o helper (Rota A) ou abre o túnel (Rota B) → depois: --code → --check → restart od-core → prova viva → bump MINOR 1.18.0; (3) alternativa futura: gemma quando o hardware crescer. FECHADOS: 2 achados de infra de 30/09; rótulo v1.18.0; APK full; txt.txt voz.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },

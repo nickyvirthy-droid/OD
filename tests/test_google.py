@@ -554,12 +554,18 @@ class TestGoogleAuthCli:
         ])
         assert rc == 1
 
-    def test_main_sem_flags_usa_defaults(self, monkeypatch) -> None:
-        # sem --credentials/--token cai no _resolve (env → default) e, como o
-        # arquivo default não existe, autorizar devolve 1 sem crashar.
+    def test_main_sem_flags_usa_defaults(self, tmp_path: Path, monkeypatch) -> None:
+        # sem --credentials/--token cai no _resolve (env → default); apontando
+        # para um arquivo inexistente, autorizar devolve 1 sem crashar.
+        # (hermético: o config/google_credentials.json REAL do repositório
+        # passou a existir e quebrava este teste — ver 2026-10-03.)
         from runtime import google_auth
 
-        monkeypatch.setattr("runtime.launcher.env", lambda k, d="": d)
+        fantasma = tmp_path / "cred_inexistente.json"
+        monkeypatch.setattr(
+            "runtime.launcher.env",
+            lambda k, d="": str(fantasma) if k == "OD_GOOGLE_CREDENTIALS" else d,
+        )
         assert google_auth.main(["--url"]) == 1
 
     def test_check_renova_token_expirado(self, tmp_path: Path, monkeypatch, capsys) -> None:

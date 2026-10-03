@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>OmegaDrakon — Autorizar o Google</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3;
+         margin: 0; padding: 1.5rem; line-height: 1.6; }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin-bottom: .2rem; }
+  h2 { font-size: 1.05rem; margin-top: 2rem; border-bottom: 1px solid #21262d;
+       padding-bottom: .3rem; }
+  .sub { color: #8b949e; margin-top: 0; }
+  .btn { display: inline-block; margin: 1rem 0; padding: .85rem 1.4rem;
+         border-radius: .6rem; background: #238636; color: #fff; font-weight: 600;
+         text-decoration: none; font-size: 1.05rem; }
+  .btn:hover { background: #2ea043; }
+  code, pre { background: #161b22; border: 1px solid #21262d; border-radius: .4rem;
+              font-family: ui-monospace, monospace; }
+  code { padding: .1rem .35rem; }
+  pre { padding: .7rem .9rem; overflow-x: auto; }
+  .aviso { background: #12261a; border: 1px solid #1f6f3f; border-radius: .5rem;
+           padding: .6rem .9rem; }
+  ol { padding-left: 1.3rem; }
+  li { margin: .45rem 0; }
+  .rodape { color: #8b949e; font-size: .8rem; margin-top: 2.5rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🐉 Autorizar o Google no OmegaDrakon</h1>
+  <p class="sub">Drive · Agenda · Gmail — <strong>somente leitura</strong>
+     (escopo decidido pelo dono em 02/10/2026: ler primeiro, escrever depois).</p>
+
+  <p class="aviso">O que é pedido: <code>drive.readonly</code>,
+     <code>calendar.readonly</code> e <code>gmail.readonly</code>.
+     Nada de enviar e-mail, criar evento ou apagar arquivo.</p>
+
+  <a class="btn" href="https://accounts.google.com/o/oauth2/v2/auth?client_id=582855984584-2mm9i3i9p3np8jtdtink43rlao4lgtak.apps.googleusercontent.com&amp;redirect_uri=http%3A%2F%2Flocalhost%3A8766%2F&amp;response_type=code&amp;scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.readonly+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar.readonly+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly&amp;access_type=offline&amp;prompt=consent&amp;include_granted_scopes=true">▶ Autorizar no Google</a>
+
+  <p>Depois de permitir, o Google te manda para
+     <code>http://localhost:8766/</code> — a página pode não abrir.
+     <strong>Em qual rota você está?</strong></p>
+
+  <h2>Rota A — pelo seu computador (recomendada: zero cópia)</h2>
+  <ol>
+    <li>No seu PC, pegue o helper do servidor:
+      <pre>scp alex@192.168.0.250:OmegaDrakon/tools/google_oauth_helper.py .</pre></li>
+    <li>Rode:
+      <pre>python3 google_oauth_helper.py</pre>
+      Ele sobe o <code>localhost:8766</code>, abre o navegador já na página de
+      consentimento e, quando o Google redirecionar, <strong>captura o código
+      sozinho</strong> e o envia ao servidor por SSH.</li>
+    <li>Se o SSH não tiver chave, ele avisa e deixa o arquivo pronto — mande com:
+      <pre>scp google_auth_url.txt alex@192.168.0.250:OmegaDrakon/data/</pre></li>
+    <li>Volte ao chat e digite <strong>"código chegou"</strong>.</li>
+  </ol>
+
+  <h2>Rota B — túnel SSH (sem instalar nada)</h2>
+  <ol>
+    <li>Abra <strong>outra</strong> sessão SSH com túnel para a porta do capturador:
+      <pre>ssh -L 8766:127.0.0.1:8766 alex@192.168.0.250</pre></li>
+    <li>Deixe a sessão aberta e clique no botão <strong>▶ Autorizar no Google</strong>
+      aqui em cima.</li>
+    <li>Digite <strong>"estou no túnel"</strong> no chat — o servidor captura o código
+      sozinho e conclui.</li>
+  </ol>
+
+  <p class="rodape">OD // CORE · a página fica em <code>/site/google_auth.html</code> ·
+     o token fica só no servidor (<code>data/google_token.json</code>, 0600) e nunca
+     aparece no chat.</p>
+</main>
+</body>
+</html>
