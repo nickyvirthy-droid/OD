@@ -78,6 +78,38 @@ sistema para fechar a retomada"** (~09:44). Ambiente canônico de testes:
 
 **Estado: VERDE** — nada reiniciado nesta verificação.
 
+## 3. Passo a passo do OAuth do Google (~09:51)
+
+Pedido: **"Preparar o passo a passo do OAuth do Google para eu criar a
+credencial"**. Guia entregue no chat, conferido contra o código
+(`docs/GOOGLE.md`, `runtime/google_auth.py`, `integrations/google/models.py`,
+`runtime/launcher.py`):
+
+1. Ativar **Drive API + Calendar API + Gmail API** no Cloud Console.
+2. Consent screen **External** + e-mail como *test user* — **aviso**: em
+   modo *Testing* o refresh token expira em **7 dias** (recomendado:
+   *Publish app*).
+3. **Credenciais → OAuth client ID → Desktop app** → baixar o JSON.
+4. Copiar o JSON **como veio** para `config/google_credentials.json`
+   (gitignored) — `models.py` lê `redirect_uris[0]`, então o redirect bate
+   sem `redirect_uri_mismatch`; alternativa: `example.json` com
+   `http://localhost:8766/`.
+5. Autorização headless: `runtime/google_auth --url` → navegador →
+   `--code "<URL de retorno>"` (escopos readonly; token em
+   `data/google_token.json` 0600).
+6. `--check` → token presente + refresh sim.
+7. **Depois (aqui):** restart do od-core (o launcher só injeta o cliente se
+   o arquivo existir no start) + prova viva (`meus e-mails` / `minha
+   agenda` / `meus arquivos no google drive`) + **bump MINOR 1.18.0** com
+   checklist completo e APK rebuildado.
+
+**Estado base verificado:** `--check` → "credenciais ausentes" (exit 1) ·
+`data/google_token.json` inexistente · `config/*_credentials.json` no
+`.gitignore`.
+
+**Aguarda:** ação do dono no Console (passos 1–5) e o resultado do
+`--code`.
+
 ---
 
 Interface Viva: Nicky Virthy · Arquiteto: Alex Projeti
