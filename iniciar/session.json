@@ -1,7 +1,27 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-03T10:33:45-03:00",
+  "updated_at": "2026-10-03T11:13:16-03:00",
+  "google_oauth_2026_10_03": {
+    "pedido": "Dono: 'estou no tunel' (Rota B do OAuth) → depois 'codigo chegou' → e o alerta: 'o comando copiar e colar não funciona aqui, para trocarmos informações eu estava usando o arquivo txt.txt' (deveria ser regra).",
+    "acontecido": [
+      "Túnel do dono abriu DENTRO da sessão do servidor (ssh -L alex@192.168.0.250 rodando em nicky-server = loop servidor→servidor) — encerrado por mim; no PC não havia (nem precisa haver) listener.",
+      "1º capturador morreu (não sobreviveu ao shell da ferramenta) → 'canal refused' no túnel do dono; recriado com setsid -f (pid 184140, timeout 1800s, log data/google_oauth_helper.log).",
+      "Código capturado 11:03 em data/google_auth_url.txt pelo helper em modo servidor (--no-open --no-ssh).",
+      "runtime.google_auth --code → data/google_token.json (0600, refresh=sim, 3 escopos readonly) · --check rc=0.",
+      "od-core restart 11:04:28 (PID 184438, NRestarts=0) → 'Actions google_* ligadas ao Google Workspace | autorizado=True'; /capabilities 65→71 actions (google: 6 = os 6 do código).",
+      "Prova viva: route=action_intent → user alex, mas Gmail/Calendar/Drive API DESATIVADAS no projeto 582855984584 → sistema responde honesto '⚠️ Google indisponível agora' (sem alucinar).",
+      "Verde: /health ok · /supervision restarts 0 · journal 0 erros · capturador saiu sozinho após capturar."
+    ],
+    "regra_nova": "iniciar/RULES.md regra 14 — SEM copiar/colar com o dono: entregar URLs/textos longos pelo txt.txt (canal do dono) e preferir páginas clicáveis em site/; checar txt.txt quando houver troca de informação.",
+    "entregas": [
+      "site/google_apis.html (NOVO, público): 3 botões ENABLE → Console (Gmail/Calendar/Drive). Prova: 200 local E pelo Funnel, 3 links presentes.",
+      "txt.txt: seção 'PARA VOCÊ' com os 3 links diretos + a página + instrução 'APIs ligadas'; os 3 desejos de ESCRITA do dono preservados no topo.",
+      "iniciar/RULES.md regra 14."
+    ],
+    "bloqueio": "AÇÃO DO DONO: habilitar as 3 APIs no Console (links no txt.txt e botões em /site/google_apis.html) → digitar 'APIs ligadas' no chat → prova viva (e-mails/agenda/drive) → bump MINOR 1.18.0 com checklist.",
+    "estado": "BLOQUEADO numa ação do dono (habilitar 3 APIs); OAuth completo e actions google no ar."
+  },
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1250,7 +1270,7 @@
     "date": "2026-10-03",
     "retomada": "Retomada 03/10 09:41 ('leia iniciar'): verificação verde — HEAD 4d2c937 == origin/master, árvore limpa, od-core/llm/orchestrator active, v1.17.4 no ar (sha do APK == site), supervision restarts 0, journal de hoje 0 erros. Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2. (8) 23:2x 'conclua os pontos' → 4/4 FECHADOS: rótulo voz=1.17.3+guarda, APK full corrigido (causa=incremental envenenado, não AGP), txt.txt limpo, bump 1.17.4+2037 no ar (restart 23:48:57).",
     "action": "v1.17.4 NO AR e verificada em 03/10 09:4x (verificação geral completa: serviços, API, Funnel, banco, journal, git — TUDO VERDE; único achado = DNS transitório do bot Telegram, auto-recuperado): /app/version {1.17.4, 2037, sha256 == site/OmegaDrakon.apk 53.972.629 B}; /supervision restarts 0; journal od-core 0 erros desde 01/10; HEAD 63502ad == origin/master; árvore limpa. Em 02/10: infra fechada (CI limpo + cobertura 90,17%, 12c34c1) e arquitetura Google publicada (20b724d).",
-    "next": "Pendências: (1) instalar APK 1.17.4+2037 no celular do dono (site/OmegaDrakon-arm64.apk); (2) Drive/Agenda/Gmail — fluxo SEM COPIA pronto (helper tools/google_oauth_helper.py + página /site/google_auth.html + redirect localhost:8766); dono roda o helper (Rota A) ou abre o túnel (Rota B) → depois: --code → --check → restart od-core → prova viva → bump MINOR 1.18.0; (3) alternativa futura: gemma quando o hardware crescer. FECHADOS: 2 achados de infra de 30/09; rótulo v1.18.0; APK full; txt.txt voz.",
+    "next": "Pendências: (1) OAuth Google — dono habilita as 3 APIs (links no txt.txt + botões em /site/google_apis.html) → digita 'APIs ligadas' → prova viva (e-mails/agenda/drive) → bump MINOR 1.18.0 com checklist; (2) instalar APK 1.17.4+2037 no celular (site/OmegaDrakon-arm64.apk); (3) gemma quando o hardware crescer; (4) 2º lote Google = ESCRITA (desejos do dono no txt.txt, gate de papel + confirmação, ainda não implementado). FECHADOS: OAuth do Google (token + restart + 71 actions); regra 14 (sem copiar/colar, canal txt.txt); 2 achados de infra de 30/09; rótulo 1.18.0; APK full; txt.txt voz.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },

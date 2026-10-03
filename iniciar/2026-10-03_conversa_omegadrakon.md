@@ -193,6 +193,39 @@ pelo terminal (freebuff) e não consegue mover a URL longa até o navegador.
 túnel).** Depois que o código chegar: `--code` → `--check` → restart →
 prova viva → bump MINOR 1.18.0.
 
+## 6. OAuth concluído + regra do txt.txt (~10:45–11:1x)
+
+Pedido: **"estou no tunel"** (Rota B) e, em seguida, **"codigo chegou"**.
+
+- **Túnel do lado errado:** o dono rodou `ssh -L 8766:127.0.0.1:8766`
+  **dentro** da sessão SSH do servidor (processo `ssh` em nicky-server,
+  cwd OmegaDrakon, stdin pts/4) — loop servidor→servidor; encerrado.
+- **1º capturador morreu** (não sobreviveu ao shell da ferramenta) → o
+  túnel do dono levou `canal … refused`; recriado com `setsid -f`
+  (pid 184140, 30 min, log `data/google_oauth_helper.log`) — desta vez
+  sobreviveu (verificado em duas chamadas separadas).
+- **Código 11:03** → `runtime.google_auth --code` → token em
+  `data/google_token.json` (0600, **refresh sim**, 3 escopos readonly) ·
+  `--check` rc=0.
+- **Restart 11:04:28** (PID 184438, NRestarts=0): log `Actions google_*
+  ligadas ao Google Workspace | autorizado=True`; `/capabilities`
+  **65 → 71 actions** (google: 6, batem com o código).
+- **Prova viva parcial:** `route=action_intent` → `alex`, porém
+  **Gmail/Calendar/Drive API desativadas** no projeto `582855984584` →
+  resposta honesta `⚠️ Google indisponível agora` (sem alucinação).
+  `/health` up · `/supervision` restarts 0 · journal **0 erros**.
+- **Pedido do dono: "o copiar e colar não funciona aqui — trocamos
+  informações pelo txt.txt"** → vira **regra 14** do `iniciar/RULES.md`
+  (entregar URLs/textos longos pelo `txt.txt`; preferir páginas com
+  botões em `site/`).
+- **Entregas:** `site/google_apis.html` (NOVO, público — 3 botões ENABLE
+  → Console; 200 local e pelo Funnel) · `txt.txt` com seção "PARA VOCÊ"
+  (3 links + página + instrução "APIs ligadas"; desejos de escrita do
+  dono preservados).
+
+**Estado: BLOQUEADO numa ação do dono** — habilitar as 3 APIs no
+Console → "APIs ligadas" → prova viva completa → bump MINOR 1.18.0.
+
 ---
 
 Interface Viva: Nicky Virthy · Arquiteto: Alex Projeti

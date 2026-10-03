@@ -26,4 +26,6 @@ Esta pasta rege o modo como a sessão é conduzida. When in doubt, these rules w
 - 2) Só implantar no sistema real quando a mudança estiver estável em sandbox.
 - 3) Se houver erro em sandbox, parar, reportar com a saída, corrigir causa raiz e reexecutar até não haver mais erros.
 
+14. **Sem copiar/colar com o dono — canal é o `txt.txt` (2026-10-03):** o dono lê o chat pelo terminal (freebuff) e o copiar/colar NÃO funciona no fluxo dele. Nunca pedir para "copiar e colar" nem assumir que ele vai mover texto entre janelas. Para entregar a ele URLs, comandos, chaves ou textos longos: escrever no `txt.txt` (raiz do projeto — canal do dono, editável também pelo painel `/admin` e pelo app) e avisar no chat do que foi colocado lá; de preferência, entregar páginas com botões em `site/` para clicar em vez de digitar URLs. O dono também escreve no `txt.txt` — checá-lo quando houver troca de informação com ele.
+
 Se precisar alterar uma regra, pode pedir. As regras podem ser ajustadas, mas devem ser ajustadas explicitamente.

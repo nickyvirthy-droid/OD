@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>OmegaDrakon — Habilitar APIs do Google</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3;
+         margin: 0; padding: 1.5rem; line-height: 1.6; }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: .2rem 0; }
+  h2 { font-size: 1.05rem; margin-top: 2rem; border-bottom: 1px solid #21262d;
+       padding-bottom: .3rem; }
+  .sub { color: #8b949e; margin-top: 0; }
+  .btn { display: inline-block; margin: .6rem 0; padding: .85rem 1.4rem;
+         border-radius: .6rem; background: #238636; color: #fff; font-weight: 600;
+         text-decoration: none; font-size: 1.05rem; }
+  .btn:hover { background: #2ea043; }
+  .aviso { background: #12261a; border: 1px solid #1f6f3f; border-radius: .5rem;
+           padding: .6rem .9rem; }
+  code, pre { background: #161b22; border: 1px solid #21262d; border-radius: .4rem;
+              font-family: ui-monospace, monospace; }
+  code { padding: .1rem .35rem; }
+  ol { padding-left: 1.3rem; }
+  li { margin: .45rem 0; }
+  .rodape { color: #8b949e; font-size: .8rem; margin-top: 2.5rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🐉 Habilitar as APIs do Google</h1>
+  <p class="sub">Drive · Agenda · Gmail — a autorização OAuth já foi concluída;
+     falta ligar as 3 APIs no projeto <code>582855984584</code>.</p>
+
+  <p class="aviso">Em cada página aberta, clique no botão
+     <strong>ENABLE</strong> (ou <strong>Habilitar</strong>). Se pedir login,
+     entre com a mesma conta Google autorizada. Não há nada para copiar —
+     só clicar.</p>
+
+  <h2>Os 3 botões</h2>
+  <ol>
+    <li>
+      <a class="btn" href="https://console.developers.google.com/apis/api/gmail.googleapis.com">① Enable Gmail API</a>
+    </li>
+    <li>
+      <a class="btn" href="https://console.developers.google.com/apis/api/calendar-json.googleapis.com">② Enable Calendar API</a>
+    </li>
+    <li>
+      <a class="btn" href="https://console.developers.google.com/apis/api/drive.googleapis.com">③ Enable Drive API</a>
+    </li>
+  </ol>
+
+  <h2>Depois de clicar nos 3</h2>
+  <ol>
+    <li>Espere ~1 minuto (propagação do Google) — <strong>não precisa</strong>
+        reiniciar nada no servidor.</li>
+    <li>Voltar ao chat e digitar <strong>"APIs ligadas"</strong> — o servidor
+        refaz a prova viva (e-mails, agenda, drive).</li>
+  </ol>
+
+  <p class="rodape">OD // CORE · página em <code>/site/google_apis.html</code> ·
+     os links também estão no <code>txt.txt</code> (canal do dono).</p>
+</main>
+</body>
+</html>
