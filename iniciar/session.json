@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-03T09:41:15-03:00",
+  "updated_at": "2026-10-03T09:47:12-03:00",
   "v180_home_assistant_2026_09_28": {
     "pedido": "Dono: 'leia as conversas e verifique as respostas com as suas e veja o que pode ser melhorado. se o sistema tem acesso ao Home Assistant, porque não pega informações de lá'.",
     "diagnostico_conversas": "Histórico do alex (últimas 30): (1) 'temperatura agora em presidente venceslau' → LLM inventou 23°C e REPETIU a mentira quando o dono disse 'mentira'; (2) 'qual a senha do mqtt' → LLM respondeu 'OmegaDrakon2026' (FALSA — conferido contra o cofre); (3) 'religião mais antiga' → alucinação factual (Budismo em Babilônia). E o HA: health 'HA alcançável', 40 entidades reais (weather.forecast_casa com 33.3°C, 7 luzes, bateria, roteador) e ZERO actions no catálogo.",
@@ -1193,12 +1193,24 @@
     "leitura": "iniciar/README.md, RULES.md, session.json (íntegro, 1244 linhas) e transcrição 2026-10-02 (§1–§8).",
     "verificacao_no_ar": "Working tree LIMPO; HEAD 4d2c937 (registro do hash da integração Google) == origin/master (0 à frente); od-core, od-llm e od-orchestrator active; /app/version {1.17.4, code 2037, size 53972629, sha256 6a10064b…}; /health 401 sem chave (portão por design); /supervision up, restarts 0, degraded []; /capabilities 1.17.4; journal de hoje 0 Traceback/ERROR/CRIT.",
     "estado": "RETOMADA CONCLUÍDA — v1.17.4 NO AR, nada pendente de correção. Pendências do dono intactas: (1) instalar APK 1.17.4+2037 no celular (site/OmegaDrakon-arm64.apk); (2) credencial OAuth do Google — arquitetura de leitura JÁ publicada (20b724d), falta o dono criar o OAuth client, rodar runtime/google_auth.py e aí deploy + bump MINOR + prova viva; (3) alternativa futura: gemma quando o hardware crescer.",
-    "resolvido_em_02_10": "2 achados de infra de 30/09 FECHADOS (CI verde em checkout limpo + gate de cobertura 90,17% ≥ 90, commit 12c34c1); arquitetura Google Drive/Agenda/Gmail (leitura) publicada (20b724d)."
+    "resolvido_em_02_10": "2 achados de infra de 30/09 FECHADOS (CI verde em checkout limpo + gate de cobertura 90,17% ≥ 90, commit 12c34c1); arquitetura Google Drive/Agenda/Gmail (leitura) publicada (20b724d).",
+    "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§1)"
+  },
+  "verificacao_geral_2026_10_03": {
+    "pedido": "Dono: 'Rodar a verificação geral do sistema para fechar a retomada' (09:4x de 03/10).",
+    "servicos": "od-core active PID 10933 NRestarts=0 (desde 01/10 23:48:57); od-llm active; od-orchestrator active; omega-drakon (bot) active PID 1241 NRestarts=0 (desde 01/10 23:06:41); od-control-bridge (system) active PID 1182; tailscaled active; portas 8000/8001/1883/5432/8765 no ar.",
+    "api": "/health ok 9/9 up · /supervision up, restarts 0, degraded [] · /capabilities 1.17.4 (65 actions NO AR — as 71 do Google entram só no deploy com credencial, código commitado mas não carregado pelo processo de 01/10) · /app/version {1.17.4, code 2037, size 53972629, sha256 6a10064b… == site/OmegaDrakon.apk} · WS 8001 → 426.",
+    "funnel": "Funnel on (/ → 8000, /ws → 8001); prova de fora: /health 401 0,052s · /ws 426 0,033s · /app/version 200 0,165s.",
+    "banco": "users 2 · sessions 34 (17 válidas) · conversation_messages 168 (alex 166, última 02/10 12:40; teste 2, 29/09) · telegram_links 0 · llm_cache 65 com 0 etiquetadas (100% saudável, sem poda).",
+    "journal": "od-core: 0 Traceback/ERROR/CRIT desde o restart 23:48:57 de 01/10. od-llm/od-orchestrator/od-control-bridge: 0 hoje. omega-drakon: 42 linhas de Traceback HOJE — TODAS 'httpx.ConnectError: Temporary failure in name resolution' (DNS transitório para api.telegram.org; rajada 03:00:13–03:01:02 + isolados 04:00/05:11/07:50/09:18), dentro do network_retry_loop do python-telegram-bot — bot NÃO reiniciou (NRestarts=0) e segue respondendo (CHECK a cada min às 09:44); DNS resolve agora (api.telegram.org → 2001:67c:4e8:f004::9).",
+    "git": "Working tree LIMPO; HEAD 63502ad == origin/master (0 à frente).",
+    "estado": "VERDE — sistema íntegro, nada reiniciado nesta verificação. Único achado: DNS transitório do bot Telegram (auto-recuperado, sem ação; se recorrer, investigar resolv/network do host). Pendências do dono intactas: APK 1.17.4+2037 no celular; credencial OAuth do Google (deploy + bump MINOR depois); gemma quando o hardware crescer.",
+    "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§2)"
   },
   "last_turn": {
     "date": "2026-10-03",
     "retomada": "Retomada 03/10 09:41 ('leia iniciar'): verificação verde — HEAD 4d2c937 == origin/master, árvore limpa, od-core/llm/orchestrator active, v1.17.4 no ar (sha do APK == site), supervision restarts 0, journal de hoje 0 erros. Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2. (8) 23:2x 'conclua os pontos' → 4/4 FECHADOS: rótulo voz=1.17.3+guarda, APK full corrigido (causa=incremental envenenado, não AGP), txt.txt limpo, bump 1.17.4+2037 no ar (restart 23:48:57).",
-    "action": "v1.17.4 NO AR e verificada em 03/10 09:41: /app/version {1.17.4, 2037, sha256 == site/OmegaDrakon.apk 53.972.629 B}; /supervision restarts 0; journal 0 erros; HEAD 4d2c937 == origin/master; árvore limpa. Em 02/10: infra fechada (CI limpo + cobertura 90,17%, 12c34c1) e arquitetura Google publicada (20b724d).",
+    "action": "v1.17.4 NO AR e verificada em 03/10 09:4x (verificação geral completa: serviços, API, Funnel, banco, journal, git — TUDO VERDE; único achado = DNS transitório do bot Telegram, auto-recuperado): /app/version {1.17.4, 2037, sha256 == site/OmegaDrakon.apk 53.972.629 B}; /supervision restarts 0; journal od-core 0 erros desde 01/10; HEAD 63502ad == origin/master; árvore limpa. Em 02/10: infra fechada (CI limpo + cobertura 90,17%, 12c34c1) e arquitetura Google publicada (20b724d).",
     "next": "Pendências: (1) instalar APK 1.17.4+2037 no celular do dono (site/OmegaDrakon-arm64.apk); (2) credencial OAuth do Google (Drive/Agenda/Gmail) — dono cria o OAuth client em config/google_credentials.json e roda runtime/google_auth.py → depois deploy + bump MINOR + prova viva; (3) alternativa futura: gemma quando o hardware crescer. FECHADOS: 2 achados de infra de 30/09 (cobertura + CI); rótulo v1.18.0; APK full; txt.txt voz.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
@@ -1235,6 +1247,7 @@
     }
   ],
   "transcripts": [
+    "iniciar/2026-10-03_conversa_omegadrakon.md",
     "iniciar/2026-10-02_conversa_omegadrakon.md",
     "iniciar/2026-10-01_conversa_omegadrakon.md",
     "iniciar/2026-09-28_conversa_omegadrakon.md",
