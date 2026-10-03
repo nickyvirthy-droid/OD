@@ -271,6 +271,32 @@ investigar o CI agora).
 **Estado: Google PROVADO no ar · CI VERDE · falta só o bump MINOR 1.18.0**
 (checklist + APK + restart).
 
+## 8. Bump MINOR 1.18.0 + deploy (~12:3x–12:49)
+
+Pedido: **"vamos continuar, conclua"**.
+
+- **Checklist do bump:** `.env 1.18.0` · capabilities fallback `1.18.0` ·
+  `pubspec 1.18.0+2038` · `_APP_VERSION_CODE=2038` · `site 2x` ·
+  `CHANGELOG [1.18.0]` · `README_VERSAO §1.18.0`. A guarda
+  `test_changelog_tem_secao_da_versao_vigente` pegou o bump parcial
+  (comportamento desejado) antes do commit.
+- **APKs rebuildados** (`flutter clean` + build canônico): aapt2
+  `versionCode='2038' versionName='1.18.0'` nos dois · full 53.972.629 B
+  `cbe5b390…` · arm64 19.245.103 B `7618fb6e…` · anteriores (2037) em
+  `backups/apk-v1.17.4+2037-20261003/`.
+- **Verificações:** suíte **2241 passed, 16 skipped, cobertura 90,25%** ·
+  `flutter analyze` 0 issues · `flutter test` **131 passed, 2 skipped**.
+- **Deploy autorizado** (`6a8f2f3` publicado; restart autorizado via
+  ask_user): od-core PID **206597**, NRestarts=**0**.
+- **Prova viva da versão 5/5:** `/app/version` {1.18.0, **2038**,
+  sha256 `cbe5b390…` == `site/OmegaDrakon.apk`} · `/capabilities`
+  **1.18.0 · 71 actions** · `/health` up · `/supervision` restarts 0,
+  degraded [] · journal **0 erros**.
+
+**Estado: SESSÃO FECHADA EM VERDE — Google no ar, CI verde, 1.18.0+2038
+publicada (APK novo no site; a auto-atualização 2037→2038 dispara ao
+abrir o app).**
+
 ---
 
 Interface Viva: Nicky Virthy · Arquiteto: Alex Projeti

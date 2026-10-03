@@ -1,7 +1,15 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-03T12:25:00-03:00",
+  "updated_at": "2026-10-03T12:49:09-03:00",
+  "bump_v1180_2026_10_03": {
+    "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
+    "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
+    "apk": "Rebuild (flutter clean + build canônico): aapt2 versionCode='2038' versionName='1.18.0' · full 53.972.629 B cbe5b390… · arm64 19.245.103 B 7618fb6e… · backup 2037 em backups/apk-v1.17.4+2037-20261003/.",
+    "validacao": "Suíte 2241 passed, 16 skipped, cobertura 90,25% · flutter analyze 0 issues · flutter test 131 passed, 2 skipped.",
+    "deploy": "IMPLANTADO (commit 6a8f2f3; restart autorizado via ask_user) — PID 206597, NRestarts=0. Prova viva 5/5: /app/version {1.18.0, 2038, sha256 cbe5b390… == binário} · /capabilities 1.18.0 · 71 actions · /health up · /supervision restarts 0 degraded [] · journal 0 erros.",
+    "estado": "CONCLUÍDO E NO AR — sessão fechada em verde."
+  },
   "ci_verde_2026_10_03": {
     "pedido": "Dono (ask_user): 'investigar agora' o CI vermelho exposto pelos e-mails do Gmail.",
     "diagnostico": "177 runs vermelhos seguidos (último verde 5668b27, 15/09); logs do job exigem login e não há token (push é SSH). O registro da casa de 'CI verde em 02/10' era LOCAL, nunca do GitHub.",
@@ -1284,7 +1292,7 @@
     "date": "2026-10-03",
     "retomada": "Retomada 03/10 09:41 ('leia iniciar'): verificação verde — HEAD 4d2c937 == origin/master, árvore limpa, od-core/llm/orchestrator active, v1.17.4 no ar (sha do APK == site), supervision restarts 0, journal de hoje 0 erros. Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2. (8) 23:2x 'conclua os pontos' → 4/4 FECHADOS: rótulo voz=1.17.3+guarda, APK full corrigido (causa=incremental envenenado, não AGP), txt.txt limpo, bump 1.17.4+2037 no ar (restart 23:48:57).",
     "action": "v1.17.4 NO AR e verificada em 03/10 09:4x (verificação geral completa: serviços, API, Funnel, banco, journal, git — TUDO VERDE; único achado = DNS transitório do bot Telegram, auto-recuperado): /app/version {1.17.4, 2037, sha256 == site/OmegaDrakon.apk 53.972.629 B}; /supervision restarts 0; journal od-core 0 erros desde 01/10; HEAD 63502ad == origin/master; árvore limpa. Em 02/10: infra fechada (CI limpo + cobertura 90,17%, 12c34c1) e arquitetura Google publicada (20b724d).",
-    "next": "Pendências: (1) bump MINOR 1.18.0 (Google leitura no ar + fix do doseq + CI verde) — checklist .env/capabilities/pubspec+_APP_VERSION_CODE/site/CHANGELOG/README_VERSAO + APK rebuild + restart autorizado; (2) instalar APK 1.17.4+2037 (ou o 1.18.0) no celular; (3) 2º lote Google = ESCRITA (desejos do dono no txt.txt, gate de papel + confirmação); (4) gemma quando o hardware crescer. FECHADOS: CI VERDE (177 runs vermelhos desde 15/09); prova viva 3/3 do Google + fix do doseq; OAuth (token + 71 actions); regra 14 (sem copiar/colar, canal txt.txt); 2 achados de infra de 30/09; rótulo 1.18.0; APK full; txt.txt voz.",
+    "next": "SESSÃO FECHADA EM VERDE (12:49) — nada pendente de deploy. Pendências do dono: (1) celular na 1.17.4+2037 → a auto-atualização oferece o 1.18.0+2038 ao abrir o app (ou baixar site/OmegaDrakon-arm64.apk); (2) 2º lote Google = ESCRITA (desejos no txt.txt, gate de papel + confirmação, não implementado); (3) gemma quando o hardware crescer. FECHADOS HOJE: CI VERDE 433458e (177 runs vermelhos desde 15/09); prova viva 3/3 do Google + fix do doseq; OAuth por Rota B; regra 14 (txt.txt); bump 1.18.0+2038 no ar.",
     "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
     "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
   },
