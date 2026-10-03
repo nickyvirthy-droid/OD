@@ -1078,11 +1078,25 @@ class TestGuardaInfraParaNaoDono:
         assert "restrita ao dono" not in r.message
         assert r.message == "RESPOSTA_DO_LLM_FAKE"  # foi ao LLM de verdade
 
-    def test_temperatura_do_servidor_para_user_vai_via_cpu_temp(self) -> None:
+    def test_temperatura_do_servidor_para_user_vai_via_cpu_temp(
+        self, monkeypatch, tmp_path
+    ) -> None:
         """A temperatura DA MÁQUINA é dado de leitura (não prejudica o
         sistema): permitida para user via cpu_temp — diferente de
-        IP/portas, que continuam vedados."""
+        IP/portas, que continuam vedados.
+
+        O sysfs vem de fixture: o contrato vale em QUALQUER host (o runner
+        do CI não tem zones térmicos — antes deste pino o teste só passava
+        no servidor)."""
         import asyncio
+
+        thermal = tmp_path / "sys" / "thermal"
+        zone = thermal / "thermal_zone0"
+        zone.mkdir(parents=True)
+        (zone / "temp").write_text("53000\n", encoding="utf-8")
+        (zone / "type").write_text("x86_pkg_temp", encoding="utf-8")
+        monkeypatch.setattr("tools.actions.actions.THERMAL_DIR", str(thermal))
+
         orch, _ = self._orch()
         r = asyncio.run(orch.process(
             "usuario-teste", "guardian", "qual a temperatura do servidor",
@@ -1090,6 +1104,25 @@ class TestGuardaInfraParaNaoDono:
         ))
         assert r.route == "action_intent"
         assert "fastpath:cpu_temp" in (r.llm_used or "")
+        assert "53.0" in r.message  # dado REAL do sensor, zero LLM
+
+    def test_cpu_temp_sem_sensor_degrada_sem_inventar(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """Sem nenhum sensor legível → ok=False honesto com erro claro —
+        o pipeline degrada em vez de inventar temperatura."""
+        from tools.actions.actions import cpu_temp
+
+        vazio = tmp_path / "sys" / "thermal"
+        vazio.mkdir(parents=True)
+        monkeypatch.setattr("tools.actions.actions.THERMAL_DIR", str(vazio))
+        monkeypatch.setattr(
+            "tools.actions.actions.HWMON_DIR", str(tmp_path / "sys" / "hwmon")
+        )
+
+        res = cpu_temp()
+        assert res["ok"] is False
+        assert "sensor" in res.get("error", "")
 
     def test_user_com_clima_e_llm_alucinando_recebe_retry_seguro(self) -> None:
         """CASO REAL NO AR (28/09): user perguntou a temperatura de cidade,

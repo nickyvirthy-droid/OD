@@ -56,15 +56,39 @@ def _limpa_envs(monkeypatch) -> None:
     )
 
 
+def _stt_real_pronto() -> bool:
+    """whisper-cli presente neste host (canário do host canônico)."""
+    from tools.audio import WhisperSTT
+
+    return bool(WhisperSTT().available)
+
+
+def _tts_real_pronto() -> bool:
+    """piper presente neste host (canário do host canônico)."""
+    from tools.audio import PiperTTS
+
+    return bool(PiperTTS().available)
+
+
 class TestBuildVoiceHandlers:
     """Adaptadores sync dos motores reais para o APIServer."""
 
+    @pytest.mark.skipif(
+        not (_stt_real_pronto() and _tts_real_pronto()),
+        reason="canário do host canônico: whisper-cli/piper ausentes "
+               "neste host (runner do CI)",
+    )
     def test_motores_reais_presentes_neste_host(self) -> None:
         """O host canônico tem os binários — handlers SAEM (não 501)."""
         stt, tts = build_voice_handlers()
         assert callable(stt), "STT esperado com whisper-cli presente"
         assert callable(tts), "TTS esperado com piper presente"
 
+    @pytest.mark.skipif(
+        not _tts_real_pronto(),
+        reason="canário do host canônico: piper ausente neste host "
+               "(runner do CI)",
+    )
     def test_tts_handler_devolve_wav_real(self) -> None:
         """TTS sync: texto → bytes WAV (prova com o binário real do host)."""
         _, tts = build_voice_handlers()
@@ -79,9 +103,20 @@ class TestBuildVoiceHandlers:
         assert tts is None  # TTS também veio 0 no cache isolado
 
     def test_gate_od_voice_tts_zero_somente(self, monkeypatch) -> None:
-        """Só OD_VOICE_TTS=0: STT segue, TTS some."""
+        """Só OD_VOICE_TTS=0: STT segue, TTS some.
+
+        O STT é dublê (whisper ausente no runner do CI): o que se testa é
+        o GATE, e a presença real do binário é o canário
+        test_motores_reais_presentes_neste_host.
+        """
         from runtime import launcher
 
+        class _StubWhisper:
+            available = True
+
+        monkeypatch.setattr(
+            "tools.audio.WhisperSTT", lambda *a, **k: _StubWhisper()
+        )
         monkeypatch.setattr(
             launcher,
             "_ENV_CACHE",
@@ -90,6 +125,30 @@ class TestBuildVoiceHandlers:
         stt, tts = build_voice_handlers()
         assert callable(stt)
         assert tts is None
+
+    def test_tts_ligado_monta_handler_com_piper_stub(self, monkeypatch) -> None:
+        """OD_VOICE_TTS ligado (default) → handler montado e devolve WAV.
+
+        Piper dublê para o contrato valer também no runner do CI (sem
+        piper); o binário real é o canário test_tts_handler_devolve_wav_real.
+        """
+        from runtime import launcher
+
+        class _StubPiper:
+            available = True
+
+            def synthesize(self, text, profile=None):
+                async def _sintetiza():
+                    return b"RIFF-fake"
+
+                return _sintetiza()
+
+        monkeypatch.setattr("tools.audio.PiperTTS", lambda *a, **k: _StubPiper())
+        monkeypatch.setattr(launcher, "_ENV_CACHE", {"OD_VOICE_STT": "0"})
+        stt, tts = build_voice_handlers()
+        assert stt is None
+        assert callable(tts)
+        assert tts("olá")[:4] == b"RIFF"
 
     def test_ld_library_path_detecta_lib_no_repo(self, monkeypatch, tmp_path) -> None:
         """Lib falsificada no REPO_ROOT/voice/tts → env aponta para lá."""
@@ -154,6 +213,17 @@ class TestPiperEspeakData:
             espeak_data=DEFAULT_ESPEAK_DATA,
         )
         tts = PiperTTS(cfg_real)
+
+        # Diretório do deploy ausente fora do servidor (runner do CI):
+        # fixture diz que existe — o que se testa é a ORDEM dos argumentos.
+        original_is_dir = Path.is_dir
+
+        def _is_dir_fixture(self: Path) -> bool:
+            if str(self) == DEFAULT_ESPEAK_DATA:
+                return True
+            return original_is_dir(self)
+
+        monkeypatch.setattr(Path, "is_dir", _is_dir_fixture)
 
         async def run() -> None:
             await tts.synthesize_to_file("olá", tmp_path / "out.wav")

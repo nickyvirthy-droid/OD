@@ -215,19 +215,27 @@ def cpu_info() -> dict[str, Any]:
     }
 
 
+#: Raízes sysfs dos sensores térmicos — constante nomeada (não literal
+#: espalhado) para os testes apontarem a um sysfs de fixture em hosts sem
+#: sensor legível (o runner do CI não tem /sys/class/thermal com zonas).
+#: O comportamento em produção continua idêntico.
+THERMAL_DIR = "/sys/class/thermal"
+HWMON_DIR = "/sys/class/hwmon"
+
+
 def cpu_temp() -> dict[str, Any]:
     """Temperatura do servidor (zones térmicos do kernel, via
-    /sys/class/thermal e /sys/class/hwmon — stdlib, sem root).
+    THERMAL_DIR e HWMON_DIR — stdlib, sem root).
 
     Motivação (2026-09-27): o dono perguntou a temperatura do servidor no
     chat e o LLM recusou/alucinou — não existia action para o dado real.
     """
     readings: list[dict[str, Any]] = []
     try:
-        for zone in sorted(os.listdir("/sys/class/thermal")):
+        for zone in sorted(os.listdir(THERMAL_DIR)):
             if not zone.startswith("thermal_zone"):
                 continue
-            base = f"/sys/class/thermal/{zone}"
+            base = f"{THERMAL_DIR}/{zone}"
             try:
                 with open(f"{base}/temp", encoding="utf-8") as fh:
                     millideg = int(fh.read().strip())
@@ -243,7 +251,7 @@ def cpu_temp() -> dict[str, Any]:
     if not readings:
         # Fallback hwmon (máquinas sem thermal_zone exposto).
         try:
-            for hw in sorted(os.listdir("/sys/class/hwmon")):
+            for hw in sorted(os.listdir(HWMON_DIR)):
                 base = f"/sys/class/hwmon/{hw}"
                 try:
                     with open(f"{base}/name", encoding="utf-8") as fh:
