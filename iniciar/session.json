@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-03T12:49:09-03:00",
+  "updated_at": "2026-10-07T13:20:29-03:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1341,5 +1341,18 @@
     "iniciar/2026-09-20_conversa_omegadrakon.md",
     "iniciar/2026-09-18_conversa_omegadrakon.md",
     "iniciar/2026-09-17_conversa_omegadrakon.md"
-  ]
+  ],
+  "retomada_2026_10_07": {
+    "pedido": "Usuário: 'leia iniciar' — retomada da sessão (2026-10-07).",
+    "encontrado": "Bump 1.19.0 PELA METADE: código+site já commitados (df20177, ced23cc), mas 4 arquivos do bump sem commit e od-core NO AR ainda em 1.18.0 (PID 206597, desde 03/10 12:48). README_VERSAO sem §1.19.0.",
+    "escopo_token": "ACHADO: o CHANGELOG dizia 'token com os 7 escopos' — FALSO. Evidência: log do capturador (03/10 13:38) mostra o callback com os 7 escopos (gmail.send/gmail.modify/drive/calendar.events + 3 readonly), mas a troca código→token NÃO foi concluída; o token em disco segue com os 3 readonly (refresh OK, access expirou 06/10 e renova). Journal 13:44 registra syntax error em integrations/google/drive.py na mesma rodada (SelfRepair no_fix). Registro do CHANGELOG/README corrigido para a verdade.",
+    "acao": [
+      "README_VERSAO §1.19.0 criado no formato da casa",
+      "CHANGELOG + README corrigidos — registro honesto do escopo",
+      "Guardas test_version_policy 9/9 · suíte completa 2297 passed, 16 skipped",
+      "Commit a7c3e1d + push origin/master — árvore limpa"
+    ],
+    "pendente_dono": "Re-autorização do Google (escopos de escrita): refazer os 3 passos (túnel 8766 + /site/google_auth.html + 'codigo chegou') para trocar código→token com os 7 escopos. Enquanto isso, as actions de escrita degradam ok=False (honesto).",
+    "estado": "BUMP 1.19.0 FECHADO NO GIT — deploy/restart pendente de autorização do dono (sobe 1.19.0 com 78 actions; leitura provada, escrita degrada honesta sem o token de 7 escopos)."
+  }
 }
