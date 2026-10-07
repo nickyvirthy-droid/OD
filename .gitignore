@@ -160,3 +160,6 @@ firebase-service-account*.json
 /assets/
 docs/client_secret_*.json
 config/client_secret_*.json
+
+# tokens/segredos do Google NUNCA no git (backup de token readonly 07/10)
+backups/google-token-*

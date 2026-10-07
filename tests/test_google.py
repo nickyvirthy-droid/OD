@@ -1376,6 +1376,43 @@ class TestGoogleWriteIntents:
             "google_gmail_send", "google_gmail_delete",
         }
 
+    def test_titulo_explicito_vence_sintaxe(self) -> None:
+        """'com o título X' → título literal X (bug da prova viva de 07/10:
+        'crie um compromisso na minha agenda amanhã às 15h com o título
+        Prova de Escrita OD' virava título gigante com sintaxe dentro)."""
+        intent = detect_action_intent(
+            "crie um compromisso na minha agenda amanhã às 15h "
+            "com o título Prova de Escrita OD"
+        )
+        assert intent is not None and intent[0] == "google_calendar_create"
+        params = intent[1]
+        assert params["titulo"] == "Prova de Escrita OD"
+        assert params["quando"] == "amanhã às 15h"
+
+    def test_quando_legivel_mostra_fuso_local(self, monkeypatch) -> None:
+        """A confirmação e a mensagem de sucesso mostram o relógio do dono,
+        nunca o UTC cru (bugs da prova viva de 07/10: 'às 15h' aparecia
+        como '18:00')."""
+        import time as _time
+
+        from core.intents import _quando_legivel, format_intent_result
+
+        monkeypatch.setenv("TZ", "America/Sao_Paulo")
+        _time.tzset()
+        try:
+            assert _quando_legivel("2026-10-08T18:00:00Z") == "2026-10-08 15:00"
+            sucesso = format_intent_result(
+                "google_calendar_create",
+                {"ok": True, "executed": True, "alvo": "Prova",
+                 "start": "2026-10-08T18:00:00Z"},
+            )
+            assert sucesso is not None and "15:00" in sucesso and "18:00" not in sucesso
+        finally:
+            monkeypatch.delenv("TZ", raising=False)
+            _time.tzset()
+        # dia inteiro fica como veio (sem hora inventada)
+        assert _quando_legivel("2026-10-08") == "2026-10-08"
+
     def test_detect_confirmation_aceita_sim_curto(self) -> None:
         from core.intents import detect_confirmation
 

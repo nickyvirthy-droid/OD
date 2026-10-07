@@ -7,6 +7,23 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.19.1] — ESCRITA NO AR + 2 BUGS DA PROVA VIVA CORRIGIDOS ✍️🧪 (2026-10-07)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Escrita autorizada e no ar** | Dono re-autorizou pelo fluxo das 3 páginas (código com os **7 escopos** capturado às 13:5x); token trocado com `refresh`; backup do token readonly em `backups/` (não commitado — segredo); restart com `autorizado=True`; **78 actions** no ar com as 7 de escrita vivas. |
+| **Prova viva 1ª execução** | 'crie um compromisso…' → `route=action_intent`, confirmação de 2 passos pedida — o gate funcionou. A prova pegou 2 bugs reais antes de qualquer escrita na agenda real. |
+| **fix(intents) — título** | 'com o título X' não virava título: o extrator devolvia `'na minha agenda   com o título Prova de Escrita OD'`. Correção: marcador explícito vence (título = o que vem depois; 'quando' procurado antes dele). Frases naturais intactas. |
+| **fix(actions,intents) — fuso** | Confirmação E mensagem de sucesso mostravam UTC cru ('18:00' para um 'às 15h' falado). Correção: `_quando_legivel()` canônico em `core/intents.py` converte para o fuso local nos dois textos; dia inteiro fica como veio (regressão do 1º patch pega na mesma rodada). |
+| **Teste do teste** | 2 testes de regressão em `TestGoogleWriteIntents` (título explícito; fuso com TZ fixada por fixture, sem dependência do host). |
+| **Resultado** | Suíte **2299 passed, 16 skipped** · guardas de versão 9/9. |
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.19.1` · capabilities fallback `1.19.1` · `pubspec 1.19.1+2040` · `_APP_VERSION_CODE=2040` · `site 2x` · APKs rebuildados (aapt2 `versionCode='2040' versionName='1.19.1'`) · `CHANGELOG [1.19.1]` · este README.
+
 ## [1.19.0] — ESCRITA NO GOOGLE: Drive, Agenda e Gmail com gate + confirmação ✍️ (2026-10-03)
 
 ### 1. O que foi feito

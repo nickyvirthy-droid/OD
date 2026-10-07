@@ -35,6 +35,7 @@ Baseado em:
 from __future__ import annotations
 
 import ast
+import datetime
 import re
 from typing import Any, Optional
 
@@ -497,8 +498,26 @@ def _google_conteudo(text: str) -> str:
     return ""
 
 
+_GOOGLE_W_TITULO_RE = re.compile(
+    r"\bcom\s+o\s+t[íi]tulo\s*[:=]?\s*", re.IGNORECASE
+)
+
+
 def _google_quando_e_titulo(text: str) -> tuple[str, str]:
-    """'o compromisso dentista amanhã às 15h' → (titulo, quando)."""
+    """'o compromisso dentista amanhã às 15h' → (titulo, quando).
+
+    Padrão explícito vence: 'com o título X' → título literal X (o que
+    vier depois do marcador), com o 'quando' procurado ANTES dele — o
+    resto da frase é lixo de sintaxe, não título (bug da prova viva de
+    07/10: 'crie um compromisso na minha agenda amanhã às 15h com o
+    título Prova de Escrita OD' virava título gigante).
+    """
+    mt = _GOOGLE_W_TITULO_RE.search(text)
+    if mt:
+        qm = _GOOGLE_W_QUANDO_RE.search(text[: mt.start()])
+        quando = qm.group(0).strip() if qm else ""
+        titulo = text[mt.end():].strip()
+        return titulo.strip("\"'“”").strip(), quando
     m = _GOOGLE_W_CAL_RE.search(text)
     resto = text[m.end():] if m else text
     qm = _GOOGLE_W_QUANDO_RE.search(resto)
@@ -919,7 +938,7 @@ def _format_google_write(action: str, data: dict[str, Any], ok: Any) -> str:
         if action == "google_drive_delete":
             return f"🗑️ Arquivo '{alvo}' apagado do Google Drive."
         if action == "google_calendar_create":
-            quando = str(data.get("start") or "").replace("T", " ")[:16]
+            quando = _quando_legivel(str(data.get("start") or ""))
             sufixo = f" em {quando}" if quando else ""
             return f"✅ Compromisso '{alvo}' criado na sua Agenda{sufixo}."
         if action == "google_calendar_delete":
@@ -948,6 +967,26 @@ def _format_google_write(action: str, data: dict[str, Any], ok: Any) -> str:
             return f"🤔 {err} — nada foi alterado."
         return f"⚠️ Google indisponível agora: {err or 'falha na operação.'}"
     return f"✅ Operação '{action}' concluída."
+
+
+def _quando_legivel(instante: str) -> str:
+    """'2026-10-08T18:00:00Z' → '2026-10-08 15:00' no fuso do servidor.
+
+    A API da Agenda trabalha em UTC; o dono falou o horário LOCAL — a
+    confirmação e a mensagem de sucesso mostram o relógio dele, nunca o
+    UTC cru ( bugs pegos na prova viva de 07/10). Dia inteiro fica como
+    veio.
+    """
+    if "T" not in instante:
+        return instante
+    try:
+        return (
+            datetime.datetime.fromisoformat(instante.replace("Z", "+00:00"))
+            .astimezone()
+            .strftime("%Y-%m-%d %H:%M")
+        )
+    except ValueError:
+        return instante.replace("T", " ")[:16]
 
 
 def format_intent_result(action: str, data: Any) -> Optional[str]:

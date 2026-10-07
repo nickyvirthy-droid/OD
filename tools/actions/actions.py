@@ -1308,6 +1308,8 @@ def google_calendar_create(
             "error": "alvo_obrigatorio",
             "hint": "diga o título do compromisso (ex: 'crie o compromisso reunião amanhã às 15h')",
         }
+    from core.intents import _quando_legivel
+
     if not start:
         from integrations.google.calendar import parse_when
 
@@ -1329,7 +1331,7 @@ def google_calendar_create(
     chave = _write_chave(action, params)
     stage = _write_confirm_check(uid, action, chave, alvo=alvo_txt, params=params)
     if stage == "required":
-        quando_txt = start.replace("T", " ")[:16] if "T" in start else start
+        quando_txt = _quando_legivel(start)
         return {
             "ok": True,
             "needs_confirmation": True,

@@ -14,6 +14,37 @@
 
 ---
 
+## [1.19.1] — ESCRITA NO AR + 2 BUGS DA PROVA VIVA CORRIGIDOS ✍️🧪 (2026-10-07)
+
+- **feat(google) NO AR:** o dono re-autorizou (código capturado com os
+  **7 escopos** → token trocado, `refresh` presente, backup do token
+  readonly em `backups/google-token-readonly-pre-escrita-20261007-133924.json`,
+  NÃO commitado) e o restart ligou `autorizado=True` — catálogo **78
+  actions** com as 7 de escrita vivas (gate admin + confirmação 2 passos).
+- **fix(intents): 'com o título X' vence a sintaxe** — a prova viva pegou
+  o extrator: 'crie um compromisso na minha agenda amanhã às 15h com o
+  título Prova de Escrita OD' virava o título
+  `'na minha agenda   com o título Prova de Escrita OD'`. Agora o
+  marcador explícito vence: título = o que vem depois dele, 'quando'
+  procurado ANTES; frases naturais intactas (mutação: marcador removido →
+  teste novo vermelho).
+- **fix(actions,intents): fuso do dono na confirmação E no sucesso** —
+  'às 15h' aparecia como 'em 2026-10-08 18:00' (a API da Agenda fala UTC;
+  o `parse_when` guarda o instante certo, mas os textos fatiavam o
+  string cru). Novo `_quando_legivel()` (canônico em `core/intents.py`,
+  camada correta para o formatter) converte para o fuso local e é usado
+  pela confirmação (`google_calendar_create`) e pela mensagem de sucesso
+  (`format_intent_result`); dia inteiro fica como veio. Mutação:
+  conversão desligada → '18:00' volta → teste (TZ fixada por fixture)
+  pega.
+- **bump PATCH:** `.env 1.19.1` · capabilities `1.19.1` · `pubspec
+  1.19.1+2040` · `_APP_VERSION_CODE=2040` · `site 2x` · APKs rebuildados
+  (aapt2 `versionCode='2040' versionName='1.19.1'`).
+- **Evidência:** suíte **2299 passed, 16 skipped** (+2 testes de
+  regressão em TestGoogleWriteIntents) · guardas de versão 9/9.
+
+---
+
 ## [1.19.0] — ESCRITA NO GOOGLE: Drive, Agenda e Gmail com gate + confirmação ✍️ (2026-10-03)
 
 - **feat(google): 7 actions de escrita (lote 2)** — criar/editar/apagar
