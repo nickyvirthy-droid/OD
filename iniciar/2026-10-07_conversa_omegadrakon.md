@@ -41,11 +41,21 @@ Sessão: `conv-2026-09-11T12:45-omegadrakon-dev-status` · retomada com
    evidência registrada.
 5. Commit **`a7c3e1d`** + push (`origin/master`) — árvore limpa.
 
-## 4. Estado e pendências
+## 4. Deploy (autorizado via ask_user — "Reiniciar agora")
 
-- **Bump 1.19.0 fechado no git; deploy pendente de autorização** — o
-  restart sobe a 1.19.0 com **78 actions** (leitura provada; escrita
-  degrada honesta).
+- `systemctl --user restart od-core` 13:21:22 → **PID 669019**, NRestarts=0.
+- **Prova viva:** `/app/version` {1.19.0, 2039, sha256 `d9dd74a3…` ==
+  `site/OmegaDrakon.apk`} · `/health` up (9 checks) · `/supervision`
+  restarts 0 · journal **0** Traceback/ERROR/CRIT.
+- **78 actions registradas** (journal "Action registered", únicas):
+  **13 google** — 6 leitura + **7 escrita** (calendar_create/delete,
+  drive_create/update/delete, gmail_send/delete).
+- Escrita segue dormente na prática: token com 3 readonly → as 7
+  actions de escrita degradam `ok=False` honestamente.
+
+## 5. Estado e pendências
+
+- **v1.19.0+2039 NO AR** (PID 669019) — bump, registro e deploy fechados.
 - **Pendência do dono:** re-autorização do Google com os escopos de
   escrita (3 passos de 03/10: túnel `8766` + `/site/google_auth.html` +
   "codigo chegou"), para a troca código→token com os 7 escopos.

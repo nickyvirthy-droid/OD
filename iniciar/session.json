@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-07T13:20:29-03:00",
+  "updated_at": "2026-10-07T13:22:11-03:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1350,9 +1350,11 @@
       "README_VERSAO §1.19.0 criado no formato da casa",
       "CHANGELOG + README corrigidos — registro honesto do escopo",
       "Guardas test_version_policy 9/9 · suíte completa 2297 passed, 16 skipped",
-      "Commit a7c3e1d + push origin/master — árvore limpa"
+      "Commit a7c3e1d + push origin/master — árvore limpa",
+      "Deploy autorizado (ask_user 'Reiniciar agora') — restart 13:21:22, PID 669019, NRestarts=0"
     ],
     "pendente_dono": "Re-autorização do Google (escopos de escrita): refazer os 3 passos (túnel 8766 + /site/google_auth.html + 'codigo chegou') para trocar código→token com os 7 escopos. Enquanto isso, as actions de escrita degradam ok=False (honesto).",
-    "estado": "BUMP 1.19.0 FECHADO NO GIT — deploy/restart pendente de autorização do dono (sobe 1.19.0 com 78 actions; leitura provada, escrita degrada honesta sem o token de 7 escopos)."
+    "estado": "CONCLUÍDO E NO AR — v1.19.0+2039 implantada; escrita Google degrada honesta (ok=False) até o dono re-autorizar os 7 escopos (passos no txt.txt).",
+    "prova_viva": "/app/version {1.19.0, 2039, sha d9dd74a3… == site/OmegaDrakon.apk} · /health up (9 checks) · /supervision restarts 0 · journal 0 Traceback/ERROR/CRIT · **78 actions registradas** (13 google: 6 leitura + 7 escrita — calendar_create/delete, drive_create/update/delete, gmail_send/delete)"
   }
 }
