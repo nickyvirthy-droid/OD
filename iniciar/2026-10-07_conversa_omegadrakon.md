@@ -62,3 +62,24 @@ Sessão: `conv-2026-09-11T12:45-omegadrakon-dev-status` · retomada com
 
 ---
 OD // CORE
+
+## 6. Escrita no Google NO AR — re-autorização + 2 bugs da prova viva + v1.19.1
+
+- **Autorização:** dono 'quero fazer agora' → capturador (8766, setsid -f)
+  → túnel + clique → 'codigo chegou' → callback com os **7 escopos** →
+  token trocado (refresh sim; backup do readonly em backups/, não
+  commitado). Achar: capturador salva o callback na RAIZ
+  (`google_auth_url.txt`), não em `data/` — lido do log do helper.
+- **Bugs pegos pela 1ª prova viva (antes de tocar a agenda real):**
+  1. 'com o título X' não virava título → marcador explícito vence
+     (`_GOOGLE_W_TITULO_RE`, título depois do marcador, 'quando' antes);
+  2. confirmação com UTC cru ('18:00' p/ 'às 15h') → `_quando_legivel()`
+     converte ao fuso local na confirmação E no sucesso; dia inteiro
+     intacto (regressão do 1º patch pega na mesma rodada).
+- **v1.19.1 (PATCH):** 6 fontes de versão + APKs (aapt2 2040/1.19.1) +
+  CHANGELOG/README §1.19.1. Suíte **2299 passed, 16 skipped** (+2
+  regressões); guardas 9/9.
+- **Prova viva FINAL (agenda real):** criar 2 compromissos (15h/16h, fuso
+  certo, confirmação 2 passos) → leitura mostrou os 2 → apagar os 2 →
+  'Nenhum compromisso nos próximos 7 dia(s)'. Journal 0 erros.
+- **Estado: SISTEMA 100%** — escrita no Google viva de ponta a ponta.

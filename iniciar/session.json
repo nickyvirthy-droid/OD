@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-07T13:22:11-03:00",
+  "updated_at": "2026-10-07T14:24:07-03:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1356,5 +1356,17 @@
     "pendente_dono": "Re-autorização do Google (escopos de escrita): refazer os 3 passos (túnel 8766 + /site/google_auth.html + 'codigo chegou') para trocar código→token com os 7 escopos. Enquanto isso, as actions de escrita degradam ok=False (honesto).",
     "estado": "CONCLUÍDO E NO AR — v1.19.0+2039 implantada; escrita Google degrada honesta (ok=False) até o dono re-autorizar os 7 escopos (passos no txt.txt).",
     "prova_viva": "/app/version {1.19.0, 2039, sha d9dd74a3… == site/OmegaDrakon.apk} · /health up (9 checks) · /supervision restarts 0 · journal 0 Traceback/ERROR/CRIT · **78 actions registradas** (13 google: 6 leitura + 7 escrita — calendar_create/delete, drive_create/update/delete, gmail_send/delete)"
+  },
+  "escrita_google_2026_10_07": {
+    "pedido": "Dono: 'quero fazer agora, sem isso o sistema não esta 100%' — re-autorização do Google + prova viva da escrita.",
+    "autorizacao": "Capturador na 8766 (setsid -f, 30 min) · dono fez túnel+clique · 'codigo chegou' · callback com os 7 escopos · runtime.google_auth --code → token com 7 escopos + refresh (backup do token readonly em backups/google-token-readonly-pre-escrita-20261007-133924.json, NÃO commitado). ACHAR: o capturador salva em google_auth_url.txt na RAIZ (não data/) — lição de leitura do log.",
+    "bugs_da_prova_viva": [
+      "1) 'com o título X' não virava título ('na minha agenda   com o título Prova...' era o título) — corrigido em core/intents.py (_GOOGLE_W_TITULO_RE: marcador vence, 'quando' procurado antes)",
+      "2) confirmação mostrava UTC cru ('18:00' para 'às 15h') — corrigido com _quando_legivel() (canônico em core/intents.py, usado na confirmação E na mensagem de sucesso; dia inteiro fica como veio)"
+    ],
+    "bump": "1.19.1 (PATCH): .env · capabilities · pubspec 1.19.1+2040 · _APP_VERSION_CODE=2040 · site 2x · APKs rebuildados (aapt2 versionCode='2040' versionName='1.19.1') · CHANGELOG [1.19.1] · README §1.19.1.",
+    "validacao": "Suíte 2299 passed, 16 skipped (+2 regressões em TestGoogleWriteIntents: título explícito; fuso com TZ fixada) · guardas 9/9.",
+    "prova_viva": "CICLO COMPLETO na agenda REAL: criar 'Prova de Escrita OD' (15h) + 'Prova Final OD' (16h) com confirmação 2 passos e fuso correto → leitura mostrou os 2 → apagar os 2 com confirmação → 'Nenhum compromisso nos próximos 7 dia(s)'. Journal 0 erros. PID final 677660, NRestarts=0.",
+    "estado": "SISTEMA 100% — escrita no Google NO AR e provada de ponta a ponta; nenhuma pendência do dono."
   }
 }
