@@ -14,6 +14,50 @@
 
 ---
 
+## [1.19.0] — ESCRITA NO GOOGLE: Drive, Agenda e Gmail com gate + confirmação ✍️ (2026-10-03)
+
+- **feat(google): 7 actions de escrita (lote 2)** — criar/editar/apagar
+  arquivo no Drive, criar/apagar compromisso na Agenda, enviar/apagar
+  e-mail no Gmail. Escopo cheio aprovado pelo dono no `txt.txt` e
+  re-autorizado no mesmo dia — o **código de retorno veio com os 7
+  escopos** (13:38, log do capturador), mas a **troca pelo token NÃO foi
+  concluída**: o token em disco segue com os 3 readonly e as actions de
+  escrita degradam honestamente (`ok=False`) até a re-autorização do dono.
+- **Gate de papel (só admin):** escrita continua FORA da allowlist do
+  papel `user` (`core/security/permissions.py` intocado); a negação do
+  Registry virou `permissao_negada` guiada para as 7 actions no
+  `core/orchestrator.py` (espelho do `ha_device_control`) — resposta
+  honesta, **nunca o LLM**.
+- **Confirmação de 2 passos:** 1ª menção registra (TTL 120s, chave por
+  usuário+ação+parâmetros) e pede "sim"; o mesmo user executa dentro do
+  TTL; **consumo só após sucesso** (erro do Google mantém a intenção).
+  Implementado em `tools/actions/actions.py` (`_WRITE_CONFIRMATIONS`,
+  `peek/drop_pending_google_write`).
+- **Alvo obrigatório e resolvido:** nome → id ANTES da confirmação;
+  0 resultados → `nao_encontrado`, N>1 → `alvo_ambiguo` (nada em lote),
+  arquivo nativo do Google → `nativo_google` com dica. Sem alvo →
+  `alvo_obrigatorio` com exemplo de frase.
+- **Intents determinísticas:** `_detect_google_write` roda ANTES da
+  leitura ("apague o e-mail da ana" nunca casa como listagem), extrai
+  nome/conteúdo/título/quando/destinatário/corpo da frase e fica FORA do
+  `FASTPATH_ACTIONS` (allowlist de leitura — teste garante). Formatter
+  próprio (`_format_google_write`) para permissão/alvo/pendência/execução.
+- **Dois caminhos:** `process` e `process_stream` consultam a pendência
+  de escrita antes do detetor, com conferência de coerência do 'sim'
+  (mesma regra v1.9.1) e descarte em caso de incoerência.
+- **Catálogo 71 → 78 actions** (google 6 → 13) em `tools/actions/actions.py`
+  com `user_id`/`alvo` nos params.
+- **bump MINOR:** `.env 1.19.0` · capabilities `1.19.0` · `pubspec
+  1.19.0+2039` · `_APP_VERSION_CODE=2039` · `site 2x` · APKs rebuildados
+  (aapt2 `versionCode='2039' versionName='1.19.0'`).
+- **Evidência:** suíte **2297 passed, 16 skipped** · cobertura **90,30%**
+  (gate 90) · **5 mutações** detectadas e restauradas bit-exato (gate
+  removido, confirmação eliminada, detetor fora da cadeia, consumo antes
+  do sucesso, formatter sem ramo de escrita) · `flutter analyze` 0 ·
+  `flutter test` 131/2.
+
+---
+
 ## [1.18.0] — GOOGLE DRIVE/AGENDA/GMAIL EM LEITURA + CI VERDE 🌐 (2026-10-03)
 
 - **feat(google): OAuth do dono concluído e provado no ar** — fluxo SEM

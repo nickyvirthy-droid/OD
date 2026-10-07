@@ -7,6 +7,26 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.19.0] — ESCRITA NO GOOGLE: Drive, Agenda e Gmail com gate + confirmação ✍️ (2026-10-03)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | Os 3 desejos de ESCRITA no topo do `txt.txt` (criar/editar/apagar no Drive, criar/apagar compromissos na Agenda, enviar/apagar e-mail). Escopo cheio aprovado pelo dono no `txt.txt`; o código de retorno (13:38) veio com os **7 escopos**, mas a troca pelo token NÃO foi concluída — o token em disco segue com os 3 readonly e a escrita degrada honestamente até a re-autorização. |
+| **7 actions de escrita (lote 2)** | criar/editar/apagar arquivo no Drive, criar/apagar compromisso na Agenda, enviar/apagar e-mail no Gmail. Catálogo **71 → 78 actions** (google 6 → 13) em `tools/actions/actions.py` com `user_id`/`alvo` nos params. |
+| **Gate de papel (só admin)** | Escrita FORA da allowlist do papel `user` (`core/security/permissions.py` intocado); a negação do Registry virou `permissao_negada` guiada para as 7 actions no `core/orchestrator.py` (espelho do `ha_device_control`) — resposta honesta, **nunca o LLM**. |
+| **Confirmação de 2 passos** | 1ª menção registra (TTL 120s, chave por usuário+ação+parâmetros) e pede "sim"; o mesmo user executa dentro do TTL; **consumo só após sucesso** (erro do Google mantém a intenção). `_WRITE_CONFIRMATIONS`, `peek/drop_pending_google_write` em `tools/actions/actions.py`. |
+| **Alvo obrigatório e resolvido** | Nome → id ANTES da confirmação; 0 resultados → `nao_encontrado`, N>1 → `alvo_ambiguo` (nada em lote), arquivo nativo do Google → `nativo_google` com dica. Sem alvo → `alvo_obrigatorio` com exemplo de frase. |
+| **Intents determinísticas** | `_detect_google_write` roda ANTES da leitura ("apague o e-mail da ana" nunca casa como listagem), extrai nome/conteúdo/título/quando/destinatário/corpo da frase e fica FORA do `FASTPATH_ACTIONS` (teste garante). Formatter próprio (`_format_google_write`). |
+| **Dois caminhos** | `process` e `process_stream` consultam a pendência de escrita antes do detetor, com conferência de coerência do 'sim' (mesma regra v1.9.1) e descarte em caso de incoerência. |
+| **Teste do teste** | **5 mutações** detectadas e restauradas bit-exato (gate removido, confirmação eliminada, detetor fora da cadeia, consumo antes do sucesso, formatter sem ramo de escrita). |
+| **Resultado** | Suíte **2297 passed, 16 skipped** · cobertura **90,30%** (gate 90) · `flutter analyze` 0 · `flutter test` 131 passed, 2 skipped. |
+
+### 2. bump MINOR
+
+Infra de teste visível no repo: `.env 1.19.0` · capabilities fallback `1.19.0` · `pubspec 1.19.0+2039` · `_APP_VERSION_CODE=2039` · `site 2x` · APKs rebuildados (aapt2 `versionCode='2039' versionName='1.19.0'`; full 53.972.629 B, arm64 19.245.103 B) · `CHANGELOG [1.19.0]` · este README.
+
 ## [1.18.0] — GOOGLE DRIVE/AGENDA/GMAIL EM LEITURA + CI VERDE 🌐 (2026-10-03)
 
 ### 1. O que foi feito
