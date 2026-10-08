@@ -7,6 +7,25 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.19.2] — CORREÇÕES DA AUDITORIA DAS CONVERSAS 🔍 (2026-10-08)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | 'faça as correções necessárias' — os 5 itens da análise §8 (transcrição do 07/10). O item 2 (instrução não persistida) foi esclarecido por ele: era a continuação de uma conversa em que ele viu que a agenda NÃO foi acessada e pediu para acessar — mensagem pontual, não regra global; o defeito real era o roteamento, corrigido abaixo. |
+| **Agenda roteada** | verbos `marque/agende/coloque/anote/registre` (antes: nenhuma intenção, ou LEITURA de eventos); `reunião` no singular (a regex só via 'reuniões'); pergunta diária sem dizer 'agenda' (`o que tem pra hoje` → `google_calendar_events` days=1); verbos de ACESSO (`olhe/acessa minha agenda`, `acessa meus e-mails`, `abra o drive`) → `google_*_list`. |
+| **Telemetria e saída honestas** | o 'sim' que executa a luz grava `fastpath:ha_device_control` (era `fastpath:math`, default do ramo); título não herda preposição; listas grandes avisam o corte (`… e mais N não listado(s)`). |
+| **Banco saneado** | `runtime/llm_cache_saneamento.py` (novo): 21 colunas `profile` reatribuídas **pela chave** (0 não reconhecidas, 0 ambíguas) + **17 respostas devaneio podadas**, snapshots de rollback em `backups/llm-cache-{perfil,poda}-*.bak`; poda idempotente. |
+| **Ponte MQTT** | corrida do `stop()` corrigida: o socket podia abrir DEPOIS da desconexão (ponte parada com conexão viva) — era o flake de **1 em 3** no `test_start_stop_thread`, também no worktree limpo. `connect()` recusa ponte encerrada e `run()` desconecta no `finally`; `start()` reabre. |
+| **CI** | nota **retroativa** do run vermelho `37147058947` (`ced23cc`, 03/10) dentro de [1.19.0] — o histórico não era ininterruptamente verde. |
+| **Teste do teste** | **5 mutações** detectadas e restauradas (`route_detail` sem reatribuir, verbos fora da regex, coluna `profile` de volta ao fixo, `finally` sem desconectar, `connect()` sem guarda). |
+| **Resultado** | Suíte **2318 passed, 16 skipped** (+19 sobre a 1.19.1) · guardas de versão 9/9 · cobertura **90,10%** (gate 90). |
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.19.2` · capabilities fallback `1.19.2` · `pubspec 1.19.2+2041` · `_APP_VERSION_CODE=2041` · `site 2x` · APKs rebuildados (aapt2 `versionCode='2041' versionName='1.19.2'`) · `CHANGELOG [1.19.2]` · este README.
+
 ## [1.19.1] — ESCRITA NO AR + 2 BUGS DA PROVA VIVA CORRIGIDOS ✍️🧪 (2026-10-07)
 
 ### 1. O que foi feito

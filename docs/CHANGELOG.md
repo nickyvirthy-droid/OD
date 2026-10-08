@@ -16,10 +16,10 @@
 
 ## [1.19.2] — CORREÇÕES DA AUDITORIA DAS CONVERSAS 🔍 (2026-10-08)
 
-> **SANDBOX — SEM DEPLOY:** o serviço segue em **1.19.1** (PID 677660).
-> O bump do checklist (`docs/VERSIONAMENTO.md` §5) acontece **no deploy da
-> mudança**, que exige autorização do dono (regra 13 de `iniciar/RULES.md`);
-> esta seção muda de status quando isso acontecer.
+> **DEPLOY AUTORIZADO PELO DONO (08/10):** checklist do
+> `docs/VERSIONAMENTO.md` §5 completo — `.env` · capabilities · `pubspec
+> 1.19.2+2041` · `_APP_VERSION_CODE=2041` · `site 2x` · APKs rebuildados ·
+> restart do `od-core` (regra 13).
 
 Achados da auditoria das 230 mensagens / 115 turnos gravados entre
 29/09 e 07/10 (§8 de `iniciar/2026-10-07_conversa_omegadrakon.md`):
