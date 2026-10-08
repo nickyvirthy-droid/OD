@@ -47,11 +47,13 @@ def parse_when(text: str, *, now: Optional[datetime] = None) -> Optional[dict[st
         day = base.date() + timedelta(days=1)
     if day is None:
         # Sem âncora de dia: só hora EXPLÍCITA vale ('às 6' / 'às 15h' /
-        # '14:30'). Número solto sem preposição ('daqui 2 horas') não é
-        # um quando — a pendência do create não pode ser sequestrada.
+        # '14:30' com DOIS-PONTOS). Número solto sem preposição ('daqui 2
+        # horas'), data ('08.10') e versão ('1.19.4') não são um quando —
+        # a pendência do create não pode ser sequestrada nem o título
+        # vira horário (pego pela prova viva do deploy de 08/10).
         hora = re.search(
             r"[àa]s\s+(\d{1,2})(?:[:hH](\d{2}))?(?:\s*(?:horas?|h))?", low
-        ) or re.search(r"\b(\d{1,2})[:.](\d{2})\b", low)
+        ) or re.search(r"\b(\d{1,2}):(\d{2})\b", low)
     else:
         hora = re.search(r"[àa]s\s+(\d{1,2})(?:[:hH](\d{2}))?", low)
         if not hora:

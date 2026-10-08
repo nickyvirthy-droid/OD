@@ -18,8 +18,9 @@
 | **Título padrão** | quando todo o resto era o quando, o SUBSTANTIVO vira título (`'criar compromisso para as 6 horas'` → `'compromisso'`) — nunca vazio (senão `alvo_obrigatorio`). |
 | **parse_when** | hora sem dia → **hoje**; se já passou → **amanhã**; dia explícito nunca rola; sem hora continua date-only; a dica `'às 15h'` pura agora completa a pendência. |
 | **`crei` removido** | pedido do dono: era **erro de digitação**, o verbo é `crie` (já coberto) — frase com a palavra errada cai na LEITURA, nunca cria. |
-| **Teste do teste** | **5 mutações** da correção do horário + **2** da remoção do `crei`, todas detectadas e restauradas bit-exato. |
-| **Resultado** | Suíte **2330 passed, 16 skipped** · guardas de versão 9/9 · cobertura **90,13%** (gate 90). Prova de contrato: POST ao Google com `dateTime 06:00`, nunca `{"date": …}`. |
+| **Ponto não é hora** | achado pela PRÓPRIA prova viva do deploy: 'prova hora 1.19.4 …' casou como '01:19'. O ramo 'só a hora' exige preposição ('às'/'para as …') ou `HH:MM` com dois-pontos — versão (`1.19.4`) e data `dd.mm` (`08.10`) nunca viram horário. |
+| **Teste do teste** | **9 mutações** (5 do horário · 2 do `crei` · 2 da restrição de dois-pontos), todas detectadas e restauradas bit-exato. |
+| **Resultado** | Suíte **2331 passed, 16 skipped** · guardas de versão 9/9 · cobertura **90,07%** (gate 90). Prova de contrato: POST ao Google com `dateTime 06:00`, nunca `{"date": …}`. |
 
 ### 2. bump PATCH
 

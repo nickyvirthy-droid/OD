@@ -38,19 +38,24 @@ no Google ('quase funcionou, ainda não grava no horário').
   quando a hora já passou; dia explícito nunca rola; sem hora nenhuma
   continua date-only (escolha do dono). A dica `'às 15h'` pura agora
   completa a pendência (antes exigia 'hoje' junto).
+- **fix(intents/calendar): ponto não é hora** — a prova viva do deploy
+  pegou: `'prova hora 1.19.4 …'` casou como `01:19` (HH**.**MM) e o
+  create agendou 01:19. O ramo 'só a hora' agora exige preposição
+  (`às`/`para as …`) ou `HH:MM` com **dois-pontos** — versão (`1.19.4`)
+  e data `dd.mm` (`08.10`) no título nunca viram horário.
 - **fix(intents): `crei` removido da regex de criação** — pedido do
   dono em 08/10: era **erro de digitação**, o verbo é `crie` (já
   coberto). Mensagem com a palavra errada volta a cair na **LEITURA**
   (mostra a agenda), nunca cria.
-- **Teste do teste:** **5 mutações** detectadas e restauradas bit-exato
+- **Teste do teste:** **9 mutações** detectadas e restauradas bit-exato
   (regex sem o ramo 'só a hora'; `parse_when` recusa hora sem dia; sem
   o rollover hoje→amanhã; título padrão removido; hora solta aceitando
-  número sem preposição) + **2** da remoção do `crei`.
-- **Resultado:** Suíte **2330 passed, 16 skipped** (+5 testes
-  `*sem_dia*` sobre as 2325 da 1.19.3) · guardas de versão 9/9 ·
-  cobertura **90,13%** (gate 90). Prova de contrato: POST ao Google com
-  `dateTime 06:00` quando o dono falou 'para as 6 horas' — nunca
-  `{"date": …}`.
+  número sem preposição; `crei` voltando; `crei` saindo junto com
+  `crie`; HH:MM aceitando ponto no intents; idem no `parse_when`).
+- **Resultado:** Suíte **2331 passed, 16 skipped** (+6 testes sobre as
+  2325 da 1.19.3) · guardas de versão 9/9 · cobertura **90,07%**
+  (gate 90). Prova de contrato: POST ao Google com `dateTime 06:00`
+  quando o dono falou 'para as 6 horas' — nunca `{"date": …}`.
 
 ### 2. bump PATCH
 

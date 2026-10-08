@@ -492,10 +492,11 @@ _GOOGLE_W_QUANDO_RE = re.compile(
     # real do dono em 08/10, IDs 747-752: sem 'hoje' na frase o regex
     # antigo não casava, a hora ia para o TÍTULO, o create pedia 'quando'
     # e o evento nascia DIA INTEIRO). Exige a preposição 'às' (com
-    # 'para/pra' opcional) ou HH:MM — número solto ('daqui 2 horas',
-    # '10.000') NÃO é um quando.
+    # 'para/pra' opcional) ou HH:MM com DOIS-PONTOS — número solto
+    # ('daqui 2 horas'), data ('08.10') e versão ('1.19.4') NÃO são um
+    # quando (o ponto vira hora: pego pela prova viva do deploy de 08/10).
     r"(?:(?:\bpara\s+|\bpra\s+)?[àa]s\s+\d{1,2}(?:[:.]\d{2}|\s*(?:horas?|h))\b"
-    r"|\b\d{1,2}[:.]\d{2}\b)"
+    r"|\b\d{1,2}:\d{2}\b)"
     r")",
     re.IGNORECASE,
 )

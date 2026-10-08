@@ -1699,6 +1699,29 @@ class TestHoraAntesDoDia:
         assert intent is not None and intent[0] == "google_calendar_create"
         assert intent[1]["titulo"] == "compromisso", intent[1]
 
+    def test_ponto_no_titulo_nao_vira_hora(self) -> None:
+        """Prova viva do deploy de 08/10 pegou: 'prova hora 1.19.4 …'
+        casou como '01:19' (HH.MM) e o create agendou 01:19. Número com
+        PONTO — versão ('1.19.4') e data dd.mm ('08.10') — não é hora:
+        só preposição ('às'/'para as …') ou HH:MM com DOIS-PONTOS."""
+        from integrations.google.calendar import parse_when
+
+        # HH:MM com dois-pontos (sem preposição) continua sendo hora
+        i0 = detect_action_intent("criar compromisso revisão 14:30")
+        assert i0 is not None and i0[0] == "google_calendar_create", i0
+        assert i0[1]["quando"] == "14:30", i0[1]
+        # versão/decimal no TÍTULO, hora continua sendo a falada
+        intent = detect_action_intent(
+            "criar compromisso nota 1.19.4 para as 6 horas"
+        )
+        assert intent is not None and intent[0] == "google_calendar_create"
+        assert intent[1]["quando"] == "para as 6 horas", intent[1]
+        assert "1.19.4" in intent[1]["titulo"], intent[1]
+        assert "1:19" not in intent[1].get("quando", ""), intent[1]
+        # data dd.mm não é hora (parse_when devolve dia inteiro)
+        p = parse_when("08.10")
+        assert p is None or "T" not in p["start"], p
+
     def test_create_envia_dateTime_com_a_hora_falada(self) -> None:
         """A prova do bug do dono: o POST levava {"date": ...} (dia
         inteiro) porque a hora estava no título. Agora leva dateTime com a
