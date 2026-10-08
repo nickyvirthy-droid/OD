@@ -351,6 +351,11 @@ _GOOGLE_CAL_RE = re.compile(
     re.IGNORECASE,
 )
 _GOOGLE_DRIVE_RE = re.compile(r"\b(drive|google\s+drive)\b", re.IGNORECASE)
+_GOOGLE_O_QUE_TEM_RE = re.compile(
+    r"\b(o que tem|tem algo|tenho algo|o que vou fazer|o que rola|"
+    r"o que acontece)\b",
+    re.IGNORECASE,
+)
 _GOOGLE_MAIL_ASK_RE = re.compile(
     r"\b(meus?|minha|minhas|ver|listar|ler|leia|checar|checa|conferir|"
     r"tenho|[uú]ltim[oa]s?|novos?|n[ãa]o\s+lid[ao]s?)\b",
@@ -384,6 +389,21 @@ def _detect_google(text: str) -> Optional[tuple[str, dict[str, Any]]]:
         return "google_calendar_events", {"days": days, "limit": 10}
     if _GOOGLE_DRIVE_RE.search(low) and _GOOGLE_ASK_RE.search(low):
         return "google_drive_list", {"limit": 20}
+    # Pergunta genérica de rotina SEM dizer 'agenda'/'compromisso'
+    # ('o que tem pra hoje' era a pergunta diária do dono e caía no LLM,
+    # que respondia 'você não tem tarefas' SEM consultar nada — devaneio
+    # cacheado da prova viva de 07/10). Máquina/código continuam fora.
+    if _GOOGLE_O_QUE_TEM_RE.search(low) and re.search(
+        r"\b(hoje|amanh[ãa]|nesse|essa)\b", low
+    ):
+        if re.search(
+            r"\b(sistema|servidor|cpu|disco|c[óo]digo|repo|pasta|"
+            r"arquivos?|drive|e-?mails?|smtp|banco)\b",
+            low,
+        ):
+            return None
+        days = 1 if re.search(r"\bhoje\b", low) else 2
+        return "google_calendar_events", {"days": days, "limit": 10}
     return None
 
 
@@ -407,11 +427,15 @@ _GOOGLE_W_ARQUIVO_RE = re.compile(
     r"\b(arquivos?|ficheiros?|documentos?)\b", re.IGNORECASE
 )
 _GOOGLE_W_CAL_RE = re.compile(
-    r"\b(compromissos?|reuni[õo]es?|agendamentos?|agenda|calend[aá]rio)\b",
+    r"\b(compromissos?|reuni(?:[ãa]o|[õã]es|oes)|agendamentos?|agenda|"
+    r"calend[aá]rio)\b",
     re.IGNORECASE,
 )
 _GOOGLE_W_CRIAR_RE = re.compile(
-    r"\b(criar|crie|cria|criamos|fazer|faz|fa[çc]a|gerar|gere|cria-me|crie-me)\b",
+    r"\b(criar|crie|cria|criamos|fazer|faz|fa[çc]a|gerar|gere|cria-me|"
+    r"crie-me|marcar|marque|marcamos|agendar|agende|agendando|"
+    r"colocar|coloque|coloco|incluir|inclua|anotar|anote|"
+    r"registrar|registre|registra)\b",
     re.IGNORECASE,
 )
 _GOOGLE_W_EDITAR_RE = re.compile(
@@ -456,7 +480,12 @@ _GOOGLE_W_STOP_NOME_RE = re.compile(
     re.IGNORECASE,
 )
 _GOOGLE_W_ARTIGO_RE = re.compile(
-    r"^(?:o|a|os|as|um|uma|chamado|chamada|nomeado|nomeada|de|do|da|dos|das)\s+",
+    # O artigo/preposição só sai quando termina em espaço (ou no fim da
+    # frase): sem isso o `\s*` folgado cortava 'atas' → 'tas'. 'com o'/
+    # 'com a' entram porque o título da reunião começa logo depois do
+    # substantivo ('agende a reunião com o pedro' → 'pedro', não 'com o pedro').
+    r"^(?:com\s+(?:o|a|os|as)\s+|(?:o|a|os|as|um|uma|chamado|chamada|"
+    r"nomeado|nomeada|de|do|da|dos|das)(?:\s+|$))",
     re.IGNORECASE,
 )
 _GOOGLE_W_LIXEIRA_RE = re.compile(
@@ -1287,6 +1316,11 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
                 lines.append(f"  • {(m.get('subject') or '(sem assunto)')[:80]}")
                 if m.get("from"):
                     lines.append(f"      de {str(m['from'])[:60]}")
+            if len(msgs) > 10:
+                # Título conta TODAS, lista corta em 10 — sem o aviso o dono
+                # lia '15 mensagem(ns)' com 10 itens e julgava dado errado
+                # (auditoria 08/10; mesmo corte do Drive em 15).
+                lines.append(f"  … e mais {len(msgs) - 10} não listada(s)")
             return "\n".join(lines)
         if action == "google_calendar_events":
             events = data.get("events") or []
@@ -1313,6 +1347,10 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
                     f"  • {f.get('name', '(sem nome)')}  "
                     f"({f.get('mime_type', '?')})"
                 )
+            if len(files) > 15:
+                # Título = len(files) completo, lista = 15 → '20 arquivo(s)'
+                # com 15 itens parecia dado errado na prova viva (08/10).
+                lines.append(f"  … e mais {len(files) - 15} não listado(s)")
             return "\n".join(lines)
         return None
 

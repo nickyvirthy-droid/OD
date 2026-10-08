@@ -150,6 +150,23 @@ class TestCacheDB:
         m = c.metrics()
         assert m["duplicates"] == 1
 
+    def test_coluna_profile_e_o_perfil_que_perguntou(self, db: Database) -> None:
+        """A coluna `profile` grava o PERGUNTADOR, não o perfil fixo da
+        instância (auditoria das conversas de 08/10: 71/71 linhas saíram
+        como 'guardian' — inclusive as de nyx/nexus/athenae)."""
+        c = LLMCache(database=db, profile="guardian")
+        c.set("oi", "ola", profile="nyx")
+        c.set("tudo bem", "bem", profile="nexus")
+        linhas = {
+            r["prompt"]: r["profile"]
+            for r in db.query("SELECT prompt, profile FROM llm_cache")
+        }
+        assert linhas == {"oi": "nyx", "tudo bem": "nexus"}
+        # A CHAVE continua isolando por perfil: o guardian não lê a resposta
+        # da nyx (prova de que só a coluna estava errada, não a chave).
+        assert c.get("oi", profile="nyx") == "ola"
+        assert c.get("oi", profile="guardian") is None
+
     def test_delete(self, db: Database) -> None:
         c = LLMCache(database=db)
         c.set("oi", "ola")

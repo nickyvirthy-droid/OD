@@ -309,6 +309,13 @@ class LLMCache:
         key = self.make_key(prompt, **params)
         normalized = normalize_prompt(prompt)
         now = time.time()
+        # Coluna `profile` = o perfil QUE FEZ a pergunta (params), não o
+        # perfil fixo da instância. A CHAVE já isola por perfil (make_key
+        # entra com self._profile + params), mas a coluna gravava o fixo e
+        # 71/71 linhas saíram como 'guardian' mesmo feitas por nexus/nyx/
+        # athenae — telemetria mentindo sobre quem perguntou (auditoria de
+        # 08/10).
+        perfil = str(params.get("profile") or self._profile)
         if self._database is not None:
             db = self._database
             existing = db.query(
@@ -325,7 +332,7 @@ class LLMCache:
                 self._metrics["duplicates"] += 1
                 return CacheEntry(
                     key=key, prompt=normalized, response=response,
-                    profile=self._profile, llm_used=llm_used,
+                    profile=perfil, llm_used=llm_used,
                     tokens_used=tokens_used,
                     avg_response_time_ms=response_time_ms,
                 )
@@ -335,13 +342,13 @@ class LLMCache:
                 "use_count, duplicates, created_ts, last_used_ts, "
                 "avg_response_time_ms) "
                 "VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)",
-                (key, normalized, response, self._profile, llm_used,
+                (key, normalized, response, perfil, llm_used,
                  tokens_used, now, now, response_time_ms),
             )
             self._evict_if_needed_db()
             return CacheEntry(
                 key=key, prompt=normalized, response=response,
-                profile=self._profile, llm_used=llm_used,
+                profile=perfil, llm_used=llm_used,
                 tokens_used=tokens_used,
                 avg_response_time_ms=response_time_ms,
             )
@@ -363,7 +370,7 @@ class LLMCache:
                 key=key,
                 prompt=normalized,
                 response=response,
-                profile=self._profile,
+                profile=perfil,
                 llm_used=llm_used,
                 tokens_used=tokens_used,
                 avg_response_time_ms=response_time_ms,

@@ -262,3 +262,23 @@ class TestCacheEntry:
         assert restored.use_count == 5
         assert restored.duplicates == 2
         assert restored.response == "r"
+
+# ===========================================================================
+# Perfil gravado na entrada (auditoria das conversas, 08/10)
+# ===========================================================================
+
+class TestProfileGravado:
+    """A entrada devolvida pela escrita carrega o perfil QUE PERGUNTOU.
+
+    No banco isso era `self._profile` (o fixo da instância, 'guardian' em
+    produção) — a coluna saía errada mesmo com a chave correta; a coluna
+    foi trocada pelo `profile=` passado pelo orquestrador.
+    """
+
+    def test_entry_carrega_o_profile_passado(self, cache: LLMCache) -> None:
+        entry = cache.set("oi", "ola", profile="nyx")
+        assert entry.profile == "nyx"
+        assert cache.get_entry("oi", profile="nyx").profile == "nyx"  # type: ignore[union-attr]
+
+    def test_sem_profile_passado_fica_o_da_instancia(self, cache: LLMCache) -> None:
+        assert cache.set("oi", "ola").profile == "guardian"

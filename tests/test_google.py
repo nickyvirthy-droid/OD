@@ -457,6 +457,88 @@ class TestGoogleIntents:
         })
         assert drive is not None and "Doc" in drive
 
+    def test_verbos_de_agenda_vao_para_criacao(self) -> None:
+        """Auditoria 08/10 (C2): 'Marque na agenda um compromisso…' caía em
+        NENHUMA intenção de escrita e o turno entregava a recusa que o LLM
+        tinha gravado no cache. Verbos de marcar/agendar/colocar/anotar/
+        registrar agora casam — e com 'reunião' no SINGULAR, que a regex
+        antiga nem via (`reuni[õo]es?` não casa 'reunião')."""
+        casos = [
+            "Marque na agenda um compromisso. Teste da agenda.",
+            "agende uma reunião com o pedro amanhã às 10h",
+            "coloque na minha agenda um compromisso amanhã às 9h",
+            "anote uma reunião amanhã às 14h",
+            "registre a reunião amanhã às 9h",
+        ]
+        for frase in casos:
+            detectado = detect_action_intent(frase)
+            assert detectado is not None, frase
+            assert detectado[0] == "google_calendar_create", (frase, detectado)
+            if "amanhã" in frase:
+                # o 'quando' sai da frase, não do título — sem ele a action
+                # responde com dica honesta em vez de inventar data.
+                assert detectado[1]["quando"], frase
+            # título nunca herda preposição inicial ('com o pedro' → 'pedro')
+            assert not detectado[1]["titulo"].lower().startswith(
+                ("com o", "com a", "de ", "do ", "da ")
+            ), (frase, detectado)
+
+    def test_verbos_de_agenda_nao_sequestram_leitura_nem_fora_do_dominio(self) -> None:
+        """A escrita só casa com o SUBSTANTIVO do domínio: pedidos de
+        listagem continuam leitura e frase sem objeto não vira action."""
+        for frase in ("quais compromissos tenho", "minha agenda de hoje"):
+            detectado = detect_action_intent(frase)
+            assert detectado and detectado[0] == "google_calendar_events", frase
+        assert detect_action_intent("meu nome é marca") is None
+        assert detect_action_intent("coloque no drive um arquivo notas")[0] == (
+            "google_drive_create"
+        )
+
+    def test_lista_grande_avisa_o_que_ficou_de_fora(self) -> None:
+        """O título contava TUDO e a lista cortava (20 → 15 no Drive): o dono
+        lia '20 arquivo(s)' com 15 itens e julgava dado errado (08/10)."""
+        drive = format_intent_result("google_drive_list", {
+            "ok": True,
+            "files": [
+                {"name": f"f{i}", "mime_type": "application/pdf"}
+                for i in range(20)
+            ],
+        })
+        assert drive is not None
+        assert "20 arquivo(s)" in drive
+        assert "e mais 5" in drive
+        gmail = format_intent_result("google_gmail_list", {
+            "ok": True,
+            "messages": [{"subject": f"s{i}", "from": "a@b.c"} for i in range(12)],
+        })
+        assert gmail is not None
+        assert "12 mensagem(ns)" in gmail
+        assert "e mais 2" in gmail
+
+    def test_lista_pequena_nao_ganha_aviso_de_corte(self) -> None:
+        drive = format_intent_result("google_drive_list", {
+            "ok": True, "files": [{"name": "Doc", "mime_type": "application/pdf"}],
+        })
+        assert drive is not None and "e mais" not in drive
+
+    def test_pergunta_diaria_sem_dizer_agenda_vai_para_a_agenda(self) -> None:
+        """'o que tem pra hoje' era a pergunta do dono e caía no LLM, que
+        respondia 'você não tem tarefas' SEM consultar nada (devaneio
+        cacheado da prova viva de 07/10). Sem dizer 'agenda' a pergunta
+        agora lê a Agenda de verdade."""
+        assert detect_action_intent("o que tem pra hoje") == (
+            "google_calendar_events", {"days": 1, "limit": 10},
+        )
+        assert detect_action_intent("tenho algo hoje") == (
+            "google_calendar_events", {"days": 1, "limit": 10},
+        )
+        assert detect_action_intent("o que vou fazer amanhã") == (
+            "google_calendar_events", {"days": 2, "limit": 10},
+        )
+        # palavra de máquina no meio: continua fora da Agenda
+        assert detect_action_intent("o que tem hoje no sistema") is None
+        assert detect_action_intent("o que tem hoje no drive")[0] == "google_drive_list"
+
 
 # ---------------------------------------------------------------------------
 # CLI de autorização

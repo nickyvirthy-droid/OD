@@ -820,6 +820,12 @@ class Orchestrator:
                         role=role,
                     )
                     answer = format_intent_result("ha_device_control", data)
+                    # O default do ramo é "math" (linha de safe_math); sem
+                    # reatribuir aqui a execução real da luz era registrada
+                    # como fastpath:math — telemetria mentindo sobre a rota
+                    # (achado em 08/10 na auditoria das conversas; o caminho
+                    # NÃO-streaming abaixo já atribuía certo).
+                    route_detail = "ha_device_control"
                 elif pending_gw is not None and detect_confirmation(text):
                     # Escrita Google (lote 2): o 'sim' do MESMO user executa a
                     # intenção pendente — mesmo espelho das luzes.

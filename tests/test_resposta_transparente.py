@@ -565,6 +565,8 @@ class TestControleLuzes:
         ))
         assert r2.route == "action_intent"
         assert "executado" in r2.message
+        # rota registrada = a action executada (não o default 'math' do ramo)
+        assert r2.llm_used == "fastpath:ha_device_control"
         assert len(server.service_calls) == 1
         assert server.service_calls[0]["service"] == "turn_on"
         assert server.service_calls[0]["entity_id"] == "switch.luz_cozinha_sonoff_1"
@@ -637,6 +639,11 @@ class TestControleLuzes:
         done2 = [c for c in chunks2 if c.get("type") == "done"]
         assert done2 and "executado" in done2[0]["content"]
         assert len(calls) == 1 and calls[0]["service"] == "turn_on"
+        # Telemetria tem que dizer a VERDADE sobre a rota: o 'sim' que
+        # executa a luz gravava o DEFAULT do ramo de safe_math
+        # (fastpath:math) — auditoria das conversas de 08/10, mensagem
+        # [682] com action de luz toda registrada como cálculo.
+        assert done2[0]["llm_used"] == "fastpath:ha_device_control"
 
     def test_sim_solto_sem_intencao_nao_executa_nada(self) -> None:
         import asyncio
