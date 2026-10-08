@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T05:05:00",
+  "updated_at": "2026-10-08T05:40:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1531,6 +1531,28 @@
       "integrations/google/calendar.py parse_when: hora sem dia → dia assume HOJE e vira AMANHÃ se a hora já passou; dia EXPLÍCITO nunca rola; sem hora nenhuma continua date-only (escolha do dono); a dica 'às 15h' pura agora completa a pendência (antes exigia 'hoje' junto)."
     ],
     "validacao": "5 testes novos em tests/test_google.py::TestHoraAntesDoDia (quando/título, título padrão, POST com dateTime 06:00, parse_when com rollover, pendência com hora solta) · suíte completa 2330 passed, 16 skipped · gate de cobertura 90,07% · 5/5 mutações DETECTADAS e restauradas bit-exato (regex sem o ramo (b); parse_when recusa hora sem dia; sem rollover; título padrão removido; hora solta sem preposição).",
-    "estado": "CORREÇÕES VALIDADAS E PRONTAS — commit + deploy pendentes (bump PATCH 1.19.4 no checklist do deploy, regra 12/13)."
+    "estado": "CONCLUÍDO E NO AR — ver 'deploy_v1194_2026_10_08'."
+  },
+  "deploy_v1194_2026_10_08": {
+    "pedido": "Dono (ask_user): 'est autorizado' — as 3 decisões de uma vez: (1) remover 'crei' da regex de criação; (2) deploy + bump 1.19.4; (3) apagar os 3 eventos dia inteiro de teste da Agenda dele.",
+    "crei_removido": "core/intents.py _GOOGLE_W_CRIAR_RE perdeu o 'crei' (era erro de DIGITAÇÃO do dono, o verbo é 'crie' — já coberto). Frase com a palavra errada cai na LEITURA (google_calendar_events), nunca cria. Teste renomeado/estendido: test_mostre_vira_leitura_e_crie_vira_escrita.",
+    "bump": "1.19.4+2043 (checklist §5): .env · capabilities · pubspec · _APP_VERSION_CODE=2043 · site 2x · CHANGELOG [1.19.4] · README_VERSAO §1.19.4. APKs rebuildados — aapt2 versionCode='2043' versionName='1.19.4' nos dois (full 53.972.629 B 8603d453…, arm64 19.245.103 B 5e6dd78d…); 1.19.3+2042 preservado em backups/apk-v1.19.3+2042-20261008/ (shas batiam com o que /app/version anunciava).",
+    "defeito_pela_prova_viva": "A frase de prova tinha '1.19.4' e o ramo 'só a hora' casou HH.MM → create agendou 01:19. Correção (4039108): só preposição ('às'/'para as …') ou HH:MM com DOIS-PONTOS no intents E no parse_when — versão (1.19.4) e data dd.mm (08.10) nunca viram horário; +1 teste de regressão test_ponto_no_titulo_nao_vira_hora.",
+    "validacao": "Suíte 2331 passed, 16 skipped · cobertura 90,07% (gate 90) · guardas de versão 9/9 · 9/9 mutações detectadas e restauradas bit-exato (5 do horário + 2 do crei + 2 da restrição de dois-pontos).",
+    "commits": [
+      "df0217c chore(release): bump PATCH 1.19.4+2043 — hora SEM dia grava no horário; 'crei' (erro de digitação) fora da regex",
+      "4039108 fix(agenda): ponto no título não vira hora — só preposição ou HH:MM com dois-pontos"
+    ],
+    "deploy": "systemctl --user restart od-core autorizado: 1º 05:10:42, 2º após o fix do ponto (~05:3x); NRestarts=0, journal 0 erros.",
+    "prova_viva_chat": [
+      "A) 'criar compromisso nota 1.19.4 para as 6 horas' → fastpath:google_calendar_create, confirmação \"'nota 1.19.4' em 2026-10-08 06:00\" — versão preservada no TÍTULO e hora no QUANDO",
+      "B) 'crei um evento na agenda para as 5 horas de hoje' → fastpath:google_calendar_events (LEITURA) — nunca cria",
+      "C) 'crie um evento na agenda de teste deploy para as 7 horas' → escrita 'em 2026-10-08 07:00'",
+      "/app/version 1.19.4/2043 sha 8603d453… == site/OmegaDrakon.apk · /capabilities 1.19.4 · /health up · /supervision restarts 0 degraded [] · WS 426 · journal 0 erros",
+      "Confirmações das provas NÃO respondidas (TTL 2 min) — nenhum evento criado por elas."
+    ],
+    "limpeza_agenda": "Os 3 eventos dia inteiro de teste do dono apagados por título exato via CalendarService (com prova antes/depois): 'evento para as 5 horas de' (59f56r90ufqqucidvggff6ahg4) · 'compromisso para as 4:00 de' (6591321g0gbtg18jim09u420e8) · 'para as 6 horas' (nsid5esq8c5un8o0ff4oh6l6p0) — antes 3 → depois 0, resíduo 0; leitura pelo chat: 'Nenhum compromisso nos próximos 7 dia(s)'.",
+    "registro": "iniciar/2026-10-08_conversa_omegadrakon.md §7 + este session.json; commit+push pela regra 7.1.",
+    "estado": "CONCLUÍDO E NO AR — v1.19.4+2043 implantada e provada; agenda do dono limpa; 3 autorizações do lote executadas."
   }
 }

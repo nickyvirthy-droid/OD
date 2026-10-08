@@ -123,3 +123,43 @@ app → re-login nas Configurações (alex/senha123), o teste mais barato;
 - **Pendência:** commit + deploy com bump **1.19.4** (regras 12/13 —
   aguardando autorização do dono). Depois: limpar os 3 eventos-dia-
   inteiro de teste que ficaram na Agenda dele (apagar é mutação — pedir).
+
+## 7. Lote autorizado pelo dono — `crei`, bump 1.19.4, deploy e limpeza
+
+- Dono (ask_user, **"est autorizado"**): (1) remover `crei` da regex de
+  criação; (2) deploy + bump **1.19.4**; (3) **apagar os 3 eventos dia
+  inteiro de teste** da Agenda dele.
+- **1. `crei` fora:** `_GOOGLE_W_CRIAR_RE` perdeu o `crei` — era erro de
+  digitação do dono, o verbo é `crie` (já coberto). Frase com a palavra
+  errada agora cai na **LEITURA** (`google_calendar_events`), nunca cria.
+  Teste renomeado/estendido: `test_mostre_vira_leitura_e_crie_vira_escrita`.
+- **2. bump PATCH 1.19.4+2043** (checklist §5): `.env` · capabilities ·
+  pubspec · `_APP_VERSION_CODE=2043` · site 2x · CHANGELOG [1.19.4] ·
+  README_VERSAO §1.19.4. APKs rebuildados — aapt2 `versionCode='2043'
+  versionName='1.19.4'` nos dois (full 53.972.629 B `8603d453…`,
+  arm64 19.245.103 B `5e6dd78d…`; 1.19.3+2042 preservado em
+  `backups/apk-v1.19.3+2042-20261008/`).
+- **3. Defeito novo pego pela PRÓPRIA prova viva:** minha frase de
+  teste tinha `1.19.4` e o ramo 'só a hora' casou `HH.MM` → agendou
+  **01:19**. Correção: só preposição (`às`/`para as …`) ou `HH:MM` com
+  **dois-pontos** — versão (`1.19.4`) e data `dd.mm` (`08.10`) nunca
+  viram horário (intents + `parse_when`), +1 teste de regressão e
+  +2 mutações (**9/9** no total).
+- **Validação final:** suíte **2331 passed, 16 skipped** · cobertura
+  **90,07%** (gate 90) · guardas de versão **9/9**.
+- **Commits:** `df0217c` (bump 1.19.4 + `crei`) e `4039108` (ponto não
+  é hora) — ambos push em origin/master.
+- **Deploy:** restart `od-core` (autorizado) — 1º 05:10:42, 2º após o
+  fix do ponto; NRestarts=0, journal 0 erros.
+- **Prova viva (chat):** (A) `criar compromisso nota 1.19.4 para as 6
+  horas` → confirmação `'nota 1.19.4' em 2026-10-08 06:00` (hora no
+  dia, versão preservada no título); (B) `crei um evento …` →
+  **leitura** da agenda; (C) `crie um evento … para as 7 horas` →
+  escrita `2026-10-08 07:00`. Confirmações NÃO respondidas (TTL 2 min):
+  nenhum evento criado pelas provas.
+- **4. Limpeza autorizada:** os 3 eventos dia inteiro de teste
+  (`evento para as 5 horas de` · `compromisso para as 4:00 de` ·
+  `para as 6 horas`, todos 08/10) apagados por título exato via
+  CalendarService (ids `59f56r90…`, `6591321g…`, `nsid5esq8…`):
+  antes 3 → **depois 0**, resíduo 0; leitura pelo chat confirma
+  `Nenhum compromisso nos próximos 7 dia(s)`.
