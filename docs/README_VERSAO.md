@@ -7,6 +7,28 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.20.0] — CANAL DE DESENVOLVIMENTO ON-DEMAND: SESSÃO PELO PAINEL + CAIXA DE AUTORIZAÇÃO 🛠️ (2026-10-08)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | `txt.txt` 08:35: 'mudar a fila do orquestrador — ele não precisa ficar online todo o tempo; um botão no painel ADM para ativar; a caixa do desenvolvimento serve quando o sistema precisar de autorização do dono'. Fluxo: dono escreve a ideia → ▶ Ativar → orquestrador escolhe a CLI → lê `iniciar/`, `docs/` e `txt.txt` → implementa → se precisar, pede na caixa. |
+| **Entrada corrigida pelo dono** | 'no admin o canal de desenvolvimento é o pedido.txt' → a ideia vem do **`pedido.txt`** (seção 'Canal de desenvolvimento'); `txt.txt` ficou só de CONTEXTO no prompt (junto de `iniciar/session.json`, `RULES.md`, `README_VERSAO.md`, `REGRAS_DE_TRABALHO.md`, `VERSIONAMENTO.md` e `CHANGELOG.md`). |
+| **Modo sessão** | `orquestrador.py --sessao --cli auto\|freebuff\|opencode\|kilo`: estados `preparando\|executando\|aguardando_autorizacao\|validando\|concluido\|falhou\|parado` em `data/dev_sessao.json` (escrita atômica tmp+rename). |
+| **Caixa de autorização** | marcador `[AUTORIZACAO] pergunta` no fim da resposta da CLI → `data/dev_caixa.json` → espera o dono (30 min, máx. 5 pedidos) → retoma com histórico; resposta antiga não vale (contagem por rodada). |
+| **Validação + commit** | suíte canônica `pytest --cov-fail-under=90` como gate; commit `feat(dev): …` SEM push, excluindo `backups/`, `data/` e `logs/`. Proibido por design: `git push`, `systemctl`, `.env`, `backups/`. |
+| **Rotas (50 → 55)** | `POST/GET /admin/dev/sessao` · `GET/POST/DELETE /admin/dev/caixa`, todas com `_require_admin`; 400 `fila_vazia`/`cli_invalida`/`acao_invalida`, 409 `sessao_ativa`/`sessao_nao_ativa`, 500 `falha_ao_iniciar_sessao`/`falha_ao_parar`. |
+| **Spawn desanexado** | `Popen(start_new_session=True)` + stdout em `logs/dev_sessao.log`; Parar = `SIGTERM` no grupo (runner + CLI); GET normaliza processo morto (`interrompida`/`processo_ausente`); `_monitor_pids()` ignora `--sessao`. |
+| **Painel `/admin`** | seção 'Canal de desenvolvimento' com ▶ Ativar, seletor de CLI, pill de estado, ideia/CLI/testes/diff/commit, caixa com resposta (Enter), log e auto-refresh de 5 s; fila manual em `<details>`; ids testados (`sess-*`). |
+| **Serviço** | `od-orchestrator.service` **desativado** (decisão 3): a fila 24 h não sobe mais. |
+| **Teste do teste** | **5 mutações** detectadas e restauradas bit-exato (marcador, `start_new_session`, `COMMIT_EXCECOES`, normalização de estado, `_marcar_respondidas`). |
+| **Resultado** | Suíte **2394 passed, 16 skipped** (+55) · guardas de versão 9/9 · cobertura **90,16%** (gate 90) · `node --check` no JS do painel verde. |
+
+### 2. bump MINOR
+
+Infra visível no repo: `.env 1.20.0` · capabilities fallback `1.20.0` · `pubspec 1.20.0+2045` · `_APP_VERSION_CODE=2045` · `site 2x` · APKs rebuildados (aapt2 `versionCode='2045' versionName='1.20.0'`) · `CHANGELOG [1.20.0]` · este README · `od-orchestrator` desativado.
+
 ## [1.19.5] — AGENDA: 'EVENTO', HORA POR EXTENSO E ANTI-FALSO-SUCESSO 🛡️ (2026-10-08)
 
 ### 1. O que foi feito

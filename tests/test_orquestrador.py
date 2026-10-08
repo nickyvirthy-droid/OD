@@ -658,6 +658,18 @@ class TestExecutarSessao:
         assert estado["motivo"] == "commit_nao_realizado"
         assert estado["commit"] == ""
 
+    def test_commit_sem_alvos_e_nada_mudou(self, tmp_path: Path) -> None:
+        """commitar devolve None quando o diff é só de dados (gitignored):
+        não é falha de git — é sessão que não mexeu em código."""
+        estado = _rodar_sessao(
+            tmp_path,
+            executar=lambda spec, prompt: "já estava tudo certo",
+            commitar=lambda titulo: None,
+        )
+        assert estado["status"] == "concluido"
+        assert estado["motivo"] == "nada_mudou"
+        assert estado["commit"] == ""
+
     def test_limite_de_autorizacoes_estanca(self, tmp_path: Path) -> None:
         """N pedidos e o runner trava a sessão — sem loop infinito eterno."""
         estado = _rodar_sessao(

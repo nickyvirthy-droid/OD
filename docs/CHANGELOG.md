@@ -14,6 +14,61 @@
 
 ---
 
+## [1.20.0] — CANAL DE DESENVOLVIMENTO ON-DEMAND: SESSÃO PELO PAINEL + CAIXA DE AUTORIZAÇÃO 🛠️ (2026-10-08)
+
+> **DEPLOY AUTORIZADO PELO DONO (08/10, 'sim'):** pedido dele no `txt.txt`
+> (08:35) — o orquestrador não precisa mais ficar online 24 h numa fila:
+> um botão **▶ Ativar desenvolvimento** no `/admin` sobe uma SESSÃO por
+> demanda. Checkpoint de decisão no meio do caminho: ele corrigiu a entrada
+> ('no admin o canal de desenvolvimento é o pedido.txt — olha o site na
+> seção admin') → a ideia entra no **`pedido.txt`** e o `txt.txt` ficou só
+> de CONTEXTO (a CLI lê junto de `iniciar/` e `docs/`). Checklist do
+> `docs/VERSIONAMENTO.md` §5 completo: `.env` · capabilities · `pubspec
+> 1.20.0+2045` · `_APP_VERSION_CODE=2045` · `site 2x` · APKs rebuildados ·
+> restart do `od-core` (regra 13).
+
+1. **Orquestrador vira on-demand** — `orquestrador.py --sessao --cli
+   auto|freebuff|opencode|kilo` (default `auto` = cascata Freebuff →
+   OpenCode → Kilo): lê a ideia no `pedido.txt`, monta prompt de CONTEXTO
+   (`iniciar/session.json`+`RULES.md`, `docs/README_VERSAO.md`,
+   `REGRAS_DE_TRABALHO.md`, `VERSIONAMENTO.md`, `CHANGELOG.md` e `txt.txt`),
+   executa e valida no fim.
+2. **Caixa de desenvolvimento** — CLI one-shot que precisa de autorização
+   termina a resposta com `[AUTORIZACAO] pergunta` → o runner publica em
+   `data/dev_caixa.json`, muda o estado para `aguardando_autorizacao` e
+   ESPERA o dono (timeout 30 min, máx. 5 pedidos) → retoma com a mesma CLI
+   e o histórico da rodada. Marcador no meio de uma linha não conta.
+3. **Nunca** `git push`, `systemctl`, `.env` ou `backups/` (regras 7 e 13);
+   validação com a suíte canônica (`--cov-fail-under=90`) antes de commitar
+   — commit SEM push é liberado pelo dono (decisão 2 de 08/10).
+4. **Rotas novas (ROUTES 50 → 55)** — `POST/GET /admin/dev/sessao`
+   (ativar/parar + estado) e `GET/POST/DELETE /admin/dev/caixa`
+   (ler/responder/limpar), todas com `_require_admin`.
+5. **Spawn desanexado** — `Popen(start_new_session=True)` com cwd na raiz e
+   stdout em `logs/dev_sessao.log`: a sessão sobrevive a restart do od-core;
+   **Parar** = `SIGTERM` no GRUPO (runner + CLI, `pgid == pid`). GET
+   normaliza processo morto (`interrompida`/`processo_ausente`) — o painel
+   nunca mente 'executando'. `_monitor_pids()` ignora `--sessao` (a fila
+   antiga e a sessão não se confundem).
+6. **Painel `/admin`** — seção 'Canal de desenvolvimento' reescrita:
+   ▶ Ativar + seletor de CLI + pill de estado + info (ideia/CLI/testes/
+   diff/commit) + caixa com campo de resposta (Enter envia) + log; fila
+   manual virou `<details>` (modo avançado); auto-refresh de 5 s enquanto
+   ativa.
+7. **`od-orchestrator.service` desativado** (decisão 3 do dono) — a fila
+   24 h não sobe mais; quem manda é o botão.
+8. **Teste do teste:** **5 mutações** detectadas e restauradas bit-exato
+   (marcador `[AUTORIZACAO]`, `start_new_session`, filtro
+   `COMMIT_EXCECOES`, normalização de processo morto, `_marcar_respondidas`)
+   + guarda de ids do HTML no painel (bug de 2026-09-26 não repete).
+9. **Resultado:** Suíte **2394 passed, 16 skipped** (+55) · guardas de
+   versão 9/9 · cobertura **90,16%** (gate 90) · `node --check` no JS do
+   painel verde.
+
+### 2. bump MINOR
+
+Infra visível no repo: `.env 1.20.0` · capabilities fallback `1.20.0` · `pubspec 1.20.0+2045` · `_APP_VERSION_CODE=2045` · `site 2x` · APKs rebuildados · `CHANGELOG [1.20.0]` · este README · `systemctl --user disable --now od-orchestrator`.
+
 ## [1.19.5] — AGENDA: 'EVENTO', HORA POR EXTENSO E ANTI-FALSO-SUCESSO 🛡️ (2026-10-08)
 
 > **DEPLOY AUTORIZADO PELO DONO (08/10):** 'mais alguns erros de escrita

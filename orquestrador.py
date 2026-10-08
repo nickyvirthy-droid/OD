@@ -800,6 +800,9 @@ def executar_sessao(
     if info_commit and info_commit.get("ok"):
         estado["commit"] = str(info_commit.get("commit", ""))
         motivo = "implantado"
+    elif info_commit is None:
+        # sem alvos stageáveis (diff só de dados/gitignored): nada mudou
+        motivo = "nada_mudou"
     else:
         motivo = "commit_nao_realizado"
     detalhe = estado["commit"] or str((info_commit or {}).get("erro", ""))[:120]
