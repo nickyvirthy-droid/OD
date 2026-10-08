@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T06:15:00",
+  "updated_at": "2026-10-08T14:35:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1587,5 +1587,18 @@
     "aplicacao": "Resumo do lote 1.19.5 enviado na hora (message_id 2012, ok:true).",
     "registro": "iniciar/RULES.md (regra 15) + transcrição §9 + este session.json.",
     "estado": "CONCLUÍDO — regra vigente e já usada uma vez."
+  },
+  "retomada_2026_10_08_2": {
+    "pedido": "Usuário: 'leia iniciar' — retomada (14:3x de 08/10).",
+    "leitura": "iniciar/README.md, RULES.md (15 regras), session.json (integro, 1591 linhas) e transcrição 2026-10-08 (§1–§9).",
+    "estado_verificado": [
+      "git: HEAD 80d0539 (regra 15) == origin/master, sem ahead/behind; working tree só com o snapshot untracked backups/llm-cache-fakes-20261008-055830.json (precedente: backups ficam fora do git).",
+      "od-core active desde 06:03:32, PID 787312, NRestarts=0; journal desde o restart sem entradas -p err.",
+      "od-llm e od-orchestrator active; Funnel: GET /app/version público → 200.",
+      "/app/version = 1.19.5 / 2044 / sha256 c517886f… (bate com o publicado) · /capabilities 1.19.5 · /health ok (orchestrator/llm up) · /supervision up, restarts 0, degraded [].",
+      "pedido.txt vazio (08:35)."
+    ],
+    "txt_do_dono": "txt.txt (08:35, 7 linhas) — NOVO PEDIDO, ainda não tratado: mudar a fila do orquestrador para não ficar sempre online; botão 'Ativar desenvolvimento' no painel /admin escolhe a CLI e roda como o modo manual; 'caixa do desenvolvimento' serve para pedir AUTORIZAÇÃO do dono quando necessário; fluxo: dono escreve a ideia em ideias txt.txt → aperta Ativar → orquestrador escolhe a CLI, lê iniciar/, docs/ e txt.txt → CLI implementa e, se precisar de autorização, pergunta na caixa de desenvolvimento. Obs.: arquivo ideias.txt ainda NÃO existe na raiz; hoje o canal é /admin/dev/pedido (POST/GET/DELETE) + seção de ideias do /admin (PUT/DELETE /admin/ideias) ligadas ao od-orchestrator sempre ativo.",
+    "estado": "RETOMADA CONCLUÍDA — sistema em verde (v1.19.5+2044 no ar, nada reiniciado). Aguardando tratamento do pedido novo do txt.txt (redesenho do canal de desenvolvimento)."
   }
 }
