@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-07T14:24:07-03:00",
+  "updated_at": "2026-10-07T23:12:43-03:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1289,12 +1289,10 @@
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
   "last_turn": {
-    "date": "2026-10-03",
-    "retomada": "Retomada 03/10 09:41 ('leia iniciar'): verificação verde — HEAD 4d2c937 == origin/master, árvore limpa, od-core/llm/orchestrator active, v1.17.4 no ar (sha do APK == site), supervision restarts 0, journal de hoje 0 erros. Dia 01/10: (1) 09:5x chat 'erro interno' → pool postgres auto-curável (v1.16.0); (2) 11:0x blocos de voz por perfil (v1.17.0); (3) 15:0x honestidade do motor — qwen confirmado (v1.17.1); (4) 16:4x limitacoes.txt era a SUÍTE sujando o registro real (v1.17.2, guarda no conftest); (5) 17:2x–22:1x voz ponta a ponta + TTS robusto (v1.17.3, restart 22:10:02); (6) 23:12 'leia os arquivos da pasta iniciar' + push do checkpoint; (7) 23:1x 'complete' → transcrição §8/§9/§10 escritas, suíte 2148/16, /tts provado no ar. Noite com 2 reboots do alex (apt upgrade, kernel 6.8.0-146) — serviços voltaram autônomos 2/2. (8) 23:2x 'conclua os pontos' → 4/4 FECHADOS: rótulo voz=1.17.3+guarda, APK full corrigido (causa=incremental envenenado, não AGP), txt.txt limpo, bump 1.17.4+2037 no ar (restart 23:48:57).",
-    "action": "v1.17.4 NO AR e verificada em 03/10 09:4x (verificação geral completa: serviços, API, Funnel, banco, journal, git — TUDO VERDE; único achado = DNS transitório do bot Telegram, auto-recuperado): /app/version {1.17.4, 2037, sha256 == site/OmegaDrakon.apk 53.972.629 B}; /supervision restarts 0; journal od-core 0 erros desde 01/10; HEAD 63502ad == origin/master; árvore limpa. Em 02/10: infra fechada (CI limpo + cobertura 90,17%, 12c34c1) e arquitetura Google publicada (20b724d).",
-    "next": "SESSÃO FECHADA EM VERDE (12:49) — nada pendente de deploy. Pendências do dono: (1) celular na 1.17.4+2037 → a auto-atualização oferece o 1.18.0+2038 ao abrir o app (ou baixar site/OmegaDrakon-arm64.apk); (2) 2º lote Google = ESCRITA (desejos no txt.txt, gate de papel + confirmação, não implementado); (3) gemma quando o hardware crescer. FECHADOS HOJE: CI VERDE 433458e (177 runs vermelhos desde 15/09); prova viva 3/3 do Google + fix do doseq; OAuth por Rota B; regra 14 (txt.txt); bump 1.18.0+2038 no ar.",
-    "pedidos_suficiente": "Canal fim a fim concluído — não há decisão pendente do dono sobre o monitor; para usar: painel /admin → 'Canal de desenvolvimento'.",
-    "decisao_deploy": "O usuário autorizou em 2026-09-23: restarts do od-core podem ser feitos sem pedir, quando necessários (alem do commit/push da regra 7.1)."
+    "date": "2026-10-07",
+    "retomada": "23:12 'leia iniciar': verificação completa em verde — HEAD b367701 == origin/master, árvore limpa, od-core (PID 677660) no ar desde 14:19:52 com NRestarts=0, v1.19.1+2040 no /app/version com sha256 do APK igual ao de site/, /health up, /supervision restarts 0, journal 0 erros (191 linhas), txt.txt/pedido.txt vazios.",
+    "action": "Nada a fazer — sistema 100% desde a sessão de hoje (re-autorização Google com os 7 escopos, 2 bugs da prova viva corrigidos, bump 1.19.1+2040, ciclo criar→ler→apagar provado na agenda real).",
+    "next": "SEM PENDÊNCIAS. Aguardar pedido do dono (txt.txt/pedido.txt). Monitorar: [NICKY][WARN] 'Transporte indisponível' (WARN, 2x, auto-recuperado)."
   },
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
@@ -1368,5 +1366,11 @@
     "validacao": "Suíte 2299 passed, 16 skipped (+2 regressões em TestGoogleWriteIntents: título explícito; fuso com TZ fixada) · guardas 9/9.",
     "prova_viva": "CICLO COMPLETO na agenda REAL: criar 'Prova de Escrita OD' (15h) + 'Prova Final OD' (16h) com confirmação 2 passos e fuso correto → leitura mostrou os 2 → apagar os 2 com confirmação → 'Nenhum compromisso nos próximos 7 dia(s)'. Journal 0 erros. PID final 677660, NRestarts=0.",
     "estado": "SISTEMA 100% — escrita no Google NO AR e provada de ponta a ponta; nenhuma pendência do dono."
+  },
+  "retomada_2026_10_07_2": {
+    "pedido": "Usuário: 'leia iniciar' — retomada da sessão (2026-10-07 23:12).",
+    "verificacao": "TUDO VERDE: HEAD b367701 == origin/master · árvore limpa (git status sem resíduos) · od-core active desde 14:19:52, PID 677660, NRestarts=0 · /app/version {1.19.1, 2040, sha256 4c6a9723… == site/OmegaDrakon.apk} · /health up (orchestrator/llm ok) · /supervision restarts 0, degraded [] · journal desde o restart: 191 linhas, 0 Traceback/ERROR/CRIT · txt.txt e pedido.txt vazios (sem recado do dono).",
+    "pendencias": "Nenhuma pendência de deploy nem do dono. Único ruído: [NICKY][WARN] 'Transporte indisponível — aguardando...' (2 ocorrências, WARN, auto-recuperado) — fora do critério de erro.",
+    "estado": "SESSÃO EM VERDE — v1.19.1+2040 no ar, escrita Google provada, nada pendente."
   }
 }

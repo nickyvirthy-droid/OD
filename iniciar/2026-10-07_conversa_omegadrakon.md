@@ -83,3 +83,19 @@ OD // CORE
   certo, confirmação 2 passos) → leitura mostrou os 2 → apagar os 2 →
   'Nenhum compromisso nos próximos 7 dia(s)'. Journal 0 erros.
 - **Estado: SISTEMA 100%** — escrita no Google viva de ponta a ponta.
+
+---
+
+OD // CORE
+
+## 7. Retomada 23:12 — "leia iniciar" · verificação em VERDE
+
+- **Git:** HEAD `b367701` == `origin/master`, árvore limpa.
+- **Serviço:** od-core ativo desde 14:19:52, PID 677660, **NRestarts=0**.
+- **Prova viva:** `/app/version` {1.19.1, 2040, sha256 `4c6a9723…` ==
+  `site/OmegaDrakon.apk`} · `/health` up (orchestrator/llm ok) ·
+  `/supervision` restarts 0, `degraded: []`.
+- **Journal** desde o restart: 191 linhas, **0** Traceback/ERROR/CRIT
+  (2× `[NICKY][WARN] Transporte indisponível` — WARN, auto-recuperado).
+- **Canal do dono:** `txt.txt` e `pedido.txt` vazios (sem recado).
+- **Estado:** nada pendente de deploy nem do dono — aguardando pedido.
