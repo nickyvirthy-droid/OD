@@ -80,3 +80,17 @@ app → re-login nas Configurações (alex/senha123), o teste mais barato;
   para 2042 agora já é oferecido pelo `/app/version`).
 - **Pendência 3:** C6 da auditoria (instrução "quando pergunto isso
   olhe minha agenda" não persiste) — feature nova, escopo a decidir.
+
+## 5. Item 2 fechado — 401 do app resolvido (04:35)
+
+- Dono: **"atualizei e reloguei. funcionou tanto no wifi quanto no 4g"**.
+- **Rastro no journal:** `Login realizado | username=alex | user_id=1`
+  (04:35:34) · sessão nova **`a48e2056…` criada 04:36:40, expira
+  15/10 04:36** · banco: 5 sessões válidas de alex, 280 msgs intactas.
+- **Causa raiz confirmada = hipótese A:** o app segurava um token de
+  sessão inválido/expirado (o `/app/version`, isento de auth, funcionava
+  por isso a atualização passava); re-login restaurou a credencial.
+  WiFi e 4G provados → host/URL não eram o problema (também descarta a
+  hipótese C).
+- **Ponto FECHADO** — nenhum bug novo no app; nada a corrigir em
+  `od_api.dart`.

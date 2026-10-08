@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T04:35:00",
+  "updated_at": "2026-10-08T04:40:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1510,10 +1510,16 @@
     "nota_historico": "As provas usaram user_id=deploy-check, que a OD_API_KEY assume como alex → 2 turnos (4 msgs) gravados no histórico do dono.",
     "registro": "iniciar/2026-10-08_conversa_omegadrakon.md (novo) + este session.json; commit+push pela regra 7.1.",
     "pendencias": [
-      "Dono: 401 do APP — começar pelo re-login nas Configurações (alex/senha123); se persistir, investigar od_api.dart (header Authorization pós-update).",
-      "App do dono está em 1.19.2+2041 — o update para 2042 já é oferecido pelo /app/version.",
+      "Item 2 (401 do app) RESOLVIDO — ver 'app_401_resolvido_2026_10_08'.",
+      "App do dono: dono informa 'atualizei e reloguei' — versão final (2041 vs 2042) não é verificável no servidor (/app/version não é logado); sem impacto, pois autenticação e rotas provadas.",
       "C6 da auditoria (instrução 'quando pergunto isso olhe minha agenda' não persiste) — feature nova, escopo a decidir."
     ],
     "estado": "CONCLUÍDO E NO AR — v1.19.3+2042 implantada, provada e registrada."
+  },
+  "app_401_resolvido_2026_10_08": {
+    "pedido": "Dono (chat, 04:35): 'atualizei e reloguei. funcionou tanto no wifi quanto no 4g'.",
+    "rastro": "journal 04:35:34 'Login realizado | username=alex | user_id=1'; sessão nova a48e2056… criada 04:36:40 (expira 15/10 04:36); banco com 5 sessões válidas de alex e 280 msgs intactas.",
+    "causa_raiz": "Hipótese A confirmada: o app segurava token de sessão inválido/expirado — /app/version (isento de auth) funcionava, por isso a atualização passava enquanto toda rota autenticada dava 401. WiFi + 4G funcionando descarta a hipótese C (host/URL); nada a corrigir em od_api.dart (hipótese B descartada).",
+    "estado": "PONTO FECHADO — txt.txt do dono atendido; sistema 100% no ar em 1.19.3+2042."
   }
 }
