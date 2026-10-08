@@ -611,11 +611,14 @@ class TestControleLuzes:
         asyncio.run(orch.process("alex", "guardian", "liga a luz da cozinha", role="admin"))
         asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
         assert len(server.service_calls) == 1
-        # Repetir o 'sim' SEM intenção pendente: é só conversa — cai no
-        # LLM (a confirmação não é reutilizável e nada executa).
+        # Repetir o 'sim' SEM intenção pendente: nada executa e a resposta
+        # é HONESTA sem LLM (08/10, IDs 771-782: o LLM ecoava confirmação
+        # velha e mentia 'criado com sucesso').
         r3 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
         assert len(server.service_calls) == 1
-        assert r3.message == "RESPOSTA_DO_LLM_FAKE"
+        assert r3.route == "action_intent"
+        assert "nada pendente" in r3.message
+        assert r3.message != "RESPOSTA_DO_LLM_FAKE"
 
     def test_ws_tambem_injeta_user_id_e_executa(self) -> None:
         """O MESMO fluxo (pedir → confirmar → executar) no process_stream
@@ -650,8 +653,12 @@ class TestControleLuzes:
         orch, llm, server, client = self._setup()
         r = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
         assert server.service_calls == []
-        # Sem intenção pendente, o 'sim' é só conversa — cai no LLM normal.
-        assert r.message == "RESPOSTA_DO_LLM_FAKE"
+        # Sem intenção pendente, o 'sim' ganha resposta honesta
+        # determinística — NUNCA o LLM (que já mentiu 'criado com sucesso'
+        # sem executar, IDs 771-782 de 08/10).
+        assert r.route == "action_intent"
+        assert "nada pendente" in r.message
+        assert r.message != "RESPOSTA_DO_LLM_FAKE"
 
 
 class TestControleTomadas:
@@ -836,10 +843,13 @@ class TestCoerenciaDoLar:
         assert r2.route == "action_intent"  # resposta determinística
         assert "não bate" in r2.message or "diga de novo" in r2.message.lower()
         assert r2.message != "RESPOSTA_DO_LLM_FAKE"  # zero LLM
-        # Intenção velha descartada: 'sim' puro não executa nada agora.
+        # Intenção velha descartada: 'sim' puro não executa nada agora —
+        # e responde honesto sem LLM (contrato de 08/10, IDs 771-782).
         r3 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
         assert server.service_calls == []
-        assert r3.message == "RESPOSTA_DO_LLM_FAKE"
+        assert r3.route == "action_intent"
+        assert "nada pendente" in r3.message
+        assert r3.message != "RESPOSTA_DO_LLM_FAKE"
 
     @staticmethod
     def _setup_com_corredor():
@@ -1377,11 +1387,17 @@ class TestEscritaGoogleNoChat:
         assert done[0]["content"] != "RESPOSTA_DO_LLM_FAKE"
         assert self._writes(transport) == []
 
-    def test_sim_solto_sem_intencao_vai_para_o_llm(self) -> None:
+    def test_sim_solto_sem_intencao_nao_vai_para_o_llm(self) -> None:
+        """08/10 (IDs 771-782): 'sim' sem pendência caía no LLM, que
+        ecoava confirmação velha do histórico e respondia 'Compromisso
+        criado com sucesso' SEM executar nada. Agora é resposta honesta
+        determinística (rota action_intent, zero LLM)."""
         import asyncio
         orch, transport, store = self._setup()
         r = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
-        assert r.message == "RESPOSTA_DO_LLM_FAKE"
+        assert r.route == "action_intent"
+        assert "nada pendente" in r.message
+        assert r.message != "RESPOSTA_DO_LLM_FAKE"
         assert self._writes(transport) == []
 
 

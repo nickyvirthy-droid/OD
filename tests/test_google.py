@@ -1801,3 +1801,57 @@ class TestHoraAntesDoDia:
         assert pend == {
             "titulo": "Dentista", "quando": "às 15h", "alvo": "Dentista",
         }
+
+
+class TestEntendimentoDoDono:
+    """Erros de ENTENDIMENTO reais do chat em 08/10 (IDs 769-780): a frase
+    sem 'agenda'/'compromisso' caía no LLM ('crie um evento para as 7:00'
+    não casava — faltava a palavra 'evento') e o dono escreve a hora POR
+    EXTENSO ('para as sete horas'), que nada extraía."""
+
+    def test_evento_ensemanta_a_rota_de_criacao(self) -> None:
+        casos = [
+            ("crie um evento para as 7:00", "evento", "para as 7:00"),
+            ("marque um evento para as 7:30", "evento", "para as 7:30"),
+            ("criar evento reunião para as 6 horas", "reunião",
+             "para as 6 horas"),
+        ]
+        for frase, titulo, quando in casos:
+            intent = detect_action_intent(frase)
+            assert intent is not None, frase
+            assert intent[0] == "google_calendar_create", (frase, intent)
+            assert intent[1]["titulo"] == titulo, (frase, intent[1])
+            assert intent[1]["quando"] == quando, (frase, intent[1])
+
+    def test_evento_tambem_vira_leitura(self) -> None:
+        intent = detect_action_intent("me mostre os eventos")
+        assert intent is not None and intent[0] == "google_calendar_events"
+
+    def test_hora_por_extenso_vira_digito(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        from integrations.google.calendar import parse_when
+
+        tz = timezone(timedelta(hours=-3))
+        cedo = datetime(2026, 10, 8, 4, 37, tzinfo=tz)
+        # sem dia: o quando sai da frase e vira 07:00 de HOJE
+        intent = detect_action_intent("crie um evento para as sete horas")
+        assert intent is not None and intent[0] == "google_calendar_create"
+        assert intent[1]["quando"] == "para as sete horas", intent[1]
+        p = parse_when(intent[1]["quando"], now=cedo)
+        assert p is not None and p["start"].startswith("2026-10-08T10:00"), p
+        # com âncora de dia
+        intent2 = detect_action_intent(
+            "criar compromisso para as seis horas de hoje"
+        )
+        assert intent2 is not None, intent2
+        assert intent2[1]["quando"] == "para as seis horas de hoje", intent2[1]
+        p2 = parse_when(intent2[1]["quando"], now=cedo)
+        assert p2 is not None and p2["start"].startswith("2026-10-08T09:00"), p2
+        # extenso composto ('vinte e três' → 23h) e 'às quinze horas'
+        p3 = parse_when("para as vinte e três horas", now=cedo)
+        assert p3 is not None and p3["start"].startswith("2026-10-09T02:00"), p3
+        p4 = parse_when("hoje às quinze horas", now=cedo)
+        assert p4 is not None and p4["start"].startswith("2026-10-08T18:00"), p4
+        # extenso NÃO vira quando solto ('daqui duas horas' continua fora)
+        assert parse_when("daqui duas horas", now=cedo) is None

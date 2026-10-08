@@ -7,6 +7,25 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.19.5] — AGENDA: 'EVENTO', HORA POR EXTENSO E ANTI-FALSO-SUCESSO 🛡️ (2026-10-08)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | 'mais alguns erros de escrita ou de entendimento' — ele testou o 1.19.4 na marra (IDs 759–786); achados: frase sem 'agenda/compromisso' caía no LLM, hora por extenso não casava, e o LLM mentia 'criado com sucesso'. |
+| **'evento' na rota** | `eventos?` no substantivo de escrita (`_GOOGLE_W_CAL_RE`) e leitura (`_GOOGLE_CAL_RE`) — `'crie um evento para as 7:00'` agora é fastpath determinístico (antes: intenção NENHUMA → LLM 25 s). |
+| **Hora por extenso** | `_NUM_POR_EXTENSO` (`um`…`vinte e três`) nos ramos do `_GOOGLE_W_QUANDO_RE` + `_extenso_em_digito` no `parse_when` — `'para as sete horas'` → 07:00; número solto sem preposição continua fora. |
+| **'sim' sem pendência** | resposta honesta `fastpath:confirmacao_sem_pendencia` nos DOIS transportes — nunca mais o LLM respondendo `'Estado verificado.'` ou sucesso inventado. |
+| **Anti-falso-sucesso** | etapa 6.7 `fake_action_reason` (REST + WS): resposta do LLM que imita `'Confirmar:'`, `'… com sucesso'` ou 1ª pessoa (`'marquei o compromisso'`) é trocada por `FAKE_ACTION_MESSAGE` antes do histórico e do cache. |
+| **Saneamento** | 5 respostas falsas podadas do cache (snapshot `backups/llm-cache-fakes-20261008-055830.json`) · evento de teste `'compromisso' 06:00` apagado da agenda do dono (antes 1 → depois 0). |
+| **Teste do teste** | **10 mutações** detectadas e restauradas bit-exato; 4 testes do contrato antigo (`'sim' solto → LLM`) atualizados para o novo contrato honesto. |
+| **Resultado** | Suíte **2339 passed, 16 skipped** · guardas de versão 9/9 · cobertura **90,11%** (gate 90). |
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.19.5` · capabilities fallback `1.19.5` · `pubspec 1.19.5+2044` · `_APP_VERSION_CODE=2044` · `site 2x` · APKs rebuildados (aapt2 `versionCode='2044' versionName='1.19.5'`) · `CHANGELOG [1.19.5]` · este README.
+
 ## [1.19.4] — AGENDA: HORA SEM DIA GRAVA NO HORÁRIO ⏰ (2026-10-08)
 
 ### 1. O que foi feito

@@ -14,6 +14,58 @@
 
 ---
 
+## [1.19.5] — AGENDA: 'EVENTO', HORA POR EXTENSO E ANTI-FALSO-SUCESSO 🛡️ (2026-10-08)
+
+> **DEPLOY AUTORIZADO PELO DONO (08/10):** 'mais alguns erros de escrita
+> ou de entendimento' — ele testou o 1.19.4 na marra (IDs 759–786) e os 3
+> grupos foram corrigidos sob a mesma autorização. Checklist do
+> `docs/VERSIONAMENTO.md` §5 completo: `.env` · capabilities · `pubspec
+> 1.19.5+2044` · `_APP_VERSION_CODE=2044` · `site 2x` · APKs rebuildados ·
+> restart do `od-core` (regra 13).
+
+Achados nos testes dele (prova real, IDs 769–786, 05:23–05:28):
+
+1. `'crie um evento para as 7:00'` / `'marque um evento para as 7:30'` →
+   intenção **NENHUMA** (faltava o substantivo **'evento'** na rota) → LLM
+   (25 s) em vez do fastpath;
+2. **falso sucesso:** a gemma ECOU uma confirmação VELHA do histórico
+   (`'teste deploy' 07:00`, minha prova de 05:20) como se fosse nova,
+   **sem gravar pendência**, e ao `'sim'` dele respondeu *'Compromisso
+   criado com sucesso'* — **a agenda seguia vazia**;
+3. `'crie um evento para as sete horas'` (HORA POR EXTENSO) não casava —
+   só dígitos eram lidos;
+4. `'s'` (typo dele) funcionava com pendência e, sem, caía no LLM que
+   respondia `'Estado verificado.'` (sem sentido).
+
+- **fix(intents): 'evento' na rota** — `eventos?` no substantivo de
+  ESCRITA (`_GOOGLE_W_CAL_RE`) e de LEITURA (`_GOOGLE_CAL_RE`).
+- **fix(intents,calendar): hora POR EXTENSO** — `_NUM_POR_EXTENSO`
+  (`um`…`vinte e três`) em `_GOOGLE_W_QUANDO_RE` (ramos dia e sem-dia) +
+  `_extenso_em_digito` no `parse_when`; número solto sem preposição
+  continua fora (`'daqui duas horas'` → None).
+- **fix(core): 'sim' sem pendência = honesto** — `'sim'/'s'` sem nada
+  pendente responde `fastpath:confirmacao_sem_pendencia` (zero LLM) nos
+  DOIS transportes (REST e WS).
+- **fix(core): etapa 6.7 anti-falso-sucesso** — `fake_action_reason`
+  detecta resposta do LLM que imita ação (`'Confirmar:'`, `'… com
+  sucesso'`, 1ª pessoa `'marquei o compromisso'`) e troca por
+  `FAKE_ACTION_MESSAGE` ANTES do histórico e do cache — nunca um sucesso
+  inventado.
+- **Cache/agenda saneados:** 5 respostas falsas podadas (snapshot
+  `backups/llm-cache-fakes-20261008-055830.json`) · 1 evento de teste
+  apagado da agenda do dono (`'compromisso' 06:00`; antes 1 → depois 0).
+- **Teste do teste:** **10 mutações** detectadas e restauradas bit-exato
+  (rota 'evento' escrita/leitura; ramos (a) e (b) do quando sem extenso;
+  `parse_when` sem extenso; 'sim' sem pendência no REST; guarda
+  anti-falso nas 2 rotas; `fake_action_reason` anulado) + 4 testes do
+  contrato antigo (`'sim' solto → LLM`) atualizados para o novo.
+- **Resultado:** Suíte **2339 passed, 16 skipped** (+8) · guardas de
+  versão 9/9 · cobertura **90,11%** (gate 90).
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.19.5` · capabilities fallback `1.19.5` · `pubspec 1.19.5+2044` · `_APP_VERSION_CODE=2044` · `site 2x` · APKs rebuildados (aapt2 `versionCode='2044' versionName='1.19.5'`) · `CHANGELOG [1.19.5]` · este README.
+
 ## [1.19.4] — AGENDA: HORA SEM DIA GRAVA NO HORÁRIO ⏰ (2026-10-08)
 
 > **DEPLOY AUTORIZADO PELO DONO (08/10):** checklist do

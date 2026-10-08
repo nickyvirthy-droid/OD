@@ -27,6 +27,34 @@ def _iso_z(when: datetime) -> str:
     return when.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+# Número por EXTENSO → dígito ('para as sete horas' → 'para as 7 horas';
+# IDs 769-780 de 08/10). Vocabulário MESMO do core/intents.py
+# ::_NUM_POR_EXTENSO — lados independentes, cada um com seu teste.
+_EXTENSO_RE = re.compile(
+    r"\b(vinte\s+e\s+tr[êe]s|vinte\s+e\s+duas?|vinte\s+e\s+uma|vinte|"
+    r"dezenove|dezoito|dezessete|dezesseis|quinze|catorze|treze|doze|"
+    r"onze|dez|nove|oito|sete|seis|cinco|quatro|tr[êe]s|duas|dois|uma|um)\b",
+    re.IGNORECASE,
+)
+_EXTENSO_NUM = {
+    "vinte e três": 23, "vinte e tres": 23, "vinte e duas": 22,
+    "vinte e dois": 22, "vinte e uma": 21, "vinte e um": 21,
+    "vinte": 20, "dezenove": 19, "dezoito": 18, "dezessete": 17,
+    "dezesseis": 16, "quinze": 15, "catorze": 14, "treze": 13,
+    "doze": 12, "onze": 11, "dez": 10, "nove": 9, "oito": 8,
+    "sete": 7, "seis": 6, "cinco": 5, "quatro": 4, "três": 3,
+    "tres": 3, "duas": 2, "dois": 2, "uma": 1, "um": 1,
+}
+
+
+def _extenso_em_digito(text: str) -> str:
+    """'para as sete horas' → 'para as 7 horas' (só o QUANDO passa por aqui)."""
+    return _EXTENSO_RE.sub(
+        lambda m: str(_EXTENSO_NUM[re.sub(r"\s+", " ", m.group(0).lower())]),
+        text,
+    )
+
+
 def parse_when(text: str, *, now: Optional[datetime] = None) -> Optional[dict[str, str]]:
     """'hoje'/'amanhã' [às HHh|às HH:MM] → start/end do evento.
 
@@ -38,7 +66,7 @@ def parse_when(text: str, *, now: Optional[datetime] = None) -> Optional[dict[st
     Determinístico e conservador: fora dia/hora devolve None — a action
     responde com dica em vez de inventar data.
     """
-    low = (text or "").lower()
+    low = _extenso_em_digito((text or "").lower())
     base = now or datetime.now().astimezone()
     day = None
     if re.search(r"\bhoje\b", low):

@@ -347,7 +347,7 @@ _GOOGLE_MAIL_RE = re.compile(
 )
 _GOOGLE_CAL_RE = re.compile(
     r"\b(agenda|calend[aá]rio|compromissos?|reuni[õo]es|meus?\s+eventos|"
-    r"minha\s+agenda)\b",
+    r"eventos|minha\s+agenda)\b",
     re.IGNORECASE,
 )
 _GOOGLE_DRIVE_RE = re.compile(r"\b(drive|google\s+drive)\b", re.IGNORECASE)
@@ -435,7 +435,10 @@ _GOOGLE_W_ARQUIVO_RE = re.compile(
 )
 _GOOGLE_W_CAL_RE = re.compile(
     r"\b(compromissos?|reuni(?:[ãa]o|[õã]es|oes)|agendamentos?|agenda|"
-    r"calend[aá]rio)\b",
+    # 'crie um evento para as 7:00' NÃO casava: o dono fala 'evento'
+    # (prova real dos IDs 769-780, 08/10 — a frase caía no LLM, que ecoava
+    # confirmação velha e mentia 'criado com sucesso').
+    r"calend[aá]rio|eventos?)\b",
     re.IGNORECASE,
 )
 _GOOGLE_W_CRIAR_RE = re.compile(
@@ -474,6 +477,15 @@ _GOOGLE_W_DIZENDO_RE = re.compile(
     r"\b(?:que\s+diga|dizendo|com\s+o\s+texto)\s*[:=]?\s*(.+)$",
     re.IGNORECASE,
 )
+# Número por EXTENSO no quando ('crie um evento para as sete horas' —
+# IDs 769-780 de 08/10: o dono escreve a hora por extenso e nada casava).
+# Mesmo vocabulário de integrations/google/calendar.py::_extenso_em_digito
+# (parse_when) — cada lado tem seu teste/mutação.
+_NUM_POR_EXTENSO = (
+    r"vinte\s+e\s+tr[êe]s|vinte\s+e\s+duas?|vinte\s+e\s+uma|vinte|"
+    r"dezenove|dezoito|dezessete|dezesseis|quinze|catorze|treze|doze|"
+    r"onze|dez|nove|oito|sete|seis|cinco|quatro|tr[êe]s|duas|dois|uma|um"
+)
 _GOOGLE_W_QUANDO_RE = re.compile(
     r"(?:"
     # (a) com âncora de dia: [hora] hoje/amanhã [hora] — a hora ANTES do
@@ -481,12 +493,12 @@ _GOOGLE_W_QUANDO_RE = re.compile(
     # hoje'): o padrão original só via 'hoje às 16h' e a frase da hora
     # ficava no TÍTULO → evento de DIA INTEIRO (bugs reais de 08/10,
     # chat IDs 723-734: 'compromisso para as 4:00 de').
-    r"(?:(?:(?:\bpara\s+|\bpra\s+)?[àa]s\s+\d{1,2}(?:[:.]\d{2})?\s*(?:horas?|h)?"
+    r"(?:(?:(?:\bpara\s+|\bpra\s+)?[àa]s\s+(?:\d{1,2}|" + _NUM_POR_EXTENSO + r")(?:[:.]\d{2})?\s*(?:horas?|h)?"
     r"|\b\d{1,2}(?:(?:[:.]\d{2})|\s*(?:horas?|h)))"
     r"\s*(?:de\s+|em\s+)?)?"
     r"\b(hoje|amanh[ãa])\b"
-    r"(?:\s*[àa]s\s+\d{1,2}(?:[:.]\d{2})?\s*(?:horas?|h)?"
-    r"|\s+\d{1,2}\s+(?:horas?|h))?"
+    r"(?:\s*[àa]s\s+(?:\d{1,2}|" + _NUM_POR_EXTENSO + r")(?:[:.]\d{2})?\s*(?:horas?|h)?"
+    r"|\s+(?:\d{1,2}|" + _NUM_POR_EXTENSO + r")\s+(?:horas?|h))?"
     r"|"
     # (b) só a HORA, sem dia ('criar compromisso para as 6 horas' — prova
     # real do dono em 08/10, IDs 747-752: sem 'hoje' na frase o regex
@@ -495,7 +507,7 @@ _GOOGLE_W_QUANDO_RE = re.compile(
     # 'para/pra' opcional) ou HH:MM com DOIS-PONTOS — número solto
     # ('daqui 2 horas'), data ('08.10') e versão ('1.19.4') NÃO são um
     # quando (o ponto vira hora: pego pela prova viva do deploy de 08/10).
-    r"(?:(?:\bpara\s+|\bpra\s+)?[àa]s\s+\d{1,2}(?:[:.]\d{2}|\s*(?:horas?|h))\b"
+    r"(?:(?:\bpara\s+|\bpra\s+)?[àa]s\s+(?:\d{1,2}|" + _NUM_POR_EXTENSO + r")(?:[:.]\d{2}|\s*(?:horas?|h))\b"
     r"|\b\d{1,2}:\d{2}\b)"
     r")",
     re.IGNORECASE,

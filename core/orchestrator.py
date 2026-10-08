@@ -230,6 +230,43 @@ def cache_failure_reason(text: str) -> str:
     if _CACHE_BAN_ESTADO_PAGINA.match(lowered):
         return "estado de página (Em construção) — não é conteúdo"
     return ""
+
+
+# Anti-FALSO-SUCESSO (08/10, IDs 769-782): sem a palavra 'evento' na rota
+# determinística, a frase caiu no LLM e a gemma (1) ECOU uma confirmação
+# VELHA do histórico como se fosse nova e (2) respondeu 'Compromisso
+# criado com sucesso' sem executar NADA (agenda vazia). O LLM NUNCA
+# executa ação — quem confirma é a rota fastpath, com pendência gravada.
+_FAKE_ACTION_RES = re.compile(
+    r"confirmar:"                       # eco de confirmação (✍️/💡/texto)
+    r"|\b(?:criad[oa]s?|marcad[oa]s?|agendad[oa]s?|adicionad[oa]s?"
+    r"|inserid[oa]s?|executad[oa]s?|conclu[íi]d[oa]s?)"
+    r"(?:\s+\w+){0,3}\s+com\s+sucesso"   # '… criado com sucesso'
+    r"|\b✅[^.\n]{0,60}(?:criad|marcad|agendad|adicionad|inserid|executad)"
+    r"|\b(?:marquei|agendei|criei|adicionei|coloquei|anotei|inseri|executei)\b"
+    r"[^.?!]{0,80}\b(?:compromisso|evento|agenda|hor[áa]rio)",
+    re.IGNORECASE,
+)
+FAKE_ACTION_MESSAGE = (
+    "⚠️ Não executei nada — compromisso só é criado pela rota de ação: "
+    "você vê a confirmação e responde 'sim'. Escreva, por exemplo: "
+    "'criar compromisso reunião para as 15 horas' ou 'crie um evento "
+    "para as 7:00' que eu extraio título e hora na hora."
+)
+
+
+def fake_action_reason(text: str) -> str:
+    """Motivo de a resposta FINGIR execução de ação ('' = ok).
+
+    Guarda das etapas 6.7 (stream e REST): a resposta do LLM é trocada
+    por FAKE_ACTION_MESSAGE antes de ir para o usuário, do histórico e do
+    cache — nunca um 'criado com sucesso' sem evento na agenda.
+    """
+    if not text:
+        return ""
+    m = _FAKE_ACTION_RES.search(text)
+    return m.group(0)[:60] if m else ""
+
 ROUTE_LLM = "llm"
 ROUTE_FALLBACK = "fallback"
 ROUTE_UNAVAILABLE = "llm_unavailable"
@@ -848,6 +885,19 @@ class Orchestrator:
                         )
                         answer = format_intent_result(gw_action, data)
                         route_detail = gw_action
+                # 'sim'/'s' sem NADA pendente → resposta honesta, SEM LLM
+                # (08/10, IDs 771-782: a gemma ecoou uma confirmação VELHA
+                # do histórico, não gravou pendência nenhuma e respondeu
+                # 'Compromisso criado com sucesso' sem executar — mentira
+                # no chat do dono; a agenda seguia vazia).
+                if answer is None and detect_confirmation(text):
+                    answer = (
+                        "🤔 Não tenho nada pendente pra confirmar — ou o "
+                        "pedido anterior não existia, ou a confirmação "
+                        "expirou (2 minutos). Diga de novo o que quer, por "
+                        "exemplo: 'criar compromisso reunião para as 15 horas'."
+                    )
+                    route_detail = "confirmacao_sem_pendencia"
             if answer is None:
                 intent = detect_action_intent(text)
                 if intent is not None:
@@ -1031,6 +1081,19 @@ class Orchestrator:
                 fallback_used = True
                 route = ROUTE_FALLBACK
                 yield {"type": "token", "content": full_response}
+
+        # Etapa 6.7 — Anti-FALSO-SUCESSO (08/10, IDs 769-782): a gemma
+        # emitiu '✍️ Confirmar: …' e 'Compromisso criado com sucesso' sem
+        # executar nada (a agenda seguia vazia). Trocado ANTES do cache e
+        # do histórico: nunca um sucesso inventado no chat do dono.
+        fake = fake_action_reason(full_response)
+        if fake:
+            log.warn(
+                "Resposta do LLM fingia executar ação — substituída",
+                reason=fake,
+                route=route,
+            )
+            full_response = FAKE_ACTION_MESSAGE
 
         # Atualizar métricas
         if fallback_used:
@@ -1244,6 +1307,16 @@ class Orchestrator:
                         )
                         answer = format_intent_result(gw_action, data)
                     route_detail = gw_action
+                # Espelho do stream: 'sim' sem NADA pendente → honesto,
+                # sem LLM (a gemma mentia 'criado com sucesso' — IDs 771-782).
+                if answer is None and detect_confirmation(text):
+                    answer = (
+                        "🤔 Não tenho nada pendente pra confirmar — ou o "
+                        "pedido anterior não existia, ou a confirmação "
+                        "expirou (2 minutos). Diga de novo o que quer, por "
+                        "exemplo: 'criar compromisso reunião para as 15 horas'."
+                    )
+                    route_detail = "confirmacao_sem_pendencia"
             if answer is None:
                 intent = detect_action_intent(text)
                 if intent is not None:
@@ -1337,6 +1410,17 @@ class Orchestrator:
             if retry is not None:
                 message, llm_used = retry
                 fallback_used = True
+
+        # Etapa 6.7 — Anti-FALSO-SUCESSO (espelho do stream): a resposta
+        # que fingia confirmar/executar ação é trocada pela honesta antes
+        # do resultado, do histórico e do cache.
+        fake = fake_action_reason(message)
+        if fake:
+            log.warn(
+                "Resposta do LLM fingia executar ação — substituída",
+                reason=fake,
+            )
+            message = FAKE_ACTION_MESSAGE
 
         result.route = ROUTE_FALLBACK if fallback_used else ROUTE_LLM
         result.message = message

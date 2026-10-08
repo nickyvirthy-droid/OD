@@ -853,3 +853,145 @@ class TestOrchestratorActionRegistry:
         assert result is not None
         assert "system" in result
 
+
+
+# ===========================================================================
+# Anti-falso-sucesso da Agenda (08/10 — IDs 769-782)
+# ===========================================================================
+
+@pytest.mark.asyncio
+class TestFalsoSucessoDaAgenda:
+    """Erros REAIS do chat do dono em 08/10: 'crie um evento para as 7:00'
+    caiu no LLM (faltava a palavra 'evento' na rota determinística) e a
+    gemma (1) ECOU uma confirmação VELHA do histórico como se fosse nova e
+    (2) respondeu 'Compromisso criado com sucesso' sem executar NADA — a
+    agenda seguia vazia. E o 'sim' dele sem pendência caía no LLM de novo."""
+
+    def test_fake_action_reason_pega_eco_e_sucesso_inventado(self) -> None:
+        from core.orchestrator import fake_action_reason
+
+        assert fake_action_reason(
+            "✍️ Confirmar: criar o compromisso 'X' em 2026-10-08 07:00. "
+            "Responda 'sim' para executar"
+        )
+        assert fake_action_reason(
+            "Compromisso criado com sucesso. Estado verificado."
+        )
+        assert fake_action_reason(
+            "Marquei o compromisso dentista para amanhã às 15h."
+        )
+        # respostas legítimas do dia a dia passam
+        assert fake_action_reason("Amanhã estará ensolarado, 25 °C.") == ""
+        assert (
+            fake_action_reason(
+                "Para criar um compromisso, escreva 'crie um evento ...'"
+            )
+            == ""
+        )
+        assert fake_action_reason("") == ""
+
+    async def test_llm_que_finge_executar_e_trocado_na_rest(
+        self, tmp_path: Path
+    ) -> None:
+        from core.orchestrator import FAKE_ACTION_MESSAGE
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        history = _history(tmp_path)
+        provider = RecordingProvider(
+            "gemma",
+            "✍️ Confirmar: criar o compromisso 'X' em 2026-10-08 07:00. "
+            "Responda 'sim' para executar (a confirmação vale por 2 minutos).",
+        )
+        orch = Orchestrator(
+            providers=[provider],
+            history=history,
+            cache=_cache(tmp_path),
+            action_registry=build_registry(
+                security=SecurityManager(mode="strict")
+            ),
+        )
+        result = await orch.process(
+            "alex", "guardian",
+            "qual sua opinião sobre agenda de viagens?",
+            role="admin",
+        )
+        assert result.route in ("llm", "fallback")
+        assert result.message == FAKE_ACTION_MESSAGE
+        assert "Confirmar:" not in result.message
+        # o histórico guarda a resposta HONESTA, nunca o eco da confirmação
+        msgs = history.get_history("alex", "guardian")
+        assert msgs[-1].content == FAKE_ACTION_MESSAGE
+
+    async def test_llm_que_finge_executar_e_trocado_no_stream(
+        self, tmp_path: Path
+    ) -> None:
+        from core.orchestrator import FAKE_ACTION_MESSAGE
+
+        provider = RecordingProvider(
+            "gemma", "Compromisso criado com sucesso. Estado verificado."
+        )
+        orch = Orchestrator(
+            providers=[provider],
+            history=_history(tmp_path),
+            action_registry=None,
+        )
+        done = None
+        async for frame in orch.process_stream(
+            "alex", "guardian",
+            "qual sua opinião sobre agenda de viagens?",
+            role="admin",
+        ):
+            if frame.get("type") == "done":
+                done = frame
+        assert done is not None, "frame done ausente"
+        assert done["content"] == FAKE_ACTION_MESSAGE
+        assert "criado com sucesso" not in done["content"]
+
+    async def test_sim_sem_pendencia_responde_honesto_sem_llm(
+        self, tmp_path: Path
+    ) -> None:
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        provider = RecordingProvider("gemma", "Compromisso criado com sucesso!")
+        orch = Orchestrator(
+            providers=[provider],
+            history=_history(tmp_path),
+            action_registry=build_registry(
+                security=SecurityManager(mode="strict")
+            ),
+        )
+        # usuário SEM pendência nenhuma (os stores são globais por user)
+        result = await orch.process(
+            "sem-pendencia-20261008", "guardian", "sim", role="admin"
+        )
+        assert result.route == "action_intent"
+        assert result.llm_used == "fastpath:confirmacao_sem_pendencia"
+        assert "nada pendente" in result.message, result.message
+        assert "criado com sucesso" not in result.message
+        assert provider.prompts == []  # LLM nunca foi chamado
+
+    async def test_s_curto_sem_pendencia_tambem_e_honesto_no_stream(
+        self, tmp_path: Path
+    ) -> None:
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        provider = RecordingProvider("gemma", "Compromisso criado com sucesso!")
+        orch = Orchestrator(
+            providers=[provider],
+            history=_history(tmp_path),
+            action_registry=build_registry(
+                security=SecurityManager(mode="strict")
+            ),
+        )
+        done = None
+        async for frame in orch.process_stream(
+            "sem-pendencia-20261008-b", "guardian", "s", role="admin"
+        ):
+            if frame.get("type") == "done":
+                done = frame
+        assert done is not None and done["route"] == "action_intent"
+        assert "nada pendente" in done["content"], done["content"]
+        assert provider.prompts == []
