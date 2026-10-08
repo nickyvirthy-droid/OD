@@ -703,6 +703,24 @@ _ADMIN_PAGE_HTML = """<!doctype html>
   </section>
 
   <section>
+    <h2>Ideias (txt.txt)</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Canal do DONO: ideias de melhoria e pedidos de informação que o
+      sistema ainda não cobre. Escreva aqui e leia de qualquer lugar
+      (site ou app) — é o mesmo arquivo que o orquestrador/leitura do
+      sistema consomem.
+    </p>
+    <textarea id="ideias-texto" placeholder="Ex.: o sistema não sabe o valor do dólar — criar action de cotação..."
+      style="width:100%;min-height:110px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:0.85rem;font-family:inherit"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button id="ideias-load">↻ Carregar</button>
+      <button id="ideias-save" style="border-color:var(--accent);color:var(--accent)">💾 Salvar txt.txt</button>
+      <button id="ideias-clear" class="danger">🗑 Zerar</button>
+      <span class="muted msg" id="ideias-msg"></span>
+    </div>
+  </section>
+
+  <section>
     <h2>Canal de desenvolvimento</h2>
     <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
       A ideia vem do <b>txt.txt</b> (seção <b>Ideias (txt.txt)</b> — escreva
@@ -741,24 +759,6 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       <summary class="muted" style="cursor:pointer;font-size:0.85rem">Log da sessão</summary>
       <pre id="sess-log" style="max-height:220px;overflow:auto;margin-top:6px">—</pre>
     </details>
-  </section>
-
-  <section>
-    <h2>Ideias (txt.txt)</h2>
-    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
-      Canal do DONO: ideias de melhoria e pedidos de informação que o
-      sistema ainda não cobre. Escreva aqui e leia de qualquer lugar
-      (site ou app) — é o mesmo arquivo que o orquestrador/leitura do
-      sistema consomem.
-    </p>
-    <textarea id="ideias-texto" placeholder="Ex.: o sistema não sabe o valor do dólar — criar action de cotação..."
-      style="width:100%;min-height:110px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:0.85rem;font-family:inherit"></textarea>
-    <div class="row" style="margin-top:8px">
-      <button id="ideias-load">↻ Carregar</button>
-      <button id="ideias-save" style="border-color:var(--accent);color:var(--accent)">💾 Salvar txt.txt</button>
-      <button id="ideias-clear" class="danger">🗑 Zerar</button>
-      <span class="muted msg" id="ideias-msg"></span>
-    </div>
   </section>
 
   <section>

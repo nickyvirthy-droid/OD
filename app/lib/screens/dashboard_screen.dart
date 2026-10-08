@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -12,9 +13,12 @@ import '../services/od_api.dart';
 ///   remoção de conta — e baldes legados. O gate é duplo: a seção só
 ///   aparece com role=admin (que vem do /auth/me) e o servidor recusa
 ///   403 de qualquer forma (o gate de verdade é do lado do servidor).
-/// - v1.13.0 (paridade total com o site): canal de desenvolvimento
-///   (/admin/dev/pedido), Ideias do dono (/admin/ideias — txt.txt) e
-///   Limitações registradas pelo sistema (/admin/limitacoes).
+/// - v1.13.0 (paridade total com o site): Ideias do dono
+///   (/admin/ideias — txt.txt), canal de desenvolvimento on-demand
+///   (/admin/dev/sessao + caixa /admin/dev/caixa) e Limitações registradas
+///   pelo sistema (/admin/limitacoes). A ordem é a do /admin: Ideias e
+///   logo abaixo o Canal de desenvolvimento (decisão do dono de 08/10);
+///   a fila pedido.txt foi excluída do sistema.
 class DashboardScreen extends StatefulWidget {
   final OdApi api;
   const DashboardScreen({super.key, required this.api});
@@ -27,12 +31,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? _me;
   Map<String, dynamic>? _stats;
   Map<String, dynamic>? _admin;
-  Map<String, dynamic>? _devPedido;
+  Map<String, dynamic>? _sessao;
+  List<Map<String, dynamic>> _caixa = const [];
   String _ideias = '';
   List<Map<String, dynamic>> _limitacoes = const [];
   final TextEditingController _ideiasController = TextEditingController();
-  final TextEditingController _pedidoController = TextEditingController();
-  bool _pedidoLimparAntes = true;
+  final TextEditingController _respostaController = TextEditingController();
+  String _cli = 'auto';
+  Timer? _ticker;
   String? _error;
   bool _loading = true;
   bool _isAdmin = false;
@@ -41,6 +47,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _refresh();
+    // Auto-refresh de 5 s ENQUANTO a sessão estiver ativa ou houver
+    // autorização pendente — mesma cadência do painel do site.
+    _ticker = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || !_isAdmin) return;
+      final ativo = _sessao?['ativo'] == true;
+      final pendentes = ((_sessao?['caixa_pendente'] as num?) ?? 0) > 0;
+      if (ativo || pendentes) _refreshDev();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _ideiasController.dispose();
+    _respostaController.dispose();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -383,9 +405,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 8),
             _buildAdminCard(),
             const SizedBox(height: 16),
-            _buildDevPedidoCard(),
-            const SizedBox(height: 16),
             _buildIdeiasCard(),
+            const SizedBox(height: 16),
+            _buildDevSessaoCard(),
             const SizedBox(height: 16),
             _buildLimitacoesCard(),
           ],
@@ -395,16 +417,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // -- Canal de desenvolvimento + ideias + limitações (v1.13.0) -------------
+  // -- Ideias + Canal de desenvolvimento + limitações ----------------------
+  //
+  // Paridade com o site (/admin): a ordem das seções é Ideias (txt.txt) e
+  // LOGO ABAIXO o Canal de desenvolvimento (decisão do dono, 08/10). A fila
+  // `pedido.txt` foi EXCLUÍDA do sistema — o canal é só a sessão on-demand
+  // (▶ Ativar), com caixa de autorização e log. A ideia vem do txt.txt.
 
   Future<void> _refreshDev() async {
     try {
-      final pedido = await widget.api.getDevPedidoStatus();
+      final sessao = await widget.api.getDevSessao();
+      final caixa = await widget.api.getDevCaixa();
       final ideias = await widget.api.getIdeias();
       final limitacoes = await widget.api.getLimitacoes();
       if (!mounted) return;
       setState(() {
-        _devPedido = pedido;
+        _sessao = sessao;
+        _caixa = ((caixa['mensagens'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
         _ideias = (ideias['conteudo'] as String?) ?? '';
         _ideiasController.text = _ideias;
         _limitacoes = ((limitacoes['entradas'] as List?) ?? const [])
@@ -416,9 +447,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Widget _buildDevPedidoCard() {
-    final monitor = _devPedido?['monitor_ativo'] == true;
-    final bytes = _devPedido?['bytes_fila'] ?? 0;
+  /// Código do servidor em português — mesmo mapa do painel do site.
+  String _erroSessao(Object e) {
+    final cod = e is OdApiError ? e.message : '';
+    const mapa = {
+      'sem_ideia': 'Escreva a ideia no txt.txt (seção Ideias) primeiro.',
+      'sessao_ativa':
+          'Já existe uma sessão ativa — pare antes de ativar outra.',
+      'sessao_nao_ativa': 'Nenhuma sessão ativa.',
+      'cli_invalida': 'CLI inválida.',
+      'acao_invalida': 'Ação inválida.',
+      'falha_ao_iniciar_sessao': 'Falha ao iniciar a sessão.',
+      'falha_ao_parar': 'Falha ao parar a sessão.',
+    };
+    return mapa[cod] ?? (cod.isEmpty ? e.toString() : cod);
+  }
+
+  Widget _buildDevSessaoCard() {
+    final sessao = _sessao ?? const <String, dynamic>{};
+    final ativo = sessao['ativo'] == true;
+    final status = (sessao['status'] as String?) ?? 'parada';
+    final pendentes = (sessao['caixa_pendente'] as num?) ?? 0;
+    const rotulos = {
+      'parada': 'PARADA',
+      'preparando': 'PREPARANDO',
+      'executando': 'EXECUTANDO',
+      'aguardando_autorizacao': 'AGUARDANDO AUTORIZAÇÃO',
+      'validando': 'VALIDANDO',
+      'concluido': 'CONCLUÍDA',
+      'falhou': 'FALHOU',
+      'interrompida': 'INTERROMPIDA',
+    };
+    final detalhes = <String>[
+      if (sessao['ideia_preview'] != null)
+        'ideia: ${sessao['ideia_preview']}',
+      if (sessao['cli_usada'] != null) 'CLI: ${sessao['cli_usada']}',
+      if (sessao['rodada'] != null) 'rodada: ${sessao['rodada']}',
+      if (sessao['testes'] != null) 'testes: ${sessao['testes']}',
+      if (sessao['diff'] != null) 'diff: ${sessao['diff']}',
+      if (sessao['commit'] != null) 'commit: ${sessao['commit']}',
+      if (sessao['motivo'] != null) 'motivo: ${sessao['motivo']}',
+    ];
     return Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,80 +496,207 @@ class _DashboardScreenState extends State<DashboardScreen> {
             leading: const Icon(Icons.build_outlined),
             title: const Text('Canal de desenvolvimento'),
             subtitle: Text(
-              'Fila do orquestrador: $bytes bytes · monitor '
-              '${monitor ? 'NO AR' : 'PARADO'}',
+              'Sessão: ${rotulos[status] ?? status.toUpperCase()}'
+              '${sessao['pid'] != null ? ' (pid ${sessao['pid']})' : ''}'
+              '${pendentes > 0 ? ' · $pendentes autorização(ões) pendente(s)' : ''}',
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Atualizar',
+              onPressed: _refreshDev,
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: TextField(
-              controller: _pedidoController,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                hintText:
-                    'Ex.: crie o previsao_tempo.py que consulta o Open-Meteo...',
-                border: OutlineInputBorder(),
-              ),
+            child: Text(
+              'A ideia vem do txt.txt (seção Ideias): ▶ Ativar sobe a sessão '
+              'com a CLI escolhida, ela lê iniciar/ e docs/, pede autorização '
+              'na caixa e só commita com a suíte verde.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Wrap(
               spacing: 12,
+              runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Checkbox(
-                  value: _pedidoLimparAntes,
-                  onChanged: (v) => setState(
-                    () => _pedidoLimparAntes = v ?? true,
-                  ),
-                ),
-                const Text('substituir (desmarque p/ acumular)'),
                 FilledButton.icon(
                   icon: const Icon(Icons.play_arrow),
-                  label: const Text('Injetar'),
-                  onPressed: _injectPedido,
+                  label: const Text('Ativar'),
+                  onPressed: ativo ? null : _ativarSessao,
                 ),
-                TextButton.icon(
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Esvaziar'),
-                  onPressed: _clearPedido,
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.stop),
+                  label: const Text('Parar'),
+                  onPressed: ativo ? _pararSessao : null,
+                ),
+                DropdownButton<String>(
+                  value: _cli,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'auto',
+                      child: Text('CLI: automática (cascata)'),
+                    ),
+                    DropdownMenuItem(value: 'freebuff', child: Text('Freebuff')),
+                    DropdownMenuItem(value: 'opencode', child: Text('OpenCode')),
+                    DropdownMenuItem(value: 'kilo', child: Text('Kilo')),
+                  ],
+                  onChanged: ativo
+                      ? null
+                      : (v) => setState(() => _cli = v ?? 'auto'),
                 ),
               ],
             ),
           ),
+          if (detalhes.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(detalhes.join('\n')),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              'Caixa de desenvolvimento (autorizações)',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+          if (_caixa.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text('— nenhuma mensagem —'),
+            )
+          else
+            for (final m in _caixa)
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  m['de'] == 'dono'
+                      ? Icons.person_outline
+                      : Icons.smart_toy_outlined,
+                  size: 18,
+                ),
+                title: Text('${m['texto'] ?? ''}'),
+                subtitle: Text(
+                  '[${m['ts'] ?? ''}] ${m['de'] == 'dono' ? 'VOCÊ' : 'SISTEMA'}'
+                  '${m['tipo'] == 'pedir_autorizacao' && m['respondida'] != true ? ' · AGUARDANDO' : ''}',
+                ),
+              ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _respostaController,
+                    decoration: const InputDecoration(
+                      hintText: 'Resposta/autorização para a sessão...',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => _enviarCaixa(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  icon: const Icon(Icons.send),
+                  tooltip: 'Enviar',
+                  onPressed: _enviarCaixa,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Limpar caixa',
+                  onPressed: _limparCaixa,
+                ),
+              ],
+            ),
+          ),
+          if (((sessao['log_tail'] as String?) ?? '').isNotEmpty)
+            ExpansionTile(
+              title: const Text('Log da sessão'),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Text(
+                    '${sessao['log_tail']}',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
   }
 
-  Future<void> _injectPedido() async {
-    final texto = _pedidoController.text.trim();
-    if (texto.isEmpty) {
-      _snack('Escreva o pedido antes de injetar.');
-      return;
-    }
+  Future<void> _ativarSessao() async {
+    // A ideia vem do txt.txt — só LEIA para mostrar na confirmação.
+    String trecho = '';
     try {
-      await widget.api.adminInjectPedido(
-        texto,
-        limparAntes: _pedidoLimparAntes,
-      );
-      _snack('Pedido injetado na fila.');
+      final ideias = await widget.api.getIdeias();
+      trecho = ((ideias['conteudo'] as String?) ?? '').trim();
+    } catch (_) {
+      // Sem preview o servidor ainda decide (sem_ideia) se precisar.
+    }
+    final aviso = trecho.isEmpty
+        ? '\n\n⚠ txt.txt vazio — a ativação vai recusar.'
+        : '\n\nIdeia no txt.txt:\n'
+            '${trecho.length > 300 ? '${trecho.substring(0, 300)}…' : trecho}';
+    final ok = await _confirm(
+      "▶ Ativar desenvolvimento com a CLI '$_cli'? A sessão lê o txt.txt, "
+      'iniciar/ e docs/ e só commita com testes verdes.$aviso',
+    );
+    if (!ok) return;
+    try {
+      final data =
+          await widget.api.adminDevSessao(acao: 'ativar', cli: _cli);
+      _snack('▶ Sessão iniciada (pid ${data['pid']}).');
       await _refreshDev();
     } on OdApiError catch (e) {
-      _snack(e.message);
+      _snack(_erroSessao(e));
     }
   }
 
-  Future<void> _clearPedido() async {
-    final ok = await _confirm('Esvaziar a fila do orquestrador?');
+  Future<void> _pararSessao() async {
+    final ok = await _confirm(
+      '⏹ Parar a sessão de desenvolvimento? A CLI em execução é encerrada.',
+    );
     if (!ok) return;
     try {
-      await widget.api.adminClearPedido();
-      _snack('Fila esvaziada.');
+      await widget.api.adminDevSessao(acao: 'parar');
+      _snack('⏹ Sessão parada.');
       await _refreshDev();
     } on OdApiError catch (e) {
-      _snack(e.message);
+      _snack(_erroSessao(e));
+    }
+  }
+
+  Future<void> _enviarCaixa() async {
+    final texto = _respostaController.text.trim();
+    if (texto.isEmpty) {
+      _snack('Escreva a resposta antes de enviar.');
+      return;
+    }
+    try {
+      await widget.api.adminDevCaixaReply(texto);
+      _respostaController.clear();
+      await _refreshDev();
+    } on OdApiError catch (e) {
+      _snack(_erroSessao(e));
+    }
+  }
+
+  Future<void> _limparCaixa() async {
+    final ok = await _confirm('Limpar a caixa de desenvolvimento?');
+    if (!ok) return;
+    try {
+      await widget.api.adminDevCaixaClear();
+      await _refreshDev();
+    } on OdApiError catch (e) {
+      _snack(_erroSessao(e));
     }
   }
 

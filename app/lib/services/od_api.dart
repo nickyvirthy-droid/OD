@@ -671,52 +671,85 @@ class OdApi {
     );
   }
 
-  // -- Canal de desenvolvimento + ideias + limitações (v1.13.0) -------------
+  // -- Sessão de desenvolvimento on-demand + caixa (2026-10-08) -------------
 
-  /// GET /admin/dev/pedido — estado da fila do orquestrador + do monitor.
-  Future<Map<String, dynamic>> getDevPedidoStatus() async {
-    final response = await _send('GET', Uri.parse('$baseUrl/admin/dev/pedido'));
+  /// POST /admin/dev/sessao — ativa/para a sessão on-demand.
+  ///
+  /// `ativar` lê a ideia do DONO no `txt.txt` (erro `sem_ideia` se vazio);
+  /// `cli` entra só na ativação (auto = cascata Freebuff→OpenCode→Kilo).
+  Future<Map<String, dynamic>> adminDevSessao({
+    required String acao,
+    String cli = 'auto',
+  }) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/admin/dev/sessao'),
+      body: jsonEncode(acao == 'ativar'
+          ? {'acao': acao, 'cli': cli}
+          : {'acao': acao}),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return data!;
+    throw OdApiError(
+      (data?['error'] as String?) ??
+          'Sessão de desenvolvimento falhou (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// GET /admin/dev/sessao — estado + log + caixa pendente.
+  Future<Map<String, dynamic>> getDevSessao() async {
+    final response =
+        await _send('GET', Uri.parse('$baseUrl/admin/dev/sessao'));
     if (response.statusCode != 200) {
       throw OdApiError(
-        'admin/dev/pedido falhou: ${response.statusCode}',
+        'admin/dev/sessao falhou: ${response.statusCode}',
         statusCode: response.statusCode,
       );
     }
     return jsonDecode(response.body);
   }
 
-  /// POST /admin/dev/pedido — injeta texto na fila do orquestrador.
-  /// [limparAntes] true (default) substitui a fila; false acumula.
-  Future<Map<String, dynamic>> adminInjectPedido(
-    String texto, {
-    bool limparAntes = true,
-  }) async {
+  /// GET /admin/dev/caixa — mensagens sistema ↔ dono da sessão.
+  Future<Map<String, dynamic>> getDevCaixa() async {
+    final response = await _send('GET', Uri.parse('$baseUrl/admin/dev/caixa'));
+    if (response.statusCode != 200) {
+      throw OdApiError(
+        'admin/dev/caixa falhou: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
+    return jsonDecode(response.body);
+  }
+
+  /// POST /admin/dev/caixa — resposta/autorização do dono (a sessão retoma).
+  Future<Map<String, dynamic>> adminDevCaixaReply(String texto) async {
     final response = await _send(
       'POST',
-      Uri.parse('$baseUrl/admin/dev/pedido'),
-      body: jsonEncode({'texto': texto, 'limpar_antes': limparAntes}),
+      Uri.parse('$baseUrl/admin/dev/caixa'),
+      body: jsonEncode({'texto': texto}),
     );
     final data = _tryJson(response.body);
     if (response.statusCode == 200 && data?['ok'] == true) return data!;
     throw OdApiError(
-      (data?['error'] as String?) ??
-          'Falha ao injetar o pedido (${response.statusCode})',
+      (data?['error'] as String?) ?? 'Falha ao responder a caixa',
       statusCode: response.statusCode,
     );
   }
 
-  /// DELETE /admin/dev/pedido — esvazia a fila do orquestrador.
-  Future<void> adminClearPedido() async {
+  /// DELETE /admin/dev/caixa — limpa a caixa (idempotente).
+  Future<void> adminDevCaixaClear() async {
     final response =
-        await _send('DELETE', Uri.parse('$baseUrl/admin/dev/pedido'));
+        await _send('DELETE', Uri.parse('$baseUrl/admin/dev/caixa'));
     final data = _tryJson(response.body);
     if (response.statusCode == 200 && data?['ok'] == true) return;
     throw OdApiError(
-      (data?['error'] as String?) ??
-          'Falha ao esvaziar a fila (${response.statusCode})',
+      (data?['error'] as String?) ?? 'Falha ao limpar a caixa',
       statusCode: response.statusCode,
     );
   }
+
+  // -- Ideias do dono + limitações (v1.13.0) -------------------------------
 
   /// GET /admin/ideias — conteúdo do txt.txt (canal de ideias do dono).
   Future<Map<String, dynamic>> getIdeias() async {

@@ -696,67 +696,102 @@ group('OdApi.painéis (conta e admin)', () {
   });
   });
 
-  group('OdApi.canal de desenvolvimento + ideias + limitações (v1.13.0)', () {
-    test('getDevPedidoStatus consome o estado da fila', () async {
+  group('OdApi.sessão de desenvolvimento + caixa + ideias + limitações', () {
+    test('getDevSessao consome o estado da sessão', () async {
       final api = apiWith(MockClient((request) async {
-        expect(request.url.path, '/admin/dev/pedido');
+        expect(request.url.path, '/admin/dev/sessao');
         expect(request.method, 'GET');
         return jsonResponse({
           'ok': true,
-          'monitor_ativo': true,
-          'tem_conteudo': false,
-          'bytes_fila': 0,
-          'preview': '',
+          'ativo': true,
+          'status': 'aguardando_autorizacao',
+          'pid': 4343,
+          'caixa_pendente': 1,
+          'log_tail': 'rodando...',
         });
       }));
       await api.setToken('tok-adm');
-      final data = await api.getDevPedidoStatus();
-      expect(data['monitor_ativo'], isTrue);
+      final data = await api.getDevSessao();
+      expect(data['status'], 'aguardando_autorizacao');
+      expect(data['caixa_pendente'], 1);
     });
 
-    test('adminInjectPedido manda texto e limpar_antes', () async {
+    test('adminDevSessao ativar manda acao e cli', () async {
       final api = apiWith(MockClient((request) async {
-        expect(request.url.path, '/admin/dev/pedido');
+        expect(request.url.path, '/admin/dev/sessao');
         expect(request.method, 'POST');
         final body = jsonDecode(request.body);
-        expect(body['texto'], 'crie o previsao_tempo.py');
-        expect(body['limpar_antes'], isTrue);
-        return jsonResponse({'ok': true, 'bytes_fila': 30});
+        expect(body['acao'], 'ativar');
+        expect(body['cli'], 'kilo');
+        return jsonResponse({'ok': true, 'pid': 4343});
       }));
       await api.setToken('tok-adm');
-      final data = await api.adminInjectPedido('crie o previsao_tempo.py');
-      expect(data['bytes_fila'], 30);
+      final data = await api.adminDevSessao(acao: 'ativar', cli: 'kilo');
+      expect(data['pid'], 4343);
     });
 
-    test('adminInjectPedido acumula com limpar_antes false', () async {
+    test('adminDevSessao parar manda só a acao', () async {
       final api = apiWith(MockClient((request) async {
-        expect(jsonDecode(request.body)['limpar_antes'], isFalse);
-        return jsonResponse({'ok': true, 'bytes_fila': 60});
+        expect(request.method, 'POST');
+        final body = jsonDecode(request.body);
+        expect(body['acao'], 'parar');
+        expect(body.containsKey('cli'), isFalse);
+        return jsonResponse({'ok': true, 'status': 'parado'});
       }));
       await api.setToken('tok-adm');
-      await api.adminInjectPedido('segundo', limparAntes: false);
+      await api.adminDevSessao(acao: 'parar');
     });
 
-    test('adminInjectPedido propaga erro do servidor', () async {
-      final api = apiWith(MockClient((_) async =>
-          jsonResponse({'ok': false, 'error': 'texto_obrigatorio'}, status: 400)));
+    test('adminDevSessao propaga o código do servidor (sem_ideia)', () async {
+      final api = apiWith(MockClient((_) async => jsonResponse(
+          {'ok': false, 'error': 'sem_ideia'},
+          status: 400)));
       await api.setToken('tok-adm');
       expect(
-        () => api.adminInjectPedido(''),
+        () => api.adminDevSessao(acao: 'ativar'),
         throwsA(isA<OdApiError>()
-            .having((e) => e.message, 'message', 'texto_obrigatorio')
+            .having((e) => e.message, 'message', 'sem_ideia')
             .having((e) => e.statusCode, 'status', 400)),
       );
     });
 
-    test('adminClearPedido faz DELETE', () async {
+    test('getDevCaixa devolve as mensagens da caixa', () async {
       final api = apiWith(MockClient((request) async {
-        expect(request.url.path, '/admin/dev/pedido');
-        expect(request.method, 'DELETE');
-        return jsonResponse({'ok': true, 'bytes_fila': 0});
+        expect(request.url.path, '/admin/dev/caixa');
+        expect(request.method, 'GET');
+        return jsonResponse({
+          'ok': true,
+          'mensagens': [
+            {'de': 'sistema', 'texto': 'Posso deletar a tabela X?'},
+          ],
+          'total': 1,
+          'pendentes': 1,
+        });
       }));
       await api.setToken('tok-adm');
-      await api.adminClearPedido();
+      final data = await api.getDevCaixa();
+      expect(data['pendentes'], 1);
+    });
+
+    test('adminDevCaixaReply manda o texto da resposta', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/admin/dev/caixa');
+        expect(request.method, 'POST');
+        expect(jsonDecode(request.body)['texto'], 'pode deletar');
+        return jsonResponse({'ok': true});
+      }));
+      await api.setToken('tok-adm');
+      await api.adminDevCaixaReply('pode deletar');
+    });
+
+    test('adminDevCaixaClear faz DELETE', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/admin/dev/caixa');
+        expect(request.method, 'DELETE');
+        return jsonResponse({'ok': true});
+      }));
+      await api.setToken('tok-adm');
+      await api.adminDevCaixaClear();
     });
 
     test('getIdeias devolve o conteúdo do txt.txt', () async {

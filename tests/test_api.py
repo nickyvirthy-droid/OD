@@ -2276,6 +2276,24 @@ class TestSessaoDesenvolvimento:
         ):
             assert f'id="{identificador}"' in html, identificador
 
+    def test_ordem_no_painel_canal_logo_abaixo_das_ideias(
+        self, serve, tmp_path: Path
+    ) -> None:
+        """Decisão do dono (08/10): a seção 'Canal de desenvolvimento' fica
+        LOGO ABAIXO de 'Ideias (txt.txt)' — ordem travada na suíte."""
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/admin")
+        assert status == 200
+        html = body.decode("utf-8")
+        i_ideias = html.index("<h2>Ideias (txt.txt)</h2>")
+        i_canal = html.index("<h2>Canal de desenvolvimento</h2>")
+        i_limitacoes = html.index("<h2>Limitações (registro automático)</h2>")
+        assert i_ideias < i_canal < i_limitacoes
+        # a seção do canal inteira entre as duas, sem nada da fila antiga
+        trecho = html[i_ideias:i_limitacoes]
+        assert 'id="sess-ativar"' in trecho
+        assert "Fila manual" not in trecho and "dev-texto" not in trecho
+
 
 # ===========================================================================
 # Canal de ideias do dono (txt.txt) + Casa de Limitações (v1.13.0)
