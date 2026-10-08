@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T18:52:00",
+  "updated_at": "2026-10-08T19:30:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1768,5 +1768,32 @@
     ],
     "estado": "RETOMADA CONCLUÍDA — sistema em verde (v1.20.2+2047 no ar, nada reiniciado nesta retomada); aguardando novo pedido do dono.",
     "ts": "2026-10-08T18:52:00-03:00"
+  },
+  "deploy_1_21_0_canal_3_comportamentos_2026_10_08": {
+    "pedido": "Dono: 'txt.txt são as minhas ideias de melhoria. se estiver vazio e clicar em Ativar desenvolvimento não deve fazer nada. se o texto for o mesmo de uma sessão concluída avisa que já foi implementado e se desejo limpar. se for uma nova conversa ai sim analisa a possibilidade de implementação, verifica os pros e contras, sugere alternativas melhores e implementa com a melhor opção.'",
+    "mudanca": {
+      "1_vazio": "▶ Ativar (site e app) não abre diálogo nem chama o servidor com a prévia do txt.txt vazia (msg 'nada a ativar'); por fora, 400 sem_ideia sem Popen e sem estado — contrato antigo preservado.",
+      "2_repetida": "core/dev_canal.py (NOVO): histórico data/dev_historico.json gravado pelo runner em toda sessão concluído (dedup por hash da forma normalizada — espaços/quebras/caixa irrelevantes) e lido pelo _sessao_ativar → 409 ja_implementado com commit/ts/motivo no corpo (APIError ganhou extra; o handler monta o payload sem deixar o extra mascarar ok/error) → painel/app pergunta 'Limpar o txt.txt agora?' → DELETE /admin/ideias; só status=concluido bloqueia (falhou tenta de novo); runner recusa também (exit 3).",
+      "3_nova": "INSTRUCAO_SESSAO exige o bloco [ANALISE]…[FIM ANALISE] (viabilidade · prós · contras · alternativas · escolha) → extrair_analise publica na CAIXA e grava estado['analise'] (painel site + app) antes de a CLI implementar SÓ a melhor opção; análise ausente não quebra a sessão e [FIM ANALISE] esquecido não perde o bloco.",
+      "app": "OdApiError ganhou details (corpo do erro); _ativarSessao devolve no vazio, oferece a limpeza no ja_implementado e exibe 'análise:'; copy do card igual ao site."
+    },
+    "validacao": "Suíte completa 2390 passed, 16 skipped · cobertura 90,18% (gate 90) · guardas de versão 9/9 · node --check no JS do painel verde · flutter analyze 0 issues · flutter test 134 passed (+1) · 5/5 mutações detectadas e restauradas bit-exato (histórico ignorado no servidor · campos extra fora do erro · registrando sessão que falhou · normalização quebrada · análise sem corte no [FIM ANALISE]).",
+    "bump": "1.21.0+2048 (MINOR): .env OD_VERSION · capabilities fallback · pubspec 1.21.0+2048 · _APP_VERSION_CODE=2048 · site/index.html 2x · CHANGELOG [1.21.0] · README_VERSAO §1.21.0. APKs rebuildados — aapt2 versionCode='2048' versionName='1.21.0' nos dois (full 54.349.513 B sha256 a15812f0…, arm64 19.376.227 B 52895008…); 1.20.2+2047 preservado em backups/apk-v1.20.2+2047-20261008/.",
+    "deploy": "IMPLANTADO — restart 19:23:50, PID 877441; journal desde o restart 0 entradas -p err.",
+    "prova_viva": {
+      "saude": "/app/version {1.21.0, 2048, sha256 a15812f0… == site/OmegaDrakon.apk} · /capabilities 1.21.0 · /health up · /supervision restarts 0, degraded [] · WS :8001 → 426.",
+      "1_vazio": "txt.txt esvaziado para 1 request (cópia em /tmp + restauração conferida por sha256 → byte a byte) → POST ativar = 400 sem_ideia, data/dev_sessao.json INALTERADO, 0 processos --sessao.",
+      "2_repetida": "histórico semeado com a ideia do dono já entregue (txt.txt de 08:35 = canal de desenvolvimento; commit 0ceb962, ts 2026-10-08 17:23:12) → POST ativar = 409 ja_implementado {commit 0ceb962, ts, motivo implantado}, sem spawn nem estado novo.",
+      "3_nova": "coberta pela suíte (test_ativar_ideia_diferente_do_historico_sobe_normalmente prova que ideia fora do histórico spawna; extração/publicação da análise cobertas em TestExtrairAnalise e TestExecutarSessao) — provar ao vivo exigiria subir uma CLI de verdade; será provada no 1º uso real pelo dono.",
+      "painel": "GET /admin com sessJaImplementado, 'txt.txt vazio — nada a ativar', 'análise:' e 'já foi implementada' no ar."
+    },
+    "estado_seed": "data/dev_historico.json fica COM a entrada do txt.txt atual do dono (a ideia de 08:35 está implementada de fato) → o próximo ▶ avisa 'já implementado' e oferece limpar; para rodar de novo, editar ou limpar o txt.txt.",
+    "commits": [
+      "3e643bb feat(dev): 3 comportamentos do ▶ Ativar — vazio não faz nada, ideia repetida avisa e oferece limpar, ideia nova analisa prós/contras/alternativas",
+      "7818e11 chore(release): bump MINOR 1.21.0+2048 — os 3 comportamentos do ▶ Ativar no ar"
+    ],
+    "telegram": "resumo enviado (regra 15) — message_id 2031",
+    "estado": "CONCLUÍDO E NO AR — 1.21.0+2048; canal do dono com os 3 comportamentos; txt.txt intacto (680 bytes).",
+    "ts": "2026-10-08T19:30:00-03:00"
   }
 }

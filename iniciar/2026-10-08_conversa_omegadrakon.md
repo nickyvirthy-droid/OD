@@ -256,3 +256,44 @@ Registro detalhado em `iniciar/session.json`
   desenvolvimento sem pendência (0).
 - Pendência do dono: instalar o **1.20.2+2047** no app (o `/app/version`
   já oferece). Nada pendente no código.
+
+## 12. Os 3 comportamentos do ▶ Ativar — 1.21.0+2048 (18:5x–19:3x)
+
+- **Pedido do dono:** "txt.txt são as minhas ideias de melhoria. se
+  estiver vazio e clicar em Ativar desenvolvimento não deve fazer nada.
+  se o texto for o mesmo de uma sessão concluída avisa que já foi
+  implementado e se desejo limpar. se for uma nova conversa ai sim
+  analisa a possibilidade de implementação, verifica os pros e contras,
+  sugere alternativas melhores e implementa com a melhor opção."
+- **(1) Vazio → nada:** ▶ Ativar (site e app) nem abre o diálogo nem chama
+  o servidor com a prévia do `txt.txt` vazia; por fora, `400 sem_ideia`
+  sem Popen e sem estado (contrato antigo preservado).
+- **(2) Repetida → aviso + limpeza:** `core/dev_canal.py` (NOVO) guarda o
+  histórico em `data/dev_historico.json` — gravado pelo **runner** no fim
+  de toda sessão `concluido`, lido pelo **painel** no clique (hash da
+  forma normalizada: espaços, quebras e caixa não mudam a ideia) →
+  `409 ja_implementado` **com `commit`/`ts`/`motivo`** (`APIError.extra`)
+  → "Limpar o txt.txt agora?" → `DELETE /admin/ideias`. Só `concluido`
+  bloqueia; o runner recusa também (`exit 3`).
+- **(3) Nova → análise antes do código:** o prompt exige o bloco
+  `[ANALISE]…[FIM ANALISE]` (viabilidade · prós · contras · alternativas ·
+  escolha); `extrair_analise` publica na **caixa de desenvolvimento** e
+  grava `estado["analise"]` (painel site + app) — depois a CLI implementa
+  **só a melhor opção**, com suíte verde antes do commit.
+- **Validação:** suíte **2390 passed, 16 skipped** · cobertura **90,18%**
+  (gate 90) · guardas 9/9 · `node --check` verde · `flutter analyze` 0 ·
+  `flutter test` **134 passed** · **5/5 mutações** detectadas e
+  restauradas bit-exato.
+- **Deploy (autorizado 'Sim, deploy 1.21.0 completo'):** bump **1.21.0+2048**
+  (checklist §5), APKs `aapt2 versionCode='2048' versionName='1.21.0'`
+  (1.20.2+2047 preservado em `backups/apk-v1.20.2+2047-20261008/`),
+  restart **19:23:50 (PID 877441)**, journal 0 erros.
+- **Prova viva:** saúde 5/5 (`/app/version` 1.21.0/2048 sha `a15812f0…`
+  == site) · **(1)** `txt.txt` esvaziado por 1 request e restaurado byte a
+  byte (sha256) → `400 sem_ideia`, estado da sessão inalterado, 0
+  processos · **(2)** histórico semeado com a ideia do dono de 08:35 (já
+  entregue, commit `0ceb962`) → `409 ja_implementado` com commit/data ·
+  **(3)** coberta pela suíte (prova ao vivo no 1º uso real).
+- **Registros:** commits `3e643bb` (feat) + `7818e11` (bump); Telegram
+  `message_id 2031` (regra 15); `session.json`
+  (`deploy_1_21_0_canal_3_comportamentos_2026_10_08`).
