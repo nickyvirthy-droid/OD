@@ -287,3 +287,89 @@ pergunta "o que corrigir" tinha ido para o `txt.txt`).
 
 **Estado:** correções em sandbox, commitadas e publicadas; nada de
 deploy/restart feito.
+
+## 10. Deploy 1.19.2+2041 — itens "1 e 3" do dono e o esclarecimento do "2" (08/10 00:5x→01:2x)
+
+Pedido do dono: **"1 e 3"** + explicação do 2: *"a instrução era a
+continuação de uma conversa onde percebi que não acessou a agenda, então
+pedi para acessar"* — ou seja, **mensagem pontual, não regra global**.
+Não vira feature de memória de instruções; o defeito era o ROTEAMENTO,
+que já está corrigido.
+
+### 10.1 O que aquela conversa de 06/10 mostrou (revisada na fonte)
+
+- [663] `o que tem pra hoje` → [664] devaneio de CPU (`fastpath` nenhum,
+  `llm=gemma-local`, resposta com '31,7 °C na porta 5000').
+- [665] `quando pergunto isso você deve olhar minha agenda` → [666]
+  **já saiu** `fastpath:google_calendar_events` (leu de verdade). Ou
+  seja: a "instrução" dele funcionou no turno seguinte; o problema era o
+  turno ANTERIOR, que não reconhecia a pergunta diária.
+- Correções que fecham esse caso: pergunta diária sem dizer 'agenda' e
+  verbos de ACESSO (`olhe/acessa/consulte minha agenda`) → leitura.
+
+### 10.2 Item 3 — flake do MQTT corrigido na causa (não no teste)
+
+- Causa: `stop()` podia acontecer entre a checagem de `_closed` do loop
+  e o `connect()` — o socket abria **depois** da desconexão e ficava
+  vivo. Era a corrida que fazia `test_start_stop_thread` falhar **1 em
+  3** (também no worktree limpo do HEAD).
+- Correção em `integrations/mqtt/bridge.py`: `connect()` recusa ponte
+  encerrada; `run()` desconecta no `finally`; `start()` reabre
+  (`_closed = False`). 2 testes determinísticos.
+- **2 mutações detectadas** e restauradas (`finally` sem desconectar →
+  `test_stop_no_meio_do_connect…` vermelho; `connect()` sem a guarda →
+  `test_ponte_encerrada_nao_reconecta…` vermelho). A 3ª mutação que
+  testei (tirar o `break` pós-falha de connect) **não** foi detectada e
+  foi **removida do código** — ramos sem cobertura não entram.
+- Suíte de MQTT: **6/6 rodadas verdes** (antes: 1 vermelho em 3).
+
+### 10.3 Item 1 — bump PATCH 1.19.2+2041 (checklist VERSIONAMENTO §5)
+
+| Passo | Estado |
+|---|---|
+| `.env` `OD_VERSION=1.19.2` | ✓ |
+| `core/capabilities.py` fallback `1.19.2` | ✓ |
+| `app/pubspec.yaml` `1.19.2+2041` | ✓ |
+| `_APP_VERSION_CODE = 2041` | ✓ |
+| `site/index.html` 2x (badge + card) | ✓ |
+| `docs/CHANGELOG.md` `[1.19.2]` (sai do status sandbox) | ✓ |
+| `docs/README_VERSAO.md` §2.1 da 1.19.2 | ✓ |
+| Suíte verde + prova viva | ✓ (abaixo) |
+
+- APKs rebuildados por `app/build_apk.sh` e conferidos com **aapt2**:
+  `versionCode='2041' versionName='1.19.2'` nos dois
+  (`OmegaDrakon.apk` 53.972.629 B · `arm64` 19.245.103 B).
+- **Lição de ambiente:** o build quebra sem `JAVA_HOME` — o JDK é
+  `/home/alex/jdk` (Temurin 17) e não está no PATH; o comando que
+  funcionou: `JAVA_HOME=/home/alex/jdk PATH=$JAVA_HOME/bin:/home/alex/flutter/bin:$PATH ./build_apk.sh`.
+
+### 10.4 Deploy (autorizado: "1 e 3")
+
+- `systemctl --user restart od-core` às **01:14:21**, PID **745013**;
+  serviço `active`.
+- `GET /health` → **200**, todos os checks `up`.
+- `GET /app/version` → `{"version": "1.19.2", "version_code": 2041,
+  "size": 53972629, "sha256": "646b3823…"}` — **sha256 igual** ao do
+  arquivo publicado (contrato da auto-atualização íntegro).
+- journal desde o restart: **0 erros/tracebacks**; MQTT conectado
+  (`client_id=od-core`) com o código novo.
+
+### 10.5 Prova viva da versão
+
+`POST /message` **"o que tem pra hoje"** →
+`route=action_intent` · `llm_used=fastpath:google_calendar_events` ·
+"📅 Nenhum compromisso nos próximos 1 dia(s) na sua Agenda." (o Google
+renovou o `access_token`; action executou em 770 ms). É **exatamente** a
+frase que, em 06/10 05:08, devolveu a CPU inventada na porta 5000.
+
+### 10.6 CI
+
+- Runs verdes: `3ec53b7` (saneamento) e `e8ff0e9` (bump).
+- `d1fb797` (fix MQTT) **não teve run próprio**: ele só entrou como pai
+  do push do bump — a CI roda no HEAD do push (`e8ff0e9`), que contém a
+  árvore completa. Fato registrado para o histórico não parecer que o
+  commit ficou sem CI.
+
+**Estado:** 1.19.2+2041 no ar, serviço reiniciado, C4/C3/C1/C5 e C2
+fechados por código/estado, C6 fechada como pedido pontual (sem feature).
+Pendência: nenhuma de código — só observar a CI.

@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T00:50:00",
+  "updated_at": "2026-10-08T01:25:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1290,9 +1290,9 @@
   },
   "last_turn": {
     "date": "2026-10-08",
-    "retomada": "Dono: 'faça as correções necessárias' (pedido dos 5 itens sugeridos em txt.txt após a análise §8).",
-    "action": "Correções executadas: intents (verbos de agenda, 'reunião' singular, pergunta diária sem dizer 'agenda', título sem preposição, aviso de corte Drive/Gmail), orchestrator (route_detail no 'sim' da luz), cache (coluna profile = perguntador) + runtime/llm_cache_saneamento.py aplicado no banco (21 profiles corrigidos pela chave, 17 devaneios podados com snapshot) + CHANGELOG [1.19.2] sandbox e nota retroativa do CI vermelho em [1.19.0].",
-    "next": "Pedir autorização para deploy + bump 1.19.2; decidir escopo da C6 (instrução do dono não persiste); observar o flake do teste de MQTT."
+    "retomada": "Dono autorizou '1 e 3' (deploy+bump e o flake do MQTT) e esclareceu o item 2: a instrução de 06/10 era continuação de conversa (viu que a agenda não foi acessada e pediu para acessar), não regra global.",
+    "action": "Flake corrigido na CAUSA (corrida do stop() no connect da ponte MQTT; connect recusa ponte encerrada, run() desconecta no finally; 2 testes + 2 mutações; ramo sem detecção removido). Bump PATCH 1.19.2+2041 pelo checklist §5 (APKs reconstruídos com JAVA_HOME=/home/alex/jdk, aapt2 confere versionCode=2041/1.19.2) e deploy autorizado: restart 01:14:21 (PID 745013), /health 200, /app/version 1.19.2+2041 com sha256 igual ao publicado, journal 0 erros. Prova viva: 'o que tem pra hoje' -> fastpath:google_calendar_events.",
+    "next": "Sem pendência de código. Observar a CI e o comportamento do cache podado nas próximas conversas do dono (a recusa de agenda saiu da tabela; se o LLM regenerar um devaneio, o script de saneamento é idempotente)."
   },
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
@@ -1428,6 +1428,22 @@
       "C6: instrução do dono ('quando pergunto isso olhe minha agenda') não persiste — feature nova, escopo a decidir.",
       "Flake: tests/test_mqtt.py::TestBridgeLifecycle::test_start_stop_thread falha intermitente também no worktree limpo do HEAD (1x em 3) — não é regressão, mas pode deixar o CI vermelho.",
       "C1 (identidade) e C5 (fuso) já estavam corrigidos em código desde a 1.19.1; os achados da auditoria eram mensagens antigas. C3 (Drive) e C4 (dólar) resolvidos por estado/cache, não por código."
+    ]
+  },
+  "deploy_v1192_2026_10_08": {
+    "pedido": "Dono (chat, 08/10 00:5x): '1 e 3' — deploy + bump e o flake do MQTT; e esclareceu o item 2: 'a instrução era a continuação de uma conversa onde percebi que não acessou a agenda então pedi para acessar' (mensagem pontual, NÃO regra global → sem feature de memória de instruções; o defeito era o roteamento, já corrigido).",
+    "item2_revisado": "Na fonte: [663] 'o que tem pra hoje' -> [664] devaneio de CPU; [665] 'quando pergunto isso você deve olhar minha agenda' -> [666] JA saiu fastpath:google_calendar_events (funcionou). Correções que fecham o caso: pergunta diária sem dizer 'agenda' + verbos de ACESSO (olhe/acessa/consulte minha agenda, acessa meus e-mails, abre o drive) -> google_*_list.",
+    "item3_mqtt": "Causa real: stop() podia acontecer entre a checagem de _closed do loop e o connect() — o socket abria DEPOIS da desconexão e ficava vivo (flake 1 em 3, também no worktree limpo). Correção: connect() recusa ponte encerrada + run() desconecta no finally + start() reabre. 2 testes determinísticos; 2 mutações detectadas; a 3ª mutação (break pós-falha) NÃO foi detectada e o ramo foi REMOVIDO. Suíte de MQTT 6/6 verdes.",
+    "bump": "1.19.2+2041 (PATCH): .env · capabilities · pubspec · _APP_VERSION_CODE=2041 · site 2x · CHANGELOG [1.19.2] fora do status sandbox · README_VERSAO §2.1 · APKs rebuildados por app/build_apk.sh e conferidos com aapt2 (versionCode='2041' versionName='1.19.2' nos dois; full 53.972.629 B, arm64 19.245.103 B).",
+    "licao_de_ambiente": "Build do APK exige JAVA_HOME=/home/alex/jdk (Temurin 17) e PATH com /home/alex/flutter/bin — sem isso o Gradle falha com 'JAVA_HOME is not set'.",
+    "deploy": "systemctl --user restart od-core 01:14:21, PID 745013, active · GET /health 200 (checks up) · GET /app/version = 1.19.2 / 2041 / sha256 646b3823… == arquivo publicado (contrato da auto-atualização íntegro) · journal 0 erros desde o restart · MQTT conectado com o código novo.",
+    "prova_viva": "POST /message 'o que tem pra hoje' -> route=action_intent, llm_used=fastpath:google_calendar_events, '📅 Nenhum compromisso nos próximos 1 dia(s) na sua Agenda.' (Google renovou access_token; action 770 ms) — a mesma frase que em 06/10 05:08 devolveu CPU inventada na porta 5000.",
+    "validacao": "Suíte 2318 passed, 16 skipped (+19 sobre 1.19.1) · guardas de versão 9/9 · gate de cobertura 90,10% · 5 mutações detectadas ao todo · CI verdes em 3ec53b7 e e8ff0e9 (d1fb797 não teve run próprio: entrou como pai do push do bump, e a CI roda no HEAD do push).",
+    "commits": [
+      "47f3f16 fix(intents,orchestrator,cache)",
+      "3ec53b7 feat(runtime: saneamento llm_cache",
+      "d1fb797 fix(mqtt,intents)",
+      "e8ff0e9 chore(release): bump 1.19.2+2041"
     ]
   }
 }
