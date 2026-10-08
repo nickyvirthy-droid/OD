@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T03:55:00",
+  "updated_at": "2026-10-08T04:35:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1467,5 +1467,53 @@
     ],
     "evidencia_final": "Suíte completa 2325 passed, 16 skipped (+7 testes novos: 6 em TestHoraAntesDoDia + 1 de integração no orquestrador) · gate de cobertura 90,06% (meta 90) exit 0 · 6 mutações detectadas e restauradas bit-exato (regex de quando; store da pendência; user_id do ramo encadeado; mostre; crei; fallback de hora sem às) · contrato provado: POST ao Google com dateTime 04:00, nunca {date}.",
     "estado": "CORREÇÕES COMMITADAS (regra 7.1) — deploy pendente de autorização (regra 13); bump PATCH seria 1.19.3 no checklist VERSIONAMENTO."
+  },
+  "retomada_2026_10_08": {
+    "pedido": "Usuário: 'leia iniciar' — retomada (~04:2x).",
+    "estado_verificado": [
+      "git: HEAD a2cc2a1 'chore(release): bump PATCH 1.19.3+2042 — hora antes do dia na agenda + criação encadeada sem LLM' (04:20:12) == origin/master; árvore limpa. Ou seja: o bump 1.19.3 JÁ FOI COMMITADO depois do último registro (que dizia 'seria 1.19.3'). Commits da leva: f2fba6b (fix agenda) + a2cc2a1 (bump).",
+      "od-core: active, PID 745013, desde 2026-10-08 01:14:21, NRestarts=0, journal 0 erros desde então — ou seja, o serviço roda o CÓDIGO 1.19.2; deploy do 1.19.3+2042 AINDA NÃOaconteceu (regra 13: exige autorização).",
+      "versões no repo: .env OD_VERSION=1.19.3 · pubspec 1.19.3+2042 · _APP_VERSION_CODE=2042.",
+      "APKs: site/*.apk rebuildados 04:15:16 (full 53.972.629 B sha256 9cf3e58c…, arm64 19.245.103 B sha256 1851e34f…) — publicados no site ANTES do deploy.",
+      "INCOERÊNCIA NO AR (até o deploy): o processo 1.19.2 responde /app/version {version 1.19.2, version_code 2041} com sha256 calculado do ARQUIVO novo (2042) — ou seja, anuncia version_code 2041 com o hash do APK 2042; um app em 2041 não recebe oferta do 1.19.2, e o 1.19.3 nunca é anunciado até o restart."
+    ],
+    "txt_do_dono": "txt.txt (04:11, gravado pelo painel admin): no APP, a atualização da versão nova funciona SEM tailscale, mas (1) tela de chat vazia; (2) Ações: 'Catálogo de ações falhou: 401'; (3) Painel: 'auth/me falhou: 401'; (4) Status: 'OmegaDrakon Offline / supervisão indisponível'. Dono testou tudo pela URL do Funnel e está ok → acha que é o APP.",
+    "evidencia_apurada": [
+      "Auth do servidor está OK: o próprio dono se autenticou no /admin às 04:11 para gravar o txt.txt.",
+      "Sessões VÁLIDAS de alex existem no Postgres (4 válidas; a mais nova criada 07/10 22:40, expira 14/10) — não é expiração global.",
+      "GET /app/version é AUTH_EXEMPT (é assim desde o 1.7.0) — explica 'atualização funciona' junto com 401 em TODA rota autenticada: o app CHEGA ao servidor, mas a credencial que ele manda é rejeitada (ou não é mandada).",
+      "Sem rastro server-side: od-core não loga 401 (journal e logs/audit.jsonl desde 03:50 só têm a linha do txt.txt e snapshots de percepção) — não dá para ver as requisições do celular pelo servidor."
+    ],
+    "hipoteses": [
+      "A) o app guarda um token de sessão antigo/expirado → re-login nas Configurações (alex/senha123) resolve (testar primeiro, é o mais barato);",
+      "B) bug do app pós-update: header Authorization não é mandado/sobrescrito em od_api.dart — verificar o código do app;",
+      "C) o app aponta para outro host que devolve 401 (proxy/roteador) — confirmar a URL efetiva."
+    ],
+    "pendencias": [
+      "DECISÃO 1 do dono: autorizar deploy do 1.19.3+2042 (systemctl --user restart od-core) — fecha a incoerência do /app/version e coloca no ar a correção da agenda (hora antes do dia).",
+      "DECISÃO 2 do dono: investigar os 401 do app (hipótese A = re-login primeiro).",
+      "Registro do 1.19.3 em iniciar/ e transcrição do dia (2026-10-08) ainda não criados."
+    ],
+    "estado": "RETOMADA CONCLUÍDA — aguardando decisões do dono (deploy e app). Nada reiniciado nesta retomada."
+  },
+  "deploy_v1193_2026_10_08": {
+    "pedido": "Dono respondeu '1' — autorizar o deploy do 1.19.3+2042 (a decisão 2, os 401 do app, segue aberta).",
+    "deploy": "systemctl --user restart od-core 04:27:28, PID 768455, active · NRestarts=0 · journal 0 ERROR/CRIT/Traceback desde o restart.",
+    "prova_viva_5_5": [
+      "/app/version = 1.19.3 / 2042 / sha256 9cf3e58c… == site/OmegaDrakon.apk (arm64 1851e34f…) — incoerência 'code 2041 com hash 2042' FECHADA",
+      "/capabilities 1.19.3 · 78 actions (google 13, filesystem 15, system 17, git 10, iot 5…)",
+      "/health up, todos os checks ok · /supervision up restarts 0 degraded []",
+      "WS :8001 → 426",
+      "journal 0 erros"
+    ],
+    "prova_da_correcao": "'o que tem pra hoje' → fastpath:google_calendar_events (772 ms) com a leitura real; 'criar compromisso prova deploy 1.19.3 para as 4:00 de hoje' → fastpath:google_calendar_create pedindo confirmação 'em 2026-10-08 04:00' com título limpo — ANTES sairia 'em 2026-10-08' (dia inteiro) com a hora no título. Confirmação NÃO respondida (TTL 2 min): NENHUM evento criado.",
+    "nota_historico": "As provas usaram user_id=deploy-check, que a OD_API_KEY assume como alex → 2 turnos (4 msgs) gravados no histórico do dono.",
+    "registro": "iniciar/2026-10-08_conversa_omegadrakon.md (novo) + este session.json; commit+push pela regra 7.1.",
+    "pendencias": [
+      "Dono: 401 do APP — começar pelo re-login nas Configurações (alex/senha123); se persistir, investigar od_api.dart (header Authorization pós-update).",
+      "App do dono está em 1.19.2+2041 — o update para 2042 já é oferecido pelo /app/version.",
+      "C6 da auditoria (instrução 'quando pergunto isso olhe minha agenda' não persiste) — feature nova, escopo a decidir."
+    ],
+    "estado": "CONCLUÍDO E NO AR — v1.19.3+2042 implantada, provada e registrada."
   }
 }
