@@ -1688,5 +1688,38 @@
     "telegram": "resumo enviado (regra 15) — message_id 2019",
     "estado": "CONCLUÍDO — sistema no ar em 1.20.0+2045; próxima sessão é só apertar ▶ no painel.",
     "ts": "2026-10-08T15:58:36-03:00"
+  },
+  "correcao_fonte_txt_txt_fila_fora_2026_10_08": {
+    "pedido": "Dono: 'não entendi a lógica do pedido.txt se o sistema já vai ler o txt.txt onde coloco as ideias' + 'o arquivo pedido.txt e a caixa de diálogo ligado a ele não tem mais função e podem ser excluídas'. Onde ficam os controles (pergunta respondida): 'Na seção Canal de desenvolvimento' — só muda a FONTE. Deploy autorizado ('Deploy 1.20.1 completo').",
+    "mudanca": {
+      "fonte": "orch.IDEIA_FILE = Path('txt.txt'); server._sessao_ativar lê self.IDEIAS_FILE; erro fila_vazia -> sem_ideia (server + runner + mensagem do painel); confirm do ▶ Ativar busca GET /admin/ideias e mostra trecho; txt.txt não é limpo na leitura",
+      "fila_fora": "pedido.txt removido da raiz; ROUTES 55 -> 52 (fora POST/GET/DELETE /admin/dev/pedido + handlers); painel sem <details> 'Fila manual' e sem JS devSetMsg/devStatus/devInjetar/devClear; status da sessão sem monitor_ativo",
+      "orquestrador": "−400 linhas: fora PEDIDO_FILE, ARQUIVO_SAIDA, INSTRUCAO_BLINDADA, montar_prompt, extrair_codigo, validar_sintaxe, processar_pedido, ler_e_limpar_pedido, ciclo, monitorar e --fila; sem --sessao -> exit 2; executar_cli + cascata ficaram",
+      "higiene": "deploy/od-orchestrator.service excluído; .gitignore sem /pedido.txt; comentário de core/limitacoes.py aponta o txt.txt"
+    },
+    "bump": {
+      "versao": "1.20.1+2046 (PATCH — correção de fonte + remoção de fila morta)",
+      "itens": ".env OD_VERSION=1.20.1 · capabilities fallback 1.20.1 · pubspec 1.20.1+2046 · _APP_VERSION_CODE=2046 · site/index.html 2x · CHANGELOG [1.20.1] no topo · README_VERSAO [1.20.1]",
+      "apks": "rebuild universal + split-per-abi (JAVA_HOME=/home/alex/jdk); aapt2 versionCode='2046' versionName='1.20.1'; sha256 universal 349e995ea706e67821b959508379891aeaf4d6eaed9e51ccce4037839322193b, arm64 0c4f37e2… — GET /app/version anuncia 2046 com esse sha256",
+      "app_flutter": "flutter analyze No issues · flutter test 131 passed"
+    },
+    "validacao_final": "suíte canônica 2366 passed, 16 skipped · cobertura 90,16% (gate 90) · guardas de versão 9/9 · node --check no JS do painel verde · 3 mutações detectadas e restauradas bit-exato (server lendo pedido.txt; erro voltando a fila_vazia; runner lendo pedido.txt)",
+    "servicos": {
+      "od-core": "restart 16:54:28, PID 853601; journal desde o restart: 0 erros; health ok; capabilities 1.20.1",
+      "od-orchestrator": "permanece inactive/disabled; a unidade deploy/od-orchestrator.service foi EXCLUÍDA do repo"
+    },
+    "prova_viva": {
+      "fila_morta": "POST e GET /admin/dev/pedido -> 404 (rotas fora do ar)",
+      "painel": "GET /admin: 0 ocorrências de dev-texto/dev-injetar/'Fila manual'; copy nova 'A ideia vem do txt.txt' no ar; ids sess-* presentes",
+      "sessao": "GET /admin/dev/sessao: sem campo monitor_ativo; estado herdado (concluido)",
+      "canal_do_dono": "GET /admin/ideias leu o txt.txt real ao vivo (680 bytes) — nada foi escrito nele",
+      "app": "GET /app/version -> version_code 2046 + sha256 349e995e… (bate com site/OmegaDrakon.apk)"
+    },
+    "publicacao": [
+      "a36e717 refactor(dev): ideia vem do txt.txt; fila pedido.txt excluída de ponta a ponta",
+      "280e1aa chore(deploy): 1.20.1+2046 — fonte da ideia = txt.txt e fila removida"
+    ],
+    "estado": "CONCLUÍDO — no ar em 1.20.1+2046; canal lê o txt.txt, fila pedido.txt fora do sistema; controles continuam na seção 'Canal de desenvolvimento'.",
+    "ts": "2026-10-08T16:55:55-03:00"
   }
 }
