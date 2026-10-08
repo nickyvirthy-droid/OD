@@ -1658,5 +1658,35 @@
       "prova viva: ativar sessão pelo painel + resposta na caixa + Telegram (regra 15)"
     ],
     "ts": "2026-10-08T15:40:23-03:00"
+  },
+  "deploy_1_20_0_2026_10_08": {
+    "pedido": "Dono autorizou o deploy ('sim') — regra 13; checklist docs/VERSIONAMENTO.md §5.",
+    "bump": {
+      "versao": "1.20.0+2045 (MINOR — canal de desenvolvimento on-demand)",
+      "itens": ".env OD_VERSION=1.20.0 · capabilities fallback 1.20.0 · pubspec 1.20.0+2045 · _APP_VERSION_CODE=2045 · site/index.html 2x · CHANGELOG [1.20.0] no topo · README_VERSAO [1.20.0]",
+      "apks": "rebuild universal + split-per-abi; aapt2 versionCode='2045' versionName='1.20.0'; publicados em site/ (sha256 d584ed7a115a91c8e4f410eb826a34f539a25c34f16af98e0b11ce73b805c975) — GET /app/version anuncia 2045 com esse sha256",
+      "app_flutter": "flutter analyze No issues · flutter test 131 passed"
+    },
+    "servicos": {
+      "od-orchestrator": "systemctl --user disable --now — inactive/disabled (decisão 3 do dono: fila 24h fora, só o botão)",
+      "od-core": "restart 15:51:29, PID 839703; journal desde o restart: 0 erros; /health ok; /capabilities 1.20.0"
+    },
+    "prova_viva": {
+      "ativacao": "POST /admin/dev/pedido (ideia) + POST /admin/dev/sessao {acao:ativar, cli:auto} → pid 839963, preparando",
+      "cascata": "Freebuff exit=1 (recusa prompt longo do sistema) → OpenCode respondeu — a cascatas cobriu, como desenhado",
+      "validacao": "suíte canônica da sessão: 2395 passed, 16 skipped em 89s",
+      "commit": "44b7b39 commitado PELA SESSÃO (sem push, excluir backups/data/logs funcionou); mensagem corrigida por amend para 5ebe8d2 antes do push",
+      "caixa": "POST/GET/DELETE /admin/dev/caixa provados no ar (mensagem do dono gravada e caixa limpa)",
+      "painel": "GET /admin devolve os ids sess-*; JS node --check verde na suíte"
+    },
+    "ajuste_no_caminho": "orquestrador: commitar sem alvos (diff só de dados/gitignored) volta motivo 'nada_mudou' em vez de 'commit_nao_realizado' (+1 teste)",
+    "validacao_final": "suíte 2395 passed, 16 skipped · cobertura 90,16% (gate 90) · guardas de versão 9/9 · mutações 5/5",
+    "publicacao": [
+      "6bc0949 feat(dev): canal de desenvolvimento on-demand — modo sessão + caixa de autorização",
+      "5ebe8d2 chore(deploy): 1.20.0+2045 — canal de desenvolvimento on-demand no ar"
+    ],
+    "telegram": "resumo enviado (regra 15) — message_id 2019",
+    "estado": "CONCLUÍDO — sistema no ar em 1.20.0+2045; próxima sessão é só apertar ▶ no painel.",
+    "ts": "2026-10-08T15:58:36-03:00"
   }
 }
