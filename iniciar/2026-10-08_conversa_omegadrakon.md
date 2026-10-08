@@ -94,3 +94,32 @@ app → re-login nas Configurações (alex/senha123), o teste mais barato;
   hipótese C).
 - **Ponto FECHADO** — nenhum bug novo no app; nada a corrigir em
   `od_api.dart`.
+
+## 6. Agenda — "quase funcionou, ainda não grava no horário"
+
+- Dono: **"quanto a agenda quase funcionou. ainda não grava no horário"**
+  + sobre o C6: **"isso é a continuação de uma conversa. pode excluir"**
+  (C6 descartado — não vira feature de memória de instruções).
+- **Reprodução com a conversa REAL dele** (histórico IDs 747-752):
+  `criar compromisso para as 6 horas` → o `_GOOGLE_W_QUANDO_RE` exigia
+  `hoje|amanhã` → não casou → a hora foi para o **TÍTULO** (`'para as
+  6 horas'`) → create devolveu `quando_obrigatorio` → ele respondeu
+  `hoje` → `parse_when('hoje')` = date-only → confirmação **sem hora**
+  → `sim` → **evento DIA INTEIRO** (leitura de 04:41: `para as 6 horas
+  → 2026-10-08 (dia inteiro)`).
+- **Correções (3 arquivos):**
+  1. `_GOOGLE_W_QUANDO_RE`: ramo novo — hora **sem** dia (`para as 6
+     horas`, `às 12 horas`, `14:30`) com exigência de preposição `às`
+     (ou HH:MM); número solto (`daqui 2 horas`, `10.000`) **não** é
+     quando;
+  2. `_google_quando_e_titulo`: se todo o resto era o quando, o
+     **substantivo** vira título padrão (`'compromisso'`) — nunca vazio;
+  3. `parse_when`: hora sem dia → **hoje**, e **amanhã** se a hora já
+     passou; dia explícito nunca rola; sem hora continua dia inteiro;
+     a própria dica `'às 15h'` agora completa a pendência.
+- **Validação:** +5 testes (`TestHoraAntesDoDia::test_*sem_dia*`) ·
+  suíte completa **2330 passed, 16 skipped** · cobertura **90,07%**
+  (gate 90) · **5/5 mutações detectadas** e restauradas bit-exato.
+- **Pendência:** commit + deploy com bump **1.19.4** (regras 12/13 —
+  aguardando autorização do dono). Depois: limpar os 3 eventos-dia-
+  inteiro de teste que ficaram na Agenda dele (apagar é mutação — pedir).

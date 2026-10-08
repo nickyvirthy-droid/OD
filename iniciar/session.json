@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T04:40:00",
+  "updated_at": "2026-10-08T05:05:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1521,5 +1521,16 @@
     "rastro": "journal 04:35:34 'Login realizado | username=alex | user_id=1'; sessão nova a48e2056… criada 04:36:40 (expira 15/10 04:36); banco com 5 sessões válidas de alex e 280 msgs intactas.",
     "causa_raiz": "Hipótese A confirmada: o app segurava token de sessão inválido/expirado — /app/version (isento de auth) funcionava, por isso a atualização passava enquanto toda rota autenticada dava 401. WiFi + 4G funcionando descarta a hipótese C (host/URL); nada a corrigir em od_api.dart (hipótese B descartada).",
     "estado": "PONTO FECHADO — txt.txt do dono atendido; sistema 100% no ar em 1.19.3+2042."
+  },
+  "correcao_hora_sem_dia_2026_10_08": {
+    "pedido": "Dono (chat, ~04:4x): (1) sobre o C6: 'isso é a continuação de uma conversa. pode excluir' — NÃO vira feature de memória de instruções (descartado; o defeito real era roteamento e já está corrigido); (2) 'quanto a agenda quase funcionou. ainda não grava no horário'.",
+    "reproducao": "Conversa REAL do dono no journal/histórico (IDs 747-752): 'criar compromisso para as 6 horas' → _GOOGLE_W_QUANDO_RE exigia 'hoje/amanhã' → NÃO casou → a hora foi para o TÍTULO ('para as 6 horas') → create: quando_obrigatorio → dono respondeu 'hoje' → parse_when('hoje') = date-only → confirmação sem hora → 'sim' → evento DIA INTEIRO (a leitura de 04:41 mostra 'para as 6 horas → 2026-10-08 (dia inteiro)').",
+    "correcoes": [
+      "core/intents.py _GOOGLE_W_QUANDO_RE: ramo novo (b) — hora SEM dia ('para as 6 horas' / 'às 12 horas' / '14:30') com exigência de preposição 'às' (para/pra opcional) ou HH:MM; número solto ('daqui 2 horas', '10.000') NÃO é quando.",
+      "core/intents.py _google_quando_e_titulo: quando todo o resto era o quando, o SUBSTANTIVO vira título padrão ('compromisso') — nunca string vazia (senão o create responderia alvo_obrigatorio).",
+      "integrations/google/calendar.py parse_when: hora sem dia → dia assume HOJE e vira AMANHÃ se a hora já passou; dia EXPLÍCITO nunca rola; sem hora nenhuma continua date-only (escolha do dono); a dica 'às 15h' pura agora completa a pendência (antes exigia 'hoje' junto)."
+    ],
+    "validacao": "5 testes novos em tests/test_google.py::TestHoraAntesDoDia (quando/título, título padrão, POST com dateTime 06:00, parse_when com rollover, pendência com hora solta) · suíte completa 2330 passed, 16 skipped · gate de cobertura 90,07% · 5/5 mutações DETECTADAS e restauradas bit-exato (regex sem o ramo (b); parse_when recusa hora sem dia; sem rollover; título padrão removido; hora solta sem preposição).",
+    "estado": "CORREÇÕES VALIDADAS E PRONTAS — commit + deploy pendentes (bump PATCH 1.19.4 no checklist do deploy, regra 12/13)."
   }
 }

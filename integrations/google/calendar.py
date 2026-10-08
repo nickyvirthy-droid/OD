@@ -30,8 +30,13 @@ def _iso_z(when: datetime) -> str:
 def parse_when(text: str, *, now: Optional[datetime] = None) -> Optional[dict[str, str]]:
     """'hoje'/'amanhã' [às HHh|às HH:MM] → start/end do evento.
 
-    Determinístico e conservador: fora do par dia+hora opcional devolve
-    None — a action responde com dica em vez de inventar data.
+    Também aceita a HORA SOLTA do dono, sem dia ('para as 6 horas',
+    'às 15h', '14:30'): o dia assume HOJE e vira AMANHÃ quando a hora já
+    passou — a frase sem 'hoje' NUNCA vira evento de dia inteiro (prova
+    real de 08/10, IDs 747-752).
+
+    Determinístico e conservador: fora dia/hora devolve None — a action
+    responde com dica em vez de inventar data.
     """
     low = (text or "").lower()
     base = now or datetime.now().astimezone()
@@ -41,20 +46,36 @@ def parse_when(text: str, *, now: Optional[datetime] = None) -> Optional[dict[st
     elif re.search(r"\bamanh[ãa]\b", low):
         day = base.date() + timedelta(days=1)
     if day is None:
-        return None
-    hora = re.search(r"[àa]s\s+(\d{1,2})(?:[:hH](\d{2}))?", low)
-    if not hora:
-        # '5 horas de hoje' sem a preposição 'às' — o dono escreve dos dois
-        # jeitos; sem este ramo o evento voltava a nascer DIA INTEIRO.
-        hora = re.search(r"\b(\d{1,2})(?:[:hH.](\d{2}))?\s*(?:horas?|h)\b", low)
+        # Sem âncora de dia: só hora EXPLÍCITA vale ('às 6' / 'às 15h' /
+        # '14:30'). Número solto sem preposição ('daqui 2 horas') não é
+        # um quando — a pendência do create não pode ser sequestrada.
+        hora = re.search(
+            r"[àa]s\s+(\d{1,2})(?:[:hH](\d{2}))?(?:\s*(?:horas?|h))?", low
+        ) or re.search(r"\b(\d{1,2})[:.](\d{2})\b", low)
+    else:
+        hora = re.search(r"[àa]s\s+(\d{1,2})(?:[:hH](\d{2}))?", low)
+        if not hora:
+            # '5 horas de hoje' sem a preposição 'às' — o dono escreve dos dois
+            # jeitos; sem este ramo o evento voltava a nascer DIA INTEIRO.
+            hora = re.search(r"\b(\d{1,2})(?:[:hH.](\d{2}))?\s*(?:horas?|h)\b", low)
     if hora:
         hour, minute = int(hora.group(1)), int(hora.group(2) or 0)
         if not (0 <= hour <= 23 and 0 <= minute <= 59):
             return None
-        start = datetime(day.year, day.month, day.day, hour, minute,
-                         tzinfo=base.tzinfo)
+        if day is None:
+            start = datetime(base.year, base.month, base.day, hour, minute,
+                             tzinfo=base.tzinfo)
+            if start <= base:
+                # hora já passou hoje → o dono quis o PRÓXIMO dia útil
+                # dele (amarra o 'para as 6 horas' dito às 10h)
+                start = start + timedelta(days=1)
+        else:
+            start = datetime(day.year, day.month, day.day, hour, minute,
+                             tzinfo=base.tzinfo)
         end = start + timedelta(hours=1)
         return {"start": _iso_z(start), "end": _iso_z(end)}
+    if day is None:
+        return None
     return {
         "start": day.isoformat(),
         "end": (day + timedelta(days=1)).isoformat(),

@@ -1658,3 +1658,115 @@ class TestHoraAntesDoDia:
         assert intent is not None and intent[0] == "google_calendar_create"
         assert intent[1]["titulo"] == "evento", intent[1]
         assert "5" in intent[1]["quando"], intent[1]
+
+    # ------------------------------------------------------------------
+    # Hora SEM dia: 'criar compromisso para as 6 horas' (prova real do
+    # dono em 08/10, chat IDs 747-752 — "quase funcionou, ainda não grava
+    # no horário"). O regex antigo exigia 'hoje'/'amanhã': a hora ia para
+    # o TÍTULO, o create pedia 'quando', o dono respondia 'hoje' e o
+    # evento nascia DIA INTEIRO.
+    # ------------------------------------------------------------------
+
+    def test_hora_sem_dia_sai_no_quando_e_fora_do_titulo(self) -> None:
+        casos = [
+            ("criar compromisso para as 6 horas", "para as 6 horas"),
+            ("criar compromisso para as 14:30", "para as 14:30"),
+            ("crie o compromisso almoço às 12 horas", "às 12 horas"),
+        ]
+        for frase, quando in casos:
+            intent = detect_action_intent(frase)
+            assert intent is not None, frase
+            assert intent[0] == "google_calendar_create", (frase, intent)
+            assert intent[1]["quando"] == quando, (frase, intent[1])
+            # título NUNCA vazio (senão o create responderia
+            # 'alvo_obrigatorio') e SEM a hora dentro
+            assert intent[1]["titulo"], (frase, intent[1])
+            assert "horas" not in intent[1]["titulo"], (frase, intent[1])
+            assert ":30" not in intent[1]["titulo"], (frase, intent[1])
+
+    def test_titulo_padrao_quando_todo_o_resto_e_quando(self) -> None:
+        """'criar compromisso para as 6 horas' — sobra só o substantivo:
+        ele vira o título padrão ('compromisso'), nunca string vazia."""
+        intent = detect_action_intent("criar compromisso para as 6 horas")
+        assert intent is not None and intent[0] == "google_calendar_create"
+        assert intent[1]["titulo"] == "compromisso", intent[1]
+
+    def test_create_envia_dateTime_com_a_hora_falada(self) -> None:
+        """A prova do bug do dono: o POST levava {"date": ...} (dia
+        inteiro) porque a hora estava no título. Agora leva dateTime com a
+        hora falada — hoje ou amanhã, conforme o relógio."""
+        from tools.actions import actions
+
+        payloads: list[bytes] = []
+
+        def handler(method, url, data):
+            payloads.append(data or b"")
+            return 200, b'{"id": "ev1", "summary": "compromisso"}'
+
+        actions.configure_google_client(_write_client(handler))
+        try:
+            intent = detect_action_intent("criar compromisso para as 6 horas")
+            assert intent is not None
+            params = dict(intent[1])
+            params["user_id"] = "alex"
+            r1 = actions.google_calendar_create(**params)
+            assert r1.get("needs_confirmation") is True, r1
+            # a confirmação mostra o HORÁRIO, nunca só a data
+            assert "06:00" in r1.get("hint", ""), r1
+            assert payloads == []
+            r2 = actions.google_calendar_create(**params)
+            assert r2.get("executed") is True and len(payloads) == 1, r2
+            body = json.loads(payloads[-1])
+            assert "date" not in body["start"], body
+            assert "dateTime" in body["start"], body
+            from datetime import datetime
+            local_dt = datetime.fromisoformat(
+                body["start"]["dateTime"].replace("Z", "+00:00")
+            ).astimezone()
+            assert (local_dt.hour, local_dt.minute) == (6, 0), body
+            assert body["summary"] == "compromisso", body
+            assert "horas" not in body["summary"], body
+        finally:
+            actions.configure_google_client(None)
+
+    def test_parse_when_sem_dia_assume_hoje_e_rola_quando_passou(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        from integrations.google.calendar import parse_when
+
+        tz = timezone(timedelta(hours=-3))
+        # 04:37 da madrugada → as 6h ainda são de HOJE (caso do dono)
+        cedo = datetime(2026, 10, 8, 4, 37, tzinfo=tz)
+        p = parse_when("para as 6 horas", now=cedo)
+        assert p is not None and p["start"].startswith("2026-10-08T09:00"), p
+        # 10:00 da manhã → as 6h já passaram: amanhã, não 02:00 de hoje
+        tarde = datetime(2026, 10, 8, 10, 0, tzinfo=tz)
+        p2 = parse_when("para as 6 horas", now=tarde)
+        assert p2 is not None and p2["start"].startswith("2026-10-09T09:00"), p2
+        # dia EXPLÍCITO nunca rola ('hoje às 6h' de manhã = 06:00 de hoje)
+        p3 = parse_when("hoje às 6 horas", now=tarde)
+        assert p3 is not None and p3["start"].startswith("2026-10-08T09:00"), p3
+        # sem hora NENHUMA continua dia inteiro (escolha do dono)
+        p4 = parse_when("hoje", now=cedo)
+        assert p4 is not None and "T" not in p4["start"], p4
+        # número solto SEM preposição não é um quando ('daqui 2 horas')
+        assert parse_when("daqui 2 horas", now=cedo) is None
+
+    def test_hint_de_quando_aceita_a_hora_solta_do_dono(self) -> None:
+        """A própria dica sugere "'às 15h' se tiver hora" — mas o
+        parse_when antigo exigia 'hoje'/'amanhã' junto e a resposta pura
+        de hora não completava a pendência."""
+        from tools.actions import actions
+
+        actions.configure_google_client(_write_client())
+        r1 = actions.google_calendar_create(
+            titulo="Dentista", quando="sem dia nenhum",
+            user_id="alex", alvo="Dentista",
+        )
+        assert r1["ok"] is False and r1["error"] == "quando_obrigatorio"
+        # número solto não consome a pendência (o dono pode estar em outra)
+        assert actions.peek_pending_calendar_when("alex", "daqui 2 horas") is None
+        pend = actions.peek_pending_calendar_when("alex", "às 15h")
+        assert pend == {
+            "titulo": "Dentista", "quando": "às 15h", "alvo": "Dentista",
+        }

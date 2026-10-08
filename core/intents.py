@@ -475,17 +475,28 @@ _GOOGLE_W_DIZENDO_RE = re.compile(
     re.IGNORECASE,
 )
 _GOOGLE_W_QUANDO_RE = re.compile(
-    # Hora ANTES do dia também vale ('para as 4:00 de hoje' / 'para as 5
-    # horas de hoje'): o padrão antigo só via 'hoje às 16h' — a frase da
-    # hora ficava no TÍTULO e o create recebia 'hoje' puro → parse_when
-    # devolvia date-only → evento de DIA INTEIRO na Agenda (bugs reais de
-    # 08/10, chat IDs 723-734: 'compromisso para as 4:00 de').
+    r"(?:"
+    # (a) com âncora de dia: [hora] hoje/amanhã [hora] — a hora ANTES do
+    # dia também vale ('para as 4:00 de hoje' / 'para as 5 horas de
+    # hoje'): o padrão original só via 'hoje às 16h' e a frase da hora
+    # ficava no TÍTULO → evento de DIA INTEIRO (bugs reais de 08/10,
+    # chat IDs 723-734: 'compromisso para as 4:00 de').
     r"(?:(?:(?:\bpara\s+|\bpra\s+)?[àa]s\s+\d{1,2}(?:[:.]\d{2})?\s*(?:horas?|h)?"
     r"|\b\d{1,2}(?:(?:[:.]\d{2})|\s*(?:horas?|h)))"
     r"\s*(?:de\s+|em\s+)?)?"
     r"\b(hoje|amanh[ãa])\b"
     r"(?:\s*[àa]s\s+\d{1,2}(?:[:.]\d{2})?\s*(?:horas?|h)?"
-    r"|\s+\d{1,2}\s+(?:horas?|h))?",
+    r"|\s+\d{1,2}\s+(?:horas?|h))?"
+    r"|"
+    # (b) só a HORA, sem dia ('criar compromisso para as 6 horas' — prova
+    # real do dono em 08/10, IDs 747-752: sem 'hoje' na frase o regex
+    # antigo não casava, a hora ia para o TÍTULO, o create pedia 'quando'
+    # e o evento nascia DIA INTEIRO). Exige a preposição 'às' (com
+    # 'para/pra' opcional) ou HH:MM — número solto ('daqui 2 horas',
+    # '10.000') NÃO é um quando.
+    r"(?:(?:\bpara\s+|\bpra\s+)?[àa]s\s+\d{1,2}(?:[:.]\d{2}|\s*(?:horas?|h))\b"
+    r"|\b\d{1,2}[:.]\d{2}\b)"
+    r")",
     re.IGNORECASE,
 )
 _GOOGLE_W_STOP_NOME_RE = re.compile(
@@ -581,6 +592,12 @@ def _google_quando_e_titulo(text: str) -> tuple[str, str]:
         antes = re.sub(r"\s+(?:na|no|em|para|pra|da|de|do)\s*$", "", antes)
         antes = _GOOGLE_W_CRIAR_RE.sub("", antes, count=1)
         titulo = _google_limpa_nome(antes)
+        if not titulo:
+            # 'criar compromisso para as 6 horas': todo o resto era o
+            # quando — o SUBSTANTIVO vira o título padrão (nunca vazio,
+            # senão o create responderia 'alvo_obrigatorio' e a hora do
+            # dono cairia no limbo).
+            titulo = text[m.start():m.end()].strip()
     return titulo, quando
 
 
