@@ -1,9 +1,10 @@
 """
 OMEGA DRAKON • TESTS
 Módulo: tests/test_orquestrador.py
-Descrição: testes do orquestrador de fallback entre CLIs de IA
-           (orquestrador.py) — monitor de pedido.txt, cascata
-           Freebuff → OpenCode → Kilo e validação de sintaxe via ast.parse.
+Descrição: testes do orquestrador de CLIs de IA (orquestrador.py) —
+           cascata Freebuff → OpenCode → Kilo e o MODO SESSÃO
+           on-demand (ideia do dono no txt.txt). A fila pedido.txt
+           foi removida a pedido do dono (2026-10-8).
 
 Baseado em:
   - orquestrador.py
@@ -26,162 +27,14 @@ from orquestrador import (
     executar_sessao,
     extrair_autorizacao,
     main_sessao,
-    montar_prompt,
     montar_prompt_sessao,
     resolver_clis,
-    validar_sintaxe,
     validar_sessao,
-    ciclo,
-    extrair_codigo,
-    ler_e_limpar_pedido,
-    processar_pedido,
 )
-
-
-CODIGO_OK = "x = 1\n"
-CODIGO_QUEBRADO = "def quebrada(:\n"
 
 
 def _spec(nome: str) -> CliSpec:
     return CliSpec(nome=nome, binario=nome.lower(), args_antes=("run",))
-
-
-class TestMontarPrompt:
-    def test_prompt_bate_a_instrucao_com_o_pedido(self) -> None:
-        prompt = montar_prompt("  crie o previsao_tempo.py  ")
-        assert "previsao_tempo.py" in prompt
-        assert "crie o previsao_tempo.py" in prompt
-
-    def test_prompt_blindado_proibe_markdown(self) -> None:
-        prompt = montar_prompt("qualquer coisa")
-        assert "```" in prompt  # proibição explícita de cerca
-        assert "código puro" in prompt
-
-
-class TestExtrairCodigo:
-    def test_sem_cerca_volta_sem_bordas(self) -> None:
-        assert extrair_codigo(CODIGO_OK) == "x = 1"
-
-    def test_cerca_python_removida(self) -> None:
-        resposta = f"```python\n{CODIGO_OK}```"
-        assert extrair_codigo(resposta) == "x = 1"
-
-    def test_cerca_sem_linguagem_removida(self) -> None:
-        resposta = f"```\n{CODIGO_OK}```"
-        assert extrair_codigo(resposta) == "x = 1"
-
-    def test_cerca_aberta_sem_fechamento(self) -> None:
-        assert extrair_codigo(f"```python\n{CODIGO_OK}") == "x = 1"
-
-
-class TestValidarSintaxe:
-    def test_codigo_valido(self) -> None:
-        assert validar_sintaxe(CODIGO_OK) is True
-        assert validar_sintaxe("def f():\n    return 1\n") is True
-
-    def test_codigo_invalido(self) -> None:
-        assert validar_sintaxe(CODIGO_QUEBRADO) is False
-
-    def test_vazio_e_invalido(self) -> None:
-        assert validar_sintaxe("") is False
-        assert validar_sintaxe("   \n") is False
-
-
-class TestLearLimparPedido:
-    def test_le_e_limpa(self, tmp_path: Path) -> None:
-        alvo = tmp_path / "pedido.txt"
-        alvo.write_text("crie o teste.py\n", encoding="utf-8")
-        assert ler_e_limpar_pedido(alvo) == "crie o teste.py"
-        assert alvo.read_text(encoding="utf-8") == ""
-
-    def test_arquivo_ausente_e_nada(self, tmp_path: Path) -> None:
-        assert ler_e_limpar_pedido(tmp_path / "inexistente.txt") is None
-
-    def test_arquivo_em_branco_nada_faz(self, tmp_path: Path) -> None:
-        alvo = tmp_path / "pedido.txt"
-        alvo.write_text("   \n", encoding="utf-8")
-        assert ler_e_limpar_pedido(alvo) is None
-
-
-class TestProcessarPedido:
-    def test_primeira_cli_valida_vence(self, tmp_path: Path) -> None:
-        saida = tmp_path / "out.py"
-        registradas: list[str] = []
-
-        def executar(spec: CliSpec, prompt: str) -> str | None:
-            registradas.append(spec.nome)
-            return CODIGO_OK
-
-        resultado = processar_pedido("pedido", saida, executar, [_spec("A"), _spec("B")])
-        assert resultado.ok is True
-        assert resultado.cli == "A"
-        assert saida.read_text(encoding="utf-8") == CODIGO_OK  # com \n final garantido
-        assert registradas == ["A"]  # nunca chamou a B
-
-    def test_falha_da_primeira_cai_para_a_segunda(self, tmp_path: Path) -> None:
-        saida = tmp_path / "out.py"
-
-        def executar(spec: CliSpec, prompt: str) -> str | None:
-            return None if spec.nome == "A" else CODIGO_OK
-
-        resultado = processar_pedido("pedido", saida, executar, [_spec("A"), _spec("B")])
-        assert resultado.ok is True
-        assert resultado.cli == "B"
-
-    def test_sintaxe_invalida_pula_para_a_proxima(self, tmp_path: Path) -> None:
-        """Regra central: código quebrado NÃO encerra — avança na cascata."""
-        saida = tmp_path / "out.py"
-
-        def executar(spec: CliSpec, prompt: str) -> str | None:
-            return CODIGO_QUEBRADO if spec.nome == "A" else CODIGO_OK
-
-        resultado = processar_pedido("pedido", saida, executar, [_spec("A"), _spec("B")])
-        assert resultado.ok is True
-        assert resultado.cli == "B"
-        assert saida.read_text(encoding="utf-8") == CODIGO_OK
-
-    def test_todas_falham_nao_grava_nada(self, tmp_path: Path) -> None:
-        saida = tmp_path / "out.py"
-        resultado = processar_pedido(
-            "pedido", saida, lambda spec, prompt: None, [_spec("A"), _spec("B")]
-        )
-        assert resultado.ok is False
-        assert resultado.cli is None
-        assert not saida.exists()
-
-    def test_todas_com_sintaxe_invalida_nao_grava_nada(self, tmp_path: Path) -> None:
-        saida = tmp_path / "out.py"
-        resultado = processar_pedido(
-            "pedido",
-            saida,
-            lambda spec, prompt: CODIGO_QUEBRADO,
-            [_spec("A"), _spec("B")],
-        )
-        assert resultado.ok is False
-        assert not saida.exists()
-
-
-class TestCiclo:
-    def test_ciclo_processa_e_reporta_trabalho(self, tmp_path: Path) -> None:
-        pedido = tmp_path / "pedido.txt"
-        saida = tmp_path / "out.py"
-        pedido.write_text("crie o x.py", encoding="utf-8")
-        ok = ciclo(pedido, saida, lambda spec, prompt: CODIGO_OK, [_spec("A")])
-        assert ok is True
-        assert saida.exists()
-        assert pedido.read_text(encoding="utf-8") == ""  # limpo (anti-loop)
-
-    def test_ciclo_sem_pedido_nao_trabalha(self, tmp_path: Path) -> None:
-        ok = ciclo(tmp_path / "pedido.txt", tmp_path / "out.py", None, [])  # type: ignore[arg-type]
-        assert ok is False
-
-    def test_ciclo_com_todas_falhando_reporta_false(self, tmp_path: Path) -> None:
-        pedido = tmp_path / "pedido.txt"
-        pedido.write_text("pedido", encoding="utf-8")
-        ok = ciclo(
-            pedido, tmp_path / "out.py", lambda spec, prompt: None, [_spec("A")]
-        )
-        assert ok is False
 
 
 class TestCascataOficial:
@@ -231,7 +84,8 @@ class TestCascataOficial:
     def test_env_keys_contrato(self) -> None:
         # As chaves do .env exigidas pelo instrucoes_projeto.txt.
         assert orch.ENV_KEYS == ("GEMINI_API_KEY", "GROQ_API_KEY")
-        assert orch.PEDIDO_INTERVALO_S == 5
+        # A ideia do dono vem do txt.txt (canal dele) — fila removida.
+        assert orch.IDEIA_FILE == Path("txt.txt")
 
 
 class TestAmbienteComChaves:
@@ -711,13 +565,13 @@ class TestMainSessao:
 
     def test_cli_invalida_retorna_2(self, tmp_path: Path, monkeypatch) -> None:
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "pedido.txt").write_text("ideia boa", encoding="utf-8")
+        (tmp_path / "txt.txt").write_text("ideia boa", encoding="utf-8")
         assert main_sessao("gpt-99") == 2
 
     def test_executa_a_sessao_com_a_cascata(self, tmp_path: Path,
                                             monkeypatch) -> None:
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "pedido.txt").write_text("crie o botão de tema", encoding="utf-8")
+        (tmp_path / "txt.txt").write_text("crie o botão de tema", encoding="utf-8")
         capturado: dict = {}
 
         def falso_executar(ideia, *, cli="auto", clis=None):
@@ -732,7 +586,7 @@ class TestMainSessao:
 
     def test_sessao_falhada_retorna_1(self, tmp_path: Path, monkeypatch) -> None:
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "pedido.txt").write_text("ideia", encoding="utf-8")
+        (tmp_path / "txt.txt").write_text("ideia", encoding="utf-8")
         monkeypatch.setattr(
             orch, "executar_sessao",
             lambda ideia, *, cli="auto", clis=None: {
@@ -760,12 +614,12 @@ class TestRodarPorContaPropria:
 
 
 class TestMain:
-    """`main` escolhe o modo: --sessao sobe a sessão, default é a fila."""
+    """`main` só tem o modo sessão — sem flag ele recusa (fila removida)."""
 
     def test_flag_sessao_executa_o_modo_sessao(self, tmp_path: Path,
                                                monkeypatch) -> None:
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "pedido.txt").write_text("ideia via flag", encoding="utf-8")
+        (tmp_path / "txt.txt").write_text("ideia via flag", encoding="utf-8")
         capturado: dict = {}
 
         def falso_executar(ideia, *, cli="auto", clis=None):
@@ -781,13 +635,7 @@ class TestMain:
         monkeypatch.chdir(tmp_path)
         assert orch.main(["--sessao"]) == 2
 
-    def test_default_e_a_fila_do_monitor(self, monkeypatch) -> None:
-        chamado = {"fila": 0}
+    def test_sem_flag_recusa_o_processo(self) -> None:
+        """Sem --sessao não há mais fila: exit 2 em vez de rodar no escuro."""
+        assert orch.main([]) == 2
 
-        def falso_monitorar() -> None:
-            chamado["fila"] += 1
-
-        monkeypatch.setattr(orch, "monitorar", falso_monitorar)
-        assert orch.main([]) == 0
-        assert orch.main(["--fila"]) == 0
-        assert chamado["fila"] == 2

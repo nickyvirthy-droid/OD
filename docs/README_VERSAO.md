@@ -7,6 +7,24 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.20.1] — CORREÇÃO DA FONTE DA IDEIA (`txt.txt`) + EXCLUSÃO DA FILA `pedido.txt` 🧹 (2026-10-08)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Decisões do dono (08/10)** | 'não entendi a lógica do pedido.txt se o sistema já vai ler o txt.txt onde coloko as ideias de atualização do sistema' + 'o arquivo pedido.txt e a caixa de diálogo ligado a ele não tem mais função e podem ser excluídas'. Onde ficam os controles (pergunta feita): **'Na seção Canal de desenvolvimento'** — ▶ Ativar/Parar/CLI/pill/caixa/log continuam lá. |
+| **Fonte = `txt.txt`** | `_sessao_ativar` lê `IDEIAS_FILE` (`txt.txt`); erro `fila_vazia` → **`sem_ideia`** (server + runner + painel); confirm do ▶ Ativar mostra trecho do `txt.txt` via `GET /admin/ideias` e avisa se vazio; `txt.txt` não é limpo após a leitura. |
+| **Fila fora** | `pedido.txt` removido da raiz; **ROUTES 55 → 52** (saíram `POST/GET/DELETE /admin/dev/pedido` + handlers); painel sem `<details>` 'Fila manual' e sem JS `devSetMsg/devStatus/devInjetar/devClear`; status da sessão sem `monitor_ativo`. |
+| **`orquestrador.py` puro-sessão** | fora `PEDIDO_FILE`, `ARQUIVO_SAIDA`, `INSTRUCAO_BLINDADA`, `montar_prompt`, `extrair_codigo`, `validar_sintaxe`, `processar_pedido`, `ler_e_limpar_pedido`, `ciclo`, `monitorar` e `--fila` (−400 linhas); sem `--sessao` → exit 2 (recusa, não roda no escuro); `executar_cli` + cascata ficaram. |
+| **Serviço e higiene** | `deploy/od-orchestrator.service` **excluído**; `.gitignore` sem `/pedido.txt`; `core/limitacoes.py` com comentário apontando o `txt.txt`. |
+| **Testes** | −30 testes da fila **+1**: gate 403 do `/admin/dev/sessao` (dono 200 / comum 403); guarda de rotas 55 → 52; ids do HTML sem `dev-texto`/`dev-injetar`. **3 mutações** detectadas e restauradas bit-exato. |
+| **Resultado** | Suíte **2366 passed, 16 skipped** · guardas de versão 9/9 · cobertura **90,18%** (gate 90) · `node --check` no JS do painel verde. |
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.20.1` · capabilities fallback `1.20.1` · `pubspec 1.20.1+2046` · `_APP_VERSION_CODE=2046` · `site 2x` · APKs rebuildados · `CHANGELOG [1.20.1]` · este README · restart do `od-core` (regra 13).
+
 ## [1.20.0] — CANAL DE DESENVOLVIMENTO ON-DEMAND: SESSÃO PELO PAINEL + CAIXA DE AUTORIZAÇÃO 🛠️ (2026-10-08)
 
 ### 1. O que foi feito

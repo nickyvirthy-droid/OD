@@ -14,6 +14,56 @@
 
 ---
 
+## [1.20.1] — CORREÇÃO DA FONTE DA IDEIA (`txt.txt`) + EXCLUSÃO DA FILA `pedido.txt` 🧹 (2026-10-08)
+
+> **DEPLOY AUTORIZADO PELO DONO (08/10, escolha 'Deploy 1.20.1 completo').**
+> Duas correções dele no MESMO dia, em cima do 1.20.0 já publicado:
+> 'não entendi a lógica do pedido.txt se o sistema já vai ler o txt.txt onde
+> coloco as ideias de atualização do sistema' e 'o arquivo pedido.txt e a
+> caixa de diálogo ligado a ele não tem mais função e podem ser excluídas'.
+> Os CONTROLES continuam na seção **'Canal de desenvolvimento'** do `/admin`
+> (escolha dele) — mudou de ONDE a ideia é lida, não de ONDE os botões ficam.
+> Checklist §5 completo: `.env 1.20.1` · capabilities · `pubspec
+> 1.20.1+2046` · `_APP_VERSION_CODE=2046` · `site 2x` · APKs rebuildados ·
+> restart do `od-core` (regra 13).
+
+1. **Fonte da ideia = `txt.txt`** — `_sessao_ativar` lê `IDEIAS_FILE`
+   (`txt.txt`) em vez do `pedido.txt`; erro novo `fila_vazia` → **`sem_ideia`**
+   (servidor, runner e mensagem do painel); o confirm do ▶ Ativar busca
+   `GET /admin/ideias` e mostra um trecho do `txt.txt` (avisa se vazio). O
+   `txt.txt` **não** é limpo após a leitura — é o canal permanente do dono.
+2. **Fila `pedido.txt` excluída de ponta a ponta** — arquivo da raiz removido;
+   **ROUTES 55 → 52** (saíram `POST/GET/DELETE /admin/dev/pedido` e os três
+   handlers); painel perdeu o `<details>` 'Fila manual' e o JS
+   `devSetMsg/devStatus/devInjetar/devClear`; o status da sessão perdeu
+   `monitor_ativo`.
+3. **`orquestrador.py` −400 linhas** — fora `PEDIDO_FILE`, `ARQUIVO_SAIDA`,
+   `INSTRUCAO_BLINDADA`, `montar_prompt`, `extrair_codigo`, `validar_sintaxe`,
+   `processar_pedido`, `ler_e_limpar_pedido`, `ciclo`, `monitorar` e a flag
+   `--fila`; sem `--sessao` o processo recusa (exit 2) em vez de rodar no
+   escuro. `executar_cli` + cascata ficaram — são o modo sessão.
+4. **`deploy/od-orchestrator.service` excluído** (o `ExecStart` não teria mais
+   o que rodar), `.gitignore` sem `/pedido.txt` e comentário de
+   `core/limitacoes.py` apontando o `txt.txt`.
+5. **Testes** — 30 testes da fila fora (`TestMontarPrompt`,
+   `TestExtrairCodigo`, `TestValidarSintaxe`, `TestLearLimparPedido`,
+   `TestProcessarPedido`, `TestCiclo`, `TestAdminDevPedido`) **+1 novo**: o
+   gate 403 que era da fila virou gate do `/admin/dev/sessao` (dono → 200,
+   comum → 403). Guarda de rotas 55 → 52 e ids do HTML sem
+   `dev-texto`/`dev-injetar`.
+6. **Teste do teste:** **3 mutações** detectadas e restauradas bit-exato
+   (server voltando a ler `pedido.txt`; código de erro voltando a
+   `fila_vazia`; runner voltando a ler `pedido.txt`).
+7. **Resultado:** Suíte **2366 passed, 16 skipped** · guardas de versão 9/9 ·
+   cobertura **90,18%** (gate 90) · `node --check` no JS do painel verde.
+
+### 2. bump PATCH
+
+`[1.20.1]` = PATCH (correção de fonte + remoção de fila morta, sem capacidade
+nova): `.env 1.20.1` · capabilities fallback `1.20.1` · `pubspec 1.20.1+2046`
+· `_APP_VERSION_CODE=2046` · `site 2x` · APKs rebuildados · `CHANGELOG
+[1.20.1]` · este README.
+
 ## [1.20.0] — CANAL DE DESENVOLVIMENTO ON-DEMAND: SESSÃO PELO PAINEL + CAIXA DE AUTORIZAÇÃO 🛠️ (2026-10-08)
 
 > **DEPLOY AUTORIZADO PELO DONO (08/10, 'sim'):** pedido dele no `txt.txt`

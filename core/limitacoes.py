@@ -37,7 +37,7 @@ from core.logger import get_logger
 
 log = get_logger(__name__)
 
-#: Arquivo do registro automático (raiz do projeto, ao lado de pedido.txt).
+#: Arquivo do registro automático (raiz do projeto, ao lado do txt.txt).
 LIMITACOES_FILE = Path("limitacoes.txt")
 
 #: Teto do arquivo (~128 KB) — podado pela frente quando estoura.

@@ -2,19 +2,17 @@
 OMEGA DRAKON • SYSTEMS
 Tecnologia que respira.
 Módulo: orquestrador.py
-Descrição: ecossistema de redundância (fallback) automática para geração de
-           código com múltiplas CLIs de IA. Monitora `pedido.txt` a cada
-           PEDIDO_INTERVALO_S segundos; ao detectar um pedido, monta um prompt
-           blindado (código puro, sem markdown) e tenta executá-lo em cascata:
-           Freebuff → OpenCode → Kilo. O resultado só vale se passar na
-           validação de sintaxe (ast.parse); sintaxe quebrada = pular para a
-           próxima CLI. Arquivo gerado: ARQUIVO_SAIDA (default
-           `codigo_gerado.py`).
-           Modo `--sessao` (2026-10-08): sessão de desenvolvimento ON-DEMAND
-           do canal do painel /admin — lê a ideia em pedido.txt, executa a
-           CLI com contexto (iniciar/, docs/, txt.txt), pausa na caixa de
-           desenvolvimento quando precisa de autorização do dono, valida com
-           a suíte canônica e commita (sem push).
+Descrição: orquestrador de CLIs de IA do OmegaDrakon — MODO SESSÃO puro,
+           sob demanda. Sobe com `--sessao` a partir do botão ▶ Ativar
+           desenvolvimento do painel /admin: lê a ideia do DONO no `txt.txt`
+           (o canal onde ele anota as atualizações do sistema), executa a
+           CLI em cascata (Freebuff → OpenCode → Kilo, ou a escolhida no
+           seletor), pausa na caixa de desenvolvimento quando a CLI pede
+           autorização ([AUTORIZACAO]), valida com a suíte canônica e
+           commita SEM push.
+           A fila antiga (`pedido.txt` + `codigo_gerado.py` + monitor 24h)
+           foi REMOVIDA em 2026-10-08 a pedido do dono: "o arquivo
+           pedido.txt e a caixa de diálogo ligado a ele não tem mais função".
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
@@ -22,7 +20,6 @@ Arquiteto: Alex Projeti
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 import logging
 import os
@@ -41,15 +38,6 @@ from dotenv import load_dotenv
 # Constantes
 # ---------------------------------------------------------------------------
 
-#: Arquivo monitorado (caminho relativo à raiz do projeto).
-PEDIDO_FILE: Path = Path("pedido.txt")
-
-#: Intervalo de varredura em segundos.
-PEDIDO_INTERVALO_S: int = 5
-
-#: Arquivo onde o código gerado e validado é gravado.
-ARQUIVO_SAIDA: Path = Path("codigo_gerado.py")
-
 #: Timeout de cada CLI em segundos (LLMs podem demorar; 10 min cobre o pior caso).
 CLI_TIMEOUT_S: int = 600
 
@@ -63,15 +51,6 @@ OPENCODE_MODELO: str = "opencode/nemotron-3-ultra-free"
 #: Modelo grátis do provedor kilo (gemini default exige chave/quota; os
 #: modelos groq estouram o TPM 8000 do tier free com o prompt do sistema).
 KILO_MODELO: str = "kilo/inclusionai/ling-3.0-flash-sante:free"
-
-#: Reforço de sistema embutido no prompt blindado (sem markdown, sem cercas).
-INSTRUCAO_BLINDADA: str = (
-    "Você é um gerador de código. Responda APENAS com o conteúdo do arquivo "
-    "Python pedido — código puro e completo, sem texto extra, sem formatação "
-    "markdown, sem cercas de código (``` ou ```python) e sem comentários "
-    "explicando a resposta. O arquivo deve começar diretamente com código "
-    "Python válido e ser executável por si só."
-)
 
 #: Logger do módulo (padrão do projeto: logging, journald do usuário captura).
 log = logging.getLogger("orquestrador")
@@ -145,60 +124,6 @@ CLIS: tuple[CliSpec, ...] = (
 
 
 # ---------------------------------------------------------------------------
-# Prompt
-# ---------------------------------------------------------------------------
-
-
-def montar_prompt(pedido: str) -> str:
-    """Monta o prompt blindado a partir do pedido bruto do usuário.
-
-    O pedido entra limpo (sem espaços sobrando) e o reforço de sistema exige
-    código puro — sem markdown, sem cercas ```python.
-    """
-    pedido_limpo = pedido.strip()
-    return f"{INSTRUCAO_BLINDADA}\n\nTarefa: crie o arquivo Python solicitado.\n\nPedido do usuário: {pedido_limpo}"
-
-
-# ---------------------------------------------------------------------------
-# Extração e validação de código
-# ---------------------------------------------------------------------------
-
-
-def extrair_codigo(resposta: str) -> str:
-    """Extrai o código Python de uma resposta da CLI.
-
-    Se a resposta vier com cerca de markdown (```python ... ```), o bloco é
-    extraído e a cerca removida — camada de defesa para o caso de a CLI
-    ignorar a instrução de responder sem formatação. Resposta sem cerca volta
-    intacta.
-    """
-    texto = resposta.strip()
-    fence = "```"
-    inicio = texto.find(fence)
-    if inicio == -1:
-        return texto
-    # Salta a linha da cerca inicial (com ou sem linguagem: ```python etc.)
-    linha_fim = texto.find("\n", inicio)
-    if linha_fim == -1:
-        return texto
-    corpo = texto[linha_fim + 1 :]
-    fim = corpo.find(fence)
-    if fim == -1:
-        # Cerca aberta sem fechamento: devolve o corpo assim mesmo.
-        return corpo.strip()
-    return corpo[:fim].strip()
-
-
-def validar_sintaxe(codigo: str) -> bool:
-    """Valida que `codigo` é um módulo Python sintaticamente válido (ast.parse)."""
-    try:
-        ast.parse(codigo)
-    except (SyntaxError, ValueError):
-        return False
-    return bool(codigo.strip())
-
-
-# ---------------------------------------------------------------------------
 # Execução das CLIs
 # ---------------------------------------------------------------------------
 
@@ -260,136 +185,17 @@ def executar_cli(spec: CliSpec, prompt: str, timeout_s: int = CLI_TIMEOUT_S) -> 
 
 
 # ---------------------------------------------------------------------------
-# Pipeline de um pedido
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class ResultadoPedido:
-    """Desfecho do processamento de um pedido."""
-
-    #: True quando uma CLI produziu código sintaticamente válido.
-    ok: bool
-    #: CLI que entregou o código (None se todas falharam).
-    cli: str | None
-    #: Código final gravado (None se todas falharam).
-    codigo: str | None
-
-
-def processar_pedido(
-    pedido: str,
-    arquivo_saida: Path = ARQUIVO_SAIDA,
-    executar: Callable[[CliSpec, str], str | None] = executar_cli,
-    clis: Sequence[CliSpec] = CLIS,
-) -> ResultadoPedido:
-    """Executa a cascata de fallback para um pedido e grava o arquivo gerado.
-
-    Regras:
-      - A 1ª CLI que devolver código SINTATICAMENTE VÁLIDO vence;
-      - Saída com erro de sintaxe NÃO encerra: pula para a próxima CLI;
-      - O código vencedor é gravado em `arquivo_saida` e devolvido;
-      - Todas falharam → ResultadoPedido(ok=False) e nada é gravado.
-    """
-    prompt = montar_prompt(pedido)
-    for spec in clis:
-        resposta = executar(spec, prompt)
-        if resposta is None:
-            continue
-        codigo = extrair_codigo(resposta)
-        if not validar_sintaxe(codigo):
-            log.warning(
-                "%s devolveu código com sintaxe inválida — pulando para a próxima CLI",
-                spec.nome,
-            )
-            continue
-        arquivo_saida.write_text(
-            codigo if codigo.endswith("\n") else codigo + "\n", encoding="utf-8"
-        )
-        log.info("Código válido gravado em %s (via %s)", arquivo_saida, spec.nome)
-        return ResultadoPedido(ok=True, cli=spec.nome, codigo=codigo)
-
-    log.error("Todas as CLIs falharam para o pedido: %.120r", pedido)
-    return ResultadoPedido(ok=False, cli=None, codigo=None)
-
-
-# ---------------------------------------------------------------------------
-# Monitor do pedido.txt
-# ---------------------------------------------------------------------------
-
-
-def ler_e_limpar_pedido(caminho: Path = PEDIDO_FILE) -> str | None:
-    """Lê o conteúdo do pedido e limpa o arquivo imediatamente (anti-loop).
-
-    Devolve o pedido como string, ou None se o arquivo está ausente/em
-    branco (nada a fazer — e nada é escrito de volta).
-    """
-    try:
-        conteudo = caminho.read_text(encoding="utf-8").strip()
-    except FileNotFoundError:
-        return None
-    except OSError as erro:
-        log.warning("Falha ao ler %s: %s", caminho, erro)
-        return None
-    if not conteudo:
-        return None
-    # Limpeza imediata para não reprocessar o mesmo pedido no próximo ciclo.
-    try:
-        caminho.write_text("", encoding="utf-8")
-    except OSError as erro:
-        log.warning("Falha ao limpar %s: %s", caminho, erro)
-    return conteudo
-
-
-def ciclo(
-    arquivo_pedido: Path = PEDIDO_FILE,
-    arquivo_saida: Path = ARQUIVO_SAIDA,
-    executar: Callable[[CliSpec, str], str | None] = executar_cli,
-    clis: Sequence[CliSpec] = CLIS,
-) -> bool:
-    """Um ciclo de varredura: lê o pedido, processa e devolve True se houve trabalho."""
-    pedido = ler_e_limpar_pedido(arquivo_pedido)
-    if pedido is None:
-        return False
-    log.info("Pedido recebido: %.120s", pedido.replace("\n", " "))
-    resultado = processar_pedido(pedido, arquivo_saida, executar, clis)
-    return resultado.ok
-
-
-def monitorar(
-    intervalo_s: int = PEDIDO_INTERVALO_S,
-    arquivo_pedido: Path = PEDIDO_FILE,
-    arquivo_saida: Path = ARQUIVO_SAIDA,
-) -> None:  # pragma: no cover — loop infinito por desenho
-    """Loop principal: varre `pedido.txt` a cada `intervalo_s` segundos, para sempre.
-
-    Um ciclo que levanta exceção inesperada é logado e não derruba o monitor
-    (o objetivo é redundância; o monitor é o último a cair).
-    """
-    log.info(
-        "Monitor no ar | pedido=%s | saida=%s | intervalo=%ss | CLIs=%s",
-        arquivo_pedido,
-        arquivo_saida,
-        intervalo_s,
-        " → ".join(spec.nome for spec in CLIS),
-    )
-    while True:
-        try:
-            ciclo(arquivo_pedido, arquivo_saida)
-        except Exception:  # noqa: BLE001 — o monitor não morre por um ciclo ruim
-            log.exception("Ciclo com erro — continuando no próximo intervalo")
-        time.sleep(intervalo_s)
-
-
-# ---------------------------------------------------------------------------
 # Modo SESSÃO — canal de desenvolvimento on-demand (2026-10-08)
 # ---------------------------------------------------------------------------
 #
-# O dono escreve a ideia no `pedido.txt` (seção "Canal de desenvolvimento" do
-# painel /admin) e aperta ▶ Ativar desenvolvimento. O od-core sobe ESTE
-# processo com `--sessao` (desanexado); ele:
-#   1. lê a ideia em pedido.txt (NÃO limpa — só a fila antiga limpava);
+# O dono escreve a ideia no `txt.txt` (seção "Ideias (txt.txt)" do painel
+# /admin — o canal onde ele já anota as atualizações do sistema) e aperta
+# ▶ Ativar desenvolvimento na seção "Canal de desenvolvimento". O od-core
+# sobe ESTE processo com `--sessao` (desanexado); ele:
+#   1. lê a ideia no txt.txt (NÃO limpa — o txt.txt é o canal permanente do
+#      dono; a fila `pedido.txt` foi removida em 2026-10-08 a pedido dele);
 #   2. executa a CLI escolhida (cascata automática por padrão) com um prompt
-#      de CONTEXTO: a CLI deve ler iniciar/, docs/ e txt.txt antes de codar;
+#      de CONTEXTO: a CLI deve ler iniciar/ e docs/ antes de codar;
 #   3. se a CLI precisar de autorização, publica em data/dev_caixa.json e
 #      ESPERA a resposta do dono (caixa de desenvolvimento do painel);
 #   4. valida com a suíte canônica e, com testes verdes, commita (sem push —
@@ -402,8 +208,10 @@ SESSAO_ESTADO_FILE: Path = Path("data/dev_sessao.json")
 #: Caixa de desenvolvimento: mensagens sistema ↔ dono durante a sessão.
 SESSAO_CAIXA_FILE: Path = Path("data/dev_caixa.json")
 
-#: Fonte da ideia do dono — a MESMA fila do canal de desenvolvimento.
-IDEIA_FILE: Path = PEDIDO_FILE
+#: Fonte da ideia do dono — o MESMO txt.txt do canal de ideias (decisão do
+#: dono de 08/10: "não entendi a lógica do pedido.txt se o sistema já vai
+#: ler o txt.txt onde coloco as ideias").
+IDEIA_FILE: Path = Path("txt.txt")
 
 #: Marcador de autorização: linha da CLI que começo exatamente com isto.
 MARCADOR_AUTORIZACAO: str = "[AUTORIZACAO]"
@@ -428,7 +236,8 @@ INSTRUCAO_SESSAO: str = (
     "ANTES de codar, leia: (1) iniciar/session.json e iniciar/RULES.md "
     "(estado da sessão e regras); (2) docs/ — README_VERSAO.md, "
     "REGRAS_DE_TRABALHO.md, VERSIONAMENTO.md e o topo do CHANGELOG.md; "
-    "(3) txt.txt (recados e ideias do dono) e pedido.txt (esta tarefa).\n"
+    "(3) o próprio txt.txt — é o canal permanente do dono, com recados e "
+    "histórico de ideias além desta tarefa.\n"
     "Regras OBRIGATÓRIAS:\n"
     "- implemente a ideia com código e testes no padrão da casa (pytest);\n"
     "- NÃO rode git commit nem git push (quem commita é o orquestrador ao fim);\n"
@@ -444,7 +253,7 @@ INSTRUCAO_SESSAO: str = (
 
 def montar_prompt_sessao(ideia: str, historico: str = "") -> str:
     """Monta o prompt do modo sessão: instrução + ideia + histórico da rodada."""
-    partes = [INSTRUCAO_SESSAO, "", "Ideia do dono (pedido.txt):", ideia.strip()]
+    partes = [INSTRUCAO_SESSAO, "", "Ideia do dono (txt.txt):", ideia.strip()]
     if historico.strip():
         partes += ["", "Histórico desta sessão:", historico.strip()]
     return "\n".join(partes)
@@ -817,7 +626,7 @@ def executar_sessao(
 
 
 def main_sessao(cli: str = "auto") -> int:
-    """Modo sessão: lê a ideia do pedido.txt e executa UMA sessão de dev."""
+    """Modo sessão: lê a ideia do dono no txt.txt e executa UMA sessão de dev."""
     try:
         ideia = IDEIA_FILE.read_text(encoding="utf-8").strip()
     except OSError:
@@ -849,24 +658,21 @@ def main_sessao(cli: str = "auto") -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Ponto de entrada: carrega o .env, configura o log e escolhe o modo.
+    """Ponto de entrada: carrega o .env, configura o log e roda a SESSÃO.
 
-    Padrão (sem flag) = fila do monitor — compatível com o
-    deploy/od-orchestrator.service. `--sessao` é o que o painel /admin
-    spawna no botão ▶ Ativar desenvolvimento.
+    O único modo é `--sessao` (é o que o painel /admin spawna no botão
+    ▶ Ativar desenvolvimento). Sem flag não há mais fila — a fila
+    `pedido.txt` foi removida a pedido do dono (2026-10-08) e o processo
+    recusa rodar no escuro (exit 2) em vez de inventar um modo.
     """
     parser = argparse.ArgumentParser(description="OmegaDrakon — orquestrador de CLIs")
     parser.add_argument(
         "--sessao", action="store_true",
-        help="modo sessão de desenvolvimento on-demand (lê a ideia do pedido.txt)",
+        help="modo sessão de desenvolvimento on-demand (lê a ideia do dono no txt.txt)",
     )
     parser.add_argument(
         "--cli", default="auto", choices=CLI_SESSAO_OPCOES,
         help="CLI do modo sessão (default: auto = cascata Freebuff→OpenCode→Kilo)",
-    )
-    parser.add_argument(
-        "--fila", action="store_true",
-        help="modo fila (default, explícito por causa do serviço)",
     )
     args = parser.parse_args(argv)
 
@@ -883,8 +689,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.sessao:
         return main_sessao(args.cli)
-    monitorar()
-    return 0
+    log.error(
+        "Sem --sessao não há o que fazer: a fila pedido.txt foi removida "
+        "(2026-10-08) — o canal agora é só sob demanda pelo painel /admin"
+    )
+    parser.print_usage()
+    return 2
 
 
 if __name__ == "__main__":

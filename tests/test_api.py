@@ -135,12 +135,11 @@ class TestAPIRoutes:
         /supervision (2026-09-15) + /account/* e /admin/* (painéis
         dashboard/admin, 2026-09-26) + deleção de mensagem única e
         saneamento do cache (2026-09-26) + /app/version (v1.7.0,
-        auto-atualização do app) + /admin/dev/pedido (v1.11.0 — canal de
-        desenvolvimento com o orquestrador de CLIs) + /admin/ideias e
+        auto-atualização do app) + /admin/ideias e
         /admin/limitacoes (v1.13.0 — canal do dono no txt.txt + Casa de
         Limitações) + /admin/dev/sessao e /admin/dev/caixa (2026-10-08 —
         sessão de desenvolvimento on-demand + caixa de autorização)."""
-        assert len(ROUTES) == 55
+        assert len(ROUTES) == 52
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -156,9 +155,6 @@ class TestAPIRoutes:
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),
-            ("POST", "/admin/dev/pedido"),
-            ("GET", "/admin/dev/pedido"),
-            ("DELETE", "/admin/dev/pedido"),
             ("POST", "/admin/dev/sessao"),
             ("GET", "/admin/dev/sessao"),
             ("GET", "/admin/dev/caixa"),
@@ -192,9 +188,6 @@ class TestAPIRoutes:
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),
-            ("POST", "/admin/dev/pedido"),
-            ("GET", "/admin/dev/pedido"),
-            ("DELETE", "/admin/dev/pedido"),
             ("POST", "/admin/dev/sessao"),
             ("GET", "/admin/dev/sessao"),
             ("GET", "/admin/dev/caixa"),
@@ -1898,133 +1891,27 @@ class TestAdminCachePrune:
         assert status == 400
 
 
-class TestAdminDevPedido:
-    """Canal de desenvolvimento: POST/GET/DELETE /admin/dev/pedido —
-    injeção do dono no pedido.txt, a fila do orquestrador de CLIs."""
-
-    def test_post_injeta_e_cria_a_fila(self, serve, tmp_path: Path,
-                                       monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)  # pedido.txt da raiz real não é tocado
-        srv = serve(make_orch(tmp_path))
-        status, body, _h = _request(
-            srv.bound_port, "POST", "/admin/dev/pedido",
-            body={"texto": "crie o previsao_tempo.py"},
-        )
-        assert status == 200
-        data = _json_response((status, body, _h))
-        assert data["ok"] is True
-        assert data["bytes_fila"] == len("crie o previsao_tempo.py".encode())
-        conteudo = (tmp_path / "pedido.txt").read_text(encoding="utf-8")
-        assert conteudo == "crie o previsao_tempo.py"
-
-    def test_post_acumula_com_limpar_antes_false(self, serve, tmp_path: Path,
-                                                 monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-        srv = serve(make_orch(tmp_path))
-        _request(srv.bound_port, "POST", "/admin/dev/pedido",
-                 body={"texto": "primeiro pedido"})
-        status, body, _h = _request(
-            srv.bound_port, "POST", "/admin/dev/pedido",
-            body={"texto": "segundo pedido", "limpar_antes": False},
-        )
-        assert status == 200
-        conteudo = (tmp_path / "pedido.txt").read_text(encoding="utf-8")
-        assert "primeiro pedido" in conteudo and "segundo pedido" in conteudo
-
-    def test_post_limpar_antes_substitui(self, serve, tmp_path: Path,
-                                         monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-        srv = serve(make_orch(tmp_path))
-        _request(srv.bound_port, "POST", "/admin/dev/pedido",
-                 body={"texto": "antigo"})
-        _request(srv.bound_port, "POST", "/admin/dev/pedido",
-                 body={"texto": "novo", "limpar_antes": True})
-        conteudo = (tmp_path / "pedido.txt").read_text(encoding="utf-8")
-        assert conteudo == "novo"
-
-    def test_get_status_sem_arquivo(self, serve, tmp_path: Path,
-                                    monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-        srv = serve(make_orch(tmp_path))
-        status, body, _h = _request(srv.bound_port, "GET", "/admin/dev/pedido")
-        assert status == 200
-        data = _json_response((status, body, _h))
-        assert data["ok"] is True
-        assert data["tem_conteudo"] is False and data["bytes_fila"] == 0
-        assert data["preview"] == ""
-
-    def test_get_status_com_fila(self, serve, tmp_path: Path,
-                                 monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-        srv = serve(make_orch(tmp_path))
-        _request(srv.bound_port, "POST", "/admin/dev/pedido",
-                 body={"texto": "pedido de prova para o preview"})
-        status, body, _h = _request(srv.bound_port, "GET", "/admin/dev/pedido")
-        data = _json_response((status, body, _h))
-        assert data["tem_conteudo"] is True
-        assert "pedido de prova" in data["preview"]
-
-    def test_delete_esvazia_a_fila(self, serve, tmp_path: Path,
-                                   monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-        srv = serve(make_orch(tmp_path))
-        _request(srv.bound_port, "POST", "/admin/dev/pedido",
-                 body={"texto": "sera apagado"})
-        status, body, _h = _request(
-            srv.bound_port, "DELETE", "/admin/dev/pedido"
-        )
-        assert status == 200
-        assert (tmp_path / "pedido.txt").read_text(encoding="utf-8") == ""
-
-    def test_texto_obrigatorio(self, serve, tmp_path: Path,
-                               monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-        srv = serve(make_orch(tmp_path))
-        status, _, _h = _request(
-            srv.bound_port, "POST", "/admin/dev/pedido", body={"texto": "   "}
-        )
-        assert status == 400
-        status, _, _h = _request(
-            srv.bound_port, "POST", "/admin/dev/pedido", body={}
-        )
-        assert status == 400
-
-    def test_texto_muito_longo_e_400(self, serve, tmp_path: Path,
-                                     monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)
-        srv = serve(make_orch(tmp_path))
-        status, _, _h = _request(
-            srv.bound_port, "POST", "/admin/dev/pedido",
-            body={"texto": "x" * 20_001},
-        )
-        assert status == 400
-
-    def test_sem_credencial_e_401(self, serve, tmp_path: Path) -> None:
-        """A rota exige credencial — a fila é canal de execução de código."""
-        srv = serve(make_orch(tmp_path))
-        # A fixture sobe sem OD_API_KEY; com auth desligada o POST passa —
-        # por isso o gate admin é provado no teste de papel abaixo.
-        status, _, _h = _request(
-            srv.bound_port, "GET", "/admin/dev/pedido"
-        )
-        assert status in (200, 401)
 
     def test_sem_papel_admin_e_403(self, serve, tmp_path: Path,
                                    monkeypatch) -> None:
-        """O gate de verdade: sessão de usuário comum (não-dono) → 403."""
+        """O gate de verdade: conta comum (não-dono) → 403; dono → 200."""
+        from integrations.api import server as api
         from integrations.api.auth import UserStore
         monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            api.subprocess, "Popen",
+            lambda cmd, **kw: _FakeProcesso(9999),
+        )
+        (tmp_path / "txt.txt").write_text("ideia do dono", encoding="utf-8")
         db = Database(tmp_path / "roles.db")
         store = UserStore(db)
         store.register("comum", "comum@example.com", "senha-comum-123")
-        orch = make_orch(tmp_path)
+        store.register("dono", "dono@example.com", "senha-dono-123")
         cfg = APIConfig(
             port=0, rate_limit_max=0, user_store=store,
             owner_username="dono",
         )
-        srv = serve(orch, config=cfg)
-        # Registra e loga a conta 'dono' (admin) e a 'comum' (user).
-        store.register("dono", "dono@example.com", "senha-dono-123")
+        srv = serve(make_orch(tmp_path), config=cfg)
         _s, login_dono, _h = _request(
             srv.bound_port, "POST", "/auth/login",
             body={"username": "dono", "password": "senha-dono-123"},
@@ -2036,24 +1923,21 @@ class TestAdminDevPedido:
         assert _s == 200, login_comum
         token_dono = _json_response((_s, login_dono, _h))["token"]
         token_comum = _json_response((_s, login_comum, _h))["token"]
-
-        # Dono (owner_username) injeta: 200
+        # Dono (owner_username): 200 — a sessão sobe (Popen fakeado).
         status, _, _h = _request(
-            srv.bound_port, "POST", "/admin/dev/pedido",
-            body={"texto": "pedido do dono"},
+            srv.bound_port, "POST", "/admin/dev/sessao",
+            body={"acao": "ativar"},
             headers={"Authorization": f"Bearer {token_dono}"},
         )
         assert status == 200
-        # Usuário comum: 403 e a fila NÃO é tocada pelo pedido dele
-        status, body, _h = _request(
-            srv.bound_port, "POST", "/admin/dev/pedido",
-            body={"texto": "pedido intruso"},
+        # Usuário comum: 403 — o canal é do dono.
+        status, _body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao",
+            body={"acao": "parar"},
             headers={"Authorization": f"Bearer {token_comum}"},
         )
         assert status == 403
-        assert "intruso" not in (tmp_path / "pedido.txt").read_text(encoding="utf-8")
         db.close()
-
 
 # ===========================================================================
 # Sessão de desenvolvimento on-demand + caixa de autorização (2026-10-08)
@@ -2070,9 +1954,9 @@ class TestSessaoDesenvolvimento:
     o botão ▶ Ativar desenvolvimento sobe `orquestrador.py --sessao`
     desanexado; a caixa media a autorização do dono durante a sessão."""
 
-    def test_ativar_sem_ideia_e_400_fila_vazia(self, serve, tmp_path: Path,
-                                               monkeypatch) -> None:
-        """Sem texto em pedido.txt não há sessão que valha (400 fila_vazia)."""
+    def test_ativar_sem_ideia_e_400_sem_ideia(self, serve, tmp_path: Path,
+                                              monkeypatch) -> None:
+        """Sem ideia no txt.txt não há sessão que valha (400 sem_ideia)."""
         monkeypatch.chdir(tmp_path)
         srv = serve(make_orch(tmp_path))
         status, body, _h = _request(
@@ -2080,7 +1964,7 @@ class TestSessaoDesenvolvimento:
             body={"acao": "ativar"},
         )
         assert status == 400
-        assert _json_response((status, body, _h))["error"] == "fila_vazia"
+        assert _json_response((status, body, _h))["error"] == "sem_ideia"
         assert not (tmp_path / "data/dev_sessao.json").exists()
 
     def test_ativar_com_ideia_sobe_a_sessao_desanexada(
@@ -2099,7 +1983,7 @@ class TestSessaoDesenvolvimento:
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(api.subprocess, "Popen", _fake_popen)
-        (tmp_path / "pedido.txt").write_text(
+        (tmp_path / "txt.txt").write_text(
             "crie o botão de tema no painel", encoding="utf-8"
         )
         srv = serve(make_orch(tmp_path))
@@ -2123,7 +2007,7 @@ class TestSessaoDesenvolvimento:
     def test_ativar_cli_invalida_e_400(self, serve, tmp_path: Path,
                                        monkeypatch) -> None:
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "pedido.txt").write_text("ideia válida", encoding="utf-8")
+        (tmp_path / "txt.txt").write_text("ideia válida", encoding="utf-8")
         srv = serve(make_orch(tmp_path))
         status, body, _h = _request(
             srv.bound_port, "POST", "/admin/dev/sessao",
@@ -2158,7 +2042,7 @@ class TestSessaoDesenvolvimento:
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(api.subprocess, "Popen", _popen_quebrado)
-        (tmp_path / "pedido.txt").write_text("ideia", encoding="utf-8")
+        (tmp_path / "txt.txt").write_text("ideia", encoding="utf-8")
         srv = serve(make_orch(tmp_path))
         status, body, _h = _request(
             srv.bound_port, "POST", "/admin/dev/sessao", body={"acao": "ativar"}
@@ -2173,7 +2057,7 @@ class TestSessaoDesenvolvimento:
         from integrations.api import server as api
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(api, "_pid_sessao_vivo", lambda pid: True)
-        (tmp_path / "pedido.txt").write_text("outra ideia", encoding="utf-8")
+        (tmp_path / "txt.txt").write_text("outra ideia", encoding="utf-8")
         (tmp_path / "data").mkdir()
         (tmp_path / "data/dev_sessao.json").write_text(
             json.dumps({"ativo": True, "pid": 4343, "status": "executando"}),
@@ -2389,7 +2273,6 @@ class TestSessaoDesenvolvimento:
             "sess-ativar", "sess-parar", "sess-cli", "sess-estado",
             "sess-caixa", "sess-resposta", "sess-enviar", "sess-log",
             "sess-info", "sess-msg", "sess-limpar-caixa",
-            "dev-texto", "dev-injetar",
         ):
             assert f'id="{identificador}"' in html, identificador
 
