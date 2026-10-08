@@ -18,6 +18,11 @@ import json
 from pathlib import Path
 
 import orquestrador as orch
+from core.dev_canal import (
+    carregar_historico,
+    ideia_ja_implementada,
+    registrar_ideia,
+)
 from orquestrador import (
     CLIS,
     SESSAO_MAX_AUTORIZACOES,
@@ -25,6 +30,7 @@ from orquestrador import (
     aguardar_resposta_dono,
     commitar_sessao,
     executar_sessao,
+    extrair_analise,
     extrair_autorizacao,
     main_sessao,
     montar_prompt_sessao,
@@ -204,6 +210,10 @@ def _caixa_de(tmp_path: Path) -> list[dict]:
     return json.loads((tmp_path / "caixa.json").read_text(encoding="utf-8"))
 
 
+#: Estado fake de uma sessão CONCLUÍDA (alimento do histórico — core/dev_canal).
+CONCLUIDA = {"status": "concluido", "motivo": "implantado", "commit": "abc1234"}
+
+
 class TestMontarPromptSessao:
     def test_instrucao_e_ideia_no_prompt(self) -> None:
         prompt = montar_prompt_sessao("  adicione o tema claro  ")
@@ -239,6 +249,59 @@ class TestExtrairAutorizacao:
     def test_marcador_vazio_e_none(self) -> None:
         assert extrair_autorizacao("[AUTORIZACAO]   \noutra linha") is None
         assert extrair_autorizacao("") is None
+
+
+class TestExtrairAnalise:
+    """Bloco [ANALISE]…[FIM ANALISE] — viabilidade/prós/contras/alternativas
+    que o dono vê na caixa (pedido dele de 2026-10-08)."""
+
+    BLOCO = (
+        "[ANALISE]\n"
+        "viabilidade: o repo já tem action_registry\n"
+        "pros: reaproveita o catálogo\n"
+        "contras: precisa de rede\n"
+        "alternativas: fastpath (melhor)\n"
+        "escolha: fastpath\n"
+        "[FIM ANALISE]\n"
+        "implementado com testes."
+    )
+
+    def test_bloco_completo_e_extraido(self) -> None:
+        analise = extrair_analise(self.BLOCO)
+        assert analise is not None
+        assert "viabilidade: o repo já tem action_registry" in analise
+        assert "escolha: fastpath" in analise
+        assert "implementado com testes" not in analise  # sobra do fim
+
+    def test_sem_marcador_e_none(self) -> None:
+        assert extrair_analise("só o resumo, sem análise.") is None
+        assert extrair_analise("") is None
+
+    def test_fim_esquecido_le_o_resto(self) -> None:
+        """CLI esqueceu o [FIM ANALISE] → a análise não se perde."""
+        analise = extrair_analise(
+            "[ANALISE]\nviabilidade: sim\npros: curto"
+        )
+        assert analise == "viabilidade: sim\npros: curto"
+
+    def test_bloco_vazio_e_none(self) -> None:
+        assert extrair_analise("[ANALISE]\n[FIM ANALISE]") is None
+        assert extrair_analise("[ANALISE]   ") is None
+
+    def test_pega_a_primeira_ocorrencia(self) -> None:
+        """Em rodadas com autorização o bloco pode repetir — vale o 1º."""
+        saida = (
+            "[ANALISE]\nviabilidade: a\n[FIM ANALISE]\n"
+            "[AUTORIZACAO] posso seguir?\n"
+            "[ANALISE]\nviabilidade: b\n[FIM ANALISE]"
+        )
+        assert extrair_analise(saida) == "viabilidade: a"
+
+    def test_prompt_ensina_o_bloco(self) -> None:
+        prompt = montar_prompt_sessao("criar cotação do dólar")
+        assert "[ANALISE]" in prompt and "[FIM ANALISE]" in prompt
+        assert "viabilidade" in prompt and "alternativas" in prompt
+        assert "MELHOR opção" in prompt
 
 
 class TestResolverClis:
@@ -403,6 +466,45 @@ class TestExecutarSessao:
         caixa = _caixa_de(tmp_path)
         assert caixa[0]["tipo"] == "info" and "iniciada" in caixa[0]["texto"]
         assert "concluido" in caixa[-1]["texto"]
+
+    def test_analise_vai_para_a_caixa_e_para_o_estado(self, tmp_path: Path) -> None:
+        """Bloco [ANALISE] (viabilidade/prós/contras/alternativas) publicado
+        na CAIXA e no estado — é o que o dono vê antes do código (pedido de
+        2026-10-08: 'analisa, verifica prós e contras, sugere alternativas')."""
+        saida = (
+            "[ANALISE]\nviabilidade: o repo já tem action_registry\n"
+            "pros: reaproveita o catálogo\ncontras: precisa de rede\n"
+            "alternativas: fastpath (melhor)\nescolha: fastpath\n"
+            "[FIM ANALISE]\nimplementado com testes."
+        )
+        estado = _rodar_sessao(
+            tmp_path, executar=lambda spec, prompt: saida
+        )
+        assert estado["status"] == "concluido"
+        assert "viabilidade: o repo já tem action_registry" in estado["analise"]
+        assert "escolha: fastpath" in estado["analise"]
+        assert "implementado com testes" not in estado["analise"]
+        caixa = _caixa_de(tmp_path)
+        assert caixa[0]["tipo"] == "info"  # "sessão iniciada" continua 1ª
+        assert any(
+            "Análise da ideia" in m["texto"] and "escolha: fastpath" in m["texto"]
+            for m in caixa
+        )
+        no_disco = json.loads(
+            (tmp_path / "estado.json").read_text(encoding="utf-8")
+        )
+        assert "escolha: fastpath" in no_disco["analise"]
+
+    def test_resposta_sem_analise_nao_publica_nada(self, tmp_path: Path) -> None:
+        """Análise ausente NÃO quebra a sessão nem polui a caixa."""
+        estado = _rodar_sessao(
+            tmp_path, executar=lambda spec, prompt: "pronto, sem marcador"
+        )
+        assert estado["status"] == "concluido"
+        assert not estado.get("analise")
+        assert not any(
+            "Análise da ideia" in m["texto"] for m in _caixa_de(tmp_path)
+        )
 
     def test_todas_as_clis_falham(self, tmp_path: Path) -> None:
         estado = _rodar_sessao(
@@ -594,6 +696,59 @@ class TestMainSessao:
             },
         )
         assert main_sessao("kilo") == 1
+
+    def test_ideia_ja_implementada_retorna_3(self, tmp_path: Path,
+                                             monkeypatch) -> None:
+        """Passo 2 do canal: ideia IGUAL a uma concluída não roda de novo —
+        o painel avisa antes; aqui é o cinturão de quem chama o runner."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "txt.txt").write_text(
+            "  Criar botão de tema\r\n  ", encoding="utf-8"
+        )
+        registrar_ideia("criar botão de tema", CONCLUIDA)
+        chamado = {"n": 0}
+
+        def nao_deve_executar(*args, **kwargs):
+            chamado["n"] += 1
+            return {"status": "concluido"}
+
+        monkeypatch.setattr(orch, "executar_sessao", nao_deve_executar)
+        assert main_sessao() == 3
+        assert chamado["n"] == 0
+
+    def test_sessao_concluida_registra_a_ideia(self, tmp_path: Path,
+                                               monkeypatch) -> None:
+        """Sessão concluída vira HISTÓRICO — é ele que alimenta o aviso do
+        próximo clique. Só `concluido` entra (falha não é implementação)."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "txt.txt").write_text("criar botão de tema", encoding="utf-8")
+        monkeypatch.setattr(
+            orch, "executar_sessao",
+            lambda ideia, *, cli="auto", clis=None: {
+                "status": "concluido", "motivo": "implantado",
+                "commit": "abc1234", "cli_usada": "OpenCode",
+            },
+        )
+        assert main_sessao() == 0
+        historico = carregar_historico()
+        assert len(historico) == 1
+        assert historico[0]["ideia"] == "criar botão de tema"
+        assert historico[0]["commit"] == "abc1234"
+        assert historico[0]["cli"] == "OpenCode"
+        assert ideia_ja_implementada("CRIAR  botão de tema") is not None
+
+    def test_sessao_falhada_nao_registra(self, tmp_path: Path,
+                                         monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "txt.txt").write_text("ideia que falhou", encoding="utf-8")
+        monkeypatch.setattr(
+            orch, "executar_sessao",
+            lambda ideia, *, cli="auto", clis=None: {
+                "status": "falhou", "motivo": "testes_vermelhos",
+            },
+        )
+        assert main_sessao() == 1
+        assert carregar_historico() == []
 
 
 class TestRodarPorContaPropria:

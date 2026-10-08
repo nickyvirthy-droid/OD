@@ -34,6 +34,8 @@ from typing import Callable, Sequence
 
 from dotenv import load_dotenv
 
+from core.dev_canal import ideia_ja_implementada, registrar_ideia
+
 # ---------------------------------------------------------------------------
 # Constantes
 # ---------------------------------------------------------------------------
@@ -194,12 +196,17 @@ def executar_cli(spec: CliSpec, prompt: str, timeout_s: int = CLI_TIMEOUT_S) -> 
 # sobe ESTE processo com `--sessao` (desanexado); ele:
 #   1. lê a ideia no txt.txt (NÃO limpa — o txt.txt é o canal permanente do
 #      dono; a fila `pedido.txt` foi removida em 2026-10-08 a pedido dele);
+#   1b. recusa ideia IGUAL a uma sessão já concluída (histórico em
+#       data/dev_historico.json — core/dev_canal.py); o painel avisa antes;
 #   2. executa a CLI escolhida (cascata automática por padrão) com um prompt
-#      de CONTEXTO: a CLI deve ler iniciar/ e docs/ antes de codar;
+#      de CONTEXTO: a CLI lê iniciar/ e docs/, abre a resposta com a ANÁLISE
+#      (viabilidade, prós/contras, alternativas → caixa) e implementa a
+#      melhor opção;
 #   3. se a CLI precisar de autorização, publica em data/dev_caixa.json e
 #      ESPERA a resposta do dono (caixa de desenvolvimento do painel);
 #   4. valida com a suíte canônica e, com testes verdes, commita (sem push —
-#      decisão do dono de 2026-10-08: "pode commitar").
+#      decisão do dono de 2026-10-08: "pode commitar") e REGISTRA a ideia
+#      no histórico (passo 1b do próximo clique).
 # Deploy/restart/systemctl continuam PROIBIDOS para a sessão (regra 13).
 
 #: Estado da sessão (painel lê; este processo escreve — atômico).
@@ -215,6 +222,12 @@ IDEIA_FILE: Path = Path("txt.txt")
 
 #: Marcador de autorização: linha da CLI que começo exatamente com isto.
 MARCADOR_AUTORIZACAO: str = "[AUTORIZACAO]"
+
+#: Bloco de ANÁLISE prévia (viabilidade, prós/contras, alternativas) que a
+#: CLI abre na resposta — o painel publica na caixa, para o dono ver o que
+#: foi considerado antes da implementação (pedido dele de 2026-10-08).
+MARCADOR_ANALISE: str = "[ANALISE]"
+MARCADOR_FIM_ANALISE: str = "[FIM ANALISE]"
 
 #: Espera máxima pela resposta do dono na caixa (30 min — decisão 5).
 SESSAO_AUTORIZACAO_TIMEOUT_S: int = 1800
@@ -238,6 +251,19 @@ INSTRUCAO_SESSAO: str = (
     "REGRAS_DE_TRABALHO.md, VERSIONAMENTO.md e o topo do CHANGELOG.md; "
     "(3) o próprio txt.txt — é o canal permanente do dono, com recados e "
     "histórico de ideias além desta tarefa.\n"
+    "ANÁLISE PRÉVIA OBRIGATÓRIA — antes de implementar, avalie a ideia do "
+    "dono: (a) viabilidade (o que já existe no repo e o que falta); (b) prós; "
+    "(c) contras; (d) alternativas melhores, se houver; (e) a MELHOR opção, "
+    "que é a única que você implementa. Abra SUA RESPOSTA com o bloco:\n"
+    "[ANALISE]\n"
+    "viabilidade: ...\n"
+    "pros: ...\n"
+    "contras: ...\n"
+    "alternativas: ...\n"
+    "escolha: ...\n"
+    "[FIM ANALISE]\n"
+    "O sistema publica esse bloco na caixa de desenvolvimento, para o dono "
+    "ver o que foi considerado.\n"
     "Regras OBRIGATÓRIAS:\n"
     "- implemente a ideia com código e testes no padrão da casa (pytest);\n"
     "- NÃO rode git commit nem git push (quem commita é o orquestrador ao fim);\n"
@@ -272,6 +298,27 @@ def extrair_autorizacao(saida: str) -> str | None:
             if pergunta:
                 return pergunta
     return None
+
+
+def extrair_analise(saida: str) -> str | None:
+    """Bloco `[ANALISE]…[FIM ANALISE]` da resposta da CLI (viabilidade,
+    prós/contras, alternativas) — é o que o dono vê na caixa antes do código.
+
+    Sem o marcador → None (a análise ausente NÃO quebra a sessão — o prompt
+    pede, mas quem responde é um modelo); `[FIM ANALISE]` esquecido →
+    considera o resto da resposta. Pega a PRIMEIRA ocorrência: em rodadas
+    com autorização o bloco pode se repetir e vale o da primeira resposta.
+    """
+    texto = saida or ""
+    inicio = texto.find(MARCADOR_ANALISE)
+    if inicio < 0:
+        return None
+    corpo = texto[inicio + len(MARCADOR_ANALISE):]
+    fim = corpo.find(MARCADOR_FIM_ANALISE)
+    if fim >= 0:
+        corpo = corpo[:fim]
+    corpo = corpo.strip()
+    return corpo or None
 
 
 def resolver_clis(escolha: str) -> tuple[CliSpec, ...]:
@@ -560,6 +607,20 @@ def executar_sessao(
                 estado, "falhou", "todas_as_clis_falharam",
                 arquivo_estado, arquivo_caixa,
             )
+        # Análise prévia (viabilidade/prós/contras/alternativas) — a PRIMEIRA
+        # resposta que trouxer o bloco alimenta o painel; publicada uma vez.
+        if not estado.get("analise"):
+            analise = extrair_analise(resposta_cli)
+            if analise:
+                estado["analise"] = analise[:4000]
+                gravar_estado(estado, arquivo_estado)
+                publicar_na_caixa(
+                    "sistema",
+                    "Análise da ideia (viabilidade, prós, contras, alternativas):\n"
+                    + estado["analise"],
+                    "info",
+                    arquivo_caixa,
+                )
         pergunta = extrair_autorizacao(resposta_cli)
         if pergunta is None:
             break
@@ -626,7 +687,12 @@ def executar_sessao(
 
 
 def main_sessao(cli: str = "auto") -> int:
-    """Modo sessão: lê a ideia do dono no txt.txt e executa UMA sessão de dev."""
+    """Modo sessão: lê a ideia do dono no txt.txt e executa UMA sessão de dev.
+
+    Cinturão extra do passo 2 do canal: ideia IGUAL a uma já concluída não
+    roda de novo (o painel avisa ANTES de chegar aqui; exit 3 cobre quem
+    chama o runner direto).
+    """
     try:
         ideia = IDEIA_FILE.read_text(encoding="utf-8").strip()
     except OSError:
@@ -637,6 +703,14 @@ def main_sessao(cli: str = "auto") -> int:
             IDEIA_FILE,
         )
         return 2
+    entrada = ideia_ja_implementada(ideia)
+    if entrada:
+        log.error(
+            "Ideia já implementada (%s) em %s — sessão não iniciada",
+            entrada.get("commit") or entrada.get("motivo") or "sem commit",
+            entrada.get("ts"),
+        )
+        return 3
     try:
         clis = resolver_clis(cli)
     except ValueError as erro:
@@ -648,6 +722,9 @@ def main_sessao(cli: str = "auto") -> int:
         ideia.replace("\n", " "),
     )
     estado = executar_sessao(ideia, cli=cli, clis=clis)
+    # Ideia concluída vira HISTÓRICO: o próximo clique de ▶ sobre a mesma
+    # ideia recebe o aviso "já implementado" em vez de rodar tudo outra vez.
+    registrar_ideia(ideia, estado)
     log.info(
         "Sessão finalizada | status=%s | motivo=%s | testes=%s",
         estado.get("status"),

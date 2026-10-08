@@ -675,7 +675,9 @@ class OdApi {
 
   /// POST /admin/dev/sessao — ativa/para a sessão on-demand.
   ///
-  /// `ativar` lê a ideia do DONO no `txt.txt` (erro `sem_ideia` se vazio);
+  /// `ativar` lê a ideia do DONO no `txt.txt` (erro `sem_ideia` se vazio;
+  /// `ja_implementado` com `commit`/`ts` no corpo se a ideia já foi
+  /// feita — o painel oferece limpar o txt.txt);
   /// `cli` entra só na ativação (auto = cascata Freebuff→OpenCode→Kilo).
   Future<Map<String, dynamic>> adminDevSessao({
     required String acao,
@@ -694,6 +696,7 @@ class OdApi {
       (data?['error'] as String?) ??
           'Sessão de desenvolvimento falhou (${response.statusCode})',
       statusCode: response.statusCode,
+      details: data,
     );
   }
 
@@ -1061,7 +1064,12 @@ class OdHistoryMessage {
 class OdApiError implements Exception {
   final String message;
   final int? statusCode;
-  OdApiError(this.message, {this.statusCode});
+
+  /// Corpo do erro do servidor (quando existe) — ex.: `ja_implementado`
+  /// vem com `commit`/`ts` para o painel montar o aviso de limpeza.
+  final Map<String, dynamic>? details;
+
+  OdApiError(this.message, {this.statusCode, this.details});
   @override
   String toString() => 'OdApiError: $message';
 }

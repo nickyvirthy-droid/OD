@@ -50,6 +50,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from tools.registry import ActionRegistry
 
 from core.capabilities import OD_VERSION, capabilities_manifest
+from core.dev_canal import ideia_ja_implementada
 
 # versionCode do APK publicado em site/ — sincronizado no bump (v1.7.0:
 # auto-atualização do app compara este número com o dele).
@@ -114,12 +115,19 @@ AUTH_EXEMPT_PATHS = frozenset(
 
 
 class APIError(Exception):
-    """Erro de API com status HTTP correspondente."""
+    """Erro de API com status HTTP correspondente.
 
-    def __init__(self, status: int, message: str) -> None:
+    `extra` são campos que entram NO CORPO da resposta junto do código
+    (ex.: o commit/data da ideia "já implementado" — o painel precisa deles
+    para montar o aviso, e só o código não diz nada).
+    """
+
+    def __init__(self, status: int, message: str,
+                 extra: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.status = status
         self.message = message
+        self.extra: dict[str, Any] = extra or {}
 
 
 @dataclass(slots=True)
@@ -724,11 +732,13 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <h2>Canal de desenvolvimento</h2>
     <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
       A ideia vem do <b>txt.txt</b> (seção <b>Ideias (txt.txt)</b> — escreva
-      lá) e aperte <b>▶ Ativar desenvolvimento</b>: o orquestrador sobe NA
-      HORA com a CLI escolhida (automática = cascata Freebuff → OpenCode →
-      Kilo), lê <code>iniciar/</code>, <code>docs/</code> e o próprio
-      <code>txt.txt</code>, implementa e valida com a suíte. Se precisar de
-      autorização, pergunta na <b>caixa de desenvolvimento</b> — responda
+      lá) e aperte <b>▶ Ativar desenvolvimento</b>. O canal faz três coisas:
+      <b>txt.txt vazio → não faz nada</b>; <b>ideia igual a uma sessão já
+      concluída → avisa "já implementado" e pergunta se quer limpar o
+      txt.txt</b>; <b>ideia nova → a CLI analisa viabilidade, prós, contras
+      e alternativas, publica a análise na caixa abaixo e implementa a
+      melhor opção</b>, validando com a suíte antes de commitar. Se precisar
+      de autorização, pergunta na <b>caixa de desenvolvimento</b> — responda
       ali que a sessão retoma. A fila <code>pedido.txt</code> foi removida
       (2026-10-08): o canal agora é só sob demanda.
     </p>
@@ -919,7 +929,8 @@ function sessSetMsg(t, cls) {
 }
 function sessErro(cod) {
   const mapa = {
-    sem_ideia: "Escreva a ideia no txt.txt (seção Ideias) primeiro.",
+    sem_ideia: "txt.txt vazio — nada a ativar. Escreva a ideia em Ideias (txt.txt).",
+    ja_implementado: "Essa ideia já foi implementada — txt.txt mantido.",
     sessao_ativa: "Já existe uma sessão ativa — pare antes de ativar outra.",
     sessao_nao_ativa: "Nenhuma sessão ativa.",
     cli_invalida: "CLI inválida.",
@@ -943,6 +954,7 @@ function sessRender(estado) {
     : (status === "concluido" ? "ok" : "err"));
   const partes = [];
   if (estado.ideia_preview) partes.push("ideia: " + String(estado.ideia_preview).slice(0, 300));
+  if (estado.analise) partes.push("análise:\\n" + String(estado.analise).slice(0, 1500));
   if (estado.cli_usada || estado.rodando) partes.push("CLI: " + (estado.cli_usada || estado.rodando));
   if (estado.rodada) partes.push("rodada: " + estado.rodada + " · autorizações: " + (estado.autorizacoes || 0));
   if (estado.testes) partes.push("testes: " + estado.testes);
@@ -988,23 +1000,50 @@ async function sessaoAtivar() {
     const cli = document.getElementById("sess-cli").value;
     // A ideia vem do txt.txt (canal do dono) — só mostra um trecho no confirm.
     let ideia = "";
+    let previewOk = false;
     try {
       const ide = await fetch("/admin/ideias", { headers: authHeaders() });
       const d = await ide.json().catch(() => ({}));
       ideia = String(d.conteudo || "").trim();
-    } catch (e) { /* sem ideia no preview, o servidor ainda decide */ }
-    if (!window.confirm("▶ Ativar desenvolvimento com a CLI '" + cli + "'? A sessão lê o txt.txt, iniciar/ e docs/ e só commita com testes verdes." +
+      previewOk = ide.ok;
+    } catch (e) { /* sem preview, o servidor ainda decide */ }
+    // (1) txt.txt vazio → NÃO faz nada: nem diálogo, nem chamada.
+    if (previewOk && !ideia) {
+      sessSetMsg("txt.txt vazio — nada a ativar. Escreva a ideia em Ideias (txt.txt).");
+      return;
+    }
+    if (!window.confirm("▶ Ativar desenvolvimento com a CLI '" + cli + "'? A sessão lê o txt.txt, iniciar/ e docs/, analisa viabilidade/prós/contras/alternativas e só commita com testes verdes." +
       (ideia ? "\\n\\nIdeia no txt.txt:\\n" + ideia.slice(0, 300) + (ideia.length > 300 ? "…" : "")
-             : "\\n\\n⚠ txt.txt vazio — a ativação vai recusar (sem_ideia)."))) return;
+             : "\\n\\n⚠ sem prévia do txt.txt — o servidor valida antes de subir."))) return;
     const resp = await fetch("/admin/dev/sessao", {
       method: "POST", headers: authHeaders({"Content-Type":"application/json"}),
       body: JSON.stringify({acao: "ativar", cli: cli})
     });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) { sessSetMsg(sessErro(data.error), "err"); return; }
+    if (!resp.ok) {
+      // (2) ideia igual a uma sessão concluída → aviso + oferta de limpeza.
+      if (data.error === "ja_implementado") { sessJaImplementado(data); return; }
+      sessSetMsg(sessErro(data.error), "err"); return;
+    }
     sessSetMsg("▶ Sessão iniciada (pid " + data.pid + ").", "ok");
     sessaoStatus(); caixaLoad();
   } catch (e) { sessSetMsg("Falha ao ativar: " + e.message, "err"); }
+}
+async function sessJaImplementado(data) {
+  const onde = (data.commit ? "commit " + data.commit : "sessão concluída") +
+    (data.ts ? " em " + data.ts : "");
+  const limpar = window.confirm(
+    "✔ Essa ideia já foi implementada (" + onde + ").\\n\\nLimpar o txt.txt agora?" +
+    "\\n\\n(Cancelar mantém o texto — para rodar de novo, edite a ideia.)");
+  if (!limpar) { sessSetMsg("Ideia já implementada — txt.txt mantido.", "err"); return; }
+  const del = await fetch("/admin/ideias", { method: "DELETE", headers: authHeaders() });
+  if (del.ok) {
+    const campo = document.getElementById("ideias-texto");
+    if (campo) campo.value = "";
+    sessSetMsg("✔ Ideia já implementada — txt.txt zerado.", "ok");
+  } else {
+    sessSetMsg("Ideia já implementada, mas não consegui limpar o txt.txt.", "err");
+  }
 }
 async function sessaoParar() {
   if (!window.confirm("⏹ Parar a sessão de desenvolvimento? A CLI em execução é encerrada.")) return;
@@ -2364,9 +2403,10 @@ class APIHandler(BaseHTTPRequestHandler):
         except APIError as exc:
             self.api.count_error()
             log.warn("API erro", status=exc.status, detail=exc.message)
-            self._json(
-                exc.status, {"ok": False, "error": exc.message}
-            )
+            # ok/error ficam DEPOIS: um extra nunca pode mascarar o código.
+            payload: dict[str, Any] = dict(exc.extra)
+            payload.update({"ok": False, "error": exc.message})
+            self._json(exc.status, payload)
         except (BrokenPipeError, ConnectionResetError):
             pass  # cliente foi embora no meio da resposta
         except Exception as exc:  # pragma: no cover — defeito inesperado
@@ -3663,7 +3703,10 @@ class APIHandler(BaseHTTPRequestHandler):
         Body: {"acao": "ativar"|"parar", "cli"?: "auto"|"freebuff"|"opencode"|"kilo"}
 
         `ativar` exige ideia no txt.txt (400 `sem_ideia`), nenhuma sessão
-        viva (409 `sessao_ativa`) e um CLI válido (400 `cli_invalida`); spawna
+        viva (409 `sessao_ativa`), uma CLI válida (400 `cli_invalida`) e que
+        a ideia NÃO tenha sido implementada antes (409 `ja_implementado`,
+        com `commit`/`ts`/`motivo` no corpo para o painel oferecer a limpeza
+        do txt.txt); spawna
         `orquestrador.py --sessao` com cwd na raiz e stdout em
         logs/dev_sessao.log. `start_new_session=True` desanexa o processo:
         a sessão sobrevive a um restart do od-core, e Parar derruba o GRUPO
@@ -3695,6 +3738,20 @@ class APIHandler(BaseHTTPRequestHandler):
             ideia = ""
         if not ideia:
             raise APIError(400, "sem_ideia")
+        # Mesma ideia de uma sessão já CONCLUÍDA → não roda de novo: o dono
+        # é avisado (409 com o commit/data) e pode limpar o txt.txt.
+        entrada = ideia_ja_implementada(ideia)
+        if entrada is not None:
+            log.warn(
+                "Ativação recusada — ideia já implementada",
+                commit=entrada.get("commit") or "",
+                ts=entrada.get("ts") or "",
+            )
+            raise APIError(409, "ja_implementado", extra={
+                "commit": str(entrada.get("commit") or ""),
+                "ts": str(entrada.get("ts") or ""),
+                "motivo": str(entrada.get("motivo") or ""),
+            })
         cli = data.get("cli") or "auto"
         if not isinstance(cli, str) or cli not in self.SESSAO_CLIS:
             raise APIError(400, "cli_invalida")
@@ -3761,7 +3818,7 @@ class APIHandler(BaseHTTPRequestHandler):
         """GET /admin/dev/sessao — estado + log + caixa pendente do painel.
 
         Contrato: {ok, ativo, pid, cli, status, started_at, ideia_preview,
-        testes, diff, commit, motivo, caixa_pendente, log_tail}.
+        analise, testes, diff, commit, motivo, caixa_pendente, log_tail}.
         Sessão cujo processo morreu sem registrar (crash/restart) é
         normalizada aqui — o painel nunca mente sobre "executando".
         """

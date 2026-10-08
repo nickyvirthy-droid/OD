@@ -451,7 +451,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _erroSessao(Object e) {
     final cod = e is OdApiError ? e.message : '';
     const mapa = {
-      'sem_ideia': 'Escreva a ideia no txt.txt (seção Ideias) primeiro.',
+      'sem_ideia': 'txt.txt vazio — nada a ativar. '
+          'Escreva a ideia em Ideias (txt.txt).',
+      'ja_implementado': 'Essa ideia já foi implementada — txt.txt mantido.',
       'sessao_ativa':
           'Já existe uma sessão ativa — pare antes de ativar outra.',
       'sessao_nao_ativa': 'Nenhuma sessão ativa.',
@@ -481,6 +483,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final detalhes = <String>[
       if (sessao['ideia_preview'] != null)
         'ideia: ${sessao['ideia_preview']}',
+      if ((sessao['analise'] as String?)?.isNotEmpty == true)
+        'análise: ${sessao['analise']}',
       if (sessao['cli_usada'] != null) 'CLI: ${sessao['cli_usada']}',
       if (sessao['rodada'] != null) 'rodada: ${sessao['rodada']}',
       if (sessao['testes'] != null) 'testes: ${sessao['testes']}',
@@ -509,9 +513,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(
-              'A ideia vem do txt.txt (seção Ideias): ▶ Ativar sobe a sessão '
-              'com a CLI escolhida, ela lê iniciar/ e docs/, pede autorização '
-              'na caixa e só commita com a suíte verde.',
+              'A ideia vem do txt.txt (seção Ideias): ▶ Ativar não faz nada '
+              'com o txt.txt vazio; avisa "já implementado" (e oferece limpar) '
+              'se a ideia já foi feita numa sessão concluída; numa ideia nova '
+              'a CLI analisa viabilidade, prós, contras e alternativas, '
+              'publica a análise na caixa e implementa a melhor opção — com '
+              'autorização na caixa e suíte verde antes do commit.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -633,21 +640,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _ativarSessao() async {
-    // A ideia vem do txt.txt — só LEIA para mostrar na confirmação.
+    // A ideia vem do txt.txt — só LEIA para o preview e o passo (1).
     String trecho = '';
+    var previewOk = false;
     try {
       final ideias = await widget.api.getIdeias();
       trecho = ((ideias['conteudo'] as String?) ?? '').trim();
+      previewOk = true;
     } catch (_) {
-      // Sem preview o servidor ainda decide (sem_ideia) se precisar.
+      // Sem prévia o servidor ainda decide (sem_ideia) se precisar.
+    }
+    // (1) txt.txt vazio → NÃO faz nada: nem diálogo, nem chamada.
+    if (previewOk && trecho.isEmpty) {
+      _snack('txt.txt vazio — nada a ativar. '
+          'Escreva a ideia em Ideias (txt.txt).');
+      return;
     }
     final aviso = trecho.isEmpty
-        ? '\n\n⚠ txt.txt vazio — a ativação vai recusar.'
+        ? '\n\n⚠ sem prévia do txt.txt — o servidor valida antes de subir.'
         : '\n\nIdeia no txt.txt:\n'
             '${trecho.length > 300 ? '${trecho.substring(0, 300)}…' : trecho}';
     final ok = await _confirm(
       "▶ Ativar desenvolvimento com a CLI '$_cli'? A sessão lê o txt.txt, "
-      'iniciar/ e docs/ e só commita com testes verdes.$aviso',
+      'iniciar/ e docs/, analisa viabilidade/prós/contras/alternativas e '
+      'só commita com testes verdes.$aviso',
     );
     if (!ok) return;
     try {
@@ -656,7 +672,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _snack('▶ Sessão iniciada (pid ${data['pid']}).');
       await _refreshDev();
     } on OdApiError catch (e) {
+      // (2) ideia igual a uma sessão concluída → aviso + oferta de limpeza.
+      if (e.message == 'ja_implementado') {
+        await _jaImplementado(e.details);
+        return;
+      }
       _snack(_erroSessao(e));
+    }
+  }
+
+  /// Aviso de "já implementado" + pergunta se o dono quer limpar o txt.txt
+  /// (mesmo fluxo do painel do site — paridade).
+  Future<void> _jaImplementado(Map<String, dynamic>? details) async {
+    final commit = ((details?['commit'] as String?) ?? '').trim();
+    final ts = ((details?['ts'] as String?) ?? '').trim();
+    final onde = (commit.isNotEmpty ? 'commit $commit' : 'sessão concluída') +
+        (ts.isNotEmpty ? ' em $ts' : '');
+    final limpar = await _confirm(
+      '✔ Essa ideia já foi implementada ($onde).\n\n'
+      'Limpar o txt.txt agora?\n\n'
+      '(Cancelar mantém o texto — para rodar de novo, edite a ideia.)',
+    );
+    if (!limpar) {
+      _snack('Ideia já implementada — txt.txt mantido.');
+      return;
+    }
+    try {
+      await widget.api.adminClearIdeias();
+      _snack('✔ Ideia já implementada — txt.txt zerado.');
+      await _refreshDev();
+    } on OdApiError catch (e) {
+      _snack('Ideia já implementada, mas não consegui limpar o txt.txt: '
+          '${_erroSessao(e)}');
     }
   }
 

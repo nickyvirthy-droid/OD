@@ -1967,6 +1967,102 @@ class TestSessaoDesenvolvimento:
         assert _json_response((status, body, _h))["error"] == "sem_ideia"
         assert not (tmp_path / "data/dev_sessao.json").exists()
 
+    def test_ativar_ideia_ja_implementada_e_409_sem_subir_sessao(
+        self, serve, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Passo 2 do canal (pedido do dono 08/10): ideia IGUAL a uma sessão
+        já CONCLUÍDA → 409 `ja_implementado` com commit/data no corpo (o
+        painel oferece limpar o txt.txt) e NENHUM processo criado."""
+        from integrations.api import server as api
+        from core.dev_canal import registrar_ideia
+
+        chamadas = {"n": 0}
+
+        def _nao_popen(cmd, **kwargs):
+            chamadas["n"] += 1
+            raise AssertionError("sessão não pode subir para ideia repetida")
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(api.subprocess, "Popen", _nao_popen)
+        registrar_ideia(
+            "criar botão de tema",
+            {"status": "concluido", "motivo": "implantado", "commit": "abc1234"},
+            tmp_path / "data/dev_historico.json",
+        )
+        # mesma ideia com outra formatação — a normalização é que decide
+        (tmp_path / "txt.txt").write_text(
+            "  Criar BOTÃO de tema\r\n\r\n", encoding="utf-8"
+        )
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao",
+            body={"acao": "ativar"},
+        )
+        assert status == 409
+        data = _json_response((status, body, _h))
+        assert data["ok"] is False
+        assert data["error"] == "ja_implementado"
+        assert data["commit"] == "abc1234"
+        assert data["ts"].startswith("20")
+        assert data["motivo"] == "implantado"
+        assert chamadas["n"] == 0
+        assert not (tmp_path / "data/dev_sessao.json").exists()
+
+    def test_ativar_ideia_diferente_do_historico_sobe_normalmente(
+        self, serve, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Histórico bloqueia só a ideia IGUAL — o resto do txt.txt roda."""
+        from integrations.api import server as api
+        from core.dev_canal import registrar_ideia
+
+        chamadas: dict = {}
+
+        def _fake_popen(cmd, **kwargs):
+            chamadas["desanexado"] = kwargs.get("start_new_session")
+            return _FakeProcesso(5151)
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(api.subprocess, "Popen", _fake_popen)
+        registrar_ideia(
+            "ideia já feita ontem",
+            {"status": "concluido", "motivo": "implantado", "commit": "f00d00d"},
+            tmp_path / "data/dev_historico.json",
+        )
+        (tmp_path / "txt.txt").write_text("outra ideia, bem diferente",
+                                          encoding="utf-8")
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao",
+            body={"acao": "ativar", "cli": "opencode"},
+        )
+        assert status == 200
+        assert _json_response((status, body, _h))["pid"] == 5151
+        assert chamadas["desanexado"] is True
+
+    def test_ativar_txt_so_com_espacos_e_400_sem_ideia(
+        self, serve, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Passo 1 do canal: txt.txt vazio → NÃO faz nada (sem Popen, sem
+        estado). Só espaços é vazio para o canal."""
+        from integrations.api import server as api
+
+        monkeypatch.chdir(tmp_path)
+        chamadas = {"n": 0}
+        monkeypatch.setattr(
+            api.subprocess, "Popen",
+            lambda *a, **k: chamadas.__setitem__("n", chamadas["n"] + 1),
+        )
+        (tmp_path / "txt.txt").write_text("   \n\n  ", encoding="utf-8")
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao",
+            body={"acao": "ativar"},
+        )
+        assert status == 400
+        assert _json_response((status, body, _h))["error"] == "sem_ideia"
+        assert chamadas["n"] == 0
+        assert not (tmp_path / "data/dev_sessao.json").exists()
+
     def test_ativar_com_ideia_sobe_a_sessao_desanexada(
         self, serve, tmp_path: Path, monkeypatch
     ) -> None:

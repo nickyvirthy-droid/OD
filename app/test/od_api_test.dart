@@ -755,6 +755,27 @@ group('OdApi.painéis (conta e admin)', () {
       );
     });
 
+    test('adminDevSessao traz commit/ts no ja_implementado (limpeza do '
+        'txt.txt)', () async {
+      final api = apiWith(MockClient((_) async => jsonResponse({
+            'ok': false,
+            'error': 'ja_implementado',
+            'commit': 'abc1234',
+            'ts': '2026-10-08 17:22:36',
+            'motivo': 'implantado',
+          }, status: 409)));
+      await api.setToken('tok-adm');
+      expect(
+        () => api.adminDevSessao(acao: 'ativar'),
+        throwsA(isA<OdApiError>()
+            .having((e) => e.message, 'message', 'ja_implementado')
+            .having((e) => e.statusCode, 'status', 409)
+            .having((e) => e.details?['commit'], 'commit', 'abc1234')
+            .having((e) => e.details?['ts'], 'ts', '2026-10-08 17:22:36')
+            .having((e) => e.details?['motivo'], 'motivo', 'implantado')),
+      );
+    });
+
     test('getDevCaixa devolve as mensagens da caixa', () async {
       final api = apiWith(MockClient((request) async {
         expect(request.url.path, '/admin/dev/caixa');
