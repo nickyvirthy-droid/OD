@@ -14,6 +14,68 @@
 
 ---
 
+## [1.19.2] — CORREÇÕES DA AUDITORIA DAS CONVERSAS 🔍 (2026-10-08)
+
+> **SANDBOX — SEM DEPLOY:** o serviço segue em **1.19.1** (PID 677660).
+> O bump do checklist (`docs/VERSIONAMENTO.md` §5) acontece **no deploy da
+> mudança**, que exige autorização do dono (regra 13 de `iniciar/RULES.md`);
+> esta seção muda de status quando isso acontecer.
+
+Achados da auditoria das 230 mensagens / 115 turnos gravados entre
+29/09 e 07/10 (§8 de `iniciar/2026-10-07_conversa_omegadrakon.md`):
+
+- **fix(intents): verbos de agenda entram na detecção de escrita** —
+  'Marque na agenda um compromisso…', 'agende uma reunião…', 'coloque na
+  minha agenda…', 'anote…', 'registre…' casavam NENHUMA intenção de
+  escrita ('coloque … compromisso' caía na **leitura** de eventos) e o
+  turno entregava a recusa que o LLM gravara no cache 45 min antes.
+  `_GOOGLE_W_CRIAR_RE` passou a casar marcar/agendar/colocar/anotar/
+  registrar (e 'coloque no drive um arquivo X' → `google_drive_create`).
+- **fix(intents): 'reunião' no singular** — `_GOOGLE_W_CAL_RE` casava só
+  `reuni[õo]es?` ('reuniões'); 'agende uma reunião' nem via a Agenda.
+- **fix(intents): pergunta diária sem dizer 'agenda'** — 'o que tem pra
+  hoje' / 'tenho algo hoje' / 'o que vou fazer amanhã' iam para o LLM,
+  que respondia 'você não tem tarefas' SEM consultar nada. Agora leem a
+  Agenda de verdade (`days=1/2`), com guarda para 'no sistema'/'no drive'
+  continuarem fora.
+- **fix(intents): título não herda preposição** — 'agende a reunião com o
+  pedro' virava título `'com o pedro'` e 'registre a reunião de amanhã'
+  `'de'`; o conector 'com o/a' entrou na limpeza e o artigo só é cortado
+  quando termina em espaço/fim de frase (sem cortar `'atas'` → `'tas'`).
+- **fix(orchestrator): rota verdadeira no 'sim' que executa a luz** — o
+  ramo do stream não reatribuía `route_detail` (default do `safe_math`):
+  toda execução de luz saía na telemetria como `fastpath:math`. Agora
+  `fastpath:ha_device_control`, igual ao caminho síncrono. Mutação:
+  reatribuição removida → teste novo vermelho.
+- **fix(intents): lista grande avisa o corte** — o título contava tudo e a
+  lista cortava (Drive: '20 arquivo(s)' com 15 itens; Gmail: 'N' com 10)
+  → '… e mais N não listado(s)'.
+- **fix(cache): coluna `profile` = o perfil QUE PERGUNTOU** — `set()`
+  gravava `self._profile` (fixo, 'guardian') em vez do `profile=` do
+  orquestrador; **71/71 linhas** saíram como 'guardian'. Agora grava o
+  perguntador; as **21 linhas** erradas do banco foram reatribuídas
+  **pela chave** (make_key reproduz o par instância×perfil — 0 chaves não
+  reconhecidas, 0 ambíguas) por `runtime/llm_cache_saneamento.py`, com
+  snapshot em `backups/llm-cache-perfil-20261008-*.bak`.
+- **poda: 17 respostas devaneio fora do cache** (prova viva de 06-07/10) —
+  'CPU 31,7 °C na porta 5000', '10 Mbps. Estado verificado.', fase da lua
+  com 'Fonte: Open-Meteo — leitura real de agora', 4 curiosidades da Lua
+  com dados inventados, xintoísmo → cristianismo, recusas falsas de
+  Agenda, 'LLM gemma', 'sim, tenho acesso ao seu Drive', '/' como raiz do
+  Drive, 'sou o dono adm' e a recusa de criar compromisso. Snapshot com
+  **todas** as colunas (rollback `INSERT` executável) em
+  `backups/llm-cache-poda-20261008-*.bak`; a poda é idempotente.
+- **já estavam corrigidos (sem código novo):** identidade do modelo
+  (prompt declara 'Qwen — qwen2.5-coder-3b servido pelo llama-server' e
+  proíbe GPT/Claude) e o fuso na mensagem de sucesso do calendário
+  (entregues na 1.19.1) — os achados da auditoria eram mensagens antigas.
+- **Evidência:** suíte **2315 passed, 16 skipped** (**+16 testes** sobre
+  as 2299 da 1.19.1) · guardas de versão 9/9 · **3 mutações** detectadas e
+  restauradas (`route_detail` sem reatribuir, verbos de agenda fora da
+  regex, coluna `profile` de volta ao fixo).
+
+---
+
 ## [1.19.1] — ESCRITA NO AR + 2 BUGS DA PROVA VIVA CORRIGIDOS ✍️🧪 (2026-10-07)
 
 - **feat(google) NO AR:** o dono re-autorizou (código capturado com os
@@ -86,6 +148,14 @@
   removido, confirmação eliminada, detetor fora da cadeia, consumo antes
   do sucesso, formatter sem ramo de escrita) · `flutter analyze` 0 ·
   `flutter test` 131/2.
+- **registro retroativo do CI (feito em 08/10, não anotado na época):**
+  o run **37147058947** do commit `ced23cc` (03/10 19:12 UTC, 'site:
+  atualiza índice e APKs para v1.19.0+2039') terminou **VERMELHO** no
+  step `Suíte completa + gate de cobertura ≥ 90%` (exit 1) e ficou sem
+  registro aqui — a cadeia só voltou a verde em `a7c3e1d` (07/10 16:19).
+  Achado pela consulta à API de Actions na auditoria das conversas de
+  08/10; a nota existe para o histórico não parecer ininterruptamente
+  verde.
 
 ---
 

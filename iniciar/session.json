@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-07T23:52:57-03:00",
+  "updated_at": "2026-10-08T00:50:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1289,10 +1289,10 @@
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
   "last_turn": {
-    "date": "2026-10-07",
-    "retomada": "23:5x 'leia as conversas do chat e encontre inconsistências' (conversas do SISTEMA): li as 230 mensagens de conversation_messages (29/09→07/10) + as 71 de llm_cache e cruzei com o código e com a API do GitHub.",
-    "action": "Achados publicados em iniciar/2026-10-07_conversa_omegadrakon.md §8: C1 identidade (GPT-4/gemma/Qwen), C2 agenda (recusa cacheada 45 min após criar compromisso real; causa = verbos 'marque/agende' fora de _GOOGLE_W_CRIAR_RE), C3 drive sim/não, C4 dólar 3 valores, C5 fuso 15:00 vs 18:00, C6 instrução não persistida; 3 respostas imitando ferramenta ([618] fase da Lua, [660] 10 Mbps, [664] porta 5000) sem nenhuma action que as sustente; metadados (llm_cache.profile 71/71 guardian, fastpath:math em execução real, '20 arquivos' listando 15); cache herdado da pré-zerada; CI vermelho ced23cc nunca registrado.",
-    "next": "Aguardar decisão do dono sobre o que corrigir (sugestão em ordem: verbos de agenda → saída do cache dos devaneios → reatribuição de route_detail → coluna profile do cache → registro do CI vermelho no CHANGELOG/03-10). Nada pendente de deploy."
+    "date": "2026-10-08",
+    "retomada": "Dono: 'faça as correções necessárias' (pedido dos 5 itens sugeridos em txt.txt após a análise §8).",
+    "action": "Correções executadas: intents (verbos de agenda, 'reunião' singular, pergunta diária sem dizer 'agenda', título sem preposição, aviso de corte Drive/Gmail), orchestrator (route_detail no 'sim' da luz), cache (coluna profile = perguntador) + runtime/llm_cache_saneamento.py aplicado no banco (21 profiles corrigidos pela chave, 17 devaneios podados com snapshot) + CHANGELOG [1.19.2] sandbox e nota retroativa do CI vermelho em [1.19.0].",
+    "next": "Pedir autorização para deploy + bump 1.19.2; decidir escopo da C6 (instrução do dono não persiste); observar o flake do teste de MQTT."
   },
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
@@ -1399,5 +1399,35 @@
     "cache_pre_zerada": "Zerada de 29/09 apagou só o histórico (llm_cache intacto, decisão registrada): em 30/09 21:14 os 7 perfis serviram a saudação gravada em 27/09 12:49. Ids começam em 465 = efeito da zerada, NÃO bug.",
     "divergencia_ci": "Chat [646]/[652] 03/10 mostra 'Run failed: CI (ced23cc)'; API GitHub run 37147058947 = failure no gate de cobertura. Transcrição de 03/10 fecha em 'CI VERDE 433458e' (12:49) e nunca registra a quebra 3h depois. E o 'SISTEMA 100%' de 07/10 14:2x foi declarado antes do devaneio [694] das 15:06.",
     "estado": "ANÁLISE PUBLICADA — 6 contradições diretas, 3 imitações de ferramenta com dado inventado, 4 problemas de metadado, 1 cache herdado, 1 divergência de CI. Só registro, nenhum deploy."
+  },
+  "correcoes_auditoria_conversas_2026_10_08": {
+    "pedido": "Dono (chat, 08/10 00:1x): 'faça as correções necessárias' — os 5 itens sugeridos em txt.txt após a análise §8.",
+    "codigo": [
+      "core/intents.py: _GOOGLE_W_CRIAR_RE casa marcar/agendar/colocar/anotar/registrar (antes 'Marque na agenda um compromisso' não casava nada e 'coloque na minha agenda um compromisso' caía na LEITURA de eventos).",
+      "core/intents.py: _GOOGLE_W_CAL_RE passa a casar 'reunião' no singular (o padrão antigo reuni[õo]es? só via 'reuniões').",
+      "core/intents.py: pergunta diária sem dizer 'agenda' ('o que tem pra hoje' / 'tenho algo hoje' / 'o que vou fazer amanhã') vira google_calendar_events days=1/2, com guarda para 'no sistema'/'no drive'.",
+      "core/intents.py: _GOOGLE_W_ARTIGO_RE tira artigo/preposição no fim da frase e o conector 'com o/a' ('com o pedro'/'de' saíam como título); sem cortar 'atas' -> 'tas'.",
+      "core/intents.py: Drive e Gmail avisam o corte ('… e mais N não listado(s)') — titulo contava 20 e a lista mostrava 15.",
+      "core/orchestrator.py: ramo do stream da confirmacao de luz reatribui route_detail = 'ha_device_control' (antes ficava no default 'math' -> telemetria fastpath:math).",
+      "memory/cache.py: set() grava na coluna profile o 'profile=' do orquestrador (o perfil que perguntou), nao o self._profile fixo."
+    ],
+    "banco": {
+      "script": "runtime/llm_cache_saneamento.py (novo; dry-run default, --so perfis|poda, --apply)",
+      "perfil": "21 linhas com profile errado reatribuidas PELA CHAVE (make_key reconstroi o par instancia x profile=) — 0 nao reconhecidas, 0 ambiguas; agora 54/54 corretas",
+      "poda": "17 respostas devaneio removidas (CPU 31,7C porta 5000, 10 Mbps, fase da lua com 'Fonte: Open-Meteo', 4 curiosidades da Lua inventadas, xintoismo->cristianismo, recusas de Agenda, 'LLM gemma', 'sou o dono adm', 'tenho acesso ao seu Drive', '/' como raiz do Drive, 'crie uma sckill…')",
+      "snapshots": [
+        "backups/llm-cache-perfil-20261008-004020.bak",
+        "backups/llm-cache-poda-20261008-004020.bak"
+      ],
+      "idempotente": "segunda rodada: 0 a corrigir, 0 a podar"
+    },
+    "registro": "CHANGELOG [1.19.2] nova secao marcada SANDBOX — SEM DEPLOY; nota retroativa do CI vermelho (run 37147058947 do ced23cc, 03/10 19:12Z, step 'Suíte completa + gate de cobertura >= 90%' exit 1; verde so em a7c3e1d) dentro de [1.19.0]; transcricao iniciar/2026-10-07_conversa_omegadrakon.md §9.",
+    "validacao": "Suíte 2315 passed, 16 skipped (+16 testes sobre as 2299 da 1.19.1) · guardas de versão 9/9 · gate de cobertura 90,11% · 3 mutações detectadas e restauradas (route_detail sem reatribuir; verbos fora da regex; coluna profile de volta ao fixo)",
+    "pendencias": [
+      "Deploy + bump 1.19.2 (checklist VERSIONAMENTO §5 + restart) — exige autorização do dono (regra 13).",
+      "C6: instrução do dono ('quando pergunto isso olhe minha agenda') não persiste — feature nova, escopo a decidir.",
+      "Flake: tests/test_mqtt.py::TestBridgeLifecycle::test_start_stop_thread falha intermitente também no worktree limpo do HEAD (1x em 3) — não é regressão, mas pode deixar o CI vermelho.",
+      "C1 (identidade) e C5 (fuso) já estavam corrigidos em código desde a 1.19.1; os achados da auditoria eram mensagens antigas. C3 (Drive) e C4 (dólar) resolvidos por estado/cache, não por código."
+    ]
   }
 }

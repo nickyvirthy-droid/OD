@@ -199,3 +199,91 @@ abaixo é o que ela NÃO alcançou (30/09 21:14 em diante) + metadados.
 **Estado:** análise publicada — 6 contradições diretas, 3 imitações de
 ferramenta com dado inventado, 4 problemas de metadado, 1 cache
 herdado, 1 divergência de CI. Nenhum deploy envolvido (só registro).
+
+## 9. Correções da auditoria executadas (08/10 00:1x — pedido do dono)
+
+Pedido: **"faça as correções necessárias"** (chat; o relatório com a
+pergunta "o que corrigir" tinha ido para o `txt.txt`).
+
+### 9.1 Código (commit nesta sessão)
+
+- `core/intents.py`
+  - `_GOOGLE_W_CRIAR_RE` passou a casar **marcar/marque/marcamos,
+    agendar/agende/agendando, colocar/coloque/coloco, incluir/inclua,
+    anotar/anote, registrar/registre/registra** — antes
+    'Marque na agenda um compromisso' caía em NENHUMA intenção e
+    'coloque na minha agenda um compromisso' caía na **leitura**
+    de eventos (`google_calendar_events`).
+  - `_GOOGLE_W_CAL_RE`: `reuni[õo]es?` **não casa 'reunião'** (singular)
+    — 'agende uma reunião' nem chegava à Agenda. Agora
+    `reuni(?:[ãa]o|[õã]es|oes)`.
+  - Pergunta diária sem dizer 'agenda' (`_GOOGLE_O_QUE_TEM_RE`):
+    'o que tem pra hoje' / 'tenho algo hoje' / 'o que vou fazer amanhã'
+    → `google_calendar_events` (days 1/2), com guarda para
+    'no sistema'/'no drive' continuarem fora. Era a frase que gerou o
+    devaneio 'você não tem tarefas' ([660]/[664]).
+  - `_GOOGLE_W_ARTIGO_RE`: artigo/preposição sai também no **fim da
+    frase** e o conector 'com o/a' entrou ('agende a reunião com o pedro'
+    virava título `'com o pedro'`; `'registre a reunião de amanhã'` →
+    `'de'`). `\s+`/`$` obrigatório para não cortar `'atas'` → `'tas'`
+    (pego pelo teste existente `test_extrai_parametros`).
+  - Drive/Gmail: título contava tudo, lista cortava (20 → 15) →
+    '… e mais N não listado(s)'.
+- `core/orchestrator.py` — ramo do **stream** da confirmação de luz não
+  reatribuía `route_detail` (default do `safe_math`): execução real
+  gravada como `fastpath:math`. Agora `fastpath:ha_device_control`
+  (igual ao caminho síncrono, que já atribuía certo).
+- `memory/cache.py` — `set()` gravava `self._profile` (fixo: guardian)
+  na coluna `profile` em vez do `profile=` do orquestrador.
+
+### 9.2 Banco (`runtime/llm_cache_saneamento.py`, novo)
+
+- **21 linhas** com `profile` errado reatribuídas **pela chave**
+  (make_key reproduz o par instância × `profile=`): 0 chaves não
+  reconhecidas, 0 ambíguas → agora 54/54 corretas.
+- **17 respostas devaneio podadas** (prova viva de 06-07/10): CPU
+  31,7 °C na porta 5000, 10 Mbps, fase da lua com 'Fonte: Open-Meteo',
+  4 curiosidades da Lua inventadas, xintoísmo → cristianismo, recusas de
+  Agenda ('como está minha agenda' ×2, 'Marque na agenda…'),
+  'LLM gemma', 'sou o dono adm', 'tenho acesso ao seu Drive', '/' como
+  raiz do Drive, 'crie uma sckill…' que não criou nada.
+- Snapshots de rollback em `backups/llm-cache-perfil-20261008-0040*.bak`
+  e `backups/llm-cache-poda-20261008-004020.bak` (poda com TODAS as
+  colunas, `INSERT` executável); gitignorado por `backups/*.bak`.
+  Dry-run é o default da CLI; a segunda rodada não acha nada (idempotente).
+
+### 9.3 Registro
+
+- `docs/CHANGELOG.md`: seção nova **[1.19.2] — CORREÇÕES DA AUDITORIA
+  DAS CONVERSAS**, marcada **SANDBOX — SEM DEPLOY** (servidor segue em
+  1.19.1; bump só no deploy, regra 13); e nota **retroativa do CI
+  vermelho** em `[1.19.0]` (run 37147058947 do `ced23cc`, 03/10 19:12
+  UTC, step 'Suíte completa + gate de cobertura ≥ 90%' exit 1; verde só
+  em `a7c3e1d`).
+
+### 9.4 Evidência
+
+- Suíte **2315 passed, 16 skipped** (+16 testes sobre as 2299 da
+  1.19.1) · guardas de versão 9/9 · **gate de cobertura 90,11%** (meta
+  90, `pytest --cov --cov-config=.coveragerc --cov-fail-under=90`).
+- **3 mutações detectadas** e restauradas bit-exato: `route_detail` sem
+  reatribuir → `test_ws_tambem_injeta_user_id_e_executa` vermelho;
+  verbos fora da regex → 2 testes de `TestGoogleIntents` vermelhos;
+  coluna `profile` de volta ao fixo → `TestCacheDB` +
+  `TestProfileGravado` vermelhos.
+
+### 9.5 Pendências (não feitas — fora do pedido ou exigem decisão)
+
+1. **Deploy + bump 1.19.2** — checklist do `VERSIONAMENTO.md` §5
+   (`.env`, capabilities, pubspec, `_APP_VERSION_CODE`, site, README de
+   versão) + restart do serviço: **exige autorização do dono**.
+2. **C6 — instrução do dono não persiste** ('quando pergunto isso você
+   deve olhar minha agenda'): viraria memória de instruções; é feature,
+   precisa de escopo + bump MINOR.
+3. **Teste intermitente:** `tests/test_mqtt.py::TestBridgeLifecycle::
+   test_start_stop_thread` falhou 1x em 3 aqui e 1x em 3 no worktree
+   limpo (HEAD) — flake de timing no `stop()`/thread, **não** regressão
+   destas correções, mas pode deixar o CI vermelho sem motivo.
+
+**Estado:** correções em sandbox, commitadas e publicadas; nada de
+deploy/restart feito.
