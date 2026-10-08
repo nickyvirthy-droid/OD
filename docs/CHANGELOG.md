@@ -14,6 +14,54 @@
 
 ---
 
+## [1.21.0] — CANAL DE DESENVOLMENTO: OS 3 COMPORTAMENTOS DO ▶ ATIVAR 🧠 (2026-10-08)
+
+> **DEPLOY AUTORIZADO PELO DONO (08/10, escolha 'Sim, deploy 1.21.0 completo').**
+> Pedido: 'txt.txt são as minhas ideias de melhoria. se estiver vazio e
+> clicar em Ativar desenvolvimento não deve fazer nada. se o texto for o
+> mesmo de uma sessão concluída avisa que já foi implementado e se desejo
+> limpar. se for uma nova conversa ai sim analisa a possibilidade de
+> implementação, verifica os pros e contras, sugere alternativas melhores e
+> implementa com a melhor opção.' Checklist §5 completo: `.env 1.21.0` ·
+> capabilities · `pubspec 1.21.0+2048` · `_APP_VERSION_CODE=2048` · `site 2x` ·
+> APKs rebuildados · restart do `od-core` (regra 13).
+
+1. **`txt.txt` vazio → não faz nada** — o ▶ Ativar (site e app) nem abre o
+   diálogo nem chama o servidor quando a prévia do `txt.txt` está vazia
+   (mensagem 'nada a ativar'); se a chamada chegar por fora, o contrato
+   antigo `400 sem_ideia` segue valendo, **sem Popen e sem estado**.
+2. **Ideia igual a uma sessão CONCLUÍDA → aviso + limpeza** — novo
+   histórico `data/dev_historico.json` no módulo **`core/dev_canal.py`**
+   (compartilhado por propósito: quem grava é o runner, quem lê é o
+   painel — os dois precisam da MESMA normalização). O orquestrador
+   registra a ideia ao fim de toda sessão `concluido` (dedup por hash da
+   forma normalizada: espaços, quebras e caixa não mudam o texto) e o
+   `_sessao_ativar` responde **`409 ja_implementado` com
+   `commit`/`ts`/`motivo` no corpo** (`APIError` ganhou `extra`; o handler
+   monta o payload sem deixar o extra mascarar `ok`/`error`). O painel
+   pergunta 'Limpar o txt.txt agora?' → `DELETE /admin/ideias`; Cancelar
+   mantém o texto (para rodar de novo, é editar a ideia). Só `concluido`
+   bloqueia — sessão que falhou pode ser tentada de novo — e o runner
+   recusa também (`exit 3`), para quem o chamar direto.
+3. **Ideia nova → ANÁLISE antes do código** — o `INSTRUCAO_SESSAO` passa a
+   exigir o bloco **`[ANALISE]…[FIM ANALISE]`** (viabilidade · prós ·
+   contras · alternativas · escolha); o runner extrai
+   (`extrair_analise`), publica na **caixa de desenvolvimento** e grava em
+   `estado["analise"]` (exibido no painel do site e do app). Só depois a
+   CLI implementa **SÓ a melhor opção**, com suíte verde antes do commit.
+   Análise ausente não quebra a sessão (o prompt pede; quem responde é um
+   modelo) e `[FIM ANALISE]` esquecido não perde o bloco.
+4. **Paridade do app** — `OdApiError` ganhou `details` (corpo do erro do
+   servidor); `_ativarSessao` devolve no vazio, oferece a limpeza no
+   `ja_implementado` e mostra `análise:`; copy do card igual ao site.
+5. **Teste do teste:** 5 mutações detectadas e restauradas bit-exato
+   (histórico ignorado no servidor · campos `extra` fora do erro ·
+   registrando sessão que falhou · normalização quebrada · análise sem
+   corte no `[FIM ANALISE]`).
+6. **Resultado:** Suíte **2390 passed, 16 skipped** (+23) · guardas de
+   versão 9/9 · cobertura **90,18%** (gate 90) · `node --check` verde ·
+   `flutter analyze` 0 issues · `flutter test` **134 passed** (+1).
+
 ## [1.20.2] — CANAL LOGO ABAIXO DAS IDEIAS NO SITE + APP EM PARIDADE 📱 (2026-10-08)
 
 > **DEPLOY AUTORIZADO PELO DONO (08/10, escolha 'Deploy 1.20.2 completo').**

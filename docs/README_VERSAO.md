@@ -7,6 +7,23 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.21.0] — CANAL DE DESENVOLMENTO: OS 3 COMPORTAMENTOS DO ▶ ATIVAR 🧠 (2026-10-08)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono (08/10)** | 'txt.txt são as minhas ideias de melhoria. se estiver vazio e clicar em Ativar desenvolvimento não deve fazer nada. se o texto for o mesmo de uma sessão concluída avisa que já foi implementado e se desejo limpar. se for uma nova conversa ai sim analisa a possibilidade de implementação, verifica os pros e contras, sugere alternativas melhores e implementa com a melhor opção.' |
+| **(1) `txt.txt` vazio** | ▶ Ativar (site e app) não abre diálogo nem chama o servidor quando a prévia está vazia — mensagem 'nada a ativar'; por fora, o contrato `400 sem_ideia` continua sem Popen e sem estado. |
+| **(2) Ideia repetida** | `core/dev_canal.py` (NOVO): histórico `data/dev_historico.json` gravado pelo runner no fim de toda sessão `concluido`, lido pelo painel; comparação por **hash da forma normalizada** (espaços/quebras/caixa irrelevantes) → `409 ja_implementado` **com `commit`/`ts`/`motivo`** (`APIError.extra`) → painel pergunta 'Limpar o txt.txt agora?' → `DELETE /admin/ideias`. Só `concluido` bloqueia; runner recusa também (`exit 3`). |
+| **(3) Ideia nova** | `INSTRUCAO_SESSAO` exige o bloco `[ANALISE]…[FIM ANALISE]` (viabilidade · prós · contras · alternativas · escolha); `extrair_analise` publica na **caixa** e grava `estado["analise"]` (painel site + app) antes de a CLI implementar SÓ a melhor opção. |
+| **App** | `OdApiError.details` com o corpo do erro; `_ativarSessao` devolve no vazio, oferece limpeza no `ja_implementado` e exibe `análise:`; copy do card igual ao site. |
+| **Resultado** | Suíte **2390 passed, 16 skipped** · guardas de versão 9/9 · cobertura **90,18%** (gate 90) · **5 mutações** detectadas e restauradas bit-exato · `flutter analyze` limpo · `flutter test` **134 passed** (+1). |
+
+### 2. bump MINOR
+
+Infra visível no repo: `.env 1.21.0` · capabilities fallback `1.21.0` · `pubspec 1.21.0+2048` · `_APP_VERSION_CODE=2048` · `site 2x` · APKs rebuildados · `CHANGELOG [1.21.0]` · este README · restart do `od-core` (regra 13).
+
 ## [1.20.2] — CANAL LOGO ABAIXO DAS IDEIAS NO SITE + APP EM PARIDADE 📱 (2026-10-08)
 
 ### 1. O que foi feito
