@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T14:35:00",
+  "updated_at": "2026-10-08T14:55:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1600,5 +1600,37 @@
     ],
     "txt_do_dono": "txt.txt (08:35, 7 linhas) — NOVO PEDIDO, ainda não tratado: mudar a fila do orquestrador para não ficar sempre online; botão 'Ativar desenvolvimento' no painel /admin escolhe a CLI e roda como o modo manual; 'caixa do desenvolvimento' serve para pedir AUTORIZAÇÃO do dono quando necessário; fluxo: dono escreve a ideia em ideias txt.txt → aperta Ativar → orquestrador escolhe a CLI, lê iniciar/, docs/ e txt.txt → CLI implementa e, se precisar de autorização, pergunta na caixa de desenvolvimento. Obs.: arquivo ideias.txt ainda NÃO existe na raiz; hoje o canal é /admin/dev/pedido (POST/GET/DELETE) + seção de ideias do /admin (PUT/DELETE /admin/ideias) ligadas ao od-orchestrator sempre ativo.",
     "estado": "RETOMADA CONCLUÍDA — sistema em verde (v1.19.5+2044 no ar, nada reiniciado). Aguardando tratamento do pedido novo do txt.txt (redesenho do canal de desenvolvimento)."
+  },
+  "desenho_canal_dev_2026_10_08": {
+    "pedido": "Dono: 'desenhe' — desenho do novo canal de desenvolvimento proposto no txt.txt (08:35).",
+    "arquitetura": [
+      "Runner: orquestrador.py ganha MODO SESSÃO (python orquestrador.py --sessao --cli auto|freebuff|opencode|kilo) — lê a ideia no txt.txt, monta prompt de CONTEXTO (lê iniciar/ + docs/ + txt.txt), executa a CLI em cascata no cwd do repo, valida no fim (diff + suíte) e NUNCA commita/pusha/reinicia/toca .env.",
+      "Estado: data/dev_sessao.json (ativo, pid, cli, status: preparando|executando|aguardando_autorizacao|validando|concluido|falhou|parado, timestamps, tail) — escrito atomicamente pelo runner, lido pelo painel.",
+      "Caixa de desenvolvimento: data/dev_caixa.json — mensagens {id, ts, de: sistema|dono, tipo: pedir_autorizacao|info|resposta, texto, respondida}; CLI one-shot pede autorização via marcador '[AUTORIZACAO] pergunta' no stdout → runner pausa, publica na caixa e espera a resposta do dono (timeout 30 min) → retoma com nova chamada da mesma CLI.",
+      "Ativar/Parar: od-core spawna o runner com Popen(start_new_session=True) — sobrevive a restart do od-core; Parar = SIGTERM no pid do estado."
+    ],
+    "rotas_novas": [
+      "POST /admin/dev/sessao {acao:ativar|parar, cli?} → 409 se já ativa, 400 sem ideia no txt.txt",
+      "GET /admin/dev/sessao → estado + tail do log + caixa pendente",
+      "GET/POST/DELETE /admin/dev/caixa → ler / responder / limpar"
+    ],
+    "painel": "Seção 'Canal de desenvolvimento' do /admin ganha pill da sessão (parada/executando/aguardando autorização), botão ▶ Ativar (usa o txt.txt; seletor de CLI), ⏹ Parar, caixa de desenvolvimento (perguntas do sistema + campo de resposta) e tail do log; rotas antigas /admin/dev/pedido (fila) mantidas como modo avançado.",
+    "arquivos": [
+      "orquestrador.py (modo sessão + seleção de CLI + protocolo de autorização + validação final)",
+      "integrations/api/server.py (2 rotas de sessão + 3 da caixa + spawn + HTML/JS do painel; guarda ROUTES 45→50)",
+      "tests/test_api.py + tests/test_orquestrador.py (novos TestSessaoDesenvolvimento e do protocolo de marcador)",
+      "deploy/od-orchestrator.service (disparar por padrão — desativar o always-on, decisão do dono)",
+      "docs/CHANGELOG.md + docs/DESIGN_CANAL_DEV.md + iniciar/ (registro)"
+    ],
+    "validacao": "Suíte completa + guardas de versão 9/9 + cobertura ≥90 + 3-5 mutações + node --check do painel + prova de ponta a ponta com ideia-prova antes do deploy (regra 13: deploy com autorização).",
+    "versao": "Feature nova compatível → MINOR 1.20.0 (bump no deploy, checklist §5, versionCode 2045).",
+    "decisoes_pendentes": [
+      "1) Ideia vem do txt.txt (seção Ideias, recomendado — já existe) ou arquivo novo ideias.txt?",
+      "2) A sessão pode commitar (sem push) ou deixa tudo no working tree para revisão? (recomendado: SEM commit — diff para revisão)",
+      "3) Desativar od-orchestrator.service por padrão (disable) — autoriza?",
+      "4) CLI default: automática (cascata) ou escolha no painel?",
+      "5) Timeout de autorização (30 min proposto) e quem faz o deploy depois (eu, com autorização)."
+    ],
+    "estado": "DESENHO ENTREGUE NO CHAT — aguardando decisões do dono (1–5) antes de implementar em sandbox."
   }
 }
