@@ -1721,5 +1721,34 @@
     ],
     "estado": "CONCLUÍDO — no ar em 1.20.1+2046; canal lê o txt.txt, fila pedido.txt fora do sistema; controles continuam na seção 'Canal de desenvolvimento'.",
     "ts": "2026-10-08T16:55:55-03:00"
+  },
+  "ui_canal_abaixo_ideias_app_paridade_2026_10_08": {
+    "pedido": "Dono: 'No site o Canal de Desenvolvimento deve ficar logo abaixo do Ideias (txt.txt). O APP não está refletindo essas atualizações, deixe igual.' Deploy autorizado ('Deploy 1.20.2 completo').",
+    "mudanca": {
+      "site": "HTML do /admin reordenado: Sistema -> Ideias (txt.txt) -> Canal de desenvolvimento -> Limitações -> Contas; guarda nova test_ordem_no_painel_canal_logo_abaixo_das_ideias trava a ordem e a seção inteira entre as duas",
+      "app_ui": "UI da fila (Injetar/Esvaziar em /admin/dev/pedido, já 404) virou a sessão on-demand igual ao site: ▶ Ativar/Parar, seletor de CLI, pill de estado (pid + autorizações pendentes), info (ideia/CLI/rodada/testes/diff/commit/motivo), caixa com resposta + limpar, log; confirmação do Ativar mostra trecho do txt.txt; cards na ordem Ideias -> Canal -> Limitações; auto-refresh 5 s enquanto ativa/pendente",
+      "od_api": "fora getDevPedidoStatus/adminInjectPedido/adminClearPedido; entram getDevSessao, adminDevSessao(acao, cli), getDevCaixa, adminDevCaixaReply, adminDevCaixaClear + mapa de erros pt-BR (sem_ideia...)"
+    },
+    "bump": {
+      "versao": "1.20.2+2047 (PATCH — ordem de UI + paridade do app)",
+      "itens": ".env OD_VERSION=1.20.2 · capabilities fallback 1.20.2 · pubspec 1.20.2+2047 · _APP_VERSION_CODE=2047 · site/index.html 2x · CHANGELOG [1.20.2] · README_VERSAO [1.20.2]",
+      "apks": "rebuild universal + split-per-abi; aapt2 versionCode='2047' versionName='1.20.2'; sha256 universal 9cc29412f707cc101a23e5af7e7ed60feef726c49b2becef7eaf546e6f61fbf7, arm64 7b09d8f4… — GET /app/version anuncia 2047 com esse sha256",
+      "app_flutter": "flutter analyze No issues · flutter test 133 passed (+2 testes da sessão/caixa, −5 da fila)"
+    },
+    "validacao_final": "suíte canônica 2367 passed, 16 skipped · cobertura 90,17% (gate 90) · guardas de versão 9/9 · 1 mutação detectada e restaurada bit-exato (seções de volta à ordem antiga) · node --check no JS do painel verde",
+    "servicos": {
+      "od-core": "restart 17:22:36, PID 861929; journal desde o restart: 0 erros; health ok; capabilities 1.20.2"
+    },
+    "prova_viva": {
+      "ordem": "GET /admin -> Sistema -> Ideias (txt.txt) -> Canal de desenvolvimento -> Limitações -> Contas; trecho entre as duas contém id sess-ativar e nada da fila ('Fila manual'/'dev-texto' ausentes)",
+      "app": "GET /app/version -> version_code 2047 + sha256 9cc29412… (bate com site/OmegaDrakon.apk publicado)",
+      "saude": "GET /health up; /capabilities 1.20.2"
+    },
+    "publicacao": [
+      "902562e feat(ui): Canal de desenvolvimento logo abaixo das Ideias + app em paridade",
+      "0ceb962 chore(deploy): 1.20.2+2047 — canal abaixo das ideias + app em paridade"
+    ],
+    "estado": "CONCLUÍDO — no ar em 1.20.2+2047; site com o canal logo abaixo das ideias e app igual ao painel.",
+    "ts": "2026-10-08T17:23:12-03:00"
   }
 }
