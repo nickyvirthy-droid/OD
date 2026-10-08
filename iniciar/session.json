@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T14:55:00",
+  "updated_at": "2026-10-08T18:52:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1750,5 +1750,23 @@
     ],
     "estado": "CONCLUÍDO — no ar em 1.20.2+2047; site com o canal logo abaixo das ideias e app igual ao painel.",
     "ts": "2026-10-08T17:23:12-03:00"
+  },
+  "retomada_2026_10_08_3": {
+    "pedido": "Usuário: 'leia iniciar' — retomada (18:4x de 08/10).",
+    "leitura": "iniciar/README.md, RULES.md (15 regras), session.json (até o fim) e transcrição 2026-10-08 (§1–§9 + registro da tarde em §10).",
+    "estado_verificado": [
+      "git: HEAD 935e33c (docs do deploy 1.20.2) == origin/master, sem ahead/behind; working tree só com o snapshot untracked backups/llm-cache-fakes-20261008-055830.json (precedente: backups ficam fora do git).",
+      "od-core active desde 17:22:36, PID 861929, NRestarts=0; journal desde o restart: 0 entradas -p err (0 ERROR/CRIT/Traceback).",
+      "od-llm active; od-orchestrator inactive/disabled (decisão do dono — canal de desenvolvimento on-demand).",
+      "/app/version = 1.20.2 / 2047 / sha256 9cc29412… == site/OmegaDrakon.apk · /capabilities 1.20.2 · /health ok (orchestrator+llm up) · /supervision up, restarts 0, degraded [] · WS :8001 → 426.",
+      "/admin/dev/sessao: ativo=false, status=concluido (sessão-prova 1.20.0), caixa_pendente=0.",
+      "txt.txt inalterado desde 08:35 (pedido de lá já tratado no canal 1.20.0–1.20.2); pedido.txt não existe mais (fila excluída no 1.20.1)."
+    ],
+    "pendencias": [
+      "App do dono: update para 1.20.2+2047 já é oferecido pelo /app/version (2047 > 2046 instala por cima).",
+      "Nenhuma pendência de código: a última entrega (1.20.2+2047) está no ar, commitada e registrada."
+    ],
+    "estado": "RETOMADA CONCLUÍDA — sistema em verde (v1.20.2+2047 no ar, nada reiniciado nesta retomada); aguardando novo pedido do dono.",
+    "ts": "2026-10-08T18:52:00-03:00"
   }
 }

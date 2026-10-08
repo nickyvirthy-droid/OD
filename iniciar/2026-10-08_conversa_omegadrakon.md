@@ -218,3 +218,41 @@ app → re-login nas Configurações (alex/senha123), o teste mais barato;
   Definition of Done.
 - Aplicada de imediato: resumo do lote 1.19.5 enviado no Telegram
   (`message_id 2012`, `ok: true`).
+
+## 10. Tarde — canal de desenvolvimento on-demand (1.20.0 → 1.20.2)
+
+Registro detalhado em `iniciar/session.json`
+(`desenho_canal_dev_2026_10_08` → `ui_canal_abaixo_ideias_app_paridade_2026_10_08`):
+
+- **1.20.0+2045** (MINOR): `orquestrador.py --sessao --cli auto|…` lê a ideia
+  no **txt.txt**, monta prompt com `iniciar/` + `docs/` + `txt.txt`, roda a
+  CLI em cascata (Freebuff → OpenCode → Kilo), valida com a suíte e
+  **commita sem push**; caixa de autorização (`data/dev_caixa.json`,
+  marcador `[AUTORIZACAO]`, timeout 30 min) na seção **Canal de
+  desenvolvimento** do `/admin` (▶ Ativar / ⏹ Parar); 5 rotas novas
+  (`/admin/dev/sessao|caixa`), ROUTES 50→55; `od-orchestrator` saiu do
+  always-on (`disable --now`, decisão do dono).
+- **1.20.1+2046**: fonte da ideia passou a ser só o **txt.txt**; a fila
+  `pedido.txt` e suas rotas foram excluídas de ponta a ponta (ROUTES
+  55→52; `deploy/od-orchestrator.service` removido do repo).
+- **1.20.2+2047**: no `/admin` o **Canal de desenvolvimento ficou logo
+  abaixo de Ideias (txt.txt)** e o **app ganhou paridade** (sessão, CLI,
+  caixa e cards na mesma ordem; `od_api.dart` sem a fila morta).
+- Validações de cada bump: suíte canônica ~2367 passed/16 skipped,
+  cobertura 90,1x% (gate 90), guardas de versão 9/9, `node --check` no
+  JS do painel, mutações detectadas e restauradas bit-exato; APKs
+  `versionCode='2047' versionName='1.20.2'` publicados e conferidos pelo
+  `/app/version` (sha256 `9cc29412…`).
+
+## 11. Retomada — "leia iniciar" (18:4x)
+
+- od-core **active desde 17:22:36 (PID 861929, NRestarts=0)**,
+  journal 0 erros, `/health` ok, `/supervision` restarts 0,
+  `/app/version` 1.20.2/2047 == site, `/capabilities` 1.20.2,
+  WS :8001 → 426; `od-llm` active, `od-orchestrator` inactive/disabled.
+- git: **`935e33c` == origin/master**, árvore só com o snapshot untracked
+  `backups/llm-cache-fakes-20261008-055830.json` (precedente).
+- txt.txt inalterado desde 08:35 (pedido já tratado); caixa do
+  desenvolvimento sem pendência (0).
+- Pendência do dono: instalar o **1.20.2+2047** no app (o `/app/version`
+  já oferece). Nada pendente no código.
