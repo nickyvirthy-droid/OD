@@ -28,4 +28,6 @@ Esta pasta rege o modo como a sessão é conduzida. When in doubt, these rules w
 
 14. **Sem copiar/colar com o dono — canal é o `txt.txt` (2026-10-03):** o dono lê o chat pelo terminal (freebuff) e o copiar/colar NÃO funciona no fluxo dele. Nunca pedir para "copiar e colar" nem assumir que ele vai mover texto entre janelas. Para entregar a ele URLs, comandos, chaves ou textos longos: escrever no `txt.txt` (raiz do projeto — canal do dono, editável também pelo painel `/admin` e pelo app) e avisar no chat do que foi colocado lá; de preferência, entregar páginas com botões em `site/` para clicar em vez de digitar URLs. O dono também escreve no `txt.txt` — checá-lo quando houver troca de informação com ele.
 
+15. **Resumo de conclusão também no Telegram (2026-10-08):** ao concluir uma etapa (lote, deploy, entrega), além de responder no chat e registrar em `iniciar/`, enviar também o mesmo resumo no Telegram do dono (bot `TELEGRAM_BOT_TOKEN` do `.env`, chat `OD_TELEGRAM_ADMINS` — 660518870) via API `sendMessage`. O envio faz parte do Definition of Done da conclusão.
+
 Se precisar alterar uma regra, pode pedir. As regras podem ser ajustadas, mas devem ser ajustadas explicitamente.

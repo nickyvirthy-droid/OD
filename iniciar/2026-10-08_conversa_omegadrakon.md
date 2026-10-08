@@ -207,3 +207,14 @@ app → re-login nas Configurações (alex/senha123), o teste mais barato;
   → confirmação `'evento' em 07:00` · `marque um evento para as 7:30` →
   `07:30` · agenda final: **Nenhum compromisso nos próximos 7 dias**
   (nenhuma confirmação respondida — TTL 2 min).
+
+## 9. Nova regra 15 — resumo de conclusão também no Telegram (06:1x)
+
+- Dono: **"Nova regra. ao concluir mandar esse resumo no telegram também."**
+- Regra **15** criada em `iniciar/RULES.md`: toda conclusão de etapa (lote,
+  deploy, entrega) envia o MESMO resumo ao chat do dono no Telegram
+  (`sendMessage` com o bot do `.env`, chat `OD_TELEGRAM_ADMINS` = 660518870),
+  além do chat e do registro em `iniciar/` — o envio passa a fazer parte do
+  Definition of Done.
+- Aplicada de imediato: resumo do lote 1.19.5 enviado no Telegram
+  (`message_id 2012`, `ok: true`).

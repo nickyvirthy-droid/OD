@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T06:10:00",
+  "updated_at": "2026-10-08T06:15:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1580,5 +1580,12 @@
     ],
     "registro": "iniciar/2026-10-08_conversa_omegadrakon.md §8 + este session.json; commit+push pela regra 7.1.",
     "estado": "CONCLUÍDO E NO AR — v1.19.5+2044 implantada; agenda do dono limpa; cache sem respostas falsas."
+  },
+  "regra_15_resumo_no_telegram_2026_10_08": {
+    "pedido": "Dono: 'Nova regra. ao concluir mandar esse resumo no telegram também.'",
+    "regra": "Regra 15 criada em iniciar/RULES.md: ao concluir uma etapa (lote/deploy/entrega) enviar o mesmo resumo no Telegram do dono (bot TELEGRAM_BOT_TOKEN do .env, chat OD_TELEGRAM_ADMINS=660518870, sendMessage) além do chat e do registro — faz parte do Definition of Done.",
+    "aplicacao": "Resumo do lote 1.19.5 enviado na hora (message_id 2012, ok:true).",
+    "registro": "iniciar/RULES.md (regra 15) + transcrição §9 + este session.json.",
+    "estado": "CONCLUÍDO — regra vigente e já usada uma vez."
   }
 }
