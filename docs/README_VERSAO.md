@@ -7,6 +7,24 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.19.3] — AGENDA: HORA ANTES DO DIA + CRIAÇÃO ENCADEADA SEM LLM ⏰ (2026-10-08)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | 'corrija — mesmo dizendo as horas ele marca para o dia todo' (testes IDs 709–734 no chat); esclareceu: escrever NO site funciona, o defeito é o **sistema gravar NO site**. |
+| **Hora antes do dia** | `_GOOGLE_W_QUANDO_RE` captura 'para as 4:00 de hoje'/'para as 5 horas de hoje' (antes: só 'hoje às 16h'; a hora virava lixo do título e o create mandava date-only → DIA INTEIRO no Google). Fallback de título quando todo o resto era o quando ('crei um evento na agenda …' → 'evento'). |
+| **parse_when** | aceita '5 horas' sem a preposição 'às'; dia inteiro continua sendo a resposta certa quando o dono NÃO deu hora (nunca inventa). |
+| **Criação encadeada** | hint 'não entendi quando' guarda o título (`_CALENDAR_WHEN`, TTL 300 s); a frase 'hoje'/'amanhã às 16h' completa a MESMA criação no fastpath (stream + síncrono, com `user_id` — sem ele o 'sim' seguinte ficava pendurado em 'desconhecido', bug pego pelo próprio teste). Antes: a frase caía no LLM, que alucinava 'Marquei o compromisso…' sem API (ID 700 — 'Testar Agenda' nunca existiu). |
+| **Leitura/verbo** | `_GOOGLE_ASK_RE` + `mostre\|montre\|mostra[r]` (sem 'meus' ia ao LLM que ecoava a alucinação) · `_GOOGLE_W_CRIAR_RE` + `crei` (caía em leitura, IDs 727–728). |
+| **Teste do teste** | **6 mutações** detectadas e restauradas bit-exato (regex de quando; store da pendência; `user_id` do ramo encadeado; `mostre`; `crei`; fallback de hora sem 'às'). |
+| **Resultado** | Suíte **2325 passed, 16 skipped** (+7) · guardas de versão 9/9 · cobertura **90,06%** (gate 90). Prova de contrato: POST ao Google com `dateTime` 04:00, nunca `{"date": …}`. |
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.19.3` · capabilities fallback `1.19.3` · `pubspec 1.19.3+2042` · `_APP_VERSION_CODE=2042` · `site 2x` · APKs rebuildados (aapt2 `versionCode='2042' versionName='1.19.3'`) · `CHANGELOG [1.19.3]` · este README.
+
 ## [1.19.2] — CORREÇÕES DA AUDITORIA DAS CONVERSAS 🔍 (2026-10-08)
 
 ### 1. O que foi feito

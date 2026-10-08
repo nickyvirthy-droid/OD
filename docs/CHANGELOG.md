@@ -14,6 +14,44 @@
 
 ---
 
+## [1.19.3] — AGENDA: HORA ANTES DO DIA + CRIAÇÃO ENCADEADA SEM LLM ⏰ (2026-10-08)
+
+> **DEPLOY AUTORIZADO PELO DONO (08/10):** checklist do
+> `docs/VERSIONAMENTO.md` §5 completo — `.env` · capabilities · `pubspec
+> 1.19.3+2042` · `_APP_VERSION_CODE=2042` · `site 2x` · APKs rebuildados ·
+> restart do `od-core` (regra 13).
+
+Bugs reais do chat (IDs 723–734, 08/10): o dono pediu 'marque na agenda
+um compromisso para as 4:00 de hoje' e o evento nascia **dia inteiro** no
+Google; e 'Testar Agenda' nunca chegou a existir (o LLM alucinou o
+sucesso).
+
+- **fix(intents): hora ANTES do dia** — `_GOOGLE_W_QUANDO_RE` só via
+  'hoje às 16h'; 'para as 4:00 de hoje' deixava a hora no TÍTULO
+  ('compromisso para as 4:00 de') e mandava `quando='hoje'` →
+  `parse_when` devolvia date-only → `create_event` enviaba `{"date": …}`.
+  Agora a hora antes do dia entra no quando e sai do título; fallback de
+  título quando todo o resto era o quando ('crei um evento na agenda …'
+  → 'evento').
+- **fix(calendar): `parse_when` aceita '5 horas' sem 'às'** — dia
+  inteiro só quando o dono NÃO deu hora (nunca inventa hora).
+- **fix(actions,orchestrator): criação encadeada sem LLM** — o hint
+  'não entendi quando' guarda o título (`_CALENDAR_WHEN`, TTL 300 s) e a
+  frase seguinte ('hoje'/'amanhã às 16h') completa a MESMA criação no
+  fastpath, nos DOIS caminhos (stream e síncrono), com `user_id`. Antes
+  a frase caía no LLM, que alucinava 'Marquei o compromisso…' sem chamar
+  a API (ID 700: 'Testar Agenda' nunca existiu).
+- **fix(intents): leitura e verbo** — `_GOOGLE_ASK_RE` +
+  `mostre|montre|mostra[r]` ('me mostre os compromissos' sem 'meus' ecoava
+  a alucinação do cache em vez da Agenda real) · `_GOOGLE_W_CRIAR_RE` +
+  `crei` ('crei um evento…' caía em leitura).
+- **Testes:** +7 (`TestHoraAntesDoDia` × 6 + integração do encadeamento
+  no orquestrador). Suíte **2325 passed, 16 skipped** · guardas de versão
+  9/9 · cobertura **90,06%** (gate 90) · **6 mutações** detectadas e
+  restauradas bit-exato.
+
+OD // CORE
+
 ## [1.19.2] — CORREÇÕES DA AUDITORIA DAS CONVERSAS 🔍 (2026-10-08)
 
 > **DEPLOY AUTORIZADO PELO DONO (08/10):** checklist do
