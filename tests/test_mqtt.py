@@ -715,6 +715,58 @@ class TestBridgeLifecycle:
         finally:
             broker.stop()
 
+    @pytest.mark.asyncio
+    async def test_stop_no_meio_do_connect_nao_deixa_socket_aberto(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Corrida do stop() (08/10): o stop acontecia ENQUANTO o socket
+        abria — o while saía e nada desconectava, deixando a ponte 'parada'
+        com a conexão VIVA (o teste de ciclo de vida só acusava de vez em
+        quando: 1 em 3). O finally de run() é o último ponto garantido:
+        sem ele este teste fica vermelho na hora."""
+        broker = InMemoryBroker().start()
+        bridge = MQTTBridge(
+            MQTTClient("127.0.0.1", broker.port, client_id="od"),
+            config=bridge_config(),
+        )
+        try:
+            def connect_cruzado() -> bool:
+                bridge.stop()                 # stop no MEIO do connect
+                bridge.transport.connect()    # socket abre depois do stop
+                return True
+
+            async def poll_sem_espera(*args: object, **kwargs: object):
+                return None
+
+            monkeypatch.setattr(bridge, "connect", connect_cruzado)
+            monkeypatch.setattr(bridge, "poll_once", poll_sem_espera)
+            polls = await bridge.run(max_polls=3)
+            assert polls == 1  # ciclo morreu no _closed, sem loop infinito
+            assert not bridge.is_connected  # saiu SEM socket aberto
+        finally:
+            broker.stop()
+
+    def test_ponte_encerrada_nao_reconecta_e_start_reabre(self) -> None:
+        """connect() de uma ponte em stop() devolve False (nada de socket
+        novo depois do stop) e start() reabre — a guarda não mata o restart."""
+        broker = InMemoryBroker().start()
+        bridge = MQTTBridge(
+            MQTTClient("127.0.0.1", broker.port, client_id="od"),
+            config=bridge_config(),
+        )
+        try:
+            bridge.stop()
+            assert bridge.connect() is False
+            assert not bridge.is_connected
+            thread = bridge.start()
+            assert wait_for(lambda: bridge.is_connected)
+            bridge.stop()
+            thread.join(timeout=3)
+            assert not thread.is_alive()
+            assert not bridge.is_connected
+        finally:
+            broker.stop()
+
     def test_health_snapshot_dump(self) -> None:
         broker = InMemoryBroker().start()
         bridge = MQTTBridge(

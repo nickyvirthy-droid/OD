@@ -358,12 +358,16 @@ _GOOGLE_O_QUE_TEM_RE = re.compile(
 )
 _GOOGLE_MAIL_ASK_RE = re.compile(
     r"\b(meus?|minha|minhas|ver|listar|ler|leia|checar|checa|conferir|"
-    r"tenho|[uú]ltim[oa]s?|novos?|n[ãa]o\s+lid[ao]s?)\b",
+    r"tenho|[uú]ltim[oa]s?|novos?|n[ãa]o\s+lid[ao]s?|"
+    r"acessar|acessa[m]?|abra[m]?|consulte[m]?|olhe[m]?)\b",
     re.IGNORECASE,
 )
 _GOOGLE_ASK_RE = re.compile(
     r"\b(meus?|minha|minhas|ver|listar|ler|leia|quais|quantos|"
-    r"[uú]ltim[oa]s?|pr[óo]xim[oa]s?|hoje|amanh[ãa]|semana)\b",
+    r"[uú]ltim[oa]s?|pr[óo]xim[oa]s?|hoje|amanh[ãa]|semana|"
+    # verbos de ACESSO do dono (06/10): 'olhe/acessa minha agenda' era
+    # pedido explícito de leitura e caía no LLM.
+    r"acessar|acessa[m]?|abra[m]?|consulte[m]?|olhe[m]?)\b",
     re.IGNORECASE,
 )
 _GOOGLE_SECRET_RE = re.compile(

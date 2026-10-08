@@ -65,14 +65,27 @@ Achados da auditoria das 230 mensagens / 115 turnos gravados entre
   Drive, 'sou o dono adm' e a recusa de criar compromisso. Snapshot com
   **todas** as colunas (rollback `INSERT` executável) em
   `backups/llm-cache-poda-20261008-*.bak`; a poda é idempotente.
+- **fix(mqtt): ponte para SEM socket aberto** — `stop()` podia acontecer
+  entre a checagem de `_closed` do loop e o `connect()`: o socket abria
+  DEPOIS da desconexão e ficava vivo (ponte "parada" com conexão viva) —
+  era a corrida que deixava
+  `test_start_stop_thread` falhando 1 em 3 vezes (também no worktree
+  limpo). Agora `connect()` recusa ponte encerrada e `run()` desconecta
+  no `finally`; dois testes determinísticos + `start()` reabre.
+- **fix(intents): verbo de ACESSO é leitura** — 'olhe/acessa/consulte
+  minha agenda', 'acessa meus e-mails', 'abra o google drive' não casavam
+  com nenhum detetor (pedido real do dono em 06/10, [665]) e ia para o
+  LLM; agora são `google_*_list` (dado real).
 - **já estavam corrigidos (sem código novo):** identidade do modelo
   (prompt declara 'Qwen — qwen2.5-coder-3b servido pelo llama-server' e
   proíbe GPT/Claude) e o fuso na mensagem de sucesso do calendário
   (entregues na 1.19.1) — os achados da auditoria eram mensagens antigas.
-- **Evidência:** suíte **2315 passed, 16 skipped** (**+16 testes** sobre
-  as 2299 da 1.19.1) · guardas de versão 9/9 · **3 mutações** detectadas e
-  restauradas (`route_detail` sem reatribuir, verbos de agenda fora da
-  regex, coluna `profile` de volta ao fixo).
+- **Evidência:** suíte **2318 passed, 16 skipped** (**+19 testes** sobre
+  as 2299 da 1.19.1) · guardas de versão 9/9 · gate de cobertura
+  **90,10%** · **5 mutações** detectadas e restauradas (`route_detail`
+  sem reatribuir, verbos de agenda fora da regex, coluna `profile` de
+  volta ao fixo, `finally` do `run()` sem desconectar, `connect()` sem a
+  guarda de `_closed`).
 
 ---
 

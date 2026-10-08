@@ -521,6 +521,22 @@ class TestGoogleIntents:
         })
         assert drive is not None and "e mais" not in drive
 
+    def test_verbos_de_acesso_sao_leitura_deterministica(self) -> None:
+        """Pedido real do dono (06/10, [665] 'quando pergunto isso você deve
+        olhar minha agenda'): verbo de ACESSO sem 'quais/ver' caía no LLM.
+        Agora é leitura das actions — dado real, nunca o modelo."""
+        casos = [
+            ("acessar a agenda", "google_calendar_events"),
+            ("olhe minha agenda", "google_calendar_events"),
+            ("consulte minha agenda", "google_calendar_events"),
+            ("acessa meus e-mails", "google_gmail_list"),
+            ("abra o google drive", "google_drive_list"),
+        ]
+        for frase, acao in casos:
+            detectado = detect_action_intent(frase)
+            assert detectado is not None, frase
+            assert detectado[0] == acao, (frase, detectado)
+
     def test_pergunta_diaria_sem_dizer_agenda_vai_para_a_agenda(self) -> None:
         """'o que tem pra hoje' era a pergunta do dono e caía no LLM, que
         respondia 'você não tem tarefas' SEM consultar nada (devaneio

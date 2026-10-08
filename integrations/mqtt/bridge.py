@@ -129,6 +129,13 @@ class MQTTBridge:
 
     def connect(self) -> bool:
         """Conecta o transporte (e re-assina os filtros desejados)."""
+        if self._closed:
+            # Ponte encerrada NÃO reconecta: o stop() podia acontecer entre a
+            # checagem de `_closed` do loop e este connect — o socket abria
+            # DEPOIS da desconexão do stop e ficava vivo (corrida que deixava
+            # test_start_stop_thread intermitente e, na prática, a ponte
+            # 'parada' com conexão aberta). Achado em 08/10.
+            return False
         if self.is_connected:
             return True
         try:
@@ -354,24 +361,36 @@ class MQTTBridge:
             Número de polls executados.
         """
         polls = 0
-        while not self._closed:
-            if not self.connect():
-                await asyncio.sleep(self.config.reconnect_delay_s)
-                continue
+        try:
+            while not self._closed:
+                if not self.connect():
+                    await asyncio.sleep(self.config.reconnect_delay_s)
+                    continue
+                try:
+                    await self.poll_once()
+                except Exception as exc:  # pragma: no cover — ciclo nunca morre
+                    # Um erro inesperado do ciclo não pode encerrar a ponte: este
+                    # loop roda dentro do `asyncio.gather` do launcher, e a
+                    # exceção subiria derrubando o core inteiro (2026-09-15).
+                    self._last_error = f"poll: {exc}"
+                    self.metrics.errors += 1
+                    log.error(
+                        "Ciclo da ponte MQTT falhou", error=type(exc).__name__
+                    )
+                polls += 1
+                if max_polls is not None and polls >= max_polls:
+                    break
+        finally:
+            # Sair do loop = ponte encerrada (stop/close, ou exceção que o
+            # supervisor vai reiniciar): o transporte é desconectado AQUI, o
+            # último ponto garantido. Sem este finally, um connect() que
+            # escapasse da checagem de `_closed` ficava com o socket ABERTO
+            # depois do stop() (corrida provada pelo teste de ciclo de vida
+            # em 08/10 e pior na prática: ponte parada, conexão viva).
             try:
-                await self.poll_once()
-            except Exception as exc:  # pragma: no cover — ciclo nunca morre
-                # Um erro inesperado do ciclo não pode encerrar a ponte: este
-                # loop roda dentro do `asyncio.gather` do launcher, e a
-                # exceção subiria derrubando o core inteiro (2026-09-15).
-                self._last_error = f"poll: {exc}"
-                self.metrics.errors += 1
-                log.error(
-                    "Ciclo da ponte MQTT falhou", error=type(exc).__name__
-                )
-            polls += 1
-            if max_polls is not None and polls >= max_polls:
-                break
+                self.transport.disconnect()
+            except Exception:  # pragma: no cover
+                pass
         return polls
 
     def start(self) -> threading.Thread:
