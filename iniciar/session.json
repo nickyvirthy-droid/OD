@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-07T23:12:43-03:00",
+  "updated_at": "2026-10-07T23:52:57-03:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1290,9 +1290,9 @@
   },
   "last_turn": {
     "date": "2026-10-07",
-    "retomada": "23:12 'leia iniciar': verificação completa em verde — HEAD b367701 == origin/master, árvore limpa, od-core (PID 677660) no ar desde 14:19:52 com NRestarts=0, v1.19.1+2040 no /app/version com sha256 do APK igual ao de site/, /health up, /supervision restarts 0, journal 0 erros (191 linhas), txt.txt/pedido.txt vazios.",
-    "action": "Nada a fazer — sistema 100% desde a sessão de hoje (re-autorização Google com os 7 escopos, 2 bugs da prova viva corrigidos, bump 1.19.1+2040, ciclo criar→ler→apagar provado na agenda real).",
-    "next": "SEM PENDÊNCIAS. Aguardar pedido do dono (txt.txt/pedido.txt). Monitorar: [NICKY][WARN] 'Transporte indisponível' (WARN, 2x, auto-recuperado)."
+    "retomada": "23:5x 'leia as conversas do chat e encontre inconsistências' (conversas do SISTEMA): li as 230 mensagens de conversation_messages (29/09→07/10) + as 71 de llm_cache e cruzei com o código e com a API do GitHub.",
+    "action": "Achados publicados em iniciar/2026-10-07_conversa_omegadrakon.md §8: C1 identidade (GPT-4/gemma/Qwen), C2 agenda (recusa cacheada 45 min após criar compromisso real; causa = verbos 'marque/agende' fora de _GOOGLE_W_CRIAR_RE), C3 drive sim/não, C4 dólar 3 valores, C5 fuso 15:00 vs 18:00, C6 instrução não persistida; 3 respostas imitando ferramenta ([618] fase da Lua, [660] 10 Mbps, [664] porta 5000) sem nenhuma action que as sustente; metadados (llm_cache.profile 71/71 guardian, fastpath:math em execução real, '20 arquivos' listando 15); cache herdado da pré-zerada; CI vermelho ced23cc nunca registrado.",
+    "next": "Aguardar decisão do dono sobre o que corrigir (sugestão em ordem: verbos de agenda → saída do cache dos devaneios → reatribuição de route_detail → coluna profile do cache → registro do CI vermelho no CHANGELOG/03-10). Nada pendente de deploy."
   },
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
@@ -1372,5 +1372,32 @@
     "verificacao": "TUDO VERDE: HEAD b367701 == origin/master · árvore limpa (git status sem resíduos) · od-core active desde 14:19:52, PID 677660, NRestarts=0 · /app/version {1.19.1, 2040, sha256 4c6a9723… == site/OmegaDrakon.apk} · /health up (orchestrator/llm ok) · /supervision restarts 0, degraded [] · journal desde o restart: 191 linhas, 0 Traceback/ERROR/CRIT · txt.txt e pedido.txt vazios (sem recado do dono).",
     "pendencias": "Nenhuma pendência de deploy nem do dono. Único ruído: [NICKY][WARN] 'Transporte indisponível — aguardando...' (2 ocorrências, WARN, auto-recuperado) — fora do critério de erro.",
     "estado": "SESSÃO EM VERDE — v1.19.1+2040 no ar, escrita Google provada, nada pendente."
+  },
+  "analise_conversas_sistema_2026_10_07": {
+    "pedido": "Usuário: 'leia as conversas do chat e encontre inconsistências' — conversas do SISTEMA (não as transcrições de iniciar/).",
+    "amostra": "conversation_messages: 230 mensagens / 115 turnos, 29/09 14:00 → 07/10 15:06, users alex+teste, 7 perfis; llm_cache 71 entradas. Análise anterior analise_coerencia_2026_09_30 cobria 15 turnos (até 30/09 07:53) — D1/D2/D3 seguem valendo.",
+    "contradicoes_diretas": [
+      "C1 identidade: [494] GPT-4 · [498] gemma · [592]/[594] Qwen/qwen2.5-coder-3b — 4 versões, todas com llm_used=gemma-local",
+      "C2 agenda: [490] indisponível → [492] 3 tarefas INVENTADAS → [500] 'não tenho capacidade' → [666] Agenda real → [694] 07/10 '🚫 Não é possível criar novas agendamentos' 45 min APÓS [672]/[674] criarem 2 compromissos de verdade; recusa GRAVADA no llm_cache (use_count=1). Causa: _GOOGLE_W_CRIAR_RE (core/intents.py) não tem 'marque/agende/coloque'",
+      "C3 drive: [622] 'tenho acesso' vs [632] 'não tenho acesso direto' (2 min) — e as duas falsas (commit 20b724d só 17:25)",
+      "C4 dólar: [484] R$4,73 · [516/518/520] 'US$ 5.20 por real' (sentido invertido) · [524] AwesomeAPI R$5,184",
+      "C5 fuso: [672] confirma 15:00 → [674] sucesso 18:00 → [680] leitura 15:00",
+      "C6 instrução: [665] dono manda olhar a agenda → [666] cumpre → [692] 07/10 mesma pergunta volta ao LLM (prefixo '🌐 Atualizado:' imitando fastpath)"
+    ],
+    "imita_ferramenta": [
+      "[618] fase da Lua 'Fonte: Open-Meteo — leitura real de agora' com llm=gemma-local e 0 actions de fase da Lua no código — está no llm_cache",
+      "[660] '10 Mbps' — 0 actions de speedtest/mbps no código",
+      "[664] 'CPU 31.7°C na porta 5000' — nada escuta na 5000 e 0 referências a 5000 no código"
+    ],
+    "conteudo_fabricado": "Xintoísmo [570] responde cristianismo e [572] inventa fundador 'Chūkyō 1869' + 'cristianismo praticado por quase todos os japoneses'; Lua em 4 perfis [576]-[582] (pedra, maior que Marta, satélite Luna Menina, planeta, chinês '卫星'); [616] pergunta de chuva devolve clima atual; [658] 'O estado verificado.' incompleto.",
+    "metadados_que_mentem": [
+      "llm_cache.profile 71/71='guardian' mesmo para prompts de nexus/nyx/athenae (ex.: 'qual a velocidade da internet' do nexus 05/10). Causa: launcher.py:161 profile=OD_PROFILE + cache.py set() grava self._profile; a CHAVE está certa (make_key recebe profile= — 7 chaves p/ 'bom dia'), erra a coluna",
+      "Execução de luz gravada fastpath:math [508]/[512] — orchestrator.py:767 default 'math' e o ramo de confirmação (≈823) não reatribui; caminho síncrono (1188) e Google (843) atribuem certo",
+      "'20 arquivo(s)' listando 15 — intents.py:1310 usa len(files) e corta em [:15] sem avisar (mesmo padrão Gmail [:10])",
+      "[640] 10 emails '(sem assunto)' vs [646] com assunto — mesma action 11 min depois"
+    ],
+    "cache_pre_zerada": "Zerada de 29/09 apagou só o histórico (llm_cache intacto, decisão registrada): em 30/09 21:14 os 7 perfis serviram a saudação gravada em 27/09 12:49. Ids começam em 465 = efeito da zerada, NÃO bug.",
+    "divergencia_ci": "Chat [646]/[652] 03/10 mostra 'Run failed: CI (ced23cc)'; API GitHub run 37147058947 = failure no gate de cobertura. Transcrição de 03/10 fecha em 'CI VERDE 433458e' (12:49) e nunca registra a quebra 3h depois. E o 'SISTEMA 100%' de 07/10 14:2x foi declarado antes do devaneio [694] das 15:06.",
+    "estado": "ANÁLISE PUBLICADA — 6 contradições diretas, 3 imitações de ferramenta com dado inventado, 4 problemas de metadado, 1 cache herdado, 1 divergência de CI. Só registro, nenhum deploy."
   }
 }
