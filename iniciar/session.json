@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T05:40:00",
+  "updated_at": "2026-10-08T06:10:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1554,5 +1554,31 @@
     "limpeza_agenda": "Os 3 eventos dia inteiro de teste do dono apagados por título exato via CalendarService (com prova antes/depois): 'evento para as 5 horas de' (59f56r90ufqqucidvggff6ahg4) · 'compromisso para as 4:00 de' (6591321g0gbtg18jim09u420e8) · 'para as 6 horas' (nsid5esq8c5un8o0ff4oh6l6p0) — antes 3 → depois 0, resíduo 0; leitura pelo chat: 'Nenhum compromisso nos próximos 7 dia(s)'.",
     "registro": "iniciar/2026-10-08_conversa_omegadrakon.md §7 + este session.json; commit+push pela regra 7.1.",
     "estado": "CONCLUÍDO E NO AR — v1.19.4+2043 implantada e provada; agenda do dono limpa; 3 autorizações do lote executadas."
+  },
+  "entendimento_e_falso_sucesso_2026_10_08": {
+    "pedido": "Dono: 'mais alguns erros de escrita ou de entendimento' — ele testou o 1.19.4 na marra (IDs 759-786, 05:23-05:28). ask_user: corrigir os 3 grupos + deploy; e apagar o evento de teste 'compromisso 06:00'.",
+    "achados": [
+      "1) 'crie um evento para as 7:00'/'marque um evento para as 7:30' -> intencao NENHUMA (faltava o substantivo 'evento') -> LLM 25s",
+      "2) FALSO SUCESSO: gemma ecoou confirmacao VELHA da prova de 05:20 ('teste deploy' 07:00) sem gravar pendencia e no 'sim' dele respondeu 'Compromisso criado com sucesso' — agenda vazia",
+      "3) 'sete horas' por EXTENSO nao casava (so digitos)",
+      "4) 's' (typo dele) executava com pendencia; sem, caia no LLM ('Estado verificado.')"
+    ],
+    "correcoes": [
+      "core/intents: eventos? nos substantivos de ESCRITA (_GOOGLE_W_CAL_RE) e LEITURA (_GOOGLE_CAL_RE)",
+      "core/intents + calendar: _NUM_POR_EXTENSO (um..vinte e tres) nos ramos do _GOOGLE_W_QUANDO_RE + _extenso_em_digito no parse_when; 'daqui duas horas' continua fora",
+      "core/orchestrator: 'sim'/'s' sem pendencia -> fastpath:confirmacao_sem_pendencia honesto nos DOIS transportes",
+      "core/orchestrator: etapa 6.7 fake_action_reason (REST+WS) troca resposta que imita acao por FAKE_ACTION_MESSAGE antes do historico e do cache"
+    ],
+    "saneamento": "5 respostas falsas podadas do cache (snapshot backups/llm-cache-fakes-20261008-055830.json; fakes 5 -> 0, 61 entradas restantes) · evento de teste 'compromisso' 06:00 (gsdu4drjfr0gvigklj54drqj3s) apagado: antes 1 -> depois 0.",
+    "validacao": "Suíte 2339 passed, 16 skipped · cobertura 90,15% (gate 90) · guardas de versão 9/9 · 10 mutações detectadas e restauradas bit-exato (rota 'evento' escrita/leitura; ramos (a) e (b) sem extenso; parse_when sem extenso; 'sim' sem pendencia no REST; guarda nas 2 rotas; fake_action_reason anulado) · 4 testes do contrato antigo ('sim' solto -> LLM) atualizados para o novo contrato honesto.",
+    "bump_deploy": "1.19.5+2044 (§4 — bump no deploy; PATCH: só fixes). Checklist §5 completo; APKs aapt2 versionCode='2044' versionName='1.19.5' (2043 em backups/apk-v1.19.4+2043-20261008/); commit 5110a25; restart od-core NRestarts=0, journal 0 erros.",
+    "prova_viva": [
+      "'sim' sem pendencia -> fastpath:confirmacao_sem_pendencia (honesto, zero LLM)",
+      "'crie um evento para as sete horas' -> confirmacao \"'evento' em 2026-10-08 07:00\" (extenso + palavra evento, fastpath)",
+      "'marque um evento para as 7:30' -> confirmacao 07:30 (fastpath)",
+      "agenda final: 'Nenhum compromisso nos proximos 7 dia(s)' — nenhuma confirmacao respondida (TTL 2 min); /app/version 1.19.5/2044 sha c517886f… == site · caps/health/supervision ok · WS 426 · journal 0 erros"
+    ],
+    "registro": "iniciar/2026-10-08_conversa_omegadrakon.md §8 + este session.json; commit+push pela regra 7.1.",
+    "estado": "CONCLUÍDO E NO AR — v1.19.5+2044 implantada; agenda do dono limpa; cache sem respostas falsas."
   }
 }

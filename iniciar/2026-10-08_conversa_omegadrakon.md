@@ -163,3 +163,47 @@ app → re-login nas Configurações (alex/senha123), o teste mais barato;
   CalendarService (ids `59f56r90…`, `6591321g…`, `nsid5esq8…`):
   antes 3 → **depois 0**, resíduo 0; leitura pelo chat confirma
   `Nenhum compromisso nos próximos 7 dia(s)`.
+
+## 8. Dono: "mais alguns erros de escrita ou de entendimento" (05:4x)
+
+- Ele testou o 1.19.4 na marra (IDs 759–786, 05:23–05:28) e os registros
+  acusaram **3 erros de entendimento + 1 de consistência**:
+  1. `crie um evento para as 7:00` / `marque um evento para as 7:30` →
+     intenção **NENHUMA** (faltava o substantivo **'evento'**) → LLM (25 s);
+  2. **falso sucesso**: a gemma ecoou uma confirmação VELHA da minha
+     prova de 05:20 (`'teste deploy' 07:00`) sem gravar pendência e, no
+     `'sim'` dele, respondeu *"Compromisso criado com sucesso"* — **agenda
+     vazia** (o evento real foi só o que saiu pelo caminho certo);
+  3. `'sete horas'` por extenso não casava (só dígitos);
+  4. `'s'` (typo dele) executava com pendência e, sem, caía no LLM que
+     dizia `'Estado verificado.'`.
+- **Autorização (ask_user):** corrigir os 3 grupos + deploy, e apagar o
+  evento de teste `'compromisso' 06:00`.
+- **Correções:**
+  1. `eventos?` nos substantivos de escrita (`_GOOGLE_W_CAL_RE`) e
+     leitura (`_GOOGLE_CAL_RE`);
+  2. `_NUM_POR_EXTENSO` (`um`…`vinte e três`) nos ramos do
+     `_GOOGLE_W_QUANDO_RE` + `_extenso_em_digito` no `parse_when`
+     (`'daqui duas horas'` continua fora);
+  3. **`'sim'/'s'` sem pendência** → `fastpath:confirmacao_sem_pendencia`
+     honesto nos DOIS transportes;
+  4. **etapa 6.7 anti-falso-sucesso**: `fake_action_reason` troca
+     resposta do LLM que imita ação (`'Confirmar:'`, `'… com sucesso'`,
+     `'marquei o compromisso'`) por `FAKE_ACTION_MESSAGE` antes do
+     histórico e do cache.
+- **Saneamento:** 5 respostas falsas podadas do cache (snapshot
+  `backups/llm-cache-fakes-20261008-055830.json`) · evento de teste
+  apagado (antes 1 → depois 0).
+- **Validação:** suíte **2339 passed, 16 skipped** · cobertura **90,15%**
+  · guardas 9/9 · **10 mutações detectadas** (sintaxe válida) e
+  restauração bit-exato; 4 testes do contrato antigo (`'sim' → LLM`)
+  atualizados para o novo contrato honesto.
+- **Bump + deploy:** **1.19.5+2044** (§4: bump no deploy; PATCH — só
+  fixes) — checklist §5 completo, APKs aapt2 `versionCode='2044'
+  versionName='1.19.5'` (2043 preservado em `backups/apk-v1.19.4+2043-20261008/`),
+  commit `5110a25`, restart com NRestarts=0 e journal 0 erros.
+- **Prova viva (chat, tudo fastpath/zero LLM):**
+  `sim` (sem pendência) → honesto · `crie um evento para as sete horas`
+  → confirmação `'evento' em 07:00` · `marque um evento para as 7:30` →
+  `07:30` · agenda final: **Nenhum compromisso nos próximos 7 dias**
+  (nenhuma confirmação respondida — TTL 2 min).
