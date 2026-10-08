@@ -14,6 +14,46 @@
 
 ---
 
+## [1.20.2] — CANAL LOGO ABAIXO DAS IDEIAS NO SITE + APP EM PARIDADE 📱 (2026-10-08)
+
+> **DEPLOY AUTORIZADO PELO DONO (08/10, escolha 'Deploy 1.20.2 completo').**
+> Pedido: 'No site o Canal de Desenvolvimento deve ficar logo abaixo do
+> Ideias (txt.txt). O APP não está refletindo essas atualizações, deixe
+> igual.' Checklist §5 completo: `.env 1.20.2` · capabilities · `pubspec
+> 1.20.2+2047` · `_APP_VERSION_CODE=2047` · `site 2x` · APKs rebuildados ·
+> restart do `od-core` (regra 13).
+
+1. **Seções reordenadas no `/admin`** — ordem nova: Sistema → **Ideias
+   (txt.txt)** → **Canal de desenvolvimento** → Limitações. Guarda nova na
+   suíte (`test_ordem_no_painel_canal_logo_abaixo_das_ideias`) trava a
+   ordem e a seção inteira entre as duas (sem nada da fila antiga).
+2. **App em paridade total com o painel** — a UI da fila (botões
+   `Injetar`/`Esvaziar` em `/admin/dev/pedido`, que já respondia 404)
+   virou a **sessão on-demand**: ▶ Ativar/Parar, seletor de CLI
+   (automática/cascata, Freebuff, OpenCode, Kilo), pill de estado com pid e
+   autorizações pendentes, info (ideia/CLI/rodada/testes/diff/commit/motivo),
+   **caixa de desenvolvimento** com campo de resposta + limpar e **log**
+   (ExpansionTile). Confirmação do Ativar mostra um trecho do `txt.txt`.
+   Ordem dos cards igual ao site (Ideias → Canal → Limitações) e
+   auto-refresh de 5 s enquanto a sessão estiver ativa ou houver
+   autorização pendente (mesma cadência do site).
+3. **`od_api.dart`** — fora `getDevPedidoStatus`/`adminInjectPedido`/
+   `adminClearPedido`; entram `getDevSessao`, `adminDevSessao(ativar/parar)`,
+   `getDevCaixa`, `adminDevCaixaReply`, `adminDevCaixaClear`, com o código
+   do servidor traduzido em português (`sem_ideia`, `sessao_ativa`…).
+4. **Teste do teste:** 1 mutação detectada e restaurada bit-exato (seções
+   voltando à ordem antiga).
+5. **Resultado:** Suíte **2367 passed, 16 skipped** (+1) · guardas de versão
+   9/9 · cobertura **90,18%** (gate 90) · `flutter analyze` limpo ·
+   `flutter test` **133 passed** (+2).
+
+### 2. bump PATCH
+
+`[1.20.2]` = PATCH (ajuste de ordem de UI + paridade do app): `.env 1.20.2`
+· capabilities fallback `1.20.2` · `pubspec 1.20.2+2047` ·
+`_APP_VERSION_CODE=2047` · `site 2x` · APKs rebuildados · `CHANGELOG
+[1.20.2]` · este README.
+
 ## [1.20.1] — CORREÇÃO DA FONTE DA IDEIA (`txt.txt`) + EXCLUSÃO DA FILA `pedido.txt` 🧹 (2026-10-08)
 
 > **DEPLOY AUTORIZADO PELO DONO (08/10, escolha 'Deploy 1.20.1 completo').**

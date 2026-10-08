@@ -7,6 +7,22 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.20.2] — CANAL LOGO ABAIXO DAS IDEIAS NO SITE + APP EM PARIDADE 📱 (2026-10-08)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono (08/10)** | 'No site o Canal de Desenvolvimento deve ficar logo abaixo do Ideias (txt.txt). O APP não está refletindo essas atualizações, deixe igual.' |
+| **Seções do `/admin`** | Ordem nova: Sistema → **Ideias (txt.txt)** → **Canal de desenvolvimento** → Limitações; guarda `test_ordem_no_painel_canal_logo_abaixo_das_ideias` trava a ordem (1 mutação detectada e restaurada bit-exato). |
+| **App = site** | A fila antiga (`Injetar`/`Esvaziar` em `/admin/dev/pedido`, já 404) virou a sessão on-demand: ▶ Ativar/Parar, seletor de CLI, pill de estado (pid + autorizações pendentes), info (ideia/CLI/rodada/testes/diff/commit/motivo), caixa com resposta + limpar, log; confirmação do Ativar mostra trecho do `txt.txt`; cards na mesma ordem do site; auto-refresh de 5 s enquanto ativa/pendente. |
+| **`od_api.dart`** | Fora `getDevPedidoStatus`/`adminInjectPedido`/`adminClearPedido`; entram `getDevSessao` · `adminDevSessao(acao, cli)` · `getDevCaixa` · `adminDevCaixaReply` · `adminDevCaixaClear`, com erros do servidor traduzidos (`sem_ideia`…). |
+| **Resultado** | Suíte **2367 passed, 16 skipped** · guardas de versão 9/9 · cobertura **90,18%** (gate 90) · `flutter analyze` limpo · `flutter test` **133 passed** (+2). |
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.20.2` · capabilities fallback `1.20.2` · `pubspec 1.20.2+2047` · `_APP_VERSION_CODE=2047` · `site 2x` · APKs rebuildados · `CHANGELOG [1.20.2]` · este README · restart do `od-core` (regra 13).
+
 ## [1.20.1] — CORREÇÃO DA FONTE DA IDEIA (`txt.txt`) + EXCLUSÃO DA FILA `pedido.txt` 🧹 (2026-10-08)
 
 ### 1. O que foi feito
