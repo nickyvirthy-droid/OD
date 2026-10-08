@@ -35,9 +35,12 @@ import json
 import mimetypes
 import os
 import re
+import signal
+import subprocess
 import sys
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -238,6 +241,12 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/admin/dev/pedido", "admin_dev_pedido", True),
     ("GET", "/admin/dev/pedido", "admin_dev_pedido_status", True),
     ("DELETE", "/admin/dev/pedido", "admin_dev_pedido_clear", True),
+    # Sessão de desenvolvimento on-demand + caixa de autorização (2026-10-08)
+    ("POST", "/admin/dev/sessao", "admin_dev_sessao", True),
+    ("GET", "/admin/dev/sessao", "admin_dev_sessao_status", True),
+    ("GET", "/admin/dev/caixa", "admin_dev_caixa_status", True),
+    ("POST", "/admin/dev/caixa", "admin_dev_caixa_write", True),
+    ("DELETE", "/admin/dev/caixa", "admin_dev_caixa_clear", True),
     # Canal de ideias do dono (txt.txt) + Casa de Limitações (limitacoes.txt)
     # — v1.13.0, mesmo gate do canal de pedidos
     ("GET", "/admin/ideias", "admin_ideias_status", True),
@@ -277,6 +286,24 @@ def _compile_route(pattern: str) -> re.Pattern[str]:
 
 # --- Canal de desenvolvimento (orquestrador.py) ----------------------------
 
+#: Raiz do projeto (integrations/api/server.py → 3 níveis acima).
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: Estado da sessão on-demand — escrito pelo runner, lido pelo painel (atômico).
+SESSAO_ESTADO_FILE = Path("data/dev_sessao.json")
+
+#: Caixa de desenvolvimento: perguntas do sistema e respostas do dono.
+SESSAO_CAIXA_FILE = Path("data/dev_caixa.json")
+
+#: Log da sessão (stdout/stderr do processo desanexado).
+SESSAO_LOG_FILE = Path("logs/dev_sessao.log")
+
+#: Teto de uma mensagem do dono na caixa.
+SESSAO_CAIXA_MAX_CHARS = 4000
+
+#: argv que identifica UMA SESSÃO (≠ monitor da fila antiga).
+_SESSAO_ARGV_MARK = "--sessao"
+
 #: Nome do processo monitor que o orquestrador deixa no argv
 #: (`python orquestrador.py`). Usado por _monitor_vivo()/_monitor_pid().
 _MONITOR_ARGV_MARK = "orquestrador.py"
@@ -302,6 +329,8 @@ def _monitor_pids() -> list[int]:
         except OSError:
             continue
         partes = [p.decode("utf-8", "replace") for p in bruto.split(b"\x00") if p]
+        if _SESSAO_ARGV_MARK in partes:
+            continue  # sessão on-demand NÃO é o monitor da fila
         if any(p.endswith(_MONITOR_ARGV_MARK) for p in partes):
             pids.append(int(nome))
     return pids
@@ -316,6 +345,64 @@ def _monitor_pid() -> int | None:
     """PID do monitor (o menor — o mais antigo), ou None."""
     pids = _monitor_pids()
     return min(pids) if pids else None
+
+
+# --- Sessão de desenvolvimento on-demand (2026-10-08) ----------------------
+#
+# O dono escreve a ideia em `pedido.txt` (seção "Canal de desenvolvimento" do
+# painel) e aperta ▶ Ativar: o od-core sobe `orquestrador.py --sessao`
+# desanexado (start_new_session — sobrevive a restart do od-core). A sessão
+# pausa na CAIXA de desenvolvimento (data/dev_caixa.json) quando a CLI pede
+# autorização e encerra com validação (suíte canônica) + commit (sem push).
+
+
+def _ler_json_caminho(caminho: Path) -> dict:
+    try:
+        dados = json.loads(caminho.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return dados if isinstance(dados, dict) else {}
+
+
+def _gravar_json_caminho(caminho: Path, objeto: object) -> None:
+    """Escrita atômica (tmp + rename) — o runner escreve concorrentemente."""
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    tmp = caminho.with_suffix(caminho.suffix + ".tmp")
+    tmp.write_text(json.dumps(objeto, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(caminho)
+
+
+def _ler_caixa_caminho(caminho: Path) -> list[dict]:
+    try:
+        dados = json.loads(caminho.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return dados if isinstance(dados, list) else []
+
+
+def _gravar_caixa_caminho(caminho: Path, mensagens: list[dict]) -> None:
+    _gravar_json_caminho(caminho, mensagens)
+
+
+def _pid_sessao_vivo(pid: int) -> bool:
+    """True quando `pid` é um `orquestrador.py --sessao` vivo (varredura /proc)."""
+    if pid <= 0:
+        return False
+    try:
+        bruto = Path("/proc", str(pid), "cmdline").read_bytes()
+    except OSError:
+        return False
+    partes = [p.decode("utf-8", "replace") for p in bruto.split(b"\x00") if p]
+    return any(p.endswith("orquestrador.py") for p in partes) and _SESSAO_ARGV_MARK in partes
+
+
+def _tail_log(caminho: Path, linhas: int = 40) -> str:
+    """Últimas `linhas` do log da sessão para o painel (best-effort)."""
+    try:
+        texto = caminho.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return "\n".join(texto.splitlines()[-linhas:])
 
 
 # Formato aceito para `user_id` vindo do CLIENTE (corpo de /message, frame de
@@ -662,28 +749,61 @@ _ADMIN_PAGE_HTML = """<!doctype html>
   <section>
     <h2>Canal de desenvolvimento</h2>
     <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
-      Injeta texto direto no <code>pedido.txt</code> — a fila que o
-      orquestrador de CLIs (Freebuff → OpenCode → Kilo) executa e devolve
-      código validado em <code>codigo_gerado.py</code>. É o canal de
-      melhorias do sistema sem SSH.
+      Escreva a ideia em <code>pedido.txt</code> (campo abaixo) e aperte
+      <b>▶ Ativar desenvolvimento</b>: o orquestrador sobe NA HORA com a CLI
+      escolhida (automática = cascata Freebuff → OpenCode → Kilo), lê
+      <code>iniciar/</code>, <code>docs/</code> e <code>txt.txt</code>,
+      implementa e valida com a suíte. Se precisar de autorização, pergunta
+      na <b>caixa de desenvolvimento</b> — responda ali que a sessão retoma.
+      O od-orchestrator (fila 24h) ficou de fora: só a sessão que você ativa.
     </p>
     <div class="row">
-      <button id="dev-status">📊 Estado da fila</button>
-      <button id="dev-clear" class="danger">🗑 Esvaziar fila</button>
-      <span class="pill" id="dev-monitor">monitor: —</span>
-      <span class="muted msg" id="dev-msg"></span>
+      <button id="sess-ativar" style="border-color:var(--accent);color:var(--accent)">▶ Ativar desenvolvimento</button>
+      <button id="sess-parar" class="danger">⏹ Parar</button>
+      <select id="sess-cli" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:0.85rem">
+        <option value="auto">CLI: automática (cascata)</option>
+        <option value="freebuff">Freebuff</option>
+        <option value="opencode">OpenCode</option>
+        <option value="kilo">Kilo</option>
+      </select>
+      <span class="pill" id="sess-estado">sessão: —</span>
+      <span class="muted msg" id="sess-msg"></span>
     </div>
-    <pre id="dev-preview" style="display:none;max-height:160px;overflow:auto">—</pre>
-    <div class="row" style="margin-top:10px">
-      <textarea id="dev-texto" placeholder="Ex.: crie o arquivo previsao_tempo.py que consulta a API do Open-Meteo e imprime o clima de Presidente Venceslau..."
-        style="width:100%;min-height:110px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:0.85rem;font-family:inherit"></textarea>
+    <pre id="sess-info" style="display:none;max-height:150px;overflow:auto;margin-top:8px">—</pre>
+    <div style="margin-top:10px">
+      <h3 style="font-size:0.95rem;margin-bottom:6px">Caixa de desenvolvimento (autorizações)</h3>
+      <div id="sess-caixa" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:0.82rem;white-space:pre-wrap;word-break:break-word">— nenhuma mensagem —</div>
+      <div class="row" style="margin-top:6px">
+        <input id="sess-resposta" placeholder="Resposta/autorização para a sessão..."
+          style="flex:1;min-width:200px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:0.85rem">
+        <button id="sess-enviar">➤ Enviar</button>
+        <button id="sess-limpar-caixa" class="danger">🗑 Limpar caixa</button>
+      </div>
     </div>
-    <div class="row" style="margin-top:8px">
-      <label class="muted" style="font-size:0.8rem;display:flex;align-items:center;gap:6px">
-        <input type="checkbox" id="dev-limpar" checked style="width:auto"> substituir a fila (desmarque para ACUMULAR)
-      </label>
-      <button id="dev-injetar" style="border-color:var(--accent);color:var(--accent)">▶ Injetar no pedido.txt</button>
-    </div>
+    <details style="margin-top:8px">
+      <summary class="muted" style="cursor:pointer;font-size:0.85rem">Log da sessão</summary>
+      <pre id="sess-log" style="max-height:220px;overflow:auto;margin-top:6px">—</pre>
+    </details>
+    <details style="margin-top:8px">
+      <summary class="muted" style="cursor:pointer;font-size:0.85rem">Fila manual (pedido.txt) — modo avançado</summary>
+      <div class="row" style="margin-top:8px">
+        <button id="dev-status">📊 Estado da fila</button>
+        <button id="dev-clear" class="danger">🗑 Esvaziar fila</button>
+        <span class="pill" id="dev-monitor">monitor: —</span>
+        <span class="muted msg" id="dev-msg"></span>
+      </div>
+      <pre id="dev-preview" style="display:none;max-height:160px;overflow:auto">—</pre>
+      <div class="row" style="margin-top:10px">
+        <textarea id="dev-texto" placeholder="Ex.: crie o arquivo previsao_tempo.py que consulta a API do Open-Meteo e imprime o clima de Presidente Venceslau..."
+          style="width:100%;min-height:110px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:0.85rem;font-family:inherit"></textarea>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="muted" style="font-size:0.8rem;display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="dev-limpar" checked style="width:auto"> substituir a fila (desmarque para ACUMULAR)
+        </label>
+        <button id="dev-injetar" style="border-color:var(--accent);color:var(--accent)">▶ Injetar no pedido.txt</button>
+      </div>
+    </details>
   </section>
 
   <section>
@@ -911,6 +1031,143 @@ document.getElementById("dev-injetar").onclick = devInjetar;
 document.getElementById("dev-status").onclick = devStatus;
 document.getElementById("dev-clear").onclick = devClear;
 
+// --- Sessão de desenvolvimento on-demand — canal (2026-10-08) ----------
+function sessSetMsg(t, cls) {
+  const el = document.getElementById("sess-msg");
+  el.textContent = t;
+  el.className = "muted msg " + (cls || "");
+}
+function sessErro(cod) {
+  const mapa = {
+    fila_vazia: "Escreva a ideia no pedido.txt primeiro.",
+    sessao_ativa: "Já existe uma sessão ativa — pare antes de ativar outra.",
+    sessao_nao_ativa: "Nenhuma sessão ativa.",
+    cli_invalida: "CLI inválida.",
+    acao_invalida: "Ação inválida.",
+  };
+  return mapa[cod] || cod || "Erro";
+}
+function sessRender(estado) {
+  const rotulo = {
+    parada: "PARADA", parado: "PARADA", preparando: "PREPARANDO",
+    executando: "EXECUTANDO", aguardando_autorizacao: "AGUARDANDO AUTORIZAÇÃO",
+    validando: "VALIDANDO", concluido: "CONCLUÍDA", falhou: "FALHOU",
+    interrompida: "INTERROMPIDA",
+  };
+  const status = estado.status || "parada";
+  const pill = document.getElementById("sess-estado");
+  pill.textContent = "sessão: " + (rotulo[status] || String(status).toUpperCase()) +
+    (estado.pid ? " (pid " + estado.pid + ")" : "");
+  pill.className = "pill " + (estado.ativo
+    ? (status === "aguardando_autorizacao" ? "err" : "ok")
+    : (status === "concluido" ? "ok" : "err"));
+  const partes = [];
+  if (estado.ideia_preview) partes.push("ideia: " + String(estado.ideia_preview).slice(0, 300));
+  if (estado.cli_usada || estado.rodando) partes.push("CLI: " + (estado.cli_usada || estado.rodando));
+  if (estado.rodada) partes.push("rodada: " + estado.rodada + " · autorizações: " + (estado.autorizacoes || 0));
+  if (estado.testes) partes.push("testes: " + estado.testes);
+  if (estado.diff) partes.push("diff: " + estado.diff);
+  if (estado.commit) partes.push("commit: " + estado.commit);
+  if (estado.motivo) partes.push("motivo: " + estado.motivo);
+  const info = document.getElementById("sess-info");
+  info.style.display = partes.length ? "block" : "none";
+  info.textContent = partes.join("\\n");
+  document.getElementById("sess-log").textContent = estado.log_tail || "—";
+}
+async function sessaoStatus() {
+  try {
+    const resp = await fetch("/admin/dev/sessao", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { sessSetMsg(sessErro(data.error) + " (HTTP " + resp.status + ")", "err"); return null; }
+    sessRender(data);
+    if (data.status === "aguardando_autorizacao" && data.caixa_pendente > 0) {
+      sessSetMsg("⚠ A sessão pediu autorização — responda na caixa abaixo.", "err");
+    }
+    return data;
+  } catch (e) { sessSetMsg("Falha ao consultar a sessão: " + e.message, "err"); return null; }
+}
+function renderCaixa(mensagens) {
+  const caixa = document.getElementById("sess-caixa");
+  if (!mensagens.length) { caixa.textContent = "— nenhuma mensagem —"; return; }
+  caixa.textContent = mensagens.map(m =>
+    "[" + m.ts + "] " + (m.de === "dono" ? "VOCÊ" : "SISTEMA") +
+    (m.tipo === "pedir_autorizacao" ? (m.respondida ? " (respondida)" : " ⚠ AGUARDANDO") : "") +
+    ": " + m.texto
+  ).join("\\n\\n");
+  caixa.scrollTop = caixa.scrollHeight;
+}
+async function caixaLoad() {
+  try {
+    const resp = await fetch("/admin/dev/caixa", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok) renderCaixa(data.mensagens || []);
+  } catch (e) { /* o próximo refresh tenta de novo */ }
+}
+async function sessaoAtivar() {
+  try {
+    const texto = document.getElementById("dev-texto").value.trim();
+    if (texto) {
+      const inj = await fetch("/admin/dev/pedido", {
+        method: "POST", headers: authHeaders({"Content-Type": "application/json"}),
+        body: JSON.stringify({texto: texto, limpar_antes: true})
+      });
+      if (!inj.ok) { const d = await inj.json().catch(() => ({})); sessSetMsg(sessErro(d.error), "err"); return; }
+      document.getElementById("dev-texto").value = "";
+    }
+    const cli = document.getElementById("sess-cli").value;
+    if (!window.confirm("▶ Ativar desenvolvimento com a CLI '" + cli + "'? A sessão lê pedido.txt, iniciar/, docs/ e txt.txt e só commita com testes verdes.")) return;
+    const resp = await fetch("/admin/dev/sessao", {
+      method: "POST", headers: authHeaders({"Content-Type":"application/json"}),
+      body: JSON.stringify({acao: "ativar", cli: cli})
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { sessSetMsg(sessErro(data.error), "err"); return; }
+    sessSetMsg("▶ Sessão iniciada (pid " + data.pid + ").", "ok");
+    sessaoStatus(); caixaLoad(); devStatus();
+  } catch (e) { sessSetMsg("Falha ao ativar: " + e.message, "err"); }
+}
+async function sessaoParar() {
+  if (!window.confirm("⏹ Parar a sessão de desenvolvimento? A CLI em execução é encerrada.")) return;
+  try {
+    const resp = await fetch("/admin/dev/sessao", {
+      method: "POST", headers: authHeaders({"Content-Type":"application/json"}),
+      body: JSON.stringify({acao: "parar"})
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { sessSetMsg(sessErro(data.error), "err"); return; }
+    sessSetMsg("⏹ Sessão parada.", "ok");
+    sessaoStatus();
+  } catch (e) { sessSetMsg("Falha ao parar: " + e.message, "err"); }
+}
+async function caixaEnviar() {
+  const campo = document.getElementById("sess-resposta");
+  const texto = campo.value.trim();
+  if (!texto) { sessSetMsg("Escreva a resposta antes de enviar.", "err"); return; }
+  try {
+    const resp = await fetch("/admin/dev/caixa", {
+      method: "POST", headers: authHeaders({"Content-Type":"application/json"}),
+      body: JSON.stringify({texto: texto})
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { sessSetMsg(sessErro(data.error), "err"); return; }
+    campo.value = "";
+    sessSetMsg("➤ Resposta enviada — a sessão retoma.", "ok");
+    caixaLoad();
+  } catch (e) { sessSetMsg("Falha ao enviar: " + e.message, "err"); }
+}
+async function caixaLimpar() {
+  if (!window.confirm("🗑 Limpar a caixa de desenvolvimento?")) return;
+  try {
+    const resp = await fetch("/admin/dev/caixa", { method: "DELETE", headers: authHeaders() });
+    if (resp.ok) { caixaLoad(); sessSetMsg("🗑 Caixa limpa.", "ok"); }
+  } catch (e) { sessSetMsg("Falha ao limpar: " + e.message, "err"); }
+}
+document.getElementById("sess-ativar").onclick = sessaoAtivar;
+document.getElementById("sess-parar").onclick = sessaoParar;
+document.getElementById("sess-enviar").onclick = caixaEnviar;
+document.getElementById("sess-limpar-caixa").onclick = caixaLimpar;
+document.getElementById("sess-resposta").addEventListener("keydown", e => { if (e.key === "Enter") caixaEnviar(); });
+
 // --- Ideias (txt.txt) — v1.13.0 -------------------------------------
 function ideiasSetMsg(t, cls) {
   const el = document.getElementById("ideias-msg");
@@ -981,8 +1238,14 @@ async function limClear() {
 document.getElementById("lim-load").onclick = limLoad;
 document.getElementById("lim-clear").onclick = limClear;
 
-document.getElementById("btn-refresh").onclick = () => { loadSystem(); loadUsers(); devStatus(); ideiasLoad(); limLoad(); };
-whoAmI().then(u => { if (u) { loadSystem(); loadUsers(); devStatus(); ideiasLoad(); limLoad(); } });
+const carregarTudo = () => { loadSystem(); loadUsers(); devStatus(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); };
+document.getElementById("btn-refresh").onclick = carregarTudo;
+whoAmI().then(u => { if (u) carregarTudo(); });
+// a sessão roda fora do od-core: o painel acompanha de 5 em 5 s
+setInterval(async () => {
+  const estado = await sessaoStatus();
+  if (estado && estado.ativo) caixaLoad();
+}, 5000);
 </script>
 </body>
 </html>
@@ -3617,6 +3880,212 @@ class APIHandler(BaseHTTPRequestHandler):
             raise APIError(500, "falha_ao_limpar") from erro
         log.info("Fila do orquestrador esvaziada pelo painel admin")
         self._json(200, {"ok": True, "bytes_fila": 0})
+
+    # --- Sessão de desenvolvimento on-demand (2026-10-08) -----------------
+
+    #: CLIs aceitas no seletor do painel (mesmas opções do `--cli` do runner).
+    SESSAO_CLIS = ("auto", "freebuff", "opencode", "kilo")
+
+    def admin_dev_sessao(self) -> None:
+        """POST /admin/dev/sessao — ativa/para UMA sessão de desenvolvimento.
+
+        Body: {"acao": "ativar"|"parar", "cli"?: "auto"|"freebuff"|"opencode"|"kilo"}
+
+        `ativar` exige ideia em pedido.txt (400 `fila_vazia`), nenhuma sessão
+        viva (409 `sessao_ativa`) e um CLI válido (400 `cli_invalida`); spawna
+        `orquestrador.py --sessao` com cwd na raiz e stdout em
+        logs/dev_sessao.log. `start_new_session=True` desanexa o processo:
+        a sessão sobrevive a um restart do od-core, e Parar derruba o GRUPO
+        inteiro (runner + CLI), não só o pai.
+        """
+        self._require_admin()
+        data = self._read_json()
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        acao = data.get("acao")
+        if acao == "ativar":
+            self._sessao_ativar(data)
+        elif acao == "parar":
+            self._sessao_parar()
+        else:
+            raise APIError(400, "acao_invalida")
+
+    def _sessao_ativar(self, data: dict) -> None:
+        estado = _ler_json_caminho(SESSAO_ESTADO_FILE)
+        if estado.get("ativo") and _pid_sessao_vivo(int(estado.get("pid") or 0)):
+            raise APIError(409, "sessao_ativa")
+        try:
+            ideia = self.PEDIDO_FILE.read_text(
+                encoding="utf-8", errors="replace"
+            ).strip()
+        except OSError:
+            ideia = ""
+        if not ideia:
+            raise APIError(400, "fila_vazia")
+        cli = data.get("cli") or "auto"
+        if not isinstance(cli, str) or cli not in self.SESSAO_CLIS:
+            raise APIError(400, "cli_invalida")
+
+        comando = [
+            sys.executable, str(REPO_ROOT / "orquestrador.py"),
+            "--sessao", "--cli", cli,
+        ]
+        try:
+            SESSAO_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(SESSAO_LOG_FILE, "ab") as log_handle:
+                processo = subprocess.Popen(  # noqa: S603 — comando fixo da casa
+                    comando,
+                    cwd=str(REPO_ROOT),
+                    stdin=subprocess.DEVNULL,
+                    stdout=log_handle,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+        except OSError as erro:
+            raise APIError(500, "falha_ao_iniciar_sessao") from erro
+
+        _gravar_json_caminho(SESSAO_ESTADO_FILE, {
+            "ativo": True,
+            "pid": processo.pid,
+            "cli": cli,
+            "status": "preparando",
+            "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "ideia_preview": ideia[:2000],
+            "testes": "",
+            "diff": "",
+            "commit": "",
+            "motivo": "",
+        })
+        log.info(
+            "Sessão de desenvolvimento ativada",
+            pid=processo.pid, cli=cli, chars=len(ideia),
+        )
+        self._json(200, {
+            "ok": True,
+            "pid": processo.pid,
+            "cli": cli,
+            "status": "preparando",
+        })
+
+    def _sessao_parar(self) -> None:
+        estado = _ler_json_caminho(SESSAO_ESTADO_FILE)
+        if not estado.get("ativo"):
+            raise APIError(409, "sessao_nao_ativa")
+        pid = int(estado.get("pid") or 0)
+        if _pid_sessao_vivo(pid):
+            try:
+                os.killpg(pid, signal.SIGTERM)  # grupo = runner + CLI
+            except OSError as erro:
+                raise APIError(500, "falha_ao_parar") from erro
+        estado["ativo"] = False
+        estado["status"] = "parado"
+        estado["motivo"] = "parada_pelo_dono"
+        _gravar_json_caminho(SESSAO_ESTADO_FILE, estado)
+        log.info("Sessão de desenvolvimento parada pelo painel", pid=pid)
+        self._json(200, {"ok": True, "pid": pid, "status": "parado"})
+
+    def admin_dev_sessao_status(self) -> None:
+        """GET /admin/dev/sessao — estado + log + caixa pendente do painel.
+
+        Contrato: {ok, ativo, pid, cli, status, started_at, ideia_preview,
+        testes, diff, commit, motivo, caixa_pendente, log_tail}.
+        Sessão cujo processo morreu sem registrar (crash/restart) é
+        normalizada aqui — o painel nunca mente sobre "executando".
+        """
+        self._require_admin()
+        estado = _ler_json_caminho(SESSAO_ESTADO_FILE)
+        pid = int(estado.get("pid") or 0)
+        if estado.get("ativo") and not _pid_sessao_vivo(pid):
+            estado["ativo"] = False
+            estado["status"] = "interrompida"
+            estado["motivo"] = "processo_ausente"
+            _gravar_json_caminho(SESSAO_ESTADO_FILE, estado)
+        caixa = _ler_caixa_caminho(SESSAO_CAIXA_FILE)
+        pendentes = [
+            m for m in caixa
+            if m.get("de") == "sistema"
+            and m.get("tipo") == "pedir_autorizacao"
+            and not m.get("respondida")
+        ]
+        resposta: dict[str, Any] = {
+            "ok": True,
+            "ativo": False,
+            "status": "parada",
+            "pid": None,
+            "cli": "auto",
+            "caixa_pendente": 0,
+        }
+        resposta.update(estado)
+        resposta["caixa_pendente"] = len(pendentes)
+        resposta["monitor_ativo"] = _monitor_vivo()
+        resposta["log_tail"] = _tail_log(SESSAO_LOG_FILE)
+        self._json(200, resposta)
+
+    # --- Caixa de desenvolvimento (autorização do dono) -------------------
+
+    def admin_dev_caixa_status(self) -> None:
+        """GET /admin/dev/caixa — mensagens sistema ↔ dono da sessão.
+
+        O runner publica `pedir_autorizacao` quando a CLI emite o marcador
+        [AUTORIZACAO]; o dono responde aqui (POST) e a sessão retoma.
+        Contrato: {ok, mensagens, total, pendentes}.
+        """
+        self._require_admin()
+        mensagens = _ler_caixa_caminho(SESSAO_CAIXA_FILE)
+        pendentes = [
+            m for m in mensagens
+            if m.get("de") == "sistema"
+            and m.get("tipo") == "pedir_autorizacao"
+            and not m.get("respondida")
+        ]
+        self._json(200, {
+            "ok": True,
+            "mensagens": mensagens,
+            "total": len(mensagens),
+            "pendentes": len(pendentes),
+        })
+
+    def admin_dev_caixa_write(self) -> None:
+        """POST /admin/dev/caixa — resposta/autorização do dono (texto novo).
+
+        Body: {"texto": str (1..4000)}. O runner só conta mensagens NOVAS
+        depois do pedido — a história nunca é re-enviada à CLI.
+        """
+        self._require_admin()
+        data = self._read_json()
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        texto = data.get("texto")
+        if not isinstance(texto, str) or not texto.strip():
+            raise APIError(400, "texto_obrigatorio")
+        if len(texto) > SESSAO_CAIXA_MAX_CHARS:
+            raise APIError(400, "texto_muito_longo")
+        mensagens = _ler_caixa_caminho(SESSAO_CAIXA_FILE)
+        if len(mensagens) > 500:  # teto anti-desborro do histórico
+            mensagens = mensagens[-400:]
+        mensagem = {
+            "id": str(uuid.uuid4()),
+            "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "de": "dono",
+            "tipo": "resposta",
+            "texto": texto.strip(),
+            "respondida": False,
+        }
+        mensagens.append(mensagem)
+        _gravar_caixa_caminho(SESSAO_CAIXA_FILE, mensagens)
+        log.info(
+            "Resposta do dono na caixa de desenvolvimento",
+            chars=len(texto),
+            sessao_ativa=bool(_ler_json_caminho(SESSAO_ESTADO_FILE).get("ativo")),
+        )
+        self._json(200, {"ok": True, "mensagem": mensagem, "total": len(mensagens)})
+
+    def admin_dev_caixa_clear(self) -> None:
+        """DELETE /admin/dev/caixa — limpa o histórico da caixa (idempotente)."""
+        self._require_admin()
+        _gravar_caixa_caminho(SESSAO_CAIXA_FILE, [])
+        log.info("Caixa de desenvolvimento limpa pelo painel admin")
+        self._json(200, {"ok": True, "total": 0})
 
     # -- Canal de ideias (txt.txt) + Casa de Limitações (v1.13.0) ------------
 

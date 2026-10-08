@@ -1632,5 +1632,31 @@
       "5) Timeout de autorização (30 min proposto) e quem faz o deploy depois (eu, com autorização)."
     ],
     "estado": "DESENHO ENTREGUE NO CHAT — aguardando decisões do dono (1–5) antes de implementar em sandbox."
+  },
+  "implementacao_canal_dev_sessao_2026_10_08": {
+    "pedido": "Dono corrigiu a entrada do fluxo: 'no admin o canal de desenvolvimento é o pedido.txt — caso tenha dúvida olha o site na seção admin'.",
+    "decisao_1_revisada": {
+      "entrada": "pedido.txt (seção 'Canal de desenvolvimento' do /admin) — NÃO o txt.txt",
+      "txt_txt": "só CONTEXTO: a CLI lê o txt.txt junto de iniciar/ e docs/ (como o dono descreveu no fluxo de 08:35)",
+      "caixa": "fica dentro da mesma seção do painel; estado próprio em data/dev_caixa.json (o pedido.txt é transitório/limpo pela fila, a pergunta de autorização precisa durar até ser respondida)"
+    },
+    "implementado": [
+      "orquestrador.py: modo --sessao/--cli (auto|freebuff|opencode|kilo) — INSTRUCAO_SESSAO (lê iniciar/, docs/, txt.txt; proibido commit/push/restart/.env; marcador [AUTORIZACAO]), montar_prompt_sessao, extrair_autorizacao, resolver_clis, publicar/ler caixa, aguardar_resposta_dono (timeout 30 min, 5 autorizações máx), validar_sessao (suíte canônica), commitar_sessao (sem push, fora backups/data/logs), executar_sessao (preparando→executando→aguardando_autorizacao→validando→concluido|falhou) e main_sessao/main com argparse.",
+      "integrations/api/server.py: 5 rotas novas (ROUTES 50→55): POST/GET /admin/dev/sessao, GET/POST/DELETE /admin/dev/caixa; handlers com _require_admin; spawn Popen(start_new_session=True) com cwd na raiz e stdout em logs/dev_sessao.log; Parar = SIGTERM no GRUPO (runner+CLI); GET normaliza processo morto (interrompida/processo_ausente); _monitor_pids ignora processos --sessao.",
+      "painel /admin: seção 'Canal de desenvolvimento' reescrita (sess-ativar/sess-parar/sess-cli/sess-estado/sess-info/sess-caixa/sess-resposta/sess-enviar/sess-limpar-caixa/sess-log/sess-msg), fila manual virou <details>; JS com refresh de 5s enquanto ativo; guarda node --check verde.",
+      "testes: tests/test_api.py TestSessaoDesenvolvimento (16 testes) + contrato 55 rotas + ids do HTML; tests/test_orquestrador.py +65 testes (prompt, marcador, cascata, autorizações, validação/commit, main)."
+    ],
+    "validacao": {
+      "suite": "2394 passed, 16 skipped — gate de cobertura 90.16% (>=90)",
+      "guardas_versao": "9/9 (tests/test_version_policy.py)",
+      "mutacoes": "5/5 mortas (marcador de autorização, start_new_session, filtro COMMIT_EXCECOES, normalização de processo morto, _marcar_respondidas)",
+      "js": "node --check no <script> do /admin verde"
+    },
+    "pendente": [
+      "deploy 1.20.0+2045 (checklist §5) + rebuild APKs + restart od-core — EXIGE autorização do dono (regra 13)",
+      "systemctl --user disable --now od-orchestrator (decisão 3 do dono) no deploy",
+      "prova viva: ativar sessão pelo painel + resposta na caixa + Telegram (regra 15)"
+    ],
+    "ts": "2026-10-08T15:40:23-03:00"
   }
 }

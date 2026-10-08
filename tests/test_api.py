@@ -138,8 +138,9 @@ class TestAPIRoutes:
         auto-atualização do app) + /admin/dev/pedido (v1.11.0 — canal de
         desenvolvimento com o orquestrador de CLIs) + /admin/ideias e
         /admin/limitacoes (v1.13.0 — canal do dono no txt.txt + Casa de
-        Limitações)."""
-        assert len(ROUTES) == 50
+        Limitações) + /admin/dev/sessao e /admin/dev/caixa (2026-10-08 —
+        sessão de desenvolvimento on-demand + caixa de autorização)."""
+        assert len(ROUTES) == 55
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -158,6 +159,11 @@ class TestAPIRoutes:
             ("POST", "/admin/dev/pedido"),
             ("GET", "/admin/dev/pedido"),
             ("DELETE", "/admin/dev/pedido"),
+            ("POST", "/admin/dev/sessao"),
+            ("GET", "/admin/dev/sessao"),
+            ("GET", "/admin/dev/caixa"),
+            ("POST", "/admin/dev/caixa"),
+            ("DELETE", "/admin/dev/caixa"),
             ("GET", "/admin/ideias"), ("PUT", "/admin/ideias"),
             ("DELETE", "/admin/ideias"),
             ("GET", "/admin/limitacoes"), ("DELETE", "/admin/limitacoes"),
@@ -189,6 +195,11 @@ class TestAPIRoutes:
             ("POST", "/admin/dev/pedido"),
             ("GET", "/admin/dev/pedido"),
             ("DELETE", "/admin/dev/pedido"),
+            ("POST", "/admin/dev/sessao"),
+            ("GET", "/admin/dev/sessao"),
+            ("GET", "/admin/dev/caixa"),
+            ("POST", "/admin/dev/caixa"),
+            ("DELETE", "/admin/dev/caixa"),
             ("GET", "/admin/ideias"), ("PUT", "/admin/ideias"),
             ("DELETE", "/admin/ideias"),
             ("GET", "/admin/limitacoes"), ("DELETE", "/admin/limitacoes"),
@@ -2042,6 +2053,345 @@ class TestAdminDevPedido:
         assert status == 403
         assert "intruso" not in (tmp_path / "pedido.txt").read_text(encoding="utf-8")
         db.close()
+
+
+# ===========================================================================
+# Sessão de desenvolvimento on-demand + caixa de autorização (2026-10-08)
+# ===========================================================================
+
+class _FakeProcesso:
+    """Substituto de subprocess.Popen: só o pid interessa ao estado."""
+    def __init__(self, pid: int = 4242) -> None:
+        self.pid = pid
+
+
+class TestSessaoDesenvolvimento:
+    """POST/GET /admin/dev/sessao e GET/POST/DELETE /admin/dev/caixa —
+    o botão ▶ Ativar desenvolvimento sobe `orquestrador.py --sessao`
+    desanexado; a caixa media a autorização do dono durante a sessão."""
+
+    def test_ativar_sem_ideia_e_400_fila_vazia(self, serve, tmp_path: Path,
+                                               monkeypatch) -> None:
+        """Sem texto em pedido.txt não há sessão que valha (400 fila_vazia)."""
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao",
+            body={"acao": "ativar"},
+        )
+        assert status == 400
+        assert _json_response((status, body, _h))["error"] == "fila_vazia"
+        assert not (tmp_path / "data/dev_sessao.json").exists()
+
+    def test_ativar_com_ideia_sobe_a_sessao_desanexada(
+        self, serve, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Ativar spawna `orquestrador.py --sessao --cli X` com
+        start_new_session (sobrevive a restart do od-core) e grava o estado."""
+        from integrations.api import server as api
+        chamadas: dict = {}
+
+        def _fake_popen(cmd, **kwargs):
+            chamadas["cmd"] = cmd
+            chamadas["desanexado"] = kwargs.get("start_new_session")
+            chamadas["cwd"] = kwargs.get("cwd")
+            return _FakeProcesso(4343)
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(api.subprocess, "Popen", _fake_popen)
+        (tmp_path / "pedido.txt").write_text(
+            "crie o botão de tema no painel", encoding="utf-8"
+        )
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao",
+            body={"acao": "ativar", "cli": "kilo"},
+        )
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["ok"] is True and data["pid"] == 4343
+        assert data["cli"] == "kilo"
+        assert "--sessao" in chamadas["cmd"]
+        assert "orquestrador.py" in " ".join(chamadas["cmd"])
+        assert chamadas["desanexado"] is True
+        estado = json.loads(
+            (tmp_path / "data/dev_sessao.json").read_text(encoding="utf-8")
+        )
+        assert estado["ativo"] is True and estado["status"] == "preparando"
+        assert "botão de tema" in estado["ideia_preview"]
+
+    def test_ativar_cli_invalida_e_400(self, serve, tmp_path: Path,
+                                       monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "pedido.txt").write_text("ideia válida", encoding="utf-8")
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao",
+            body={"acao": "ativar", "cli": "gemini-pro-max"},
+        )
+        assert status == 400
+        assert _json_response((status, body, _h))["error"] == "cli_invalida"
+
+    def test_acao_invalida_e_400(self, serve, tmp_path: Path,
+                                 monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao",
+            body={"acao": "reiniciar-servidor"},
+        )
+        assert status == 400
+        status, _, _h = _request(srv.bound_port, "POST", "/admin/dev/sessao")
+        assert status == 400  # sem body → objeto vazio → ação inválida
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao", body=["lista", "solta"]
+        )
+        assert status == 400  # body não-objeto
+
+    def test_falha_ao_subir_o_processo_e_500(self, serve, tmp_path: Path,
+                                             monkeypatch) -> None:
+        """OSError do Popen vira 500 com erro claríssimo — não 200 mentindo."""
+        from integrations.api import server as api
+
+        def _popen_quebrado(cmd, **kwargs):
+            raise OSError("sem permissão para forkar")
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(api.subprocess, "Popen", _popen_quebrado)
+        (tmp_path / "pedido.txt").write_text("ideia", encoding="utf-8")
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao", body={"acao": "ativar"}
+        )
+        assert status == 500
+        assert _json_response((status, body, _h))["error"] == "falha_ao_iniciar_sessao"
+        assert not (tmp_path / "data/dev_sessao.json").exists()
+
+    def test_ativar_com_sessao_viva_e_409(self, serve, tmp_path: Path,
+                                          monkeypatch) -> None:
+        """Uma sessão por vez: estado ativo + processo vivo → 409."""
+        from integrations.api import server as api
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(api, "_pid_sessao_vivo", lambda pid: True)
+        (tmp_path / "pedido.txt").write_text("outra ideia", encoding="utf-8")
+        (tmp_path / "data").mkdir()
+        (tmp_path / "data/dev_sessao.json").write_text(
+            json.dumps({"ativo": True, "pid": 4343, "status": "executando"}),
+            encoding="utf-8",
+        )
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao",
+            body={"acao": "ativar"},
+        )
+        assert status == 409
+        assert _json_response((status, body, _h))["error"] == "sessao_ativa"
+
+    def test_parar_sem_sessao_e_409(self, serve, tmp_path: Path,
+                                    monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao", body={"acao": "parar"}
+        )
+        assert status == 409
+
+    def test_parar_derruba_o_grupo_runner_cli(self, serve, tmp_path: Path,
+                                              monkeypatch) -> None:
+        """Parar manda SIGTERM no GRUPO (start_new_session → pgid == pid),
+        para a CLI filha também morrer — e marca o estado como parado."""
+        import signal as _signal
+        from integrations.api import server as api
+        monkeypatch.chdir(tmp_path)
+        morte: dict = {}
+
+        def _fake_killpg(pid, sinal):
+            morte.update(pid=pid, sinal=sinal)
+
+        monkeypatch.setattr(api, "_pid_sessao_vivo", lambda pid: True)
+        monkeypatch.setattr(api.os, "killpg", _fake_killpg)
+        (tmp_path / "data").mkdir()
+        (tmp_path / "data/dev_sessao.json").write_text(
+            json.dumps({"ativo": True, "pid": 4242, "status": "executando"}),
+            encoding="utf-8",
+        )
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao", body={"acao": "parar"}
+        )
+        assert status == 200
+        assert morte == {"pid": 4242, "sinal": _signal.SIGTERM}
+        estado = json.loads(
+            (tmp_path / "data/dev_sessao.json").read_text(encoding="utf-8")
+        )
+        assert estado["ativo"] is False and estado["status"] == "parado"
+        assert estado["motivo"] == "parada_pelo_dono"
+
+    def test_parar_com_killpg_barulhento_e_500(self, serve, tmp_path: Path,
+                                               monkeypatch) -> None:
+        from integrations.api import server as api
+
+        def _killpg_quebrado(pid, sinal):
+            raise OSError("process group sumiu")
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(api, "_pid_sessao_vivo", lambda pid: True)
+        monkeypatch.setattr(api.os, "killpg", _killpg_quebrado)
+        (tmp_path / "data").mkdir()
+        (tmp_path / "data/dev_sessao.json").write_text(
+            json.dumps({"ativo": True, "pid": 4242, "status": "executando"}),
+            encoding="utf-8",
+        )
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/sessao", body={"acao": "parar"}
+        )
+        assert status == 500
+        assert _json_response((status, body, _h))["error"] == "falha_ao_parar"
+
+    def test_get_sem_estado_responde_parada(self, serve, tmp_path: Path,
+                                            monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/dev/sessao")
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["ok"] is True
+        assert data["ativo"] is False and data["status"] == "parada"
+        assert data["caixa_pendente"] == 0
+        assert "log_tail" in data
+
+    def test_get_normaliza_sessao_com_processo_morto(
+        self, serve, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Crash/restart derruba o processo sem registrar: o painel NUNCA
+        pode continuar mentindo 'executando' — o GET normaliza o estado."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+        (tmp_path / "data/dev_sessao.json").write_text(
+            json.dumps({"ativo": True, "pid": 999_999, "status": "executando"}),
+            encoding="utf-8",
+        )
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/dev/sessao")
+        assert status == 200
+        data = _json_response((status, body, _h))
+        assert data["ativo"] is False
+        assert data["status"] == "interrompida"
+        assert data["motivo"] == "processo_ausente"
+        estado = json.loads(
+            (tmp_path / "data/dev_sessao.json").read_text(encoding="utf-8")
+        )
+        assert estado["ativo"] is False  # disco corrigido junto
+
+    def test_caixa_roundtrip_resposta_do_dono(self, serve, tmp_path: Path,
+                                              monkeypatch) -> None:
+        """POST grava a resposta do dono, GET devolve, DELETE limpa."""
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/dev/caixa")
+        data = _json_response((status, body, _h))
+        assert status == 200 and data["total"] == 0 and data["pendentes"] == 0
+
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/caixa",
+            body={"texto": "pode seguir com o deploy de teste"},
+        )
+        data = _json_response((status, body, _h))
+        assert data["ok"] is True and data["mensagem"]["de"] == "dono"
+        assert data["mensagem"]["texto"] == "pode seguir com o deploy de teste"
+
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/dev/caixa")
+        data = _json_response((status, body, _h))
+        assert data["total"] == 1 and data["mensagens"][0]["de"] == "dono"
+
+        status, _, _h = _request(
+            srv.bound_port, "DELETE", "/admin/dev/caixa"
+        )
+        assert status == 200
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/dev/caixa")
+        assert _json_response((status, body, _h))["total"] == 0
+
+    def test_caixa_conta_autorizacoes_pendentes(self, serve, tmp_path: Path,
+                                                monkeypatch) -> None:
+        """Pergunta do sistema sem resposta conta como pendente; a
+        respondida não — é assim que o painel acende o alerta."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+        (tmp_path / "data/dev_caixa.json").write_text(
+            json.dumps([
+                {"id": "1", "de": "sistema", "tipo": "pedir_autorizacao",
+                 "texto": "posso subir o APK?", "respondida": False},
+                {"id": "2", "de": "dono", "tipo": "resposta",
+                 "texto": "não", "respondida": False},
+                {"id": "3", "de": "sistema", "tipo": "pedir_autorizacao",
+                 "texto": "reinício o od-core?", "respondida": True},
+                {"id": "4", "de": "sistema", "tipo": "info",
+                 "texto": "sessão iniciada", "respondida": False},
+            ]),
+            encoding="utf-8",
+        )
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/dev/caixa")
+        data = _json_response((status, body, _h))
+        assert data["total"] == 4 and data["pendentes"] == 1
+
+    def test_caixa_validacoes_de_texto(self, serve, tmp_path: Path,
+                                       monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        srv = serve(make_orch(tmp_path))
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/caixa", body={"texto": "   "}
+        )
+        assert status == 400
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/caixa", body=["não", "é", "objeto"]
+        )
+        assert status == 400  # body não-objeto
+        status, _, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/caixa",
+            body={"texto": "x" * 4001},
+        )
+        assert status == 400
+
+    def test_caixa_corta_historico_encorpado(self, serve, tmp_path: Path,
+                                             monkeypatch) -> None:
+        """Mais de 500 mensagens → só as 400 mais recentes ficam (o disco
+        não vira depósito de conversa eterna)."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+        velhas = [
+            {"id": str(i), "de": "sistema", "tipo": "info",
+             "texto": f"msg {i}", "respondida": False}
+            for i in range(501)
+        ]
+        (tmp_path / "data/dev_caixa.json").write_text(
+            json.dumps(velhas), encoding="utf-8"
+        )
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/dev/caixa", body={"texto": "nova"}
+        )
+        assert status == 200
+        # 400 velhas restantes + a nova
+        assert _json_response((status, body, _h))["total"] == 401
+
+    def test_painel_admin_tem_os_controles_da_sessao(
+        self, serve, tmp_path: Path
+    ) -> None:
+        """Guarda do HTML: os ids que o JS do painel referencia existem —
+        clique quebrado no ar é o bug de 2026-09-26 que a gente não repete."""
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/admin")
+        assert status == 200
+        html = body.decode("utf-8")
+        for identificador in (
+            "sess-ativar", "sess-parar", "sess-cli", "sess-estado",
+            "sess-caixa", "sess-resposta", "sess-enviar", "sess-log",
+            "sess-info", "sess-msg", "sess-limpar-caixa",
+            "dev-texto", "dev-injetar",
+        ):
+            assert f'id="{identificador}"' in html, identificador
 
 
 # ===========================================================================
