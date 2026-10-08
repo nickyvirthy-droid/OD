@@ -1077,6 +1077,48 @@ def drop_pending_google_write(user_id: str) -> None:
         _WRITE_CONFIRMATIONS.pop(key, None)
 
 
+# Pendência de 'quando' do google_calendar_create: o hint 'não entendi
+# quando' pede 'hoje'/'amanhã às 15h' e essa resposta NÃO gera intenção —
+# sem este estado a frase caía no LLM, que alucinava 'Marquei o
+# compromisso…' sem chamar a API (prova real de 08/10, chat ID 700:
+# 'Testar Agenda' nunca existiu no Google Calendar).
+_CALENDAR_WHEN: dict[str, tuple[float, str]] = {}
+_CALENDAR_WHEN_TTL = 300.0
+
+
+def peek_pending_calendar_when(
+    user_id: str, text: str, *, now: Optional[float] = None
+) -> Optional[dict[str, Any]]:
+    """Completa o create que ficou aguardando 'quando' com a frase atual.
+
+    Devolve params prontos (titulo + quando + alvo) SOMENTE se a frase for
+    um 'quando' válido (parse_when) — texto que não é quando NÃO consome a
+    pendência (o dono pode digitar outra coisa e voltar); TTL limpa
+    sozinho. O orquestrador só consulta quando a frase não casou nenhuma
+    intenção, então um pedido novo nunca é sequestrado.
+    """
+    uid = user_id or "desconhecido"
+    pend = _CALENDAR_WHEN.get(uid)
+    if pend is None:
+        return None
+    stamp, titulo = pend
+    stamp_now = time.time() if now is None else now
+    if (stamp_now - stamp) > _CALENDAR_WHEN_TTL:
+        _CALENDAR_WHEN.pop(uid, None)
+        return None
+    from integrations.google.calendar import parse_when
+
+    if parse_when(text) is None:
+        return None
+    _CALENDAR_WHEN.pop(uid, None)
+    return {"titulo": titulo, "quando": text.strip(), "alvo": titulo}
+
+
+def drop_pending_calendar_when(user_id: str) -> None:
+    """Descarta a pendência de 'quando' do user (limpeza/testes)."""
+    _CALENDAR_WHEN.pop(user_id or "desconhecido", None)
+
+
 def _write_denied() -> dict[str, Any]:
     return {"ok": False, "error": "permissao_negada"}
 
@@ -1315,6 +1357,9 @@ def google_calendar_create(
 
         parsed = parse_when(quando or titulo)
         if not parsed:
+            # Guarda o título: a próxima frase do dono ('hoje', 'amanhã
+            # às 15h') completa ESTA intenção no fastpath (sem LLM).
+            _CALENDAR_WHEN[user_id or "desconhecido"] = (time.time(), titulo)
             return {
                 "ok": False,
                 "error": "quando_obrigatorio",

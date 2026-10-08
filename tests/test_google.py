@@ -1518,3 +1518,143 @@ class TestGoogleWriteIntents:
             assert detect_confirmation(frase) is True, frase
         # frase longa ou comando novo NÃO é confirmação
         assert detect_confirmation("sim, apague o arquivo de ontem que eu quero ver") is False
+
+
+# ---------------------------------------------------------------------------
+# Hora ANTES do dia + encadeamento do 'quando' (bugs reais de 08/10)
+# ---------------------------------------------------------------------------
+
+
+class TestHoraAntesDoDia:
+    """O dono escreve 'para as 4:00 de hoje' (hora ANTES do dia). O regex
+    antigo só via 'hoje às 16h': a hora ficava no TÍTULO, o create recebia
+    'hoje' puro e nascia evento de DIA INTEIRO na Agenda (chat IDs 723-734
+    de 08/10 — 'mesmo dizendo as horas ele marca para o dia todo')."""
+
+    def setup_method(self) -> None:
+        from tools.actions import actions
+
+        actions.configure_google_client(None)
+        actions._WRITE_CONFIRMATIONS.clear()
+        actions.drop_pending_calendar_when("alex")
+
+    def teardown_method(self) -> None:
+        from tools.actions import actions
+
+        actions.configure_google_client(None)
+        actions._WRITE_CONFIRMATIONS.clear()
+        actions.drop_pending_calendar_when("alex")
+
+    def test_hora_antes_do_dia_sai_no_quando_e_fora_do_titulo(self) -> None:
+        casos = [
+            ("marque na agenda um compromisso para as 4:00 de hoje",
+             "compromisso", "para as 4:00 de hoje"),
+            ("marque na agenda um evento para as 5 horas de hoje",
+             "evento", "para as 5 horas de hoje"),
+            ("crie o compromisso almoço para as 12:00 de amanhã",
+             "almoço", "para as 12:00 de amanhã"),
+        ]
+        for frase, titulo, quando in casos:
+            intent = detect_action_intent(frase)
+            assert intent is not None, frase
+            assert intent[0] == "google_calendar_create", (frase, intent)
+            assert intent[1]["titulo"] == titulo, (frase, intent[1])
+            assert intent[1]["quando"] == quando, (frase, intent[1])
+            # a hora NÃO fica no título (o bug gerava 'compromisso para
+            # as 4:00 de')
+            assert "4:00" not in intent[1]["titulo"], intent[1]
+            assert "horas" not in intent[1]["titulo"], intent[1]
+
+    def test_create_envia_dateTime_e_nao_dia_inteiro(self) -> None:
+        """A prova do bug: o POST para o Google levava {"date": ...} = dia
+        inteiro no site. Agora leva {"dateTime": ...} com a hora falada."""
+        from tools.actions import actions
+
+        payloads: list[bytes] = []
+
+        def handler(method, url, data):
+            payloads.append(data or b"")
+            return 200, b'{"id": "ev1", "summary": "compromisso"}'
+
+        actions.configure_google_client(_write_client(handler))
+        try:
+            intent = detect_action_intent(
+                "marque na agenda um compromisso para as 4:00 de hoje"
+            )
+            assert intent is not None
+            params = dict(intent[1])
+            params["user_id"] = "alex"
+            r1 = actions.google_calendar_create(**params)
+            assert r1.get("needs_confirmation") is True and payloads == []
+            r2 = actions.google_calendar_create(**params)
+            assert r2.get("executed") is True and len(payloads) == 1
+            body = json.loads(payloads[-1])
+            # O bug: {"start": {"date": "2026-10-08"}} — dia inteiro.
+            assert "date" not in body["start"], body
+            assert "dateTime" in body["start"], body
+            from datetime import datetime
+            local_dt = datetime.fromisoformat(
+                body["start"]["dateTime"].replace("Z", "+00:00")
+            ).astimezone()
+            assert (local_dt.hour, local_dt.minute) == (4, 0), body
+            assert body["summary"] == "compromisso", body
+        finally:
+            actions.configure_google_client(None)
+
+    def test_horas_sem_preposicao_tambem_vira_hora(self) -> None:
+        """'5 horas de hoje' sem 'às' — o parse_when antigo só procurava
+        'às HH' e o evento nascia dia inteiro mesmo com a hora extraída."""
+        from integrations.google.calendar import parse_when
+
+        parsed = parse_when("5 horas de hoje")
+        assert parsed is not None and "T" in parsed["start"]
+        # SEM hora (o dono escolheu) continua dia inteiro — não inventa
+        assert parse_when("hoje") is not None
+        assert "T" not in parse_when("hoje")["start"]
+
+    def test_hint_de_quando_encadeia_a_frase_seguinte(self) -> None:
+        """'Marque … sem data' → dica; a resposta 'hoje às 16h' completa a
+        MESMA intenção (sem LLM — o gemma alucinava o sucesso, ID 700)."""
+        from tools.actions import actions
+
+        actions.configure_google_client(_write_client())
+        r1 = actions.google_calendar_create(
+            titulo="Testar Agenda", quando="sem dia nenhum",
+            user_id="alex", alvo="Testar Agenda",
+        )
+        assert r1["ok"] is False and r1["error"] == "quando_obrigatorio"
+        pend = actions.peek_pending_calendar_when("alex", "hoje às 16h")
+        assert pend == {
+            "titulo": "Testar Agenda", "quando": "hoje às 16h",
+            "alvo": "Testar Agenda",
+        }
+        # consumida: não re-executa sozinha depois
+        assert actions.peek_pending_calendar_when("alex", "hoje") is None
+
+    def test_frase_que_nao_e_quando_nao_consome_a_pendencia(self) -> None:
+        from tools.actions import actions
+
+        actions.configure_google_client(_write_client())
+        actions.google_calendar_create(
+            titulo="Reunião", quando="???", user_id="alex",
+        )
+        # outra conversa não consome (nem sequestra) a pendência
+        assert actions.peek_pending_calendar_when("alex", "bom dia") is None
+        # …e o 'quando' de verdade continua disponível
+        assert actions.peek_pending_calendar_when("alex", "amanhã") is not None
+
+    def test_mostre_vira_leitura_e_crei_vira_escrita(self) -> None:
+        """'me mostre os compromissos' (sem 'meus') caía no LLM, que ecoava
+        a alucinação do cache em vez da Agenda real (IDs 713/714); 'crei'
+        caía na LEITURA (IDs 727/728) — verbo fora da regex de criação."""
+        for frase in ("me mostre os compromissos", "me montre os compromissos",
+                      "mostra os compromissos"):
+            intent = detect_action_intent(frase)
+            assert intent is not None, frase
+            assert intent[0] == "google_calendar_events", (frase, intent)
+        intent = detect_action_intent(
+            "crei um evento na agenda para as 5 horas de hoje"
+        )
+        assert intent is not None and intent[0] == "google_calendar_create"
+        assert intent[1]["titulo"] == "evento", intent[1]
+        assert "5" in intent[1]["quando"], intent[1]

@@ -373,3 +373,57 @@ frase que, em 06/10 05:08, devolveu a CPU inventada na porta 5000.
 **Estado:** 1.19.2+2041 no ar, serviço reiniciado, C4/C3/C1/C5 e C2
 fechados por código/estado, C6 fechada como pedido pontual (sem feature).
 Pendência: nenhuma de código — só observar a CI.
+
+---
+
+OD // CORE
+
+## 11. Correção do "dia inteiro" + encadeamento do 'quando' (08/10 02:4x→03:5x)
+
+Pedido: dono testou a agenda no chat (IDs 709–734) e pediu **"corrija"** —
+"mesmo dizendo as horas ele marca para o dia todo"; esclareceu: escrever
+NO site funciona, o defeito é o **sistema gravar NO site**.
+
+### 11.1 Achados (banco `conversation_messages`, IDs 709–734)
+
+- "marque na agenda um compromisso para as 4:00 de hoje" → confirmação
+  `'compromisso para as 4:00 de' em 2026-10-08` **sem "às"** → leitura
+  `2026-10-08 (dia inteiro)` (IDs 723–728 e 729–734, idem "5 horas").
+- Causa raiz em 3 passos: `_GOOGLE_W_QUANDO_RE` só via hora DEPOIS de
+  hoje/amanhã → a hora ficava no TÍTULO e `quando="hoje"` → `parse_when`
+  devolvia date-only → `create_event` enviaba `{"date": …}` = dia inteiro.
+- Colaterais: 'Testar Agenda' NUNCA foi criado (ID 700 route=gemma-local
+  alucinou o sucesso — 'hoje' após o hint não voltava ao fastpath);
+  "me mostre os compromissos" fora de `_GOOGLE_ASK_RE` → LLM ecoava a
+  alucinação; "crei" fora de `_GOOGLE_W_CRIAR_RE` → caía em leitura.
+
+### 11.2 Correções (sandbox → validado)
+
+- `core/intents.py`: `_GOOGLE_W_QUANDO_RE` captura hora ANTES do dia
+  ("para as 4:00 de hoje"/"…5 horas de hoje") e limpa o fragmento do
+  título; fallback de título quando todo o resto era o quando ("crei um
+  evento na agenda …" → "evento"); `_GOOGLE_ASK_RE` + `mostre|montre|
+  mostra[r]`; `_GOOGLE_W_CRIAR_RE` + `crei`.
+- `integrations/google/calendar.py`: `parse_when` aceita "5 horas" sem
+  "às" (dia inteiro só quando o dono NÃO deu hora).
+- `tools/actions/actions.py`: `_CALENDAR_WHEN` — o hint 'não entendi
+  quando' guarda o título (TTL 300 s) e `peek_pending_calendar_when`
+  devolve params quando a frase É um quando.
+- `core/orchestrator.py` (stream + síncrono): frase sem intenção +
+  pendência de quando → executa `google_calendar_create` no fastpath
+  com `user_id` (0 idas ao LLM).
+
+### 11.3 Evidência
+
+- Testes novos: 7 (6 em `TestHoraAntesDoDia` + encadeamento no
+  orquestrador). Suíte **2325 passed, 16 skipped**, gate de cobertura
+  **90,06%** (meta 90), exit 0.
+- **6 mutações detectadas** e restauradas bit-exato (regex de quando;
+  store da pendência; user_id do ramo encadeado; `mostre`; `crei`;
+  fallback de hora sem "às").
+- Contrato provado: o POST ao Google agora leva `dateTime` com a hora
+  falada (04:00), nunca `{"date": …}`.
+
+**Estado:** correções commitadas (regra 7.1); deploy pendente de
+autorização (regra 13) — bump PATCH seria 1.19.3 no checklist do
+VERSIONAMENTO.

@@ -775,6 +775,7 @@ class Orchestrator:
                 from tools.actions.actions import (
                     confirm_texts_match_pending,
                     drop_pending_google_write,
+                    peek_pending_calendar_when,
                     peek_pending_google_write,
                     peek_pending_light_confirmation,
                 )
@@ -868,6 +869,24 @@ class Orchestrator:
                         except Exception:
                             pass
                     route_detail = action_name
+                else:
+                    # Create aguardando 'quando': a frase 'hoje'/'amanhã às
+                    # 15h' completa a MESMA intenção no fastpath (sem LLM).
+                    # Sem este ramo a frase caía no LLM, que alucinava
+                    # 'Marquei o compromisso…' sem chamar a API (prova real
+                    # de 08/10, chat ID 700 — 'Testar Agenda' nunca existiu).
+                    when_params = peek_pending_calendar_when(user_id, text)
+                    if when_params is not None:
+                        when_params = dict(when_params)
+                        when_params["user_id"] = user_id
+                        data = await self.execute_action(
+                            "google_calendar_create", when_params,
+                            user_id, role=role,
+                        )
+                        answer = format_intent_result(
+                            "google_calendar_create", data
+                        )
+                        route_detail = "google_calendar_create"
             if answer is not None:
                 self._metrics.intents += 1
                 result = self._stream_result(
@@ -1169,6 +1188,7 @@ class Orchestrator:
                 from tools.actions.actions import (
                     confirm_texts_match_pending,
                     drop_pending_google_write,
+                    peek_pending_calendar_when,
                     peek_pending_google_write,
                     peek_pending_light_confirmation,
                 )
@@ -1243,6 +1263,22 @@ class Orchestrator:
                         except Exception:
                             pass
                     route_detail = action_name
+                else:
+                    # Espelho do stream: create aguardando 'quando' — a
+                    # frase 'hoje'/'amanhã às 15h' completa a MESMA intenção
+                    # no fastpath, sem ir ao LLM alucinar a criação.
+                    when_params = peek_pending_calendar_when(user_id, text)
+                    if when_params is not None:
+                        when_params = dict(when_params)
+                        when_params["user_id"] = user_id
+                        data = await self.execute_action(
+                            "google_calendar_create", when_params,
+                            user_id, role=role,
+                        )
+                        answer = format_intent_result(
+                            "google_calendar_create", data
+                        )
+                        route_detail = "google_calendar_create"
             if answer is not None:
                 result.route = ROUTE_INTENT
                 result.message = answer

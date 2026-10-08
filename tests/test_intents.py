@@ -575,3 +575,49 @@ class TestFastPathOrchestrator:
         assert result.route == "llm"
         assert result.message == "resposta-llm"
         assert orch.metrics.intents == 0
+
+    @pytest.mark.asyncio
+    async def test_create_agenda_encadeia_o_quando_sem_llm(self, monkeypatch) -> None:
+        """'Marque … sem data' → dica honesta; a resposta 'hoje às 16h'
+        completa a MESMA intenção no fastpath e o 'sim' executa — 0 idas ao
+        LLM. Sem este encadeamento a frase 'hoje' caía no modelo, que
+        alucinava 'Marquei o compromisso…' sem chamar a API (prova real de
+        08/10, chat ID 700 — 'Testar Agenda' nunca existiu na Agenda)."""
+        from tools.actions import actions
+
+        payloads: list[bytes] = []
+
+        class _AgendaStub:
+            def request(self, method, url, *, json_body=None, params=None, **kw):
+                payloads.append(json_body)
+                return {"id": "ev1", "summary": json_body.get("summary", "")}
+
+        orch = self._orch(monkeypatch)
+        uid = "u-quando-encadeado"
+        actions.configure_google_client(_AgendaStub())
+        try:
+            r1 = await orch.process(
+                uid, "guardian", "Marque na agenda um compromisso Testar Agenda"
+            )
+            assert r1.route == "action_intent"
+            assert r1.llm_used == "fastpath:google_calendar_create"
+            assert "não entendi quando" in r1.message, r1.message
+
+            r2 = await orch.process(uid, "guardian", "hoje às 16h")
+            assert r2.route == "action_intent"
+            assert r2.llm_used == "fastpath:google_calendar_create"
+            assert "Confirmar" in r2.message and "16:00" in r2.message, r2.message
+
+            r3 = await orch.process(uid, "guardian", "sim")
+            assert r3.route == "action_intent"
+            assert r3.llm_used == "fastpath:google_calendar_create"
+            assert "criado" in r3.message and "16:00" in r3.message, r3.message
+            assert len(payloads) == 1, payloads
+            # a hora falada virou dateTime (nunca dia inteiro)
+            assert "dateTime" in payloads[0]["start"], payloads[0]
+            # NENHUMA ida ao LLM nos 3 turnos
+            assert orch.metrics.llm == 0
+        finally:
+            actions.configure_google_client(None)
+            actions.drop_pending_calendar_when(uid)
+            actions.drop_pending_google_write(uid)

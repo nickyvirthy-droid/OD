@@ -367,7 +367,10 @@ _GOOGLE_ASK_RE = re.compile(
     r"[uú]ltim[oa]s?|pr[óo]xim[oa]s?|hoje|amanh[ãa]|semana|"
     # verbos de ACESSO do dono (06/10): 'olhe/acessa minha agenda' era
     # pedido explícito de leitura e caía no LLM.
-    r"acessar|acessa[m]?|abra[m]?|consulte[m]?|olhe[m]?)\b",
+    r"acessar|acessa[m]?|abra[m]?|consulte[m]?|olhe[m]?|"
+    # 'me mostre os compromissos' (sem 'meus') caía no LLM, que ecoava a
+    # alucinação do cache em vez da Agenda real (IDs 713/714, 08/10).
+    r"mostre|montre|mostra[r]?)\b",
     re.IGNORECASE,
 )
 _GOOGLE_SECRET_RE = re.compile(
@@ -436,7 +439,7 @@ _GOOGLE_W_CAL_RE = re.compile(
     re.IGNORECASE,
 )
 _GOOGLE_W_CRIAR_RE = re.compile(
-    r"\b(criar|crie|cria|criamos|fazer|faz|fa[çc]a|gerar|gere|cria-me|"
+    r"\b(criar|crie|crei|cria|criamos|fazer|faz|fa[çc]a|gerar|gere|cria-me|"
     r"crie-me|marcar|marque|marcamos|agendar|agende|agendando|"
     r"colocar|coloque|coloco|incluir|inclua|anotar|anote|"
     r"registrar|registre|registra)\b",
@@ -472,7 +475,17 @@ _GOOGLE_W_DIZENDO_RE = re.compile(
     re.IGNORECASE,
 )
 _GOOGLE_W_QUANDO_RE = re.compile(
-    r"\b(hoje|amanh[ãa])\b(?:\s*[àa]s\s+\d{1,2}(?:[:.]\d{2})?\s*h?)?",
+    # Hora ANTES do dia também vale ('para as 4:00 de hoje' / 'para as 5
+    # horas de hoje'): o padrão antigo só via 'hoje às 16h' — a frase da
+    # hora ficava no TÍTULO e o create recebia 'hoje' puro → parse_when
+    # devolvia date-only → evento de DIA INTEIRO na Agenda (bugs reais de
+    # 08/10, chat IDs 723-734: 'compromisso para as 4:00 de').
+    r"(?:(?:(?:\bpara\s+|\bpra\s+)?[àa]s\s+\d{1,2}(?:[:.]\d{2})?\s*(?:horas?|h)?"
+    r"|\b\d{1,2}(?:(?:[:.]\d{2})|\s*(?:horas?|h)))"
+    r"\s*(?:de\s+|em\s+)?)?"
+    r"\b(hoje|amanh[ãa])\b"
+    r"(?:\s*[àa]s\s+\d{1,2}(?:[:.]\d{2})?\s*(?:horas?|h)?"
+    r"|\s+\d{1,2}\s+(?:horas?|h))?",
     re.IGNORECASE,
 )
 _GOOGLE_W_STOP_NOME_RE = re.compile(
@@ -559,7 +572,16 @@ def _google_quando_e_titulo(text: str) -> tuple[str, str]:
         titulo = resto[:qm.start()] + " " + resto[qm.end():]
     else:
         titulo = resto
-    return _google_limpa_nome(titulo), quando
+    titulo = _google_limpa_nome(titulo)
+    if not titulo and m:
+        # Tudo DEPOIS do substantivo era o 'quando' ('crei um evento na
+        # agenda para as 5 horas de hoje') — o nome está ANTES: tira a
+        # preposição de ligação e o verbo de criação.
+        antes = text[:m.start()].strip()
+        antes = re.sub(r"\s+(?:na|no|em|para|pra|da|de|do)\s*$", "", antes)
+        antes = _GOOGLE_W_CRIAR_RE.sub("", antes, count=1)
+        titulo = _google_limpa_nome(antes)
+    return titulo, quando
 
 
 def _google_termo_email(text: str) -> str:

@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T01:25:00",
+  "updated_at": "2026-10-08T03:55:00",
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",
@@ -1445,5 +1445,27 @@
       "d1fb797 fix(mqtt,intents)",
       "e8ff0e9 chore(release): bump 1.19.2+2041"
     ]
+  },
+  "analise_dia_inteiro_2026_10_08": {
+    "pedido": "Dono: testou a agenda no chat (IDs 709-734) e perguntou 'porque mesmo dizendo as horas ele marca para o dia todo'.",
+    "causa_raiz": [
+      "core/intents.py _GOOGLE_W_QUANDO_RE só captura a hora DEPOIS de hoje/amanhã ('hoje às 16h'); o dono escreveu ANTES ('para as 4:00 de hoje' / 'para as 5 horas de hoje') → quando='hoje' sem hora e a frase da hora vira LIXO DO TÍTULO ('compromisso para as 4:00 de').",
+      "actions.google_calendar_create chama parse_when(quando) → parse_when('hoje') acha dia, não acha hora → devolve date-only {start: 2026-10-08, end: 2026-10-09} → create_event sem 'T' envia {date: ...} → Google cria DIA INTEIRO.",
+      "A própria confirmação denunciou: 'criar o compromisso ... em 2026-10-08' sem 'às' ( _quando_legivel de start date-only não tem hora para renderizar )."
+    ],
+    "evidencia": "IDs 723→724→726→728 e 729→730→732→734: title com a hora embutida, confirmacao sem hora, leitura '2026-10-08 (dia inteiro)'.",
+    "achados_colaterais": [
+      "ID 697→698: fastpath google_calendar_create pediu 'quando' (sem hoje/amanhã na frase); ID 699 'hoje' NÃO voltou pro fastpath → ID 700 route=gemma-local ALUCINOU 'Marquei o compromisso Testar Agenda' — NUNCA houve chamada de API. 'Testar Agenda' NÃO existe no Google Calendar (todas as leituras fastpath 710/712/716/720/722 mostram só Teste/Escrito no Site/Nenhum).",
+      "'me mostre os compromissos' (705/713) NÃO casa _GOOGLE_ASK_RE (sem 'mostre' na lista) → LLM/cache ecoa a alucinação 'Testar Agenda'; 'me mostre MEUS compromissos' casa via 'meus' → fastpath real. Isso explica a diferença que o dono viu.",
+      "ID 727 'crei um evento...' caiu na LEITURA — 'crei' não está em _GOOGLE_W_CRIAR_RE (criar|crie|cria|criamos...)."
+    ],
+    "correcoes_implementadas_03_5x": [
+      "core/intents.py: _GOOGLE_W_QUANDO_RE captura hora ANTES do dia ('para as 4:00 de hoje'/'para as 5 horas de hoje') e remove o fragmento do título; fallback de título quando todo o resto era o quando ('crei um evento na agenda …' → 'evento'); _GOOGLE_ASK_RE + mostre|montre|mostra[r]; _GOOGLE_W_CRIAR_RE + crei.",
+      "integrations/google/calendar.py: parse_when aceita '5 horas' SEM 'às' (fallback 2); dia inteiro só quando o dono não deu hora.",
+      "tools/actions/actions.py: _CALENDAR_WHEN (TTL 300s) guarda o título no hint 'não entendi quando'; peek_pending_calendar_when(user_id, text) só devolve se a frase for um quando válido e consome; drop_pending_calendar_when para limpeza.",
+      "core/orchestrator.py (stream E síncrono): else no bloco de intenção — frase sem intenção + pendência de quando → executa google_calendar_create no fastpath COM user_id (sem ele o 'sim' seguinte ficava pendurado em 'desconhecido' — bug pego pelo próprio teste durante a implementação)."
+    ],
+    "evidencia_final": "Suíte completa 2325 passed, 16 skipped (+7 testes novos: 6 em TestHoraAntesDoDia + 1 de integração no orquestrador) · gate de cobertura 90,06% (meta 90) exit 0 · 6 mutações detectadas e restauradas bit-exato (regex de quando; store da pendência; user_id do ramo encadeado; mostre; crei; fallback de hora sem às) · contrato provado: POST ao Google com dateTime 04:00, nunca {date}.",
+    "estado": "CORREÇÕES COMMITADAS (regra 7.1) — deploy pendente de autorização (regra 13); bump PATCH seria 1.19.3 no checklist VERSIONAMENTO."
   }
 }

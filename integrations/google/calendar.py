@@ -43,6 +43,10 @@ def parse_when(text: str, *, now: Optional[datetime] = None) -> Optional[dict[st
     if day is None:
         return None
     hora = re.search(r"[àa]s\s+(\d{1,2})(?:[:hH](\d{2}))?", low)
+    if not hora:
+        # '5 horas de hoje' sem a preposição 'às' — o dono escreve dos dois
+        # jeitos; sem este ramo o evento voltava a nascer DIA INTEIRO.
+        hora = re.search(r"\b(\d{1,2})(?:[:hH.](\d{2}))?\s*(?:horas?|h)\b", low)
     if hora:
         hour, minute = int(hora.group(1)), int(hora.group(2) or 0)
         if not (0 <= hour <= 23 and 0 <= minute <= 59):
