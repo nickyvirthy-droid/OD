@@ -7,6 +7,24 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.19.4] — AGENDA: HORA SEM DIA GRAVA NO HORÁRIO ⏰ (2026-10-08)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono** | 'quanto a agenda quase funcionou. ainda não grava no horário' (reproduzido com a conversa REAL dele, IDs 747–752: `criar compromisso para as 6 horas` → sem 'hoje' o regex não casava → hora no TÍTULO → ele respondeu 'hoje' → date-only → DIA INTEIRO). |
+| **Hora SEM dia** | `_GOOGLE_W_QUANDO_RE` ganha o ramo 'só a hora' (`para as 6 horas` · `às 12 horas` · `14:30`) exigindo preposição `às` (ou HH:MM) — número solto (`daqui 2 horas`, `10.000`) **não** é quando. |
+| **Título padrão** | quando todo o resto era o quando, o SUBSTANTIVO vira título (`'criar compromisso para as 6 horas'` → `'compromisso'`) — nunca vazio (senão `alvo_obrigatorio`). |
+| **parse_when** | hora sem dia → **hoje**; se já passou → **amanhã**; dia explícito nunca rola; sem hora continua date-only; a dica `'às 15h'` pura agora completa a pendência. |
+| **`crei` removido** | pedido do dono: era **erro de digitação**, o verbo é `crie` (já coberto) — frase com a palavra errada cai na LEITURA, nunca cria. |
+| **Teste do teste** | **5 mutações** da correção do horário + **2** da remoção do `crei`, todas detectadas e restauradas bit-exato. |
+| **Resultado** | Suíte **2330 passed, 16 skipped** · guardas de versão 9/9 · cobertura **90,13%** (gate 90). Prova de contrato: POST ao Google com `dateTime 06:00`, nunca `{"date": …}`. |
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.19.4` · capabilities fallback `1.19.4` · `pubspec 1.19.4+2043` · `_APP_VERSION_CODE=2043` · `site 2x` · APKs rebuildados (aapt2 `versionCode='2043' versionName='1.19.4'`) · `CHANGELOG [1.19.4]` · este README.
+
 ## [1.19.3] — AGENDA: HORA ANTES DO DIA + CRIAÇÃO ENCADEADA SEM LLM ⏰ (2026-10-08)
 
 ### 1. O que foi feito

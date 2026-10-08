@@ -1643,21 +1643,29 @@ class TestHoraAntesDoDia:
         # …e o 'quando' de verdade continua disponível
         assert actions.peek_pending_calendar_when("alex", "amanhã") is not None
 
-    def test_mostre_vira_leitura_e_crei_vira_escrita(self) -> None:
+    def test_mostre_vira_leitura_e_crie_vira_escrita(self) -> None:
         """'me mostre os compromissos' (sem 'meus') caía no LLM, que ecoava
-        a alucinação do cache em vez da Agenda real (IDs 713/714); 'crei'
-        caía na LEITURA (IDs 727/728) — verbo fora da regex de criação."""
+        a alucinação do cache em vez da Agenda real (IDs 713/714)."""
         for frase in ("me mostre os compromissos", "me montre os compromissos",
                       "mostra os compromissos"):
             intent = detect_action_intent(frase)
             assert intent is not None, frase
             assert intent[0] == "google_calendar_events", (frase, intent)
+        # 'crie' é o VERBO certo → escrita com título e quando
         intent = detect_action_intent(
-            "crei um evento na agenda para as 5 horas de hoje"
+            "crie um evento na agenda para as 5 horas de hoje"
         )
         assert intent is not None and intent[0] == "google_calendar_create"
         assert intent[1]["titulo"] == "evento", intent[1]
         assert "5" in intent[1]["quando"], intent[1]
+        # 'crei' (IDs 727/728) era erro de DIGITAÇÃO do dono — pedido dele
+        # em 08/10: NÃO é verbo. A frase cai na LEITURA (mostra a agenda)
+        # e nunca cria nada.
+        intent = detect_action_intent(
+            "crei um evento na agenda para as 5 horas de hoje"
+        )
+        assert intent is not None, intent
+        assert intent[0] == "google_calendar_events", intent
 
     # ------------------------------------------------------------------
     # Hora SEM dia: 'criar compromisso para as 6 horas' (prova real do

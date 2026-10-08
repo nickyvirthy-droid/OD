@@ -439,7 +439,7 @@ _GOOGLE_W_CAL_RE = re.compile(
     re.IGNORECASE,
 )
 _GOOGLE_W_CRIAR_RE = re.compile(
-    r"\b(criar|crie|crei|cria|criamos|fazer|faz|fa[çc]a|gerar|gere|cria-me|"
+    r"\b(criar|crie|cria|criamos|fazer|faz|fa[çc]a|gerar|gere|cria-me|"
     r"crie-me|marcar|marque|marcamos|agendar|agende|agendando|"
     r"colocar|coloque|coloco|incluir|inclua|anotar|anote|"
     r"registrar|registre|registra)\b",
@@ -585,7 +585,7 @@ def _google_quando_e_titulo(text: str) -> tuple[str, str]:
         titulo = resto
     titulo = _google_limpa_nome(titulo)
     if not titulo and m:
-        # Tudo DEPOIS do substantivo era o 'quando' ('crei um evento na
+        # Tudo DEPOIS do substantivo era o 'quando' ('crie um evento na
         # agenda para as 5 horas de hoje') — o nome está ANTES: tira a
         # preposição de ligação e o verbo de criação.
         antes = text[:m.start()].strip()

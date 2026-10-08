@@ -14,6 +14,48 @@
 
 ---
 
+## [1.19.4] — AGENDA: HORA SEM DIA GRAVA NO HORÁRIO ⏰ (2026-10-08)
+
+> **DEPLOY AUTORIZADO PELO DONO (08/10):** checklist do
+> `docs/VERSIONAMENTO.md` §5 completo — `.env` · capabilities · `pubspec
+> 1.19.4+2043` · `_APP_VERSION_CODE=2043` · `site 2x` · APKs rebuildados ·
+> restart do `od-core` (regra 13).
+
+Bugs reais do chat (IDs 747–752, 08/10): o dono escreveu **'criar
+compromisso para as 6 horas'** — sem 'hoje' na frase o regex de quando
+não casava, a hora virava **título** (`'para as 6 horas'`), o create
+pedia 'quando', ele respondeu 'hoje' e o evento nascia **DIA INTEIRO**
+no Google ('quase funcionou, ainda não grava no horário').
+
+- **fix(intents): hora SEM dia** — `_GOOGLE_W_QUANDO_RE` ganha o ramo
+  'só a hora' (`para as 6 horas` · `às 12 horas` · `14:30`), com
+  exigência de preposição `às` (ou HH:MM): número solto (`daqui 2
+  horas`, `10.000`) **não** é um quando.
+- **fix(intents): título padrão** — quando todo o resto era o quando,
+  o SUBSTANTIVO vira o título (`'criar compromisso para as 6 horas'` →
+  `'compromisso'`), nunca string vazia (senão `alvo_obrigatorio`).
+- **fix(calendar): parse_when** — hora sem dia → **hoje**, e **amanhã**
+  quando a hora já passou; dia explícito nunca rola; sem hora nenhuma
+  continua date-only (escolha do dono). A dica `'às 15h'` pura agora
+  completa a pendência (antes exigia 'hoje' junto).
+- **fix(intents): `crei` removido da regex de criação** — pedido do
+  dono em 08/10: era **erro de digitação**, o verbo é `crie` (já
+  coberto). Mensagem com a palavra errada volta a cair na **LEITURA**
+  (mostra a agenda), nunca cria.
+- **Teste do teste:** **5 mutações** detectadas e restauradas bit-exato
+  (regex sem o ramo 'só a hora'; `parse_when` recusa hora sem dia; sem
+  o rollover hoje→amanhã; título padrão removido; hora solta aceitando
+  número sem preposição) + **2** da remoção do `crei`.
+- **Resultado:** Suíte **2330 passed, 16 skipped** (+5 testes
+  `*sem_dia*` sobre as 2325 da 1.19.3) · guardas de versão 9/9 ·
+  cobertura **90,13%** (gate 90). Prova de contrato: POST ao Google com
+  `dateTime 06:00` quando o dono falou 'para as 6 horas' — nunca
+  `{"date": …}`.
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.19.4` · capabilities fallback `1.19.4` · `pubspec 1.19.4+2043` · `_APP_VERSION_CODE=2043` · `site 2x` · APKs rebuildados (aapt2 `versionCode='2043' versionName='1.19.4'`) · `CHANGELOG [1.19.4]` · este README.
+
 ## [1.19.3] — AGENDA: HORA ANTES DO DIA + CRIAÇÃO ENCADEADA SEM LLM ⏰ (2026-10-08)
 
 > **DEPLOY AUTORIZADO PELO DONO (08/10):** checklist do
