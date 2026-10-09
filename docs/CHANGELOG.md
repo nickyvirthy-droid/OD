@@ -14,6 +14,21 @@
 
 ---
 
+## [1.22.1] — PAINEL DO REGISTRO MESTRE: CADASTRO DO DONO NO AR 🜂 (2026-10-09)
+
+> **Bump PATCH:** o dono pediu "um backend de cadastro para o adm" e autorizou exemplos de teste. O painel `/admin` ganha a seção **Registro Mestre (peças)**: formulário de cadastro (nome, coleção, tipo, código gravado, preço, notas), lista completa com status e dono, ações **→ Vender**, **🔑 Registrar** (username de quem comprou) e **✕ Remover** (rota `DELETE /admin/registry/{public_id}` nova, com dupla confirmação). Preço e notas continuam só no painel.
+
+| Peça | Entrega |
+|---|---|
+| **Painel** | Seção "Registro Mestre (peças)" em `/admin` — cadastro, transições de status e remoção; carrega junto com o resto (`carregarTudo`). |
+| **API** | `DELETE /admin/registry/{public_id}` (só dono; 404 se não existe) + `RegistryStore.delete()`. |
+| **Testes** | Guardas de rotas 56→57 · `tests/test_registry.py` +3 (delete no store, rota DELETE com prova público→removido→404, seção do painel no HTML). |
+| **Exemplos** | Peças de teste cadastradas no ar para o dono exercitar a consulta pública. |
+
+Infra visível no repo: `.env 1.22.1` · capabilities fallback `1.22.1` · `pubspec 1.22.1+2050` · `_APP_VERSION_CODE=2050` · site (badge + card) · APKs rebuildados · `CHANGELOG [1.22.1]` · `README_VERSAO §1.22.1`.
+
+---
+
 ## [1.22.0] — REGISTRO MESTRE: BANCO DE PEÇAS + VERIFICAÇÃO PÚBLICA NO AR 🜂 (2026-10-09)
 
 > **Bump MINOR:** item 2 da pauta de divergências (decisões do dono a–e, 09/10) — o Registro Mestre nasce como banco real de peças com consulta pública de autenticidade. A pessoa está com a PEÇA na mão (não com o cartão): o ID vem gravado na peça e é pesquisável por qualquer um; a consulta mostra o **username** de quem registrou (nunca o nome real) e o QR segue como símbolo de propriedade.

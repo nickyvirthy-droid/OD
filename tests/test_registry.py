@@ -53,6 +53,18 @@ def serve():
             pass
 
 
+@pytest.fixture()
+def srv(serve, tmp_path: Path):
+    """Servidor de teste com Registro Mestre + api_key fixa (auth_all)."""
+    from integrations.api import APIConfig
+
+    db = Database(tmp_path / "api-registry.db")
+    reg = RegistryStore(db)
+    cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123",
+                    auth_all=True, registry=reg)
+    return serve(None, config=cfg), reg
+
+
 # ---------------------------------------------------------------------------#
 # RegistryStore (banco)                                                       #
 # ---------------------------------------------------------------------------#
@@ -124,18 +136,6 @@ class TestRegistryStore:
 # Rotas (integração HTTP)                                                      #
 # ---------------------------------------------------------------------------#
 class TestRegistryRotas:
-    @pytest.fixture()
-    def srv(self, serve, tmp_path: Path):
-        from core.registry import RegistryStore as RS
-        from storage import Database as DB
-        from integrations.api import APIConfig
-
-        db = DB(tmp_path / "api-registry.db")
-        reg = RS(db)
-        cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123",
-                        auth_all=True, registry=reg)
-        return serve(None, config=cfg), reg
-
     def test_publica_sob_auth_all_sem_credencial(self, serve, tmp_path: Path) -> None:
         """Produção (auth_all): a consulta pública NÃO pede chave."""
         from core.registry import RegistryStore as RS
@@ -239,3 +239,55 @@ def _json_response(tuple_resp):
     import json as _json
     _, body, _ = tuple_resp
     return _json.loads(body.decode() or "{}")
+
+
+# ---------------------------------------------------------------------------#
+# Cadastro no painel admin (v1.22.1) + remoção                                #
+# ---------------------------------------------------------------------------#
+class TestRegistroAdminPainel:
+    def test_delete_remove_peca(self, store: RegistryStore) -> None:
+        item = store.create(name="A", kind="publica")
+        assert store.delete(item["public_id"]) is True
+        assert store.get(item["public_id"]) is None
+        assert store.delete(item["public_id"]) is False  # já foi
+
+    def test_admin_delete_rota(self, srv) -> None:
+        server, _ = srv
+        status, body, _ = _request(server.bound_port, "POST", "/admin/registry",
+                                   api_key="segredo123",
+                                   raw_body='{"name":"Descartável","kind":"publica"}')
+        assert status == 201
+        item = _json_response((status, body, None))["peca"]
+        # público enxerga antes de remover
+        status, _, _ = _request(server.bound_port, "GET",
+                                "/registry/" + item["public_id"])
+        assert status == 200
+        # remove (admin)
+        status, body, _ = _request(server.bound_port, "DELETE",
+                                   "/admin/registry/" + item["public_id"],
+                                   api_key="segredo123")
+        assert status == 200
+        # some da consulta pública
+        status, _, _ = _request(server.bound_port, "GET",
+                                "/registry/" + item["public_id"])
+        assert status == 404
+        # remover de novo = 404
+        status, _, _ = _request(server.bound_port, "DELETE",
+                                "/admin/registry/" + item["public_id"],
+                                api_key="segredo123")
+        assert status == 404
+
+    def test_admin_page_tem_secao_de_cadastro(self, serve) -> None:
+        """O painel /admin traz a seção do Registro Mestre (shell público)."""
+        from integrations.api import APIConfig
+
+        cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123")
+        srv = serve(None, config=cfg)
+        status, body, _ = _request(srv.bound_port, "GET", "/admin")
+        html = body.decode("utf-8", "replace")
+        assert status == 200
+        assert "Registro Mestre (peças)" in html
+        assert "/admin/registry" in html          # endpoints que a UI usa
+        assert 'id="reg-nome"' in html            # campo de cadastro
+        assert "regRegistrar" in html             # fluxo de registro por QR
+        assert "🐉" not in html

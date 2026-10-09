@@ -150,6 +150,21 @@ class RegistryStore:
             "SELECT * FROM registry_items ORDER BY id"
         )]
 
+    def delete(self, codigo: str) -> bool:
+        """Remove uma peça (admin — limpeza de cadastros de teste).
+
+        Returns:
+            True se removeu; False se o código não existe.
+        """
+        item = self.get(codigo)
+        if item is None:
+            return False
+        self._db.execute(
+            "DELETE FROM registry_items WHERE public_id = ?",
+            (item["public_id"],),
+        )
+        return True
+
     def update(self, codigo: str, **fields: Any) -> Optional[dict[str, Any]]:
         """Atualiza campos permitidos (whitelist) e coerência de estados.
 

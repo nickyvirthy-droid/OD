@@ -7,6 +7,25 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.22.1] — PAINEL DO REGISTRO MESTRE: CADASTRO DO DONO NO AR 🜂 (2026-10-09)
+
+### 1. O que foi feito
+
+Pedido do dono: "Ainda não tenho peça. crie um backend de cadastro para o adm.
+pode cadastar alguns exemplos para teste."
+
+| Peça | Entrega |
+|---|---|
+| **Cadastro no painel** | `/admin` ganhou a seção **Registro Mestre (peças)**: form (nome, coleção, tipo exclusiva/pública, código gravado, preço, notas internas), tabela com ID/nome/coleção/tipo/código/status/dono/preço, e ações **→ Vender** (estoque→vendida), **🔑 Registrar** (prompt do username → vendida/estoque→registrada) e **✕ Remover** (dupla confirmação). |
+| **API nova** | `DELETE /admin/registry/{public_id}` (admin; 404 se inexistente) — a peça some também da consulta pública. `RegistryStore.delete()`. |
+| **Fluxo do dono** | Cadastrar → vender → registrar no nome do comprador (QR = posse) → público vê o username em `/site/verificacao.html`. |
+| **Testes** | rotas 56→57; +3 testes (store delete, rota DELETE ponta a ponta público-antes/depois, HTML do painel com a seção e sem 🐉). |
+| **Exemplos** | Peças de teste cadastradas no ar (exclusiva em estoque, vendida, registrada com username e uma pública) para o dono exercitar a verificação. |
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.22.1` · capabilities fallback `1.22.1` · `pubspec 1.22.1+2050` · `_APP_VERSION_CODE=2050` · site (badge + card) · APKs rebuildados · `CHANGELOG [1.22.1]` · este README.
+
 ## [1.22.0] — REGISTRO MESTRE: BANCO DE PEÇAS + VERIFICAÇÃO PÚBLICA NO AR 🜂 (2026-10-09)
 
 ### 1. O que foi feito

@@ -58,7 +58,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2050  # versionCode cru do APK publicado (v1.22.0+2050)
+_APP_VERSION_CODE = 2050  # versionCode cru do APK publicado (v1.22.1+2050)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -269,6 +269,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/admin/registry", "admin_registry_create", True),
     ("GET", "/admin/registry", "admin_registry_list", True),
     ("PUT", "/admin/registry/{public_id}", "admin_registry_update", True),
+    ("DELETE", "/admin/registry/{public_id}", "admin_registry_delete", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -815,6 +816,43 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <h2>Baldes sem conta (legado)</h2>
     <table><tbody id="buckets"></tbody></table>
   </section>
+
+  <section>
+    <h2>Registro Mestre (peças)</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Cadastro de todas as peças físicas do ecossistema. O público consulta
+      pelo ID gravado na peça em <a href="/site/verificacao.html">/site/verificacao.html</a>
+      — lá aparecem nome, coleção, status e o <b>username</b> de quem registrou;
+      <b>preço e notas nunca saem daqui</b>. Status: estoque → vendida →
+      registrada (registrar exige o username de quem comprou — o QR é a
+      prova de posse).
+    </p>
+    <div class="row">
+      <input id="reg-nome" placeholder="Nome (ex.: Anel Abissal)" style="width:200px">
+      <input id="reg-colecao" placeholder="Coleção (ABISSAL)" style="width:140px">
+      <select id="reg-kind" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:0.85rem">
+        <option value="exclusiva">exclusiva</option>
+        <option value="publica">pública</option>
+      </select>
+      <input id="reg-codigo" placeholder="Cód. gravado (NV-ABI-7F3A)" style="width:180px">
+      <input id="reg-preco" type="number" step="0.01" min="0" placeholder="Preço R$" style="width:110px">
+      <button id="reg-add" style="border-color:var(--accent);color:var(--accent)">＋ Cadastrar peça</button>
+      <button id="reg-refresh">↻ Carregar</button>
+      <span class="muted msg" id="reg-msg"></span>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <input id="reg-notas" placeholder="Notas internas (opcional — nunca públicas)"
+        style="flex:1;min-width:220px">
+    </div>
+    <table style="margin-top:10px">
+      <thead><tr>
+        <th>ID</th><th>Nome</th><th>Coleção</th><th>Tipo</th>
+        <th>Cód. gravado</th><th>Status</th><th>Dono</th>
+        <th class="num">Preço R$</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="reg-pecas"><tr><td colspan="9" class="muted">Carregando…</td></tr></tbody>
+    </table>
+  </section>
 </main>
 <script>
 let token = localStorage.getItem("od_session_token") || "";
@@ -1168,8 +1206,117 @@ async function limClear() {
 document.getElementById("lim-load").onclick = limLoad;
 document.getElementById("lim-clear").onclick = limClear;
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); };
+// --- Registro Mestre (peças) — cadastro do dono (item 2, 2026-10-09) ------
+function regSetMsg(t, cls) {
+  const el = document.getElementById("reg-msg");
+  el.textContent = t;
+  el.className = "muted msg " + (cls || "");
+}
+
+const REG_STATUS = { estoque: "Em estoque", vendida: "Vendida", registrada: "Registrada" };
+
+async function regLoad() {
+  try {
+    const resp = await fetch("/admin/registry", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { regSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    const pecas = data.pecas || [];
+    document.getElementById("reg-pecas").innerHTML = pecas.length ? pecas.map(p => {
+      let acoes = "";
+      if (p.status === "estoque") {
+        acoes += '<button class="reg-vender" data-id="' + esc(p.public_id) + '">→ Vender</button> ';
+        acoes += '<button class="reg-registrar" data-id="' + esc(p.public_id) + '">🔑 Registrar</button>';
+      } else if (p.status === "vendida") {
+        acoes = '<button class="reg-registrar" data-id="' + esc(p.public_id) + '">🔑 Registrar</button>';
+      } else {
+        acoes = '<span class="pill ok">com dono</span>';
+      }
+      acoes += ' <button class="danger reg-del" data-id="' + esc(p.public_id) + '">✕</button>';
+      return "<tr><td><code>" + esc(p.public_id) + "</code></td><td><b>" + esc(p.name) + "</b></td>" +
+        '<td class="muted">' + esc(p.collection || "—") + "</td>" +
+        "<td>" + (p.kind === "publica" ? "pública" : "exclusiva") + "</td>" +
+        '<td class="muted">' + esc(p.engraved_code || "—") + "</td>" +
+        '<td><span class="pill ' + (p.status === "registrada" ? "ok" : "") + '">' +
+          esc(REG_STATUS[p.status] || p.status) + "</span></td>" +
+        "<td>" + (p.owner_username ? "<b>@" + esc(p.owner_username) + "</b>" : '<span class="muted">—</span>') + "</td>" +
+        '<td class="num">' + (p.price_brl != null ? Number(p.price_brl).toFixed(2) : "—") + "</td>" +
+        "<td>" + acoes + "</td></tr>";
+    }).join("") : '<tr><td colspan="9" class="muted">Nenhuma peça cadastrada ainda.</td></tr>';
+    document.querySelectorAll(".reg-vender").forEach(b =>
+      b.addEventListener("click", () => regStatus(b.dataset.id, "vendida")));
+    document.querySelectorAll(".reg-registrar").forEach(b =>
+      b.addEventListener("click", () => regRegistrar(b.dataset.id)));
+    document.querySelectorAll(".reg-del").forEach(b =>
+      b.addEventListener("click", () => regDel(b.dataset.id)));
+    regSetMsg(pecas.length + " peça(s) no Registro Mestre.", "");
+  } catch (e) { regSetMsg("Falha ao carregar: " + e.message, "err"); }
+}
+
+async function regAdd() {
+  const nome = (document.getElementById("reg-nome").value || "").trim();
+  if (!nome) { regSetMsg("Dê um nome à peça.", "err"); return; }
+  const preco = document.getElementById("reg-preco").value;
+  const body = {
+    name: nome,
+    kind: document.getElementById("reg-kind").value,
+    collection: (document.getElementById("reg-colecao").value || "").trim() || null,
+    engraved_code: (document.getElementById("reg-codigo").value || "").trim() || null,
+    price_brl: preco === "" ? null : Number(preco),
+    notes: (document.getElementById("reg-notas").value || "").trim() || null,
+  };
+  try {
+    const resp = await fetch("/admin/registry", {
+      method: "POST", headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { regSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    ["reg-nome", "reg-colecao", "reg-codigo", "reg-preco", "reg-notas"]
+      .forEach(id => document.getElementById(id).value = "");
+    regSetMsg("✔ Cadastrada: " + data.peca.public_id, "ok");
+    regLoad();
+  } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function regStatus(id, status, owner) {
+  const body = { status: status };
+  if (owner) body.owner_username = owner;
+  try {
+    const resp = await fetch("/admin/registry/" + encodeURIComponent(id), {
+      method: "PUT", headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { regSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    regSetMsg(id + " → " + (REG_STATUS[status] || status), "ok");
+    regLoad();
+  } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
+}
+
+function regRegistrar(id) {
+  const username = (window.prompt(
+    "Username de quem passa a ser o dono — na consulta pública aparece SÓ o username, nunca o nome real:") || "").trim();
+  if (!username) return;
+  regStatus(id, "registrada", username);
+}
+
+async function regDel(id) {
+  if (!window.confirm("REMOVER a peça " + id + " do Registro Mestre? Some também da consulta pública.")) return;
+  if (!window.confirm("Confirma de novo? Não dá para desfazer.")) return;
+  try {
+    const resp = await fetch("/admin/registry/" + encodeURIComponent(id), { method: "DELETE", headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { regSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    regSetMsg("Peça removida: " + id, "ok");
+    regLoad();
+  } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
+}
+
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
+document.getElementById("reg-add").onclick = regAdd;
+document.getElementById("reg-refresh").onclick = regLoad;
+document.getElementById("reg-nome").addEventListener("keydown", e => { if (e.key === "Enter") regAdd(); });
 whoAmI().then(u => { if (u) carregarTudo(); });
 // a sessão roda fora do od-core: o painel acompanha de 5 em 5 s
 setInterval(async () => {
@@ -3712,6 +3859,17 @@ class APIHandler(BaseHTTPRequestHandler):
         if item is None:
             raise APIError(404, "peca_inexistente")
         self._json(200, {"ok": True, "peca": item})
+
+    def admin_registry_delete(self, public_id: str) -> None:
+        """DELETE /admin/registry/{public_id} — remove uma peça (dono).
+
+        Limpeza de cadastros (ex.: peças de teste) — a remoção some também
+        da consulta pública.
+        """
+        store = self._registry_store_or_503()
+        if not store.delete(public_id):
+            raise APIError(404, "peca_inexistente")
+        self._json(200, {"ok": True, "removida": str(public_id).strip().upper()})
 
     def admin_cache_prune(self) -> None:
         """POST /admin/cache/prune — saneia o cache LLM (admin/dono).
