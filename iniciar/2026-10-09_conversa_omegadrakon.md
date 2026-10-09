@@ -132,3 +132,23 @@
   conferir o logo nas superfícies. **Próxima discussão:** as 15
   divergências de `docs/ANALISE_ECOSSISTEMA.md` (ID duplo,
   `/verificacao`, organização do Legado, rotação de segredos).
+
+## 11. Item 1 da pauta — Legado organizado sem mover nada (~16:0x)
+
+- Dono perguntou o motivo de mover e se perderia algo. Medi antes de
+  responder: (1) das 8 "duplicações" suspeitas, só **2 são bit-idênticas**
+  — as outras 6 são **versões diferentes** do mesmo documento (camadas de
+  eras distintas); (2) 10 docs antigos citam caminhos já históricos
+  (`~/nicky` etc.) e só 2 arquivos do repo citam caminhos do Legado.
+- **Decisão do dono: NÃO mover, NÃO deduplicar.** Caminho adotado é puro
+  aditivo: `Legado/00_MAPA_DO_LEGADO.md` (NOVO) — índice vivo vs histórico
+  das 5 raízes, linha do tempo, onde vive o canônico hoje (marca, Git,
+  Drive), mapa completo das duplicações (4 pares idênticos = únicos
+  candidatos a remoção futura; grupos divergentes = história, não tocar),
+  aviso permanente de segredos e as 4 regras de cuidado da pasta. Medição
+  final incluiu ainda: `ativar venv.md` (3 versões, todas diferentes),
+  `Servidor Dell(1)` e `ARCHITECTURE(1)` idênticos, prompts `NICKY_v040
+  (2)`/`v070 (2)` divergentes e `regras_nexus 1` divergente.
+- Regra 16 atualizada apontando o mapa como bússola do Legado.
+- **Concluído sem mutação nenhuma no Legado** (só o arquivo novo). Próximo
+  item da pauta: `/verificacao` (autenticidade pública).
