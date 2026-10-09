@@ -726,8 +726,8 @@ void main() {
 
       expect(find.text('minha msg'), findsOneWidget);
       expect(find.text('resposta'), findsOneWidget);
-      // Assistente sem answeredBy exibe o selo 🐉 OD
-      expect(find.text('🐉 OD'), findsOneWidget);
+      // Assistente sem answeredBy exibe o selo OD
+      expect(find.text('OD'), findsOneWidget);
     });
 
     testWidgets('bolha mostra QUEM respondeu (nome canônico) e a hora',
@@ -745,7 +745,7 @@ void main() {
 
       expect(find.text('Regulus — O Conselheiro'), findsOneWidget);
       expect(find.text('12:05'), findsOneWidget);
-      expect(find.text('🐉 OD'), findsNothing);
+      expect(find.text('OD'), findsNothing);
     });
 
     testWidgets('resposta do cache exibe o rótulo cache e a hora',
@@ -773,7 +773,7 @@ void main() {
       )));
 
       expect(find.text('23:59'), findsOneWidget);
-      expect(find.text('🐉 OD'), findsNothing);
+      expect(find.text('OD'), findsNothing);
     });
   });
 }

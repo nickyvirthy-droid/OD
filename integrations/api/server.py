@@ -58,7 +58,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2049  # versionCode cru do APK publicado (v1.21.1+2049)
+_APP_VERSION_CODE = 2050  # versionCode cru do APK publicado (v1.21.2+2050)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -410,7 +410,7 @@ _DASHBOARD_PAGE_HTML = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OmegaDrakon — Meu painel</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
+<link rel="icon" href="/site/favicon.png">
 <style>
   :root {
     --bg: #06080f; --bg2: #0c1120; --bg3: #111830;
@@ -467,7 +467,7 @@ _DASHBOARD_PAGE_HTML = """<!doctype html>
 </head>
 <body>
 <header>
-  <a href="/">🐉</a><h1>Meu painel</h1>
+  <a href="/"><img src="/site/simbolo_minimo.png" alt="OD" style="width:22px;height:22px;vertical-align:-4px"></a><h1>Meu painel</h1>
   <div id="badge"></div>
 </header>
 <main>
@@ -559,7 +559,7 @@ async function loadHistory() {
   const msgs = data.messages || [];
   if (!msgs.length) { tbody.innerHTML = '<tr><td class="muted">Nenhuma mensagem ainda.</td></tr>'; return; }
   tbody.innerHTML = msgs.slice(-20).map(m => {
-    const who = m.role === "user" ? "🙋" : "🐉";
+    const who = m.role === "user" ? "🙋" : '<img src="/site/simbolo_minimo.png" alt="OD" style="width:14px;height:14px;vertical-align:-2px">';
     const when = m.ts ? new Date(m.ts * 1000).toLocaleString("pt-BR") : "";
     const text = String(m.content || "").slice(0, 140);
     return "<tr><td>" + who + " " + escapeHtml(text) +
@@ -630,7 +630,7 @@ _ADMIN_PAGE_HTML = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OmegaDrakon — Admin</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
+<link rel="icon" href="/site/favicon.png">
 <style>
   :root {
     --bg: #06080f; --bg2: #0c1120; --bg3: #111830;
@@ -695,7 +695,7 @@ _ADMIN_PAGE_HTML = """<!doctype html>
 </head>
 <body>
 <header>
-  <a href="/">🐉</a><h1>🛡 Admin</h1>
+  <a href="/"><img src="/site/simbolo_minimo.png" alt="OD" style="width:22px;height:22px;vertical-align:-4px"></a><h1>🛡 Admin</h1>
   <div id="badge"></div>
 </header>
 <main>
@@ -1177,7 +1177,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OmegaDrakon — Chat</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
+<link rel="icon" href="/site/favicon.png">
 <style>
   :root {
     --bg: #06080f; --bg2: #0c1120; --bg3: #111830;
@@ -1378,7 +1378,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
 
 <header>
   <div class="h-brand">
-    <a href="/site">🐉 OD</a>
+    <a href="/site"><img src="/site/simbolo_minimo.png" alt="OD" style="width:18px;height:18px;vertical-align:-3px"> OD</a>
     <span class="h-sep">|</span>
     <h1>Chat</h1>
   </div>
@@ -1386,7 +1386,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
     <span id="transport" class="transport-badge"></span>
     <select id="profile" title="Perfil">
       <option value="auto">🤖 Auto</option>
-      <option value="guardian">🐉 Nicky Virthy</option>
+      <option value="guardian">Nicky Virthy</option>
       <option value="regulus">⚖️ Regulus</option>
       <option value="luma">🌟 Luma</option>
       <option value="vox">📜 Vox</option>
@@ -1408,7 +1408,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
 
 <div id="gate">
   <div id="gate-login">
-    <h2>🐉 Entrar no Chat</h2>
+    <h2><img src="/site/simbolo_minimo.png" alt="" style="width:26px;height:26px;vertical-align:-5px"> Entrar no Chat</h2>
     <p>Faça login para conversar com o OmegaDrakon.</p>
     <input id="login-user" type="text" placeholder="Username" autocomplete="username">
     <input id="login-pass" type="password" placeholder="Senha" autocomplete="current-password">
@@ -1440,7 +1440,7 @@ _CHAT_PAGE_HTML = """<!doctype html>
   <div id="messages">
     <button id="hist-top">↑ Carregar conversas anteriores</button>
     <div class="welcome">
-      <div class="icon">🐉</div>
+      <div class="icon"><img src="/site/logo.png" alt="Omega Drakon" style="width:72px;height:72px"></div>
       <h2>OmegaDrakon</h2>
       <p>Envie uma mensagem para começar a conversar.</p>
     </div>
@@ -1671,7 +1671,7 @@ $("btn-limpar").onclick = async () => {
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
       histOldestId = null; histHasMore = false;
-      resetMessages('<div class="welcome"><div class="icon">🐉</div><h2>OmegaDrakon</h2><p>Conversa limpa. Envie uma mensagem para começar de novo.</p></div>');
+      resetMessages('<div class="welcome"><div class="icon"><img src="/site/logo.png" alt="Omega Drakon" style="width:72px;height:72px"></div><h2>OmegaDrakon</h2><p>Conversa limpa. Envie uma mensagem para começar de novo.</p></div>');
       histNote("Conversa apagada (" + (data.removed ?? 0) + " mensagens). A IA começa sem memória desta conta.");
     } else {
       histNote("Não deu para limpar agora (HTTP " + res.status + (") — tente novamente."));
@@ -1702,7 +1702,7 @@ $("btn-logout").onclick = async () => {
   const el = $("transport"); el.className = "transport-badge"; el.textContent = "";
   user_id = "web";
   histOldestId = null; histHasMore = false;
-  resetMessages('<div class="welcome"><div class="icon">🐉</div><h2>OmegaDrakon</h2><p>Envie uma mensagem para começar a conversar.</p></div>');
+  resetMessages('<div class="welcome"><div class="icon"><img src="/site/logo.png" alt="Omega Drakon" style="width:72px;height:72px"></div><h2>OmegaDrakon</h2><p>Envie uma mensagem para começar a conversar.</p></div>');
   showGate("");
 };
 function setTransport(type) {

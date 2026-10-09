@@ -7,6 +7,23 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.21.2] — ECOSSISTEMA NO AR: SITE INSTITUCIONAL + FIM DO DRAGÃO 🜂 (2026-10-09)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono (09/10)** | 'quero ele [o logo] no lugar do dragão que colocou nas mensagens e no site' + 'vamos refazer [o site] com base no Legado — o site atual fala apenas do APP'. |
+| **Fontes** | `/home/alex/Legado` (217 arquivos, 93 MB, 5 raízes) + consolidações canônicas do Google Drive (`OMEGADRAKON_SPEC.md`, `OMEGA_DRAKON_SOURCE_MAP.md`, `NICKY_VIRTHY_KNOWLEDGE.md`). |
+| **Site novo** | Página institucional completa do ecossistema (não só do app): Marca, Ecossistema (5 sub-marcas), Sistemas, Produtos, Autenticidade (MoC), Histórico (linha do tempo 2025→2026), Plêiade, Download, Sobre (texto aprovado). Identidade oficial: `#0A0A0A`/`#0088FF`, Orbitron+Montserrat, logo real em `site/` (raiz — o route `/site/{file}` é single-segment). |
+| **Fim do 🐉** | Chat web (favicon/avatar/nav/login/boas-vindas), painel, admin, cabeçalho `/capabilities`, respostas de identidade e app (login, boas-vindas, chip guardian, selo da bolha) — tudo com o logo oficial. |
+| **Regra 16** | `iniciar/RULES.md`: `/home/alex/Legado` é referência obrigatória da sessão. |
+| **Divergências mapeadas** | `docs/ANALISE_ECOSSISTEMA.md` — análise profunda do Legado × sistema atual (15+ contradições, duplicações entre projetos predecessor) para a discussão de implementação com o dono. |
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.21.2` · capabilities fallback `1.21.2` · `pubspec 1.21.2+2050` · `_APP_VERSION_CODE=2050` · site (conteúdo + badge) · APKs rebuildados · `CHANGELOG [1.21.2]` · este README.
+
 ## [1.21.1] — ÍCONE DO APP: PADRÃO OMEGA DRAKON 🎨 (2026-10-09)
 
 ### 1. O que foi feito

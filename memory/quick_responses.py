@@ -62,14 +62,14 @@ DEFAULT_RESPONSES: dict[str, list[str]] = {
     "obrigado": ["De nada! 😊", "Por nada!", "Sempre à disposição."],
     "obrigada": ["De nada! 😊", "Por nada!", "Sempre à disposição."],
     "quem é você": [
-        "Eu sou o *Omega Drakon* — tecnologia que respira. 🐉",
+        "Eu sou o *Omega Drakon* — tecnologia que respira.",
         "Sou o Omega Drakon, a Interface Viva do sistema.",
     ],
     "o que é você": [
-        "Sou o *Omega Drakon* — tecnologia que respira. 🐉",
+        "Sou o *Omega Drakon* — tecnologia que respira.",
         "Sou o sistema vivo deste servidor — análise, ações e memória.",
     ],
-    "qual seu nome": ["Meu nome é *Omega Drakon* (ou OD, para os íntimos). 🐉"],
+    "qual seu nome": ["Meu nome é *Omega Drakon* (ou OD, para os íntimos)."],
     "quem te criou": [
         "Fui criado pelo Alex Projeti, com a Interface Viva Nicky Virthy.",
     ],

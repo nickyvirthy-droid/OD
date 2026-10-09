@@ -69,7 +69,7 @@ class MessageBubble extends StatelessWidget {
                   Flexible(
                     child: Text(
                       message.answeredByLabel.isEmpty
-                          ? '🐉 OD'
+                          ? 'OD'
                           : message.answeredByLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

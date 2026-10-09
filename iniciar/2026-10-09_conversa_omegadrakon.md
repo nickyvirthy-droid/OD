@@ -71,3 +71,43 @@
   (`backups/llm-cache-fakes-20261008-055830.json`).
 - Nada pendente do sistema — sessão segue aguardando o próximo pedido
   do dono.
+
+## 8. Re-verificação — "leia iniciar" de novo (~14:32)
+
+- Nenhuma mudança desde a §7: od-core **active, PID 954778, NRestarts=0**
+  (desde 11:18:59, ~3h11) · `/health` ok · `/app/version`
+  {1.21.1, 2049, sha256 `13142a39…` == binário de site/} · HEAD
+  **486f367 == origin/master**.
+- `txt.txt` sem mensagem nova do dono (resposta 11:2x intacta); único
+  resíduo da árvore segue sendo o backup untracked já conhecido.
+- Sessão segue aguardando o próximo pedido do dono (pendência dele:
+  abrir o app p/ auto-atualização 2048 → 2049 e conferir o ícone).
+
+## 9. Lote do ecossistema — site institucional + fim do dragão (~15:0x)
+
+- Dono confirmou o app ("está excelente") e pediu: (1) o **logo** no
+  lugar do **dragão (🐉)** das mensagens e do site; (2) **refazer o
+  site** com base no Legado — o antigo falava só do APP, que é uma
+  parte do ecossistema; (3) Legado (`/home/alex/Legado`) vira regra;
+  (4) análise profunda, didática e profissional para depois discutir
+  implementação das frentes que ainda não existem.
+- **Fontes consultadas:** Legado local (217 arquivos, 93 MB —
+  `OMEGA_DRAKON/`, `Nicky Virthy/`, `Nicky/`, `NV/`, `Nexus/`) +
+  consolidações canônicas do Google Drive (`OMEGADRAKON_SPEC.md`,
+  `OMEGA_DRAKON_SOURCE_MAP.md`, `NICKY_VIRTHY_KNOWLEDGE.md`,
+  `CONTROL_BRIDGE.md`). Drive não tem as raízes de projeto (só `OD` e
+  `OmegaDrakon`) — o local é a fonte mais completa.
+- **Entregas:** `docs/ANALISE_ECOSSISTEMA.md` (análise completa: 5
+  frentes do ecossistema, linha do tempo, duplicações do Legado,
+  15 divergências, próximos passos) · `site/index.html` REESCRITO como
+  site institucional do ecossistema inteiro (Marca, Ecossistema,
+  Sistemas, Produtos, Autenticidade, Histórico, Plêiade, Download,
+  Sobre) na identidade oficial (`#0A0A0A`/`#0088FF`, Orbitron +
+  Montserrat, logo real em `site/`) · fim do 🐉 em chat web, painéis,
+  `/capabilities`, respostas de identidade e app · regra 16 no
+  `RULES.md`.
+- **Validação:** suíte do servidor **2390 passed, 16 skipped** ·
+  `flutter analyze` **0 issues** · `flutter test` **134 passed** ·
+  HTML validado (0 tags abertas, 0 âncoras quebradas, 0 🐉, assets OK).
+- **Bump PATCH 1.21.2+2050** (checklist completo). APKs: build canônico
+  em andamento — publicação e registro finais no próximo capítulo.

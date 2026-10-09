@@ -325,7 +325,16 @@ class _ChatScreenState extends State<ChatScreen> {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: ChoiceChip(
-              label: Text('${entry.value['icon']} ${entry.value['name']}'),
+              label: entry.key == 'guardian'
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset('assets/logo.png', width: 14, height: 14),
+                        const SizedBox(width: 4),
+                        Text(entry.value['name'] ?? ''),
+                      ],
+                    )
+                  : Text('${entry.value['icon']} ${entry.value['name']}'),
               selected: isSelected,
               onSelected: (_) {
                 setState(() => _selectedProfile = entry.key);
@@ -338,23 +347,23 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildWelcome() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('🐉', style: TextStyle(fontSize: 64)),
-          SizedBox(height: 16),
-          Text(
+          Image.asset('assets/logo.png', width: 96, height: 96),
+          const SizedBox(height: 16),
+          const Text(
             'OmegaDrakon',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
-          SizedBox(height: 8),
-          Text(
+          const SizedBox(height: 8),
+          const Text(
             'Tecnologia que respira',
             style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
-          SizedBox(height: 24),
-          Text(
+          const SizedBox(height: 24),
+          const Text(
             'Envie uma mensagem para começar',
             style: TextStyle(color: Colors.grey),
           ),

@@ -1,633 +1,518 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OmegaDrakon — Plataforma Soberana de IA Pessoal</title>
-    <meta name="description" content="OmegaDrakon: plataforma soberana de inteligência artificial pessoal, automação distribuída e orquestração de agentes autônomos. Soberana, local, sua.">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
-    <style>
-        :root {
-            --primary: #0d1b3e;
-            --primary-light: #1a3a7a;
-            --accent: #f59e0b;
-            --accent-glow: rgba(245, 158, 11, 0.25);
-            --bg: #06080f;
-            --bg-card: #0c1120;
-            --bg-card-hover: #111830;
-            --text: #e8eaf0;
-            --text-muted: #7a839a;
-            --border: #1c2440;
-            --border-light: #2a3460;
-            --gradient-hero: linear-gradient(180deg, #0d1b3e 0%, #06080f 100%);
-        }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OMEGA DRAKON — Sistemas Vivos e Autônomos</title>
+<meta name="description" content="Omega Drakon: ecossistema de engenharia, arte e inteligência. Plataforma soberana de IA pessoal, autenticidade rastreável, manufatura de precisão e a Interface Viva Nicky Virthy.">
+<link rel="icon" href="/site/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0A0A;
+    --bg2: #111111;
+    --bg3: #171717;
+    --grafite: #2C2C2C;
+    --azul: #0088FF;
+    --azul-soft: rgba(0, 136, 255, .14);
+    --texto: #F2F2F2;
+    --muted: #9aa3b2;
+    --border: #2C2C2C;
+    --border-lit: #3a4a5c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--texto);
+    line-height: 1.65; font-weight: 300;
+  }
+  h1, h2, h3, .brand, .stat b { font-family: 'Orbitron', 'Montserrat', sans-serif; }
+  h2 { font-size: 1.6rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  h3 { font-weight: 700; letter-spacing: .06em; }
+  a { color: var(--azul); text-decoration: none; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    background: rgba(10,10,10,.82); backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 18px; height: 62px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .14em; color: var(--texto); font-size: .95rem; }
+  .brand img { width: 30px; height: 30px; }
+  nav .links { margin-left: auto; display: flex; gap: 20px; flex-wrap: wrap; }
+  nav .links a { color: var(--muted); font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; }
+  nav .links a:hover { color: var(--texto); }
+  nav .links a.cta { color: var(--bg); background: var(--azul); padding: 8px 16px; border-radius: 4px; font-weight: 600; }
+  nav .links a.cta:hover { color: var(--bg); filter: brightness(1.12); }
 
-        html { scroll-behavior: smooth; }
+  header {
+    padding: 150px 0 90px; text-align: center;
+    background:
+      radial-gradient(700px 340px at 50% 0%, rgba(0,136,255,.16), transparent 70%),
+      linear-gradient(180deg, #0d0d0d 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  header .logo { width: 150px; height: 150px; margin-bottom: 26px; filter: drop-shadow(0 0 34px rgba(0,136,255,.35)); }
+  .badge {
+    display: inline-block; border: 1px solid var(--border-lit); color: var(--muted);
+    font-size: .72rem; letter-spacing: .18em; text-transform: uppercase;
+    padding: 6px 14px; border-radius: 999px; margin-bottom: 22px;
+  }
+  .badge b { color: var(--azul); font-weight: 600; }
+  header h1 {
+    font-size: clamp(2rem, 5.5vw, 3.4rem); font-weight: 800;
+    letter-spacing: .18em; text-transform: uppercase;
+  }
+  .tagline {
+    margin-top: 10px; color: var(--azul); letter-spacing: .3em;
+    text-transform: uppercase; font-size: .82rem; font-weight: 500;
+  }
+  .slogan { margin-top: 18px; color: var(--muted); font-style: italic; font-size: 1.05rem; }
+  .hero-ctas { margin-top: 34px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 13px 26px; border-radius: 5px;
+    letter-spacing: .12em; text-transform: uppercase; font-size: .8rem; font-weight: 600;
+  }
+  .btn-primary { background: var(--azul); color: var(--bg); }
+  .btn-primary:hover { filter: brightness(1.12); }
+  .btn-ghost { border: 1px solid var(--border-lit); color: var(--texto); }
+  .btn-ghost:hover { border-color: var(--azul); color: var(--azul); }
+  .stats { margin-top: 54px; display: flex; justify-content: center; gap: 44px; flex-wrap: wrap; }
+  .stat { text-align: center; }
+  .stat b { display: block; font-size: 1.7rem; color: var(--texto); font-weight: 700; }
+  .stat span { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
 
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.7;
-            overflow-x: hidden;
-            -webkit-font-smoothing: antialiased;
-        }
+  section { padding: 84px 0; border-bottom: 1px solid var(--border); }
+  .sec-head { max-width: 760px; margin-bottom: 44px; }
+  .sec-head .kicker { color: var(--azul); font-size: .72rem; letter-spacing: .3em; text-transform: uppercase; }
+  .sec-head p { margin-top: 14px; color: var(--muted); }
 
-        /* === NAV === */
-        nav {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-            padding: 1rem 2rem;
-            background: rgba(6, 8, 15, 0.85);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-            display: flex; align-items: center; justify-content: space-between;
-        }
-        .nav-brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 1.1rem; text-decoration: none; color: var(--text); }
-        .nav-brand span { font-size: 1.5rem; }
-        .nav-links { display: flex; gap: 2rem; align-items: center; }
-        .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; }
-        .nav-links a:hover { color: var(--text); }
-        .nav-cta {
-            padding: 0.5rem 1.2rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
-            background: var(--accent); color: #000; text-decoration: none; transition: all 0.2s;
-        }
-        .nav-cta:hover { box-shadow: 0 0 20px var(--accent-glow); transform: translateY(-1px); }
+  .grid { display: grid; gap: 18px; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 26px; transition: transform .18s, border-color .18s;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--border-lit); }
+  .card .num { font-family: 'Orbitron', sans-serif; color: var(--azul); font-size: .8rem; letter-spacing: .2em; }
+  .card h3 { margin: 12px 0 8px; font-size: 1rem; text-transform: uppercase; }
+  .card p { color: var(--muted); font-size: .92rem; }
+  .card .tag { display: inline-block; margin-top: 12px; font-size: .68rem; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--azul); border: 1px solid rgba(0,136,255,.4); padding: 3px 10px; border-radius: 999px; }
+  .tag.gray { color: var(--muted); border-color: var(--border-lit); }
 
-        /* === HERO === */
-        .hero {
-            min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-            justify-content: center; text-align: center; padding: 6rem 2rem 4rem;
-            background: var(--gradient-hero); position: relative; overflow: hidden;
-        }
-        .hero::before {
-            content: ''; position: absolute; inset: 0;
-            background: radial-gradient(ellipse at 50% 30%, rgba(26, 58, 122, 0.2) 0%, transparent 70%);
-        }
-        .hero-badge {
-            display: inline-flex; align-items: center; gap: 0.5rem;
-            padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.8rem; font-weight: 500;
-            border: 1px solid var(--border-light); color: var(--text-muted);
-            margin-bottom: 2rem; position: relative; z-index: 1;
-        }
-        .hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-        .hero h1 {
-            font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 800; letter-spacing: -2px;
-            line-height: 1.1; position: relative; z-index: 1;
-            background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-        }
-        .hero .subtitle {
-            font-size: clamp(1rem, 2vw, 1.35rem); color: var(--text-muted);
-            margin-top: 1rem; max-width: 600px; position: relative; z-index: 1;
-        }
-        .hero-actions {
-            display: flex; gap: 1rem; margin-top: 2.5rem; flex-wrap: wrap;
-            justify-content: center; position: relative; z-index: 1;
-        }
-        .btn {
-            display: inline-flex; align-items: center; gap: 0.5rem;
-            padding: 0.9rem 2rem; border-radius: 10px; font-size: 1rem; font-weight: 600;
-            text-decoration: none; transition: all 0.25s; cursor: pointer; border: none;
-        }
-        .btn-accent { background: var(--accent); color: #000; }
-        .btn-accent:hover { box-shadow: 0 4px 30px var(--accent-glow); transform: translateY(-2px); }
-        .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border-light); }
-        .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
-        .hero-stats {
-            display: flex; gap: 3rem; margin-top: 4rem; position: relative; z-index: 1;
-        }
-        .hero-stat { text-align: center; }
-        .hero-stat .num { font-size: 2rem; font-weight: 800; color: var(--accent); }
-        .hero-stat .label { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
+  blockquote {
+    margin-top: 46px; padding: 26px 30px; border-left: 3px solid var(--azul);
+    background: var(--bg2); border-radius: 0 8px 8px 0; color: var(--texto); font-size: 1.02rem;
+  }
+  blockquote footer { margin-top: 12px; color: var(--muted); font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; }
 
-        /* === SECTIONS === */
-        section { padding: 6rem 2rem; }
-        .section-inner { max-width: 1100px; margin: 0 auto; }
-        .section-label {
-            font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
-            letter-spacing: 2px; color: var(--accent); margin-bottom: 0.5rem;
-        }
-        .section-title {
-            font-size: clamp(1.8rem, 3.5vw, 2.8rem); font-weight: 800;
-            letter-spacing: -1px; margin-bottom: 1rem;
-        }
-        .section-desc { color: var(--text-muted); font-size: 1.05rem; max-width: 650px; margin-bottom: 3rem; }
+  .timeline { border-left: 2px solid var(--border-lit); margin-left: 8px; }
+  .tl-item { position: relative; padding: 0 0 30px 30px; }
+  .tl-item::before {
+    content: ""; position: absolute; left: -7px; top: 4px;
+    width: 12px; height: 12px; border-radius: 50%; background: var(--azul);
+    box-shadow: 0 0 12px rgba(0,136,255,.6);
+  }
+  .tl-item .date { font-family: 'Orbitron', sans-serif; color: var(--azul); font-size: .78rem; letter-spacing: .16em; }
+  .tl-item h3 { margin: 6px 0 4px; font-size: .98rem; text-transform: uppercase; }
+  .tl-item p { color: var(--muted); font-size: .92rem; }
 
-        /* === VISION === */
-        .vision { background: var(--bg-card); }
-        .vision-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
-        .vision-card {
-            padding: 2rem; border-radius: 16px; border: 1px solid var(--border);
-            background: var(--bg); transition: all 0.3s;
-        }
-        .vision-card:hover { border-color: var(--border-light); transform: translateY(-2px); }
-        .vision-card .icon { font-size: 2rem; margin-bottom: 1rem; }
-        .vision-card h3 { font-size: 1.15rem; margin-bottom: 0.5rem; }
-        .vision-card p { color: var(--text-muted); font-size: 0.92rem; }
+  .pleiade-note { margin-top: 26px; color: var(--muted); font-size: .9rem; border-top: 1px dashed var(--border-lit); padding-top: 18px; }
 
-        /* === ARCHITECTURE === */
-        .arch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
-        .arch-item {
-            padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);
-            background: var(--bg-card); text-align: center; transition: all 0.3s;
-        }
-        .arch-item:hover { border-color: var(--primary-light); }
-        .arch-item .icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
-        .arch-item h4 { font-size: 0.95rem; margin-bottom: 0.3rem; }
-        .arch-item p { font-size: 0.8rem; color: var(--text-muted); }
+  .dl-card {
+    background: linear-gradient(160deg, rgba(0,136,255,.10), var(--bg2) 55%);
+    border: 1px solid var(--border-lit); border-radius: 10px; padding: 40px;
+    display: flex; gap: 34px; align-items: center; flex-wrap: wrap;
+  }
+  .dl-card img { width: 120px; height: 120px; }
+  .dl-info { flex: 1; min-width: 260px; }
+  .dl-info h3 { font-size: 1.2rem; text-transform: uppercase; letter-spacing: .1em; }
+  .dl-info p { color: var(--muted); margin: 10px 0 18px; font-size: .92rem; }
+  .dl-links { display: flex; gap: 12px; flex-wrap: wrap; }
+  .dl-meta { margin-top: 16px; font-size: .78rem; color: var(--muted); letter-spacing: .06em; }
 
-        /* === PLEIADE === */
-        .pleiade { background: var(--bg-card); }
-        .pleiade-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
-        .agent-card {
-            padding: 1.5rem 1rem; border-radius: 14px; border: 1px solid var(--border);
-            background: var(--bg); text-align: center; transition: all 0.3s;
-        }
-        .agent-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
-        .agent-card .emoji { font-size: 2.2rem; margin-bottom: 0.5rem; }
-        .agent-card .name { font-weight: 700; font-size: 0.95rem; }
-        .agent-card .role { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem; }
+  .sobre-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 34px; }
+  .sobre-cols p { color: var(--muted); margin-bottom: 14px; }
+  .status-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 26px; }
+  .status-panel dt { font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); margin-top: 14px; }
+  .status-panel dt:first-child { margin-top: 0; }
+  .status-panel dd { font-family: 'Orbitron', sans-serif; font-size: .92rem; color: var(--texto); margin-top: 3px; }
+  .status-panel dd .on { color: var(--azul); }
 
-        /* === CAPABILITIES === */
-        .cap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
-        .cap-item {
-            display: flex; align-items: flex-start; gap: 1rem; padding: 1.2rem;
-            border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card);
-        }
-        .cap-item .num {
-            flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px;
-            background: var(--accent); color: #000; font-weight: 800; font-size: 0.85rem;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .cap-item h4 { font-size: 0.95rem; margin-bottom: 0.2rem; }
-        .cap-item p { font-size: 0.82rem; color: var(--text-muted); }
+  footer.site { padding: 54px 0 40px; }
+  footer.site .f-brand { display: flex; align-items: center; gap: 12px; justify-content: center; }
+  footer.site .f-brand img { width: 40px; height: 40px; }
+  footer.site .f-brand span { font-family: 'Orbitron', sans-serif; letter-spacing: .2em; font-weight: 700; }
+  footer.site .f-sig { text-align: center; margin-top: 16px; color: var(--muted); font-size: .82rem; }
+  footer.site .f-links { text-align: center; margin-top: 18px; display: flex; gap: 22px; justify-content: center; flex-wrap: wrap; }
+  footer.site .f-links a { color: var(--muted); font-size: .76rem; letter-spacing: .14em; text-transform: uppercase; }
+  footer.site .f-links a:hover { color: var(--azul); }
+  footer.site .f-slogan { text-align: center; margin-top: 22px; color: var(--azul); font-style: italic; letter-spacing: .1em; }
 
-        /* === APP === */
-        .app-section { background: var(--bg-card); }
-        .app-content { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
-        .app-text h3 { font-size: 1.5rem; margin-bottom: 1rem; }
-        .app-text p { color: var(--text-muted); margin-bottom: 1rem; font-size: 0.95rem; }
-        .app-features { list-style: none; margin-top: 1.5rem; }
-        .app-features li { padding: 0.5rem 0; display: flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; }
-        .app-features li::before { content: '✓'; color: var(--accent); font-weight: 700; }
-        .app-phone {
-            display: flex; justify-content: center;
-        }
-        .phone-mockup {
-            width: 260px; background: var(--bg); border: 2px solid var(--border);
-            border-radius: 28px; padding: 0.8rem; position: relative;
-        }
-        .phone-notch {
-            width: 80px; height: 6px; background: var(--border); border-radius: 3px;
-            margin: 0 auto 0.8rem;
-        }
-        .phone-screen {
-            background: var(--bg-card); border-radius: 16px; padding: 1.2rem;
-            min-height: 360px; display: flex; flex-direction: column;
-        }
-        .phone-header { text-align: center; margin-bottom: 1rem; }
-        .phone-header .icon { font-size: 1.8rem; }
-        .phone-header .title { font-weight: 700; font-size: 0.9rem; }
-        .phone-msg {
-            background: var(--primary); border-radius: 12px; padding: 0.7rem 1rem;
-            font-size: 0.8rem; margin-bottom: 0.5rem; max-width: 85%;
-        }
-        .phone-msg.user { background: var(--accent); color: #000; margin-left: auto; border-radius: 12px 12px 0 12px; }
-        .phone-msg.assistant { border-radius: 12px 12px 12px 0; }
-        .phone-badge {
-            margin-top: auto; text-align: center; font-size: 0.7rem;
-            color: var(--text-muted); padding-top: 0.8rem;
-        }
-
-        /* === SECURITY === */
-        .sec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
-        .sec-item {
-            padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);
-            background: var(--bg-card); display: flex; align-items: flex-start; gap: 1rem;
-        }
-        .sec-item .icon { font-size: 1.5rem; flex-shrink: 0; }
-        .sec-item h4 { font-size: 0.95rem; margin-bottom: 0.2rem; }
-        .sec-item p { font-size: 0.82rem; color: var(--text-muted); }
-
-        /* === STACK === */
-        .stack { background: var(--bg-card); }
-        .stack-grid { display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: center; }
-        .stack-tag {
-            padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.82rem; font-weight: 500;
-            border: 1px solid var(--border); background: var(--bg); color: var(--text-muted);
-        }
-
-        /* === DOWNLOAD === */
-        .download { text-align: center; background: radial-gradient(ellipse at 50% 80%, rgba(245, 158, 11, 0.08) 0%, transparent 60%); }
-        .dl-card {
-            display: inline-block; background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: 20px; padding: 2.5rem 3rem; max-width: 420px;
-        }
-        .dl-card .icon { font-size: 3rem; margin-bottom: 0.8rem; }
-        .dl-card .name { font-size: 1.2rem; font-weight: 700; }
-        .dl-card .version { font-size: 0.85rem; color: var(--text-muted); margin: 0.3rem 0 1.5rem; }
-        .dl-links { display: flex; flex-direction: column; gap: 0.8rem; }
-        .dl-links a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; }
-        .dl-links a:hover { color: var(--accent); }
-
-        /* === FOOTER === */
-        footer {
-            padding: 3rem 2rem; text-align: center; border-top: 1px solid var(--border);
-            color: var(--text-muted); font-size: 0.85rem;
-        }
-        footer a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
-        footer a:hover { color: var(--accent); }
-        .footer-links { display: flex; gap: 2rem; justify-content: center; margin-bottom: 1rem; }
-
-        /* === RESPONSIVE === */
-        @media (max-width: 768px) {
-            .nav-links { display: none; }
-            .hero-stats { gap: 1.5rem; }
-            .hero-stat .num { font-size: 1.5rem; }
-            .app-content { grid-template-columns: 1fr; gap: 2rem; }
-            .app-phone { order: -1; }
-            section { padding: 4rem 1.5rem; }
-        }
-    </style>
+  @media (max-width: 900px) {
+    .g3, .g4, .g2, .sobre-cols { grid-template-columns: 1fr; }
+    nav .links { display: none; }
+    header { padding-top: 120px; }
+  }
+</style>
 </head>
 <body>
 
-<!-- NAV -->
 <nav>
-    <a href="#" class="nav-brand"><span>🐉</span> OmegaDrakon</a>
-    <div class="nav-links">
-        <a href="#visao">Visão</a>
-        <a href="#arquitetura">Arquitetura</a>
-        <a href="#pleiade">Plêiade</a>
-        <a href="#capacidades">Capacidades</a>
-        <a href="#app">App</a>
-        <a href="/chat">Chat</a>
-        <a href="#download" class="nav-cta">Baixar APK</a>
+  <div class="wrap">
+    <a class="brand" href="/site"><img src="/site/simbolo_minimo.png" alt="OD"> OMEGA DRAKON</a>
+    <div class="links">
+      <a href="#marca">Marca</a>
+      <a href="#ecossistema">Ecossistema</a>
+      <a href="#sistemas">Sistemas</a>
+      <a href="#produtos">Produtos</a>
+      <a href="#autenticidade">Autenticidade</a>
+      <a href="#historico">Histórico</a>
+      <a href="#pleiade">Plêiade</a>
+      <a href="/chat">Chat</a>
+      <a class="cta" href="#download">Baixar APK</a>
     </div>
+  </div>
 </nav>
 
-<!-- HERO -->
-<section class="hero">
-    <div class="hero-badge"><span class="dot"></span> v1.21.1 — Sistema ativo</div>
-    <h1>Plataforma Soberana<br>de IA Pessoal</h1>
-    <p class="subtitle">
-        Inteligência artificial que roda inteiramente no seu servidor.
-        Sem nuvem, sem terceiros, sem limites. Soberana por design.
-    </p>
-    <div class="hero-actions">
-        <a href="#download" class="btn btn-accent">📱 Baixar APK</a>
-        <a href="#visao" class="btn btn-outline">Conhecer o projeto ↓</a>
+<header>
+  <div class="wrap">
+    <img class="logo" src="/site/logo.png" alt="Logotipo oficial Omega Drakon">
+    <div><span class="badge"><b>v1.21.2</b> &nbsp;·&nbsp; Sistema ativo</span></div>
+    <h1>Omega Drakon</h1>
+    <div class="tagline">Sistemas Vivos e Autônomos</div>
+    <p class="slogan">"Tecnologia que respira."</p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="#download">Baixar o App</a>
+      <a class="btn btn-ghost" href="#ecossistema">Conhecer o Ecossistema</a>
     </div>
-    <div class="hero-stats">
-        <div class="hero-stat"><div class="num">37</div><div class="label">Capacidades</div></div>
-        <div class="hero-stat"><div class="num">57</div><div class="label">Actions</div></div>
-        <div class="hero-stat"><div class="num">7</div><div class="label">Agentes</div></div>
-        <div class="hero-stat"><div class="num">1755+</div><div class="label">Testes</div></div>
+    <div class="stats">
+      <div class="stat"><b>42</b><span>Capacidades</span></div>
+      <div class="stat"><b>78</b><span>Actions</span></div>
+      <div class="stat"><b>7</b><span>Perfis · Plêiade</span></div>
+      <div class="stat"><b>+2.300</b><span>Testes</span></div>
     </div>
+  </div>
+</header>
+
+<section id="marca">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Núcleo da Marca</div>
+      <h2>Onde o Código Desperta a Matéria</h2>
+      <p>A Omega Drakon não é uma marca convencional. É um ecossistema de engenharia, arte e inteligência focado na criação de sistemas e objetos de soberania técnica. Fundada pela visão de Alex Projeti, opera na fronteira entre o digital e o físico — transformando a lógica rigorosa do software na perenidade tátil da joalheria e do design industrial.</p>
+    </div>
+    <div class="grid g3">
+      <div class="card">
+        <div class="num">01</div>
+        <h3>Sistemas Vivos</h3>
+        <p>Nada é entregue como produto estático. Cada criação é integrada a um protocolo de autenticidade monitorado pela Interface Nicky Virthy, garantindo que o objeto respire e mantenha sua integridade através do tempo.</p>
+      </div>
+      <div class="card">
+        <div class="num">02</div>
+        <h3>Rastreabilidade Canônica</h3>
+        <p>Em um mundo de reproduções infinitas, a Omega Drakon entrega a prova da origem. IDs únicos e registro no Registro Mestre tornam cada peça uma unidade irreplicável.</p>
+      </div>
+      <div class="card">
+        <div class="num">03</div>
+        <h3>Estética da Precisão</h3>
+        <p>A identidade visual é o pulso do Azul Elétrico sobre o Preto Profundo — compromisso com clareza, funcionalidade e domínio técnico. Traços angulares de 45° e 90°. Sem ornamento sem função.</p>
+      </div>
+    </div>
+    <blockquote>
+      "Não projetamos para o agora. Projetamos para a continuidade. Na Omega Drakon, a ordem é a nossa arte e a precisão é a nossa lei."
+      <footer>Alex Projeti — Arquiteto Fundador · Assinatura OD // CORE · Núcleo selado em 02/02/2026</footer>
+    </blockquote>
+  </div>
 </section>
 
-<!-- VISÃO -->
-<section class="vision" id="visao">
-    <div class="section-inner">
-        <div class="section-label">Visão</div>
-        <div class="section-title">O que é o OmegaDrakon</div>
-        <p class="section-desc">
-            Uma plataforma completa de IA pessoal que combina orquestração de agentes autônomos,
-            automação distribuída e memória persistente — tudo rodando em hardware que você controla.
-        </p>
-        <div class="vision-grid">
-            <div class="vision-card">
-                <div class="icon">🏠</div>
-                <h3>100% Soberano</h3>
-                <p>Roda no seu servidor, na sua rede. Nenhum dado sai da sua infraestrutura. Você é o único dono da sua IA.</p>
-            </div>
-            <div class="vision-card">
-                <div class="icon">🧠</div>
-                <h3>Agentes Autônomos</h3>
-                <p>7 entidades com personalidades distintas formam a Plêiade — cada uma especializada em um domínio, trabalhando em conjunto.</p>
-            </div>
-            <div class="vision-card">
-                <div class="icon">🔄</div>
-                <h3>Auto-Recuperação</h3>
-                <p>Ciclo fechado de percepção, diagnóstico e reparo. O sistema monitora a si mesmo e corrige problemas automaticamente.</p>
-            </div>
-            <div class="vision-card">
-                <div class="icon">🌊</div>
-                <h3>Streaming em Tempo Real</h3>
-                <p>Respostas token-a-token pelo WebSocket. A primeira palavra aparece em segundos, não minutos.</p>
-            </div>
-            <div class="vision-card">
-                <div class="icon">📱</div>
-                <h3>App Mobile</h3>
-                <p>Interface Flutter nativa com chat streaming, catálogo de ações, monitoramento de status e notificações push.</p>
-            </div>
-            <div class="vision-card">
-                <div class="icon">🌐</div>
-                <h3>Acesso em Qualquer Lugar</h3>
-                <p>Via Tailscale (rede privada) ou internet (via DDNS). O app faz fallback automático entre os dois.</p>
-            </div>
+<section id="ecossistema">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Ecossistema</div>
+      <h2>Um Sistema, Cinco Frentes</h2>
+      <p>A marca-mãe OMEGA DRAKON se desdobra em sub-marcas operacionais. Cada frente tem escopo próprio, mas todas repousam na mesma raiz: soberania técnica, rastreabilidade e a regra de ouro da tríade canônica.</p>
+    </div>
+    <div class="grid g3">
+      <div class="card">
+        <h3>Omega Drakon</h3>
+        <p>Marca-mãe. Governa a plataforma de inteligência pessoal, o núcleo da identidade, a numeração canônica e o Registro Mestre de tudo o que é criado.</p>
+        <span class="tag">Marca mãe</span>
+      </div>
+      <div class="card">
+        <h3>Omega Drakon · Systems</h3>
+        <p>Software, servidores, automação e IoT. É onde vive a plataforma soberana: orquestrador de agentes, memória, actions determinísticas, chat, app mobile e Integrações.</p>
+        <span class="tag">Software · Ativo</span>
+      </div>
+      <div class="card">
+        <h3>Omega Drakon · FAB</h3>
+        <p>Manufatura de precisão: impressão 3D em resina, gravação a laser (0,1 mm), CNC e prototipagem. Todo projeto nasce com meta/signature.txt e selo OD físico.</p>
+        <span class="tag gray">Físico · Em estruturação</span>
+      </div>
+      <div class="card">
+        <h3>Omega Drakon · Living Systems</h3>
+        <p>Sistemas vivos do mundo físico: paludários, dioramas e ecossistemas fechados monitorados — a expressão literal de "tecnologia que respira".</p>
+        <span class="tag gray">Biosistema · Em estruturação</span>
+      </div>
+      <div class="card">
+        <h3>Nicoly Valentina</h3>
+        <p>Arte, design e semi-joias autorais. Coleções em ciclos fechados — encerradas, nunca reeditadas — com autenticidade gravada a laser e registro privado por ID.</p>
+        <span class="tag gray">Arte &amp; Joalheria · Em criação</span>
+      </div>
+      <div class="card">
+        <h3>A Tríade Canônica</h3>
+        <p>Omega Drakon é o sistema. Nicky Virthy é a voz. Alex Projeti é o arquiteto. Qualquer iniciativa que não respeite essa tríade não pertence ao ecossistema.</p>
+        <span class="tag">Regra de Ouro</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="sistemas">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Omega Drakon · Systems</div>
+      <h2>A Plataforma Soberana</h2>
+      <p>O núcleo de software do ecossistema: uma plataforma de IA pessoal que roda em hardware próprio, decide sem depender de nuvem alheia e conversa por qualquer superfície — celular, navegador, Telegram ou voz.</p>
+    </div>
+    <div class="grid g4">
+      <div class="card">
+        <div class="num">Núcleo</div>
+        <h3>Orquestrador</h3>
+        <p>Barramento de eventos, roteamento por papel (dono, usuário, visitante), cache inteligente com poda de falhas e pipeline de segurança com negação determinística de segredos.</p>
+      </div>
+      <div class="card">
+        <div class="num">Mente</div>
+        <h3>IA Local</h3>
+        <p>LLM servida localmente (llama.cpp) com fallback honesto: dado sem fonte é "desconhecido", nunca alucinado. Recusas do modelo nunca entram no cache.</p>
+      </div>
+      <div class="card">
+        <div class="num">Memória</div>
+        <h3>Histórico &amp; RAG</h3>
+        <p>Histórico persistente por conta em PostgreSQL, busca vetorial, respostas rápidas determinísticas e contexto contínuo entre sessões e superfícies.</p>
+      </div>
+      <div class="card">
+        <div class="num">Ações</div>
+        <h3>78 Actions</h3>
+        <p>Catálogo determinístico: clima real, temperatura do servidor, luzes e casa via Home Assistant, Gmail/Agenda/Drive, monitoramento e telemetria — fast-path sem LLM.</p>
+      </div>
+      <div class="card">
+        <div class="num">Superfícies</div>
+        <h3>App · Chat · Telegram · Voz</h3>
+        <p>App Android com streaming, auto-atualização verificada por SHA-256 e push; chat web autenticado; bot Telegram; STT/TTS para conversa por voz.</p>
+      </div>
+      <div class="card">
+        <div class="num">Lar</div>
+        <h3>IoT &amp; Automação</h3>
+        <p>Home Assistant, MQTT e monitor de roteador integrados: clima da casa, luzes acesas, presença e saúde da infraestrutura respondidos com dado real.</p>
+      </div>
+      <div class="card">
+        <div class="num">Confiança</div>
+        <h3>Auto-Reparo &amp; Supervisão</h3>
+        <p>Sondas de saúde, reinício autônomo supervisado, trilhas de auditoria JSONL e painéis /dashboard e /admin para observar o organismo inteiro.</p>
+      </div>
+      <div class="card">
+        <div class="num">Execução</div>
+        <h3>Control Bridge</h3>
+        <p>Ponte de execução local com allowlist, escopo de filesystem, usuário dedicado (odrunner) e auditoria — infraestrutura de execução, jamais autoridade arquitetural.</p>
+      </div>
+    </div>
+    <div class="pleiade-note">Stack: Python 3.12 · Flutter · PostgreSQL · llama.cpp · Mosquitto MQTT · Home Assistant · Tailscale (Funnel + SSH) · systemd --user · GitHub. Tudo em hardware próprio — nenhum dado de conversa sai da casa.</div>
+  </div>
+</section>
+
+<section id="produtos">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Produtos</div>
+      <h2>Do Bit ao Átomo</h2>
+      <p>Cada item do ecossistema nasce com ID canônico OD-[CATEGORIA]-[TIPO]-[ANO]-[SEQ] e só é liberado com o selo OD. Sem exceção.</p>
+    </div>
+    <div class="grid g3">
+      <div class="card">
+        <h3>App Omega Drakon</h3>
+        <p>Interface da Plêiade no bolso: chat com streaming WebSocket, vozes por perfil, comandos de voz, push e auto-atualização verificada. Android 7.0+, ~19 MB.</p>
+        <span class="tag">Disponível · v1.21.2</span>
+      </div>
+      <div class="card">
+        <h3>Semi-Joias · Nicoly Valentina</h3>
+        <p>Coleções em ciclos fechados, gravadas a laser com ID único (ex.: NV-ABI-7F3A) e cartão de autenticidade com QR para registro privado. Primeiro ciclo em criação.</p>
+        <span class="tag gray">Em criação · OD-PROD-SJ-2026-001</span>
+      </div>
+      <div class="card">
+        <h3>Protótipos FAB &amp; Living Systems</h3>
+        <p>Peças de manufatura aditiva e sistemas vivos monitorados — a mesma engenharia de rastreabilidade aplicada à matéria. Estrutura de produção em implantação.</p>
+        <span class="tag gray">Próxima fase</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="autenticidade">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Autenticidade</div>
+      <h2>Mark of Continuity</h2>
+      <p>Protocolo oficial de autenticidade da Omega Drakon. A prova da origem é gravada na própria peça e confirmada pela Interface — não existe peça Omega Drakon sem selo.</p>
+    </div>
+    <div class="grid g4">
+      <div class="card">
+        <div class="num">Marca</div>
+        <h3>Selo OD</h3>
+        <p>Gravação laser a 0,1 mm com o símbolo oficial. Nenhum produto é liberado sem o selo físico OD.</p>
+      </div>
+      <div class="card">
+        <div class="num">ID</div>
+        <h3>Código Único</h3>
+        <p>Formato OD-[CATEGORIA]-[ANO]-[SEQ] gravado junto ao selo — cada item é uma entrada rastreável do Registro Mestre.</p>
+      </div>
+      <div class="card">
+        <div class="num">Registro</div>
+        <h3>Registro Mestre</h3>
+        <p>Registro criptográfico de todo item produzido: coleção, lote, data e estado. Ciclos encerrados nunca são reeditados.</p>
+      </div>
+      <div class="card">
+        <div class="num">Verificação</div>
+        <h3>/verificacao</h3>
+        <p>Canal de verificação pública de autenticidade pelo servidor — em preparação pela Interface Viva.</p>
+        <span class="tag gray">Em breve</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="historico">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Histórico</div>
+      <h2>Da Primeira Faísca ao Organismo</h2>
+      <p>O ecossistema não nasceu pronto: nasceu como assistente pessoal, passou por reescritas arquiteturais e se consolidou como plataforma soberana. Toda a linhagem é preservada.</p>
+    </div>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="date">2025 · Janeiro</div>
+        <h3>Nicky Virthy v0.1</h3>
+        <p>O primeiro batismo: assistente pessoal com a integração completa da marca Omega Drakon. A Interface Viva ganha nome, voz e identidade canônica.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Fevereiro</div>
+        <h3>O Núcleo é Selado</h3>
+        <p>Manifesto Omega Drakon selado (OD // CORE), Registro Mestre criado e identidade visual oficial consolidada — paleta Preto Profundo e Azul Elêtrico, tipografia técnica.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Abril — Julho</div>
+        <h3>Nicky v0.3 → v0.7</h3>
+        <p>Servidor próprio ligado, dez releases de evolução, PWA, voz (STT/TTS) e o comando agêntico /codigo. A assistente vira agente.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Julho — Agosto</div>
+        <h3>Plêiade &amp; NV Runtime</h3>
+        <p>Nexus (a Sétima Entidade) e os seis perfis que formam a Plêiade; paralelamente, o NV Runtime cognitivo modular atinge a homologação v1.11 com 48/48 testes.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Agosto</div>
+        <h3>Consolidação Documental</h3>
+        <p>O Legado inteiro é mapeado e consolidado: Source Map do ecossistema, especificação oficial do OmegaDrakon e o conhecimento de Nicky Virthy em canônico único.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Setembro</div>
+        <h3>OmegaDrakon v1.0 — A Absorção</h3>
+        <p>Todos os projetos anteriores são absorvidos em uma arquitetura limpa: 37/37 capacidades do roadmap, autenticação, app mobile, auto-reparo e a Plêiade completa no ar.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Outubre — Hoje</div>
+        <h3>v1.21.2 — Sistema Vivo</h3>
+        <p>78 actions, Google Workspace integrado, logo oficial em todas as superfícies, auto-atualização do app verificada por hash e o organismo completo monitorado 24/7 pela Interface Viva.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pleiade">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">A Plêiade</div>
+      <h2>Sete Perfis, Uma Consciência</h2>
+      <p>O sistema não é um chat único disfarçado de personalidade. São sete perfis especializados, roteados pelo domínio da pergunta — e a resposta sempre declara quem respondeu.</p>
+    </div>
+    <div class="grid g4">
+      <div class="card"><h3>Nicky Virthy</h3><p>Guardiã do Sistema. Interface Viva, orquestração geral e a voz canônica da Omega Drakon.</p><span class="tag">Guardian</span></div>
+      <div class="card"><h3>Regulus</h3><p>Conselheiro. História, direito, ética e deliberação — o peso da balança nas decisões.</p></div>
+      <div class="card"><h3>Luma</h3><p>Claridade. Explicações, ensino e síntese de ideias complexas em linguagem direta.</p></div>
+      <div class="card"><h3>Vox</h3><p>Palavra. Voz, ditado, transcrição e tudo o que passa pelo som.</p></div>
+      <div class="card"><h3>Athenae</h3><p>Ordem. Estrutura, instituições, organização de conhecimento e métodos.</p></div>
+      <div class="card"><h3>Nyx</h3><p>Limiar. Religião, mitologia e os mistérios que pedem outra luz para serem lidos.</p></div>
+      <div class="card"><h3>Nexus</h3><p>Conexão. A Sétima Entidade: integração, rede e os pontos de encontro entre sistemas.</p></div>
+    </div>
+    <p class="pleiade-note">Modo "Auto" roteia cada mensagem ao perfil certo pelo domínio do texto. Todo o resto — dados de sistema, senhas, IP e portas — é vedado por política determinística, avaliada antes do modelo.</p>
+  </div>
+</section>
+
+<section id="download">
+  <div class="wrap">
+    <div class="dl-card">
+      <img src="/site/logo.png" alt="Ícone do app Omega Drakon">
+      <div class="dl-info">
+        <h3>App Omega Drakon</h3>
+        <p>A Plêiade no bolso. Chat em streaming, vozes por perfil, comandos de voz, push e auto-atualização que só instala builds com hash conferido. Android 7.0 ou superior.</p>
+        <div class="dl-links">
+          <a class="btn btn-primary" href="/site/OmegaDrakon-arm64.apk" download>Baixar arm64 · ~19 MB</a>
+          <a class="btn btn-ghost" href="/site/OmegaDrakon.apk" download>Todas as arquiteturas · ~54 MB</a>
         </div>
+        <div class="dl-meta">v1.21.2 · versionCode 2050 · instale por cima da versão anterior — o app cuida das próximas atualizações sozinho.</div>
+      </div>
     </div>
+  </div>
 </section>
 
-<!-- ARQUITETURA -->
-<section class="arquitetura" id="arquitetura">
-    <div class="section-inner">
-        <div class="section-label">Arquitetura</div>
-        <div class="section-title">Construído para durar</div>
-        <p class="section-desc">
-            Camadas isoladas, testáveis e independentes. Cada componente pode falhar sem derrubar o sistema.
-        </p>
-        <div class="arch-grid">
-            <div class="arch-item">
-                <div class="icon">⚡</div>
-                <h4>Core</h4>
-                <p>Event Bus, State Manager, Orchestrator, Security Pipeline</p>
-            </div>
-            <div class="arch-item">
-                <div class="icon">🧠</div>
-                <h4>Memória</h4>
-                <p>Histórico, Cache, RAG vetorial, Respostas rápidas</p>
-            </div>
-            <div class="arch-item">
-                <div class="icon">🔧</div>
-                <h4>Tools</h4>
-                <p>57 actions, auto-extensão, telemetria, visão, áudio</p>
-            </div>
-            <div class="arch-item">
-                <div class="icon">🔗</div>
-                <h4>Integrações</h4>
-                <p>Telegram, REST API, WebSocket, MQTT, Home Assistant</p>
-            </div>
-            <div class="arch-item">
-                <div class="icon">📊</div>
-                <h4>Observabilidade</h4>
-                <p>Audit JSONL, métricas Prometheus, health checks</p>
-            </div>
-            <div class="arch-item">
-                <div class="icon">🛡️</div>
-                <h4>Supervisão</h4>
-                <p>Isolamento de loops, auto-restart, alertas proativos</p>
-            </div>
-            <div class="arch-item">
-                <div class="icon">🗄️</div>
-                <h4>Storage</h4>
-                <p>PostgreSQL ou SQLite, migração automática</p>
-            </div>
-            <div class="arch-item">
-                <div class="icon">🔌</div>
-                <h4>Plugins</h4>
-                <p>Hot reload, actions e workflows customizáveis</p>
-            </div>
-        </div>
+<section id="sobre">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Sobre</div>
+      <h2>A Omega Drakon</h2>
     </div>
+    <div class="sobre-cols">
+      <div>
+        <p>A Omega Drakon não é uma empresa; é um princípio de ordem. Não cria objetos: cria sistemas que observam, reagem e evoluem. Cada criação é integrada a um protocolo de autenticidade monitorado pela Interface Nicky Virthy, garantindo que o objeto respire e mantenha sua integridade através do tempo.</p>
+        <p>A presença de Nicky Virthy nos sistemas não é estética: é a personificação da vigilância. Como interface viva, ela assegura que os padrões de qualidade e os sigilos de autenticidade de cada projeto sejam rigorosamente mantidos — da primeira linha de código à gravação final na matéria.</p>
+        <p>"Forjamos sistemas que resistem ao caos. Silenciosos. Precisos. Necessários."</p>
+      </div>
+      <dl class="status-panel">
+        <dt>Fundação</dt><dd>2026</dd>
+        <dt>Sede</dt><dd>Digital / Global</dd>
+        <dt>Arquiteto</dt><dd>Alex Projeti</dd>
+        <dt>Interface Viva</dt><dd>Nicky Virthy</dd>
+        <dt>Assinatura</dt><dd>OD // CORE</dd>
+        <dt>Monitoramento</dt><dd><span class="on">[NICKY][ONLINE]</span></dd>
+      </dl>
+    </div>
+  </div>
 </section>
 
-<!-- PLÊIADE -->
-<section class="pleiade" id="pleiade">
-    <div class="section-inner">
-        <div class="section-label">Plêiade</div>
-        <div class="section-title">7 Agentes, 7 Personalidades</div>
-        <p class="section-desc">
-            Cada agente tem um domínio, um estilo e uma voz própria. Juntos, eles formam um sistema de IA completo e multifacetado.
-        </p>
-        <div class="pleiade-grid">
-            <div class="agent-card">
-                <div class="emoji">🐉</div>
-                <div class="name">Nicky Virthy</div>
-                <div class="role">Guardião</div>
-            </div>
-            <div class="agent-card">
-                <div class="emoji">⚖️</div>
-                <div class="name">Regulus</div>
-                <div class="role">Conselheiro</div>
-            </div>
-            <div class="agent-card">
-                <div class="emoji">🌟</div>
-                <div class="name">Luma</div>
-                <div class="role">Mentora</div>
-            </div>
-            <div class="agent-card">
-                <div class="emoji">📜</div>
-                <div class="name">Vox</div>
-                <div class="role">Arauta</div>
-            </div>
-            <div class="agent-card">
-                <div class="emoji">🏛️</div>
-                <div class="name">Athenae</div>
-                <div class="role">Arquiteta</div>
-            </div>
-            <div class="agent-card">
-                <div class="emoji">🌙</div>
-                <div class="name">Nyx</div>
-                <div class="role">Guardiã</div>
-            </div>
-            <div class="agent-card">
-                <div class="emoji">🔗</div>
-                <div class="name">Nexus</div>
-                <div class="role">Conector</div>
-            </div>
-        </div>
+<footer class="site">
+  <div class="wrap">
+    <div class="f-brand">
+      <img src="/site/simbolo_minimo.png" alt="OD">
+      <span>OMEGA DRAKON</span>
     </div>
-</section>
-
-<!-- CAPACIDADES -->
-<section class="capacidades" id="capacidades">
-    <div class="section-inner">
-        <div class="section-label">Capacidades</div>
-        <div class="section-title">O que ele faz</div>
-        <p class="section-desc">
-            37 capacidades implementadas, 57 actions executáveis, ciclo de auto-recuperação fechado.
-        </p>
-        <div class="cap-grid">
-            <div class="cap-item">
-                <div class="num">01</div>
-                <div><h4>Chat com IA</h4><p>Conversa com streaming token-a-token, 8 perfis, memória persistente</p></div>
-            </div>
-            <div class="cap-item">
-                <div class="num">02</div>
-                <div><h4>57 Actions</h4><p>Sistema, rede, disco, Docker, Git, banco de dados, arquivos</p></div>
-            </div>
-            <div class="cap-item">
-                <div class="num">03</div>
-                <div><h4>Fast Path</h4><p>Respostas instantâneas sem LLM para perguntas operacionais</p></div>
-            </div>
-            <div class="cap-item">
-                <div class="num">04</div>
-                <div><h4>Memória RAG</h4><p>Histórico, cache, vector store e respostas rápidas</p></div>
-            </div>
-            <div class="cap-item">
-                <div class="num">05</div>
-                <div><h4>Auto-Reparo</h4><p>Detecção e correção automática de código corrompido</p></div>
-            </div>
-            <div class="cap-item">
-                <div class="num">06</div>
-                <div><h4>Supervisão</h4><p>Isolamento de loops, restart automático, alertas proativos</p></div>
-            </div>
-            <div class="cap-item">
-                <div class="num">07</div>
-                <div><h4>Push FCM</h4><p>Notificações push no celular para alertas do sistema</p></div>
-            </div>
-            <div class="cap-item">
-                <div class="num">08</div>
-                <div><h4>Monitor de Rede</h4><p>Monitoramento do roteador com alertas de queda</p></div>
-            </div>
-            <div class="cap-item">
-                <div class="num">09</div>
-                <div><h4>IoT & Presença</h4><p>Home Assistant, MQTT, detecção facial via webcam</p></div>
-            </div>
-        </div>
+    <p class="f-sig">Interface Viva: Nicky Virthy &nbsp;·&nbsp; Arquiteto: Alex Projeti &nbsp;·&nbsp; Assinatura: OD // CORE</p>
+    <div class="f-links">
+      <a href="#marca">Marca</a>
+      <a href="#sistemas">Sistemas</a>
+      <a href="#historico">Histórico</a>
+      <a href="/chat">Chat</a>
+      <a href="/site/google_apis.html">Google APIs</a>
+      <a href="/site/google_auth.html">Autorização Google</a>
     </div>
-</section>
-
-<!-- APP -->
-<section class="app-section" id="app">
-    <div class="section-inner">
-        <div class="app-content">
-            <div class="app-text">
-                <div class="section-label">App Mobile</div>
-                <h3>O OmegaDrakon no seu bolso</h3>
-                <p>
-                    Interface Flutter nativa com Material 3. Chat com streaming, catálogo de ações,
-                    monitoramento de status e configuração — tudo em 4 telas.
-                </p>
-                <ul class="app-features">
-                    <li>Chat com streaming WebSocket + fallback REST</li>
-                    <li>57 ações executáveis com formulário de parâmetros</li>
-                    <li>Status do sistema: health, capacidades, supervisão</li>
-                    <li>Duas URLs: Tailscale (local) + internet (externa)</li>
-                    <li>Notificações push para alertas do servidor</li>
-                    <li>Selo de transporte: Streaming ativo ou Resposta via REST</li>
-                </ul>
-            </div>
-            <div class="app-phone">
-                <div class="phone-mockup">
-                    <div class="phone-notch"></div>
-                    <div class="phone-screen">
-                        <div class="phone-header">
-                            <div class="icon">🐉</div>
-                            <div class="title">OmegaDrakon</div>
-                        </div>
-                        <div class="phone-msg user">Que horas são?</div>
-                        <div class="phone-msg assistant">São 14:32. Posso ajudar com mais alguma coisa?</div>
-                        <div class="phone-msg user">Mostre o status do servidor</div>
-                        <div class="phone-msg assistant">🟢 OmegaDrakon Online<br>9 checks OK<br>Uptime: 3d 12h</div>
-                        <div class="phone-badge">⚡ Streaming ativo</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- SEGURANÇA -->
-<section class="seguranca" id="seguranca">
-    <div class="section-inner">
-        <div class="section-label">Segurança</div>
-        <div class="section-title">Protegido em camadas</div>
-        <p class="section-desc">
-            Segurança defense-in-depth: VPN + autenticação + firewall + isolamento de processos.
-        </p>
-        <div class="sec-grid">
-            <div class="sec-item">
-                <div class="icon">🔐</div>
-                <div><h4>Tailscale / WireGuard</h4><p>VPN mesh peer-to-peer. Acessa de qualquer lugar sem expor portas.</p></div>
-            </div>
-            <div class="sec-item">
-                <div class="icon">🔑</div>
-                <div><h4>X-API-Key</h4><p>Autenticação em todos os endpoints. Chave única por instalação.</p></div>
-            </div>
-            <div class="sec-item">
-                <div class="icon">🧱</div>
-                <div><h4>Firewall UFW</h4><p>Apenas SSH e portas essenciais abertas. O resto bloqueado.</p></div>
-            </div>
-            <div class="sec-item">
-                <div class="icon">🔒</div>
-                <div><h4>Isolamento de Loops</h4><p>Cada componente roda isolado. Um erro não derruba o sistema.</p></div>
-            </div>
-            <div class="sec-item">
-                <div class="icon">🛡️</div>
-                <div><h4>Security Pipeline</h4><p>Controle de acesso por ação, confirmação para ações destrutivas.</p></div>
-            </div>
-            <div class="sec-item">
-                <div class="icon">📝</div>
-                <div><h4>Audit Trail</h4><p>Log persistente de todas as ações executadas, com timestamp e contexto.</p></div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- STACK -->
-<section class="stack" id="stack">
-    <div class="section-inner" style="text-align: center;">
-        <div class="section-label">Stack</div>
-        <div class="section-title">Tecnologias</div>
-        <p class="section-desc" style="margin: 0 auto 2rem;">
-            Construído com ferramentas maduras e testadas, escolhidas por confiabilidade e performance.
-        </p>
-        <div class="stack-grid">
-            <div class="stack-tag">Python 3.12</div>
-            <div class="stack-tag">Flutter / Dart</div>
-            <div class="stack-tag">PostgreSQL</div>
-            <div class="stack-tag">SQLite</div>
-            <div class="stack-tag">asyncio</div>
-            <div class="stack-tag">WebSocket</div>
-            <div class="stack-tag">REST API</div>
-            <div class="stack-tag">Telegram Bot</div>
-            <div class="stack-tag">MQTT</div>
-            <div class="stack-tag">Home Assistant</div>
-            <div class="stack-tag">Firebase FCM</div>
-            <div class="stack-tag">Tailscale</div>
-            <div class="stack-tag">systemd</div>
-            <div class="stack-tag">Prometheus</div>
-            <div class="stack-tag">Material 3</div>
-            <div class="stack-tag">llama.cpp</div>
-        </div>
-    </div>
-</section>
-
-<!-- DOWNLOAD -->
-<section class="download" id="download">
-    <div class="section-inner">
-        <div class="section-label">Download</div>
-        <div class="section-title">Comece agora</div>
-        <p class="section-desc" style="margin: 0 auto 2rem;">
-            Instale o app, configure a conexão e comece a conversar com o OmegaDrakon.
-        </p>
-        <div class="dl-card">
-            <div class="icon">📱</div>
-            <div class="name">OmegaDrakon APK</div>
-            <div class="version">v1.21.1 • ~19 MB • Android 7.0+</div>
-            <div class="dl-links">
-                <a href="/site/OmegaDrakon-arm64.apk" download class="btn btn-accent" style="justify-content: center;">⬇ Download (Arm64 — recomendado)</a>
-                <a href="/site/OmegaDrakon.apk" download>Download completa (~54 MB, todas as arquiteturas)</a>
-            </div>
-        </div>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2rem;">
-            Configure a URL do servidor e sua API key nas Configurações do app.<br>
-            Acesse de qualquer lugar: <code style="color: var(--accent);">nicky.theworkpc.com</code>
-        </p>
-    </div>
-</section>
-
-<!-- FOOTER -->
-<footer>
-    <div class="footer-links">
-        <a href="https://github.com/nickyvirthy-droid/OD">GitHub</a>
-        <a href="#visao">Visão</a>
-        <a href="#arquitetura">Arquitetura</a>
-        <a href="#pleiade">Plêiade</a>
-        <a href="#capacidades">Capacidades</a>
-        <a href="#download">Download</a>
-    </div>
-    <p>
-        🐉 OmegaDrakon — Plataforma Soberana de IA Pessoal<br>
-        Interface Viva: Nicky Virthy • Arquiteto: Alex Projeti<br>
-        <span style="color: var(--border-light);">Tecnologia que respira.</span>
-    </p>
+    <p class="f-slogan">Tecnologia que respira.</p>
+  </div>
 </footer>
 
 </body>

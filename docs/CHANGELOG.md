@@ -14,6 +14,23 @@
 
 ---
 
+## [1.21.2] — ECOSSISTEMA NO AR: SITE INSTITUCIONAL + FIM DO DRAGÃO 🜂 (2026-10-09)
+
+> **Bump PATCH:** o site deixa de falar só do app e passa a apresentar o ecossistema Omega Drakon inteiro (base: Legado `~/Legado/OMEGA_DRAKON` + consolidações canônicas do Drive). O emoji 🐉 é removido de todas as superfícies — mensagens, chat web, painéis e app — substituído pelo logotipo oficial.
+
+1. **Site institucional novo (`site/index.html`)** — reconstruído sobre a identidade visual oficial:
+   - Paleta do manual: Preto Profundo `#0A0A0A`, Azul Elêtrico `#0088FF`, Grafite `#2C2C2C`, Branco Técnico `#F2F2F2`; fontes Orbitron + Montserrat.
+   - Seções novas: Núcleo da Marca (3 pilares + citação do Arquiteto), Ecossistema (5 sub-marcas: Systems, FAB, Living Systems, Nicoly Valentina + Tríade Canônica), Sistemas (plataforma soberana em 8 módulos), Produtos (do bit ao átomo), Autenticidade (Mark of Continuity + /verificacao), Histórico (linha do tempo 2025→hoje), Plêiade (7 perfis), Download e Sobre (texto aprovado `Textos_Aprovados/sobre.md`).
+   - Assets oficiais em `site/` (raiz — o route `/site/{file}` é single-segment): `logo.png` (512), `simbolo_minimo.png` (192), `favicon.png` (64) — todos gerados do Legado via ImageMagick.
+   - Zero JavaScript, mesma filosofia de página única do site anterior.
+2. **Fim do 🐉 nas mensagens** — `server.py` (favicon, avatar do histórico, nav, login, boas-vindas do chat, painel e admin usam o logo), `capabilities.py` (cabeçalho `/capabilities`), `quick_responses.py` (respostas de identidade).
+3. **App** — logo oficial como asset (`app/assets/logo.png` + pubspec): tela de login, boas-vindas do chat e chip do perfil guardian exibem o logo; selo da bolha `🐉 OD` → `OD`.
+4. **Regra 16 (`iniciar/RULES.md`)** — `/home/alex/Legado` vira referência obrigatória da sessão.
+
+### 2. Bump PATCH
+
+Infra visível no repo: `.env 1.21.2` · capabilities fallback `1.21.2` · `pubspec 1.21.2+2050` · `_APP_VERSION_CODE=2050` · site (conteúdo + badge) · APKs rebuildados · `CHANGELOG [1.21.2]` · `README_VERSAO §1.21.2`.
+
 ## [1.21.1] — ÍCONE DO APP: PADRÃO OMEGA DRAKON 🎨 (2026-10-09)
 
 > **Bump PATCH:** troca visual do ícone do app Android pelo logotipo oficial da marca Omega Drakon. Nenhuma funcionalidade alterada.

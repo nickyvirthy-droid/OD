@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.21.1"
+    or "1.21.2"
 )
 
 # Status válidos.
@@ -624,7 +624,7 @@ def render_text() -> str:
     m = capabilities_manifest()
     counts = m["counts"]
     lines = [
-        f"🐉 *OMEGA DRAKON — Capacidades* (v{m['version']})",
+        f"*OMEGA DRAKON — Capacidades* (v{m['version']})",
         "",
         f"Roadmap: {m['roadmap']['capacities']} capacidades · "
         f"{counts['actions']} actions · {counts['capabilities']} componentes",

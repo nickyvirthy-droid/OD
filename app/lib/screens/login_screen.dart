@@ -87,8 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('🐉', textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 48)),
+                Image.asset('assets/logo.png', width: 96, height: 96),
                 const SizedBox(height: 8),
                 Text(
                   'Entrar no OmegaDrakon',

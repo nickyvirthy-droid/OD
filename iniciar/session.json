@@ -1,9 +1,21 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-09T14:29:00",
+  "updated_at": "2026-10-09T15:40:00",
   "retomada_2026_10_09_lote_icone": {
-    "reverificacao_14_29": "'leia iniciar' de novo (~14:29): sistema segue 100% — od-core active PID 954778 NRestarts=0 (desde 11:18:59), /app/version {1.21.1, 2049, sha256 13142a39… == site}, /health up, HEAD 1768b00 == origin/master, txt.txt sem mensagem nova do dono (última resposta do sistema 11:2x intacta). Único resíduo: backups/llm-cache-fakes-20261008-055830.json (untracked, já conhecido). Nada pendente do sistema; aguardando próximo pedido do dono (abrir app p/ auto-atualização 2048→2049 e conferir ícone).",
+    "lote_ecossistema_site_2026_10_09": {
+      "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
+      "entregas_em_andamento": [
+        "docs/ANALISE_ECOSSISTEMA.md (NOVO): digest do Legado (217 arq/93MB/5 raízes) + consolidações do Drive; 5 frentes do ecossistema; linha do tempo 2025→2026; duplicações entre Nicky Virthy/Nicky/NV/Nexus; 15 divergências Legado×sistema; próximos passos p/ discussão.",
+        "site/index.html REESCRITO: site institucional do ecossistema (Marca, Ecossistema c/ 5 sub-marcas, Sistemas, Produtos, Autenticidade MoC, Histórico, Plêiade, Download, Sobre=texto aprovado). Identidade oficial #0A0A0A/#0088FF Orbitron+Montserrat; assets logo.png/simbolo_minimo.png/favicon.png na RAIZ de site/ (route /site/{file} é single-segment — assets/ deu 404). HTML validado: 0 tags abertas, 0 âncoras quebradas, 0 🐉.",
+        "FIM DO 🐉: server.py (favicon/avatar histórico/nav/login/welcome chat/painel/admin), capabilities.py, quick_responses.py; app (login, welcome, chip guardian = Image.asset logo, selo '🐉 OD'→'OD'; pubspec assets + logo.png).",
+        "Regra 16 em iniciar/RULES.md: /home/alex/Legado é referência obrigatória.",
+        "Bump PATCH 1.21.2+2050 completo: .env, capabilities fallback, pubspec, _APP_VERSION_CODE, site, CHANGELOG [1.21.2], README_VERSAO §1.21.2."
+      ],
+      "validacao": "Suíte servidor 2390 passed/16 skipped (79,9s). flutter analyze 0 issues · flutter test 134 passed/2 skipped.",
+      "em_andamento": "Build canônico ./app/build_apk.sh (v1.21.2+2050) rodando em background; PENDENTE: aapt2 verify versionCode 2050, publicar APKs em site/, backup dos 2049, commit+push (regra 7.1), autorização de restart (od-core), txt.txt, Telegram (regra 15)."
+    },
+    "reverificacao_14_32": "'leia iniciar' de novo (~14:32): sistema segue 100% — od-core active PID 954778 NRestarts=0 (desde 11:18:59), /app/version {1.21.1, 2049, sha256 13142a39… == site}, /health up, HEAD 1768b00 == origin/master, txt.txt sem mensagem nova do dono (última resposta do sistema 11:2x intacta). Único resíduo: backups/llm-cache-fakes-20261008-055830.json (untracked, já conhecido). Nada pendente do sistema; aguardando próximo pedido do dono (abrir app p/ auto-atualização 2048→2049 e conferir ícone).",
     "pedido": "Usuário: 'leia iniciar' — retomada (~11:0x de 09/10).",
     "achado": "LOTE ÓRFÃO do canal de desenvolvimento: dono escreveu no txt.txt ('leia os arquivos do Legado dentro da pasta home/Alex/Legado… vamos trocar o ícone do APP para o padrão Omega Drakon') e ativou o canal às 10:31 (chars=155). A sessão CLI FALHOU no relatório (Freebuff exit=1; OpenCode estourou 600s; Kilo 'Model not found'; status=falhou todas_as_clis_falharam 10:41:26) MAS o trabalho foi feito — o processo do OpenCode sobreviveu ao timeout e completou: 5 mipmaps ic_launcher.png trocados pelo logo oficial (fonte: /home/alex/Legado/OMEGA_DRAKON/01_NUCLEO_DA_MARCA/Simbolos_Oficiais/Logo da Omega Drakon.png 1024×1024, via ImageMagick; ícone visualmente conferido) + bump 1.21.1+2049 (.env, capabilities, pubspec, _APP_VERSION_CODE, site 2x, CHANGELOG [1.21.1], README_VERSAO §1.21.1) + APKs publicados em site/ às 10:48.",
     "bug_critico": "APK arm64 publicado com versionCode='4049' (aapt2) = 2049+2000 do split por ABI — build SEM a flag -Pforce-version-code-ignoring-abi do build_apk.sh (a CLI rodou flutter build direto). Instalação desse binário colaria o celular na linhagem 4xxx e MATARIA a auto-atualização (próximo 2050 < 4049 = downgrade recusado). APK full correto (2049). Servidor vivo (1.21.0, PID 877441) já anuncia sha do binário novo em /app/version — incoerência no ar até o deploy.",

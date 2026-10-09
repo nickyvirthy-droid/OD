@@ -1,7 +1,7 @@
 name: omegadrakon
-description: OmegaDrakon — Interface Viva no bolso 🐉
+description: OmegaDrakon — Interface Viva no bolso
 publish_to: 'none'
-version: 1.21.1+2049
+version: 1.21.2+2050
 
 environment:
   sdk: '>=3.6.0 <4.0.0'   # Dart 3.6+ (Flutter 3.27+) — o código usa withValues
@@ -28,3 +28,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/logo.png
