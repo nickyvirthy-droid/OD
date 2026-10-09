@@ -14,6 +14,19 @@
 
 ---
 
+## [1.21.1] — ÍCONE DO APP: PADRÃO OMEGA DRAKON 🎨 (2026-10-09)
+
+> **Bump PATCH:** troca visual do ícone do app Android pelo logotipo oficial da marca Omega Drakon. Nenhuma funcionalidade alterada.
+
+1. **Ícone Android (5 densidades)** — gerados a partir da fonte oficial `Logo da Omega Drakon.png` (1024×1024, pasta `01_NUCLEO_DA_MARCA/Simbolos_Oficiais/` do Legado) via ImageMagick:
+   - mdpi 48×48, hdpi 72×72, xhdpi 96×96, xxhdpi 144×144, xxxhdpi 192×192 (todos RGBA).
+   - Substitui o ícone genérico do Flutter pelo símbolo da marca.
+2. **Bump PATCH 1.21.0 → 1.21.1** — versionCode 2048 → 2049; APKs rebuildados e publicados em `site/`.
+
+### 2. Bump PATCH
+
+Infra visível no repo: `.env 1.21.1` · capabilities fallback `1.21.1` · `pubspec 1.21.1+2049` · `_APP_VERSION_CODE=2049` · `site 2x` · APKs rebuildados · `CHANGELOG [1.21.1]` · `README_VERSAO §1.21.1`.
+
 ## [1.21.0] — CANAL DE DESENVOLMENTO: OS 3 COMPORTAMENTOS DO ▶ ATIVAR 🧠 (2026-10-08)
 
 > **DEPLOY AUTORIZADO PELO DONO (08/10, escolha 'Sim, deploy 1.21.0 completo').**

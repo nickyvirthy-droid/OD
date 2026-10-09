@@ -1,7 +1,15 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-08T19:30:00",
+  "updated_at": "2026-10-09T11:20:00",
+  "retomada_2026_10_09_lote_icone": {
+    "pedido": "Usuário: 'leia iniciar' — retomada (~11:0x de 09/10).",
+    "achado": "LOTE ÓRFÃO do canal de desenvolvimento: dono escreveu no txt.txt ('leia os arquivos do Legado dentro da pasta home/Alex/Legado… vamos trocar o ícone do APP para o padrão Omega Drakon') e ativou o canal às 10:31 (chars=155). A sessão CLI FALHOU no relatório (Freebuff exit=1; OpenCode estourou 600s; Kilo 'Model not found'; status=falhou todas_as_clis_falharam 10:41:26) MAS o trabalho foi feito — o processo do OpenCode sobreviveu ao timeout e completou: 5 mipmaps ic_launcher.png trocados pelo logo oficial (fonte: /home/alex/Legado/OMEGA_DRAKON/01_NUCLEO_DA_MARCA/Simbolos_Oficiais/Logo da Omega Drakon.png 1024×1024, via ImageMagick; ícone visualmente conferido) + bump 1.21.1+2049 (.env, capabilities, pubspec, _APP_VERSION_CODE, site 2x, CHANGELOG [1.21.1], README_VERSAO §1.21.1) + APKs publicados em site/ às 10:48.",
+    "bug_critico": "APK arm64 publicado com versionCode='4049' (aapt2) = 2049+2000 do split por ABI — build SEM a flag -Pforce-version-code-ignoring-abi do build_apk.sh (a CLI rodou flutter build direto). Instalação desse binário colaria o celular na linhagem 4xxx e MATARIA a auto-atualização (próximo 2050 < 4049 = downgrade recusado). APK full correto (2049). Servidor vivo (1.21.0, PID 877441) já anuncia sha do binário novo em /app/version — incoerência no ar até o deploy.",
+    "caminho_legado": "O dono escreveu 'home/Alex/Legado' — caminho real é /home/alex/Legado (minúsculo; Linux é case-sensitive). O trabalho usou o caminho real; AVISAR o dono no chat (o canal não avisou).",
+    "acao_em_andamento": "Rebuild canônico ./app/build_apk.sh (força versionCode exato 2049 nos dois APKs) + suíte completa do servidor; depois commit+push (regra 7.1), deploy (regra 7.1 autoriza commit; deploy segue autorização explícita) e registro final.",
+    "estado": "EM ANDAMENTO — lote do canal validado como completo; bug do versionCode arm64 em correção via build_apk.sh."
+  },
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
     "checklist": ".env 1.18.0 · capabilities fallback 1.18.0 · pubspec 1.18.0+2038 · _APP_VERSION_CODE=2038 · site 2x · CHANGELOG [1.18.0] · README_VERSAO §1.18.0. A guarda do CHANGELOG pegou o bump parcial antes do commit (desejado).",

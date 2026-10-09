@@ -7,6 +7,23 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.21.1] — ÍCONE DO APP: PADRÃO OMEGA DRAKON 🎨 (2026-10-09)
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| **Pedido do dono (09/10)** | 'vamos trocar o ícone do APP para o padrão Omega Drakon' — usar o logotipo oficial da marca. |
+| **Fonte** | `Logo da Omega Drakon.png` (1024×1024) em `/home/alex/Legado/OMEGA_DRAKON/01_NUCLEO_DA_MARCA/Simbolos_Oficiais/`. |
+| **Ícones Android** | 5 densidades gerados via ImageMagick: mdpi 48×48, hdpi 72×72, xhdpi 96×96, xxhdpi 144×144, xxxhdpi 192×192 (RGBA, fundo transparente). |
+| **App** | Substitui o ícone genérico do Flutter pelo símbolo oficial da marca Omega Drakon. |
+| **Resultado** | `flutter analyze` limpo · ícones validados por `file` (tamanhos e RGBA corretos). |
+
+### 2. bump PATCH
+
+Infra visível no repo: `.env 1.21.1` · capabilities fallback `1.21.1` · `pubspec 1.21.1+2049` · `_APP_VERSION_CODE=2049` · `site 2x` · APKs rebuildados · `CHANGELOG [1.21.1]` · este README.
+
+
 ## [1.21.0] — CANAL DE DESENVOLMENTO: OS 3 COMPORTAMENTOS DO ▶ ATIVAR 🧠 (2026-10-08)
 
 ### 1. O que foi feito
