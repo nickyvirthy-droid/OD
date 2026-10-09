@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-09T20:10:00",
+  "updated_at": "2026-10-09T20:45:00",
   "retomada_2026_10_09_lote_icone": {
     "lote_ecossistema_site_2026_10_09": {
       "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
@@ -69,7 +69,7 @@
     "bug_critico": "APK arm64 publicado com versionCode='4049' (aapt2) = 2049+2000 do split por ABI — build SEM a flag -Pforce-version-code-ignoring-abi do build_apk.sh (a CLI rodou flutter build direto). Instalação desse binário colaria o celular na linhagem 4xxx e MATARIA a auto-atualização (próximo 2050 < 4049 = downgrade recusado). APK full correto (2049). Servidor vivo (1.21.0, PID 877441) já anuncia sha do binário novo em /app/version — incoerência no ar até o deploy.",
     "caminho_legado": "O dono escreveu 'home/Alex/Legado' — caminho real é /home/alex/Legado (minúsculo; Linux é case-sensitive). O trabalho usou o caminho real; AVISAR o dono no chat (o canal não avisou).",
     "acao_em_andamento": "Rebuild canônico ./app/build_apk.sh (força versionCode exato 2049 nos dois APKs) + suíte completa do servidor; depois commit+push (regra 7.1), deploy (regra 7.1 autoriza commit; deploy segue autorização explícita) e registro final.",
-    "estado": "CONCLUÍDO E NO AR — v1.23.0 (busca sem hífen + foto + sala de bate-papo por peça) implantada, provada (local + Funnel) e publicada (commit 717131d). txt.txt + Telegram avisados. Suíte 2389 pass / 16 skip.",
+    "estado": "CONCLUÍDO E NO AR — v1.23.1 (bug do 'Verificar atualização' + versionCode 2051) implantada, provada e publicada (commit c939799). txt.txt + Telegram avisados.",
     "transcricao": "iniciar/2026-10-09_conversa_omegadrakon.md",
     "item_2c_melhorias_verificacao_2026_10_09": {
       "id": "item_2c_melhorias_verificacao_2026_10_09",
@@ -108,6 +108,42 @@
         "dono exercitar verificação/painel e cadastrar peças reais (remover 4 exemplos com ✕)",
         "etapa 4 do item 2: registro do comprador no app + QR + loja",
         "rotação dos segredos antigos (adiada pelo dono até testes em produção)"
+      ],
+      "telegram": "msg de conclusão enviada ao dono"
+    },
+    "item_2d_app_versao_bug_2026_10_09": {
+      "id": "item_2d_app_versao_bug_2026_10_09",
+      "titulo": "Bug do dono — app não mostra a versão ao clicar Verificar Atualização (v1.23.1)",
+      "data": "2026-10-09",
+      "pedido_dono": "APP não mostra a versão atual ao clicar Verificar Atualização",
+      "causas": [
+        "mensagem do resultado não trazia versão nenhuma (só 'Você já está na versão mais recente.')",
+        "versionCode parado em 2050 desde 1.22.0 → updater (comparação só por versionCode) considerava tudo 'já atualizado'; o celular do dono (2050) nunca via a 1.23.0"
+      ],
+      "correcoes": [
+        "odUpdateStatusMessage() em od_updater.dart — função pura, SEMPRE com publicada × instalada + versionCodes; fallback honesto sem PackageInfo; servidor inacessível → mensagem de falha",
+        "card 'App instalado: vX.Y.Z (código N)'; _checkUpdate recarrega PackageInfo no clique",
+        "versionCode 2050→2051; regra nova no checklist §5.3: TODO APK publicado ganha versionCode novo, mesmo sem mudança de código"
+      ],
+      "guarda_que_funcionou": "test_version_policy.py barrou o v1.24.0 hipotético do meu próprio teste (código rotulado com versão futura) — cenário reescrito com 1.23.1 × 1.23.0 reais",
+      "versao": "1.23.1 (PATCH) · versionCode 2051 · APKs rebuildados (full 14c25317…, arm64 f6be8ea9…)",
+      "quantidades": {
+        "suite_servidor": "2389 pass / 16 skip",
+        "app": "analyze 0 · 138 pass / 2 skip (+4 em od_updater_test)",
+        "policy": "9 pass"
+      },
+      "provas": [
+        "aapt2: os dois APKs versionCode='2051' versionName='1.23.1'",
+        "/app/version (local + Funnel): {1.23.1, 2051, sha256 == binário publicado 14c25317…}",
+        "simulação fiel da lógica do app com o payload real: celular 2050 → 'Nova versão v1.23.1 (código 2051) (52 MB) disponível — você está na v1.22.1 (código 2050).'",
+        "site badge 3× v1.23.1 + dl-meta versionCode 2051 · APK baixável via Funnel (206) · journal 0 erros"
+      ],
+      "commits": [
+        "c939799"
+      ],
+      "pendencias": [
+        "dono: abrir o app → banner 'Nova versão 1.23.1' → Atualizar (fica em 2051)",
+        "regra vigente: todo APK publicado com versionCode novo (§5.3 ajustado)"
       ],
       "telegram": "msg de conclusão enviada ao dono"
     }

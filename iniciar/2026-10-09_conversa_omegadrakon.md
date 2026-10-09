@@ -342,3 +342,51 @@ este §15, txt.txt (regra 14), Telegram (regra 15), commit `717131d`.
 **Próximo do dono:** exercitar verificação/painel, cadastrar as peças
 reais e remover os 4 exemplos com ✕. Etapa 4 do item 2 (QR + app + loja)
 aguarda ordem.
+
+---
+
+## 16. Bug do dono — app sem versão no "Verificar Atualização" (~20:1x–20:45)
+
+**Pedido do dono (Telegram):** "APP não mostra a versão atual ao clicar
+Verificar Atualização."
+
+**Diagnóstico (duas causas somadas):**
+1. A mensagem do resultado (`_checkUpdate`) não trazia versão nenhuma:
+   só "Você já está na versão mais recente." ou "Nova versão X
+   disponível" — sem a instalada nem a publicada, sem números.
+2. `versionCode` parado em **2050** desde a 1.22.0 (bumps com "app sem
+   mudança de código"): o updater compara `versionCode >
+   localVersionCode` e o celular do dono (2050, desde a 1.22.1) recebia
+   "já atualizado" para SEMPRE — mesmo o servidor anunciando 1.23.0.
+
+**Correções (v1.23.1+2051, commit `c939799`):**
+- `odUpdateStatusMessage()` em `od_updater.dart` — função pura e
+  testável; SEMPRE mostra publicada × instalada com os versionCodes
+  (novo/estável/falha). Card: "App instalado: vX.Y.Z (código N)";
+  `_checkUpdate` recarrega PackageInfo no clique.
+- versionCode **2050 → 2051** + regra nova no checklist §5.3 da
+  VERSIONAMENTO: TODO APK publicado leva versionCode novo, mesmo sem
+  mudança de código — versionCode igual deixa o updater mudo.
+- Banner do main.dart (aviso ao abrir) passa a funcionar de novo
+  automaticamente (usa o mesmo `isNewer`).
+
+**Guarda que funcionou:** a `test_version_policy.py` barrou DE PRIMEIRA
+um `v1.24.0` hipotético que eu tinha escrito no meu próprio teste
+("código rotulado com versão MAIOR que a vigente") — cenário reescrito
+com versões reais (1.23.1 × 1.23.0).
+
+**Validação:** suíte servidor **2389 pass / 16 skip** · policy 9 pass ·
+app analyze 0 · app **138 pass / 2 skip** (+4 testes da mensagem) ·
+aapt2 dos dois APKs `versionCode='2051' versionName='1.23.1'` ·
+`/app/version` (local + Funnel) {1.23.1, 2051, sha == binário
+`14c25317…`} · APK baixável pela Funnel (206) · badge 3× v1.23.1 ·
+simulação fiel da lógica do app com o payload real (celular 2050 →
+"Nova versão v1.23.1 (código 2051) (52 MB) disponível — você está na
+v1.22.1 (código 2050).") · journal **0 erros**, 0 🐉.
+
+**Registro:** session.json (`item_2d_app_versao_bug_2026_10_09`), este
+§16, txt.txt (regra 14), Telegram (regra 15), commit `c939799`.
+
+**Para o dono:** abrir o app → banner "Nova versão 1.23.1 disponível" →
+Atualizar (baixa, confere o hash e instala). Depois, em Configurações →
+Atualização, o "Verificar atualização" mostra as duas versões.
