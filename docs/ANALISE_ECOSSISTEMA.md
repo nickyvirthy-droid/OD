@@ -140,7 +140,7 @@ refletidas neste documento.
 | 12 | Versão do Nexus | v1.3.0 × v1.9.1 × v1.9.2 | — | Histórico apenas; sem ação |
 | 13 | `/verificacao` | Prometida pela voz da marca | não existe | **Implementar** (frente de discussão) |
 | 14 | FAB / Living Systems / Semi-joias | protocolos prontos | nada no sistema | **Implementar** módulos quando o dono decidir |
-| 15 | Segredos no Legado | tokens/senhas em texto puro nos docs | — | **Rotacionar** (Telegram, Gemini, senhas); nunca migrar ao site |
+| 15 | Segredos no Legado | tokens/senhas em texto puro nos docs | — | **VERIFICADOS 09/10: bot antigo @Nexus_Nicky_bot e chave Gemini AINDA ATIVOS.** Decisão do dono: rotacionar somente após finalizar todos os testes (em produção). Nunca migrar ao site |
 
 ## 7. O que já foi entregue nesta rodada (v1.21.2)
 
@@ -161,4 +161,7 @@ refletidas neste documento.
    o Registro Mestre digital no sistema (já que semi-joias sem registro não
    existem pela própria regra da marca).
 4. **Unificação do formato de ID** (linha 9 da tabela §6).
-5. **Rotação dos segredos vazados no Legado** (linha 15).
+5. **Rotação dos segredos vazados no Legado** (linha 15) — **VERIFICADO 09/10:
+   bot antigo `@Nexus_Nicky_bot` e chave Gemini seguem ATIVOS** (getMe OK /
+   HTTP 200). Decisão do dono (09/10): rotacionar somente quando todos os
+   testes estiverem finalizados — registrados como pendência ativa.

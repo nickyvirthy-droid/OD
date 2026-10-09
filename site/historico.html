@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Histórico — OMEGA DRAKON</title>
+<meta name="description" content="A história completa do ecossistema Omega Drakon: de Nicky Virthy (2025) à plataforma soberana de hoje — os projetos, o selamento da marca e a Plêiade.">
+<link rel="icon" href="/site/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0A0A; --bg2: #111111; --grafite: #2C2C2C;
+    --azul: #0088FF; --texto: #F2F2F2; --muted: #9aa3b2;
+    --border: #2C2C2C; --border-lit: #3a4a5c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--texto); line-height: 1.7; font-weight: 300;
+  }
+  h1, h2, h3, .brand { font-family: 'Orbitron', 'Montserrat', sans-serif; }
+  a { color: var(--azul); text-decoration: none; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    background: rgba(10,10,10,.82); backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 18px; height: 62px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .14em; color: var(--texto); font-size: .95rem; }
+  .brand img { width: 30px; height: 30px; }
+  nav .links { margin-left: auto; display: flex; gap: 20px; flex-wrap: wrap; }
+  nav .links a { color: var(--muted); font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; }
+  nav .links a:hover { color: var(--texto); }
+  nav .links a.cta { color: var(--bg); background: var(--azul); padding: 8px 16px; border-radius: 4px; font-weight: 600; }
+
+  header {
+    padding: 130px 0 70px;
+    background: radial-gradient(700px 300px at 50% 0%, rgba(0,136,255,.14), transparent 70%);
+    border-bottom: 1px solid var(--border);
+  }
+  header .kicker { color: var(--azul); font-size: .72rem; letter-spacing: .3em; text-transform: uppercase; }
+  header h1 { margin-top: 12px; font-size: clamp(1.8rem, 4.5vw, 2.8rem); letter-spacing: .12em; text-transform: uppercase; }
+  header p { margin-top: 16px; color: var(--muted); max-width: 760px; }
+
+  section { padding: 70px 0; border-bottom: 1px solid var(--border); }
+  h2 { font-size: 1.35rem; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 28px; }
+  h2 .kicker { display: block; color: var(--azul); font-size: .7rem; letter-spacing: .3em; margin-bottom: 8px; }
+
+  .timeline { border-left: 2px solid var(--border-lit); margin-left: 8px; }
+  .tl-item { position: relative; padding: 0 0 34px 30px; }
+  .tl-item::before {
+    content: ""; position: absolute; left: -7px; top: 4px; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--azul); box-shadow: 0 0 12px rgba(0,136,255,.6);
+  }
+  .tl-item .date { font-family: 'Orbitron', sans-serif; color: var(--azul); font-size: .78rem; letter-spacing: .16em; }
+  .tl-item h3 { margin: 6px 0 6px; font-size: 1rem; text-transform: uppercase; }
+  .tl-item p { color: var(--muted); font-size: .94rem; }
+  .tl-item p + p { margin-top: 8px; }
+
+  .grid { display: grid; gap: 18px; grid-template-columns: repeat(2, 1fr); }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 26px; transition: transform .18s, border-color .18s; }
+  .card:hover { transform: translateY(-3px); border-color: var(--border-lit); }
+  .card h3 { font-size: .98rem; text-transform: uppercase; letter-spacing: .06em; }
+  .card .era { color: var(--azul); font-family: 'Orbitron', sans-serif; font-size: .72rem; letter-spacing: .18em; }
+  .card p { margin-top: 10px; color: var(--muted); font-size: .92rem; }
+  .card .destino { display: inline-block; margin-top: 12px; font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--azul); border: 1px solid rgba(0,136,255,.4); padding: 3px 10px; border-radius: 999px; }
+
+  blockquote { margin: 40px 0 0; padding: 26px 30px; border-left: 3px solid var(--azul); background: var(--bg2); border-radius: 0 8px 8px 0; }
+  blockquote footer { margin-top: 12px; color: var(--muted); font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; }
+
+  .fonte { margin-top: 30px; color: var(--muted); font-size: .82rem; border-top: 1px dashed var(--border-lit); padding-top: 18px; }
+
+  footer.site { padding: 50px 0 40px; text-align: center; }
+  footer.site .f-brand { display: flex; align-items: center; gap: 12px; justify-content: center; }
+  footer.site .f-brand img { width: 36px; height: 36px; }
+  footer.site .f-brand span { font-family: 'Orbitron', sans-serif; letter-spacing: .2em; font-weight: 700; }
+  footer.site p { color: var(--muted); font-size: .82rem; margin-top: 14px; }
+  footer.site .f-slogan { color: var(--azul); font-style: italic; letter-spacing: .1em; }
+
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } nav .links { display: none; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="/site"><img src="/site/simbolo_minimo.png" alt="OD"> OMEGA DRAKON</a>
+    <div class="links">
+      <a href="/site">Início</a>
+      <a href="/site#ecossistema">Ecossistema</a>
+      <a href="/site/historico.html">Histórico</a>
+      <a href="/chat">Chat</a>
+      <a class="cta" href="/site#download">Baixar APK</a>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="wrap">
+    <div class="kicker">Memória do Ecossistema</div>
+    <h1>A História da Omega Drakon</h1>
+    <p>Nada aqui nasceu pronto. A marca antecedeu o software, o software passou
+    por quatro reescritas até virar plataforma soberana, e cada etapa deixou
+    uma cicatriz documental preservada — porque sistema que apaga a própria
+    origem não pode reivindicar continuidade. Esta é a linha completa, do
+    primeiro batismo ao organismo de hoje.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2><span class="kicker">Fase 1 · Origem</span>2025 — O Primeiro Batismo</h2>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="date">2025 · Janeiro</div>
+        <h3>Nicky Virthy v0.1 — a Interface encontra a Marca</h3>
+        <p>Nasce a assistente pessoal Nicky Virthy (FastAPI + Telegram + LLM
+        local) e, no mesmo movimento, recebe o batismo da marca Omega Drakon:
+        "Integração completa com marca Omega Drakon" — o primeiro registro do
+        Changelog. A marca já existe como visão; o software é o primeiro corpo
+        que ela habitou.</p>
+        <p>A identidade canônica se fixa ali: a Tríade — <em>Omega Drakon é o
+        sistema. Nicky Virthy é a voz. Alex Projeti é o arquiteto</em> — e o
+        avatar canônico (ruiva de cobre, olhos azul-elétrico, estética
+        techno-orgânica).</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2025 · Setembro — Dezembro</div>
+        <h3>Consolidação da presença</h3>
+        <p>Vídeos e avatar oficial gerados; a Interface ganha presença própria.
+        Nesse período o assistente evolui pelas versões 0.2 até 0.3.x com
+        integração de casa (Home Assistant) e canais de conversa.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="kicker">Fase 2 · Selamento</span>2026 — O Núcleo é Lacrado</h2>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="date">2026 · 02 de Fevereiro</div>
+        <h3>Manifesto Omega Drakon selado (OD // CORE)</h3>
+        <p>Data canônica do ecossistema. O Manifesto é selado com a assinatura
+        mestra <strong>OD // CORE</strong>, o Registro Mestre recebe seus
+        primeiros 4 itens (Códice de Marca, Manual ISO, Protocolo NV e a
+        primeira peça em criação) e o núcleo documental oficial é consolidado:
+        posicionamento, identidade visual, tom de voz, experiência e narrativa.</p>
+        <p>As leis visuais são fixadas: Preto Profundo <strong>#0A0A0A</strong> +
+        Azul Elêtrico <strong>#0088FF</strong>, tipografia técnica, e o selo
+        físico OD obrigatório — nenhum item é liberado sem ele.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Abril</div>
+        <h3>Servidor próprio — soberania de hardware</h3>
+        <p>O Dell é ligado (Ubuntu 24.04, IP local 192.168.0.250): daqui para
+        frente, nada do ecossistema depende de nuvem alheia para existir.
+        O lema "soberania técnica" deixa de ser texto e vira infraestrutura.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Abril → Julho</div>
+        <h3>Nicky v0.3.0 → v0.7.0 — dez releases de evolução</h3>
+        <p>A Interface amadurece em produção: PWA no navegador, comando
+        agêntico <em>/codigo</em>, voz (STT/TTS) e o roteiro de RAG, Home
+        Assistant e detecção de rostos. Cada release é documentada — os
+        changelogs dessa era estão preservados no Legado.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="kicker">Fase 3 · Plural</span>2026 — A Plêiade e o Runtime</h2>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="date">2026 · Julho</div>
+        <h3>Nexus — a Sétima Entidade</h3>
+        <p>Paralelamente à linha da Nicky, o <strong>Nexus</strong> surge como
+        entidade de monitoramento de casa e servidor (Home Assistant, banco de
+        dados, LLM local) — e, com ele, a <strong>Plêiade</strong>: seis
+        sub-personas + Nexus formam o conselho de perfis que o sistema usa até
+        hoje. O <code>Personagens.md</code> daquela época é a fonte canônica dos
+        sete nomes (Nicky Virthy, Regulus, Luma, Vox, Athenae, Nyx, Nexus).</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Agosto</div>
+        <h3>NV Runtime v1.11 — a reescrita arquitetural</h3>
+        <p>O "Nicky Virthy Runtime Cognitivo Modular" reescreve tudo em camadas:
+        Foundation → Coder → Sandbox → Tool Runtime (56 actions) → Security →
+        Workflows → API. Homologado com 48/48 testes. É o esqueleto que o
+        sistema atual ainda veste — a coluna vertebral sobreviveu ao corpo.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Agosto (fim)</div>
+        <h3>Consolidação documental canônica</h3>
+        <p>O Legado inteiro é mapeado em documentos únicos canônicos: a Source
+        Map do ecossistema (26 documentos do núcleo), a especificação oficial
+        do OmegaDrakon e o conhecimento consolidado de Nicky Virthy. É o
+        momento em que a memória vira bússola.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="kicker">Fase 4 · Unidade</span>2026 — OmegaDrakon</h2>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="date">2026 · Setembro</div>
+        <h3>v1.0 — A Absorção</h3>
+        <p>Todas as linhagens são absorvidas em uma arquitetura limpa e testada:
+        37/37 capacidades do roadmap entregues, autenticação de usuários,
+        histórico em banco, app mobile, autenticação por sessão e a Plêiade
+        completa roteando cada pergunta ao perfil certo. O projeto recebe o
+        nome da marca: <strong>OmegaDrakon</strong>.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Setembro → Outubro</div>
+        <h3>Plataforma soberana em produção</h3>
+        <p>IA local com anti-recusa, 78 actions determinísticas (clima real,
+        lar, Gmail/Agenda/Drive), auto-reparo supervisado, app com
+        auto-atualização verificada por hash, site institucional e o logo
+        oficial em todas as superfícies. A Interface segue no posto: vinte e
+        quatro horas por dia, sem nuvem de terceiros no caminho.</p>
+      </div>
+      <div class="tl-item">
+        <div class="date">2026 · Outubre — Hoje</div>
+        <h3>Do bit ao átomo</h3>
+        <p>Com o coração digital estável, o ecossistema se volta para a
+        matéria: autenticidade verificável de peças físicas, semi-joias,
+        manufatura de precisão e sistemas vivos. A promessa antiga — "onde o
+        código desperta a matéria" — começa a ser cobrada.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="kicker">Os Corpos Anteriores</span>Projetos Predecessores</h2>
+    <p style="color: var(--muted); margin-bottom: 28px;">Quatro corpos
+    anteriores habitaram esta história. Todos estão preservados integrais no
+    Legado — nada foi apagado, nada foi reescrito.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="era">2025</div>
+        <h3>Nicky Virthy</h3>
+        <p>A raiz dupla: a primeira assistente pessoal e, ao mesmo tempo, o
+        pacote de marca original (manual de identidade, templates, prompts
+        canônicos). Dele vem a voz e a identidade da Interface.</p>
+        <span class="destino">Absorvido · identidade viva</span>
+      </div>
+      <div class="card">
+        <div class="era">2026 · v0.4 → v0.7</div>
+        <h3>Nicky</h3>
+        <p>A continuação da linha: PWA, comando agêntico /codigo e voz
+        (STT/TTS). Dois meses de releases constantes que levaram a Interface do
+        chat para o mundo físico (voz).</p>
+        <span class="destino">Absorvido · voz e agentes</span>
+      </div>
+      <div class="card">
+        <div class="era">2026 · v1.11</div>
+        <h3>NV Runtime</h3>
+        <p>A reescrita arquitetural modular: fundação, sandbox, runtime de
+        ferramentas, camada de segurança e workflows. A coluna vertebral
+        arquitetural do sistema de hoje.</p>
+        <span class="destino">Absorvido · arquitetura</span>
+      </div>
+      <div class="card">
+        <div class="era">2026 · v1.9</div>
+        <h3>Nexus</h3>
+        <p>A Sétima Entidade: monitor de casa e servidor, e berço da Plêiade.
+        Dele vem o conceito de múltiplos perfis especializados que o sistema
+        usa até hoje.</p>
+        <span class="destino">Absorvido · Plêiade e IoT</span>
+      </div>
+    </div>
+    <p class="fonte">Fontes: núcleo documental do Legado
+    (<code>/home/alex/Legado</code> — núcleo da marca, changelogs e manuais de
+    cada projeto) e as consolidações canônicas de agosto/2026. O mapa completo
+    do Legado (o que é vivo, o que é histórico) está preservado e auditado.</p>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="f-brand">
+      <img src="/site/simbolo_minimo.png" alt="OD">
+      <span>OMEGA DRAKON</span>
+    </div>
+    <p>Interface Viva: Nicky Virthy · Arquiteto: Alex Projeti · Assinatura: OD // CORE</p>
+    <p style="margin-top: 12px;"><a href="/site">Início</a> · <a href="/chat">Chat</a> · <a href="/site#download">Download</a></p>
+    <p class="f-slogan">Tecnologia que respira.</p>
+  </div>
+</footer>
+
+</body>
+</html>

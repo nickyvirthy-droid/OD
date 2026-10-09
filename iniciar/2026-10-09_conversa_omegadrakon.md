@@ -152,3 +152,24 @@
 - Regra 16 atualizada apontando o mapa como bússola do Legado.
 - **Concluído sem mutação nenhuma no Legado** (só o arquivo novo). Próximo
   item da pauta: `/verificacao` (autenticidade pública).
+
+## 12. Retomada do dono — site multipágina, segredos e o modelo da loja (~16:4x)
+
+- **Site:** dono não achou ideal deixar tudo numa página só e quer o
+  **Histórico em página própria**. ENTREGUE: `site/historico.html`
+  completa (4 fases 2025→hoje com detalhe do Legado + os 4 projetos
+  predecessor + fontes); `index.html` perdeu a timeline e ganhou teaser
+  com link; nav e rodapé dos dois arquivos ligados.
+- **Segredos:** pedido do dono — verificar se ainda funcionam; em
+  produção, trocar só quando os testes finalizarem. **VERIFICADO:**
+  bot antigo `@Nexus_Nicky_bot` **ATIVO** (getMe OK) e chave Gemini
+  antiga **ATIVA** (HTTP 200). Rotação **adiada por decisão do dono** —
+  pendência ativa na análise (item 15).
+- **Item 2 — o modelo real da verificação saiu do dono:** banco de
+  **todas as peças** expostas no site (loja); peças com ele = valor de
+  venda; vendidas = dados do comprador; peça física leva **número de
+  fabricação** (formato a decidir); a compra vem com **cartão + QR**; o
+  comprador **registra no APP em seu nome** (com cadastro no sistema);
+  **quem tem o QR é o dono**; ID de fabricação **pesquisável por
+  qualquer um**; peças públicas (chaveiros etc.) são vendidas **sem QR**
+  por não serem exclusivas. Iteração até o produto final.
