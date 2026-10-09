@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-09T18:10:00",
+  "updated_at": "2026-10-09T18:55:00",
   "retomada_2026_10_09_lote_icone": {
     "lote_ecossistema_site_2026_10_09": {
       "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
@@ -42,6 +42,25 @@
         "5d45ada feat(registry): Registro Mestre — banco de peças + verificação pública no ar (v1.22.0)"
       ],
       "estado": "CONCLUÍDO E NO AR — banco+admin+consulta pública+site (etapas 1–3 da ordem do dono). Registro Mestre vazio e limpo (total 0 — sem peça de teste poluindo). txt.txt com aviso novo (regra 14) e Telegram enviado (regra 15, msg 2043). Próxima etapa do item 2: fluxo do comprador no app (registro por QR) + loja.",
+      "transcricao": "iniciar/2026-10-09_conversa_omegadrakon.md"
+    },
+    "item_2b_cadastro_admin_2026_10_09": {
+      "pedido": "Dono: 'Ainda não tenho peça. crie um backend de cadastro para o adm. pode cadastar alguns exeplos para teste'.",
+      "entregas": [
+        "Painel /admin: seção 'Registro Mestre (peças)' — form de cadastro (nome, coleção, tipo exclusiva/pública, código gravado, preço, notas internas), tabela completa (ID, nome, coleção, tipo, código, status, dono, preço) e ações → Vender, 🔑 Registrar (prompt do username) e ✕ Remover (dupla confirmação); carrega no init (carregarTudo).",
+        "API nova: DELETE /admin/registry/{public_id} (só dono; 404 se inexistente; some também da consulta pública) + RegistryStore.delete().",
+        "Acabamento pego na prova viva: transições de status agora carimbram sold_at/registered_at sozinhas (antes ficavam null no payload público); repetição não re-carimba.",
+        "Guardas rotas 56→57; tests/test_registry.py 14→18 (delete no store, rota DELETE ponta a ponta, seção no HTML do painel sem 🐉, timestamps).",
+        "4 EXEMPLOS cadastrados no ar (autorizado): OD-PROD-2026-0001 Anel Abissal (exclusiva/estoque, NV-ABI-7F3A, R$280) · 0002 Colar Draconis (vendida, NV-DRA-9C4E, R$450) · 0003 Pendente Lumen Nox (registrada @exemplo_teste, NV-LUX-3B7D, R$190) · 0004 Chaveiro OD (pública/estoque, NV-OD-5E8A, R$35)."
+      ],
+      "bump": "PATCH 1.22.1: .env, capabilities, pubspec 1.22.1+2050, _APP_VERSION_CODE=2050, site 3x, CHANGELOG [1.22.1], README_VERSAO §1.22.1. APKs 1.22.1+2050 (aapt2: 2050 EXATO nos dois; full 55.065.736 B 863dc5b2…, arm64 19.912.226 B 6d4b7a6d…).",
+      "validacao": "Suíte completa 2375 passed/16 skipped (94s). flutter analyze 0 issues · flutter test 134 passed/2 skipped.",
+      "deploy": "2 IMPLANTADOS: 18:43:36 PID 1004202 (painel+DELETE) e ~18:50 PID 1005975 (timestamps). Provas: /app/version {1.22.1, 2050, sha 863dc5b2… == binário} · /health ok · restarts 0 · /admin com 6 refs à seção nova · /capabilities 1.22.1 · 4/4 códigos gravados consultam (local e Funnel) · registrada mostra @exemplo_teste · preço/notas ABSENTES de todos os payloads públicos · sold_at/registered_at carimbados · journal 0 erros.",
+      "commits": [
+        "6ec8412 feat(registry,admin): cadastro do Registro Mestre no painel admin + DELETE (v1.22.1)",
+        "c5a155b fix(registry): transições de status carimram sold_at/registered_at sozinhas"
+      ],
+      "estado": "CONCLUÍDO E NO AR — dono já pode exercitar tudo: cadastrar no painel, vender, registrar, remover e consultar em /site/verificacao.html (os 4 exemplos '(exemplo)' estão marcados e podem ser removidos com ✕ quando quiser). txt.txt e Telegram avisados.",
       "transcricao": "iniciar/2026-10-09_conversa_omegadrakon.md"
     },
     "reverificacao_14_32": "'leia iniciar' de novo (~14:32): sistema segue 100% — od-core active PID 954778 NRestarts=0 (desde 11:18:59), /app/version {1.21.1, 2049, sha256 13142a39… == site}, /health up, HEAD 1768b00 == origin/master, txt.txt sem mensagem nova do dono (última resposta do sistema 11:2x intacta). Único resíduo: backups/llm-cache-fakes-20261008-055830.json (untracked, já conhecido). Nada pendente do sistema; aguardando próximo pedido do dono (abrir app p/ auto-atualização 2048→2049 e conferir ícone).",

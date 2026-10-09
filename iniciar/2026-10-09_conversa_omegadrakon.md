@@ -233,3 +233,49 @@ teste poluiu a produção; POST inválido só provou o handler).
 
 **Próxima etapa do item 2:** fluxo do comprador no app (registro por QR no
 próprio nome) + entrega do QR na compra + loja no site.
+
+## 14. Item 2b — cadastro no painel admin + exemplos de teste (~18:2x–18:55)
+
+**Pedido:** dono: "Ainda não tenho peça. crie um backend de cadastro para o
+adm. pode cadastar alguns exeplos para teste."
+
+**Entregue (v1.22.1):**
+- **Painel `/admin` ganhou a seção "Registro Mestre (peças)"**: form de
+  cadastro (nome, coleção, tipo exclusiva/pública, código gravado, preço,
+  notas internas), tabela completa com status/dono/preço e ações **→ Vender**,
+  **🔑 Registrar** (prompt do username — o público só vê o username) e
+  **✕ Remover** (dupla confirmação).
+- **API nova:** `DELETE /admin/registry/{public_id}` (só dono; 404 se não
+  existe; some também da consulta pública) + `RegistryStore.delete()`.
+- **Acabamento pego pela prova viva:** transições `vendida`/`registrada`
+  agora carimbam `sold_at`/`registered_at` sozinhas (antes `null` no payload
+  público); repetição não re-carimba (+1 teste).
+- Guardas: rotas 56→57; `tests/test_registry.py` 14→18.
+
+**Exemplos cadastrados no ar (4, todos marcados "(exemplo)"):**
+
+| ID | Peça | Tipo | Status | Código gravado |
+|---|---|---|---|---|
+| OD-PROD-2026-0001 | Anel Abissal (exemplo) | exclusiva | estoque | NV-ABI-7F3A |
+| OD-PROD-2026-0002 | Colar Draconis (exemplo) | exclusiva | vendida | NV-DRA-9C4E |
+| OD-PROD-2026-0003 | Pendente Lumen Nox (exemplo) | exclusiva | registrada @exemplo_teste | NV-LUX-3B7D |
+| OD-PROD-2026-0004 | Chaveiro OD (exemplo) | pública | estoque | NV-OD-5E8A |
+
+**Validação:** suíte **2375 passed / 16 skipped** · flutter analyze 0 ·
+flutter test 134/2 · APKs `1.22.1+2050` (aapt2: 2050 exato; full
+55.065.736 B `863dc5b2…`, arm64 19.912.226 B `6d4b7a6d…`).
+
+**Deploy (7.3):** commits `6ec8412` (painel+DELETE) e `c5a155b`
+(timestamps), ambos publicados. Restarts 18:43:36 (PID 1004202) e ~18:50
+(PID 1005975), NRestarts=0. **Provas:** `/app/version {1.22.1, 2050,
+sha 863dc5b2… == binário}` · health ok · restarts 0 · `/admin` com a seção
+(6 refs) · `/capabilities 1.22.1` · **4/4 códigos gravados consultam** (local
+e Funnel) · registrada mostra `@exemplo_teste` · **preço/notas ausentes de
+todo payload público** · timestamps carimbados · journal **0 erros** ·
+0 🐉.
+
+**Registro:** session.json (`item_2b_cadastro_admin_2026_10_09`), este §14,
+txt.txt (regra 14) e Telegram (regra 15).
+
+**Ajuste pronto para o dono:** os 4 exemplos são de teste e podem ser
+removidos pelo botão ✕ do painel quando as peças reais chegarem.
