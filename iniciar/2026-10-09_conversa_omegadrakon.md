@@ -110,4 +110,25 @@
   `flutter analyze` **0 issues** · `flutter test` **134 passed** ·
   HTML validado (0 tags abertas, 0 âncoras quebradas, 0 🐉, assets OK).
 - **Bump PATCH 1.21.2+2050** (checklist completo). APKs: build canônico
-  em andamento — publicação e registro finais no próximo capítulo.
+  `./app/build_apk.sh` → **versionCode='2050' exato** nos dois (aapt2;
+  full `3ce16d5e…` 55.065.736 B · arm64 `715468d2…` 19.912.226 B).
+  (Nota: os 2049 foram sobrescritos pelo build — sem backup desta vez.)
+
+## 10. Deploy 1.21.2 — autorização permanente (~15:25)
+
+- Dono autorizou o restart **e criou a regra 7.3**: "se estiver tudo
+  verde, está sempre autorizado" — restart vira padrão quando a
+  validação está verde (registro obrigatório continua).
+- **Restart 15:25:13, PID 978552, NRestarts=0.** Prova viva **8/8**:
+  `/app/version` {1.21.2, 2050, sha256 `3ce16d5e…` == binário} ·
+  `/capabilities` 1.21.2 · 78 actions · `/health` up · `/supervision`
+  restarts 0 · chat com 6 referências ao logo e **0 🐉** · journal 0
+  erros. **Prova de fora (Funnel):** título novo, `/app/version`
+  1.21.2/2050, 3 assets 200, 0 🐉.
+- Fechamento: commit `cf36ed2` (== origin/master) · aviso no `txt.txt`
+  (regra 14) · resumo no Telegram (regra 15) · regra 16 (Legado) e 7.3
+  (restart verde) criadas.
+- **Pendência do dono:** abrir o app (auto-atualização 2049 → 2050) e
+  conferir o logo nas superfícies. **Próxima discussão:** as 15
+  divergências de `docs/ANALISE_ECOSSISTEMA.md` (ID duplo,
+  `/verificacao`, organização do Legado, rotação de segredos).

@@ -12,8 +12,9 @@
         "Regra 16 em iniciar/RULES.md: /home/alex/Legado é referência obrigatória.",
         "Bump PATCH 1.21.2+2050 completo: .env, capabilities fallback, pubspec, _APP_VERSION_CODE, site, CHANGELOG [1.21.2], README_VERSAO §1.21.2."
       ],
-      "validacao": "Suíte servidor 2390 passed/16 skipped (79,9s). flutter analyze 0 issues · flutter test 134 passed/2 skipped.",
-      "em_andamento": "Build canônico ./app/build_apk.sh (v1.21.2+2050) rodando em background; PENDENTE: aapt2 verify versionCode 2050, publicar APKs em site/, backup dos 2049, commit+push (regra 7.1), autorização de restart (od-core), txt.txt, Telegram (regra 15)."
+      "validacao": "Suíte servidor 2390 passed/16 skipped (79,9s). flutter analyze 0 issues · flutter test 134 passed/2 skipped. APKs versionCode='2050' exato nos dois (aapt2) — full 55.065.736 B 3ce16d5e…, arm64 19.912.226 B 715468d2…",
+      "deploy": "IMPLANTADO 15:25:13 — PID 978552, NRestarts=0. Prova viva local 8/8: /app/version {1.21.2, 2050, sha256 3ce16d5e… == binário de site/} · /capabilities 1.21.2 (78 actions, 42 caps) · /health up · /supervision restarts 0 · chat com 6 refs ao logo e 0 🐉 · journal 0 erros. Prova de fora (Funnel): /site título novo · /app/version 1.21.2/2050 · 3 assets 200 · 0 🐉.",
+      "estado": "CONCLUÍDO E NO AR — commit cf36ed2 (HEAD==origin/master); txt.txt com aviso (regra 14); Telegram enviado (regra 15). Regra 7.3 NOVA: restart verde autorizado por padrão (dono: 'se estiver tudo verde esta sempre autorizado'). Pendência do dono: abrir o app p/ auto-atualização 2049→2050 e conferir o logo; depois discutir as 15 divergências de docs/ANALISE_ECOSSISTEMA.md. Nota: APKs 2049 antigos foram sobrescritos pelo build (sem backup desta vez)."
     },
     "reverificacao_14_32": "'leia iniciar' de novo (~14:32): sistema segue 100% — od-core active PID 954778 NRestarts=0 (desde 11:18:59), /app/version {1.21.1, 2049, sha256 13142a39… == site}, /health up, HEAD 1768b00 == origin/master, txt.txt sem mensagem nova do dono (última resposta do sistema 11:2x intacta). Único resíduo: backups/llm-cache-fakes-20261008-055830.json (untracked, já conhecido). Nada pendente do sistema; aguardando próximo pedido do dono (abrir app p/ auto-atualização 2048→2049 e conferir ícone).",
     "pedido": "Usuário: 'leia iniciar' — retomada (~11:0x de 09/10).",
