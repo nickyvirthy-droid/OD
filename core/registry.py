@@ -17,13 +17,26 @@ Modelo (decisões do dono, 09/10):
   o banco e a consulta.
 - Peças públicas (chaveiros etc.): kind=publica, sem QR/registro de dono.
 
+Evolução 1.23.0 (mesmo dia, pedido do dono "vamos melhorar"):
+- Busca TOLERANTE A HÍFEN: digitar "odprod20260001" ou "nvabi7f3a"
+  acha a peça igual (comparação normalizada, sem separadores).
+- FOTO do produto: arquivo em photo_dir/{public_id}.{jpg|png|webp},
+  servida publicamente por GET /registry/{codigo}/photo; o payload
+  público traz a URL quando existe.
+- SALA DE BATE-PAPO por peça: tabela registry_chat — interessados
+  conversam com quem tem a peça (estoque → dono do sistema; registrada →
+  @dono). Leitura pública, escrita só com conta (username), moderação
+  pelo admin. Avisos ao dono no Telegram (com cooldown por peça).
+
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
 
 from __future__ import annotations
 
+import re
 import time
+from pathlib import Path
 from typing import Any, Optional
 
 from storage import Database
@@ -41,13 +54,29 @@ REGISTRY_ITEMS_SCHEMA: dict[str, str] = {
     "price_brl": "REAL",                      # só o dono do sistema vê
     "owner_username": "TEXT",                 # username público do registrante
     "notes": "TEXT",                          # internas — nunca públicas
+    "photo": "TEXT",                          # nome do arquivo da foto (ou None)
     "created_at": "REAL NOT NULL",
     "sold_at": "REAL",
     "registered_at": "REAL",
 }
 
+# Sala de bate-papo da peça (leitura pública / escrita com conta).
+REGISTRY_CHAT_SCHEMA: dict[str, str] = {
+    "id": "INTEGER PRIMARY KEY",
+    "public_id": "TEXT NOT NULL",
+    "username": "TEXT NOT NULL",
+    "text": "TEXT NOT NULL",
+    "created_at": "REAL NOT NULL",
+}
+
 KINDS = ("exclusiva", "publica")
 STATUSES = ("estoque", "vendida", "registrada")
+
+# Limites (foto chega em base64 JSON; texto é mensagem de bate-papo).
+PHOTO_MAX_BYTES = 6 * 1024 * 1024          # 6 MB de binário decodificado
+PHOTO_MIME_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+CHAT_TEXT_MAX = 2000
+CHAT_PAGE_LIMIT = 200
 
 # Campos que NUNCA saem na consulta pública (preço, anotações, PK interna).
 _PRIVATE_FIELDS = frozenset({"id", "price_brl", "notes"})
@@ -59,12 +88,35 @@ _UPDATABLE = frozenset({
 })
 
 
+def normalize_code(codigo: str) -> str:
+    """Normaliza um código para busca tolerante: maiúsculas sem separadores.
+
+    "od-prod-2026-0001", "OD PROD 2026 0001" e "odprod20260001" viram o
+    mesmo alvo — a pessoa muitas vezes lê o número gravado e re-digita
+    sem os hífens.
+    """
+    return re.sub(r"[^A-Z0-9]", "", str(codigo or "").upper())
+
+
 class RegistryStore:
     """Registro Mestre de peças sobre o Database do sistema."""
 
-    def __init__(self, database: Database) -> None:
+    def __init__(self, database: Database, photo_dir: Optional[Path] = None) -> None:
         self._db = database
+        self._photo_dir = Path(photo_dir) if photo_dir else None
         database.create_table("registry_items", REGISTRY_ITEMS_SCHEMA)
+        database.create_table("registry_chat", REGISTRY_CHAT_SCHEMA)
+        # Migração da coluna photo: a tabela nasceu antes dela (1.23.0) e
+        # create_table é IF NOT EXISTS — sozinho não adiciona coluna nova.
+        self._ensure_column("registry_items", "photo", "TEXT")
+        if self._photo_dir is not None:
+            self._photo_dir.mkdir(parents=True, exist_ok=True)
+
+    def _ensure_column(self, table: str, column: str, type_sql: str) -> None:
+        cols = {str(c.get("name") or c.get("column_name") or "")
+                for c in self._db.table_info(table)}
+        if column not in cols:
+            self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type_sql}")
 
     # ------------------------------------------------------------------#
     # Identificação                                                      #
@@ -134,7 +186,12 @@ class RegistryStore:
         return dict(row)
 
     def get(self, codigo: str) -> Optional[dict[str, Any]]:
-        """Busca por public_id OU código gravado (normalizado maiúsculas)."""
+        """Busca por public_id OU código gravado — tolerante a hífens.
+
+        Primeiro tenta exato (rápido, índice UNIQUE); sem match, compara
+        a versão NORMALIZADA (maiúsculas, sem separadores) de todos os
+        cadastros — "odprod20260001" e "NVABI7F3A" acham a peça.
+        """
         cod = str(codigo or "").strip().upper()
         if not cod:
             return None
@@ -142,7 +199,16 @@ class RegistryStore:
             "SELECT * FROM registry_items WHERE public_id = ? OR engraved_code = ?",
             (cod, cod),
         )
-        return dict(rows[0]) if rows else None
+        if rows:
+            return dict(rows[0])
+        alvo = normalize_code(cod)
+        if not alvo:
+            return None
+        for row in self._db.query("SELECT * FROM registry_items"):
+            if alvo in (normalize_code(row.get("public_id")),
+                        normalize_code(row.get("engraved_code"))):
+                return dict(row)
+        return None
 
     def list_all(self) -> list[dict[str, Any]]:
         """Lista completa (admin — inclui preço e notas)."""
@@ -152,6 +218,8 @@ class RegistryStore:
 
     def delete(self, codigo: str) -> bool:
         """Remove uma peça (admin — limpeza de cadastros de teste).
+
+        Leva junto a foto (arquivo) e a sala de bate-papo da peça.
 
         Returns:
             True se removeu; False se o código não existe.
@@ -163,6 +231,16 @@ class RegistryStore:
             "DELETE FROM registry_items WHERE public_id = ?",
             (item["public_id"],),
         )
+        self._db.execute(
+            "DELETE FROM registry_chat WHERE public_id = ?",
+            (item["public_id"],),
+        )
+        path = self._photo_file(item)
+        if path is not None:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
         return True
 
     def update(self, codigo: str, **fields: Any) -> Optional[dict[str, Any]]:
@@ -230,4 +308,123 @@ class RegistryStore:
         if item.get("status") != "registrada":
             public["owner_username"] = None
         public["registered"] = item.get("status") == "registrada"
+        # Foto: o público recebe a URL de serviço, nunca o nome do arquivo.
+        public["photo"] = (
+            f"/registry/{item['public_id']}/photo" if item.get("photo") else None
+        )
         return public
+
+    # ------------------------------------------------------------------#
+    # Foto do produto                                                    #
+    # ------------------------------------------------------------------#
+    def _photo_file(self, item: dict[str, Any]) -> Optional[Path]:
+        """Arquivo da foto de uma peça (None se sem foto ou sem diretório)."""
+        if self._photo_dir is None or not item.get("photo"):
+            return None
+        return self._photo_dir / str(item["photo"])
+
+    def save_photo(self, codigo: str, data: bytes, mime: str) -> Optional[str]:
+        """Grava/substitui a foto da peça. Retorna o nome do arquivo.
+
+        Raises:
+            ValueError: peça inexistente, mime não suportado ou grande demais.
+        """
+        item = self.get(codigo)
+        if item is None:
+            raise ValueError("peca_inexistente")
+        if self._photo_dir is None:
+            raise ValueError("foto_indisponivel")
+        mime = str(mime or "").strip().lower()
+        ext = PHOTO_MIME_EXT.get(mime)
+        if ext is None:
+            raise ValueError("formato_invalido")
+        if len(data) > PHOTO_MAX_BYTES:
+            raise ValueError("foto_grande_demais")
+        if not data:
+            raise ValueError("foto_vazia")
+        # Nome de arquivo segue o public_id — troca de foto substitui o arquivo.
+        filename = f"{item['public_id']}{ext}"
+        (self._photo_dir / filename).write_bytes(data)
+        antigo = item.get("photo")
+        self._db.execute(
+            "UPDATE registry_items SET photo = ? WHERE public_id = ?",
+            (filename, item["public_id"]),
+        )
+        if antigo and antigo != filename:
+            try:
+                (self._photo_dir / str(antigo)).unlink(missing_ok=True)
+            except OSError:
+                pass
+        return filename
+
+    def photo_path(self, codigo: str) -> Optional[Path]:
+        """Arquivo da foto para servir (None: sem foto/desativada)."""
+        item = self.get(codigo)
+        if item is None:
+            return None
+        path = self._photo_file(item)
+        if path is not None and not path.is_file():
+            return None
+        return path
+
+    # ------------------------------------------------------------------#
+    # Sala de bate-papo da peça                                          #
+    # ------------------------------------------------------------------#
+    def chat_post(self, codigo: str, username: str, text: str) -> dict[str, Any]:
+        """Publica uma mensagem na sala da peça.
+
+        Raises:
+            ValueError: peça inexistente, texto vazio/grande ou sem sala.
+        """
+        item = self.get(codigo)
+        if item is None:
+            raise ValueError("peca_inexistente")
+        username = str(username or "").strip()
+        text = str(text or "").strip()
+        if not username:
+            raise ValueError("username_obrigatorio")
+        if not text:
+            raise ValueError("texto_vazio")
+        if len(text) > CHAT_TEXT_MAX:
+            raise ValueError("texto_longo")
+        created = time.time()
+        self._db.execute(
+            "INSERT INTO registry_chat (public_id, username, text, created_at) "
+            "VALUES (?,?,?,?)",
+            (item["public_id"], username, text, created),
+        )
+        rows = self._db.query(
+            "SELECT * FROM registry_chat WHERE public_id = ? ORDER BY id DESC "
+            "LIMIT 1",
+            (item["public_id"],),
+        )
+        return dict(rows[0]) if rows else {
+            "public_id": item["public_id"], "username": username,
+            "text": text, "created_at": created,
+        }
+
+    def chat_messages(
+        self, codigo: str, since_id: int = 0, limit: int = CHAT_PAGE_LIMIT,
+    ) -> Optional[list[dict[str, Any]]]:
+        """Mensagens da sala (cronológica). None se a peça não existe."""
+        item = self.get(codigo)
+        if item is None:
+            return None
+        limit = max(1, min(int(limit or CHAT_PAGE_LIMIT), CHAT_PAGE_LIMIT))
+        rows = self._db.query(
+            "SELECT * FROM registry_chat WHERE public_id = ? AND id > ? "
+            "ORDER BY id LIMIT ?",
+            (item["public_id"], int(since_id or 0), limit),
+        )
+        return [dict(r) for r in rows]
+
+    def chat_delete(self, codigo: str, msg_id: int) -> bool:
+        """Apaga uma mensagem da sala (moderação do admin)."""
+        item = self.get(codigo)
+        if item is None:
+            return False
+        removed = self._db.execute(
+            "DELETE FROM registry_chat WHERE public_id = ? AND id = ?",
+            (item["public_id"], int(msg_id)),
+        )
+        return bool(removed)

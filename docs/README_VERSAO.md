@@ -7,6 +7,43 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.23.0] — VERIFICAÇÃO EVOLUÍDA: SEM HÍFEN, FOTO E SALA DE BATE-PAPO 🜂 (2026-10-09)
+
+### 1. O que foi feito
+
+Pedido do dono: "verifica, funcionando. vamos melhorar. se a pessoa digitar o codigo ou id sem - poderia achar mesmo assim. Uma coisa excelente é ter a foto do produto [...] e outra coisa é fazer uma sala de bate-papo onde uma pessoa interessada na peça pode conversar com o comprador e negociar a compra direta entre eles ou simplesmente conversar e trocar ideias ou saber a qualidade do produto."
+
+| Peça | Entrega |
+|---|---|
+| **Busca sem hífen** | `normalize_code()` (maiúsculas, sem separadores) no `RegistryStore.get()`: match exato primeiro, varredura normalizada como fallback. `odprod20260001` / `NVABI7F3A` / com espaços — acha. |
+| **Foto do produto** | `POST /admin/registry/{public_id}/photo` (jpeg/png/webp, ≤6 MB, base64) → `data/registry_photos/` · `GET /registry/{codigo}/photo` pública (cache 1 h) · payload público com URL (nome do arquivo nunca sai) · remover peça apaga a foto · painel reduz no navegador (canvas ≤900 px, JPEG 0.82) e mostra miniatura. |
+| **Sala de bate-papo** | `registry_chat` (id, public_id, username, text, created_at) · `GET /registry/{codigo}/chat?since=` pública · `POST /registry/{codigo}/chat` com conta obrigatória (assina username; texto ≤2000) · interlocutor = quem tem a peça (estoque → dono do sistema; registrada → @dono) · verificação pública com sala + polling 4 s + link de login para anônimo. |
+| **Moderação + Telegram** | `DELETE /admin/registry/{public_id}/chat/{msg_id}` (só dono) · botão 💬 abre sala no painel, ✕ apaga mensagem · cada mensagem avisa o dono no Telegram (cooldown 2 min/peça; erro do Telegram nunca derruba o envio — `build_chat_notify()` costura o sink async no loop principal via `run_coroutine_threadsafe`). |
+
+### 2. Decisões e fronteiras
+
+- Leitura pública da sala: decisão alinhada ao ethos do Registro Mestre (a conversa é sobre a peça — qualidade, valores, negociação direta). Privacidade de PM pode vir depois, se o dono pedir.
+- Busca normalizada é fallback pós-índice: banco pequeno, varredura aceitável; exato continua primeiro.
+- Migração da coluna `photo`: `create_table` é `IF NOT EXISTS` (não adiciona coluna) — `RegistryStore` ganhou `_ensure_column()` (SQLite `PRAGMA table_info` / Postgres `information_schema`).
+- `_APP_VERSION_CODE=2050` mantido (app sem mudança de código); versionName novo nos APKs.
+
+### 3. Quantidades (após entrega)
+
+| Métrica | Valor |
+|---|---|
+| Suíte principal | **2389 pass / 16 skip** |
+| Rotas REST | 57 → **62** (photo GET/POST, chat GET/POST, moderação DELETE) |
+| `tests/test_registry.py` | 18 → **32** |
+| app analyze / app test | 0 issues · 134 pass / 2 skip |
+
+### 4. Pendências
+
+- Rotação dos segredos antigos (adiada pelo dono até finalizar testes em produção).
+- Remover as 4 peças-exemplo com ✕ quando o dono cadastrar as reais.
+- QR de posse + registro no app + loja (etapa 4 do item 2).
+
+---
+
 ## [1.22.1] — PAINEL DO REGISTRO MESTRE: CADASTRO DO DONO NO AR 🜂 (2026-10-09)
 
 ### 1. O que foi feito

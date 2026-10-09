@@ -13,6 +13,7 @@ Cobre:
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -290,6 +291,9 @@ class TestRegistroAdminPainel:
         assert "/admin/registry" in html          # endpoints que a UI usa
         assert 'id="reg-nome"' in html            # campo de cadastro
         assert "regRegistrar" in html             # fluxo de registro por QR
+        assert "regFotoEnviar" in html            # upload de foto da peça (1.23.0)
+        assert "regChatToggle" in html            # sala de bate-papo (1.23.0)
+        assert "reg-chat-del" in html             # moderação da sala (1.23.0)
         assert "🐉" not in html
 
     def test_transicao_carimba_timestamps(self, store: RegistryStore) -> None:
@@ -305,3 +309,262 @@ class TestRegistroAdminPainel:
         got3 = store.update(item["public_id"], status="registrada",
                             owner_username="bia")
         assert (got3["sold_at"], got3["registered_at"]) == (s1, r1)
+
+
+# ---------------------------------------------------------------------------#
+# 1.23.0 — busca sem hífen, foto do produto e sala de bate-papo               #
+# ---------------------------------------------------------------------------#
+class TestBuscaSemHifen:
+    def test_store_acha_sem_separadores(self, store: RegistryStore) -> None:
+        item = store.create(name="Anel", kind="exclusiva",
+                            engraved_code="NV-ABI-7F3A")
+        sem_hifen_id = item["public_id"].replace("-", "").lower()
+        assert store.get(sem_hifen_id)["public_id"] == item["public_id"]
+        assert store.get("nvabi7f3a")["public_id"] == item["public_id"]
+        # com espaços também vale
+        assert store.get("nv abi 7f3a")["public_id"] == item["public_id"]
+
+    def test_rota_publica_sem_hifen(self, srv) -> None:
+        server, reg = srv
+        item = reg.create(name="Anel", kind="exclusiva",
+                          engraved_code="NV-ABI-7F3A")
+        sem_hifen = item["public_id"].replace("-", "")
+        status, body, _ = _request(server.bound_port, "GET",
+                                   "/registry/" + sem_hifen)
+        data = _json_response((status, body, None))
+        assert status == 200 and data["peca"]["public_id"] == item["public_id"]
+        status, _, _ = _request(server.bound_port, "GET", "/registry/nvabi7f3a")
+        assert status == 200
+        # com espaços na URL (percent-encoded: %20) também acha
+        status, _, _ = _request(server.bound_port, "GET", "/registry/nv%20abi%207f3a")
+        assert status == 200
+
+    def test_inexistente_continua_404(self, srv) -> None:
+        server, _ = srv
+        status, _, _ = _request(server.bound_port, "GET",
+                                "/registry/odprod99999999")
+        assert status == 404
+
+
+class TestFoto:
+    JPEGSINO = b"\xff\xd8\xff\xe0OD-TESTE-DE-FOTO\xff\xd9"
+
+    @pytest.fixture()
+    def srv_foto(self, serve, tmp_path: Path):
+        from integrations.api import APIConfig
+
+        db = Database(tmp_path / "foto.db")
+        reg = RegistryStore(db, photo_dir=tmp_path / "fotos")
+        cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123",
+                        auth_all=True, registry=reg)
+        return serve(None, config=cfg), reg, tmp_path / "fotos"
+
+    def test_store_salva_e_projeta_url(self, tmp_path: Path) -> None:
+        reg = RegistryStore(Database(tmp_path / "f.db"),
+                            photo_dir=tmp_path / "fotos")
+        item = reg.create(name="Anel", kind="exclusiva")
+        # sem foto: payload traz None
+        assert reg.verify_public(item["public_id"])["photo"] is None
+        reg.save_photo(item["public_id"], self.JPEGSINO, "image/jpeg")
+        pub = reg.verify_public(item["public_id"])
+        assert pub["photo"] == f"/registry/{item['public_id']}/photo"
+        # nunca vaza o nome do arquivo
+        assert "JPEGSINO" not in str(pub) and ".jpg" not in str(pub["photo"])
+        assert reg.photo_path(item["public_id"]).read_bytes() == self.JPEGSINO
+
+    def test_store_rejeita_formato_e_tamanho(self, tmp_path: Path) -> None:
+        from core.registry import PHOTO_MAX_BYTES
+
+        reg = RegistryStore(Database(tmp_path / "f.db"),
+                            photo_dir=tmp_path / "fotos")
+        item = reg.create(name="A", kind="publica")
+        with pytest.raises(ValueError, match="formato_invalido"):
+            reg.save_photo(item["public_id"], b"x", "image/gif")
+        with pytest.raises(ValueError, match="foto_grande_demais"):
+            reg.save_photo(item["public_id"], b"x" * (PHOTO_MAX_BYTES + 1),
+                           "image/jpeg")
+        with pytest.raises(ValueError, match="peca_inexistente"):
+            reg.save_photo("OD-PROD-1999-9999", b"x", "image/jpeg")
+
+    def test_upload_publico_e_servida(self, srv_foto) -> None:
+        import base64 as b64
+
+        server, reg, _ = srv_foto
+        item = reg.create(name="Anel", kind="exclusiva")
+        payload = json.dumps({
+            "image_b64": b64.b64encode(self.JPEGSINO).decode(),
+            "mime": "image/jpeg",
+        })
+        status, body, _ = _request(
+            server.bound_port, "POST",
+            f"/admin/registry/{item['public_id']}/photo",
+            api_key="segredo123", raw_body=payload)
+        assert status == 200, body
+        # pública SEM credencial devolve os bytes com o mime certo
+        status, body, headers = _request(
+            server.bound_port, "GET", f"/registry/{item['public_id']}/photo")
+        assert status == 200 and body == self.JPEGSINO
+        assert headers.get("Content-Type") == "image/jpeg"
+        # payload público traz a URL
+        status, body, _ = _request(server.bound_port, "GET",
+                                   "/registry/" + item["public_id"])
+        assert _json_response((status, body, None))["peca"]["photo"].endswith(
+            "/photo")
+
+    def test_sem_foto_404_e_upload_exige_admin(self, srv_foto) -> None:
+        server, reg, _ = srv_foto
+        item = reg.create(name="A", kind="publica")
+        status, _, _ = _request(server.bound_port, "GET",
+                                f"/registry/{item['public_id']}/photo")
+        assert status == 404
+        # sem credencial (auth_all) = 401, não 403/200
+        status, _, _ = _request(
+            server.bound_port, "POST",
+            f"/admin/registry/{item['public_id']}/photo",
+            raw_body=json.dumps({"image_b64": "AA==", "mime": "image/jpeg"}))
+        assert status == 401
+
+    def test_delete_peca_remove_foto(self, srv_foto) -> None:
+        server, reg, fotos = srv_foto
+        import base64 as b64
+
+        item = reg.create(name="A", kind="publica")
+        _request(server.bound_port, "POST",
+                 f"/admin/registry/{item['public_id']}/photo",
+                 api_key="segredo123",
+                 raw_body=json.dumps({
+                     "image_b64": b64.b64encode(self.JPEGSINO).decode(),
+                     "mime": "image/jpeg"}))
+        assert (fotos / f"{item['public_id']}.jpg").is_file()
+        _request(server.bound_port, "DELETE",
+                 "/admin/registry/" + item["public_id"],
+                 api_key="segredo123")
+        assert not (fotos / f"{item['public_id']}.jpg").exists()
+
+
+class TestSalaDeBatePapo:
+    @pytest.fixture()
+    def srv_chat(self, serve, tmp_path: Path):
+        from integrations.api import APIConfig
+        from integrations.api.auth import UserStore
+
+        db = Database(tmp_path / "chat.db")
+        reg = RegistryStore(db, photo_dir=tmp_path / "fotos")
+        users = UserStore(db)
+        users.register("bia", "bia@x.com", "senha-forte-123")
+        cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123",
+                        auth_all=True, registry=reg, user_store=users,
+                        owner_username="dono")
+        srv = serve(None, config=cfg)
+        chave_bia = users.get_user_by_username("bia").api_key
+        return srv, reg, chave_bia
+
+    def test_store_fluxo_completo(self, store: RegistryStore) -> None:
+        item = store.create(name="A", kind="exclusiva")
+        m1 = store.chat_post(item["public_id"], "bia", "qual a qualidade?")
+        m2 = store.chat_post(item["public_id"], "dono", "japonesa, 925.")
+        msgs = store.chat_messages(item["public_id"])
+        assert [m["text"] for m in msgs] == ["qual a qualidade?", m2["text"]]
+        # polling por id
+        so_novas = store.chat_messages(item["public_id"], since_id=m1["id"])
+        assert len(so_novas) == 1
+        assert store.chat_messages("OD-PROD-1999-9999") is None
+        assert store.chat_delete(item["public_id"], m1["id"]) is True
+        assert len(store.chat_messages(item["public_id"])) == 1
+
+    def test_limites_do_store(self, store: RegistryStore) -> None:
+        from core.registry import CHAT_TEXT_MAX
+
+        item = store.create(name="A", kind="exclusiva")
+        with pytest.raises(ValueError, match="peca_inexistente"):
+            store.chat_post("OD-PROD-1999-9999", "bia", "oi")
+        with pytest.raises(ValueError, match="texto_vazio"):
+            store.chat_post(item["public_id"], "bia", "   ")
+        with pytest.raises(ValueError, match="texto_longo"):
+            store.chat_post(item["public_id"], "bia", "x" * (CHAT_TEXT_MAX + 1))
+
+    def test_leitura_publica_escrita_com_conta(self, srv_chat) -> None:
+        server, reg, chave_bia = srv_chat
+        item = reg.create(name="Anel", kind="exclusiva")
+        # leitura pública (auth_all, SEM credencial)
+        status, body, _ = _request(server.bound_port, "GET",
+                                   f"/registry/{item['public_id']}/chat")
+        data = _json_response((status, body, None))
+        assert status == 200 and data["mensagens"] == []
+        # escrita SEM conta = 401
+        status, _, _ = _request(server.bound_port, "POST",
+                                f"/registry/{item['public_id']}/chat",
+                                raw_body=json.dumps({"text": "oi"}))
+        assert status == 401
+        # escrita COM conta da bia = 201 e o username assina
+        status, body, _ = _request(
+            server.bound_port, "POST",
+            f"/registry/{item['public_id']}/chat",
+            api_key=chave_bia, raw_body=json.dumps({"text": "ainda tem?"}))
+        assert status == 201, body
+        msg = _json_response((status, body, None))["mensagem"]
+        assert msg["username"] == "bia"
+        # aparece na leitura pública com polling since
+        status, body, _ = _request(
+            server.bound_port, "GET",
+            f"/registry/{item['public_id']}/chat?since={msg['id'] - 1}")
+        data = _json_response((status, body, None))
+        assert len(data["mensagens"]) == 1
+
+    def test_peca_inexistente_404(self, srv_chat) -> None:
+        server, _, chave_bia = srv_chat
+        status, _, _ = _request(server.bound_port, "GET",
+                                "/registry/OD-PROD-1999-9999/chat")
+        assert status == 404
+        status, _, _ = _request(server.bound_port, "POST",
+                                "/registry/OD-PROD-1999-9999/chat",
+                                api_key=chave_bia,
+                                raw_body=json.dumps({"text": "oi"}))
+        assert status == 404
+
+    def test_moderacao_admin(self, srv_chat) -> None:
+        server, reg, chave_bia = srv_chat
+        item = reg.create(name="A", kind="exclusiva")
+        status, body, _ = _request(
+            server.bound_port, "POST",
+            f"/registry/{item['public_id']}/chat",
+            api_key=chave_bia, raw_body=json.dumps({"text": "spam?"}))
+        mid = _json_response((status, body, None))["mensagem"]["id"]
+        # usuário comum NÃO modera (chave de usuário não é admin)
+        status, _, _ = _request(
+            server.bound_port, "DELETE",
+            f"/admin/registry/{item['public_id']}/chat/{mid}",
+            api_key=chave_bia)
+        assert status == 403
+        # dono modera
+        status, _, _ = _request(
+            server.bound_port, "DELETE",
+            f"/admin/registry/{item['public_id']}/chat/{mid}",
+            api_key="segredo123")
+        assert status == 200
+        status, _, _ = _request(
+            server.bound_port, "DELETE",
+            f"/admin/registry/{item['public_id']}/chat/{mid}",
+            api_key="segredo123")
+        assert status == 404
+
+    def test_aviso_ao_dono_com_cooldown(self, srv_chat) -> None:
+        """chat_notify dispara 1x por peça em 2 min; erro nunca derruba."""
+        server, reg, chave_bia = srv_chat
+        server.config.chat_notify = lambda texto: None  # plugado
+        item = reg.create(name="A", kind="exclusiva")
+        chamadas = []
+        server.config.chat_notify = lambda t: chamadas.append(t)
+        for i in range(3):
+            _request(server.bound_port, "POST",
+                     f"/registry/{item['public_id']}/chat",
+                     api_key=chave_bia,
+                     raw_body=json.dumps({"text": f"msg {i}"}))
+        assert len(chamadas) == 1  # cooldown de 2 min por peça
+        assert item["public_id"] in chamadas[0]
+        # peça diferente avisa à parte
+        outro = reg.create(name="B", kind="exclusiva")
+        _request(server.bound_port, "POST",
+                 f"/registry/{outro['public_id']}/chat",
+                 api_key=chave_bia, raw_body=json.dumps({"text": "oi"}))
+        assert len(chamadas) == 2

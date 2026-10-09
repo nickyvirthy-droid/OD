@@ -139,7 +139,7 @@ class TestAPIRoutes:
         /admin/limitacoes (v1.13.0 — canal do dono no txt.txt + Casa de
         Limitações) + /admin/dev/sessao e /admin/dev/caixa (2026-10-08 —
         sessão de desenvolvimento on-demand + caixa de autorização)."""
-        assert len(ROUTES) == 57
+        assert len(ROUTES) == 62
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -149,9 +149,14 @@ class TestAPIRoutes:
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("GET", "/app/version"),
             ("GET", "/registry/{codigo}"),
+            ("GET", "/registry/{codigo}/photo"),
+            ("GET", "/registry/{codigo}/chat"),
+            ("POST", "/registry/{codigo}/chat"),
             ("POST", "/admin/registry"), ("GET", "/admin/registry"),
             ("PUT", "/admin/registry/{public_id}"),
             ("DELETE", "/admin/registry/{public_id}"),
+            ("POST", "/admin/registry/{public_id}/photo"),
+            ("DELETE", "/admin/registry/{public_id}/chat/{msg_id}"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("POST", "/account/password"), ("POST", "/account/api-key"),
@@ -188,10 +193,13 @@ class TestAPIRoutes:
         auth = {(r.method, r.path) for r in ROUTES if r.auth}
         assert auth == {
             ("POST", "/account/password"), ("POST", "/account/api-key"),
+            ("POST", "/registry/{codigo}/chat"),
             ("GET", "/admin/users"),
             ("POST", "/admin/registry"), ("GET", "/admin/registry"),
             ("PUT", "/admin/registry/{public_id}"),
             ("DELETE", "/admin/registry/{public_id}"),
+            ("POST", "/admin/registry/{public_id}/photo"),
+            ("DELETE", "/admin/registry/{public_id}/chat/{msg_id}"),
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),
@@ -226,6 +234,8 @@ class TestAPIRoutes:
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("GET", "/app/version"),
             ("GET", "/registry/{codigo}"),
+            ("GET", "/registry/{codigo}/photo"),
+            ("GET", "/registry/{codigo}/chat"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/anon/message"),
         }

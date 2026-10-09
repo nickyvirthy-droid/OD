@@ -14,6 +14,24 @@
 
 ---
 
+## [1.23.0] — VERIFICAÇÃO EVOLUÍDA: SEM HÍFEN, FOTO E SALA DE BATE-PAPO 🜂 (2026-10-09)
+
+> **Bump MINOR:** o dono validou a verificação ("verifica, funcionando") e pediu três melhorias: busca sem hífen, foto do produto e "uma sala de bate-papo onde uma pessoa interessada na peça pode conversar com o comprador e negociar a compra direta". Tudo entregue no mesmo dia.
+
+| Peça | Entrega |
+|---|---|
+| **Busca tolerante** | `odprod20260001`, `NVABI7F3A` ou com espaços acha igual — comparação normalizada (maiúsculas, sem separadores) no `RegistryStore.get()`; exato primeiro (índice), varredura normalizada só como fallback. |
+| **Foto do produto** | `POST /admin/registry/{public_id}/photo` (base64 JSON; jpeg/png/webp, ≤6 MB) → arquivo em `data/registry_photos/`; `GET /registry/{codigo}/photo` pública com cache; payload público traz a URL (nunca o nome do arquivo). O painel reduz no navegador (canvas, máx. 900 px) antes de enviar; miniatura na tabela; remover peça apaga a foto. |
+| **Sala de bate-papo** | Tabela `registry_chat` + `GET /registry/{codigo}/chat` (leitura pública, `?since=` para polling) + `POST /registry/{codigo}/chat` (conta obrigatória; assina com o username — nome real nunca). Quem tem a peça é o interlocutor: estoque → dono do sistema; registrada → @dono. Verificação pública abre a sala embaixo do selo, com polling de 4 s e link de login para anônimos. |
+| **Moderação + aviso** | `DELETE /admin/registry/{public_id}/chat/{msg_id}` (só dono) + botão ✕ na sala do painel (💬 abre a sala por peça). Cada mensagem nova avisa o dono no Telegram (1 aviso a cada 2 min por peça — anti-spam; falha do Telegram nunca derruba o envio). |
+| **Testes** | Guardas de rotas 57→62 · `tests/test_registry.py` +14 (busca sem hífen store/rota, foto store/rota/upload/404/moderação de arquivo, chat store/limites/leitura pública/escrita com conta/moderação/cooldown do aviso). |
+
+Limites: foto ≤6 MB de binário (o painel manda ~100-200 KB), mensagem ≤2000 caracteres, sala mostra as últimas 200. Leitura pública da sala é decisão do dono (conversa sobre a peça, não privada); moderação fica com ele.
+
+Infra visível no repo: `.env 1.23.0` · capabilities fallback `1.23.0` · `pubspec 1.23.0+2050` · `_APP_VERSION_CODE=2050` · site (badge, verificação com foto/chat) · APKs rebuildados · `CHANGELOG [1.23.0]` · `README_VERSAO §1.23.0`.
+
+---
+
 ## [1.22.1] — PAINEL DO REGISTRO MESTRE: CADASTRO DO DONO NO AR 🜂 (2026-10-09)
 
 > **Bump PATCH:** o dono pediu "um backend de cadastro para o adm" e autorizou exemplos de teste. O painel `/admin` ganha a seção **Registro Mestre (peças)**: formulário de cadastro (nome, coleção, tipo, código gravado, preço, notas), lista completa com status e dono, ações **→ Vender**, **🔑 Registrar** (username de quem comprou) e **✕ Remover** (rota `DELETE /admin/registry/{public_id}` nova, com dupla confirmação). Preço e notas continuam só no painel.

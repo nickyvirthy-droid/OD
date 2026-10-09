@@ -111,7 +111,8 @@ PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/admin", "/site", "/site/{f
 # já é público por /site/, coberto por test_site_public_under_auth_all).
 AUTH_EXEMPT_PATHS = frozenset(
     {"/auth/register", "/auth/login", "/anon/message", "/app/version",
-     "/registry/{codigo}"}
+     "/registry/{codigo}", "/registry/{codigo}/photo",
+     "/registry/{codigo}/chat"}
 )
 
 
@@ -200,6 +201,9 @@ class APIConfig:
     push: Optional[Any] = None
     user_store: Optional[Any] = None  # integrations.api.auth.UserStore
     registry: Optional[Any] = None    # core.registry.RegistryStore (peças)
+    # Callable síncrono(texto) → avisa o dono no Telegram (sala das peças);
+    # montado pelo launcher com o loop principal (build_chat_notify).
+    chat_notify: Optional[Any] = None
     # Freio contra força bruta em POST /auth/login (integrations.api.auth
     # .LoginGuard). `login_guard` permite injetar uma instância (testes);
     # ausente = o servidor constrói uma a partir dos números abaixo.
@@ -238,6 +242,11 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     # vem GRAVADO na peça; público sem credencial (mesma natureza de
     # /app/version, v. AUTH_EXEMPT_PATHS).
     ("GET", "/registry/{codigo}", "registry_verify", False),
+    # Foto do produto (pública) e sala de bate-papo da peça: leitura
+    # pública, escrita exige conta.
+    ("GET", "/registry/{codigo}/photo", "registry_photo", False),
+    ("GET", "/registry/{codigo}/chat", "registry_chat_get", False),
+    ("POST", "/registry/{codigo}/chat", "registry_chat_post", True),
     # Auth — sem auth (o handler valida internamente)
     ("POST", "/auth/register", "auth_register", False),
     ("POST", "/auth/login", "auth_login", False),
@@ -270,6 +279,9 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/admin/registry", "admin_registry_list", True),
     ("PUT", "/admin/registry/{public_id}", "admin_registry_update", True),
     ("DELETE", "/admin/registry/{public_id}", "admin_registry_delete", True),
+    ("POST", "/admin/registry/{public_id}/photo", "admin_registry_photo", True),
+    ("DELETE", "/admin/registry/{public_id}/chat/{msg_id}",
+     "admin_registry_chat_delete", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -846,12 +858,17 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     </div>
     <table style="margin-top:10px">
       <thead><tr>
-        <th>ID</th><th>Nome</th><th>Coleção</th><th>Tipo</th>
+        <th>ID</th><th>Foto</th><th>Nome</th><th>Coleção</th><th>Tipo</th>
         <th>Cód. gravado</th><th>Status</th><th>Dono</th>
         <th class="num">Preço R$</th><th>Ações</th>
       </tr></thead>
-      <tbody id="reg-pecas"><tr><td colspan="9" class="muted">Carregando…</td></tr></tbody>
+      <tbody id="reg-pecas"><tr><td colspan="10" class="muted">Carregando…</td></tr></tbody>
     </table>
+    <p class="muted" style="font-size:0.75rem;margin-top:6px">
+      📷 envia a foto do produto (reduzida aqui no navegador; o público vê em
+      /site/verificacao.html) · 💬 abre a sala de bate-papo da peça — leitura
+      pública, escrita com conta, ✕ apaga mensagem (moderação).
+    </p>
   </section>
 </main>
 <script>
@@ -1231,8 +1248,15 @@ async function regLoad() {
       } else {
         acoes = '<span class="pill ok">com dono</span>';
       }
+      acoes += ' <button class="reg-chat-btn" data-id="' + esc(p.public_id) + '">💬</button>';
+      acoes += ' <button class="reg-foto-btn" data-id="' + esc(p.public_id) + '">📷</button>';
       acoes += ' <button class="danger reg-del" data-id="' + esc(p.public_id) + '">✕</button>';
-      return "<tr><td><code>" + esc(p.public_id) + "</code></td><td><b>" + esc(p.name) + "</b></td>" +
+      const foto = p.photo
+        ? '<img src="' + esc(p.photo) + '" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--border)" loading="lazy">'
+        : '<span class="muted">—</span>';
+      const linha = "<tr><td><code>" + esc(p.public_id) + "</code></td>" +
+        "<td>" + foto + "</td>" +
+        "<td><b>" + esc(p.name) + "</b></td>" +
         '<td class="muted">' + esc(p.collection || "—") + "</td>" +
         "<td>" + (p.kind === "publica" ? "pública" : "exclusiva") + "</td>" +
         '<td class="muted">' + esc(p.engraved_code || "—") + "</td>" +
@@ -1240,14 +1264,22 @@ async function regLoad() {
           esc(REG_STATUS[p.status] || p.status) + "</span></td>" +
         "<td>" + (p.owner_username ? "<b>@" + esc(p.owner_username) + "</b>" : '<span class="muted">—</span>') + "</td>" +
         '<td class="num">' + (p.price_brl != null ? Number(p.price_brl).toFixed(2) : "—") + "</td>" +
-        "<td>" + acoes + "</td></tr>";
-    }).join("") : '<tr><td colspan="9" class="muted">Nenhuma peça cadastrada ainda.</td></tr>';
+        "<td>" + acoes + "</td></tr>" +
+        '<tr class="reg-chat-linha" data-id="' + esc(p.public_id) + '" style="display:none">' +
+        '<td colspan="10" style="background:var(--bg2)">' +
+        '<div class="muted" style="font-size:0.78rem">Carregando sala…</div></td></tr>';
+      return linha;
+    }).join("") : '<tr><td colspan="10" class="muted">Nenhuma peça cadastrada ainda.</td></tr>';
     document.querySelectorAll(".reg-vender").forEach(b =>
       b.addEventListener("click", () => regStatus(b.dataset.id, "vendida")));
     document.querySelectorAll(".reg-registrar").forEach(b =>
       b.addEventListener("click", () => regRegistrar(b.dataset.id)));
     document.querySelectorAll(".reg-del").forEach(b =>
       b.addEventListener("click", () => regDel(b.dataset.id)));
+    document.querySelectorAll(".reg-chat-btn").forEach(b =>
+      b.addEventListener("click", () => regChatToggle(b)));
+    document.querySelectorAll(".reg-foto-btn").forEach(b =>
+      b.addEventListener("click", () => regFotoPicker(b.dataset.id)));
     regSetMsg(pecas.length + " peça(s) no Registro Mestre.", "");
   } catch (e) { regSetMsg("Falha ao carregar: " + e.message, "err"); }
 }
@@ -1309,6 +1341,107 @@ async function regDel(id) {
     if (!resp.ok) { regSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
     regSetMsg("Peça removida: " + id, "ok");
     regLoad();
+  } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
+}
+
+// --- Foto do produto (1.23.0): reduz no navegador e envia ------------------
+function regFotoPicker(id) {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = "image/*";
+  inp.onchange = () => { if (inp.files && inp.files[0]) regFotoEnviar(id, inp.files[0]); };
+  inp.click();
+}
+
+async function regFotoEnviar(id, file) {
+  regSetMsg("Reduzindo e enviando a foto de " + id + "…", "");
+  try {
+    const dataUrl = await regReduzirImagem(file, 900, 0.82);
+    const b64 = dataUrl.split(",")[1];
+    const mime = dataUrl.slice(5, dataUrl.indexOf(";"));
+    const resp = await fetch("/admin/registry/" + encodeURIComponent(id) + "/photo", {
+      method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ image_b64: b64, mime: mime })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { regSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    regSetMsg("✔ Foto de " + id + " no ar — aparece na verificação pública.", "ok");
+    regLoad();
+  } catch (e) { regSetMsg("Falha na foto: " + e.message, "err"); }
+}
+
+function regReduzirImagem(file, maxLado, qualidade) {
+  // Reduz no navegador (canvas → JPEG) antes de enviar: foto de celular
+  // vira ~100-200 KB em vez de 5 MB — e o servidor fica burro de propósito.
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const escala = Math.min(1, maxLado / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * escala));
+      c.height = Math.max(1, Math.round(img.height * escala));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", qualidade));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("não consegui ler a imagem")); };
+    img.src = url;
+  });
+}
+
+// --- Sala de bate-papo da peça (1.23.0): leitura + moderação ----------------
+async function regChatToggle(botao) {
+  const id = botao.dataset.id;
+  const linha = document.querySelector('.reg-chat-linha[data-id="' + CSS.escape(id) + '"]');
+  if (!linha) return;
+  const aberta = linha.style.display !== "none";
+  document.querySelectorAll(".reg-chat-linha").forEach(l => { l.style.display = "none"; });
+  if (aberta) return;
+  linha.style.display = "";
+  linha.firstElementChild.innerHTML = '<div class="muted" style="font-size:0.78rem">Carregando sala…</div>';
+  try {
+    const resp = await fetch("/registry/" + encodeURIComponent(id) + "/chat");
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { linha.firstElementChild.innerHTML = '<span class="msg err">Erro ' + resp.status + '</span>'; return; }
+    const msgs = data.mensagens || [];
+    if (!msgs.length) {
+      linha.firstElementChild.innerHTML = '<span class="muted" style="font-size:0.78rem">Sala vazia — ninguém falou ainda.</span>';
+      return;
+    }
+    linha.firstElementChild.innerHTML =
+      '<div class="muted" style="font-size:0.75rem;margin-bottom:6px">Sala de ' + esc(id) +
+      ' — leitura pública · ✕ apaga mensagem (moderação)</div>' +
+      msgs.map(m =>
+        '<div style="display:flex;gap:10px;align-items:baseline;padding:3px 0;font-size:0.82rem">' +
+        '<b style="color:var(--accent)">@' + esc(m.username) + '</b>' +
+        '<span style="flex:1">' + esc(m.text) + '</span>' +
+        '<span class="muted" style="font-size:0.7rem">' +
+          new Date(m.created_at * 1000).toLocaleString("pt-BR") + '</span>' +
+        '<button class="danger reg-chat-del" data-id="' + esc(id) + '" data-mid="' + m.id + '">✕</button>' +
+        '</div>'
+      ).join("");
+    linha.querySelectorAll(".reg-chat-del").forEach(b =>
+      b.addEventListener("click", () => regChatApagar(b.dataset.id, b.dataset.mid)));
+  } catch (e) {
+    linha.firstElementChild.innerHTML = '<span class="msg err">Falha: ' + esc(e.message) + '</span>';
+  }
+}
+
+async function regChatApagar(id, mid) {
+  if (!window.confirm("Apagar a mensagem #" + mid + " da sala de " + id + "?")) return;
+  try {
+    const resp = await fetch("/admin/registry/" + encodeURIComponent(id) + "/chat/" + mid,
+      { method: "DELETE", headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { regSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    regSetMsg("Mensagem #" + mid + " apagada.", "ok");
+    const botao = document.querySelector('.reg-chat-btn[data-id="' + CSS.escape(id) + '"]');
+    if (botao) {
+      const linha = document.querySelector('.reg-chat-linha[data-id="' + CSS.escape(id) + '"]');
+      linha.style.display = "none";
+      regChatToggle(botao);
+    }
   } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
 }
 
@@ -2324,6 +2457,9 @@ class APIServer(ThreadingHTTPServer):
         # User auth (integrations/api/auth.py) — None = auth desabilitado
         self._user_store = self.config.user_store
         self._registry = self.config.registry
+        # Cooldown por peça do aviso de chat no Telegram (anti-spam do dono).
+        self._chat_notified: dict[str, float] = {}
+        self._chat_notified_lock = threading.Lock()
         # Freio contra força bruta no login — construído só quando há auth
         self._login_guard = self.config.login_guard
         if self._login_guard is None and self._user_store is not None:
@@ -2763,11 +2899,13 @@ class APIHandler(BaseHTTPRequestHandler):
         except ValueError:
             return False
 
-    def _read_json(self) -> dict[str, Any]:
+    def _read_json(self, max_bytes: Optional[int] = None) -> dict[str, Any]:
+        """ Lê o corpo JSON. `max_bytes` sobrepõe o limite global (413 acima)."""
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
             return {}
-        if length > self.api.config.max_body_bytes:
+        limite = max_bytes if max_bytes is not None else self.api.config.max_body_bytes
+        if length > limite:
             raise APIError(413, "body_too_large")
         raw = self.rfile.read(length)
         try:
@@ -2812,6 +2950,17 @@ class APIHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
+
+    def _raw(self, status: int, body: bytes, content_type: str,
+             cache: str = "no-store") -> None:
+        """Resposta binária bruta (foto da peça e afins)."""
+        self.send_response(status)
+        self._send_cors()
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", cache)
+        self.end_headers()
+        self.wfile.write(body)
 
     def _send_cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -2987,6 +3136,7 @@ class APIHandler(BaseHTTPRequestHandler):
         self._json(200, payload)
 
     def registry_verify(self, codigo: str) -> None:
+        codigo = unquote(codigo).strip()  # espaços/%XX viram caractere normal
         """GET /registry/{codigo} — consulta PÚBLICA de autenticidade.
 
         O ID vem gravado na peça (ou no cartão/QR): aceita o canônico
@@ -3008,6 +3158,94 @@ class APIHandler(BaseHTTPRequestHandler):
                              "codigo": str(codigo).strip().upper()})
             return
         self._json(200, {"ok": True, "peca": public})
+
+    def registry_photo(self, codigo: str) -> None:
+        codigo = unquote(codigo).strip()
+        """GET /registry/{codigo}/photo — foto pública da peça.
+
+        Serve o arquivo enviado pelo dono no painel (jpeg/png/webp).
+        Público sem credencial (AUTH_EXEMPT_PATHS).
+        """
+        store = self.api._registry
+        if store is None:
+            raise APIError(503, "registry_indisponivel")
+        path = store.photo_path(codigo)
+        if path is None:
+            raise APIError(404, "foto_inexistente")
+        try:
+            data = path.read_bytes()
+        except OSError as exc:  # pragma: no cover — arquivo sumiu no meio
+            raise APIError(404, "foto_inexistente") from exc
+        ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        self._raw(200, data, ctype, cache="public, max-age=3600")
+
+    def registry_chat_get(self, codigo: str) -> None:
+        codigo = unquote(codigo).strip()
+        """GET /registry/{codigo}/chat — mensagens da sala (leitura pública).
+
+        Query opcional: `?since=<id>` devolve só o que é novo (polling).
+        """
+        store = self.api._registry
+        if store is None:
+            raise APIError(503, "registry_indisponivel")
+        query = parse_qs(urlsplit(self.path).query)
+        try:
+            since = int(query.get("since", ["0"])[0] or 0)
+        except ValueError:
+            since = 0
+        mensagens = store.chat_messages(codigo, since_id=since)
+        if mensagens is None:
+            self._json(404, {"ok": False, "error": "nao_encontrada",
+                             "codigo": str(codigo).strip().upper()})
+            return
+        self._json(200, {"ok": True, "mensagens": mensagens,
+                         "total": len(mensagens)})
+
+    def registry_chat_post(self, codigo: str) -> None:
+        codigo = unquote(codigo).strip()
+        """POST /registry/{codigo}/chat — publica na sala (conta obrigatória).
+
+        Qualquer pessoa COM CONTA conversa com quem tem a peça (estoque →
+        dono do sistema; registrada → @dono). O username público assina a
+        mensagem; nome real nunca. Avisos ao dono no Telegram com cooldown
+        por peça (2 min) — falha no aviso nunca derruba o envio.
+        """
+        store = self.api._registry
+        if store is None:
+            raise APIError(503, "registry_indisponivel")
+        user = self._current_user
+        if user is None:
+            raise APIError(401, "login_obrigatorio")
+        username = str(
+            user.get("username") if isinstance(user, dict)
+            else getattr(user, "username", "")
+        ).strip()
+        data = self._read_json()
+        try:
+            msg = store.chat_post(codigo, username, data.get("text", ""))
+        except ValueError as exc:
+            raise APIError(
+                404 if str(exc) == "peca_inexistente" else 400, str(exc)
+            )
+        self._maybe_notify_chat(msg["public_id"], username, str(msg["text"]))
+        self._json(201, {"ok": True, "mensagem": msg})
+
+    def _maybe_notify_chat(self, public_id: str, username: str,
+                           text: str) -> None:
+        """Avisa o dono no Telegram (1 aviso a cada 2 min por peça)."""
+        cb = self.api.config.chat_notify
+        if cb is None:
+            return
+        now = time.time()
+        with self.api._chat_notified_lock:
+            if now - self.api._chat_notified.get(public_id, 0.0) < 120.0:
+                return
+            self.api._chat_notified[public_id] = now
+        preview = text if len(text) <= 200 else text[:200] + "…"
+        try:
+            cb(f"💬 Peça {public_id} — {username}: {preview}")
+        except Exception:  # pragma: no cover — Telegram fora do ar
+            log.debug("chat_notify falhou (seguindo)", public_id=public_id)
 
     def site_file(self, file: str) -> None:
         """Arquivo do site (ex.: OmegaDrakon.apk) em GET /site/{file}."""
@@ -3870,6 +4108,46 @@ class APIHandler(BaseHTTPRequestHandler):
         if not store.delete(public_id):
             raise APIError(404, "peca_inexistente")
         self._json(200, {"ok": True, "removida": str(public_id).strip().upper()})
+
+    def admin_registry_photo(self, public_id: str) -> None:
+        """POST /admin/registry/{public_id}/photo — envia a foto da peça (dono).
+
+        Body: {"image_b64": "<base64 ou data URI>", "mime": "image/jpeg"}.
+        Tamanho máximo 6 MB de binário (o painel já reduz para ~700-900 px
+        no navegador antes de enviar). Substitui a foto anterior.
+        """
+        store = self._registry_store_or_503()
+        data = self._read_json(max_bytes=9 * 1024 * 1024)
+        b64 = str(data.get("image_b64") or "")
+        if "," in b64 and b64.strip().startswith("data:"):
+            b64 = b64.split(",", 1)[1]  # data:image/jpeg;base64,XXXX
+        if not b64:
+            raise APIError(400, "image_b64_obrigatorio")
+        try:
+            raw = base64.b64decode(b64, validate=True)
+        except Exception as exc:
+            raise APIError(400, "base64_invalido") from exc
+        try:
+            store.save_photo(public_id, raw, data.get("mime", ""))
+        except ValueError as exc:
+            raise APIError(
+                404 if str(exc) == "peca_inexistente" else 400, str(exc)
+            )
+        self._json(200, {"ok": True,
+                         "photo": f"/registry/{str(public_id).strip().upper()}/photo"})
+
+    def admin_registry_chat_delete(self, public_id: str, msg_id: str) -> None:
+        """DELETE /admin/registry/{public_id}/chat/{msg_id} — moderação (dono)."""
+        store = self._registry_store_or_503()
+        try:
+            mid = int(msg_id)
+        except ValueError as exc:
+            raise APIError(400, "msg_id_invalido") from exc
+        if store.get(public_id) is None:
+            raise APIError(404, "peca_inexistente")
+        if not store.chat_delete(public_id, mid):
+            raise APIError(404, "mensagem_inexistente")
+        self._json(200, {"ok": True, "removida": mid})
 
     def admin_cache_prune(self) -> None:
         """POST /admin/cache/prune — saneia o cache LLM (admin/dono).

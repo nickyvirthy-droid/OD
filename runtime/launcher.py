@@ -226,12 +226,37 @@ def build_registry(database: Any) -> Optional[Any]:
     try:
         from core.registry import RegistryStore
 
-        store = RegistryStore(database)
+        store = RegistryStore(database, photo_dir=DATA_DIR / "registry_photos")
         log.info("Registro Mestre de peças habilitado")
         return store
     except Exception as exc:
         log.warn("Registro Mestre desabilitado", error=str(exc))
         return None
+
+
+def build_chat_notify() -> Optional[Any]:
+    """Aviso de sala de bate-papo das peças → Telegram do dono (1.23.0).
+
+    A API REST é síncrona (thread do http.server); o sink do Telegram é
+    async no loop principal — o wrapper agenda a corrente com
+    run_coroutine_threadsafe. Falha de envio nunca propaga (a mensagem
+    da sala já foi gravada; o aviso é cortesia).
+    """
+    notify = build_telegram_sink()
+    if notify is None:
+        return None
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:  # pragma: no cover — fora do loop
+        return None
+
+    def sync_notify(text: str) -> None:
+        try:
+            asyncio.run_coroutine_threadsafe(notify(text), loop)
+        except Exception:  # pragma: no cover
+            log.debug("chat_notify não agendado")
+
+    return sync_notify
 
 
 def build_voice_handlers() -> tuple[Any, Any]:
@@ -306,7 +331,7 @@ def build_voice_handlers() -> tuple[Any, Any]:
 def build_api_server(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
-    user_store: Any = None, registry: Any = None,
+    user_store: Any = None, registry: Any = None, chat_notify: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -337,6 +362,7 @@ def build_api_server(
             push=push,  # v1.3.0: /push/* (app Android)
             user_store=user_store,  # auth de usuários (registro/login/sessão)
             registry=registry,  # Registro Mestre de peças (item 2 pauta)
+            chat_notify=chat_notify,  # sala das peças → Telegram do dono
             stt=voice_stt,  # v1.17.3: /transcribe real (whisper.cpp)
             tts=voice_tts,  # v1.17.3: /tts real (Piper)
             # Freio contra força bruta no login (LoginGuard)
@@ -892,6 +918,8 @@ async def _run_api_forever(
     user_store = build_user_store(database)
     # Registro Mestre de peças (item 2 da pauta) — banco + consulta pública.
     registry = build_registry(database)
+    # Avisos da sala de bate-papo das peças ao dono no Telegram (1.23.0).
+    chat_notify = build_chat_notify()
     # Conecta o ActionRegistry ao Orchestrador TAMBÉM no caminho da API:
     # sem isto o fast path de intenções (Etapa 3.5) fica desligado no chat —
     # "qual o ip do servidor?" caía no LLM em vez da action real (v1.6.1).
@@ -902,7 +930,7 @@ async def _run_api_forever(
     server = build_api_server(
         orchestrator, metrics=metrics, health=health,
         action_registry=action_registry, push=push, database=database,
-        user_store=user_store, registry=registry,
+        user_store=user_store, registry=registry, chat_notify=chat_notify,
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)

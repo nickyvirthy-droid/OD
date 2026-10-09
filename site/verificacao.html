@@ -95,8 +95,15 @@
   .selo.ok { color: var(--verde); border-color: rgba(55,214,122,.5); background: rgba(55,214,122,.08); }
   .selo.warn { color: var(--ambar); border-color: rgba(255,176,46,.5); background: rgba(255,176,46,.08); }
   .selo.err { color: var(--vermelho); border-color: rgba(255,92,92,.5); background: rgba(255,92,92,.08); }
-  .peca h2 { font-size: 1.15rem; margin-top: 16px; letter-spacing: .08em; }
+  .topo { display: flex; gap: 22px; align-items: flex-start; margin-top: 16px; flex-wrap: wrap; }
+  .topo .texto { flex: 1 1 260px; min-width: 240px; }
+  .peca h2 { font-size: 1.15rem; letter-spacing: .08em; }
   .peca .sub { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+  .foto-peca {
+    flex: 0 0 auto; width: 190px; border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--border); background: var(--bg3);
+  }
+  .foto-peca img { display: block; width: 100%; height: auto; }
   .campos { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
   .campo { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; }
   .campo b { display: block; font-size: .64rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
@@ -104,6 +111,37 @@
   .dono { margin-top: 18px; padding: 14px 16px; border-radius: 6px; background: var(--azul-soft); border: 1px solid rgba(0,136,255,.35); font-size: .92rem; }
   .dono b { color: var(--azul); font-family: 'Orbitron', monospace; letter-spacing: .06em; }
   .nota { margin-top: 16px; font-size: .78rem; color: var(--muted); }
+
+  /* Sala de bate-papo da peça */
+  .sala {
+    margin-top: 18px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 24px;
+  }
+  .sala h3 { font-size: .95rem; letter-spacing: .12em; text-transform: uppercase; }
+  .sala .quem { margin-top: 6px; font-size: .82rem; color: var(--muted); }
+  .msgs {
+    margin-top: 16px; max-height: 340px; overflow-y: auto; display: flex;
+    flex-direction: column; gap: 10px; padding-right: 6px;
+  }
+  .msg { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+  .msg .meta { font-size: .72rem; color: var(--muted); }
+  .msg .meta b { color: var(--azul); font-family: 'Orbitron', monospace; font-weight: 500; letter-spacing: .05em; }
+  .msg .txt { margin-top: 4px; font-size: .92rem; white-space: pre-wrap; word-break: break-word; }
+  .vazio { margin-top: 14px; font-size: .85rem; color: var(--muted); font-style: italic; }
+  .sala .enviar { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .sala .enviar input {
+    flex: 1 1 240px; background: var(--bg3); border: 1px solid var(--border-lit);
+    border-radius: 6px; color: var(--texto); font-size: .92rem; padding: 11px 14px;
+  }
+  .sala .enviar input:focus { outline: none; border-color: var(--azul); box-shadow: 0 0 0 3px var(--azul-soft); }
+  .sala .enviar button {
+    background: var(--azul); color: var(--bg); border: 0; border-radius: 6px;
+    padding: 11px 22px; font-family: 'Montserrat', sans-serif; font-weight: 600;
+    font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; cursor: pointer;
+  }
+  .sala .enviar button:hover { filter: brightness(1.12); }
+  .sala .login-note { margin-top: 14px; font-size: .85rem; color: var(--muted); }
+  .sala .login-note a { border-bottom: 1px dotted var(--azul); }
 
   .passos { margin-top: 44px; }
   .grid { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
@@ -114,7 +152,7 @@
 
   footer { border-top: 1px solid var(--border); padding: 26px 0; margin-top: 40px; color: var(--muted); font-size: .78rem; text-align: center; }
 
-  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } .foto-peca { width: 100%; } }
 </style>
 </head>
 <body>
@@ -148,15 +186,23 @@
     </div>
     <p class="dica">
       Serve o ID canônico (<code>OD-PROD-2026-0001</code>) ou o código curto gravado
-      (<code>NV-ABI-7F3A</code>) — os dois estão na peça.
+      (<code>NV-ABI-7F3A</code>) — os dois estão na peça. E <b>nem precisa de hífen</b>:
+      <code>odprod20260001</code> e <code>NVABI7F3A</code> também acham.
     </p>
   </div>
 
   <div id="resultado" role="status" aria-live="polite">
     <div class="peca" id="card">
       <span class="selo" id="selo">…</span>
-      <h2 id="nome">—</h2>
-      <p class="sub" id="sub">—</p>
+      <div class="topo">
+        <div class="texto">
+          <h2 id="nome">—</h2>
+          <p class="sub" id="sub">—</p>
+        </div>
+        <div class="foto-peca" id="foto-box" style="display:none">
+          <img id="foto" alt="Foto da peça">
+        </div>
+      </div>
       <div class="campos">
         <div class="campo"><b>ID</b><span id="f-id">—</span></div>
         <div class="campo"><b>Código gravado</b><span id="f-cod">—</span></div>
@@ -167,6 +213,14 @@
       <div class="dono" id="dono" style="display:none"></div>
       <p class="nota" id="nota"></p>
     </div>
+
+    <section class="sala" id="sala" style="display:none" aria-label="Sala de bate-papo da peça">
+      <h3>💬 Sala da peça</h3>
+      <p class="quem" id="sala-quem">Converse sobre esta peça: qualidade, detalhes, negociação direta.</p>
+      <div class="msgs" id="msgs"></div>
+      <p class="vazio" id="msgs-vazio">Nenhuma mensagem ainda — seja o primeiro a falar.</p>
+      <div id="sala-conta"></div>
+    </section>
   </div>
 
   <section class="passos" style="border:0; padding:0;">
@@ -184,7 +238,7 @@
       <div class="card">
         <span class="num">03</span>
         <h3>Peça com dono?</h3>
-        <p>Se estiver registrada, o username de quem tem ela aparece — dá para conversar pelo chat do ecossistema.</p>
+        <p>Se estiver registrada, o username de quem tem ela aparece — dá para conversar na sala da peça.</p>
       </div>
     </div>
   </section>
@@ -210,6 +264,132 @@
                   nota: 'Registrada no Registro Mestre por um comprador do ecossistema.' }
   };
 
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[<>&"']/g, function (c) {
+      return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+
+  // ---------------------------------------------------------------------//
+  // Sala de bate-papo da peça (leitura pública; escrita com conta)        //
+  // ---------------------------------------------------------------------//
+  var pecaAtual = null;   // public_id da peça exibida
+  var ultimaMsg = 0;      // polling por id (?since=)
+  var timerSala = null;
+  var logado = null;      // null = ainda checando
+
+  function credenciais() {
+    var t = localStorage.getItem('od_session_token') || '';
+    var k = localStorage.getItem('od_api_key') || '';
+    return t ? { 'Authorization': 'Bearer ' + t } : (k ? { 'X-API-Key': k } : {});
+  }
+
+  function checarLogin() {
+    return fetch('/auth/me', { headers: credenciais() })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { return (j && j.ok && j.user) ? j.user : null; })
+      .catch(function () { return null; });
+  }
+
+  function renderConta() {
+    var alvo = document.getElementById('sala-conta');
+    if (!pecaAtual) { alvo.innerHTML = ''; return; }
+    if (logado) {
+      alvo.innerHTML =
+        '<div class="enviar">' +
+        '  <input id="msg-txt" type="text" maxlength="2000" autocomplete="off"' +
+        '         placeholder="Escreva como @' + esc(logado.username) + '…">' +
+        '  <button id="msg-btn" type="button">Enviar</button>' +
+        '</div>';
+      var enviar = function () {
+        var txt = document.getElementById('msg-txt');
+        var texto = (txt.value || '').trim();
+        if (!texto) { txt.focus(); return; }
+        document.getElementById('msg-btn').disabled = true;
+        fetch('/registry/' + encodeURIComponent(pecaAtual) + '/chat', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, credenciais()),
+          body: JSON.stringify({ text: texto })
+        })
+          .then(function (r) {
+            if (r.ok) { txt.value = ''; carregarMensagens(true); }
+            else if (r.status === 401) {
+              logado = null;
+              renderConta();
+            }
+          })
+          .catch(function () {})
+          .then(function () {
+            var b = document.getElementById('msg-btn');
+            if (b) { b.disabled = false; }
+          });
+      };
+      document.getElementById('msg-btn').addEventListener('click', enviar);
+      document.getElementById('msg-txt').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { enviar(); }
+      });
+    } else {
+      alvo.innerHTML = '<p class="login-note">Tem uma conta? ' +
+        '<a href="/chat">Entre pelo chat do ecossistema</a> e volte aqui para conversar ' +
+        'sobre esta peça — qualquer pessoa com conta participa.</p>';
+    }
+  }
+
+  function renderMensagens(mensagens) {
+    if (!mensagens.length) { return; }
+    var alvo = document.getElementById('msgs');
+    var vazio = document.getElementById('msgs-vazio');
+    vazio.style.display = 'none';
+    mensagens.forEach(function (m) {
+      ultimaMsg = Math.max(ultimaMsg, m.id || 0);
+      var d = new Date((m.created_at || 0) * 1000);
+      var hora = d.toLocaleDateString('pt-BR') + ' ' +
+                 d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      var el = document.createElement('div');
+      el.className = 'msg';
+      el.innerHTML = '<div class="meta"><b>@' + esc(m.username) + '</b> · ' + esc(hora) +
+                     '</div><div class="txt">' + esc(m.text) + '</div>';
+      alvo.appendChild(el);
+    });
+    alvo.scrollTop = alvo.scrollHeight;
+  }
+
+  function carregarMensagens(tudo) {
+    if (!pecaAtual) { return; }
+    if (tudo) { ultimaMsg = 0; }
+    fetch('/registry/' + encodeURIComponent(pecaAtual) + '/chat?since=' + ultimaMsg)
+      .then(function (r) { return r.ok ? r.json() : { ok: false, mensagens: [] }; })
+      .then(function (j) { if (j.ok && j.mensagens) { renderMensagens(j.mensagens); } })
+      .catch(function () {});
+  }
+
+  function abrirSala(p) {
+    var sala = document.getElementById('sala');
+    pecaAtual = p.public_id;
+    ultimaMsg = 0;
+    document.getElementById('msgs').innerHTML = '';
+    document.getElementById('msgs-vazio').style.display = '';
+    sala.style.display = '';
+    document.getElementById('sala-quem').textContent =
+      p.status === 'registrada' && p.owner_username
+        ? 'Quem tem esta peça é @' + p.owner_username + '. Converse aqui: qualidade, ' +
+          'detalhes, negociação direta — ou só troque uma ideia.'
+        : 'Peça ainda sem dono registrado — quem responde aqui é o ecossistema Omega Drakon. ' +
+          'Converse: qualidade, detalhes, valores.';
+    carregarMensagens(true);
+    if (timerSala) { clearInterval(timerSala); }
+    timerSala = setInterval(function () { carregarMensagens(false); }, 4000);
+    checarLogin().then(function (u) { logado = u; renderConta(); });
+  }
+
+  function fecharSala() {
+    pecaAtual = null;
+    if (timerSala) { clearInterval(timerSala); timerSala = null; }
+    document.getElementById('sala').style.display = 'none';
+  }
+
+  // ---------------------------------------------------------------------//
+
   function mostrar(p) {
     var st = STATUS[p.status] || STATUS.estoque;
     card.className = 'peca ' + st.classe;
@@ -220,6 +400,14 @@
     document.getElementById('sub').textContent =
       (p.collection ? 'Coleção ' + p.collection + ' · ' : '') +
       (p.kind === 'publica' ? 'Linha pública' : 'Peça exclusiva');
+    var fb = document.getElementById('foto-box');
+    if (p.photo) {
+      document.getElementById('foto').src = p.photo;
+      fb.style.display = '';
+    } else {
+      document.getElementById('foto').removeAttribute('src');
+      fb.style.display = 'none';
+    }
     document.getElementById('f-id').textContent = p.public_id;
     document.getElementById('f-cod').textContent = p.engraved_code || '—';
     document.getElementById('f-col').textContent = p.collection || '—';
@@ -231,21 +419,24 @@
     var dono = document.getElementById('dono');
     if (p.registered && p.owner_username) {
       dono.style.display = '';
-      dono.innerHTML = 'Esta peça tem dono: <b>@' + String(p.owner_username)
-        .replace(/[<>&]/g, '') + '</b> — o username é público; o nome real, nunca.';
+      dono.innerHTML = 'Esta peça tem dono: <b>@' + esc(p.owner_username) +
+        '</b> — o username é público; o nome real, nunca.';
     } else {
       dono.style.display = 'none';
     }
     document.getElementById('nota').textContent = st.nota;
+    abrirSala(p);
   }
 
   function mostrarErro(mensagem) {
+    fecharSala();
     card.className = 'peca err';
     var selo = document.getElementById('selo');
     selo.className = 'selo err';
     selo.textContent = '✗ Não encontrado';
     document.getElementById('nome').textContent = 'Este ID não consta no Registro Mestre';
     document.getElementById('sub').textContent = mensagem || '';
+    document.getElementById('foto-box').style.display = 'none';
     ['f-id', 'f-cod', 'f-col', 'f-kind', 'f-status'].forEach(function (id) {
       document.getElementById(id).textContent = '—';
     });
