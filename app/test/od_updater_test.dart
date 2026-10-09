@@ -68,4 +68,60 @@ void main() {
       expect(_info(serverCode: 2016, localCode: 2017).isNewer, isFalse);
     });
   });
+
+  group('odUpdateStatusMessage — a tela mostra as DUAS versões (1.23.1)', () {
+    // O dono cobrou (2026-10-09): "o app não mostra a versão atual ao
+    // clicar Verificar Atualização". A mensagem SEMPRE traz publicada ×
+    // instalada, com os versionCodes.
+    test('sem atualização: publicada e instalada aparecem', () {
+      final msg = odUpdateStatusMessage(
+        OdUpdateInfo(
+          version: '1.23.1',
+          versionCode: 2051,
+          localVersionCode: 2051,
+          apkUrl: 'http://x/site/OmegaDrakon.apk',
+        ),
+        localVersion: '1.23.1',
+      );
+      expect(msg, contains('v1.23.1'));
+      expect(msg, contains('2051'));
+      expect(msg, contains('mais recente'));
+    });
+
+    test('com atualização: nomeia a nova E a instalada com códigos', () {
+      final msg = odUpdateStatusMessage(
+        OdUpdateInfo(
+          version: '1.23.1',
+          versionCode: 2051,
+          localVersionCode: 2050,
+          apkUrl: 'http://x/site/OmegaDrakon.apk',
+          size: 55 * 1024 * 1024,
+        ),
+        localVersion: '1.23.0',
+      );
+      expect(msg, contains('Nova versão v1.23.1'));
+      expect(msg, contains('2051'));
+      expect(msg, contains('v1.23.0'));
+      expect(msg, contains('2050'));
+    });
+
+    test('PackageInfo indisponível: cai para o versionCode instalado', () {
+      final msg = odUpdateStatusMessage(
+        OdUpdateInfo(
+          version: '1.23.1',
+          versionCode: 2051,
+          localVersionCode: 2051,
+          apkUrl: 'http://x/site/OmegaDrakon.apk',
+        ),
+        localVersion: '',
+      );
+      expect(msg, contains('código 2051'));
+      expect(msg, isNot(contains('v (código')));
+    });
+
+    test('servidor inacessível: mensagem de falha honesta', () {
+      final msg = odUpdateStatusMessage(null, localVersion: '1.23.1');
+      expect(msg, contains('Não consegui verificar'));
+    });
+  });
 }

@@ -59,7 +59,13 @@ versão congelada recebendo features por baixo do pano.
 
 1. `.env`: `OD_VERSION=novo.x.y`
 2. `core/capabilities.py`: fallback congelado alinhado
-3. `app/pubspec.yaml`: `version: novo.x.y+<build+1>` (se o app mudou)
+3. `app/pubspec.yaml`: `version: novo.x.y+<build+1>` — **sempre que
+   publicar APK novo**, mesmo sem mudança de código no app: versionCode
+   igual deixa o updater do app mudo por definição (a comparação é só
+   por versionCode) e quem tem a versão anterior nunca recebe o versionName
+   novo (pegado em 2026-10-09, v1.23.0 publicada com o code 2050 da
+   1.22.1 — o celular do dono seguia dizendo "já está na versão mais
+   recente").
 4. `integrations/api/server.py`: `_APP_VERSION_CODE = <novo build>` — o
    versionCode que o `GET /app/version` anuncia TEM que ser o do APK
    publicado em `site/`; errado aqui mata a auto-atualização em silêncio

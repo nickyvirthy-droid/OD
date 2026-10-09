@@ -42,6 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // -- Atualização (auto-atualização v1.7.0) --
   String _appVersion = '';
+  int _appBuild = 0;
   OdUpdateInfo? _update;
   bool _checkingUpdate = false;
   bool _downloadingUpdate = false;
@@ -51,8 +52,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    OdUpdater(api: widget.api).localVersion().then((version) {
+    final updater = OdUpdater(api: widget.api);
+    updater.localVersion().then((version) {
       if (mounted) setState(() => _appVersion = version);
+    });
+    updater.localVersionCode().then((code) {
+      if (mounted) setState(() => _appBuild = code);
     });
     _keyController = TextEditingController(text: widget.api.apiKey);
     _urlController = TextEditingController(text: widget.api.baseUrl);
@@ -154,16 +159,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _checkingUpdate = true;
       _updateMsg = '';
     });
-    final info = await OdUpdater(api: widget.api).check();
+    final updater = OdUpdater(api: widget.api);
+    // Recarrega a versão local na hora: PackageInfo pode ter demorado no
+    // initState e a mensagem precisa das duas versões (instalada ×
+    // publicada) — o dono cobrou justamente a ausência delas (1.23.1).
+    final local = await updater.localVersion();
+    final localCode = await updater.localVersionCode();
+    final info = await updater.check();
     if (!mounted) return;
     setState(() {
       _checkingUpdate = false;
       _update = info;
-      _updateMsg = info == null
-          ? 'Não consegui verificar agora (sem rede ou servidor antigo).'
-          : info.isNewer
-              ? 'Nova versão ${info.version} disponível${info.sizeMb}.'
-              : 'Você já está na versão mais recente.';
+      _appVersion = local;
+      _appBuild = localCode;
+      _updateMsg = odUpdateStatusMessage(info, localVersion: local);
     });
   }
 
@@ -380,9 +389,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ]),
                 const Divider(),
                 Text(
-                  _appVersion.isEmpty
+                  _appVersion.isEmpty && _appBuild == 0
                       ? 'Verificando versão do app...'
-                      : 'App instalado: v$_appVersion',
+                      : 'App instalado: v$_appVersion'
+                          ' (código $_appBuild)',
                   style: const TextStyle(color: Colors.grey),
                 ),
                 if (_updateMsg.isNotEmpty) ...[

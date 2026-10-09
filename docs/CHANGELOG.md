@@ -14,6 +14,21 @@
 
 ---
 
+## [1.23.1] — APP: "VERIFICAR ATUALIZAÇÃO" AGORA MOSTRA AS DUAS VERSÕES 🜂 (2026-10-09)
+
+> **Bump PATCH (bug do dono):** "APP não mostra a versão atual ao clicar Verificar Atualização". Duas causas somadas: (1) a mensagem do resultado não trazia versão nenhuma — só "Você já está na versão mais recente."; (2) o versionCode estava parado em 2050 desde a 1.22.0 (bumps com "app sem mudança de código"), e a comparação do updater é só por versionCode — o celular do dono (2050) recebia "já atualizado" enquanto o servidor anunciava 1.23.0.
+
+| Peça | Entrega |
+|---|---|
+| **Mensagem** | `odUpdateStatusMessage()` no `od_updater.dart` — a tela SEMPRE mostra publicada × instalada com os versionCodes: "Nova versão v1.23.1 (código 2051) (55 MB) disponível — você está na v1.23.0 (código 2050)." ou "Você já está na versão mais recente — publicada: v1.23.1 (código 2051) · instalada: v1.23.1 (código 2051)." |
+| **Card** | "App instalado: vX.Y.Z (código N)" — versão e versionCode juntos; `_checkUpdate` recarrega os dois na hora do clique (PackageInfo demorado no initState não atrasa mais a mensagem). |
+| **versionCode** | 2050 → **2051** — daqui em diante TODO publicação de APK novo leva versionCode novo, mesmo sem mudança de código (checklist §5.3 ajustado): versionCode igual = updater mudo por definição. O celular do dono (2050) vai receber a 1.23.1 de verdade. |
+| **Testes** | `od_updater_test.dart` +4 (mensagem sem atualização, com atualização, fallback sem PackageInfo, servidor inacessível) — e a guarda de política de versão pegou de primeira o `v1.24.0` hipotético do meu próprio teste (código rotulado com versão futura): cenário reescrito com versões reais. |
+
+Infra visível no repo: `.env 1.23.1` · capabilities fallback `1.23.1` · `pubspec 1.23.1+2051` · `_APP_VERSION_CODE=2051` · site (badge + dl-meta) · APKs rebuildados · `CHANGELOG [1.23.1]` · `README_VERSAO §1.23.1`.
+
+---
+
 ## [1.23.0] — VERIFICAÇÃO EVOLUÍDA: SEM HÍFEN, FOTO E SALA DE BATE-PAPO 🜂 (2026-10-09)
 
 > **Bump MINOR:** o dono validou a verificação ("verifica, funcionando") e pediu três melhorias: busca sem hífen, foto do produto e "uma sala de bate-papo onde uma pessoa interessada na peça pode conversar com o comprador e negociar a compra direta". Tudo entregue no mesmo dia.

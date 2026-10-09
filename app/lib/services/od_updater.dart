@@ -121,6 +121,37 @@ class OdUpdateError extends OdApiError {
   OdUpdateError(super.message);
 }
 
+/// Mensagem pronta da tela "Verificar atualização" (Configurações).
+///
+/// O dono cobrou (2026-10-09): "o app não mostra a versão atual ao clicar
+/// Verificar Atualização" — dizer só "você já está na versão mais recente"
+/// sem números não prova nada. A mensagem SEMPRE traz as duas versões
+/// (publicada × instalada) com os versionCodes, nos dois casos:
+///
+///   - há versão mais nova → "Nova versão vX (código N) … — você está em …"
+///   - igual/antiga        → "Você já está na mais recente: vX (código N)
+///                             — instalado: …"
+///
+/// [localVersion] vazio (PackageInfo indisponível) cai para o versionCode
+/// só — nunca some por completo a informação do que está instalado.
+String odUpdateStatusMessage(
+  OdUpdateInfo? info, {
+  required String localVersion,
+}) {
+  if (info == null) {
+    return 'Não consegui verificar agora (sem rede ou servidor antigo).';
+  }
+  final instalado = localVersion.isEmpty
+      ? 'código ${info.localVersionCode}'
+      : 'v$localVersion (código ${info.localVersionCode})';
+  if (info.isNewer) {
+    return 'Nova versão v${info.version} (código ${info.versionCode})'
+        '${info.sizeMb} disponível — você está na $instalado.';
+  }
+  return 'Você já está na versão mais recente — publicada: '
+      'v${info.version} (código ${info.versionCode}) · instalada: $instalado.';
+}
+
 /// Serviço de atualização do app — usa a [OdApi] apenas para saber a URL
 /// ativa (local/Funnel escolhida no bootstrap).
 class OdUpdater {
@@ -136,6 +167,17 @@ class OdUpdater {
       return info.version;
     } catch (_) {
       return '';
+    }
+  }
+
+  /// versionCode local do app (o +N do pubspec — o que se compara com o
+  /// anunciado pelo servidor). Sem plataforma (testes), retorna 0.
+  Future<int> localVersionCode() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return int.tryParse(info.buildNumber) ?? 0;
+    } catch (_) {
+      return 0;
     }
   }
 

@@ -7,6 +7,42 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.23.1] — APP: "VERIFICAR ATUALIZAÇÃO" AGORA MOSTRA AS DUAS VERSÕES 🜂 (2026-10-09)
+
+### 1. O que foi feito
+
+Pedido do dono: "APP não mostra a versão atual ao clicar Verificar Atualização."
+
+| Peça | Entrega |
+|---|---|
+| **Causa 1 — mensagem** | O resultado dizia só "Você já está na versão mais recente." ou "Nova versão X disponível" — sem versão instalada nem publicada. Novo `odUpdateStatusMessage()` (função pura, testável) traz as DUAS versões com versionCodes nos dois caminhos + fallback honesto quando o servidor não responde. |
+| **Causa 2 — versionCode mudo** | O updater compara `versionCode > localVersionCode`; os bumps 1.22.0/1.22.1/1.23.0 mantiveram 2050 ("app sem mudança de código") → o celular do dono (2050) nunca era oferecido nada, sempre "já atualizado". Agora **cada APK publicado leva versionCode novo** (2051) — regra ajustada no checklist §5.3. |
+| **Card** | "App instalado: vX.Y.Z (código N)"; `_checkUpdate` recarrega PackageInfo no clique (não depende do initState). |
+| **Testes** | app: +4 em `od_updater_test.dart` (134→138 pass / 2 skip) · a guarda de política de versão (`test_version_policy.py`) pegou de primeira um `v1.24.0` hipotético no meu próprio teste — cenário reescrito com versões reais (1.23.1 × 1.23.0). |
+
+### 2. Decisões e fronteiras
+
+- Regra nova: **versionCode sempre novo ao publicar APK**, mesmo sem mudança de código no app — versionCode igual deixa o updater mudo por definição (a 1.23.0 publicada era byte-funcionalmente igual à 1.22.1 no app, mas o versionName mudou e o dono não via nada).
+- A comparação continua sendo por versionCode (inteiros diretos, sem offset) — a mudança é de cadência do bump, não da lógica.
+- O banner do main.dart (aviso ao abrir) já usava `isNewer` e passa a funcionar de novo automaticamente com o 2051.
+
+### 3. Quantidades (após entrega)
+
+| Métrica | Valor |
+|---|---|
+| Suíte principal | 2389 pass / 16 skip (sem mudança) |
+| app analyze / app test | 0 issues · **138 pass / 2 skip** (+4) |
+| versionCode | 2050 → **2051** · versionName 1.23.0 → **1.23.1** |
+
+### 4. Pendências
+
+- Dono: ao abrir o app deve aparecer o banner "Nova versão v1.23.1" (celular dele está em 2050) — baixar e instalar resolve.
+- Rotação dos segredos antigos (adiada pelo dono até finalizar testes em produção).
+- Remover as 4 peças-exemplo com ✕ quando o dono cadastrar as reais.
+- QR de posse + registro no app + loja (etapa 4 do item 2).
+
+---
+
 ## [1.23.0] — VERIFICAÇÃO EVOLUÍDA: SEM HÍFEN, FOTO E SALA DE BATE-PAPO 🜂 (2026-10-09)
 
 ### 1. O que foi feito
