@@ -279,3 +279,66 @@ txt.txt (regra 14) e Telegram (regra 15).
 
 **Ajuste pronto para o dono:** os 4 exemplos são de teste e podem ser
 removidos pelo botão ✕ do painel quando as peças reais chegarem.
+
+---
+
+## 15. Item 2c — verificação evoluída: sem hífen, foto e sala de bate-papo (~19:0x–20:10)
+
+**Pedido do dono (txt/Telegram):** "verifica, funcionando. vamos melhorar. se
+a pessoa digitar o codigo ou id sem - poderia achar mesmo assim. Uma coisa
+excelente é ter a foto do produto, assim sabemos com certeza do que se trata
+e outra coisa é fazer uma sala de bate-papo onde uma pessoa interesada na
+peça pode conversar com o comprador e negociar a compra direta entre eles ou
+simplesmente conversar e trocar ideias ou saber a qualidade do produto."
+
+**Decisões minhas (sem interromper o dono):**
+- Interlocutor da sala = quem tem a peça: estoque → dono do sistema (o
+  próprio dono recebe no Telegram); registrada → @dono dela. Leitura
+  pública (conversa sobre a peça, ethos do Registro Mestre); escrita só
+  com conta (assina username). PM privada fica para depois, se pedir.
+- Anti-spam do Telegram: 1 aviso a cada 2 min por peça; falha do Telegram
+  nunca derruba o envio da mensagem (já gravada).
+- Foto chega em base64 JSON e é reduzida no navegador (canvas ≤900 px) —
+  o servidor fica "burro de propósito"; mime jpeg/png/webp, ≤6 MB.
+
+**Entregas:**
+1. `normalize_code()` no `RegistryStore.get()`: match exato primeiro
+   (índice UNIQUE), varredura normalizada como fallback. `odprod20260001`,
+   `nvabi7f3a`, com espaços (a rota agora faz `unquote` — o `%20` quebrava)
+   → 200.
+2. Foto: coluna `photo` (migrada via `_ensure_column` — `create_table` é
+   IF NOT EXISTS), `POST /admin/registry/{id}/photo`,
+   `GET /registry/{id}/photo` pública (cache 1h), payload com URL (nunca o
+   nome do arquivo), remover peça apaga o arquivo.
+3. Sala: tabela `registry_chat`, `GET /registry/{id}/chat?since=` pública,
+   `POST` com conta (401 sem), verificação pública com sala + polling 4 s +
+   link de login para anônimo.
+4. Moderação + aviso: `DELETE /admin/registry/{id}/chat/{msg_id}` + botões
+   💬/✕ no painel; `build_chat_notify()` costura o sink async do Telegram no
+   loop principal via `run_coroutine_threadsafe`.
+
+**Bump:** MINOR 1.23.0 (features) · versionCode 2050 mantido (app sem
+mudança de código) · APKs rebuildados com versionName 1.23.0 (full
+55.065.740 B `9d784cb1…`, arm64 19.912.230 B `798bafa8…`).
+
+**Validação:** suíte **2389 pass / 16 skip** · rotas 57→62 ·
+`test_registry.py` 18→33 · JS dos 3 HTMLs com `node --check` OK ·
+deploy local + Funnel: busca sem hífen 200 (3 formatos), foto 0001
+200 image/jpeg 23253 B, 0004 sem foto → null/404, chat ponta a ponta
+(conta 201/username assina · sem conta 401 · moderação 200 · leitura
+pública 2 mensagens), preço/notas ausentes (grep 0), `/app/version`
+{1.23.0, 2050, sha == binário}, journal **0 erros**, 0 🐉.
+
+**Demonstração viva na peça 0003:** conta temporária `fulano_teste`
+perguntou sobre o pendente, o dono respondeu (username `alex` pela API
+key), um "spam" de teste foi apagado pela moderação e a conta temporária
+foi removida — a sala ficou com as 2 mensagens da conversa de exemplo.
+Fotos-placeholder (ImageMagick) subidas nas peças 0001 e 0002; 0003 e
+0004 ficaram sem foto de propósito (dois casos na demonstração).
+
+**Registro:** session.json (`item_2c_melhorias_verificacao_2026_10_09`),
+este §15, txt.txt (regra 14), Telegram (regra 15), commit `717131d`.
+
+**Próximo do dono:** exercitar verificação/painel, cadastrar as peças
+reais e remover os 4 exemplos com ✕. Etapa 4 do item 2 (QR + app + loja)
+aguarda ordem.

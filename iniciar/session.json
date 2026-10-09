@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-09T18:55:00",
+  "updated_at": "2026-10-09T20:10:00",
   "retomada_2026_10_09_lote_icone": {
     "lote_ecossistema_site_2026_10_09": {
       "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
@@ -69,8 +69,48 @@
     "bug_critico": "APK arm64 publicado com versionCode='4049' (aapt2) = 2049+2000 do split por ABI — build SEM a flag -Pforce-version-code-ignoring-abi do build_apk.sh (a CLI rodou flutter build direto). Instalação desse binário colaria o celular na linhagem 4xxx e MATARIA a auto-atualização (próximo 2050 < 4049 = downgrade recusado). APK full correto (2049). Servidor vivo (1.21.0, PID 877441) já anuncia sha do binário novo em /app/version — incoerência no ar até o deploy.",
     "caminho_legado": "O dono escreveu 'home/Alex/Legado' — caminho real é /home/alex/Legado (minúsculo; Linux é case-sensitive). O trabalho usou o caminho real; AVISAR o dono no chat (o canal não avisou).",
     "acao_em_andamento": "Rebuild canônico ./app/build_apk.sh (força versionCode exato 2049 nos dois APKs) + suíte completa do servidor; depois commit+push (regra 7.1), deploy (regra 7.1 autoriza commit; deploy segue autorização explícita) e registro final.",
-    "estado": "CONCLUÍDO E NO AR — v1.21.1+2049 implantada, provada (local + Funnel) e publicada (a93d042). Aviso ao dono no txt.txt: o caminho do Legado como ele escreveu (home/Alex/Legado) não existe — o real é /home/alex/Legado (minúsculo); o trabalho usou o real. Pendência do dono: abrir o app para a auto-atualização 2048 → 2049 e conferir o ícone novo. Nota de processo: a CLI do canal falhou no relatório mas o processo filho sobreviveu ao timeout e completou o trabalho — e o build dela PULOU a flag do build_apk.sh (arm64 saiu 4049); lote órfão de canal exige sempre reconferir versionCode por aapt2.",
-    "transcricao": "iniciar/2026-10-09_conversa_omegadrakon.md"
+    "estado": "CONCLUÍDO E NO AR — v1.23.0 (busca sem hífen + foto + sala de bate-papo por peça) implantada, provada (local + Funnel) e publicada (commit 717131d). txt.txt + Telegram avisados. Suíte 2389 pass / 16 skip.",
+    "transcricao": "iniciar/2026-10-09_conversa_omegadrakon.md",
+    "item_2c_melhorias_verificacao_2026_10_09": {
+      "id": "item_2c_melhorias_verificacao_2026_10_09",
+      "titulo": "Item 2 (continuação) — verificação 1.23.0: sem hífen, foto e sala de bate-papo",
+      "data": "2026-10-09",
+      "pedido_dono": "verifica, funcionando. vamos melhorar. se a pessoa digitar o codigo ou id sem - poderia achar mesmo assim. Uma coisa excelente é ter a foto do produto, assim sabemos com certeza do que se trata e outra coisa é fazer uma sala de bate-papo onde uma pessoa interesada na peça pode conversar com o comprador e negociar a compra direta entre eles ou simplesmente conversar e trocar ideias ou saber a qualidade do produto",
+      "entregas": [
+        "busca tolerante a hífen/espaços (normalize_code + fallback varredura; exato primeiro)",
+        "foto do produto: upload admin (canvas <=900px no navegador), GET público com cache, payload com URL, delete apaga arquivo, coluna photo migrada via _ensure_column",
+        "sala de bate-papo por peça: registry_chat, GET público ?since= (polling 4s na página), POST exige conta (username assina), interlocutor = quem tem a peça",
+        "moderação: DELETE /admin/registry/{id}/chat/{msg_id} + 💬/✕ no painel",
+        "aviso Telegram do dono por mensagem (cooldown 2min/peça; build_chat_notify: sink async no loop principal via run_coroutine_threadsafe; falha nunca derruba o envio)",
+        "unquote nos 4 handlers de registry (URL percent-encoded com espaços)"
+      ],
+      "versao": "1.23.0 (MINOR) · versionCode 2050 mantido (app sem mudança de código) · APKs rebuildados com versionName novo",
+      "quantidades": {
+        "suite": "2389 pass / 16 skip",
+        "rotas": "57 → 62",
+        "test_registry": "18 → 33",
+        "app": "analyze 0 · 134 pass / 2 skip (sem mudança)"
+      },
+      "provas_producao": [
+        "/registry/odprod20260001, /registry/nvabi7f3a, /registry/nv%20abi%207f3a → 200 (local + Funnel)",
+        "foto 0001 → 200 image/jpeg 23253B; 0004 sem foto → photo:null e rota 404",
+        "chat: post com conta 201 (username assina), sem conta 401, moderação 200, leitura pública mostra as 2 mensagens da demo",
+        "payload público sem price_brl/notes/id (grep 0 ocorrências)",
+        "/app/version {1.23.0, 2050, sha==binário publicado 9d784cb1…}",
+        "journal 0 erros; APKs aapt2 versionCode=2050 versionName=1.23.0 (full 55.065.740 B 9d784cb1…, arm64 19.912.230 B 798bafa8…)"
+      ],
+      "demonstracao_chat": "peça 0003: conta temporária fulano_teste perguntou (depois removida via admin delete), dono respondeu via API key (username alex); spam de teste apagado pela moderação — sala final com 2 mensagens",
+      "fotos_exemplo": "OD-PROD-2026-0001 e 0002 com foto-placeholder ImageMagick (gradient + nome); 0003 e 0004 sem foto de propósito (dois casos na demonstração)",
+      "commits": [
+        "717131d"
+      ],
+      "pendencias": [
+        "dono exercitar verificação/painel e cadastrar peças reais (remover 4 exemplos com ✕)",
+        "etapa 4 do item 2: registro do comprador no app + QR + loja",
+        "rotação dos segredos antigos (adiada pelo dono até testes em produção)"
+      ],
+      "telegram": "msg de conclusão enviada ao dono"
+    }
   },
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
