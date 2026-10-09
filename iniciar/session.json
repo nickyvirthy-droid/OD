@@ -41,7 +41,7 @@
       "commits": [
         "5d45ada feat(registry): Registro Mestre — banco de peças + verificação pública no ar (v1.22.0)"
       ],
-      "estado": "CONCLUÍDO E NO AR — banco+admin+consulta pública+site (etapas 1–3 da ordem do dono). Registro Mestre vazio e limpo (total 0 — sem peça de teste poluindo). txt.txt com aviso novo (regra 14); Telegram pendente (regra 15). Próxima etapa do item 2: fluxo do comprador no app (registro por QR) + loja.",
+      "estado": "CONCLUÍDO E NO AR — banco+admin+consulta pública+site (etapas 1–3 da ordem do dono). Registro Mestre vazio e limpo (total 0 — sem peça de teste poluindo). txt.txt com aviso novo (regra 14) e Telegram enviado (regra 15, msg 2043). Próxima etapa do item 2: fluxo do comprador no app (registro por QR) + loja.",
       "transcricao": "iniciar/2026-10-09_conversa_omegadrakon.md"
     },
     "reverificacao_14_32": "'leia iniciar' de novo (~14:32): sistema segue 100% — od-core active PID 954778 NRestarts=0 (desde 11:18:59), /app/version {1.21.1, 2049, sha256 13142a39… == site}, /health up, HEAD 1768b00 == origin/master, txt.txt sem mensagem nova do dono (última resposta do sistema 11:2x intacta). Único resíduo: backups/llm-cache-fakes-20261008-055830.json (untracked, já conhecido). Nada pendente do sistema; aguardando próximo pedido do dono (abrir app p/ auto-atualização 2048→2049 e conferir ícone).",
