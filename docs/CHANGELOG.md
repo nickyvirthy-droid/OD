@@ -14,6 +14,22 @@
 
 ---
 
+## [1.22.0] — REGISTRO MESTRE: BANCO DE PEÇAS + VERIFICAÇÃO PÚBLICA NO AR 🜂 (2026-10-09)
+
+> **Bump MINOR:** item 2 da pauta de divergências (decisões do dono a–e, 09/10) — o Registro Mestre nasce como banco real de peças com consulta pública de autenticidade. A pessoa está com a PEÇA na mão (não com o cartão): o ID vem gravado na peça e é pesquisável por qualquer um; a consulta mostra o **username** de quem registrou (nunca o nome real) e o QR segue como símbolo de propriedade.
+
+| Peça | Entrega |
+|---|---|
+| **Banco** | `core/registry.py` — tabela `registry_items` (ID canônico `OD-PROD-AAAA-NNNN` sequencial + código curto gravado `engraved_code`, tipo exclusiva/pública, status estoque→vendida→registrada, preço/anotações privados, coerência: `registrada` exige dono). |
+| **API** | `GET /registry/{codigo}` pública (AUTH_EXEMPT, sob auth_all) — projeção sem preço/notas, username só quando registrada; `POST/GET /admin/registry` + `PUT /admin/registry/{public_id}` (só dono, 403 para os demais, 503 sem banco). |
+| **Ligação** | `runtime/launcher.py`: `build_registry(database)` → `APIConfig.registry` (padrão do UserStore; degrada com None). |
+| **Site** | `site/verificacao.html` — página pública de consulta (busca por ID gravado, selo autêntica/vendida/registrada, username do dono) + home: card Verificação “em breve” → **no ar**, link na nav. |
+| **Testes** | `tests/test_registry.py` (14) + guardas de rotas atualizadas (56) — suíte completa verde. |
+
+Infra visível no repo: `.env 1.22.0` · capabilities fallback `1.22.0` · `pubspec 1.22.0+2050` · `_APP_VERSION_CODE=2050` · site (badge + card) · APKs rebuildados · `CHANGELOG [1.22.0]` · `README_VERSAO §1.22.0`.
+
+---
+
 ## [1.21.2] — ECOSSISTEMA NO AR: SITE INSTITUCIONAL + FIM DO DRAGÃO 🜂 (2026-10-09)
 
 > **Bump PATCH:** o site deixa de falar só do app e passa a apresentar o ecossistema Omega Drakon inteiro (base: Legado `~/Legado/OMEGA_DRAKON` + consolidações canônicas do Drive). O emoji 🐉 é removido de todas as superfícies — mensagens, chat web, painéis e app — substituído pelo logotipo oficial.

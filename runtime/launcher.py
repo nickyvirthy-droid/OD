@@ -214,6 +214,26 @@ def build_user_store(database: Any) -> Optional[Any]:
         return None
 
 
+def build_registry(database: Any) -> Optional[Any]:
+    """RegistryStore (Registro Mestre de peças) — habilitado com Database.
+
+    Item 2 da pauta (2026-10-09): banco de todas as peças físicas com
+    consulta pública de autenticidade. Sem Database degrada com None
+    (a rota /registry/{codigo} responde 503).
+    """
+    if database is None:
+        return None
+    try:
+        from core.registry import RegistryStore
+
+        store = RegistryStore(database)
+        log.info("Registro Mestre de peças habilitado")
+        return store
+    except Exception as exc:
+        log.warn("Registro Mestre desabilitado", error=str(exc))
+        return None
+
+
 def build_voice_handlers() -> tuple[Any, Any]:
     """Adaptadores SYNC de voz para a API REST (/transcribe e /tts).
 
@@ -286,7 +306,7 @@ def build_voice_handlers() -> tuple[Any, Any]:
 def build_api_server(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
-    user_store: Any = None,
+    user_store: Any = None, registry: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -316,6 +336,7 @@ def build_api_server(
             action_registry=action_registry,  # v1.2.0: /executa + /actions
             push=push,  # v1.3.0: /push/* (app Android)
             user_store=user_store,  # auth de usuários (registro/login/sessão)
+            registry=registry,  # Registro Mestre de peças (item 2 pauta)
             stt=voice_stt,  # v1.17.3: /transcribe real (whisper.cpp)
             tts=voice_tts,  # v1.17.3: /tts real (Piper)
             # Freio contra força bruta no login (LoginGuard)
@@ -869,6 +890,8 @@ async def _run_api_forever(
 ) -> None:
     # Um único UserStore para REST e WebSocket: mesma sessão vale nos dois.
     user_store = build_user_store(database)
+    # Registro Mestre de peças (item 2 da pauta) — banco + consulta pública.
+    registry = build_registry(database)
     # Conecta o ActionRegistry ao Orchestrador TAMBÉM no caminho da API:
     # sem isto o fast path de intenções (Etapa 3.5) fica desligado no chat —
     # "qual o ip do servidor?" caía no LLM em vez da action real (v1.6.1).
@@ -879,7 +902,7 @@ async def _run_api_forever(
     server = build_api_server(
         orchestrator, metrics=metrics, health=health,
         action_registry=action_registry, push=push, database=database,
-        user_store=user_store,
+        user_store=user_store, registry=registry,
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)

@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verificação de Autenticidade — OMEGA DRAKON</title>
+<meta name="description" content="Consulte o Registro Mestre de peças Omega Drakon: autenticidade, coleção e dono (username) de qualquer peça — pelo ID gravado na própria peça.">
+<link rel="icon" href="/site/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0A0A;
+    --bg2: #111111;
+    --bg3: #171717;
+    --grafite: #2C2C2C;
+    --azul: #0088FF;
+    --azul-soft: rgba(0, 136, 255, .14);
+    --texto: #F2F2F2;
+    --muted: #9aa3b2;
+    --border: #2C2C2C;
+    --border-lit: #3a4a5c;
+    --verde: #37d67a;
+    --ambar: #ffb02e;
+    --vermelho: #ff5c5c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--texto);
+    line-height: 1.65; font-weight: 300;
+    min-height: 100vh;
+  }
+  h1, h2, h3, .brand { font-family: 'Orbitron', 'Montserrat', sans-serif; }
+  a { color: var(--azul); text-decoration: none; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    background: rgba(10,10,10,.82); backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 18px; height: 62px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .14em; color: var(--texto); font-size: .95rem; }
+  .brand img { width: 30px; height: 30px; }
+  nav .links { margin-left: auto; display: flex; gap: 20px; flex-wrap: wrap; }
+  nav .links a { color: var(--muted); font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; }
+  nav .links a:hover { color: var(--texto); }
+
+  main { padding: 130px 0 70px; }
+  .kicker { color: var(--azul); font-size: .72rem; letter-spacing: .3em; text-transform: uppercase; }
+  h1 { font-size: clamp(1.6rem, 4.5vw, 2.4rem); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin-top: 10px; }
+  .intro { margin-top: 14px; color: var(--muted); max-width: 640px; }
+
+  .busca {
+    margin-top: 36px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 26px;
+  }
+  .busca label {
+    display: block; font-size: .7rem; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 10px;
+  }
+  .busca .linha { display: flex; gap: 12px; flex-wrap: wrap; }
+  .busca input {
+    flex: 1 1 260px; background: var(--bg3); border: 1px solid var(--border-lit);
+    border-radius: 6px; color: var(--texto); font-family: 'Orbitron', monospace;
+    font-size: 1rem; letter-spacing: .1em; padding: 13px 16px; text-transform: uppercase;
+  }
+  .busca input:focus { outline: none; border-color: var(--azul); box-shadow: 0 0 0 3px var(--azul-soft); }
+  .busca button {
+    background: var(--azul); color: var(--bg); border: 0; border-radius: 6px;
+    padding: 13px 26px; font-family: 'Montserrat', sans-serif; font-weight: 600;
+    font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; cursor: pointer;
+  }
+  .busca button:hover { filter: brightness(1.12); }
+  .busca button:disabled { opacity: .55; cursor: wait; }
+  .dica { margin-top: 12px; font-size: .8rem; color: var(--muted); }
+  .dica code { color: var(--azul); letter-spacing: .06em; }
+
+  #resultado { margin-top: 24px; display: none; }
+  .peca {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 28px; border-left: 4px solid var(--border-lit);
+  }
+  .peca.ok { border-left-color: var(--verde); }
+  .peca.warn { border-left-color: var(--ambar); }
+  .peca.err { border-left-color: var(--vermelho); }
+  .selo {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: 'Orbitron', sans-serif; font-size: .78rem; font-weight: 700;
+    letter-spacing: .18em; text-transform: uppercase;
+    padding: 7px 14px; border-radius: 999px; border: 1px solid;
+  }
+  .selo.ok { color: var(--verde); border-color: rgba(55,214,122,.5); background: rgba(55,214,122,.08); }
+  .selo.warn { color: var(--ambar); border-color: rgba(255,176,46,.5); background: rgba(255,176,46,.08); }
+  .selo.err { color: var(--vermelho); border-color: rgba(255,92,92,.5); background: rgba(255,92,92,.08); }
+  .peca h2 { font-size: 1.15rem; margin-top: 16px; letter-spacing: .08em; }
+  .peca .sub { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+  .campos { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+  .campo { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; }
+  .campo b { display: block; font-size: .64rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  .campo span { font-family: 'Orbitron', monospace; font-size: .95rem; letter-spacing: .06em; }
+  .dono { margin-top: 18px; padding: 14px 16px; border-radius: 6px; background: var(--azul-soft); border: 1px solid rgba(0,136,255,.35); font-size: .92rem; }
+  .dono b { color: var(--azul); font-family: 'Orbitron', monospace; letter-spacing: .06em; }
+  .nota { margin-top: 16px; font-size: .78rem; color: var(--muted); }
+
+  .passos { margin-top: 44px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 22px; }
+  .card .num { font-family: 'Orbitron', sans-serif; color: var(--azul); font-size: .8rem; letter-spacing: .2em; }
+  .card h3 { margin: 10px 0 6px; font-size: .9rem; text-transform: uppercase; }
+  .card p { color: var(--muted); font-size: .86rem; }
+
+  footer { border-top: 1px solid var(--border); padding: 26px 0; margin-top: 40px; color: var(--muted); font-size: .78rem; text-align: center; }
+
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="/site"><img src="/site/logo.png" alt="Omega Drakon">OMEGA DRAKON</a>
+    <div class="links">
+      <a href="/site">Início</a>
+      <a href="/site/historico.html">Histórico</a>
+      <a href="/site#autenticidade">Autenticidade</a>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap">
+  <div class="kicker">Registro Mestre · Verificação pública</div>
+  <h1>Verifique a autenticidade</h1>
+  <p class="intro">
+    Toda peça Omega Drakon sai da manufatura com um <b>ID gravado na própria peça</b>.
+    Digite-o abaixo para conferir, em segundos, se ela é autêntica e se já tem dono.
+    A consulta é pública — não precisa de login, e não expõe preço nem dados privados.
+  </p>
+
+  <div class="busca">
+    <label for="codigo">ID da peça (gravado na peça)</label>
+    <div class="linha">
+      <input id="codigo" type="text" placeholder="OD-PROD-2026-0001" autocomplete="off"
+             spellcheck="false" aria-label="Código da peça">
+      <button id="btn" type="button">Verificar</button>
+    </div>
+    <p class="dica">
+      Serve o ID canônico (<code>OD-PROD-2026-0001</code>) ou o código curto gravado
+      (<code>NV-ABI-7F3A</code>) — os dois estão na peça.
+    </p>
+  </div>
+
+  <div id="resultado" role="status" aria-live="polite">
+    <div class="peca" id="card">
+      <span class="selo" id="selo">…</span>
+      <h2 id="nome">—</h2>
+      <p class="sub" id="sub">—</p>
+      <div class="campos">
+        <div class="campo"><b>ID</b><span id="f-id">—</span></div>
+        <div class="campo"><b>Código gravado</b><span id="f-cod">—</span></div>
+        <div class="campo"><b>Coleção</b><span id="f-col">—</span></div>
+        <div class="campo"><b>Tipo</b><span id="f-kind">—</span></div>
+        <div class="campo"><b>Status</b><span id="f-status">—</span></div>
+      </div>
+      <div class="dono" id="dono" style="display:none"></div>
+      <p class="nota" id="nota"></p>
+    </div>
+  </div>
+
+  <section class="passos" style="border:0; padding:0;">
+    <div class="grid">
+      <div class="card">
+        <span class="num">01</span>
+        <h3>Leia o ID na peça</h3>
+        <p>O número está gravado na própria peça — você não precisa do cartão QR para consultar.</p>
+      </div>
+      <div class="card">
+        <span class="num">02</span>
+        <h3>Consulte aqui</h3>
+        <p>A consulta cruza o Registro Mestre: peça real, coleção correta e status do dono.</p>
+      </div>
+      <div class="card">
+        <span class="num">03</span>
+        <h3>Peça com dono?</h3>
+        <p>Se estiver registrada, o username de quem tem ela aparece — dá para conversar pelo chat do ecossistema.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  OMEGA DRAKON · Registro Mestre de Peças — autenticidade verificável por qualquer um · Interface Viva: Nicky Virthy
+</footer>
+
+<script>
+(function () {
+  var input = document.getElementById('codigo');
+  var btn = document.getElementById('btn');
+  var box = document.getElementById('resultado');
+  var card = document.getElementById('card');
+
+  var STATUS = {
+    estoque:    { selo: 'Peça autêntica', classe: 'ok',
+                  nota: 'Peça original do ecossistema, ainda sem dono registrado.' },
+    vendida:    { selo: 'Peça autêntica · vendida', classe: 'warn',
+                  nota: 'Peça autêntica já vendida — aguardando registro pelo comprador.' },
+    registrada: { selo: 'Peça autêntica · registrada', classe: 'ok',
+                  nota: 'Registrada no Registro Mestre por um comprador do ecossistema.' }
+  };
+
+  function mostrar(p) {
+    var st = STATUS[p.status] || STATUS.estoque;
+    card.className = 'peca ' + st.classe;
+    var selo = document.getElementById('selo');
+    selo.className = 'selo ' + st.classe;
+    selo.textContent = '✓ ' + st.selo;
+    document.getElementById('nome').textContent = p.name || '—';
+    document.getElementById('sub').textContent =
+      (p.collection ? 'Coleção ' + p.collection + ' · ' : '') +
+      (p.kind === 'publica' ? 'Linha pública' : 'Peça exclusiva');
+    document.getElementById('f-id').textContent = p.public_id;
+    document.getElementById('f-cod').textContent = p.engraved_code || '—';
+    document.getElementById('f-col').textContent = p.collection || '—';
+    document.getElementById('f-kind').textContent =
+      p.kind === 'publica' ? 'Pública' : 'Exclusiva';
+    document.getElementById('f-status').textContent = {
+      estoque: 'Em estoque', vendida: 'Vendida', registrada: 'Registrada'
+    }[p.status] || p.status;
+    var dono = document.getElementById('dono');
+    if (p.registered && p.owner_username) {
+      dono.style.display = '';
+      dono.innerHTML = 'Esta peça tem dono: <b>@' + String(p.owner_username)
+        .replace(/[<>&]/g, '') + '</b> — o username é público; o nome real, nunca.';
+    } else {
+      dono.style.display = 'none';
+    }
+    document.getElementById('nota').textContent = st.nota;
+  }
+
+  function mostrarErro(mensagem) {
+    card.className = 'peca err';
+    var selo = document.getElementById('selo');
+    selo.className = 'selo err';
+    selo.textContent = '✗ Não encontrado';
+    document.getElementById('nome').textContent = 'Este ID não consta no Registro Mestre';
+    document.getElementById('sub').textContent = mensagem || '';
+    ['f-id', 'f-cod', 'f-col', 'f-kind', 'f-status'].forEach(function (id) {
+      document.getElementById(id).textContent = '—';
+    });
+    document.getElementById('dono').style.display = 'none';
+    document.getElementById('nota').textContent =
+      'Peças Omega Drakon sempre saem cadastradas. Se a peça que você tem exibe um ID ' +
+      'diferente deste, desconfie e fale com o ecossistema antes de comprar.';
+  }
+
+  function verificar() {
+    var cod = (input.value || '').trim();
+    if (!cod) { input.focus(); return; }
+    btn.disabled = true;
+    btn.textContent = 'Consultando…';
+    fetch('/registry/' + encodeURIComponent(cod), { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+      .then(function (res) {
+        if (res.s === 200 && res.j.ok && res.j.peca) { mostrar(res.j.peca); }
+        else { mostrarErro('Código desconhecido: ' + cod.toUpperCase()); }
+      })
+      .catch(function () { mostrarErro('Registro Mestre indisponível no momento — tente de novo em instantes.'); })
+      .then(function () {
+        btn.disabled = false;
+        btn.textContent = 'Verificar';
+        box.style.display = 'block';
+      });
+  }
+
+  btn.addEventListener('click', verificar);
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') verificar(); });
+})();
+</script>
+</body>
+</html>

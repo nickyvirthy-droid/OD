@@ -139,7 +139,7 @@ class TestAPIRoutes:
         /admin/limitacoes (v1.13.0 — canal do dono no txt.txt + Casa de
         Limitações) + /admin/dev/sessao e /admin/dev/caixa (2026-10-08 —
         sessão de desenvolvimento on-demand + caixa de autorização)."""
-        assert len(ROUTES) == 52
+        assert len(ROUTES) == 56
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -148,6 +148,9 @@ class TestAPIRoutes:
             ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("GET", "/app/version"),
+            ("GET", "/registry/{codigo}"),
+            ("POST", "/admin/registry"), ("GET", "/admin/registry"),
+            ("PUT", "/admin/registry/{public_id}"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("POST", "/account/password"), ("POST", "/account/api-key"),
@@ -185,6 +188,8 @@ class TestAPIRoutes:
         assert auth == {
             ("POST", "/account/password"), ("POST", "/account/api-key"),
             ("GET", "/admin/users"),
+            ("POST", "/admin/registry"), ("GET", "/admin/registry"),
+            ("PUT", "/admin/registry/{public_id}"),
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),
@@ -218,6 +223,7 @@ class TestAPIRoutes:
             ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("GET", "/app/version"),
+            ("GET", "/registry/{codigo}"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/anon/message"),
         }

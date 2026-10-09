@@ -7,6 +7,25 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.22.0] — REGISTRO MESTRE: BANCO DE PEÇAS + VERIFICAÇÃO PÚBLICA NO AR 🜂 (2026-10-09)
+
+### 1. O que foi feito
+
+Item 2 da pauta de divergências — Modelo do Registro Mestre construído na **ordem normal** pedida pelo dono ("primeiro banco"), com as decisões a–e fechadas no mesmo dia:
+
+| Peça | Entrega |
+|---|---|
+| **a (ID na peça)** | `core/registry.py`: tabela `registry_items` — `public_id` canônico sequencial (`OD-PROD-2026-0001`) + `engraved_code` curto gravado (`NV-ABI-7F3A`), os dois pesquisáveis. A pessoa está com a peça na mão; o cartão QR é o de registro. |
+| **b (username público)** | Consulta pública (`verify_public`) devolve o **username** de quem registrou — prova de que tem dono, sem expor nome real. Preço, notas e PK interna nunca saem da API pública. |
+| **c/d (QR = propriedade)** | Status `estoque → vendida → registrada` com coerência: `registrada` exige `owner_username` (quem tem o QR/registro é o dono). A gravação/entrega do QR é a etapa seguinte da pauta. |
+| **e (ordem: banco primeiro)** | Banco → API admin (`POST/GET /admin/registry`, `PUT /admin/registry/{id}` — só dono) → consulta pública (`GET /registry/{codigo}`, isenta de credencial) → página `site/verificacao.html`. App (registro pelo comprador) e loja vêm depois. |
+| **Ligação** | `runtime/launcher.py`: `build_registry(database)` no mesmo padrão do `build_user_store` — sem Database a rota responde 503. |
+| **Site** | Home: card “Verificação” saiu de *Em breve* para no ar + link na nav; `verificacao.html` com busca por ID gravado, selo (autêntica / vendida / registrada), username do dono e aviso para ID desconhecido. |
+
+### 2. bump MINOR
+
+Infra visível no repo: `.env 1.22.0` · capabilities fallback `1.22.0` · `pubspec 1.22.0+2050` · `_APP_VERSION_CODE=2050` (app sem mudança de código) · site (badge + card + verificação) · APKs rebuildados · `CHANGELOG [1.22.0]` · este README.
+
 ## [1.21.2] — ECOSSISTEMA NO AR: SITE INSTITUCIONAL + FIM DO DRAGÃO 🜂 (2026-10-09)
 
 ### 1. O que foi feito

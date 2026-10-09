@@ -58,7 +58,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2050  # versionCode cru do APK publicado (v1.21.2+2050)
+_APP_VERSION_CODE = 2050  # versionCode cru do APK publicado (v1.22.0+2050)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -110,7 +110,8 @@ PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/admin", "/site", "/site/{f
 # versão (o app consulta /app/version SEM credencial no boot — e o APK em si
 # já é público por /site/, coberto por test_site_public_under_auth_all).
 AUTH_EXEMPT_PATHS = frozenset(
-    {"/auth/register", "/auth/login", "/anon/message", "/app/version"}
+    {"/auth/register", "/auth/login", "/anon/message", "/app/version",
+     "/registry/{codigo}"}
 )
 
 
@@ -198,6 +199,7 @@ class APIConfig:
     action_registry: Optional[Any] = None
     push: Optional[Any] = None
     user_store: Optional[Any] = None  # integrations.api.auth.UserStore
+    registry: Optional[Any] = None    # core.registry.RegistryStore (peças)
     # Freio contra força bruta em POST /auth/login (integrations.api.auth
     # .LoginGuard). `login_guard` permite injetar uma instância (testes);
     # ausente = o servidor constrói uma a partir dos números abaixo.
@@ -232,6 +234,10 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/site", "site_index", False),
     ("GET", "/site/{file}", "site_file", False),
     ("GET", "/app/version", "app_version", False),
+    # Registro Mestre: consulta pública de autenticidade de peças — o ID
+    # vem GRAVADO na peça; público sem credencial (mesma natureza de
+    # /app/version, v. AUTH_EXEMPT_PATHS).
+    ("GET", "/registry/{codigo}", "registry_verify", False),
     # Auth — sem auth (o handler valida internamente)
     ("POST", "/auth/register", "auth_register", False),
     ("POST", "/auth/login", "auth_login", False),
@@ -258,6 +264,11 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("DELETE", "/admin/ideias", "admin_ideias_clear", True),
     ("GET", "/admin/limitacoes", "admin_limitacoes_status", True),
     ("DELETE", "/admin/limitacoes", "admin_limitacoes_clear", True),
+    # Registro Mestre de peças (item 2 da pauta, 2026-10-09) — escrita só
+    # do dono; a consulta pública é GET /registry/{codigo}.
+    ("POST", "/admin/registry", "admin_registry_create", True),
+    ("GET", "/admin/registry", "admin_registry_list", True),
+    ("PUT", "/admin/registry/{public_id}", "admin_registry_update", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -2165,6 +2176,7 @@ class APIServer(ThreadingHTTPServer):
         self._push = self.config.push
         # User auth (integrations/api/auth.py) — None = auth desabilitado
         self._user_store = self.config.user_store
+        self._registry = self.config.registry
         # Freio contra força bruta no login — construído só quando há auth
         self._login_guard = self.config.login_guard
         if self._login_guard is None and self._user_store is not None:
@@ -2826,6 +2838,29 @@ class APIHandler(BaseHTTPRequestHandler):
                     digest.update(chunk)
             payload["sha256"] = digest.hexdigest()
         self._json(200, payload)
+
+    def registry_verify(self, codigo: str) -> None:
+        """GET /registry/{codigo} — consulta PÚBLICA de autenticidade.
+
+        O ID vem gravado na peça (ou no cartão/QR): aceita o canônico
+        (OD-PROD-2026-0001) ou o código curto gravado (NV-ABI-7F3A).
+        Público sem credencial (AUTH_EXEMPT_PATHS), como /app/version.
+
+        Resposta (200): {"ok": true, "peca": {"public_id", "name",
+        "collection", "kind", "status", "engraved_code", "owner_username",
+        "registered", ...}} — username de quem registrou (nunca nome
+        real), SEM preço/notas/dados privados (404 "nao_encontrada" se
+        o código não existe).
+        """
+        store = self.api._registry
+        if store is None:
+            raise APIError(503, "registry_indisponivel")
+        public = store.verify_public(codigo)
+        if public is None:
+            self._json(404, {"ok": False, "error": "nao_encontrada",
+                             "codigo": str(codigo).strip().upper()})
+            return
+        self._json(200, {"ok": True, "peca": public})
 
     def site_file(self, file: str) -> None:
         """Arquivo do site (ex.: OmegaDrakon.apk) em GET /site/{file}."""
@@ -3620,6 +3655,63 @@ class APIHandler(BaseHTTPRequestHandler):
             200,
             {"ok": True, "user_id": uid, "removed": removed},
         )
+
+    def _registry_store_or_503(self) -> Any:
+        """RegistryStore ou 503 (banco de peças desligado)."""
+        self._require_admin()
+        store = self.api._registry
+        if store is None:
+            raise APIError(503, "registry_indisponivel")
+        return store
+
+    def admin_registry_create(self) -> None:
+        """POST /admin/registry — cadastra peça no Registro Mestre (dono).
+
+        Body: {"name": str (obrig.), "kind": "exclusiva"|"publica",
+        "collection"?: str, "engraved_code"?: str, "price_brl"?: float,
+        "notes"?: str}. Gera o public_id canônico (OD-PROD-AAAA-NNNN).
+        """
+        store = self._registry_store_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        try:
+            item = store.create(
+                name=data.get("name", ""),
+                kind=data.get("kind", ""),
+                collection=data.get("collection"),
+                engraved_code=data.get("engraved_code"),
+                price_brl=data.get("price_brl"),
+                notes=data.get("notes"),
+            )
+        except ValueError as exc:
+            raise APIError(400, str(exc))
+        self._json(201, {"ok": True, "peca": item})
+
+    def admin_registry_list(self) -> None:
+        """GET /admin/registry — lista todas as peças (dono; com preço)."""
+        store = self._registry_store_or_503()
+        itens = store.list_all()
+        self._json(200, {"ok": True, "total": len(itens), "pecas": itens})
+
+    def admin_registry_update(self, public_id: str) -> None:
+        """PUT /admin/registry/{public_id} — atualiza uma peça (dono).
+
+        Body: campos de whitelist (name, collection, kind, status,
+        price_brl, owner_username, notes, engraved_code). Status
+        "registrada" exige dono (owner_username) — posse por QR.
+        """
+        store = self._registry_store_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        try:
+            item = store.update(public_id, **data)
+        except ValueError as exc:
+            raise APIError(400, str(exc))
+        if item is None:
+            raise APIError(404, "peca_inexistente")
+        self._json(200, {"ok": True, "peca": item})
 
     def admin_cache_prune(self) -> None:
         """POST /admin/cache/prune — saneia o cache LLM (admin/dono).

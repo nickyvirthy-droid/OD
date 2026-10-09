@@ -68,7 +68,8 @@ serem discutidas com o dono antes de implementar as frentes ausentes.
 - **Registro Mestre:** todo item produzido é registrado (data, coleção, lote,
   estado). Ciclos fechados = encerrados, nunca reeditados.
 - **Coleções previstas:** ABISSAL, DRAKONIS, LUMEN NOX (sigilos prontos).
-- **GAP:** a voz da marca promete `/verificacao` no site — **não existe hoje**.
+- **GAP fechado (v1.22.0):** `/verificacao` existe — `site/verificacao.html`
+  consulta o Registro Mestre (`GET /registry/{codigo}`) pelo ID gravado na peça.
 
 ## 4. Histórico (a linhagem, didaticamente)
 
@@ -138,28 +139,34 @@ refletidas neste documento.
 | 10 | Fundação | "2026" (`sobre.md`) × marca integrada em 2025-01 | — | Site usa "Fundação: 2026" (marca) e 2025 (linha do tempo do software) |
 | 11 | Ortografia | "NICOLHY/NICOLY/Nicoly Valentina" | — | Fixar **Nicoly Valentina** |
 | 12 | Versão do Nexus | v1.3.0 × v1.9.1 × v1.9.2 | — | Histórico apenas; sem ação |
-| 13 | `/verificacao` | Prometida pela voz da marca | não existe | **Implementar** (frente de discussão) |
+| 13 | `/verificacao` | Prometida pela voz da marca | não existe | **Resolvido** em v1.22.0 (`site/verificacao.html` + `GET /registry/{codigo}` no ar) |
 | 14 | FAB / Living Systems / Semi-joias | protocolos prontos | nada no sistema | **Implementar** módulos quando o dono decidir |
 | 15 | Segredos no Legado | tokens/senhas em texto puro nos docs | — | **VERIFICADOS 09/10: bot antigo @Nexus_Nicky_bot e chave Gemini AINDA ATIVOS.** Decisão do dono: rotacionar somente após finalizar todos os testes (em produção). Nunca migrar ao site |
 
-## 7. O que já foi entregue nesta rodada (v1.21.2)
+## 7. O que já foi entregue nesta rodada (v1.21.2 → v1.22.0)
 
-1. Site institucional completo do ecossistema (`site/index.html` + `site/assets/`).
+1. Site institucional completo do ecossistema (`site/index.html` + `site/historico.html`).
 2. Fim do 🐉: chat web, painel, admin, `/capabilities`, respostas de identidade
    e app (login, boas-vindas, chip guardian, selo) com o logo oficial.
 3. Regra 16: `/home/alex/Legado` como referência obrigatória da sessão.
 4. Este documento — base da próxima discussão.
+5. **v1.22.0 — Registro Mestre no ar** (item 2 da pauta, decisões a–e do dono):
+   banco `registry_items` (`core/registry.py`), API admin + consulta pública
+   `GET /registry/{codigo}`, página `site/verificacao.html` (divergência 13
+   fechada). Pendem do modelo original: registro pelo app (comprador), gravação
+   do QR e loja.
 
 ## 8. Próximos passos (discussão com o dono)
 
-1. **Organização do Legado** — proposta: mover as 4 raízes de projeto para
-   `Legado/HISTORICO/`, deduplicar os documentos cruzados (tabela §5) e manter
-   `OMEGA_DRAKON/` como núcleo vivo. Só após confirmação (regra 9).
-2. **`/verificacao`** — página pública de autenticidade (ler ID gravado,
-   consultar Registro Mestre). Requer decidir onde vive o registro (Postgres).
-3. **Frentes FAB / Living Systems / Nicoly Valentina** — primeiro passo seria
-   o Registro Mestre digital no sistema (já que semi-joias sem registro não
-   existem pela própria regra da marca).
+1. **Organização do Legado** — **RESOLVIDO (09/10)**: caminho aditivo —
+   `Legado/00_MAPA_DO_LEGADO.md` criado (índice vivo + mapa de duplicações);
+   pastas intocadas por decisão do dono.
+2. ~~**`/verificacao`**~~ — **ENTREGUE em v1.22.0** (item 5 acima). Próximas
+   etapas do mesmo item 2: cadastro de peças no app pelo comprador, entrega do
+   QR na compra e loja no site.
+3. **Frentes FAB / Living Systems / Nicoly Valentina** — o primeiro passo
+   pedido (Registro Mestre digital) **saiu em v1.22.0**; agora é decidir com o
+   dono a ordem das demais frentes.
 4. **Unificação do formato de ID** (linha 9 da tabela §6).
 5. **Rotação dos segredos vazados no Legado** (linha 15) — **VERIFICADO 09/10:
    bot antigo `@Nexus_Nicky_bot` e chave Gemini seguem ATIVOS** (getMe OK /
