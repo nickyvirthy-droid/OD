@@ -8,7 +8,8 @@
     "bug_critico": "APK arm64 publicado com versionCode='4049' (aapt2) = 2049+2000 do split por ABI — build SEM a flag -Pforce-version-code-ignoring-abi do build_apk.sh (a CLI rodou flutter build direto). Instalação desse binário colaria o celular na linhagem 4xxx e MATARIA a auto-atualização (próximo 2050 < 4049 = downgrade recusado). APK full correto (2049). Servidor vivo (1.21.0, PID 877441) já anuncia sha do binário novo em /app/version — incoerência no ar até o deploy.",
     "caminho_legado": "O dono escreveu 'home/Alex/Legado' — caminho real é /home/alex/Legado (minúsculo; Linux é case-sensitive). O trabalho usou o caminho real; AVISAR o dono no chat (o canal não avisou).",
     "acao_em_andamento": "Rebuild canônico ./app/build_apk.sh (força versionCode exato 2049 nos dois APKs) + suíte completa do servidor; depois commit+push (regra 7.1), deploy (regra 7.1 autoriza commit; deploy segue autorização explícita) e registro final.",
-    "estado": "EM ANDAMENTO — lote do canal validado como completo; bug do versionCode arm64 em correção via build_apk.sh."
+    "estado": "CONCLUÍDO E NO AR — v1.21.1+2049 implantada, provada (local + Funnel) e publicada (a93d042). Aviso ao dono no txt.txt: o caminho do Legado como ele escreveu (home/Alex/Legado) não existe — o real é /home/alex/Legado (minúsculo); o trabalho usou o real. Pendência do dono: abrir o app para a auto-atualização 2048 → 2049 e conferir o ícone novo. Nota de processo: a CLI do canal falhou no relatório mas o processo filho sobreviveu ao timeout e completou o trabalho — e o build dela PULOU a flag do build_apk.sh (arm64 saiu 4049); lote órfão de canal exige sempre reconferir versionCode por aapt2.",
+    "transcricao": "iniciar/2026-10-09_conversa_omegadrakon.md"
   },
   "bump_v1180_2026_10_03": {
     "pedido": "Dono: 'vamos continuar, conclua' — fechar o bump MINOR pendente.",
