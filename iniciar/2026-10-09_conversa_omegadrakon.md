@@ -60,3 +60,14 @@
   `txt.txt`.
 - Pendência do dono: abrir o app para a auto-atualização
   1.21.0+2048 → 1.21.1+2049 (2049 > 2048) e conferir o ícone novo.
+
+## 7. Re-verificação — "leia iniciar" de novo (~14:29)
+
+- Sistema 100%: od-core **active, PID 954778, NRestarts=0** (desde
+  11:18:59) · `/app/version` {1.21.1, 2049, sha256 `13142a39…` ==
+  binário de site/} · `/health` up · HEAD **1768b00 == origin/master**.
+- `txt.txt` sem mensagem nova do dono (resposta do sistema das 11:2x
+  intacta). Único resíduo da árvore: backup untracked já conhecido
+  (`backups/llm-cache-fakes-20261008-055830.json`).
+- Nada pendente do sistema — sessão segue aguardando o próximo pedido
+  do dono.
