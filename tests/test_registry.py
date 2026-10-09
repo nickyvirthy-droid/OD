@@ -291,3 +291,17 @@ class TestRegistroAdminPainel:
         assert 'id="reg-nome"' in html            # campo de cadastro
         assert "regRegistrar" in html             # fluxo de registro por QR
         assert "🐉" not in html
+
+    def test_transicao_carimba_timestamps(self, store: RegistryStore) -> None:
+        """vendida grava sold_at; registrada grava registered_at (sozinhas)."""
+        item = store.create(name="A", kind="exclusiva")
+        got = store.update(item["public_id"], status="vendida")
+        assert got["sold_at"] is not None and got["registered_at"] is None
+        got2 = store.update(item["public_id"], status="registrada",
+                            owner_username="bia")
+        assert got2["registered_at"] is not None
+        # repetir a transição não re-carimba (valor já existe)
+        s1, r1 = got2["sold_at"], got2["registered_at"]
+        got3 = store.update(item["public_id"], status="registrada",
+                            owner_username="bia")
+        assert (got3["sold_at"], got3["registered_at"]) == (s1, r1)

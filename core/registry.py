@@ -198,6 +198,18 @@ class RegistryStore:
             params.append(value)
         if not sets:
             return item
+        # Coerência de tempo: a transição grava o carimbo sozinha.
+        novo_status = fields.get("status")
+        if isinstance(novo_status, str):
+            novo_status = novo_status.strip().lower()
+        if novo_status == "vendida" and not item.get("sold_at") \
+                and not fields.get("sold_at"):
+            sets.append("sold_at = ?")
+            params.append(time.time())
+        elif novo_status == "registrada" and not item.get("registered_at") \
+                and not fields.get("registered_at"):
+            sets.append("registered_at = ?")
+            params.append(time.time())
         params.append(item["public_id"])
         self._db.execute(
             f"UPDATE registry_items SET {', '.join(sets)} WHERE public_id = ?",
