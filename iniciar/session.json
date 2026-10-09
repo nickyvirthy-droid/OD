@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-09T16:05:00",
+  "updated_at": "2026-10-09T18:10:00",
   "retomada_2026_10_09_lote_icone": {
     "lote_ecossistema_site_2026_10_09": {
       "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
@@ -21,9 +21,28 @@
       "item_1_legado": "CONCLUÍDO — dono questionou mover ('porque mover? perde nada?'); medição mostrou 2/8 duplicações bit-idênticas e 6 divergentes (versões de eras). Decisão: NÃO mover NÃO deduplicar; caminho aditivo 'Legado/00_MAPA_DO_LEGADO.md' (índice vivo/histórico + mapa de duplicações + aviso de segredos). Regra 16 atualizada c/ o mapa.",
       "item_1b_site_multipagina": "Dono avaliou: página única não é ideal; Histórico merece página própria. ENTREGUE: site/historico.html (página completa: 4 fases 2025→hoje + os 4 projetos predecessores + fontes); home com seção #historico virou teaser com link. Nav/rodapé atualizados nos dois arquivos.",
       "item_1c_segredos": "Dono: verificar se ainda funcionam; em produção, trocar só quando os testes finalizarem. VERIFICADO: bot antigo @Nexus_Nicky_bot ATIVO (getMe OK) e chave Gemini ANTIGA ATIVA (HTTP 200). Rotação ADIADA por decisão do dono — pendência ativa registrada na análise.",
-      "item_2_verificacao_venda": "Modelo do dono para o Registro Mestre: banco de peças expostas no site como LOJA; peças com ele têm valor de venda; vendidas têm dados do comprador; peça física recebe NÚMERO DE FABRICAÇÃO (formato a decidir); compra vem com cartão+QR; comprador registra no APP (com cadastro no sistema) em seu nome; QUEM TEM O QR É O DONO; ID de fabricação pesquisável por qualquer um; peças públicas (chaveiros etc.) vendidas SEM QR por não serem exclusivas. Iterando até o produto final.",
-      "proximo": "Fechar com o dono as decisões do item 2: formato do número gravado, privacidade da consulta pública, transferibilidade, alvo do QR e ordem de implementação (backend→admin→verificação→loja).",
+      "item_2_verificacao_venda": "Modelo do dono para o Registro Mestre: banco de peças expostas no site como LOJA; peças com ele têm valor de venda; vendidas têm dados do comprador; peça física recebe NÚMERO DE FABRICAÇÃO (formato a decidir); compra vem com cartão+QR; comprador registra no APP (com cadastro no sistema) em seu nome; QUEM TEM O QR É O DONO; ID de fabricação pesquisável por qualquer um; peças públicas (chaveiros etc.) vendidas SEM QR por não serem exclusivas. Iterando até o produto final. DECISÕES a–e FECHADAS e ENTREGUE nas etapas 1–3 (ver lote item_2_registro_mestre_2026_10_09).",
+      "item_2_decisoes_a_e": "(a) ID pesquisável gravado na PEÇA (a pessoa está com a peça na mão; o cartão é o de registro); (b) consulta pública mostra o USERNAME (não o nome real) — todos veem que tem dono e podem conversar; (c) quem compra pede/recebe o QR para registrar no próprio nome; (d) QR = símbolo de propriedade, quem tem é o dono; (e) ordem de construção normal — primeiro o banco.",
+      "proximo": "Etapa 4 do item 2: registro da peça pelo COMPRADOR no app (fluxo QR/posse) + loja no site; depois itens 3 (unificação de ID — engraved_code já usa NV-[COL]-[HASH]), 5 (ordem das frentes) e rotação de segredos (adiada).",
       "itens_restantes": "3: unificação do formato de ID (vinculado ao item 2) · 4: rotação de segredos (adiada p/ pós-testes) · 5: ordem das frentes FAB/Living Systems/Nicoly Valentina."
+    },
+    "item_2_registro_mestre_2026_10_09": {
+      "pedido": "Dono fechou as decisões a–e do item 2 e mandou: 'siga a ordem de construção normal. primeiro banco....'",
+      "entregas": [
+        "core/registry.py (NOVO): tabela registry_items — public_id canônico OD-PROD-AAAA-NNNN sequencial + engraved_code curto gravado (NV-ABI-7F3A, ambos pesquisáveis); kind exclusiva|publica; status estoque→vendida→registrada (registrada exige owner_username = coerência); price_brl/notes privados; verify_public = projeção sem id/price/notes e username só quando registrada.",
+        "API: GET /registry/{codigo} PÚBLICA (AUTH_EXEMPT_PATHS, mesma natureza de /app/version) · POST/GET /admin/registry + PUT /admin/registry/{public_id} (admin; 401/403 sem credencial de dono; 503 sem banco). APIConfig.registry + APIServer._registry.",
+        "runtime/launcher.py: build_registry(database) (padrão build_user_store) ligado em _run_api_forever → APIConfig.",
+        "site/verificacao.html (NOVO): consulta pública pelo ID gravado na peça (busca canônica ou gravada, selo autêntica/vendida/registrada, username do dono, aviso em ID desconhecido); home: card Verificação 'Em breve'→no ar + link 'Verificar peça' na nav.",
+        "Guardas: tests/test_api.py rotas 52→56 (expected/auth/public); tests/test_registry.py NOVO (14 testes: store + rotas sob auth_all + 403 comum)."
+      ],
+      "bump": "MINOR 1.22.0: .env, capabilities fallback, pubspec 1.22.0+2050, _APP_VERSION_CODE=2050 (app sem mudança de código), site 3x, CHANGELOG [1.22.0], README_VERSAO §1.22.0, ANALISE_ECOSSISTEMA (divergência 13 fechada + §7/§8).",
+      "validacao": "Suíte completa 2371 passed/16 skipped (98s). flutter analyze 0 issues · flutter test 134 passed/2 skipped. APKs rebuildados com JAVA_HOME=~/jdk ANDROID_HOME=~/android-sdk: aapt2 versionCode='2050' EXATO + versionName='1.22.0' nos dois — full 55.065.740 B sha 10d4b714…, arm64 19.912.230 B sha 3dd6574b….",
+      "deploy": "IMPLANTADO 17:56:43 — PID 996976, NRestarts=0. Prova viva local: /app/version {1.22.0, 2050, sha256 10d4b714… == binário site/} · /capabilities 1.22.0 (78 actions, 42 caps) · /health up · /supervision restarts 0 · /registry/OD-PROD-2026-0001 → 404 JSON SEM credencial (rota pública real) · /admin/registry 200 total 0 (tabela criada no boot: 'Registro Mestre de peças habilitado') · POST corpo inválido → 400 nome_obrigatorio · PUT inexistente → 404 · /site + verificacao.html + historico.html 200 · journal 0 erros · 0 🐉. Prova de fora (Funnel): /registry → 404 JSON da API · verificacao.html 200 título correto · /app/version 1.22.0/2050 · 0 🐉.",
+      "commits": [
+        "5d45ada feat(registry): Registro Mestre — banco de peças + verificação pública no ar (v1.22.0)"
+      ],
+      "estado": "CONCLUÍDO E NO AR — banco+admin+consulta pública+site (etapas 1–3 da ordem do dono). Registro Mestre vazio e limpo (total 0 — sem peça de teste poluindo). txt.txt com aviso novo (regra 14); Telegram pendente (regra 15). Próxima etapa do item 2: fluxo do comprador no app (registro por QR) + loja.",
+      "transcricao": "iniciar/2026-10-09_conversa_omegadrakon.md"
     },
     "reverificacao_14_32": "'leia iniciar' de novo (~14:32): sistema segue 100% — od-core active PID 954778 NRestarts=0 (desde 11:18:59), /app/version {1.21.1, 2049, sha256 13142a39… == site}, /health up, HEAD 1768b00 == origin/master, txt.txt sem mensagem nova do dono (última resposta do sistema 11:2x intacta). Único resíduo: backups/llm-cache-fakes-20261008-055830.json (untracked, já conhecido). Nada pendente do sistema; aguardando próximo pedido do dono (abrir app p/ auto-atualização 2048→2049 e conferir ícone).",
     "pedido": "Usuário: 'leia iniciar' — retomada (~11:0x de 09/10).",

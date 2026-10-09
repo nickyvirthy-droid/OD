@@ -173,3 +173,63 @@
   **quem tem o QR é o dono**; ID de fabricação **pesquisável por
   qualquer um**; peças públicas (chaveiros etc.) são vendidas **sem QR**
   por não serem exclusivas. Iteração até o produto final.
+
+## 13. Item 2 — Registro Mestre no ar (decisões a–e + etapas 1–3) (~17:0x–18:10)
+
+**Decisões do dono (a–e), respondidas de uma vez:**
+- **(a)** "id da peça deve ser pesquisável, a pessoa vai estar com a peça na
+  mão e não o cartão QR, esse cartão é o de registro" → o ID vem GRAVADO na
+  peça; o cartão QR é o de registro.
+- **(b)** "mostra o username, não o nome real, assim todos podem saber que
+  realmente tem dono e se quiserem podem conversar com ele" → consulta
+  pública devolve o username; nome real nunca.
+- **(c)** "quem comprar deve pedir o QR para registrar no proprio nome" →
+  fluxo: venda → comprador registra → QR como prova de posse.
+- **(d)** "o QR é o simbolo de propriedade, quem tem ele é o dono."
+- **(e)** "siga a ordem de construção normal. primeiro banco...." → banco →
+  admin → verificação → app → loja.
+
+**Entregue (ordem normal):**
+1. **Banco:** `core/registry.py` — `registry_items` (public_id canônico
+   `OD-PROD-AAAA-NNNN` sequencial + `engraved_code` curto gravado, ambos
+   pesquisáveis; status `estoque→vendida→registrada`, `registrada` exige
+   dono; preço/notas privados).
+2. **Admin:** `POST/GET /admin/registry` + `PUT /admin/registry/{id}` (só
+   dono; 401/403 demais; 503 sem banco).
+3. **Consulta pública:** `GET /registry/{codigo}` em `AUTH_EXEMPT_PATHS`
+   (natureza de `/app/version`) — projeção sem id/price/notes, username só
+   quando registrada; `runtime/launcher.build_registry(database)` liga o
+   store (padrão do UserStore).
+4. **Site:** `site/verificacao.html` (busca pelo ID gravado, selo
+   autêntica/vendida/registrada, username do dono, aviso p/ ID
+   desconhecido); home: card Verificação saiu de "Em breve" para no ar +
+   link "Verificar peça" na nav.
+
+**Validação:** suíte completa **2371 passed / 16 skipped** (98s) · flutter
+analyze 0 · flutter test 134/2 · APKs rebuildados (JAVA_HOME=~/jdk,
+ANDROID_HOME=~/android-sdk — flutter/java fora do PATH do shell; corrigido
+com export) com **versionCode='2050' EXATO + versionName='1.22.0'** nos
+dois (aapt2) — full 55.065.740 B `10d4b714…`, arm64 19.912.230 B
+`3dd6574b…`. Bump MINOR 1.22.0 em todas as fontes vivas + CHANGELOG
+`[1.22.0]` + README_VERSAO + divergência 13 fechada na análise.
+
+**Deploy (regra 7.3):** commit **`5d45ada`** (push, HEAD==origin/master) →
+restart **17:56:43, PID 996976, NRestarts=0**. Provas vivas:
+- Local: `/app/version {1.22.0, 2050, sha 10d4b714… == binário}` ·
+  `/capabilities 1.22.0 (78 actions, 42 caps)` · `/health up` ·
+  `/supervision restarts 0` · `/registry/OD-PROD-2026-0001` → **404 JSON
+  sem credencial** (rota pública de verdade) · `/admin/registry` 200
+  `total 0` (boot log: "Registro Mestre de peças habilitado") · POST corpo
+  inválido → 400 `nome_obrigatorio` · PUT inexistente → 404 · `/site`,
+  `/site/verificacao.html`, `/site/historico.html` 200 · journal **0
+  erros** · 0 🐉.
+- Funnel: `/registry/…` → 404 JSON da API · `verificacao.html` 200 com
+  título certo · `/app/version 1.22.0/2050` · 0 🐉.
+
+**Registro:** session.json (novo lote `item_2_registro_mestre_2026_10_09` +
+decisões a–e), este §13, txt.txt com bloco novo (regra 14), Telegram
+(regra 15). **Registro Mestre vazio e limpo** (total 0 — nenhum item de
+teste poluiu a produção; POST inválido só provou o handler).
+
+**Próxima etapa do item 2:** fluxo do comprador no app (registro por QR no
+próprio nome) + entrega do QR na compra + loja no site.
