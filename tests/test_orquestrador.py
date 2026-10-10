@@ -29,6 +29,10 @@ from orquestrador import (
     SESSAO_HEARTBEAT_S,
     SESSAO_MAX_AUTORIZACOES,
     CliSpec,
+    _arvore_suja,
+    _buscar_no_codigo,
+    _extrair_palavras_chave,
+    _montar_contexto_repositorio,
     aguardar_resposta_dono,
     commitar_sessao,
     executar_sessao,
@@ -276,6 +280,113 @@ class TestMontarPromptSessao:
         assert "Histórico" not in sem
         assert "[Resposta do dono] pode" in com
         assert "[Resposta do dono] pode" not in sem
+
+    def test_contexto_somente_quando_existe(self) -> None:
+        """O contexto (árvore suja + duplicatas) entra no prompt só quando
+        há algo a avisar — sem contexto, o prompt não muda (10/10)."""
+        sem = montar_prompt_sessao("ideia")
+        com = montar_prompt_sessao("ideia", contexto="⚠️ já existe X")
+        assert "Contexto do repositório" not in sem
+        assert "⚠️ já existe X" in com
+        assert "⚠️ já existe X" not in sem
+
+    def test_prompt_ensina_anti_duplicata(self) -> None:
+        """O prompt obriga a CLI a verificar se a funcionalidade já existe
+        em outra forma antes de criar (pedido do dono 10/10: 'temperatura
+        em SP' vs 'temperatura no RJ')."""
+        prompt = montar_prompt_sessao("qual a temperatura no rio")
+        assert "OUTRA FORMA" in prompt
+        assert "NÃO crie duplicata" in prompt
+
+
+class TestContextoRepositorio:
+    """Árvore suja + busca por duplicatas — contexto prévio da CLI (10/10)."""
+
+    def test_extrair_palavras_chave_filtra_vazias(self) -> None:
+        """Só significativas: 'implementar qual a temperatura no rio de
+        janeiro' → ['temperatura', 'janeiro'] (rio é 3 chars, sai pelo
+        regex; 'implementar'/'qual' são palavras vazias)."""
+        palavras = _extrair_palavras_chave(
+            "implementar qual a temperatura no rio de janeiro"
+        )
+        assert "temperatura" in palavras
+        assert "janeiro" in palavras
+        assert "implementar" not in palavras
+        assert "qual" not in palavras
+
+    def test_extrair_palavras_chave_preserva_dominio(self) -> None:
+        """Termos de domínio NÃO são filtrados mesmo sendo verbos —
+        'apagar' e 'mensagens' são exatamente o que se busca no código."""
+        palavras = _extrair_palavras_chave("apagar minhas mensagens pelo app")
+        assert "apagar" in palavras
+        assert "mensagens" in palavras
+
+    def test_busca_no_codigo_acha_e_limita(self, tmp_path: Path) -> None:
+        """Acha palavras no código e limita a 3 arquivos por palavra."""
+        (tmp_path / "core").mkdir()
+        for nome in ("a.py", "b.py", "c.py", "d.py"):
+            (tmp_path / "core" / nome).write_text(
+                "temperatura = 25\n", encoding="utf-8"
+            )
+        achados = _buscar_no_codigo(["temperatura"], base=tmp_path)
+        # 4 arquivos têm 'temperatura', mas o teto é 3.
+        assert len(achados) == 3
+        assert all("temperatura" in a for a in achados)
+
+    def test_busca_no_codigo_sem_palavras_vazia(self) -> None:
+        assert _buscar_no_codigo([]) == []
+
+    def test_arvore_suja_detecta(self, monkeypatch) -> None:
+        """git status --porcelain com saída não vazia → lista de sujos."""
+        class FalsoResultado:
+            stdout = " M orquestrador.py\n?? arquivo_novo.py\n"
+
+        monkeypatch.setattr(
+            orch.subprocess, "run",
+            lambda *a, **k: FalsoResultado(),
+        )
+        sujos = _arvore_suja()
+        assert len(sujos) == 2
+        assert "orquestrador.py" in sujos[0]
+
+    def test_arvore_suja_limpa(self, monkeypatch) -> None:
+        class FalsoResultado:
+            stdout = ""
+
+        monkeypatch.setattr(
+            orch.subprocess, "run",
+            lambda *a, **k: FalsoResultado(),
+        )
+        assert _arvore_suja() == []
+
+    def test_arvore_suja_git_indisponivel(self, monkeypatch) -> None:
+        """Sem git (OSError) → lista vazia, nunca exceção."""
+        def falso_run(*a, **k):
+            raise OSError("git não encontrado")
+
+        monkeypatch.setattr(orch.subprocess, "run", falso_run)
+        assert _arvore_suja() == []
+
+    def test_contexto_com_arvore_suja_e_duplicata(self, monkeypatch) -> None:
+        """Os DOIS avisos aparecem: árvore suja + termos já no código."""
+        monkeypatch.setattr(orch, "_arvore_suja", lambda: [" M core/foo.py"])
+        monkeypatch.setattr(
+            orch, "_buscar_no_codigo",
+            lambda palavras: ["'temperatura' → core/intents.py"],
+        )
+        contexto = _montar_contexto_repositorio(
+            "implementar a temperatura no rio"
+        )
+        assert "NÃO commitadas" in contexto
+        assert "core/foo.py" in contexto
+        assert "OUTRA FORMA" in contexto
+        assert "core/intents.py" in contexto
+
+    def test_contexto_vazio_quando_limpo(self, monkeypatch) -> None:
+        """Árvore limpa e sem duplicatas → contexto vazio (prompt inalterado)."""
+        monkeypatch.setattr(orch, "_arvore_suja", lambda: [])
+        monkeypatch.setattr(orch, "_buscar_no_codigo", lambda p: [])
+        assert _montar_contexto_repositorio("qualquer ideia") == ""
 
 
 class TestExtrairAutorizacao:

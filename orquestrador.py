@@ -23,6 +23,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -135,6 +136,151 @@ CLIS: tuple[CliSpec, ...] = (
         caminho_candidato="~/.npm-global/bin/kilo",
     ),
 )
+
+
+# ---------------------------------------------------------------------------
+# Contexto do repositório (2026-10-10) — árvore suja + busca por duplicatas
+# ---------------------------------------------------------------------------
+#
+# Pedido do dono (10/10): "se fizer um pedido sobre algo que já foi
+# implementado o sistema avisa ou tenta recriar só porque o txt é
+# diferente? por exemplo qual a temperatura em são paulo, alguns dias
+# depois peço para implementar qual a temperatura no rio de janeiro".
+#
+# A guarda de "já implementado" (core/dev_canal) compara por HASH do texto
+# — pega só repetição EXATA. Uma variante ("temperatura no Rio") passa
+# batido. Estas funções dão CONTEXTO à CLI antes de ela codar: o que já
+# existe no código e se a árvore tem trabalho parcial de uma sessão
+# anterior que falhou.
+
+#: Palavras vazias do português (4+ chars — as curtas já saem pelo regex).
+#: Verbos de pedido (implementar/criar/...) também entram: o canal JÁ SABE
+#: que é um pedido; o que importa são os substantivos de domínio.
+PALAVRAS_VAZIAS_PT: frozenset[str] = frozenset({
+    "para", "sobre", "entre", "desde", "onde", "quando", "porque",
+    "então", "também", "ainda", "sempre", "nunca", "como",
+    "isso", "isto", "este", "esta", "estes", "estas",
+    "esse", "essa", "esses", "essas", "aquele", "aquela",
+    "eles", "elas", "vocês", "mesmo", "mesma",
+    "estar", "está", "fazer", "faz", "poder", "dever", "querer",
+    "dizer", "ficar", "teria", "tinha", "foram", "seria", "vamos",
+    "muito", "mais", "menos",
+    "qual", "quais", "quem", "quanto",
+    "implementar", "implementa", "implemente", "implementado",
+    "criar", "crie", "criação", "criado",
+    "adicione", "adicionar", "adiciona", "adicionado",
+    "corrigir", "corrija", "corrigido",
+    "melhorar", "melhora", "melhorado",
+    "remover", "remova", "removido",
+    "trocar", "troque", "trocado",
+    "mudar", "mude", "mudado",
+    "verificar", "verifique", "verificando",
+    "ajustar", "ajuste", "ajustado",
+    "sistema", "arquivo", "arquivos", "função", "funções",
+    "recurso", "recursos", "pedido", "ideia", "projeto",
+    "parte", "coisa", "coisas", "necessário", "possível",
+    "quero", "queria", "gostaria", "deveria",
+})
+
+
+def _extrair_palavras_chave(ideia: str, limite: int = 10) -> list[str]:
+    """Significativas do pedido, sem palavras vazias do português.
+
+    "implementar qual a temperatura no rio de janeiro" →
+    ["temperatura", "janeiro"] (as 4+ chars que sobram após o filtro).
+    """
+    palavras = re.findall(r"[a-zA-ZÀ-ÿ]{4,}", (ideia or "").casefold())
+    vistas: set[str] = set()
+    resultado: list[str] = []
+    for palavra in palavras:
+        if palavra not in PALAVRAS_VAZIAS_PT and palavra not in vistas:
+            vistas.add(palavra)
+            resultado.append(palavra)
+            if len(resultado) >= limite:
+                break
+    return resultado
+
+
+def _buscar_no_codigo(palavras: list[str], base: Path = Path(".")) -> list[str]:
+    """Arquivos .py onde cada palavra-chave já aparece (máx. 3 por palavra).
+
+    Devolve linhas "palavra → caminho" — o contexto que a CLI usa para
+    descobrir que a funcionalidade pedida já existe em outra forma.
+    `base` permite testes com tmp_path (padrão: raiz do repo).
+    """
+    if not palavras:
+        return []
+    raizes = [
+        base / "core", base / "tools", base / "integrations",
+        base / "memory", base / "runtime",
+    ]
+    achados: list[str] = []
+    for palavra in palavras:
+        regex = re.compile(re.escape(palavra), re.IGNORECASE)
+        encontrados = 0
+        for raiz in raizes:
+            if encontrados >= 3:
+                break
+            if not raiz.is_dir():
+                continue
+            for arquivo in sorted(raiz.rglob("*.py")):
+                if encontrados >= 3:
+                    break
+                try:
+                    conteudo = arquivo.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                if regex.search(conteudo):
+                    achados.append(f"'{palavra}' → {arquivo}")
+                    encontrados += 1
+    return achados[:15]
+
+
+def _arvore_suja() -> list[str]:
+    """Arquivos alterados NÃO commitados (git status --porcelain).
+
+    Uma sessão que falhou no meio pode ter deixado trabalho parcial na
+    árvore — a próxima sessão precisa saber disso antes de codar.
+    """
+    try:
+        saida = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return [linha for linha in (saida.stdout or "").splitlines() if linha.strip()]
+
+
+def _montar_contexto_repositorio(ideia: str) -> str:
+    """Contexto prévio para a CLI: árvore suja + termos já no código.
+
+    Vazio quando não há nada a avisar — o prompt não muda sem motivo.
+    """
+    partes: list[str] = []
+
+    sujos = _arvore_suja()
+    if sujos:
+        lista = "\n".join(f"  {s}" for s in sujos[:10])
+        partes.append(
+            "⚠️ A árvore de trabalho tem alterações NÃO commitadas "
+            f"({len(sujos)} arquivo(s)) — provável trabalho parcial de uma "
+            "sessão anterior. Avalie se é trabalho de um pedido anterior "
+            "ANTES de codar; se for, continue de onde parou:\n" + lista
+        )
+
+    palavras = _extrair_palavras_chave(ideia)
+    achados = _buscar_no_codigo(palavras)
+    if achados:
+        lista = "\n".join(f"  {a}" for a in achados)
+        partes.append(
+            "⚠️ Termos do pedido já existem no código — verifique se a "
+            "funcionalidade pedida já existe em OUTRA FORMA antes de criar "
+            "algo novo (ex: uma ação genérica que aceita qualquer cidade "
+            "em vez de uma nova ação específica):\n" + lista
+        )
+
+    return "\n\n".join(partes)
 
 
 # ---------------------------------------------------------------------------
@@ -325,13 +471,27 @@ INSTRUCAO_SESSAO: str = (
     "comece com [AUTORIZACAO] e a pergunta — e não siga até responderem;\n"
     "- sem markdown e sem cercas de código; termine com um resumo curto do "
     "que mudou (arquivos) e do resultado dos testes;\n"
+    "- ANTES de criar algo novo, verifique se a funcionalidade pedida já "
+    "existe em OUTRA FORMA no código (ex: uma ação genérica que aceita "
+    "qualquer cidade, um parâmetro, uma configuração). Se existir, NÃO "
+    "crie duplicata — explique na análise o que já existe e o que falta;\n"
     "- se já existe ou não puder ser feito, diga isso em vez de inventar."
 )
 
 
-def montar_prompt_sessao(ideia: str, historico: str = "") -> str:
-    """Monta o prompt do modo sessão: instrução + ideia + histórico da rodada."""
-    partes = [INSTRUCAO_SESSAO, "", "Ideia do dono (txt.txt):", ideia.strip()]
+def montar_prompt_sessao(
+    ideia: str, historico: str = "", contexto: str = ""
+) -> str:
+    """Monta o prompt do modo sessão: instrução + contexto + ideia + histórico.
+
+    `contexto` (2026-10-10) carrega avisos do repositório: árvore suja de
+    uma sessão anterior e termos do pedido que já existem no código — a CLI
+    sabe o que já existe antes de decidir criar algo novo.
+    """
+    partes = [INSTRUCAO_SESSAO]
+    if contexto.strip():
+        partes += ["", "Contexto do repositório:", contexto.strip()]
+    partes += ["", "Ideia do dono (txt.txt):", ideia.strip()]
     if historico.strip():
         partes += ["", "Histórico desta sessão:", historico.strip()]
     return "\n".join(partes)
@@ -678,13 +838,20 @@ def executar_sessao(
         "sistema", f"Sessão iniciada — CLI: {estado['rodando']}.", "info", arquivo_caixa
     )
 
+    # Contexto do repositório (10/10): árvore suja de sessão anterior +
+    # termos do pedido que já existem no código. Calculado UMA vez — não
+    # muda entre rodadas. A CLI sabe o que já existe antes de criar algo.
+    contexto = _montar_contexto_repositorio(ideia)
+    if contexto:
+        log.info("Contexto do repositório para a CLI | chars=%d", len(contexto))
+
     historico = ""
     resposta_cli: str | None = None
     for rodada in range(1, SESSAO_MAX_AUTORIZACOES + 2):
         estado["rodada"] = rodada
         estado["status"] = "executando"
         gravar_estado(estado, arquivo_estado)
-        prompt = montar_prompt_sessao(ideia, historico)
+        prompt = montar_prompt_sessao(ideia, historico, contexto)
         resposta_cli = None
         # Batimento só durante a CLI: a autorização já tem a própria espera
         # (SESSAO_AUTORIZACAO_TIMEOUT_S) e a validação é rápida.
