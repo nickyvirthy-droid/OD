@@ -24,8 +24,10 @@ import json
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -40,8 +42,18 @@ from core.dev_canal import ideia_ja_implementada, registrar_ideia
 # Constantes
 # ---------------------------------------------------------------------------
 
-#: Timeout de cada CLI em segundos (LLMs podem demorar; 10 min cobre o pior caso).
-CLI_TIMEOUT_S: int = 600
+#: Timeout de cada CLI em segundos.
+#:
+#: 2026-10-10 — o dono cobrou: "pelo Canal de Desenvolvimento a sessão inicia
+#: e depois de 10 minutos falha? Para você desenvolver um pedido é necessário
+#: 1 hora e às vezes mais…". Causa raiz: o teto era FIXO em 600 s (10 min) —
+#: qualquer pedido real estourava, o `subprocess.run` matava o processo e a
+#: cascata caía para a próxima CLI até fechar como `todas_as_clis_falharam`.
+#: Pior: a CLI morta deixava processos FILHOS vivos (o OpenCode de 09/10
+#: completou o trabalho às escondidas, sem validação — e publicou um APK com
+#: versionCode errado). Agora o teto é configurável por `.env`
+#: (`OD_DEV_CLI_TIMEOUT_S`) e o padrão é 2 h — tempo de pedido real de dev.
+CLI_TIMEOUT_S: int = int(os.environ.get("OD_DEV_CLI_TIMEOUT_S", "7200"))
 
 #: Chaves carregadas do .env que são repassadas ao ambiente dos subprocessos.
 ENV_KEYS: tuple[str, ...] = ("GEMINI_API_KEY", "GROQ_API_KEY")
@@ -140,6 +152,29 @@ def _ambiente_com_chaves() -> dict[str, str]:
     return env
 
 
+def _matar_grupo(processo: "subprocess.Popen[str]") -> None:
+    """Mata o processo E os filhos (grupo iniciado com start_new_session).
+
+    Motivo (09/10, APK com versionCode 4049): matar só o processo direto
+    deixava o runtime da CLI vivo mexendo no repo sem ninguém validar.
+    """
+    try:
+        os.killpg(os.getpgid(processo.pid), signal.SIGTERM)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+    try:
+        processo.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(os.getpgid(processo.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    try:
+        processo.communicate(timeout=5)
+    except (subprocess.TimeoutExpired, ValueError):
+        pass
+
+
 def executar_cli(spec: CliSpec, prompt: str, timeout_s: int = CLI_TIMEOUT_S) -> str | None:
     """Executa UMA CLI com o prompt e devolve stdout em caso de sucesso.
 
@@ -154,32 +189,43 @@ def executar_cli(spec: CliSpec, prompt: str, timeout_s: int = CLI_TIMEOUT_S) -> 
 
     comando: list[str] = [*base, *spec.args_antes, prompt, *spec.args_depois]
     try:
-        resultado = subprocess.run(  # noqa: S603 — comando fixo da cascata oficial
+        processo = subprocess.Popen(  # noqa: S603 — comando fixo da cascata oficial
             comando,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout_s,
-            check=False,
             env=_ambiente_com_chaves(),
+            # Grupo de processo PRÓPRIO: no timeout matamos o grupo inteiro.
+            # Sem isto, o `kill` só pega o processo direto e os FILHOS da CLI
+            # (o runtime do OpenCode/Kilo) sobrevivem e continuam mexendo no
+            # repo sem validação — foi o que publicou o APK 4049 em 09/10.
+            start_new_session=True,
         )
-    except subprocess.TimeoutExpired:
-        log.warning("%s excedeu %ss — tratado como falha", spec.nome, timeout_s)
-        return None
     except OSError as erro:
         log.warning("%s falhou ao executar: %s", spec.nome, erro)
         return None
 
-    if resultado.returncode != 0:
-        stderr = (resultado.stderr or "").strip()
+    try:
+        stdout, stderr = processo.communicate(timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        _matar_grupo(processo)
         log.warning(
-            "%s falhou (exit=%s): %s",
+            "%s excedeu %ss — grupo de processo morto (sem órfão mexendo no repo)",
             spec.nome,
-            resultado.returncode,
-            stderr[:300] if stderr else "sem stderr",
+            timeout_s,
         )
         return None
 
-    saida = (resultado.stdout or "").strip()
+    if processo.returncode != 0:
+        log.warning(
+            "%s falhou (exit=%s): %s",
+            spec.nome,
+            processo.returncode,
+            (stderr or "").strip()[:300] if (stderr or "").strip() else "sem stderr",
+        )
+        return None
+
+    saida = (stdout or "").strip()
     if not saida:
         log.warning("%s respondeu vazio", spec.nome)
         return None
@@ -237,6 +283,12 @@ SESSAO_MAX_AUTORIZACOES: int = 5
 
 #: Intervalo de varredura da caixa durante a espera.
 SESSAO_POLL_S: float = 2.0
+
+#: Batimento da sessão: de quanto em quanto tempo o estado é re-gravado
+#: enquanto a CLI roda. Sem isto, uma sessão de 1 h+ deixava o painel PARADO
+#: em "EXECUTANDO" (o dono achava que tinha travado — a outra metade da
+#: reclamação dele de 10/10 sobre o timeout de 10 min).
+SESSAO_HEARTBEAT_S: float = 15.0
 
 #: Seletor de CLI do painel (--cli); 'auto' = cascata oficial.
 CLI_SESSAO_OPCOES: tuple[str, ...] = ("auto", "freebuff", "opencode", "kilo")
@@ -541,6 +593,43 @@ def _encerrar(
     return estado
 
 
+def _batimento(estado: dict, caminho: Path, parar: threading.Event,
+               intervalo_s: float | None = None) -> None:
+    """Mantém o painel vivo durante execuções longas (thread daemon).
+
+    Enquanto a CLI roda (1 h+ é o caso real do dono), re-grava o estado com
+    `decorrido_s` — o painel deixa de parecer TRAVADO em "EXECUTANDO".
+    Gravação é atômica (tmp + rename) então o painel nunca lê meio JSON.
+    """
+    if intervalo_s is None:
+        intervalo_s = SESSAO_HEARTBEAT_S  # lido na CHAMADA — testável
+    inicio = time.monotonic()
+    while not parar.wait(intervalo_s):
+        estado["decorrido_s"] = int(time.monotonic() - inicio)
+        gravar_estado(estado, caminho)
+
+
+class _ComBatimento:
+    """Roda a CLI com o batimento ligado — parado garantido na saída."""
+
+    def __init__(self, estado: dict, caminho: Path) -> None:
+        self._estado = estado
+        self._caminho = caminho
+        self._parar = threading.Event()
+
+    def __enter__(self) -> None:
+        self._thread = threading.Thread(
+            target=_batimento, args=(self._estado, self._caminho, self._parar),
+            daemon=True, name="sessao-heartbeat",
+        )
+        self._thread.start()
+
+    def __exit__(self, *exc: object) -> None:
+        self._parar.set()
+        self._thread.join(timeout=5)
+        self._estado.pop("decorrido_s", None)
+
+
 def executar_sessao(
     ideia: str,
     *,
@@ -597,11 +686,14 @@ def executar_sessao(
         gravar_estado(estado, arquivo_estado)
         prompt = montar_prompt_sessao(ideia, historico)
         resposta_cli = None
-        for spec in escolha:
-            resposta_cli = executar(spec, prompt)
-            if resposta_cli is not None:
-                estado["cli_usada"] = spec.nome
-                break
+        # Batimento só durante a CLI: a autorização já tem a própria espera
+        # (SESSAO_AUTORIZACAO_TIMEOUT_S) e a validação é rápida.
+        with _ComBatimento(estado, arquivo_estado):
+            for spec in escolha:
+                resposta_cli = executar(spec, prompt)
+                if resposta_cli is not None:
+                    estado["cli_usada"] = spec.nome
+                    break
         if resposta_cli is None:
             return _encerrar(
                 estado, "falhou", "todas_as_clis_falharam",

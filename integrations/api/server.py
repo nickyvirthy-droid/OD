@@ -1023,6 +1023,11 @@ function sessRender(estado) {
   if (estado.analise) partes.push("análise:\\n" + String(estado.analise).slice(0, 1500));
   if (estado.cli_usada || estado.rodando) partes.push("CLI: " + (estado.cli_usada || estado.rodando));
   if (estado.rodada) partes.push("rodada: " + estado.rodada + " · autorizações: " + (estado.autorizacoes || 0));
+  // Batimento (10/10): sessão longa mostra o tempo — deixar de parecer travado.
+  if (estado.decorrido_s) {
+    const m = Math.floor(estado.decorrido_s / 60), s = estado.decorrido_s % 60;
+    partes.push("executando há: " + (m ? m + "min" : "") + s + "s");
+  }
   if (estado.testes) partes.push("testes: " + estado.testes);
   if (estado.diff) partes.push("diff: " + estado.diff);
   if (estado.commit) partes.push("commit: " + estado.commit);

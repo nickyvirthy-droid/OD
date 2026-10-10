@@ -15,6 +15,7 @@ Arquiteto: Alex Projeti
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import orquestrador as orch
@@ -25,6 +26,7 @@ from core.dev_canal import (
 )
 from orquestrador import (
     CLIS,
+    SESSAO_HEARTBEAT_S,
     SESSAO_MAX_AUTORIZACOES,
     CliSpec,
     aguardar_resposta_dono,
@@ -107,18 +109,21 @@ class TestAmbienteComChaves:
         """Contrato da execução: [binario, *args_antes, prompt, *args_depois]."""
         vistos: dict[str, object] = {}
 
-        class FalsoCompleted:
+        class FalsoProcesso:
             returncode = 0
-            stdout = "x = 1\n"
-            stderr = ""
 
-        def falso_run(comando, **kwargs):
+            def communicate(self, timeout=None):
+                vistos["timeout"] = timeout
+                return "x = 1\n", ""
+
+        def falso_popen(comando, **kwargs):
             vistos["comando"] = comando
             vistos["env"] = kwargs.get("env")
-            return FalsoCompleted()
+            vistos["grupo"] = kwargs.get("start_new_session")
+            return FalsoProcesso()
 
         monkeypatch.setattr(orch.shutil, "which", lambda nome: "/usr/bin/" + nome)
-        monkeypatch.setattr(orch.subprocess, "run", falso_run)
+        monkeypatch.setattr(orch.subprocess, "Popen", falso_popen)
         monkeypatch.setenv("GROQ_API_KEY", "chave-groq")
 
         spec = CliSpec(nome="Falso", binario="falso", args_antes=("run",), args_depois=("--auto",))
@@ -127,39 +132,82 @@ class TestAmbienteComChaves:
         assert saida == "x = 1"
         assert vistos["comando"] == ["falso", "run", "PROMPT", "--auto"]
         assert vistos["env"]["GROQ_API_KEY"] == "chave-groq"  # chave do .env repassada
+        assert vistos["grupo"] is True  # grupo próprio: timeout mata os filhos
+        assert vistos["timeout"] == orch.CLI_TIMEOUT_S  # teto aplicado ao communicate
 
     def test_executar_cli_binario_ausente(self, monkeypatch) -> None:
         """Sem PATH e sem candidato: NADA é executado (guarda de indisponível).
 
         Endurecido após a mutação M2 (guarda removida) sobreviver — o teste
-        antigo só conferia None e um subprocess.run inexiste não reclamaria
+        antigo só conferia None e um subprocess.Popen inexiste não reclamaria
         (binário inexistente → OSError → None do mesmo jeito, por sorte).
-        Aqui a chamada ao subprocess.run é FALHA DE TESTE se acontecer.
+        Aqui a chamada ao Popen é FALHA DE TESTE se acontecer.
         """
 
-        def proibido_run(*args, **kwargs):
-            raise AssertionError("subprocess.run não deveria ser chamado")
+        def proibido_popen(*args, **kwargs):
+            raise AssertionError("subprocess.Popen não deveria ser chamado")
 
         monkeypatch.setattr(orch.shutil, "which", lambda nome: None)
-        monkeypatch.setattr(orch.subprocess, "run", proibido_run)
+        monkeypatch.setattr(orch.subprocess, "Popen", proibido_popen)
         spec = CliSpec(nome="Falso", binario="fantasma", args_antes=("run",))
         assert orch.executar_cli(spec, "PROMPT") is None
+
+    def test_executar_cli_timeout_mata_o_grupo(self, monkeypatch) -> None:
+        """Timeout: o grupo INTEIRO morre — sem CLI órfã mexendo no repo.
+
+        Regressão de 09/10 (APK 4049): o runtime da CLI sobrevivia ao kill do
+        processo direto e completava o trabalho sem validação nenhuma.
+        """
+        mortos: list[tuple[int, int]] = []
+
+        class ProcessoEstourado:
+            pid = 4242
+            returncode = None
+
+            def communicate(self, timeout=None):
+                raise orch.subprocess.TimeoutExpired(cmd="falso", timeout=timeout or 0)
+
+            def wait(self, timeout=None):
+                return 0
+
+        monkeypatch.setattr(orch.shutil, "which", lambda nome: "/usr/bin/" + nome)
+        monkeypatch.setattr(orch.subprocess, "Popen", lambda *a, **k: ProcessoEstourado())
+        monkeypatch.setattr(orch.os, "getpgid", lambda pid: 777)
+        monkeypatch.setattr(
+            orch.os, "killpg", lambda pgid, sinal: mortos.append((pgid, sinal))
+        )
+
+        spec = CliSpec(nome="Falso", binario="falso", args_antes=("run",))
+        saida = orch.executar_cli(spec, "PROMPT", timeout_s=1)
+
+        assert saida is None
+        assert mortos and mortos[0] == (777, orch.signal.SIGTERM)  # grupo morto
+
+    def test_cli_timeout_configuravel_pelo_env(self, monkeypatch) -> None:
+        """O teto vem do .env (OD_DEV_CLI_TIMEOUT_S) — pedido do dono 10/10.
+
+        'Para você desenvolver um pedido é necessário 1 hora e às vezes mais'
+        — o 600 s fixo matava toda sessão real no meio.
+        """
+        assert orch.CLI_TIMEOUT_S == int(orch.os.environ.get("OD_DEV_CLI_TIMEOUT_S", "7200"))
+        assert orch.CLI_TIMEOUT_S >= 3600  # piso de uma hora de trabalho real
 
     def test_executar_cli_usa_caminho_candidato_sem_path(self, monkeypatch) -> None:
         """Serviço sem ~/.npm-global no PATH: o candidato resolve a CLI."""
         vistos: dict[str, object] = {}
 
-        class FalsoCompleted:
+        class FalsoProcesso:
             returncode = 0
-            stdout = "x = 2\n"
-            stderr = ""
 
-        def falso_run(comando, **kwargs):
+            def communicate(self, timeout=None):
+                return "x = 2\n", ""
+
+        def falso_popen(comando, **kwargs):
             vistos["comando"] = comando
-            return FalsoCompleted()
+            return FalsoProcesso()
 
         monkeypatch.setattr(orch.shutil, "which", lambda nome: None)
-        monkeypatch.setattr(orch.subprocess, "run", falso_run)
+        monkeypatch.setattr(orch.subprocess, "Popen", falso_popen)
         monkeypatch.setattr(
             orch.Path, "is_file", lambda self: ".npm-global" in str(self)
         )
@@ -505,6 +553,42 @@ class TestExecutarSessao:
         assert not any(
             "Análise da ideia" in m["texto"] for m in _caixa_de(tmp_path)
         )
+
+    def test_cli_lenta_grava_decorrido_no_disco(self, tmp_path: Path) -> None:
+        """Batimento (10/10): CLI demorada re-grava o estado com o tempo.
+
+        O dono reclamou que a sessão parecia TRAVADA em "EXECUTANDO" durante
+        uma implementação de 1 h — o estado só era gravado no início e no fim.
+        """
+        estado_file = tmp_path / "estado.json"
+        vistos: list[int] = []
+
+        def cli_lenta(spec, prompt: str) -> str:
+            # A thread do batimento tem de gravar ENQUANTO a CLI roda.
+            for _ in range(20):
+                if estado_file.exists():
+                    dados = json.loads(estado_file.read_text(encoding="utf-8"))
+                    if dados.get("decorrido_s") is not None:
+                        vistos.append(dados["decorrido_s"])
+                        break
+                time.sleep(0.05)
+            return "pronto: implementado"
+
+        # Batimento rápido de propósito — o teste não espera 15 s. A constante
+        # é lida no módulo orquestrador (default do argumento), então é lá que
+        # se troca.
+        antigo = orch.SESSAO_HEARTBEAT_S
+        orch.SESSAO_HEARTBEAT_S = 0.02
+        try:
+            estado = _rodar_sessao(tmp_path, executar=cli_lenta)
+        finally:
+            orch.SESSAO_HEARTBEAT_S = antigo
+
+        assert estado["status"] == "concluido"
+        assert vistos, "o batimento não gravou decorrido_s durante a CLI"
+        assert isinstance(vistos[0], int)
+        # Limpo no fim: a sessão fechada não deixa lixo de batimento.
+        assert "decorrido_s" not in estado
 
     def test_todas_as_clis_falham(self, tmp_path: Path) -> None:
         estado = _rodar_sessao(
