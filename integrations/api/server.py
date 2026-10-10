@@ -771,7 +771,6 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       <button id="sess-parar" class="danger">⏹ Parar</button>
       <select id="sess-cli" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:0.85rem">
         <option value="auto">CLI: automática (cascata)</option>
-        <option value="freebuff">Freebuff</option>
         <option value="opencode">OpenCode</option>
         <option value="kilo">Kilo</option>
       </select>
@@ -4240,12 +4239,14 @@ class APIHandler(BaseHTTPRequestHandler):
     # --- Sessão de desenvolvimento on-demand (2026-10-08) -----------------
 
     #: CLIs aceitas no seletor do painel (mesmas opções do `--cli` do runner).
-    SESSAO_CLIS = ("auto", "freebuff", "opencode", "kilo")
+    #: 'freebuff' saiu em 10/10: a 0.2.22 ficou interativa apenas (ver
+    #: orquestrador.CLIS) — aceitá-la aqui devolveria 400 em todo clique.
+    SESSAO_CLIS = ("auto", "opencode", "kilo")
 
     def admin_dev_sessao(self) -> None:
         """POST /admin/dev/sessao — ativa/para UMA sessão de desenvolvimento.
 
-        Body: {"acao": "ativar"|"parar", "cli"?: "auto"|"freebuff"|"opencode"|"kilo"}
+        Body: {"acao": "ativar"|"parar", "cli"?: "auto"|"opencode"|"kilo"}
 
         `ativar` exige ideia no txt.txt (400 `sem_ideia`), nenhuma sessão
         viva (409 `sessao_ativa`), uma CLI válida (400 `cli_invalida`) e que

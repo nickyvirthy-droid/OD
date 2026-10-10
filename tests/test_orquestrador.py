@@ -2,9 +2,10 @@
 OMEGA DRAKON • TESTS
 Módulo: tests/test_orquestrador.py
 Descrição: testes do orquestrador de CLIs de IA (orquestrador.py) —
-           cascata Freebuff → OpenCode → Kilo e o MODO SESSÃO
-           on-demand (ideia do dono no txt.txt). A fila pedido.txt
-           foi removida a pedido do dono (2026-10-8).
+           cascata OpenCode → Kilo e o MODO SESSÃO on-demand (ideia do
+           dono no txt.txt). A fila pedido.txt foi removida a pedido do
+           dono (2026-10-8); o Freebuff saiu da cascata em 2026-10-10
+           (0.2.22 interativa apenas).
 
 Baseado em:
   - orquestrador.py
@@ -24,6 +25,11 @@ from core.dev_canal import (
     ideia_ja_implementada,
     registrar_ideia,
 )
+from integrations.api.server import APIHandler
+
+#: Seletor do painel — precisa casar com CLI_SESSAO_OPCOES do orquestrador
+#: (o 400 `cli_invalida` do servidor é a outra metade do contrato).
+CLIS_SESSAO_SERVER = APIHandler.SESSAO_CLIS
 from orquestrador import (
     CLIS,
     SESSAO_HEARTBEAT_S,
@@ -51,24 +57,27 @@ def _spec(nome: str) -> CliSpec:
 
 class TestCascataOficial:
     def test_ordem_e_contrato_das_clis(self) -> None:
-        """Contratos PROVADOS no ar (30/09, prova do serviço):
+        """Contratos PROVADOS no ar (10/10, canal de desenvolvimento):
 
-        - Freebuff: o wrapper público (0.2.1) só tem 'login'; o binário real
-          (~/.config/manicode/freebuff) aceita PROMPT posicional. 'ask'
-          dava 'too many arguments' → cascade inteira caía.
-        - OpenCode: 'run PROMPT' + modelo FREE (default 'build' →
-          'credit_balance_exhausted'); binário só em ~/.npm-global/bin.
-        - Kilo: 'run PROMPT --auto --pure' + modelo free (gemini → quota;
-          groq → TPM 8000 estourado pelo prompt de sistema).
+        - OpenCode: 'run --standalone --auto PROMPT' + modelo FREE (default
+          'build' → 'credit_balance_exhausted'); binário só em
+          ~/.npm-global/bin. O --standalone é OBRIGATÓRIO: sem ele a CLI se
+          conecta a um `opencode serve --service` compartilhado de fundo, e
+          quando esse serviço morre no meio da sessão a CLI morre junto
+          ("InterruptError: All fibers interrupted", exit=1).
+        - Kilo: 'run PROMPT --auto --pure' + modelo free. O
+          inclusionai/ling-3.0-flash-sante:free foi REMOVIDO do catálogo
+          (sobrou só a variante sem ':free', que exige chave) — toda sessão
+          morria com "Model not found".
+        - Freebuff SAIU (10/10): a 0.2.22 virou interativa apenas.
         """
         nomes = [spec.nome for spec in orch.CLIS]
-        assert nomes == ["Freebuff", "OpenCode", "Kilo"]
-        freebuff, opencode, kilo = orch.CLIS
-        assert freebuff.binario == "freebuff"
-        assert freebuff.args_antes == ()  # prompt posicional direto
-        assert freebuff.caminho_candidato.endswith(".config/manicode/freebuff")
+        assert nomes == ["OpenCode", "Kilo"]  # Freebuff fora
+        opencode, kilo = orch.CLIS
         assert opencode.binario == "opencode"
-        assert opencode.args_antes[:2] == ("run", "-m")
+        assert opencode.args_antes[0] == "run"
+        assert "--standalone" in opencode.args_antes  # sem ele: exit=1 no meio
+        assert "--auto" in opencode.args_antes  # sessão desanexada, sem humano
         assert "free" in orch.OPENCODE_MODELO  # default pago → sem créditos
         assert opencode.caminho_candidato.endswith(".npm-global/bin/opencode")
         assert kilo.binario == "kilo"
@@ -76,22 +85,56 @@ class TestCascataOficial:
         assert kilo.args_depois == ("--auto",)
         assert kilo.caminho_candidato.endswith(".npm-global/bin/kilo")
 
-    def test_comando_base_prefere_path_e_cai_para_candidato(self, monkeypatch) -> None:
-        """PATH primeiro; sem PATH, o candidato expandido e executável vence."""
+    def test_freebuff_fora_da_cascata_e_do_seletor(self) -> None:
+        """Guarda de regressão (10/10): o freebuff 0.2.22 só tem 'login'.
+
+        Toda sessão morria em ~1 s com
+        "error: command-argument value ... is invalid for argument 'command'".
+        """
+        assert all("freebuff" not in (s.binario, s.nome.lower()) for s in orch.CLIS)
+        assert "freebuff" not in orch.CLI_SESSAO_OPCOES
+        assert "freebuff" not in CLIS_SESSAO_SERVER
+
+    def test_kilo_modelo_gratuito_de_provedor_conhecido(self) -> None:
+        """Guarda de regressão (10/10): modelo que EXISTE no catálogo do Kilo.
+
+        O anterior sumiu do catálogo e a cascata inteira caía com
+        "Model not found" depois que o OpenCode falhava.
+        """
+        assert orch.KILO_MODELO.startswith("kilo/")
+        assert orch.KILO_MODELO.endswith(":free")  # sem ':free' exige chave
+
+    def test_comando_base_prefere_candidato_real_e_cai_para_path(self, monkeypatch) -> None:
+        """O CANDIDATO vence o PATH (mudança de 10/10).
+
+        Motivo: um `freebuff` wrapper v0.2.22 em /usr/local/bin foi
+        escolhido pelo `shutil.which` ANTES do binário real de
+        ~/.config/manicode — e a cascata inteira morria por causa dele.
+        O caminho candidato É a instalação que o orquestrador conhece.
+        """
         spec = CliSpec(
             nome="X",
             binario="fantasma",
             args_antes=(),
             caminho_candidato="~/caminho/fantasma",
         )
-        monkeypatch.setattr(orch.shutil, "which", lambda nome: None)
+        # Sem candidato → o binário do PATH (chamado pelo nome; o subprocesso
+        # herda o PATH — comportamento original mantido).
         monkeypatch.setattr(orch.Path, "is_file", lambda self: False)
-        assert spec.comando_base() == ["fantasma"]  # nada resolve → binário
+        monkeypatch.setattr(orch.shutil, "which", lambda nome: "/usr/bin/fantasma")
+        assert spec.comando_base() == ["fantasma"]
 
+        # Candidato existe e é executável → ele vence (mesmo com PATH).
         monkeypatch.setattr(orch.Path, "is_file", lambda self: True)
         monkeypatch.setattr(orch.os, "access", lambda p, m: True)
         base = spec.comando_base()
         assert len(base) == 1 and base[0].startswith("/")  # expandido absoluto
+        assert base[0].endswith("/caminho/fantasma")
+
+        # Nem candidato nem PATH → o binário cru (erro padrão).
+        monkeypatch.setattr(orch.Path, "is_file", lambda self: False)
+        monkeypatch.setattr(orch.shutil, "which", lambda nome: None)
+        assert spec.comando_base() == ["fantasma"]
 
     def test_env_keys_contrato(self) -> None:
         # As chaves do .env exigidas pelo instrucoes_projeto.txt.
@@ -349,6 +392,27 @@ class TestContextoRepositorio:
         assert len(sujos) == 2
         assert "orquestrador.py" in sujos[0]
 
+    def test_arvore_suja_ignora_backups_e_sandbox(self, monkeypatch) -> None:
+        """Guarda de regressão (10/10): resíduo de backup não é trabalho parcial.
+
+        Motivo: `backups/llm-cache-fakes-*.json` poluía o AVISO de árvore
+        suja de TODA sessão (o contexto avisava "1 arquivo(s) não
+        commitados" sem motivo) e escondia o trabalho real.
+        """
+        class FalsoResultado:
+            stdout = (
+                "?? backups/llm-cache-fakes-20261008-055830.json\n"
+                "?? .od_sandbox/temp.txt\n"
+                " M core/foo.py\n"
+                "?? codigo_novo.py\n"
+            )
+
+        monkeypatch.setattr(orch.subprocess, "run", lambda *a, **k: FalsoResultado())
+        sujos = _arvore_suja()
+        assert len(sujos) == 2  # backups/ e .od_sandbox/ fora
+        assert any("core/foo.py" in s for s in sujos)
+        assert any("codigo_novo.py" in s for s in sujos)
+
     def test_arvore_suja_limpa(self, monkeypatch) -> None:
         class FalsoResultado:
             stdout = ""
@@ -469,7 +533,7 @@ class TestResolverClis:
         assert resolver_clis("") == CLIS  # default do painel
 
     def test_nome_especifico_isola_a_cli(self) -> None:
-        assert [s.nome for s in resolver_clis("freebuff")] == ["Freebuff"]
+        assert [s.nome for s in resolver_clis("kilo")] == ["Kilo"]
         assert [s.nome for s in resolver_clis("Kilo")] == ["Kilo"]
         assert [s.nome for s in resolver_clis("opencode")] == ["OpenCode"]
 

@@ -6,7 +6,7 @@ Descrição: orquestrador de CLIs de IA do OmegaDrakon — MODO SESSÃO puro,
            sob demanda. Sobe com `--sessao` a partir do botão ▶ Ativar
            desenvolvimento do painel /admin: lê a ideia do DONO no `txt.txt`
            (o canal onde ele anota as atualizações do sistema), executa a
-           CLI em cascata (Freebuff → OpenCode → Kilo, ou a escolhida no
+           CLI em cascata (OpenCode → Kilo, ou a escolhida no
            seletor), pausa na caixa de desenvolvimento quando a CLI pede
            autorização ([AUTORIZACAO]), valida com a suíte canônica e
            commita SEM push.
@@ -65,7 +65,10 @@ OPENCODE_MODELO: str = "opencode/nemotron-3-ultra-free"
 
 #: Modelo grátis do provedor kilo (gemini default exige chave/quota; os
 #: modelos groq estouram o TPM 8000 do tier free com o prompt do sistema).
-KILO_MODELO: str = "kilo/inclusionai/ling-3.0-flash-sante:free"
+#: O `inclusionai/ling-3.0-flash-sante:free` foi REMOVIDO do catálogo do
+#: Kilo em 10/10 (sobrou só a variante sem ':free', que exige chave) —
+#: a sessão inteira morria com "Model not found". Este é free e provado.
+KILO_MODELO: str = "kilo/nvidia/nemotron-3-super-120b-a12b:free"
 
 #: Logger do módulo (padrão do projeto: logging, journald do usuário captura).
 log = logging.getLogger("orquestrador")
@@ -92,42 +95,47 @@ class CliSpec:
     caminho_candidato: str = ""
 
     def comando_base(self) -> list[str]:
-        """Executável resolvido: PATH primeiro, candidato depois.
+        """Executável resolvido: candidato primeiro, PATH depois.
 
-        Expande '~' do caminho_candidato; devolve o binário do PATH quando
-        existir, senão o candidato se existir, senão o binário (para o erro
-        de execução padrão ser o mesmo de antes).
+        Expande '~' do caminho_candidato. O CANDIDATO vem antes do PATH de
+        propósito (mudança de 10/10): em 10/10 um `freebuff` wrapper v0.2.22
+        havia sido instalado em /usr/local/bin e o `shutil.which` o escolhia
+        ANTES do binário real — toda sessão morria em ~1 s com
+        "Allowed choices are login". O caminho candidato É a instalação real
+        que o orquestrador conhece; o PATH é só o fallback.
         """
-        if shutil.which(self.binario):
-            return [self.binario]
         if self.caminho_candidato:
             candidato = Path(self.caminho_candidato).expanduser()
             if candidato.is_file() and os.access(candidato, os.X_OK):
                 return [str(candidato)]
+        if shutil.which(self.binario):
+            return [self.binario]
         return [self.binario]
 
 
-#: Cascata oficial de fallback — a ordem É a política (Freebuff primeiro).
+#: Cascata oficial de fallback — a ordem É a política.
+#:
+#: O Freebuff SAIU da cascata em 10/10: a versão 0.2.22 (tanto o wrapper de
+#: /usr/local/bin quanto o binário de ~/.config/manicode) virou INTERATIVA
+#: APENAS — `freebuff --help` mostra `command ... (choices: "login")` e
+#: nenhuma flag de prompt não-interativo. Toda chamada morria em ~1 s com
+#: "error: command-argument value ... is invalid for argument 'command'".
+#: Se um dia voltar a aceitar prompt posicional, é só religar aqui.
 CLIS: tuple[CliSpec, ...] = (
-    # Freebuff: wrapper Node sem subcomando de prompt não-interativo no
-    # PATH público (0.2.1 aceita só 'login'); o binário real
-    # (~/.config/manicode/freebuff) aceita PROMPT posicional direto.
-    CliSpec(
-        nome="Freebuff",
-        binario="freebuff",
-        args_antes=(),
-        caminho_candidato="~/.config/manicode/freebuff",
-    ),
-    # OpenCode: 'run PROMPT' — modelo grátis por padrão (o default 'build'
-    # usa OpenAI e morre sem créditos; o provedor opencode/* é free).
+    # OpenCode: 'run --standalone PROMPT'. A flag --standalone é OBRIGATÓRIA
+    # (10/10): sem ela a CLI se conecta a um `opencode serve --service`
+    # compartilhado de fundo, e quando esse serviço morre no meio da sessão
+    # a CLI morre junto com "InterruptError: All fibers interrupted" (exit=1)
+    # — foi o que derrubou a sessão das 13:42. Com --standalone cada sessão
+    # sobe seu próprio servidor privado. --auto aprova as permissões de
+    # ferramenta: a sessão é desanexada, ninguém estaria lá para responder.
     CliSpec(
         nome="OpenCode",
         binario="opencode",
-        args_antes=("run", "-m", OPENCODE_MODELO),
+        args_antes=("run", "--standalone", "--auto", "-m", OPENCODE_MODELO),
         caminho_candidato="~/.npm-global/bin/opencode",
     ),
-    # Kilo: 'run PROMPT --auto --pure' — modelo free do provedor kilo
-    # (gemini default exige chave/quota; groq default estoura o TPM).
+    # Kilo: 'run PROMPT --auto --pure' — modelo free do provedor kilo.
     CliSpec(
         nome="Kilo",
         binario="kilo",
@@ -236,11 +244,19 @@ def _buscar_no_codigo(palavras: list[str], base: Path = Path(".")) -> list[str]:
     return achados[:15]
 
 
+#: Prefixos de caminho que NÃO são trabalho parcial de sessão: só backup
+#: ou resíduo conhecido. Sem este filtro, o aviso de "árvore suja" virava
+#: ruído permanente (10/10: `backups/llm-cache-fakes-*.json` poluía o
+#: contexto de TODA sessão, escondendo o trabalho real).
+_ARVORE_IGNORE_PREFIXOS: tuple[str, ...] = ("backups/", ".od_sandbox/", "__pycache__/")
+
+
 def _arvore_suja() -> list[str]:
     """Arquivos alterados NÃO commitados (git status --porcelain).
 
     Uma sessão que falhou no meio pode ter deixado trabalho parcial na
     árvore — a próxima sessão precisa saber disso antes de codar.
+    Resíduos de backup/sandbox ficam de fora (ver _ARVORE_IGNORE_PREFIXOS).
     """
     try:
         saida = subprocess.run(
@@ -249,7 +265,15 @@ def _arvore_suja() -> list[str]:
         )
     except (OSError, subprocess.TimeoutExpired):
         return []
-    return [linha for linha in (saida.stdout or "").splitlines() if linha.strip()]
+    linhas: list[str] = []
+    for linha in (saida.stdout or "").splitlines():
+        if not linha.strip():
+            continue
+        caminho = linha[3:] if len(linha) > 3 else ""
+        if any(caminho.startswith(p) for p in _ARVORE_IGNORE_PREFIXOS):
+            continue
+        linhas.append(linha)
+    return linhas
 
 
 def _montar_contexto_repositorio(ideia: str) -> str:
@@ -437,7 +461,9 @@ SESSAO_POLL_S: float = 2.0
 SESSAO_HEARTBEAT_S: float = 15.0
 
 #: Seletor de CLI do painel (--cli); 'auto' = cascata oficial.
-CLI_SESSAO_OPCOES: tuple[str, ...] = ("auto", "freebuff", "opencode", "kilo")
+#: 'freebuff' saiu do seletor em 10/10 junto com a cascata (a 0.2.22 ficou
+#: interativa apenas); se voltar a aceitar prompt, é só religar nos dois.
+CLI_SESSAO_OPCOES: tuple[str, ...] = ("auto", "opencode", "kilo")
 
 #: Instrução de sistema do modo sessão — código puro NÃO é o contrato aqui:
 #: a CLI é um agente com ferramentas, que lê o repo e edita arquivos.
@@ -536,7 +562,7 @@ def extrair_analise(saida: str) -> str | None:
 def resolver_clis(escolha: str) -> tuple[CliSpec, ...]:
     """Resolve o seletor do painel para a cascata de execução.
 
-    'auto' → cascata oficial (Freebuff → OpenCode → Kilo); nome de uma CLI →
+    'auto' → cascata oficial (OpenCode → Kilo); nome de uma CLI →
     só ela; qualquer outra coisa → ValueError (o handler responde 400).
     """
     chave = (escolha or "auto").strip().lower()
@@ -1008,7 +1034,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--cli", default="auto", choices=CLI_SESSAO_OPCOES,
-        help="CLI do modo sessão (default: auto = cascata Freebuff→OpenCode→Kilo)",
+        help="CLI do modo sessão (default: auto = cascata OpenCode→Kilo)",
     )
     args = parser.parse_args(argv)
 
