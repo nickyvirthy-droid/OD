@@ -97,6 +97,11 @@ API_NAME = "Omega Drakon REST API"
 # Site do projeto (landing + APK) servido estaticamente em /site*.
 # Caminho padrão: pasta site/ na raiz do repo (config.site_dir sobrescreve).
 DEFAULT_SITE_DIR = Path(__file__).resolve().parents[2] / "site"
+# Páginas INTERNAS do dono (habilitar/autorizar o Google). Saíram de site/
+# em 2026-10-10: eram alcançáveis por qualquer um via /site/google_auth.html
+# e vazavam IP da rede local, o número do projeto Google, o client_id e o
+# caminho do token. Continuam existindo — só que atrás do gate de dono.
+DEFAULT_SITE_ADMIN_DIR = Path(__file__).resolve().parents[2] / "site_admin"
 
 # Shells de página (HTML estático, sem dados) — com page_shells_public,
 # continuam abertos para o navegador carregar a UI mesmo com auth_all.
@@ -257,6 +262,13 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/account/api-key", "account_api_key", True),
     # Admin — handlers exigem papel admin (403 para os demais)
     ("GET", "/admin/users", "admin_users", True),
+    # Páginas INTERNAS do dono (2026-10-10): antes eram /site/google_*.html,
+    # alcançáveis sem credencial pelo Funnel e vazavam IP local + client_id
+    # do projeto. Agora ficam em site_admin/ e o handler valida o dono.
+    # auth=False na rota porque a navegação é de navegador (link do painel);
+    # o gate real é o _require_owner_page() dentro do handler.
+    ("GET", "/admin/google/apis", "admin_google_apis", False),
+    ("GET", "/admin/google/auth", "admin_google_auth", False),
     ("POST", "/admin/users/{username}/password", "admin_reset_password", True),
     ("DELETE", "/admin/users/{username}", "admin_delete_user", True),
     ("POST", "/admin/cache/prune", "admin_cache_prune", True),
@@ -731,6 +743,19 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <div class="row" style="margin-top:8px">
       <button id="btn-refresh">↻ Atualizar</button>
       <span class="muted msg" id="sys-msg"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Google (Drive · Agenda · Gmail)</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Páginas internas de configuração. Saíram do site público em 2026-10-10
+      (vazavam IP local, o número do projeto e o client_id) — agora exigem a
+      sua sessão de dono. O link abre já com o token da sessão.
+    </p>
+    <div class="row">
+      <a id="g-apis" href="/admin/google/apis">⚙️ Habilitar as 3 APIs</a>
+      <a id="g-auth" href="/admin/google/auth" style="margin-left:12px">🔑 Autorizar o Google</a>
     </div>
   </section>
 
@@ -1461,7 +1486,17 @@ async function regChatApagar(id, mid) {
   } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); };
+// Páginas internas do Google: o link precisa do token da sessão na query
+// porque o navegador navega sem header — o handler valida e exige dono.
+function linkGoogle() {
+  if (!token) return;
+  ["g-apis", "g-auth"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.href = el.getAttribute("href").split("?")[0] + "?t=" + encodeURIComponent(token);
+  });
+}
+
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); linkGoogle(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
@@ -3267,8 +3302,11 @@ class APIHandler(BaseHTTPRequestHandler):
         """Arquivo do site (ex.: OmegaDrakon.apk) em GET /site/{file}."""
         self._serve_site_file(unquote(file))
 
-    def _serve_site_file(self, name: str) -> None:
+    def _serve_site_file(self, name: str, base: Optional[Path] = None) -> None:
         """Serve um arquivo de site/ com streaming (o APK tem ~50MB).
+
+        `base` permite servir de outro diretório (site_admin/ para as páginas
+        internas do dono) — a trava de path traversal vale igual para os dois.
 
         Segurança: resolve() + is_relative_to() antes de abrir — GET
         /site/../segredo ou /site/etc/passwd nunca escapa do diretório.
@@ -3286,7 +3324,11 @@ class APIHandler(BaseHTTPRequestHandler):
         attachment em arquivos que não são HTML (o APK baixa como arquivo,
         não abre no navegador).
         """
-        base = Path(self.api.config.site_dir or DEFAULT_SITE_DIR).resolve()
+        base = (
+            Path(self.api.config.site_dir or DEFAULT_SITE_DIR).resolve()
+            if base is None
+            else base.resolve()
+        )
         target = (base / name).resolve()
         if not target.is_relative_to(base) or not target.is_file():
             raise APIError(404, "not_found")
@@ -3341,7 +3383,11 @@ class APIHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
         if status == 206:
             self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
-        if ctype != "text/html":
+        # Attachment SÓ no que é download de verdade (APK e afins).
+        # CSS/JS precisam ser SERVIDOS como texto: sem isto, o navegador
+        # baixava od.css/od-nav.js em vez de aplicá-los e o menu
+        # compartilhado das páginas do site não carregava (10/10).
+        if ctype != "text/html" and not ctype.startswith("text/"):
             self.send_header(
                 "Content-Disposition",
                 f'attachment; filename="{target.name}"',
@@ -3808,6 +3854,63 @@ class APIHandler(BaseHTTPRequestHandler):
         self._json(200, {"ok": True, "api_key": new_key})
 
     # -- Admin — gestão de contas (papel admin, 403 para os demais) ---------
+
+    def _require_owner_page(self) -> None:
+        """Gate de páginas HTML INTERNAS do dono (site_admin/).
+
+        Diferente dos endpoints de dados, isto é navegado pelo browser (link
+        clicado no /admin) — browser não manda header, então o token da
+        sessão também é aceito na query `?t=<token>`; o /admin monta o link
+        já com o token guardado no navegador.
+
+        Só passa quem tem sessão de DONO (o _role() devolve admin apenas
+        para o username do dono). Nega também para conta de usuário comum.
+
+        Exceção herdada de _check_api_key: sem UserStore E sem OD_API_KEY a
+        auth está explicitamente desligada (dev local) — aí segue liberado,
+        como o resto do painel.
+        """
+        store = self.api._user_store
+        if store is None and not self.api.config.api_key:
+            return
+        token = ""
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+        if not token:
+            query = parse_qs(urlsplit(self.path).query)
+            token = (query.get("t") or [""])[0].strip()
+        user = store.validate_session(token) if (store is not None and token) else None
+        if user is None:
+            raise APIError(401, "acesso_restrito")
+        self._current_user = user
+        self._auth_via = "session"
+        if self._role() != "admin":
+            log.warn(
+                "Acesso à página interna negado (não é o dono)",
+                autenticado=user.username,
+                path=urlsplit(self.path).path,
+            )
+            raise APIError(403, "acesso_negado")
+
+    def admin_google_apis(self) -> None:
+        """GET /admin/google/apis — habilitar as 3 APIs no projeto Google.
+
+        Página interna do dono: saiu de /site/ (acessível sem credencial)
+        e passou a exigir conta de dono — v. _require_owner_page().
+        """
+        self._require_owner_page()
+        self._serve_site_file("google_apis.html", DEFAULT_SITE_ADMIN_DIR)
+
+    def admin_google_auth(self) -> None:
+        """GET /admin/google/auth — autorizar o OAuth (Drive/Agenda/Gmail).
+
+        Página interna do dono: saiu de /site/ (acessível sem credencial e
+        pelo Funnel público) e passou a exigir conta de dono — v.
+        _require_owner_page(). Vazava IP local, client_id e caminho do token.
+        """
+        self._require_owner_page()
+        self._serve_site_file("google_auth.html", DEFAULT_SITE_ADMIN_DIR)
 
     def _require_admin(self) -> None:
         """403 para quem NÃO é admin (dono pela OD_API_KEY/sessão própria).

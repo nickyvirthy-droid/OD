@@ -139,7 +139,7 @@ class TestAPIRoutes:
         /admin/limitacoes (v1.13.0 — canal do dono no txt.txt + Casa de
         Limitações) + /admin/dev/sessao e /admin/dev/caixa (2026-10-08 —
         sessão de desenvolvimento on-demand + caixa de autorização)."""
-        assert len(ROUTES) == 62
+        assert len(ROUTES) == 64
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -148,6 +148,12 @@ class TestAPIRoutes:
             ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("GET", "/app/version"),
+            # Páginas internas do dono (2026-10-10): saíram de /site/ (onde
+            # qualquer um as alcançava pelo Funnel) para site_admin/. A rota
+            # é pública porque a navegação é de navegador; o gate real é o
+            # _require_owner_page() dentro do handler (exige sessão de dono).
+            ("GET", "/admin/google/apis"),
+            ("GET", "/admin/google/auth"),
             ("GET", "/registry/{codigo}"),
             ("GET", "/registry/{codigo}/photo"),
             ("GET", "/registry/{codigo}/chat"),
@@ -238,6 +244,10 @@ class TestAPIRoutes:
             ("GET", "/registry/{codigo}/chat"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/anon/message"),
+            # Páginas internas do dono: rota pública (navegação de navegador),
+            # gate no handler — v. test_routes_mirror_legacy.
+            ("GET", "/admin/google/apis"),
+            ("GET", "/admin/google/auth"),
         }
 
 
@@ -532,6 +542,116 @@ class TestAPISite:
         srv2 = serve(None, config=cfg2)
         status, _, _ = _request(srv2.bound_port, "GET", "/site")
         assert status == 401
+
+
+# ===========================================================================
+# Páginas internas do dono — site_admin/ (2026-10-10)
+# ===========================================================================
+
+class TestPaginasInternasDoDono:
+    """As páginas do Google saíram de /site/ e agora exigem conta de dono.
+
+    Motivo (auditoria de segurança do site, 2026-10-10): /site/google_auth.html
+    e /site/google_apis.html eram alcançáveis SEM credencial — inclusive pelo
+    Funnel público — e continham o IP da rede local (192.168.0.250), instruções
+    de scp/ssh, o número do projeto Google, o client_id OAuth e o caminho do
+    token. Este teste trava as duas metades da correção: o vazamento sumiu do
+    site público, e o acesso interno continua funcionando para o dono.
+    """
+
+    def _dono_e_comum(self, serve, tmp_path: Path):
+        """Sobe o servidor com dono + conta comum, e devolve os dois tokens."""
+        from integrations.api.auth import UserStore
+        db = Database(tmp_path / "roles.db")
+        store = UserStore(db)
+        store.register("comum", "comum@example.com", "senha-comum-123")
+        store.register("dono", "dono@example.com", "senha-dono-123")
+        cfg = APIConfig(
+            port=0, rate_limit_max=0, user_store=store,
+            owner_username="dono",
+            site_dir=str(Path("site").resolve()),
+        )
+        srv = serve(None, config=cfg)
+        toks = {}
+        for u in ("dono", "comum"):
+            _s, body, _h = _request(
+                srv.bound_port, "POST", "/auth/login",
+                body={"username": u, "password": f"senha-{u}-123"},
+            )
+            assert _s == 200, body
+            toks[u] = _json_response((_s, body, _h))["token"]
+        return srv, toks
+
+    def test_vazamento_sumiu_do_site_publico(self, serve, tmp_path: Path,
+                                             monkeypatch) -> None:
+        """Sem credencial nenhuma, as duas páginas antigas não existem mais."""
+        monkeypatch.chdir(Path(__file__).resolve().parents[1])
+        from integrations.api.auth import UserStore
+        db = Database(tmp_path / "roles.db")
+        store = UserStore(db)
+        store.register("dono", "dono@example.com", "senha-dono-123")
+        cfg = APIConfig(
+            port=0, rate_limit_max=0, user_store=store,
+            owner_username="dono",
+            site_dir=str(Path("site").resolve()),
+        )
+        srv = serve(None, config=cfg)
+        for antiga in ("/site/google_auth.html", "/site/google_apis.html"):
+            status, _, _ = _request(srv.bound_port, "GET", antiga)
+            assert status == 404, f"{antiga} ainda é pública"
+
+    def test_dono_abre_pela_query_sem_header(self, serve, tmp_path: Path,
+                                             monkeypatch) -> None:
+        """O navegador navega sem header: o dono abre com ?t=<token>.
+
+        É o caminho real do painel — o /admin monta o link já com o token da
+        sessão guardada no navegador.
+        """
+        monkeypatch.chdir(Path(__file__).resolve().parents[1])
+        srv, toks = self._dono_e_comum(serve, tmp_path)
+        status, body, _ = _request(
+            srv.bound_port, "GET",
+            "/admin/google/auth?t=" + toks["dono"],
+        )
+        assert status == 200
+        assert b"Autorizar o Google" in body
+        status, body, _ = _request(
+            srv.bound_port, "GET",
+            "/admin/google/apis?t=" + toks["dono"],
+        )
+        assert status == 200
+        assert b"Habilitar as APIs" in body
+
+    def test_conta_comum_e_anonimo_negados(self, serve, tmp_path: Path,
+                                           monkeypatch) -> None:
+        """Conta comum não é o dono → 403; sem token → 401."""
+        monkeypatch.chdir(Path(__file__).resolve().parents[1])
+        srv, toks = self._dono_e_comum(serve, tmp_path)
+        # Conta comum, mesmo com sessão válida: 403 (não é o dono).
+        status, _, _ = _request(
+            srv.bound_port, "GET",
+            "/admin/google/auth?t=" + toks["comum"],
+        )
+        assert status == 403
+        # Sem token algum: 401.
+        status, _, _ = _request(srv.bound_port, "GET", "/admin/google/auth")
+        assert status == 401
+        # Token inventado: 401.
+        status, _, _ = _request(
+            srv.bound_port, "GET", "/admin/google/auth?t=token-inventado"
+        )
+        assert status == 401
+
+    def test_dev_local_sem_auth_continua_aberto(self, serve,
+                                                tmp_path: Path) -> None:
+        """Sem UserStore e sem OD_API_KEY a auth está desligada (dev local)."""
+        cfg = APIConfig(
+            port=0, rate_limit_max=0,
+            site_dir=str(Path("site").resolve()),
+        )
+        srv = serve(None, config=cfg)
+        status, _, _ = _request(srv.bound_port, "GET", "/admin/google/auth")
+        assert status == 200
 
 
 # ===========================================================================

@@ -1,0 +1,327 @@
+/* ---------------------------------------------------------------------------
+   OMEGA DRAKON — folha compartilhada do site (2026-10-10)
+   ---------------------------------------------------------------------------
+   Identidade canônica: Preto Profundo #0A0A0A + Azul Elétrico #0088FF,
+   Orbitron (títulos) + Montserrat (texto). Traços angulares, sem ornamento
+   sem função (Legado/OMEGA_DRAKON/01_NUCLEO_DA_MARCA/2. Identidade Visual.md).
+
+   Antes disto cada página carregava o próprio <style> e o MENU se duplicava
+   em 8 lugares — o dono mudou o menu duas vezes em 2 dias e as páginas
+   divergiram (o pedido 1 do txt.txt: "Divisória NAV está cortando os textos
+   do Menu"). Agora o menu vive só aqui.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --bg: #0A0A0A;
+  --bg2: #111111;
+  --bg3: #171717;
+  --grafite: #2C2C2C;
+  --azul: #0088FF;
+  --azul-soft: rgba(0, 136, 255, .14);
+  --texto: #F2F2F2;
+  --muted: #9aa3b2;
+  --border: #2C2C2C;
+  --border-lit: #3a4a5c;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg); color: var(--texto);
+  line-height: 1.65; font-weight: 300;
+}
+h1, h2, h3, .brand, .stat b { font-family: 'Orbitron', 'Montserrat', sans-serif; }
+h2 { font-size: 1.6rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+h3 { font-weight: 700; letter-spacing: .06em; }
+a { color: var(--azul); text-decoration: none; }
+img { max-width: 100%; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+/* --- Nav + menu ⋮ (2026-10-10) ------------------------------------------
+   O menu antigo era uma fileira de 10 links inline que ESTOURAVA a altura
+   fixa de 62px e cortava o texto em telas médias (pedido do dono). Agora a
+   nav tem só a marca + o botão ⋮ — o MESMO ícone de "três pontos" do app —
+   e os links abrem num painel deslizante. Cabe em qualquer tela.          */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(10,10,10,.92); backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+nav .wrap { display: flex; align-items: center; gap: 14px; height: 62px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800;
+  letter-spacing: .14em; color: var(--texto); font-size: .95rem; }
+.brand img { width: 32px; height: 32px; }
+nav .nav-spacer { margin-left: auto; }
+
+/* Botão ⋮ — mesmo desenho do menu de três pontos do app. */
+.nav-toggle {
+  width: 42px; height: 42px; border-radius: 8px;
+  background: transparent; border: 1px solid var(--border-lit);
+  color: var(--texto); cursor: pointer; font-size: 1.3rem; line-height: 1;
+  display: grid; place-items: center; transition: border-color .18s, background .18s;
+}
+.nav-toggle:hover, .nav-toggle[aria-expanded="true"] {
+  border-color: var(--azul); background: var(--azul-soft);
+}
+.nav-toggle .dots { letter-spacing: 0; }
+
+/* Painel do menu. */
+.nav-panel {
+  position: fixed; top: 62px; right: 0; left: 0; z-index: 99;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  max-height: calc(100vh - 62px); overflow-y: auto;
+  transform: translateY(-8px); opacity: 0; visibility: hidden;
+  transition: opacity .2s, transform .2s, visibility .2s;
+}
+.nav-panel.aberto { transform: none; opacity: 1; visibility: visible; }
+.nav-panel .wrap { padding-top: 10px; padding-bottom: 18px; }
+.nav-panel a {
+  display: block; padding: 13px 4px; color: var(--texto);
+  font-size: .88rem; letter-spacing: .1em; text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+.nav-panel a:last-child { border-bottom: 0; }
+.nav-panel a:hover { color: var(--azul); }
+.nav-panel a.cta {
+  margin-top: 14px; background: var(--azul); color: var(--bg);
+  border-radius: 5px; text-align: center; font-weight: 600;
+  border-bottom: 0; padding: 13px 16px;
+}
+.nav-panel a.cta:hover { color: var(--bg); filter: brightness(1.12); }
+.nav-panel .grupo {
+  margin-top: 16px; color: var(--azul); font-size: .68rem;
+  letter-spacing: .28em; text-transform: uppercase;
+}
+
+/* --- Header ------------------------------------------------------------ */
+header {
+  padding: 130px 0 90px; text-align: center;
+  background:
+    radial-gradient(700px 340px at 50% 0%, rgba(0,136,255,.16), transparent 70%),
+    linear-gradient(180deg, #0d0d0d 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border);
+}
+header.compacto { padding: 110px 0 60px; }
+header .logo { width: 140px; height: 140px; margin-bottom: 24px;
+  filter: drop-shadow(0 0 34px rgba(0,136,255,.35)); }
+header h1 {
+  font-size: clamp(1.9rem, 5vw, 3.2rem); font-weight: 800;
+  letter-spacing: .18em; text-transform: uppercase;
+}
+.badge {
+  display: inline-block; border: 1px solid var(--border-lit); color: var(--muted);
+  font-size: .72rem; letter-spacing: .18em; text-transform: uppercase;
+  padding: 6px 14px; border-radius: 999px; margin-bottom: 20px;
+}
+.badge b { color: var(--azul); font-weight: 600; }
+.tagline { margin-top: 10px; color: var(--azul); letter-spacing: .3em;
+  text-transform: uppercase; font-size: .82rem; font-weight: 500; }
+.slogan { margin-top: 16px; color: var(--muted); font-style: italic; font-size: 1.02rem; }
+.migalha { margin-top: 18px; font-size: .78rem; color: var(--muted); letter-spacing: .08em; }
+.migalha a { color: var(--muted); }
+.migalha a:hover { color: var(--azul); }
+
+.hero-ctas { margin-top: 32px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.btn {
+  display: inline-block; padding: 13px 26px; border-radius: 5px;
+  letter-spacing: .12em; text-transform: uppercase; font-size: .8rem; font-weight: 600;
+}
+.btn-primary { background: var(--azul); color: var(--bg); }
+.btn-primary:hover { filter: brightness(1.12); }
+.btn-ghost { border: 1px solid var(--border-lit); color: var(--texto); }
+.btn-ghost:hover { border-color: var(--azul); color: var(--azul); }
+.stats { margin-top: 48px; display: flex; justify-content: center; gap: 44px; flex-wrap: wrap; }
+.stat { text-align: center; }
+.stat b { display: block; font-size: 1.7rem; color: var(--texto); font-weight: 700; }
+.stat span { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+
+/* --- Seções ------------------------------------------------------------ */
+section { padding: 80px 0; border-bottom: 1px solid var(--border); }
+.sec-head { max-width: 760px; margin-bottom: 42px; }
+.sec-head .kicker { color: var(--azul); font-size: .72rem; letter-spacing: .3em; text-transform: uppercase; }
+.sec-head h2 { margin-top: 6px; }
+.sec-head p { margin-top: 14px; color: var(--muted); }
+
+/* --- Cartões ----------------------------------------------------------- */
+.grid { display: grid; gap: 18px; }
+.g4 { grid-template-columns: repeat(4, 1fr); }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.g2 { grid-template-columns: repeat(2, 1fr); }
+.card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 26px; transition: transform .18s, border-color .18s;
+}
+.card:hover { transform: translateY(-3px); border-color: var(--border-lit); }
+.card .num { font-family: 'Orbitron', sans-serif; color: var(--azul);
+  font-size: .8rem; letter-spacing: .2em; }
+.card h3 { margin: 12px 0 8px; font-size: 1rem; text-transform: uppercase; }
+.card p { color: var(--muted); font-size: .92rem; }
+.tag {
+  display: inline-block; margin-top: 12px; font-size: .68rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--azul); border: 1px solid rgba(0,136,255,.4);
+  padding: 3px 10px; border-radius: 999px;
+}
+.tag.gray { color: var(--muted); border-color: var(--border-lit); }
+
+/* Cartão que É um link (Ecossistema → página própria). */
+a.card { display: block; color: inherit; }
+a.card:hover { border-color: var(--azul); }
+a.card .seta { display: block; margin-top: 14px; color: var(--azul);
+  font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; }
+
+blockquote {
+  margin-top: 44px; padding: 26px 30px; border-left: 3px solid var(--azul);
+  background: var(--bg2); border-radius: 0 8px 8px 0; color: var(--texto); font-size: 1.02rem;
+}
+blockquote footer { margin-top: 12px; color: var(--muted); font-size: .8rem;
+  letter-spacing: .12em; text-transform: uppercase; }
+.pleiade-note { margin-top: 26px; color: var(--muted); font-size: .9rem;
+  border-top: 1px dashed var(--border-lit); padding-top: 18px; }
+
+/* --- Download ---------------------------------------------------------- */
+.dl-card {
+  background: linear-gradient(160deg, rgba(0,136,255,.10), var(--bg2) 55%);
+  border: 1px solid var(--border-lit); border-radius: 10px; padding: 40px;
+  display: flex; gap: 34px; align-items: center; flex-wrap: wrap;
+}
+.dl-card img { width: 120px; height: 120px; }
+.dl-info { flex: 1; min-width: 260px; }
+.dl-info h3 { font-size: 1.2rem; text-transform: uppercase; letter-spacing: .1em; }
+.dl-info p { color: var(--muted); margin: 10px 0 18px; font-size: .92rem; }
+.dl-links { display: flex; gap: 12px; flex-wrap: wrap; }
+.dl-meta { margin-top: 16px; font-size: .78rem; color: var(--muted); letter-spacing: .06em; }
+
+/* --- Sobre ------------------------------------------------------------- */
+.sobre-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 34px; }
+.sobre-cols p { color: var(--muted); margin-bottom: 14px; }
+.status-panel { background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 26px; }
+.status-panel dt { font-size: .7rem; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--muted); margin-top: 14px; }
+.status-panel dt:first-child { margin-top: 0; }
+.status-panel dd { font-family: 'Orbitron', sans-serif; font-size: .92rem;
+  color: var(--texto); margin-top: 3px; }
+.status-panel dd .on { color: var(--azul); }
+.contato-linha { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 20px; }
+.contato-linha a { display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border-lit); border-radius: 6px; padding: 10px 16px;
+  color: var(--texto); font-size: .82rem; letter-spacing: .08em; }
+.contato-linha a:hover { border-color: var(--azul); color: var(--azul); }
+.contato-linha svg { width: 17px; height: 17px; fill: currentColor; }
+
+/* --- Fichas da Plêiade (2026-10-10) ------------------------------------
+   Pedido do dono: cada personalidade com ficha COMPLETA e foto. As fotos
+   ainda não existem no Legado — o espaço .ficha-foto já está pronto e
+   aceita a imagem no momento em que ele mandar (o CSS não muda).        */
+.ficha { display: flex; gap: 18px; align-items: flex-start; }
+.ficha-foto {
+  flex: 0 0 84px; width: 84px; height: 84px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, var(--bg3), var(--bg));
+  border: 1px solid var(--border-lit); display: grid; place-items: center;
+  color: var(--azul); font-family: 'Orbitron', sans-serif; font-size: 1.5rem;
+  font-weight: 700; overflow: hidden;
+}
+.ficha-foto img { width: 100%; height: 100%; object-fit: cover; }
+.ficha-corpo { flex: 1; min-width: 0; }
+.ficha-corpo h3 { margin: 0 0 4px; font-size: 1.02rem; text-transform: uppercase; }
+.ficha-cargo { color: var(--azul); font-size: .72rem; letter-spacing: .18em;
+  text-transform: uppercase; display: block; margin-bottom: 10px; }
+.ficha-corpo p { color: var(--muted); font-size: .9rem; margin-bottom: 10px; }
+.ficha-dl { margin: 0; font-size: .82rem; }
+.ficha-dl dt { color: var(--muted); font-size: .66rem; letter-spacing: .18em;
+  text-transform: uppercase; margin-top: 9px; }
+.ficha-dl dd { margin: 2px 0 0; color: var(--texto); font-size: .86rem; }
+
+/* --- Linha do tempo (histórico) ---------------------------------------- */
+.timeline { border-left: 2px solid var(--border-lit); margin-left: 8px; }
+.tl-item { position: relative; padding: 0 0 34px 30px; }
+.tl-item::before {
+  content: ""; position: absolute; left: -7px; top: 4px; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--azul); box-shadow: 0 0 12px rgba(0,136,255,.6);
+}
+.tl-item:last-child { padding-bottom: 0; }
+.tl-item .date { font-family: 'Orbitron', sans-serif; color: var(--azul);
+  font-size: .78rem; letter-spacing: .16em; }
+.tl-item h3 { margin: 6px 0; font-size: 1rem; text-transform: uppercase; }
+.tl-item p { color: var(--muted); font-size: .94rem; }
+.tl-item p + p { margin-top: 8px; }
+
+.card .era { color: var(--azul); font-family: 'Orbitron', sans-serif;
+  font-size: .72rem; letter-spacing: .18em; }
+.card .destino { display: inline-block; margin-top: 12px; font-size: .7rem;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--azul);
+  border: 1px solid rgba(0,136,255,.4); padding: 3px 10px; border-radius: 999px; }
+.fonte { margin-top: 30px; color: var(--muted); font-size: .82rem;
+  border-top: 1px dashed var(--border-lit); padding-top: 18px; }
+blockquote footer { margin-top: 12px; color: var(--muted); font-size: .78rem;
+  letter-spacing: .12em; text-transform: uppercase; }
+
+/* --- Linha do tempo de RELEASES (2026-10-10) ---------------------------
+   O CHANGELOG tem 2.737 linhas / 48 releases datados. O dono pediu para
+   organizar ("é tanto texto que só você pra organizar"): em vez de jogar a
+   lista crua na página, os 48 releases foram agrupados em 5 eras temáticas,
+   cada uma com o marco que resume o período.                          */
+.era-box { background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 24px 26px; margin-bottom: 16px;
+  transition: border-color .18s; }
+.era-box:hover { border-color: var(--border-lit); }
+.era-box > .era-top { display: flex; gap: 14px; align-items: baseline;
+  flex-wrap: wrap; border-bottom: 1px solid var(--border);
+  padding-bottom: 12px; margin-bottom: 14px; }
+.era-box .era-nome { font-family: 'Orbitron', sans-serif; color: var(--azul);
+  font-size: .82rem; letter-spacing: .16em; text-transform: uppercase; }
+.era-box .era-span { color: var(--muted); font-size: .74rem;
+  letter-spacing: .1em; margin-left: auto; }
+.era-box .era-marco { color: var(--texto); font-size: .95rem; margin-bottom: 14px; }
+.rel-lista { list-style: none; }
+.rel-lista li { display: grid; grid-template-columns: 92px 66px 1fr;
+  gap: 12px; padding: 7px 0; border-bottom: 1px dashed #1e1e1e;
+  font-size: .86rem; align-items: baseline; }
+.rel-lista li:last-child { border-bottom: 0; }
+.rel-lista .r-data { font-family: 'Orbitron', sans-serif; color: var(--muted);
+  font-size: .72rem; letter-spacing: .08em; }
+.rel-lista .r-ver { font-family: 'Orbitron', sans-serif; color: var(--azul);
+  font-size: .76rem; font-weight: 700; }
+.rel-lista .r-tit { color: var(--texto); }
+.rel-lista .r-tit::after { content: ""; }
+@media (max-width: 640px) {
+  .rel-lista li { grid-template-columns: 1fr; gap: 2px; padding: 10px 0; }
+}
+
+/* --- Rodapé ------------------------------------------------------------ */
+footer.site { padding: 54px 0 40px; }
+footer.site .f-brand { display: flex; align-items: center; gap: 12px; justify-content: center; }
+footer.site .f-brand img { width: 40px; height: 40px; }
+footer.site .f-brand span { font-family: 'Orbitron', sans-serif; letter-spacing: .2em; font-weight: 700; }
+footer.site .f-sig { text-align: center; margin-top: 16px; color: var(--muted); font-size: .82rem; }
+footer.site .f-links { text-align: center; margin-top: 18px; display: flex; gap: 22px;
+  justify-content: center; flex-wrap: wrap; }
+footer.site .f-links a { color: var(--muted); font-size: .76rem; letter-spacing: .14em; text-transform: uppercase; }
+footer.site .f-links a:hover { color: var(--azul); }
+footer.site .f-slogan { text-align: center; margin-top: 22px; color: var(--azul);
+  font-style: italic; letter-spacing: .1em; }
+
+/* --- Botão voltar ao topo ---------------------------------------------- */
+.to-top {
+  position: fixed; right: 24px; bottom: 24px; z-index: 60;
+  width: 46px; height: 46px; border-radius: 50%;
+  background: var(--azul-soft); border: 1px solid var(--azul);
+  color: var(--azul); font-size: 1.2rem; line-height: 1;
+  display: grid; place-items: center; cursor: pointer;
+  opacity: 0; visibility: hidden; transition: opacity .3s, visibility .3s, background .2s;
+  backdrop-filter: blur(6px);
+}
+.to-top.visivel { opacity: 1; visibility: visible; }
+.to-top:hover { background: var(--azul); color: var(--bg); }
+
+/* --- Responsivo -------------------------------------------------------- */
+@media (max-width: 1000px) {
+  .g4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 780px) {
+  .g4, .g3, .g2, .sobre-cols { grid-template-columns: 1fr; }
+  header { padding-top: 110px; }
+  .ficha { gap: 14px; }
+  .ficha-foto { flex-basis: 64px; width: 64px; height: 64px; font-size: 1.2rem; }
+}

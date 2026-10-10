@@ -9,45 +9,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site/od.css">
 <style>
+  /* Só o que é específico desta página (formulário, selo e sala da peça).
+     Base, nav, rodapé e "voltar ao topo" vêm de od.css. */
   :root {
-    --bg: #0A0A0A;
-    --bg2: #111111;
-    --bg3: #171717;
-    --grafite: #2C2C2C;
-    --azul: #0088FF;
-    --azul-soft: rgba(0, 136, 255, .14);
-    --texto: #F2F2F2;
-    --muted: #9aa3b2;
-    --border: #2C2C2C;
-    --border-lit: #3a4a5c;
     --verde: #37d67a;
     --ambar: #ffb02e;
     --vermelho: #ff5c5c;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--bg); color: var(--texto);
-    line-height: 1.65; font-weight: 300;
-    min-height: 100vh;
-  }
-  h1, h2, h3, .brand { font-family: 'Orbitron', 'Montserrat', sans-serif; }
-  a { color: var(--azul); text-decoration: none; }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
-
-  nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-    background: rgba(10,10,10,.82); backdrop-filter: blur(14px);
-    border-bottom: 1px solid var(--border);
-  }
-  nav .wrap { display: flex; align-items: center; gap: 18px; height: 62px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .14em; color: var(--texto); font-size: .95rem; }
-  .brand img { width: 30px; height: 30px; }
-  nav .links { margin-left: auto; display: flex; gap: 20px; flex-wrap: wrap; }
-  nav .links a { color: var(--muted); font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; }
-  nav .links a:hover { color: var(--texto); }
-
+  .wrap { max-width: 880px; }
   main { padding: 130px 0 70px; }
   .kicker { color: var(--azul); font-size: .72rem; letter-spacing: .3em; text-transform: uppercase; }
   h1 { font-size: clamp(1.6rem, 4.5vw, 2.4rem); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin-top: 10px; }
@@ -144,25 +115,11 @@
   .sala .login-note a { border-bottom: 1px dotted var(--azul); }
 
   .passos { margin-top: 44px; }
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
-  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 22px; }
   .card .num { font-family: 'Orbitron', sans-serif; color: var(--azul); font-size: .8rem; letter-spacing: .2em; }
   .card h3 { margin: 10px 0 6px; font-size: .9rem; text-transform: uppercase; }
   .card p { color: var(--muted); font-size: .86rem; }
 
-  footer { border-top: 1px solid var(--border); padding: 26px 0; margin-top: 40px; color: var(--muted); font-size: .78rem; text-align: center; }
-
-  .to-top {
-    position: fixed; right: 24px; bottom: 24px; z-index: 60;
-    width: 46px; height: 46px; border-radius: 50%;
-    background: var(--azul-soft); border: 1px solid var(--azul);
-    color: var(--azul); font-size: 1.2rem; line-height: 1;
-    display: grid; place-items: center; cursor: pointer;
-    opacity: 0; visibility: hidden; transition: opacity .3s, visibility .3s, background .2s;
-    backdrop-filter: blur(6px);
-  }
-  .to-top.visivel { opacity: 1; visibility: visible; }
-  .to-top:hover { background: var(--azul); color: var(--bg); }
+  footer.rodape { border-top: 1px solid var(--border); padding: 26px 0; margin-top: 40px; color: var(--muted); font-size: .78rem; text-align: center; }
 
   @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } .foto-peca { width: 100%; } }
 </style>
@@ -171,14 +128,26 @@
 
 <nav>
   <div class="wrap">
-    <a class="brand" href="/site"><img src="/site/logo.png" alt="Omega Drakon">OMEGA DRAKON</a>
-    <div class="links">
-      <a href="/site">Início</a>
-      <a href="/site/historico.html">Histórico</a>
-      <a href="/site#autenticidade">Autenticidade</a>
-    </div>
+    <a class="brand" href="/site"><img src="/site/simbolo_minimo.png" alt="OD"> OMEGA DRAKON</a>
+    <div class="nav-spacer"></div>
+    <button class="nav-toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="navPanel"><span class="dots">&#8942;</span></button>
   </div>
 </nav>
+<div class="nav-panel" id="navPanel">
+  <div class="wrap">
+    <a href="/site#marca">Marca</a>
+    <a href="/site#ecossistema">Ecossistema</a>
+    <a href="/site#sistemas">Sistemas</a>
+    <a href="/site#produtos">Produtos</a>
+    <a href="/site#autenticidade">Autenticidade</a>
+    <a href="/site/verificacao.html">Verificar peça</a>
+    <a href="/site/historico.html#historico">Histórico</a>
+    <a href="/site#pleiade">Plêiade</a>
+    <a href="/site#sobre">Sobre</a>
+    <a href="/chat">Chat</a>
+    <a class="cta" href="/site#download">Baixar APK</a>
+  </div>
+</div>
 
 <main class="wrap">
   <div class="kicker">Registro Mestre · Verificação pública</div>
@@ -227,7 +196,7 @@
     </div>
 
     <section class="sala" id="sala" style="display:none" aria-label="Sala de bate-papo da peça">
-      <h3>💬 Sala da peça</h3>
+      <h3>Sala da peça</h3>
       <p class="quem" id="sala-quem">Converse sobre esta peça: qualidade, detalhes, negociação direta.</p>
       <div class="msgs" id="msgs"></div>
       <p class="vazio" id="msgs-vazio">Nenhuma mensagem ainda — seja o primeiro a falar.</p>
@@ -236,7 +205,7 @@
   </div>
 
   <section class="passos" style="border:0; padding:0;">
-    <div class="grid">
+    <div class="grid g3">
       <div class="card">
         <span class="num">01</span>
         <h3>Leia o ID na peça</h3>
@@ -256,32 +225,15 @@
   </section>
 </main>
 
-<footer>
-  OMEGA DRAKON · Registro Mestre de Peças — autenticidade verificável por qualquer um · Interface Viva: Nicky Virthy
+<footer class="rodape">
+  <div class="wrap">
+    OMEGA DRAKON · Registro Mestre de Peças — autenticidade verificável por qualquer um · Interface Viva: Nicky Virthy
+  </div>
 </footer>
 
-<button class="to-top" id="toTop" aria-label="Voltar ao topo" title="Voltar ao topo">↑</button>
+<button class="to-top" id="toTop" aria-label="Voltar ao topo" title="Voltar ao topo">&#8593;</button>
 
-<script>
-(function () {
-  var btn = document.getElementById('toTop');
-  if (!btn) return;
-  var limite = 400;
-  var ticking = false;
-  window.addEventListener('scroll', function () {
-    if (ticking) return;
-    ticking = true;
-    window.requestAnimationFrame(function () {
-      btn.classList.toggle('visivel', window.scrollY > limite);
-      ticking = false;
-    });
-  }, { passive: true });
-  btn.addEventListener('click', function () {
-    var suave = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.scrollTo({ top: 0, behavior: suave ? 'smooth' : 'auto' });
-  });
-})();
-</script>
+<script src="/site/od-nav.js"></script>
 
 <script>
 (function () {

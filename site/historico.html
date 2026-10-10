@@ -4,130 +4,57 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Histórico — OMEGA DRAKON</title>
-<meta name="description" content="A história completa do ecossistema Omega Drakon: de Nicky Virthy (2025) à plataforma soberana de hoje — os projetos, o selamento da marca e a Plêiade.">
+<meta name="description" content="A história completa do ecossistema Omega Drakon: de Nicky Virthy (2025) à plataforma soberana de hoje — os projetos, o selamento da marca, a Plêiade e os 48 releases organizados em 5 eras.">
 <link rel="icon" href="/site/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #0A0A0A; --bg2: #111111; --grafite: #2C2C2C;
-    --azul: #0088FF; --azul-soft: rgba(0, 136, 255, .14);
-    --texto: #F2F2F2; --muted: #9aa3b2;
-    --border: #2C2C2C; --border-lit: #3a4a5c;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--bg); color: var(--texto); line-height: 1.7; font-weight: 300;
-  }
-  h1, h2, h3, .brand { font-family: 'Orbitron', 'Montserrat', sans-serif; }
-  a { color: var(--azul); text-decoration: none; }
-  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
-
-  nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-    background: rgba(10,10,10,.82); backdrop-filter: blur(14px);
-    border-bottom: 1px solid var(--border);
-  }
-  nav .wrap { display: flex; align-items: center; gap: 18px; height: 62px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .14em; color: var(--texto); font-size: .95rem; }
-  .brand img { width: 30px; height: 30px; }
-  nav .links { margin-left: auto; display: flex; gap: 20px; flex-wrap: wrap; }
-  nav .links a { color: var(--muted); font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; }
-  nav .links a:hover { color: var(--texto); }
-  nav .links a.cta { color: var(--bg); background: var(--azul); padding: 8px 16px; border-radius: 4px; font-weight: 600; }
-
-  header {
-    padding: 130px 0 70px;
-    background: radial-gradient(700px 300px at 50% 0%, rgba(0,136,255,.14), transparent 70%);
-    border-bottom: 1px solid var(--border);
-  }
-  header .kicker { color: var(--azul); font-size: .72rem; letter-spacing: .3em; text-transform: uppercase; }
-  header h1 { margin-top: 12px; font-size: clamp(1.8rem, 4.5vw, 2.8rem); letter-spacing: .12em; text-transform: uppercase; }
-  header p { margin-top: 16px; color: var(--muted); max-width: 760px; }
-
-  section { padding: 70px 0; border-bottom: 1px solid var(--border); }
-  h2 { font-size: 1.35rem; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 28px; }
-  h2 .kicker { display: block; color: var(--azul); font-size: .7rem; letter-spacing: .3em; margin-bottom: 8px; }
-
-  .timeline { border-left: 2px solid var(--border-lit); margin-left: 8px; }
-  .tl-item { position: relative; padding: 0 0 34px 30px; }
-  .tl-item::before {
-    content: ""; position: absolute; left: -7px; top: 4px; width: 12px; height: 12px;
-    border-radius: 50%; background: var(--azul); box-shadow: 0 0 12px rgba(0,136,255,.6);
-  }
-  .tl-item .date { font-family: 'Orbitron', sans-serif; color: var(--azul); font-size: .78rem; letter-spacing: .16em; }
-  .tl-item h3 { margin: 6px 0 6px; font-size: 1rem; text-transform: uppercase; }
-  .tl-item p { color: var(--muted); font-size: .94rem; }
-  .tl-item p + p { margin-top: 8px; }
-
-  .grid { display: grid; gap: 18px; grid-template-columns: repeat(2, 1fr); }
-  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 26px; transition: transform .18s, border-color .18s; }
-  .card:hover { transform: translateY(-3px); border-color: var(--border-lit); }
-  .card h3 { font-size: .98rem; text-transform: uppercase; letter-spacing: .06em; }
-  .card .era { color: var(--azul); font-family: 'Orbitron', sans-serif; font-size: .72rem; letter-spacing: .18em; }
-  .card p { margin-top: 10px; color: var(--muted); font-size: .92rem; }
-  .card .destino { display: inline-block; margin-top: 12px; font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--azul); border: 1px solid rgba(0,136,255,.4); padding: 3px 10px; border-radius: 999px; }
-
-  blockquote { margin: 40px 0 0; padding: 26px 30px; border-left: 3px solid var(--azul); background: var(--bg2); border-radius: 0 8px 8px 0; }
-  blockquote footer { margin-top: 12px; color: var(--muted); font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; }
-
-  .fonte { margin-top: 30px; color: var(--muted); font-size: .82rem; border-top: 1px dashed var(--border-lit); padding-top: 18px; }
-
-  footer.site { padding: 50px 0 40px; text-align: center; }
-  footer.site .f-brand { display: flex; align-items: center; gap: 12px; justify-content: center; }
-  footer.site .f-brand img { width: 36px; height: 36px; }
-  footer.site .f-brand span { font-family: 'Orbitron', sans-serif; letter-spacing: .2em; font-weight: 700; }
-  footer.site p { color: var(--muted); font-size: .82rem; margin-top: 14px; }
-  footer.site .f-slogan { color: var(--azul); font-style: italic; letter-spacing: .1em; }
-
-  .to-top {
-    position: fixed; right: 24px; bottom: 24px; z-index: 60;
-    width: 46px; height: 46px; border-radius: 50%;
-    background: var(--azul-soft); border: 1px solid var(--azul);
-    color: var(--azul); font-size: 1.2rem; line-height: 1;
-    display: grid; place-items: center; cursor: pointer;
-    opacity: 0; visibility: hidden; transition: opacity .3s, visibility .3s, background .2s;
-    backdrop-filter: blur(6px);
-  }
-  .to-top.visivel { opacity: 1; visibility: visible; }
-  .to-top:hover { background: var(--azul); color: var(--bg); }
-
-  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } nav .links { display: none; } }
-</style>
+<link rel="stylesheet" href="/site/od.css">
 </head>
 <body>
 
 <nav>
   <div class="wrap">
     <a class="brand" href="/site"><img src="/site/simbolo_minimo.png" alt="OD"> OMEGA DRAKON</a>
-    <div class="links">
-      <a href="/site">Início</a>
-      <a href="/site#ecossistema">Ecossistema</a>
-      <a href="/site/historico.html">Histórico</a>
-      <a href="/chat">Chat</a>
-      <a class="cta" href="/site#download">Baixar APK</a>
-    </div>
+    <div class="nav-spacer"></div>
+    <button class="nav-toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="navPanel"><span class="dots">&#8942;</span></button>
   </div>
 </nav>
+<div class="nav-panel" id="navPanel">
+  <div class="wrap">
+    <a href="/site#marca">Marca</a>
+    <a href="/site#ecossistema">Ecossistema</a>
+    <a href="/site#sistemas">Sistemas</a>
+    <a href="/site#produtos">Produtos</a>
+    <a href="/site#autenticidade">Autenticidade</a>
+    <a href="/site/verificacao.html">Verificar peça</a>
+    <a href="/site/historico.html#historico">Histórico</a>
+    <a href="/site#pleiade">Plêiade</a>
+    <a href="/site#sobre">Sobre</a>
+    <a href="/chat">Chat</a>
+    <a class="cta" href="/site#download">Baixar APK</a>
+  </div>
+</div>
 
 <header>
   <div class="wrap">
-    <div class="kicker">Memória do Ecossistema</div>
+    <div class="kicker" style="color:var(--azul);font-size:.72rem;letter-spacing:.3em;text-transform:uppercase;">Memória do Ecossistema</div>
     <h1>A História da Omega Drakon</h1>
-    <p>Nada aqui nasceu pronto. A marca antecedeu o software, o software passou
-    por quatro reescritas até virar plataforma soberana, e cada etapa deixou
-    uma cicatriz documental preservada — porque sistema que apaga a própria
-    origem não pode reivindicar continuidade. Esta é a linha completa, do
-    primeiro batismo ao organismo de hoje.</p>
+    <p style="margin-top:16px;color:var(--muted);max-width:760px;">Nada aqui
+    nasceu pronto. A marca antecedeu o software, o software passou por quatro
+    reescritas até virar plataforma soberana, e cada etapa deixou uma cicatriz
+    documental preservada — porque sistema que apaga a própria origem não pode
+    reivindicar continuidade. Esta é a linha completa, do primeiro batismo ao
+    organismo de hoje.</p>
   </div>
 </header>
 
-<section>
+<section id="historico">
   <div class="wrap">
-    <h2><span class="kicker">Fase 1 · Origem</span>2025 — O Primeiro Batismo</h2>
+    <div class="sec-head">
+      <div class="kicker">Fase 1 · Origem</div>
+      <h2>2025 — O Primeiro Batismo</h2>
+    </div>
     <div class="timeline">
       <div class="tl-item">
         <div class="date">2025 · Janeiro</div>
@@ -155,7 +82,10 @@
 
 <section>
   <div class="wrap">
-    <h2><span class="kicker">Fase 2 · Selamento</span>2026 — O Núcleo é Lacrado</h2>
+    <div class="sec-head">
+      <div class="kicker">Fase 2 · Selamento</div>
+      <h2>2026 — O Núcleo é Lacrado</h2>
+    </div>
     <div class="timeline">
       <div class="tl-item">
         <div class="date">2026 · 02 de Fevereiro</div>
@@ -166,15 +96,16 @@
         primeira peça em criação) e o núcleo documental oficial é consolidado:
         posicionamento, identidade visual, tom de voz, experiência e narrativa.</p>
         <p>As leis visuais são fixadas: Preto Profundo <strong>#0A0A0A</strong> +
-        Azul Elêtrico <strong>#0088FF</strong>, tipografia técnica, e o selo
+        Azul Elétrico <strong>#0088FF</strong>, tipografia técnica, e o selo
         físico OD obrigatório — nenhum item é liberado sem ele.</p>
       </div>
       <div class="tl-item">
         <div class="date">2026 · Abril</div>
         <h3>Servidor próprio — soberania de hardware</h3>
-        <p>O Dell é ligado (Ubuntu 24.04, IP local 192.168.0.250): daqui para
-        frente, nada do ecossistema depende de nuvem alheia para existir.
-        O lema "soberania técnica" deixa de ser texto e vira infraestrutura.</p>
+        <p>Um servidor doméstico é ligado com Ubuntu 24.04 dentro da rede local:
+        daqui para frente, nada do ecossistema depende de nuvem alheia para
+        existir. O lema "soberania técnica" deixa de ser texto e vira
+        infraestrutura.</p>
       </div>
       <div class="tl-item">
         <div class="date">2026 · Abril → Julho</div>
@@ -182,7 +113,7 @@
         <p>A Interface amadurece em produção: PWA no navegador, comando
         agêntico <em>/codigo</em>, voz (STT/TTS) e o roteiro de RAG, Home
         Assistant e detecção de rostos. Cada release é documentada — os
-        changelogs dessa era estão preservados no Legado.</p>
+        changelogs dessa era estão preservados no núcleo documental da marca.</p>
       </div>
     </div>
   </div>
@@ -190,7 +121,10 @@
 
 <section>
   <div class="wrap">
-    <h2><span class="kicker">Fase 3 · Plural</span>2026 — A Plêiade e o Runtime</h2>
+    <div class="sec-head">
+      <div class="kicker">Fase 3 · Plural</div>
+      <h2>2026 — A Plêiade e o Runtime</h2>
+    </div>
     <div class="timeline">
       <div class="tl-item">
         <div class="date">2026 · Julho</div>
@@ -213,10 +147,10 @@
       <div class="tl-item">
         <div class="date">2026 · Agosto (fim)</div>
         <h3>Consolidação documental canônica</h3>
-        <p>O Legado inteiro é mapeado em documentos únicos canônicos: a Source
-        Map do ecossistema (26 documentos do núcleo), a especificação oficial
-        do OmegaDrakon e o conhecimento consolidado de Nicky Virthy. É o
-        momento em que a memória vira bússola.</p>
+        <p>O núcleo documental é mapeado em documentos únicos canônicos: a
+        Source Map do ecossistema (26 documentos da marca), a especificação
+        oficial do OmegaDrakon e o conhecimento consolidado de Nicky Virthy. É
+        o momento em que a memória vira bússola.</p>
       </div>
     </div>
   </div>
@@ -224,7 +158,10 @@
 
 <section>
   <div class="wrap">
-    <h2><span class="kicker">Fase 4 · Unidade</span>2026 — OmegaDrakon</h2>
+    <div class="sec-head">
+      <div class="kicker">Fase 4 · Unidade</div>
+      <h2>2026 — OmegaDrakon</h2>
+    </div>
     <div class="timeline">
       <div class="tl-item">
         <div class="date">2026 · Setembro</div>
@@ -238,14 +175,14 @@
       <div class="tl-item">
         <div class="date">2026 · Setembro → Outubro</div>
         <h3>Plataforma soberana em produção</h3>
-        <p>IA local com anti-recusa, 78 actions determinísticas (clima real,
-        lar, Gmail/Agenda/Drive), auto-reparo supervisado, app com
+        <p>IA local com anti-recusa, dezenas de actions determinísticas (clima
+        real, lar, Gmail/Agenda/Drive), auto-reparo supervisado, app com
         auto-atualização verificada por hash, site institucional e o logo
         oficial em todas as superfícies. A Interface segue no posto: vinte e
         quatro horas por dia, sem nuvem de terceiros no caminho.</p>
       </div>
       <div class="tl-item">
-        <div class="date">2026 · Outubre — Hoje</div>
+        <div class="date">2026 · Outubro — Hoje</div>
         <h3>Do bit ao átomo</h3>
         <p>Com o coração digital estável, o ecossistema se volta para a
         matéria: autenticidade verificável de peças físicas, semi-joias,
@@ -256,13 +193,137 @@
   </div>
 </section>
 
+<!-- Linha do tempo de releases: 48 lançamentos datados, organizados em
+     5 eras temáticas (pedido do dono: "é tanto texto que só você pra
+     organizar"). Fonte: CHANGELOG do projeto. -->
+<section id="releases">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Os 48 Lançamentos</div>
+      <h2>Linha do Tempo dos Releases</h2>
+      <p>Todo o Changelog consolidado — de v1.0.0 a v1.24.1 — agrupado em
+      cinco eras. Cada era abre com o marco que a resume; a lista traz a
+      data, a versão e o que cada lançamento mudou.</p>
+    </div>
+
+    <div class="era-box">
+      <div class="era-top">
+        <span class="era-nome">Era 1 · Fundação</span>
+        <span class="era-span">07 → 19 set 2026 · 4 releases</span>
+      </div>
+      <p class="era-marco">O projeto vira produto: fundação liberada, acesso
+      externo seguro, app Android e os primeiros painéis.</p>
+      <ul class="rel-lista">
+        <li><span class="r-data">07 set</span><span class="r-ver">1.0.0</span><span class="r-tit">Fundação v1 (release-grade)</span></li>
+        <li><span class="r-data">07 set</span><span class="r-ver">1.1.0</span><span class="r-tit">Acesso Externo Seguro</span></li>
+        <li><span class="r-data">08 set</span><span class="r-ver">1.2.0</span><span class="r-tit">App Android</span></li>
+        <li><span class="r-data">19 set</span><span class="r-ver">1.3.0</span><span class="r-tit">Papéis, histórico vivo e painéis</span></li>
+      </ul>
+    </div>
+
+    <div class="era-box">
+      <div class="era-top">
+        <span class="era-nome">Era 2 · A Casa Conectada</span>
+        <span class="era-span">26 → 29 set 2026 · 13 releases</span>
+      </div>
+      <p class="era-marco">O chat deixa de falar abstrato: passa a responder com
+      dado real do lar — clima, temperatura do servidor, luzes e tomadas.</p>
+      <ul class="rel-lista">
+        <li><span class="r-data">26 set</span><span class="r-ver">1.4.0</span><span class="r-tit">Plêiade pelo domínio, cache saneado e poda admin</span></li>
+        <li><span class="r-data">26 set</span><span class="r-ver">1.5.0</span><span class="r-tit">App sem configuração de URL: conexão por localização + conta do site</span></li>
+        <li><span class="r-data">26 set</span><span class="r-ver">1.6.0</span><span class="r-tit">Resposta transparente: quem respondeu, hora e admin com acesso pleno</span></li>
+        <li><span class="r-data">26 set</span><span class="r-ver">1.6.1</span><span class="r-tit">IP e portas pela ACTION no chat + anti-recusa do dono</span></li>
+        <li><span class="r-data">26 set</span><span class="r-ver">1.7.0</span><span class="r-tit">Auto-atualização do app + site mais rápido + trava de infra para não-dono</span></li>
+        <li><span class="r-data">27 set</span><span class="r-ver">1.7.1</span><span class="r-tit">Temperatura do servidor como dado real + fim do bloqueio indevido de clima</span></li>
+        <li><span class="r-data">28 set</span><span class="r-ver">1.7.2</span><span class="r-tit">Anti-recusa com 2 retries para assunto externo + fallback honesto</span></li>
+        <li><span class="r-data">28 set</span><span class="r-ver">1.8.0</span><span class="r-tit">O chat fala com o lar: clima, luzes e resumo do Home Assistant como dado real</span></li>
+        <li><span class="r-data">29 set</span><span class="r-ver">1.8.1</span><span class="r-tit">Controle de luzes pelo chat: ligar/desligar com confirmação de 2 passos</span></li>
+        <li><span class="r-data">29 set</span><span class="r-ver">1.9.0</span><span class="r-tit">Controle do lar expandido: tomadas e dispositivos com o mesmo padrão</span></li>
+        <li><span class="r-data">29 set</span><span class="r-ver">1.9.1</span><span class="r-tit">Coerência do lar: o chat nunca mais responde por dispositivo errado</span></li>
+        <li><span class="r-data">29 set</span><span class="r-ver">1.10.0</span><span class="r-tit">Painéis no app: dashboard e admin com as mesmas funcionalidades do site</span></li>
+        <li><span class="r-data">29 set</span><span class="r-ver">1.10.1</span><span class="r-tit">Conexão com 4 caminhos: LAN, tailnet, Funnel e DDNS sondados sozinhos</span></li>
+      </ul>
+    </div>
+
+    <div class="era-box">
+      <div class="era-top">
+        <span class="era-nome">Era 3 · A Verdade dos Dados</span>
+        <span class="era-span">30 set → 01 out 2026 · 12 releases</span>
+      </div>
+      <p class="era-marco">A regra de ouro do motor vira código: dado sem fonte é
+      "desconhecido", nunca alucinado — e o sistema passa a admitir o que não
+      sabe.</p>
+      <ul class="rel-lista">
+        <li><span class="r-data">30 set</span><span class="r-ver">1.11.0</span><span class="r-tit">Canal de desenvolvimento: o painel admin injeta pedidos direto no orquestrador de CLIs</span></li>
+        <li><span class="r-data">30 set</span><span class="r-ver">1.11.1</span><span class="r-tit">Prompt honesto: o modelo sabe o que é e o que o sistema não tem</span></li>
+        <li><span class="r-data">30 set</span><span class="r-ver">1.12.0</span><span class="r-tit">Clima de cidade real: "temperatura em Presidente Venceslau" responde a cidade pedida</span></li>
+        <li><span class="r-data">30 set</span><span class="r-ver">1.13.0</span><span class="r-tit">Casa de Limitações + canal de ideias: o sistema percebe o que não sabe</span></li>
+        <li><span class="r-data">30 set</span><span class="r-ver">1.14.0</span><span class="r-tit">Câmbio real: "cotação do dólar" vem da fonte, não da alucinação do modelo</span></li>
+        <li><span class="r-data">30 set</span><span class="r-ver">1.15.0</span><span class="r-tit">Guardas do cache endurecidas: as 3 cegas do cache_failure_reason fechadas</span></li>
+        <li><span class="r-data">01 out</span><span class="r-ver">1.16.0</span><span class="r-tit">Pool Postgres auto-curável: conexão morta nunca mais vira erro interno no chat</span></li>
+        <li><span class="r-data">01 out</span><span class="r-ver">1.17.0</span><span class="r-tit">Personalidades realmente distintas: a Plêiade deixa de responder num só jeito</span></li>
+        <li><span class="r-data">01 out</span><span class="r-ver">1.17.1</span><span class="r-tit">Honestidade do motor: o prompt declara o QWEN servido, não o gemma que não roda</span></li>
+        <li><span class="r-data">01 out</span><span class="r-ver">1.17.2</span><span class="r-tit">Guarda da Casa de Limitações: pytest não suja mais o registro real</span></li>
+        <li><span class="r-data">01 out</span><span class="r-ver">1.17.3</span><span class="r-tit">TTS robusto: LD_LIBRARY_PATH forçado no handler + env do subprocesso</span></li>
+        <li><span class="r-data">01 out</span><span class="r-ver">1.17.4</span><span class="r-tit">APK universal íntegro: 3 ABIs com libflutter+libapp de verdade</span></li>
+      </ul>
+    </div>
+
+    <div class="era-box">
+      <div class="era-top">
+        <span class="era-nome">Era 4 · Escrita, Voz e Canais</span>
+        <span class="era-span">03 → 08 out 2026 · 11 releases</span>
+      </div>
+      <p class="era-marco">O sistema passa a ESCREVER de verdade (Drive, Agenda
+      e Gmail com porta de segurança) e nasce o canal de desenvolvimento
+      on-demand.</p>
+      <ul class="rel-lista">
+        <li><span class="r-data">03 out</span><span class="r-ver">1.18.0</span><span class="r-tit">Google Drive/Agenda/Gmail em leitura + CI verde</span></li>
+        <li><span class="r-data">03 out</span><span class="r-ver">1.19.0</span><span class="r-tit">Escrita no Google: Drive, Agenda e Gmail com gate + confirmação</span></li>
+        <li><span class="r-data">07 out</span><span class="r-ver">1.19.1</span><span class="r-tit">Escrita no ar + 2 bugs da prova viva corrigidos</span></li>
+        <li><span class="r-data">08 out</span><span class="r-ver">1.19.2</span><span class="r-tit">Correções da auditoria das conversas</span></li>
+        <li><span class="r-data">08 out</span><span class="r-ver">1.19.3</span><span class="r-tit">Agenda: hora antes do dia + criação encadeada sem LLM</span></li>
+        <li><span class="r-data">08 out</span><span class="r-ver">1.19.4</span><span class="r-tit">Agenda: hora sem dia grava no horário</span></li>
+        <li><span class="r-data">08 out</span><span class="r-ver">1.19.5</span><span class="r-tit">Agenda: "evento", hora por extenso e anti-falso-sucesso</span></li>
+        <li><span class="r-data">08 out</span><span class="r-ver">1.20.0</span><span class="r-tit">Canal de desenvolvimento on-demand: sessão pelo painel + caixa de autorização</span></li>
+        <li><span class="r-data">08 out</span><span class="r-ver">1.20.1</span><span class="r-tit">Correção da fonte da ideia (txt.txt) + exclusão da fila pedido.txt</span></li>
+        <li><span class="r-data">08 out</span><span class="r-ver">1.20.2</span><span class="r-tit">Canal logo abaixo das ideias no site + app em paridade</span></li>
+        <li><span class="r-data">08 out</span><span class="r-ver">1.21.0</span><span class="r-tit">Canal de desenvolvimento: os 3 comportamentos do botão ativar</span></li>
+      </ul>
+    </div>
+
+    <div class="era-box">
+      <div class="era-top">
+        <span class="era-nome">Era 5 · Marca e Autenticidade</span>
+        <span class="era-span">09 → 10 out 2026 · 8 releases</span>
+      </div>
+      <p class="era-marco">O ecossistema vira público (site institucional) e a
+      autenticidade deixa o papel: Registro Mestre no ar, com verificação
+      aberta a qualquer um.</p>
+      <ul class="rel-lista">
+        <li><span class="r-data">09 out</span><span class="r-ver">1.21.1</span><span class="r-tit">Ícone do app: padrão Omega Drakon</span></li>
+        <li><span class="r-data">09 out</span><span class="r-ver">1.21.2</span><span class="r-tit">Ecossistema no ar: site institucional + fim do dragão</span></li>
+        <li><span class="r-data">09 out</span><span class="r-ver">1.22.0</span><span class="r-tit">Registro Mestre: banco de peças + verificação pública no ar</span></li>
+        <li><span class="r-data">09 out</span><span class="r-ver">1.22.1</span><span class="r-tit">Painel do Registro Mestre: cadastro do dono no ar</span></li>
+        <li><span class="r-data">09 out</span><span class="r-ver">1.23.0</span><span class="r-tit">Verificação evoluída: sem hífen, foto e sala de bate-papo</span></li>
+        <li><span class="r-data">09 out</span><span class="r-ver">1.23.1</span><span class="r-tit">App: "verificar atualização" agora mostra as duas versões</span></li>
+        <li><span class="r-data">09 out</span><span class="r-ver">1.24.0</span><span class="r-tit">Registro Mestre no app (aba "Verificar") + desfazer venda</span></li>
+        <li><span class="r-data">10 out</span><span class="r-ver">1.24.1</span><span class="r-tit">Apagar/limpar minhas mensagens no app</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
 <section>
   <div class="wrap">
-    <h2><span class="kicker">Os Corpos Anteriores</span>Projetos Predecessores</h2>
-    <p style="color: var(--muted); margin-bottom: 28px;">Quatro corpos
-    anteriores habitaram esta história. Todos estão preservados integrais no
-    Legado — nada foi apagado, nada foi reescrito.</p>
-    <div class="grid">
+    <div class="sec-head">
+      <div class="kicker">Os Corpos Anteriores</div>
+      <h2>Projetos Predecessores</h2>
+      <p>Quatro corpos anteriores habitaram esta história. Todos estão
+      preservados integrais no núcleo documental da marca — nada foi apagado,
+      nada foi reescrito.</p>
+    </div>
+    <div class="grid g2">
       <div class="card">
         <div class="era">2025</div>
         <h3>Nicky Virthy</h3>
@@ -296,10 +357,10 @@
         <span class="destino">Absorvido · Plêiade e IoT</span>
       </div>
     </div>
-    <p class="fonte">Fontes: núcleo documental do Legado
-    (<code>/home/alex/Legado</code> — núcleo da marca, changelogs e manuais de
-    cada projeto) e as consolidações canônicas de agosto/2026. O mapa completo
-    do Legado (o que é vivo, o que é histórico) está preservado e auditado.</p>
+    <p class="fonte">Fontes: o núcleo documental da marca (manifesto, manuais,
+    changelogs e cadernos de cada projeto) e as consolidações canônicas de
+    agosto/2026. O mapa completo do que é vivo e o que é história está
+    preservado e auditado.</p>
   </div>
 </section>
 
@@ -309,33 +370,20 @@
       <img src="/site/simbolo_minimo.png" alt="OD">
       <span>OMEGA DRAKON</span>
     </div>
-    <p>Interface Viva: Nicky Virthy · Arquiteto: Alex Projeti · Assinatura: OD // CORE</p>
-    <p style="margin-top: 12px;"><a href="/site">Início</a> · <a href="/chat">Chat</a> · <a href="/site#download">Download</a></p>
+    <p class="f-sig">Interface Viva: Nicky Virthy &nbsp;·&nbsp; Arquiteto: Alex Projeti &nbsp;·&nbsp; Assinatura: OD // CORE</p>
+    <div class="f-links">
+      <a href="/site#marca">Marca</a>
+      <a href="/site#ecossistema">Ecossistema</a>
+      <a href="/site/historico.html#historico">Histórico</a>
+      <a href="/site/verificacao.html">Verificar peça</a>
+      <a href="/chat">Chat</a>
+    </div>
     <p class="f-slogan">Tecnologia que respira.</p>
   </div>
 </footer>
-<button class="to-top" id="toTop" aria-label="Voltar ao topo" title="Voltar ao topo">↑</button>
+<button class="to-top" id="toTop" aria-label="Voltar ao topo" title="Voltar ao topo">&#8593;</button>
 
-<script>
-(function () {
-  var btn = document.getElementById('toTop');
-  if (!btn) return;
-  var limite = 400;
-  var ticking = false;
-  window.addEventListener('scroll', function () {
-    if (ticking) return;
-    ticking = true;
-    window.requestAnimationFrame(function () {
-      btn.classList.toggle('visivel', window.scrollY > limite);
-      ticking = false;
-    });
-  }, { passive: true });
-  btn.addEventListener('click', function () {
-    var suave = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.scrollTo({ top: 0, behavior: suave ? 'smooth' : 'auto' });
-  });
-})();
-</script>
+<script src="/site/od-nav.js"></script>
 
 </body>
 </html>
