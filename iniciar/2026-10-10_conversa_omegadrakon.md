@@ -262,3 +262,101 @@ mudança no painel é HTML servido — nenhum APK nem `/site` publicado mudou.
 
 **Para o dono:** o canal está pronto — pode mandar as correções pontuais do
 site quando quiser.
+
+---
+
+## Lote 4 — Site: os 12 pedidos pontuais (txt.txt do dono, 10/10)
+
+**Pedido do dono:** lista de correções no site público — menu cortando texto,
+Ecossistema com página própria por frente, Produtos apontando para as mesmas,
+histórico organizado, Plêiade em ficha completa com foto, Sobre com link no
+chat e ícone de e-mail, rodapé limpo, e "verificar se está seguro".
+
+### Menu ⋮ (o pedido 1)
+
+A causa real: o menu era uma **fileira de 10 links inline** com a nav em
+altura fixa de 62px. Em telas médias o `max-width:900px` escondia a fileira
+inteira — e o dono via o texto "cortado". Troquei por **marca + botão de três
+pontos** (o mesmo ícone do app); os links abrem num painel deslizante. Cabe em
+qualquer tela, Esc/clique-fora fecha.
+
+### CSS e JS compartilhados (decisão de arquitetura)
+
+O menu se **duplicava em 8 páginas** e o dono já tinha mudado o menu duas
+vezes em 2 dias — as páginas divergiram. Agora `site/od.css` +
+`site/od-nav.js` concentram nav, rodapé, cards e "voltar ao topo".
+
+Para isso o servidor precisou mudar: `_serve_site_file` aplicava
+`Content-Disposition: attachment` em **tudo que não era HTML**, então um
+`.css`/`.js` externo *baixava* em vez de carregar. Passou a ser attachment só
+no que não é `text/*` — o APK continua baixando normal.
+
+### PHP? (o dono perguntou)
+
+Não. `which php php-fpm nginx apache2` → nada instalado (0 pacotes). Seriam
+**duas stacks** para manter, e o site perderia a integração com auth,
+Registro Mestre e Funnel — que são do mesmo processo Python. O problema real
+eram **3 linhas** de Content-Disposition. Respondido com evidência e segui.
+
+### Ecossistema e Produtos
+
+5 frentes, 5 páginas próprias (`ecossistema-*.html`), geradas por
+`tools/gerar_ecossistema.py` para que nav e rodapé fiquem idênticos. Cada uma
+tem escopo e **estado real** — FAB "em estruturação", Living Systems
+"conceitual, sem protótipo", Nicoly Valentina "em criação". Nada de promessa
+de prazo que não exista. Os cartões do Ecossistema **e** os do Produtos
+apontam para as mesmas páginas.
+
+O gerador foi para `tools/` e não para `site/`: qualquer `.py` dentro de
+`site/` seria baixado por qualquer visitante via `/site/<arquivo>`.
+
+### Histórico — o changelog que só eu organizo
+
+O dono avisou: "tem os arquivos de história da marca e os changelog, é tanto
+texto que só você pra organizar". O `CHANGELOG.md` tem **2.737 linhas com 48
+releases datados**. Extraí todos e organizei em **5 eras temáticas**, cada uma
+abrindo com o marco que a resume:
+
+1. **Fundação** (07–19 set) — v1.0.0 → v1.3.0
+2. **A Casa Conectada** (26–29 set) — o chat passa a responder com dado real
+3. **A Verdade dos Dados** (30 set–01 out) — "dado sem fonte é desconhecido"
+4. **Escrita, Voz e Canais** (03–08 out) — Drive/Agenda/Gmail + canal on-demand
+5. **Marca e Autenticidade** (09–10 out) — site no ar + Registro Mestre
+
+### Plêiade em fichas completas
+
+7 fichas, cada uma com domínio, registro, **o que NUNCA faz** e a frase-
+assinatura — tudo tirado do bloco de voz canônico de cada perfil
+(`agents/nicky_virthy/personality.py`), não inventado. O espaço da foto já
+existe (`.ficha-foto`): quando o dono mandar os retratos, troca-se uma linha
+e o CSS não muda.
+
+### Segurança (pedido 5 e 7)
+
+Auditoria achou **vazamento real**. `/site/google_auth.html` e
+`/site/google_apis.html` eram alcançáveis **sem credencial** — inclusive pelo
+**Funnel público** — e continham:
+
+- o IP da rede local (`192.168.0.250`) e instruções de `scp`/`ssh` para dentro da casa
+- o número do projeto Google e o `client_id` OAuth
+- o caminho do token (`data/google_token.json`)
+
+Saíram de `site/` para `site_admin/` e agora exigem **sessão de dono**. Como
+o navegador navega sem header, o token também é aceito em `?t=`, e o `/admin`
+monta o link já com a sessão.
+
+`historico.html` também expunha o IP local e um caminho absoluto do
+filesystem — ambos removidos.
+
+### Validação
+
+- **HTML:** 8 páginas · 0 tags abertas, 0 âncoras quebradas, 0 🐉
+- **Suíte:** `2414 passed / 16 skipped` (+4 guardas novas que travam o vazamento)
+- **Ao vivo (local e pelo Funnel público):** `/site/google_*.html` → **404** ·
+  `/admin/google/auth` sem sessão → **401** · dono com `?t=` → **200** ·
+  conta comum → **403** · `od.css`/`od-nav.js` → `text/*` sem attachment ·
+  APK → continua `attachment`
+- **Deploy:** restart 15:42:29, PID 1142795, NRestarts=0, journal **0 erros**
+- **Commit:** `b3b86d8`, HEAD == origin/master
+
+**Pendência do dono:** as fotos da Plêiade (o espaço já está pronto).

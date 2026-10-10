@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-10T14:40:00",
+  "updated_at": "2026-10-10T15:45:15-03:00",
   "dev_canal_3_causas_raiz_2026_10_10": {
     "id": "dev_canal_3_causas_raiz_2026_10_10",
     "titulo": "Canal de desenvolvimento: 3 causas raiz da falha 'todas_as_clis_falharam'",
@@ -1497,12 +1497,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": {
-    "date": "2026-10-10",
-    "retomada": "Pedido do dono (chat): duas perguntas sobre o canal de desenvolvimento — (1) se estourar as 2h dá para continuar de onde parou? (2) se fizer um pedido sobre algo já implementado o sistema avisa ou recria? Exemplo: 'temperatura em SP' já existe, depois pedir 'temperatura no RJ'.",
-    "action": "Respondidas as duas perguntas com o código na mão e implementadas 3 melhorias (commit 164c5c1): (1) árvore suja detectada — git status --porcelain no início da sessão; se houver trabalho parcial de sessão anterior que falhou, a CLI é avisada para avaliar/retomar; (2) prompt anti-duplicata — instrução explícita: verificar se a funcionalidade já existe em OUTRA FORMA antes de criar; (3) busca por palavras-chave — extrai termos significativos do pedido (sem stopwords PT) e busca no código, injetando os achados como contexto no prompt. Prova real: 'temperatura no rio de janeiro' → achados em core/intents.py, core/orchestrator.py, tools/actions/actions.py. Validação: 72 testes orquestrador (+11) · suíte 2407 pass/16 skip. Backend only, sem bump, sem restart (orquestrador.py é spawned fresh por sessão).",
-    "next": "Sem pendência de código. Próximas ordens do dono: etapa 4 do item 2 (QR de posse + registro do comprador + loja), rotação de segredos (adiada) e itens 3/5 da pauta de divergências."
-  },
+  "last_turn": "2026-10-10T15:45:15-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
@@ -2087,5 +2082,52 @@
     ],
     "sem_bump": "Backend only — nenhuma mudança no app nem no site publicado; /app/version segue 1.24.1/2053 (o APK continua coerente).",
     "estado": "CONCLUÍDO E NO AR — próxima sessão do canal já nasce com 2h de teto, morte limpa de grupo, painel vivo, detecção de árvore suja e contexto anti-duplicata. txt.txt e Telegram avisados (regras 14/15)."
+  },
+  "site_lote_12_pedidos_2026_10_10": {
+    "quando": "2026-10-10T15:45:15-03:00",
+    "titulo": "Site: os 12 pedidos do dono (txt.txt 10/10) — menu, ecossistema, Plêiade e segurança",
+    "commit": "b3b86d8",
+    "servico": {
+      "reinicio": "15:42:29",
+      "pid": 1142795,
+      "n_restarts": 0,
+      "erros_journal": 0
+    },
+    "validacao": {
+      "pytest": "2414 passed / 16 skipped (era 2410 + 4 guardas novas)",
+      "html": "8 páginas · 0 tags abertas, 0 âncoras quebradas, 0 dragao",
+      "head_igual_origin": true
+    },
+    "o_que_mudou": {
+      "menu": "A nav era uma fileira de 10 links inline que estourava os 62px e CORTAVA o texto (max-width:900px escondia tudo). Agora e so a marca + botao de tres pontos (o mesmo do app); os links abrem em painel deslizante. Cabe em qualquer tela.",
+      "css_js_compartilhados": "site/od.css + site/od-nav.js — o menu se duplicava em 8 paginas e divergia. O servidor aplicava Content-Disposition: attachment em tudo que nao era HTML; agora so em text/* (APK continua baixando).",
+      "ecossistema": "5 frentes com pagina propria (Omega Drakon, Systems, FAB, Living Systems, Nicoly Valentina), com escopo e estado REAL. Produtos aponta para as mesmas paginas.",
+      "historico": "Changelog (2.737 linhas / 48 releases datados) organizado em 5 eras tematicas — Fundacao, Casa Conectada, Verdade dos Dados, Escrita/Voz/Canais, Marca/Autenticidade.",
+      "pleiade": "7 fichas completas (dominio, registro, o que NUNCA faz, frase-assinatura) tiradas do bloco de voz canonico de cada perfil. Espaco da foto pronto: o CSS nao muda quando os retratos chegarem.",
+      "seguranza": "google_auth.html e google_apis.html sairam de site/ para site_admin/ e exigem sessao de DONO. Vazavam IP da rede local, instrucoes de scp/ssh, numero do projeto Google, client_id OAuth e caminho do token — alcancaveis sem credencial pelo Funnel publico."
+    },
+    "guardas_novas": [
+      "paginas antigas em /site/ -> 404 (publico)",
+      "dono abre com ?t=<token> (navegador nao manda header) -> 200",
+      "conta comum com sessao valida -> 403",
+      "sem token ou token inventado -> 401"
+    ],
+    "arquivos": [
+      "site/od.css (novo)",
+      "site/od-nav.js (novo)",
+      "site/ecossistema-{omega-drakon,systems,fab,living-systems,nicoly-valentina}.html (novos)",
+      "tools/gerar_ecossistema.py (novo)",
+      "site/index.html",
+      "site/historico.html",
+      "site/verificacao.html",
+      "site/simbolo_minimo.png",
+      "site_admin/{google_auth,google_apis}.html (movidos de site/)",
+      "integrations/api/server.py",
+      "tests/test_api.py"
+    ],
+    "decisao_php": "Dono perguntou se mudava para PHP. NAO: 0 pacotes instalados (nem php, nem nginx/apache), seriam DUAS stacks, e o site perderia a integracao com auth/registry/Funnel do servidor Python unico. O problema real eram 3 linhas de Content-Disposition.",
+    "pendencia": [
+      "Fotos da Pleiade: dono vai mandar — CSS ja preparado"
+    ]
   }
 }
