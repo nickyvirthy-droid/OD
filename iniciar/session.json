@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-10T10:55:00",
+  "updated_at": "2026-10-10T13:40:00",
   "retomada_2026_10_09_lote_icone": {
     "lote_ecossistema_site_2026_10_09": {
       "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
@@ -2003,6 +2003,28 @@
       "rotação dos segredos antigos (adiada pelo dono até testes em produção)",
       "itens 3/5 da pauta de divergências (unificação de ID e ordem das frentes)"
     ]
+  },
+  "site_botao_topo_2026_10_10": {
+    "id": "site_botao_topo_2026_10_10",
+    "titulo": "Site — botão circular 'voltar ao topo' nas páginas compridas",
+    "data": "2026-10-10",
+    "pedido_dono": "no site as páginas são muito compridas. coloque aquele círculo que retorna ao topo. (txt.txt, regra 14)",
+    "retomada_verificada": "od-core PID 1106906 (10:29:32), journal 0 erros, /health 9/9 up, /supervision restarts 0 degraded [], HEAD e1b5784 == origin/master, árvore limpa (só resíduo conhecido backups/llm-cache-fakes-20261008-055830.json)",
+    "entregas": [
+      "botão circular fixo canto inferior direito (46px, --azul-soft + borda --azul, seta ↑, backdrop-filter) — identidade visual do site, sem cor nova",
+      "aparece só após rolar 400px (opacity/visibility + transição .3s); hover inverte para azul cheio; z-index 60 (acima da nav 50)",
+      "JS próprio por página (sem dependência externa): scroll throttled por requestAnimationFrame + passive:true; clique faz scrollTo smooth respeitando prefers-reduced-motion",
+      "acessibilidade: <button> de verdade com aria-label/title",
+      "historico.html ganhou a variável --azul-soft no :root (só faltava ali)",
+      "3 páginas: site/index.html, site/historico.html, site/verificacao.html (as 2 páginas Google têm 2–4 KB, não precisam)"
+    ],
+    "validacao": "Parser HTML hermético nas 3 páginas: 0 tags abertas, 0 erros de aninhamento, 0 âncoras quebradas, 0 🐉. Prova viva: /site/{index,historico,verificacao}.html → 200 com id=\"toTop\" nos 3 (local E Funnel). journal 0 erros, /supervision restarts 0.",
+    "sem_bump": "site servido pelo próprio servidor; app e API intocados (precedente do §2 do dia) — /app/version segue 1.24.1/2053",
+    "commits": [
+      "0985e63 site: botão circular 'voltar ao topo' nas 3 páginas compridas (index, historico, verificacao)"
+    ],
+    "estado": "CONCLUÍDO E NO AR — HEAD == origin/master; txt.txt e Telegram avisados",
+    "transcricao": "iniciar/2026-10-10_conversa_omegadrakon.md (§4)"
   },
   "dev_canal_timeout_2026_10_10": {
     "id": "dev_canal_timeout_2026_10_10",

@@ -171,3 +171,42 @@ a CLI vê onde a funcionalidade já existe antes de decidir criar.
 **Validação:** 72 testes do orquestrador (+11) · suíte completa 2407
 pass / 16 skip. Backend only — sem bump, sem restart (`orquestrador.py`
 é spawned fresh por sessão).
+
+## §4 — Botão "voltar ao topo" no site (~13:3x)
+
+**Pedido do dono (`txt.txt`, regra 14):** "no site as páginas são muito
+compridas. coloque aquele círculo que retorna ao topo."
+
+**Retomada verificada:** od-core active PID 1106906 (10:29:32), journal
+**0 erros**, `/health` all up (9/9), `/supervision` restarts 0 degraded [],
+HEAD `e1b5784` == origin/master, árvore limpa (só o resíduo conhecido
+`backups/llm-cache-fakes-20261008-055830.json`). Único pedido pendente =
+o do `txt.txt`.
+
+**Implementação (commit `0985e63`)** — botão circular em **site/index.html,
+site/historico.html e site/verificacao.html** (as 2 páginas Google têm
+só 2–4 KB, não precisam):
+
+- Círculo fixo canto inferior direito (46 px, `--azul-soft` + borda `--azul`,
+  seta ↑, `backdrop-filter`) — identidade visual do site, sem cor nova.
+- Aparece **só depois de rolar 400 px** (opacity/visibility, transição .3 s);
+  hover inverte para azul cheio. `z-index: 60` (acima da nav 50).
+- JS próprio por página (sem dependência externa): listener de scroll
+  **throttled por `requestAnimationFrame`** + `passive: true`; clique faz
+  `scrollTo({top:0, behavior:'smooth'})` respeitando
+  `prefers-reduced-motion`.
+- Acessibilidade: `<button>` de verdade com `aria-label`/`title`.
+- `historico.html` ganhou a variável `--azul-soft` no `:root` (só faltava
+  ali; index e verificacao já tinham).
+
+**Validação:**
+- Parser HTML hermético nas 3 páginas: **0 tags abertas, 0 erros de
+  aninhamento, 0 âncoras quebradas, 0 🐉**.
+- Prova viva: `/site/{index,historico,verificacao}.html` → **200** com
+  `id="toTop"` presente nos 3 — **local e pelo Funnel**.
+- **Sem bump de versão:** site servido pelo próprio servidor; app e API
+  intocados (precedente do §2).
+- journal 0 erros após o deploy · `/supervision` restarts 0.
+
+**Commit:** `0985e63 site: botão circular 'voltar ao topo' nas 3 páginas
+compridas` — HEAD == origin/master.
