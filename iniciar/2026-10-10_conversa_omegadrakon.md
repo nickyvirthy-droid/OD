@@ -210,3 +210,55 @@ só 2–4 KB, não precisam):
 
 **Commit:** `0985e63 site: botão circular 'voltar ao topo' nas 3 páginas
 compridas` — HEAD == origin/master.
+
+## §5 — Canal de desenvolvimento falhando de novo: 3 causas raiz (~14:0x–14:35)
+
+**Pedido do dono (chat):** "atualização funcionou. só que mais uma vez o
+canal de desenvolvimento falhou. tenho algumas correções pontuais no site,
+quando estiver ok vou te passando."
+
+**Investigação com o código e os logs em mãos** (`logs/dev_sessao.log` +
+`~/.local/share/opencode/log/opencode.log`):
+
+| # | CLI | Sintoma no log | Causa raiz |
+|---|---|---|---|
+| 1 | Freebuff | `exit=1` em ~1 s: `error: command-argument value ... is invalid for argument 'command'. Allowed choices are login.` | A 0.2.22 virou **interativa apenas** (tanto `/usr/local/bin/freebuff` quanto `~/.config/manicode/freebuff`) — sem flag de prompt. E o `shutil.which()` escolhia o wrapper do PATH **antes** do binário real que o orquestrador conhecia. |
+| 2 | OpenCode | `exit=1` em ~52 s: `InterruptError: All fibers interrupted` no `opencode serve --service` | A CLI conectava a um **serviço de fundo compartilhado**; quando ele morria no meio da sessão, a CLI morria junto. |
+| 3 | Kilo | `Model not found: kilo/inclusionai/ling-3.0-flash-sante:free` | O modelo foi **removido do catálogo** (sobrou só a variante sem `:free`, que exige chave). |
+
+Cascata inteira caía em ~53 s → `todas_as_clis_falharam` (as 2 últimas
+sessões do dono, 13:26 e 13:42).
+
+**Correções (commit `33907e3`):**
+
+1. **Freebuff fora** da cascata e do seletor do painel (com o motivo
+   documentado — se voltar a aceitar prompt, é só religar).
+2. **OpenCode ganhou `--standalone`** (servidor privado por sessão, sem
+   depender do serviço compartilhado) + `--auto` (sessão é desanexada,
+   ninguém estaria lá para aprovar permissão de ferramenta).
+3. **Kilo trocou o modelo** por `nvidia/nemotron-3-super-120b-a12b:free`
+   — testado no ar antes de trocar.
+4. `comando_base()` agora **prefere o caminho candidato** (a instalação
+   real) ao PATH — é o que faria o wrapper do Freebuff voltar a ser
+   escolhido no futuro.
+5. Bônus: o aviso de "árvore suja" **ignora `backups/` e `.od_sandbox/`** —
+   o resíduo `backups/llm-cache-fakes-*.json` poluía o contexto de TODA
+   sessão e escondia trabalho real.
+
+**Validação:**
+- **Testes do orquestrador 75 pass** (+4: cascata sem Freebuff, `--standalone`
+  obrigatório, modelo do Kilo free existente, filtro de `backups/`;
+  contrato de `comando_base()` invertido).
+- **Suíte completa 2410 pass / 16 skip** (82 s).
+- **Prova viva das 2 CLIs pelo caminho real do orquestrador** (`executar_cli`):
+  OpenCode `OK` em 5,8 s · Kilo `OK` em 11,4 s · cascata `auto` parou na
+  1ª tentativa (sem fallback necessário).
+- **Deploy:** restart 14:35:32, PID 1132548, NRestarts=0. `/health` 9/9 up ·
+  `/app/version` 1.24.1/2053 (sem bump — backend only) · `/supervision`
+  restarts 0 degraded [] · seletor do painel sem Freebuff · journal **0 erros**.
+
+**Sem bump de versão:** `orquestrador.py` é spawned fresh por sessão e o
+mudança no painel é HTML servido — nenhum APK nem `/site` publicado mudou.
+
+**Para o dono:** o canal está pronto — pode mandar as correções pontuais do
+site quando quiser.

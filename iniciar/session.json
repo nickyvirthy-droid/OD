@@ -1,7 +1,37 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-10T13:40:00",
+  "updated_at": "2026-10-10T14:40:00",
+  "dev_canal_3_causas_raiz_2026_10_10": {
+    "id": "dev_canal_3_causas_raiz_2026_10_10",
+    "titulo": "Canal de desenvolvimento: 3 causas raiz da falha 'todas_as_clis_falharam'",
+    "data": "2026-10-10",
+    "pedido_dono": "atualização funcionou. só que mais uma vez o canal de desenvolvimento falhou. tenho algumas correções pontuais no site, quando estiver ok vou te passando. (chat)",
+    "contexto": "Sessões do dono às 13:26 e 13:42 falharam em ~53s com todas_as_clis_falharam (transcrição §2/§3 consertaram timeout de 600s, mas as 3 CLIs da cascata estavam quebradas por motivos DIFERENTES).",
+    "causas_raiz": [
+      "1) FREEBUFF: a 0.2.22 (tanto /usr/local/bin/freebuff quanto ~/.config/manicode/freebuff) virou INTERATIVA APENAS — 'freebuff --help' mostra 'command ... (choices: login)' e nenhuma flag de prompt. Toda chamada morria em ~1s com \"error: command-argument value ... is invalid for argument 'command'\". E o shutil.which() escolhia o wrapper do PATH ANTES do binário real que o orquestrador conhecia.",
+      "2) OPENCODE: 'opencode run' conectava a um 'opencode serve --service' compartilhado de fundo; quando esse serviço morria no meio da sessão, a CLI morria junto — 'InterruptError: All fibers interrupted' (exit=1) no log do OpenCode (opencode.log, run do serviço). 52s de sessão perdida.",
+      "3) KILO: o modelo kilo/inclusionai/ling-3.0-flash-sante:free foi REMOVIDO do catálogo (sobrou só a variante sem ':free', que exige chave/quota) — 'Model not found'."
+    ],
+    "correcoes": [
+      "Freebuff FORA da cascata e do seletor (CLI_SESSAO_OPCOES, SESSAO_CLIS do servidor, <option> do painel) — com o motivo documentado; se voltar a aceitar prompt, é só religar nos dois",
+      "OpenCode ganhou --standalone (servidor PRIVADO por sessão, sem depender do serviço compartilhado) + --auto (sessão desanexada, ninguém para aprovar permissão de ferramenta)",
+      "Kilo trocou o modelo por nvidia/nemotron-3-super-120b-a12b:free — testado no ar ANTES de trocar",
+      "comando_base() agora prefere o caminho CANDIDATO (a instalação real) ao PATH — é o que faria o wrapper errado ser escolhido de novo no futuro",
+      "bônus: _arvore_suja() ignora backups/ e .od_sandbox/ — o resíduo backups/llm-cache-fakes-*.json poluía o aviso de árvore suja de TODA sessão (contexto '1 arquivo(s) não commitados' sem motivo)"
+    ],
+    "validacao": {
+      "testes_orquestrador": "75 pass (+4: cascata sem Freebuff, --standalone obrigatório, modelo do Kilo free existente, filtro de backups/) — contrato de comando_base() invertido no teste existente",
+      "suite_completa": "2410 passed / 16 skipped (82s)",
+      "prova_viva_clis": "executar_cli (caminho REAL do orquestrador): OpenCode 'OK' em 5.8s · Kilo 'OK' em 11.4s · cascata 'auto' parou na 1ª tentativa"
+    },
+    "deploy": "restart 14:35:32 — PID 1132548, NRestarts=0. /health 9/9 up · /app/version 1.24.1/2053 (sem bump, backend only) · /supervision restarts 0 degraded [] · seletor do painel SEM Freebuff · journal 0 erros",
+    "commits": [
+      "33907e3 fix(dev): canal de desenvolvimento — Freebuff fora, OpenCode --standalone, Kilo modelo free que existe"
+    ],
+    "estado": "CONCLUÍDO E NO AR — canal pronto; dono vai passar correções pontuais do site",
+    "transcricao": "iniciar/2026-10-10_conversa_omegadrakon.md (§5)"
+  },
   "retomada_2026_10_09_lote_icone": {
     "lote_ecossistema_site_2026_10_09": {
       "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
