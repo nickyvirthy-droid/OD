@@ -152,6 +152,18 @@
 
   footer { border-top: 1px solid var(--border); padding: 26px 0; margin-top: 40px; color: var(--muted); font-size: .78rem; text-align: center; }
 
+  .to-top {
+    position: fixed; right: 24px; bottom: 24px; z-index: 60;
+    width: 46px; height: 46px; border-radius: 50%;
+    background: var(--azul-soft); border: 1px solid var(--azul);
+    color: var(--azul); font-size: 1.2rem; line-height: 1;
+    display: grid; place-items: center; cursor: pointer;
+    opacity: 0; visibility: hidden; transition: opacity .3s, visibility .3s, background .2s;
+    backdrop-filter: blur(6px);
+  }
+  .to-top.visivel { opacity: 1; visibility: visible; }
+  .to-top:hover { background: var(--azul); color: var(--bg); }
+
   @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } .foto-peca { width: 100%; } }
 </style>
 </head>
@@ -247,6 +259,29 @@
 <footer>
   OMEGA DRAKON · Registro Mestre de Peças — autenticidade verificável por qualquer um · Interface Viva: Nicky Virthy
 </footer>
+
+<button class="to-top" id="toTop" aria-label="Voltar ao topo" title="Voltar ao topo">↑</button>
+
+<script>
+(function () {
+  var btn = document.getElementById('toTop');
+  if (!btn) return;
+  var limite = 400;
+  var ticking = false;
+  window.addEventListener('scroll', function () {
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(function () {
+      btn.classList.toggle('visivel', window.scrollY > limite);
+      ticking = false;
+    });
+  }, { passive: true });
+  btn.addEventListener('click', function () {
+    var suave = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: suave ? 'smooth' : 'auto' });
+  });
+})();
+</script>
 
 <script>
 (function () {
