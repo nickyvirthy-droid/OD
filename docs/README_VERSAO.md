@@ -7,6 +7,30 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.24.1] — APAGAR/LIMPAR MINHAS MENSAGENS NO APP 🜂 (2026-10-10)
+
+### 1. O que foi feito
+
+Pedido do dono no `txt.txt` (canal oficial, regra 14): "no site consigo apagar, limpar as minhas mensagens. quero fazer o mesmo pelo APP." O site já tinha "Limpar conversa" (apaga tudo no servidor); o app não tinha nada — o trabalho começou numa sessão anterior (5 arquivos sem commit) e foi concluído/validado nesta.
+
+| Peça | Entrega |
+|---|---|
+| **Limpar conversa** | Menu ⋮ (ao lado dos perfis) → "Limpar conversa" → confirmação dupla de intenção (diálogo) → `DELETE /history/me` → aviso com o total removido. Requer conta (sem credencial avisa). |
+| **Apagar uma mensagem** | Long press na bolha do USUÁRIO → "Apagar esta mensagem?" → `DELETE /history/me/messages/{id}` (rota já existente no servidor, gate `_check_owner` do próprio histórico). |
+| **ID no momento do apagar** | Mensagens escritas na sessão não têm `serverId` — nem os frames do streaming nem o `POST /message` devolvem ids. Em vez de trocar o protocolo, `OdApi.resolveUserMessageId()` consulta o histórico no apagar e localiza a última mensagem do usuário com o mesmo texto; assim o apagar vale para o que acabou de ser escrito. Sem candidata, só remove da tela (aviso honesto: "removida da conversa local"). |
+
+### 2. Verificação
+
+- `flutter analyze` → **0 issues** · `flutter test` → **157 passed / 2 skipped** (+5 testes: 4 de `resolveUserMessageId`, 1 widget do long press → diálogo → DELETE).
+- Suíte do servidor → **2393 passed / 16 skipped**.
+- **Fix de teste (causa raiz):** `tests/test_notifier.py` passou a isolar `OD_LOG_DIR` em fixture autouse — `test_restart_alert_emitted_once` lia o `logs/router_monitor.log` da máquina e falhava com `['restart', 'router:down']` a cada blip real de rede (o log registrou down 12:20:33 → up 12:21:32 durante a suíte).
+
+### 3. Pendências
+
+- Nenhuma do sistema. No app: as mensagens apagadas localmente (sem candidata no servidor) reapareceriam no próximo carregamento de histórico — comportamento documentado e avisado na tela.
+
+**Assinatura:** `OD // CORE`
+
 ## [1.24.0] — REGISTRO MESTRE NO APP (ABA "VERIFICAR") + DESFAZER VENDA 🜂 (2026-10-09)
 
 ### 1. O que foi feito

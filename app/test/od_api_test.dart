@@ -116,6 +116,130 @@ void main() {
       expect(await api.getHistory(), isEmpty);
     });
 
+    test('deleteHistoryMessage apaga uma mensagem (DELETE /history/me/messages/{id})', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/history/me/messages/42');
+        expect(request.method, 'DELETE');
+        expect(request.headers['Authorization'], 'Bearer tok-hist');
+        return jsonResponse({'ok': true, 'user_id': 'alex', 'message_id': 42});
+      }));
+      await api.setToken('tok-hist');
+      expect(await api.deleteHistoryMessage(42), isTrue);
+    });
+
+    test('deleteHistoryMessage sem credencial lança erro', () async {
+      final api = apiWith(MockClient((_) async => fail('não deveria chamar')));
+      expect(
+        () => api.deleteHistoryMessage(1),
+        throwsA(isA<OdApiError>().having((e) => e.message, 'message', contains('Credencial'))),
+      );
+    });
+
+    test('deleteHistoryMessage 404 lança erro', () async {
+      final api = apiWith(MockClient((_) async => jsonResponse(
+            {'ok': false, 'error': 'mensagem_inexistente'},
+            status: 404,
+          )));
+      await api.setToken('tok');
+      expect(
+        () => api.deleteHistoryMessage(999),
+        throwsA(isA<OdApiError>()
+            .having((e) => e.statusCode, 'status', 404)
+            .having((e) => e.message, 'message', contains('não encontrada'))),
+      );
+    });
+
+    test('deleteHistoryMessage 401 lança OdAuthError', () async {
+      final api = apiWith(MockClient((_) async => http.Response('', 401)));
+      await api.setToken('tok');
+      expect(
+        () => api.deleteHistoryMessage(1),
+        throwsA(isA<OdAuthError>()),
+      );
+    });
+
+    test('clearHistory apaga toda a conversa (DELETE /history/me)', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/history/me');
+        expect(request.method, 'DELETE');
+        expect(request.headers['Authorization'], 'Bearer tok-clear');
+        return jsonResponse({'ok': true, 'removed': 15});
+      }));
+      await api.setToken('tok-clear');
+      expect(await api.clearHistory(), 15);
+    });
+
+    test('clearHistory sem credencial lança erro', () async {
+      final api = apiWith(MockClient((_) async => fail('não deveria chamar')));
+      expect(
+        () => api.clearHistory(),
+        throwsA(isA<OdApiError>().having((e) => e.message, 'message', contains('Credencial'))),
+      );
+    });
+
+    test('clearHistory 401 lança OdAuthError', () async {
+      final api = apiWith(MockClient((_) async => http.Response('', 401)));
+      await api.setToken('tok');
+      expect(
+        () => api.clearHistory(),
+        throwsA(isA<OdAuthError>()),
+      );
+    });
+
+    test('clearHistory erro propaga OdApiError', () async {
+      final api = apiWith(MockClient((_) async =>
+          jsonResponse({'ok': false, 'error': 'falha_interna'}, status: 500)));
+      await api.setToken('tok');
+      expect(
+        () => api.clearHistory(),
+        throwsA(isA<OdApiError>()
+            .having((e) => e.statusCode, 'status', 500)
+            .having((e) => e.message, 'message', contains('Falha ao limpar'))),
+      );
+    });
+
+    test('resolveUserMessageId devolve o id da última msg do usuário igual', () async {
+      final api = apiWith(MockClient((request) async {
+        expect(request.url.path, '/history/me');
+        return jsonResponse({
+          'ok': true,
+          'user_id': 'alex',
+          'messages': [
+            {'role': 'user', 'content': 'oi od', 'ts': 1.0, 'id': 10},
+            {'role': 'assistant', 'content': 'oi!', 'ts': 2.0, 'id': 11},
+            {'role': 'user', 'content': 'oi od', 'ts': 3.0, 'id': 12},
+          ],
+        });
+      }));
+      await api.setToken('tok');
+      // Duas iguais: vale a MAIS RECENTE (12) — a que o usuário acabou de escrever.
+      expect(await api.resolveUserMessageId(' oi od '), 12);
+    });
+
+    test('resolveUserMessageId devolve null quando não há candidata', () async {
+      final api = apiWith(MockClient((_) async => jsonResponse({
+            'ok': true,
+            'user_id': 'alex',
+            'messages': [
+              {'role': 'user', 'content': 'outra coisa', 'ts': 1.0, 'id': 5},
+            ],
+          })));
+      await api.setToken('tok');
+      expect(await api.resolveUserMessageId('texto que não está lá'), isNull);
+    });
+
+    test('resolveUserMessageId sem credencial não chama a rede', () async {
+      final api = apiWith(MockClient((_) async => fail('não deveria chamar')));
+      expect(await api.resolveUserMessageId('oi'), isNull);
+    });
+
+    test('resolveUserMessageId devolve null quando o histórico falha', () async {
+      final api = apiWith(
+          MockClient((_) async => http.Response('', 500)));
+      await api.setToken('tok');
+      expect(await api.resolveUserMessageId('oi'), isNull);
+    });
+
     test('registro chama /auth/register', () async {
       final api = apiWith(MockClient((request) async {
         expect(request.url.path, '/auth/register');

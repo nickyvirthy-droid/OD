@@ -492,9 +492,81 @@ class OdApi {
               content: (m['content'] as String?) ?? '',
               ts: (m['ts'] as num?)?.toDouble(),
               answeredBy: (m['llm_used'] as String?) ?? '',
+              serverId: (m['id'] as num?)?.toInt(),
             ))
         .where((m) => m.content.isNotEmpty)
         .toList(growable: false);
+  }
+
+  /// Apaga UMA mensagem do histórico da conta (DELETE /history/me/messages/{message_id}).
+  ///
+  /// Exige sessão de conta (Bearer). Retorna true se a mensagem foi removida.
+  /// Lança [OdApiError] com statusCode 404 se a mensagem não existe ou não
+  /// pertence ao usuário, 401 se a sessão é inválida.
+  Future<bool> deleteHistoryMessage(int messageId) async {
+    if (!hasCredential) throw OdApiError('Credencial necessária para apagar mensagem');
+    final response = await _send(
+      'DELETE',
+      Uri.parse('$baseUrl/history/me/messages/$messageId'),
+    );
+    if (response.statusCode == 200) {
+      final data = _tryJson(response.body);
+      return data?['ok'] == true;
+    } else if (response.statusCode == 401) {
+      throw OdAuthError('Sessão inválida ou ausente');
+    } else if (response.statusCode == 404) {
+      throw OdApiError('Mensagem não encontrada', statusCode: 404);
+    } else {
+      throw OdApiError(
+        'Falha ao apagar mensagem: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  /// Apaga TODA a conversa da conta (DELETE /history/me).
+  ///
+  /// Exige sessão de conta (Bearer). Retorna o número de mensagens removidas.
+  /// Lança [OdApiError] com statusCode 401 se a sessão é inválida.
+  Future<int> clearHistory() async {
+    if (!hasCredential) throw OdApiError('Credencial necessária para limpar histórico');
+    final response = await _send(
+      'DELETE',
+      Uri.parse('$baseUrl/history/me'),
+    );
+    if (response.statusCode == 200) {
+      final data = _tryJson(response.body);
+      return (data?['removed'] as num?)?.toInt() ?? 0;
+    } else if (response.statusCode == 401) {
+      throw OdAuthError('Sessão inválida ou ausente');
+    } else {
+      throw OdApiError(
+        'Falha ao limpar histórico: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  /// Resolve o id no servidor da mensagem mais recente do usuário com o
+  /// mesmo [content] (DELETE /history/me/messages/{id} precisa do id).
+  ///
+  /// Mensagens escritas nesta sessão ainda não têm serverId: nem o
+  /// streaming (frames `done`) nem o POST /message devolvem ids. Em vez de
+  /// trocar o protocolo, o apagar pergunta ao histórico no momento do uso —
+  /// a última mensagem do USUÁRIO com texto idêntico é a candidata (ordem
+  /// cronológica do servidor). Devolve null quando não há candidata (a
+  /// chamada decide remover só localmente).
+  Future<int?> resolveUserMessageId(String content) async {
+    final alvo = content.trim();
+    if (alvo.isEmpty || !hasCredential) return null;
+    final history = await getHistory(limit: 100);
+    for (var i = history.length - 1; i >= 0; i--) {
+      final m = history[i];
+      if (m.isUser && m.serverId != null && m.content.trim() == alvo) {
+        return m.serverId;
+      }
+    }
+    return null;
   }
 
   // ------------------------------------------------------------------
@@ -1147,11 +1219,15 @@ class OdHistoryMessage {
   /// Quem/resposta gravada pelo servidor (llm_used do turno).
   final String answeredBy;
 
+  /// ID da mensagem no servidor (PK do banco).
+  final int? serverId;
+
   OdHistoryMessage({
     required this.role,
     required this.content,
     double? ts,
     this.answeredBy = '',
+    this.serverId,
   }) : timestamp = ts == null
             ? DateTime.now()
             : DateTime.fromMillisecondsSinceEpoch((ts * 1000).round());

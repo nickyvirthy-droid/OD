@@ -274,6 +274,117 @@ void main() {
       expect(find.textContaining('⚠️ Erro'), findsOneWidget);
     });
 
+    testWidgets('long press na msg do usuário apaga no servidor (usa o id)',
+        (tester) async {
+      final deletados = <String>[];
+      final api = OdApi(
+        baseUrl: 'http://od.test:8000',
+        apiKey: 'chave-teste',
+        client: MockClient((request) async {
+          if (request.url.path == '/history/me') {
+            return _json({
+              'ok': true,
+              'user_id': 'alex',
+              'messages': [
+                {
+                  'role': 'user',
+                  'content': 'pergunta velha',
+                  'ts': 1789477200.0,
+                  'id': 42,
+                },
+                {
+                  'role': 'assistant',
+                  'content': 'resposta velha',
+                  'ts': 1789477260.0,
+                  'id': 43,
+                },
+              ],
+            });
+          }
+          if (request.method == 'DELETE') {
+            deletados.add(request.url.path);
+            return _json({'ok': true, 'message_id': 42});
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+      await tester.pumpWidget(_wrap(ChatScreen(api: api)));
+      await tester.pumpAndSettle();
+
+      // Long press na bolha do usuário abre a confirmação.
+      await tester.longPress(find.text('pergunta velha'));
+      await tester.pumpAndSettle();
+      expect(find.text('Apagar esta mensagem?'), findsOneWidget);
+
+      await tester.tap(find.text('Apagar'));
+      await tester.pumpAndSettle();
+
+      expect(deletados, ['/history/me/messages/42']);
+      expect(find.text('pergunta velha'), findsNothing);
+      expect(find.text('resposta velha'), findsOneWidget);
+    });
+
+    testWidgets('msg recém-escrita: id resolvido pelo conteúdo no apagar',
+        (tester) async {
+      final deletados = <String>[];
+      var enviada = false;
+      final api = OdApi(
+        baseUrl: 'http://od.test:8000',
+        apiKey: 'chave-teste',
+        client: MockClient((request) async {
+          if (request.url.path == '/message') {
+            enviada = true;
+            return _json({'response': 'Resposta do OD'});
+          }
+          if (request.url.path == '/history/me') {
+            // Antes de enviar não há nada salvo; depois, o servidor já gravou
+            // o turno — o app não tinha o id na tela quando enviou.
+            return _json({
+              'ok': true,
+              'user_id': 'alex',
+              'messages': enviada
+                  ? [
+                      {
+                        'role': 'user',
+                        'content': 'oi od',
+                        'ts': 1789477200.0,
+                        'id': 77,
+                      },
+                      {
+                        'role': 'assistant',
+                        'content': 'Resposta do OD',
+                        'ts': 1789477260.0,
+                        'id': 78,
+                      },
+                    ]
+                  : <Map<String, Object>>[],
+            });
+          }
+          if (request.method == 'DELETE') {
+            deletados.add(request.url.path);
+            return _json({'ok': true, 'message_id': 77});
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+      await tester.pumpWidget(_wrap(ChatScreen(api: api)));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'oi od');
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+      expect(find.text('oi od'), findsOneWidget);
+
+      // Apagar a recém-escrita: o app pergunta o id ao histórico e apaga.
+      await tester.longPress(find.text('oi od'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Apagar'));
+      await tester.pumpAndSettle();
+
+      expect(deletados, ['/history/me/messages/77']);
+      expect(find.text('oi od'), findsNothing);
+    });
+
     // -- Streaming (WebSocket) -------------------------------------------------
 
     testWidgets('mostra a resposta conforme os tokens chegam (não de uma vez)',

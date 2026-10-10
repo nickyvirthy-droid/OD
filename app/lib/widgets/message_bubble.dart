@@ -8,8 +8,15 @@ import '../models/message.dart';
 /// só a hora, discreta.
 class MessageBubble extends StatelessWidget {
   final OdMessage message;
+  final VoidCallback? onLongPress;
+  final bool canDelete;
 
-  const MessageBubble({super.key, required this.message});
+  const MessageBubble({
+    super.key,
+    required this.message,
+    this.onLongPress,
+    this.canDelete = false,
+  });
 
   static String _hhmm(DateTime ts) =>
       '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}';
@@ -33,7 +40,7 @@ class MessageBubble extends StatelessWidget {
     final isUser = message.isUser;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Align(
+    Widget bubble = Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: EdgeInsets.only(
@@ -110,5 +117,15 @@ class MessageBubble extends StatelessWidget {
         ),
       ),
     );
+
+    // Long press para apagar mensagem do usuário
+    if (canDelete && onLongPress != null) {
+      return GestureDetector(
+        onLongPress: onLongPress,
+        child: bubble,
+      );
+    }
+
+    return bubble;
   }
 }

@@ -96,6 +96,20 @@ def orch(*providers) -> Orchestrator:
     return Orchestrator(providers=list(providers))
 
 
+@pytest.fixture(autouse=True)
+def _isola_od_log_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nenhum teste do módulo lê logs/ de produção (2026-10-10).
+
+    A sonda ``_check_router`` lê ``<OD_LOG_DIR>/router_monitor.log``, que o
+    monitor da máquina escreve de verdade a cada minuto. Sem este isolamento,
+    um blip de rede real no meio da suíte injetava ``router:down`` em testes
+    que nada têm a ver com o roteador (ex.: ``test_restart_alert_emitted_once``
+    falhava com ``['restart', 'router:down']``). Os testes de roteador
+    continuam à vontade: eles apontam ``OD_LOG_DIR`` para o próprio tmp_path.
+    """
+    monkeypatch.setenv("OD_LOG_DIR", str(tmp_path))
+
+
 # ===========================================================================
 # Tipos e configuração
 # ===========================================================================

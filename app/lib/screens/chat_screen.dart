@@ -160,6 +160,7 @@ class _ChatScreenState extends State<ChatScreen> {
               content: m.content,
               timestamp: m.timestamp,
               answeredBy: m.answeredBy,
+              serverId: m.serverId,
             ),
           ),
         );
@@ -278,11 +279,141 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// Apaga UMA mensagem do histórico do usuário (long press na bolha do usuário).
+  ///
+  /// O id vem do [OdMessage.serverId] quando a mensagem veio do histórico.
+  /// Mensagens escritas AINDA NÃO têm id no app (streaming/POST /message não
+  /// devolvem) — nesse caso o id é resolvido no servidor pelo conteúdo
+  /// ([OdApi.resolveUserMessageId]) para o apagar valer também para o que
+  /// acabou de ser escrito. Sem candidata no servidor, só remove da tela
+  /// (mensagem sincronizada depois reapareceria — o aviso diz isso).
+  Future<void> _confirmDeleteMessage(int index) async {
+    final message = _messages[index];
+    if (!message.isUser) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Apagar esta mensagem?'),
+        content: Text(
+          message.content.length > 100
+              ? '${message.content.substring(0, 100)}…'
+              : message.content,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Apagar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // Mensagem recém-escrita: acha o id dela no servidor antes de apagar.
+    var serverId = message.serverId;
+    if (serverId == null) {
+      try {
+        serverId = await widget.api.resolveUserMessageId(message.content);
+      } catch (_) {
+        serverId = null; // sem rede/histório: cai no caminho local honesto
+      }
+      if (!mounted) return;
+    }
+
+    if (serverId != null) {
+      try {
+        await widget.api.deleteHistoryMessage(serverId);
+        if (!mounted) return;
+        setState(() => _messages.removeAt(index));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mensagem apagada no servidor')),
+        );
+      } on OdAuthError {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sessão inválida — faça login novamente')),
+        );
+      } on OdApiError catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Falha ao apagar no servidor: ${e.message}')),
+        );
+      }
+    } else {
+      // Sem id no servidor — só remove da UI (com aviso honesto).
+      setState(() => _messages.removeAt(index));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mensagem removida da conversa local')),
+      );
+    }
+  }
+
+  /// Apaga TODA a conversa da conta no servidor (DELETE /history/me).
+  Future<void> _confirmClearHistory() async {
+    if (!widget.api.hasCredential) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('É preciso estar logado para limpar o histórico')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Apagar TODA a conversa?'),
+        content: const Text(
+          'Isso remove todas as mensagens salvas desta conta no servidor. '
+          'A ação não tem volta.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Apagar tudo'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final removed = await widget.api.clearHistory();
+      if (!mounted) return;
+      setState(() => _messages.clear());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Conversa apagada ($removed mensagens removidas do servidor)')),
+      );
+    } on OdAuthError {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sessão inválida — faça login novamente')),
+      );
+    } on OdApiError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Falha ao limpar: ${e.message}')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Seletor de perfil
+        // Seletor de perfil + menu de ações
         _buildProfileSelector(),
         // Lista de mensagens
         Expanded(
@@ -304,7 +435,14 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       );
                     }
-                    return MessageBubble(message: _messages[index]);
+                    final message = _messages[index];
+                    // Só mensagens do usuário podem ser apagadas individualmente
+                    final canDelete = message.isUser;
+                    return MessageBubble(
+                      message: message,
+                      canDelete: canDelete,
+                      onLongPress: canDelete ? () => _confirmDeleteMessage(index) : null,
+                    );
                   },
                 ),
         ),
@@ -318,30 +456,56 @@ class _ChatScreenState extends State<ChatScreen> {
     return Container(
       height: 50,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: _profiles.entries.map((entry) {
-          final isSelected = _selectedProfile == entry.key;
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: ChoiceChip(
-              label: entry.key == 'guardian'
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Image.asset('assets/logo.png', width: 14, height: 14),
-                        const SizedBox(width: 4),
-                        Text(entry.value['name'] ?? ''),
-                      ],
-                    )
-                  : Text('${entry.value['icon']} ${entry.value['name']}'),
-              selected: isSelected,
-              onSelected: (_) {
-                setState(() => _selectedProfile = entry.key);
-              },
+      child: Row(
+        children: [
+          Expanded(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: _profiles.entries.map((entry) {
+                final isSelected = _selectedProfile == entry.key;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: ChoiceChip(
+                    label: entry.key == 'guardian'
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Image.asset('assets/logo.png', width: 14, height: 14),
+                              const SizedBox(width: 4),
+                              Text(entry.value['name'] ?? ''),
+                            ],
+                          )
+                        : Text('${entry.value['icon']} ${entry.value['name']}'),
+                    selected: isSelected,
+                    onSelected: (_) {
+                      setState(() => _selectedProfile = entry.key);
+                    },
+                  ),
+                );
+              }).toList(),
             ),
-          );
-        }).toList(),
+          ),
+          // Menu de ações (limpar conversa, etc.)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'Opções da conversa',
+            onSelected: (value) {
+              if (value == 'clear_history') _confirmClearHistory();
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem<String>(
+                value: 'clear_history',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_sweep, size: 20),
+                    SizedBox(width: 8),
+                    Text('Limpar conversa'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

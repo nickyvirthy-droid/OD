@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-09T20:45:00",
+  "updated_at": "2026-10-10T09:45:00",
   "retomada_2026_10_09_lote_icone": {
     "lote_ecossistema_site_2026_10_09": {
       "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
@@ -1974,5 +1974,15 @@
     "telegram": "resumo enviado (regra 15) — message_id 2031",
     "estado": "CONCLUÍDO E NO AR — 1.21.0+2048; canal do dono com os 3 comportamentos; txt.txt intacto (680 bytes).",
     "ts": "2026-10-08T19:30:00-03:00"
+  },
+  "item_2f_app_apagar_mensagens_2026_10_10": {
+    "id": "item_2f_app_apagar_mensagens_2026_10_10",
+    "titulo": "Pedido do dono — apagar/limpar minhas mensagens no APP (paridade com o site)",
+    "data": "2026-10-10",
+    "pedido_dono": "no site consigo apagar, limpar as minhas mensagens. quero fazer o mesmo pelo APP. (txt.txt, regra 14)",
+    "estado": "EM_ANDAMENTO — app validado (analyze 0, 157 pass/2 skip); suíte servidor verde (2393 pass/16 skip) com fix de isolamento do notifier; faltam bump+APKs+deploy+registro",
+    "trabalho_encontrado": "Árvore tinha 5 arquivos do app NÃO commitados de uma sessão anterior (message.dart, chat_screen.dart, od_api.dart, message_bubble.dart, od_api_test.dart) implementando o pedido: DELETE /history/me (limpar tudo) e DELETE /history/me/messages/{id} (uma msg). Servidor já aceitava as duas rotas (history_delete/history_delete_message com _check_owner 'me').",
+    "o_que_eu_adicionei": "(1) lacuna de falso-sucesso: mensagem recém-escrita não tinha serverId (streaming/POST /message não devolvem id) e o apagar só removia da tela → OdApi.resolveUserMessageId() resolve o id pelo conteúdo no momento do apagar (última msg do usuário igual); chat_screen usa isso antes de cair no caminho local; aviso honesto quando não há candidata. (2) tests/test_notifier.py: fixture autouse OD_LOG_DIR→tmp_path — test_restart_alert_emitted_once lia logs/router_monitor.log de produção e quebrava com router:down a cada blip de rede real.",
+    "validacao_parcial": "flutter analyze 0 issues · flutter test 157 pass / 2 skip (+5: resolveUserMessageId x4 e widget de long-press) · suíte servidor 2393 pass / 16 skip · test_notifier 48 pass"
   }
 }

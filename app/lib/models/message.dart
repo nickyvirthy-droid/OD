@@ -14,16 +14,24 @@ class OdMessage {
   /// 'action_intent'. Vazio quando desconhecido (histórico antigo).
   final String route;
 
+  /// ID da mensagem no servidor (quando carregada do histórico).
+  /// Usado para apagar a mensagem no servidor via DELETE /history/me/messages/{id}.
+  final int? serverId;
+
   OdMessage({
     required this.role,
     required this.content,
     DateTime? timestamp,
     this.answeredBy = '',
     this.route = '',
+    this.serverId,
   }) : timestamp = timestamp ?? DateTime.now();
 
   bool get isUser => role == 'user';
   bool get isAssistant => role == 'assistant';
+
+  /// Se a mensagem pode ser apagada no servidor (tem serverId e é do usuário).
+  bool get canDeleteOnServer => isUser && serverId != null;
 
   /// Label do "quem respondeu" já em linguagem de gente:
   /// cache → "cache (resposta anterior)"; fastpath:X → "ação: X".
@@ -36,12 +44,18 @@ class OdMessage {
     return answeredBy;
   }
 
-  OdMessage copyWith({String? content, String? answeredBy, String? route}) =>
+  OdMessage copyWith({
+    String? content,
+    String? answeredBy,
+    String? route,
+    int? serverId,
+  }) =>
       OdMessage(
         role: role,
         content: content ?? this.content,
         timestamp: timestamp,
         answeredBy: answeredBy ?? this.answeredBy,
         route: route ?? this.route,
+        serverId: serverId ?? this.serverId,
       );
 }

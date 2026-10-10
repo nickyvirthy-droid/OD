@@ -14,6 +14,28 @@
 
 ---
 
+## [1.24.1] — APAGAR/LIMPAR MINHAS MENSAGENS NO APP 🜂 (2026-10-10)
+
+> **Bump PATCH (pedido do dono via txt.txt):** "no site consigo apagar, limpar as minhas mensagens. quero fazer o mesmo pelo APP."
+
+| Peça | Entrega |
+|---|---|
+| **Limpar conversa** | Menu ⋮ do chat → "Limpar conversa": apaga TODA a conversa salva da conta no servidor (`DELETE /history/me`) — a mesma função do botão do site, agora no app, com confirmação e o total removido no aviso. |
+| **Apagar UMA mensagem** | Long press na própria bolha → "Apagar esta mensagem?" → apaga no servidor (`DELETE /history/me/messages/{id}`) e tira da tela. |
+| **ID resolvido na hora** | Mensagem recém-escrita ainda não tinha id no app (streaming e `POST /message` não devolvem ids): o app pergunta ao histórico no momento do apagar e localiza a mensagem pelo conteúdo (`OdApi.resolveUserMessageId`) — apagar vale também para o que acabou de ser escrito, sem trocar o protocolo. Sem candidata no servidor, só remove da tela (com aviso honesto). |
+
+| Verificação | Resultado |
+|---|---|
+| `flutter analyze` | 0 issues |
+| `flutter test` | **157 passed / 2 skipped** (+5: 4 de `resolveUserMessageId` + widget do long press) |
+| Suíte do servidor | **2393 passed / 16 skipped** |
+
+> **Fix de teste incluso:** `tests/test_notifier.py` agora isola `OD_LOG_DIR` (fixture autouse) — `test_restart_alert_emitted_once` lia o `logs/router_monitor.log` da máquina e quebrava com `router:down` a cada blip real de rede.
+
+**Assinatura:** `OD // CORE`
+
+---
+
 ## [1.24.0] — REGISTRO MESTRE NO APP (ABA "VERIFICAR") + DESFAZER VENDA 🜂 (2026-10-09)
 
 > **Bump MINOR (dois pedidos do dono):** (a) "porque atualizou o APP se ele não possui a tela de Registro Mestre" — a 1.23.1 só consertou o "Verificar Atualização"; a tela agora existe no app; (b) "se vendo a peça e depois a pessoa desiste antes de concluir, não consigo desfazer e voltar para o estoque".
