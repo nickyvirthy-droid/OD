@@ -86,3 +86,49 @@ bolha para apagar uma mensagem só.
 **Pendências abertas (sem ordem ainda):** etapa 4 do item 2 (QR de posse +
 registro do comprador + loja) · rotação dos segredos antigos (adiada) ·
 itens 3 e 5 da pauta de divergências (unificação de ID e ordem das frentes).
+
+---
+
+## §2 — Canal de desenvolvimento: por que a sessão falhava aos 10 minutos (~10:15–10:35)
+
+**Pedido do dono (chat):** "porque pelo Canal de Desenvolvimento a sessão
+inicia e depois de 10 minutos falha? Para você desenvolver um pedido é
+necessário 1 hora e às vezes mais..."
+
+**Investigação com o código em mãos:**
+
+1. `orquestrador.py:44` — `CLI_TIMEOUT_S: int = 600` (10 minutos fixos).
+   Cada CLI da cascata (Freebuff → OpenCode → Kilo) recebia só 10 min.
+2. `executar_cli` usava `subprocess.run(timeout=600)`: no timeout, o
+   `TimeoutExpired` → retorna `None` → cascata tenta a próxima CLI →
+   todas falham → status `todas_as_clis_falharam`.
+3. Evidência do caso real (09/10): sessão ativada 10:31:14, falhou
+   10:41:26 — exatamente ~600 s. OpenCode "estourou 600s".
+4. **Pior:** `subprocess.run(timeout=)` mata só o processo DIRETO. Os
+   FILHOS da CLI (runtime do OpenCode/Kilo) sobrevivem e continuam
+   mexendo no repo SEM validação — foi o que publicou o APK com
+   versionCode 4049 em 09/10 (split por ABI sem a flag canônica).
+
+**Correções (commit `aabea5b`):**
+
+- `CLI_TIMEOUT_S` agora vem do `.env` (`OD_DEV_CLI_TIMEOUT_S`),
+  padrão **7200 s (2 h)** — tempo real de pedido de desenvolvimento.
+- `executar_cli` usa `Popen` com `start_new_session=True` (grupo de
+  processo próprio). No timeout, `_matar_grupo()` mata o grupo inteiro
+  (SIGTERM → espera 10 s → SIGKILL) — **sem CLI órfã**.
+- **Batimento** `SESSAO_HEARTBEAT_S = 15 s`: thread daemon re-grava o
+  estado com `decorrido_s` enquanto a CLI roda (gravação atômica). O
+  painel mostra "executando há: Xmin Ys" — sessão longa deixa de
+  parecer travada.
+
+**Validação:** 61 testes do orquestrador (+3: timeout mata o grupo, teto
+configurável, CLI lenta grava decorrido) · suíte completa 2396 pass /
+16 skip.
+
+**Deploy:** 10:29:32 — PID 1106906, NRestarts=0. Provas: `/health` up ·
+`/app/version` 1.24.1/2053 · `/admin/dev/sessao` ok · JS do painel
+servido com `decorrido_s` · constantes no processo (`CLI_TIMEOUT_S=7200`,
+`SESSAO_HEARTBEAT_S=15.0`) · journal 0 erros.
+
+**Sem bump de versão:** backend only — nenhuma mudança no app nem no
+site publicado; `/app/version` segue 1.24.1/2053 coerente com o APK.

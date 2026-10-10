@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-10T09:50:00",
+  "updated_at": "2026-10-10T10:35:00",
   "retomada_2026_10_09_lote_icone": {
     "lote_ecossistema_site_2026_10_09": {
       "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
@@ -479,7 +479,7 @@
       "agents": "profiles (7 perfis Plêiade) + nicky_virthy identity/soul"
     }
   },
-  "topic": "OmegaDrakon v1.24.1+2053 — apagar/limpar mensagens no app entregue; aguardando próxima ordem do dono",
+  "topic": "OmegaDrakon v1.24.1+2053 — canal de desenvolvimento corrigido (timeout 2h configurável, morte de grupo, batimento no painel); aguardando próxima ordem do dono",
   "estado_2026_09_19": {
     "git": "HEAD com alterações no working tree (app/ + iniciar/)",
     "od_core": "active desde 2026-09-18 05:55:15 (PID 413665, NRestarts=0). :8000 e :8001 escutando.",
@@ -1469,8 +1469,8 @@
   },
   "last_turn": {
     "date": "2026-10-10",
-    "retomada": "Pedido do dono no txt.txt: 'no site consigo apagar, limpar as minhas mensagens. quero fazer o mesmo pelo APP'. A árvore tinha 5 arquivos do app sem commit de uma sessão anterior já implementando as duas rotas que existiam no servidor (DELETE /history/me e /history/me/messages/{id}).",
-    "action": "Concluí e fechei: (1) OdApi.resolveUserMessageId() mata o falso-sucesso de mensagem recém-escrita sem id (apagar pergunta o id ao histórico na hora; sem candidata, remove da tela com aviso honesto); (2) teste do notifier acoplado ao log real do roteador corrigido na causa (fixture autouse OD_LOG_DIR). Validação: analyze 0 · app 157 pass/2 skip · servidor 2393 pass/16 skip · APKs aapt2 2053 exato. Deploy 09:42:49 (PID 1100479, NRestarts=0) com prova ponta a ponta em conta temporária (apagada depois) e 0 erros no journal.",
+    "retomada": "Pedido do dono no chat: 'porque pelo Canal de Desenvolvimento a sessão inicia e depois de 10 minutos falha? Para você desenvolver um pedido é necessário 1 hora e às vezes mais...'. Investigado com o código em mãos.",
+    "action": "Causa raiz achada e corrigida: CLI_TIMEOUT_S era FIXO em 600 s (10 min) — todo pedido real estourava, a cascata caía para a próxima CLI e a sessão fechava como todas_as_clis_falharam (caso real de 09/10: 10:31 → 10:41). Correções: (1) teto configurável por .env (OD_DEV_CLI_TIMEOUT_S), padrão 7200 s (2 h); (2) subprocesso em grupo próprio (start_new_session) e timeout mata o GRUPO — sem CLI órfã continuando trabalho sem validação (foi o que publicou o APK 4049 em 09/10); (3) batimento SESSAO_HEARTBEAT_S=15s re-grava o estado com decorrido_s enquanto a CLI roda — painel mostra 'executando há: Xmin Ys' em vez de parecer travado. Validação: 61 testes do orquestrador (+3) · suíte completa 2396 pass/16 skip · deploy 10:29:32 (PID 1106906, NRestarts=0, 0 erros) — JS do painel servido, constantes novas no processo.",
     "next": "Sem pendência de código. Próximas ordens do dono: etapa 4 do item 2 (QR de posse + registro do comprador + loja), rotação de segredos (adiada) e itens 3/5 da pauta de divergências."
   },
   "cache_historico_2026_09_24_fechamento": {
@@ -2003,5 +2003,30 @@
       "rotação dos segredos antigos (adiada pelo dono até testes em produção)",
       "itens 3/5 da pauta de divergências (unificação de ID e ordem das frentes)"
     ]
+  },
+  "dev_canal_timeout_2026_10_10": {
+    "id": "dev_canal_timeout_2026_10_10",
+    "titulo": "Canal de desenvolvimento não morre mais aos 10 minutos (v1.24.1, sem bump — backend only)",
+    "data": "2026-10-10",
+    "pedido_dono": "porque pelo Canal de Desenvolvimento a sessão inicia e depois de 10 minutos falha? Para você desenvolver um pedido é necessário 1 hora e às vezes mais...",
+    "causa_raiz": "CLI_TIMEOUT_S era FIXO em 600 s (orquestrador.py:44). Todo pedido real de desenvolvimento leva 1h+ e estourava; o subprocess.run(timeout=600) matava o processo direto, a cascata tentava a próxima CLI, e a sessão fechava como 'todas_as_clis_falharam' — exatamente o incidente de 09/10 (10:31:14 → 10:41:26, OpenCode estourou 600s). Pior: o subprocess.run só mata o processo DIRETO — os FILHOS da CLI (runtime do OpenCode/Kilo) sobrevivem e continuam mexendo no repo SEM validação (foi o que publicou o APK com versionCode 4049 em 09/10).",
+    "correcoes": [
+      "CLI_TIMEOUT_S configurável por .env (OD_DEV_CLI_TIMEOUT_S), padrão 7200 s (2 h) — tempo real de pedido de desenvolvimento",
+      "executar_cli usa Popen com start_new_session=True (grupo de processo próprio); no timeout, _matar_grupo() mata o grupo inteiro (SIGTERM → wait 10s → SIGKILL) — sem CLI órfã",
+      "Batimento SESSAO_HEARTBEAT_S=15 s: thread daemon (_batimento/_ComBatimento) re-grava o estado com decorrido_s enquanto a CLI roda — gravação atômica (tmp+rename), o painel nunca lê meio JSON",
+      "JS do painel: 'executando há: Xmin Ys' quando decorrido_s existe — sessão longa deixa de parecer travada em EXECUTANDO"
+    ],
+    "arquivos": [
+      "orquestrador.py (CLI_TIMEOUT_S, executar_cli com Popen+grupo, _matar_grupo, SESSAO_HEARTBEAT_S, _batimento, _ComBatimento)",
+      "integrations/api/server.py (JS do painel: decorrido_s)",
+      "tests/test_orquestrador.py (3 testes novos + 3 adaptados de subprocess.run para Popen)"
+    ],
+    "validacao": "testes do orquestrador 61 pass (+3: timeout mata o grupo, teto configurável pelo env, CLI lenta grava decorrido no disco) · suíte completa 2396 pass / 16 skip",
+    "deploy": "IMPLANTADO 10:29:32 — PID 1106906, NRestarts=0. Provas: /health up · /app/version 1.24.1/2053 · /admin/dev/sessao ok · JS do painel servido com decorrido_s (linhas 377-378) · constantes no processo: CLI_TIMEOUT_S=7200 (2 h), SESSAO_HEARTBEAT_S=15.0, _matar_grupo/_ComBatimento presentes · journal 0 erros",
+    "commits": [
+      "aabea5b fix(orquestrador): canal de desenvolvimento não morre mais aos 10 min"
+    ],
+    "sem_bump": "Backend only — nenhuma mudança no app nem no site publicado; /app/version segue 1.24.1/2053 (o APK continua coerente). Bump seria necessário só se mexesse em site/ ou app/.",
+    "estado": "CONCLUÍDO E NO AR — próxima sessão do canal de desenvolvimento já nasce com 2 h de teto, morte limpa de grupo e painel vivo. txt.txt e Telegram avisados (regras 14/15)."
   }
 }
