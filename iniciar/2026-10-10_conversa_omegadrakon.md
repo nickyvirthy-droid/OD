@@ -132,3 +132,42 @@ servido com `decorrido_s` · constantes no processo (`CLI_TIMEOUT_S=7200`,
 
 **Sem bump de versão:** backend only — nenhuma mudança no app nem no
 site publicado; `/app/version` segue 1.24.1/2053 coerente com o APK.
+
+## §3 — Continuação pós-timeout + anti-duplicata no canal (~10:40–10:55)
+
+**Pedidos do dono (chat):**
+1. "se estourar esse tempo o sistema consegue continuar de onde parou"
+2. "se fizer um pedido sobre algo que já foi implementado o sistema avisa
+   ou tenta recriar só porque o txt é diferente. por exemplo qual a
+   temperatura em são paulo, alguns dias depois peço para implementar
+   qual a temperatura no rio de janeiro"
+
+**Respostas (com o código na mão):**
+
+1. **Continuação pós-timeout: não automática.** O `_matar_grupo()` mata
+   o processo inteiro; não existe mecanismo de resume. PORÉM as
+   alterações de arquivos que a CLI já fez continuam na árvore (sem
+   commit) — o risco é a próxima sessão não saber disso.
+
+2. **Anti-duplicata: a guarda `ideia_ja_implementada` é por hash do
+   texto** — pega só repetição EXATA. "temperatura em SP" ≠
+   "temperatura no RJ" → passa batido. A CLI é instruída a analisar o
+   que já existe, mas modelos grátis podem não reconhecer a variante
+   semântica.
+
+**Três melhorias implementadas (commit `164c5c1`):**
+
+| # | Melhoria | Como funciona |
+|---|---|---|
+| 1 | **Árvore suja detectada** | `git status --porcelain` no início da sessão; se houver trabalho parcial de sessão anterior que falhou, o prompt avisa a CLI para avaliar/retomar |
+| 2 | **Prompt anti-duplicata** | Instrução explícita: "verificar se a funcionalidade já existe em OUTRA FORMA (ex: ação genérica que aceita qualquer cidade) antes de criar" |
+| 3 | **Busca por palavras-chave** | `_extrair_palavras_chave` (stopwords PT) + `_buscar_no_codigo` (core/tools/integrations/memory/runtime, máx. 3 arquivos/palavra) — achados injetados como contexto no prompt |
+
+**Prova real no repositório:** "implementar qual a temperatura no rio de
+janeiro" → palavras-chave `[temperatura, janeiro]` → achados em
+`core/intents.py`, `core/orchestrator.py`, `tools/actions/actions.py` —
+a CLI vê onde a funcionalidade já existe antes de decidir criar.
+
+**Validação:** 72 testes do orquestrador (+11) · suíte completa 2407
+pass / 16 skip. Backend only — sem bump, sem restart (`orquestrador.py`
+é spawned fresh por sessão).

@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-10T10:35:00",
+  "updated_at": "2026-10-10T10:55:00",
   "retomada_2026_10_09_lote_icone": {
     "lote_ecossistema_site_2026_10_09": {
       "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
@@ -1469,8 +1469,8 @@
   },
   "last_turn": {
     "date": "2026-10-10",
-    "retomada": "Pedido do dono no chat: 'porque pelo Canal de Desenvolvimento a sessão inicia e depois de 10 minutos falha? Para você desenvolver um pedido é necessário 1 hora e às vezes mais...'. Investigado com o código em mãos.",
-    "action": "Causa raiz achada e corrigida: CLI_TIMEOUT_S era FIXO em 600 s (10 min) — todo pedido real estourava, a cascata caía para a próxima CLI e a sessão fechava como todas_as_clis_falharam (caso real de 09/10: 10:31 → 10:41). Correções: (1) teto configurável por .env (OD_DEV_CLI_TIMEOUT_S), padrão 7200 s (2 h); (2) subprocesso em grupo próprio (start_new_session) e timeout mata o GRUPO — sem CLI órfã continuando trabalho sem validação (foi o que publicou o APK 4049 em 09/10); (3) batimento SESSAO_HEARTBEAT_S=15s re-grava o estado com decorrido_s enquanto a CLI roda — painel mostra 'executando há: Xmin Ys' em vez de parecer travado. Validação: 61 testes do orquestrador (+3) · suíte completa 2396 pass/16 skip · deploy 10:29:32 (PID 1106906, NRestarts=0, 0 erros) — JS do painel servido, constantes novas no processo.",
+    "retomada": "Pedido do dono (chat): duas perguntas sobre o canal de desenvolvimento — (1) se estourar as 2h dá para continuar de onde parou? (2) se fizer um pedido sobre algo já implementado o sistema avisa ou recria? Exemplo: 'temperatura em SP' já existe, depois pedir 'temperatura no RJ'.",
+    "action": "Respondidas as duas perguntas com o código na mão e implementadas 3 melhorias (commit 164c5c1): (1) árvore suja detectada — git status --porcelain no início da sessão; se houver trabalho parcial de sessão anterior que falhou, a CLI é avisada para avaliar/retomar; (2) prompt anti-duplicata — instrução explícita: verificar se a funcionalidade já existe em OUTRA FORMA antes de criar; (3) busca por palavras-chave — extrai termos significativos do pedido (sem stopwords PT) e busca no código, injetando os achados como contexto no prompt. Prova real: 'temperatura no rio de janeiro' → achados em core/intents.py, core/orchestrator.py, tools/actions/actions.py. Validação: 72 testes orquestrador (+11) · suíte 2407 pass/16 skip. Backend only, sem bump, sem restart (orquestrador.py é spawned fresh por sessão).",
     "next": "Sem pendência de código. Próximas ordens do dono: etapa 4 do item 2 (QR de posse + registro do comprador + loja), rotação de segredos (adiada) e itens 3/5 da pauta de divergências."
   },
   "cache_historico_2026_09_24_fechamento": {
@@ -2006,27 +2006,34 @@
   },
   "dev_canal_timeout_2026_10_10": {
     "id": "dev_canal_timeout_2026_10_10",
-    "titulo": "Canal de desenvolvimento não morre mais aos 10 minutos (v1.24.1, sem bump — backend only)",
+    "titulo": "Canal de desenvolvimento: timeout 2h + morte de grupo + batimento + contexto anti-duplicata (backend only)",
     "data": "2026-10-10",
-    "pedido_dono": "porque pelo Canal de Desenvolvimento a sessão inicia e depois de 10 minutos falha? Para você desenvolver um pedido é necessário 1 hora e às vezes mais...",
-    "causa_raiz": "CLI_TIMEOUT_S era FIXO em 600 s (orquestrador.py:44). Todo pedido real de desenvolvimento leva 1h+ e estourava; o subprocess.run(timeout=600) matava o processo direto, a cascata tentava a próxima CLI, e a sessão fechava como 'todas_as_clis_falharam' — exatamente o incidente de 09/10 (10:31:14 → 10:41:26, OpenCode estourou 600s). Pior: o subprocess.run só mata o processo DIRETO — os FILHOS da CLI (runtime do OpenCode/Kilo) sobrevivem e continuam mexendo no repo SEM validação (foi o que publicou o APK com versionCode 4049 em 09/10).",
+    "pedidos_dono": [
+      "porque pelo Canal de Desenvolvimento a sessão inicia e depois de 10 minutos falha? Para você desenvolver um pedido é necessário 1 hora e às vezes mais...",
+      "se estourar esse tempo o sistema consegue continuar de onde parou. flando nisso se fizer um pedido sobre algo que já foi implementado o sistema avisa ou tenta recriar só porque o txt é diferente. por exemplo qual a temperatura em são paulo, alguns dias depois peço para implementar qual a temperatura no rio de janeiro"
+    ],
+    "causa_raiz": "CLI_TIMEOUT_S era FIXO em 600 s (orquestrador.py:44). Todo pedido real de desenvolvimento leva 1h+ e estourava; o subprocess.run(timeout=600) matava o processo direto, a cascata tentava a próxima CLI, e a sessão fechava como 'todas_as_clis_falharam'. Pior: o subprocess.run só mata o processo DIRETO — os FILHOS da CLI sobrevivem e continuam mexendo no repo SEM validação (foi o que publicou o APK com versionCode 4049 em 09/10).",
     "correcoes": [
-      "CLI_TIMEOUT_S configurável por .env (OD_DEV_CLI_TIMEOUT_S), padrão 7200 s (2 h) — tempo real de pedido de desenvolvimento",
-      "executar_cli usa Popen com start_new_session=True (grupo de processo próprio); no timeout, _matar_grupo() mata o grupo inteiro (SIGTERM → wait 10s → SIGKILL) — sem CLI órfã",
-      "Batimento SESSAO_HEARTBEAT_S=15 s: thread daemon (_batimento/_ComBatimento) re-grava o estado com decorrido_s enquanto a CLI roda — gravação atômica (tmp+rename), o painel nunca lê meio JSON",
-      "JS do painel: 'executando há: Xmin Ys' quando decorrido_s existe — sessão longa deixa de parecer travada em EXECUTANDO"
+      "CLI_TIMEOUT_S configurável por .env (OD_DEV_CLI_TIMEOUT_S), padrão 7200 s (2 h)",
+      "executar_cli usa Popen com start_new_session=True; no timeout, _matar_grupo() mata o grupo inteiro (SIGTERM → wait 10s → SIGKILL) — sem CLI órfã",
+      "Batimento SESSAO_HEARTBEAT_S=15 s: thread daemon re-grava o estado com decorrido_s — painel mostra 'executando há: Xmin Ys'",
+      "Árvore suja detectada: git status --porcelain no início da sessão; se houver trabalho parcial de sessão anterior que falhou, a CLI é avisada para avaliar/retomar antes de codar",
+      "Prompt anti-duplicata: instrução explícita — verificar se a funcionalidade já existe em OUTRA FORMA (ex: ação genérica que aceita qualquer cidade) antes de criar algo novo",
+      "Busca por palavras-chave: _extrair_palavras_chave (stopwords PT) + _buscar_no_codigo (core/tools/integrations/memory/runtime, máx. 3 arquivos/palavra) — achados injetados como contexto no prompt"
     ],
+    "prova_real": "'implementar qual a temperatura no rio de janeiro' → palavras-chave [temperatura, janeiro] → achados: core/intents.py, core/orchestrator.py, tools/actions/actions.py — a CLI vê onde a funcionalidade já existe antes de decidir criar",
     "arquivos": [
-      "orquestrador.py (CLI_TIMEOUT_S, executar_cli com Popen+grupo, _matar_grupo, SESSAO_HEARTBEAT_S, _batimento, _ComBatimento)",
+      "orquestrador.py (timeout, Popen+grupo, _matar_grupo, batimento, PALAVRAS_VAZIAS_PT, _extrair_palavras_chave, _buscar_no_codigo, _arvore_suja, _montar_contexto_repositorio, INSTRUCAO_SESSAO anti-duplicata, montar_prompt_sessao com contexto)",
       "integrations/api/server.py (JS do painel: decorrido_s)",
-      "tests/test_orquestrador.py (3 testes novos + 3 adaptados de subprocess.run para Popen)"
+      "tests/test_orquestrador.py (72 pass, +11: timeout, batimento, contexto, palavras-chave, árvore suja, anti-duplicata)"
     ],
-    "validacao": "testes do orquestrador 61 pass (+3: timeout mata o grupo, teto configurável pelo env, CLI lenta grava decorrido no disco) · suíte completa 2396 pass / 16 skip",
-    "deploy": "IMPLANTADO 10:29:32 — PID 1106906, NRestarts=0. Provas: /health up · /app/version 1.24.1/2053 · /admin/dev/sessao ok · JS do painel servido com decorrido_s (linhas 377-378) · constantes no processo: CLI_TIMEOUT_S=7200 (2 h), SESSAO_HEARTBEAT_S=15.0, _matar_grupo/_ComBatimento presentes · journal 0 erros",
+    "validacao": "testes do orquestrador 72 pass (+11) · suíte completa 2407 pass / 16 skip",
+    "deploy": "IMPLANTADO 10:29:32 (PID 1106906, NRestarts=0) + commit 164c5c1 (backend only, sem restart — orquestrador.py é spawned fresh por sessão). Provas: /health up · /app/version 1.24.1/2053 · JS do painel servido · constantes no processo (CLI_TIMEOUT_S=7200, SESSAO_HEARTBEAT_S=15.0) · journal 0 erros · busca por palavras-chave provada no repositório real",
     "commits": [
-      "aabea5b fix(orquestrador): canal de desenvolvimento não morre mais aos 10 min"
+      "aabea5b fix(orquestrador): canal de desenvolvimento não morre mais aos 10 min",
+      "164c5c1 feat(orquestrador): contexto do repositório — árvore suja + anti-duplicata"
     ],
-    "sem_bump": "Backend only — nenhuma mudança no app nem no site publicado; /app/version segue 1.24.1/2053 (o APK continua coerente). Bump seria necessário só se mexesse em site/ ou app/.",
-    "estado": "CONCLUÍDO E NO AR — próxima sessão do canal de desenvolvimento já nasce com 2 h de teto, morte limpa de grupo e painel vivo. txt.txt e Telegram avisados (regras 14/15)."
+    "sem_bump": "Backend only — nenhuma mudança no app nem no site publicado; /app/version segue 1.24.1/2053 (o APK continua coerente).",
+    "estado": "CONCLUÍDO E NO AR — próxima sessão do canal já nasce com 2h de teto, morte limpa de grupo, painel vivo, detecção de árvore suja e contexto anti-duplicata. txt.txt e Telegram avisados (regras 14/15)."
   }
 }
