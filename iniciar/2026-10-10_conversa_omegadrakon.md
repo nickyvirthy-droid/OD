@@ -56,6 +56,33 @@
   site 3x, CHANGELOG `[1.24.1]`, README_VERSAO §1.24.1) — §5.3: todo APK
   publicado ganha versionCode novo.
 
-**Próximo passo:** APKs pelo build canônico (`./app/build_apk.sh`, aapt2
-confere) → commit + push → deploy (regra 7.3) → prova viva → txt.txt +
-Telegram.
+## 6. Deploy 1.24.1 (regra 7.3 — validação verde)
+
+- APKs pelo build canônico `./app/build_apk.sh`: **aapt2 `versionCode='2053'`
+  `versionName='1.24.1'` EXATOS nos dois** (o bug do 4049 não repetiu) —
+  full 55.246.176 B `a947d59a…` · arm64 19.977.978 B `34de9279…`.
+- Commit **`1761474`** (push, HEAD == origin/master).
+- **Restart 09:42:49, PID 1100479, NRestarts=0.** Provas vivas:
+  - `/app/version` {1.24.1, 2053, sha256 `a947d59a…` == binário de site/}
+    (local **e** Funnel) · `/health` up · `/capabilities` 1.24.1 ·
+    `/supervision` restarts 0, degraded [].
+  - `DELETE /history/me` e `DELETE /history/me/messages/{id}` → **401 sem
+    credencial** (gates no ar).
+  - **Prova ponta a ponta** (conta temporária `apagarteste6266`, criada e
+    removida): 2 mensagens via `POST /message` → ids 805/807 em
+    `/history/me` → `DELETE messages/805` some **só** ela (806/807/808
+    seguem) → `DELETE /history/me` → `removed=3`, `messages: []`.
+  - journal **0 erros** desde o restart · `/site` + `verificacao.html` +
+    `historico.html` 200 · Funnel: APK **206** com magic bytes `PK` ·
+    **0 🐉** nos 3 HTMLs.
+- **Registro:** `txt.txt` reescrito com o resumo (regra 14) · Telegram msg
+  2066 (regra 15) · `session.json` (`item_2f_app_apagar_mensagens_2026_10_10`)
+  e esta transcrição.
+
+**Para o dono:** abrir o app → banner "Nova versão 1.24.1" → Atualizar
+(2052 → 2053). Depois: menu ⋮ → "Limpar conversa"; e long press na própria
+bolha para apagar uma mensagem só.
+
+**Pendências abertas (sem ordem ainda):** etapa 4 do item 2 (QR de posse +
+registro do comprador + loja) · rotação dos segredos antigos (adiada) ·
+itens 3 e 5 da pauta de divergências (unificação de ID e ordem das frentes).

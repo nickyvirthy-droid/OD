@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-10T09:45:00",
+  "updated_at": "2026-10-10T09:50:00",
   "retomada_2026_10_09_lote_icone": {
     "lote_ecossistema_site_2026_10_09": {
       "pedido": "Dono: app confirmado ('está excelente'); quer o LOGO no lugar do dragão (🐉) das mensagens e do site; refazer o site com base no Legado (o site falava só do APP); Legado = /home/alex/Legado (vira regra); Drive também disponível; depois discutir implementação das frentes ausentes. Pediu análise profunda, didática e profissional.",
@@ -479,7 +479,7 @@
       "agents": "profiles (7 perfis Plêiade) + nicky_virthy identity/soul"
     }
   },
-  "topic": "OmegaDrakon v1.2.8 — APK com SafeArea + URLs Tailscale/externa, acesso externo via nicky.theworkpc.com",
+  "topic": "OmegaDrakon v1.24.1+2053 — apagar/limpar mensagens no app entregue; aguardando próxima ordem do dono",
   "estado_2026_09_19": {
     "git": "HEAD com alterações no working tree (app/ + iniciar/)",
     "od_core": "active desde 2026-09-18 05:55:15 (PID 413665, NRestarts=0). :8000 e :8001 escutando.",
@@ -1468,10 +1468,10 @@
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
   "last_turn": {
-    "date": "2026-10-08",
-    "retomada": "Dono autorizou '1 e 3' (deploy+bump e o flake do MQTT) e esclareceu o item 2: a instrução de 06/10 era continuação de conversa (viu que a agenda não foi acessada e pediu para acessar), não regra global.",
-    "action": "Flake corrigido na CAUSA (corrida do stop() no connect da ponte MQTT; connect recusa ponte encerrada, run() desconecta no finally; 2 testes + 2 mutações; ramo sem detecção removido). Bump PATCH 1.19.2+2041 pelo checklist §5 (APKs reconstruídos com JAVA_HOME=/home/alex/jdk, aapt2 confere versionCode=2041/1.19.2) e deploy autorizado: restart 01:14:21 (PID 745013), /health 200, /app/version 1.19.2+2041 com sha256 igual ao publicado, journal 0 erros. Prova viva: 'o que tem pra hoje' -> fastpath:google_calendar_events.",
-    "next": "Sem pendência de código. Observar a CI e o comportamento do cache podado nas próximas conversas do dono (a recusa de agenda saiu da tabela; se o LLM regenerar um devaneio, o script de saneamento é idempotente)."
+    "date": "2026-10-10",
+    "retomada": "Pedido do dono no txt.txt: 'no site consigo apagar, limpar as minhas mensagens. quero fazer o mesmo pelo APP'. A árvore tinha 5 arquivos do app sem commit de uma sessão anterior já implementando as duas rotas que existiam no servidor (DELETE /history/me e /history/me/messages/{id}).",
+    "action": "Concluí e fechei: (1) OdApi.resolveUserMessageId() mata o falso-sucesso de mensagem recém-escrita sem id (apagar pergunta o id ao histórico na hora; sem candidata, remove da tela com aviso honesto); (2) teste do notifier acoplado ao log real do roteador corrigido na causa (fixture autouse OD_LOG_DIR). Validação: analyze 0 · app 157 pass/2 skip · servidor 2393 pass/16 skip · APKs aapt2 2053 exato. Deploy 09:42:49 (PID 1100479, NRestarts=0) com prova ponta a ponta em conta temporária (apagada depois) e 0 erros no journal.",
+    "next": "Sem pendência de código. Próximas ordens do dono: etapa 4 do item 2 (QR de posse + registro do comprador + loja), rotação de segredos (adiada) e itens 3/5 da pauta de divergências."
   },
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
@@ -1980,9 +1980,28 @@
     "titulo": "Pedido do dono — apagar/limpar minhas mensagens no APP (paridade com o site)",
     "data": "2026-10-10",
     "pedido_dono": "no site consigo apagar, limpar as minhas mensagens. quero fazer o mesmo pelo APP. (txt.txt, regra 14)",
-    "estado": "EM_ANDAMENTO — app validado (analyze 0, 157 pass/2 skip); suíte servidor verde (2393 pass/16 skip) com fix de isolamento do notifier; faltam bump+APKs+deploy+registro",
+    "estado": "CONCLUÍDO E NO AR — v1.24.1+2053 (commit 1761474 == origin/master)",
     "trabalho_encontrado": "Árvore tinha 5 arquivos do app NÃO commitados de uma sessão anterior (message.dart, chat_screen.dart, od_api.dart, message_bubble.dart, od_api_test.dart) implementando o pedido: DELETE /history/me (limpar tudo) e DELETE /history/me/messages/{id} (uma msg). Servidor já aceitava as duas rotas (history_delete/history_delete_message com _check_owner 'me').",
     "o_que_eu_adicionei": "(1) lacuna de falso-sucesso: mensagem recém-escrita não tinha serverId (streaming/POST /message não devolvem id) e o apagar só removia da tela → OdApi.resolveUserMessageId() resolve o id pelo conteúdo no momento do apagar (última msg do usuário igual); chat_screen usa isso antes de cair no caminho local; aviso honesto quando não há candidata. (2) tests/test_notifier.py: fixture autouse OD_LOG_DIR→tmp_path — test_restart_alert_emitted_once lia logs/router_monitor.log de produção e quebrava com router:down a cada blip de rede real.",
-    "validacao_parcial": "flutter analyze 0 issues · flutter test 157 pass / 2 skip (+5: resolveUserMessageId x4 e widget de long-press) · suíte servidor 2393 pass / 16 skip · test_notifier 48 pass"
+    "validacao_parcial": "flutter analyze 0 issues · flutter test 157 pass / 2 skip (+5: resolveUserMessageId x4 e widget de long-press) · suíte servidor 2393 pass / 16 skip · test_notifier 48 pass",
+    "bump": "PATCH 1.24.1 + versionCode 2053 em todas as fontes vivas (.env, fallback capabilities, pubspec, _APP_VERSION_CODE, site 3x, CHANGELOG [1.24.1], README_VERSAO §1.24.1) — §5.3: todo APK publicado com versionCode novo. APKs pelo build canônico ./app/build_apk.sh: aapt2 versionCode=2053 versionName=1.24.1 EXATOS nos dois (full 55.246.176 B sha a947d59a…, arm64 19.977.978 B sha 34de9279…).",
+    "deploy": "IMPLANTADO 09:42:49 — PID 1100479, NRestarts=0.",
+    "provas": [
+      "/app/version {1.24.1, 2053, sha256 a947d59a… == binário de site/} (local e Funnel)",
+      "/health up · /capabilities version 1.24.1 · /supervision restarts 0 degraded []",
+      "DELETE /history/me e /history/me/messages/{id} → 401 sem credencial (gates no ar)",
+      "PROVA PONTA A PONTA (conta temporária apagarteste6266, depois removida): POST /message x2 → ids 805/807 no /history/me → DELETE messages/805 some SÓ ela (806/807/808 seguem) → DELETE /history/me removed=3 → messages [] ",
+      "journal 0 erros desde o restart · /site, verificacao.html, historico.html 200 · Funnel APK HTTP 206 magic PK · 0 🐉 nos 3 HTMLs"
+    ],
+    "commits": [
+      "1761474 feat(app): apagar/minhas mensagens — paridade com o site (v1.24.1)"
+    ],
+    "registro": "txt.txt reescrito com o resumo (regra 14) · Telegram msg 2066 (regra 15) · transcrição iniciar/2026-10-10_conversa_omegadrakon.md",
+    "pendencias_dono": "abrir o app → banner 1.24.1 → Atualizar (2052 → 2053) e testar apagar/limpar.",
+    "pendencias_sistema": [
+      "etapa 4 do item 2 (registro do comprador no app + QR de posse + loja) — aguarda ordem do dono",
+      "rotação dos segredos antigos (adiada pelo dono até testes em produção)",
+      "itens 3/5 da pauta de divergências (unificação de ID e ordem das frentes)"
+    ]
   }
 }
