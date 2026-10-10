@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
@@ -1035,6 +1036,103 @@ class OdApi {
     }
     return false;
   }
+
+  // ------------------------------------------------------------------
+  // Registro Mestre de peças (tela "Verificar" — v1.24.0).
+  //
+  // Mesma API pública do site /site/verificacao.html: qualquer um consulta
+  // autenticidade pelo ID gravado na peça; a sala de bate-papo da peça é
+  // leitura pública e escrita com conta (username assina, nome real nunca).
+  // ------------------------------------------------------------------
+
+  /// GET /registry/{codigo} — consulta pública de autenticidade.
+  ///
+  /// Busca tolerante a hífens/espaços (o servidor normaliza). Lança
+  /// [OdApiError] com statusCode 404 quando o código não consta.
+  Future<OdRegistryItem> verifyPiece(String codigo) async {
+    final response = await _send(
+      'GET',
+      Uri.parse('$baseUrl/registry/${Uri.encodeComponent(codigo.trim())}'),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) {
+      return OdRegistryItem.fromJson(data!['peca'] as Map<String, dynamic>);
+    }
+    if (response.statusCode == 404) {
+      throw OdApiError('Código não consta no Registro Mestre', statusCode: 404);
+    }
+    throw OdApiError(
+      'Verificação falhou: ${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// GET /registry/{codigo}/photo — foto pública da peça em bytes.
+  /// Null quando a peça não tem foto (404) — nunca é erro.
+  Future<Uint8List?> registryPhoto(String codigo) async {
+    final response = await _send(
+      'GET',
+      Uri.parse(
+        '$baseUrl/registry/${Uri.encodeComponent(codigo.trim())}/photo',
+      ),
+    );
+    if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+      return response.bodyBytes;
+    }
+    return null;
+  }
+
+  /// GET /registry/{codigo}/chat — mensagens da sala (?since= para polling).
+  Future<List<OdRegistryMessage>> registryChat(
+    String codigo, {
+    int since = 0,
+  }) async {
+    final response = await _send(
+      'GET',
+      Uri.parse(
+        '$baseUrl/registry/${Uri.encodeComponent(codigo.trim())}'
+        '/chat?since=$since',
+      ),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode != 200 || data?['ok'] != true) {
+      throw OdApiError('Sala da peça indisponível', statusCode: response.statusCode);
+    }
+    return ((data!['mensagens'] as List?) ?? [])
+        .map((m) => OdRegistryMessage.fromJson(m as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// POST /registry/{codigo}/chat — publica na sala (conta obrigatória;
+  /// o servidor responde 401 sem credencial).
+  Future<OdRegistryMessage> registryChatPost(
+    String codigo,
+    String text,
+  ) async {
+    final response = await _send(
+      'POST',
+      Uri.parse(
+        '$baseUrl/registry/${Uri.encodeComponent(codigo.trim())}/chat',
+      ),
+      body: jsonEncode({'text': text}),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 201 && data?['ok'] == true) {
+      return OdRegistryMessage.fromJson(
+        data!['mensagem'] as Map<String, dynamic>,
+      );
+    }
+    if (response.statusCode == 401) {
+      throw OdApiError(
+        'Entre com sua conta para conversar na sala da peça',
+        statusCode: 401,
+      );
+    }
+    throw OdApiError(
+      'Envio falhou: ${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
 }
 
 /// Mensagem vinda do histórico da conta (GET /history/{user_id}).
@@ -1059,6 +1157,88 @@ class OdHistoryMessage {
             : DateTime.fromMillisecondsSinceEpoch((ts * 1000).round());
 
   bool get isUser => role == 'user';
+}
+
+/// Peça do Registro Mestre (projeção PÚBLICA de GET /registry/{codigo}).
+///
+/// Preço e notas internas NUNCA chegam aqui — o servidor não os envia.
+class OdRegistryItem {
+  final String publicId;
+  final String? engravedCode;
+  final String name;
+  final String? collection;
+  final String kind;    // 'exclusiva' | 'publica'
+  final String status;  // 'estoque' | 'vendida' | 'registrada'
+  final String? ownerUsername;  // só quando status == 'registrada'
+  final bool registered;
+  final String? photoUrl;       // /registry/{id}/photo quando existe
+
+  OdRegistryItem({
+    required this.publicId,
+    required this.engravedCode,
+    required this.name,
+    required this.collection,
+    required this.kind,
+    required this.status,
+    required this.ownerUsername,
+    required this.registered,
+    required this.photoUrl,
+  });
+
+  factory OdRegistryItem.fromJson(Map<String, dynamic> json) {
+    return OdRegistryItem(
+      publicId: (json['public_id'] as String?) ?? '',
+      engravedCode: json['engraved_code'] as String?,
+      name: (json['name'] as String?) ?? '',
+      collection: json['collection'] as String?,
+      kind: (json['kind'] as String?) ?? 'exclusiva',
+      status: (json['status'] as String?) ?? 'estoque',
+      ownerUsername: json['owner_username'] as String?,
+      registered: json['registered'] == true,
+      photoUrl: json['photo'] as String?,
+    );
+  }
+
+  /// Selo para a tela: (texto, éAlerta) — ambar para "vendida" (aguardando
+  /// registro), verde para estoque/registrada.
+  (String, bool) get selo => switch (status) {
+        'vendida' => ('Peça autêntica · vendida', true),
+        'registrada' => ('Peça autêntica · registrada', false),
+        _ => ('Peça autêntica', false),
+      };
+
+  String get statusLabel => switch (status) {
+        'vendida' => 'Vendida',
+        'registrada' => 'Registrada',
+        _ => 'Em estoque',
+      };
+}
+
+/// Mensagem da sala de bate-papo de uma peça (registry_chat).
+class OdRegistryMessage {
+  final int id;
+  final String username;
+  final String text;
+  final DateTime createdAt;
+
+  OdRegistryMessage({
+    required this.id,
+    required this.username,
+    required this.text,
+    required this.createdAt,
+  });
+
+  factory OdRegistryMessage.fromJson(Map<String, dynamic> json) {
+    final ts = (json['created_at'] as num?)?.toDouble() ?? 0;
+    return OdRegistryMessage(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      username: (json['username'] as String?) ?? '?',
+      text: (json['text'] as String?) ?? '',
+      createdAt: ts <= 0
+          ? DateTime.now()
+          : DateTime.fromMillisecondsSinceEpoch((ts * 1000).round()),
+    );
+  }
 }
 
 class OdApiError implements Exception {

@@ -58,7 +58,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2051  # versionCode cru do APK publicado (v1.23.1+2051)
+_APP_VERSION_CODE = 2052  # versionCode cru do APK publicado (v1.24.0+2052)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -1244,7 +1244,10 @@ async function regLoad() {
         acoes += '<button class="reg-vender" data-id="' + esc(p.public_id) + '">→ Vender</button> ';
         acoes += '<button class="reg-registrar" data-id="' + esc(p.public_id) + '">🔑 Registrar</button>';
       } else if (p.status === "vendida") {
-        acoes = '<button class="reg-registrar" data-id="' + esc(p.public_id) + '">🔑 Registrar</button>';
+        acoes = '<button class="reg-registrar" data-id="' + esc(p.public_id) + '">🔑 Registrar</button> ';
+        // Desfazer venda (1.24.0): o comprador desistiu antes de concluir —
+        // a peça volta para o estoque e some da consulta como "vendida".
+        acoes += '<button class="reg-desfazer" data-id="' + esc(p.public_id) + '">↩ Desfazer</button>';
       } else {
         acoes = '<span class="pill ok">com dono</span>';
       }
@@ -1274,6 +1277,8 @@ async function regLoad() {
       b.addEventListener("click", () => regStatus(b.dataset.id, "vendida")));
     document.querySelectorAll(".reg-registrar").forEach(b =>
       b.addEventListener("click", () => regRegistrar(b.dataset.id)));
+    document.querySelectorAll(".reg-desfazer").forEach(b =>
+      b.addEventListener("click", () => regDesfazer(b.dataset.id)));
     document.querySelectorAll(".reg-del").forEach(b =>
       b.addEventListener("click", () => regDel(b.dataset.id)));
     document.querySelectorAll(".reg-chat-btn").forEach(b =>
@@ -1330,6 +1335,13 @@ function regRegistrar(id) {
     "Username de quem passa a ser o dono — na consulta pública aparece SÓ o username, nunca o nome real:") || "").trim();
   if (!username) return;
   regStatus(id, "registrada", username);
+}
+
+async function regDesfazer(id) {
+  // Desfazer venda (1.24.0): o comprador desistiu antes de concluir.
+  // A peça volta para o estoque e o carimbo de venda é apagado.
+  if (!window.confirm("DESFAZER a venda de " + id + "? A peça volta para o estoque.")) return;
+  await regStatus(id, "estoque");
 }
 
 async function regDel(id) {

@@ -75,7 +75,7 @@ void main() {
     // instalada, com os versionCodes.
     test('sem atualização: publicada e instalada aparecem', () {
       final msg = odUpdateStatusMessage(
-        OdUpdateInfo(
+        const OdUpdateInfo(
           version: '1.23.1',
           versionCode: 2051,
           localVersionCode: 2051,
@@ -90,7 +90,7 @@ void main() {
 
     test('com atualização: nomeia a nova E a instalada com códigos', () {
       final msg = odUpdateStatusMessage(
-        OdUpdateInfo(
+        const OdUpdateInfo(
           version: '1.23.1',
           versionCode: 2051,
           localVersionCode: 2050,
@@ -107,7 +107,7 @@ void main() {
 
     test('PackageInfo indisponível: cai para o versionCode instalado', () {
       final msg = odUpdateStatusMessage(
-        OdUpdateInfo(
+        const OdUpdateInfo(
           version: '1.23.1',
           versionCode: 2051,
           localVersionCode: 2051,

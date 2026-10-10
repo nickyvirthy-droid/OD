@@ -146,6 +146,39 @@
         "regra vigente: todo APK publicado com versionCode novo (§5.3 ajustado)"
       ],
       "telegram": "msg de conclusão enviada ao dono"
+    },
+    "item_2e_app_tela_registro_desfazer_2026_10_09": {
+      "id": "item_2e_app_tela_registro_desfazer_2026_10_09",
+      "titulo": "Dois pedidos do dono — app sem tela de Registro Mestre + desfazer venda (v1.24.0)",
+      "data": "2026-10-09",
+      "pedidos_dono": [
+        "porque atualizou o APP se ele não possui a tela de Registro Mestre",
+        "se vendo a peça e depois a pessoa desiste antes de concluir, não consigo desfazer e voltar para o estoque",
+        "a mesma coisa com o registro, mas esse vamos tratar depois já que depende de um código exclusivo e secreto da peça"
+      ],
+      "resposta_ao_porque": "a 1.23.1 foi SÓ o conserto do bug 'Verificar Atualização' que ele reportou — nenhuma tela nova; a tela de Registro Mestre agora existe (aba Verificar da 1.24.0)",
+      "entregas": [
+        "aba Verificar no app (6ª aba, RegistryScreen): consulta pública pelo ID gravado na peça (servidor normaliza — sem hífen acha), selo, foto, coleção, status, USERNAME do dono (preço/notas/nome real nunca saem do servidor)",
+        "sala da peça no app: leitura pública, escrita só com conta (401 avisa), polling 4 s, assinatura pelo username",
+        "desfazer venda no painel: botão '↩ Desfazer' (vendida → estoque) com confirmação; update() do store apaga sold_at/registered_at junto",
+        "bloqueio de regressão de registro: registrada → estoque/vendida = 400 registro_pendente_codigo_secreto (pendente do sistema do código secreto/QR — adiado pelo dono de propósito)"
+      ],
+      "versao": "1.24.0 (MINOR) · versionCode 2052 · APKs rebuildados (full 7cb76a2b…, arm64 3c78f252…)",
+      "quantidades": {
+        "suite_servidor": "2393 pass / 16 skip",
+        "app": "analyze 0 · 143 pass / 2 skip (+5 em registry_screen_test)",
+        "registry_testes": "36 pass (+3: desfazer store/rota/painel + bloqueio registro)"
+      },
+      "provas_live": [
+        "vende 0004 → vendida sold_at=1791590700; desfaz → estoque sold_at=None; público vê estoque/registered=False",
+        "0003 registrada → PUT status estoque = 400 registro_pendente_codigo_secreto",
+        "painel /admin contém reg-desfazer; /app/version local+Funnel = 1.24.0/2052 sha=7cb76a2b (bate com APK); APK Funnel 200; journal 0 erros"
+      ],
+      "estado": "entregue",
+      "pendencias": [
+        "desfazer/regressão de REGISTRO: depende do código exclusivo e secreto da peça (QR de posse) — etapa 4 do item 2, quando o dono pedir",
+        "registro do comprador no app + QR de posse + loja: etapa 4 do item 2"
+      ]
     }
   },
   "bump_v1180_2026_10_03": {

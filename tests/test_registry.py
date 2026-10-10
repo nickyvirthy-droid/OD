@@ -568,3 +568,65 @@ class TestSalaDeBatePapo:
                  f"/registry/{outro['public_id']}/chat",
                  api_key=chave_bia, raw_body=json.dumps({"text": "oi"}))
         assert len(chamadas) == 2
+
+
+# ---------------------------------------------------------------------------#
+# 1.24.0 — desfazer venda (vendida → estoque) + bloqueio de regressão          #
+#          de registro (pendente do código secreto da peça)                    #
+# ---------------------------------------------------------------------------#
+class TestDesfazerVenda:
+    def test_store_desfaz_venda_e_apaga_carimbo(self, store: RegistryStore) -> None:
+        item = store.create(name="Anel", kind="exclusiva")
+        vendida = store.update(item["public_id"], status="vendida")
+        assert vendida["status"] == "vendida" and vendida["sold_at"]
+        # desfeita: volta ao estoque e o carimbo some
+        volta = store.update(item["public_id"], status="estoque")
+        assert volta["status"] == "estoque"
+        assert volta["sold_at"] is None
+        assert volta["registered_at"] is None
+        # a projeção pública também volta a dizer "sem dono"
+        pub = store.verify_public(item["public_id"])
+        assert pub["status"] == "estoque" and not pub["registered"]
+
+    def test_rota_admin_desfaz_venda(self, serve, tmp_path: Path) -> None:
+        from integrations.api import APIConfig
+
+        db = Database(tmp_path / "d.db")
+        reg = RegistryStore(db, photo_dir=tmp_path / "fotos")
+        cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123",
+                        registry=reg)
+        server = serve(None, config=cfg)
+        item = reg.create(name="A", kind="exclusiva")
+        reg.update(item["public_id"], status="vendida")
+        status, body, _ = _request(
+            server.bound_port, "PUT",
+            "/admin/registry/" + item["public_id"],
+            api_key="segredo123",
+            raw_body=json.dumps({"status": "estoque"}))
+        data = _json_response((status, body, None))
+        assert status == 200 and data["peca"]["status"] == "estoque"
+        assert data["peca"]["sold_at"] is None
+
+    def test_registrada_nao_regride_sem_codigo_secreto(
+        self, store: RegistryStore
+    ) -> None:
+        """Posse registrada só cai com o código exclusivo da peça (futuro)."""
+        item = store.create(name="A", kind="exclusiva")
+        store.update(item["public_id"], status="vendida")
+        store.update(item["public_id"], status="registrada",
+                     owner_username="bia")
+        for alvo in ("estoque", "vendida"):
+            with pytest.raises(ValueError, match="codigo_secreto"):
+                store.update(item["public_id"], status=alvo)
+        # e continua registrada, sem dano
+        assert store.get(item["public_id"])["status"] == "registrada"
+
+    def test_painel_tem_botao_desfazer(self, serve) -> None:
+        from integrations.api import APIConfig
+
+        cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123")
+        srv = serve(None, config=cfg)
+        status, body, _ = _request(srv.bound_port, "GET", "/admin")
+        html = body.decode("utf-8", "replace")
+        assert status == 200
+        assert "reg-desfazer" in html and "regDesfazer" in html

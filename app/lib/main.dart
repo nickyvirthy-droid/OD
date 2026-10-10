@@ -9,6 +9,7 @@ import 'screens/actions_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/status_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/registry_screen.dart';
 import 'screens/login_screen.dart';
 
 /// OmegaDrakon — Interface Viva no bolso 🐉
@@ -202,10 +203,10 @@ class _OdRootState extends State<OdRoot> {
 
   void _onAdvanced() {
     // Modo avançado: vai direto às Configurações (API key do servidor).
-    // 5ª aba: Chat(0) · Ações(1) · Painel(2) · Status(3) · Config(4).
+    // 6ª aba: Chat(0) · Ações(1) · Painel(2) · Verificar(3) · Status(4) · Config(5).
     setState(() {
       _authenticated = true;
-      _initialIndex = 4;
+      _initialIndex = 5;
     });
   }
 
@@ -272,6 +273,7 @@ class _OdHomeState extends State<OdHome> {
       ChatScreen(api: widget.api),
       ActionsScreen(api: widget.api),
       DashboardScreen(api: widget.api),
+      RegistryScreen(api: widget.api),
       StatusScreen(api: widget.api),
       SettingsScreen(api: widget.api, onSaved: widget.onSettingsSaved),
     ];
@@ -300,6 +302,11 @@ class _OdHomeState extends State<OdHome> {
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard),
             label: 'Painel',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.workspace_premium_outlined),
+            selectedIcon: Icon(Icons.workspace_premium),
+            label: 'Verificar',
           ),
           NavigationDestination(
             icon: Icon(Icons.monitor_heart_outlined),

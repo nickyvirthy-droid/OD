@@ -248,10 +248,28 @@ class RegistryStore:
 
         `codigo` identifica a peça (public_id ou engraved_code); campos
         fora da whitelist (id, public_id) são ignorados — nunca mudam.
+
+        Transições (pedido do dono, 09/10):
+        - vendida → estoque = DESFAZER VENDA (o comprador desistiu antes
+          de concluir): volta para o estoque e o carimbo sold_at é
+          apagado — a peça não foi vendida de verdade.
+        - registrada → qualquer coisa ABAIXO é bloqueada por enquanto:
+          desfazer o registro depende do código exclusivo e secreto da
+          peça (sistema do QR), que ainda vai nascer. O dono tratou de
+          deixar isso para depois — o bloqueio impede apagamento acidental
+          de posse sem a prova secreta.
         """
         item = self.get(codigo)
         if item is None:
             return None
+        novo_status = fields.get("status")
+        if isinstance(novo_status, str):
+            novo_status = novo_status.strip().lower()
+        # Posse registrada só cai com o código secreto da peça (futuro).
+        if item.get("status") == "registrada" and novo_status in (
+            "estoque", "vendida",
+        ):
+            raise ValueError("registro_pendente_codigo_secreto")
         sets: list[str] = []
         params: list[Any] = []
         for key, value in fields.items():
@@ -277,9 +295,6 @@ class RegistryStore:
         if not sets:
             return item
         # Coerência de tempo: a transição grava o carimbo sozinha.
-        novo_status = fields.get("status")
-        if isinstance(novo_status, str):
-            novo_status = novo_status.strip().lower()
         if novo_status == "vendida" and not item.get("sold_at") \
                 and not fields.get("sold_at"):
             sets.append("sold_at = ?")
@@ -288,6 +303,11 @@ class RegistryStore:
                 and not fields.get("registered_at"):
             sets.append("registered_at = ?")
             params.append(time.time())
+        elif novo_status == "estoque" and item.get("status") != "estoque":
+            # Desfazer venda: a peça nunca saiu de fato — apaga os
+            # carimbos de venda/registro junto (nada de estoque "vendido").
+            sets.append("sold_at = NULL")
+            sets.append("registered_at = NULL")
         params.append(item["public_id"])
         self._db.execute(
             f"UPDATE registry_items SET {', '.join(sets)} WHERE public_id = ?",

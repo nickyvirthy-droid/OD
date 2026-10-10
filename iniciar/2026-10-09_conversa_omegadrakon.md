@@ -390,3 +390,53 @@ v1.22.1 (código 2050).") · journal **0 erros**, 0 🐉.
 **Para o dono:** abrir o app → banner "Nova versão 1.23.1 disponível" →
 Atualizar (baixa, confere o hash e instala). Depois, em Configurações →
 Atualização, o "Verificar atualização" mostra as duas versões.
+
+## 17. Dois pedidos do dono — app sem tela de Registro Mestre + desfazer venda (v1.24.0, ~21:0x–21:5x)
+
+**Pedidos do dono (Telegram):**
+1. "porque atualizou o APP se ele não possui a tela de Registro Mestre" —
+   resposta: a 1.23.1 foi SÓ o conserto do bug "Verificar Atualização"
+   que ele mesmo reportou; nenhuma tela nova. Mas ele tem razão: a tela
+   de Registro Mestre agora foi construída no app.
+2. "se vendo a peça e depois a pessoa desiste antes de concluir, não
+   consigo desfazer e voltar para o estoque".
+3. "a mesma coisa com o registro, mas esse vamos tratar depois já que
+   depende de um código exclusivo e secreto da peça" — anotado como
+   pendência (sistema do QR de posse); até lá o retrocesso de registro
+   fica BLOQUEADO no store para não apagar posse sem prova.
+
+**Entregas (v1.24.0+2052):**
+- **Aba "Verificar" no app** (6ª aba, `RegistryScreen`): consulta
+  pública pelo ID gravado na peça (tolerante a hífens/espaços como o
+  site), selo de autenticidade, foto, coleção, status e o USERNAME de
+  quem tem a peça — preço, notas e nome real nunca saem do servidor.
+  A mesma sala de bate-papo do site: leitura pública, escrita só com
+  conta (401 avisa "entre com sua conta"), polling de 4 s.
+- **Desfazer venda no painel:** botão "↩ Desfazer" em peça vendida →
+  `vendida → estoque` com confirmação; o `update()` do store apaga
+  `sold_at`/`registered_at` junto (nada de estoque "vendido").
+- **Bloqueio de regressão de registro:** `registrada → estoque/vendida`
+  = 400 `registro_pendente_codigo_secreto` (guarda do adiamento).
+
+**Validação:** suíte servidor **2393 pass / 16 skip** · app analyze 0 ·
+app **143 pass / 2 skip** (+5 em `registry_screen_test.dart`; o teste
+aprendeu 3 lições: mock precisa NORMALIZAR o código como o servidor,
+bytes falsos de "JPEG mínimo" estouram o codec — PNG 1×1 real de 69 B —,
+e a sala fica abaixo da dobra na viewport 800×600, exigindo
+`scrollUntilVisible`) · aapt2 dos dois APKs
+`versionCode='2052' versionName='1.24.0'` · `/app/version` (local +
+Funnel) {1.24.0, 2052, sha == binário `7cb76a2b…`} · APK pela Funnel
+(200, 55 MB) · journal **0 erros**, 0 🐉.
+
+**Demonstração ao vivo:** vendeu a 0004 (vendida, sold_at gravado) →
+desfez (estoque, sold_at None) → público volta a ver "estoque/sem
+dono"; a 0003 (registrada) resistiu ao PUT de retrocesso com 400
+`registro_pendente_codigo_secreto`.
+
+**Registro:** session.json (`item_2e_app_tela_registro_desfazer_2026_10_09`),
+este §17, txt.txt (regra 14), Telegram (regra 15), commit à parte.
+
+**Para o dono:** baixar o APK novo pelo site (1.24.0) — a aba
+"Verificar" consulta peças como o site; no painel, peça vendida agora
+tem "↩ Desfazer". Registro (QR com código secreto da peça) fica para a
+etapa 4 quando ele pedir.

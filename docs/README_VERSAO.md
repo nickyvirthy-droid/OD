@@ -7,6 +7,44 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.24.0] — REGISTRO MESTRE NO APP (ABA "VERIFICAR") + DESFAZER VENDA 🜂 (2026-10-09)
+
+### 1. O que foi feito
+
+Dois pedidos do dono no mesmo dia: (a) "porque atualizou o APP se ele não possui a tela de Registro Mestre" — a 1.23.1 só consertou o "Verificar Atualização"; a tela de verificação nunca tinha existido no app; (b) "se vendo a peça e depois a pessoa desiste antes de concluir, não consigo desfazer e voltar para o estoque".
+
+| Peça | Entrega |
+|---|---|
+| **Aba Verificar** | Nova 6ª aba do app (`RegistryScreen`): consulta pública pelo ID gravado na peça (o servidor normaliza — sem hífen/espaço acha), selo de autenticidade, foto, coleção, status e o USERNAME de quem tem a peça (nome real, preço e notas nunca chegam ao app). |
+| **Sala da peça no app** | A mesma sala do site: leitura pública, escrita só com conta (401 → aviso "entre com sua conta"), polling de 4 s, assinatura pelo username. |
+| **Desfazer venda** | Painel: botão "↩ Desfazer" em peça vendida → `vendida → estoque` com confirmação; o `update()` do store apaga `sold_at`/`registered_at` junto (nada de estoque "vendido"). |
+| **Registro intocado** | `registrada → estoque/vendida` agora é BLOQUEADO no store (`registro_pendente_codigo_secreto` → 400): desfazer o registro depende do código exclusivo e secreto da peça (sistema do QR) — o dono adiou de propósito; o bloqueio impede apagamento acidental de posse sem a prova secreta. |
+| **versionCode** | 2051 → **2052** (regra §5.3: todo APK publicado leva versionCode novo). |
+| **Testes** | app: `registry_screen_test.dart` +5 (143 pass / 2 skip) — busca sem hífen com mock que normaliza como o servidor, peça com/sem dono, 404 vira aviso, sala lê sem conta e envia com conta; servidor: `test_registry.py` +3 (36 pass) — desfazer venda (store/rota/painel) e bloqueio de regressão de registro. |
+
+### 2. Decisões e fronteiras
+
+- **Por que o app atualizou "sem" Registro Mestre antes:** a 1.23.1 foi só o conserto do bug "Verificar Atualização" que o dono reportou — nenhuma tela nova. A tela de Registro Mestre é esta 1.24.0.
+- A aba Verificar é PÚBLICA (mesma API do site /site/verificacao.html) — não exige login para consultar; só a escrita na sala exige conta.
+- O desfazer venda é só do painel do dono (rota admin exige X-API-Key).
+- Pendência explícita: desfazer/regressão de REGISTRO fica para o sistema do código secreto da peça (QR de posse) — etapa 4 do item 2.
+
+### 3. Quantidades (após entrega)
+
+| Métrica | Antes | Depois |
+|---|---|---|
+| Abas do app | 5 | 6 |
+| Testes app | 138 pass / 2 skip | 143 pass / 2 skip |
+| Testes registry (servidor) | 33 | 36 |
+| versionCode | 2051 | 2052 |
+
+### 4. Pendências
+
+- Desfazer registro (`registrada → ...`): depende do código exclusivo e secreto da peça (QR) — bloqueado no store até lá.
+- Registro do comprador no app + QR de posse + loja: etapa 4 do item 2, quando o dono pedir.
+
+---
+
 ## [1.23.1] — APP: "VERIFICAR ATUALIZAÇÃO" AGORA MOSTRA AS DUAS VERSÕES 🜂 (2026-10-09)
 
 ### 1. O que foi feito

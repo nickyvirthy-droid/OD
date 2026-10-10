@@ -14,6 +14,23 @@
 
 ---
 
+## [1.24.0] — REGISTRO MESTRE NO APP (ABA "VERIFICAR") + DESFAZER VENDA 🜂 (2026-10-09)
+
+> **Bump MINOR (dois pedidos do dono):** (a) "porque atualizou o APP se ele não possui a tela de Registro Mestre" — a 1.23.1 só consertou o "Verificar Atualização"; a tela agora existe no app; (b) "se vendo a peça e depois a pessoa desiste antes de concluir, não consigo desfazer e voltar para o estoque".
+
+| Peça | Entrega |
+|---|---|
+| **Aba Verificar** | 6ª aba do app (`RegistryScreen`): consulta pública pelo ID gravado na peça (busca tolerante a hífens/espaços, como o site), selo de autenticidade, foto, coleção, status e o USERNAME de quem tem a peça — preço/notas/nome real nunca saem do servidor. |
+| **Sala da peça** | A mesma sala do site dentro do app: leitura pública, escrita só com conta (401 avisa), polling de 4 s, assinatura pelo username. |
+| **Desfazer venda** | Painel: botão "↩ Desfazer" em peça vendida → volta para o estoque (com confirmação) e `sold_at`/`registered_at` são apagados no store. |
+| **Registro protegido** | `registrada → estoque/vendida` bloqueado no store (`registro_pendente_codigo_secreto` → 400): desfazer o registro depende do código exclusivo e secreto da peça (QR de posse) — adiado pelo dono; sem bloqueio, um clique acidental apagaria posse sem prova. |
+| **versionCode** | 2051 → 2052 (regra §5.3). |
+| **Testes** | app +5 `registry_screen_test.dart` (143 pass / 2 skip) · servidor +3 `test_registry.py` (36 pass) · analyze 0. |
+
+Infra visível no repo: `.env 1.24.0` · capabilities fallback `1.24.0` · `pubspec 1.24.0+2052` · `_APP_VERSION_CODE=2052` · site (badge + dl-meta) · APKs rebuildados · `CHANGELOG [1.24.0]` · `README_VERSAO §1.24.0`.
+
+---
+
 ## [1.23.1] — APP: "VERIFICAR ATUALIZAÇÃO" AGORA MOSTRA AS DUAS VERSÕES 🜂 (2026-10-09)
 
 > **Bump PATCH (bug do dono):** "APP não mostra a versão atual ao clicar Verificar Atualização". Duas causas somadas: (1) a mensagem do resultado não trazia versão nenhuma — só "Você já está na versão mais recente."; (2) o versionCode estava parado em 2050 desde a 1.22.0 (bumps com "app sem mudança de código"), e a comparação do updater é só por versionCode — o celular do dono (2050) recebia "já atualizado" enquanto o servidor anunciava 1.23.0.
