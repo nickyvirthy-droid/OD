@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-11T13:10:00-03:00",
+  "updated_at": "2026-10-11T13:30:00-03:00",
   "dev_canal_3_causas_raiz_2026_10_10": {
     "id": "dev_canal_3_causas_raiz_2026_10_10",
     "titulo": "Canal de desenvolvimento: 3 causas raiz da falha 'todas_as_clis_falharam'",
@@ -2148,7 +2148,18 @@
     "commits": [
       "30c28e6 feat(dev): rodapé Histórico — âncora da própria página (sessão do canal)"
     ],
-    "estado": "CONCLUÍDO E PUBLICADO — sessão órfã fechada; aguardando próximo pedido do dono",
-    "ts": "2026-10-11T13:10:00-03:00"
+    "estado": "CONCLUÍDO E CONFIRMADO PELO DONO — aguardando próximo pedido",
+    "ts": "2026-10-11T13:10:00-03:00",
+    "confirmacao_dono": "Dono: 'verificado e funcionando' — conferiu o rodapé no ar.",
+    "pendencias": [
+      "DONO: app → atualizar 1.24.1+2053 e testar apagar/limpar mensagens",
+      "DONO: fotos da Plêiade (CSS pronto em site/historico... fichas; troca de 1 linha)",
+      "DONO: limpar Registro Mestre — 4 exemplos (0001–0004) + 2 testes novos dele (0005 Montanhas registrada com foto, 0006 trena) — total 6, apagáveis pelo painel ✕",
+      "DONO: txt.txt com texto novo por cima (o atual já foi implementado)",
+      "ORDEM DO DONO: etapa 4 do item 2 (registro do comprador no app + QR + loja) — destrava o 'desfazer registro'",
+      "ADIADA: rotação dos segredos antigos (bot Telegram antigo e chave Gemini ainda ativos)",
+      "PAUTA: itens 3 e 5 das divergências (unificação de ID, ordem das frentes)",
+      "MENOR: resíduo backups/llm-cache-fakes-20261008-055830.json untracked (ignorado pelo aviso)"
+    ]
   }
 }

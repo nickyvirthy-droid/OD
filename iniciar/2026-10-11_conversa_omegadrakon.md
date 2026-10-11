@@ -60,3 +60,13 @@
 - Rotação dos segredos antigos (adiada até testes em produção).
 - Itens 3 e 5 da pauta de divergências (unificação de ID, ordem das
   frentes).
+
+## §2 — Confirmação do dono (~13:2x)
+
+Dono: **"verificado e funcionando. ficou alguma pendencia?"** — conferiu
+o rodapé no ar. Respondida a lista de pendências (nenhuma é bug):
+ações do dono (app 1.24.1+2053, fotos da Plêiade, limpeza do Registro
+Mestre — total 6 peças, com 0005/0006 testados por ele, txt.txt novo),
+ordens aguardando (etapa 4 do item 2 + QR, rotação de segredos adiada,
+itens 3/5 da pauta) e o resíduo conhecido de backups/. Registro
+consolidado em `session.json` → `retomada_2026_10_11_rodape`.
