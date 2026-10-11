@@ -20,6 +20,7 @@ Arquiteto: Alex Projeti
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
 import os
@@ -30,6 +31,9 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -72,6 +76,96 @@ KILO_MODELO: str = "kilo/nvidia/nemotron-3-super-120b-a12b:free"
 
 #: Logger do módulo (padrão do projeto: logging, journald do usuário captura).
 log = logging.getLogger("orquestrador")
+
+# ---------------------------------------------------------------------------
+# Notificação Telegram (fim de sessão) — 2026-10-11
+# ---------------------------------------------------------------------------
+#
+# Envia resumo da sessão para o admin do Telegram (OD_TELEGRAM_ADMINS) usando
+# o TELEGRAM_BOT_TOKEN do .env. Chamado em _encerrar() para cobrir tanto
+# sucesso (concluido) quanto falhas (todas_as_clis_falharam, testes_vermelhos,
+# autorizacao_nao_respondida, etc.).
+#
+# O envio é best-effort: falha de rede/token não derruba a sessão — só loga.
+# ---------------------------------------------------------------------------
+
+
+def _notificar_telegram(estado: dict) -> None:
+    """Envia resumo da sessão de desenvolvimento para o Telegram do dono.
+
+    Formata uma mensagem com status, motivo, CLI, commit, testes, diff e duração.
+    Só envia se TELEGRAM_BOT_TOKEN e OD_TELEGRAM_ADMINS estiverem configurados.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    admins_raw = os.environ.get("OD_TELEGRAM_ADMINS", "").strip()
+    if not token or not admins_raw:
+        return
+    # Pega o primeiro admin válido (número)
+    chat_id = None
+    for parte in admins_raw.split(","):
+        parte = parte.strip()
+        if parte.isdigit() or (parte.startswith("-") and parte[1:].isdigit()):
+            chat_id = int(parte)
+            break
+    if chat_id is None:
+        return
+
+    status = estado.get("status", "?")
+    motivo = estado.get("motivo", "?")
+    cli_usada = estado.get("cli_usada", estado.get("cli", "?"))
+    commit = estado.get("commit", "")
+    testes = estado.get("testes", "")
+    diff = estado.get("diff", "")
+    decorrido = estado.get("decorrido_s")
+    ideia_preview = estado.get("ideia_preview", "")[:200]
+
+    # Emoji por status
+    emoji = "✅" if status == "concluido" else "❌"
+    status_pt = "CONCLUÍDA" if status == "concluido" else "FALHOU"
+
+    linhas = [
+        f"{emoji} <b>Sessão de desenvolvimento {status_pt}</b>",
+        f"📋 <b>Ideia:</b> {ideia_preview}",
+        f"🔧 <b>CLI:</b> {cli_usada}",
+        f"📌 <b>Motivo:</b> {motivo}",
+    ]
+    if commit:
+        linhas.append(f"🔀 <b>Commit:</b> <code>{commit}</code>")
+    if testes:
+        linhas.append(f"🧪 <b>Testes:</b> {testes[:200]}")
+    if diff:
+        linhas.append(f"📝 <b>Diff:</b> {diff[:200]}")
+    if decorrido is not None:
+        mins = decorrido // 60
+        segs = decorrido % 60
+        if mins:
+            linhas.append(f"⏱️ <b>Duração:</b> {mins}min {segs}s")
+        else:
+            linhas.append(f"⏱️ <b>Duração:</b> {segs}s")
+
+    texto = "\n".join(linhas)
+
+    # Envio síncrono via asyncio.run (one-shot no fim da sessão)
+    async def _enviar() -> None:
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        dados = urllib.parse.urlencode({
+            "chat_id": chat_id,
+            "text": texto,
+            "parse_mode": "HTML",
+        }).encode("utf-8")
+        req = urllib.request.Request(url, data=dados, method="POST")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                resp.read()
+        except Exception as exc:  # best-effort: não derruba a sessão
+            log.warning("Falha ao enviar notificação Telegram: %s", exc)
+
+    try:
+        asyncio.run(_enviar())
+    except Exception as exc:  # best-effort
+        log.warning("Falha ao rodar notificação Telegram: %s", exc)
+
 
 # ---------------------------------------------------------------------------
 # Modelos
@@ -776,6 +870,8 @@ def _encerrar(
         texto += f" — {detalhe}"
     publicar_na_caixa("sistema", texto, "info", arquivo_caixa)
     log.info("Sessão encerrada | status=%s | motivo=%s", status, motivo)
+    # Notificação Telegram (best-effort) — avisa o dono no fim da sessão
+    _notificar_telegram(estado)
     return estado
 
 

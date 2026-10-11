@@ -39,6 +39,7 @@ from orquestrador import (
     _buscar_no_codigo,
     _extrair_palavras_chave,
     _montar_contexto_repositorio,
+    _notificar_telegram,
     aguardar_resposta_dono,
     commitar_sessao,
     executar_sessao,
@@ -1052,4 +1053,61 @@ class TestMain:
     def test_sem_flag_recusa_o_processo(self) -> None:
         """Sem --sessao não há mais fila: exit 2 em vez de rodar no escuro."""
         assert orch.main([]) == 2
+
+
+class TestNotificacaoTelegram:
+    """Testes da notificação Telegram no fim da sessão (2026-10-11)."""
+
+    def test_sem_token_nao_envia(self, monkeypatch) -> None:
+        """Sem TELEGRAM_BOT_TOKEN, a função retorna sem erro."""
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
+        estado = {"status": "concluido", "motivo": "implantado"}
+        _notificar_telegram(estado)  # não deve levantar
+
+    def test_sem_admins_nao_envia(self, monkeypatch) -> None:
+        """Sem OD_TELEGRAM_ADMINS, a função retorna sem erro."""
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-fake")
+        monkeypatch.delenv("OD_TELEGRAM_ADMINS", raising=False)
+        estado = {"status": "concluido", "motivo": "implantado"}
+        _notificar_telegram(estado)  # não deve levantar
+
+    def test_admins_invalidos_nao_envia(self, monkeypatch) -> None:
+        """OD_TELEGRAM_ADMINS com valores não-numéricos não envia."""
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-fake")
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "invalido,abc")
+        estado = {"status": "concluido", "motivo": "implantado"}
+        _notificar_telegram(estado)  # não deve levantar
+
+    def test_formata_mensagem_concluida(self, monkeypatch) -> None:
+        """Mensagem de sessão concluída inclui commit, testes, diff e duração."""
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-fake")
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
+        estado = {
+            "status": "concluido",
+            "motivo": "implantado",
+            "cli_usada": "OpenCode",
+            "commit": "abc1234",
+            "testes": "2414 passed, 16 skipped",
+            "diff": "core/orquestrador.py · tests/test_orquestrador.py",
+            "decorrido_s": 125,
+            "ideia_preview": "criar botão de tema",
+        }
+        _notificar_telegram(estado)  # não deve levantar (rede não chega)
+
+    def test_formata_mensagem_falhada(self, monkeypatch) -> None:
+        """Mensagem de sessão falhada usa emoji vermelho e motivo da falha."""
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-fake")
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
+        estado = {
+            "status": "falhou",
+            "motivo": "todas_as_clis_falharam",
+            "cli_usada": "",
+            "commit": "",
+            "testes": "",
+            "diff": "",
+            "decorrido_s": 30,
+            "ideia_preview": "ideia que falhou",
+        }
+        _notificar_telegram(estado)  # não deve levantar (rede não chega)
 
