@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-11T13:30:00-03:00",
+  "updated_at": "2026-10-11T14:20:00-03:00",
   "dev_canal_3_causas_raiz_2026_10_10": {
     "id": "dev_canal_3_causas_raiz_2026_10_10",
     "titulo": "Canal de desenvolvimento: 3 causas raiz da falha 'todas_as_clis_falharam'",
@@ -2161,5 +2161,50 @@
       "PAUTA: itens 3 e 5 das divergências (unificação de ID, ordem das frentes)",
       "MENOR: resíduo backups/llm-cache-fakes-20261008-055830.json untracked (ignorado pelo aviso)"
     ]
+  },
+  "lote_segredos_backups_fotos_2026_10_11": {
+    "id": "lote_segredos_backups_fotos_2026_10_11",
+    "titulo": "Lote do dono (11/10 tarde): segredos verificados, backups analisados, ordem do item 2, fotos da Plêiade",
+    "data": "2026-10-11",
+    "pedidos_dono": [
+      "App atualizado e correto (1.24.1+2053 confirmado por ele)",
+      "Fotos da Plêiade: como enviar? e consigo criar baseado nas características de cada personagem?",
+      "Registro Mestre: fica como está (6 peças) — limpa quando ele quiser; os exemplos servem de referência",
+      "Pergunta: a mensagem de conclusão do rodapé foi do CLI ou minha?",
+      "Nova ordem do item 2: PRIMEIRO banco de dados dos usuários → DEPOIS gerador de QR → DEPOIS a Loja",
+      "Segredos antigos: verificar se ainda estão em uso, comparar com o .env, testar, e os que não estiverem no .env colocar lá",
+      "Pasta backups/: analisar; se ok ele copia para HD externo"
+    ],
+    "respostas": [
+      "Mensagem de conclusão do rodapé: FOU EU (txt.txt + Telegram msg 2085 na retomada). Prova: orquestrador.py tem 0 ocorrências de sendMessage/TELEGRAM — o CLI do canal só codifica/commita, nunca envia mensagem.",
+      "Fotos: IMPOSSÍVEL por IA agora — testado ao vivo: Gemini (6 modelos de imagem no catálogo) → 429 limit:0 (free tier sem billing); OpenAI (gpt-image-1-mini) → 429 credit_balance_exhausted. Slots .ficha-foto prontos no site (CSS + img comentado /site/pleiade-nicky.png). Nenhum retrato de perfil existe no Legado (só avatares históricos e Nexus.png do projeto antigo). 3 caminhos oferecidos via ask_user: SVG vetorial agora / ativar crédito OpenAI / upload de fotos dele no painel."
+    ],
+    "segredos_verificacao": {
+      "metodologia": "todos testados ao vivo (getMe/HTTP) com sha8 mascarado; .env backupado em backups/env-20261011-pre-segredos.bak (600, gitignored) ANTES de qualquer mexida",
+      "estado_final": [
+        "TELEGRAM_BOT_TOKEN (Nicky_Virthy_bot) → 200 OK, inalterado",
+        "TELEGRAM_BOT_LEGADO_TOKEN (Nexus_Nicky_bot, c8bb4119) → 200 OK — NÃO estava no .env; ADICIONADO (pedido do dono). Fora de uso pelo sistema (0 referências fora do Legado/docs).",
+        "GEMINI_API_KEY (1787e9a5) → 200 OK — já era a chave 'antiga' verificada em 09/10; idêntica à do sandbox_agent/agent_config.json. ATENÇÃO: estava entre aspas no .env; loaders stdlib e dotenv stripam aspas (comportamento normal). Meu 1º teste mandou as aspas junto (400) — falso positivo MEU, não do sistema.",
+        "OPENAI_API_KEY (ef5d19cd) → 200 OK (restaurada byte-a-byte após eu tê-la substituído por engano no meio da investigação — diff final vs backup = SÓ a linha nova)",
+        "OPENAI_API_KEY2 (c9afdce0) → 200 OK — já existia no .env (é a chave do agent_config)",
+        "GROQ_API_KEY (d6f6186f) → 200 OK (403 via urllib = sem User-Agent, falso positivo; curl 200)",
+        "Chave google-services.json (f67697ff) → 403 REST (normal: é a chave restringida ao app Android, embutida no APK, não vai ao .env)",
+        "OD_API_KEY/OD_MQTT/OD_DB_URL: no .env, inalterados"
+      ],
+      "impacto_producao": "ZERO — od-core não usa GEMINI/OPENAI (grep 0 em integrations/core/tools/runtime), _ENV_CACHE carregado no boot; janela da minha troca (13:54–14:08) não foi lida por ninguém (OD_VERSION intacto, sessão do canal inativa). Sem restart.",
+      "suite": "2414 passed / 16 skipped exit=0 COM o .env final"
+    },
+    "backups_analise": {
+      "total": "1,3 GB · 39 itens",
+      "composicao": "18 pastas de APK antigos ≈ 1,25 GB (68–71 MB cada; apk-debug 149 MB) + ~20 arquivos pequenos (< 1 MB total: caches, conversas, tokens, tarballs legados)",
+      "segredos": "2 arquivos com segredos VIVOS: env-20260922-pre-alias.bak (contém TELEGRAM/GEMINI/OPENAI/OD_API/MQTT) e google-token-readonly-*.json — ambos mode 600 e gitignored (confirmado via git check-ignore). No HD externo: manter privado, NUNCA subir para nuvem/site (regra 16).",
+      "git": "10 arquivos de backups/ são versionados (só JSONs de cache/conversas sem segredo — scan de padrões TG/AIza/sk- = 0 fora dos 2 acima)",
+      "residuo": "llm-cache-fakes-20261008-055830.json segue untracked (conhecido)",
+      "veredito": "OK para copiar ao HD; opcional depois (com aprovação dele) apagar as 18 pastas de APK para liberar ~1,25 GB"
+    },
+    "item_2_nova_ordem": "DECISÃO DO DONO: registro do comprador → 1º banco de dados dos usuários, 2º gerador de QR, 3º Loja. Existe base: tabela users (storage/database.py) + contas/login do site. Aguardando ordem de implementação.",
+    "registro_mestre": "Mantido como está (6 peças, total com 0005 Montanhas e 0006 trena testados por ele); exemplos como referência; limpeza quando ele quiser.",
+    "estado": "CONCLUÍDO (segredos + backups + registros) — PENDENTE de decisão: fotos da Plêiade (ask_user)",
+    "ts": "2026-10-11T14:20:00-03:00"
   }
 }

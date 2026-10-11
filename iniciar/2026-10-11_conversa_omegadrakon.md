@@ -70,3 +70,45 @@ Mestre — total 6 peças, com 0005/0006 testados por ele, txt.txt novo),
 ordens aguardando (etapa 4 do item 2 + QR, rotação de segredos adiada,
 itens 3/5 da pauta) e o resíduo conhecido de backups/. Registro
 consolidado em `session.json` → `retomada_2026_10_11_rodape`.
+
+## §3 — Lote do dono: segredos, backups, ordem do item 2 e fotos (~13:3x–14:2x)
+
+Dono confirmou **app atualizado e correto** e mandou 6 pontos (chat).
+Registro consolidado em `session.json` →
+`lote_segredos_backups_fotos_2026_10_11`. Resumo das evidências:
+
+**Segredos antigos (testados ao vivo, shas mascarados):**
+- Bot legado `@Nexus_Nicky_bot` → getMe **200**, não estava no `.env` →
+  **adicionado** como `TELEGRAM_BOT_LEGADO_TOKEN` (pedido explícito).
+- `GEMINI_API_KEY` → 200; já era a mesma chave verificada em 09/10 e a
+  mesma do `agent_config`. **Artefato meu:** ela está entre aspas no
+  `.env` e meu teste mandou as aspas junto (400) — os dois loaders do
+  projeto (`runtime/launcher.load_env` e `capabilities._env_file_value`)
+  fazem `.strip('"')`, então em produção nunca houve problema.
+  Nesse intervalo eu cheguei a trocar as chaves por engano; **restauração
+  byte-a-byte** — diff final vs `backups/env-20261011-pre-segredos.bak` =
+  somente a linha nova.
+- `OPENAI_API_KEY` (ef5d19cd) 200 · `OPENAI_API_KEY2` (c9afdce0, já
+  existente) 200 · `GROQ_API_KEY` 200 (403 via urllib = User-Agent) ·
+  bot atual 200 · chave `google-services` 403 REST = esperado (restrita
+  ao Android, embutida no APK).
+- Impacto em produção: **zero** (od-core não lê essas chaves; cache de
+  env do boot; `OD_VERSION` intacto; sem restart). Suíte final
+  **2414/16 exit=0**.
+
+**Mensagem de conclusão do rodapé:** fui **eu** — o canal não envia
+mensagem (`orquestrador.py`: 0 `sendMessage`/`TELEGRAM`).
+
+**backups/ (1,3 GB, 39 itens):** 18 pastas de APK ≈1,25 GB + arquivos
+pequenos. Dois arquivos com segredos vivos (`env-*.bak`,
+`google-token-*`), ambos 600 e gitignored — OK para o HD externo do
+dono, proibido nuvem/site. Veredito: **pode copiar**.
+
+**Item 2 — nova ordem (decisão do dono):** banco de usuários → gerador
+de QR → Loja. **Registro Mestre:** fica como está.
+
+**Fotos da Plêiade:** sem retrato no Legado; slots prontos no site.
+Geração por IA **bloqueada ao vivo**: Gemini imagem → `limit: 0` (free
+tier); OpenAI `gpt-image-1-mini` → `credit_balance_exhausted`. 3
+caminhos oferecidos ao dono (SVG vetorial / crédito OpenAI / upload de
+fotos no painel).
