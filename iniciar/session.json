@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-10T15:45:15-03:00",
+  "updated_at": "2026-10-11T13:10:00-03:00",
   "dev_canal_3_causas_raiz_2026_10_10": {
     "id": "dev_canal_3_causas_raiz_2026_10_10",
     "titulo": "Canal de desenvolvimento: 3 causas raiz da falha 'todas_as_clis_falharam'",
@@ -2129,5 +2129,26 @@
     "pendencia": [
       "Fotos da Pleiade: dono vai mandar — CSS ja preparado"
     ]
+  },
+  "retomada_2026_10_11_rodape": {
+    "id": "retomada_2026_10_11_rodape",
+    "titulo": "Retomada 'leia iniciar' — sessão órfã do canal (rodapé do site) validada e publicada",
+    "data": "2026-10-11",
+    "pedido": "Usuário: 'leia iniciar' — retomada (~13:0x).",
+    "achado": "Sessão órfã do canal de desenvolvimento: dono escreveu no txt.txt 12:43 (rodapé 'Histórico' ia para /site/historico.html#historico em vez de /site#historico); canal rodou sozinho (OpenCode, 12:43:36→12:48:44), testes 2414/16, commit 30c28e6 — MAS sem push e sem registro em iniciar/.",
+    "correcao": "site/index.html rodapé → #historico (sessão na própria home); site/historico.html rodapé → /site#historico (volta à âncora da home, como o dono pediu).",
+    "validacao": "Suíte no .venv do projeto: 2414 passed / 16 skipped (82s) — mesma contagem da sessão de dev (python3 do sistema dá 2389/17 por falta de cv2, 25 testes do face_detector pulam). HTML hermético: 0 tags abertas, 0 âncoras quebradas (validação cross-page), 0 🐉. Ao vivo: rodapés servidos com os hrefs novos, /site 200.",
+    "saude": "od-core PID 1142795 (10/10 15:42:29) NRestarts=0 · /health up · /app/version 1.24.1/2053 (sem bump — só HTML) · /supervision restarts 0 degraded [] · journal 0 erros. Sem restart nesta retomada.",
+    "acoes": [
+      "git push origin master (regra 7.1): 4b04655..30c28e6 — HEAD == origin/master",
+      "txt.txt reescrito com o resumo (regra 14) — texto do dono já está no histórico do canal, novo ▶ avisa 'já implementado'",
+      "Telegram msg 2085 (regra 15)",
+      "transcrição iniciar/2026-10-11_conversa_omegadrakon.md"
+    ],
+    "commits": [
+      "30c28e6 feat(dev): rodapé Histórico — âncora da própria página (sessão do canal)"
+    ],
+    "estado": "CONCLUÍDO E PUBLICADO — sessão órfã fechada; aguardando próximo pedido do dono",
+    "ts": "2026-10-11T13:10:00-03:00"
   }
 }
