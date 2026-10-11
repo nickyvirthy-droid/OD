@@ -137,3 +137,56 @@ inalteradas).
 OpenAI / upload); (2) ordem de implementação do item 2 (banco de
 usuários → QR → Loja); (3) rotação de segredos adiada; (4) itens 3/5 da
 pauta de divergências.
+
+## §5 — Resposta do dono: SVG + campos do banco + segredos (~14:4x–15:3x)
+
+Dono respondeu os 3 pontos de uma vez: **"1 svg, 2. vamos verificar
+quais os campos (nome, email, endereço, apelido) antes de implementar
+ou da pra começar com os dados basicos e adicionar mais conforme a
+necessidade? 3. me responde se os segredos antigos estão no .env, se
+estão não são antigos!"** — e enviou o **logo oficial** como referência
+de estilo.
+
+### 1) Fotos da Plêiade → SVG (ENTREGUE)
+
+- **7 retratos vetoriais** criados (`site/pleiade-{nicky,regulus,luma,
+  vox,athenae,nyx,nexus}.svg`), linguagem visual do logo: busto angular
+  perfilado em facetas metálicas sólidas (`#EDF2F7`/`#97A2AF`/`#59636F`/
+  `#2C343D`) + olho azul `#63BDFF` com glow + anel tracejado com arco
+  azul (idêntico ao do site). Símbolo próprio por perfil: escudo+check
+  (Nicky), balança (Regulus), feixe/livro (Luma), ondas sonoras (Vox),
+  pilares de arquivo (Athenae), crescente+estrelas (Nyx), rede de nós
+  (Nexus).
+- **Ajuste de rota:** a 1ª versão usou gradients `url(#id)`; o render de
+  conferência mostrou que nem todo renderizador/navegador resolve
+  gradiente bem em `<img>` — reescritos com facetas chapadas (universais
+  e fiéis ao logo).
+- `site/index.html`: os 7 placeholders de letra viraram `<img>` com
+  `alt`; o comentário do slot foi removido.
+- **Validação:** XML hermético dos 7 · HTML 125 divs balanceadas, 0
+  âncoras quebradas, 0 🐉 · montage de conferência visual OK · ao vivo
+  os 7 servem `200 image/svg+xml` e o index servido já os referencia ·
+  version_policy 9/9 · **suíte completa 2414 passed / 16 skipped (84s)**.
+- **Deploy:** só estático, **sem bump e sem restart** (servidor lê do
+  disco). Commit `0d8d60f`, HEAD == origin/master.
+
+### 2) Campos do banco de usuários (resposta + recomendação)
+
+A **base já existe**: `UserStore` (`integrations/api/auth.py`) tem
+`users` (id, username, email, password_hash PBKDF2, api_key,
+created_at) + `sessions` + `telegram_links`. Recomendação enviada:
+**começar com o básico que já roda** (username = apelido público +
+email) e **adicionar colunas conforme a necessidade** via
+`_ensure_column` (padrão já usado no registry). Endereço é dado
+sensível (LGPD) e só entra quando houver envio físico real.
+
+### 3) Segredos antigos (resposta com evidência)
+
+O dono tem razão — **não são antigos**. Varredura bit-a-bit do Legado
+vs `.env` (sha8 mascarado): os segredos do Legado são **exatamente** os
+do `.env` (Gemini `1787e9a5`, bot legado `c8bb4119`, bot atual
+`fa897d77`, OpenAI2 `c9afdce0`). O **único** segredo do Legado fora do
+`.env` é uma chave OpenAI `sk-…2f05d4fd` em `NV/000 ativar venv.md` —
+testada ao vivo: **HTTP 401, morta/revogada**. Conclusão: **pendência de
+rotação pode ser fechada**; sobra só higiene (chaves vivas em texto
+puro nos docs antigos — nunca publicar/nuvem, regra 16).

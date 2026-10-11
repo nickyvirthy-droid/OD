@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-11T14:45:00-03:00",
+  "updated_at": "2026-10-11T15:30:00-03:00",
   "dev_canal_3_causas_raiz_2026_10_10": {
     "id": "dev_canal_3_causas_raiz_2026_10_10",
     "titulo": "Canal de desenvolvimento: 3 causas raiz da falha 'todas_as_clis_falharam'",
@@ -2225,5 +2225,27 @@
       "PAUTA: itens 3 e 5 das divergências (unificação de ID, ordem das frentes)",
       "DONO: limpar Registro Mestre (6 peças) quando quiser; resíduo backups/llm-cache-fakes untracked"
     ]
+  },
+  "lote_pleiade_svg_2026_10_11": {
+    "id": "lote_pleiade_svg_2026_10_11",
+    "titulo": "Retratos SVG da Plêiade no ar (pedido 1 do dono) + respostas 2 e 3",
+    "data": "2026-10-11",
+    "pedido_dono": "1 svg, 2. vamos verificar quais os campos (nome, email, endereço, apelido) antes de implementar ou da pra começar com os dados basicos e adicionar mais conforme a necessidade? 3. me responde se os segredos antigos estão no .env, se estão não são antigos!",
+    "entregas": [
+      "site/pleiade-{nicky,regulus,luma,vox,athenae,nyx,nexus}.svg (NOVOS): busto angular perfilado (facetas metálicas sólidas #EDF2F7/#97A2AF/#59636F/#2C343D + olho azul #63BDFF com glow) no estilo do logo (referência enviada pelo dono); símbolo próprio por perfil — escudo+check (Nicky), balança (Regulus), feixe/livro (Luma), ondas sonoras (Vox), pilares (Athenae), crescente+estrelas (Nyx), rede de nós (Nexus). Anel tracejado com arco azul idêntico ao do site.",
+      "site/index.html: os 7 placeholders de letra (ficha-foto) viraram <img> com alt; comentário do slot removido."
+    ],
+    "por_que_facetas_solidas": "1ª versão usou gradients url(#id) — render de conferência (ImageMagick) e navegadores nem sempre bem resolvem gradiente em <img>; facetas planas são universais e fiéis ao logo (que é metálico chapado).",
+    "validacao": "XML hermético dos 7 (ElementTree) · HTML index: 125 divs balanceadas, 0 âncoras quebradas, 0 🐉 · render de conferência (montage 7 perfis) visualmente correto · ao vivo /site serve os 7 com 200 image/svg+xml e o index servido já referencia todos · tests/test_version_policy.py 9/9 · suíte COMPLETA 2414 passed / 16 skipped (84s).",
+    "deploy": "APENAS estático (site/) — SEM bump, SEM restart; servidor lê do disco a cada request. od-core PID 1142795 NRestarts=0, journal 0 erros.",
+    "commits": [
+      "0d8d60f feat(site): 7 retratos SVG da Plêiade — busto angular estilo logo + símbolo de cada perfil"
+    ],
+    "respostas_ao_dono": {
+      "2_campos_banco": "A BASE JÁ EXISTE: UserStore (integrations/api/auth.py) tem users (id, username, email, password_hash PBKDF2, api_key, created_at) + sessions + telegram_links. Recomendação: começar com o BÁSICO (username=apelido público + email) que já roda, e ADICIONAR colunas conforme necessidade — migrate via _ensure_column (padrão já usado no registry); endereço é dado sensível (LGPD) e só entra quando houver envio físico real.",
+      "3_segredos_antigos": "DONO TEM RAZÃO — os 'antigos' NÃO são antigos: varredura bit-a-bit do Legado vs .env (sha8 mascarado) mostrou que os segredos do Legado são EXATAMENTE os do .env (Gemini 1787e9a5, bot legado c8bb4119, bot atual fa897d77, OpenAI2 c9afdce0). O ÚNICO segredo do Legado que NÃO está no .env é uma chave OpenAI sk-…2f05d4fd em NV/000 ativar venv.md — testada ao vivo: HTTP 401, MORTA/revogada. Conclusão: não há segredo antigo vivo fora do .env; a pendência de rotação pode ser FECHADA. Resta só higiene: as chaves vivas estão em texto puro nos docs antigos do Legado (nunca publicar/nuvem, regra 16)."
+    },
+    "estado": "CONCLUÍDO E NO AR — 7 retratos no site; aguardando confirmação visual do dono + decisão sobre campos do banco (item 2 etapa 1)",
+    "ts": "2026-10-11T15:30:00-03:00"
   }
 }
