@@ -112,3 +112,28 @@ Geração por IA **bloqueada ao vivo**: Gemini imagem → `limit: 0` (free
 tier); OpenAI `gpt-image-1-mini` → `credit_balance_exhausted`. 3
 caminhos oferecidos ao dono (SVG vetorial / crédito OpenAI / upload de
 fotos no painel).
+
+## §4 — Retomada "leia iniciar" (~14:40)
+
+**Pedido:** usuário: "leia iniciar".
+
+**Checagem de saúde — tudo verde, nenhuma ordem nova:**
+
+- `od-core` active PID **1142795** desde 10/10 15:42:29, **NRestarts=0**.
+- `/health` **up** (orchestrator + llm `gemma-local`) · `/supervision`
+  **restarts 0, degraded []** · `/app/version` **1.24.1/2053**
+  (sha `a947d59a…`).
+- journal desde 10/10 15:42: 476 linhas, **0 em `-p err`**.
+- git: **HEAD `77f992d` == `origin/master`**; working tree só com o
+  resíduo conhecido `backups/llm-cache-fakes-20261008-055830.json`.
+- Canal de dev **inativo** (`data/dev_sessao.json` → `concluido`,
+  sessão do rodapé das 12:48 já publicada e registrada na §1).
+- `txt.txt`: **sem mensagem nova do dono** — é o nosso resumo de 14:20.
+
+**Registro:** `session.json` → `retomada_2026_10_11_1445` (pendências
+inalteradas).
+
+**Aguardando o dono:** (1) escolha das fotos da Plêiade (SVG / crédito
+OpenAI / upload); (2) ordem de implementação do item 2 (banco de
+usuários → QR → Loja); (3) rotação de segredos adiada; (4) itens 3/5 da
+pauta de divergências.

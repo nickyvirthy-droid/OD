@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-11T14:20:00-03:00",
+  "updated_at": "2026-10-11T14:45:00-03:00",
   "dev_canal_3_causas_raiz_2026_10_10": {
     "id": "dev_canal_3_causas_raiz_2026_10_10",
     "titulo": "Canal de desenvolvimento: 3 causas raiz da falha 'todas_as_clis_falharam'",
@@ -2206,5 +2206,24 @@
     "registro_mestre": "Mantido como está (6 peças, total com 0005 Montanhas e 0006 trena testados por ele); exemplos como referência; limpeza quando ele quiser.",
     "estado": "CONCLUÍDO (segredos + backups + registros) — PENDENTE de decisão: fotos da Plêiade (ask_user)",
     "ts": "2026-10-11T14:20:00-03:00"
+  },
+  "retomada_2026_10_11_1445": {
+    "id": "retomada_2026_10_11_1445",
+    "titulo": "Retomada 'leia iniciar' (~14:40) — checagem de saúde, tudo verde, sem pedido novo do dono",
+    "data": "2026-10-11",
+    "pedido": "Usuário: 'leia iniciar' — retomada (~14:40).",
+    "saude": "od-core active PID 1142795 desde 10/10 15:42:29, NRestarts=0 · /health ok (orchestrator/llm up, gemma-local) · /supervision restarts 0 degraded [] · /app/version 1.24.1/2053 sha a947d59a… · journal desde 10/10 15:42: 476 linhas, 0 em -p err.",
+    "git": "HEAD 77f992d == origin/master; working tree só com o resíduo conhecido backups/llm-cache-fakes-20261008-055830.json (untracked, ignorado pelo aviso).",
+    "canal_dev": "inativo — data/dev_sessao.json ativo=false, status concluido/implantado 12:48:44 (sessão do rodapé, commit 30c28e6 já publicado e validado na retomada §1).",
+    "txt_txt": "sem mensagem nova do dono — o conteúdo é o NOSSO resumo de 14:20 (segredos/backups/ordem do item 2/fotos).",
+    "estado": "SISTEMA 100% — nenhuma ordem nova; aguardando decisão do dono sobre as 3 opções de fotos da Plêiade e a ordem de implementação do item 2 (banco → QR → Loja).",
+    "ts": "2026-10-11T14:45:00-03:00",
+    "pendencias_inalteradas": [
+      "DONO: fotos da Plêiade — escolher (1) SVG vetorial / (2) crédito OpenAI / (3) upload de fotos no painel",
+      "ORDEM DO DONO (item 2): 1º banco de usuários → 2º gerador de QR → 3º Loja — aguardando 'pode implementar'",
+      "ADIADA: rotação dos segredos antigos (bot legado e chave Gemini ainda ativos)",
+      "PAUTA: itens 3 e 5 das divergências (unificação de ID, ordem das frentes)",
+      "DONO: limpar Registro Mestre (6 peças) quando quiser; resíduo backups/llm-cache-fakes untracked"
+    ]
   }
 }
