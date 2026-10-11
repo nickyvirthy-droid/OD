@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Retrato de Luma — A Mentora">
+  <circle cx="100" cy="100" r="100" fill="#0A0A0A"/>
+  <circle cx="100" cy="100" r="92" fill="none" stroke="#39424C" stroke-width="2" stroke-dasharray="84 26" stroke-dashoffset="40"/>
+  <circle cx="100" cy="100" r="92" fill="none" stroke="#0088FF" stroke-width="2" stroke-dasharray="24 554" stroke-dashoffset="-16"/>
+  <path d="M136 26 L168 30 L150 54 Z" fill="#63BDFF" opacity=".55"/>
+  <path d="M140 60 h30 v3 h-30 z M143 66 h24 v3 h-24 z" fill="#39424C"/>
+  <path d="M92 32 L100 14 L108 32 Z" fill="#DDE5EC"/>
+  <path d="M84 40 L88 24 L95 34 Z" fill="#97A2AF"/>
+  <path d="M105 34 L112 24 L116 40 Z" fill="#97A2AF"/>
+  <path d="M92 28 L122 44 L134 64 L130 76 L148 92 L132 98 L138 106 L132 120 L112 132 L104 150 L132 178 L60 178 L74 150 L62 110 L56 70 L66 40 Z" fill="#59636F"/>
+  <path d="M92 28 L122 44 L134 64 L118 70 L98 58 L80 40 Z" fill="#EDF2F7"/>
+  <path d="M98 58 L118 70 L134 64 L130 76 L148 92 L132 98 L138 106 L132 120 L112 132 L96 116 L94 80 Z" fill="#97A2AF"/>
+  <path d="M112 132 L104 150 L132 178 L60 178 L74 150 L96 126 Z" fill="#2C343D"/>
+  <path d="M92 28 L122 44 M98 58 L118 70 M96 116 L112 132" stroke="#0B0F14" stroke-width="1.6" fill="none"/>
+  <path d="M109 66 L127 73 L122 81 L105 74 Z" fill="#63BDFF"/>
+  <path d="M111 69 L123 74 L120 78 L109 73 Z" fill="#E8F6FF"/>
+</svg>

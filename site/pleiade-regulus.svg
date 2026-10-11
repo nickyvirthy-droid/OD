@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Retrato de Regulus — O Conselheiro">
+  <circle cx="100" cy="100" r="100" fill="#0A0A0A"/>
+  <circle cx="100" cy="100" r="92" fill="none" stroke="#39424C" stroke-width="2" stroke-dasharray="84 26" stroke-dashoffset="40"/>
+  <circle cx="100" cy="100" r="92" fill="none" stroke="#0088FF" stroke-width="2" stroke-dasharray="24 554" stroke-dashoffset="-16"/>
+  <g stroke="#39424C" stroke-width="2.4" fill="none" stroke-linecap="round">
+    <path d="M156 38 v36 M144 44 h24 M144 44 l-8 12 h16 z M168 44 l-8 12 h16 z M148 74 h16"/>
+  </g>
+  <circle cx="156" cy="36" r="2.6" fill="#63BDFF"/>
+  <path d="M94 30 L100 12 L106 30 Z" fill="#DDE5EC"/>
+  <path d="M84 38 L88 20 L96 32 Z" fill="#97A2AF"/>
+  <path d="M104 32 L112 20 L116 38 Z" fill="#97A2AF"/>
+  <path d="M92 28 L122 44 L134 64 L130 76 L148 92 L132 98 L138 106 L132 120 L112 132 L104 150 L132 178 L60 178 L74 150 L62 110 L56 70 L66 40 Z" fill="#59636F"/>
+  <path d="M92 28 L122 44 L134 64 L118 70 L98 58 L80 40 Z" fill="#EDF2F7"/>
+  <path d="M98 58 L118 70 L134 64 L130 76 L148 92 L132 98 L138 106 L132 120 L112 132 L96 116 L94 80 Z" fill="#97A2AF"/>
+  <path d="M112 132 L104 150 L132 178 L60 178 L74 150 L96 126 Z" fill="#2C343D"/>
+  <path d="M92 28 L122 44 M98 58 L118 70 M96 116 L112 132" stroke="#0B0F14" stroke-width="1.6" fill="none"/>
+  <path d="M109 66 L127 73 L122 81 L105 74 Z" fill="#63BDFF"/>
+  <path d="M111 69 L123 74 L120 78 L109 73 Z" fill="#E8F6FF"/>
+</svg>
