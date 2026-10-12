@@ -36,10 +36,13 @@ from orquestrador import (
     CLIS,
     SESSAO_HEARTBEAT_S,
     SESSAO_MAX_AUTORIZACOES,
+    SESSAO_RETENTATIVA,
     CliSpec,
     _arvore_suja,
     _buscar_no_codigo,
     _extrair_palavras_chave,
+    _fechar_sessao,
+    _limpar_residuos,
     _montar_contexto_repositorio,
     _notificar_telegram,
     aguardar_resposta_dono,
@@ -49,6 +52,7 @@ from orquestrador import (
     extrair_autorizacao,
     main_sessao,
     montar_prompt_sessao,
+    recuperar_pendencias,
     resolver_clis,
     validar_sessao,
 )
@@ -231,7 +235,10 @@ class TestAmbienteComChaves:
         saida = orch.executar_cli(spec, "PROMPT", timeout_s=1)
 
         assert saida is None
-        assert mortos and mortos[0] == (777, orch.signal.SIGTERM)  # grupo morto
+        # pgid SEMPRE é o pid do filho (invariante do start_new_session —
+        # capturar via getpgid na abertura seria corrida com o setsid do
+        # filho); getpgid só entra no fallback quando não há pid.
+        assert mortos and mortos[0] == (4242, orch.signal.SIGTERM)  # grupo morto
 
     def test_cli_timeout_configuravel_pelo_env(self, monkeypatch) -> None:
         """O teto vem do .env (OD_DEV_CLI_TIMEOUT_S) — pedido do dono 10/10.
@@ -291,10 +298,12 @@ def _rodar_sessao(tmp_path: Path, **kwargs):
     """executar_sessao com estado/caixa em tmp_path e validação/commit fake.
 
     Sem os fakes, os defaults chamariam a suíte canônica e o git de verdade —
-    aqui o que importa é a COREOGRAFIA da sessão, não o git.
+    aqui o que importa é a COREOGRAFIA da sessão, não o git. `fechar` TAMBÉM
+    é fake por padrão: o real faria `git push` no repo durante a suíte.
     """
     kwargs.setdefault("validar", lambda: dict(VALIDACAO_OK))
     kwargs.setdefault("commitar", lambda titulo: {"ok": True, "commit": "abc1234"})
+    kwargs.setdefault("fechar", lambda estado: None)
     kwargs.setdefault("clis", [_spec("A")])
     return executar_sessao(
         "crie o botão de tema no painel",
@@ -343,6 +352,15 @@ class TestMontarPromptSessao:
         prompt = montar_prompt_sessao("qual a temperatura no rio")
         assert "OUTRA FORMA" in prompt
         assert "NÃO crie duplicata" in prompt
+
+    def test_prompt_ensina_fechamento_limpo(self) -> None:
+        """Diretrizes do fecho (12/10): a CLI sabe que a árvore tem de
+        ficar limpa e que quem commita/publica é o orquestrador."""
+        prompt = montar_prompt_sessao("qualquer ideia")
+        assert "deixe a árvore LIMPA" in prompt
+        assert "remove no fecho (limpeza automática)" in prompt
+        assert "NÃO rode git commit nem git push" in prompt
+        assert "corrija a causa raiz" in prompt
 
 
 class TestContextoRepositorio:
@@ -904,13 +922,16 @@ class TestExecutarSessao:
     def test_sem_injecao_usa_os_defaults_da_casa(
         self, tmp_path: Path, monkeypatch
     ) -> None:
-        """`validar`/`commitar` sem injeção caem nos REAIS (suíte canônica +
-        git) — aqui trocados por fakes para o teste não rodar pytest dentro
-        de pytest, mas o ramo dos defaults é exercitado de verdade."""
+        """`validar`/`commitar`/`fechar` sem injeção caem nos REAIS (suíte
+        canônica + git) — aqui trocados por fakes para o teste não rodar
+        pytest dentro de pytest nem pushar o repo de verdade, mas o ramo
+        dos defaults é exercitado de verdade."""
+        fechado: list[dict] = []
         monkeypatch.setattr(orch, "validar_sessao", lambda: dict(VALIDACAO_OK))
         monkeypatch.setattr(
             orch, "commitar_sessao", lambda titulo: {"ok": True, "commit": "def123"}
         )
+        monkeypatch.setattr(orch, "_fechar_sessao", fechado.append)
         estado = executar_sessao(
             "ideia default",
             clis=[_spec("A")],
@@ -920,6 +941,7 @@ class TestExecutarSessao:
         )
         assert estado["status"] == "concluido"
         assert estado["commit"] == "def123"
+        assert fechado == [estado]  # fecho REAL chamado (via default)
 
 
 class TestMainSessao:
@@ -938,7 +960,7 @@ class TestMainSessao:
         (tmp_path / "txt.txt").write_text("crie o botão de tema", encoding="utf-8")
         capturado: dict = {}
 
-        def falso_executar(ideia, *, cli="auto", clis=None):
+        def falso_executar(ideia, *, cli="auto", clis=None, **kwargs):
             capturado.update(ideia=ideia, cli=cli, clis=clis)
             return {"status": "concluido", "motivo": "implantado"}
 
@@ -953,7 +975,7 @@ class TestMainSessao:
         (tmp_path / "txt.txt").write_text("ideia", encoding="utf-8")
         monkeypatch.setattr(
             orch, "executar_sessao",
-            lambda ideia, *, cli="auto", clis=None: {
+            lambda ideia, *, cli="auto", clis=None, **kwargs: {
                 "status": "falhou", "motivo": "testes_vermelhos",
             },
         )
@@ -986,7 +1008,7 @@ class TestMainSessao:
         (tmp_path / "txt.txt").write_text("criar botão de tema", encoding="utf-8")
         monkeypatch.setattr(
             orch, "executar_sessao",
-            lambda ideia, *, cli="auto", clis=None: {
+            lambda ideia, *, cli="auto", clis=None, **kwargs: {
                 "status": "concluido", "motivo": "implantado",
                 "commit": "abc1234", "cli_usada": "OpenCode",
             },
@@ -1005,7 +1027,7 @@ class TestMainSessao:
         (tmp_path / "txt.txt").write_text("ideia que falhou", encoding="utf-8")
         monkeypatch.setattr(
             orch, "executar_sessao",
-            lambda ideia, *, cli="auto", clis=None: {
+            lambda ideia, *, cli="auto", clis=None, **kwargs: {
                 "status": "falhou", "motivo": "testes_vermelhos",
             },
         )
@@ -1039,7 +1061,7 @@ class TestMain:
         (tmp_path / "txt.txt").write_text("ideia via flag", encoding="utf-8")
         capturado: dict = {}
 
-        def falso_executar(ideia, *, cli="auto", clis=None):
+        def falso_executar(ideia, *, cli="auto", clis=None, **kwargs):
             capturado.update(ideia=ideia, cli=cli)
             return {"status": "concluido", "motivo": "implantado"}
 
@@ -1055,6 +1077,374 @@ class TestMain:
     def test_sem_flag_recusa_o_processo(self) -> None:
         """Sem --sessao não há mais fila: exit 2 em vez de rodar no escuro."""
         assert orch.main([]) == 2
+
+
+class TestRecuperarPendencias:
+    """No INÍCIO da sessão, pendências de sessões anteriores são consertadas.
+
+    Caso real (11/10): a sessão do canal commitou `0e8e4c2` e morreu antes
+    do push — o trabalho ficou invisível no origin até retomada manual.
+    """
+
+    def test_commit_orfao_local_e_publicado(self, tmp_path: Path) -> None:
+        """HEAD à frente de origin/master → `git push` na abertura."""
+        chamadas: list[list[str]] = []
+
+        def rodar(cmd, cwd):
+            chamadas.append(cmd)
+            if cmd[:4] == ["git", "rev-parse", "--verify", "origin/master"]:
+                return 0, "origin/master\n"
+            if cmd[:4] == ["git", "rev-list", "--count", "origin/master..HEAD"]:
+                return 0, "1\n"
+            if cmd[:2] == ["git", "push"]:
+                return 0, ""
+            return 0, ""
+
+        notas = recuperar_pendencias(rodar=rodar, repo=tmp_path)
+        assert any("1 commit(s)" in n and "publicado(s) agora" in n for n in notas)
+        push = next(c for c in chamadas if c[:2] == ["git", "push"])
+        assert push == ["git", "push", "origin", "master"]
+
+    def test_tudo_publicado_nao_tem_push(self, tmp_path: Path) -> None:
+        """HEAD == origin/master → nada a publicar, nenhum push."""
+        chamadas: list[list[str]] = []
+
+        def rodar(cmd, cwd):
+            chamadas.append(cmd)
+            if cmd[:4] == ["git", "rev-parse", "--verify", "origin/master"]:
+                return 0, "origin/master\n"
+            if cmd[:4] == ["git", "rev-list", "--count", "origin/master..HEAD"]:
+                return 0, "0\n"
+            return 0, ""
+
+        assert recuperar_pendencias(rodar=rodar, repo=tmp_path) == []
+        assert all(c[:2] != ["git", "push"] for c in chamadas)
+
+    def test_push_falho_vira_nota_honesta(self, tmp_path: Path) -> None:
+        """Sem rede: a pendência NÃO some — vira anotação com o erro."""
+        def rodar(cmd, cwd):
+            if cmd[:4] == ["git", "rev-parse", "--verify", "origin/master"]:
+                return 0, "origin/master\n"
+            if cmd[:4] == ["git", "rev-list", "--count", "origin/master..HEAD"]:
+                return 0, "2\n"
+            if cmd[:2] == ["git", "push"]:
+                return 1, "fatal: unable to access"
+            return 0, ""
+
+        notas = recuperar_pendencias(rodar=rodar, repo=tmp_path)
+        assert any("NÃO publicado(s)" in n and "fatal" in n for n in notas)
+
+    def test_sem_remote_nao_tenta_push(self, tmp_path: Path) -> None:
+        """Repo sem origin/master (ex.: sandbox): sem remote, sem push."""
+        def rodar(cmd, cwd):
+            if cmd[:4] == ["git", "rev-parse", "--verify", "origin/master"]:
+                return 128, "unknown revision"
+            raise AssertionError(f"não deveria rodar: {cmd}")
+
+        assert recuperar_pendencias(rodar=rodar, repo=tmp_path) == []
+
+    def test_sessao_morta_sem_fechar_vira_nota(self, tmp_path: Path) -> None:
+        """Estado anterior `ativo` (runner morto) → anotação na abertura."""
+        arquivo = tmp_path / "estado.json"
+        arquivo.write_text(
+            json.dumps({"ativo": True, "pid": 4242}), encoding="utf-8"
+        )
+
+        def rodar(cmd, cwd):
+            if cmd[:4] == ["git", "rev-parse", "--verify", "origin/master"]:
+                return 0, "origin/master\n"
+            if cmd[:4] == ["git", "rev-list", "--count", "origin/master..HEAD"]:
+                return 0, "0\n"
+            return 0, ""
+
+        notas = recuperar_pendencias(rodar=rodar, repo=tmp_path, arquivo_estado=arquivo)
+        assert any("4242" in n and "sem fechar" in n for n in notas)
+
+
+class TestLimparResiduos:
+    """Fecho limpo (12/10): "se a sessão concluir ok ela deve fechar tudo e
+    limpar qualquer sujeira". Só lixo descartável; trabalho é intocável."""
+
+    def test_remove_residuo_untracked_descartavel(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
+        (tmp_path / "app.py.tmp").write_text("lixo\n", encoding="utf-8")
+        (tmp_path / "__pycache__").mkdir()
+        (tmp_path / "__pycache__" / "app.cpython-312.pyc").write_bytes(b"\x00")
+
+        def rodar(cmd, cwd):
+            return 0, "?? app.py.tmp\n?? __pycache__/\n"
+
+        removidos = _limpar_residuos(rodar=rodar, repo=tmp_path)
+        assert removidos == ["app.py.tmp", "__pycache__/"]
+        assert not (tmp_path / "app.py.tmp").exists()
+        assert not (tmp_path / "__pycache__").exists()
+        assert (tmp_path / "app.py").exists()  # trabalho é intocável
+
+    def test_preserva_dado_do_dono_e_rastreado(self, tmp_path: Path) -> None:
+        """backups/, data/ e logs/ são do dono (regra 9); rastreado não é lixo."""
+        for pasta in ("backups", "data", "logs"):
+            (tmp_path / pasta).mkdir()
+            (tmp_path / pasta / "x.tmp").write_text("dono\n", encoding="utf-8")
+        (tmp_path / "trabalho.tmp").write_text("rastreado\n", encoding="utf-8")
+
+        def rodar(cmd, cwd):
+            return (
+                "?? backups/x.tmp\n?? data/x.tmp\n?? logs/x.tmp\n"
+                "M  trabalho.tmp\n",  # rastreado (staged) — não é resíduo
+                "",
+            )
+
+        assert _limpar_residuos(rodar=rodar, repo=tmp_path) == []
+        assert (tmp_path / "backups" / "x.tmp").exists()
+        assert (tmp_path / "trabalho.tmp").exists()
+
+    def test_git_indisponivel_nao_levanta(self, tmp_path: Path) -> None:
+        def rodar(cmd, cwd):
+            return 1, "fatal: not a git repository"
+
+        assert _limpar_residuos(rodar=rodar, repo=tmp_path) == []
+
+    def test_nome_exotico_com_aspas_nao_quebra(self, tmp_path: Path) -> None:
+        """Porcelain cita nomes com aspas — o parser não pode apagar errado."""
+        def rodar(cmd, cwd):
+            return 0, '?? "weird name.tmp"\n'
+
+        assert _limpar_residuos(rodar=rodar, repo=tmp_path) == []  # não existe
+
+
+class TestFechamento:
+    """`_fechar_sessao` — o "fechar tudo" do dono (12/10): publicar + limpar."""
+
+    def test_sucesso_publica_e_limpa(self, tmp_path: Path) -> None:
+        chamadas: list[list[str]] = []
+
+        def rodar(cmd, cwd):
+            chamadas.append(cmd)
+            if cmd[:2] == ["git", "push"]:
+                return 0, ""
+            if cmd[:3] == ["git", "status", "--porcelain"]:
+                return 0, ""  # limpo após a limpeza
+            return 0, ""
+
+        estado: dict = {"commit": "abc1234"}
+        _fechar_sessao(estado, rodar=rodar, repo=tmp_path)
+        assert estado["publicado"] == "sim"
+        assert estado["arvore_limpa"] is True
+        assert "limpeza" not in estado
+        push = next(c for c in chamadas if c[:2] == ["git", "push"])
+        assert push == ["git", "push", "origin", "master"]
+
+    def test_push_falho_nao_derruba_e_registra(self, tmp_path: Path) -> None:
+        def rodar(cmd, cwd):
+            if cmd[:2] == ["git", "push"]:
+                return 1, "fatal: timeout"
+            if cmd[:3] == ["git", "status", "--porcelain"]:
+                return 0, ""
+            return 0, ""
+
+        estado: dict = {}
+        _fechar_sessao(estado, rodar=rodar, repo=tmp_path)
+        assert estado["publicado"].startswith("não")
+        assert "timeout" in estado["publicado"]
+
+    def test_residuos_sucios_sao_reportados(self, tmp_path: Path) -> None:
+        """Fecho com lixo que a limpeza NÃO cobre → arvore_limpa=False honesto."""
+        def rodar(cmd, cwd):
+            if cmd[:2] == ["git", "push"]:
+                return 0, ""
+            if cmd[:3] == ["git", "status", "--porcelain"]:
+                return 0, "?? estranho.xyz\n"
+            return 0, ""
+
+        estado: dict = {}
+        _fechar_sessao(estado, rodar=rodar, repo=tmp_path)
+        assert estado["arvore_limpa"] is False
+
+
+class TestExecutarSessaoFechamentoEPendencias:
+    """Coreografia: fecho só com commit ok; pendências no estado e na caixa."""
+
+    def test_fecho_roda_com_commit_ok(self, tmp_path: Path) -> None:
+        fechado: list[dict] = []
+        estado = _rodar_sessao(
+            tmp_path,
+            executar=lambda spec, prompt: "pronto",
+            fechar=lambda est: fechado.append(dict(est)),
+        )
+        assert estado["status"] == "concluido"
+        assert len(fechado) == 1
+        assert fechado[0]["commit"] == "abc1234"
+
+    def test_fecho_nao_roda_sem_commit(self, tmp_path: Path) -> None:
+        """Sem commit não há o que publicar nem sujeira de sessão a limpar."""
+        fechado: list[dict] = []
+
+        def commitar(titulo):
+            return {"ok": False, "erro": "git ocupado"}
+
+        estado = _rodar_sessao(
+            tmp_path,
+            executar=lambda spec, prompt: "pronto",
+            commitar=commitar,
+            fechar=lambda est: fechado.append(dict(est)),
+        )
+        assert estado["motivo"] == "commit_nao_realizado"
+        assert fechado == []
+
+    def test_pendencias_entram_no_estado_e_na_caixa(self, tmp_path: Path) -> None:
+        estado = _rodar_sessao(
+            tmp_path,
+            executar=lambda spec, prompt: "pronto",
+            pendencias=["1 commit(s) local(is) não publicado(s) — publicado(s) agora"],
+        )
+        assert estado["pendencias"] == [
+            "1 commit(s) local(is) não publicado(s) — publicado(s) agora"
+        ]
+        assert estado["tentativa"] == 1
+        caixa = _caixa_de(tmp_path)
+        assert any(
+            m["tipo"] == "info" and "Pendências" in m["texto"] for m in caixa
+        )
+
+    def test_tentativa_fica_no_estado(self, tmp_path: Path) -> None:
+        """Retentativa registrada — o painel/Telegram mostram a numeração."""
+        estado = _rodar_sessao(
+            tmp_path, executar=lambda spec, prompt: "pronto", tentativa=2
+        )
+        assert estado["tentativa"] == 2
+
+
+class TestRetentativa:
+    """"Se der falha poderia tentar reiniciar mais uma vez" (dono, 12/10)."""
+
+    def _fakes(self, monkeypatch, tmp_path, resultados):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "txt.txt").write_text("ideia", encoding="utf-8")
+        monkeypatch.setattr(orch, "recuperar_pendencias", lambda **k: [])
+        chamadas: list[dict] = []
+        sequencia = list(resultados)
+
+        def falso_executar(ideia, *, cli="auto", clis=None, **kwargs):
+            chamadas.append(kwargs)
+            return sequencia[min(len(chamadas), len(sequencia)) - 1]
+
+        monkeypatch.setattr(orch, "executar_sessao", falso_executar)
+        return chamadas
+
+    def test_falha_depois_sucesso_nao_duplica(self, tmp_path, monkeypatch) -> None:
+        """1ª falha → 2ª tentativa ok → exit 0, DUAS chamadas, sem 3ª."""
+        chamadas = self._fakes(monkeypatch, tmp_path, [
+            {"status": "falhou", "motivo": "todas_as_clis_falharam"},
+            {"status": "concluido", "motivo": "implantado"},
+        ])
+        assert main_sessao() == 0
+        assert len(chamadas) == 2
+        assert chamadas[0]["tentativa"] == 1
+        assert chamadas[1]["tentativa"] == 2
+
+    def test_duas_falhas_param_na_segunda(self, tmp_path, monkeypatch) -> None:
+        """Duas falhas → reporta (exit 1) sem loop infinito."""
+        chamadas = self._fakes(monkeypatch, tmp_path, [
+            {"status": "falhou", "motivo": "todas_as_clis_falharam"},
+            {"status": "falhou", "motivo": "todas_as_clis_falharam"},
+            {"status": "concluido"},  # nunca deve ser alcançada
+        ])
+        assert main_sessao() == 1
+        assert len(chamadas) == 2
+
+    def test_sucesso_na_primeira_nao_retenta(self, tmp_path, monkeypatch) -> None:
+        chamadas = self._fakes(monkeypatch, tmp_path, [
+            {"status": "concluido", "motivo": "implantado"},
+        ])
+        assert main_sessao() == 0
+        assert len(chamadas) == 1
+
+    def test_limite_de_autorizacoes_nao_retenta(self, tmp_path, monkeypatch) -> None:
+        """Motivo determinístico: retentar é o mesmo desfecho, sem desperdício."""
+        chamadas = self._fakes(monkeypatch, tmp_path, [
+            {"status": "falhou", "motivo": "limite_de_autorizacoes_excedido"},
+        ])
+        assert main_sessao() == 1
+        assert len(chamadas) == 1
+
+    def test_retentativa_configuravel_pelo_env(self) -> None:
+        """OD_DEV_SESSAO_RETENTATIVA — mesmo formato do timeout de CLI."""
+        assert orch.SESSAO_RETENTATIVA == int(
+            orch.os.environ.get("OD_DEV_SESSAO_RETENTATIVA", "1")
+        )
+
+    def test_pendencias_sao_passadas_a_primeira_chamada(self, tmp_path,
+                                                        monkeypatch) -> None:
+        """As pendências consertadas no início vão para a sessão (estado/caixa)."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "txt.txt").write_text("ideia", encoding="utf-8")
+        monkeypatch.setattr(
+            orch, "recuperar_pendencias",
+            lambda **k: ["1 commit(s) local(is) não publicado(s)"],
+        )
+        capturado: dict = {}
+
+        def falso_executar(ideia, *, cli="auto", clis=None, **kwargs):
+            capturado.update(kwargs)
+            return {"status": "concluido", "motivo": "implantado"}
+
+        monkeypatch.setattr(orch, "executar_sessao", falso_executar)
+        assert main_sessao() == 0
+        assert capturado["pendencias"] == ["1 commit(s) local(is) não publicado(s)"]
+
+
+class TestServicoEncerrado:
+    """"Também termina o serviço já que o serviço foi concluído" (dono, 12/10)."""
+
+    def test_sucesso_encerra_o_grupo_da_cli(self, monkeypatch) -> None:
+        """Sucesso: o runtime filho da CLI morre junto — sem órfão no fundo."""
+        mortos: list[tuple[int, int]] = []
+
+        class ProcessoOk:
+            pid = 5151
+            returncode = 0
+
+            def communicate(self, timeout=None):
+                return "pronto\n", ""
+
+            def wait(self, timeout=None):
+                return 0
+
+        monkeypatch.setattr(orch.shutil, "which", lambda nome: "/usr/bin/" + nome)
+        monkeypatch.setattr(orch.subprocess, "Popen", lambda *a, **k: ProcessoOk())
+        monkeypatch.setattr(orch.os, "getpgid", lambda pid: 5151)
+        monkeypatch.setattr(
+            orch.os, "killpg", lambda pgid, sinal: mortos.append((pgid, sinal))
+        )
+
+        spec = CliSpec(nome="Falso", binario="falso", args_antes=("run",))
+        assert orch.executar_cli(spec, "PROMPT") == "pronto"
+        assert mortos == [(5151, orch.signal.SIGTERM)]
+
+    def test_falha_tambem_encerra_o_grupo(self, monkeypatch) -> None:
+        """Exit != 0: mesmo morto o grupo é limpo (filhos sobrevivem ao pai)."""
+        mortos: list[tuple[int, int]] = []
+
+        class ProcessoRuim:
+            pid = 6161
+            returncode = 1
+
+            def communicate(self, timeout=None):
+                return "", "boom"
+
+            def wait(self, timeout=None):
+                return 1
+
+        monkeypatch.setattr(orch.shutil, "which", lambda nome: "/usr/bin/" + nome)
+        monkeypatch.setattr(orch.subprocess, "Popen", lambda *a, **k: ProcessoRuim())
+        monkeypatch.setattr(orch.os, "getpgid", lambda pid: 6161)
+        monkeypatch.setattr(
+            orch.os, "killpg", lambda pgid, sinal: mortos.append((pgid, sinal))
+        )
+
+        spec = CliSpec(nome="Falso", binario="falso", args_antes=("run",))
+        assert orch.executar_cli(spec, "PROMPT") is None
+        assert mortos == [(6161, orch.signal.SIGTERM)]
 
 
 class TestNotificacaoTelegram:
@@ -1173,4 +1563,44 @@ class TestNotificacaoTelegram:
         texto = capturas[0]["text"]
         assert "se a &lt; b &amp;&amp; c &gt; d" in texto
         assert "a < b" not in texto
+
+    def test_fecho_e_retentativa_aparecem_no_resumo(self, monkeypatch,
+                                                    capturas) -> None:
+        """Pendências consertadas, publicação, limpeza e retentativa no aviso.
+
+        Pedido do dono (12/10): tudo que o fecho faz tem de ser VISÍVEL —
+        o aviso do Telegram é o relatório dele.
+        """
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-fake")
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
+        estado = {
+            "status": "concluido",
+            "motivo": "implantado",
+            "commit": "abc1234",
+            "tentativa": 2,
+            "pendencias": ["1 commit(s) local(is) não publicado(s) — publicado(s) agora"],
+            "publicado": "sim",
+            "limpeza": "__pycache__/ · app.py.tmp",
+            "ideia_preview": "ideia X",
+        }
+        _notificar_telegram(estado)
+
+        texto = capturas[0]["text"]
+        assert "Tentativa:</b> 2" in texto
+        assert "Pendências:</b>" in texto
+        assert "publicado(s) agora" in texto
+        assert "Publicado:</b> sim" in texto
+        assert "Limpeza:</b>" in texto and "__pycache__/" in texto
+
+    def test_sem_fecho_sem_linhas_novas(self, monkeypatch, capturas) -> None:
+        """Sessão sem fecho (ex.: nada_mudou): as linhas novas NÃO aparecem."""
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-fake")
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
+        _notificar_telegram({
+            "status": "concluido", "motivo": "nada_mudou", "ideia_preview": "x",
+        })
+        texto = capturas[0]["text"]
+        assert "Tentativa:" not in texto
+        assert "Publicado:" not in texto
+        assert "Limpeza:" not in texto
 

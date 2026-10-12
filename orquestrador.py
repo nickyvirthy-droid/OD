@@ -119,6 +119,10 @@ def _notificar_telegram(estado: dict) -> None:
     diff = estado.get("diff", "")
     decorrido = estado.get("decorrido_s")
     ideia_preview = estado.get("ideia_preview", "")[:200]
+    tentativa = int(estado.get("tentativa") or 1)
+    pendencias = [str(p) for p in (estado.get("pendencias") or [])]
+    publicado = str(estado.get("publicado", ""))
+    limpeza = str(estado.get("limpeza", ""))
 
     # Emoji por status
     emoji = "✅" if status == "concluido" else "❌"
@@ -133,8 +137,18 @@ def _notificar_telegram(estado: dict) -> None:
         f"🔧 <b>CLI:</b> {html.escape(cli_usada)}",
         f"📌 <b>Motivo:</b> {html.escape(motivo)}",
     ]
+    if tentativa > 1:
+        linhas.append(f"🔁 <b>Tentativa:</b> {tentativa} (reincidente após falha)")
+    if pendencias:
+        linhas.append(
+            "🩹 <b>Pendências:</b> " + html.escape(" · ".join(pendencias)[:300])
+        )
     if commit:
         linhas.append(f"🔀 <b>Commit:</b> <code>{html.escape(commit)}</code>")
+    if publicado:
+        linhas.append(f"🌐 <b>Publicado:</b> {html.escape(publicado)}")
+    if limpeza:
+        linhas.append(f"🧹 <b>Limpeza:</b> {html.escape(limpeza[:200])}")
     if testes:
         linhas.append(f"🧪 <b>Testes:</b> {html.escape(testes[:200])}")
     if diff:
@@ -420,21 +434,31 @@ def _ambiente_com_chaves() -> dict[str, str]:
     return env
 
 
-def _matar_grupo(processo: "subprocess.Popen[str]") -> None:
-    """Mata o processo E os filhos (grupo iniciado com start_new_session).
+def _matar_grupo(
+    processo: "subprocess.Popen[str]", pgid: int | None = None
+) -> None:
+    """Mata o serviço da CLI: o processo E os filhos (grupo inteiro).
 
     Motivo (09/10, APK com versionCode 4049): matar só o processo direto
     deixava o runtime da CLI vivo mexendo no repo sem ninguém validar.
+    `pgid` vem capturado no nascimento do processo (start_new_session →
+    pgid == pid): depois que o processo principal sai, os.getpgid(pid)
+    não resolve mais — e é exatamente quando os filhos sobrevivem.
     """
+    if pgid is None:
+        try:
+            pgid = os.getpgid(processo.pid)
+        except (ProcessLookupError, PermissionError, OSError, AttributeError):
+            return
     try:
-        os.killpg(os.getpgid(processo.pid), signal.SIGTERM)
+        os.killpg(pgid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError, OSError):
         pass
     try:
         processo.wait(timeout=10)
     except subprocess.TimeoutExpired:
         try:
-            os.killpg(os.getpgid(processo.pid), signal.SIGKILL)
+            os.killpg(pgid, signal.SIGKILL)
         except (ProcessLookupError, PermissionError, OSError):
             pass
     try:
@@ -473,16 +497,35 @@ def executar_cli(spec: CliSpec, prompt: str, timeout_s: int = CLI_TIMEOUT_S) -> 
         log.warning("%s falhou ao executar: %s", spec.nome, erro)
         return None
 
+    # PGID capturado AGORA: com start_new_session o filho faz setsid e o
+    # grupo dele É o próprio pid. getpgid AQUI seria corrida (o setsid do
+    # filho é concorrente e o preço de errar é capturar o NOSSO grupo —
+    # e matar o orquestrador no fecho); o invariante pgid == pid não
+    # depende do getpgid. E killpg(pid) funciona mesmo depois do líder
+    # morrer — enquanto houver filhos no grupo ele existe (é exatamente
+    # o runtime órfão que queremos no fim). Best-effort: sem pid (objeto
+    # de teste) não há grupo a capturar.
+    try:
+        pgid = processo.pid
+    except AttributeError:
+        pgid = None
+
     try:
         stdout, stderr = processo.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired:
-        _matar_grupo(processo)
+        _matar_grupo(processo, pgid)
         log.warning(
-            "%s excedeu %ss — grupo de processo morto (sem órfão mexendo no repo)",
+            "%s excediu %ss — grupo de processo morto (sem órfão mexendo no repo)",
             spec.nome,
             timeout_s,
         )
         return None
+
+    # Serviço concluído (sucesso OU falha): o grupo morre junto — nada de
+    # runtime da CLI sobrevivendo à sessão (pedido do dono de 12/10:
+    # "também termina o serviço já que o serviço foi concluído"). Best-
+    # effort: a resposta já está na mão, a limpeza nunca derruba o resultado.
+    _matar_grupo(processo, pgid)
 
     if processo.returncode != 0:
         log.warning(
@@ -518,9 +561,14 @@ def executar_cli(spec: CliSpec, prompt: str, timeout_s: int = CLI_TIMEOUT_S) -> 
 #      melhor opção;
 #   3. se a CLI precisar de autorização, publica em data/dev_caixa.json e
 #      ESPERA a resposta do dono (caixa de desenvolvimento do painel);
-#   4. valida com a suíte canônica e, com testes verdes, commita (sem push —
-#      decisão do dono de 2026-10-08: "pode commitar") e REGISTRA a ideia
-#      no histórico (passo 1b do próximo clique).
+#   4. valida com a suíte canônica e, com testes verdes, commita e
+#      PUBLICA (push origin master — regra 7.1; mudança de 12/10 a
+#      pedido do dono: "se a sessão concluir ok ela deve fechar tudo e
+#      limpar qualquer sujeira"), limpa resíduos e REGISTRA a ideia no
+#      histórico (passo 1b do próximo clique);
+#   5. antes de codar, CONSERTA pendências de sessões anteriores (commit
+#      órfão local → push; sessão morta sem fechar → anotação) e, na
+#      FALHA, REINSTANCIA a sessão uma vez antes de reportar (12/10).
 # Deploy/restart/systemctl continuam PROIBIDOS para a sessão (regra 13).
 
 #: Estado da sessão (painel lê; este processo escreve — atômico).
@@ -548,6 +596,13 @@ SESSAO_AUTORIZACAO_TIMEOUT_S: int = 1800
 
 #: Máximo de pedidos de autorização por sessão (sem loop infinito).
 SESSAO_MAX_AUTORIZACOES: int = 5
+
+#: Retentativas extras quando a sessão FALHA (pedido do dono de 12/10:
+#: "se der falha poderia tentar reiniciar mais uma vez"). 1 = uma segunda
+#: tentativa automática antes de reportar; 0 = desliga. Configurável por
+#: `.env` (OD_DEV_SESSAO_RETENTATIVA). Motivo determinístico
+#: (limite_de_autorizacoes_excedido) NÃO reinstancia — repete o mesmo desfecho.
+SESSAO_RETENTATIVA: int = int(os.environ.get("OD_DEV_SESSAO_RETENTATIVA", "1"))
 
 #: Intervalo de varredura da caixa durante a espera.
 SESSAO_POLL_S: float = 2.0
@@ -599,7 +654,14 @@ INSTRUCAO_SESSAO: str = (
     "existe em OUTRA FORMA no código (ex: uma ação genérica que aceita "
     "qualquer cidade, um parâmetro, uma configuração). Se existir, NÃO "
     "crie duplicata — explique na análise o que já existe e o que falta;\n"
-    "- se já existe ou não puder ser feito, diga isso em vez de inventar."
+    "- se já existe ou não puder ser feito, diga isso em vez de inventar;\n"
+    "- AO TERMINAR (fechamento): deixe a árvore LIMPA — nada de arquivos "
+    "temporários, .bak, .tmp, caches ou resíduos de teste soltos; tudo que "
+    "é do pedido deve estar commitado. Se sobrar sujeira, o orquestrador "
+    "remove no fecho (limpeza automática);\n"
+    "- se a validação falhar, corrija a causa raiz e rode os testes de novo "
+    "ANTES de responder — o orquestrador re-rodaria a sessão por você, mas "
+    "o certo é você entregar verde.\n"
 )
 
 
@@ -821,7 +883,8 @@ def commitar_sessao(
     rodar: Callable[[list[str], Path], tuple[int, str]] = _rodar,
     repo: Path = Path("."),
 ) -> dict | None:
-    """Commita o diff da sessão (sem push — decisão do dono de 08/10).
+    """Commita o diff da sessão (sem push — o `git push` do fecho é de
+    `_fechar_sessao`, chamado por `executar_sessao` com commit ok).
 
     Só staged: arquivos alterados/novos FORA de backups/, data/ e logs/
     (snapshots pessoais ficam fora do git por decisão antiga). Sem diff →
@@ -851,6 +914,184 @@ def commitar_sessao(
         return {"ok": False, "erro": saida_commit[-400:]}
     _rc_sha, saida_sha = rodar(["git", "rev-parse", "--short", "HEAD"], repo)
     return {"ok": True, "commit": saida_sha.strip(), "arquivos": len(alvos)}
+
+
+# -- Fecho da sessão e recuperação de pendências (2026-10-12) ----------------
+#
+# Pedido do dono (12/10): "faça o orquestrador trabalhar dentro das
+# diretrizes e regras já conhecidas. se a sessão concluir ok ela deve
+# fechar tudo e limpar qualquer sujeira, também termina o serviço já que
+# o serviço foi concluído. se der falha poderia tentar reiniciar mais uma
+# vez." E: "quando inicia ou retorna, verifica pendências e conserta os
+# erros assim como acabou de fazer agora descobrindo que a sessão morreu
+# sem publicar" (caso real de 11/10: commit 0e8e4c2 local até a retomada
+# manual consertar).
+#
+# Três peças:
+#   1. `recuperar_pendencias()` — no INÍCIO da sessão: publica commit
+#      órfão local (regra 7.1) e nota sessão anterior morta sem fechar;
+#   2. `_limpar_residuos()` — no FECHO de sucesso: remove lixo descartável
+#      (backups/ é do dono — intocável; temporários de ferramenta saem);
+#   3. `_fechar_sessao()` — com commit ok: PUBLICA (push), limpa e
+#      registra tudo no estado (o dono vê no Telegram e no painel).
+# O encerramento do serviço da CLI (grupo de processo) acontece em
+# `executar_cli()` — já coberto lá.
+
+
+def recuperar_pendencias(
+    rodar: Callable[[list[str], Path], tuple[int, str]] = _rodar,
+    repo: Path = Path("."),
+    arquivo_estado: Path = SESSAO_ESTADO_FILE,
+) -> list[str]:
+    """Conserta pendências de sessões anteriores antes de codar (12/10).
+
+    O caso real (11/10): a sessão do canal concluiu, commitou `0e8e4c2` e
+    MORREU antes do push — o trabalho ficou invisível no origin até a
+    retomada manual consertar. Aqui, no início de cada sessão:
+
+    1. commits locais NÃO publicados (origin/master..HEAD > 0) →
+       `git push origin master` (regra 7.1 autoriza publicação por
+       padrão depois de validado);
+    2. estado anterior ainda `ativo` (runner morto sem fechar) → anota
+       (o trabalho parcial, se houver, já vira contexto da CLI pelo
+       caminho de árvore suja).
+
+    Devolve as anotações (vazio = nada a consertar). Tudo best-effort:
+    falha de push vira anotação honesta, nunca exceção.
+    """
+    notas: list[str] = []
+
+    rc_rev, _ = rodar(["git", "rev-parse", "--verify", "origin/master"], repo)
+    if rc_rev == 0:
+        rc_ahead, saida_ahead = rodar(
+            ["git", "rev-list", "--count", "origin/master..HEAD"], repo
+        )
+        if rc_ahead == 0:
+            try:
+                ahead = int(saida_ahead.strip().splitlines()[-1])
+            except (ValueError, IndexError):
+                ahead = 0
+            if ahead > 0:
+                rc_push, erro_push = rodar(["git", "push", "origin", "master"], repo)
+                if rc_push == 0:
+                    notas.append(
+                        f"{ahead} commit(s) local(is) não publicado(s) — "
+                        "publicado(s) agora (regra 7.1)"
+                    )
+                else:
+                    notas.append(
+                        f"{ahead} commit(s) local(is) NÃO publicado(s) e o "
+                        f"push falhou: {erro_push.strip()[-120:]}"
+                    )
+
+    try:
+        estado_anterior = json.loads(arquivo_estado.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        estado_anterior = {}
+    if isinstance(estado_anterior, dict) and estado_anterior.get("ativo"):
+        notas.append(
+            f"sessão anterior (pid {estado_anterior.get('pid', '?')}) morreu "
+            "sem fechar — o trabalho parcial, se houver, está na árvore"
+        )
+
+    for nota in notas:
+        log.warning("Pendência consertada na abertura: %s", nota)
+    return notas
+
+
+#: Sufixos de resíduo DESCARTÁVEL removidos no fecho de sucesso.
+#: Só lixo de ferramenta — nada que pareça trabalho (o commit da sessão
+#: já foi feito antes; `backups/`, `data/` e `logs/` são do dono e
+#: ficam de fora pela regra 9/COMMIT_EXCECOES).
+RESIDUOS_SUFIXOS: tuple[str, ...] = (".pyc", ".pyo", ".tmp", ".orig", ".rej")
+
+#: Diretórios de resíduo descartável (cache de ferramenta) — removidos
+#: inteiros quando untracked.
+RESIDUOS_DIRS: tuple[str, ...] = ("__pycache__", ".pytest_cache", ".od_sandbox")
+
+
+def _limpar_residuos(
+    rodar: Callable[[list[str], Path], tuple[int, str]] = _rodar,
+    repo: Path = Path("."),
+) -> list[str]:
+    """Remove resíduos descartáveis no fecho de uma sessão concluída.
+
+    O dono pediu (12/10): "se a sessão concluir ok ela deve fechar tudo e
+    limpar qualquer sujeira". Limpeza SEGURA por desenho:
+
+    - só o que `git status` mostra como NÃO rastreado (`??`) — alteração
+      rastreada é trabalho de alguém e NUNCA é apagada aqui;
+    - `backups/`, `data/` e `logs/` são intocáveis (dado do dono — regra
+      9: legado imóvel; COMMIT_EXCECOES);
+    - alvo é só lixo de ferramenta: sufixos .pyc/.pyo/.tmp/.orig/.rej e
+      os diretórios RESIDUOS_DIRS.
+
+    Devolve a lista do que foi removido (vazio = árvore já limpa).
+    """
+    rc, saida = rodar(["git", "status", "--porcelain"], repo)
+    if rc != 0:
+        return []
+    removidos: list[str] = []
+    for linha in saida.splitlines():
+        if not linha.startswith("??"):
+            continue  # rastreado (mesmo alterado) não é resíduo
+        caminho = linha[3:].strip().strip('"') if len(linha) > 3 else ""
+        if not caminho or caminho.startswith(COMMIT_EXCECOES):
+            continue
+        alvo = repo / caminho.rstrip("/")
+        try:
+            if alvo.is_dir() and alvo.name in RESIDUOS_DIRS:
+                shutil.rmtree(alvo, ignore_errors=True)
+                removidos.append(caminho)
+            elif alvo.is_file() and alvo.name.endswith(RESIDUOS_SUFIXOS):
+                alvo.unlink()
+                removidos.append(caminho)
+        except OSError:
+            continue  # best-effort: fecho nunca quebra por limpeza
+    if removidos:
+        log.info("Resíduos removidos no fecho: %s", " · ".join(removidos))
+    return removidos
+
+
+def _fechar_sessao(
+    estado: dict,
+    rodar: Callable[[list[str], Path], tuple[int, str]] = _rodar,
+    repo: Path = Path("."),
+) -> None:
+    """Fecho de uma sessão CONCLUÍDA com commit: publicar + limpar.
+
+    Pedido do dono (12/10): "se a sessão concluir ok ela deve fechar tudo
+    e limpar qualquer sujeira". Três passos, todos registrados no `estado`
+    (o dono vê no Telegram e no painel) e todos best-effort:
+
+    1. `git push origin master` — regra 7.1 (publicar é o padrão depois
+       de validado; sem push a sessão de 11/10 morreu "concluída" e o
+       trabalho ficou invisível);
+    2. `_limpar_residuos()` — lixo descartável sai da árvore;
+    3. conferência final: `git status --porcelain` limpo → `arvore_limpa`.
+    """
+    rc_push, saida_push = rodar(["git", "push", "origin", "master"], repo)
+    if rc_push == 0:
+        estado["publicado"] = "sim"
+    else:
+        estado["publicado"] = f"não ({saida_push.strip()[-120:] or 'sem saída'})"
+        log.warning("Push do fecho falhou: %s", estado["publicado"])
+
+    removidos = _limpar_residuos(rodar=rodar, repo=repo)
+    if removidos:
+        estado["limpeza"] = " · ".join(removidos[:10])
+
+    rc_status, saida_status = rodar(["git", "status", "--porcelain"], repo)
+    # Mesmo critério do aviso de árvore suja (_ARVORE_IGNORE_PREFIXOS):
+    # untracked que NÃO é resíduo coberto pela limpeza É sujeira que ficou.
+    sujos = [
+        linha for linha in saida_status.splitlines()
+        if linha.strip()
+        and not linha[3:].startswith(_ARVORE_IGNORE_PREFIXOS)
+    ] if rc_status == 0 else []
+    estado["arvore_limpa"] = not sujos
+    if sujos:
+        log.warning("Árvore suja após o fecho: %s", " · ".join(sujos[:5]))
 
 
 # -- Ciclo de vida da sessão ------------------------------------------------
@@ -927,6 +1168,9 @@ def executar_sessao(
     esperar_resposta: Callable[[int], str | None] | None = None,
     validar: Callable[[], dict] | None = None,
     commitar: Callable[[str], dict | None] | None = None,
+    fechar: Callable[[dict], None] | None = None,
+    pendencias: Sequence[str] | None = None,
+    tentativa: int = 1,
 ) -> dict:
     """Uma sessão completa de desenvolvimento: CLI → autorizações → validação → commit.
 
@@ -942,6 +1186,8 @@ def executar_sessao(
         validar = validar_sessao
     if commitar is None:
         commitar = commitar_sessao
+    if fechar is None:
+        fechar = _fechar_sessao
 
     estado: dict = {
         "ativo": True,
@@ -954,11 +1200,21 @@ def executar_sessao(
         "ideia_preview": ideia.strip()[:2000],
         "rodada": 0,
         "autorizacoes": 0,
+        "tentativa": tentativa,
         "testes": "",
         "diff": "",
         "commit": "",
         "motivo": "",
     }
+    if pendencias:
+        estado["pendencias"] = list(pendencias)
+        publicar_na_caixa(
+            "sistema",
+            "🩹 Pendências de sessões anteriores consertadas ao iniciar:\n  - "
+            + "\n  - ".join(pendencias),
+            "info",
+            arquivo_caixa,
+        )
     gravar_estado(estado, arquivo_estado)
     publicar_na_caixa(
         "sistema", f"Sessão iniciada — CLI: {estado['rodando']}.", "info", arquivo_caixa
@@ -1055,6 +1311,11 @@ def executar_sessao(
     if info_commit and info_commit.get("ok"):
         estado["commit"] = str(info_commit.get("commit", ""))
         motivo = "implantado"
+        # Fecho (12/10): publicar, limpar resíduos e conferir a árvore —
+        # registrado em estado (publicado/limpeza/arvore_limpa) para o
+        # Telegram e o painel. Só com commit ok: sem commit não há o que
+        # publicar nem sujeira de sessão a limpar.
+        fechar(estado)
     elif info_commit is None:
         # sem alvos stageáveis (diff só de dados/gitignored): nada mudou
         motivo = "nada_mudou"
@@ -1077,6 +1338,14 @@ def main_sessao(cli: str = "auto") -> int:
     Cinturão extra do passo 2 do canal: ideia IGUAL a uma já concluída não
     roda de novo (o painel avisa ANTES de chegar aqui; exit 3 cobre quem
     chama o runner direto).
+
+    Duas garantias do dono (12/10):
+    - no INÍCIO, pendências de sessões anteriores são CONSERTADAS
+      (`recuperar_pendencias` — commit órfão vira push, sessão morta sem
+      fechar vira anotação);
+    - na FALHA, a sessão REINSTANCIA uma vez (`SESSAO_RETENTATIVA`) antes
+      de reportar — o dono: "se der falha poderia tentar reiniciar mais
+      uma vez".
     """
     try:
         ideia = IDEIA_FILE.read_text(encoding="utf-8").strip()
@@ -1101,20 +1370,48 @@ def main_sessao(cli: str = "auto") -> int:
     except ValueError as erro:
         log.error("%s", erro)
         return 2
+
+    # Pendências de sessões anteriores CONSERTADAS antes de codar (12/10).
+    pendencias = recuperar_pendencias()
+
     log.info(
         "Sessão de desenvolvimento | cli=%s | ideia=%.120s",
         cli,
         ideia.replace("\n", " "),
     )
-    estado = executar_sessao(ideia, cli=cli, clis=clis)
+    tentativas_max = 1 + max(0, SESSAO_RETENTATIVA)
+    estado: dict = {}
+    for tentativa in range(1, tentativas_max + 1):
+        estado = executar_sessao(
+            ideia, cli=cli, clis=clis,
+            pendencias=pendencias, tentativa=tentativa,
+        )
+        if estado.get("status") == "concluido":
+            break
+        motivo = str(estado.get("motivo", ""))
+        # Motivo DETERMINÍSTICO não reinstancia: o limite de autorizações
+        # é o mesmo na próxima vez — só desperdiçaria uma rodada inteira.
+        if tentativa >= tentativas_max or motivo == "limite_de_autorizacoes_excedido":
+            break
+        log.warning(
+            "Sessão falhou (%s) — retentativa %d/%d",
+            motivo, tentativa + 1, tentativas_max,
+        )
+        publicar_na_caixa(
+            "sistema",
+            f"Sessão falhou ({motivo}) — retentando "
+            f"(tentativa {tentativa + 1} de {tentativas_max}).",
+            "info",
+        )
     # Ideia concluída vira HISTÓRICO: o próximo clique de ▶ sobre a mesma
     # ideia recebe o aviso "já implementado" em vez de rodar tudo outra vez.
     registrar_ideia(ideia, estado)
     log.info(
-        "Sessão finalizada | status=%s | motivo=%s | testes=%s",
+        "Sessão finalizada | status=%s | motivo=%s | testes=%s | tentativa=%s",
         estado.get("status"),
         estado.get("motivo"),
         estado.get("testes"),
+        estado.get("tentativa"),
     )
     return 0 if estado.get("status") == "concluido" else 1
 
