@@ -19,6 +19,8 @@ import json
 import time
 from pathlib import Path
 
+import pytest
+
 import orquestrador as orch
 from core.dev_canal import (
     carregar_historico,
@@ -1056,7 +1058,37 @@ class TestMain:
 
 
 class TestNotificacaoTelegram:
-    """Testes da notificação Telegram no fim da sessão (2026-10-11)."""
+    """Testes da notificação Telegram no fim da sessão (2026-10-11).
+
+    Herméticos: `urlopen` é substituído — nenhum teste faz rede real. O
+    payload codificado é inspecionado para provar conteúdo (não só "não
+    levantou").
+    """
+
+    @pytest.fixture
+    def capturas(self, monkeypatch):
+        """Substitui urlopen e devolve a lista de payloads enviados."""
+        enviados: list[dict] = []
+
+        class _Resp:
+            def read(self) -> bytes:
+                return b'{"ok": true}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def _fake_urlopen(req, timeout=0):
+            from urllib.parse import parse_qs
+
+            campos = parse_qs(req.data.decode("utf-8"))
+            enviados.append({k: v[0] for k, v in campos.items()})
+            return _Resp()
+
+        monkeypatch.setattr(orch.urllib.request, "urlopen", _fake_urlopen)
+        return enviados
 
     def test_sem_token_nao_envia(self, monkeypatch) -> None:
         """Sem TELEGRAM_BOT_TOKEN, a função retorna sem erro."""
@@ -1079,7 +1111,7 @@ class TestNotificacaoTelegram:
         estado = {"status": "concluido", "motivo": "implantado"}
         _notificar_telegram(estado)  # não deve levantar
 
-    def test_formata_mensagem_concluida(self, monkeypatch) -> None:
+    def test_formata_mensagem_concluida(self, monkeypatch, capturas) -> None:
         """Mensagem de sessão concluída inclui commit, testes, diff e duração."""
         monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-fake")
         monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
@@ -1093,9 +1125,16 @@ class TestNotificacaoTelegram:
             "decorrido_s": 125,
             "ideia_preview": "criar botão de tema",
         }
-        _notificar_telegram(estado)  # não deve levantar (rede não chega)
+        _notificar_telegram(estado)
 
-    def test_formata_mensagem_falhada(self, monkeypatch) -> None:
+        assert len(capturas) == 1
+        msg = capturas[0]
+        assert msg["chat_id"] == "123456"
+        assert "CONCLUÍDA" in msg["text"]
+        assert "abc1234" in msg["text"]
+        assert "2min 5s" in msg["text"]
+
+    def test_formata_mensagem_falhada(self, monkeypatch, capturas) -> None:
         """Mensagem de sessão falhada usa emoji vermelho e motivo da falha."""
         monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-fake")
         monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
@@ -1109,5 +1148,29 @@ class TestNotificacaoTelegram:
             "decorrido_s": 30,
             "ideia_preview": "ideia que falhou",
         }
-        _notificar_telegram(estado)  # não deve levantar (rede não chega)
+        _notificar_telegram(estado)
+
+        assert len(capturas) == 1
+        assert "FALHOU" in capturas[0]["text"]
+        assert "todas_as_clis_falharam" in capturas[0]["text"]
+
+    def test_escapa_html_do_texto_livre(self, monkeypatch, capturas) -> None:
+        """Ideia com <, > ou & não quebra o parse_mode=HTML do Telegram.
+
+        Bug real coberto: texto cru do dono (ex.: 'se a < b') com
+        parse_mode=HTML faz o Telegram rejeitar a mensagem com 400 — e o
+        aviso nunca chegaria ao dono.
+        """
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-fake")
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
+        estado = {
+            "status": "falhou",
+            "motivo": "testes_vermelhos",
+            "ideia_preview": "mudar se a < b && c > d",
+        }
+        _notificar_telegram(estado)
+
+        texto = capturas[0]["text"]
+        assert "se a &lt; b &amp;&amp; c &gt; d" in texto
+        assert "a < b" not in texto
 

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import html
 import json
 import logging
 import os
@@ -123,18 +124,21 @@ def _notificar_telegram(estado: dict) -> None:
     emoji = "✅" if status == "concluido" else "❌"
     status_pt = "CONCLUÍDA" if status == "concluido" else "FALHOU"
 
+    # Textos do dono/testes podem ter <, > ou & (ex.: "se a < b") — com
+    # parse_mode=HTML o Telegram REJEITA a mensagem (400 "can't parse
+    # entities") e o aviso nunca chega. html.escape de tudo que é dinâmico.
     linhas = [
         f"{emoji} <b>Sessão de desenvolvimento {status_pt}</b>",
-        f"📋 <b>Ideia:</b> {ideia_preview}",
-        f"🔧 <b>CLI:</b> {cli_usada}",
-        f"📌 <b>Motivo:</b> {motivo}",
+        f"📋 <b>Ideia:</b> {html.escape(ideia_preview)}",
+        f"🔧 <b>CLI:</b> {html.escape(cli_usada)}",
+        f"📌 <b>Motivo:</b> {html.escape(motivo)}",
     ]
     if commit:
-        linhas.append(f"🔀 <b>Commit:</b> <code>{commit}</code>")
+        linhas.append(f"🔀 <b>Commit:</b> <code>{html.escape(commit)}</code>")
     if testes:
-        linhas.append(f"🧪 <b>Testes:</b> {testes[:200]}")
+        linhas.append(f"🧪 <b>Testes:</b> {html.escape(testes[:200])}")
     if diff:
-        linhas.append(f"📝 <b>Diff:</b> {diff[:200]}")
+        linhas.append(f"📝 <b>Diff:</b> {html.escape(diff[:200])}")
     if decorrido is not None:
         mins = decorrido // 60
         segs = decorrido % 60
