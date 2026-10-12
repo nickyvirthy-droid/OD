@@ -1,7 +1,26 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-11T15:30:00-03:00",
+  "updated_at": "2026-10-12T10:20:00-03:00",
+  "retomada_2026_10_12_canal_telegram": {
+    "pedido": "Usuário: 'leia iniciar'. txt.txt com 2 mensagens do dono (11/10): (1) 'quando mando atualizar pelo canal de desenvolvimento não recebo o resumo pelo telegram'; (2) 'quando a sessão falha também seria bom receber um aviso'.",
+    "achado": "Sessão ÓRFÃ do canal (11/10 19:14–19:26): dono ativou o canal com essas mesmas mensagens; sessão concluiu, testes 2419/16, commitou 0e8e4c2 (função _notificar_telegram em orquestrador.py chamada em _encerrar) MAS o commit não foi para o origin e nada foi registrado em iniciar/.",
+    "auditoria": "Todos os 6 caminhos de fim (implantado, nada_mudou, todas_as_clis_falharam, limite_de_autorizacoes_excedido, autorizacao_nao_respondida, testes_vermelhos) passam por _encerrar → notificação cobre sucesso E falha. Runner é spawna do disco por sessão (server.py Popen cwd=REPO_ROOT, start_new_session) com load_dotenv() no main() → SEM restart, SEM bump (backend only).",
+    "correcoes_f72d017": [
+      "html.escape em todos os campos dinâmicos — texto livre do dono com < ou & faria o Telegram rejeitar a mensagem (parse_mode=HTML, 400 'can't parse entities') e o aviso NUNCA chegaria",
+      "testes de formatação herméticos (fixture capturas substitui urlopen; inspeciona chat_id/texto/duração) — antes batiam na api.telegram.org de verdade a cada rodada",
+      "+1 teste cobrindo a mutação do escape"
+    ],
+    "validacao": "tests/test_orquestrador.py 81 passed (0,91s, sem rede) · suíte completa .venv 2420 passed / 16 skipped (84s).",
+    "commits": [
+      "0e8e4c2 feat(dev): quando mando atualizar pelo canal de desenvolvimento não recebo o resumo (do canal, órfão — publicado aqui)",
+      "f72d017 fix(dev): notificação Telegram do canal — html.escape no texto livre + testes herméticos"
+    ],
+    "prova_viva": "_notificar_telegram real com .env real enviou sem exceção (msg de PROVA VIVA) · resumo de conclusão via API direta ok:True message_id 2168 · od-core PID 1142795 NRestarts=0 · journal 0 erros · /app/version 1.24.1/2053 · HEAD == origin/master (f72d017).",
+    "estado": "CONCLUÍDO E PUBLICADO — a próxima sessão do canal já avisa no Telegram (sucesso e falha), sem restart. txt.txt reescrito (regra 14) e Telegram enviado (regra 15).",
+    "pendencias_dono": "inalteradas: fotos da Plêiade (SVG pronto), etapa 4 do item 2 (comprador+QR+loja), itens 3/5 da pauta, higiene de segredos no Legado (rotação fechada).",
+    "transcricao": "iniciar/2026-10-12_conversa_omegadrakon.md"
+  },
   "dev_canal_3_causas_raiz_2026_10_10": {
     "id": "dev_canal_3_causas_raiz_2026_10_10",
     "titulo": "Canal de desenvolvimento: 3 causas raiz da falha 'todas_as_clis_falharam'",
