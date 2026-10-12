@@ -1,7 +1,30 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-12T10:20:00-03:00",
+  "updated_at": "2026-10-12T12:40:00-03:00",
+  "retomada_2026_10_12_orquestrador_regras": {
+    "pedido": "Usuário (2 pedidos conectados): (1) 'faça o orquestrador trabalhar dentro das diretrizes e regras já conhecidas. se a sessão concluir ok ela deve fechar tudo e limpar qualquer sujeira, também termina o serviço já que o serviço foi concluído. se der falha poderia tentar reiniciar mais uma vez.'; (2) 'quando inicia ou retorna, verifica pendências e conserta os erros assim como acabou de fazer agora descobrindo que a sessão morreu sem publicar' (referência ao conserto manual do lote órfão 0e8e4c2 da retomada anterior).",
+    "entregas": [
+      "recuperar_pendencias() — INÍCIO de toda sessão: commit órfão local (origin/master..HEAD > 0) → git push automático (regra 7.1); estado anterior ativo (runner morto sem fechar) → anotação honesta; push falho vira anotação com o erro (nunca exceção, nunca some",
+      "_fechar_sessao() — FECHO de sucesso (só com commit ok): git push origin master → estado.publicado; _limpar_residuos() → estado.limpeza; conferência final → estado.arvore_limpa (mesmo critério do aviso de árvore suja, _ARVORE_IGNORE_PREFIXOS)",
+      "_limpar_residuos() SEGURA por desenho: só untracked (??) descartável — sufixos .pyc/.pyo/.tmp/.orig/.rej e dirs __pycache__/.pytest_cache__/.od_sandbox; backups/, data/, logs/ intocáveis (regra 9) e trabalho rastreado NUNCA é apagado",
+      "serviço da CLI termina em QUALQUER desfecho: pgid = pid do filho capturado no nascimento (invariante do start_new_session — getpgid na abertura seria CORRIDA com o setsid do filho e capturaria o NOSSO grupo, matando o orquestrador no fecho) e _matar_grupo após communicate em sucesso, falha e timeout",
+      "retentativa: main_sessao loop de SESSAO_RETENTATIVA (env OD_DEV_SESSAO_RETENTATIVA, default 1) — falhou → 2ª tentativa antes de reportar; motivo determinístico (limite_de_autorizacoes_excedido) NÃO retenta; caixa avisa 'tentativa N de M'",
+      "prompt da sessão (INSTRUCAO_SESSAO) ganha o contrato de fechamento: árvore limpa, quem commita/publica/limpa é o orquestrador, corrigir causa raiz antes de responder",
+      "Telegram: linhas novas 🔁 Tentativa, 🩹 Pendências, 🌐 Publicado, 🧹 Limpeza — todas com html.escape",
+      "estado ganha campos: tentativa, pendencias, publicado, limpeza, arvore_limpa"
+    ],
+    "corrida_de_processo_paga_aqui": "1ª versão capturava pgid via os.getpgid(processo.pid) logo após o Popen — o setsid do filho é concorrente: se o getpgid ganhasse a corrida, o pgid capturado seria o do NOSSO grupo e o killpg do fecho mataria o próprio orquestrador. Corrigido para pgid = pid (invariante). Prova com subprocesso real: 2ª communicate não quebra, wait retorna na hora e killpg(pid) alcança o órfão DEPOIS do líder sair.",
+    "teste_do_teste": "3 mutações aplicadas e TODAS capturadas pela suíte (6 falhas): (M1) retentativa desligada → TestRetentativa 2 falhas; (M2) fecho removido → test_fecho_roda_com_commit_ok + defaults_da_casa; (M3) push de recuperar_pendencias removido → 2 falhas de TestRecuperarPendencias. Reversão bit-exata → 108 verdes.",
+    "validacao": "tests/test_orquestrador.py 81 → 108 passed (+27: recuperação, limpeza, fecho, retentativa, serviço, notificação, prompt) · suíte completa .venv 2447 passed / 16 skipped (87s). 1 warning pré-existente em tests/test_orchestrator.py (fora do escopo).",
+    "commits": [
+      "6339383 feat(dev): orquestrador fecha, publica, limpa e retenta a sessão"
+    ],
+    "deploy": "SEM restart — runner é spawna do disco por sessão (server.py _sessao_ativar, Popen cwd=REPO_ROOT). od-core intacto.",
+    "estado": "CONCLUÍDO E PUBLICADO — HEAD 6339383 == origin/master, árvore limpa. Próxima sessão do canal: conserta pendências ao iniciar, fecha+publica+limpa no sucesso, retenta 1× na falha e encerra o serviço da CLI. txt.txt reescrito (regra 14) e Telegram enviado (regra 15).",
+    "pendencias_dono": "inalteradas: fotos da Plêiade (SVG pronto), etapa 4 do item 2 (comprador+QR+loja), itens 3/5 da pauta, higiene de segredos no Legado (rotação fechada).",
+    "transcricao": "iniciar/2026-10-12_conversa_omegadrakon.md"
+  },
   "retomada_2026_10_12_canal_telegram": {
     "pedido": "Usuário: 'leia iniciar'. txt.txt com 2 mensagens do dono (11/10): (1) 'quando mando atualizar pelo canal de desenvolvimento não recebo o resumo pelo telegram'; (2) 'quando a sessão falha também seria bom receber um aviso'.",
     "achado": "Sessão ÓRFÃ do canal (11/10 19:14–19:26): dono ativou o canal com essas mesmas mensagens; sessão concluiu, testes 2419/16, commitou 0e8e4c2 (função _notificar_telegram em orquestrador.py chamada em _encerrar) MAS o commit não foi para o origin e nada foi registrado em iniciar/.",

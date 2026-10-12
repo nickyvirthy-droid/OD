@@ -80,3 +80,79 @@ best-effort via urllib) chamada em `_encerrar()`. Verificado:
 - Higiene de segredos: chaves vivas em texto puro nos docs antigos do
   Legado — nunca publicar/nuvem (regra 16). Rotação: fechada (não há
   segredo antigo fora do `.env`).
+
+## §2 — Orquestrador dentro das regras da casa (fecho, retentativa, pendências)
+
+### Pedidos do dono (2 mensagens conectadas)
+
+1. "faça o orquestrador trabalhar dentro das diretrizes e regras já
+   conhecidas. se a sessão concluir ok ela deve fechar tudo e limpar
+   qualquer sujeira, também termina o serviço já que o serviço foi
+   concluído. se der falha poderia tentar reiniciar mais uma vez."
+2. "quando inicia ou retorna, verifica pendências e conserta os erros
+   assim como acabou de fazer agora descobrindo que a sessão morreu sem
+   publicar" (referência ao conserto manual do lote órfão `0e8e4c2` na
+   retomada da manhã).
+
+### O que mudou em `orquestrador.py`
+
+- **Início**: `recuperar_pendencias()` — commit órfão local
+  (`origin/master..HEAD > 0`) → `git push` automático (regra 7.1);
+  estado anterior `ativo` (runner morto sem fechar) → anotação honesta;
+  push falho vira anotação com o erro, nunca exceção. As anotações vão
+  para o estado, a caixa do painel e o contexto da CLI.
+- **Fecho de sucesso**: `_fechar_sessao()` só com commit ok —
+  `git push origin master` → `estado.publicado`; `_limpar_residuos()` →
+  `estado.limpeza`; conferência final → `estado.arvore_limpa` (mesmo
+  critério do aviso de árvore suja).
+- **Limpeza segura por desenho**: só `??` (untracked) descartável —
+  sufixos `.pyc/.pyo/.tmp/.orig/.rej` e dirs
+  `__pycache__/.pytest_cache/.od_sandbox`. `backups/`, `data/`, `logs/`
+  intocáveis (regra 9); trabalho rastreado **nunca** é apagado.
+- **Serviço da CLI termina em qualquer desfecho** (sucesso, falha,
+  timeout): pgid = pid do filho capturado no nascimento e
+  `_matar_grupo(processo, pgid)` após a `communicate`.
+- **Retentativa**: `main_sessao` ganhou loop de `SESSAO_RETENTATIVA`
+  (env `OD_DEV_SESSAO_RETENTATIVA`, default 1). Motivo determinístico
+  (`limite_de_autorizacoes_excedido`) não retenta — repetir é o mesmo
+  desfecho. Caixa avisa "tentativa N de M".
+- **Prompt**: contrato de fechamento em `INSTRUCAO_SESSAO` (árvore
+  limpa, orquestrador quem commita/publica/limpa, corrigir causa raiz).
+- **Telegram**: linhas 🔁 Tentativa, 🩹 Pendências, 🌐 Publicado,
+  🧹 Limpeza — todas com `html.escape`.
+
+### Corrida de processo paga durante o próprio trabalho
+
+A 1ª versão capturava o pgid com `os.getpgid(processo.pid)` logo após o
+`Popen`. O `setsid()` do filho é **concorrente**: se o `getpgid`
+ganhasse a corrida, o pgid capturado seria o do **nosso** grupo — e o
+`killpg` do fecho mataria o próprio orquestrador. Corrigido para
+`pgid = pid` (invariante do `start_new_session`). Prova com subprocesso
+real: 2ª `communicate` não quebra, `wait` retorna na hora e
+`killpg(pid)` alcança o órfão **depois** do líder sair — exatamente o
+cenário do runtime sobrevivente do incidente 09/10 (APK 4049).
+
+### Testes e validação
+
+- `tests/test_orquestrador.py`: **81 → 108 passed** (+27: recuperação,
+  limpeza, fecho, retentativa, serviço, notificação, prompt).
+- **3 mutações aplicadas e todas capturadas** (6 falhas): retentativa
+  desligada, fecho removido, push da recuperação removido. Reversão
+  bit-exata → 108 verdes.
+- Suíte completa no `.venv`: **2447 passed / 16 skipped (87s)**.
+- 1 warning pré-existente em `tests/test_orchestrator.py` (marca
+  asyncio em teste síncrono) — fora do escopo, não touchado.
+- **Commit publicado** (regra 7.1): `6339383` — HEAD == origin/master,
+  árvore limpa.
+
+### Sem deploy
+
+Runner é spawna do disco por sessão (`server.py:_sessao_ativar`,
+`Popen cwd=REPO_ROOT, start_new_session=True`) — **sem restart**, od-core
+intacto (PID 1142795, NRestarts=0).
+
+### Pendências do dono (inalteradas)
+
+Fotos da Plêiade (SVG pronto) · etapa 4 do item 2 (comprador+QR+loja) ·
+itens 3/5 da pauta de divergências · higiene de segredos no Legado
+(rotação fechada).
