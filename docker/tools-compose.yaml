@@ -1,0 +1,180 @@
+# =============================================================================
+# OmegaDrakon — Ferramentas de Terceiro (absorvidas do Project NOMAD)
+# =============================================================================
+# NÃO sobe automaticamente. Para subir:
+#   docker compose -f docker/tools-compose.yaml up -d
+# Para derrubar:
+#   docker compose -f docker/tools-compose.yaml down
+#
+# Segurança por design:
+#   * Todos os serviços bindados em 127.0.0.1 — NÃO ficam expostos à internet.
+#   * Acesso de fora: via Tailscale (já ativo no servidor).
+#       tailscale serve --bg http://127.0.0.1:<porta>
+#     Depois abre https://nicky-server.<tailnet>.ts.net:<porta> do seu device.
+#   * Vaultwarden: roda HTTP interno; o HTTPS (obrigatório para cofre) vem do
+#     Tailscale Serve. Sem cert auto-assinado.
+#
+# Receitas (imagem/porta/bind/env) reaproveitadas do Project NOMAD
+# (Apache-2.0, github.com/.../project-nomad — service_seeder.ts), com atribuição.
+#
+# Armazenamento fora do repo: /home/alex/omegadrakon-tools/
+# =============================================================================
+
+name: omegadrakon-tools
+
+services:
+  # ---------------------------------------------------------------------------
+  # 1. Kiwix — Wikipédia + categorias offline (alimenta o RAG)
+  #    Baixar o ZIM antes de subir (o bind /data precisa conter *.zim):
+  #      wget -O /home/alex/omegadrakon-tools/zim/wikipedia_en_all_mini.zim \
+  #        https://download.kiwix.org/zim/wikipedia/wikipedia_en_all_mini.zim
+  #    (12,5 GB — owner escolheu "completa"; espelhos em download.kiwix.org)
+  # ---------------------------------------------------------------------------
+  kiwix:
+    image: ghcr.io/kiwix/kiwix-serve:3.8.1
+    container_name: od-kiwix
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8080"
+    volumes:
+      - /home/alex/omegadrakon-tools/zim:/data:ro
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  # ---------------------------------------------------------------------------
+  # 2. CyberChef (Data Tools) — base64, hash, cifra, conversores (~300 op)
+  # ---------------------------------------------------------------------------
+  cyberchef:
+    image: ghcr.io/gchq/cyberchef:10.24.0
+    container_name: od-cyberchef
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8100:80"
+    mem_limit: 256m
+    memswap_limit: 256m
+
+  # ---------------------------------------------------------------------------
+  # 3. IT Tools — utilidades de dev (UUID, hash, formatadores)
+  # ---------------------------------------------------------------------------
+  it-tools:
+    image: ghcr.io/corentinth/it-tools:2024.10.22-7ca5933
+    container_name: od-it-tools
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8430:80"
+    mem_limit: 128m
+    memswap_limit: 128m
+
+  # ---------------------------------------------------------------------------
+  # 4. FlatNotes (Notes) — caderno markdown canônico do assistente
+  #    auth=none porque só é alcançável via Tailscale/localhost.
+  #    API REST disponível para as actions "anota isso" / "o que anotei sobre X".
+  # ---------------------------------------------------------------------------
+  flatnotes:
+    image: dullage/flatnotes:v5.5.4
+    container_name: od-flatnotes
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8200:8080"
+    volumes:
+      - /home/alex/omegadrakon-tools/flatnotes:/data
+    environment:
+      - FLATNOTES_AUTH_TYPE=none
+    mem_limit: 256m
+    memswap_limit: 256m
+
+  # ---------------------------------------------------------------------------
+  # 5. Stirling PDF — 50+ ferramentas de PDF (merge, split, OCR, assinar, cifrar)
+  #    SECURITY_ENABLELOGIN=false = sem login (só via Tailscale).
+  # ---------------------------------------------------------------------------
+  stirling-pdf:
+    image: ghcr.io/stirling-tools/s-pdf:2.13.1
+    container_name: od-stirling-pdf
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8400:8080"
+    volumes:
+      - /home/alex/omegadrakon-tools/stirling-pdf/configs:/configs
+      - /home/alex/omegadrakon-tools/stirling-pdf/logs:/logs
+    environment:
+      - SECURITY_ENABLELOGIN=false
+      - LANGS=pt_BR,en_GB
+    mem_limit: 1g
+    memswap_limit: 1g
+
+  # ---------------------------------------------------------------------------
+  # 6. File Browser — gerenciar arquivos pela web (UI para o owner)
+  #    /srv = pasta de arquivos; /db = banco do filebrowser.
+  #    Login admin/admin (trocar em Settings > Change Password).
+  # ---------------------------------------------------------------------------
+  filebrowser:
+    image: filebrowser/filebrowser:v2
+    container_name: od-filebrowser
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8410:80"
+    volumes:
+      - /home/alex/omegadrakon-tools/filebrowser/files:/srv
+      - /home/alex/omegadrakon-tools/filebrowser/db:/database
+    mem_limit: 128m
+    memswap_limit: 128m
+
+  # ---------------------------------------------------------------------------
+  # 7. Calibre Web — biblioteca de e-books, leitura no navegador
+  #    PUID/PGID 1000 = usuário alex (confere no servidor).
+  #    Login admin/admin123 (trocar).
+  # ---------------------------------------------------------------------------
+  calibre-web:
+    image: linuxserver/calibre-web:0.6.26-ls386
+    container_name: od-calibre-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8420:8083"
+    volumes:
+      - /home/alex/omegadrakon-tools/calibreweb/config:/config
+      - /home/alex/omegadrakon-tools/books:/books
+    environment:
+      - PUID=1000
+      - PGID=1000
+    mem_limit: 256m
+    memswap_limit: 256m
+
+  # ---------------------------------------------------------------------------
+  # 8. Homebox — inventário de ferramentas, peças e produtos do owner
+  #    (item: nome, categoria, local, preço compra, garantia, fabricante, modelo,
+  #     nº série, fotos, anexos, campos custom, QR code; tem API REST p/ actions)
+  #    Login inicial admin@admin.com / 123 (trocar).
+  # ---------------------------------------------------------------------------
+  homebox:
+    image: ghcr.io/sysadminsmedia/homebox:0.26.2
+    container_name: od-homebox
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8470:7745"
+    volumes:
+      - /home/alex/omegadrakon-tools/homebox:/data
+    environment:
+      - HBOX_TELEMETRY_ENABLED=false
+    mem_limit: 256m
+    memswap_limit: 256m
+
+  # ---------------------------------------------------------------------------
+  # 9. Vaultwarden — cofre de senhas compatível Bitwarden (resolve higiene de
+  #    segredos). HTTP interno; HTTPS via Tailscale Serve (obrigatório para o
+  #    web vault registrar/unlock). Signups abertos até criar conta → depois
+  #    fechar (SIGNUPS_ALLOWED=false).
+  # ---------------------------------------------------------------------------
+  vaultwarden:
+    image: vaultwarden/server:1.36.0
+    container_name: od-vaultwarden
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8480:80"
+    volumes:
+      - /home/alex/omegadrakon-tools/vaultwarden:/data
+    environment:
+      - WEBSOCKET_ENABLED=true
+      - SIGNUPS_ALLOWED=true
+      - DOMAIN=http://127.0.0.1:8480/
+    mem_limit: 256m
+    memswap_limit: 256m
