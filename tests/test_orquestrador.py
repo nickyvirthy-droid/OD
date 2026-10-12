@@ -1089,6 +1089,7 @@ class TestRecuperarPendencias:
     def test_commit_orfao_local_e_publicado(self, tmp_path: Path) -> None:
         """HEAD à frente de origin/master → `git push` na abertura."""
         chamadas: list[list[str]] = []
+        estado_file = tmp_path / "dev_sessao.json"
 
         def rodar(cmd, cwd):
             chamadas.append(cmd)
@@ -1100,7 +1101,7 @@ class TestRecuperarPendencias:
                 return 0, ""
             return 0, ""
 
-        notas = recuperar_pendencias(rodar=rodar, repo=tmp_path)
+        notas = recuperar_pendencias(rodar=rodar, repo=tmp_path, arquivo_estado=estado_file)
         assert any("1 commit(s)" in n and "publicado(s) agora" in n for n in notas)
         push = next(c for c in chamadas if c[:2] == ["git", "push"])
         assert push == ["git", "push", "origin", "master"]
@@ -1108,6 +1109,7 @@ class TestRecuperarPendencias:
     def test_tudo_publicado_nao_tem_push(self, tmp_path: Path) -> None:
         """HEAD == origin/master → nada a publicar, nenhum push."""
         chamadas: list[list[str]] = []
+        estado_file = tmp_path / "dev_sessao.json"
 
         def rodar(cmd, cwd):
             chamadas.append(cmd)
@@ -1117,11 +1119,13 @@ class TestRecuperarPendencias:
                 return 0, "0\n"
             return 0, ""
 
-        assert recuperar_pendencias(rodar=rodar, repo=tmp_path) == []
+        assert recuperar_pendencias(rodar=rodar, repo=tmp_path, arquivo_estado=estado_file) == []
         assert all(c[:2] != ["git", "push"] for c in chamadas)
 
     def test_push_falho_vira_nota_honesta(self, tmp_path: Path) -> None:
         """Sem rede: a pendência NÃO some — vira anotação com o erro."""
+        estado_file = tmp_path / "dev_sessao.json"
+
         def rodar(cmd, cwd):
             if cmd[:4] == ["git", "rev-parse", "--verify", "origin/master"]:
                 return 0, "origin/master\n"
@@ -1131,17 +1135,19 @@ class TestRecuperarPendencias:
                 return 1, "fatal: unable to access"
             return 0, ""
 
-        notas = recuperar_pendencias(rodar=rodar, repo=tmp_path)
+        notas = recuperar_pendencias(rodar=rodar, repo=tmp_path, arquivo_estado=estado_file)
         assert any("NÃO publicado(s)" in n and "fatal" in n for n in notas)
 
     def test_sem_remote_nao_tenta_push(self, tmp_path: Path) -> None:
         """Repo sem origin/master (ex.: sandbox): sem remote, sem push."""
+        estado_file = tmp_path / "dev_sessao.json"
+
         def rodar(cmd, cwd):
             if cmd[:4] == ["git", "rev-parse", "--verify", "origin/master"]:
                 return 128, "unknown revision"
             raise AssertionError(f"não deveria rodar: {cmd}")
 
-        assert recuperar_pendencias(rodar=rodar, repo=tmp_path) == []
+        assert recuperar_pendencias(rodar=rodar, repo=tmp_path, arquivo_estado=estado_file) == []
 
     def test_sessao_morta_sem_fechar_vira_nota(self, tmp_path: Path) -> None:
         """Estado anterior `ativo` (runner morto) → anotação na abertura."""

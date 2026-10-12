@@ -317,6 +317,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "status": ACTIVE,
         "path": "plugins/",
     },
+    {
+        "id": "nomad-tools",
+        "name": "Ferramentas Nômade (9 containers Docker + actions de gestão)",
+        "category": "execution",
+        "description": "Kiwix, Stirling PDF, CyberChef, IT Tools, FlatNotes, File Browser, Calibre Web, Homebox, Vaultwarden. Gerenciadas via actions nomad_tools_* (compose up/down/status/logs/restart, tailscale serve, ZIM download, Vaultwarden setup). Compose em docker/tools-compose.yaml (a2bba40). Acesso via Tailscale (nada exposto à internet).",
+        "source": "Project NOMAD (Apache-2.0)",
+        "phase": "v1.24.x",
+        "status": AVAILABLE,
+        "path": "docker/tools-compose.yaml",
+    },
     # --- INTEGRAÇÕES (Fase 5 + runtime) --------------------------------------
     {
         "id": "telegram-bot",

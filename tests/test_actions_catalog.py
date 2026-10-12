@@ -1,12 +1,13 @@
 """
 OMEGA DRAKON • TESTS
 Módulo: tests/test_actions_catalog.py
-Descrição: Testes do catálogo de 56 Actions (tools/actions/) — Fase 4,
+Descrição: Testes do catálogo de 86 Actions (tools/actions/) — Fase 4,
            item 4.4: catalogação completa por categoria, execução funcional
            de sistema/processos/arquivos/git/introspecção, degradação
            graciosa de docker/serviços/db, validação pelo Security Layer
            (roles, escopo estrito, deny), e integração com o Action
-           Registry (métricas/trilha).
+           Registry (métricas/trilha). Inclui 8 actions de ferramentas Nômade
+           (nomad_tools_*) absorvidas do Project NOMAD.
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 
@@ -47,6 +48,7 @@ EXPECTED_CATEGORIES = {
     "database": 3,
     "introspection": 4,
     "google": 13,  # 6 de leitura + 7 de escrita (lote 2: drive/calendar/gmail)
+    "nomad": 8,  # ferramentas Nômade absorvidas: up/down/status/logs/restart/tailscale/zim/vaultwarden
 }
 
 
@@ -64,10 +66,10 @@ class TestActionsCatalog:
     """56 ações catalogadas por categoria com metadados consistentes."""
 
     def test_catalog_count_and_categories(self) -> None:
-        assert ACTIONS_COUNT == 78
-        assert len(CATALOG) == 78
+        assert ACTIONS_COUNT == 86
+        assert len(CATALOG) == 86
         assert CATEGORIES == EXPECTED_CATEGORIES
-        assert sum(CATEGORIES.values()) == 78
+        assert sum(CATEGORIES.values()) == 86
 
     def test_names_unique_and_dotted_clean(self) -> None:
         names = [spec["name"] for spec in CATALOG]
@@ -122,8 +124,8 @@ class TestActionsRegistration:
 
     def test_build_registry_registers_56(self) -> None:
         registry = build_registry()
-        assert len(registry.list_actions()) == 78
-        assert registry.metrics.actions == 78
+        assert len(registry.list_actions()) == 86
+        assert registry.metrics.actions == 86
 
     def test_every_action_has_permission_and_schema(self) -> None:
         registry = build_registry()
@@ -138,7 +140,7 @@ class TestActionsRegistration:
         registry = ActionRegistry()
         first = register_all(registry)
         second = register_all(registry)
-        assert first == 78
+        assert first == 86
         assert second == 0
 
     def test_find_by_category(self) -> None:
@@ -213,7 +215,7 @@ class TestSystemActions:
         registry = self._registry()
         listed = await registry.execute("action_list", role="admin")
         assert listed.status == "ok"
-        assert listed.data["count"] == 78
+        assert listed.data["count"] == 86
         info = await registry.execute(
             "action_info", params={"name": "git_status"}, role="admin"
         )
@@ -566,4 +568,4 @@ class TestActionsSecurity:
         assert snap["ok"] == 1
         assert snap["denied"] == 1
         assert registry.history[0]["status"] == "denied"
-        assert registry.dump()["actions"] == 78
+        assert registry.dump()["actions"] == 86

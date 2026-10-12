@@ -38,6 +38,7 @@ services:
       - "127.0.0.1:8090:8080"
     volumes:
       - /home/alex/omegadrakon-tools/zim:/data:ro
+    command: ["--skipInvalid"]
     mem_limit: 512m
     memswap_limit: 512m
 
@@ -155,6 +156,7 @@ services:
       - /home/alex/omegadrakon-tools/homebox:/data
     environment:
       - HBOX_TELEMETRY_ENABLED=false
+      - HBOX_AUTH_API_KEY_PEPPER=l0GcNrXhMoZplAmL7rP1Tz8t4wH/qYO8YYRMY7GXLt7BRJagyoAse2cbkYZZyn8Z
     mem_limit: 256m
     memswap_limit: 256m
 
@@ -175,6 +177,7 @@ services:
     environment:
       - WEBSOCKET_ENABLED=true
       - SIGNUPS_ALLOWED=true
-      - DOMAIN=http://127.0.0.1:8480/
+      - DOMAIN=https://nicky-server.tail1b1f51.ts.net
+      - ADMIN_TOKEN=rB6x9TInm7d4Wd3XuxXEa2V5tl+xNqMM1AwmGR5Hypo=
     mem_limit: 256m
     memswap_limit: 256m

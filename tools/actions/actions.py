@@ -1936,6 +1936,188 @@ def docker_stats() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Docker Compose — Ferramentas Nômade (Project NOMAD absorvido)
+# ---------------------------------------------------------------------------
+
+NOMAD_COMPOSE_FILE = "/home/alex/OmegaDrakon/docker/tools-compose.yaml"
+NOMAD_TOOLS_DIR = "/home/alex/omegadrakon-tools"
+
+_NOMAD_SERVICES = (
+    "kiwix",
+    "cyberchef",
+    "it-tools",
+    "flatnotes",
+    "stirling-pdf",
+    "filebrowser",
+    "calibre-web",
+    "homebox",
+    "vaultwarden",
+)
+
+_NOMAD_PORTS = {
+    "kiwix": 8090,
+    "cyberchef": 8100,
+    "it-tools": 8430,
+    "flatnotes": 8200,
+    "stirling-pdf": 8400,
+    "filebrowser": 8410,
+    "calibre-web": 8420,
+    "homebox": 8470,
+    "vaultwarden": 8480,
+}
+
+
+def _compose(args: list[str], timeout: float = 60.0) -> dict[str, Any]:
+    """Executa docker compose com o arquivo das ferramentas Nômade."""
+    base = ["docker", "compose", "-f", NOMAD_COMPOSE_FILE]
+    rc, out, err = _run(base + args, timeout=timeout)
+    if rc != 0:
+        return _unavailable("docker_compose", (err or out).strip()[:500])
+    return {"ok": True, "output": out}
+
+
+def nomad_tools_up() -> dict[str, Any]:
+    """Sobe todos os containers das ferramentas Nômade (docker compose up -d)."""
+    return _compose(["up", "-d"], timeout=120.0)
+
+
+def nomad_tools_down() -> dict[str, Any]:
+    """Derruba todos os containers das ferramentas Nômade (docker compose down)."""
+    return _compose(["down"], timeout=60.0)
+
+
+def nomad_tools_status() -> dict[str, Any]:
+    """Status dos containers Nômade (docker compose ps)."""
+    return _compose(["ps", "--format", "json"])
+
+
+def nomad_tools_logs(service: str = "", lines: int = 100) -> dict[str, Any]:
+    """Logs de um serviço Nômade (docker compose logs)."""
+    if lines <= 0:
+        raise ValueError("lines deve ser > 0")
+    args = ["logs", "--tail", str(lines)]
+    if service:
+        if service not in _NOMAD_SERVICES:
+            return {"ok": False, "error": "servico_invalido", "message": f"Serviço '{service}' não é uma ferramenta Nômade conhecida. Opções: {', '.join(_NOMAD_SERVICES)}"}
+        args.append(service)
+    return _compose(args, timeout=30.0)
+
+
+def nomad_tools_restart(service: str) -> dict[str, Any]:
+    """Reinicia um serviço Nômade específico."""
+    if service not in _NOMAD_SERVICES:
+        return {"ok": False, "error": "servico_invalido", "message": f"Serviço '{service}' não é uma ferramenta Nômade conhecida. Opções: {', '.join(_NOMAD_SERVICES)}"}
+    return _compose(["restart", service], timeout=60.0)
+
+
+def nomad_tools_tailscale_serve(service: str = "", action: str = "up") -> dict[str, Any]:
+    """Gerencia tailscale serve para ferramentas Nômade.
+
+    action: "up" (publica), "down" (remove), "status" (lista)
+    service: nome do serviço (se vazio, aplica a todos quando action=up/down)
+    """
+    if service and service not in _NOMAD_SERVICES:
+        return {"ok": False, "error": "servico_invalido", "message": f"Serviço '{service}' não é uma ferramenta Nômade conhecida."}
+
+    if action == "status":
+        rc, out, err = _run(["tailscale", "serve", "status"])
+        if rc != 0:
+            return _unavailable("tailscale", (err or out).strip()[:400])
+        return {"ok": True, "output": out}
+
+    targets = [service] if service else list(_NOMAD_SERVICES)
+    results = []
+    for svc in targets:
+        port = _NOMAD_PORTS[svc]
+        if action == "up":
+            # tailscale serve --bg http://127.0.0.1:<port>
+            rc, out, err = _run(["tailscale", "serve", "--bg", f"http://127.0.0.1:{port}"])
+        elif action == "down":
+            # tailscale serve --bg off http://127.0.0.1:<port>
+            rc, out, err = _run(["tailscale", "serve", "--bg", "off", f"http://127.0.0.1:{port}"])
+        else:
+            return {"ok": False, "error": "acao_invalida", "message": "action deve ser 'up', 'down' ou 'status'"}
+        results.append({"service": svc, "port": port, "ok": rc == 0, "output": out if rc == 0 else err})
+
+    return {"ok": True, "action": action, "results": results}
+
+
+def nomad_wikipedia_zim_download(url: str = "", dest: str = "") -> dict[str, Any]:
+    """Baixa o arquivo ZIM da Wikipédia para o Kiwix.
+
+    url: URL do arquivo .zim (se vazio, tenta URL padrão do Kiwix)
+    dest: caminho de destino (se vazio, usa /home/alex/omegadrakon-tools/zim/wikipedia.zim)
+    """
+    import os
+
+    if not dest:
+        dest = os.path.join(NOMAD_TOOLS_DIR, "zim", "wikipedia.zim")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+
+    if not url:
+        # URLs conhecidas do Kiwix (podem mudar — owner deve verificar no mirror)
+        url = "https://download.kiwix.org/zim/wikipedia/wikipedia_en_all_mini.zim"
+
+    rc, out, err = _run(["wget", "-c", "-O", dest, url], timeout=3600.0)
+    if rc != 0:
+        return {"ok": False, "error": "download_falhou", "message": (err or out).strip()[:500]}
+    size = os.path.getsize(dest) if os.path.exists(dest) else 0
+    return {"ok": True, "dest": dest, "size_bytes": size, "size_gb": round(size / (1024**3), 2)}
+
+
+def nomad_vaultwarden_setup(admin_email: str = "", admin_password: str = "", disable_signups: bool = True) -> dict[str, Any]:
+    """Configura o Vaultwarden: cria conta admin e opcionalmente desabilita signups.
+
+    Requer que o container esteja rodando. A criação de conta é via API do Vaultwarden.
+    """
+    import json
+    import urllib.request
+
+    # Verifica se container está rodando
+    status = nomad_tools_status()
+    if not status.get("ok"):
+        return status
+    running = False
+    for line in status.get("output", "").splitlines():
+        if "vaultwarden" in line and "running" in line.lower():
+            running = True
+            break
+    if not running:
+        return {"ok": False, "error": "container_nao_rodando", "message": "Container vaultwarden não está rodando. Execute nomad_tools_up primeiro."}
+
+    # Cria conta admin via API (se email/senha fornecidos)
+    if admin_email and admin_password:
+        try:
+            data = json.dumps({"email": admin_email, "masterPassword": admin_password}).encode()
+            req = urllib.request.Request(
+                "http://127.0.0.1:8480/api/accounts/register",
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10.0) as resp:
+                resp_data = json.loads(resp.read().decode())
+            token = resp_data.get("token") or resp_data.get("access_token")
+        except Exception as exc:
+            return {"ok": False, "error": "criar_conta_falhou", "message": str(exc)}
+    else:
+        token = None
+
+    # Desabilita signups (requer restart com env SIGNUPS_ALLOWED=false)
+    if disable_signups:
+        # O compose já tem SIGNUPS_ALLOWED=true para permitir criar a conta.
+        # Após criar, precisa recriar o container com SIGNUPS_ALLOWED=false.
+        # Isso é melhor feito via docker compose down/up com env alterado.
+        return {
+            "ok": True,
+            "message": "Conta admin criada (se credenciais fornecidas). Para desabilitar signups, edite o compose (SIGNUPS_ALLOWED=false) e rode nomad_tools_restart('vaultwarden').",
+            "token": token
+        }
+
+    return {"ok": True, "message": "Vaultwarden pronto. Acesse via tailscale serve https://127.0.0.1:8480", "token": token}
+
+
+# ---------------------------------------------------------------------------
 # Serviços (systemd — degrada graciosamente)
 # ---------------------------------------------------------------------------
 
@@ -2488,6 +2670,20 @@ CATALOG: list[dict[str, Any]] = [
     _spec("docker_logs", "docker", "Logs de um contêiner", docker_logs,
           {"required": ["container"], "properties": {"container": S, "lines": {**I, "default": 100}}}),
     _spec("docker_stats", "docker", "Métricas de contêineres", docker_stats),
+    # --- Ferramentas Nômade (Project NOMAD absorvido — 9 containers) ---
+    _spec("nomad_tools_up", "nomad", "Sobe todos os containers das ferramentas Nômade (docker compose up -d)", nomad_tools_up),
+    _spec("nomad_tools_down", "nomad", "Derruba todos os containers das ferramentas Nômade (docker compose down)", nomad_tools_down),
+    _spec("nomad_tools_status", "nomad", "Status dos containers Nômade (docker compose ps)", nomad_tools_status),
+    _spec("nomad_tools_logs", "nomad", "Logs de um serviço Nômade", nomad_tools_logs,
+          {"properties": {"service": {**S, "default": ""}, "lines": {**I, "default": 100}}}),
+    _spec("nomad_tools_restart", "nomad", "Reinicia um serviço Nômade específico", nomad_tools_restart,
+          {"required": ["service"], "properties": {"service": S}}),
+    _spec("nomad_tools_tailscale_serve", "nomad", "Gerencia tailscale serve para ferramentas Nômade", nomad_tools_tailscale_serve,
+          {"properties": {"service": {**S, "default": ""}, "action": {**S, "default": "up"}}}),
+    _spec("nomad_wikipedia_zim_download", "nomad", "Baixa o arquivo ZIM da Wikipédia para o Kiwix", nomad_wikipedia_zim_download,
+          {"properties": {"url": {**S, "default": ""}, "dest": {**S, "default": ""}}}),
+    _spec("nomad_vaultwarden_setup", "nomad", "Configura Vaultwarden: cria conta admin e desabilita signups", nomad_vaultwarden_setup,
+          {"properties": {"admin_email": {**S, "default": ""}, "admin_password": {**S, "default": ""}, "disable_signups": {**B, "default": True}}}),
     # --- Serviços (3) ---
     _spec("service_list", "service", "Lista serviços systemd", service_list),
     _spec("service_status", "service", "Status de um serviço", service_status,

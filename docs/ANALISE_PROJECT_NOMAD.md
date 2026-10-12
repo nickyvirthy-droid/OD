@@ -131,7 +131,61 @@ aplicado ao que o assistente baixa (modelos de voz/LLM, índice RAG).
 Pre-flight (conflito, versão, tamanho), rollback, preservar customização
 — evoluindo o catálogo de tools do orquestrador. **Esforço médio.**
 
-### Descartado (com motivo)
+### DECISÃO FINAL (12/10) — Virada da análise original
+
+O dono **inverteu o descarte** das ferramentas de terceiros: "Sua razão valeu:
+ferramenta de terceiro resolve dias de criação." As 8 ferramentas entram como
+containers Docker (receitas do Nômade, Apache-2.0 com atribuição), ProtoMaps vira
+tarefa de dev (página MapLibre + tiles, não container), LoRa na geladeira.
+
+| Ferramenta | Decisão | Container | Porta local | Acesso | Notas |
+|---|---|---|---|---|---|
+| Kiwix (Wikipédia offline) | ✅ ENTRA | ghcr.io/kiwix/kiwix-serve:3.8.1 | 8090 | Tailscale | Precisa baixar ZIM 12,5 GB (URL estável 404 — achar no mirror) |
+| Stirling PDF | ✅ ENTRA | ghcr.io/stirling-tools/s-pdf:2.13.1 | 8400 | Tailscale | 50+ ferramentas PDF, SECURITY_ENABLELOGIN=false |
+| CyberChef + IT Tools | ✅ ENTRA | ghcr.io/gchq/cyberchef:10.24.0 + ghcr.io/corentinth/it-tools:2024.10.22 | 8100, 8430 | Tailscale | Data tools + dev utilities |
+| Vaultwarden | ✅ ENTRA | vaultwarden/server:1.36.0 | 8480 | Tailscale (HTTPS obrigatório) | Cofre de senhas Bitwarden-compatível; criar conta + fechar signups |
+| FlatNotes | ✅ ENTRA | dullage/flatnotes:v5.5.4 | 8200 | Tailscale | Notas markdown; auth=none (só Tailscale); API para actions |
+| File Browser + Calibre Web | ✅ ENTRA | filebrowser/filebrowser:v2 + linuxserver/calibre-web:0.6.26 | 8410, 8420 | Tailscale | Arquivos + e-books; login admin/admin e admin/admin123 (trocar) |
+| Homebox | ✅ ENTRA | ghcr.io/sysadminsmedia/homebox:0.26.2 | 8470 | Tailscale | Inventário ferramentas/peças/produtos; QR + API; login admin@admin.com/123 |
+| ProtoMaps | 🛠️ DEV TASK | NÃO (página site) | — | Site | MapLibre GL + tiles; página dedicada no site |
+| LoRa | ❄️ GELADERA | Quando comprar rádios | — | — | Preparar tudo depois |
+
+**Descartados de vez** (confirmado): Kolibri, Jellyfin, Excalidraw, benchmark/leaderboard.
+
+**Compose commitado**: `a2bba40` — 9 containers, todos bindados em `127.0.0.1`, limites de memória por container (RAM ~4,5 GB livres). **AINDA NÃO SUBIDO** — sobe quando o dono mandar.
+
+**Segurança**: Funnel é PÚBLICO — só od-core fica nele (X-API-Key em tudo). FlatNotes/Stirling sem login, Homebox/File Browser com senha fraca — expor no Funnel seria buraco (cofre de senha e caderno de notas abertos pro mundo). Caminho certo: `tailscale serve` por ferramenta (só nos devices do dono). Vaultwarden exige HTTPS — o `serve` entrega.
+
+**Bloqueio único**: Wikipédia 12,5 GB — URL estável do Kiwix deu 404 (nome datado). Precisa achar arquivo certo no mirror antes de baixar. Só atrasa o Kiwix — os outros 8 containers sobem sem ele.
+
+---
+
+### IMPLEMENTAÇÃO NO OMEGADRAKON (esta sessão — 12/10)
+
+| Item | Status | Arquivo/Referência |
+|---|---|---|
+| **Compose Docker** (9 containers) | ✅ Commitado | `docker/tools-compose.yaml` (a2bba40) |
+| **Actions nomad_tools_*** (8) | ✅ Implementadas + testadas | `tools/actions/actions.py` · `tests/test_nomad_tools_actions.py` (41 testes) |
+| **Capability "nomad-tools"** | ✅ Registrada | `core/capabilities.py` (status: AVAILABLE) |
+| **ProtoMaps** (página dev) | ✅ Implementada | `site/protomaps.html` (MapLibre GL + tiles ProtoMaps) |
+| **ProtoMaps no site** | ✅ Linkada | `site/index.html` (nav + seção) |
+| **Documentação da decisão** | ✅ Atualizada | Este arquivo (seção DECISÃO FINAL + esta tabela) |
+
+**Actions Nômade implementadas** (categoria `nomad`, 8 total):
+- `nomad_tools_up` — sobe todos os containers (docker compose up -d)
+- `nomad_tools_down` — derruba todos (docker compose down)
+- `nomad_tools_status` — status dos containers (docker compose ps)
+- `nomad_tools_logs` — logs de serviço (docker compose logs)
+- `nomad_tools_restart` — reinicia serviço específico
+- `nomad_tools_tailscale_serve` — gerencia tailscale serve (up/down/status por serviço)
+- `nomad_wikipedia_zim_download` — baixa arquivo ZIM da Wikipédia para Kiwix
+- `nomad_vaultwarden_setup` — cria conta admin + orienta desabilitar signups
+
+**Testes**: 41 testes cobrindo catálogo, constantes, helpers, cada action individual, integração via ActionRegistry (com SecurityManager), degradação graciosa (docker/tailscale indisponíveis). Suíte completa: **2488 passed, 16 skipped**.
+
+---
+
+### Descartado (com motivo - análise original)
 Kolibri, CyberChef, FlatNotes, ProtoMaps, Kiwix/ZIM completo, benchmark +
 leaderboard, sidecar Docker de update, "Supply Depot" como Docker —
 ou é ferramenta de terceiros que já temos equivalente, ou é específico de
@@ -139,9 +193,16 @@ instalação offline multi-container, que não é o nosso caso.
 
 ---
 
-## 4. Próximo passo
+## 4. Próximos passos (pendências operacionais — exigem acesso ao servidor)
 
-Dono escolhe a **ordem das partes A–F** (sugestão: A primeiro — eval dá
-métrica para julgar B e C; depois C, que é quick win visível no chat).
-Cada parte é implementada em sessão própria do canal de desenvolvimento,
-com teste, commit e publicação pelas regras da casa.
+> **Nota**: As tarefas abaixo são OPERACIONAIS (precisam rodar no servidor do dono) e **não** são implementação de código. Exigem autorização explícita ([AUTORIZACAO]) para acesso ao servidor via orquestrador.
+
+| # | Tarefa | Descrição | Bloqueio |
+|---|---|---|---|
+| 1 | **Subir compose + tailscale serve** | `docker compose -f docker/tools-compose.yaml up -d` + `tailscale serve` por ferramenta | Requer acesso ao servidor |
+| 2 | **Baixar ZIM da Wikipédia** | Achar URL correta no mirror Kiwix (URL estável 404) + `nomad_wikipedia_zim_download` | URL 404 — precisa achar no mirror |
+| 3 | **Configurar Vaultwarden** | HTTPS via tailscale serve + criar conta admin + `SIGNUPS_ALLOWED=false` | Requer HTTPS (tailscale serve entrega) |
+| 4 | **Atualizar docs** | ✅ FEITO — este arquivo reflete a implementação | — |
+| 5 | **Tarefa dev: ProtoMaps** | ✅ FEITO — página `site/protomaps.html` no ar | — |
+
+**Próxima sessão do canal** (via orquestrador): executar itens 1–3 acima quando o dono autorizar acesso ao servidor.
