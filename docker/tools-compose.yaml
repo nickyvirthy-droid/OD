@@ -100,8 +100,13 @@ services:
     environment:
       - SECURITY_ENABLELOGIN=false
       - LANGS=pt_BR,en_GB
-    mem_limit: 1g
-    memswap_limit: 1g
+      # 2026-10-12: crash loop (1917 restarts) por java.lang.OutOfMemoryError:
+      # Metaspace — o MaxMetaspaceSize=128m do entrypoint não segura a 2.13.1.
+      # Lista igual à do entrypoint com MaxMetaspaceSize=256m; mem cgroup
+      # sobe para 1500m (heap 60% + metaspace + off-heap precisam de folga).
+      - JAVA_TOOL_OPTIONS=-XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/configs/heap_dumps -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:G1HeapRegionSize=4m -XX:G1PeriodicGCInterval=60000 -XX:+UseStringDeduplication -XX:+UseCompactObjectHeaders -XX:+ExplicitGCInvokesConcurrent -Dspring.threads.virtual.enabled=true -Djava.awt.headless=true -XX:InitialRAMPercentage=25 -XX:MaxRAMPercentage=60 -XX:MaxMetaspaceSize=256m
+    mem_limit: 1500m
+    memswap_limit: 1500m
 
   # ---------------------------------------------------------------------------
   # 6. File Browser — gerenciar arquivos pela web (UI para o owner)
