@@ -2781,7 +2781,15 @@ class APIHandler(BaseHTTPRequestHandler):
     # -- Segurança -----------------------------------------------------------
 
     def _check_rate_limit(self) -> bool:
-        """Janela deslizante por IP. Escreve 429 e retorna False se estourou."""
+        """Janela deslizante por IP. Escreve 429 e retorna False se estourou.
+
+        Endpoints /admin* são isentos: exigem autenticação de admin e são
+        usados pelo dono para gestão legítima; não faz sentido limitar o
+        próprio dono (evita rate_limited ao salvar txt.txt longo).
+        """
+        path = urlsplit(self.path).path
+        if path.startswith("/admin"):
+            return True
         limit = self.api.config.rate_limit_max
         if limit <= 0:
             return True
