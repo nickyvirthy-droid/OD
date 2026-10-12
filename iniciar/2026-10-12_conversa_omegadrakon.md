@@ -156,3 +156,80 @@ intacto (PID 1142795, NRestarts=0).
 Fotos da Plêiade (SVG pronto) · etapa 4 do item 2 (comprador+QR+loja) ·
 itens 3/5 da pauta de divergências · higiene de segredos no Legado
 (rotação fechada).
+
+## §3 — Project NOMAD: leitura integral e mapa de absorção
+
+### Pedido do dono (chegou no `txt.txt` durante o trabalho do §2)
+
+> "você conhece o projeto-nômade.
+> https://github.com/Crosstalk-Solutions/project-nomad
+> ele tem muitas da coisas que já temos e outras que ainda quero.
+> voce consegue ler todo o sistema, pode baixar se for necessário, e
+> absorver para dentro do nosso projeto."
+
+### Leitura integral
+
+Repositório clonado (`/tmp/opencode/project-nomad` — 693 arquivos,
+29 MB) e lido por inteiro (agente de exploração a fundo + leitura
+direta). Análise entregue em **`docs/ANALISE_PROJECT_NOMAD.md`**.
+
+### O que é
+
+Servidor offline de conhecimento/educação — "Command Center" (AdonisJS +
+TypeScript + Inertia/React + MySQL + Redis) que orquestra ferramentas
+containerizadas via Docker: Wikipédia ZIM (Kiwix), chat IA + RAG
+(Qdrant), educação (Kolibri), mapas, CyberChef, notas, benchmark de
+hardware, catálogo de apps e auto-update em 3 camadas. ~55–70k linhas.
+
+**Stack diferente da nossa** → absorção é de **ideias e padrões**, não
+de código (Apache-2.0 permite trechos com atribuição; mas a tradução é
+para o nosso Python/Flutter, no estilo do que já fizemos com o Legado).
+
+### Já temos (não duplicar)
+
+Chat com streaming, sessões, histórico, persona/system-prompt (o
+`NOMAD.md` deles é um system prompt editável — já temos personas),
+API, painel admin, telemetria zero. **Nossa auth é mais forte que a deles**
+— eles NÃO têm nenhuma (session middleware comentado, CSRF/CSP com
+"TODO"; postura deles: "proteção é via rede").
+
+### Ele tem e nós não temos (ordem de valor)
+
+1. **Pipeline RAG completo** — reescrita de query com histórico,
+   relevance floor + reranker, orçamento de contexto com métrica do que
+   foi descartado, calibração por modelo.
+2. **Eval harness** — goldens JSONL, modos oracle/e2e/noretrieval,
+   baseline commitada como gate de CI.
+3. **Referência médica** — openFDA + condições→o que usar + interações +
+   banners de segurança; dados curados reaproveitáveis; encaixa no
+   fastpath de intents.
+4. **Auto-update em camadas** — janela, cool-off, cap de bytes,
+   auto-disable em 3 falhas, dry-run determinístico.
+5. **Fila de downloads resumable** — retry, progresso SSE, dedup.
+6. **Wizard de setup** por capabilities com projeção de disco.
+7. **Catálogo estilo Supply Depot** → registro de skills/tools do
+   orquestrador.
+8. **Tradução offline** (`nomad-translate` — já é Python).
+
+### Descartado (com motivo)
+
+Kolibri/CyberChef/FlatNotes/ProtoMaps/Kiwix-ZIM completo,
+benchmark+leaderboard, sidecar Docker de update, Supply Depot como
+Docker — ferramenta de terceiro ou específico de instalação offline
+multi-container.
+
+### Padrões de ouro levados
+
+Pipeline de decisão puro + **dry-run determinístico** (o `evaluate()`
+com overrides de relógio/releases/preflight roda o MESMO caminho em prod
+e CI) · funções decision puras com spec própria (58 specs) · cool-off
+ancorado em "first seen" com severidade skip vs failure · guardrails de
+disco antes de ingestão pesada · eval como gate de CI.
+
+### Próximo passo
+
+Dono escolhe a ordem das **partes A–F** do `docs/ANALISE_PROJECT_NOMAD.md`
+(sugestão: A = eval primeiro — dá métrica para julgar as demais; depois
+C = referência médica, quick win visível no chat). Cada parte em sessão
+própria do canal de desenvolvimento, com teste + commit + publicação
+(regras 7.1/7.3).

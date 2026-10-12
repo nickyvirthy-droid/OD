@@ -2,6 +2,27 @@
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
   "updated_at": "2026-10-12T12:40:00-03:00",
+  "retomada_2026_10_12_project_nomad": {
+    "pedido": "Dono via txt.txt (chegou durante o trabalho do orquestrador): 'você conhece o projeto-nômade. https://github.com/Crosstalk-Solutions/project-nomad. ele tem muitas das coisas que já temos e outras que ainda quero. voce consegue ler todo o sistema, pode baixar se for necessário, e absorver para dentro do nosso projeto.'",
+    "acao": "Repositório clonado (/tmp/opencode/project-nomad, 693 arquivos, 29 MB) e lido por inteiro via agente de exploração + leitura direta. Análise entregue em docs/ANALISE_PROJECT_NOMAD.md (mesmo formato do ANALISE_ECOSSISTEMA.md do Legado).",
+    "o_que_e": "Servidor offline de conhecimento/educação ('Command Center' que orquestra ferramentas containerizadas via Docker): Wikipédia ZIM/Kiwix, chat IA + RAG (Qdrant), educação (Kolibri), mapas, CyberChef, notas, benchmark, catálogo de apps, auto-update em 3 camadas. ~55–70k linhas TypeScript/AdonisJS/React — stack DIFERENTE do nosso (Python/Flutter): absorção é de IDEIAS, não de código (Apache-2.0 permite trechos com atribuição).",
+    "ja_temos": "Chat com streaming, sessões, histórico, persona/system-prompt (o NOMAD.md deles é um system prompt editável — já temos personas), API, painel admin, telemetria zero. Nossa auth é MAIS forte que a deles (ELES NÃO TÊM NENHUMA — session middleware comentado, CSRF/CSP com TODO; a postura deles é 'proteção via rede').",
+    "nao_temos_vale_absorver": [
+      "1) Pipeline RAG completo: reescrita de query com histórico, relevance floor + reranker, orçamento de contexto com métrica do descartado, calibração de tokens por modelo — maior ganho de qualidade",
+      "2) Eval harness (goldens JSONL, modos oracle/e2e/noretrieval, baseline como gate de CI) — métrica honesta antes/depois de cada mudança de persona",
+      "3) Referência médica: dados openFDA + condições→o que usar + interações + banners de segurança — dados curados em collections/*.json reaproveitáveis; encaixa no fastpath de intents",
+      "4) Auto-update em camadas (janela, cool-off, cap de bytes, auto-disable em 3 falhas, dry-run determinístico para CI)",
+      "5) Fila de downloads resumable (retry, progresso SSE, dedup, cancel)",
+      "6) Wizard de setup por capabilities com projeção de disco",
+      "7) Catálogo estilo Supply Depot (pre-flight, rollback, preserva customização) → registro de skills/tools do orquestrador",
+      "8) Tradução offline (nomad-translate — JÁ é Python, proxy Bergamot)"
+    ],
+    "descartado": "Kolibri, CyberChef, FlatNotes, ProtoMaps, Kiwix/ZIM completo, benchmark/leaderboard, sidecar Docker de update, Supply Depot como Docker — ferramenta de terceiro ou específico de instalação offline multi-container (não é o nosso caso).",
+    "padroes_de_ouro": "Pipeline de decisão puro + dry-run determinístico (evaluate() com overrides de relógio/releases/preflight — MESMO caminho de prod e CI) · funções decision puras com spec (58 specs) · cool-off ancorado em first-seen com severidade skip vs failure · guardrails de disco antes de ingestão pesada · eval como gate de CI",
+    "proximos_passos": "Dono escolhe a ordem das partes A–F do doc (sugestão: A = eval primeiro, dá métrica para julgar B/C; depois C = referência médica, quick win visível no chat). Cada parte em sessão própria do canal, com teste + commit + publicação pelas regras da casa.",
+    "estado": "ANÁLISE ENTREGUE — aguardando o dono escolher a ordem das partes",
+    "transcricao": "iniciar/2026-10-12_conversa_omegadrakon.md"
+  },
   "retomada_2026_10_12_orquestrador_regras": {
     "pedido": "Usuário (2 pedidos conectados): (1) 'faça o orquestrador trabalhar dentro das diretrizes e regras já conhecidas. se a sessão concluir ok ela deve fechar tudo e limpar qualquer sujeira, também termina o serviço já que o serviço foi concluído. se der falha poderia tentar reiniciar mais uma vez.'; (2) 'quando inicia ou retorna, verifica pendências e conserta os erros assim como acabou de fazer agora descobrindo que a sessão morreu sem publicar' (referência ao conserto manual do lote órfão 0e8e4c2 da retomada anterior).",
     "entregas": [
