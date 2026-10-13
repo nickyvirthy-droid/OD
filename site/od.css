@@ -248,6 +248,12 @@ blockquote footer { margin-top: 12px; color: var(--muted); font-size: .8rem;
   border: 1px solid var(--border-lit); }
 .ficha-full .ficha-dl { margin-top: 14px; }
 
+/* Bloco de origem — dados extraídos da conversa de criação no ChatGPT
+   (13/10): arquétipo, motivo do nome, frase de origem e visual canônico. */
+.ficha-criacao { margin-top: 14px; padding: 10px 14px; border-left: 2px solid var(--azul);
+  background: var(--bg3); border-radius: 0 6px 6px 0; font-size: .8rem; color: var(--muted); }
+.ficha-criacao b { color: var(--texto); letter-spacing: .06em; }
+
 /* Fotos adicionais (prefixo "zzz" = adicionais, dono 12/10) — miniaturas
    que abrem a foto em tamanho cheio numa aba nova. */
 .adicionais { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

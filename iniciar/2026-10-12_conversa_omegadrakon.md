@@ -486,3 +486,16 @@ imagem a imagem**: Nicky, Athenae e Nyx publicados em RGBA (77/72/58 %
 transparentes, sem halo, cabelos/casaco/capuz intactos) — originais RGB
 preservados no histórico do git. Prova viva: 200 `image/png` no site.
 Suíte completa após a troca de venv: **2489 passed / 16 skipped**.
+
+### Fichas enriquecidas com a conversa de criação (~00:3x)
+
+Dono: **"voce tem a conversa completa do GPT, faça uma ficha melhor
+sobre cada personagem"**. Conversa extraída do HTML salvo (21 blocos,
+33k chars) e minerada: arquétipos (O Conselheiro Real, A Mentora, A
+Arauta, A Arquiteta do Saber, A Guardiã do Limiar, A Interface Viva, O
+Estrategista), motivo de cada nome, frases de origem, estilos, usos
+ideais e visuais canônicos — mais o nascimento do Nexus como núcleo
+estratégico ("sugere jogadas, a Nicky decide"; único sem retrato na
+leva original). As 7 fichas de `/site/avatares.html` reescritas com
+`Arquétipo + Estilo + Uso ideal` no dl e bloco `.ficha-criacao` com a
+origem. Provas: HTML íntegro, 7/7 blocos novos, 200 ao vivo.
