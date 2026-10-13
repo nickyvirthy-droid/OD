@@ -453,3 +453,12 @@ roteador**. `_compile_route` passou a aceitar barra no parâmetro `file`
 HTML bem formado (0 erros), 44 refs de assets existentes, âncoras
 batendo · 12 testes do site · **suíte completa 2489 passed / 16 skipped
 (93 s)**. Restart verde + prova curl ao vivo seguem no fecho da etapa.
+
+### Fecho da etapa (~23:4x)
+
+Commit `f027705` publicado. **Restart verde** do od-core (23:23:56,
+PID 3480132, journal 0 erros): health **9/9 up**. Prova ao vivo:
+`/site/avatares.html` 200 · `/site/avatares/*.png` 200 `image/png`
+(antes davam 404) · traversal `/site/%2e%2e/` continua 404 · PNG íntegro
+(magic bytes). `txt.txt` reescrito com o link da galeria (LAN
+192.168.0.250:8000 e Tailscale 100.77.67.53:8000). Resumo no Telegram.
