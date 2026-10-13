@@ -392,3 +392,13 @@ usuário confirmou + HD externo). Cópia do zip mantida no servidor como
 segunda salvaguarda (499 MB; some só se ele pedir, de preferência depois
 de conferir no HD que abre). ZIM em 6,4/14,4 GB (48%), kiwix ainda
 parado (sobe sozinho ao fim do download).
+
+### Encerramento (~22:1x)
+
+Dono: **"pode apagar a cópia. Coloca o comando dentro de txt que rodo no
+servidor com o sudo"** → cópia do zip removida do servidor (HD externo é
+a única cópia agora; `ls` confirma ausência, df 74 GB usados / 147 GB
+livres — ZIM crescendo em paralelo). `txt.txt` reescrito com o comando
+em destaque para ele rodar:
+`sudo rm /etc/systemd/system/nicky.service && sudo systemctl daemon-reload`.
+Aguardando ele rodar o sudo e avisar (confirmo a remoção da unit).

@@ -2354,8 +2354,8 @@
       "Suíte completa: 2488 passed / 16 skipped em 94 s (idêntica à de antes da limpeza).",
       "ZIM: 5,1/14,4 GB (38%) — download sadio em background."
     ],
-    "estado": "CONCLUÍDO: dono confirmou (~22:0x) que copiou OD_limpeza_2026-10-12.zip para o HD externo. Cópia do zip mantida no servidor como segunda salvaguarda (499 MB; remoção só se ele pedir, depois de conferir no HD que abre). Pendências restantes: nicky.service órfã (sudo), 3D/ catalogação posterior, e as anteriores (Kiwix tailscale serve, Vaultwarden, fotos Plêiade, etapa 4 item 2, itens 3/5). ZIM 6,4/14,4 GB (48%).",
+    "estado": "LIMPEZA ENCERRADA: dono autorizou e cópia do zip foi removida do servidor (~22:1x) — HD externo é a ÚNICA cópia de OD_limpeza_2026-10-12.zip (523 MB). txt.txt reescrito trazendo o comando sudo para ele remover a unit nicky.service (`sudo rm /etc/systemd/system/nicky.service && sudo systemctl daemon-reload`) — aguardando ele rodar e avisar. df: 74 GB usados / 147 GB livres (ZIM crescendo em paralelo). Restam: confirmação do sudo, ZIM (sobe sozinho), Kiwix tailscale serve, Vaultwarden, fotos Plêiade, etapa 4 item 2, itens 3/5, 3D/.",
     "transcricao": "iniciar/2026-10-12_conversa_omegadrakon.md §5",
-    "confirmacao_dono_2026_10_12": "pronto. zip copiado no hd externo (~22:0x)"
+    "confirmacao_dono_2026_10_12": "pronto. zip copiado no hd externo (~22:0x) · pode apagar a cópia. Coloca o comando dentro de txt que rodo no servidor com o sudo (~22:1x)"
   }
 }
