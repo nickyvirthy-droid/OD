@@ -476,3 +476,13 @@ realmente png porque algumas não estão com fundo transparente" →
 gerado opaco) e 5 são RGBA com transparência real (luma, regulus, vox,
 luma-3, nexus — 68–83% de pixels transparentes). ZIM do Wikipédia: 91%
 (13,14/14,39 GB), faltando ~1,25 GB (~15 min); kiwix sobe sozinho.
+
+### Fundo removido das três opacas (~00:1x–00:2x)
+
+Dono autorizou. `rembg` + modelo **u2net** (IA) no `.venv` — o pip subiu
+numpy/scipy e quebrou os pins do aider-chat, devolvidos na hora
+(numpy 1.26.4 / scipy 1.14.1). Sandboxed em `/tmp` e **resultado visado
+imagem a imagem**: Nicky, Athenae e Nyx publicados em RGBA (77/72/58 %
+transparentes, sem halo, cabelos/casaco/capuz intactos) — originais RGB
+preservados no histórico do git. Prova viva: 200 `image/png` no site.
+Suíte completa após a troca de venv: **2489 passed / 16 skipped**.

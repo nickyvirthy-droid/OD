@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-13T00:05:00-03:00",
+  "updated_at": "2026-10-13T00:25:00-03:00",
   "retomada_2026_10_12_2035_status_geral": {
     "pedido": "Usuário: 'leia iniciar' (~20:15).",
     "achados": [
@@ -1575,7 +1575,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": "2026-10-13T00:05:00-03:00",
+  "last_turn": "2026-10-13T00:25:00-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
@@ -2379,5 +2379,11 @@
     "convencao": "Conteúdo de site sem bump de versão — mesma convenção dos retratos SVG de 11/10 (não entraram no CHANGELOG).",
     "proximo": "Dono abre a galeria (LAN 192.168.0.250:8000 ou Tailscale 100.77.67.53:8000, /site/avatares.html). Próximos arquivos depositados em analise/ seguem a receita da regra 17. Pendências abertas: ZIM em background (kiwix sobe sozinho), Vaultwarden HTTPS+conta, etapa 4 Registro Mestre, itens 3/5 da pauta, catalogação de 3D/.",
     "ajuste_pos_entrega": "Dono (~23:5x): 'Retire as fotos adicionais do site, vou usar depois, esse não é o momento'. As 4 adicionais (luma-2, luma-3, athenae-ficha, vox-ficha) saíram da página e de site/avatares/ — guardadas em analise/fotos-adicionais/ (fora do site, agora servem 404; /analise/ entrou no .gitignore como caixa privada). Página ficou com as 7 fotos principais + 2 elencos. CSS .adicionais mantido p/ o futuro. Também perguntou se são PNG de verdade: TODOS são PNG, mas 8 de 13 vieram em 8-bit RGB (SEM canal alfa = fundo gerado opaco: nicky, athenae, nyx, luma-2, athenae-ficha, vox-ficha, equipe-bustos, equipe-corpo); os outros 5 são RGBA com transparência REAL (luma 83%, regulus 79%, vox 70%, luma-3 70%, nexus 68% de pixels transparentes)."
+  },
+  "fundo_removido_3_avatares_2026_10_13": {
+    "pedido": "Dono (~00:1x): 'voce consegue remover o fundo das tres imagens? se sim pode fazer!' — as três opacas da galeria (nicky, athenae, nyx).",
+    "execucao": "rembg (modelo u2net, IA — melhor contorno que cor-chave) instalado no .venv; pip subiu numpy/scipy e quebrou os pins do aider-chat → devolvidos numpy==1.26.4 e scipy==1.14.1 (onnxruntime 1.31.0 compatível). Processamento em sandbox (/tmp/opencode) antes de publicar; resultado VISUADO um a um: cabelos, casaco da Athenae e capuz/manto da Nyx intactos, sem halo.",
+    "provas": "3 PNG RGBA publicados em site/avatares/ (transparentes: nicky 77%, athenae 72%, nyx 58%), servindo 200 image/png ao vivo. Originais RGB preservados no histórico do git (commit f027705). Suíte completa APÓS a mudança de venv: 2489 passed / 16 skipped (92 s) — venv saudável, od-core sem impacto (sem restart necessário: só arquivos estáticos).",
+    "nota": "Elencos (equipe-bustos/corpo) e demais RGB seguem opacos — fora do pedido (eram 'as três')."
   }
 }
