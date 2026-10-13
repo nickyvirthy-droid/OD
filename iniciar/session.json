@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-13T00:45:00-03:00",
+  "updated_at": "2026-10-13T01:10:00-03:00",
   "retomada_2026_10_12_2035_status_geral": {
     "pedido": "Usuário: 'leia iniciar' (~20:15).",
     "achados": [
@@ -1575,7 +1575,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": "2026-10-13T00:45:00-03:00",
+  "last_turn": "2026-10-13T01:10:00-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
@@ -2391,5 +2391,23 @@
     "fonte": "Conversa do ChatGPT compartilhada ontem extraída do HTML (21 blocos, 33k chars limpos → /tmp/opencode/conversa_limpa.txt): spec do sistema, nomes definitivos+arquétipos, prompts canônicos de imagem, arquitetura Nexus/Strategist e a tabela de cobertura do 'perfil 7'.",
     "enriquecimento": "As 7 fichas de /site/avatares.html ganharam: Arquétipo (Cons. Real, Mentora, Arauta, Arq. do Saber, Guardiã do Limiar, Interface Viva, Estrategista), Estilo, Uso ideal (da spec BLOCO 8) + bloco 'Da conversa de criação' com frase de origem, motivo do nome e visual canônico de cada um. Nexus: único sem retrato na leva — nasceu como o núcleo estratégico ('sugere jogadas, a orquestração decide').",
     "provas": "HTML íntegro (parser 0 erros), 7 ficha-criacao + 7 Arquétipo presentes, 17 refs /site/ existentes, página servindo 200 (16,4 KB) e od.css 200. CSS novo .ficha-criacao (nota com filete azul)."
+  },
+  "funnel_restaurado_kiwix_no_ar_2026_10_13": {
+    "pedido": "Dono (~00:5x): 'O download ainda não acabou? O Funnel ainda esta fora do ar...'",
+    "achados": [
+      "ZIM wikipedia_en_all_mini COMPLETO: 14386799064/14386799064 bytes salvos 00:00:23 e renomeado; mas od-kiwix em crash loop porque o command do compose passava só --skipInvalid — o kiwix-serve 3.8.1 precisa do arquivo ZIM como argumento positional (sem ele: help + exit).",
+      "Funnel fora do ar desde a montagem das ferramentas (12/10): um 'tailscale serve' da raiz sobrescreveu '/' (virou Vaultwarden:8480) e derrubou a flag Funnel da 443 (mesma armadilha registrada em funnel_2026_09_21: serve e funnel dividem a porta). Config esperada documentada em docs/ACESSO_EXTERNO.md: '/'→8000 + '/ws'→8001 com '# Funnel on'."
+    ],
+    "acoes": [
+      "docker/tools-compose.yaml: kiwix command → ['--skipInvalid','/data/wikipedia_en_all_mini.zim']; container recriado → Up, sem restarts.",
+      "serve resetado e reconstruído: 443 = od-core ('/'→8000, '/ws'→8001); 8443 tailnet-only = ferramentas ('/'→Vaultwarden 8480, /wiki→kiwix 8090 NOVO, /books→8420, /files→8410, /homebox→8470, /it-tools→8430, /stirling→8400, /cyberchef→8100, /flatnotes→8200).",
+      "Funnel publicado POR ÚLTIMO (tailscale funnel --bg --https=443 8000) — ordem da lição de 21/09. Ferramentas movidas para :8443 de propósito: a flag Funnel é por porta, ficar na 443 as exporia à internet inteira."
+    ],
+    "provas": [
+      "Pública (DNS dig @8.8.8.8 → 209.177.145.97/.192, TLS via ingress): /health→401, /site/index.html→200 (23.985B), /site/avatares.html→200, /ws→426 (WS do od-core), /app/version→200, POST /message sem chave→401. Primeiro handshake caiu (TLS recusado) por provisionamento; ~40s depois os DOIS IPs responderam.",
+      "Tailnet :8443 (--resolve para 100.77.67.53): '/'→200 Vaultwarden, /wiki→200 (Welcome to Kiwix + landing real do ZIM 'User:The other Kiwix guy/Landing' + OPDS /catalog/v2/entries), /stirling→200, /books→302, /cyberchef→200.",
+      "tailscale serve status: '# Funnel on' com / e /ws na 443 + bloco 8443 (tailnet only) com as 9 rotas."
+    ],
+    "efeito_para_o_dono": "URL externa do app/site volta a funcionar: https://nicky-server.tail1b1f51.ts.net (inalterada). Ferramentas passam a ter porta: https://nicky-server.tail1b1f51.ts.net:8443/... — dentro da rede/tailnet como já eram; agora com /wiki (Wikipedia offline) novo."
   }
 }

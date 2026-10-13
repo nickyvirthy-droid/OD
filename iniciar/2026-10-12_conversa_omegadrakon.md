@@ -499,3 +499,29 @@ estratégico ("sugere jogadas, a Nicky decide"; único sem retrato na
 leva original). As 7 fichas de `/site/avatares.html` reescritas com
 `Arquétipo + Estilo + Uso ideal` no dl e bloco `.ficha-criacao` com a
 origem. Provas: HTML íntegro, 7/7 blocos novos, 200 ao vivo.
+
+## §7 — Funnel restaurado + ZIM completo no ar (~00:5x–01:1x)
+
+Dono: **"O download ainda não acabou? O Funnel ainda esta fora do
+ar..."**. Duas constatações:
+
+1. **Download ACABOU** (00:00:23, 14.386.799.064 bytes = total, arquivo
+   renomeado) — mas o `od-kiwix` entrava em crash loop: o `command` do
+   compose passava só `--skipInvalid` e o kiwix-serve 3.8.1 exige o ZIM
+   como argumento posicional (sem ele, imprime o help e sai). Conserto
+   em `docker/tools-compose.yaml` → container recriado, **Up**, servindo
+   a landing real do ZIM + catálogo OPDS.
+2. **Funnel derrubado pela montagem das ferramentas (12/10):** o
+   `tailscale serve` da raiz colocou o Vaultwarden em `/` e apagou a
+   flag Funnel da 443 (a mesma armadilha de 21/09: serve e funnel
+   dividem a porta). Serve resetado e reconstruído: **443 = od-core**
+   (`/`→8000, `/ws`→8001), **8443 tailnet = 9 ferramentas** (raiz
+   Vaultwarden + `/wiki` kiwix novo + books/files/homebox/it-tools/
+   stirling/cyberchef/flatnotes), **funnel publicado por último**.
+
+Provas: pública via ingress (dig → 209.177.145.97/.192): `/health` 401 ·
+`/site/index.html` 200 · `/site/avatares.html` 200 · `/ws` 426 ·
+`/app/version` 200 · `/message` sem chave 401. Tailnet `:8443`: tudo 200
+(Vaultwarden, wiki, stirling, cyberchef; books 302). `serve status` =
+`# Funnel on`. Decisão: ferramentas **fora** da 443 de propósito — a
+flag Funnel é por porta, e na 443 elas estariam expostas à internet.

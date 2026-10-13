@@ -38,7 +38,10 @@ services:
       - "127.0.0.1:8090:8080"
     volumes:
       - /home/alex/omegadrakon-tools/zim:/data:ro
-    command: ["--skipInvalid"]
+    # O kiwix-serve precisa do arquivo ZIM como argumento posicional — sem
+    # ele ele imprime o help e sai (crash loop). ZIM completo (14,4 GB)
+    # renomeado pelo script de download em 13/10.
+    command: ["--skipInvalid", "/data/wikipedia_en_all_mini.zim"]
     mem_limit: 512m
     memswap_limit: 512m
 
