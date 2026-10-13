@@ -233,3 +233,154 @@ Dono escolhe a ordem das **partes A–F** do `docs/ANALISE_PROJECT_NOMAD.md`
 C = referência médica, quick win visível no chat). Cada parte em sessão
 própria do canal de desenvolvimento, com teste + commit + publicação
 (regras 7.1/7.3).
+
+## §4 — Retomada "leia iniciar" (~20:15): 3 constatações + 2 consertos no ar
+
+### Achados
+
+1. **Fix do TXT commitado mas não no ar.** A sessão das 14:29–14:49
+   (commit `38eff9b`, isenção de rate limit em `/admin*`) publicou o
+   código, mas o od-core rodava desde **10/10** — processo velho, sem o
+   fix. Prova: 35 requests a `/admin/registry` → 401×28 e depois 429
+   (rate limit ainda ativo em `/admin`). A reclamação do dono ("não
+   consigo escrever texto longo no TXT… rate_limited") estava tratada no
+   disco e **viva no ar**.
+2. **od-stirling-pdf em crash loop — 1917 restarts.** Causa raiz nos
+   logs: `java.lang.OutOfMemoryError: Metaspace` — o
+   `MaxMetaspaceSize=128m` embutido no entrypoint da s-pdf 2.13.1 não
+   segura as classes do Spring. Healthcheck falhava (curl rc=7 no
+   `/api/v1/info/status`) e o `restart: unless-stopped` reiniciava em
+   loop por ~13 h.
+3. **od-kiwix em crash loop — 763 restarts.** `/data/wikipedia.zim`
+   com **0 bytes** (o download anterior falhou no meio; a URL estável do
+   compose dá 404 porque o mirror do Kiwix só serve **nomes datados**).
+
+### Ações
+
+- **Restart verde do od-core (regra 7.3)** — suíte `2488 passed / 16
+  skipped` verdes, HEAD == origin/master, árvore limpa. Novo PID
+  3299638, NRestarts=0, `/health` 9/9, journal 0 erros, `/app/version`
+  1.24.1/2053. Prova pós-restart: 35×`/admin/registry` → **401×35**
+  (isento de 429) — o fix do dono está **no ar**.
+- **Stirling curado** (`docker/tools-compose.yaml`, commit `699ef6c`):
+  `JAVA_TOOL_OPTIONS` com `-XX:MaxMetaspaceSize=256m` (mesma lista do
+  entrypoint, metaspace dobado) + `mem_limit` 1g→1500m. Container
+  recriado → **healthy, restarts=0**.
+- **Kiwix**: zim de 0 bytes removido, container parado (sem loop
+  inútil). Download em background de
+  `wikipedia_en_all_mini_2026-09.zim` (**14,4 GB** — o nome estável
+  antigo dá 404; o mirror usa nomes datados) com `wget -c` em
+  `.wikipedia_en_all_mini.part`; um script em background renomeia e dá
+  `docker start od-kiwix` sozinho ao terminar. Log:
+  `logs/zim_download.log`.
+
+### Estado
+
+od-core verde e no ar (fix do TXT vivo) · Stirling healthy · Kiwix
+aguardando o download do ZIM (sobe sozinho) · Vaultwarden + 6 outros
+containers up · HEAD `699ef6c` == origin/master.
+
+### Pendências do dono (inalteradas + 1 nova)
+
+- **NOVA:** ao terminar o ZIM (~14,4 GB), o Kiwix sobe sozinho — aí
+  falta `tailscale serve --bg http://127.0.0.1:8090` para acessar de
+  fora (mesmo padrão das outras ferramentas).
+- Vaultwarden: HTTPS (Tailscale Serve) + criar conta + fechar signups
+  (`SIGNUPS_ALLOWED=false`).
+- Fotos da Plêiade (SVG pronto) · etapa 4 do item 2 (comprador+QR+loja)
+  · itens 3/5 da pauta de divergências · higiene de segredos no Legado.
+
+## §5 — Limpeza do computador + zip para o HD externo (~20:45–21:50)
+
+Dono retomou pela última coisa que lembrava: "limpando o computador,
+retirando tudo o que o sistema não usa e compacta dentro de backup.
+depois vou colocar esse arquivo dentro de uma hd externa". Regra 9 em
+vigor: zip **primeiro**, verificado, e só então remoção.
+
+### Levantamento (prova por grep/du/systemd)
+
+- Disco principal 81 GB usados / 232 GB. `~/dados` (69 GB, Filmes) está
+  em **disco separado** `/dev/sdb1` — não pesa no sistema.
+- Serviço legado **omega-drakon.service ativo** desde 01/10 rodando
+  `/home/alex/OD/od.py --daemon` (bot @Nexus_Nicky_bot, 44 MB RSS,
+  idle). grep: o od-core não referencia nada de `OD/` (0 hits).
+- `od-orchestrator.service`: unit já **inactive+disabled** (descreve a
+  fila antiga `pedido.txt → codigo_gerado.py`; o canal atual executa
+  `orquestrador.py` por sessão via `server.py`).
+- `nicky.service` (system): disabled, aponta para `/home/alex/nicky`
+  inexistente — pendência (remoção exige sudo).
+- APKs publicados em `site/` = byte a byte os de `app/build` (sha256
+  igual em fat e arm64); `app/build` guarda ainda armeabi-v7a e x86_64
+  não publicados + mapping R8 e symbols.
+
+### Decisões do dono (4 perguntas, nesta ordem)
+
+1. OD antigo → **"Parar, analisar o que pode ser absorvido, compacto
+   no ZIP, limpa tudo"**.
+2. Modelos LLM não usados (gemma-4 4,6 GB, coder-7b 4,4 GB, qwen2.5-3b
+   2 GB, 0,5B 0,5 GB) → **"deixa fora da limpeza"** (ficaram).
+3. `~/.gradle` (7,9 GB) + `~/.npm` (1,1 GB) → **"Apagar direto"**.
+4. `3D/` (1,2 GB) → **"fora da limpeza, serão catalogados posteriormente"**.
+
+### Absorção do OD antigo (análise pedida por ele)
+
+754 linhas de código no total. Veredito: **nada essencial a absorver** —
+o sistema atual já cobre cada função: `evolution.py` (aider auto) →
+canal de desenvolvimento; `guardian.py` (temp/disco/mem + alertas) →
+`/health` perception + alertas proativos; `router.py` +
+`skills_registry.py` → `core/intents` + catálogo de ações;
+`sandbox/runner.py` → `.od_sandbox`; `telegram_bridge.py` →
+`integrations/telegram`. Duas ideias registradas (não implementadas):
+(a) limiares de alerta proativo do guardian (disco ≥80%, temp ≥80 °C);
+(b) rate-limit "máx. N arquivos promovidos/hora" do evolution no canal.
+
+### Zip (prova da regra 9)
+
+`/home/alex/OD_limpeza_2026-10-12.zip` — **523,4 MB, 2.388 arquivos,
+719 MB descompactados**, gerado em 19 s (zipfile, deflate nível 1,
+`MANIFESTO.txt` dentro listando tudo). `testzip()` → CRC OK em todos os
+arquivos; 11 peças-chave conferidas uma a uma; 0 venvs (único corte,
+regeneráveis via `requirements.txt`, documentado). sha256 (32):
+`83796ab45ade69f8efd4fdd7da21c853`. chmod 600 (Regra 16: não subir para
+nuvem/site — pode conter credencial do bot legado).
+
+### Limpeza executada (somente após o zip verificado)
+
+- `/home/alex`: `OD/` (623 MB), `OD_backup_20260913/` (678 MB),
+  `setup_nicky.sh`, unit `omega-drakon.service` (parada+desabilitada,
+  depois removida + daemon-reload), `~/.gradle` (7,9 GB), `~/.npm` (1,1 GB).
+- Repo: `*.so/` (53 MB), `lib/` (53 MB), `assets/` (52 MB), `archive/`
+  (48 KB), `imports/` (vazio), `.od_repair_backups/` (recriado sob
+  demanda — `self_repair.py:867` faz `mkdir(parents=True)`), lista de
+  nomes de `recovery.py` só exclui por nome; `.aider.tags.cache.v4/`
+  (940 KB), `app/build` (1,5 GB — `outputs/` preservados no zip),
+  `app/.dart_tool` (540 MB), 12 soltos da era aider (`agent.py`,
+  `codigo_gerado.py`, prompts `.sh`, `GPT_preview.png`, históricos
+  `.aider*`, `.coverage`), `backups/od-historico-analise-…tar.gz`
+  (311 MB; os 10 arquivos versionados de `backups/` permanecem),
+  `iniciar/2026-12_conversa_omegadrakon.md` (0 linhas, typo de data).
+- `instrucoes_projeto.txt` e `limitacoes.txt` **ficaram** (referenciados
+  por `tests/test_orquestrador.py` e `core/limitacoes.py`).
+- unit `od-orchestrator.service` removida (legada; content trivial:
+  WorkingDirectory=repo + ExecStart=`orquestrador.py`, que o canal
+  atual spawna por sessão).
+
+### Resultado (provas)
+
+- `df /`: 81 GB → **71 GB usados; 151 GB livres (32%)**. Repo
+  4,0 GB → 1,6 GB.
+- Serviços: od-core **active** (health 9/9) · od-llm **active** ·
+  omega-drakon fora · zero unit enabled órfã.
+- `git status`: apenas os 2 arquivos de registro modificados.
+- ZIM: 5,1 GB de 14,4 GB (38%) — download sadio, sem tocar.
+
+### Pendências (novas + anteriores)
+
+- **NOVA:** dono copia `OD_limpeza_2026-10-12.zip` para o HD externo;
+  zip fica no servidor até ele confirmar a cópia.
+- **NOVA:** `nicky.service` órfã em `/etc/systemd/system` — remoção
+  exige sudo (senha).
+- `3D/` e demais pessoais: catalogação posterior (decisão dele).
+- (anteriores) `tailscale serve` do Kiwix quando o ZIM subir ·
+  Vaultwarden HTTPS + conta + signups · fotos da Plêiade · etapa 4 do
+  item 2 · itens 3/5 da pauta.

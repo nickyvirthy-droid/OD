@@ -1,7 +1,22 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-12T12:40:00-03:00",
+  "updated_at": "2026-10-12T20:35:00-03:00",
+  "retomada_2026_10_12_2035_status_geral": {
+    "pedido": "Usuário: 'leia iniciar' (~20:15).",
+    "achados": [
+      "od-core no ar desde 10/10 (PID 1142795) — o commit 38eff9b (isenção de rate limit em /admin*, conserto da reclamação 'txt.txt recarregando/rate_limited' do dono) estava PUBLICADO mas o serviço antigo ainda rodava o código velho: prova com 35 requests a /admin/registry davam 429 na 29ª.",
+      "od-stirling-pdf em crash loop: 1917 restarts — causa raiz java.lang.OutOfMemoryError: Metaspace (MaxMetaspaceSize=128m do entrypoint não segura a s-pdf 2.13.1).",
+      "od-kiwix em crash loop: 763 restarts — /data/wikipedia.zim com 0 bytes (download anterior falhou; a URL estável do compose dá 404 porque o mirror usa nomes datados)."
+    ],
+    "acoes": [
+      "Restart verde do od-core (regra 7.3 — suíte 2488 passed/16 skipped verdes, HEAD==origin/master, árvore limpa): novo PID 3299638, NRestarts=0, /health 9/9, journal 0 erros, /app/version 1.24.1/2053. Prova pós-restart: 35 requests a /admin/registry → 401×35 (isento de 429) — fix do dono AGORA no ar.",
+      "Stirling: JAVA_TOOL_OPTIONS com MaxMetaspaceSize=256m + mem_limit 1500m em docker/tools-compose.yaml; container recriado → healthy, restarts=0. Commit 699ef6c publicado.",
+      "Kiwix: zim de 0 bytes removido, container parado; download em background de wikipedia_en_all_mini_2026-09.zim (14,4 GB — o nome estável antigo dá 404; nomes datados) com wget -c em .wikipedia_en_all_mini.part; ao terminar o script renomeia e dá docker start od-kiwix sozinho. Log: logs/zim_download.log."
+    ],
+    "estado": "EM ANDAMENTO — od-core verde e no ar; Stirling curado; download do ZIM do Kiwix em background (~14,4 GB; sobe sozinho ao terminar).",
+    "transcricao": "iniciar/2026-10-12_conversa_omegadrakon.md (§4)"
+  },
   "retomada_2026_10_12_project_nomad": {
     "pedido": "Dono via txt.txt (chegou durante o trabalho do orquestrador): 'você conhece o projeto-nômade. https://github.com/Crosstalk-Solutions/project-nomad. ele tem muitas das coisas que já temos e outras que ainda quero. voce consegue ler todo o sistema, pode baixar se for necessário, e absorver para dentro do nosso projeto.'",
     "acao": "Repositório clonado (/tmp/opencode/project-nomad, 693 arquivos, 29 MB) e lido por inteiro via agente de exploração + leitura direta. Análise entregue em docs/ANALISE_PROJECT_NOMAD.md (mesmo formato do ANALISE_ECOSSISTEMA.md do Legado).",
@@ -2310,5 +2325,36 @@
     },
     "estado": "CONCLUÍDO E NO AR — 7 retratos no site; aguardando confirmação visual do dono + decisão sobre campos do banco (item 2 etapa 1)",
     "ts": "2026-10-11T15:30:00-03:00"
+  },
+  "limpeza_computador_zip_hd_2026_10_12": {
+    "pedido": "Usuário (~20:45): 'vamos retornar pela ultima coisa que lembro que estavamos fazendo. limpando o coputador, retirando tudo o que o sistema não usa e compacta dentro de backup. depois vou colocar esse arquivo dentro de uma hd externa'",
+    "achados": [
+      "Disco principal 81 GB usados/232 GB; ~/dados (69 GB, Filmes) está em DISCO SEPARADO /dev/sdb1 — não pesa no sistema.",
+      "omega-drakon.service ATIVO desde 01/10 rodando /home/alex/OD/od.py --daemon (bot @Nexus_Nicky_bot, 44 MB RSS, idle); od-core não referencia nada de OD/ (grep 0 hits).",
+      "od-orchestrator.service era unit legada já inactive+disabled (fila antiga pedido.txt → codigo_gerado.py); canal atual spawna orquestrador.py por sessão.",
+      "nicky.service (system) disabled apontando para /home/alex/nicky inexistente — pendência (sudo).",
+      "APKs de site/ = byte a byte os de app/build (sha256 igual em fat e arm64); app/build ainda tem armeabi-v7a/x86_64 não publicados + mapping R8."
+    ],
+    "decisoes_dono": [
+      "OD antigo: 'Parar, analisar o que pode ser absorvido, compacto no ZIP, limpa tudo'.",
+      "Modelos LLM não usados (~11,5 GB): 'deixa fora da limpeza' — permanecem.",
+      "~/.gradle (7,9 GB) + ~/.npm (1,1 GB): 'Apagar direto' (caches regeneráveis).",
+      "3D/ (1,2 GB): 'fora da limpeza, serão catalogados posteriormente'."
+    ],
+    "absorcao_od_antigo": "754 linhas analisadas: nada essencial a absorver — evolution.py→canal de desenvolvimento; guardian.py→/health perception + alertas proativos; router.py+skills_registry.py→core/intents+ações; sandbox/runner.py→.od_sandbox; telegram_bridge.py→integrations/telegram. Ideias registradas (não implementadas): limiares de alerta proativo (disco ≥80%, temp ≥80 °C) e rate-limit de arquivos promovidos/hora no canal.",
+    "acoes": [
+      "omega-drakon.service: stop + disable; depois unit removida + daemon-reload. od-orchestrator.service (legada) removida.",
+      "Zip /home/alex/OD_limpeza_2026-10-12.zip (Regra 9: zip PRIMEIRO): 523,4 MB, 2.388 arquivos, 719 MB descompactados, 19 s, MANIFESTO.txt dentro, testzip() CRC OK, 11 peças-chave conferidas, chmod 600, sha256(32)=83796ab45ade69f8efd4fdd7da21c853. Único corte: venvs de OD/ e OD_backup (regeneráveis via requirements.txt).",
+      "Remoção após zip verificado: home OD/ (623 MB), OD_backup_20260913/ (678 MB), setup_nicky.sh, ~/.gradle (7,9 GB), ~/.npm (1,1 GB); repo *.so/ (53 MB), lib/ (53 MB), assets/ (52 MB), archive/, imports/ (vazio), .od_repair_backups/ (recriável: self_repair.py:867 mkdir parents), .aider.tags.cache.v4/, app/build (1,5 GB; outputs/ no zip), app/.dart_tool (540 MB), 12 soltos da era aider, backups/od-historico-analise-2026-10-11.tar.gz (311 MB; 10 versionados ficam), iniciar/2026-12_conversa_omegadrakon.md (0 linhas, typo).",
+      "Mantidos por referência: instrucoes_projeto.txt (tests/test_orquestrador.py), limitacoes.txt (core/limitacoes.py)."
+    ],
+    "provas": [
+      "df /: 81 GB → 71 GB usados; 151 GB livres (32%). Repo 4,0 GB → 1,6 GB.",
+      "od-core active (health 9/9) · od-llm active · omega-drakon fora · zero unit enabled órfã.",
+      "Suíte completa: 2488 passed / 16 skipped em 94 s (idêntica à de antes da limpeza).",
+      "ZIM: 5,1/14,4 GB (38%) — download sadio em background."
+    ],
+    "estado": "Zip pronto e verificado no servidor; limpeza concluída; aguardando dono copiar OD_limpeza_2026-10-12.zip para o HD externo. Pendências novas: nicky.service órfã (sudo); 3D/ catalogação posterior. ZIM ~38%.",
+    "transcricao": "iniciar/2026-10-12_conversa_omegadrakon.md §5"
   }
 }
