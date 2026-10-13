@@ -14,6 +14,30 @@
 
 ---
 
+## [1.24.2] — EVAL DO ASSISTENTE (PARTE A) + CLIMA/CÂMBIO DO USER CONCERTADOS 🜂 (2026-10-13)
+
+> **Bump PATCH (ordem do dono para as partes do Project NOMAD):** "vamos usar sua ordem. antes de implementar me explique para que serve, como acesso e como o sistema controla" → "ok. pode fazer" — Parte A (eval) primeiro.
+
+| Peça | Entrega |
+|---|---|
+| **Exame padrão do assistente** | Pacote `evals/` (Parte A da absorção do Project NOMAD): goldens JSONL (pergunta real × resposta esperada), 3 modos — `oracle` (pipeline real com provider falso, sem rede/LLM, roda no CI), `e2e` (pipeline + actions + LLM local) e `noretrieval` (LLM puro, sem actions) — baseline versionada por modo (`baseline-<modo>.json`) com comparação antes/depois, CLI `python -m evals [--modo|--comparar|--atualizar-baseline|--saida]` e `evals/README.md`. |
+| **Gate na suíte/CI** | `tests/test_eval_oracle.py` roda os goldens oraculares pelo pipeline real e falha se qualquer um quebrar ou piorar vs baseline; `tests/test_eval.py` cobre carga/validação, avaliação (funções puras), baseline e CLI. |
+| **Conserto pegado pelo eval na 1ª rodada** | user + "temperatura em \<cidade\>" → PERMISSION DENIED (`weather_city` fora da allowlist do user) → o LLM respondia sem dado; user + "quanto está o dólar" → idem e o LLM **alucinou "USD 5.478 (USD/CLP)"**. `weather_city` e `exchange_rate` entraram na allowlist do papel `user` (APIs públicas de leitura, mesma natureza de `ha_weather` desde a v1.8.0) — com testes de regressão garantindo que IP/portas/segredos/escrita **seguem vedados**. |
+| **Suíte hermética** | Os testes de clima que agora executam a action fakeiam a Open-Meteo (nenhuma chamada de rede dentro da suíte) + teste novo do contrato user → fastpath com fonte fakeada. |
+| **Gate de cobertura consertado** | O HEAD anterior estava **abaixo** do gate (89,80% — o CI reprovaria); esta entrega fecha em **90,03%**. |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte do servidor (com `--cov-fail-under=90`) | **2531 passed / 16 skipped · cobertura 90,03%** |
+| Modo oracle (8 goldens, sem rede) | **8/8 (100%)** |
+| Modo e2e (12 goldens, LLM local + HA + APIs) | **12/12 (100%)** — clima `fastpath:weather_city` e câmbio `fastpath:exchange_rate` do user no ar |
+| Modo noretrieval (8 goldens, LLM puro) | **8/8 (100%)** |
+| Baselines | `evals/baseline-{oracle,e2e,noretrieval}.json` versionadas |
+
+**Assinatura:** `OD // CORE`
+
+---
+
 ## [1.24.1] — APAGAR/LIMPAR MINHAS MENSAGENS NO APP 🜂 (2026-10-10)
 
 > **Bump PATCH (pedido do dono via txt.txt):** "no site consigo apagar, limpar as minhas mensagens. quero fazer o mesmo pelo APP."

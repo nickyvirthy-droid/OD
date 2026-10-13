@@ -64,6 +64,13 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "system_info", "uptime", "datetime", "disk_usage",
         "memory_usage", "cpu_info", "cpu_temp",
         "ha_weather", "ha_lights",  # v1.8.0: leitura do lar (sem ha_summary)
+        # Dado PÚBLICO de leitura (API sem chave) — mesma natureza de
+        # ha_weather. Conserto 2026-10-13 (pegou o eval da Parte A): o
+        # user perguntando clima de cidade/cotação caía em permission
+        # denied → o LLM respondia SEM dado (e no dólar, ALUCINOU
+        # 'USD 5.478 (USD/CLP)'). As duas actions nasceram para o chat
+        # do usuário (v1.12.0/v1.14.0) e esqueceram da lista daqui.
+        "weather_city", "exchange_rate",
         # Google Workspace SOMENTE LEITURA — decisão explícita do
         # dono (2026-10-02: 'dono + usuário leitura'). Toda a escrita é do
         # admin (2º lote). Sem credencial configurada as actions degradam.

@@ -362,6 +362,69 @@ class TestIntencaoIpEPortas:
         )
 
 
+def _desativa_rede_do_clima(monkeypatch) -> None:
+    """Simula 'sem rede' para weather_city (2026-10-13).
+
+    Com o conserto de permissões do dia, user+clima executa a action
+    weather_city — que chamaria a Open-Meteo de verdade DENTRO da suíte
+    (teste não-hermético, lento e frágil). Bloqueando o urlopen, a
+    action degrada honestamente e a pergunta segue ao LLM — que é
+    exatamente o caminho que estes testes querem exercitar (recusa +
+    retry do modelo)."""
+    def _sem_rede(*args, **kwargs):
+        raise OSError("rede desativada no teste (hermeticidade)")
+
+    monkeypatch.setattr("urllib.request.urlopen", _sem_rede)
+
+
+class _RespostaFake:
+    """urlopen falso: devolve o JSON embutido (context manager)."""
+
+    def __init__(self, payload: dict) -> None:
+        self._payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode("utf-8")
+
+
+def _fakeia_rede_do_clima(monkeypatch) -> None:
+    """Open-Meteo fakeada (geocoding + previsão) — suíte sem rede.
+
+    É o contrato do conserto de 2026-10-13: user + cidade responde pelo
+    fastpath com o dado da fonte. Aqui a fonte é uma resposta canônica
+    para o teste ser hermético (o CI do GitHub não tem — nem deve ter —
+    chamada à API pública no meio da suíte)."""
+    def _fake_urlopen(url, *args, **kwargs):
+        if "geocoding-api" in url:
+            return _RespostaFake({
+                "results": [{
+                    "name": "Presidente Venceslau",
+                    "admin1": "São Paulo",
+                    "country": "Brasil",
+                    "latitude": -20.6336,
+                    "longitude": -51.4044,
+                }],
+            })
+        return _RespostaFake({
+            "current": {
+                "temperature_2m": 27.3,
+                "relative_humidity_2m": 55,
+                "apparent_temperature": 27.9,
+                "weather_code": 1,
+                "wind_speed_10m": 12.4,
+            },
+            "current_units": {"temperature_2m": "°C"},
+        })
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+
+
 class TestRetryDuploAssuntoExterno:
     """Gemma às vezes recusa 2x seguidas — para assunto EXTERNO (a recusa
     é sempre alucinação) são 2 retries e, esgotando, aviso honesto NÃO
@@ -403,8 +466,11 @@ class TestRetryDuploAssuntoExterno:
         )
         return orch, llm
 
-    def test_recusa_unica_no_retry_segunda_tentativa_responde(self) -> None:
+    def test_recusa_unica_no_retry_segunda_tentativa_responde(
+        self, monkeypatch
+    ) -> None:
         import asyncio
+        _desativa_rede_do_clima(monkeypatch)
         orch, llm = self._orch_recusador(total_recusas=1)
         r = asyncio.run(orch.process(
             "usuario-teste", "guardian",
@@ -414,8 +480,9 @@ class TestRetryDuploAssuntoExterno:
         assert llm.calls == 2  # original + 1 retry
         assert "24°C" in r.message
 
-    def test_recusa_dupla_segundo_retry_responde(self) -> None:
+    def test_recusa_dupla_segundo_retry_responde(self, monkeypatch) -> None:
         import asyncio
+        _desativa_rede_do_clima(monkeypatch)
         orch, llm = self._orch_recusador(total_recusas=2)
         r = asyncio.run(orch.process(
             "usuario-teste", "guardian",
@@ -425,9 +492,12 @@ class TestRetryDuploAssuntoExterno:
         assert llm.calls == 3  # original + 2 retries
         assert "24°C" in r.message
 
-    def test_recusa_tripla_recebe_aviso_honesto_nao_a_recusa(self) -> None:
+    def test_recusa_tripla_recebe_aviso_honesto_nao_a_recusa(
+        self, monkeypatch
+    ) -> None:
         import asyncio
         from core.orchestrator import EXTERNAL_UNAVAILABLE_MESSAGE
+        _desativa_rede_do_clima(monkeypatch)
         orch, llm = self._orch_recusador(total_recusas=99)
         r = asyncio.run(orch.process(
             "usuario-teste", "guardian",
@@ -1082,11 +1152,16 @@ class TestGuardaInfraParaNaoDono:
         assert "ip_address" not in user_actions
         assert "listening_ports" not in user_actions
 
-    def test_clima_do_user_nao_e_bloqueado_como_infra(self) -> None:
+    def test_clima_do_user_nao_e_bloqueado_como_infra(self, monkeypatch) -> None:
         """Caso real do dono (27/09): 'temperatuda em presidente venceslau
         sp' do papel user recebia 🔒 — o bloqueio é só para o que pode
-        PREJUDICAR O SISTEMA (IP/portas), não para conhecimento geral."""
+        PREJUDICAR O SISTEMA (IP/portas), não para conhecimento geral.
+
+        2026-10-13: com weather_city liberado para o user, o caminho é o
+        fastpath (dado real); sem rede a action degrada e a pergunta segue
+        ao LLM — o que NUNCA acontece é a negação de infraestrutura."""
         import asyncio
+        _desativa_rede_do_clima(monkeypatch)
         orch, _ = self._orch()
         r = asyncio.run(orch.process(
             "usuario-teste", "guardian",
@@ -1096,6 +1171,28 @@ class TestGuardaInfraParaNaoDono:
         assert r.route == "llm"
         assert "restrita ao dono" not in r.message
         assert r.message == "RESPOSTA_DO_LLM_FAKE"  # foi ao LLM de verdade
+
+    def test_clima_do_user_responde_pelo_fastpath_dado_real(
+        self, monkeypatch
+    ) -> None:
+        """CONTRATO NOVO (2026-10-13, conserto pegado pelo eval da Parte A):
+        weather_city entrou na allowlist do user — 'temperatura em <cidade>'
+        do papel user responde pelo FASTPATH com o dado da fonte, sem chegar
+        ao LLM (antes: permission denied → o LLM respondia sem dado ou
+        alucinava). Rede fakeada para a suíte ser hermética."""
+        import asyncio
+        _fakeia_rede_do_clima(monkeypatch)
+        orch, _ = self._orch()
+        r = asyncio.run(orch.process(
+            "usuario-teste", "guardian",
+            "qual a temperatura em presidente venceslau sp",
+            role="user",
+        ))
+        assert r.route == "action_intent"
+        assert r.llm_used == "fastpath:weather_city"
+        assert "27.3°C" in r.message
+        assert "Presidente Venceslau" in r.message
+        assert "RESPOSTA_DO_LLM_FAKE" not in r.message  # LLM não participou
 
     def test_temperatura_do_servidor_para_user_vai_via_cpu_temp(
         self, monkeypatch, tmp_path
@@ -1143,13 +1240,16 @@ class TestGuardaInfraParaNaoDono:
         assert res["ok"] is False
         assert "sensor" in res.get("error", "")
 
-    def test_user_com_clima_e_llm_alucinando_recebe_retry_seguro(self) -> None:
+    def test_user_com_clima_e_llm_alucinando_recebe_retry_seguro(
+        self, monkeypatch
+    ) -> None:
         """CASO REAL NO AR (28/09): user perguntou a temperatura de cidade,
         o sistema roteou CERTO para o LLM, mas o gemma ALUCINOU a vedação
         ('restrita ao dono'). O pipeline refaz UMA vez e a resposta real
         chega ao user. O reforço do retry NÃO libera infra (fala de user):
         sem 'DONO/ADMIN', reafirma a vedação real do papel."""
         import asyncio
+        _desativa_rede_do_clima(monkeypatch)  # fastpath degrada → LLM
 
         class LLMAlucinador:
             name = "fake"

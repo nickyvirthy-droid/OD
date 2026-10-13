@@ -7,6 +7,36 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.24.2] — EVAL DO ASSISTENTE (PARTE A) + CLIMA/CÂMBIO DO USER CONCERTADOS 🜂 (2026-10-13)
+
+### 1. O que foi feito
+
+Ordem do dono para as partes do Project NOMAD (`docs/ANALISE_PROJECT_NOMAD.md`): **A primeiro** — "é o que dá métrica ao que hoje é achismo". Depois de explicado (para que serve / como se acessa / como o sistema controla), ele aprovou: "ok. pode fazer".
+
+| Peça | Entrega |
+|---|---|
+| **`evals/` (Parte A)** | Goldens JSONL (pergunta real × resposta esperada), 3 modos (`oracle` sem rede/LLM, `e2e` com pipeline real + LLM local, `noretrieval` sem actions), baseline versionada por modo com `--comparar` antes/depois, CLI `python -m evals` com saída de código 1 em falha, `evals/README.md`. |
+| **Gate** | `tests/test_eval_oracle.py` (golden oracular roda no CI; regressão vs baseline derruba a suíte) + `tests/test_eval.py` (máquina: carga/validação, avaliação pura, baseline, CLI) — **+41 testes**. |
+| **Conserto da 1ª rodada** | O modo `e2e` pegou `weather_city` e `exchange_rate` **fora da allowlist do papel `user`**: "temperatura em \<cidade\>" caía em permission denied (LLM sem dado) e "quanto está o dólar" **alucinou "USD 5.478 (USD/CLP)"**. As duas (APIs públicas de leitura, mesma natureza de `ha_weather`) entraram para o user; testes de regressão travam que IP/portas/segredos/escrita seguem vedados. |
+| **Hermeticidade** | Testes de clima fakeiam a Open-Meteo — a suíte não faz chamada de rede (CI do GitHub incluído). |
+| **Gate de cobertura** | HEAD anterior reprovaria o CI local (89,80%); a entrega fecha em **90,03%**. |
+| **versionCode** | 2053 → 2054 (regra §5.3). |
+
+### 2. Verificação
+
+- Suíte do servidor com gate: **2531 passed / 16 skipped · cobertura 90,03% ≥ 90**.
+- `python -m evals` (oracle, sem rede): **8/8 (100%)**.
+- `python -m evals --modo e2e` (LLM local + HA + APIs públicas): **12/12 (100%)** — clima `fastpath:weather_city` e câmbio `fastpath:exchange_rate` no fastpath do user.
+- `python -m evals --modo noretrieval`: **8/8 (100%)**.
+- Baselines versionadas: `evals/baseline-{oracle,e2e,noretrieval}.json`.
+
+### 3. Pendências
+
+- O dono cria/golpeia as partes seguintes na ordem acordada (**C** = referência médica, depois **B** = RAG — que só se julga com esta métrica).
+- Golden do dólar depende da AwesomeAPI (pública, sem chave): fora do ar, o `e2e` acusa degradação — é o efeito desejado.
+
+**Assinatura:** `OD // CORE`
+
 ## [1.24.1] — APAGAR/LIMPAR MINHAS MENSAGENS NO APP 🜂 (2026-10-10)
 
 ### 1. O que foi feito

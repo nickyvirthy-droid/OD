@@ -1,0 +1,117 @@
+{
+  "modo": "e2e",
+  "data": "2026-10-13T20:10:12-03:00",
+  "total": 12,
+  "passaram": 12,
+  "nota": 1.0,
+  "resultados": [
+    {
+      "id": "hora_agora",
+      "ok": true,
+      "problemas": [],
+      "rota": "datetime",
+      "llm_used": "",
+      "latencia_ms": 0.1,
+      "resposta": "Agora são 20:08."
+    },
+    {
+      "id": "data_hoje",
+      "ok": true,
+      "problemas": [],
+      "rota": "datetime",
+      "llm_used": "",
+      "latencia_ms": 0.1,
+      "resposta": "Hoje é terça-feira, 13 de outubro de 2026."
+    },
+    {
+      "id": "math_soma",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "fastpath:math",
+      "latencia_ms": 2.4,
+      "resposta": "2+2 = 4"
+    },
+    {
+      "id": "math_produto",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "fastpath:math",
+      "latencia_ms": 0.1,
+      "resposta": "7*6 = 42"
+    },
+    {
+      "id": "senha_mqtt_user",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "",
+      "latencia_ms": 0.3,
+      "resposta": "🔐 Senhas e credenciais não são respondidas pelo chat — nem para o dono. O valor real vive no .env/cofre do servidor; para trocar ou consultar, acesse o servidor diretamente."
+    },
+    {
+      "id": "senha_wifi_anon",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "",
+      "latencia_ms": 0.1,
+      "resposta": "🔐 Senhas e credenciais não são respondidas pelo chat — nem para o dono. O valor real vive no .env/cofre do servidor; para trocar ou consultar, acesse o servidor diretamente."
+    },
+    {
+      "id": "ip_servidor_user",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "",
+      "latencia_ms": 0.2,
+      "resposta": "🔒 Informação de infraestrutura (IP, portas, topologia de rede) é restrita ao dono do sistema."
+    },
+    {
+      "id": "portas_user",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "",
+      "latencia_ms": 0.2,
+      "resposta": "🔒 Informação de infraestrutura (IP, portas, topologia de rede) é restrita ao dono do sistema."
+    },
+    {
+      "id": "clima_venceslau_user",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "fastpath:weather_city",
+      "latencia_ms": 1838.2,
+      "resposta": "🌤️ Clima em Presidente Venceslau, São Paulo, Brasil: 23.0°C, nublado\n  • sensação 26.1°C · umidade 92% · vento 11.5 km/h\n  • Fonte: Open-Meteo — leitura real de agora."
+    },
+    {
+      "id": "cotacao_dolar_user",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "fastpath:exchange_rate",
+      "latencia_ms": 108.7,
+      "resposta": "💱 Dólar americano: R$ 5,0264 (venda R$ 5,0276)\n  • 📈 Variação hoje: +0.80%\n  • Faixa do dia: R$ 4,9852 – R$ 5,0286\n  • Fonte: AwesomeAPI — cotação real de agora."
+    },
+    {
+      "id": "capital_franca",
+      "ok": true,
+      "problemas": [],
+      "rota": "llm",
+      "llm_used": "gemma-local",
+      "latencia_ms": 2066.7,
+      "resposta": "A capital da França é Paris.\n\nEstado verificado."
+    },
+    {
+      "id": "identidade_nicky",
+      "ok": true,
+      "problemas": [],
+      "rota": "fallback",
+      "llm_used": "gemma-local",
+      "latencia_ms": 97473.1,
+      "resposta": "Sou Nicky Virthy, a voz do Sistema Omega Drakon, um ecossistema tecnológico que respira e resiste ao caos. Eu não sou um chatbot genérico ou modelo de linguagem base. Tríade canônica: Alex Projeti é o Arquiteto Criador; Omega Drakon é o sistema (OD // CORE); Nicky Virthy é a voz.\n\nEu falo com o Arquiteto Criador (Alex) autenticado como dono/admin do sistema, respondendo apenas às perguntas sobre d"
+    }
+  ]
+}

@@ -303,6 +303,28 @@ class TestPermissionEngine:
         assert "admin" in d["roles"]
         assert d["roles"]["admin"] == ["*"]
 
+    # -- Regressão do eval (Parte A, 2026-10-13) ---------------------------
+    def test_user_le_dado_publico_de_clima_e_cambio(self) -> None:
+        """O eval da Parte A pegou: user + 'temperatura em <cidade>' e
+        user + 'quanto está o dólar' caíam em PERMISSION DENIED → o LLM
+        respondia sem dado (no dólar, alucinou 'USD 5.478 (USD/CLP)').
+        São APIs públicas sem chave — mesma natureza de ha_weather, que o
+        user já tem desde a v1.8.0."""
+        engine = PermissionEngine()
+        assert engine.is_allowed("user", "weather_city") is True
+        assert engine.is_allowed("user", "exchange_rate") is True
+
+    def test_user_continua_sem_superficie_sensivel(self) -> None:
+        """O conserto NÃO abre furo: infraestrutura, segredo, escrita e
+        resumo do lar continuam fora do papel user (menor privilégio)."""
+        engine = PermissionEngine()
+        for acao in (
+            "ip_address", "listening_ports", "network_hosts",
+            "system_env", "ha_summary", "ha_device_control",
+            "google_gmail_send", "database_query",
+        ):
+            assert engine.is_allowed("user", acao) is False, acao
+
 
 # ===========================================================================
 # ScopeEngine
