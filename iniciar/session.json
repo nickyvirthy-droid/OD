@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-13T01:20:00-03:00",
+  "updated_at": "2026-10-13T19:06:00-03:00",
   "retomada_2026_10_12_2035_status_geral": {
     "pedido": "Usuário: 'leia iniciar' (~20:15).",
     "achados": [
@@ -79,6 +79,25 @@
     "estado": "CONCLUÍDO E PUBLICADO — a próxima sessão do canal já avisa no Telegram (sucesso e falha), sem restart. txt.txt reescrito (regra 14) e Telegram enviado (regra 15).",
     "pendencias_dono": "inalteradas: fotos da Plêiade (SVG pronto), etapa 4 do item 2 (comprador+QR+loja), itens 3/5 da pauta, higiene de segredos no Legado (rotação fechada).",
     "transcricao": "iniciar/2026-10-12_conversa_omegadrakon.md"
+  },
+  "retomada_2026_10_13_1905_status_geral": {
+    "pedido": "Usuário: 'leia iniciar' (~19:05 de 13/10).",
+    "achados": [
+      "TUDO VERDE: od-core active PID 3480132 desde 12/10 23:23, NRestarts=0, journal 0 erros (30 min); /app/version {1.24.1, 2053}; /health exige auth (401) como esperado.",
+      "HEAD a0a3227 == origin/master, árvore de trabalho LIMPA (git status vazio).",
+      "Funnel ON (https://nicky-server.tail1b1f51.ts.net → 200 ao vivo) e serve 8443 tailnet com as 9 rotas incl. /wiki → 200 (Kiwix Up 19h).",
+      "Docker: 10 containers Up (stirling healthy 23h, vaultwarden/homebox/filebrowser healthy).",
+      "txt.txt sem mensagem nova do dono (última escrita nossa 00:41); analise/Avatar vazio (processado); analise/fotos-adicionais/ com as 4 fotos guardadas a pedido do dono."
+    ],
+    "estado": "SISTEMA ESTÁVEL — nada em andamento; aguardando próximo pedido do dono.",
+    "pendencias_dono": [
+      "Vaultwarden: criar conta do dono + fechar cadastros.",
+      "Etapa 4 do Registro Mestre (registro do comprador no app + QR de posse + loja).",
+      "Itens 3 (unificação de ID) e 5 (ordem das frentes) da pauta; rotação de segredos adiada.",
+      "Project NOMAD: dono escolhe a ordem das partes A–F de docs/ANALISE_PROJECT_NOMAD.md.",
+      "4 fotos adicionais em analise/fotos-adicionais/ ('vou usar depois'); catalogar pasta 3D/."
+    ],
+    "transcricao": "iniciar/2026-10-13_conversa_omegadrakon.md (§1)"
   },
   "dev_canal_3_causas_raiz_2026_10_10": {
     "id": "dev_canal_3_causas_raiz_2026_10_10",
