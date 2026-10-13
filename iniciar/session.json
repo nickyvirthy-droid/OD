@@ -1,7 +1,12 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-13T19:06:00-03:00",
+  "updated_at": "2026-10-13T19:20:00-03:00",
+  "nomad_ordem_e_eval_explicado_2026_10_13": {
+    "pedido": "Dono (~19:1x): 'vamos usar sua ordem. antes de implementar me explique para que serve, como acesso e como o sistema controla' — ordem das partes do Project NOMAD aceita (sugestão do sistema: A eval → C referência médica → B RAG → D downloads → E auto-update → F registro de skills).",
+    "resposta_dada": "Explicação da Parte A (eval) em 3 eixos, sem implementar ainda: (1) para que serve — métrica honesta antes/depois de mudança de persona/prompt (hoje é achismo); (2) como acesso — goldens JSONL no repo, eu rodo no .venv via modo oracle/e2e/noretrieval, dono vê relatório (txt.txt/página site); (3) como o sistema controla — gates: CI pytest+cobertura≥90, suíte local, modo oracle determinístico sem custo de LLM, baseline versionada vira gate de regressão.",
+    "estado": "AGUARDANDO confirmação do dono para implementar a Parte A (eval)."
+  },
   "retomada_2026_10_12_2035_status_geral": {
     "pedido": "Usuário: 'leia iniciar' (~20:15).",
     "achados": [
