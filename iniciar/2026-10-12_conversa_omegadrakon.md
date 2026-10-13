@@ -462,3 +462,17 @@ PID 3480132, journal 0 erros): health **9/9 up**. Prova ao vivo:
 (antes davam 404) · traversal `/site/%2e%2e/` continua 404 · PNG íntegro
 (magic bytes). `txt.txt` reescrito com o link da galeria (LAN
 192.168.0.250:8000 e Tailscale 100.77.67.53:8000). Resumo no Telegram.
+
+### Ajuste pós-entrega (~23:5x–00:0x)
+
+Dono: **"Retire as fotos adicionais do site, vou usar depois, esse não é
+o momento"** → as 4 adicionais saíram da página e de `site/avatares/`
+(servem 404 agora) e voltaram para `analise/fotos-adicionais/`;
+`/analise/` entrou no `.gitignore` (caixa privada do dono, regra 17).
+Página com as 7 fotos principais + 2 elencos; CSS `.adicionais` fica
+guardado para quando ele quiser. Pergunta dele: "as imagens são
+realmente png porque algumas não estão com fundo transparente" →
+**todas são PNG**, mas 8 de 13 são 8-bit RGB (sem canal alfa, fundo
+gerado opaco) e 5 são RGBA com transparência real (luma, regulus, vox,
+luma-3, nexus — 68–83% de pixels transparentes). ZIM do Wikipédia: 91%
+(13,14/14,39 GB), faltando ~1,25 GB (~15 min); kiwix sobe sozinho.

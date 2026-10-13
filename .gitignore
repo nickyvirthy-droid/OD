@@ -163,3 +163,6 @@ config/client_secret_*.json
 
 # tokens/segredos do Google NUNCA no git (backup de token readonly 07/10)
 backups/google-token-*
+
+# Caixa de entrada do dono — arquivos privados, nunca publicados (regra 17)
+/analise/
