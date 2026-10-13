@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-13T19:20:00-03:00",
+  "updated_at": "2026-10-13T20:40:00-03:00",
   "nomad_ordem_e_eval_explicado_2026_10_13": {
     "pedido": "Dono (~19:1x): 'vamos usar sua ordem. antes de implementar me explique para que serve, como acesso e como o sistema controla' — ordem das partes do Project NOMAD aceita (sugestão do sistema: A eval → C referência médica → B RAG → D downloads → E auto-update → F registro de skills).",
     "resposta_dada": "Explicação da Parte A (eval) em 3 eixos, sem implementar ainda: (1) para que serve — métrica honesta antes/depois de mudança de persona/prompt (hoje é achismo); (2) como acesso — goldens JSONL no repo, eu rodo no .venv via modo oracle/e2e/noretrieval, dono vê relatório (txt.txt/página site); (3) como o sistema controla — gates: CI pytest+cobertura≥90, suíte local, modo oracle determinístico sem custo de LLM, baseline versionada vira gate de regressão.",
@@ -2442,5 +2442,21 @@
       "od.css: .ficha-simbolo (flex, img redonda com borda --border-lit, título em --azul uppercase)."
     ],
     "provas": "HTML0 erros; 7 dt Nome + 7 ficha-simbolo + 7 SVGs referenciados; 24 refs /site/ sem faltantes; ao vivo avatares 200 (22.212B), od.css 200, pleiade-regulus.svg 200. (Browser desktop indisponível para screenshot — prova estrutural+HTTP.)"
+  },
+  "parte_a_eval_deploy_v1242_2026_10_13": {
+    "data": "2026-10-13",
+    "o_que": "Parte A (eval) do Project NOMAD implementada: evals/ com goldens JSONL (12 casos), 3 modos (oracle sem rede/CI-safe, e2e com pipeline real + LLM local, noretrieval sem actions), baseline por modo, CLI python -m evals, gate na suíte/CI (+41 testes) e README.",
+    "bugs_pegados_1a_rodada": [
+      "user + 'temperatura em <cidade>' → PERMISSION DENIED (weather_city fora da allowlist do user) → LLM respondia sem dado",
+      "user + 'quanto está o dólar?' → idem (exchange_rate) → LLM ALUCINOU 'USD 5.478 (USD/CLP)'"
+    ],
+    "conserto": "weather_city + exchange_rate na allowlist do papel user (APIs públicas de leitura, mesma natureza de ha_weather v1.8.0); teste de regressão trava IP/portas/segredos/escrita/ha_summary vedados.",
+    "hermeticidade": "testes de clima fakeiam Open-Meteo (urlopen) — suíte sem chamada de rede; +teste do contrato user→fastpath.",
+    "cobertura": "HEAD anterior reprovava o gate local (89,80% medido em worktree); entrega fecha 90,04% (gate >=90).",
+    "validacao": "suíte 2531 passed/16 skipped · 90,04% · flutter analyze 0 · flutter test 157/2 · eval oracle 8/8, e2e 12/12, noretrieval 8/8",
+    "deploy": "bump PATCH 1.24.2 + versionCode 2054 (APKs rebuildados via build_apk.sh, aapt2 2054/1.24.2 nos dois, sha 54790889…/3e5a2c2d…; APKs 1.24.1 em backups/apk-v1.24.1+2053-20261013/); commit c07f83c == origin/master; restart verde 20:33 (7.3)",
+    "provas_pos_restart": "od-core PID 390802 NRestarts=0 journal 0 erros · /app/version 1.24.2/2054 sha==site · /health 9/9 · /capabilities 1.24.2 (86 actions) · /supervision 0",
+    "comunicacao": "Telegram message_id 2651 (regra 15) + txt.txt reescrito (regra 14)",
+    "proximo": "parte C = referência médica (explicar antes de implementar, igual a A)"
   }
 }
