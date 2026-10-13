@@ -384,3 +384,11 @@ nuvem/site — pode conter credencial do bot legado).
 - (anteriores) `tailscale serve` do Kiwix quando o ZIM subir ·
   Vaultwarden HTTPS + conta + signups · fotos da Plêiade · etapa 4 do
   item 2 · itens 3/5 da pauta.
+
+### Confirmação do dono (~22:0x)
+
+"pronto. zip copiado no hd externo" → **regra 9 fechada** (zip pronto +
+usuário confirmou + HD externo). Cópia do zip mantida no servidor como
+segunda salvaguarda (499 MB; some só se ele pedir, de preferência depois
+de conferir no HD que abre). ZIM em 6,4/14,4 GB (48%), kiwix ainda
+parado (sobe sozinho ao fim do download).

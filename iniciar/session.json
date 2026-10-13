@@ -2354,7 +2354,8 @@
       "Suíte completa: 2488 passed / 16 skipped em 94 s (idêntica à de antes da limpeza).",
       "ZIM: 5,1/14,4 GB (38%) — download sadio em background."
     ],
-    "estado": "Zip pronto e verificado no servidor; limpeza concluída; aguardando dono copiar OD_limpeza_2026-10-12.zip para o HD externo. Pendências novas: nicky.service órfã (sudo); 3D/ catalogação posterior. ZIM ~38%.",
-    "transcricao": "iniciar/2026-10-12_conversa_omegadrakon.md §5"
+    "estado": "CONCLUÍDO: dono confirmou (~22:0x) que copiou OD_limpeza_2026-10-12.zip para o HD externo. Cópia do zip mantida no servidor como segunda salvaguarda (499 MB; remoção só se ele pedir, depois de conferir no HD que abre). Pendências restantes: nicky.service órfã (sudo), 3D/ catalogação posterior, e as anteriores (Kiwix tailscale serve, Vaultwarden, fotos Plêiade, etapa 4 item 2, itens 3/5). ZIM 6,4/14,4 GB (48%).",
+    "transcricao": "iniciar/2026-10-12_conversa_omegadrakon.md §5",
+    "confirmacao_dono_2026_10_12": "pronto. zip copiado no hd externo (~22:0x)"
   }
 }
