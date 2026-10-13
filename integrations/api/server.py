@@ -318,9 +318,22 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
 ]
 
 
+#: Parâmetros de rota que podem conter barra (caminho de arquivo do site).
+#: Ex.: GET /site/avatares/nicky.png — subpastas de galeria criadas a partir
+#: da pasta analise/ do dono (2026-10-12). Os demais parâmetros são ids de
+#: um único segmento ([^/]+). A trava de path traversal continua no handler
+#: (_serve_site_file: resolve() + is_relative_to()).
+_ROUTE_PARAMS_COM_BARRA = frozenset({"file"})
+
+
 def _compile_route(pattern: str) -> re.Pattern[str]:
     """Converte '/history/{user_id}/stats' em regex de fullmatch."""
-    regex = re.sub(r"\{(\w+)\}", r"(?P<\1>[^/]+)", pattern)
+    def _param(m: re.Match[str]) -> str:
+        nome = m.group(1)
+        classe = r".+" if nome in _ROUTE_PARAMS_COM_BARRA else r"[^/]+"
+        return f"(?P<{nome}>{classe})"
+
+    regex = re.sub(r"\{(\w+)\}", _param, pattern)
     return re.compile(regex + r"/?\Z")
 
 

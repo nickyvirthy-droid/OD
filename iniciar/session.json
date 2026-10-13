@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-12T20:35:00-03:00",
+  "updated_at": "2026-10-12T23:35:00-03:00",
   "retomada_2026_10_12_2035_status_geral": {
     "pedido": "Usuário: 'leia iniciar' (~20:15).",
     "achados": [
@@ -587,7 +587,7 @@
       "agents": "profiles (7 perfis Plêiade) + nicky_virthy identity/soul"
     }
   },
-  "topic": "OmegaDrakon v1.24.1+2053 — canal de desenvolvimento corrigido (timeout 2h configurável, morte de grupo, batimento no painel); aguardando próxima ordem do dono",
+  "topic": "OmegaDrakon v1.24.1+2053 — galeria de avatares da Plêiade publicada (/site/avatares.html com fotos + fichas completas; cards do index em resumo; SVGs mantidos); roteador /site/{file} passou a aceitar subpastas; pasta analise/ virou a caixa de entrada de arquivos do dono (regra 17)",
   "estado_2026_09_19": {
     "git": "HEAD com alterações no working tree (app/ + iniciar/)",
     "od_core": "active desde 2026-09-18 05:55:15 (PID 413665, NRestarts=0). :8000 e :8001 escutando.",
@@ -1575,7 +1575,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": "2026-10-10T15:45:15-03:00",
+  "last_turn": "2026-10-12T23:35:00-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
@@ -2357,5 +2357,24 @@
     "estado": "LIMPEZA ENCERRADA: dono autorizou e cópia do zip foi removida do servidor (~22:1x) — HD externo é a ÚNICA cópia de OD_limpeza_2026-10-12.zip (523 MB). txt.txt reescrito trazendo o comando sudo para ele remover a unit nicky.service (`sudo rm /etc/systemd/system/nicky.service && sudo systemctl daemon-reload`) — aguardando ele rodar e avisar. df: 74 GB usados / 147 GB livres (ZIM crescendo em paralelo). Restam: confirmação do sudo, ZIM (sobe sozinho), Kiwix tailscale serve, Vaultwarden, fotos Plêiade, etapa 4 item 2, itens 3/5, 3D/.",
     "transcricao": "iniciar/2026-10-12_conversa_omegadrakon.md §5",
     "confirmacao_dono_2026_10_12": "pronto. zip copiado no hd externo (~22:0x) · pode apagar a cópia. Coloca o comando dentro de txt que rodo no servidor com o sudo (~22:1x)"
+  },
+  "galeria_avatares_pleiade_2026_10_12": {
+    "pedido": "Usuário (~22:42): rodou o sudo (nicky.service removida — confirmado 'unit could not be found'); criou a pasta analise/ como NOVO ponto de análise de arquivos ('a partir de agora vou usar essa pasta como ponto de analise de arquivos, voce verifica e age conforme o que for proposto') com analise/Avatar/ trazendo 13 PNG; 'pega essas imagens e move para o local correto'. Depois (~23:0x): 'não apague os svg, na pagina principal faça um resumo nos cards, crie uma pagina para os avatares onde teremos as fotos e dados completos'; 'zz é porque são fotos adicionais'; 'em txt coloquei a conversa sobre a criação delas' (link chatgpt share); 'os genericos não contem todas as personagens'.",
+    "identificacao": "13 PNG vistos um a um + definições extraídas do chat de criação (curl do share, prompts embutidos): retratos = nicky(regulus, luma, athenae, nyx, nexus); 'Voz Cibernética no Ar'=Vox em transmissão; 'zzz Athenae_ Arquiteta do Saber'=ficha-cartão da Athenae; 'zzz Vox'=ficha-cartão A Arauta; zzz.png+zzzzz.png=LUMA adicional (loira dourada com tablet holográfico e livro de luz — bate com 'tablets ou hologramas educacionais' do prompt em pt e 'light golden hair + holographic book/tablet' do prompt canônico); Bustos=6 dos 7 (sem Nexus), Corpo=5 (sem Vox/Nexus) — genéricos parciais.",
+    "execucao": [
+      "13 PNG movidos (mv, sem cópia) de analise/Avatar/ para site/avatares/ com nomes canônicos: nicky.png, regulus.png, luma.png, luma-2.png, luma-3.png, athenae.png, athenae-ficha.png, vox.png, vox-ficha.png, nyx.png, nexus.png, equipe-bustos.png, equipe-corpo.png (27 MB; pasta origem vazia).",
+      "site/avatares.html NOVA: header compacto, ficha completa por perfil (foto grande + domínio/registro/nunca faz/assinatura), fotos adicionais em miniatura que abrem em aba nova, seção Elencos com nota dos genéricos parciais, crédito do chat de criação, menu ⋮ e rodapé completos.",
+      "index.html: 7 cards da Plêiade viraram RESUMO (SVG + nome + cargo + 1 linha + link 'Ficha completa →'); o dl saiu da principal; links Avatares no menu ⋮, no rodapé e na nota da seção. SVGs mantidos (pedido: 'não apague os svg').",
+      "od.css: + classes .ficha-link, .ficha-full (grid foto|dados), .adicionais (miniaturas), .elenco (grupo) + responsivo <780px."
+    ],
+    "correcao_router": "Descoberta na validação: GET /site/{file} só aceitava 1 segmento ([^/]+) — /site/avatares/*.png dava 404 no roteador (handler já tinha trava de traversal). _compile_route agora aceita barra no parâmetro file via _ROUTE_PARAMS_COM_BARRA (traversal continua travado no handler: resolve()+is_relative_to()). +1 teste test_site_subpasta_aninhada em TestAPISite.",
+    "provas": [
+      "HTML bem formado: avatares.html e index.html parseados, 0 erros, 0 tags abertas; 44 refs /site/ verificadas contra o disco (0 faltando); âncoras #slug dos 7 links do index batem com os ids da página nova.",
+      "Testes do site: 12 passed (inclui novo subpasta + traversal).",
+      "Suíte completa: 2489 passed / 16 skipped (93 s) — verde, +1 teste novo.",
+      "nicky.service: removida (comando sudo do dono executado; 'unit could not be found')."
+    ],
+    "convencao": "Conteúdo de site sem bump de versão — mesma convenção dos retratos SVG de 11/10 (não entraram no CHANGELOG).",
+    "proximo": "Restart verde do od-core para o roteador novo valer ao vivo + prova curl da subpasta; avisar o dono para abrir /site/avatares.html. Fluxo novo: próximos arquivos em analise/ seguem esta receita (regra 17)."
   }
 }

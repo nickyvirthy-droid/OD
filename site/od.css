@@ -233,6 +233,43 @@ blockquote footer { margin-top: 12px; color: var(--muted); font-size: .8rem;
   text-transform: uppercase; margin-top: 9px; }
 .ficha-dl dd { margin: 2px 0 0; color: var(--texto); font-size: .86rem; }
 
+/* --- Página de avatares (2026-10-12) ------------------------------------
+   Pedido do dono: fotos oficiais (PNG da pasta analise/Avatar → site/avatares/)
+   + dados completos numa página própria; os cards do index viraram RESUMO
+   com link pra cá. Os SVGs da página principal permanecem nos cards.        */
+.ficha-link { display: inline-block; margin-top: 4px; font-size: .74rem;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--azul); }
+.ficha-link:hover { text-decoration: underline; }
+
+/* Ficha completa da página de avatares: foto grande à esquerda, dados à direita. */
+.ficha-full { display: grid; grid-template-columns: minmax(240px, 340px) 1fr;
+  gap: 28px; align-items: start; }
+.ficha-full .foto-full { width: 100%; display: block; border-radius: 8px;
+  border: 1px solid var(--border-lit); }
+.ficha-full .ficha-dl { margin-top: 14px; }
+
+/* Fotos adicionais (prefixo "zzz" = adicionais, dono 12/10) — miniaturas
+   que abrem a foto em tamanho cheio numa aba nova. */
+.adicionais { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px; margin-top: 12px; }
+.adicionais a { display: block; border: 1px solid var(--border);
+  border-radius: 6px; overflow: hidden; transition: border-color .18s; }
+.adicionais a:hover { border-color: var(--azul); }
+.adicionais img { display: block; width: 100%; }
+.adicionais span { display: block; padding: 6px 8px; font-size: .62rem;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+/* Imagens de grupo (elencos parciais). */
+.elenco { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.elenco figure { margin: 0; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 18px; }
+.elenco img { display: block; width: 100%; border-radius: 6px;
+  border: 1px solid var(--border-lit); }
+.elenco figcaption { margin-top: 12px; color: var(--muted); font-size: .82rem; }
+@media (max-width: 780px) {
+  .ficha-full, .elenco { grid-template-columns: 1fr; }
+}
+
 /* --- Linha do tempo (histórico) ---------------------------------------- */
 .timeline { border-left: 2px solid var(--border-lit); margin-left: 8px; }
 .tl-item { position: relative; padding: 0 0 34px 30px; }

@@ -515,6 +515,23 @@ class TestAPISite:
         status, _, _ = _request(srv.bound_port, "GET", "/site/nao_existe.apk")
         assert status == 404
 
+    def test_site_subpasta_aninhada(self, serve, tmp_path: Path) -> None:
+        """Pastas dentro de site/ servem (galeria site/avatares/, 2026-10-12).
+
+        {file} da rota aceita barra — o dono move arquivos da pasta
+        analise/ para subpastas de site/ e elas precisam abrir no site.
+        """
+        alvo = tmp_path / "avatares"
+        alvo.mkdir()
+        (alvo / "nicky.png").write_bytes(b"\x89PNG fake")
+        srv = serve(None, config=self._cfg(tmp_path))
+        status, body, headers = _request(
+            srv.bound_port, "GET", "/site/avatares/nicky.png"
+        )
+        assert status == 200
+        assert body == b"\x89PNG fake"
+        assert headers.get("Content-Type", "") == "image/png"
+
     def test_site_path_traversal_blocked(self, serve, tmp_path: Path) -> None:
         secret = tmp_path.parent / "segredo.txt"
         secret.write_text("vazou", encoding="utf-8")

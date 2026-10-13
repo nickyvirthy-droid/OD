@@ -402,3 +402,54 @@ livres — ZIM crescendo em paralelo). `txt.txt` reescrito com o comando
 em destaque para ele rodar:
 `sudo rm /etc/systemd/system/nicky.service && sudo systemctl daemon-reload`.
 Aguardando ele rodar o sudo e avisar (confirmo a remoção da unit).
+
+---
+
+## §6 — Galeria de avatares da Plêiade (22:4x–23:3x)
+
+### Fluxo novo: a pasta `analise/`
+
+Dono rodou o sudo e confirmou: **`nicky.service` removida** ("unit could
+not be found"). Em seguida criou `analise/Avatar/` com 13 PNG e
+estabeleceu o fluxo: **"a partir de agora vou usar essa pasta como ponto
+de analise de arquivos, voce verifica e age conforme o que for
+proposto"** → virou a **regra 17** em `iniciar/RULES.md`. Prefixo
+`zz`/zzz nos nomes dele = **fotos adicionais** (não descartar).
+
+### Identificação (ver todos os 13 arquivos antes de agir)
+
+- 7 retratos principais: Nicky Virthy, Regulus, Luma, Athenae, Nyx,
+  Nexus + **Vox** = "Voz Cibernética no Ar.png" (cena de transmissão).
+- Fichas-cartão: "zzz Athenae_ Arquiteta do Saber" e "zzz Vox" (A Arauta).
+- **zzz.png e zzzzz.png = LUMA adicional** — loira dourada com tablet
+  holográfico e livro de luz; confirmado pelo chat de criação que ele
+  deixou no `txt.txt` (link do ChatGPT extraído via curl: definição
+  "cabelo loiro, tablets ou hologramas educacionais" + prompt canônico
+  "light golden hair … holographic book/tablet"). Os genéricos
+  (Bustos/Corpo) são parciais — observação dele: "os genericos não
+  contem todas as personagens" (6 e 5 dos 7).
+
+### O que foi feito (pedido dele: "não apague os svg, na pagina principal
+faça um resumo nos cards, crie uma pagina para os avatares onde teremos
+as fotos e dados completos")
+
+- 13 PNG **movidos** para `site/avatares/` com nomes canônicos (27 MB);
+- nova **`/site/avatares.html`**: fotos grandes + ficha completa por
+  perfil, adicionais em miniatura, seção Elencos parciais, crédito do
+  chat de criação;
+- `index.html`: os 7 cards viraram **resumo** (SVG + 1 linha + link
+  "Ficha completa →"), links no menu ⋮/rodapé/nota; **SVGs mantidos**;
+- `od.css`: `.ficha-link`, `.ficha-full`, `.adicionais`, `.elenco`.
+
+### Correção encontrada pela validação
+
+`/site/{file}` só aceitava um segmento — subpasta dava **404 no
+roteador**. `_compile_route` passou a aceitar barra no parâmetro `file`
+(traversal continua travado no handler) + teste novo
+`test_site_subpasta_aninhada`.
+
+### Provas
+
+HTML bem formado (0 erros), 44 refs de assets existentes, âncoras
+batendo · 12 testes do site · **suíte completa 2489 passed / 16 skipped
+(93 s)**. Restart verde + prova curl ao vivo seguem no fecho da etapa.
