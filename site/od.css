@@ -254,6 +254,18 @@ blockquote footer { margin-top: 12px; color: var(--muted); font-size: .8rem;
   background: var(--bg3); border-radius: 0 6px 6px 0; font-size: .8rem; color: var(--muted); }
 .ficha-criacao b { color: var(--texto); letter-spacing: .06em; }
 
+/* Retrato vetorial + leitura dos símbolos (pedido do dono, 13/10):
+   o SVG do perfil ao lado da explicação do que cada símbolo diz. */
+.ficha-simbolo { display: flex; gap: 14px; align-items: flex-start; margin-top: 12px;
+  padding: 12px 14px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; }
+.ficha-simbolo img { width: 76px; height: 76px; border-radius: 50%; flex: none;
+  border: 1px solid var(--border-lit); background: #0A0A0A; }
+.ficha-simbolo-txt b { display: block; font-size: .76rem; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--azul); margin-bottom: 4px; }
+.ficha-simbolo-txt p { font-size: .82rem; margin: 4px 0 0; color: var(--muted); }
+.ficha-simbolo-txt p.comum { font-style: italic; }
+.ficha-simbolo-txt strong { color: var(--texto); }
+
 /* Fotos adicionais (prefixo "zzz" = adicionais, dono 12/10) — miniaturas
    que abrem a foto em tamanho cheio numa aba nova. */
 .adicionais { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

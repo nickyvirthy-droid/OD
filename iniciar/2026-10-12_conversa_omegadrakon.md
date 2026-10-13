@@ -525,3 +525,28 @@ Provas: pública via ingress (dig → 209.177.145.97/.192): `/health` 401 ·
 (Vaultwarden, wiki, stirling, cyberchef; books 302). `serve status` =
 `# Funnel on`. Decisão: ferramentas **fora** da 443 de propósito — a
 flag Funnel é por porta, e na 443 elas estariam expostas à internet.
+
+## §8 — Fichas: nome (tradução + motivo) + bloco SVG dos símbolos (~01:1x)
+
+Pedido do dono (antes do alerta do Funnel, cumprido agora):
+**"adicione também a tradução do nome, o porque dele. em baixo do
+bloco da conversa de criação crie outro com o SVG e a explicação de
+cada simbolo como fez para mim quando os criou"**.
+
+- **`dt Nome`** virou a primeira linha das 7 fichas, com tradução e
+  motivo saídos da conversa de criação: Nicky (grego *nikē* =
+  vitória + sobrenome do projeto, continuidade), Regulus (latim
+  *pequeno rei* — a estrela Alpha Leonis), Luma (soa como *luz*),
+  Vox (latim *voz*), Athenae (*Atena*, sabedoria), Nyx (grego
+  *noite*), Nexus (latim *ligação, vínculo*).
+- **Bloco `.ficha-simbolo`** depois de cada "Da conversa de criação":
+  o SVG do perfil + o que é comum aos sete (busto angular nas 4 cores
+  do logo, olho `#63BDFF` aceso, anel tracejado com arco azul do
+  site) + o símbolo próprio lido no próprio arquivo — escudo+check
+  (Nicky), balança (Regulus), feixe que vira livro (Luma), três arcos
+  de ondas (Vox), estante de volumes (Athenae), crescente + duas
+  estrelas (Nyx), rede de 4 nós com o de cima aceso (Nexus).
+- `od.css`: `.ficha-simbolo`.
+
+Provas: HTML íntegro · 7/7 Nome · 7/7 simbolo · 24 refs sem
+faltantes · 200 ao vivo (página 22.212 B, od.css, SVG).

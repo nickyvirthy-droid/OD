@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-13T01:10:00-03:00",
+  "updated_at": "2026-10-13T01:20:00-03:00",
   "retomada_2026_10_12_2035_status_geral": {
     "pedido": "Usuário: 'leia iniciar' (~20:15).",
     "achados": [
@@ -1575,7 +1575,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": "2026-10-13T01:10:00-03:00",
+  "last_turn": "2026-10-13T01:20:00-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
@@ -2409,5 +2409,14 @@
       "tailscale serve status: '# Funnel on' com / e /ws na 443 + bloco 8443 (tailnet only) com as 9 rotas."
     ],
     "efeito_para_o_dono": "URL externa do app/site volta a funcionar: https://nicky-server.tail1b1f51.ts.net (inalterada). Ferramentas passam a ter porta: https://nicky-server.tail1b1f51.ts.net:8443/... — dentro da rede/tailnet como já eram; agora com /wiki (Wikipedia offline) novo."
+  },
+  "fichas_nome_e_simbolos_2026_10_13": {
+    "pedido": "Dono (anterior ao alerta do Funnel): 'adicione também a tradução do nome, o porque dele. em baixo do bloco da conversa de criação crie outro com o SVG e a explicação de cada simbolo como fez para mim quando os criou'.",
+    "entregas": [
+      "dt 'Nome' como PRIMEIRA linha das 7 fichas (tradução + motivo, extraídos da conversa de criação): Nicky (grego nikē=vitória + sobrenome do projeto, continuidade), Regulus (latim 'pequeno rei'/Alpha Leonis), Luma (soa como 'luz'), Vox (latim 'voz'), Athenae (Atena, sabedoria), Nyx (grego 'noite'), Nexus (latim 'ligação, vínculo').",
+      "Bloco novo .ficha-simbolo logo abaixo de cada 'Da conversa de criação': o SVG do perfil (76px, redondo) + 'Comum aos sete' (busto em facetas do logo, olho #63BDFF aceso, anel tracejado com arco azul do site) + o símbolo próprio explicado — leitura fiel aos path/rect de cada arquivo: escudo+check (Nicky), balança (Regulus), feixe que vira livro (Luma), 3 arcos de ondas (Vox), estante de volumes (Athenae), crescente+2 estrelas (Nyx), rede de 4 nós com o de cima aceso (Nexus).",
+      "od.css: .ficha-simbolo (flex, img redonda com borda --border-lit, título em --azul uppercase)."
+    ],
+    "provas": "HTML0 erros; 7 dt Nome + 7 ficha-simbolo + 7 SVGs referenciados; 24 refs /site/ sem faltantes; ao vivo avatares 200 (22.212B), od.css 200, pleiade-regulus.svg 200. (Browser desktop indisponível para screenshot — prova estrutural+HTTP.)"
   }
 }
