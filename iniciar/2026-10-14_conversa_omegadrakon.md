@@ -105,3 +105,23 @@ downloads resumable) — ordem é dele. Fronteira honesta documentada: recall
 conservador (pergunta certa com vocabulário fora do corpus volta vazia em vez
 de lixo), reranker real depende de modelo de embedding melhor, corpus ainda
 só interno (público = próximo passo natural). Pendências do dono inalteradas.
+
+## §4 — Reverificação pós-entrega (~16:11)
+
+Terceiro "leia iniciar" do dia, ~3 h depois do deploy da Parte B. Estado
+**inalterado e 100% verde**:
+
+- **od-core**: `active` PID 1257828 desde 14/10 13:05:45 (**3 h 5 min**),
+  **NRestarts=0**, journal **0 erros** desde o restart. `/health` 401 sem
+  credencial = esperado. `/app/version` = **1.26.0 / 2056 / sha
+  `26be1efc…`** == APK publicado.
+- **Git**: HEAD `258188b` (commit do registro da Parte B) == `origin/master`,
+  árvore **limpa**; nenhum commit novo desde 13:20.
+- **Caixa de entrada**: `txt.txt` sem mensagem nova do dono (última escrita
+  nossa 14/10 13:09). `analise/` sem depósito novo (Avatar vazio; as 4 fotos
+  de `fotos-adicionais/` guardadas a pedido).
+
+**Nada em andamento — Parte B entregue e estável no ar.** Aguardando do
+dono o "pode fazer" da **Parte D** (downloads resumable) e as pendências dele
+inalteradas (Vaultwarden, etapa 4 do Registro Mestre, pauta 3/5, rotação de
+segredos, fotos guardadas, catalogar `3D/`).
