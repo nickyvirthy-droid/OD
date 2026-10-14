@@ -131,9 +131,20 @@ intents que já existe. Dados deles: `collections/*.json` (Apache-2.0).
 > achei"). Labels de bula via openFDA ao vivo (dipirona não tem label
 > FDA — dito como ausência). 45 testes (`tests/test_saude.py`) + 4 goldens.
 
-### Parte D — Fila de downloads resumable
+### Parte D — Fila de downloads resumable ✅ ENTREGUE (v1.27.0, 14/10)
 Retry com backoff, progresso ao vivo (SSE → app), dedup, cancelamento.
 Útil para modelos, datasets e documentos. **Esforço médio-baixo.**
+Entregue como `core/downloads.py` (`DownloadQueue` com worker próprio):
+retomada de verdade por `Range` a partir do `.part` (um restart no meio
+de 14 GB não zera nada — o boot re-enfileira o que estava em voo), sha256
+incremental com `os.replace` atômico, backoff `2·2^(n-1)` limitado a 60 s
+com erro permanente (404/sha divergente) fora do caminho de retry, dedup
+por URL+destino e destino travado dentro de `OD_DOWNLOADS_DIR`. SSE
+`GET /admin/downloads/events` (snapshot + `estado`/`progresso`/`removido`,
+ping de 15 s) alimenta a seção **Downloads** do painel `/admin` e a 7ª
+aba do app — que cai para polling de 5 s e reassina quando o stream morre
+(mesmo contrato do chat com WebSocket). Progresso gravado no disco a cada
+2 s, não a cada bloco (mesma lição do O(n²) da Parte B).
 
 ### Parte E — Auto-update de modelos/conteúdo
 Janela, cool-off, cap de bytes, auto-disable, dry-run testável —

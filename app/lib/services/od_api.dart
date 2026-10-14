@@ -1205,6 +1205,138 @@ class OdApi {
       statusCode: response.statusCode,
     );
   }
+
+  // ---------------------------------------------------------------------//
+  // Fila de downloads resumable (Parte D do NOMAD — 14/10)               //
+  // ---------------------------------------------------------------------//
+
+  /// GET /admin/downloads — fila inteira (FIFO) + resumo.
+  Future<OdDownloads> listDownloads() async {
+    final response = await _send('GET', Uri.parse('$baseUrl/admin/downloads'));
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) {
+      return OdDownloads.fromJson(data!);
+    }
+    throw OdApiError(
+      'Fila de downloads indisponível: '
+      '${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// POST /admin/downloads — enfileira (servidor valida URL/destino).
+  ///
+  /// O servidor deduplica por URL+destino: um job ATIVO com a mesma
+  /// combinação volta com o MESMO id (o app nunca cria dois workers
+  /// disputando o mesmo arquivo).
+  Future<OdDownload> createDownload({
+    required String url,
+    String destino = '',
+    String sha256 = '',
+  }) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/admin/downloads'),
+      body: jsonEncode({'url': url, 'destino': destino, 'sha256': sha256}),
+    );
+    final data = _tryJson(response.body);
+    if ((response.statusCode == 201 || response.statusCode == 200) &&
+        data?['ok'] == true) {
+      return OdDownload.fromJson(data!['job'] as Map<String, dynamic>);
+    }
+    throw OdApiError(
+      'Não enfileirou: ${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// POST /admin/downloads/{id}/cancel — cancela; o parcial fica guardado
+  /// no servidor (re-enfileirar a mesma URL retoma de onde parou).
+  Future<OdDownload> cancelDownload(String id) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/admin/downloads/$id/cancel'),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) {
+      return OdDownload.fromJson(data!['job'] as Map<String, dynamic>);
+    }
+    throw OdApiError(
+      'Cancelamento falhou: ${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// DELETE /admin/downloads/{id} — apaga o REGISTRO (arquivos intocados).
+  /// 409 quando o job ainda está ativo: espere terminar ou cancele antes.
+  Future<void> deleteDownload(String id) async {
+    final response = await _send(
+      'DELETE',
+      Uri.parse('$baseUrl/admin/downloads/$id'),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return;
+    throw OdApiError(
+      response.statusCode == 409
+          ? 'Este download ainda está ativo — cancele antes de apagar.'
+          : 'Remoção falhou: ${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// SSE GET /admin/downloads/events — progresso AO VIVO (Parte D).
+  ///
+  /// O servidor abre com um evento `snapshot` (fila inteira) e depois
+  /// empurra `estado`/`progresso`/`removido` a cada transição, com
+  /// `: ping` de 15 s no meio. O timeout vale SÓ para a abertura: depois
+  /// disso o stream vive de ping em ping. Quando ele cai (restart do
+  /// servidor, troca de rede), o stream termina sozinho — a tela, nesse
+  /// caso, volta para o polling de 5 s e tenta reassinar (mesmo contrato
+  /// do chat, que cai do WebSocket para o REST).
+  Stream<OdDownloadEvent> streamDownloads() async* {
+    final owned = _injectedClient == null;
+    final client = _injectedClient ??
+        IOClient(HttpClient()..connectionTimeout = connectTimeout);
+    try {
+      final request = http.Request(
+        'GET',
+        Uri.parse('$baseUrl/admin/downloads/events'),
+      )..headers.addAll(_headers);
+      final streamed = await client.send(request).timeout(
+            requestTimeout,
+            onTimeout: () => throw TimeoutException(
+              'sem resposta do servidor em ${requestTimeout.inSeconds}s',
+            ),
+          );
+      if (streamed.statusCode != 200) {
+        final corpo = await streamed.stream.bytesToString();
+        final data = _tryJson(corpo);
+        throw OdApiError(
+          'Stream de downloads recusado: '
+          '${data?['error'] ?? streamed.statusCode}',
+          statusCode: streamed.statusCode,
+        );
+      }
+      var buffer = '';
+      await for (final pedaco in streamed.stream.transform(utf8.decoder)) {
+        buffer += pedaco;
+        final partes = buffer.split('\n\n');
+        buffer = partes.removeLast();
+        for (final parte in partes) {
+          final linha = parte
+              .split('\n')
+              .firstWhere((l) => l.startsWith('data: '), orElse: () => '');
+          if (linha.isEmpty) continue; // ": ping" — mantém o canal vivo
+          final pacote = _tryJson(linha.substring(6));
+          if (pacote != null) {
+            yield OdDownloadEvent.fromJson(pacote);
+          }
+        }
+      }
+    } finally {
+      if (owned) client.close();
+    }
+  }
 }
 
 /// Mensagem vinda do histórico da conta (GET /history/{user_id}).
@@ -1315,6 +1447,189 @@ class OdRegistryMessage {
           : DateTime.fromMillisecondsSinceEpoch((ts * 1000).round()),
     );
   }
+}
+
+/// Um job da fila de downloads (Parte D do NOMAD).
+///
+/// Status do servidor (pt-BR): `na_fila` → `baixando` → `concluido`,
+/// com `aguardando` (janela de retry com backoff) no meio e `erro`/
+/// `cancelado` como desfechos terminais.
+class OdDownload {
+  final String id;
+  final String url;
+  final String destino;
+  final String nome;
+  final String status;
+  final int bytesFeitos;
+
+  /// -1 = o servidor não anunciou o tamanho (aí não há barra %).
+  final int bytesTotal;
+  final double? pct;
+  final int tentativas;
+  final int maxTentativas;
+  final String erro;
+  final String sha256;
+  final String sha256Real;
+
+  OdDownload({
+    required this.id,
+    required this.url,
+    required this.destino,
+    required this.nome,
+    required this.status,
+    required this.bytesFeitos,
+    required this.bytesTotal,
+    required this.pct,
+    required this.tentativas,
+    required this.maxTentativas,
+    required this.erro,
+    required this.sha256,
+    required this.sha256Real,
+  });
+
+  factory OdDownload.fromJson(Map<String, dynamic> json) {
+    return OdDownload(
+      id: (json['id'] as String?) ?? '',
+      url: (json['url'] as String?) ?? '',
+      destino: (json['destino'] as String?) ?? '',
+      nome: (json['nome'] as String?) ?? '',
+      status: (json['status'] as String?) ?? 'na_fila',
+      bytesFeitos: (json['bytes_feitos'] as num?)?.toInt() ?? 0,
+      bytesTotal: (json['bytes_total'] as num?)?.toInt() ?? -1,
+      pct: (json['pct'] as num?)?.toDouble(),
+      tentativas: (json['tentativas'] as num?)?.toInt() ?? 0,
+      maxTentativas: (json['max_tentativas'] as num?)?.toInt() ?? 0,
+      erro: (json['erro'] as String?) ?? '',
+      sha256: (json['sha256'] as String?) ?? '',
+      sha256Real: (json['sha256_real'] as String?) ?? '',
+    );
+  }
+
+  /// Job ainda em andamento (aceita cancelar / não aceita apagar).
+  bool get ativo =>
+      status == 'na_fila' || status == 'baixando' || status == 'aguardando';
+
+  bool get terminal => !ativo;
+
+  String get statusLabel => switch (status) {
+        'baixando' => 'Baixando',
+        'aguardando' => 'Retry agendado',
+        'concluido' => 'Concluído',
+        'erro' => 'Erro',
+        'cancelado' => 'Cancelado',
+        _ => 'Na fila',
+      };
+
+  String get bytesLabel =>
+      '${formatarBytes(bytesFeitos)}'
+      '${bytesTotal > 0 ? ' / ${formatarBytes(bytesTotal)}' : ''}';
+
+  String get pctLabel => pct != null ? '${(pct! * 100).round()}%' : '';
+}
+
+/// Resumo da fila (GET /admin/downloads → campo `resumo`).
+class OdDownloadsResumo {
+  final int total;
+  final int ativas;
+  final int naFila;
+  final int baixando;
+  final int aguardando;
+  final int concluidos;
+  final int erros;
+  final int cancelados;
+  final int bytesBaixados;
+
+  const OdDownloadsResumo({
+    required this.total,
+    required this.ativas,
+    required this.naFila,
+    required this.baixando,
+    required this.aguardando,
+    required this.concluidos,
+    required this.erros,
+    required this.cancelados,
+    required this.bytesBaixados,
+  });
+
+  factory OdDownloadsResumo.fromJson(Map<String, dynamic> json) {
+    int de(String chave) => (json[chave] as num?)?.toInt() ?? 0;
+    return OdDownloadsResumo(
+      total: de('total'),
+      ativas: de('ativas'),
+      naFila: de('na_fila'),
+      baixando: de('baixando'),
+      aguardando: de('aguardando'),
+      concluidos: de('concluidos'),
+      erros: de('erros'),
+      cancelados: de('cancelados'),
+      bytesBaixados: de('bytes_baixados'),
+    );
+  }
+}
+
+/// Fila completa: jobs em ordem FIFO + resumo.
+class OdDownloads {
+  final List<OdDownload> jobs;
+  final OdDownloadsResumo resumo;
+
+  OdDownloads({required this.jobs, required this.resumo});
+
+  factory OdDownloads.fromJson(Map<String, dynamic> json) {
+    return OdDownloads(
+      jobs: ((json['jobs'] as List?) ?? [])
+          .map((j) => OdDownload.fromJson(j as Map<String, dynamic>))
+          .toList(),
+      resumo: OdDownloadsResumo.fromJson(
+        (json['resumo'] as Map<String, dynamic>?) ?? const {},
+      ),
+    );
+  }
+}
+
+/// Um pacote do SSE (GET /admin/downloads/events).
+///
+/// `snapshot` traz a fila inteira na abertura; os demais trazem um job:
+/// `estado` (transição de status), `progresso` (bytes novos) e
+/// `removido` (registro apagado no painel).
+class OdDownloadEvent {
+  final String evento;
+  final OdDownload? job;
+  final List<OdDownload> jobs;
+  final OdDownloadsResumo? resumo;
+
+  OdDownloadEvent({
+    required this.evento,
+    required this.job,
+    required this.jobs,
+    required this.resumo,
+  });
+
+  factory OdDownloadEvent.fromJson(Map<String, dynamic> json) {
+    final jobJson = json['job'] as Map<String, dynamic>?;
+    return OdDownloadEvent(
+      evento: (json['evento'] as String?) ?? '',
+      job: jobJson == null ? null : OdDownload.fromJson(jobJson),
+      jobs: ((json['jobs'] as List?) ?? [])
+          .map((j) => OdDownload.fromJson(j as Map<String, dynamic>))
+          .toList(),
+      resumo: json['resumo'] == null
+          ? null
+          : OdDownloadsResumo.fromJson(json['resumo'] as Map<String, dynamic>),
+    );
+  }
+}
+
+/// Formata bytes em unidade legível (B/KB/MB/GB/TB) — mesma régua do painel.
+String formatarBytes(int bytes) {
+  const unidades = ['B', 'KB', 'MB', 'GB', 'TB'];
+  var valor = bytes.toDouble();
+  var unidade = 0;
+  while (valor >= 1024 && unidade < unidades.length - 1) {
+    valor /= 1024;
+    unidade++;
+  }
+  final casas = unidade == 0 || valor >= 100 ? 0 : 1;
+  return '${valor.toStringAsFixed(casas)} ${unidades[unidade]}';
 }
 
 class OdApiError implements Exception {

@@ -14,6 +14,38 @@
 
 ---
 
+## [1.27.0] — FILA DE DOWNLOADS RESUMABLE (PARTE D DO NOMAD) 🜁 (2026-10-14)
+
+> **Bump MINOR (capacidade nova):** Parte D da ordem do dono
+> (A → C → B → **D** → E → F), aprovada com "pode fazer a parte D". Fila
+> de downloads que não perde 14 GB por causa de um restart: retomada por
+> `Range`, retry com backoff, dedup, cancelamento preservando o parcial e
+> progresso ao vivo por SSE no painel e no app. Nada de dependência nova —
+> `urllib` + `threading` da stdlib, como manda a casa.
+
+| Peça | Entrega |
+|---|---|
+| **`core/downloads.py` (novo)** | `DownloadQueue` com worker próprio (thread daemon + `Condition`): stream por `urllib` com `Range: bytes=N-` a partir do `.part` já gravado (servidor sem Range → 200 reinicia do zero sozinho; 416 → recomeça uma vez). sha256 incremental — o prefixo de um `.part` retomado entra no mesmo hasher — e `os.replace` atômico no fim (arquivo pronto nunca aparece pela metade). |
+| **Retry que sabe parar** | Falha transitória (timeout 30 s, conexão, 5xx, 408/425/429) reagenda com `backoff = min(2·2^(tentativa−1), 60 s)` e o job fica `aguardando` COM `proximo_retry` visível; 404/403/sha256 divergente caem direto em `erro` sem queimar tentativa. Stream cortado abaixo do `Content-Length` anunciado é transitório, não sucesso silencioso. |
+| **Restart não zera nada** | `stop()` no meio do stream não cancela: o job volta para `na_fila`, o `.part` fica e o boot re-enfileira (`data/downloads_fila.json`, escrita atômica). Teste `test_stop_reenfileira_o_que_estava_em_voo` + restauração `baixando → na_fila` com o parcial medido em disco. |
+| **Dedup + destino travado** | Mesma URL+destino com job ATIVO devolve o job existente (200, `duplicado: true`) — nunca dois workers no mesmo arquivo. Destino sempre DENTRO de `OD_DOWNLOADS_DIR` (sem `..`, sem caminho absoluto); histórico terminal recortado em 50 (arquivos nunca são apagados pela fila). |
+| **SSE (`GET /admin/downloads/events`)** | Abre com `snapshot` da fila inteira, depois empurra `estado`/`progresso`/`removido`; `: ping` de 15 s atrás de proxy. Cada assinante tem fila própria (overflow descarta o mais antigo) — um cliente lento nunca trava o worker. `APIServer.stop()` ganhou sinal `encerrando`: sem ele, o `server_close()` do `ThreadingHTTPServer` esperaria o handler SSE nos 15 s de ping **em todo restart**. |
+| **Rotas + painel + métricas** | `POST/GET /admin/downloads`, `/events`, `/{job_id}`, `/{job_id}/cancel`, `DELETE /{job_id}` (409 `job_ativo` — apagar só registro terminal, arquivo intocado), todas admin e 503 `downloads_indisponivel` sem fila. `/dashboard/stats` ganha o bloco `downloads` (contagens por estado + bytes gravados). Painel `/admin` ganha a seção **Downloads** com enfileirar, barra de progresso, cancelar/apagar e atualização ao vivo por `fetch` + `ReadableStream` (o JS passou no `node --check` da suíte — o `\n` do split tem que ser escapado dentro do literal Python). |
+| **App (7ª aba "Downloads")** | `OdApi`: `listDownloads`/`createDownload`/`cancelDownload`/`deleteDownload` + `streamDownloads()` (SSE com `http.Client.send`, timeout só na abertura). A aba mostra fila, selo por status, barra, tentativas e a etiqueta `📡 ao vivo (SSE)`; quando o stream morre (restart/rota) cai para polling de 5 s e reassina em 15 s — mesmo contrato do chat, que cai do WebSocket para o REST. `_initialIndex` do modo avançado foi para 6 (Config é a 7ª aba agora). |
+| **versionCode** | 2056 → 2057 (regra §5.3). |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte do servidor (gate `--cov-fail-under=90`) | **2712 passed / 16 skipped · cobertura 90,28%** (+46 testes da Parte D; `core/downloads.py` a **95%**) |
+| `flutter analyze` | **0 issues** |
+| `flutter test` | **174 passed / 2 skipped** (+17: REST, SSE e tela) |
+| Guardas | `ROUTES` 64 → 70 em `tests/test_api.py` (6 rotas novas todas admin) |
+
+**Fronteira honesta:** a fila ainda não tem consumo automático — enfileirar
+é manual (painel/app). A **Parte E** é justamente isso: janela, cap de
+bytes, cool-off e auto-disable ligados ao que o assistente precisa baixar
+(modelos de voz/LLM, índice RAG), usando esta fila como motor.
+
 ## [1.26.0] — PIPELINE RAG DE QUALIDADE (PARTE B DO NOMAD) 🜂 (2026-10-14)
 
 > **Bump MINOR (capacidade nova):** Parte B da absorção do Project NOMAD —

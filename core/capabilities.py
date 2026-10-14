@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.26.0"
+    or "1.27.0"
 )
 
 # Status válidos.
@@ -540,6 +540,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "Runtime",
         "status": ACTIVE,
         "path": "runtime/systemd/",
+    },
+    {
+        "id": "download-queue",
+        "name": "Fila de downloads resumable (Parte D do NOMAD)",
+        "category": "runtime",
+        "description": "Worker próprio com retomada por Range (.part), retry com backoff exponencial, dedup por URL+destino, cancelamento preservando o parcial e estado que re-enfileira o que estava em voo no boot (core/downloads.py). Progresso ao vivo por SSE (GET /admin/downloads/events) no painel /admin e no app; resumo no /dashboard/stats.",
+        "source": "Project NOMAD (Apache-2.0)",
+        "phase": "v1.27.x",
+        "status": ACTIVE,
+        "path": "core/downloads.py",
     },
 ]
 

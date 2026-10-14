@@ -8,6 +8,7 @@ import 'screens/chat_screen.dart';
 import 'screens/actions_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/status_screen.dart';
+import 'screens/downloads_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/registry_screen.dart';
 import 'screens/login_screen.dart';
@@ -203,10 +204,12 @@ class _OdRootState extends State<OdRoot> {
 
   void _onAdvanced() {
     // Modo avançado: vai direto às Configurações (API key do servidor).
-    // 6ª aba: Chat(0) · Ações(1) · Painel(2) · Verificar(3) · Status(4) · Config(5).
+    // 7ª aba: Chat(0) · Ações(1) · Painel(2) · Verificar(3) · Status(4) ·
+    //          Downloads(5) · Config(6) — a ordem tem que casar com a
+    //          lista de `screens` e com os `destinations` lá embaixo.
     setState(() {
       _authenticated = true;
-      _initialIndex = 5;
+      _initialIndex = 6;
     });
   }
 
@@ -275,6 +278,7 @@ class _OdHomeState extends State<OdHome> {
       DashboardScreen(api: widget.api),
       RegistryScreen(api: widget.api),
       StatusScreen(api: widget.api),
+      DownloadsScreen(api: widget.api),
       SettingsScreen(api: widget.api, onSaved: widget.onSettingsSaved),
     ];
 
@@ -312,6 +316,11 @@ class _OdHomeState extends State<OdHome> {
             icon: Icon(Icons.monitor_heart_outlined),
             selectedIcon: Icon(Icons.monitor_heart),
             label: 'Status',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.download_outlined),
+            selectedIcon: Icon(Icons.download),
+            label: 'Downloads',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

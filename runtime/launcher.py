@@ -294,6 +294,30 @@ def build_registry(database: Any) -> Optional[Any]:
         return None
 
 
+def build_download_queue() -> Optional[Any]:
+    """Fila de downloads resumable (Parte D do NOMAD, 2026-10-14).
+
+    Worker em thread própria dentro do processo da API: retomada por
+    Range, retry com backoff, dedup e estado em
+    data/downloads_fila.json — o que estava em voo volta para a fila no
+    boot. Falha ao subir = fila None (rotas respondem 503); o resto do
+    sistema nunca cai junto com um extra.
+    """
+    try:
+        from core.downloads import DownloadQueue
+
+        fila = DownloadQueue(
+            max_tentativas=int(env("OD_DOWNLOADS_TENTATIVAS", "5")),
+        )
+        fila.start()
+        log.info("Fila de downloads no ar", raiz=str(fila.raiz),
+                 tentativas=fila.max_tentativas)
+        return fila
+    except Exception as exc:
+        log.warn("Fila de downloads desabilitada", error=str(exc))
+        return None
+
+
 def build_chat_notify() -> Optional[Any]:
     """Aviso de sala de bate-papo das peças → Telegram do dono (1.23.0).
 
@@ -392,7 +416,7 @@ def build_api_server(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
     user_store: Any = None, registry: Any = None, chat_notify: Any = None,
-    vector: Any = None,
+    vector: Any = None, downloads: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -431,6 +455,7 @@ def build_api_server(
             user_store=user_store,  # auth de usuários (registro/login/sessão)
             registry=registry,  # Registro Mestre de peças (item 2 pauta)
             chat_notify=chat_notify,  # sala das peças → Telegram do dono
+            downloads=downloads,  # Parte D: fila de downloads resumable
             stt=voice_stt,  # v1.17.3: /transcribe real (whisper.cpp)
             tts=voice_tts,  # v1.17.3: /tts real (Piper)
             # Freio contra força bruta no login (LoginGuard)
@@ -989,6 +1014,8 @@ async def _run_api_forever(
     registry = build_registry(database)
     # Avisos da sala de bate-papo das peças ao dono no Telegram (1.23.0).
     chat_notify = build_chat_notify()
+    # Fila de downloads resumable (Parte D do NOMAD) — worker próprio.
+    downloads = build_download_queue()
     # Conecta o ActionRegistry ao Orchestrador TAMBÉM no caminho da API:
     # sem isto o fast path de intenções (Etapa 3.5) fica desligado no chat —
     # "qual o ip do servidor?" caía no LLM em vez da action real (v1.6.1).
@@ -1000,6 +1027,7 @@ async def _run_api_forever(
         orchestrator, metrics=metrics, health=health,
         action_registry=action_registry, push=push, database=database,
         user_store=user_store, registry=registry, chat_notify=chat_notify,
+        downloads=downloads,
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
@@ -1024,6 +1052,8 @@ async def _run_api_forever(
             await asyncio.sleep(3600)
     except asyncio.CancelledError:  # pragma: no cover
         server.stop()
+        if downloads is not None:
+            downloads.stop()   # o estado é gravado; o boot re-enfileira
         if ws_server:
             ws_server.stop()
 

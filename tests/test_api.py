@@ -138,8 +138,11 @@ class TestAPIRoutes:
         auto-atualização do app) + /admin/ideias e
         /admin/limitacoes (v1.13.0 — canal do dono no txt.txt + Casa de
         Limitações) + /admin/dev/sessao e /admin/dev/caixa (2026-10-08 —
-        sessão de desenvolvimento on-demand + caixa de autorização)."""
-        assert len(ROUTES) == 64
+        sessão de desenvolvimento on-demand + caixa de autorização) +
+        deleção de mensagem única e saneamento do cache (2026-09-26) +
+        /app/version (v1.7.0, auto-atualização do app) + fila de
+        downloads resumable (Parte D do NOMAD, 2026-10-14)."""
+        assert len(ROUTES) == 70
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -163,6 +166,12 @@ class TestAPIRoutes:
             ("DELETE", "/admin/registry/{public_id}"),
             ("POST", "/admin/registry/{public_id}/photo"),
             ("DELETE", "/admin/registry/{public_id}/chat/{msg_id}"),
+            # Fila de downloads resumable (Parte D do NOMAD)
+            ("POST", "/admin/downloads"), ("GET", "/admin/downloads"),
+            ("GET", "/admin/downloads/events"),
+            ("GET", "/admin/downloads/{job_id}"),
+            ("POST", "/admin/downloads/{job_id}/cancel"),
+            ("DELETE", "/admin/downloads/{job_id}"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("POST", "/account/password"), ("POST", "/account/api-key"),
@@ -206,6 +215,12 @@ class TestAPIRoutes:
             ("DELETE", "/admin/registry/{public_id}"),
             ("POST", "/admin/registry/{public_id}/photo"),
             ("DELETE", "/admin/registry/{public_id}/chat/{msg_id}"),
+            # Fila de downloads resumable (Parte D do NOMAD)
+            ("POST", "/admin/downloads"), ("GET", "/admin/downloads"),
+            ("GET", "/admin/downloads/events"),
+            ("GET", "/admin/downloads/{job_id}"),
+            ("POST", "/admin/downloads/{job_id}/cancel"),
+            ("DELETE", "/admin/downloads/{job_id}"),
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),

@@ -7,6 +7,55 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.27.0] — FILA DE DOWNLOADS RESUMABLE (PARTE D DO NOMAD) 🜁 (2026-10-14)
+
+### 1. O que foi feito
+
+Parte D da ordem acordada (A → C → B → **D** → E → F) — aprovada com
+"pode fazer a parte D". A fila que faltava para o ecossistema baixar
+coisa grande sem medo: modelos (14 GB de ZIM, pesos de LLM), datasets e
+documentos. O motor que a **Parte E** (auto-update) vai dirigir sozinho.
+
+| Peça | Entrega |
+|---|---|
+| **`core/downloads.py` (novo)** | `DownloadQueue` com worker próprio (thread daemon + `Condition`): `urllib` com `Range: bytes=N-` a partir do `.part` (retomada real — 200 do servidor reinicia do zero sem misturar; 416 recomeça uma vez), sha256 incremental com o prefixo do parcial no hasher, `os.replace` atômico no fim. Estados em pt-BR: `na_fila` → `baixando` → `concluido`, com `aguardando` (backoff) e `erro`/`cancelado`. |
+| **Retry + backoff com fronteira** | `min(2·2^(tentativa−1), 60 s)`; transitório (timeout 30 s, conexão, 5xx, 408/425/429) reagenda e o `proximo_retry` fica visível; permanente (404/403/sha256 divergente) vira `erro` na primeira tentativa. Stream cortado abaixo do `Content-Length` anunciado é falha, nunca sucesso silencioso. |
+| **Persistência que sobrevive a restart** | `data/downloads_fila.json` (escrita atômica tmp→rename, progresso no máximo a cada 2 s — a lição do O(n²) da Parte B). No boot, job `baixando`/`aguardando` volta para `na_fila` e o `.part` continua valendo; `stop()` no meio do stream faz o mesmo sem cancelar. Histórico terminal recortado em 50; arquivo em disco nunca é apagado pela fila. |
+| **Dedup e limites** | Mesma URL+destino com job ativo devolve o mesmo job (`duplicado`); destino SEMPRE dentro de `OD_DOWNLOADS_DIR` (sem `..`, sem absoluto — a fila não vira cliente genérico). |
+| **SSE de progresso** | `GET /admin/downloads/events`: `snapshot` na abertura e depois `estado`/`progresso`/`removido`; `: ping` de 15 s; fila por assinante (overflow descarta o mais antigo, o final sempre cabe). `APIServer.stop()` ganhou `encerrando` — sem o sinal, o join do `ThreadingHTTPServer` esperaria o handler SSE fechar a cada restart. |
+| **API + painel + métricas** | 6 rotas admin (`POST/GET /admin/downloads`, `/events`, `/{id}`, `/{id}/cancel`, `DELETE /{id}` com 409 `job_ativo`), 503 `downloads_indisponivel` sem fila. `/dashboard/stats` com bloco `downloads`. Painel `/admin` com seção **Downloads** (enfileirar, barra ao vivo via `fetch`+`ReadableStream`, cancelar/apagar) — JS validado pelo `node --check` da suíte. |
+| **App: aba Downloads (7ª)** | `OdApi` + `streamDownloads()` (SSE, timeout só na abertura) e a tela com fila, selo, barra, tentativas e etiqueta `📡 ao vivo (SSE)`; stream morto → polling de 5 s + reassina em 15 s. Modo avançado passou a abrir na aba 6 (Config). |
+| **Capability nova** | `download-queue` (runtime) no manifesto `/capabilities`. |
+| **versionCode** | 2056 → 2057 (regra §5.3). |
+
+### 2. Verificação
+
+- Suíte do servidor (gate `--cov-fail-under=90`): **2712 passed /
+  16 skipped · cobertura 90,28%** — +46 testes (`tests/test_downloads.py`:
+  retomada com Range medindo o header pedido, 200 que reinicia, 416,
+  retry até concluir, retry esgotado, cancelamento no meio preservando o
+  parcial medido, `stop()` re-enfileirando, boot restaurando `baixando`
+  com o parcial, SSE por socket cru contra o servidor de teste).
+  `core/downloads.py` a **95%**.
+- `flutter analyze` **0 issues** · `flutter test` **174 passed /
+  2 skipped** (+17: REST, consumo do SSE e a tela inteira).
+- Painel: `node --check` do JS do `/admin` passou (a suíte compila o
+  script de verdade — e pegou o `\n` não-escapado do `split` dentro do
+  literal Python).
+
+### 3. Pendências
+
+- **Próxima na ordem do dono: Parte E** (auto-update de modelos/conteúdo
+  — janela, cool-off, cap de bytes, auto-disable, dry-run) sobre esta
+  fila; depois Parte F (registro de ferramentas/skills).
+- A fila hoje só enfileira manualmente (painel/app). Um `action` de chat
+  ("baixa essa URL") é o passo natural quando o dono quiser.
+- `OD_DOWNLOADS_DIR` default é `data/downloads` — ZIM de 14 GB pede
+  disco; quando o dono apontar para o HD externo, vale registrar o path
+  no Registro Mestre.
+
+**Assinatura:** `OD // CORE`
+
 ## [1.26.0] — PIPELINE RAG DE QUALIDADE (PARTE B DO NOMAD) 🜂 (2026-10-14)
 
 ### 1. O que foi feito
@@ -42,6 +91,7 @@ o assistente passa a responder puxando referências do acervo interno
 
 - **Próxima na ordem do dono: Parte D** (fila de downloads resumable) —
   ele escolhe a ordem; B era o maior esforço e saiu.
+  *(Entregue em 1.27.0 — ver seção acima.)*
 - Fronteira honesta do floor: pergunta certa com vocabulário fora do
   corpus retorna vazio (recall conservador por decisão de design — lixo
   não entra no prompt). Reranker real (cross-encoder) depende de modelo de

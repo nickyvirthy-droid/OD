@@ -34,6 +34,7 @@ import hmac
 import json
 import mimetypes
 import os
+import queue as queue_mod
 import re
 import signal
 import subprocess
@@ -58,7 +59,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2056  # versionCode cru do APK publicado (v1.26.0+2056)
+_APP_VERSION_CODE = 2057  # versionCode cru do APK publicado (v1.27.0+2057)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -206,6 +207,10 @@ class APIConfig:
     push: Optional[Any] = None
     user_store: Optional[Any] = None  # integrations.api.auth.UserStore
     registry: Optional[Any] = None    # core.registry.RegistryStore (peças)
+    # Fila de downloads resumable (Parte D do NOMAD, 2026-10-14):
+    # core.downloads.DownloadQueue — worker em thread própria. None =
+    # fila desligada (as rotas /admin/downloads* respondem 503).
+    downloads: Optional[Any] = None
     # Callable síncrono(texto) → avisa o dono no Telegram (sala das peças);
     # montado pelo launcher com o loop principal (build_chat_notify).
     chat_notify: Optional[Any] = None
@@ -294,6 +299,15 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/admin/registry/{public_id}/photo", "admin_registry_photo", True),
     ("DELETE", "/admin/registry/{public_id}/chat/{msg_id}",
      "admin_registry_chat_delete", True),
+    # Fila de downloads resumable (Parte D do NOMAD, 2026-10-14) —
+    # retry com backoff, progresso ao vivo (SSE), dedup e cancelamento.
+    # /events ANTES de /{job_id}: o matcher pega a primeira rota que casa.
+    ("POST", "/admin/downloads", "admin_downloads_create", True),
+    ("GET", "/admin/downloads", "admin_downloads_list", True),
+    ("GET", "/admin/downloads/events", "admin_downloads_events", True),
+    ("GET", "/admin/downloads/{job_id}", "admin_downloads_detail", True),
+    ("POST", "/admin/downloads/{job_id}/cancel", "admin_downloads_cancel", True),
+    ("DELETE", "/admin/downloads/{job_id}", "admin_downloads_delete", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -907,6 +921,36 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       pública, escrita com conta, ✕ apaga mensagem (moderação).
     </p>
   </section>
+
+  <section>
+    <h2>Downloads (fila resumable)</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Fila de downloads do servidor (Parte D do NOMAD): modelos, datasets e
+      documentos grandes. Retomada por <code>Range</code> — um restart no
+      meio não zera 14 GB —, retry com backoff, dedup por URL+destino e
+      cancelamento preservando o parcial. O progresso chega ao vivo por SSE.
+    </p>
+    <div class="row">
+      <input id="dl-url" placeholder="https://…/arquivo.bin" style="flex:1;min-width:260px">
+      <input id="dl-destino" placeholder="destino (opcional, sob downloads/)" style="width:210px">
+      <button id="dl-add" style="border-color:var(--accent);color:var(--accent)">↓ Baixar</button>
+      <button id="dl-refresh">↻ Carregar</button>
+      <span class="muted msg" id="dl-msg"></span>
+    </div>
+    <table style="margin-top:10px">
+      <thead><tr>
+        <th>ID</th><th>Arquivo</th><th>Progresso</th><th>Status</th>
+        <th>Tentativas</th><th class="num">Bytes</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="dl-jobs"><tr><td colspan="7" class="muted">Carregando…</td></tr></tbody>
+    </table>
+    <p class="muted" style="font-size:0.75rem;margin-top:6px">
+      📡 ao vivo por SSE (<code>/admin/downloads/events</code>); se a conexão
+      cair, o painel volta a consultar sozinho. ✕ cancela (o parcial fica
+      guardado), 🗑 apaga o registro (só de job já terminado — o arquivo em
+      disco não é mexido).
+    </p>
+  </section>
 </main>
 <script>
 let token = localStorage.getItem("od_session_token") || "";
@@ -1499,6 +1543,165 @@ async function regChatApagar(id, mid) {
   } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
 }
 
+// --- Fila de downloads resumable — Parte D do NOMAD (2026-10-14) ----------
+const DL_STATUS = {
+  na_fila: "Na fila", baixando: "Baixando", aguardando: "Retry agendado",
+  concluido: "Concluído", erro: "Erro", cancelado: "Cancelado"
+};
+let dlJobs = {};      // id → job (espelho da fila, alimentado pelo SSE)
+let dlResumo = null;
+
+function dlSetMsg(t, cls) {
+  const el = document.getElementById("dl-msg");
+  if (el) { el.textContent = t; el.className = "muted msg " + (cls || ""); }
+}
+
+function dlBytes(n) {
+  if (n == null || isNaN(Number(n))) return "—";
+  const u = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0; let v = Number(n);
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return v.toFixed(i === 0 || v >= 100 ? 0 : 1) + " " + u[i];
+}
+
+function dlRender() {
+  const jobs = Object.values(dlJobs);
+  const corpo = jobs.map(j => {
+    const pct = j.pct != null ? Math.round(j.pct * 100) : null;
+    const mostrando = j.status === "baixando" || j.status === "concluido";
+    const barra = mostrando
+      ? '<div style="background:var(--bg3);border-radius:6px;height:10px;min-width:120px;overflow:hidden">' +
+        '<div style="height:100%;width:' + (pct != null ? pct : 100) + '%;background:var(--accent)"></div></div>'
+      : '<span class="muted">—</span>';
+    const pill = j.status === "concluido" ? "ok" : (j.status === "erro" ? "err" : "");
+    let acoes = "";
+    if (["baixando", "na_fila", "aguardando"].indexOf(j.status) >= 0)
+      acoes += '<button class="dl-cancel" data-id="' + esc(j.id) + '">✕</button> ';
+    const terminal = ["concluido", "erro", "cancelado"].indexOf(j.status) >= 0;
+    acoes += '<button class="dl-del" data-id="' + esc(j.id) + '"' +
+             (terminal ? "" : " disabled") + '>🗑</button>';
+    const detalhe = j.erro
+      ? '<div class="muted" style="font-size:0.72rem">' + esc(j.erro) +
+        (j.proximo_retry ? " · próxima tentativa agendada" : "") + "</div>"
+      : "";
+    return "<tr><td><code>" + esc(j.id) + "</code></td>" +
+      "<td><b>" + esc(j.nome) + "</b>" + detalhe + "</td>" +
+      "<td>" + barra + (pct != null ? " " + pct + "%" : "") + "</td>" +
+      '<td><span class="pill ' + pill + '">' + (DL_STATUS[j.status] || esc(j.status)) + "</span></td>" +
+      '<td class="muted">' + j.tentativas + "/" + j.max_tentativas + "</td>" +
+      '<td class="num muted">' + dlBytes(j.bytes_feitos) +
+        (j.bytes_total > 0 ? " / " + dlBytes(j.bytes_total) : "") + "</td>" +
+      "<td>" + acoes + "</td></tr>";
+  }).join("");
+  document.getElementById("dl-jobs").innerHTML = corpo ||
+    '<tr><td colspan="7" class="muted">Nenhum download ainda.</td></tr>';
+  document.querySelectorAll(".dl-cancel").forEach(b =>
+    b.addEventListener("click", () => dlAcao(b.dataset.id, "cancel")));
+  document.querySelectorAll(".dl-del").forEach(b =>
+    b.addEventListener("click", () => dlAcao(b.dataset.id, "del")));
+  if (dlResumo) {
+    dlSetMsg(dlResumo.ativas + " ativa(s) · " + dlResumo.concluidos +
+             " concluído(s) · " + dlResumo.erros + " erro(s) · " +
+             dlBytes(dlResumo.bytes_baixados) + " gravados", "");
+  }
+}
+
+function dlAplicar(pacote) {
+  if (!pacote || !pacote.job) return;
+  if (pacote.evento === "removido") delete dlJobs[pacote.job.id];
+  else dlJobs[pacote.job.id] = pacote.job;
+  dlRender();
+}
+
+async function dlLoad() {
+  try {
+    const resp = await fetch("/admin/downloads", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { dlSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    dlJobs = {};
+    (data.jobs || []).forEach(j => { dlJobs[j.id] = j; });
+    dlResumo = data.resumo || null;
+    dlRender();
+  } catch (e) { dlSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function dlAdd() {
+  const url = (document.getElementById("dl-url").value || "").trim();
+  if (!url) { dlSetMsg("Cole a URL do arquivo.", "err"); return; }
+  const destino = (document.getElementById("dl-destino").value || "").trim();
+  try {
+    const resp = await fetch("/admin/downloads", {
+      method: "POST",
+      headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify({ url: url, destino: destino })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { dlSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    document.getElementById("dl-url").value = "";
+    dlSetMsg((data.duplicado ? "⟳ Já estava na fila: " : "✔ Enfileirado: ") + data.job.id, "ok");
+    dlLoad();
+  } catch (e) { dlSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function dlAcao(id, acao) {
+  const url = "/admin/downloads/" + encodeURIComponent(id) +
+              (acao === "cancel" ? "/cancel" : "");
+  try {
+    const resp = await fetch(url, {
+      method: acao === "cancel" ? "POST" : "DELETE",
+      headers: authHeaders()
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { dlSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    if (acao !== "cancel") delete dlJobs[id];
+    dlSetMsg((acao === "cancel" ? "✕ Cancelado " : "🗑 Removido ") + id, "ok");
+    dlRender();
+  } catch (e) { dlSetMsg("Falha: " + e.message, "err"); }
+}
+
+// SSE do progresso ao vivo: snapshot inicial e depois cada transição.
+// Queda (rede/servidor) desliga o stream — o carregarTudo continua
+// consultando e uma nova chamada reabre.
+let dlSseAtiva = false;
+function dlSse() {
+  if (dlSseAtiva || typeof ReadableStream === "undefined") return;
+  dlSseAtiva = true;
+  fetch("/admin/downloads/events", { headers: authHeaders() })
+    .then(resp => {
+      if (!resp.ok || !resp.body) { dlSseAtiva = false; return null; }
+      const leitor = resp.body.getReader();
+      const decodificador = new TextDecoder();
+      let buffer = "";
+      const pacotes = () => leitor.read().then(res => {
+        if (res.done) { dlSseAtiva = false; return; }
+        buffer += decodificador.decode(res.value, { stream: true });
+        const partes = buffer.split("\\n\\n");
+        buffer = partes.pop();
+        partes.forEach(p => {
+          const linha = p.split("\\n").find(l => l.indexOf("data: ") === 0);
+          if (!linha) return;
+          try {
+            const pacote = JSON.parse(linha.slice(6));
+            if (pacote.evento === "snapshot") {
+              dlJobs = {};
+              (pacote.jobs || []).forEach(j => { dlJobs[j.id] = j; });
+              dlResumo = pacote.resumo || dlResumo;
+              dlRender();
+            } else if (pacote.evento === "removido") {
+              delete dlJobs[pacote.job.id];
+              dlRender();
+            } else {
+              dlAplicar(pacote);
+            }
+          } catch (e) { /* linha parcial — o próximo pacote completa */ }
+        });
+        return pacotes();
+      }).catch(() => { dlSseAtiva = false; });
+      return pacotes();
+    })
+    .catch(() => { dlSseAtiva = false; });
+}
+
 // Páginas internas do Google: o link precisa do token da sessão na query
 // porque o navegador navega sem header — o handler valida e exige dono.
 function linkGoogle() {
@@ -1509,12 +1712,15 @@ function linkGoogle() {
   });
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); linkGoogle(); };
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); dlLoad(); linkGoogle(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
 document.getElementById("reg-nome").addEventListener("keydown", e => { if (e.key === "Enter") regAdd(); });
-whoAmI().then(u => { if (u) carregarTudo(); });
+document.getElementById("dl-add").onclick = dlAdd;
+document.getElementById("dl-refresh").onclick = dlLoad;
+document.getElementById("dl-url").addEventListener("keydown", e => { if (e.key === "Enter") dlAdd(); });
+whoAmI().then(u => { if (u) { carregarTudo(); dlSse(); } });
 // a sessão roda fora do od-core: o painel acompanha de 5 em 5 s
 setInterval(async () => {
   const estado = await sessaoStatus();
@@ -2510,6 +2716,10 @@ class APIServer(ThreadingHTTPServer):
         self.orchestrator = orchestrator
         self.config = config or APIConfig()
         self.vector = vector
+        # Sinal de desligamento: o SSE (GET /admin/downloads/events) fica
+        # aberto por natureza — sem este sinal, server_close() esperaria o
+        # handler até o próximo ping (15 s) em TODO stop()/restart.
+        self.encerrando = threading.Event()
         # Registry usado por POST /executa e GET /actions (v1.2.0 app).
         if self.config.action_registry is not None:
             self._action_registry = self.config.action_registry
@@ -2663,6 +2873,7 @@ class APIServer(ThreadingHTTPServer):
 
     def stop(self) -> None:
         """Encerra o serve_forever e libera o socket."""
+        self.encerrando.set()   # derruba os streams SSE antes do join
         self.shutdown()
         self.server_close()
 
@@ -3466,6 +3677,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 "docs": self.api.vector.count(),
                 "namespaces": self.api.vector.list_namespaces(),
             }
+        # Fila de downloads (Parte D): contagens vivas — o que está em
+        # voo, o que esperou retry e o que já caiu em erro nunca somem.
+        downloads = self.api.config.downloads
+        if downloads is not None:
+            payload["downloads"] = downloads.snapshot()
         self._json(200, payload)
 
     def llms(self) -> None:
@@ -4288,6 +4504,123 @@ class APIHandler(BaseHTTPRequestHandler):
         if not store.chat_delete(public_id, mid):
             raise APIError(404, "mensagem_inexistente")
         self._json(200, {"ok": True, "removida": mid})
+
+    # ------------------------------------------------------------------#
+    # Fila de downloads resumable (Parte D do NOMAD, 2026-10-14)        #
+    # ------------------------------------------------------------------#
+    def _downloads_or_503(self) -> Any:
+        fila = self.api.config.downloads
+        if fila is None:
+            raise APIError(503, "downloads_indisponivel")
+        return fila
+
+    def admin_downloads_create(self) -> None:
+        """POST /admin/downloads — enfileira; dedup devolve 200 (não 201).
+
+        Body: {"url": "https://…/peso.gguf", "destino"?: "sub/peso.gguf"}
+        """
+        self._require_admin()
+        fila = self._downloads_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        try:
+            job, criado = fila.enqueue(
+                str(data.get("url") or ""), str(data.get("destino") or ""),
+                str(data.get("sha256") or ""),
+            )
+        except ValueError as exc:
+            raise APIError(400, str(exc)) from exc
+        self._json(201 if criado else 200,
+                   {"ok": True, "job": job.para_dict(),
+                    "duplicado": not criado})
+
+    def admin_downloads_list(self) -> None:
+        """GET /admin/downloads — fila inteira (FIFO) + resumo."""
+        self._require_admin()
+        fila = self._downloads_or_503()
+        self._json(200, {"ok": True, "jobs": fila.lista(),
+                         "resumo": fila.snapshot()})
+
+    def admin_downloads_events(self) -> None:
+        """GET /admin/downloads/events — SSE do progresso ao vivo.
+
+        Abre com um evento `snapshot` (fila inteira); depois vêm
+        `estado`/`progresso`/`removido` a cada transição. `: ping` de
+        15 s mantém o canal atrás de proxy. O loop sai em ~1 s quando o
+        servidor encerra (stop()) e na primeira escrita falha quando o
+        cliente foi embora.
+        """
+        self._require_admin()
+        fila = self._downloads_or_503()
+        eventos, cancela = fila.subscribe()
+        try:
+            self.send_response(200)
+            self._send_cors()
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            self._sse({"evento": "snapshot", "jobs": fila.lista(),
+                       "resumo": fila.snapshot()})
+            ultimo = time.time()
+            while not self.api.encerrando.is_set():
+                try:
+                    pacote = eventos.get(timeout=1.0)
+                except queue_mod.Empty:
+                    pacote = None
+                if pacote is not None:
+                    self._sse(pacote)
+                    ultimo = time.time()
+                elif time.time() - ultimo >= 15.0:
+                    self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+                    ultimo = time.time()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return  # cliente fechou o stream
+        finally:
+            cancela()
+
+    def _sse(self, pacote: dict[str, Any]) -> None:
+        """Uma linha `data: <json>` + linha em branco (formato SSE)."""
+        linha = json.dumps(pacote, ensure_ascii=False)
+        self.wfile.write(f"data: {linha}\n\n".encode("utf-8"))
+        self.wfile.flush()
+
+    def admin_downloads_detail(self, job_id: str) -> None:
+        """GET /admin/downloads/{job_id} — polling de um job."""
+        self._require_admin()
+        fila = self._downloads_or_503()
+        job = fila.get(job_id)
+        if job is None:
+            raise APIError(404, "job_inexistente")
+        self._json(200, {"ok": True, "job": job.para_dict()})
+
+    def admin_downloads_cancel(self, job_id: str) -> None:
+        """POST /admin/downloads/{job_id}/cancel — cancela (idempotente)."""
+        self._require_admin()
+        fila = self._downloads_or_503()
+        try:
+            job = fila.cancelar(job_id)
+        except ValueError as exc:
+            raise APIError(404, str(exc)) from exc
+        self._json(200, {"ok": True, "job": job.para_dict()})
+
+    def admin_downloads_delete(self, job_id: str) -> None:
+        """DELETE /admin/downloads/{job_id} — só job terminal (409 se ativo).
+
+        Apaga o REGISTRO: o arquivo baixado e o `.part` ficam em disco.
+        """
+        self._require_admin()
+        fila = self._downloads_or_503()
+        try:
+            fila.remover(job_id)
+        except ValueError as exc:
+            codigo = str(exc)
+            raise APIError(409 if codigo == "job_ativo" else 404,
+                           codigo) from exc
+        self._json(200, {"ok": True, "removido": job_id})
 
     def admin_cache_prune(self) -> None:
         """POST /admin/cache/prune — saneia o cache LLM (admin/dono).
