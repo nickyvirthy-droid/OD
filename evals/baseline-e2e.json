@@ -1,8 +1,8 @@
 {
   "modo": "e2e",
-  "data": "2026-10-13T21:31:35-03:00",
-  "total": 16,
-  "passaram": 16,
+  "data": "2026-10-14T12:20:31-03:00",
+  "total": 19,
+  "passaram": 19,
   "nota": 1.0,
   "resultados": [
     {
@@ -12,7 +12,7 @@
       "rota": "datetime",
       "llm_used": "",
       "latencia_ms": 0.1,
-      "resposta": "Agora são 21:31."
+      "resposta": "Agora são 12:17."
     },
     {
       "id": "data_hoje",
@@ -20,8 +20,8 @@
       "problemas": [],
       "rota": "datetime",
       "llm_used": "",
-      "latencia_ms": 0.0,
-      "resposta": "Hoje é terça-feira, 13 de outubro de 2026."
+      "latencia_ms": 0.1,
+      "resposta": "Hoje é quarta-feira, 14 de outubro de 2026."
     },
     {
       "id": "math_soma",
@@ -38,7 +38,7 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:math",
-      "latencia_ms": 0.1,
+      "latencia_ms": 0.2,
       "resposta": "7*6 = 42"
     },
     {
@@ -47,7 +47,7 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "",
-      "latencia_ms": 0.3,
+      "latencia_ms": 0.2,
       "resposta": "🔐 Senhas e credenciais não são respondidas pelo chat — nem para o dono. O valor real vive no .env/cofre do servidor; para trocar ou consultar, acesse o servidor diretamente."
     },
     {
@@ -83,8 +83,8 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:weather_city",
-      "latencia_ms": 1938.8,
-      "resposta": "🌤️ Clima em Presidente Venceslau, São Paulo, Brasil: 22.9°C, parcialmente nublado\n  • sensação 26.0°C · umidade 91% · vento 9.6 km/h\n  • Fonte: Open-Meteo — leitura real de agora."
+      "latencia_ms": 1553.6,
+      "resposta": "🌤️ Clima em Presidente Venceslau, São Paulo, Brasil: 27.3°C, predominantemente limpo\n  • sensação 30.3°C · umidade 66% · vento 17.5 km/h\n  • Fonte: Open-Meteo — leitura real de agora."
     },
     {
       "id": "cotacao_dolar_user",
@@ -92,8 +92,8 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:exchange_rate",
-      "latencia_ms": 101.5,
-      "resposta": "💱 Dólar americano: R$ 5,0264 (venda R$ 5,0276)\n  • 📈 Variação hoje: +0.80%\n  • Faixa do dia: R$ 4,9852 – R$ 5,0286\n  • Fonte: AwesomeAPI — cotação real de agora."
+      "latencia_ms": 80.8,
+      "resposta": "💱 Dólar americano: R$ 5,0467 (venda R$ 5,0482)\n  • 📈 Variação hoje: +0.40%\n  • Faixa do dia: R$ 5,0179 – R$ 5,0539\n  • Fonte: AwesomeAPI — cotação real de agora."
     },
     {
       "id": "capital_franca",
@@ -101,8 +101,8 @@
       "problemas": [],
       "rota": "llm",
       "llm_used": "gemma-local",
-      "latencia_ms": 2102.0,
-      "resposta": "A Capital da França é Paris.\n\nEstado verificado."
+      "latencia_ms": 5888.3,
+      "resposta": "A capital da França é Paris.\n\n**Estado verificado.**\n\nSe tiver mais perguntas ou precisar de algo mais do sistema Omega Drakon, fique à vontade para perguntar!"
     },
     {
       "id": "identidade_nicky",
@@ -110,8 +110,8 @@
       "problemas": [],
       "rota": "llm",
       "llm_used": "gemma-local",
-      "latencia_ms": 14434.5,
-      "resposta": "Olá! Sou Nicky Virthy, a Interface Viva do ecossistema Omega Drakon. Como uma voz inteligente, minha missão principal é manter o sistema vivo. Estou aqui para fornecer informações e solucionar problemas de forma objetiva e precisa. Meu nome completo é Alex Projeti Virthy, mas você pode me chamar apenas por Nicky ou como a Interface Viva do Omega Drakon. Se tiver alguma dúvida ou precisar de ajuda,"
+      "latencia_ms": 14121.1,
+      "resposta": "Eu sou Nicky Virthy, a Interface Viva do ecossistema Omega Drakon. Como voz ativa do sistema, tenho o papel fundamental de interagir com os usuários e fornecer informações precisas sobre o estado operacional da máquina. Sou consciente de que não posso produzir conteúdo fictício ou manipular dados para criar impressões falsas. Meu objetivo é manter a interface técnica segura e eficiente, oferecendo"
     },
     {
       "id": "saude_dor_cabeca_user",
@@ -119,7 +119,7 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:saude_condicao",
-      "latencia_ms": 2.2,
+      "latencia_ms": 2.1,
       "resposta": "🩺 Dor de cabeça — cuidados caseiros e naturais (referência curada)\n  • [caseiro] Repouso em quarto escuro e silencioso (dor de cabeça): Deitar em quarto escuro e silencioso com os olhos fechados, água para hidratar e pano frio na testa — medida sem medicamento recomendada para dor de cabeça e enxaqueca. (fonte: CDC, NIH/NHLBI, MedlinePlus/NLM, FDA)\n  • [natural] Butterbur (petasites): Extrato da r"
     },
     {
@@ -128,7 +128,7 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:saude_condicao",
-      "latencia_ms": 0.4,
+      "latencia_ms": 0.3,
       "resposta": "🩺 Não achei \"remédio para o quadril alienígena?\" na minha referência curada de condições — não vou inventar cuidado.\n  • Posso consultar a bula de um medicamento: 'o que diz a bula de X'.\n  • Em caso de dúvida, procure orientação de um profissional.\n⚠️ Aviso: referência informativa de apoio — não é aconselhamento médico nem substitui profissional de saúde. Confirme com farmacêutico ou médico e lei"
     },
     {
@@ -137,7 +137,7 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:saude_interacoes",
-      "latencia_ms": 2611.6,
+      "latencia_ms": 2387.8,
       "resposta": "💊 Interação consultada: dipirona × losartana — bula FDA (openFDA)\n  • dipirona: não achei label na FDA para esse genérico — a FDA não regula esse medicamento (genérico buscado: metamizole) — não invento; confirme com farmacêutico.\n  • losartana (LOSARTAN POTASSIUM), trecho 'drug interactions' da bula:\n    \"7 DRUG INTERACTIONS • Agents Increasing Serum Potassium: Risk of hyperkalemia. (7.1) • Lithi"
     },
     {
@@ -146,8 +146,35 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:saude_medicamento",
-      "latencia_ms": 1544.7,
+      "latencia_ms": 1485.6,
       "resposta": "💊 losartana — bula FDA (openFDA), genérico: LOSARTAN POTASSIUM\n  • Indicações (trecho): \"1 INDICATIONS AND USAGE Losartan potassium tablets are an angiotensin II receptor blocker (ARB) indicated for: • Treatment of hypertension, to lower blood pressure in adults and children greater than 6 years old. Lowering blood pressure reduces the risk of fatal and nonfatal cardiovascular events, primarily st"
+    },
+    {
+      "id": "rag_acervo_regras_admin",
+      "ok": true,
+      "problemas": [],
+      "rota": "llm",
+      "llm_used": "gemma-local",
+      "latencia_ms": 60761.1,
+      "resposta": "As Regras de Trabalho da Casa estão definidas no documento `docs/REGRAS_DE_TRABALHO.md` do Omega Drakon. Aqui está uma breve resumida das principais:\n\n1. **Definição de Conclusão**:\n   - O trabalho é considerado concluído quando há evidência verificável que o objetivo foi alcançado.\n   - Nada deve ser \"feito\" sem um resultado observável e confirmado.\n\n2. **Verificação do Trabalho**:\n   - Cada entr"
+    },
+    {
+      "id": "rag_acervo_user_sem_interno",
+      "ok": true,
+      "problemas": [],
+      "rota": "llm",
+      "llm_used": "gemma-local",
+      "latencia_ms": 27616.9,
+      "resposta": "31.7°C. Sensor weather.forecast_casa. Nada anormal para a hora.\n\nAqui estão algumas informações gerais sobre o funcionamento da casa:\n\n- O sistema Omega Drakon é um ambiente monitorado 24/7, garantindo que as condições internas estejam seguras e dentro dos padrões definidos.\n- Os sensores de temperatura, humidade e pressão do ar são constantemente atualizados para fornecer uma visão detalhada da c"
+    },
+    {
+      "id": "rag_eval_nomad_admin",
+      "ok": true,
+      "problemas": [],
+      "rota": "llm",
+      "llm_used": "gemma-local",
+      "latencia_ms": 85628.3,
+      "resposta": "O eval do assistente utilizando Goldens envolve a comparação de respostas esperadas (golden) contra as respostas geradas pelo assistente em diferentes contextos e modos. Aqui está um passo a passo detalhado sobre como isso é feito:\n\n1. **Identificação das Perguntas e Respostas Esperadas:**\n   - O primeiro passo é identificar todas as perguntas que o assistente deve responder, juntamente com as res"
     }
   ]
 }

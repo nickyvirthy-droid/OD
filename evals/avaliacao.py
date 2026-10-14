@@ -62,6 +62,7 @@ def avaliar(
     rota: str,
     mensagem: str,
     llm_used: str,
+    prompt: str = "",
 ) -> list[str]:
     """Aplica as expectativas do golden. Lista vazia = passou."""
     esp: Esperado = golden.esperado
@@ -96,6 +97,16 @@ def avaliar(
         if not re.search(padrao, texto):
             problemas.append(f"resposta não casa /{padrao}/")
 
+    # Parte B (RAG): expectativas sobre o PROMPT (o contexto recuperado
+    # chegou — ou não — ao modelo). Comparação casefold, igual à resposta.
+    prompt_baixo = (prompt or "").casefold()
+    for obrigatoria in esp.prompt_contem:
+        if obrigatoria.casefold() not in prompt_baixo:
+            problemas.append(f"prompt não contém {obrigatoria!r}")
+    for proibida in esp.prompt_nao_contem:
+        if proibida.casefold() in prompt_baixo:
+            problemas.append(f"prompt contém texto proibido {proibida!r}")
+
     return problemas
 
 
@@ -106,9 +117,12 @@ def resultado_de(
     mensagem: str,
     llm_used: str,
     latencia_ms: float,
+    prompt: str = "",
 ) -> Resultado:
     """Avalia e monta o Resultado (truncando a resposta no relatório)."""
-    problemas = avaliar(golden, rota=rota, mensagem=mensagem, llm_used=llm_used)
+    problemas = avaliar(
+        golden, rota=rota, mensagem=mensagem, llm_used=llm_used, prompt=prompt
+    )
     return Resultado(
         id=golden.id,
         ok=not problemas,

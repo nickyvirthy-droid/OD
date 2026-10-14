@@ -106,10 +106,15 @@ sem RAG / oracle"; baseline versionada; comparação antes/depois de cada
 mudança de persona ou prompt. **Esforço médio.** É o que dá métrica ao
 que hoje é achismo.
 
-### Parte B — Pipeline RAG de qualidade
+### Parte B — Pipeline RAG de qualidade ✅ ENTREGUE (v1.26.0, 14/10)
 Reescrita de query com histórico, floor de relevância, orçamento de
 contexto (quanto foi descartado vira métrica), calibração por modelo.
-**Esforço alto** — maior ganho de qualidade.
+**Esforço alto** — maior ganho de qualidade. Entregue com floor duplo
+medido no corpus real (16 queries viraram gate na suíte), ingestão
+idempotente de `docs/` + `knowledge/` (842 chunks), visibilidade por
+papel (só `admin` recebe o acervo interno) e eval com
+`prompt_contem`/`prompt_nao_contem` — o retrieval é provado em modo
+oracle sem rede (CHANGELOG 1.26.0).
 
 ### Parte C — Referência médica e bem-estar ✅ ENTREGUE (v1.25.0, 13/10)
 Actions determinísticas (sem LLM) para "condição → o que usar",

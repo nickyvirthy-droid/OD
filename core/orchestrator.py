@@ -485,6 +485,13 @@ class OrchestratorConfig:
     # System prompt padrão (ex: identidade da Interface Viva) usado quando
     # process() é chamado sem system_prompt explícito.
     default_system_prompt: str = ""
+    # Orçamento de contexto por TOKENS (Parte B — NOMAD): janela do modelo
+    # em tokens. 0 = desligado (histórico limitado só por turnos, como
+    # sempre); > 0 = o ContextManager encaixa o histórico no que sobra da
+    # janela depois de system + bloco RAG + resposta, e o descarte vira
+    # métrica (contexto_descartados).
+    orcamento_janela: int = 0
+    orcamento_resposta: int = 512
 
 
 @dataclass(slots=True)
@@ -558,6 +565,13 @@ class OrchestratorMetrics:
     unavailable: int = 0
     errors: int = 0
     infra_denied: int = 0  # v1.7.0: IP/portas negados a não-dono (Etapa 3.4)
+    # Parte B (NOMAD): pipeline RAG — o descartado é métrica (floor,
+    # visibilidade e orçamento), nunca silêncio.
+    rag_consultas: int = 0
+    rag_trechos: int = 0
+    rag_descartados: int = 0
+    rag_tokens_descartados: int = 0
+    contexto_descartados: int = 0  # turnos de histórico fora do orçamento
     total_latency_ms: float = 0.0
 
     @property
@@ -578,6 +592,11 @@ class OrchestratorMetrics:
             "fallback": self.fallback,
             "unavailable": self.unavailable,
             "errors": self.errors,
+            "rag_consultas": self.rag_consultas,
+            "rag_trechos": self.rag_trechos,
+            "rag_descartados": self.rag_descartados,
+            "rag_tokens_descartados": self.rag_tokens_descartados,
+            "contexto_descartados": self.contexto_descartados,
             "avg_latency_ms": self.avg_latency_ms,
         }
 
@@ -610,6 +629,7 @@ class Orchestrator:
         config: Optional[OrchestratorConfig] = None,
         clock: Optional[Callable[[], float]] = None,
         action_registry: Optional[Any] = None,
+        rag: Optional[Any] = None,
     ) -> None:
         self._providers = list(providers or [])
         self.history = history
@@ -626,6 +646,7 @@ class Orchestrator:
         self._lock = threading.RLock()
         self._action_registry = action_registry
         self._action_callables: dict[str, Callable] = {}  # ações injetadas pelo framework
+        self._rag = rag  # Parte B (NOMAD): pipeline de retrieval no prompt
 
     # -- Propriedades --------------------------------------------------------
 
@@ -650,6 +671,15 @@ class Orchestrator:
     def set_action_registry(self, registry: Any) -> None:
         """Define o ActionRegistry para execução de ações."""
         self._action_registry = registry
+
+    @property
+    def rag(self) -> Optional[Any]:
+        """Pipeline RAG (Parte B — NOMAD) — opcional; None = sem retrieval."""
+        return self._rag
+
+    def set_rag(self, pipeline: Optional[Any]) -> None:
+        """Define (ou desliga, com None) o pipeline RAG do prompt."""
+        self._rag = pipeline
 
     def add_action(self, name: str, handler: Callable) -> None:
         """Adiciona uma ação injetável pelo framework (não usa o registry)."""
@@ -980,9 +1010,27 @@ class Orchestrator:
                 }
                 return
 
+        # Etapa 4.5 — RAG (Parte B NOMAD): mesmo caminho do REST (reescrita
+        # com histórico, floor duplo, reranker, orçamento) — os dois
+        # transportes enxergam o MESMO contexto, senão o app e o chat
+        # responderiam com bagagens diferentes.
+        contexto = self._contexto_msgs(user_id, profile, None)
+        system_efetivo = self._resolve_system(system_prompt, profile, role)
+        rag_block = ""
+        if self._rag is not None:
+            resultado_rag = self._rag.consult(
+                text,
+                historico=contexto,
+                papel=role,
+                system_prompt=system_efetivo,
+            )
+            rag_block = resultado_rag.block
+            self._registrar_rag(resultado_rag)
+
         # Etapa 5 — Histórico: monta contexto ChatML
         prompt = self._build_prompt(
-            user_id, profile, text, self._resolve_system(system_prompt, profile, role),
+            user_id, profile, text, system_efetivo,
+            contexto=contexto, rag_block=rag_block,
         )
 
         # Etapas 6 e 7 — LLM com streaming
@@ -1373,13 +1421,32 @@ class Orchestrator:
                 await self._record_terminal(result, text, persist=persist)
                 return await self._finish(result, started)
 
+        # Etapa 4.5 — RAG (Parte B NOMAD): reescrita da consulta com o
+        # histórico, floor de relevância duplo, reranker e orçamento do
+        # bloco de referência. Recuperado ANTES do prompt e injetado no
+        # system (após a linha de data/hora); o que não coube fica
+        # registrado em métricas (nunca some em silêncio).
+        contexto = self._contexto_msgs(user_id, profile, extra_history)
+        system_efetivo = self._resolve_system(system_prompt, profile, role)
+        rag_block = ""
+        if self._rag is not None:
+            resultado_rag = self._rag.consult(
+                text,
+                historico=contexto,
+                papel=role,
+                system_prompt=system_efetivo,
+            )
+            rag_block = resultado_rag.block
+            self._registrar_rag(resultado_rag)
+
         # Etapa 5 — Histórico: monta contexto ChatML
         prompt = self._build_prompt(
             user_id,
             profile,
             text,
-            self._resolve_system(system_prompt, profile, role),
-            extra_history=extra_history,
+            system_efetivo,
+            contexto=contexto,
+            rag_block=rag_block,
         )
 
         # Etapas 6 e 7 — LLM com fallback
@@ -1632,34 +1699,21 @@ class Orchestrator:
             return None
         return message, llm_used
 
-    def _build_prompt(
+    def _contexto_msgs(
         self,
         user_id: str,
         profile: str,
-        text: str,
-        system_prompt: str,
         extra_history: Optional[list[dict[str, str]]] = None,
-    ) -> str:
-        """Monta o prompt ChatML com histórico (últimos N turns) + datetime.
+    ) -> list[dict[str, str]]:
+        """Turnos recentes da conversa (sem a pergunta atual).
 
-        Com `extra_history`, o contexto vem do cliente (conversa anônima) em
-        vez do banco — mesma regra de truncamento por turnos.
+        Com `extra_history`, o contexto vem do cliente (conversa anônima);
+        senão, do banco. É a MESMA lista usada pelo prompt e pela reescrita
+        da consulta RAG — uma fonte só de verdade para os dois.
         """
-        from memory.history import build_chatml
-
-        system = system_prompt or ""
-        if self._config.inject_datetime:
-            context_line = build_datetime_line()
-            # A linha de data/hora vai DEPOIS do system prompt: o prefixo
-            # (identidade estática) fica idêntico entre requests e o
-            # llama-server reaproveita o cache de KV (~25s economizados por
-            # mensagem em CPU; inverter a ordem invalida o cache todo minuto).
-            system = f"{system}\n{context_line}".strip() if system else context_line
-
         messages: list[dict[str, str]] = []
         turn_limit = self._config.max_history_turns
         if extra_history is not None:
-            # Contexto vindo do cliente (anônimo): nada é lido do banco.
             turnos = list(extra_history)
             if turn_limit is not None:
                 turnos = turnos[-(turn_limit * 2):]
@@ -1678,6 +1732,78 @@ class Orchestrator:
             for msg in history_messages:
                 if msg.role in ("user", "assistant"):
                     messages.append({"role": msg.role, "content": msg.content})
+        return messages
+
+    def _registrar_rag(self, resultado: Any) -> None:
+        """Acumula as métricas do RAG — descartado é métrica, não silêncio."""
+        metrics = self._metrics
+        metrics.rag_consultas += 1
+        metrics.rag_trechos += len(getattr(resultado, "trechos", None) or [])
+        metrics.rag_descartados += int(getattr(resultado, "descartados", 0) or 0)
+        metrics.rag_tokens_descartados += int(
+            getattr(resultado, "tokens_descartados", 0) or 0
+        )
+
+    def _build_prompt(
+        self,
+        user_id: str,
+        profile: str,
+        text: str,
+        system_prompt: str,
+        extra_history: Optional[list[dict[str, str]]] = None,
+        contexto: Optional[list[dict[str, str]]] = None,
+        rag_block: str = "",
+    ) -> str:
+        """Monta o prompt ChatML com histórico (últimos N turns) + datetime.
+
+        Com `extra_history`, o contexto vem do cliente (conversa anônima) em
+        vez do banco — mesma regra de truncamento por turnos. Com `contexto`
+        pré-montado, usa-se a MESMA lista da etapa 4.5 (RAG). Com
+        `rag_block`, o bloco de referência entra DEPOIS do system e da
+        data/hora (o prefixo estático continua idêntico para o cache de KV).
+        Com o orçamento ligado (`orcamento_janela`), o histórico é encaixado
+        no que sobra da janela depois de system + bloco + resposta — e o
+        que foi descartado vira métrica (`contexto_descartados`).
+        """
+        from memory.history import build_chatml
+
+        system = system_prompt or ""
+        if self._config.inject_datetime:
+            context_line = build_datetime_line()
+            # A linha de data/hora vai DEPOIS do system prompt: o prefixo
+            # (identidade estática) fica idêntico entre requests e o
+            # llama-server reaproveita o cache de KV (~25s economizados por
+            # mensagem em CPU; inverter a ordem invalida o cache todo minuto).
+            system = f"{system}\n{context_line}".strip() if system else context_line
+        if rag_block:
+            system = f"{system}\n{rag_block}"
+
+        if contexto is None:
+            messages = self._contexto_msgs(user_id, profile, extra_history)
+        else:
+            messages = list(contexto)
+
+        orcamento = self._config.orcamento_janela
+        if orcamento > 0 and messages:
+            from memory.context import ContextManager, estimate_tokens
+
+            ctx = ContextManager(
+                max_tokens=orcamento,
+                reserved_tokens=(
+                    self._config.orcamento_resposta + estimate_tokens(system)
+                ),
+            )
+            ajustado = ctx.fit(messages)
+            descartados = len(messages) - len(ajustado)
+            if descartados > 0:
+                self._metrics.contexto_descartados += descartados
+                log.warn(
+                    "Histórico fora do orçamento — turnos descartados",
+                    descartados=descartados,
+                    tokens_saved=ctx.stats().get("tokens_saved", 0),
+                    janela=orcamento,
+                )
+            messages = ajustado
 
         messages.append({"role": "user", "content": text})
         return build_chatml(messages, system_prompt=system)

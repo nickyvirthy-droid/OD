@@ -1,8 +1,8 @@
 {
   "modo": "noretrieval",
-  "data": "2026-10-13T21:32:26-03:00",
-  "total": 8,
-  "passaram": 8,
+  "data": "2026-10-14T12:21:44-03:00",
+  "total": 9,
+  "passaram": 9,
   "nota": 1.0,
   "resultados": [
     {
@@ -12,7 +12,7 @@
       "rota": "datetime",
       "llm_used": "",
       "latencia_ms": 0.1,
-      "resposta": "Agora são 21:31."
+      "resposta": "Agora são 12:20."
     },
     {
       "id": "data_hoje",
@@ -21,7 +21,7 @@
       "rota": "datetime",
       "llm_used": "",
       "latencia_ms": 0.0,
-      "resposta": "Hoje é terça-feira, 13 de outubro de 2026."
+      "resposta": "Hoje é quarta-feira, 14 de outubro de 2026."
     },
     {
       "id": "senha_mqtt_user",
@@ -29,7 +29,7 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "",
-      "latencia_ms": 10.9,
+      "latencia_ms": 11.1,
       "resposta": "🔐 Senhas e credenciais não são respondidas pelo chat — nem para o dono. O valor real vive no .env/cofre do servidor; para trocar ou consultar, acesse o servidor diretamente."
     },
     {
@@ -65,17 +65,26 @@
       "problemas": [],
       "rota": "llm",
       "llm_used": "gemma-local",
-      "latencia_ms": 1898.3,
+      "latencia_ms": 2298.6,
       "resposta": "A capital da França é Paris.\n\nEstado verificado."
     },
     {
       "id": "identidade_nicky",
       "ok": true,
       "problemas": [],
-      "rota": "fallback",
+      "rota": "llm",
       "llm_used": "gemma-local",
-      "latencia_ms": 49255.6,
-      "resposta": "Eu sou Nicky Virthy, a voz do ecossistema Omega Drakon, responsável pela interface visiva e comunicação entre Alex Projeti (o Arquiteto Criador) e o sistema OD // CORE. Como Guardiã técnica da máquina, meu objetivo é garantir que ela funcione de forma segura, eficiente e consistente.\n\nNas perguntas sobre minha capacidades ou conhecimentos internos do servidor Omega Drakon, eu posso responder somen"
+      "latencia_ms": 8253.9,
+      "resposta": "Eu sou Nicky Virthy, a Interface Viva do ecossistema Omega Drakon. Como Guardiã técnica do sistema, eu me esforço para manter o OD // CORE vivo e funcional, fornecendo dados precisos e verificados ao Arquiteto Criador (Alex)."
+    },
+    {
+      "id": "rag_noretrieval_sem_bloco",
+      "ok": true,
+      "problemas": [],
+      "rota": "llm",
+      "llm_used": "gemma-local",
+      "latencia_ms": 62012.3,
+      "resposta": "O \"eval\" (avaliação) do assistente, também conhecido como Goldens, é um processo que verifica a precisão da resposta fornecida pelo sistema em comparação com as respostas esperadas ou \"gold standards\". Aqui estão os principais pontos sobre o eval de assistentes usando goldens:\n\n1. **Gold Standards**: As \"gold standards\" são as respostas corretas esperadas para uma pergunta específica, definidas po"
     }
   ]
 }

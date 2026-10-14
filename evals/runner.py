@@ -45,6 +45,12 @@ PADRAO_BASELINE = _EVALS_DIR / "baseline-{modo}.json"
 RESPOSTA_ORACLE = "«LLM-NÃO-DEVERIA-ACONTECER»"
 
 
+# Cache do pipeline RAG do modo oracle: ingestão do corpus real uma vez por
+# processo (o store vive em diretório temporário — o eval NUNCA escreve em
+# produção; a ingestão de docs/ + knowledge/ custa ~1s).
+_oracle_rag: Any = None
+
+
 def montar_orquestrador(modo: str) -> Any:
     """Monta o pipeline do modo pedido (imports pesados adiados)."""
     if modo not in MODOS_CONHECIDOS:
@@ -54,9 +60,13 @@ def montar_orquestrador(modo: str) -> Any:
         from core.security import SecurityManager
         from tools.actions import build_registry
 
+        global _oracle_rag
+        if _oracle_rag is None:
+            _oracle_rag = _montar_rag_oracle()
         return Orchestrator(
             providers=[RecordingProvider("oracle", reply=RESPOSTA_ORACLE)],
             action_registry=build_registry(security=SecurityManager(mode="strict")),
+            rag=_oracle_rag,
         )
 
     from runtime.launcher import build_orchestrator
@@ -66,7 +76,37 @@ def montar_orquestrador(modo: str) -> Any:
         from runtime.launcher import build_action_registry
 
         orch.set_action_registry(build_action_registry())
+    elif modo == "noretrieval":
+        # "noretrieval" = LLM puro na linha de frente: o build de produção
+        # liga o RAG (Parte B) — aqui ele é DESLIGADO de propósito para o
+        # modo continuar medindo a semântica sem bagagem (e um golden com
+        # prompt_nao_contem prova que está desligado).
+        orch.set_rag(None)
     return orch
+
+
+def _montar_rag_oracle() -> Any:
+    """RAG do modo oracle: corpus real do repo em store temporário.
+
+    Hermético como os goldens: lê só arquivos do repositório, sem rede,
+    sem LLM e sem tocar em data/ (regra da casa: eval nunca escreve em
+    produção).
+    """
+    import tempfile
+
+    from memory.rag import RAGPipeline, fontes_padrao
+    from memory.vector import HashEmbeddingProvider, VectorStore
+    from memory.rag import ProviderSemStopwords
+
+    raiz = Path(__file__).resolve().parent.parent
+    store = VectorStore(
+        store_dir=Path(tempfile.mkdtemp(prefix="od_eval_rag_")),
+        provider=ProviderSemStopwords(HashEmbeddingProvider()),
+        top_k=12,
+    )
+    pipeline = RAGPipeline(store, fontes=fontes_padrao(raiz))
+    pipeline.sync()
+    return pipeline
 
 
 async def rodar_golden(modo: str, golden: Golden, orch: Any) -> Resultado:
@@ -85,6 +125,7 @@ async def rodar_golden(modo: str, golden: Golden, orch: Any) -> Resultado:
         mensagem=result.message,
         llm_used=result.llm_used,
         latencia_ms=(time.perf_counter() - started) * 1000,
+        prompt=getattr(result, "prompt", "") or "",
     )
 
 

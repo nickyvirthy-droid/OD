@@ -124,6 +124,23 @@ class TestVectorStoreAdd:
         store = VectorStore(store_dir=tmp_path / "v")
         assert store.add_many("k", []) == []
 
+    def test_add_many_doc_ids_deterministicos(self, tmp_path: Path) -> None:
+        # doc_ids fornecidos são respeitados — base da idempotência da
+        # ingestão do RAG (mesmo chunk = mesmo id, nada é duplicado).
+        store = VectorStore(store_dir=tmp_path / "v")
+        ids = store.add_many(
+            "k", ["um", "dois"],
+            metadata_list=[{"a": 1}, {"b": 2}],
+            doc_ids=["doc1", "doc2"],
+        )
+        assert ids == ["doc1", "doc2"]
+        assert store.get("doc1")["metadata"] == {"a": 1}
+        assert store.get("doc2")["text"] == "dois"
+        # recarregar do disco mantém os IDs (persistência em lote)
+        store2 = VectorStore(store_dir=tmp_path / "v")
+        store2.load()
+        assert store2.get("doc1") is not None
+
     def test_metadata_stored(self, tmp_path: Path) -> None:
         store = VectorStore(store_dir=tmp_path / "v")
         doc_id = store.add("k", "texto", metadata={"fonte": "manual"})

@@ -178,6 +178,92 @@ class TestAvaliacao:
 
 
 # ===========================================================================
+# Expectativas de PROMPT (Parte B — RAG)
+# ===========================================================================
+
+class TestExpectativasDePrompt:
+    """prompt_contem/prompt_nao_contem: o gate de CI do retrieval.
+
+    É o que permite provar em modo oracle (sem rede, sem LLM) que o
+    contexto recuperado pelo RAG — ou a visibilidade por papel — chegou
+    (ou não) ao prompt do modelo.
+    """
+
+    def test_goldens_reais_tem_casos_de_prompt(self) -> None:
+        goldens = carregar_goldens()
+        com_prompt = [
+            g for g in goldens if g.esperado.prompt_contem or g.esperado.prompt_nao_contem
+        ]
+        assert len(com_prompt) >= 4, "os goldens da Parte B sumiram do arquivo"
+
+    def test_campo_prompt_ainda_valida_tipo(self) -> None:
+        from evals.golden import _parse_golden
+
+        with pytest.raises(GoldenInvalido, match="lista de textos"):
+            _parse_golden(
+                {"id": "ok", "pergunta": "oi",
+                 "esperado": {"prompt_contem": [123]}}, 1)
+
+    def test_prompt_contem_ausente_e_problema(self) -> None:
+        g = _golden(esperado=Esperado(prompt_contem=("REGRAS_DE_TRABALHO",)))
+        problemas = avaliar(g, rota="llm", mensagem="resposta", llm_used="gemma",
+                            prompt="system ... sem o acervo aqui")
+        assert any("prompt não contém" in p for p in problemas)
+
+    def test_prompt_contem_presente_passa(self) -> None:
+        g = _golden(esperado=Esperado(prompt_contem=("REGRAS_DE_TRABALHO",)))
+        assert avaliar(g, rota="llm", mensagem="resposta", llm_used="gemma",
+                       prompt="[docs/REGRAS_DE_TRABALHO.md] ...") == []
+
+    def test_prompt_contem_e_casefold(self) -> None:
+        g = _golden(esperado=Esperado(prompt_contem=("regras_de_trabalho",)))
+        assert avaliar(g, rota="llm", mensagem="ok", llm_used="gemma",
+                       prompt="docs/REGRAS_DE_TRABALHO.md") == []
+
+    def test_prompt_nao_contem_vazamento(self) -> None:
+        g = _golden(esperado=Esperado(prompt_nao_contem=("REGRAS_DE_TRABALHO",)))
+        problemas = avaliar(g, rota="llm", mensagem="resposta", llm_used="gemma",
+                            prompt="[docs/REGRAS_DE_TRABALHO.md] interno")
+        assert any("prompt contém texto proibido" in p for p in problemas)
+
+    def test_prompt_nao_contem_ausente_passa(self) -> None:
+        g = _golden(esperado=Esperado(prompt_nao_contem=("REGRAS_DE_TRABALHO",)))
+        assert avaliar(g, rota="llm", mensagem="ok", llm_used="gemma",
+                       prompt="prompt limpo") == []
+
+    def test_sem_prompt_enviado_o_contem_falha(self) -> None:
+        # Rota determinística (sem prompt de LLM) + expectativa de prompt =
+        # falha honesta, não passe-em-silêncio.
+        g = _golden(esperado=Esperado(prompt_contem=("x",)))
+        assert avaliar(g, rota="datetime", mensagem="Agora são 10:00.",
+                       llm_used="") != []
+
+    def test_resultado_de_passa_prompt_adiante(self) -> None:
+        g = _golden(esperado=Esperado(prompt_contem=("ACERVO",)))
+        r = resultado_de(g, rota="llm", mensagem="ok", llm_used="gemma",
+                         latencia_ms=1.0, prompt="... ACERVO ...")
+        assert r.ok
+
+    def test_runner_passa_o_prompt_do_resultado(self) -> None:
+        import asyncio
+
+        from evals.runner import rodar_golden
+
+        class _FakeOrch:
+            async def process(self, **kw):
+                class R:
+                    route = "llm"
+                    message = "ok"
+                    llm_used = "gemma"
+                    prompt = "... ACERVO_XYZ ..."
+                return R()
+
+        g = _golden(id="p", esperado=Esperado(prompt_contem=("ACERVO_XYZ",)))
+        r = asyncio.run(rodar_golden("oracle", g, _FakeOrch()))
+        assert r.ok, r.problemas
+
+
+# ===========================================================================
 # Baseline — a nota versionada
 # ===========================================================================
 

@@ -128,6 +128,52 @@ def build_audit_system() -> Any:
     return AuditSystem(file_path=file_path)
 
 
+def build_rag() -> Optional[Any]:
+    """Pipeline RAG (Parte B — NOMAD): corpus interno + retrieval no prompt.
+
+    Indexa docs/ + knowledge/ (todo interno — o papel user/anônimo não
+    recebe bloco nenhum, a visibilidade é por chunk), sincroniza de forma
+    idempotente a cada boot e calibra a janela de tokens pelo modelo
+    servido (OD_LLM_MODEL). OD_RAG_ENABLED=0 desliga; falha degrada com
+    None (o pipeline segue sem retrieval, nunca derruba o core).
+    """
+    if env("OD_RAG_ENABLED", "1") == "0":
+        return None
+    try:
+        from memory.rag import RAGPipeline, fontes_padrao, janela_do_modelo
+        from memory.vector import HashEmbeddingProvider, VectorStore
+        from memory.rag import ProviderSemStopwords
+
+        store = VectorStore(
+            store_dir=DATA_DIR / "vector_memory",
+            provider=ProviderSemStopwords(HashEmbeddingProvider()),
+            top_k=12,
+        )
+        store.load()
+        modelo = env("OD_LLM_MODEL", "qwen2.5-coder-3b")
+        pipeline = RAGPipeline(
+            store,
+            fontes=fontes_padrao(REPO_ROOT),
+            janela=janela_do_modelo(modelo),
+            tokens_resposta=int(env("OD_LLM_MAX_TOKENS", "512")),
+        )
+        stats = pipeline.sync()
+        log.info(
+            "RAG ligado (Parte B NOMAD)",
+            modelo=modelo,
+            janela=janela_do_modelo(modelo),
+            chunks=stats["chunks"],
+            novos=stats["novos"],
+            atualizados=stats["atualizados"],
+            iguais=stats["iguais"],
+            removidos=stats["removidos"],
+        )
+        return pipeline
+    except Exception as exc:
+        log.warn("RAG desabilitado", error=f"{type(exc).__name__}: {exc}")
+        return None
+
+
 def build_orchestrator(database: Any = None) -> Any:
     """Orchestrator real: LLM local + memórias persistentes em data/."""
     from core.llm import OpenAICompatProvider
@@ -153,6 +199,12 @@ def build_orchestrator(database: Any = None) -> Any:
     profile = env("OD_PROFILE", DEFAULT_PROFILE)
     # Mémoria: Database quando disponível, senão JSON (fallback)
     db_kwargs = {"database": database} if database is not None else {}
+    # Parte B (NOMAD): retrieval no prompt + orçamento de tokens por modelo.
+    # O orçamento só liga quando há RAG — sem ele, o comportamento do
+    # histórico é exatamente o de antes (limite por turnos).
+    rag = build_rag()
+    from memory.rag import janela_do_modelo
+
     orchestrator = Orchestrator(
         providers=[provider],
         history=ConversationHistory(
@@ -164,9 +216,16 @@ def build_orchestrator(database: Any = None) -> Any:
             max_entries=int(env("OD_CACHE_ENTRIES", "2000")),
             **db_kwargs,
         ),
+        rag=rag,
         config=OrchestratorConfig(
             llm_timeout_s=llm_timeout,
             default_system_prompt=get_system_prompt(profile),
+            orcamento_janela=(
+                janela_do_modelo(env("OD_LLM_MODEL", "qwen2.5-coder-3b"))
+                if rag is not None
+                else 0
+            ),
+            orcamento_resposta=int(env("OD_LLM_MAX_TOKENS", "512")),
         ),
     )
     log.info(
@@ -175,6 +234,7 @@ def build_orchestrator(database: Any = None) -> Any:
         url=provider.base_url,
         history=str(DATA_DIR / "conversations"),
         backend="db" if database else "json",
+        rag=rag.dump() if rag is not None else "desligado",
     )
     return orchestrator
 
@@ -332,6 +392,7 @@ def build_api_server(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
     user_store: Any = None, registry: Any = None, chat_notify: Any = None,
+    vector: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -343,6 +404,13 @@ def build_api_server(
     # UserStore (auth de usuários) — habilitado quando há database
     if user_store is None:
         user_store = build_user_store(database)
+
+    # VectorStore do RAG (Parte B) — o MESMO store do prompt alimenta
+    # GET /memory/{uid}/search (antes respondia 501: store nunca conectado).
+    if vector is None and orchestrator is not None:
+        rag = getattr(orchestrator, "rag", None)
+        if rag is not None:
+            vector = rag.store
 
     # Voz (v1.17.3): motores reais na API — /transcribe e /tts deixam de
     # ser 501 quando os binários da Fase 6 existem (mesmos do Telegram).
@@ -377,6 +445,7 @@ def build_api_server(
             # com confirmação nas destrutivas).
             owner_username=env("OD_OWNER_USERNAME", "alex"),
         ),
+        vector=vector,  # Parte B: /memory/{uid}/search com store real
     )
     return server
 

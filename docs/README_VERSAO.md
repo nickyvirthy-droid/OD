@@ -7,6 +7,50 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.26.0] — PIPELINE RAG DE QUALIDADE (PARTE B DO NOMAD) 🜂 (2026-10-14)
+
+### 1. O que foi feito
+
+Parte B da ordem acordada (A → C → **B** → D → E → F) — aprovada com "pode
+fazer parte B". É o maior esforço da análise e o maior ganho de qualidade:
+o assistente passa a responder puxando referências do acervo interno
+(`docs/` + `knowledge/`), com regras duras de relevância e orçamento.
+
+| Peça | Entrega |
+|---|---|
+| **`memory/rag.py` (novo módulo)** | Pipeline RAG determinístico: reescrita de consulta com histórico (elípticas/anafóricas agregam termos recentes), busca com embedding sem stopwords dos dois lados, **floor duplo** (`0.8·cosseno + 0.2·overlap-IDF ≥ 0.36` E `overlap-IDF ≥ 0.22`) e reranker. |
+| **Etapa 4.5 no orquestrador** | REST e stream com o MESMO contexto; fastpaths (hora, clima, saúde, matemática, segredos) nunca pagam o custo do RAG. Ordem identidade → data/hora → acervo preserva o cache de KV do llama-server (teste travando a ordem). |
+| **Orçamento + métrica do descartado** | Bloco limitado por `janela − system − histórico − resposta` (janela real do modelo: 8192 do `llama-server` medido no host); histórico antigo fora do orçamento vira `contexto_descartados`. |
+| **Ingestão idempotente** | `doc_id` determinístico + SHA; re-sync não regrava; edição substitui; remoção apaga órfãos. `add_many` em lote: ingestão de 842 chunks de **86s → 0.66s**. |
+| **Visibilidade por papel** | Todo o corpus é `interna`: só o `admin` (o dono) recebe o bloco; `user`/anônimo nunca veem (goldens provam em oracle E e2e). |
+| **Eval com `prompt_contem`/`prompt_nao_contem`** | A Parte A ganhou expectativas de PROMPT — gate de CI do retrieval sem rede. 4 goldens novos; `noretrieval` agora desliga o RAG e um golden prova que está desligado. |
+| **Floor medido, não chutado** | 16 queries no corpus real (842 chunks): a regra atual passa 8/8 relevantes e bloqueia 8/8 irrelevantes. As medições são GATE na suíte. |
+| **versionCode** | 2055 → 2056 (regra §5.3). |
+
+### 2. Verificação
+
+- Suíte do servidor: **2659 passed / 16 skipped** (+83 testes da Parte B).
+- `python -m evals --modo oracle` (sem rede): **13/13 (100%)**.
+- `python -m evals --modo e2e` (LLM local real): **19/19 (100%)** — acervo no
+  prompt do admin (`rag_acervo_regras_admin`, `rag_eval_nomad_admin`) e sem
+  vazamento para `user` (`rag_acervo_user_sem_interno`).
+- `python -m evals --modo noretrieval`: **9/9 (100%)** — `rag_noretrieval_sem_bloco`
+  prova que o modo roda mesmo sem RAG.
+- Baselines atualizadas: `evals/baseline-{oracle,e2e,noretrieval}.json`.
+
+### 3. Pendências
+
+- **Próxima na ordem do dono: Parte D** (fila de downloads resumable) —
+  ele escolhe a ordem; B era o maior esforço e saiu.
+- Fronteira honesta do floor: pergunta certa com vocabulário fora do
+  corpus retorna vazio (recall conservador por decisão de design — lixo
+  não entra no prompt). Reranker real (cross-encoder) depende de modelo de
+  embedding melhor — fica para quando o dono escolher.
+- Corpus hoje é só interno (`docs/` + `knowledge/`); corpus `publica`
+  (por exemplo, FAQ do site) é o próximo passo natural do RAG.
+
+**Assinatura:** `OD // CORE`
+
 ## [1.25.0] — REFERÊNCIA MÉDICA DETERMINÍSTICA (PARTE C DO NOMAD) 🜂 (2026-10-13)
 
 ### 1. O que foi feito

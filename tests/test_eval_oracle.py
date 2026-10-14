@@ -29,9 +29,26 @@ def test_goldens_oracle_todos_passam() -> None:
 
 def test_nenhum_golden_oracle_caiu_no_llm() -> None:
     """Prova do modo: nenhuma resposta veio do provider falso
-    (que devolve 'LLM-NÃO-DEVERIA-ACONTECER')."""
+    (que devolve 'LLM-NÃO-DEVERIA-ACONTECER').
+
+    Exceção declarada: goldens com expectativa de PROMPT (Parte B, RAG)
+    passam pelo provider falso DE PROPÓSITO — o que eles medem é o
+    conteúdo do prompt (contexto recuperado/visibilidade), e a resposta
+    fake é consequência da rota llm em modo oracle. Um golden que caia no
+    LLM sem querer continua pego: ele tem expectativa de CONTEÚDO de
+    resposta, não de prompt, e falha no gate de cima.
+    """
+    from evals.golden import carregar_goldens
+
+    com_prompt = {
+        g.id
+        for g in carregar_goldens()
+        if g.esperado.prompt_contem or g.esperado.prompt_nao_contem
+    }
     relatorio = rodar_modo("oracle")
     for r in relatorio["resultados"]:
+        if r["id"] in com_prompt:
+            continue
         assert "LLM-NÃO-DEVERIA-ACONTECER" not in r["resposta"], r["id"]
         assert not r["llm_used"].startswith(("gemma", "qwen")), r["id"]
 

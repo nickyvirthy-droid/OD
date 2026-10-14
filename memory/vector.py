@@ -227,8 +227,15 @@ class VectorStore:
         texts: list[str],
         *,
         metadata_list: Optional[list[Optional[dict[str, Any]]]] = None,
+        doc_ids: Optional[list[str]] = None,
     ) -> list[str]:
-        """Adiciona vários textos de uma vez (embedding em lote)."""
+        """Adiciona vários textos de uma vez (embedding em lote).
+
+        `doc_ids` (opcional) permite IDs determinísticos — a ingestão do
+        RAG usa IDs derivados do arquivo+índice para ser idempotente.
+        Uma persistência só no fim (o caminho unitário persistiria o
+        JSON inteiro a cada doc — O(n²) de I/O com 800+ chunks).
+        """
         if not texts:
             return []
         vectors = self._provider.embed(texts)
@@ -236,7 +243,8 @@ class VectorStore:
         if self._database is not None:
             ids: list[str] = []
             for i, text in enumerate(texts):
-                doc_id = uuid.uuid4().hex[:16]
+                doc_id = (doc_ids[i] if doc_ids and i < len(doc_ids)
+                          else uuid.uuid4().hex[:16])
                 meta = metadata_list[i] if metadata_list and i < len(metadata_list) else None
                 self._database.execute(
                     "INSERT INTO vector_documents "
@@ -250,7 +258,8 @@ class VectorStore:
         ids = []
         with self._lock:
             for i, text in enumerate(texts):
-                doc_id = uuid.uuid4().hex[:16]
+                doc_id = (doc_ids[i] if doc_ids and i < len(doc_ids)
+                          else uuid.uuid4().hex[:16])
                 meta = metadata_list[i] if metadata_list and i < len(metadata_list) else None
                 self._docs[doc_id] = {
                     "doc_id": doc_id,

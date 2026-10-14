@@ -14,6 +14,43 @@
 
 ---
 
+## [1.26.0] — PIPELINE RAG DE QUALIDADE (PARTE B DO NOMAD) 🜂 (2026-10-14)
+
+> **Bump MINOR (capacidade nova):** Parte B da absorção do Project NOMAD —
+> o maior esforço e o maior ganho de qualidade da análise — aprovada pelo
+> dono com "pode fazer parte B". Tudo determinístico: NENHUMA chamada de
+> LLM no retrieval; a única IA no caminho é o modelo que recebe o prompt.
+
+| Peça | Entrega |
+|---|---|
+| **`memory/rag.py` (novo)** | Pipeline completo: reescrita de consulta com histórico (anafóricas/elípticas "e o preço dele?" agregam termos recentes; consultas autossuficientes passam intactas), busca com embeddings SEM stopwords nos dois lados, **floor duplo medido** (score combinado `0.8·cosseno + 0.2·overlap-IDF ≥ 0.36` E `overlap-IDF ≥ 0.22`) e reranker que reordena pelo combinado. |
+| **Corpus interno + visibilidade por papel** | `docs/*.md` + `knowledge/*.md` indexados (842 chunks) com ingestão IDEMPOTENTE: `doc_id` determinístico (fonte+índice) + SHA do conteúdo; editou o arquivo → chunk substituído; removeu/renomeou → órfãos apagados. Chunks são `interna`: o papel `user`/anônimo **nunca** recebe bloco no prompt (testado: 12 candidatos descartados no gate de visibilidade). |
+| **Orçamento de contexto com métrica do descartado** | O bloco de referência respeita a janela do modelo (`ContextManager`): `janela − system − histórico − resposta − data/hora`. O que não coube vira métrica (`rag_descartados`, `rag_tokens_descartados`), nunca silêncio. Etapa **4.5** no REST **e** no stream (mesmo contexto nos dois transportes); fastpaths (hora, clima, saúde, matemática, segredos) respondem ANTES — nunca pagam o custo do RAG. |
+| **Calibração por modelo** | `JANELAS_MODELOS` com o `n_ctx` medido no host (`od-llm` roda `llama-server --ctx-size 8192` para qwen2.5-coder-3b); `OD_LLM_MODEL` escolhe a janela; orçamento do histórico liga só quando há RAG. |
+| **Calibração do floor COM MEDIDA** | Score vetorial puro NÃO separava relevante de irrelevante no corpus real (irrelevante 0.496 > relevante 0.444 — stopwords dominavam o cosseno). A regra de duas chaves acima passa **8/8 queries relevantes e bloqueia 8/8 irrelevantes** (16 queries medidas em 2026-10-14). As 16 medições viraram GATE na suíte (`TestCalibracaoCorpusReal`): falhou = recalibrar com evidência, nunca afrouxar no escuro. |
+| **Eval estendido (Parte A serve à Parte B)** | Expectativas `prompt_contem`/`prompt_nao_contem` nos goldens: provam em modo **oracle (sem rede, sem LLM)** que o contexto recuperado — ou a visibilidade por papel — chegou (ou não) ao prompt. 4 goldens novos (2 em oracle+e2e, 1 user sem vazamento, 1 noretrieval sem bloco). O modo `noretrieval` agora desliga o RAG de propósito e um golden prova que está desligado. |
+| **`VectorStore` ligado na API** | O mesmo store do prompt alimenta `GET /memory/{uid}/search` (antes respondia 501 — store nunca conectado). `add_many` ganhou `doc_ids` determinísticos e persistência em LOTE: ingestão de 842 chunks caiu de **86s para 0.66s** (o add unitário persistia o JSON inteiro a cada chunk — O(n²) de I/O). |
+| **Injeção no prompt preserva o cache KV** | Ordem obrigatória identidade (estática) → data/hora → acervo, com teste: trocar invalida o prefixo de KV cache do llama-server a cada mensagem. |
+| **versionCode** | 2055 → 2056 (regra §5.3). |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte do servidor | **2659 passed / 16 skipped** (era 2576 antes da Parte B: +83 testes) |
+| Modo oracle (13 goldens, sem rede) | **13/13 (100%)** — inclui os 3 goldens RAG de CI |
+| Modo e2e (19 goldens, LLM local real) | **19/19 (100%)** — acervo no prompt do admin, sem vazamento para `user` |
+| Modo noretrieval (9 goldens, LLM puro) | **9/9 (100%)** — golden prova que o modo está mesmo sem RAG |
+| Baselines | `evals/baseline-{oracle,e2e,noretrieval}.json` atualizadas |
+
+**Fronteira honesta:** recall do floor é conservador — uma pergunta certa
+com vocabulário fora do corpus ("o que absorvemos do projeto nômade" sem
+citar termos do doc) retorna vazio em vez de lixo. A reescrita com
+história recupera parte disso; reranker real (cross-encoder) fica para
+quando houver modelo de embedding melhor.
+
+**Assinatura:** `OD // CORE`
+
+---
+
 ## [1.25.0] — REFERÊNCIA MÉDICA DETERMINÍSTICA (PARTE C DO NOMAD) 🜂 (2026-10-13)
 
 > **Bump MINOR (capacidade nova):** Parte C da absorção do Project NOMAD na

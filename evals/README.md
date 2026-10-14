@@ -12,7 +12,7 @@ derruba a suíte.
 |---|---|---|---|
 | **oracle** (padrão) | pipeline REAL com provider falso de resposta fixa — só rotas determinísticas passam (datetime, math fastpath, negações) | **nunca** | suíte/CI (`tests/test_eval_oracle.py`) e `python -m evals` |
 | **e2e** | `runtime.launcher.build_orchestrator()` de produção + ActionRegistry real + LLM local | sim (LLM local, HA, APIs públicas) | manual, no servidor |
-| **noretrieval** | mesmo e2e **sem** ActionRegistry — LLM puro na linha de frente | sim | manual, no servidor |
+| **noretrieval** | mesmo e2e **sem** ActionRegistry **e sem RAG** — LLM puro na linha de frente (um golden prova que nenhum bloco de acervo chega ao prompt) | sim | manual, no servidor |
 
 ## Uso
 
@@ -50,6 +50,13 @@ Sai com código `1` quando algum golden falha (gate amigável para CI/scripts).
   `fastpath:*` conta como sem LLM), `llm_prefix`, `contem`, `nao_contem`
   (casefold) e `regex`. Campo desconhecido ou regex inválida **derrubam a
   carga** — expectativa morta não existe.
+- **`prompt_contem` / `prompt_nao_contem`** (Parte B — RAG): o que deve
+  (não) estar no **prompt** enviado ao modelo — é o que prova, inclusive
+  em modo oracle sem rede, que o contexto recuperado pelo RAG (ou a
+  visibilidade por papel: acervo interno não vaza para `user`) chegou
+  (ou não) lá. Goldens de prompt passam pelo provider falso de propósito
+  (a resposta fake é consequência da rota `llm` em oracle; o gate
+  "nenhum golden caiu no LLM" pula esses casos declaradamente).
 - Expectativas ausentes ⇒ erro na carga (`GoldenInvalido`).
 
 ## Baseline (`baseline-<modo>.json`)

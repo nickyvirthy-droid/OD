@@ -31,7 +31,8 @@ _CAMPOS_ESPERADOS = {
     "id", "pergunta", "papel", "profile", "modos", "esperado", "nota",
 }
 _CAMPOS_ESPERADOS_TAMANHO = {"rota", "llm", "llm_prefix", "contem",
-                             "nao_contem", "regex"}
+                             "nao_contem", "regex",
+                             "prompt_contem", "prompt_nao_contem"}
 
 
 class GoldenInvalido(ValueError):
@@ -48,6 +49,11 @@ class Esperado:
     contem: tuple[str, ...] = ()     # substrings OBRIGATÓRIAS (casefold)
     nao_contem: tuple[str, ...] = () # substrings PROIBIDAS (casefold)
     regex: tuple[str, ...] = ()      # padrões que devem casar na resposta
+    # Parte B (RAG): o que deve (não) estar no PROMPT enviado ao modelo —
+    # é o que prova, inclusive em modo oracle sem rede, que o contexto
+    # recuperado (ou a visibilidade por papel) chegou (ou não) lá.
+    prompt_contem: tuple[str, ...] = ()
+    prompt_nao_contem: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -75,7 +81,8 @@ def _parse_esperado(linha: int, bruto: Any) -> Esperado:
             f"{sorted(desconhecidos)} (válidos: {sorted(_CAMPOS_ESPERADOS_TAMANHO)})"
         )
     listas: dict[str, tuple[str, ...]] = {}
-    for chave in ("contem", "nao_contem", "regex"):
+    for chave in ("contem", "nao_contem", "regex",
+                  "prompt_contem", "prompt_nao_contem"):
         valor = bruto.get(chave, [])
         if isinstance(valor, str):
             valor = [valor]
@@ -105,6 +112,8 @@ def _parse_esperado(linha: int, bruto: Any) -> Esperado:
         contem=listas["contem"],
         nao_contem=listas["nao_contem"],
         regex=listas["regex"],
+        prompt_contem=listas["prompt_contem"],
+        prompt_nao_contem=listas["prompt_nao_contem"],
     )
     if (
         esperado.rota is None
@@ -113,6 +122,8 @@ def _parse_esperado(linha: int, bruto: Any) -> Esperado:
         and not esperado.contem
         and not esperado.nao_contem
         and not esperado.regex
+        and not esperado.prompt_contem
+        and not esperado.prompt_nao_contem
     ):
         raise GoldenInvalido(f"linha {linha}: golden sem nenhuma expectativa")
     return esperado
