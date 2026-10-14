@@ -1,5 +1,0 @@
-## [2026-10-13T19:29:02] action_degradada:weather_city
-qual a temperatura em presidente venceslau sp?
-
-## [2026-10-13T19:32:37] action_degradada:exchange_rate
-quanto está o dólar agora?
