@@ -109,3 +109,54 @@ worktree `/tmp/opencode/od-headcov`, removido depois). A entrega fecha em
 igual a A — o que é, como o dono acessa, como o sistema controla — antes de
 implementar). Pendências do dono inalteradas (Vaultwarden, etapa 4, pauta 3/5,
 fotos guardadas).
+
+---
+
+## §3 — Parte C (referência médica) implementada → v1.25.0 no ar (~21:0x–21:50)
+
+O dono respondeu "pode fazer" à explicação da Parte C (três eixos, como o
+padrão firmado). Implementação:
+
+### O que entrou
+
+- **3 actions na categoria `saude`** (`tools/actions/actions.py`):
+  `saude_condicao` (curadoria CDC/NIH/NCCIH/MedlinePlus por condição),
+  `saude_interacoes` e `saude_medicamento` (bula FDA verbatim via openFDA,
+  com checagem de menção cruzada).
+- **Coleções versionadas** `tools/saude/collections/` (36 condições, 20
+  caseiros, 18 naturais, lexicon de 46 medicamentos PT-BR→FDA — só nomes).
+  Atribuição obrigatória; original EM Inglês preservado em `origem_en`
+  (auditoria); PT-BR = tradução fiel da fonte citada (nada autoral).
+- **`core/intents.py`**: `_detect_saude` (gatilhos conservadores —
+  "posso tomar café com leite" não é saúde) + `_formata_saude` com
+  `SAUDE_AVISO` obrigatório em todo ramo. Saúde **nunca** degrada para o
+  LLM (nem com `ok=False`).
+- **Permissões**: papel `user` +3 (leitura de fonte pública); regressão
+  mantém segredos/escrita/IP vedados.
+- **Gate**: `tests/test_saude.py` (+45 testes, openFDA 100% fakeado) +
+  4 goldens (2 oracle herméticos, 2 e2e com rede real).
+
+### Provas
+
+- Suíte: **2576 passed / 16 skipped · 90,08%** · flutter analyze 0 ·
+  flutter test 157/2.
+- Eval: oracle **10/10**, e2e **16/16** (openFDA real — dipirona×losartana
+  e bula de losartana consultadas na FDA de verdade), noretrieval 8/8.
+- Deploy: bump MINOR **1.25.0+2055**; APKs rebuildados (aapt2 2055/1.25.0,
+  sha `dbef2965…`/`75902540…`; 1.24.2 guardados em
+  `backups/apk-v1.24.2+2054-20261013/`); commit `e6d6681` == origin/master.
+- Restart verde 21:41 (user systemd): od-core **PID 454712**, NRestarts=0,
+  journal 0 erros; `/app/version` 1.25.0/2055 (sha == site); `/health`
+  9/9; `/capabilities` 89 actions / 44 caps (`saude-reference` available);
+  `/supervision` degraded [], restarts 0.
+- Comunicação: Telegram message_id **2662** (regra 15); `txt.txt`
+  reescrito (regra 14).
+
+### Fronteira honesta (documentada)
+
+"Para que serve X?" sem bula/efeitos/interação ainda cai no LLM; anônimo
+segue o fluxo normal. Pendências do dono inalteradas (Vaultwarden, etapa 4,
+pauta 3/5, rotação de segredos, fotos).
+
+**Próximo na ordem acordada: parte B = RAG** (com o eval da parte A no
+largo, a qualidade passa a ser medida antes/depois).
