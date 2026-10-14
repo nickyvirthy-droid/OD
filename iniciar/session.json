@@ -1,7 +1,37 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-14T10:49:00-03:00",
+ "updated_at": "2026-10-14T13:20:00-03:00",
+ "entrega_2026_10_14_parte_b_rag": {
+  "pedido": "Dono aprovou (14/10): 'pode fazer parte B' — Parte B do Project NOMAD (pipeline RAG de qualidade), na ordem A → C → B → D → E → F.",
+  "entregas": [
+   "memory/rag.py (NOVO): pipeline determinístico — reescrita de consulta com histórico, busca sem stopwords nos dois lados, floor duplo medido (0.8*cosseno+0.2*overlap-IDF >= 0.36 E overlap-IDF >= 0.22), reranker, visibilidade por papel, orçamento com métrica do descartado.",
+   "Corpus docs/ + knowledge/ idempotente: doc_id determinístico (fonte+indice)+SHA, remocao de orfaos, 850 chunks no boot. add_many com doc_ids em LOTE: ingestao 86s -> 0.66s (add unitario persistia JSON inteiro a cada chunk — O(n²) de I/O, bug achado pela suite).",
+   "Etapa 4.5 no orquestrador (REST e stream, mesmo contexto); ordem identidade -> data/hora -> acervo travada por teste (KV-cache); fastpaths nunca pagam o RAG; metricas rag_* no /dashboard/stats.",
+   "Floor medido: 16 queries no corpus real (score vetorial puro nao separava) -> 8/8 relevantes + 8/8 irrelevantes como GATE na suite (TestCalibracaoCorpusReal).",
+   "Eval (Parte A serve a Parte B): prompt_contem/prompt_nao_contem + 4 goldens novos; noretrieval desliga o RAG e um golden prova; gate do oracle pula declaradamente goldens de prompt.",
+   "GET /memory/{uid}/search ligado ao store real (antes 501 — store nunca conectado)."
+  ],
+  "prova_de_fogo_2_bugs": "1a consulta real no servico voltou rag_trechos=0 (12 descartados) e o LLM INVENTOU as regras ('sem pull requests' — inexistente no doc; grep conferiu). Causas medidas com copia hermetica da store: (1) prefixo 'responda curto:' inflava a soma_idf -> overlap 0.211 < 0.22 -> floor rejeitava a consulta certa; (2) top_k=12 deixava o chunk certo em 15º lugar, fora do pool. Fixes: termos_da_consulta() (so prefixo curto <=5 palavras sai do floor; busca usa a frase crua) + TOP_K_CANDIDATOS 12->24. Gate 8/8+8/8 refeito; depois rag_trechos=1 e resposta LITERAL do doc ('Nunca publicar com testes vermelhos (ver §8)'). +7 testes.",
+  "bump": "MINOR 1.26.0 / versionCode 2056: .env, capabilities fallback, pubspec, _APP_VERSION_CODE (gate test_version_policy pegou 2055 orfao -> fix 95fd4a8), site 3x, CHANGELOG [1.26.0], README_VERSAO §1.26.0, ANALISE §Parte B ✅ ENTREGUE. APKs publicados: universal 55246176 B sha 26be1efc…, arm64 19977978 B sha 6c336e07… (aapt2 versionName 1.26.0; arm64 sai 4056 = split padrao do Flutter, universal 2056).",
+  "validacao": "Suite 2666 passed / 16 skipped (+90 da Parte B). Evals: oracle 13/13, e2e 19/19 (LLM real), noretrieval 9/9 — comparar sem desvio, baselines regravadas. flutter analyze 0 issues, flutter test 157 passed/2 skipped.",
+  "deploy": "Restart verde 13:05 (regra 7.3): PID 1257828, NRestarts=0, journal 0 erros, /health 9/9, 'RAG ligado janela=8192 chunks=850' (idempotencia: 6 atualizados = edicoes do dia). /app/version 1.26.0/2056 sha 26be1efc… == APK do site.",
+  "commits": [
+   "2909e1a v1.26.0: pipeline RAG de qualidade (Parte B do NOMAD)",
+   "95fd4a8 fix(api): _APP_VERSION_CODE 2055 -> 2056",
+   "72aa17e fix(rag): prova de fogo no serviço real — 2 bordas do floor"
+  ],
+  "canais": "txt.txt reescrito (regra 14) + Telegram message_id 2684 (regra 15).",
+  "estado": "CONCLUÍDO E NO AR — Parte B entregue e provada em produção. Próxima na ordem do dono: Parte D (fila de downloads resumable). Fronteira honesta: recall conservador por design, reranker real depende de embedding melhor, corpus ainda so interno.",
+  "proximas_pendencias_dono": [
+   "Project NOMAD: Parte D (downloads resumable) — dono escolhe a ordem.",
+   "Vaultwarden: criar conta do dono.",
+   "Etapa 4 do Registro Mestre (comprador/QR/loja).",
+   "Itens 3/5 da pauta; rotação de segredos (adiada).",
+   "4 fotos em analise/fotos-adicionais/; catalogar pasta 3D/."
+  ],
+  "transcricao": "iniciar/2026-10-14_conversa_omegadrakon.md (§3)"
+ },
  "reverificacao_2026_10_14_1049": {
   "pedido": "Usuário: 'leia iniciar' (2ª vez, ~10:49 de 14/10).",
   "achados": "ESTADO INALTERADO E 100% VERDE: od-core active PID 454712 (desde 13/10 21:41, ~13h), NRestarts=0, journal 0 erros em 14h. /app/version 1.25.0 / 2055 (sha dbef2965… == APK publicado). /health 401 sem credencial = esperado. HEAD d9659de (commit da retomada da manhã) == origin/master, árvore LIMPA. txt.txt sem mensagem nova do dono; analise/ sem depósito novo.",
