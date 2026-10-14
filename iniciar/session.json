@@ -1,7 +1,25 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-13T21:50:00-03:00",
+ "updated_at": "2026-10-14T09:00:00-03:00",
+ "retomada_2026_10_14_status_geral": {
+  "pedido": "Usuário: 'leia iniciar' (~09:00 de 14/10).",
+  "achados": [
+   "od-core active PID 454712 desde 13/10 21:41 (11h), NRestarts=0, journal 0 erros em 12h.",
+   "/app/version 1.25.0 / 2055 (sha dbef2965… == APK publicado) · /health 401 sem credencial = esperado.",
+   "HEAD 4811ead == origin/master, árvore de trabalho LIMPA.",
+   "txt.txt sem mensagem nova do dono (última escrita nossa 13/10 21:46). analise/ sem depósito novo (Avatar vazio, fotos-adicionais com as 4 guardadas)."
+  ],
+  "estado": "SISTEMA ESTÁVEL — Partes A (eval) e C (referência médica) do NOMAD entregues; aguardando do dono o 'pode fazer' da Parte B (RAG).",
+  "pendencias_dono": [
+   "Project NOMAD: aprovar Parte B = RAG (próxima da ordem A → C → B → D → E → F).",
+   "Vaultwarden: criar conta do dono.",
+   "Etapa 4 do Registro Mestre (comprador/QR/loja).",
+   "Itens 3/5 da pauta; rotação de segredos (adiada).",
+   "4 fotos em analise/fotos-adicionais/ ('vou usar depois'); catalogar pasta 3D/."
+  ],
+  "transcricao": "iniciar/2026-10-14_conversa_omegadrakon.md (§1)"
+ },
  "nomad_ordem_e_eval_explicado_2026_10_13": {
   "pedido": "Dono (~19:1x): 'vamos usar sua ordem. antes de implementar me explique para que serve, como acesso e como o sistema controla' — ordem das partes do Project NOMAD aceita (sugestão do sistema: A eval → C referência médica → B RAG → D downloads → E auto-update → F registro de skills).",
   "resposta_dada": "Explicação da Parte A (eval) em 3 eixos, sem implementar ainda: (1) para que serve — métrica honesta antes/depois de mudança de persona/prompt (hoje é achismo); (2) como acesso — goldens JSONL no repo, eu rodo no .venv via modo oracle/e2e/noretrieval, dono vê relatório (txt.txt/página site); (3) como o sistema controla — gates: CI pytest+cobertura≥90, suíte local, modo oracle determinístico sem custo de LLM, baseline versionada vira gate de regressão.",
