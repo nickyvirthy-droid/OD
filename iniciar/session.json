@@ -2571,7 +2571,8 @@
   "prova_viva": "PID 1608225: boot padrão → tick 'indice-rag=aguardar' (fora da janela); janela larga temporária → 'Índice RAG re-sincronizado (auto-update) arquivos=18 chunks=862' + 'enfileirou download alvo=proof-modelo job=dl-0001 bytes=10485760' → 'download concluído e verificado' em 7 s com sha256 == pin do manifesto (e5b844cc…); dry-run seguinte = 'sem_atualizacao' nos dois alvos; restauração limpa, journal 0 erros. Bug achado no ar: HealthMonitor chama check(monitor) — assinatura sem argumento derrubava o check; fix + teste de regressão + /health up.",
   "commits": [
    "d0e5524 (Parte E)",
-   "b9fd489 (limitações consumidas)"
+   "b9fd489 (limitações consumidas)",
+   "d829e37 (registros iniciar)"
   ],
   "arquivos": [
    "core/auto_update.py",
@@ -2586,6 +2587,7 @@
    "docs/README_VERSAO.md",
    "docs/ANALISE_PROJECT_NOMAD.md"
   ],
-  "proximo": "Parte F (registro de ferramentas/skills estilo Supply Depot) — espera ordem do dono"
+  "proximo": "Parte F (registro de ferramentas/skills estilo Supply Depot) — espera ordem do dono",
+  "telegram_msg": 2721
  }
 }

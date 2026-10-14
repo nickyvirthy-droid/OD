@@ -296,7 +296,8 @@ da Parte D.
 - Commits `d0e5524` (Parte E) + `b9fd489` (limitações de 13/10 consumidas
   pelo fluxo do dono — commit separado para não sujar a história) — ==
   origin/master.
-- `txt.txt` reescrito (regra 14); Telegram (regra 15) a seguir.
+- `txt.txt` reescrito (regra 14); Telegram msg **2721** (regra 15, chat
+  OD_TELEGRAM_ADMINS).
 
 ### Estado
 
