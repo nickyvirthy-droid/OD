@@ -125,3 +125,102 @@ Terceiro "leia iniciar" do dia, ~3 h depois do deploy da Parte B. Estado
 dono o "pode fazer" da **Parte D** (downloads resumable) e as pendências dele
 inalteradas (Vaultwarden, etapa 4 do Registro Mestre, pauta 3/5, rotação de
 segredos, fotos guardadas, catalogar `3D/`).
+
+## §5 — Parte D (fila de downloads resumable) entregue — v1.27.0 no ar
+
+Dono autorizou "pode fazer a parte D" (ordem acordada A → C → B → **D** →
+E → F). Fila de downloads com retomada real, retry inteligente, dedup,
+cancelamento preservando o parcial e progresso ao vivo por SSE — o motor
+que a Parte E (auto-update) vai dirigir.
+
+### O que foi construído
+
+- **`core/downloads.py` (novo, 477 stmts)** — `DownloadQueue` com worker
+  próprio (thread daemon + `Condition`): stream por `urllib` com
+  `Range: bytes=N-` a partir do `.part` (servidor sem Range → 200
+  reinicia sozinho sem misturar; 416 → recomeça uma vez), sha256
+  incremental (prefixo do parcial entra no mesmo hasher), `os.replace`
+  atômico no fim. Estados: `na_fila`/`baixando`/`aguardando`/
+  `concluido`/`erro`/`cancelado`. Retry `min(2·2^(n−1), 60 s)`;
+  404/403/sha divergente = permanente (não queima tentativa). Persistência
+  atômica em `data/downloads_fila.json` (progresso ≤ a cada 2 s — lição
+  do O(n²) da Parte B); boot re-enfileira o que estava em voo; histórico
+  terminal recortado em 50. Destino SEMPRE dentro de `OD_DOWNLOADS_DIR`.
+- **SSE `GET /admin/downloads/events`** — `snapshot` na abertura, depois
+  `estado`/`progresso`/`removido`; `: ping` quando 15 s passam sem
+  eventos; fila por assinante (overflow descarta o mais antigo).
+  `APIServer.stop()` ganhou `encerrando` — sem o sinal o `server_close()`
+  do `ThreadingHTTPServer` esperaria o handler SSE fechar em TODO restart.
+- **6 rotas admin** (`POST/GET /admin/downloads`, `/events`, `/{id}`,
+  `/{id}/cancel`, `DELETE /{id}` com 409 `job_ativo`), 503
+  `downloads_indisponivel` sem fila, bloco `downloads` no
+  `/dashboard/stats`, seção **Downloads** no painel `/admin` (JS ao vivo
+  via `fetch`+`ReadableStream`; o `node --check` da suíte pegou um `\n`
+  não-escapado no literal Python).
+- **App: 7ª aba "Downloads"** — `OdApi` + `streamDownloads()` (SSE, timeout
+  só na abertura), tela com fila/selo/barra/tentativas e etiqueta
+  `📡 ao vivo (SSE)`; stream morto → polling de 5 s + reassina em 15 s
+  (mesmo contrato do chat). `_initialIndex` do modo avançado foi para 6.
+- **Capability `download-queue`** no manifesto.
+
+### Validação (antes do commit)
+
+- Suíte completa **2712 passed / 16 skipped** (+46; `tests/test_downloads.py`
+  novo: retomada com Range medindo o header pedido, 200 que reinicia,
+  416, retry até concluir, retry esgotado, cancel no meio preservando o
+  parcial medido, `stop()` re-enfileirando, boot restaurando `baixando`,
+  SSE por socket cru contra o servidor de teste). Gate `--cov-fail-under=90`
+  **90,28%**; `core/downloads.py` a **95%**.
+- `flutter analyze` **0 issues** · `flutter test` **174 passed / 2 skipped**
+  (+17: `downloads_api_test.dart` REST+SSE com `MockClient.streaming`,
+  `downloads_screen_test.dart` com SSE aberto de propósito — stream que
+  fecha liga o poller de 5 s e o `pumpAndSettle` nunca assenta). Bug real
+  achado pelo teste: `TextEditingController` disposeado no `pop` do
+  diálogo, com a rota ainda animando a saída → virou campo do Estado.
+  Bug real achado também: `_initialIndex = 5` do modo avançado (Config
+  era a 6ª aba; agora é a 7ª).
+- Guardas `ROUTES` 64 → 70.
+
+### Bump + deploy
+
+- **1.27.0 / versionCode 2057** (MINOR, capacidade nova) em todas as
+  fontes vivas: `.env`, fallback de capabilities, `pubspec.yaml`,
+  `_APP_VERSION_CODE`, `site/index.html` ×4, `CHANGELOG [1.27.0]`,
+  `README_VERSAO §1.27.0`, `ANALISE_PROJECT_NOMAD.md` (Parte D ✅).
+- APKs pelo build canônico (`./app/build_apk.sh`, `JAVA_HOME=/home/alex/jdk`):
+  universal 55.508.376 B sha `f9c6ad8e…` · arm64 20.043.570 B sha
+  `3730814f…` (APKs 2056 anteriores sobrescritos em site/).
+- Commits `d455635` (feature) e `3e6073a` (prova de fogo) — HEAD ==
+  `origin/master`; árvore limpa.
+- Deploy: `systemctl --user restart od-core` → **PID 1531296** desde
+  18:10:49 (NRestarts=0), journal **0 erros**, "Fila de downloads no ar"
+  no boot.
+
+### Prova viva na fila de produção (14/10, `proof.ovh.net`, 100 MB c/ Range)
+
+| Passo | Resultado |
+|---|---|
+| Enfileirar pela API pública | `POST /admin/downloads` → `dl-0001` (201), `na_fila` → `baixando` a ~2 MB/s |
+| Progresso ao vivo | SSE: `snapshot` + **42 eventos `progresso`**; fila ociosa → **1 `: ping`** aos 15 s |
+| Integridade | `sha256_real` do job **== `sha256sum`** do disco (`20492a4d…`) |
+| Dedup | POST idêntico durante a transferência → **HTTP 200 `duplicado: true`**, MESMO job |
+| Cancelamento | `dl-0002` cancelado aos 28,5 MB → `.part` preservado com **o mesmo tamanho do contador** (28 573 696 B), arquivo final intocado |
+| Retomada | `dl-0003`: 33,5 MB em 4 s (impossível do zero naquela taxa) e terminou com o **MESMO sha256** do download integral — cauda de 71 MB byte a byte |
+| Journal | `Download retomado (Range) | id=dl-0005 | de_bytes=7077888 | total=104857600` (linha nova, provada ao vivo) |
+| Higiene | `.part` some no sucesso; 5 registros de prova apagados (DELETE 200); `data/downloads` limpo; fila zerada |
+
+Achados da prova e corrigidos no commit `3e6073a`: (1) não existia linha
+de log para a retomada — agora existe e foi vista ao vivo; (2) docstring
+e docs explicitaram que o `: ping` dispara quando 15 s passam SEM eventos
+(enquanto há progresso o próprio fluxo mantém o canal vivo).
+
+### Canais
+
+- `txt.txt` reescrito (regra 14).
+- Telegram msg 2708 (regra 15, chat OD_TELEGRAM_ADMINS).
+
+### Estado
+
+**CONCLUÍDO E NO AR.** Próxima na ordem do dono: **Parte E** (auto-update
+de modelos/conteúdo: janela, cool-off, cap de bytes, auto-disable,
+dry-run) usando esta fila como motor. Pendências do dono inalteradas.

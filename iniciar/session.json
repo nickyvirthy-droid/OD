@@ -2535,5 +2535,31 @@
   "provas_pos_restart": "od-core PID 390802 NRestarts=0 journal 0 erros · /app/version 1.24.2/2054 sha==site · /health 9/9 · /capabilities 1.24.2 (86 actions) · /supervision 0",
   "comunicacao": "Telegram message_id 2651 (regra 15) + txt.txt reescrito (regra 14)",
   "proximo": "parte C = referência médica (explicar antes de implementar, igual a A)"
+ },
+ "parte_d_downloads_fila_v1270_2026_10_14": {
+  "data": "2026-10-14",
+  "pedido_dono": "'pode fazer a parte D' (ordem acordada A → C → B → D → E → F)",
+  "o_que": "Fila de downloads resumable: core/downloads.py (DownloadQueue com worker próprio — Range a partir do .part, sha256 incremental, os.replace atômico), retry min(2·2^(n-1),60s) com erro permanente fora do caminho, dedup por URL+destino, cancel preservando o parcial, boot re-enfileira o que estava em voo, SSE GET /admin/downloads/events (snapshot + estado/progresso/removido, : ping aos 15 s sem eventos, fila por assinante), 6 rotas admin, bloco downloads no /dashboard/stats, seção Downloads no painel /admin (JS ao vivo fetch+ReadableStream), 7ª aba do app (streamDownloads + fallback polling 5 s + reassina 15 s), capability download-queue.",
+  "validacao": "Suíte completa 2712 passed / 16 skipped (+46, tests/test_downloads.py) · gate cov 90,28% (core/downloads.py 95%) · flutter analyze 0 issues · flutter test 174 passed / 2 skipped (+17) · guardas ROUTES 64→70. Bugs achados por teste: TextEditingController disposeado no pop do diálogo (rota ainda animando) → campo do Estado; _initialIndex=5 do modo avançado (Config agora é a 7ª aba) → 6.",
+  "bump": "MINOR 1.27.0 + versionCode 2057 em todas as fontes (.env, fallback capabilities, pubspec, _APP_VERSION_CODE, site/index.html x4, CHANGELOG [1.27.0], README_VERSAO §1.27.0, ANALISE Parte D ✅). APKs pelo build_apk.sh (JAVA_HOME=/home/alex/jdk): universal 55.508.376 B sha f9c6ad8e… · arm64 20.043.570 B sha 3730814f….",
+  "deploy": "IMPLANTADO 18:10:49 — PID 1531296, NRestarts=0, journal 0 erros, 'Fila de downloads no ar' no boot, /app/version 1.27.0/2057 sha==site, capability download-queue active.",
+  "prova_viva_fila_producao": [
+   "enfileirado pela API pública: proof.ovh.net 100 MB (com Range) → dl-0001 concluiu a ~2 MB/s",
+   "SSE: snapshot + 42 eventos progresso; fila ociosa → 1 : ping aos 15 s",
+   "sha256_real do job == sha256sum do disco (20492a4d…)",
+   "dedup: POST idêntico durante a transferência → HTTP 200 duplicado: true com o MESMO job",
+   "cancelamento em 28,5 MB: .part preservado com o mesmo tamanho do contador (28 573 696 B), arquivo final intocado",
+   "retomada: dl-0003 → 33,5 MB em 4 s (impossível do zero) e MESMO sha256 do download integral (cauda de 71 MB byte a byte); journal 'Download retomado (Range) | de_bytes=7077888 | total=104857600'",
+   "higiene: .part some no sucesso; 5 registros de prova apagados (DELETE 200); data/downloads limpo; fila zerada"
+  ],
+  "achados_corrigidos": "(1) sem linha de log para a retomada → 'Download retomado (Range)' no journal, vista ao vivo; (2) docs explicitaram que o : ping dispara quando 15 s passam SEM eventos.",
+  "commits": [
+   "d455635 feat(downloads): fila de downloads resumable (Parte D do NOMAD) — v1.27.0",
+   "3e6073a fix(downloads): prova viva no serviço — log da retomada (Range), ping explicitado, registro da prova nos docs"
+  ],
+  "comunicacao": "txt.txt reescrito (regra 14) + Telegram msg 2708 (regra 15) + transcricao iniciar/2026-10-14_conversa_omegadrakon.md §5",
+  "proximo": "Parte E (auto-update de modelos/conteúdo: janela, cool-off, cap de bytes, auto-disable, dry-run) usando ESTA fila como motor — aguarda ordem do dono",
+  "estado": "CONCLUÍDO E NO AR — v1.27.0+2057 servindo (PID 1531296), HEAD == origin/master, árvore limpa",
+  "ts": "2026-10-14T18:20:00-03:00"
  }
 }
