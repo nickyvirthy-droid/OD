@@ -67,6 +67,7 @@ Arquiteto: Alex Projeti
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import pathlib
 import sys
@@ -318,6 +319,91 @@ def build_download_queue() -> Optional[Any]:
         return None
 
 
+def build_auto_update(
+    orchestrator: Any = None, fila: Any = None, health: Any = None,
+) -> Optional[Any]:
+    """Auto-update de modelos/conteúdo (Parte E do NOMAD, 2026-10-14).
+
+    Ciclo supervisionado com as camadas do Nômade: janela noturna,
+    cool-off ancorado em "primeiro visto", só minor/patch, cap de bytes,
+    auto-disable após 3 falhas duras e pre-flight de disco/sha/URL. O
+    avaliar() é puro (o dry-run do painel usa o MESMO caminho); a
+    execução é contida: download na fila da Parte D (retomada/sha de
+    graça), re-sync do índice RAG idempotente, arquivo final staged em
+    data/downloads (troca de modelo em uso é decisão do dono).
+
+    Falha ao construir = None (o core segue sem auto-update — nunca
+    derruba o processo por um extra). OD_UPDATE_ENABLED=0 desliga.
+    """
+    try:
+        from core.auto_update import AutoUpdateService, ConfigUpdate
+
+        cfg = ConfigUpdate.de_env(env)
+        if not cfg.habilitado:
+            return None
+
+        rag = getattr(orchestrator, "rag", None) if orchestrator else None
+        raiz = (fila.raiz if fila is not None
+                else DATA_DIR / "downloads")
+        svc = AutoUpdateService(
+            cfg=cfg,
+            estado_path=DATA_DIR / "auto_update_estado.json",
+            manifesto_path=DATA_DIR / "auto_update_alvos.json",
+            raiz_downloads=raiz,
+            repo_root=REPO_ROOT,
+            rag_sync_fn=(rag.sync if rag is not None else None),
+            fila=fila,
+        )
+        svc.start()   # consumidor dos eventos da fila (sucesso/falha)
+        # Manifesto editável do dono: nasce com o exemplo (só se não existe
+        # — uma edição sua nunca é sobrescrita) para o fluxo ser descobrível.
+        try:
+            if not svc.manifesto_path.exists():
+                from core.auto_update import MANIFESTO_EXEMPLO
+                svc.manifesto_path.parent.mkdir(parents=True, exist_ok=True)
+                svc.manifesto_path.write_text(
+                    json.dumps(MANIFESTO_EXEMPLO, ensure_ascii=False,
+                               indent=2),
+                    encoding="utf-8",
+                )
+                log.info("Manifesto de auto-update criado",
+                         arquivo=str(svc.manifesto_path))
+        except Exception as exc:
+            log.warn("Manifesto de auto-update não criado", error=str(exc))
+        if health is not None:
+            health.register("auto_update", svc.health_check, critical=False)
+        log.info("Auto-update no ar (Parte E NOMAD)",
+                 janela=cfg.janela, cooloff_h=cfg.cooloff_s / 3600.0,
+                 cap_mb=cfg.cap_bytes // 1024 ** 2,
+                 max_falhas=cfg.max_falhas,
+                 intervalo_min=cfg.intervalo_s / 60.0,
+                 rag=("ligado" if rag is not None else "ausente"))
+        return svc
+    except Exception as exc:
+        log.warn("Auto-update desabilitado", error=str(exc))
+        return None
+
+
+async def _run_auto_update_forever(svc: Any) -> None:
+    """Loop do auto-update: um tick por intervalo, nunca quente.
+
+    Cada tick é um `tick()` completo (avalia + executa + persiste) — e
+    roda em thread (to_thread) porque o re-sync do RAG pode embutir
+    chunks novos: I/O pesado não pode prender o event loop dos outros
+    loops (Telegram/WebSocket dividem o mesmo loop). O janela/cool-off
+    fazem o resto: fora da hora é avaliação barata; dentro, o que passou
+    vai para a fila. Exceção é contida no _supervise.
+    """
+    while True:
+        try:
+            await asyncio.to_thread(svc.tick)
+        except asyncio.CancelledError:  # pragma: no cover — shutdown
+            raise
+        except Exception as exc:  # um ciclo ruim não mata o loop
+            log.error("Ciclo de auto-update falhou", error=str(exc))
+        await asyncio.sleep(svc.cfg.intervalo_s)
+
+
 def build_chat_notify() -> Optional[Any]:
     """Aviso de sala de bate-papo das peças → Telegram do dono (1.23.0).
 
@@ -416,7 +502,7 @@ def build_api_server(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
     user_store: Any = None, registry: Any = None, chat_notify: Any = None,
-    vector: Any = None, downloads: Any = None,
+    vector: Any = None, downloads: Any = None, auto_update: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -456,6 +542,7 @@ def build_api_server(
             registry=registry,  # Registro Mestre de peças (item 2 pauta)
             chat_notify=chat_notify,  # sala das peças → Telegram do dono
             downloads=downloads,  # Parte D: fila de downloads resumable
+            auto_update=auto_update,  # Parte E: auto-update de conteúdo
             stt=voice_stt,  # v1.17.3: /transcribe real (whisper.cpp)
             tts=voice_tts,  # v1.17.3: /tts real (Piper)
             # Freio contra força bruta no login (LoginGuard)
@@ -1007,6 +1094,7 @@ def build_mqtt_bridge(event_bus: Any):
 async def _run_api_forever(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
+    downloads: Any = None, auto_update: Any = None,
 ) -> None:
     # Um único UserStore para REST e WebSocket: mesma sessão vale nos dois.
     user_store = build_user_store(database)
@@ -1015,7 +1103,8 @@ async def _run_api_forever(
     # Avisos da sala de bate-papo das peças ao dono no Telegram (1.23.0).
     chat_notify = build_chat_notify()
     # Fila de downloads resumable (Parte D do NOMAD) — worker próprio.
-    downloads = build_download_queue()
+    # No modo all ela vem de fora compartilhada com o auto-update (Parte E).
+    downloads = downloads if downloads is not None else build_download_queue()
     # Conecta o ActionRegistry ao Orchestrador TAMBÉM no caminho da API:
     # sem isto o fast path de intenções (Etapa 3.5) fica desligado no chat —
     # "qual o ip do servidor?" caía no LLM em vez da action real (v1.6.1).
@@ -1027,7 +1116,7 @@ async def _run_api_forever(
         orchestrator, metrics=metrics, health=health,
         action_registry=action_registry, push=push, database=database,
         user_store=user_store, registry=registry, chat_notify=chat_notify,
-        downloads=downloads,
+        downloads=downloads, auto_update=auto_update,
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
@@ -1406,6 +1495,12 @@ def main() -> int:
     register_external_health_checks(health, homeassistant=presence_monitor)
     # Push FCM: registro de dispositivos + alertas no celular (v1.3.0).
     push = build_push()
+    # Fila de downloads (Parte D) compartilhada: API REST + auto-update.
+    downloads = build_download_queue()
+    # Auto-update de modelos/conteúdo (Parte E do NOMAD).
+    auto_update = build_auto_update(
+        orchestrator, fila=downloads, health=health,
+    )
 
     async def _all() -> None:
         # Event Bus único da entrega (bridge MQTT ↔ núcleo)
@@ -1416,6 +1511,7 @@ def main() -> int:
             _supervise("api", lambda: _run_api_forever(
                 orchestrator, metrics, health,
                 action_registry=action_registry, push=push, database=database,
+                downloads=downloads, auto_update=auto_update,
             ), restart=False),
             _supervise("telegram", lambda: _run_telegram_forever(
                 orchestrator,
@@ -1424,6 +1520,11 @@ def main() -> int:
                 database=database,
             )),
         ]
+        if auto_update is not None:
+            tasks.append(_supervise(
+                "auto-update", lambda: _run_auto_update_forever(auto_update),
+            ))
+            log.info("Loop de auto-update habilitado (Parte E NOMAD)")
         if recovery is not None:
             tasks.append(
                 _supervise("recovery", lambda: _run_recovery_forever(recovery))

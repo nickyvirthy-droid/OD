@@ -14,6 +14,49 @@
 
 ---
 
+## [1.28.0] — AUTO-UPDATE DE MODELOS/CONTEÚDO (PARTE E DO NOMAD) 🜂 (2026-10-14)
+
+> **Bump MINOR (capacidade nova):** Parte E da ordem do dono
+> (A → C → B → D → **E** → F), aprovada com "pode fazer a parte E".
+> O servidor se atualiza sozinho, mas com as rédeas do Nômade: janela
+> noturna, cool-off ancorado em "primeiro visto", só minor/patch, cap de
+> bytes, auto-disable após 3 falhas duras e pre-flight — tudo num
+> `avaliar()` PURO que o dry-run do painel executa pelo MESMO caminho do
+> ciclo de produção. Nada de dependência nova — stdlib pura, como manda
+> a casa.
+
+| Peça | Entrega |
+|---|---|
+| **`core/auto_update.py` (novo)** | `avaliar()` puro (relógio/estado/disco/alvos injetáveis) com as 8 camadas em ordem, cada decisão com motivo registrado: ① auto-disable → ② inativa no manifesto → ③ sem mudança → ④ major (só minor/patch automático; versões-hash não têm major) → ⑤ janela → ⑥ cool-off → ⑦ backoff pós-falha → ⑧ cap de bytes + pre-flight (disco × 1,1, sha256 com 64 hex, URL http(s)). |
+| **Cool-off com física honesta** | Âncora em "primeiro visto" que RECOMEÇA quando a versão vista muda (versão nova sempre paga o cool-off inteiro — a release queimada nunca entra de supetão). Com o default (6 h de cool-off numa janela de 4 h) a aplicação cai na PRÓXIMA janela: soak real de até ~1 dia, que é o que o cool-off quer comprar; conteúdo local (índice RAG) zera o cool-off. |
+| **Executor contido** | `AutoUpdateService.tick()` avalia e executa: `rag_sync` idempotente (VectorStore tem RLock — roda em thread sem travar busca) e `baixar` enfileirado na fila da Parte D (retomada/sha256/dedup de graça). Sucesso/falha do download chegam pelo consumidor dos eventos da fila; só falha DURA conta para o auto-disable (`skip` não conta, padrão do Nômade). Estado atômico em `data/auto_update_estado.json`; religar é do dono (reset zera falhas). |
+| **Manifesto editável** | `data/auto_update_alvos.json` (lockfile declarativo, criado no boot com exemplo — edição sua nunca é sobrescrita): url + sha256 + versão de destino por alvo de arquivo; `pos_download: mover` faz `os.replace` atômico travado na árvore do repo (fora da raiz = falha permanente). Troca de modelo EM USO é decisão explícita do dono — aqui a peça chega pronta e conferida. |
+| **Alvo vivo de hoje** | `indice-rag`: hash do conteúdo de `docs/` + `knowledge/` como "versão" — editou um `.md`, o próximo ciclo na janela ressincroniza o índice SEM reboot (antes o RAG só refreshava no boot). |
+| **Rotas + painel + stats** | `GET /admin/auto-update` (config + alvos + estado + decisões), `POST .../dry-run` (avalia sem executar/gravar — o MESMO caminho do ciclo) e `POST .../reset` (religa alvo desligado), todas admin e 503 `auto_update_indisponivel` sem serviço. `/dashboard/stats` ganha o bloco `auto_update`. Painel `/admin` ganha a seção **Auto-update** com config vigente, tabela de alvos com status/falhas, botão 🧪 dry-run (mostra o que o próximo ciclo faria) e ⟳ religar. |
+| **Loop supervisionado** | `_run_auto_update_forever` no `_supervise` do launcher (uma queda não derruba o core), tick em `asyncio.to_thread` (o sync do RAG pode embutir chunks — I/O pesado não prende o loop do Telegram/WebSocket), health check `auto_update` não-crítico, `OD_UPDATE_ENABLED=0` desliga. Fila da Parte D agora é compartilhada entre a API e o auto-update (construída uma vez no modo all). |
+| **versionCode** | 2057 → 2058 (regra §5.3 — sem mudança de código no app, mas o par pubspec/OD_VERSION é guardado pela política). |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte do servidor (gate `--cov-fail-under=90`) | **2771 passed / 16 skipped · cobertura 90,41%** (+59 testes da Parte E; `core/auto_update.py` a **94%**) |
+| `flutter analyze` | **0 issues** |
+| `flutter test` | **174 passed / 2 skipped** |
+| Guardas | `ROUTES` 70 → 73 em `tests/test_api.py` (3 rotas novas todas admin) |
+| Teste de JS do painel | `node --check` do JS SERIDO verde (o `\n` do dry-run teve que sair do literal Python: `String.fromCharCode(10)`) |
+
+**Prova viva no serviço em produção (14/10, PID 1608225)** — três fases,
+sem fake:
+
+| Passo | Resultado |
+|---|---|
+| Boot (config padrão) | `Auto-update no ar \| janela=02:00-06:00 \| rag=ligado` + loop supervisionado habilitado; tick de boot `alvos=1 \| aplicar=0 \| resumo=indice-rag=aguardar` (janela viva às 19:27) |
+| Executor (janela larga temporária) | `Índice RAG re-sincronizado (auto-update) \| arquivos=18 \| chunks=862` + `enfileirou download \| alvo=proof-modelo \| job=dl-0001 \| bytes=10485760` → `download concluído e verificado` em **7 s**, staged com **sha256 == pin do manifesto** (`e5b844cc…`) |
+| Idempotência | `GET /admin/auto-update`: `indice-rag` instalada=`50ab0b74d8c8`, `proof-modelo`=`1.0.0`, 0 falhas; dry-run seguinte: ambos **`pular \| sem_atualizacao`** |
+| Bug achado e corrigido no ar | `HealthMonitor` chama `check(monitor)` — assinatura sem argumento derrubava o check (TypeError, /health degraded). Fix + teste de regressão + /health **up** revalidado |
+| Restauração | `.env`/manifesto de volta ao padrão, resíduos apagados (staged + estado + dl-0001), restart limpo: `indice-rag=aguardar`, journal 0 erros, NRestarts=0 |
+
+---
+
 ## [1.27.0] — FILA DE DOWNLOADS RESUMABLE (PARTE D DO NOMAD) 🜁 (2026-10-14)
 
 > **Bump MINOR (capacidade nova):** Parte D da ordem do dono

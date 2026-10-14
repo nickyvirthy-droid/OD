@@ -59,7 +59,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2057  # versionCode cru do APK publicado (v1.27.0+2057)
+_APP_VERSION_CODE = 2058  # versionCode cru do APK publicado (v1.28.0+2058)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -211,6 +211,10 @@ class APIConfig:
     # core.downloads.DownloadQueue — worker em thread própria. None =
     # fila desligada (as rotas /admin/downloads* respondem 503).
     downloads: Optional[Any] = None
+    # Auto-update de modelos/conteúdo (Parte E do NOMAD, 2026-10-14):
+    # core.auto_update.AutoUpdateService — janela/cool-off/cap/auto-disable.
+    # None = serviço fora (as rotas /admin/auto-update* respondem 503).
+    auto_update: Optional[Any] = None
     # Callable síncrono(texto) → avisa o dono no Telegram (sala das peças);
     # montado pelo launcher com o loop principal (build_chat_notify).
     chat_notify: Optional[Any] = None
@@ -308,6 +312,13 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/admin/downloads/{job_id}", "admin_downloads_detail", True),
     ("POST", "/admin/downloads/{job_id}/cancel", "admin_downloads_cancel", True),
     ("DELETE", "/admin/downloads/{job_id}", "admin_downloads_delete", True),
+
+    # Auto-update de modelos/conteúdo (Parte E do NOMAD, 2026-10-14) —
+    # estado por alvo, dry-run do pipeline (o MESMO caminho do ciclo) e
+    # religação manual de um alvo auto-desligado.
+    ("GET", "/admin/auto-update", "admin_auto_update_get", True),
+    ("POST", "/admin/auto-update/dry-run", "admin_auto_update_dry_run", True),
+    ("POST", "/admin/auto-update/reset", "admin_auto_update_reset", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -949,6 +960,41 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       cair, o painel volta a consultar sozinho. ✕ cancela (o parcial fica
       guardado), 🗑 apaga o registro (só de job já terminado — o arquivo em
       disco não é mexido).
+    </p>
+  </section>
+
+  <section>
+    <h2>Auto-update (modelos/conteúdo)</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Parte E do NOMAD: o servidor atualiza o que consome sozinho, mas só
+      dentro da <b>janela</b>, depois do <b>cool-off</b>, sem passar do
+      <b>cap de bytes</b> e nunca num <b>major</b> (é com você). Três
+      falhas duras e o alvo se <b>desliga sozinho</b> com o motivo gravado —
+      religar é seu, aqui embaixo. O dry-run é o MESMO caminho do ciclo,
+      só que sem executar.
+    </p>
+    <div class="row">
+      <span class="muted" id="au-config" style="font-size:0.8rem">carregando…</span>
+      <span style="flex:1"></span>
+      <button id="au-dry">🧪 Dry-run</button>
+      <button id="au-refresh">↻ Carregar</button>
+      <span class="muted msg" id="au-msg"></span>
+    </div>
+    <table style="margin-top:10px">
+      <thead><tr>
+        <th>Alvo</th><th>Categoria</th><th>Versão</th><th>Status</th>
+        <th>Falhas</th><th>Último ciclo</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="au-alvos"><tr><td colspan="7" class="muted">Carregando…</td></tr></tbody>
+    </table>
+    <pre id="au-decisoes" class="muted" style="font-size:0.72rem;margin-top:8px;display:none"></pre>
+    <p class="muted" style="font-size:0.75rem;margin-top:6px">
+      Alvos de arquivo entram pelo manifesto <code>data/auto_update_alvos.json</code>
+      (url + sha256 + versão de destino — edite e salve, o ciclo pega na
+      próxima janela). O índice RAG (<code>indice-rag</code>) se atualiza
+      sozinho quando <code>docs/</code> ou <code>knowledge/</code> mudam.
+      🧪 dry-run mostra o que o próximo ciclo FARIA; ⟳ religa um alvo
+      desligado (zera as falhas).
     </p>
   </section>
 </main>
@@ -1702,6 +1748,121 @@ function dlSse() {
     .catch(() => { dlSseAtiva = false; });
 }
 
+// --- Auto-update de modelos/conteúdo — Parte E do NOMAD (2026-10-14) --------
+// Estado do serviço: config (janela/cool-off/cap), alvos do manifesto +
+// índice RAG, e o estado por alvo (falhas/auto-disable). Dry-run mostra o
+// que o próximo ciclo FARIA — é o mesmo caminho do tick de produção.
+let auAlvos = [];
+let auEstado = {};
+
+function auSetMsg(t, cls) {
+  const el = document.getElementById("au-msg");
+  if (el) { el.textContent = t; el.className = "muted msg " + (cls || ""); }
+}
+
+function auQuando(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts * 1000);
+  return String(d.getHours()).padStart(2, "0") + ":" +
+         String(d.getMinutes()).padStart(2, "0");
+}
+
+function auRender() {
+  const cfg = auEstado.config || {};
+  document.getElementById("au-config").innerHTML =
+    "janela <b>" + esc(cfg.janela || "—") + "</b> · cool-off " +
+    esc(cfg.cooloff_h != null ? cfg.cooloff_h + "h" : "—") +
+    " · cap " + esc(cfg.cap_mb != null ? cfg.cap_mb + " MB" : "—") +
+    " · máx " + esc(cfg.max_falhas != null ? cfg.max_falhas + " falhas" : "—") +
+    " · ciclo " + esc(cfg.intervalo_min != null ? cfg.intervalo_min + " min" : "—");
+  const est = {};
+  (auEstado.estado || []).forEach(e => { est[e.id] = e; });
+  const corpo = auAlvos.map(a => {
+    const e = est[a.id] || {};
+    const versao = e.versao_instalada
+      ? esc(e.versao_instalada) + (a.versao_nova && a.versao_nova !== e.versao_instalada
+          ? " → <b>" + esc(a.versao_nova) + "</b>" : "")
+      : (a.versao_nova ? "<b>" + esc(a.versao_nova) + "</b>" : "—");
+    let pill, status, acoes = "";
+    if (e.desabilitado) {
+      pill = "err";
+      status = "Desligado: " + esc(e.motivo_desabilitado || "");
+      acoes += '<button class="au-reset" data-id="' + esc(a.id) + '">⟳</button>';
+    } else if (a.versao_nova && a.versao_nova !== (e.versao_instalada || "")) {
+      pill = "";
+      status = "Atualização pendente";
+    } else if (a.versao_nova) {
+      pill = "ok";
+      status = "Atualizado";
+    } else {
+      pill = "ok";
+      status = "Sem atualização";
+    }
+    const erro = e.ultimo_erro
+      ? '<div class="muted" style="font-size:0.72rem">' + esc(e.ultimo_erro) + "</div>" : "";
+    return "<tr><td><b>" + esc(a.nome || a.id) + "</b>" +
+      '<div class="muted" style="font-size:0.72rem"><code>' + esc(a.id) + "</code></div></td>" +
+      '<td class="muted">' + esc(a.categoria) + "</td>" +
+      "<td>" + versao + "</td>" +
+      '<td><span class="pill ' + pill + '">' + status + "</span>" + erro + "</td>" +
+      '<td class="muted">' + (e.falhas || 0) + "</td>" +
+      '<td class="muted">' + auQuando(e.ultima_tentativa) + "</td>" +
+      "<td>" + acoes + "</td></tr>";
+  }).join("");
+  document.getElementById("au-alvos").innerHTML = corpo ||
+    '<tr><td colspan="7" class="muted">Nenhum alvo declarado.</td></tr>';
+  document.querySelectorAll(".au-reset").forEach(b =>
+    b.addEventListener("click", () => auReset(b.dataset.id)));
+}
+
+async function auLoad() {
+  try {
+    const resp = await fetch("/admin/auto-update", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { auSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    auAlvos = data.alvos || [];
+    auEstado = data;
+    auRender();
+    if (data.ultimo_tick)
+      auSetMsg("último ciclo às " + auQuando(data.ultimo_tick), "");
+  } catch (e) { auSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function auDry() {
+  auSetMsg("avaliando…", "");
+  try {
+    const resp = await fetch("/admin/auto-update/dry-run", {
+      method: "POST", headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { auSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    const linhas = (data.decisoes || []).map(d =>
+      d.alvo.padEnd(14) + d.acao.padEnd(9) + d.motivo);
+    const pre = document.getElementById("au-decisoes");
+    const nl = String.fromCharCode(10);
+    pre.textContent = "próximo ciclo (" + (data.decisoes || []).length +
+      " alvo(s)):" + (linhas.length ? nl + linhas.join(nl) : " sem alvos");
+    pre.style.display = "block";
+    auAlvos = data.alvos || [];
+    auEstado = data;
+    auRender();
+    auSetMsg("dry-run: nada foi executado", "ok");
+  } catch (e) { auSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function auReset(id) {
+  try {
+    const resp = await fetch("/admin/auto-update/reset", {
+      method: "POST",
+      headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify({ alvo: id })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { auSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    auSetMsg("⟳ " + id + " religado (falhas zeradas)", "ok");
+    auLoad();
+  } catch (e) { auSetMsg("Falha: " + e.message, "err"); }
+}
+
 // Páginas internas do Google: o link precisa do token da sessão na query
 // porque o navegador navega sem header — o handler valida e exige dono.
 function linkGoogle() {
@@ -1712,7 +1873,7 @@ function linkGoogle() {
   });
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); dlLoad(); linkGoogle(); };
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); dlLoad(); auLoad(); linkGoogle(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
@@ -1720,6 +1881,8 @@ document.getElementById("reg-nome").addEventListener("keydown", e => { if (e.key
 document.getElementById("dl-add").onclick = dlAdd;
 document.getElementById("dl-refresh").onclick = dlLoad;
 document.getElementById("dl-url").addEventListener("keydown", e => { if (e.key === "Enter") dlAdd(); });
+document.getElementById("au-dry").onclick = auDry;
+document.getElementById("au-refresh").onclick = auLoad;
 whoAmI().then(u => { if (u) { carregarTudo(); dlSse(); } });
 // a sessão roda fora do od-core: o painel acompanha de 5 em 5 s
 setInterval(async () => {
@@ -3682,6 +3845,19 @@ class APIHandler(BaseHTTPRequestHandler):
         downloads = self.api.config.downloads
         if downloads is not None:
             payload["downloads"] = downloads.snapshot()
+        # Auto-update (Parte E): o dono vê do Status sem abrir o painel —
+        # janela vigente, quantos alvos estão desligados (auto-disable)
+        # e quanto tempo faz do último ciclo.
+        auto_update = self.api.config.auto_update
+        if auto_update is not None:
+            estado = auto_update.estado_resumo()
+            payload["auto_update"] = {
+                "config": estado["config"],
+                "alvos": len(estado["alvos"]),
+                "desabilitados": len(estado["desabilitados"]),
+                "pendentes": len(estado["pendentes"]),
+                "ultimo_tick": estado["ultimo_tick"],
+            }
         self._json(200, payload)
 
     def llms(self) -> None:
@@ -4622,6 +4798,57 @@ class APIHandler(BaseHTTPRequestHandler):
             raise APIError(409 if codigo == "job_ativo" else 404,
                            codigo) from exc
         self._json(200, {"ok": True, "removido": job_id})
+
+    # ------------------------------------------------------------------#
+    # Auto-update de modelos/conteúdo (Parte E do NOMAD, 2026-10-14)     #
+    # ------------------------------------------------------------------#
+    def _auto_update_or_503(self) -> Any:
+        svc = self.api.config.auto_update
+        if svc is None:
+            raise APIError(503, "auto_update_indisponivel")
+        return svc
+
+    def admin_auto_update_get(self) -> None:
+        """GET /admin/auto-update — config + alvos + estado + decisões.
+
+        O resumo é o MESMO formato do health_check (painel e testes
+        leem a mesma fonte); `desabilitados` é o que o dono religa pelo
+        POST /admin/auto-update/reset.
+        """
+        self._require_admin()
+        svc = self._auto_update_or_503()
+        self._json(200, {"ok": True, **svc.estado_resumo()})
+
+    def admin_auto_update_dry_run(self) -> None:
+        """POST /admin/auto-update/dry-run — avalia sem executar (CI/painel).
+
+        O caminho é o MESMO do tick de produção (avaliar() puro), só que
+        sobre cópia do estado: nada é gravado, nenhum download é
+        enfileirado, nenhum índice é re-sincronizado. Devolve a lista de
+        decisões (aplicar/aguardar/pular + motivo) e o resumo do estado.
+        """
+        self._require_admin()
+        svc = self._auto_update_or_503()
+        decisoes = svc.tick(dry_run=True)
+        self._json(200, {"ok": True, "dry_run": True,
+                         "decisoes": [d.para_dict() for d in decisoes],
+                         **svc.estado_resumo()})
+
+    def admin_auto_update_reset(self) -> None:
+        """POST /admin/auto-update/reset — religa um alvo auto-desligado.
+
+        Body: {"alvo": "indice-rag", ...}. Auto-disable é barato (3 falhas
+        duras), religar é do DONO — aqui, e pelo painel.
+        """
+        self._require_admin()
+        svc = self._auto_update_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict) or not str(data.get("alvo") or ""):
+            raise APIError(400, "alvo_obrigatorio")
+        alvo = str(data["alvo"])
+        if not svc.resetar_alvo(alvo):
+            raise APIError(404, "alvo_inexistente")
+        self._json(200, {"ok": True, "religado": alvo})
 
     def admin_cache_prune(self) -> None:
         """POST /admin/cache/prune — saneia o cache LLM (admin/dono).

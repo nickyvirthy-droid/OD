@@ -141,8 +141,9 @@ class TestAPIRoutes:
         sessão de desenvolvimento on-demand + caixa de autorização) +
         deleção de mensagem única e saneamento do cache (2026-09-26) +
         /app/version (v1.7.0, auto-atualização do app) + fila de
-        downloads resumable (Parte D do NOMAD, 2026-10-14)."""
-        assert len(ROUTES) == 70
+        downloads resumable (Parte D do NOMAD, 2026-10-14) + auto-update
+        de modelos/conteúdo (Parte E do NOMAD, 2026-10-14)."""
+        assert len(ROUTES) == 73
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -172,6 +173,10 @@ class TestAPIRoutes:
             ("GET", "/admin/downloads/{job_id}"),
             ("POST", "/admin/downloads/{job_id}/cancel"),
             ("DELETE", "/admin/downloads/{job_id}"),
+            # Auto-update de modelos/conteúdo (Parte E do NOMAD)
+            ("GET", "/admin/auto-update"),
+            ("POST", "/admin/auto-update/dry-run"),
+            ("POST", "/admin/auto-update/reset"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("POST", "/account/password"), ("POST", "/account/api-key"),
@@ -221,6 +226,10 @@ class TestAPIRoutes:
             ("GET", "/admin/downloads/{job_id}"),
             ("POST", "/admin/downloads/{job_id}/cancel"),
             ("DELETE", "/admin/downloads/{job_id}"),
+            # Auto-update de modelos/conteúdo (Parte E do NOMAD)
+            ("GET", "/admin/auto-update"),
+            ("POST", "/admin/auto-update/dry-run"),
+            ("POST", "/admin/auto-update/reset"),
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),

@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.27.0"
+    or "1.28.0"
 )
 
 # Status válidos.
@@ -550,6 +550,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "v1.27.x",
         "status": ACTIVE,
         "path": "core/downloads.py",
+    },
+    {
+        "id": "content-auto-update",
+        "name": "Auto-update de modelos/conteúdo (Parte E do NOMAD)",
+        "category": "runtime",
+        "description": "Ciclo supervisionado com as camadas do Nômade: janela noturna (OD_UPDATE_JANELA), cool-off ancorado em 'primeiro visto', só minor/patch, cap de bytes por ciclo, auto-disable após 3 falhas duras (skip não conta) e pre-flight de disco/sha/URL. O avaliar() é puro — dry-run no painel (POST /admin/auto-update/dry-run) usa o MESMO caminho do ciclo. Aplicado ao índice RAG (re-sync quando docs/ ou knowledge/ mudam) e ao manifesto editável data/auto_update_alvos.json (modelos/vozes: url + sha256 + versão, download pela fila da Parte D).",
+        "source": "Project NOMAD (Apache-2.0)",
+        "phase": "v1.28.x",
+        "status": ACTIVE,
+        "path": "core/auto_update.py",
     },
 ]
 

@@ -150,6 +150,19 @@ aba do app — que cai para polling de 5 s e reassina quando o stream morre
 Janela, cool-off, cap de bytes, auto-disable, dry-run testável —
 aplicado ao que o assistente baixa (modelos de voz/LLM, índice RAG).
 **Esforço médio-alto** (mas o nosso `runtime/launcher` já tem o esqueleto).
+✅ **ENTREGUE em 1.28.0** (2026-10-14): `core/auto_update.py` — o
+`avaliar()` puro do §2.1.1 em 8 camadas (auto-disable → inativa → sem
+mudança → major → janela → cool-off → backoff → cap+preflight), cada
+decisão com motivo; cool-off ancorado em "primeiro visto" que recomeça
+quando a versão vista muda; severidade `skip` vs `failure` (só falha
+dura conta para o auto-disable às 3). O executor enfileira na fila da
+Parte D (Parte D virou o motor) e ressincroniza o índice RAG quando
+`docs/`+`knowledge/` mudam; downloads ficam staged e conferidos (sha256)
+— troca de modelo em uso é decisão do dono. Dry-run = o MESMO caminho
+do ciclo sobre cópia do estado (rota + botão do painel). Manifesto
+editável `data/auto_update_alvos.json` para pinar url+sha+versão de
+arquivos. Suíte +59 testes (tabela de ramificações do pipeline + executor
+com fila/relógio falsos + integração REAL com a fila da Parte D).
 
 ### Parte F — Registro de ferramentas/skills estilo Supply Depot
 Pre-flight (conflito, versão, tamanho), rollback, preservar customização
