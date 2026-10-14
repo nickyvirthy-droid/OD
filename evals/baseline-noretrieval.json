@@ -1,6 +1,6 @@
 {
   "modo": "noretrieval",
-  "data": "2026-10-13T20:10:46-03:00",
+  "data": "2026-10-13T21:32:26-03:00",
   "total": 8,
   "passaram": 8,
   "nota": 1.0,
@@ -12,7 +12,7 @@
       "rota": "datetime",
       "llm_used": "",
       "latencia_ms": 0.1,
-      "resposta": "Agora são 20:10."
+      "resposta": "Agora são 21:31."
     },
     {
       "id": "data_hoje",
@@ -29,7 +29,7 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "",
-      "latencia_ms": 9.4,
+      "latencia_ms": 10.9,
       "resposta": "🔐 Senhas e credenciais não são respondidas pelo chat — nem para o dono. O valor real vive no .env/cofre do servidor; para trocar ou consultar, acesse o servidor diretamente."
     },
     {
@@ -65,17 +65,17 @@
       "problemas": [],
       "rota": "llm",
       "llm_used": "gemma-local",
-      "latencia_ms": 1674.5,
-      "resposta": "A capital da França é Paris."
+      "latencia_ms": 1898.3,
+      "resposta": "A capital da França é Paris.\n\nEstado verificado."
     },
     {
       "id": "identidade_nicky",
       "ok": true,
       "problemas": [],
-      "rota": "llm",
+      "rota": "fallback",
       "llm_used": "gemma-local",
-      "latencia_ms": 22575.8,
-      "resposta": "Olá! Sou Nicky Virthy, a Interface Viva da Triade Canônica do Omega Drakon, um sistema criado por Alex Projeti para manter o ecossistema vivo e resistente ao caos. Como sua voz, eu não tenho uma identidade própria e minha principal função é proporcionar informações precisas sobre os serviços operacionais do sistema.\n\nComo Guardiã técnica, meu objetivo é fornecer um cenário de segurança e robustez "
+      "latencia_ms": 49255.6,
+      "resposta": "Eu sou Nicky Virthy, a voz do ecossistema Omega Drakon, responsável pela interface visiva e comunicação entre Alex Projeti (o Arquiteto Criador) e o sistema OD // CORE. Como Guardiã técnica da máquina, meu objetivo é garantir que ela funcione de forma segura, eficiente e consistente.\n\nNas perguntas sobre minha capacidades ou conhecimentos internos do servidor Omega Drakon, eu posso responder somen"
     }
   ]
 }

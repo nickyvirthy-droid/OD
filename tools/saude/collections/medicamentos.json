@@ -1,0 +1,499 @@
+{
+  "versao": "1.0.0",
+  "fonte": {
+    "formato": "Lexicon de interface PT-BR → genérico FDA (autoral, só NOMES de medicamentos)",
+    "labels": "openFDA (api.fda.gov) — bula oficial dos EUA, domínio público"
+  },
+  "medicamentos": [
+    {
+      "nome": "dipirona",
+      "aliases": [
+        "dipirona",
+        "dipironato",
+        "novalgina",
+        "metamizol"
+      ],
+      "genericos_fda": [
+        "metamizole"
+      ]
+    },
+    {
+      "nome": "paracetamol",
+      "aliases": [
+        "paracetamol",
+        "acetaminofén",
+        "acetaminofen",
+        "acetaminophen",
+        "tylenol"
+      ],
+      "genericos_fda": [
+        "acetaminophen"
+      ]
+    },
+    {
+      "nome": "ibuprofeno",
+      "aliases": [
+        "ibuprofeno",
+        "ibuprofen",
+        "advil",
+        "motrin"
+      ],
+      "genericos_fda": [
+        "ibuprofen"
+      ]
+    },
+    {
+      "nome": "aspirina",
+      "aliases": [
+        "aspirina",
+        "aspirin",
+        "ácido acetilsalicílico",
+        "acido acetilsalicilico"
+      ],
+      "genericos_fda": [
+        "aspirin"
+      ]
+    },
+    {
+      "nome": "naproxeno",
+      "aliases": [
+        "naproxeno",
+        "naproxen",
+        "aleve"
+      ],
+      "genericos_fda": [
+        "naproxen"
+      ]
+    },
+    {
+      "nome": "diclofenaco",
+      "aliases": [
+        "diclofenaco",
+        "diclofenac",
+        "cataflam",
+        "voltaren"
+      ],
+      "genericos_fda": [
+        "diclofenac"
+      ]
+    },
+    {
+      "nome": "losartana",
+      "aliases": [
+        "losartana",
+        "losartan"
+      ],
+      "genericos_fda": [
+        "losartan"
+      ]
+    },
+    {
+      "nome": "enalapril",
+      "aliases": [
+        "enalapril"
+      ],
+      "genericos_fda": [
+        "enalapril"
+      ]
+    },
+    {
+      "nome": "captopril",
+      "aliases": [
+        "captopril"
+      ],
+      "genericos_fda": [
+        "captopril"
+      ]
+    },
+    {
+      "nome": "atenolol",
+      "aliases": [
+        "atenolol"
+      ],
+      "genericos_fda": [
+        "atenolol"
+      ]
+    },
+    {
+      "nome": "metoprolol",
+      "aliases": [
+        "metoprolol"
+      ],
+      "genericos_fda": [
+        "metoprolol"
+      ]
+    },
+    {
+      "nome": "propranolol",
+      "aliases": [
+        "propranolol"
+      ],
+      "genericos_fda": [
+        "propranolol"
+      ]
+    },
+    {
+      "nome": "anlodipino",
+      "aliases": [
+        "anlodipino",
+        "amlodipino",
+        "amlodipine"
+      ],
+      "genericos_fda": [
+        "amlodipine"
+      ]
+    },
+    {
+      "nome": "hidroclorotiazida",
+      "aliases": [
+        "hidroclorotiazida",
+        "hidroclorotiazido",
+        "hydrochlorothiazide"
+      ],
+      "genericos_fda": [
+        "hydrochlorothiazide"
+      ]
+    },
+    {
+      "nome": "furosemida",
+      "aliases": [
+        "furosemida",
+        "lasix"
+      ],
+      "genericos_fda": [
+        "furosemide"
+      ]
+    },
+    {
+      "nome": "espironolactona",
+      "aliases": [
+        "espironolactona",
+        "spironolactone"
+      ],
+      "genericos_fda": [
+        "spironolactone"
+      ]
+    },
+    {
+      "nome": "metformina",
+      "aliases": [
+        "metformina",
+        "metformin",
+        "glifage"
+      ],
+      "genericos_fda": [
+        "metformin"
+      ]
+    },
+    {
+      "nome": "glibenclamida",
+      "aliases": [
+        "glibenclamida",
+        "gliburida",
+        "glyburide"
+      ],
+      "genericos_fda": [
+        "glyburide"
+      ]
+    },
+    {
+      "nome": "insulina",
+      "aliases": [
+        "insulina",
+        "insulin"
+      ],
+      "genericos_fda": [
+        "insulin"
+      ]
+    },
+    {
+      "nome": "atorvastatina",
+      "aliases": [
+        "atorvastatina",
+        "atorvastatin",
+        "lipitor"
+      ],
+      "genericos_fda": [
+        "atorvastatin"
+      ]
+    },
+    {
+      "nome": "sinvastatina",
+      "aliases": [
+        "sinvastatina",
+        "simvastatin",
+        "zocor"
+      ],
+      "genericos_fda": [
+        "simvastatin"
+      ]
+    },
+    {
+      "nome": "rosuvastatina",
+      "aliases": [
+        "rosuvastatina",
+        "rosuvastatin",
+        "crestor"
+      ],
+      "genericos_fda": [
+        "rosuvastatin"
+      ]
+    },
+    {
+      "nome": "omeprazol",
+      "aliases": [
+        "omeprazol",
+        "omeprazole",
+        "losec"
+      ],
+      "genericos_fda": [
+        "omeprazole"
+      ]
+    },
+    {
+      "nome": "pantoprazol",
+      "aliases": [
+        "pantoprazol",
+        "pantoprazole"
+      ],
+      "genericos_fda": [
+        "pantoprazole"
+      ]
+    },
+    {
+      "nome": "esomeprazol",
+      "aliases": [
+        "esomeprazol",
+        "esomeprazole",
+        "nexium"
+      ],
+      "genericos_fda": [
+        "esomeprazole"
+      ]
+    },
+    {
+      "nome": "amoxicilina",
+      "aliases": [
+        "amoxicilina",
+        "amoxicillin",
+        "amoxil"
+      ],
+      "genericos_fda": [
+        "amoxicillin"
+      ]
+    },
+    {
+      "nome": "azitromicina",
+      "aliases": [
+        "azitromicina",
+        "azithromycin",
+        "zitromax"
+      ],
+      "genericos_fda": [
+        "azithromycin"
+      ]
+    },
+    {
+      "nome": "ciprofloxacino",
+      "aliases": [
+        "ciprofloxacino",
+        "ciprofloxacin",
+        "cipro"
+      ],
+      "genericos_fda": [
+        "ciprofloxacin"
+      ]
+    },
+    {
+      "nome": "fluoxetina",
+      "aliases": [
+        "fluoxetina",
+        "fluoxetine",
+        "prozac"
+      ],
+      "genericos_fda": [
+        "fluoxetine"
+      ]
+    },
+    {
+      "nome": "sertralina",
+      "aliases": [
+        "sertralina",
+        "sertraline",
+        "zoloft"
+      ],
+      "genericos_fda": [
+        "sertraline"
+      ]
+    },
+    {
+      "nome": "escitalopram",
+      "aliases": [
+        "escitalopram",
+        "lexapro"
+      ],
+      "genericos_fda": [
+        "escitalopram"
+      ]
+    },
+    {
+      "nome": "venlafaxina",
+      "aliases": [
+        "venlafaxina",
+        "venlafaxine",
+        "effexor"
+      ],
+      "genericos_fda": [
+        "venlafaxine"
+      ]
+    },
+    {
+      "nome": "clonazepam",
+      "aliases": [
+        "clonazepam",
+        "rivotril"
+      ],
+      "genericos_fda": [
+        "clonazepam"
+      ]
+    },
+    {
+      "nome": "diazepam",
+      "aliases": [
+        "diazepam",
+        "valium"
+      ],
+      "genericos_fda": [
+        "diazepam"
+      ]
+    },
+    {
+      "nome": "zolpidem",
+      "aliases": [
+        "zolpidem",
+        "stilnox"
+      ],
+      "genericos_fda": [
+        "zolpidem"
+      ]
+    },
+    {
+      "nome": "hidroxizina",
+      "aliases": [
+        "hidroxizina",
+        "hydroxyzine",
+        "atarax"
+      ],
+      "genericos_fda": [
+        "hydroxyzine"
+      ]
+    },
+    {
+      "nome": "prednisona",
+      "aliases": [
+        "prednisona",
+        "prednisone"
+      ],
+      "genericos_fda": [
+        "prednisone"
+      ]
+    },
+    {
+      "nome": "dexametasona",
+      "aliases": [
+        "dexametasona",
+        "dexamethasone"
+      ],
+      "genericos_fda": [
+        "dexamethasone"
+      ]
+    },
+    {
+      "nome": "loratadina",
+      "aliases": [
+        "loratadina",
+        "loratadine",
+        "claritin"
+      ],
+      "genericos_fda": [
+        "loratadine"
+      ]
+    },
+    {
+      "nome": "desloratadina",
+      "aliases": [
+        "desloratadina",
+        "desloratadine"
+      ],
+      "genericos_fda": [
+        "desloratadine"
+      ]
+    },
+    {
+      "nome": "cetirizina",
+      "aliases": [
+        "cetirizina",
+        "cetirizine",
+        "zyrtec"
+      ],
+      "genericos_fda": [
+        "cetirizine"
+      ]
+    },
+    {
+      "nome": "clorfeniramina",
+      "aliases": [
+        "clorfeniramina",
+        "chlorpheniramine",
+        "dexclorfeniramina"
+      ],
+      "genericos_fda": [
+        "chlorpheniramine"
+      ]
+    },
+    {
+      "nome": "levotiroxina",
+      "aliases": [
+        "levotiroxina",
+        "levothyroxine",
+        "puran t4"
+      ],
+      "genericos_fda": [
+        "levothyroxine"
+      ]
+    },
+    {
+      "nome": "allopurinol",
+      "aliases": [
+        "allopurinol",
+        "alopurinol"
+      ],
+      "genericos_fda": [
+        "allopurinol"
+      ]
+    },
+    {
+      "nome": "ácido valproico",
+      "aliases": [
+        "ácido valproico",
+        "acido valproico",
+        "valproic acid",
+        "depakene"
+      ],
+      "genericos_fda": [
+        "valproic acid"
+      ]
+    },
+    {
+      "nome": "carbamazepina",
+      "aliases": [
+        "carbamazepina",
+        "carbamazepine",
+        "tegretol"
+      ],
+      "genericos_fda": [
+        "carbamazepine"
+      ]
+    }
+  ]
+}

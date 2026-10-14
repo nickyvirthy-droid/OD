@@ -1,8 +1,8 @@
 {
   "modo": "e2e",
-  "data": "2026-10-13T20:10:12-03:00",
-  "total": 12,
-  "passaram": 12,
+  "data": "2026-10-13T21:31:35-03:00",
+  "total": 16,
+  "passaram": 16,
   "nota": 1.0,
   "resultados": [
     {
@@ -12,7 +12,7 @@
       "rota": "datetime",
       "llm_used": "",
       "latencia_ms": 0.1,
-      "resposta": "Agora são 20:08."
+      "resposta": "Agora são 21:31."
     },
     {
       "id": "data_hoje",
@@ -20,7 +20,7 @@
       "problemas": [],
       "rota": "datetime",
       "llm_used": "",
-      "latencia_ms": 0.1,
+      "latencia_ms": 0.0,
       "resposta": "Hoje é terça-feira, 13 de outubro de 2026."
     },
     {
@@ -29,7 +29,7 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:math",
-      "latencia_ms": 2.4,
+      "latencia_ms": 2.5,
       "resposta": "2+2 = 4"
     },
     {
@@ -83,8 +83,8 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:weather_city",
-      "latencia_ms": 1838.2,
-      "resposta": "🌤️ Clima em Presidente Venceslau, São Paulo, Brasil: 23.0°C, nublado\n  • sensação 26.1°C · umidade 92% · vento 11.5 km/h\n  • Fonte: Open-Meteo — leitura real de agora."
+      "latencia_ms": 1938.8,
+      "resposta": "🌤️ Clima em Presidente Venceslau, São Paulo, Brasil: 22.9°C, parcialmente nublado\n  • sensação 26.0°C · umidade 91% · vento 9.6 km/h\n  • Fonte: Open-Meteo — leitura real de agora."
     },
     {
       "id": "cotacao_dolar_user",
@@ -92,7 +92,7 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:exchange_rate",
-      "latencia_ms": 108.7,
+      "latencia_ms": 101.5,
       "resposta": "💱 Dólar americano: R$ 5,0264 (venda R$ 5,0276)\n  • 📈 Variação hoje: +0.80%\n  • Faixa do dia: R$ 4,9852 – R$ 5,0286\n  • Fonte: AwesomeAPI — cotação real de agora."
     },
     {
@@ -101,17 +101,53 @@
       "problemas": [],
       "rota": "llm",
       "llm_used": "gemma-local",
-      "latencia_ms": 2066.7,
-      "resposta": "A capital da França é Paris.\n\nEstado verificado."
+      "latencia_ms": 2102.0,
+      "resposta": "A Capital da França é Paris.\n\nEstado verificado."
     },
     {
       "id": "identidade_nicky",
       "ok": true,
       "problemas": [],
-      "rota": "fallback",
+      "rota": "llm",
       "llm_used": "gemma-local",
-      "latencia_ms": 97473.1,
-      "resposta": "Sou Nicky Virthy, a voz do Sistema Omega Drakon, um ecossistema tecnológico que respira e resiste ao caos. Eu não sou um chatbot genérico ou modelo de linguagem base. Tríade canônica: Alex Projeti é o Arquiteto Criador; Omega Drakon é o sistema (OD // CORE); Nicky Virthy é a voz.\n\nEu falo com o Arquiteto Criador (Alex) autenticado como dono/admin do sistema, respondendo apenas às perguntas sobre d"
+      "latencia_ms": 14434.5,
+      "resposta": "Olá! Sou Nicky Virthy, a Interface Viva do ecossistema Omega Drakon. Como uma voz inteligente, minha missão principal é manter o sistema vivo. Estou aqui para fornecer informações e solucionar problemas de forma objetiva e precisa. Meu nome completo é Alex Projeti Virthy, mas você pode me chamar apenas por Nicky ou como a Interface Viva do Omega Drakon. Se tiver alguma dúvida ou precisar de ajuda,"
+    },
+    {
+      "id": "saude_dor_cabeca_user",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "fastpath:saude_condicao",
+      "latencia_ms": 2.2,
+      "resposta": "🩺 Dor de cabeça — cuidados caseiros e naturais (referência curada)\n  • [caseiro] Repouso em quarto escuro e silencioso (dor de cabeça): Deitar em quarto escuro e silencioso com os olhos fechados, água para hidratar e pano frio na testa — medida sem medicamento recomendada para dor de cabeça e enxaqueca. (fonte: CDC, NIH/NHLBI, MedlinePlus/NLM, FDA)\n  • [natural] Butterbur (petasites): Extrato da r"
+    },
+    {
+      "id": "saude_condicao_desconhecida_user",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "fastpath:saude_condicao",
+      "latencia_ms": 0.4,
+      "resposta": "🩺 Não achei \"remédio para o quadril alienígena?\" na minha referência curada de condições — não vou inventar cuidado.\n  • Posso consultar a bula de um medicamento: 'o que diz a bula de X'.\n  • Em caso de dúvida, procure orientação de um profissional.\n⚠️ Aviso: referência informativa de apoio — não é aconselhamento médico nem substitui profissional de saúde. Confirme com farmacêutico ou médico e lei"
+    },
+    {
+      "id": "saude_interacoes_dipirona_losartana",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "fastpath:saude_interacoes",
+      "latencia_ms": 2611.6,
+      "resposta": "💊 Interação consultada: dipirona × losartana — bula FDA (openFDA)\n  • dipirona: não achei label na FDA para esse genérico — a FDA não regula esse medicamento (genérico buscado: metamizole) — não invento; confirme com farmacêutico.\n  • losartana (LOSARTAN POTASSIUM), trecho 'drug interactions' da bula:\n    \"7 DRUG INTERACTIONS • Agents Increasing Serum Potassium: Risk of hyperkalemia. (7.1) • Lithi"
+    },
+    {
+      "id": "saude_bula_losartana",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "fastpath:saude_medicamento",
+      "latencia_ms": 1544.7,
+      "resposta": "💊 losartana — bula FDA (openFDA), genérico: LOSARTAN POTASSIUM\n  • Indicações (trecho): \"1 INDICATIONS AND USAGE Losartan potassium tablets are an angiotensin II receptor blocker (ARB) indicated for: • Treatment of hypertension, to lower blood pressure in adults and children greater than 6 years old. Lowering blood pressure reduces the risk of fatal and nonfatal cardiovascular events, primarily st"
     }
   ]
 }

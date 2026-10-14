@@ -60,6 +60,12 @@ FASTPATH_ACTIONS: frozenset[str] = frozenset({
     "google_gmail_list",
     "google_gmail_read",
     "google_gmail_labels",
+    # Saúde — referência (Parte C NOMAD): leitura de coleção curada de
+    # domínio público + bula FDA; disclaimer obrigatório; NUNCA degrada
+    # para o LLM (saúde não é terreno de improviso).
+    "saude_condicao",
+    "saude_interacoes",
+    "saude_medicamento",
 })
 
 # ---------------------------------------------------------------------------
@@ -697,6 +703,79 @@ def _detect_google_write(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     return None
 
 
+# ---------------------------------------------------------------------------
+# SAÚDE — intenções de referência médica (Parte C NOMAD, v1.25.0)
+#
+# Gatilhos conservadores: frase forte de saúde (+ termo de saúde para as
+# formas genéricas). A extração de condição/medicamentos acontece DENTRO
+# da action, sobre as coleções curadas — o fast path só decide a rota e
+# NUNCA cai no LLM (ver format_intent_result/_formata_saude).
+# ---------------------------------------------------------------------------
+
+# Forma explícita de interação rota SEMPRE (é linguagem inequívoca).
+_SAUDE_INTERACAO_EXPL_RE = re.compile(
+    r"intera[çc][ãa]o\s+(entre|com|do|da|de)\b", re.IGNORECASE)
+
+# 'posso tomar X com Y' / 'tomei X e Y': só rota com DOIS medicamentos
+# conhecidos — 'posso tomar café com leite' não é pergunta de saúde.
+_SAUDE_INTERACAO_FORM_RE = re.compile(
+    r"(posso\s+tomar\b.{0,60}\s(?:com|e|mais)\s)"
+    r"|(\btomei\b.{0,60}\s(?:com|e|mais)\s)",
+    re.IGNORECASE,
+)
+
+# Bula/efeitos colaterais de um medicamento citado.
+_SAUDE_BULA_RE = re.compile(
+    r"(\bbula\b|o\s+que\s+(diz|fala)\b.{0,20}\bbula\b"
+    r"|efeitos?\s+(colaterais|adversos))",
+    re.IGNORECASE,
+)
+
+# Gênese de pergunta por condição ('remédio para X', 'o que fazer para X',
+# 'estou com X', 'tenho/senti X') — exige TAMBÉM termo de saúde abaixo.
+_SAUDE_COND_RE = re.compile(
+    r"(rem[ée]dios?\s+(para|pra|de)\b)"
+    r"|(o\s+que\s+(tomar|fazer|usar|alivia|ajuda)\s+(para|pra|em)\b)"
+    r"|(cuidados?\s+(para|com|de)\b)"
+    r"|(tratamento\s+(caseiro\s+|natural\s+)?(para|pra|de)\b)"
+    r"|((?:estou|t[ôo]a?o?|t[áa])\s+com\s+)"
+    r"|((?:tenho|senti)\s+)",
+    re.IGNORECASE,
+)
+
+# Vocabulário de saúde — gate das formas genéricas. Sem ele, 'o que
+# fazer para subir o site?' cairia na rota de saúde.
+_SAUDE_TERMO_RE = re.compile(
+    r"\b(rem[ée]dios?|medicamentos?|comprimidos?|c[áa]psulas?|"
+    r"dor(es)?|dor\s+de|febre|tosse|garganta|resfriado|gripe|"
+    r"n[áa]useas?|enjoo|v[ôo]mitos?|diarreia|coceira|ins[ôo]nia|"
+    r"azia|refluxo|congest|nariz|aftas?|micose|hemorr|"
+    r"c[óo]licas?|queimadura|picadas?|acne|espinhas?|otite|"
+    r"dente|dentes|alergia|pris[ãa]o\s+de\s+ventre|intestino|"
+    r"verme|candid|desidrata|hera|ferida|feridas|corte|cortes|"
+    r"arranh|olho|olhos|ouvido|ouvidos|pele|sono|dormir|"
+    r"hemorro|bula|intera[çc][õo]es?)\b",
+    re.IGNORECASE,
+)
+
+
+def _detect_saude(text: str) -> Optional[tuple[str, dict[str, Any]]]:
+    """Roteia para as actions saude_* (referência curada, sem LLM)."""
+    low = text.casefold()
+    if _SAUDE_INTERACAO_EXPL_RE.search(low):
+        return "saude_interacoes", {"texto": text}
+    if _SAUDE_INTERACAO_FORM_RE.search(low):
+        from tools.saude.dados import extrair_medicamentos
+
+        if len(extrair_medicamentos(text)) >= 2:
+            return "saude_interacoes", {"texto": text}
+    if _SAUDE_BULA_RE.search(low):
+        return "saude_medicamento", {"texto": text}
+    if _SAUDE_COND_RE.search(low) and _SAUDE_TERMO_RE.search(low):
+        return "saude_condicao", {"texto": text}
+    return None
+
+
 def detect_action_intent(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     """Detecta uma intenção operacional (leitura OU escrita) na mensagem.
 
@@ -709,6 +788,7 @@ def detect_action_intent(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     action = (
         _detect_network(text)
         or _detect_operational(text)
+        or _detect_saude(text)
         or _detect_google_write(text)
         or _detect_google(text)
     )
@@ -1074,6 +1154,157 @@ def _quando_legivel(instante: str) -> str:
         return instante.replace("T", " ")[:16]
 
 
+# ---------------------------------------------------------------------------
+# SAÚDE — formatador com disclaimer OBRIGATÓRIO (Parte C NOMAD)
+#
+# Espelha o SafetyBanner do NOMAD: toda resposta de saúde carrega o aviso.
+# Texto vem SÓ da fonte curada/openFDA — o formatador compõe, não autorou.
+# ---------------------------------------------------------------------------
+
+SAUDE_AVISO = (
+    "⚠️ Aviso: referência informativa de apoio — não é aconselhamento médico "
+    "nem substitui profissional de saúde. Confirme com farmacêutico ou médico "
+    "e leia a bula. Em caso de piora ou emergência, procure atendimento."
+)
+
+# Motivo da ausência de label FDA → frase honesta (nunca interação inventada).
+_MOTIVOS_FDA = {
+    "sem_resultado": (
+        "não achei label na FDA para esse genérico — a FDA não regula esse "
+        "medicamento"
+    ),
+    "sem_rede": "sem rede agora para consultar a FDA",
+}
+
+
+def _formata_saude(action: str, data: dict[str, Any]) -> str:
+    """Resposta PT-BR das saude_* — SEMPRE com SAUDE_AVISO, nunca None."""
+    if action == "saude_condicao":
+        cond = data.get("condicao")
+        if not cond:
+            pedido = data.get("pedido") or ""
+            base = (
+                f"🩺 Não achei \"{pedido}\" na minha referência curada de condições"
+                if pedido
+                else "🩺 Não identifiquei a condição citada"
+            )
+            return "\n".join([
+                base + " — não vou inventar cuidado.",
+                "  • Posso consultar a bula de um medicamento: "
+                "'o que diz a bula de X'.",
+                "  • Em caso de dúvida, procure orientação de um profissional.",
+                SAUDE_AVISO,
+            ])
+        linhas = [
+            f"🩺 {cond} — cuidados caseiros e naturais (referência curada)"
+        ]
+        cuidados = data.get("cuidados") or []
+        if not cuidados:
+            linhas.append(
+                "  • Não tenho cuidados curados para essa condição na minha "
+                "referência — não vou inventar."
+            )
+        for c in cuidados:
+            tag = "caseiro" if c.get("tipo") == "caseiro" else "natural"
+            linhas.append(
+                f"  • [{tag}] {c.get('nome')}: {c.get('resumo')} "
+                f"(fonte: {c.get('fonte')})"
+            )
+        fontes = data.get("fontes") or []
+        if fontes:
+            linhas.append(
+                "  • Fontes dos dados: " + ", ".join(fontes)
+                + " — domínio público, texto curado."
+            )
+        linhas.append(SAUDE_AVISO)
+        return "\n".join(linhas)
+
+    if action == "saude_interacoes":
+        if data.get("incompleto"):
+            meds = data.get("medicamentos") or []
+            extra = f" Identifiquei: {', '.join(meds)}." if meds else ""
+            return "\n".join([
+                "💊 Não identifiquei DOIS medicamentos na sua frase — sem "
+                "eles não consulto interações." + extra,
+                "  • Exemplo: 'posso tomar dipirona com losartana?'.",
+                SAUDE_AVISO,
+            ])
+        nomes = data.get("nomes") or []
+        linhas = [
+            f"💊 Interação consultada: {' × '.join(nomes)} — bula FDA (openFDA)"
+        ]
+        for item in data.get("itens") or []:
+            nome = item.get("nome")
+            if not item.get("encontrado"):
+                motivo = _MOTIVOS_FDA.get(
+                    item.get("motivo") or "", "não achei o label"
+                )
+                gens = ", ".join(item.get("genericos_fda") or []) or "?"
+                linhas.append(
+                    f"  • {nome}: {motivo} (genérico buscado: {gens}) — não "
+                    "invento; confirme com farmacêutico."
+                )
+                continue
+            blocos = item.get("interacoes") or []
+            rot = item.get("rotulo_fda") or nome
+            if blocos:
+                linhas.append(
+                    f"  • {nome} ({rot}), trecho 'drug interactions' da bula:"
+                )
+                for b in blocos:
+                    linhas.append(f"    \"{b}\"")
+            else:
+                linhas.append(
+                    f"  • {nome} ({rot}): label sem seção "
+                    "'drug interactions'."
+                )
+            linhas.append(
+                "    Menciona explicitamente o outro medicamento: "
+                f"{'sim' if item.get('menciona_outro') else 'não'}."
+            )
+        linhas.append(
+            "  • Texto vem direto da bula oficial — confira a bula completa "
+            "antes de combinar."
+        )
+        linhas.append(SAUDE_AVISO)
+        return "\n".join(linhas)
+
+    if action == "saude_medicamento":
+        if data.get("incompleto"):
+            return "\n".join([
+                "💊 Não identifiquei qual medicamento você quis dizer.",
+                "  • Cite o nome genérico: 'o que diz a bula de losartana?'.",
+                SAUDE_AVISO,
+            ])
+        nome = data.get("nome") or "medicamento"
+        if not data.get("encontrado"):
+            motivo = _MOTIVOS_FDA.get(
+                data.get("motivo") or "", "não achei o label"
+            )
+            gens = ", ".join(data.get("genericos_fda") or []) or "?"
+            return "\n".join([
+                f"💊 {nome}: {motivo} (genérico buscado: {gens}).",
+                "  • Não tenho bula dessa substância na fonte — não invento "
+                "indicação nem aviso.",
+                SAUDE_AVISO,
+            ])
+        linhas = [
+            f"💊 {nome} — bula FDA (openFDA), genérico: {data.get('rotulo_fda')}"
+        ]
+        for bloco in data.get("indicacoes") or []:
+            linhas.append(f"  • Indicações (trecho): \"{bloco}\"")
+        for bloco in data.get("avisos") or []:
+            linhas.append(f"  • Avisos (trecho): \"{bloco}\"")
+        linhas.append(
+            "  • Texto truncado — a bula completa está no openFDA."
+        )
+        linhas.append(SAUDE_AVISO)
+        return "\n".join(linhas)
+
+    # saude_* desconhecida: nunca vazio, sempre com o aviso.
+    return "\n".join(["🩺 Referência indisponível por enquanto.", SAUDE_AVISO])
+
+
 def format_intent_result(action: str, data: Any) -> Optional[str]:
     """Converte o retorno da action em uma resposta PT-BR curta.
 
@@ -1088,10 +1319,16 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
         ok is not True
         and action != "ha_device_control"
         and not action.startswith("google_")
+        and not action.startswith("saude_")
     ):
         return None  # action degradou — deixa o LLM responder
     # Controle de luzes: erros guiados (alvo/entidade/permissão) SÃO a
     # resposta certa — nunca caem no LLM (que alucinaria a execução).
+
+    # SAÚDE (Parte C NOMAD): resposta honesta da fonte + disclaimer
+    # SEMPRE — nunca degrada para o LLM (saúde não é terreno de improviso).
+    if action.startswith("saude_"):
+        return _formata_saude(action, data)
 
     if action == "ha_weather":
         temp = data.get("temperature")
@@ -1421,6 +1658,7 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
 __all__ = [
     "FASTPATH_ACTIONS",
     "GOOGLE_WRITE_ACTIONS",
+    "SAUDE_AVISO",
     "detect_action_intent",
     "detect_infra_intent",
     "safe_math",

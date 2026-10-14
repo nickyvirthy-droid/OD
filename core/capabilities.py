@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.24.2"
+    or "1.25.0"
 )
 
 # Status válidos.
@@ -326,6 +326,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "v1.24.x",
         "status": AVAILABLE,
         "path": "docker/tools-compose.yaml",
+    },
+    {
+        "id": "saude-reference",
+        "name": "Referência Médica (ações saude_*)",
+        "category": "execution",
+        "description": "Referência de saúde 100% determinística (Parte C do NOMAD): saude_condicao (cuidados caseiros/naturais curados — CDC, NIH/NCCIH, MedlinePlus, domínio público), saude_interacoes e saude_medicamento (bula oficial FDA via openFDA). Curadoria versionada em tools/saude/collections; disclaimer obrigatório em toda resposta (SAUDE_AVISO); conteúdo médico autoral vedado; nunca degrada para o LLM.",
+        "source": "Project NOMAD (Apache-2.0) — conteúdo CDC/NIH/NCCIH/FDA (domínio público)",
+        "phase": "v1.25.x",
+        "status": AVAILABLE,
+        "path": "tools/saude/",
     },
     # --- INTEGRAÇÕES (Fase 5 + runtime) --------------------------------------
     {

@@ -530,6 +530,150 @@ def exchange_rate(moeda: str) -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# SAÚDE — referência médica determinística (Parte C NOMAD, v1.25.0)
+#
+# Espelha o "affirmative gate" do NOMAD: consulta SÓ fonte curada de
+# domínio público (CDC/NIH/NCCIH) ou bula oficial FDA (openFDA), com
+# disclaimer obrigatório no formatador. Conteúdo médico autoral é vedado;
+# quando não há dado, a resposta é "não achei" — NUNCA cai no LLM.
+# ---------------------------------------------------------------------------
+
+
+def _saude_label_do_medicamento(
+    med: dict[str, Any],
+) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+    """Busca o label FDA (genérico do lexicon) — 1º que responder."""
+    from tools.saude import dados
+
+    label: Optional[dict[str, Any]] = None
+    motivo: Optional[str] = None
+    for generico in med.get("genericos_fda", []):
+        label, motivo = dados.openfda_label(generico)
+        if label is not None:
+            return label, None
+    return None, motivo or "sem_resultado"
+
+
+def saude_condicao(texto: str) -> dict[str, Any]:
+    """Cuidados caseiros/naturais CURADOS para a condição citada.
+
+    Curadoria versionada em tools/saude/collections (CDC, NIH/NCCIH,
+    MedlinePlus — domínio público, com atribuição). Condição desconhecida
+    devolve ``ok=True`` com ``condicao=None``: a resposta honesta é
+    'não consta na minha referência', nunca LLM solto em saúde.
+    """
+    from tools.saude import dados
+
+    pedido = (texto or "").strip()
+    if not pedido:
+        return {"ok": True, "condicao": None, "pedido": ""}
+    cond = dados.achar_condicao(pedido)
+    if cond is None:
+        return {"ok": True, "condicao": None, "pedido": pedido[:120]}
+    cuidados = dados.cuidados_da_condicao(cond["slug_en"])
+    return {
+        "ok": True,
+        "condicao": cond["rotulo"],
+        "slug": cond["slug"],
+        "categoria": cond["categoria"],
+        "cuidados": cuidados,
+        "fontes": sorted({c["fonte"] for c in cuidados}),
+        "pedido": pedido[:120],
+    }
+
+
+def saude_interacoes(texto: str) -> dict[str, Any]:
+    """Interação entre os dois medicamentos citados — bula FDA (openFDA).
+
+    Devolve o texto VERBATIM do campo ``drug_interactions`` de cada label
+    (truncado no formatador) e o fato de cada label mencionar o outro.
+    Medicamento sem label na FDA (ex.: dipirona, não comercializada nos
+    EUA) é respondido como ausência — nunca com interação inventada.
+    """
+    from tools.saude import dados
+
+    achados = dados.extrair_medicamentos((texto or "").strip())
+    if len(achados) < 2:
+        return {
+            "ok": True,
+            "incompleto": True,
+            "medicamentos": [m["nome"] for m in achados],
+        }
+    a, b = achados[0], achados[1]
+    itens: list[dict[str, Any]] = []
+    for med, outro in ((a, b), (b, a)):
+        termos_outro = [t.casefold() for t in outro["aliases"]] + [
+            g.casefold() for g in outro["genericos_fda"]
+        ]
+        label, motivo = _saude_label_do_medicamento(med)
+        if label is None:
+            itens.append({
+                "nome": med["nome"],
+                "genericos_fda": med["genericos_fda"],
+                "encontrado": False,
+                "motivo": motivo,
+                "interacoes": [],
+                "menciona_outro": False,
+            })
+            continue
+        brutos = dados.lista_campo(label, "drug_interactions")
+        texto_int = " ".join(brutos).casefold()
+        itens.append({
+            "nome": med["nome"],
+            "genericos_fda": med["genericos_fda"],
+            "encontrado": True,
+            "rotulo_fda": ", ".join(
+                label.get("openfda", {}).get("generic_name", [])[:2]
+            ),
+            "interacoes": [dados.truncar(t) for t in brutos[:3]],
+            "menciona_outro": any(t in texto_int for t in termos_outro),
+        })
+    return {
+        "ok": True,
+        "incompleto": False,
+        "nomes": [a["nome"], b["nome"]],
+        "itens": itens,
+    }
+
+
+def saude_medicamento(texto: str) -> dict[str, Any]:
+    """Bula FDA (openFDA) do medicamento citado — indicações e avisos."""
+    from tools.saude import dados
+
+    achados = dados.extrair_medicamentos((texto or "").strip())
+    if not achados:
+        return {"ok": True, "incompleto": True, "medicamentos": []}
+    med = achados[0]
+    label, motivo = _saude_label_do_medicamento(med)
+    base = {
+        "ok": True,
+        "incompleto": False,
+        "nome": med["nome"],
+        "genericos_fda": med["genericos_fda"],
+    }
+    if label is None:
+        return {**base, "encontrado": False, "motivo": motivo}
+    return {
+        **base,
+        "encontrado": True,
+        "rotulo_fda": ", ".join(
+            label.get("openfda", {}).get("generic_name", [])[:3]
+        ),
+        "indicacoes": [
+            dados.truncar(t)
+            for t in dados.lista_campo(label, "indications_and_usage")[:2]
+        ],
+        "avisos": [
+            dados.truncar(t)
+            for t in (
+                dados.lista_campo(label, "do_not_use")
+                + dados.lista_campo(label, "warnings_and_cautions")
+            )[:2]
+        ],
+    }
+
+
 def ha_weather() -> dict[str, Any]:
     """Clima REAL da região da casa, do Home Assistant (weather.*).
 
@@ -2757,6 +2901,18 @@ CATALOG: list[dict[str, Any]] = [
           {"required": ["name"], "properties": {"name": S}}),
     _spec("action_validate", "introspection", "Valida params contra schema", action_validate,
           {"required": ["name", "params"], "properties": {"name": S, "params": {"type": "dict"}}}),
+    # --- Saúde — referência médica determinística (3, Parte C NOMAD) ---
+    # Somente fonte curada de domínio público + bula FDA; disclaimer
+    # obrigatório no formatador; NUNCA cai no LLM (ver core/intents.py).
+    _spec("saude_condicao", "saude", "Cuidados caseiros/naturais curados por condição (CDC/NIH/NCCIH)",
+          saude_condicao,
+          {"required": ["texto"], "properties": {"texto": S}}),
+    _spec("saude_interacoes", "saude", "Interação entre medicamentos citados (bula FDA via openFDA)",
+          saude_interacoes,
+          {"required": ["texto"], "properties": {"texto": S}}),
+    _spec("saude_medicamento", "saude", "Bula FDA (indicações/avisos) do medicamento citado",
+          saude_medicamento,
+          {"required": ["texto"], "properties": {"texto": S}}),
 ]
 
 ACTIONS_COUNT = len(CATALOG)

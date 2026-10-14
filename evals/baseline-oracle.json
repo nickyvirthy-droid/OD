@@ -1,8 +1,8 @@
 {
   "modo": "oracle",
-  "data": "2026-10-13T20:06:25-03:00",
-  "total": 8,
-  "passaram": 8,
+  "data": "2026-10-13T21:31:12-03:00",
+  "total": 10,
+  "passaram": 10,
   "nota": 1.0,
   "resultados": [
     {
@@ -12,7 +12,7 @@
       "rota": "datetime",
       "llm_used": "",
       "latencia_ms": 0.0,
-      "resposta": "Agora são 20:06."
+      "resposta": "Agora são 21:31."
     },
     {
       "id": "data_hoje",
@@ -29,7 +29,7 @@
       "problemas": [],
       "rota": "action_intent",
       "llm_used": "fastpath:math",
-      "latencia_ms": 9.8,
+      "latencia_ms": 12.6,
       "resposta": "2+2 = 4"
     },
     {
@@ -76,6 +76,24 @@
       "llm_used": "",
       "latencia_ms": 0.2,
       "resposta": "🔒 Informação de infraestrutura (IP, portas, topologia de rede) é restrita ao dono do sistema."
+    },
+    {
+      "id": "saude_dor_cabeca_user",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "fastpath:saude_condicao",
+      "latencia_ms": 14.3,
+      "resposta": "🩺 Dor de cabeça — cuidados caseiros e naturais (referência curada)\n  • [caseiro] Repouso em quarto escuro e silencioso (dor de cabeça): Deitar em quarto escuro e silencioso com os olhos fechados, água para hidratar e pano frio na testa — medida sem medicamento recomendada para dor de cabeça e enxaqueca. (fonte: CDC, NIH/NHLBI, MedlinePlus/NLM, FDA)\n  • [natural] Butterbur (petasites): Extrato da r"
+    },
+    {
+      "id": "saude_condicao_desconhecida_user",
+      "ok": true,
+      "problemas": [],
+      "rota": "action_intent",
+      "llm_used": "fastpath:saude_condicao",
+      "latencia_ms": 0.4,
+      "resposta": "🩺 Não achei \"remédio para o quadril alienígena?\" na minha referência curada de condições — não vou inventar cuidado.\n  • Posso consultar a bula de um medicamento: 'o que diz a bula de X'.\n  • Em caso de dúvida, procure orientação de um profissional.\n⚠️ Aviso: referência informativa de apoio — não é aconselhamento médico nem substitui profissional de saúde. Confirme com farmacêutico ou médico e lei"
     }
   ]
 }

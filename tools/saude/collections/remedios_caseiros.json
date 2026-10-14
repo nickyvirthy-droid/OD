@@ -1,0 +1,414 @@
+{
+  "versao": "1.0.0",
+  "fonte": {
+    "formato": "Project NOMAD (github.com/Crosstalk-Solutions/project-nomad)",
+    "licenca_formato": "Apache-2.0",
+    "conteudo": "Domínio público — trabalho do governo dos EUA (CDC, NIH/NCCIH, MedlinePlus, FDA)"
+  },
+  "remedies": [
+    {
+      "slug": "honey-for-cough",
+      "nome": "Mel (para tosse)",
+      "conditions": [
+        "cough",
+        "sore-throat",
+        "common-cold"
+      ],
+      "resumo": "1 a 2 colheres de chá de mel puro, direto ou em bebida morna (nunca quente) — adultos e crianças a partir de 1 ano.",
+      "detalhe": "O CDC lista o mel entre as medidas caseiras para aliviar tosse e dor de garganta do resfriado comum.",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Honey (for cough)",
+        "uses": "Honey may be used to relieve cough in adults and children at least 1 year old. One to two teaspoons can be taken directly or stirred into a warm (not hot) beverage.",
+        "how": "Give one to two teaspoons of honey directly by mouth, or stir it into a warm (not hot) drink. The CDC recommends this as a home measure for cough associated with the common cold."
+      }
+    },
+    {
+      "slug": "fluids-and-rest",
+      "nome": "Repouso e líquidos",
+      "conditions": [
+        "common-cold",
+        "fever",
+        "diarrhea",
+        "nausea-vomiting"
+      ],
+      "resumo": "Descanse bastante e beba líquidos à vontade (água, caldos claros, sucos, bebidas sem cafeína). Se for difícil tomar de uma vez, golos pequenos frequentes ou picolé de gelo.",
+      "detalhe": "Repouso e hidratação apoiam a recuperação de resfriado, febre, diarreia e náusea (CDC/NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Fluids and rest",
+        "uses": "Getting plenty of rest and drinking adequate fluids (water, clear broths, juice, or sports drinks) supports recovery from colds, fever, diarrhea, and nausea. Adults with diarrhea should drink water, fruit juices, sports drinks, sodas without caffeine, and salty broths.",
+        "how": "Get plenty of rest and drink plenty of fluids. If keeping liquids down is difficult, take small sips of water or suck on ice chips frequently rather than trying to drink large amounts at once."
+      }
+    },
+    {
+      "slug": "oral-rehydration",
+      "nome": "Soro de reidratação oral (SRO)",
+      "conditions": [
+        "dehydration",
+        "diarrhea"
+      ],
+      "resumo": "Para diarreia/desidratação: SRO comercial da farmácia (sem prescrição), conforme a embalagem; havendo perda de sais, bebidas esportivas ajudam — especialmente em crianças.",
+      "detalhe": "O SRO repõe líquidos e sais perdidos; em desidratação leve, água é o primeiro passo (NIH/CDC).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Oral rehydration solution (ORS)",
+        "uses": "Oral rehydration solutions replace fluids and electrolytes lost through diarrhea or other causes of dehydration. For mild to moderate dehydration, drinking water is the first step; sports drinks or oral rehydration solutions (such as Pedialyte) are recommended when electrolytes are also depleted, especially for children.",
+        "how": "Use a commercially prepared oral rehydration solution (available without a prescription) and follow the package directions. For adults with electrolyte losses, sports drinks can help; if liquids are hard to keep down, take small sips frequently or suck on ice chips rather than drinking large amounts at once."
+      }
+    },
+    {
+      "slug": "cool-compress-fever",
+      "nome": "Compressa fria",
+      "conditions": [
+        "fever",
+        "insect-bites-stings",
+        "eye-allergy",
+        "eye-irritation"
+      ],
+      "resumo": "Pano limpo umedecido em água fria (não gelada) na testa ou no local picado; para ferroada, gelo envolvido em pano: 10 minutos sim, 10 minutos não.",
+      "detalhe": "Alivia desconforto de febre, picadas e irritação ocular leve. Nunca gelo direto na pele (CDC/NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Cool compress (for fever and insect bites)",
+        "uses": "A clean cloth soaked in cool (not ice-cold) water and placed on the forehead or bitten area can help reduce discomfort from fever, insect bites, and eye allergy symptoms. For insect stings, ice wrapped in a washcloth should be applied for 10 minutes on and 10 minutes off.",
+        "how": "Soak a clean cloth in cool water, wring it out, and place it on the forehead or affected area. For insect stings, wrap ice in a cloth and apply for 10 minutes on, then 10 minutes off — never place ice directly on bare skin."
+      }
+    },
+    {
+      "slug": "ice-and-elevation",
+      "nome": "Gelo e elevação (método RICE)",
+      "conditions": [
+        "muscle-joint-pain",
+        "insect-bites-stings"
+      ],
+      "resumo": "Gelo envolvido em pano por 10–15 minutos a cada 1–3 horas nos primeiros dias, com repouso, faixa e elevação do membro acima do coração — reduz inchaço e dor em entorse/músculo puxado/picada.",
+      "detalhe": "Método RICE do NIH para lesões agudas.",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Ice and elevation (RICE method)",
+        "uses": "Applying ice wrapped in cloth to a strained muscle, sprain, or bite site — combined with rest, compression, and elevation of the injured area — reduces swelling and pain. Ice should be applied for 10–15 minutes every 1–3 hours during the first few days of injury.",
+        "how": "Wrap ice in a cloth or towel and apply to the injured area for 10–15 minutes at a time. Rest the area, wrap it snugly with a bandage to reduce swelling, and elevate it above heart level when possible."
+      }
+    },
+    {
+      "slug": "heating-pad",
+      "nome": "Bolsa quente / compressa morna",
+      "conditions": [
+        "menstrual-cramps",
+        "muscle-joint-pain",
+        "earache"
+      ],
+      "resumo": "Bolsa quente ou aquecedor no baixo-barriga alivia cólica menstrual; pano morno no ouvido alivia dor de ouvido; calor também ajuda músculo puxado depois de 48–72 h da lesão.",
+      "detalhe": "Use temperatura média e sempre um pano entre a fonte de calor e a pele para evitar queimadura (NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Heating pad or warm compress",
+        "uses": "Applying a heating pad or hot water bottle to the lower abdomen eases menstrual cramps. A warm compress applied to the ear can relieve earache discomfort. Heat may also be used on strained muscles after the first 48–72 hours of an acute injury.",
+        "how": "Place a heating pad or hot water bottle on the lower abdomen for menstrual cramps, or hold a warm cloth against the affected ear for earache. Use a low or medium heat setting and put a cloth between the pad and skin to prevent burns."
+      }
+    },
+    {
+      "slug": "humidifier-and-steam",
+      "nome": "Umidificador / vapor",
+      "conditions": [
+        "nasal-congestion",
+        "cough",
+        "common-cold"
+      ],
+      "resumo": "Umidificador de vapor frio limpo no quarto ou inalação de vapor (banho quente ou tigela com água quente) 2 a 4 vezes ao dia aliviam nariz entupido e tosse.",
+      "detalhe": "Limpe o aparelho diariamente conforme o fabricante para evitar mofo e bactérias (NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Humidifier or steam inhalation",
+        "uses": "Using a clean humidifier or cool-mist vaporizer adds moisture to the air and can help relieve nasal congestion and cough. Breathing steam from a bowl of hot water or a running shower 2–4 times daily also loosens nasal secretions.",
+        "how": "Fill a clean cool-mist humidifier or vaporizer with water and run it in the room. Clean the device daily per the manufacturer's instructions to prevent mold and bacteria buildup."
+      }
+    },
+    {
+      "slug": "saline-nasal-rinse",
+      "nome": "Lavagem nasal com soro",
+      "conditions": [
+        "nasal-congestion",
+        "common-cold"
+      ],
+      "resumo": "Lavagem com soro fisiológico (neti pot, garrafa ou seringa) usando água destilada, estéril ou fervida e esfriada — NUNCA água da torneira.",
+      "detalhe": "Remove pólen, poeira e muco; seque bem o aparelho após cada uso (NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Saline nasal rinse",
+        "uses": "Saline nasal rinses flush pollen, dust, and excess mucus from the nasal passages and add moisture. They can be performed with a neti pot, squeeze bottle, or bulb syringe using a prepared saline solution.",
+        "how": "Use only distilled, sterile, or previously boiled-and-cooled water — never tap water. After each use, rinse the device with the same safe water, then air-dry it thoroughly or wipe dry before storing."
+      }
+    },
+    {
+      "slug": "oatmeal-bath",
+      "nome": "Banho de aveia ou água fria",
+      "conditions": [
+        "skin-rash-itch",
+        "poison-ivy",
+        "dry-skin"
+      ],
+      "resumo": "Banho morno com aveia coloidal ou água fria alivia coceira de irritação, hera venenosa, eczema e pele ressecada; seque a pele sem esfregar e hidrate logo em seguida.",
+      "detalhe": "Produtos de aveia coloidal encontram-se em farmácias (NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Oatmeal or cool bath",
+        "uses": "Soaking in a lukewarm oatmeal bath or taking a cool bath can relieve itching and skin irritation from rashes, poison ivy, eczema, and dry skin. Colloidal oatmeal bath products are available at drugstores.",
+        "how": "Fill a tub with lukewarm (not hot) water and add a colloidal oatmeal bath product according to package directions, or use plain cool water. After soaking, pat skin dry gently and apply a fragrance-free moisturizer immediately to lock in moisture."
+      }
+    },
+    {
+      "slug": "cool-running-water-on-burns",
+      "nome": "Água corrente fria em queimadura",
+      "conditions": [
+        "burns"
+      ],
+      "resumo": "Queimadura pequena: água fria (não gelada) corrente por 10–15 minutos na hora, depois cobrir com pano limpo ou curativo estéril. NADA de gelo, manteiga ou creme.",
+      "detalhe": "Gelo e caseiros pioram a lesão (CDC).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Cool running water on burns",
+        "uses": "For minor burns, immediately run cool (not cold) water slowly over the burned area for 10–15 minutes to stop the burning process and reduce pain. After cooling, cover the burn with a clean, dry cloth or sterile bandage.",
+        "how": "Run cool water slowly over the burned area for several minutes, then cover with a clean, dry cloth or bandage. Do not apply ice, butter, or any creams — these can worsen tissue damage."
+      }
+    },
+    {
+      "slug": "clean-and-cover-wounds",
+      "nome": "Limpar e cobrir cortes",
+      "conditions": [
+        "wounds-cuts"
+      ],
+      "resumo": "Corte pequeno: lavar com água limpa, compressão leve com gaze para parar o sangue (sem tirar a gaze de baixo ao trocar), sabão e água, e cobrir com curativo limpo.",
+      "detalhe": "Reduz o risco de infecção (CDC/NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Clean and cover wounds and cuts",
+        "uses": "For minor cuts and scrapes, rinse the wound thoroughly with cool clean water to remove dirt, apply gentle pressure with gauze to stop bleeding, then cover with a clean bandage. Wash with soap and water to reduce infection risk.",
+        "how": "Apply firm but gentle pressure with gauze to stop bleeding; if blood soaks through, add more gauze on top without removing the first layer. Rinse the wound with cool clean water, then cover it with a clean dry bandage."
+      }
+    },
+    {
+      "slug": "salt-water-gargle",
+      "nome": "Gargarejo com água e sal",
+      "conditions": [
+        "sore-throat",
+        "common-cold",
+        "canker-sores"
+      ],
+      "resumo": "Meia colher de chá (3 g) de sal em 1 xícara (240 ml) de água morna; gargarejar alguns segundos, cuspir, repetir várias vezes ao dia — alivia dor de garganta e afta.",
+      "detalhe": "Preparo padrão do NIH/CDC.",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Salt-water gargle",
+        "uses": "Gargling with warm salt water several times a day can ease sore throat pain and may also help relieve canker sore discomfort. A standard preparation is ½ teaspoon (3 grams) of salt dissolved in 1 cup (240 mL) of warm water.",
+        "how": "Dissolve salt in a cup of warm water, take a mouthful, tilt your head back, and gargle for several seconds before spitting it out. Repeat as needed throughout the day to help ease sore throat pain."
+      }
+    },
+    {
+      "slug": "fiber-and-water-constipation",
+      "nome": "Fibra e água (prisão de ventre/hemorroídas)",
+      "conditions": [
+        "constipation",
+        "hemorrhoids"
+      ],
+      "resumo": "Mais frutas, verduras e grãos integrais, com bastante água ao longo do dia; aumente a fibra aos poucos para não gerar gases.",
+      "detalhe": "Base do cuidado de prisão de ventre e desconforto hemorroidário (NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Dietary fiber and water (for constipation and hemorrhoids)",
+        "uses": "Eating more fruits, vegetables, and whole grains (which are high in fiber) and drinking plenty of water each day are the foundational self-care steps for preventing and relieving constipation and reducing hemorrhoid discomfort.",
+        "how": "Eat more fruits, vegetables, and whole grains each day and drink plenty of fluids. Increase fiber gradually to avoid gas and bloating."
+      }
+    },
+    {
+      "slug": "sitz-bath",
+      "nome": "Banho de assento (hemorroídas)",
+      "conditions": [
+        "hemorrhoids"
+      ],
+      "resumo": "Sentar em pouca água morna confortável por 10–15 minutos, várias vezes ao dia — alivia dor e coceira; mantenha a região limpa e seca entre os banhos.",
+      "detalhe": "Bacias de banho de assento existem em farmácia (NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Sitz bath (for hemorrhoids)",
+        "uses": "A sitz bath — sitting in a few inches of warm water for 10–15 minutes, several times a day — relieves the pain and itching of hemorrhoids. A special sitz bath tub that fits over a toilet is available at pharmacies.",
+        "how": "Fill a tub or sitz bath basin with a few inches of comfortably warm water and sit in it for 10 to 15 minutes. Repeat several times a day, keeping the area clean and dry between baths."
+      }
+    },
+    {
+      "slug": "elevate-head-heartburn",
+      "nome": "Elevar a cabeceira da cama (azia)",
+      "conditions": [
+        "heartburn",
+        "indigestion"
+      ],
+      "resumo": "Elevar a cabeceira da cama cerca de 15 cm (blocos ou cunha) evita o refluxo do suco gástrico durante o sono; travesseiros só sob a cabeça são menos eficazes.",
+      "detalhe": "Medida caseira para azia noturna e refluxo (NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Elevate head of bed (for heartburn)",
+        "uses": "Raising the head of the bed 4–6 inches (using blocks under the bed frame or a wedge support) prevents stomach acid from backing up into the esophagus during sleep, reducing nighttime heartburn and GERD symptoms.",
+        "how": "Place blocks under the legs at the head of the bed frame, or use a foam wedge under the mattress, to raise the sleeping surface about 6 inches. Using extra pillows under only the head is less effective because it bends the body at the waist rather than tilting the whole torso."
+      }
+    },
+    {
+      "slug": "bland-small-meals",
+      "nome": "Refeições pequenas e leves",
+      "conditions": [
+        "nausea-vomiting",
+        "indigestion",
+        "diarrhea"
+      ],
+      "resumo": "6 a 8 refeições pequenas e simples (biscoito, torrada, arroz, batata, frango assado) em vez de 3 grandes; evitar picante, gorduroso e salgado — alivia náusea e má digestão.",
+      "detalhe": "Se não der para comer, comece com golos de líquido claro (NIH/CDC).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Small, frequent bland meals",
+        "uses": "Eating 6–8 small bland meals throughout the day (crackers, toast, baked chicken, rice, potatoes) instead of 3 large meals reduces nausea and eases indigestion. As diarrhea symptoms improve, soft bland foods can be introduced gradually.",
+        "how": "Eat smaller meals more often and stick to bland foods, avoiding spicy, fatty, or salty options. If you have trouble keeping food down, start with small sips of clear liquids frequently and add bland solids only when tolerated."
+      }
+    },
+    {
+      "slug": "dark-quiet-room-headache",
+      "nome": "Repouso em quarto escuro e silencioso (dor de cabeça)",
+      "conditions": [
+        "headache",
+        "sleeplessness"
+      ],
+      "resumo": "Deitar em quarto escuro e silencioso com os olhos fechados, água para hidratar e pano frio na testa — medida sem medicamento recomendada para dor de cabeça e enxaqueca.",
+      "detalhe": "Recomendação de automedicação sem fármaco (NIH/CDC).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Rest in a dark, quiet room (for headache)",
+        "uses": "Resting with eyes closed in a dark, quiet room is a recommended non-medication self-care measure during a headache or migraine. Drinking water to prevent dehydration and placing a cool cloth on the forehead are often combined with this rest.",
+        "how": "Go to a quiet, darkened room, close your eyes, and rest. Drink water and place a cool damp cloth on your forehead to help ease discomfort."
+      }
+    },
+    {
+      "slug": "sleep-hygiene",
+      "nome": "Higiene do sono (insônia)",
+      "conditions": [
+        "sleeplessness"
+      ],
+      "resumo": "Horário fixo para dormir e acordar, quarto fresco, escuro e silencioso, telas e cafeína longe da hora de dormir, exercício regular.",
+      "detalhe": "Práticas comportamentais para sono adequado em adultos (NIH).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Sleep hygiene practices",
+        "uses": "A consistent set of behavioral practices — consistent bedtime and wake time, a cool and dark bedroom, avoiding screens and caffeine near bedtime, and regular exercise — helps adults achieve and maintain adequate sleep.",
+        "how": "Go to bed and wake up at the same time every day. Keep the bedroom quiet, dark, and cool; turn off electronic devices at least 30 minutes before bedtime; and avoid caffeine in the afternoon and evening and large meals or alcohol before bed."
+      }
+    },
+    {
+      "slug": "pinworm-hygiene",
+      "nome": "Medidas de higiene (verme/oxiuro)",
+      "conditions": [
+        "pinworm"
+      ],
+      "resumo": "Lavar bem as mãos (antes de comer e depois do banheiro), banho matinal com sabão, trocar a roupa íntima todo dia, unhas curtas e lavar roupas de cama em água quente.",
+      "detalhe": "Medidas domésticas do CDC para prevenir a reinfecção.",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Hygiene measures for pinworm",
+        "uses": "Thorough handwashing with soap and warm water (especially after toilet use and before eating), daily morning bathing with soap and water, daily underwear changes, short and clean fingernails, and laundering of bedding and pajamas in hot water are the key household self-care measures for managing pinworm infection.",
+        "how": "Bathe after waking up each morning and wash hands regularly, especially after using the bathroom. Change underwear daily, wash pajamas and bed sheets often, and avoid nail biting to prevent reinfection."
+      }
+    },
+    {
+      "slug": "keep-feet-dry-athlete-foot",
+      "nome": "Pés limpos e secos (micose/pé de atleta)",
+      "conditions": [
+        "fungal-infection"
+      ],
+      "resumo": "Lavar os pés todo dia, secar bem entre os dedos, meia de algodão limpa e chinelos em vestiários; antifúngico OTC conforme a embalagem na maioria dos casos.",
+      "detalhe": "Apoia o tratamento e evita apropagação (CDC).",
+      "fonte": {
+        "nome": "CDC, NIH/NHLBI, MedlinePlus/NLM, FDA",
+        "url": "https://www.cdc.gov",
+        "licenca": "Public domain (US government works)"
+      },
+      "origem_en": {
+        "name": "Keep feet clean and dry (for fungal infection)",
+        "uses": "Keeping the feet clean, dry, and cool — including washing daily with soap and water, drying carefully between the toes, wearing clean cotton socks, and not walking barefoot in public showers or locker rooms — supports treatment and prevents spread of athlete's foot and other tinea infections.",
+        "how": "Keep feet clean, dry, and cool; wear clean socks and avoid walking barefoot in public areas such as locker room showers (use flip-flops instead). Apply an over-the-counter antifungal cream as directed on the package for most cases of athlete's foot."
+      }
+    }
+  ]
+}

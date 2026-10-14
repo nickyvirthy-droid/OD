@@ -14,7 +14,36 @@
 
 ---
 
-## [1.24.2] — EVAL DO ASSISTENTE (PARTE A) + CLIMA/CÂMBIO DO USER CONCERTADOS 🜂 (2026-10-13)
+## [1.25.0] — REFERÊNCIA MÉDICA DETERMINÍSTICA (PARTE C DO NOMAD) 🜂 (2026-10-13)
+
+> **Bump MINOR (capacidade nova):** Parte C da absorção do Project NOMAD na
+> ordem acordada (A → **C** → B → D → E → F). Explicada ao dono em três eixos
+> (para que serve / como acessa / como o sistema controla) e aprovada:
+> "pode fazer".
+
+| Peça | Entrega |
+|---|---|
+| **3 actions de saúde (categoria `saude`)** | `saude_condicao` (cuidados caseiros/naturais curados por condição — 36 condições, 20 remédios caseiros CDC/NIH/MedlinePlus, 18 naturais NCCIH), `saude_interacoes` (interação entre dois medicamentos citados — verbatim do campo `drug_interactions` da bula FDA via openFDA, com checagem de menção cruzada) e `saude_medicamento` (indicações + avisos da bula). |
+| **Coleções versionadas** | `tools/saude/collections/*.json` com atribuição obrigatória: formato do NOMAD (Apache-2.0), conteúdo de domínio público governamental (CDC, NIH/NCCIH, MedlinePlus, FDA) e texto ORIGINAL em inglês preservado em `origem_en` para auditoria. Lexicon de 46 medicamentos comuns (PT-BR → genérico FDA) — só nomes, nunca orientação. |
+| **Curadoria sem conteúdo autoral** | Resumos PT-BR são tradução fiel/compactação das fontes citadas; o formatador só compõe. Conteúdo médico inventado é vedado pela arquitetura. |
+| **Disclaimer obrigatório** | `SAUDE_AVISO` em TODA resposta (padrão `SafetyBanner` do NOMAD) — testado para cada ramo do formatador, inclusive com `ok=False`. |
+| **Saúde NUNCA cai no LLM** | Condição fora da curadoria = "não consta na minha referência — não vou inventar"; medicamento sem label FDA (ex.: dipirona, não comercializada nos EUA) = ausência dita; falha de rede = "sem rede para consultar". O formatador de `saude_*` é o único que **nunca retorna None** — sem degradação para o modelo. |
+| **Rota conservadora** | `_detect_saude` em `core/intents.py`: interação explícita rota sempre; "posso tomar X com Y" só com 2 medicamentos do lexicon (`posso tomar café com leite` não é saúde); "remédio para X" exige termo de saúde (`subir o site` não cai). Fastpaths antigos intactos (cpu_temp, câmbio etc.). |
+| **Papel `user`** | As 3 actions entram na allowlist do user (leitura de fonte pública, mesma natureza de `ha_weather`/`weather_city`); regressão garante que segredos/escrita/IP seguem vedados. |
+| **Gate + goldens** | `tests/test_saude.py` (45 testes: coleções, matching, actions com openFDA fakeado, gatilhos, formatador, permissões, pipeline) + 4 goldens: 2 oraculares herméticos (dor de cabeça curada; condição desconhecida = honestidade) e 2 e2e com rede real (interação dipirona×losartana; bula losartana). |
+| **versionCode** | 2054 → 2055 (regra §5.3). |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte do servidor (com `--cov-fail-under=90`) | **2576 passed / 16 skipped · cobertura 90,08%** |
+| Modo oracle (10 goldens, sem rede) | **10/10 (100%)** — inclui os 2 goldens de saúde |
+| Modo e2e (16 goldens, LLM local + HA + APIs + openFDA) | **16/16 (100%)** — `fastpath:saude_condicao/interacoes/medicamento` no ar |
+| Baselines | `evals/baseline-{oracle,e2e,noretrieval}.json` atualizadas |
+
+**Assinatura:** `OD // CORE`
+
+---
+
 
 > **Bump PATCH (ordem do dono para as partes do Project NOMAD):** "vamos usar sua ordem. antes de implementar me explique para que serve, como acesso e como o sistema controla" → "ok. pode fazer" — Parte A (eval) primeiro.
 

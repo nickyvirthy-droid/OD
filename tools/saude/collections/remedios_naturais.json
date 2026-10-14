@@ -1,0 +1,375 @@
+{
+  "versao": "1.0.0",
+  "fonte": {
+    "formato": "Project NOMAD (github.com/Crosstalk-Solutions/project-nomad)",
+    "licenca_formato": "Apache-2.0",
+    "conteudo": "Domínio público — trabalho do governo dos EUA (CDC, NIH/NCCIH, MedlinePlus, FDA)"
+  },
+  "remedies": [
+    {
+      "slug": "aloe-vera",
+      "nome": "Aloe vera",
+      "conditions": [
+        "burns",
+        "acne",
+        "dry-skin"
+      ],
+      "resumo": "Gel de aloe aplicado na pele para queimaduras leves, acne e pele ressecada; o uso oral tem menos respaldo e riscos maiores.",
+      "detalhe": "NCCIH: a aplicação tópica tem mais pesquisa; produtos orais não devem ser usados sem orientação profissional.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Aloe Vera",
+        "uses": "Aloe vera gel is applied topically for burns, acne, and various skin conditions including psoriasis and radiation-related skin damage. Oral use is promoted for digestive conditions, though topical applications have more research support.",
+        "how": "Apply gel from the inner leaf of the aloe plant (or a commercially prepared aloe gel) directly to the affected skin area. Topical use is the application with the most research support; oral aloe products carry more serious risks and should not be used without consulting a healthcare provider."
+      }
+    },
+    {
+      "slug": "boswellia",
+      "nome": "Boswellia",
+      "conditions": [
+        "muscle-joint-pain"
+      ],
+      "resumo": "Extrato de resina tomado como suplemento — prometido para inflamação e dor articular (osteoartrite); estudos usaram até 1.000 mg/dia por até 6 meses.",
+      "detalhe": "Siga a embalagem e consulte um profissional antes de começar (NCCIH).",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Boswellia",
+        "uses": "Boswellia resin extract is traditionally used to reduce inflammation and pain, and is promoted as a dietary supplement to support joint health and mobility, particularly for osteoarthritis.",
+        "how": "Boswellia is taken orally as a dietary supplement. Clinical trials have used doses up to 1,000 mg daily for up to 6 months; follow the product label and consult a healthcare provider before starting."
+      }
+    },
+    {
+      "slug": "bromelain",
+      "nome": "Bromelain (enzima do abacaxi)",
+      "conditions": [
+        "muscle-joint-pain",
+        "nasal-congestion"
+      ],
+      "resumo": "Prometida para dor e inchaço pós-cirúrgico, sinusite e dor muscular; a versão tópica tem aprovação da FDA para desbridamento de queimaduras graves.",
+      "detalhe": "NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Bromelain",
+        "uses": "Bromelain, an enzyme from pineapple, is promoted for reducing postoperative pain and swelling, sinusitis, osteoarthritis, and exercise-induced muscle soreness. A topical formulation has FDA approval for debridement of severe burns.",
+        "how": ""
+      }
+    },
+    {
+      "slug": "butterbur",
+      "nome": "Butterbur (petasites)",
+      "conditions": [
+        "headache",
+        "allergic-reaction"
+      ],
+      "resumo": "Extrato da raiz para prevenção de enxaqueca e alívio de rinite alérgica — use SOMENTE produtos certificados sem alcaloides pirrolizidínicos (PA-free).",
+      "detalhe": "Aviso do NCCIH: a planta crua contém compostos que danificam o fígado.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Butterbur",
+        "uses": "Butterbur root extract is used for migraine prevention and for reducing symptoms of allergic rhinitis (hay fever). It has been studied for reducing migraine frequency in both adults and children.",
+        "how": "Butterbur is taken orally as a root extract for migraine prevention or as a leaf extract for allergic rhinitis symptoms. Use only products that are certified and labeled as free of pyrrolizidine alkaloids (PA-free), as the untreated plant contains compounds that can damage the liver."
+      }
+    },
+    {
+      "slug": "chamomile",
+      "nome": "Camomila",
+      "conditions": [
+        "sleeplessness",
+        "indigestion",
+        "common-cold",
+        "sore-throat",
+        "skin-rash-itch"
+      ],
+      "resumo": "Chá de camomila (quantidades de chá, consideradas seguras) para insônia, má digestão e ansiedade; suplemento oral só com orientação.",
+      "detalhe": "NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Chamomile",
+        "uses": "Chamomile is promoted for insomnia, indigestion, anxiety, the common cold, and infant colic; it is also used topically for skin conditions and as a mouthwash for oral inflammation.",
+        "how": "Chamomile is commonly consumed as a tea (considered safe in amounts typically found in teas), taken as an oral supplement, applied topically to skin, or used as a mouthwash for oral inflammation. Consult a healthcare provider before using oral supplements rather than tea."
+      }
+    },
+    {
+      "slug": "echinacea",
+      "nome": "Equinácea",
+      "conditions": [
+        "common-cold"
+      ],
+      "resumo": "Prometida para resfriado e infecções de vias respiratórias, sob a ideia de 'apoiar a imunidade'; a evidência é limitada.",
+      "detalhe": "NCCIH — comercializada sob essa promessa.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Echinacea",
+        "uses": "Echinacea is primarily marketed for the common cold and upper respiratory tract infections, based on the idea that it may support immune system function.",
+        "how": ""
+      }
+    },
+    {
+      "slug": "elderberry",
+      "nome": "Sabugueiro (elderberry)",
+      "conditions": [
+        "common-cold"
+      ],
+      "resumo": "Preparações (xarope, cápsula) prometidas para resfriado e gripe; NUNCA comer fruto cru ou verde — contém substâncias geradoras de cianídeo (náusea, vômito e diarreia grave); cozinhar elimina a toxina.",
+      "detalhe": "Aviso forte do NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Elderberry",
+        "uses": "Elderberry has been used in folk medicine to treat colds and flu, and is promoted as a dietary supplement for colds, flu, and other upper respiratory infections.",
+        "how": "Elderberry is used as a prepared dietary supplement (syrup, capsule, or lozenge) rather than raw fruit. Never eat raw or unripe elderberries — they contain cyanide-producing substances that cause nausea, vomiting, and severe diarrhea; cooking the berries eliminates this toxin."
+      }
+    },
+    {
+      "slug": "feverfew",
+      "nome": "Feverfew (partenio)",
+      "conditions": [
+        "headache"
+      ],
+      "resumo": "Prometida para prevenção de enxaqueca e dor de cabeça tensional leve.",
+      "detalhe": "NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Feverfew",
+        "uses": "Feverfew is promoted for migraine headache prevention and for minor head and tension pain. Topically, it is marketed for itching and skin irritation.",
+        "how": ""
+      }
+    },
+    {
+      "slug": "ginger",
+      "nome": "Gengibre",
+      "conditions": [
+        "nausea-vomiting",
+        "menstrual-cramps",
+        "indigestion"
+      ],
+      "resumo": "Uso tradicional e comum para náusea e vômito, má digestão e cólica menstrual.",
+      "detalhe": "NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Ginger",
+        "uses": "Ginger is traditionally and commonly used for nausea and vomiting, indigestion, menstrual cramps, and osteoarthritis.",
+        "how": ""
+      }
+    },
+    {
+      "slug": "goldenseal",
+      "nome": "Goldenseal (hidrastis)",
+      "conditions": [
+        "common-cold",
+        "diarrhea",
+        "wounds-cuts"
+      ],
+      "resumo": "Comercializado para resfriado, infecções respiratórias e diarreia; uso histórico indígena para digestão, feridas e pele.",
+      "detalhe": "NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Goldenseal",
+        "uses": "Goldenseal is marketed for the common cold and upper respiratory infections, diarrhea, constipation, and other digestive conditions. Historically, Native Americans used it for digestive disorders, wounds, and skin conditions.",
+        "how": ""
+      }
+    },
+    {
+      "slug": "horse-chestnut",
+      "nome": "Castanha-da-índia",
+      "conditions": [
+        "hemorrhoids"
+      ],
+      "resumo": "Extrato padronizado da semente para insuficiência venosa crônica (dor e inchaço nas pernas) e uso histórico em hemorroídas; NUNCA ingerir semente, casca, flor ou folha cruas (tóxicas); pesquisas usaram até 12 semanas.",
+      "detalhe": "Aviso do NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Horse Chestnut",
+        "uses": "Horse chestnut seed extract is promoted for chronic venous insufficiency (leg pain and swelling from poor circulation) and has historically been used for hemorrhoids, arthritis, and menstrual cramps.",
+        "how": "Use only standardized horse chestnut seed extract (a dietary supplement) — never raw seeds, bark, flowers, or leaves, which are toxic when taken orally. Research has used standardized extract for up to 12 weeks; follow the product label and consult a healthcare provider before use."
+      }
+    },
+    {
+      "slug": "lavender",
+      "nome": "Lavanda",
+      "conditions": [
+        "sleeplessness"
+      ],
+      "resumo": "Chá ou cápsula, e aromaterapia (inalar o aroma) para ansiedade, estresse e sono; uso tópico também é comum.",
+      "detalhe": "NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Lavender",
+        "uses": "Lavender is promoted as an oral supplement and aromatherapy agent for calming anxiety, stress, and sleep difficulties; it is also used topically and in aromatherapy for depression symptoms and pain.",
+        "how": "Lavender is used as an oral supplement (capsule or tea), as an aromatherapy oil (inhaled or diffused), or applied topically to skin. Oral lavender oil products have been studied for anxiety; aromatherapy involves inhaling the scent from a diffuser or a few drops on a cloth."
+      }
+    },
+    {
+      "slug": "licorice-root",
+      "nome": "Alcaçuz (regalizia)",
+      "conditions": [
+        "canker-sores",
+        "sore-throat",
+        "burns",
+        "skin-rash-itch"
+      ],
+      "resumo": "Gargarejo ou bochecho para dor de garganta e afta; gel tópico para eczema e queimadura; evitar uso oral prolongado ou em alta dose — riscos cardiovasculares sérios.",
+      "detalhe": "Aviso do NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Licorice Root",
+        "uses": "Licorice root is promoted for digestive and respiratory support and is used topically for skin conditions. Research has focused on mouth rinses for canker sores, gargles or lozenges for sore throat prevention, and topical gels for eczema and burn healing.",
+        "how": "For canker sores, licorice is used as a mouth rinse or gargle; for sore throat prevention around surgery, as a gargle or lozenge; for eczema or burn healing, as a topical gel applied to the skin. Avoid long-term or high-dose oral use due to serious cardiovascular risks."
+      }
+    },
+    {
+      "slug": "passionflower",
+      "nome": "Flor-da-paixão",
+      "conditions": [
+        "sleeplessness"
+      ],
+      "resumo": "Chá (estudado até 7 noites) ou extrato (até 8 semanas) para ansiedade, estresse e sono; seguir a embalagem e orientação profissional, principalmente com outros remédios ou cirurgia marcada.",
+      "detalhe": "NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Passionflower",
+        "uses": "Passionflower is marketed as a dietary supplement for anxiety, sleep problems, and stress.",
+        "how": "Passionflower is taken as a tea (studied for up to 7 nights) or as an oral extract supplement (studied for up to 8 weeks). Follow package directions and consult a healthcare provider before use, especially if you take other medications or are scheduled for surgery."
+      }
+    },
+    {
+      "slug": "peppermint-oil",
+      "nome": "Óleo de menta",
+      "conditions": [
+        "headache",
+        "nausea-vomiting",
+        "indigestion"
+      ],
+      "resumo": "Cápsulas revestidas para síndrome do intestino irritável; aplicação tópica na testa para dor de cabeça tensional; inalado para náusea.",
+      "detalhe": "NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Peppermint Oil",
+        "uses": "Peppermint oil is promoted for irritable bowel syndrome, indigestion, headaches, muscle tension, and nausea. Topical application is used for tension headaches, and inhaled peppermint oil is used for nausea.",
+        "how": "For IBS, peppermint oil is taken as enteric-coated capsules (which reduce heartburn compared to plain capsules). For tension headaches, apply peppermint oil topically to the skin. For nausea, peppermint oil is inhaled as aromatherapy."
+      }
+    },
+    {
+      "slug": "tea-tree-oil",
+      "nome": "Óleo de melaleuca (tea tree)",
+      "conditions": [
+        "fungal-infection",
+        "acne",
+        "wounds-cuts",
+        "insect-bites-stings",
+        "burns"
+      ],
+      "resumo": "SOMENTE uso externo (acne, pé de atleta, unha fungada) conforme a embalagem; NUNCA engolir — a ingestão pode causar confusão, desequilíbrio e coma.",
+      "detalhe": "Aviso forte do NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Tea Tree Oil",
+        "uses": "Tea tree oil is marketed for external use including acne, athlete's foot, toenail fungus, and lice. Traditional Aboriginal uses included treating wounds, burns, and insect bites.",
+        "how": "Apply tea tree oil topically to the affected skin area only — for acne or athlete's foot, use a product containing tea tree oil as directed on the label. Never swallow tea tree oil; oral ingestion can cause serious symptoms including confusion, unsteadiness, and coma."
+      }
+    },
+    {
+      "slug": "turmeric",
+      "nome": "Cúrcuma (açafrão-da-terra)",
+      "conditions": [
+        "muscle-joint-pain",
+        "indigestion",
+        "skin-rash-itch"
+      ],
+      "resumo": "Suplemento oral (provavelmente seguro nas quantidades recomendadas por até 2–3 meses) ou aplicação tópica para dor articular; siga a embalagem.",
+      "detalhe": "NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Turmeric",
+        "uses": "Turmeric is promoted for osteoarthritis, itching, depression, allergies, and high cholesterol; topical applications target joint pain. Historically, it was used in traditional medicine for indigestion, colds, skin infections, and liver disease.",
+        "how": "Turmeric is taken orally as a dietary supplement or applied topically to the skin. Conventionally formulated oral turmeric or curcumin supplements are considered likely safe in recommended amounts for up to 2 to 3 months; follow the product label and consult a healthcare provider before use."
+      }
+    },
+    {
+      "slug": "valerian",
+      "nome": "Valeriana",
+      "conditions": [
+        "sleeplessness"
+      ],
+      "resumo": "Suplemento para insônia e ansiedade; estudos usaram 300–600 mg/dia por até 6 semanas; evitar combinação com sedativos ou álcool sem orientação.",
+      "detalhe": "NCCIH.",
+      "fonte": {
+        "nome": "NCCIH (NIH) — Herbs at a Glance",
+        "url": "https://www.nccih.nih.gov/health/herbsataglance",
+        "licenca": "Public domain (US government work; NCCIH)"
+      },
+      "origem_en": {
+        "name": "Valerian",
+        "uses": "Valerian is promoted for insomnia, anxiety, stress, and depression; historically, it was also used for migraine, fatigue, and stomach issues.",
+        "how": "Valerian is taken orally as a dietary supplement; clinical studies have used doses of 300 to 600 mg daily for up to 6 weeks. Follow the product label and consult a healthcare provider before use, particularly if combining with sedatives or alcohol."
+      }
+    }
+  ]
+}

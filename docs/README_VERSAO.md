@@ -7,6 +7,40 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.25.0] — REFERÊNCIA MÉDICA DETERMINÍSTICA (PARTE C DO NOMAD) 🜂 (2026-10-13)
+
+### 1. O que foi feito
+
+Parte C da ordem acordada com o dono (A → **C** → B → D → E → F). Explicada
+em três eixos antes de implementar (para que serve / como acessa / como o
+sistema controla) e aprovada com "pode fazer". Espelha o *affirmative gate*
+do NOMAD: saúde responde de FONTES, nunca de improviso.
+
+| Peça | Entrega |
+|---|---|
+| **Actions `saude_*` (categoria nova)** | `saude_condicao` (curadoria CDC/NIH/NCCIH/MedlinePlus por condição), `saude_interacoes` (bula FDA verbatim via openFDA + menção cruzada) e `saude_medicamento` (indicações/avisos da bula). Registro em `tools/actions/actions.py`; rota em `_detect_saude` (`core/intents.py`); formatação em `_formata_saude` com `SAUDE_AVISO` obrigatório. |
+| **Coleções versionadas** | `tools/saude/collections/{condicoes,remedios_caseiros,remedios_naturais,medicamentos}.json` — 36 condições, 20 caseiros, 18 naturais, 46 medicamentos (lexicon só-nomes PT-BR→FDA). Atribuição sempre presente; original em inglês preservado (`origem_en`) para auditoria; PT-BR é tradução fiel da fonte citada. |
+| **Regras de honestidade (arquitetura)** | Condição não curada → "não consta — não vou inventar"; substância sem label FDA (dipirona etc.) → ausência dita; rede fora → "sem rede para consultar". `format_intent_result` NUNCA degrada `saude_*` (nem com `ok=False`) — o LLM não entra em saúde. |
+| **Permissões** | 3 actions no allowlist do papel `user` (leitura de fonte pública); regressão mantém segredos/escrita/IP vedados. |
+| **Testes + eval** | `tests/test_saude.py` (45 testes, openFDA 100% fakeado na suíte) + 4 goldens (2 oracle herméticos, 2 e2e com rede real). |
+| **versionCode** | 2054 → 2055 (regra §5.3). |
+
+### 2. Verificação
+
+- Suíte do servidor com gate: **2576 passed / 16 skipped · cobertura 90,08% ≥ 90**.
+- `python -m evals --modo oracle` (sem rede): **10/10 (100%)**.
+- `python -m evals --modo e2e` (LLM local + HA + APIs + openFDA real): **16/16 (100%)** — dipirona×losartana e bula de losartana consultadas na FDA de verdade.
+- Baselines atualizadas: `evals/baseline-{oracle,e2e,noretrieval}.json`.
+
+### 3. Pendências
+
+- Próxima na ordem do dono: **Parte B (RAG)** — maior esforço; agora com o
+  eval da Parte A para julgar a qualidade.
+- "Para que serve X?" (sem palavra bula/efeitos) ainda cai no LLM —
+  fronteira conhecida e documentada; se o dono pedir, entra no gatilho.
+
+**Assinatura:** `OD // CORE`
+
 ## [1.24.2] — EVAL DO ASSISTENTE (PARTE A) + CLIMA/CÂMBIO DO USER CONCERTADOS 🜂 (2026-10-13)
 
 ### 1. O que foi feito

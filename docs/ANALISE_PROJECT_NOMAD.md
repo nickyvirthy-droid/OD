@@ -111,12 +111,20 @@ Reescrita de query com histórico, floor de relevância, orçamento de
 contexto (quanto foi descartado vira métrica), calibração por modelo.
 **Esforço alto** — maior ganho de qualidade.
 
-### Parte C — Referência médica e bem-estar
+### Parte C — Referência médica e bem-estar ✅ ENTREGUE (v1.25.0, 13/10)
 Actions determinísticas (sem LLM) para "condição → o que usar",
 interações de medicamentos e fontes curadas; **disclaimer obrigatório na
 resposta** (padrão `SafetyBanner` deles). Encaixa no `fastpath` de
 intents que já existe. Dados deles: `collections/*.json` (Apache-2.0).
 **Esforço médio.**
+> **Implementado:** `saude_condicao`/`saude_interacoes`/`saude_medicamento`
+> (`tools/actions/actions.py`), coleções versionadas em
+> `tools/saude/collections/` (36 condições, 20 caseiros CDC/NIH, 18
+> naturais NCCIH, lexicon de 46 medicamentos PT-BR→FDA), rota
+> `_detect_saude` + `_formata_saude` com `SAUDE_AVISO` obrigatório, e a
+> regra de que saúde **nunca degrada para o LLM** (fonte ausente = "não
+> achei"). Labels de bula via openFDA ao vivo (dipirona não tem label
+> FDA — dito como ausência). 45 testes (`tests/test_saude.py`) + 4 goldens.
 
 ### Parte D — Fila de downloads resumable
 Retry com backoff, progresso ao vivo (SSE → app), dedup, cancelamento.

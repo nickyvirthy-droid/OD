@@ -71,6 +71,12 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
         # 'USD 5.478 (USD/CLP)'). As duas actions nasceram para o chat
         # do usuário (v1.12.0/v1.14.0) e esqueceram da lista daqui.
         "weather_city", "exchange_rate",
+        # Saúde — referência (Parte C NOMAD, v1.25.0): leitura de curadoria
+        # de domínio público (CDC/NIH/NCCIH) + bula FDA (openFDA). NATUREZA
+        # DE LEITURA como ha_weather: sem escrita, sem credencial, sem
+        # segredo; resposta sempre com disclaimer (SAUDE_AVISO) e nunca
+        # inventa (fonte ausente = 'não achei').
+        "saude_condicao", "saude_interacoes", "saude_medicamento",
         # Google Workspace SOMENTE LEITURA — decisão explícita do
         # dono (2026-10-02: 'dono + usuário leitura'). Toda a escrita é do
         # admin (2º lote). Sem credencial configurada as actions degradam.
