@@ -224,3 +224,84 @@ e docs explicitaram que o `: ping` dispara quando 15 s passam SEM eventos
 **CONCLUÍDO E NO AR.** Próxima na ordem do dono: **Parte E** (auto-update
 de modelos/conteúdo: janela, cool-off, cap de bytes, auto-disable,
 dry-run) usando esta fila como motor. Pendências do dono inalteradas.
+
+---
+
+## §6 — Parte E (auto-update de modelos/conteúdo) entregue — v1.28.0 no ar (~19:20–19:40)
+
+Ordem do dono: "pode fazer a parte E". Segui o padrão do Nômade
+(`docs/ANALISE_PROJECT_NOMAD.md` §2.1.1 — pipeline de decisão puro +
+dry-run determinístico) sobre o esqueleto do launcher e o motor da fila
+da Parte D.
+
+### O que entrou
+
+- **`core/auto_update.py` (novo, 471 stmts):** `avaliar()` PURO com
+  relógio/estado/disco/alvos injetáveis — 8 camadas em ordem, cada
+  decisão com motivo: ① auto-disable → ② inativa no manifesto →
+  ③ sem mudança → ④ major (só minor/patch; versões-hash não têm major)
+  → ⑤ janela (default 02:00–06:00) → ⑥ cool-off ancorado em "primeiro
+  visto" (recomeça quando a versão vista muda) → ⑦ backoff pós-falha →
+  ⑧ cap de bytes + pre-flight (disco×1,1, sha 64 hex, URL http(s)).
+  Severidade `skip` vs `failure`: só falha DURA conta para o
+  auto-disable (3 → desligado com motivo; religar é do dono).
+- **Executor contido:** `tick()` avalia e executa — `rag_sync`
+  idempotente (thread; VectorStore é RLock) e `baixar` enfileirado na
+  fila da Parte D (retomada/sha/dedup grátis); eventos terminais da fila
+  alimentam o estado (atômico em `data/auto_update_estado.json`).
+  `pos_download: mover` = `os.replace` atômico travado na árvore do repo.
+- **Manifesto** `data/auto_update_alvos.json` (criado no boot com
+  exemplo; edição nunca é sobrescrita) para o dono pinar url+sha256+
+  versão de arquivos. Alvo vivo de hoje: **`indice-rag`** — hash do
+  conteúdo de `docs/`+`knowledge/` como "versão": editou `.md`, o ciclo
+  na janela ressincroniza o índice SEM reboot (antes só no boot).
+- **Rotas** `GET /admin/auto-update`, `POST .../dry-run` (o MESMO
+  caminho do ciclo, sobre cópia do estado), `POST .../reset` (religa) —
+  todas admin, 503 sem serviço. Bloco `auto_update` no
+  `/dashboard/stats`. Seção **Auto-update** no painel `/admin` (config,
+  tabela de alvos, 🧪 dry-run, ⟳ religar). `ROUTES` 70 → 73.
+- **Launcher:** loop `_supervise("auto-update")` com tick em
+  `asyncio.to_thread` (sync do RAG não prende o loop), health check
+  `auto_update` não-crítico, `OD_UPDATE_ENABLED=0` desliga; fila da Parte
+  D construída uma vez no modo all e compartilhada pela API e pelo
+  auto-update.
+- **Capability** `content-auto-update` (runtime). **versionCode**
+  2057 → 2058 (bump completo: .env, fallback, pubspec, _APP_VERSION_CODE,
+  site ×4 — APKs reconstruídos e republicados, mesma base de código,
+  carimbo novo).
+
+### Verificação
+
+- Suíte: **2772 passed / 16 skipped · gate 90.42%** (+59 testes;
+  `core/auto_update.py` a **94%**) — tabela de TODAS as ramificações do
+  pipeline, executor com fila/relógio falsos, auto-disable nas 3 falhas,
+  religação, mover travado, manifesto, integração REAL com a fila da
+  Parte D (download completo + sha divergente), rotas e health.
+- `flutter analyze` 0 issues · `flutter test` 174/2 · política de versão 9/9.
+- JS do painel validado pelo `node --check` da suíte (pegou um `\n` meu
+  dentro do literal Python — corrigido com `String.fromCharCode(10)`).
+
+### Prova viva no serviço (PID 1608225)
+
+| Fase | Resultado |
+|---|---|
+| Boot padrão | `Auto-update no ar \| janela=02:00-06:00 \| rag=ligado` + loop habilitado; tick `alvos=1 \| aplicar=0 \| resumo=indice-rag=aguardar` (19:27, fora da janela) — camada ⑤ viva; dry-run: `aguardar \| fora_da_janela (abre 02:00)` |
+| Executor (janela larga temporária) | Tick `alvos=2 \| aplicar=2` → `Índice RAG re-sincronizado \| arquivos=18 \| chunks=862` (idempotente) + `enfileirou download \| alvo=proof-modelo \| job=dl-0001 \| bytes=10485760` → `download concluído e verificado` em **7 s**, staged com **sha256 == pin** (`e5b844cc…`) |
+| Idempotência | `GET /admin/auto-update`: `indice-rag` instalada=`50ab0b74d8c8`, `proof-modelo`=`1.0.0`, 0 falhas; dry-run seguinte: ambos `pular \| sem_atualizacao` (camada ③) |
+| Bug achado no ar | `HealthMonitor` invoca `check(monitor)` — assinatura sem argumento → "check quebrado: TypeError", /health degraded. Fix (`health_check(_monitor=None)`), teste de regressão com o monitor real, /health **up** revalidado |
+| Restauração | `.env`/manifesto de volta ao padrão, resíduos apagados (staged + estado + dl-0001), restart limpo: `indice-rag=aguardar`, journal 0 erros, NRestarts=0 |
+
+### Canais e commits
+
+- Commits `d0e5524` (Parte E) + `b9fd489` (limitações de 13/10 consumidas
+  pelo fluxo do dono — commit separado para não sujar a história) — ==
+  origin/master.
+- `txt.txt` reescrito (regra 14); Telegram (regra 15) a seguir.
+
+### Estado
+
+**CONCLUÍDO E NO AR.** Próxima na ordem do dono: **Parte F** (registro de
+ferramentas/skills estilo Supply Depot — pre-flight, rollback). Pendências
+do dono inalteradas (Vaultwarden, Registro Mestre etapa 4, pauta 3/5,
+rotação de segredos — verificada fechada, fotos `analise/fotos-adicionais/`
+e catálogo `3D/` adiados pelo dono).
