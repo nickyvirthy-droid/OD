@@ -545,6 +545,13 @@ class DownloadQueue:
                 cl = cabecais.get("Content-Length")
                 total = int(cl) if cl else -1
 
+            if status == 206 and offset:
+                log.info("Download retomado (Range)", id=job.id,
+                         de_bytes=offset, total=total)
+            elif tentar_range and status == 200:
+                log.info("Servidor sem Range — recomeçando do zero",
+                         id=job.id)
+
             job.bytes_total = total
             modo = "ab" if (status == 206 and feitos) else "wb"
             proxima_publicacao = 0.0

@@ -22,7 +22,7 @@ documentos. O motor que a **Parte E** (auto-update) vai dirigir sozinho.
 | **Retry + backoff com fronteira** | `min(2·2^(tentativa−1), 60 s)`; transitório (timeout 30 s, conexão, 5xx, 408/425/429) reagenda e o `proximo_retry` fica visível; permanente (404/403/sha256 divergente) vira `erro` na primeira tentativa. Stream cortado abaixo do `Content-Length` anunciado é falha, nunca sucesso silencioso. |
 | **Persistência que sobrevive a restart** | `data/downloads_fila.json` (escrita atômica tmp→rename, progresso no máximo a cada 2 s — a lição do O(n²) da Parte B). No boot, job `baixando`/`aguardando` volta para `na_fila` e o `.part` continua valendo; `stop()` no meio do stream faz o mesmo sem cancelar. Histórico terminal recortado em 50; arquivo em disco nunca é apagado pela fila. |
 | **Dedup e limites** | Mesma URL+destino com job ativo devolve o mesmo job (`duplicado`); destino SEMPRE dentro de `OD_DOWNLOADS_DIR` (sem `..`, sem absoluto — a fila não vira cliente genérico). |
-| **SSE de progresso** | `GET /admin/downloads/events`: `snapshot` na abertura e depois `estado`/`progresso`/`removido`; `: ping` de 15 s; fila por assinante (overflow descarta o mais antigo, o final sempre cabe). `APIServer.stop()` ganhou `encerrando` — sem o sinal, o join do `ThreadingHTTPServer` esperaria o handler SSE fechar a cada restart. |
+| **SSE de progresso** | `GET /admin/downloads/events`: `snapshot` na abertura e depois `estado`/`progresso`/`removido`; `: ping` quando 15 s passam sem eventos (keepalive — enquanto há progresso o próprio fluxo mantém o canal vivo); fila por assinante (overflow descarta o mais antigo, o final sempre cabe). `APIServer.stop()` ganhou `encerrando` — sem o sinal, o join do `ThreadingHTTPServer` esperaria o handler SSE fechar a cada restart. |
 | **API + painel + métricas** | 6 rotas admin (`POST/GET /admin/downloads`, `/events`, `/{id}`, `/{id}/cancel`, `DELETE /{id}` com 409 `job_ativo`), 503 `downloads_indisponivel` sem fila. `/dashboard/stats` com bloco `downloads`. Painel `/admin` com seção **Downloads** (enfileirar, barra ao vivo via `fetch`+`ReadableStream`, cancelar/apagar) — JS validado pelo `node --check` da suíte. |
 | **App: aba Downloads (7ª)** | `OdApi` + `streamDownloads()` (SSE, timeout só na abertura) e a tela com fila, selo, barra, tentativas e etiqueta `📡 ao vivo (SSE)`; stream morto → polling de 5 s + reassina em 15 s. Modo avançado passou a abrir na aba 6 (Config). |
 | **Capability nova** | `download-queue` (runtime) no manifesto `/capabilities`. |
@@ -42,6 +42,16 @@ documentos. O motor que a **Parte E** (auto-update) vai dirigir sozinho.
 - Painel: `node --check` do JS do `/admin` passou (a suíte compila o
   script de verdade — e pegou o `\n` não-escapado do `split` dentro do
   literal Python).
+- **Prova viva no serviço (14/10, PID 1517294, fila real):** download de
+  100 MB da internet (`proof.ovh.net`, servidor com Range) enfileirado
+  pela própria API — SSE entregou `snapshot` + 42 `progresso` e, com a
+  fila ociosa, 1 `: ping` aos 15 s; sha256 do job == `sha256sum` do
+  disco (`20492a4d…`); POST repetido durante a transferência devolveu
+  HTTP 200 `duplicado: true` com o mesmo job; cancelamento em 28,5 MB
+  preservou o `.part` (mesmo tamanho do contador) e deixou o arquivo
+  final intocado; o re-enfileiramento retomou do offset e terminou com
+  o **MESMO sha256** do download integral (cauda de 71 MB byte a byte);
+  no sucesso o `.part` some do disco (`os.replace` atômico).
 
 ### 3. Pendências
 

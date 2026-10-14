@@ -4546,10 +4546,11 @@ class APIHandler(BaseHTTPRequestHandler):
         """GET /admin/downloads/events — SSE do progresso ao vivo.
 
         Abre com um evento `snapshot` (fila inteira); depois vêm
-        `estado`/`progresso`/`removido` a cada transição. `: ping` de
-        15 s mantém o canal atrás de proxy. O loop sai em ~1 s quando o
-        servidor encerra (stop()) e na primeira escrita falha quando o
-        cliente foi embora.
+        `estado`/`progresso`/`removido` a cada transição. `: ping` quando
+        15 s passam sem eventos (keepalive atrás de proxy — enquanto há
+        progresso, o próprio fluxo já mantém o canal vivo). O loop sai em
+        ~1 s quando o servidor encerra (stop()) e na primeira escrita
+        falha quando o cliente foi embora.
         """
         self._require_admin()
         fila = self._downloads_or_503()
