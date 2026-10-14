@@ -147,7 +147,7 @@ def build_rag() -> Optional[Any]:
         store = VectorStore(
             store_dir=DATA_DIR / "vector_memory",
             provider=ProviderSemStopwords(HashEmbeddingProvider()),
-            top_k=12,
+            top_k=24,  # coerente com TOP_K_CANDIDATOS (medição: alvo em 15º)
         )
         store.load()
         modelo = env("OD_LLM_MODEL", "qwen2.5-coder-3b")

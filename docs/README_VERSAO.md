@@ -24,12 +24,12 @@ o assistente passa a responder puxando referências do acervo interno
 | **Ingestão idempotente** | `doc_id` determinístico + SHA; re-sync não regrava; edição substitui; remoção apaga órfãos. `add_many` em lote: ingestão de 842 chunks de **86s → 0.66s**. |
 | **Visibilidade por papel** | Todo o corpus é `interna`: só o `admin` (o dono) recebe o bloco; `user`/anônimo nunca veem (goldens provam em oracle E e2e). |
 | **Eval com `prompt_contem`/`prompt_nao_contem`** | A Parte A ganhou expectativas de PROMPT — gate de CI do retrieval sem rede. 4 goldens novos; `noretrieval` agora desliga o RAG e um golden prova que está desligado. |
-| **Floor medido, não chutado** | 16 queries no corpus real (842 chunks): a regra atual passa 8/8 relevantes e bloqueia 8/8 irrelevantes. As medições são GATE na suíte. |
+| **Floor medido, não chutado** | 16 queries no corpus real (850 chunks no boot de 14/10; a primeira medição foi com 842): a regra atual passa 8/8 relevantes e bloqueia 8/8 irrelevantes. As medições são GATE na suíte. A prova de fogo no serviço vivo (14/10) achou e corrigiu 2 bordas: prefixo de instrução ("responda curto:") diluía o overlap e derrubava consulta certa (0 trechos → LLM inventou); `top_k` 12 deixava o chunk certo fora do pool (posição 15). `termos_da_consulta()` + `top_k` 24, gate 8/8+8/8 refeito. |
 | **versionCode** | 2055 → 2056 (regra §5.3). |
 
 ### 2. Verificação
 
-- Suíte do servidor: **2659 passed / 16 skipped** (+83 testes da Parte B).
+- Suíte do servidor: **2666 passed / 16 skipped** (+90 testes da Parte B).
 - `python -m evals --modo oracle` (sem rede): **13/13 (100%)**.
 - `python -m evals --modo e2e` (LLM local real): **19/19 (100%)** — acervo no
   prompt do admin (`rag_acervo_regras_admin`, `rag_eval_nomad_admin`) e sem

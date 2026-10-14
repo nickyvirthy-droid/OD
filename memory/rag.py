@@ -24,13 +24,26 @@ Arquitetura (tudo determinístico — NENHUMA chamada de LLM aqui):
               └─ orçamento por tokens (janela do modelo − system −
                  histórico − resposta) → o que NÃO coube vira MÉTRICA
 
-Calibração (2026-10-14, 842 chunks de docs/ + knowledge/, 16 queries
-medidas — 8 relevantes × 8 irrelevantes, com o código FINAL): score
-vetorial PURO não separava (irrelevante 0.496 > relevante 0.444) porque
-stopwords inflam o cosseno. A regra de duas chaves acima, com as
-stopwords filtradas dos DOIS lados, passa **8/8 relevantes e bloqueia
-8/8 irrelevantes** — a suíte de calibração em tests/test_rag.py mantém
-essas 16 medições como gate (falhou = recalibrar com evidência).
+Calibração (2026-10-14, corpus real de docs/ + knowledge/ — 842 chunks na
+primeira medição, 850 no boot do serviço; 16 queries medidas — 8
+relevantes × 8 irrelevantes, com o código FINAL: top_k=24 +
+termos_da_consulta()): score vetorial PURO não separava (irrelevante
+0.496 > relevante 0.444) porque stopwords inflam o cosseno. A regra de
+duas chaves acima, com as stopwords filtradas dos DOIS lados, passa
+**8/8 relevantes e bloqueia 8/8 irrelevantes** — a suíte de calibração
+em tests/test_rag.py mantém essas 16 medições como gate (falhou =
+recalibrar com evidência).
+
+Prova de fogo no serviço vivo (2026-10-14) — 2 bordas medidas e
+corrigidas, com testes:
+  1. prefixo de instrução antes de ":" ("responda curto: ...") entrava
+     na soma_idf com idf de palavra rara de comando e derrubava consulta
+     certa (overlap 0.211 < 0.22 → 0 trechos no prompt → o LLM respondeu
+     INVENTANDO as "regras" em vez de citar o doc). termos_da_consulta()
+     tira só o prefixo curto (≤5 palavras) do FLOOR; a busca vetorial
+     continua vendo a frase crua.
+  2. top_k=12 deixava o chunk certo do doc na posição 15 da busca, fora
+     do pool do floor. top_k → 24 (o reranker reordena depois).
 
 Usage:
     from memory.rag import RAGPipeline, fontes_padrao
@@ -101,6 +114,25 @@ def termos(texto: str) -> list[str]:
     ]
 
 
+def termos_da_consulta(pergunta: str) -> list[str]:
+    """Termos de TÓPICO da consulta para o floor duplo.
+
+    Prefixo de instrução antes de dois-pontos ("responda curto: quais
+    regras de trabalho...") não é conteúdo — contá-lo inflava o
+    denominador do overlap com idf de palavra rara de comando e derrubava
+    consulta certa no serviço real (medido em 2026-10-14: soma_idf 33.6 →
+    overlap 0.211 < 0.22, 0 trechos, e o LLM respondeu de inventar;
+    com o prefixo fora: soma 22.1 → overlap 0.32 → o doc certo passa).
+    Só o prefixo CURTO (≤5 palavras) é tratado como instrução — um trecho
+    longo antes de ":" é conteúdo. A BUSCA vetorial usa a frase crua;
+    só os termos do floor são limpos.
+    """
+    partes = pergunta.split(":", 1)
+    if len(partes) == 2 and len(partes[0].split()) <= 5:
+        return termos(partes[1])
+    return termos(pergunta)
+
+
 def _limpar(texto: str) -> str:
     """Texto sem stopwords — é o que o embedding vê (docs e consultas)."""
     return " ".join(termos(texto))
@@ -138,7 +170,10 @@ PESO_COSSENO = 0.8
 PESO_OVERLAP = 0.2
 PISO_SCORE = 0.36        # score combinado mínimo (medido: 8/8 rel. passam)
 PISO_OVERLAP = 0.22      # overlap-IDF mínimo (sem termo raro = não injeta)
-TOP_K_CANDIDATOS = 12    # oversample: o reranker reordena depois do floor
+# oversample: o reranker reordena depois do floor. Era 12; a prova de fogo
+# no serviço (2026-10-14) mostrou o chunk certo do doc na posição 15 da
+# busca — fora do pool — com 0 trechos no prompt. 24 cobre o alvo medido.
+TOP_K_CANDIDATOS = 24
 MAX_TRECHOS = 4          # trechos que podem entrar no bloco
 MAX_TOKENS_BLOCO = 768   # teto do bloco de referência dentro da janela
 FOLGA_DATETIME = 64      # tokens da linha de data/hora + margem
@@ -600,7 +635,7 @@ class RAGPipeline:
             resultado.reescrita = reescrita
             if reescrita:
                 self._metricas["reescritas"] += 1
-            qt = set(termos(consulta))
+            qt = set(termos_da_consulta(consulta))
             if not qt:
                 return resultado
             candidatos = self._store.search(

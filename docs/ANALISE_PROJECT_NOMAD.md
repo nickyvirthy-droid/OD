@@ -111,7 +111,7 @@ Reescrita de query com histórico, floor de relevância, orçamento de
 contexto (quanto foi descartado vira métrica), calibração por modelo.
 **Esforço alto** — maior ganho de qualidade. Entregue com floor duplo
 medido no corpus real (16 queries viraram gate na suíte), ingestão
-idempotente de `docs/` + `knowledge/` (842 chunks), visibilidade por
+idempotente de `docs/` + `knowledge/` (850 chunks no boot de 14/10), visibilidade por
 papel (só `admin` recebe o acervo interno) e eval com
 `prompt_contem`/`prompt_nao_contem` — o retrieval é provado em modo
 oracle sem rede (CHANGELOG 1.26.0).

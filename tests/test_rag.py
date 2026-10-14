@@ -31,6 +31,7 @@ from memory.rag import (
     janela_do_modelo,
     reescrever,
     termos,
+    termos_da_consulta,
 )
 from memory.vector import HashEmbeddingProvider, VectorStore
 
@@ -56,6 +57,36 @@ class TestTermos:
 
     def test_case_e_acentos_normalizados(self):
         assert termos("REGISTRO Mestre") == ["registro", "mestre"]
+
+
+class TestTermosDaConsulta:
+    """Prefixo de instrução não conta no floor (incidente 2026-10-14).
+
+    "responda curto: ..." — dois termos raríssimos inflavam a soma_idf e
+    derrubavam consulta certa (overlap 0.211 < 0.22 → 0 trechos → o LLM
+    respondeu inventando as "regras" em vez de citar o doc).
+    """
+
+    def test_prefixo_curto_de_instrucao_sai(self):
+        bruto = termos("responda curto: quais regras de trabalho valem")
+        assert "responda" in bruto and "curto" in bruto
+        limpo = termos_da_consulta("responda curto: quais regras de trabalho valem")
+        assert "responda" not in limpo
+        assert "curto" not in limpo
+        # o TÓPICO continua inteiro
+        assert "regras" in limpo and "trabalho" in limpo and "valem" in limpo
+
+    def test_consulta_sem_dois_pontos_intacta(self):
+        p = "quais são as regras de trabalho da casa"
+        assert termos_da_consulta(p) == termos(p)
+
+    def test_prefixo_longo_nao_e_removido(self):
+        # >5 palavras antes de ":" é conteúdo, não instrução — nada sai.
+        p = "sobre o orçamento de contexto do pipeline: respostas"
+        assert termos_da_consulta(p) == termos(p)
+
+    def test_dois_pontos_sozinho_nao_muda(self):
+        assert termos_da_consulta("regras: casa") == termos("casa")
 
 
 class TestReescrever:
@@ -249,7 +280,7 @@ def _pipeline(tmp_path: Path, **kwargs) -> RAGPipeline:
     store = VectorStore(
         store_dir=tmp_path / "store",
         provider=ProviderSemStopwords(HashEmbeddingProvider()),
-        top_k=12,
+        top_k=24,  # coerente com TOP_K_CANDIDATOS (medição real: alvo em 15º)
     )
     fontes = [
         _fonte(
@@ -357,7 +388,7 @@ class TestConsulta:
         store = VectorStore(
             store_dir=tmp_path / "pub",
             provider=ProviderSemStopwords(HashEmbeddingProvider()),
-            top_k=12,
+            top_k=24,  # coerente com TOP_K_CANDIDATOS (medição real: alvo em 15º)
         )
         rag = RAGPipeline(store, fontes=[
             _fonte(
@@ -385,6 +416,41 @@ class TestConsulta:
         r2 = rag.consult("xyzzy plugh quux", papel="admin")
         assert r2.trechos == []
         assert r2.descartados_floor >= 1
+
+    def test_prefixo_de_instrucao_nao_derruba_consulta_certa(self, tmp_path):
+        # Reproduz o incidente do serviço (2026-10-14): a frase crua
+        # "responda curto: ..." diluía a soma_idf (idf de palavra rara de
+        # comando) e a consulta certa voltava com 0 trechos — o LLM
+        # respondia inventando em vez de citar o doc.
+        store = VectorStore(
+            store_dir=tmp_path / "instr",
+            provider=ProviderSemStopwords(HashEmbeddingProvider()),
+            top_k=24,
+        )
+        fontes = [
+            # saturação de "commit/push/versão" (o CHANGELOG da vida real):
+            _fonte(
+                tmp_path, "log.md",
+                "# Log\n"
+                + "Push do commit novo na versão via CI. " * 40 + "\n",
+            ),
+            # o doc certo (o REGRAS_DE_TRABALHO.md da vida real):
+            _fonte(
+                tmp_path, "regras.md",
+                "# REGRAS DE TRABALHO\n"
+                "As regras de trabalho valem para todo commit e push "
+                "feito no branch master com versão na mensagem.\n",
+            ),
+        ]
+        rag = RAGPipeline(store, fontes=fontes)
+        rag.sync()
+        r = rag.consult(
+            "responda curto: quais regras de trabalho valem para commit, "
+            "push e versao?",
+            papel="admin",
+        )
+        assert r.trechos, "prefixo de instrução não pode derrubar a consulta"
+        assert any("regras.md" in t.source for t in r.trechos)
 
     def test_overlap_zero_e_rejeitado_mesmo_com_cosseno(self, tmp_path):
         # "casa" aparece em todo lugar (IDF baixo); "xylofone" em lugar
@@ -519,7 +585,7 @@ def rag_real(tmp_path_factory) -> RAGPipeline:
     store = VectorStore(
         store_dir=store_dir,
         provider=ProviderSemStopwords(HashEmbeddingProvider()),
-        top_k=12,
+        top_k=24,  # coerente com TOP_K_CANDIDATOS (medição real: alvo em 15º)
     )
     rag = RAGPipeline(store, fontes=fontes_padrao(REPO))
     rag.sync()
