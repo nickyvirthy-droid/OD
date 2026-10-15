@@ -1,7 +1,7 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-14T16:11:00-03:00",
+ "updated_at": "2026-10-15T11:10:00-03:00",
  "reverificacao_2026_10_14_1611": {
   "pedido": "Usuário: 'leia iniciar' (3ª vez em 14/10, ~16:11).",
   "achados": "ESTADO INALTERADO E 100% VERDE ~3h após o deploy da Parte B: od-core active PID 1257828 (desde 14/10 13:05:45, 3h05), NRestarts=0, journal 0 erros. /app/version 1.26.0 / 2056 (sha 26be1efc… == APK publicado). /health 401 sem credencial = esperado. HEAD 258188b == origin/master, árvore LIMPA, 0 commits novos desde 13:20. txt.txt sem mensagem nova do dono (nossa última escrita 13:09); analise/ sem depósito novo.",
@@ -2589,5 +2589,36 @@
   ],
   "proximo": "Parte F (registro de ferramentas/skills estilo Supply Depot) — espera ordem do dono",
   "telegram_msg": 2721
+ },
+ "parte_f_supply_depot_v1290_2026_10_15": {
+  "data": "2026-10-15",
+  "pedido_dono": "'faça a parte F' — última parte da ordem acordada (A → C → B → D → E → F). CICLO COMPLETO DO NOMAD ENCERRADO (ANALISE_PROJECT_NOMAD.md linha 167).",
+  "o_que": "Supply Depot — registro de ferramentas/skills (Parte F do NOMAD): tools/supply_depot.py com preflight() PURO em camadas (nome canônico → tamanho 8000 → disco ×1,1 → conflito action_alheia → versão semver: igual=sem_acao, menor=downgrade_bloqueado, major só com substituir=true), instalação atômica com ROLLBACK automático na falha (arquivo+catálogo+action de snapshot em memória), rollback manual síndico desfazível (histórico máx 5, backup em data/ferramentas_backup/), custom do dono em `custom` que sobrevive a update/rollback/restart (ativa false/true = desinstalar/reativação não destrutivas), carregar() no boot (código corrompido = warn, nunca derruba). /gerar com depot: pré-voo ANTES do LLM (conflict/blocked/exists honestos, zero token em conflito — antes devolvia 'ok' com registro pulado), persiste em data/ferramentas/ + ferramentas_catalogo.json, substituir=True = bump patch; caminho legado depot=None intacto. 5 rotas admin (GET/POST /admin/ferramentas, PUT/DELETE .../{id}, POST .../rollback) ROUTES 73→78, bloco ferramentas no /dashboard/stats, seção 'Ferramentas (Supply Depot)' no painel, health supply_depot não-crítico, OD_SUPPLY_DEPOT=0, capability tool-supply-depot.",
+  "versao": "1.29.0 (versionCode 2059)",
+  "verificacao": "suíte 2863 passed / 16 skipped · gate 90,52% (+91 testes; tools/supply_depot.py 95%), flutter analyze 0 issues, flutter test 174/2, política de versão 9/9, ROUTES 73→78, node --check do painel verde. Bug achado durante os testes: NickyLogger.info() não aceita args posicionais de % (f-string).",
+  "prova_viva": "3 fases na API de produção (PIDs 2405509 → 2409472 → 2410050): (1) boot 'Supply Depot no ar | carregadas=0 | erros=0 | catalogo=0', /health up com supply_depot, /capabilities 47 com tool-supply-depot, /app/version 1.29.0/2059 sha==APK (c23ff4ee…); (2) ciclo de vida de proof.soma: 201 instalar → 200 sem_acao idempotente → 409 conflito em system_info → update 1.0.1 + backup v1.0.0.py → PUT descrição do dono → update 1.0.2 com descrição intacta → 409 major_requer_confirmacao (1.0.2→2.0.0) → rollback 200 de=1.0.2 para=1.0.1 com descrição do dono intacta → /executa result:6 → DELETE 200 não destrutivo; (3) proof.persist instalado → restart → journal 'Supply Depot restaurado no boot | carregadas=1 | erros=0 | catalogo=1' → /executa 'sobrevivi ao restart' → limpeza → restart final PID 2410050, NRestarts=0, journal 0 erros, catálogo vazio.",
+  "commits": [
+   "1d6cad4 Parte F do NOMAD: Supply Depot — registro de ferramentas/skills (v1.29.0+2059)",
+   "5b48460 docs: prova viva da Parte F registrada (3 fases no serviço)"
+  ],
+  "arquivos": [
+   "tools/supply_depot.py",
+   "tests/test_supply_depot.py",
+   "tools/auto_extension/engine.py",
+   "runtime/launcher.py",
+   "integrations/api/server.py",
+   "integrations/telegram/commands.py",
+   "core/capabilities.py",
+   "tests/test_api.py",
+   "app/pubspec.yaml",
+   "site/index.html",
+   "docs/CHANGELOG.md",
+   "docs/README_VERSAO.md",
+   "docs/ANALISE_PROJECT_NOMAD.md"
+  ],
+  "comunicacao": "txt.txt reescrito (regra 14 — inclui 'ORDEM DO NOMAD COMPLETA A→F' e aponta a DECISÃO FINAL 12/10 como próximo candidato) + Telegram msg 2742 (regra 15) + transcricao iniciar/2026-10-15_conversa_omegadrakon.md (§1)",
+  "proximo": "ORDEM A→F COMPLETA — aguarda nova ordem do dono; candidato natural: DECISÃO FINAL (12/10) — 8 ferramentas de terceiro em Docker + ProtoMaps + LoRa (ANALISE linha 178)",
+  "estado": "CONCLUÍDO E NO AR — v1.29.0+2059 servindo (PID 2410050), HEAD == origin/master, árvore limpa",
+  "telegram_msg": 2742
  }
 }
