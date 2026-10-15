@@ -217,3 +217,15 @@ do drill (contagem 0→1→2→1).
   — privar? rotacionar? as duas?
 - bw CLI ≥2026.9 incompatível com o prelogin do servidor 1.36.0
   (registrado na dívida técnica §4; web vault e app seguem OK).
+
+### 7. Deploy da action corrigida (restart verde, regra 7.3)
+
+Como `actions.py` vive em memória do od-core, o restart fazia parte do
+deploy: `systemctl --user restart od-core` → **active PID novo
+(16:30:47), NRestarts=0, journal 0 erros**. Provas no ar: `/health`
+**up** (11 checks: audit/auto_update/database/homeassistant/llm/loops/
+metrics/mqtt/orchestrator/perception/supply_depot), `/supervision`
+degraded `[]` restarts 0, `/capabilities` **89 actions (nomad: 8)**
+com `nomad_vaultwarden_setup` registrada, `/app/version` 1.29.0/2059
+(sem bump — backend/infra), registro externo ainda **400**. Commit
+`446246e` publicado (`3ed13cc..446246e`); Telegram msg **2756**.

@@ -2670,6 +2670,7 @@
    "inalteradas: Registro Mestre etapa 4, pauta itens 3/5, fotos em analise/fotos-adicionais/, catálogo 3D/"
   ],
   "estado": "CONCLUÍDO — §1 do TODO fechada: 9/9 serviços no ar, cofre do dono pronto e provado com cliente oficial, signups fechados, action consertada e provada de ponta a ponta",
-  "ts": "2026-10-15T16:35:00-03:00"
+  "ts": "2026-10-15T16:35:00-03:00",
+  "deploy": "restart verde od-core 16:30:47 (regra 7.3 — action vive em memória): PID novo, NRestarts=0, journal 0 erros, /health up 11 checks, /supervision []/0, /capabilities 89 actions (nomad: 8) com nomad_vaultwarden_setup registrada, /app/version 1.29.0/2059, registro externo ainda HTTP 400 | commit 446246e publicado | Telegram msg 2756"
  }
 }
