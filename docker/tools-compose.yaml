@@ -6,6 +6,12 @@
 # Para derrubar:
 #   docker compose -f docker/tools-compose.yaml down
 #
+# Segredos (regra do dono, 2026-10-15): NADA de senha literal neste arquivo.
+#   ADMIN_TOKEN e HBOX_AUTH_API_KEY_PEPPER vivem no .env da raiz (600,
+#   gitignored) e chegam aqui por interpolação — docker/.env é symlink
+#   para ../.env, então funciona de qualquer cwd. Se faltar, o compose
+#   FALHA ALTO (:) em vez de subir container sem token.
+#
 # Segurança por design:
 #   * Todos os serviços bindados em 127.0.0.1 — NÃO ficam expostos à internet.
 #   * Acesso de fora: via Tailscale (já ativo no servidor).
@@ -164,7 +170,7 @@ services:
       - /home/alex/omegadrakon-tools/homebox:/data
     environment:
       - HBOX_TELEMETRY_ENABLED=false
-      - HBOX_AUTH_API_KEY_PEPPER=l0GcNrXhMoZplAmL7rP1Tz8t4wH/qYO8YYRMY7GXLt7BRJagyoAse2cbkYZZyn8Z
+      - HBOX_AUTH_API_KEY_PEPPER=${HBOX_AUTH_API_KEY_PEPPER:?defina HBOX_AUTH_API_KEY_PEPPER no .env (movido do compose em 2026-10-15)}
     mem_limit: 256m
     memswap_limit: 256m
 
@@ -185,7 +191,7 @@ services:
     environment:
       - WEBSOCKET_ENABLED=true
       - SIGNUPS_ALLOWED=true
-      - DOMAIN=https://nicky-server.tail1b1f51.ts.net
-      - ADMIN_TOKEN=rB6x9TInm7d4Wd3XuxXEa2V5tl+xNqMM1AwmGR5Hypo=
+      - DOMAIN=https://nicky-server.tail1b1f51.ts.net:8443
+      - ADMIN_TOKEN=${ADMIN_TOKEN:?defina ADMIN_TOKEN no .env (movido do compose em 2026-10-15)}
     mem_limit: 256m
     memswap_limit: 256m
