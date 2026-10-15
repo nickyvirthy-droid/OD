@@ -512,12 +512,30 @@ async def _gerar_handler(bot: "TelegramBot", ctx: CommandContext) -> str:
     except Exception as exc:  # pragma: no cover — LLM/rede falhou
         return f"⚠️ Falha ao gerar: {type(exc).__name__}: {exc}"
     if result.get("status") == "ok":
+        persistido = " (persistida — sobrevive a restart)" if result.get(
+            "persistido") else ""
         return (
-            f"✅ Ferramenta *{result['action']}* gerada e registrada.\n"
+            f"✅ Ferramenta *{result['action']}* gerada e registrada"
+            f"{persistido}.\n"
             f"Descrição: {result['description']}\n"
-            f"Execute com: `/executa {result['action']}`\n"
+            + (f"Versão: {result['versao']}\n" if result.get("versao") else "")
+            + f"Execute com: `/executa {result['action']}`\n"
             "(toda execução passa pelo Security Layer — "
             "permission `auto_extension.generated`)"
+        )
+    if result.get("status") == "exists":
+        # Pré-voo do Supply Depot (Parte F): já está na versão — nada de
+        # LLM gasto e registro pulado em silêncio como era antes.
+        return (
+            f"ℹ️ *{result.get('action', name)}* já está instalada — "
+            f"{result.get('error', 'mesma versão')}.\n"
+            "Para substituir, é pelo painel /admin → *Ferramentas* "
+            "(Supply Depot: atualiza com backup + rollback)."
+        )
+    if result.get("status") in ("conflict", "blocked"):
+        return (
+            f"🛑 Pré-voo bloqueou: {result.get('error')}\n"
+            "Nada foi gerado (o bloqueio é decidido antes de gastar o LLM)."
         )
     return f"⚠️ Falha: {result.get('error', 'desconhecida')}"
 

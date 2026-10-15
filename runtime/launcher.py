@@ -503,6 +503,7 @@ def build_api_server(
     action_registry: Any = None, push: Any = None, database: Any = None,
     user_store: Any = None, registry: Any = None, chat_notify: Any = None,
     vector: Any = None, downloads: Any = None, auto_update: Any = None,
+    supply_depot: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -543,6 +544,7 @@ def build_api_server(
             chat_notify=chat_notify,  # sala das peças → Telegram do dono
             downloads=downloads,  # Parte D: fila de downloads resumable
             auto_update=auto_update,  # Parte E: auto-update de conteúdo
+            supply_depot=supply_depot,  # Parte F: catálogo de ferramentas
             stt=voice_stt,  # v1.17.3: /transcribe real (whisper.cpp)
             tts=voice_tts,  # v1.17.3: /tts real (Piper)
             # Freio contra força bruta no login (LoginGuard)
@@ -1094,7 +1096,7 @@ def build_mqtt_bridge(event_bus: Any):
 async def _run_api_forever(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
-    downloads: Any = None, auto_update: Any = None,
+    downloads: Any = None, auto_update: Any = None, supply_depot: Any = None,
 ) -> None:
     # Um único UserStore para REST e WebSocket: mesma sessão vale nos dois.
     user_store = build_user_store(database)
@@ -1117,6 +1119,7 @@ async def _run_api_forever(
         action_registry=action_registry, push=push, database=database,
         user_store=user_store, registry=registry, chat_notify=chat_notify,
         downloads=downloads, auto_update=auto_update,
+        supply_depot=supply_depot,  # Parte F: Supply Depot no painel
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
@@ -1167,12 +1170,57 @@ async def _run_telegram_forever(
         log.info("ActionRegistry conectado ao Orchestrator")
 
 
-def build_auto_extension(orchestrator: Any, action_registry: Any) -> Optional[Any]:
+def build_supply_depot(action_registry: Any, health: Any = None) -> Optional[Any]:
+    """Supply Depot (Parte F do NOMAD, 2026-10-15).
+
+    Catálogo persistente de ferramentas/skills do orquestrador, estilo
+    catálogo do Nômade: pré-voo antes de instalar/atualizar (conflito de
+    nome, versão semver com downgrade bloqueado, tamanho/disco), backup +
+    rollback de cada versão e customização do dono que sobrevive a
+    atualização. No boot, `carregar()` restaura tudo no ActionRegistry —
+    a ferramenta gerada pelo /gerar não some mais quando o core reinicia.
+
+    Falha ao construir = None (o core segue sem depot — nunca derruba o
+    processo por um extra). OD_SUPPLY_DEPOT=0 desliga.
+    """
+    if action_registry is None:
+        return None
+    if env("OD_SUPPLY_DEPOT", "1") == "0":
+        return None
+    try:
+        from tools.supply_depot import SupplyDepot
+
+        depot = SupplyDepot(
+            registry=action_registry,
+            catalogo_path=DATA_DIR / "ferramentas_catalogo.json",
+            codigos_dir=DATA_DIR / "ferramentas",
+            backup_dir=DATA_DIR / "ferramentas_backup",
+            raiz=DATA_DIR,
+        )
+        estado = depot.carregar()
+        if health is not None:
+            health.register("supply_depot", depot.health_check, critical=False)
+        log.info("Supply Depot no ar (Parte F NOMAD)",
+                 carregadas=estado["carregadas"], erros=estado["erros"],
+                 catalogo=depot.resumo()["total"])
+        return depot
+    except Exception as exc:
+        log.warn("Supply Depot desabilitado", error=str(exc))
+        return None
+
+
+def build_auto_extension(
+    orchestrator: Any, action_registry: Any, depot: Any = None,
+) -> Optional[Any]:
     """Auto Extension (Fase 6.6): gera ferramentas via LLM no registry.
 
     Usa o primeiro provider LLM do Orchestrator (generate/prompt, timeout)
     e registra no ActionRegistry com permission auto_extension.generated
     (Security Layer media toda execução). Exposto no bot via /gerar.
+
+    Com o Supply Depot (Parte F), o /gerar passa a: pré-voar ANTES do LLM
+    (conflito honesto, sem custo de token) e persistir a ferramenta gerada
+    em disco (sobrevive a restart, atualizável com rollback).
     """
     if action_registry is None or orchestrator is None:
         return None
@@ -1186,6 +1234,7 @@ def build_auto_extension(orchestrator: Any, action_registry: Any) -> Optional[An
         llm=providers[0],
         registry=action_registry,
         security=SecurityManager(mode="strict"),
+        depot=depot,
     )
 
 
@@ -1482,8 +1531,13 @@ def main() -> int:
     # Action Registry: o catálogo de 56 actions está disponível para
     # execução via Telegram Bot (/executa) e Orchestrator.
     action_registry = build_action_registry()
+    # Supply Depot (Parte F do NOMAD): catálogo persistente de ferramentas
+    # com pré-voo/rollback — restaura no boot ANTES do auto-extension.
+    supply_depot = build_supply_depot(action_registry, health=health)
     # Auto Extension (v0.27.4): gera ferramentas via LLM (/gerar no bot).
-    auto_extension = build_auto_extension(orchestrator, action_registry)
+    auto_extension = build_auto_extension(
+        orchestrator, action_registry, depot=supply_depot,
+    )
     # RecoveryLoop (v0.27.4): fecha o loop — percepção + auto-reparo.
     recovery = build_recovery(audit, health)
     mqtt_enabled = env("OD_MQTT_ENABLED", "1") != "0"
@@ -1512,6 +1566,7 @@ def main() -> int:
                 orchestrator, metrics, health,
                 action_registry=action_registry, push=push, database=database,
                 downloads=downloads, auto_update=auto_update,
+                supply_depot=supply_depot,  # Parte F: Supply Depot
             ), restart=False),
             _supervise("telegram", lambda: _run_telegram_forever(
                 orchestrator,

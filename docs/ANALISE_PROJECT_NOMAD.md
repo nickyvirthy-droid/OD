@@ -167,6 +167,19 @@ com fila/relógio falsos + integração REAL com a fila da Parte D).
 ### Parte F — Registro de ferramentas/skills estilo Supply Depot
 Pre-flight (conflito, versão, tamanho), rollback, preservar customização
 — evoluindo o catálogo de tools do orquestrador. **Esforço médio.**
+✅ **ENTREGUE em 1.29.0** (2026-10-15): `tools/supply_depot.py` — o
+`preflight()` puro (conflito → versão semver com downgrade bloqueado e
+major só com `substituir=true` → tamanho/disco com a margem 1,1 da Parte
+E) fecha a entrada; toda atualização grava backup + histórico (rollback
+automático na falha, rollback manual desfazível); `custom` do dono
+(descrição/params/permission) sobrevive a update, rollback e restart. O
+`/gerar` passou a pré-voar ANTES do LLM (conflito honesto sem custo de
+token — antes devolvia "ok" com o registro pulado) e a persistir em
+`data/ferramentas/` — o boot (`build_supply_depot`) restaura no
+registry: ferramenta gerada não some mais. 5 rotas `/admin/ferramentas`
+(73 → 78), seção no painel, bloco no stats, health `supply_depot`
+não-crítico, capability `tool-supply-depot`. Suíte +91 testes:
+**2863 passed, 16 skipped · 90,51%** (`supply_depot.py` a 95%).
 
 ### DECISÃO FINAL (12/10) — Virada da análise original
 

@@ -59,7 +59,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2058  # versionCode cru do APK publicado (v1.28.0+2058)
+_APP_VERSION_CODE = 2059  # versionCode cru do APK publicado (v1.29.0+2059)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -215,6 +215,11 @@ class APIConfig:
     # core.auto_update.AutoUpdateService — janela/cool-off/cap/auto-disable.
     # None = serviço fora (as rotas /admin/auto-update* respondem 503).
     auto_update: Optional[Any] = None
+    # Registro de ferramentas/skills estilo Supply Depot (Parte F do NOMAD,
+    # 2026-10-15): tools/supply_depot.py — pré-voo (conflito/versão/tamanho),
+    # rollback e customização preservada. None = depot fora (as rotas
+    # /admin/ferramentas* respondem 503).
+    supply_depot: Optional[Any] = None
     # Callable síncrono(texto) → avisa o dono no Telegram (sala das peças);
     # montado pelo launcher com o loop principal (build_chat_notify).
     chat_notify: Optional[Any] = None
@@ -319,6 +324,15 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/admin/auto-update", "admin_auto_update_get", True),
     ("POST", "/admin/auto-update/dry-run", "admin_auto_update_dry_run", True),
     ("POST", "/admin/auto-update/reset", "admin_auto_update_reset", True),
+    # Registro de ferramentas/skills estilo Supply Depot (Parte F do NOMAD,
+    # 2026-10-15) — catálogo persistente: instala/atualiza com pré-voo,
+    # customização do dono (PUT), rollback por versão e desinstalação.
+    ("GET", "/admin/ferramentas", "admin_ferramentas_list", True),
+    ("POST", "/admin/ferramentas", "admin_ferramentas_create", True),
+    ("PUT", "/admin/ferramentas/{id}", "admin_ferramentas_update", True),
+    ("POST", "/admin/ferramentas/{id}/rollback",
+     "admin_ferramentas_rollback", True),
+    ("DELETE", "/admin/ferramentas/{id}", "admin_ferramentas_delete", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -995,6 +1009,45 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       sozinho quando <code>docs/</code> ou <code>knowledge/</code> mudam.
       🧪 dry-run mostra o que o próximo ciclo FARIA; ⟳ religa um alvo
       desligado (zera as falhas).
+    </p>
+  </section>
+
+  <section>
+    <h2>Ferramentas (Supply Depot)</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Parte F do NOMAD: o catálogo de ferramentas do orquestrador virou
+      registro de verdade. Toda entrada passa por <b>pré-voo</b> — conflito
+      (nome de outra fonte? recusa), versão (downgrade não entra, major
+      exige sua confirmação) e tamanho — e toda atualização guarda
+      <b>backup</b> da versão anterior, com <b>rollback</b> de um clique.
+      Suas personalizações (descrição/params) <b>sobrevivem</b> a qualquer
+      atualização. Ferramenta gerada pelo <code>/gerar</code> agora
+      <b>persiste</b>: reiniciou o core, ela continua lá.
+    </p>
+    <div class="row">
+      <input id="fr-nome" placeholder="nome (ex.: util.calcular)" style="flex:1;min-width:180px">
+      <input id="fr-versao" placeholder="1.0.0" style="width:80px">
+      <input id="fr-desc" placeholder="descrição" style="flex:1;min-width:160px">
+      <button id="fr-add" style="border-color:var(--accent);color:var(--accent)">＋ Instalar</button>
+      <button id="fr-refresh">↻ Carregar</button>
+      <span class="muted msg" id="fr-msg"></span>
+    </div>
+    <textarea id="fr-codigo" rows="5" spellcheck="false"
+      placeholder="def calcular(**params):&#10;    return {&quot;ok&quot;: True, &quot;result&quot;: ...}"
+      style="width:100%;margin-top:8px;font-family:monospace;font-size:0.8rem"></textarea>
+    <table style="margin-top:10px">
+      <thead><tr>
+        <th>Ferramenta</th><th>Versão</th><th>Origem</th>
+        <th class="num">Tam</th><th>Custom</th><th>Histórico</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="fr-lista"><tr><td colspan="7" class="muted">Carregando…</td></tr></tbody>
+    </table>
+    <p class="muted" style="font-size:0.75rem;margin-top:6px">
+      ✎ edita a descrição (sobrevive a atualizações); ⟲ volta para a versão
+      anterior (backup em <code>data/ferramentas_backup/</code>); ✕
+      desinstala (o arquivo é preservado no backup). No bot,
+      <code>/gerar</code> cria ferramentas novas e avisa conflito antes de
+      gastar o LLM.
     </p>
   </section>
 </main>
@@ -1863,6 +1916,128 @@ async function auReset(id) {
   } catch (e) { auSetMsg("Falha: " + e.message, "err"); }
 }
 
+// --- Ferramentas (Supply Depot) — Parte F do NOMAD (2026-10-15) --------------
+// Catálogo persistente com pré-voo: 409 = conflito/versão/tamanho (o motivo
+// vem da resposta), 400 = código rejeitado. Rollback é um clique e a
+// customização do dono (✎) sobrevive a qualquer atualização.
+let frLista = [];
+
+function frSetMsg(t, cls) {
+  const el = document.getElementById("fr-msg");
+  if (el) { el.textContent = t; el.className = "muted msg " + (cls || ""); }
+}
+
+function frRender() {
+  const corpo = frLista.map(f => {
+    const custom = Object.keys(f.custom || {});
+    const hist = (f.anteriores || []).length;
+    let pill, status;
+    if (!f.ativa) { pill = ""; status = "desinstalada"; }
+    else if (!f.no_registry) { pill = "err"; status = "fora do registry"; }
+    else { pill = "ok"; status = "registrada"; }
+    const acoes =
+      (hist ? '<button class="fr-rollback" data-id="' + esc(f.id) + '" title="voltar para ' +
+        esc(f.anteriores[hist - 1].versao || "v anterior") + '">⟲</button>' : "") +
+      '<button class="fr-custom" data-id="' + esc(f.id) + '">✎</button>' +
+      '<button class="fr-del" data-id="' + esc(f.id) + '">✕</button>';
+    return "<tr><td><b>" + esc(f.id) + "</b>" +
+      '<div class="muted" style="font-size:0.72rem">' +
+      esc((f.descricao || "—").slice(0, 72)) + "</div></td>" +
+      "<td>" + esc(f.versao) + "</td>" +
+      '<td class="muted">' + esc(f.origem) + "</td>" +
+      '<td class="num muted">' + f.bytes + " B</td>" +
+      '<td class="muted">' + esc(custom.length ? custom.join(", ") : "—") + "</td>" +
+      '<td><span class="pill ' + pill + '">' + status +
+      (hist ? " · " + hist + " backup(s)" : "") + "</span></td>" +
+      "<td>" + acoes + "</td></tr>";
+  }).join("");
+  document.getElementById("fr-lista").innerHTML = corpo ||
+    '<tr><td colspan="7" class="muted">Nenhuma ferramenta no depot.</td></tr>';
+  document.querySelectorAll(".fr-rollback").forEach(b =>
+    b.addEventListener("click", () => frRollback(b.dataset.id)));
+  document.querySelectorAll(".fr-custom").forEach(b =>
+    b.addEventListener("click", () => frCustom(b.dataset.id)));
+  document.querySelectorAll(".fr-del").forEach(b =>
+    b.addEventListener("click", () => frDelete(b.dataset.id)));
+}
+
+async function frLoad() {
+  try {
+    const resp = await fetch("/admin/ferramentas", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { frSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    frLista = data.ferramentas || [];
+    frRender();
+    frSetMsg(frLista.length + " no catálogo" +
+      (data.ultimo_erro ? " · ⚠ " + data.ultimo_erro : ""), "");
+  } catch (e) { frSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function frAdd() {
+  const nome = (document.getElementById("fr-nome").value || "").trim();
+  const codigo = document.getElementById("fr-codigo").value || "";
+  if (!nome || !codigo) { frSetMsg("nome + código obrigatórios", "err"); return; }
+  frSetMsg("pré-voo + instalação…", "");
+  try {
+    const resp = await fetch("/admin/ferramentas", {
+      method: "POST",
+      headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify({
+        nome: nome,
+        versao: (document.getElementById("fr-versao").value || "1.0.0").trim(),
+        descricao: (document.getElementById("fr-desc").value || "").trim(),
+        codigo: codigo
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { frSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    frSetMsg("✓ " + (data.acao || "ok") + (data.motivo ? " · " + data.motivo : ""), "ok");
+    document.getElementById("fr-nome").value = "";
+    document.getElementById("fr-codigo").value = "";
+    frLoad();
+  } catch (e) { frSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function frRollback(id) {
+  try {
+    const resp = await fetch("/admin/ferramentas/" + encodeURIComponent(id) + "/rollback",
+      { method: "POST", headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { frSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    frSetMsg("⟲ " + esc(data.de) + " → " + esc(data.para), "ok");
+    frLoad();
+  } catch (e) { frSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function frCustom(id) {
+  const atual = (frLista.find(f => f.id === id) || {}).descricao || "";
+  const desc = prompt("Nova descrição de " + id + " — ela SOBREVIVE a atualizações:", atual);
+  if (desc === null) return;
+  try {
+    const resp = await fetch("/admin/ferramentas/" + encodeURIComponent(id), {
+      method: "PUT",
+      headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify({ descricao: desc })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { frSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    frSetMsg("✎ descrição atualizada (sobrevive a update)", "ok");
+    frLoad();
+  } catch (e) { frSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function frDelete(id) {
+  if (!confirm("Desinstalar " + id + "? (o arquivo é preservado no backup)")) return;
+  try {
+    const resp = await fetch("/admin/ferramentas/" + encodeURIComponent(id),
+      { method: "DELETE", headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { frSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    frSetMsg("✕ " + data.removido + " desinstalada (arquivo no backup)", "ok");
+    frLoad();
+  } catch (e) { frSetMsg("Falha: " + e.message, "err"); }
+}
+
 // Páginas internas do Google: o link precisa do token da sessão na query
 // porque o navegador navega sem header — o handler valida e exige dono.
 function linkGoogle() {
@@ -1873,7 +2048,7 @@ function linkGoogle() {
   });
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); dlLoad(); auLoad(); linkGoogle(); };
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); dlLoad(); auLoad(); frLoad(); linkGoogle(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
@@ -1883,6 +2058,9 @@ document.getElementById("dl-refresh").onclick = dlLoad;
 document.getElementById("dl-url").addEventListener("keydown", e => { if (e.key === "Enter") dlAdd(); });
 document.getElementById("au-dry").onclick = auDry;
 document.getElementById("au-refresh").onclick = auLoad;
+document.getElementById("fr-add").onclick = frAdd;
+document.getElementById("fr-refresh").onclick = frLoad;
+document.getElementById("fr-nome").addEventListener("keydown", e => { if (e.key === "Enter") frAdd(); });
 whoAmI().then(u => { if (u) { carregarTudo(); dlSse(); } });
 // a sessão roda fora do od-core: o painel acompanha de 5 em 5 s
 setInterval(async () => {
@@ -3858,6 +4036,12 @@ class APIHandler(BaseHTTPRequestHandler):
                 "pendentes": len(estado["pendentes"]),
                 "ultimo_tick": estado["ultimo_tick"],
             }
+        # Supply Depot (Parte F): o dono vê do Status quantas ferramentas
+        # estão no catálogo, quantas com histórico (rollback disponível) e
+        # o último erro de restauração — sem abrir o painel.
+        supply_depot = self.api.config.supply_depot
+        if supply_depot is not None:
+            payload["ferramentas"] = supply_depot.resumo()
         self._json(200, payload)
 
     def llms(self) -> None:
@@ -4849,6 +5033,140 @@ class APIHandler(BaseHTTPRequestHandler):
         if not svc.resetar_alvo(alvo):
             raise APIError(404, "alvo_inexistente")
         self._json(200, {"ok": True, "religado": alvo})
+
+    # ------------------------------------------------------------------#
+    # Supply Depot — registro de ferramentas (Parte F do NOMAD, 2026-10-15) #
+    # ------------------------------------------------------------------#
+    def _supply_depot_or_503(self) -> Any:
+        depot = self.api.config.supply_depot
+        if depot is None:
+            raise APIError(503, "supply_depot_indisponivel")
+        return depot
+
+    def admin_ferramentas_list(self) -> None:
+        """GET /admin/ferramentas — catálogo vivo + resumo do depot.
+
+        Cada entrada traz `no_registry` (estado real no ActionRegistry) e
+        `anteriores` (backup disponível p/ rollback).
+        """
+        self._require_admin()
+        depot = self._supply_depot_or_503()
+        self._json(200, {"ok": True, "ferramentas": depot.listar(),
+                         **depot.resumo()})
+
+    def admin_ferramentas_create(self) -> None:
+        """POST /admin/ferramentas — instala/atualiza com pré-voo no caminho.
+
+        Body: {nome, codigo, versao?, descricao?, categoria?, params?,
+        permission?, funcao?, substituir?}. Código obrigatório (é a fonte
+        da verdade do depot). 201 = instalou / 200 = atualizou ou já
+        estava na versão / 409 = pré-voo bloqueou (conflito, downgrade,
+        major sem confirmação) / 400 = código rejeitado (sintaxe,
+        allowlist, função ausente) / 500 = falha no meio → rollback.
+        """
+        self._require_admin()
+        depot = self._supply_depot_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            raise APIError(400, "corpo_invalido")
+        nome = str(data.get("nome") or "").strip()
+        codigo = data.get("codigo")
+        if not nome:
+            raise APIError(400, "nome_obrigatorio")
+        if not isinstance(codigo, str) or not codigo.strip():
+            raise APIError(400, "codigo_obrigatorio")
+        params = data.get("params")
+        resultado = depot.instalar(
+            nome=nome,
+            codigo=codigo,
+            versao=str(data.get("versao") or "1.0.0"),
+            descricao=str(data.get("descricao") or ""),
+            categoria=str(data.get("categoria") or "manual"),
+            params=params if isinstance(params, dict) else None,
+            permission=str(data.get("permission") or ""),
+            origem=str(data.get("origem") or "manual"),
+            confirmar=bool(data.get("substituir") or data.get("confirmar")),
+            funcao=str(data.get("funcao") or ""),
+        )
+        if resultado.get("ok"):
+            status = 201 if resultado.get("acao") == "instalar" else 200
+            self._json(status, {"ok": True, **resultado})
+            return
+        if resultado.get("rollback"):
+            raise APIError(500, str(resultado.get("motivo") or "rollback"))
+        if resultado.get("acao") == "bloquear":
+            # Pré-voo: conflito de nome, downgrade, major sem confirmação,
+            # código grande demais ou disco — o dono decide o próximo passo.
+            raise APIError(409, str(resultado.get("motivo") or "bloqueado"))
+        raise APIError(400, str(resultado.get("motivo") or "codigo_rejeitado"))
+
+    def admin_ferramentas_update(self, id: str) -> None:
+        """PUT /admin/ferramentas/{id} — customização do dono.
+
+        Body: {descricao?, params?, permission?, ativa?}. As
+        sobrescritas ficam em `custom` e SOBREVIVEM a atualizações e a
+        rollback (é a peça central da "preservar customização").
+        `ativa: false` desinstala (arquivo vai pro backup), `ativa: true`
+        reativa.
+        """
+        self._require_admin()
+        depot = self._supply_depot_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            raise APIError(400, "corpo_invalido")
+        resultado = depot.customizar(
+            id,
+            descricao=data.get("descricao"),
+            params=data.get("params"),
+            permission=data.get("permission"),
+            ativa=data.get("ativa"),
+        )
+        if resultado.get("ok"):
+            self._json(200, resultado)
+            return
+        motivo = str(resultado.get("motivo") or "")
+        if motivo == "ferramenta_inexistente":
+            raise APIError(404, motivo)
+        if motivo in ("params_invalido", "nada_para_alterar",
+                      "codigo_ausente_em_disco", "funcao_nao_encontrada"):
+            raise APIError(400, motivo)
+        raise APIError(500, motivo or "falha_na_customizacao")
+
+    def admin_ferramentas_rollback(self, id: str) -> None:
+        """POST /admin/ferramentas/{id}/rollback — volta para a versão
+        anterior (ou a `versao` pedida no body). Histórico guardado em
+        data/ferramentas_backup/. 409 = sem histórico (nunca atualizou).
+        """
+        self._require_admin()
+        depot = self._supply_depot_or_503()
+        data = self._read_json() if self._has_body() else {}
+        versao = str(data.get("versao") or "") if isinstance(data, dict) else ""
+        resultado = depot.rollback(id, versao=versao or None)
+        if resultado.get("ok"):
+            self._json(200, resultado)
+            return
+        motivo = str(resultado.get("motivo") or "")
+        if motivo == "ferramenta_inexistente" or \
+                motivo.startswith("versao_nao_encontrada"):
+            raise APIError(404, motivo)
+        if motivo == "sem_historico_de_versoes":
+            raise APIError(409, motivo)
+        if resultado.get("rollback") or motivo.startswith("backup_ausente"):
+            raise APIError(500, motivo)
+        raise APIError(500, motivo or "rollback_falhou")
+
+    def admin_ferramentas_delete(self, id: str) -> None:
+        """DELETE /admin/ferramentas/{id} — desinstala (não destrutivo):
+        sai do registry e do catálogo, o arquivo fica preservado como
+        `data/ferramentas_backup/<id>.removido.v<versao>.py`.
+        """
+        self._require_admin()
+        depot = self._supply_depot_or_503()
+        resultado = depot.remover(id)
+        if resultado.get("ok"):
+            self._json(200, resultado)
+            return
+        raise APIError(404, str(resultado.get("motivo") or "nao_removido"))
 
     def admin_cache_prune(self) -> None:
         """POST /admin/cache/prune — saneia o cache LLM (admin/dono).

@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.28.0"
+    or "1.29.0"
 )
 
 # Status válidos.
@@ -560,6 +560,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "v1.28.x",
         "status": ACTIVE,
         "path": "core/auto_update.py",
+    },
+    {
+        "id": "tool-supply-depot",
+        "name": "Supply Depot — registro de ferramentas/skills (Parte F do NOMAD)",
+        "category": "runtime",
+        "description": "Catálogo persistente de ferramentas do orquestrador (tools/supply_depot.py) com as três peças do catálogo do Nômade: pré-voo antes de instalar/atualizar — CONFLITO (nome de outra fonte recusa), VERSÃO (semver: igual é sem_acao, menor é downgrade bloqueado, major só com confirmação) e TAMANHO (limite do auto-extension + disco com margem 1,1) —, ROLLBACK de cada versão (backup em data/ferramentas_backup/ + histórico limitado a 5, restaura arquivo+catálogo+action) e CUSTOMIZAÇÃO do dono (PUT /admin/ferramentas/{id}) que sobrevive a atualização e a rollback. O /gerar do Auto Extension passa a pré-voar ANTES de gastar LLM (conflito honesto, sem registro silencioso pulado) e a persistir em data/ferramentas/ — restaurado no boot pelo carregar(). Rotas: GET/POST /admin/ferramentas, PUT/DELETE /admin/ferramentas/{id}, POST /admin/ferramentas/{id}/rollback; seção no painel /admin e bloco no /dashboard/stats.",
+        "source": "Project NOMAD (Apache-2.0)",
+        "phase": "v1.29.x",
+        "status": ACTIVE,
+        "path": "tools/supply_depot.py",
     },
 ]
 

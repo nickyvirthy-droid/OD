@@ -7,6 +7,46 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.29.0] — SUPPLY DEPOT: REGISTRO DE FERRAMENTAS/SKILLS (PARTE F DO NOMAD) 🜂 (2026-10-15)
+
+### 1. O que foi feito
+
+Parte F da ordem acordada (A → C → B → D → E → **F**) — aprovada com
+"faça a parte F". O catálogo de tools do orquestrador evoluiu para o
+padrão Supply Depot do Nômade: **pré-voo** antes de qualquer entrada
+(conflito, versão, tamanho), **rollback** de toda atualização e
+**customização do dono preservada** através das trocas. E fechou o
+buraco que incomodava desde o `/gerar`: ferramenta gerada via LLM
+existia só em memória — reiniciou o core, sumia — e o comando devolvia
+"ok" mesmo quando o registro foi pulado por conflito de nome.
+
+| Peça | Entrega |
+|---|---|
+| **`tools/supply_depot.py` (novo)** | `preflight()` PURO (mesmas injeções do `avaliar()` da Parte E) em camadas: nome canônico válido (nunca vira path) → tamanho do código (limite 8000 do `/gerar`) → disco (bytes × 1,1, margem da Parte E) → CONFLITO (action alheia não substitui) → VERSÃO (semver: igual = `sem_acao`, menor = downgrade bloqueado, major = só com `substituir=true`; versão-hash não tem major). Sempre com motivo. |
+| **Instalação atômica + rollback automático** | pré-voo → valida sintaxe/allowlist (gate do auto-extension) → extrai a função → backup (`data/ferramentas_backup/<id>.v<versao>.py` + histórico no catálogo) → grava código/catálogo (tmp→rename) → troca a action. Falha em QUALQUER passo ⇒ rollback total de um snapshot em memória (arquivo + catálogo + action), resultado com `rollback=true`. |
+| **Rollback manual síndico** | rota + botão ⟲: restaura versão alvo (default = última) com arquivo + entrada + action; a versão atual entra no histórico junto (rollback desfazível); histórico limitado a 5. |
+| **Customização que sobrevive** | `PUT /admin/ferramentas/{id}` grava `custom` (descrição/params/permission) — reaplicada no registro de cada versão nova e restaurada pelo rollback; `ativa:false/true` = desinstalar/reativação sem destruir (arquivo fica no backup). |
+| **`/gerar` com pré-voo + persistência** | `AutoExtension` ganhou `depot`: conflito/downgrade/major barrados ANTES do LLM (zero token — antes gerava e mentia "ok"); geração persiste em `data/ferramentas/` + `data/ferramentas_catalogo.json`; status honestos no bot (`exists`, `conflict`/`blocked`); `substituir=True` = bump de patch com histórico. |
+| **Boot restaura o catálogo** | `build_supply_depot()` no launcher (antes do auto-extension) re-registra as ativas; código corrompido = warn + fica de fora (nunca derruba o boot). Health `supply_depot` não-crítico detecta dessincronia com o registry. `OD_SUPPLY_DEPOT=0` desliga. |
+| **Rotas + painel + stats** | `ROUTES` 73 → **78**: GET/POST `/admin/ferramentas`, PUT/DELETE `.../{id}`, POST `.../{id}/rollback` — admin, 201/200/409 (pré-voo)/400 (código)/500 (rollback)/404, 503 `supply_depot_indisponivel` sem depot. Bloco `ferramentas` no `/dashboard/stats`. Seção **Ferramentas (Supply Depot)** no painel `/admin`: formulário de instalação (nome+versão+descrição+código), tabela com origem/tam/custom/histórico e botões ✎/⟲/✕. |
+| **Capability nova** | `tool-supply-depot` (runtime) no manifesto `/capabilities`. |
+| **versionCode** | 2058 → 2059 (regra §5.3 — sem mudança de código no app, mas a política de versão é guardada por teste). |
+
+### 2. Verificação
+
+- Suíte do servidor (gate `--cov-fail-under=90`): **2863 passed /
+  16 skipped · cobertura 90,51%** — +91 testes
+  (`tests/test_supply_depot.py`: tabela do pré-voo puro, instalação,
+  rollback automático FORÇADO em cada passo (registro e gravação),
+  rollback manual/desfazível, customização, remoção, boot com código
+  corrompido, integração do `/gerar` contando chamadas do LLM fake —
+  conflito sem NENHUMA chamada — e as 5 rotas). `tools/supply_depot.py`
+  a **95%**.
+- `flutter analyze` **0 issues** · `flutter test` **174 passed / 2 skipped**.
+- Guardas: `ROUTES` 73 → 78 (5 rotas novas todas admin) · política de
+  versão 9/9.
+- `node --check` do JS do painel verde.
+
 ## [1.28.0] — AUTO-UPDATE DE MODELOS/CONTEÚDO (PARTE E DO NOMAD) 🜂 (2026-10-14)
 
 ### 1. O que foi feito

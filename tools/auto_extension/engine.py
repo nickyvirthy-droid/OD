@@ -37,6 +37,16 @@ from typing import Any, Callable, Optional
 
 from core.logger import get_logger
 
+# Parte F: constantes do pré-voo do Supply Depot (import sem ciclo — o
+# supply_depot importa o engine apenas de forma lazy, dentro das funções).
+from tools.supply_depot import (  # noqa: E402
+    ATUALIZAR,
+    BLOQUEAR,
+    INSTALAR,
+    SEM_ACAO,
+    proxima_versao,
+)
+
 __signature__ = "OD // CORE"
 
 log = get_logger("omega.tools.auto_extension")
@@ -103,12 +113,17 @@ class AutoExtension:
         security: Any = None,
         prefix: str = "auto",
         max_code_len: int = 8000,
+        depot: Any = None,
     ) -> None:
         self.llm = llm
         self.registry = registry
         self.security = security
         self.prefix = prefix
         self.max_code_len = max_code_len
+        # Parte F: Supply Depot (tools/supply_depot.py). Com depot, o /gerar
+        # faz pré-VOO antes de gastar LLM, persiste a ferramenta em disco e
+        # devolve conflito honesto (antes: "ok" mesmo com registro pulado).
+        self.depot = depot
         self.metrics = ExtensionMetrics()
         self._generated: dict[str, str] = {}
 
@@ -205,14 +220,42 @@ class AutoExtension:
 
     # -- Registro ------------------------------------------------------------
 
-    async def extend(self, name: str, description: str) -> dict[str, Any]:
-        """Pipeline completo: gera → valida → registra → retorna resultado."""
+    async def extend(self, name: str, description: str,
+                     *, substituir: bool = False) -> dict[str, Any]:
+        """Pipeline completo: gera → valida → registra → retorna resultado.
+
+        Com Supply Depot (Parte F): o pré-voo (conflito/versão/tamanho)
+        roda ANTES do LLM — nenhum token gasto para um conflito que já se
+        sabe de cara — e o registro é persistido em disco com rollback.
+        `substituir=True` pede o bump de patch da versão instalada.
+        """
         raw = (name or "").strip().lower()
         clean = re.sub(r"[^a-z0-9_.]", "_", raw)
         if not raw or not clean:
             return {"status": "invalid", "error": "nome de ferramenta vazio"}
         if not description or not description.strip():
             return {"status": "invalid", "error": "descrição vazia"}
+
+        action_name = f"{self.prefix}.{clean}"
+
+        # -- Pré-voo do Supply Depot (Parte F) — antes de tocar o LLM ------
+        versao_nova = "1.0.0"
+        if self.depot is not None:
+            entrada_depot = self.depot.obter(action_name)
+            if substituir and entrada_depot is not None:
+                versao_nova = proxima_versao(entrada_depot.versao)
+            pre = self.depot.preflight(action_name, versao_nova, codigo="",
+                                       confirmar=substituir)
+            if pre.acao == BLOQUEAR:
+                # Conflito/downgrade/major — devolvido HONESTO (antes o
+                # registro era pulado em silêncio e o status era "ok").
+                log.warn("Auto-extensão bloqueada no pré-voo",
+                         action=action_name, motivo=pre.motivo)
+                return {"status": "conflict" if pre.conflito else "blocked",
+                        "error": pre.motivo, "action": action_name}
+            if pre.acao == SEM_ACAO:
+                return {"status": "exists", "error": pre.motivo,
+                        "action": action_name}
 
         code = await self.generate_code(clean, description.strip())
         if not code:
@@ -228,11 +271,44 @@ class AutoExtension:
                 log.warn("Código gerado com erro de sintaxe")
             return {"status": "invalid", "error": reason}
 
+        # -- Com Supply Depot: valida/executa/registra com rollback --------
+        if self.depot is not None:
+            resultado = self.depot.instalar(
+                nome=action_name,
+                codigo=code,
+                versao=versao_nova,
+                descricao=f"Auto-extensão gerada via LLM: "
+                          f"{description.strip()[:120]}",
+                categoria="auto_extension",
+                params={"required": [], "properties": {}},
+                permission="auto_extension.generated",
+                origem="auto_extension",
+                confirmar=substituir,
+                funcao=clean,
+            )
+            acao = resultado.get("acao")
+            if resultado.get("ok") and acao in (INSTALAR, ATUALIZAR):
+                self._generated[action_name] = code
+                self.metrics.generated += 1
+                log.info(
+                    "Ferramenta auto-gerada persistida (Supply Depot)",
+                    action=action_name, versao=resultado.get("versao"),
+                )
+                return {"status": "ok", "action": action_name,
+                        "description": description.strip(),
+                        "versao": resultado.get("versao"),
+                        "persistido": True}
+            if not resultado.get("ok"):
+                self.metrics.errors += 1
+                return {"status": "conflict" if acao == BLOQUEAR else "invalid",
+                        "error": resultado.get("motivo"),
+                        "action": action_name}
+            return {"status": "exists", "error": resultado.get("motivo"),
+                    "action": action_name}
+
         fn = self._exec_tool(code, clean)
         if fn is None:
             return {"status": "error", "error": "função gerada não carregou"}
-
-        action_name = f"{self.prefix}.{clean}"
 
         def handler(**params: Any) -> dict[str, Any]:
             try:

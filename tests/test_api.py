@@ -142,8 +142,10 @@ class TestAPIRoutes:
         deleção de mensagem única e saneamento do cache (2026-09-26) +
         /app/version (v1.7.0, auto-atualização do app) + fila de
         downloads resumable (Parte D do NOMAD, 2026-10-14) + auto-update
-        de modelos/conteúdo (Parte E do NOMAD, 2026-10-14)."""
-        assert len(ROUTES) == 73
+        de modelos/conteúdo (Parte E do NOMAD, 2026-10-14) + registro de
+        ferramentas/skills estilo Supply Depot (Parte F do NOMAD,
+        2026-10-15)."""
+        assert len(ROUTES) == 78
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -177,6 +179,12 @@ class TestAPIRoutes:
             ("GET", "/admin/auto-update"),
             ("POST", "/admin/auto-update/dry-run"),
             ("POST", "/admin/auto-update/reset"),
+            # Registro de ferramentas/skills estilo Supply Depot (Parte F)
+            ("GET", "/admin/ferramentas"),
+            ("POST", "/admin/ferramentas"),
+            ("PUT", "/admin/ferramentas/{id}"),
+            ("POST", "/admin/ferramentas/{id}/rollback"),
+            ("DELETE", "/admin/ferramentas/{id}"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             ("POST", "/account/password"), ("POST", "/account/api-key"),
@@ -230,6 +238,12 @@ class TestAPIRoutes:
             ("GET", "/admin/auto-update"),
             ("POST", "/admin/auto-update/dry-run"),
             ("POST", "/admin/auto-update/reset"),
+            # Registro de ferramentas/skills estilo Supply Depot (Parte F)
+            ("GET", "/admin/ferramentas"),
+            ("POST", "/admin/ferramentas"),
+            ("PUT", "/admin/ferramentas/{id}"),
+            ("POST", "/admin/ferramentas/{id}/rollback"),
+            ("DELETE", "/admin/ferramentas/{id}"),
             ("POST", "/admin/users/{username}/password"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),

@@ -14,6 +14,39 @@
 
 ---
 
+## [1.29.0] — SUPPLY DEPOT: REGISTRO DE FERRAMENTAS/SKILLS (PARTE F DO NOMAD) 🜂 (2026-10-15)
+
+> **Bump MINOR (capacidade nova):** Parte F da ordem do dono
+> (A → C → B → D → E → **F**), aprovada com "faça a parte F". O catálogo
+> de tools do orquestrador vira registro de verdade no estilo Supply
+> Depot do Nômade: **pré-voo** (conflito, versão, tamanho) antes de
+> qualquer entrada, **rollback** de toda atualização e **customização
+> do dono que sobrevive** à troca. Fecha também o buraco do `/gerar`:
+> ferramenta gerada via LLM existia só em memória (reiniciou o core,
+> sumia) e devolvia "ok" mesmo quando o registro foi pulado por conflito.
+> Nada de dependência nova — stdlib + o próprio `ActionRegistry`, como
+> manda a casa.
+
+| Peça | Entrega |
+|---|---|
+| **`tools/supply_depot.py` (novo)** | `preflight()` PURO (injeções do `avaliar()` da Parte E — testável sem I/O) com as camadas em ordem: ① nome canônico válido (regra do auto-extension, nunca vira path) → ② tamanho do código (limite 8000 chars do `/gerar`) → ③ espaço em disco (bytes × 1,1 — MESMA margem da Parte E) → ④ CONFLITO (no registry mas fora do depot = ferramenta alheia, não substituímos) → ⑤ VERSÃO (semver: igual → `sem_acao`, menor → `downgrade_bloqueado`, major → `major_requer_confirmacao` só com `substituir=true`; versão-hash não tem major). Cada decisão com motivo. |
+| **Instalação atômica + rollback automático** | Fluxo `instalar()`: pré-voo → valida sintaxe/allowlist (MESMO gate do auto-extension) → extrai a função → backup da versão atual (`data/ferramentas_backup/<id>.v<versao>.py` + histórico) → grava código e catálogo (tmp→rename) → troca a action no registry. Qualquer falha no meio ⇒ **rollback total**: arquivo + catálogo + action antigos restaurados de um snapshot em memória, resultado com `rollback=true` e o motivo. |
+| **Rollback manual síndico** | `POST /admin/ferramentas/{id}/rollback` (ou `versao` no body): restaura arquivo + entrada + action; a versão ATUAL entra no histórico junto — rollback pode ser desfeito (rollback do rollback). Histórico limitado a 5 versões por ferramenta. |
+| **Customização que sobrevive** | `PUT /admin/ferramentas/{id}` grava sobrescritas (`descricao`/`params`/`permission`) em `custom` — reaplicadas no registro de CADA versão nova e presentes no snapshot de rollback. Atualizou, reiniciou, rollbackou: a sua descrição continua lá. `ativa: false/true` desinstala/reativa sem destruir (arquivo preservado no backup). |
+| **`/gerar` persistente + pré-voa antes do LLM** | O `AutoExtension.extend()` ganhou `depot`: conflito/downgrade/major são decididos ANTES de chamar o LLM (zero token gasto — antes: gerava, pulava o registro em silêncio e dizia "ok"); no fim, `depot.instalar()` persiste em `data/ferramentas/<id>.py` + `data/ferramentas_catalogo.json`. Status honestos no bot: `exists` ("já está instalada") e `conflict`/`blocked` ("pré-voo bloqueou"). `substituir=True` dá bump de patch com histórico. |
+| **Restauração no boot** | `build_supply_depot()` no launcher carrega o catálogo antes do auto-extension e registra as ativas (código corrompido = warn + fica de fora, nunca derruba o boot). Ferramenta gerada **sobrevive a restart** — o buraco que motivou a Parte F. Health check `supply_depot` não-crítico detecta dessincronia com o registry. |
+| **Rotas + painel + stats** | `ROUTES` 73 → 78: `GET/POST /admin/ferramentas` (lista com estado vivo / instala-atualiza com pré-voo no caminho — 201 instala, 200 atualiza, **409** pré-voo bloqueou, 400 código rejeitado, 500 rollback), `PUT .../{id}` (customização), `POST .../{id}/rollback`, `DELETE .../{id}` (desinstala preservando arquivo no backup); todas admin e 503 `supply_depot_indisponivel` sem depot. `/dashboard/stats` ganha o bloco `ferramentas`; painel `/admin` ganha a seção **Ferramentas (Supply Depot)** com formulário (nome+versão+descrição+código), tabela (origem/tam/custom/histórico), ✎ editar descrição, ⟲ rollback e ✕ desinstalar. |
+| **Manifesto de catálogo** | `data/ferramentas_catalogo.json` (atômico, `_comentario` explicando o `custom`): id, função, versão, origem, sha256/bytes do código, `anteriores` (snapshots das versões antigas com ponteiro para o arquivo no backup) e `ativa`. `data/ferramentas/` guarda o código vivo; `data/ferramentas_backup/` o histórico e os removidos. |
+| **versionCode** | 2058 → 2059 (regra §5.3 — sem mudança de código no app, mas o par pubspec/OD_VERSION é guardado pela política). |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte do servidor (gate `--cov-fail-under=90`) | **2863 passed / 16 skipped · cobertura 90,51%** (+91 testes da Parte F; `tools/supply_depot.py` a **95%**) |
+| Guardas | `ROUTES` 73 → 78 em `tests/test_api.py` (5 rotas novas todas admin) |
+| Teste de JS do painel | `node --check` do JS SERIDO verde |
+
+---
+
 ## [1.28.0] — AUTO-UPDATE DE MODELOS/CONTEÚDO (PARTE E DO NOMAD) 🜂 (2026-10-14)
 
 > **Bump MINOR (capacidade nova):** Parte E da ordem do dono
