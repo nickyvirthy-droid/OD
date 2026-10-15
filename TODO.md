@@ -4,40 +4,41 @@
 
 ---
 
-## 1. Stack Nômade Atual (`docker/tools-compose.yaml`) — 9 serviços **já no compose**
+## 1. Stack Nômade Atual (`docker/tools-compose.yaml`) — 9 serviços **no ar** (auditado 15/10)
 
 | # | Serviço | Container | Porta local | Status | Observação |
 |---|---|---|---|---|---|
-| 1 | **Kiwix** (Wikipedia offline) | `od-kiwix` | 8090 | ☐ | ZIM precisa ser baixado antes (`wget …/wikipedia_en_all_mini.zim`) |
-| 2 | **CyberChef** (data tools) | `od-cyberchef` | 8100 | ☐ | ~300 operações (base64, hash, cifra) |
-| 3 | **IT Tools** (dev utils) | `od-it-tools` | 8430 | ☐ | UUID, hash, formatadores |
-| 4 | **FlatNotes** (caderno MD) | `od-flatnotes` | 8200 | ☐ | auth=none (só Tailscale); API p/ actions "anota"/"o que anotei" |
-| 5 | **Stirling PDF** (50+ PDF tools) | `od-stirling-pdf` | 8400 | ☐ | OCR, merge, split, assinar; JAVA_TOOL_OPTIONS fix metaspace |
-| 6 | **File Browser** (arquivos web) | `od-filebrowser` | 8410 | ☐ | login admin/admin → trocar |
-| 7 | **Calibre Web** (e-books) | `od-calibre-web` | 8420 | ☐ | login admin/admin123 → trocar; books em `/home/alex/omegadrakon-tools/books` |
-| 8 | **Homebox** (inventário/QR) | `od-homebox` | 8470 | ☐ | API REST p/ actions; pepper fixo no compose |
-| 9 | **Vaultwarden** (cofre senhas) | `od-vaultwarden` | 8480 | ☐ | HTTPS via Tailscale Serve; `nomad_vaultwarden_setup` cria admin + fecha signups |
+| 1 | **Kiwix** (Wikipedia offline) | `od-kiwix` | 8090 | ✅ | ZIM `wikipedia_en_all_mini` (14,4 GB) **já baixado em 13/10** |
+| 2 | **CyberChef** (data tools) | `od-cyberchef` | 8100 | ✅ | ~300 operações (base64, hash, cifra) |
+| 3 | **IT Tools** (dev utils) | `od-it-tools` | 8430 | ✅ | UUID, hash, formatadores |
+| 4 | **FlatNotes** (caderno MD) | `od-flatnotes` | 8200 | ✅ | auth=none (só Tailscale); API p/ actions "anota"/"o que anotei" |
+| 5 | **Stirling PDF** (50+ PDF tools) | `od-stirling-pdf` | 8400 | ✅ | OCR, merge, split, assinar; JAVA_TOOL_OPTIONS fix metaspace |
+| 6 | **File Browser** (arquivos web) | `od-filebrowser` | 8410 | ✅ | login admin/admin → trocar |
+| 7 | **Calibre Web** (e-books) | `od-calibre-web` | 8420 | ✅ | login admin/admin123 → trocar; books em `/home/alex/omegadrakon-tools/books` |
+| 8 | **Homebox** (inventário/QR) | `od-homebox` | 8470 | ✅ | API REST p/ actions; pepper fixo no compose |
+| 9 | **Vaultwarden** (cofre senhas) | `od-vaultwarden` | 8480 | ✅ | HTTPS via Tailscale Serve; **conta do dono criada 15/10** (verificada com CLI oficial `bw`); **`SIGNUPS_ALLOWED=false`** (registro recusa HTTP 400) |
 
-> **Ação imediata:** `docker compose -f docker/tools-compose.yaml up -d` sobe os 9.
-> **Próximo passo real:** Vaultwarden — criar conta do dono + `SIGNUPS_ALLOWED=false` (já tem action `nomad_vaultwarden_setup`).
+> **Situação (15/10):** os 9 sobem com `up -d` e estão no ar. **Pendência do §1 concluída:** conta do dono + signups fechados — comprovado por drill E2E (conta de teste criada pela action, logada e decifrada pelo CLI oficial, depois excluída; vault só com o dono).
+> **Bugs corrigidos em 15/10:** `DOMAIN` do Vaultwarden (commit `3ed13cc` — API anunciava URL errada); action `nomad_vaultwarden_setup` estava quebrada (rota `/api/accounts/register` = 404 + payload cru + "fechar signups" só imprimia instrução) → corrigida: rota `/identity/accounts/register`, payload `RegisterData` com crypto oficial (PBKDF2 600k + AES-CBC-HMAC + RSA-2048, validada 100% contra o SDK Bitwarden) e fechamento real (edita compose → recria container → confere env).
 
 ---
 
-## 1b. DECISÃO FINAL (12/10) — itens que **NÃO** vão no compose agora
+## 1b. DECISÃO FINAL (12/10) — espelho fiel de `docs/ANALISE_PROJECT_NOMAD.md` (corrigido 15/10)
 
-| Item | Decisão | Motivo / Status |
+> A versão anterior desta seção listava itens que **não existem** na DECISÃO FINAL
+> (Paperless-ngx, Immich, Audiobookshelf, Portainer, exit node…). A tabela abaixo
+> reproduz a fonte da verdade (ANALISE § DECISÃO FINAL 12/10).
+
+| Item | Decisão | Status hoje |
 |---|---|---|
-| **Paperless-ngx** | ❌ Não agora | OCR + full-text PDF — deixar para quando houver volume real de docs físicos |
-| **Immich** | ❌ Não agora | Backup fotos/vídeos — Google Photos ainda atende; rever quando migrar |
-| **Audiobookshelf** | ❌ Não agora | Audiobooks/podcasts — não é prioridade |
-| **Jellyfin** | ❌ Não agora | Media server — Plex/outro já roda; só se precisar self-host |
-| **Home Assistant** | ⚠️ Já roda separado | Automação — integração via actions/API futura, não container no stack |
-| **Tailscale exit node** | ⚠️ Já no host | `tailscale` já roda no sistema; não precisa de container |
-| **Portainer** | ❌ Não agora | Gestão visual — `docker compose ps` + actions `nomad_tools_*` já cobrem |
-| **ProtoMaps** | 🟡 Dev task | Página MapLibre + tiles (não container) — quando quiser mapa próprio |
-| **LoRa** | 🧊 Geladeira | Aguarda hardware/necessidade real |
+| **8 ferramentas** (Kiwix, Stirling PDF, CyberChef, IT Tools, Vaultwarden, FlatNotes, File Browser + Calibre Web, Homebox) | ✅ ENTRA como containers | **Concluído** — 9 containers no ar (§1) |
+| **ProtoMaps** | 🛠️ DEV TASK (página MapLibre + tiles, não container) | Pendente (quando o dono quiser mapa próprio) |
+| **LoRa** | ❄️ GELADEIRA | Aguarda hardware/necessidade real |
+| **Kolibri, Jellyfin, Excalidraw, benchmark/leaderboard** | ❌ DESCARTADOS de vez | Confirmado no dono (12/10) |
 
-> **Conclusão:** o stack **já tem o que precisa** (9 serviços). O foco agora é **subir o Vaultwarden** (criar conta + fechar signups) e integrar healthchecks no `/health` do OD.
+> **Conclusão:** o stack **já está completo e no ar** (9 serviços). Próximos passos
+> da própria DECISÃO FINAL: integrar healthchecks dos tools no `/health` do OD e
+> (opcional) a página ProtoMaps.
 
 ---
 
@@ -45,11 +46,12 @@
 
 | Item | Status | Observação |
 |---|---|---|
-| **Vaultwarden** | ☐ | Criar conta do dono + fechar registro aberto |
+| **Vaultwarden** | ✅ | Conta do dono criada + registro aberto fechado em 15/10 (E2E com CLI oficial). Falta só o dono popular o cofre: `https://nicky-server.tail1b1f51.ts.net:8443` |
 | **Registro Mestre — Etapa 4** | ☐ | Comprador / QR / loja do lote de brinquedos |
 | **Pauta — Item 3** | ☐ | Semana passada |
 | **Pauta — Item 5** | ☐ | Semana passada |
-| **Rotação de segredos** | ☐ | Adiada — verificado: sem segredo antigo vivo fora do `.env` |
+| **Repo GitHub público + segredos no histórico** | ☐ | **Decisão do dono:** tornar o repo privado e/ou rotacionar segredos que apareceram no histórico antes do commit `3ed13cc` (migração p/ `.env`) — detalhes no `txt.txt` |
+| **Rotação de segredos** | ☐ | Adiada — verificado: sem segredo antigo vivo fora do `.env` (exceto histórico git público, pendência acima) |
 | **Fotos em `analise/fotos-adicionais/`** | ☐ | "Vou usar depois" (4 fotos com prefixo `zz`/`zzz`) |
 | **Catálogo `3D/`** | ☐ | Pasta para catalogar modelos 3D |
 
@@ -108,6 +110,8 @@
 
 | Área | Item | Impacto |
 |---|---|---|
+| `bw` CLI oficial ≥ 2026.9 | Incompatível com Vaultwarden 1.36.0 no **prelogin** (CLI espera `{kdfSettings, Salt}`; servidor 1.36.0 devolve `{kdf, kdfIterations}` — flag `pm-27060` não está no allowlist `SUPPORTED_FEATURE_FLAGS` do servidor). Funciona com CLI 2026.8.0 (verificado). Resolver com upgrade da imagem quando sair Vaultwarden compatível | Login via CLI oficial de versões novas falha; **web vault empacotada funciona normalmente** |
+| Repo GitHub público | Histórico antes de `3ed13cc` continha segredos do compose (ADMIN_TOKEN etc.) — visibilidade/rotação é decisão do dono (§2) | Segurança |
 | `tools/auto_extension/engine.py` | Caminho legado (`depot=None`) mantido para compat — pode ser removido depois que todo mundo migrar | Limpeza |
 | `tools/registry.py` | `version` field no `Action` nunca comparado no registro (só no depot) — OK por enquanto | Consistência futura |
 | `core/capabilities.py` | Fallback hardcoded `OD_VERSION` — OK porque `.env` sempre vence | Segurança |
@@ -149,15 +153,15 @@
 
 | Candidato | Esforço | Dependência | Observação |
 |---|---|---|---|
-| **DECISÃO FINAL (12/10) — 8 containers + ProtoMaps** | Alto (infra + secrets + saúde) | Vaultwarden primeiro (conta do dono) | Fecha a "virada da análise original" |
+| **DECISÃO FINAL (12/10) — 8 containers + ProtoMaps** | Alto (infra + secrets + saúde) | ✅ Vaultwarden resolvido 15/10 | Falta healthchecks no `/health` + ProtoMaps (dev task) — fecha a "virada da análise original" |
 | **Registro Mestre — Etapa 4** | Médio | — | Comprador/QR/loja brinquedos |
 | **Melhorar RAG (embedding + corpus externo)** | Médio | — | Recall conservador hoje |
 | **Observabilidade / Alertas Telegram** | Baixo | — | Ganho operacional imediato |
 | **App auto-update + FCM** | Médio | — | UX do dono no celular |
 
-> **Sugestão:** começar pela **DECISÃO FINAL** (já tem a tabela aprovada) — sobe o stack Docker, integra healthchecks, resolve Vaultwarden, e o resto flui. O ProtoMaps é dev (página MapLibre), LoRa fica na geladeira.
+> **Sugestão:** continuar pela **DECISÃO FINAL** — stack já no ar e Vaultwarden resolvido; falta integrar healthchecks no `/health` do OD e (quando quiser) a página ProtoMaps. LoRa fica na geladeira.
 
 ---
 
-**Atualizado em:** 2026-10-15 11:15 (após Parte F v1.29.0+2059 no ar, PID 2410050)
+**Atualizado em:** 2026-10-15 16:22 (auditado contra o sistema real: §1 9/9 no ar, ZIM baixado, §1b corrigido pela DECISÃO FINAL da ANALISE, Vaultwarden fechado — action corrigida + conta do dono criada; suíte 2870 passed)
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

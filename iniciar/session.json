@@ -2627,5 +2627,49 @@
   "proximo": "ORDEM A→F COMPLETA — aguarda nova ordem do dono; candidato natural: DECISÃO FINAL (12/10) — 8 ferramentas de terceiro em Docker + ProtoMaps + LoRa (ANALISE linha 178)",
   "estado": "CONCLUÍDO E NO AR — v1.29.0+2059 servindo (PID 2410050), HEAD == origin/master, árvore limpa",
   "telegram_msg": 2742
+ },
+ "vaultwarden_fechado_2026_10_15": {
+  "id": "vaultwarden_fechado_2026_10_15",
+  "titulo": "Auditoria do TODO.md + Stack Nômade §1 concluída: conta do dono no Vaultwarden, signups fechados, action consertada",
+  "data": "2026-10-15",
+  "pedido_dono": "'verifique se realmente TODO esta correto e pode começar pelo inicio, vou seguir a sua ordem sugerida' — auditoria do TODO.md contra o sistema real + execução da §1. No caminho: usar o e-mail real do sistema (nickyvirthy@gmail.com); senhas que o sistema usar ficam no .env.",
+  "auditoria_todo": {
+   "erros_encontrados": [
+    "§1: os 9 serviços marcados ☐ estavam todos no ar (rodando há 2-3 dias)",
+    "§1: 'ZIM precisa ser baixado' errado — wikipedia_en_all_mini (14,4 GB) baixado em 13/10",
+    "§1b: tabela inventava itens que NÃO existem na DECISÃO FINAL (Paperless-ngx, Immich, Audiobookshelf, Portainer, exit node…)",
+    "§2: pendência real confirmada (Vaultwarden: signups abertos, 0 usuários) — concluída nesta sessão"
+   ],
+   "correcoes": "TODO.md: §1 9/9 ✅ com observações reais; §1b reescrita fiel a docs/ANALISE_PROJECT_NOMAD.md; §2 Vaultwarden ✅ + pendência nova (repo público/rotação = decisão do dono); §4 dívida (bw ≥2026.9 vs servidor 1.36.0; repo público); §7 atualizado"
+  },
+  "vaultwarden": {
+   "conta_dono": "criada via SDK oficial (@bitwarden/sdk-internal): POST /identity/accounts/register com payload RegisterData (PBKDF2-SHA256 600k, user key AES-256-CBC-HMAC embrulhada, RSA-2048); email nickyvirthy@gmail.com; senha master entregue ao dono no txt.txt (chmod 600)",
+   "prova_oficial": "CLI bw 2026.8.0 (contemporâneo do servidor): login OK → sync OK → roundtrip de pasta (cifrada → servidor → decifrada 'pasta-prova-omegadrakon') → remoção → logout. Pós-restart: login do dono OK de novo.",
+   "signups": "SIGNUPS_ALLOWED=false (compose editado, container recriado, env aplicada conferida via docker inspect); registro de fora → HTTP 400; NOTE: /api/config mostra disableUserRegistration=False por concessão padrão do Vaultwarden (mail off + convites on escondem só o link) — fechamento real é o 400 provado",
+   "drill_action": "reabertura temporária (~40s, só localhost+tailnet) → action AO VIVO criou conta drill@omegadrakon.dev → CLI oficial logou e decifrou (roundtrip) → self-delete HTTP 200 → vault final = só dono",
+   "compat": "bw CLI ≥2026.9 NÃO loga no servidor 1.36.0 (espera {kdfSettings,Salt}; servidor devolve {kdf,kdfIterations}; flag pm-27060 fora do allowlist SUPPORTED_FEATURE_FLAGS com filtro ValidOnly) — usar CLI 2026.8.0; web vault empacotada e app OK; registrado em TODO §4"
+  },
+  "action_corrigida": {
+   "bugs": "rota /api/accounts/register = 404; payload cru {email, masterPassword}; retorno inventava token; disable_signups só imprimia instrução (sucesso falso)",
+   "novo": "rota /identity/accounts/register + payload RegisterData com crypto própria (_vw_hkdf_expand RFC 5869, _vw_encstring tipo 2.iv|data|mac, _vw_register_payload PBKDF2 600k + RSA-2048) + fechamento real (edita compose → compose up -d → confere env) + erros honestos (registro_recusado com HTTP do servidor, signups_nao_fecharam, etapa)",
+   "validacao_oraculo": "payload Python validado contra o SDK oficial: userKey desembrulhada ✓, pública == extração oficial da privada ✓, auth hash == cálculo do SDK ✓ — o oráculo PEGOU inversão de argumentos do pbkdf2 na 1ª versão (senha/material), corrigida",
+   "testes": "+7 testes (formato, roundtrip interno, rota/método/corpo, 400, fechamento×3 + registry) — 48 no módulo"
+  },
+  "bugs_achados_ambiente": [
+   "Node 18: globalThis.crypto só existe em contexto -e/REPL; wasm do SDK e do bw paniqueiam quando rodam de arquivo (polyfill/flag --experimental-global-webcrypto obrigatórios)",
+   "wasm-bindgen do SDK trava em ESM no Node 18 — script em CommonJS",
+   "bw 2026.8.0 'create item': SDK recebe objeto onde espera string (defeito do pacote) — folder faz o mesmo caminho criptográfico e funciona",
+   "bw logout revoga o jwt (self-delete com token pós-logout = 401) — refazer login antes de deletar"
+  ],
+  "backup": "snapshots do db.sqlite3 em /tmp/opencode/vw/ (db.sqlite3.bak-20261015 antes da criação; bak-drill antes do drill) — contagem users 0→1→2→1; final só dono",
+  "suite": "2870 passed / 16 skipped (+7) · módulo da action 48/48 · sem bump (backend/infra, convenção das entregas sem versão)",
+  "comunicacao": "txt.txt reescrito com credenciais/URLs/avisos e chmod 600 (regra 14) + Telegram (regra 15) + transcricao iniciar/2026-10-15_conversa_omegadrakon.md §3",
+  "pendencias_dono": [
+   "DECISÃO: repo GitHub público com histórico contendo segredos — tornar privado? rotacionar? (TODO §2 + txt.txt)",
+   "Popular o cofre com senhas reais e trocar a master password provisória",
+   "inalteradas: Registro Mestre etapa 4, pauta itens 3/5, fotos em analise/fotos-adicionais/, catálogo 3D/"
+  ],
+  "estado": "CONCLUÍDO — §1 do TODO fechada: 9/9 serviços no ar, cofre do dono pronto e provado com cliente oficial, signups fechados, action consertada e provada de ponta a ponta",
+  "ts": "2026-10-15T16:35:00-03:00"
  }
 }

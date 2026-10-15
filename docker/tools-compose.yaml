@@ -190,7 +190,7 @@ services:
       - /home/alex/omegadrakon-tools/vaultwarden:/data
     environment:
       - WEBSOCKET_ENABLED=true
-      - SIGNUPS_ALLOWED=true
+      - SIGNUPS_ALLOWED=false
       - DOMAIN=https://nicky-server.tail1b1f51.ts.net:8443
       - ADMIN_TOKEN=${ADMIN_TOKEN:?defina ADMIN_TOKEN no .env (movido do compose em 2026-10-15)}
     mem_limit: 256m

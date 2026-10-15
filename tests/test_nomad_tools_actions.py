@@ -16,8 +16,12 @@ Baseado em:
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import io
 import json
 import subprocess
+import urllib.error
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -40,6 +44,9 @@ from tools.actions.actions import (
     nomad_tools_tailscale_serve,
     nomad_wikipedia_zim_download,
     nomad_vaultwarden_setup,
+    _vw_register_payload,
+    _vw_hkdf_expand,
+    _vw_decstring,
     _NOMAD_SERVICES,
     _NOMAD_PORTS,
     NOMAD_COMPOSE_FILE,
@@ -326,28 +333,102 @@ class TestNomadWikipediaZimDownload:
 
 
 class TestNomadVaultwardenSetup:
-    """Testes de nomad_vaultwarden_setup."""
+    """Testes de nomad_vaultwarden_setup (rota /identity + payload RegisterData
+    oficial + fechamento real de signups — regressões do bug de 2026-10-15)."""
+
+    # ---------- crypto do payload (sem rede) ----------
+
+    def test_register_payload_formato_oficial(self) -> None:
+        """Payload RegisterData: KDF, EncStrings e chaves nos formatos oficiais."""
+        payload = _vw_register_payload("  Dono@Gmail.COM ", "senha-forte-9876", name="Alex")
+        assert payload["email"] == "dono@gmail.com"  # normalizado
+        assert payload["name"] == "Alex"
+        assert payload["kdf"] == 0
+        assert payload["kdfIterations"] == 600000
+        # user key embrulhada: EncString tipo 2 (2.iv|data|mac)
+        assert payload["key"].startswith("2.")
+        assert payload["key"].count("|") == 2
+        # masterPasswordHash: PBKDF2 de 1 iteração -> 32 bytes em base64
+        assert len(base64.b64decode(payload["masterPasswordHash"], validate=True)) == 32
+        # chave pública: SPKI DER (SEQUENCE); privada: EncString tipo 2
+        pub = base64.b64decode(payload["keys"]["publicKey"], validate=True)
+        assert pub[0] == 0x30
+        assert payload["keys"]["encryptedPrivateKey"].startswith("2.")
+        assert payload["keys"]["encryptedPrivateKey"].count("|") == 2
+
+    def test_register_payload_roundtrip_interno(self) -> None:
+        """Decifra o payload com as chaves derivadas: user key, PKCS8 e auth hash coerentes."""
+        from cryptography.hazmat.primitives import serialization
+
+        senha = "senha-forte-9876"
+        payload = _vw_register_payload("dono@gmail.com", senha)
+        material = hashlib.pbkdf2_hmac(
+            "sha256", senha.encode("utf-8"), b"dono@gmail.com", 600000, dklen=32
+        )
+        user_key = _vw_decstring(
+            payload["key"],
+            _vw_hkdf_expand(material, b"enc", 32),
+            _vw_hkdf_expand(material, b"mac", 32),
+        )
+        assert len(user_key) == 64
+        pkcs8 = _vw_decstring(payload["keys"]["encryptedPrivateKey"], user_key[:32], user_key[32:])
+        priv = serialization.load_der_private_key(pkcs8, password=None)
+        spki = priv.public_key().public_bytes(
+            serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        assert spki == base64.b64decode(payload["keys"]["publicKey"])
+        auth = base64.b64encode(
+            hashlib.pbkdf2_hmac("sha256", material, senha.encode("utf-8"), 1, dklen=32)
+        ).decode("ascii")
+        assert auth == payload["masterPasswordHash"]
+
+    # ---------- criação de conta ----------
 
     @patch("tools.actions.actions.nomad_tools_status")
     @patch("urllib.request.urlopen")
-    @patch("json.loads")
-    def test_vaultwarden_setup_with_credentials(self, mock_json_loads, mock_urlopen, mock_status) -> None:
+    def test_register_rota_oficial_e_payload(self, mock_urlopen, mock_status) -> None:
+        """POST vai para /identity/accounts/register com RegisterData completo (sem token falso)."""
         mock_status.return_value = {"ok": True, "output": "od-vaultwarden running"}
         mock_response = MagicMock()
-        mock_response.read.return_value = b'{"token": "abc123"}'
+        mock_response.read.return_value = b'{"object": "register"}'
         mock_response.__enter__ = MagicMock(return_value=mock_response)
         mock_response.__exit__ = MagicMock(return_value=False)
         mock_urlopen.return_value = mock_response
-        mock_json_loads.return_value = {"token": "abc123"}
 
         result = nomad_vaultwarden_setup(
             admin_email="admin@test.com",
             admin_password="senha123",
-            disable_signups=True
+            disable_signups=False,
         )
         assert result["ok"] is True
-        assert "Conta admin criada" in result["message"]
-        assert result["token"] == "abc123"
+        assert "Conta admin@test.com criada" in result["message"]
+        assert "token" not in result  # registro não retorna token — sem sucesso falso
+        req = mock_urlopen.call_args[0][0]
+        assert req.full_url == "http://127.0.0.1:8480/identity/accounts/register"
+        assert req.get_method() == "POST"
+        body = json.loads(req.data.decode("utf-8"))
+        for campo in ("email", "kdf", "kdfIterations", "key", "keys", "masterPasswordHash"):
+            assert campo in body
+        assert body["email"] == "admin@test.com"
+        assert body["keys"]["publicKey"] and body["keys"]["encryptedPrivateKey"]
+
+    @patch("tools.actions.actions.nomad_tools_status")
+    @patch("urllib.request.urlopen")
+    def test_register_recusado_signups_fechados(self, mock_urlopen, mock_status) -> None:
+        """HTTP 400 do servidor vira erro honesto (nunca sucesso)."""
+        mock_status.return_value = {"ok": True, "output": "od-vaultwarden running"}
+        fp = io.BytesIO(b'{"message": "Registration not allowed or user already exists"}')
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            "http://127.0.0.1:8480/identity/accounts/register",
+            400, "Bad Request", {}, fp,
+        )
+        result = nomad_vaultwarden_setup(
+            admin_email="novo@x.com", admin_password="senha123", disable_signups=False
+        )
+        assert result["ok"] is False
+        assert result["error"] == "registro_recusado"
+        assert result["http_status"] == 400
+        assert "Registration not allowed" in result["message"]
 
     @patch("tools.actions.actions.nomad_tools_status")
     def test_vaultwarden_setup_container_not_running(self, mock_status) -> None:
@@ -360,22 +441,100 @@ class TestNomadVaultwardenSetup:
     @patch("urllib.request.urlopen")
     def test_vaultwarden_setup_api_failure(self, mock_urlopen, mock_status) -> None:
         mock_status.return_value = {"ok": True, "output": "od-vaultwarden running"}
-        mock_urlopen.side_effect = Exception("connection refused")
-        result = nomad_vaultwarden_setup(admin_email="a@b.com", admin_password="pass")
+        mock_urlopen.side_effect = OSError("connection refused")
+        result = nomad_vaultwarden_setup(
+            admin_email="a@b.com", admin_password="pass", disable_signups=False
+        )
         assert result["ok"] is False
         assert result["error"] == "criar_conta_falhou"
 
     @patch("tools.actions.actions.nomad_tools_status")
     @patch("urllib.request.urlopen")
-    @patch("json.loads")
-    def test_vaultwarden_setup_no_credentials(self, mock_json_loads, mock_urlopen, mock_status) -> None:
+    def test_vaultwarden_setup_no_credentials(self, mock_urlopen, mock_status) -> None:
         mock_status.return_value = {"ok": True, "output": "od-vaultwarden running"}
         result = nomad_vaultwarden_setup(disable_signups=False)
         assert result["ok"] is True
         assert result["message"] == "Vaultwarden pronto. Acesse via tailscale serve https://127.0.0.1:8480"
-        assert result["token"] is None
+        assert "token" not in result
         mock_urlopen.assert_not_called()
-        mock_json_loads.assert_not_called()
+
+    # ---------- fechamento real de signups ----------
+
+    @patch("tools.actions.actions._run", return_value=(0, "WEBSOCKET_ENABLED=true\nSIGNUPS_ALLOWED=false\n", ""))
+    @patch("tools.actions.actions._compose", return_value={"ok": True, "output": "Vaultwarden recriado"})
+    @patch("tools.actions.actions.nomad_tools_status")
+    def test_disable_signups_edita_compose_e_recria(
+        self, mock_status, mock_compose, mock_run, tmp_path
+    ) -> None:
+        mock_status.return_value = {"ok": True, "output": "od-vaultwarden running"}
+        compose = tmp_path / "tools-compose.yaml"
+        compose.write_text(
+            "  vaultwarden:\n    environment:\n      - SIGNUPS_ALLOWED=true\n      - DOMAIN=x\n",
+            encoding="utf-8",
+        )
+        with patch("tools.actions.actions.NOMAD_COMPOSE_FILE", str(compose)):
+            result = nomad_vaultwarden_setup(disable_signups=True)
+
+        assert result["ok"] is True
+        assert result["signups"] == {
+            "compose_atualizado": True,
+            "signups_allowed": False,
+            "container_env": True,
+        }
+        texto = compose.read_text(encoding="utf-8")
+        assert "SIGNUPS_ALLOWED=false" in texto
+        assert "SIGNUPS_ALLOWED=true" not in texto
+        mock_compose.assert_called_once_with(["up", "-d", "vaultwarden"], timeout=90.0)
+        assert "od-vaultwarden" in mock_run.call_args[0][0]
+        assert "Signups fechados" in result["message"]
+
+    @patch("tools.actions.actions._run", return_value=(0, "SIGNUPS_ALLOWED=false\n", ""))
+    @patch("tools.actions.actions._compose", return_value={"ok": True, "output": "ok"})
+    @patch("tools.actions.actions.nomad_tools_status")
+    def test_disable_signups_ja_fechado_idempotente(
+        self, mock_status, mock_compose, mock_run, tmp_path
+    ) -> None:
+        mock_status.return_value = {"ok": True, "output": "od-vaultwarden running"}
+        compose = tmp_path / "tools-compose.yaml"
+        compose.write_text("      - SIGNUPS_ALLOWED=false\n", encoding="utf-8")
+        with patch("tools.actions.actions.NOMAD_COMPOSE_FILE", str(compose)):
+            result = nomad_vaultwarden_setup(disable_signups=True)
+
+        assert result["ok"] is True
+        assert result["signups"]["compose_atualizado"] is False
+        # up -d continua sendo chamado (no-op do compose quando nada mudou)
+        mock_compose.assert_called_once()
+
+    @patch("tools.actions.actions._run", return_value=(0, "WEBSOCKET_ENABLED=true\n", ""))
+    @patch("tools.actions.actions._compose", return_value={"ok": True, "output": "ok"})
+    @patch("tools.actions.actions.nomad_tools_status")
+    def test_disable_signups_env_nao_aplicada_falha(
+        self, mock_status, mock_compose, mock_run, tmp_path
+    ) -> None:
+        """Se a env não chegou ao container, a ação FALHA (sem sucesso falso)."""
+        mock_status.return_value = {"ok": True, "output": "od-vaultwarden running"}
+        compose = tmp_path / "tools-compose.yaml"
+        compose.write_text("      - SIGNUPS_ALLOWED=true\n", encoding="utf-8")
+        with patch("tools.actions.actions.NOMAD_COMPOSE_FILE", str(compose)):
+            result = nomad_vaultwarden_setup(disable_signups=True)
+
+        assert result["ok"] is False
+        assert result["error"] == "signups_nao_fecharam"
+        assert result["etapa"] == "fechar_signups"
+
+    @patch("tools.actions.actions._compose", return_value={"ok": False, "tool": "docker_compose", "error": "docker indisponível"})
+    @patch("tools.actions.actions.nomad_tools_status")
+    def test_disable_signups_recriar_container_falhou(
+        self, mock_status, mock_compose, tmp_path
+    ) -> None:
+        mock_status.return_value = {"ok": True, "output": "od-vaultwarden running"}
+        compose = tmp_path / "tools-compose.yaml"
+        compose.write_text("      - SIGNUPS_ALLOWED=true\n", encoding="utf-8")
+        with patch("tools.actions.actions.NOMAD_COMPOSE_FILE", str(compose)):
+            result = nomad_vaultwarden_setup(disable_signups=True)
+
+        assert result["ok"] is False
+        assert result["error"] == "recriar_container_falhou"
 
 
 class TestNomadToolsIntegration:
@@ -438,14 +597,18 @@ class TestNomadToolsIntegration:
         assert result.status == "ok"
 
     @pytest.mark.asyncio
-    async def test_nomad_vaultwarden_setup_via_registry(self) -> None:
+    async def test_nomad_vaultwarden_setup_via_registry(self, tmp_path) -> None:
         from core.security import SecurityManager
         registry = build_registry(security=SecurityManager(mode="strict"))
+        compose = tmp_path / "tools-compose.yaml"
+        compose.write_text("      - SIGNUPS_ALLOWED=true\n", encoding="utf-8")
         with patch("tools.actions.actions.nomad_tools_status", return_value={"ok": True, "output": "od-vaultwarden running"}), \
              patch("urllib.request.urlopen") as mock_urlopen, \
-             patch("json.loads", return_value={"token": "xyz"}):
+             patch("tools.actions.actions.NOMAD_COMPOSE_FILE", str(compose)), \
+             patch("tools.actions.actions._compose", return_value={"ok": True, "output": "ok"}), \
+             patch("tools.actions.actions._run", return_value=(0, "SIGNUPS_ALLOWED=false\n", "")):
             mock_resp = MagicMock()
-            mock_resp.read.return_value = b'{"token": "xyz"}'
+            mock_resp.read.return_value = b'{"object": "register"}'
             mock_resp.__enter__ = MagicMock(return_value=mock_resp)
             mock_resp.__exit__ = MagicMock(return_value=False)
             mock_urlopen.return_value = mock_resp
@@ -456,6 +619,8 @@ class TestNomadToolsIntegration:
             )
         assert result.status == "ok"
         assert result.data["ok"] is True
+        assert result.data["signups"]["container_env"] is True
+        assert "SIGNUPS_ALLOWED=false" in compose.read_text(encoding="utf-8")
 
     @pytest.mark.asyncio
     async def test_nomad_tools_denied_for_non_admin(self) -> None:

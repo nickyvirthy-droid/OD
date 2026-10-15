@@ -37,9 +37,11 @@ Segurança e robustez:
 
 from __future__ import annotations
 
+import base64
 import datetime
 import fnmatch
 import hashlib
+import hmac
 import ipaddress
 import os
 import pwd
@@ -2209,56 +2211,223 @@ def nomad_wikipedia_zim_download(url: str = "", dest: str = "") -> dict[str, Any
     return {"ok": True, "dest": dest, "size_bytes": size, "size_gb": round(size / (1024**3), 2)}
 
 
-def nomad_vaultwarden_setup(admin_email: str = "", admin_password: str = "", disable_signups: bool = True) -> dict[str, Any]:
-    """Configura o Vaultwarden: cria conta admin e opcionalmente desabilita signups.
+def _vw_hkdf_expand(prk: bytes, info: bytes, length: int) -> bytes:
+    """HKDF-Expand (RFC 5869 §2.2) com HMAC-SHA256 — mesmo que o jslib `stretchKey`."""
+    out = b""
+    block = b""
+    counter = 1
+    while len(out) < length:
+        block = hmac.new(prk, block + info + bytes([counter]), hashlib.sha256).digest()
+        out += block
+        counter += 1
+    return out[:length]
 
-    Requer que o container esteja rodando. A criação de conta é via API do Vaultwarden.
+
+def _vw_encstring(plain: bytes, enc_key: bytes, mac_key: bytes) -> str:
+    """AES-256-CBC + HMAC-SHA256 no formato EncString tipo `2.iv|data|mac`.
+
+    Preenchimento PKCS7; MAC cobre iv||ct (AesCbc256_HmacSha256_B64 do Bitwarden).
+    """
+    from cryptography.hazmat.primitives import padding as sym_padding
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    iv = os.urandom(16)
+    padder = sym_padding.PKCS7(128).padder()
+    padded = padder.update(plain) + padder.finalize()
+    encryptor = Cipher(algorithms.AES(enc_key), modes.CBC(iv)).encryptor()
+    ct = encryptor.update(padded) + encryptor.finalize()
+    mac = hmac.new(mac_key, iv + ct, hashlib.sha256).digest()
+    return "2." + "|".join(
+        base64.b64encode(part).decode("ascii") for part in (iv, ct, mac)
+    )
+
+
+def _vw_decstring(encstr: str, enc_key: bytes, mac_key: bytes) -> bytes:
+    """Decifra EncString tipo 2 (autentica MAC e remove PKCS7) — usado nos testes."""
+    from cryptography.hazmat.primitives import padding as sym_padding
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    version, body = encstr.split(".", 1)
+    if version != "2" or body.count("|") != 2:
+        raise ValueError("EncString tipo 2 malformado")
+    iv_b64, ct_b64, mac_b64 = body.split("|")
+    iv, ct, mac = (base64.b64decode(p) for p in (iv_b64, ct_b64, mac_b64))
+    if not hmac.compare_digest(hmac.new(mac_key, iv + ct, hashlib.sha256).digest(), mac):
+        raise ValueError("MAC inválido")
+    decryptor = Cipher(algorithms.AES(enc_key), modes.CBC(iv)).decryptor()
+    padded = decryptor.update(ct) + decryptor.finalize()
+    unpadder = sym_padding.PKCS7(128).unpadder()
+    return unpadder.update(padded) + unpadder.finalize()
+
+
+_VW_KDF_ITER = 600_000  # PBKDF2-SHA256 (KdfType 0) — padrão Bitwarden
+
+
+def _vw_register_payload(admin_email: str, admin_password: str, name: str = "Admin") -> dict[str, Any]:
+    """Gera o payload `RegisterData` oficial para POST /identity/accounts/register.
+
+    Crypto idêntica aos clientes Bitwarden oficiais (jslib/SDK):
+      material    = PBKDF2-SHA256(senha, email, 600000, 32B)
+      authHash    = PBKDF2-SHA256(material, senha, 1, 32B)  -> masterPasswordHash
+      enc/mac     = HKDF-Expand(material, "enc"/"mac", 32B)  -> embrulho da user key
+      userKey     = 64B aleatórios (AES-256-CBC + HMAC-SHA256)
+      RSA-2048    = PKCS8 embrulhado com a user key; pública SPKI em base64
+
+    Formato e chaves verificados em 2026-10-15 contra o SDK oficial
+    (@bitwarden/sdk-internal) e E2E com CLI bw 2026.8.0 + servidor 1.36.0.
+    """
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    email = admin_email.strip().lower()
+    pwd = admin_password.encode("utf-8")
+    material = hashlib.pbkdf2_hmac(
+        "sha256", pwd, email.encode("utf-8"), _VW_KDF_ITER, dklen=32
+    )
+    auth_hash = base64.b64encode(
+        hashlib.pbkdf2_hmac("sha256", material, pwd, 1, dklen=32)
+    ).decode("ascii")
+    enc_key = _vw_hkdf_expand(material, b"enc", 32)
+    mac_key = _vw_hkdf_expand(material, b"mac", 32)
+    user_key = os.urandom(64)
+    wrapped_key = _vw_encstring(user_key, enc_key, mac_key)
+
+    priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pkcs8 = priv.private_bytes(
+        serialization.Encoding.DER,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    spki = priv.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    wrapped_priv = _vw_encstring(pkcs8, user_key[:32], user_key[32:])
+
+    return {
+        "email": email,
+        "name": name,
+        "kdf": 0,  # UserKdfType::Pbkdf2
+        "kdfIterations": _VW_KDF_ITER,
+        "key": wrapped_key,
+        "keys": {
+            "encryptedPrivateKey": wrapped_priv,
+            "publicKey": base64.b64encode(spki).decode("ascii"),
+        },
+        "masterPasswordHash": auth_hash,
+    }
+
+
+def nomad_vaultwarden_setup(admin_email: str = "", admin_password: str = "", disable_signups: bool = True) -> dict[str, Any]:
+    """Configura o Vaultwarden: cria conta admin e/ou fecha signups de verdade.
+
+    - Criação de conta: POST /identity/accounts/register com payload RegisterData
+      completo (rota e crypto corrigidas em 2026-10-15; a rota antiga
+      /api/accounts/register devolvia 404).
+    - Fechamento de signups: edita SIGNUPS_ALLOWED=false no compose, recria o
+      container e confere a env aplicada — sem sucesso falso.
+    Requer container de pé (execute nomad_tools_up primeiro).
     """
     import json
+    import urllib.error
     import urllib.request
 
-    # Verifica se container está rodando
+    # 1) container de pé
     status = nomad_tools_status()
     if not status.get("ok"):
         return status
-    running = False
-    for line in status.get("output", "").splitlines():
-        if "vaultwarden" in line and "running" in line.lower():
-            running = True
-            break
+    running = any(
+        "vaultwarden" in line and "running" in line.lower()
+        for line in status.get("output", "").splitlines()
+    )
     if not running:
         return {"ok": False, "error": "container_nao_rodando", "message": "Container vaultwarden não está rodando. Execute nomad_tools_up primeiro."}
 
-    # Cria conta admin via API (se email/senha fornecidos)
+    result: dict[str, Any] = {"ok": True}
+
+    # 2) cria conta (se credenciais fornecidas)
     if admin_email and admin_password:
         try:
-            data = json.dumps({"email": admin_email, "masterPassword": admin_password}).encode()
+            payload = _vw_register_payload(admin_email, admin_password)
+        except ImportError as exc:
+            return {"ok": False, "error": "crypto_indisponivel", "message": f"Dependência 'cryptography' indisponível: {exc}"}
+        except Exception as exc:
+            return {"ok": False, "error": "gerar_payload_falhou", "message": str(exc)}
+        try:
             req = urllib.request.Request(
-                "http://127.0.0.1:8480/api/accounts/register",
-                data=data,
+                "http://127.0.0.1:8480/identity/accounts/register",
+                data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
-                method="POST"
+                method="POST",
             )
             with urllib.request.urlopen(req, timeout=10.0) as resp:
-                resp_data = json.loads(resp.read().decode())
-            token = resp_data.get("token") or resp_data.get("access_token")
+                resp_data = json.loads(resp.read().decode("utf-8") or "{}")
+            result["conta"] = {
+                "email": payload["email"],
+                "criada": True,
+                "object": resp_data.get("object", "register"),
+            }
+        except urllib.error.HTTPError as exc:
+            body = ""
+            try:
+                body = exc.read().decode("utf-8", "replace")[:300]
+            except Exception:
+                pass
+            return {
+                "ok": False,
+                "error": "registro_recusado",
+                "http_status": exc.code,
+                "message": f"Registro recusado pelo Vaultwarden (HTTP {exc.code}): signups fechados ou conta já existe. {body}",
+            }
         except Exception as exc:
             return {"ok": False, "error": "criar_conta_falhou", "message": str(exc)}
-    else:
-        token = None
 
-    # Desabilita signups (requer restart com env SIGNUPS_ALLOWED=false)
+    # 3) fecha signups de verdade (compose + recriação + confere env)
     if disable_signups:
-        # O compose já tem SIGNUPS_ALLOWED=true para permitir criar a conta.
-        # Após criar, precisa recriar o container com SIGNUPS_ALLOWED=false.
-        # Isso é melhor feito via docker compose down/up com env alterado.
-        return {
-            "ok": True,
-            "message": "Conta admin criada (se credenciais fornecidas). Para desabilitar signups, edite o compose (SIGNUPS_ALLOWED=false) e rode nomad_tools_restart('vaultwarden').",
-            "token": token
+
+        def _falha_signups(error: str, message: str) -> dict[str, Any]:
+            out: dict[str, Any] = {"ok": False, "error": error, "message": message, "etapa": "fechar_signups"}
+            if result.get("conta"):
+                out["conta"] = result["conta"]
+            return out
+
+        try:
+            texto = Path(NOMAD_COMPOSE_FILE).read_text(encoding="utf-8")
+        except OSError as exc:
+            return _falha_signups("ler_compose_falhou", str(exc))
+        alterado = "- SIGNUPS_ALLOWED=true" in texto
+        if alterado:
+            try:
+                Path(NOMAD_COMPOSE_FILE).write_text(
+                    texto.replace("- SIGNUPS_ALLOWED=true", "- SIGNUPS_ALLOWED=false"),
+                    encoding="utf-8",
+                )
+            except OSError as exc:
+                return _falha_signups("editar_compose_falhou", str(exc))
+        up = _compose(["up", "-d", "vaultwarden"], timeout=90.0)
+        if not up.get("ok"):
+            return _falha_signups("recriar_container_falhou", str(up.get("error") or up.get("message") or up))
+        rc, out, _err = _run(
+            ["docker", "inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", "od-vaultwarden"],
+            timeout=15.0,
+        )
+        if not (rc == 0 and "SIGNUPS_ALLOWED=false" in out):
+            return _falha_signups("signups_nao_fecharam", "Container não aplicou SIGNUPS_ALLOWED=false (env ausente).")
+        result["signups"] = {
+            "compose_atualizado": alterado,
+            "signups_allowed": False,
+            "container_env": True,
         }
 
-    return {"ok": True, "message": "Vaultwarden pronto. Acesse via tailscale serve https://127.0.0.1:8480", "token": token}
+    # mensagem final (sem sucesso falso: só afirma o que foi verificado)
+    partes: list[str] = []
+    if result.get("conta"):
+        partes.append(f"Conta {result['conta']['email']} criada em /identity/accounts/register.")
+    if result.get("signups"):
+        partes.append("Signups fechados (SIGNUPS_ALLOWED=false, container recriado e env verificada).")
+    if not partes:
+        partes.append("Vaultwarden pronto. Acesse via tailscale serve https://127.0.0.1:8480")
+    result["message"] = " ".join(partes)
+    return result
 
 
 # ---------------------------------------------------------------------------

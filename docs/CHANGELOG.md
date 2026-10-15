@@ -14,6 +14,37 @@
 
 ---
 
+### Infra — Vaultwarden fechado (conta do dono + signups) e action `nomad_vaultwarden_setup` consertada (2026-10-15, sem bump)
+
+- **Conta do dono criada** via `POST /identity/accounts/register` com payload
+  `RegisterData` completo (KDF PBKDF2-SHA256 600k, user key AES-256-CBC-HMAC
+  embrulhada, RSA-2048 com PKCS8 embrulhado) gerado pelo **SDK oficial**
+  (`@bitwarden/sdk-internal`). Verificação E2E com **CLI oficial `bw` 2026.8.0**:
+  login + sync + roundtrip de pasta (cifrada → servidor → decifrada); conta de
+  teste do drill excluída via `/api/accounts/delete` — vault só com o dono.
+- **Signups fechados de verdade:** `SIGNUPS_ALLOWED=false` no compose, container
+  recriado, env aplicada conferida; registro de fora → HTTP 400; login do dono
+  segue funcionando após o restart.
+- **Action consertada** (`nomad_vaultwarden_setup`): a rota antiga
+  `/api/accounts/register` dava 404, o payload era cru (`{email, masterPassword}`),
+  o retorno inventava um `token` inexistente e "desabilitar signups" só imprimia
+  uma instrução (sucesso falso). Agora: rota `/identity/accounts/register`,
+  payload `RegisterData` com crypto própria (`_vw_hkdf_expand`/`_vw_encstring`/
+  `_vw_register_payload` — HKDF-Expand RFC 5869, EncString tipo 2, PBKDF2 600k)
+  **validada byte a byte contra o SDK oficial** (oráculo 4/4), fechamento real
+  (edita compose → `compose up -d` → confere env do container) e erros honestos
+  (`registro_recusado` com o HTTP do servidor, `signups_nao_fecharam`).
+  **+7 testes** (formato do payload, roundtrip interno, rota/método/corpo, 400,
+  e os 3 do fechamento + registry).
+- **Achados do dia registrados:** `DOMAIN` do Vaultwarden corrigido ontem
+  (`3ed13cc`); `bw` CLI ≥ 2026.9 incompatível com o prelogin do servidor
+  1.36.0 (espera `kdfSettings`/`Salt`; flag `pm-27060` fora do allowlist do
+  servidor — TODO §4; web vault empacotada e app seguem OK).
+- **Suíte: 2870 passed, 16 skipped** (+7). Sem bump: backend/infraestrutura,
+  sem mudança de app ou site.
+
+---
+
 ## [1.29.0] — SUPPLY DEPOT: REGISTRO DE FERRAMENTAS/SKILLS (PARTE F DO NOMAD) 🜂 (2026-10-15)
 
 > **Bump MINOR (capacidade nova):** Parte F da ordem do dono

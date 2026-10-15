@@ -104,3 +104,116 @@ lida no sistema (nada assumido):
 NOMAD completa.** Nada em andamento. Aguardando ordem do dono — os
 candidatos estão no próprio `TODO.md` §7 (sugestão: DECISÃO FINAL,
 começando pelo Vaultwarden). Pendências do dono inalteradas.
+
+---
+
+## §3 — Auditoria do TODO.md + §1 (Stack Nômade) executada: conta do dono no Vaultwarden, signups fechados, action consertada (~15:27→16:35)
+
+Pedido do dono: **"verifique se realmente TODO esta correto e pode
+começar pelo inicio, vou seguir a sua ordem sugerida"**. No caminho,
+duas instruções novas: usar o **e-mail real do sistema**
+(`nickyvirthy@gmail.com`) na conta, e **senhas que o sistema usar vão
+no `.env`** (migradas ontem, commit `3ed13cc`).
+
+### 1. Auditoria do TODO.md × sistema real
+
+| Afirmação do TODO | Realidade medida | Veredito |
+|---|---|---|
+| §1: 9 serviços "☐" | 9 containers `Up` há 2–3 dias (`docker ps`, health) | ERRADO → ✅ |
+| §1: Kiwix "ZIM precisa ser baixado" | `wikipedia_en_all_mini.zim` 14 386 799 064 B salvo 13/10 | ERRADO → baixado |
+| §1: serve :8443 | 9 rotas respondendo (tailnet) | FUNCIONA |
+| §1b: tabela com Paperless-ngx, Immich, Audiobookshelf, Portainer, exit node… | NENHUM desses existe na DECISÃO FINAL (`docs/ANALISE_PROJECT_NOMAD.md` §12/10) | INVENTADA → reescrita fiel |
+| §1/§2: Vaultwarden pendente (signups abertos, 0 usuários) | confirmado (`/api/config disableUserRegistration: false`, db 0 users) | CORRETO → executado hoje |
+
+Correções aplicadas no `TODO.md`: §1 9/9 ✅ com observações reais (ZIM
+14,4 GB, DOMAIN corrigido, bugs registrados), §1b virou espelho da
+DECISÃO FINAL (8 ferramentas ✅ no ar, ProtoMaps dev task, LoRa
+geladeira, descartados: Kolibri/Jellyfin/Excalidraw/benchmark), §2
+Vaultwarden ✅ + pendência nova do dono (repo público), §4 dívida
+(bw ≥2026.9 vs servidor 1.36.0; repo público), §7 atualizado.
+
+### 2. Cofre do dono — conta criada com o SDK oficial
+
+Sem navegador desktop e com o `bw` CLI 2026.10 recusando o prelogin do
+servidor 1.36.0 (espera `{kdfSettings, Salt}`; flag `pm-27060` fora do
+allowlist `SUPPORTED_FEATURE_FLAGS`), o caminho foi o **SDK oficial
+`@bitwarden/sdk-internal`** (mesmo WASM do web vault):
+
+- Payload `RegisterData` completo: `key` (user key 64 B embrulhada com
+  AES-256-CBC-HMAC via `encrypt_user_key_with_master_password`), `keys`
+  (RSA-2048, PKCS8 embrulhado + SPKI b64), `masterPasswordHash`
+  (PBKDF2-SHA256(material, senha, 1 it)), `kdf: 0` 600000.
+- `POST /identity/accounts/register` → **HTTP 200 `{"object":"register"}`**
+  (a rota antiga `/api/accounts/register` dava 404).
+- Entraves de ambiente (ambos resolvidos e documentados): o WASM trava
+  em **ESM** no Node 18 (CommonJS obrigatório) e paniqueia sem
+  `globalThis.crypto` (que no Node 18 só existe em contexto `-e`;
+  polyfill de `crypto.webcrypto` no script).
+
+**Prova com cliente oficial** (`bw` 2026.8.0 — versão contemporânea do
+servidor; ≥2026.9 não loga por incompatibilidade de prelogin):
+login **OK** → `sync` **OK** → `create folder` + `list folders`
+mostrou **"pasta-prova-omegadrakon" decifrada** (roundtrip completo de
+criptografia) → remoção → `logout`. Depois do restart por fechar
+signups: login do dono **OK** de novo.
+
+### 3. Signups fechados de verdade
+
+`SIGNUPS_ALLOWED=false` no compose → container recriado → env
+aplicada conferida (`docker inspect`) → registro de fora → **HTTP 400**
+"Registration not allowed or user already exists". Observação honesta:
+`/api/config` continua mostrando `disableUserRegistration: False` — não
+é bug: o Vaultwarden só esconde o link de cadastro quando
+`(mail off + convites off)`; aqui mail está off e convites on
+(concessão padrão do servidor). O fechamento real é o 400.
+
+### 4. Action `nomad_vaultwarden_setup` consertada (antes: 3 defeitos + sucesso falso)
+
+- Rota errada (`/api/accounts/register` → 404) e payload cru
+  (`{email, masterPassword}`).
+- Retorno **inventava um `token`** que o registro nunca devolve.
+- `disable_signups=True` só imprimia "edite o compose e rode…" com
+  `ok: True` — sucesso falso.
+
+Nova versão: rota `/identity/accounts/register` + payload
+`RegisterData` gerado por `_vw_register_payload` (HKDF-Expand RFC 5869,
+EncString tipo `2.iv|data|mac` com PKCS7+HMAC, PBKDF2 600k, RSA-2048) e
+fechamento **real** (edita compose → `compose up -d` → confere env →
+`signups_nao_fecharam` se a env não chegou). Erros honestos
+(`registro_recusado` com o HTTP do servidor, `etapa` no erro).
+
+**Oráculo:** o payload Python foi validado contra o SDK oficial —
+userKey desembrulhada ✓, pública == extração oficial da privada ✓,
+auth hash == cálculo do SDK ✓. O oráculo **pegou um bug real** na 1ª
+versão (argumentos do `pbkdf2_hmac` invertidos: senha/material) —
+corrigido e reprovado 4/4.
+
+**Drill E2E ao vivo:** reabertura temporária (~40 s, só
+localhost+tailnet) → action rodada **sem mock**: criou
+`drill@omegadrakon.dev`, editou o compose, recriou o container, conferiu
+a env e fechou os signups → `bw` oficial logou na conta **gerada pela
+Python** e decifrou pasta (roundtrip) → self-delete via
+`/api/accounts/delete` (HTTP 200; exige jwt **antes** do logout — `bw
+logout` revoga) → vault final = **só o dono**.
+
+Backups do `db.sqlite3` em `/tmp/opencode/vw/` antes da criação e antes
+do drill (contagem 0→1→2→1).
+
+### 5. Verificação final (tudo evidência lida)
+
+- compose `SIGNUPS_ALLOWED=false` · env do container false · container
+  **healthy** · registro externo **400** · web vault pública
+  `https://nicky-server.tail1b1f51.ts.net:8443` **200** · login do dono
+  **OK** (e logout limpo) · db: **só `nickyvirthy@gmail.com`**.
+- **Suíte completa: 2870 passed / 16 skipped** (+7 testes da action;
+  módulo 48/48). Sem bump (backend/infra — convenção das entregas sem
+  versão; CHANGELOG com entrada "sem bump").
+
+### 6. Comunicação e pendências
+
+- `txt.txt` reescrito com credenciais/URLs e **chmod 600** (regra 14).
+- **Pendência de decisão do dono** (TODO §2 + txt.txt): repo GitHub
+  **público** com histórico contendo segredos do compose (pré-`3ed13cc`)
+  — privar? rotacionar? as duas?
+- bw CLI ≥2026.9 incompatível com o prelogin do servidor 1.36.0
+  (registrado na dívida técnica §4; web vault e app seguem OK).
