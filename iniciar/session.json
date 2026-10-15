@@ -1,7 +1,18 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-15T13:15:00-03:00",
+ "updated_at": "2026-10-15T20:47:00-03:00",
+ "reverificacao_2026_10_15_2047": {
+  "pedido": "Usuário: 'leia iniciar' (~20:47 de 15/10).",
+  "achados": "TUDO VERDE: od-core active PID 2707450 desde 15/10 16:30:47 (deploy da action Vaultwarden), NRestarts=0, journal 0 erros (grep error/exception/traceback = 0 desde o boot); /app/version 1.29.0/2059 sha c23ff4ee… == APK publicado (55 508 376 B); /health 401 sem credencial = esperado; HEAD 3d94cbb == origin/master, árvore LIMPA; txt.txt sem mensagem nova do dono (última escrita nossa 16:28, entrega do Vaultwarden); analise/ sem depósito novo (Avatar/ vazio, fotos-adicionais/ as mesmas 4).",
+  "achados_menores_registrados": [
+   "Alertas router:down (severity=warn) às 16:57, 18:57 e 19:57 — ping ao gateway 192.168.0.1 AGORA responde 2/2 (rtt ~0,8 ms): falha intermitente de ping, não roteador fora; monitorar, sem ação.",
+   "1 dos 2 tokens de push em data/push_devices.json está MORTO: FCM responde NOT_FOUND a cada alerta (35 envios ok / 46 falhas no token d8Xhaf…); candado de poda: remover token NOT_FOUND do registry quando aparecer de novo — dívida técnica menor, anotada.",
+   "Auto-update tick ok: 'alvos=1 | aplicar=0 | resumo=indice-rag=aguardar' (comportamento esperado)."
+  ],
+  "estado": "SISTEMA ESTÁVEL — v1.29.0+2059 no ar (PID 2707450); ordem A→F do NOMAD completa; Vaultwarden fechado com conta do dono (§3); nada em andamento; aguardando ordem do dono (candidatos no TODO.md §7 / DECISÃO FINAL).",
+  "transcricao": "iniciar/2026-10-15_conversa_omegadrakon.md (§4)"
+ },
  "reverificacao_2026_10_15_1315": {
   "pedido": "Usuário: 'leia iniciar' (~13:15 de 15/10).",
   "achados": "TUDO VERDE: od-core active PID 2523683 desde 15/10 13:08:55 (reinicio limpo), NRestarts=0, journal 0 erros; /app/version 1.29.0/2059 sha c23ff4ee… == APK publicado; /health up (RAG chunks=881 + Supply Depot no boot); HEAD e45018e == origin/master, árvore LIMPA; txt.txt sem mensagem nova do dono (última escrita nossa 11:09); analise/ sem depósito novo.",

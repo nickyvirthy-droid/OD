@@ -229,3 +229,42 @@ degraded `[]` restarts 0, `/capabilities` **89 actions (nomad: 8)**
 com `nomad_vaultwarden_setup` registrada, `/app/version` 1.29.0/2059
 (sem bump — backend/infra), registro externo ainda **400**. Commit
 `446246e` publicado (`3ed13cc..446246e`); Telegram msg **2756**.
+
+## §4 — Retomada "leia iniciar" (~20:47) — sistema verde; 2 achados menores registrados
+
+Pedido do dono: **"leia iniciar"**. Verificação por evidência lida
+(nada assumido):
+
+### Achados
+
+| Item | Estado |
+|---|---|
+| `od-core` | **active PID 2707450** desde 15/10 **16:30:47** (deploy da §3), **NRestarts=0**, journal **0 erros** (grep `error\|exception\|traceback` = 0 desde o boot) |
+| `/app/version` | **1.29.0 / 2059**, sha256 `c23ff4ee…` == APK publicado (55 508 376 B) |
+| `/health` | 401 sem credencial = esperado (auth_all) |
+| Git | **HEAD `3d94cbb` == origin/master**, árvore **LIMPA** |
+| `txt.txt` | **sem mensagem nova do dono** (última escrita nossa 16:28 — entrega do Vaultwarden) |
+| `analise/` | **sem depósito novo** (`Avatar/` vazio; `fotos-adicionais/` as mesmas 4 fotos) |
+
+### Achados menores (registrados, sem ação agora)
+
+- **Alertas `router:down`** (severity=warn) às 16:57, 18:57 e 19:57 —
+  mas o ping ao gateway **192.168.0.1 agora responde 2/2** (rtt
+  ~0,8 ms): falha intermitente de ping, **não** roteador fora.
+  Monitorar; nenhum erro derivado no journal.
+- **1 token de push morto**: dos 2 tokens em `data/push_devices.json`,
+  o `d8Xhaf…` recebe **NOT_FOUND** do FCM a cada alerta (35 envios ok
+  / 46 falhas acumuladas). Registro para poda futura (remover token
+  NOT_FOUND do registry) — dívida técnica menor.
+- Auto-update tick saudável: `alvos=1 | aplicar=0 |
+  resumo=indice-rag=aguardar` (esperado).
+
+### Estado
+
+**SISTEMA ESTÁVEL — v1.29.0+2059 no ar (PID 2707450). Ordem A→F do
+NOMAD completa; Vaultwarden fechado com conta do dono (§3).** Nada em
+andamento. Aguardando ordem do dono — candidatos no `TODO.md` §7
+(sugestão: DECISÃO FINAL / demais itens da stack Nômade). Pendências do
+dono inalteradas (decisão sobre repo público, popular cofre, Registro
+Mestre etapa 4, pauta 3/5, fotos `analise/fotos-adicionais/`, pasta
+`3D/`).
