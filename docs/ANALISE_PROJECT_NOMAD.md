@@ -179,7 +179,9 @@ token — antes devolvia "ok" com o registro pulado) e a persistir em
 registry: ferramenta gerada não some mais. 5 rotas `/admin/ferramentas`
 (73 → 78), seção no painel, bloco no stats, health `supply_depot`
 não-crítico, capability `tool-supply-depot`. Suíte +91 testes:
-**2863 passed, 16 skipped · 90,51%** (`supply_depot.py` a 95%).
+**2863 passed, 16 skipped · 90,52%** (`supply_depot.py` a 95%). Prova
+viva em 3 fases no serviço (instalação → conflito 409 → update+backup →
+custom sobrevive → rollback → exec → restart `carregadas=1` → limpeza).
 
 ### DECISÃO FINAL (12/10) — Virada da análise original
 

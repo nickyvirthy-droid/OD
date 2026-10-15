@@ -41,9 +41,20 @@
 
 | Verificação | Resultado |
 |---|---|
-| Suíte do servidor (gate `--cov-fail-under=90`) | **2863 passed / 16 skipped · cobertura 90,51%** (+91 testes da Parte F; `tools/supply_depot.py` a **95%**) |
+| Suíte do servidor (gate `--cov-fail-under=90`) | **2863 passed / 16 skipped · cobertura 90,52%** (+91 testes da Parte F; `tools/supply_depot.py` a **95%**) |
 | Guardas | `ROUTES` 73 → 78 em `tests/test_api.py` (5 rotas novas todas admin) |
 | Teste de JS do painel | `node --check` do JS SERIDO verde |
+| **Prova viva no serviço (15/10, PID 2410050)** | 3 fases na API de produção (abaixo) |
+
+**Prova viva no serviço (15/10, PID 2410050 — NRestarts=0, journal 0 erros):**
+
+| Fase | Resultado |
+|---|---|
+| Boot (deploy) | `Supply Depot no ar (Parte F NOMAD) \| carregadas=0 \| erros=0 \| catalogo=0` (PID 2405509); `/health` **up** com `supply_depot: up` ("supply-depot: 0 no catálogo"); `/capabilities` 47 com `tool-supply-depot`; `/app/version` **1.29.0 / 2059** com sha == APK publicado (`c23ff4ee…`) |
+| Ciclo de vida completo | `POST /admin/ferramentas` `proof.soma` → **201** `instalar_nova (v1.0.0)` (sha256 no manifesto); repetido → **200** `sem_acao (ja_instalada)` (idempotente); instalar por cima da action alheia `system_info` → **409** `conflito: …já existe no registry e não é do depot`; update `1.0.0 → 1.0.1` → **200** + backup `data/ferramentas_backup/proof.soma.v1.0.0.py` (116 B); `PUT` descrição do dono → **200**; update `1.0.2` → descrição **ainda** a do dono no `/actions` (custom sobreviveu); major `2.0.0` → **409** `major_requer_confirmacao (1.0.2 → 2.0.0)`; rollback → **200** `de=1.0.2 para=1.0.1` com descrição do dono **ainda** lá; `/executa proof.soma {a:10,b:4}` → **`result: 6`** (ferramenta executa ao vivo); `DELETE` → **200**, catálogo/stats em 0, arquivos preservados no backup (não destrutivo) |
+| Persistência no boot (a prova central) | Instalado `proof.persist` → restart → journal **`Supply Depot restaurado no boot \| carregadas=1 \| erros=0 \| catalogo=1`** (PID 2409472) + `/actions` ainda com a ferramenta + `/executa` → **"sobrevivi ao restart"** + `/health` "supply-depot: 1 no catálogo" |
+| Painel ao vivo | Seção **Ferramentas (Supply Depot)** servida no `/admin` (formulário, tabela, ✎/⟲/✕) |
+| Restauração | Resíduos da prova apagados (`data/ferramentas*`), restart limpo (PID 2410050): boot `carregadas=0 \| erros=0 \| catalogo=0`, `/health` up, lista 0, journal 0 erros, NRestarts=0 |
 
 ---
 

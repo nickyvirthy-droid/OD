@@ -35,7 +35,7 @@ existia só em memória — reiniciou o core, sumia — e o comando devolvia
 ### 2. Verificação
 
 - Suíte do servidor (gate `--cov-fail-under=90`): **2863 passed /
-  16 skipped · cobertura 90,51%** — +91 testes
+  16 skipped · cobertura 90,52%** — +91 testes
   (`tests/test_supply_depot.py`: tabela do pré-voo puro, instalação,
   rollback automático FORÇADO em cada passo (registro e gravação),
   rollback manual/desfazível, customização, remoção, boot com código
@@ -46,6 +46,25 @@ existia só em memória — reiniciou o core, sumia — e o comando devolvia
 - Guardas: `ROUTES` 73 → 78 (5 rotas novas todas admin) · política de
   versão 9/9.
 - `node --check` do JS do painel verde.
+
+### 3. Prova viva no serviço em produção (15/10, PID 2410050)
+
+| Passo | Resultado |
+|---|---|
+| Boot (deploy) | `Supply Depot no ar (Parte F NOMAD) \| carregadas=0 \| erros=0 \| catalogo=0` (PID 2405509); `/health` **up** com check `supply_depot: up`; `/capabilities` 47 com `tool-supply-depot`; `/app/version` **1.29.0 / 2059** sha == APK (`c23ff4ee…`) |
+| Instalação + idempotência | `POST /admin/ferramentas` `proof.soma` → **201** `instalar_nova (v1.0.0)` com sha256 no catálogo; repetido → **200** `sem_acao (ja_instalada)` |
+| Pré-voo de conflito | Instalar por cima da action alheia `system_info` → **409** `conflito: action 'system_info' já existe no registry e não é do depot` (log `[WARN] Supply Depot: pré-voo bloqueou`) |
+| Update + backup | `1.0.0 → 1.0.1` → **200** `atualizacao_disponivel` e `data/ferramentas_backup/proof.soma.v1.0.0.py` (116 B) criado |
+| Custom que sobrevive | `PUT` descrição do dono → **200**; update para `1.0.2` → no `/actions` a descrição **ainda** é a do dono; após o **rollback** também |
+| Pré-voo de major | `2.0.0` sem confirmação → **409** `major_requer_confirmacao (1.0.2 → 2.0.0)` |
+| Rollback síndico | `POST .../rollback` → **200** `de=1.0.2 para=1.0.1` (arquivo + catálogo + action) |
+| Execução ao vivo | `POST /executa proof.soma {a:10,b:4}` → **`result: 6`** (V2 subtrai) |
+| Desinstalação não destrutiva | `DELETE` → **200**, catálogo e `/dashboard/stats.ferramentas` em 0; código preservado em `data/ferramentas_backup/` |
+| **Persistência no boot (prova central)** | `proof.persist` instalado → restart → journal **`Supply Depot restaurado no boot \| carregadas=1 \| erros=0 \| catalogo=1`** (PID 2409472); `/actions` ainda com a ferramenta; `/executa` → **"sobrevivi ao restart"**; `/health` "supply-depot: 1 no catálogo" |
+| Painel ao vivo | Seção **Ferramentas (Supply Depot)** servida no `/admin` |
+| Restauração | Resíduos da prova apagados; restart limpo (PID 2410050): boot `carregadas=0 \| erros=0 \| catalogo=0`, `/health` up, journal 0 erros, NRestarts=0 |
+
+---
 
 ## [1.28.0] — AUTO-UPDATE DE MODELOS/CONTEÚDO (PARTE E DO NOMAD) 🜂 (2026-10-14)
 
