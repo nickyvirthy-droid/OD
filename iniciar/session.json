@@ -1,7 +1,14 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-15T11:10:00-03:00",
+ "updated_at": "2026-10-15T13:15:00-03:00",
+ "reverificacao_2026_10_15_1315": {
+  "pedido": "Usuário: 'leia iniciar' (~13:15 de 15/10).",
+  "achados": "TUDO VERDE: od-core active PID 2523683 desde 15/10 13:08:55 (reinicio limpo), NRestarts=0, journal 0 erros; /app/version 1.29.0/2059 sha c23ff4ee… == APK publicado; /health up (RAG chunks=881 + Supply Depot no boot); HEAD e45018e == origin/master, árvore LIMPA; txt.txt sem mensagem nova do dono (última escrita nossa 11:09); analise/ sem depósito novo.",
+  "achado_entre_sessoes": "Commit e45018e (13:10) = TODO.md NOVO (163 linhas): roadmap organizado (stack Nômade 9 serviços, DECISÃO FINAL 12/10 itemizada, pendências do dono, melhoramentos A–F, dívida técnica, DoD). Não foi esta sessão quem criou (trabalho entre 11:15–13:10, mtime 13:00) — aceito como válido e registrado. Restart 13:08:55 verde (mesmo binário). Dono com SSH ativo (192.168.0.111 desde 13:12).",
+  "estado": "SISTEMA ESTÁVEL — v1.29.0+2059 no ar (PID 2523683); ordem A→F do NOMAD completa; nada em andamento; aguardando ordem do dono (candidatos no TODO.md §7 — sugestão: DECISÃO FINAL começando pelo Vaultwarden).",
+  "transcricao": "iniciar/2026-10-15_conversa_omegadrakon.md (§2)"
+ },
  "reverificacao_2026_10_14_1611": {
   "pedido": "Usuário: 'leia iniciar' (3ª vez em 14/10, ~16:11).",
   "achados": "ESTADO INALTERADO E 100% VERDE ~3h após o deploy da Parte B: od-core active PID 1257828 (desde 14/10 13:05:45, 3h05), NRestarts=0, journal 0 erros. /app/version 1.26.0 / 2056 (sha 26be1efc… == APK publicado). /health 401 sem credencial = esperado. HEAD 258188b == origin/master, árvore LIMPA, 0 commits novos desde 13:20. txt.txt sem mensagem nova do dono (nossa última escrita 13:09); analise/ sem depósito novo.",
@@ -671,7 +678,7 @@
    "agents": "profiles (7 perfis Plêiade) + nicky_virthy identity/soul"
   }
  },
- "topic": "OmegaDrakon v1.24.1+2053 — galeria de avatares da Plêiade publicada (/site/avatares.html com fotos + fichas completas; cards do index em resumo; SVGs mantidos); roteador /site/{file} passou a aceitar subpastas; pasta analise/ virou a caixa de entrada de arquivos do dono (regra 17)",
+ "topic": "OmegaDrakon v1.29.0+2059 — ordem A→F do Project NOMAD COMPLETA (última: Parte F Supply Depot no ar); TODO.md com roadmap organizado publicado; aguardando ordem do dono (candidatos no TODO.md §7 — DECISÃO FINAL 12/10 sugerida, começando pelo Vaultwarden)",
  "estado_2026_09_19": {
   "git": "HEAD com alterações no working tree (app/ + iniciar/)",
   "od_core": "active desde 2026-09-18 05:55:15 (PID 413665, NRestarts=0). :8000 e :8001 escutando.",

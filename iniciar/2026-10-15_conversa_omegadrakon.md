@@ -63,3 +63,44 @@ de terceiro em Docker + ProtoMaps + LoRa (tabela da linha 178) — aguarda
 ordem do dono. Pendências do dono inalteradas (Vaultwarden, Registro
 Mestre etapa 4, pauta 3/5, rotação de segredos, fotos
 `analise/fotos-adicionais/`, catálogo `3D/`).
+
+## §2 — Retomada "leia iniciar" (~13:15) — sistema verde; TODO.md roadmap publicado entre sessões
+
+Pedido do dono: **"leia iniciar"**. Verificação feita por evidência
+lida no sistema (nada assumido):
+
+### Achados
+
+| Item | Estado |
+|---|---|
+| `od-core` | **active PID 2523683** desde 15/10 **13:08:55** (reinicio limpo — Stopping/Stopped/Started no mesmo segundo), **NRestarts=0**, journal **0 erros** |
+| `/app/version` | **1.29.0 / 2059**, sha256 `c23ff4ee…` == APK publicado (55 508 376 B) |
+| `/health` | **up** (orchestrator/llm/audit ok; RAG e Supply Depot no boot) |
+| Boot do journal | `RAG … chunks 881` + `Supply Depot no ar (Parte F NOMAD) \| carregadas=0 \| erros=0` |
+| Git | **HEAD `e45018e` == origin/master**, árvore **LIMPA** |
+| `txt.txt` | **sem mensagem nova do dono** (última escrita nossa 11:09, entrega da Parte F) |
+| `analise/` | **sem depósito novo** (`Avatar/` vazio; `fotos-adicionais/` com as mesmas 4 fotos) |
+
+### Achado entre sessões: TODO.md + restart 13:08
+
+- Commit **`e45018e` (13:10)** — `TODO.md` NOVO (163 linhas): roadmap
+  organizado em 7 seções — stack Nômade (9 serviços no compose com
+  status), DECISÃO FINAL 12/10 itemizado (8 containers ❌/⚠️/🟡 + LoRa
+  🧊), pendências do dono, melhoramentos técnicos por parte (A–F),
+  dívida técnica, parking lot e o **Definition of Done** copiado de
+  `docs/REGRAS_DE_TRABALHO.md`. Fecho honesto: **não foi esta sessão
+  quem criou** (o registro da Parte F em `iniciar/` fecha às 11:11);
+  o artefato veio de trabalho entre 11:15–13:10 (mtime 13:00), está
+  commitado, publicado e coerente com o sistema — **aceito como
+  válido, registrado aqui**. O restart 13:08:55 foi verde (mesmo binário
+  1.29.0+2059 no ar, NRestarts=0, journal 0 erros — docs não mudam
+  runtime).
+- Dono com SSH ativo (pts/0 192.168.0.111, desde 13:12) — é ele quem
+  está no servidor agora.
+
+### Estado
+
+**SISTEMA ESTÁVEL — v1.29.0+2059 no ar (PID 2523683). Ordem A→F do
+NOMAD completa.** Nada em andamento. Aguardando ordem do dono — os
+candidatos estão no próprio `TODO.md` §7 (sugestão: DECISÃO FINAL,
+começando pelo Vaultwarden). Pendências do dono inalteradas.
