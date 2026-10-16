@@ -1,7 +1,7 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-15T21:30:00-03:00",
+ "updated_at": "2026-10-16T00:20:00-03:00",
  "decisao_final_health_nomad_2026_10_15": {
   "id": "decisao_final_health_nomad_2026_10_15",
   "titulo": "DECISÃO FINAL fechada: saúde das 9 ferramentas Nômades no /health + alerta no Telegram",
@@ -2711,5 +2711,19 @@
   "estado": "CONCLUÍDO — §1 do TODO fechada: 9/9 serviços no ar, cofre do dono pronto e provado com cliente oficial, signups fechados, action consertada e provada de ponta a ponta",
   "ts": "2026-10-15T16:35:00-03:00",
   "deploy": "restart verde od-core 16:30:47 (regra 7.3 — action vive em memória): PID novo, NRestarts=0, journal 0 erros, /health up 11 checks, /supervision []/0, /capabilities 89 actions (nomad: 8) com nomad_vaultwarden_setup registrada, /app/version 1.29.0/2059, registro externo ainda HTTP 400 | commit 446246e publicado | Telegram msg 2756"
+ },
+ "ordem_etapa4_2026_10_15": {
+  "id": "ordem_etapa4_2026_10_15",
+  "titulo": "Dono mandou prosseguir — Etapa 4 do Registro Mestre escolhida (fluxo QR/posse + loja)",
+  "data": "2026-10-15",
+  "pedido_dono": "'prossiga' (~21:40) — resposta à pergunta 'Registro Mestre Etapa 4 × melhorar RAG'. Como a Etapa 4 foi a primeira da minha lista e do TODO §7, segue ela.",
+  "escopo": [
+   "Código de posse (QR): gerar por peça (admin), registrar no app pelo comprador (auth), regressão registrada->X liberada com o código",
+   "Site: loja publica (sem preço — negociação via sala da peça; preço é privado desde a etapa 1-3) + ?posse= na verificacao.html",
+   "App: aba Verificar ganha 'Registrar minha peça' (colar código; sem câmera na v1 — nota honesta)",
+   "Bump MINOR 1.30.0 + versionCode 2060 + APKs"
+  ],
+  "estado": "CONCLUÍDO — Etapa 4 NO AR (v1.30.0+2060): código de posse POSSE-XXXX (64 bits, hash-only) por peça exclusiva, QR no cartão, registro do comprador no app com conta, loja pública sem preço e regressão registrada→X destravada só com o código.",
+  "deploy": "restart verde 23:41:40 (regra 7.3 — feat 082915f publicado antes): PID 3091063, NRestarts=0, journal 0 erros; boot +76s foi resync do corpus RAG (632 chunks dos arquivos da entrega — sem bug, diagnóstico com stack ao vivo); /health up 9/9 tools; /app/version 1.30.0/2060 sha256 57ed3845==APK publicado; aapt dos 2 APKs: 2060 cruro (build_apk.sh; meu build cru deu 4060 e foi descartado; backup 1.29.0/2059 em backups/apk-v1.29.0-2059/); loja 200 (8.433 B), verificacao 200, GET /registry público sem preço/notas/hash; drill E2E completo: QR 200/400, registro 201 (normalizado minúsculo sem hífen) + pública sem hash, 409, gate 400 sem código/400 errado/200 certo (dono/carimbo limpos, tem_posse), ping 🔑 ao Telegram, peça+usuário drill apagados = resíduo zero; suíte 2929/16 gate 90,58%, flutter 177/2 analyze 0; verificação de versão 9/9; Telegram msg 2790; repo público confirmado via API → .gitignore ganhou backups/push-devices-*.json (token FCM vivo nunca entra)"
  }
 }

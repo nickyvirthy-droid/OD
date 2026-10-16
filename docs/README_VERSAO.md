@@ -47,11 +47,18 @@ a conta.
 - QR com prova de roundtrip: SVG do `qrcode` 8.2 decodificado de volta
   com OpenCV → texto **IDÊNTICO** à URL do cartão.
 
-### 3. Prova viva no serviço em produção _(pós-deploy — preenchida na conclusão)_
+### 3. Prova viva no serviço em produção (15/10 23:41, PID 3091063)
 
 | Passo | Resultado |
 |---|---|
-| _(deploy)_ | _(a preencher)_ |
+| Boot (deploy) | restart 23:41:40 — PID 3091063, NRestarts=0, journal **0 erros** (boot +76 s no resync RAG: 632 chunks atualizados pelos arquivos desta entrega — trabalho esperado, diagnosticado com stack ao vivo) |
+| Saúde | `/health` **up** · **9/9** `tool_*` |
+| Versão | `/app/version` **1.30.0 / 2060** · `sha256 57ed3845…` == `site/OmegaDrakon.apk` · aapt dos dois APKs publicados: `versionCode 2060` cruro + `versionName 1.30.0` · backup 1.29.0/2059 em `backups/apk-v1.29.0-2059/` |
+| Loja/verificação | `GET /site/loja.html` **200** (8.433 B) · `GET /site/verificacao.html` **200** · `GET /registry` **200** público sem `price_brl`/`notes`/`posse_code_hash` (6 peças do dono) |
+| QR | `GET …/posse/qr?codigo=` **200** `image/svg+xml` 13.092 B · código errado **400** `posse_invalida` |
+| Registro do comprador | conta **201** → posse **201 registrada** com entrada minúscula sem hífen → consulta pública sem credencial mostra `registrada` + `@dono` sem hash → repetir **409** `ja_registrada` · ping 🔑 no Telegram do dono no instante do registro |
+| Gate da regressão | **400** `registro_pendente_codigo_secreto` sem código · **400** com código errado · **200** com o código certo (dono/`registered_at` limpos, `tem_posse=true`, hash fora do payload) |
+| Drill (resíduo zero) | peça `DRILL-ETAPA4` + usuário `drill_comprador` apagados — listas pública e admin de volta ao total 6, usuário inexistente |
 
 ---
 

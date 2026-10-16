@@ -344,3 +344,108 @@ ainda 0 erros, nenhum alerta de ferramenta (9/9).
 monitorado (9/9).** Um por vez, como pediu o dono: aguardando a ordem
 do próximo (Registro Mestre Etapa 4 ou melhoria do RAG). Pendências do
 dono inalteradas (cofre/popular, repo público, pauta 3/5, fotos, 3D/).
+
+## §6 — Etapa 4 do Registro Mestre ENTREGUE: posse por QR, registro do comprador e loja (v1.30.0+2060) (~21:40→00:15)
+
+Pedido do dono: **"prossiga"** (~21:40) — resposta à pergunta "Etapa 4
+× melhorar RAG"; a Etapa 4 vinha primeiro na lista do TODO §7 e é a
+decisão a–e que ele próprio fechou (ANALISE §item 2): código de posse
+por peça exclusiva em QR no cartão, comprador registra no app com
+conta, QR como símbolo de propriedade (ler não registra), loja sem
+preço (negociação na sala da peça) e tudo construído depois do banco
+(Registro Mestre Etapa 1). Ordem gravada em
+`session.json: ordem_etapa4_2026_10_15`.
+
+### Entregas
+
+| Peça | Detalhe |
+|---|---|
+| `core/registry.py` | coluna `posse_code_hash` (migração `_ensure_column`) guardando **só** `sha256(normalizado)` — banco vazado não vira domínio; `gerar_posse()` (`secrets.token_hex(8)` = 64 bits → `POSSE-XXXX-XXXX-XXXX-XXXX`; regenerar invalida o anterior na hora); `registrar_posse()` leva estoque/vendida → registrada com o username de quem tem conta, comparação normalizada (minúscula sem hífen funciona), erros uniformes `posse_invalida` (chute/lixo/vazio = mesmo retorno, sem oráculo) + `ja_registrada`; `update()` passou a aceitar `posse_code` — só com ele `registrada → X` (sem ele o `registro_pendente_codigo_secreto` da etapa 1 segue intacto) e limpa `owner_username`/`registered_at`; `publica` nunca ganha posse (`publica_sem_posse`) |
+| 4 rotas novas (`ROUTES` 78 → 82) | `GET /registry` (lista pública da loja, em `AUTH_EXEMPT_PATHS`), `POST /registry/posse` (401 sem conta / 400 `posse_invalida` / 409 `ja_registrada` + ping 🔑 ao Telegram do dono — falha do aviso nunca derruba a resposta), `POST /admin/registry/{id}/posse` (dono emite/regenera: código em claro **1x** + URL absoluta `…/verificacao.html?posse=` via `APIConfig.public_url`/`OD_PUBLIC_URL`), `GET …/posse/qr?codigo=` (SVG validado contra o hash ANTES de renderizar, `Cache-Control: no-store`; lib `qrcode>=8.0` nova no `requirements.txt` com import tardio → 503 `qr_indisponivel` se faltar, nada mais quebra) |
+| Painel `/admin` | botão **🧾 QR** por peça exclusiva (SVG 132 px + código + link copiável + alerta "código ANTERIOR invalidado" na regeneração) e **↩ Registro** nas `registrada` (desfazer exige colar o código de posse → PUT com `posse_code`); lista admin entrega `tem_posse`, hash **nunca** sai do servidor |
+| Site | `site/loja.html` NOVA (prateleira via `GET /registry`: foto, coleção, status, `@dono`, "Ver peça →", receita "Como comprar" 3 passos, **sem preço**); `verificacao.html` com `?codigo=` (consulta automática) e `?posse=` (cartão do QR em destaque); nav "Loja" no `index.html` topo+rodapé e no verificação |
+| App `1.30.0+2060` | `OdApi.registrarPosse()` + card **"Registrar minha peça"** na aba Verificar (sucesso = snackbar + consulta automática da peça nova; sem conta → instrução de Config). **Nota honesta: sem câmera no app na v1** — quem tem o QR lê com a câmera do celular (abre a página com o código) e cola; leitura dentro do app fica para a próxima etapa |
+| Bump | `.env`, fallback `capabilities`, `pubspec 1.30.0+2060`, `_APP_VERSION_CODE 2060`, site ×4, `README_VERSAO` §1.30.0, `CHANGELOG ## [1.30.0]` (glifo 🜂 U+1F702 conferido igual aos vizinhos) — política de versão 9/9 |
+
+### Verificação
+
+- **+15 testes** em `tests/test_registry.py` (51 no arquivo): loja
+  pública sem preço/hash, registro 201/401/400/409, QR SVG 200/400,
+  403 p/ usuário comum, `publica_sem_posse`, `tem_posse` sem hash,
+  regressão com/sem/código errado, botões do painel.
+- Suíte completa (gate oficial `--cov-fail-under=90` + `.coveragerc`):
+  **2929 passed / 16 skipped · cobertura 90,58%** — 0 falhas.
+- `flutter analyze` **No issues** · `flutter test` **177 passed / 2
+  skipped** (+3 do registro; o mock normaliza o código como o servidor).
+- Guardas: espelho de `ROUTES` 78→82 (1 pública + 3 com auth),
+  `node --check` do JS do painel, QR **roundtrip real** (SVG do
+  `qrcode` 8.2 decodificado de volta com OpenCV → texto idêntico à URL
+  do cartão; cv2/pillow instalados só para a prova, **fora** do
+  requirements).
+
+### Achados honestos durante a execução
+
+1. **Bug real pegue pelos testes:** `registrada → vendida` não limpava
+   `registered_at` (só o branch estoque limpava) — corrigido com
+   dedupe no SET (`core/registry.py`).
+2. **JS do painel** com aspas aninhadas quebrou o `node --check`
+   (`SyntaxError: missing )`) — reescrito sem aspas internas; espelho
+   de rotas em `tests/test_api.py` (expected/auth/public) 78→82.
+3. **Build do APK:** shell sem `JAVA_HOME` (lição reencontrada:
+   `JAVA_HOME=~/jdk` + `ANDROID_SDK_ROOT=~/android-sdk`) e meu build
+   **cru** do Flutter deu `versionCode 4060` no arm64 — o canônico é
+   `app/build_apk.sh` com `-Pforce-version-code-ignoring-abi=true`
+   (a od_updater.dart documenta a linhagem 2011–2016 por causa disso).
+   APKs republicados pelo script: **os dois com 2060 cruro** (aapt
+   conferido), backup do 1.29.0/2059 em `backups/apk-v1.29.0-2059/`.
+4. **Falso alarme no deploy:** boot parado ~76 s após "Database Layer"
+   com 100% de CPU — `py-spy` barrado (ptrace/sudo indisponível) →
+   reprodução em foreground com `PYTHONFAULTHANDLER=1` + SIGABRT
+   mostrou a stack; timeline do journal revelou **resync do corpus
+   RAG** (632 chunks atualizados pelos arquivos desta entrega).
+   Sem bug — trabalho esperado pós-mudança grande de docs.
+5. **Repo é PÚBLICO** (API do GitHub: `private: False`) — o backup
+   `push-devices-20261015-2121.bak.json` tem o **token FCM vivo** →
+   regra nova no `.gitignore` (`backups/push-devices-*.json`); arquivo
+   preservado só no disco como prova do pod.
+6. **Drill E2E nº 1** morreu no helper (o retorno do QR é SVG, não
+   JSON) e no `api_key` (vem no **registro**, não no login) — peça e
+   usuário do 1º drill já tinham sido apagados; drill nº 2 refiz tudo.
+
+### Deploy (restart verde, regra 7.3)
+
+Commit **`082915f`** (feat) publicado antes do restart (HEAD ==
+origin/master). `systemctl --user restart od-core` → **active desde
+23:41:40, PID 3091063, NRestarts=0, journal 0 erros**. Provas ao vivo:
+
+- `/health` **up** com **9/9** `tool_*` · `/app/version` **1.30.0 /
+  2060** com `sha256 57ed3845…` == `site/OmegaDrakon.apk` publicado.
+- `GET /site/loja.html` **200** (8.433 B) · `verificacao.html` **200** ·
+  `GET /registry` **200** público sem `price_brl`/`notes`/hash (6 peças).
+- **Drill E2E completo** (peça `DRILL-ETAPA4`, criada e apagada no
+  mesmo drill): posse `POSSE-3875-6139-CDFB-90A4` emitida (201 + URL
+  do cartão) → QR **200 `image/svg+xml`** 13.092 B / código errado
+  **400** → conta 201 → registro **201** com entrada minúscula sem
+  hífen → pública sem credencial mostra `registrada` + `@dono` sem
+  hash → repetir **409** → regressão **400 sem código / 400 errado /
+  200 certo** (dono/carimbo limpos, `tem_posse` true, hash fora do
+  payload) → ping 🔑 ao Telegram do dono → peça + usuário apagados,
+  listas de volta ao total 6 — **resíduo zero**.
+
+### Canais e fecho
+
+- `txt.txt` reescrito (regra 14, 600, gitignored) com o fluxo, os 4
+  links, shas dos APKs, as provas e as notas honestas (sem câmera v1,
+  QR ≠ atalho, preço fora, resync RAG).
+- Telegram msg **2790** (regra 15 — sem `<` no texto, lição de 12/10;
+  inclui aviso do ping do drill).
+- `CHANGELOG ## [1.30.0]` e `README_VERSAO §1.30.0` com as provas
+  vivas; `TODO.md` §7 atualizado.
+
+### Estado
+
+**CONCLUÍDO E NO AR — Registro Mestre Etapa 4 entregue (v1.30.0+2060):
+comprador registra a peça no próprio nome, QR no cartão, loja no site
+e regressão protegida pelo código.** Um por vez, como pediu o dono:
+aguardando o próximo TODO. Pendências do dono inalteradas (cofre/
+popular, repo público, pauta 3/5, fotos, 3D/).

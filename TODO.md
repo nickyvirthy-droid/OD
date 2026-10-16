@@ -158,16 +158,17 @@
 | Candidato | Esforço | Dependência | Observação |
 |---|---|---|---|
 | **DECISÃO FINAL (12/10) — healthchecks** | ~~Alto~~ ✅ | Concluído 15/10 ~21:15 | As 9 no `/health` + alerta Telegram (sem bump, 2914/16). Sobra ProtoMaps (dev task, opcional) |
-| **Registro Mestre — Etapa 4** | Médio | — | Comprador/QR/loja brinquedos |
+| **Registro Mestre — Etapa 4** | ~~Médio~~ ✅ | Concluído 15/10→16/10 | Posse/QR/loja **no ar (v1.30.0+2060)**: comprador registra no app, QR no cartão, regressão com código, loja sem preço (2929/16, gate 90,58%). Sobra v2: câmera de QR dentro do app |
 | **Melhorar RAG (embedding + corpus externo)** | Médio | — | Recall conservador hoje |
 | **Observabilidade / Alertas Telegram** | Baixo | — | Ganho operacional imediato |
 | **App auto-update + FCM** | Médio | — | UX do dono no celular |
 
-> **Sugestão:** DECISÃO FINAL (healthchecks) **foi a escolhida e está
-> concluída** (15/10). Próximo da fila: **Registro Mestre — Etapa 4**
-> (comprador/QR/loja) ou **melhorar o RAG** — ordem do dono.
+> **Sugestão:** healthchecks e **Registro Mestre Etapa 4 estão
+> concluídos** (15/10 e madrugada de 16/10). Próximo da fila:
+> **melhorar o RAG** (embedding + corpus externo — recall conservador
+> hoje) ou **Observabilidade/Alertas** — ordem do dono.
 
 ---
 
-**Atualizado em:** 2026-10-15 21:25 (saúde das 9 ferramentas Nômades entregue: `/health` + alerta Telegram — §1b concluído; token de push morto podado; suíte 2914 passed)
+**Atualizado em:** 2026-10-16 00:20 (Etapa 4 do Registro Mestre entregue: posse/QR/loja + app 1.30.0+2060 — §7; drill E2E com resíduo zero; suíte 2929 passed)
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

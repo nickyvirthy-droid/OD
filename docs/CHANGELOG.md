@@ -44,7 +44,27 @@
 | QR (roundtrip real) | SVG do `qrcode` 8.2 **decodificado de volta** com OpenCV (`QRCodeDetector`) → texto **IDÊNTICO** à URL do cartão (`…/site/verificacao.html?posse=POSSE-…`) |
 | **Prova viva no serviço** | Abaixo (pós-deploy) |
 
-**Prova viva no serviço (pós-deploy):** _(preenchida na conclusão do deploy)_
+**Prova viva no serviço (pós-deploy, 15/10 23:41, PID 3091063):**
+restart verde (NRestarts=0, journal 0 erros — o boot consumiu ~76 s
+extras no resync do corpus RAG: 632 chunks atualizados pelos arquivos
+desta própria entrega, trabalho esperado, diagnosticado com stack ao
+vivo) · `/health` **up** com 9/9 `tool_*` · `/app/version` **1.30.0 /
+2060** com `sha256 57ed3845…` == `site/OmegaDrakon.apk` publicado (aapt
+dos dois APKs publicados: `versionCode 2060` cruro + `versionName
+1.30.0`; backup do 1.29.0/2059 em `backups/apk-v1.29.0-2059/`) · `GET
+/site/loja.html` **200** (8.433 B) · `GET /site/verificacao.html` **200**
+· `GET /registry` **200** público sem `price_brl`/`notes`/
+`posse_code_hash` · **drill E2E** com a peça `DRILL-ETAPA4` (criada e
+apagada no mesmo drill): posse `POSSE-3875-6139-CDFB-90A4` emitida
+(201 + URL absoluta do cartão) → QR **200 `image/svg+xml`** 13.092 B e
+código errado **400** `posse_invalida` → conta 201 → registro do
+comprador **201** com entrada normalizada (minúscula sem hífen) →
+consulta pública sem credencial: `registrada=True` + `@dono` e **sem
+hash** → repetir **409** `ja_registrada` → regressão **400 sem código /
+400 código errado / 200 com código** (dono e `registered_at` limpos,
+`tem_posse=true`, hash fora do payload) → ping 🔑 ao Telegram do dono
+no instante do registro (peça drill) → peça + usuário de teste
+apagados, listas pública/admin de volta ao total 6 — **resíduo zero**.
 
 ---
 
