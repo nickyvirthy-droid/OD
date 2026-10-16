@@ -131,9 +131,11 @@ site/*.apk
 backups/apk-*/
 
 # Snapshots do backup automático (TODO §3.6, 2026-10-16): um .tar.gz por dia
-# com o .env dentro (segredo!) — o diretório é do dono, viaja para o HD
-# externo dele; nunca versionar (repo é PÚBLICO).
-backups/auto/
+# (perfil `estado`) e um por semana (perfil `capturas`, com as fotos/vídeos)
+# — TODOS levam o .env dentro (segredo!) e o diretório é do dono, viaja para
+# o HD externo dele; nunca versionar (repo é PÚBLICO). O curinga cobre
+# `backups/auto/` e `backups/auto-capturas/`.
+backups/auto*/
 
 # Backups de dispositivos de push: contêm o TOKEN FCM vivo do dono — este
 # repo é PÚBLICO (github.com/nickyvirthy-droid/OD), credencial nunca entra;

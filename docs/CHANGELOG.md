@@ -59,6 +59,63 @@ da transcrição disparou **uma única vez às 12:17:33** + push — e o
 processo novo o segura de novo pelo cooldown (`blocked: 3` = sem
 duplicata).
 
+### Infra — Backup: as CAPTURAS entram (perfil semanal próprio, para o HD externo) (TODO §3.6, ordem do dono, 2026-10-16, sem bump)
+
+> Pedido do dono: *"inclua data/captures no backup (semanal, para o HD
+> externo)"* — fechando o escopo que ficou de fora às 14:16. Medido
+> **antes** de decidir: `data/captures` = **316 MB** (43 dias de
+> fotos/vídeos) e o **gzip não reduz** (316.016.667 bytes de 316.051.501 —
+> mídia já comprimida), **10,7 s** para empacotar. Daí o desenho: snapshot
+> **próprio e semanal**, separado do diário do estado — 316 MB todo dia
+> seria desperdício para um acervo append-only, e **4 semanas (~1,3 GB)**
+> cabem folgadas nos **85 GB livres**.
+>
+> **Correção de um fato errado meu:** os registros de 14:16 (este arquivo,
+> o TODO §3.6 e o `iniciar/` §11) diziam *"disco a **85%**"* — é **falso**.
+> O `85.0` era o **limite configurado** do notifier
+> (`OD_DISK_THRESHOLD_PERCENT` da sonda `_check_disk`), não o uso; o disco
+> real está em **62%** (`df`: 137G usados, 85G livres). Corrigido nos três
+> lugares — e é o número certo que sustenta a decisão de reter 4 semanas de
+> capturas.
+
+| Peça | Entrega |
+|---|---|
+| **`core/backup.py`** | Tabela **`PERFIS`** (um código, dois trabalhos) + `cadencia_dias` generalizando `proxima_janela` (dia do último sucesso + N dias no HH:MM; 1 = diário, 7 = semanal, **catch-up preservado**) + `prefixo`/`check_nome` por perfil (`build_services()` devolve os serviços dos perfis ligados). A retenção usa o prefixo: **nome de um perfil nunca é apagado pelo outro**. Perfil `estado` **INTACTO** (03:00, `backups/auto/`, prefixo `od`, sem `captures` nem `vector_memory`, 3 diários + 8 semanais, knobs `OD_BACKUP_*`); perfil `capturas` **novo** (04:00, `backups/auto-capturas/`, prefixo `od-capturas`, exclui **só** `vector_memory`, **0 diários + 4 semanais**, estado próprio `data/backup_capturas_estado.json`, knobs `OD_BACKUP_CAPTURAS_*`). Mesmo tar determinístico/atômico e `0600`/`0700`. |
+| **`runtime/launcher.py`** | `build_backup()` → **`build_backups()`**: devolve a lista de perfis; cada um ganha o **próprio loop supervisionado** (`_run_backup_forever`, tick de 15 min) e o próprio check no `/health` — `OD_BACKUP=0` e `OD_BACKUP_CAPTURAS=0` desligam cada um (loop/check/bloco somem). O empacotamento (10,7 s nas capturas) roda em `to_thread`: tar é I/O e não pode prender o event loop dos outros loops. O aviso de falha diz **qual perfil** falhou. |
+| **`/health` + `/dashboard/stats` + `/admin`** | Bloco **por perfil** no Status (`{estado: {...}, capturas: {...}}`) e **2 cards** no painel — "Backup" e **"Backup fotos"** (JS `fmtBytes`). Check `backup_capturas` **NÃO crítico** (degrada se a semana passar sem snapshot; antes da hora, ou já feito, fica `up`). |
+| **`.gitignore`** | `backups/auto/` → **`backups/auto*/`**: o diretório novo (`auto-capturas/`) **não estava ignorado** — o `git status` o listava como untracked e um `git add -A` subiria **316 MB das fotos do dono + o `.env`** para o repo **PÚBLICO**. Fechado antes do commit (confirmado com `git check-ignore` nos dois diretórios **e** no tar dentro deles). |
+
+| Verificação | Resultado |
+|---|---|
+| `core/backup.py` | **100% de cobertura** (376 stmts, 0 faltando) |
+| Suíte oficial gate `--cov-fail-under=90` (+ `.coveragerc`) | **3046 passed / 16 skipped · cobertura 90,83%** (exit 0) — **+12** sobre o backup diário (3034 · 90,80%); `tests/test_backup.py` com **72** verdes |
+| pyflakes | **idêntico ao HEAD** nos 4 arquivos tocados (os 6 avisos são pré-existentes, conferidos por `git stash`) |
+| **Teste do teste (mutação)** | 4 mutações aplicadas e **todas capturadas**: capturas fora das exclusões, cadência ignorada, prefixo ignorado e check único para os dois perfis |
+| Testes que mais importam | cadência semanal (na semana seguinte só depois de +7 dias, **sem repetir** dentro da semana) e catch-up do semanal (servidor desligado no dia); prefixo por perfil (nome **e** retenção: um perfil não apaga o arquivo do outro); perfil das capturas **inclui** `data/captures` e segue **sem** `vector_memory`; `/health` com os **2 checks não-críticos independentes**; API com os dois blocos e os dois cards |
+
+**Prova viva no serviço (pós-deploy, 16/10 14:34, PID 3888045):**
+restart verde · boot com **os dois perfis** (`Backup no ar … perfil=estado
+… hora=03:00 | raiz=backups/auto` e `perfil=capturas | hora=04:00 |
+raiz=backups/auto-capturas | cadencia_dias=7 | semanais=4`) · **primeiro
+tick rodou o snapshot semanal das capturas** (catch-up, journal `Backup
+concluído | perfil=capturas | arquivo=od-capturas-2026-10-16_1434.tar.gz |
+membros=923 | bytes=316276693 | duracao_s=10.7`) · artefato conferido **fora
+do código**: `-rw------- backups/auto-capturas/od-capturas-2026-10-16_1434.tar.gz`
+(**301,6 MiB**), pasta `drwx------`, **sha256 do arquivo == `ultimo_sha256`
+do estado**, `tar -tzf` = **923 membros** (**906** de `data/captures/` +
+`.env` + estado/estatísticas, **0** de `vector_memory/`, **0** de
+`captures/../.part`/`.pyc`), **uma foto extraída byte-idêntica** ao
+original (`cmp` ok) e o **`.env` extraído byte-idêntico** ao real ·
+disco **85 → 85 GB livres (62%)** — o semanal não muda nada de escala ·
+`/health` **up, 22 checks** (`backup` = *"Backup do estado ok de hoje
+(od-2026-10-16_1416.tar.gz, 0.18 MB, há 0.3 h)"* e `backup_capturas` =
+*"Backup das capturas ok da semana (od-capturas-2026-10-16_1434.tar.gz,
+301.62 MB, há 0.0 h)"*, ambos `critical: false`) · `/dashboard/stats` com
+`backup.estado` (cadência 1) e `backup.capturas` (cadência 7, 316.276.693
+bytes) · `/admin` cards **"Backup"** e **"Backup fotos"** (`stats.backup.estado`
+& `stats.backup.capturas` ×6 cada) · `/app/version` **1.31.0/2061**
+(backend puro, **sem bump**) · NRestarts=0, journal sem `[ERROR]`.
+
 ### Infra — Alerta de `restart` vira EVENTO: um disparo por boot (ordem "aplique o refinamento do alerta restart", 2026-10-16, sem bump)
 
 > Achado na retomada das 13:38 (`iniciar/` §8), medido **antes** de
@@ -96,9 +153,15 @@ duplicata).
 > orientaram a conversa: `data/` = **314 MB**, dos quais **304 MB são as
 > capturas** (43 dias de fotos/vídeos) e 11 MB o índice do RAG
 > (reconstruível pelos documentos) — o escopo escolhido dá **~185 KB por
-> rodada** em vez de 314 MB/dia; disco a **85%**; `rclone`/`minio`
+> rodada** em vez de 314 MB/dia; `rclone`/`minio`
 > ausentes (off-site exigiria conta e credenciais novas — ficou para
 > quando ele decidir).
+>
+> ***Correção de 16/10 (14:38):** este parágrafo dizia "disco a **85%**" e
+> isso era **falso** — o `85.0` do log é o **limite configurado** do
+> notifier (`OD_DISK_THRESHOLD_PERCENT`, sonda `_check_disk`), não o uso. O
+> disco real estava em **62%** (85 GB livres). Ver a entrada das capturas,
+> logo acima.*
 
 | Peça | Entrega |
 |---|---|

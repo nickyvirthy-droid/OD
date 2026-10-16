@@ -623,8 +623,10 @@ leituras estavam **erradas** e ficam corrigidas aqui pela medição.
 
 Backend puro → **sem bump** (1.31.0/2061 intacto). Antes de escrever uma
 linha, **três decisões do dono** (levantamento na conversa: `data/` = 314 MB,
-sendo 304 MB só de capturas de 43 dias e 11 MB o índice do RAG; disco a
-85%; `rclone`/MinIO ausentes):
+sendo 304 MB só de capturas de 43 dias e 11 MB o índice do RAG; `rclone`/MinIO
+ausentes; ~~disco a 85%~~ — **FATO ERRADO, corrigido em §12:** o `85.0` era o
+**limite** configurado do notifier (`OD_DISK_THRESHOLD_PERCENT`), não o uso;
+o disco real estava em **62%**):
 
 | Pergunta | Resposta do dono |
 |---|---|
@@ -679,5 +681,80 @@ sendo 304 MB só de capturas de 43 dias e 11 MB o índice do RAG; disco a
 - Pendências do dono: 2 capturas do Órion sem instrução, Vaultwarden, repo
   público, pauta 3 e 5, fotos, catálogo 3D. Próximos candidatos do TODO §3:
   tema escuro/claro, métricas Prometheus do auto-update — e, se ele quiser,
-  estender o backup às capturas (`OD_BACKUP_EXCLUIR` sem `data/captures`)
-  ou ligar off-site (conta S3/MinIO/rclone à escolha dele).
+  ligar off-site (conta S3/MinIO/rclone à escolha dele).
+
+## §12 — "Inclua data/captures no backup (semanal, para o HD externo)" — ENTREGUE (sem bump)
+
+Backend puro → **sem bump** (1.31.0/2061 intacto). Fecha o escopo que ficou
+de fora em §11 (às 14:16 o backup diário nasceu **sem** as capturas, por
+decisão dele). Medido **antes** de escrever qualquer linha: `data/captures` =
+**316 MB** (43 dias de fotos/vídeos) e o **gzip NÃO reduz** (316.016.667
+bytes de 316.051.501 — mídia já comprimida), **10,7 s** para empacotar; logo
+snapshot **próprio e semanal**, separado do diário do estado (316 MB todo dia
+seria desperdício para um acervo append-only) e 4 semanas ≈ **1,3 GB**.
+
+> **Correção de um fato errado meu (transparência):** em §11 eu registrei
+> *"disco a 85%"* — é **falso**. O `85.0` do log era o **limite
+> configurado** do notifier (`OD_DISK_THRESHOLD_PERCENT`, sonda
+> `_check_disk`), não o uso. Medição direta hoje: `df` = **137G usados / 85G
+> livres = 62%**. Corrigido em §11, no TODO §3.6 e no CHANGELOG §Infra.
+
+### Entrega
+
+- **`core/backup.py`** — tabela **`PERFIS`** (um código, dois trabalhos) +
+  `cadencia_dias` generalizando `proxima_janela` (dia do último sucesso + N
+  dias no HH:MM; **1 = diário, 7 = semanal**, catch-up preservado) +
+  `prefixo`/`check_nome` por perfil. A retenção usa o prefixo: **nome de um
+  perfil nunca é apagado pelo outro**.
+  - `estado` — **INTOCADO**: 03:00, `backups/auto/`, prefixo `od`, `.env` +
+    `data/` sem `captures`/`vector_memory`, 3 diários + 8 semanais, knobs
+    `OD_BACKUP_*`.
+  - `capturas` — **novo**: **04:00**, `backups/auto-capturas/`, prefixo
+    `od-capturas`, só o `vector_memory` fora (reconstruível), **0 diários +
+    4 semanas**, estado próprio (`data/backup_capturas_estado.json`), knobs
+    `OD_BACKUP_CAPTURAS_*`.
+- **Fiação** — `build_backup()` → **`build_backups()`**: uma lista de
+  perfis, cada um com o **próprio loop supervisionado** e o próprio check
+  no `/health` (`OD_BACKUP=0` / `OD_BACKUP_CAPTURAS=0` desligam um sem o
+  outro). O tar (10,7 s) roda em `to_thread`; o aviso de falha diz **qual
+  perfil** falhou.
+- **Visibilidade** — 2 checks **não críticos** (`backup`, `backup_capturas`),
+  bloco por perfil no `/dashboard/stats` e cards **"Backup"** e **"Backup
+  fotos"** no `/admin`.
+- **Segurança (achado no caminho)** — `.gitignore`: `backups/auto/` →
+  **`backups/auto*/`**. O diretório novo **não estava ignorado**: o
+  `git status` o listava como *untracked* e um `git add -A` subiria **316 MB
+  das fotos do dono + o `.env`** (segredo) para o repo **público**. Fechado
+  antes do commit; conferido com `git check-ignore` nos dois diretórios e no
+  tar dentro deles.
+
+### Validação
+
+- `core/backup.py` **100%** (376 stmts) · gate oficial **3046 passed / 16
+  skipped · 90,83%** (exit 0; **+12** sobre §11) · `tests/test_backup.py`
+  **72** verdes · pyflakes **idêntico ao HEAD** (6 avisos pré-existentes).
+- **Teste do teste (mutação)**: capturas fora das exclusões, cadência
+  ignorada, prefixo ignorado e check único — **4/4 capturadas**.
+
+### Prova viva no serviço (deploy 14:34, PID 3888045)
+
+| Passo | Resultado |
+|---|---|
+| Boot | **Dois perfis**: `perfil=estado \| hora=03:00 \| raiz=backups/auto \| diarios=3 \| semanais=8 \| excluidos=data/captures,data/vector_memory` e `perfil=capturas \| hora=04:00 \| raiz=backups/auto-capturas \| cadencia_dias=7 \| diarios=0 \| semanais=4 \| excluidos=data/vector_memory` |
+| **1º tick** | **Catch-up** rodou o snapshot **semanal**: `Backup concluído \| perfil=capturas \| arquivo=od-capturas-2026-10-16_1434.tar.gz \| membros=923 \| bytes=316276693 \| duracao_s=10.7` |
+| Artefato | `-rw------- backups/auto-capturas/od-capturas-2026-10-16_1434.tar.gz` (**301,6 MiB**) · pasta `drwx------` · **sha256 do arquivo == `ultimo_sha256` do estado** |
+| Conteúdo | `tar -tzf` = **923 membros**: **906** de `data/captures/` + `.env` + estado/estatísticas, **0** de `vector_memory/`, nenhum `.part`/`.pyc` — **uma foto extraída é byte-idêntica** ao original (`cmp` ok) e o `.env` também |
+| Disco | **85 GB livres (62%)** — o semanal não muda nada de escala |
+| API | `/health` **up, 22 checks** (`backup`: *"Backup do estado ok de hoje (…, 0.18 MB, há 0.3 h)"*; `backup_capturas`: *"Backup das capturas ok da semana (od-capturas-2026-10-16_1434.tar.gz, 301.62 MB, há 0.0 h)"*; ambos `critical: false`) · `/dashboard/stats` com cadência **1** (estado) e **7** (capturas) · `/admin` cards **"Backup"** e **"Backup fotos"** · `/app/version` 1.31.0/2061 · NRestarts=0, 0 `[ERROR]` |
+
+### Canais
+
+- Commit `ac726de` (código + testes) e o commit de docs (CHANGELOG §Infra +
+  TODO §3.6 + esta §12 + `.gitignore`), pushados.
+- `txt.txt` reescrito (regra 14) com **o caminho dos dois arquivos** e o
+  comando de cópia para o HD externo + Telegram (regra 15).
+- Pendências do dono: 2 capturas do Órion sem instrução, Vaultwarden, repo
+  público, pauta 3 e 5, fotos, catálogo 3D. Próximos candidatos do TODO §3:
+  tema escuro/claro, métricas Prometheus do auto-update — e, se quiser,
+  off-site (conta S3/MinIO/rclone à escolha dele), que é o que transforma
+  este backup em proteção contra morte de disco.
