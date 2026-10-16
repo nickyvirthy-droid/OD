@@ -1187,3 +1187,82 @@ class TestExibicaoDoAlerta:
         assert alerta.ts == 1000.0           # monotônico preservado
         assert alerta.wall > 1_600_000_000   # epoch de verdade
         assert alerta.to_dict()["wall"] == alerta.wall
+
+
+# ---------------------------------------------------------------------------
+# API — bloco notifier no /dashboard/stats (pedido do dono, 2026-10-16)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def _serve_stats():
+    """Sobe APIServer sob demanda (mesmo padrão do test_api.py)."""
+    from integrations.api import APIServer
+
+    servidores = []
+
+    def _start(orch_, *, config=None):
+        from integrations.api import APIConfig
+
+        cfg = config or APIConfig(port=0, rate_limit_max=0)
+        srv = APIServer(orch_, config=cfg)
+        srv.serve_background()
+        servidores.append(srv)
+        return srv
+
+    yield _start
+    for srv in servidores:
+        try:
+            srv.stop()
+        except Exception:  # pragma: no cover — teardown defensivo
+            pass
+
+
+class TestStatsDoNotifier:
+    """Métricas do notifier expostas no /dashboard/stats.
+
+    O dono vê no Status (e no card "Alertas" do /admin) quantos alertas
+    saíram, quantos o anti-spam bloqueou e quantos erros o tick teve —
+    sem abrir o journal. None (notifier desligado) = bloco ausente.
+    """
+
+    def test_sem_notifier_o_bloco_nao_aparece(self, _serve_stats,
+                                              tmp_path) -> None:
+        from tests.test_api import _json_response, _request, make_orch
+
+        srv = _serve_stats(make_orch(tmp_path))
+        resposta = _request(srv.bound_port, "GET", "/dashboard/stats")
+        dados = _json_response(resposta)
+        assert resposta[0] == 200
+        assert "notifier" not in dados
+        assert b'"notifier"' not in resposta[1]
+
+    def test_com_notifier_traz_os_contadores(self, _serve_stats,
+                                             tmp_path) -> None:
+        from tests.test_api import _json_response, _request, make_orch
+        from integrations.api import APIConfig
+
+        notif = ProactiveNotifier()
+        notif.metrics.ticks = 3
+        notif.metrics.alerts_emitted = 2
+        notif.metrics.alerts_blocked = 5
+        notif.metrics.errors = 1
+        cfg = APIConfig(port=0, rate_limit_max=0, notifier=notif)
+        srv = _serve_stats(make_orch(tmp_path), config=cfg)
+        resposta = _request(srv.bound_port, "GET", "/dashboard/stats")
+        status, body, _headers = resposta
+        dados = _json_response(resposta)
+        assert status == 200
+        assert b'"notifier"' in body
+        assert dados["notifier"] == {
+            "ticks": 3,
+            "checks_run": 0,
+            "problems": 0,
+            "alerts_emitted": 2,
+            "alerts_blocked": 5,
+            "errors": 1,
+        }
+        # card "Alertas" do painel — a linha referencia stats.notifier
+        status, corpo_admin, _ = _request(srv.bound_port, "GET", "/admin")
+        assert status == 200
+        assert b"stats.notifier" in corpo_admin
+        notif.stop()

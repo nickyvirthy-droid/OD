@@ -503,7 +503,7 @@ def build_api_server(
     action_registry: Any = None, push: Any = None, database: Any = None,
     user_store: Any = None, registry: Any = None, chat_notify: Any = None,
     vector: Any = None, downloads: Any = None, auto_update: Any = None,
-    supply_depot: Any = None, nomad_tools: Any = None,
+    supply_depot: Any = None, nomad_tools: Any = None, notifier: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -546,6 +546,7 @@ def build_api_server(
             auto_update=auto_update,  # Parte E: auto-update de conteúdo
             supply_depot=supply_depot,  # Parte F: catálogo de ferramentas
             nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 9 no stats
+            notifier=notifier,  # métricas do notifier no Status (2026-10-16)
             public_url=env(  # Etapa 4: base do QR de posse no cartão
                 "OD_PUBLIC_URL", "https://nicky-server.tail1b1f51.ts.net"
             ),
@@ -1127,7 +1128,7 @@ async def _run_api_forever(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
     downloads: Any = None, auto_update: Any = None, supply_depot: Any = None,
-    nomad_tools: Any = None,
+    nomad_tools: Any = None, notifier: Any = None,
 ) -> None:
     # Um único UserStore para REST e WebSocket: mesma sessão vale nos dois.
     user_store = build_user_store(database)
@@ -1152,6 +1153,7 @@ async def _run_api_forever(
         downloads=downloads, auto_update=auto_update,
         supply_depot=supply_depot,  # Parte F: Supply Depot no painel
         nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 9 no stats
+        notifier=notifier,  # métricas do notifier no /dashboard/stats
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
@@ -1643,6 +1645,10 @@ def main() -> int:
                 downloads=downloads, auto_update=auto_update,
                 supply_depot=supply_depot,  # Parte F: Supply Depot
                 nomad_tools=nomad_tools_monitor,  # DECISÃO FINAL: 9 tools
+                # métricas no Status — fechamento tardio: o notifier é
+                # construído logo abaixo, ainda ANTES do gather invocar
+                # esta factory.
+                notifier=notifier,
             ), restart=False),
             _supervise("telegram", lambda: _run_telegram_forever(
                 orchestrator,

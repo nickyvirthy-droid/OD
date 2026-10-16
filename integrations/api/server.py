@@ -226,6 +226,11 @@ class APIConfig:
     # (Kiwix, Stirling PDF, CyberChef...). None = monitor fora (o bloco
     # nomad_tools some do /dashboard/stats).
     nomad_tools: Optional[Any] = None
+    # Métricas do ProactiveNotifier (pedido do dono, 2026-10-16):
+    # integrations.notifier.NotifierMetrics — ticks, alertas emitidos ×
+    # bloqueados pelo anti-spam e erros. None = notifier fora
+    # (OD_NOTIFIER_ENABLED=0) e o bloco notifier some do /dashboard/stats.
+    notifier: Optional[Any] = None
     # URL pública absoluta (Etapa 4): base do QR de posse — o QR precisa
     # de URL com esquema/hospedeiro (o site em si é relativo). Padrão =
     # hostname do Funnel; o launcher pode sobrescrever (OD_PUBLIC_URL).
@@ -1111,6 +1116,9 @@ async function loadSystem() {
       ["Cache LLM", stats.cache && stats.cache.entries != null ? stats.cache.entries : "—", ""],
       ["Stack Nômade", stats.nomad_tools ? stats.nomad_tools.up + "/" + stats.nomad_tools.total : "—",
         stats.nomad_tools && stats.nomad_tools.fora.length ? "err" : ""],
+      ["Alertas", stats.notifier
+        ? stats.notifier.alerts_emitted + " env · " + stats.notifier.alerts_blocked + " blq" : "—",
+        stats.notifier && stats.notifier.errors ? "err" : ""],
     ];
     document.getElementById("sys").innerHTML = cards.map(c =>
       '<div class="card"><div class="k">' + c[0] + '</div><div class="v ' + c[2] + '">' + c[1] + "</div></div>"
@@ -4208,6 +4216,12 @@ class APIHandler(BaseHTTPRequestHandler):
         nomad_tools = self.api.config.nomad_tools
         if nomad_tools is not None:
             payload["nomad_tools"] = nomad_tools.resumo()
+        # Notifier (pedido do dono, 2026-10-16): emitidos × bloqueados ×
+        # erros — sem abrir o journal o dono vê se um alerta está sendo
+        # engolido pelo anti-spam (o caso de 35 dias mudos do conserto).
+        notifier = self.api.config.notifier
+        if notifier is not None:
+            payload["notifier"] = notifier.metrics.snapshot()
         self._json(200, payload)
 
     def llms(self) -> None:
