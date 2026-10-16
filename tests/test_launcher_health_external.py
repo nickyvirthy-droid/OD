@@ -224,3 +224,101 @@ class TestCheckDelegates:
         resultado = _mqtt_check(fake)(None)
         assert resultado["ok"] is True
         assert "localhost" in resultado["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Observabilidade / Alertas Telegram — TODO §3.6 (2026-10-16)
+# ---------------------------------------------------------------------------
+
+class TestBuildNotifierObservabilidade:
+    """Ligações do notifier no build: ponte do /health, NRestarts, disco.
+
+    Três alertas que o item 3.6 pedia e que agora existem:
+    `/health` degraded → Telegram, NRestarts > 0 → Telegram e disco
+    > 85% (limiar configurável por `OD_DISK_THRESHOLD_PERCENT`).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _data_dir_e_env_isolados(self, tmp_path, monkeypatch) -> None:
+        """Estado isolado: build_notifier grava notifier_state.json.
+
+        `launcher.env()` lê `_ENV_CACHE` (snapshot do ambiente) — só
+        monkeypatch.setenv não basta; é o padrão do test_websocket e do
+        test_voice_api. O cache é copiado com as chaves novas removidas
+        para os testes começarem nos defaults da casa.
+        """
+        from runtime import launcher as launcher_module
+
+        monkeypatch.setattr(launcher_module, "DATA_DIR", tmp_path)
+        monkeypatch.delenv("INVOCATION_ID", raising=False)
+        cache = dict(launcher_module._ENV_CACHE or {})
+        for chave in ("OD_SERVICE_UNIT", "OD_NOTIFIER_ENABLED",
+                      "OD_NOTIFIER_HEALTH", "OD_NOTIFIER_NRESTARTS",
+                      "OD_DISK_THRESHOLD_PERCENT"):
+            cache.pop(chave, None)
+        monkeypatch.setattr(launcher_module, "_ENV_CACHE", cache)
+
+    def test_ponte_de_saude_ligada_por_padrao(self) -> None:
+        from runtime.launcher import build_notifier
+
+        monitor = build_health()
+        notifier = build_notifier(None, health=monitor)
+        assert notifier is not None
+        assert notifier.health_monitor is monitor
+        assert "_check_health" in notifier.snapshot()["checks"]
+        # fora do systemd (sem INVOCATION_ID) a sonda NRestarts fica fora
+        assert notifier.nrestarts_fn is None
+        assert "_check_nrestarts" not in notifier.snapshot()["checks"]
+        assert notifier.config.disk_threshold_percent == 85.0
+
+    def test_ponte_de_saude_desligavel(self) -> None:
+        from runtime import launcher
+        from runtime.launcher import build_notifier
+
+        launcher._ENV_CACHE["OD_NOTIFIER_HEALTH"] = "0"
+        notifier = build_notifier(None, health=build_health())
+        assert notifier.health_monitor is None
+        assert "_check_health" not in notifier.snapshot()["checks"]
+
+    def test_nrestarts_liga_com_service_unit(self) -> None:
+        from runtime import launcher
+        from runtime.launcher import build_notifier
+
+        launcher._ENV_CACHE["OD_SERVICE_UNIT"] = "od-core.service"
+        notifier = build_notifier(None)
+        assert notifier.nrestarts_fn is not None
+        assert notifier.unidade == "od-core.service"
+        assert "_check_nrestarts" in notifier.snapshot()["checks"]
+
+    def test_nrestarts_liga_com_invocation_id(self, monkeypatch) -> None:
+        from runtime.launcher import build_notifier
+
+        monkeypatch.setenv("INVOCATION_ID", "abc-123")
+        notifier = build_notifier(None)
+        assert notifier.nrestarts_fn is not None
+        assert notifier.unidade == "od-core.service"
+
+    def test_nrestarts_desligavel(self, monkeypatch) -> None:
+        from runtime import launcher
+        from runtime.launcher import build_notifier
+
+        monkeypatch.setenv("INVOCATION_ID", "abc-123")
+        launcher._ENV_CACHE["OD_NOTIFIER_NRESTARTS"] = "0"
+        notifier = build_notifier(None)
+        assert notifier.nrestarts_fn is None
+        assert "_check_nrestarts" not in notifier.snapshot()["checks"]
+
+    def test_limiar_de_disco_configuravel(self) -> None:
+        from runtime import launcher
+        from runtime.launcher import build_notifier
+
+        launcher._ENV_CACHE["OD_DISK_THRESHOLD_PERCENT"] = "92.5"
+        notifier = build_notifier(None)
+        assert notifier.config.disk_threshold_percent == 92.5
+
+    def test_notifier_inteiro_desligado(self) -> None:
+        from runtime import launcher
+        from runtime.launcher import build_notifier
+
+        launcher._ENV_CACHE["OD_NOTIFIER_ENABLED"] = "0"
+        assert build_notifier(None, health=build_health()) is None

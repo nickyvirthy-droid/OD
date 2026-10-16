@@ -1308,6 +1308,7 @@ def build_notifier(
     event_bus: Any = None,
     push: Any = None,
     nomad_tools: Any = None,
+    health: Any = None,
 ) -> Optional[Any]:
     """ProactiveNotifier (Fase 5.3): alertas proativos com sinks plugáveis.
 
@@ -1321,20 +1322,53 @@ def build_notifier(
     `nomad_tools` (monitor das 9 ferramentas do stack Nômade, ligado no
     main via register_nomad_health_checks) adiciona a sonda `tool:<nome>`
     — ferramenta fora por 120s+ vira alerta no Telegram.
+
+    Observabilidade/Alertas (TODO §3.6, 2026-10-16) — duas pontes novas:
+      * `health`: o HealthMonitor do /health entra no notifier →
+        degraded/down vira mensagem pro dono (OD_NOTIFIER_HEALTH=0 desliga);
+      * NRestarts do systemd → queda anormal do od-core vira mensagem
+        (OD_NOTIFIER_NRESTARTS=0 desliga; só liga com INVOCATION_ID —
+        dentro de serviço systemd — ou OD_SERVICE_UNIT explícito).
+    O limiar de disco passa a ser configurável: OD_DISK_THRESHOLD_PERCENT
+    (padrão 85, o do legado).
     """
-    from integrations.notifier import NotifierConfig, ProactiveNotifier
+    from integrations.notifier import (
+        DEFAULT_DISK_THRESHOLD_PERCENT,
+        NotifierConfig,
+        ProactiveNotifier,
+        nrestarts_do_systemd,
+    )
 
     if env("OD_NOTIFIER_ENABLED", "1") == "0":
         return None
     sinks = [s for s in (sink, push.sink() if push is not None else None)
              if s is not None]
-    config = NotifierConfig(state_file=DATA_DIR / "notifier_state.json")
+    config = NotifierConfig(
+        state_file=DATA_DIR / "notifier_state.json",
+        disk_threshold_percent=float(
+            env("OD_DISK_THRESHOLD_PERCENT",
+                str(DEFAULT_DISK_THRESHOLD_PERCENT))
+        ),
+    )
+    health_monitor = health if env("OD_NOTIFIER_HEALTH", "1") != "0" else None
+    unidade = env("OD_SERVICE_UNIT", "od-core.service")
+    em_systemd = bool(os.environ.get("INVOCATION_ID")) or bool(
+        env("OD_SERVICE_UNIT", "")
+    )
+    nrestarts_fn = None
+    if env("OD_NOTIFIER_NRESTARTS", "1") != "0" and em_systemd:
+        from functools import partial
+
+        nrestarts_fn = partial(nrestarts_do_systemd, unidade)
     return ProactiveNotifier(
         orchestrator,
         config=config,
         sinks=sinks,
         event_bus=event_bus,
         nomad_tools=nomad_tools,
+        health_monitor=health_monitor,
+        nrestarts_fn=nrestarts_fn,
+        unidade=unidade,
     )
 
 
@@ -1633,10 +1667,16 @@ def main() -> int:
             event_bus=event_bus,
             push=push,
             nomad_tools=nomad_tools_monitor,
+            health=health,
         )
         if notifier is not None:
             notifier.start()
-            log.info("ProactiveNotifier habilitado (alertas proativos)")
+            log.info(
+                "ProactiveNotifier habilitado (alertas proativos)",
+                health_ponte=notifier.health_monitor is not None,
+                nrestarts=notifier.nrestarts_fn is not None,
+                disco_pct=notifier.config.disk_threshold_percent,
+            )
         if mqtt_enabled:
             bridge = build_mqtt_bridge(event_bus)
             register_external_health_checks(

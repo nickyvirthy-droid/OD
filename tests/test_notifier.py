@@ -19,6 +19,7 @@ Baseado em:
 from __future__ import annotations
 
 import json
+import time
 from collections import namedtuple
 from pathlib import Path
 
@@ -26,7 +27,9 @@ import pytest
 
 from core.event_bus import EventBus
 from core.orchestrator import Orchestrator, RecordingProvider
+from core.supervision import CRASH_LOOP_RESTARTS
 from integrations.notifier import (
+    HEALTH_DEGRADADO_APOS_S,
     SEVERITY_CRIT,
     SEVERITY_EMOJI,
     SEVERITY_OK,
@@ -75,6 +78,10 @@ def make_notifier(
     checks=None,
     clock=None,
     event_bus=None,
+    health=None,
+    nrestarts=None,
+    nomad_tools=None,
+    unidade="od-core.service",
 ) -> ProactiveNotifier:
     """Notifier com cooldown padrão 0 e threshold LLM 0 (determinístico)."""
     cfg = config or NotifierConfig(
@@ -89,6 +96,10 @@ def make_notifier(
         checks=checks,
         clock=clock,
         event_bus=event_bus,
+        health_monitor=health,
+        nrestarts_fn=nrestarts,
+        nomad_tools=nomad_tools,
+        unidade=unidade,
     )
 
 
@@ -776,3 +787,342 @@ class TestCheckRouter:
             assert "erro ao ler" in result.detail
         finally:
             os.environ.pop("OD_LOG_DIR", None)
+
+# ===========================================================================
+# Observabilidade / Alertas Telegram — item 3.6 do TODO (2026-10-16)
+# ===========================================================================
+
+def _agregado(status: str, falhas: dict) -> dict:
+    """Agregado no formato exato do HealthMonitor.health().
+
+    `falhas` mapeia nome do check → (ok, critical) — só o que interessa
+    ao caso de teste entra no dicionário.
+    """
+    checks = {
+        nome: {
+            "ok": ok,
+            "status": "up" if ok else ("down" if crit else "degraded"),
+            "detail": "",
+            "latency_ms": 0.1,
+            "critical": crit,
+        }
+        for nome, (ok, crit) in falhas.items()
+    }
+    return {"ok": status == "up", "status": status, "checks": checks,
+            "ts": 0.0}
+
+
+class _Saude:
+    """HealthMonitor fake: devolve a sequência de agregados (último repete)."""
+
+    def __init__(self, *agregados: dict) -> None:
+        self._agregados = list(agregados)
+        self.chamadas = 0
+
+    async def health(self) -> dict:
+        idx = min(self.chamadas, len(self._agregados) - 1)
+        self.chamadas += 1
+        return self._agregados[idx]
+
+
+class TestPonteDeSaude:
+    """`/health` degraded → alerta no Telegram (ponte HealthMonitor→notifier).
+
+    O gap medido em 16/10: o notifier conhecia orchestrator/llm/disco/
+    loops/restart/router/tools, mas NÃO os outros 11 checks do /health —
+    audit, metrics, database, mqtt, perception e auto_update degradavam
+    sem ninguém receber nada.
+    """
+
+    @pytest.mark.asyncio
+    async def test_sem_monitor_a_sonda_fica_fora(self) -> None:
+        notifier = make_notifier(orch(OnlineProvider()))
+        assert "_check_health" not in notifier.snapshot()["checks"]
+
+    @pytest.mark.asyncio
+    async def test_degraded_alerta_depois_do_delay(self) -> None:
+        clock = _Clock()
+        saude = _Saude(_agregado("degraded", {"database": (False, False)}))
+        notifier = make_notifier(orch(OnlineProvider()), clock=clock,
+                                 health=saude)
+        # 1º tick: problema registrado mas ainda abaixo dos 120s
+        primeiro = await notifier.tick()
+        assert "health:degraded" not in [a.key for a in primeiro]
+        # Passa do delay → warn com o nome do check quebrado
+        clock.advance(HEALTH_DEGRADADO_APOS_S + 1)
+        segundo = await notifier.tick()
+        alerta = next(a for a in segundo if a.key == "health:degraded")
+        assert alerta.severity == SEVERITY_WARN
+        assert "/health degraded" in alerta.detail
+        assert "database" in alerta.detail
+
+    @pytest.mark.asyncio
+    async def test_quando_volta_ao_up_limpa_o_problema(self) -> None:
+        clock = _Clock()
+        saude = _Saude(
+            _agregado("degraded", {"audit": (False, False)}),
+            _agregado("degraded", {"audit": (False, False)}),
+            _agregado("up", {}),
+        )
+        notifier = make_notifier(orch(OnlineProvider()), clock=clock,
+                                 health=saude)
+        await notifier.tick()                      # registra (abaixo do delay)
+        clock.advance(HEALTH_DEGRADADO_APOS_S + 1)
+        assert [a.key for a in await notifier.tick()] == ["health:degraded"]
+        clock.advance(60)
+        assert await notifier.tick() == []         # agregado voltou ao up
+        assert "health:degraded" not in notifier.snapshot()["active_problems"]
+        assert saude.chamadas == 3
+
+    @pytest.mark.asyncio
+    async def test_falha_so_de_tools_nao_duplica_mensagem(self) -> None:
+        # tool_kiwix fora já grita pela sonda dedicada `tool:*`
+        # (emit_after 120s) — o agregado não repete a mesma queda.
+        clock = _Clock()
+        saude = _Saude(_agregado("degraded", {"tool_kiwix": (False, False)}))
+        notifier = make_notifier(orch(OnlineProvider()), clock=clock,
+                                 health=saude)
+        await notifier.tick()
+        clock.advance(HEALTH_DEGRADADO_APOS_S + 1)
+        alerts = await notifier.tick()
+        assert [a.key for a in alerts if a.key.startswith("health")] == []
+
+    @pytest.mark.asyncio
+    async def test_dedupe_lista_só_o_que_ninguém_cobre(self) -> None:
+        clock = _Clock()
+        saude = _Saude(_agregado("degraded", {
+            "tool_kiwix": (False, False),
+            "database": (False, False),
+        }))
+        notifier = make_notifier(orch(OnlineProvider()), clock=clock,
+                                 health=saude)
+        await notifier.tick()
+        clock.advance(HEALTH_DEGRADADO_APOS_S + 1)
+        alerts = await notifier.tick()
+        alerta = next(a for a in alerts if a.key == "health:degraded")
+        assert "database" in alerta.detail
+        assert "kiwix" not in alerta.detail          # já coberta por tool:*
+        assert "2 check(s) fora" in alerta.detail    # total honesto
+
+    @pytest.mark.asyncio
+    async def test_down_critico_grita_na_hora(self) -> None:
+        clock = _Clock()
+        saude = _Saude(_agregado("down", {"api_core": (False, True)}))
+        notifier = make_notifier(orch(OnlineProvider()), clock=clock,
+                                 health=saude)
+        alerts = await notifier.tick()          # sem avanço: down não espera
+        alerta = next(a for a in alerts if a.key == "health:down")
+        assert alerta.severity == SEVERITY_CRIT
+        assert alerta.detail.startswith("/health down")
+
+    @pytest.mark.asyncio
+    async def test_down_só_por_check_coberta_nao_duplica(self) -> None:
+        # status down veio do llm (crítica) — _check_llm já grita sozinha
+        clock = _Clock()
+        saude = _Saude(_agregado("down", {"llm": (False, True)}))
+        notifier = make_notifier(orch(OnlineProvider()), clock=clock,
+                                 health=saude)
+        alerts = await notifier.tick()
+        assert [a.key for a in alerts if a.key.startswith("health")] == []
+
+    @pytest.mark.asyncio
+    async def test_monitor_quebrado_nao_derruba_o_tick(self) -> None:
+        class _Quebrado:
+            async def health(self) -> dict:
+                raise RuntimeError("boom")
+
+        notifier = make_notifier(orch(OnlineProvider()), health=_Quebrado())
+        alerts = await notifier.tick()          # não pode levantar exceção
+        assert alerts == []
+        metrics = notifier.metrics.snapshot()
+        assert metrics["errors"] == 1
+        assert metrics["checks_run"] == 5       # as outras 5 sondas seguiram
+
+    @pytest.mark.asyncio
+    async def test_ponte_roda_depois_das_tools(self) -> None:
+        """Ordem do tick: tools antes do agregado (o cache de 10s é deles)."""
+        class _Tools:
+            @staticmethod
+            def estado() -> list:
+                return []
+
+        notifier = make_notifier(
+            orch(OnlineProvider()),
+            health=_Saude(_agregado("up", {})),
+            nomad_tools=_Tools(),
+        )
+        nomes = notifier.snapshot()["checks"]
+        assert nomes.index("_check_tools") < nomes.index("_check_health")
+        assert nomes[-1] == "_check_health"
+
+
+class TestSondaNRestarts:
+    """NRestarts do systemd → alerta de queda anormal (item 3.6 do TODO).
+
+    `NRestarts` sobe só quando o systemd ressuscita o serviço depois de
+    uma queda anormal — um restart manual zera. Foi o sinal que faltava:
+    o od-core podia cair e voltar sozinho que o dono não recebia nada.
+    """
+
+    @pytest.mark.asyncio
+    async def test_sem_fn_a_sonda_fica_fora(self) -> None:
+        notifier = make_notifier(orch(OnlineProvider()))
+        assert "_check_nrestarts" not in notifier.snapshot()["checks"]
+
+    @pytest.mark.asyncio
+    async def test_zero_nao_alerta(self) -> None:
+        notifier = make_notifier(orch(OnlineProvider()), nrestarts=lambda: 0)
+        assert await notifier.tick() == []
+
+    @pytest.mark.asyncio
+    async def test_reinicio_automatico_alerta_warn(self) -> None:
+        notifier = make_notifier(orch(OnlineProvider()), nrestarts=lambda: 1)
+        alerts = await notifier.tick()
+        assert [a.key for a in alerts] == ["systemd:nrestarts"]
+        assert alerts[0].severity == SEVERITY_WARN
+        assert "reiniciado 1x pelo systemd" in alerts[0].detail
+        assert "NRestarts=1" in alerts[0].detail
+        assert "od-core.service" in alerts[0].detail
+
+    @pytest.mark.asyncio
+    async def test_laco_de_falha_vira_critico(self) -> None:
+        notifier = make_notifier(
+            orch(OnlineProvider()),
+            nrestarts=lambda: CRASH_LOOP_RESTARTS,
+            unidade="od-outro.service",
+        )
+        alerts = await notifier.tick()
+        assert alerts[0].severity == SEVERITY_CRIT
+        assert "od-outro.service" in alerts[0].detail
+        # logo abaixo do limiar da casa (3) continua warn
+        quase = make_notifier(orch(OnlineProvider()),
+                              nrestarts=lambda: CRASH_LOOP_RESTARTS - 1)
+        assert (await quase.tick())[0].severity == SEVERITY_WARN
+
+    @pytest.mark.asyncio
+    async def test_indisponivel_nunca_alerta(self) -> None:
+        notifier = make_notifier(orch(OnlineProvider()),
+                                 nrestarts=lambda: None)
+        assert await notifier.tick() == []
+
+    @pytest.mark.asyncio
+    async def test_fn_quebrada_nao_derruba_o_tick(self) -> None:
+        def _explode():
+            raise OSError("sem systemd")
+
+        notifier = make_notifier(orch(OnlineProvider()), nrestarts=_explode)
+        assert await notifier.tick() == []
+        assert notifier.metrics.snapshot()["errors"] == 0
+
+    @pytest.mark.asyncio
+    async def test_quando_zera_limpa_o_problema(self) -> None:
+        valor = {"n": 1}
+        notifier = make_notifier(orch(OnlineProvider()),
+                                 nrestarts=lambda: valor["n"])
+        assert [a.key for a in await notifier.tick()] == ["systemd:nrestarts"]
+        valor["n"] = 0
+        assert await notifier.tick() == []
+        assert "systemd:nrestarts" not in (
+            notifier.snapshot()["active_problems"]
+        )
+
+
+class TestLeituraSystemd:
+    """`nrestarts_do_systemd`: parse, ausência do binário, timeout."""
+
+    def test_parseia_valor_e_monta_o_comando(self, monkeypatch) -> None:
+        from types import SimpleNamespace
+
+        import integrations.notifier as mod
+
+        vistos: dict = {}
+
+        class _Proc:
+            stdout = "7\n"
+
+        def _run(cmd, **kwargs):
+            vistos["cmd"] = cmd
+            vistos["timeout"] = kwargs.get("timeout")
+            return _Proc()
+
+        monkeypatch.setattr(mod, "subprocess", SimpleNamespace(run=_run))
+        assert mod.nrestarts_do_systemd("od-core.service") == 7
+        assert vistos["cmd"][:3] == ["systemctl", "--user", "show"]
+        assert vistos["cmd"][3] == "od-core.service"
+        assert "NRestarts" in vistos["cmd"]
+        assert vistos["timeout"] == mod.NRESTARTS_TIMEOUT_S
+
+    def test_sem_binario_ou_timeout_devolve_none(self, monkeypatch) -> None:
+        from types import SimpleNamespace
+
+        import subprocess as _sub
+
+        import integrations.notifier as mod
+
+        def _ausente(*_args, **_kwargs):
+            raise FileNotFoundError("systemctl")
+
+        monkeypatch.setattr(
+            mod, "subprocess",
+            SimpleNamespace(run=_ausente, SubprocessError=_sub.SubprocessError),
+        )
+        assert mod.nrestarts_do_systemd("od-core.service") is None
+
+        def _demorou(*_args, **_kwargs):
+            raise _sub.TimeoutExpired(cmd="systemctl", timeout=5)
+
+        monkeypatch.setattr(
+            mod, "subprocess",
+            SimpleNamespace(run=_demorou, SubprocessError=_sub.SubprocessError),
+        )
+        assert mod.nrestarts_do_systemd("od-core.service") is None
+
+    def test_valor_nao_numerico_devolve_none(self, monkeypatch) -> None:
+        from types import SimpleNamespace
+
+        import integrations.notifier as mod
+
+        class _Proc:
+            stdout = "NRestarts=?\n"
+
+        monkeypatch.setattr(
+            mod, "subprocess", SimpleNamespace(run=lambda *a, **k: _Proc())
+        )
+        assert mod.nrestarts_do_systemd("od-core.service") is None
+
+
+class TestExibicaoDoAlerta:
+    """Hora na mensagem: `wall` (parede) na frente, `ts` monotônico atrás.
+
+    Bug achado pela prova de fogo da 3.6 (16/10): `format_alert` fazia
+    `time.localtime(alert.ts)` em cima do relógio monotônico — a mensagem
+    no Telegram do dono saía com data tipo "(31/12 21:16)".
+    """
+
+    def test_format_alert_usa_wall_quando_existe(self) -> None:
+        monotonic_bruto = 1000.0          # não é hora de parede
+        alert = Alert(key="health:degraded", severity=SEVERITY_WARN,
+                      title="health", detail="x", ts=monotonic_bruto,
+                      wall=1_760_000_000.0)
+        text = ProactiveNotifier.format_alert(alert)
+        esperado = time.strftime("%d/%m %H:%M:%S",
+                                 time.localtime(1_760_000_000.0))
+        errado = time.strftime("%d/%m %H:%M:%S",
+                               time.localtime(monotonic_bruto))
+        assert esperado in text
+        assert errado not in text
+
+    def test_alert_sem_wall_nenhuma_cai_no_menos(self) -> None:
+        alert = Alert(key="x", severity=SEVERITY_WARN, title="x", ts=0.0)
+        assert "-" in ProactiveNotifier.format_alert(alert)
+
+    @pytest.mark.asyncio
+    async def test_emit_carimba_wall_mesmo_com_relogio_falso(self) -> None:
+        clock = _Clock()                     # 1000.0 (monotônico fake)
+        notifier = make_notifier(orch(OnlineProvider()), clock=clock,
+                                 nrestarts=lambda: 1)
+        alerts = await notifier.tick()
+        alerta = next(a for a in alerts if a.key == "systemd:nrestarts")
+        assert alerta.ts == 1000.0           # monotônico preservado
+        assert alerta.wall > 1_600_000_000   # epoch de verdade
+        assert alerta.to_dict()["wall"] == alerta.wall

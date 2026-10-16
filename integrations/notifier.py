@@ -34,6 +34,7 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
 import threading
 import time
 from collections import deque
@@ -63,6 +64,17 @@ DEFAULT_COOLDOWN_S = 3600.0  # 1 alerta/hora (anti-spam do legado)
 DEFAULT_LLM_OFFLINE_S = 300.0  # 5 minutos
 DEFAULT_DISK_THRESHOLD_PERCENT = 85.0
 ALERT_TRACE_LIMIT = 100
+# Ponte do /health (item 3.6 do TODO, 2026-10-16): um degraded do
+# HealthMonitor vira alerta no Telegram. O atraso espelha o das tools —
+# um restart/compose up legítimo derruba checks por poucos segundos.
+HEALTH_DEGRADADO_APOS_S = 120.0
+# Falhas que UMA SONDA DEDICADA deste notifier já grita (tool:*, llm,
+# orchestrator, loop:*) — o agregado do /health só fala do que ninguém
+# cobre (audit, metrics, database, mqtt, perception, auto_update...),
+# senão o dono receberia a mesma queda duas vezes.
+SAUDE_JA_COBERTA = ("tool_", "orchestrator", "llm", "loops")
+# Timeout do `systemctl show` (a sonda nunca pode travar o tick).
+NRESTARTS_TIMEOUT_S = 5.0
 
 
 @dataclass(slots=True)
@@ -96,7 +108,13 @@ class CheckResult:
 
 @dataclass(slots=True)
 class Alert:
-    """Um alerta emitido (depois do anti-spam)."""
+    """Um alerta emitido (depois do anti-spam).
+
+    `ts` é o relógio MONOTÔNICO do notifier (serve ao anti-spam e ao
+    emit_after_s); `wall` é `time.time()` carimbado na emissão e é o que
+    a mensagem mostra — monotônico não é hora de parede (oTelegram já
+    recebeu "(31/12 21:16)" por causa disso — conserto da 3.6, 16/10).
+    """
 
     key: str
     severity: str
@@ -104,6 +122,7 @@ class Alert:
     detail: str = ""
     source: str = ""
     ts: float = 0.0
+    wall: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -113,6 +132,7 @@ class Alert:
             "detail": self.detail,
             "source": self.source,
             "ts": self.ts,
+            "wall": self.wall,
         }
 
 
@@ -446,6 +466,167 @@ def _check_router(notifier: "ProactiveNotifier") -> CheckResult:
         )
 
 
+def nrestarts_do_systemd(unit: str) -> Optional[int]:
+    """NRestarts da unit do systemd — o contador de restart AUTOMÁTICO.
+
+    `NRestarts` só sobe quando o systemd ressuscita o serviço depois de
+    uma queda anormal (Restart=on-failure): um `systemctl restart`
+    manual zera o contador. É exatamente o sinal que hoje não alerta
+    ninguém — o od-core pode cair e voltar sozinho que o dono só vê o
+    PID novo no próximo deploy.
+
+    Devolve None quando o ambiente não é systemd (sem binário, sem
+    bus, valor não numérico): desconhecido NUNCA vira alerta — a sonda
+    responde ok e o tick continua.
+    """
+    try:
+        proc = subprocess.run(
+            ["systemctl", "--user", "show", unit,
+             "-p", "NRestarts", "--value"],
+            capture_output=True,
+            text=True,
+            timeout=NRESTARTS_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    texto = (proc.stdout or "").strip()
+    return int(texto) if texto.isdigit() else None
+
+
+async def _check_nrestarts(notifier: "ProactiveNotifier") -> CheckResult:
+    """Alerta quando o systemd reinicia o serviço sozinho (queda anormal).
+
+    A leitura roda em thread (`asyncio.to_thread`) — subprocess não pode
+    prender o event loop dos outros loops. `nrestarts_fn` é injetável
+    (launcher passa `nrestarts_do_systemd(unit)`; testes passam um fake);
+    None = sonda desligada (fora do systemd / OD_NOTIFIER_NRESTARTS=0).
+    """
+    fn = notifier.nrestarts_fn
+    if fn is None:
+        return CheckResult(
+            ok=True, source="systemd",
+            detail="NRestarts: sonda desligada (fora do systemd).",
+        )
+    try:
+        valor = await asyncio.to_thread(fn)
+    except Exception as exc:  # pragma: no cover — systemd indisponível
+        return CheckResult(
+            ok=True, source="systemd",
+            detail=f"NRestarts indisponível ({type(exc).__name__}).",
+        )
+    if valor is None:
+        # Sem dado conclusivo (fora do systemd / leitura vazia): não
+        # grita e também NÃO dá baixa no problema — a baixa só vem de
+        # uma leitura 0 de verdade (próximo tick com systemd respondendo).
+        return CheckResult(
+            ok=True, source="systemd",
+            detail="NRestarts indisponível (sem systemd neste ambiente).",
+        )
+    if int(valor) <= 0:
+        # Mesmo padrão de `_check_llm`: o resultado ok limpa o problema
+        # pela chave EXATA (o default da sonda seria só "systemd").
+        notifier._problem_since.pop("systemd:nrestarts", None)
+        return CheckResult(
+            ok=True, source="systemd",
+            detail="NRestarts=0 (nenhum restart automático).",
+        )
+    total = int(valor)
+    return CheckResult(
+        ok=False,
+        severity=(
+            SEVERITY_CRIT if total >= CRASH_LOOP_RESTARTS else SEVERITY_WARN
+        ),
+        source="systemd",
+        key="systemd:nrestarts",
+        detail=(
+            f"{notifier.unidade} reiniciado {total}x pelo systemd "
+            f"(queda anormal — NRestarts={total})."
+        ),
+    )
+
+
+async def _check_health(notifier: "ProactiveNotifier") -> list[CheckResult]:
+    """Ponte do /health (HealthMonitor) para o Telegram — item 3.6.
+
+    O ProactiveNotifier vive no mesmo processo do HealthMonitor mas não o
+    conhecia: um degraded do /health (audit, metrics, database, mqtt,
+    perception, auto_update, supply_depot...) acontecia sem ninguém
+    gritar — o precedente é o Stirling PDF com 1.917 restarts e o Kiwix
+    com 763 antes de a DECISÃO FINAL 12/10 medir o stack.
+
+    Regras (todas medidas contra os 20 checks reais de produção):
+      * `health_monitor` None → sonda fora (lista vazia, padrão da casa);
+      * falhas já cobertas por sonda dedicada (SAUDE_JA_COBERTA) não
+        disparam o agregado — o dedupe impede mensagem dupla;
+      * `down` (check crítico) grita na hora (crit);
+      * `degraded` espera HEALTH_DEGRADADO_APOS_S para não gritar com o
+        transitório de um restart/compose up.
+    Roda por ÚLTIMO no tick de propósito: as tools já encheram o cache
+    de 10s que o HealthMonitor compartilha com a sonda `tool:*`.
+    """
+    monitor = notifier.health_monitor
+    if monitor is None:
+        return []
+    aggregate = await monitor.health()
+    checks = aggregate.get("checks") or {}
+    falhas = {
+        nome: item for nome, item in checks.items() if not item.get("ok")
+    }
+    if not falhas:
+        _limpar_saude(notifier)
+        return [
+            CheckResult(
+                ok=True, source="health",
+                detail=f"/health {aggregate.get('status', 'up')} "
+                       f"({len(checks)} checks).",
+            )
+        ]
+    novas = {
+        nome: item for nome, item in falhas.items()
+        if not nome.startswith(SAUDE_JA_COBERTA)
+    }
+    if not novas:
+        _limpar_saude(notifier)
+        return [
+            CheckResult(
+                ok=True, source="health",
+                detail=f"/health {aggregate.get('status')} com falhas já "
+                       f"cobertas por sondas dedicadas "
+                       f"({', '.join(sorted(falhas))}).",
+            )
+        ]
+    status = str(aggregate.get("status") or "degraded")
+    criticas = [n for n, i in novas.items() if i.get("critical")]
+    if criticas:
+        status = "down"  # check não-crítico não derruba o agregado (contrato)
+    nomes = ", ".join(sorted(novas)[:6])
+    chave = f"health:{status}"
+    # Uma chave de saúde por vez: transição degraded→down (ou o volta)
+    # não deixa entrada zumbi em active_problems.
+    outro = "health:down" if chave == "health:degraded" else "health:degraded"
+    notifier._problem_since.pop(outro, None)
+    return CheckResult(
+        ok=False,
+        severity=SEVERITY_CRIT if status == "down" else SEVERITY_WARN,
+        source="health",
+        key=chave,
+        detail=(
+            f"/health {status}: {len(falhas)} check(s) fora — {nomes}"
+            f"{'…' if len(novas) > 6 else ''}."
+        ),
+        emit_after_s=(
+            0.0 if status == "down" else HEALTH_DEGRADADO_APOS_S
+        ),
+    )
+
+
+def _limpar_saude(notifier: "ProactiveNotifier") -> None:
+    """Baixa das duas chaves de saúde (o ok da sonda traz key='health')."""
+    notifier._problem_since.pop("health:degraded", None)
+    notifier._problem_since.pop("health:down", None)
+
+
 # ---------------------------------------------------------------------------
 # ProactiveNotifier
 # ---------------------------------------------------------------------------
@@ -470,6 +651,9 @@ class ProactiveNotifier:
         event_bus: Any = None,
         clock: Optional[Callable[[], float]] = None,
         nomad_tools: Any = None,
+        health_monitor: Any = None,
+        nrestarts_fn: Optional[Callable[[], Optional[int]]] = None,
+        unidade: str = "od-core.service",
     ) -> None:
         self.orchestrator = orchestrator
         self.config = config or NotifierConfig()
@@ -478,6 +662,14 @@ class ProactiveNotifier:
         # injetado pelo launcher; None = sonda desligada (OD_NOMAD_TOOLS=0
         # ou testes sem stack).
         self.nomad_tools = nomad_tools
+        # HealthMonitor do /health (observability/health.py) — injetado
+        # pelo launcher; None = ponte desligada (OD_NOTIFIER_HEALTH=0).
+        self.health_monitor = health_monitor
+        # Leitor de NRestarts do systemd (integrations.notifier.
+        # nrestarts_do_systemd) — injetado pelo launcher; None = sonda
+        # desligada (fora do systemd / OD_NOTIFIER_NRESTARTS=0).
+        self.nrestarts_fn = nrestarts_fn
+        self.unidade = unidade
         self._clock = clock or time.monotonic
         self._sinks: list[SinkFn] = list(sinks or [])
         self._checks: list[CheckFn] = (
@@ -549,6 +741,12 @@ class ProactiveNotifier:
         ]
         if self.nomad_tools is not None:
             checks.append(_check_tools)
+        if self.nrestarts_fn is not None:
+            checks.append(_check_nrestarts)
+        if self.health_monitor is not None:
+            # Por último de propósito: as tools já preenchemem o cache
+            # de 10s que o HealthMonitor compartilha com o `tool_*`.
+            checks.append(_check_health)
         return checks
 
     # -- Pipeline do tick -----------------------------------------------------
@@ -614,6 +812,7 @@ class ProactiveNotifier:
 
     async def _emit(self, alert: Alert, now: float) -> None:
         self._last_alerts[alert.key] = now
+        alert.wall = time.time()  # hora de parede p/ a mensagem (ver Alert)
         self._alerts.append(alert)
         self.metrics.alerts_emitted += 1
         if alert.key == "restart":
@@ -723,9 +922,11 @@ class ProactiveNotifier:
     @staticmethod
     def format_alert(alert: Alert) -> str:
         emoji = SEVERITY_EMOJI.get(alert.severity, "•")
+        # `wall` primeiro: `ts` é monotônico (não é hora de parede).
+        quando = alert.wall or alert.ts
         when = time.strftime(
-            "%d/%m %H:%M:%S", time.localtime(alert.ts)
-        ) if alert.ts else "-"
+            "%d/%m %H:%M:%S", time.localtime(quando)
+        ) if quando else "-"
         title = alert.title or alert.key
         detail = f" — {alert.detail}" if alert.detail else ""
         return f"{emoji} [{alert.severity.upper()}] {title}{detail} ({when})"
