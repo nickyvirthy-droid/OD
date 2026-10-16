@@ -997,3 +997,32 @@ ser lido como feedback.)
 Corrigido e no ar. Site: todo clique no botão (ao lado do ⋮) muda a
 tela; painel idem. App intocado (ok nas palavras do dono). Aguardando o
 dono testar o site de novo.
+
+---
+
+## §17 — "leia iniciar" (~19:43) + "por que está demorando?" — reverificação de rotina
+
+Reverificação pós-conserto do tema (§16). Tudo verde e medido:
+
+- od-core active desde 17:51:09 (1h52), MainPID 4079685, NRestarts=0,
+  journal 0 [ERROR] desde o boot.
+- /health status=up, 22 checks, nenhum fora.
+- /app/version 1.32.0/2062 sha b5b4ed31… == APK publicado (55.656.288 B).
+- git HEAD 7b4ccb7 == origin/master (0 à frente); único untracked =
+  backups/backup_od_2026-10-16/ (dado de backup — regra 9, intocável).
+- txt.txt sem mensagem nova do dono (última escrita nossa 17:57).
+- analise/ inalterado (2 capturas do Sistema Órion 01:39 + fotos-adicionais/).
+- /dashboard/stats: notifier {ticks:110, checks_run:1760, problems:3,
+  alerts_emitted:2, errors:0} · nomad_tools {9,9,[]}.
+
+Fato novo transitório: 18:31:54 router:down (warn) — 1 blip de ping ao
+192.168.0.1, padrão intermitente já registrado desde 15/10; sem ação.
+Auto-update ticks normais (aguardar).
+
+Dono perguntou "por que está demorando?" durante a coleta — explicado:
+eram as conferências reais do servidor; registro concluído na sequência.
+
+### Estado
+
+Sistema estável e no ar (v1.32.0+2062). Conserto do tema no ar desde
+17:51. Aguardando o dono testar o site (botão ao lado do ⋮) e dizer.
