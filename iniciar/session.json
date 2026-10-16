@@ -1,7 +1,20 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T17:06:00-03:00",
+ "updated_at": "2026-10-16T17:55:00-03:00",
+ "conserto_ciclo_tema_site_2026_10_16": {
+  "pedido": "Dono (chat ~17:20 de 16/10): 'pelo app esta ok, ja no site as vezes funciona' — tema no site intermitente.",
+  "causa_raiz_medida": "Clique MORTO por construção no ciclo do botão (system→light→dark→system): 'escuro'→'segue o aparelho' num aparelho escuro resolve escuro = tela igual; 'system'→'claro' num aparelho claro resolve claro = tela igual. Dois dos seis transições não mudavam a tela — 'às vezes funciona' explicado inteiro (o ícone muda mas é discreto).",
+  "correcao": "site/od-nav.js temaProximo() + _TEMA_PAINEL_JS proximoTema(): se o próximo estado resolve para a MESMA cor do atual, pula para o seguinte — todo clique pinta; 3 estados seguem válidos (app tem o rádio completo).",
+  "teste": "Harness de node (VM com DOM de mentira) que RODA o od-nav.js e o _TEMA_PAINEL_JS e CLICA o botão — 4 testes novos em TestTemaClaroEscuro (aparelho escuro/'dark' → 1º clique light e todos mudam; aparelho claro/'system' → 1º clique dark; idem painel; node --check do painel). Mutações: 2 (site) + 1 (painel) capturadas, reversões bit-exatas.",
+  "validacao": "Gate oficial: 3078 passed / 16 skipped, exit 0 (+4). pyflakes 0 aviso novo.",
+  "deploy": "Commit 5053c54 pushado ANTES; restart verde ~17:47 (7.3): PID 4079685, NRestarts=0, 0 erros, /health up 22/22. Prova viva: /site/od-nav.js servido com temaProximo (site já no ar sem restart — arquivo lido do disco por requisição), /dashboard com proximoTema, versão 1.32.0/2062 intacta (backend puro, sem bump).",
+  "commits": [
+   "5053c54 fix(tema): nenhum clique do botão cai mais numa tela igual (ciclo pula o passo invisível)"
+  ],
+  "estado": "CORRIGIDO E NO AR — todo clique no botão do tema (site e painel) muda a tela. Aguardando o dono testar o site de novo.",
+  "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§16)"
+ },
  "revisao_tema_nao_vi_diferenca_2026_10_16": {
   "pedido": "Dono (chat ~17:00 de 16/10): 'revise os temas, não estou vendo diferença' — diagnóstico do tema v1.32.0+2062 entregue às 16:32.",
   "diagnostico": "SERVIDOR/PROVADO FUNCIONANDO: /site/od.css e od-nav.js respondem 200 byte-idênticos ao disco com o tema novo; Cache-Control max-age=60 (cache velho não segura); /dashboard servido com injeção odTema ×6, paleta clara nas 2 portas, 0 !important, nenhuma reescrita de header; lógica do site (ciclo system→light→dark, porta @media) e do painel (_com_tema idempotente) conferidas linha a linha; wiring do app (theme_service/main.dart/card Tema) ok. ACHADO REAL: o CELULAR do dono está em 1.31.0 — 0 requisições a /app/version desde o deploy 16:32 ⇒ o app nunca soube do 1.32.0 e não existe tema nele ainda. 429 visto = rate limit 30/min estourado pelas minhas batidas de diagnóstico (od_rate_limited_total 0 no processo), não defeito.",

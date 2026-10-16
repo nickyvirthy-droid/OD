@@ -935,3 +935,65 @@ certo (regra: código antes de suposições):
 v1.32.0/2062 no ar, tema provado no servidor; **aguardando o dono testar**
 (site botão ⋮ / página de prova) e **instalar o update no app** — e
 dizer onde ele estava olhando para fechar o diagnóstico.
+
+## §16 — "pelo app está ok, já no site as vezes funciona" — CICLO DO BOTÃO CONERTADO (clique morto)
+
+Dono confirmou: app ok (1.32.0 instalado, tema funcionando); no site,
+**às vezes** funciona. Apuração no código achou a causa exata — não é
+intermitência de rede, é um **clique morto por construção**:
+
+### Causa raiz (medida, não deduzida)
+
+O ciclo do botão é `system → light → dark → system`. Dois dos seis
+transições resolvem para a MESMA cor da tela atual:
+
+- aparelho ESCURO, tema 'escuro' → próximo passo "segue o aparelho" →
+  resolve **escuro** = tela igual (clique "não faz nada");
+- aparelho CLARO, tema 'system' (tela clara) → próximo passo "claro" →
+  resolve **claro** = tela igual.
+
+Ou seja: dependendo de onde o ciclo estava e da cor do aparelho, um
+clique não mudava nada visualmente — "às vezes funciona" explicado
+inteiro. (O ícone do botão muda 🌗/☀️/🌙, mas é discreto demais para
+ser lido como feedback.)
+
+### Correção (commit 5053c54)
+
+- `site/od-nav.js` → `temaProximo(pref)`; `integrations/api/server.py`
+  (_TEMA_PAINEL_JS) → `proximoTema(pref)`: se o próximo estado resolve
+  para a **mesma cor** do atual, **pula para o seguinte** — todo clique
+  pinta. Os 3 estados continuam válidos (o app tem o rádio completo e
+  "segue o aparelho" segue sendo o padrão de quem nunca escolheu); no
+  site o atalho só nunca para em tela igual.
+- **Teste comportamental de verdade** (não substring): harness de node
+  com DOM de mentira que RODA o `od-nav.js` e o `_TEMA_PAINEL_JS`
+  embutido e **clica o botão** — 4 testes novos em `TestTemaClaroEscuro`:
+  aparelho escuro saindo de 'dark' → 1º clique já vira 'light' e todos
+  os cliques seguintes mudam a tela; aparelho claro saindo de 'system' →
+  1º clique já vira 'dark'; idem no painel; `node --check` do JS do
+  painel. (Harness exigiu `removeAttribute` no stub — achado ao rodar.)
+
+### Teste do teste (mutação)
+
+- Reverter `temaProximo` → `TEMA_CICLO[...]` no site: **2 testes
+  falharam**; reverter `proximoTema` no painel: **1 teste falhou**;
+  reversões bit-exatas (md5 conferido) → 10/10 verdes de novo.
+
+### Validação e deploy
+
+- Gate oficial: **3078 passed / 16 skipped**, exit 0 (+4 testes).
+- pyflakes: 0 aviso novo (os 3 do server são os imports pré-existentes;
+  o do test_api.py na L2118 também é pré-existente).
+- Commit `5053c54` pushado ANTES do restart; restart verde ~17:47
+  (regra 7.3): PID 4079685, NRestarts=0, **0 erros**, boot lento ~4 min
+  (padrão pós-gate), `/health` **up 22/22**.
+- PROVA VIVA: `/site/od-nav.js` servido com `temaProximo` (×2) — o site
+  já estava no ar ANTES do restart (arquivo lido do disco a cada
+  requisição); `/dashboard` servido com `proximoTema` (×2); versão
+  intacta **1.32.0/2062** (backend puro, sem bump).
+
+### Estado
+
+Corrigido e no ar. Site: todo clique no botão (ao lado do ⋮) muda a
+tela; painel idem. App intocado (ok nas palavras do dono). Aguardando o
+dono testar o site de novo.
