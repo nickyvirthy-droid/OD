@@ -494,7 +494,8 @@ CAPABILITIES: list[dict[str, str]] = [
         "id": "metrics",
         "name": "Metrics Collector (Prometheus text format)",
         "category": "observability",
-        "description": "Métricas od_* + fontes vivas (orchestrator/audit/uptime); GET /metrics.",
+        "description": ("Métricas od_* + fontes vivas (orchestrator/audit/uptime "
+                        "e auto-update desde 16/10: od_auto_update_*); GET /metrics."),
         "source": "Nicky",
         "phase": "Fase 7.2",
         "status": ACTIVE,
