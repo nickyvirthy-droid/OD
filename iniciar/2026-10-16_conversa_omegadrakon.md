@@ -515,3 +515,36 @@ SISTEMA ESTÁVEL E NO AR — v1.31.0+2061, fila §7 zerada, notifier saneado, pu
 com token único vivo; **nada em andamento**. Pendências do dono: o refinamento
 acima, as 2 capturas do Órion sem instrução, Vaultwarden, repo público/pauta/e
 fotos. Registro em `session.json` (`reverificacao_2026_10_16_1338`).
+
+## §9 — Reverificação "leia iniciar" (~13:47) — sistema verde confirmado de novo; 1 WARN transitório novo (transporte do bot)
+
+Nova reverificação de rotina do dono **~10 min depois** da §8. Estado
+**idêntico e verde**; único fato novo no journal é transitório.
+
+| Verificação | Resultado |
+|---|---|
+| od-core | `active` desde 16/10 **12:23:30** (1h16min) · **MainPID 3766943** · **NRestarts=0** · journal **0 erros** desde o boot |
+| `/health` (OD_API_KEY) | **status=up** · **20 checks** · **nenhum fora** |
+| `/app/version` | **1.31.0 / 2061** · sha `3d3f6ccf…` (APK 55 508 516 B) == publicado |
+| `/dashboard/stats` | `notifier {ticks:74, checks_run:1184, problems:53, alerts_emitted:2, alerts_blocked:50, errors:0}` · `nomad_tools {9,9,[]}` |
+| Git | **HEAD `74c9325` == `origin/master`** (0 à frente) · único untracked = `backups/backup_od_2026-10-16/` (regra 9) |
+| `txt.txt` | sem mensagem nova do dono (mtime 12:37 = nossa entrega do item B) |
+| `analise/` | inalterado — 2 capturas do Órion (01:39) + `fotos-adicionais/` |
+
+### Fatos novos desde a §8 (ambos transitórios, sem ação)
+
+- **13:17:39/40** — 3ª re-emissão do alerta `restart` do dia + push
+  entregue (`enviados=1 falhas=0`): comportamento horário já medido na
+  §8; próxima prevista **~14:17**. Refinamento um-disparo-por-boot segue
+  **aguardando ordem** (nada aplicado).
+- **13:08:36 e 13:10:12** — 2× `Transporte indisponível — aguardando...`
+  (WARN do polling do bot, `integrations/telegram/bot.py` L500:
+  `TransportError` no `get_updates` → retry automático no loop) — mesma
+  instabilidade transitória de rede dos `router:down` do dia (6º blip às
+  12:41:34). Recuperou sozinho, sem perda de updates nem erro.
+
+### Estado
+
+SISTEMA ESTÁVEL E NO AR — v1.31.0+2061 (PID 3766943, NRestarts=0,
+/health 20/20), fila §7 zerada; **nada em andamento**, aguardando ordem do
+dono. Registro em `session.json` (`reverificacao_2026_10_16_1347`).

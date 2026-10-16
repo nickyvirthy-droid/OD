@@ -1,7 +1,20 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T13:40:00-03:00",
+ "updated_at": "2026-10-16T13:50:00-03:00",
+ "reverificacao_2026_10_16_1347": {
+  "pedido": "Usuário: 'leia iniciar' (~13:47 de 16/10) — 2ª reverificação de rotina do dia, ~10 min depois da 13:38 (§8).",
+  "achados_verdes": "SISTEMA VERDE e idêntico: od-core active desde 12:23:30 (1h16), MainPID 3766943, NRestarts=0, journal 0 erros desde o boot; /health status=up 20 checks nenhum fora; /app/version 1.31.0/2061 sha256 3d3f6ccf… == APK publicado (55508516 B); /dashboard/stats notifier {ticks:74, checks_run:1184, problems:53, alerts_emitted:2, alerts_blocked:50, errors:0} + nomad_tools {9,9,[]}; git HEAD 74c9325 == origin/master (0 à frente), único untracked = backups/backup_od_2026-10-16/ (regra 9); txt.txt sem mensagem nova do dono (mtime 12:37 = nossa entrega); analise/ inalterado (2 capturas Órion 01:39 + fotos-adicionais/).",
+  "fatos_novos_transitorios": "13:17:39/40 = 3ª re-emissão horária do alerta restart + push entregue (enviados=1, comportamento medido na §8, próxima ~14:17; refinamento um-disparo-por-boot segue aguardando ordem). 13:08:36 e 13:10:12 = 2x 'Transporte indisponível — aguardando...' (WARN do polling do bot, TransportError no get_updates, retry automático — mesma instabilidade de rede dos router:down; recuperou sozinho).",
+  "estado": "SISTEMA ESTÁVEL E NO AR — v1.31.0/2061, fila §7 zerada, nada em andamento; aguardando ordem do dono.",
+  "proximas_pendencias_dono": [
+   "Refinamento do alerta restart (push por hora) — um-disparo-por-boot × cooldown maior × manter.",
+   "analise/ com 2 capturas do Sistema Órion (01:39) SEM instrução.",
+   "Próximos candidatos TODO §3: backup .env+data/, tema escuro/claro, métricas Prometheus.",
+   "Vaultwarden cofre; repo público segredos; pauta 3 e 5; fotos; catálogo 3D."
+  ],
+  "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§9)"
+ },
  "reverificacao_2026_10_16_1338": {
   "pedido": "Usuário: 'leia iniciar' (~13:38 de 16/10) — retomada pós-deploy do item (B) (12:23:30).",
   "achados_verdes": "SISTEMA VERDE: od-core active desde 16/10 12:23:30, MainPID 3766943, NRestarts=0, journal 0 erros no boot atual (o único [ERROR] do dia = sink Telegram 03:00, DNS, pré-existente em PID anterior 3091063); /health status=up, 20 checks, nenhum fora; /app/version 1.31.0/2061 sha256 3d3f6ccf… == APK publicado; git HEAD 02443de == origin/master (origin/master..HEAD = 0), árvore sem resíduo rastreado (único untracked = backups/backup_od_2026-10-16/, dado de backup — regra 9, intocável); txt.txt sem mensagem nova do dono (última escrita nossa 12:37 = entrega do item B); analise/ inalterado (2 capturas Sistema Órion 01:39 + fotos-adicionais com as 4).",
