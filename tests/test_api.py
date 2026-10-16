@@ -144,8 +144,10 @@ class TestAPIRoutes:
         downloads resumable (Parte D do NOMAD, 2026-10-14) + auto-update
         de modelos/conteúdo (Parte E do NOMAD, 2026-10-14) + registro de
         ferramentas/skills estilo Supply Depot (Parte F do NOMAD,
-        2026-10-15)."""
-        assert len(ROUTES) == 78
+        2026-10-15) + lista pública /registry, registro do comprador
+        /registry/posse e QR de posse do dono (Etapa 4 do Registro
+        Mestre, 2026-10-15)."""
+        assert len(ROUTES) == 82
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -160,14 +162,18 @@ class TestAPIRoutes:
             # _require_owner_page() dentro do handler (exige sessão de dono).
             ("GET", "/admin/google/apis"),
             ("GET", "/admin/google/auth"),
+            ("GET", "/registry"),
             ("GET", "/registry/{codigo}"),
             ("GET", "/registry/{codigo}/photo"),
             ("GET", "/registry/{codigo}/chat"),
             ("POST", "/registry/{codigo}/chat"),
+            ("POST", "/registry/posse"),  # Etapa 4: registro do comprador
             ("POST", "/admin/registry"), ("GET", "/admin/registry"),
             ("PUT", "/admin/registry/{public_id}"),
             ("DELETE", "/admin/registry/{public_id}"),
             ("POST", "/admin/registry/{public_id}/photo"),
+            ("POST", "/admin/registry/{public_id}/posse"),  # QR (Etapa 4)
+            ("GET", "/admin/registry/{public_id}/posse/qr"),
             ("DELETE", "/admin/registry/{public_id}/chat/{msg_id}"),
             # Fila de downloads resumable (Parte D do NOMAD)
             ("POST", "/admin/downloads"), ("GET", "/admin/downloads"),
@@ -227,6 +233,10 @@ class TestAPIRoutes:
             ("PUT", "/admin/registry/{public_id}"),
             ("DELETE", "/admin/registry/{public_id}"),
             ("POST", "/admin/registry/{public_id}/photo"),
+            # Etapa 4 (2026-10-15): comprador com conta + QR do dono
+            ("POST", "/registry/posse"),
+            ("POST", "/admin/registry/{public_id}/posse"),
+            ("GET", "/admin/registry/{public_id}/posse/qr"),
             ("DELETE", "/admin/registry/{public_id}/chat/{msg_id}"),
             # Fila de downloads resumable (Parte D do NOMAD)
             ("POST", "/admin/downloads"), ("GET", "/admin/downloads"),
@@ -277,6 +287,7 @@ class TestAPIRoutes:
             ("GET", "/metrics"),
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("GET", "/app/version"),
+            ("GET", "/registry"),  # lista pública da loja (Etapa 4)
             ("GET", "/registry/{codigo}"),
             ("GET", "/registry/{codigo}/photo"),
             ("GET", "/registry/{codigo}/chat"),

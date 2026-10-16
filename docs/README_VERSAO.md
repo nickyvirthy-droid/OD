@@ -7,6 +7,54 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.30.0] — REGISTRO DO COMPRADOR POR QR/POSSE + LOJA DO SITE (ETAPA 4 DO REGISTRO MESTRE) 🜂 (2026-10-15)
+
+### 1. O que foi feito
+
+Etapa 4 do Registro Mestre — decisão final a–e do dono (ANALISE §item 2;
+ordem "prossiga" gravada como `ordem_etapa4_2026_10_15` em
+`iniciar/session.json`): a peça exclusiva ganha **código de posse em QR**
+no cartão da compra, o **comprador registra no app no próprio nome**
+(quem tem o código é o dono), o mesmo código **destrava a regressão
+`registrada → X`** que o bloqueio da etapa 1 esperava desde 09/10, e o
+site abre a **Loja** pública — sem preço à vista (negociação na sala da
+peça; preço é campo privado desde a etapa 1). O QR é símbolo de
+propriedade: leitura do QR não registra; quem registra é quem está com
+a conta.
+
+| Peça | Entrega |
+|---|---|
+| **`core/registry.py`** | `posse_code_hash` (migração `_ensure_column`) guardando **só** `sha256(normalizado)`; `gerar_posse()` (`secrets.token_hex(8)` = 64 bits, `POSSE-XXXX-XXXX-XXXX-XXXX`; regenerar invalida o anterior na hora); `registrar_posse()` (estoque/vendida → registrada com username, comparação normalizada sem hífen/caixa, erros uniformes `posse_invalida` sem oráculo + `ja_registrada`); `update()` só aceita `registrada → X` com `posse_code` válido e limpa `owner_username`/`registered_at`; `publica` não tem posse. |
+| **4 rotas novas (`ROUTES` 78 → 82)** | `GET /registry` (lista pública da loja), `POST /registry/posse` (comprador com conta + aviso Telegram ao dono), `POST /admin/registry/{id}/posse` (dono gera/regenera: código em claro uma vez + URL absoluta), `GET /admin/registry/{id}/posse/qr?codigo=` (SVG validado contra o hash, `no-store`, lib `qrcode` nova no requirements com import tardio → 503 se faltar). |
+| **Painel `/admin`** | 🧾 QR (SVG 132 px + código + link copiável + alerta de regeneração) e ↩ Registro (desfazer só colando o código de posse); lista com `tem_posse`, hash nunca sai do servidor. |
+| **Site** | `site/loja.html` **(nova)** — prateleira via `GET /registry`: foto, coleção, status (Disponível/Vendida/Com dono), `@dono`, "Ver peça →", receita "Como comprar" em 3 passos, **sem preço**; `verificacao.html` com `?codigo=` (consulta automática) e `?posse=` (cartão do QR com o código em destaque); nav "Loja" no index (topo+rodapé) e no verificação. |
+| **App 1.30.0+2060** | `OdApi.registrarPosse()` + card **"Registrar minha peça"** na aba Verificar (cola o `POSSE-…`; sucesso = snackbar + consulta automática da peça nova; sem conta → instrução de Config). **Sem câmera no v1** — o comprador lê o QR com a câmera do celular e cola o código; leitura dentro do app fica para a próxima etapa (registrado com honestidade). |
+| **versionCode** | 2059 → **2060**. |
+
+### 2. Verificação
+
+- Suíte do servidor (gate oficial `--cov-fail-under=90` + `.coveragerc`):
+  **2929 passed / 16 skipped · cobertura 90,58%** — +15 testes
+  (`tests/test_registry.py`: loja pública sem preço/hash, registro
+  201/401/400/409, QR SVG 200/400, 403 p/ usuário comum,
+  `publica_sem_posse`, `tem_posse` sem hash, regressão com/sem código,
+  botões do painel).
+- `flutter analyze` **No issues** · `flutter test` **177 passed / 2
+  skipped** (+3 do registro do comprador).
+- Guardas: espelho de `ROUTES` 78 → 82 (1 pública + 3 com auth) ·
+  `node --check` do JS do painel · política de versão 9/9 em
+  1.30.0/2060.
+- QR com prova de roundtrip: SVG do `qrcode` 8.2 decodificado de volta
+  com OpenCV → texto **IDÊNTICO** à URL do cartão.
+
+### 3. Prova viva no serviço em produção _(pós-deploy — preenchida na conclusão)_
+
+| Passo | Resultado |
+|---|---|
+| _(deploy)_ | _(a preencher)_ |
+
+---
+
 ## [1.29.0] — SUPPLY DEPOT: REGISTRO DE FERRAMENTAS/SKILLS (PARTE F DO NOMAD) 🜂 (2026-10-15)
 
 ### 1. O que foi feito

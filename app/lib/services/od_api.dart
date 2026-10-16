@@ -1139,6 +1139,48 @@ class OdApi {
     );
   }
 
+  /// POST /registry/posse — registra a peça no PRÓPRIO nome (Etapa 4).
+  ///
+  /// Código do cartão/QR da compra (POSSE-…): quem TÉM o código é o
+  /// dono. Servidor responde 401 sem conta, 400 posse_invalida (código
+  /// não existe), 409 ja_registrada (já tem dono). Sucesso devolve a
+  /// peça atualizada (status "registrada" com o username de quem tem
+  /// conta — o nome real nunca aparece na consulta pública).
+  Future<OdRegistryItem> registrarPosse(String codigoPosse) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/registry/posse'),
+      body: jsonEncode({'codigo_posse': codigoPosse.trim()}),
+    );
+    final data = _tryJson(response.body);
+    if ((response.statusCode == 200 || response.statusCode == 201) &&
+        data?['ok'] == true) {
+      return OdRegistryItem.fromJson(data!['peca'] as Map<String, dynamic>);
+    }
+    if (response.statusCode == 401) {
+      throw OdApiError(
+        'Entre com sua conta (aba Config) para registrar no seu nome',
+        statusCode: 401,
+      );
+    }
+    if (response.statusCode == 409) {
+      throw OdApiError(
+        'Esta peça já tem dono registrado',
+        statusCode: 409,
+      );
+    }
+    if (response.statusCode == 400 && data?['error'] == 'posse_invalida') {
+      throw OdApiError(
+        'Código de posse inválido — confira o cartão/QR da compra',
+        statusCode: 400,
+      );
+    }
+    throw OdApiError(
+      'Registro falhou: ${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
   /// GET /registry/{codigo}/photo — foto pública da peça em bytes.
   /// Null quando a peça não tem foto (404) — nunca é erro.
   Future<Uint8List?> registryPhoto(String codigo) async {

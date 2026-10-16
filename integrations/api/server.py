@@ -31,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hmac
+import io
 import json
 import mimetypes
 import os
@@ -59,7 +60,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2059  # versionCode cru do APK publicado (v1.29.0+2059)
+_APP_VERSION_CODE = 2060  # versionCode cru do APK publicado (v1.30.0+2060)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -117,7 +118,7 @@ PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/admin", "/site", "/site/{f
 # já é público por /site/, coberto por test_site_public_under_auth_all).
 AUTH_EXEMPT_PATHS = frozenset(
     {"/auth/register", "/auth/login", "/anon/message", "/app/version",
-     "/registry/{codigo}", "/registry/{codigo}/photo",
+     "/registry", "/registry/{codigo}", "/registry/{codigo}/photo",
      "/registry/{codigo}/chat"}
 )
 
@@ -225,6 +226,10 @@ class APIConfig:
     # (Kiwix, Stirling PDF, CyberChef...). None = monitor fora (o bloco
     # nomad_tools some do /dashboard/stats).
     nomad_tools: Optional[Any] = None
+    # URL pública absoluta (Etapa 4): base do QR de posse — o QR precisa
+    # de URL com esquema/hospedeiro (o site em si é relativo). Padrão =
+    # hostname do Funnel; o launcher pode sobrescrever (OD_PUBLIC_URL).
+    public_url: str = "https://nicky-server.tail1b1f51.ts.net"
     # Callable síncrono(texto) → avisa o dono no Telegram (sala das peças);
     # montado pelo launcher com o loop principal (build_chat_notify).
     chat_notify: Optional[Any] = None
@@ -264,8 +269,11 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/app/version", "app_version", False),
     # Registro Mestre: consulta pública de autenticidade de peças — o ID
     # vem GRAVADO na peça; público sem credencial (mesma natureza de
-    # /app/version, v. AUTH_EXEMPT_PATHS).
+    # /app/version, v. AUTH_EXEMPT_PATHS). /registry (lista) alimenta a
+    # loja do site; /registry/posse é o REGISTRO DO COMPRADOR (conta).
+    ("GET", "/registry", "registry_list", False),
     ("GET", "/registry/{codigo}", "registry_verify", False),
+    ("POST", "/registry/posse", "registry_posse", True),
     # Foto do produto (pública) e sala de bate-papo da peça: leitura
     # pública, escrita exige conta.
     ("GET", "/registry/{codigo}/photo", "registry_photo", False),
@@ -311,6 +319,10 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("PUT", "/admin/registry/{public_id}", "admin_registry_update", True),
     ("DELETE", "/admin/registry/{public_id}", "admin_registry_delete", True),
     ("POST", "/admin/registry/{public_id}/photo", "admin_registry_photo", True),
+    # Etapa 4 (2026-10-15): código de posse (QR) — gerar/regenerar e o
+    # SVG do QR para imprimir no cartão da compra.
+    ("POST", "/admin/registry/{public_id}/posse", "admin_registry_posse", True),
+    ("GET", "/admin/registry/{public_id}/posse/qr", "admin_registry_qr", True),
     ("DELETE", "/admin/registry/{public_id}/chat/{msg_id}",
      "admin_registry_chat_delete", True),
     # Fila de downloads resumable (Parte D do NOMAD, 2026-10-14) —
@@ -1445,7 +1457,13 @@ async function regLoad() {
         // a peça volta para o estoque e some da consulta como "vendida".
         acoes += '<button class="reg-desfazer" data-id="' + esc(p.public_id) + '">↩ Desfazer</button>';
       } else {
-        acoes = '<span class="pill ok">com dono</span>';
+        acoes = '<span class="pill ok">com dono</span> ';
+        // Etapa 4 (2026-10-15): desfazer o REGISTRO exige o código de
+        // posse — a prova secreta que o bloqueio pedia desde 09/10.
+        acoes += '<button class="reg-desreg" data-id="' + esc(p.public_id) + '">↩ Registro</button>';
+      }
+      if (p.kind === "exclusiva") {
+        acoes += ' <button class="reg-posse" data-id="' + esc(p.public_id) + '">🧾 QR</button>';
       }
       acoes += ' <button class="reg-chat-btn" data-id="' + esc(p.public_id) + '">💬</button>';
       acoes += ' <button class="reg-foto-btn" data-id="' + esc(p.public_id) + '">📷</button>';
@@ -1466,7 +1484,11 @@ async function regLoad() {
         "<td>" + acoes + "</td></tr>" +
         '<tr class="reg-chat-linha" data-id="' + esc(p.public_id) + '" style="display:none">' +
         '<td colspan="10" style="background:var(--bg2)">' +
-        '<div class="muted" style="font-size:0.78rem">Carregando sala…</div></td></tr>';
+        '<div class="muted" style="font-size:0.78rem">Carregando sala…</div></td></tr>' +
+        // Etapa 4: linha que abre com o QR/código de posse (🧾).
+        '<tr class="reg-posse-linha" data-id="' + esc(p.public_id) + '" style="display:none">' +
+        '<td colspan="10" style="background:var(--bg2)">' +
+        '<div class="muted" style="font-size:0.78rem">Clique em 🧾 QR para gerar o código.</div></td></tr>';
       return linha;
     }).join("") : '<tr><td colspan="10" class="muted">Nenhuma peça cadastrada ainda.</td></tr>';
     document.querySelectorAll(".reg-vender").forEach(b =>
@@ -1475,6 +1497,10 @@ async function regLoad() {
       b.addEventListener("click", () => regRegistrar(b.dataset.id)));
     document.querySelectorAll(".reg-desfazer").forEach(b =>
       b.addEventListener("click", () => regDesfazer(b.dataset.id)));
+    document.querySelectorAll(".reg-posse").forEach(b =>
+      b.addEventListener("click", () => regPosse(b.dataset.id)));
+    document.querySelectorAll(".reg-desreg").forEach(b =>
+      b.addEventListener("click", () => regDesreg(b.dataset.id)));
     document.querySelectorAll(".reg-del").forEach(b =>
       b.addEventListener("click", () => regDel(b.dataset.id)));
     document.querySelectorAll(".reg-chat-btn").forEach(b =>
@@ -1511,16 +1537,24 @@ async function regAdd() {
   } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
 }
 
-async function regStatus(id, status, owner) {
+async function regStatus(id, status, owner, posseCode) {
   const body = { status: status };
   if (owner) body.owner_username = owner;
+  // Etapa 4: prova secreta para sair de "registrada" (sem ela o store
+  // levanta registro_pendente_codigo_secreto).
+  if (posseCode) body.posse_code = posseCode;
   try {
     const resp = await fetch("/admin/registry/" + encodeURIComponent(id), {
       method: "PUT", headers: authHeaders({"Content-Type": "application/json"}),
       body: JSON.stringify(body)
     });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) { regSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    if (!resp.ok) {
+      let erro = data.error || "Erro HTTP " + resp.status;
+      if (erro === "registro_pendente_codigo_secreto")
+        erro = "Código de posse inválido — registro protegido.";
+      regSetMsg(erro, "err"); return;
+    }
     regSetMsg(id + " → " + (REG_STATUS[status] || status), "ok");
     regLoad();
   } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
@@ -1538,6 +1572,57 @@ async function regDesfazer(id) {
   // A peça volta para o estoque e o carimbo de venda é apagado.
   if (!window.confirm("DESFAZER a venda de " + id + "? A peça volta para o estoque.")) return;
   await regStatus(id, "estoque");
+}
+
+// --- Etapa 4 (2026-10-15): código de posse (QR do cartão da compra) -------
+async function regPosse(id) {
+  const linha = document.querySelector('.reg-posse-linha[data-id="' + CSS.escape(id) + '"]');
+  if (!linha) return;
+  const aberta = linha.style.display !== "none";
+  document.querySelectorAll(".reg-posse-linha").forEach(l => { l.style.display = "none"; });
+  if (aberta) return;
+  linha.style.display = "";
+  linha.firstElementChild.innerHTML = '<div class="muted" style="font-size:0.78rem">Gerando código de posse…</div>';
+  try {
+    const resp = await fetch("/admin/registry/" + encodeURIComponent(id) + "/posse", {
+      method: "POST", headers: authHeaders()
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      linha.firstElementChild.innerHTML = '<span class="msg err">Erro ' + resp.status + ': ' + esc(data.error || "?") + '</span>';
+      regSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return;
+    }
+    const aviso = data.regenerado
+      ? '<b style="color:var(--accent)">O código ANTERIOR foi invalidado</b> — imprima só o novo.'
+      : 'Imprima no cartão: quem TIVER o QR registra a peça no app no próprio nome.';
+    linha.firstElementChild.innerHTML =
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">' +
+      '<img src="/admin/registry/' + encodeURIComponent(id) + '/posse/qr?codigo=' + encodeURIComponent(data.codigo_posse) + '" ' +
+      'alt="QR de posse" width="132" height="132" style="background:#fff;border-radius:8px;padding:6px" loading="lazy">' +
+      '<div style="font-size:.8rem;min-width:260px">' +
+      '<div>Código: <code style="font-size:1.05rem;letter-spacing:.08em">' + esc(data.codigo_posse) + '</code> ' +
+      '<button class="reg-copiar-posse" data-url="' + esc(data.url) + '">Copiar link</button></div>' +
+      '<div class="muted" style="margin-top:6px">' + aviso + '</div>' +
+      '<div class="muted" style="margin-top:4px;word-break:break-all">QR abre: ' + esc(data.url) + '</div>' +
+      '</div></div>';
+    const copiar = linha.querySelector(".reg-copiar-posse");
+    if (copiar) copiar.onclick = () => {
+      navigator.clipboard.writeText(copiar.dataset.url)
+        .then(() => regSetMsg("Link do QR copiado.", "ok"))
+        .catch(() => regSetMsg("Não deu para copiar — selecione o texto do QR.", "err"));
+    };
+    regSetMsg("Código de posse " + (data.regenerado ? "REGENERADO" : "gerado") + ": " + data.codigo_posse, "ok");
+  } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function regDesreg(id) {
+  // Desfazer REGISTRO (Etapa 4): sai de "registrada" só com a prova
+  // secreta — o mesmo código que estava no cartão do comprador.
+  const codigo = (window.prompt(
+    "Código de posse de " + id + " (POSSE-…) para DESFAZER o registro — sem ele a posse fica protegida:") || "").trim();
+  if (!codigo) return;
+  if (!window.confirm("Desfazer o REGISTRO de " + id + "? A peça deixa de ter dono e vai para o estado VENDIDA.")) return;
+  await regStatus(id, "vendida", undefined, codigo);
 }
 
 async function regDel(id) {
@@ -3770,6 +3855,24 @@ class APIHandler(BaseHTTPRequestHandler):
             payload["sha256"] = digest.hexdigest()
         self._json(200, payload)
 
+    def registry_list(self) -> None:
+        """GET /registry — lista PÚBLICA das peças (loja do site).
+
+        Alimenta site/loja.html: projeção pública de todas as peças
+        (preço/notas/hash nunca; username só nas registradas — mesma
+        regra do verify). Sem preço à vista: a negociação acontece na
+        sala da peça (decisão da etapa 1-3 — preço é campo privado).
+        """
+        store = self.api._registry
+        if store is None:
+            raise APIError(503, "registry_indisponivel")
+        pecas: list[dict[str, Any]] = []
+        for item in store.list_all():
+            public = store.verify_public(item["public_id"])
+            if public is not None:
+                pecas.append(public)
+        self._json(200, {"ok": True, "total": len(pecas), "pecas": pecas})
+
     def registry_verify(self, codigo: str) -> None:
         codigo = unquote(codigo).strip()  # espaços/%XX viram caractere normal
         """GET /registry/{codigo} — consulta PÚBLICA de autenticidade.
@@ -3793,6 +3896,53 @@ class APIHandler(BaseHTTPRequestHandler):
                              "codigo": str(codigo).strip().upper()})
             return
         self._json(200, {"ok": True, "peca": public})
+
+    def registry_posse(self) -> None:
+        """POST /registry/posse — comprador registra a PEÇA NO PRÓPRIO NOME.
+
+        Etapa 4 (2026-10-15): o QR do cartão da compra carrega o código
+        POSSE-…; quem tem CONTA (app, sessão/API key de usuário) cola o
+        código e a peça passa a constar como dele na consulta pública
+        (username, nunca nome real).
+
+        Body: {"codigo_posse": str}. Erros: 401 sem conta, 400
+        posse_invalida (mesma resposta para peça inexistente e para
+        chute — sem oráculo), 409 ja_registrada. Rate limit por IP já
+        cobre o endpoint (30/min) além dos 64 bits do código.
+        """
+        store = self.api._registry
+        if store is None:
+            raise APIError(503, "registry_indisponivel")
+        user = self._current_user
+        if user is None:
+            raise APIError(401, "login_obrigatorio")
+        username = str(
+            user.get("username") if isinstance(user, dict)
+            else getattr(user, "username", "")
+        ).strip()
+        data = self._read_json()
+        try:
+            peca = store.registrar_posse(
+                str(data.get("codigo_posse") or ""), username
+            )
+        except ValueError as exc:
+            msg = str(exc)
+            raise APIError(
+                409 if msg == "ja_registrada" else 400, msg
+            )
+        # O dono da loja fica sabendo que a peça dele ganhou dono
+        # (falha do Telegram nunca derruba a resposta do comprador).
+        notify = self.api.config.chat_notify
+        if notify is not None:
+            try:
+                notify(
+                    f"🔑 Peça {peca.get('public_id')} registrada "
+                    f"por @{username} (código de posse)"
+                )
+            except Exception:  # pragma: no cover — Telegram fora do ar
+                log.debug("chat_notify posse falhou (seguindo)",
+                          public_id=peca.get("public_id"))
+        self._json(201, {"ok": True, "peca": peca})
 
     def registry_photo(self, codigo: str) -> None:
         codigo = unquote(codigo).strip()
@@ -4803,20 +4953,30 @@ class APIHandler(BaseHTTPRequestHandler):
             )
         except ValueError as exc:
             raise APIError(400, str(exc))
-        self._json(201, {"ok": True, "peca": item})
+        self._json(201, {"ok": True, "peca": self._registry_admin_view(item)})
 
     def admin_registry_list(self) -> None:
         """GET /admin/registry — lista todas as peças (dono; com preço)."""
         store = self._registry_store_or_503()
-        itens = store.list_all()
+        itens = [self._registry_admin_view(i) for i in store.list_all()]
         self._json(200, {"ok": True, "total": len(itens), "pecas": itens})
+
+    @staticmethod
+    def _registry_admin_view(item: dict[str, Any]) -> dict[str, Any]:
+        """Item admin sem o HASH da posse (o hash é interno; vira só
+        `tem_posse` para o painel mostrar que já existe QR emitido)."""
+        view = {k: v for k, v in item.items() if k != "posse_code_hash"}
+        view["tem_posse"] = bool(item.get("posse_code_hash"))
+        return view
 
     def admin_registry_update(self, public_id: str) -> None:
         """PUT /admin/registry/{public_id} — atualiza uma peça (dono).
 
         Body: campos de whitelist (name, collection, kind, status,
         price_brl, owner_username, notes, engraved_code). Status
-        "registrada" exige dono (owner_username) — posse por QR.
+        "registrada" exige dono (owner_username); voltar DE registrada
+        (estoque/vendida) exige `posse_code` — a prova secreta da
+        Etapa 4 (sem ela: 400 registro_pendente_codigo_secreto).
         """
         store = self._registry_store_or_503()
         data = self._read_json() if self._has_body() else {}
@@ -4828,7 +4988,7 @@ class APIHandler(BaseHTTPRequestHandler):
             raise APIError(400, str(exc))
         if item is None:
             raise APIError(404, "peca_inexistente")
-        self._json(200, {"ok": True, "peca": item})
+        self._json(200, {"ok": True, "peca": self._registry_admin_view(item)})
 
     def admin_registry_delete(self, public_id: str) -> None:
         """DELETE /admin/registry/{public_id} — remove uma peça (dono).
@@ -4867,6 +5027,76 @@ class APIHandler(BaseHTTPRequestHandler):
             )
         self._json(200, {"ok": True,
                          "photo": f"/registry/{str(public_id).strip().upper()}/photo"})
+
+    def admin_registry_posse(self, public_id: str) -> None:
+        """POST /admin/registry/{public_id}/posse — gera/regenera o código (QR).
+
+        Etapa 4: o código sai em claro na resposta (o dono imprime no
+        cartão); o banco guarda só o sha256. Regenerar invalida o
+        anterior na hora (cartão perdido → código novo, o antigo não
+        registra mais). Peça `publica` responde 400 publica_sem_posse.
+        """
+        store = self._registry_store_or_503()
+        try:
+            gero = store.gerar_posse(public_id)
+        except ValueError as exc:
+            raise APIError(
+                404 if str(exc) == "peca_inexistente" else 400, str(exc)
+            )
+        self._json(201, {
+            "ok": True,
+            "codigo_posse": gero["codigo_posse"],
+            "regenerado": gero["regenerado"],
+            "public_id": gero["public_id"],
+            "url": self._posse_url(gero["codigo_posse"]),
+        })
+
+    def admin_registry_qr(self, public_id: str) -> None:
+        """GET /admin/registry/{public_id}/posse/qr?codigo=POSSE-… — SVG do QR.
+
+        O código vem na query porque o banco guarda SÓ o hash (não dá
+        para re-renderizar do nada); ele precisa bater com o hash da
+        peça (?codigo= errado → 400 posse_invalida). QR aponta para a
+        página de verificação com o código embutido — o comprador lê
+        (câmera do celular) e cola no app. Lib `qrcode` (requirements);
+        ausente → 503 qr_indisponivel sem derrubar nada (padrão da casa).
+        """
+        store = self._registry_store_or_503()
+        item = store.get(public_id)
+        if item is None:
+            raise APIError(404, "peca_inexistente")
+        query = parse_qs(urlsplit(self.path).query)
+        codigo = str(query.get("codigo", [""])[0] or "")
+        if not store.posse_valida(item, codigo):
+            raise APIError(400, "posse_invalida")
+        try:
+            import qrcode
+            from qrcode.image.svg import SvgPathImage
+        except ImportError as exc:  # pragma: no cover — dep ausente
+            raise APIError(503, "qr_indisponivel") from exc
+        qr = qrcode.QRCode(
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=2,
+        )
+        qr.add_data(self._posse_url(codigo))
+        qr.make(fit=True)
+        imagem = qr.make_image(image_factory=SvgPathImage)
+        buffer = io.BytesIO()
+        imagem.save(buffer)
+        svg = buffer.getvalue()
+        self.send_response(200)
+        self._send_cors()
+        self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
+        self.send_header("Content-Length", str(len(svg)))
+        self.send_header("Cache-Control", "no-store")  # código é secreto
+        self.end_headers()
+        self.wfile.write(svg)
+
+    def _posse_url(self, codigo_posse: str) -> str:
+        """URL absoluta que o QR carrega (página pública de verificação)."""
+        base = str(self.api.config.public_url or "").rstrip("/")
+        return f"{base}/site/verificacao.html?posse={codigo_posse}"
 
     def admin_registry_chat_delete(self, public_id: str, msg_id: str) -> None:
         """DELETE /admin/registry/{public_id}/chat/{msg_id} — moderação (dono)."""

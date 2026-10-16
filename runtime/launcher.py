@@ -546,6 +546,9 @@ def build_api_server(
             auto_update=auto_update,  # Parte E: auto-update de conteúdo
             supply_depot=supply_depot,  # Parte F: catálogo de ferramentas
             nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 9 no stats
+            public_url=env(  # Etapa 4: base do QR de posse no cartão
+                "OD_PUBLIC_URL", "https://nicky-server.tail1b1f51.ts.net"
+            ),
             stt=voice_stt,  # v1.17.3: /transcribe real (whisper.cpp)
             tts=voice_tts,  # v1.17.3: /tts real (Piper)
             # Freio contra força bruta no login (LoginGuard)

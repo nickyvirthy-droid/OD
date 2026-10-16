@@ -12,6 +12,40 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.30.0] — REGISTRO DO COMPRADOR POR QR/POSSE + LOJA DO SITE (ETAPA 4 DO REGISTRO MESTRE) 🜂 (2026-10-15)
+
+> **Bump MINOR (capacidade nova):** Etapa 4 do Registro Mestre — decisão
+> final a–e do dono (ANALISE §item 2; ordem "prossiga" registrada como
+> `ordem_etapa4_2026_10_15` em `iniciar/session.json`). Cada peça
+> **exclusiva** ganha um código de posse `POSSE-XXXX-XXXX-XXXX-XXXX`
+> (64 bits de `secrets`) impresso em **QR no cartão da compra**; o
+> **comprador registra a peça no APP no próprio nome** com conta (quem
+> tem o código é o dono); o MESMO código **destrava a regressão
+> `registrada → X`** que o bloqueio `registro_pendente_codigo_secreto`
+> da etapa 1 vinha esperando desde 09/10; e o site ganha **Loja**
+> pública sem preço (negociação na sala da peça — preço é campo privado
+> desde a etapa 1). O QR é símbolo de propriedade, não atalho: quem lê
+> o QR continua precisando de conta no app para registrar.
+
+| Peça | Entrega |
+|---|---|
+| **`core/registry.py`** | Coluna `posse_code_hash` (migração `_ensure_column`, mesmo padrão da photo) — o banco guarda **SÓ** `sha256(normalizado)` (banco vazado não vira domínio). `gerar_posse()` emite `POSSE-` + 4 grupos de 4 hex de `secrets.token_hex(8)` (64 bits) e **regenerar invalida o anterior na hora** (cartão perdido → código novo). `registrar_posse()` leva `estoque/vendida → registrada` com o username de quem tem conta — comparação NORMALIZADA (maiúsculas, sem hífen: `posseabcd…` funciona); erros uniformes `posse_invalida` para chute/lixo/vazio (sem oráculo) e `ja_registrada`; `update()` passou a aceitar `posse_code` e só com ele permite `registrada → vendida/estoque`, limpando `owner_username` e `registered_at` junto (sem ele o erro da etapa 1 continua intacto). Peça `publica` não tem posse (`publica_sem_posse`). |
+| **Rotas novas (`ROUTES` 78 → 82)** | `GET /registry` (**lista pública da loja** — projeção `verify_public` sem preço/notas/hash; em `AUTH_EXEMPT_PATHS`), `POST /registry/posse` (comprador com conta: 401 sem login, 400 `posse_invalida`, 409 `ja_registrada`; aviso ao dono no Telegram "Peça X registrada por @user" — falha do aviso nunca derruba a resposta), `POST /admin/registry/{id}/posse` (dono gera/regenera: código em claro **uma vez** + URL absoluta `https://…/site/verificacao.html?posse=…` via `APIConfig.public_url`/`OD_PUBLIC_URL`), `GET /admin/registry/{id}/posse/qr?codigo=` (**SVG do QR** — valida o código contra o hash ANTES de renderizar; `Cache-Control: no-store`; lib `qrcode>=8.0` nova no `requirements.txt` com import tardio: sem ela 503 `qr_indisponivel`, nada mais quebra). |
+| **Painel `/admin`** | Botão **🧾 QR** por peça exclusiva: POST gera o código e a linha abre com SVG 132 px + código + link copiável + alerta "código ANTERIOR invalidado" na regeneração. Botão **↩ Registro** nas peças `registrada`: desfazer exige **colar o código de posse** (prompt → PUT com `posse_code`; sem ele "Código de posse inválido — registro protegido"). Lista admin entrega `tem_posse` (bool) e **nunca** o hash. |
+| **Site** | **`site/loja.html` (NOVA):** prateleira pública via `GET /registry` — foto, coleção, pill de status (Disponível / Vendida / Com dono), `@dono` quando registrada, link "Ver peça →" e a receita **Como comprar** em 3 passos (escolher → negociar na sala da peça → receber o QR). **Sem preço à vista** (decisão das etapas 1–3). `verificacao.html`: `?codigo=` pré-preenche e consulta sozinho; `?posse=` abre o **cartão do QR** com o código em destaque e a instrução de registrar no app. Nav "Loja" no `index.html` (topo + rodapé) e no `verificacao.html`. |
+| **App `1.30.0+2060`** | `OdApi.registrarPosse()` (POST `/registry/posse`; erros amigáveis: sem conta → 401, código errado → "confira o cartão/QR", 409 → "já tem dono") + card **"Registrar minha peça"** na aba Verificar: quem tem conta cola o código (`POSSE-…`); sucesso = snackbar + **consulta automática** da peça recém-registrada (selo novo na tela). Sem conta → instrução para entrar em Config. **Honesto:** sem câmera no v1 — o comprador lê o QR com a câmera do celular (abre a URL com o código) e cola no app; leitura de QR dentro do app fica para a próxima etapa. |
+| **versionCode** | 2059 → **2060** (bump MINOR — o app mudou: `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site ×4, README_VERSAO, esta seção). |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte do servidor (gate oficial `--cov-fail-under=90` + `.coveragerc`) | **2929 passed / 16 skipped · cobertura 90,58%** — +15 testes da Etapa 4 em `tests/test_registry.py` (51 no arquivo: loja pública sem preço/hash, registro 201/401/400/409, QR SVG 200/400, 403 p/ usuário comum, `publica_sem_posse`, `tem_posse` sem hash, regressão com/sem código, botões do painel) |
+| Guardas | `ROUTES` 78 → 82 no espelho de `tests/test_api.py` (1 pública + 3 com auth); JS do painel `node --check` verde; política de versão em todas as fontes = 1.30.0/2060 |
+| App | `flutter analyze` **No issues** · `flutter test` **177 passed / 2 skipped** (+3 do registro do comprador — o mock normaliza o código como o servidor faz) |
+| QR (roundtrip real) | SVG do `qrcode` 8.2 **decodificado de volta** com OpenCV (`QRCodeDetector`) → texto **IDÊNTICO** à URL do cartão (`…/site/verificacao.html?posse=POSSE-…`) |
+| **Prova viva no serviço** | Abaixo (pós-deploy) |
+
+**Prova viva no serviço (pós-deploy):** _(preenchida na conclusão do deploy)_
+
 ---
 
 ### Infra — As 9 ferramentas do stack Nômade entram no `/health` + alerta no Telegram (DECISÃO FINAL, 2026-10-15, sem bump)

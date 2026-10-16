@@ -17,6 +17,16 @@ Modelo (decisões do dono, 09/10):
   o banco e a consulta.
 - Peças públicas (chaveiros etc.): kind=publica, sem QR/registro de dono.
 
+Etapa 4 — POSSE POR QR/CÓDIGO (2026-10-15, DECISÃO FINAL a–e da
+ANALISE_PROJECT_NOMAD §item 2): cada peça EXCLUSIVA ganha um
+`POSSE-XXXX-XXXX-XXXX-XXXX` (64 bits, `secrets`) entregue na compra
+(impresso no cartão via QR). O comprador registra no APP com conta
+própria (`registrar_posse`); o código é guardado SOMENTE como hash
+sha256 (nunca em claro no banco — banco vazado não vira domínio). O
+mesmo código destrava a regressão `registrada → vendida/estoque` no
+`update()` — o bloqueio "registro_pendente_codigo_secreto" da etapa 1
+nasceu esperando esta peça. Peças `publica` não têm posse (sem dono).
+
 Evolução 1.23.0 (mesmo dia, pedido do dono "vamos melhorar"):
 - Busca TOLERANTE A HÍFEN: digitar "odprod20260001" ou "nvabi7f3a"
   acha a peça igual (comparação normalizada, sem separadores).
@@ -34,7 +44,9 @@ Arquiteto: Alex Projeti
 
 from __future__ import annotations
 
+import hashlib
 import re
+import secrets
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -55,6 +67,7 @@ REGISTRY_ITEMS_SCHEMA: dict[str, str] = {
     "owner_username": "TEXT",                 # username público do registrante
     "notes": "TEXT",                          # internas — nunca públicas
     "photo": "TEXT",                          # nome do arquivo da foto (ou None)
+    "posse_code_hash": "TEXT",                # sha256(POSSE-…) — Etapa 4 (nunca em claro)
     "created_at": "REAL NOT NULL",
     "sold_at": "REAL",
     "registered_at": "REAL",
@@ -78,14 +91,22 @@ PHOTO_MIME_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".web
 CHAT_TEXT_MAX = 2000
 CHAT_PAGE_LIMIT = 200
 
-# Campos que NUNCA saem na consulta pública (preço, anotações, PK interna).
-_PRIVATE_FIELDS = frozenset({"id", "price_brl", "notes"})
+# Campos que NUNCA saem na consulta pública (preço, anotações, PK interna,
+# hash do código de posse — o hash não revela o código, mas é interno).
+_PRIVATE_FIELDS = frozenset({"id", "price_brl", "notes", "posse_code_hash"})
 
 # Campos aceitos no update administrativo (whitelist — nunca id/public_id).
 _UPDATABLE = frozenset({
     "name", "collection", "kind", "status", "price_brl",
     "owner_username", "notes", "engraved_code", "sold_at", "registered_at",
 })
+
+# Código de posse (Etapa 4): POSSE- + 16 hex de `secrets` em 4 grupos de 4
+# (64 bits). Guardado como sha256 da forma NORMALIZADA (maiúscula, sem
+# hífens) — o comprador digita com ou sem hífen/espaço e funciona.
+POSSE_PREFIXO = "POSSE"
+POSSE_GRUPOS = 4          # 4 grupos de 4 caracteres hex
+POSSE_TAMANHO_MIN = 10    # "POSSE" + pelo menos 5 (chute grosseiro falha)
 
 
 def normalize_code(codigo: str) -> str:
@@ -96,6 +117,21 @@ def normalize_code(codigo: str) -> str:
     sem os hífens.
     """
     return re.sub(r"[^A-Z0-9]", "", str(codigo or "").upper())
+
+
+def normalize_posse(codigo_posse: str) -> str:
+    """Normaliza o código de posse para comparação: maiúsculas sem hífens.
+
+    "posse-abcd-efgh-jkkl-mnop", "posse abcd efgh…" e a forma crua
+    "posseabcdefgh…" viram o MESMO alvo — o hash é gravado desta forma,
+    então o comprador digita/cola do jeito que conseguir.
+    """
+    return re.sub(r"[^A-Z0-9]", "", str(codigo_posse or "").upper())
+
+
+def _posse_hash(codigo_normalizado: str) -> str:
+    """sha256 hex da forma normalizada — o banco guarda SÓ isto."""
+    return hashlib.sha256(codigo_normalizado.encode("utf-8")).hexdigest()
 
 
 class RegistryStore:
@@ -109,6 +145,9 @@ class RegistryStore:
         # Migração da coluna photo: a tabela nasceu antes dela (1.23.0) e
         # create_table é IF NOT EXISTS — sozinho não adiciona coluna nova.
         self._ensure_column("registry_items", "photo", "TEXT")
+        # Etapa 4 (2026-10-15): hash do código de posse (QR) — mesma
+        # mecânica da photo (coluna nova em tabela antiga).
+        self._ensure_column("registry_items", "posse_code_hash", "TEXT")
         if self._photo_dir is not None:
             self._photo_dir.mkdir(parents=True, exist_ok=True)
 
@@ -253,23 +292,25 @@ class RegistryStore:
         - vendida → estoque = DESFAZER VENDA (o comprador desistiu antes
           de concluir): volta para o estoque e o carimbo sold_at é
           apagado — a peça não foi vendida de verdade.
-        - registrada → qualquer coisa ABAIXO é bloqueada por enquanto:
-          desfazer o registro depende do código exclusivo e secreto da
-          peça (sistema do QR), que ainda vai nascer. O dono tratou de
-          deixar isso para depois — o bloqueio impede apagamento acidental
-          de posse sem a prova secreta.
+        - registrada → qualquer coisa ABAIXO exige o **código de posse**
+          da peça (`posse_code` no body, Etapa 4): a prova secreta que o
+          bloqueio "registro_pendente_codigo_secreto" esperava. Sem o
+          código válido o registro nunca é apagado (nem por acidente);
+          com ele, o dono desfaz e o username/carimbos são limpos.
         """
         item = self.get(codigo)
         if item is None:
             return None
+        posse_code = fields.pop("posse_code", None)  # não é coluna
         novo_status = fields.get("status")
         if isinstance(novo_status, str):
             novo_status = novo_status.strip().lower()
-        # Posse registrada só cai com o código secreto da peça (futuro).
+        # Posse registrada só cai com o código secreto da peça (Etapa 4).
         if item.get("status") == "registrada" and novo_status in (
             "estoque", "vendida",
         ):
-            raise ValueError("registro_pendente_codigo_secreto")
+            if not self.posse_valida(item, posse_code):
+                raise ValueError("registro_pendente_codigo_secreto")
         sets: list[str] = []
         params: list[Any] = []
         for key, value in fields.items():
@@ -308,12 +349,111 @@ class RegistryStore:
             # carimbos de venda/registro junto (nada de estoque "vendido").
             sets.append("sold_at = NULL")
             sets.append("registered_at = NULL")
+        # Desfazer REGISTRO (Etapa 4, com código de posse): a peça deixa
+        # de ter dono — username e carimbo de registro não sobrevivem à
+        # regressão (estoque E vendida; sold_at fica quando é "vendida",
+        # a venda continua sendo a mesma).
+        if item.get("status") == "registrada" and novo_status in (
+            "estoque", "vendida",
+        ):
+            sets.append("owner_username = NULL")
+            if "registered_at = NULL" not in sets:
+                sets.append("registered_at = NULL")
+            if novo_status == "estoque":
+                sets.append("sold_at = NULL")
         params.append(item["public_id"])
         self._db.execute(
             f"UPDATE registry_items SET {', '.join(sets)} WHERE public_id = ?",
             tuple(params),
         )
         return self.get(item["public_id"])
+
+    # ------------------------------------------------------------------#
+    # Posse por QR/código (Etapa 4 — 2026-10-15)                        #
+    # ------------------------------------------------------------------#
+    def gerar_posse(self, public_id: str) -> dict[str, Any]:
+        """Gera (ou regenera) o código de posse de uma peça EXCLUSIVA.
+
+        O código sai em claro UMA vez (o dono imprime no cartão/QR);
+        o banco guarda só o sha256 normalizado. Regenerar invalida o
+        anterior na hora — cartão perdido vira código novo.
+
+        Raises:
+            ValueError: "peca_inexistente" ou "publica_sem_posse"
+                (peça pública é linha sem dono — não tem QR de posse).
+        """
+        item = self.get(public_id)
+        if item is None:
+            raise ValueError("peca_inexistente")
+        if item.get("kind") != "exclusiva":
+            raise ValueError("publica_sem_posse")
+        bruto = secrets.token_hex(8).upper()  # 16 hex = 64 bits
+        grupos = "-".join(
+            bruto[i:i + 4] for i in range(0, len(bruto), 4)
+        )
+        codigo = f"{POSSE_PREFIXO}-{grupos}"
+        self._db.execute(
+            "UPDATE registry_items SET posse_code_hash = ? "
+            "WHERE public_id = ?",
+            (_posse_hash(normalize_posse(codigo)), item["public_id"]),
+        )
+        return {
+            "public_id": item["public_id"],
+            "codigo_posse": codigo,
+            "regenerado": bool(item.get("posse_code_hash")),
+        }
+
+    def posse_valida(self, item: dict[str, Any],
+                     codigo_posse: Any) -> bool:
+        """O código bate com o hash da peça? (False para vazio/bizarro.)"""
+        if not codigo_posse or not item.get("posse_code_hash"):
+            return False
+        norm = normalize_posse(codigo_posse)
+        if not norm.startswith(POSSE_PREFIXO) or len(norm) < POSSE_TAMANHO_MIN:
+            return False
+        return _posse_hash(norm) == item["posse_code_hash"]
+
+    def registrar_posse(self, codigo_posse: str,
+                        username: str) -> dict[str, Any]:
+        """Comprador registra a peça no PRÓPRIO nome com o código do QR.
+
+        Qualquer status abaixo de "registrada" aceita (estoque ou
+        vendida — a peça está fisicamente com o comprador; a realidade
+        vence o fluxo). Peça pública não registra (não tem dono).
+
+        Returns:
+            A projeção PÚBLICA da peça (o comprador vê o selo novo).
+
+        Raises:
+            ValueError: "posse_invalida" (código não existe — mesma
+                resposta para chute e para peça sem código, sem oráculo)
+                ou "ja_registrada" (já tem dono; só sai com o código no
+                update do admin).
+        """
+        username = str(username or "").strip().lstrip("@")
+        if not username:
+            raise ValueError("username_obrigatorio")
+        norm = normalize_posse(codigo_posse)
+        alvo = None
+        if norm.startswith(POSSE_PREFIXO) and len(norm) >= POSSE_TAMANHO_MIN:
+            digest = _posse_hash(norm)
+            rows = self._db.query(
+                "SELECT * FROM registry_items WHERE posse_code_hash = ?",
+                (digest,),
+            )
+            if rows:
+                alvo = dict(rows[0])
+        if alvo is None or alvo.get("kind") != "exclusiva":
+            raise ValueError("posse_invalida")
+        if alvo.get("status") == "registrada":
+            raise ValueError("ja_registrada")
+        self._db.execute(
+            "UPDATE registry_items SET status = 'registrada', "
+            "owner_username = ?, registered_at = ? "
+            "WHERE public_id = ?",
+            (username, time.time(), alvo["public_id"]),
+        )
+        return self.verify_public(alvo["public_id"])
 
     # ------------------------------------------------------------------#
     # Consulta pública                                                   #

@@ -630,3 +630,277 @@ class TestDesfazerVenda:
         html = body.decode("utf-8", "replace")
         assert status == 200
         assert "reg-desfazer" in html and "regDesfazer" in html
+
+
+# ---------------------------------------------------------------------------#
+# Etapa 4 — Posse por QR/código (2026-10-15): DECISÃO FINAL a–e              #
+# ---------------------------------------------------------------------------#
+class TestPosseStore:
+    """Núcleo: gerar/registrar posse + regressão destravada pelo código."""
+
+    def test_gerar_posse_formato_e_hash(self, store: RegistryStore) -> None:
+        item = store.create(name="Anel", kind="exclusiva")
+        g = store.gerar_posse(item["public_id"])
+        cod = g["codigo_posse"]
+        # POSSE-XXXX-XXXX-XXXX-XXXX — 4 grupos de 4 hex (64 bits de secrets)
+        partes = cod.split("-")
+        assert partes[0] == "POSSE" and len(partes) == 5
+        assert all(len(p) == 4 for p in partes[1:])
+        assert g["regenerado"] is False
+        # o banco guarda SÓ o hash sha256 (64 hex) — nunca o código
+        bruto = store.get(item["public_id"])["posse_code_hash"]
+        assert bruto and len(bruto) == 64 and cod not in bruto
+
+    def test_regenerar_invalida_o_anterior(self, store: RegistryStore) -> None:
+        item = store.create(name="Anel", kind="exclusiva")
+        g1 = store.gerar_posse(item["public_id"])
+        g2 = store.gerar_posse(item["public_id"])
+        assert g2["regenerado"] is True
+        assert g2["codigo_posse"] != g1["codigo_posse"]
+        # só o NOVO registra (o cartão antigo perde a força na hora)
+        pub = store.registrar_posse(g2["codigo_posse"], "bia")
+        assert pub["status"] == "registrada"
+        assert pub["owner_username"] == "bia"
+
+    def test_registrar_normaliza_e_estoque_ou_vendida(
+        self, store: RegistryStore
+    ) -> None:
+        item = store.create(name="Anel", kind="exclusiva")
+        g = store.gerar_posse(item["public_id"])
+        # minúsculo e sem hífen = mesma prova (normalização do servidor)
+        pub = store.registrar_posse(
+            g["codigo_posse"].lower().replace("-", ""), "bia"
+        )
+        assert pub["status"] == "registrada" and pub["registered"]
+        # vendida → registrada também: a peça está na mão do comprador
+        item2 = store.create(name="Colar", kind="exclusiva")
+        g2 = store.gerar_posse(item2["public_id"])
+        store.update(item2["public_id"], status="vendida")
+        pub2 = store.registrar_posse(g2["codigo_posse"], "bia")
+        assert pub2["status"] == "registrada"
+
+    def test_erros_uniformes_sem_oraculo(self, store: RegistryStore) -> None:
+        item = store.create(name="Anel", kind="exclusiva")
+        g = store.gerar_posse(item["public_id"])
+        # chute e lixo = MESMA resposta (sem oráculo de "quase")
+        for erro_certo, codigo in (
+            ("posse_invalida", "POSSE-0000-0000-0000-0000"),
+            ("posse_invalida", "qualquercoisa"),
+            ("posse_invalida", ""),
+        ):
+            with pytest.raises(ValueError, match=erro_certo):
+                store.registrar_posse(codigo, "bia")
+        # username vazio morre ANTES (conta é obrigatória)
+        with pytest.raises(ValueError, match="username_obrigatorio"):
+            store.registrar_posse(g["codigo_posse"], "   ")
+        store.registrar_posse(g["codigo_posse"], "bia")
+        with pytest.raises(ValueError, match="ja_registrada"):
+            store.registrar_posse(g["codigo_posse"], "outro")
+
+    def test_publica_nao_tem_posse(self, store: RegistryStore) -> None:
+        pub = store.create(name="Chaveiro", kind="publica")
+        with pytest.raises(ValueError, match="publica_sem_posse"):
+            store.gerar_posse(pub["public_id"])
+        with pytest.raises(ValueError, match="peca_inexistente"):
+            store.gerar_posse("OD-PROD-1999-9999")
+
+    def test_hash_fora_da_projecao_publica(self, store: RegistryStore) -> None:
+        item = store.create(name="Anel", kind="exclusiva")
+        store.gerar_posse(item["public_id"])
+        pub = store.verify_public(item["public_id"])
+        assert "posse_code_hash" not in pub
+        assert "price_brl" not in pub and "notes" not in pub
+
+    def test_regressao_somente_com_o_codigo(self, store: RegistryStore) -> None:
+        item = store.create(name="Anel", kind="exclusiva")
+        g = store.gerar_posse(item["public_id"])
+        store.registrar_posse(g["codigo_posse"], "bia")
+        # sem código → o bloco da etapa 1 continua valendo
+        with pytest.raises(ValueError, match="registro_pendente_codigo_secreto"):
+            store.update(item["public_id"], status="vendida")
+        # código errado → idem
+        with pytest.raises(ValueError, match="registro_pendente_codigo_secreto"):
+            store.update(item["public_id"], status="vendida",
+                         posse_code="POSSE-0000-0000-0000-0000")
+        # código certo → desfaz e limpa dono/carimbos junto
+        volta = store.update(item["public_id"], status="vendida",
+                             posse_code=g["codigo_posse"])
+        assert volta["status"] == "vendida"
+        assert volta["owner_username"] is None
+        assert volta["registered_at"] is None
+        # público volta a esconder dono
+        pub = store.verify_public(item["public_id"])
+        assert not pub["registered"]
+
+
+class TestPosseRotas:
+    """Rotas: lista pública da loja, registro do comprador, QR do dono."""
+
+    @pytest.fixture()
+    def srv_posse(self, serve, tmp_path: Path):
+        from integrations.api import APIConfig
+        from integrations.api.auth import UserStore
+
+        db = Database(tmp_path / "posse.db")
+        reg = RegistryStore(db)
+        users = UserStore(db)
+        users.register("bia", "bia@x.com", "senha-forte-123")
+        cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123",
+                        auth_all=True, registry=reg, user_store=users,
+                        owner_username="dono")
+        srv = serve(None, config=cfg)
+        chave = users.get_user_by_username("bia").api_key
+        return srv, reg, chave
+
+    def test_lista_publica_da_loja_sem_preco_nem_hash(self, srv_posse) -> None:
+        srv, reg, _chave = srv_posse
+        excl = reg.create(name="Anel", kind="exclusiva",
+                          collection="ABISSAL", price_brl=120.0)
+        publ = reg.create(name="Chaveiro", kind="publica")
+        reg.gerar_posse(excl["public_id"])
+        # público SEM credencial (auth_all) — /registry isenta de auth
+        status, body, _ = _request(srv.bound_port, "GET", "/registry")
+        data = _json_response((status, body, None))
+        assert status == 200 and data["ok"] and data["total"] == 2
+        texto = body.decode()
+        assert "price_brl" not in texto and "posse_code_hash" not in texto
+        ids = {p["public_id"] for p in data["pecas"]}
+        assert {excl["public_id"], publ["public_id"]} == ids
+
+    def test_posse_exige_conta(self, srv_posse) -> None:
+        srv, _reg, _chave = srv_posse
+        status, _body, _ = _request(
+            srv.bound_port, "POST", "/registry/posse",
+            raw_body=json.dumps(
+                {"codigo_posse": "POSSE-0000-0000-0000-0000"}))
+        assert status == 401
+
+    def test_comprador_registra_com_conta(self, srv_posse) -> None:
+        srv, reg, chave = srv_posse
+        item = reg.create(name="Anel", kind="exclusiva")
+        g = reg.gerar_posse(item["public_id"])
+        # sucesso: 201 + peça registrada no username de quem tem conta
+        status, body, _ = _request(srv.bound_port, "POST", "/registry/posse",
+                                   api_key=chave,
+                                   body={"codigo_posse": g["codigo_posse"]})
+        data = _json_response((status, body, None))
+        assert status == 201 and data["ok"]
+        assert data["peca"]["status"] == "registrada"
+        assert data["peca"]["owner_username"] == "bia"
+        assert "price_brl" not in data["peca"]
+        # de novo → 409 (sai só pelo código no update do admin)
+        status2, _, _ = _request(srv.bound_port, "POST", "/registry/posse",
+                                 api_key=chave,
+                                 body={"codigo_posse": g["codigo_posse"]})
+        assert status2 == 409
+        # chute → 400 com a MESMA resposta de lixo
+        status3, body3, _ = _request(
+            srv.bound_port, "POST", "/registry/posse", api_key=chave,
+            body={"codigo_posse": "POSSE-0000-0000-0000-0000"})
+        assert status3 == 400
+        assert _json_response(
+            (status3, body3, None))["error"] == "posse_invalida"
+
+    def test_qr_admin_so_com_codigo_valido(self, srv_posse) -> None:
+        srv, reg, _chave = srv_posse
+        item = reg.create(name="Anel", kind="exclusiva")
+        # ainda sem código → QR não tem o que renderizar (400)
+        status, _, _ = _request(
+            srv.bound_port, "GET",
+            f"/admin/registry/{item['public_id']}/posse/qr",
+            api_key="segredo123")
+        assert status == 400
+        # gera o código (201 com código + URL absoluta do QR)
+        status, body, _ = _request(
+            srv.bound_port, "POST",
+            f"/admin/registry/{item['public_id']}/posse",
+            api_key="segredo123")
+        data = _json_response((status, body, None))
+        assert status == 201 and data["codigo_posse"].startswith("POSSE-")
+        assert data["regenerado"] is False
+        assert data["url"].endswith("?posse=" + data["codigo_posse"])
+        # QR com o código certo → SVG
+        status, svg, hdrs = _request(
+            srv.bound_port, "GET",
+            f"/admin/registry/{item['public_id']}/posse/qr"
+            f"?codigo={data['codigo_posse']}",
+            api_key="segredo123")
+        assert status == 200
+        assert hdrs.get("Content-Type", "").startswith("image/svg+xml")
+        assert b"<svg" in svg and b"<path" in svg
+        # QR com código errado → 400 (não vaza QR de peça alheia)
+        status2, _, _ = _request(
+            srv.bound_port, "GET",
+            f"/admin/registry/{item['public_id']}/posse/qr"
+            "?codigo=POSSE-0000-0000-0000-0000",
+            api_key="segredo123")
+        assert status2 == 400
+
+    def test_posse_admin_negado_e_publica_sem_qr(self, srv_posse) -> None:
+        srv, reg, chave = srv_posse
+        item = reg.create(name="Anel", kind="exclusiva")
+        # usuário comum não emite código de posse (admin only)
+        status, _, _ = _request(
+            srv.bound_port, "POST",
+            f"/admin/registry/{item['public_id']}/posse", api_key=chave)
+        assert status == 403
+        # peça pública = linha sem dono → 400 publica_sem_posse
+        publ = reg.create(name="Chaveiro", kind="publica")
+        status, body, _ = _request(
+            srv.bound_port, "POST",
+            f"/admin/registry/{publ['public_id']}/posse",
+            api_key="segredo123")
+        assert status == 400
+        assert _json_response((status, body, None))["error"] == "publica_sem_posse"
+
+    def test_lista_admin_vira_tem_posse_sem_hash(self, srv_posse) -> None:
+        srv, reg, _chave = srv_posse
+        item = reg.create(name="Anel", kind="exclusiva")
+        status, body, _ = _request(srv.bound_port, "GET", "/admin/registry",
+                                   api_key="segredo123")
+        data = _json_response((status, body, None))
+        assert data["pecas"][0]["tem_posse"] is False
+        assert "posse_code_hash" not in body.decode()  # hash é interno
+        reg.gerar_posse(item["public_id"])
+        status, body, _ = _request(srv.bound_port, "GET", "/admin/registry",
+                                   api_key="segredo123")
+        data = _json_response((status, body, None))
+        assert data["pecas"][0]["tem_posse"] is True
+        assert "posse_code_hash" not in body.decode()
+
+    def test_regressao_admin_somente_com_posse_code(self, srv_posse) -> None:
+        srv, reg, _chave = srv_posse
+        item = reg.create(name="Anel", kind="exclusiva")
+        g = reg.gerar_posse(item["public_id"])
+        reg.registrar_posse(g["codigo_posse"], "bia")
+        # sem prova secreta → 400 com o erro da etapa 1
+        status, body, _ = _request(
+            srv.bound_port, "PUT", "/admin/registry/" + item["public_id"],
+            api_key="segredo123",
+            raw_body=json.dumps({"status": "vendida"}))
+        assert status == 400
+        assert _json_response(
+            (status, body, None))["error"] == "registro_pendente_codigo_secreto"
+        # com o código → desfaz, dono limpo, hash continua (tem_posse)
+        status, body, _ = _request(
+            srv.bound_port, "PUT", "/admin/registry/" + item["public_id"],
+            api_key="segredo123",
+            raw_body=json.dumps({"status": "vendida",
+                                 "posse_code": g["codigo_posse"]}))
+        data = _json_response((status, body, None))
+        assert status == 200 and data["peca"]["status"] == "vendida"
+        assert data["peca"]["owner_username"] is None
+        assert data["peca"]["tem_posse"] is True
+        assert "posse_code_hash" not in data["peca"]
+
+    def test_painel_tem_botoes_de_posse(self, serve) -> None:
+        from integrations.api import APIConfig
+
+        cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123")
+        srv = serve(None, config=cfg)
+        status, body, _ = _request(srv.bound_port, "GET", "/admin")
+        html = body.decode("utf-8", "replace")
+        assert status == 200
+        # 🧾 QR gera o código; ↩ Registro desfaz com a prova secreta
+        assert "reg-posse" in html and "regPosse" in html
+        assert "reg-desreg" in html and "regDesreg" in html

@@ -18,6 +18,9 @@ import '../services/od_api.dart';
 ///   - sala de bate-papo da peça: qualquer um LÊ; quem TEM CONTA escreve
 ///     (401 sem conta → aviso para entrar pelo chat do ecossistema).
 ///     Polling de 4 s enquanto a peça está na tela.
+///   - REGISTRO DO COMPRADOR (Etapa 4, 2026-10-15): quem tem o código
+///     POSSE-… do cartão/QR da compra registra a peça no PRÓPRIO nome
+///     (POST /registry/posse com conta) — quem tem o código é o dono.
 class RegistryScreen extends StatefulWidget {
   final OdApi api;
   const RegistryScreen({super.key, required this.api});
@@ -28,10 +31,12 @@ class RegistryScreen extends StatefulWidget {
 
 class _RegistryScreenState extends State<RegistryScreen> {
   final _codigoCtrl = TextEditingController();
+  final _posseCtrl = TextEditingController();
   OdRegistryItem? _peca;
   Uint8List? _foto;
   String? _erro;
   bool _verificando = false;
+  bool _registrando = false;
 
   // -- Sala de bate-papo da peça (polling de 4 s) --
   final List<OdRegistryMessage> _msgs = [];
@@ -45,6 +50,7 @@ class _RegistryScreenState extends State<RegistryScreen> {
   void dispose() {
     _poller?.cancel();
     _codigoCtrl.dispose();
+    _posseCtrl.dispose();
     _chatCtrl.dispose();
     _msgsCtrl.dispose();
     super.dispose();
@@ -94,6 +100,46 @@ class _RegistryScreenState extends State<RegistryScreen> {
         _erro = 'Falha na verificação: $e';
         _verificando = false;
       });
+    }
+  }
+
+  /// Registra a peça no nome de quem tem a conta com o código do QR
+  /// (Etapa 4). Sucesso: mostra o selo novo consultando a peça certa.
+  Future<void> _registrarPosse() async {
+    final cod = _posseCtrl.text.trim();
+    if (cod.isEmpty || _registrando) return;
+    setState(() {
+      _registrando = true;
+    });
+    try {
+      final peca = await widget.api.registrarPosse(cod);
+      _posseCtrl.clear();
+      if (!mounted) return;
+      setState(() {
+        _registrando = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('✔ Registrada no seu nome: ${peca.name}')),
+      );
+      // Consulta a peça recém-registrada — vira o selo "registrada" +
+      // a sala da peça já apontando para o novo dono (você).
+      _codigoCtrl.text = peca.publicId;
+      await _verificar();
+    } on OdApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _registrando = false;
+      });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _registrando = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Falha no registro: $e')),
+      );
     }
   }
 
@@ -221,6 +267,9 @@ class _RegistryScreenState extends State<RegistryScreen> {
           ),
         ],
 
+        const SizedBox(height: 16),
+        _cardPosse(context, scheme),
+
         if (_peca != null) ...[
           const SizedBox(height: 16),
           _cardPeca(context, scheme),
@@ -228,6 +277,73 @@ class _RegistryScreenState extends State<RegistryScreen> {
           _cardSala(context, scheme),
         ],
       ],
+    );
+  }
+
+  /// Card "Registrar minha peça" (Etapa 4): o comprador cola o código
+  /// POSSE-… do cartão QR e a peça passa a constar com o username dele.
+  /// Sem conta → instrução (a decisão do dono: registro exige cadastro).
+  Widget _cardPosse(BuildContext context, ColorScheme scheme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.qr_code_2, color: scheme.primary, size: 20),
+              const SizedBox(width: 8),
+              Text('Registrar minha peça',
+                  style: Theme.of(context).textTheme.titleMedium),
+            ]),
+            const SizedBox(height: 4),
+            Text(
+              'Veio com a peça um cartão QR? Quem TEM o código é o dono: '
+              'cole abaixo e a peça registra no SEU nome (aparece seu '
+              'username na consulta pública — nome real, nunca).',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            if (!_temConta)
+              Text(
+                'Sem conta ainda? Entre ou crie a sua em Config → conta '
+                '— o registro fica no seu nome a partir daí.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(fontStyle: FontStyle.italic),
+              )
+            else
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: _posseCtrl,
+                    autocorrect: false,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'Código de posse',
+                      hintText: 'POSSE-XXXX-XXXX-XXXX-XXXX',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.key),
+                    ),
+                    onSubmitted: (_) => _registrarPosse(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _registrando ? null : _registrarPosse,
+                  child: _registrando
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Registrar'),
+                ),
+              ]),
+          ],
+        ),
+      ),
     );
   }
 

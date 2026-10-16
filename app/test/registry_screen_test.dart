@@ -237,4 +237,106 @@ void main() {
       expect(find.textContaining('@bia'), findsOneWidget);
     });
   });
+
+  // Etapa 4 (2026-10-15): registro do comprador com o código do QR.
+  group('RegistryScreen — registro do comprador (Etapa 4)', () {
+    /// Mock do fluxo completo: POST /registry/posse (201 quando o código
+    /// bate; 400 posse_invalida quando não) e a consulta automática que
+    /// o sucesso dispara (peça vira "registrada" + sala vazia).
+    OdApi apiPosse({String apiKey = 'od_teste', String username = 'bia'}) =>
+        OdApi(
+          baseUrl: 'http://od.test:8000',
+          apiKey: apiKey,
+          username: username,
+          client: MockClient((request) async {
+            const codigoOk = 'POSSE-ABCD-EFGH-IJKL-MNOP';
+            final pecaRegistrada = {
+              ..._pecaJson,
+              'status': 'registrada',
+              'owner_username': 'bia',
+              'registered': true,
+              'registered_at': 1791582900.0,
+              'photo': null,
+            };
+            if (request.method == 'POST' &&
+                request.url.path == '/registry/posse') {
+              final body = jsonDecode(request.body) as Map<String, dynamic>;
+              // normaliza como o servidor (core/registry.py): maiúsculas
+              // sem separadores — o app envia o que o usuário digitou.
+              final norm = (body['codigo_posse'] as String? ?? '')
+                  .toUpperCase()
+                  .replaceAll(RegExp('[^A-Z0-9]'), '');
+              final esperado = codigoOk.replaceAll(RegExp('[^A-Z0-9]'), '');
+              if (norm != esperado) {
+                return _json({'ok': false, 'error': 'posse_invalida'}, 400);
+              }
+              return _json({'ok': true, 'peca': pecaRegistrada}, 201);
+            }
+            if (request.url.path == '/registry/OD-PROD-2026-0001') {
+              return _json({'ok': true, 'peca': pecaRegistrada});
+            }
+            if (request.url.path == '/registry/OD-PROD-2026-0001/chat') {
+              return _json({'ok': true, 'total': 0, 'mensagens': []});
+            }
+            return http.Response('not found', 404);
+          }),
+        );
+
+    testWidgets('sem conta: card explica o QR, sem campo de código',
+        (tester) async {
+      await tester.pumpWidget(_wrap(RegistryScreen(api: apiPosse(apiKey: '', username: ''))));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Registrar minha peça'), findsOneWidget);
+      expect(find.text('Código de posse'), findsNothing); // sem input
+      expect(find.textContaining('crie a sua em Config'), findsOneWidget);
+    });
+
+    testWidgets('com conta: registra com o código e consulta a peça nova',
+        (tester) async {
+      await tester.pumpWidget(_wrap(RegistryScreen(api: apiPosse())));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Código de posse'),
+        'posse-abcd-efgh-ijkl-mnop', // servidor normaliza p/ comparação
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Registrar'));
+      await tester.pumpAndSettle();
+
+      // sucesso: selo novo + dono = o próprio usuário
+      expect(find.text('✓ Peça autêntica · registrada'), findsOneWidget);
+      expect(
+        find.text(
+            'Esta peça tem dono: @bia — o username é público; o nome real, nunca.'),
+        findsOneWidget,
+      );
+      // a consulta automática preencheu o campo de ID com a peça certa
+      expect(
+        tester.widget<TextField>(find.byType(TextField).first).controller?.text,
+        'OD-PROD-2026-0001',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('código errado vira aviso, não derruba a tela',
+        (tester) async {
+      await tester.pumpWidget(_wrap(RegistryScreen(api: apiPosse())));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Código de posse'),
+        'POSSE-0000-0000-0000-0000',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Registrar'));
+      await tester.pump();
+
+      expect(
+        find.textContaining('Código de posse inválido'),
+        findsOneWidget, // SnackBar
+      );
+      expect(find.text('✓ Peça autêntica'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

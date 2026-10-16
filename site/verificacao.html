@@ -140,6 +140,7 @@
     <a href="/site#sistemas">Sistemas</a>
     <a href="/site#produtos">Produtos</a>
     <a href="/site#autenticidade">Autenticidade</a>
+    <a href="/site/loja.html">Loja</a>
     <a href="/site/verificacao.html">Verificar peça</a>
     <a href="/site/protomaps.html">ProtoMaps</a>
     <a href="/site/historico.html#historico">Histórico</a>
@@ -170,6 +171,25 @@
       Serve o ID canônico (<code>OD-PROD-2026-0001</code>) ou o código curto gravado
       (<code>NV-ABI-7F3A</code>) — os dois estão na peça. E <b>nem precisa de hífen</b>:
       <code>odprod20260001</code> e <code>NVABI7F3A</code> também acham.
+    </p>
+  </div>
+
+  <!-- Cartão QR de posse (Etapa 4, 2026-10-15): abre quando o QR do
+       cartão aponta aqui com ?posse=POSSE-… — mostra o código para o
+       comprador registrar no app. -->
+  <div class="busca" id="posse" style="display:none; border-left:4px solid var(--verde)">
+    <label>🔑 Código de posse — este cartão é da peça</label>
+    <p style="margin-top:8px">
+      Quem <b>tem este QR</b> é quem comprou a peça. Para registrar no
+      seu nome, abra o app <b>Omega Drakon</b> → aba <b>Verificar</b> →
+      <b>Registrar minha peça</b> e cole o código abaixo:
+    </p>
+    <p style="margin-top:14px; text-align:center">
+      <code id="posse-codigo" style="font-size:1.25rem; letter-spacing:.14em; color:var(--verde)">—</code>
+    </p>
+    <p class="dica" style="text-align:center">
+      Na dúvida, digite o ID gravado na peça acima para conferir o status antes.
+      Compartilhe este QR só com quem comprou: <b>quem tem o código, registra</b>.
     </p>
   </div>
 
@@ -455,6 +475,28 @@
 
   btn.addEventListener('click', verificar);
   input.addEventListener('keydown', function (e) { if (e.key === 'Enter') verificar(); });
+
+  // -- Parâmetros de URL (Etapa 4) --------------------------------------
+  // ?codigo=OD-PROD-…  → pré-preenche e consulta sozinho (link direto).
+  // ?posse=POSSE-…     → abre o cartão do QR com o código em destaque
+  //                       (o comprador cola no app — registro no nome
+  //                       dele; esta página não registra por ele).
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var codUrl = (params.get('codigo') || '').trim();
+    var posseUrl = (params.get('posse') || '').trim();
+    if (posseUrl.toUpperCase().indexOf('POSSE') === 0) {
+      var boxPosse = document.getElementById('posse');
+      document.getElementById('posse-codigo').textContent = posseUrl.toUpperCase();
+      boxPosse.style.display = 'block';
+    }
+    if (codUrl) {
+      input.value = codUrl;
+      verificar();
+    } else if (posseUrl.toUpperCase().indexOf('POSSE') === 0) {
+      boxPosse.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  } catch (e) { /* sem URL params ou JS antigo — segue normal */ }
 })();
 </script>
 </body>

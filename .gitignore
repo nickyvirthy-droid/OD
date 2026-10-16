@@ -129,6 +129,12 @@ voice/
 site/*.apk
 backups/apk-*/
 
+# Backups de dispositivos de push: contêm o TOKEN FCM vivo do dono — este
+# repo é PÚBLICO (github.com/nickyvirthy-droid/OD), credencial nunca entra;
+# o arquivo fica no disco como prova do pod (2026-10-15, token morto podado).
+backups/push-devices-*.json
+backups/push-devices-*.bak.json
+
 # Backups automáticos do self-repair (.bak gerados pelo Coder Engine)
 .od_repair_backups/
 
