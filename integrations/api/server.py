@@ -231,6 +231,11 @@ class APIConfig:
     # bloqueados pelo anti-spam e erros. None = notifier fora
     # (OD_NOTIFIER_ENABLED=0) e o bloco notifier some do /dashboard/stats.
     notifier: Optional[Any] = None
+    # Backup automático do estado irrecuperável (TODO §3.6, ordem do dono
+    # 2026-10-16): core.backup.BackupService — último snapshot, pendência
+    # do dia e os arquivos em backups/auto/. None = backup fora
+    # (OD_BACKUP=0) e o bloco backup some do /dashboard/stats.
+    backup: Optional[Any] = None
     # URL pública absoluta (Etapa 4): base do QR de posse — o QR precisa
     # de URL com esquema/hospedeiro (o site em si é relativo). Padrão =
     # hostname do Funnel; o launcher pode sobrescrever (OD_PUBLIC_URL).
@@ -1119,6 +1124,10 @@ async function loadSystem() {
       ["Alertas", stats.notifier
         ? stats.notifier.alerts_emitted + " env · " + stats.notifier.alerts_blocked + " blq" : "—",
         stats.notifier && stats.notifier.errors ? "err" : ""],
+      ["Backup", stats.backup
+        ? (stats.backup.ultimo_sucesso_em || "—") + " · " + fmtBytes(stats.backup.ultimo_bytes)
+        : "—",
+        stats.backup && (stats.backup.pendente_hoje || stats.backup.falhas) ? "err" : ""],
     ];
     document.getElementById("sys").innerHTML = cards.map(c =>
       '<div class="card"><div class="k">' + c[0] + '</div><div class="v ' + c[2] + '">' + c[1] + "</div></div>"
@@ -1140,6 +1149,12 @@ function fmtUptime(s) {
   if (s == null) return "—";
   const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
   return (d ? d + "d " : "") + (h ? h + "h " : "") + m + "m";
+}
+
+function fmtBytes(n) {
+  if (n == null || !n) return "—";
+  if (n < 1048576) return Math.round(n / 1024) + " KB";
+  return (n / 1048576).toFixed(2) + " MB";
 }
 
 function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -4222,6 +4237,11 @@ class APIHandler(BaseHTTPRequestHandler):
         notifier = self.api.config.notifier
         if notifier is not None:
             payload["notifier"] = notifier.metrics.snapshot()
+        # Backup automático (TODO §3.6): último snapshot, se o de HOJE está
+        # pendente e o que existe em backups/auto/ para copiar no HD.
+        backup = self.api.config.backup
+        if backup is not None:
+            payload["backup"] = backup.snapshot()
         self._json(200, payload)
 
     def llms(self) -> None:
