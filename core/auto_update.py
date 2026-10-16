@@ -426,6 +426,7 @@ class AutoUpdateService:
         alvos_fn: Optional[Callable[[], list[AlvoUpdate]]] = None,
         rag_sync_fn: Optional[Callable[[], dict[str, int]]] = None,
         fila: Any = None,
+        push: Any = None,
         clock: Callable[[], float] = time.time,
         espaco_livre_fn: Optional[Callable[[Path], int]] = None,
     ) -> None:
@@ -437,6 +438,10 @@ class AutoUpdateService:
         self._alvos_fn = alvos_fn
         self._rag_sync_fn = rag_sync_fn
         self.fila = fila
+        # PushService do launcher (TODO §3.8, 2026-10-16): aviso
+        # "auto-update aplicado" no celular do dono. None = sem aviso —
+        # o ciclo funciona igual.
+        self._push = push
         self._clock = clock
         self._espaco_livre_fn = espaco_livre_fn or _espaco_livre
         self._lock = threading.Lock()
@@ -629,6 +634,10 @@ class AutoUpdateService:
                  novos=stats.get("novos", 0),
                  atualizados=stats.get("atualizados", 0),
                  removidos=stats.get("removidos", 0))
+        self._anunciar(
+            f"Índice RAG re-sincronizado — {stats.get('chunks', 0)} chunks "
+            f"({alvo.id})"
+        )
 
     def _enfileirar(self, alvo: AlvoUpdate, est: EstadoAlvo,
                     agora: float) -> None:
@@ -706,6 +715,28 @@ class AutoUpdateService:
             self.gravar_estado(estado)
         log.info("Auto-update: download concluído e verificado",
                  alvo=alvo_id, job=job_id)
+        destino = (f" → {alvo.mover_para}"
+                   if alvo is not None and alvo.mover_para else "")
+        versao = (f" ({alvo.versao_nova})"
+                  if alvo is not None and alvo.versao_nova else "")
+        self._anunciar(f"{alvo_id} aplicado{versao}{destino}")
+
+    def _anunciar(self, corpo: str) -> None:
+        """Notificação FCM ao dono — "auto-update aplicado" (TODO §3.8).
+
+        Best-effort na mesma cadência do notifier: `PushService.notify`
+        nunca levanta (falha de envio é resumo, não exceção) e o
+        try/except cobre um push falso em teste — o ciclo de auto-update
+        NUNCA pode morrer por causa de um aviso.
+        """
+        if self._push is None:
+            return
+        try:
+            self._push.notify("Auto-update aplicado", corpo,
+                              data={"origem": "auto-update"})
+        except Exception as exc:  # pragma: no cover — push degrada sozinho
+            log.warn("Auto-update: aviso de push falhou (ciclo segue)",
+                     error=_curto(exc))
 
     def _alvo_por_id(self, alvo_id: str) -> Optional[AlvoUpdate]:
         try:

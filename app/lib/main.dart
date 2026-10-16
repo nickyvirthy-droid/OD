@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'services/od_api.dart';
@@ -77,10 +78,14 @@ class _OdRootState extends State<OdRoot> {
   int _initialIndex = 0;
 
   // Auto-atualização (v1.7.0): o servidor anuncia a versão publicada e o
-  // app oferece a troca sem ninguém abrir o site.
+  // app oferece a troca sem ninguém abrir o site. v1.31.0 (item B): o
+  // download começa SOZINHO em background quando a versão nova aparece —
+  // o banner acompanha o progresso e o botão vira "Instalar" (arquivo já
+  // conferido pelo SHA-256).
   OdUpdateInfo? _update;
   bool _downloading = false;
   double _downloadProgress = 0;
+  File? _updateReady;
 
   @override
   void initState() {
@@ -116,11 +121,57 @@ class _OdRootState extends State<OdRoot> {
     final info = await OdUpdater(api: _api).check();
     if (info == null || !info.isNewer || !mounted) return;
     setState(() => _update = info);
+    // Download em background (item B, v1.31.0): baixa sozinho enquanto o
+    // dono usa o app. Falha de rede é silenciosa — o banner fica com o
+    // botão "Atualizar", que tenta pelo mesmo caminho.
+    unawaited(_preDownload(info));
+  }
+
+  /// Download automático (v1.31.0) — caminho do banner, sem bloquear a UI.
+  Future<void> _preDownload(OdUpdateInfo info) async {
+    if (_downloading || _updateReady != null || !mounted) return;
+    setState(() {
+      _downloading = true;
+      _downloadProgress = 0;
+    });
+    try {
+      final apk = await OdUpdater(api: _api).download(
+        info,
+        onProgress: (progress) {
+          if (mounted) setState(() => _downloadProgress = progress);
+        },
+      );
+      if (mounted) setState(() => _updateReady = apk);
+    } on OdApiError {
+      // Best-effort: banner segue com o botão "Atualizar" (mesmo caminho,
+      // agora pelo toque) e o próximo boot tenta de novo.
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _downloadProgress = 0;
+        });
+      }
+    }
   }
 
   Future<void> _applyUpdate() async {
     final info = _update;
     if (info == null || _downloading) return;
+    final pronto = _updateReady;
+    if (pronto != null) {
+      // Baixado e conferido em background — instala direto, sem rede.
+      try {
+        await OdUpdater(api: _api).install(pronto);
+      } on OdApiError catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.message)),
+          );
+        }
+      }
+      return;
+    }
     setState(() {
       _downloading = true;
       _downloadProgress = 0;
@@ -168,8 +219,10 @@ class _OdRootState extends State<OdRoot> {
                   _downloading
                       ? 'Baixando v${info.version}… '
                           '${(100 * _downloadProgress).toStringAsFixed(0)}%'
-                      : 'Nova versão ${info.version} disponível'
-                          '${info.sizeMb}',
+                      : _updateReady != null
+                          ? 'v${info.version} baixada — pronta para instalar'
+                          : 'Nova versão ${info.version} disponível'
+                              '${info.sizeMb}',
                 ),
               ),
               if (_downloading)
@@ -180,7 +233,7 @@ class _OdRootState extends State<OdRoot> {
                 )
               else TextButton(
                 onPressed: _applyUpdate,
-                child: const Text('Atualizar'),
+                child: Text(_updateReady != null ? 'Instalar' : 'Atualizar'),
               ),
               if (!_downloading)
                 IconButton(

@@ -209,20 +209,33 @@ class OdUpdater {
   /// Baixa o APK anunciado em [info], com progresso (0.0 → 1.0).
   ///
   /// Confere o SHA-256 quando o servidor o anunciou; binário diferente do
-  /// anunciado é apagado e rejeitado ([OdUpdateError]).
+  /// anunciado é apagado e rejeitado ([OdUpdateError]). APK já baixado e
+  /// conferido (cache válido do download em background) é devolvido sem
+  /// nova requisição — base do "baixa sozinho, instala com um toque".
+  /// [httpClient] injeta o transporte (testes — o binding do Flutter
+  /// responde 400 em cliente real); sem ele, um cliente próprio é criado
+  /// e fechado aqui mesmo.
   Future<File> download(
     OdUpdateInfo info, {
     void Function(double progress)? onProgress,
+    http.Client? httpClient,
   }) async {
     final dir = await _cacheDir();
     final file = File('$dir/OmegaDrakon-${info.version}.apk');
     if (await file.exists()) {
-      // Download anterior interrompido — recomeça do zero (sem retomada:
-      // o hash confere o arquivo INTEIRO de qualquer forma).
+      // Cache do download em background (v1.31.0): hash confere ⇒ o APK
+      // está inteiro e igual ao anunciado — nada a baixar. Hash divergente
+      // ou ausente (download interrompido) ⇒ apaga e recomeça do zero
+      // (sem retomada: o hash confere o arquivo INTEIRO de qualquer forma).
+      if (info.sha256.isNotEmpty &&
+          await _sha256OfFile(file) == info.sha256.toLowerCase()) {
+        onProgress?.call(1.0);
+        return file;
+      }
       await file.delete();
     }
 
-    final client = http.Client();
+    final client = httpClient ?? http.Client();
     try {
       final response = await client
           .send(http.Request('GET', Uri.parse(info.apkUrl)))
@@ -255,7 +268,7 @@ class OdUpdater {
       if (error is OdApiError) rethrow;
       throw OdUpdateError('Falha ao baixar a atualização: $error');
     } finally {
-      client.close();
+      if (httpClient == null) client.close();
     }
 
     if (info.sha256.isNotEmpty) {

@@ -109,6 +109,7 @@ def _mk(tmp_path: Path, *, cfg: Optional[ConfigUpdate] = None,
         alvos: Optional[list[AlvoUpdate]] = None,
         rag: Optional[CallableRag] = None,
         fila: Optional[_FilaFake] = None,
+        push: Any = None,
         clock_value: Optional[float] = None,
         espaco: int = SEM_REDE) -> AutoUpdateService:
     """Serviço hermético: tudo em tmp_path, relógio e disco falsos."""
@@ -121,6 +122,7 @@ def _mk(tmp_path: Path, *, cfg: Optional[ConfigUpdate] = None,
         alvos_fn=(lambda: list(alvos)) if alvos is not None else None,
         rag_sync_fn=(rag.chamar if rag is not None else None),
         fila=fila,
+        push=push,
         clock=(lambda: clock_value if clock_value is not None else AGORA),
         espaco_livre_fn=lambda _p: espaco,
     )
@@ -140,6 +142,21 @@ class CallableRag:
             raise RuntimeError("store cheio")
         return {"arquivos": 3, "chunks": 9, "novos": 1,
                 "atualizados": 0, "iguais": 8, "removidos": 0}
+
+
+class _PushFake:
+    """PushService falso: registra (title, body) e pode levantar."""
+
+    def __init__(self, falhar: bool = False) -> None:
+        self.chamadas: list[tuple[str, str]] = []
+        self.falhar = falhar
+
+    def notify(self, title: str, body: str,
+               data: Optional[dict[str, str]] = None) -> dict[str, Any]:
+        if self.falhar:
+            raise RuntimeError("sem rede FCM")
+        self.chamadas.append((title, body))
+        return {"ok": True, "sent": 1, "failed": 0}
 
 
 # --- 1. Pipeline puro: camada a camada --------------------------------------
@@ -388,6 +405,42 @@ class TestExecutor:
         estado = json.loads((tmp_path / "estado.json").read_text())["alvos"]
         assert estado["modelo-x"]["versao_instalada"] == "abc123"
         assert estado["modelo-x"]["falhas"] == 0
+
+    def test_push_anuncia_aplicado_no_rag_sync(self, tmp_path: Path) -> None:
+        """TODO §3.8 (B): 'auto-update aplicado' vira notificação no celular."""
+        rag = CallableRag()
+        push = _PushFake()
+        svc = _mk(tmp_path, alvos=[_alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0,
+                                         versao_atual="", versao_nova="abc123")],
+                  rag=rag, push=push)
+        assert svc.tick()[0].acao == APLICAR
+        assert push.chamadas == [
+            ("Auto-update aplicado",
+             "Índice RAG re-sincronizado — 9 chunks (modelo-x)"),
+        ]
+
+    def test_push_anuncia_quando_o_download_conclui(self, tmp_path: Path) -> None:
+        """Evento público da fila: sucesso → aviso com alvo + versão."""
+        push = _PushFake()
+        svc = _mk(tmp_path, alvos=[_alvo()], push=push)
+        svc._pendentes["job1"] = "modelo-x"
+        svc.tratar_evento({"job": {"id": "job1", "status": "concluido"}})
+        assert push.chamadas == [
+            ("Auto-update aplicado", "modelo-x aplicado (1.0.1)"),
+        ]
+
+    def test_push_falho_nao_derruba_o_rag_sync(self, tmp_path: Path) -> None:
+        """O aviso é best-effort: push que levanta não trava o ciclo."""
+        rag = CallableRag()
+        push = _PushFake(falhar=True)
+        svc = _mk(tmp_path, alvos=[_alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0,
+                                         versao_atual="", versao_nova="abc123")],
+                  rag=rag, push=push)
+        assert svc.tick()[0].acao == APLICAR
+        assert rag.chamadas == 1          # o sync aconteceu apesar do push
+        assert push.chamadas == []        # e a falha ficou contida
+        estado = json.loads((tmp_path / "estado.json").read_text())["alvos"]
+        assert estado["modelo-x"]["versao_instalada"] == "abc123"
 
     def test_rag_sync_falha_conta_e_auto_disable_ao_limite(
             self, tmp_path: Path) -> None:

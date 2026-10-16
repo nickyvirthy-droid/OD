@@ -12,6 +12,32 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.31.0] — APP AUTO-UPDATE EM BACKGROUND + PUSH FCM DO AUTO-UPDATE (ITEM B DA FILA) (2026-10-16)
+
+> **Bump MINOR (capacidade nova):** item (B) da fila §7 — ordem do dono
+> ("faça o B agora"). O que JÁ existia: FCM de ponta a ponta desde
+> 13/09 (`3b5599c` — servidor `core/push.py` + app `push_service.dart`
+> com exibição e registro em `/push/register`) e updater v1.7.0 desde
+> 27/09 (checagem no boot, download com SHA-256, instalação via
+> FileProvider — provado nas trocas 2017→2060 no celular do dono).
+> Este fecha as duas lacunas que faltavam do TODO §3.8: (1) o
+> auto-update do SERVIDOR nunca avisava no celular e (2) o download do
+> APK só começava com toque do dono.
+
+| Peça | Entrega |
+|---|---|
+| **`core/auto_update.py`** | `_anunciar()` — notificação FCM **"Auto-update aplicado"** nos dois pontos de sucesso do ciclo: re-sync do índice RAG (com stats de chunks) e download concluído/movido (alvo + versão + destino). Best-effort: `PushService.notify` nunca levanta e o `try/except` cobre um push falso em teste — o ciclo de auto-update **não morre por causa de um aviso**; `push=None` (sem launcher) segue silencioso. |
+| **`runtime/launcher.py`** | `build_auto_update(..., push=)` — o `PushService` (construído ANTES do auto-update no boot) é injetado no serviço; call site `push=push` com comentário. |
+| **App `1.31.0+2061`** | `main.dart`: `_preDownload` — a checagem do boot dispara o download **SOZINHO em background** (banner "Baixando vX… N%"); concluído → banner "baixada — pronta para instalar" + botão **Instalar** (instala direto, sem rede). Falha de rede é silenciosa: o banner cai no botão "Atualizar" (retry pelo toque) e o próximo boot tenta de novo. `od_updater.dart`: `download()` **reusa o cache cujo SHA-256 confere** (2ª chamada = 0 requisições) e ganha `httpClient` injetável (testes — o binding do Flutter responde 400 em cliente HTTP real). |
+| **versionCode** | 2060 → **2061** (bump MINOR — o app mudou: `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site ×4, README_VERSAO, esta seção). |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte do servidor (gate oficial `--cov-fail-under=90` + `.coveragerc`) | **2971 passed / 16 skipped · cobertura 90,64%** — +3 testes em `tests/test_auto_update.py` (63 no arquivo: anúncio no re-sync RAG com stats de chunks, anúncio no download concluído via `tratar_evento` público, push que levanta não derruba o ciclo) |
+| Guardas | política de versão **1.31.0/2061** (9/9) · pyflakes sem aviso novo no que mexi (o `field` do `auto_update.py` é pré-existente no HEAD) · `node --check` do JS do painel verde |
+| App | `flutter analyze` **0 issues** · `flutter test` **179 passed / 2 skipped** (+2 do cache de download: 1ª baixa/2ª reusa `hits==1`, cache sujo rebaixado — transporte `MockClient` injetado, padrão `od_api_test`) |
+| **Prova viva no serviço** | Abaixo (pós-deploy) |
+
 ## [1.30.0] — REGISTRO DO COMPRADOR POR QR/POSSE + LOJA DO SITE (ETAPA 4 DO REGISTRO MESTRE) 🜂 (2026-10-15)
 
 > **Bump MINOR (capacidade nova):** Etapa 4 do Registro Mestre — decisão

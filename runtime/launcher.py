@@ -321,6 +321,7 @@ def build_download_queue() -> Optional[Any]:
 
 def build_auto_update(
     orchestrator: Any = None, fila: Any = None, health: Any = None,
+    push: Any = None,
 ) -> Optional[Any]:
     """Auto-update de modelos/conteúdo (Parte E do NOMAD, 2026-10-14).
 
@@ -334,6 +335,8 @@ def build_auto_update(
 
     Falha ao construir = None (o core segue sem auto-update — nunca
     derruba o processo por um extra). OD_UPDATE_ENABLED=0 desliga.
+    `push` (PushService): aviso "auto-update aplicado" no celular do
+    dono (TODO §3.8, 2026-10-16) — best-effort, nunca derruba o ciclo.
     """
     try:
         from core.auto_update import AutoUpdateService, ConfigUpdate
@@ -353,6 +356,7 @@ def build_auto_update(
             repo_root=REPO_ROOT,
             rag_sync_fn=(rag.sync if rag is not None else None),
             fila=fila,
+            push=push,
         )
         svc.start()   # consumidor dos eventos da fila (sucesso/falha)
         # Manifesto editável do dono: nasce com o exemplo (só se não existe
@@ -1631,6 +1635,7 @@ def main() -> int:
     # Auto-update de modelos/conteúdo (Parte E do NOMAD).
     auto_update = build_auto_update(
         orchestrator, fila=downloads, health=health,
+        push=push,  # aviso FCM "auto-update aplicado" (TODO §3.8)
     )
 
     async def _all() -> None:

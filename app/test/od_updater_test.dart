@@ -8,8 +8,15 @@
 /// antiga) e a comparação é DIRETA — sem normalização de offset.
 library;
 
-import 'package:flutter_test/flutter_test.dart';
+import 'dart:io';
 
+import 'package:crypto/crypto.dart' as crypto;
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+import 'package:omegadrakon/services/od_api.dart';
 import 'package:omegadrakon/services/od_updater.dart';
 
 OdUpdateInfo _info({
@@ -122,6 +129,72 @@ void main() {
     test('servidor inacessível: mensagem de falha honesta', () {
       final msg = odUpdateStatusMessage(null, localVersion: '1.23.1');
       expect(msg, contains('Não consegui verificar'));
+    });
+  });
+
+  // Item B (v1.31.0): download em background — o APK conferido no boot é
+  // reusado SEM nova requisição; cache sujo (hash divergente) é rebaixado.
+  // Transporte injetado (MockClient, padrão od_api_test): com o binding do
+  // Flutter ativo todo cliente HTTP real responde 400.
+  group('download — cache do download em background (v1.31.0)', () {
+    const canal = MethodChannel('com.omegadrakon.nicky/updater');
+    late Directory cache;
+    late List<int> bytes;
+    late String sha;
+    var hits = 0;
+    late MockClient origem;
+
+    setUp(() async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      bytes = List<int>.generate(4096, (i) => i % 251);
+      sha = crypto.sha256.convert(bytes).toString();
+      hits = 0;
+      origem = MockClient((_) async {
+        hits++;
+        return http.Response.bytes(bytes, 200);
+      });
+      cache = await Directory.systemTemp.createTemp('od_updater_cache');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(canal, (call) async {
+        if (call.method == 'cacheDir') return cache.path;
+        return null;
+      });
+    });
+
+    tearDown(() async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(canal, null);
+      await cache.delete(recursive: true);
+    });
+
+    OdUpdateInfo anuncio(int code) => OdUpdateInfo(
+          version: '1.31.0',
+          versionCode: code,
+          localVersionCode: 2060,
+          apkUrl: 'http://127.0.0.1:9/OmegaDrakon.apk',
+          size: bytes.length,
+          sha256: sha,
+        );
+
+    test('1ª chamada baixa; a 2ª reusa o cache (hits fica em 1)', () async {
+      final updater = OdUpdater(api: OdApi(baseUrl: 'http://127.0.0.1:1'));
+      final apk = await updater.download(anuncio(2061), httpClient: origem);
+      expect(await apk.exists(), isTrue);
+      expect(await apk.length(), bytes.length);
+      expect(hits, 1);
+
+      final deNovo = await updater.download(anuncio(2061), httpClient: origem);
+      expect(hits, 1); // nenhuma requisição nova — cache conferido
+      expect(deNovo.path, apk.path);
+    });
+
+    test('hash divergente: apaga o cache sujo e baixa de novo', () async {
+      final updater = OdUpdater(api: OdApi(baseUrl: 'http://127.0.0.1:1'));
+      final sujo = File('${cache.path}/OmegaDrakon-1.31.0.apk');
+      await sujo.writeAsBytes([1, 2, 3]);
+      final apk = await updater.download(anuncio(2061), httpClient: origem);
+      expect(hits, 1);
+      expect(await apk.length(), bytes.length);
     });
   });
 }
