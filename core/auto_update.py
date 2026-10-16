@@ -401,6 +401,55 @@ def _avaliar_um(
     return d
 
 
+# --- Métricas ----------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class MetricasAutoUpdate:
+    """Contadores do ciclo de auto-update (TODO §3.2 — Prometheus).
+
+    Contam **desde o boot** (em memória): contador Prometheus zerar no
+    restart é o esperado — `rate()`/`increase()` compensam. A verdade
+    sobre cada ALVO continua sendo o estado persistido (falhas, versão
+    instalada, auto-disable); aqui se mede o TRABALHO do processo.
+
+    Só falha DURA entra em `falhas` (severidade do Nômade): o contrato
+    `_registrar_falha(dura=False)` existe para um erro transitório que não
+    deve contar para o auto-disable, mas hoje NENHUM caminho o usa — por
+    isso não há um `skip_total` no /metrics (métrica que nunca sai de
+    zero só confunde quem lê o painel).
+    """
+
+    ticks: int = 0              # ciclos completos (executam e persistem)
+    ticks_dry_run: int = 0      # avaliações sem execução (CI/botão do painel)
+    decisao_aplicar: int = 0    # o que o ciclo DECIDIU (antes de executar)
+    decisao_aguardar: int = 0
+    decisao_pular: int = 0
+    aplicados: int = 0          # o que CONCLUIU com sucesso (rag_sync/mover)
+    falhas: int = 0             # falhas DURAS (contam p/ auto-disable)
+    auto_desligados: int = 0    # alvos auto-desligados por N falhas duras
+    rag_syncs: int = 0          # índices RAG re-sincronizados
+    downloads: int = 0          # downloads NOVOS enfileirados (Parte D)
+    dedups: int = 0             # enqueue que a fila já tinha (não é falha)
+    erros: int = 0              # exceções internas contidas pelo serviço
+
+    def snapshot(self) -> dict[str, int]:
+        return {
+            "ticks": self.ticks,
+            "ticks_dry_run": self.ticks_dry_run,
+            "decisao_aplicar": self.decisao_aplicar,
+            "decisao_aguardar": self.decisao_aguardar,
+            "decisao_pular": self.decisao_pular,
+            "aplicados": self.aplicados,
+            "falhas": self.falhas,
+            "auto_desligados": self.auto_desligados,
+            "rag_syncs": self.rag_syncs,
+            "downloads": self.downloads,
+            "dedups": self.dedups,
+            "erros": self.erros,
+        }
+
+
 # --- Executor --------------------------------------------------------------
 
 
@@ -450,6 +499,8 @@ class AutoUpdateService:
         self._parar = threading.Event()
         self.ultimas_decisoes: list[dict[str, Any]] = []
         self.ultimo_tick: Optional[float] = None
+        # Métricas Prometheus (TODO §3.2): contadores do processo.
+        self.metricas = MetricasAutoUpdate()
 
     # -- Estado -------------------------------------------------------------
 
@@ -586,6 +637,16 @@ class AutoUpdateService:
                         self._aplicar(alvo, estado, agora)
                 self.gravar_estado(estado)
             self.ultimo_tick = agora
+            self.metricas.ticks += 1
+        else:
+            self.metricas.ticks_dry_run += 1
+        for decisao in decisoes:
+            if decisao.acao == APLICAR:
+                self.metricas.decisao_aplicar += 1
+            elif decisao.acao == AGUARDAR:
+                self.metricas.decisao_aguardar += 1
+            else:
+                self.metricas.decisao_pular += 1
 
         self.ultimas_decisoes = [d.para_dict() for d in decisoes]
         aplicados = [d.alvo for d in decisoes if d.acao == APLICAR]
@@ -628,6 +689,8 @@ class AutoUpdateService:
         est.falhas = 0
         est.ultimo_erro = ""
         est.ultima_sucesso = agora
+        self.metricas.rag_syncs += 1
+        self.metricas.aplicados += 1
         log.info("Índice RAG re-sincronizado (auto-update)", alvo=alvo.id,
                  arquivos=stats.get("arquivos", 0),
                  chunks=stats.get("chunks", 0),
@@ -656,10 +719,12 @@ class AutoUpdateService:
             return
         if not criado:
             # Dedup: já há um download ativo da mesma URL — não é falha.
+            self.metricas.dedups += 1
             log.info("Auto-update: download já em andamento (dedup)",
                      alvo=alvo.id, job=job.id)
             self._pendentes[job.id] = alvo.id
             return
+        self.metricas.downloads += 1
         self._pendentes[job.id] = alvo.id
         log.info("Auto-update enfileirou download", alvo=alvo.id,
                  job=job.id, bytes=alvo.bytes_estimados)
@@ -713,6 +778,7 @@ class AutoUpdateService:
             est.ultimo_erro = ""
             est.ultima_sucesso = agora
             self.gravar_estado(estado)
+            self.metricas.aplicados += 1
         log.info("Auto-update: download concluído e verificado",
                  alvo=alvo_id, job=job_id)
         destino = (f" → {alvo.mover_para}"
@@ -777,10 +843,12 @@ class AutoUpdateService:
                      alvo=est.id, motivo=est.ultimo_erro)
             return
         est.falhas += 1
+        self.metricas.falhas += 1
         log.warn("Auto-update: falha", alvo=est.id, falhas=est.falhas,
                  motivo=est.ultimo_erro)
         if est.falhas >= self.cfg.max_falhas and not est.desabilitado:
             est.desabilitado = True
+            self.metricas.auto_desligados += 1
             est.motivo_desabilitado = _curto(
                 f"{est.falhas} falhas seguidas: {est.ultimo_erro}"
             )
@@ -811,6 +879,7 @@ class AutoUpdateService:
                 try:
                     self.tratar_evento(pacote)
                 except Exception as exc:  # um evento não derruba o loop
+                    self.metricas.erros += 1
                     log.warn("Auto-update: evento ignorado", error=_curto(exc))
 
         self._consumidor = threading.Thread(
@@ -854,6 +923,63 @@ class AutoUpdateService:
             "ultimas_decisoes": self.ultimas_decisoes,
             "ultimo_tick": self.ultimo_tick,
         }
+
+    def prometheus_lines(self) -> list[str]:
+        """Linhas do `/metrics` (Prometheus text format) do auto-update.
+
+        TODO §3.2 pediu `auto_update_tick_total`, `auto_update_aplicado_total`
+        e `auto_update_falha_total`; o nome exposto leva o prefixo `od_`
+        porque TODO métrica do MetricsCollector o leva
+        (`od_processed_total`, `od_audit_total`, `od_api_requests_total`) —
+        `od_auto_update_tick_total` é o mesmo número que foi pedido.
+
+        Contadores: desde o BOOT (zeram no restart, como manda o
+        Prometheus). Gauges: do estado PERSISTIDO, que sobrevive a
+        restart — `alvo`, `alvo_desabilitado`, `download_pendente` e a
+        idade do último ciclo. Sem `ultimo_tick` ainda (nunca rodou), a
+        série de idade simplesmente não é emitida (não inventamos zero:
+        zero significaria "rodou agora").
+
+        Nunca levanta: o render do coletor já isola uma fonte quebrada,
+        mas aqui a leitura de estado ilegível devolve só os contadores.
+        """
+        m = self.metricas.snapshot()
+        linhas = [
+            "# TYPE od_auto_update_tick_total counter",
+            f"od_auto_update_tick_total {m['ticks']}",
+            f"od_auto_update_dry_run_total {m['ticks_dry_run']}",
+            f"od_auto_update_aplicado_total {m['aplicados']}",
+            f"od_auto_update_falha_total {m['falhas']}",
+            f"od_auto_update_auto_desligado_total {m['auto_desligados']}",
+            f"od_auto_update_rag_sync_total {m['rag_syncs']}",
+            f"od_auto_update_download_total {m['downloads']}",
+            f"od_auto_update_download_dedup_total {m['dedups']}",
+            f"od_auto_update_erro_total {m['erros']}",
+            "# TYPE od_auto_update_decisao_total counter",
+        ]
+        for decisao in ("aplicar", "aguardar", "pular"):
+            linhas.append(
+                f'od_auto_update_decisao_total{{decisao="{decisao}"}}'
+                f" {m['decisao_' + decisao]}"
+            )
+        try:
+            resumo = self.estado_resumo()
+        except Exception as exc:  # estado ilegível: contadores ainda valem
+            log.warn("Auto-update: resumo indisponível no /metrics",
+                     error=_curto(exc))
+            return linhas
+        linhas += [
+            "# TYPE od_auto_update_alvo gauge",
+            f"od_auto_update_alvo {len(resumo['alvos'])}",
+            f"od_auto_update_alvo_desabilitado {len(resumo['desabilitados'])}",
+            f"od_auto_update_download_pendente {len(resumo['pendentes'])}",
+        ]
+        if self.ultimo_tick is not None:
+            idade = max(0.0, self._clock() - self.ultimo_tick)
+            linhas.append(
+                f"od_auto_update_ultimo_tick_segundos {round(idade, 3)}"
+            )
+        return linhas
 
     def health_check(self, _monitor: Any = None) -> dict[str, Any]:
         """Check do HealthMonitor (não-crítico): só o essencial.

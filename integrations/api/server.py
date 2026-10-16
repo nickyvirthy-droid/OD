@@ -1031,6 +1031,7 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       <tbody id="au-alvos"><tr><td colspan="7" class="muted">Carregando…</td></tr></tbody>
     </table>
     <pre id="au-decisoes" class="muted" style="font-size:0.72rem;margin-top:8px;display:none"></pre>
+    <div class="muted" id="au-metricas" style="font-size:0.75rem;margin-top:8px"></div>
     <p class="muted" style="font-size:0.75rem;margin-top:6px">
       Alvos de arquivo entram pelo manifesto <code>data/auto_update_alvos.json</code>
       (url + sha256 + versão de destino — edite e salve, o ciclo pega na
@@ -1946,6 +1947,17 @@ function auQuando(ts) {
 
 function auRender() {
   const cfg = auEstado.config || {};
+  // Contadores do processo (TODO §3.2): os mesmos od_auto_update_* do
+  // /metrics — aqui sem precisar de um Prometheus apontado.
+  const mm = auEstado.metricas || {};
+  const alvo = document.getElementById("au-metricas");
+  if (alvo) alvo.innerHTML = "ciclos <b>" + (mm.ticks || 0) + "</b>" +
+    " (+ " + (mm.ticks_dry_run || 0) + " dry-run) · aplicados <b>" +
+    (mm.aplicados || 0) + "</b> · falhas <b>" + (mm.falhas || 0) + "</b>" +
+    " · auto-desligados <b>" +
+    (mm.auto_desligados || 0) + "</b> · baixados <b>" + (mm.downloads || 0) +
+    "</b> · desde o boot; soma-se no <code>/metrics</code> " +
+    "(<code>od_auto_update_*</code>)";
   document.getElementById("au-config").innerHTML =
     "janela <b>" + esc(cfg.janela || "—") + "</b> · cool-off " +
     esc(cfg.cooloff_h != null ? cfg.cooloff_h + "h" : "—") +
@@ -4224,6 +4236,10 @@ class APIHandler(BaseHTTPRequestHandler):
                 "desabilitados": len(estado["desabilitados"]),
                 "pendentes": len(estado["pendentes"]),
                 "ultimo_tick": estado["ultimo_tick"],
+                # Contadores do processo (TODO §3.2): os MESMOS números
+                # que o /metrics expõe (od_auto_update_*) — o dono vê no
+                # Status sem precisar de um Prometheus apontado.
+                "metricas": auto_update.metricas.snapshot(),
             }
         # Supply Depot (Parte F): o dono vê do Status quantas ferramentas
         # estão no catálogo, quantas com histórico (rollback disponível) e
@@ -5289,7 +5305,8 @@ class APIHandler(BaseHTTPRequestHandler):
         """
         self._require_admin()
         svc = self._auto_update_or_503()
-        self._json(200, {"ok": True, **svc.estado_resumo()})
+        self._json(200, {"ok": True, "metricas": svc.metricas.snapshot(),
+                         **svc.estado_resumo()})
 
     def admin_auto_update_dry_run(self) -> None:
         """POST /admin/auto-update/dry-run — avalia sem executar (CI/painel).
@@ -5304,6 +5321,7 @@ class APIHandler(BaseHTTPRequestHandler):
         decisoes = svc.tick(dry_run=True)
         self._json(200, {"ok": True, "dry_run": True,
                          "decisoes": [d.para_dict() for d in decisoes],
+                         "metricas": svc.metricas.snapshot(),
                          **svc.estado_resumo()})
 
     def admin_auto_update_reset(self) -> None:

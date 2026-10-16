@@ -807,6 +807,166 @@ class TestIntegracaoFilaReal:
             fila.stop()
 
 
+# --- 4b. Métricas Prometheus (TODO §3.2) --------------------------------------
+
+
+class TestMetricasPrometheus:
+    """`od_auto_update_*` no /metrics — contadores contados onde acontecem."""
+
+    def test_tick_conta_ciclo_e_decisao(self, tmp_path: Path) -> None:
+        rag = CallableRag()
+        svc = _mk(tmp_path, alvos=[_alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0,
+                                         versao_atual="", versao_nova="abc123")],
+                  rag=rag)
+        assert svc.tick()[0].acao == APLICAR
+        m = svc.metricas.snapshot()
+        assert m["ticks"] == 1 and m["ticks_dry_run"] == 0
+        assert m["decisao_aplicar"] == 1
+        assert m["aplicados"] == 1 and m["rag_syncs"] == 1
+        assert m["falhas"] == 0 and m["auto_desligados"] == 0
+
+    def test_dry_run_conta_separado_e_nao_aplica(self, tmp_path: Path) -> None:
+        rag = CallableRag()
+        svc = _mk(tmp_path, alvos=[_alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0,
+                                         versao_atual="", versao_nova="abc123")],
+                  rag=rag)
+        svc.tick(dry_run=True)
+        m = svc.metricas.snapshot()
+        assert m["ticks"] == 0 and m["ticks_dry_run"] == 1
+        assert m["decisao_aplicar"] == 1   # decidiu…
+        assert m["aplicados"] == 0         # …mas nada executou
+        assert rag.chamadas == 0
+
+    def test_falha_dura_conta_e_auto_disable_uma_vez(
+            self, tmp_path: Path) -> None:
+        rag = CallableRag(falhar=True)
+        cfg = ConfigUpdate(max_falhas=1, cooloff_s=0.0, intervalo_s=0.0)
+        svc = _mk(tmp_path, cfg=cfg, rag=rag, alvos=[
+            _alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0, versao_nova="abc")])
+        svc.tick()   # falha dura → desliga
+        svc.tick()   # desabilitado → pular
+        m = svc.metricas.snapshot()
+        assert m["falhas"] == 1
+        assert m["auto_desligados"] == 1   # a TRANSIÇÃO conta uma vez
+        assert m["decisao_pular"] == 1
+        assert m["aplicados"] == 0
+        assert m["ticks"] == 2             # ciclo ruim ainda é ciclo
+        assert "od_auto_update_alvo_desabilitado 1" in svc.prometheus_lines()
+
+    def test_decisao_aguardar_do_cooloff_entra_no_contador(
+            self, tmp_path: Path) -> None:
+        svc = _mk(tmp_path, alvos=[_alvo(cooloff_s=3600.0, versao_atual="",
+                                         versao_nova="1.0.0")])
+        assert svc.tick()[0].acao == AGUARDAR
+        m = svc.metricas.snapshot()
+        assert m["decisao_aguardar"] == 1 and m["decisao_pular"] == 0
+        assert 'od_auto_update_decisao_total{decisao="aguardar"} 1' \
+            in svc.prometheus_lines()
+
+    def test_download_novo_e_dedup_contam_separado(self, tmp_path: Path) -> None:
+        fila = _FilaFake()
+        svc = _mk(tmp_path, alvos=[_alvo(cooloff_s=0.0, versao_atual="",
+                                         versao_nova="1.0.0")], fila=fila)
+        svc.tick()
+        svc.tick()   # mesmo alvo: a fila já tem o job ativo → dedup
+        m = svc.metricas.snapshot()
+        assert m["downloads"] == 1 and m["dedups"] == 1
+        assert len(fila.enfileirados) == 1
+        assert m["aplicados"] == 0     # enfileirar não é aplicar
+
+    def test_download_concluido_conta_aplicado(self, tmp_path: Path) -> None:
+        svc = _mk(tmp_path, alvos=[_alvo()])
+        svc._pendentes["job1"] = "modelo-x"
+        svc.tratar_evento({"job": {"id": "job1", "status": "concluido"}})
+        assert svc.metricas.aplicados == 1
+        assert "od_auto_update_aplicado_total 1" in svc.prometheus_lines()
+
+    def test_evento_torto_conta_erro_e_nao_mata_o_consumidor(
+            self, tmp_path: Path, monkeypatch: Any) -> None:
+        fila = _FilaFake()
+        svc = _mk(tmp_path, alvos=[_alvo()], fila=fila)
+
+        def _boom(_pacote: dict[str, Any]) -> None:
+            raise RuntimeError("evento torto")
+
+        monkeypatch.setattr(svc, "tratar_evento", _boom)
+        svc.start()
+        try:
+            fila.emitir({"job": {"id": "dl-0001", "status": "concluido"}})
+            _esperar(lambda: svc.metricas.erros == 1)
+        finally:
+            svc.stop()
+        assert "od_auto_update_erro_total 1" in svc.prometheus_lines()
+
+    def test_prometheus_lines_formato_e_idade_do_ciclo(
+            self, tmp_path: Path) -> None:
+        svc = _mk(tmp_path, alvos=[_alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0,
+                                         versao_nova="abc")], rag=CallableRag())
+        linhas = svc.prometheus_lines()
+        texto = "\n".join(linhas)
+        assert "# TYPE od_auto_update_tick_total counter" in linhas
+        assert "od_auto_update_tick_total 0" in linhas
+        assert 'od_auto_update_decisao_total{decisao="aplicar"} 0' in linhas
+        assert "od_auto_update_aplicado_total 0" in linhas
+        assert "od_auto_update_falha_total 0" in linhas
+        assert "od_auto_update_alvo 1" in linhas
+        assert "od_auto_update_download_pendente 0" in linhas
+        # nunca rodou: a idade NÃO é inventada como zero
+        assert "od_auto_update_ultimo_tick_segundos" not in texto
+
+        svc.tick()
+        linhas = svc.prometheus_lines()
+        assert "od_auto_update_tick_total 1" in linhas
+        assert "od_auto_update_aplicado_total 1" in linhas
+        assert "od_auto_update_rag_sync_total 1" in linhas
+        assert 'od_auto_update_decisao_total{decisao="aplicar"} 1' in linhas
+        assert "od_auto_update_ultimo_tick_segundos 0.0" in linhas
+
+    def test_prometheus_lines_estado_ilegivel_ainda_expoe_contadores(
+            self, tmp_path: Path, monkeypatch: Any) -> None:
+        svc = _mk(tmp_path, alvos=[])
+
+        def _quebrado() -> dict[str, Any]:
+            raise OSError("estado ilegível")
+
+        monkeypatch.setattr(svc, "estado_resumo", _quebrado)
+        linhas = svc.prometheus_lines()   # não levanta
+        assert "od_auto_update_tick_total 0" in linhas
+        assert not any(l.startswith("od_auto_update_alvo") for l in linhas)
+
+    def test_serve_de_fonte_viva_no_metrics_collector(self, tmp_path: Path) -> None:
+        """O contrato do /metrics: add_source(serviço.prometheus_lines)."""
+        from observability.metrics import MetricsCollector
+
+        svc = _mk(tmp_path, alvos=[_alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0,
+                                         versao_nova="abc")], rag=CallableRag())
+        coletor = MetricsCollector()
+        coletor.counter("od_api_requests_total", "Requisições.")
+        coletor.add_source(svc.prometheus_lines)
+        svc.tick()
+        texto = coletor.render()
+        assert "# TYPE od_auto_update_tick_total counter" in texto
+        assert "od_auto_update_tick_total 1" in texto
+        assert "od_auto_update_aplicado_total 1" in texto
+        assert "# TYPE od_api_requests_total counter" in texto
+        assert coletor.health()["errors"] == 0
+
+    def test_ligacao_no_launcher_e_best_effort(self, tmp_path: Path) -> None:
+        """A fiação do boot (build_metrics → add_source) é testada aqui."""
+        from observability.metrics import MetricsCollector
+        from runtime.launcher import ligar_metricas_auto_update
+
+        coletor = MetricsCollector()
+        svc = _mk(tmp_path, alvos=[_alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0,
+                                         versao_nova="abc")], rag=CallableRag())
+        assert ligar_metricas_auto_update(coletor, svc) is True
+        svc.tick()
+        assert "od_auto_update_tick_total 1" in coletor.render()
+        # desligado (OD_AUTO_UPDATE=0) ou sem coletor: boot segue igual
+        assert ligar_metricas_auto_update(coletor, None) is False
+        assert ligar_metricas_auto_update(None, svc) is False
+
+
 # --- 5. Rotas da API (painel + admin) ----------------------------------------
 
 
@@ -898,6 +1058,8 @@ class TestAutoUpdateRotas:
         assert data["alvos"][0]["id"] == "modelo-x"
         assert data["estado"][0]["versao_instalada"] == ""
         assert data["desabilitados"] == [] and data["pendentes"] == []
+        assert data["metricas"]["ticks"] == 0
+        assert data["metricas"]["aplicados"] == 0
 
     def test_dry_run_mostra_aplicar_sem_executar(self, srv_auto) -> None:
         servidor, _, rag = srv_auto
@@ -911,6 +1073,10 @@ class TestAutoUpdateRotas:
         assert "atualizacao_disponivel" in data["decisoes"][0]["motivo"]
         assert rag.chamadas == 0                    # não executou nada
         assert _estado_ausente(servidor)            # não persistiu estado
+        # o dry-run é contado como dry-run (nunca como ciclo real)
+        assert data["metricas"]["ticks_dry_run"] == 1
+        assert data["metricas"]["ticks"] == 0
+        assert data["metricas"]["aplicados"] == 0
 
     def test_reset_valida_alvo(self, srv_auto) -> None:
         servidor, svc, _ = srv_auto
@@ -949,6 +1115,10 @@ class TestAutoUpdateRotas:
         assert au["alvos"] == 1 and au["desabilitados"] == 0
         assert au["config"]["janela"] == "02:00-06:00"
         assert au["ultimo_tick"] == AGORA
+        # os MESMOS números do /metrics (od_auto_update_*) no Status
+        assert au["metricas"]["ticks"] == 1
+        assert au["metricas"]["aplicados"] == 1
+        assert au["metricas"]["rag_syncs"] == 1
 
     def test_painel_traz_a_secao(self, srv_auto) -> None:
         servidor, _, _ = srv_auto
@@ -959,6 +1129,7 @@ class TestAutoUpdateRotas:
         assert "Auto-update (modelos/conteúdo)" in html
         assert "auDry" in html and "/admin/auto-update/dry-run" in html
         assert "data/auto_update_alvos.json" in html
+        assert 'id="au-metricas"' in html and "od_auto_update_" in html
 
 
 def _estado_ausente(servidor: Any) -> bool:

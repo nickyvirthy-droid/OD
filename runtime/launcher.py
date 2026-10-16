@@ -991,6 +991,27 @@ def register_nomad_health_checks(health: Any) -> Any:
     return monitor
 
 
+def ligar_metricas_auto_update(metrics: Any, auto_update: Any) -> bool:
+    """Põe o auto-update como fonte viva do coletor (TODO §3.2).
+
+    O `/metrics` passa a expor os contadores do ciclo
+    (`od_auto_update_tick_total`, `..._aplicado_total`, `..._falha_total`
+    e os demais) sem abrir o painel. A ligação é **tardia** de propósito:
+    o coletor nasce em `build_metrics` (o `/health` depende dele) e o
+    serviço de auto-update só existe depois. Best-effort: sem coletor ou
+    sem serviço (desligado por env), o boot segue igual e devolve False.
+    """
+    if metrics is None or auto_update is None:
+        return False
+    try:
+        metrics.add_source(auto_update.prometheus_lines)
+    except Exception as exc:  # pragma: no cover — coletor exótico
+        log.warn("Métricas do auto-update não ligadas", error=str(exc))
+        return False
+    log.info("Métricas do auto-update no /metrics (TODO §3.2)")
+    return True
+
+
 def build_metrics(orchestrator: Any = None, audit: Any = None) -> Any:
     """Metrics Collector real (Fase 7.2): fontes vivas do od-core.
 
@@ -1705,6 +1726,10 @@ def main() -> int:
         orchestrator, fila=downloads, health=health,
         push=push,  # aviso FCM "auto-update aplicado" (TODO §3.8)
     )
+    # Métricas Prometheus do auto-update (TODO §3.2): o serviço entra como
+    # fonte viva do coletor DEPOIS de montado (o coletor existe antes
+    # dele — build_metrics roda cedo, o health depende dele).
+    ligar_metricas_auto_update(metrics, auto_update)
     # Backups automáticos (TODO §3.6): perfil do estado (diário, 03:00) e
     # perfil das capturas (semanal, 04:00) — cada um com check não-crítico
     # próprio no /health.
