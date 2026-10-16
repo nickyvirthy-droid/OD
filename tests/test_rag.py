@@ -194,11 +194,11 @@ class TestChunkizar:
 
 
 class TestFontesEModelo:
-    def test_fontes_padrao_cobre_docs_e_knowledge(self):
+    def test_fontes_padrao_cobre_docs_knowledge_e_iniciar(self):
         fontes = fontes_padrao(REPO)
         assert fontes, "corpus padrão vazio"
         alvos = {f.caminho.parts[-2] for f in fontes}
-        assert {"docs", "knowledge"} <= alvos
+        assert {"docs", "knowledge", "iniciar"} <= alvos
         assert all(f.caminho.suffix == ".md" for f in fontes)
         assert all(f.visibilidade == "interna" for f in fontes)
 
@@ -593,9 +593,18 @@ def rag_real(tmp_path_factory) -> RAGPipeline:
 
 
 class TestCalibracaoCorpusReal:
-    """Regra medida em 2026-10-14: 8/8 relevantes passam, 8/8
-    irrelevantes bloqueados. Falhou = o corpus ou a fórmula mudou →
-    recalibrar com medição, nunca afrouxar no escuro."""
+    """Regra medida em 2026-10-14 (recalibrada 2026-10-16): 8/8
+    relevantes passam, 8/8 irrelevantes bloqueados. Falhou = o corpus ou
+    a fórmula mudou → recalibrar com medição, nunca afrouxar no escuro.
+
+    Recalibração 2026-10-16 (medição, não afrouxamento): o corpus ganhou
+    `iniciar/*.md` (memória histórica) e o grid (ms 0.380..0.420 ×
+    mo 0.000..0.060, passo 0.001) achou 780 células válidas — este gate
+    8/8 + 8/8 COM 6/8 de parafrases (TestRecallParafrases) —; o centro
+    medido é (0.399, 0.036). Fronteira: irrelevante "previsão do tempo"
+    comb 0.3929 vs REL "projeto nômade" 0.4057 → margem ±0.006 no
+    PISO_SCORE; as irr. de ov 0.000 (bolo, marte) caem no PISO_OVERLAP.
+    """
 
     @pytest.mark.parametrize("pergunta", RELEVANTES)
     def test_relevante_passa_pelo_floor(self, rag_real, pergunta):
@@ -616,6 +625,41 @@ class TestCalibracaoCorpusReal:
 
     def test_corpus_tem_massa_suficiente(self, rag_real):
         assert rag_real.dump()["docs"] >= 100
+
+
+# ===========================================================================
+# Recall de parafrases — a segunda metade do gate, medida em 2026-10-16
+# ===========================================================================
+
+PARAFRASES_PASSAM = [
+    "do que trata o material do time nômade que a gente estudou",
+    "quais passos sigo pra publicar uma versão nova do aplicativo",
+    "como funciona o cadastro das peças artesanais que têm dono",
+    "que programas rodam em contêiner aqui no servidor",
+    "como vocês testam as respostas antes de liberar",
+    "as cores e o estilo gráfico da marca",
+]
+
+
+class TestRecallParafrases:
+    """Perguntas naturais sem termo raro em comum com a resposta.
+
+    Medido em 2026-10-16 no corpus real: no floor antigo (0.36/0.22) com
+    o corpus expandido só 1/8 passava; no floor recalibrado (0.399/0.036)
+    estas 6/8 passam E o gate de calibração continua 8/8 + 8/8. As 2
+    perdidas são ESTRUTURAIS (provado por medição): "combinado pra
+    trabalhar" tem comb 0.3922 contra 0.3929 da irrelevante "previsão do
+    tempo" — Δ0,0007, nenhum PISO_SCORE as separa — e "robô confere" fica
+    em 0.3682 (abaixo de qualquer piso que segure a irrelevante).
+    """
+
+    @pytest.mark.parametrize("pergunta", PARAFRASES_PASSAM)
+    def test_parafrase_passa_pelo_floor(self, rag_real, pergunta):
+        r = rag_real.consult(pergunta, papel="admin")
+        assert r.trechos, (
+            f"parafrase sem trecho: {pergunta!r} "
+            f"(floor={r.descartados_floor}, candidatos={r.candidatos})"
+        )
 
 
 # ===========================================================================

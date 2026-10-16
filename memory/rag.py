@@ -168,8 +168,13 @@ def janela_do_modelo(nome: str) -> int:
 
 PESO_COSSENO = 0.8
 PESO_OVERLAP = 0.2
-PISO_SCORE = 0.36        # score combinado mínimo (medido: 8/8 rel. passam)
-PISO_OVERLAP = 0.22      # overlap-IDF mínimo (sem termo raro = não injeta)
+# Recalibração medida em 2026-10-16 (corpus com iniciar/*.md — ver
+# TestCalibracaoCorpusReal/TestRecallParafrases): grid ms [0.393..0.405] ×
+# mo [0.001..0.071] mantém 8/8 rel. + 8/8 irr. bloqueadas e sobe o recall
+# de parafrases de 1/8 (floor velho) para 6/8. Centro medido:
+PISO_SCORE = 0.399       # score combinado mínimo (comb de 8/8 rel. ≥ este)
+PISO_OVERLAP = 0.036     # overlap-IDF mínimo (ov=0 nunca injeta; teto 0.071:
+                         # acima disso a parafrase "contêiner" cai)
 # oversample: o reranker reordena depois do floor. Era 12; a prova de fogo
 # no serviço (2026-10-14) mostrou o chunk certo do doc na posição 15 da
 # busca — fora do pool — com 0 trechos no prompt. 24 cobre o alvo medido.
@@ -286,9 +291,15 @@ class Fonte:
 
 
 def fontes_padrao(raiz: Path) -> list[Fonte]:
-    """Corpus padrão: docs/*.md + knowledge/*.md (todo interno)."""
+    """Corpus padrão: docs/*.md + knowledge/*.md + iniciar/*.md (interna).
+
+    `iniciar/` é a memória histórica (transcrições das sessões + RULES) —
+    é onde vivem as formulações naturais das perguntas do dono. Medição
+    2026-10-16: com ela o recall de parafrases no floor recalibrado sobe
+    de 1/8 para 6/8 (gate de calibração continua 8/8 + 8/8).
+    """
     fontes: list[Fonte] = []
-    for pasta in ("docs", "knowledge"):
+    for pasta in ("docs", "knowledge", "iniciar"):
         alvo = raiz / pasta
         if not alvo.is_dir():
             continue

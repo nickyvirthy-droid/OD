@@ -874,20 +874,23 @@ def hash_conteudo(raiz: Path, pastas: tuple[str, ...] = ("docs", "knowledge"),
 
 
 def _alvos_rag(repo_root: Path, tem_rag: bool) -> list[AlvoUpdate]:
-    """Alvo `indice-rag`: resync quando docs/ ou knowledge/ mudam.
+    """Alvo `indice-rag`: resync quando docs/, knowledge/ ou iniciar/ mudam.
 
     Conteúdo LOCAL — cool-off zero (não há upstream para se proteger; o
     sync é idempotente e o VectorStore tem lock). Sem RAG no runtime o
-    alvo nem entra (sem o quê sincronizar).
+    alvo nem entra (sem o quê sincronizar). `iniciar/*.md` entrou na
+    recalibração de 2026-10-16 (memória histórica no corpus).
     """
     if not tem_rag:
         return []
     return [AlvoUpdate(
         id="indice-rag",
-        nome="Índice RAG (docs/ + knowledge/)",
+        nome="Índice RAG (docs/ + knowledge/ + iniciar/)",
         categoria="conteudo",
         acao=ACAO_RAG_SYNC,
-        versao_nova=hash_conteudo(repo_root),
+        versao_nova=hash_conteudo(
+            repo_root, ("docs", "knowledge", "iniciar")
+        ),
         cooloff_s=0.0,
     )]
 
