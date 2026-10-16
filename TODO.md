@@ -36,9 +36,13 @@
 | **LoRa** | ❄️ GELADEIRA | Aguarda hardware/necessidade real |
 | **Kolibri, Jellyfin, Excalidraw, benchmark/leaderboard** | ❌ DESCARTADOS de vez | Confirmado no dono (12/10) |
 
-> **Conclusão:** o stack **já está completo e no ar** (9 serviços). Próximos passos
-> da própria DECISÃO FINAL: integrar healthchecks dos tools no `/health` do OD e
-> (opcional) a página ProtoMaps.
+> **Conclusão:** o stack **já está completo e no ar** (9 serviços) e
+> **monitorado pelo od-core** (15/10, ~21:15): as 9 entram no `/health`
+> (`tool_kiwix` … `tool_vaultwarden`, não-críticas) e uma ferramenta
+> fora por 120s+ vira **alerta no Telegram** — o que faltava do "próximo
+> passo" da própria DECISÃO FINAL. Sobra só a página **ProtoMaps**
+> (dev task, opcional — quando o dono quiser mapa próprio). LoRa segue
+> na geladeira.
 
 ---
 
@@ -153,15 +157,17 @@
 
 | Candidato | Esforço | Dependência | Observação |
 |---|---|---|---|
-| **DECISÃO FINAL (12/10) — 8 containers + ProtoMaps** | Alto (infra + secrets + saúde) | ✅ Vaultwarden resolvido 15/10 | Falta healthchecks no `/health` + ProtoMaps (dev task) — fecha a "virada da análise original" |
+| **DECISÃO FINAL (12/10) — healthchecks** | ~~Alto~~ ✅ | Concluído 15/10 ~21:15 | As 9 no `/health` + alerta Telegram (sem bump, 2914/16). Sobra ProtoMaps (dev task, opcional) |
 | **Registro Mestre — Etapa 4** | Médio | — | Comprador/QR/loja brinquedos |
 | **Melhorar RAG (embedding + corpus externo)** | Médio | — | Recall conservador hoje |
 | **Observabilidade / Alertas Telegram** | Baixo | — | Ganho operacional imediato |
 | **App auto-update + FCM** | Médio | — | UX do dono no celular |
 
-> **Sugestão:** continuar pela **DECISÃO FINAL** — stack já no ar e Vaultwarden resolvido; falta integrar healthchecks no `/health` do OD e (quando quiser) a página ProtoMaps. LoRa fica na geladeira.
+> **Sugestão:** DECISÃO FINAL (healthchecks) **foi a escolhida e está
+> concluída** (15/10). Próximo da fila: **Registro Mestre — Etapa 4**
+> (comprador/QR/loja) ou **melhorar o RAG** — ordem do dono.
 
 ---
 
-**Atualizado em:** 2026-10-15 16:22 (auditado contra o sistema real: §1 9/9 no ar, ZIM baixado, §1b corrigido pela DECISÃO FINAL da ANALISE, Vaultwarden fechado — action corrigida + conta do dono criada; suíte 2870 passed)
+**Atualizado em:** 2026-10-15 21:25 (saúde das 9 ferramentas Nômades entregue: `/health` + alerta Telegram — §1b concluído; token de push morto podado; suíte 2914 passed)
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

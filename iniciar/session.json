@@ -1,7 +1,35 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-15T20:47:00-03:00",
+ "updated_at": "2026-10-15T21:30:00-03:00",
+ "decisao_final_health_nomad_2026_10_15": {
+  "id": "decisao_final_health_nomad_2026_10_15",
+  "titulo": "DECISÃO FINAL fechada: saúde das 9 ferramentas Nômades no /health + alerta no Telegram",
+  "data": "2026-10-15",
+  "pedido_dono": "'vamos continuar. por onde sugere?' → sugestão aceita: 'vamos fazer um por vez, testando e aprovando até não haver mais pendencias. pode começar' — fechar a DECISÃO FINAL (próximo passo escrito na própria análise: integrar healthchecks dos tools no /health do OD).",
+  "motivacao_medida": "Health do od-core tinha 11 checks e ZERO das 9 ferramentas; precedente: Stirling PDF 1.917 restarts e Kiwix 763 em crash loop (12/10) sem alerta — stack invisível.",
+  "entregas": [
+   "core/nomad_tools.py (NOVO): FERRAMENTAS_NOMAD (9 — portas do docker inspect, bind 127.0.0.1) + NomadToolsMonitor (http.client, cache TTL 10s compartilhado; <500 = viva — Calibre 302 na raiz é vida; Vaultwarden em /alive); singleton monitor_padrao()",
+   "/health +9 checks tool_* critical=False (fora degrada, nunca derruba; check quebrado também não — teste)",
+   "ProactiveNotifier: sonda tool:<nome> (warn, emit_after_s 120s p/ não gritar durante compose up; anti-spam 1/hora; volta limpa); nomad_tools=injetado pelo launcher; OD_NOMAD_TOOLS=0 desliga",
+   "/dashboard/stats bloco nomad_tools {total,up,fora} + card 'Stack Nômade' e details no /admin (node --check verde)",
+   "Bônus: podado token de push morto (FCM NOT_FOUND, 47 falhas) via DeviceRegistry.unregister — backup backups/push-devices-20261015-2121.bak.json; token do celular do dono intacto"
+  ],
+  "validacao": "+44 testes (tests/test_nomad_tools.py; nomad_tools.py 100%); suíte 2914 passed/16 skipped; gate 95,43%; pyflakes limpo (pré-existentes conferidos com git stash). Prova de fogo do alerta: kiwix em porta morta → t0 silêncio, +200s 1 alerta no formato exato do Telegram, repetição bloqueada, resumo fora:['kiwix'].",
+  "deploy": "Restart verde 21:14:47 (regra 7.3): PID 2953108, NRestarts=0, journal 0 erros. Journal 'Ferramentas Nômades no /health (DECISÃO FINAL) | ferramentas=9' + 'ProactiveNotifier habilitado'. /health up c/ 9 tool_* up; /dashboard/stats nomad_tools {9,9,[]}; /admin 2 refs nomadTools; /app/version 1.29.0/2059 (sem bump — backend/infra). 15min depois: 0 erros, 0 alertas (9/9).",
+  "commits": [
+   "db6e5f9 feat(nomad): as 9 ferramentas do stack Nômade no /health + alerta no Telegram (DECISÃO FINAL)"
+  ],
+  "canais": "txt.txt reescrito (regra 14) + Telegram message_id 2767 (regra 15 — 1º attempt 400 por '<' com parse_mode=HTML, lição do html.escape; reenviado). TODO.md §1b concluído + §7 atualizado.",
+  "estado": "CONCLUÍDO E NO AR — DECISÃO FINAL fechada; stack Nômade completo e monitorado (9/9). Aguardando ordem do dono: próximo = Registro Mestre Etapa 4 (comprador/QR/loja) ou melhoria do RAG (embedding + corpus externo).",
+  "proximas_pendencias_dono": [
+   "Escolher próximo: Registro Mestre Etapa 4 × RAG.",
+   "Vaultwarden: popular cofre + trocar master provisória.",
+   "Repo GitHub público com segredos no histórico: decidir privar/rotacionar.",
+   "Pauta itens 3 e 5; 4 fotos em analise/fotos-adicionais/; catálogo 3D/."
+  ],
+  "transcricao": "iniciar/2026-10-15_conversa_omegadrakon.md (§5)"
+ },
  "reverificacao_2026_10_15_2047": {
   "pedido": "Usuário: 'leia iniciar' (~20:47 de 15/10).",
   "achados": "TUDO VERDE: od-core active PID 2707450 desde 15/10 16:30:47 (deploy da action Vaultwarden), NRestarts=0, journal 0 erros (grep error/exception/traceback = 0 desde o boot); /app/version 1.29.0/2059 sha c23ff4ee… == APK publicado (55 508 376 B); /health 401 sem credencial = esperado; HEAD 3d94cbb == origin/master, árvore LIMPA; txt.txt sem mensagem nova do dono (última escrita nossa 16:28, entrega do Vaultwarden); analise/ sem depósito novo (Avatar/ vazio, fotos-adicionais/ as mesmas 4).",

@@ -268,3 +268,79 @@ andamento. Aguardando ordem do dono — candidatos no `TODO.md` §7
 dono inalteradas (decisão sobre repo público, popular cofre, Registro
 Mestre etapa 4, pauta 3/5, fotos `analise/fotos-adicionais/`, pasta
 `3D/`).
+
+## §5 — DECISÃO FINAL fechada: saúde das 9 ferramentas no /health + alerta no Telegram (~20:50→21:30)
+
+Pedido do dono: **"vamos continuar. por onde sugere?"** → sugestão
+aceita (**"vamos fazer um por vez, testando e aprovando até não haver
+mais pendencias. pode começar"**): fechar a DECISÃO FINAL integrando as
+9 ferramentas do stack Nômade ao `/health` + alerta quando alguma cair
+— o "próximo passo" escrito na própria análise.
+
+### Por quê (motivação medida)
+
+- O `/health` tinha 11 checks e **ZERO** das 9 ferramentas (verificado
+  no código antes de propor).
+- Precedente de dor: **Stirling PDF 1.917 restarts** e **Kiwix 763** em
+  crash loop (12/10) sem ninguém receber alerta — o stack era invisível.
+
+### Entregas
+
+| Peça | Detalhe |
+|---|---|
+| `core/nomad_tools.py` (NOVO) | `FERRAMENTAS_NOMAD` (as 9 — portas conferidas no `docker inspect`, bind 127.0.0.1) + `NomadToolsMonitor`: sonda HTTP (`http.client`, stdlib) com **cache TTL 10s** compartilhado entre `/health`, notifier e stats. Semântica medida: **status < 500 = viva** (Calibre Web responde 302 na raiz; auth-walled é vida); 5xx/timeout/conexão recusada = fora. Vaultwarden sondado em `/alive`. Singleton `monitor_padrao()` |
+| `/health` +9 checks | `tool_kiwix` … `tool_vaultwarden`, todos `critical=False` (uma ferramenta fora **degrada** o `/health`; check quebrado também não derruba o monitor — provado por teste) |
+| Alerta no Telegram | `_check_tools` no ProactiveNotifier (chave `tool:<nome>`, severidade warn, **`emit_after_s` 120s** — um `compose up -d` legítimo derruba a porta 10-30s e não grita), anti-spam 1/hora do notifier, volta limpa o problema. `nomad_tools` virou parâmetro do `ProactiveNotifier` (injetado pelo launcher; `OD_NOMAD_TOOLS=0` desliga) |
+| `/dashboard/stats` + painel | bloco `nomad_tools` {total, up, fora} · card "Stack Nômade" + `<details>` no `/admin` (JS no padrão do painel, `node --check` verde) |
+| Bônus: push morto podado | 1 dos 2 tokens em `data/push_devices.json` recebia **FCM NOT_FOUND** a cada alerta (47 falhas) — removido via `DeviceRegistry.unregister` (backup `backups/push-devices-20261015-2121.bak.json`); token saudável do celular do dono intacto |
+
+### Verificação
+
+- **+44 testes** (`tests/test_nomad_tools.py`): catálogo, sonda
+  hermética (200/302/401/403 vivos; 500/502/503 fora; erro de rede;
+  KeyError), cache TTL, contrato do HealthMonitor (9 checks, degraded,
+  nunca down), probe com `http.server` real em porta efêmera +
+  porta morta, anti-spam/emit_after_s/recuperação do notifier, wiring
+  do launcher (incl. gate `OD_NOMAD_TOOLS=0`), bloco do stats e HTML
+  do painel. `core/nomad_tools.py` a **100%**.
+- Suíte completa: **2914 passed / 16 skipped** · gate **95,43%** ·
+  `node --check` do JS do painel verde (3 testes) · pyflakes limpo
+  (avisos restantes são pré-existentes, conferidos com `git stash`).
+- **Prova de fogo do alerta** (script fiel ao de produção, kiwix
+  apontado para porta morta, sink capturador): tick abaixo de 120s →
+  **0 alertas**; +200s → **1 alerta** `🟡 [WARN] tool:kiwix — Ferramenta
+  fora — … http://127.0.0.1:60991/`; tick seguinte → **anti-spam
+  bloqueou**; resumo `{'total': 9, 'up': 8, 'fora': ['kiwix']}`.
+  (1º attempt do script de prova morreu com RecursionError no lambda
+  do relógio fake — bug do script, não do sistema; refato com holder.)
+
+### Deploy (restart verde, regra 7.3)
+
+Commit `db6e5f9` publicado antes do restart (HEAD == origin/master,
+árvore limpa). `systemctl --user restart od-core` → **active PID
+2953108 desde 21:14:47, NRestarts=0, journal 0 erros**. Provas no ar:
+journal `Ferramentas Nômades no /health (DECISÃO FINAL) | ferramentas=9`
++ `ProactiveNotifier habilitado` · `/health` **up** com os **9 checks
+tool_\* todos up** (calibre-web "ok (HTTP 302)", vaultwarden
+"ok (HTTP 200) — /alive") · `/dashboard/stats` `nomad_tools: {total: 9,
+up: 9, fora: []}` · `/admin` com os 2 pontos do `nomadTools` ·
+`/app/version` 1.29.0/2059 intacto (sem bump — backend/infra, precedente
+Vaultwarden; CHANGELOG com entrada "sem bump"). 15 min depois: journal
+ainda 0 erros, nenhum alerta de ferramenta (9/9).
+
+### Canais e fecho
+
+- `txt.txt` reescrito (regra 14) com o que é, o alerta de exemplo, as
+  3 formas de ver, o histórico dos 1.917 restarts e a pergunta do
+  próximo passo (Etapa 4 × RAG). Telegram msg **2767** (regra 15 —
+  1º envio falhou com 400 por um `<` no texto com parse_mode=HTML,
+  a lição do `html.escape` de 12/10; corrigido e reenviado).
+- `TODO.md` §1b marcado **concluído** (sobra ProtoMaps opcional) e §7
+  atualizado (próximo: Etapa 4 ou RAG — ordem do dono).
+
+### Estado
+
+**CONCLUÍDO E NO AR — DECISÃO FINAL fechada; stack Nômade completo e
+monitorado (9/9).** Um por vez, como pediu o dono: aguardando a ordem
+do próximo (Registro Mestre Etapa 4 ou melhoria do RAG). Pendências do
+dono inalteradas (cofre/popular, repo público, pauta 3/5, fotos, 3D/).
