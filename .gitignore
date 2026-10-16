@@ -54,6 +54,7 @@ Thumbs.db
 
 # Logs
 logs/*.log
+logs/*.log.*
 logs/*.jsonl
 
 # Backups (keep structure, ignore content)
