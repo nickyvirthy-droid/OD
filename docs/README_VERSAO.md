@@ -7,6 +7,54 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.31.0] — APP AUTO-UPDATE EM BACKGROUND + PUSH FCM DO AUTO-UPDATE (ITEM B DA FILA) 🜂 (2026-10-16)
+
+### 1. O que foi feito
+
+Item (B) da fila §7 — ordem do dono ("faça o B agora. me explique o que
+é essa implementação"). O que JÁ existia (auditado antes de mexer): FCM
+de ponta a ponta desde 13/09 (`3b5599c` — `core/push.py` + app
+`push_service.dart` com exibição e registro em `/push/register`) e
+updater v1.7.0 desde 27/09 (checagem no boot, download com SHA-256,
+instalação via FileProvider — provado nas trocas 2017→2060). Faltavam
+duas lacunas do TODO §3.8, agora fechadas: o servidor nunca avisava
+"auto-update aplicado" no celular e o download do APK só começava com
+toque do dono.
+
+| Peça | Entrega |
+|---|---|
+| **`core/auto_update.py`** | `_anunciar()` — FCM **"Auto-update aplicado"** nos dois sucessos do ciclo: re-sync do índice RAG (`Índice RAG re-sincronizado — N chunks (alvo)`) e download concluído/movido (`<alvo> aplicado (v) → destino`). Best-effort (`try/except` + `PushService.notify` que nunca levanta) — o ciclo **não morre por causa de um aviso**; `push=None` (sem launcher) segue silencioso. |
+| **`runtime/launcher.py`** | `build_auto_update(..., push=)` — o `PushService` (construído ANTES do auto-update no boot) é injetado no serviço; call site `push=push`. |
+| **App `1.31.0+2061`** | `main.dart` `_preDownload`: checagem do boot → download **SOZINHO em background** (banner "Baixando v… N%") → "baixada — pronta para instalar" + botão **Instalar** (instala direto, sem rede). Rede fora = silencioso: banner cai no "Atualizar" (retry pelo toque) e o próximo boot tenta de novo. `od_updater.dart`: `download()` **reusa o cache cujo SHA-256 confere** (2ª chamada = 0 requisições) + `httpClient` injetável (o binding do Flutter responde 400 em cliente real). |
+| **versionCode** | 2060 → **2061** (bump MINOR: `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site ×4, README_VERSAO, CHANGELOG). |
+
+### 2. Verificação
+
+- Suíte do servidor (gate `--cov-fail-under=90`): **2971 passed /
+  16 skipped · cobertura 90,64%** — +3 testes em
+  `tests/test_auto_update.py` (63 no arquivo: anúncio no re-sync RAG,
+  anúncio no download concluído via `tratar_evento` público, push que
+  levanta não derruba o ciclo).
+- `flutter analyze` **0 issues** · `flutter test` **179 passed /
+  2 skipped** (+2 do cache de download, transporte `MockClient`
+  injetado).
+- Guardas: política de versão **1.31.0/2061** (9/9) · pyflakes sem
+  aviso novo · `node --check` verde.
+
+### 3. Prova viva no serviço em produção (16/10, PID 3766943)
+
+| Passo | Resultado |
+|---|---|
+| Boot (deploy 12:23:30) | PID 3766943, **NRestarts=0**, **0 erros** no journal (único `[ERROR]` do dia = DNS do Telegram 03:00, pré-existente). Boot lento ~4 min pós-gate — porta 8000 LISTEN desde cedo, `/app/version` respondeu ao o event loop destravar |
+| Versão | `/app/version` **1.31.0 / 2061**, `sha256 3d3f6ccf…` **==** `site/OmegaDrakon.apk` publicado; aapt2 dos dois APKs: `versionCode 2061` cruro + `versionName 1.31.0` |
+| Saúde | `/health` **up · 20/20 checks** |
+| Auto-update com push | `Auto-update tick \| alvos=1 \| aplicar=0 \| resumo=indice-rag=aguardar` — serviço de pé com a injeção `push=push` (launcher) |
+| **Prova de fogo do caminho novo** | `_anunciar()` real → `Push enviado \| enviados=1 \| falhas=0 \| titulo=Auto-update aplicado`, resumo `{'ok': True, 'sent': 1, 'failed': 0}` — aviso **[PROVA DE FOGO B]** no celular do dono |
+| Regressão das métricas | `/dashboard/stats` `notifier = {ticks: 3, checks_run: 48, problems: 4, alerts_emitted: 0, alerts_blocked: 3, errors: 0}` · `/admin` `stats.notifier` ×3 |
+| Alerta `restart` (previsão da §6) | Disparou **uma única vez** 12:17:33 + push (boot 11:38, evento verdadeiro); processo novo segura pelo cooldown — `blocked: 3` = sem duplicata |
+| Backup | `backups/apk-v1.30.0-2060/` reconstruído (worktree no `e279151`) — padrão da casa de backuper o APK anterior a cada publicação |
+| Resíduo da prova | estado falso do REPL removido (`data/_prova_*` inexistente); worktree removido; árvore limpa |
+
 ## [1.30.0] — REGISTRO DO COMPRADOR POR QR/POSSE + LOJA DO SITE (ETAPA 4 DO REGISTRO MESTRE) 🜂 (2026-10-15)
 
 ### 1. O que foi feito

@@ -38,6 +38,27 @@
 | App | `flutter analyze` **0 issues** · `flutter test` **179 passed / 2 skipped** (+2 do cache de download: 1ª baixa/2ª reusa `hits==1`, cache sujo rebaixado — transporte `MockClient` injetado, padrão `od_api_test`) |
 | **Prova viva no serviço** | Abaixo (pós-deploy) |
 
+**Prova viva no serviço (pós-deploy, 16/10 12:23:30, PID 3766943):**
+restart verde (NRestarts=0, **0 erros** — o único `[ERROR]` do dia é o
+DNS do Telegram das 03:00, pré-existente; boot lento ~4 min pós-gate,
+porta LISTEN desde cedo e API respondendo ao destravar) · `/health`
+**up 20/20** · `/app/version` **1.31.0 / 2061** com `sha256 3d3f6ccf…`
+**idêntico** ao `site/OmegaDrakon.apk` (aapt2 dos dois APKs:
+`versionCode 2061` cruro + `versionName 1.31.0`; **backup do
+1.30.0/2060 reconstruído** em `backups/apk-v1.30.0-2060/` via worktree
+no commit `e279151`) · `Auto-update tick | alvos=1 | aplicar=0` no
+journal = serviço de pé com a injeção `push=push` · **prova de fogo do
+caminho novo**: `_anunciar()` real → journal `Push enviado | enviados=1
+| falhas=0 | titulo=Auto-update aplicado` + resumo `{'ok': True, 'sent':
+1, 'failed': 0}` (aviso marcado **[PROVA DE FOGO B]** entregue no
+celular do dono) · `/dashboard/stats` bloco `notifier` intacto
+`{ticks: 3, checks_run: 48, problems: 4, alerts_emitted: 0,
+alerts_blocked: 3, errors: 0}` · `/admin` `stats.notifier` ×3 ·
+**bônus verificado**: o alerta `key=restart` previsto para ~12:18 na §6
+da transcrição disparou **uma única vez às 12:17:33** + push — e o
+processo novo o segura de novo pelo cooldown (`blocked: 3` = sem
+duplicata).
+
 ## [1.30.0] — REGISTRO DO COMPRADOR POR QR/POSSE + LOJA DO SITE (ETAPA 4 DO REGISTRO MESTRE) 🜂 (2026-10-15)
 
 > **Bump MINOR (capacidade nova):** Etapa 4 do Registro Mestre — decisão

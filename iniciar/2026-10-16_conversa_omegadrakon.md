@@ -385,3 +385,85 @@ hora. Backend/painel puro, **sem bump** (1.30.0/2060 intacto).
   commit de docs.
 - Próximo da fila §7 segue **(B) App auto-update + FCM**; `analise/`
   com as 2 capturas do Órion ainda sem instrução.
+
+---
+
+## §7 — "faça o B agora. me explique o que é essa implementação" — item (B) ENTREGUE (v1.31.0+2061)
+
+### O que é o item (B) (a explicação pedida, apurada no código antes de mexer)
+
+A fila §7 do TODO diz **"App auto-update + FCM — UX do dono no
+celular"**; no TODO §3.8 são dois checkboxes: **auto-update no app**
+("download em background + install") e **Push FCM** ("conectar
+notificações do servidor — auto-update aplicado, saúde, etc.").
+
+Apuração antes de mexer mostrou que **~80% já existia**:
+
+- **FCM de ponta a ponta desde 13/09** (`3b5599c`): `core/push.py`
+  (registro de tokens + FCM HTTP v1) + app `push_service.dart`
+  (permissão, exibição foreground/background, token registrado em
+  `/push/register` no boot autenticado) — e o notifier já entregava
+  alertas (health/router/nrestarts) no celular desde 15–16/10.
+- **Updater v1.7.0 desde 27/09**: checagem automática no boot
+  (`_checkUpdateBestEffort`) → banner → toque → download streaming com
+  SHA-256 → instalação FileProvider (`ACTION_INSTALL_PACKAGE` —
+  funciona no Android 14+ com a tela de confirmação do sistema); o
+  celular do dono já viveu as trocas 2017→2060 por esse caminho.
+
+**Duas lacunas reais** restavam — e só elas foram mexidas:
+
+1. o **servidor** aplicava auto-update (Parte E) e o dono só via no
+   journal: o celular nunca era avisado;
+2. o **download do APK** só começava com toque no banner (dono tinha
+   que estar na tela de atualização).
+
+### O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| `core/auto_update.py` | `_anunciar()` — FCM **"Auto-update aplicado"** nos 2 sucessos do ciclo: re-sync do índice RAG (`… — N chunks (alvo)`) e download concluído/movido (`<alvo> aplicado (v) → destino`). Best-effort: `PushService.notify` nunca levanta + `try/except` — o ciclo **não morre por um aviso**; `push=None` = silencioso. |
+| `runtime/launcher.py` | `build_auto_update(..., push=)` + call site `push=push` (`build_push()` construído ANTES no boot, L1631). |
+| App `main.dart` | `_preDownload`: a checagem do boot **dispara o download sozinho** (banner "Baixando v… N%") → "baixada — pronta para instalar" → botão **Instalar** (sem rede). Rede fora = silencioso → banner cai no "Atualizar" (retry pelo toque) e o próximo boot tenta de novo. |
+| App `od_updater.dart` | `download()` **reusa cache cujo SHA-256 confere** (2ª chamada = 0 requisições; divergente = apaga e rebaixa) + `httpClient` injetável — o binding do Flutter responde 400 em cliente HTTP real (o teste novo bateu nisso na 1ª tentativa; refiz com `MockClient`, padrão `od_api_test`). |
+| versionCode | 2060 → **2061** (9/9: `.env`, capabilities, pubspec, `_APP_VERSION_CODE`, site ×4, CHANGELOG, README_VERSAO). |
+
+### Validação
+
+- Servidor: gate **2971 passed / 16 skipped · 90,64%** (+3 em
+  `tests/test_auto_update.py` — anúncio no re-sync RAG, anúncio via
+  evento público `tratar_evento`, push que levanta não derruba o ciclo;
+  63 no arquivo).
+- App: `flutter analyze` **0 issues** · `flutter test` **179 passed /
+  2 skipped** (+2 do cache de download).
+- pyflakes **idêntico ao HEAD** (7 avisos pré-existentes, **0 novos**) ·
+  `node --check` verde (pelo teste do gate) · política **9/9** =
+  1.31.0/2061.
+- APKs rebuildados (`JAVA_HOME=~/jdk`): `versionCode 2061` + `versionName
+  1.31.0` nos dois (aapt2), publicados 12:20. **Backup do 1.30.0/2060
+  reconstruído** em `backups/apk-v1.30.0-2060/` (worktree no commit
+  `e279151`): o build de hoje sobrescrevera os APKs do site sem backup —
+  padrão da casa é backuper o anterior, refito com o artefato certo.
+
+### Prova viva no serviço (deploy 12:23:30)
+
+| Passo | Resultado |
+|---|---|
+| Boot | PID **3766943** · **NRestarts=0** · **0 erros** (único `[ERROR]` do dia = DNS do Telegram às 03:00, pré-existente). Boot lento (~4 min, event loop saturado pós-gate): porta 8000 LISTEN desde cedo, `/app/version` respondeu ao destravar — observado, não maquiado. |
+| `/app/version` | **1.31.0 / 2061** com `sha256 3d3f6ccf…` **idêntico** ao `site/OmegaDrakon.apk` publicado |
+| `/health` | **up · 20/20 checks** |
+| Auto-update | `Auto-update tick \| alvos=1 \| aplicar=0 \| resumo=indice-rag=aguardar` — serviço de pé com a injeção `push=push` |
+| **Prova de fogo do caminho novo** | `_anunciar()` REAL (com espião que repassa) → journal `Push enviado \| enviados=1 \| falhas=0 \| titulo=Auto-update aplicado` + resumo `{'ok': True, 'sent': 1, 'failed': 0, …}` — aviso **[PROVA DE FOGO B]** entregue no celular do dono |
+| Métricas (regressão) | `/dashboard/stats` bloco `notifier` = `{ticks:3, checks_run:48, problems:4, alerts_emitted:0, alerts_blocked:3, errors:0}` · `/admin` `stats.notifier` ×3 |
+| Alerta `restart` previsto na §6 | **Disparou UMA única vez às 12:17:33** + push (evento verdadeiro do boot 11:38 — previsão da §6 confirmada); o processo novo o segura de novo pelo cooldown (`alerts_blocked:3` = sem duplicata) |
+
+### Canais e pendências
+
+- CHANGELOG `## [1.31.0]` + README_VERSAO `### 3` + TODO §3.8 marcado
+  `[x]` + fila §7 zerada; commits `0f9b871` (feat+bump, pushado) e
+  `b9ff705` (comentário); docs e registro neste commit.
+- `txt.txt` reescrito (regra 14, mantendo pendências) + Telegram
+  (regra 15).
+- Pendências do dono inalteradas: Órion (2 capturas sem instrução),
+  Vaultwarden, repo público, pauta 3 e 5. Fila §7 **zerada** — próximos
+  candidatos no §3: backup `.env`+`data/`, tema escuro/claro, métricas
+  Prometheus.

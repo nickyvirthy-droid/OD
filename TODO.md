@@ -104,8 +104,8 @@
 - [ ] **Bússola `Legado/00_MAPA_DO_LEGADO.md`** — índice vivo vs histórico + mapa de duplicações (já medido bit a bit)
 
 ### 3.8 App Flutter
-- [ ] **Auto-update no app** — hoje o app checa `/app/version`; adicionar download em background + install `PackageInstaller` (Android 14+)
-- [ ] **Push FCM** — já tem `google-services.json`; conectar notificações do servidor (auto-update aplicado, saúde, etc.)
+- [x] **Auto-update no app** — download em background no boot + instalação com um toque — **ENTREGUE 16/10 (v1.31.0+2061, item B da fila):** `_preDownload` no `main.dart` (banner "Baixando… N%" → "baixada — pronta para instalar" → **Instalar**), `download()` reusa cache cujo SHA-256 confere (2ª chamada = 0 requisições). O `PackageInstaller` do texto era especulação pré-v1.7.0: o caminho FileProvider/`ACTION_INSTALL_PACKAGE` (27/09) já funciona no Android 14+ e mostra a mesma tela de confirmação do sistema — sessão `PackageInstaller` não ganharia UX.
+- [x] **Push FCM** — "auto-update aplicado" no celular — **ENTREGUE 16/10 (item B):** `core/auto_update.py::_anunciar()` chama `PushService.notify` nos dois sucessos do ciclo (re-sync do índice RAG com stats de chunks; download concluído/movido com alvo+versão), injetado por `build_auto_update(push=)` — best-effort, nunca derruba o ciclo. Saúde/nerve já vinha ligada pelo notifier (15–16/10) e o FCM e2e (registro/exibição no app) desde 13/09 (`3b5599c`).
 - [ ] **Tema escuro/claro sincronizado** — preferência salva no perfil do usuário (já tem `UserStore`)
 
 ---
@@ -161,12 +161,14 @@
 | **Registro Mestre — Etapa 4** | ~~Médio~~ ✅ | Concluído 15/10→16/10 | Posse/QR/loja **no ar (v1.30.0+2060)**: comprador registra no app, QR no cartão, regressão com código, loja sem preço (2929/16, gate 90,58%). Sobra v2: câmera de QR dentro do app |
 | **Melhorar RAG (embedding + corpus externo)** | ~~Médio~~ ✅ | Concluído 16/10 ~03:40 | **No ar (sem bump):** `iniciar/*.md` no corpus (895 → **1.598 chunks**) + floor recalibrado **0,399/0,036** (grid medido, 780 células válidas) → parafrases **1/8 → 6/8**, gate 8/8+8/8 intacto (2935/16, cov 90,60%). Embedding semântico **medido e recusado**: quebra precisão (irr 0,546 > rel 0,394 em todas as chaves) e box tem só ~1,7 GB RAM |
 | **Observabilidade / Alertas Telegram** | ~~Baixo~~ ✅ | Concluído 16/10 ~04:55 | **No ar (sem bump):** `/health` degraded → Telegram (dedupe com sondas dedicadas) + `NRestarts > 0` (queda anormal) + disco `OD_DISK_THRESHOLD_PERCENT` (2964/16, cov 90,60%; prova de fogo com sink real; fix da data nas mensagens) |
-| **App auto-update + FCM** | Médio | — | UX do dono no celular |
+| **App auto-update + FCM** | ~~Médio~~ ✅ | Concluído 16/10 | **No ar (v1.31.0+2061):** download em background no boot (banner % → "pronta para instalar" → **Instalar** com SHA conferido) + push **"Auto-update aplicado"** do servidor no celular (FCM e2e já ligada desde 13/09; o que faltava era o hook do Parte E). Guardas: gate servidor + `flutter analyze/test` verdes |
 
-> **Sugestão:** healthchecks, **Registro Mestre Etapa 4**, **RAG
-> (corpus externo + recalibração medida)** e **Observabilidade/Alertas**
-> estão concluídos (15/10 → 16/10). Próximo da fila: **App auto-update
-> + FCM** — ordem do dono.
+> **Sugestão:** a fila §7 está **zerada** — healthchecks, Registro
+> Mestre Etapa 4, RAG, Observabilidade/Alertas e **App auto-update + FCM
+> (B, 16/10)** concluídos. Candidatos remanescentes no §3: **Backup
+> automático `.env`+`data/`** (§3.6), **Tema escuro/claro sincronizado**
+> (§3.8), **Métricas Prometheus do auto-update** (§3.5) — aguardando
+> ordem do dono.
 
 ---
 
