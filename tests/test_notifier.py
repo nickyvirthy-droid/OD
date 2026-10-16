@@ -300,6 +300,38 @@ class TestNotifierChecks:
         )
         assert notifier._restart_detected is False
 
+    def test_last_alerts_de_boot_anterior_descartado(
+        self, tmp_path: Path
+    ) -> None:
+        """Regressão do incidente 11/09 → 16/10/2026.
+
+        Timestamp monotônico gravado num boot antigo fica MAIOR que o
+        relógio do boot novo e o anti-spam (`now - last` negativo <
+        cooldown) bloqueava `restart` e `llm:offline` para sempre — 35
+        dias sem alerta. Entrada futura deve ser descartada na carga e
+        o arquivo regravado limpo pelo próprio __init__.
+        """
+        state = tmp_path / "notifier.json"
+        state.write_text(
+            json.dumps({
+                "pid": 424242,
+                "started_at": 1.0,
+                "last_alerts": {"restart": 3_754_164.292,
+                                "router:down": 900.0},
+            }),
+            encoding="utf-8",
+        )
+        notifier = ProactiveNotifier(
+            config=NotifierConfig(state_file=state),
+            clock=_Clock(1000.0),
+        )
+        # futuro (outro boot) => fora; passado (este boot) => mantido
+        assert "restart" not in notifier._last_alerts
+        assert notifier._last_alerts["router:down"] == 900.0
+        salvo = json.loads(state.read_text(encoding="utf-8"))
+        assert "restart" not in salvo["last_alerts"]
+        assert salvo["last_alerts"]["router:down"] == 900.0
+
 
 # ===========================================================================
 # Pipeline de tick
@@ -331,6 +363,35 @@ class TestNotifierTick:
         second = await notifier.tick()
         assert second == []
         assert notifier.metrics.snapshot()["alerts_emitted"] == 1
+
+    @pytest.mark.asyncio
+    async def test_restart_alert_emits_with_poisoned_state(
+        self, tmp_path: Path
+    ) -> None:
+        """Com `restart` envenenado por boot anterior no arquivo, o alerta
+        AGORA emite — antes o anti-spam via `now - last` negativo
+        bloqueava (prova do incidente de 11/09; a carga limpa está no
+        teste da regressão em TestNotifierChecks).
+        """
+        state = tmp_path / "notifier.json"
+        state.write_text(
+            json.dumps({"pid": 99999, "started_at": 1.0,
+                        "last_alerts": {"restart": 3_754_164.292}}),
+            encoding="utf-8",
+        )
+        notifier = ProactiveNotifier(
+            orch(OnlineProvider()),
+            config=NotifierConfig(
+                state_file=state, default_cooldown_s=0.0,
+                cooldowns={"restart": 3600.0},
+            ),
+            clock=_Clock(),
+        )
+        alerts = await notifier.tick()
+        assert [a.key for a in alerts] == ["restart"]
+        # o _save_state do emit regravou COM o relógio atual (1000.0)
+        salvo = json.loads(state.read_text(encoding="utf-8"))
+        assert salvo["last_alerts"]["restart"] == 1000.0
 
     @pytest.mark.asyncio
     async def test_llm_alert_only_after_threshold(self) -> None:

@@ -446,6 +446,27 @@ class TestNotifierTools:
 # ---------------------------------------------------------------------------
 
 class TestLauncherWiring:
+    @pytest.fixture()
+    def _data_dir_isolada(self, tmp_path, monkeypatch) -> None:
+        """build_notifier grava notifier_state.json — estado isolado.
+
+        Sem isto o teste reescreve o estado de PRODUÇÃO (poluição
+        medida: pid da suíte gravado em data/ em 16/10 04:59 — ver
+        iniciar/2026-10-16_conversa_omegadrakon.md §4). Mesmo padrão de
+        test_launcher_health_external._data_dir_e_env_isolados: DATA_DIR
+        para tmp_path e cache de env zerado nos knobs do notifier.
+        """
+        from runtime import launcher as launcher_module
+
+        monkeypatch.setattr(launcher_module, "DATA_DIR", tmp_path)
+        monkeypatch.delenv("INVOCATION_ID", raising=False)
+        cache = dict(launcher_module._ENV_CACHE or {})
+        for chave in ("OD_SERVICE_UNIT", "OD_NOTIFIER_ENABLED",
+                      "OD_NOTIFIER_HEALTH", "OD_NOTIFIER_NRESTARTS",
+                      "OD_DISK_THRESHOLD_PERCENT"):
+            cache.pop(chave, None)
+        monkeypatch.setattr(launcher_module, "_ENV_CACHE", cache)
+
     def test_registra_as_9_no_health_e_devolve_monitor(self) -> None:
         health = HealthMonitor()
         monitor = launcher.register_nomad_health_checks(health)
@@ -473,22 +494,29 @@ class TestLauncherWiring:
         finally:
             resetar_monitor()
 
-    def test_build_notifier_carrega_a_sonda(self) -> None:
+    def test_build_notifier_carrega_a_sonda(
+        self, _data_dir_isolada, tmp_path
+    ) -> None:
         monitor = _monitor_com_sonda(lambda h, p, c, t: 200)
         notifier = launcher.build_notifier(None, nomad_tools=monitor)
         try:
             assert notifier is not None
             assert notifier.nomad_tools is monitor
             assert len(notifier._default_checks()) == 7
+            # estado gravado NO TMP — nunca em data/ de produção
+            assert str(notifier.config.state_file).startswith(str(tmp_path))
         finally:
             notifier.stop()
 
-    def test_build_notifier_sem_monitor_sem_sonda(self) -> None:
+    def test_build_notifier_sem_monitor_sem_sonda(
+        self, _data_dir_isolada, tmp_path
+    ) -> None:
         notifier = launcher.build_notifier(None)
         try:
             assert notifier is not None
             assert notifier.nomad_tools is None
             assert len(notifier._default_checks()) == 6
+            assert str(notifier.config.state_file).startswith(str(tmp_path))
         finally:
             notifier.stop()
 

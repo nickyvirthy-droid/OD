@@ -687,9 +687,20 @@ class ProactiveNotifier:
         # Estado persistido (restart + cooldowns entre processos)
         self._state: dict[str, Any] = self._load_state() or {}
         persisted_alerts = self._state.get("last_alerts") or {}
-        self._last_alerts = {
-            str(k): float(v) for k, v in persisted_alerts.items()
-        }
+        agora = self._clock()
+        for chave, valor in persisted_alerts.items():
+            quando = float(valor)
+            # Veneno de boot anterior (incidente 11/09 → 16/10/2026): o
+            # monotônico gravado no boot velho fica MAIOR que o do boot
+            # novo e o anti-spam `(now - last) < cooldown` via um delta
+            # NEGATIVO — bloqueava `restart` e `llm:offline` para sempre
+            # (35 dias sem alerta; prova em iniciar/2026-10-16_conversa_
+            # omegadrakon.md §4). Timestamp futuro nunca é válido =>
+            # descartado aqui; o _save_state() deste __init__ regrava o
+            # arquivo limpo. Folga de 10 ms cobre o round(v, 3) do save
+            # com relógio congelado nos testes (erro máx. 0,5 ms).
+            if quando <= agora + 0.01:
+                self._last_alerts[str(chave)] = quando
         self._restart_detected = self._detect_restart()
         self._restart_reported = False
         if self.config.state_file is not None:
