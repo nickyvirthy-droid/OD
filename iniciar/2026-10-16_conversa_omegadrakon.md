@@ -96,3 +96,28 @@ ensinar o corpus a responder a prova.**
   removidos — **resíduo zero**.
 - Próxima fila (§7): **Observabilidade/Alertas** ou **App auto-update +
   FCM** — ordem do dono.
+
+## §2 — Retomada "leia iniciar" (~04:20) — sistema verde + 2 capturas órfãs do dono em `analise/`
+
+| Verificação | Resultado |
+|---|---|
+| od-core | `active` **PID 3320551** desde 16/10 **04:02:35** (2º restart verde da madrugada — fecho da sessão anterior engoliu a documentação do dia; 1º foi 03:39:55/PID 3300626), **NRestarts=0**, journal **0 erros** desde 03:39 |
+| `/app/version` | **1.30.0 / 2060** · sha `57ed3845…` |
+| `/health` (OD_API_KEY) | **up** · 20 checks · `nomad_tools` **9/9** · `rag_*` zerados (contadores frescos pós-boot) |
+| Store RAG | `data/vector_memory/vector_store.json` = **1609 chunks** (1598 + docs do dia) · provider hash 256-d |
+| Git | **HEAD `3eb6dbb` == `origin/master`**, árvore **LIMPA** (0 resíduos) |
+| `txt.txt` | sem mensagem nova do dono (arquivo inteiro = nossa entrega da ordem "prossiga", 04:08) |
+| `analise/` | **depósito novo (01:39)** — 2 capturas do **Sistema Órion** (PMESP) SEM instrução |
+
+**Capturas órfãs (não processadas — a sessão do RAG estava rodando e não as viu):**
+`analise/Captura de tela 2026-10-16 013444.jpg` e `…013545.jpg` = painel
+`orion.intranet.policiamilitar.sp.gov.br/v2/dashboard` (Laravel), dashboard do
+42°BPMI, escalas 18/10 e 19/10, 01:34–01:35. **Contêm dado pessoal/servidor do
+dono** → ficam onde estão, nada publicado, até ele dizer o que quer (referência
+de design? replicar um painel parecido no `/admin`?).
+
+**Alerta conhecido:** `router:down` (warn) 00:03, 01:03, 03:00 — mesma
+intermittência de ping do gateway já registrada em 15/10; monitorar, sem ação.
+
+**Fila §7 (ordem do dono):** (A) Observabilidade/Alertas Telegram ·
+(B) App auto-update + FCM.
