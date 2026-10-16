@@ -14,6 +14,7 @@ import 'package:omegadrakon/screens/settings_screen.dart';
 import 'package:omegadrakon/screens/status_screen.dart';
 import 'package:omegadrakon/services/od_api.dart';
 import 'package:omegadrakon/services/od_ws.dart';
+import 'package:omegadrakon/services/theme_service.dart';
 import 'package:omegadrakon/widgets/message_bubble.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -659,6 +660,10 @@ void main() {
         200,
         scrollable: find.byType(Scrollable).first,
       );
+      // A rolagem termina com um jump de ensureVisible: o layout precisa de
+      // um frame antes do toque, senão o tap cai fora do tile (a altura das
+      // seções acima muda com o tempo — o card Tema entrou em 16/10).
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Avançado'));
       await tester.pumpAndSettle();
       expect(find.text('URL do servidor (deixe o padrão para automático)'), findsNothing);
@@ -679,6 +684,10 @@ void main() {
         200,
         scrollable: find.byType(Scrollable).first,
       );
+      // A rolagem termina com um jump de ensureVisible: o layout precisa de
+      // um frame antes do toque, senão o tap cai fora do tile (a altura das
+      // seções acima muda com o tempo — o card Tema entrou em 16/10).
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Avançado'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Mostrar URLs'));
@@ -721,6 +730,10 @@ void main() {
         200,
         scrollable: find.byType(Scrollable).first,
       );
+      // A rolagem termina com um jump de ensureVisible: o layout precisa de
+      // um frame antes do toque, senão o tap cai fora do tile (a altura das
+      // seções acima muda com o tempo — o card Tema entrou em 16/10).
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Avançado'));
       await tester.pumpAndSettle();
       await tester.enterText(
@@ -820,6 +833,58 @@ void main() {
       await tester.pumpAndSettle();
       expect(api.token, isEmpty);
       expect(find.text('Sessão encerrada.'), findsOneWidget);
+    });
+
+    testWidgets('card Tema: escolher Claro aplica no app e vai para o perfil',
+        (tester) async {
+      // TODO §3.8 (16/10): a escolha do dono vale na hora, fica na cópia
+      // local e é enviada ao PERFIL — a MESMA preferência que o site e o
+      // painel leem. Aqui o caminho é o da UI (o toque no card), não o
+      // serviço direto (isso é o theme_test.dart).
+      final chamadas = <http.Request>[];
+      final api = OdApi(
+        baseUrl: 'http://od.test:8000',
+        client: MockClient((request) async {
+          if (request.url.path == '/profile/preferences') {
+            chamadas.add(request);
+            return _json({'ok': true, 'preferences': {'theme': 'light'}});
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+      ThemeService.instance.value = ThemeMode.system;
+      addTearDown(() => ThemeService.instance.value = ThemeMode.system);
+
+      await tester.pumpWidget(_wrap(SettingsScreen(
+        api: api,
+        onSaved: () {},
+      )));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('Tema'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      // As três portas do contrato, com o padrão em "segue o aparelho".
+      expect(find.text('Segue o aparelho'), findsOneWidget);
+      expect(find.text('Claro'), findsOneWidget);
+      expect(find.text('Escuro'), findsOneWidget);
+
+      await tester.tap(find.text('Claro'));
+      await tester.pumpAndSettle();
+
+      expect(ThemeService.instance.value, ThemeMode.light);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(ThemeService.chaveLocal), 'light');
+      expect(chamadas.single.method, 'PUT');
+      expect(
+        jsonDecode(chamadas.single.body)['theme'],
+        'light',
+        reason: 'o perfil recebe o texto do contrato, não o nome do enum',
+      );
     });
   });
 

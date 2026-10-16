@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'services/od_api.dart';
 import 'services/od_updater.dart';
 import 'services/push_service.dart';
+import 'services/theme_service.dart';
 import 'screens/chat_screen.dart';
 import 'screens/actions_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -20,6 +21,9 @@ import 'screens/login_screen.dart';
 /// o sistema de qualquer lugar via Tailscale.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Tema (TODO §3.8): lê a cópia local ANTES do primeiro quadro — abrir já
+  // no tema escolhido evita o "pisca" de claro/escuro na abertura.
+  await ThemeService.instance.carregar();
   // Push FCM é best-effort e NUNCA bloqueia nem derruba o boot: roda em
   // segundo plano, com try/catch em volta de TUDO (inclusive da criação
   // do singleton) — qualquer falha do Firebase, o app abre normal.
@@ -41,21 +45,27 @@ class OdApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'OmegaDrakon',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF1A237E),
-        useMaterial3: true,
-        brightness: Brightness.light,
+    // O tema é um ValueNotifier (ThemeService): trocar em Ajustes repinta o
+    // app inteiro sem reiniciar — e o valor VEM do perfil quando a conta já
+    // escolheu em outro aparelho (sincronizado no boot do OdRoot).
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeService.instance,
+      builder: (context, modo, _) => MaterialApp(
+        title: 'OmegaDrakon',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorSchemeSeed: const Color(0xFF1A237E),
+          useMaterial3: true,
+          brightness: Brightness.light,
+        ),
+        darkTheme: ThemeData(
+          colorSchemeSeed: const Color(0xFF1A237E),
+          useMaterial3: true,
+          brightness: Brightness.dark,
+        ),
+        themeMode: modo,
+        home: const OdRoot(),
       ),
-      darkTheme: ThemeData(
-        colorSchemeSeed: const Color(0xFF1A237E),
-        useMaterial3: true,
-        brightness: Brightness.dark,
-      ),
-      themeMode: ThemeMode.system,
-      home: const OdRoot(),
     );
   }
 }
@@ -111,6 +121,10 @@ class _OdRootState extends State<OdRoot> {
     if (has) {
       // Sessão/API key válidas: registra o token FCM deste aparelho.
       unawaited(PushService.instance.attach(_api));
+      // Tema (TODO §3.8): o PERFIL é a verdade da conta — escolha feita no
+      // site/painel/outro aparelho chega aqui. Best-effort: servidor fora
+      // deixa o cache local no comando.
+      unawaited(ThemeService.instance.sincronizar(_api));
     }
     // Checagem de atualização: best-effort, nunca bloqueia nem derruba o
     // boot (servidor fora / sem rota → simplesmente não há banner).

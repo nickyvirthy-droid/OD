@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/od_api.dart';
 import '../services/od_updater.dart';
+import '../services/theme_service.dart';
 
 /// Tela de configurações.
 ///
@@ -434,6 +435,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // -- TEMA (TODO §3.8: a preferência vive no perfil) --------------------
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.brightness_6),
+                  const SizedBox(width: 8),
+                  Text('Tema', style: theme.textTheme.titleMedium),
+                ]),
+                const Divider(),
+                const Text(
+                  'A escolha fica na SUA conta — o app, o site e o painel usam '
+                  'a mesma. "Segue o aparelho" acompanha o modo claro/escuro '
+                  'do celular.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                // RadioGroup (Flutter 3.32+): o grupo é do ancestral, não
+                // de cada tile — groupValue/onChanged por tile ficaram
+                // deprecated e o analyzer do projeto exige 0 issues.
+                ValueListenableBuilder<ThemeMode>(
+                  valueListenable: ThemeService.instance,
+                  builder: (context, modo, _) => RadioGroup<ThemeMode>(
+                    groupValue: modo,
+                    onChanged: (escolhido) {
+                      if (escolhido != null) {
+                        ThemeService.instance
+                            .definir(escolhido, api: widget.api);
+                      }
+                    },
+                    child: Column(
+                      children: [
+                        for (final opcao in const [
+                          (ThemeMode.system, 'Segue o aparelho',
+                              Icons.brightness_auto),
+                          (ThemeMode.light, 'Claro', Icons.light_mode),
+                          (ThemeMode.dark, 'Escuro', Icons.dark_mode),
+                        ])
+                          RadioListTile<ThemeMode>(
+                            contentPadding: EdgeInsets.zero,
+                            value: opcao.$1,
+                            title: Text(opcao.$2),
+                            secondary: Icon(opcao.$3),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

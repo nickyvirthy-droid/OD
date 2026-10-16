@@ -17,6 +17,7 @@ Uso típico:
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import secrets
 import threading
@@ -96,6 +97,44 @@ class User:
     created_at: float
 
 
+# --- Preferências do perfil (TODO §3.8: tema claro/escuro sincronizado) -----
+
+# A allowlist vive no SERVIDOR porque o mesmo valor orienta a UI de três
+# clientes (app, site, painel): chave desconhecida é ERRO (400) e não
+# silêncio — o cliente precisa saber que o que ele mandou não foi guardado.
+PREFERENCIAS_VALIDAS: dict[str, frozenset[str]] = {
+    "theme": frozenset({"system", "light", "dark"}),
+}
+
+# Quem nunca escolheu: o APARELHO decide (é o que o app já fazia com
+# ThemeMode.system e o que o site faz com prefers-color-scheme).
+PREFERENCIAS_PADRAO: dict[str, str] = {"theme": "system"}
+
+
+def validar_preferencias(dados: Any) -> dict[str, str]:
+    """Valida/normaliza preferências (PURO — testável sem banco).
+
+    Devolve o dict limpo (chaves conhecidas, valores em minúsculas) ou
+    levanta AuthError(400) na primeira chave/valor fora do contrato.
+    """
+    if not isinstance(dados, dict):
+        raise AuthError("preferências devem ser um objeto JSON", 400)
+    limpo: dict[str, str] = {}
+    for chave, valor in dados.items():
+        nome = str(chave).strip()
+        permitidos = PREFERENCIAS_VALIDAS.get(nome)
+        if permitidos is None:
+            raise AuthError(f"preferência desconhecida: {nome}", 400)
+        texto = str(valor).strip().lower()
+        if texto not in permitidos:
+            raise AuthError(
+                f"valor inválido para {nome}: {texto!r} "
+                f"(use {'|'.join(sorted(permitidos))})", 400,
+            )
+        limpo[nome] = texto
+    return limpo
+
+
 class AuthError(Exception):
     """Erro de autenticação."""
 
@@ -128,6 +167,15 @@ class UserStore:
         "expires_at": "REAL NOT NULL",
     }
 
+    # Preferências do perfil numa tabela PRÓPRIA (e não coluna em `users`):
+    # o Database não tem migração e `create_table` só cria o que falta —
+    # tabela nova funciona em banco já existente sem ALTER TABLE.
+    SCHEMA_PREFS = {
+        "user_id": "INTEGER PRIMARY KEY",
+        "preferences": "TEXT NOT NULL",
+        "updated_at": "REAL NOT NULL",
+    }
+
     # Vínculo de um chat do Telegram a uma conta (comando /entrar). O balde do
     # Telegram é o id numérico do chat; vinculado, a conversa cai na conta.
     SCHEMA_TELEGRAM_LINKS = {
@@ -148,6 +196,7 @@ class UserStore:
         db.create_table("users", self.SCHEMA_USERS)
         db.create_table("sessions", self.SCHEMA_SESSIONS)
         db.create_table("telegram_links", self.SCHEMA_TELEGRAM_LINKS)
+        db.create_table("user_prefs", self.SCHEMA_PREFS)
 
     # -- Registro -------------------------------------------------------------
 
@@ -286,6 +335,75 @@ class UserStore:
         return self._db.execute(
             "DELETE FROM sessions WHERE user_id = ?", (user_id,)
         )
+
+    # -- Preferências do perfil ---------------------------------------------
+
+    def get_preferences(self, user_id: int) -> dict[str, str]:
+        """Preferências do perfil: o padrão + o que o dono escolheu.
+
+        Nunca levanta: banco fora ou JSON corrompido devolve o PADRÃO (a
+        UI precisa abrir; preferência perdida não pode derrubar a página).
+        """
+        prefs = dict(PREFERENCIAS_PADRAO)
+        try:
+            rows = self._db.query(
+                "SELECT preferences FROM user_prefs WHERE user_id = ?",
+                (int(user_id),),
+                limit=1,
+            )
+        except Exception as exc:  # pragma: no cover — banco indisponível
+            log.warn("Preferências ilegíveis", user_id=user_id,
+                     error=type(exc).__name__)
+            return prefs
+        if not rows:
+            return prefs
+        try:
+            guardado = json.loads(rows[0]["preferences"] or "{}")
+        except Exception:
+            log.warn("Preferências corrompidas — voltando ao padrão",
+                     user_id=user_id)
+            return prefs
+        if not isinstance(guardado, dict):
+            return prefs
+        for chave, valor in guardado.items():
+            permitidos = PREFERENCIAS_VALIDAS.get(str(chave))
+            if permitidos and str(valor) in permitidos:
+                prefs[str(chave)] = str(valor)
+        return prefs
+
+    def set_preferences(self, user_id: int, dados: dict[str, Any]) -> dict[str, str]:
+        """Valida, faz MERGE com o que já existe e grava. Devolve o resultado.
+
+        Merge (e não substituição) para uma chave nova de versão futura não
+        apagar as antigas. Upsert em duas instruções de propósito: SQLite e
+        Postgres divergem na forma do `ON CONFLICT`.
+        """
+        limpo = validar_preferencias(dados)
+        atuais = self.get_preferences(user_id)
+        atuais.update(limpo)
+        alvo = int(user_id)
+        payload = json.dumps(atuais, ensure_ascii=False, sort_keys=True)
+        agora = time.time()
+        existe = self._db.query(
+            "SELECT user_id FROM user_prefs WHERE user_id = ?",
+            (alvo,),
+            limit=1,
+        )
+        if existe:
+            self._db.execute(
+                "UPDATE user_prefs SET preferences = ?, updated_at = ? "
+                "WHERE user_id = ?",
+                (payload, agora, alvo),
+            )
+        else:
+            self._db.execute(
+                "INSERT INTO user_prefs (user_id, preferences, updated_at) "
+                "VALUES (?, ?, ?)",
+                (alvo, payload, agora),
+            )
+        log.info("Preferências do perfil atualizadas", user_id=alvo,
+                 chaves=",".join(sorted(limpo)))
+        return atuais
 
     # -- Limpeza --------------------------------------------------------------
 

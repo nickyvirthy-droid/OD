@@ -147,7 +147,7 @@ class TestAPIRoutes:
         2026-10-15) + lista pública /registry, registro do comprador
         /registry/posse e QR de posse do dono (Etapa 4 do Registro
         Mestre, 2026-10-15)."""
-        assert len(ROUTES) == 82
+        assert len(ROUTES) == 84
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -193,6 +193,8 @@ class TestAPIRoutes:
             ("DELETE", "/admin/ferramentas/{id}"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
+            # Preferências do perfil (TODO §3.8: tema claro/escuro)
+            ("GET", "/profile/preferences"), ("PUT", "/profile/preferences"),
             ("POST", "/account/password"), ("POST", "/account/api-key"),
             ("GET", "/admin/users"),
             ("POST", "/admin/users/{username}/password"),
@@ -226,6 +228,8 @@ class TestAPIRoutes:
         """Somente os endpoints operacionais pedem API Key (como no legado)."""
         auth = {(r.method, r.path) for r in ROUTES if r.auth}
         assert auth == {
+            # Preferências do perfil (TODO §3.8: tema claro/escuro)
+            ("GET", "/profile/preferences"), ("PUT", "/profile/preferences"),
             ("POST", "/account/password"), ("POST", "/account/api-key"),
             ("POST", "/registry/{codigo}/chat"),
             ("GET", "/admin/users"),
@@ -487,6 +491,95 @@ class TestAPIPublicEndpoints:
 # ===========================================================================
 # Site estático (landing + APK) em /site*
 # ===========================================================================
+
+class TestTemaClaroEscuro:
+    """TODO §3.8 (16/10): tema claro/escuro no site e no painel.
+
+    O que este teste trava: (1) o painel injeta a paleta clara e o botão nas
+    TRÊS páginas, e o JS entra DENTRO do `<script>` existente (a guarda de
+    sintaxe do painel recorta do primeiro `<script>` ao último `</script>` —
+    um bloco novo no meio quebraria a extração); (2) o site resolve tema nas
+    duas portas (aparelho ou escolha) com o botão injetado pelo od-nav.js,
+    que é o que faz as 11 páginas funcionarem sem editar HTML nenhum.
+    """
+
+    @staticmethod
+    def _raiz() -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    def test_paginas_do_painel_trazem_o_tema(self, serve, tmp_path: Path) -> None:
+        srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
+        for pagina in ("/dashboard", "/admin", "/chat"):
+            status, corpo, _ = _request(srv.bound_port, "GET", pagina)
+            html = corpo.decode("utf-8", "replace")
+            assert status == 200, pagina
+            # o botão é CRIADO pelo JS (id odTema) — o HTML não o traz
+            assert 'odTema' in html, pagina
+            assert '#odTema' in html, pagina               # e o CSS o estiliza
+            assert 'od_theme' in html, pagina              # cópia local
+            assert ':root[data-theme="light"]' in html, pagina
+            assert 'prefers-color-scheme: light' in html, pagina
+            assert '--bg: #F4F6FB' in html, pagina         # paleta clara
+            assert "/profile/preferences" in html, pagina  # sincronia
+
+    def test_js_do_tema_entra_num_unico_bloco_script(
+            self, serve, tmp_path: Path) -> None:
+        """A guarda de sintaxe do painel extrai UM bloco — não criar dois."""
+        srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
+        for pagina in ("/dashboard", "/admin", "/chat"):
+            _s, corpo, _h = _request(srv.bound_port, "GET", pagina)
+            html = corpo.decode("utf-8", "replace")
+            assert html.count("<script>") == 1, pagina
+            assert html.count("</script>") == 1, pagina
+            dentro = html.split("<script>", 1)[1].rsplit("</script>", 1)[0]
+            assert "odTema" in dentro and "od_theme" in dentro, pagina
+
+    def test_injecao_do_tema_e_idempotente(self) -> None:
+        from integrations.api.server import _com_tema
+
+        base = "<html><head><style>x</style></head><body><script>1</script></body></html>"
+        uma = _com_tema(base)
+        duas = _com_tema(uma)
+        assert uma == duas
+        assert uma.count("odTema") == duas.count("odTema")
+
+    def test_site_tem_paleta_clara_e_botao_injetado(self) -> None:
+        raiz = self._raiz()
+        css = (raiz / "site" / "od.css").read_text(encoding="utf-8")
+        js = (raiz / "site" / "od-nav.js").read_text(encoding="utf-8")
+        # duas portas: aparelho (media) e escolha explícita (data-theme)
+        assert "@media (prefers-color-scheme: light)" in css
+        assert ':root[data-theme="light"]' in css
+        assert "--bg: #F5F7FA" in css
+        assert ".nav-tema" in css
+        # botão INJETADO pelo JS (as 11 páginas não foram editadas)
+        assert "odTema" in js and "od_theme" in js
+        assert "/profile/preferences" in js and "/auth/me" in js
+        assert "nav-toggle" in js          # entra ao lado do ⋮
+
+    def test_as_11_paginas_do_site_carregam_css_e_js_do_tema(self) -> None:
+        """Sem editar HTML nenhum, o tema alcança o site inteiro."""
+        site = self._raiz() / "site"
+        paginas = sorted(site.glob("*.html"))
+        assert len(paginas) >= 11
+        for pagina in paginas:
+            html = pagina.read_text(encoding="utf-8")
+            assert "od.css" in html, pagina.name
+            assert "od-nav.js" in html, pagina.name
+
+    def test_js_do_site_compila(self) -> None:
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:  # node é opcional no ambiente de teste
+            return
+        check = _subprocess.run(
+            [node, "--check", str(self._raiz() / "site" / "od-nav.js")],
+            capture_output=True,
+        )
+        assert check.returncode == 0, check.stderr.decode()[:400]
+
 
 class TestAPISite:
     """GET /site serve a landing e /site/{file} serve arquivos (APK).

@@ -637,6 +637,136 @@ class TestAuthEndpoints:
 # Gate de auth do servidor (_check_api_key)
 # ===========================================================================
 
+class TestPreferenciasDoPerfil:
+    """TODO §3.8: preferência do perfil (tema) com allowlist no servidor.
+
+    A mesma preferência orienta app, site e painel — por isso chave
+    desconhecida é 400 e nunca silêncio (o cliente precisa saber que não
+    guardou) e o valor padrão é "system" (quem nunca escolheu deixa o
+    aparelho decidir).
+    """
+
+    @staticmethod
+    def _cfg(store, **kwargs) -> APIConfig:
+        return APIConfig(port=0, rate_limit_max=0, user_store=store, **kwargs)
+
+    # -- Store -------------------------------------------------------------
+
+    def test_padrao_para_quem_nunca_escolheu(self, store) -> None:
+        user = store.register("alex", "alex@example.com", "senha123")
+        assert store.get_preferences(user.id) == {"theme": "system"}
+
+    def test_put_grava_e_sobrevive_a_novo_store(self, tmp_path) -> None:
+        db = Database(tmp_path / "prefs.db")
+        primeiro = UserStore(db)
+        user = primeiro.register("alex", "alex@example.com", "senha123")
+        assert primeiro.set_preferences(user.id, {"theme": "dark"}) == {
+            "theme": "dark"}
+        # mesmo banco, instância nova (o formato do banco é o contrato)
+        assert UserStore(db).get_preferences(user.id) == {"theme": "dark"}
+        db.close()
+
+    def test_merge_nao_apaga_o_que_ja_existe(self, store) -> None:
+        user = store.register("alex", "alex@example.com", "senha123")
+        store.set_preferences(user.id, {"theme": "light"})
+        # corpo vazio: no-op honesto — devolve o que está guardado
+        assert store.set_preferences(user.id, {}) == {"theme": "light"}
+        assert store.set_preferences(
+            user.id, {"theme": "light"}) == {"theme": "light"}
+
+    def test_chave_desconhecida_e_400_e_nao_grava(self, store) -> None:
+        user = store.register("alex", "alex@example.com", "senha123")
+        with pytest.raises(AuthError) as exc:
+            store.set_preferences(user.id, {"cor_favorita": "azul"})
+        assert exc.value.status == 400
+        assert "desconhecida" in str(exc.value)
+        assert store.get_preferences(user.id) == {"theme": "system"}
+
+    def test_valor_invalido_e_400_com_as_opcoes(self, store) -> None:
+        user = store.register("alex", "alex@example.com", "senha123")
+        store.set_preferences(user.id, {"theme": "dark"})
+        with pytest.raises(AuthError) as exc:
+            store.set_preferences(user.id, {"theme": "rosa"})
+        assert exc.value.status == 400
+        assert "dark" in str(exc.value) and "light" in str(exc.value)
+        # a válida anterior segue intacta (falha não é escrita parcial)
+        assert store.get_preferences(user.id) == {"theme": "dark"}
+
+    def test_json_corrompido_no_banco_volta_ao_padrao(self, store) -> None:
+        user = store.register("alex", "alex@example.com", "senha123")
+        store.set_preferences(user.id, {"theme": "dark"})
+        store._db.execute(
+            "UPDATE user_prefs SET preferences = ? WHERE user_id = ?",
+            ("{isso nao e json", user.id),
+        )
+        assert store.get_preferences(user.id) == {"theme": "system"}
+
+    def test_validar_preferencias_e_puro_e_normaliza(self) -> None:
+        from integrations.api.auth import validar_preferencias
+
+        assert validar_preferencias({"theme": "DARK"}) == {"theme": "dark"}
+        assert validar_preferencias({" theme ": " light "}) == {
+            "theme": "light"}
+        assert validar_preferencias({}) == {}
+        with pytest.raises(AuthError):
+            validar_preferencias("dark")          # não é objeto
+        with pytest.raises(AuthError):
+            validar_preferencias({"tema": "dark"})  # chave em português
+
+    # -- HTTP ---------------------------------------------------------------
+
+    def test_sem_credencial_401(self, serve, tmp_path, store) -> None:
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        status, _, _ = _request(
+            srv.bound_port, "GET", "/profile/preferences")
+        assert status == 401
+
+    def test_ciclo_get_put_com_sessao(self, serve, tmp_path, store) -> None:
+        user = store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/profile/preferences", bearer=token)
+        assert status == 200
+        assert _json_response((status, body, _))["preferences"] == {
+            "theme": "system"}
+
+        status, body, _ = _request(
+            srv.bound_port, "PUT", "/profile/preferences", bearer=token,
+            body={"theme": "light"})
+        assert status == 200
+        assert _json_response((status, body, _))["preferences"] == {
+            "theme": "light"}
+
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/profile/preferences", bearer=token)
+        assert _json_response((status, body, _))["preferences"] == {
+            "theme": "light"}
+        assert store.get_preferences(user.id) == {"theme": "light"}
+
+    def test_put_invalido_400_pelo_http(self, serve, tmp_path, store) -> None:
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        for corpo in ({"tema": "dark"}, {"theme": "rosa"}):
+            status, body, _ = _request(
+                srv.bound_port, "PUT", "/profile/preferences",
+                bearer=token, body=corpo)
+            assert status == 400, corpo
+            assert _json_response((status, body, _))["ok"] is False
+
+    def test_auth_me_traz_as_preferencias(self, serve, tmp_path, store) -> None:
+        store.register("alex", "alex@example.com", "senha123")
+        token = store.login("alex", "senha123")
+        srv = serve(make_orch(tmp_path), config=self._cfg(store))
+        status, body, _ = _request(
+            srv.bound_port, "GET", "/auth/me", bearer=token)
+        assert status == 200
+        assert _json_response((status, body, _))["preferences"] == {
+            "theme": "system"}
+
+
 class TestAuthGate:
     """Credenciais aceitas/negadas nos endpoints protegidos."""
 

@@ -648,6 +648,58 @@ class OdApi {
     return jsonDecode(response.body);
   }
 
+  /// GET /profile/preferences — preferências da conta (TODO §3.8).
+  ///
+  /// Hoje só `theme` (`system` | `light` | `dark`), as MESMAS que o site e o
+  /// painel leem. Devolve o mapa completo (padrão + escolhas).
+  Future<Map<String, dynamic>> getPreferences() async {
+    final response =
+        await _send('GET', Uri.parse('$baseUrl/profile/preferences'));
+    if (response.statusCode != 200) {
+      throw OdApiError(
+        'profile/preferences falhou: ${response.statusCode}'
+        '${_erroDoServidor(response)}',
+      );
+    }
+    final dados = jsonDecode(response.body);
+    final prefs = dados is Map ? dados['preferences'] : null;
+    return prefs is Map ? Map<String, dynamic>.from(prefs) : <String, dynamic>{};
+  }
+
+  /// PUT /profile/preferences — grava o tema no PERFIL (merge no servidor).
+  ///
+  /// O servidor valida a allowlist: valor fora de `system|light|dark` volta
+  /// 400 — o chamador sabe que NÃO guardou.
+  Future<Map<String, dynamic>> setPreferences({required String theme}) async {
+    final response = await _send(
+      'PUT',
+      Uri.parse('$baseUrl/profile/preferences'),
+      body: jsonEncode({'theme': theme}),
+    );
+    if (response.statusCode != 200) {
+      throw OdApiError(
+        'profile/preferences falhou: ${response.statusCode}'
+        '${_erroDoServidor(response)}',
+      );
+    }
+    final dados = jsonDecode(response.body);
+    final prefs = dados is Map ? dados['preferences'] : null;
+    return prefs is Map ? Map<String, dynamic>.from(prefs) : <String, dynamic>{};
+  }
+
+  /// `" — <mensagem do servidor>"` quando o corpo traz `error` (a allowlist
+  /// de preferências responde 400 com o motivo; mostrá-lo evita um erro
+  /// opaco na tela de Ajustes). Vazio quando não há corpo JSON útil.
+  String _erroDoServidor(http.Response response) {
+    try {
+      final dados = jsonDecode(response.body);
+      final erro = dados is Map ? dados['error'] : null;
+      return erro is String && erro.isNotEmpty ? ' — $erro' : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
   /// GET /dashboard/stats — agregados do orquestrador (histórico, cache,
   /// vector store, métricas). Disponível para qualquer conta logada.
   Future<Map<String, dynamic>> getDashboardStats() async {

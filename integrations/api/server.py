@@ -60,7 +60,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2061  # versionCode cru do APK publicado (v1.31.0+2061)
+_APP_VERSION_CODE = 2062  # versionCode cru do APK publicado (v1.32.0+2062)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -295,6 +295,11 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/auth/login", "auth_login", False),
     ("POST", "/auth/logout", "auth_logout", True),
     ("GET", "/auth/me", "auth_me", True),
+    # Preferências do perfil (TODO §3.8: tema claro/escuro sincronizado):
+    # a MESMA preferência serve app, site e painel — o valor é validado no
+    # servidor (allowlist) porque orienta a UI dos três.
+    ("GET", "/profile/preferences", "profile_preferences_get", True),
+    ("PUT", "/profile/preferences", "profile_preferences_put", True),
     # Conta do usuário logado (dashboard do usuário)
     ("POST", "/account/password", "account_password", True),
     ("POST", "/account/api-key", "account_api_key", True),
@@ -515,6 +520,180 @@ ROUTES: list[_Route] = [
     _Route(method, path, _compile_route(path), handler, auth)
     for method, path, handler, auth in _ROUTE_SPECS
 ]
+
+# ---------------------------------------------------------------------------
+# Tema claro/escuro do painel (TODO §3.8, 2026-10-16)
+# ---------------------------------------------------------------------------
+# O painel tem TRÊS páginas com CSS inline próprio (/dashboard, /admin,
+# /chat) e a paleta já vive duplicada nelas. Em vez de triplicar de novo a
+# paleta clara e o comportamento, os dois vivem AQUI e são injetados no
+# HTML antes de servir (`_com_tema`): uma fonte, três páginas.
+#
+# Diferente do SITE (que resolve "segue o aparelho" por
+# `@media prefers-color-scheme` e funciona sem JS), o painel é 100% JS
+# (toda a página é montada por fetch) — aqui o JS resolve a preferência e
+# grava o tema CONCRETO em `data-theme`, então uma única regra clara basta.
+_TEMA_PAINEL_CSS = """<style>
+  /* Paleta clara do painel (o tema escuro é o :root da própria página).
+     Mesma dualidade do site: o APARELHO pede (quem nunca escolheu, ou
+     escolheu "segue o aparelho") ou a escolha explícita grava
+     data-theme="light" (o JS cuida disso). */
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { __OD_TEMA_VARS__ }
+  }
+  :root[data-theme="light"] { __OD_TEMA_VARS__ }
+  /* Onde o âmbar era TEXTO (ilegível no claro), escurece. */
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) header a:hover,
+    :root:not([data-theme="dark"]) #badge b,
+    :root:not([data-theme="dark"]) section h2,
+    :root:not([data-theme="dark"]) .h-brand a:hover,
+    :root:not([data-theme="dark"]) .transport-badge.rest { color: #92400E; }
+  }
+  :root[data-theme="light"] header a:hover,
+  :root[data-theme="light"] #badge b,
+  :root[data-theme="light"] section h2,
+  :root[data-theme="light"] .h-brand a:hover,
+  :root[data-theme="light"] .transport-badge.rest { color: #92400E; }
+  #odTema {
+    width: 34px; height: 34px; border-radius: 8px; margin-left: 10px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text); cursor: pointer; font-size: 1rem; line-height: 1;
+    display: grid; place-items: center;
+  }
+  #odTema:hover { border-color: var(--accent); }
+</style>"""
+
+# As variáveis ficam num só lugar e entram nas DUAS portas (aparelho ou
+# escolha) — o CSS acima é montado a partir daqui, sem duas listas
+# paralelas que possam divergir.
+_TEMA_PAINEL_VARS = """color-scheme: light;
+    --bg: #F4F6FB; --bg2: #FFFFFF; --bg3: #E9EEF7;
+    --text: #131722; --muted: #5B6478; --border: #D5DCEA;
+    --accent: #F59E0B;            /* âmbar da marca (botões seguem com texto preto) */
+    --accent-glow: rgba(245,158,11,0.25);
+    --ok: #0F766E; --err: #B91C1C; --warn: #92400E;
+    --user-bg: #DCE8FF; --od-bg: #EEF1F8;"""
+_TEMA_PAINEL_CSS = _TEMA_PAINEL_CSS.replace("__OD_TEMA_VARS__", _TEMA_PAINEL_VARS)
+
+_TEMA_PAINEL_JS = """(function () {
+  'use strict';
+  var CHAVE = 'od_theme', VALIDOS = ['system', 'light', 'dark'];
+  var ICONES = { system: '🌗', light: '☀️', dark: '🌙' };
+  var ROTULOS = { system: 'Tema: segue o aparelho', light: 'Tema: claro', dark: 'Tema: escuro' };
+  var CICLO = { system: 'light', light: 'dark', dark: 'system' };
+
+  function ler() {
+    try {
+      var v = localStorage.getItem(CHAVE);
+      return VALIDOS.indexOf(v) >= 0 ? v : 'system';
+    } catch (e) { return 'system'; }
+  }
+  function resolvido(pref) {
+    if (pref === 'light' || pref === 'dark') return pref;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  function aplicar(pref) {
+    var raiz = document.documentElement;
+    raiz.setAttribute('data-theme', resolvido(pref));
+    raiz.style.colorScheme = resolvido(pref);
+    var b = document.getElementById('odTema');
+    if (!b) return;
+    b.textContent = ICONES[pref] || ICONES.system;
+    b.setAttribute('aria-label', ROTULOS[pref] || ROTULOS.system);
+    b.title = (ROTULOS[pref] || '') + ' (toque para trocar)';
+  }
+  function cabecalhos() {
+    var h = {};
+    try {
+      var token = localStorage.getItem('od_session_token');
+      var chave = localStorage.getItem('od_api_key');
+      if (token) h['Authorization'] = 'Bearer ' + token;
+      if (chave) h['X-API-Key'] = chave;
+    } catch (e) {}
+    return h;
+  }
+  // Best-effort: sem credencial (ou sem rede) só o local vale.
+  function salvar(pref) {
+    var h = cabecalhos();
+    if (!h['Authorization'] && !h['X-API-Key']) return;
+    try {
+      h['Content-Type'] = 'application/json';
+      fetch('/profile/preferences', {
+        method: 'PUT', headers: h, body: JSON.stringify({ theme: pref })
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  // O PERFIL é a verdade da conta; o localStorage é o cache (sem pisca).
+  function sincronizar() {
+    var h = cabecalhos();
+    if (!h['Authorization'] && !h['X-API-Key']) return;
+    try {
+      fetch('/auth/me', { headers: h })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          var doServidor = d && d.preferences && d.preferences.theme;
+          if (VALIDOS.indexOf(doServidor) < 0) return;
+          if (doServidor === ler()) return;
+          try { localStorage.setItem(CHAVE, doServidor); } catch (e) {}
+          aplicar(doServidor);
+        }).catch(function () {});
+    } catch (e) {}
+  }
+  function montar() {
+    if (document.getElementById('odTema')) return;
+    var cabecalho = document.querySelector('header');
+    if (!cabecalho) return;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'odTema';
+    cabecalho.appendChild(b);
+  }
+  function iniciar() {
+    aplicar(ler());
+    montar();
+    var b = document.getElementById('odTema');
+    if (b) b.addEventListener('click', function () {
+      var proximo = CICLO[ler()] || 'system';
+      try { localStorage.setItem(CHAVE, proximo); } catch (e) {}
+      aplicar(proximo);
+      salvar(proximo);
+    });
+    sincronizar();
+    try {
+      window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () {
+        if (ler() === 'system') aplicar('system');
+      });
+    } catch (e) {}
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciar);
+  } else { iniciar(); }
+})();"""
+
+
+def _com_tema(html: str) -> str:
+    """Injeta a paleta clara + o tema na página do painel.
+
+    O JS entra DENTRO do `<script>` que a página já tem (e não como um
+    segundo bloco): a guarda de sintaxe do painel (`node --check` em
+    tests/test_api.py) recorta do primeiro `<script>` ao último
+    `</script>` — um bloco novo no meio quebraria a extração e a guarda
+    passaria a medir outra coisa.
+
+    Idempotente pela marca `odTema`: chamada duas vezes não duplica nada.
+    """
+    if "odTema" in html:
+        return html
+    if "</head>" in html:
+        html = html.replace("</head>", _TEMA_PAINEL_CSS + "\n</head>", 1)
+    marca = "<script>"
+    pos = html.find(marca)
+    if pos >= 0 and "</script>" in html[pos:]:
+        corte = pos + len(marca)
+        html = html[:corte] + "\n" + _TEMA_PAINEL_JS + "\n" + html[corte:]
+    return html
+
 
 # ---------------------------------------------------------------------------
 # Página de chat (shell público + chave no navegador + POST /message)
@@ -3842,18 +4021,18 @@ class APIHandler(BaseHTTPRequestHandler):
         """Painel do USUÁRIO logado: uso da própria conta, histórico e conta
         (troca de senha / API key). Shell aberto; dados só via credencial —
         sem login o navegador é redirecionado para /chat."""
-        self._html(200, _DASHBOARD_PAGE_HTML)
+        self._html(200, _com_tema(_DASHBOARD_PAGE_HTML))
 
     def admin_html(self) -> None:
         """Painel do DONO (papel admin): contas, uso e saúde do sistema.
         O gate de dados é o _require_admin nos handlers /admin/users* — aqui
         é só o shell; sem papel admin a própria página se desliga."""
-        self._html(200, _ADMIN_PAGE_HTML)
+        self._html(200, _com_tema(_ADMIN_PAGE_HTML))
 
     def chat_html(self) -> None:
         """Chat funcional: shell aberto + chave pedida UMA vez no navegador
         (sessionStorage) e usada nas chamadas a POST /message."""
-        self._html(200, _CHAT_PAGE_HTML)
+        self._html(200, _com_tema(_CHAT_PAGE_HTML))
 
     def site_index(self) -> None:
         """Landing do site (index.html) em GET /site e /site/."""
@@ -4613,14 +4792,61 @@ class APIHandler(BaseHTTPRequestHandler):
         # antes do handler — aqui só resta reportar quem é o usuário.
         if self._current_user is not None:
             u = self._current_user
+            store = self.api._user_store
             self._json(200, {
                 "ok": True,
                 "user": {"id": u.id, "username": u.username, "email": u.email},
+                # As preferências vão JUNTO com o "quem sou eu" (TODO §3.8):
+                # site, painel e app já chamam /auth/me no boot — assim o
+                # tema sincroniza sem uma segunda ida à API.
+                "preferences": store.get_preferences(u.id),
                 "via": self._auth_via or "session",
                 "role": self._role(),
             })
             return
         raise APIError(401, "não autenticado")
+
+    # -- Preferências do perfil (tema claro/escuro) --------------------------
+
+    def _conta_ou_401(self) -> Any:
+        """Conta do usuário logado (sessão ou API key de conta).
+
+        Sem conta por trás da credencial (ex.: OD_API_KEY sem admin
+        configurado) não há perfil onde gravar — 401 é a resposta honesta.
+        """
+        if self._current_user is None:
+            raise APIError(401, "não autenticado")
+        return self._current_user
+
+    def profile_preferences_get(self) -> None:
+        """GET /profile/preferences — preferências da conta logada.
+
+        Sempre devolve as chaves conhecidas (padrão + escolhidas), o mesmo
+        formato que o PUT aceita — o cliente não precisa do padrão.
+        """
+        store = self._user_store_or_503()
+        user = self._conta_ou_401()
+        self._json(200, {"ok": True,
+                         "preferences": store.get_preferences(user.id)})
+
+    def profile_preferences_put(self) -> None:
+        """PUT /profile/preferences — grava (merge) as preferências da conta.
+
+        Body: {"theme": "system" | "light" | "dark"}. Chave desconhecida
+        ou valor fora do contrato é **400** (`preferencia_desconhecida` /
+        mensagem do validador): o cliente precisa saber que não guardou.
+        """
+        store = self._user_store_or_503()
+        user = self._conta_ou_401()
+        data = self._read_json() if self._has_body() else {}
+        try:
+            prefs = store.set_preferences(user.id, data)
+        except Exception as exc:
+            from integrations.api.auth import AuthError
+            if isinstance(exc, AuthError):
+                raise APIError(exc.status, str(exc))
+            raise
+        self._json(200, {"ok": True, "preferences": prefs})
 
     # -- Conta do usuário logado (dashboard do usuário) ---------------------
 
