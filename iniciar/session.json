@@ -1,7 +1,32 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T13:50:00-03:00",
+ "updated_at": "2026-10-16T14:00:00-03:00",
+ "refino_alerta_restart_2026_10_16": {
+  "pedido": "Dono (chat, ~13:45 de 16/10): 'Aplique o refinamento do alerta restart: um-disparo-por-boot, com teste de regressão' — sobre o refinamento proposto na §8 da transcrição (retomada das 13:38).",
+  "apuracao_antes_de_mexer": "JOURNAL POR PID provou que o alerta restart JÁ era um por boot (o _restart_reported sempre foi por processo) — o que parecia 're-emissão horária' era ATRASO: boot 11:17:09 (PID 3703628) alertou 11:17:10 (imediato), boot 11:38:58 (3724539) alertou 12:17:33 (+39 min), boot 12:23:30 (3766943) alertou 13:17:39 (+54 min). Causa: o anti-spam de 1 h ficava armado pelo alerta do boot anterior (last_alerts['restart'] persistido). CORREÇÃO DE REGISTRO: as leituras §6/§8 ('trava depois da 1ª emissão') e §9 ('próxima ~14:17') estavam ERRADAS.",
+  "entregas": [
+   "integrations/notifier.py: RESTART_ALERT_GUARD_S = 300.0 + NotifierConfig.restart_alert_guard_s + CheckResult.cooldown_s (anti-spam PRÓPRIO da sonda, vence config.cooldowns/default_cooldown_s); _check_restart passa a guarda de rajada — dedupe por boot (o processo) e boot novo alerta no PRIMEIRO tick; boot em cima de boot espera a guarda vencer e emite uma vez.",
+   "Crash loop segue com sonda própria (systemd:nrestarts, warn >=1 / crit >=3, anti-spam 1/h) — o sinal não depende mais do alerta de restart.",
+   "tests/test_notifier.py +3 (TestAlertaDeRestartPorBoot): (1) um disparo por boot que não repete em 2 h de ticks; (2) regressão do atraso (boot anterior há 40 min + cooldowns['restart']=3600 => emite no primeiro tick); (3) guarda de rajada (10 s/70 s bloqueados, alerta único aos 310 s). test_config_defaults_match_legacy ganhou a guarda de 300 s; os 2 testes antigos que fixavam cooldowns['restart'] passaram a fixar restart_alert_guard_s (mesma intenção)."
+  ],
+  "validacao": "Gate oficial --cov-fail-under=90: 2974 passed / 16 skipped, cobertura 90,62% (+3 testes; 1 warning pré-existente de tests/test_orchestrator.py). pyflakes limpo nos 2 arquivos, idêntico ao HEAD. TESTE DO TESTE por mutação: remover o cooldown_s da sonda (volta o anti-spam de 1 h) derruba 2 dos 3 testes novos; revertido bit a bit => 77 verdes em tests/test_notifier.py.",
+  "deploy": "Restart verde 13:50:39 (regra 7.3, commits a69744c+b9c6418 pushados ANTES): PID 3846977, NRestarts=0, journal 0 erros; notifier no ar 13:54:48 (boot lento ~4 min). PROVA VIVA DO FIX: 13:54:48 'Alerta proativo | key=restart' no MESMO segundo do boot (+ push enviados=1 falhas=0) — antes o boot de 12:23:30 só alertou 13:17:39; 5 ticks depois (13:59:23) /dashboard/stats notifier {ticks:5, checks_run:80, problems:2, alerts_emitted:1, alerts_blocked:0, errors:0} = UM disparo por boot, a repetição ~14:17 projetada na §9 não acontece. /health up 20/20; /app/version 1.31.0/2061 sha 3d3f6ccf… (sem bump — backend puro); RAG no boot idempotente (chunks=1666, novos=17, atualizados=654).",
+  "commits": [
+   "a69744c fix(notifier): alerta de restart é EVENTO — um disparo por boot (guarda de rajada de 300s)",
+   "b9c6418 docs(changelog,todo): refinamento do alerta de restart registrado (§Infra, sem bump)"
+  ],
+  "canais": "txt.txt reescrito (regra 14) + Telegram resumo (regra 15) + CHANGELOG §Infra + TODO §3.6 + transcrição §10.",
+  "estado": "CONCLUÍDO E NO AR — alerta restart agora é evento: 1 disparo por boot, imediato, provado ao vivo (PID 3846977). Aguardando ordem do dono.",
+  "proximas_pendencias_dono": [
+   "analise/ com 2 capturas do Sistema Órion (01:39) SEM instrução — referência de design, replicar bloco no painel, ou só arquivo?",
+   "Próximos candidatos do TODO §3 (fila §7 zerada): backup automático .env+data/, tema escuro/claro, métricas Prometheus do auto-update.",
+   "Vaultwarden: popular cofre + trocar master provisória.",
+   "Repo GitHub público com segredos no histórico: decidir privar/rotacionar.",
+   "Pauta itens 3 e 5; 4 fotos em analise/fotos-adicionais/; catálogo 3D/."
+  ],
+  "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§10)"
+ },
  "reverificacao_2026_10_16_1347": {
   "pedido": "Usuário: 'leia iniciar' (~13:47 de 16/10) — 2ª reverificação de rotina do dia, ~10 min depois da 13:38 (§8).",
   "achados_verdes": "SISTEMA VERDE e idêntico: od-core active desde 12:23:30 (1h16), MainPID 3766943, NRestarts=0, journal 0 erros desde o boot; /health status=up 20 checks nenhum fora; /app/version 1.31.0/2061 sha256 3d3f6ccf… == APK publicado (55508516 B); /dashboard/stats notifier {ticks:74, checks_run:1184, problems:53, alerts_emitted:2, alerts_blocked:50, errors:0} + nomad_tools {9,9,[]}; git HEAD 74c9325 == origin/master (0 à frente), único untracked = backups/backup_od_2026-10-16/ (regra 9); txt.txt sem mensagem nova do dono (mtime 12:37 = nossa entrega); analise/ inalterado (2 capturas Órion 01:39 + fotos-adicionais/).",

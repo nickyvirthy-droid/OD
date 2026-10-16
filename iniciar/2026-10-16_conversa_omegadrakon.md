@@ -548,3 +548,73 @@ Nova reverificação de rotina do dono **~10 min depois** da §8. Estado
 SISTEMA ESTÁVEL E NO AR — v1.31.0+2061 (PID 3766943, NRestarts=0,
 /health 20/20), fila §7 zerada; **nada em andamento**, aguardando ordem do
 dono. Registro em `session.json` (`reverificacao_2026_10_16_1347`).
+
+## §10 — "Aplique o refinamento do alerta restart: um-disparo-por-boot, com teste de regressão" — ENTREGUE
+
+Ordem do dono (~13:45, logo depois da §8) sobre o refinamento proposto na
+retomada das 13:38. **Backend puro → sem bump** (1.31.0/2061 intacto).
+
+### Apuração antes de mexer (a previsão da §8 estava errada)
+
+O journal de hoje, lido **por PID**, mostra que o alerta `restart` **já era
+um por boot** (o `_restart_reported` sempre foi por processo) — o que
+parecia "re-emissão de hora em hora" era o **atraso** de cada boot novo:
+
+| Boot (PID) | Alerta `key=restart` | Atraso |
+|---|---|---|
+| 11:17:09 (3703628) | 11:17:10 | 1 s (imediato) |
+| 11:38:58 (3724539) | **12:17:33** | **39 min** |
+| 12:23:30 (3766943) | **13:17:39** | **54 min** |
+
+Causa: o anti-spam de **1 h** do legado ficava armado pelo alerta do boot
+anterior (`last_alerts["restart"]`, persistido) e segurava o aviso do boot
+novo. Registro honesto: a §6/§8 previu que o alerta "travaria" após a
+primeira emissão e a §9 chegou a projetar a próxima às ~14:17 — as duas
+leituras estavam **erradas** e ficam corrigidas aqui pela medição.
+
+### Entrega
+
+- **`integrations/notifier.py`** — `RESTART_ALERT_GUARD_S = 300.0` +
+  `NotifierConfig.restart_alert_guard_s` + `CheckResult.cooldown_s`
+  (anti-spam próprio da sonda, que **vence** `config.cooldowns`).
+  `_check_restart` passa a guarda de rajada: dedupe **por boot** (o
+  processo) e boot novo alerta no **primeiro tick**; boot em cima de boot
+  espera a guarda vencer e ainda assim emite **uma vez**. O crash loop
+  continua com sonda própria (`systemd:nrestarts`, warn ≥1 / crit ≥3,
+  anti-spam 1/h) — o sinal não depende mais deste alerta.
+- **`tests/test_notifier.py` +3** — `TestAlertaDeRestartPorBoot`: (1) um
+  disparo por boot que **não repete** em 2 h de ticks; (2) **regressão do
+  atraso**: alerta do boot anterior há 40 min + `cooldowns["restart"] =
+  3600` ⇒ o boot novo **emite no primeiro tick**; (3) **guarda de rajada**:
+  boots a 10 s/70 s ficam bloqueados e o alerta sai uma vez aos 310 s, sem
+  repetir depois. `test_config_defaults_match_legacy` ganhou a guarda de
+  300 s; os 2 testes antigos que fixavam `cooldowns["restart"]` passaram a
+  fixar `restart_alert_guard_s` (mesma intenção: cooldown determinístico).
+
+### Validação
+
+- Gate oficial: **2974 passed / 16 skipped · cobertura 90,62%**
+  (+3 testes; 1 warning pré-existente de `tests/test_orchestrator.py`).
+- pyflakes **limpo** nos 2 arquivos, idêntico ao HEAD.
+- **Teste do teste (mutação):** remover o `cooldown_s` da sonda (volta o
+  anti-spam de 1 h) derruba **2 dos 3** testes novos; revertido bit a bit,
+  77 verdes em `tests/test_notifier.py`.
+
+### Prova viva no serviço (deploy 13:50:39, PID 3846977)
+
+| Passo | Resultado |
+|---|---|
+| Boot | 13:50:39 · **PID 3846977** · **NRestarts=0** · journal **0 erros**; notifier no ar às 13:54:48 (boot lento ~4 min, padrão da casa) |
+| **O fix em ação** | **13:54:48** — `Alerta proativo \| key=restart` no **MESMO segundo** em que o notifier subiu (antes: o boot de 12:23:30 só alertou 13:17:39, 54 min depois) + push `enviados=1 falhas=0` |
+| **Um disparo por boot** | 5 ticks depois (13:59:23): **1** alerta restart no processo, `/dashboard/stats` `notifier {ticks:5, checks_run:80, problems:2, alerts_emitted:1, alerts_blocked:0, errors:0}` — a repetição ~14:17 projetada na §9 **não acontece** |
+| Regressão de estado | `/health` **up 20/20** · `/app/version` **1.31.0/2061** sha `3d3f6ccf…` (sem bump) · RAG no boot idempotente (`chunks=1666, novos=17, atualizados=654`) |
+
+### Canais
+
+- Commits `a69744c` (fix + testes) e `b9c6418` (CHANGELOG §Infra +
+  TODO §3.6), pushados **antes** do restart; CHANGELOG **sem bump**.
+- `txt.txt` reescrito (regra 14) + Telegram (regra 15).
+- Pendências do dono inalteradas: 2 capturas do Órion sem instrução,
+  Vaultwarden, repo público, pauta 3 e 5, fotos, catálogo 3D. Próximos
+  candidatos do TODO §3: backup `.env`+`data/`, tema escuro/claro,
+  métricas Prometheus do auto-update.
