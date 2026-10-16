@@ -755,6 +755,81 @@ seria desperdício para um acervo append-only) e 4 semanas ≈ **1,3 GB**.
   comando de cópia para o HD externo + Telegram (regra 15).
 - Pendências do dono: 2 capturas do Órion sem instrução, Vaultwarden, repo
   público, pauta 3 e 5, fotos, catálogo 3D. Próximos candidatos do TODO §3:
-  tema escuro/claro, métricas Prometheus do auto-update — e, se quiser,
-  off-site (conta S3/MinIO/rclone à escolha dele), que é o que transforma
-  este backup em proteção contra morte de disco.
+  tema escuro/claro — e, se quiser, off-site (conta S3/MinIO/rclone à
+  escolha dele), que é o que transforma este backup em proteção contra
+  morte de disco.
+
+## §13 — "vamos continuar" → escolha da fila: **Métricas Prometheus do auto-update** (TODO §3.2) — ENTREGUE (sem bump)
+
+A fila §7 estava zerada e nada em andamento; perguntei por onde seguir com
+os candidatos reais (tema escuro/claro, backup off-site, métricas
+Prometheus, ProtoMaps) e o dono escolheu as **métricas Prometheus do
+auto-update**. Backend puro → **sem bump** (1.31.0/2061 intacto).
+
+O TODO §3.2 pedia `auto_update_tick_total`, `auto_update_aplicado_total` e
+`auto_update_falha_total`. Os nomes saem com **prefixo `od_`** porque
+**toda** métrica do `MetricsCollector` o leva (`od_processed_total`,
+`od_audit_total`, `od_api_requests_total`) — `od_auto_update_tick_total` é
+o **mesmo número** pedido, e o teste fixa essa equivalência.
+
+### Entrega
+
+- **`core/auto_update.py`** — `MetricasAutoUpdate` (dataclass `slots`, o
+  padrão do `NotifierMetrics`) contada **onde o fato acontece**:
+  `ticks`/`ticks_dry_run`, decisões (`decisao_aplicar`/`aguardar`/`pular`),
+  `aplicados` (o que **concluiu**: re-sync do RAG ou download
+  verificado/movido), `falhas` (só **DURA**), `auto_desligados` (na
+  **transição**, não a cada falha), `rag_syncs`, `downloads` (novos),
+  `dedups` (enqueue que a fila já tinha — **não é falha**) e `erros`
+  (exceção contida no consumidor de eventos).
+- **`prometheus_lines()`** — text exposition format: contadores **desde o
+  boot** (zerar no restart é o esperado; `rate()`/`increase()` compensam) +
+  gauges do estado **persistido** (`alvo`, `alvo_desabilitado`,
+  `download_pendente`) + `ultimo_tick_segundos`, que **não é inventado como
+  zero** antes do primeiro ciclo. Estado ilegível ⇒ devolve só os
+  contadores (o render do coletor nunca morre por uma fonte).
+- **`runtime/launcher.py`** — `ligar_metricas_auto_update(metrics, svc)`:
+  fonte viva ligada **tarde de propósito** (o coletor nasce em
+  `build_metrics`, o `/health` depende dele; o auto-update só existe
+  depois) e **best-effort** (sem coletor/serviço devolve False).
+- **API** — os MESMOS números (fonte única: `svc.metricas.snapshot()`) no
+  bloco `auto_update` do `/dashboard/stats`, no GET/dry-run do
+  `/admin/auto-update` e numa linha do card do painel.
+- **Decisão registrada:** **sem `skip_total`** — nenhum caminho usa
+  `_registrar_falha(dura=False)` hoje, e métrica que nunca sai de zero só
+  confunde quem lê o painel. O docstring diz isso.
+
+### Validação
+
+- Gate oficial **3057 passed / 16 skipped · 90,87%** (exit 0; **+11**) ·
+  `tests/test_auto_update.py` **74** verdes · `core/auto_update.py` **95%**
+  (os 25 faltantes são pré-existentes; **todo** o código novo coberto) ·
+  pyflakes sem aviso novo (só o **deslocamento de linha** do `plugins` do
+  launcher).
+- **Teste do teste (mutação)**: 6/6 capturadas — ciclos removidos,
+  `aplicados` do RAG removido, dedup somado como download, auto-desligado
+  não contado, **idade inventada como 0** e troca `aguardar`/`pular`.
+- O `node --check` do JS do painel roda nos testes do `/admin` (node
+  presente): a linha nova do card é JS válido.
+
+### Prova viva no serviço (deploy 15:20:20, PID 3935938)
+
+| Passo | Resultado |
+|---|---|
+| Boot | `Métricas do auto-update no /metrics (TODO §3.2)` · primeiro tick real `alvos=1 \| aplicar=0 \| resumo=indice-rag=aguardar` |
+| **`/metrics`** | Família nova no scrape: `od_auto_update_tick_total 1` · `od_auto_update_decisao_total{decisao="aguardar"} 1` · `od_auto_update_alvo 1` · `od_auto_update_alvo_desabilitado 0` · `od_auto_update_download_pendente 0` · `od_auto_update_ultimo_tick_segundos 32.915` (= **o mesmo tick** do journal, 32,9 s antes) |
+| **Sem regressão** | 42 linhas no total, com `od_audit_total 13006`, `od_uptime_seconds 41`, `od_api_requests_total 26`, `od_processed_total 0` — a fonte nova é aditiva |
+| `/dashboard/stats` | `auto_update.metricas` = `{ticks: 1, decisao_aguardar: 1, …}` — **idêntico** ao scrape |
+| `/admin` | Card com a linha de contadores (`id="au-metricas"`, `od_auto_update_` ×2) |
+| Saúde | `/health` **up, 22 checks**, nenhum fora · `/app/version` 1.31.0/2061 · NRestarts=0 · **0 erros** no journal |
+
+### Canais
+
+- Commit `825a033` (código + testes; pushado **antes** do restart) e o
+  commit de docs (CHANGELOG §Observabilidade + TODO §3.2 + esta §13 +
+  `session.json`), pushados.
+- `txt.txt` reescrito (regra 14) + Telegram (regra 15).
+- Pendências do dono: 2 capturas do Órion sem instrução, copiar os
+  snapshots do backup para o HD, off-site do backup, Vaultwarden, repo
+  público, pauta 3 e 5, fotos, catálogo 3D. Próximos candidatos do TODO §3:
+  tema escuro/claro (única pendência do §3.8) e ProtoMaps.

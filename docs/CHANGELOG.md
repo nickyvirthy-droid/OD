@@ -59,6 +59,50 @@ da transcrição disparou **uma única vez às 12:17:33** + push — e o
 processo novo o segura de novo pelo cooldown (`blocked: 3` = sem
 duplicata).
 
+### Observabilidade — Métricas Prometheus do auto-update (`od_auto_update_*` no `/metrics`) (TODO §3.2, ordem do dono, 2026-10-16, sem bump)
+
+> **Bump:** nenhum — backend puro (1.31.0/2061 intacto). Ordem do dono
+> depois do backup: escolha do item da fila (os candidatos do §3 eram
+> tema escuro/claro, backup off-site e **métricas Prometheus do
+> auto-update**). O TODO §3.2 pedia `auto_update_tick_total`,
+> `auto_update_aplicado_total` e `auto_update_falha_total`; os nomes
+> saem com **prefixo `od_`** porque **toda** métrica do MetricsCollector o
+> leva (`od_processed_total`, `od_audit_total`, `od_api_requests_total`) —
+> `od_auto_update_tick_total` é o mesmo número que foi pedido, e o teste
+> do `/metrics` fixa os dois lados dessa equivalência.
+
+| Peça | Entrega |
+|---|---|
+| **`core/auto_update.py`** | `MetricasAutoUpdate` (dataclass `slots`, o mesmo padrão do `NotifierMetrics`) contada **onde o fato acontece**: `ticks`/`ticks_dry_run`, as decisões do ciclo (`decisao_aplicar`/`aguardar`/`pular`), `aplicados` (o que **concluiu**: re-sync do RAG ou download verificado/movido), `falhas` (só **DURA** — a severidade do Nômade), `auto_desligados` (contado na **transição**, não a cada falha), `rag_syncs`, `downloads` (novos enfileirados), `dedups` (enqueue que a fila já tinha — **não é falha**) e `erros` (exceção contida no consumidor de eventos). `prometheus_lines()` renderiza o **text exposition format**: contadores **desde o boot** (zerar no restart é o esperado — `rate()`/`increase()` compensam) + gauges do estado **persistido** (`alvo`, `alvo_desabilitado`, `download_pendente`) + `ultimo_tick_segundos`, que **não é inventado como zero** antes do primeiro ciclo. |
+| **`runtime/launcher.py`** | `ligar_metricas_auto_update(metrics, auto_update)`: o serviço entra como **fonte viva** do coletor. A ligação é **tardia de propósito** — o coletor nasce em `build_metrics` (o `/health` depende dele) e o auto-update só existe depois — e é **best-effort**: sem coletor ou sem serviço (`OD_AUTO_UPDATE=0`) devolve `False` e o boot segue igual. |
+| **API (`/dashboard/stats`, `/admin/auto-update`, `/admin`)** | Os **mesmos números** (uma fonte só: `svc.metricas.snapshot()`) no bloco `auto_update` do Status, no GET/dry-run do admin e numa linha do card do painel — o dono vê sem precisar de um Prometheus apontado; um scraper vê no `/metrics`. |
+| **Decisão registrada (honestidade da métrica)** | **Não** existe `skip_total`: o contrato `_registrar_falha(dura=False)` (erro transitório que não conta para o auto-disable) **nenhum caminho usa hoje** — publicar um contador que nunca sai de zero só confundiria quem lê o painel. O docstring diz isso em vez de deixar a dúvida. |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte oficial gate `--cov-fail-under=90` (+ `.coveragerc`) | **3057 passed / 16 skipped · cobertura 90,87%** (exit 0) — **+11** testes (`tests/test_auto_update.py` com **74** verdes) |
+| `core/auto_update.py` | **95%** — os 25 stmts faltantes são **pré-existentes** (caminhos de erro com guarda, `dura=False`, `start()` sem fila); **todo** o código novo está coberto |
+| pyflakes | **sem aviso novo** nos 4 arquivos tocados (os 7 são pré-existentes; o único "novo" é o **deslocamento de linha** do `plugins` não usado do launcher, mesma mensagem do HEAD) |
+| **Teste do teste (mutação)** | 6 mutações aplicadas e **todas capturadas**: contador de ciclos removido, `aplicados` do RAG removido, dedup somado como download, auto-desligado não contado, **idade inventada como 0** e troca `aguardar`/`pular`; reversão bit-exata |
+| Testes que mais importam | contagem **por caminho** (tick × dry-run × falha × dedup × concluído), auto-disable contado **uma vez**, formato/labels do `/metrics`, estado ilegível **não derruba** o render, o serviço funciona como fonte no `MetricsCollector` e a **fiação do launcher** é exercitada (com os dois lados do best-effort) |
+
+**Prova viva no serviço (pós-deploy, 16/10 15:20, PID 3935938):**
+restart verde (`825a033` pushado **antes**, regra 7.3) · boot
+`Métricas do auto-update no /metrics (TODO §3.2)` · primeiro tick real
+`Auto-update tick | alvos=1 | aplicar=0 | resumo=indice-rag=aguardar` ·
+**`curl /metrics` traz a família nova** — `od_auto_update_tick_total 1`,
+`od_auto_update_decisao_total{decisao="aguardar"} 1`,
+`od_auto_update_alvo 1`, `od_auto_update_alvo_desabilitado 0`,
+`od_auto_update_download_pendente 0`,
+`od_auto_update_ultimo_tick_segundos 32.915` (o **mesmo** tick do journal,
+32,9 s depois) — **sem regressão** no que já existia (42 linhas no total:
+`od_audit_total 13006`, `od_uptime_seconds 41`, `od_api_requests_total 26`,
+`od_processed_total 0`) · `/dashboard/stats` bloco `auto_update.metricas`
+com **os mesmos números** do scrape (`ticks: 1`, `decisao_aguardar: 1`) ·
+`/admin` com a linha de contadores (`id="au-metricas"`, `od_auto_update_` ×2)
+· `/health` **up, 22 checks**, nenhum fora · `/app/version` **1.31.0/2061**
+(sem bump) · NRestarts=0 e **0 erros** no journal.
+
 ### Infra — Backup: as CAPTURAS entram (perfil semanal próprio, para o HD externo) (TODO §3.6, ordem do dono, 2026-10-16, sem bump)
 
 > Pedido do dono: *"inclua data/captures no backup (semanal, para o HD
