@@ -12,6 +12,51 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.32.0] — TEMA CLARO/ESCURO SINCRONIZADO NO APP, NO SITE E NO PAINEL (TODO §3.8) (2026-10-16)
+
+> **Bump MINOR (capacidade nova + APK novo):** ordem do dono com as três
+> decisões já fechadas na conversa — (1) o tema vale no **app + painel +
+> site público (11 páginas)**; (2) quem nunca escolheu **segue o
+> sistema**; (3) a preferência fica **no perfil do servidor com cópia
+> local**. O backend ganha a preferência no perfil e os TRÊS clientes
+> passam a ler a MESMA chave `theme` (`system` | `light` | `dark`) —
+> trocar no celular muda o site e o painel no mesmo login.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/api/auth.py`** | Tabela própria `user_prefs` (`user_id`, `preferences`, `updated_at`) — e não coluna em `users`: o `Database` não tem migração e `create_table` só cria o que falta, então funciona em banco já existente sem `ALTER TABLE`. Allowlist `PREFERENCIAS_VALIDAS` (`theme`: system/light/dark) + `PREFERENCIAS_PADRAO` (`{"theme": "system"}`) + `validar_preferencias()` **puro** (chave ou valor fora do contrato → `AuthError` 400: chave desconhecida é ERRO e não silêncio, o cliente precisa saber que não guardou) + `get_preferences` (nunca levanta: banco fora ou JSON corrompido devolve o PADRÃO — a UI não pode cair por causa de preferência) e `set_preferences` (**merge**, upsert em duas instruções de propósito: SQLite e Postgres divergem no formato do `ON CONFLICT`). |
+| **`integrations/api/server.py`** | Rotas autenticadas **`GET`/`PUT /profile/preferences`** (`PUT` faz merge e devolve o estado final) e `GET /auth/me` passa a devolver `preferences` — é por ali que app, site e painel sincronizam. O painel (`/dashboard`, `/admin`, `/chat`, cada uma com CSS inline próprio) ganha paleta clara e botão por **injeção**: `_com_tema()` mete `_TEMA_PAINEL_CSS` antes do `</head>` e o JS **DENTRO do único `<script>`** que a página já tem (bloco novo no meio quebraria a guarda de sintaxe, que recorta do primeiro `<script>` ao último `</script>`) — idempotente pela marca `odTema`. A paleta clara vive em `_TEMA_PAINEL_VARS` e entra nas duas portas (aparelho e escolha explícita), sem duas listas que possam divergir. |
+| **`site/od.css` + `site/od-nav.js`** | Paleta clara em variáveis + as duas portas do "segue o aparelho": `@media (prefers-color-scheme: light)` para quem nunca escolheu e `:root[data-theme="light"]` para a escolha explícita. Botão `.nav-tema` **injetado** pelo JS ao lado do ⋮ (as 11 páginas não foram editadas): ciclo segue→claro→escuro, cópia local em `localStorage['od_theme']`, `PUT /profile/preferences` e sincronia por `/auth/me`. |
+| **App `1.32.0+2062`** | `services/theme_service.dart` (**novo**): `ValueNotifier<ThemeMode>` com cópia local em `SharedPreferences['od_theme']` — o app abre já no tema escolhido ANTES do primeiro quadro (sem pisca) — envio best-effort ao perfil e a mesma regra de precedência dos outros dois clientes. `main.dart`: `theme`/`darkTheme` + `ValueListenableBuilder` no `themeMode` (trocar em Ajustes repinta o app inteiro sem reiniciar) e sincronia no boot do `OdRoot`. `settings_screen.dart`: card **Tema** com as três opções. `od_api.dart`: `getPreferences`/`setPreferences` + `getMe` expondo `preferences`. |
+| **versionCode** | 2061 → **2062** (bump MINOR — o app mudou: `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site ×4, README_VERSAO, esta seção). |
+
+### Decisões do dono (as três perguntas antes do código)
+
+| Pergunta | Resposta | Consequência no desenho |
+|---|---|---|
+| Até onde o tema vale | **App + painel + site público (11 páginas)** | site e painel usam a MESMA preferência do app; nada de tema só no celular |
+| Quem nunca escolheu | **Segue o sistema** | site/painel por `prefers-color-scheme`, app por `ThemeMode.system` (era o que o app já fazia) |
+| Onde a preferência fica | **Perfil do servidor + cópia local** | trocar no celular muda o site/painel no mesmo login; offline a cópia local garante o tema e semeia o perfil depois |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte do servidor (gate oficial `--cov-fail-under=90` + `.coveragerc`) | **3074 passed / 16 skipped · cobertura 90,91%** (exit 0; 1 warning pré-existente de `tests/test_orchestrator.py`) — **+17 testes**: 11 em `tests/test_auth.py` (`TestPreferenciasDoPerfil`: padrão de quem nunca escolheu, round-trip entre instâncias, merge que preserva e normaliza, chave desconhecida → 400, valor fora da allowlist → 400, JSON corrompido volta ao padrão, validação pura, rotas `GET`/`PUT` com e sem sessão) e 6 em `tests/test_api.py` (`TestTemaClaroEscuro`: as 3 páginas do painel, bloco único de `<script>`, injeção idempotente, paleta+botão do site, as 11 páginas carregando `od.css`/`od-nav.js`, `node --check` do JS) |
+| App | `flutter analyze` **0 issues** · `flutter test` **192 passed / 2 skipped** — **+13**: 12 do `test/theme_test.dart` (novo: cópia local, precedência perfil × local, semeadura, servidor fora, no-op sem api, `getPreferences`/`setPreferences`) e 1 do card Tema em `test/widget_test.dart` (pelo TOQUE na UI: aplica na hora, grava local e manda `theme: light` no PUT) |
+| Correção de teste achada ao rodar a suíte | Três testes da seção **Avançado** faziam `scrollUntilVisible` e tocavam sem `pump`: o `ensureVisible` interno termina em `jumpTo` **sem frame**, e com o card Tema empurrando as seções de baixo o toque caía fora do tile. Entrou um `pumpAndSettle` entre a rolagem e o toque — **asserções intactas**, é o passo que faltava no harness |
+| Guardas | política de versão **1.32.0/2062** (9/9) · `node --check` do JS do painel e do site verde |
+| **Prova viva no serviço** | Abaixo (pós-deploy) |
+
+**Prova viva no serviço (pós-deploy, 16/10 16:32:16, PID 4007853):**
+
+| Passo | Resultado |
+|---|---|
+| Boot | **NRestarts=0**, **0 erros** no journal desde o boot · RAG idempotente (`chunks=1708 \| novos=8 \| atualizados=674`) |
+| Versão | `/app/version` **1.32.0 / 2062** · `sha256 b5b4ed31…` **==** `site/OmegaDrakon.apk` (55.656.288 B) · `aapt2` dos dois APKs = `versionCode 2062` + `versionName 1.32.0` · guarda da política re-executada **9/9** |
+| Backup | `backups/apk-v1.31.0-2061/` criado antes da publicação do novo par |
+| Saúde | `/health` **up · 22 checks**, nenhum fora |
+| Tema vivo | `/dashboard` servido **com a injeção** (marca `odTema` ×6 no HTML) · `od-nav.js` com `.nav-tema` + `localStorage['od_theme']` · `od.css` com as duas portas (`prefers-color-scheme` + `:root[data-theme]`) |
+| Alerta `restart` | Um disparo único 16:36:04 (evento do boot 16:32) — um-disparo-por-boot segue valendo |
+
 ## [1.31.0] — APP AUTO-UPDATE EM BACKGROUND + PUSH FCM DO AUTO-UPDATE (ITEM B DA FILA) (2026-10-16)
 
 > **Bump MINOR (capacidade nova):** item (B) da fila §7 — ordem do dono

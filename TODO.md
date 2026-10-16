@@ -107,7 +107,7 @@
 ### 3.8 App Flutter
 - [x] **Auto-update no app** — download em background no boot + instalação com um toque — **ENTREGUE 16/10 (v1.31.0+2061, item B da fila):** `_preDownload` no `main.dart` (banner "Baixando… N%" → "baixada — pronta para instalar" → **Instalar**), `download()` reusa cache cujo SHA-256 confere (2ª chamada = 0 requisições). O `PackageInstaller` do texto era especulação pré-v1.7.0: o caminho FileProvider/`ACTION_INSTALL_PACKAGE` (27/09) já funciona no Android 14+ e mostra a mesma tela de confirmação do sistema — sessão `PackageInstaller` não ganharia UX.
 - [x] **Push FCM** — "auto-update aplicado" no celular — **ENTREGUE 16/10 (item B):** `core/auto_update.py::_anunciar()` chama `PushService.notify` nos dois sucessos do ciclo (re-sync do índice RAG com stats de chunks; download concluído/movido com alvo+versão), injetado por `build_auto_update(push=)` — best-effort, nunca derruba o ciclo. Saúde/nerve já vinha ligada pelo notifier (15–16/10) e o FCM e2e (registro/exibição no app) desde 13/09 (`3b5599c`).
-- [ ] **Tema escuro/claro sincronizado** — preferência salva no perfil do usuário (já tem `UserStore`)
+- [x] **Tema escuro/claro sincronizado** — preferência salva no perfil do usuário (já tem `UserStore`) — **ENTREGUE 16/10 (v1.32.0+2062; CHANGELOG §1.32.0):** a preferência vive no PERFIL (`user_prefs` + `GET/PUT /profile/preferences`, e o `/auth/me` devolve `preferences`) e a MESMA chave `theme` (`system|light|dark`) orienta **app + painel + site (11 páginas)** — trocar no celular muda o site e o painel no mesmo login. As três decisões do dono: tema nos três clientes, **seguir o sistema** para quem nunca escolheu, e preferência **no perfil + cópia local** (`SharedPreferences`/`localStorage`, que abre já no tema certo sem rede). Site e painel recebem a paleta clara e o botão por **injeção única** (`od.css`/`od-nav.js` e `_com_tema()` no painel, dentro do único `<script>` da página) — nenhuma das 11 páginas foi editada. Chave desconhecida é **400** e não silêncio. +17 testes (3074/16 · 90,91%) + 13 do app (`flutter analyze` 0 issues, 192/2).
 
 ---
 
@@ -163,13 +163,14 @@
 | **Melhorar RAG (embedding + corpus externo)** | ~~Médio~~ ✅ | Concluído 16/10 ~03:40 | **No ar (sem bump):** `iniciar/*.md` no corpus (895 → **1.598 chunks**) + floor recalibrado **0,399/0,036** (grid medido, 780 células válidas) → parafrases **1/8 → 6/8**, gate 8/8+8/8 intacto (2935/16, cov 90,60%). Embedding semântico **medido e recusado**: quebra precisão (irr 0,546 > rel 0,394 em todas as chaves) e box tem só ~1,7 GB RAM |
 | **Observabilidade / Alertas Telegram** | ~~Baixo~~ ✅ | Concluído 16/10 ~04:55 | **No ar (sem bump):** `/health` degraded → Telegram (dedupe com sondas dedicadas) + `NRestarts > 0` (queda anormal) + disco `OD_DISK_THRESHOLD_PERCENT` (2964/16, cov 90,60%; prova de fogo com sink real; fix da data nas mensagens) |
 | **App auto-update + FCM** | ~~Médio~~ ✅ | Concluído 16/10 | **No ar (v1.31.0+2061):** download em background no boot (banner % → "pronta para instalar" → **Instalar** com SHA conferido) + push **"Auto-update aplicado"** do servidor no celular (FCM e2e já ligada desde 13/09; o que faltava era o hook do Parte E). Guardas: gate servidor + `flutter analyze/test` verdes |
+| **Tema claro/escuro sincronizado** | ~~Médio~~ ✅ | Concluído 16/10 | **No ar (v1.32.0+2062):** preferência no perfil (`user_prefs`, `GET/PUT /profile/preferences` + `preferences` no `/auth/me`) lida pelos **três clientes** com a mesma chave, "seguir o sistema" como padrão e cópia local em cada um. Paleta clara e botão injetados (site e painel) sem editar as 11 páginas. +17 testes no servidor (3074/16, cov 90,91%) e +13 no app (192/2, analyze 0) |
 
-> **Sugestão:** a fila §7 está **zerada** — healthchecks, Registro
-> Mestre Etapa 4, RAG, Observabilidade/Alertas e **App auto-update + FCM
-> (B, 16/10)** concluídos. Candidatos remanescentes no §3: **Backup
-> automático `.env`+`data/`** (§3.6), **Tema escuro/claro sincronizado**
-> (§3.8), **Métricas Prometheus do auto-update** (§3.5) — aguardando
-> ordem do dono.
+> **Sugestão:** a fila §7 está **zerada** e os três candidatos que restavam
+> no §3 foram entregues em 16/10 — **Backup automático `.env`+`data/`**
+> (§3.6), **Métricas Prometheus do auto-update** (§3.5) e **Tema
+> claro/escuro sincronizado** (§3.8, v1.32.0+2062). Sem candidato técnico
+> aberto no §3: as pendências vivas são do dono (§2 do todo da conversa —
+> Órion com 2 capturas sem instrução, Vaultwarden, repo público/pautas).
 
 ---
 

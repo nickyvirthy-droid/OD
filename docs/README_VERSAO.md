@@ -7,9 +7,66 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
-## [1.31.0] — APP AUTO-UPDATE EM BACKGROUND + PUSH FCM DO AUTO-UPDATE (ITEM B DA FILA) 🜂 (2026-10-16)
+## [1.32.0] — TEMA CLARO/ESCURO SINCRONIZADO NO APP, NO SITE E NO PAINEL (TODO §3.8) 🜂 (2026-10-16)
 
 ### 1. O que foi feito
+
+Ordem do dono no TODO §3.8, com as **três decisões fechadas antes do
+código** (as perguntas foram feitas na conversa, depois da apuração):
+(1) o tema vale no **app + painel + site público (11 páginas)**; (2) quem
+nunca escolheu **segue o sistema**; (3) a preferência fica **no perfil do
+servidor com cópia local**. Uma única chave de contrato — `theme` com
+`system` | `light` | `dark` — orienta os três clientes: trocar no celular
+muda o site e o painel no mesmo login.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/api/auth.py`** | Tabela própria `user_prefs` (`user_id`, `preferences`, `updated_at`): o `Database` não tem migração e `create_table` só cria o que falta — tabela nova funciona em banco já existente **sem `ALTER TABLE`**. Allowlist `PREFERENCIAS_VALIDAS` + `PREFERENCIAS_PADRAO` (`{"theme": "system"}`) + `validar_preferencias()` **puro** (chave/valor fora do contrato → `AuthError` 400 — chave desconhecida é ERRO e não silêncio: o cliente PRECISA saber que não guardou) + `get_preferences` (nunca levanta: banco fora ou JSON corrompido devolve o padrão, a UI não pode cair por preferência) + `set_preferences` (**merge**, upsert em duas instruções porque SQLite e Postgres divergem no `ON CONFLICT`). |
+| **`integrations/api/server.py`** | **`GET`/`PUT /profile/preferences`** autenticadas; `GET /auth/me` devolve `preferences` — é por ali que app, site e painel sincronizam. O painel (`/dashboard`, `/admin`, `/chat`, cada uma com CSS inline próprio) ganha paleta clara + botão por **injeção única**: `_com_tema()` põe `_TEMA_PAINEL_CSS` antes do `</head>` e o JS DENTRO do único `<script>` da página (um bloco novo no meio quebraria a guarda de sintaxe, que recorta do primeiro `<script>` ao último `</script>`), idempotente pela marca `odTema`. A paleta clara vive em `_TEMA_PAINEL_VARS` e entra nas duas portas (aparelho e escolha), sem listas paralelas que possam divergir. |
+| **`site/od.css` + `site/od-nav.js`** | Paleta clara em variáveis + `@media (prefers-color-scheme: light)` (quem nunca escolheu) e `:root[data-theme="light"]` (escolha explícita). Botão `.nav-tema` **injetado** ao lado do ⋮ — as 11 páginas não foram editadas: ciclo segue→claro→escuro, cópia local em `localStorage['od_theme']`, `PUT /profile/preferences` e sincronia por `/auth/me`. |
+| **App `1.32.0+2062`** | `services/theme_service.dart` (**novo**): `ValueNotifier<ThemeMode>` + cópia local em `SharedPreferences['od_theme']` (lida antes do primeiro quadro: sem pisca), envio best-effort ao perfil e a MESMA regra de precedência dos outros clientes. `main.dart`: `theme`/`darkTheme` + `ValueListenableBuilder` no `themeMode` (repinta sem reiniciar) e sincronia no boot. `settings_screen.dart`: card **Tema**. `od_api.dart`: `getPreferences`/`setPreferences` + `getMe` com `preferences`. |
+| **versionCode** | 2061 → **2062** (bump MINOR: `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site ×4, README_VERSAO, CHANGELOG). |
+
+### 2. Verificação
+
+- Suíte do servidor (gate `--cov-fail-under=90` + `.coveragerc`):
+  **3074 passed / 16 skipped · cobertura 90,91%** (exit 0; 1 warning
+  pré-existente de `tests/test_orchestrator.py`) — **+17 testes**:
+  `tests/test_auth.py` `TestPreferenciasDoPerfil` (11: padrão, round-trip
+  entre instâncias, merge preservando e normalizando, chave desconhecida
+  → 400, valor fora da allowlist → 400, JSON corrompido volta ao padrão,
+  validação pura, rotas `GET`/`PUT` com e sem sessão) e
+  `tests/test_api.py` `TestTemaClaroEscuro` (6: as 3 páginas do painel,
+  bloco único de `<script>`, injeção idempotente, paleta+botão do site, as
+  11 páginas carregando `od.css`/`od-nav.js`, `node --check`).
+- App: `flutter analyze` **0 issues** · `flutter test` **192 passed /
+  2 skipped** (`test/theme_test.dart` novo com 12 — cópia local,
+  precedência perfil × local, semeadura, servidor fora, no-op sem api,
+  `getPreferences`/`setPreferences`; +1 do card Tema em `widget_test.dart`
+  pelo TOQUE na UI).
+- Guardas: política **1.32.0/2062** (9/9) · `node --check` do JS do painel
+  e do site verde.
+- **Correção de teste (achada rodando a suíte):** três testes da seção
+  **Avançado** rolávam com `scrollUntilVisible` e tocavam sem `pump` — o
+  `ensureVisible` interno termina em `jumpTo` **sem frame** e, com o card
+  Tema empurrando as seções de baixo, o toque caía fora do tile.
+  Entrou `pumpAndSettle` entre a rolagem e o toque (**asserções
+  intactas** — o harness).
+
+### 3. Prova viva no serviço em produção (16/10, PID 4007853)
+
+| Passo | Resultado |
+|---|---|
+| Boot (deploy 16:32:16) | PID 4007853, **NRestarts=0**, **0 erros** no journal desde o boot; RAG no boot idempotente (`chunks=1708 \| novos=8 \| atualizados=674`) — a preferência nova não quebrou o caminho de bootstrap |
+| Versão | `/app/version` **1.32.0 / 2062**, `sha256 b5b4ed31…` **==** `site/OmegaDrakon.apk` publicado (55.656.288 B); `aapt2` dos **dois** APKs: `versionCode 2062` cruro + `versionName 1.32.0`; guarda da política **9/9** re-executada |
+| Backup do APK anterior | `backups/apk-v1.31.0-2061/` criado antes da publicação (padrão da casa) |
+| Saúde | `/health` **up · 22 checks**, nenhum fora |
+| Tema no painel | `/dashboard` devolvido **com a injeção** — marca `odTema` ×6 no HTML servido (paleta + botão dentro do único `<script>` da página) |
+| Tema no site | `od-nav.js` com `.nav-tema` + `localStorage['od_theme']` e `od.css` com as duas portas (`prefers-color-scheme` + `:root[data-theme]`) |
+| Alerta `restart` | Disparou **uma única vez** 16:36:04 (evento do boot 16:32) — comportamento um-disparo-por-boot confirmado de novo |
+| Resíduo | árvore de trabalho apenas com os docs desta seção (commit de docs seguinte); `backups/backup_od_2026-10-16/` = dado do dono, intocado (regra 9) |
+
+## [1.31.0] — APP AUTO-UPDATE EM BACKGROUND + PUSH FCM DO AUTO-UPDATE (ITEM B DA FILA) 🜂 (2026-10-16)
 
 Item (B) da fila §7 — ordem do dono ("faça o B agora. me explique o que
 é essa implementação"). O que JÁ existia (auditado antes de mexer): FCM
