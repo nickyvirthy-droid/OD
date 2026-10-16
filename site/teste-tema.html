@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omega Drakon — Teste do tema</title>
+<meta name="description" content="Prova ao vivo do tema claro/escuro: os mesmos botões e a mesma mecânica do site inteiro.">
+<link rel="icon" href="/site/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site/od.css">
+<style>
+  .tema-demo { display: grid; gap: 14px; margin: 26px 0; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .tema-demo button {
+    padding: 18px 14px; font-size: 1.05rem; font-weight: 600; cursor: pointer;
+    background: var(--bg2); color: var(--texto);
+    border: 1px solid var(--border-lit); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: border-color .18s, background .18s;
+  }
+  .tema-demo button:hover { border-color: var(--azul); background: var(--azul-soft); }
+  .tema-demo button[aria-pressed="true"] { border-color: var(--azul); box-shadow: 0 0 0 1px var(--azul); }
+  .amostras { display: grid; gap: 14px; margin: 26px 0; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .amostra { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .amostra .chip { height: 84px; }
+  .amostra .legenda { padding: 10px 12px; background: var(--bg2); font-size: .85rem; }
+  .amostra .legenda b { display: block; font-family: 'Orbitron', sans-serif; letter-spacing: .06em; font-size: .8rem; }
+  .status-tema { margin-top: 18px; padding: 12px 14px; border: 1px dashed var(--border-lit); border-radius: 10px; font-size: .92rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="/site"><img src="/site/simbolo_minimo.png" alt="OD"> OMEGA DRAKON</a>
+    <div class="nav-spacer"></div>
+    <button class="nav-toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="navPanel"><span class="dots">&#8942;</span></button>
+  </div>
+</nav>
+<div class="nav-panel" id="navPanel">
+  <div class="wrap">
+    <a href="/site">Início</a>
+    <a href="/site/index.html">Página principal</a>
+    <a href="/chat">Chat</a>
+  </div>
+</div>
+
+<main class="wrap" style="padding-top:104px">
+  <h1>Teste do tema</h1>
+  <p>Prova ao vivo do tema claro/escuro. Os botões de baixo usam a <b>mesma
+     mecânica</b> do botão que fica ao lado do <b>⋮</b> no topo de todas as
+     páginas — e a preferência vale no site, no painel e no app (v1.32.0).
+     As amostras mostram as cores REAIS da página enquanto ela pinta.</p>
+
+  <div class="tema-demo">
+    <button id="btnClaro" type="button">&#9728;&#65039; Claro</button>
+    <button id="btnEscuro" type="button">&#127769; Escuro</button>
+    <button id="btnSistema" type="button">&#127767; Seguir o aparelho</button>
+  </div>
+
+  <div class="amostras">
+    <div class="amostra">
+      <div class="chip" id="chipFundo"></div>
+      <div class="legenda"><b>FUNDO DA PÁGINA</b><span id="txtFundo">—</span></div>
+    </div>
+    <div class="amostra">
+      <div class="chip" id="chipTexto"></div>
+      <div class="legenda"><b>TEXTO</b><span id="txtTexto">—</span></div>
+    </div>
+    <div class="amostra">
+      <div class="chip" id="chipCartao"></div>
+      <div class="legenda"><b>CARTÃO / BORDA</b><span id="txtCartao">—</span></div>
+    </div>
+  </div>
+
+  <div class="status-tema" id="statusTema">Tema atual: —</div>
+
+  <p style="margin-top:22px">No celular o tema mora em <b>Ajustes → Tema</b> do
+     app — o app avisa sozinho quando o <b>v1.32.0</b> está pronto para
+     instalar. No painel (<b>/admin</b>) o mesmo botão fica no cabeçalho.</p>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var CHAVE = 'od_theme', VALIDOS = ['system', 'light', 'dark'];
+  var CICLO_ICONE = { system: '\u{1F317}', light: '☀️', dark: '\u{1F319}' };
+
+  function ler() {
+    try {
+      var v = localStorage.getItem(CHAVE);
+      return VALIDOS.indexOf(v) >= 0 ? v : 'system';
+    } catch (e) { return 'system'; }
+  }
+  function resolvido(pref) {
+    if (pref === 'light' || pref === 'dark') return pref;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  // As MESMAS linhas do botão real (od-nav.js): grava, pinta e sincroniza.
+  function aplicar(pref) {
+    try { localStorage.setItem(CHAVE, pref); } catch (e) {}
+    var raiz = document.documentElement;
+    if (pref === 'system') raiz.removeAttribute('data-theme');
+    else raiz.setAttribute('data-theme', pref);
+    raiz.style.colorScheme = resolvido(pref);
+    var b = document.getElementById('odTema');
+    if (b) b.textContent = CICLO_ICONE[pref] || CICLO_ICONE.system;
+    pintarAmostras();
+  }
+  function pintarAmostras() {
+    var cs = getComputedStyle(document.body);
+    var fundo = cs.backgroundColor, texto = cs.color;
+    var cartao = getComputedStyle(document.querySelector('.amostra .legenda')).backgroundColor;
+    var borda = getComputedStyle(document.querySelector('.amostra')).borderColor;
+    document.getElementById('chipFundo').style.background = fundo;
+    document.getElementById('chipTexto').style.background = texto;
+    document.getElementById('chipCartao').style.background =
+      'linear-gradient(90deg, ' + cartao + ' 50%, ' + borda + ' 50%)';
+    document.getElementById('txtFundo').textContent = fundo;
+    document.getElementById('txtTexto').textContent = texto;
+    document.getElementById('txtCartao').textContent = cartao + ' · borda ' + borda;
+    var pref = ler();
+    var status = 'Tema atual: ' + pref + ' (pinta como "' + resolvido(pref) + '")';
+    try {
+      if (localStorage.getItem('od_session_token')) {
+        status += ' · sincronizado com o seu PERFIL (vale no app e no painel)';
+      }
+    } catch (e) {}
+    document.getElementById('statusTema').textContent = status;
+    ['btnClaro', 'btnEscuro', 'btnSistema'].forEach(function (id, i) {
+      document.getElementById(id).setAttribute(
+        'aria-pressed', VALIDOS[i] === pref ? 'true' : 'false');
+    });
+  }
+  function iniciar() {
+    aplicar(ler());
+    document.getElementById('btnClaro').addEventListener('click', function () { aplicar('light'); });
+    document.getElementById('btnEscuro').addEventListener('click', function () { aplicar('dark'); });
+    document.getElementById('btnSistema').addEventListener('click', function () { aplicar('system'); });
+    try {
+      window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () {
+        if (ler() === 'system') aplicar('system');
+      });
+    } catch (e) {}
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciar);
+  } else { iniciar(); }
+})();
+</script>
+
+<script src="/site/od-nav.js"></script>
+
+</body>
+</html>
