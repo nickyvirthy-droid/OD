@@ -4,11 +4,11 @@ Tecnologia que respira.
 Módulo: integrations/notifier.py
 Descrição: ProactiveNotifier (Fase 5, item 5.3) — notificações proativas do
            legado Nicky reimplementadas em stdlib (sem httpx): health check
-           periódico, alertas de restart, LLM offline >threshold e disco
-           acima do limite, com ANTI-SPAM (cooldown por alerta, padrão 1/h),
-           sinks plugáveis (Telegram, log, stdout), Event Bus e estado
-           persistido em arquivo (cooldowns e detecção de restart entre
-           reinícios).
+           periódico, alertas de restart (EVENTO: um disparo por boot),
+           LLM offline >threshold e disco acima do limite, com ANTI-SPAM
+           (cooldown por alerta, padrão 1/h), sinks plugáveis (Telegram,
+           log, stdout), Event Bus e estado persistido em arquivo
+           (cooldowns e detecção de restart entre reinícios).
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 
@@ -26,6 +26,10 @@ Decisões registradas (ver CHANGELOG):
     só viram alerta depois de N segundos, como no legado (>5min)
   - Cooldown por chave de alerta (anti-spam): repetição respeita o
     intervalo configurado (padrão 3600s — 1 alerta/hora)
+  - Alerta de restart é EVENTO, não condição (2026-10-16): um disparo
+    por boot (`CheckResult.cooldown_s` = guarda de rajada de 300s), no
+    lugar do anti-spam de 1/h — que atrasava o aviso do boot novo em até
+    uma hora e fazia o alerta parecer repetitivo
 """
 
 from __future__ import annotations
@@ -61,6 +65,17 @@ SEVERITY_EMOJI = {
 }
 
 DEFAULT_COOLDOWN_S = 3600.0  # 1 alerta/hora (anti-spam do legado)
+# Guarda do alerta de `restart` (2026-10-16). Restart é EVENTO, não
+# condição: a deduplicação é POR BOOT (um disparo por processo — ver
+# `_restart_reported`), então o anti-spam de 1/hora só atrapalhava —
+# medido em 16/10: os deploys 11:17/11:38/12:23 geraram 3 alertas, mas o
+# 2º e o 3º saíram com 39 e 54 min de ATRASO (o cooldown de 1 h ficava
+# armado pelo boot anterior) e isso parecia um push de hora em hora.
+# Esta guarda curta existe só contra RAJADA de boots (Restart=on-failure
+# + RestartSec=10 deixa o serviço reiniciando a cada ~10 s numa queda que
+# não sobe); o sinal de crash loop tem sonda própria (`systemd:nrestarts`,
+# warn >= 1 / crit >= 3, com o anti-spam de 1/hora).
+RESTART_ALERT_GUARD_S = 300.0
 DEFAULT_LLM_OFFLINE_S = 300.0  # 5 minutos
 DEFAULT_DISK_THRESHOLD_PERCENT = 85.0
 ALERT_TRACE_LIMIT = 100
@@ -89,6 +104,10 @@ class CheckResult:
         key:         Chave estável do problema (anti-spam). Padrão: source.
         emit_after_s: Tempo mínimo de persistência do problema antes de
                       virar alerta (ex: LLM offline só alerta após 5min).
+        cooldown_s:  Anti-spam PRÓPRIO desta sonda — vence
+                     `config.cooldowns`/`default_cooldown_s`. Usado pelo
+                     alerta de EVENTO (`restart`): a dedupe é por boot e
+                     aqui só entra a guarda de rajada.
     """
 
     ok: bool
@@ -97,6 +116,7 @@ class CheckResult:
     source: str = ""
     key: str = ""
     emit_after_s: float = 0.0
+    cooldown_s: Optional[float] = None
 
     def __post_init__(self) -> None:
         if not self.key:
@@ -169,6 +189,9 @@ class NotifierConfig:
         disk_paths:             Caminhos monitorados (shutil.disk_usage).
         default_cooldown_s:     Anti-spam padrão entre alertas iguais.
         cooldowns:              Cooldown específico por chave de alerta.
+        restart_alert_guard_s:  Guarda de rajada do alerta `restart` (que
+                                é um disparo POR BOOT, não por hora) —
+                                vence `cooldowns["restart"]`.
         state_file:             Persistência JSON opcional (pid/started_at +
                                 cooldowns) para restart e anti-spam entre
                                 reinícios. None = tudo em memória.
@@ -180,6 +203,7 @@ class NotifierConfig:
     disk_paths: tuple[str, ...] = ("/",)
     default_cooldown_s: float = DEFAULT_COOLDOWN_S
     cooldowns: dict[str, float] = field(default_factory=dict)
+    restart_alert_guard_s: float = RESTART_ALERT_GUARD_S
     state_file: Optional[Union[str, Path]] = None
 
 
@@ -340,6 +364,18 @@ def _check_loops(notifier: "ProactiveNotifier") -> list[CheckResult]:
 
 
 def _check_restart(notifier: "ProactiveNotifier") -> CheckResult:
+    """Restart = EVENTO pontual: **um disparo por boot**.
+
+    O boot é a identidade do processo: `_restart_detected` é decidido no
+    `__init__` (pid gravado no estado != pid de agora) e
+    `_restart_reported` vira True na PRIMEIRA emissão — por mais ticks que
+    o processo rode, ele não repete o aviso. O cooldown desta sonda é a
+    guarda de rajada (`restart_alert_guard_s`, 300 s), NÃO o anti-spam de
+    1 h: boot novo alerta no primeiro tick, mesmo que o boot anterior
+    tenha alertado minutos antes (era o atraso medido em 16/10 — ver
+    `RESTART_ALERT_GUARD_S`); boot em cima de boot espera a guarda vencer
+    e ainda assim emite UMA vez.
+    """
     if notifier._restart_detected and not notifier._restart_reported:
         return CheckResult(
             ok=False,
@@ -347,6 +383,7 @@ def _check_restart(notifier: "ProactiveNotifier") -> CheckResult:
             source="restart",
             key="restart",
             detail="Sistema foi reiniciado (PID mudou desde o último estado).",
+            cooldown_s=notifier.config.restart_alert_guard_s,
         )
     return CheckResult(ok=True, source="restart", detail="Sem reinício detectado.")
 
@@ -802,9 +839,14 @@ class ProactiveNotifier:
             since = self._problem_since.setdefault(result.key, now)
             if result.emit_after_s > 0 and (now - since) < result.emit_after_s:
                 return  # problema ainda abaixo do threshold de alerta
-            # Anti-spam: respeita o cooldown por chave
-            cooldown = self.config.cooldowns.get(
-                result.key, self.config.default_cooldown_s
+            # Anti-spam: cooldown PRÓPRIO da sonda (alerta de evento, ex:
+            # restart) ou o do config por chave/padrão
+            cooldown = (
+                result.cooldown_s
+                if result.cooldown_s is not None
+                else self.config.cooldowns.get(
+                    result.key, self.config.default_cooldown_s
+                )
             )
             last = self._last_alerts.get(result.key)
             if last is not None and (now - last) < cooldown:

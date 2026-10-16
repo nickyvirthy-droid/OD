@@ -30,6 +30,7 @@ from core.orchestrator import Orchestrator, RecordingProvider
 from core.supervision import CRASH_LOOP_RESTARTS
 from integrations.notifier import (
     HEALTH_DEGRADADO_APOS_S,
+    RESTART_ALERT_GUARD_S,
     SEVERITY_CRIT,
     SEVERITY_EMOJI,
     SEVERITY_OK,
@@ -166,6 +167,8 @@ class TestNotifierTypes:
         assert cfg.disk_threshold_percent == 85.0
         assert cfg.default_cooldown_s == 3600.0  # 1 alerta/hora
         assert cfg.interval_s == 60.0
+        # Alerta de restart é EVENTO: guarda de rajada, não 1 alerta/hora
+        assert cfg.restart_alert_guard_s == RESTART_ALERT_GUARD_S == 300.0
 
 
 # ===========================================================================
@@ -351,7 +354,7 @@ class TestNotifierTick:
             orch(OnlineProvider()),
             config=NotifierConfig(
                 state_file=state, default_cooldown_s=0.0,
-                cooldowns={"restart": 3600.0},
+                restart_alert_guard_s=3600.0,
             ),
             clock=clock,
         )
@@ -383,7 +386,7 @@ class TestNotifierTick:
             orch(OnlineProvider()),
             config=NotifierConfig(
                 state_file=state, default_cooldown_s=0.0,
-                cooldowns={"restart": 3600.0},
+                restart_alert_guard_s=3600.0,
             ),
             clock=_Clock(),
         )
@@ -444,6 +447,102 @@ class TestNotifierTick:
         snapshot = notifier.metrics.snapshot()
         assert snapshot["checks_run"] == 5
         assert snapshot["problems"] == 1  # apenas llm (abaixo do threshold)
+
+
+# ===========================================================================
+# Alerta de restart: um disparo por boot (2026-10-16)
+# ===========================================================================
+
+class TestAlertaDeRestartPorBoot:
+    """Restart é EVENTO: dispara UMA vez por boot, no primeiro tick.
+
+    Regressão do comportamento medido em 16/10/2026 (transcrição §8): com
+    o anti-spam de 1 h o alerta de um boot novo era ATRASADO pelo alerta
+    do boot anterior (deploys 11:17 / 11:38 / 12:23 → os alertas saíram
+    11:17:10, 12:17:33 e 13:17:39, com 39 e 54 min de atraso) e o padrão
+    parecia um push de hora em hora. Agora o cooldown do `restart` é a
+    guarda de rajada da própria sonda (300 s), não o de 1 h.
+    """
+
+    @staticmethod
+    def _estado_de_boot_anterior(
+        tmp_path: Path, alerta_anterior: float | None = None
+    ) -> Path:
+        """Estado de um boot ANTERIOR (pid diferente = restart detectado)."""
+        state = tmp_path / "notifier.json"
+        salvo: dict = {"pid": 99999, "started_at": 1.0, "last_alerts": {}}
+        if alerta_anterior is not None:
+            salvo["last_alerts"]["restart"] = alerta_anterior
+        state.write_text(json.dumps(salvo), encoding="utf-8")
+        return state
+
+    @staticmethod
+    def _notifier(state: Path, clock: _Clock, **cfg) -> ProactiveNotifier:
+        # threshold de disco alto: o teste não depende do disco da máquina
+        return ProactiveNotifier(
+            orch(OnlineProvider()),
+            config=NotifierConfig(
+                state_file=state, disk_threshold_percent=99.0, **cfg
+            ),
+            clock=clock,
+        )
+
+    @pytest.mark.asyncio
+    async def test_um_disparo_por_boot_nunca_repete_no_mesmo_boot(
+        self, tmp_path: Path
+    ) -> None:
+        """Um boot = um aviso: passada até a hora cheia do anti-spam
+        antigo, o MESMO processo não repete (nada de push de hora em hora).
+        """
+        clock = _Clock()
+        notifier = self._notifier(self._estado_de_boot_anterior(tmp_path),
+                                  clock)
+        assert [a.key for a in await notifier.tick()] == ["restart"]
+        clock.advance(3600.0)
+        assert await notifier.tick() == []
+        clock.advance(3600.0)
+        assert await notifier.tick() == []
+        assert notifier.metrics.snapshot()["alerts_emitted"] == 1
+
+    @pytest.mark.asyncio
+    async def test_boot_novo_nao_espera_o_cooldown_de_1_hora(
+        self, tmp_path: Path
+    ) -> None:
+        """Regressão do atraso de 16/10: o boot novo alerta no PRIMEIRO
+        tick mesmo com o alerta do boot anterior há 40 min — e mesmo com
+        `cooldowns["restart"]` (anti-spam de condição) configurado, que
+        NÃO governa mais este alerta.
+        """
+        state = self._estado_de_boot_anterior(tmp_path,
+                                             alerta_anterior=1000.0)
+        clock = _Clock(1000.0 + 2400.0)  # 40 min depois do boot anterior
+        notifier = self._notifier(
+            state, clock, default_cooldown_s=0.0,
+            cooldowns={"restart": 3600.0},
+        )
+        assert [a.key for a in await notifier.tick()] == ["restart"]
+
+    @pytest.mark.asyncio
+    async def test_rajada_de_boots_espera_a_guarda_e_emite_uma_vez(
+        self, tmp_path: Path
+    ) -> None:
+        """Guarda de rajada: boot em cima de boot (10 s, 70 s) não vira
+        push por boot — o alerta é segurado e sai UMA vez quando a guarda
+        vence (o crash loop em si é sinal do `systemd:nrestarts`).
+        """
+        state = self._estado_de_boot_anterior(tmp_path,
+                                              alerta_anterior=1000.0)
+        clock = _Clock(1000.0 + 10.0)  # 10 s depois do alerta anterior
+        notifier = self._notifier(state, clock)
+        assert await notifier.tick() == []
+        clock.advance(60.0)  # 70 s: ainda dentro dos 300 s de guarda
+        assert await notifier.tick() == []
+        assert notifier.metrics.snapshot()["alerts_blocked"] == 2
+        clock.advance(240.0)  # 310 s: guarda vencida
+        assert [a.key for a in await notifier.tick()] == ["restart"]
+        clock.advance(3600.0)
+        assert await notifier.tick() == []  # e não repete no mesmo boot
+        assert notifier.metrics.snapshot()["alerts_emitted"] == 1
 
 
 # ===========================================================================
