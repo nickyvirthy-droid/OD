@@ -68,6 +68,45 @@ apagados, listas pública/admin de volta ao total 6 — **resíduo zero**.
 
 ---
 
+### Infra — Conserto do notifier: timestamp de boot antigo não silencia mais `restart`/`llm:offline` + suíte para de gravar o estado de produção (ordem "conserte o notifier", 2026-10-16, sem bump)
+
+> Achado na reverificação das 06:40 (`iniciar/` §4): o
+> `data/notifier_state.json` guardava `last_alerts` com monotônicos do
+> **boot 29/07 → 11/09** (`restart: 3754164.292`, `llm:offline:
+> 3682439.017` — batem com os **últimos** alertas reais das chaves no
+> journald: 11/09 00:55:40 e 10/09 05:00:15, conversão pelo boot fecha
+> em 3 s). O anti-spam `(now - last) < cooldown` via delta **negativo**
+> depois dos reboots ⇒ **35 dias sem 1 alerta `restart` ou
+> `llm:offline`** (os 3 restarts de 16/10 mudos; `llm:offline` é
+> `severity=crit` — LLM fora = dono sem aviso). Ordem do dono
+> **"conserte o notifier"** (~11:10).
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/notifier.py`** | A carga do `last_alerts` agora **descarta timestamp futuro** (`quando <= agora + 0.01`): monotônico de boot anterior nunca é válido; a folga de 10 ms cobre o `round(v, 3)` do save com relógio congelado nos testes. O `_save_state()` do `__init__` regrava o arquivo **limpo** — a limpeza de `data/` acontece sozinha no restart, sem mutação manual. |
+| **`tests/test_nomad_tools.py`** | Fixture `_data_dir_isolada` (mesmo padrão do `test_launcher_health_external`) nos 2 `test_build_notifier_*`: `DATA_DIR` → `tmp_path` + cache de env zerado nos knobs do notifier, com asserção de que `state_file` cai no tmp. **A suíte inteira parou de escrever o estado de produção** (a rodada da madrugada tinha gravado o `pid` do pytest às 04:59:25 — poluição medida em iniciar/ §4). |
+| **`tests/test_notifier.py` +2** | Regressão do incidente: (1) carga descarta `restart: 3_754_164.292` e regrava o arquivo limpo **preservando** o `router:down` legítimo; (2) comportamento: com o veneno no arquivo, o alerta `restart` **emite** (antes: bloqueado pelo delta negativo). |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte oficial gate `--cov-fail-under=90` | **2966 passed / 16 skipped · cobertura 90,62%** (+2 testes; 1 warning pré-existente de `tests/test_orchestrator.py`, conferido isolado) |
+| pyflakes | limpo nos 3 arquivos tocados |
+| Estado de produção após a suíte | `data/notifier_state.json` **intocado** (mtime 04:59:25 idêntico) |
+| Resíduo da rodada | rotação de log do serviço criou `logs/interface_monitor.log.1` fora dos padrões do `.gitignore` → padrão `logs/*.log.*` adicionado (commit `d0d0cba`) |
+
+**Prova viva no serviço (pós-deploy, 16/10 11:17:09, PID 3703628):**
+restart verde (regra 7.3 — `5fcdd3b` e `d0d0cba` pushados ANTES) ·
+**NRestarts=0** · journal **0 erros** · boot `ProactiveNotifier
+habilitado | health_ponte=True | nrestarts=True | disco_pct=85.0` ·
+**11:17:10 `key=restart` EMITIDO — o primeiro em 35 dias** (prova do
+desbloqueio) + push FCM `enviados=1` · `data/notifier_state.json`
+**LIMPO** (`llm:offline` e o `restart` velho fora; `router:down`
+legítimo preservado; `restart` regravado com o relógio novo) ·
+`/health` **ok, 20/20** · `/app/version` **1.30.0/2060** (backend puro,
+sem bump) · árvore limpa, HEAD == `origin/master`.
+
+---
+
 ### Infra — Observabilidade/Alertas Telegram (TODO §3.6): `/health` degraded + `NRestarts` + disco configurável (ordem `ordem_a_observabilidade_alertas_2026_10_16`, 2026-10-16, sem bump)
 
 > Pedido do dono **"a"** (~04:30) = item **(A)** da fila do TODO §7.

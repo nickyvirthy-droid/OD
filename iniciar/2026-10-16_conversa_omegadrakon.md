@@ -277,3 +277,50 @@ fonte fresca a cada tick — intactas. As métricas do notifier
 Registro em `session.json` (`reverificacao_2026_10_16_0640`). Próxima
 etapa: ordem do dono — **correção do notifier** ou **seguir a fila §7
 (B) App auto-update + FCM**.
+
+## §5 — "conserte o notifier" — conserto entregue, provado e no ar
+
+Dono mandou **"conserte o notifier"** (~11:10) — a correção proposta
+no §4, na íntegra. Backend puro, **sem bump** (1.30.0/2060 intacto).
+
+### O que mudou
+
+| Peça | Entrega |
+|---|---|
+| `integrations/notifier.py` | A carga do `last_alerts` **descarta timestamp futuro** (`quando <= agora + 0.01`): monotônico de boot anterior nunca é válido — é o veneno que deixou `restart` e `llm:offline` mudos por 35 dias. Folga de 10 ms cobre o `round(v, 3)` do save com relógio congelado nos testes. O `_save_state()` do `__init__` regrava o arquivo limpo → **a limpeza de `data/` acontece sozinha no restart**, sem mutação manual de estado. |
+| `tests/test_nomad_tools.py` | Fixture `_data_dir_isolada` nos 2 `test_build_notifier_*` (mesmo padrão do `test_launcher_health_external`: `DATA_DIR` → `tmp_path` + cache de env zerado) + asserção de `state_file` no tmp → **a suíte inteira parou de gravar `data/notifier_state.json`**. |
+| `tests/test_notifier.py` **+2** | Regressão do incidente: (1) carga descarta `restart: 3_754_164.292` e regrava o arquivo **limpo**, preservando o `router:down` legítimo; (2) comportamento: com o veneno no arquivo, o alerta `restart` **emite** (antes: bloqueado pelo delta negativo). |
+| `.gitignore` | `logs/*.log.*` — a rotação de 11:09 do serviço criou `interface_monitor.log.1` fora de `logs/*.log` e poluiu o status (resíduo da regra 7.2). |
+
+### Validação (antes de qualquer mutação)
+
+- Gate oficial `--cov-fail-under=90`: **2966 passed / 16 skipped ·
+  cobertura 90,62%** (+2 testes; o único warning é o pré-existente de
+  `tests/test_orchestrator.py`, conferido isolado).
+- pyflakes limpo nos 3 arquivos.
+- **Prova da não-polução:** mtime de `data/notifier_state.json`
+  idêntico antes/depois do gate (04:59:25.894) — a suíte não toca mais
+  o estado de produção.
+
+### Deploy verde (regra 7.3) — 11:17:09, PID 3703628
+
+| Verificação | Resultado |
+|---|---|
+| Código pushado ANTES | `5fcdd3b` (fix+testes) e `d0d0cba` (.gitignore) em `origin/master`, árvore limpa |
+| Unidade | `active`, **NRestarts=0**, journal **0 erros** |
+| Boot do notifier | `ProactiveNotifier habilitado \| health_ponte=True \| nrestarts=True \| disco_pct=85.0` |
+| **Prova do desbloqueio** | **11:17:10 `Alerta proativo \| key=restart` — o PRIMEIRO em 35 dias** (2 s após o boot) + push FCM `enviados=1` no celular do dono |
+| `data/notifier_state.json` pós-boot | **LIMPO**: `llm:offline: 3682439.017` e `restart: 3754164.292` **fora**; `router:down: 1229671.103` **preservado** (legítimo); `restart` regravado com o relógio novo (1253434.859) |
+| `/health` | **ok · 20/20 · nenhum fora** |
+| `/app/version` | **1.30.0 / 2060** (sem bump) |
+
+### Canais e pendências
+
+- `txt.txt` reescrito (regra 14) mantendo as 2 perguntas pendentes ao
+  dono; Telegram resumo (regra 15); CHANGELOG §Infra + esta transcrição
+  no commit de docs.
+- **Fica de fora (não ordenado):** expor `alerts_emitted`/
+  `alerts_blocked` no `/dashboard/stats` — melhoria opcional registrada
+  no session.json.
+- Próximo da fila §7 segue **(B) App auto-update + FCM** (ordem do
+  dono); `analise/` com as 2 capturas do Órion ainda sem instrução.
