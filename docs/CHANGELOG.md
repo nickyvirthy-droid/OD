@@ -59,6 +59,33 @@ da transcrição disparou **uma única vez às 12:17:33** + push — e o
 processo novo o segura de novo pelo cooldown (`blocked: 3` = sem
 duplicata).
 
+### Infra — Alerta de `restart` vira EVENTO: um disparo por boot (ordem "aplique o refinamento do alerta restart", 2026-10-16, sem bump)
+
+> Achado na retomada das 13:38 (`iniciar/` §8), medido **antes** de
+> mexer: o alerta `key=restart` saía **uma vez por boot** (o
+> `_restart_reported` sempre foi por processo), mas pagava o anti-spam
+> de **1 hora** do legado — então o aviso de um boot novo era
+> **atrasado** pelo alerta do boot anterior. Journal de 16/10 com os
+> PIDs: **11:17:10** (PID 3703628, boot 11:17:09), **12:17:33** (PID
+> 3724539, boot 11:38:58) e **13:17:39** (PID 3766943, boot 12:23:30) —
+> 3 deploys seguidos ⇒ 3 alertas, com **39 e 54 min de atraso**, padrão
+> que parecia um push de hora em hora no celular do dono. A previsão
+> registrada em 16/10 (§6/§8) de que o alerta "travaria" depois da
+> primeira emissão estava **errada** — corrigida com a medição.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/notifier.py`** | `RESTART_ALERT_GUARD_S = 300.0` + `NotifierConfig.restart_alert_guard_s` + `CheckResult.cooldown_s`: o alerta de evento carrega o **próprio** anti-spam e ele **vence** `config.cooldowns["restart"]`/`default_cooldown_s`. `_check_restart` passa a guarda de rajada — dedupe continua **por boot** (`_restart_reported`, in-memory = o processo), então o MESMO boot nunca repete o aviso e um boot novo alerta no **primeiro tick**, mesmo com o boot anterior tendo alertado minutos antes. A guarda curta existe só contra **rajada** (ex.: `Restart=on-failure` + `RestartSec=10` numa queda que não sobe): boot em cima de boot espera a guarda vencer e ainda assim emite **uma vez**. O crash loop tem sonda própria (`systemd:nrestarts`, warn ≥1 / crit ≥3) com o anti-spam de 1/h — o sinal não depende mais do alerta de restart. |
+| **`tests/test_notifier.py` +3 e ajuste** | Classe `TestAlertaDeRestartPorBoot`: (1) **um disparo por boot** — emitido uma vez e, passadas 2 horas de ticks, **não repete**; (2) **regressão do atraso** — alerta do boot anterior há 40 min + `cooldowns["restart"]=3600` ⇒ o boot novo **emite no primeiro tick**; (3) **guarda de rajada** — boots a 10 s/70 s ficam bloqueados (`alerts_blocked`) e o alerta sai **uma vez** aos 310 s, sem repetir depois. `test_config_defaults_match_legacy` ganhou a guarda de 300 s. Os 2 testes antigos que fixavam `cooldowns["restart"]` passaram a fixar `restart_alert_guard_s` (a intenção deles é a mesma: cooldown determinístico no cenário). |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte oficial gate `--cov-fail-under=90` (+ `.coveragerc`) | **2974 passed / 16 skipped · cobertura 90,62%** (+3 testes; 1 warning pré-existente de `tests/test_orchestrator.py`) |
+| pyflakes | **limpo** nos 2 arquivos tocados, idêntico ao HEAD |
+| **Teste do teste (mutação)** | Remover o `cooldown_s` da sonda (volta o anti-spam de 1 h) faz **2 dos 3** testes novos falharem (`test_boot_novo_nao_espera_o_cooldown_de_1_hora`, `test_rajada_de_boots_espera_a_guarda_e_emite_uma_vez`); revertido bit a bit, 77 verdes em `tests/test_notifier.py` |
+
+**Prova viva no serviço (pós-deploy):** abaixo, no mesmo dia.
+
 ## [1.30.0] — REGISTRO DO COMPRADOR POR QR/POSSE + LOJA DO SITE (ETAPA 4 DO REGISTRO MESTRE) 🜂 (2026-10-15)
 
 > **Bump MINOR (capacidade nova):** Etapa 4 do Registro Mestre — decisão
