@@ -1,13 +1,21 @@
 """OMEGA DRAKON • CORE
 Módulo: core/backup.py — backup automático do estado irrecuperável (TODO §3.6)
 
-O que é: um snapshot diário (03:00, horário LOCAL) de `.env` + `data/` —
-o que NÃO se reconstroi — em UM arquivo `.tar.gz` sob `backups/auto/`,
-pensado para o dono copiar para o HD externo (local-only por decisão dele,
-16/10/2026). Fora do snapshot: `data/captures/` (304 MB de fotos do dono,
-43 dias) e `data/vector_memory/` (índice do RAG, reconstruível pelos
-documentos) — o restante do `data/` são tokens, filas, devices e estados,
-~1 MB por rodada.
+O que é: UM `.tar.gz` por snapshot, na máquina, pensado para o dono
+copiar para um HD externo (local-only por decisão dele, 16/10/2026), em
+DOIS perfis com propósitos diferentes:
+
+  - `estado` (diário, 03:00 local, `backups/auto/`): `.env` + `data/` SEM
+    `captures/` e SEM `vector_memory/` — tokens, filas, devices, estados
+    (~185 KB por rodada). Retenção 3 diários + 8 semanais.
+  - `capturas` (semanal, 04:00 local, `backups/auto-capturas/`): `.env` +
+    `data/` SEM `vector_memory/` — ou seja, **as fotos e vídeos de
+    `data/captures` entram** (316 MB medidos em 16/10, que o gzip NÃO
+    reduz: mídia já comprimida). Retenção 4 semanas (~1,3 GB dos 86 GB
+    livres medidos). Todo dia seria desperdício: é um acervo append-only.
+
+O índice do RAG (`data/vector_memory`, 11 MB) fica fora dos dois perfis
+por ser reconstruível a partir dos documentos (`memory/rag.py`).
 
 Padrão da casa (mesmo desenho do auto-update/Parte E e das tools Nômades):
 o `avaliar()` é um pipeline de decisão PURO — relógio, estado, espaço em
@@ -18,31 +26,37 @@ executor (`BackupService`) é a parte suja: monta o tar, grava atômico
 retenção.
 
 Camadas do `avaliar()` — nesta ordem, cada uma com motivo registrado:
-  1. desligado        OD_BACKUP=0 (o dono manda, não a máquina)
-  2. antes da hora    ainda não chegou o HH:MM do dia
-  3. já feito hoje    houve sucesso depois do horário agendado de hoje
-  4. disco            espaço livre < estimativa × 1,10 (guardrail: o
-                      snapshot nasce num disco a 85%, não pode ser a
-                      gota que enche o copo)
+  1. desligado        `OD_BACKUP=0` / `OD_BACKUP_CAPTURAS=0` (o dono
+                      manda, não a máquina)
+  2. antes da hora    a janela ainda não abriu (HH:MM do dia, ou o dia
+                      certo da cadência)
+  3. já feito         houve sucesso hoje e a próxima janela é depois
+  4. disco            espaço livre < estimativa × 1,10 (guardrail de
+                      disco — nada de o snapshot ser a gota que enche o
+                      copo)
   5. rodar            (com catch-up: se o servidor estava desligado no
-                      horário, o primeiro tick depois disso roda)
+                      horário/dia, o primeiro tick depois disso roda)
 
-Retenção (decisão do dono): 3 diários + 8 semanais = no máximo 11
-arquivos (~12 MB com o escopo acima). A regra é pura e testável
-(`calcular_retencao`): fica o mais recente de cada uma das 8 semanas ISO
-mais recentes + os 3 arquivos mais recentes; nome fora do padrão nunca é
-apagado (arquivo do dono no diretório é intocável).
+A janela sai da CADÊNCIA (`cadencia_dias`): 1 = diário, 7 = semanal —
+`proxima_janela()` é a mesma conta para os dois e mantém os motivos.
+
+Retenção (decisão do dono): no perfil do estado, 3 diários + 8 semanais
+= no máximo 11 arquivos (~2 MB); no das capturas, 4 semanais (~1,3 GB).
+A regra é pura e testável (`calcular_retencao`): fica o mais recente de
+cada uma das N semanas ISO mais recentes + os K arquivos mais recentes;
+nome fora do padrão (ou de outro perfil/prefixo) nunca é apagado —
+arquivo do dono no diretório é intocável.
 
 Segurança: o `.env` vai dentro do tar, então arquivo `0600` e diretório
 `0700` — backup local que vaza segredo não é backup. O tar é
 determinístico no contêiner (gzip com mtime 0, uid/gid 0, membros
 ordenados): mesmo conteúdo ⇒ mesmo sha256.
 
-Visibilidade: check `backup` (NÃO crítico) no `/health` — degrada quando
-o backup do dia não aconteceu —, bloco `backup` no `/dashboard/stats` e
-card no `/admin`. Falha de execução avisa no celular do dono via
-PushService (best-effort, com espera de 6 h entre avisos para um erro
-persistente não virar spam).
+Visibilidade: um check NÃO crítico por perfil no `/health` (`backup` e
+`backup_capturas`) — degrada quando o snapshot da janela não aconteceu —,
+bloco `backup` (um por perfil) no `/dashboard/stats` e cards no `/admin`.
+Falha de execução avisa no celular do dono via PushService (best-effort,
+com espera de 6 h entre avisos para um erro persistente não virar spam).
 
 Baseado em:
   - core/auto_update.py (Parte E — avaliar puro + executor + estado atômico)
@@ -50,10 +64,12 @@ Baseado em:
   - TODO.md §3.6 (ordem do dono, 2026-10-16)
 
 Decisões registradas (ver CHANGELOG):
-  - Escopo: `.env` + `data/` SEM `captures/` e SEM `vector_memory/`
-    (escolha do dono: "só o essencial irrecuperável")
+  - Perfil `estado`: `.env` + `data/` SEM `captures/` e SEM
+    `vector_memory/` (escolha do dono: "só o essencial irrecuperável")
+  - Perfil `capturas` (ordem do dono, 16/10): as fotos/vídeos entram num
+    snapshot SEMANAL separado, para o HD externo
   - Local-only: sem S3/MinIO/rclone — o dono copia para o HD externo
-  - 3 diários + 8 semanais, 03:00 local, catch-up no primeiro tick
+  - 03:00 diário (3+8) e 04:00 semanal (4), com catch-up no primeiro tick
 Arquiteto: Alex Projeti
 """
 
@@ -69,7 +85,7 @@ import tarfile
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -104,8 +120,35 @@ IGNORAR_SUFIXOS: tuple[str, ...] = (".pyc", ".pyo", ".part", ".tmp")
 ESTADO_PADRAO = Path("data/backup_estado.json")
 RAIZ_PADRAO = Path("backups/auto")
 SUFIXO_TMP = ".tmp"
-NOME_RE = re.compile(r"^od-(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})\.tar\.gz$")
 HORA_RE = re.compile(r"^\d{1,2}:\d{2}$")
+PREFIXO_PADRAO = "od"
+CADENCIA_PADRAO_DIAS = 1
+# Perfil das CAPTURAS (ordem do dono, 16/10): as fotos/vídeos (`data/
+# captures`, 316 MB que o gzip NÃO reduz — mídia já comprimida) ganham um
+# snapshot PRÓPRIO, semanal, para ele levar no HD externo. Separado do
+# diário de propósito: 316 MB todo dia seria desperdício (o arquivo é
+# append-only) e a retenção semanal mantém 4 semanas (~1,3 GB dos 86 GB
+# livres medidos em 16/10). O índice do RAG continua fora (reconstruível).
+CAPTURAS_EXCLUIDOS: tuple[str, ...] = ("data/vector_memory",)
+CAPTURAS_SEMANAIS_PADRAO = 4
+CAPTURAS_RAIZ_PADRAO = Path("backups/auto-capturas")
+CAPTURAS_ESTADO_PADRAO = Path("data/backup_capturas_estado.json")
+CAPTURAS_HORA_PADRAO = "04:00"
+CAPTURAS_PREFIXO = "od-capturas"
+CAPTURAS_CADENCIA_DIAS = 7
+# Nome canônico por perfil (prefixo distingue estado × capturas no disco).
+_NOME_RE_CACHE: dict[str, re.Pattern[str]] = {}
+
+
+def _nome_re(prefixo: str) -> re.Pattern[str]:
+    padrao = _NOME_RE_CACHE.get(prefixo)
+    if padrao is None:
+        padrao = re.compile(
+            rf"^{re.escape(prefixo)}-(\d{{4}})-(\d{{2}})-(\d{{2}})_"
+            rf"(\d{{2}})(\d{{2}})\.tar\.gz$"
+        )
+        _NOME_RE_CACHE[prefixo] = padrao
+    return padrao
 
 # Ações do pipeline
 RODAR = "rodar"
@@ -125,6 +168,26 @@ def _hhmm(texto: str) -> tuple[int, int]:
     return int(hora), int(minuto)
 
 
+def proxima_janela(
+    ultimo_sucesso: Optional[float],
+    *, cadencia_dias: int, hora: str, agora_wall: float,
+) -> float:
+    """Quando o PRÓXIMO snapshot é devido (epoch, hora local).
+
+    Sem sucesso anterior: é hoje no HH:MM. Com sucesso anterior: é o dia
+    do sucesso + `cadencia_dias` no HH:MM — cadência 1 reproduz o
+    comportamento diário (inclusive o catch-up de quem estava desligado
+    na hora) e cadência 7 dá o semanal das capturas.
+    """
+    if ultimo_sucesso is None:
+        return agendado_no_dia(agora_wall, hora)
+    h, m = _hhmm(hora)
+    dia = datetime.fromtimestamp(ultimo_sucesso).date() + timedelta(
+        days=max(1, int(cadencia_dias))
+    )
+    return datetime(dia.year, dia.month, dia.day, h, m).timestamp()
+
+
 def agendado_no_dia(agora_wall: float, hora: str) -> float:
     """Epoch do HH:MM LOCAL do dia de `agora_wall` (relógio de parede).
 
@@ -137,14 +200,18 @@ def agendado_no_dia(agora_wall: float, hora: str) -> float:
     return dt.replace(hour=h, minute=m, second=0, microsecond=0).timestamp()
 
 
-def nome_snapshot(quando_wall: float) -> str:
-    """Nome canônico do snapshot: `od-AAAA-MM-DD_HHMM.tar.gz` (hora local)."""
-    return datetime.fromtimestamp(quando_wall).strftime("od-%Y-%m-%d_%H%M.tar.gz")
+def nome_snapshot(quando_wall: float,
+                  prefixo: str = PREFIXO_PADRAO) -> str:
+    """Nome canônico do snapshot (hora local): `PREFIXO-AAAA-MM-DD_HHMM.tar.gz`."""
+    return datetime.fromtimestamp(quando_wall).strftime(
+        f"{prefixo}-%Y-%m-%d_%H%M.tar.gz"
+    )
 
 
-def timestamp_do_nome(nome: str) -> Optional[float]:
-    """Epoch do nome canônico; None para nome fora do padrão."""
-    m = NOME_RE.match(nome)
+def timestamp_do_nome(nome: str,
+                      prefixo: str = PREFIXO_PADRAO) -> Optional[float]:
+    """Epoch do nome canônico; None para nome fora do padrão/perfil."""
+    m = _nome_re(prefixo).match(nome)
     if not m:
         return None
     ano, mes, dia, hora, minuto = (int(g) for g in m.groups())
@@ -162,12 +229,52 @@ def semana_iso(ts: float) -> tuple[int, int]:
 
 # --- Configuração ----------------------------------------------------------
 
+# Defaults por PERFIL — um mesmo código, dois trabalhos com propósitos
+# diferentes (o diário pequeno do estado e o semanal grande das capturas).
+# `env_prefixo` é o prefixo dos knobs no `.env` (ex: OD_BACKUP_CAPTURAS_HORA).
+PERFIS: dict[str, dict[str, Any]] = {
+    "estado": {
+        "nome": "estado",
+        "rotulo": "Backup do estado",
+        "check_nome": "backup",
+        "env_prefixo": "OD_BACKUP",
+        "prefixo": PREFIXO_PADRAO,
+        "raiz": RAIZ_PADRAO,
+        "estado": ESTADO_PADRAO,
+        "hora": HORA_PADRAO,
+        "cadencia_dias": CADENCIA_PADRAO_DIAS,
+        "diarios": DIARIOS_PADRAO,
+        "semanais": SEMANAIS_PADRAO,
+        "excluidos": EXCLUIDOS_PADRAO,
+    },
+    "capturas": {
+        "nome": "capturas",
+        "rotulo": "Backup das capturas",
+        "check_nome": "backup_capturas",
+        "env_prefixo": "OD_BACKUP_CAPTURAS",
+        "prefixo": CAPTURAS_PREFIXO,
+        "raiz": CAPTURAS_RAIZ_PADRAO,
+        "estado": CAPTURAS_ESTADO_PADRAO,
+        "hora": CAPTURAS_HORA_PADRAO,
+        "cadencia_dias": CAPTURAS_CADENCIA_DIAS,
+        "diarios": 0,  # semanal: 1 arquivo por semana (4 semanas)
+        "semanais": CAPTURAS_SEMANAIS_PADRAO,
+        "excluidos": CAPTURAS_EXCLUIDOS,
+    },
+}
+
+
 @dataclass
 class ConfigBackup:
-    """Configuração do serviço (env OD_BACKUP_*)."""
+    """Configuração de UM perfil de backup (env `<PREFIXO>_*`)."""
 
     habilitado: bool = True
+    nome: str = "estado"
+    rotulo: str = "Backup do estado"
+    check_nome: str = "backup"
+    prefixo: str = PREFIXO_PADRAO
     hora: str = HORA_PADRAO
+    cadencia_dias: int = CADENCIA_PADRAO_DIAS
     intervalo_s: float = INTERVALO_PADRAO_S
     diarios: int = DIARIOS_PADRAO
     semanais: int = SEMANAIS_PADRAO
@@ -178,46 +285,71 @@ class ConfigBackup:
     estado_path: Path = ESTADO_PADRAO
 
     @classmethod
-    def de_env(cls, env: Callable[[str, str], str]) -> "ConfigBackup":
-        """Lê o `.env` no padrão do launcher (`env(nome, default)`)."""
-        hora = env("OD_BACKUP_HORA", HORA_PADRAO).strip()
+    def de_env(
+        cls, env: Callable[[str, str], str], perfil: str = "estado",
+    ) -> "ConfigBackup":
+        """Lê o `.env` no padrão do launcher (`env(nome, default)`).
+
+        `perfil` escolhe o conjunto de defaults (`PERFIS`) e o prefixo dos
+        knobs; os nomes do perfil `estado` continuam exatamente os de
+        antes (OD_BACKUP_HORA, OD_BACKUP_DIARIOS...).
+        """
+        base = PERFIS.get(perfil) or PERFIS["estado"]
+        chave = str(base["env_prefixo"])
+        hora = env(f"{chave}_HORA", str(base["hora"])).strip()
         valido = HORA_RE.match(hora)
         if valido:
             h, m = _hhmm(hora)
             valido = h <= 23 and m <= 59
         if not valido:
             log.warn("Horário de backup inválido — usando default",
-                     valor=hora, default=HORA_PADRAO)
-            hora = HORA_PADRAO
+                     valor=hora, default=base["hora"])
+            hora = str(base["hora"])
         excluidos = tuple(
             item.strip().strip("/")
             for item in env(
-                "OD_BACKUP_EXCLUIR", ",".join(EXCLUIDOS_PADRAO)
+                f"{chave}_EXCLUIR", ",".join(base["excluidos"])
             ).split(",")
             if item.strip()
         )
         return cls(
-            habilitado=env("OD_BACKUP", "1") != "0",
+            habilitado=env(chave, "1") != "0",
+            nome=str(base["nome"]),
+            rotulo=str(base["rotulo"]),
+            check_nome=str(base["check_nome"]),
+            prefixo=str(base["prefixo"]),
             hora=hora,
-            intervalo_s=float(env("OD_BACKUP_INTERVALO_MIN", "15")) * 60.0,
-            diarios=max(0, int(env("OD_BACKUP_DIARIOS", str(DIARIOS_PADRAO)))),
+            cadencia_dias=max(
+                1, int(env(f"{chave}_CADENCIA_DIAS",
+                           str(base["cadencia_dias"])))
+            ),
+            intervalo_s=float(env(f"{chave}_INTERVALO_MIN", "15")) * 60.0,
+            diarios=max(
+                0, int(env(f"{chave}_DIARIOS", str(base["diarios"])))
+            ),
             semanais=max(
-                0, int(env("OD_BACKUP_SEMANAIS", str(SEMANAIS_PADRAO)))
+                0, int(env(f"{chave}_SEMANAIS", str(base["semanais"])))
             ),
             excluidos=excluidos,
-            raiz=Path(env("OD_BACKUP_DIR", str(RAIZ_PADRAO))),
-            estado_path=Path(env("OD_BACKUP_ESTADO", str(ESTADO_PADRAO))),
+            raiz=Path(env(f"{chave}_DIR", str(base["raiz"]))),
+            estado_path=Path(
+                env(f"{chave}_ESTADO", str(base["estado"]))
+            ),
         )
 
     def para_dict(self) -> dict[str, Any]:
         return {
+            "nome": self.nome,
+            "rotulo": self.rotulo,
             "habilitado": self.habilitado,
             "hora": self.hora,
+            "cadencia_dias": self.cadencia_dias,
             "intervalo_min": round(self.intervalo_s / 60.0, 1),
             "diarios": self.diarios,
             "semanais": self.semanais,
             "fontes": list(self.fontes),
             "excluidos": list(self.excluidos),
+            "prefixo": self.prefixo,
             "raiz": str(self.raiz),
         }
 
@@ -308,31 +440,33 @@ def avaliar(
     """Decide se é hora do snapshot diário — SEM tocar em disco.
 
     `espaco_livre` em bytes (None = não avaliar disco, ex.: teste puro).
-    Catch-up embutido: se o servidor estava desligado no horário, o
-    primeiro tick depois do horário roda (basta não haver sucesso
-    posterior ao agendado de hoje).
+    A janela vem da CADÊNCIA (`cfg.cadencia_dias`): 1 = diário (é o perfil
+    do estado) e 7 = semanal (perfil das capturas). Catch-up embutido: se o
+    servidor estava desligado no horário, o primeiro tick depois dele roda.
     """
     if not cfg.habilitado:
         return DecisaoBackup(acao=PULAR, motivo="desligado")
 
-    agendado = agendado_no_dia(agora_wall, cfg.hora)
+    ultimo = float(estado.get("ultimo_sucesso") or 0.0) or None
+    agendado = proxima_janela(
+        ultimo, cadencia_dias=cfg.cadencia_dias, hora=cfg.hora,
+        agora_wall=agora_wall,
+    )
     precisa = int(estado.get("ultimo_bytes") or 0) or cfg.estimativa_bytes
     if agora_wall < agendado:
+        # Já houve sucesso HOJE e a próxima janela é amanhã/na próxima
+        # semana: é "já feito" (o snapshot anterior ainda cobre a janela),
+        # não "antes da hora" (janela do dia ainda fechada).
+        feito_hoje = (
+            ultimo is not None
+            and datetime.fromtimestamp(ultimo).date()
+            == datetime.fromtimestamp(agora_wall).date()
+        )
         return DecisaoBackup(
             acao=AGUARDAR,
-            motivo="antes_da_hora",
+            motivo="ja_feito" if feito_hoje else "antes_da_hora",
             agendado_wall=agendado,
             proximo_em_s=agendado - agora_wall,
-            precisa_bytes=precisa,
-            espaco_livre=espaco_livre,
-        )
-
-    ultimo = float(estado.get("ultimo_sucesso") or 0.0)
-    if ultimo >= agendado:
-        return DecisaoBackup(
-            acao=PULAR,
-            motivo="ja_feito_hoje",
-            agendado_wall=agendado,
             precisa_bytes=precisa,
             espaco_livre=espaco_livre,
         )
@@ -361,6 +495,7 @@ def calcular_retencao(
     *,
     diarios: int = DIARIOS_PADRAO,
     semanais: int = SEMANAIS_PADRAO,
+    prefixo: str = PREFIXO_PADRAO,
 ) -> Retencao:
     """Quais snapshots ficam: os `diarios` mais recentes + 1 por semana.
 
@@ -374,7 +509,7 @@ def calcular_retencao(
     validos = [
         (nome, ts)
         for nome in nomes
-        if (ts := timestamp_do_nome(nome)) is not None
+        if (ts := timestamp_do_nome(nome, prefixo)) is not None
     ]
     validos.sort(key=lambda item: item[1], reverse=True)
     diarios_escolhidos = {
@@ -510,7 +645,7 @@ class BackupService:
         for caminho in sorted(raiz.iterdir()):
             if not caminho.is_file():
                 continue
-            quando = timestamp_do_nome(caminho.name)
+            quando = timestamp_do_nome(caminho.name, self.cfg.prefixo)
             if quando is None:
                 continue
             try:
@@ -532,9 +667,15 @@ class BackupService:
         """Estado + config + arquivos — base do /dashboard/stats e do painel."""
         estado = self.carregar_estado()
         agora = self._clock()
-        agendado = agendado_no_dia(agora, self.cfg.hora)
+        agendado = proxima_janela(
+            float(estado.get("ultimo_sucesso") or 0.0) or None,
+            cadencia_dias=self.cfg.cadencia_dias, hora=self.cfg.hora,
+            agora_wall=agora,
+        )
         ultimo = float(estado.get("ultimo_sucesso") or 0.0)
         return {
+            "nome": self.cfg.nome,
+            "rotulo": self.cfg.rotulo,
             "config": self.cfg.para_dict(),
             "ultimo_sucesso": round(ultimo, 3) if ultimo else 0.0,
             "ultimo_sucesso_em": (
@@ -554,20 +695,24 @@ class BackupService:
     # -- Saúde ---------------------------------------------------------------
 
     def check_saude(self) -> dict[str, Any]:
-        """Check não-crítico do /health: o backup de HOJE aconteceu?"""
+        """Check não-crítico do /health: o snapshot DESTA janela saiu?"""
         agora = self._clock()
-        agendado = agendado_no_dia(agora, self.cfg.hora)
         estado = self.carregar_estado()
         ultimo = float(estado.get("ultimo_sucesso") or 0.0)
+        agendado = proxima_janela(
+            ultimo or None, cadencia_dias=self.cfg.cadencia_dias,
+            hora=self.cfg.hora, agora_wall=agora,
+        )
         arquivo = str(estado.get("ultimo_arquivo") or "")
-        if ultimo >= agendado:
+        if ultimo and agora < agendado:
             horas = (agora - ultimo) / 3600.0
             tamanho = int(estado.get("ultimo_bytes") or 0) / 1024 ** 2
+            janela = "de hoje" if self.cfg.cadencia_dias <= 1 else "da semana"
             return {
                 "ok": True,
                 "status": "up",
                 "detail": (
-                    f"Backup de hoje ok ({arquivo}, "
+                    f"{self.cfg.rotulo} ok {janela} ({arquivo}, "
                     f"{tamanho:.2f} MB, há {horas:.1f} h)."
                 ),
             }
@@ -577,7 +722,7 @@ class BackupService:
                 "ok": True,
                 "status": "up",
                 "detail": (
-                    f"Backup agendado para {self.cfg.hora} "
+                    f"{self.cfg.rotulo} agendado para {self.cfg.hora} "
                     f"(em {faltam:.0f} min)."
                 ),
             }
@@ -587,18 +732,19 @@ class BackupService:
             "ok": False,
             "status": "degraded",
             "detail": (
-                f"Backup de hoje PENDENTE (agendado {self.cfg.hora}, "
+                f"{self.cfg.rotulo} PENDENTE (agendado {self.cfg.hora}, "
                 f"falhas={int(estado.get('falhas') or 0)}){sufixo}"
             ),
         }
 
     def registrar_no_health(self, health: Any) -> Optional[str]:
-        """Registra o check `backup` (não-crítico) no HealthMonitor."""
+        """Registra o check deste perfil (não-crítico) no HealthMonitor."""
         if health is None:
             return None
-        health.register("backup", lambda _monitor: self.check_saude(),
+        health.register(self.cfg.check_nome,
+                        lambda _monitor: self.check_saude(),
                         critical=False)
-        return "backup"
+        return self.cfg.check_nome
 
     # -- Ciclo ---------------------------------------------------------------
 
@@ -645,7 +791,7 @@ class BackupService:
                 excluidos=self.cfg.excluidos,
             )
             quando = self._clock()
-            nome = nome_snapshot(quando)
+            nome = nome_snapshot(quando, self.cfg.prefixo)
             destino = raiz / nome
             tmp = raiz / f"{nome}{SUFIXO_TMP}"
             self._empacotar(plano, tmp)
@@ -672,6 +818,7 @@ class BackupService:
             duracao = self._clock() - inicio
             log.info(
                 "Backup concluído",
+                perfil=self.cfg.nome,
                 arquivo=nome,
                 membros=len(plano),
                 bytes=int(tamanho),
@@ -693,7 +840,8 @@ class BackupService:
                 "ultimo_erro": erro,
             })
             self.gravar_estado(estado)
-            log.error("Backup falhou", motivo=motivo, error=erro)
+            log.error("Backup falhou", perfil=self.cfg.nome, motivo=motivo,
+                      error=erro)
             self._alertar_falha(estado, erro)
             return ResultadoBackup(
                 acao=RODAR, motivo=motivo, executado=True, erro=erro,
@@ -740,7 +888,8 @@ class BackupService:
             if caminho.is_file() and not caminho.name.endswith(SUFIXO_TMP)
         ]
         retencao = calcular_retencao(
-            nomes, diarios=self.cfg.diarios, semanais=self.cfg.semanais
+            nomes, diarios=self.cfg.diarios, semanais=self.cfg.semanais,
+            prefixo=self.cfg.prefixo,
         )
         removidos: list[str] = []
         for nome in retencao.remover:
@@ -757,8 +906,9 @@ class BackupService:
                 except OSError:  # pragma: no cover — permissão
                     pass
         if removidos:
-            log.info("Retenção aplicada", removidos=len(removidos),
-                     diarios=self.cfg.diarios, semanais=self.cfg.semanais)
+            log.info("Retenção aplicada", perfil=self.cfg.nome,
+                     removidos=len(removidos), diarios=self.cfg.diarios,
+                     semanais=self.cfg.semanais)
         return removidos
 
     def _alertar_falha(self, estado: dict[str, Any], erro: str) -> None:
@@ -781,33 +931,38 @@ class BackupService:
         self.gravar_estado(estado)
         try:
             self._push.notify(
-                "Backup falhou",
-                f"O snapshot diário não foi criado: {erro}",
-                data={"origem": "backup"},
+                f"{self.cfg.rotulo} falhou",
+                f"O snapshot não foi criado: {erro}",
+                data={"origem": f"backup-{self.cfg.nome}"},
             )
         except Exception as exc:  # pragma: no cover — push degrada sozinho
             log.warn("Backup: aviso de push falhou", error=_curto(exc))
 
 
-def build_service(
+def build_services(
     *,
     repo_root: Path,
-    cfg: Optional[ConfigBackup] = None,
     env: Optional[Callable[[str, str], str]] = None,
     push: Any = None,
     clock: Callable[[], float] = time.time,
     espaco_livre_fn: Optional[Callable[[Path], Optional[int]]] = None,
-) -> Optional[BackupService]:
-    """Monta o serviço a partir do env — None quando desligado.
+    perfis: tuple[str, ...] = ("estado", "capturas"),
+) -> list[BackupService]:
+    """Monta os serviços ligados no env — [] quando todos desligados.
 
     Ponto ÚNICO de construção (launcher e teste usam o mesmo caminho):
-    um `OD_BACKUP=0` devolve None e o runtime segue sem o loop, sem o
-    check no /health e sem o bloco no /dashboard/stats.
+    perfil `estado` (diário, `OD_BACKUP=0` desliga) e perfil `capturas`
+    (semanal, `OD_BACKUP_CAPTURAS=0` desliga). Um perfil desligado não
+    ganha loop, nem check no /health, nem bloco no /dashboard/stats.
     """
-    config = cfg or ConfigBackup.de_env(env or (lambda _nome, padrao: padrao))
-    if not config.habilitado:
-        return None
-    return BackupService(
-        cfg=config, repo_root=repo_root, push=push, clock=clock,
-        espaco_livre_fn=espaco_livre_fn,
-    )
+    leitor = env or (lambda _nome, padrao: padrao)
+    servicos: list[BackupService] = []
+    for perfil in perfis:
+        config = ConfigBackup.de_env(leitor, perfil)
+        if not config.habilitado:
+            continue
+        servicos.append(BackupService(
+            cfg=config, repo_root=repo_root, push=push, clock=clock,
+            espaco_livre_fn=espaco_livre_fn,
+        ))
+    return servicos

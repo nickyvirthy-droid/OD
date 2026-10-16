@@ -29,6 +29,8 @@ import pytest
 from core.backup import (
     AGUARDAR,
     ALERTA_FALHA_COOLDOWN_S,
+    CAPTURAS_EXCLUIDOS,
+    CAPTURAS_PREFIXO,
     DIARIOS_PADRAO,
     EXCLUIDOS_PADRAO,
     PULAR,
@@ -39,10 +41,11 @@ from core.backup import (
     _espaco_livre_padrao,
     agendado_no_dia,
     avaliar,
-    build_service,
+    build_services,
     calcular_retencao,
     nome_snapshot,
     plano_de_conteudo,
+    proxima_janela,
     semana_iso,
     timestamp_do_nome,
 )
@@ -165,6 +168,42 @@ class TestConfigBackup:
         assert cfg.estado_path == Path("data/outro.json")
         assert cfg.excluidos == ("data/captures", "data/3d")
 
+    def test_perfil_das_capturas(self) -> None:
+        """Perfil semanal (ordem do dono): 04:00, cadência 7, 4 semanas,
+        sem `data/captures` nas exclusões e prefixo próprio."""
+        cfg = ConfigBackup.de_env(lambda _n, padrao: padrao, "capturas")
+        assert cfg.nome == "capturas"
+        assert cfg.rotulo == "Backup das capturas"
+        assert cfg.check_nome == "backup_capturas"
+        assert cfg.hora == "04:00" and cfg.cadencia_dias == 7
+        assert cfg.diarios == 0 and cfg.semanais == 4
+        assert cfg.prefixo == CAPTURAS_PREFIXO
+        assert cfg.excluidos == ("data/vector_memory",)
+        assert "data/captures" not in cfg.excluidos  # as fotos ENTRAM
+        assert cfg.raiz.name == "auto-capturas"
+
+    def test_knobs_do_perfil_das_capturas(self) -> None:
+        valores = {
+            "OD_BACKUP_CAPTURAS_HORA": "05:30",
+            "OD_BACKUP_CAPTURAS_CADENCIA_DIAS": "14",
+            "OD_BACKUP_CAPTURAS_SEMANAIS": "2",
+            "OD_BACKUP_CAPTURAS_EXCLUIR": "data/captures/2026-09",
+        }
+        cfg = ConfigBackup.de_env(
+            lambda nome, padrao: valores.get(nome, padrao), "capturas"
+        )
+        assert cfg.hora == "05:30" and cfg.cadencia_dias == 14
+        assert cfg.semanais == 2
+        assert cfg.excluidos == ("data/captures/2026-09",)
+
+    def test_cadencia_minima_de_um_dia(self) -> None:
+        cfg = ConfigBackup.de_env(
+            lambda nome, padrao: (
+                "0" if nome == "OD_BACKUP_CADENCIA_DIAS" else padrao
+            )
+        )
+        assert cfg.cadencia_dias == 1  # 0/negativo nunca trava o serviço
+
     def test_hora_invalida_cai_no_default(self) -> None:
         cfg = ConfigBackup.de_env(
             lambda nome, padrao: "25:99" if nome == "OD_BACKUP_HORA" else padrao
@@ -208,6 +247,34 @@ class TestNomesEAgenda:
         # o agendado de ANTES do horário é o de hoje; o de depois também
         depois = _epoch("2026-10-16 22:00")
         assert agendado_no_dia(depois, "03:00") == agendado
+
+    def test_prefixo_por_perfil(self) -> None:
+        quando = _epoch("2026-10-16 04:00")
+        nome = nome_snapshot(quando, CAPTURAS_PREFIXO)
+        assert nome == "od-capturas-2026-10-16_0400.tar.gz"
+        assert timestamp_do_nome(nome, CAPTURAS_PREFIXO) == quando
+        # o nome de um perfil não é aceito no outro (retenção não se cruza)
+        assert timestamp_do_nome(nome) is None
+        assert timestamp_do_nome("od-2026-10-16_0400.tar.gz",
+                                 CAPTURAS_PREFIXO) is None
+
+    def test_proxima_janela_por_cadencia(self) -> None:
+        ultimo = _epoch("2026-10-16 03:00")
+        # cadência 1: amanhã às 03:00
+        amanha = proxima_janela(ultimo, cadencia_dias=1, hora="03:00",
+                                agora_wall=_epoch("2026-10-16 12:00"))
+        assert datetime.fromtimestamp(amanha).strftime("%d/%m %H:%M") == \
+            "17/10 03:00"
+        # cadência 7 (capturas): mesma hora, 7 dias depois
+        semana = proxima_janela(ultimo, cadencia_dias=7, hora="04:00",
+                                agora_wall=_epoch("2026-10-16 12:00"))
+        assert datetime.fromtimestamp(semana).strftime("%d/%m %H:%M") == \
+            "23/10 04:00"
+        # sem sucesso anterior: hoje mesmo (a janela do dia)
+        hoje = proxima_janela(None, cadencia_dias=7, hora="04:00",
+                              agora_wall=_epoch("2026-10-16 02:00"))
+        assert datetime.fromtimestamp(hoje).strftime("%d/%m %H:%M") == \
+            "16/10 04:00"
 
     def test_semana_iso(self) -> None:
         # 01/10/2026 (quinta) e 04/10 (domingo) = mesma semana ISO;
@@ -314,6 +381,16 @@ class TestRetencao:
         assert "od-2026-10-16_0300.tar.gz" in retencao.manter
         assert "od-2026-09-01_0300.tar.gz" in retencao.remover
 
+    def test_retencao_nao_ve_o_extrato_de_outro_perfil(self) -> None:
+        """Prefixo do outro perfil é nome estranho — nunca removido."""
+        nomes = ["od-capturas-2026-10-16_0400.tar.gz"] + [
+            nome_snapshot(_epoch(f"2026-10-{d:02d} 03:00"))
+            for d in (14, 15, 16)
+        ]
+        retencao = calcular_retencao(nomes, diarios=1, semanais=0)
+        assert "od-capturas-2026-10-16_0400.tar.gz" not in retencao.remover
+        assert retencao.manter == ["od-2026-10-16_0300.tar.gz"]
+
     def test_nome_estranho_nunca_e_removido(self) -> None:
         nomes = ["manual-do-dono.tar.gz", "od-quebrado.tar.gz"] + \
             self._nomes(["2026-10-01", "2026-10-02"])
@@ -365,11 +442,14 @@ class TestAvaliar:
         assert decisao.acao == AGUARDAR and decisao.motivo == "antes_da_hora"
         assert decisao.proximo_em_s == pytest.approx(30 * 60.0, abs=1)
 
-    def test_ja_feito_hoje(self, tmp_path: Path) -> None:
+    def test_ja_feito_na_janela(self, tmp_path: Path) -> None:
+        """Sucesso hoje: a próxima janela é amanhã às 03:00 — AGUARDAR
+        (com `proximo_em_s`), não PULAR: existe janela futura prevista."""
         estado = {"ultimo_sucesso": _epoch("2026-10-16 03:00")}
         decisao = avaliar(_cfg(tmp_path), estado,
                           agora_wall=_epoch("2026-10-16 12:00"))
-        assert decisao.acao == PULAR and decisao.motivo == "ja_feito_hoje"
+        assert decisao.acao == AGUARDAR and decisao.motivo == "ja_feito"
+        assert decisao.proximo_em_s == pytest.approx(15 * 3600.0, abs=1)
 
     def test_catch_up_de_ontem(self, tmp_path: Path) -> None:
         """Servidor desligado às 03:00: o primeiro tick do dia roda."""
@@ -584,7 +664,7 @@ class TestCiclo:
         clock.advance(3600)
         segundo = svc.tick()
         assert segundo.executado is False
-        assert segundo.acao == PULAR and segundo.motivo == "ja_feito_hoje"
+        assert segundo.acao == AGUARDAR and segundo.motivo == "ja_feito"
 
     def test_dia_seguinte_roda_de_novo(
         self, repo: Path, tmp_path: Path
@@ -646,7 +726,8 @@ class TestFalhas:
         assert "ultimo_sucesso" not in estado
         assert len(push.envios) == 1
         titulo, corpo = push.envios[0]
-        assert titulo == "Backup falhou" and "disco cheio" in corpo
+        # o título diz QUAL backup falhou (dois perfis no ar)
+        assert titulo == "Backup do estado falhou" and "disco cheio" in corpo
         # segunda falha minutos depois: cooldown de 6 h segura o aviso
         clock.advance(600)
         svc.tick(forcar=True)
@@ -752,30 +833,170 @@ class TestSaude:
     def test_registrar_sem_monitor(self, repo: Path, tmp_path: Path) -> None:
         assert _svc(repo, tmp_path).registrar_no_health(None) is None
 
+    @pytest.mark.asyncio
+    async def test_os_dois_perfis_no_mesmo_monitor(self, repo: Path,
+                                                  tmp_path: Path) -> None:
+        """Cada perfil com check próprio; o das capturas pendente degrada
+        o /health sem derrubar (não-crítico) e sem tocar no do estado."""
+        servicos = TestPerfilDasCapturas.servicos(repo, tmp_path)
+        monitor = HealthMonitor()
+        for svc in servicos:
+            svc.registrar_no_health(monitor)
+        assert sorted(monitor.components) == ["backup", "backup_capturas"]
+        agregado = await monitor.health()
+        checks = agregado["checks"]
+        assert checks["backup"]["ok"] is False  # estado: horas sem rodar
+        assert checks["backup"]["critical"] is False
+        assert agregado["status"] == "degraded"
+
+
+# ===========================================================================
+# Perfil das capturas (semanal, com as fotos do dono)
+# ===========================================================================
+
+class TestPerfilDasCapturas:
+    """Ordem do dono (16/10): as fotos/vídeos de `data/captures` entram
+    num snapshot SEMANAL próprio (`backups/auto-capturas/`), separado do
+    diário pequeno do estado — 316 MB todo dia seria desperdício."""
+
+    @staticmethod
+    def _cfg_capturas(tmp_path: Path) -> ConfigBackup:
+        cfg = ConfigBackup.de_env(lambda _n, padrao: padrao, "capturas")
+        cfg.raiz = tmp_path / "auto-capturas"
+        cfg.estado_path = tmp_path / "capturas_estado.json"
+        return cfg
+
+    @staticmethod
+    def servicos(repo: Path, tmp_path: Path,
+                 clock: _Clock | None = None) -> list[BackupService]:
+        """Os dois perfis apontando para tmp (estado + capturas)."""
+        relogio = clock or _Clock("2026-10-16 04:30")
+        return [
+            _svc(repo, tmp_path, clock=relogio),
+            BackupService(
+                cfg=TestPerfilDasCapturas._cfg_capturas(tmp_path),
+                repo_root=repo, clock=relogio,
+                espaco_livre_fn=lambda _p: 10 ** 12,
+            ),
+        ]
+
+    def test_snapshot_leva_as_capturas_e_deixa_o_vetor(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        svc = self.servicos(repo, tmp_path)[1]
+        resultado = svc.rodar_agora()
+        assert resultado.ok
+        assert resultado.arquivo.startswith(CAPTURAS_PREFIXO)
+        caminho = svc.cfg.raiz / resultado.arquivo
+        with tarfile.open(caminho, "r:gz") as tar:
+            nomes = tar.getnames()
+            assert "data/captures/2026-10-16/foto.jpg" in nomes
+            assert ".env" in nomes
+            assert not [n for n in nomes if n.startswith("data/vector_memory")]
+            extraido = tar.extractfile("data/captures/2026-10-16/foto.jpg")
+            assert extraido is not None and extraido.read() == b"foto"
+
+    def test_cadencia_semanal_nao_repete_na_semana(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        clock = _Clock("2026-10-16 04:30")
+        svc = self.servicos(repo, tmp_path, clock)[1]
+        primeiro = svc.tick()
+        assert primeiro.executado and primeiro.motivo == "agendado"
+        clock.advance(3 * 86400)  # 3 dias depois: a janela semanal não abriu
+        meio = svc.tick()
+        assert meio.executado is False
+        assert meio.acao == AGUARDAR and meio.motivo == "antes_da_hora"
+        clock.advance(4 * 86400)  # 7 dias: a janela semanal reabriu
+        semana = svc.tick()
+        assert semana.executado is True
+        assert semana.arquivo != primeiro.arquivo
+
+    def test_catch_up_da_semana(self, repo: Path, tmp_path: Path) -> None:
+        """Servidor desligado no dia do semanal: roda no primeiro tick."""
+        svc = self.servicos(repo, tmp_path)[1]
+        estado = svc.carregar_estado()
+        estado["ultimo_sucesso"] = _epoch("2026-10-09 04:00")
+        svc.gravar_estado(estado)
+        assert svc.tick().executado is True
+
+    def test_retencao_de_quatro_semanas(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        svc = self.servicos(repo, tmp_path)[1]
+        svc.cfg.raiz.mkdir(parents=True, exist_ok=True)
+        antigos = [
+            nome_snapshot(_epoch(f"2026-09-{dia:02d} 04:00"),
+                          CAPTURAS_PREFIXO)
+            for dia in (4, 11, 18, 25)
+        ]
+        for nome in antigos:
+            (svc.cfg.raiz / nome).write_bytes(b"velho")
+        resultado = svc.rodar_agora()
+        restantes = sorted(p.name for p in svc.cfg.raiz.iterdir())
+        assert len(restantes) == 4  # 4 semanas: a nova + as 3 anteriores
+        assert resultado.arquivo in restantes
+        assert antigos[0] in resultado.removidos
+
+    def test_saude_da_semana(self, repo: Path, tmp_path: Path) -> None:
+        clock = _Clock("2026-10-16 03:30")  # antes da janela das 04:00
+        svc = self.servicos(repo, tmp_path, clock)[1]
+        antes = svc.check_saude()
+        assert antes["ok"] is True and "Backup das capturas" in antes["detail"]
+        assert "04:00" in antes["detail"]
+        clock.now = _epoch("2026-10-16 04:30")
+        svc.rodar_agora()
+        depois = svc.check_saude()
+        assert depois["ok"] is True and "da semana" in depois["detail"]
+        clock.advance(8 * 86400)  # passou da janela sem rodar
+        atrasado = svc.check_saude()
+        assert atrasado["ok"] is False and atrasado["status"] == "degraded"
+        assert "PENDENTE" in atrasado["detail"]
+
 
 # ===========================================================================
 # Fiação do launcher
 # ===========================================================================
 
 class TestFiacao:
-    def test_build_service_respeita_o_env(self, repo: Path, tmp_path: Path) -> None:
-        svc = build_service(
+    def test_build_services_monta_os_dois_perfis(self, repo: Path,
+                                                 tmp_path: Path) -> None:
+        servicos = build_services(
             repo_root=repo,
             env=lambda nome, padrao: {
                 "OD_BACKUP_DIR": str(tmp_path / "auto"),
                 "OD_BACKUP_ESTADO": str(tmp_path / "estado.json"),
                 "OD_BACKUP_DIARIOS": "1",
+                "OD_BACKUP_CAPTURAS_DIR": str(tmp_path / "fotos"),
+                "OD_BACKUP_CAPTURAS_ESTADO": str(tmp_path / "fotos.json"),
             }.get(nome, padrao),
         )
-        assert svc is not None
-        assert svc.cfg.diarios == 1 and svc.cfg.hora == "03:00"
+        assert [s.cfg.nome for s in servicos] == ["estado", "capturas"]
+        estado, capturas = servicos
+        assert estado.cfg.diarios == 1 and estado.cfg.hora == "03:00"
+        assert capturas.cfg.cadencia_dias == 7
+        assert capturas.cfg.hora == "04:00"
+        assert capturas.cfg.prefixo == CAPTURAS_PREFIXO
+        assert capturas.cfg.excluidos == CAPTURAS_EXCLUIDOS
+        assert capturas.cfg.raiz == tmp_path / "fotos"
+        assert capturas.cfg.check_nome == "backup_capturas"
 
-    def test_build_service_desligado(self, repo: Path) -> None:
-        svc = build_service(
+    def test_build_services_desligado(self, repo: Path) -> None:
+        so_estado = build_services(
             repo_root=repo,
-            env=lambda nome, padrao: "0" if nome == "OD_BACKUP" else padrao,
+            env=lambda nome, padrao: (
+                "0" if nome == "OD_BACKUP_CAPTURAS" else padrao
+            ),
         )
-        assert svc is None
+        assert [s.cfg.nome for s in so_estado] == ["estado"]
+        nenhum = build_services(
+            repo_root=repo,
+            env=lambda nome, padrao: (
+                "0" if nome in ("OD_BACKUP", "OD_BACKUP_CAPTURAS")
+                else padrao
+            ),
+        )
+        assert nenhum == []
 
 
 # ---------------------------------------------------------------------------
@@ -822,26 +1043,36 @@ class TestStatsDoBackup:
         assert "backup" not in dados
         assert b'"backup"' not in resposta[1]
 
-    def test_com_backup_traz_o_estado_e_o_card(self, _serve_stats,
-                                               repo: Path,
-                                               tmp_path: Path) -> None:
+    def test_com_backup_traz_os_dois_perfis_e_os_cards(self, _serve_stats,
+                                                      repo: Path,
+                                                      tmp_path: Path) -> None:
         from tests.test_api import _json_response, _request, make_orch
         from integrations.api import APIConfig
 
-        svc = _svc(repo, tmp_path, clock=_Clock("2026-10-16 03:30"))
-        svc.rodar_agora()
-        cfg = APIConfig(port=0, rate_limit_max=0, backup=svc)
+        servicos = TestPerfilDasCapturas.servicos(repo, tmp_path)
+        for svc in servicos:
+            svc.rodar_agora()
+        cfg = APIConfig(port=0, rate_limit_max=0, backups=servicos)
         srv = _serve_stats(make_orch(tmp_path), config=cfg)
         resposta = _request(srv.bound_port, "GET", "/dashboard/stats")
         status, body, _headers = resposta
         dados = _json_response(resposta)
         assert status == 200 and b'"backup"' in body
-        assert dados["backup"]["ultimo_arquivo"].startswith("od-2026-10-16")
-        assert dados["backup"]["config"]["hora"] == "03:00"
-        assert dados["backup"]["arquivos"][0]["bytes"] > 0
-        assert dados["backup"]["pendente_hoje"] is False
-        # card "Backup" do painel — a linha referencia stats.backup
+        assert set(dados["backup"]) == {"estado", "capturas"}
+        estado = dados["backup"]["estado"]
+        capturas = dados["backup"]["capturas"]
+        assert estado["ultimo_arquivo"].startswith("od-2026-10-16")
+        assert estado["config"]["hora"] == "03:00"
+        assert estado["arquivos"][0]["bytes"] > 0
+        assert estado["pendente_hoje"] is False
+        # o perfil das capturas tem cadência semanal e arquivo próprio
+        assert capturas["config"]["cadencia_dias"] == 7
+        assert capturas["ultimo_arquivo"].startswith(CAPTURAS_PREFIXO)
+        assert capturas["rotulo"] == "Backup das capturas"
+        # cards do painel — as linhas referenciam stats.backup.<perfil>
         status, corpo_admin, _ = _request(srv.bound_port, "GET", "/admin")
         assert status == 200
-        assert b"stats.backup" in corpo_admin
-        assert b"fmtBytes" in corpo_admin
+        for pedaco in (b"stats.backup", b"stats.backup.estado",
+                       b"stats.backup.capturas", b"Backup fotos",
+                       b"fmtBytes"):
+            assert pedaco in corpo_admin

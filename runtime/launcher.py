@@ -388,58 +388,64 @@ def build_auto_update(
         return None
 
 
-def build_backup(push: Any = None) -> Optional[Any]:
-    """Backup automático do estado irrecuperável (TODO §3.6, 2026-10-16).
+def build_backups(push: Any = None) -> list[Any]:
+    """Backups automáticos (TODO §3.6, 2026-10-16) — um por PERFIL.
 
-    Ordem do dono: `.env` + `data/` SEM `captures/` e SEM `vector_memory/`
-    (só o irreconstruível, ~1 MB/dia), LOCAL em `backups/auto/` — ele
-    transfere para o HD externo — às 03:00 com 3 diários + 8 semanais de
-    retenção. O snapshot é UM `.tar.gz` (fácil de copiar), gravado atômico
-    (tmp → `os.replace`), `0600` porque leva o `.env` dentro.
+    Ordem do dono: perfil `estado` (diário, 03:00) com `.env` + `data/`
+    SEM `captures/` e SEM `vector_memory/`; perfil `capturas` (semanal,
+    04:00) com as fotos/vídeos JUNTO — os dois LOCAIS (`backups/auto/` e
+    `backups/auto-capturas/`), porque ele transfere para o HD externo. O
+    snapshot é UM `.tar.gz` (fácil de copiar), gravado atômico (tmp →
+    `os.replace`), `0600` porque leva o `.env` dentro.
 
-    Catch-up: se o servidor estava desligado às 03:00, o primeiro tick
-    depois do horário roda. Falha avisa no celular (best-effort, 1 push a
-    cada 6 h) e o check não-crítico `backup` degrada o /health enquanto o
-    backup do dia não existir. OD_BACKUP=0 desliga (bloco/painel somem).
+    Catch-up em ambos: servidor desligado no horário/dia ⇒ o primeiro tick
+    depois roda. Falha avisa no celular (best-effort, 1 push a cada 6 h) e
+    cada perfil tem check não-crítico próprio no /health. `OD_BACKUP=0` e
+    `OD_BACKUP_CAPTURAS=0` desligam cada um (loop/check/bloco somem).
     """
     try:
-        from core.backup import build_service
+        from core.backup import build_services
 
-        svc = build_service(repo_root=REPO_ROOT, env=env, push=push)
-        if svc is None:
-            log.info("Backup automático desligado (OD_BACKUP=0)")
-            return None
-        cfg = svc.cfg
-        log.info(
-            "Backup automático no ar (TODO §3.6)",
-            hora=cfg.hora,
-            raiz=str(cfg.raiz),
-            diarios=cfg.diarios,
-            semanais=cfg.semanais,
-            excluidos=",".join(cfg.excluidos),
-            intervalo_min=round(cfg.intervalo_s / 60.0, 1),
-        )
-        return svc
+        servicos = build_services(repo_root=REPO_ROOT, env=env, push=push)
+        if not servicos:
+            log.info("Backups desligados (OD_BACKUP=0 e OD_BACKUP_CAPTURAS=0)")
+        for svc in servicos:
+            cfg = svc.cfg
+            log.info(
+                "Backup no ar (TODO §3.6)",
+                perfil=cfg.nome,
+                rotulo=cfg.rotulo,
+                hora=cfg.hora,
+                cadencia_dias=cfg.cadencia_dias,
+                raiz=str(cfg.raiz),
+                prefixo=cfg.prefixo,
+                diarios=cfg.diarios,
+                semanais=cfg.semanais,
+                excluidos=",".join(cfg.excluidos),
+                intervalo_min=round(cfg.intervalo_s / 60.0, 1),
+            )
+        return servicos
     except Exception as exc:
-        log.warn("Backup automático desabilitado", error=str(exc))
-        return None
+        log.warn("Backups automáticos desabilitados", error=str(exc))
+        return []
 
 
 async def _run_backup_forever(svc: Any) -> None:
-    """Loop do backup: decisão a cada intervalo, tar em thread.
+    """Loop do backup (um por perfil): decisão a cada intervalo.
 
     O `tick()` avalia barato (config + estado + espaço em disco) e só
     empacota quando é hora; o empacotamento roda em `to_thread` — montar
-    o tar é I/O e não pode prender o event loop dos outros loops.
-    Exceção é contida no `_supervise`; um ciclo ruim não mata o loop.
+    o tar é I/O (316 MB no perfil das capturas) e não pode prender o
+    event loop dos outros loops. Exceção é contida no `_supervise`; um
+    ciclo ruim não mata o loop.
     """
     while True:
         try:
             resultado = await asyncio.to_thread(svc.tick)
             if resultado.executado:
                 log.info("Ciclo de backup encerrado",
-                         ok=resultado.ok, arquivo=resultado.arquivo,
-                         erro=resultado.erro)
+                         perfil=svc.cfg.nome, ok=resultado.ok,
+                         arquivo=resultado.arquivo, erro=resultado.erro)
         except asyncio.CancelledError:  # pragma: no cover — shutdown
             raise
         except Exception as exc:  # um ciclo ruim não mata o loop
@@ -567,7 +573,7 @@ def build_api_server(
     user_store: Any = None, registry: Any = None, chat_notify: Any = None,
     vector: Any = None, downloads: Any = None, auto_update: Any = None,
     supply_depot: Any = None, nomad_tools: Any = None, notifier: Any = None,
-    backup: Any = None,
+    backups: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -611,7 +617,7 @@ def build_api_server(
             supply_depot=supply_depot,  # Parte F: catálogo de ferramentas
             nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 9 no stats
             notifier=notifier,  # métricas do notifier no Status (2026-10-16)
-            backup=backup,  # TODO §3.6: estado do backup automático
+            backups=backups,  # TODO §3.6: perfis do backup automático
             public_url=env(  # Etapa 4: base do QR de posse no cartão
                 "OD_PUBLIC_URL", "https://nicky-server.tail1b1f51.ts.net"
             ),
@@ -1193,7 +1199,7 @@ async def _run_api_forever(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
     downloads: Any = None, auto_update: Any = None, supply_depot: Any = None,
-    nomad_tools: Any = None, notifier: Any = None, backup: Any = None,
+    nomad_tools: Any = None, notifier: Any = None, backups: Any = None,
 ) -> None:
     # Um único UserStore para REST e WebSocket: mesma sessão vale nos dois.
     user_store = build_user_store(database)
@@ -1219,7 +1225,7 @@ async def _run_api_forever(
         supply_depot=supply_depot,  # Parte F: Supply Depot no painel
         nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 9 no stats
         notifier=notifier,  # métricas do notifier no /dashboard/stats
-        backup=backup,  # TODO §3.6: estado do backup no /dashboard/stats
+        backups=backups,  # TODO §3.6: um bloco por perfil no stats
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
@@ -1699,11 +1705,12 @@ def main() -> int:
         orchestrator, fila=downloads, health=health,
         push=push,  # aviso FCM "auto-update aplicado" (TODO §3.8)
     )
-    # Backup automático do estado irrecuperável (TODO §3.6): snapshot diário
-    # às 03:00 em backups/auto/ + check não-crítico no /health.
-    backup = build_backup(push=push)
-    if backup is not None:
-        backup.registrar_no_health(health)
+    # Backups automáticos (TODO §3.6): perfil do estado (diário, 03:00) e
+    # perfil das capturas (semanal, 04:00) — cada um com check não-crítico
+    # próprio no /health.
+    backups = build_backups(push=push)
+    for _svc_backup in backups:
+        _svc_backup.registrar_no_health(health)
 
     async def _all() -> None:
         # Event Bus único da entrega (bridge MQTT ↔ núcleo)
@@ -1721,7 +1728,7 @@ def main() -> int:
                 # construído logo abaixo, ainda ANTES do gather invocar
                 # esta factory.
                 notifier=notifier,
-                backup=backup,  # TODO §3.6: bloco no /dashboard/stats
+                backups=backups,  # TODO §3.6: bloco por perfil no stats
             ), restart=False),
             _supervise("telegram", lambda: _run_telegram_forever(
                 orchestrator,
@@ -1735,11 +1742,13 @@ def main() -> int:
                 "auto-update", lambda: _run_auto_update_forever(auto_update),
             ))
             log.info("Loop de auto-update habilitado (Parte E NOMAD)")
-        if backup is not None:
+        for _svc_backup in backups:
             tasks.append(_supervise(
-                "backup", lambda: _run_backup_forever(backup),
+                f"backup-{_svc_backup.cfg.nome}",
+                lambda svc=_svc_backup: _run_backup_forever(svc),
             ))
-            log.info("Loop de backup habilitado (TODO §3.6)")
+            log.info("Loop de backup habilitado (TODO §3.6)",
+                     perfil=_svc_backup.cfg.nome)
         if recovery is not None:
             tasks.append(
                 _supervise("recovery", lambda: _run_recovery_forever(recovery))

@@ -231,11 +231,12 @@ class APIConfig:
     # bloqueados pelo anti-spam e erros. None = notifier fora
     # (OD_NOTIFIER_ENABLED=0) e o bloco notifier some do /dashboard/stats.
     notifier: Optional[Any] = None
-    # Backup automático do estado irrecuperável (TODO §3.6, ordem do dono
-    # 2026-10-16): core.backup.BackupService — último snapshot, pendência
-    # do dia e os arquivos em backups/auto/. None = backup fora
-    # (OD_BACKUP=0) e o bloco backup some do /dashboard/stats.
-    backup: Optional[Any] = None
+    # Backups automáticos (TODO §3.6, ordem do dono 2026-10-16): lista de
+    # core.backup.BackupService, UM POR PERFIL — `estado` (diário, .env +
+    # data/ sem capturas) e `capturas` (semanal, com as fotos/vídeos).
+    # None/[] = backups fora (OD_BACKUP=0) e o bloco backup some do
+    # /dashboard/stats.
+    backups: Optional[list[Any]] = None
     # URL pública absoluta (Etapa 4): base do QR de posse — o QR precisa
     # de URL com esquema/hospedeiro (o site em si é relativo). Padrão =
     # hostname do Funnel; o launcher pode sobrescrever (OD_PUBLIC_URL).
@@ -1124,10 +1125,14 @@ async function loadSystem() {
       ["Alertas", stats.notifier
         ? stats.notifier.alerts_emitted + " env · " + stats.notifier.alerts_blocked + " blq" : "—",
         stats.notifier && stats.notifier.errors ? "err" : ""],
-      ["Backup", stats.backup
-        ? (stats.backup.ultimo_sucesso_em || "—") + " · " + fmtBytes(stats.backup.ultimo_bytes)
+      ["Backup", stats.backup && stats.backup.estado
+        ? (stats.backup.estado.ultimo_sucesso_em || "—") + " · " + fmtBytes(stats.backup.estado.ultimo_bytes)
         : "—",
-        stats.backup && (stats.backup.pendente_hoje || stats.backup.falhas) ? "err" : ""],
+        stats.backup && stats.backup.estado && (stats.backup.estado.pendente_hoje || stats.backup.estado.falhas) ? "err" : ""],
+      ["Backup fotos", stats.backup && stats.backup.capturas
+        ? (stats.backup.capturas.ultimo_sucesso_em || "—") + " · " + fmtBytes(stats.backup.capturas.ultimo_bytes)
+        : "—",
+        stats.backup && stats.backup.capturas && (stats.backup.capturas.pendente_hoje || stats.backup.capturas.falhas) ? "err" : ""],
     ];
     document.getElementById("sys").innerHTML = cards.map(c =>
       '<div class="card"><div class="k">' + c[0] + '</div><div class="v ' + c[2] + '">' + c[1] + "</div></div>"
@@ -4237,11 +4242,14 @@ class APIHandler(BaseHTTPRequestHandler):
         notifier = self.api.config.notifier
         if notifier is not None:
             payload["notifier"] = notifier.metrics.snapshot()
-        # Backup automático (TODO §3.6): último snapshot, se o de HOJE está
-        # pendente e o que existe em backups/auto/ para copiar no HD.
-        backup = self.api.config.backup
-        if backup is not None:
-            payload["backup"] = backup.snapshot()
+        # Backups automáticos (TODO §3.6): um bloco por perfil (nome =
+        # estado/capturas) com o último snapshot, se a janela está pendente
+        # e os arquivos que o dono copia para o HD externo.
+        backups = self.api.config.backups
+        if backups:
+            payload["backup"] = {
+                backup.cfg.nome: backup.snapshot() for backup in backups
+            }
         self._json(200, payload)
 
     def llms(self) -> None:
