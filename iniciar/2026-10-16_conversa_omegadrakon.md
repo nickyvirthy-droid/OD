@@ -880,3 +880,58 @@ v1.32.0/2062 no ar (PID 4007853), fila §7 zerada, **nenhum candidato
 técnico aberto no §3** — as pendências vivas são todas do dono (cópia dos
 2 snapshots para o HD externo, off-site do backup, capturas do Órion sem
 instrução, Vaultwarden, repo público, pauta 3 e 5, fotos, catálogo 3D).
+
+## §15 — "revise os temas, não estou vendo diferença" — diagnóstico ao vivo + página de prova clicável
+
+Dono não viu diferença do tema. Revisão completa SEM mexer no que estava
+certo (regra: código antes de suposições):
+
+### O que foi provado como FUNCIONANDO (no serviço em execução)
+
+- **Assets do site**: `GET /site/od.css` e `/site/od-nav.js` respondem
+  200 e o corpo é **byte-idêntico ao disco** (md5 conferido) com o tema
+  novo (3 ocorrências de `data-theme` no CSS, `nav-tema` no JS).
+  `Cache-Control: max-age=60` + ETag — cache do navegador não segura
+  versão velha por mais de 1 min.
+- **Painel**: `/dashboard` servido com a injeção (`odTema` ×6), paleta
+  clara nas DUAS portas, **0 `!important`** que anule, nenhuma reescrita
+  de header que apague o botão depois de montado.
+- **Lógica do site** (od-nav.js linhas 79-205): ciclo system→light→dark
+  correto; `system` remove `data-theme` e a porta `@media
+  (prefers-color-scheme: light)` pinta; `dark` se protege pelo `:not`.
+- **Lógica do painel** (`_com_tema` + `_TEMA_PAINEL_JS`): idempotente,
+  aplica `data-theme` concreto, sincroniza com `/auth/me`.
+- **App**: wiring conferido no código (`theme_service.dart`,
+  `main.dart` com `ValueListenableBuilder`, card Tema nos Ajustes).
+
+### O achado REAL (por que ele não vê diferença)
+
+- **O celular dele está em 1.31.0**: desde o deploy (16:32) houve
+  **0 requisições a /app/version** — o app dele nunca soube do 1.32.0,
+  logo **não existe tema no app** (é lá que ele provavelmente está
+  olhando; o tema no app só existe após instalar o 2062).
+- O botão do site/painel existe, mas é discreto (caixa 42px ao lado do
+  ⋮) — pode ter passado despercebido.
+- 429 que apareceu numa checagem minha = rate limit (30 req/min/IP)
+  estourado pelas PRÓPRIAS batidas de diagnóstico, não defeito: 0
+  `od_rate_limited_total` no processo atual.
+
+### Entrega nova (commit a7a6520)
+
+- **`site/teste-tema.html`** (página de prova clicável): 3 botões
+  GRANDES (☀️ Claro / 🌙 Escuro / 🌗 Seguir o aparelho) que usam as
+  MESMAS linhas do botão real (localStorage `od_theme` + `data-theme` +
+  `colorScheme`) e 3 amostras de cor ao vivo mostrando o rgb COMPUTADO
+  do fundo/texto/cartão enquanto a página pinta + status do tema e se a
+  sessão está sincronizada com o perfil. `node --check` verde;
+  `tests/test_api.py` 146 passed (a guarda das páginas do site é
+  glob-based, a página nova entra sozinha).
+- `txt.txt` reescrito com o diagnóstico e o passo a passo (site: botão
+  ao lado do ⋮; prova: digitar `/site/teste-tema.html`; app: instalar o
+  1.32.0 via banner → Ajustes → Tema). Telegram enviado.
+
+### Estado
+
+v1.32.0/2062 no ar, tema provado no servidor; **aguardando o dono testar**
+(site botão ⋮ / página de prova) e **instalar o update no app** — e
+dizer onde ele estava olhando para fechar o diagnóstico.
