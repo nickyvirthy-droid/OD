@@ -1,7 +1,15 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T19:50:00-03:00",
+ "updated_at": "2026-10-16T19:55:00-03:00",
+ "pauta_explicada_e_todo_descrito_2026_10_16": {
+  "pedido": "Dono (~19:50 de 16/10): 'me explique o tal de Pauta itens 3 e 5' e, ao ver a minha busca demorada nas transcrições, correu o processo: 'por isso pedi pra criar um TODO de atualizações... não precisa ficar assim procurando do que se trata'.",
+  "apuracao_da_fonte": "'Pauta' = as 15 divergências Legado × sistema atual em docs/ANALISE_ECOSSISTEMA.md §6, com os próximos passos numerados 1–5 na §8 (criada 09/10). Itens 1 (organizar Legado) e 2 (/verificacao + Registro Mestre) já CONCLUÍDOS; os abertos são: 3 = ordem das frentes FAB/Living Systems/Semi-joias/Nicoly Valentina (só falta a decisão da ordem — o 1º passo pedido, Registro Mestre, saiu em v1.22.0 e a Etapa 4 em v1.30.0); 4 = unificação do formato de ID das peças (SKU 5 campos × MoC 4 campos hex do Legado, antes das semi-joias); 5 = rotação dos segredos vazados no Legado (bot @Nexus_Nicky_bot e chave Gemini ainda ATIVOS; decisão do dono: rotacionar após os testes). OBS: os transcripts antigos diziam '3 e 5 = unificação de ID e ordem das frentes' — a numeração real da §8 é 3=frentes, 4=ID, 5=segredos; a confusão de numeração era parte do problema.",
+  "correcao_no_todo": "TODO.md §2: as 2 linhas crípticas 'Pauta — Item 3/Item 5 (Semana passada)' viraram 3 linhas descritas por extenso (§8.3 frentes, §8.4 unificação de ID, §8.5 rotação de segredos), cada uma com o que é, por que importa e a fonte. Registro da regra do dono: a lista é para NÃO esquecer e NÃO ter que procurar o que cada item é.",
+  "tema_adiado": "Na mesma troca o dono reportou: 'ainda falha mas bem menos, vamos deixar isso para depois' — item novo [ ] em TODO.md §3.8 (falha residual do tema no site, adiada; ao retomar: exemplo exato + instrumentar antes de mexer). App segue ok.",
+  "estado": "TODO descrito; aguardando ordem do dono (próximo candidato a decidir: ordem das frentes §8.3).",
+  "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§18)"
+ },
  "reverificacao_2026_10_16_1943": {
   "pedido": "'leia iniciar' (~19:43 de 16/10) — reverificação de rotina pós-conserto do tema (§16, deploy 17:51). Dono em seguida perguntou 'por que está demorando?' — resposta: eram as conferências reais do servidor; registro concluído.",
   "achados_verdes": "SISTEMA VERDE: od-core active desde 17:51:09 (1h52), MainPID 4079685, NRestarts=0, journal 0 [ERROR] desde o boot; /health status=up, 22 checks, nenhum fora; /app/version 1.32.0/2062 sha b5b4ed31… == APK publicado (55.656.288 B); git HEAD 7b4ccb7 == origin/master (0 à frente), único untracked = backups/backup_od_2026-10-16/ (regra 9, intocável); txt.txt sem mensagem nova do dono (escrita nossa 17:57); analise/ inalterado (2 capturas Órion 01:39 + fotos-adicionais/); /dashboard/stats notifier {ticks:110, checks_run:1760, problems:3, alerts_emitted:2, errors:0} + nomad_tools {9,9,[]}.",

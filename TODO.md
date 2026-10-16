@@ -52,8 +52,9 @@
 |---|---|---|
 | **Vaultwarden** | ✅ | Conta do dono criada + registro aberto fechado em 15/10 (E2E com CLI oficial). Falta só o dono popular o cofre: `https://nicky-server.tail1b1f51.ts.net:8443` |
 | **Registro Mestre — Etapa 4** | ☐ | Comprador / QR / loja do lote de brinquedos |
-| **Pauta — Item 3** | ☐ | Semana passada |
-| **Pauta — Item 5** | ☐ | Semana passada |
+| **Pauta §8.3 — Ordem das frentes** (09/10) | ☐ | Decidir **com o dono** a ordem de implementação das frentes que ainda não existem: **FAB / Living Systems / Semi-joias / Nicoly Valentina** (fonte: `docs/ANALISE_ECOSSISTEMA.md` §8 item 3 — o 1º passo pedido, o Registro Mestre, já saiu em v1.22.0 e a Etapa 4 em v1.30.0). Só falta a decisão da ordem |
+| **Pauta §8.4 — Unificar formato de ID das peças** (09/10) | ☐ | Hoje existem 2 formatos incompatíveis herdados do Legado: **SKU de 5 campos** (Nicky Virthy) × **MoC de 4 campos hex** (Nexus). Unificar num formato único **antes** de lançar as semi-joias (fonte: `docs/ANALISE_ECOSSISTEMA.md` §6 linha 9 + §8 item 4) |
+| **Pauta §8.5 — Rotação dos segredos vazados no Legado** (09/10) | ☐ | Verificado 09/10: **bot antigo `@Nexus_Nicky_bot` e chave Gemini AINDA ATIVOS**. Decisão do dono: rotacionar só quando os testes em produção finalizarem. Nunca migrar segredo ao site (fonte: §6 linha 15 + §8 item 5 — mesmo assunto da linha "Rotação de segredos" abaixo) |
 | **Repo GitHub público + segredos no histórico** | ☐ | **Decisão do dono:** tornar o repo privado e/ou rotacionar segredos que apareceram no histórico antes do commit `3ed13cc` (migração p/ `.env`) — detalhes no `txt.txt` |
 | **Rotação de segredos** | ☐ | Adiada — verificado: sem segredo antigo vivo fora do `.env` (exceto histórico git público, pendência acima) |
 | **Fotos em `analise/fotos-adicionais/`** | ☐ | "Vou usar depois" (4 fotos com prefixo `zz`/`zzz`) |
@@ -108,6 +109,7 @@
 - [x] **Auto-update no app** — download em background no boot + instalação com um toque — **ENTREGUE 16/10 (v1.31.0+2061, item B da fila):** `_preDownload` no `main.dart` (banner "Baixando… N%" → "baixada — pronta para instalar" → **Instalar**), `download()` reusa cache cujo SHA-256 confere (2ª chamada = 0 requisições). O `PackageInstaller` do texto era especulação pré-v1.7.0: o caminho FileProvider/`ACTION_INSTALL_PACKAGE` (27/09) já funciona no Android 14+ e mostra a mesma tela de confirmação do sistema — sessão `PackageInstaller` não ganharia UX.
 - [x] **Push FCM** — "auto-update aplicado" no celular — **ENTREGUE 16/10 (item B):** `core/auto_update.py::_anunciar()` chama `PushService.notify` nos dois sucessos do ciclo (re-sync do índice RAG com stats de chunks; download concluído/movido com alvo+versão), injetado por `build_auto_update(push=)` — best-effort, nunca derruba o ciclo. Saúde/nerve já vinha ligada pelo notifier (15–16/10) e o FCM e2e (registro/exibição no app) desde 13/09 (`3b5599c`).
 - [x] **Tema escuro/claro sincronizado** — preferência salva no perfil do usuário (já tem `UserStore`) — **ENTREGUE 16/10 (v1.32.0+2062; CHANGELOG §1.32.0):** a preferência vive no PERFIL (`user_prefs` + `GET/PUT /profile/preferences`, e o `/auth/me` devolve `preferences`) e a MESMA chave `theme` (`system|light|dark`) orienta **app + painel + site (11 páginas)** — trocar no celular muda o site e o painel no mesmo login. As três decisões do dono: tema nos três clientes, **seguir o sistema** para quem nunca escolheu, e preferência **no perfil + cópia local** (`SharedPreferences`/`localStorage`, que abre já no tema certo sem rede). Site e painel recebem a paleta clara e o botão por **injeção única** (`od.css`/`od-nav.js` e `_com_tema()` no painel, dentro do único `<script>` da página) — nenhuma das 11 páginas foi editada. Chave desconhecida é **400** e não silêncio. +17 testes (3074/16 · 90,91%) + 13 do app (`flutter analyze` 0 issues, 192/2).
+- [ ] **Tema — falha residual no site (ADIADO pelo dono 16/10 ~19:50)** — dono reportou: "ainda falha mas bem menos, vamos deixar isso para depois". O clique morto do ciclo foi corrigido (conserto das 17:47, commit 5053c54), mas sobrou um caso não reproduzido. Quando o dono retomar: pedir o exemplo exato (qual página, aparelho claro/escuro, de qual estado o botão partia) e instrumentar/replicar antes de mexer. App segue ok nas palavras do dono.
 
 ---
 
@@ -174,5 +176,5 @@
 
 ---
 
-**Atualizado em:** 2026-10-16 04:55 (item A da fila — Observabilidade/Alertas Telegram entregue: ponte do /health + NRestarts + disco configurável; §3.6 ✅; suíte 2964 passed)
+**Atualizado em:** 2026-10-16 19:55 (itens da pauta §8 descritos por extenso — 3 = ordem das frentes, 4 = unificação de ID, 5 = rotação de segredos; tema com falha residual registrado como adiado pelo dono)
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

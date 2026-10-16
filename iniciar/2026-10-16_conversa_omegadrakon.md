@@ -1026,3 +1026,45 @@ eram as conferências reais do servidor; registro concluído na sequência.
 
 Sistema estável e no ar (v1.32.0+2062). Conserto do tema no ar desde
 17:51. Aguardando o dono testar o site (botão ao lado do ⋮) e dizer.
+
+---
+
+## §18 — "me explique o tal de Pauta itens 3 e 5" + régua do dono sobre o TODO
+
+Dono pediu a explicação dos itens da pauta e, ao ver a demora (eu
+procurando a definição nas transcrições antigas), estabeleceu o método:
+o TODO existe justamente para NÃO esquecer e NÃO precisar procurar o
+que cada item é — cada item da lista deve vir descrito; o que sai da
+lista é o que foi implementado.
+
+### O que é a "pauta"
+
+A "pauta de divergências" = `docs/ANALISE_ECOSSISTEMA.md` §6 (tabela
+com as 15 divergências Legado × sistema atual, criada 09/10) + os
+próximos passos numerados 1–5 na §8:
+
+| Item | O que é | Status |
+|---|---|---|
+| §8.1 | Organização do Legado | ✅ concluído 09/10 (caminho aditivo, `Legado/00_MAPA_DO_LEGADO.md`) |
+| §8.2 | `/verificacao` + Registro Mestre | ✅ v1.22.0 (Etapa 4/posse/QR/loja v1.30.0) |
+| §8.3 | **Ordem das frentes** FAB / Living Systems / Semi-joias / Nicoly Valentina | ☐ — só falta o dono decidir a ordem |
+| §8.4 | **Unificação do formato de ID** das peças (SKU 5 campos × MoC 4 hex do Legado) | ☐ — antes das semi-joias |
+| §8.5 | **Rotação dos segredos** vazados no Legado (bot @Nexus_Nicky_bot + chave Gemini ainda ATIVOS) | ☐ — adiada pelo dono até os testes finalizarem |
+
+Obs.: transcripts antigos diziam "3 e 5 = unificação de ID e ordem das
+frentes" — a numeração real da §8 é 3=frentes, 4=ID, 5=segredos. A
+confusão de numeração era justamente parte do problema.
+
+### Correção aplicada no TODO.md
+
+- §2: as duas linhas crípticas "Pauta — Item 3 / Item 5 — Semana
+  passada" viraram **três linhas descritas por extenso** (§8.3, §8.4,
+  §8.5), cada uma com o que é, por que importa e a fonte.
+- §3.8: novo item **[ ] Tema — falha residual no site (ADIADO pelo dono)**:
+  "ainda falha mas bem menos, vamos deixar isso para depois" — ao
+  retomar: exemplo exato do dono + instrumentar antes de mexer.
+
+### Estado
+
+TODO com todos os itens autoexplicativos. Aguardando ordem do dono —
+candidato natural: decidir a ordem das frentes (§8.3).
