@@ -187,3 +187,93 @@ sink async → API do Telegram, sem tocar `data/notifier_state.json`.
 - **Fila §7 seguinte: App auto-update + FCM** (ordem do dono).
 - Pendência do dono registrada em `analise/`: 2 capturas do Sistema
   Órion (01:39) **sem instrução** — aguardando o que ele quer fazer.
+
+## §4 — Reverificação "leia iniciar" (~06:20) — sistema VERDE + apuração: notifier com 2 classes de alerta mudas desde 11/09
+
+Pedido de rotina do dono (**"leia iniciar"**, ~06:20). Status verde
+confirmado com prova; na checagem de rotina apareceu uma anomalia em
+`data/notifier_state.json` que foi apurada até a causa raiz. **Nada foi
+alterado** — correção proposta aguardando ordem (regras 7/10).
+
+### Status (medido)
+
+| Verificação | Resultado |
+|---|---|
+| Serviço | `od-core.service` (unidade **USER** do systemd) `active` desde **04:51:49**, MainPID **3367820**, **NRestarts=0** |
+| Journal | **0 erros no dia**; WARN de aplicação só os 4 `router:down` já conhecidos (00:03, 01:03, 03:00, 04:41); último evento sync RAG 05:23 `chunks=1622` |
+| `/health` (com `OD_API_KEY`) | **ok=true · 20 checks · nenhum fora** |
+| `/app/version` | **1.30.0 / 2060** (sha `57ed3845…`) |
+| git | **HEAD `07d63fb` == origin/master**, árvore LIMPA |
+| `txt.txt` | sem mensagem nova do dono (escrita nossa 04:58 = entrega do item A) |
+| `analise/` | inalterado: 2 capturas do Órion (01:39) **sem instrução** + `fotos-adicionais/` |
+
+Fila §7: próximo = **(B) App auto-update + FCM** (ordem do dono).
+
+### Achado — `data/notifier_state.json`: duas camadas de sujeira
+
+O arquivo hoje:
+
+```json
+{"pid": 3373227, "started_at": 1230770.312,
+ "last_alerts": {"restart": 3754164.292, "llm:offline": 3682439.017,
+                 "router:down": 1229671.103}}
+```
+
+**Camada 1 — veneno de boot antigo (a séria).** `restart` e
+`llm:offline` são **monotônicos do boot 29/07→11/09** (o de 43 dias de
+uptime). A prova veio do journald persistente: o **último** `key=restart`
+da história é **11/09 00:55:40** e o **último** `key=llm:offline` é
+**10/09 05:00:15** — convertendo os valores envenenados pela data de
+boot saem **00:55:43** e **05:00:18** (Δ3 s idêntico nos dois = o kernel
+contou 3 s antes do primeiro evento do journald). Ou seja: os valores
+foram gravados **nesses próprios alertas** e o `_save_state` os
+preservou **verbatim** (`integrations/notifier.py` 688–696 e 946–964)
+através dos reboots de **11/09, 21/09 e 01/10**.
+
+**Efeito — 2 classes de alerta mudas há 35 dias.** O anti-spam em
+`_consume_result` (798–799): `if last is not None and (now - last) <
+cooldown:` — com `last` do boot anterior, `now - last` é **negativo**,
+sempre `< 3600` (`DEFAULT_COOLDOWN_S`) → **bloqueio permanente**.
+Corroboração viva: os **3 restarts de hoje (03:39:55, 04:02:35,
+04:51:49) não geraram nenhum alerta `restart`** no journal;
+`router:down` continua passando porque foi **re-emitido** com relógio
+real às 04:41 (linha 814 atualiza o valor no emit). Tradução: **se o
+LLM cair agora, não há aviso proativo** (`llm:offline` é `severity=crit`).
+Sem reboot do host, o desbloqueio "sozinho" só aconteceria por volta de
+**13–14/11** (quando o monotônico atual alcançar esses valores).
+
+**Camada 2 — poluição da suíte de testes (a menor).** O arquivo foi
+**reescrito por `pid 3373227` às 04:59:25.894**; `started_at`
+1230770.312 converte para **04:59:25.31** (boot 01/10 23:06:35) — bate
+bit a bit com o mtime. Essa janela é da **suíte gate rodada antes do
+commit de docs `07d63fb`** (`.coverage` 05:00:18, commit 05:00:35).
+Causa: `tests/test_nomad_tools.py::TestLauncherWiring::
+test_build_notifier_*` chama `launcher.build_notifier()` **sem isolar
+`DATA_DIR`** — o `tests/conftest.py` só redireciona `LIMITACOES_FILE`; a
+fixture de isolamento existe **só** em `test_launcher_health_external`.
+Assim `state_file=DATA_DIR/"notifier_state.json"` (`launcher.py:1347`)
+grava pid/started_at do pytest no estado **de produção** no `__init__`
+(linha 696). É transitório (o próximo emit do od-core regrava o pid
+dele) e **não disparou alerta nenhum** — mas é risco latente: um teste
+que fizesse `tick()` com sinks reais mandaria mensagem de verdade ao
+dono.
+
+**Não afetado:** as pontes do item (A) (NRestarts/health/disco) leem
+fonte fresca a cada tick — intactas. As métricas do notifier
+(`alerts_emitted`/`alerts_blocked`) continuam fora do
+`/dashboard/stats` (daí o mute não aparecer em lugar nenhum).
+
+### Correção proposta — AGUARDANDO ORDEM (nada aplicado)
+
+1. **Saneamento no load**: descartar entradas de `last_alerts` com
+   valor **> relógio atual** (monotônico de boot anterior nunca pode ser
+   válido) + teste de regressão — mata o veneno no próximo restart.
+2. **Isolar `DATA_DIR`** nos testes `build_notifier` do
+   `test_nomad_tools` (mesmo padrão da fixture já existente em
+   `test_launcher_health_external`).
+3. *(opcional)* expor `alerts_emitted`/`alerts_blocked` no
+   `/dashboard/stats`.
+
+Registro em `session.json` (`reverificacao_2026_10_16_0640`). Próxima
+etapa: ordem do dono — **correção do notifier** ou **seguir a fila §7
+(B) App auto-update + FCM**.

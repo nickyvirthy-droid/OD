@@ -1,7 +1,28 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T05:05:00-03:00",
+ "updated_at": "2026-10-16T06:40:00-03:00",
+ "reverificacao_2026_10_16_0640": {
+  "pedido": "Usuário: 'leia iniciar' (~06:20 de 16/10) — reverificação de rotina; anomalia encontrada na checagem foi apurada até a causa raiz antes de reportar.",
+  "achados_verdes": "SISTEMA VERDE: od-core (unidade USER od-core.service, user@1000) active desde 04:51:49, MainPID 3367820, NRestarts=0, journal SEM ERROS no dia (aplicação-WARN só os 4 router:down já conhecidos: 00:03, 01:03, 03:00, 04:41; último evento sync RAG 05:23 chunks=1622); /health com OD_API_KEY ok=true, 20 checks, nenhum fora; /app/version 1.30.0/2060 sha 57ed3845…; git HEAD 07d63fb == origin/master, árvore LIMPA; txt.txt sem mensagem nova do dono (escrita nossa 04:58 = entrega do item A); analise/ inalterado (2 capturas Sistema Órion 01:39 SEM instrução + fotos-adicionais/).",
+  "achado_notifier_state_apurado": "data/notifier_state.json com DUAS camadas de sujeira (apurado, NADA alterado): (1) VENENO DE BOOT ANTIGO — last_alerts restart=3754164.292 e llm:offline=3682439.017 são monotônicos do boot 29/07→11/09 (o de 43 dias); PROVA journald: último key=restart = 11/09 00:55:40 e último key=llm:offline = 10/09 05:00:15 — conversão dos valores pelo início do boot dá 00:55:43 e 05:00:18 (Δ3 s = kernel 3s antes do 1º evento do journald, idêntico nos 2); _load_state/_save_state copiam last_alerts VERBATIM (integrations/notifier.py 688-696 e 946-964) e sobreviveram aos reboots de 11/09, 21/09 e 01/10. EFEITO: anti-spam em _consume_result (798-799) calcula now-last NEGATIVO < cooldown 3600 (DEFAULT_COOLDOWN_S) → bloqueia SEMPRE → alertas 'restart' e 'llm:offline' MUADOS desde 11/09 (prova: 3 restarts hoje 03:39:55/04:02:35/04:51:49 com 0 alertas restart no journal; router:down passou porque foi re-emitido com relógio real às 04:41, atualizando o valor). Sem reboot do host o desbloqueio natural seria só ~13-14/11. Risco real: LLM cair AGORA = sem aviso proativo (llm:offline é severity=crit). (2) POLUIÇÃO DE SUÍTE — arquivo reescrito por pid 3373227 às 04:59:25.894; started_at 1230770.312 = 04:59:25.31 pelo boot 01/10 23:06:35 (bate bit a bit com o mtime) = processo da SUÍTE gate rodada antes do commit de docs 05:00:35 (.coverage 05:00:18): tests/test_nomad_tools.py::TestLauncherWiring::test_build_notifier_* chama launcher.build_notifier() SEM isolar DATA_DIR (conftest.py só redireciona LIMITACOES_FILE; fixture de isolamento existe só em test_launcher_health_external) → state_file=DATA_DIR/notifier_state.json (runtime/launcher.py:1347) grava pid/started_at do pytest no estado de PRODUÇÃO no __init__ (linha 696). Transitório (próximo emit do od-core regrava o pid dele) e não disparou alerta, mas risco latente: teste que fizesse tick com sinks reais mandaria mensagem de verdade ao dono.",
+  "nao_afetado": "Pontes do item (A) intactas — NRestarts/health/disco leem fonte fresca a cada tick (nrestarts_do_systemd usa systemctl --user, unit user existe); métricas do notifier seguem fora do /dashboard/stats.",
+  "correcao_proposta_aguardando_ordem": [
+   "(i) saneamento no load: descartar entradas de last_alerts com valor > relógio atual (monotônico de boot anterior nunca é válido) + teste de regressão — mata o veneno no próximo restart;",
+   "(ii) fixture de isolamento de DATA_DIR nos testes build_notifier do test_nomad_tools (mesmo padrão do test_launcher_health_external);",
+   "(iii) opcional: expor alerts_emitted/alerts_blocked no /dashboard/stats."
+  ],
+  "estado": "SISTEMA VERDE e monitorado; anomalia do notifier registrada com prova; NADA APLICADO — correção de código/estado segue regras 7/10, aguardando ordem do dono.",
+  "proximas_pendencias_dono": [
+   "Correção do notifier (veneno restart/llm:offline + isolamento de DATA_DIR nos testes) — aguardando ordem.",
+   "Próximo da fila §7: App auto-update + FCM (ordem do dono).",
+   "analise/ com 2 capturas do Sistema Órion (01:39) SEM instrução — referência de design, replicar bloco, ou é só arquivo?",
+   "Vaultwarden: popular cofre + trocar master provisória.",
+   "Repo GitHub público com segredos no histórico: decidir privar/rotacionar.",
+   "Pauta itens 3 e 5; 4 fotos em analise/fotos-adicionais/; catálogo 3D/."
+  ],
+  "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§4)"
+ },
  "ordem_a_observabilidade_alertas_2026_10_16": {
   "id": "ordem_a_observabilidade_alertas_2026_10_16",
   "titulo": "Item (A) da fila §7 ENTREGUE — Observabilidade/Alertas Telegram (TODO §3.6): /health degraded + NRestarts + disco configurável",
