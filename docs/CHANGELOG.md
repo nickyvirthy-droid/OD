@@ -86,6 +86,52 @@ duplicata).
 
 **Prova viva no serviço (pós-deploy):** abaixo, no mesmo dia.
 
+### Infra — Backup automático do `.env` + `data/` (TODO §3.6, ordem do dono, 2026-10-16, sem bump)
+
+> Pedido do dono: *"implemente o backup automático do .env + data/"*, com
+> **3 decisões dele** tomadas antes de escrever qualquer linha: destino
+> **LOCAL** (`backups/auto/` — ele transfere para um HD externo), escopo
+> **`.env` + `data/` SEM `captures/` e SEM `vector_memory/`** (só o
+> irreconstruível) e **03:00 · 3 diários + 8 semanais**. Números que
+> orientaram a conversa: `data/` = **314 MB**, dos quais **304 MB são as
+> capturas** (43 dias de fotos/vídeos) e 11 MB o índice do RAG
+> (reconstruível pelos documentos) — o escopo escolhido dá **~185 KB por
+> rodada** em vez de 314 MB/dia; disco a **85%**; `rclone`/`minio`
+> ausentes (off-site exigiria conta e credenciais novas — ficou para
+> quando ele decidir).
+
+| Peça | Entrega |
+|---|---|
+| **`core/backup.py` (novo)** | `avaliar()` **PURO** (padrão da casa: relógio, estado, espaço em disco e arquivos entram por parâmetro) nas camadas `desligado` → `antes_da_hora` → `ja_feito_hoje` → `disco_insuficiente` (estimativa × 1,10) → `rodar`, **com catch-up** (servidor desligado às 03:00 ⇒ o primeiro tick depois do horário roda). `BackupService` é o executor: tar.gz **determinístico** (gzip `mtime=0` e `filename=""`, uid/gid 0, membros ordenados ⇒ mesmo conteúdo = mesmo sha256), gravação atômica (`tmp` → `os.replace`), **`0600` no arquivo e `0700` no diretório** (o tar leva o `.env` dentro), estado em JSON atômico, **retenção por semana ISO** (3 diários + 1 representante de cada uma das 8 semanas mais recentes; nome fora do padrão nunca é apagado), limpeza de `.tmp` órfão e falha que **avisa no celular** (best-effort, 1 push a cada 6 h para erro persistente não virar spam). |
+| **`/health` + `/dashboard/stats` + `/admin`** | Check `backup` **NÃO crítico** (degrada enquanto o snapshot do dia não existir — antes da hora ou já feito, fica `up`), bloco `backup` no Status (config, último arquivo/sha/tamanho, `pendente_hoje`, lista para copiar no HD) e card **"Backup"** no painel (JS novo `fmtBytes`). |
+| **`runtime/launcher.py`** | `build_backup()` + `_run_backup_forever()` — loop supervisionado (`_supervise("backup", ...)`), **tar em thread** (`asyncio.to_thread`: empacotar é I/O e não pode prender o event loop), tick a cada 15 min com decisão barata. Knobs: `OD_BACKUP`, `OD_BACKUP_HORA`, `OD_BACKUP_DIARIOS`, `OD_BACKUP_SEMANAIS`, `OD_BACKUP_INTERVALO_MIN`, `OD_BACKUP_DIR`, `OD_BACKUP_ESTADO`, `OD_BACKUP_EXCLUIR`. |
+| **`.gitignore`** | `backups/auto/` ignorado: o repo é **público** e o tar leva o `.env` dentro. |
+
+| Verificação | Resultado |
+|---|---|
+| `core/backup.py` | **100% de cobertura** (343 stmts, 0 faltando) |
+| Suíte oficial gate `--cov-fail-under=90` (+ `.coveragerc`) | **3034 passed / 16 skipped · cobertura 90,80%** (+60 em `tests/test_backup.py`; 1 warning pré-existente de `tests/test_orchestrator.py`) |
+| pyflakes | **idêntico ao HEAD** nos 4 arquivos tocados (os 6 avisos são pré-existentes, conferidos com `git stash`) |
+| **Teste do teste (mutação)** | 4 mutações aplicadas e **todas capturadas**: guarda de disco (3 falhas), retenção semanal (3), exclusões do dono (3) e aviso de falha (1); reversão bit-exata ⇒ 60 verdes |
+| Testes que mais importam | tar contém `.env` + `data/` e **não** `captures/`/`vector_memory/`; `.env` extraído é **byte-idêntico**; conteúdo igual ⇒ **mesmo sha256**; retenção real (10 dias ⇒ 4 arquivos com 3 diários + 2 semanas); falha grava estado honesto e avisa **1×** (cooldown de 6 h); check não-crítico **degrada** o `/health` em vez de derrubar |
+
+**Prova viva no serviço (pós-deploy, 16/10 14:16, PID 3871779):**
+restart verde (regra 7.3 — `2fd75ab` pushado ANTES) · boot
+`Backup automático no ar (TODO §3.6) | hora=03:00 | raiz=backups/auto |
+diarios=3 | semanais=8 | excluidos=data/captures,data/vector_memory` +
+`Loop de backup habilitado` · **primeiro tick rodou o snapshot de hoje**
+(catch-up, journal `Backup concluído | arquivo=od-2026-10-16_1416.tar.gz |
+membros=16 | bytes=189686 | sha256=392f7bd68863 | duracao_s=0.15`) ·
+artefato conferido no disco: `-rw------- backups/auto/od-2026-10-16_1416.tar.gz`
+(185 KB), `drwx------ backups/auto`, **sha256 do arquivo == `ultimo_sha256`
+do estado**, `tar -tzf` = **16 membros** (`.env` + 15 de `data/`, nenhum de
+`captures/`/`vector_memory/`) e o **`.env` extraído é byte-idêntico ao real**
+(`cmp` ok) · `/health` **up, 21 checks** (`backup` = *"Backup de hoje ok
+(od-2026-10-16_1416.tar.gz, 0.18 MB, há 0.0 h)"*, `critical: false`) ·
+`/dashboard/stats` com o bloco `backup` completo · `/admin` com o card
+(`stats.backup` ×3) · `/app/version` **1.31.0/2061** (backend puro, **sem
+bump**) · NRestarts=0, journal sem erros.
+
 ## [1.30.0] — REGISTRO DO COMPRADOR POR QR/POSSE + LOJA DO SITE (ETAPA 4 DO REGISTRO MESTRE) 🜂 (2026-10-15)
 
 > **Bump MINOR (capacidade nova):** Etapa 4 do Registro Mestre — decisão
