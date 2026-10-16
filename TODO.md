@@ -95,7 +95,7 @@
 
 ### 3.6 Observabilidade / Operação
 - [ ] **Dashboard unificado** — hoje `/admin` tem seções separadas; criar visão "System Overview" com saúde de tudo (RAG, auto-update, downloads, depot, bot, API)
-- [ ] **Alertas no Telegram** — `/health` degraded → msg pro dono; NRestarts > 0 → msg; disco > 85% → msg
+- [x] **Alertas no Telegram** — `/health` degraded → msg pro dono; NRestarts > 0 → msg; disco > 85% → msg — **ENTREGUE 16/10 (sem bump; CHANGELOG §Infra 3.6):** ponte `health_monitor` no notifier (degraded warn 120s / down crit; dedupe com sondas dedicadas), sonda `systemd:nrestarts` (warn ≥1, crit ≥3, `systemctl --user show` em thread; desconhecido = ok) e disco com `OD_DISK_THRESHOLD_PERCENT` (padrão 85). +29 testes (2964/16, cov 90,60%), prova de fogo com sink real, restart verde PID 3367820. Bônus: `format_alert` mostrando hora monotônica (data errada no Telegram) consertado com `Alert.wall`.
 - [ ] **Backup automático do `.env` + `data/`** — daily para S3/MinIO/rclone (já tem a fila da Parte D)
 
 ### 3.7 Identidade / Legado (Regra 16)
@@ -160,15 +160,15 @@
 | **DECISÃO FINAL (12/10) — healthchecks** | ~~Alto~~ ✅ | Concluído 15/10 ~21:15 | As 9 no `/health` + alerta Telegram (sem bump, 2914/16). Sobra ProtoMaps (dev task, opcional) |
 | **Registro Mestre — Etapa 4** | ~~Médio~~ ✅ | Concluído 15/10→16/10 | Posse/QR/loja **no ar (v1.30.0+2060)**: comprador registra no app, QR no cartão, regressão com código, loja sem preço (2929/16, gate 90,58%). Sobra v2: câmera de QR dentro do app |
 | **Melhorar RAG (embedding + corpus externo)** | ~~Médio~~ ✅ | Concluído 16/10 ~03:40 | **No ar (sem bump):** `iniciar/*.md` no corpus (895 → **1.598 chunks**) + floor recalibrado **0,399/0,036** (grid medido, 780 células válidas) → parafrases **1/8 → 6/8**, gate 8/8+8/8 intacto (2935/16, cov 90,60%). Embedding semântico **medido e recusado**: quebra precisão (irr 0,546 > rel 0,394 em todas as chaves) e box tem só ~1,7 GB RAM |
-| **Observabilidade / Alertas Telegram** | Baixo | — | Ganho operacional imediato |
+| **Observabilidade / Alertas Telegram** | ~~Baixo~~ ✅ | Concluído 16/10 ~04:55 | **No ar (sem bump):** `/health` degraded → Telegram (dedupe com sondas dedicadas) + `NRestarts > 0` (queda anormal) + disco `OD_DISK_THRESHOLD_PERCENT` (2964/16, cov 90,60%; prova de fogo com sink real; fix da data nas mensagens) |
 | **App auto-update + FCM** | Médio | — | UX do dono no celular |
 
-> **Sugestão:** healthchecks, **Registro Mestre Etapa 4** e **RAG
-> (corpus externo + recalibração medida) estão concluídos** (15/10 →
-> 16/10). Próximo da fila: **Observabilidade/Alertas Telegram** ou
-> **App auto-update + FCM** — ordem do dono.
+> **Sugestão:** healthchecks, **Registro Mestre Etapa 4**, **RAG
+> (corpus externo + recalibração medida)** e **Observabilidade/Alertas**
+> estão concluídos (15/10 → 16/10). Próximo da fila: **App auto-update
+> + FCM** — ordem do dono.
 
 ---
 
-**Atualizado em:** 2026-10-16 00:20 (Etapa 4 do Registro Mestre entregue: posse/QR/loja + app 1.30.0+2060 — §7; drill E2E com resíduo zero; suíte 2929 passed)
+**Atualizado em:** 2026-10-16 04:55 (item A da fila — Observabilidade/Alertas Telegram entregue: ponte do /health + NRestarts + disco configurável; §3.6 ✅; suíte 2964 passed)
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

@@ -68,6 +68,48 @@ apagados, listas pública/admin de volta ao total 6 — **resíduo zero**.
 
 ---
 
+### Infra — Observabilidade/Alertas Telegram (TODO §3.6): `/health` degraded + `NRestarts` + disco configurável (ordem `ordem_a_observabilidade_alertas_2026_10_16`, 2026-10-16, sem bump)
+
+> Pedido do dono **"a"** (~04:30) = item **(A)** da fila do TODO §7.
+> Backend puro (nenhuma linha de app/site mudou) → **sem bump**,
+> 1.30.0/2060 intacto. Apuração no código antes de escrever qualquer
+> linha: **(1)** ponte `/health` → Telegram **não existia** — o notifier
+> cobria 6 sondas e o HealthMonitor tem 20 checks; audit, metrics,
+> database, mqtt, perception e auto_update degradavam **sem ninguém
+> receber nada**; **(2)** `NRestarts > 0` **não existia** — só havia
+> "PID mudou" (pegava o restart autorizado, não a queda anormal que o
+> systemd ressuscita); **(3)** disco > 85% **já existia** (`_check_disk`,
+> limite do legado) e faltava prova de fogo.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/notifier.py` — ponte do `/health`** | `_check_health` (async, **última** sonda do tick de propósito: as tools já enchem o cache de 10s que o HealthMonitor compartilha) roda o HealthMonitor real por tick e vira alerta. **Dedupe `SAUDE_JA_COBERTA = ("tool_", "orchestrator", "llm", "loops")`**: falha já gritada por sonda dedicada não dispara o agregado (sem mensagem dupla); o detalhe lista **só** o que ninguém cobre, mas o total ("N check(s) fora") é honesto. `degraded` → warn **após 120s** (restart/compose up legítimo não grita), `down` (crítico) → **crit na hora**; `health_monitor=None` → sonda fora. Duas chaves (`health:degraded`/`health:down`) com baixa explícita nas duas — sem entrada zumbi em `active_problems` (o próprio `_check_llm` já tinha esse formato de limpeza). |
+| **`integrations/notifier.py` — `NRestarts`** | `nrestarts_do_systemd(unit)`: `systemctl --user show <unit> -p NRestarts --value`, timeout 5 s, **`asyncio.to_thread`** (subprocess não prende o loop). **`None` → ok**: desconhecido (sem binário, sem bus, valor não-numérico) **nunca** vira alerta nem dá baixa — a baixa só vem de leitura `0` de verdade. Sonda `_check_nrestarts`: **warn ≥ 1**, **crit ≥ `CRASH_LOOP_RESTARTS` (3)**; `nrestarts_fn` injetável (testes/fake). |
+| **`runtime/launcher.py`** | `build_notifier(..., health=health)` ligado no `_all()`. Kill-switches `OD_NOTIFIER_HEALTH=0` e `OD_NOTIFIER_NRESTARTS=0`; `OD_SERVICE_UNIT` (padrão `od-core.service`); a sonda de NRestarts **só liga dentro de serviço systemd** (`INVOCATION_ID`) ou com unit explícita — suíte/CI nunca dispara `systemctl`. `OD_DISK_THRESHOLD_PERCENT` (padrão **85**, o do legado, agora configurável). Log de boot como prova: `ProactiveNotifier habilitado \| health_ponte=True \| nrestarts=True \| disco_pct=85.0`. |
+| **fix embutido (achado pela própria prova de fogo)** | `format_alert` fazia `time.localtime(alert.ts)` em cima do `ts` **monotônico** → a mensagem saía com data tipo **"(31/12 21:16)"** (valia para TODOS os alertas antigos, `router:down` incluso). `Alert` ganhou `wall = time.time()` carimbado **em `_emit`**; `ts` monotônico continua no comando do anti-spam/`emit_after_s` (é para isso que serve). |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte oficial gate `--cov-fail-under=90` | **2964 passed / 16 skipped · cobertura 90,60%** — **+29 testes** (`tests/test_notifier.py` 70, +22: ponte com delay/recuperação/dedupe/down/sonda quebrada/ordem do tick, NRestarts 0/1/3/recuperação/leitura parseada, exibição `wall`; `tests/test_launcher_health_external.py` 21, +7: wiring + kill-switches + limiar de disco) |
+| Prova de fogo (sandbox, sink REAL do Telegram) | `ProactiveNotifier` real com os **dois probes novos** + `build_telegram_sink()` real: **6 mensagens entregues** ao chat do dono, marcadas `[PROVA DE FOGO 3.6 — sandbox]` (3 no 1º run — que **reproduziram o bug de data** — e 3 no re-run pós-fix, já com `(16/10 04:47)`). Prova do caminho inteiro: probe → `format_alert` → sink async → API do Telegram. |
+| pyflakes | limpo em `notifier.py`, `launcher.py` e nos 2 testes (os 3 avisos do launcher são pré-existentes — conferidos contra `HEAD` com `git show`) |
+
+**Prova viva no serviço (pós-deploy, 16/10 04:51:49, PID 3367820):**
+restart verde (regra 7.3, código em `a67a6f6` pushado ANTES) ·
+**NRestarts=0** · journal **0 erros** · **0 alertas proativos** desde o
+boot (o 1º tick já correu com a ponte ligada e **não** gritou — nada
+degraded, NRestarts 0) · `/health` **up, 20 checks, nenhum fora** ·
+`/app/version` **1.30.0 / 2060** (sem bump) · leitor real
+`nrestarts_do_systemd("od-core.service")` → **0** no ambiente do
+serviço · árvore limpa, HEAD `a67a6f6` == `origin/master`.
+
+**Lição registrada:** medir o gap antes de codar (6 sondas × 20 checks)
+e deixar "desconhecido" calar — sonda que não entende o ambiente
+responde ok, não grita; e a prova de fogo pagou o próprio custo ao
+pegar a data errada das mensagens antes do dono reclamar.
+
+---
+
 ### Infra — RAG: memória histórica no corpus (`iniciar/`) + recalibração medida do floor duplo (ordem `ordem_rag_2026_10_16`, 2026-10-16, sem bump)
 
 - **Corpus externo:** `fontes_padrao()` indexa **`iniciar/*.md`** (32

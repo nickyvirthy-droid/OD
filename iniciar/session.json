@@ -1,7 +1,35 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T04:20:00-03:00",
+ "updated_at": "2026-10-16T05:05:00-03:00",
+ "ordem_a_observabilidade_alertas_2026_10_16": {
+  "id": "ordem_a_observabilidade_alertas_2026_10_16",
+  "titulo": "Item (A) da fila §7 ENTREGUE — Observabilidade/Alertas Telegram (TODO §3.6): /health degraded + NRestarts + disco configurável",
+  "pedido": "Dono: 'a' (~04:30 de 16/10) — escolha do item (A) da fila §7 = Observabilidade / Alertas Telegram (esforço baixo). Interpretação documentada na resposta.",
+  "escopo_apurado_no_codigo": "(1) /health degraded -> msg: NAO EXISTIA — notifier cobria 6 sondas x HealthMonitor com 20 checks (audit, metrics, database, mqtt, perception, supply_depot, auto_update degradavam sem alerta); (2) NRestarts > 0 -> msg: NAO EXISTIA — so havia 'PID mudou' (pegava restart autorizado, nao a queda anormal); (3) disco > 85% -> msg: JA EXISTIA (_check_disk, limite do legado) — faltava prova de fogo.",
+  "entregas": [
+   "integrations/notifier.py: _check_health (async, ULTIMA sonda do tick) — ponte com o HealthMonitor real; dedupe SAUDE_JA_COBERTA ('tool_','orchestrator','llm','loops') = sem mensagem dupla; degraded warn apos 120s, down crit na hora; baixa explicita das 2 chaves (sem zumbi em active_problems)",
+   "integrations/notifier.py: nrestarts_do_systemd(unit) + _check_nrestarts — systemctl --user show -p NRestarts --value, timeout 5s, asyncio.to_thread; None = fora do systemd -> ok (desconhecido nunca grita nem da baixa); warn >= 1, crit >= CRASH_LOOP_RESTARTS (3); nrestarts_fn injetavel",
+   "runtime/launcher.py: build_notifier(..., health=health) ligado no _all(); kill-switches OD_NOTIFIER_HEALTH=0 / OD_NOTIFIER_NRESTARTS=0; sonda NRestarts so liga com INVOCATION_ID (servico systemd) ou OD_SERVICE_UNIT (CI nunca dispara systemctl); OD_DISK_THRESHOLD_PERCENT (padrao 85); log de boot 'health_ponte=True | nrestarts=True | disco_pct=85.0'",
+   "FIX achado pela prova de fogo: format_alert fazia time.localtime() em cima do ts MONOTONICO -> mensagem saia '(31/12 21:16)' (valia p/ todos os alertas antigos, router:down incluso); Alert ganhou wall=time.time() carimbado em _emit; ts monotonic segue no anti-spam"
+  ],
+  "validacao": "Suíte oficial gate --cov-fail-under=90: 2964 passed / 16 skipped · cobertura 90,60% (+29: tests/test_notifier.py 70 +22, tests/test_launcher_health_external.py 21 +7). pyflakes limpo nos 4 arquivos (3 avisos do launcher sao pre-existentes, conferidos com git show HEAD). Sem mudanca de app -> sem bump (1.30.0/2060 intacto), sem flutter/APK.",
+  "prova_de_fogo": "Sandbox FORA do servico com os 2 probes novos + build_telegram_sink() REAL: 6 mensagens entregues ao chat do dono marcadas '[PROVA DE FOGO 3.6 — sandbox]' — as 3 do 1o run REPRODUZIRAM o bug de data, o re-run pos-fix saiu '(16/10 04:47)'. Caminho inteiro provado: probe -> format_alert -> sink async -> API do Telegram; data/notifier_state.json intacta.",
+  "deploy": "Restart verde 04:51:49 (regra 7.3, codigo pushado ANTES): PID 3367820, NRestarts=0, journal 0 erros, log 'ProactiveNotifier habilitado | health_ponte=True | nrestarts=True | disco_pct=85.0', 1º tick ao vivo com 0 alertas (sem falso positivo), /health up 20/20 nenhum fora, leitor real nrestarts_do_systemd -> 0, /app/version 1.30.0/2060.",
+  "commits": [
+   "a67a6f6 feat(observability): /health degraded e NRestarts do systemd viram alerta no Telegram (TODO 3.6)"
+  ],
+  "canais": "txt.txt reescrito (regra 14) + Telegram resumo (regra 15) + docs no commit seguinte (CHANGELOG §Infra 3.6, TODO §3.6/§7, transcrição §3).",
+  "estado": "CONCLUÍDO E NO AR — item A da fila fechado; sistema v1.30.0/2060 monitorado (ponte do /health + NRestarts + disco). Aguardando ordem do dono: próximo da fila = App auto-update + FCM.",
+  "proximas_pendencias_dono": [
+   "Próximo da fila §7: App auto-update + FCM (ordem do dono).",
+   "analise/ com 2 capturas do Sistema Órion (01:39) SEM instrução — perguntar o que ele quer (referência de design? replicar painel?).",
+   "Vaultwarden: popular cofre + trocar master provisória.",
+   "Repo GitHub público com segredos no histórico: decidir privar/rotacionar.",
+   "Pauta itens 3 e 5; 4 fotos em analise/fotos-adicionais/; catálogo 3D/."
+  ],
+  "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§3)"
+ },
  "reverificacao_2026_10_16_0420": {
   "pedido": "Usuário: 'leia iniciar' (~04:20 de 16/10).",
   "achados": "TUDO VERDE: od-core active PID 3320551 desde 16/10 04:02:35 (2º restart verde da madrugada, feito pelo fecho da sessão anterior para engolir a documentação do dia; 1º foi 03:39:55 PID 3300626), NRestarts=0, journal 0 erros desde 03:39. /app/version 1.30.0/2060 sha 57ed3845… ; /health (com OD_API_KEY) up, 20 checks, nomad_tools 9/9 ; rag_* zerados = contadores frescos pós-boot. Store no disco data/vector_memory/vector_store.json = 1609 chunks (1598 + docs do dia), provider hash 256-d. HEAD 3eb6dbb == origin/master, árvore LIMPA (git status vazio). txt.txt sem mensagem nova do dono (o arquivo inteiro é a nossa entrega da ordem 'prossiga', escrito 04:08).",

@@ -121,3 +121,69 @@ intermittência de ping do gateway já registrada em 15/10; monitorar, sem açã
 
 **Fila §7 (ordem do dono):** (A) Observabilidade/Alertas Telegram ·
 (B) App auto-update + FCM.
+
+## §3 — Item (A) da fila: Observabilidade / Alertas Telegram (TODO §3.6) — ENTREGUE sem bump
+
+Dono mandou **"a"** (~04:30) = escolha do item **(A)** da fila §7
+(`Observabilidade / Alertas Telegram`, esforço baixo). Interpretação
+documentada na resposta e em `session.json`
+(`ordem_a_observabilidade_alertas_2026_10_16`).
+
+### Apuração no código ANTES de codar — o gap era real e medido
+
+| O que o §3.6 pedia | O que existia (medido) |
+|---|---|
+| `/health` degraded → msg | **NÃO existia ponte**: notifier cobria 6 sondas (orchestrator/llm/disco/loops/restart/router + tools); o HealthMonitor tem **20 checks** — audit, metrics, database, mqtt, perception, supply_depot, auto_update degradavam **sem alerta nenhum** |
+| NRestarts > 0 → msg | **NÃO existia**: só `_check_restart` (PID mudou), que pega até o restart autorizado — o restart **automático** do systemd (queda anormal) era invisível |
+| disco > 85% → msg | **JÁ existia** (`_check_disk`, `DEFAULT_DISK_THRESHOLD_PERCENT=85` do legado) — faltava só provar ao vivo |
+
+### O que foi feito
+
+| Peça | Detalhe |
+|---|---|
+| `integrations/notifier.py` | `_check_health` (async, **última** sonda do tick — as tools já enchem o cache de 10s compartilhado): roda o HealthMonitor real por tick; **dedupe `SAUDE_JA_COBERTA` ("tool_", "orchestrator", "llm", "loops")** = mensagem dupla é proibida, o detalhe lista só o que ninguém cobre mas o total é honesto; `degraded` → warn **após 120s**, `down` crítico → **crit na hora**; baixa explícita das duas chaves (sem zumbi em `active_problems`). `nrestarts_do_systemd(unit)` + `_check_nrestarts`: `systemctl --user show … --value` com timeout 5s em **`asyncio.to_thread`**; **`None` → ok** (desconhecido nunca grita nem dá baixa); **warn ≥ 1, crit ≥ `CRASH_LOOP_RESTARTS` (3)** |
+| `runtime/launcher.py` | `build_notifier(..., health=health)`; kill-switches `OD_NOTIFIER_HEALTH=0` / `OD_NOTIFIER_NRESTARTS=0`; sonda NRestarts **só liga com `INVOCATION_ID`** (serviço systemd) ou `OD_SERVICE_UNIT` explícito (CI nunca dispara `systemctl`); `OD_DISK_THRESHOLD_PERCENT` (padrão **85**); log de boot `health_ponte=True \| nrestarts=True \| disco_pct=85.0` |
+| **fix achado pela prova de fogo** | `format_alert` fazia `time.localtime()` em cima do `ts` **monotônico** → mensagem saía **"(31/12 21:16)"** (valia para todos os alertas antigos). `Alert` ganhou `wall = time.time()` carimbado em `_emit`; `ts` monotônico segue no anti-spam. Prova: re-run do drill saiu `(16/10 04:47:47)` |
+
+### Verificação
+
+- Suíte oficial gate `--cov-fail-under=90`: **2964 passed / 16 skipped ·
+  cobertura 90,60%** (**+29 testes**: `test_notifier.py` 70, +22 —
+  ponte (delay/recuperação/dedupe/down/sonda quebrada/ordem do tick),
+  NRestarts (0/1/3/recuperação/parse/ausência do binário), exibição
+  `wall`; `test_launcher_health_external.py` 21, +7 — wiring e
+  kill-switches).
+- pyflakes limpo nos 4 arquivos tocados (os 3 avisos do launcher são
+  pré-existentes — conferidos com `git show HEAD:… | pyflakes`).
+- Sem mudança de app → **sem bump** (1.30.0/2060 intacto), sem
+  `flutter`/APK, sem `node --check` (nenhum JS tocado).
+
+### Prova de fogo (sandbox, sink REAL — regra 10/13)
+
+Script fora do serviço com os **dois probes novos** e o
+`build_telegram_sink()` de produção: **6 mensagens entregues** ao chat
+do dono marcadas `[PROVA DE FOGO 3.6 — sandbox]` — as 3 do primeiro
+run **reproduziram o bug de data**; o re-run pós-fix saiu com
+`(16/10 04:47)`. Prova do caminho inteiro: probe → `format_alert` →
+sink async → API do Telegram, sem tocar `data/notifier_state.json`.
+
+### Prova viva no serviço (pós-deploy, 04:51:49, PID 3367820)
+
+| Verificação | Resultado |
+|---|---|
+| Restart verde (regra 7.3 — código `a67a6f6` pushado ANTES) | `active`, **NRestarts=0**, journal **0 erros** |
+| Wiring no boot | `ProactiveNotifier habilitado \| health_ponte=True \| nrestarts=True \| disco_pct=85.0` |
+| 1º tick ao vivo (60s) | **0 alertas proativos** — ponte ligada e nada degradado, NRestarts 0 (sem falso positivo) |
+| `/health` | **up · 20 checks · nenhum fora** |
+| Leitor real | `nrestarts_do_systemd("od-core.service")` → **0** no ambiente do serviço |
+| Versão | `/app/version` **1.30.0 / 2060** (sem bump) |
+
+### Canais e commits
+
+- feat **`a67a6f6`** (código + testes) pushado ANTES do restart; docs
+  (CHANGELOG §Infra 3.6, TODO §3.6/§7, esta transcrição, session.json)
+  no commit de docs do mesmo push.
+- `txt.txt` reescrito (regra 14) · Telegram resumo (regra 15).
+- **Fila §7 seguinte: App auto-update + FCM** (ordem do dono).
+- Pendência do dono registrada em `analise/`: 2 capturas do Sistema
+  Órion (01:39) **sem instrução** — aguardando o que ele quer fazer.
