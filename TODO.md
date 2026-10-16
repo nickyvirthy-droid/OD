@@ -159,14 +159,14 @@
 |---|---|---|---|
 | **DECISÃO FINAL (12/10) — healthchecks** | ~~Alto~~ ✅ | Concluído 15/10 ~21:15 | As 9 no `/health` + alerta Telegram (sem bump, 2914/16). Sobra ProtoMaps (dev task, opcional) |
 | **Registro Mestre — Etapa 4** | ~~Médio~~ ✅ | Concluído 15/10→16/10 | Posse/QR/loja **no ar (v1.30.0+2060)**: comprador registra no app, QR no cartão, regressão com código, loja sem preço (2929/16, gate 90,58%). Sobra v2: câmera de QR dentro do app |
-| **Melhorar RAG (embedding + corpus externo)** | Médio | — | Recall conservador hoje |
+| **Melhorar RAG (embedding + corpus externo)** | ~~Médio~~ ✅ | Concluído 16/10 ~03:40 | **No ar (sem bump):** `iniciar/*.md` no corpus (895 → **1.598 chunks**) + floor recalibrado **0,399/0,036** (grid medido, 780 células válidas) → parafrases **1/8 → 6/8**, gate 8/8+8/8 intacto (2935/16, cov 90,60%). Embedding semântico **medido e recusado**: quebra precisão (irr 0,546 > rel 0,394 em todas as chaves) e box tem só ~1,7 GB RAM |
 | **Observabilidade / Alertas Telegram** | Baixo | — | Ganho operacional imediato |
 | **App auto-update + FCM** | Médio | — | UX do dono no celular |
 
-> **Sugestão:** healthchecks e **Registro Mestre Etapa 4 estão
-> concluídos** (15/10 e madrugada de 16/10). Próximo da fila:
-> **melhorar o RAG** (embedding + corpus externo — recall conservador
-> hoje) ou **Observabilidade/Alertas** — ordem do dono.
+> **Sugestão:** healthchecks, **Registro Mestre Etapa 4** e **RAG
+> (corpus externo + recalibração medida) estão concluídos** (15/10 →
+> 16/10). Próximo da fila: **Observabilidade/Alertas Telegram** ou
+> **App auto-update + FCM** — ordem do dono.
 
 ---
 

@@ -1,7 +1,7 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T00:20:00-03:00",
+ "updated_at": "2026-10-16T03:55:00-03:00",
  "decisao_final_health_nomad_2026_10_15": {
   "id": "decisao_final_health_nomad_2026_10_15",
   "titulo": "DECISÃO FINAL fechada: saúde das 9 ferramentas Nômades no /health + alerta no Telegram",
@@ -2725,5 +2725,13 @@
   ],
   "estado": "CONCLUÍDO — Etapa 4 NO AR (v1.30.0+2060): código de posse POSSE-XXXX (64 bits, hash-only) por peça exclusiva, QR no cartão, registro do comprador no app com conta, loja pública sem preço e regressão registrada→X destravada só com o código.",
   "deploy": "restart verde 23:41:40 (regra 7.3 — feat 082915f publicado antes): PID 3091063, NRestarts=0, journal 0 erros; boot +76s foi resync do corpus RAG (632 chunks dos arquivos da entrega — sem bug, diagnóstico com stack ao vivo); /health up 9/9 tools; /app/version 1.30.0/2060 sha256 57ed3845==APK publicado; aapt dos 2 APKs: 2060 cruro (build_apk.sh; meu build cru deu 4060 e foi descartado; backup 1.29.0/2059 em backups/apk-v1.29.0-2059/); loja 200 (8.433 B), verificacao 200, GET /registry público sem preço/notas/hash; drill E2E completo: QR 200/400, registro 201 (normalizado minúsculo sem hífen) + pública sem hash, 409, gate 400 sem código/400 errado/200 certo (dono/carimbo limpos, tem_posse), ping 🔑 ao Telegram, peça+usuário drill apagados = resíduo zero; suíte 2929/16 gate 90,58%, flutter 177/2 analyze 0; verificação de versão 9/9; Telegram msg 2790; repo público confirmado via API → .gitignore ganhou backups/push-devices-*.json (token FCM vivo nunca entra)"
+ },
+ "ordem_rag_2026_10_16": {
+  "id": "ordem_rag_2026_10_16",
+  "titulo": "Dono mandou prosseguir — Melhorar o RAG (embedding + corpus externo) da fila do TODO §7",
+  "data": "2026-10-16",
+  "pedido_dono": "'prossiga' (~00:25) — fila do TODO §7: próximo era Melhorar RAG (primeiro da lista).",
+  "escopo": "ENTREGUE (sem bump): (1) corpus externo = iniciar/*.md (32 transcrições + RULES, interna; TODO.md FORA por medição — churn de IDF sem ganho) — 895 → 1598 chunks; (2) recalibração MEDIDA do floor duplo: PISO_SCORE 0.36→0.399, PISO_OVERLAP 0.22→0.036 (grid ms[0.393..0.405] × mo[0.001..0.071] passo 0.001 — 780 células com gate 8/8+8/8 E parafrases 6/8; validado pelo consult() de verdade; baseline no corpus novo = 1/8); (3) embedding semântico MEDIDO E RECUSADO: fastembed MiniLM int8 (re-embed 39s / busca 46ms / consulta 7ms) quebra o gate ('previsão do tempo' cosseno 0.546 > rel.min 0.394, colisão real com a action weather_city documentada; nenhuma chave separa — fusão linear impossível, top-3/centering/PCA-3 sem região; mpnet 3.8GB RSS/419s descartado; box 1.7GB RAM; llama-server 501 em embeddings) — provider do hash permanece; bug mapeado: numpy.float32 não serializa no store.",
+  "estado": "CONCLUÍDO — suíte 2935 passed/16 skipped cov 90,60% (gate 90); feat 626bc82 pushado antes do restart (7.3); deploy 03:39:57 PID 3300626 NRestarts=0 journal 0 erros; boot chunks=1598 novos=703; store disco 1598; /health up tools 9/9; test_rag 85 / test_auto_update 60; canais: txt.txt + Telegram + transcrição 2026-10-16 + CHANGELOG §Infra 16/10 + TODO §7; spike fastembed desinstalado (resíduo zero)."
  }
 }

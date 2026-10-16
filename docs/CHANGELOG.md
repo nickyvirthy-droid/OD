@@ -68,6 +68,51 @@ apagados, listas pública/admin de volta ao total 6 — **resíduo zero**.
 
 ---
 
+### Infra — RAG: memória histórica no corpus (`iniciar/`) + recalibração medida do floor duplo (ordem `ordem_rag_2026_10_16`, 2026-10-16, sem bump)
+
+- **Corpus externo:** `fontes_padrao()` indexa **`iniciar/*.md`** (32
+  transcrições + RULES — as formulações naturais das perguntas do dono,
+  interna) além de `docs/` + `knowledge/`; o hash do alvo `indice-rag`
+  acompanha as 3 pastas (editar transcrição resynca sozinho). Corpus
+  **895 → 1.598 chunks**. `TODO.md` ficou DE FORA por decisão medida:
+  muda a cada sessão (churn de IDF puro) e nenhuma linha vencedora do
+  grid veio dele.
+- **Recalibração COM medição (nunca afrouxamento):** grid `ms` 0.380–0.420
+  × `mo` 0.000–0.060 (passo 0.001) no corpus real, validado pelo
+  `consult()` de verdade: **780 células** mantêm o gate **8/8
+  relevantes + 8/8 irrelevantes bloqueadas** e sobem o recall de
+  parafrases (pergunta natural sem termo raro em comum) de **1/8 → 6/8**
+  (no floor velho com o corpus novo: 1/8; corpus velho: 3/8). Centro
+  medido: `PISO_SCORE` **0.36 → 0.399**, `PISO_OVERLAP` **0.22 → 0.036**.
+  Floor duplo load-bearing dos dois lados: `ms` prende a consulta de
+  clima (comb 0,3929 — colisão REAL: o corpus documenta a action
+  `weather_city`), `mo` prende as irrelevantes sem termo raro
+  (ov 0,000), teto do `mo` = 0,071 = ov da parafrase "contêiner".
+  Fronteira ±0,006: o gate de calibração é o tripwire (procedimento no
+  docstring da classe).
+- **Embedding semântico: MEDIDO E RECUSADO** — spike `fastembed` (MiniLM
+  multilingual int8, ONNX in-process; a 8081 é llama-server e devolve
+  **501 em embeddings**; box com ~1,7 GB de RAM livre). Medido: re-embed
+  39 s / busca 46 ms / consulta 7 ms — mas **quebra o gate de
+  precisão**: a consulta de clima sobe para cosseno **0,546** > relevante
+  mínimo **0,394** e **nenhuma chave separa** (fusão linear `sem×ov`
+  provada impossível, suporte top-3, mean-center e PCA-3 — `irr.max >
+  rel.min` em todas); mpnet descartado na triagem (**3,8 GB RSS**,
+  419 s/895 chunks). Provider do hash permanece; pegue de integração
+  anotado (`numpy.float32` não serializa no store).
+- **+6 testes** (`TestRecallParafrases` — as 6 medidas passam; as 2
+  perdidas documentadas como ESTRUTURAIS: Δ0,0007 contra a consulta de
+  clima). `tests/test_rag.py` 85, `test_auto_update.py` 60.
+- **Suíte: 2935 passed, 16 skipped** · cobertura **90,60%** (gate 90).
+- **Prova viva (pós-deploy, 16/10 03:39, PID 3300626):** restart verde
+  (NRestarts=0, journal **0 erros**) · boot `RAG corpus sincronizado |
+  chunks=1598 | novos=703 | iguais=895` + 2º sync idempotente
+  `iguais=1598` · store no disco 1.598 (hash 256-d) · `/health` **up**
+  com **tools 9/9**.
+- Sem bump: backend/infraestrutura, sem mudança de app ou site.
+
+---
+
 ### Infra — As 9 ferramentas do stack Nômade entram no `/health` + alerta no Telegram (DECISÃO FINAL, 2026-10-15, sem bump)
 
 - **`core/nomad_tools.py` (NOVO):** `FERRAMENTAS_NOMAD` (as 9 do
