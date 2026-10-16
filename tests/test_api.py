@@ -580,6 +580,132 @@ class TestTemaClaroEscuro:
         )
         assert check.returncode == 0, check.stderr.decode()[:400]
 
+    # --- "às vezes não funciona" (16/10): clique nenhum pode cair numa tela
+    # igual à anterior. Harness de node com DOM de mentira que RODA o JS de
+    # verdade (od-nav.js e o _TEMA_PAINEL_JS embutido) e clica o botão.
+    _HARNESS = """
+'use strict';
+const fs = require('fs'), vm = require('vm');
+const arquivo = process.argv[2];
+const aparelhoClaro = process.argv[3] === '1';
+const inicial = process.argv[4];
+const cliques = parseInt(process.argv[5] || '4', 10);
+function novoEl() {
+  return { style: {}, _h: {}, _attrs: {},
+    classList: { toggle() {}, contains() { return false; } },
+    setAttribute(k, v) { this._attrs[k] = String(v); },
+    removeAttribute(k) { delete this._attrs[k]; },
+    getAttribute(k) { return k in this._attrs ? this._attrs[k] : null; },
+    appendChild() {}, insertBefore() {},
+    addEventListener(t, f) { this._h[t] = f; },
+    textContent: '', className: '', title: '',
+    click() { if (this._h.click) this._h.click(); } };
+}
+const raiz = novoEl(), corpo = novoEl(), cabecalho = novoEl(), botao = novoEl();
+const store = { od_theme: inicial };
+const localStorage = { getItem(k) { return k in store ? store[k] : null; },
+                       setItem(k, v) { store[k] = String(v); } };
+const document = { readyState: 'complete', documentElement: raiz, body: corpo,
+  getElementById(id) { return id === 'odTema' ? botao : null; },
+  querySelector(sel) { return sel === 'header' ? cabecalho : null; },
+  createElement() { return novoEl(); }, addEventListener() {} };
+const window = { matchMedia() { return { matches: aparelhoClaro, addEventListener() {} }; },
+                  scrollTo() {}, requestAnimationFrame() {}, scrollY: 0 };
+const ctx = { window, document, localStorage, console,
+              fetch() { return { catch() {} }; } };
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(arquivo, 'utf8'), ctx, { filename: arquivo });
+function estado() {
+  return { pref: store.od_theme || 'system',
+           aplicado: raiz.getAttribute('data-theme') || 'aparelho' };
+}
+const saida = [estado()];
+for (let i = 0; i < cliques; i++) { botao.click(); saida.push(estado()); }
+console.log(JSON.stringify(saida));
+"""
+
+    def _cliques_no_node(self, tmp_path: Path, js: str, aparelho_claro: bool,
+                         inicial: str, cliques: int = 4) -> list[dict]:
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:
+            return []
+        arquivo = tmp_path / "sobteste.js"
+        arquivo.write_text(js, encoding="utf-8")
+        harness = tmp_path / "harness.js"
+        harness.write_text(self._HARNESS, encoding="utf-8")
+        r = _subprocess.run(
+            [node, str(harness), str(arquivo), "1" if aparelho_claro else "0",
+             inicial, str(cliques)],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        assert r.returncode == 0, r.stderr[:600]
+        import json as _json
+        return _json.loads(r.stdout.strip().splitlines()[-1])
+
+    def _od_nav_js(self) -> str:
+        return (self._raiz() / "site" / "od-nav.js").read_text(encoding="utf-8")
+
+    def _js_do_painel(self) -> str:
+        from integrations.api.server import _TEMA_PAINEL_JS
+        return _TEMA_PAINEL_JS
+
+    def test_site_clique_nunca_cai_na_mesma_tela(self, tmp_path: Path) -> None:
+        """Regressão do "às vezes não funciona": em aparelho ESCURO, saindo
+        de 'escuro', o passo seguinte do ciclo era 'segue o aparelho' — que
+        resolve escuro igual à tela atual (clique "morto"). Agora pula."""
+        seq = self._cliques_no_node(tmp_path, self._od_nav_js(),
+                                    aparelho_claro=False, inicial="dark")
+        if not seq:  # node ausente: harness opcional (padrão da casa)
+            return
+        # 1º clique já sai do escuro (pula o "system" invisível)
+        assert seq[1]["pref"] == "light" and seq[1]["aplicado"] == "light"
+        # e TODOS os cliques seguintes mudam a tela
+        for antes, depois in zip(seq, seq[1:]):
+            assert antes["aplicado"] != depois["aplicado"], seq
+
+    def test_site_clique_pula_tela_igual_no_aparelho_claro(
+            self, tmp_path: Path) -> None:
+        """O mesmo do outro lado: aparelho CLARO em 'system' (tela clara) —
+        o 1º clique ia para 'claro' (igual) e não parecia funcionar."""
+        seq = self._cliques_no_node(tmp_path, self._od_nav_js(),
+                                    aparelho_claro=True, inicial="system")
+        if not seq:
+            return
+        assert seq[0]["pref"] == "system" and seq[0]["aplicado"] == "aparelho"
+        assert seq[1]["pref"] == "dark" and seq[1]["aplicado"] == "dark"
+        for antes, depois in zip(seq, seq[1:]):
+            assert antes["aplicado"] != depois["aplicado"], seq
+
+    def test_painel_clique_nunca_cai_na_mesma_tela(
+            self, tmp_path: Path) -> None:
+        """A MESMA correção no JS embutido do painel (_TEMA_PAINEL_JS)."""
+        seq = self._cliques_no_node(tmp_path, self._js_do_painel(),
+                                    aparelho_claro=False, inicial="dark")
+        if not seq:
+            return
+        assert seq[1]["pref"] == "light" and seq[1]["aplicado"] == "light"
+        for antes, depois in zip(seq, seq[1:]):
+            assert antes["aplicado"] != depois["aplicado"], seq
+
+    def test_painel_js_compila(self) -> None:
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:
+            return
+        import tempfile as _tempfile
+        with _tempfile.NamedTemporaryFile(
+                "w", suffix=".js", delete=False, encoding="utf-8") as f:
+            f.write(self._js_do_painel())
+            caminho = f.name
+        check = _subprocess.run([node, "--check", caminho],
+                                capture_output=True)
+        assert check.returncode == 0, check.stderr.decode()[:400]
+
 
 class TestAPISite:
     """GET /site serve a landing e /site/{file} serve arquivos (APK).

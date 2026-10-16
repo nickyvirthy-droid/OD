@@ -593,6 +593,17 @@ _TEMA_PAINEL_JS = """(function () {
     if (pref === 'light' || pref === 'dark') return pref;
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
+  /* Nenhum clique pode cair numa tela igual à anterior (o dono relatou
+     "às vezes não funciona" em 16/10): "escuro → segue o aparelho" num
+     aparelho escuro não muda nada. Se o próximo estado resolve para a
+     MESMA cor do atual, pula para o seguinte — todo clique pinta. Os 3
+     estados continuam válidos (o app tem o rádio completo). */
+  function proximoTema(pref) {
+    var atual = resolvido(pref);
+    var proximo = CICLO[pref] || 'system';
+    if (resolvido(proximo) === atual) proximo = CICLO[proximo] || 'system';
+    return proximo;
+  }
   function aplicar(pref) {
     var raiz = document.documentElement;
     raiz.setAttribute('data-theme', resolvido(pref));
@@ -654,7 +665,7 @@ _TEMA_PAINEL_JS = """(function () {
     montar();
     var b = document.getElementById('odTema');
     if (b) b.addEventListener('click', function () {
-      var proximo = CICLO[ler()] || 'system';
+      var proximo = proximoTema(ler());
       try { localStorage.setItem(CHAVE, proximo); } catch (e) {}
       aplicar(proximo);
       salvar(proximo);

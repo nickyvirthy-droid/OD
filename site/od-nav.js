@@ -98,6 +98,20 @@
       ? 'light' : 'dark';
   }
 
+  /* O ciclo tem 3 estados, mas NENHUM clique pode cair numa tela igual à
+     anterior: "escuro → segue o aparelho" num aparelho escuro (e "claro →
+     segue o aparelho" num claro) não muda nada visualmente — o dono
+     relatou "às vezes não funciona" (16/10). Quando o próximo estado
+     resolve para a MESMA cor do atual, pula para o seguinte: todo clique
+     pinta. Os 3 estados continuam válidos (o app tem o rádio completo e
+     "segue o aparelho" segue sendo o padrão de quem nunca escolheu). */
+  function temaProximo(pref) {
+    var atual = temaResolvido(pref);
+    var proximo = TEMA_CICLO[pref] || 'system';
+    if (temaResolvido(proximo) === atual) proximo = TEMA_CICLO[proximo] || 'system';
+    return proximo;
+  }
+
   function temaAplicar(pref) {
     var raiz = document.documentElement;
     if (pref === 'system') raiz.removeAttribute('data-theme');
@@ -182,7 +196,7 @@
     var botao = document.getElementById('odTema');
     if (botao) {
       botao.addEventListener('click', function () {
-        var proximo = TEMA_CICLO[temaLido()] || 'system';
+        var proximo = temaProximo(temaLido());
         temaGravarLocal(proximo);
         temaAplicar(proximo);
         temaSalvarNoPerfil(proximo);
