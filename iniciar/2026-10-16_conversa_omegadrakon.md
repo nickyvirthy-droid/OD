@@ -467,3 +467,51 @@ Apuração antes de mexer mostrou que **~80% já existia**:
   Vaultwarden, repo público, pauta 3 e 5. Fila §7 **zerada** — próximos
   candidatos no §3: backup `.env`+`data/`, tema escuro/claro, métricas
   Prometheus.
+
+## §8 — Retomada "leia iniciar" (~13:38) — sistema verde + 1 achado medido (alerta `restart` re-emite de hora em hora)
+
+Retomada de rotina depois do deploy do item (B) (12:23:30). Nada foi
+alterado no sistema — leitura e verificação.
+
+| Verificação | Resultado |
+|---|---|
+| od-core | `active` desde 16/10 **12:23:30** · **MainPID 3766943** · **NRestarts=0** · journal **0 erros** no boot atual (único `[ERROR]` do dia = sink Telegram 03:00 / DNS, pré-existente em PID 3091063) |
+| `/health` (OD_API_KEY) | **status=up** · **20 checks** · **nenhum fora** |
+| `/app/version` | **1.31.0 / 2061** · sha `3d3f6ccf…` == `site/OmegaDrakon.apk` publicado |
+| Git | **HEAD `02443de` == `origin/master`** (0 à frente) · sem resíduo rastreado; único untracked = `backups/backup_od_2026-10-16/` (backup, regra 9) |
+| `txt.txt` | sem mensagem nova do dono (última escrita = nossa entrega do item B, 12:37) |
+| `analise/` | inalterado — 2 capturas do Órion (01:39) + as 4 de `fotos-adicionais/` |
+| `notifier_state.json` | **limpo** e regravado com o relógio do boot novo (mtime 13:17:40; `last_alerts = {router:down: 1258498.501, restart: 1260663.464}`) — o veneno de boot antigo não voltou e a suíte não toca mais o arquivo |
+| `push_devices.json` | **1 token, vivo** (`d8Xhaf…crcY`, sent=53 / failed=3); a app re-registrou o MESMO token em 12:47 e 13:32 (FCM renovou — o zumbi podado em 15/10 não voltou) |
+| `/dashboard/stats` | `notifier {ticks:72, checks_run:1152, problems:53, alerts_emitted:2, alerts_blocked:50, errors:0}` · `nomad_tools {9,9,[]}` |
+
+### Achado medido (não é defeito — é comportamento, e a previsão da §6 estava errada)
+
+O alerta `key=restart` **não trava após a primeira emissão**: ele **re-emite a
+cada ciclo de cooldown** (`DEFAULT_COOLDOWN_S = 3600 s`) enquanto a condição
+persistir. Prova nos números do processo atual:
+
+| Horário | Evento |
+|---|---|
+| 11:17:10 | `Alerta proativo \| key=restart` (pós-fix do notifier) + push |
+| 12:17:33 | idem (+ push) — previsão da §6 dizia que seria a última |
+| 13:17:39 | idem (+ push, `enviados=1 falhas=0`) |
+
+`alerts_emitted:2` + `alerts_blocked:50` no processo atual batem com isso:
+restart é emitido, `_restart_reported` fica marcado só na emissão e o problema
+segue **ativo** (restart não tem condição de recuperação que dê baixa, ao
+contrário de `router:down`, que limpa quando o ping volta). **Efeito no dono:**
+um push "Sistema foi reiniciado" **por hora**, indefinidamente.
+
+**Refinamento proposto (aguardando ordem — nada aplicado):** alerta de restart
+como **um-disparo-por-boot** (guardar o `started_at` já anunciado e não
+re-emitir enquanto for o mesmo boot; 3 ticks = 1 alerta, boot novo = alerta
+novo) com teste de regressão. Alternativa mínima: cooldown próprio maior
+(6 h/24 h) só para `restart`.
+
+### Estado
+
+SISTEMA ESTÁVEL E NO AR — v1.31.0+2061, fila §7 zerada, notifier saneado, push
+com token único vivo; **nada em andamento**. Pendências do dono: o refinamento
+acima, as 2 capturas do Órion sem instrução, Vaultwarden, repo público/pauta/e
+fotos. Registro em `session.json` (`reverificacao_2026_10_16_1338`).

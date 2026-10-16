@@ -1,7 +1,24 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T12:36:00-03:00",
+ "updated_at": "2026-10-16T13:40:00-03:00",
+ "reverificacao_2026_10_16_1338": {
+  "pedido": "Usuário: 'leia iniciar' (~13:38 de 16/10) — retomada pós-deploy do item (B) (12:23:30).",
+  "achados_verdes": "SISTEMA VERDE: od-core active desde 16/10 12:23:30, MainPID 3766943, NRestarts=0, journal 0 erros no boot atual (o único [ERROR] do dia = sink Telegram 03:00, DNS, pré-existente em PID anterior 3091063); /health status=up, 20 checks, nenhum fora; /app/version 1.31.0/2061 sha256 3d3f6ccf… == APK publicado; git HEAD 02443de == origin/master (origin/master..HEAD = 0), árvore sem resíduo rastreado (único untracked = backups/backup_od_2026-10-16/, dado de backup — regra 9, intocável); txt.txt sem mensagem nova do dono (última escrita nossa 12:37 = entrega do item B); analise/ inalterado (2 capturas Sistema Órion 01:39 + fotos-adicionais com as 4).",
+  "provas_de_saude_pos_deploy": "notifier_state.json LIMPO e regravado com relógio do boot novo (last_alerts = {router:down: 1258498.501, restart: 1260663.464}; mtime 13:17:40) — o veneno de boot antigo não voltou; o fix de isolamento de DATA_DIR também segura (mtime não foi tocado pela última suíte). push_devices.json com 1 único token vivo (d8Xhaf…crcY: sent=53, failed=3) — o token morto podado em 15/10 não voltou como zumbi; a app re-registrou o MESMO token em 12:47 e 13:32 (FCM renovou, sem NOT_FOUND). /dashboard/stats: notifier {ticks:72, checks_run:1152, problems:53, alerts_emitted:2, alerts_blocked:50, errors:0} + nomad_tools {9,9,[]}; Auto-update tick alvos=1 aplicar=0 indice-rag=aguardar (esperado).",
+  "observacao_apurada_horaria_restart": "NÃO é defeito, mas é fato novo medido: o alerta key=restart NÃO 'trava' após a primeira emissão — ele RE-EMITE a cada ciclo de cooldown (3600 s) enquanto a condição persistir. Prova: 11:17:10 → 12:17:33 → 13:17:39 (3 emissões, intervalo ~1 h), alerts_emitted:2 no processo atual + alerts_blocked:50 (restart segurado nos demais ticks). Efeito no dono: um push 'Sistema foi reiniciado' por hora no celular, indefinidamente, porque restart não tem condição de recuperação que dê baixa no problema ativo (diferente de router:down, que limpa sozinho quando o ping volta). A previsão da §6 ('emite UMA vez e trava') estava ERRADA — corrigida aqui com a medição.",
+  "refinamento_proposto_aguardando_ordem": "Alerta de restart como UM-DISPARO-POR-BOOT: gravar em last_alerts/estado o started_at já anunciado e não re-emitir enquanto o mesmo started_at persistir (o evento 'reiniciou' é pontual, não uma condição contínua) — 1 linha em _check_restart + teste de regressão (3 ticks no mesmo boot = 1 alerta; boot novo = alerta novo). Alternativa mínima: cooldown próprio maior (ex. 6 h/24 h) só para restart. NADA APLICADO — regra 7/10, aguarda ordem.",
+  "estado": "SISTEMA ESTÁVEL E NO AR — v1.31.0/2061 (PID 3766943, NRestarts=0, /health 20/20), fila §7 zerada, notifier saneado, push com token único vivo; nada em andamento; aguardando ordem do dono.",
+  "proximas_pendencias_dono": [
+   "Refinamento do alerta restart (push de hora em hora) — aplicar? um-disparo-por-boot × cooldown maior × manter como está.",
+   "analise/ com 2 capturas do Sistema Órion (01:39) SEM instrução — referência de design, replicar bloco no painel, ou só arquivo?",
+   "Próximos candidatos do TODO §3 (fila §7 zerada): backup automático .env+data/, tema escuro/claro, métricas Prometheus do auto-update.",
+   "Vaultwarden: popular cofre + trocar master provisória.",
+   "Repo GitHub público com segredos no histórico: decidir privar/rotacionar.",
+   "Pauta itens 3 e 5; 4 fotos em analise/fotos-adicionais/; catálogo 3D/."
+  ],
+  "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§8)"
+ },
  "ordem_b_app_update_2026_10_16": {
   "pedido": "Dono (chat, ~12:00 de 16/10): 'faça o B agora. me explique o que é essa implementação' — item (B) da fila §7 do TODO (App auto-update + FCM, UX do dono no celular). Resposta continha a explicação do escopo apurado NO CÓDIGO antes de mexer.",
   "explicacao": "Apuração mostrou ~80% já existente: FCM e2e desde 13/09 (3b5599c — core/push.py + push_service.dart com exibição e /push/register; alertas do notifier no celular desde 15/10) e updater v1.7.0 desde 27/09 (checagem no boot + banner + download SHA-256 + FileProvider). Duas lacunas reais do TODO §3.8: (1) servidor aplicava auto-update sem avisar o celular; (2) download do APK só começava com toque no banner.",
