@@ -833,3 +833,50 @@ o **mesmo número** pedido, e o teste fixa essa equivalência.
   snapshots do backup para o HD, off-site do backup, Vaultwarden, repo
   público, pauta 3 e 5, fotos, catálogo 3D. Próximos candidatos do TODO §3:
   tema escuro/claro (única pendência do §3.8) e ProtoMaps.
+
+## §14 — "leia iniciar" (~16:38) — entrega do TEMA (v1.32.0+2062) estava no ar mas SEM registro; fechada
+
+O dono mandou "leia iniciar" e a reverificação achou algo novo: **o sistema
+estava rodando uma entrega que ninguém registrou**. O `session.json` parava
+nas métricas Prometheus (§13, 15:30), mas o `git log` mostrava `7423e8e
+feat(tema): tema claro/escuro sincronizado no app, site e painel (TODO
+§3.8)` (16:31, já com push) e o serviço tinha reiniciado 16:32:16. Sessão
+anterior (a do tema) foi **interrompida no meio do fecho** — provavelmente
+limite de uso — depois do deploy e antes do registro.
+
+### O que já estava pronto e provado (da sessão interrompida)
+
+- **Código commitado e pushado** (`7423e8e`, 15 arquivos, +1306/−35):
+  `user_prefs` + `GET/PUT /profile/preferences` + `preferences` no
+  `/auth/me` (servidor), `theme_service.dart`/card Tema no app, paleta +
+  botão injetados no site (`od.css`/`od-nav.js`) e no painel (`_com_tema()`),
+  bump 9/9 **1.32.0/2062** e testes (+17 servidor, +13 app).
+- **Deploy feito**: APKs publicados 16:27, backup do par anterior em
+  `backups/apk-v1.31.0-2061/`, restart verde 16:32:16 (PID 4007853,
+  NRestarts=0, 0 erros; RAG idempotente chunks=1708).
+- **O que FALTAVA (feito nesta troca)**: commit dos docs (estavam
+  modificados e não commitados), `session.json`, esta transcrição,
+  `txt.txt` e o Telegram. Achado durante o conserto: o `README_VERSAO.md`
+  estava com o **título `## [1.31.0]` engolido** (o corpo do 1.31.0 ficou
+  órfão de cabeçalho) — re-insiro junto com a seção de prova viva do
+  1.32.0, que o CHANGELOG pedia ("Abaixo (pós-deploy)") mas não existia.
+
+### Provas vivas coletadas agora (16:38–16:45)
+
+| Passo | Resultado |
+|---|---|
+| `/app/version` | **1.32.0 / 2062**, `sha256 b5b4ed31…` == `site/OmegaDrakon.apk` (55.656.288 B) |
+| `aapt2` dos dois APKs | `versionCode 2062` cruro + `versionName 1.32.0` |
+| Guarda da política | `tests/test_version_policy.py` **9 passed** (re-executada) |
+| `/health` | **up · 22 checks**, nenhum fora |
+| Tema no painel | `/dashboard` servido com a injeção — marca `odTema` ×6 no HTML |
+| Tema no site | `od-nav.js` com `.nav-tema` + `od_theme` (2 marcas) |
+| Journal | 0 `[ERROR]` desde o boot; alerta `key=restart` 16:36:04 (um-disparo-por-boot, mais uma vez confirmado) |
+| Git | `7423e8e` == `origin/master` antes desta troca; docs fechados em `132b458` e pushados |
+
+### Estado ao fechar
+
+v1.32.0/2062 no ar (PID 4007853), fila §7 zerada, **nenhum candidato
+técnico aberto no §3** — as pendências vivas são todas do dono (cópia dos
+2 snapshots para o HD externo, off-site do backup, capturas do Órion sem
+instrução, Vaultwarden, repo público, pauta 3 e 5, fotos, catálogo 3D).

@@ -1,7 +1,30 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T15:30:00-03:00",
+ "updated_at": "2026-10-16T16:46:18-03:00",
+ "tema_claro_escuro_2026_10_16": {
+  "pedido": "Tema claro/escuro sincronizado (TODO §3.8) — ordem do dono anterior com as 3 decisões fechadas (tema vale no app + painel + site das 11 páginas; quem nunca escolheu segue o sistema; preferência no perfil do servidor + cópia local). ENTREGUE por uma sessão que foi INTERROMPIDA no meio do fecho (pós-deploy, pré-registro); esta troca ('leia iniciar' ~16:38) detectou, provou e fechou o registro.",
+  "o_que_ja_estava_pronto_encontrado": "Código commitado e PUSHADO (7423e8e, 16:31, 15 arquivos +1306/−35): integrations/api/auth.py com tabela user_prefs + PREFERENCIAS_VALIDAS/PADRAO + validar_preferencias() puro + get/set_preferences (merge, upsert em 2 instruções p/ SQLite×Postgres); rotas GET/PUT /profile/preferences + preferences no /auth/me; painel com paleta+_com_tema() injetados no único <script> (idempotente pela marca odTema); site od.css+od-nav.js com as 2 portas (prefers-color-scheme + :root[data-theme]) e botão .nav-tema injetado (11 páginas intocadas); app theme_service.dart (ValueNotifier + SharedPreferences['od_theme'] antes do 1º quadro), card Tema nos Ajustes, od_api getPreferences/setPreferences/getMe. Bump 9/9 1.32.0/2062. +17 testes servidor (3074/16 · 90,91%) +13 app (192/2, analyze 0). Deploy também já feito: APKs 16:27, backup apk-v1.31.0-2061/, restart verde 16:32:16.",
+  "o_que_faltava_fechado_agora": [
+   "docs/CHANGELOG.md, docs/README_VERSAO.md e TODO.md estavam modificados e NÃO commitados — commitados e pushados em 132b458.",
+   "Defeito achado no caminho: README_VERSAO.md tinha o título '## [1.31.0]' ENGOLIDO (corpo do 1.31.0 órfão de cabeçalho logo abaixo da seção 1.32.0) — cabeçalho re-inserido.",
+   "CHANGELOG 1.32.0 apontava 'Prova viva no serviço | Abaixo (pós-deploy)' mas a seção não existia — escrita com as provas coletadas (PID 4007853).",
+   "session.json, transcrição §14, txt.txt e Telegram — feitos nesta troca."
+  ],
+  "provas_vivas_1638_1645": "/app/version 1.32.0/2062 sha256 b5b4ed31… == site/OmegaDrakon.apk (55.656.288 B); aapt2 dos DOIS APKs = versionCode 2062 + versionName 1.32.0; guarda da política re-executada 9/9; /health up 22 checks nenhum fora; /dashboard servido com odTema ×6 (injeção viva no painel); od-nav.js com .nav-tema + od_theme; journal 0 [ERROR] desde o boot 16:32:16 (RAG idempotente chunks=1708) e alerta key=restart um-disparo 16:36:04; NRestarts=0; HEAD 132b458 == origin/master.",
+  "commits": [
+   "7423e8e feat(tema): tema claro/escuro sincronizado no app, site e painel (TODO §3.8)",
+   "132b458 docs(changelog,todo,readme_versao): tema claro/escuro (v1.32.0+2062) — prova viva pós-deploy e registro fechados"
+  ],
+  "estado": "CONCLUÍDO E NO AR — v1.32.0/2062 (PID 4007853, NRestarts=0, /health 22/22). Fila §7 zerada e NENHUM candidato técnico aberto no §3 (§3.8 fechou com o tema; ProtoMaps segue opcional).",
+  "proximas_pendencias_dono": [
+   "Copiar os DOIS snapshots para o HD externo (backups/auto/ 185 KB + backups/auto-capturas/ 302 MB — txt.txt tem os caminhos).",
+   "Off-site do backup (S3/MinIO/rclone): falta a decisão/conta.",
+   "analise/ com 2 capturas do Sistema Órion (01:39) SEM instrução.",
+   "Vaultwarden cofre; repo público segredos; pauta 3 e 5; fotos; catálogo 3D."
+  ],
+  "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§14)"
+ },
  "metricas_prometheus_auto_update_2026_10_16": {
   "pedido": "Dono (chat, ~15:05 de 16/10): 'vamos continuar' — a fila §7 estava zerada e nada em andamento; ofereci os candidatos reais (tema escuro/claro, backup off-site, métricas Prometheus do auto-update, ProtoMaps) e ele escolheu as MÉTRICAS PROMETHEUS DO AUTO-UPDATE (TODO §3.2 — 'Auto-update (Parte E)').",
   "levantamento_que_orientou": "O /metrics JÁ existia (Fase 7.2, MetricsCollector em stdlib puro com fontes vivas: od_uptime_seconds, od_processed_total, od_audit_total, od_api_requests_*). Não há client prometheus_client no ambiente e o TODO pedia auto_update_tick_total/aplicado_total/falha_total. Apuração no código: AutoUpdateService não tinha contador nenhum (só estado por alvo + ultimo_tick) e o contrato _registrar_falha(dura=False) NÃO tem nenhum chamador hoje.",
