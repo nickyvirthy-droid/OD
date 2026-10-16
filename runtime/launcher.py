@@ -503,7 +503,7 @@ def build_api_server(
     action_registry: Any = None, push: Any = None, database: Any = None,
     user_store: Any = None, registry: Any = None, chat_notify: Any = None,
     vector: Any = None, downloads: Any = None, auto_update: Any = None,
-    supply_depot: Any = None,
+    supply_depot: Any = None, nomad_tools: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -545,6 +545,7 @@ def build_api_server(
             downloads=downloads,  # Parte D: fila de downloads resumable
             auto_update=auto_update,  # Parte E: auto-update de conteúdo
             supply_depot=supply_depot,  # Parte F: catálogo de ferramentas
+            nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 9 no stats
             stt=voice_stt,  # v1.17.3: /transcribe real (whisper.cpp)
             tts=voice_tts,  # v1.17.3: /tts real (Piper)
             # Freio contra força bruta no login (LoginGuard)
@@ -889,6 +890,32 @@ def register_external_health_checks(
         health.register("mqtt", _mqtt_check(mqtt), critical=False)
 
 
+def register_nomad_health_checks(health: Any) -> Any:
+    """Registra as 9 ferramentas do stack Nômade no /health (não-crítico).
+
+    A DECISÃO FINAL 12/10 pedia "integrar healthchecks dos tools no
+    /health do OD" — antes desta peça as 9 eram invisíveis (Stirling PDF
+    1.917 restarts em crash loop sem ninguém saber). Cada ferramenta vira
+    um check `tool_<nome>` (core/nomad_tools.py); nenhuma é crítica: uma
+    ferramenta fora degrada o /health em vez de derrubá-lo. Devolve o
+    monitor (para o notifier) ou None quando desligado (OD_NOMAD_TOOLS=0).
+    """
+    if health is None:
+        return None
+    if env("OD_NOMAD_TOOLS", "1") == "0":
+        log.info("Ferramentas Nômades fora do /health (OD_NOMAD_TOOLS=0)")
+        return None
+    from core.nomad_tools import monitor_padrao
+
+    monitor = monitor_padrao()
+    registrados = monitor.registrar_no_health(health)
+    log.info(
+        "Ferramentas Nômades no /health (DECISÃO FINAL)",
+        ferramentas=len(registrados),
+    )
+    return monitor
+
+
 def build_metrics(orchestrator: Any = None, audit: Any = None) -> Any:
     """Metrics Collector real (Fase 7.2): fontes vivas do od-core.
 
@@ -1097,6 +1124,7 @@ async def _run_api_forever(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
     downloads: Any = None, auto_update: Any = None, supply_depot: Any = None,
+    nomad_tools: Any = None,
 ) -> None:
     # Um único UserStore para REST e WebSocket: mesma sessão vale nos dois.
     user_store = build_user_store(database)
@@ -1120,6 +1148,7 @@ async def _run_api_forever(
         user_store=user_store, registry=registry, chat_notify=chat_notify,
         downloads=downloads, auto_update=auto_update,
         supply_depot=supply_depot,  # Parte F: Supply Depot no painel
+        nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 9 no stats
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
@@ -1275,6 +1304,7 @@ def build_notifier(
     sink: Any = None,
     event_bus: Any = None,
     push: Any = None,
+    nomad_tools: Any = None,
 ) -> Optional[Any]:
     """ProactiveNotifier (Fase 5.3): alertas proativos com sinks plugáveis.
 
@@ -1284,6 +1314,10 @@ def build_notifier(
 
     Sinks: Telegram (texto ao admin) e push FCM (alerta no app — o mesmo
     texto vira notificação no celular; push desligado não é erro).
+
+    `nomad_tools` (monitor das 9 ferramentas do stack Nômade, ligado no
+    main via register_nomad_health_checks) adiciona a sonda `tool:<nome>`
+    — ferramenta fora por 120s+ vira alerta no Telegram.
     """
     from integrations.notifier import NotifierConfig, ProactiveNotifier
 
@@ -1297,6 +1331,7 @@ def build_notifier(
         config=config,
         sinks=sinks,
         event_bus=event_bus,
+        nomad_tools=nomad_tools,
     )
 
 
@@ -1547,6 +1582,9 @@ def main() -> int:
     face_detector = build_face_detector() if vision_enabled else None
     # Checks externos (v1.0.0 item 1.4): presence monitor pronto no main
     register_external_health_checks(health, homeassistant=presence_monitor)
+    # Ferramentas Nômades (DECISÃO FINAL): as 9 do compose entram no
+    # /health (tool_kiwix, tool_stirling_pdf...) e no notifier.
+    nomad_tools_monitor = register_nomad_health_checks(health)
     # Push FCM: registro de dispositivos + alertas no celular (v1.3.0).
     push = build_push()
     # Fila de downloads (Parte D) compartilhada: API REST + auto-update.
@@ -1567,6 +1605,7 @@ def main() -> int:
                 action_registry=action_registry, push=push, database=database,
                 downloads=downloads, auto_update=auto_update,
                 supply_depot=supply_depot,  # Parte F: Supply Depot
+                nomad_tools=nomad_tools_monitor,  # DECISÃO FINAL: 9 tools
             ), restart=False),
             _supervise("telegram", lambda: _run_telegram_forever(
                 orchestrator,
@@ -1590,6 +1629,7 @@ def main() -> int:
             sink=build_telegram_sink(),
             event_bus=event_bus,
             push=push,
+            nomad_tools=nomad_tools_monitor,
         )
         if notifier is not None:
             notifier.start()

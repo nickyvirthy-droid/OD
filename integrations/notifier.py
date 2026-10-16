@@ -331,6 +331,53 @@ def _check_restart(notifier: "ProactiveNotifier") -> CheckResult:
     return CheckResult(ok=True, source="restart", detail="Sem reinício detectado.")
 
 
+# Ferramentas fora só viram alerta depois de 120s: um `docker compose
+# up -d` legítimo derruba a porta por 10-30s e não deve gritar.
+TOOLS_EMITIR_APOS_S = 120.0
+
+
+def _check_tools(notifier: "ProactiveNotifier") -> list[CheckResult]:
+    """Alerta quando uma ferramenta do stack Nômade está fora.
+
+    As 9 ferramentas do docker/tools-compose.yaml (Kiwix, Stirling PDF,
+    CyberChef...) eram invisíveis: o Stirling PDF ficou 1.917 restarts
+    em crash loop e o Kiwix 763 antes de alguém abrir o servidor. Este
+    probe mede o SERVIÇO respondendo em 127.0.0.1 (não o container
+    "Up") — ver core/nomad_tools.py pelas decisões (status < 500 =
+    viva; cache TTL 10s compartilhado com o /health).
+
+    Anti-spam: o notifier (cooldown 1/hora por chave `tool:<nome>`) e o
+    `emit_after_s` de 120s por ferramenta. `ok=True` no tick seguinte
+    limpa o problema (mesma semântica do router).
+    """
+    monitor = notifier.nomad_tools
+    if monitor is None:
+        return []
+    resultados: list[CheckResult] = []
+    for estado in monitor.estado():
+        nome = estado["nome"]
+        if estado["ok"]:
+            resultados.append(
+                CheckResult(
+                    ok=True,
+                    source=f"tool:{nome}",
+                    detail=estado["detail"],
+                )
+            )
+        else:
+            resultados.append(
+                CheckResult(
+                    ok=False,
+                    severity=SEVERITY_WARN,
+                    source=f"tool:{nome}",
+                    key=f"tool:{nome}",
+                    detail=f"Ferramenta fora — {estado['detail']}.",
+                    emit_after_s=TOOLS_EMITIR_APOS_S,
+                )
+            )
+    return resultados
+
+
 def _check_router(notifier: "ProactiveNotifier") -> CheckResult:
     """Alerta quando o roteador está fora (monitor do roteador detectou 'down').
 
@@ -422,10 +469,15 @@ class ProactiveNotifier:
         checks: Optional[list[CheckFn]] = None,
         event_bus: Any = None,
         clock: Optional[Callable[[], float]] = None,
+        nomad_tools: Any = None,
     ) -> None:
         self.orchestrator = orchestrator
         self.config = config or NotifierConfig()
         self.event_bus = event_bus
+        # Monitor das ferramentas do stack Nômade (core/nomad_tools.py) —
+        # injetado pelo launcher; None = sonda desligada (OD_NOMAD_TOOLS=0
+        # ou testes sem stack).
+        self.nomad_tools = nomad_tools
         self._clock = clock or time.monotonic
         self._sinks: list[SinkFn] = list(sinks or [])
         self._checks: list[CheckFn] = (
@@ -487,7 +539,7 @@ class ProactiveNotifier:
     # -- Checks embutidos -----------------------------------------------------
 
     def _default_checks(self) -> list[CheckFn]:
-        return [
+        checks: list[CheckFn] = [
             _check_orchestrator,
             _check_llm,
             _check_disk,
@@ -495,6 +547,9 @@ class ProactiveNotifier:
             _check_restart,
             _check_router,
         ]
+        if self.nomad_tools is not None:
+            checks.append(_check_tools)
+        return checks
 
     # -- Pipeline do tick -----------------------------------------------------
 

@@ -14,6 +14,42 @@
 
 ---
 
+### Infra — As 9 ferramentas do stack Nômade entram no `/health` + alerta no Telegram (DECISÃO FINAL, 2026-10-15, sem bump)
+
+- **`core/nomad_tools.py` (NOVO):** `FERRAMENTAS_NOMAD` (as 9 do
+  `docker/tools-compose.yaml` — portas conferidas no `docker inspect`,
+  bind 127.0.0.1) + `NomadToolsMonitor`: sonda HTTP por ferramenta
+  (stdlib, `http.client`) com **cache TTL 10s** compartilhado entre
+  `/health`, notifier e `/dashboard/stats`. Semântica medida: **status
+  < 500 = viva** (Calibre Web responde 302 na raiz e ferramentas com
+  auth 401/403 — recusar seria alerta falso eterno); 5xx, timeout ou
+  conexão recusada = fora. Vaultwarden é sondado em `/alive` (rota de
+  health nativa).
+- **`/health` +9 checks não-críticos** (`tool_kiwix` …
+  `tool_vaultwarden`): uma ferramenta fora **degrada** o `/health` em
+  vez de derrubá-lo (lição da Parte E — check quebrado também não
+  derruba o monitor, provado por teste).
+- **Alerta no Telegram** (`_check_tools` no ProactiveNotifier, chave
+  `tool:<nome>`): ferramenta fora por **120s+** vira alerta (um
+  `docker compose up -d` legítimo derruba a porta 10-30s e não deve
+  gritar), com o anti-spam de 1/hora do notifier; a volta limpa o
+  problema. Motivação registrada: Stirling PDF ficou **1.917 restarts**
+  em crash loop e o Kiwix **763** (12/10) sem ninguém receber alerta —
+  o stack era invisível.
+- **`/dashboard/stats` + bloco `nomad_tools`** (total/up/fora) e card
+  "Stack Nômade" + `<details>` no painel `/admin`.
+- **Gate `OD_NOMAD_TOOLS=0`** decide no launcher (fonte `.env`);
+  `OD_NOTIFIER_ENABLED=0` continua desligando tudo junto.
+- **+44 testes** (`tests/test_nomad_tools.py` — catálogo, sonda
+  hermética, cache, contrato do HealthMonitor, probe com `http.server`
+  real em porta efêmera, anti-spam/emit_after_s do notifier, wiring do
+  launcher e as 2 rotas do painel). `core/nomad_tools.py` a **100%**.
+- **Suíte: 2914 passed, 16 skipped** · cobertura **95,43%** (gate 90) ·
+  `node --check` do JS do painel verde. Sem bump: backend/infraestrutura,
+  sem mudança de app ou site.
+
+---
+
 ### Infra — Vaultwarden fechado (conta do dono + signups) e action `nomad_vaultwarden_setup` consertada (2026-10-15, sem bump)
 
 - **Conta do dono criada** via `POST /identity/accounts/register` com payload

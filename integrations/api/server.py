@@ -220,6 +220,11 @@ class APIConfig:
     # rollback e customização preservada. None = depot fora (as rotas
     # /admin/ferramentas* respondem 503).
     supply_depot: Optional[Any] = None
+    # Ferramentas do stack Nômade (DECISÃO FINAL, 2026-10-15):
+    # core.nomad_tools.NomadToolsMonitor — sonda HTTP das 9 do compose
+    # (Kiwix, Stirling PDF, CyberChef...). None = monitor fora (o bloco
+    # nomad_tools some do /dashboard/stats).
+    nomad_tools: Optional[Any] = None
     # Callable síncrono(texto) → avisa o dono no Telegram (sala das peças);
     # montado pelo launcher com o loop principal (build_chat_notify).
     chat_notify: Optional[Any] = None
@@ -792,6 +797,7 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <div class="grid" id="sys"></div>
     <details><summary>Loops do núcleo (/supervision)</summary><pre id="loops">—</pre></details>
     <details><summary>Métricas do orquestrador (/dashboard/stats)</summary><pre id="metrics">—</pre></details>
+    <details><summary>Stack Nômade — 9 ferramentas (DECISÃO FINAL)</summary><pre id="nomadTools">—</pre></details>
     <div class="row" style="margin-top:8px">
       <button id="btn-refresh">↻ Atualizar</button>
       <span class="muted msg" id="sys-msg"></span>
@@ -1091,12 +1097,17 @@ async function loadSystem() {
       ["Latência média", stats.avg_latency_ms != null ? stats.avg_latency_ms + " ms" : "—", ""],
       ["Loops", sup.restarts + " restart", sup.ok ? "ok" : "err"],
       ["Cache LLM", stats.cache && stats.cache.entries != null ? stats.cache.entries : "—", ""],
+      ["Stack Nômade", stats.nomad_tools ? stats.nomad_tools.up + "/" + stats.nomad_tools.total : "—",
+        stats.nomad_tools && stats.nomad_tools.fora.length ? "err" : ""],
     ];
     document.getElementById("sys").innerHTML = cards.map(c =>
       '<div class="card"><div class="k">' + c[0] + '</div><div class="v ' + c[2] + '">' + c[1] + "</div></div>"
     ).join("");
     document.getElementById("loops").textContent = JSON.stringify(sup, null, 2);
     document.getElementById("metrics").textContent = JSON.stringify(stats, null, 2);
+    document.getElementById("nomadTools").textContent = stats.nomad_tools
+      ? JSON.stringify(stats.nomad_tools, null, 2)
+      : "monitor desligado (OD_NOMAD_TOOLS=0)";
     msg.textContent = "Atualizado " + new Date().toLocaleTimeString("pt-BR");
     msg.className = "muted msg";
   } catch (e) {
@@ -4042,6 +4053,11 @@ class APIHandler(BaseHTTPRequestHandler):
         supply_depot = self.api.config.supply_depot
         if supply_depot is not None:
             payload["ferramentas"] = supply_depot.resumo()
+        # Ferramentas Nômades (DECISÃO FINAL): quantas das 9 respondem e
+        # quem está fora — o dono vê no Status sem abrir o /health.
+        nomad_tools = self.api.config.nomad_tools
+        if nomad_tools is not None:
+            payload["nomad_tools"] = nomad_tools.resumo()
         self._json(200, payload)
 
     def llms(self) -> None:
