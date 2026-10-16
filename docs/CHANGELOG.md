@@ -68,6 +68,53 @@ apagados, listas pública/admin de volta ao total 6 — **resíduo zero**.
 
 ---
 
+### Infra — Métricas do notifier no `/dashboard/stats` + card "Alertas" no `/admin` (ordem "exponha as métricas do notifier", 2026-10-16, sem bump)
+
+> Item (iii) do conserto do notifier, pedido separado do dono (~11:30).
+> Backend/painel puro (nenhuma linha do app) → **sem bump**,
+> 1.30.0/2060 intacto. Os contadores já existiam
+> (`integrations/notifier.NotifierMetrics`) — o que faltava era a
+> ponte até o Status: emitidos × bloqueados pelo anti-spam × erros só
+> apareciam no journal.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/api/server.py`** | `APIConfig.notifier` (padrão `nomad_tools`: None = bloco ausente quando `OD_NOTIFIER_ENABLED=0`) + bloco `payload["notifier"] = notifier.metrics.snapshot()` no `/dashboard/stats` (ticks, checks_run, problems, alerts_emitted, alerts_blocked, errors). |
+| **Card "Alertas" no `/admin`** | Linha nova no `cards` do painel: `X env · Y blq` (classe `err` quando `errors > 0`); o dump JSON completo já cai no details "Métricas do orquestrador". |
+| **`runtime/launcher.py`** | `notifier=` nos parâmetros de `build_api_server` e `_run_api_forever`; o modo all passa a instância construída (fechamento tardio — construída antes do `gather` invocar a factory). |
+| **`tests/test_notifier.py` +2** | `TestStatsDoNotifier`: bloco **ausente** sem notifier (JSON bruto também sem a chave) · bloco **exato** com notifier (`{ticks:3, checks_run:0, problems:0, alerts_emitted:2, alerts_blocked:5, errors:1}`) + `stats.notifier` presente no HTML do `/admin`. |
+
+| Verificação | Resultado |
+|---|---|
+| Suíte oficial gate `--cov-fail-under=90` | **2968 passed / 16 skipped · cobertura 90,62%** (+2 testes; 1 warning = pré-existente de `tests/test_orchestrator.py`) |
+| pyflakes | **nenhum warning novo** — os 6 apontados em server/launcher conferidos contra o HEAD (idênticos, pré-existentes) |
+| Guarda `node --check` do painel | verde (`test_painel_pages_js_compiles`) — o JS do card compilado |
+| Estado de produção após o gate | `data/notifier_state.json` intocado (mtime 11:17:11 idêntico antes/depois) |
+
+**Prova viva no serviço (pós-deploy, 16/10 11:38:58, PID 3724539):**
+restart verde (regra 7.3 — `c63a4d0` pushado ANTES) · **NRestarts=0** ·
+journal **0 erros** · boot `ProactiveNotifier habilitado |
+health_ponte=True | nrestarts=True` (boot lento de 90 s — cache do
+whisper frio após a suíte; prova coletada após a subida completa às
+11:40:28) · **`/dashboard/stats` traz o bloco com números reais**:
+`notifier = {ticks: 2, checks_run: 32, problems: 4, alerts_emitted: 1,
+alerts_blocked: 2, errors: 0}` · card `"Alertas"` no HTML do `/admin`
+(3 × `stats.notifier`) · `/health` **ok, 20/20** · `/app/version`
+**1.30.0/2060** (sem bump) · árvore limpa, HEAD == `origin/master`.
+
+**Leitura dos números (tudo explicado):**
+- `alerts_blocked: 2` = o `restart` segurado pelo cooldown do alerta
+  das 11:17 nos 2 primeiros ticks — **o anti-spam agora visível**.
+- Previsão pelo código (não observada ainda): enquanto o cooldown não
+  vencer (~12:18) o restart segue bloqueado a cada tick e, ao vencer,
+  emite **uma única vez** o alerta atrasado "Sistema foi reiniciado"
+  (evento verdadeiro do boot 11:38) e trava em `_restart_reported`.
+- `router:down` às 11:41:28 = 5º blip do dia (padrão 00:03 / 01:03 /
+  03:00 / 04:41): ping falhou de verdade na hora, push entregue;
+  roteador no ar na conferência (3/3, 11,5 ms).
+
+---
+
 ### Infra — Conserto do notifier: timestamp de boot antigo não silencia mais `restart`/`llm:offline` + suíte para de gravar o estado de produção (ordem "conserte o notifier", 2026-10-16, sem bump)
 
 > Achado na reverificação das 06:40 (`iniciar/` §4): o

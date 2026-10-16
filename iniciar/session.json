@@ -1,7 +1,37 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T11:25:00-03:00",
+ "updated_at": "2026-10-16T11:50:00-03:00",
+ "metricas_notifier_2026_10_16_1150": {
+  "pedido": "Dono (chat, ~11:30 de 16/10): 'exponha as métricas do notifier' — item (iii) da proposta do conserto (o único que ficou de fora por não ter sido ordenado na hora).",
+  "entregas": [
+   "integrations/api/server.py: campo APIConfig.notifier (padrão None = bloco ausente, mesmo padrão do nomad_tools) + bloco payload['notifier'] = notifier.metrics.snapshot() no /dashboard/stats (ticks, checks_run, problems, alerts_emitted, alerts_blocked, errors).",
+   "integrations/api/server.py (JS do painel): card 'Alertas' no cards do /admin — 'X env · Y blq', classe err quando errors>0; dump JSON completo já existia no details 'Métricas do orquestrador'.",
+   "runtime/launcher.py: parametro notifier= em build_api_server e _run_api_forever; modo all passa a instancia construida (fechamento tardio — construida antes do gather invocar a factory).",
+   "tests/test_notifier.py +2 (TestStatsDoNotifier): bloco AUSENTE sem notifier (json bruto sem a chave) + bloco EXATO com notifier + stats.notifier presente no HTML do /admin."
+  ],
+  "validacao": "Gate oficial --cov-fail-under=90: 2968 passed / 16 skipped, cobertura 90,62% (+2 testes; 1 warning = pré-existente de tests/test_orchestrator.py). pyflakes: NENHUM warning novo (os 6 de server/launcher conferidos contra o HEAD — idênticos, pré-existentes). Guarda node --check do painel verde (test_painel_pages_js_compiles). Estado de produção intocado pelo gate (mtime 11:17:11 idêntico).",
+  "deploy": "Restart verde 11:38:58 (regra 7.3, c63a4d0 pushado ANTES): PID 3724539, NRestarts=0, journal 0 erros. BOOT LENTO DE 90s (cache do whisper frio após a suíte — a primeira coleta de provas às ~11:39:40 rodou cedo e viu a janela de subida: curl vazio; REPETIDA após a subida completa às 11:40:28). Provas finais: /dashboard/stats com bloco notifier REAL {ticks:2, checks_run:32, problems:4, alerts_emitted:1, alerts_blocked:2, errors:0}; card 'Alertas' no /admin (3x stats.notifier); /health ok 20/20; /app/version 1.30.0/2060 (sem bump); estado pid=3724539 com restart 1253434.859 preservado (bloqueado, não re-carimbado).",
+  "leitura_dos_numeros": [
+   "alerts_blocked:2 = restart segurado pelo cooldown do alerta das 11:17 nos 2 primeiros ticks — anti-spam agora VISÍVEL (era o pedido).",
+   "Previsão pelo código (não observada ainda, NÃO é defeito): bloqueio não marca _restart_reported (L810-811 vs L829-830) → até ~12:18 o restart segue bloqueado a cada tick; ao vencer o cooldown emite UMA ÚNICA vez o alerta atrasado 'Sistema foi reiniciado' (evento verdadeiro do boot 11:38) e trava.",
+   "router:down 11:41:28 = 5º blip do dia (padrão 00:03/01:03/03:00/04:41): ping falhou de verdade, push entregue; roteador NO AR na conferência (3/3, 11,5ms) — transitivo, sem relação com o deploy.",
+   "problems:4 = (restart + router) × 2 ticks — batem exatamente."
+  ],
+  "commits": [
+   "c63a4d0 feat(stats): métricas do notifier no /dashboard/stats + card Alertas no /admin"
+  ],
+  "canais": "txt.txt reescrito (regra 14, mantendo as 2 pendências) + Telegram resumo (regra 15) + docs no commit seguinte (CHANGELOG §Infra, transcrição §6, session.json).",
+  "estado": "CONCLUÍDO E NO AR — métricas expostas na API e no painel, provadas com números reais. Aguardando ordem do dono.",
+  "proximas_pendencias_dono": [
+   "Próximo da fila §7: App auto-update + FCM (ordem do dono).",
+   "analise/ com 2 capturas do Sistema Órion (01:39) SEM instrução — referência de design, replicar bloco, ou é só arquivo?",
+   "Vaultwarden: popular cofre + trocar master provisória.",
+   "Repo GitHub público com segredos no histórico: decidir privar/rotacionar.",
+   "Pauta itens 3 e 5; 4 fotos em analise/fotos-adicionais/; catálogo 3D/."
+  ],
+  "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§6)"
+ },
  "conserto_notifier_2026_10_16_1125": {
   "pedido": "Dono (chat, ~11:10 de 16/10): 'conserte o notifier' — ordem sobre a correção proposta na reverificação das 06:40 (veneno de boot antigo + poluição da suíte).",
   "entregas": [

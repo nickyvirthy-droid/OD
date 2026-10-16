@@ -324,3 +324,64 @@ no §4, na íntegra. Backend puro, **sem bump** (1.30.0/2060 intacto).
   no session.json.
 - Próximo da fila §7 segue **(B) App auto-update + FCM** (ordem do
   dono); `analise/` com as 2 capturas do Órion ainda sem instrução.
+
+## §6 — "exponha as métricas do notifier" — bloco no Status + card no painel
+
+Dono pediu **"exponha as métricas do notifier"** (~11:30) — o item
+(iii) que tinha ficado de fora do conserto por não ser ordenado na
+hora. Backend/painel puro, **sem bump** (1.30.0/2060 intacto).
+
+### O que mudou
+
+| Peça | Entrega |
+|---|---|
+| `integrations/api/server.py` | `APIConfig.notifier` (None = bloco ausente, mesmo padrão `nomad_tools`) + bloco `payload["notifier"] = notifier.metrics.snapshot()` no `/dashboard/stats`: `ticks`, `checks_run`, `problems`, `alerts_emitted`, `alerts_blocked`, `errors`. |
+| Card **"Alertas"** no `/admin` | Linha nova no `cards`: `X env · Y blq` (classe `err` quando `errors > 0`); o dump completo já existia no details "Métricas do orquestrador". |
+| `runtime/launcher.py` | `notifier=` em `build_api_server` e `_run_api_forever`; o modo all passa a instância (fechamento tardio — construída antes do `gather`). |
+| `tests/test_notifier.py` **+2** | `TestStatsDoNotifier`: bloco **ausente** sem notifier (JSON bruto também sem a chave) · bloco **exato** com notifier + `stats.notifier` no HTML do `/admin`. |
+
+### Validação (antes de qualquer mutação)
+
+- Gate oficial: **2968 passed / 16 skipped · cobertura 90,62%** (+2
+  testes; 1 warning = pré-existente de `test_orchestrator.py`).
+- pyflakes: **nenhum warning novo** — os 6 apontados em server/launcher
+  foram conferidos contra o HEAD e são idênticos (pré-existentes).
+- Guarda `node --check` do painel verde (`test_painel_pages_js_compiles`)
+  — card compilado.
+- Estado de produção intocado pelo gate (mtime 11:17:11 idêntico).
+
+### Deploy verde (regra 7.3) — 11:38:58, PID 3724539
+
+| Verificação | Resultado |
+|---|---|
+| Código pushado ANTES | `c63a4d0` em `origin/master`, árvore limpa |
+| Unidade | `active`, **NRestarts=0**, journal **0 erros** |
+| Boot | lento de **90 s** (cache do whisper frio após a suíte) — a 1ª coleta de provas (~11:39:40) rodou na janela de subida e viu curl vazio; **repetida após a subida completa (11:40:28)** |
+| `ProactiveNotifier habilitado` | `health_ponte=True · nrestarts=True` |
+| **`/dashboard/stats`** | bloco **ao vivo com números reais**: `notifier = {ticks: 2, checks_run: 32, problems: 4, alerts_emitted: 1, alerts_blocked: 2, errors: 0}` |
+| `/admin` | card `"Alertas"` no HTML (3 × `stats.notifier`) |
+| `/health` · versão | **20/20** · **1.30.0/2060** (sem bump) |
+| `notifier_state.json` | `pid 3724539`; `restart 1253434.859` **preservado** (bloqueado pelo cooldown → não re-carimbado) |
+
+### Leitura honesta dos números
+
+- `alerts_blocked: 2` = o `restart` segurado pelo cooldown do alerta
+  das 11:17 nos 2 primeiros ticks — **o anti-spam agora visível**.
+- **Previsão pelo código** (L810-811 vs L829-830, não observada ainda):
+  o bloqueio não marca `_restart_reported` → até **~12:18** o restart
+  segue bloqueado a cada tick; quando o cooldown vencer, emite **uma
+  única vez** o alerta atrasado "Sistema foi reiniciado" (evento
+  verdadeiro do boot 11:38) e trava.
+- `router:down` 11:41:28 = **5º blip do dia** (padrão 00:03 / 01:03 /
+  03:00 / 04:41): ping falhou de verdade, push entregue; roteador **no
+  ar** na conferência (3/3, 11,5 ms) — transitivo, sem relação com o
+  deploy.
+- `problems: 4` = (restart + router) × 2 ticks — fecha exato.
+
+### Canais e pendências
+
+- `txt.txt` reescrito (regra 14) mantendo as perguntas pendentes;
+  Telegram resumo (regra 15); CHANGELOG §Infra + esta transcrição no
+  commit de docs.
+- Próximo da fila §7 segue **(B) App auto-update + FCM**; `analise/`
+  com as 2 capturas do Órion ainda sem instrução.
