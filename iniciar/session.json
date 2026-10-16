@@ -1,7 +1,33 @@
 {
  "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
  "created_at": "2026-09-11T12:45:00Z",
- "updated_at": "2026-10-16T14:00:00-03:00",
+ "updated_at": "2026-10-16T14:30:00-03:00",
+ "ordem_backup_automatico_2026_10_16": {
+  "pedido": "Dono (chat, ~13:58 de 16/10): 'Implemente o backup automático do .env + data/ (TODO §3.6)'. Três decisões dele antes de qualquer linha de código (perguntas objetivas): DESTINO = local em backups/auto/ ('me avise que esta pronto que transfiro par uma hd externa ao servidor'); ESCOPO = .env + data/ SEM capturas e SEM vetor; RETENÇÃO = 03:00 · 3 diários + 8 semanais.",
+  "levantamento_que_orientou": "data/ = 314 MB, dos quais 304 MB são data/captures (43 dias de fotos/vídeos) e 11 MB data/vector_memory (reconstruível pelos documentos do RAG) => escopo escolhido = ~185 KB por rodada em vez de 314 MB/dia. Disco a 85% (guarda de disco no preflight). rclone/MinIO/AWS ausentes (off-site exigiria conta+credenciais novas: oferecido, decisão adiada pelo dono).",
+  "entregas": [
+   "core/backup.py (NOVO, 100% de cobertura): avaliar() PURO (desligado -> antes_da_hora -> ja_feito_hoje -> disco_insuficiente (estimativa x1,10) -> rodar) com CATCH-UP no primeiro tick depois do horário; BackupService executor com tar.gz determinístico (gzip mtime=0 e filename='', uid/gid 0, membros ordenados => mesmo conteúdo = mesmo sha256), gravação atômica tmp->os.replace, 0600 no arquivo e 0700 no diretório (leva o .env), estado JSON atômico, limpeza de .tmp órfão, retenção por semana ISO (3 diários + 1 representante de cada uma das 8 semanas mais recentes; nome fora do padrão nunca apagado) e falha que avisa no celular (best-effort, 1 push a cada 6 h).",
+   "Check 'backup' NÃO crítico no /health (degrada enquanto o snapshot do dia não existir; antes da hora ou já feito = up) + bloco 'backup' no /dashboard/stats + card 'Backup' no /admin (JS fmtBytes novo).",
+   "runtime/launcher.py: build_backup() + _run_backup_forever() (loop supervisionado, tar em asyncio.to_thread, tick de 15 min com decisão barata) + knobs OD_BACKUP, OD_BACKUP_HORA, OD_BACKUP_DIARIOS, OD_BACKUP_SEMANAIS, OD_BACKUP_INTERVALO_MIN, OD_BACKUP_DIR, OD_BACKUP_ESTADO, OD_BACKUP_EXCLUIR. backups/auto/ no .gitignore (repo público + .env dentro).",
+   "tests/test_backup.py (60): config, agenda em hora local, plano de conteúdo, retenção 3+8 na prática (10 dias => 4 arquivos com 3 diários + 2 semanas), decisão pura, executor (tar atômico, permissões 0600/0700, determinismo de sha, .tmp órfão, estado corrompido), falhas com cooldown de 6 h, /health não-crítico (degrada, não derruba) e bloco/card na API."
+  ],
+  "validacao": "core/backup.py 100% (343 stmts). Gate oficial --cov-fail-under=90: 3034 passed / 16 skipped, cobertura 90,80% (+60 testes; 1 warning pré-existente). pyflakes IDÊNTICO ao HEAD (6 avisos pré-existentes conferidos com git stash; 0 novos). TESTE DO TESTE por mutação: 4/4 capturadas (guarda de disco 3 falhas, retenção semanal 3, exclusões do dono 3, aviso de falha 1); reversão bit-exata => 60 verdes.",
+  "deploy": "Restart verde 14:16 (regra 7.3, 2fd75ab+dd25e5d pushados ANTES): PID 3871779, NRestarts=0, 0 erros. Boot 20s: 'Backup automático no ar | hora=03:00 | raiz=backups/auto | diarios=3 | semanais=8 | excluidos=data/captures,data/vector_memory' + 'Loop de backup habilitado'. PROVA VIVA: 1º tick fez CATCH-UP e criou o snapshot do dia — 'Backup concluído | arquivo=od-2026-10-16_1416.tar.gz | membros=16 | bytes=189686 | sha256=392f7bd68863 | duracao_s=0.15'. Artefato conferido: -rw------- backups/auto/od-2026-10-16_1416.tar.gz (185 KB), drwx------ backups/auto, sha256 do arquivo == ultimo_sha256 do estado, tar -tzf = 16 membros (.env + 15 de data/, NENHUM de captures/vector_memory, nenhum .part/.pyc) e o .env extraído byte-idêntico ao real (cmp ok). /health up 21 checks (check backup: 'Backup de hoje ok (od-2026-10-16_1416.tar.gz, 0.18 MB, há 0.0 h)', critical=false); /dashboard/stats com o bloco completo; /admin com o card (stats.backup x3); /app/version 1.31.0/2061 (sem bump — backend puro).",
+  "commits": [
+   "2fd75ab feat(backup): backup automático do .env + data/ (TODO §3.6) — local, 03:00, 3 diários + 8 semanais",
+   "dd25e5d docs(changelog,todo): backup automático entregue, provado no serviço e sem bump"
+  ],
+  "canais": "txt.txt reescrito (regra 14) com o caminho do arquivo e as INSTRUÇÕES DE CÓPIA PARA O HD EXTERNO + Telegram resumo (regra 15) + CHANGELOG §Infra + TODO §3.6 + transcrição §11.",
+  "estado": "CONCLUÍDO E NO AR — backup diário local funcionando (primeiro snapshot real já criado e conferido). DONO AVISADO: pode copiar backups/auto/*.tar.gz para o HD externo quando quiser.",
+  "proximas_pendencias_dono": [
+   "Copiar backups/auto/ para o HD externo (caminho e comando no txt.txt) — o snapshot de hoje já está pronto.",
+   "Quer estender o backup às capturas (data/captures) ou ligar off-site (S3/MinIO/rclone)? Falta a decisão.",
+   "analise/ com 2 capturas do Sistema Órion (01:39) SEM instrução.",
+   "Próximos candidatos do TODO §3: tema escuro/claro, métricas Prometheus do auto-update.",
+   "Vaultwarden cofre; repo público segredos; pauta 3 e 5; fotos; catálogo 3D."
+  ],
+  "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§11)"
+ },
  "refino_alerta_restart_2026_10_16": {
   "pedido": "Dono (chat, ~13:45 de 16/10): 'Aplique o refinamento do alerta restart: um-disparo-por-boot, com teste de regressão' — sobre o refinamento proposto na §8 da transcrição (retomada das 13:38).",
   "apuracao_antes_de_mexer": "JOURNAL POR PID provou que o alerta restart JÁ era um por boot (o _restart_reported sempre foi por processo) — o que parecia 're-emissão horária' era ATRASO: boot 11:17:09 (PID 3703628) alertou 11:17:10 (imediato), boot 11:38:58 (3724539) alertou 12:17:33 (+39 min), boot 12:23:30 (3766943) alertou 13:17:39 (+54 min). Causa: o anti-spam de 1 h ficava armado pelo alerta do boot anterior (last_alerts['restart'] persistido). CORREÇÃO DE REGISTRO: as leituras §6/§8 ('trava depois da 1ª emissão') e §9 ('próxima ~14:17') estavam ERRADAS.",

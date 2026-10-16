@@ -618,3 +618,66 @@ leituras estavam **erradas** e ficam corrigidas aqui pela medição.
   Vaultwarden, repo público, pauta 3 e 5, fotos, catálogo 3D. Próximos
   candidatos do TODO §3: backup `.env`+`data/`, tema escuro/claro,
   métricas Prometheus do auto-update.
+
+## §11 — "Implemente o backup automático do .env + data/ (TODO §3.6)" — ENTREGUE (sem bump)
+
+Backend puro → **sem bump** (1.31.0/2061 intacto). Antes de escrever uma
+linha, **três decisões do dono** (levantamento na conversa: `data/` = 314 MB,
+sendo 304 MB só de capturas de 43 dias e 11 MB o índice do RAG; disco a
+85%; `rclone`/MinIO ausentes):
+
+| Pergunta | Resposta do dono |
+|---|---|
+| Destino | **Local** em `backups/auto/` — *"me avise que está pronto que transfiro para um HD externo ao servidor"* |
+| Escopo | **`.env` + `data/` sem capturas e sem vetor** (só o irreconstruível) |
+| Retenção | **03:00 · 3 diários + 8 semanais** |
+
+### Entrega
+
+- **`core/backup.py` (novo, 100% coberto)** — `avaliar()` **puro**
+  (`desligado` → `antes_da_hora` → `ja_feito_hoje` → `disco_insuficiente`
+  → `rodar`, com **catch-up** quando o servidor estava desligado no
+  horário) + `BackupService` executor: tar.gz **determinístico** (gzip
+  `mtime=0`/`filename=""`, uid/gid 0, membros ordenados), gravação atômica,
+  **`0600`/`0700`** (leva o `.env`), estado JSON atômico, limpeza de `.tmp`
+  órfão, retenção por **semana ISO** (3 diários + 1 por semana das 8 mais
+  recentes; nome estranho nunca é apagado) e falha que **avisa no celular**
+  (best-effort, cooldown de 6 h).
+- **Visibilidade** — check `backup` **não crítico** no `/health`, bloco
+  `backup` no `/dashboard/stats` e card **"Backup"** no `/admin` (JS
+  `fmtBytes` novo).
+- **Fiação** — `build_backup()`/`_run_backup_forever()` no launcher (loop
+  supervisionado, tar em `to_thread`), knobs `OD_BACKUP*` (liga/desliga,
+  hora, diários, semanais, intervalo, diretório, estado, exclusões) e
+  `backups/auto/` no `.gitignore` (repo público + `.env` dentro).
+
+### Validação
+
+- `core/backup.py` **100%** (343 stmts) · gate oficial **3034 passed / 16
+  skipped · 90,80%** (+60 testes) · pyflakes **idêntico ao HEAD** (6 avisos
+  pré-existentes conferidos com `git stash`).
+- **Teste do teste (mutação)**: guarda de disco, retenção semanal,
+  exclusões do dono e aviso de falha — **4/4 capturadas**; reversão
+  bit-exata ⇒ 60 verdes.
+
+### Prova viva no serviço (deploy 14:16, PID 3871779)
+
+| Passo | Resultado |
+|---|---|
+| Boot | `Backup automático no ar \| hora=03:00 \| raiz=backups/auto \| diarios=3 \| semanais=8 \| excluidos=data/captures,data/vector_memory` + `Loop de backup habilitado` (20 s) |
+| **1º tick** | **Catch-up** rodou o snapshot de hoje: `Backup concluído \| arquivo=od-2026-10-16_1416.tar.gz \| membros=16 \| bytes=189686 \| sha256=392f7bd68863 \| duracao_s=0.15` |
+| Artefato | `-rw------- backups/auto/od-2026-10-16_1416.tar.gz` (185 KB) · `drwx------ backups/auto` · **sha256 do arquivo == `ultimo_sha256` do estado** |
+| Conteúdo | `tar -tzf` = **16 membros** (`.env` + 15 de `data/`), **nenhum** de `captures/`/`vector_memory/`, nenhum `.part`/`.pyc` — e o `.env` extraído é **byte-idêntico ao real** (`cmp` ok) |
+| API | `/health` **up, 21 checks** (`backup`: *"Backup de hoje ok (od-2026-10-16_1416.tar.gz, 0.18 MB, há 0.0 h)"*, `critical: false`) · bloco `backup` completo no `/dashboard/stats` · card no `/admin` (`stats.backup` ×3) · `/app/version` 1.31.0/2061 · NRestarts=0, 0 erros |
+
+### Canais
+
+- Commits `2fd75ab` (código + testes + `.gitignore`) e `dd25e5d`
+  (CHANGELOG §Infra + TODO §3.6), pushados antes do restart.
+- `txt.txt` reescrito (regra 14) com o caminho do arquivo e **as
+  instruções de cópia para o HD externo** + Telegram (regra 15).
+- Pendências do dono: 2 capturas do Órion sem instrução, Vaultwarden, repo
+  público, pauta 3 e 5, fotos, catálogo 3D. Próximos candidatos do TODO §3:
+  tema escuro/claro, métricas Prometheus do auto-update — e, se ele quiser,
+  estender o backup às capturas (`OD_BACKUP_EXCLUIR` sem `data/captures`)
+  ou ligar off-site (conta S3/MinIO/rclone à escolha dele).
