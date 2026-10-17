@@ -1183,3 +1183,68 @@ seções · busca `NV-SJ-2026-0001` acha. Commit **`622094b`** pushado.
 
 v1.33.1+2064 no ar. Pauta: §8.3 ✅ · §8.4 ✅ · §8.5 adiada. Próximo passo já
 aprovado em princípio: **entrega da frente NV — coleções com ciclo fechado**.
+
+## §21 — Frente NV: coleções com ciclo fechado (v1.34.0) · ~23:00–00:15 (16→17/10)
+
+Dono: **"prossiga"** — frente NV começou pelo 1º item aprovado (ordem das
+frentes §8.3): coleções como entidade de verdade com **ciclo fechado**, na
+regra do `PROTOCOLO_NV.md` do Legado (*"Coleções são ciclos fechados. Uma vez
+Encerrada, nunca é reeditada"*).
+
+### O que foi entregue
+
+- **`core/registry.py`** — tabela `registry_collections`; `criar_colecao`
+  (duplicada = `colecao_ja_existe`), `encerrar_colecao` (segunda vez =
+  `colecao_ja_encerrada`), `listar_colecoes` (abertas primeiro + contagem),
+  `colecao_de_peca` (aberta/encerrada/None). **Sem `reabrir_colecao` nem
+  `apagar_colecao` — a imutabilidade é por desenho** (testada com `hasattr`
+  negativo). Regra nas peças: **NV exige coleção ABERTA** no `create()`
+  (`colecao_obrigatoria_nv`/`colecao_ausente`/`colecao_encerrada`); não-NV
+  mantém coleção livre mas ciclo encerrado não recebe peça de linha nenhuma;
+  `update()` impede peça dentro de ciclo encerrado de sair
+  (`peca_em_ciclo_encerrado`). `verify_public` ganha `collection_status`.
+  Migração idempotente `criar_colecoes_de_pecas()` no boot.
+- **API** — `GET /registry/collections` (PÚBLICA; rota fixa ANTES de
+  `/{codigo}`, senão "collections" viraria um código), `POST
+  /admin/registry/collections` (abrir) e `POST .../{nome}/encerrar` (dono).
+  **Sem DELETE/PUT de coleção — não dá para reeditar por ausência de rota.**
+- **Painel** — bloco "Coleções (ciclo fechado)": lista com ciclo/peças/datas,
+  "⛔ Encerrar (para sempre)" com confirmação, abrir ciclo, dica no campo de
+  coleção da peça (NV: obrigatória/aberta).
+- **Site** — `verificacao.html` mostra "· ciclo aberto" / "· ciclo encerrado"
+  junto da coleção (escassez visível a quem confere a peça).
+
+### Pega honesta: poluição de corpus do RAG (corpus, sem afrouxar piso)
+
+A entrega v1.33.x havia escrito a palavra rara "campo" nos docs do dia — a
+irrelevante climática do gate subiu a **comb 0.4427, acima da relevante mais
+fraca (0.4058)**: nenhum PISO_SCORE a separa (grid 41×61 = 0 células válidas,
+medido). Correção: troquei o termo raro colidido por sinônimo comum nos MEUS
+trechos de hoje (README_VERSAO/CHANGELOG) — **piso 0.399/0.036 intacto**,
+gates de volta a 8/8 + 8/8 + 6/6. Lição gravada no README: documento que
+cita o próprio exemplo de irrelevante é risco de auto-poluição — **a
+documentação da correção re-polluiu o corpus na primeira tentativa** (citei
+a pergunta-exemplo literalmente) e foi reescrita sem os termos.
+
+### Qualidade e deploy
+
+- Testes **+17** (`TestColecoesCicloFechado` 11 + `TestColecoesRotas` 6);
+  suíte completa **3105 passed / 16 skipped** (gate 90%). **Mutações 4/4
+  capturadas** (exigência do create removida · re-encerrar liberado · peça
+  em ciclo encerrado solta · ordem das rotas invertida), reversões bit-exatas.
+- Bump **MINOR 1.34.0+2065** (política 9/9) + APK novo pelo `build_apk.sh`
+  (aapt2: `versionCode='2065'` nos DOIS APKs — sem o bug 4xxx do split).
+- Deploy 00:05 (PID 225721). **Provas vivas**: journal
+  *"Coleções NV abertas a partir das peças existentes | total=4 |
+  exemplo=ABISSAL"* · `/app/version` 1.34.0/2065 sha `0c212dde…` ==
+  publicado · `/health` **up 22/22** · `GET /registry/collections` 4 abertas
+  com contagem · verificação `NV-SJ-2026-0001`/curto `NV-ABI-7F3A` com
+  `collection_status: aberta` · **0 erros** no journal · flutter analyze 0 /
+  192 testes.
+- Commits: código **`a0d0575`** pushado; registros no commit seguinte.
+
+### Estado
+
+v1.34.0+2065 no ar. Frente NV em andamento (ciclo fechado ✅ — próximo item
+do dono). TODO §2: item das coleções saiu da lista (implementado). §8.5
+(rotação de segredos) segue adiada por decisão do dono.
