@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-17T00:20:00-03:00",
+  "updated_at": "2026-10-17T10:10:00-03:00",
   "pauta_explicada_e_todo_descrito_2026_10_16": {
     "pedido": "Dono (~19:50 de 16/10): 'me explique o tal de Pauta itens 3 e 5' e, ao ver a minha busca demorada nas transcrições, correu o processo: 'por isso pedi pra criar um TODO de atualizações... não precisa ficar assim procurando do que se trata'.",
     "apuracao_da_fonte": "'Pauta' = as 15 divergências Legado × sistema atual em docs/ANALISE_ECOSSISTEMA.md §6, com os próximos passos numerados 1–5 na §8 (criada 09/10). Itens 1 (organizar Legado) e 2 (/verificacao + Registro Mestre) já CONCLUÍDOS; os abertos são: 3 = ordem das frentes FAB/Living Systems/Semi-joias/Nicoly Valentina (só falta a decisão da ordem — o 1º passo pedido, Registro Mestre, saiu em v1.22.0 e a Etapa 4 em v1.30.0); 4 = unificação do formato de ID das peças (SKU 5 campos × MoC 4 campos hex do Legado, antes das semi-joias); 5 = rotação dos segredos vazados no Legado (bot @Nexus_Nicky_bot e chave Gemini ainda ATIVOS; decisão do dono: rotacionar após os testes). OBS: os transcripts antigos diziam '3 e 5 = unificação de ID e ordem das frentes' — a numeração real da §8 é 3=frentes, 4=ID, 5=segredos; a confusão de numeração era parte do problema.",
@@ -2082,6 +2082,7 @@
     }
   ],
   "transcripts": [
+    "iniciar/2026-10-17_conversa_omegadrakon.md",
     "iniciar/2026-10-03_conversa_omegadrakon.md",
     "iniciar/2026-10-02_conversa_omegadrakon.md",
     "iniciar/2026-10-01_conversa_omegadrakon.md",
@@ -3112,5 +3113,17 @@
     "commits": "código a0d0575 pushado; registros (session/tx/txt/TODO) no commit seguinte.",
     "estado": "v1.34.0+2065 no ar. Frente NV: ciclo fechado FEITO (TODO §2 — item saiu da lista). Próximos do dono: §8.5 rotação de segredos (adiada), Vaultwarden popular cofre, backups HD externo/off-site, repo público, capturas Órion, catálogo 3D.",
     "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§21)"
+  },
+  "homebox_fora_stack_8_2026_10_17": {
+    "pedido": "Dono (17/10 ~09:00): 'essas ferramentas só têm interesse para mim se o sistema puder usar-las' e, em seguida, 'me explique o que faz cada ferramenta e se vale a pena ter ela no sistema, vamos decidir juntos, não quero nada parado, essas três primeiras já conheço e vão continuar. depois você vai interligar com o sistema'. Avaliação conjunta das 9 com medição (RAM via docker stats, conteúdo via volumes, imagem via docker images, API por ferramenta).",
+    "decisoes": "(1) Homebox SAI (aprovado: 'sair também') — inventário vazio (1,9 MB de banco, nunca usado). (2) FlatNotes/File Browser/Calibre ficam no ar: 'vamos analisar eles mais a fundo no futuro, vamos um por vez' — pauta nova no §5 do TODO. (3) As 3 primeiras continuam e serão interligadas ao sistema NA ORDEM: Vaultwarden (cofre do sistema) -> Stirling PDF (pipeline de documentos) -> Kiwix (Wikipédia offline) — escolha do dono: 'seguir a ordem sugerida'. (4) Critério gravado: nada parado + ferramenta só interessa se o sistema puder usá-la (hoje o sistema só monitorava/gerenciava ciclo de vida — uso funcional zero).",
+    "entrega": "docker/tools-compose.yaml: bloco do Homebox COMENTADO com instrução de reativação (compose valida 8 servicos) · core/nomad_tools.py: FERRAMENTAS_NOMAD 9 -> 8 (saída documentada no modulo) · tools/actions/actions.py: _NOMAD_SERVICES/_NOMAD_PORTS sem homebox · core/capabilities.py: capability nomad-tools = 8 containers + descricao da saida, fallback de versao 1.34.1 · server.py: label do painel sem contagem fixa + _APP_VERSION_CODE 2066 · notifier/launcher: docs 9 -> 8 (alerta tool:homebox deixa de existir POR CONSTRUCAO, nao silenciado) · operacao docker: stop/rm od-homebox + rmi da imagem (-198 MB), dados preservados em /home/alex/omegadrakon-tools/homebox (1,9 MB intocado) · TODO.md: §1 = 8 servicos, linha do Homebox = FORA DO AR, nota de situacao 17/10, §5 com a analise a fundo das 3 pendentes.",
+    "pegada_honesta_rag": "Sem mudanca de corpus nesta entrega — docs de hoje escritos so com vocabulario comum (lição da v1.34.0 aplicada: nenhum termo raro de portfólio nos meus textos). Gates verdes na suíte final: 8/8 rel + 8/8 irr + 6/6 parafrases, piso 0,399/0,036 intacto.",
+    "testes": "Contagens e sets 9 -> 8 + 2 asserts negativos (homebox nao volta ao catalogo nem ao /health sem decisao nova) em tests/test_nomad_tools.py; test_nomad_tools_actions.py constantes 8. Mutacoes 3/3 capturadas com reversao bit-exata (backup /tmp/opencode/mut1341/): homebox de volta ao catalogo -> 10 falhas; de volta as actions -> 3 falhas; porta duplicada 8410->8090 -> 2 falhas. Suíte final 3105 passed / 16 skipped, gate 90,93% (politica de versao e RAG verdes). flutter analyze 0 issues.",
+    "deploy": "Bump PATCH 1.34.1+2066 (politica 9/9: .env, capabilities, pubspec, _APP_VERSION_CODE, site x4, CHANGELOG [1.34.1], README_VERSAO [1.34.1], ANALISE tabela de prova). APKs via app/build_apk.sh — aapt2: versionCode 2066 / versionName 1.34.1 nos DOIS APKs. Deploy 09:45 de 17/10 (systemctl --user restart od-core).",
+    "provas_vivas": "PID 725852, NRestarts=0 · /health up 21 checks com 8/8 ferramentas e tool_homebox AUSENTE · /dashboard/stats nomad_tools total=8 up=8 fora=[] · /app/version 1.34.1/2066 com sha 9aa8409a... == APK publicado · journal 0 erros e 0 menções a homebox desde o restart · 8 containers od-* no ar · docker compose config valida 8 servicos · dados do Homebox intactos no disco (homebox.db 1,9 MB).",
+    "commits": "codigo d251ba3 pushado; registros (session/tx/TODO) no commit seguinte.",
+    "estado": "v1.34.1+2066 no ar. Stack Nômade = 8 (Homebox fora, reativável em 1 min). Fila de interligação começando: 1º Vaultwarden (cofre do sistema — conta de serviço separada, nunca a conta/master do dono), 2º Stirling PDF, 3º Kiwix. Pendências do dono seguem vivas: popular cofre, backups HD externo/off-site, repo público, capturas Órion, fotos, catálogo 3D, §8.5 (adiada); análise a fundo de FlatNotes/File Browser/Calibre (uma por vez) no §5 do TODO.",
+    "transcricao": "iniciar/2026-10-17_conversa_omegadrakon.md (§1–§2)"
   }
 }

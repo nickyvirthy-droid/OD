@@ -4,7 +4,7 @@
 
 ---
 
-## 1. Stack Nômade Atual (`docker/tools-compose.yaml`) — 9 serviços **no ar** (auditado 15/10)
+## 1. Stack Nômade Atual (`docker/tools-compose.yaml`) — 8 serviços **no ar** (auditado 17/10)
 
 | # | Serviço | Container | Porta local | Status | Observação |
 |---|---|---|---|---|---|
@@ -15,10 +15,11 @@
 | 5 | **Stirling PDF** (50+ PDF tools) | `od-stirling-pdf` | 8400 | ✅ | OCR, merge, split, assinar; JAVA_TOOL_OPTIONS fix metaspace |
 | 6 | **File Browser** (arquivos web) | `od-filebrowser` | 8410 | ✅ | login admin/admin → trocar |
 | 7 | **Calibre Web** (e-books) | `od-calibre-web` | 8420 | ✅ | login admin/admin123 → trocar; books em `/home/alex/omegadrakon-tools/books` |
-| 8 | **Homebox** (inventário/QR) | `od-homebox` | 8470 | ✅ | API REST p/ actions; pepper fixo no compose |
+| 8 | **Homebox** (inventário/QR) | `od-homebox` | 8470 | ❄️ **FORA DO AR desde 17/10** | Decisão do dono ("nada parado"): compose comentado, imagem removida (−198 MB), dados preservados em `omegadrakon-tools/homebox`. Reativar = descomentar bloco |
 | 9 | **Vaultwarden** (cofre senhas) | `od-vaultwarden` | 8480 | ✅ | HTTPS via Tailscale Serve; **conta do dono criada 15/10** (verificada com CLI oficial `bw`); **`SIGNUPS_ALLOWED=false`** (registro recusa HTTP 400) |
 
 > **Situação (15/10):** os 9 sobem com `up -d` e estão no ar. **Pendência do §1 concluída:** conta do dono + signups fechados — comprovado por drill E2E (conta de teste criada pela action, logada e decifrada pelo CLI oficial, depois excluída; vault só com o dono).
+> **Situação (17/10):** decisão do dono sobre as 9 — **Homebox tirado do ar** (vazio, função única; compose comentado + imagem removida, nada apagado) e **FlatNotes/File Browser/Calibre ficam** para análise a fundo, uma por vez (§5). Stack agora = 8 no ar. Critério do dono: *"ferramenta só interessa se o sistema puder usar"* — as 3 primeiras (Vaultwarden, Stirling PDF, Kiwix) continuam e serão interligadas ao sistema, nessa ordem.
 > **Bugs corrigidos em 15/10:** `DOMAIN` do Vaultwarden (commit `3ed13cc` — API anunciava URL errada); action `nomad_vaultwarden_setup` estava quebrada (rota `/api/accounts/register` = 404 + payload cru + "fechar signups" só imprimia instrução) → corrigida: rota `/identity/accounts/register`, payload `RegisterData` com crypto oficial (PBKDF2 600k + AES-CBC-HMAC + RSA-2048, validada 100% contra o SDK Bitwarden) e fechamento real (edita compose → recria container → confere env).
 
 ---
@@ -31,7 +32,7 @@
 
 | Item | Decisão | Status hoje |
 |---|---|---|
-| **8 ferramentas** (Kiwix, Stirling PDF, CyberChef, IT Tools, Vaultwarden, FlatNotes, File Browser + Calibre Web, Homebox) | ✅ ENTRA como containers | **Concluído** — 9 containers no ar (§1) |
+| **8 ferramentas** (Kiwix, Stirling PDF, CyberChef, IT Tools, Vaultwarden, FlatNotes, File Browser + Calibre Web, Homebox) | ✅ ENTRA como containers | **Concluído** — 8 containers no ar (§1; Homebox fora desde 17/10 por decisão do dono) |
 | **ProtoMaps** | 🛠️ DEV TASK (página MapLibre + tiles, não container) | Pendente (quando o dono quiser mapa próprio) |
 | **LoRa** | ❄️ GELADEIRA | Aguarda hardware/necessidade real |
 | **Kolibri, Jellyfin, Excalidraw, benchmark/leaderboard** | ❌ DESCARTADOS de vez | Confirmado no dono (12/10) |
@@ -126,6 +127,8 @@
 ---
 
 ## 5. Ideias de expansão (parking lot)
+
+- **Análise a fundo de FlatNotes, File Browser e Calibre Web — uma por vez** (pedido do dono 17/10): decidir junto manter/ligar ao sistema/tirar; hoje estão vazias (20 KB / 48 KB / 0 livros) e no ar. Enquanto isso, **Vaultwarden → Stirling PDF → Kiwix** são as 3 primeiras a serem interligadas ao sistema (ordem aprovada 17/10)
 
 - **MCP Server** — expor actions/ferramentas do OD via Model Context Protocol para Claudes/Cursors externos
 - **Plugin marketplace** — o `tools/loader.py` já carrega `.py` de `plugins/`; criar `plugins/` oficial com manifest
