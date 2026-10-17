@@ -478,6 +478,29 @@ class TestAPIPublicEndpoints:
                 f"{path}: " + check.stderr.decode()[:400]
             )
 
+    def test_painel_admin_no_formato_orion(self, serve, tmp_path: Path) -> None:
+        """Formato Órion (17/10 — referência visual escolhida pelo dono):
+        o /admin serve o herói de saudação + a faixa de KPIs, e todo o JS
+        novo vive DENTRO do script único da página (a guarda de sintaxe
+        recorta do primeiro <script> ao último — bloco novo quebraria)."""
+        srv = serve(make_orch(tmp_path))
+        status, body, _ = _request(srv.bound_port, "GET", "/admin")
+        html = body.decode("utf-8", "replace")
+        assert status == 200
+        # Herói: marca, versão, pill de estado, saudação, data e relógio.
+        assert 'class="od-hero"' in html
+        for elemento in ("odVer", "odOn", "odOla", "odData", "odRelogio"):
+            assert f'id="{elemento}"' in html, elemento
+        # KPIs: quatro cartões (actions, stack, checks, uptime).
+        assert 'class="od-kpis"' in html
+        for campo in ("kpiAcoes", "kpiStack", "kpiChecks", "kpiUptime"):
+            assert f'id="{campo}"' in html, campo
+        # Fontes honestas: o herói lê rotas que existem (versão pública e
+        # catálogo) — nenhuma fonte paralela inventada.
+        assert '"/app/version"' in html and '"/actions"' in html
+        # O JS do herói está no script da página (não em bloco separado).
+        assert html.count("<script>") == 1
+
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))
         port = srv.bound_port
@@ -965,6 +988,24 @@ class TestAPISite:
         srv2 = serve(None, config=cfg2)
         status, _, _ = _request(srv2.bound_port, "GET", "/site")
         assert status == 401
+
+    def test_site_index_chip_vivo_e_numeros_reais(self) -> None:
+        """Formato Órion no site (17/10): a badge do herói traz os
+        elementos do chip vivo (od-nav.js, comportamento 4) e os números
+        do topo são os REAIS desta entrega — o que o site afirma tem de
+        ser verdade no commit (os velhos 78 actions / +2.300 testes
+        mentiam e não podem voltar)."""
+        raiz = Path(__file__).resolve().parents[1]
+        html = (raiz / "site" / "index.html").read_text(encoding="utf-8")
+        # Chip vivo: versão (#odSiteVer) e estado (#odSiteOn) preenchidos
+        # em runtime pelas rotas públicas /app/version e /health.
+        assert 'id="odSiteVer"' in html and 'id="odSiteOn"' in html
+        assert '<span class="od-site-ponto"></span>' in html
+        # Números reais do v1.39.0+2072.
+        assert "<b>106</b><span>Actions</span>" in html
+        assert "<b>3.290</b><span>Testes</span>" in html
+        assert "<b>9</b><span>Ferramentas no ar</span>" in html
+        assert "<b>78</b>" not in html and "+2.300" not in html
 
 
 # ===========================================================================

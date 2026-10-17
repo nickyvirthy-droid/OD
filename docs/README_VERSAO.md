@@ -7,6 +7,66 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.39.0] — PAINEL E SITE NO FORMATO ÓRION + MONITOR 9/9 🜂 (2026-10-17)
+
+### 1. O que foi feito
+
+As **2 capturas do Sistema Órion** (PMESP) que estavam em `analise/`
+**sem instrução** ganharam uso definido pelo dono (17/10): *"a captura
+do orion é uma ideia de como a tela ficaria, gostei do formato usado
+por eles"* — e ele aprovou **painel + site**. O **painel `/admin`**
+ganhou **herói de saudação** (símbolo oficial, versão + pill
+ONLINE/DEGRADADO do `/health`, saudação por período **com o nome do
+dono**, data por extenso, **relógio GMT-3 com segundos**, chips
+build/uptime/stack, mini-card de Saúde) e **faixa de 4 KPIs** com selo
+de ícone gradiente (Actions · Stack Nômade · Checks · Uptime) — tudo
+lendo as **mesmas fontes das seções** (`/auth/me`, `/health`,
+`/dashboard/stats`, `/actions`, `/app/version`), sem resposta = "—", e
+funciona claro e escuro (só variáveis do tema). O **site** ganhou
+**chip vivo** na badge do herói (versão real + ponto verde/vermelho,
+acinzentado até a resposta) e os **números reais** no topo (**106
+actions · 3.290 testes · 9 ferramentas**). No caminho, dois defeitos
+honestos corrigidos: o monitor `nomad_tools` ficou **com 8 entradas**
+depois da reativação do Homebox (`/health` e stats diziam **8/8 com 9
+serviços no ar**) e o site/capabilities anunciavam dados velhos ("78
+actions", "+2.300 testes", "Homebox fora do ar").
+
+| Peça | Entrega |
+|---|---|
+| **Painel (formato Órion)** | Herói + KPIs no `_ADMIN_PAGE_HTML`; JS novo **dentro do script único** (guarda `node --check` cru e com `_com_tema`: OK); dragão **proscrito** obedece (a guarda da v1.21.2 pegou o emoji do herói na suíte — trocado pelo `simbolo_minimo.png`). |
+| **Site (chip vivo)** | `od-nav.js` **comportamento 4** (idempotente; rotas públicas `/app/version` + `/health`); `od.css` com ponto de estado; index: números reais e frase do Changelog sem promessa falsa (`historico.html` parado em 1.25.0 registrado como pauta no TODO). |
+| **Monitor 8→9** | `FERRAMENTAS_NOMAD` + `homebox` (8470); docstrings 8→9; capabilities `nomad-tools` "**9 containers**" + Homebox na lista; fallback **1.39.0**. |
+| **Testes** | `test_nomad_tools.py` **12 ajustes** 8→9 (a guarda "Homebox fora" virou "dentro, por decisão do dono"); `test_api.py` **+2** (`test_painel_admin_no_formato_orion`, `test_site_index_chip_vivo_e_numeros_reais`). |
+| **Bump 9/9** | `.env` `OD_VERSION=1.39.0` (fonte real) · capabilities (fallback+phase) · `_APP_VERSION_CODE` **2072** · pubspec · CHANGELOG · README_VERSAO · ANALISE · TODO (§1: 9 serviços + situação 17/10 noite; tema residual reiterado **sem mexer no mecanismo** — protocolo da linha manda replicar antes) · APKs. |
+
+### 2. Decisão registrada (fonte da verdade)
+
+(1) **Formato Órion = estrutura; identidade continua OD** (Preto
+Profundo + Azul Elétrico no site, âmbar da casa no painel) — a
+identidade policial das capturas ficou de fora, e o dragão segue
+proscrito; (2) **nada de fonte paralela**: todo número do herói/KPI vem
+das mesmas fontes das seções, e sem resposta o campo fica "—" (nunca
+pinta verde de mentira); (3) **o mecanismo do tema NÃO foi tocado** — a
+falha residual do TODO §3.8 foi reiterada ao dono (protocolo da
+própria linha: exemplo exato + replicação antes de mexer); (4) **bug de
+contagem é bug**: monitor com 8 enquanto o compose tem 9 serviços foi
+corrigido na hora — a guarda que proibia Homebox no catálogo só mudou
+porque a decisão do dono (v1.38.0) existe e está registrada; (5)
+**site não mente**: os números do topo são a realidade do commit (trava
+anti-regressão no teste).
+
+### 3. Validação (17/10)
+
+Suíte **3292 passed / 16 skipped · gate 91,09%** (+2 testes) ·
+`node --check` do painel cru e com `_com_tema` **OK** · APKs
+**1.39.0+2072** publicados (sha do APK `89532bd4…`). Provas vivas
+(restart, **NRestarts=0**, journal 0 erros): `/app/version`
+**1.39.0/2072** · `/health` **22 checks** com o novo `tool_homebox` ·
+**`/dashboard/stats` nomad_tools 9/9, fora=[]** · `/actions` **106** ·
+`/admin` com herói+KPIs, script único e sem dragão · as 3 páginas com
+tema intacto · site com chip vivo. **E2E vivo (32 provas, 0
+falhas)** — `e2e_orion1390.py`, modo só-verifica.
+
 ## [1.38.0] — INVENTÁRIO DO DONO: HOMEBOX INTERLIGADO (4ª, USO DEFINIDO) 🜂 (2026-10-17)
 
 ### 1. O que foi feito

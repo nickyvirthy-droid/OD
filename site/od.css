@@ -450,3 +450,16 @@ footer.site .f-slogan { text-align: center; margin-top: 22px; color: var(--azul)
   .ficha { gap: 14px; }
   .ficha-foto { flex-basis: 64px; width: 64px; height: 64px; font-size: 1.2rem; }
 }
+
+/* --- Chip vivo do topo (formato Órion — 17/10) --------------------------
+   A badge do herói ganha versão e estado REAIS, lidos pelas rotas
+   públicas /app/version e /health (od-nav.js, comportamento 4). O ponto
+   fica acinzentado (estado desconhecido) até a resposta — nunca pinta
+   verde de mentira. */
+.od-site-on { color: var(--muted); }
+.od-site-ponto {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted); margin-right: 6px; vertical-align: 1px;
+}
+.od-site-on.ok .od-site-ponto { background: #22C55E; box-shadow: 0 0 6px rgba(34, 197, 94, .8); }
+.od-site-on.err .od-site-ponto { background: #EF4444; box-shadow: 0 0 6px rgba(239, 68, 68, .8); }

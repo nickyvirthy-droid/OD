@@ -4,7 +4,16 @@
 
 ---
 
-## 1. Stack Nômade Atual (`docker/tools-compose.yaml`) — 8 serviços **no ar** (auditado 17/10)
+## 🔴 Linhas vermelhas (NUNCA violar — ordem do dono)
+
+- **`/home/alex/3D` — NUNCA deletar, mover nem "limpar"** (ordem explícita do dono, 17/10): contém os **arquivos STL PAGOS** dele (`3D_FDM/`, `Laser/`, `Software/` — 1,2 GB). Fora do repositório (nenhum `.stl` rastreado no git — conferido 17/10) e fora do alcance de qualquer action do sistema. **Entra em todo snapshot/backup** (STL pago é exatamente o que se protege).
+- **`backups/backup_od_2026-10-16/`** — intocável (cópia de segurança histórica, regra 9).
+- **Banco do Homebox** (`omegadrakon-tools/homebox/homebox.db`) — inventário do dono; nada apagado (régua dele).
+- **Cofre (Vaultwarden)** — nada é apagado sem decisão do dono; espelho do `.env` é cópia idempotente, nunca remoção.
+
+---
+
+## 1. Stack Nômade Atual (`docker/tools-compose.yaml`) — 9 serviços **no ar** (auditado 17/10 noite)
 
 | # | Serviço | Container | Porta local | Status | Observação |
 |---|---|---|---|---|---|
@@ -21,6 +30,7 @@
 > **Situação (15/10):** os 9 sobem com `up -d` e estão no ar. **Pendência do §1 concluída:** conta do dono + signups fechados — comprovado por drill E2E (conta de teste criada pela action, logada e decifrada pelo CLI oficial, depois excluída; vault só com o dono).
 > **Situação (17/10):** decisão do dono sobre as 9 — **Homebox tirado do ar** (vazio, função única; compose comentado + imagem removida, nada apagado) e **FlatNotes/File Browser/Calibre ficam** para análise a fundo, uma por vez (§5). Stack agora = 8 no ar. Critério do dono: *"ferramenta só interessa se o sistema puder usar"* — as 3 primeiras (Vaultwarden, Stirling PDF, Kiwix) continuam e serão interligadas ao sistema, nessa ordem.
 > **Situação (17/10, tarde — v1.36.0):** fila em andamento — **Vaultwarden ✅ (1ª, v1.35.0) e Stirling PDF ✅ (2ª, v1.36.0) INTERLIGADAS**; **Kiwix é a próxima (3ª)**; Homebox volta na sequência com uso definido (decisão do dono). Além disso, **todas as 12 senhas do `.env` estão espelhadas no cofre** (`vault_env_mirror.py` — pedido do dono *"coloque todas as senhas do .env no cofre"*; é cópia, não remoção: `.env` continua o bootstrap).
+> **Situação (17/10, noite — v1.39.0):** fila **FECHADA DE VEZ** — Vaultwarden ✅ → Stirling ✅ → Kiwix ✅ → **Homebox ✅ (v1.38.0, uso definido)**. As **9 no ar** e o **monitor corrigido de 8 para 9** (bug achado na investigação do formato Órion: o Homebox reativado não voltou ao `FERRAMENTAS_NOMAD`, então `/health` e stats diziam 8/8 com 9 serviços no ar). Pendência em análise: FlatNotes/File Browser/Calibre (uma por vez, §5).
 > **Bugs corrigidos em 15/10:** `DOMAIN` do Vaultwarden (commit `3ed13cc` — API anunciava URL errada); action `nomad_vaultwarden_setup` estava quebrada (rota `/api/accounts/register` = 404 + payload cru + "fechar signups" só imprimia instrução) → corrigida: rota `/identity/accounts/register`, payload `RegisterData` com crypto oficial (PBKDF2 600k + AES-CBC-HMAC + RSA-2048, validada 100% contra o SDK Bitwarden) e fechamento real (edita compose → recria container → confere env).
 
 ---
@@ -109,7 +119,8 @@
 - [x] **Auto-update no app** — download em background no boot + instalação com um toque — **ENTREGUE 16/10 (v1.31.0+2061, item B da fila):** `_preDownload` no `main.dart` (banner "Baixando… N%" → "baixada — pronta para instalar" → **Instalar**), `download()` reusa cache cujo SHA-256 confere (2ª chamada = 0 requisições). O `PackageInstaller` do texto era especulação pré-v1.7.0: o caminho FileProvider/`ACTION_INSTALL_PACKAGE` (27/09) já funciona no Android 14+ e mostra a mesma tela de confirmação do sistema — sessão `PackageInstaller` não ganharia UX.
 - [x] **Push FCM** — "auto-update aplicado" no celular — **ENTREGUE 16/10 (item B):** `core/auto_update.py::_anunciar()` chama `PushService.notify` nos dois sucessos do ciclo (re-sync do índice RAG com stats de chunks; download concluído/movido com alvo+versão), injetado por `build_auto_update(push=)` — best-effort, nunca derruba o ciclo. Saúde/nerve já vinha ligada pelo notifier (15–16/10) e o FCM e2e (registro/exibição no app) desde 13/09 (`3b5599c`).
 - [x] **Tema escuro/claro sincronizado** — preferência salva no perfil do usuário (já tem `UserStore`) — **ENTREGUE 16/10 (v1.32.0+2062; CHANGELOG §1.32.0):** a preferência vive no PERFIL (`user_prefs` + `GET/PUT /profile/preferences`, e o `/auth/me` devolve `preferences`) e a MESMA chave `theme` (`system|light|dark`) orienta **app + painel + site (11 páginas)** — trocar no celular muda o site e o painel no mesmo login. As três decisões do dono: tema nos três clientes, **seguir o sistema** para quem nunca escolheu, e preferência **no perfil + cópia local** (`SharedPreferences`/`localStorage`, que abre já no tema certo sem rede). Site e painel recebem a paleta clara e o botão por **injeção única** (`od.css`/`od-nav.js` e `_com_tema()` no painel, dentro do único `<script>` da página) — nenhuma das 11 páginas foi editada. Chave desconhecida é **400** e não silêncio. +17 testes (3074/16 · 90,91%) + 13 do app (`flutter analyze` 0 issues, 192/2).
-- [ ] **Tema — falha residual no site (ADIADO pelo dono 16/10 ~19:50)** — dono reportou: "ainda falha mas bem menos, vamos deixar isso para depois". O clique morto do ciclo foi corrigido (conserto das 17:47, commit 5053c54), mas sobrou um caso não reproduzido. Quando o dono retomar: pedir o exemplo exato (qual página, aparelho claro/escuro, de qual estado o botão partia) e instrumentar/replicar antes de mexer. App segue ok nas palavras do dono.
+- [ ] **Tema — falha residual no site (ADIADO pelo dono 16/10 ~19:50)** — dono reportou: "ainda falha mas bem menos, vamos deixar isso para depois". O clique morto do ciclo foi corrigido (conserto das 17:47, commit 5053c54), mas sobrou um caso não reproduzido. Quando o dono retomar: pedir o exemplo exato (qual página, aparelho claro/escuro, de qual estado o botão partia) e instrumentar/replicar antes de mexer. App segue ok nas palavras do dono. **Reiterado ao dono em 17/10** (rodada de pendências): o v1.39.0 entregou o formato Órion do painel e do site **sem tocar no mecanismo do tema** (o protocolo desta linha manda instrumentar/replicar antes de mexer) — aguardando o exemplo exato dele.
+- [ ] **`site/historico.html` parou na v1.25.0** — página curada das eras nunca recebeu 1.26→1.39 (achado em 17/10 enquanto o index afirmava "de v1.0.0 a v1.38.0" — frase corrigida para não mentir; completar as eras é pauta de conteúdo).
 
 ---
 

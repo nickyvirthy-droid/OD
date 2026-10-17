@@ -3,20 +3,22 @@ OMEGA DRAKON • CORE
 Tecnologia que respira.
 Módulo: core/nomad_tools.py
 Descrição: Saúde das ferramentas do stack Nômade (DECISÃO FINAL 12/10) —
-           as 8 ferramentas ativas do docker/tools-compose.yaml monitoradas
-           pelo od-core (eram 9; o Homebox saiu do ar em 2026-10-17 por
-           decisão do dono — "nada parado", análise a fundo das ferramentas
-           pendentes é item de pauta). Antes desta peça (2026-10-15) nenhuma
+           as 9 ferramentas ativas do docker/tools-compose.yaml monitoradas
+           pelo od-core. O Homebox saiu do catálogo em 2026-10-17 (dia do
+           desligamento, decisão do dono) e VOLTOU no mesmo dia no v1.38.0
+           com uso definido (inventário do dono) — o monitor o reencaixou
+           aqui no v1.39.0 (bug achado pelo formato Órion: stats dizia 8/8
+           com 9 serviços no ar). Antes desta peça (2026-10-15) nenhuma
            delas era observada: o Stirling PDF ficou 1.917 restarts em crash
            loop e o Kiwix 763 antes de alguém abrir o servidor — o alerta só
            chegou quando a falha já tinha dias.
 
-           - `FERRAMENTAS_NOMAD`: catálogo fixo das 8 (nome, porta local,
+           - `FERRAMENTAS_NOMAD`: catálogo fixo das 9 (nome, porta local,
              caminho, descrição) — portas conferidas no docker inspect
              (bind 127.0.0.1).
            - `NomadToolsMonitor`: sonda HTTP por ferramenta (stdlib puro,
              http.client) com cache TTL curto — o notifier (tick 60s) e o
-             /health podem ler as 8 sem repetir rede dentro da janela.
+             /health podem ler as 9 sem repetir rede dentro da janela.
              Semântica: status < 500 = viva (200/302/401 são vida — auth
              é sinal de serviço no ar); >= 500, timeout ou conexão
              recusada = fora.
@@ -31,7 +33,7 @@ Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 
 Baseado em:
-  - docker/tools-compose.yaml (as 8 ferramentas ativas)
+  - docker/tools-compose.yaml (as 9 ferramentas ativas)
   - docs/ANALISE_PROJECT_NOMAD.md § DECISÃO FINAL 12/10 ("integrar
     healthchecks dos tools no /health do OD")
   - observability/health.py (contrato de check não-crítico)
@@ -46,7 +48,7 @@ Decisões registradas (ver CHANGELOG):
     login) e Vaultwarden 401 em rota protegida — recusar esses seria
     alerta falso eterno
   - Cache TTL 10s: notifier e /health compartilham a mesma sondagem na
-    janela — 8 probes/min no máximo, nunca 8 por leitura
+    janela — 9 probes/min no máximo, nunca 9 por leitura
   - emit_after_s 120 no notifier: um `docker compose up -d` legítimo
     derruba a porta por 10-30s; só persistência vira alerta
 """
@@ -100,9 +102,10 @@ class FerramentaNomad:
         return f"{PREFIXO_CHECK}{self.nome.replace('-', '_')}"
 
 
-# As 8 ferramentas ativas da DECISÃO FINAL (portas conferidas no docker
+# As 9 ferramentas ativas da DECISÃO FINAL (portas conferidas no docker
 # inspect — bind 127.0.0.1; caminhos medidos ao vivo em 15/10). O Homebox
-# saiu em 17/10 (compose comentado — reativação em docker/tools-compose.yaml).
+# saiu em 17/10 (compose comentado) e voltou no mesmo dia (v1.38.0, uso
+# definido do dono) — reencaixado aqui no v1.39.0.
 FERRAMENTAS_NOMAD: tuple[FerramentaNomad, ...] = (
     FerramentaNomad("kiwix", 8090, "/", "Wikipedia offline (ZIM 14,4 GB)"),
     FerramentaNomad("cyberchef", 8100, "/", "Data tools (~300 operações)"),
@@ -111,6 +114,7 @@ FERRAMENTAS_NOMAD: tuple[FerramentaNomad, ...] = (
     FerramentaNomad("stirling-pdf", 8400, "/", "50+ ferramentas de PDF"),
     FerramentaNomad("filebrowser", 8410, "/", "Arquivos na web"),
     FerramentaNomad("calibre-web", 8420, "/", "Biblioteca de e-books"),
+    FerramentaNomad("homebox", 8470, "/", "Inventário de ferramentas e peças"),
     FerramentaNomad("vaultwarden", 8480, "/alive", "Cofre de senhas"),
 )
 

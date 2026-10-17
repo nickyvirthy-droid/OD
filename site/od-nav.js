@@ -217,4 +217,32 @@
   } else {
     temaIniciar();
   }
+
+  /* --- 4. CHIP VIVO DO TOPO (2026-10-17, formato Órion) ---------------
+     Versão e estado REAIS na badge do herói, pelas rotas públicas
+     /app/version e /health. Sem rede (ou com o núcleo fora) o HTML
+     estático continua verdadeiro: o ponto fica cinza (estado
+     desconhecido) e o texto do arquivo permanece — nunca pinta verde de
+     mentira. Só escreve se os elementos existirem: as outras páginas do
+     site seguem intactas. */
+  function chipVivo() {
+    var ver = document.getElementById('odSiteVer');
+    var on = document.getElementById('odSiteOn');
+    if (ver) {
+      fetch('/app/version')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (d && d.version) ver.textContent = 'v' + d.version;
+        }).catch(function () {});
+    }
+    if (on) {
+      fetch('/health')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d) return;
+          on.className = 'od-site-on ' + (d.ok ? 'ok' : 'err');
+        }).catch(function () {});
+    }
+  }
+  chipVivo();
 })();

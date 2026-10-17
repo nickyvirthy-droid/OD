@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.38.0"
+    or "1.39.0"
 )
 
 # Status válidos.
@@ -319,9 +319,9 @@ CAPABILITIES: list[dict[str, str]] = [
     },
     {
         "id": "nomad-tools",
-        "name": "Ferramentas Nômade (8 containers Docker + actions de gestão)",
+        "name": "Ferramentas Nômade (9 containers Docker + actions de gestão)",
         "category": "execution",
-        "description": "Kiwix, Stirling PDF, CyberChef, IT Tools, FlatNotes, File Browser, Calibre Web, Vaultwarden (Homebox fora do ar desde 17/10/2026 — dados preservados, compose comentado). Gerenciadas via actions nomad_tools_* (compose up/down/status/logs/restart, tailscale serve, ZIM download, Vaultwarden setup). Compose em docker/tools-compose.yaml (a2bba40). Acesso via Tailscale (nada exposto à internet).",
+        "description": "Kiwix, Stirling PDF, CyberChef, IT Tools, FlatNotes, File Browser, Calibre Web, Homebox, Vaultwarden (Homebox reativado em 17/10/2026, v1.38.0 — inventário do dono; monitorado pelo od-core desde o v1.39.0). Gerenciadas via actions nomad_tools_* (compose up/down/status/logs/restart, tailscale serve, ZIM download, Vaultwarden setup). Compose em docker/tools-compose.yaml (a2bba40). Acesso via Tailscale (nada exposto à internet).",
         "source": "Project NOMAD (Apache-2.0)",
         "phase": "v1.24.x",
         "status": AVAILABLE,

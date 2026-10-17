@@ -12,6 +12,40 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.39.0] — PAINEL E SITE NO FORMATO ÓRION + MONITOR 9/9 🜂 (2026-10-17)
+
+> **Bump MINOR (interface do dono + correção de monitor):** o dono
+> analisou as **2 capturas do Sistema Órion** (PMESP) depositadas **sem
+> instrução** em `analise/` e definiu o uso delas: *"a captura do orion
+> é uma ideia de como a tela ficaria, gostei do formato usado por
+> eles"* — formato aprovado para **painel + site** (escolha dele, em
+> resposta à pergunta do sistema). O `analyse` do formato: herói de
+> saudação, faixa de KPIs com selo de ícone gradiente, mini-painéis
+> vivos (relógio/clima), barra lateral colapsável — levamos o FORMATO
+> com a identidade do Omega Drakon (a identidade policial ficou de
+> fora, e o **dragão segue proscrito** pela guarda da v1.21.2 —
+> `assert "🐉" not in html` pegou o herói novo na suíte e ele foi para
+> o símbolo oficial). Duas mentiras do caminho corrigidas: o monitor
+> `nomad_tools` ficou com **8** depois da reativação do Homebox
+> (`/health` dizia 8/8 com **9 serviços no ar**) e o site anunciava
+> números velhos (**78 actions / +2.300 testes / v1.38.0**).
+
+| Peça | Entrega |
+|---|---|
+| **Painel `/admin` — formato Órion** | **Herói**: símbolo oficial + versão + pill **ONLINE/DEGRADADO** (do `/health` real), **saudação por período com o nome do dono** (`/auth.me`, `America/Sao_Paulo`), data por extenso, chips build/uptime/stack e dois mini-painéis **vivos**: **relógio GMT-3 com segundos** (tique 1s) e **Saúde** (checks ok/total + status). **Faixa de 4 KPIs** com selo de ícone gradiente (azul/laranja/roxo/verde): **Actions** (`/actions.count`), **Stack Nômade** (`nomad_tools`), **Checks** (`/health.checks`), **Uptime** (`fmtUptime`) — tudo lendo as **MESMAS fontes das seções**, sem fonte paralela; sem resposta o campo fica "—" (**nada de verde de mentira**) e falha do herói nunca derruba o painel (try/catch vazio). Tinta só nas variáveis do tema → funciona **claro e escuro** sem paleta duplicada. JS novo **dentro do script único** (a guarda `node --check` recorta primeiro→último `<script>`; verificado cru **e** com `_com_tema` injetado). |
+| **Site — chip vivo + números reais** | Badge do herói com **versão real** (`/app/version`, rota **pública**) e **ponto de estado** verde/vermelho (`/health`) — **acinzentado (estado desconhecido) até a resposta**, via `od-nav.js` **comportamento 4** (idempotente: só escreve se os elementos existem; as outras 10 páginas intactas). Topo do index corrigido para a realidade: **106 actions · 3.290 testes · 9 ferramentas no ar** (os velhos 78 / +2.300 / "42 capacidades" mentiam); frase do Changelog no index deixou de prometer um range que `historico.html` (parado em 1.25.0 — nova pauta no TODO) não entrega. |
+| **Monitor `nomad_tools` — bug corrigido** | `FERRAMENTAS_NOMAD` **8 → 9**: **Homebox reencaixado** (porta 8470) — após a reativação no v1.38.0 o monitor continuou com 8, então `/health` e `/dashboard/stats` diziam **8/8 com 9 serviços no ar** (achado enquanto se apurava o formato Órion; a guarda do teste que proibia Homebox no catálogo foi cumprida pela própria decisão do dono). Docstrings e comentários do módulo atualizados (9 ferramentas, 9 probes/min). |
+| **`core/capabilities.py`** | Fallback **1.38.0 → 1.39.0** + capability `nomad-tools`: "**9 containers Docker**" com **Homebox na lista** (o texto ainda anunciava *"Homebox fora do ar desde 17/10"*). |
+| **Bump 9/9** | `.env` `OD_VERSION=1.39.0` (fonte real; o fallback do capabilities é só padrão) · `capabilities.py` (fallback+phase) · `_APP_VERSION_CODE` **2071 → 2072** · `app/pubspec.yaml` · CHANGELOG · README_VERSAO · ANALISE_PROJECT_NOMAD (linha nova) · TODO (§1: 9 serviços, situação 17/10 noite; tema residual reiterado; `historico.html` registrado) · APKs rebuildados. |
+| **Testes** | `tests/test_nomad_tools.py`: **12 ajustes** 8→9 (contagens, nomes de teste, conjunto de checks com `tool_homebox`, resumos do stats) — a guarda "Homebox fora" virou "Homebox dentro **por decisão do dono**". `tests/test_api.py`: **+2 testes** — `test_painel_admin_no_formato_orion` (herói+KPIs presentes, fontes honestas, **um único `<script>`**) e `test_site_index_chip_vivo_e_numeros_reais` (ids do chip vivo + números reais + trava anti-regressão dos velhos 78/+2.300). `tests/test_registry.py` (guarda do dragão) **pega o herói novo e ele obedece** — emoji trocado pelo `simbolo_minimo.png`. |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3292 passed / 16 skipped** (+2 testes sobre 1.38.0) · gate **91,09%** |
+| Guarda JS | `node --check` do script do `/admin` cru **e** com `_com_tema`: **OK** · `od-nav.js`: **OK** |
+| Provas vivas (restart, NRestarts=0, journal 0 erros) | `/app/version` **1.39.0/2072** (sha `89532bd4…`) · `/health` **22 checks** (novo `tool_homebox`) · **`/dashboard/stats` nomad_tools = 9/9, fora=[]** (o bug do 8/8 morto) · `/actions` **106** · `/admin` com herói+KPIs e **um único `<script>`** · as 3 páginas com tema intacto · site com chip vivo e números reais |
+| **E2E vivo (`/tmp/opencode/e2e_orion1390.py`, modo só-verifica)** | **32 provas · 0 falhas** — versão, saúde (9 `tool_*` incluindo `tool_homebox`), stats 9/9, catálogo, DOM do herói/KPIs, script único, guarda do dragão, símbolo oficial, tema nas 3 páginas, chip vivo do site, `od-nav.js`/`od.css` |
+
 ## [1.38.0] — INVENTÁRIO DO DONO: HOMEBOX INTERLIGADO (4ª, USO DEFINIDO PELO DONO) 🜂 (2026-10-17)
 
 > **Bump MINOR (capability nova + WRITE):** quarta e última da fila de
