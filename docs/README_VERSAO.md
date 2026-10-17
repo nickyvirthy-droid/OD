@@ -7,6 +7,37 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.33.1] — LOJA DO SITE SEPARADA POR SEÇÕES (LINHAS DA CASA) 🜂 (2026-10-16)
+
+### 1. O que foi feito
+
+Pedido do dono na sequência do ID unificado: *"só acho que a loja precisa
+separar por seções"*. Como o ID canônico novo (`FRENTE-TIPO-ANO-SEQ`) já
+carrega a linha na frente do código, a loja separa sozinha — sem cadastro
+novo e sem campo extra no banco.
+
+| Peça | Entrega |
+|---|---|
+| **`site/loja.html`** | Uma **seção por linha**: cabeçalho (nome + contagem + resumo), ordem fixa NV → PROD → resto em alfabética, linha desconhecida ganha seção própria. Rodapé do catálogo com "N peça(s) · M linha(s)". |
+
+### 2. Decisão registrada (fonte da verdade)
+
+A seção da peça vem do **prefixo do ID** (NV = Nicoly Valentina, PROD =
+produtos do ecossistema, o que vier depois entra sozinho). Não existe
+"seção" como campo — existe a LINHA, e ela já é o primeiro segmento do ID.
+
+### 3. Padrão de qualidade
+
+Harness de node que roda o JS da loja de verdade (DOM/fetch de mentira):
+4 testes novos (`TestLojaPorSecoes`) · mutações 3/3 capturadas (reversão
+bit-exata) · suíte do servidor **3088 passed / 16 skipped** · app intacto
+(bump PATCH: APK novo só acompanha a política 9/9, versionCode 2064).
+
+### 4. Pendências/observações
+
+Nenhuma. A loja das semi-joias NV herda as seções automaticamente quando o
+primeiro lote for cadastrado.
+
 ## [1.33.0] — ID ÚNICO DO REGISTRO MESTRE (FRENTE-TIPO-ANO-SEQ) — Pauta §8.4 FECHADA 🜂 (2026-10-16)
 
 ### 1. O que foi feito

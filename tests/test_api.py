@@ -707,6 +707,135 @@ console.log(JSON.stringify(saida));
         assert check.returncode == 0, check.stderr.decode()[:400]
 
 
+class TestLojaPorSecoes:
+    """Loja do site separada por SEÇÕES = linhas da casa (pedido 16/10).
+
+    O dono: "a loja precisa separar por seções". A seção de cada peça vem
+    do PREFIXO do ID canônico (NV-… = Nicoly Valentina, PROD-… = produtos
+    do ecossistema; linha desconhecida ganha seção própria com o nome).
+    O JS da página é RODADO de verdade aqui — harness de node com DOM e
+    fetch de mentira (mesmo padrão do TestTemaClaroEscuro), não string
+    conferida no HTML.
+    """
+
+    _PECAS = {
+        "ok": True, "total": 3, "pecas": [
+            {"public_id": "PROD-PE-2026-0002", "name": "Trena",
+             "kind": "publica", "status": "estoque", "collection": None,
+             "photo": None, "registered": False, "owner_username": None},
+            {"public_id": "NV-SJ-2026-0003", "name": "Pendente Lumen Nox",
+             "kind": "exclusiva", "status": "registrada",
+             "collection": "LUMEN NOX", "photo": None, "registered": True,
+             "owner_username": "alex"},
+            {"public_id": "NV-SJ-2026-0001", "name": "Anel Abissal",
+             "kind": "exclusiva", "status": "estoque", "collection": "ABISSAL",
+             "photo": None, "registered": False, "owner_username": None},
+        ]
+    }
+
+    _HARNESS = """
+'use strict';
+const fs = require('fs'), vm = require('vm');
+const pagina = fs.readFileSync(process.argv[2], 'utf8');
+const dados = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+const achado = pagina.match(/<script>(\\s*\\(function[\\s\\S]*?)<\\/script>/);
+if (!achado) { console.error('script inline da loja não encontrado'); process.exit(2); }
+const elems = {};
+const sandbox = {
+  fetch: () => Promise.resolve({ json: () => Promise.resolve(dados) }),
+  document: {
+    getElementById: (id) => (elems[id] = elems[id] ||
+      { textContent: '', className: '', innerHTML: '' }),
+  },
+};
+vm.createContext(sandbox);
+vm.runInContext(achado[1], sandbox);
+setTimeout(() => {
+  console.log(JSON.stringify({
+    prateleira: elems['prateleira'].innerHTML,
+    estado: elems['estado'].textContent,
+  }));
+}, 20);
+"""
+
+    def _roda_no_node(self, tmp_path: Path, dados: dict) -> dict:
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:
+            return {}  # node ausente: harness opcional (padrão da casa)
+        pagina = Path(__file__).resolve().parents[1] / "site" / "loja.html"
+        arquivo = tmp_path / "dados.json"
+        arquivo.write_text(json.dumps(dados), encoding="utf-8")
+        harness = tmp_path / "harness_loja.js"
+        harness.write_text(self._HARNESS, encoding="utf-8")
+        r = _subprocess.run(
+            [node, str(harness), str(pagina), str(arquivo)],
+            capture_output=True, text=True, encoding="utf-8", timeout=30,
+        )
+        assert r.returncode == 0, r.stderr[:600]
+        return json.loads(r.stdout.strip().splitlines()[-1])
+
+    def test_secoes_por_linha_nv_antes_de_prod(self, tmp_path: Path) -> None:
+        saida = self._roda_no_node(tmp_path, self._PECAS)
+        if not saida:
+            return
+        html = saida["prateleira"]
+        assert html.count('class="secao"') == 2, html[:400]
+        # NV (linha das semi-joias) vem ANTES dos produtos
+        assert html.index('data-frente="NV"') < html.index('data-frente="PROD"')
+        # cada peça cai DENTRO da seção da sua linha
+        trecho_nv = html[html.index('data-frente="NV"'):
+                         html.index('data-frente="PROD"')]
+        assert "Anel Abissal" in trecho_nv and "Pendente Lumen Nox" in trecho_nv
+        assert "Trena" not in trecho_nv
+        assert "Trena" in html[html.index('data-frente="PROD"'):]
+        # contagem no rodapé do catálogo
+        assert "3 peça(s)" in saida["estado"] and "2 linha(s)" in saida["estado"]
+
+    def test_linha_desconhecida_ganha_secao_propria(self, tmp_path: Path) -> None:
+        dados = dict(self._PECAS)
+        dados["pecas"] = list(self._PECAS["pecas"]) + [
+            {"public_id": "FAB-PE-2026-0001", "name": "Suporte",
+             "kind": "publica", "status": "estoque", "collection": None,
+             "photo": None, "registered": False, "owner_username": None}]
+        saida = self._roda_no_node(tmp_path, dados)
+        if not saida:
+            return
+        html = saida["prateleira"]
+        assert 'data-frente="FAB"' in html
+        # seção nova entra depois das linhas canônicas (ordem: NV, PROD, resto)
+        assert html.index('data-frente="PROD"') < html.index('data-frente="FAB"')
+
+    def test_catalogo_vazio_avisa(self, tmp_path: Path) -> None:
+        saida = self._roda_no_node(tmp_path, {"ok": True, "total": 0,
+                                              "pecas": []})
+        if not saida:
+            return
+        assert saida["prateleira"] == ""
+        assert "Nenhuma peça" in saida["estado"]
+
+    def test_js_inline_da_loja_compila(self) -> None:
+        import shutil as _shutil
+        import subprocess as _subprocess
+        import tempfile as _tempfile
+
+        node = _shutil.which("node")
+        if not node:
+            return
+        pagina = (Path(__file__).resolve().parents[1]
+                  / "site" / "loja.html").read_text(encoding="utf-8")
+        achado = pagina.split("<script>", 1)[1].rsplit("</script>", 1)[0]
+        with _tempfile.NamedTemporaryFile(
+                "w", suffix=".js", delete=False, encoding="utf-8") as f:
+            f.write(achado)
+            caminho = f.name
+        check = _subprocess.run([node, "--check", caminho],
+                                capture_output=True)
+        assert check.returncode == 0, check.stderr.decode()[:400]
+
+
 class TestAPISite:
     """GET /site serve a landing e /site/{file} serve arquivos (APK).
 

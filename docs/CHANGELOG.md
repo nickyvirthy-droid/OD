@@ -12,6 +12,23 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.33.1] — LOJA DO SITE SEPARADA POR SEÇÕES (LINHAS DA CASA) 🜂 (2026-10-16)
+
+> **Bump PATCH (ajuste de layout da loja):** pedido do dono no mesmo dia do
+> ID unificado — "a loja precisa separar por seções". A separação vem do
+> PREFIXO do ID canônico (FRENTE-TIPO-ANO-SEQ): cada linha da casa vira sua
+> seção, sem cadastro novo e sem campo extra — o ID já diz a linha.
+
+| Peça | Entrega |
+|---|---|
+| **`site/loja.html`** | Prateleira única → **uma seção por linha**: cabeçalho com nome da linha + contagem + resumo curto. Ordem fixa das linhas canônicas (**NV** primeiro — Nicoly Valentina, semi-joias; depois **PROD** — produtos do ecossistema) e linhas novas (ex.: `FAB-…`) entram sozinhas, em ordem alfabética, com seção própria. Contagem total no rodapé do catálogo ("N peça(s) · M linha(s)"). |
+| **Testes** | Nova classe `TestLojaPorSecoes` (tests/test_api.py): harness de node que **RODA** o JS inline da loja com DOM e fetch de mentira (padrão do TestTemaClaroEscuro) — NV antes de PROD, peça cai na seção da SUA linha, linha desconhecida ganha seção, catálogo vazio avisa, JS compila. **Mutações 3/3 capturadas** (agrupamento removido · ordem invertida · frente lida do collection em vez do ID), reversões bit-exatas. |
+| **versionCode** | 2063 → **2064** (política 9/9 — APK acompanha o bump, ainda que o app não mude). |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3088 passed / 16 skipped** (+4) |
+
 ## [1.33.0] — ID ÚNICO DO REGISTRO MESTRE (FRENTE-TIPO-ANO-SEQ) — Pauta §8.4 FECHADA (2026-10-16)
 
 > **Bump MINOR (capacidade nova + APK novo):** ordem do dono — "crie uma

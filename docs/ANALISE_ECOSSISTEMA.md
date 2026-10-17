@@ -165,8 +165,9 @@ refletidas neste documento.
    etapas do mesmo item 2: cadastro de peças no app pelo comprador, entrega do
    QR na compra e loja no site.
 3. **Frentes FAB / Living Systems / Nicoly Valentina** — o primeiro passo
-   pedido (Registro Mestre digital) **saiu em v1.22.0**; agora é decidir com o
-   dono a ordem das demais frentes.
+   pedido (Registro Mestre digital) **saiu em v1.22.0**; a **ordem das demais
+   frentes foi DECIDIDA pelo dono em 16/10: 1º Nicoly Valentina, 2º FAB,
+   3º Living Systems** (§8.3 do TODO virou a entrega do ciclo das coleções NV).
 4. **Unificação do formato de ID** (linha 9 da tabela §6) — **CONCLUÍDO em
    v1.33.0 (16/10)**: padrão único `FRENTE-TIPO-AAAA-NNNN` (sem OD, todas as
    frentes) + código curto gravado para as joias pequenas; as 6 peças de teste

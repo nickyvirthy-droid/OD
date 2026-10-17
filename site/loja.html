@@ -22,6 +22,16 @@
   .estado { margin-top: 30px; color: var(--muted); font-size: .9rem; }
   .estado.err { color: var(--vermelho, #ff5c5c); }
 
+  /* Seções = linhas da casa (o prefixo do ID canônico: NV-, PROD-…). */
+  .secao + .secao { margin-top: 46px; }
+  .secao-cab { margin-bottom: 18px; }
+  .secao-cab h2 {
+    font-size: 1.1rem; font-weight: 700; letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  .secao-conta { color: var(--muted); font-size: .72rem; letter-spacing: .12em; font-weight: 500; }
+  .secao-resumo { margin-top: 6px; color: var(--muted); font-size: .88rem; max-width: 640px; }
+
   .prateleira { margin-top: 30px; }
   .peca-card { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
   .peca-card .foto {
@@ -92,6 +102,8 @@
     <b>ID gravado</b>, foto e registro no Registro Mestre: qualquer um
     confere a autenticidade antes de comprar. Quem compra recebe o
     <b>cartão com QR de posse</b> e registra a peça no app no próprio nome.
+    O catálogo vem separado <b>por linha</b>: Nicoly Valentina (semi-joias)
+    e os produtos do ecossistema.
   </p>
 
   <p class="estado" id="estado">Carregando o catálogo…</p>
@@ -164,6 +176,36 @@
       '</div></article>';
   }
 
+  var SECOES = {
+    NV: {
+      titulo: 'Nicoly Valentina · Semi-Joias',
+      resumo: 'Semi-joias autorais em ciclos fechados — coleção encerrada nunca é reeditada. Cada peça sai gravada a laser com ID único e verificação pública.'
+    },
+    PROD: {
+      titulo: 'Produtos Omega Drakon',
+      resumo: 'Peças exclusivas manufaturadas no ecossistema (peças especiais, suportes e linhas públicas).'
+    }
+  };
+  var ORDEM_SECOES = ['NV', 'PROD'];
+
+  // A seção da peça vem do PREFIXO do ID canônico (FRENTE-TIPO-ANO-SEQ).
+  function frenteDe(p) {
+    var parte = String(p.public_id || '').split('-')[0];
+    return parte || 'PROD';
+  }
+
+  function cabecalho(frente, quantidade) {
+    var meta = SECOES[frente] || {
+      titulo: frente,
+      resumo: 'Peças da linha ' + frente + '.'
+    };
+    return '<section class="secao" data-frente="' + esc(frente) + '">' +
+      '<div class="secao-cab"><h2>' + esc(meta.titulo) +
+      ' <span class="secao-conta">' + quantidade + ' peça(s)</span></h2>' +
+      '<p class="secao-resumo">' + esc(meta.resumo) + '</p></div>' +
+      '<div class="grid g3 prateleira">';
+  }
+
   var estado = document.getElementById('estado');
   var prateleira = document.getElementById('prateleira');
   fetch('/registry', { headers: { 'Accept': 'application/json' } })
@@ -175,8 +217,22 @@
         estado.textContent = 'Nenhuma peça no catálogo agora — volte em breve.';
         return;
       }
-      prateleira.innerHTML = pecas.map(card).join('');
-      estado.textContent = pecas.length + ' peça(s) no Registro Mestre · preços na sala de cada peça.';
+      // Agrupa por linha (frente) e desenha uma seção por linha, na ordem
+      // das linhas da casa (NV primeiro) e o resto em ordem alfabética.
+      var linhas = {};
+      pecas.forEach(function (p) {
+        var f = frenteDe(p);
+        (linhas[f] = linhas[f] || []).push(p);
+      });
+      var ordem = ORDEM_SECOES.filter(function (f) { return linhas[f]; });
+      Object.keys(linhas).sort().forEach(function (f) {
+        if (ordem.indexOf(f) < 0) ordem.push(f);
+      });
+      prateleira.innerHTML = ordem.map(function (f) {
+        return cabecalho(f, linhas[f].length) + linhas[f].map(card).join('') + '</div></section>';
+      }).join('');
+      estado.textContent = pecas.length + ' peça(s) no Registro Mestre · ' +
+        ordem.length + ' linha(s) · preços na sala de cada peça.';
     })
     .catch(function (e) {
       estado.className = 'estado err';
