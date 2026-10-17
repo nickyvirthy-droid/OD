@@ -12,6 +12,37 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.39.2] — CONCERTO DUPLA: HERÓI SEM CSS (TEXTO COMUM) + RATE_LIMITED NAS PÁGINAS 🜂 (2026-10-17)
+
+> **Bump PATCH (dois defeitos reportados pelo dono em 17/10, ambos meus):**
+> (1) *"o herói não aparece mais como banner, está como texto comum"* —
+> a injeção do CSS do formato **nunca aconteceu**: o `_com_tema`
+> injetava o JS primeiro e o guarda do CSS (`if "od-formato-orion" not
+> in html`) via a marca que o próprio JS carregava no comentário e
+> pulava o CSS. O markup chegava pelado em `/dashboard` **e** `/admin`
+> desde o deploy da v1.39.1. O E2E e o teste checavam a *marca* (presente
+> no JS) e não as *regras* `.od-hero {` — olho cego que agora está
+> tapado. (2) *"rate_limited quando tento abrir as páginas, tenho que
+> atualizar para sumir"* — o limitador (30 req/min por IP, isentando só
+> `/admin*`) contava cada request de abertura de página (~10 por
+> `/dashboard`: HTML, ícones, auth, dados, chip do herói) e duas
+> aberturas rápidas estouravam a janela.
+
+| Peça | Entrega |
+|---|---|
+| **CSS do formato de volta** | Marcas **separadas por injeção**: `od-formato-orion-css` (comentário do CSS) e `od-formato-orion-js` (comentário do JS), cada guarda vigiando a **própria** marca; CSS injetado **antes** do JS (mesma ordem do tema). Herói voltou a ser banner no `/dashboard` e no `/admin`. |
+| **Navegar nunca cai no limiter** | `_check_rate_limit` isenta: GET de shells de página (`/`, `/chat`, `/dashboard`), `/site/*` (assets) e `/app/version` (chips do app/site). **Seguem contados** o que faz trabalho: `/health` (probes ao vivo), `/message`, `/executa`, `/auth/*` (superfície de força-bruta) — o limite de 30/min não foi afrouxado, só parou de contar o pedido do documento. |
+| **`/health` com cache curto (8s)** | O agregado roda os **22 checks ao vivo** (9 probes docker) e os chips o chamam em **toda abertura de página** — sem cache, cada F5 do dono disparava 22 probes. Rajadas compartilham a mesma rodada; o agregado nunca tem mais de 8s de idade (o notifier continua no seu próprio ciclo). |
+| **`/admin` sem busca dupla** | O herói do `/admin` é alimentado pelo `loadSystem` (bandeira `odFormatoGerenciado`, lida no DOMContentLoaded) — o JS injetado não repete health/stats/actions que a página já buscou (−3 requests por abertura do painel). |
+| **Testes** | `test_api.py`: `test_navegar_nunca_cai_no_limiter` (12 aberturas de página com limite=3, `/health` segue dando 429 no 4º) + travas novas no formato (**regras** `.od-hero {`/`.od-kpis {` presentes, marcas css/js separadas, bandeira só no `/admin`); `test_health.py`: `test_health_tem_cache_curto_para_rajadas` (rajada = 1 rodada de probes; cache vencido >8s reexecuta, sem dormir). |
+| **Bump 9/9** | `.env` `OD_VERSION=1.39.2` · capabilities fallback · `_APP_VERSION_CODE` **2073 → 2074** · pubspec · `site/index.html` · CHANGELOG · README_VERSAO · ANALISE · APKs. |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3295 passed / 16 skipped** (+2 testes sobre 1.39.1) |
+| Guarda JS | `node --check` com `_com_tema` injetado (tema + formato): **OK** |
+| Provas vivas (pós-deploy) | *preenchidas abaixo na prova do deploy* |
+
 ## [1.39.1] — FORMATO ÓRION NO PAINEL DE TODOS + FONTE ÚNICA 🜂 (2026-10-17)
 
 > **Bump PATCH (extensão do formato + refatoração de fonte única):** o

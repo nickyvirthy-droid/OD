@@ -60,7 +60,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2073  # versionCode cru do APK publicado (v1.39.1+2073)
+_APP_VERSION_CODE = 2074  # versionCode cru do APK publicado (v1.39.2+2074)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -693,7 +693,7 @@ _TEMA_PAINEL_JS = """(function () {
 
 
 _FORMATO_ORION_CSS = """<style>
-  /* od-formato-orion — fonte única, injetada pelo _com_tema (mesma
+  /* od-formato-orion-css — fonte única, injetada pelo _com_tema (mesma
      arquitetura do tema): /dashboard (todos os usuários), /admin
      (dono) e /chat (inócuo, sem markup) falam a mesma tela. */
   /* --- Painel no FORMATO ÓRION (referência do dono, analisada 17/10) ---
@@ -770,7 +770,7 @@ _FORMATO_ORION_CSS = """<style>
 
 _FORMATO_ORION_JS = """(function () {
   'use strict';
-  /* od-formato-orion — fonte única, injetada pelo _com_tema. Saudação por
+  /* od-formato-orion-js — fonte única, injetada pelo _com_tema. Saudação por
      período, relógio de São Paulo, pill de estado e KPIs — tudo lendo as
      MESMAS fontes de sempre (health / version / actions / stats). Sem
      resposta o campo fica "—" (nunca verde de mentira); falha daqui nunca
@@ -889,12 +889,21 @@ _FORMATO_ORION_JS = """(function () {
     atualizar: atualizar
   };
 
-  if (document.getElementById("odOla")) {
+  // Início adiado até DOMContentLoaded: assim a PÁGINA consegue declarar
+  // a bandeira odFormatoGerenciado antes (o /admin declara — o
+  // loadSystem dele já busca health/stats/actions e repassa via
+  // pintar(); o herói não repete as mesmas requests). Relógio e versão
+  // continuam de graça; a busca dupla não.
+  function iniciar() {
+    if (!document.getElementById("odOla")) return;  // ex.: chat
     relogio();
     setInterval(relogio, 1000);
     versao();
-    atualizar();
+    if (!window.odFormatoGerenciado) atualizar();
   }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", iniciar);
+  } else { iniciar(); }
 })();"""
 
 
@@ -911,6 +920,13 @@ def _com_tema(html: str) -> str:
     """
     if "odTema" in html:
         return html
+    # Formato Órion (v1.39.2): CSS ANTES do JS e cada injeção com a
+    # PRÓPRIA marca. Marca compartilhada entrei errado na v1.39.1: o
+    # JS (comentado com a marca) entrava primeiro e o guarda do CSS
+    # achava que o CSS já estava lá — o herói aparecia pelado ("texto
+    # comum", reporte do dono em 17/10).
+    if "od-formato-orion-css" not in html and "</head>" in html:
+        html = html.replace("</head>", _FORMATO_ORION_CSS + "\n</head>", 1)
     if "</head>" in html:
         html = html.replace("</head>", _TEMA_PAINEL_CSS + "\n</head>", 1)
     marca = "<script>"
@@ -919,10 +935,6 @@ def _com_tema(html: str) -> str:
         corte = pos + len(marca)
         html = (html[:corte] + "\n" + _TEMA_PAINEL_JS + "\n"
                 + _FORMATO_ORION_JS + "\n" + html[corte:])
-    # Formato Órion (v1.39.1): CSS na MESMA injeção, idempotente pela
-    # marca — uma fonte para /dashboard, /admin e /chat, como o tema.
-    if "od-formato-orion" not in html and "</head>" in html:
-        html = html.replace("</head>", _FORMATO_ORION_CSS + "\n</head>", 1)
     return html
 
 
@@ -1633,6 +1645,11 @@ async function whoAmI() {
   if (window.odFormato) window.odFormato.nome(data.user.username);
   return data;
 }
+
+// O herói do /admin é alimentado pelo loadSystem (pintar() com os
+// dados que a página JÁ busca) — o JS injetado não repete as buscas
+// (bandeira lida no DOMContentLoaded antes da injeção iniciar).
+window.odFormatoGerenciado = true;
 
 async function loadSystem() {
   const msg = document.getElementById("sys-msg");
@@ -4086,12 +4103,31 @@ class APIHandler(BaseHTTPRequestHandler):
     def _check_rate_limit(self) -> bool:
         """Janela deslizante por IP. Escreve 429 e retorna False se estourou.
 
-        Endpoints /admin* são isentos: exigem autenticação de admin e são
-        usados pelo dono para gestão legítima; não faz sentido limitar o
-        próprio dono (evita rate_limited ao salvar txt.txt longo).
+        Isenções — navegar NUNCA pode cair no limiter (reporte do dono
+        em 17/10: páginas abrindo como rate_limited e precisando de F5
+        até a janela deslizar):
+          * /admin* — gestão do dono (exige auth de admin; evita 429 ao
+            salvar o txt.txt longo);
+          * GET de shells de página ("/", /chat, /dashboard) e de
+            /site/* — HTML/assets estáticos baratos. O orçamento do
+            limiter existe para o que faz trabalho de verdade (POST
+            /message, /executa, tentativas de login, dados), não para
+            o navegador pedir o documento: um abrir de /dashboard custa
+            ~10 requests (HTML, ícones, auth, dados, chip do herói);
+          * GET /app/version — leitura de um inteiro; o app e os chips
+            do site chamam em toda abertura de página.
+        /auth/register e /auth/login SEGUEM contados (superfície de
+        força-bruta) e /health SEGUI contado (roda os checks ao vivo —
+        o cache curto do handler é o que o barateia, não a isenção).
         """
+        method = self.command
         path = urlsplit(self.path).path
         if path.startswith("/admin"):
+            return True
+        if method == "GET" and (
+            path in ("/", "/chat", "/dashboard", "/site", "/app/version")
+            or path.startswith("/site/")
+        ):
             return True
         limit = self.api.config.rate_limit_max
         if limit <= 0:
@@ -4374,18 +4410,30 @@ class APIHandler(BaseHTTPRequestHandler):
     def health(self) -> None:
         monitor = self.api.config.health
         if monitor is not None:
-            # Fase 7.3: /health responde o agregado do HealthMonitor
-            import asyncio
+            # Fase 7.3: /health responde o agregado do HealthMonitor.
+            # Cache curto (8s): health() roda os checks AO VIVO (9 probes
+            # docker incluídos) e os chips do herói/site chamam /health
+            # em toda abertura de página — sem cache, cada F5 do dono
+            # dispara 22 probes e cada chamada gastava o orçamento do
+            # limiter. Rajadas compartilham a mesma rodada de probes e
+            # o agregado nunca fica com mais de 8s de idade.
+            agora = time.monotonic()
+            cache = getattr(self.api, "_health_cache", None)
+            if cache and agora - cache[0] < 8.0:
+                result = dict(cache[1])
+            else:
+                import asyncio
 
-            try:
-                result = asyncio.run(monitor.health())
-            except RuntimeError:  # pragma: no cover — loop ativo
-                result = {
-                    "ok": False,
-                    "status": "down",
-                    "checks": {},
-                    "detail": "health indisponível em contexto async",
-                }
+                try:
+                    result = asyncio.run(monitor.health())
+                except RuntimeError:  # pragma: no cover — loop ativo
+                    result = {
+                        "ok": False,
+                        "status": "down",
+                        "checks": {},
+                        "detail": "health indisponível em contexto async",
+                    }
+                self.api._health_cache = (agora, result)
             result["uptime_s"] = int(time.time() - self.api.started_at)
             self._json(200, result)
             return

@@ -498,6 +498,15 @@ class TestAPIPublicEndpoints:
         # Fontes honestas: o herói lê rotas que existem (versão pública e
         # catálogo) — nenhuma fonte paralela inventada.
         assert '"/app/version"' in html and '"/actions"' in html
+        # O CSS do formato CHEGA na página (regras .od-hero dentro de um
+        # <style>) — a v1.39.1 injetou só o JS (marca compartilhada
+        # enganou o guarda) e o herói aparecia pelado ("texto comum",
+        # reporte do dono em 17/10). Marcas separadas por injeção.
+        assert ".od-hero {" in html and ".od-kpis {" in html
+        assert "od-formato-orion-css" in html and "od-formato-orion-js" in html
+        # O /admin alimenta o herói pelo loadSystem (sem busca dupla —
+        # declara a bandeira; o JS injetado a lê e não repete as buscas).
+        assert "odFormatoGerenciado = true" in html
         # O JS do herói está no script da página (não em bloco separado).
         assert html.count("<script>") == 1
 
@@ -516,13 +525,21 @@ class TestAPIPublicEndpoints:
         for elemento in ("odVer", "odOn", "odOla", "odData", "odRelogio",
                          "odSaude", "kpiAcoes", "kpiStack", "kpiChecks", "kpiUptime"):
             assert f'id="{elemento}"' in html, elemento
-        # Fonte única: o formato chega pela injeção (marca), não por CSS/JS
-        # copiados para dentro da página — e o script segue sendo UM.
-        assert "od-formato-orion" in html
+        # Fonte única: o formato chega pela injeção (marcas separadas de
+        # CSS e JS), não por cópia dentro da página — e o CSS com as
+        # REGRAS (.od-hero {) tem de estar lá: a v1.39.1 perdeu o CSS
+        # (marca compartilhada enganou o guarda da injeção) e o herói
+        # aparecia como texto sem formatação (reporte do dono em 17/10).
+        assert "od-formato-orion-css" in html and "od-formato-orion-js" in html
+        assert ".od-hero {" in html and ".od-kpis {" in html
         assert html.count("<script>") == 1
+        # O /dashboard busca sozinho (só o /admin declara a bandeira de
+        # alimentação — a referência no JS injetado é de todas as páginas).
+        assert "odFormatoGerenciado = true" not in html
         # O /admin bebe da MESMA fonte (injeção), sem cópia local.
         _s, corpo_admin, _h = _request(srv.bound_port, "GET", "/admin")
-        assert "od-formato-orion" in corpo_admin.decode("utf-8", "replace")
+        admin = corpo_admin.decode("utf-8", "replace")
+        assert "od-formato-orion-css" in admin and ".od-hero {" in admin
         # O /chat não ganha cabeçalho: sem #odOla o JS sai cedo e o
         # markup não existe lá (CSS/JS injetados ali são inócuos).
         _s, corpo_chat, _h = _request(srv.bound_port, "GET", "/chat")
@@ -1338,6 +1355,25 @@ class TestAPIRateLimit:
         assert status == 429
         assert data["error"] == "rate_limited"
         assert data["retry_after_s"] >= 1
+
+    def test_navegar_nunca_cai_no_limiter(self, serve, tmp_path: Path) -> None:
+        """Reporte do dono (17/10): páginas abrindo como rate_limited e
+        precisando de F5 até a janela deslizar. Um abrir de /dashboard
+        custa ~10 requests (HTML, ícones, auth, dados, chip do herói) —
+        shells de página, assets do /site e /app/version NÃO consomem o
+        orçamento; o limite segue firme no que faz trabalho de verdade
+        (/health com probes ao vivo continua contado)."""
+        cfg = APIConfig(port=0, rate_limit_max=3, rate_window_s=60.0)
+        srv = serve(make_orch(tmp_path), config=cfg)
+        port = srv.bound_port
+        for _ in range(12):  # quatro "aberturas de página" completas
+            assert _request(port, "GET", "/dashboard")[0] == 200
+            assert _request(port, "GET", "/app/version")[0] == 200
+            assert _request(port, "GET", "/site/index.html")[0] in (200, 404)
+        # o que continua contado: /health (roda os checks ao vivo)
+        for _ in range(3):
+            assert _request(port, "GET", "/health")[0] == 200
+        assert _request(port, "GET", "/health")[0] == 429
 
     def test_rate_limit_disabled(self, serve, tmp_path: Path) -> None:
         cfg = APIConfig(port=0, rate_limit_max=0)

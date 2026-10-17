@@ -7,6 +7,49 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.39.2] — CONCERTO DUPLA: HERÓI SEM CSS + RATE_LIMITED NAS PÁGINAS 🜂 (2026-10-17)
+
+### 1. O que foi feito
+
+Dois defeitos reportados pelo dono em 17/10 — **ambos meus**, das
+entregas do mesmo dia. (1) *"o herói não aparece mais como banner,
+está como texto comum"*: a injeção do CSS do formato **nunca
+aconteceu** — o `_com_tema` injetava o JS primeiro e o guarda do CSS
+via a marca que o próprio JS carregava no comentário e pulava o CSS;
+o markup chegava pelado no `/dashboard` **e** no `/admin`. O E2E e o
+teste checavam a *marca* (presente no JS) e não as *regras*
+`.od-hero {`. (2) *"rate_limited quando tento abrir as páginas, tenho
+que atualizar para sumir"*: o limitador (30 req/min por IP, isentando
+só `/admin*`) contava cada request de abertura de página (~10 por
+`/dashboard`) e duas aberturas rápidas estouravam a janela.
+
+| Peça | Entrega |
+|---|---|
+| **CSS de volta** | Marcas separadas por injeção (`od-formato-orion-css`/`-js`), cada guarda vigiando a própria; CSS antes do JS (ordem do tema). |
+| **Navegação isenta** | GET de shells de página (`/`, `/chat`, `/dashboard`), `/site/*` e `/app/version` fora do contador; `/health`, `/message`, `/executa` e `/auth/*` seguem contados — o limite de 30/min não afrouxou, parou de contar o pedido do documento. |
+| **`/health` cacheado (8s)** | Rajadas de abertura compartilham uma rodada dos 22 probes (9 docker); agregado ≤8s de idade. |
+| **`/admin` sem busca dupla** | Bandeira `odFormatoGerenciado`: o herói é alimentado pelo `loadSystem` (−3 requests/abertura). |
+| **Testes** | `+2`: `test_navegar_nunca_cai_no_limiter`, `test_health_tem_cache_curto_para_rajadas`; travas novas nas regras `.od-hero {` e nas marcas separadas. |
+| **Bump 9/9** | `.env` 1.39.2 · capabilities fallback · `_APP_VERSION_CODE` **2074** · pubspec · site · CHANGELOG · README_VERSAO · ANALISE · APKs. |
+
+### 2. Decisão registrada (fonte da verdade)
+
+(1) **O limiter protege o trabalho, não o documento** — isentar HTML/
+assets baratos não afrouxa o que importa (LLM, actions, brute-force
+seguem contados); (2) **/health continua contado** de propósito (roda
+probes ao vivo) — o que o barateia é o cache curto, não a isenção;
+(3) **a marca da injeção é por-injeção** — marca compartilhada entre
+CSS e JS criou o defeito, e os testes agora travam as REGRAS do CSS
+(não só a marca) para não repetir o olho cego; (4) **defeito próprio
+se conserta no mesmo dia** — sem esperar pauta nova.
+
+### 3. Validação (17/10)
+
+Suíte **3295 passed / 16 skipped · gate ≥90%** (+2 testes) ·
+`node --check` com `_com_tema` injetado **OK** · APKs **1.39.2+2074**
+publicados. Provas vivas pós-deploy na transcrição (§10) e no
+`session.json`.
+
 ## [1.39.1] — FORMATO ÓRION NO PAINEL DE TODOS + FONTE ÚNICA 🜂 (2026-10-17)
 
 ### 1. O que foi feito

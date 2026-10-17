@@ -286,6 +286,34 @@ class TestAPIHealthIntegration:
         assert body["status"] == STATUS_DOWN
         assert body["checks"]["llm"]["detail"] == "LLM offline"
 
+    def test_health_tem_cache_curto_para_rajadas(self, serve):
+        """v1.39.2 (reporte do dono 17/10): /health roda os checks AO
+        VIVO (22 probes na produção, 9 deles docker) e os chips das
+        páginas chamam /health em toda abertura — sem cache, cada F5
+        disparava 22 probes. Rajadas compartilham a mesma rodada e o
+        agregado envelhece no máximo 8s (vencimento forçado aqui
+        ajustando o relógio do cache, sem dormir)."""
+        monitor = HealthMonitor()
+        rodadas: list[int] = []
+
+        def conta(mon):
+            rodadas.append(1)
+            return {"ok": True, "detail": "contado"}
+
+        monitor.register("vivo", conta, critical=False)
+        srv = serve(config=APIConfig(port=0, rate_limit_max=0, health=monitor))
+        status1, corpo1 = _request(srv.bound_port, "/health")
+        status2, corpo2 = _request(srv.bound_port, "/health")
+        assert status1 == status2 == 200
+        assert corpo1["checks"]["vivo"]["ok"] is True
+        assert corpo2["checks"]["vivo"]["ok"] is True
+        assert len(rodadas) == 1, "rajada deve compartilhar a mesma rodada de probes"
+        # cache vencido (>8s) obriga nova rodada
+        ts, agregado = srv._health_cache
+        srv._health_cache = (ts - 9.0, agregado)
+        _request(srv.bound_port, "/health")
+        assert len(rodadas) == 2, "cache vencido deve reexecutar os checks"
+
     def test_without_monitor_keeps_legacy_behavior(self, serve):
         # Retrocompatibilidade: sem config.health, /health segue inline
         srv = serve(config=APIConfig(port=0, rate_limit_max=0))
