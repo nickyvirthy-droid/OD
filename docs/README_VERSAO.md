@@ -7,6 +7,59 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.36.1] — BOOT DO RAG EM PARALELO + REMOÇÕES EM LOTE (CORREÇÃO DO BOOT LENTO) 🜂 (2026-10-17)
+
+### 1. O que foi feito
+
+Pergunta do dono ao ver o boot de 179s: *"porque no boot, ele não pode
+entrar depois e rodar em paralelo"*. resposta: **pode, e agora é assim** —
+mas antes de concordar só de boca, apurei o culpado real: **não era o
+embedding** (o provider é hash, milissegundos); era o store de vetor do
+RAG **reescrevendo o JSON inteiro a cada remoção** — `delete` unitário ×
+442 chunks substituídos numa edição grande = **O(n²) de I/O**, ~0,4s por
+chunk (a aritmética fecha com os boots históricos: 654 chunks → 4min;
+0 chunks → 1–3s). Dois consertos, um por cima do outro.
+
+| Peça | Entrega |
+|---|---|
+| **`memory/vector.py`** | `delete_many(doc_ids)` — várias remoções com **uma persistência** no fim (JSON e DB), espelhando o `add_many` que já era loteado. |
+| **`memory/rag.py`** | `sync()` apaga substituídos + órfãos em lote; estado de sync (`pendente`/`sincronizando`/`pronto`/`falhou`) + `sync_status()`; `sync_em_background()` — thread daemon, duplo start devolve a thread em curso, falha vira estado honesto sem derrubar nada; `dump()` expõe o sync. |
+| **`runtime/launcher.py`** | `build_rag()` padrão **background**: o índice persistido é carregado e o boot segue; a re-sincronia completa em paralelo e passa a valer quando termina. `OD_RAG_SYNC_BACKGROUND=0` = caminho síncrono antigo (fail-safe). |
+| **Testes** | **+11** (lote com uma escrita só · nada-existente não persiste · backend DB · estados · duplo start · janela de degradação com volta · falha → `falhou` · dump com sync). |
+| **versionCode** | 2068 → **2069** (política 9/9; APKs rebuildados, aapt2 confere). |
+
+### 2. Decisão registrada (fonte da verdade)
+
+Regras desta correção: (1) **causa antes de conserto** — medir o custo
+real (reescrita de JSON, não modelo) antes de mexer; (2) **o boot serve** —
+API e LLM no ar em segundos, sem esperar corpus; (3) **degradação honesta
+e temporária** — consultas na janela devolvem `""` (o mesmo caminho de
+"sem corpus", que já existia) e voltam sozinhas quando o sync fecha;
+(4) **fail-safe** — `OD_RAG_SYNC_BACKGROUND=0` restaura o comportamento
+síncrono em um valor de env; falha na thread vira estado `falhou` + warn,
+nunca derruba o core.
+
+### 3. Validação (17/10)
+
+Suíte **3198 passed / 16 skipped · gate 90,96%** (+11 testes) ·
+`flutter analyze` 0 · aapt2 **2069/1.36.1** nos dois APKs. Prova viva do
+boot (PID 976302, NRestarts=0): **API no ar em 3,0s** (antes 179s) —
+`Database Layer` → `RAG ligado … sync em background` (despacho em thread
+daemon **antes** do boot terminar) → `API REST no ar`; sync de fundo
+fechou em **2,0s** (com o lote, o sync ficou barato o bastante para
+terminar antes da API — a garantia de que a API nunca espera o sync é
+estrutural: thread daemon + `OD_RAG_SYNC_BACKGROUND=0`, coberta por
+11 testes novos).
+
+### 4. Pendências/observações
+
+Fila do dono: **1ª Vaultwarden ✅ 2ª Stirling ✅ → 3ª Kiwix (aprovada,
+em sequência)** → Homebox com uso definido. Rotação de segredos §8.5
+pendente; cofre pessoal do dono para ele popular. Nota: o JSON do store
+ainda é regravado inteiro no `add_many` (uma vez por sync — sem drama);
+se o corpus dobrar de novo, migrar o RAG para o backend DB (já existe e
+é coberto pela suíte) vira o próximo passo natural.
+
 ## [1.36.0] — PIPELINE DE DOCUMENTOS: STIRLING PDF INTERLIGADO (2ª DAS 3) + ESPELHO DO COFRE 🜂 (2026-10-17)
 
 ### 1. O que foi feito

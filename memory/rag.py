@@ -61,6 +61,7 @@ import hashlib
 import math
 import re
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Optional
@@ -477,6 +478,12 @@ class RAGPipeline:
             "tokens_descartados": 0,
         }
         self._lock = threading.RLock()
+        # Estado da sincronização (v1.36.1): o boot pode servi-lo antes do
+        # sync terminar — consultas sem _df já degradam para "" por desenho.
+        self._sync_estado: str = "pendente"
+        self._sync_stats: Optional[dict[str, int]] = None
+        self._sync_ts: float = 0.0
+        self._sync_thread: Optional[threading.Thread] = None
 
     # -- Propriedades --------------------------------------------------------
 
@@ -517,7 +524,9 @@ class RAGPipeline:
         esperados: set[str] = set()
         n_docs = 0
         pendentes: dict[str, list[tuple[str, str, dict[str, Any]]]] = {}
+        para_apagar: list[str] = []  # substituídos/órfãos — lote único (v1.36.1)
         with self._lock:
+            self._sync_estado = "sincronizando"
             for fonte in self._fontes:
                 try:
                     if not fonte.caminho.is_file():
@@ -558,7 +567,7 @@ class RAGPipeline:
                         stats["iguais"] += 1
                     else:
                         if existente is not None:
-                            self._store.delete(doc_id)
+                            para_apagar.append(doc_id)
                             stats["atualizados"] += 1
                         else:
                             stats["novos"] += 1
@@ -583,10 +592,28 @@ class RAGPipeline:
                 if doc["doc_id"] in esperados:
                     continue
                 if "source" in (doc.get("metadata") or {}):
-                    self._store.delete(doc["doc_id"])
+                    para_apagar.append(doc["doc_id"])
                     stats["removidos"] += 1
+            # Remoções em LOTE (v1.36.1): o delete unitário reescrevia o
+            # JSON do store a cada chunk — a re-sincronia de 442 substituí-
+            # dos custou ~179s de boot. Uma escrita só, como o add_many.
+            if para_apagar:
+                self._store.delete_many(para_apagar)
+            # Persistência em LOTE por namespace: uma escrita só no fim.
+            # (add() unitário persistiria o JSON inteiro a cada chunk —
+            # O(n²) de I/O: 842 chunks custavam ~86s na ingestão inicial.)
+            for ns, itens in pendentes.items():
+                self._store.add_many(
+                    ns,
+                    [texto for _, texto, _ in itens],
+                    metadata_list=[meta for _, _, meta in itens],
+                    doc_ids=[doc_id for doc_id, _, _ in itens],
+                )
             self._df = df
             self._n_docs = n_docs
+            self._sync_stats = dict(stats)
+            self._sync_ts = time.time()
+            self._sync_estado = "pronto"
         if stats["chunks"]:
             _audit_nicky(
                 "INFO", "RAG corpus sincronizado",
@@ -595,6 +622,52 @@ class RAGPipeline:
                 removidos=stats["removidos"],
             )
         return stats
+
+    def sync_em_background(self) -> threading.Thread:
+        """Sincroniza o corpus em thread de fundo — o boot NÃO espera (v1.36.1).
+
+        O índice persistido já foi carregado no boot (store.load) e atende
+        consultas imediatamente; a re-sincronia completa em paralelo e
+        passa a valer assim que termina. Janela de degradação honesta:
+        consultas antes do fim do sync devolvem "" (sem _df) — o mesmo
+        caminho de "sem corpus", sem nunca derrubar o core. Duplo start
+        devolve a thread em curso.
+        """
+        with self._lock:
+            if self._sync_thread is not None and self._sync_thread.is_alive():
+                return self._sync_thread
+            self._sync_estado = "sincronizando"
+            thread = threading.Thread(
+                target=self._sync_worker, name="rag-sync", daemon=True
+            )
+            self._sync_thread = thread
+        thread.start()
+        return thread
+
+    def _sync_worker(self) -> None:
+        """Corpo da thread de fundo: sync com falha honesta, nunca fatal."""
+        try:
+            self.sync()
+        except Exception as exc:  # pragma: no cover — defesa de thread
+            with self._lock:
+                self._sync_estado = "falhou"
+            _audit_nicky(
+                "WARN", "RAG sync em background falhou", error=type(exc).__name__
+            )
+
+    def sync_status(self) -> dict[str, Any]:
+        """Estado da sincronização para inspeção (dump/health/dashboard)."""
+        with self._lock:
+            stats = self._sync_stats or {}
+            return {
+                "estado": self._sync_estado,
+                "chunks": stats.get("chunks", 0),
+                "novos": stats.get("novos", 0),
+                "atualizados": stats.get("atualizados", 0),
+                "iguais": stats.get("iguais", 0),
+                "removidos": stats.get("removidos", 0),
+                "ultimo_sync_ts": self._sync_ts,
+            }
 
     def _listar_namespace(self) -> list[dict[str, Any]]:
         """Docs do namespace RAG (busca com consulta vazia devolve todos)."""
@@ -778,5 +851,6 @@ class RAGPipeline:
             "janela": self._janela,
             "min_score": self._min_score,
             "min_overlap": self._min_overlap,
+            "sync": self.sync_status(),
             "metricas": self.metricas(),
         }

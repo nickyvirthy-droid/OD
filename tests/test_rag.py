@@ -349,6 +349,104 @@ class TestSync:
         stats = rag.sync()
         assert stats["chunks"] == 0
 
+    def test_remocoes_vao_em_lote_uma_escrita(self, tmp_path):
+        # Regressão v1.36.1: substituídos e órfãos são apagados em LOTE
+        # (delete_many) — o delete unitário reescrevia o JSON do store a
+        # cada chunk (O(n²): ~179s de boot com 442 substituídos em 17/10).
+        rag = _pipeline(tmp_path)
+        rag.sync()
+        (tmp_path / "alvo.md").write_text(
+            "# Outra edição\n"
+            "Conteúdo renovado com folga para formar o chunk desta versão "
+            "editada do arquivo alvo durante o teste de lote de remoção.\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "genérico.md").unlink()
+        chamadas: list[list[str]] = []
+        original = rag.store.delete_many
+
+        def espiao(ids):
+            lista = list(ids)
+            chamadas.append(lista)
+            return original(lista)
+
+        rag.store.delete_many = espiao  # type: ignore[method-assign]
+        stats = rag.sync()
+        assert stats["atualizados"] >= 1
+        assert stats["removidos"] >= 1
+        assert len(chamadas) == 1
+        assert len(chamadas[0]) == stats["atualizados"] + stats["removidos"]
+
+
+class TestSyncEmBackground:
+    """v1.36.1: o boot carrega o índice persistido e sincroniza em paralelo."""
+
+    def test_estado_comeca_pendente_e_vai_para_pronto(self, tmp_path):
+        rag = _pipeline(tmp_path)
+        assert rag.sync_status()["estado"] == "pendente"
+        rag.sync()
+        st = rag.sync_status()
+        assert st["estado"] == "pronto"
+        assert st["chunks"] >= 2
+        assert st["ultimo_sync_ts"] > 0
+
+    def test_sync_em_background_completa_e_fica_pronto(self, tmp_path):
+        rag = _pipeline(tmp_path)
+        thread = rag.sync_em_background()
+        thread.join(timeout=30)
+        assert not thread.is_alive()
+        st = rag.sync_status()
+        assert st["estado"] == "pronto"
+        assert st["novos"] >= 2
+
+    def test_duplo_start_devolve_a_mesma_thread(self, tmp_path, monkeypatch):
+        import time as _tempo
+
+        rag = _pipeline(tmp_path)
+
+        def lento():
+            _tempo.sleep(0.3)
+            return {
+                "arquivos": 0, "chunks": 0, "novos": 0,
+                "atualizados": 0, "iguais": 0, "removidos": 0,
+            }
+
+        monkeypatch.setattr(rag, "sync", lento)
+        t1 = rag.sync_em_background()
+        t2 = rag.sync_em_background()
+        assert t1 is t2
+        t1.join(timeout=30)
+        assert not t1.is_alive()
+
+    def test_consulta_durante_janela_degrada_e_depois_volta(self, tmp_path):
+        # Antes do sync terminar, consult sem _df devolve "" — degradação
+        # honesta já existente ("sem corpus"), agora alcançável em
+        # produção porque o boot serve antes do sync fechar.
+        rag = _pipeline(tmp_path)
+        r = rag.consult("o que é o orçamento de contexto", papel="admin")
+        assert r.block == ""
+        rag.sync_em_background().join(timeout=30)
+        r2 = rag.consult("o que é o orçamento de contexto", papel="admin")
+        assert r2.block != ""
+
+    def test_falha_no_sync_vira_estado_falhou_sem_explodir(
+        self, tmp_path, monkeypatch
+    ):
+        rag = _pipeline(tmp_path)
+
+        def explode():
+            raise RuntimeError("estouro proposital")
+
+        monkeypatch.setattr(rag, "sync", explode)
+        rag.sync_em_background().join(timeout=30)
+        assert rag.sync_status()["estado"] == "falhou"
+
+    def test_dump_traz_o_estado_do_sync(self, tmp_path):
+        rag = _pipeline(tmp_path)
+        rag.sync()
+        assert rag.dump()["sync"]["estado"] == "pronto"
+        assert rag.dump()["sync"]["chunks"] >= 2
+
 
 class TestConsulta:
     def test_sem_corpus_retorna_vazio_sem_excecao(self, tmp_path):

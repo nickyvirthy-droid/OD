@@ -45,7 +45,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Protocol, TYPE_CHECKING
+from typing import Any, Iterable, Optional, Protocol, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from storage.database import Database
@@ -354,6 +354,30 @@ class VectorStore:
                 self._persist()
                 return True
             return False
+
+    def delete_many(self, doc_ids: Iterable[str]) -> int:
+        """Remove vários documentos com UMA persistência no fim.
+
+        O caminho unitário persistiria o JSON inteiro a cada remoção —
+        O(n²) de I/O: a re-sincronia do RAG de 17/10 (442 chunks
+        substituídos) custou ~179s de boot quase só de reescrever o
+        store; com lote, uma escrita só. Retorna quantos existiam.
+        """
+        if self._database is not None:
+            removidos = 0
+            for doc_id in doc_ids:
+                removidos += int(self._database.execute(
+                    "DELETE FROM vector_documents WHERE doc_id = ?", (doc_id,)
+                ) or 0)
+            return removidos
+        with self._lock:
+            removidos = 0
+            for doc_id in doc_ids:
+                if self._docs.pop(doc_id, None) is not None:
+                    removidos += 1
+            if removidos:
+                self._persist()
+            return removidos
 
     def clear(self, namespace: Optional[str] = None) -> int:
         """Limpa um namespace (ou tudo). Retorna quantidade removida."""

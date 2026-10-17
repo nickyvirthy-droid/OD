@@ -225,6 +225,37 @@ class TestVectorStoreManage:
         assert store.delete(doc_id) is False
         assert store.count() == 0
 
+    def test_delete_many(self, tmp_path: Path) -> None:
+        store = VectorStore(store_dir=tmp_path / "v")
+        ids = store.add_many("k", ["um", "dois", "três"])
+        assert store.delete_many([ids[0], ids[2], "inexistente"]) == 2
+        assert store.count() == 1
+
+    def test_delete_many_uma_persistencia(self, tmp_path: Path) -> None:
+        # Uma escrita só no fim (v1.36.1): o caminho unitário reescrevia o
+        # JSON inteiro do store por remoção — O(n²) de I/O que custou
+        # ~179s de boot na re-sincronia de 442 chunks de 17/10.
+        store = VectorStore(store_dir=tmp_path / "v")
+        ids = store.add_many("k", ["um", "dois", "três"])
+        escritas: list[int] = []
+        original = store._persist
+
+        def contando() -> None:
+            escritas.append(1)
+            original()
+
+        store._persist = contando  # type: ignore[method-assign]
+        store.delete_many(ids)
+        assert len(escritas) == 1
+
+    def test_delete_many_nada_existente_nao_persiste(self, tmp_path: Path) -> None:
+        store = VectorStore(store_dir=tmp_path / "v")
+        store.add("k", "texto")
+        escritas: list[int] = []
+        store._persist = lambda: escritas.append(1)  # type: ignore[method-assign]
+        assert store.delete_many(["a", "b"]) == 0
+        assert escritas == []
+
     def test_clear_namespace(self, tmp_path: Path) -> None:
         store = VectorStore(store_dir=tmp_path / "v")
         store.add("a", "x")

@@ -12,6 +12,32 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.36.1] — BOOT DO RAG EM PARALELO + REMOÇÕES EM LOTE (CORREÇÃO DO BOOT LENTO) 🜂 (2026-10-17)
+
+> **Correção (PATCH) na esteira do pedido do dono** ao ver o boot de 179s:
+> *"porque no boot, ele não pode entrar depois e rodar em paralelo"*.
+> Apurado o culpado real **antes** de mexer: não era embedding (o provider
+> é hash) — era o store reescrevendo o **JSON inteiro a cada remoção**:
+> delete unitário × 442 chunks substituídos = **O(n²) de I/O** (~0,4s por
+> chunk, aritmética fecha com os boots históricos). Dois consertos, um por
+> cima do outro: remoções em **lote** (uma escrita só) e **sync em
+> background** — o boot carrega o índice persistido, serve, e a
+> re-sincronia completa em paralelo.
+
+| Peça | Entrega |
+|---|---|
+| **`memory/vector.py`** | `delete_many(doc_ids)` — lote com **uma persistência** no fim (backends JSON e DB), espelhando o `add_many` que já era loteado (o próprio comentário do `rag.py` já denunciava o O(n²) do caminho unitário). |
+| **`memory/rag.py`** | `sync()` apaga substituídos + órfãos em **lote** (`delete_many` único antes do `add_many`); estado de sincronização novo (`pendente`/`sincronizando`/`pronto`/`falhou`) + `sync_status()`; `sync_em_background()` (thread **daemon**, duplo-start devolve a thread em curso, falha vira estado `falhou` + warn — nunca derruba o core); `dump()` expõe `sync`. Janela de degradação honesta: consultas antes do fim do sync devolvem `""` (sem `_df` — o mesmo caminho de "sem corpus", já existente). |
+| **`runtime/launcher.py`** | `build_rag()` **padrão background**: `store.load()` serve o índice já gravado e o boot segue — log `RAG ligado (Parte B NOMAD) \| sync em background`; `OD_RAG_SYNC_BACKGROUND=0` volta ao comportamento síncrono (fail-safe/testes). |
+| **Testes** | **+11**: lote com uma escrita só (spy em `_persist`), nada-existente não persiste, backend DB, transição de estados, duplo start, degradação durante a janela com volta após o sync, falha → `falhou`, dump com sync. |
+| **versionCode** | 2068 → **2069** (política 9/9; APKs rebuildados, aapt2 confere). |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3198 passed / 16 skipped** (+11 testes) |
+| Prova viva do boot (PID 976302, NRestarts=0) | **API no ar em 3,0s** (antes: 179s) — journal: `Database Layer` → `RAG ligado ... sync em background` (despachado em thread daemon, **antes** do boot terminar) → `API REST no ar`; sync de fundo completou em **2,0s** — o lote fez o sync tão barato que fechou antes da API; a ordenação "API antes do sync" só apareceria num sync maior, e a garantia estrutural (thread + `OD_RAG_SYNC_BACKGROUND=0`) é coberta por teste |
+| Idempotência/janela | Sync de fundo completou com os números esperados; a janela de degradação (consultas devolvem `""` sem `_df`) e a volta após o sync são cobertas pelos testes novos |
+
 ## [1.36.0] — PIPELINE DE DOCUMENTOS: STIRLING PDF INTERLIGADO (2ª DAS 3) + ESPELHO DO COFRE 🜂 (2026-10-17)
 
 > **Bump MINOR (capability nova):** segunda da fila aprovada pelo dono em

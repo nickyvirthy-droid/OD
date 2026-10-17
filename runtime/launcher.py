@@ -135,8 +135,13 @@ def build_rag() -> Optional[Any]:
     Indexa docs/ + knowledge/ (todo interno — o papel user/anônimo não
     recebe bloco nenhum, a visibilidade é por chunk), sincroniza de forma
     idempotente a cada boot e calibra a janela de tokens pelo modelo
-    servido (OD_LLM_MODEL). OD_RAG_ENABLED=0 desliga; falha degrada com
-    None (o pipeline segue sem retrieval, nunca derruba o core).
+    servido (OD_LLM_MODEL). Desde a v1.36.1 a sincronização roda em
+    BACKGROUND: o índice persistido é carregado (store.load) e o boot
+    segue — a re-sincronia completa em paralelo; consultas antes do fim
+    degradam para "" (sem retrieval), como já era sem corpus.
+    OD_RAG_SYNC_BACKGROUND=0 volta ao comportamento síncrono (testes).
+    OD_RAG_ENABLED=0 desliga; falha degrada com None (o pipeline segue
+    sem retrieval, nunca derruba o core).
     """
     if env("OD_RAG_ENABLED", "1") == "0":
         return None
@@ -150,7 +155,7 @@ def build_rag() -> Optional[Any]:
             provider=ProviderSemStopwords(HashEmbeddingProvider()),
             top_k=24,  # coerente com TOP_K_CANDIDATOS (medição: alvo em 15º)
         )
-        store.load()
+        carregados = store.load()
         modelo = env("OD_LLM_MODEL", "qwen2.5-coder-3b")
         pipeline = RAGPipeline(
             store,
@@ -158,17 +163,28 @@ def build_rag() -> Optional[Any]:
             janela=janela_do_modelo(modelo),
             tokens_resposta=int(env("OD_LLM_MAX_TOKENS", "512")),
         )
-        stats = pipeline.sync()
-        log.info(
-            "RAG ligado (Parte B NOMAD)",
-            modelo=modelo,
-            janela=janela_do_modelo(modelo),
-            chunks=stats["chunks"],
-            novos=stats["novos"],
-            atualizados=stats["atualizados"],
-            iguais=stats["iguais"],
-            removidos=stats["removidos"],
-        )
+        if env("OD_RAG_SYNC_BACKGROUND", "1") == "0":
+            stats = pipeline.sync()
+            log.info(
+                "RAG ligado (Parte B NOMAD)",
+                modelo=modelo,
+                janela=janela_do_modelo(modelo),
+                chunks=stats["chunks"],
+                novos=stats["novos"],
+                atualizados=stats["atualizados"],
+                iguais=stats["iguais"],
+                removidos=stats["removidos"],
+            )
+        else:
+            # v1.36.1: sync em paralelo — a re-sincronia de 442 chunks de
+            # 17/10 custou ~179s de boot esperando no caminho crítico.
+            pipeline.sync_em_background()
+            log.info(
+                "RAG ligado (Parte B NOMAD) | sync em background",
+                modelo=modelo,
+                janela=janela_do_modelo(modelo),
+                chunks_carregados=carregados,
+            )
         return pipeline
     except Exception as exc:
         log.warn("RAG desabilitado", error=f"{type(exc).__name__}: {exc}")

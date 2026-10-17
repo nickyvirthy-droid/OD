@@ -321,6 +321,13 @@ class TestVectorDB:
         assert vs.delete(doc_id) is True
         assert vs.get(doc_id) is None
 
+    def test_delete_many(self, db: Database) -> None:
+        vs = VectorStore(database=db)
+        ids = vs.add_many("ns", ["a", "b", "c"])
+        assert vs.delete_many([ids[0], ids[2]]) == 2
+        assert vs.count("ns") == 1
+        assert vs.get(ids[0]) is None
+
     def test_clear(self, db: Database) -> None:
         vs = VectorStore(database=db)
         vs.add("ns1", "a")
