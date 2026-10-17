@@ -447,3 +447,54 @@ APKs 1.39.1+2073 publicados em `site/`. **Commit: 2e23cea**
 (entrega) + registros. Estado: **v1.39.1+2073 no ar**; segue a
 rodada de pendências (rotação dos segredos do histórico →
 snapshots p/ HD → FlatNotes → rotação técnica).
+
+## §10 — Dono reporta dois defeitos das entregas do dia: herói sem CSS e rate_limited nas páginas (v1.39.1→1.39.2+2074)
+
+**Dono (19h25):** *"o que quer dizer rate_limited quando tento abrir
+as paginas, tenho que atualizar para sumir isso e abrir a pagina"* —
+e em seguida: *"o herói não aparece mais como banner, esta como texto
+comum no site"*.
+
+**Diagnóstico (sem chute, no vivo):** os dois blocos `<style>` do
+`/dashboard` servido **não tinham `.od-hero`**; a marca
+`od-formato-orion` que passou no E2E veio do **JS** (comentário). Causa
+raiz: no `_com_tema`, a injeção do JS roda antes da guarda do CSS, e o
+guarda (`if "od-formato-orion" not in html`) via a marca que o próprio
+JS carregava — **o CSS nunca foi injetado** em página alguma desde o
+deploy da v1.39.1 (markup pelado = "texto comum"). O E2E e o teste
+checavam a *marca*, não as *regras* `.od-hero {` — olho cego meu. O
+`rate_limited`: limitador de 30 req/min por IP isentava só `/admin*`;
+abrir `/dashboard` custa ~10 requests (HTML, ícones, auth, dados, chip
+do herói) — duas aberturas rápidas estouravam a janela. Agravante: o
+`/health` roda os **22 checks ao vivo** (9 probes docker, sem cache) e
+os chips o chamam em toda abertura.
+
+Entregue no **v1.39.2+2074**:
+- **CSS de volta**: marcas separadas por injeção
+  (`od-formato-orion-css`/`-js`), cada guarda vigiando a própria; CSS
+  antes do JS (ordem do tema). Testes agora travam as **regras**
+  `.od-hero {`/`.od-kpis {` (não mais a marca) — o olho cego virou
+  guarda.
+- **Navegar nunca cai no limiter**: GET de shells de página (`/`,
+  `/chat`, `/dashboard`), `/site/*` e `/app/version` fora do
+  contador; `/health`, `/message`, `/executa` e `/auth/*` (brute-force)
+  **seguem contados** — o limite de 30/min não afrouxou, parou de
+  contar o pedido do documento.
+- **`/health` com cache de 8s**: rajadas de abertura compartilham uma
+  rodada dos 22 probes; agregado nunca com mais de 8s de idade.
+- **`/admin` sem busca dupla**: bandeira `odFormatoGerenciado` lida no
+  DOMContentLoaded — o herói é alimentado pelo `loadSystem` (−3
+  requests/abertura).
+
+Validação: suíte **3295 passed / 16 skipped · gate 91,08%** (+2
+testes: `test_navegar_nunca_cai_no_limiter`,
+`test_health_tem_cache_curto_para_rajadas`); **E2E vivo
+`/tmp/opencode/e2e_orion1392.py`: 21 provas, 0 falhas** — regras
+`.od-hero` no `<style>` das duas páginas, marcas separadas, bandeira
+só no `/admin`, **35 aberturas de página em rajada com o limite real:
+zero 429**, health 22 checks, stats 9/9, `/actions` 106, site
+v1.39.2/2074; deploy NRestarts=0, journal limpo; APKs 1.39.2+2074
+publicados (sha `7b200c56…`). **Commit: d27e230** (entrega) +
+registros. Estado: **v1.39.2+2074 no ar**; os dois defeitos do dia
+mortos e enterrados com guarda; segue a rodada de pendências
+(rotação dos segredos do histórico → snapshots p/ HD → FlatNotes).
