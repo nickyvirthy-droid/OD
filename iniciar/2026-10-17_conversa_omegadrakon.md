@@ -400,3 +400,50 @@ tocado (protocolo da linha: exemplo exato do dono antes de mexer —
 reiterado). **Commit: 4072c42** (entrega) + registros. Estado:
 **v1.39.0+2072 no ar**; Órion fechado; repo (privar+rotacionar),
 snapshots, rotação técnica e FlatNotes são os próximos da rodada.
+
+## §9 — O dono manda levar o cabeçalho ao dashboard de todos: formato Órion vira fonte única (v1.39.0→1.39.1+2073)
+
+**Dono (19h05):** *"não entendo porque chamou de heroi, mas ficou
+bom. como esse painel não causa qualquer problema ao sistema e
+também coloca ele no topo do dashboard para todos os usuários."*
+
+**Sistema:** o nome explicado — "herói" é o termo de design para o
+banner grande do topo de uma página (o cartão de abertura, tipo
+pôster de filme); pode chamar de cabeçalho. Ordem entendida: levar
+o MESMO cabeçalho ao `/dashboard` de todo usuário — **só o formato
+viaja**, o administrativo continua atrás do papel admin.
+
+Entregue no **v1.39.1+2073**:
+
+- **`/dashboard` (todos os logados)**: herói (saudação com o
+  **próprio nome** de quem entrou via `/auth/me` do dashboard, pill
+  ONLINE/DEGRADADO do `/health`, data por extenso, **relógio GMT-3
+  vivo**, chips uptime/stack, card Saúde) + os **mesmos 4 KPIs**
+  (actions · stack · checks · uptime), antes de "Uso da conta".
+- **Refatoração de fonte única** (a duplicação já custou uma
+  divergência de paleta quando o tema era por página): o CSS/JS do
+  formato saíram do HTML do `/admin` e viraram
+  `_FORMATO_ORION_CSS`/`_FORMATO_ORION_JS` (IIFE `window.odFormato`),
+  injetados pelo `_com_tema` — **uma fonte, três páginas**,
+  idempotência por marca `od-formato-orion`; `/admin` repassa o
+  `loadSystem` no refresh, `/dashboard` busca sozinho (health +
+  stats + actions com a sessão do localStorage), `/chat` recebe a
+  injeção **inócua** (sem `#odOla` o JS sai cedo, markup não existe).
+- **Honestidade preservada**: `/dashboard/stats` 403 para usuário
+  comum vira "—" (nunca verde de mentira); dragão segue proscrito
+  (guarda da v1.21.2 verde); tema NÃO tocado (protocolo §3.8).
+- Bump 9/9 (`.env` 1.39.1 fonte real, capabilities fallback,
+  `_APP_VERSION_CODE` 2073, pubspec, site badge+card, CHANGELOG
+  [1.39.1], README_VERSAO §, ANALISE linha, TODO situação,
+  txt.txt reescrito).
+
+Validação: suíte **3293 passed / 16 skipped · gate 91,08%** (+1
+teste `test_dashboard_no_formato_orion_para_todos`); **E2E vivo
+`/tmp/opencode/e2e_orion1391.py`: 37 provas, 0 falhas** (versão
+1.39.1/2073 sha `7f26cb42…`, dashboard com herói+KPIs e script
+único, marca da fonte única nas 3 páginas, `/chat` limpo, `/admin`
+sem resíduo do JS antigo); deploy **NRestarts=0**, journal limpo;
+APKs 1.39.1+2073 publicados em `site/`. **Commit: 2e23cea**
+(entrega) + registros. Estado: **v1.39.1+2073 no ar**; segue a
+rodada de pendências (rotação dos segredos do histórico →
+snapshots p/ HD → FlatNotes → rotação técnica).
