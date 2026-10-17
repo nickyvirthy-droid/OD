@@ -2096,7 +2096,6 @@ _NOMAD_SERVICES = (
     "stirling-pdf",
     "filebrowser",
     "calibre-web",
-    "homebox",
     "vaultwarden",
 )
 
@@ -2108,7 +2107,6 @@ _NOMAD_PORTS = {
     "stirling-pdf": 8400,
     "filebrowser": 8410,
     "calibre-web": 8420,
-    "homebox": 8470,
     "vaultwarden": 8480,
 }
 
@@ -2983,7 +2981,8 @@ CATALOG: list[dict[str, Any]] = [
     _spec("docker_logs", "docker", "Logs de um contêiner", docker_logs,
           {"required": ["container"], "properties": {"container": S, "lines": {**I, "default": 100}}}),
     _spec("docker_stats", "docker", "Métricas de contêineres", docker_stats),
-    # --- Ferramentas Nômade (Project NOMAD absorvido — 9 containers) ---
+    # --- Ferramentas Nômade (Project NOMAD absorvido — 8 containers ativos;
+    #     Homebox fora do ar desde 17/10/2026) ---
     _spec("nomad_tools_up", "nomad", "Sobe todos os containers das ferramentas Nômade (docker compose up -d)", nomad_tools_up),
     _spec("nomad_tools_down", "nomad", "Derruba todos os containers das ferramentas Nômade (docker compose down)", nomad_tools_down),
     _spec("nomad_tools_status", "nomad", "Status dos containers Nômade (docker compose ps)", nomad_tools_status),

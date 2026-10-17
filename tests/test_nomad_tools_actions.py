@@ -101,20 +101,20 @@ class TestNomadToolsConstants:
     """Validação das constantes de serviços e portas."""
 
     def test_services_list(self) -> None:
-        """Lista de serviços bate com o compose (9 containers)."""
-        assert len(_NOMAD_SERVICES) == 9
+        """Lista de serviços bate com o compose (8 containers ativos)."""
+        assert len(_NOMAD_SERVICES) == 8
         expected = {
             "kiwix", "cyberchef", "it-tools", "flatnotes",
             "stirling-pdf", "filebrowser", "calibre-web",
-            "homebox", "vaultwarden"
+            "vaultwarden"
         }
         assert set(_NOMAD_SERVICES) == expected
 
     def test_ports_mapping(self) -> None:
         """Mapeamento de portas completo e sem duplicatas."""
-        assert len(_NOMAD_PORTS) == 9
+        assert len(_NOMAD_PORTS) == 8
         assert set(_NOMAD_PORTS.keys()) == set(_NOMAD_SERVICES)
-        assert len(set(_NOMAD_PORTS.values())) == 9  # portas únicas
+        assert len(set(_NOMAD_PORTS.values())) == 8  # portas únicas
         # Verificar portas conhecidas
         assert _NOMAD_PORTS["kiwix"] == 8090
         assert _NOMAD_PORTS["vaultwarden"] == 8480
@@ -251,7 +251,7 @@ class TestNomadToolsTailscaleServe:
         mock_run.return_value = (0, "started", "")
         result = nomad_tools_tailscale_serve(action="up")
         assert result["ok"] is True
-        assert len(result["results"]) == 9
+        assert len(result["results"]) == 8
         for r in result["results"]:
             assert r["ok"] is True
             assert r["port"] in _NOMAD_PORTS.values()

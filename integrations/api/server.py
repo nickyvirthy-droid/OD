@@ -60,7 +60,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2065  # versionCode cru do APK publicado (v1.34.0+2065)
+_APP_VERSION_CODE = 2066  # versionCode cru do APK publicado (v1.34.1+2066)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -222,7 +222,7 @@ class APIConfig:
     # /admin/ferramentas* respondem 503).
     supply_depot: Optional[Any] = None
     # Ferramentas do stack Nômade (DECISÃO FINAL, 2026-10-15):
-    # core.nomad_tools.NomadToolsMonitor — sonda HTTP das 9 do compose
+    # core.nomad_tools.NomadToolsMonitor — sonda HTTP das 8 do compose
     # (Kiwix, Stirling PDF, CyberChef...). None = monitor fora (o bloco
     # nomad_tools some do /dashboard/stats).
     nomad_tools: Optional[Any] = None
@@ -1019,7 +1019,7 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <div class="grid" id="sys"></div>
     <details><summary>Loops do núcleo (/supervision)</summary><pre id="loops">—</pre></details>
     <details><summary>Métricas do orquestrador (/dashboard/stats)</summary><pre id="metrics">—</pre></details>
-    <details><summary>Stack Nômade — 9 ferramentas (DECISÃO FINAL)</summary><pre id="nomadTools">—</pre></details>
+    <details><summary>Stack Nômade — ferramentas ativas (DECISÃO FINAL)</summary><pre id="nomadTools">—</pre></details>
     <div class="row" style="margin-top:8px">
       <button id="btn-refresh">↻ Atualizar</button>
       <span class="muted msg" id="sys-msg"></span>
@@ -4574,7 +4574,7 @@ class APIHandler(BaseHTTPRequestHandler):
         supply_depot = self.api.config.supply_depot
         if supply_depot is not None:
             payload["ferramentas"] = supply_depot.resumo()
-        # Ferramentas Nômades (DECISÃO FINAL): quantas das 9 respondem e
+        # Ferramentas Nômades (DECISÃO FINAL): quantas das 8 respondem e
         # quem está fora — o dono vê no Status sem abrir o /health.
         nomad_tools = self.api.config.nomad_tools
         if nomad_tools is not None:

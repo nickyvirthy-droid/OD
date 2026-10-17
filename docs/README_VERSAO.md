@@ -7,6 +7,60 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.34.1] — STACK NÔMADE: HOMEBOX FORA DO AR (8 FERRAMENTAS) 🜂 (2026-10-17)
+
+### 1. O que foi feito
+
+Decisão do dono sobre as 9 ferramentas do stack Nômade, tomada **junto
+com o sistema** depois do mapa de "o que cada uma faz + uso medido":
+*"essas ferramentas só têm interesse para mim se o sistema puder usar
+las"* e *"não quero nada parado"*. Resultado: **Homebox fora do ar**
+(inventário vazio — nunca usado), **FlatNotes/File Browser/Calibre
+ficam** para análise a fundo uma por vez, e as 3 primeiras
+(**Vaultwarden → Stirling PDF → Kiwix**) seguem para **interligação com
+o sistema**, começando por elas.
+
+| Peça | Entrega |
+|---|---|
+| **`docker/tools-compose.yaml`** | Bloco do Homebox **comentado com instrução de reativação** — nada apagado: container `od-homebox` removido, **imagem removida (−198 MB)**, dados preservados em `/home/alex/omegadrakon-tools/homebox` (1,9 MB intocado). `docker compose config` valida **8 serviços**. |
+| **`core/nomad_tools.py`** | `FERRAMENTAS_NOMAD` 9 → **8**: monitor, cache TTL, notifier e `/health` cobrem só as ativas — decisão (17/10) e reativação documentadas no próprio módulo. |
+| **`tools/actions/actions.py`** | `_NOMAD_SERVICES`/`_NOMAD_PORTS` sem `homebox` (8): todas as `nomad_*` orquestram só o que está no ar. |
+| **`core/capabilities.py`** | Capability `nomad-tools` = 8 containers + registro da saída; fallback de versão = 1.34.1. |
+| **`server.py` / notifier / launcher** | Label do painel sem contagem fixa; `_APP_VERSION_CODE` **2066**; docstrings/contagens 9 → 8 — alerta `tool:homebox` deixa de existir **por construção**. |
+| **Testes** | Contagens/sets 9 → 8, **2 asserções negativas** (`homebox` não volta sem decisão nova), sonda recusada trocada p/ filebrowser. **Mutações 3/3 capturadas**, reversões bit-exatas. |
+| **versionCode** | 2065 → **2066** (política 9/9 + APKs rebuildados: aapt2 confere 2066/1.34.1 nos dois). |
+
+### 2. Decisão registrada (fonte da verdade)
+
+Três regras ficam gravadas: (1) **nada parado** — ferramenta que ninguém
+usa sai (Homebox: vazio, função única, sem conteúdo); (2) **saída é
+reversível por desenho** — compose comentado + dados no disco + instrução
+no próprio arquivo, reativar leva 1 minuto; (3) **interligar primeiro o
+que decide sozinho** — ordem aprovada do dono: Vaultwarden (cofre do
+sistema) → Stirling PDF (pipeline de documentos) → Kiwix (Wikipédia
+offline). FlatNotes/File Browser/Calibre entram na fila de análise a
+fundo (uma por vez), pauta nova no §5 do TODO.
+
+### 3. Padrão de qualidade
+
+Suíte do servidor **3105 passed / 16 skipped** (gate 90% — cov 90,93%).
+**Mutações 3/3 capturadas** (homebox de volta ao catálogo → 10 falhas ·
+de volta às actions → 3 falhas · porta duplicada → 2 falhas), restauração
+bit-exata em cada uma. **Prova viva no serviço:** PID 725852,
+NRestarts=0, `/health` **up · 21 checks · tool 8/8 · sem `tool_homebox`**,
+`/dashboard/stats` `total=8 up=8 fora=[]`, `/app/version` **1.34.1/2066**
+com sha `9aa8409a…` idêntico ao APK publicado, journal **0 erros / 0
+menções a homebox**, 8 containers `od-*` no ar.
+
+### 4. Pendências/observações
+
+- **Análise a fundo de FlatNotes, File Browser e Calibre Web** — uma por
+  vez, decisão conjunta (pedido do dono 17/10); hoje no §5 do TODO.
+- **Interligação das 3 primeiras** em curso, na ordem aprovada
+  (Vaultwarden primeiro — cofre do sistema).
+- **Homebox**: se o dono mudar de ideia, descomentar o bloco do compose
+  e subir — dados e instrução no lugar.
+
 ## [1.34.0] — FRENTE NV: COLEÇÕES COM CICLO FECHADO (PROTOCOLO_NV) 🜂 (2026-10-16)
 
 ### 1. O que foi feito

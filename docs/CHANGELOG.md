@@ -12,6 +12,35 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.34.1] — STACK NÔMADE: HOMEBOX FORA DO AR (8 FERRAMENTAS) 🜂 (2026-10-17)
+
+> **Bump PATCH (operação de casa — sem capacidade nova):** decisão do dono
+> em 17/10, avaliando as 9 ferramentas juntos — *"essas ferramentas só têm
+> interesse para mim se o sistema puder usar-las"* + *"não quero nada
+> parado"*. Veredito conjunto: **Homebox sai** (inventário vazio — 1,9 MB
+> só de banco, nunca usado), **FlatNotes/File Browser/Calibre ficam** para
+> análise a fundo uma por vez (pauta nova no §5 do TODO) e as **3
+> primeiras (Vaultwarden → Stirling PDF → Kiwix)** continuam e passam a
+> ser **interligadas ao sistema** nessa ordem (o dono mandou começar por
+> elas). Nada apagado: "sair" é só tirar do ar.
+
+| Peça | Entrega |
+|---|---|
+| **`docker/tools-compose.yaml`** | Bloco do Homebox **comentado com instrução de reativação** (descomentar + `HBOX_AUTH_API_KEY_PEPPER` no `.env` + `docker compose up -d homebox`). Container `od-homebox` removido e **imagem apagada (−198 MB)**; dados preservados em `/home/alex/omegadrakon-tools/homebox` (banco 1,9 MB intocado). `docker compose config` valida **8 serviços**. |
+| **`core/nomad_tools.py`** | `FERRAMENTAS_NOMAD` 9 → **8** (sem `homebox`) — sonda, cache, notifier e `/health` cobrem só as ativas. Doc do módulo registra a decisão (17/10) e a via de reativação. |
+| **`tools/actions/actions.py`** | `_NOMAD_SERVICES`/`_NOMAD_PORTS` sem `homebox` — `nomad_tools_up/down/status/logs/restart` e `tailscale_serve` orquestram só as 8. |
+| **`core/capabilities.py`** | Capability `nomad-tools` = "8 containers Docker"; descrição cita a saída do Homebox (dados preservados, compose comentado). Fallback de versão congelado = 1.34.1. |
+| **`integrations/api/server.py`** | Painel `/admin`: "Stack Nômade — ferramentas ativas" **sem contagem fixa** (label não desatualiza mais); comentários do stats em 8. **`_APP_VERSION_CODE` 2066**. |
+| **notifier + launcher** | Docstrings e contagens 9 → 8 (`_check_tools`, `register_nomad_health_checks`, comentários dos stats) — o alerta `tool:homebox` some **por construção** (não foi silenciado: o check não existe mais). |
+| **Testes** | `test_nomad_tools.py`: contagens e sets 9 → 8, **2 asserções negativas** (`homebox` não volta ao catálogo nem ao `/health` sem decisão nova) e a sonda de conexão recusada trocou homebox → filebrowser; `test_nomad_tools_actions.py`: constantes 8 + `tailscale up` 8. **Mutações 3/3 capturadas** (homebox re-adicionado ao catálogo → 10 falhas · re-adicionado às actions → 3 falhas · porta duplicada 8410→8090 → 2 falhas), restaurações bit-exatas. |
+| **versionCode** | 2065 → **2066** (política 9/9 — `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site ×4, CHANGELOG, README_VERSAO; APKs rebuildados e conferidos no aapt2: 2066 nos dois). |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3105 passed / 16 skipped** (cov 90,93%) |
+| Mutações (teste do teste) | **3/3 capturadas** |
+| Prova viva (PID 725852, NRestarts=0) | `/health` **up · 21 checks · tool 8/8 · sem `tool_homebox`** · `/dashboard/stats` `nomad_tools total=8 up=8 fora=[]` · `/app/version` **1.34.1 / 2066** (sha `9aa8409a…` == APK publicado) · journal **0 erros / 0 menções a homebox** · **8 containers `od-*`** no ar · dados do Homebox intactos no disco |
+
 ## [1.34.0] — FRENTE NV: COLEÇÕES COM CICLO FECHADO (PROTOCOLO_NV) 🜂 (2026-10-16)
 
 > **Bump MINOR (capacidade nova + APK novo):** frente NV aberta pelo dono

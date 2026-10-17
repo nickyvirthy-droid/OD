@@ -4,7 +4,7 @@ Módulo: tests/test_nomad_tools.py
 Descrição: Testes das ferramentas do stack Nômade monitoradas pelo
            od-core (DECISÃO FINAL 12/10 — core/nomad_tools.py +
            sonda `tool:<nome>` no ProactiveNotifier + bloco no
-           /dashboard/stats). Cobre: catálogo das 9 (portas do compose),
+           /dashboard/stats). Cobre: catálogo das 8 (portas do compose),
            sonda HTTP hermética (viva < 500, 5xx/erro = fora), cache TTL,
            contrato do HealthMonitor (nunca crítico), probe com servidor
            HTTP real em porta efêmera, anti-spam do notifier (emit_after_s
@@ -17,7 +17,7 @@ Arquiteto: Alex Projeti
 Baseado em:
   - core/nomad_tools.py · integrations/notifier.py (_check_tools)
   - runtime/launcher.py (register_nomad_health_checks)
-  - docker/tools-compose.yaml (as 9 ferramentas)
+  - docker/tools-compose.yaml (as 8 ferramentas ativas)
 """
 
 from __future__ import annotations
@@ -114,21 +114,25 @@ def _porta_livre() -> int:
 
 
 # ---------------------------------------------------------------------------
-# Catálogo — as 9 ferramentas da DECISÃO FINAL
+# Catálogo — as 8 ferramentas ativas (DECISÃO FINAL 12/10 + Homebox fora
+# em 17/10 por decisão do dono)
 # ---------------------------------------------------------------------------
 
 class TestCatalogo:
-    def test_tem_as_9_ferramentas(self) -> None:
-        assert len(FERRAMENTAS_NOMAD) == 9
+    def test_tem_as_8_ferramentas(self) -> None:
+        assert len(FERRAMENTAS_NOMAD) == 8
         nomes = {f.nome for f in FERRAMENTAS_NOMAD}
         assert nomes == {
             "kiwix", "cyberchef", "it-tools", "flatnotes", "stirling-pdf",
-            "filebrowser", "calibre-web", "homebox", "vaultwarden",
+            "filebrowser", "calibre-web", "vaultwarden",
         }
+        # Homebox fora do ar desde 17/10 — não pode voltar ao catálogo
+        # sem decisão nova do dono.
+        assert "homebox" not in nomes
 
     def test_portas_distintas_e_do_compose(self) -> None:
         portas = [f.porta for f in FERRAMENTAS_NOMAD]
-        assert len(set(portas)) == 9  # nenhuma colisão
+        assert len(set(portas)) == 8  # nenhuma colisão
         por_nome = {f.nome: f.porta for f in FERRAMENTAS_NOMAD}
         # Portas conferidas no docker inspect (bind 127.0.0.1) em 15/10.
         assert por_nome["kiwix"] == 8090
@@ -183,11 +187,11 @@ class TestSondagem:
             raise ConnectionRefusedError("conexão recusada")
 
         monitor = _monitor_com_sonda(recusa)
-        resultado = monitor.sondar("homebox")
+        resultado = monitor.sondar("filebrowser")
         assert resultado["ok"] is False
         assert resultado["status"] == "down"
-        assert "homebox fora (ConnectionRefusedError" in resultado["detail"]
-        assert "http://127.0.0.1:8470/" in resultado["detail"]
+        assert "filebrowser fora (ConnectionRefusedError" in resultado["detail"]
+        assert "http://127.0.0.1:8410/" in resultado["detail"]
 
     def test_timeout_e_fora(self) -> None:
         def estoura(host, porta, caminho, timeout):
@@ -201,7 +205,7 @@ class TestSondagem:
         with pytest.raises(KeyError):
             monitor.sondar("nao-existe")
 
-    def test_estado_cobre_as_9_em_ordem(self) -> None:
+    def test_estado_cobre_as_8_em_ordem(self) -> None:
         monitor = _monitor_com_sonda(lambda h, p, c, t: 200)
         nomes = [r["nome"] for r in monitor.estado()]
         assert nomes == [f.nome for f in FERRAMENTAS_NOMAD]
@@ -212,7 +216,7 @@ class TestSondagem:
 
         monitor = _monitor_com_sonda(sonda)
         resumo = monitor.resumo()
-        assert resumo == {"total": 9, "up": 8, "fora": ["kiwix"]}
+        assert resumo == {"total": 8, "up": 7, "fora": ["kiwix"]}
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +255,7 @@ class TestCache:
         monitor = _monitor_com_sonda(lambda h, p, c, t: 200)
         monitor.sondar("kiwix")
         monitor.sondar("cyberchef")  # não lê o cache do kiwix
-        assert monitor.resumo()["up"] == 9
+        assert monitor.resumo()["up"] == 8
 
     def test_limpar_cache_ressonda(self) -> None:
         chamadas: list[int] = []
@@ -295,11 +299,11 @@ class TestSondaReal:
 
 
 # ---------------------------------------------------------------------------
-# HealthMonitor — 9 checks não-críticos (degrada, nunca derruba)
+# HealthMonitor — 8 checks não-críticos (degrada, nunca derruba)
 # ---------------------------------------------------------------------------
 
 class TestHealthMonitor:
-    def test_registra_as_9_nao_criticas(self) -> None:
+    def test_registra_as_8_nao_criticas(self) -> None:
         monitor = _monitor_com_sonda(lambda h, p, c, t: 200)
         health = HealthMonitor()
         nomes = monitor.registrar_no_health(health)
@@ -307,8 +311,9 @@ class TestHealthMonitor:
         assert set(health.components) == {
             "tool_kiwix", "tool_cyberchef", "tool_it_tools",
             "tool_flatnotes", "tool_stirling_pdf", "tool_filebrowser",
-            "tool_calibre_web", "tool_homebox", "tool_vaultwarden",
+            "tool_calibre_web", "tool_vaultwarden",
         }
+        assert "tool_homebox" not in health.components
 
     @pytest.mark.asyncio
     async def test_todas_up_agrega_up(self) -> None:
@@ -344,7 +349,7 @@ class TestHealthMonitor:
         monitor.registrar_no_health(health)
         agregado = await health.health()
         assert agregado["status"] == STATUS_DEGRADED
-        assert len(agregado["checks"]) == 9
+        assert len(agregado["checks"]) == 8
 
 
 # ---------------------------------------------------------------------------
@@ -365,11 +370,11 @@ class TestNotifierTools:
         notifier = ProactiveNotifier(None)
         assert _check_tools(notifier) == []
 
-    def test_check_tools_devolve_as_9(self) -> None:
+    def test_check_tools_devolve_as_8(self) -> None:
         monitor = _monitor_com_sonda(lambda h, p, c, t: 200)
         notifier = self._notifier(monitor, _Clock())
         resultados = _check_tools(notifier)
-        assert len(resultados) == 9
+        assert len(resultados) == 8
         assert all(r.ok for r in resultados)
         assert all(r.key.startswith("tool:") for r in resultados)
 
@@ -380,7 +385,7 @@ class TestNotifierTools:
         monitor = _monitor_com_sonda(sonda)
         notifier = self._notifier(monitor, _Clock())
         problemas = [r for r in _check_tools(notifier) if not r.ok]
-        assert len(problemas) == 9
+        assert len(problemas) == 8
         assert problemas[0].key == "tool:kiwix"
         assert problemas[0].severity == SEVERITY_WARN
         assert problemas[0].emit_after_s == 120.0  # compose up não grita
@@ -467,7 +472,7 @@ class TestLauncherWiring:
             cache.pop(chave, None)
         monkeypatch.setattr(launcher_module, "_ENV_CACHE", cache)
 
-    def test_registra_as_9_no_health_e_devolve_monitor(self) -> None:
+    def test_registra_as_8_no_health_e_devolve_monitor(self) -> None:
         health = HealthMonitor()
         monitor = launcher.register_nomad_health_checks(health)
         assert isinstance(monitor, NomadToolsMonitor)
@@ -490,7 +495,7 @@ class TestLauncherWiring:
         try:
             primeiro = monitor_padrao()
             assert monitor_padrao() is primeiro
-            assert len(primeiro.ferramentas) == 9
+            assert len(primeiro.ferramentas) == 8
         finally:
             resetar_monitor()
 
@@ -574,7 +579,7 @@ class TestAPIDashboardStats:
         status, body, _ = _request(srv.bound_port, "GET", "/dashboard/stats")
         data = _json_response((status, body, _))
         assert data["nomad_tools"] == {
-            "total": 9, "up": 8, "fora": ["flatnotes"],
+            "total": 8, "up": 7, "fora": ["flatnotes"],
         }
 
     def test_painel_admin_traz_a_secao_nomad(self, serve_api, tmp_path) -> None:

@@ -396,8 +396,8 @@ TOOLS_EMITIR_APOS_S = 120.0
 def _check_tools(notifier: "ProactiveNotifier") -> list[CheckResult]:
     """Alerta quando uma ferramenta do stack Nômade está fora.
 
-    As 9 ferramentas do docker/tools-compose.yaml (Kiwix, Stirling PDF,
-    CyberChef...) eram invisíveis: o Stirling PDF ficou 1.917 restarts
+    As 8 ferramentas ativas do docker/tools-compose.yaml (Kiwix, Stirling
+    PDF, CyberChef...) eram invisíveis: o Stirling PDF ficou 1.917 restarts
     em crash loop e o Kiwix 763 antes de alguém abrir o servidor. Este
     probe mede o SERVIÇO respondendo em 127.0.0.1 (não o container
     "Up") — ver core/nomad_tools.py pelas decisões (status < 500 =

@@ -630,7 +630,7 @@ def build_api_server(
             downloads=downloads,  # Parte D: fila de downloads resumable
             auto_update=auto_update,  # Parte E: auto-update de conteúdo
             supply_depot=supply_depot,  # Parte F: catálogo de ferramentas
-            nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 9 no stats
+            nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 8 no stats
             notifier=notifier,  # métricas do notifier no Status (2026-10-16)
             backups=backups,  # TODO §3.6: perfis do backup automático
             public_url=env(  # Etapa 4: base do QR de posse no cartão
@@ -981,7 +981,7 @@ def register_external_health_checks(
 
 
 def register_nomad_health_checks(health: Any) -> Any:
-    """Registra as 9 ferramentas do stack Nômade no /health (não-crítico).
+    """Registra as 8 ferramentas do stack Nômade no /health (não-crítico).
 
     A DECISÃO FINAL 12/10 pedia "integrar healthchecks dos tools no
     /health do OD" — antes desta peça as 9 eram invisíveis (Stirling PDF
@@ -1259,7 +1259,7 @@ async def _run_api_forever(
         user_store=user_store, registry=registry, chat_notify=chat_notify,
         downloads=downloads, auto_update=auto_update,
         supply_depot=supply_depot,  # Parte F: Supply Depot no painel
-        nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 9 no stats
+        nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 8 no stats
         notifier=notifier,  # métricas do notifier no /dashboard/stats
         backups=backups,  # TODO §3.6: um bloco por perfil no stats
     )
@@ -1429,7 +1429,7 @@ def build_notifier(
     Sinks: Telegram (texto ao admin) e push FCM (alerta no app — o mesmo
     texto vira notificação no celular; push desligado não é erro).
 
-    `nomad_tools` (monitor das 9 ferramentas do stack Nômade, ligado no
+    `nomad_tools` (monitor das 8 ferramentas do stack Nômade, ligado no
     main via register_nomad_health_checks) adiciona a sonda `tool:<nome>`
     — ferramenta fora por 120s+ vira alerta no Telegram.
 
@@ -1729,7 +1729,7 @@ def main() -> int:
     face_detector = build_face_detector() if vision_enabled else None
     # Checks externos (v1.0.0 item 1.4): presence monitor pronto no main
     register_external_health_checks(health, homeassistant=presence_monitor)
-    # Ferramentas Nômades (DECISÃO FINAL): as 9 do compose entram no
+    # Ferramentas Nômades (DECISÃO FINAL): as 8 do compose entram no
     # /health (tool_kiwix, tool_stirling_pdf...) e no notifier.
     nomad_tools_monitor = register_nomad_health_checks(health)
     # Push FCM: registro de dispositivos + alertas no celular (v1.3.0).

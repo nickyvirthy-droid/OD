@@ -216,12 +216,13 @@ tarefa de dev (página MapLibre + tiles, não container), LoRa na geladeira.
 
 | Item | Status | Arquivo/Referência |
 |---|---|---|
-| **Compose Docker** (9 containers) | ✅ Commitado | `docker/tools-compose.yaml` (a2bba40) |
+| **Compose Docker** (9 containers; **8 desde 17/10** — Homebox fora) | ✅ Commitado | `docker/tools-compose.yaml` (a2bba40) |
 | **Actions nomad_tools_*** (8) | ✅ Implementadas + testadas | `tools/actions/actions.py` · `tests/test_nomad_tools_actions.py` (41 testes) |
 | **Capability "nomad-tools"** | ✅ Registrada | `core/capabilities.py` (status: AVAILABLE) |
 | **ProtoMaps** (página dev) | ✅ Implementada | `site/protomaps.html` (MapLibre GL + tiles ProtoMaps) |
 | **ProtoMaps no site** | ✅ Linkada | `site/index.html` (nav + seção) |
 | **Documentação da decisão** | ✅ Atualizada | Este arquivo (seção DECISÃO FINAL + esta tabela) |
+| **Homebox fora do ar — stack = 8** | ✅ No ar (v1.34.1+2066, 17/10) | Bloco comentado no compose + `FERRAMENTAS_NOMAD` 8 + imagem removida (−198 MB) + dados preservados. Prova viva: `/health` **tool 8/8 sem `tool_homebox`**, `/dashboard/stats` `total=8 up=8`, journal 0 erros |
 
 **Actions Nômade implementadas** (categoria `nomad`, 8 total):
 - `nomad_tools_up` — sobe todos os containers (docker compose up -d)

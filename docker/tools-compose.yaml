@@ -155,24 +155,26 @@ services:
     memswap_limit: 256m
 
   # ---------------------------------------------------------------------------
-  # 8. Homebox — inventário de ferramentas, peças e produtos do owner
-  #    (item: nome, categoria, local, preço compra, garantia, fabricante, modelo,
-  #     nº série, fotos, anexos, campos custom, QR code; tem API REST p/ actions)
-  #    Login inicial admin@admin.com / 123 (trocar).
+  # 8. Homebox — FORA DO AR desde 2026-10-17 (decisão do dono: "nada parado" —
+  #    analisar as ferramentas restantes uma a uma no futuro). Inventário de
+  #    ferramentas, peças e produtos do owner (QR + API REST).
+  #    Dados preservados em /home/alex/omegadrakon-tools/homebox (nada apagado);
+  #    imagem removida (liberou 198 MB). Reativar: descomentar este bloco,
+  #    conferir HBOX_AUTH_API_KEY_PEPPER no .env e `docker compose up -d homebox`.
   # ---------------------------------------------------------------------------
-  homebox:
-    image: ghcr.io/sysadminsmedia/homebox:0.26.2
-    container_name: od-homebox
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:8470:7745"
-    volumes:
-      - /home/alex/omegadrakon-tools/homebox:/data
-    environment:
-      - HBOX_TELEMETRY_ENABLED=false
-      - HBOX_AUTH_API_KEY_PEPPER=${HBOX_AUTH_API_KEY_PEPPER:?defina HBOX_AUTH_API_KEY_PEPPER no .env (movido do compose em 2026-10-15)}
-    mem_limit: 256m
-    memswap_limit: 256m
+  # homebox:
+  #   image: ghcr.io/sysadminsmedia/homebox:0.26.2
+  #   container_name: od-homebox
+  #   restart: unless-stopped
+  #   ports:
+  #     - "127.0.0.1:8470:7745"
+  #   volumes:
+  #     - /home/alex/omegadrakon-tools/homebox:/data
+  #   environment:
+  #     - HBOX_TELEMETRY_ENABLED=false
+  #     - HBOX_AUTH_API_KEY_PEPPER=${HBOX_AUTH_API_KEY_PEPPER:?defina HBOX_AUTH_API_KEY_PEPPER no .env (movido do compose em 2026-10-15)}
+  #   mem_limit: 256m
+  #   memswap_limit: 256m
 
   # ---------------------------------------------------------------------------
   # 9. Vaultwarden — cofre de senhas compatível Bitwarden (resolve higiene de
