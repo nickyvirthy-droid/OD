@@ -1068,3 +1068,69 @@ confusão de numeração era justamente parte do problema.
 
 TODO com todos os itens autoexplicativos. Aguardando ordem do dono —
 candidato natural: decidir a ordem das frentes (§8.3).
+
+---
+
+## §19 — ID unificado do Registro Mestre (pauta §8.4 fechada) · ~20:00–21:45
+
+### Pedido do dono
+
+> "como assim unificar o id, como são agora.me mostre para podermos decidir"
+
+### O que foi mostrado (4 formatos lado a lado)
+
+| Origem | Formato | Exemplo |
+|---|---|---|
+| Registro Mestre do Legado (5 campos) | `OD-PROD-SJ-2026-005` | docs `CONSULTA RÁPIDA.md` + `REGISTRO_MESTRE.md` |
+| MoC — Mark of Continuity (4 hex) | `OD-SEM-26-1A3F` | `PROTOCOLO_MARK_OF_CONTINUITY.md` |
+| Protocolo NV — semi-joias | `NV-ABI-7F3A` | `PROTOCOLO_NV.md` |
+| Sistema em produção (v1.22–1.32) | `OD-PROD-2026-0001` | `core/registry.py` |
+
+### Decisão do dono (duas frases, na ordem)
+
+1. "crie uma id bem consistente que possa incorporar todas as frentes, OD não
+   precisa, PROD, NV, SYS… mas como joias são pequenas seria bom ter o codigo
+   curto também"
+2. Aprovação do desenho: "Aprovado, implementar"
+
+### Padrão adotado (v1.33.0)
+
+```
+ID canônico:  FRENTE-TIPO-AAAA-NNNN     ex.: NV-SJ-2026-0001
+Código curto: FRENTE-SIGLA-HEX4         ex.: NV-ABI-7F3A (9 chars sem hífen)
+```
+
+- Sem prefixo OD; frente/tipo de 2–4 letras (canônicos documentados).
+- Sequência por frente+tipo+ano (PROD-PE não consome o número do NV-SJ).
+- Exclusiva sem código gravado ganha curto automático (sigla da coleção + 4 hex).
+- Busca tolerante a hífens/espaços continua valendo para os dois.
+
+### Entrega
+
+`core/registry.py` (validação, `_next_public_id` novo, `_proximo_curto`,
+`migrar_ids_legados` idempotente) · `runtime/launcher.py` (migração no boot) ·
+`integrations/api/server.py` (frente/tipo na API + 2 selects no painel) ·
+site (`verificacao.html`, `index.html`) e app (`registry_screen.dart`) no
+formato novo · testes **+6** (57 registry · suíte **3084** · mutação **4/4**
+capturadas · app analyze 0 / **192** testes).
+
+### Deploy e provas vivas
+
+- Bump MINOR **1.33.0+2063** (política 9/9) + APK novo (aapt2 confirma
+  `versionCode='2063' versionName='1.33.0'`, sha `8ab755f7` == `/app/version`).
+- Restart od-core 21:29 — migração no boot: **total=6**
+  (`OD-PROD-2026-0001 -> NV-SJ-2026-0001`).
+- `/health` **22/22** · busca `NV-SJ-2026-0001` acha · `NVABI7F3A` (sem hífen)
+  acha · `OD-PROD-2026-0001` agora **404** (migrado) · journal **0 erros**.
+- Commit **`b74acb0`** pushado.
+
+### Fechamentos
+
+Pauta **§8.4 FECHADA** — item sai do `TODO.md` (regra do dono: implementado
+sai da lista); `ANALISE_ECOSSISTEMA.md` §6 linha 9 = "Resolvido" e §8 item 4 =
+"CONCLUÍDO em v1.33.0".
+
+### Estado
+
+Sistema v1.33.0+2063 no ar, 6 peças migradas, registro único cobrindo todas
+as frentes. Pauta aberta restante: **§8.3 ordem das frentes** (decisão do dono).
