@@ -223,6 +223,7 @@ tarefa de dev (página MapLibre + tiles, não container), LoRa na geladeira.
 | **ProtoMaps no site** | ✅ Linkada | `site/index.html` (nav + seção) |
 | **Documentação da decisão** | ✅ Atualizada | Este arquivo (seção DECISÃO FINAL + esta tabela) |
 | **Homebox fora do ar — stack = 8** | ✅ No ar (v1.34.1+2066, 17/10) | Bloco comentado no compose + `FERRAMENTAS_NOMAD` 8 + imagem removida (−198 MB) + dados preservados. Prova viva: `/health` **tool 8/8 sem `tool_homebox`**, `/dashboard/stats` `total=8 up=8`, journal 0 erros |
+| **Cofre do sistema — Vaultwarden interligado (1ª das 3)** | ✅ No ar (v1.35.0+2067, 17/10) | 4 actions `vault_*` (categoria `vault`, só admin) + `integrations/vault.py` (conta de serviço separada, bw **2025.12.1 + Node 22** — 2026.x incompatível com as cifras do Vaultwarden 1.36, apurado ao vivo, LAZY). Prova viva: **E2E status→set→list→get→atualizar→apagar → cofre `[]`**, `/actions` **93** com as 4, `/health` **21 checks fora=nenhum**, journal 0 erros |
 
 **Actions Nômade implementadas** (categoria `nomad`, 8 total):
 - `nomad_tools_up` — sobe todos os containers (docker compose up -d)

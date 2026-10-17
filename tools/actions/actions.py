@@ -2429,6 +2429,64 @@ def nomad_vaultwarden_setup(admin_email: str = "", admin_password: str = "", dis
 
 
 # ---------------------------------------------------------------------------
+# Vaultwarden — cofre do SISTEMA (1ª interligação das ferramentas, 17/10)
+# ---------------------------------------------------------------------------
+
+def _vault_op(op: Any) -> dict[str, Any]:
+    """Roda uma operação no cofre com erro honesto e tipado.
+
+    Cliente LAZY (integrations/vault.py): cofre fora do ar ou não
+    configurado degrada ESTA ação — nunca o boot do od-core. A conta é a
+    de SERVIÇO (OD_VAULT_EMAIL); a do dono não é usada aqui.
+    """
+    from integrations.vault import VaultError, client_padrao
+
+    cliente = client_padrao()
+    if cliente is None:
+        return {
+            "ok": False,
+            "error": "vault_nao_configurado",
+            "message": "Cofre não configurado: defina OD_VAULT_SERVER, "
+            "OD_VAULT_EMAIL, OD_VAULT_MASTER (e OD_BW_BIN) no .env.",
+        }
+    try:
+        return {"ok": True, **op(cliente)}
+    except VaultError as exc:
+        return {"ok": False, "error": exc.codigo, "message": exc.mensagem}
+
+
+def vault_status() -> dict[str, Any]:
+    """Estado do cofre: sessão do bw (unauthenticated/locked/unlocked) + rede."""
+    return _vault_op(lambda c: c.status())
+
+
+def vault_list() -> dict[str, Any]:
+    """Títulos dos itens do cofre — NUNCA valores (segredo é só em vault_get)."""
+    def _op(c: Any) -> dict[str, Any]:
+        itens = c.listar()
+        return {"total": len(itens), "itens": itens}
+
+    return _vault_op(_op)
+
+
+def vault_get(name: str) -> dict[str, Any]:
+    """Lê um segredo do cofre pelo nome (case-insensitive)."""
+    return _vault_op(lambda c: {"item": c.obter(name)})
+
+
+def vault_set(
+    name: str,
+    password: str,
+    username: str = "",
+    note: str = "",
+) -> dict[str, Any]:
+    """Cria (ou atualiza, se o nome já existe) um item no cofre."""
+    return _vault_op(
+        lambda c: c.guardar(name, password, username=username, nota=note)
+    )
+
+
+# ---------------------------------------------------------------------------
 # Serviços (systemd — degrada graciosamente)
 # ---------------------------------------------------------------------------
 
@@ -2996,6 +3054,13 @@ CATALOG: list[dict[str, Any]] = [
           {"properties": {"url": {**S, "default": ""}, "dest": {**S, "default": ""}}}),
     _spec("nomad_vaultwarden_setup", "nomad", "Configura Vaultwarden: cria conta admin e desabilita signups", nomad_vaultwarden_setup,
           {"properties": {"admin_email": {**S, "default": ""}, "admin_password": {**S, "default": ""}, "disable_signups": {**B, "default": True}}}),
+    # --- Vaultwarden: cofre do sistema (1ª interligação das ferramentas, 17/10) ---
+    _spec("vault_status", "vault", "Estado do cofre do sistema (bw + alcançabilidade)", vault_status),
+    _spec("vault_list", "vault", "Lista os itens do cofre (títulos, sem valores)", vault_list),
+    _spec("vault_get", "vault", "Lê um segredo do cofre pelo nome", vault_get,
+          {"required": ["name"], "properties": {"name": S}}),
+    _spec("vault_set", "vault", "Cria/atualiza um segredo no cofre", vault_set,
+          {"required": ["name", "password"], "properties": {"name": S, "password": S, "username": {**S, "default": ""}, "note": {**S, "default": ""}}}),
     # --- Serviços (3) ---
     _spec("service_list", "service", "Lista serviços systemd", service_list),
     _spec("service_status", "service", "Status de um serviço", service_status,

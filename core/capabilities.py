@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.34.1"
+    or "1.35.0"
 )
 
 # Status válidos.
@@ -326,6 +326,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "v1.24.x",
         "status": AVAILABLE,
         "path": "docker/tools-compose.yaml",
+    },
+    {
+        "id": "vault-cofre",
+        "name": "Cofre do sistema (Vaultwarden via bw)",
+        "category": "integrations",
+        "description": "1ª das ferramentas interligadas (decisão do dono, 17/10): o sistema lê e escreve segredos no Vaultwarden self-hosted pelas actions vault_status/vault_list/vault_get/vault_set (categoria vault, só admin). Conta de SERVIÇO separada (OD_VAULT_EMAIL, criada pelo fluxo de registro com crypto oficial) — a conta e a master do dono NUNCA são usadas pelo sistema; master só no .env (nem argv, nem log); sessão destravada em memória; lista devolve só títulos e segredo só em vault_get. CLI bw pinado **2025.12.1 + Node 22** (OD_BW_BIN + wrapper com dispositivo próprio — os 2026.x/WASM são incompatíveis com as cifras do Vaultwarden 1.36). LAZY por desenho: cofre fora do ar degrada a ação, nunca o boot do od-core.",
+        "source": "OD",
+        "phase": "v1.35.0",
+        "status": ACTIVE,
+        "path": "integrations/vault.py",
     },
     {
         "id": "saude-reference",

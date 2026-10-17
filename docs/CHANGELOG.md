@@ -12,6 +12,35 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.35.0] — COFRE DO SISTEMA: VAULTWARDEN INTERLIGADO (1ª DAS 3 FERRAMENTAS) 🜂 (2026-10-17)
+
+> **Bump MINOR (capability nova):** primeira da fila aprovada pelo dono em
+> 17/10 (*"prossiga com o cofre"*) — **Vaultwarden → Stirling PDF →
+> Kiwix**. O sistema agora **lê e escreve segredos no cofre** por 4
+> actions (`vault_status` / `vault_list` / `vault_get` / `vault_set`,
+> categoria `vault`, só admin). Conta de **SERVIÇO separada**
+> (`od-sistema@omegadrakon.dev`, criada pelo fluxo de registro com
+> crypto oficial já provado em 15/10 — signups abertos por segundos e
+> **fechados e verificados no mesmo ato**); a conta e a master **do dono
+> nunca são usadas pelo sistema**.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/vault.py` (novo)** | `VaultClient` sobre o CLI oficial `bw` **pinado 2025.12.1 + Node 22** — **apuração viva na entrega**: a prova de escrita com item no cofre derrubou o pin provisório 2026.8. Todos os 2026.x testados (2026.8 e 2026.10, em Node 18 **e** Node 22) **crasham decifrando cifras do Vaultwarden 1.36** com item no cofre (`invalid type: JsValue … expected a string`) — o drill de 15/10 só exercitou cofre **vazio**; ≥2026.9 ainda tem o bug de prelogin já registrado. Combo estáável via wrapper `~/.local/bin/bw` = **node22 + 2025.12.1 + `BITWARDENCLI_APPDATA_DIR` próprio** (`~/.local/share/bitwarden-cli`, nunca poluído pelas 2026.x), tudo instalado em `~/.local/opt` (**zero dependência em /tmp**). Ciclo completo provado: list/create/edit/delete + lista final `[]`. Senha só por `--passwordenv` (**env, nunca argv**), JSON de item só por **stdin base64**, sessão destravada **cacheada em memória** (thread-safe) com renovação **única** em sessão expirada (nunca em loop; criação jamais retentada às cegas). Erros tipados: `bw_ausente`, `vault_nao_configurado`, `vault_indisponivel`, `vault_master_invalida`, `vault_nao_autenticado`, `sessao_expirada`, `item_nao_encontrado`, `item_invalido`, `vault_timeout`, `bw_falhou`. **LAZY por desenho**: cliente nasce na 1ª ação — cofre fora do ar degrada a ação, **nunca o boot do od-core**. |
+| **`.env` (configuração do cofre)** | `OD_VAULT_EMAIL` (conta de serviço), `OD_VAULT_SERVER` = **HTTPS** `https://nicky-server.tail1b1f51.ts.net:8443` (o SDK do bw **recusa HTTP** — nem `127.0.0.1` passa: `InsecureUrlNotAllowedError`; o HTTPS que já era o acesso do dono via Tailscale Serve resolve), `OD_VAULT_MASTER` (32 bytes, só no `.env` — nem argv, nem log, nem doc) e `OD_BW_BIN`. |
+| **`tools/actions/actions.py`** | 4 actions `vault_*` + `_vault_op` (mapeia `VaultError` → resposta honesta `{"ok": False, "error": ...}`). `vault_list` devolve **só `id/nome/tipo`** — segredo **só** em `vault_get`; `vault_set` cria ou atualiza (mesmo nome = mesmo item, merge **preserva** campos não informados); `vault_status` = estado do bw + alcançabilidade da rede. |
+| **`core/capabilities.py`** | Nova capability **`vault-cofre`** (categoria integrations, **ATIVA**): conta de serviço separada, sessão em memória, lista sem vazamento, LAZY. Fallback de versão = 1.35.0. |
+| **Catálogo de actions** | 89 → **93** (categoria `vault: 4`) — contagens atualizadas em `test_actions_catalog` (+ `EXPECTED_CATEGORIES`), `test_capabilities`, `test_orchestrator(×2)`, docstrings do pacote. |
+| **Testes** | **`tests/test_vault.py` novo — 33 testes**: sessão (cache, retry único, sessão morta, master errada, bw ausente, timeout, rede caída), operações (lista **sem vazamento** — 4 capturas de mutação provam; obter case-insensitive; guardar via stdin; merge preservador; apagar; status com/sem rede), fábrica LAZY (sem config → `None`; env lidera sobre `.env`), actions (shapes + erro mapeado + não-configurado degrada) e catálogo (4 actions, schemas, **negação para papel comum**). |
+| **versionCode** | 2066 → **2067** (política 9/9 — `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site ×4, CHANGELOG, README_VERSAO; APKs rebuildados e conferidos no aapt2). |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3138 passed / 16 skipped** (cov 90,90%) — +33 testes novos (`test_vault.py`) |
+| Mutações (teste do teste) | **4/4 capturadas** (sessão sem cache → 1 falha · sem retry de sessão → 2 · lista bruta vazando segredo → 4 · item em argv → 1), restaurações **bit-exatas** |
+| Prova viva (PID 840230, NRestarts=0) | `/health` **up · 21 checks · fora=nenhum · tools 8/8** · `/dashboard/stats` `nomad_tools total=8 up=8 fora=[]` · `/app/version` **1.35.0 / 2067** (sha `753c59af…` == APK publicado) · `/actions` **93 actions** com **`vault_status/vault_list/vault_get/vault_set`** · journal **0 erros** (menções "vault" = só o registro das 4 actions no boot) · **8 containers `od-*`** |
+| **E2E no cofre real** (pelo wrapper de produção) | `vault_status` (conta de serviço, `locked`, alcança=true) → `vault_set` **criado** → `vault_list` **só id/nome/tipo** → `vault_get` (case-insensitive, senha **confere**) → `vault_set` de novo **atualiza sem duplicar** → `apagar` → cofre **de volta a `[]`**. Ciclo `list/create/edit/delete` provado também direto no CLI (2025.12.1 + Node 22) e a **conta do dono nunca foi tocada** |
+
 ## [1.34.1] — STACK NÔMADE: HOMEBOX FORA DO AR (8 FERRAMENTAS) 🜂 (2026-10-17)
 
 > **Bump PATCH (operação de casa — sem capacidade nova):** decisão do dono

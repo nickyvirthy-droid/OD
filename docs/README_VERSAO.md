@@ -7,6 +7,67 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.35.0] — COFRE DO SISTEMA: VAULTWARDEN INTERLIGADO (1ª DAS 3 FERRAMENTAS) 🜂 (2026-10-17)
+
+### 1. O que foi feito
+
+Primeira das três ferramentas interligadas ao sistema, na ordem que o
+dono aprovou (*"prossiga com o cofre"*, 17/10): **o Omega Drakon agora
+usa o Vaultwarden como cofre**. 4 actions novas (`vault_status`,
+`vault_list`, `vault_get`, `vault_set` — categoria `vault`, só admin)
+falam com o CLI oficial `bw` **2025.12.1 em Node 22** — a prova viva
+de escrita derrubou o pin provisório 2026.8: todos os 2026.x são
+incompatíveis com as cifras do Vaultwarden 1.36 (bug que só aparece
+**com item no cofre**; o drill de 15/10 testara vazio). Conta de **SERVIÇO
+separada** (`od-sistema@omegadrakon.dev`) — a conta e a master do dono
+**nunca são usadas pelo sistema**; signups abertos por segundos para o
+registro (crypto oficial provada em 15/10) e **fechados e verificados
+no mesmo ato**.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/vault.py` (novo)** | `VaultClient` + `client_padrao()` LAZY: cofre fora do ar degrada a ação, **nunca o boot**. Senha só via `--passwordenv` (**nunca argv**), item JSON só por **stdin base64**, sessão em **memória** com renovação única (sem loop, sem retry cego de criação), erros tipados honestos. Wrapper `bw` com flag `--experimental-global-webcrypto` (Node 18 × WASM) — sonda automática, compatível com Node 19+. |
+| **`.env`** | `OD_VAULT_EMAIL` / `OD_VAULT_SERVER` (**HTTPS** via Tailscale Serve `:8443` — o SDK do bw recusa HTTP, nem localhost) / `OD_VAULT_MASTER` (32 bytes, só aqui) / `OD_BW_BIN`. |
+| **`tools/actions/actions.py`** | `vault_status` (estado + alcançabilidade), `vault_list` (**só títulos**), `vault_get` (segredo pelo nome, case-insensitive), `vault_set` (cria/atualiza preservando campos); `_vault_op` mapeia `VaultError` → resposta honesta. |
+| **`core/capabilities.py`** | Capability **`vault-cofre` ATIVA** (integrations) + fallback 1.35.0. |
+| **Catálogo** | 89 → **93 actions** (categoria `vault: 4`), contagens em 6 arquivos de teste/docstrings. |
+| **Testes** | **`tests/test_vault.py` novo: 33 testes** (sessão, erros tipados, sem-vazamento, lazy, actions, catálogo + negação comum). |
+| **versionCode** | 2066 → **2067** (política 9/9; APKs rebuildados, aapt2 confere). |
+
+### 2. Decisão registrada (fonte da verdade)
+
+Regras gravadas nesta entrega: (1) **o cofre é do sistema, não do dono** —
+conta de serviço própria, credenciais só no `.env`, a master do dono
+continua intocada e fora do circuito; (2) **boot nunca depende de cofre**
+— `client_padrao()` é lazy e qualquer falha vira erro honesto na action;
+(3) **segredo só flui onde foi pedido** — lista devolve título, leitura é
+`vault_get` (permissão de admin), escrita é `vault_set` (mesmo nome
+atualiza, nunca duplica); (4) **`bw` é pinado em 2025.12.1 + Node 22**
+com dispositivo de configuração próprio — todos os 2026.x provaram
+incompatíveis com as cifras do Vaultwarden 1.36 (e ≥2026.9 também no
+prelogin); reavaliar no próximo upgrade de imagem/CLI (dívida no TODO); (5) **ordem da fila segue** — Stirling PDF é a próxima, depois
+Kiwix.
+
+### 3. Validação (17/10)
+
+Suíte **3138 passed / 16 skipped · gate 90,90%** (+33 testes novos) ·
+**mutações 4/4 capturadas** (bit-exatas) · `flutter analyze` 0 · aapt2
+**2067/1.35.0** nos dois APKs. Provas vivas (PID 840230): `/health`
+**21 checks, fora=nenhum, tools 8/8** · `/actions` **93** com as 4
+`vault_*` · `/app/version` **1.35.0/2067** (sha `753c59af…` == APK
+publicado) · journal 0 erros. **E2E no cofre real:** status → set
+(criado) → list (só títulos) → get (senha confere) → set de novo
+(atualiza, não duplica) → apagar → **cofre `[]`**.
+
+### 4. Pendências/observações
+
+Cofre nasce **vazio de propósito** (`.env` continua sendo o bootstrap);
+migrar segredos para lá é decisão do dono (§8.5 rotação quando ele
+mandar). Próximas da fila interligada: **Stirling PDF → Kiwix**.
+**Homebox volta com uso definido** (decisão do dono em 17/10:
+"inventário/garantias da casa", já integrado com `homebox_*`) — pauta
+próxima entrega. `bw` 2025.12.1: revisar no próximo upgrade (TODO).
+
 ## [1.34.1] — STACK NÔMADE: HOMEBOX FORA DO AR (8 FERRAMENTAS) 🜂 (2026-10-17)
 
 ### 1. O que foi feito
