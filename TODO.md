@@ -178,5 +178,5 @@
 
 ---
 
-**Atualizado em:** 2026-10-16 19:55 (itens da pauta §8 descritos por extenso — 3 = ordem das frentes, 4 = unificação de ID, 5 = rotação de segredos; tema com falha residual registrado como adiado pelo dono)
+**Atualizado em:** 2026-10-17 13:45 (fila avançou: Vaultwarden ✅ e **Stirling ✅** — 2 das 3 interligadas; 12 senhas do `.env` espelhadas no cofre 12/12; **próxima = Kiwix**; boot lento de 13:09 explicado — re-sincronia RAG one-time, padrão histórico)
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

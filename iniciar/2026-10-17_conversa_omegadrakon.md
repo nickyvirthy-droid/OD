@@ -143,3 +143,62 @@ NRestarts=0** (17/10 11:46). **Provas vivas:**
 v1.35.0+2067 no ar; cofre ligado (vazio de propósito — popular é do dono);
 fila da interligação: **2º Stirling PDF → 3º Kiwix**; Homebox volta na
 sequência com uso definido.
+
+## §4 — Entrega: Stirling PDF interligado (2ª das 3) + as 12 senhas do .env no cofre (v1.36.0+2068)
+
+**Ordem do dono (17/10):** *"coloque todas as senhas do .env no cofre e
+começa a implantação da 2ª opção da fila, stirling"* — dois trabalhos numa
+entrega só, na fila aprovada por ele (Vaultwarden ✅ → **Stirling** →
+Kiwix → Homebox com uso definido).
+
+**1) Espelho `.env` → cofre.** `vault_env_mirror.py` (raiz): allowlist
+**explícita das 12 credenciais** (se nascer segredo novo fora dela, o
+script **avisa** em vez de deixar passar), `OD_MQTT_PASSWORD` pareado ao
+username, nota por chave (`TELEGRAM_BOT_LEGADO_TOKEN` = **rotação §8.5
+pendente**; `OD_VAULT_MASTER` = auto-referência cifrada com nota de que o
+bootstrap é só o `.env`). Conferência por `get`+comparação que **só
+imprime nome + confere/ERRO** — nenhum valor em log ou transcrição.
+Resultado: **12/12 conferem, cofre com 12 itens**. Regras do desenho: o
+`.env` **nada perdeu** (é cópia, não remoção) e o **boot nunca depende do
+cofre**.
+
+**2) Stirling vira ações do sistema.** Antes de escrever código, o
+contrato foi apurado **ao vivo**: `GET /v1/api-docs` do s-pdf 2.13.1
+(OpenAPI 3.0.3, **255 rotas** — descoberta: a spec fica em `/v1/api-docs`;
+o `/v3/api-docs` devolve o SPA) + chamadas reais (merge →
+`application/pdf` síncrono; page-count → `{"pageCount":2}`). Da spec vieram
+as regras gravadas: campos **obrigatórios sempre enviados por nós**, e
+**mágica `%PDF`/`PK` antes de gravar** — resposta ruim (200 com HTML)
+nunca vira arquivo; saída existente só com `substituir=True` (**nada
+apagado por acidente**, a mesma régua do dono).
+
+Entrega: `integrations/stirling.py` (**stdlib puro** — `urllib` +
+multipart manual no padrão do projeto, zero dependência nova; 11 erros
+tipados honestos; **LAZY** — ferramenta fora do ar degrada a ação, nunca
+o boot), 4 actions `stirling_status` / `stirling_merge` /
+`stirling_split` / `stirling_compress` (categoria `stirling`, só admin),
+capability **`stirling-pdf`**, catálogo **93 → 97**.
+
+**Validação.** `tests/test_stirling.py` novo: **49 testes** (módulo 97%).
+Suíte final: **3187 passed / 16 skipped · gate 90,96%** (+49). Mutações
+**4/4** capturadas, restauração bit-exata por sha256 — com lição honesta:
+um `.pyc` temporário com **mtime+size idênticos** ao fonte mascarou a
+restauração na suíte intermediária; cache invalidado e suíte final verde.
+`flutter analyze` 0 · aapt2 **2068/1.36.0** nos dois APKs.
+
+**Deploy e provas vivas (PID 914141, NRestarts=0).** A 1ª subida levou
+179s por **re-sincronia RAG one-time** (`atualizados=442` chunks alterados
+nesta entrega; padrão histórico confirmado — 16/10 13:50→13:54 com 654;
+boots com 0 levam 1–3s; não é regressão). No ar: `/health` **21 checks,
+tools 8/8** · `/actions` **97** com as 4 · `/app/version`
+**1.36.0/2068** (sha `b4a7247d…` == APK publicado) · journal **0 erros**.
+**E2E do pipeline real** (pelo `/executa` de produção): status
+(**2.13.1 UP**) → merge de 2 PDFs (**1234 B**, sha conferido) →
+**page-count = 2** direto no container → repetição sem `substituir` →
+**`stirling_saida_ocupada` + arquivo intacto** → split do merged (**ZIP
+com 2 peças**) → compress **177072 → 5444 B (−96,9%)** com antes/depois
+honestos.
+
+**Commit:** código 9d69299; registros no commit seguinte. Estado:
+v1.36.0+2068 no ar; fila **1ª ✅ 2ª ✅ → 3ª Kiwix**; rotação §8.5 pendente
+(com o valor antigo já arquivado no cofre).
