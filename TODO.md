@@ -178,5 +178,5 @@
 
 ---
 
-**Atualizado em:** 2026-10-17 14:15 (fila: Vaultwarden ✅ Stirling ✅ — **Kiwix aprovada, em andamento**; **RAG fora do boot** — sync em background + delete_many: boot 179s → **3s**, v1.36.1+2069; rotação §8.5 ainda pendente)
+**Atualizado em:** 2026-10-17 14:55 (**fila FECHADA: Vaultwarden ✅ Stirling ✅ Kiwix ✅** — acervo offline interligado, v1.37.0+2070, 100 actions; RAG em paralelo intacto, boot 4s; próxima com uso definido = Homebox; rotação §8.5 ainda pendente)
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

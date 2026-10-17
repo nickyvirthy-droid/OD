@@ -245,3 +245,50 @@ apareceria com sync maior; a garantia é estrutural e coberta por teste).
 v1.36.1+2069 no ar (boot 3s); **fase 3 aprovada — Kiwix**; reconhecimento
 feito: `od-kiwix` 3.8.1 no ar em `127.0.0.1:8090` com a Wikipédia
 en_all_mini, API HTTP é HTML (contrato a fechar na entrega).
+
+## §6 — Fase 3 aprovada: Kiwix interligado (v1.37.0+2069→2070) — FILA FECHADA
+
+**Ordem do dono:** *"aprovado fase 3"* — última da fila de ferramentas
+(Vaultwarden ✅ → Stirling ✅ → **Kiwix**), pelo critério dele: *"essas
+ferramentas só têm interesse para mim se o sistema puder usa-las"*.
+
+**Contrato-antes-de-código (sondagem viva no `od-kiwix`, 3.8.1,
+`127.0.0.1:8090`, Wikipédia `wikipedia_en_all_mini` 12,5 GB):** a API é
+**HTML/XML puro — sem JSON** nesta versão (`/suggestions` vazio,
+`/search` ignorou `Accept: application/json`; achado: `/A/<título>` só
+redireciona para `/content/...`). Contratos reais mapeados:
+`/catalog/v2/entries` (Atom/OPDS: id/título/idioma/artigos/mídias),
+`/search?pattern=` (HTML: título+caminho+trecho+palavras por hit),
+`/content/<zim>/<path>` (200 = artigo, 404 = inexistente).
+
+**Entrega:** `integrations/kiwix.py` **novo** (stdlib puro — `urllib` +
+`html.parser` + `ElementTree`; zero dependência nova): `KiwixClient`
+somente **leitura** (ZIM `:ro`), caminho invalidado contra `..`,
+truncamento **declarado**, **busca vazia = resposta honesta**
+(`ok=True, resultados=[]`), 6 erros tipados (`kiwix_indisponivel`,
+`kiwix_timeout`, `kiwix_falhou`, `kiwix_parametro_invalido`,
+`kiwix_artigo_nao_encontrado`, `kiwix_resposta_invalida`), fábrica
+**LAZY** (`OD_KIWIX_URL`). Actions: `kiwix_status` / `kiwix_busca` /
+`kiwix_leitura` (categoria `kiwix`, só admin) — catálogo **97 → 100**;
+capability **`kiwix-offline` ATIVA**; bump 9/9 **1.37.0+2070**.
+
+**Validação:** `tests/test_kiwix.py` novo (**39 testes**, fixtures
+fiéis às capturas vivas de hoje — Atom, HTML com `&isin;`/`&Omega;`,
+artigo com script/style); suíte **3238 passed / 16 skipped · gate
+91,04%**; `flutter analyze` 0; aapt2 **2070/1.37.0**. Correção no
+caminho: `get_logger` (não `make_audit_nicky`) para o logger do módulo.
+
+**Provas vivas (PID 1003253, NRestarts=0, boot 4s, 0 erros):** E2E real
+pelo `/executa` de produção — `kiwix_status` (**18.095.848 artigos**,
+eng) → `kiwix_busca("omega")` (3 hits com trecho; 1º com 207 palavras)
+→ `kiwix_leitura` ("Omega function", 199 chars limpos, `truncado=False`)
+→ 404 honesto → busca vazia como resposta. **TODAS AS PROVAS
+PASSARAM.** Detalhe lindo no journal: o dump do orchestrator capturou
+`docs: 0` ao lado de `sync: pronto` com **744 chunks atualizados** —
+leitura rasgada que **só existe com o sync e o boot correndo em
+paralelo** (o batch da v1.36.1 fechou 744 substituições em ~3s; no
+código antigo seriam ~300s de bloqueio).
+
+**Commit:** código + registros nos commits do dia. **Estado:
+v1.37.0+2070 no ar — fila do dono FECHADA** (Vaultwarden ✅ Stirling ✅
+Kiwix ✅); próximo capítulo: Homebox com uso definido.
