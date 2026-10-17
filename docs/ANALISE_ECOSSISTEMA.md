@@ -135,7 +135,7 @@ refletidas neste documento.
 | 6 | Plêiade | Nicky=Guardian **e** Nexus=Sétima Entidade | 7 perfis (Nexus incluso como 7º) | Alinhado; formalizar no `Personagens.md` canônico |
 | 7 | Ações | 56 (NV Runtime) | 78 | Atual; números do site agora vêm do sistema real |
 | 8 | Banco | MariaDB 10.11 (Legado) | PostgreSQL (em produção) | **Resolvido**; MariaDB é só do Nexus legado |
-| 9 | ID de itens | 2 formatos incompatíveis (SKU 5 campos × MoC 4 campos hex) | — | Unificar num único formato antes das semi-joias |
+| 9 | ID de itens | 2 formatos incompatíveis (SKU 5 campos × MoC 4 campos hex) | **Resolvido** (v1.33.0) — padrão único `FRENTE-TIPO-AAAA-NNNN` (ex.: `NV-SJ-2026-0001`) + curto gravado `FRENTE-SIGLA-HEX4` (ex.: `NV-ABI-7F3A`); sem prefixo OD; peças migradas | — |
 | 10 | Fundação | "2026" (`sobre.md`) × marca integrada em 2025-01 | — | Site usa "Fundação: 2026" (marca) e 2025 (linha do tempo do software) |
 | 11 | Ortografia | "NICOLHY/NICOLY/Nicoly Valentina" | — | Fixar **Nicoly Valentina** |
 | 12 | Versão do Nexus | v1.3.0 × v1.9.1 × v1.9.2 | — | Histórico apenas; sem ação |
@@ -167,7 +167,10 @@ refletidas neste documento.
 3. **Frentes FAB / Living Systems / Nicoly Valentina** — o primeiro passo
    pedido (Registro Mestre digital) **saiu em v1.22.0**; agora é decidir com o
    dono a ordem das demais frentes.
-4. **Unificação do formato de ID** (linha 9 da tabela §6).
+4. **Unificação do formato de ID** (linha 9 da tabela §6) — **CONCLUÍDO em
+   v1.33.0 (16/10)**: padrão único `FRENTE-TIPO-AAAA-NNNN` (sem OD, todas as
+   frentes) + código curto gravado para as joias pequenas; as 6 peças de teste
+   migraram no boot.
 5. **Rotação dos segredos vazados no Legado** (linha 15) — **VERIFICADO 09/10:
    bot antigo `@Nexus_Nicky_bot` e chave Gemini seguem ATIVOS** (getMe OK /
    HTTP 200). Decisão do dono (09/10): rotacionar somente quando todos os

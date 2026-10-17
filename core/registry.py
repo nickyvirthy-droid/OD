@@ -6,10 +6,25 @@ Descrição: Registro Mestre de peças físicas (tabela registry_items) —
            autenticidade pública verificável + posse por QR (item 2 da
            pauta de divergências, 2026-10-09).
 
-Modelo (decisões do dono, 09/10):
+Modelo (decisões do dono, 09/10; formato unificado 16/10 — §8.4 da
+pauta de divergências fechada):
 - Toda peça tem um ID PESQUISÁVEL por qualquer um (a pessoa está com a
-  PEÇA na mão, não com o cartão): public_id canônico OD-PROD-AAAA-NNNN
-  + código curto gravado (engraved_code, ex.: NV-ABI-7F3A).
+  PEÇA na mão, não com o cartão). Padrão canônico ÚNICO cobrindo todas
+  as frentes do ecossistema, SEM prefixo OD (pedido do dono):
+
+      FRENTE-TIPO-AAAA-NNNN     ex.: NV-SJ-2026-0001
+      │  │   │   └── sequência por frente+tipo+ano
+      │  │   └────── ano (4 dígitos)
+      │  └────────── tipo: SJ semi-joia · PE peça especial · COD códice
+      │                MAN manual · AUTH protocolo · COL coleção · EMB/CART
+      └───────────── frente: NV joias · PROD produtos · SYS sistemas
+                      NUC núcleo · SUP suportes (livre, 2–4 letras)
+
+- Joias são pequenas: toda peça EXCLUSIVA ganha também um CÓDIGO CURTO
+  gravado (engraved_code) no padrão do Protocolo NV do Legado —
+  FRENTE-SIGLA-HEX4, ex.: NV-ABI-7F3A (sem hífens: 9 caracteres).
+  Auto-gerado quando o cadastro não informa; coleção vira a sigla.
+  Peças públicas não exigem curto (o dono pode cadastrar um à mão).
 - Consulta pública mostra o USERNAME de quem registrou (não o nome
   real) — prova de que tem dono, sem expor dados privados.
 - QR = símbolo de propriedade (entregue na compra; quem tem é o dono).
@@ -57,7 +72,7 @@ __signature__ = "OD // CORE"
 
 REGISTRY_ITEMS_SCHEMA: dict[str, str] = {
     "id": "INTEGER PRIMARY KEY",
-    "public_id": "TEXT UNIQUE NOT NULL",      # OD-PROD-2026-0001 (pesquisável)
+    "public_id": "TEXT UNIQUE NOT NULL",      # NV-SJ-2026-0001 (FRENTE-TIPO-AAAA-NNNN)
     "engraved_code": "TEXT UNIQUE",           # código curto gravado na peça
     "name": "TEXT NOT NULL",
     "collection": "TEXT",                     # ex.: ABISSAL, DRAKONIS, LUMEN NOX
@@ -84,6 +99,19 @@ REGISTRY_CHAT_SCHEMA: dict[str, str] = {
 
 KINDS = ("exclusiva", "publica")
 STATUSES = ("estoque", "vendida", "registrada")
+
+# Formato unificado de ID (16/10 — pauta §8.4): FRENTE-TIPO-AAAA-NNNN.
+# Frentes/tipos do Legado (CONSULTA RÁPIDA + REGISTRO_MESTRE + PROTOCOLO_NV)
+# mais os novos do ecossistema — vocabulário livre de 2–4 letras, com os
+# nomes canônicos documentados para o dono não inventar sigla duplicada.
+FRENTE_PADRAO = "PROD"
+TIPO_PADRAO = "PE"
+FRENTES_CANONICAS = ("NV", "PROD", "SYS", "NUC", "SUP")
+TIPOS_CANONICOS = ("SJ", "PE", "COD", "MAN", "AUTH", "COL", "EMB", "CART")
+_SIGLA = re.compile(r"^[A-Z]{2,4}$")
+
+# ID antigo (v1.22.0–1.32.x): OD-PROD-AAAA-NNNN — migração automática.
+_LEGADO_PUBLIC_ID = re.compile(r"^OD-PROD-(\d{4})-(\d{4})$")
 
 # Limites (foto chega em base64 JSON; texto é mensagem de bate-papo).
 PHOTO_MAX_BYTES = 6 * 1024 * 1024          # 6 MB de binário decodificado
@@ -158,12 +186,24 @@ class RegistryStore:
             self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type_sql}")
 
     # ------------------------------------------------------------------#
-    # Identificação                                                      #
+    # Identificação (formato unificado 16/10)                            #
     # ------------------------------------------------------------------#
-    def _next_public_id(self) -> str:
-        """Próximo ID canônico do ano corrente: OD-PROD-AAAA-NNNN."""
+    @staticmethod
+    def _validar_sigla(valor: str, campo: str) -> str:
+        """Frente/tipo: 2–4 letras maiúsculas (livre, mas com forma fixa)."""
+        sigla = str(valor or "").strip().upper()
+        if not _SIGLA.match(sigla):
+            raise ValueError(f"{campo}_invalido")
+        return sigla
+
+    def _next_public_id(self, frente: str, tipo: str) -> str:
+        """Próximo ID canônico: FRENTE-TIPO-AAAA-NNNN do ano corrente.
+
+        A sequência é POR frente+tipo+ano (NV-SJ-2026-0001 não consome
+        o número de PROD-PE-2026-0001).
+        """
         year = time.localtime().tm_year
-        prefix = f"OD-PROD-{year}-"
+        prefix = f"{frente}-{tipo}-{year}-"
         seq = 0
         for row in self._db.query(
             "SELECT public_id FROM registry_items WHERE public_id LIKE ?",
@@ -174,6 +214,68 @@ class RegistryStore:
                 seq = max(seq, int(tail))
         return f"{prefix}{seq + 1:04d}"
 
+    def _proximo_curto(self, frente: str, sigla: str) -> str:
+        """Código curto gravado no padrão do Protocolo NV: FRENTE-SIGLA-HEX4.
+
+        4 hex = 65k combinações por sigla; colisão (improvável) tenta de
+        novo — o UNIQUE do banco é a garantia final.
+        """
+        for _ in range(50):
+            curto = f"{frente}-{sigla}-{secrets.token_hex(2).upper()}"
+            if self.get(curto) is None:
+                return curto
+        raise ValueError("curto_sem_sorte")  # pragma: no cover
+
+    # ------------------------------------------------------------------#
+    # Migração do ID antigo (OD-PROD-AAAA-NNNN → FRENTE-TIPO-AAAA-NNNN)  #
+    # ------------------------------------------------------------------#
+    def migrar_ids_legados(self) -> list[tuple[str, str]]:
+        """Reescreve IDs no formato antigo v1.22–1.32 para o unificado.
+
+        Regra determinística (as 6 peças de teste são todas do dono):
+        exclusiva → NV-SJ (joia) e pública → PROD-PE (produto comum) —
+        a frente/tipo correta de cada peça pode ser ajustada depois pelo
+        admin (update nunca mexe em public_id; regenerar não existe).
+
+        Idempotente: rodar de novo não encontra nada. Retorna os pares
+        (antes, depois) para o log/registro.
+        """
+        mudancas: list[tuple[str, str]] = []
+        for row in self._db.query("SELECT * FROM registry_items ORDER BY id"):
+            antigo = str(row.get("public_id") or "")
+            match = _LEGADO_PUBLIC_ID.match(antigo)
+            if match is None:
+                continue
+            ano, seq = match.groups()
+            frente, tipo = (
+                ("NV", "SJ") if row.get("kind") == "exclusiva"
+                else ("PROD", "PE")
+            )
+            novo = f"{frente}-{tipo}-{ano}-{seq}"
+            # Foto segue o public_id no nome do arquivo.
+            foto = str(row.get("photo") or "")
+            if foto and foto.startswith(f"{antigo}."):
+                ext = foto.rsplit(".", 1)[-1]
+                nova_foto = f"{novo}.{ext}"
+                origem = self._photo_dir / foto if self._photo_dir else None
+                if origem is not None and origem.is_file():
+                    (self._photo_dir / nova_foto).write_bytes(origem.read_bytes())
+                    origem.unlink(missing_ok=True)
+                self._db.execute(
+                    "UPDATE registry_items SET photo = ? WHERE public_id = ?",
+                    (nova_foto, antigo),
+                )
+            self._db.execute(
+                "UPDATE registry_items SET public_id = ? WHERE public_id = ?",
+                (novo, antigo),
+            )
+            self._db.execute(
+                "UPDATE registry_chat SET public_id = ? WHERE public_id = ?",
+                (novo, antigo),
+            )
+            mudancas.append((antigo, novo))
+        return mudancas
+
     # ------------------------------------------------------------------#
     # CRUD (admin)                                                       #
     # ------------------------------------------------------------------#
@@ -182,26 +284,41 @@ class RegistryStore:
         *,
         name: str,
         kind: str,
+        frente: Optional[str] = None,
+        tipo: Optional[str] = None,
         collection: Optional[str] = None,
         engraved_code: Optional[str] = None,
         price_brl: Optional[float] = None,
         notes: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Cadastra uma peça nova (estado inicial: estoque)."""
+        """Cadastra uma peça nova (estado inicial: estoque).
+
+        `frente`/`tipo` montam o ID canônico (FRENTE-TIPO-AAAA-NNNN);
+        padrão PROD-PE. Peça EXCLUSIVA sem `engraved_code` ganha um
+        código curto auto-gerado (FRENTE-SIGLA-HEX4) — joia pequena
+        sempre tem algo gravável. Código informado duplicado = 400.
+        """
         name = str(name or "").strip()
         if not name:
             raise ValueError("nome_obrigatorio")
         kind = str(kind or "").strip().lower()
         if kind not in KINDS:
             raise ValueError("kind_invalido")
+        frente_nova = self._validar_sigla(frente or FRENTE_PADRAO, "frente")
+        tipo_novo = self._validar_sigla(tipo or TIPO_PADRAO, "tipo")
         code = (str(engraved_code).strip().upper() or None) if engraved_code else None
         if code is not None and self.get(code) is not None:
             raise ValueError("codigo_duplicado")
+        colecao = (str(collection).strip().upper() or None) if collection else None
+        if code is None and kind == "exclusiva":
+            sigla = (colecao or name)[:3].upper()
+            sigla = re.sub(r"[^A-Z]", "", sigla) or "GEN"
+            code = self._proximo_curto(frente_nova, sigla)
         row = {
-            "public_id": self._next_public_id(),
+            "public_id": self._next_public_id(frente_nova, tipo_novo),
             "engraved_code": code,
             "name": name,
-            "collection": (str(collection).strip().upper() or None) if collection else None,
+            "collection": colecao,
             "kind": kind,
             "status": "estoque",
             "price_brl": float(price_brl) if price_brl is not None else None,

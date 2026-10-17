@@ -71,10 +71,68 @@ def srv(serve, tmp_path: Path):
 # ---------------------------------------------------------------------------#
 class TestRegistryStore:
     def test_cria_peca_com_id_canonico(self, store: RegistryStore) -> None:
-        item = store.create(name="Anel Abissal", kind="exclusiva", collection="abissal")
-        assert item["public_id"].startswith("OD-PROD-")
+        item = store.create(name="Anel Abissal", kind="exclusiva", frente="NV",
+                            tipo="SJ", collection="abissal")
+        assert item["public_id"].startswith("NV-SJ-")
         assert item["status"] == "estoque"
         assert item["owner_username"] is None
+
+    def test_frente_tipo_padrao_prod_pe(self, store: RegistryStore) -> None:
+        item = store.create(name="Trena", kind="publica")
+        assert item["public_id"].startswith("PROD-PE-")
+
+    def test_frente_tipo_invalidos(self, store: RegistryStore) -> None:
+        with pytest.raises(ValueError, match="frente_invalido"):
+            store.create(name="X", kind="publica", frente="A-B")
+        with pytest.raises(ValueError, match="frente_invalido"):
+            store.create(name="X", kind="publica", frente="LONODEMAIS")
+        with pytest.raises(ValueError, match="tipo_invalido"):
+            store.create(name="X", kind="publica", tipo="1S")
+
+    def test_sequencia_por_frente_tipo_ano(self, store: RegistryStore) -> None:
+        a = store.create(name="Joia A", kind="exclusiva", frente="NV", tipo="SJ")
+        b = store.create(name="Quadro", kind="exclusiva", frente="PROD", tipo="PE")
+        c = store.create(name="Joia B", kind="exclusiva", frente="NV", tipo="SJ")
+        # PROD-PE não consome o número do NV-SJ; NV-SJ continua de 1 em 1.
+        assert a["public_id"].endswith("-0001")
+        assert c["public_id"].endswith("-0002")
+        assert b["public_id"].endswith("-0001") and "PROD-PE-" in b["public_id"]
+
+    def test_exclusiva_sem_codigo_ganha_curto_nv(self, store: RegistryStore) -> None:
+        item = store.create(name="Anel Abissal", kind="exclusiva", frente="NV",
+                            tipo="SJ", collection="abissal")
+        curto = item["engraved_code"]
+        assert curto is not None and curto.startswith("NV-ABI-")
+        assert len(curto) == len("NV-ABI-7F3A")
+        # e acha a peça pelo curto
+        assert store.get(curto)["public_id"] == item["public_id"]
+
+    def test_publica_sem_codigo_fica_sem_curto(self, store: RegistryStore) -> None:
+        item = store.create(name="Trena", kind="publica")
+        assert item["engraved_code"] is None
+
+    def test_migracao_id_legado(self, store: RegistryStore) -> None:
+        # linha crua no formato v1.22 (OD-PROD-…)
+        store._db.execute(
+            "INSERT INTO registry_items (public_id, engraved_code, name, "
+            "collection, kind, status, created_at) VALUES "
+            "('OD-PROD-2026-0004','NV-OD-5E8A','Chaveiro','OD','publica',"
+            "'estoque',1.0)"
+        )
+        store._db.execute(
+            "INSERT INTO registry_items (public_id, engraved_code, name, "
+            "collection, kind, status, created_at) VALUES "
+            "('OD-PROD-2026-0001','NV-ABI-7F3A','Anel','ABISSAL','exclusiva',"
+            "'estoque',1.0)"
+        )
+        mudou = store.migrar_ids_legados()
+        assert ("OD-PROD-2026-0004", "PROD-PE-2026-0004") in mudou
+        assert ("OD-PROD-2026-0001", "NV-SJ-2026-0001") in mudou
+        assert store.get("NV-SJ-2026-0001") is not None
+        assert store.get("PROD-PE-2026-0004") is not None
+        assert store.get("OD-PROD-2026-0001") is None
+        # idempotente: segunda rodada não muda nada
+        assert store.migrar_ids_legados() == []
 
     def test_id_sequencial_no_mesmo_ano(self, store: RegistryStore) -> None:
         a = store.create(name="Peça A", kind="exclusiva")

@@ -60,7 +60,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2062  # versionCode cru do APK publicado (v1.32.0+2062)
+_APP_VERSION_CODE = 2063  # versionCode cru do APK publicado (v1.33.0+2063)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -1135,13 +1135,30 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       prova de posse).
     </p>
     <div class="row">
-      <input id="reg-nome" placeholder="Nome (ex.: Anel Abissal)" style="width:200px">
-      <input id="reg-colecao" placeholder="Coleção (ABISSAL)" style="width:140px">
+      <input id="reg-nome" placeholder="Nome (ex.: Anel Abissal)" style="width:180px">
+      <select id="reg-frente" title="Frente do ID (FRENTE-TIPO-AAAA-NNNN)" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:0.85rem">
+        <option value="NV" selected>NV (joias)</option>
+        <option value="PROD">PROD</option>
+        <option value="SYS">SYS</option>
+        <option value="NUC">NUC</option>
+        <option value="SUP">SUP</option>
+      </select>
+      <select id="reg-tipo" title="Tipo do ID" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:0.85rem">
+        <option value="SJ">SJ (semi-joia)</option>
+        <option value="PE" selected>PE (peça especial)</option>
+        <option value="COD">COD</option>
+        <option value="MAN">MAN</option>
+        <option value="AUTH">AUTH</option>
+        <option value="COL">COL</option>
+        <option value="EMB">EMB</option>
+        <option value="CART">CART</option>
+      </select>
+      <input id="reg-colecao" placeholder="Coleção (ABISSAL)" style="width:130px">
       <select id="reg-kind" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:0.85rem">
         <option value="exclusiva">exclusiva</option>
         <option value="publica">pública</option>
       </select>
-      <input id="reg-codigo" placeholder="Cód. gravado (NV-ABI-7F3A)" style="width:180px">
+      <input id="reg-codigo" placeholder="Cód. gravado (auto se vazio)" style="width:170px">
       <input id="reg-preco" type="number" step="0.01" min="0" placeholder="Preço R$" style="width:110px">
       <button id="reg-add" style="border-color:var(--accent);color:var(--accent)">＋ Cadastrar peça</button>
       <button id="reg-refresh">↻ Carregar</button>
@@ -1737,6 +1754,8 @@ async function regAdd() {
   const body = {
     name: nome,
     kind: document.getElementById("reg-kind").value,
+    frente: (document.getElementById("reg-frente").value || "").trim() || null,
+    tipo: (document.getElementById("reg-tipo").value || "").trim() || null,
     collection: (document.getElementById("reg-colecao").value || "").trim() || null,
     engraved_code: (document.getElementById("reg-codigo").value || "").trim() || null,
     price_brl: preco === "" ? null : Number(preco),
@@ -5230,8 +5249,11 @@ class APIHandler(BaseHTTPRequestHandler):
         """POST /admin/registry — cadastra peça no Registro Mestre (dono).
 
         Body: {"name": str (obrig.), "kind": "exclusiva"|"publica",
+        "frente"?: str (2–4 letras, padrão PROD), "tipo"?: str (padrão PE),
         "collection"?: str, "engraved_code"?: str, "price_brl"?: float,
-        "notes"?: str}. Gera o public_id canônico (OD-PROD-AAAA-NNNN).
+        "notes"?: str}. Gera o public_id canônico FRENTE-TIPO-AAAA-NNNN
+        (ex.: NV-SJ-2026-0001); exclusiva sem código gravado ganha um
+        curto auto-gerado (NV-ABI-7F3A).
         """
         store = self._registry_store_or_503()
         data = self._read_json() if self._has_body() else {}
@@ -5241,6 +5263,8 @@ class APIHandler(BaseHTTPRequestHandler):
             item = store.create(
                 name=data.get("name", ""),
                 kind=data.get("kind", ""),
+                frente=data.get("frente"),
+                tipo=data.get("tipo"),
                 collection=data.get("collection"),
                 engraved_code=data.get("engraved_code"),
                 price_brl=data.get("price_brl"),

@@ -222,7 +222,7 @@ class _RegistryScreenState extends State<RegistryScreen> {
               autocorrect: false,
               decoration: const InputDecoration(
                 labelText: 'ID da peça',
-                hintText: 'OD-PROD-2026-0001 ou NV-ABI-7F3A',
+                hintText: 'NV-SJ-2026-0001 ou NV-ABI-7F3A',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.search),
               ),

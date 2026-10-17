@@ -12,6 +12,47 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.33.0] — ID ÚNICO DO REGISTRO MESTRE (FRENTE-TIPO-ANO-SEQ) — Pauta §8.4 FECHADA (2026-10-16)
+
+> **Bump MINOR (capacidade nova + APK novo):** ordem do dono — "crie uma
+> ID bem consistente que possa incorporar todas as frentes; OD não
+> precisa; mas como joias são pequenas seria bom ter o código curto
+> também". A divergência §8.4 da pauta (2 formatos incompatíveis no
+> Legado × sistema) vira UM padrão só, sem prefixo OD, cobrindo todas
+> as frentes, e o código curto gravável das joias passa a ser obrigatório
+> por desenho nas exclusivas.
+
+| Peça | Entrega |
+|---|---|
+| **`core/registry.py`** | Padrão canônico **`FRENTE-TIPO-AAAA-NNNN`** (ex.: `NV-SJ-2026-0001`) — frente/tipo de 2–4 letras (vocabulário livre com canônicos documentados: frente NV/PROD/SYS/NUC/SUP, tipo SJ/PE/COD/MAN/AUTH/COL/EMB/CART) e **sequência por frente+tipo+ano** (PROD-PE não consome o número do NV-SJ). `create()` ganha `frente`/`tipo` (padrão PROD-PE). **Código curto gravado** (joia pequena) no padrão do Protocolo NV do Legado — `FRENTE-SIGLA-HEX4`, ex. `NV-ABI-7F3A` — **auto-gerado** para toda exclusiva sem código informado (sigla da coleção, 4 hex, colisão ressorteia; UNIQUE do banco é a garantia final); pública continua podendo ficar sem. **`migrar_ids_legados()`**: idempotente, reescreve o formato v1.22–1.32 (`OD-PROD-AAAA-NNNN`) por classificação determinística (exclusiva→NV-SJ, pública→PROD-PE), leva foto (renomeia arquivo) e bate-papo junto, devolve os pares (antes, depois) para o log. |
+| **`runtime/launcher.py`** | Migração roda no boot do `build_registry` (com log dos pares migrados — prova viva) — peça cadastrada no formato antigo continua pesquisável **pelo curto** mesmo antes da migração (busca tolerante normaliza tudo). |
+| **`integrations/api/server.py`** | `POST /admin/registry` aceita `frente`/`tipo`; painel `/admin` ganha os 2 selects (NV/PROD/SYS/NUC/SUP × SJ/PE/…) ao lado do nome e o placeholder do código gravado vira "auto se vazio". |
+| **Site + app** | `verificacao.html`: placeholder/dica no formato novo (`NV-SJ-2026-0001` / `NVSJ20260001`); `index.html`: tag da semi-joia já nasce no padrão novo; `registry_screen.dart`: hint do campo de busca. |
+| **Migração real** | As 6 peças de teste do banco (todas "(exemplo)") reescritas no boot — prova viva: `/admin/registry` com os IDs novos, busca pelo curto antigo (`NV-ABI-7F3A`) intacta. |
+| **versionCode** | 2062 → **2063** (bump MINOR — `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site, README_VERSAO, esta seção). |
+
+### O padrão (decisão do dono, 16/10)
+
+```
+ID canônico:  FRENTE-TIPO-AAAA-NNNN     ex.: NV-SJ-2026-0001
+Código curto: FRENTE-SIGLA-HEX4         ex.: NV-ABI-7F3A (9 chars sem hífen)
+```
+
+- **Sem prefixo OD** (pedido do dono) — a frente já identifica a casa.
+- **Todas as frentes** num formato só: NV (joias), PROD (produtos), SYS
+  (sistemas), NUC (núcleo), SUP (suportes) — livre para crescer.
+- **Joia pequena = curto gravável**: exclusiva sem código ganha um
+  auto; a pessoa lê 9 caracteres e digita (busca tolera sem hífen).
+- **Busca continua tolerante** a hífens/espaços/maiúsculas — tanto o
+  ID canônico quanto o curto acha a peça.
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3084 passed / 16 skipped** (+6) |
+| `tests/test_registry.py` | **57 verdes** (+6: frente/tipo inválidos, sequência por frente+tipo, curto automático, pública sem curto, migração idempotente) |
+| Teste do teste (mutação) | **4/4 capturadas** (validação de frente removida · curto automático removido · migração no-op · sequência global) — reversão bit-exata |
+| App | `flutter analyze` **0 issues** · `flutter test` **192 passed / 2 skipped** |
+
 ## [1.32.0] — TEMA CLARO/ESCURO SINCRONIZADO NO APP, NO SITE E NO PAINEL (TODO §3.8) (2026-10-16)
 
 > **Bump MINOR (capacidade nova + APK novo):** ordem do dono com as três

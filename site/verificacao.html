@@ -163,14 +163,14 @@
   <div class="busca">
     <label for="codigo">ID da peça (gravado na peça)</label>
     <div class="linha">
-      <input id="codigo" type="text" placeholder="OD-PROD-2026-0001" autocomplete="off"
+      <input id="codigo" type="text" placeholder="NV-SJ-2026-0001" autocomplete="off"
              spellcheck="false" aria-label="Código da peça">
       <button id="btn" type="button">Verificar</button>
     </div>
     <p class="dica">
-      Serve o ID canônico (<code>OD-PROD-2026-0001</code>) ou o código curto gravado
+      Serve o ID canônico (<code>NV-SJ-2026-0001</code>) ou o código curto gravado
       (<code>NV-ABI-7F3A</code>) — os dois estão na peça. E <b>nem precisa de hífen</b>:
-      <code>odprod20260001</code> e <code>NVABI7F3A</code> também acham.
+      <code>NVSJ20260001</code> e <code>NVABI7F3A</code> também acham.
     </p>
   </div>
 
@@ -477,7 +477,7 @@
   input.addEventListener('keydown', function (e) { if (e.key === 'Enter') verificar(); });
 
   // -- Parâmetros de URL (Etapa 4) --------------------------------------
-  // ?codigo=OD-PROD-…  → pré-preenche e consulta sozinho (link direto).
+  // ?codigo=NV-SJ-…    → pré-preenche e consulta sozinho (link direto).
   // ?posse=POSSE-…     → abre o cartão do QR com o código em destaque
   //                       (o comprador cola no app — registro no nome
   //                       dele; esta página não registra por ele).

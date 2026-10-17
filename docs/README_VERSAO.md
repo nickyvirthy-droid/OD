@@ -7,6 +7,46 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.33.0] — ID ÚNICO DO REGISTRO MESTRE (FRENTE-TIPO-ANO-SEQ) — Pauta §8.4 FECHADA 🜂 (2026-10-16)
+
+### 1. O que foi feito
+
+Ordem do dono depois de ver os 4 formatos lado a lado (`OD-PROD-SJ-2026-005`
+do Registro Mestre × `OD-SEM-26-1A3F` do MoC × `NV-ABI-7F3A` do Protocolo NV ×
+`OD-PROD-2026-0001` do sistema): *"crie uma ID bem consistente que possa
+incorporar todas as frentes, OD não precisa, PROD, NV, SYS… mas como joias são
+pequenas seria bom ter o código curto também"* — e aprovou o desenho na hora
+(`NV-SJ-2026-0001` canônico + `NV-ABI-7F3A` curto).
+
+| Peça | Entrega |
+|---|---|
+| **`core/registry.py`** | Padrão canônico **`FRENTE-TIPO-AAAA-NNNN`** (sem prefixo OD) com frente/tipo de 2–4 letras (canônicos: frente NV/PROD/SYS/NUC/SUP, tipo SJ/PE/COD/MAN/AUTH/COL/EMB/CART) e **sequência por frente+tipo+ano**. `create()` ganha `frente`/`tipo`. **Código curto auto-gerado** para exclusiva sem código (`FRENTE-SIGLA-HEX4` — Protocolo NV). **`migrar_ids_legados()`** idempotente: formato v1.22–1.32 → novo (exclusiva→NV-SJ, pública→PROD-PE), leva foto e bate-papo, devolve os pares. |
+| **`runtime/launcher.py`** | Migração roda no boot (log com exemplo de par migrado). |
+| **`integrations/api/server.py** | `POST /admin/registry` aceita `frente`/`tipo`; painel ganha os 2 selects; placeholder do código gravado vira "auto se vazio". |
+| **Site + app** | `verificacao.html` (placeholder/dica), `index.html` (tag da semi-joia), `registry_screen.dart` (hint) no formato novo. |
+| **versionCode** | 2062 → **2063**. |
+
+### 2. Decisão registrada (fonte da verdade)
+
+```
+ID canônico:  FRENTE-TIPO-AAAA-NNNN     ex.: NV-SJ-2026-0001
+Código curto: FRENTE-SIGLA-HEX4         ex.: NV-ABI-7F3A (9 chars sem hífen)
+```
+
+Sem OD; todas as frentes num formato só; joia pequena sempre tem curto
+gravável; busca tolerante a hífens/espaços continua valendo para os dois.
+
+### 3. Padrão de qualidade
+
+3084 testes do servidor (gate 90%) · 57 do registry (+6) · mutação 4/4
+capturadas (reversão bit-exata) · app analyze 0 issues / 192 testes verdes.
+
+### 4. Pendências/observações
+
+Nenhuma. A divergência §8.4 da pauta (2 formatos incompatíveis × sistema) está
+**fechada** — peças já migradas no boot do deploy; se o dono quiser trocar a
+frente/tipo de alguma peça depois, é ajuste de cadastro (não de ID).
+
 ## [1.32.0] — TEMA CLARO/ESCURO SINCRONIZADO NO APP, NO SITE E NO PAINEL (TODO §3.8) 🜂 (2026-10-16)
 
 ### 1. O que foi feito

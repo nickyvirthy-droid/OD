@@ -288,6 +288,13 @@ def build_registry(database: Any) -> Optional[Any]:
         from core.registry import RegistryStore
 
         store = RegistryStore(database, photo_dir=DATA_DIR / "registry_photos")
+        # Migração do ID antigo (OD-PROD-…) para o formato unificado —
+        # idempotente; loga os pares para prova viva.
+        migrados = store.migrar_ids_legados()
+        if migrados:
+            log.info("Registro Mestre: IDs migrados para o formato unificado",
+                     total=len(migrados),
+                     exemplo=f"{migrados[0][0]} -> {migrados[0][1]}")
         log.info("Registro Mestre de peças habilitado")
         return store
     except Exception as exc:
