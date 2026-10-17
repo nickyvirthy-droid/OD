@@ -362,3 +362,41 @@ O E2E tem guarda anti-duplicação: reruns verificam sem cadastrar de novo.
 — FILA DE FERRAMENTAS FECHADA DE VEZ** (Vaultwarden ✅ Stirling ✅
 Kiwix ✅ Homebox ✅); inventário do dono operacional e já populado com
 as 2 peças que ele citou.
+
+---
+
+## §8 — O dono fecha pendências: as capturas do Sistema Órion viram o formato do painel e do site (v1.38.0→1.39.0+2072)
+
+O dono abriu a rodada de fechamento: *"existem mais pendencias, vamos
+fechar antes de colocar novidades"*. Reconhecimento feito antes de
+mexer: HDs montados (`/home/alex/dados` + `/mnt/Arquivos`), `3D/` do
+repo vazia (a pasta DELE é `/home/alex/3D` — 1,2 GB de STLs pagos,
+fora do git, 0 `.stl` rastreados), repo `origin` **PÚBLICO** no GitHub
+(histórico antes de `3ed13cc` com segredos do compose). Duas decisões
+do dono: **repo → "privar + rotacionar"** (aprovado) e **`3D/` jamais
+deletada** — linha vermelha gravada no topo do TODO.
+
+As 2 capturas do **Sistema Órion** (PMESP) depositadas sem instrução
+ganharam uso: *"a captura do orion é uma ideia de como a tela ficaria,
+gostei do formato usado por eles"* — e ao ver a decomposição do
+formato (herói de saudação, KPIs com selo de ícone, mini-painéis
+vivos, barra colapsável), aprovou **painel + site**.
+
+Entregue no **v1.39.0+2072**: herói no `/admin` (símbolo oficial,
+versão + pill ONLINE do `/health`, saudação por período **com o nome
+do dono**, relógio GMT-3 vivo, chips build/uptime/stack, card de
+Saúde) + 4 KPIs (actions/stack/checks/uptime) das **mesmas fontes das
+seções**; site com **chip vivo** (`/app/version` + `/health` públicos
+via `od-nav.js` comportamento 4 — ponto cinza até a resposta) e
+**números reais** (106 · 3.290 · 9). Identidade OD preservada, dragão
+proscrito (a guarda da v1.21.2 pegou o herói novo na suíte —
+obedeceu). No caminho, dois defeitos corrigidos: **monitor 8→9**
+(Homebox reativado não voltou ao catálogo — stats dizia 8/8 com 9
+serviços no ar) e capabilities/site com dados velhos.
+
+Validação: suíte **3292/16 · gate 91,09%**; E2E vivo **32 provas, 0
+falhas**; deploy NRestarts=0, journal limpo. Tema residual NÃO foi
+tocado (protocolo da linha: exemplo exato do dono antes de mexer —
+reiterado). **Commit: 4072c42** (entrega) + registros. Estado:
+**v1.39.0+2072 no ar**; Órion fechado; repo (privar+rotacionar),
+snapshots, rotação técnica e FlatNotes são os próximos da rodada.
