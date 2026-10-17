@@ -15,7 +15,7 @@
 | 5 | **Stirling PDF** (50+ PDF tools) | `od-stirling-pdf` | 8400 | ✅ | **INTERLIGADA em 17/10 (v1.36.0, 2ª da fila)** — o sistema opera a API v1 (s-pdf 2.13.1, só localhost) pelas actions `stirling_status/stirling_merge/stirling_split/stirling_compress` (categoria `stirling`, só admin); JAVA_TOOL_OPTIONS fix metaspace |
 | 6 | **File Browser** (arquivos web) | `od-filebrowser` | 8410 | ✅ | login admin/admin → trocar |
 | 7 | **Calibre Web** (e-books) | `od-calibre-web` | 8420 | ✅ | login admin/admin123 → trocar; books em `/home/alex/omegadrakon-tools/books` |
-| 8 | **Homebox** (inventário/QR) | `od-homebox` | 8470 | ❄️ **FORA DO AR desde 17/10** | Decisão do dono ("nada parado"): compose comentado, imagem removida (−198 MB), dados preservados em `omegadrakon-tools/homebox`. **Depois o dono decidiu VOLTAR com uso definido** (inventário/garantias da casa, já integrado com `homebox_*`) — próxima entrega |
+| 8 | **Homebox** (inventário/QR) | `od-homebox` | 8470 | ✅ **NO AR e INTERLIGADO desde 17/10 (v1.38.0)** | **4ª e última da fila, com uso definido pelo dono** (*"cadastrar as ferramentas e peças que possuo... sugerir montagens"*): 6 actions `homebox_*` (categoria `homebox`, só admin) — o sistema CONSULTA e CADASTRA (nenhuma ação apaga). Conta do sistema + API key no `.env` **e no cofre** (14/14). **Já populado com as 2 peças reais do dono: Raspberry Pi 4 + ESP-01S com DHT22** (tipos e tags criados e declarados). Dados: `omegadrakon-tools/homebox` (banco do desligamento preservado) |
 | 9 | **Vaultwarden** (cofre senhas) | `od-vaultwarden` | 8480 | ✅ | HTTPS via Tailscale Serve; **conta do dono criada 15/10**; **conta de SERVIÇO do sistema** `od-sistema@omegadrakon.dev` criada 17/10 e **interligada** (actions `vault_*`, v1.35.0 — o sistema lê/escreve no cofre; a conta do dono nunca é usada); **as 12 senhas do `.env` espelhadas no cofre em 17/10** (`vault_env_mirror.py`, cópia idempotente — `.env` segue como bootstrap do boot); `SIGNUPS_ALLOWED=false` |
 
 > **Situação (15/10):** os 9 sobem com `up -d` e estão no ar. **Pendência do §1 concluída:** conta do dono + signups fechados — comprovado por drill E2E (conta de teste criada pela action, logada e decifrada pelo CLI oficial, depois excluída; vault só com o dono).
@@ -178,5 +178,5 @@
 
 ---
 
-**Atualizado em:** 2026-10-17 14:55 (**fila FECHADA: Vaultwarden ✅ Stirling ✅ Kiwix ✅** — acervo offline interligado, v1.37.0+2070, 100 actions; RAG em paralelo intacto, boot 4s; próxima com uso definido = Homebox; rotação §8.5 ainda pendente)
+**Atualizado em:** 2026-10-17 16:10 (**fila FECHADA DE VEZ: Vaultwarden ✅ Stirling ✅ Kiwix ✅ Homebox ✅** — inventário do dono interligado e já populado com as 2 peças reais dele (RPi4 + ESP-01S/DHT22), v1.38.0+2071, 106 actions; rotação §8.5 ainda pendente)
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

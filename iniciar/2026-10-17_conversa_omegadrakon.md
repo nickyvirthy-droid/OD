@@ -292,3 +292,73 @@ código antigo seriam ~300s de bloqueio).
 **Commit:** código + registros nos commits do dia. **Estado:
 v1.37.0+2070 no ar — fila do dono FECHADA** (Vaultwarden ✅ Stirling ✅
 Kiwix ✅); próximo capítulo: Homebox com uso definido.
+
+---
+
+## §7 — O dono define o uso do Homebox: o sistema cadastra as peças dele (v1.37.0→1.38.0+2071) — FILA FECHADA DE VEZ
+
+**Dono (17/10, 15h12):** *"o uso do homebox é para voce me ajudar a cadastrar
+as ferramentas e peças que possuo, por exemplo tenho um raspbarry 4 e um
+modulo esp-01s dht22, então sabendo disso voce pode sugerir a montagem de
+uma estação meteorologica e falar as peças que possuo e as que preciso..."*
+
+Uso definido = 4ª e última da fila entra no mesmo ciclo. Diferença de
+todas as anteriores: **escrita** — o sistema não só consulta, ele
+**cadastra** (e a régua "nada apagado" vale: nenhuma ação de exclusão).
+
+**Reativação sem perder nada:** o Homebox tinha sido desligado em 17/10
+(§2 — "nada parado"), com o banco preservado em
+`omegadrakon-tools/homebox/homebox.db` (0 usuários — pristine). Bloco
+descomentado no compose, container de volta no ar, e a conta do sistema
+(`omega-drakon@omegadrakon.local`, senha de 32 chars gerada, nunca
+impressa) + **API key estática** criadas na reativação. Conta órfã de um
+bootstrap interrompido (senha se perdeu com o processo) removida do
+SQLite via `chown` temporário pelo próprio container — sem sudo, sem
+app de terceiros. Cofre: allowlist +2 (`HBOX_API_KEY`,
+`HBOX_API_PASSWORD`) e espelho rodando — **14/14 conferem**.
+
+**Contrato apurado ao vivo ANTES de codificar** (a casa cobra): o
+container serve **swagger próprio** em `/swagger/doc.json` (67 rotas,
+Swagger 2.0) e a tag `v0.26.2` do fork tem o `routes.go` público —
+descobertas que mudaram o projeto: (1) o inventário é **`/v1/entities`**
+(NÃO `/items` — meu primeiro sondeo deu 404 em tudo); (2) **auth**: a
+session token do login **NÃO** vale como `Authorization: Bearer` (o
+middleware lê o **cookie** `hb.auth.token`) — já a **API key** vale
+exatamente como Bearer (e não como cookie); o caminho do sistema é a key
+estática, sem expiração; (3) **PUT substitui o objeto** (`name`
+obrigatório; o resto vira zero) e **PATCH é parcial de verdade** (só 5
+campos) — notas/descrição/preço passam por GET+merge+PUT.
+
+**Três defeitos achados pelo E2E vivo e corrigidos com teste:**
+`PUT` com `parentId:""` → **HTTP 500 "Unknown Error"** do fork (opcionais
+agora só entram quando presentes — teste de regressão); id fora de UUID →
+API devolve **400 "invalid route key"**, não 404 (validação antes da
+chamada, com dica "use o id de homebox_busca"; UUID inexistente → 404
+honesto); tags inexistentes são criadas **com declaração** na resposta
+(`tipo_criado`/`tags_criadas`) — o `listar`, por ser filtro, não cria.
+
+**Entrega (v1.38.0+2071):** `integrations/homebox.py` (stdlib puro, LAZY,
+7 erros tipados) + 6 actions — `homebox_status` / `homebox_busca` /
+`homebox_listar` / `homebox_detalhar` / `homebox_criar` /
+`homebox_atualizar` (categoria `homebox`, só admin) — catálogo **100 →
+106**; capability **`homebox-inventario` ATIVA**; bump 9/9; APKs
+publicados (aapt2 2071/1.38.0, sha `25f212d6…`).
+
+**Validação:** `tests/test_homebox.py` novo (**52 testes**, fixtures fiéis
+ao swagger/capturas de hoje); suíte **3290 passed / 16 skipped · gate
+91,07%**.
+
+**Provas vivas (restart NRestarts=0, 0 erros):** E2E real pelo
+`/executa` (**20 provas**) — e o mais importante: **o sistema cadastrou
+as peças REAIS do dono**: `homebox_criar` "Raspberry Pi 4" (tipo
+`Placa de desenvolvimento` criado+declarado, tags `eletronica`+`computador`)
+e "ESP-01S com DHT22" (tipo `Módulo sensor` criado+declarado, tag
+`sensor`) → buscas 1 hit cada → lista as 2 peças → detalhe →
+**atualização** com a nota *"candidato a estação meteorológica"* (PUT
+completo — provou a correção do 500) → 404 honesto → totais coerentes.
+O E2E tem guarda anti-duplicação: reruns verificam sem cadastrar de novo.
+
+**Commit:** 372d874 (entrega) + registros. **Estado: v1.38.0+2071 no ar
+— FILA DE FERRAMENTAS FECHADA DE VEZ** (Vaultwarden ✅ Stirling ✅
+Kiwix ✅ Homebox ✅); inventário do dono operacional e já populado com
+as 2 peças que ele citou.
