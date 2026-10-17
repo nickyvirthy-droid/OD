@@ -2583,6 +2583,80 @@ def kiwix_leitura(caminho: str, max_chars: int = 8000) -> dict[str, Any]:
     return _kiwix_op(lambda c: c.ler(caminho, max_chars=max_chars))
 
 
+def _homebox_op(op: Any) -> dict[str, Any]:
+    """Roda uma operação no Homebox com erro honesto e tipado.
+
+    Cliente LAZY (integrations/homebox.py): a ferramenta fora do ar
+    degrada ESTA ação — nunca o boot do od-core. Inventário do dono em
+    127.0.0.1:8470 (API key estática via Bearer); uso definido pelo dono
+    em 17/10: cadastrar ferramentas/peças e responder o que ele tem e o
+    que falta para uma montagem. NENHUMA ação apaga — só lê e cadastra.
+    """
+    from integrations.homebox import HomeboxError, client_padrao
+
+    try:
+        cliente = client_padrao()
+        return {"ok": True, **op(cliente)}
+    except HomeboxError as exc:
+        return {"ok": False, "error": exc.codigo, "message": exc.mensagem}
+
+
+def homebox_status() -> dict[str, Any]:
+    """Inventário: versão + totais (itens, locais, tags, preço)."""
+    return _homebox_op(lambda c: c.status())
+
+
+def homebox_busca(query: str, quantidade: int = 10) -> dict[str, Any]:
+    """Busca peças no inventário (texto livre: nome, tipo, descrição)."""
+    return _homebox_op(lambda c: c.buscar(query, quantidade))
+
+
+def homebox_listar(quantidade: int = 25, tags: str = "") -> dict[str, Any]:
+    """Lista o inventário (opcional: filtro por tags, "a, b")."""
+    return _homebox_op(lambda c: c.listar(quantidade, tags))
+
+
+def homebox_detalhar(id: str) -> dict[str, Any]:
+    """Detalha UMA peça (quantidade, notas, compra, garantia, série)."""
+    return _homebox_op(lambda c: c.detalhar(id))
+
+
+def homebox_criar(
+    nome: str,
+    quantidade: int = 1,
+    tipo: str = "",
+    descricao: str = "",
+    notas: str = "",
+    tags: str = "",
+    preco: Optional[float] = None,
+    criar_tipo: bool = True,
+    criar_tag: bool = True,
+) -> dict[str, Any]:
+    """Cadastra UMA peça (tipo/tags inexistentes são criados e DECLARADOS)."""
+    return _homebox_op(
+        lambda c: c.criar(
+            nome, quantidade=quantidade, tipo=tipo, descricao=descricao,
+            notas=notas, tags=tags, preco=preco,
+            criar_tipo=criar_tipo, criar_tag=criar_tag,
+        )
+    )
+
+
+def homebox_atualizar(
+    id: str,
+    quantidade: Optional[int] = None,
+    notas: Optional[str] = None,
+    descricao: Optional[str] = None,
+    preco: Optional[float] = None,
+) -> dict[str, Any]:
+    """Atualiza UMA peça (ex.: gastou resistores → nova quantidade)."""
+    return _homebox_op(
+        lambda c: c.atualizar(
+            id, quantidade=quantidade, notas=notas, descricao=descricao, preco=preco
+        )
+    )
+
+
 # ---------------------------------------------------------------------------
 # Serviços (systemd — degrada graciosamente)
 # ---------------------------------------------------------------------------
@@ -3172,6 +3246,24 @@ CATALOG: list[dict[str, Any]] = [
           {"required": ["pattern"], "properties": {"pattern": S, "quantidade": {**I, "default": 5}}}),
     _spec("kiwix_leitura", "kiwix", "Lê um artigo offline pelo caminho (texto limpo, com corte declarado)", kiwix_leitura,
           {"required": ["caminho"], "properties": {"caminho": S, "max_chars": {**I, "default": 8000}}}),
+    # --- Homebox: inventário do dono (4ª ferramenta, uso definido 17/10) ---
+    _spec("homebox_status", "homebox", "Inventário: versão + totais (itens, locais, tags)", homebox_status),
+    _spec("homebox_busca", "homebox", "Busca peças no inventário (o dono tem X? o que sobrou de Y?)", homebox_busca,
+          {"required": ["query"], "properties": {"query": S, "quantidade": {**I, "default": 10}}}),
+    _spec("homebox_listar", "homebox", "Lista o inventário (opcional por tags: \"a, b\")", homebox_listar,
+          {"properties": {"quantidade": {**I, "default": 25}, "tags": {**S, "default": ""}}}),
+    _spec("homebox_detalhar", "homebox", "Detalha UMA peça (notas, compra, garantia, série)", homebox_detalhar,
+          {"required": ["id"], "properties": {"id": S}}),
+    _spec("homebox_criar", "homebox", "Cadastra UMA peça (tipo/tags inexistentes são criados e declarados)", homebox_criar,
+          {"required": ["nome"], "properties": {
+              "nome": S, "quantidade": {**I, "default": 1}, "tipo": {**S, "default": ""},
+              "descricao": {**S, "default": ""}, "notas": {**S, "default": ""}, "tags": {**S, "default": ""},
+              "preco": {"type": "float"}, "criar_tipo": {**B, "default": True}, "criar_tag": {**B, "default": True},
+          }}),
+    _spec("homebox_atualizar", "homebox", "Atualiza UMA peça (ex.: gastou resistores → nova quantidade)", homebox_atualizar,
+          {"required": ["id"], "properties": {
+              "id": S, "quantidade": {"type": "int"}, "notas": S, "descricao": S, "preco": {"type": "float"},
+          }}),
     # --- Serviços (3) ---
     _spec("service_list", "service", "Lista serviços systemd", service_list),
     _spec("service_status", "service", "Status de um serviço", service_status,

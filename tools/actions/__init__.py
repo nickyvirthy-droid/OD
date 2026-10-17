@@ -2,7 +2,7 @@
 OMEGA DRAKON • CORE
 Tecnologia que respira.
 Módulo: tools/actions
-Descrição: Pacote do catálogo de Actions — 100 ações operacionais (sistema,
+Descrição: Pacote do catálogo de Actions — 106 ações operacionais (sistema,
            processos, docker, serviços, arquivos, git, banco de dados,
            introspecção, nomad) registradas no Action Registry com permission
            própria (gate do Security Layer na execução).

@@ -7,6 +7,69 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.38.0] — INVENTÁRIO DO DONO: HOMEBOX INTERLIGADO (4ª, USO DEFINIDO) 🜂 (2026-10-17)
+
+### 1. O que foi feito
+
+Quarta e última da fila de ferramentas, agora com **uso DEFINIDO pelo
+dono** (17/10): *"me ajudar a cadastrar as ferramentas e peças que
+possuo... sabendo disso, sugerir montagens dizendo as peças que possuo
+e as que preciso"* (ex. dele: Raspberry Pi 4 + ESP-01S/DHT22 →
+estação meteorológica). O **Homebox voltou do ar** (banco
+preservado — nada apagado) como o **inventário do dono**, e o sistema
+passou a **CONSULTAR e CADASTRAR** nele por 6 actions — `homebox_status`,
+`homebox_busca`, `homebox_listar`, `homebox_detalhar`, `homebox_criar`,
+`homebox_atualizar` (categoria `homebox`, só admin): responde *"o que
+você tem"*, cadastra peça nova na hora (tipo/tags inexistentes são
+criados com **declaração** na resposta) e **nenhuma action apaga**.
+Primeira interligação com **escrita de verdade** — e o E2E cadastrou as
+peças REAIS do dono: **Raspberry Pi 4** e **ESP-01S com DHT22**.
+
+| Peça | Entrega |
+|---|---|
+| **Bootstrap** | Conta do sistema `omega-drakon@omegadrakon.local` + **API key estática** (sem expiração) no `.env` (`HBOX_API_EMAIL`/`HBOX_API_PASSWORD`/`HBOX_API_KEY`/`OD_HOMEB_URL`); conta órfã de bootstrap interrompido removida do SQLite (via `chown` temporário pelo container — sem sudo); **cofre: allowlist +2 → espelho 14/14 conferem**. |
+| **`integrations/homebox.py` (novo)** | `HomeboxClient` stdlib puro (`urllib`+`json` — zero dependência nova). Contratos **apurados ao vivo antes de codificar** (swagger do próprio container `/swagger/doc.json`, 67 rotas): **`/v1/entities` é o inventário** (NÃO `/items`), envelope paginado, **PATCH parcial de verdade** (quantity), **PUT substitui o objeto** (notas/descrição/preço via **GET+merge+PUT**); achados de auth: session token **NÃO** vale como Bearer (cookie `hb.auth.token`) e a **API key vale EXATAMENTE como Bearer**. 7 erros tipados; fábrica **LAZY** (`OD_HOMEB_URL`+`HBOX_API_KEY`). |
+| **`tools/actions/actions.py`** | `_homebox_op` + as 6 actions com schemas no catálogo (`criar_tipo`/`criar_tag` True por padrão e declarados na resposta; `listar` por tags **sem criar**). |
+| **`core/capabilities.py`** | Capability **`homebox-inventario` ATIVA** (integrations) + fallback 1.38.0. |
+| **Catálogo** | 100 → **106 actions** (categoria `homebox: 6`), contagens em 4 testes + docstring do pacote. |
+| **Testes** | **`tests/test_homebox.py` novo: 52 testes** — fixtures fiéis ao swagger/capturas vivas (EntityOut 34 campos, envelope paginado, seed); PUT-seguro (regressão do 500 ao vivo), UUID, todos os erros, fábrica lazy, actions + catálogo (**nenhuma action apaga**). |
+| **versionCode** | 2070 → **2071** (política 9/9; APKs rebuildados, aapt2 confere). |
+
+### 2. Decisão registrada (fonte da verdade)
+
+Regras desta entrega: (1) **contrato antes de código** — swagger vivo +
+`routes.go` da tag v0.26.2 + chamadas reais (descobertas: rota é
+`/entities`, auth de session é cookie e de key é Bearer); (2) **PUT que
+substitui** — notas/preço passam por GET+merge+PUT e opcionais vazios
+**não vão** no payload (`parentId:""` → HTTP 500 do fork, achado no
+E2E e corrigido com teste-regressão); (3) **id é UUID** — validado
+antes da chamada (a API devolve 400 "invalid route key", não 404);
+(4) **escrita com declaração** — criar tipo/tag é conveniência do
+cadastro do dono, sempre declarada na resposta (`tipo_criado`/
+`tags_criadas`); (5) **nada apaga** — nenhuma ação de exclusão no
+catálogo (régua do dono); (6) **LAZY** — ferramenta fora do ar degrada
+a ação, nunca o boot.
+
+### 3. Validação (17/10)
+
+Suíte **3290 passed / 16 skipped · gate 91,07%** (+4 testes) ·
+aapt2 **2071/1.38.0**. Provas vivas (restart, NRestarts=0): `/health`
+21 checks · `/actions` **106** com as 6 `homebox_*` · `/app/version`
+**1.38.0/2071**. **E2E real pelo `/executa` (20 provas):** status
+(v0.26.2) → **cadastro das peças REAIS do dono** (tipos e tags criados
+e declarados) → buscas 1 hit cada → busca vazia honesta → listar as 2
+peças → detalhar → **atualizar** (nota *"candidato a estação
+meteorológica"* via PUT completo) → 404 honesto (UUID inexistente) →
+id torto validado antes → totais coerentes.
+
+### 4. Pendências/observações
+
+Fila de ferramentas **fechada de vez**: Vaultwarden ✅ Stirling ✅
+Kiwix ✅ **Homebox ✅**. Próximos capítulos quando o dono quiser:
+alimentar o RAG com o Kiwix como fonte; mais peças no inventário (o
+sistema já sugere montagens com o que tem × o que falta); rotação de
+segredos §8.5 e cofre pessoal seguem pendentes do dono.
+
 ## [1.37.0] — ACERVO OFFLINE: KIWIX INTERLIGADO (3ª DAS 3 — FILA COMPLETA) 🜂 (2026-10-17)
 
 ### 1. O que foi feito

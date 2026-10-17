@@ -58,6 +58,14 @@ CREDENCIAIS: dict[str, str] = {
         "ATENÇÃO: token vazado do bot legado — rotação §8.5 PENDENTE do dono."
     ),
     "HBOX_AUTH_API_KEY_PEPPER": "Pepper do Homebox (HBOX_AUTH_API_KEY_PEPPER).",
+    "HBOX_API_KEY": (
+        "API key estática do Homebox (inventário do dono; Bearer, sem "
+        "expiração; criada na reativação de 17/10 — v1.38.0)."
+    ),
+    "HBOX_API_PASSWORD": (
+        "Senha da conta do sistema omega-drakon@omegadrakon.local do "
+        "Homebox (só para administração; o sistema usa a API key)."
+    ),
     "ADMIN_TOKEN": "ADMIN_TOKEN do painel do Vaultwarden.",
     "OD_VAULT_MASTER": (
         "Master da conta de serviço od-sistema — auto-referência do cofre "
@@ -69,9 +77,9 @@ CREDENCIAIS: dict[str, str] = {
 USERNAME_DE: dict[str, str] = {"OD_MQTT_PASSWORD": "OD_MQTT_USERNAME"}
 
 NOTA_PADRAO = (
-    "Espelho do .env (17/10/2026, v1.36.0) — o .env continua sendo a fonte "
-    "de bootstrap e o boot nunca depende do cofre. Não apagar sem decisão "
-    "do dono."
+    "Espelho do .env (17/10/2026, v1.38.0 — +2 chaves do Homebox) — o .env "
+    "continua sendo a fonte de bootstrap e o boot nunca depende do cofre. "
+    "Não apagar sem decisão do dono."
 )
 
 # Padrão de nome que EM GERAL indica segredo — usado só para AVISAR sobre

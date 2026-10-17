@@ -12,6 +12,39 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.38.0] — INVENTÁRIO DO DONO: HOMEBOX INTERLIGADO (4ª, USO DEFINIDO PELO DONO) 🜂 (2026-10-17)
+
+> **Bump MINOR (capability nova + WRITE):** quarta e última da fila de
+> ferramentas, com **uso DEFINIDO pelo dono** em 17/10 (*"me ajudar a
+> cadastrar as ferramentas e peças que possuo... sabendo disso, sugerir
+> montagens dizendo as peças que possuo e as que preciso"* — ex. dele:
+> Raspberry Pi 4 + ESP-01S/DHT22 → estação meteorológica). O sistema
+> agora **CONSULTA E CADASTRA** no Homebox self-hosted (container
+> `od-homebox` **reativado**, sysadminsmedia/homebox 0.26.2, só
+> `127.0.0.1:8470`, banco do desligamento de 17/10 **preservado** —
+> nada apagado) pelas actions `homebox_status`/`homebox_busca`/
+> `homebox_listar`/`homebox_detalhar`/`homebox_criar`/`homebox_atualizar`
+> (categoria `homebox`, só admin) — **nenhuma action apaga**: só lê e
+> cadastra (régua do dono). Primeira interligação do catálogo com
+> escrita de verdade.
+
+| Peça | Entrega |
+|---|---|
+| **Bootstrap** | Conta do sistema `omega-drakon@omegadrakon.local` (senha de 32 chars gerada, **nunca impressa**) + **API key estática** `omega-drakon` (sem expiração) no `.env` (`HBOX_API_EMAIL`/`HBOX_API_PASSWORD`/`HBOX_API_KEY`/`OD_HOMEB_URL`); conta órfã de um bootstrap interrompido removida do SQLite via `chown` temporário pelo próprio container (sem sudo); **cofre: allowlist +2 e espelho 14/14 conferem**. |
+| **`integrations/homebox.py` (novo)** | `HomeboxClient` em **stdlib puro** (`urllib`+`json`; zero dependência nova). Contratos **apurados ao vivo antes de codificar** — swagger do próprio container (`/swagger/doc.json`, 67 rotas, Swagger 2.0) + `routes.go` da tag v0.26.2: **`/v1/entities` é o inventário** (NÃO `/items` — 404 apurado), envelope paginado `{page,pageSize,total,items}`, `POST /v1/entities` (`EntityCreate`: name*, quantity, description, entityTypeId, tagIds), **PATCH parcial de verdade** (só 5 campos; `quantity` é um deles), **PUT que SUBSTITUI o objeto** (`name` obrigatório; notas/descrição/preço passam por **GET+merge+PUT**), `/v1/entity-types`, `/v1/tags`, `/v1/groups/statistics`. **Achados de auth (ambos apurados ao vivo):** session token do login **NÃO** vale como `Authorization: Bearer` (middleware lê o cookie `hb.auth.token`) e a **API key vale EXATAMENTE como Bearer** (e não como cookie) — caminho estático do sistema. **Erros honestos tipados:** `homebox_indisponivel`, `homebox_timeout`, `homebox_falhou`, `homebox_nao_autenticado`, `homebox_nao_encontrado`, `homebox_parametro_invalido`, `homebox_resposta_invalida`. **LAZY**: `client_padrao()` cacheada (`OD_HOMEB_URL`+`HBOX_API_KEY`) — ferramenta fora do ar degrada a ação, nunca o boot do od-core. |
+| **Defeitos achados ao vivo (E2E 1ª execução) e corrigidos** | (1) `PUT` com `parentId:""` → **HTTP 500 "Unknown Error"** do fork: opcionais agora só entram quando **presentes**; (2) id fora de UUID → API devolve **400 `invalid route key`**, não 404: validação **antes** da chamada com mensagem acionável (*"use o id de homebox_busca"*) + 404 honesto para UUID inexistente; (3) tags inexistentes são criadas com **declaração** na resposta (`tags_criadas`/`tipo_criado`) — cadastro sem fricção, nunca silencioso. |
+| **`tools/actions/actions.py`** | `_homebox_op` + 6 actions: `homebox_status` (versão + totais), `homebox_busca` (`query`, `quantidade` 1–100), `homebox_listar` (filtro por tags nominais — **sem criar**), `homebox_detalhar` (id UUID), `homebox_criar` (nome, quantidade, tipo, descrição, notas, tags, preco, criar_tipo/criar_tag), `homebox_atualizar` (quantidade pura → PATCH; o resto → PUT cheio). |
+| **`core/capabilities.py`** | Nova capability **`homebox-inventario`** (integrations, **ATIVA**) + fallback 1.38.0. |
+| **Catálogo de actions** | 100 → **106 actions** (categoria `homebox: 6`) — contagens em 4 arquivos de teste + docstring do pacote. |
+| **Testes** | **`tests/test_homebox.py` novo — 52 testes** com fixtures fiéis ao swagger/capturas vivas (envelope paginado, EntityOut 34 campos, tipos/seed): mapeamento, cliente (status/busca/listar/detalhar/criar/atualizar + PUT-seguro + UUID + todos os erros), transporte urllib, fábrica lazy, actions (degradação) e catálogo (**nenhuma action apaga** + negação para papel comum). |
+| **versionCode** | 2070 → **2071** (política 9/9; APKs rebuildados, aapt2 confere 1.38.0/2071). |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3290 passed / 16 skipped** (+4 testes sobre 1.37.0) · gate **91,07%** |
+| Prova viva (restart, NRestarts=0) | `/health` 21 checks · `/actions` **106** com as 6 `homebox_*` · `/app/version` **1.38.0/2071** |
+| **E2E real pelo `/executa`** (20 provas) | `homebox_status` (v0.26.2) → **cadastro REAL das peças do dono**: Raspberry Pi 4 + ESP-01S com DHT22 (tipos `Placa de desenvolvimento`/`Módulo sensor` e tags **criados e declarados**) → `homebox_busca("raspberry")`/`("dht22")` 1 hit cada → busca vazia `ok=True, []` → `homebox_listar` = as 2 peças → `homebox_detalhar` → `homebox_atualizar` (nota *"candidato a estação meteorológica"* via PUT completo) → 404 honesto (UUID inexistente) → id torto validado antes → totais coerentes (2 itens). **Guarda anti-duplicação** no E2E: reruns verificam sem cadastrar de novo. |
+
 ## [1.37.0] — ACERVO OFFLINE: KIWIX INTERLIGADO (3ª DAS 3 — FILA COMPLETA) 🜂 (2026-10-17)
 
 > **Bump MINOR (capability nova):** terceira e última da fila aprovada

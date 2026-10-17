@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.37.0"
+    or "1.38.0"
 )
 
 # Status válidos.
@@ -356,6 +356,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "v1.37.0",
         "status": ACTIVE,
         "path": "integrations/kiwix.py",
+    },
+    {
+        "id": "homebox-inventario",
+        "name": "Homebox (inventário de ferramentas e peças do dono)",
+        "category": "integrations",
+        "description": "4ª e última das ferramentas interligadas, com uso DEFINIDO pelo dono (17/10: 'me ajudar a cadastrar as ferramentas e peças que possuo... sabendo disso, sugerir montagens dizendo as peças que possuo e as que preciso'): o sistema CONSULTA e CADASTRA no Homebox self-hosted (container od-homebox, sysadminsmedia/homebox 0.26.2, escuta só em 127.0.0.1:8470, banco preservado do desligamento de 17/10) pelas actions homebox_status/homebox_busca/homebox_listar/homebox_detalhar/homebox_criar/homebox_atualizar (categoria homebox, só admin). NENHUMA ação apaga — só lê e cadastra (régua do dono). Contrato apurado ao vivo ANTES de codificar (17/10) — swagger do próprio container (/swagger/doc.json, 67 rotas): /v1/entities é o inventário (NÃO /items), envelope paginado, PATCH parcial de verdade (quantity) e PUT que SUBSTITUI o objeto (notas/descrição/preço passam por GET+merge+PUT); achados de auth: session token NÃO vale como Bearer (cookie hb.auth.token) e a API key estática vale EXATAMENTE como Bearer (caminho do sistema, sem expiração). Tipo/tag inexistentes são criados com DECLARAÇÃO na resposta (tipo_criado/tags_criadas). LAZY por desenho: ferramenta fora do ar degrada a ação, nunca o boot do od-core.",
+        "source": "OD (homebox fork sysadminsmedia, AGPL-3.0)",
+        "phase": "v1.38.0",
+        "status": ACTIVE,
+        "path": "integrations/homebox.py",
     },
     {
         "id": "saude-reference",
