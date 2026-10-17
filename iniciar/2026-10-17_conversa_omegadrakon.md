@@ -83,3 +83,63 @@ NRestarts=0** (17/10 09:45). **Provas vivas:**
 **Commit:** código `d251ba3`; registros no commit seguinte. Estado:
 v1.34.1+2066 no ar; stack = 8; fila de interligação começando pelo
 Vaultwarden (cofre do sistema).
+
+## §3 — Homebox volta com uso definido + entrega: cofre do sistema (v1.35.0+2067)
+
+**Discussão do Homebox (pedido do dono: "nada sai ou entra sem utilidade").**
+Apresentei o que só ele faz (inventário do que a casa **possui** — cômodo,
+garantia, nº de série, QR — espelho oposto do Registro Mestre, que é o que a
+casa **produz**), os 3 cenários de utilidade real (frente FAB operando;
+garantias da casa; eu respondendo "o que tenho em X" via `homebox_*`) e a
+apuração da saída (vazio em 5 dias, 1,9 MB de banco, 45 MB RAM, ninguém
+sentiu falta). **Resposta do dono à pergunta direta: "Voltar agora com uso
+definido"** — volta com o foco aprovado no exemplo (inventário/garantias da
+casa), **já integrado com `homebox_*`**, numa próxima entrega (registro no
+TODO §1 linha 8 + §5). Se quiser outro foco, é só dizer.
+
+**"Prossiga com o cofre" — 1ª das 3 interligações entregue (v1.35.0+2067):**
+
+- **Conta de serviço criada** `od-sistema@omegadrakon.dev` pelo fluxo de
+  registro com crypto oficial (action `nomad_vaultwarden_setup`): signups
+  abertos por ~20 s, conta criada, **fechados e verificados no mesmo ato**
+  (rede de segurança automática mesmo em falha). A conta e a master **do
+  dono nunca entram no circuito**.
+- **`integrations/vault.py`**: `VaultClient` + fábrica LAZY (cofre fora do
+  ar degrada a ação, **nunca o boot**); senha só via `--passwordenv` (env);
+  JSON de item só por **stdin base64** (nunca argv); sessão em memória com
+  renovação única; erros tipados honestos.
+- **4 actions** `vault_status/vault_list/vault_get/vault_set` (categoria
+  `vault`, só admin): lista devolve **só títulos**, segredo só em `vault_get`,
+  `vault_set` atualiza sem duplicar. Catálogo **89 → 93**; capability
+  `vault-cofre` ATIVA.
+- **Achado de campo minado (apuração viva):** a prova de escrita derrubou o
+  pin provisório **2026.8** — todos os 2026.x (2026.8 e 2026.10, em Node 18
+  **e** 22) **crasham decifrando cifras do Vaultwarden 1.36** com item no
+  cofre (`invalid type: JsValue … expected a string`); o drill de 15/10 só
+  testara **cofre vazio**. Combo final: **bw 2025.12.1 + Node 22 +
+  `BITWARDENCLI_APPDATA_DIR` próprio** (`~/.local/opt` e
+  `~/.local/share/bitwarden-cli`, zero dependência em `/tmp`); TODO da
+  dívida atualizado com os **dois** bloqueios dos 2026.x.
+- **Testes:** `tests/test_vault.py` novo (33) · **suíte 3138 passed / 16
+  skipped, gate 90,90%** · `flutter analyze` 0 · **mutações 4/4** bit-exatas.
+  Política 9/9: 2067/1.35.0 em `.env`/capabilities/pubspec/`_APP_VERSION_CODE`/
+  site×4/CHANGELOG/README_VERSAO/ANALISE; aapt2 confere nos dois APKs.
+
+**Deploy:** `systemctl --user restart od-core` → **PID 840230,
+NRestarts=0** (17/10 11:46). **Provas vivas:**
+
+- `/health` **up · 21 checks · fora=nenhum · tools 8/8** · `/dashboard/stats`
+  `nomad_tools total=8 up=8 fora=[]`
+- `/actions` **93** com as 4 `vault_*` · `/app/version` **1.35.0 / 2067**
+  (sha `753c59af…` == APK publicado) · journal **0 erros**
+- **E2E no cofre real pelo wrapper de produção:** status (conta de serviço,
+  `locked`, alcança=true) → `vault_set` **criado** → `vault_list` **só
+  id/nome/tipo** → `vault_get` (case-insensitive, senha **confere**) →
+  `vault_set` de novo **atualiza sem duplicar** → `apagar` → **cofre `[]`**.
+  Ciclo `create/edit/delete` provado também direto no CLI; **conta do dono
+  intocada**.
+
+**Commit:** código e registros nos dois commits da entrega. Estado:
+v1.35.0+2067 no ar; cofre ligado (vazio de propósito — popular é do dono);
+fila da interligação: **2º Stirling PDF → 3º Kiwix**; Homebox volta na
+sequência com uso definido.

@@ -15,8 +15,8 @@
 | 5 | **Stirling PDF** (50+ PDF tools) | `od-stirling-pdf` | 8400 | ✅ | OCR, merge, split, assinar; JAVA_TOOL_OPTIONS fix metaspace |
 | 6 | **File Browser** (arquivos web) | `od-filebrowser` | 8410 | ✅ | login admin/admin → trocar |
 | 7 | **Calibre Web** (e-books) | `od-calibre-web` | 8420 | ✅ | login admin/admin123 → trocar; books em `/home/alex/omegadrakon-tools/books` |
-| 8 | **Homebox** (inventário/QR) | `od-homebox` | 8470 | ❄️ **FORA DO AR desde 17/10** | Decisão do dono ("nada parado"): compose comentado, imagem removida (−198 MB), dados preservados em `omegadrakon-tools/homebox`. Reativar = descomentar bloco |
-| 9 | **Vaultwarden** (cofre senhas) | `od-vaultwarden` | 8480 | ✅ | HTTPS via Tailscale Serve; **conta do dono criada 15/10** (verificada com CLI oficial `bw`); **`SIGNUPS_ALLOWED=false`** (registro recusa HTTP 400) |
+| 8 | **Homebox** (inventário/QR) | `od-homebox` | 8470 | ❄️ **FORA DO AR desde 17/10** | Decisão do dono ("nada parado"): compose comentado, imagem removida (−198 MB), dados preservados em `omegadrakon-tools/homebox`. **Depois o dono decidiu VOLTAR com uso definido** (inventário/garantias da casa, já integrado com `homebox_*`) — próxima entrega |
+| 9 | **Vaultwarden** (cofre senhas) | `od-vaultwarden` | 8480 | ✅ | HTTPS via Tailscale Serve; **conta do dono criada 15/10**; **conta de SERVIÇO do sistema** `od-sistema@omegadrakon.dev` criada 17/10 e **interligada** (actions `vault_*`, v1.35.0 — o sistema lê/escreve no cofre; a conta do dono nunca é usada); `SIGNUPS_ALLOWED=false` |
 
 > **Situação (15/10):** os 9 sobem com `up -d` e estão no ar. **Pendência do §1 concluída:** conta do dono + signups fechados — comprovado por drill E2E (conta de teste criada pela action, logada e decifrada pelo CLI oficial, depois excluída; vault só com o dono).
 > **Situação (17/10):** decisão do dono sobre as 9 — **Homebox tirado do ar** (vazio, função única; compose comentado + imagem removida, nada apagado) e **FlatNotes/File Browser/Calibre ficam** para análise a fundo, uma por vez (§5). Stack agora = 8 no ar. Critério do dono: *"ferramenta só interessa se o sistema puder usar"* — as 3 primeiras (Vaultwarden, Stirling PDF, Kiwix) continuam e serão interligadas ao sistema, nessa ordem.
@@ -51,7 +51,7 @@
 
 | Item | Status | Observação |
 |---|---|---|
-| **Vaultwarden** | ✅ | Conta do dono criada + registro aberto fechado em 15/10 (E2E com CLI oficial). Falta só o dono popular o cofre: `https://nicky-server.tail1b1f51.ts.net:8443` |
+| **Vaultwarden** | ✅ | Conta do dono criada + registro aberto fechado em 15/10 (E2E com CLI oficial). Falta só o dono popular o cofre: `https://nicky-server.tail1b1f51.ts.net:8443` — o sistema já tem conta própria e actions `vault_*` (v1.35.0) |
 | **Registro Mestre — Etapa 4** | ☐ | Comprador / QR / loja do lote de brinquedos |
 | **Pauta §8.5 — Rotação dos segredos vazados no Legado** (09/10) | ☐ | Verificado 09/10: **bot antigo `@Nexus_Nicky_bot` e chave Gemini AINDA ATIVOS**. Decisão do dono: rotacionar só quando os testes em produção finalizarem. Nunca migrar segredo ao site (fonte: §6 linha 15 + §8 item 5 — mesmo assunto da linha "Rotação de segredos" abaixo) |
 | **Repo GitHub público + segredos no histórico** | ☐ | **Decisão do dono:** tornar o repo privado e/ou rotacionar segredos que apareceram no histórico antes do commit `3ed13cc` (migração p/ `.env`) — detalhes no `txt.txt` |
@@ -116,7 +116,7 @@
 
 | Área | Item | Impacto |
 |---|---|---|
-| `bw` CLI oficial ≥ 2026.9 | Incompatível com Vaultwarden 1.36.0 no **prelogin** (CLI espera `{kdfSettings, Salt}`; servidor 1.36.0 devolve `{kdf, kdfIterations}` — flag `pm-27060` não está no allowlist `SUPPORTED_FEATURE_FLAGS` do servidor). Funciona com CLI 2026.8.0 (verificado). Resolver com upgrade da imagem quando sair Vaultwarden compatível | Login via CLI oficial de versões novas falha; **web vault empacotada funciona normalmente** |
+| `bw` CLI oficial ≥ 2026.9 (dívida atualizada 17/10) | **Dois** bloqueios do `bw` 2026.x × Vaultwarden 1.36.0: (a) prelogin de ≥2026.9 (`{kdfSettings, Salt}` vs `{kdf, kdfIterations}` — flag `pm-27060` fora do allowlist `SUPPORTED_FEATURE_FLAGS`); (b) **parse de cifras** de 2026.8→2026.10 (em Node 18 **e** 22): `invalid type: JsValue … expected a string` — **só aparece com item no cofre** (o drill de 15/10 testou vazio e registrou o 2026.8 como "funcionando", agora corrigido). **Resolvido operacionalmente no 17/10**: pin **2025.12.1 + Node 22 + `BITWARDENCLI_APPDATA_DIR` próprio** (ciclo list/create/edit/delete provado na entrega v1.35.0) | Web vault normal; o sistema usa o pin 2025.12.1 via wrapper — reavaliar ao upgrade da imagem/CLI |
 | Repo GitHub público | Histórico antes de `3ed13cc` continha segredos do compose (ADMIN_TOKEN etc.) — visibilidade/rotação é decisão do dono (§2) | Segurança |
 | `tools/auto_extension/engine.py` | Caminho legado (`depot=None`) mantido para compat — pode ser removido depois que todo mundo migrar | Limpeza |
 | `tools/registry.py` | `version` field no `Action` nunca comparado no registro (só no depot) — OK por enquanto | Consistência futura |
@@ -128,7 +128,7 @@
 
 ## 5. Ideias de expansão (parking lot)
 
-- **Análise a fundo de FlatNotes, File Browser e Calibre Web — uma por vez** (pedido do dono 17/10): decidir junto manter/ligar ao sistema/tirar; hoje estão vazias (20 KB / 48 KB / 0 livros) e no ar. Enquanto isso, **Vaultwarden → Stirling PDF → Kiwix** são as 3 primeiras a serem interligadas ao sistema (ordem aprovada 17/10)
+- **Análise a fundo de FlatNotes, File Browser e Calibre Web — uma por vez** (pedido do dono 17/10): decidir junto manter/ligar ao sistema/tirar; hoje estão vazias (20 KB / 48 KB / 0 livros) e no ar. Enquanto isso, **Vaultwarden ✅ interligado (v1.35.0)** → **Stirling PDF** → **Kiwix** é a ordem aprovada (17/10); e o **Homebox volta na sequência com uso definido** (decisão do dono 17/10: inventário/garantias da casa, já integrado com `homebox_*`)
 
 - **MCP Server** — expor actions/ferramentas do OD via Model Context Protocol para Claudes/Cursors externos
 - **Plugin marketplace** — o `tools/loader.py` já carrega `.py` de `plugins/`; criar `plugins/` oficial com manifest
