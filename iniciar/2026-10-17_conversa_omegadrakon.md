@@ -567,3 +567,13 @@ OD_DB_URL, OD_MQTT_PASSWORD, OD_VAULT_MASTER, chaves LLM, os 2 bots).
 Todos os valores rotacionados estão no cofre do dono; os arquivos
 temporários com valores foram apagados (sobrou só
 `/tmp/opencode/.mqtt_senha` para o comando do sudo, a apagar depois).
+
+**Fecho (mesma noite):** o dono rodou os dois comandos do sudo (o
+`mosquitto_passwd` avisou só sobre o grupo do arquivo — informativo,
+versões futuras do mosquitto vão exigir `chown root:root`; documentado,
+não atrapalha hoje) e o broker reiniciou às **20:47:37**. Resultado:
+**mqtt up** ("conectado" — o od-core reconectou sozinho com a senha
+nova), **health 22/22 verde, status up** e **E2E vivo: 21 provas, 0
+falhas** (a prova "tudo verde" que era a única pendente fechou).
+`/tmp/opencode/.mqtt_senha` apagada. **Rotação total: 100% cumprida —
+nenhum segredo do histórico ou técnico vivo.**

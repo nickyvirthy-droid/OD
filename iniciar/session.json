@@ -3227,6 +3227,6 @@
     "verificacao": "od-core active NRestarts=0; /app/version 1.39.2/2074; health 22 checks — todos up exceto mqtt degraded (esperado); stats 9/9; /actions 106; E2E única falha = prova tudo-verde (mqtt); stack completa healthy (homebox e vaultwarden recriados).",
     "espelho_cofre": "14/14 gravado+conferiu (todos os valores novos no cofre do dono).",
     "bump": "nenhum — infra pura sem mudança de comportamento (precedente: espelho do cofre 17/10); lições de contrato do Homebox gravadas como comentário em integrations/homebox.py.",
-    "estado_final": "segredos do histórico mortos; técnicas rotacionadas; falta só o mosquitto (sudo do dono) + privatizar repo (clique do dono)."
+    "estado_final": "100% FECHADA: dono rodou o sudo do mosquitto (broker reiniciado 20:47:37); mqtt up, health 22/22 verde, E2E 21/21 0 falhas; .mqtt_senha apagada. Nenhum segredo do histórico ou técnico vivo. Sobra do dono: privatizar repo + bot legado (BotFather)."
   }
 }
