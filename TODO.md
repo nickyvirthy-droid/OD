@@ -178,5 +178,5 @@
 
 ---
 
-**Atualizado em:** 2026-10-17 13:45 (fila avançou: Vaultwarden ✅ e **Stirling ✅** — 2 das 3 interligadas; 12 senhas do `.env` espelhadas no cofre 12/12; **próxima = Kiwix**; boot lento de 13:09 explicado — re-sincronia RAG one-time, padrão histórico)
+**Atualizado em:** 2026-10-17 14:15 (fila: Vaultwarden ✅ Stirling ✅ — **Kiwix aprovada, em andamento**; **RAG fora do boot** — sync em background + delete_many: boot 179s → **3s**, v1.36.1+2069; rotação §8.5 ainda pendente)
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

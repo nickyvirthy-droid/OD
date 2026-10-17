@@ -202,3 +202,46 @@ honestos.
 **Commit:** código 9d69299; registros no commit seguinte. Estado:
 v1.36.0+2068 no ar; fila **1ª ✅ 2ª ✅ → 3ª Kiwix**; rotação §8.5 pendente
 (com o valor antigo já arquivado no cofre).
+
+## §5 — Pedido do dono: RAG fora do boot (v1.36.1+2068→2069)
+
+**Pergunta do dono:** *"quanto ao RAG, porque no boot, ele não pode
+entrar depois e rodar em paralelo"*. Resposta com código na mão: **pode
+— e a partir de agora é assim.** Mas antes de concordar só de boca,
+apuramos o culpado real do boot de 179s: **não era o embedding** (provider
+hash, milissegundos) — era o `VectorStore` **reescrevendo o JSON inteiro
+a cada remoção**: `delete` unitário × 442 chunks substituídos numa edição
+grande = **O(n²) de I/O** (~0,4s/chunk — fecha com os boots históricos:
+654 chunks → 4min; 0 chunks → 1–3s). O próprio comentário do `rag.py` já
+denunciava o O(n²) do `add` unitário; o `delete` tinha ficado para trás.
+
+**Dois consertos, um por cima do outro:**
+1. **Lote** — `delete_many` novo (uma persistência no fim, JSON e DB),
+   espelhando o `add_many`; `sync()` agora apaga substituídos+órfãos de
+   uma vez.
+2. **Background** — `build_rag()` padrão novo: `store.load()` serve o
+   índice já gravado e o boot **segue**; a re-sincronia roda em thread
+   daemon e passa a valer quando termina. Janela honesta: consultas antes
+   do fim do sync devolvem `""` (o mesmo caminho de "sem corpus", que já
+   existia) e voltam sozinhas. `OD_RAG_SYNC_BACKGROUND=0` = caminho
+   síncrono antigo (fail-safe). Falha na thread → estado `falhou` +
+   warn, nunca derruba o core. Estado visível: `sync_status()` /
+   `dump()` (`pendente/sincronizando/pronto/falhou`).
+
+**Validação:** +11 testes (lote com spy em `_persist`, estados, duplo
+start, janela com volta, falha → `falhou`) · suíte **3198 passed / 16
+skipped · gate 90,96%** · `flutter analyze` 0 · aapt2 **2069/1.36.1**.
+
+**Prova viva (PID 976302, NRestarts=0):** **porta 8000 aberta em 3s**
+(antes 179s) — journal: `Database Layer` → `RAG ligado | sync em
+background` (despacho em thread **antes** do boot terminar) → `API REST
+no ar`; sync de fundo fechou em **+2,0s** (o lote deixou o sync tão
+barato que terminou antes da API — a ordenação "API antes do sync" só
+apareceria com sync maior; a garantia é estrutural e coberta por teste).
+`/health` 21 checks · `/actions` 97 · `/app/version` **1.36.1/2069**
+(sha `1a623b1bbc96…` == APK) · journal 0 erros.
+
+**Commit:** código `dda31ec`; registros no commit seguinte. Estado:
+v1.36.1+2069 no ar (boot 3s); **fase 3 aprovada — Kiwix**; reconhecimento
+feito: `od-kiwix` 3.8.1 no ar em `127.0.0.1:8090` com a Wikipédia
+en_all_mini, API HTTP é HTML (contrato a fechar na entrega).
