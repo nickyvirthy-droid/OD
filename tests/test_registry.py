@@ -71,6 +71,7 @@ def srv(serve, tmp_path: Path):
 # ---------------------------------------------------------------------------#
 class TestRegistryStore:
     def test_cria_peca_com_id_canonico(self, store: RegistryStore) -> None:
+        store.criar_colecao("abissal")  # frente NV exige ciclo aberto
         item = store.create(name="Anel Abissal", kind="exclusiva", frente="NV",
                             tipo="SJ", collection="abissal")
         assert item["public_id"].startswith("NV-SJ-")
@@ -90,15 +91,19 @@ class TestRegistryStore:
             store.create(name="X", kind="publica", tipo="1S")
 
     def test_sequencia_por_frente_tipo_ano(self, store: RegistryStore) -> None:
-        a = store.create(name="Joia A", kind="exclusiva", frente="NV", tipo="SJ")
+        store.criar_colecao("abissal")  # frente NV exige ciclo aberto
+        a = store.create(name="Joia A", kind="exclusiva", frente="NV", tipo="SJ",
+                         collection="abissal")
         b = store.create(name="Quadro", kind="exclusiva", frente="PROD", tipo="PE")
-        c = store.create(name="Joia B", kind="exclusiva", frente="NV", tipo="SJ")
+        c = store.create(name="Joia B", kind="exclusiva", frente="NV", tipo="SJ",
+                         collection="abissal")
         # PROD-PE não consome o número do NV-SJ; NV-SJ continua de 1 em 1.
         assert a["public_id"].endswith("-0001")
         assert c["public_id"].endswith("-0002")
         assert b["public_id"].endswith("-0001") and "PROD-PE-" in b["public_id"]
 
     def test_exclusiva_sem_codigo_ganha_curto_nv(self, store: RegistryStore) -> None:
+        store.criar_colecao("abissal")  # frente NV exige ciclo aberto
         item = store.create(name="Anel Abissal", kind="exclusiva", frente="NV",
                             tipo="SJ", collection="abissal")
         curto = item["engraved_code"]
@@ -962,3 +967,274 @@ class TestPosseRotas:
         # 🧾 QR gera o código; ↩ Registro desfaz com a prova secreta
         assert "reg-posse" in html and "regPosse" in html
         assert "reg-desreg" in html and "regDesreg" in html
+
+
+# ---------------------------------------------------------------------------#
+# Frente NV — COLEÇÕES COM CICLO FECHADO (16/10)                              #
+# ---------------------------------------------------------------------------#
+class TestColecoesCicloFechado:
+    """Regra do PROTOCOLO_NV.md (Legado): "Coleções são ciclos fechados.
+    Uma vez Encerrada, nunca é reeditada" — imutável por desenho: existe
+    criar e encerrar, nunca reabrir/renomear/apagar."""
+
+    def test_criar_normaliza_e_lista(self, store: RegistryStore) -> None:
+        col = store.criar_colecao(" abissal ")  # normaliza p/ maiúsculas
+        assert col["name"] == "ABISSAL" and col["closed_at"] is None
+        assert store.get_colecao("ABISSAL")["name"] == "ABISSAL"
+        lista = store.listar_colecoes()
+        assert [c["name"] for c in lista] == ["ABISSAL"]
+        assert lista[0]["aberta"] is True and lista[0]["pecas"] == 0
+
+    def test_criar_duplicada_erro(self, store: RegistryStore) -> None:
+        store.criar_colecao("ABISSAL")
+        with pytest.raises(ValueError, match="colecao_ja_existe"):
+            store.criar_colecao("abissal")
+
+    def test_nome_invalido_erro(self, store: RegistryStore) -> None:
+        for nome in ("", "ab", "x" * 41, "AB@ISSAL", "  ", "AB ISSAL!"):
+            with pytest.raises(ValueError, match="colecao_nome_invalido"):
+                store.criar_colecao(nome)
+
+    def test_encerrar_e_nunca_reabre(self, store: RegistryStore) -> None:
+        store.criar_colecao("ABISSAL")
+        col = store.encerrar_colecao("abissal")
+        assert col["closed_at"] is not None
+        assert store.colecao_de_peca("ABISSAL") == "encerrada"
+        # segunda vez = erro (não existe "reeditar" o ciclo)
+        with pytest.raises(ValueError, match="colecao_ja_encerrada"):
+            store.encerrar_colecao("ABISSAL")
+        # e não existe método de reabrir: a imutabilidade é por desenho
+        assert not hasattr(store, "reabrir_colecao")
+        assert not hasattr(store, "apagar_colecao")
+
+    def test_encerrar_inexistente_erro(self, store: RegistryStore) -> None:
+        with pytest.raises(ValueError, match="colecao_inexistente"):
+            store.encerrar_colecao("FANTASMA")  # nome válido, ciclo inexistente
+
+    def test_peca_nv_exige_colecao_aberta(self, store: RegistryStore) -> None:
+        # sem coleção → erro
+        with pytest.raises(ValueError, match="colecao_obrigatoria_nv"):
+            store.create(name="Anel", kind="exclusiva", frente="NV", tipo="SJ")
+        # coleção inexistente → erro
+        with pytest.raises(ValueError, match="colecao_ausente"):
+            store.create(name="Anel", kind="exclusiva", frente="NV", tipo="SJ",
+                         collection="fantasma")
+        # ciclo encerrado → peça NÃO entra
+        store.criar_colecao("ABISSAL")
+        store.encerrar_colecao("ABISSAL")
+        with pytest.raises(ValueError, match="colecao_encerrada"):
+            store.create(name="Anel", kind="exclusiva", frente="NV", tipo="SJ",
+                         collection="ABISSAL")
+        # trocar para ciclo aberto → entra
+        store.criar_colecao("DRAKONIS")
+        item = store.create(name="Anel", kind="exclusiva", frente="NV", tipo="SJ",
+                            collection="drakonis")
+        assert item["public_id"].startswith("NV-SJ-")
+        # aberta vem primeiro na listagem: DRAKONIS é [0] e conta a peça
+        assert store.listar_colecoes()[0]["pecas"] == 1
+
+    def test_peca_prod_colecao_livre(self, store: RegistryStore) -> None:
+        # frente não-NV: coleção continua texto livre (sem virar entidade)
+        item = store.create(name="Quadro", kind="publica", collection="quadros")
+        assert item["collection"] == "QUADROS"
+        assert store.get_colecao("QUADROS") is None  # livre ≠ entidade
+        # mas ciclo ENCERRADO não recebe peça nova, seja de que linha for
+        store.criar_colecao("ABISSAL")
+        store.encerrar_colecao("ABISSAL")
+        with pytest.raises(ValueError, match="colecao_encerrada"):
+            store.create(name="Anel", kind="publica", collection="ABISSAL")
+
+    def test_update_respeita_ciclo(self, store: RegistryStore) -> None:
+        store.criar_colecao("ABISSAL")
+        store.criar_colecao("DRAKONIS")
+        store.criar_colecao("COBRA")   # ciclo aberto "de fuga" p/ o teste final
+        item = store.create(name="Anel", kind="exclusiva", frente="NV", tipo="SJ",
+                            collection="ABISSAL")
+        # trocar para ciclo encerrado → erro
+        store.encerrar_colecao("DRAKONIS")
+        with pytest.raises(ValueError, match="colecao_encerrada"):
+            store.update(item["public_id"], collection="DRAKONIS")
+        # trocar para ciclo inexistente → erro (NV exige entidade)
+        with pytest.raises(ValueError, match="colecao_ausente"):
+            store.update(item["public_id"], collection="FANTASMA")
+        # limpar a coleção de peça NV → erro (NV sempre tem ciclo)
+        with pytest.raises(ValueError, match="colecao_obrigatoria_nv"):
+            store.update(item["public_id"], collection=None)
+        # trocar para ciclo aberto → ok, e o valor gravado é o testado
+        got = store.update(item["public_id"], collection=" abissal ")
+        assert got["collection"] == "ABISSAL"
+        # peça DENTRO de ciclo encerrado não sai (histórico intocado) —
+        # nem para um ciclo ABERTO: a escassez fica registrada na peça
+        store.encerrar_colecao("ABISSAL")
+        with pytest.raises(ValueError, match="peca_em_ciclo_encerrado"):
+            store.update(item["public_id"], collection="COBRA")
+        # preço/status continuam livres dentro de ciclo encerrado
+        assert store.update(item["public_id"], price_brl=90.0)["price_brl"] == 90.0
+
+    def test_verify_public_mostra_ciclo(self, store: RegistryStore) -> None:
+        store.criar_colecao("ABISSAL")
+        item = store.create(name="Anel", kind="exclusiva", frente="NV", tipo="SJ",
+                            collection="ABISSAL")
+        assert store.verify_public(item["public_id"])["collection_status"] \
+            == "aberta"
+        store.encerrar_colecao("ABISSAL")
+        assert store.verify_public(item["public_id"])["collection_status"] \
+            == "encerrada"
+        # peça PROD com coleção que nunca virou entidade: None (sem mentira)
+        prod = store.create(name="Quadro", kind="publica", collection="quadros")
+        assert store.verify_public(prod["public_id"])["collection_status"] is None
+
+    def test_listar_abertas_primeiro_com_contagem(self,
+                                                  store: RegistryStore) -> None:
+        store.criar_colecao("ZEDONA")   # criada primeiro, depois encerrada
+        store.criar_colecao("ATIVA")
+        store.encerrar_colecao("ZEDONA")
+        item = store.create(name="Anel", kind="exclusiva", frente="NV", tipo="SJ",
+                            collection="ATIVA")
+        assert item  # só para clareza: a peça existe
+        lista = store.listar_colecoes()
+        assert [c["name"] for c in lista] == ["ATIVA", "ZEDONA"]  # aberta 1º
+        assert lista[0]["pecas"] == 1 and lista[1]["pecas"] == 0
+
+    def test_migracao_colecoes_de_pecas_idempotente(self,
+                                                    store: RegistryStore) -> None:
+        # linha crua: peça NV legada com coleção que ainda não é entidade
+        store._db.execute(
+            "INSERT INTO registry_items (public_id, engraved_code, name, "
+            "collection, kind, status, created_at) VALUES "
+            "('NV-SJ-2026-0009','NV-ABI-1111','Anel','ABISSAL','exclusiva',"
+            "'estoque',1.0)"
+        )
+        criadas = store.criar_colecoes_de_pecas()
+        assert criadas == ["ABISSAL"]
+        assert store.colecao_de_peca("ABISSAL") == "aberta"
+        # idempotente: segunda rodada não cria nada
+        assert store.criar_colecoes_de_pecas() == []
+
+
+class TestColecoesRotas:
+    """Rotas: GET público /registry/collections + admin (abrir/encerrar)."""
+
+    def test_publica_sob_auth_all_sem_credencial(self, serve,
+                                                 tmp_path: Path) -> None:
+        from core.registry import RegistryStore as RS
+        from storage import Database as DB
+        from integrations.api import APIConfig
+
+        db = DB(tmp_path / "pub.db")
+        reg = RS(db)
+        reg.criar_colecao("ABISSAL")
+        reg.criar_colecao("DRAKONIS")
+        reg.encerrar_colecao("DRAKONIS")
+        cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123",
+                        auth_all=True, registry=reg)
+        srv = serve(None, config=cfg)
+        status, body, _ = _request(srv.bound_port, "GET",
+                                   "/registry/collections")
+        data = _json_response((status, body, None))
+        assert status == 200 and data["ok"] is True
+        assert data["total"] == 2
+        assert data["colecoes"][0]["name"] == "ABISSAL"
+        assert data["colecoes"][0]["ciclo"] == "aberta"
+        assert data["colecoes"][1]["ciclo"] == "encerrada"
+        # projeção pública: sem campos privados (nada de "notes"/hash)
+        assert "notes" not in data["colecoes"][0]
+
+    def test_nao_engolido_por_codigo(self, srv) -> None:
+        """A rota fixa vem ANTES de /{codigo} — 'collections' não vira ID."""
+        server, _ = srv
+        status, body, _ = _request(server.bound_port, "GET",
+                                   "/registry/collections")
+        assert status == 200  # e não 404 "nao_encontrada"
+        data = _json_response((status, body, None))
+        assert data["colecoes"] == []
+
+    def test_admin_abre_e_encerra(self, srv) -> None:
+        server, _ = srv
+        # abre (dono: api_key)
+        status, body, _ = _request(server.bound_port, "POST",
+                                   "/admin/registry/collections",
+                                   api_key="segredo123",
+                                   raw_body='{"name":"ABISSAL"}')
+        assert status == 201, body
+        assert _json_response((status, body, None))["colecao"]["ciclo"] \
+            == "aberta"
+        # duplicada → 400
+        status, body, _ = _request(server.bound_port, "POST",
+                                   "/admin/registry/collections",
+                                   api_key="segredo123",
+                                   raw_body='{"name":"abissal"}')
+        assert status == 400
+        assert _json_response((status, body, None))["error"] \
+            == "colecao_ja_existe"
+        # encerra → 200
+        status, body, _ = _request(server.bound_port, "POST",
+                                   "/admin/registry/collections/ABISSAL/encerrar",
+                                   api_key="segredo123")
+        assert status == 200
+        assert _json_response((status, body, None))["colecao"]["ciclo"] \
+            == "encerrada"
+        # re-encerrar → 400 (nunca reeditada)
+        status, body, _ = _request(server.bound_port, "POST",
+                                   "/admin/registry/collections/ABISSAL/encerrar",
+                                   api_key="segredo123")
+        assert status == 400
+        assert _json_response((status, body, None))["error"] \
+            == "colecao_ja_encerrada"
+        # encerrar inexistente → 404
+        status, body, _ = _request(server.bound_port, "POST",
+                                   "/admin/registry/collections/FANTASMA/encerrar",
+                                   api_key="segredo123")
+        assert status == 404
+
+    def test_admin_sem_chave_negado(self, srv) -> None:
+        server, _ = srv
+        status, body, _ = _request(server.bound_port, "POST",
+                                   "/admin/registry/collections",
+                                   raw_body='{"name":"X"}')
+        assert status in (401, 403)
+
+    def test_peca_nv_pela_api_exige_ciclo_aberto(self, srv) -> None:
+        server, _ = srv
+        # sem coleção → 400
+        status, body, _ = _request(server.bound_port, "POST", "/admin/registry",
+                                   api_key="segredo123",
+                                   raw_body='{"name":"Anel","kind":"exclusiva",'
+                                            '"frente":"NV","tipo":"SJ"}')
+        assert status == 400
+        assert _json_response((status, body, None))["error"] \
+            == "colecao_obrigatoria_nv"
+        # abre o ciclo e cadastra → 201
+        _request(server.bound_port, "POST", "/admin/registry/collections",
+                 api_key="segredo123", raw_body='{"name":"ABISSAL"}')
+        status, body, _ = _request(server.bound_port, "POST", "/admin/registry",
+                                   api_key="segredo123",
+                                   raw_body='{"name":"Anel","kind":"exclusiva",'
+                                            '"frente":"NV","tipo":"SJ",'
+                                            '"collection":"ABISSAL"}')
+        assert status == 201, body
+        # encerra o ciclo e tenta outra peça → 400
+        _request(server.bound_port, "POST",
+                 "/admin/registry/collections/ABISSAL/encerrar",
+                 api_key="segredo123")
+        status, body, _ = _request(server.bound_port, "POST", "/admin/registry",
+                                   api_key="segredo123",
+                                   raw_body='{"name":"Irmã","kind":"exclusiva",'
+                                            '"frente":"NV","tipo":"SJ",'
+                                            '"collection":"ABISSAL"}')
+        assert status == 400
+        assert _json_response((status, body, None))["error"] \
+            == "colecao_encerrada"
+
+    def test_painel_tem_ui_de_colecoes(self, serve) -> None:
+        from integrations.api import APIConfig
+
+        cfg = APIConfig(port=0, rate_limit_max=0, api_key="segredo123")
+        srv = serve(None, config=cfg)
+        status, body, _ = _request(srv.bound_port, "GET", "/admin")
+        html = body.decode("utf-8", "replace")
+        assert status == 200
+        # abrir ciclo, encerrar (para sempre) e a lista
+        assert "col-add" in html and "colLoad" in html
+        assert "col-encerrar" in html and "colEncerrar" in html
+        assert "nunca é reeditada" in html

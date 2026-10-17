@@ -52,7 +52,6 @@
 |---|---|---|
 | **Vaultwarden** | ✅ | Conta do dono criada + registro aberto fechado em 15/10 (E2E com CLI oficial). Falta só o dono popular o cofre: `https://nicky-server.tail1b1f51.ts.net:8443` |
 | **Registro Mestre — Etapa 4** | ☐ | Comprador / QR / loja do lote de brinquedos |
-| **Frente NV (semi-joias) — ciclo das coleções** (decidido 16/10) | ☐ | **Ordem das frentes DECIDIDA pelo dono (§8.3 fechada): 1º Nicoly Valentina, 2º FAB, 3º Living Systems.** Primeira entrega da frente NV: coleções como entidade de verdade com **ciclo fechado** (regra do `PROTOCOLO_NV.md` do Legado: "uma vez Encerrada, nunca é reeditada") — criar coleção, peça só entra em coleção aberta, encerrar bloqueia novo cadastro; API + painel + site |
 | **Pauta §8.5 — Rotação dos segredos vazados no Legado** (09/10) | ☐ | Verificado 09/10: **bot antigo `@Nexus_Nicky_bot` e chave Gemini AINDA ATIVOS**. Decisão do dono: rotacionar só quando os testes em produção finalizarem. Nunca migrar segredo ao site (fonte: §6 linha 15 + §8 item 5 — mesmo assunto da linha "Rotação de segredos" abaixo) |
 | **Repo GitHub público + segredos no histórico** | ☐ | **Decisão do dono:** tornar o repo privado e/ou rotacionar segredos que apareceram no histórico antes do commit `3ed13cc` (migração p/ `.env`) — detalhes no `txt.txt` |
 | **Rotação de segredos** | ☐ | Adiada — verificado: sem segredo antigo vivo fora do `.env` (exceto histórico git público, pendência acima) |

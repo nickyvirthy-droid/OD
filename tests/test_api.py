@@ -146,8 +146,8 @@ class TestAPIRoutes:
         ferramentas/skills estilo Supply Depot (Parte F do NOMAD,
         2026-10-15) + lista pública /registry, registro do comprador
         /registry/posse e QR de posse do dono (Etapa 4 do Registro
-        Mestre, 2026-10-15)."""
-        assert len(ROUTES) == 84
+        Mestre, 2026-10-15) + ciclos de coleção da frente NV (16/10)."""
+        assert len(ROUTES) == 87
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -163,12 +163,17 @@ class TestAPIRoutes:
             ("GET", "/admin/google/apis"),
             ("GET", "/admin/google/auth"),
             ("GET", "/registry"),
+            # Ciclo fechado da frente NV (16/10) — pública ANTES de /{codigo}
+            ("GET", "/registry/collections"),
             ("GET", "/registry/{codigo}"),
             ("GET", "/registry/{codigo}/photo"),
             ("GET", "/registry/{codigo}/chat"),
             ("POST", "/registry/{codigo}/chat"),
             ("POST", "/registry/posse"),  # Etapa 4: registro do comprador
             ("POST", "/admin/registry"), ("GET", "/admin/registry"),
+            # Ciclo fechado da frente NV (16/10) — abrir/encerrar (dono)
+            ("POST", "/admin/registry/collections"),
+            ("POST", "/admin/registry/collections/{nome}/encerrar"),
             ("PUT", "/admin/registry/{public_id}"),
             ("DELETE", "/admin/registry/{public_id}"),
             ("POST", "/admin/registry/{public_id}/photo"),
@@ -237,6 +242,9 @@ class TestAPIRoutes:
             ("PUT", "/admin/registry/{public_id}"),
             ("DELETE", "/admin/registry/{public_id}"),
             ("POST", "/admin/registry/{public_id}/photo"),
+            # Ciclo fechado da frente NV (16/10) — só o dono abre/encerra
+            ("POST", "/admin/registry/collections"),
+            ("POST", "/admin/registry/collections/{nome}/encerrar"),
             # Etapa 4 (2026-10-15): comprador com conta + QR do dono
             ("POST", "/registry/posse"),
             ("POST", "/admin/registry/{public_id}/posse"),
@@ -292,6 +300,7 @@ class TestAPIRoutes:
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("GET", "/app/version"),
             ("GET", "/registry"),  # lista pública da loja (Etapa 4)
+            ("GET", "/registry/collections"),  # ciclos NV (16/10)
             ("GET", "/registry/{codigo}"),
             ("GET", "/registry/{codigo}/photo"),
             ("GET", "/registry/{codigo}/chat"),

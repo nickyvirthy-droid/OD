@@ -418,7 +418,13 @@
     }
     document.getElementById('f-id').textContent = p.public_id;
     document.getElementById('f-cod').textContent = p.engraved_code || '—';
-    document.getElementById('f-col').textContent = p.collection || '—';
+    // Ciclo fechado da frente NV (16/10): a verificação mostra se a
+    // coleção ainda aceita irmãs (aberta) ou já foi encerrada — para
+    // sempre (escassez visível; PROTOCOLO_NV).
+    var colTxt = p.collection || '—';
+    if (p.collection_status === 'aberta') colTxt += ' · ciclo aberto';
+    if (p.collection_status === 'encerrada') colTxt += ' · ciclo encerrado';
+    document.getElementById('f-col').textContent = colTxt;
     document.getElementById('f-kind').textContent =
       p.kind === 'publica' ? 'Pública' : 'Exclusiva';
     document.getElementById('f-status').textContent = {

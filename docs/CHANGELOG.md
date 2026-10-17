@@ -12,12 +12,36 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.34.0] — FRENTE NV: COLEÇÕES COM CICLO FECHADO (PROTOCOLO_NV) 🜂 (2026-10-16)
+
+> **Bump MINOR (capacidade nova + APK novo):** frente NV aberta pelo dono
+> ("prossiga") — 1º item da ordem das frentes aprovada (1º NV, 2º FAB,
+> 3º Living Systems). Regra do `PROTOCOLO_NV.md` do Legado aplicada ao
+> Registro Mestre: **"Coleções são ciclos fechados. Uma vez Encerrada,
+> nunca é reeditada"** — imutável por desenho (não existe reabrir,
+> renomear nem apagar: só criar e encerrar, e encerrar é para sempre).
+
+| Peça | Entrega |
+|---|---|
+| **`core/registry.py`** | Tabela `registry_collections` (nome único 3–40, criada_em, closed_at NULL=aberta). **`criar_colecao`** (abre ciclo; duplicada = `colecao_ja_existe`), **`encerrar_colecao`** (fecha PARA SEMPRE; segunda vez = `colecao_ja_encerrada`), **`listar_colecoes`** (abertas primeiro + contagem de peças), **`colecao_de_peca`** (status do ciclo: aberta/encerrada/None). **Regra no `create()`**: peça **NV exige coleção existente e ABERTA** (`colecao_obrigatoria_nv`/`colecao_ausente`/`colecao_encerrada`); não-NV mantém coleção livre (texto) — mas ciclo encerrado não recebe peça de linha nenhuma. **`update()`**: NV só troca para ciclo aberto; peça dentro de ciclo encerrado **não sai** (`peca_em_ciclo_encerrado` — a escassez fica registrada na peça); preço/status continuam livres. **`verify_public`** ganha `collection_status`. **`criar_colecoes_de_pecas()`**: migração idempotente — toda coleção citada por peça NV vira entidade ABERTA no boot (peças anteriores a esta frente não ficam órfãs). |
+| **`runtime/launcher.py`** | Boot chama a migração de coleções (com log das criadas — prova viva). |
+| **`integrations/api/server.py`** | **`GET /registry/collections`** (PÚBLICA — nome, ciclo, contagem, datas; rota fixa ANTES de `/{codigo}` para "collections" não virar código) + **`POST /admin/registry/collections`** (abrir) e **`POST /admin/registry/collections/{nome}/encerrar`** (dono; 404 inexistente, 400 já-encerrada). **Sem DELETE/PUT de coleção — a imutabilidade é por ausência de rota.** Painel `/admin`: bloco "Coleções (ciclo fechado)" com lista (ciclo, peças, datas), botão "⛔ Encerrar (para sempre)" com confirmação e input para abrir ciclo; dica no campo de coleção da peça (NV: obrigatória/aberta). |
+| **`site/verificacao.html`** | A verificação pública mostra o ciclo da coleção: "ABISSAL · ciclo aberto" / "· ciclo encerrado" — escassez visível a quem confere a peça. |
+| **Testes** | Nova classe `TestColecoesCicloFechado` (11: criar/normalizar, duplicada, nome inválido, encerrar e nunca reabre [+ hasattr garante que não existe reabrir/apagar], NV exige ciclo aberto, PROD livre mas encerrada não recebe, update respeita ciclo, verify mostra ciclo, listar abertas primeiro, migração idempotente) + `TestColecoesRotas` (6: pública sob auth_all, não engolida por `/{codigo}`, admin abre/encerra, sem chave negado, peça NV pela API exige ciclo aberto, painel tem UI). **Mutações 4/4 capturadas** (exigência do create removida · re-encerrar liberado · peça em ciclo encerrado solta · ordem das rotas invertida), reversões bit-exatas. |
+| **Calibração RAG (corpus)** | A entrega anterior poluiu o corpus com uma palavra rara dos docs escritos naquele dia — a irrelevante climática do gate subiu a comb 0.4427 (acima da relevante mais fraca, 0.4058): **sem piso que separe**. Correção honesta nos MEUS textos de hoje (troca do termo raro colidido por sinônimo comum em README_VERSAO/CHANGELOG) — **piso 0.399/0.036 intacto, sem afrouxamento**; gates voltaram a 8/8 rel. + 8/8 irr. bloqueadas + 6/6 parafrases. |
+| **versionCode** | 2064 → **2065** (bump MINOR — `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site, README_VERSAO, esta seção). |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3105 passed / 16 skipped** (+17) |
+| Mutações (teste do teste) | **4/4 capturadas** |
+
 ## [1.33.1] — LOJA DO SITE SEPARADA POR SEÇÕES (LINHAS DA CASA) 🜂 (2026-10-16)
 
 > **Bump PATCH (ajuste de layout da loja):** pedido do dono no mesmo dia do
 > ID unificado — "a loja precisa separar por seções". A separação vem do
 > PREFIXO do ID canônico (FRENTE-TIPO-ANO-SEQ): cada linha da casa vira sua
-> seção, sem cadastro novo e sem campo extra — o ID já diz a linha.
+> seção, sem cadastro novo e sem coluna extra — o ID já diz a linha.
 
 | Peça | Entrega |
 |---|---|

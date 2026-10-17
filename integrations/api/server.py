@@ -60,7 +60,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2064  # versionCode cru do APK publicado (v1.33.1+2064)
+_APP_VERSION_CODE = 2065  # versionCode cru do APK publicado (v1.34.0+2065)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -118,8 +118,8 @@ PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/admin", "/site", "/site/{f
 # já é público por /site/, coberto por test_site_public_under_auth_all).
 AUTH_EXEMPT_PATHS = frozenset(
     {"/auth/register", "/auth/login", "/anon/message", "/app/version",
-     "/registry", "/registry/{codigo}", "/registry/{codigo}/photo",
-     "/registry/{codigo}/chat"}
+     "/registry", "/registry/collections", "/registry/{codigo}",
+     "/registry/{codigo}/photo", "/registry/{codigo}/chat"}
 )
 
 
@@ -283,6 +283,9 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     # /app/version, v. AUTH_EXEMPT_PATHS). /registry (lista) alimenta a
     # loja do site; /registry/posse é o REGISTRO DO COMPRADOR (conta).
     ("GET", "/registry", "registry_list", False),
+    # Ciclos de coleção (frente NV, 16/10) ANTES de /{codigo} — o matcher
+    # pega a primeira rota que casa, senão "collections" viraria um código.
+    ("GET", "/registry/collections", "registry_collections", False),
     ("GET", "/registry/{codigo}", "registry_verify", False),
     ("POST", "/registry/posse", "registry_posse", True),
     # Foto do produto (pública) e sala de bate-papo da peça: leitura
@@ -332,6 +335,12 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     # do dono; a consulta pública é GET /registry/{codigo}.
     ("POST", "/admin/registry", "admin_registry_create", True),
     ("GET", "/admin/registry", "admin_registry_list", True),
+    # Ciclos de coleção (frente NV): abrir ciclo e encerrar PARA SEMPRE
+    # (PROTOCOLO_NV: "uma vez Encerrada, nunca é reeditada"). Não existe
+    # DELETE/PUT de coleção — a imutabilidade é por ausência de rota.
+    ("POST", "/admin/registry/collections", "admin_registry_collection_create", True),
+    ("POST", "/admin/registry/collections/{nome}/encerrar",
+     "admin_registry_collection_close", True),
     ("PUT", "/admin/registry/{public_id}", "admin_registry_update", True),
     ("DELETE", "/admin/registry/{public_id}", "admin_registry_delete", True),
     ("POST", "/admin/registry/{public_id}/photo", "admin_registry_photo", True),
@@ -1153,7 +1162,8 @@ _ADMIN_PAGE_HTML = """<!doctype html>
         <option value="EMB">EMB</option>
         <option value="CART">CART</option>
       </select>
-      <input id="reg-colecao" placeholder="Coleção (ABISSAL)" style="width:130px">
+      <input id="reg-colecao" title="Frente NV: só entra peça em coleção com ciclo ABERTO (crie abaixo)"
+        placeholder="Coleção (NV: obrigatória/aberta)" style="width:170px">
       <select id="reg-kind" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:0.85rem">
         <option value="exclusiva">exclusiva</option>
         <option value="publica">pública</option>
@@ -1181,6 +1191,26 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       /site/verificacao.html) · 💬 abre a sala de bate-papo da peça — leitura
       pública, escrita com conta, ✕ apaga mensagem (moderação).
     </p>
+
+    <h3 style="margin-top:16px">Coleções (ciclo fechado — frente NV)</h3>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Regra do Protocolo NV: <b>coleção é ciclo fechado — uma vez encerrada,
+      nunca é reeditada</b> (não existe reabrir, renomear nem apagar). Peça NV
+      só nasce em coleção com ciclo <b>aberto</b>. Encerrar é para sempre:
+      confirme só quando a série estiver de fato fechada.
+    </p>
+    <div class="row">
+      <input id="col-nome" placeholder="Nova coleção (ex.: DRAKONIS)" style="width:200px">
+      <button id="col-add" style="border-color:var(--accent);color:var(--accent)">＋ Abrir ciclo</button>
+      <span class="muted msg" id="col-msg"></span>
+    </div>
+    <table style="margin-top:10px">
+      <thead><tr>
+        <th>Coleção</th><th>Ciclo</th><th class="num">Peças</th>
+        <th>Aberta em</th><th>Encerrada em</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="col-lista"><tr><td colspan="6" class="muted">Carregando…</td></tr></tbody>
+    </table>
   </section>
 
   <section>
@@ -1773,6 +1803,74 @@ async function regAdd() {
     regSetMsg("✔ Cadastrada: " + data.peca.public_id, "ok");
     regLoad();
   } catch (e) { regSetMsg("Falha: " + e.message, "err"); }
+}
+
+// --- Ciclo fechado das coleções (frente NV, 16/10) ------------------------
+function colSetMsg(t, cls) {
+  const el = document.getElementById("col-msg");
+  el.textContent = t;
+  el.className = "muted msg " + (cls || "");
+}
+
+function colData(ts) {
+  return ts ? new Date(ts * 1000).toLocaleString("pt-BR") : "—";
+}
+
+async function colLoad() {
+  try {
+    // Mesma projeção pública (GET /registry/collections) — o painel não
+    // tem campos privados de coleção: o ciclo aberto/fechado é de todos.
+    const resp = await fetch("/registry/collections");
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { colSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    const cols = data.colecoes || [];
+    document.getElementById("col-lista").innerHTML = cols.length ? cols.map(c => {
+      const aberta = c.ciclo === "aberta";
+      const acao = aberta
+        ? '<button class="danger col-encerrar" data-nome="' + esc(c.name) +
+          '">⛔ Encerrar (para sempre)</button>'
+        : '<span class="pill ok">fechado — imutável</span>';
+      return "<tr><td><b>" + esc(c.name) + "</b></td>" +
+        '<td><span class="pill ' + (aberta ? "" : "ok") + '">' + c.ciclo + "</span></td>" +
+        '<td class="num">' + c.pecas + "</td>" +
+        '<td class="muted">' + colData(c.criada_em) + "</td>" +
+        '<td class="muted">' + colData(c.encerrada_em) + "</td>" +
+        "<td>" + acao + "</td></tr>";
+    }).join("") : '<tr><td colspan="6" class="muted">Nenhuma coleção ainda — abra o primeiro ciclo.</td></tr>';
+    document.querySelectorAll(".col-encerrar").forEach(b =>
+      b.addEventListener("click", () => colEncerrar(b.dataset.nome)));
+  } catch (e) { colSetMsg("Falha ao carregar: " + e.message, "err"); }
+}
+
+async function colAdd() {
+  const nome = (document.getElementById("col-nome").value || "").trim();
+  if (!nome) { colSetMsg("Dê um nome à coleção.", "err"); return; }
+  try {
+    const resp = await fetch("/admin/registry/collections", {
+      method: "POST", headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify({ name: nome })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { colSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    document.getElementById("col-nome").value = "";
+    colSetMsg("✔ Ciclo aberto: " + data.colecao.name, "ok");
+    colLoad();
+  } catch (e) { colSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function colEncerrar(nome) {
+  if (!window.confirm("ENCERRAR o ciclo de " + nome + "?\\n\\n" +
+      "PARA SEMPRE — o Protocolo NV proíbe reabrir, renomear ou apagar " +
+      "a coleção. Confirme só se a série estiver de fato fechada.")) return;
+  try {
+    const resp = await fetch(
+      "/admin/registry/collections/" + encodeURIComponent(nome) + "/encerrar",
+      { method: "POST", headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { colSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    colSetMsg("⛔ Ciclo de " + data.colecao.name + " encerrado — para sempre.", "ok");
+    colLoad();
+  } catch (e) { colSetMsg("Falha: " + e.message, "err"); }
 }
 
 async function regStatus(id, status, owner, posseCode) {
@@ -2393,10 +2491,12 @@ function linkGoogle() {
   });
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); dlLoad(); auLoad(); frLoad(); linkGoogle(); };
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); colLoad(); dlLoad(); auLoad(); frLoad(); linkGoogle(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
+document.getElementById("col-add").onclick = colAdd;
+document.getElementById("col-nome").addEventListener("keydown", e => { if (e.key === "Enter") colAdd(); });
 document.getElementById("reg-nome").addEventListener("keydown", e => { if (e.key === "Enter") regAdd(); });
 document.getElementById("dl-add").onclick = dlAdd;
 document.getElementById("dl-refresh").onclick = dlLoad;
@@ -4146,6 +4246,24 @@ class APIHandler(BaseHTTPRequestHandler):
             return
         self._json(200, {"ok": True, "peca": public})
 
+    def registry_collections(self) -> None:
+        """GET /registry/collections — lista PÚBLICA dos ciclos (frente NV).
+
+        Projeção sem segredo (mesma natureza de /registry): nome, ciclo
+        (aberta/encerrada), contagem de peças e datas. Ciclo encerrado é
+        escassez visível — "nunca reeditada" (PROTOCOLO_NV) vira prova
+        pública na loja/verificação.
+        """
+        store = self._registry_store_or_503()
+        colecoes = [
+            {"name": c["name"], "ciclo": "aberta" if c["aberta"] else "encerrada",
+             "pecas": c["pecas"], "criada_em": c["created_at"],
+             "encerrada_em": c["closed_at"]}
+            for c in store.listar_colecoes()
+        ]
+        self._json(200, {"ok": True, "total": len(colecoes),
+                         "colecoes": colecoes})
+
     def registry_posse(self) -> None:
         """POST /registry/posse — comprador registra a PEÇA NO PRÓPRIO NOME.
 
@@ -5254,6 +5372,10 @@ class APIHandler(BaseHTTPRequestHandler):
         "notes"?: str}. Gera o public_id canônico FRENTE-TIPO-AAAA-NNNN
         (ex.: NV-SJ-2026-0001); exclusiva sem código gravado ganha um
         curto auto-gerado (NV-ABI-7F3A).
+
+        Frente NV (ciclo fechado, 16/10): coleção OBRIGATÓRIA e precisa
+        existir ABERTA — 400 colecao_obrigatoria_nv / colecao_ausente /
+        colecao_encerrada (peça não entra em ciclo já encerrado).
         """
         store = self._registry_store_or_503()
         data = self._read_json() if self._has_body() else {}
@@ -5279,6 +5401,46 @@ class APIHandler(BaseHTTPRequestHandler):
         store = self._registry_store_or_503()
         itens = [self._registry_admin_view(i) for i in store.list_all()]
         self._json(200, {"ok": True, "total": len(itens), "pecas": itens})
+
+    def admin_registry_collection_create(self) -> None:
+        """POST /admin/registry/collections — ABRE um ciclo (dono).
+
+        Body: {"name": str}. Erros: 400 colecao_nome_invalido (3–40,
+        letras/números/espaço) e 400 colecao_ja_existe (não existe
+        "reabrir" ciclo velho — um nome = um ciclo, para sempre).
+        """
+        store = self._registry_store_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        try:
+            col = store.criar_colecao(data.get("name", ""))
+        except ValueError as exc:
+            raise APIError(400, str(exc))
+        self._json(201, {"ok": True,
+                         "colecao": {"name": col["name"], "ciclo": "aberta",
+                                     "criada_em": col["created_at"],
+                                     "encerrada_em": None}})
+
+    def admin_registry_collection_close(self, nome: str) -> None:
+        """POST /admin/registry/collections/{nome}/encerrar — fecha o ciclo
+        PARA SEMPRE (dono; PROTOCOLO_NV: "uma vez Encerrada, nunca é
+        reeditada"). Não existe rota de reabrir/renomear/apagar — só de
+        encerrar, e só uma vez: 400 colecao_ja_encerrada na segunda.
+
+        Erros: 404 colecao_inexistente, 400 colecao_ja_encerrada.
+        """
+        store = self._registry_store_or_503()
+        try:
+            col = store.encerrar_colecao(unquote(nome))
+        except ValueError as exc:
+            if str(exc) == "colecao_inexistente":
+                raise APIError(404, str(exc))
+            raise APIError(400, str(exc))
+        self._json(200, {"ok": True,
+                         "colecao": {"name": col["name"], "ciclo": "encerrada",
+                                     "criada_em": col["created_at"],
+                                     "encerrada_em": col["closed_at"]}})
 
     @staticmethod
     def _registry_admin_view(item: dict[str, Any]) -> dict[str, Any]:

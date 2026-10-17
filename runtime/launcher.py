@@ -295,6 +295,14 @@ def build_registry(database: Any) -> Optional[Any]:
             log.info("Registro Mestre: IDs migrados para o formato unificado",
                      total=len(migrados),
                      exemplo=f"{migrados[0][0]} -> {migrados[0][1]}")
+        # Ciclo fechado da frente NV (16/10): toda coleção citada por
+        # peça NV vira entidade ABERTA (idempotente) — peças anteriores
+        # a esta frente não ficam órfãs; o dono encerra o ciclo quando
+        # quiser fechar de verdade.
+        criadas = store.criar_colecoes_de_pecas()
+        if criadas:
+            log.info("Coleções NV abertas a partir das peças existentes",
+                     total=len(criadas), exemplo=criadas[0])
         log.info("Registro Mestre de peças habilitado")
         return store
     except Exception as exc:

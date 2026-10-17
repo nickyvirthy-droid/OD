@@ -97,6 +97,18 @@ REGISTRY_CHAT_SCHEMA: dict[str, str] = {
     "created_at": "REAL NOT NULL",
 }
 
+# Frente NV — COLEÇÕES COM CICLO FECHADO (16/10, ordem do dono "prossiga";
+# regra do PROTOCOLO_NV.md do Legado: "Coleções são ciclos fechados. Uma vez
+# Encerrada, nunca é reeditada"). A ciclo é IMUTÁVEL por desenho: só existe
+# criar e encerrar — sem reabrir, sem renomear, sem apagar (o histórico da
+# escassez é a garantia de valor da linha).
+REGISTRY_COLLECTIONS_SCHEMA: dict[str, str] = {
+    "id": "INTEGER PRIMARY KEY",
+    "name": "TEXT UNIQUE NOT NULL",   # ABISSAL (maiúsculas, 3–40 chars)
+    "created_at": "REAL NOT NULL",
+    "closed_at": "REAL",              # NULL = aberta · preenchido = encerrada (para sempre)
+}
+
 KINDS = ("exclusiva", "publica")
 STATUSES = ("estoque", "vendida", "registrada")
 
@@ -170,6 +182,9 @@ class RegistryStore:
         self._photo_dir = Path(photo_dir) if photo_dir else None
         database.create_table("registry_items", REGISTRY_ITEMS_SCHEMA)
         database.create_table("registry_chat", REGISTRY_CHAT_SCHEMA)
+        # Frente NV — coleções com ciclo fechado (16/10).
+        database.create_table("registry_collections",
+                              REGISTRY_COLLECTIONS_SCHEMA)
         # Migração da coluna photo: a tabela nasceu antes dela (1.23.0) e
         # create_table é IF NOT EXISTS — sozinho não adiciona coluna nova.
         self._ensure_column("registry_items", "photo", "TEXT")
@@ -277,6 +292,107 @@ class RegistryStore:
         return mudancas
 
     # ------------------------------------------------------------------#
+    # Coleções da frente NV — CICLO FECHADO (16/10)                     #
+    # ------------------------------------------------------------------#
+    @staticmethod
+    def _normalizar_colecao(name: str) -> str:
+        nome = str(name or "").strip().upper()
+        if not (3 <= len(nome) <= 40) or not all(
+            c.isalnum() or c in " -'" for c in nome
+        ) or not any(c.isalnum() for c in nome):
+            raise ValueError("colecao_nome_invalido")
+        return nome
+
+    def get_colecao(self, name: str) -> Optional[dict[str, Any]]:
+        """Coleção por nome normalizado (None se não existe como entidade)."""
+        rows = self._db.query(
+            "SELECT * FROM registry_collections WHERE name = ?",
+            (self._normalizar_colecao(name),),
+        )
+        return dict(rows[0]) if rows else None
+
+    def criar_colecao(self, name: str) -> dict[str, Any]:
+        """Abre um novo ciclo de coleção (estado: aberta).
+
+        Regra do PROTOCOLO_NV.md (Legado): "Coleções são ciclos fechados".
+        Nome único — duplicada = erro (não existe 'reabrir' ciclo velho).
+        """
+        nome = self._normalizar_colecao(name)
+        if self.get_colecao(nome) is not None:
+            raise ValueError("colecao_ja_existe")
+        row = {"name": nome, "created_at": time.time(), "closed_at": None}
+        self._db.execute(
+            "INSERT INTO registry_collections (name, created_at, closed_at) "
+            "VALUES (?,?,?)",
+            (row["name"], row["created_at"], None),
+        )
+        return row
+
+    def encerrar_colecao(self, name: str) -> dict[str, Any]:
+        """Encerra o ciclo — PARA SEMPRE (regra do Legado: nunca reeditada).
+
+        Não existe reabrir: a segunda tentativa é erro `colecao_ja_encerrada`.
+        A escassez é a garantia de valor da linha; o histórico não se mexe.
+        """
+        col = self.get_colecao(name)
+        if col is None:
+            raise ValueError("colecao_inexistente")
+        if col["closed_at"] is not None:
+            raise ValueError("colecao_ja_encerrada")
+        fechada_em = time.time()
+        self._db.execute(
+            "UPDATE registry_collections SET closed_at = ? WHERE name = ?",
+            (fechada_em, col["name"]),
+        )
+        col["closed_at"] = fechada_em
+        return col
+
+    def listar_colecoes(self) -> list[dict[str, Any]]:
+        """Todas as coleções (abertas primeiro) com contagem de peças."""
+        saida: list[dict[str, Any]] = []
+        for row in self._db.query(
+            "SELECT * FROM registry_collections ORDER BY closed_at IS NOT NULL,"
+            " created_at"
+        ):
+            col = dict(row)
+            col["pecas"] = int(self._db.query(
+                "SELECT COUNT(*) AS n FROM registry_items WHERE collection = ?",
+                (col["name"],),
+            )[0]["n"])
+            col["aberta"] = col["closed_at"] is None
+            saida.append(col)
+        return saida
+
+    def colecao_de_peca(self, colecao: Optional[str]) -> Optional[str]:
+        """Status do ciclo da coleção de uma peça: aberta | encerrada | None.
+
+        Peça sem coleção ou com coleção que nunca virou entidade (criadas
+        antes desta frente) devolve None — a verificação não mente.
+        """
+        if not colecao:
+            return None
+        col = self.get_colecao(str(colecao))
+        if col is None:
+            return None
+        return "aberta" if col["closed_at"] is None else "encerrada"
+
+    def criar_colecoes_de_pecas(self) -> list[str]:
+        """Migração de boot: toda coleção citada por peça NV que ainda não é
+        entidade vira uma coleção ABERTA (idempotente). As peças anteriores
+        a esta frente não podem ficar órfãs — o dono encerra o ciclo quando
+        quiser. Devolve os nomes criados (para o log)."""
+        criadas: list[str] = []
+        for row in self._db.query(
+            "SELECT DISTINCT collection FROM registry_items "
+            "WHERE collection IS NOT NULL AND public_id LIKE 'NV-%'"
+        ):
+            nome = str(row["collection"])
+            if self.get_colecao(nome) is None:
+                self.criar_colecao(nome)
+                criadas.append(nome)
+        return sorted(criadas)
+
+    # ------------------------------------------------------------------#
     # CRUD (admin)                                                       #
     # ------------------------------------------------------------------#
     def create(
@@ -297,6 +413,10 @@ class RegistryStore:
         padrão PROD-PE. Peça EXCLUSIVA sem `engraved_code` ganha um
         código curto auto-gerado (FRENTE-SIGLA-HEX4) — joia pequena
         sempre tem algo gravável. Código informado duplicado = 400.
+
+        Frente NV (ciclo fechado do PROTOCOLO_NV): a coleção é OBRIGATÓRIA
+        e precisa existir como entidade ABERTA — peça não entra em ciclo
+        encerrado (`colecao_ausente` / `colecao_encerrada`).
         """
         name = str(name or "").strip()
         if not name:
@@ -310,6 +430,18 @@ class RegistryStore:
         if code is not None and self.get(code) is not None:
             raise ValueError("codigo_duplicado")
         colecao = (str(collection).strip().upper() or None) if collection else None
+        if frente_nova == "NV":
+            if colecao is None:
+                raise ValueError("colecao_obrigatoria_nv")
+            if self.colecao_de_peca(colecao) is None:
+                raise ValueError("colecao_ausente")
+            if self.colecao_de_peca(colecao) != "aberta":
+                raise ValueError("colecao_encerrada")
+        elif colecao is not None and \
+                self.colecao_de_peca(colecao) == "encerrada":
+            # não-NV: coleção continua livre (texto) — mas um ciclo já
+            # ENCERRADO não recebe peça nova, de linha nenhuma.
+            raise ValueError("colecao_encerrada")
         if code is None and kind == "exclusiva":
             sigla = (colecao or name)[:3].upper()
             sigla = re.sub(r"[^A-Z]", "", sigla) or "GEN"
@@ -422,6 +554,30 @@ class RegistryStore:
         novo_status = fields.get("status")
         if isinstance(novo_status, str):
             novo_status = novo_status.strip().lower()
+        # Ciclo fechado (frente NV): peça NV só muda de coleção para um
+        # ciclo ABERTO — e peça já dentro de ciclo ENCERRADO não sai (o
+        # histórico da escassez não se mexe). Não-NV mantém coleção livre
+        # (texto), exceto se nomear um ciclo já encerrado: encerrada não
+        # recebe peça nova, de frente nenhuma.
+        if "collection" in fields:
+            nova_colecao = (str(fields["collection"]).strip().upper()
+                            or None) if fields["collection"] else None
+            fields["collection"] = nova_colecao  # grava o valor testado
+            eh_nv = str(item.get("public_id") or "").startswith("NV-")
+            if eh_nv:
+                if nova_colecao is None:
+                    raise ValueError("colecao_obrigatoria_nv")
+                status_ciclo = self.colecao_de_peca(nova_colecao)
+                if status_ciclo is None:
+                    raise ValueError("colecao_ausente")
+                if status_ciclo != "aberta":
+                    raise ValueError("colecao_encerrada")
+                if item.get("collection") and \
+                        self.colecao_de_peca(item["collection"]) == "encerrada":
+                    raise ValueError("peca_em_ciclo_encerrado")
+            elif nova_colecao is not None and \
+                    self.colecao_de_peca(nova_colecao) == "encerrada":
+                raise ValueError("colecao_encerrada")
         # Posse registrada só cai com o código secreto da peça (Etapa 4).
         if item.get("status") == "registrada" and novo_status in (
             "estoque", "vendida",
@@ -585,6 +741,9 @@ class RegistryStore:
         if item.get("status") != "registrada":
             public["owner_username"] = None
         public["registered"] = item.get("status") == "registrada"
+        # Ciclo da coleção (frente NV): aberta | encerrada — a peça mostra
+        # se o ciclo ainda aceita irmãs (escassez visível a quem verifica).
+        public["collection_status"] = self.colecao_de_peca(item.get("collection"))
         # Foto: o público recebe a URL de serviço, nunca o nome do arquivo.
         public["photo"] = (
             f"/registry/{item['public_id']}/photo" if item.get("photo") else None

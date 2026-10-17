@@ -7,6 +7,58 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.34.0] — FRENTE NV: COLEÇÕES COM CICLO FECHADO (PROTOCOLO_NV) 🜂 (2026-10-16)
+
+### 1. O que foi feito
+
+Frente NV aberta pelo dono (ordem aprovada: 1º NV, 2º FAB, 3º Living
+Systems) — "prossiga". A regra do `PROTOCOLO_NV.md` do Legado vira
+mecânica do Registro Mestre: **"Coleções são ciclos fechados. Uma vez
+Encerrada, nunca é reeditada"**. A imutabilidade é POR DESENHO: o store
+só expõe criar e encerrar — não existe `reabrir_colecao` nem
+`apagar_colecao` (testado com `hasattr` negativo), e o servidor não tem
+DELETE/PUT de coleção (ausência de rota = não dá para reeditar).
+
+| Peça | Entrega |
+|---|---|
+| **`core/registry.py`** | Entidade `registry_collections` (nome único 3–40 chars, normalizado em maiúsculas). `criar_colecao` (duplicada = `colecao_ja_existe` — um nome = um ciclo, para sempre), `encerrar_colecao` (segunda vez = `colecao_ja_encerrada`), `listar_colecoes` (abertas primeiro + contagem de peças), `colecao_de_peca` (aberta/encerrada/None — None é honesto: coleção que nunca virou entidade não mente). |
+| **Regra nas peças** | `create()`: peça **NV exige coleção ABERTA** (`colecao_obrigatoria_nv`/`colecao_ausente`/`colecao_encerrada`). Não-NV mantém coleção livre (texto) — mas ciclo encerrado não recebe peça nova de NENHUMA linha. `update()`: NV só troca para ciclo aberto; peça dentro de ciclo encerrado **não sai** (`peca_em_ciclo_encerrado`); preço/status seguem livres dentro do ciclo fechado. |
+| **`integrations/api/server.py`** | `GET /registry/collections` (PÚBLICA — ciclos visíveis: escassez é prova, rota fixa antes de `/{codigo}`), `POST /admin/registry/collections` (abrir) e `POST /admin/registry/collections/{nome}/encerrar` (dono). Painel `/admin` ganha o bloco "Coleções (ciclo fechado)": lista com status/contagem/datas, "⛔ Encerrar (para sempre)" com confirmação e criação de ciclo. |
+| **`site/verificacao.html`** | A consulta pública mostra o ciclo junto da coleção: "· ciclo aberto" / "· ciclo encerrado". |
+| **`runtime/launcher.py`** | Boot: `criar_colecoes_de_pecas()` idempotente — as coleções citadas pelas peças NV existentes (ABISSAL, DRAKONIS, LUMEN NOX, QUADROS) nascem ABERTAS (peças anteriores a esta frente não ficam órfãs; o dono encerra quando quiser fechar). |
+| **versionCode** | 2064 → **2065** (bump MINOR: `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site, CHANGELOG, esta seção). |
+
+### 2. Decisão registrada (fonte da verdade)
+
+Ciclo fechado em três camadas, todas testadas: (1) **banco** — closed_at
+preenchido nunca volta a NULL e não há método de reabrir; (2) **peça** —
+NV só nasce em ciclo aberto e não sai de ciclo encerrado; (3) **rota** —
+só existe POST de encerrar, uma única vez (400 na segunda). O dono fecha
+a série quando o último exemplar sai — aí o ciclo vira escassez pública
+na verificação.
+
+### 3. Padrão de qualidade
+
+Suíte do servidor **3105 passed / 16 skipped** (+17: 11 store + 6 rotas).
+**Mutações 4/4 capturadas** (exigência do create removida · re-encerrar
+liberado · peça em ciclo encerrado solta · ordem das rotas invertida),
+reversões bit-exatas. Gate 90% do módulo atingido.
+
+**Calibração RAG (corpus, sem afrouxar piso):** a entrega v1.33.x poluiu
+o corpus com uma palavra rara dos docs escritos naquele dia — a
+irrelevante climática do gate subiu a comb 0.4427, acima da relevante
+mais fraca (0.4058): nenhum PISO_SCORE a separa mais. Correção medida:
+troquei a MINHA palavra colidida por sinônimo comum nos trechos de hoje
+do README_VERSAO/CHANGELOG — gates voltaram a **8/8 rel. + 8/8
+irr. + 6/6 parafrases com o piso 0.399/0.036 intacto**. Lição gravada:
+documento de calibração que cita o próprio exemplo de irrelevante é
+risco de auto-poluição do corpus.
+
+### 4. Pendências/observações
+
+Nenhuma do módulo. O dono decide quando abrir/encerrar os primeiros
+ciclos reais (as coleções existentes nascem abertas como migração).
+
 ## [1.33.1] — LOJA DO SITE SEPARADA POR SEÇÕES (LINHAS DA CASA) 🜂 (2026-10-16)
 
 ### 1. O que foi feito
@@ -14,7 +66,7 @@
 Pedido do dono na sequência do ID unificado: *"só acho que a loja precisa
 separar por seções"*. Como o ID canônico novo (`FRENTE-TIPO-ANO-SEQ`) já
 carrega a linha na frente do código, a loja separa sozinha — sem cadastro
-novo e sem campo extra no banco.
+novo e sem coluna extra no banco.
 
 | Peça | Entrega |
 |---|---|
@@ -24,7 +76,7 @@ novo e sem campo extra no banco.
 
 A seção da peça vem do **prefixo do ID** (NV = Nicoly Valentina, PROD =
 produtos do ecossistema, o que vier depois entra sozinho). Não existe
-"seção" como campo — existe a LINHA, e ela já é o primeiro segmento do ID.
+"seção" como coluna — existe a LINHA, e ela já é o primeiro segmento do ID.
 
 ### 3. Padrão de qualidade
 
