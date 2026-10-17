@@ -7,6 +7,65 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.37.0] — ACERVO OFFLINE: KIWIX INTERLIGADO (3ª DAS 3 — FILA COMPLETA) 🜂 (2026-10-17)
+
+### 1. O que foi feito
+
+Última da fila aprovada pelo dono (*"aprovado fase 3"*, 17/10) — com
+ela, **as três ferramentas da interligação estão operando pelo
+sistema**: Vaultwarden (cofre), Stirling (documentos) e agora **Kiwix
+(acervo offline)**. O Omega Drakon passou a **consultar a Wikipédia
+offline** do `od-kiwix` (kiwix-serve 3.8.1, `wikipedia_en_all_mini` de
+12,5 GB / 18,1 M de artigos, só `127.0.0.1:8090`, ZIM montado `:ro`)
+por 3 actions — `kiwix_status`, `kiwix_busca`, `kiwix_leitura`
+(categoria `kiwix`, só admin): status do acervo, busca com trecho e
+leitura do artigo em texto limpo. Pelo critério do dono: **sem internet
+o sistema continua respondendo com a enciclopédia inteira**.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/kiwix.py` (novo)** | `KiwixClient` stdlib puro (`urllib` + `html.parser` + `ElementTree` — zero dependência nova). Contratos **apurados ao vivo antes de codificar**: a API do kiwix-serve 3.8 é **HTML/XML puro, sem JSON** (`/catalog/v2/entries` Atom/OPDS · `/search?pattern=` HTML com título+caminho+trecho+palavras · `/content/<zim>/<path>` 200/404; achado: `/A/<título>` só redireciona; `/suggestions` vazio). Só leitura; caminho contra `..`; truncamento **declarado**; **busca vazia = resposta honesta**; 6 erros tipados; `client_padrao()` **LAZY** (`OD_KIWIX_URL`, default local). |
+| **`tools/actions/actions.py`** | `_kiwix_op` + as 3 actions com schemas no catálogo (`pattern` obrigatório, `quantidade` 1–25, `max_chars` 200–100k). |
+| **`core/capabilities.py`** | Capability **`kiwix-offline` ATIVA** (integrations) + fallback 1.37.0. |
+| **Catálogo** | 97 → **100 actions** (categoria `kiwix: 3`), contagens em 4 testes + docstring do pacote. |
+| **Testes** | **`tests/test_kiwix.py` novo: 39 testes** — fixtures fiéis às **capturas vivas** de 17/10 (Atom real, HTML da busca com entidades `&isin;`/`&Omega;`, artigo com script/style a ignorar); parsers, cliente + erros + truncamento + `..`, transporte urllib, fábrica lazy, catálogo + negação. |
+| **versionCode** | 2069 → **2070** (política 9/9; APKs rebuildados, aapt2 confere). |
+
+### 2. Decisão registrada (fonte da verdade)
+
+Regras desta entrega: (1) **contrato antes de código** — sondagem viva
+da API (`/`, `/search`, `/suggestions`, `/A/`, `/content`,
+`/catalog/v2/entries`) antes de escrever uma linha; descoberta que não
+existe JSON nesta versão e que a leitura é `/content/...`; (2) **só
+leitura** — o ZIM está montado `:ro` e nenhuma action escreve (mesma
+régua "nada sem utilidade/nada apagado" do dono); (3) **busca vazia é
+resposta** — `resultados=[]` com `ok=True` (artigo pode não estar no
+acervo — mentir seria pior); (4) **truncamento declarado** — texto >7
+mil caracteres vem com `truncado=True` e `…[cortado]`, nunca silencioso;
+(5) **LAZY** — ferramenta fora do ar degrada a ação, nunca o boot;
+(6) **fila fechada** — Vaultwarden ✅ Stirling ✅ **Kiwix ✅**; Homebox
+volta com uso definido na sequência.
+
+### 3. Validação (17/10)
+
+Suíte **3238 passed / 16 skipped · gate 91,04%** (+40 testes) ·
+`flutter analyze` 0 · aapt2 **2070/1.37.0** nos dois APKs. Provas vivas
+(PID novo, NRestarts=0): `/health` up · `/actions` **100** com as 3
+`kiwix_*` · `/app/version` **1.37.0/2070** · journal 0 erros · **boot
+continua ~3s** (v1.36.1 intacta). **E2E real pelo `/executa`:**
+`kiwix_status` (**18.095.848 artigos**, eng) → `kiwix_busca("omega")`
+→ hits com trecho → `kiwix_leitura` de um hit (texto limpo) → 404
+honesto (`kiwix_artigo_nao_encontrado`).
+
+### 4. Pendências/observações
+
+Fila fechada: **1ª ✅ 2ª ✅ 3ª ✅** → Homebox com uso definido
+(inventário/garantias) é o próximo capítulo. Rotação de segredos §8.5
+pendente (bot LEGADO com valor antigo arquivado no cofre); cofre
+pessoal do dono para ele popular. Nota futura: `kiwix_leitura` devolve
+texto puro do artigo — quando o dono quiser, o bloco pode alimentar o
+RAG como fonte adicional (a infra de fontes já existe).
+
 ## [1.36.1] — BOOT DO RAG EM PARALELO + REMOÇÕES EM LOTE (CORREÇÃO DO BOOT LENTO) 🜂 (2026-10-17)
 
 ### 1. O que foi feito

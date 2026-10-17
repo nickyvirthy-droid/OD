@@ -2551,6 +2551,38 @@ def stirling_compress(
     )
 
 
+def _kiwix_op(op: Any) -> dict[str, Any]:
+    """Roda uma operação no Kiwix Serve com erro honesto e tipado.
+
+    Cliente LAZY (integrations/kiwix.py): a ferramenta fora do ar
+    degrada ESTA ação — nunca o boot do od-core. Acervo offline em
+    127.0.0.1:8090 (Wikipédia en_all_mini, 12,5 GB), somente LEITURA
+    (ZIM montado :ro) — busca vazia é resposta honesta, não erro.
+    """
+    from integrations.kiwix import KiwixError, client_padrao
+
+    try:
+        cliente = client_padrao()
+        return {"ok": True, **op(cliente)}
+    except KiwixError as exc:
+        return {"ok": False, "error": exc.codigo, "message": exc.mensagem}
+
+
+def kiwix_status() -> dict[str, Any]:
+    """Acervos carregados no Kiwix (nome, idioma, nº de artigos)."""
+    return _kiwix_op(lambda c: c.status())
+
+
+def kiwix_busca(pattern: str, quantidade: int = 5) -> dict[str, Any]:
+    """Busca na Wikipédia OFFLINE (título, caminho, trecho, palavras)."""
+    return _kiwix_op(lambda c: c.buscar(pattern, quantidade))
+
+
+def kiwix_leitura(caminho: str, max_chars: int = 8000) -> dict[str, Any]:
+    """Lê um artigo offline pelo caminho (devolve texto limpo + truncado)."""
+    return _kiwix_op(lambda c: c.ler(caminho, max_chars=max_chars))
+
+
 # ---------------------------------------------------------------------------
 # Serviços (systemd — degrada graciosamente)
 # ---------------------------------------------------------------------------
@@ -3134,6 +3166,12 @@ CATALOG: list[dict[str, Any]] = [
           {"required": ["arquivo", "saida"], "properties": {"arquivo": S, "saida": S, "cortes": {**S, "default": "all"}, "substituir": {**B, "default": False}}}),
     _spec("stirling_compress", "stirling", "Comprime um PDF (nivel 1-9, alvo tipo \"25KB\", cinza opcional)", stirling_compress,
           {"required": ["arquivo", "saida"], "properties": {"arquivo": S, "saida": S, "nivel": {**I, "default": 4}, "alvo": {**S, "default": "25KB"}, "cinza": {**B, "default": False}, "substituir": {**B, "default": False}}}),
+    # --- Kiwix: acervo offline (3ª interligação das ferramentas, 17/10) ---
+    _spec("kiwix_status", "kiwix", "Acervos carregados no Kiwix (Wikipédia offline)", kiwix_status),
+    _spec("kiwix_busca", "kiwix", "Busca na Wikipédia OFFLINE (título, caminho, trecho)", kiwix_busca,
+          {"required": ["pattern"], "properties": {"pattern": S, "quantidade": {**I, "default": 5}}}),
+    _spec("kiwix_leitura", "kiwix", "Lê um artigo offline pelo caminho (texto limpo, com corte declarado)", kiwix_leitura,
+          {"required": ["caminho"], "properties": {"caminho": S, "max_chars": {**I, "default": 8000}}}),
     # --- Serviços (3) ---
     _spec("service_list", "service", "Lista serviços systemd", service_list),
     _spec("service_status", "service", "Status de um serviço", service_status,

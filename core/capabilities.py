@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.36.1"
+    or "1.37.0"
 )
 
 # Status válidos.
@@ -346,6 +346,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "v1.36.0",
         "status": ACTIVE,
         "path": "integrations/stirling.py",
+    },
+    {
+        "id": "kiwix-offline",
+        "name": "Kiwix (Wikipédia offline via API local)",
+        "category": "integrations",
+        "description": "3ª das ferramentas interligadas (ordem aprovada pelo dono, 17/10: Vaultwarden → Stirling → Kiwix — 'fase 3 aprovada'): o sistema CONSULTA a Wikipédia offline (container od-kiwix, kiwix-serve 3.8.1, wikipedia_en_all_mini 12,5 GB / ~18,1 M de artigos, escuta só em 127.0.0.1:8090, ZIM montado :ro — somente leitura) pelas actions kiwix_status/kiwix_busca/kiwix_leitura (categoria kiwix, só admin). Contratos apurados ao vivo ANTES de codificar (17/10): /catalog/v2/entries (feed Atom/OPDS com um entry por ZIM), /search?pattern (HTML com título+caminho+trecho+palavras por hit), /content/<zim>/<path> (200 = HTML do artigo, 404 = inexistente) — a API do kiwix-serve 3.8 é HTML/XML puro, sem JSON (apurado: /suggestions devolveu vazio e /search ignorou Accept json). Texto extraído com html.parser stdlib (zero dependência nova), truncamento declarado (truncado=True), busca vazia é resposta honesta e não erro. LAZY por desenho: ferramenta fora do ar degrada a ação, nunca o boot do od-core.",
+        "source": "OD (kiwix-serve upstream, GPL-3.0)",
+        "phase": "v1.37.0",
+        "status": ACTIVE,
+        "path": "integrations/kiwix.py",
     },
     {
         "id": "saude-reference",

@@ -12,6 +12,34 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.37.0] — ACERVO OFFLINE: KIWIX INTERLIGADO (3ª DAS 3 — FILA COMPLETA) 🜂 (2026-10-17)
+
+> **Bump MINOR (capability nova):** terceira e última da fila aprovada
+> pelo dono em 17/10 (*"aprovado fase 3"*) — **Vaultwarden ✅ → Stirling
+> ✅ → Kiwix ✅**. O sistema agora **consulta a Wikipédia offline**
+> (container `od-kiwix`, kiwix-serve 3.8.1, `wikipedia_en_all_mini` de
+> 12,5 GB / **18,1 M de artigos**, só `127.0.0.1:8090`, ZIM montado
+> `:ro`) pelas actions `kiwix_status` / `kiwix_busca` / `kiwix_leitura`
+> (categoria `kiwix`, só admin) — responde do acervo mesmo sem
+> internet, pelo critério do dono: ferramenta só interessa se o
+> **sistema** usa.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/kiwix.py` (novo)** | `KiwixClient` em **stdlib puro** (`urllib` + `html.parser` + `xml.etree.ElementTree`; zero dependência nova). Contratos **apurados ao vivo antes de codificar** (a API do kiwix-serve 3.8 é **HTML/XML puro — sem JSON**, apurado: `/suggestions` vazio, `/search` ignorou `Accept: application/json`): `GET /catalog/v2/entries` (Atom/OPDS: id/título/idioma/artigos/mídias por ZIM), `GET /search?pattern=` (HTML com título+caminho+trecho+palavras), `GET /content/<zim>/<path>` (200 = artigo, 404 = inexistente; achado: `/A/<título>` só redireciona para cá). **Só leitura** (ZIM `:ro` — sem tela = sem ação); caminho invalidado contra `..`; texto extraído com parser próprio (script/style ignorados); **truncamento declarado** (`truncado=True` + `…[cortado]`); **busca vazia é resposta honesta** (`resultados=[]`), não erro; erros tipados: `kiwix_indisponivel`, `kiwix_timeout`, `kiwix_falhou`, `kiwix_parametro_invalido`, `kiwix_artigo_nao_encontrado`, `kiwix_resposta_invalida`. **LAZY**: `client_padrao()` cacheada (`OD_KIWIX_URL`, default local). |
+| **`tools/actions/actions.py`** | `_kiwix_op` + 3 actions: `kiwix_status` (acervos + total de artigos), `kiwix_busca` (`pattern`, `quantidade` 1–25), `kiwix_leitura` (`caminho`, `max_chars` 200–100k). |
+| **`core/capabilities.py`** | Nova capability **`kiwix-offline`** (integrations, **ATIVA**) + fallback 1.37.0. |
+| **`.env`** | `OD_VERSION=1.37.0` + `OD_KIWIX_URL=http://127.0.0.1:8090` (config, não é segredo). |
+| **Catálogo de actions** | 97 → **100 actions** (categoria `kiwix: 3`) — contagens em 4 arquivos de teste + docstring do pacote. |
+| **Testes** | **`tests/test_kiwix.py` novo — 39 testes** com fixtures **fiéis às capturas vivas** de 17/10 (Atom, HTML da busca com entidades, artigo com script/style): parsers, cliente (status/busca/leitura + todos os erros + truncamento + `..`), transporte urllib (HTTPError **é** resposta; rede/timeout tipados), fábrica lazy e catálogo (schemas + **negação para papel comum**). |
+| **versionCode** | 2069 → **2070** (política 9/9; APKs rebuildados, aapt2 confere). |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3238 passed / 16 skipped** (+40 testes) |
+| Prova viva (PID novo, NRestarts=0) | `/health` up · `/actions` **100** com as 3 `kiwix_*` · `/app/version` **1.37.0/2070** · journal 0 erros · boot continuando ~3s (v1.36.1) |
+| **E2E real pelo `/executa`** | `kiwix_status` (**18.095.848 artigos**, `wikipedia_en_all_mini`, eng) → `kiwix_busca("omega")` → hits reais com trecho → `kiwix_leitura` de um hit (texto limpo, `truncado=False`) → 404 honesto (`kiwix_artigo_nao_encontrado`) |
+
 ## [1.36.1] — BOOT DO RAG EM PARALELO + REMOÇÕES EM LOTE (CORREÇÃO DO BOOT LENTO) 🜂 (2026-10-17)
 
 > **Correção (PATCH) na esteira do pedido do dono** ao ver o boot de 179s:
