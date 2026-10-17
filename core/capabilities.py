@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.35.0"
+    or "1.36.0"
 )
 
 # Status válidos.
@@ -336,6 +336,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "v1.35.0",
         "status": ACTIVE,
         "path": "integrations/vault.py",
+    },
+    {
+        "id": "stirling-pdf",
+        "name": "Stirling PDF (pipeline de documentos via API)",
+        "category": "integrations",
+        "description": "2ª das ferramentas interligadas (ordem aprovada pelo dono, 17/10: Vaultwarden → Stirling → Kiwix): o sistema opera o Stirling self-hosted (container od-stirling-pdf, s-pdf 2.13.1, escuta só em 127.0.0.1:8400, sem login) pelas actions stirling_status/stirling_merge/stirling_split/stirling_compress (categoria stirling, só admin). API v1 apurada ao vivo (OpenAPI em /v1/api-docs, 255 rotas; contratos de merge/split/compress verificados com chamada real ANTES de codificar), multipart montado com stdlib (zero dependência nova), campos obrigatórios da API sempre enviados por nós, saída gravada só após validação de mágica (%PDF ou PK zip) e proteção de saída existente (substituir=True — nada apagado por acidente). LAZY por desenho: ferramenta fora do ar degrada a ação, nunca o boot do od-core.",
+        "source": "OD (Stirling-PDF upstream, MIT)",
+        "phase": "v1.36.0",
+        "status": ACTIVE,
+        "path": "integrations/stirling.py",
     },
     {
         "id": "saude-reference",

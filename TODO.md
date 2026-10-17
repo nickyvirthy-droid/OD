@@ -12,14 +12,15 @@
 | 2 | **CyberChef** (data tools) | `od-cyberchef` | 8100 | ✅ | ~300 operações (base64, hash, cifra) |
 | 3 | **IT Tools** (dev utils) | `od-it-tools` | 8430 | ✅ | UUID, hash, formatadores |
 | 4 | **FlatNotes** (caderno MD) | `od-flatnotes` | 8200 | ✅ | auth=none (só Tailscale); API p/ actions "anota"/"o que anotei" |
-| 5 | **Stirling PDF** (50+ PDF tools) | `od-stirling-pdf` | 8400 | ✅ | OCR, merge, split, assinar; JAVA_TOOL_OPTIONS fix metaspace |
+| 5 | **Stirling PDF** (50+ PDF tools) | `od-stirling-pdf` | 8400 | ✅ | **INTERLIGADA em 17/10 (v1.36.0, 2ª da fila)** — o sistema opera a API v1 (s-pdf 2.13.1, só localhost) pelas actions `stirling_status/stirling_merge/stirling_split/stirling_compress` (categoria `stirling`, só admin); JAVA_TOOL_OPTIONS fix metaspace |
 | 6 | **File Browser** (arquivos web) | `od-filebrowser` | 8410 | ✅ | login admin/admin → trocar |
 | 7 | **Calibre Web** (e-books) | `od-calibre-web` | 8420 | ✅ | login admin/admin123 → trocar; books em `/home/alex/omegadrakon-tools/books` |
 | 8 | **Homebox** (inventário/QR) | `od-homebox` | 8470 | ❄️ **FORA DO AR desde 17/10** | Decisão do dono ("nada parado"): compose comentado, imagem removida (−198 MB), dados preservados em `omegadrakon-tools/homebox`. **Depois o dono decidiu VOLTAR com uso definido** (inventário/garantias da casa, já integrado com `homebox_*`) — próxima entrega |
-| 9 | **Vaultwarden** (cofre senhas) | `od-vaultwarden` | 8480 | ✅ | HTTPS via Tailscale Serve; **conta do dono criada 15/10**; **conta de SERVIÇO do sistema** `od-sistema@omegadrakon.dev` criada 17/10 e **interligada** (actions `vault_*`, v1.35.0 — o sistema lê/escreve no cofre; a conta do dono nunca é usada); `SIGNUPS_ALLOWED=false` |
+| 9 | **Vaultwarden** (cofre senhas) | `od-vaultwarden` | 8480 | ✅ | HTTPS via Tailscale Serve; **conta do dono criada 15/10**; **conta de SERVIÇO do sistema** `od-sistema@omegadrakon.dev` criada 17/10 e **interligada** (actions `vault_*`, v1.35.0 — o sistema lê/escreve no cofre; a conta do dono nunca é usada); **as 12 senhas do `.env` espelhadas no cofre em 17/10** (`vault_env_mirror.py`, cópia idempotente — `.env` segue como bootstrap do boot); `SIGNUPS_ALLOWED=false` |
 
 > **Situação (15/10):** os 9 sobem com `up -d` e estão no ar. **Pendência do §1 concluída:** conta do dono + signups fechados — comprovado por drill E2E (conta de teste criada pela action, logada e decifrada pelo CLI oficial, depois excluída; vault só com o dono).
 > **Situação (17/10):** decisão do dono sobre as 9 — **Homebox tirado do ar** (vazio, função única; compose comentado + imagem removida, nada apagado) e **FlatNotes/File Browser/Calibre ficam** para análise a fundo, uma por vez (§5). Stack agora = 8 no ar. Critério do dono: *"ferramenta só interessa se o sistema puder usar"* — as 3 primeiras (Vaultwarden, Stirling PDF, Kiwix) continuam e serão interligadas ao sistema, nessa ordem.
+> **Situação (17/10, tarde — v1.36.0):** fila em andamento — **Vaultwarden ✅ (1ª, v1.35.0) e Stirling PDF ✅ (2ª, v1.36.0) INTERLIGADAS**; **Kiwix é a próxima (3ª)**; Homebox volta na sequência com uso definido (decisão do dono). Além disso, **todas as 12 senhas do `.env` estão espelhadas no cofre** (`vault_env_mirror.py` — pedido do dono *"coloque todas as senhas do .env no cofre"*; é cópia, não remoção: `.env` continua o bootstrap).
 > **Bugs corrigidos em 15/10:** `DOMAIN` do Vaultwarden (commit `3ed13cc` — API anunciava URL errada); action `nomad_vaultwarden_setup` estava quebrada (rota `/api/accounts/register` = 404 + payload cru + "fechar signups" só imprimia instrução) → corrigida: rota `/identity/accounts/register`, payload `RegisterData` com crypto oficial (PBKDF2 600k + AES-CBC-HMAC + RSA-2048, validada 100% contra o SDK Bitwarden) e fechamento real (edita compose → recria container → confere env).
 
 ---
@@ -51,7 +52,7 @@
 
 | Item | Status | Observação |
 |---|---|---|
-| **Vaultwarden** | ✅ | Conta do dono criada + registro aberto fechado em 15/10 (E2E com CLI oficial). Falta só o dono popular o cofre: `https://nicky-server.tail1b1f51.ts.net:8443` — o sistema já tem conta própria e actions `vault_*` (v1.35.0) |
+| **Vaultwarden** | ✅ | Conta do dono criada + registro aberto fechado em 15/10 (E2E com CLI oficial). O cofre já tem **as 12 senhas do `.env` espelhadas** (17/10, `vault_env_mirror.py` — cópia idempotente, sem tocar no `.env`); falta o dono popular com as **pessoais**: `https://nicky-server.tail1b1f51.ts.net:8443` |
 | **Registro Mestre — Etapa 4** | ☐ | Comprador / QR / loja do lote de brinquedos |
 | **Pauta §8.5 — Rotação dos segredos vazados no Legado** (09/10) | ☐ | Verificado 09/10: **bot antigo `@Nexus_Nicky_bot` e chave Gemini AINDA ATIVOS**. Decisão do dono: rotacionar só quando os testes em produção finalizarem. Nunca migrar segredo ao site (fonte: §6 linha 15 + §8 item 5 — mesmo assunto da linha "Rotação de segredos" abaixo) |
 | **Repo GitHub público + segredos no histórico** | ☐ | **Decisão do dono:** tornar o repo privado e/ou rotacionar segredos que apareceram no histórico antes do commit `3ed13cc` (migração p/ `.env`) — detalhes no `txt.txt` |
@@ -128,7 +129,7 @@
 
 ## 5. Ideias de expansão (parking lot)
 
-- **Análise a fundo de FlatNotes, File Browser e Calibre Web — uma por vez** (pedido do dono 17/10): decidir junto manter/ligar ao sistema/tirar; hoje estão vazias (20 KB / 48 KB / 0 livros) e no ar. Enquanto isso, **Vaultwarden ✅ interligado (v1.35.0)** → **Stirling PDF** → **Kiwix** é a ordem aprovada (17/10); e o **Homebox volta na sequência com uso definido** (decisão do dono 17/10: inventário/garantias da casa, já integrado com `homebox_*`)
+- **Análise a fundo de FlatNotes, File Browser e Calibre Web — uma por vez** (pedido do dono 17/10): decidir junto manter/ligar ao sistema/tirar; hoje estão vazias (20 KB / 48 KB / 0 livros) e no ar. Enquanto isso, a ordem aprovada (17/10) avança: **Vaultwarden ✅ interligado (v1.35.0)** → **Stirling PDF ✅ interligada (v1.36.0)** → **Kiwix (próxima)**; e o **Homebox volta na sequência com uso definido** (decisão do dono 17/10: inventário/garantias da casa, já integrado com `homebox_*`)
 
 - **MCP Server** — expor actions/ferramentas do OD via Model Context Protocol para Claudes/Cursors externos
 - **Plugin marketplace** — o `tools/loader.py` já carrega `.py` de `plugins/`; criar `plugins/` oficial com manifest

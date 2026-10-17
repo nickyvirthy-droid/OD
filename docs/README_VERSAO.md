@@ -7,6 +7,76 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.36.0] — PIPELINE DE DOCUMENTOS: STIRLING PDF INTERLIGADO (2ª DAS 3) + ESPELHO DO COFRE 🜂 (2026-10-17)
+
+### 1. O que foi feito
+
+Segunda das três ferramentas interligadas, na ordem que o dono aprovou
+(*"começa a implantação da 2ª opção da fila, stirling"*, 17/10): **o
+Omega Drakon agora opera o Stirling PDF** (container `od-stirling-pdf`,
+s-pdf 2.13.1, só `127.0.0.1:8400`, sem login). 4 actions novas
+(`stirling_status`, `stirling_merge`, `stirling_split`,
+`stirling_compress` — categoria `stirling`, só admin) fazem o **pipeline
+de documentos**: diagnosticar, juntar PDFs, cortar em pedaços e comprimir.
+Na mesma entrega, a outra ordem do dono — *"coloque todas as senhas do
+.env no cofre"* — virou o utilitário `vault_env_mirror.py`: **as 12
+credenciais do `.env` espelhadas** (cópia idempotente, sem tocar no
+`.env`, verificação sem imprimir nenhum valor).
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/stirling.py` (novo)** | `StirlingClient` em **stdlib puro** (`urllib` + multipart manual, padrão do projeto — zero dependência nova). Contratos **apurados ao vivo antes de codificar**: spec OpenAPI em `GET /v1/api-docs` (255 rotas) + chamadas reais de merge/page-count. Campos obrigatórios sempre nossos; **mágica validada antes de gravar** (resposta ruim nunca vira arquivo); saída existente só com `substituir=True`; 11 erros tipados honestos; `client_padrao()` **LAZY** (`OD_STIRLING_URL`, default local). |
+| **`tools/actions/actions.py`** | `_stirling_op` + as 4 actions com schemas no catálogo (`arquivos` como lista separada por vírgula, `cortes` tipo `"2,5"`, `nivel` 1–9, `alvo` `"25KB"`, `cinza`, `substituir`). |
+| **`vault_env_mirror.py` (novo, raiz)** | Espelho `.env` → cofre com allowlist explícita (avisa segredo novo fora dela), MQTT pareado, notas por chave (LEGADO = rotação §8.5 pendente), conferência por get+comparação **só com nomes na tela**; `--check` só verifica. |
+| **`core/capabilities.py`** | Capability **`stirling-pdf` ATIVA** (integrations) + fallback 1.36.0. |
+| **Catálogo** | 93 → **97 actions** (categoria `stirling: 4`), contagens em 4 arquivos de teste + docstring do pacote. |
+| **Testes** | **`tests/test_stirling.py` novo: 49 testes** (multipart, transporte, operações+erros, trava de saída, fábrica lazy, actions, catálogo + negação comum); cobertura do módulo **97%**. |
+| **versionCode** | 2067 → **2068** (política 9/9; APKs rebuildados, aapt2 confere). |
+
+### 2. Decisão registrada (fonte da verdade)
+
+Regras gravadas nesta entrega: (1) **contrato antes de código** — toda
+operação foi verificada com chamada real ao container (e pela spec em
+`/v1/api-docs`) *antes* de existir `stirling.py`; (2) **nada entra sem
+que o sistema possa usá-las** — a Stirling está aqui porque virou
+*ações do sistema*, não um botão solto; (3) **resposta só vira arquivo
+depois da mágica** (`%PDF`/`PK`) e **saída existente nunca é apagada por
+acidente** (`substituir=True`) — mesma régua de "nada apagado" do dono;
+(4) **`.env` continua bootstrap** — o espelho para o cofre é **cópia**
+(idempotente, reexecutável após rotação), nunca remoção, e o boot não
+depende do cofre; (5) **ordem da fila segue** — Kiwix é a próxima (3ª),
+depois Homebox com uso definido.
+
+### 3. Validação (17/10)
+
+Suíte **3187 passed / 16 skipped · gate 90,96%** (+49 testes novos) ·
+**mutações 4/4 capturadas** (restauração bit-exata por sha256; lição
+honesta: um `.pyc` com mtime+size idênticos mascarou a prova
+intermediária — cache invalidado, suíte final verde) · `flutter analyze`
+0 · aapt2 **2068/1.36.0** nos dois APKs. Provas vivas (PID 914141,
+NRestarts=0): `/health` **21 checks, fora=nenhum, tools 8/8** ·
+`/actions` **97** com as 4 `stirling_*` · `/app/version`
+**1.36.0/2068** (sha `b4a7247d…` == APK publicado) · journal **0 erros**.
+**E2E do pipeline real** (pelo `/executa` de produção): status
+(**2.13.1 UP**) → merge de 2 PDFs (**1234 B**, sha conferido) →
+**page-count = 2** no container → repetição sem `substituir` →
+**`stirling_saida_ocupada` + arquivo intacto** → split do merged (**ZIP
+com 2 peças**) → compress de 177 KB (**177072 → 5444 B, −96,9%**).
+Espelho do cofre: **12/12 conferem**, 12 itens, nenhum valor impresso.
+Observação de boot (padrão histórico, não regressão): a primeira subida
+levou **179s** porque o RAG re-embedou `atualizados=442` chunks alterados
+nesta entrega (~0,4s/chunk — ex.: 16/10 13:50→13:54 com 654; boots com
+`atualizados=0` levam 1–3s). Próximo boot volta ao normal.
+
+### 4. Pendências/observações
+
+Fila interligada: **Stirling ✅ → Kiwix (próxima) → Homebox** (com uso
+definido). `TELEGRAM_BOT_LEGADO_TOKEN` continua **pendente de rotação
+(§8.5)** — agora com o valor antigo já arquivado no cofre para não se
+perder. `OD_VAULT_MASTER` está no cofre como **auto-referência cifrada**
+(o bootstrap segue só no `.env`). Popular o cofre **pessoal** continua
+sendo do dono; a conta do sistema já espelha as 12 chaves.
+
 ## [1.35.0] — COFRE DO SISTEMA: VAULTWARDEN INTERLIGADO (1ª DAS 3 FERRAMENTAS) 🜂 (2026-10-17)
 
 ### 1. O que foi feito

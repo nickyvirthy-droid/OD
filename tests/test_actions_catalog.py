@@ -1,7 +1,7 @@
 """
 OMEGA DRAKON • TESTS
 Módulo: tests/test_actions_catalog.py
-Descrição: Testes do catálogo de 93 Actions (tools/actions/) — Fase 4,
+Descrição: Testes do catálogo de 97 Actions (tools/actions/) — Fase 4,
            item 4.4: catalogação completa por categoria, execução funcional
            de sistema/processos/arquivos/git/introspecção, degradação
            graciosa de docker/serviços/db, validação pelo Security Layer
@@ -51,6 +51,7 @@ EXPECTED_CATEGORIES = {
     "nomad": 8,  # ferramentas Nômade absorvidas: up/down/status/logs/restart/tailscale/zim/vaultwarden
     "saude": 3,  # referência médica (Parte C NOMAD, v1.25.0): condicao/interacoes/medicamento
     "vault": 4,  # cofre do sistema via bw (v1.35.0): status/list/get/set
+    "stirling": 4,  # pipeline de documentos Stirling PDF (v1.36.0): status/merge/split/compress
 }
 
 
@@ -65,13 +66,13 @@ def strict_admin(tmp_path: Path) -> SecurityManager:
 # ===========================================================================
 
 class TestActionsCatalog:
-    """93 ações catalogadas por categoria com metadados consistentes."""
+    """97 ações catalogadas por categoria com metadados consistentes."""
 
     def test_catalog_count_and_categories(self) -> None:
-        assert ACTIONS_COUNT == 93
-        assert len(CATALOG) == 93
+        assert ACTIONS_COUNT == 97
+        assert len(CATALOG) == 97
         assert CATEGORIES == EXPECTED_CATEGORIES
-        assert sum(CATEGORIES.values()) == 93
+        assert sum(CATEGORIES.values()) == 97
 
     def test_names_unique_and_dotted_clean(self) -> None:
         names = [spec["name"] for spec in CATALOG]
@@ -126,8 +127,8 @@ class TestActionsRegistration:
 
     def test_build_registry_registers_56(self) -> None:
         registry = build_registry()
-        assert len(registry.list_actions()) == 93
-        assert registry.metrics.actions == 93
+        assert len(registry.list_actions()) == 97
+        assert registry.metrics.actions == 97
 
     def test_every_action_has_permission_and_schema(self) -> None:
         registry = build_registry()
@@ -142,7 +143,7 @@ class TestActionsRegistration:
         registry = ActionRegistry()
         first = register_all(registry)
         second = register_all(registry)
-        assert first == 93
+        assert first == 97
         assert second == 0
 
     def test_find_by_category(self) -> None:
@@ -217,7 +218,7 @@ class TestSystemActions:
         registry = self._registry()
         listed = await registry.execute("action_list", role="admin")
         assert listed.status == "ok"
-        assert listed.data["count"] == 93
+        assert listed.data["count"] == 97
         info = await registry.execute(
             "action_info", params={"name": "git_status"}, role="admin"
         )
@@ -570,4 +571,4 @@ class TestActionsSecurity:
         assert snap["ok"] == 1
         assert snap["denied"] == 1
         assert registry.history[0]["status"] == "denied"
-        assert registry.dump()["actions"] == 93
+        assert registry.dump()["actions"] == 97

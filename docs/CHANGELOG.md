@@ -12,6 +12,39 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.36.0] — PIPELINE DE DOCUMENTOS: STIRLING PDF INTERLIGADO (2ª DAS 3) + ESPELHO DO COFRE 🜂 (2026-10-17)
+
+> **Bump MINOR (capability nova):** segunda da fila aprovada pelo dono em
+> 17/10 (*"começa a implantação da 2ª opção da fila, stirling"*) —
+> **Vaultwarden ✅ → Stirling ✅ → Kiwix**. O sistema agora **opera o
+> Stirling self-hosted** (s-pdf 2.13.1, escuta só `127.0.0.1:8400`, sem
+> login) por 4 actions (`stirling_status` / `stirling_merge` /
+> `stirling_split` / `stirling_compress`, categoria `stirling`, só
+> admin) — **pipeline de documentos**: juntar, cortar e comprimir PDFs.
+> Na mesma entrega, ordem do dono (*"coloque todas as senhas do .env no
+> cofre"*): **as 12 credenciais do `.env` espelhadas no cofre** — cópia
+> idempotente que **não tira nada do `.env`** (ele segue como bootstrap
+> e o boot nunca depende do cofre).
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/stirling.py` (novo)** | `StirlingClient` em **stdlib puro**: `urllib` + `multipart/form-data` montado à mão no padrão de `HTTPTransport.build_multipart` (**zero dependência nova** — requirements continua puro). Contratos apurados **ao vivo antes de codificar**: OpenAPI 3.0.3 em `GET /v1/api-docs` (255 rotas do s-pdf 2.13.1) + chamadas reais (merge → `application/pdf` síncrono; page-count → `{"pageCount":2}`) — descoberta importante: a spec fica em **`/v1/api-docs`** (não `/v3`), o `/v3/api-docs` devolve o SPA. Campos **obrigatórios sempre enviados por nós** (nada depende de default do servidor); resposta só vira arquivo **depois da validação de mágica** (`%PDF`/`PK`) — 200 com HTML nunca grava; saída existente só com `substituir=True` (**nada apagado por acidente**); erros tipados honestos: `stirling_indisponivel`, `stirling_timeout`, `stirling_pdf_invalido`, `stirling_gigante`, `stirling_proibido`, `stirling_falhou`, `stirling_arquivo_ausente`, `stirling_diretorio_ausente`, `stirling_saida_ocupada`, `stirling_parametro_invalido`, `stirling_resposta_invalida`. **LAZY por desenho**: `client_padrao()` cacheada com `OD_STIRLING_URL` (default local) — ferramenta fora do ar degrada a ação, **nunca o boot**. |
+| **`tools/actions/actions.py`** | 4 actions + `_stirling_op` (mapeia `StirlingError` → `{"ok": False, "error": ...}`): `stirling_status` (versão + estado), `stirling_merge` (2+ PDFs, caminhos separados por vírgula), `stirling_split` (pontos de corte `"2"`, `"2,5"`, `"5-9"`, `"all"` → PDF ou ZIP), `stirling_compress` (nível 1–9, alvo `"25KB"`/`"100MB"`, cinza) — todas com saída protegida. |
+| **`vault_env_mirror.py` (novo, raiz)** | Espelho `.env` → cofre (pedido do dono): allowlist **explícita das 12 credenciais** (se nascer segredo novo fora dela, **avisa** em vez de deixar passar), `OD_MQTT_PASSWORD` pareado ao `OD_MQTT_USERNAME`, nota por chave (`TELEGRAM_BOT_LEGADO_TOKEN` marcado como **rotação §8.5 pendente**; `OD_VAULT_MASTER` como auto-referência cifrada com nota), verificação por `get`+comparação que **só imprime nome + confere/ERRO** — nenhum valor em log/transcrição. Reexecutável (`--check` só verifica); atualiza pelo mesmo nome, nunca duplica. |
+| **`core/capabilities.py`** | Nova capability **`stirling-pdf`** (integrations, **ATIVA** — API v1, multipart stdlib, mágica antes de gravar, LAZY) + fallback de versão 1.36.0. |
+| **`.env`** | `OD_VERSION=1.36.0` + `OD_STIRLING_URL=http://127.0.0.1:8400` (config, não é segredo). |
+| **Catálogo de actions** | 93 → **97** (categoria `stirling: 4`) — contagens em `test_actions_catalog` (+ `EXPECTED_CATEGORIES`), `test_capabilities`, `test_orchestrator(×2)` e docstring do pacote `tools/actions`. |
+| **Testes** | **`tests/test_stirling.py` novo — 49 testes**: multipart byte a byte (boundary, array `fileInput`, nome higienizado), transporte urllib (HTTPError **é** resposta; rede/timeout → erro tipado), cada operação com **todos** os ramos de erro + trava de saída + mágica, fábrica lazy (env → `.env` → default), actions (parse de lista com espaços, erro degradado) e catálogo (schemas + **negação para papel comum**). Cobertura do módulo: **97%**. |
+| **versionCode** | 2067 → **2068** (política 9/9 — `.env`, `capabilities`, `pubspec`, `_APP_VERSION_CODE`, site ×4, CHANGELOG, README_VERSAO; APKs rebuildados e conferidos no aapt2). |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3187 passed / 16 skipped** (cov 90,96%) — +49 testes novos (`test_stirling.py`) |
+| Mutações (teste do teste) | **4/4 capturadas** (mágica de saída removida → 1 falha · trava de saída removida → 1 · timeout virando `indisponivel` → 1 · redução antes/depois invertida → 1), restauração **bit-exata conferida por sha256** — com lição honesta registrada: um `.pyc` temporário com **mtime+size idênticos** ao fonte mascarou a restauração na suíte intermediária (bytecode mutado servido do cache); `.pyc` invalidado e suíte final verde |
+| Prova viva (PID 914141, NRestarts=0) | `/health` **up · 21 checks · tools 8/8** · `/actions` **97** com as 4 `stirling_*` · `/app/version` **1.36.0 / 2068** (sha `b4a7247d…` == APK publicado) · journal **0 erros** (só o alerta esperado `key=restart`) |
+| **E2E do pipeline real** (pelo `/executa` de produção) | `stirling_status` (**2.13.1, UP**) → `stirling_merge` de 2 PDFs (**1234 B**, sha conferido) → **page-count direto no container = 2** → repetir sem `substituir` → **`stirling_saida_ocupada` + arquivo intacto** → `stirling_split` do merged (**ZIP com `junto_1.pdf` / `junto_2.pdf`**) → `stirling_compress` de 177 KB (**177072 → 5444 B, −96,9%**) com antes/depois honestos |
+| **Espelho do cofre** | `vault_env_mirror.py` rodado na entrega: **12/12 conferem**, cofre do sistema com **12 itens**, nenhum valor impresso |
+
 ## [1.35.0] — COFRE DO SISTEMA: VAULTWARDEN INTERLIGADO (1ª DAS 3 FERRAMENTAS) 🜂 (2026-10-17)
 
 > **Bump MINOR (capability nova):** primeira da fila aprovada pelo dono em

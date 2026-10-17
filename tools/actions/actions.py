@@ -2487,6 +2487,71 @@ def vault_set(
 
 
 # ---------------------------------------------------------------------------
+# Stirling PDF — pipeline de documentos (2ª interligação, 17/10)
+# ---------------------------------------------------------------------------
+
+def _stirling_op(op: Any) -> dict[str, Any]:
+    """Roda uma operação no Stirling PDF com erro honesto e tipado.
+
+    Cliente LAZY (integrations/stirling.py): a ferramenta fora do ar
+    degrada ESTA ação — nunca o boot do od-core. API local sem login
+    (127.0.0.1:8400), operações síncronas; a saída só é gravada depois
+    da validação de mágica do arquivo.
+    """
+    from integrations.stirling import StirlingError, client_padrao
+
+    try:
+        cliente = client_padrao()
+        return {"ok": True, **op(cliente)}
+    except StirlingError as exc:
+        return {"ok": False, "error": exc.codigo, "message": exc.mensagem}
+
+
+def stirling_status() -> dict[str, Any]:
+    """Estado do Stirling PDF: versão + status da API local."""
+    return _stirling_op(lambda c: c.status())
+
+
+def stirling_merge(
+    arquivos: str,
+    saida: str,
+    substituir: bool = False,
+) -> dict[str, Any]:
+    """Junta 2+ PDFs (caminhos separados por vírgula) em um arquivo só."""
+    lista = [p.strip() for p in str(arquivos or "").split(",") if p.strip()]
+    return _stirling_op(lambda c: c.merge(lista, saida, substituir=substituir))
+
+
+def stirling_split(
+    arquivo: str,
+    saida: str,
+    cortes: str = "all",
+    substituir: bool = False,
+) -> dict[str, Any]:
+    """Corta um PDF nos pontos de corte (ex.: "2", "2,5", "5-9", "all")."""
+    return _stirling_op(
+        lambda c: c.split(arquivo, cortes, saida, substituir=substituir)
+    )
+
+
+def stirling_compress(
+    arquivo: str,
+    saida: str,
+    nivel: int = 4,
+    alvo: str = "25KB",
+    cinza: bool = False,
+    substituir: bool = False,
+) -> dict[str, Any]:
+    """Comprime um PDF (nivel 1–9, alvo tipo "25KB"; cinza converte p/ P&B)."""
+    return _stirling_op(
+        lambda c: c.compress(
+            arquivo, saida, nivel=nivel, alvo=alvo, cinza=cinza,
+            substituir=substituir,
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
 # Serviços (systemd — degrada graciosamente)
 # ---------------------------------------------------------------------------
 
@@ -3061,6 +3126,14 @@ CATALOG: list[dict[str, Any]] = [
           {"required": ["name"], "properties": {"name": S}}),
     _spec("vault_set", "vault", "Cria/atualiza um segredo no cofre", vault_set,
           {"required": ["name", "password"], "properties": {"name": S, "password": S, "username": {**S, "default": ""}, "note": {**S, "default": ""}}}),
+    # --- Stirling PDF: pipeline de documentos (2ª interligação das ferramentas, 17/10) ---
+    _spec("stirling_status", "stirling", "Estado do Stirling PDF (versão + status da API)", stirling_status),
+    _spec("stirling_merge", "stirling", "Junta 2+ PDFs (caminhos separados por vírgula) em um arquivo", stirling_merge,
+          {"required": ["arquivos", "saida"], "properties": {"arquivos": S, "saida": S, "substituir": {**B, "default": False}}}),
+    _spec("stirling_split", "stirling", "Corta um PDF nos pontos de corte (ex.: \"2\", \"2,5\", \"5-9\", \"all\")", stirling_split,
+          {"required": ["arquivo", "saida"], "properties": {"arquivo": S, "saida": S, "cortes": {**S, "default": "all"}, "substituir": {**B, "default": False}}}),
+    _spec("stirling_compress", "stirling", "Comprime um PDF (nivel 1-9, alvo tipo \"25KB\", cinza opcional)", stirling_compress,
+          {"required": ["arquivo", "saida"], "properties": {"arquivo": S, "saida": S, "nivel": {**I, "default": 4}, "alvo": {**S, "default": "25KB"}, "cinza": {**B, "default": False}, "substituir": {**B, "default": False}}}),
     # --- Serviços (3) ---
     _spec("service_list", "service", "Lista serviços systemd", service_list),
     _spec("service_status", "service", "Status de um serviço", service_status,
