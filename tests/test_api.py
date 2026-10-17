@@ -501,6 +501,33 @@ class TestAPIPublicEndpoints:
         # O JS do herói está no script da página (não em bloco separado).
         assert html.count("<script>") == 1
 
+    def test_dashboard_no_formato_orion_para_todos(
+            self, serve, tmp_path: Path) -> None:
+        """v1.39.1 (pedido do dono 17/10): o MESMO cabeçalho do /admin no
+        painel de TODOS os usuários — CSS/JS vêm da fonte única injetada
+        pelo _com_tema (uma fonte, três páginas, como o tema). Só o que é
+        público aparece aqui (saúde, versão, relógio, KPIs de sistema);
+        as seções administrativas continuam no /admin."""
+        srv = serve(make_orch(tmp_path))
+        status, body, _ = _request(srv.bound_port, "GET", "/dashboard")
+        html = body.decode("utf-8", "replace")
+        assert status == 200
+        assert 'class="od-hero"' in html and 'class="od-kpis"' in html
+        for elemento in ("odVer", "odOn", "odOla", "odData", "odRelogio",
+                         "odSaude", "kpiAcoes", "kpiStack", "kpiChecks", "kpiUptime"):
+            assert f'id="{elemento}"' in html, elemento
+        # Fonte única: o formato chega pela injeção (marca), não por CSS/JS
+        # copiados para dentro da página — e o script segue sendo UM.
+        assert "od-formato-orion" in html
+        assert html.count("<script>") == 1
+        # O /admin bebe da MESMA fonte (injeção), sem cópia local.
+        _s, corpo_admin, _h = _request(srv.bound_port, "GET", "/admin")
+        assert "od-formato-orion" in corpo_admin.decode("utf-8", "replace")
+        # O /chat não ganha cabeçalho: sem #odOla o JS sai cedo e o
+        # markup não existe lá (CSS/JS injetados ali são inócuos).
+        _s, corpo_chat, _h = _request(srv.bound_port, "GET", "/chat")
+        assert 'class="od-hero"' not in corpo_chat.decode("utf-8", "replace")
+
     def test_metrics_text(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))
         port = srv.bound_port

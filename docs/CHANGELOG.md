@@ -12,6 +12,32 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.39.1] — FORMATO ÓRION NO PAINEL DE TODOS + FONTE ÚNICA 🜂 (2026-10-17)
+
+> **Bump PATCH (extensão do formato + refatoração de fonte única):** o
+> dono, ao ver o `/admin` no formato Órion, ordenou: *"como esse painel
+> não causa qualquer problema ao sistema … coloca ele no topo do
+> dashboard para todos os usuários"* — o **MESMO cabeçalho** (saudação
+> por período com o nome de quem entrou, pill ONLINE/DEGRADADO, chips,
+> relógio GMT-3, mini-card de saúde) e a **MESMA faixa de 4 KPIs** agora
+> abrem o `/dashboard` de **todo usuário logado**. No caminho, o formato
+> deixou de viver duplicado dentro do `/admin` e virou **fonte única
+> injetada pelo `_com_tema`** — mesma arquitetura do tema claro/escuro
+> (uma fonte, três páginas).
+
+| Peça | Entrega |
+|---|---|
+| **`/dashboard` — formato para TODOS** | Herói + KPIs no topo, antes de "Uso da conta": saudação com o **próprio nome** de quem entrou (`/auth.me`), versão real (`/app/version`, rota pública), pill do `/health`, relógio GMT-3 vivo, mini-card de saúde e os 4 KPIs de sistema (actions · stack · checks · uptime). `/dashboard/stats` que devolve **403 para usuário comum vira "—"** (nada de verde de mentira); **as seções administrativas continuam atrás do papel admin** (só o formato viaja). |
+| **Fonte única do formato** | `_FORMATO_ORION_CSS` + `_FORMATO_ORION_JS` (IIFE com `window.odFormato`: `nome`/`pintar`/`atualizar`) saem do HTML do `/admin` e passam a ser injetados pelo `_com_tema` com o **princípio idempotente do tema** (marca `od-formato-orion`; marcado também no JS — segunda chamada não duplica). O `/admin` chama `window.odFormato.pintar()` no refresh do `loadSystem`; o `/dashboard` busca sozinho (health + stats + actions com a sessão do localStorage); o `/chat` recebe a injeção **inócua** (sem `#odOla` o JS sai cedo e o markup não existe lá). Tinta só nas variáveis do tema → **claro e escuro** sem paleta duplicada. |
+| **Bump 9/9** | `.env` `OD_VERSION=1.39.1` (fonte real; o fallback do capabilities é só padrão) · `capabilities.py` fallback **1.39.0 → 1.39.1** · `_APP_VERSION_CODE` **2072 → 2073** · `app/pubspec.yaml` · `site/index.html` (badge do herói + card do APK) · CHANGELOG · README_VERSAO · ANALISE · APKs rebuildados. |
+| **Testes** | `tests/test_api.py`: **+1** `test_dashboard_no_formato_orion_para_todos` (markup+ids do herói/KPIs no `/dashboard`, **marca da fonte única** nas 3 páginas, **um único `<script>`**, `/chat` sem cabeçalho). Os testes do v1.39.0 (herói do admin, fontes honestas, script único, tema idempotente, `node --check` cru e injetado) seguram a refactor sem mudança de palavra. |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3293 passed / 16 skipped** (+1 teste sobre 1.39.0) · gate **91,08%** |
+| Guarda JS | `node --check` do script com `_com_tema` injetado (tema + formato): **OK** |
+| Provas vivas (pós-deploy) | *preenchidas abaixo na prova do deploy* |
+
 ## [1.39.0] — PAINEL E SITE NO FORMATO ÓRION + MONITOR 9/9 🜂 (2026-10-17)
 
 > **Bump MINOR (interface do dono + correção de monitor):** o dono

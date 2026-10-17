@@ -7,6 +7,49 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.39.1] — FORMATO ÓRION NO PAINEL DE TODOS + FONTE ÚNICA 🜂 (2026-10-17)
+
+### 1. O que foi feito
+
+O dono, ao ver o `/admin` no formato Órion (v1.39.0), ordenou: *"como
+esse painel não causa qualquer problema ao sistema … coloca ele no topo
+do dashboard para todos os usuários"* — o **mesmo cabeçalho** (saudação
+por período com o nome de quem entrou, pill ONLINE/DEGRADADO, chips,
+relógio GMT-3, mini-card de saúde) e a **mesma faixa de 4 KPIs** agora
+abrem o `/dashboard` de **todo usuário logado**, antes de "Uso da
+conta". No caminho, o formato deixou de viver duplicado dentro do
+`/admin` e virou **fonte única injetada pelo `_com_tema`** — a MESMA
+arquitetura do tema claro/escuro (uma fonte, três páginas, injeção
+idempotente por marca). O que é público aparece para todos (saúde,
+versão, relógio, KPIs de sistema); o administrativo continua atrás do
+papel admin.
+
+| Peça | Entrega |
+|---|---|
+| **`/dashboard` (todos)** | Herói + KPIs no topo; nome de quem entrou via `/auth.me` do próprio dashboard; `/dashboard/stats` 403 para usuário comum vira "—" (nunca verde de mentira); chat não ganha cabeçalho (injeção defensiva). |
+| **Fonte única** | `_FORMATO_ORION_CSS`/`_FORMATO_ORION_JS` (IIFE `window.odFormato`: `nome`/`pintar`/`atualizar`) injetados pelo `_com_tema` (marca `od-formato-orion`); `/admin` repassa o `loadSystem` no refresh; `/dashboard` busca sozinho (health + stats + actions com a sessão do localStorage). |
+| **Testes** | `test_api.py` **+1** `test_dashboard_no_formato_orion_para_todos` (markup+ids, marca da fonte única nas 3 páginas, script único, `/chat` limpo); as travas do v1.39.0 (herói do admin, fontes honestas, tema idempotente, `node --check`) seguram a refactor sem mudança de palavra. |
+| **Bump 9/9** | `.env` `OD_VERSION=1.39.1` (fonte real) · capabilities fallback **1.39.1** · `_APP_VERSION_CODE` **2073** · pubspec · `site/index.html` (badge + card do APK) · CHANGELOG · README_VERSAO · ANALISE · APKs. |
+
+### 2. Decisão registrada (fonte da verdade)
+
+(1) **Só o formato viaja para os usuários** — o cabeçalho usa rotas
+públicas ou a sessão do próprio usuário; nenhum dado administrativo
+vaza para o `/dashboard`; (2) **uma fonte, três páginas**: CSS/JS do
+formato saíram do HTML do admin e passaram pela injeção do `_com_tema`
+(mesmo protocolo idempotente do tema) — a duplicação que já custou uma
+divergência de paleta não se repete; (3) **o mecanismo do tema continuou
+intocado** (falha residual do TODO §3.8 segue aguardando o exemplo exato
+do dono); (4) **PATCH, não MINOR**: extensão da interface já entregue +
+refatoração de fonte, sem capacidade nova.
+
+### 3. Validação (17/10)
+
+Suíte **3293 passed / 16 skipped · gate 91,08%** (+1 teste) ·
+`node --check` do script com `_com_tema` injetado **OK** · APKs
+**1.39.1+2073** publicados. Provas vivas pós-deploy registradas na
+transcrição do dia (§9) e no `session.json`.
+
 ## [1.39.0] — PAINEL E SITE NO FORMATO ÓRION + MONITOR 9/9 🜂 (2026-10-17)
 
 ### 1. O que foi feito

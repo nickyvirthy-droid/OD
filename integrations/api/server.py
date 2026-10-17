@@ -60,7 +60,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2072  # versionCode cru do APK publicado (v1.39.0+2072)
+_APP_VERSION_CODE = 2073  # versionCode cru do APK publicado (v1.39.1+2073)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -692,6 +692,212 @@ _TEMA_PAINEL_JS = """(function () {
 })();"""
 
 
+_FORMATO_ORION_CSS = """<style>
+  /* od-formato-orion — fonte única, injetada pelo _com_tema (mesma
+     arquitetura do tema): /dashboard (todos os usuários), /admin
+     (dono) e /chat (inócuo, sem markup) falam a mesma tela. */
+  /* --- Painel no FORMATO ÓRION (referência do dono, analisada 17/10) ---
+     Herói de saudação + faixa de KPIs + mini-painéis vivos (relógio e
+     saúde), tudo lendo as MESMAS fontes das seções (/auth/me, /health,
+     /dashboard/stats, /actions, /app/version) — nenhuma fonte paralela.
+     Tinta só nas variáveis (--bg/--text/...), então funciona no claro e
+     no escuro sem paleta duplicada (§ tema). */
+  .od-hero {
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+    background: linear-gradient(135deg, var(--bg3), var(--bg2));
+    border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px;
+  }
+  .od-hero-marca {
+    width: 54px; height: 54px; border-radius: 14px; flex: none;
+    display: grid; place-items: center; font-size: 1.7rem;
+    background: var(--bg); border: 1px solid var(--border);
+  }
+  .od-hero-tag {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .od-hero-tag b { color: var(--accent); }
+  .od-ola { font-size: 1.35rem; font-weight: 800; margin-top: 4px; }
+  .od-hero-data { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+  .od-hero-chips { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .od-ponto {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok); margin-right: 6px;
+  }
+  .od-ponto.err { background: var(--err); }
+  .od-vivos { display: flex; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+  .od-vivo {
+    min-width: 134px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 14px;
+  }
+  .od-vivo .k {
+    font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted);
+  }
+  .od-vivo .v {
+    font-size: 1.05rem; font-weight: 700; margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .od-kpis {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;
+  }
+  .od-kpi {
+    display: flex; gap: 12px; align-items: center;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px;
+  }
+  .od-kpi-ico {
+    width: 38px; height: 38px; border-radius: 10px; flex: none;
+    display: grid; place-items: center; font-size: 1.1rem; color: #fff;
+  }
+  .od-ico-azul { background: linear-gradient(135deg, #2563EB, #3B82F6); }
+  .od-ico-laranja { background: linear-gradient(135deg, #D97706, #F59E0B); }
+  .od-ico-roxo { background: linear-gradient(135deg, #7C3AED, #A78BFA); }
+  .od-ico-verde { background: linear-gradient(135deg, #059669, #34D399); }
+  .od-kpi .n { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
+  .od-kpi .l {
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted);
+  }
+  /* pills do cabeçalho: o /dashboard não tem .pill próprio — escopo
+     no .od-hero para não brigar com as páginas. */
+  .od-hero .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 0.72rem; background: var(--bg3); border: 1px solid var(--border);
+  }
+  .od-hero .pill.ok { color: var(--ok); }
+  .od-hero .pill.err { color: var(--err); }
+</style>"""
+
+
+_FORMATO_ORION_JS = """(function () {
+  'use strict';
+  /* od-formato-orion — fonte única, injetada pelo _com_tema. Saudação por
+     período, relógio de São Paulo, pill de estado e KPIs — tudo lendo as
+     MESMAS fontes de sempre (health / version / actions / stats). Sem
+     resposta o campo fica "—" (nunca verde de mentira); falha daqui nunca
+     derruba a página (try/catch). O /admin repassa os dados do loadSystem
+     via pintar(); o /dashboard (todos os usuários) busca sozinho. */
+  var nome = "";
+
+  function saudacao() {
+    var h = new Date().getHours();
+    return h < 5 ? "Boa madrugada" : h < 12 ? "Boa manhã" : h < 18 ? "Boa tarde" : "Boa noite";
+  }
+
+  function fmtUptime(s) {
+    if (s == null) return "—";
+    var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600),
+        m = Math.floor((s % 3600) / 60);
+    return (d ? d + "d " : "") + (h ? h + "h " : "") + m + "m";
+  }
+
+  function cabecalhos() {
+    var h = {};
+    try {
+      var t = localStorage.getItem("od_session_token");
+      var k = localStorage.getItem("od_api_key");
+      if (t) h["Authorization"] = "Bearer " + t;
+      else if (k) h["X-API-Key"] = k;
+    } catch (e) {}
+    return h;
+  }
+
+  function relogio() {
+    var el = document.getElementById("odRelogio");
+    if (!el) return;
+    el.textContent = new Date().toLocaleTimeString("pt-BR", {
+      timeZone: "America/Sao_Paulo", hour12: false
+    });
+  }
+
+  function pintar(health, stats, acoes) {
+    try {
+      var ola = document.getElementById("odOla");
+      if (!ola) return;  // página sem o cabeçalho (ex.: chat)
+      ola.textContent = saudacao() + (nome ? ", " + nome : "");
+      document.getElementById("odData").textContent =
+        new Date().toLocaleDateString("pt-BR", {
+          weekday: "long", day: "2-digit", month: "long", year: "numeric"
+        });
+      var vivo = !!(health && health.ok);
+      var on = document.getElementById("odOn");
+      on.className = "pill" + (vivo ? " ok" : " err");
+      on.innerHTML = '<span class="od-ponto' + (vivo ? "" : " err") + '"></span>' +
+        (vivo ? "ONLINE" : "DEGRADADO");
+      var up = (health && health.uptime_s != null) ? health.uptime_s : null;
+      if (stats && stats.uptime_s != null) up = stats.uptime_s;
+      var upTxt = fmtUptime(up);
+      document.getElementById("kpiUptime").textContent = upTxt;
+      var chipUp = document.getElementById("odChipUptime");
+      if (chipUp) chipUp.textContent = "uptime " + upTxt;
+      document.getElementById("kpiAcoes").textContent =
+        acoes && acoes.count != null ? acoes.count : "—";
+      var nt = stats && stats.nomad_tools;
+      document.getElementById("kpiStack").textContent = nt ? nt.up + "/" + nt.total : "—";
+      var chipSt = document.getElementById("odChipStack");
+      if (chipSt) chipSt.textContent = nt ? "stack " + nt.up + "/" + nt.total : "stack —";
+      var ch = (health && health.checks) || {};
+      var nomes = Object.keys(ch);
+      var bons = nomes.filter(function (n) { return ch[n] && ch[n].ok; }).length;
+      document.getElementById("kpiChecks").textContent =
+        nomes.length ? bons + "/" + nomes.length : "—";
+      var saude = document.getElementById("odSaude");
+      if (nomes.length && bons === nomes.length) {
+        saude.textContent = "Tudo verde";
+      } else if (nomes.length) {
+        saude.textContent = bons + " ok · " + (nomes.length - bons) + " alerta";
+      }
+      document.getElementById("odSaudeDet").textContent =
+        nomes.length + " checks · " + ((health && health.status) || "?");
+    } catch (e) { /* enfeite vivo: a falha dele não derruba a página */ }
+  }
+
+  function buscarJson(url, auth) {
+    return fetch(url, auth ? { headers: cabecalhos() } : undefined)
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+  }
+
+  function atualizar() {
+    if (!document.getElementById("odOla")) return Promise.resolve();
+    return Promise.all([
+      buscarJson("/health"),                // pública
+      buscarJson("/dashboard/stats", true), // dono: uptime/stack (403 vira null)
+      buscarJson("/actions", true)          // catálogo (contagem)
+    ]).then(function (r) { pintar(r[0], r[1], r[2]); });
+  }
+
+  function versao() {
+    buscarJson("/app/version").then(function (d) {
+      if (!d || !d.version) return;
+      var el = document.getElementById("odVer");
+      if (el) el.textContent = "v" + d.version;
+      var build = document.getElementById("odChipBuild");
+      if (build) build.textContent = "build " + (d.version_code || "");
+    });
+  }
+
+  // Interface para a página: o /admin chama pintar() no refresh do
+  // loadSystem; quem logar entrega o nome (o cabeçalho chama pelo nome).
+  window.odFormato = {
+    nome: function (n) {
+      if (!n) return;
+      nome = n;
+      var ola = document.getElementById("odOla");
+      if (ola) ola.textContent = saudacao() + ", " + nome;
+    },
+    pintar: pintar,
+    atualizar: atualizar
+  };
+
+  if (document.getElementById("odOla")) {
+    relogio();
+    setInterval(relogio, 1000);
+    versao();
+    atualizar();
+  }
+})();"""
+
+
 def _com_tema(html: str) -> str:
     """Injeta a paleta clara + o tema na página do painel.
 
@@ -711,7 +917,12 @@ def _com_tema(html: str) -> str:
     pos = html.find(marca)
     if pos >= 0 and "</script>" in html[pos:]:
         corte = pos + len(marca)
-        html = html[:corte] + "\n" + _TEMA_PAINEL_JS + "\n" + html[corte:]
+        html = (html[:corte] + "\n" + _TEMA_PAINEL_JS + "\n"
+                + _FORMATO_ORION_JS + "\n" + html[corte:])
+    # Formato Órion (v1.39.1): CSS na MESMA injeção, idempotente pela
+    # marca — uma fonte para /dashboard, /admin e /chat, como o tema.
+    if "od-formato-orion" not in html and "</head>" in html:
+        html = html.replace("</head>", _FORMATO_ORION_CSS + "\n</head>", 1)
     return html
 
 
@@ -786,6 +997,45 @@ _DASHBOARD_PAGE_HTML = """<!doctype html>
   <div id="badge"></div>
 </header>
 <main>
+  <!-- Formato Órion (v1.39.1, pedido do dono 17/10): o MESMO cabeçalho do
+       /admin no painel de TODOS — CSS/JS vêm da fonte única injetada pelo
+       _com_tema. Aqui só o que é público (saúde, versão, relógio, KPIs de
+       sistema); as seções administrativas continuam no /admin. -->
+  <div class="od-hero">
+    <div class="od-hero-marca"><img src="/site/simbolo_minimo.png" alt="OD" style="width:30px;height:30px"></div>
+    <div>
+      <div class="od-hero-tag">Omega Drakon · <b id="odVer">…</b>
+        <span class="pill" id="odOn"><span class="od-ponto"></span>CARREGANDO</span></div>
+      <div class="od-ola" id="odOla">Boa tarde</div>
+      <div class="od-hero-data" id="odData">—</div>
+      <div class="od-hero-chips">
+        <span class="pill" id="odChipUptime">uptime —</span>
+        <span class="pill" id="odChipStack">stack —</span>
+      </div>
+    </div>
+    <div class="od-vivos">
+      <div class="od-vivo">
+        <div class="k">Horário</div>
+        <div class="v" id="odRelogio">—</div>
+        <div class="k">São Paulo · GMT-3</div>
+      </div>
+      <div class="od-vivo">
+        <div class="k">Saúde do sistema</div>
+        <div class="v" id="odSaude">—</div>
+        <div class="k" id="odSaudeDet">carregando…</div>
+      </div>
+    </div>
+  </div>
+  <div class="od-kpis">
+    <div class="od-kpi"><div class="od-kpi-ico od-ico-azul">⚡</div>
+      <div><div class="n" id="kpiAcoes">—</div><div class="l">Actions prontas</div></div></div>
+    <div class="od-kpi"><div class="od-kpi-ico od-ico-laranja">🧰</div>
+      <div><div class="n" id="kpiStack">—</div><div class="l">Stack Nômade</div></div></div>
+    <div class="od-kpi"><div class="od-kpi-ico od-ico-roxo">🩺</div>
+      <div><div class="n" id="kpiChecks">—</div><div class="l">Checks de saúde</div></div></div>
+    <div class="od-kpi"><div class="od-kpi-ico od-ico-verde">⏱</div>
+      <div><div class="n" id="kpiUptime">—</div><div class="l">Uptime do núcleo</div></div></div>
+  </div>
   <section>
     <h2>Uso da conta</h2>
     <div class="grid" id="stats"></div>
@@ -842,6 +1092,7 @@ async function whoAmI() {
   document.getElementById("badge").innerHTML =
     "👤 <b>" + data.user.username + "</b> · " + role +
     ' · <a href="/chat">💬 Chat</a>' + (role === "admin" ? ' · <a href="/admin">🛡 Admin</a>' : "");
+  if (window.odFormato) window.odFormato.nome(data.user.username);
   return data;
 }
 
@@ -1005,67 +1256,6 @@ _ADMIN_PAGE_HTML = """<!doctype html>
   pre {
     background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
     padding: 10px; font-size: 0.75rem; overflow-x: auto; color: var(--muted);
-  }
-  /* --- Painel no FORMATO ÓRION (referência do dono, analisada 17/10) ---
-     Herói de saudação + faixa de KPIs + mini-painéis vivos (relógio e
-     saúde), tudo lendo as MESMAS fontes das seções (/auth/me, /health,
-     /dashboard/stats, /actions, /app/version) — nenhuma fonte paralela.
-     Tinta só nas variáveis (--bg/--text/...), então funciona no claro e
-     no escuro sem paleta duplicada (§ tema). */
-  .od-hero {
-    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
-    background: linear-gradient(135deg, var(--bg3), var(--bg2));
-    border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px;
-  }
-  .od-hero-marca {
-    width: 54px; height: 54px; border-radius: 14px; flex: none;
-    display: grid; place-items: center; font-size: 1.7rem;
-    background: var(--bg); border: 1px solid var(--border);
-  }
-  .od-hero-tag {
-    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em;
-    color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-  }
-  .od-hero-tag b { color: var(--accent); }
-  .od-ola { font-size: 1.35rem; font-weight: 800; margin-top: 4px; }
-  .od-hero-data { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
-  .od-hero-chips { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-  .od-ponto {
-    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-    background: var(--ok); margin-right: 6px;
-  }
-  .od-ponto.err { background: var(--err); }
-  .od-vivos { display: flex; gap: 10px; margin-left: auto; flex-wrap: wrap; }
-  .od-vivo {
-    min-width: 134px; background: var(--bg); border: 1px solid var(--border);
-    border-radius: 12px; padding: 10px 14px;
-  }
-  .od-vivo .k {
-    font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted);
-  }
-  .od-vivo .v {
-    font-size: 1.05rem; font-weight: 700; margin-top: 2px;
-    font-variant-numeric: tabular-nums;
-  }
-  .od-kpis {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;
-  }
-  .od-kpi {
-    display: flex; gap: 12px; align-items: center;
-    background: var(--bg2); border: 1px solid var(--border);
-    border-radius: 12px; padding: 12px 14px;
-  }
-  .od-kpi-ico {
-    width: 38px; height: 38px; border-radius: 10px; flex: none;
-    display: grid; place-items: center; font-size: 1.1rem; color: #fff;
-  }
-  .od-ico-azul { background: linear-gradient(135deg, #2563EB, #3B82F6); }
-  .od-ico-laranja { background: linear-gradient(135deg, #D97706, #F59E0B); }
-  .od-ico-roxo { background: linear-gradient(135deg, #7C3AED, #A78BFA); }
-  .od-ico-verde { background: linear-gradient(135deg, #059669, #34D399); }
-  .od-kpi .n { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
-  .od-kpi .l {
-    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted);
   }
 </style>
 </head>
@@ -1421,7 +1611,6 @@ _ADMIN_PAGE_HTML = """<!doctype html>
 <script>
 let token = localStorage.getItem("od_session_token") || "";
 let key = localStorage.getItem("od_api_key") || "";
-let odNome = "dono";  // preenchido no whoAmI — herói (formato Órion)
 
 function authHeaders(extra) {
   const h = extra || {};
@@ -1441,7 +1630,7 @@ async function whoAmI() {
     document.body.innerHTML = "<main><h2>Acesso restrito ao admin.</h2><p class='muted'>Sua conta não tem papel admin. <a href='/chat'>Voltar ao chat</a></p></main>";
     return null;
   }
-  odNome = data.user.username || "dono";   // o herói chama pelo nome
+  if (window.odFormato) window.odFormato.nome(data.user.username);
   return data;
 }
 
@@ -1483,7 +1672,7 @@ async function loadSystem() {
     document.getElementById("nomadTools").textContent = stats.nomad_tools
       ? JSON.stringify(stats.nomad_tools, null, 2)
       : "monitor desligado (OD_NOMAD_TOOLS=0)";
-    odHeroi(health, stats, acoes);
+    if (window.odFormato) window.odFormato.pintar(health, stats, acoes);
     msg.textContent = "Atualizado " + new Date().toLocaleTimeString("pt-BR");
     msg.className = "muted msg";
   } catch (e) {
@@ -1502,61 +1691,6 @@ function fmtBytes(n) {
   if (n == null || !n) return "—";
   if (n < 1048576) return Math.round(n / 1024) + " KB";
   return (n / 1048576).toFixed(2) + " MB";
-}
-
-/* --- Herói no formato Órion (referência do dono, analisada 17/10) ------
-   Saudação por período, data por extenso, relógio vivo (fuso de São
-   Paulo) e KPIs — tudo lendo as MESMAS fontes das seções (health, stats,
-   /actions). Sem resposta o campo fica "—" (nada de verde de mentira);
-   falha do herói nunca derruba o resto do painel (try/catch vazio). */
-function odSaudacao() {
-  const h = new Date().getHours();
-  return h < 5 ? "Boa madrugada" : h < 12 ? "Boa manhã" : h < 18 ? "Boa tarde" : "Boa noite";
-}
-
-function odHeroi(health, stats, acoes) {
-  try {
-    document.getElementById("odOla").textContent = odSaudacao() + ", " + odNome;
-    document.getElementById("odData").textContent = new Date().toLocaleDateString("pt-BR", {
-      weekday: "long", day: "2-digit", month: "long", year: "numeric"
-    });
-    const vivo = !!(health && health.ok);
-    const on = document.getElementById("odOn");
-    on.className = "pill" + (vivo ? " ok" : " err");
-    on.innerHTML = '<span class="od-ponto' + (vivo ? "" : " err") + '"></span>' +
-      (vivo ? "ONLINE" : "DEGRADADO");
-    const up = stats.uptime_s != null ? stats.uptime_s : (health ? health.uptime_s : null);
-    const upTxt = fmtUptime(up);
-    document.getElementById("kpiUptime").textContent = upTxt;
-    document.getElementById("odChipUptime").textContent = "uptime " + upTxt;
-    document.getElementById("kpiAcoes").textContent =
-      acoes && acoes.count != null ? acoes.count : "—";
-    const nt = stats.nomad_tools;
-    document.getElementById("kpiStack").textContent = nt ? nt.up + "/" + nt.total : "—";
-    document.getElementById("odChipStack").textContent =
-      nt ? "stack " + nt.up + "/" + nt.total : "stack —";
-    const ch = (health && health.checks) || {};
-    const nomes = Object.keys(ch);
-    const bons = nomes.filter(n => ch[n] && ch[n].ok).length;
-    document.getElementById("kpiChecks").textContent =
-      nomes.length ? bons + "/" + nomes.length : "—";
-    const saude = document.getElementById("odSaude");
-    if (nomes.length && bons === nomes.length) {
-      saude.textContent = "Tudo verde";
-    } else if (nomes.length) {
-      saude.textContent = bons + " ok · " + (nomes.length - bons) + " alerta";
-    }
-    document.getElementById("odSaudeDet").textContent =
-      nomes.length + " checks · " + ((health && health.status) || "?");
-  } catch (e) { /* herói é enfeite vivo — a falha dele não derruba o painel */ }
-}
-
-function odRelogio() {
-  const el = document.getElementById("odRelogio");
-  if (!el) return;
-  el.textContent = new Date().toLocaleTimeString("pt-BR", {
-    timeZone: "America/Sao_Paulo", hour12: false
-  });
 }
 
 function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -2665,17 +2799,6 @@ document.getElementById("au-refresh").onclick = auLoad;
 document.getElementById("fr-add").onclick = frAdd;
 document.getElementById("fr-refresh").onclick = frLoad;
 document.getElementById("fr-nome").addEventListener("keydown", e => { if (e.key === "Enter") frAdd(); });
-// Herói (formato Órion): relógio vivo a cada segundo + versão REAL
-// (/app/version é rota pública — o pill do topo nunca mente a versão
-// servida; sem rede o "…" original permanece).
-odRelogio();
-setInterval(odRelogio, 1000);
-fetch("/app/version").then(r => r.ok ? r.json() : null).then(d => {
-  if (d && d.version) {
-    document.getElementById("odVer").textContent = "v" + d.version;
-    document.getElementById("odChipBuild").textContent = "build " + (d.version_code || "");
-  }
-}).catch(() => {});
 whoAmI().then(u => { if (u) { carregarTudo(); dlSse(); } });
 // a sessão roda fora do od-core: o painel acompanha de 5 em 5 s
 setInterval(async () => {
