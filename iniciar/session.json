@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-16T21:45:00-03:00",
+  "updated_at": "2026-10-16T22:45:00-03:00",
   "pauta_explicada_e_todo_descrito_2026_10_16": {
     "pedido": "Dono (~19:50 de 16/10): 'me explique o tal de Pauta itens 3 e 5' e, ao ver a minha busca demorada nas transcrições, correu o processo: 'por isso pedi pra criar um TODO de atualizações... não precisa ficar assim procurando do que se trata'.",
     "apuracao_da_fonte": "'Pauta' = as 15 divergências Legado × sistema atual em docs/ANALISE_ECOSSISTEMA.md §6, com os próximos passos numerados 1–5 na §8 (criada 09/10). Itens 1 (organizar Legado) e 2 (/verificacao + Registro Mestre) já CONCLUÍDOS; os abertos são: 3 = ordem das frentes FAB/Living Systems/Semi-joias/Nicoly Valentina (só falta a decisão da ordem — o 1º passo pedido, Registro Mestre, saiu em v1.22.0 e a Etapa 4 em v1.30.0); 4 = unificação do formato de ID das peças (SKU 5 campos × MoC 4 campos hex do Legado, antes das semi-joias); 5 = rotação dos segredos vazados no Legado (bot @Nexus_Nicky_bot e chave Gemini ainda ATIVOS; decisão do dono: rotacionar após os testes). OBS: os transcripts antigos diziam '3 e 5 = unificação de ID e ordem das frentes' — a numeração real da §8 é 3=frentes, 4=ID, 5=segredos; a confusão de numeração era parte do problema.",
@@ -3089,5 +3089,16 @@
     "fechamentos": "Pauta §8.4 (unificação de ID) FECHADA — sai do TODO.md (regra: implementado sai da lista); ANALISE_ECOSSISTEMA §6 linha 9 virou 'Resolvido' e §8 item 4 marcado CONCLUÍDO em v1.33.0.",
     "estado": "NO AR — sistema v1.33.0+2063, 6 peças migradas, registro único cobrindo todas as frentes. Pauta aberta restante: §8.3 ordem das frentes (decisão do dono).",
     "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§19)"
+  },
+  "ordem_frentes_e_loja_por_secoes_2026_10_16": {
+    "pedido": "Dono (~22:00 de 16/10): 'pode seguir assim' (aprova a ordem das frentes sugerida: 1º Nicoly Valentina, 2º FAB, 3º Living Systems). Perguntou 'o que quer dizer com ordem das frentes' — explicado com a tabela das 5 frentes (2 no ar, 3 a construir). Depois: 'não precisa trocar [a palavra frente], entendi. só acho que a loja precisa separar por seções'.",
+    "decisoes": "(1) §8.3 FECHADA: ordem das frentes = 1º NV (semi-joias), 2º FAB (manufatura), 3º Living Systems — registrada em ANALISE §8 item 3 e virou item novo no TODO §2 ('Frente NV — ciclo das coleções'). (2) Loja do site separada por SEÇÕES = linhas: a seção vem do prefixo do ID canônico (NV-… = Nicoly Valentina, PROD-… = produtos) — sem campo novo, o ID já diz a linha.",
+    "entrega_loja": "site/loja.html: prateleira única → uma seção por linha (cabeçalho com nome + contagem + resumo; ordem fixa NV → PROD → resto em alfabética; linha desconhecida, ex. FAB-…, ganha seção própria sozinha; rodapé 'N peça(s) · M linha(s)'). Novo TestLojaPorSecoes em tests/test_api.py: harness de node que RODA o JS inline da loja com DOM/fetch de mentira (4 testes: ordem NV<PROD, peça na seção da SUA linha, linha desconhecida, vazio, compila). Mutações 3/3 capturadas (agrupamento removido · ordem invertida · frente lida do collection), reversões bit-exatas. Suíte 3088 passed (+4).",
+    "deploy": "Bump PATCH 1.33.1+2064 (política 9/9, 9 testes verdes) + APK novo (aapt2: versionCode 2064 versionName 1.33.1; /app/version 1.33.1/2064 sha 256688d4 == arquivo publicado). Restart 22:26 (boot ~4 min, 0 erros). Provas vivas: /health 22/22; /site/loja.html servida com as seções; busca NV-SJ-2026-0001 acha.",
+    "commits": [
+      "622094b v1.33.1: loja do site separada por seções (linhas da casa) — pedido do dono"
+    ],
+    "estado": "NO AR — loja por seções (v1.33.1+2064); pauta com UMA aberta: frente NV (§2 do TODO — coleções com ciclo fechado, primeiro item da frente que o dono escolheu). §8.3 e §8.4 fechadas; §8.5 (segredos) adiada pelo dono.",
+    "transcricao": "iniciar/2026-10-16_conversa_omegadrakon.md (§20)"
   }
 }

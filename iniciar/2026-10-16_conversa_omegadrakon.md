@@ -1134,3 +1134,52 @@ sai da lista); `ANALISE_ECOSSISTEMA.md` §6 linha 9 = "Resolvido" e §8 item 4 =
 
 Sistema v1.33.0+2063 no ar, 6 peças migradas, registro único cobrindo todas
 as frentes. Pauta aberta restante: **§8.3 ordem das frentes** (decisão do dono).
+
+---
+
+## §20 — Ordem das frentes decidida + loja por seções (v1.33.1) · ~22:00–22:45
+
+### Pedidos do dono
+
+> "pode seguir assim"  (aprova: 1º Nicoly Valentina, 2º FAB, 3º Living Systems)
+> "o que quer dizer com ordem das frentes"
+> "não precisa trocar [a palavra frente], entendi. só acho que a loja precisa
+> separar por seções"
+
+### Explicação entregue
+
+"Frente" = linha de negócio da casa (não é "loja" — a loja é só a parte de
+vender). 5 frentes no total: Marca-mãe ✅, Systems ✅, FAB ❌, Living Systems ❌,
+Nicoly Valentina ❌. "Ordem das frentes" = em que sequência construir as 3 que
+faltam. Dono escolheu: **NV → FAB → Living Systems**.
+
+### §8.3 FECHADA (decisão registrada)
+
+`ANALISE_ECOSSISTEMA.md` §8 item 3 = "ordem DECIDIDA pelo dono em 16/10";
+`TODO.md` §2: a linha da pauta virou a entrega concreta **"Frente NV — ciclo
+das coleções"** (coleção como entidade, ciclo fechado — regra do
+`PROTOCOLO_NV.md`: "uma vez Encerrada, nunca é reeditada"; peça NV só entra em
+coleção aberta; API + painel + site).
+
+### Loja por seções (v1.33.1)
+
+- Separação vem do **prefixo do ID canônico** (`NV-…` → seção Nicoly Valentina;
+  `PROD-…` → Produtos) — sem campo novo no banco, o ID já carrega a linha.
+- Ordem fixa: **NV primeiro**, depois PROD, o resto em alfabética; linha nova
+  (ex.: `FAB-…`) ganha seção própria automaticamente.
+- Testes: `TestLojaPorSecoes` — harness de node que **roda** o JS inline da
+  loja (DOM/fetch de mentira, mesmo padrão do tema): 4 testes. **Mutações 3/3**
+  (agrupamento removido · ordem invertida · frente lida do collection) com
+  reversões bit-exatas. Suíte **3088 passed / 16 skipped** (+4).
+
+### Deploy e provas vivas
+
+Bump PATCH **1.33.1+2064** (política 9/9) + APK novo (aapt2 confirma
+`versionCode='2064'`; `/app/version` 1.33.1/2064 sha `256688d4` == publicado).
+Restart 22:26 (boot ~4 min, 0 erros). `/health` **22/22** · loja servida com as
+seções · busca `NV-SJ-2026-0001` acha. Commit **`622094b`** pushado.
+
+### Estado
+
+v1.33.1+2064 no ar. Pauta: §8.3 ✅ · §8.4 ✅ · §8.5 adiada. Próximo passo já
+aprovado em princípio: **entrega da frente NV — coleções com ciclo fechado**.
