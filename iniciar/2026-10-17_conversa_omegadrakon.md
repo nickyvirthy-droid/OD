@@ -498,3 +498,72 @@ publicados (sha `7b200c56…`). **Commit: d27e230** (entrega) +
 registros. Estado: **v1.39.2+2074 no ar**; os dois defeitos do dia
 mortos e enterrados com guarda; segue a rodada de pendências
 (rotação dos segredos do histórico → snapshots p/ HD → FlatNotes).
+
+---
+
+## §11 — Rotação dos segredos (17/10, tarde/noite)
+
+Pedido do dono: *"certo vamos rotacionar os segredos"* — ação direta da
+decisão aprovada "Privar + rotacionar" (repo público).
+
+**Inventário do dano (antes de mexer em algo):**
+- `.env` **nunca** foi rastreado (verificado no histórico todo);
+- o único exposto real foi `docker/tools-compose.yaml` até o commit
+  `3ed13cc` (15/10): **ADMIN_TOKEN** (painel do Vaultwarden) e
+  **HBOX_AUTH_API_KEY_PEPPER**;
+- resto da varredura: só arquivos `.example` (placeholders) — nenhum
+  outro segredo viveu no git.
+
+**Rotação executada (sem bump de versão — infra pura, precedente do
+espelho do cofre; nenhum valor impresso em lugar nenhum):**
+
+| Segredo | Feito | Prova |
+|---|---|---|
+| `ADMIN_TOKEN` | valor novo + container recriado | `/admin` do Vaultwarden responde 200 na 8480; token novo sincroniza ao cofre pelo espelho |
+| `HBOX_AUTH_API_KEY_PEPPER` | valor novo + container recriado | mensagem do binário: rotacionar invalida só as keys |
+| `HBOX_API_KEY` | **regenerada** (a antiga morreu com o pepper) | Bearer verificado ao vivo: 2 entidades no inventário, nada apagado |
+| `HBOX_API_PASSWORD` | redefinida (a do `.env` **nunca** casou com o banco — argon2id sem pepper) | login `POST /api/v1/users/login` → 200 |
+| `OD_API_KEY` | valor novo | nova → 200 em `/actions` e `/health`; **antiga → 401** (invalidação provada) |
+| Senha Postgres | `ALTER ROLE` (a role altera a própria senha) | `SELECT 1` com a senha nova; check `database` up |
+| `OD_MQTT_PASSWORD` | valor novo no `.env` (od-core já reiniciado com ele) | **falta o broker** — arquivo root (`/etc/mosquitto/passwd`): comando do dono abaixo |
+
+**Perfis técnicos apurados no caminho (gravados em
+`integrations/homebox.py`, comentários):**
+- login do Homebox espera campo **`username`** (mandar `email` → 401
+  enganoso; o log do container denuncia "username or password is empty");
+- o login devolve **4 cookies** e `/users/self/*` exige TODOS (só
+  `hb.auth.token` → 401);
+- senha argon2id **sem pepper** (m=65536, t=3, p=2); o pepper é de API
+  keys apenas;
+- banco root-owned: redefinição de senha sem sudo = copiar p/ /tmp,
+  UPDATE + `wal_checkpoint(TRUNCATE)`, trocar de volta com container
+  parado (inventário intacto).
+- Achado extra: a senha antiga do Postgres tinha caractere especial — o
+  regex da URL engoliu parte dela na gravação; consertado reescrevendo a
+  `OD_DB_URL` limpa (user:senha@host/banco preservados).
+
+**Passo que ficou com o dono (sudo, ~10 segundos):**
+```
+sudo mosquitto_passwd -b /etc/mosquitto/passwd \
+  "$(grep '^OD_MQTT_USERNAME=' /home/alex/OmegaDrakon/.env | cut -d= -f2-)" \
+  "$(< /tmp/opencode/.mqtt_senha)"
+sudo systemctl restart mosquitto
+```
+(depois disso o od-core reconecta sozinho; se não em 1 min, eu reinicio
+ele. Homeassistant **não** usa MQTT — conferido no `.storage` e nos
+yamls. Se o ESP-01S tiver MQTT gravado, vai precisar de regravado — o
+dono foi avisado.)
+
+**Verificação pós-rotação:** od-core active, NRestarts=0;
+`/app/version` 1.39.2/2074; health 22 checks — **todos up exceto
+`mqtt` degraded** (esperado: broker ainda com a senha antiga); stats
+9/9, `/actions` 106, site anunciando v1.39.2; E2E vivo: única falha é a
+prova "tudo verde" (mqtt), que fecha sozinha após o passo do sudo;
+stack completa de pé (homebox e vaultwarden recriados, healthy).
+
+**Espelho .env → cofre:** executado no fim — **14/14 gravado+conferiu**
+(ADMIN_TOKEN, HBOX_API_KEY, HBOX_API_PASSWORD, HBOX pepper, OD_API_KEY,
+OD_DB_URL, OD_MQTT_PASSWORD, OD_VAULT_MASTER, chaves LLM, os 2 bots).
+Todos os valores rotacionados estão no cofre do dono; os arquivos
+temporários com valores foram apagados (sobrou só
+`/tmp/opencode/.mqtt_senha` para o comando do sudo, a apagar depois).

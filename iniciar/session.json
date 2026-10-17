@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-17T19:42:00-03:00",
+  "updated_at": "2026-10-17T22:40:00-03:00",
   "pauta_explicada_e_todo_descrito_2026_10_16": {
     "pedido": "Dono (~19:50 de 16/10): 'me explique o tal de Pauta itens 3 e 5' e, ao ver a minha busca demorada nas transcrições, correu o processo: 'por isso pedi pra criar um TODO de atualizações... não precisa ficar assim procurando do que se trata'.",
     "apuracao_da_fonte": "'Pauta' = as 15 divergências Legado × sistema atual em docs/ANALISE_ECOSSISTEMA.md §6, com os próximos passos numerados 1–5 na §8 (criada 09/10). Itens 1 (organizar Legado) e 2 (/verificacao + Registro Mestre) já CONCLUÍDOS; os abertos são: 3 = ordem das frentes FAB/Living Systems/Semi-joias/Nicoly Valentina (só falta a decisão da ordem — o 1º passo pedido, Registro Mestre, saiu em v1.22.0 e a Etapa 4 em v1.30.0); 4 = unificação do formato de ID das peças (SKU 5 campos × MoC 4 campos hex do Legado, antes das semi-joias); 5 = rotação dos segredos vazados no Legado (bot @Nexus_Nicky_bot e chave Gemini ainda ATIVOS; decisão do dono: rotacionar após os testes). OBS: os transcripts antigos diziam '3 e 5 = unificação de ID e ordem das frentes' — a numeração real da §8 é 3=frentes, 4=ID, 5=segredos; a confusão de numeração era parte do problema.",
@@ -3213,5 +3213,20 @@
     "commits": "d27e230 (entrega) + registros; push em origin/master.",
     "estado": "v1.39.2+2074 no ar (NRestarts=0). Os DOIS defeitos do dia mortos e enterrados com guarda (regras .od-hero pinadas; teste de rajada de páginas). Rodada de pendências do dono segue: repo público — 'Privar + rotacionar' aprovado (privar = clique dele; rotação dos segredos do histórico é minha e vem a seguir); snapshots p/ HD (discos montados; /home/alex/3D ENTRA); rotação técnica (OD_API_KEY/MQTT/Postgres) e análise FlatNotes a seguir; tema residual aguardando o exemplo exato (§3.8); cofre pessoal, off-site, bot legado e fotos = dele.",
     "transcricao": "iniciar/2026-10-17_conversa_omegadrakon.md §10"
+  },
+  "rotacao_segredos_2026_10_17": {
+    "pedido": "Dono: 'certo vamos rotacionar os segredos' — ação direta da decisão aprovada 'Privar + rotacionar' (repo público).",
+    "inventario": ".env nunca rastreado (histórico todo verificado); único exposto real = ADMIN_TOKEN + HBOX_AUTH_API_KEY_PEPPER no tools-compose.yaml até 3ed13cc; resto da varredura = só .example.",
+    "rotacionados": [
+      "ADMIN_TOKEN (painel Vaultwarden; container recriado; /admin 200 na 8480)",
+      "HBOX_AUTH_API_KEY_PEPPER (container recriado) + HBOX_API_KEY regenerada (Bearer verificado, 2 entidades intactas) + HBOX_API_PASSWORD redefinida (a do .env nunca casou com o banco; argon2id sem pepper; SQLite root-owned contornado copiando p/ /tmp — sem sudo)",
+      "OD_API_KEY (nova → 200 em /actions e /health; antiga → 401)",
+      "senha Postgres (ALTER ROLE self + SELECT 1; OD_DB_URL reescrita limpa — senha antiga tinha caractere especial)",
+      "OD_MQTT_PASSWORD nova no .env (od-core já reiniciado com ela; broker = passo do dono com sudo, comando na §11; HA não usa MQTT; ESP pode precisar regravar)"
+    ],
+    "verificacao": "od-core active NRestarts=0; /app/version 1.39.2/2074; health 22 checks — todos up exceto mqtt degraded (esperado); stats 9/9; /actions 106; E2E única falha = prova tudo-verde (mqtt); stack completa healthy (homebox e vaultwarden recriados).",
+    "espelho_cofre": "14/14 gravado+conferiu (todos os valores novos no cofre do dono).",
+    "bump": "nenhum — infra pura sem mudança de comportamento (precedente: espelho do cofre 17/10); lições de contrato do Homebox gravadas como comentário em integrations/homebox.py.",
+    "estado_final": "segredos do histórico mortos; técnicas rotacionadas; falta só o mosquitto (sudo do dono) + privatizar repo (clique do dono)."
   }
 }

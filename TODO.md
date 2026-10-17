@@ -65,8 +65,8 @@
 | **Vaultwarden** | ✅ | Conta do dono criada + registro aberto fechado em 15/10 (E2E com CLI oficial). O cofre já tem **as 12 senhas do `.env` espelhadas** (17/10, `vault_env_mirror.py` — cópia idempotente, sem tocar no `.env`); falta o dono popular com as **pessoais**: `https://nicky-server.tail1b1f51.ts.net:8443` |
 | **Registro Mestre — Etapa 4** | ☐ | Comprador / QR / loja do lote de brinquedos |
 | **Pauta §8.5 — Rotação dos segredos vazados no Legado** (09/10) | ☐ | Verificado 09/10: **bot antigo `@Nexus_Nicky_bot` e chave Gemini AINDA ATIVOS**. Decisão do dono: rotacionar só quando os testes em produção finalizarem. Nunca migrar segredo ao site (fonte: §6 linha 15 + §8 item 5 — mesmo assunto da linha "Rotação de segredos" abaixo) |
-| **Repo GitHub público + segredos no histórico** | ☐ | **Decisão do dono:** tornar o repo privado e/ou rotacionar segredos que apareceram no histórico antes do commit `3ed13cc` (migração p/ `.env`) — detalhes no `txt.txt` |
-| **Rotação de segredos** | ☐ | Adiada — verificado: sem segredo antigo vivo fora do `.env` (exceto histórico git público, pendência acima) |
+| **Repo GitHub público — PRIVATIZAR (clique do dono)** | ☐ | **Rotação do histórico FEITA em 17/10** (linha abaixo) — o que sobra no histórico público agora é valor morto. Falta o dono privatizar: GitHub → Settings → Danger Zone → *Change visibility* |
+| **Rotação de segredos** | ☑ | **Executada 17/10** (infra, sem bump): do histórico — `ADMIN_TOKEN` + pepper Homebox (+ key regenerada + senha da conta redefinida); técnicas — `OD_API_KEY` (antiga → 401), senha Postgres (`ALTER ROLE`), senha MQTT no `.env`. Espelho do cofre 14/14. **Único resto: broker mosquitto** (root) — comando do dono na §11 da transcrição de 17/10 (arquivo `/tmp/opencode/.mqtt_senha`; apagar depois). Se o ESP-01S usar MQTT, regravar |
 | **Fotos em `analise/fotos-adicionais/`** | ☐ | "Vou usar depois" (4 fotos com prefixo `zz`/`zzz`) |
 | **Catálogo `3D/`** | ☐ | Pasta para catalogar modelos 3D |
 
@@ -129,7 +129,7 @@
 | Área | Item | Impacto |
 |---|---|---|
 | `bw` CLI oficial ≥ 2026.9 (dívida atualizada 17/10) | **Dois** bloqueios do `bw` 2026.x × Vaultwarden 1.36.0: (a) prelogin de ≥2026.9 (`{kdfSettings, Salt}` vs `{kdf, kdfIterations}` — flag `pm-27060` fora do allowlist `SUPPORTED_FEATURE_FLAGS`); (b) **parse de cifras** de 2026.8→2026.10 (em Node 18 **e** 22): `invalid type: JsValue … expected a string` — **só aparece com item no cofre** (o drill de 15/10 testou vazio e registrou o 2026.8 como "funcionando", agora corrigido). **Resolvido operacionalmente no 17/10**: pin **2025.12.1 + Node 22 + `BITWARDENCLI_APPDATA_DIR` próprio** (ciclo list/create/edit/delete provado na entrega v1.35.0) | Web vault normal; o sistema usa o pin 2025.12.1 via wrapper — reavaliar ao upgrade da imagem/CLI |
-| Repo GitHub público | Histórico antes de `3ed13cc` continha segredos do compose (ADMIN_TOKEN etc.) — visibilidade/rotação é decisão do dono (§2) | Segurança |
+| Repo GitHub público | Histórico antes de `3ed13cc` expôs ADMIN_TOKEN + pepper — **ambos rotacionados em 17/10 (valor morto)**; privatização segue pendente do dono | Segurança |
 | `tools/auto_extension/engine.py` | Caminho legado (`depot=None`) mantido para compat — pode ser removido depois que todo mundo migrar | Limpeza |
 | `tools/registry.py` | `version` field no `Action` nunca comparado no registro (só no depot) — OK por enquanto | Consistência futura |
 | `core/capabilities.py` | Fallback hardcoded `OD_VERSION` — OK porque `.env` sempre vence | Segurança |
@@ -189,5 +189,5 @@
 
 ---
 
-**Atualizado em:** 2026-10-17 16:10 (**fila FECHADA DE VEZ: Vaultwarden ✅ Stirling ✅ Kiwix ✅ Homebox ✅** — inventário do dono interligado e já populado com as 2 peças reais dele (RPi4 + ESP-01S/DHT22), v1.38.0+2071, 106 actions; rotação §8.5 ainda pendente)
+rotação do histórico + técnica EXECUTADA 17/10 — §8.5 do legado (bot/BotFather) ainda pendente do dono)
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

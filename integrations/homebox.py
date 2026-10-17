@@ -25,6 +25,27 @@ Descrição: Inventário do dono — cliente HTTP do Homebox self-hosted
                  `hb.auth.token`); já a **API key** vale EXATAMENTE como
                  Bearer (`/v1/users/self/api-keys`, sem expiração) e NÃO
                  vale como cookie — o caminho do sistema é o Bearer da key
+                · Rotação 17/10 completou o contrato de auth (lições
+                  gravadas para nunca mais pagar o aprendizado):
+                  - o corpo do login é **`username`** (não `email`); mandar
+                    `email` → 401 `{"error":"unauthorized"}` enganoso (o
+                    log real do container diz "username or password is
+                    empty")
+                  - o login devolve **4 cookies** (`hb.auth.token`,
+                    `hb.auth.session`, `hb.auth.remember`,
+                    `hb.auth.attachment_token`) e as rotas `/users/self/*`
+                    exigem **TODOS** na chamada — só `hb.auth.token` → 401
+                  - senha da conta = argon2id **sem pepper**
+                    (m=65536, t=3, p=2, salt 16B, key 32B, RawStd b64);
+                    `HBOX_AUTH_API_KEY_PEPPER` protege **só API keys** (a
+                    mensagem do próprio binário: "Rotating it invalidates
+                    all issued API keys") — rotacionar o pepper invalida
+                    as keys mas NÃO as senhas
+                  - banco SQLite é root-owned em `/data/homebox.db` e o
+                    diretório do host é do `alex`: para redefinir senha
+                    sem sudo, copiar os arquivos pra /tmp, UPDATE +
+                    `wal_checkpoint(TRUNCATE)` na cópia e trocar de volta
+                    com o container parado (inventário intacto)
                · `GET  /api/v1/entities?q=&pageSize=` → envelope
                  `{page, pageSize, total, items[EntitySummary], totalPrice}`
                · `POST /api/v1/entities` → 201 (`EntityCreate`: name*,
