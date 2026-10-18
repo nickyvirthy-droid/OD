@@ -577,3 +577,98 @@ nova), **health 22/22 verde, status up** e **E2E vivo: 21 provas, 0
 falhas** (a prova "tudo verde" que era a única pendente fechou).
 `/tmp/opencode/.mqtt_senha` apagada. **Rotação total: 100% cumprida —
 nenhum segredo do histórico ou técnico vivo.**
+
+## §12 — O sistema ganha snapshot completo nas duas HDs externas (v1.39.2→1.39.3+2075)
+
+**Contexto:** pendência do dono desde 16/10 — *"2 snapshots p/ HD
+externo"* —, e no mesmo dia 17/10 ele mesmo preparou o terreno:
+unificou o `fstab` das duas HDs (UUID + `noatime` + `nofail` nas
+duas, `chown alex`), comprovou gravação sem admin e confirmou
+`FSTAB_OK`. Com as duas montadas em `/home/alex/dados` (Mídias, 916 G)
+e `/mnt/Arquivos` (Arquivos, 120 G), o snapshot entrou.
+
+**Decisão de desenho (fechada antes do código):**
+- **Um serviço por HD, nunca um só** — o `nofail` no fstab significa
+  que o dono pode desplugar qualquer uma a qualquer momento. Janela,
+  estado, contagem de falhas, alerta no celular e check de saúde são
+  **por alvo** (`hd_midias`, `hd_arquivos`); a desconectada degrada
+  honestamente no `/health` ("HD desconectada") e a outra não sofre.
+  A desconexão entra pela camada `alvo_ausente` (`os.path.ismount`).
+- **Snapshot-DIR com rsync `--link-dest`, não tar** — por alvo, um
+  diretório datado (`snapshot_od-2026-10-17_2306/`) + retenção **7
+  diários + 8 semanais**; a 2ª rodada hardlinka os arquivos inalterados
+  (custo ~zero) e restore é "copiar de volta". A retenção reusa
+  `calcular_retencao` de `core/backup.py` com **sufixo vazio** —
+  adição retrocompatível, o tar do backup de estado ficou intocado.
+- **Interface par-a-par com `BackupService`** plugada no
+  `build_backups()` do launcher: loops supervisionados, health,
+  stats e cards vieram genéricos — zero fiação nova.
+- **Fontes, com `/home/alex/3D` PRIMEIRO** (linha vermelha do dono —
+  STLs pagos, 1,2 GB): o repo inteiro (com `.git` e `data/captures`),
+  `omegadrakon-tools`, `/srv/omegadrakon` e `/etc/fstab`.
+  Exclusões justificadas: `.venv`, `backups/`, `data/vector_memory`,
+  zim do Kiwix (14 G), `heap_dumps` (2,8 G do OOM), lixo de build —
+  e o padrão rsync **passa como veio** (com `/` ancora em qualquer
+  nível; forçar âncora nos exclusos matava lixo geral — bug achado
+  por teste, não em produção).
+- **SQLite volátil** (`homebox.db`, Vaultwarden `db.sqlite3`) sai do
+  rsync e entra pelo **backup API do sqlite3**. Bug fatal pego em
+  teste: caminho absoluto em `destino / origem` faz o `/` vencer no
+  pathlib → o "destino" virava o próprio banco → backup nele mesmo
+  **trava para sempre** (fix: reconstruir o relativo parte a parte).
+
+**Três defeitos meus pegos no caminho (todos com teste):**
+1. `ConfigHD.de_env()` sem o parâmetro `fontes=` — em produção as
+   fontes não viajavam do build (só os defaults do ambiente);
+2. o `destino / origem` absoluto do SQLite (o trava-infinito acima);
+3. `bytes_transferidos` quebrava com **locale**: o rsync do serviço
+   roda em `LANG=en_US.UTF-8` e formata `5,268,052,376` — a regex
+   `\d+` capturava só "5". Teste agora usa payload de 5000 bytes
+   (o de 8 escondia o bug por não gerar separador de milhar).
+   Além disso, `estado["ultimo_bytes"]` passou a guardar o **tamanho
+   real do artefato** (o card do painel mostrava 622 KB no lugar de
+   5 GB — "bytes movidos na rodada" fica só no `info.json`).
+
+**Ilegíveis sem sudo:** 5 arquivos do `.storage` do Home Assistant
+(root:root 600 — o HA regrava como root; chown seria whack-a-mole) e
+o rsync 3.2.7 não tem `--skip-bad-files` (é ≥3.4, medido). Solução:
+varredura prévia `_achar_ilegiveis` (`os.access`) que exclui por
+caminho e emite **recibo** no `info.json` (`ilegiveis`/
+`ilegiveis_total`) + `ultimo_ilegiveis` no estado + WARN no journal.
+`rc=23` (parcial) nunca mais derruba o snapshot; erro inesperado
+novo ainda grita.
+
+**Entrega:** bump **v1.39.3+2075** 9/9 (`.env`, capabilities,
+pubspec, server, site ×3 + testes **3.329**, `test_api.py`,
+CHANGELOG, README_VERSAO, ANALISE — doutrina "número real no commit":
+o site foi ajustado duas vezes até bater com a suíte de verdade).
+APK **1.39.3+2075** buildado (`build_apk.sh` com PATH/JDK/SDK) e
+publicado; `aapt2` confirma `versionCode='2075' versionName='1.39.3'`.
+
+**Provas vivas (pós-deploy, mesma noite):**
+- **1ª rodada real**: `snapshot_od-2026-10-17_2245` nas **duas** HDs
+  — **5.268.052.376 bytes** cada, 69,7 s / 88,6 s; `/home/alex/3D`
+  inteiro lá dentro (345 itens, 1,2 GB) e `data/captures` junto; o
+  `info.json` carrega git `4593e97` + od_version 1.39.3 + recibo dos
+  5 ilegíveis.
+- **2ª rodada com o código final**: `snapshot_od-2026-10-17_2306` em
+  **4,2 s / 5,0 s** — `--link-dest` provado ao vivo: mesmo **inode**
+  em `.stl` inalterado (23069050/23069050) e custo incremental de
+  **31 MB** no `du` (o primeiro snapshot custa 5,0 G; o segundo, só
+  o que mudou). `bytes_transferidos` real = 8.750.583 (>1000 — o
+  parse de locale funcionou).
+- `/health` **24/24 up** (2 checks novos com detalhe honesto:
+  "snapshot_od-2026-10-17_2306, 4.91 GB, há 0.1 h");
+  `/dashboard/stats` com **4 chaves** em `backup`; `/app/version`
+  **1.39.3/2075**; **E2E vivo: 35 provas, 0 falhas** (as regressões
+  do v1.39.2 — CSS do herói + rate_limited — seguem no script como
+  guarda permanente).
+- Achei e corrigi um bug **do meu E2E** no caminho: a comparação de
+  hardlinks saía entre **discos diferentes** (uma snapshot por raiz)
+  — o sistema estava perfeito, o script é que comparava o errado.
+
+**Suíte final: 3329 passed / 16 skipped / 0 falha, gate 95,57% ≥ 90.**
+`od-core` reiniciado com o código final; estado dos perfis zerado na
+mão só para forçar o catch-up da prova (amanhã, 03:40, roda sozinho).
+**Fila do snapshot: FECHADA.** Próxima da série de ferramentas do
+dono: FlatNotes.

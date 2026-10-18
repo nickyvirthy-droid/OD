@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-17T22:40:00-03:00",
+  "updated_at": "2026-10-17T23:25:00-03:00",
   "pauta_explicada_e_todo_descrito_2026_10_16": {
     "pedido": "Dono (~19:50 de 16/10): 'me explique o tal de Pauta itens 3 e 5' e, ao ver a minha busca demorada nas transcrições, correu o processo: 'por isso pedi pra criar um TODO de atualizações... não precisa ficar assim procurando do que se trata'.",
     "apuracao_da_fonte": "'Pauta' = as 15 divergências Legado × sistema atual em docs/ANALISE_ECOSSISTEMA.md §6, com os próximos passos numerados 1–5 na §8 (criada 09/10). Itens 1 (organizar Legado) e 2 (/verificacao + Registro Mestre) já CONCLUÍDOS; os abertos são: 3 = ordem das frentes FAB/Living Systems/Semi-joias/Nicoly Valentina (só falta a decisão da ordem — o 1º passo pedido, Registro Mestre, saiu em v1.22.0 e a Etapa 4 em v1.30.0); 4 = unificação do formato de ID das peças (SKU 5 campos × MoC 4 campos hex do Legado, antes das semi-joias); 5 = rotação dos segredos vazados no Legado (bot @Nexus_Nicky_bot e chave Gemini ainda ATIVOS; decisão do dono: rotacionar após os testes). OBS: os transcripts antigos diziam '3 e 5 = unificação de ID e ordem das frentes' — a numeração real da §8 é 3=frentes, 4=ID, 5=segredos; a confusão de numeração era parte do problema.",
@@ -2049,7 +2049,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": "2026-10-13T21:50:00-03:00",
+  "last_turn": "2026-10-17T23:25:00-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
@@ -3228,5 +3228,23 @@
     "espelho_cofre": "14/14 gravado+conferiu (todos os valores novos no cofre do dono).",
     "bump": "nenhum — infra pura sem mudança de comportamento (precedente: espelho do cofre 17/10); lições de contrato do Homebox gravadas como comentário em integrations/homebox.py.",
     "estado_final": "100% FECHADA: dono rodou o sudo do mosquitto (broker reiniciado 20:47:37); mqtt up, health 22/22 verde, E2E 21/21 0 falhas; .mqtt_senha apagada. Nenhum segredo do histórico ou técnico vivo. Sobra do dono: privatizar repo + bot legado (BotFather)."
+  },
+  "snapshot_hd_externas_2026_10_17": {
+    "pedido": "Dono (pendência 16/10): '2 snapshots p/ HD externo' — no mesmo dia 17/10 ele unificou o fstab das duas HDs (UUID+noatime+nofail, chown alex, FSTAB_OK) e comprovou gravação sem admin.",
+    "desenho": "Um serviço POR HD (hd_midias→/home/alex/dados, hd_arquivos→/mnt/Arquivos): janela/estado/falha-push/check por alvo — nofail permite desplugar uma a qualquer momento sem afetar a outra (camada alvo_ausente via ismount). Snapshot-DIR datado com rsync -a --relative --link-dest, 7 diários + 8 semanais (retenção reusa calcular_retencao com sufixo vazio, retrocompatível). Interface par-a-par com BackupService plugado no build_backups(): loops/health/stats/cards genéricos.",
+    "fontes_e_exclusoes": "/home/alex/3D PRIMEIRO (linha vermelha, STLs pagos 1,2 GB) + repo inteiro (git, .env, data/captures) + omegadrakon-tools + /srv/omegadrakon + /etc/fstab. Excluídos: .venv, backups/, vector_memory, zim 14G, heap_dumps 2,8G, __pycache__/.pytest_cache/*.pyc/*.part. Padrão rsync passa como veio (com / ancora — forçar âncora nos exclusos matava lixo geral, bug achado em teste).",
+    "bugs_pegos": [
+      "de_env() sem fontes= — fontes não viajavam do build em produção",
+      "destino / origem absoluto no SQLite → destino = o próprio banco → backup nele mesmo trava para sempre (fix: Path(*origem.parts[1:]))",
+      "bytes_transferidos com locale en_US: regex \\d+ pegava só '5' de '5,268,052,376' (parse correto; teste com payload 5000)",
+      "estado.ultimo_bytes mostrava 622 KB (bytes movidos) em vez do tamanho real do artefato (5,26 GB) — movidos fica só no info.json",
+      "bug do E2E: comparação de hardlink saía entre discos diferentes (comparava a snapshot de cada raiz)"
+    ],
+    "ilegiveis": "5 arquivos root:root 600 do .storage do HA: varredura prévia _achar_ilegiveis (os.access) exclui por caminho + recibo no info.json (ilegiveis/ilegiveis_total) + ultimo_ilegiveis no estado + WARN. rsync 3.2.7 não tem --skip-bad-files (medido: é ≥3.4). rc=23 nunca mais derruba snapshot.",
+    "entrega": "v1.39.3+2075 bump 9/9, APK publicado (aapt2 versionCode=2075), CHANGELOG/README_VERSAO/ANALISE com tabela de prova (números reais: site ajustado 2× até bater com a suíte).",
+    "provas_vivas": "1ª rodada: snapshot_od-2026-10-17_2245 nas duas HDs, 5.268.052.376 bytes cada (69,7s/88,6s), 3D 345 itens + capturas dentro, info.json com git 4593e97 + recibo. 2ª rodada: _2306 em 4,2s/5,0s — mesmo inode em .stl inalterado, custo incremental 31 MB, bytes_transferidos=8.750.583 (locale ok). /health 24/24 up, stats.backup 4 chaves, /app/version 1.39.3/2075, E2E vivo 35 provas 0 falhas.",
+    "suíte": "3329 passed / 16 skipped / 0 falha, gate 95,57% ≥ 90.",
+    "estado": "od-core reiniciado com o código final; estados dos perfis zerados à mão só para forçar catch-up da prova; amanhã 03:40 roda sozinho (7 diários + 8 semanais por HD).",
+    "proxima": "FlatNotes — 1ª da série de ferramentas (FlatNotes/File Browser/Calibre)."
   }
 }
