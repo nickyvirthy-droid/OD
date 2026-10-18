@@ -672,3 +672,72 @@ publicado; `aapt2` confirma `versionCode='2075' versionName='1.39.3'`.
 mão só para forçar o catch-up da prova (amanhã, 03:40, roda sozinho).
 **Fila do snapshot: FECHADA.** Próxima da série de ferramentas do
 dono: FlatNotes.
+
+## §13 — FlatNotes analisado, dono manda "ligar": caderno interligado (v1.39.3→1.40.0+2076) — 18/10, madrugada
+
+**Análise entregue (17/10 noite → 18/10), à espera da decisão:** FlatNotes
+é um caderno em Markdown **sem banco de dados** (cada nota = um `.md`
+numa pasta plana), com busca full-text, tags, wikilinks e REST API —
+`dullage/flatnotes` na porta **8200**, `auth=none` (só Tailscale, nunca
+no Funnel), bind `omegadrakon-tools/flatnotes` que **já viaja nos
+snapshots** desde a v1.39.3. Conta honesta: 13,5 MB de RAM, sem login
+= sem segredo novo no `.env`. Como o sistema usaria: actions no padrão
+Stirling/Kiwix (status/anota/busca), RAG sobre as notas adiado.
+
+**Ordem do dono: "ligar."** — escopo aprovado exatamente como propus:
+2 actions + check de saúde + patch v5.5.5 + testes.
+
+**Execução (18/10, madrugada):**
+
+- **Contrato vivo ANTES de codificar** (regra da casa): `openapi.json`
+  do próprio container + round-trip completo — criar → **409 no
+  título repetido** → buscar (`term=` e `term=*`) → ler (200/404) →
+  apagar minha nota de teste (caderno voltou a `[]`). Depois do patch,
+  **revalidado na v5.5.5**: rotas idênticas, mesmos códigos.
+- **`integrations/flatnotes.py`** (molde do Kiwix): transporte
+  injetável, fábrica lazy `OD_FLATNOTES_URL`, 7 erros tipados
+  honestos. **409 = `flatnotes_ja_existe`** com a saída na mensagem;
+  `sobrescrever=false` por padrão — atualizar exige flag, vai pelo
+  `PATCH` e vem **declarado** (`sobrescrito=true`). Destaques HTML da
+  busca → **texto limpo** (regex + `html.unescape`; o `<b>` do
+  flatnotes não é o `<b>` do Telegram). `[]` honesto; título com `/`
+  recusado (vira caminho `.md`).
+- **3 actions** `flatnotes_status/anota/busca` (categoria
+  `flatnotes`, só admin — nasce admin pela `permission=nome`, lista
+  `user` intocada). **Nenhuma action apaga**: `DELETE` fora do
+  catálogo e um teste trava a régua. Check de saúde: `tool_flatnotes`
+  já existia no monitor de 9/9.
+- **Patch**: compose `v5.5.4` → **`v5.5.5`** (só refresh de deps do
+  upstream), container recriado no ar.
+- **Bump 9/9** para **v1.40.0+2076**: `.env`, fallback do
+  capabilities, pubspec, `_APP_VERSION_CODE`, site (versão ×3, **109
+  Actions**, **3.369 Testes**), CHANGELOG, README_VERSAO, ANALISE,
+  TODO (situação nova + tabela + §5). APK buildado
+  (`JAVA_HOME=/home/alex/jdk`) e publicado: `aapt` **versionCode=2076
+  versionName=1.40.0**, sha do `/app/version` idêntico ao arquivo.
+
+**Provas vivas (pós-deploy, round-trip REAL pelo `/executa`):**
+`flatnotes_status` **0 notas** → `flatnotes_anota` criou a nota-marcador
+**"Interligação do sistema"** no caderno do dono → `flatnotes_busca`
+**1 hit** com trecho limpo ("já cobertos pelos snapshots das 2 HDs") →
+status **1 nota** + `ultima_modificada` → repetir o título devolveu o
+**409 honesto** com a saída na mensagem. `/actions` **109** (as 3
+`flatnotes_*` no catálogo), `/health` **24/24** (`tool_flatnotes` up,
+2,4 ms), `nomad_tools` **9/9**, journal **0 erros**,
+`/app/version` **1.40.0/2076**. **E2E vivo: 41 provas, 0 falhas**
+(+6 novas; as regressões do 1.39.2 e as do snapshot seguem como guarda).
+
+**Bug do caminho:** a guarda `test_nenhuma_referencia_a_versao_futura`
+acusou meus `v5.5.5` em prosa de código — a casa nunca usa o prefixo
+`v` para versão de terceiros em `.py` (kiwix-serve 3.8.1, s-pdf 2.13.1);
+reescrito sem o `v`, tag exata fica no compose (que a guarda não lê).
+Também: `headers=None` explícito no `Request` do urllib estoura (pego
+pelo teste do transporte) e `limite=0` caía no `or` falsy.
+
+**Suíte final: 3369 passed / 16 skipped / 0 falha · gate 95,59%.**
+Registros: `session.json` chave `flatnotes_interligado_2026_10_18`,
+CHANGELOG/README_VERSAO/ANALISE/TODO atualizados, `txt.txt`
+reescreto, Telegram da regra 15 enviado.
+
+**Próxima da série (ordem do dono, "uma por vez"): File Browser (2ª)**
+— hoje com login admin/admin ainda a trocar; depois Calibre Web (3ª).

@@ -3246,5 +3246,28 @@
     "suíte": "3329 passed / 16 skipped / 0 falha, gate 95,57% ≥ 90.",
     "estado": "od-core reiniciado com o código final; estados dos perfis zerados à mão só para forçar catch-up da prova; amanhã 03:40 roda sozinho (7 diários + 8 semanais por HD).",
     "proxima": "FlatNotes — 1ª da série de ferramentas (FlatNotes/File Browser/Calibre)."
+  },
+  "flatnotes_interligado_2026_10_18": {
+    "pedido": "Dono, 18/10, após minha análise entregue: 'ligar'. 1ª da série FlatNotes/File Browser/Calibre (análise a fundo, uma por vez, §5); escopo fechado por mim e aprovado por ele: 2 actions + check de saúde + patch v5.5.5 + testes.",
+    "contrato_vivo": "Apurado ANTES de codificar: openapi.json do container + round-trip real (POST criar → POST repetido 409 → search term=/term=* → GET ler 200/404 → DELETE minha nota de teste, caderno voltou a []). Revalidado na v5.5.5 após o patch: rotas idênticas, 200/409/200 de novo.",
+    "desenho": "integrations/flatnotes.py no molde do Kiwix: transporte injetável, fábrica lazy (OD_FLATNOTES_URL, default 127.0.0.1:8200), 7 erros tipados. Actions flatnotes_status/anota/busca (categoria flatnotes, só admin — permission=nome nasce admin-only, lista user intocada). Sem action de apagar: DELETE da API fora do catálogo e teste fixa a régua.",
+    "decisoes": [
+      "409 (título repetido) = flatnotes_ja_existe honesto com a saída na própria mensagem — sobrescrever só com flag explícita, via PATCH, e a resposta declara sobrescrito=true",
+      "Destaques HTML da busca (b class=match term0) viram texto limpo (regex + html.unescape) — marcador do flatnotes não é o b do Telegram e quebraria o parse de lá",
+      "[] é resposta honesta (caderno vazio é estado, não falha); term=* serve de contagem do status",
+      "Título com '/' recusado na API (vira caminho de arquivo .md lá no container)",
+      "Saúde: tool_flatnotes já existia no FERRAMENTAS_NOMAD (monitor 9/9) — nada novo a plugar, a fiação era o que faltava"
+    ],
+    "bugs_pegos": [
+      "limite=0 passava por 'or' falsy e virava 10 em vez de clampar em 1 (fix: None→default, explícito passa pela faixa 1..50)",
+      "headers=None explícito no urllib.request.Request estoura (o default {} só vale quando omitido) — pego pelo teste do transporte real",
+      "guarda test_nenhuma_referencia_a_versao_futura_no_codigo acusou meus 'v5.5.5' em prosa: a casa não usa prefixo v para versão de terceiros no código (kiwix-serve 3.8.1, s-pdf 2.13.1) — reescrito sem o v; a tag exata mora no compose",
+      "bytes literal com acento é SyntaxError em Python (fixture de teste reescrita com escape \\xc3\\xa1)"
+    ],
+    "entrega": "v1.40.0+2076 bump 9/9 (env, fallback, pubspec, _APP_VERSION_CODE, site ×3 + 109 Actions + 3.369 Testes, CHANGELOG, README_VERSAO, ANALISE); APK buildado com JAVA_HOME=/home/alex/jdk e publicado (aapt: versionCode=2076 versionName=1.40.0; sha do /app/version idêntico ao arquivo); compose v5.5.4→v5.5.5 (pull + up -d flatnotes); od-core reiniciado.",
+    "provas_vivas": "Round-trip real pelo /executa no caderno do dono: flatnotes_status 0 notas → flatnotes_anota criou a nota-marcador 'Interligação do sistema' → flatnotes_busca 1 hit com trecho limpo ('já cobertos pelos snapshots das 2 HDs') → status 1 nota/ultima_modificada → repetir o título devolveu o 409 honesto com a saída na mensagem. /actions 109 (as 3 flatnotes no catálogo), /health 24/24 (tool_flatnotes up 2,4 ms), nomad_tools 9/9, journal 0 erros, /app/version 1.40.0/2076.",
+    "suíte": "3369 passed / 16 skipped / 0 falha · gate 95,59% ≥ 90 (+40 em tests/test_flatnotes.py sobre a 1.39.3 = 3329). Guarda de versão verde (seção CHANGELOG + sem versão futura no código). E2E vivo: 41 provas, 0 falhas.",
+    "estado": "Produção em 1.40.0+2076 (master, commitado e pushado); nota-marcador real no caderno do dono (ele pode editar/apagar no painel); imagem v5.5.5 no ar; snapshots das 2 HDs seguem e já incluem a pasta do caderno.",
+    "proxima": "File Browser (2ª da série de análise a fundo) — hoje login admin/admin ainda a trocar; depois Calibre Web (3ª). Pendências do dono de sempre: privatizar repo, tema (§3.8), bot legado, cofre pessoal, off-site, fotos, historico.html."
   }
 }
