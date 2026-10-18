@@ -7,9 +7,50 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
-## [1.39.2] — CONCERTO DUPLA: HERÓI SEM CSS + RATE_LIMITED NAS PÁGINAS 🜂 (2026-10-17)
+## [1.39.3] — SNAPSHOT DO SISTEMA NAS DUAS HDs EXTERNAS 🜂 (2026-10-17)
 
 ### 1. O que foi feito
+
+Fecha a pendência do dono de 16/10 ("2 snapshots p/ HD externo"). O
+backup tar local (§3.6) já dizia no docstring que era *"pensado para o
+dono copiar para um HD externo"* — a cópia era manual. Agora o sistema
+grava sozinho, todo dia, em **cada uma** das duas HDs, com `rsync
+--link-dest`: 1ª rodada ~5 GB, seguintes só o que mudou (inalterados =
+**hardlink**, sem duplicar espaço). O **3D do dono é a primeira fonte**
+(linha vermelha: entra em TODO snapshot). As duas HDs receberam fstab
+unificado no mesmo dia (UUID + `noatime` + `nofail`, dono `alex`,
+`FSTAB_OK` do dono) — gravar não pede mais administrador.
+
+| Peça | Entrega |
+|---|---|
+| **`core/hd_backup.py`** | 1 serviço **por HD** (`hd_midias`/`hd_arquivos`), interface par-a-par com `BackupService` — plugar na lista do `build_backups()` entregou loops, stats e `/health` sem fiação nova. `OD_HD_SNAPSHOT=0` desliga; `OD_HD_HORA` 03:40, `OD_HD_ALVOS`, `OD_HD_DIARIOS` 7, `OD_HD_SEMANAIS` 8. |
+| **Escopo do snapshot** | Fontes: **3D primeiro**, repo (.env+git+capturas), `omegadrakon-tools`, `/srv/omegadrakon`, `/etc/fstab`. Exclusões com motivo: `.venv`, `backups/`, `vector_memory`, **zim 14 GB** (rebaixável), **heap_dumps 2,8 GB** (artefato do OOM), lixo de build. |
+| **SQLite consistente** | `homebox.db` + `db.sqlite3` do Vaultwarden pelo **backup API do sqlite3** (WAL dentro) e fora do rsync. Bug pego nos testes: origem absoluta em `destino / origem` — o `/` vence e o destino vira o próprio banco (trava infinita). |
+| **Verdade por HD** | `alvo_ausente` via `ismount` (`nofail` exige): desplugada ⇒ pula, check **degrada dizendo "HD desconectada"**, catch-up ao plugar; a outra HD segue (janela/estado/falhas/push por alvo). |
+| **Retenção** | `calcular_retencao` do tar com **sufixo vazio** (adição retrocompatível no `core/backup.py`); nome fora do padrão intocável; `.tmp_` órfão limpo aos 6 h; publicação atômica. |
+| **Status** | Cards genéricos `hd_*` com rótulo do dono e **"HD fora"** quando não montado. |
+| **Testes** | **+34** (`tests/test_hd_backup.py`): decisão pura com as 6 camadas, rsync real, dedup por hardlink na 2ª rodada, retenção intocável, 4 verdades do check, push 6 h, fiação do launcher. |
+| **Bump 9/9** | `.env` 1.39.3 · capabilities fallback · `_APP_VERSION_CODE` **2075** · pubspec · site · CHANGELOG · README_VERSAO · ANALISE · APKs. |
+
+### 2. Decisão registrada (fonte da verdade)
+
+- **Um serviço por HD, nunca um só**: `nofail` no fstab significa que o
+  dono pode desplugar qualquer uma a qualquer momento — janela, estado,
+  falhas e aviso no celular são **por alvo**; a desconectada degrada
+  honestamente e a outra não sofre.
+- **`--link-dest` em vez de tar**: snapshot-DIR datado por HD (7 diários
+  + 8 semanais) — restore é "copiar de volta", e hardlink custa zero
+  espaço em repetido. Bancos SQLite fogem do rsync (backup API).
+- **Sem sudo, sem root**: só caminhos do `alex`; `/etc` entra pelo
+  `fstab` (arquivo único legível) — snapshot de `/etc` completo é
+  extensão futura com um bloco do dono, se ele quiser.
+
+Suíte **3329 passed / 16 skipped · gate 95,57%** (+34 testes em
+`tests/test_hd_backup.py`) · `node --check` dos scripts do painel **OK**
+(pela própria suíte) · APKs **1.39.3+2075** publicados. Provas vivas
+pós-deploy na transcrição (§12) e no `session.json`.
+
+## [1.39.2] — CONCERTO DUPLA: HERÓI SEM CSS + RATE_LIMITED NAS PÁGINAS 🜂 (2026-10-17)
 
 Dois defeitos reportados pelo dono em 17/10 — **ambos meus**, das
 entregas do mesmo dia. (1) *"o herói não aparece mais como banner,

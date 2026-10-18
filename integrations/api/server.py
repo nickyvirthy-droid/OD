@@ -60,7 +60,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2074  # versionCode cru do APK publicado (v1.39.2+2074)
+_APP_VERSION_CODE = 2075  # versionCode cru do APK publicado (v1.39.3+2075)
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -1680,6 +1680,17 @@ async function loadSystem() {
         ? (stats.backup.capturas.ultimo_sucesso_em || "—") + " · " + fmtBytes(stats.backup.capturas.ultimo_bytes)
         : "—",
         stats.backup && stats.backup.capturas && (stats.backup.capturas.pendente_hoje || stats.backup.capturas.falhas) ? "err" : ""],
+      // Snapshots de HD externo (core/hd_backup.py): um card por alvo,
+      // com o rótulo do dono — "HD fora" quando o fstab nofail montou
+      // sem disco (pendente honesto, não verde de mentira).
+      ...Object.keys(stats.backup || {}).filter(k => k.startsWith("hd_")).map(k => {
+        const b = stats.backup[k];
+        return [b.rotulo || k,
+          b.ultimo_sucesso_em
+            ? b.ultimo_sucesso_em + " · " + fmtBytes(b.ultimo_bytes)
+            : (b.montado ? "nunca" : "HD fora"),
+          (b.pendente_hoje || b.falhas || !b.montado) ? "err" : ""];
+      }),
     ];
     document.getElementById("sys").innerHTML = cards.map(c =>
       '<div class="card"><div class="k">' + c[0] + '</div><div class="v ' + c[2] + '">' + c[1] + "</div></div>"

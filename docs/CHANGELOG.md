@@ -12,6 +12,36 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.39.3] — SNAPSHOT DO SISTEMA NAS DUAS HDs EXTERNAS 🜂 (2026-10-17)
+
+> **Bump PATCH fechando a pendência do dono de 16/10 ("2 snapshots p/ HD
+> externo"):** o backup tar local (§3.6) dizia no próprio docstring
+> *"pensado para o dono copiar para um HD externo"* — a cópia era MANUAL.
+> Agora o sistema grava **sozinho**, todo dia, em **cada uma** das duas
+> HDs, via `rsync --link-dest`: a 1ª rodada leva tudo (~5 GB) e as
+> seguintes só o que mudou, com inalterados virando **hardlink** (não
+> duplica espaço). O **3D do dono é a primeira fonte da lista** (linha
+> vermelha do TODO: entra em TODO snapshot). No mesmo dia as duas HDs
+> ganharam fstab unificado (UUID + `noatime` + `nofail`) e dono
+> `alex` — grava sem administrador, `FSTAB_OK` do dono.
+
+| Peça | Entrega |
+|---|---|
+| **`core/hd_backup.py` (novo)** | Serviço **POR HD** (`hd_midias` → `/home/alex/dados`, `hd_arquivos` → `/mnt/Arquivos`) interface-par-a-par com `BackupService` (`cfg/tick/snapshot/check_saude/registrar_no_health`) — por isso plugar na lista do `build_backups()` trouxe loops, bloco `backup` do `/dashboard/stats` e checks do `/health` **de graça**, sem ramificação nova. Knobs: `OD_HD_SNAPSHOT=0` (desliga), `OD_HD_HORA` (03:40), `OD_HD_ALVOS` (`Rótulo=/caminho`), `OD_HD_PASTA`, `OD_HD_DIARIOS` (7), `OD_HD_SEMANAIS` (8). |
+| **O que entra / não entra** | Fontes: **`/home/alex/3D` PRIMEIRO** (1,2 GB, linha vermelha), repo inteiro (`.env` + git + **capturas**), `omegadrakon-tools`, `/srv/omegadrakon`, `/etc/fstab`. Exclusões justificadas no docstring: `.venv` (recriável), `backups/` (tars têm retenção própria), `data/vector_memory` (RAG reconstruível), **zim 14 GB** (rebaixável pela action `nomad_wikipedia_zim_download`), **heap_dumps 2,8 GB** (artefato da era do OOM — fica no disco, só não viaja), `__pycache__`/`*.pyc`/`.part`. |
+| **SQLite no ponto** | `homebox.db` e `db.sqlite3` do Vaultwarden copiados pelo **backup API do sqlite3** (ponto consistente, WAL consolidado) e **excluídos do rsync** — cópia rasgada de banco é restore que não abre. Bug clássico pego pelos testes: `destino / origem` com origem absoluta — o `/` vence no pathlib e o destino vira o **próprio banco** (backup de um banco nele mesmo trava para sempre). |
+| **Verdade por alvo** | Camada nova `alvo_ausente` (`os.path.ismount` — o `nofail` do fstab exige conferir montagem, não existência de pasta): HD desplugada ⇒ skip honesto, check **degrada com "HD desconectada — plugue que o catch-up roda sozinho"** e a próxima conexão dispara sem pedir nada; a outra HD segue intacta (janela, estado, falhas e push **por HD**). |
+| **Retenção** | Reusa `calcular_retencao` do tar com **sufixo vazio** — adição retrocompatível em `core/backup.py` (`_nome_re`/`timestamp_do_nome`/`calcular_retencao` ganharam `sufixo` com default idêntico; testes do tar verdes). Nome fora do padrão **nunca** entra na lista de remoção (diretório do dono intocável); `.tmp_` órfão de run interrompido limpo aos 6 h. Publicação atômica `.tmp_* → rename`. |
+| **Cards no Status** | Linhas genéricas `hd_*` no JS do painel: rótulo do dono · último snapshot · bytes, **"HD fora"** quando `montado=false` — nunca verde de mentira. |
+| **Testes** | `tests/test_hd_backup.py` **+33**: 6 camadas de decisão **pura** (prova: caminhos inexistentes decidem), executor **rsync real** (estrutura `-R`, exclusões, ponto SQLite, atômico), **2ª rodada por hardlink** (inalterado = mesmo inode; mudado = novo sem destruir o velho; removido da fonte ausente no novo e intacto no antigo), retenção intocável, as 4 verdades do check, push com cooldown de 6 h, fiação do launcher (HD quebrado não derruba os tars). |
+| **Bump 9/9** | `.env` `OD_VERSION=1.39.3` · capabilities fallback · `_APP_VERSION_CODE` **2074 → 2075** · pubspec · site · CHANGELOG · README_VERSAO · ANALISE · APKs. |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3329 passed / 16 skipped** (+34 sobre 1.39.2), cobertura **95,57%** |
+| Guarda JS | `node --check` dos scripts do painel (bloco `hd_*` novo) verde pela suíte |
+| Provas vivas (pós-deploy) | 1ª rodada real **5.268.052.376 bytes nas 2 HDs** (3D 1,2 GB / 345 itens + capturas dentro); **2ª rodada em 4,2 s** com `--link-dest` (mesmo inode em `.stl` inalterado; custo incremental **31 MB** — o `du` conta o inode uma vez); `/health` **24/24** (checks `hd_*` up: "snapshot_od-2026-10-17_2306, 4.91 GB"); `stats.backup` com **4 chaves**; recibo dos **5 ilegíveis** no `info.json`; `/app/version` **1.39.3/2075**; APK `versionCode=2075` (aapt); **E2E vivo: 35 provas, 0 falhas** |
+
 ## [1.39.2] — CONCERTO DUPLA: HERÓI SEM CSS (TEXTO COMUM) + RATE_LIMITED NAS PÁGINAS 🜂 (2026-10-17)
 
 > **Bump PATCH (dois defeitos reportados pelo dono em 17/10, ambos meus):**

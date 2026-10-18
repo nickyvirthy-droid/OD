@@ -137,17 +137,19 @@ CAPTURAS_HORA_PADRAO = "04:00"
 CAPTURAS_PREFIXO = "od-capturas"
 CAPTURAS_CADENCIA_DIAS = 7
 # Nome canônico por perfil (prefixo distingue estado × capturas no disco).
-_NOME_RE_CACHE: dict[str, re.Pattern[str]] = {}
+_NOME_RE_CACHE: dict[tuple[str, str], re.Pattern[str]] = {}
 
 
-def _nome_re(prefixo: str) -> re.Pattern[str]:
-    padrao = _NOME_RE_CACHE.get(prefixo)
+def _nome_re(prefixo: str, sufixo: str = r"\.tar\.gz$") -> re.Pattern[str]:
+    """Regex do nome canônico — `sufixo` vazia vale para diretórios (HD)."""
+    chave = (prefixo, sufixo)
+    padrao = _NOME_RE_CACHE.get(chave)
     if padrao is None:
         padrao = re.compile(
             rf"^{re.escape(prefixo)}-(\d{{4}})-(\d{{2}})-(\d{{2}})_"
-            rf"(\d{{2}})(\d{{2}})\.tar\.gz$"
+            rf"(\d{{2}})(\d{{2}}){sufixo}$"
         )
-        _NOME_RE_CACHE[prefixo] = padrao
+        _NOME_RE_CACHE[chave] = padrao
     return padrao
 
 # Ações do pipeline
@@ -209,9 +211,14 @@ def nome_snapshot(quando_wall: float,
 
 
 def timestamp_do_nome(nome: str,
-                      prefixo: str = PREFIXO_PADRAO) -> Optional[float]:
-    """Epoch do nome canônico; None para nome fora do padrão/perfil."""
-    m = _nome_re(prefixo).match(nome)
+                      prefixo: str = PREFIXO_PADRAO,
+                      sufixo: str = r"\.tar\.gz$") -> Optional[float]:
+    """Epoch do nome canônico; None para nome fora do padrão/perfil.
+
+    `sufixo` vazia ("" ) serve diretórios — usada pelo snapshot de HD
+    (core/hd_backup.py); o default continua o tar, byte a byte.
+    """
+    m = _nome_re(prefixo, sufixo).match(nome)
     if not m:
         return None
     ano, mes, dia, hora, minuto = (int(g) for g in m.groups())
@@ -496,6 +503,7 @@ def calcular_retencao(
     diarios: int = DIARIOS_PADRAO,
     semanais: int = SEMANAIS_PADRAO,
     prefixo: str = PREFIXO_PADRAO,
+    sufixo: str = r"\.tar\.gz$",
 ) -> Retencao:
     """Quais snapshots ficam: os `diarios` mais recentes + 1 por semana.
 
@@ -509,7 +517,7 @@ def calcular_retencao(
     validos = [
         (nome, ts)
         for nome in nomes
-        if (ts := timestamp_do_nome(nome, prefixo)) is not None
+        if (ts := timestamp_do_nome(nome, prefixo, sufixo)) is not None
     ]
     validos.sort(key=lambda item: item[1], reverse=True)
     diarios_escolhidos = {

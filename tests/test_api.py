@@ -1047,7 +1047,7 @@ class TestAPISite:
         assert '<span class="od-site-ponto"></span>' in html
         # Números reais do v1.39.0+2072.
         assert "<b>106</b><span>Actions</span>" in html
-        assert "<b>3.290</b><span>Testes</span>" in html
+        assert "<b>3.329</b><span>Testes</span>" in html
         assert "<b>9</b><span>Ferramentas no ar</span>" in html
         assert "<b>78</b>" not in html and "+2.300" not in html
 

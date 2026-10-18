@@ -433,6 +433,12 @@ def build_backups(push: Any = None) -> list[Any]:
     depois roda. Falha avisa no celular (best-effort, 1 push a cada 6 h) e
     cada perfil tem check não-crítico próprio no /health. `OD_BACKUP=0` e
     `OD_BACKUP_CAPTURAS=0` desligam cada um (loop/check/bloco somem).
+
+    Em 17/10 entrou o terceiro tipo na mesma lista: o **snapshot de HD**
+    (core/hd_backup.py) — um serviço POR HD externo (Mídias e Arquivos),
+    interface par-a-par com o `BackupService`. Por isso ele vem daqui:
+    loops, bloco `backup` do /dashboard/stats e checks do /health são
+    genéricos na lista e vêm de graça. `OD_HD_SNAPSHOT=0` desliga só ele.
     """
     try:
         from core.backup import build_services
@@ -440,6 +446,14 @@ def build_backups(push: Any = None) -> list[Any]:
         servicos = build_services(repo_root=REPO_ROOT, env=env, push=push)
         if not servicos:
             log.info("Backups desligados (OD_BACKUP=0 e OD_BACKUP_CAPTURAS=0)")
+        try:
+            from core.hd_backup import build_hd_services
+
+            servicos += build_hd_services(
+                repo_root=REPO_ROOT, env=env, push=push
+            )
+        except Exception as exc:
+            log.warn("Snapshots de HD desabilitados", error=str(exc))
         for svc in servicos:
             cfg = svc.cfg
             log.info(
