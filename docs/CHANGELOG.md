@@ -12,6 +12,37 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.40.0] — FLATNOTES INTERLIGADO: O SISTEMA ANOTA E CONSULTA O CADERNO DO DONO 🜂 (2026-10-18)
+
+> **Bump MINOR aprovado pelo dono em 18/10 ("ligar")** — 1ª ferramenta da
+> série de análises que ele ordenou (FlatNotes → File Browser → Calibre,
+> "uma por vez" §146). Escopo fechado por mim e por ele aprovado:
+> **2 actions + check de saúde + patch v5.5.5 + testes**. O check de saúde
+> já existia (`tool_flatnotes` no `FERRAMENTAS_NOMAD`, porta 8200 — o
+> monitor de 9/9 nunca saiu); o que nasce aqui é a **fiação**: o sistema
+> passa a escrever e perguntar no caderno `.md` do dono. Caderno sem
+> banco de dados, sem login (só Tailscale), notas numa pasta plana que
+> **já viaja nos snapshots das 2 HDs** desde a v1.39.3.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/flatnotes.py` (novo)** | Cliente `FlatNotesClient` no molde do Kiwix (transporte injetável, fábrica lazy cacheada, `OD_FLATNOTES_URL` com default local). **Contrato apurado ao vivo ANTES de codificar** (18/10 — `openapi.json` do próprio container + round-trip completo: criar → repetir → buscar → ler → apagar a minha nota de teste) e **revalidado na v5.5.5** (rotas idênticas, 200/409/200 de novo). Erros honestos tipados: `flatnotes_indisponivel`, `flatnotes_timeout`, `flatnotes_falhou`, `flatnotes_parametro_invalido`, `flatnotes_ja_existe`, `flatnotes_nao_encontrada`, `flatnotes_resposta_invalida`. |
+| **409 = recusa honesta** | Título repetido devolve **409** do FastAPI ("A note with the same title already exists.") → `flatnotes_ja_existe` com a saída declarada na própria mensagem. **Sobrescrever é flag explícita** (`sobrescrever=false` por padrão) que vai pelo `PATCH /api/notes/{title}` e vem **declarada na resposta** (`sobrescrito=true`) — o conteúdo original só sai com pedido explícito, régua de "nada apagado por acidente". |
+| **Destaques HTML → texto limpo** | `GET /api/search` devolve `contentHighlights`/`titleHighlights` com `<b class="match term0">` — marcador do flatnotes **não é** o `<b>` do Telegram e estouraria o parse de lá; limpos com `regex + html.unescape` (zero dependência nova, resposta de chat é texto puro). `term=*` lista tudo (contagem do status); `[]` é **resposta honesta**, não erro (caderno vazio é estado normal). Título com `/` recusado na camada da API (vira caminho de arquivo `.md` lá no container — validar antes é mais honesto que descobrir o 404 depois). |
+| **3 actions (categoria `flatnotes`, só admin)** | `flatnotes_status` (auth, nº de notas, última editada) · `flatnotes_anota` (título + conteúdo markdown, `sobrescrever=false`) · `flatnotes_busca` (texto livre, `limite=10`, trecho limpo do que casou). Nascem admin-only **por construção** (`permission=nome da action`; a lista `user` é explícita e não foi tocada). **NÃO existe action de apagar**: o `DELETE` da API fica de fora do catálogo — teste `test_nenhuma_action_de_apagar_no_catalogo` fixa a régua. |
+| **Capability + contagem** | Bloco `flatnotes-caderno` (fase v1.40.0) no `core/capabilities.py` com o contrato vivo escrito. **106 → 109 actions** em todos os lugares que contam: `EXPECTED_CATEGORIES` ganha `"flatnotes": 3`, 23 asserts de contagem, docstrings do pacote e o site. |
+| **Patch da ferramenta** | `docker/tools-compose.yaml`: `dullage/flatnotes:v5.5.4` → **`v5.5.5`** (refresh de deps do upstream: uv + Python 3.13 — sem mudança de contrato, comprovado revalidando as rotas na imagem nova). Container recriado no ar; pasta `/data` bind que já entra nos snapshots. |
+| **Testes** | `tests/test_flatnotes.py` **+40**: fixtures fiéis às capturas vivas (Note, 409 com `detail`, busca com destaques HTML, config `authType=none`, 404), ordem dos métodos/URLs das 3 chamadas do status, 409 que **para na 1ª chamada** (nunca tenta PATCH por conta própria), PATCH com título URL-encoded, limites da busca (0→1, estouro→50), erros de rede/JSON, `_transporte` real (GET sem corpo, POST com JSON, HTTPError como resposta), fábrica lazy + permissão (user negado ×3, admin executa) e a prova de que não há action de apagar. |
+| **Bump 9/9** | `.env` `OD_VERSION=1.40.0` · capabilities fallback · `_APP_VERSION_CODE` **2075 → 2076** · pubspec · site (versão ×3, Actions 109, Testes 3.369) · CHANGELOG · README_VERSAO · ANALISE · APKs. |
+
+| Validado | Resultado |
+|---|---|
+| Suíte do servidor (gate 90%) | **3369 passed / 16 skipped** (+40 sobre 1.39.3), cobertura **95,59%** |
+| Guarda de versão | `test_version_policy` verde após a seção existir + guarda `vMAIOR que a vigente` limpa (prosa de terceiros sem prefixo `v`, como a casa faz) |
+| Contrato vivo (antes de codificar) | Round-trip real v5.5.4: POST 200 → POST 409 → busca `term=`/`term=*` → GET ler 200/404 → DELETE limpo (minha nota de teste saiu; caderno ficou `[]` de novo) |
+| Contrato vivo (imagem nova) | v5.5.5: 200/409/200 (PATCH), config `authType=none`, **rotas idênticas** às da v5.5.4 |
+| Provas vivas (pós-deploy) | ver `README_VERSAO` §1.40.0 (actions executadas contra o caderno real do dono, `/health` 24/24, `/actions` 109) |
+
 ## [1.39.3] — SNAPSHOT DO SISTEMA NAS DUAS HDs EXTERNAS 🜂 (2026-10-17)
 
 > **Bump PATCH fechando a pendência do dono de 16/10 ("2 snapshots p/ HD

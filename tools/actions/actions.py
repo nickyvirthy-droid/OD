@@ -2657,6 +2657,46 @@ def homebox_atualizar(
     )
 
 
+def _flatnotes_op(op: Any) -> dict[str, Any]:
+    """Roda uma operação no FlatNotes com erro honesto e tipado.
+
+    Cliente LAZY (integrations/flatnotes.py): a ferramenta fora do ar
+    degrada ESTA ação — nunca o boot do od-core. Caderno do dono em
+    127.0.0.1:8200 (auth=none, só Tailscale); notas = arquivos .md
+    numa pasta plana já coberta pelos snapshots das 2 HDs. NENHUMA
+    ação apaga — 409 (título repetido) vira flatnotes_ja_existe
+    honesto, sobrescrever é flag explícita.
+    """
+    from integrations.flatnotes import FlatNotesError, client_padrao
+
+    try:
+        cliente = client_padrao()
+        return {"ok": True, **op(cliente)}
+    except FlatNotesError as exc:
+        return {"ok": False, "error": exc.codigo, "message": exc.mensagem}
+
+
+def flatnotes_status() -> dict[str, Any]:
+    """Vida do caderno: auth, nº de notas e a última editada."""
+    return _flatnotes_op(lambda c: c.status())
+
+
+def flatnotes_anota(
+    titulo: str,
+    conteudo: str = "",
+    sobrescrever: bool = False,
+) -> dict[str, Any]:
+    """Cria UMA nota markdown (título repetido: recusa, salvo sobrescrever=true)."""
+    return _flatnotes_op(
+        lambda c: c.anota(titulo, conteudo=conteudo, sobrescrever=sobrescrever)
+    )
+
+
+def flatnotes_busca(termo: str, limite: int = 10) -> dict[str, Any]:
+    """Busca nas notas do dono (texto livre; trecho limpo do que casou)."""
+    return _flatnotes_op(lambda c: c.buscar(termo, limite=limite))
+
+
 # ---------------------------------------------------------------------------
 # Serviços (systemd — degrada graciosamente)
 # ---------------------------------------------------------------------------
@@ -3264,6 +3304,14 @@ CATALOG: list[dict[str, Any]] = [
           {"required": ["id"], "properties": {
               "id": S, "quantidade": {"type": "int"}, "notas": S, "descricao": S, "preco": {"type": "float"},
           }}),
+    # --- FlatNotes: caderno de notas do dono (5ª interligação, 18/10) ---
+    _spec("flatnotes_status", "flatnotes", "Estado do caderno (auth, nº de notas, última editada)", flatnotes_status),
+    _spec("flatnotes_anota", "flatnotes", "Cria uma nota no caderno do dono (título + conteúdo markdown)", flatnotes_anota,
+          {"required": ["titulo"], "properties": {
+              "titulo": S, "conteudo": {**S, "default": ""}, "sobrescrever": {**B, "default": False},
+          }}),
+    _spec("flatnotes_busca", "flatnotes", "Busca nas notas do dono (texto livre, trecho do que casou)", flatnotes_busca,
+          {"required": ["termo"], "properties": {"termo": S, "limite": {**I, "default": 10}}}),
     # --- Serviços (3) ---
     _spec("service_list", "service", "Lista serviços systemd", service_list),
     _spec("service_status", "service", "Status de um serviço", service_status,

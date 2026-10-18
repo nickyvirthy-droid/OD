@@ -2,7 +2,7 @@
 OMEGA DRAKON • CORE
 Tecnologia que respira.
 Módulo: tools/actions
-Descrição: Pacote do catálogo de Actions — 106 ações operacionais (sistema,
+Descrição: Pacote do catálogo de Actions — 109 ações operacionais (sistema,
            processos, docker, serviços, arquivos, git, banco de dados,
            introspecção, nomad) registradas no Action Registry com permission
            própria (gate do Security Layer na execução).
@@ -31,7 +31,7 @@ from tools.registry import Action, ActionRegistry
 
 
 def register_all(registry: ActionRegistry) -> int:
-    """Registra as 56 ações do catálogo no registry (idempotente via skip)."""
+    """Registra as 109 ações do catálogo no registry (idempotente via skip)."""
     registered = 0
     for spec in CATALOG:
         action = Action(
@@ -54,7 +54,7 @@ def build_registry(
     security: Optional[Any] = None,
     allow_overwrite: bool = False,
 ) -> ActionRegistry:
-    """Constrói um ActionRegistry já populado com as 56 ações do catálogo.
+    """Constrói um ActionRegistry já populado com as 109 ações do catálogo.
 
     Exemplo:
         from core.security import SecurityManager

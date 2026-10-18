@@ -7,6 +7,59 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.40.0] — FLATNOTES INTERLIGADO: O SISTEMA ANOTA E CONSULTA O CADERNO DO DONO 🜂 (2026-10-18)
+
+### 1. O que foi feito
+
+1ª ferramenta da série de análises a fundo que o dono ordenou
+(FlatNotes → File Browser → Calibre, "uma por vez" §5). Analisei,
+ele respondeu **"ligar"** — escopo fechado por mim e aprovado por ele:
+**2 actions + check de saúde + patch v5.5.5 + testes**. O check já
+existia (`tool_flatnotes` no monitor de 9/9); o que nasce aqui é a
+**fiação**: o sistema agora escreve e pergunta no caderno `.md` do
+dono. Sem banco de dados, sem login (só Tailscale), notas numa pasta
+plana que **já viaja nos snapshots das 2 HDs** desde a v1.39.3.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/flatnotes.py`** | Cliente no molde do Kiwix (transporte injetável, fábrica lazy, `OD_FLATNOTES_URL` default local). **Contrato apurado ao vivo ANTES de codificar**: `openapi.json` do próprio container + round-trip real (criar → repetir → buscar → ler → apagar minha nota de teste) — e **revalidado na v5.5.5** (rotas idênticas). Erros tipados honestos (indisponível/timeout/falhou/parâmetro/já existe/não encontrada/resposta inválida). |
+| **Escrita segura** | Título repetido = **409** do servidor → `flatnotes_ja_existe` com a saída na mensagem; **`sobrescrever=false`** por padrão — atualizar exige flag explícita, vai pelo `PATCH` e vem **declarado** (`sobrescrito=true`). Nada sai sem pedido explícito. |
+| **Leitura limpa** | Destaques da busca chegam como HTML (`<b class="match term0">`) e viram **texto puro** (regex + `html.unescape`, zero dependência nova — `<b>` do flatnotes não é o `<b>` do Telegram); `term=*` lista tudo (contagem do status); **`[]` é resposta honesta**, não erro; título com `/` recusado na API (vira caminho de arquivo `.md`). |
+| **3 actions (só admin)** | `flatnotes_status` · `flatnotes_anota` · `flatnotes_busca` — categoria `flatnotes`, nascem admin-only (`permission=nome da action`, lista `user` intocada). **Sem action de apagar**: `DELETE` fica de fora do catálogo e um teste fixa a régua. |
+| **Patch** | Compose: `dullage/flatnotes:v5.5.4` → **`v5.5.5`** (refresh de deps do upstream; contrato reprovado ao vivo na imagem nova antes de fechar). |
+| **Testes** | `tests/test_flatnotes.py` **+40** (fixtures fiéis às capturas vivas, ordem de chamadas do status, 409 que **para na 1ª tentativa**, PATCH url-encoded, limites, rede/JSON, transporte real urllib, permissão user/admin, catálogo). Contagem **106 → 109** em 23 asserts + site + docstrings. |
+| **Bump 9/9** | `.env` 1.40.0 · capabilities fallback · `_APP_VERSION_CODE` **2076** · pubspec · site (versão ×3, 109 Actions, 3.369 Testes) · CHANGELOG · README_VERSAO · ANALISE · APKs. |
+
+### 2. Decisão registrada (fonte da verdade)
+
+- **409 vira recusa honesta, nunca sobrescrita silenciosa**: o caderno
+  é do dono — conteúdo original só sai com `sobrescrever=true`
+  explícito, e a resposta **declara** que sobrescreveu.
+- **Destaque limpo, não marcado**: resposta de chat não pode carregar
+  marcador HTML alheio (quebraria o parse do Telegram) — a captura do
+  match é o trecho em volta, já entregue como texto.
+- **`DELETE` fora do catálogo por régua, não por esquecimento**: a API
+  tem a rota; o sistema não recebe a action — e um teste trava que
+  nunca vai existir uma.
+- **Sem banco = sem cárcere de dados**: nota é `.md` em pasta plana,
+  mesma pasta que os snapshots das 2 HDs já copiam — o backup do
+  caderno não é trabalho novo, é consequência do v1.39.3.
+
+### 3. Validação (18/10, madrugada)
+
+Suíte **3369 passed / 16 skipped · gate 95,59%** (+40 em
+`tests/test_flatnotes.py`) · guarda `test_version_policy` verde (seção
+do CHANGELOG + nenhuma "versão futura" no código) · APKs **1.40.0+2076**
+publicados (`aapt`: versionCode 2076; sha do `/app/version` idêntico
+ao arquivo). Provas vivas pós-deploy: round-trip **real pelo `/executa`**
+no caderno do dono — `flatnotes_status` **0 notas** → `flatnotes_anota`
+criou a nota-marcador **"Interligação do sistema"** → `flatnotes_busca`
+achou **1 hit com trecho limpo** → status **1 nota** → repetir o título
+devolveu o **409 honesto** com a saída na mensagem; `/actions` **109**;
+`/health` **24/24** (`tool_flatnotes` up, 2,4 ms); `nomad_tools` **9/9**;
+journal **0 erros**; **E2E vivo: 41 provas, 0 falhas**. Na transcrição
+(§13) e no `session.json`.
+
 ## [1.39.3] — SNAPSHOT DO SISTEMA NAS DUAS HDs EXTERNAS 🜂 (2026-10-17)
 
 ### 1. O que foi feito

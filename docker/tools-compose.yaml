@@ -78,10 +78,10 @@ services:
   # ---------------------------------------------------------------------------
   # 4. FlatNotes (Notes) — caderno markdown canônico do assistente
   #    auth=none porque só é alcançável via Tailscale/localhost.
-  #    API REST disponível para as actions "anota isso" / "o que anotei sobre X".
+  #    API REST que as actions flatnotes_status/anota/busca operam (v1.40.0).
   # ---------------------------------------------------------------------------
   flatnotes:
-    image: dullage/flatnotes:v5.5.4
+    image: dullage/flatnotes:v5.5.5
     container_name: od-flatnotes
     restart: unless-stopped
     ports:

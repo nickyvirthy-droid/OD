@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.39.3"
+    or "1.40.0"
 )
 
 # Status válidos.
@@ -366,6 +366,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "v1.38.0",
         "status": ACTIVE,
         "path": "integrations/homebox.py",
+    },
+    {
+        "id": "flatnotes-caderno",
+        "name": "FlatNotes (caderno de notas markdown do dono)",
+        "category": "integrations",
+        "description": "5ª ferramenta interligada, com pedido direto do dono (18/10: 'ligar' — 1ª da análise de FlatNotes/File Browser/Calibre): o sistema ANOTA e CONSULTA o caderno self-hosted (container od-flatnotes, flatnotes 5.5.5, escuta só em 127.0.0.1:8200, auth=none — só Tailscale, nunca no Funnel) pelas actions flatnotes_status/flatnotes_anota/flatnotes_busca (categoria flatnotes, só admin). Contratos apurados ao vivo ANTES de codificar (18/10 — openapi.json do próprio container + round-trip real: criar→repetir→buscar→ler→apagar a nota de teste): POST /api/notes devolve Note{title,content,lastModified}; POST repetido = 409 (flatnotes_ja_existe honesto — sobrescrever só com flag explícita via PATCH e declarado na resposta); GET /api/search?term= devolve score + destaques HTML limpos para texto (regex+unescape, zero dependência nova); term=* lista tudo (contagem do status); [] é resposta honesta. Notas = arquivos .md numa pasta plana (sem banco, sem cárcere de dados) — a pasta omegadrakon-tools/flatnotes já entra nos snapshots das 2 HDs (fonte desde a v1.39.3). NENHUMA action apaga: o DELETE da API fica fora do catálogo (régua do dono). LAZY por desenho: ferramenta fora do ar degrada a ação, nunca o boot do od-core.",
+        "source": "OD (flatnotes upstream, MIT)",
+        "phase": "v1.40.0",
+        "status": ACTIVE,
+        "path": "integrations/flatnotes.py",
     },
     {
         "id": "saude-reference",
