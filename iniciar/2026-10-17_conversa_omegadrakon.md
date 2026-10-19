@@ -808,3 +808,83 @@ dele**.
 
 **Próxima da série (ordem do dono, "uma por vez"): Calibre Web (3ª)** —
 0 livros, login admin/admin123 ainda a trocar.
+
+## §15 — Dono descarta webview: botão que abre o navegador + a caixa que não abria do celular (v1.41.0→1.42.0+2078) — 19/10, tarde
+
+**Decisão.** Respondendo à pergunta que ficou da entrega anterior, o
+dono mandou: *"com o tailscale funcionando não existe finalidade em
+embutir, seria melhor apenas um botão que abre o navegador"* — **webview
+DESCARTADA** (sem dependência nova, sem manutenção Android extra).
+
+**Achado de honestidade no caminho.** Para calhar o botão, conferi o
+endereço: a caixa escutava **só em `127.0.0.1:8410`** — **do celular ela
+não abria**, e minhas próprias provas da 1.41.0 afirmavam "pelo celular"
+sem ter testado o bind. Fechado na mesma tarde: **bind duplo** no
+compose (`127.0.0.1` para as actions + `100.77.67.53` para a tailnet —
+só a interface do Tailscale, nunca LAN nem cara pública; o od-core é
+`0.0.0.0`, aqui o estrito manda), container recriado `restarts=0`, e
+**prova nova no E2E: HTTP 200 pela tailnet** — o caminho exato que o
+botão abre. `TestBindDuploCompose` fixa as duas linhas: tirou uma, a
+suíte quebra.
+
+**Entrega (v1.42.0+2078).** `ListTile` "Caixa de arquivos (abre no
+navegador)" no card "Meu painel" (mesmo padrão dos vizinhos) →
+`launchUrl` `externalApplication`; `odFileBrowserUri` = host do
+`odDefaultLocalUrl` + porta 8410 (fonte única); se o lançador recusar
+(Tailscale desligado), **aviso honesto** no SnackBar — a tela nunca
+trava. `url_launcher ^6.3.1` = 1ª dependência do app que sai do app (sem
+`<queries>`: só `canLaunchUrl` exigiria).
+
+**Validação.** Suíte oficial **3422 passed / 16 skipped / 0 falha · gate
+91,11% ≥ 90** (+1) · flutter **analyze 0 · test 195/2** (+3) · APK
+**1.42.0+2078** (`aapt` `versionCode='2078'`, sha256 idêntico ao do
+`/app/version`) · `/health` 24/24 estável (o `ok:False` do primeiro
+tick pós-restart estabilizou; NRestarts=0, journal 0 erros) · **E2E
+vivo 48 provas, 0 falhas**.
+
+**Defeitos pegos:** teste de widget sem `Scaffold` (o SnackBar do aviso
+honesto nunca desenhava — a tela vive dentro do do OdHome);
+`http.Response` exige `statusCode` posicional; `final canal = const` → 1
+issue no analyze; **e a situação da v1.41.0 faltava no TODO** — gravada
+junto, registro fechado.
+
+Registros: `session.json` chave `app_boto_caixa_2026_10_19`,
+CHANGELOG/README_VERSAO/ANALISE/TODO atualizados, `txt.txt` reescrito,
+Telegram da regra 15 enviado.
+
+**Próxima da série (ordem do dono, "uma por vez"): Calibre Web (3ª)** —
+0 livros, login admin/admin123 ainda a trocar.
+
+## §16 — Retomada ("leia iniciar", 19/10 ~12:50): a v1.42.0+2078 estava no ar mas NÃO estava commitada — fecho refeito de ponta a ponta
+
+**Achado da retomada (regra 3 + git, não o registro).** A sessão anterior
+escreveu o `session.json` dizendo "master, commitado e pushado" e **caiu
+antes do git**: HEAD em `1b0c1ab` (registros da 1.41.0) == origin/master,
+e os **15 arquivos da entrega + o teste novo** (`app/test/dashboard_caixa_test.dart`)
+no working tree, sem commit. Produção estava de fato em 1.42.0+2078 —
+od-core ativo desde **11:39**, `/app/version` 1.42.0/2078, sha256 do APK
+publicado (`1be0e973…`) idêntico ao anunciado, NRestarts=0, journal 0
+`[ERROR]`. Ou seja: entrega viva, registro escrito, publicação faltando.
+
+**Revalidação verde ANTES de commitar** (regra: teste antes de afirmar):
+gate oficial do servidor **3422 passed / 16 skipped · 91,11% ≥ 90 (exit 0,
+187 s)** — idêntico ao da entrega; `flutter analyze` **0 issues** ·
+`flutter test` **195 passed / 2 skipped**. Auditado o diff contra o §15
+bitem a bitem: `url_launcher ^6.3.1` + botão "Caixa de arquivos" no card
+"Meu painel", bind duplo do File Browser (127.0.0.1 + tailnet), bump 9/9
+1.42.0+2078, guarda `TestBindDuploCompose`, site 3.422 — tudo batendo.
+
+**Fecho real:** commit da entrega + commit dos registros, push em
+`origin/master`. `session.json` corrigido sem maquiagem: a chave
+`app_boto_caixa_2026_10_19` deixou de afirmar "commitado e pushado" e
+passa a apontar para a chave nova `fecho_interrompido_v1420_2026_10_19`,
+que guarda a queda, a revalidação e a lição.
+
+**Lição gravada:** a ordem da casa é **commit ANTES do deploy** (7.3);
+aqui o deploy saiu e o commit não. Registro escrito não é prova de fecho —
+**git é**: toda retomada confere HEAD vs working tree, não só o
+`session.json`. Nada de código mudou desde o deploy das 11:39, então
+**sem novo restart** — produção segue exatamente onde estava.
+
+**Próxima da série (ordem do dono, "uma por vez"): Calibre Web (3ª)** —
+0 livros, login admin/admin123 ainda a trocar.

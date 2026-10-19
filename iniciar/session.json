@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-17T23:25:00-03:00",
+  "updated_at": "2026-10-19T12:53:00-03:00",
   "pauta_explicada_e_todo_descrito_2026_10_16": {
     "pedido": "Dono (~19:50 de 16/10): 'me explique o tal de Pauta itens 3 e 5' e, ao ver a minha busca demorada nas transcrições, correu o processo: 'por isso pedi pra criar um TODO de atualizações... não precisa ficar assim procurando do que se trata'.",
     "apuracao_da_fonte": "'Pauta' = as 15 divergências Legado × sistema atual em docs/ANALISE_ECOSSISTEMA.md §6, com os próximos passos numerados 1–5 na §8 (criada 09/10). Itens 1 (organizar Legado) e 2 (/verificacao + Registro Mestre) já CONCLUÍDOS; os abertos são: 3 = ordem das frentes FAB/Living Systems/Semi-joias/Nicoly Valentina (só falta a decisão da ordem — o 1º passo pedido, Registro Mestre, saiu em v1.22.0 e a Etapa 4 em v1.30.0); 4 = unificação do formato de ID das peças (SKU 5 campos × MoC 4 campos hex do Legado, antes das semi-joias); 5 = rotação dos segredos vazados no Legado (bot @Nexus_Nicky_bot e chave Gemini ainda ATIVOS; decisão do dono: rotacionar após os testes). OBS: os transcripts antigos diziam '3 e 5 = unificação de ID e ordem das frentes' — a numeração real da §8 é 3=frentes, 4=ID, 5=segredos; a confusão de numeração era parte do problema.",
@@ -3292,5 +3292,39 @@
     "suíte": "3421 passed / 16 skipped / 0 falha · gate oficial --cov-fail-under=90 + .coveragerc: 91,11% >= 90 (exit 0; +52 em tests/test_filebrowser.py sobre a 1.40.0 = 3369). ANOMALIA ANOTADA: o 95,59% da 1.40.0 nao se reproduz com o mesmo comando — universo de hoje 19.552 linhas / 1.738 faltantes; de agora em diante anoto o comando exato junto do numero. E2E vivo: 47 provas, 0 falhas (6 novas do File Browser).",
     "estado": "Producao em 1.41.0+2077 (master, commitado e pushado); caixa de arquivos no ar com marca-d'agua do sistema; imagem 2.63.23 pinada; snapshots das 2 HDs (19/10 03:41) com od_version 1.41.0; cofre 15/15 (OD_FILEBROWSER_PASSWORD espelhado); senha entregue ao dono no chat (nunca em arquivo).",
     "proxima": "Calibre Web (3ª da serie, 'uma por vez') — 0 livros, login admin/admin123 ainda a trocar. Pergunta do dono sobre webview no app respondida (parking lot do TODO; por padrao fica no navegador com atalho). Pendencias de sempre: privatizar repo, tema (§3.8), bot legado, cofre pessoal, off-site, fotos, historico.html."
+  },
+  "app_boto_caixa_2026_10_19": {
+    "pedido": "Dono, 19/10, respondendo a minha pergunta sobre webview: 'com o tailscale funcionando nao existe finalidade em embutir, seria melhor apenas um botao que abre o navegador'. Webview DESCARTADA; botao entregue na mesma tarde.",
+    "achado_de_honestidade": "A caixa NAO abria do celular: bind so em 127.0.0.1 — as provas da 1.41.0 diziam 'pelo celular' sem testar o bind. Fechado com bind duplo (127.0.0.1 para as actions + 100.77.67.53 para a tailnet; nunca LAN/cara publica; od-core e 0.0.0.0, aqui o estrito manda) + prova nova no E2E: HTTP 200 pela tailnet.",
+    "desenho": "ListTile 'Caixa de arquivos (abre no navegador)' no card 'Meu painel' (padrao dos vizinhos) -> launchUrl externalApplication; odFileBrowserUri = Uri.parse(odDefaultLocalUrl).replace(port:8410) (fonte unica — mesma host do od-core); aviso honesto no SnackBar se o lancador recusar; url_launcher ^6.3.1 (1a dependencia que sai do app; sem <queries> — so canLaunchUrl exigiria).",
+    "decisoes": [
+      "Webview fora (dono): sem dependencia nova de navegador embutido e sem manutencao Android extra; Chrome com 'Adicionar a tela inicial' segue como alternativa sem custo",
+      "Bind so na interface do Tailscale (127.0.0.1 + IP da tailnet) — exposicao estrita; senha segue obrigatoria na pagina",
+      "Guarda TestBindDuploCompose: se removem qualquer linha do bind, a suite quebra (acessibilidade de fora = promessa testada)",
+      "Situacao da v1.41.0 tinha ficado de fora do TODO — gravada junto, registro fechado"
+    ],
+    "bugs_pegos": [
+      "afirmacao falsa herdada: provas/docs da 1.41.0 diziam 'abre pelo celular' sem prova — o bind era 127.0.0.1 puro; corrigido com bind + prova nova no E2E",
+      "test de widget sem Scaffold (DashboardScreen vive dentro do do OdHome) — o SnackBar do aviso honesto nunca desenhava; teste envolve em Scaffold",
+      "http.Response desta versao exige statusCode posicional (pego pelo analyze do teste novo)",
+      "'final canal = const ...' -> prefer_const_declarations (1 issue no analyze, corrigido)"
+    ],
+    "entrega": "v1.42.0+2078 bump 9/9 (.env, capabilities, pubspec, _APP_VERSION_CODE, site versao x3 + Testes 3.422, CHANGELOG, README_VERSAO, ANALISE, TODO) + infra do bind no compose (sem bump proprio); APK buildado (PATH do flutter + JAVA_HOME) e publicado: aapt versionCode='2078' versionName='1.42.0', sha256 identico ao /app/version (1be0e973...); od-core reiniciado.",
+    "provas_vivas": "Caixa responde HTTP 200 em http://100.77.67.53:8410 (o caminho exato do botao) e 127.0.0.1 segue 200 (actions); filebrowser_status ok; /health 24/24 estavel (ok:False do 1o tick pos-restart estabilizou; NRestarts=0; journal 0 erros); /actions 112; /app/version 1.42.0/2078; E2E vivo 48 provas, 0 falhas.",
+    "suíte": "Python: 3422 passed / 16 skipped / 0 falha · gate oficial --cov-fail-under=90: 91,11% >= 90 (exit 0; +1 TestBindDuploCompose sobre a 1.41.0 = 3421). Flutter: analyze 0 issues · test 195 passed / 2 skipped (+3 dashboard_caixa_test).",
+    "estado": "Producao em 1.42.0+2078; botao no app do dono (instala por cima, versionCode 2078); caixa alcancavel da tailnet com guarda; webview descartada e registrada no TODO. CORRECAO HONESTA (retomada 19/10 12:53): o commit NAO aconteceu nesta sessao — o registro foi escrito e a sessao caiu antes do git; fechado na retomada, ver chave fecho_interrompido_v1420_2026_10_19.",
+    "proxima": "Calibre Web (3a da serie 'uma por vez', ordem do dono) — 0 livros, login admin/admin123 ainda a trocar. Pendencias de sempre: privatizar repo, tema (3.8), bot legado, cofre pessoal, off-site, fotos, historico.html."
+  },
+  "fecho_interrompido_v1420_2026_10_19": {
+    "pedido": "Dono (19/10 ~12:50): 'leia iniciar' — retomada de rotina (regra 3).",
+    "achado": "A sessao anterior (v1.42.0+2078, botao da caixa) caiu NO MEIO DO FECHO: o registro dizia 'master, commitado e pushado', mas o git mostrava os 15 arquivos da entrega + o teste novo (app/test/dashboard_caixa_test.dart) SEM COMMIT, com HEAD em 1b0c1ab (registros da 1.41.0) == origin/master. Producao sim estava 1.42.0: od-core ativo desde 11:39, /app/version 1.42.0/2078, sha256 do APK publicado (1be0e973...) identico ao anunciado, NRestarts=0, journal 0 [ERROR].",
+    "acao": "Revalidacao verde ANTES de commitar (regra 'teste antes de afirmar') e entao fecho real: gate oficial do servidor + flutter analyze/test rerodados; commit da entrega + commit dos registros; push origin master. Registro corrigido: a chave app_boto_caixa_2026_10_19 deixou de afirmar 'commitado e pushado' e passou a apontar para esta chave.",
+    "revalidacao_1253": "Gate oficial --cov-fail-under=90 + .coveragerc: 3422 passed / 16 skipped / 0 falha, 91.11% >= 90 (exit 0, 187s) — identico ao registro da entrega. Flutter: analyze 0 issues · test 195 passed / 2 skipped (14s).",
+    "licao": "A ordem da casa e commit-ANTES-do-deploy (7.3); aqui o deploy saiu e o commit nao. O registro escrito NAO e prova de fecho — o git e. Retomadas devem conferir HEAD vs working tree, nao so o session.json.",
+    "commits": [
+      "ver git log — entrega v1.42.0+2078 (codigo) + registros (docs/iniciar/TODO)"
+    ],
+    "estado": "FECHADO — HEAD publicado em origin/master com a v1.42.0+2078; producao segue igual (sem novo deploy: nada de codigo mudou desde 11:39).",
+    "proxima": "Calibre Web (3a da serie 'uma por vez', ordem do dono) — 0 livros, login admin/admin123 ainda a trocar. Pendencias de sempre: privatizar repo, tema (3.8), bot legado, cofre pessoal, off-site, fotos, historico.html."
   }
 }

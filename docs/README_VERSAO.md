@@ -7,6 +7,58 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.42.0] — BOTÃO DA CAIXA NO PAINEL: SEM WEBVIEW, O APP ABRE NO NAVEGADOR (2026-10-19)
+
+### 1. O que foi feito
+
+Decisão do dono (19/10), respondendo à pergunta sobre embutir webview:
+*"com o tailscale funcionando não existe finalidade em embutir, seria
+melhor apenas um botão que abre o navegador"*. **Webview descartada** (sem
+dependência nova de navegador embutido, sem manutenção Android extra) — e
+o caminho escolhido trouxe um achado de honestidade: a caixa **não abria
+do celular** (bind só em `127.0.0.1`; as provas da 1.41.0 diziam "pelo
+celular" sem testar o bind). Fechado na mesma entrega: **bind duplo** +
+botão.
+
+| Peça | Entrega |
+|---|---|
+| **Botão "Caixa de arquivos (abre no navegador)"** | `ListTile` no card "Meu painel" do app (mesmo padrão dos itens vizinhos) → `launchUrl` no navegador de fora (`LaunchMode.externalApplication`). Se o lançador recusar (Tailscale desligado), SnackBar honesto — a tela nunca trava. |
+| **`odFileBrowserUri` (fonte única)** | `Uri.parse(odDefaultLocalUrl).replace(port: 8410)` — mesma host que o app usa com o od-core; se a IP da tailnet mudar, muda num lugar só. |
+| **`url_launcher: ^6.3.1`** | 1ª dependência do app para abrir coisas fora dele; sem `<queries>` no manifesto (só `canLaunchUrl` exigiria). |
+| **Bind duplo da caixa (infra, sem bump próprio)** | compose: `127.0.0.1:8410` (actions do sistema, intocado) + `100.77.67.53:8410` (tailnet — só a interface do Tailscale, nunca LAN nem cara pública; o od-core é `0.0.0.0`, aqui o estrito manda). |
+| **Testes** | app **+3** (`dashboard_caixa_test.dart`: URI, presença, toque com canal mockado provando a URI exata + aviso honesto) · servidor **+1** (`TestBindDuploCompose` — removem a linha, a suíte quebra). |
+| **Bump 9/9** | `.env` 1.42.0 · fallback · pubspec **1.42.0+2078** · `_APP_VERSION_CODE` 2078 · site (versão ×3, Testes 3.422) · CHANGELOG · README · ANALISE · APK. |
+
+### 2. Decisões registradas (fonte da verdade)
+
+- **Sem webview** (dono): a caixa é página; Chrome já dá *Adicionar à tela
+  inicial* sem custo — o botão fecha o atalho pelo lado do app.
+- **Bind estrito**: exposição só na interface do Tailscale (posture do
+  od-core, porém mais conservadora); senha segue obrigatória na página.
+- **Aviso honesto em vez de falha muda**: caminho de erro do botão é
+  mensagem acionável ("confere se o Tailscale está ligado"), nunca tela
+  congelada.
+- **Guarda do bind**: `TestBindDuploCompose` — as duas linhas do compose
+  existem ou a suíte quebra (a acessibilidade de fora virou promessa
+  testada, não fé).
+
+### 3. Validação (19/10, tarde)
+
+- **Suíte oficial (gate `--cov-fail-under=90` + `.coveragerc`): 3422
+  passed / 16 skipped / 0 falha · cobertura 91,11% ≥ 90 (exit 0)**, +1
+  sobre a 1.41.0 (3421).
+- **Flutter**: `analyze` **0 issues** · `test` **195 passed / 2 skipped**
+  (+3).
+- **Provas ao vivo**: caixa responde **HTTP 200 em
+  `http://100.77.67.53:8410`** (o caminho exato do botão) ·
+  `127.0.0.1:8410` segue 200 · `filebrowser_status` ok (ações intactas) ·
+  container `restarts=0` · od-core reiniciado com **`/app/version
+  1.42.0/2078`** · APK `aapt` `versionCode='2078' versionName='1.42.0'` +
+  sha256 idêntico ao anunciado · **E2E vivo 48 provas, 0 falhas** (nova
+  prova: alcançabilidade da tailnet).
+- **Honestidade corrigida**: o "abre pelo celular" da 1.41.0 era falso
+  com o bind antigo — a prova da tailnet existe exatamente por isso.
+
 ## [1.41.0] — FILE BROWSER INTERLIGADO: A CAIXA DE ARQUIVOS DO DONO 🜂 (2026-10-19)
 
 ### 1. O que foi feito

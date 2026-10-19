@@ -12,6 +12,28 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.42.0] — BOTÃO DA CAIXA NO PAINEL: SEM WEBVIEW, O APP ABRE NO NAVEGADOR (2026-10-19)
+
+**Resumo:** o dono respondeu à pergunta sobre webview (19/10): *"com o tailscale funcionando não existe finalidade em embutir, seria melhor apenas um botão que abre o navegador"* — **webview descartada**. O app ganha o botão **"Caixa de arquivos (abre no navegador)"** no card "Meu painel" (`launchUrl` no navegador de fora; URI derivada da mesma host do od-core, porta 8410) e, para o endereço valer de fora, a caixa ganhou **bind duplo** no compose — antes o `127.0.0.1` puro era **inalcançável do celular** (as provas da 1.41.0 diziam "pelo celular" sem testar o bind: honestidade corrigida com prova nova da tailnet).
+
+| Peça | Entrega |
+|---|---|
+| **Botão no Painel (novo `ListTile`)** | Card "Meu painel", mesmo padrão dos vizinhos (`Icons.folder_open_outlined`) → `launchUrl` com `LaunchMode.externalApplication`; se o lançador recusar (Tailscale desligado), **aviso honesto** no SnackBar — a tela nunca trava. |
+| **`odFileBrowserUri` (fonte única)** | `Uri.parse(odDefaultLocalUrl).replace(port: 8410)` — a mesma host que o app usa com o od-core; se a IP da tailnet mudar, muda num lugar só. |
+| **`url_launcher: ^6.3.1`** | 1ª dependência do app que sai do app (sem `<queries>` no manifesto: só `canLaunchUrl` exigiria). |
+| **Bind duplo da caixa (infra, sem bump próprio)** | `docker/tools-compose.yaml`: `127.0.0.1:8410` (actions do sistema) + `100.77.67.53:8410` (tailnet do dono) — só a interface do Tailscale, nunca LAN nem cara pública (o od-core é `0.0.0.0`; aqui o estrito manda). Container recriado com `restarts=0`. |
+| **Testes** | app **+3** (`dashboard_caixa_test.dart`: URI certa, botão presente, toque com canal mockado provando a URI exata + aviso honesto) · servidor **+1** (`TestBindDuploCompose`: removem qualquer linha do bind, a suíte quebra). |
+| **Bump 9/9** | `.env` 1.42.0 · capabilities fallback · pubspec **1.42.0+2078** · `_APP_VERSION_CODE` 2078 · site (versão ×3, Testes 3.422) · CHANGELOG · README_VERSAO · ANALISE · APK. |
+
+### Validação (19/10)
+
+| Pilar | Prova |
+|---|---|
+| Suíte do servidor (gate oficial `--cov-fail-under=90` + `.coveragerc`) | **3422 passed / 16 skipped / 0 falha · cobertura 91,11% ≥ 90** (+1 guarda do bind sobre 1.41.0 = 3421) |
+| Flutter | `flutter analyze` **0 issues** · `flutter test` **195 passed / 2 skipped** (+3) |
+| Provas ao vivo | caixa responde **HTTP 200 em `http://100.77.67.53:8410`** (o caminho exato do botão) · `127.0.0.1:8410` segue 200 · `filebrowser_status` ok · `/health` 24/24 · od-core reiniciado: `/app/version` **1.42.0/2078** · APK `aapt` `versionCode='2078'` + sha256 idêntico ao anunciado |
+| E2E vivo | **48 provas, 0 falhas** (nova prova: alcançabilidade da tailnet) |
+
 ## [1.41.0] — FILE BROWSER INTERLIGADO: A CAIXA DE ARQUIVOS DO DONO 🜂 (2026-10-19)
 
 > **Bump MINOR aprovado pelo dono em 18/10 ("Liga")** — 2ª ferramenta da
