@@ -123,22 +123,26 @@ class DriveService:
         corpo em memória (limitação declarada; a biblioteca do dono tem
         arquivos de até ~130 MB).
         """
-        meta = self.get_file(file_id)
         alvo = pathlib.Path(destino)
         alvo.parent.mkdir(parents=True, exist_ok=True)
-        tamanho_meta = int(meta.get("size") or 0) or None
         if (
             pular_se_mesmo_tamanho
             and tamanho_esperado is not None
             and alvo.is_file()
             and alvo.stat().st_size == int(tamanho_esperado)
         ):
+            # Sync sem rede: decide pelo tamanho que JÁ veio da listagem —
+            # achado da prova viva da v1.43.0 (19/10): buscar o meta aqui
+            # custava uma chamada por arquivo e o espelho de 732 itens
+            # levava 305 s para baixar 0 bytes.
             return {
                 "file_id": file_id,
                 "destino": str(alvo),
                 "bytes": alvo.stat().st_size,
                 "pulado": True,
             }
+        meta = self.get_file(file_id)
+        tamanho_meta = int(meta.get("size") or 0) or None
         if tamanho_meta is not None and tamanho_meta > max_bytes:
             raise GoogleError(
                 f"download_recusado: {meta.get('name')} tem {tamanho_meta} B "

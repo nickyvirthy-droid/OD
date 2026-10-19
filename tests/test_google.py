@@ -298,7 +298,11 @@ class TestDrive:
             "9", destino, tamanho_esperado=destino.stat().st_size
         )
         assert data["pulado"] is True and data["bytes"] == destino.stat().st_size
-        # só o GET de metadados; nenhum download (alt=media)
+        # PULADO = SEM REDE (prova viva 19/10, v1.43.0): antes desta guarda
+        # cada pulo pagava um GET de metadados e o espelho de 732 itens
+        # levou 305 s para baixar 0 bytes; agora o skip decide pelo tamanho
+        # que já veio da listagem — chamada ZERO ao Drive.
+        assert transport.calls == []
         assert all("alt=media" not in c["url"] for c in transport.calls)
 
     def test_download_file_tamanho_divergente_e_erro(self, tmp_path: Path) -> None:
