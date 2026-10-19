@@ -3269,5 +3269,28 @@
     "suíte": "3369 passed / 16 skipped / 0 falha · gate 95,59% ≥ 90 (+40 em tests/test_flatnotes.py sobre a 1.39.3 = 3329). Guarda de versão verde (seção CHANGELOG + sem versão futura no código). E2E vivo: 41 provas, 0 falhas.",
     "estado": "Produção em 1.40.0+2076 (master, commitado e pushado); nota-marcador real no caderno do dono (ele pode editar/apagar no painel); imagem v5.5.5 no ar; snapshots das 2 HDs seguem e já incluem a pasta do caderno.",
     "proxima": "File Browser (2ª da série de análise a fundo) — hoje login admin/admin ainda a trocar; depois Calibre Web (3ª). Pendências do dono de sempre: privatizar repo, tema (§3.8), bot legado, cofre pessoal, off-site, fotos, historico.html."
+  },
+  "filebrowser_interligado_2026_10_19": {
+    "pedido": "Dono, 18/10, após minha análise entregue ('primeiro me explica'): mandou 'Liga'. 2ª da série FlatNotes/File Browser/Calibre (análise a fundo, uma por vez, §5); achados da análise viraram entrega: imagem pinada + senha admin nova + 3 actions + testes.",
+    "contrato_vivo": "Apurado ANTES de codificar: fonte oficial http/*.go da tag 2.63.23 + round-trip real completo (login JWT -> root [] -> upload -> conflito -> sobrescrita -> download byte a byte -> DELETE minhas pastas de teste). Achado vivo no caminho: o multipart guardava o envelope inteiro (272 B de casca contra 67 B do arquivo) — confirmado no fonte (writeFile(..., r.Body, ...)); contrato escrito em cima do provado.",
+    "desenho": "integrations/filebrowser.py no molde do FlatNotes: transporte injetável, fábrica lazy (OD_FILEBROWSER_URL/OD_FILEBROWSER_PASSWORD), JWT de 2h cacheado com folga de 120s antes do exp, 9 erros tipados. Actions filebrowser_status/lista/envia (categoria filebrowser, só admin). DELETE da API fora do catálogo e teste fixa a régua (nenhuma action de apagar).",
+    "decisoes": [
+      "409 (arquivo repetido) = filebrowser_ja_existe honesto com a saída na própria mensagem — substituir só com flag explícita, e a resposta declara substituido=true (conferência na pasta-pai, só metadados)",
+      "Upload = corpo cru octet-stream em streaming (sem multipart, sem carregar o arquivo na RAM); pastas-pai criadas pelo servidor",
+      "raiz vazia = itens=[] honesto; pasta inexistente = 404; arquivo no caminho != pasta; '..' recusado na camada da API",
+      "A caixa e UMA pasta isolada (files -> /srv, UID 1000 = dono) ja coberta pelos snapshots — se der ruim, afeta so ela",
+      "Senha do admin virou segredo do sistema: .env (bootstrap) + cofre (espelho 15/15); se o dono trocar no painel, filebrowser_credencial aponta a correcao",
+      "Imagem :v2 -> :2.63.23 pinada (fechada a ultima tag flutuante da stack)"
+    ],
+    "bugs_pegos": [
+      "multipart entregava a casca (272 B) no lugar do arquivo (67 B) — demonstrado ao vivo no round-trip e confirmado no fonte da tag",
+      "site e test_api fixavam 3.369 Testes: total real 3.421 (3418 + 3 da guarda de versao) — corrigido no site, no teste e no E2E",
+      "guarda de versao acusou em 3 frentes (CHANGELOG/site/pubspec) antes do bump; E2E esperava od_version antiga — as snapshots de 03:41 de 19/10 ja gravavam 1.41.0"
+    ],
+    "entrega": "v1.41.0+2077 bump 9/9 (env + OD_FILEBROWSER_URL/PASSWORD, fallback capabilities, pubspec, _APP_VERSION_CODE, site x3 + 112 Actions + 3.421 Testes, CHANGELOG, README_VERSAO, ANALISE, TODO); APK buildado com JAVA_HOME=/home/alex/jdk e publicado (aapt: versionCode=2077 versionName=1.41.0; sha256 identico ao /app/version); compose :v2 -> :2.63.23 pinada; senha rotacionada via CLI oficial com container parado (nunca impressa); od-core reiniciado.",
+    "provas_vivas": "Round-trip real pelo /executa na caixa do dono: filebrowser_status saudavel 2.63.23 (saude OK, disco) -> envio da marca-d'agua Sistema-Od-v1.41.0.txt -> repetir sem flag = 409 honesto filebrowser_ja_existe com a saida na mensagem -> substituir=true declarou substituido=true -> lista mostrou o arquivo (62 B). /actions 112 (as 3 filebrowser no catalogo), /health 24/24 (tool_filebrowser up), nomad_tools 9/9, journal 0 erros, /app/version 1.41.0/2077.",
+    "suíte": "3421 passed / 16 skipped / 0 falha · gate oficial --cov-fail-under=90 + .coveragerc: 91,11% >= 90 (exit 0; +52 em tests/test_filebrowser.py sobre a 1.40.0 = 3369). ANOMALIA ANOTADA: o 95,59% da 1.40.0 nao se reproduz com o mesmo comando — universo de hoje 19.552 linhas / 1.738 faltantes; de agora em diante anoto o comando exato junto do numero. E2E vivo: 47 provas, 0 falhas (6 novas do File Browser).",
+    "estado": "Producao em 1.41.0+2077 (master, commitado e pushado); caixa de arquivos no ar com marca-d'agua do sistema; imagem 2.63.23 pinada; snapshots das 2 HDs (19/10 03:41) com od_version 1.41.0; cofre 15/15 (OD_FILEBROWSER_PASSWORD espelhado); senha entregue ao dono no chat (nunca em arquivo).",
+    "proxima": "Calibre Web (3ª da serie, 'uma por vez') — 0 livros, login admin/admin123 ainda a trocar. Pergunta do dono sobre webview no app respondida (parking lot do TODO; por padrao fica no navegador com atalho). Pendencias de sempre: privatizar repo, tema (§3.8), bot legado, cofre pessoal, off-site, fotos, historico.html."
   }
 }

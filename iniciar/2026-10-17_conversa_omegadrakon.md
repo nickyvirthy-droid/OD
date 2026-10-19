@@ -741,3 +741,70 @@ reescreto, Telegram da regra 15 enviado.
 
 **Próxima da série (ordem do dono, "uma por vez"): File Browser (2ª)**
 — hoje com login admin/admin ainda a trocar; depois Calibre Web (3ª).
+
+## §14 — File Browser analisado, dono manda "Liga": a caixa de arquivos interliga (v1.40.0→1.41.0+2077) — 18–19/10
+
+**Pedido.** Dono, 18/10, mandou *"primeiro me explica"* — a análise foi
+entregue antes (o que é; estado real apurado ao vivo; como o sistema
+usaria; conta honesta; recomendação) e ele respondeu **"Liga"**. Os
+achados viraram entrega: (a) **o login admin/admin nunca chegou a
+funcionar** — ele mesmo: *"nunca entrei, nunca troquei"* — senha
+redefinida com o CLI oficial do filebrowser **com o container parado**,
+valor **nunca impresso**, no `.env` e espelhada no cofre; (b) era a
+**única tag flutuante da stack** (`:v2` → **`:2.63.23`** pinada, a versão
+exata que estava no ar).
+
+**Contrato vivo ANTES do código.** Round-trip completo na caixa real
+(login JWT → root `[]` → upload → conflito → sobrescrita → download byte a
+byte → apagar minhas pastas de teste) + leitura do fonte oficial
+`http/*.go` da tag. Achado no caminho: o multipart guardava a **casca
+inteira** (272 B de envelope contra 67 B do arquivo) — confirmado no fonte
+(`writeFile(..., r.Body, ...)`); o cliente passou a mandar **corpo cru
+`application/octet-stream` em streaming**, com o servidor criando as
+pastas-pai.
+
+**Entrega.** `integrations/filebrowser.py` no molde do FlatNotes
+(transporte injetável, fábrica lazy `OD_FILEBROWSER_URL`/`OD_FILEBROWSER_PASSWORD`,
+JWT de 2h cacheado com folga de 120s, 9 erros tipados). 3 actions
+(`filebrowser_status/lista/envia`, categoria `filebrowser`, só admin).
+`DELETE` da API **fora do catálogo** e teste fixa a régua — **nenhuma
+action de apagar**. Bump 9/9 → **v1.41.0+2077**; contagem **109 → 112**;
+compose pinado; `flutter analyze` 0 / `flutter test` 192 verde (toque de
+versão).
+
+**Validação (19/10).** Provas vivas ao vivo: `status` saudável `2.63.23` →
+envio da marca-d'agua `Sistema-Od-v1.41.0.txt` → repetir sem flag = **409
+honesto** `filebrowser_ja_existe` com a saída na mensagem →
+`substituir=true` declarou `substituido=true` → `lista` provou o arquivo
+na caixa. `/actions` **112**, `/health` **24/24** (`tool_filebrowser` up),
+`nomad_tools` 9/9, journal **0 erros**, `/app/version` **1.41.0/2077**, APK
+`aapt` `versionCode='2077'` com **sha256 idêntico** ao do `/app/version`.
+
+**Suíte final: 3421 passed / 16 skipped / 0 falha · gate oficial
+`--cov-fail-under=90` = 91,11% ≥ 90 (exit 0).** *Anomalia honesta da
+métrica:* o 95,59% anotado na 1.40.0 **não se reproduz** com o mesmo
+comando (universo de hoje: 19.552 linhas / 1.738 faltantes) — **de agora
+em diante anoto o comando exato junto do número**. E2E vivo: **47 provas,
+0 falhas** (6 novas do File Browser); snapshots das 03:41 de 19/10 já com
+`od_version 1.41.0` nas 2 HDs.
+
+**Defeitos pegos no caminho:** o site/teste fixavam `3.369` Testes (total
+real **3.421** = 3418 + 3 da guarda de versão); guarda de versão acusou em
+3 frentes antes do bump; E2E esperava `od_version` antiga no snapshot mais
+novo; `backups/backup_od_2026-10-16/` (16 GB: Postgres, cofre, repo, o
+3D) apareceu fora do `.gitignore` — **protegido por padrão de ignore**
+(nada apagado, nada versionado).
+
+Registros: `session.json` chave `filebrowser_interligado_2026_10_19`,
+CHANGELOG/README_VERSAO/ANALISE/TODO atualizados, `txt.txt` reescrito,
+Telegram da regra 15 enviado.
+
+**Pergunta do dono respondida:** *colocar um browser dentro do app?* —
+não precisa instalar nada (a caixa é página web; no Chrome, "Adicionar à
+tela inicial" vira atalho em tela cheia). Webview embutida é possível com
+custos honestos (dependência nova, manutenção do Android a cada update,
+exige Tailscale como hoje) — ficou no parking lot do TODO; **a decisão é
+dele**.
+
+**Próxima da série (ordem do dono, "uma por vez"): Calibre Web (3ª)** —
+0 livros, login admin/admin123 ainda a trocar.
