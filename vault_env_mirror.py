@@ -72,6 +72,11 @@ CREDENCIAIS: dict[str, str] = {
         "rotacionada pelo sistema em 18/10 — o admin/admin nunca "
         "funcionou; v1.41.0)."
     ),
+    "OD_CALIBRE_PASSWORD": (
+        "Senha do admin do Calibre Web (biblioteca de e-books do dono; "
+        "a admin/admin123 documentada no compose estava VIVA — trocada "
+        "pelo sistema em 19/10)."
+    ),
     "OD_VAULT_MASTER": (
         "Master da conta de serviço od-sistema — auto-referência do cofre "
         "(fica cifrada aqui; o bootstrap continua no .env)."

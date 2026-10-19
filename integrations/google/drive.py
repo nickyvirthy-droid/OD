@@ -13,6 +13,8 @@ Arquiteto: Alex Projeti
 from __future__ import annotations
 
 import json
+import os
+import pathlib
 import uuid
 from typing import Any, Optional
 
@@ -31,6 +33,11 @@ _EXPORTS: dict[str, str] = {
     "application/vnd.google-apps.presentation": "text/plain",
 }
 _MAX_TEXT_BYTES = 200_000
+# Teto por arquivo no download binário: o transporte devolve o corpo em
+# memória. A biblioteca do dono (Drive "Biblioteca", apurado 19/10) tem
+# arquivos de até ~130 MB — 512 MB dá folga com folga e evita que um
+# arquivo gigante por acidente estoure o processo do od-core.
+_MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
 
 
 class DriveService:
@@ -93,6 +100,69 @@ class DriveService:
             "text": text,
             "bytes": len(raw),
             "truncated": len(raw) > limit,
+        }
+
+    def download_file(
+        self,
+        file_id: str,
+        destino: "pathlib.Path",
+        *,
+        tamanho_esperado: Optional[int] = None,
+        pular_se_mesmo_tamanho: bool = True,
+        max_bytes: int = _MAX_DOWNLOAD_BYTES,
+    ) -> dict[str, Any]:
+        """Baixa um arquivo BINÁRIO do Drive para o disco (atômico).
+
+        Diferença para `read_text`: o corpo vai para o disco em `.part` e
+        só vira o destino final no `os.replace` — download interrompido
+        nunca deixa arquivo pela metade com nome de pronto (mesma régua
+        do backup/tar da casa). Se o destino já existe com o MESMO tamanho
+        reportado pelo Drive, o download é pulado (semântica de sync —
+        o espelho da biblioteca do dono roda toda vez sem rebaixar 1,35 GB).
+        `max_bytes` é o teto honesto por arquivo: o transporte carrega o
+        corpo em memória (limitação declarada; a biblioteca do dono tem
+        arquivos de até ~130 MB).
+        """
+        meta = self.get_file(file_id)
+        alvo = pathlib.Path(destino)
+        alvo.parent.mkdir(parents=True, exist_ok=True)
+        tamanho_meta = int(meta.get("size") or 0) or None
+        if (
+            pular_se_mesmo_tamanho
+            and tamanho_esperado is not None
+            and alvo.is_file()
+            and alvo.stat().st_size == int(tamanho_esperado)
+        ):
+            return {
+                "file_id": file_id,
+                "destino": str(alvo),
+                "bytes": alvo.stat().st_size,
+                "pulado": True,
+            }
+        if tamanho_meta is not None and tamanho_meta > max_bytes:
+            raise GoogleError(
+                f"download_recusado: {meta.get('name')} tem {tamanho_meta} B "
+                f"(teto {max_bytes} B) — corpo em memória, arquivo grande demais"
+            )
+        raw = self.client.request_raw(
+            "GET",
+            f"{DRIVE_BASE}/files/{file_id}",
+            params={"alt": "media"},
+            accept="*/*",
+        )
+        if tamanho_meta is not None and len(raw) != tamanho_meta:
+            raise GoogleError(
+                f"download_incompleto: {meta.get('name')} esperado "
+                f"{tamanho_meta} B, veio {len(raw)} B"
+            )
+        parcial = alvo.with_name(alvo.name + ".part")
+        parcial.write_bytes(raw)
+        os.replace(parcial, alvo)
+        return {
+            "file_id": file_id,
+            "destino": str(alvo),
+            "bytes": len(raw),
+            "pulado": False,
         }
 
     # -- Escrita (lote 2, 2026-10-03 — escopo `drive`) --------------------

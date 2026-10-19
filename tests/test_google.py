@@ -264,6 +264,70 @@ class TestDrive:
         data = DriveService(_client(transport)).read_text("2")
         assert "linha1" in data["text"] and data["mime_type"] == "text/plain"
 
+    def test_download_file_binario_atomico(self, tmp_path: Path) -> None:
+        def handler(method, url, data):
+            if "alt=media" in url:
+                return 200, b"%PDF-1.4 conteudo do livro"  # 26 bytes
+            return 200, json.dumps(
+                {"id": "9", "name": "livro.pdf", "mimeType": "application/pdf",
+                 "size": "26"}
+            ).encode()
+
+        destino = tmp_path / "biblia" / "livro.pdf"
+        transport = FakeTransport(handler)
+        data = DriveService(_client(transport)).download_file("9", destino)
+        assert data["pulado"] is False and data["bytes"] == 26
+        assert destino.read_bytes() == b"%PDF-1.4 conteudo do livro"
+        # atômico: nenhum .part sobrando
+        assert not list(destino.parent.glob("*.part"))
+
+    def test_download_file_pula_quando_mesmo_tamanho(self, tmp_path: Path) -> None:
+        destino = tmp_path / "livro.pdf"
+        destino.write_bytes(b"ja-espelhado-15-bytes")
+        calls_antes = 0
+
+        def handler(method, url, data):
+            nonlocal calls_antes
+            calls_antes += 1
+            return 200, json.dumps(
+                {"id": "9", "name": "livro.pdf", "mimeType": "application/pdf"}
+            ).encode()
+
+        transport = FakeTransport(handler)
+        data = DriveService(_client(transport)).download_file(
+            "9", destino, tamanho_esperado=destino.stat().st_size
+        )
+        assert data["pulado"] is True and data["bytes"] == destino.stat().st_size
+        # só o GET de metadados; nenhum download (alt=media)
+        assert all("alt=media" not in c["url"] for c in transport.calls)
+
+    def test_download_file_tamanho_divergente_e_erro(self, tmp_path: Path) -> None:
+        def handler(method, url, data):
+            if "alt=media" in url:
+                return 200, b"curto"
+            return 200, json.dumps(
+                {"id": "9", "name": "livro.pdf", "mimeType": "application/pdf",
+                 "size": "999"}
+            ).encode()
+
+        with pytest.raises(GoogleError, match="download_incompleto"):
+            DriveService(_client(FakeTransport(handler))).download_file(
+                "9", tmp_path / "livro.pdf"
+            )
+        assert not (tmp_path / "livro.pdf").exists()
+
+    def test_download_file_recusa_arquivo_gigante(self, tmp_path: Path) -> None:
+        def handler(method, url, data):
+            return 200, json.dumps(
+                {"id": "9", "name": "gigante.zip", "mimeType": "application/zip",
+                 "size": str(600 * 1024 * 1024)}
+            ).encode()
+
+        with pytest.raises(GoogleError, match="download_recusado"):
+            DriveService(_client(FakeTransport(handler))).download_file(
+                "9", tmp_path / "gigante.zip"
+            )
+
 
 class TestCalendar:
     def test_list_events_builds_window(self) -> None:

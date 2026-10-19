@@ -2729,6 +2729,92 @@ def filebrowser_lista(caminho: str = "") -> dict[str, Any]:
     return _filebrowser_op(lambda c: c.lista(caminho))
 
 
+def calibre_resync() -> dict[str, Any]:
+    """Espelha a biblioteca do dono (Google Drive) e importa na Calibre.
+
+    Dois passos honestos, um depois do outro:
+    1) `core.biblioteca_drive.sincronizar` — Drive "Biblioteca" do dono →
+       inbox local (incremental: arquivo igual não rebaixa; erro contido
+       por arquivo, o resto segue).
+    2) `integrations.calibre.importar_da_inbox` — importação dirigida por
+       LEDGER (`.calibre_ledger.json`: caminho→tamanho): só o que o
+       ledger não viu vai no `calibredb add -d --automerge new_record`,
+       então resync NUNCA duplica registro e NENHUM título colidido fica
+       escondido (a saída viva de 19/10 provou que o dedup do calibre
+       sozinho escondia 156 arquivos — o ledger é nosso, a régua é do
+       dono: nada some, nada sobrescreve, nada apaga).
+    Sem Google autorizado, sem calibredb ou sem ledger, degrada com erro
+    tipado — nunca derruba o chat.
+    """
+    from core.biblioteca_drive import sincronizar
+    from integrations.calibre import (
+        CalibreError,
+        caminhos_espelho,
+        importar_da_inbox,
+    )
+    from integrations.google import DriveService
+
+    cliente = _google()
+    if cliente is None:
+        return _google_unavailable()
+    caminhos = caminhos_espelho()
+    try:
+        espelho = sincronizar(
+            caminhos["inbox"],
+            drive=DriveService(cliente),
+            pasta_id=caminhos["pasta_id"] or None,
+        )
+    except Exception as exc:  # noqa: BLE001 — degrada com erro honesto
+        return {"ok": False, "tool": "calibre", "error": f"espelho_falhou: {exc}"}
+    if not espelho.get("ok"):
+        return {"ok": False, "tool": "calibre", "etapa": "espelho", **espelho}
+    try:
+        imp = importar_da_inbox()
+    except CalibreError as exc:
+        return {"ok": False, "tool": "calibre", "etapa": "importacao",
+                "error": exc.codigo, "message": exc.mensagem, "espelho": espelho}
+    return {"ok": True, "tool": "calibre", "espelho": espelho, "importacao": imp}
+
+
+def calibre_status() -> dict[str, Any]:
+    """Vida da Biblioteca: sonda OPDS ao vivo + inventário exato + pendências.
+
+    Cliente LAZY (integrations/calibre.py): ferramenta fora do ar
+    degrada ESTA ação — nunca o boot do od-core. A sonda bate no
+    `/opds/` real da tailnet com Basic Auth (a senha vai no header e
+    NUNCA aparece no retorno) e devolve o nº de seções do feed; junto
+    vai o inventário local (livros/formatos do metadata.db em leitura,
+    arquivos no espelho e PENDENTES de importar pelo ledger). Erros
+    tipados `opds_*`/`calibre_*` voltam {ok: False, error, message}.
+    """
+    from integrations.calibre import CalibreError, opds_status
+
+    try:
+        return opds_status()
+    except CalibreError as exc:
+        return {"ok": False, "tool": "calibre", "error": exc.codigo,
+                "message": exc.mensagem}
+
+
+def calibre_busca(termo: str, limite: int = 10) -> dict[str, Any]:
+    """Busca livros no Calibre Web pelo OPDS real (título/autor).
+
+    `/opds/search/<termo>` com url-encode e Basic Auth — o MESMO feed
+    que um leitor de e-book consome (nada de consulta direta no banco).
+    Cada hit volta com id, título, autor, formatos e links de download
+    prontos (URL absoluta da tailnet); `encontrados` é o total do feed
+    e `mais_disponiveis` avisa se o feed veio paginado. Sem termo ou
+    com o serviço fora, degrada com erro tipado — nunca derruba o chat.
+    """
+    from integrations.calibre import CalibreError, opds_busca
+
+    try:
+        return opds_busca(termo, limite=limite)
+    except CalibreError as exc:
+        return {"ok": False, "tool": "calibre", "error": exc.codigo,
+                "message": exc.mensagem}
+
+
 def filebrowser_envia(
     origem: str,
     destino: str,
@@ -3362,6 +3448,13 @@ CATALOG: list[dict[str, Any]] = [
     _spec("filebrowser_envia", "filebrowser", "Deixa um arquivo do sistema na caixa (o dono baixa pelo celular)", filebrowser_envia,
           {"required": ["origem", "destino"], "properties": {
               "origem": S, "destino": S, "substituir": {**B, "default": False},
+          }}),
+    # --- Calibre: biblioteca de e-books do dono (3ª análise "uma por vez", 19/10) ---
+    _spec("calibre_resync", "calibre", "Espelha a biblioteca do dono (Google Drive) e importa na Calibre (calibredb; nada é sobrescrito/apagado)", calibre_resync),
+    _spec("calibre_status", "calibre", "Saúde da Biblioteca: sonda OPDS ao vivo (tailnet), nº de livros/formatos e pendências de importar", calibre_status),
+    _spec("calibre_busca", "calibre", "Busca livros no Calibre Web via OPDS (título/autor; formatos e links de download prontos)", calibre_busca,
+          {"required": ["termo"], "properties": {
+              "termo": S, "limite": {**I, "default": 10},
           }}),
     # --- Serviços (3) ---
     _spec("service_list", "service", "Lista serviços systemd", service_list),

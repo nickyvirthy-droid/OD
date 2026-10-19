@@ -52,6 +52,12 @@ const String odDefaultExternalUrl = 'https://nicky-server.tail1b1f51.ts.net';
 /// funcionando não existe finalidade em embutir, seria melhor apenas um
 /// botão que abre o navegador". Este botão fica no card "Meu painel".
 final Uri odFileBrowserUri = Uri.parse(odDefaultLocalUrl).replace(port: 8410);
+
+/// URI da biblioteca de e-books do dono (Calibre Web) — mesma host do
+/// od-core local (IP da tailnet), porta 8420 (bind duplo desde 19/10,
+/// mesma régua da caixa de arquivos: 127.0.0.1 para as actions do
+/// sistema, a tailnet para o dono abrir do celular/PC).
+final Uri odCalibreUri = Uri.parse(odDefaultLocalUrl).replace(port: 8420);
 const String odDefaultRouterUrl = 'http://nicky.theworkpc.com';
 
 /// Ordem de sonda do [OdApi.pickBestUrl]: da rota mais direta (menor

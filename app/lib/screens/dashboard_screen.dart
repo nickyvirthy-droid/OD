@@ -126,6 +126,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  /// Biblioteca de e-books (Calibre Web) — mesmo desenho do botão da
+  /// caixa: um toque abre no navegador de fora; aviso honesto se o
+  /// Tailscale estiver desligado.
+  Future<void> _abrirBiblioteca() async {
+    const aviso = 'Não abriu — confere se o Tailscale está ligado.';
+    try {
+      final abriu = await launchUrl(
+        odCalibreUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!abriu) _snack(aviso);
+    } catch (_) {
+      _snack(aviso);
+    }
+  }
+
   Future<bool> _confirm(String message) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -420,6 +436,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   subtitle:
                       const Text('File Browser — precisa de Tailscale ligado'),
                   onTap: _abrirCaixa,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.menu_book_outlined),
+                  title: const Text('Biblioteca de livros (abre no navegador)'),
+                  subtitle:
+                      const Text('Calibre Web — precisa de Tailscale ligado'),
+                  onTap: _abrirBiblioteca,
                 ),
               ],
             ),

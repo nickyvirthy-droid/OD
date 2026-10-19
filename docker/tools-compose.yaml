@@ -141,16 +141,23 @@ services:
     memswap_limit: 128m
 
   # ---------------------------------------------------------------------------
-  # 7. Calibre Web — biblioteca de e-books, leitura no navegador
+  # 7. Calibre Web — biblioteca de e-books do dono, leitura no navegador
   #    PUID/PGID 1000 = usuário alex (confere no servidor).
-  #    Login admin/admin123 (trocar).
+  #    Login: admin + senha NO .env (OD_CALIBRE_PASSWORD — trocada 19/10,
+  #    a admin/admin123 documentada aqui estava viva; espelhada no cofre).
+  #    Biblioteca = espelho do Google Drive "Biblioteca" do dono (22 pastas
+  #    temáticas) montado com calibredb; dbconfig aponta /books.
   # ---------------------------------------------------------------------------
   calibre-web:
     image: linuxserver/calibre-web:0.6.26-ls386
     container_name: od-calibre-web
     restart: unless-stopped
     ports:
+      # Bind duplo (19/10, mesma régua do File Browser): 127.0.0.1 para as
+      # actions do sistema; IP da tailnet = o dono abre do celular/PC.
+      # Só a interface do Tailscale — nunca LAN nem cara pública.
       - "127.0.0.1:8420:8083"
+      - "100.77.67.53:8420:8083"
     volumes:
       - /home/alex/omegadrakon-tools/calibreweb/config:/config
       - /home/alex/omegadrakon-tools/books:/books

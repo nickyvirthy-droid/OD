@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.42.0"
+    or "1.43.0"
 )
 
 # Status válidos.
@@ -386,6 +386,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "v1.41.0",
         "status": ACTIVE,
         "path": "integrations/filebrowser.py",
+    },
+    {
+        "id": "calibre-biblioteca",
+        "name": "Calibre Web (biblioteca de e-books do dono)",
+        "category": "integrations",
+        "description": "3ª da análise \"uma por vez\" (FlatNotes/File Browser/Calibre — ordem e escolha do dono em 19/10: \"configurar e interligar\"; os livros estavam no Google Drive dele): o sistema ESPELHA a pasta \"Biblioteca\" do Drive (732 itens / 1,83 GB medidos recursivamente) em core/biblioteca_drive.py, monta a biblioteca real com calibredb (calibre 9.16 — achado: o próprio dono instalou em 08/10) e o Calibre Web (container od-calibre-web, escuta 127.0.0.1:8420 + 100.77.67.53:8420 da tailnet) serve /books e /opds/ pelas actions calibre_resync/calibre_status/calibre_busca (categoria calibre, só admin). Contrato apurado ao vivo ANTES de codificar (19/10 — fonte cps/opds.py do próprio container + sonda real: /opds/ com 15 seções, /opds/search/<termo> devolve todos os matches numa página, download em /opds/download/<id>/<fmt>/, Basic Auth obrigatório, 401 = credencial recusada, feed fora de Atom vira opds_xml_invalido). ACHADO que mudou o desenho: o dedup por título do calibre (--automerge ignore) escondeu 156 arquivos de conteúdo DIFERENTE (título embutido do PDF colidindo com livro já cadastrado — provado ao vivo) — então o contrato é LEDGER nosso (.calibre_ledger.json, caminho→tamanho) para resync idempotente e -d --automerge new_record para colisão de título vir registro PRÓPRIO; prova final da entrega: 729/729 arquivos com conteúdo na biblioteca, 693 livros, 0 pendentes e reimportação devolvendo novos=0. Usuário admin com senha de 32 caracteres trocada pela API do próprio Calibre (cumprindo a política dele — especial obrigatório; a admin123 morreu, provada por hash). NENHUMA action apaga (régua do dono); escrita/upload só pela UI com CSRF. LAZY por desenho: ferramenta fora do ar degrada a ação, nunca o boot do od-core.",
+        "source": "OD (calibre-web upstream, GPL-3.0)",
+        "phase": "v1.43.0",
+        "status": ACTIVE,
+        "path": "integrations/calibre.py",
     },
     {
         "id": "saude-reference",
