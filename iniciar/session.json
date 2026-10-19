@@ -1,7 +1,7 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-19T12:53:00-03:00",
+  "updated_at": "2026-10-19T19:29:26.061675+00:00",
   "pauta_explicada_e_todo_descrito_2026_10_16": {
     "pedido": "Dono (~19:50 de 16/10): 'me explique o tal de Pauta itens 3 e 5' e, ao ver a minha busca demorada nas transcrições, correu o processo: 'por isso pedi pra criar um TODO de atualizações... não precisa ficar assim procurando do que se trata'.",
     "apuracao_da_fonte": "'Pauta' = as 15 divergências Legado × sistema atual em docs/ANALISE_ECOSSISTEMA.md §6, com os próximos passos numerados 1–5 na §8 (criada 09/10). Itens 1 (organizar Legado) e 2 (/verificacao + Registro Mestre) já CONCLUÍDOS; os abertos são: 3 = ordem das frentes FAB/Living Systems/Semi-joias/Nicoly Valentina (só falta a decisão da ordem — o 1º passo pedido, Registro Mestre, saiu em v1.22.0 e a Etapa 4 em v1.30.0); 4 = unificação do formato de ID das peças (SKU 5 campos × MoC 4 campos hex do Legado, antes das semi-joias); 5 = rotação dos segredos vazados no Legado (bot @Nexus_Nicky_bot e chave Gemini ainda ATIVOS; decisão do dono: rotacionar após os testes). OBS: os transcripts antigos diziam '3 e 5 = unificação de ID e ordem das frentes' — a numeração real da §8 é 3=frentes, 4=ID, 5=segredos; a confusão de numeração era parte do problema.",
@@ -3326,5 +3326,40 @@
     ],
     "estado": "FECHADO — HEAD publicado em origin/master com a v1.42.0+2078; producao segue igual (sem novo deploy: nada de codigo mudou desde 11:39).",
     "proxima": "Calibre Web (3a da serie 'uma por vez', ordem do dono) — 0 livros, login admin/admin123 ainda a trocar. Pendencias de sempre: privatizar repo, tema (3.8), bot legado, cofre pessoal, off-site, fotos, historico.html."
+  },
+  "calibre_web_analise_2026_10_19": {
+    "pedido": "Dono (19/10 ~12:58): 'prossiga' — proxima da serie 'uma por vez' = Calibre Web (3a).",
+    "reconhecimento_vivo": "od-calibre-web = linuxserver/calibre-web:0.6.26-ls386, 127.0.0.1:8420, 14 MB RAM, up 7 dias. ACHADO CENTRAL: NUNCA CONFIGURADO — settings.config_calibre_dir = null e toda raiz cai em /admin/dbconfig (tela de setup); biblioteca /home/alex/omegadrakon-tools/books VAZIA (0 livros, 4 KB). Senha admin/admin123 CONFIRMADA VIVA (probe real: POST /login 302 logado). uploads/anon/kobo_sync = 0; client_secrets.json vazio (sem Google Drive); users so admin (role 479) + Guest.",
+    "contrato_api": "Sem REST oficial; contrato real = OPDS /opds (basic auth, Atom/XML — catalogo, busca e links de download; molde do Kiwix em stdlib). Escrita (enviar livro) so pela interface (form + CSRF) => fora do catalogo de actions, como o DELETE do File Browser.",
+    "estado": "ANALISE PRONTA — interligar hoje daria acoes sobre catalogo vazio; decisao do dono pedida (configurar+interligar vs. sair da stack ate haver livros).",
+    "decisao_dono": "'Configurar e interligar' (19/10 ~13:00) + esclarecimento: 'os livros estao no google drive' — fonte da verdade = pasta 'Biblioteca' do Drive dele (22 pastas tematicas, 732 arquivos, 1.83 GB medidos recursivamente; a contagem de 1o nivel subestimava: 363/1.35 GB).",
+    "execucao_em_andamento": {
+      "pronto_e_testado": [
+        "core/biblioteca_drive.py: espelho Drive->disco incremental (pula por tamanho), download atomico (.part->rename), nome do Drive saneado (nao escapa do destino), erro contido por arquivo, aviso de pagina cheia; +7 testes",
+        "integrations/google/drive.py: download_file binario atomico com teto declarado 512 MB; +4 testes em tests/test_google.py",
+        "integrations/calibre.py: importar_da_inbox via 'calibredb add --automerge ignore' (repetido DESCARTADO, nunca sobrescrito), runner injetavel, erros tipados (ausente/inbox_ausente/falhou/timeout); +7 testes",
+        "action calibre_resync registrada (categoria calibre): espelho + importacao, degrada honesto sem Google/calibredb",
+        "calibre 9.16 JA INSTALADO em /home/alex/opt (achado: dono instalou 08/10) — calibredb cria biblioteca do zero (provado em /tmp)",
+        ".env: OD_CALIBRE_URL/USER/PASSWORD(32 gerada, nunca impressa)/CALIBREDB/BIBLIOTECA/INBOX; allowlist do cofre +OD_CALIBRE_PASSWORD",
+        "compose: bind duplo 8420 (127.0.0.1 + tailnet 100.77.67.53) como o File Browser; comentario da senha corrigido",
+        "app: botao 'Biblioteca de livros (abre no navegador)' + odCalibreUri (porta 8420) + dashboard_biblioteca_test.dart (+3) — flutter analyze 0, 198 verdes"
+      ],
+      "em_andamento": "espelho do Drive baixando (500/732 arquivos, 1.2/1.83 GB; Drive lento em arquivo grande, download vem em memoria antes do .part).",
+      "proximo": "calibredb add -> dbconfig /books (probe provou: sem metadata.db recusa 'DB Location is not Valid') -> senha trocada -> container recriado (bind) -> SONDA OPDS AO VIVO -> cliente OPDS + actions status/busca -> catalogo 112->115 -> bump 1.43.0+2079 -> suite/flutter/APK -> deploy verde -> E2E -> registros/txt/Telegram.",
+      "guarda_de_versao": "test_nenhuma_referencia_a_versao_futura pegou 'v1.43.0' no teste novo do app — rótulo removido (bump só no fecho); guarda verde de novo."
+    }
+  },
+  "calibre_web_interligado_2026_10_19": {
+    "pedido": "Dono (19/10): 'Configurar e interligar' + esclarecimento 'os livros estao no google drive' — fonte da verdade = pasta 'Biblioteca' do Drive dele (22 pastas tematicas). 3a e ultima da serie 'uma por vez' (FlatNotes OK, File Browser OK).",
+    "espelho": "core/biblioteca_drive.py (novo): espelho incremental Drive->disco em /home/alex/omegadrakon-tools/biblioteca-drive — 732 itens / 729 arquivos / 1,83 GB (contagem de 1o nivel mentia: 363/1,35 GB). Download atomico (.part->rename), pula igual por tamanho, erro contido por arquivo, nome saneado. Resultado: 729 arquivos, 0 erros.",
+    "achado_central_automerge": "A 1a importacao (--automerge ignore) ESCONDEU 156 arquivos de conteudo DIFERENTE: titulo embutido do PDF (autor/metadados) colidia com livro ja cadastrado; a mensagem 'The following books were not added as they already exist' e UM cabecalho so (titulo 2 espacos, caminho 4) — parser por contagem de frase erra. Prova viva com 3 arquivos escolhidos a dedo. Contrato novo: LEDGER .calibre_ledger.json (caminho->tam) + calibredb add -d --automerge new_record (colisao vira registro proprio); ledger ausente = recusa calibre_ledger_ausente; ledger so cresce apos rc=0, gravacao atomica.",
+    "migracao_e_limpeza": "573 semeados + 156 importados (ids 593-748) = 748 livros; reimportacao devolveu novos=0 (idempotencia provada). Limpeza honesta: 55 duplicados criados pela MIGRACAO (47 arquivos identicos em 2 pastas do Drive + 8 zips que o calibre extrai — bytes mudam, conteudo nao; o twin por tamanho marcou faltante) detectados par a par (titulo+formato+tamanho) e provados por sha256 55/55 IDENTICO -> calibredb remove SO nos ids da migracao -> 693 livros / 695 formatos, 54 originais intactos. Estado final: 729/729 arquivos com conteudo (721 bytes + 8 zips extraidos), 0 sem conteudo, 0 pendentes.",
+    "calibre_web_config": "POST /admin/dbconfig com config_calibre_dir=/books SALVO (alerta client_secrets.json nao-bloqueante; ordem obrigatoria: import -> apontar). Home virou 'Calibre-Web | Books' (65 autores). Escrita/upload so pela UI (CSRF) — fora do catalogo.",
+    "senha": "Politica do Calibre Web EXIGE especial (config_password_special=1 — achado na recusa Password doesnt comply): senha de 32 caracteres com especial do conjunto seguro, montada pelo form INTEIRO devolvido como esta (papels/sidebar/csrf preservados — postar so a senha teria tirado o admin_role). Prova por hash no container: check_password_hash NOVA=True, admin123=False. Valor nunca impresso; .env + cofre (16/16).",
+    "bind_tailnet": "compose recriado (valido): 127.0.0.1:8420 + 100.77.67.53:8420; provas nos dois caminhos + LOGIN pela tailnet (caminho exato do botao). OD_CALIBRE_URL do .env = tailnet (links de download clicaveis pelo dono no celular; monitor continua em 127.0.0.1).",
+    "opds_sondado": "/opds/ = 15 secoes; /opds/new pagina por ?offset=60; /opds/search/<termo> devolve TODOS os matches numa pagina (123 p/ 'Aula'; ?query= tambem serve); download /opds/download/<id>/<fmt>/ -> 200 application/pdf; senha errada = 401 'Unauthorized Access'. Cliente stdlib LAZY: opds_status (sonda + inventario exato do metadata.db + pendentes vs ledger) e opds_busca (formatos + links absolutos); erros tipados opds_auth/indisponivel/http/xml_invalido/config_ausente + calibre_busca_termo_vazio.",
+    "actions_e_app": "calibre_resync (espelho + importacao por ledger) + calibre_status + calibre_busca — categoria calibre, so admin; catalogo 112 -> 115 (test_actions_catalog + calibre:3, test_capabilities x6, orquestrador x6). Nenhuma action apaga/escreve. Botao 'Biblioteca' (odCalibreUri 8420) no card do painel (+3 testes). Capability calibre-biblioteca (fase v1.43.0).",
+    "bump_e_gates": "9/9: .env 1.43.0 (+6 chaves OD_CALIBRE_*), capabilities fallback, pubspec 1.43.0+2079, _APP_VERSION_CODE 2079, site (versao x3, Actions 115, Testes 3.449), CHANGELOG, README_VERSAO, ANALISE, APK. APKs publicados pelo script canonico build_apk.sh (ACHADO: sem -Pforce-version-code-ignoring-abi o split soma 1000xABI e quebra a auto-atualizacao — meu build manual inicial saiu arm64=4079, refazido = 2079 nos dois, aapt confere). Flutter analyze 0 / test 198 (2 skipped).",
+    "estado": "ENTREGA FECHADA: suíte final 3449 passed/16 skipped/0 falha, gate 90,61% >= 90; flutter analyze 0 / test 198; APK 1.43.0+2079 publicado pelo script canonico (aapt nos dois = 2079/1.43.0); commits 2d0e550 (entrega) + d49ec06 (fix do skip sem rede achado pelo E2E: resync 305s -> <60s) + registro; deploy verde (restart od-core, /app/version 1.43.0/2079, NRestarts=0); E2E vivo /tmp/opencode/e2e_v1430.py = 29 provas, 0 falhas. Series 'uma por vez' FECHADA (FlatNotes/File Browser/Calibre)."
   }
 }

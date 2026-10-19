@@ -888,3 +888,98 @@ aqui o deploy saiu e o commit não. Registro escrito não é prova de fecho —
 
 **Próxima da série (ordem do dono, "uma por vez"): Calibre Web (3ª)** —
 0 livros, login admin/admin123 ainda a trocar.
+
+## §17 — Calibre Web configurada e interligada: a biblioteca do dono vai do Drive ao leitor (v1.42.0→1.43.0+2079) — 19/10, tarde/noite
+
+**Contexto:** 3ª e última da série "uma por vez" (FlatNotes §13 ✅ →
+File Browser §14/§15 ✅ → **Calibre**). A análise da manhã achou o
+container **nunca configurado** (`config_calibre_dir = null`, 0 livros,
+senha `admin123` viva). Dono decidiu **"Configurar e interligar"** e
+apontou a fonte: *"os livros estão no google drive"* — pasta
+**"Biblioteca"** (22 pastas temáticas).
+
+**O achado que mudou o desenho (e está em código):** a contagem
+recursiva honesta deu **732 itens / 729 arquivos / 1,83 GB** (o 1º
+nível mentia: 363/1,35 GB). Espelho local (`core/biblioteca_drive.py`,
+novo) trouxe tudo com 0 erros. Mas a 1ª importação com `calibredb add
+--automerge ignore` **escondeu 156 arquivos de conteúdo diferente**: o
+título embutido do PDF (autor/metadados do arquivo) colidia com livro
+já cadastrado e o calibre descartava em silêncio — a mensagem *"The
+following books were not added as they already exist"* é **um cabeçalho
+só** (título com 2 espaços, caminho com 4) e passou batido. Prova viva
+com 3 arquivos escolhidos a dedo: tinham conteúdo DIFERENTE e não
+entraram. Contrato novo, escrito no `integrations/calibre.py`:
+**LEDGER nosso** (`.calibre_ledger.json`, caminho→tamanho) +
+`calibredb add -d --automerge new_record` — colisão de título vira
+registro próprio; **ledger ausente recusa** importar às cegas
+(`calibre_ledger_ausente`); ledger só cresce após `rc==0`, gravação
+atômica. Migração: **573 semeados + 156 importados** (ids 593–748) e
+reimportação devolvendo **`novos=0`** (idempotência provada).
+
+**A limpeza honesta dos 55:** a migração criou 55 registros
+duplicados — 47 arquivos são **cópias idênticas em duas pastas do
+Drive** e 8 são **zips que o calibre extrai** na importação (os bytes
+mudam, o conteúdo não); o twin-por-tamanho marcou tudo como faltante.
+Detecção par a par (título+formato+tamanho) e **prova de sha256:
+55/55 idêntico** → `calibredb remove` **só nos ids da migração** →
+**693 livros / 695 formatos**, 54 originais provados intactos, nada do
+dono perdido (arquivos seguem no espelho e no Drive). Estado final:
+**729/729 com conteúdo** (721 bytes + 8 zips extraídos), **0 sem
+conteúdo**, **0 pendentes**.
+
+**Calibre Web, senha e caixa:** `POST /admin/dbconfig` salvou
+`config_calibre_dir=/books` (o alerta do `client_secrets.json` é não
+bloqueante; ordem obrigatória: importar → apontar) e a home virou
+"Calibre-Web | Books". A **senha nova de 32 caracteres** cumprindo a
+política do próprio calibre (`config_password_special=1` — achado na
+recusa; o form foi devolvido **inteiro**, papéis/csrf preservados —
+postar só a senha teria tirado o `admin_role`); `admin123` morta,
+provada por `check_password_hash` no container; valor nunca impresso,
+cofre **16/16**. Bind duplo recriado: `127.0.0.1:8420` +
+`100.77.67.53:8420` — login **pela tailnet** com a senha nova (caminho
+exato do botão do app) e `OD_CALIBRE_URL` apontando para a tailnet
+(link de download clicável no celular do dono).
+
+**OPDS sondado ANTES de codificar:** `/opds/` = **15 seções**;
+`/opds/new` pagina por `?offset=60`; `/opds/search/<termo>` devolve
+**todos** os matches numa página (123 p/ "Aula"); download
+`/opds/download/<id>/<fmt>/` → **200 application/pdf**; senha errada =
+**401**. Da sonda saíram `opds_status` (sonda + inventário exato do
+`metadata.db` + pendências vs ledger) e `opds_busca` (formatos +
+links absolutos), stdlib LAZY, erros tipados `opds_*` — e as duas
+actions novas (`calibre_status`, `calibre_busca`) ao lado da
+`calibre_resync`: catálogo **112 → 115**, capability
+`calibre-biblioteca`, botão **"Biblioteca"** no app (+3 testes).
+
+**Entrega:** bump **v1.43.0+2079** 9/9 (`.env` + 6 chaves
+`OD_CALIBRE_*`, capabilities, pubspec, server, site ×3 +
+Actions **115**/Testes **3.449**, CHANGELOG, README_VERSAO, ANALISE,
+TODO). APKs publicados pelo **script canônico** `build_apk.sh` —
+achado no caminho: **sem `-Pforce-version-code-ignoring-abi` o split
+soma 1000×ABI** (meu build manual saiu arm64=4079 e quebraria a
+comparação da auto-atualização); refazido, `aapt` confere
+`versionCode='2079' versionName='1.43.0'` **nos dois**.
+
+**Validação (pré-deploy):** suíte oficial **3449 passed / 16 skipped /
+0 falha, gate ≥ 90** (+27); flutter **analyze 0 / test 198** (+3);
+todas as provas ao vivo acima.
+
+**Deploy + E2E vivo:** od-core reiniciado (`systemctl --user restart
+od-core`, NRestarts=0, journal limpo) com `/app/version`
+**1.43.0/2079** — sha do APK anunciado idêntico ao publicado. E2E
+(`/tmp/opencode/e2e_v1430.py`): **29 provas, 0 falhas** — os dois binds
+da Calibre Web no ar, OPDS (15 seções, busca, download do link do feed
+200, senha errada 401), as 3 actions pelo pipeline real do `/executa`
+(693 livros, 0 pendentes, links na tailnet, erro tipado sem termo,
+resync idempotente) e journal sem erro.
+
+**Achado do próprio E2E (virou código):** a 1ª rodada do resync levou
+**305 s para baixar 0 bytes** — `download_file` buscava os metadados do
+arquivo ANTES de conferir o pulo, e cada um dos 732 itens pagava uma
+chamada de rede. Corrigido (`d49ec06`): o pulo decide pelo tamanho que
+já veio da listagem e o `get_file` só acontece quando vai baixar; teste
+reforçado com `transport.calls == []`; mesmo resync agora **< 60 s**
+(prova nova no E2E). Também apurado o Δ3 da manhã: a pasta
+`Programacao` tem **3 pares de MESMO nome/tamanho** no Drive — 732
+itens = 729 caminhos distintos, todos em disco, conteúdo idêntico
+(2 cópias de cada viram 1 arquivo; nada de conteúdo escondido).

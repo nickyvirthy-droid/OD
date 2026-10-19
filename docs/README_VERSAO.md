@@ -7,7 +7,106 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
-## [1.42.0] — BOTÃO DA CAIXA NO PAINEL: SEM WEBVIEW, O APP ABRE NO NAVEGADOR (2026-10-19)
+## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
+
+### 1. O que foi feito
+
+3ª da série "uma por vez" (FlatNotes ✅ → File Browser ✅ → **Calibre**).
+Dono decidiu **"Configurar e interligar"** (19/10) e apontou a fonte:
+*"os livros estão no google drive"* — pasta **"Biblioteca"** do Drive dele
+(22 pastas temáticas; contagem recursiva honesta: **732 itens / 729
+arquivos / 1,83 GB** — o 1º nível mentia, mostrava 363/1,35 GB). A
+entrega montou a cadeia inteira **Drive → espelho local → `calibredb` →
+Calibre Web (web + OPDS) → actions + botão no app**, e o caminho ensinou
+duas lições que ficaram registradas em código:
+
+1. **O dedup por título do calibre esconde 156 arquivos de conteúdo
+   diferente.** A primeira importação com `--automerge ignore` passou
+   batido: a mensagem crua *"The following books were not added as they
+   already exist… see --duplicates"* é **um cabeçalho só** (título com 2
+   espaços, caminho com 4) e o título embutido do PDF (autor/metadados)
+   colidia com livro já cadastrado. Prova viva com 3 arquivos escolhidos
+   a dedo: tinham conteúdo DIFERENTE e não entraram. Contrato novo:
+   **LEDGER nosso** (`.calibre_ledger.json`: caminho→tamanho) + `calibredb
+   add -d --automerge new_record` — colisão de título vira registro
+   próprio, nada escondido, resync idempotente.
+2. **Análise de conteúdo por tamanho engana com cópias e zips.** 55
+   arquivos marcados como "faltantes" eram **cópias idênticas em duas
+   pastas do Drive** (47) ou **zips que o calibre extrai** na importação —
+   os bytes mudam, o conteúdo não (8 zips da pasta Religoso/Magias).
+   A migração criou 55 registros duplicados; a limpeza foi feita com
+   **prova de sha256 par a par: 55/55 idêntico** → `calibredb remove`
+   **só nos ids da migração** (54 originais provados intactos, conteúdo
+   preservado no espelho e no Drive).
+
+| Peça | Entrega |
+|---|---|
+| **`core/biblioteca_drive.py` (novo)** | Espelho Drive→disco incremental: pula arquivo igual por tamanho, download atômico (`.part`→rename), nome do Drive saneado (não escapa do destino), erro contido por arquivo, aviso de página cheia. **729 arquivos / 1,7 GB espelhados, 0 erros.** +7 testes. |
+| **LEDGER + `calibredb`** | `integrations/calibre.py::importar_da_inbox` ledger-driven: ledger ausente **recusa** importar às cegas (`calibre_ledger_ausente`); só o não-ledger vai no lote `-d --automerge new_record`; ledger só cresce após `rc==0`, gravação atômica; `.part`/ledger fora do argv. Migração: 573 semeados + **156 importados** (ids 593–748) → reimportação `novos=0`. |
+| **Limpeza honesta dos 55 duplicados** | Detecção par (título+formato+tamanho) → **sha256 55/55 idêntico** → removeu **só** os ids da migração → **693 livros / 695 formatos**, 54 originais intactos. Nada do dono perdido (originais no espelho e no Drive). |
+| **Calibre Web configurado ao vivo** | `POST /admin/dbconfig` com `config_calibre_dir=/books` **salvo** (alerta do `client_secrets.json` é não-bloqueante; ordem obrigatória: import → apontar). Home virou **"Calibre-Web \| Books"** com 65 autores. Escrita/upload só pela UI (CSRF) — fora do catálogo. |
+| **Senha trocada (admin123 morta)** | Política do Calibre Web **exigia especial** (`config_password_special=1` — achado na recusa *"Password doesn't comply"*): senha de **32 caracteres** com especial do conjunto seguro, montada pelo form **inteiro devolvido como está** (papéis/sidebar/csrf preservados — postar só a senha teria tirado o `admin_role`). Prova por hash no container: `check_password_hash` **nova=True, admin123=False**. Nunca impressa; cofre **16/16**. |
+| **Bind duplo + tailnet** | compose recriado: `127.0.0.1:8420` + `100.77.67.53:8420` → provas nos dois caminhos e **login pela tailnet** (caminho exato do botão). `OD_CALIBRE_URL` aponta para a tailnet — **links de download clicáveis pelo dono no celular**. |
+| **Cliente OPDS (sondado ANTES de codificar)** | Sonda viva: `/opds/` = **15 seções**; `/opds/new` pagina por `?offset=60`; `/opds/search/<termo>` devolve **todos** os matches numa página (123 p/ "Aula"; `?query=` também serve); download `/opds/download/<id>/<fmt>/` → **200 `application/pdf`**; senha errada = **401**. Cliente stdlib LAZY: `opds_status` (sonda + inventário exato + pendências vs ledger) e `opds_busca` (formatos + links absolutos); erros tipados `opds_auth/indisponivel/http/xml_invalido/config_ausente` + `calibre_busca_termo_vazio`. |
+| **3 actions (categoria `calibre`, catálogo 112 → 115)** | `calibre_resync` (espelho + importação por ledger) · `calibre_status` (HTTP real do OPDS + livros/formatos/pendentes — **693 livros, 0 pendentes** ao vivo) · `calibre_busca` (links `http://100.77.67.53:8420/opds/download/...`). Nenhuma action apaga; nenhuma escreve. |
+| **App + capability** | Botão **"Biblioteca"** (`odCalibreUri` 8420) no card do painel (+3 testes) · capability `calibre-biblioteca` (fase v1.43.0) com o contrato vivo escrito. |
+| **Testes** | `tests/test_calibre.py` reescrito no contrato do ledger (**14**, eram 7) · contagens 112 → 115 em 5 arquivos (`test_actions_catalog` + `calibre:3`, `test_capabilities` ×6, orquestrador ×6). |
+| **Bump 9/9** | `.env` `OD_VERSION=1.43.0` + 6 chaves `OD_CALIBRE_*` · capabilities fallback · `_APP_VERSION_CODE` **2078 → 2079** · pubspec `1.43.0+2079` · site (versão ×3, Actions 115, Testes 3.449) · CHANGELOG · README_VERSAO · ANALISE · APK (script canônico `build_apk.sh` — sem `-Pforce-version-code-ignoring-abi` o split soma 1000×ABI e quebra a auto-atualização; achado na própria entrega). |
+
+### 2. Decisões registradas (fonte da verdade)
+
+- **Fonte da verdade é o Drive do dono** — o espelho é derivado, o
+  `metadata.db` é derivado; nada nos dois pode ser o fim da linha. Se
+  qualquer um sumir, refaz-se do Drive.
+- **Ledger é nosso, não do calibre**: o dedup por título do calibre
+  *esconde* conteúdo (provado: 156 arquivos). Idempotência de resync =
+  ledger caminho→tamanho; ledger ausente = recusa (sem saber o que já
+  entrou, re-importar às cegas duplicaria tudo).
+- **Colisão de título vira registro próprio** (`-d --automerge
+  new_record`): 748 livros provaram o contrato (títulos iguais com
+  conteúdo diferente convivem); a limpeza dos 55 iguais foi cirúrgica
+  (sha256) e removida **só** o retrabalho da migração.
+- **Escrita é do dono, na UI dele**: nenhuma action de escrita/apagar no
+  catálogo — mesmo régua do File Browser (`DELETE` fora) e do caderno.
+- **A senha nova é do sistema agora**: `.env` (bootstrap) + cofre
+  (espelho); se ele trocar no painel, `opds_auth` aponta a correção.
+- **OPDS é o contrato do leitor**: actions conversam com o feed real que
+  um leitor de e-book consome (nada de consulta direta no banco) — o
+  `metadata.db` entra só no `calibre_status` como inventário exato
+  (leitura, no próprio servidor).
+- **`OD_CALIBRE_URL` = tailnet**: os links do chat têm que abrir no
+  celular do dono; o monitor continua sondando `127.0.0.1` por fora.
+
+### 3. Validação (19/10, tarde)
+
+- **Suíte do servidor (gate oficial `--cov-fail-under=90` + `.coveragerc`)**:
+  **3449 passed / 16 skipped / 0 falha · cobertura ≥ 90 (exit 0)**, +27
+  sobre a 1.42.0 (3422 — ledger/OPDS/espelho/contagens).
+- **Flutter**: `analyze` **0 issues** · `test` **198 passed / 2 skipped**
+  (+3).
+- **Biblioteca (prova da completude)**: **729/729 arquivos com conteúdo**
+  (721 com bytes no `/books` + 8 zips extraídos pelo calibre) · **0 sem
+  conteúdo** · **693 livros / 695 formatos** · reimportação `novos=0`
+  (idempotente).
+- **Provas ao vivo**: Calibre Web **200 em `127.0.0.1:8420` e
+  `100.77.67.53:8420`** · login pela tailnet com a senha nova · OPDS raiz
+  15 seções · busca 15 hits · download 200/pdf (2,1 MB) · senha antiga
+  morta por hash · cofre **16/16** · APK `aapt`
+  `versionCode='2079' versionName='1.43.0'` nos dois publicados.
+- **E2E vivo pós-deploy** (`python /tmp/opencode/e2e_v1430.py`):
+  **29 provas, 0 falhas** contra o sistema reiniciado — `/app/version`
+  **1.43.0/2079**, `/health` 24/24, `/actions` 115, capability
+  `calibre-biblioteca`, os dois APKs, Calibre Web **200 nos dois binds**,
+  OPDS (15 seções · busca · download 200 do link do feed · 401),
+  `calibre_status` (693 livros · 0 pendentes · 729 espelho),
+  `calibre_busca` (links da tailnet · erro tipado sem termo),
+  `calibre_resync` (**732 itens, 0 erros, novos=0** — e o achado da
+  primeira rodada virou código: o skip pagava um GET de metadados por
+  arquivo e o sync levava **305s para 0 bytes**; com o pulo decidido
+  pela listagem o mesmo resync fechou **< 60s**, prova nova no E2E),
+  journal sem ERROR e NRestarts=0.
+
+
 
 ### 1. O que foi feito
 
