@@ -143,6 +143,11 @@ backups/auto*/
 backups/push-devices-*.json
 backups/push-devices-*.bak.json
 
+# Backup frio de sistema (16/10): 16 GB com Postgres, Vaultwarden, o repo
+# (com .env) e o 3D dentro — segredo + tamanho; fora do git por higiene
+# (nada apagado, nada versionado; a árvore fica limpa sem esconder nada).
+backups/backup_od_*/
+
 # Backups automáticos do self-repair (.bak gerados pelo Coder Engine)
 .od_repair_backups/
 

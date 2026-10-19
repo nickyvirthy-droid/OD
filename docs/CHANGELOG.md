@@ -12,6 +12,38 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.41.0] — FILE BROWSER INTERLIGADO: A CAIXA DE ARQUIVOS DO DONO 🜂 (2026-10-19)
+
+> **Bump MINOR aprovado pelo dono em 18/10 ("Liga")** — 2ª ferramenta da
+> série de análises (FlatNotes ✅ → **File Browser** → Calibre, "uma por vez"
+> §5). Ele mandou **"primeiro me explica"** — análise entregue primeiro (o
+> que é; estado real apurado ao vivo; como o sistema usaria; conta honesta;
+> recomendação) e depois **"Liga"**. A análise achou duas coisas que viraram
+> entrega: **o login admin/admin nunca chegou a funcionar** (dono "nunca
+> entrou" — senha redefinida por CLI oficial com o container parado, valor
+> nunca impresso, gravada no `.env` + espelhada no cofre) e a imagem era a
+> **única tag flutuante da stack** (`:v2` → pinnei **`:2.63.23`**, a versão
+> exata que estava no ar). Caixa de correio dos dois lados: o dono sobe e
+> baixa arquivos pelo celular (Tailscale); o sistema deixa saídas lá.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/filebrowser.py` (novo)** | Cliente `FileBrowserClient` no molde do FlatNotes (transporte injetável, fábrica lazy `OD_FILEBROWSER_URL`/`OD_FILEBROWSER_PASSWORD`, JWT de 2h cacheado com folga de 120s antes do `exp`). **Contrato apurado ao vivo ANTES de codificar** (18/10 — fonte oficial `http/*.go` da tag 2.63.23 + round-trip completo: login → listar → subir → conflito → sobrescrever → baixar → apagar minhas pastas de teste). **9 erros honestos e tipados** (`indisponivel/timeout/falhou/parametro_invalido/ja_existe/nao_encontrado/resposta_invalida/credencial/arquivo_ausente`). |
+| **Upload = corpo CRU (achado vivo)** | O multipart (`-F`) guardava o **envelope inteiro** — 272 B contra 67 B do arquivo — apurado na prova e confirmado no fonte (`writeFile(..., r.Body, ...)` lê o corpo direto). O cliente manda `application/octet-stream` com o arquivo em **streaming** (sem carregar tudo na RAM) e o `POST` cria as pastas-pai sozinho. |
+| **409 = recusa honesta** | Arquivo repetido sem `?override=true` → **409 Conflict** → `filebrowser_ja_existe` com a saída na mensagem. **`substituir=false` por padrão**: troca só com flag explícita e vem **DECLARADA** (`substituido=true` só quando o arquivo já existia — conferido na pasta-pai antes, só metadados, sem baixar conteúdo). |
+| **3 actions (categoria `filebrowser`, só admin)** | `filebrowser_status` (saúde pública `GET /health`, versão no `window.FileBrowser` do HTML, itens, disco em bytes) · `filebrowser_lista` (raiz vazia = `itens=[]` honesto; pasta inexistente = 404; arquivo no caminho = parâmetro inválido; `..` recusado na API) · `filebrowser_envia` (arquivo local → caixa, `substituir=false`). Nascem admin-only por construção (`permission=nome`, lista `user` intocada). **NÃO existe action de apagar**: o `DELETE` da API fica de fora do catálogo — teste fixa a régua. |
+| **Segredo + imagem pinada** | `OD_FILEBROWSER_PASSWORD` nova (24 caracteres gerados pelo sistema — o admin/admin nunca funcionou) no `.env` + espelhada no cofre. Compose: `filebrowser/filebrowser:v2` → **`v2.63.23`** (última tag flutuante da stack pinada) e comentário do compose atualizado com o estado verdadeiro. |
+| **Capability + contagem** | Bloco `filebrowser-caixa` (fase v1.41.0) no `core/capabilities.py` com o contrato vivo escrito. **109 → 112 actions** em todos os lugares que contam: `EXPECTED_CATEGORIES` ganha `"filebrowser": 3`, asserts de contagem (5 arquivos de teste), docstrings do pacote e o site. |
+| **Testes** | `tests/test_filebrowser.py` **+52**: fixtures fiéis às capturas vivas (health, janela HTML com `Version`, JWT, usage, raiz vazia, shape real dos itens, info de arquivo sem `items`, 409 textual), ordem exata do status (health → página → login → usage → raiz), `X-Auth` presente/ausente por chamada, 409 que **para na 2ª chamada** (nunca tenta sobrescrever sozinho), `substituir` declarado nos 3 casos (novo × trocado × pai inexistente), `..`/vazio/barra-final recusados **sem chamada nenhuma**, erros de rede, `_transporte` real (JSON, corpo cru octet-stream, HTTPError como resposta), fábrica lazy + permissão (user negado ×3, admin executa). |
+| **Bump 9/9** | `.env` `OD_VERSION=1.41.0` + `OD_FILEBROWSER_URL` (config) · capabilities fallback · `_APP_VERSION_CODE` **2076 → 2077** · pubspec · site (versão ×3, Actions 112, Testes 3.421) · CHANGELOG · README_VERSAO · ANALISE · APKs. |
+
+| Validado | Resultado |
+|---|---|
+| Suíte oficial do servidor (gate `--cov-fail-under=90` + `.coveragerc`) | **3421 passed / 16 skipped / 0 falha · cobertura 91,11% ≥ 90** (+52 sobre 1.40.0) |
+| Guarda de versão | `test_version_policy` verde com a seção no topo + guarda `vMAIOR que a vigente` limpa (prosa de terceiros sem prefixo `v`, tag exata mora no compose) |
+| Contrato vivo (antes de codificar) | Round-trip real: login 200 (JWT cru) e 403 = credencial rejeitada (fonte `os.ErrPermission`) → lista raiz `[]` → subir **200** → repetir **409** → `override=true` **200** → baixar por `/api/raw` **idêntico** → `DELETE` **204** (só minhas pastas de teste) → raiz `[]` de novo; disco e `GET /health` públicos conferidos |
+| Provas vivas (pós-deploy) | ver `README_VERSAO` §1.41.0 (actions executadas contra a caixa real do dono) |
+
 ## [1.40.0] — FLATNOTES INTERLIGADO: O SISTEMA ANOTA E CONSULTA O CADERNO DO DONO 🜂 (2026-10-18)
 
 > **Bump MINOR aprovado pelo dono em 18/10 ("ligar")** — 1ª ferramenta da

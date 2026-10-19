@@ -2697,6 +2697,49 @@ def flatnotes_busca(termo: str, limite: int = 10) -> dict[str, Any]:
     return _flatnotes_op(lambda c: c.buscar(termo, limite=limite))
 
 
+def _filebrowser_op(op: Any) -> dict[str, Any]:
+    """Roda uma operação no File Browser com erro honesto e tipado.
+
+    Cliente LAZY (integrations/filebrowser.py): a ferramenta fora do
+    ar degrada ESTA ação — nunca o boot do od-core. Caixa de arquivos
+    do dono em 127.0.0.1:8410 (login admin + JWT de 2h via
+    OD_FILEBROWSER_PASSWORD, só Tailscale); serve SÓ a pasta
+    omegadrakon-tools/filebrowser/files (UID 1000 = dono, coberta
+    pelos snapshots das 2 HDs). NENHUMA ação apaga — o DELETE da API
+    fica de fora do catálogo (régua do dono); 409 (arquivo repetido)
+    vira filebrowser_ja_existe honesto e substituir é flag explícita
+    que vem declarada na resposta.
+    """
+    from integrations.filebrowser import FileBrowserError, client_padrao
+
+    try:
+        cliente = client_padrao()
+        return {"ok": True, **op(cliente)}
+    except FileBrowserError as exc:
+        return {"ok": False, "error": exc.codigo, "message": exc.mensagem}
+
+
+def filebrowser_status() -> dict[str, Any]:
+    """Vida da caixa de arquivos: saúde, versão, nº de itens e disco."""
+    return _filebrowser_op(lambda c: c.status())
+
+
+def filebrowser_lista(caminho: str = "") -> dict[str, Any]:
+    """Lista o que tem na caixa (raiz por padrão; pasta por extensão)."""
+    return _filebrowser_op(lambda c: c.lista(caminho))
+
+
+def filebrowser_envia(
+    origem: str,
+    destino: str,
+    substituir: bool = False,
+) -> dict[str, Any]:
+    """Deixa um arquivo do sistema na caixa (o dono baixa no celular)."""
+    return _filebrowser_op(
+        lambda c: c.envia(origem, destino, substituir=substituir)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Serviços (systemd — degrada graciosamente)
 # ---------------------------------------------------------------------------
@@ -3312,6 +3355,14 @@ CATALOG: list[dict[str, Any]] = [
           }}),
     _spec("flatnotes_busca", "flatnotes", "Busca nas notas do dono (texto livre, trecho do que casou)", flatnotes_busca,
           {"required": ["termo"], "properties": {"termo": S, "limite": {**I, "default": 10}}}),
+    # --- File Browser: caixa de arquivos do dono (2ª interligação, 18/10) ---
+    _spec("filebrowser_status", "filebrowser", "Estado da caixa de arquivos (saúde, versão, nº de itens, disco)", filebrowser_status),
+    _spec("filebrowser_lista", "filebrowser", "Lista o que tem na caixa do dono (raiz por padrão, pasta por extensão)", filebrowser_lista,
+          {"properties": {"caminho": {**S, "default": ""}}}),
+    _spec("filebrowser_envia", "filebrowser", "Deixa um arquivo do sistema na caixa (o dono baixa pelo celular)", filebrowser_envia,
+          {"required": ["origem", "destino"], "properties": {
+              "origem": S, "destino": S, "substituir": {**B, "default": False},
+          }}),
     # --- Serviços (3) ---
     _spec("service_list", "service", "Lista serviços systemd", service_list),
     _spec("service_status", "service", "Status de um serviço", service_status,

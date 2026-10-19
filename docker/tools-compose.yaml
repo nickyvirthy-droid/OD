@@ -120,10 +120,11 @@ services:
   # ---------------------------------------------------------------------------
   # 6. File Browser — gerenciar arquivos pela web (UI para o owner)
   #    /srv = pasta de arquivos; /db = banco do filebrowser.
-  #    Login admin/admin (trocar em Settings > Change Password).
+  #    Login: admin + senha forte gerada pelo sistema em 18/10 (o admin/admin
+  #    nunca chegou a funcionar). Valor: OD_FILEBROWSER_PASSWORD no .env + cofre.
   # ---------------------------------------------------------------------------
   filebrowser:
-    image: filebrowser/filebrowser:v2
+    image: filebrowser/filebrowser:v2.63.23
     container_name: od-filebrowser
     restart: unless-stopped
     ports:

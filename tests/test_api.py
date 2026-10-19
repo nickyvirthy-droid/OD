@@ -1045,9 +1045,9 @@ class TestAPISite:
         # em runtime pelas rotas públicas /app/version e /health.
         assert 'id="odSiteVer"' in html and 'id="odSiteOn"' in html
         assert '<span class="od-site-ponto"></span>' in html
-        # Números reais do v1.39.0+2072.
-        assert "<b>109</b><span>Actions</span>" in html
-        assert "<b>3.369</b><span>Testes</span>" in html
+        # Números reais do v1.41.0+2077.
+        assert "<b>112</b><span>Actions</span>" in html
+        assert "<b>3.421</b><span>Testes</span>" in html
         assert "<b>9</b><span>Ferramentas no ar</span>" in html
         assert "<b>78</b>" not in html and "+2.300" not in html
 

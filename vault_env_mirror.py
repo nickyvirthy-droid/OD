@@ -67,6 +67,11 @@ CREDENCIAIS: dict[str, str] = {
         "Homebox (só para administração; o sistema usa a API key)."
     ),
     "ADMIN_TOKEN": "ADMIN_TOKEN do painel do Vaultwarden.",
+    "OD_FILEBROWSER_PASSWORD": (
+        "Senha do admin do File Browser (caixa de arquivos do dono; "
+        "rotacionada pelo sistema em 18/10 — o admin/admin nunca "
+        "funcionou; v1.41.0)."
+    ),
     "OD_VAULT_MASTER": (
         "Master da conta de serviço od-sistema — auto-referência do cofre "
         "(fica cifrada aqui; o bootstrap continua no .env)."

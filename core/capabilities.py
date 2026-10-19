@@ -76,7 +76,7 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")
-    or "1.40.0"
+    or "1.41.0"
 )
 
 # Status válidos.
@@ -376,6 +376,16 @@ CAPABILITIES: list[dict[str, str]] = [
         "phase": "v1.40.0",
         "status": ACTIVE,
         "path": "integrations/flatnotes.py",
+    },
+    {
+        "id": "filebrowser-caixa",
+        "name": "File Browser (caixa de arquivos do dono)",
+        "category": "integrations",
+        "description": "6ª ferramenta interligada, com pedido direto do dono (18/10: 'Liga' — 2ª da análise de FlatNotes/File Browser/Calibre): o sistema DEIXA ARQUIVOS e LISTA a caixa self-hosted (container od-filebrowser, File Browser 2.63.23 PINADO no compose, escuta só em 127.0.0.1:8410, serve SÓ a pasta omegadrakon-tools/filebrowser/files) pelas actions filebrowser_status/filebrowser_lista/filebrowser_envia (categoria filebrowser, só admin). Contrato apurado ao vivo ANTES de codificar (18/10 — fonte oficial http/*.go da tag 2.63.23 + round-trip real: login→listar→subir→conflito→sobrescrever→baixar→apagar as pastas de teste): login POST /api/login devolve JWT cru (403 = credencial rejeitada, os.ErrPermission); upload = corpo CRU octet-stream (multipart guardava o envelope inteiro: 272 B contra 67 B — provado ao vivo); repetido sem ?override=true = 409 (filebrowser_ja_existe honesto — substituir é flag explícita e DECLARADA via conferência da pasta-pai, só metadados); GET /health público, versão no window.FileBrowser do HTML, /api/usage = disco em bytes; pasta inexistente = 404, arquivo no caminho = info SEM items (parametro_invalido honesto); JWT 2h cacheado com folga de 120s; senha OD_FILEBROWSER_PASSWORD no .env + cofre (rotacionada em 18/10 — o admin/admin nunca chegou a funcionar). Caixa em UID 1000 (= dono) e já coberta pelos snapshots das 2 HDs. NENHUMA action apaga: o DELETE da API fica fora do catálogo (régua do dono). LAZY por desenho: ferramenta fora do ar degrada a ação, nunca o boot do od-core.",
+        "source": "OD (filebrowser upstream, MIT)",
+        "phase": "v1.41.0",
+        "status": ACTIVE,
+        "path": "integrations/filebrowser.py",
     },
     {
         "id": "saude-reference",

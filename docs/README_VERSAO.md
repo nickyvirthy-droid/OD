@@ -7,6 +7,73 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.41.0] — FILE BROWSER INTERLIGADO: A CAIXA DE ARQUIVOS DO DONO 🜂 (2026-10-19)
+
+### 1. O que foi feito
+
+2ª ferramenta da série de análise a fundo (FlatNotes ✅ → **File Browser** →
+Calibre, "uma por vez" §5). Ele mandou **"primeiro me explica"** — análise
+entregue primeiro (o que é; estado real apurado ao vivo; como o sistema
+usaria; conta honesta; recomendação) e depois a ordem: **"Liga"** (18/10).
+A análise encontrou duas pendências que viraram entrega: **o login
+admin/admin nunca chegou a funcionar** (dono: *"nunca entrei, nunca
+troquei"* — senha do admin redefinida com o CLI oficial e o container
+parado, valor **nunca impresso**, gravada no `.env` e espelhada no cofre) e
+a imagem era a **única tag flutuante da stack** (`:v2` → **`:2.63.23`**
+pinada, a versão exata que estava no ar). A caixa virou caixa de correio
+dos dois lados: o dono sobe/baixa pelo celular (Tailscale) e o sistema
+deixa saídas lá — marca-d'agua `Sistema-Od-v1.41.0.txt` ficou lá para ele
+ver.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/filebrowser.py` (novo)** | Cliente `FileBrowserClient` no molde do FlatNotes (transporte injetável, fábrica lazy `OD_FILEBROWSER_URL`/senha, JWT de 2h cacheado com folga de 120s antes do `exp`). **Contrato apurado ao vivo ANTES de codificar**: fonte oficial `http/*.go` da tag 2.63.23 + round-trip completo (login → listar → subir → conflito → sobrescrever → baixar → apagar minhas pastas de teste). 9 erros tipados honestos. |
+| **Corpo cru, nunca multipart** | Achado vivo: o `-F` guardava o **envelope inteiro** (272 B contra 67 B do arquivo) — confirmado no fonte (`writeFile(..., r.Body, ...)`). Envio `application/octet-stream` em **streaming** (sem carregar o arquivo na RAM) e o servidor cria as pastas-pai sozinho. |
+| **409 recusa honesta; troca só com flag** | Repetido sem `?override=true` → **409** → `filebrowser_ja_existe` com a saída na mensagem. **`substituir=false`** default; quando true, a resposta **declara** `substituido` (conferido na pasta-pai, só metadados). |
+| **3 actions (categoria `filebrowser`, só admin)** | `filebrowser_status` (saúde pública, versão, itens, disco) · `filebrowser_lista` (raiz `[]` honesta; 404 de pasta inexistente; arquivo ≠ pasta; `..` recusado na API) · `filebrowser_envia`. **Sem action de apagar**: `DELETE` da API fora do catálogo, teste fixa a régua. |
+| **Senha + imagem** | `OD_FILEBROWSER_PASSWORD` nova (24 chars, nunca impressa) no `.env` + cofre · compose `:v2` → **`:2.63.23`** + comentário do compose com o estado verdadeiro. |
+| **Contagem** | Bloco `filebrowser-caixa` no `capabilities` (fase v1.41.0). **109 → 112** em `EXPECTED_CATEGORIES` + asserts (5 arquivos de teste) + docstrings do pacote + site (Actions 112, Testes 3.421). |
+| **Testes** | `tests/test_filebrowser.py` **+52** (fixtures vivas, ordem do status, 409 que para na 2ª chamada, `substituir` declarado ×3, recusas sem chamada nenhuma, rede/JSON, transporte real, permissão user/admin). |
+| **Bump 9/9** | `.env` `OD_VERSION=1.41.0` + `OD_FILEBROWSER_URL` · capabilities fallback · `_APP_VERSION_CODE` **2076 → 2077** · pubspec · site · CHANGELOG · README_VERSAO · ANALISE · APK. |
+
+### 2. Decisões registradas (fonte da verdade)
+
+- **Contrato ANTES do código**: o multipart mentiu (272 B ≠ 67 B) e o
+  fonte confirmou (`r.Body` cru) — o cliente foi escrito em cima do
+  contrato provado, não do suposto.
+- **`substituir` declara a troca de fato**: conferência na pasta-pai (só
+  metadados) antes do envio — `substituido=true` só quando havia arquivo
+  antigo; nada antigo sai sem flag explícita.
+- **`DELETE` fora do catálogo por régua** (mesma do caderno): nada apagado
+  por acidente; o dono apaga pela dele (web).
+- **A caixa é UMA pasta isolada** (`files` → `/srv`, UID 1000 = dono, já
+  coberta pelos snapshots): se algo der ruim, afeta só ela.
+- **Segredo do admin é do sistema agora**: `.env` (bootstrap) + cofre
+  (espelho); se ele trocar a senha no painel, as actions degradam com
+  `filebrowser_credencial` apontando a correção.
+- **Marca-d'agua fica na caixa**: `Sistema-Od-v1.41.0.txt` é prova viva
+  visível no celular do dono — e material de prova do E2E (idempotente).
+
+### 3. Validação (19/10, tarde)
+
+- **Suíte oficial (gate `--cov-fail-under=90` + `.coveragerc`): 3421
+  passed / 16 skipped / 0 falha · cobertura 91,11% ≥ 90 (exit 0)**, +52
+  sobre a 1.40.0. *Nota honesta da métrica*: o 95,59% anotado na 1.40.0
+  **não se reproduz** com o mesmo comando oficial — o universo de hoje é
+  19.552 linhas / 1.738 faltantes; de agora em diante anoto sempre o
+  comando exato para a comparação ser à mesma métrica.
+- **E2E vivo: 47 provas, 0 falhas** — inclui as 6 novas do File Browser
+  (catálogo, `tool_filebrowser` up, `status` 2.63.23 `saúde OK`, `envia`
+  idempotente, **409 honesto** sem flag, `lista` com o marcador).
+- **Provas de deploy**: `/actions` **112** · `/health` **24/24**
+  (`tool_filebrowser` up) · `nomad_tools` 9/9 · journal **0 erros** ·
+  `/app/version` **1.41.0/2077** · APK publicado com `aapt`
+  `versionCode='2077' versionName='1.41.0'` e **sha256 idêntico** ao do
+  `/app/version` (`0f507997…`).
+- **Snapshots**: a rodada de 19/10 03:41 **já gravou `od_version 1.41.0`
+  nas 2 HDs** (5,04 GB, 345 itens da linha vermelha `3D` dentro,
+  dedup por hardlink provado) — o E2E confere as duas.
+
 ## [1.40.0] — FLATNOTES INTERLIGADO: O SISTEMA ANOTA E CONSULTA O CADERNO DO DONO 🜂 (2026-10-18)
 
 ### 1. O que foi feito
