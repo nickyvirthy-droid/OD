@@ -776,6 +776,25 @@ class TestCatalogoFileBrowser:
         assert result.data["itens"] == []
 
 
+class TestBindDuploCompose:
+    """Bind duplo da caixa (infra 19/10, decisão do dono — o botão do app
+    abre a caixa no navegador de fora): 127.0.0.1 para as actions do
+    sistema e o IP da tailnet para o dono. O estado antigo (127.0.0.1
+    puro) era INALCANÇÁVEL do celular; as duas linhas têm de existir."""
+
+    def test_duas_portas_no_compose(self) -> None:
+        raiz = Path(__file__).resolve().parents[1]
+        compose = (
+            raiz / "docker" / "tools-compose.yaml"
+        ).read_text(encoding="utf-8")
+        assert '- "127.0.0.1:8410:80"' in compose, (
+            "actions do sistema sem o bind local (127.0.0.1:8410)"
+        )
+        assert '- "100.77.67.53:8410:80"' in compose, (
+            "dono sem o bind da tailnet — o botão do app não abriria de fora"
+        )
+
+
 __all__ = [
     "TestClienteStatus",
     "TestClienteLista",
@@ -786,4 +805,5 @@ __all__ = [
     "TestTransporteUrllib",
     "TestActionsFileBrowser",
     "TestCatalogoFileBrowser",
+    "TestBindDuploCompose",
 ]

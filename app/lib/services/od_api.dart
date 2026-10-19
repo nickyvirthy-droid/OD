@@ -43,6 +43,15 @@ const Duration odRetryDelay = Duration(milliseconds: 400);
 const String odDefaultLanUrl = 'http://192.168.0.250:8000';
 const String odDefaultLocalUrl = 'http://100.77.67.53:8000';
 const String odDefaultExternalUrl = 'https://nicky-server.tail1b1f51.ts.net';
+
+/// URI da caixa de arquivos (File Browser) — mesma host do od-core local
+/// (IP da tailnet), porta 8410 (bind duplo da caixa desde 19/10: 127.0.0.1
+/// para as actions do sistema e a tailnet para o dono abrir de fora).
+///
+/// Decisão do dono (19/10): o app NÃO embute webview — "com o tailscale
+/// funcionando não existe finalidade em embutir, seria melhor apenas um
+/// botão que abre o navegador". Este botão fica no card "Meu painel".
+final Uri odFileBrowserUri = Uri.parse(odDefaultLocalUrl).replace(port: 8410);
 const String odDefaultRouterUrl = 'http://nicky.theworkpc.com';
 
 /// Ordem de sonda do [OdApi.pickBestUrl]: da rota mais direta (menor

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../services/od_api.dart';
 
 /// Tela "Painel" — mesmas funcionalidades do /dashboard e /admin do site:
@@ -106,6 +108,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Decisão do dono (19/10): sem webview — o botão abre a caixa no
+  /// navegador de fora (Tailscale). Se o tailscale estiver desligado ou o
+  /// navegador não responder, aviso honesto em vez de tela congelada.
+  Future<void> _abrirCaixa() async {
+    const aviso = 'Não abriu — confere se o Tailscale está ligado.';
+    try {
+      final abriu = await launchUrl(
+        odFileBrowserUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!abriu) _snack(aviso);
+    } catch (_) {
+      _snack(aviso);
+    }
   }
 
   Future<bool> _confirm(String message) async {
@@ -395,6 +413,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   leading: const Icon(Icons.key_outlined),
                   title: const Text('Rotacionar minha API key'),
                   onTap: _rotateApiKey,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.folder_open_outlined),
+                  title: const Text('Caixa de arquivos (abre no navegador)'),
+                  subtitle:
+                      const Text('File Browser — precisa de Tailscale ligado'),
+                  onTap: _abrirCaixa,
                 ),
               ],
             ),
