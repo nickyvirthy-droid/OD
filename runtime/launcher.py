@@ -507,6 +507,59 @@ async def _run_backup_forever(svc: Any) -> None:
         await asyncio.sleep(svc.cfg.intervalo_s)
 
 
+def build_offsite(push: Any = None) -> Optional[Any]:
+    """Off-site pelo canal PRIVADO do Telegram (core/offsite.py, 20/10).
+
+    Os backups já são criados localmente (perfis estado/capturas); este
+    serviço ENVIA os artefatos para o canal privado — as 2 HDs externas
+    ficam na mesma casa, o canal é o que sobrevive a incêndio/roubo/
+    alagamento. Custo R$0.
+
+    Fora por construção quando falta config: `OD_OFFSITE=0` desliga, e
+    sem `OD_OFFSITE_CHAT` (id do canal, tipo -100…) o serviço não
+    constrói — configuração ausente não grita, só fica fora (mesma
+    política do backup local). Token padrão = o do bot de monitoramento
+    (o bot do sistema).
+    """
+    try:
+        from core.offsite import build_service
+
+        svc = build_service(env, push=push)
+        if svc is None:
+            return None
+        log.info("Off-site no ar (canal privado do Telegram)",
+                 canal=svc.cfg.chat_id,
+                 diario=str(svc.cfg.dir_diario),
+                 capturas=str(svc.cfg.dir_capturas),
+                 fatia_mb=svc.cfg.fatia_max // 1024 ** 2,
+                 intervalo_min=round(svc.cfg.intervalo_s / 60.0, 1),
+                 idade_ok_h=round(svc.cfg.idade_ok_s / 3600.0, 1))
+        return svc
+    except Exception as exc:
+        log.warn("Off-site desabilitado", error=str(exc))
+        return None
+
+
+async def _run_offsite_forever(svc: Any) -> None:
+    """Loop do off-site: envio a cada intervalo, em thread.
+
+    O `tick()` faz hash dos artefatos e sobe arquivos de até ~316 MB
+    (fatiados em ≤ 48 MB) — I/O de rede pesado não pode prender o event
+    loop (Telegram/WebSocket dividem o mesmo loop). Exceção é contida no
+    `_supervise`; um ciclo ruim não mata o loop.
+    """
+    while True:
+        try:
+            resultado = await asyncio.to_thread(svc.tick)
+            for enviado in resultado.get("enviados", []):
+                log.info("Off-site enviado", artefato=enviado)
+        except asyncio.CancelledError:  # pragma: no cover — shutdown
+            raise
+        except Exception as exc:  # um ciclo ruim não mata o loop
+            log.error("Ciclo de off-site falhou", error=str(exc))
+        await asyncio.sleep(svc.cfg.intervalo_s)
+
+
 async def _run_auto_update_forever(svc: Any) -> None:
     """Loop do auto-update: um tick por intervalo, nunca quente.
 
@@ -627,7 +680,7 @@ def build_api_server(
     user_store: Any = None, registry: Any = None, chat_notify: Any = None,
     vector: Any = None, downloads: Any = None, auto_update: Any = None,
     supply_depot: Any = None, nomad_tools: Any = None, notifier: Any = None,
-    backups: Any = None,
+    backups: Any = None, offsite: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -672,6 +725,7 @@ def build_api_server(
             nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 8 no stats
             notifier=notifier,  # métricas do notifier no Status (2026-10-16)
             backups=backups,  # TODO §3.6: perfis do backup automático
+            offsite=offsite,  # off-site: canal privado do Telegram
             public_url=env(  # Etapa 4: base do QR de posse no cartão
                 "OD_PUBLIC_URL", "https://nicky-server.tail1b1f51.ts.net"
             ),
@@ -1275,6 +1329,7 @@ async def _run_api_forever(
     action_registry: Any = None, push: Any = None, database: Any = None,
     downloads: Any = None, auto_update: Any = None, supply_depot: Any = None,
     nomad_tools: Any = None, notifier: Any = None, backups: Any = None,
+    offsite: Any = None,
 ) -> None:
     # Um único UserStore para REST e WebSocket: mesma sessão vale nos dois.
     user_store = build_user_store(database)
@@ -1301,6 +1356,7 @@ async def _run_api_forever(
         nomad_tools=nomad_tools,  # DECISÃO FINAL: saúde das 8 no stats
         notifier=notifier,  # métricas do notifier no /dashboard/stats
         backups=backups,  # TODO §3.6: um bloco por perfil no stats
+        offsite=offsite,  # off-site: bloco no stats (canal privado)
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)
@@ -1823,6 +1879,12 @@ def main() -> int:
     backups = build_backups(push=push)
     for _svc_backup in backups:
         _svc_backup.registrar_no_health(health)
+    # Off-site pelo canal privado do Telegram (20/10): envia os tars
+    # locais para fora de casa — check não-crítico no /health (fora por
+    # construção se faltar OD_OFFSITE_CHAT).
+    offsite = build_offsite(push=push)
+    if offsite is not None:
+        offsite.registrar_no_health(health)
 
     async def _all() -> None:
         # Event Bus único da entrega (bridge MQTT ↔ núcleo)
@@ -1841,6 +1903,7 @@ def main() -> int:
                 # esta factory.
                 notifier=notifier,
                 backups=backups,  # TODO §3.6: bloco por perfil no stats
+                offsite=offsite,  # off-site: bloco no stats
             ), restart=False),
             _supervise("telegram", lambda: _run_telegram_forever(
                 orchestrator,
@@ -1861,6 +1924,11 @@ def main() -> int:
             ))
             log.info("Loop de backup habilitado (TODO §3.6)",
                      perfil=_svc_backup.cfg.nome)
+        if offsite is not None:
+            tasks.append(_supervise(
+                "offsite", lambda: _run_offsite_forever(offsite),
+            ))
+            log.info("Loop de off-site habilitado (canal privado Telegram)")
         if recovery is not None:
             tasks.append(
                 _supervise("recovery", lambda: _run_recovery_forever(recovery))

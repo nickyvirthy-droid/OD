@@ -237,6 +237,11 @@ class APIConfig:
     # None/[] = backups fora (OD_BACKUP=0) e o bloco backup some do
     # /dashboard/stats.
     backups: Optional[list[Any]] = None
+    # Off-site pelo canal PRIVADO do Telegram (core/offsite.py, 20/10):
+    # envia os tars locais para fora de casa. None = off-site fora
+    # (OD_OFFSITE=0 ou sem OD_OFFSITE_CHAT) e o bloco offsite some do
+    # /dashboard/stats.
+    offsite: Optional[Any] = None
     # URL pública absoluta (Etapa 4): base do QR de posse — o QR precisa
     # de URL com esquema/hospedeiro (o site em si é relativo). Padrão =
     # hostname do Funnel; o launcher pode sobrescrever (OD_PUBLIC_URL).
@@ -1691,6 +1696,12 @@ async function loadSystem() {
             : (b.montado ? "nunca" : "HD fora"),
           (b.pendente_hoje || b.falhas || !b.montado) ? "err" : ""];
       }),
+      // Off-site (canal privado do Telegram, 20/10): "nunca" em vermelho
+      // enquanto o primeiro envio não acontecer — pendente honesto.
+      ["Off-site", stats.offsite
+        ? (stats.offsite.ultimo_diario
+            ? "ok · " + stats.offsite.ultimo_diario : "nunca")
+        : "—", stats.offsite && !stats.offsite.ultimo_diario ? "err" : ""],
     ];
     document.getElementById("sys").innerHTML = cards.map(c =>
       '<div class="card"><div class="k">' + c[0] + '</div><div class="v ' + c[2] + '">' + c[1] + "</div></div>"
@@ -4945,6 +4956,12 @@ class APIHandler(BaseHTTPRequestHandler):
             payload["backup"] = {
                 backup.cfg.nome: backup.snapshot() for backup in backups
             }
+        # Off-site (canal privado do Telegram, 20/10): o dono vê no
+        # Status qual artefato já saiu de casa e quando — sem abrir o
+        # canal. None = fora e o bloco some.
+        offsite = self.api.config.offsite
+        if offsite is not None:
+            payload["offsite"] = offsite.snapshot()
         self._json(200, payload)
 
     def llms(self) -> None:
