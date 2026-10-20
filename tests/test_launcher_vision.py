@@ -83,7 +83,13 @@ class TestVisionHandlerNoBus:
     """O handler consome o `Event` (não o dict) e nunca falha."""
 
     @pytest.mark.asyncio
-    async def test_presenca_confirmada_nao_vai_para_dead_letter(self) -> None:
+    async def test_presenca_confirmada_nao_vai_para_dead_letter(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sink = _SinkColetor()
+        monkeypatch.setattr(
+            "runtime.launcher.build_telegram_sink", lambda *a, **k: sink
+        )
         detector = _FakeDetector([_confirmado()])
         bus = await _run(detector)
         assert detector.ran is True
@@ -111,7 +117,7 @@ class TestAvisoDePresenca:
     ) -> None:
         sink = _SinkColetor()
         monkeypatch.setattr(
-            "runtime.launcher.build_telegram_sink", lambda: sink
+            "runtime.launcher.build_telegram_sink", lambda *a, **k: sink
         )
         detector = _FakeDetector([_confirmado(), _confirmado()])
         bus = await _run(detector)
@@ -125,7 +131,7 @@ class TestAvisoDePresenca:
     ) -> None:
         sink = _SinkColetor()
         monkeypatch.setattr(
-            "runtime.launcher.build_telegram_sink", lambda: sink
+            "runtime.launcher.build_telegram_sink", lambda *a, **k: sink
         )
         detector = _FakeDetector([_perdido()])
         bus = await _run(detector)

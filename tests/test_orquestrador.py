@@ -1610,3 +1610,75 @@ class TestNotificacaoTelegram:
         assert "Publicado:" not in texto
         assert "Limpeza:" not in texto
 
+
+
+class TestResumoNoBotDeMonitoramento:
+    """Resumo de sessão sai pelo bot de monitoramento (divisão de 20/10).
+
+    O orquestrador fala pelo `OD_TELEGRAM_MONITOR_TOKEN`
+    (@nicky_monitor_bot) e, se vazio, cai no chat (a Nicky).
+    Chat: `OD_TELEGRAM_MONITOR_CHAT` e, se vazio, `OD_TELEGRAM_ADMINS`.
+    Hermético: `urlopen` substituído — captura também a URL (token).
+    """
+
+    @pytest.fixture
+    def capturas(self, monkeypatch):
+        """Substitui urlopen e devolve lista de (url, campos)."""
+        enviados: list[tuple[str, dict]] = []
+
+        class _Resp:
+            def read(self) -> bytes:
+                return b'{"ok": true}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def _fake_urlopen(req, timeout=0):
+            from urllib.parse import parse_qs
+
+            campos = parse_qs(req.data.decode("utf-8"))
+            enviados.append(
+                (req.full_url, {k: v[0] for k, v in campos.items()})
+            )
+            return _Resp()
+
+        monkeypatch.setattr(orch.urllib.request, "urlopen", _fake_urlopen)
+        return enviados
+
+    def test_monitor_token_e_preferido(self, monkeypatch, capturas) -> None:
+        """Com OD_TELEGRAM_MONITOR_TOKEN configurado, fala o bot de monitor."""
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-a")
+        monkeypatch.setenv("OD_TELEGRAM_MONITOR_TOKEN", "token-monitor")
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
+        _notificar_telegram({"status": "concluido", "motivo": "implantado"})
+        assert "token-monitor" in capturas[0][0]
+        assert "token-a" not in capturas[0][0]
+
+    def test_sem_monitor_cai_no_chat(self, monkeypatch, capturas) -> None:
+        """Sem o token de monitor, o resumo sai pela Nicky (chat)."""
+        monkeypatch.delenv("OD_TELEGRAM_MONITOR_TOKEN", raising=False)
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-a")
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
+        _notificar_telegram({"status": "concluido", "motivo": "implantado"})
+        assert "token-a" in capturas[0][0]
+
+    def test_monitor_chat_e_preferido(self, monkeypatch, capturas) -> None:
+        """OD_TELEGRAM_MONITOR_CHAT muda o destino do resumo."""
+        monkeypatch.delenv("OD_TELEGRAM_MONITOR_TOKEN", raising=False)
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-a")
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
+        monkeypatch.setenv("OD_TELEGRAM_MONITOR_CHAT", "999999")
+        _notificar_telegram({"status": "concluido", "motivo": "implantado"})
+        assert capturas[0][1]["chat_id"] == "999999"
+
+    def test_sem_monitor_chat_usa_o_do_dono(self, monkeypatch, capturas) -> None:
+        """Sem chat de monitor, o destino é o do dono."""
+        monkeypatch.delenv("OD_TELEGRAM_MONITOR_TOKEN", raising=False)
+        monkeypatch.delenv("OD_TELEGRAM_MONITOR_CHAT", raising=False)
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-a")
+        monkeypatch.setenv("OD_TELEGRAM_ADMINS", "123456")
+        _notificar_telegram({"status": "concluido", "motivo": "implantado"})
+        assert capturas[0][1]["chat_id"] == "123456"

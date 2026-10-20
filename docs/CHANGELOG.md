@@ -39,6 +39,21 @@
 | Provas ao vivo | Calibre Web **200 em `127.0.0.1:8420` e `100.77.67.53:8420`** · login tailnet com a senha nova · OPDS raiz 15 seções · busca 15 hits · download 200/pdf (2,1 MB) · senha antiga morta (hash) · cofre **16/16** |
 | E2E vivo pós-deploy | **29 provas, 0 falhas** (od-core reiniciado): `/app/version` **1.43.0/2079** · `/health` 24/24 · `/actions` 115 · capability presente · APKs nos dois · Calibre Web **200 nos dois binds** · OPDS 15 seções/busca/download 200/401 · `calibre_status` 693/0/729 · `calibre_busca` com links da tailnet · `calibre_resync` **732 itens 0 erros, sync < 60s (era 305s), novos=0** · journal limpo · NRestarts=0 |
 
+### Três bots, um por papel — divisão do Telegram + rotação do token vazado (20/10, sem bump)
+
+**Resumo:** o dono rotacionou o token do **@Nicky_Virthy_bot** (o vazado em `docs/SERVER_ANALYSIS.md` no histórico público — provado morto por **401** após o `/revoke` do BotFather) e dividiu os três bots dele: *"Nicky_Virthy = Chat, Nexus_Nicky = alertas dos usuários pedindo informações e nicky_monitor = monitoramento, alertas do sistema"*.
+
+| Papel | Bot | O que sai por ele |
+|---|---|---|
+| **`chat`** (`TELEGRAM_BOT_TOKEN`) | @Nicky_Virthy_bot | conversa, comandos do dono (`TelegramBot` polling) |
+| **`usuarios`** (`OD_TELEGRAM_USUARIOS_TOKEN`) | @Nexus_Nicky_bot (o legado renasce) | 💬 mensagens da sala de bate-papo das peças + 🔑 registro de posse (`chat_notify`) |
+| **`monitor`** (`OD_TELEGRAM_MONITOR_TOKEN`) | @nicky_monitor_bot | notifier inteiro (saúde/restart/disco/stack), presença, face e resumo de sessão do orquestrador |
+
+- **`PAPEIS_BOT`** no `runtime/launcher.py` + `build_telegram_sink(papel)` — cada papel tem token/chat próprios (`OD_TELEGRAM_<PAPEL>_TOKEN`/`_CHAT`) e, quando vazios, **cai no chat** (degradação honesta: um bot fora nunca cala o sistema). O orquestrador (`_notificar_telegram`) usa o token de monitor com o mesmo fallback.
+- **Prova viva:** três mensagens de teste, uma por bot, entregues no chat do dono · getUpdates do bot principal com token novo · cofre espelhado **18/18 gravado+conferiu**.
+- **Correção de teste:** `test_presenca_confirmada_nao_vai_para_dead_letter` chamava a API real do Telegram (passava só porque o token velho era válido — com o 401 da rotação virou dead letter); agora injeta o sink falso como os vizinhos.
+- Testes: **3464 passed / 16 skipped / 0 falha** (+15: 11 dos papéis dos bots + 4 do orquestrador).
+
 ## [1.42.0] — BOTÃO DA CAIXA NO PAINEL: SEM WEBVIEW, O APP ABRE NO NAVEGADOR (2026-10-19)
 
 **Resumo:** o dono respondeu à pergunta sobre webview (19/10): *"com o tailscale funcionando não existe finalidade em embutir, seria melhor apenas um botão que abre o navegador"* — **webview descartada**. O app ganha o botão **"Caixa de arquivos (abre no navegador)"** no card "Meu painel" (`launchUrl` no navegador de fora; URI derivada da mesma host do od-core, porta 8410) e, para o endereço valer de fora, a caixa ganhou **bind duplo** no compose — antes o `127.0.0.1` puro era **inalcançável do celular** (as provas da 1.41.0 diziam "pelo celular" sem testar o bind: honestidade corrigida com prova nova da tailnet).

@@ -82,10 +82,12 @@ log = logging.getLogger("orquestrador")
 # Notificação Telegram (fim de sessão) — 2026-10-11
 # ---------------------------------------------------------------------------
 #
-# Envia resumo da sessão para o admin do Telegram (OD_TELEGRAM_ADMINS) usando
-# o TELEGRAM_BOT_TOKEN do .env. Chamado em _encerrar() para cobrir tanto
-# sucesso (concluido) quanto falhas (todas_as_clis_falharam, testes_vermelhos,
-# autorizacao_nao_respondida, etc.).
+# Envia resumo da sessão para o admin do Telegram (OD_TELEGRAM_ADMINS)
+# pelo bot de MONITORAMENTO: OD_TELEGRAM_MONITOR_TOKEN (@nicky_monitor_bot)
+# e, se vazio, TELEGRAM_BOT_TOKEN (a Nicky). Chat: OD_TELEGRAM_MONITOR_CHAT
+# e, se vazio, OD_TELEGRAM_ADMINS. Chamado em _encerrar() para cobrir
+# tanto sucesso (concluido) quanto falhas (todas_as_clis_falharam,
+# testes_vermelhos, autorizacao_nao_respondida, etc.).
 #
 # O envio é best-effort: falha de rede/token não derruba a sessão — só loga.
 # ---------------------------------------------------------------------------
@@ -94,11 +96,17 @@ log = logging.getLogger("orquestrador")
 def _notificar_telegram(estado: dict) -> None:
     """Envia resumo da sessão de desenvolvimento para o Telegram do dono.
 
+    Fala pelo bot de MONITORAMENTO: `OD_TELEGRAM_MONITOR_TOKEN`
+    (@nicky_monitor_bot) e, se vazio, `TELEGRAM_BOT_TOKEN` (a Nicky).
+    Chat: `OD_TELEGRAM_MONITOR_CHAT` e, se vazio, `OD_TELEGRAM_ADMINS`.
+
     Formata uma mensagem com status, motivo, CLI, commit, testes, diff e duração.
-    Só envia se TELEGRAM_BOT_TOKEN e OD_TELEGRAM_ADMINS estiverem configurados.
+    Sem token/chat configurados a função retorna sem erro.
     """
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-    admins_raw = os.environ.get("OD_TELEGRAM_ADMINS", "").strip()
+    token = (os.environ.get("OD_TELEGRAM_MONITOR_TOKEN", "").strip()
+             or os.environ.get("TELEGRAM_BOT_TOKEN", "").strip())
+    admins_raw = (os.environ.get("OD_TELEGRAM_MONITOR_CHAT", "").strip()
+                  or os.environ.get("OD_TELEGRAM_ADMINS", "").strip())
     if not token or not admins_raw:
         return
     # Pega o primeiro admin válido (número)

@@ -16,8 +16,17 @@ Uso:
     .venv/bin/python -m runtime.launcher capabilities  # manifesto JSON e sai
 
 Configuração (variáveis de ambiente / .env no raiz do repo):
-    TELEGRAM_BOT_TOKEN  Token do bot (obrigatório p/ telegram).
+    TELEGRAM_BOT_TOKEN  Token do bot PRINCIPAL — a Nicky, conversa e
+                        comandos (obrigatório p/ telegram).
     OD_TELEGRAM_ADMINS  IDs admin separados por vírgula (comandos admin).
+    OD_TELEGRAM_USUARIOS_TOKEN  Bot de ALERTAS DE USUÁRIOS (@Nexus_Nicky_
+                        bot): 💬 chat das peças, 🔑 registro de posse.
+                        Vazio = cai no chat (a Nicky).
+    OD_TELEGRAM_MONITOR_TOKEN  Bot de MONITORAMENTO (@nicky_monitor_bot):
+                        notifier (saúde/restart/disco/stack), presença,
+                        face e resumo do orquestrador. Vazio = cai no chat.
+    OD_TELEGRAM_USUARIOS_CHAT / OD_TELEGRAM_MONITOR_CHAT  Chat por papel
+                        (default OD_TELEGRAM_ADMINS).
     OD_LLM_URL          Endpoint OpenAI-compat (default 127.0.0.1:8081).
     OD_LLM_TIMEOUT_S    Timeout por chamada LLM (default 240).
     OD_API_PORT         Porta da API REST (default 8000).
@@ -526,7 +535,7 @@ def build_chat_notify() -> Optional[Any]:
     run_coroutine_threadsafe. Falha de envio nunca propaga (a mensagem
     da sala já foi gravada; o aviso é cortesia).
     """
-    notify = build_telegram_sink()
+    notify = build_telegram_sink("usuarios")  # Nexus anuncia a sala
     if notify is None:
         return None
     try:
@@ -1527,24 +1536,57 @@ async def _run_mqtt_forever(bridge: Any) -> None:
     await bridge.run()
 
 
-def _admin_ids() -> set[int]:
+# Três bots do dono (divisão dele em 20/10): um bot por papel. O vazio
+# de um papel cai no bot de chat — degradação honesta: um bot fora
+# nunca cala o sistema.
+PAPEIS_BOT: dict[str, tuple[str, str]] = {
+    # @Nicky_Virthy_bot — conversa, comandos do dono
+    "chat": ("TELEGRAM_BOT_TOKEN", "OD_TELEGRAM_ADMINS"),
+    # @Nexus_Nicky_bot — alertas de usuários pedindo informação
+    # (💬 chat das peças, 🔑 registro de posse)
+    "usuarios": ("OD_TELEGRAM_USUARIOS_TOKEN", "OD_TELEGRAM_USUARIOS_CHAT"),
+    # @nicky_monitor_bot — monitoramento e alertas do sistema
+    # (notifier, presença, face, orquestrador)
+    "monitor": ("OD_TELEGRAM_MONITOR_TOKEN", "OD_TELEGRAM_MONITOR_CHAT"),
+}
+
+
+def _chat_ids(chave: str) -> set[int]:
     return {
         int(part)
-        for part in env("OD_TELEGRAM_ADMINS", "").split(",")
+        for part in env(chave, "").split(",")
         if part.strip().isdigit()
     }
 
 
-def build_telegram_sink() -> Optional[Any]:
-    """Sink de notificação: envia texto ao primeiro admin no Telegram."""
+def _admin_ids() -> set[int]:
+    return _chat_ids("OD_TELEGRAM_ADMINS")
+
+
+def build_telegram_sink(papel: str = "chat") -> Optional[Any]:
+    """Sink de notificação no Telegram do dono — um bot por papel.
+
+    Divisão do dono (20/10), 3 bots, 3 papéis:
+
+      * ``chat`` — a Nicky (@Nicky_Virthy_bot): conversa, comandos;
+      * ``usuarios`` — @Nexus_Nicky_bot: alertas de usuários pedindo
+        informação (💬 chat das peças, 🔑 registro de posse);
+      * ``monitor`` — @nicky_monitor_bot: monitoramento/alertas do
+        sistema (notifier, presença, face, resumo do orquestrador).
+
+    Cada papel tem token e chat próprios (``OD_TELEGRAM_<PAPEL>_TOKEN`` /
+    ``OD_TELEGRAM_<PAPEL>_CHAT``) e, quando vazios, **cai no bot de
+    chat** — um token ausente degrada, não silencia.
+    """
     from integrations.telegram import HTTPTransport
 
-    token = env("TELEGRAM_BOT_TOKEN", "")
-    admins = sorted(_admin_ids())
-    if not token or not admins:
+    token_env, chat_env = PAPEIS_BOT.get(papel, PAPEIS_BOT["chat"])
+    token = env(token_env, "") or env("TELEGRAM_BOT_TOKEN", "")
+    chats = sorted(_chat_ids(chat_env)) or sorted(_admin_ids())
+    if not token or not chats:
         return None
     transport = HTTPTransport(token, timeout=20.0)
-    chat_id = admins[0]
+    chat_id = chats[0]
 
     async def notify(text: str) -> None:
         await transport.send_message(chat_id, text)
@@ -1582,7 +1624,7 @@ async def _run_vision_forever(event_bus: Any, detector: Any) -> None:
     a cada `face.presence`, esgotando as 3 tentativas e indo para dead
     letter (visível no journal do od-core até 2026-09-14).
     """
-    sink = build_telegram_sink()
+    sink = build_telegram_sink("monitor")
     notified = False
 
     async def on_change(event: Any) -> None:
@@ -1608,7 +1650,7 @@ async def _run_vision_forever(event_bus: Any, detector: Any) -> None:
 
 async def _run_presence_forever(monitor: Any) -> None:
     """Loop do Presence Monitor (poll no HA + notificação Telegram)."""
-    sink = build_telegram_sink()
+    sink = build_telegram_sink("monitor")
     if sink is not None:
         from integrations.homeassistant import PresenceMonitor
 
@@ -1826,7 +1868,7 @@ def main() -> int:
             log.info("RecoveryLoop habilitado (percepção + auto-reparo)")
         notifier = build_notifier(
             orchestrator,
-            sink=build_telegram_sink(),
+            sink=build_telegram_sink("monitor"),
             event_bus=event_bus,
             push=push,
             nomad_tools=nomad_tools_monitor,

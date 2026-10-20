@@ -57,6 +57,14 @@ CREDENCIAIS: dict[str, str] = {
     "TELEGRAM_BOT_LEGADO_TOKEN": (
         "ATENÇÃO: token vazado do bot legado — rotação §8.5 PENDENTE do dono."
     ),
+    "OD_TELEGRAM_USUARIOS_TOKEN": (
+        "Bot @Nexus_Nicky_bot — papel 'usuários' (💬 chat das peças, "
+        "🔑 registro de posse; divisão de bots do dono, 20/10)."
+    ),
+    "OD_TELEGRAM_MONITOR_TOKEN": (
+        "Bot @nicky_monitor_bot — papel 'monitor' (notifier, presença, "
+        "face, resumo do orquestrador; divisão de bots do dono, 20/10)."
+    ),
     "HBOX_AUTH_API_KEY_PEPPER": "Pepper do Homebox (HBOX_AUTH_API_KEY_PEPPER).",
     "HBOX_API_KEY": (
         "API key estática do Homebox (inventário do dono; Bearer, sem "
