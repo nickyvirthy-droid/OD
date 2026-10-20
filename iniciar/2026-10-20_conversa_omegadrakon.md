@@ -794,3 +794,64 @@ dependência) transforma "está sobre a página" em causa raiz em minutos.
 registrado e corrigido na mesma seção, sem nova versão) · TODO §3.9 ·
 `session.json` (chave `correcao_menu_lateral_2026_10_20`) · `txt.txt` ·
 Telegram.
+
+---
+
+## §17 — Dashboard unificado: a Visão do sistema no /admin (20/10 ~18:00)
+
+**Pedido do dono:** *"O que tem pra agora?"* → na fila apresentada ele
+escolheu **"Dashboard unificado (Recomendado)"** (TODO §3.6: "criar visão
+'System Overview' com saúde de tudo — RAG, auto-update, downloads, depot,
+bot, API").
+
+**O que foi entregue:** o `/admin` ganhou a seção **"Visão do sistema
+(System Overview)"** com **15 cards** — um por subsistema — lidos das
+**MESMAS 4 fontes de sempre** (`/health` · `/supervision` ·
+`/dashboard/stats` · `/actions`), **sem busca nova**. Os 4 subsistemas que
+o `stats` já emitia e a tela não mostrava entraram: **RAG**
+(`vector_store`), **Auto-update** (alvos/desligados/pendentes),
+**Downloads** (fila) e **Ferramentas** (Supply Depot). Bot, API, stack,
+backups, HDs e off-site já estavam e seguem.
+
+**Arquitetura (as três decisões):**
+
+1. `visaoCards(health, sup, stats)` — toda a fila de cards saiu de dentro
+   do `loadSystem` para **UMA função pura** (recebe os payloads e só
+   monta strings). É a **alavanca da guarda de fonte única**: se um
+   `fetch` entrar dentro, a visão vira fonte paralela e o teste derruba.
+2. **Pill de resumo** `#sys-resumo` — conta os cards com classe `err` e
+   pinta `X em atenção` / `tudo ok`; o número vem dos MESMOS cards, nunca
+   é pintado por fora.
+3. **Sem dado = `"—"` com classe vazia** (nunca verde de mentira);
+   vermelho só com sinal real: `desabilitados > 0`, `erros > 0`,
+   `ultimo_erro` do depot, off-site que nunca saiu e `!health.ok`.
+
+**Guardas novas — `TestVisaoDoSistema` (+3):** seção servida cobre os 10
+rótulos e os 7 blocos de dados · construtor **sem `fetch`/`http`** (≥4
+fallbacks `"—"`, declarada e chamada UMA vez) · **harness de node** com
+DOM de mentira rodando o script do `/admin` em **3 estados**: completo
+(todos os subsistemas com valor real), vazio (todos `"—"`, **nenhum em
+verde**) e problemático (auto-disable, erro de download, erro do depot e
+off-site sem envio viram `err`).
+
+**Validação:** gate **3535 passed / 16 skipped / 0 falha · 90,70%** (+3)
+· pyflakes sem aviso novo · **restart verde 17:59:52** (NRestarts=0,
+journal 0 `[ERROR]`, `/health` **25/25**, 1.43.0/2079) · `/admin` vivo
+com `visaoCards` ×2, `#sys-resumo` e **um único `<script>`**.
+
+**Prova visual** (chromium headless em `/tmp` + servidor legítimo com
+dono de teste, padrão do fixture `serve`): duas capturas —
+**`visao_real`** com 15 cards e `"—"` honestos onde o servidor de teste
+não tem componente (pill `1 em atenção`, degraded) e **`visao_cheia`**
+com todos os blocos preenchidos (`42 docs · 1 ns` · `3 alvos · 0 desl ·
+1 pend` · `2 ativas · 7 ok · 0 erro` · `12/12 · 4 c/ histórico`). Correção
+no caminho: a assinatura de handler do route do Playwright é
+`(route, request)` — o rascunho colocou o `request` no argumento do
+bloco de dados.
+
+**Lição:** a "visão única" só não vira fonte paralela se a construção dos
+cards for função pura — e extraí-la custa um move, não um design.
+
+**Estado:** **ENTREGUE E NO AR.** Canais: CHANGELOG §1.43.0 (subseção
+sem bump) · TODO §3.6 marcado `[x]` · `session.json` (chave
+`dashboard_unificado_2026_10_20`) · `txt.txt` · Telegram.
