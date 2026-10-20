@@ -1,4 +1,10 @@
 {
+  "status_degradado_janela_hd_e_pendencias_2026_10_20": {
+    "pedido": "Dono (~03:44 de 20/10): 'Status esta mostrando degradado' + antes 'existem mais pendencias?'",
+    "degradado_diagnostico": "Checks hd_midias/hd_arquivos = 'PENDENTE (agendado 03:40, falhas=0)', critical=false, HDs montadas. Janela DIARIA normal: 03:40 -> tick do loop (15 min) reporta PENDENTE ate o snapshot rodar; antes das 03:40 o check e 'agendado para 03:40' (up), por isso estava verde na reverificacao de 01:38. NAO relacionado ao restart/bots (o restart de 03:33 encurtou a janela; sem ele o tick seria ~03:53).",
+    "resolucao": "Tick 03:49: snapshot_od-2026-10-20_0349 nos DOIS alvos — hd_midias 9,68 GB/87 s ok=True, hd_arquivos 9,68 GB/100 s ok=True -> /health 24/24 up, geral=up. WARN conhecido: 5 arquivos do HA (.storage/auth) fora do snapshot 'sem copia sem sudo' (recibo no info.json) — resolvivel com regra sudoers estreita se o dono mandar.",
+    "pendencias_respondidas": "Do dono: cofre pessoal Vaultwarden (0 itens), 4 fotos analise/fotos-adicionais, catalogo 3D/ vazio, off-site do backup (decisao de provedor), token @Nexus_Nicky_bot (UNICO segredo vivo restante — a rotacao do Nicky_Virthy de 20/10 matou tb o vazamento no NICKY_v070_PROMPT(2).md, mesmo bot). Tecnicas se ordenar: guarda de segredo no CI + git rm dos 10 arquivos de backups/ (historico so com reescrita). Fila §3 zerada; proximas da lista: câmera QR (v2), historico.html (v1.25.0), exemplo do tema."
+  },
   "três_bots_divisao_e_rotação_2026_10_20": {
     "pedido": "Dono (~03:10 de 20/10, apos rotacionar o token): 'como sao 3 bots no momento, pensei assim: Nicky_Virthy = Chat, Nexus_Nicky = alertas dos usuarios pedindo informacoes e nicky_monitor = monitoramento, alertas do sistema' -> divisao dos 3 bots implementada; antes (~03:00) pediu 'como posso te enviar os tokens' -> instruido a escrever no txt.txt; ~03:18 escreveu 'chat: <token novo>' e 'monitor: <token>'.",
     "mapeamento": "chat=TELEGRAM_BOT_TOKEN (@Nicky_Virthy_bot, token NOVO apos /revoke do BotFather) -> conversa/comandos (TelegramBot polling); usuarios=OD_TELEGRAM_USUARIOS_TOKEN (@Nexus_Nicky_bot, vivo) -> chat_notify (sala das pecas 💬 + registro de posse 🔑); monitor=OD_TELEGRAM_MONITOR_TOKEN (@nicky_monitor_bot) -> notifier inteiro, presenca, face e _notificar_telegram do orquestrador. Chat por papel: OD_TELEGRAM_<PAPEL>_CHAT (default OD_TELEGRAM_ADMINS).",
@@ -45,7 +51,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T03:40:00-03:00",
+  "updated_at": "2026-10-20T03:56:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {

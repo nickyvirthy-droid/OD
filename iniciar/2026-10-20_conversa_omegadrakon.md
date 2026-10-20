@@ -264,3 +264,29 @@ Sem ordem dele, segue tudo como está.
 **Estado final:** árvore limpa == `origin/master` (`00e09ea`) · os 3 bots
 vivos e provados · tokens novos só no `.env` + cofre (18 itens) ·
 `txt.txt` sem segredos · fila §7 zerada.
+
+## §6 — "Status mostrando degradado" + "existem mais pendências?" (20/10 ~03:44–03:55)
+
+**§6.1 O degradado foi a janela diária dos snapshots (resolvido sozinho):**
+dono viu o status `degraded` ~03:44. Checks `hd_midias`/`hd_arquivos` =
+"PENDENTE (agendado 03:40, falhas=0)", `critical: false`, HDs montadas.
+Causa: todo dia, entre as 03:40 e o próximo tick do loop de backup
+(15 min), o check reporta PENDENTE até o snapshot rodar — comportamento
+esperado, **não relacionado aos bots** (o restart das 03:33, na verdade,
+encurtou a janela: o processo antigo só executaria ~03:53). Tick das
+03:49: `snapshot_od-2026-10-20_0349` nos dois alvos, 9,68 GB, 87 s e
+100 s, `ok=True` → **health voltou 24/24 up**. WARN conhecido no log:
+5 arquivos do Home Assistant (`.storage/auth` etc.) fora do snapshot
+"sem copia sem sudo" (recibo no `info.json`) — resolível com a regra
+estreita de sudo, se o dono ordendar.
+
+**§6.2 Pendências (resposta à pergunta "existem mais pendencias?"):**
+*Do dono:* cofre pessoal Vaultwarden (0 itens pessoais) · 4 fotos de
+`analise/fotos-adicionais/` · catálogo `3D/` (vazio; `/home/alex/3D`
+intocável) · off-site do backup (decisão de provedor) · token do
+@Nexus_Nicky_bot (**único segredo vivo que sobrou** — a rotação do
+Nicky_Virthy em 20/10 matou também o vazamento no `NICKY_v070_PROMPT
+(2).md`, que era o MESMO bot). *Técnicas (se ordenar):* guarda de
+segredo no CI · `git rm` dos 10 arquivos de `backups/` (histórico só com
+reescrita, ordem explícita). *§3 fila zerada:* próximas = câmera de QR
+(v2), `historico.html` (v1.25.0), exemplo exato do tema.
