@@ -88,3 +88,40 @@ edição válida** que eu tinha feito antes da chamada corrompida (32+/7−),
 árvore sem nenhum outro resíduo, od-core intocado (NRestarts=0, /health
 24/24). O que a chamada corrompida tentava fazer foi só a correção de
 texto do §7 — refaço-a aqui, sem perda.
+
+## §3 — Dono pergunta "o que é privatizar o repo" — explicação + página com botão (regra 14)
+
+Pedido (~02:05): **"como assim privatizar o repo, não entendo o que quer
+dizer?"**. Explicação em linguagem simples, com o que dá pra medir:
+
+- **Repo** = a pasta onde vive o código-fonte do projeto, hospedada no
+  GitHub (`nickyvirthy-droid/OD`). Hoje **pública**: qualquer pessoa com
+  o link vê o código inteiro **e o histórico commit a commit**.
+- **O que está exposto hoje:** nenhum segredo vivo (os vazados foram
+  rotacionados em 17/10 — valor morto). O que continua exposto é o
+  **código** (dá pra copiar o projeto) e o **risco futuro**: qualquer
+  deslize num commit nasce público na hora.
+- **Privatizar** = mesmo lugar, mesma história, mesmos commits — só
+  muda **quem pode ver**. Não apaga nada, não quebra nada, é grátis.
+- **Nada depende do GitHub em produção** (grep confirmado: nenhum
+  `raw.githubusercontent`/`github.com` no código em runtime) — app,
+  site, painel, atualizações e backups seguem iguais.
+- **Único efeito colateral medido:** o CI (GitHub Actions) é grátis só
+  em repo público. Em privado consome os 2.000 min/mês; uso atual =
+  **399 execuções desde 13/10, ~2,5 min cada ≈ 4.300 min/mês** ⇒
+  estouraria. Duas saídas: (a) **recomendada** self-hosted runner no
+  servidor dele (grátis, mesma suíte do gate) ou (b) desligar o
+  workflow e manter a suíte local como gate (regra da casa).
+
+**Entrega (regra 14 — ele lê pelo terminal, copiar/colar não funciona):**
+`site/privatizar.html` (página própria no visual da casa, com o botão
+"Abrir as configurações do repo" apontando para
+`github.com/nickyvirthy-droid/OD/settings`, o passo a passo de 4 cliques
+na Danger Zone e o aviso honesto do CI) + `txt.txt` reescrito com o
+resumo e o mesmo link. A página obedece as guardas da suíte (`od.css` +
+`od-nav.js` presentes) — `pytest tests/test_api.py -k "site or tema…"`:
+**26 passed**. Sem restart: o site é lido do disco por requisição.
+
+**Limite honesto registrado:** privatizar é **clique do dono na conta
+dele** — eu não consigo fazer (não tenho acesso à conta GitHub dele);
+o sistema confirma em 5 s pela API quando ele avisar.

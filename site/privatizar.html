@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privatizar o repositório — OMEGA DRAKON</title>
+<meta name="description" content="O que significa deixar o repositório do GitHub privado, o que muda, o que não muda e o botão para fazer agora.">
+<link rel="icon" href="/site/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site/od.css">
+<script src="/site/od-nav.js" defer></script>
+<style>
+  /* Só o que é específico desta página. Base vem de od.css. */
+  .wrap { max-width: 880px; }
+  main { padding: 130px 0 70px; }
+  .kicker { color: var(--azul); font-size: .72rem; letter-spacing: .3em; text-transform: uppercase; }
+  h1 { font-size: clamp(1.6rem, 4.5vw, 2.4rem); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin-top: 10px; }
+  .intro { margin-top: 14px; color: var(--muted); max-width: 680px; }
+
+  .cartoes { margin-top: 34px; display: grid; gap: 16px; }
+  .cartao {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 22px 24px;
+    border-left: 4px solid var(--border-lit);
+  }
+  .cartao.bom { border-left-color: var(--azul); }
+  .cartao.aviso { border-left-color: #ffb02e; }
+  .cartao h2 { font-size: .82rem; letter-spacing: .18em; text-transform: uppercase; font-weight: 700; }
+  .cartao p { margin-top: 10px; color: var(--muted); font-size: .95rem; line-height: 1.65; }
+  .cartao b { color: var(--texto); }
+  .cartao code { color: var(--azul); letter-spacing: .04em; }
+
+  .acao { margin-top: 30px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 26px; }
+  .acao a.botao {
+    display: inline-block; background: var(--azul); color: var(--bg); text-decoration: none;
+    border-radius: 6px; padding: 15px 30px; font-weight: 600; font-size: .82rem;
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  .acao a.botao:hover { filter: brightness(1.12); }
+  .passos { margin-top: 20px; color: var(--muted); font-size: .92rem; line-height: 1.9; }
+  .passos ol { margin: 0; padding-left: 20px; }
+  .passos b { color: var(--texto); }
+  .notinha { margin-top: 14px; font-size: .82rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="/site"><img src="/site/simbolo_minimo.png" alt="OD"> OMEGA DRAKON</a>
+    <div class="nav-spacer"></div>
+    <button class="nav-toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="navPanel"><span class="dots">&#8942;</span></button>
+  </div>
+</nav>
+<div class="nav-panel" id="navPanel">
+  <div class="wrap">
+    <a href="/site#marca">Marca</a>
+    <a href="/site#ecossistema">Ecossistema</a>
+    <a href="/site#sistemas">Sistemas</a>
+    <a href="/site#produtos">Produtos</a>
+    <a href="/site#autenticidade">Autenticidade</a>
+    <a href="/site/loja.html">Loja</a>
+    <a href="/site/verificacao.html">Verificar peça</a>
+    <a href="/site/protomaps.html">ProtoMaps</a>
+    <a href="/site/historico.html#historico">Histórico</a>
+    <a href="/site#pleiade">Plêiade</a>
+    <a href="/site#sobre">Sobre</a>
+    <a href="/chat">Chat</a>
+    <a class="cta" href="/site#download">Baixar APK</a>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="kicker">Segurança · Operação do dono</div>
+  <h1>Privatizar o repositório</h1>
+  <p class="intro">
+    "Repo" (repositório) é a pasta onde vive o <b>código-fonte do Omega Drakon</b>,
+    hospedada no GitHub. Hoje ela está <b>pública</b>: qualquer pessoa no mundo que
+    tenha o link abre e vê <b>todo o código e todo o histórico</b> — commit a commit,
+    desde o primeiro dia. Abaixo está o que isso significa, o que muda se você
+    privatizar, e o botão.
+  </p>
+
+  <div class="cartoes">
+    <div class="cartao aviso">
+      <h2>O que está exposto hoje</h2>
+      <p>
+        <b>Nenhum segredo vivo:</b> os que vazaram foram rotacionados em 17/10 — o que
+        está no GitHub agora é valor morto. O que continua exposto é o <b>código</b>:
+        quem abrir o link copia o projeto inteiro se quiser. E o risco futuro é esse:
+        <b>qualquer deslize</b> (um segredo cometido sem querer num commit) já nasce
+        público na hora.
+      </p>
+    </div>
+
+    <div class="cartao bom">
+      <h2>O que muda — e o que não muda</h2>
+      <p>
+        Privatizar não apaga nada: é o <b>mesmo lugar, a mesma história, os mesmos
+        commits</b> — só muda <b>quem pode ver</b> (você, e quem você convidar).
+        <b>Nada quebra:</b> o app, o site, o painel, as atualizações, os backups e as
+        ferramentas não dependem do GitHub — conferido no código, nada é baixado daqui
+        em produção. E é <b>grátis</b>.
+      </p>
+    </div>
+
+    <div class="cartao aviso">
+      <h2>O único efeito colateral (honesto)</h2>
+      <p>
+        O CI — as verificações automáticas que rodam a cada envio — é <b>grátis em repo
+        público</b>. Em repo privado ele consome os 2.000 minutos grátis por mês do
+        GitHub, e o uso atual é <b>~4.300 min/mês</b> (57 execuções/dia × ~2,5 min,
+        medido desde 13/10): estouraria. Duas saídas, as duas resolvo eu:
+        <b>(a) recomendada</b> — monto o CI no seu servidor (<i>self-hosted runner</i>,
+        grátis, mesma suíte do gate); <b>(b)</b> desligo o workflow do GitHub e a suíte
+        local continua sendo o gate, que já é a regra da casa antes de cada commit.
+      </p>
+    </div>
+  </div>
+
+  <div class="acao">
+    <a class="botao" href="https://github.com/nickyvirthy-droid/OD/settings" target="_blank" rel="noopener">Abrir as configurações do repo</a>
+    <div class="passos">
+      <ol>
+        <li>Clique no botão acima (vai pedir o login do GitHub, se ainda não estiver).</li>
+        <li>Role a página <b>até o fim</b>, na seção vermelha <b>Danger Zone</b>.</li>
+        <li>Clique em <b>Change visibility</b> → <b>Make private</b>.</li>
+        <li>Digite <code>nickyvirthy-droid/OD</code> para confirmar. Pronto.</li>
+      </ol>
+    </div>
+    <p class="notinha">
+      Depois disso o link só abre para você (e para quem você convidar). Se um dia
+      quiser voltar a público é no mesmo lugar, no mesmo botão. Aviso: você pode
+      me mandar "privatizei" e eu confirmo daqui pela API em 5 segundos.
+    </p>
+  </div>
+</main>
+
+<footer class="rodape">
+  <div class="wrap">
+    OMEGA DRAKON · Tecnologia que respira — Interface Viva: Nicky Virthy
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,7 +1,17 @@
 {
+  "privatizar_repo_explicado_2026_10_20": {
+    "pedido": "Dono (~02:05 de 20/10): 'como assim privatizar o repo, nao entendo o que quer dizer?' — explicar em simples.",
+    "explicacao_dada": "Repo = pasta do codigo-fonte no GitHub (nickyvirthy-droid/OD), hoje PUBLICA: qualquer um com o link ve o codigo e o historico commit a commit. Privatizar = mesmo lugar, mesma historia, so muda QUEM VE (ele + convidados); nao apaga nada, nao quebra nada, e e gratis. Nenhum segredo vivo la (rotacionados 17/10) — o que fica exposto e o codigo e o risco futuro de um deslise nascer publico.",
+    "verificacao_sem_dependencia": "grep confirmou que NADA e baixado do GitHub em producao (sem raw.githubusercontent/github.com no codigo em runtime) — app, site, painel, atualizacoes e backups seguem iguais apos privatizar.",
+    "efeito_colateral_medido": "CI (GitHub Actions) e gratis so em repo publico. Uso medido via API: 399 execucoes desde 13/10, ~2.5 min cada = ~4.300 min/mes; em repo privado consumiria os 2.000 min/mes gratis e estouraria. Duas saidas: (a) recomendada = self-hosted runner no servidor dele (gratis, mesma suite do gate) ou (b) desligar o workflow e manter a suite local como gate.",
+    "entrega": "site/privatizar.html (pagina no visual da casa, botao 'Abrir as configuracoes do repo' -> github.com/nickyvirthy-droid/OD/settings, passo a passo de 4 cliques na Danger Zone, aviso honesto do CI) + txt.txt reescrito (regra 14). Guardas da suite: od.css + od-nav.js presentes; pytest tests/test_api.py -k 'site or tema' = 26 passed. Sem restart (site lido do disco).",
+    "limite_honesto": "Privatizar e CLIQUE DO DONO na conta GitHub dele — o sistema nao tem acesso a essa conta e nao faz a troca; confirma em 5 s pela API quando ele avisar.",
+    "estado": "Explicacao entregue + pagina com botao no ar + txt.txt; aguardando o clique do dono (e a escolha entre CI no servidor vs CI desligado).",
+    "transcricao": "iniciar/2026-10-20_conversa_omegadrakon.md (§3)"
+  },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T05:02:00.000000+00:00",
+  "updated_at": "2026-10-20T05:20:00.000000+00:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
