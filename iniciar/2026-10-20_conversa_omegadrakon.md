@@ -422,3 +422,58 @@ deploy (regras 6/7/13).
 **Estado:** sistema estável e no ar; off-site a meio passo; aguardando
 confirmação do dono para concluir (e o clique dele de adicionar o bot
 ao canal).
+
+## §10 — Off-site pelo canal privado do Telegram ENTREGUE (ordem "prossiga", 20/10 ~13:30–14:20)
+
+**Pedido:** dono respondeu "prossiga" à §9 — concluir o off-site pelo
+canal privado (convite no `txt.txt` = ele fechou o canal; módulo
+interrompido encontrado na mesma hora).
+
+**Antes de mexer:** o rascunho de `core/offsite.py` tinha um problema
+real — `fatiar()` materializava as partes numa lista, ou seja o tar de
+**316 MB das capturas ficava inteiro na RAM** antes do 1º upload.
+Corrigido para **gerador** (cada parte ≤ 48 MB é lida e enviada de uma
+vez); teste prova a laziness (só a 1ª fatia é lida no 1º `next`).
+Também: logger da casa (`core/logger.get_logger`) em vez do `logging`
+puro (kwargs de contexto), `tempfile` órfão removido.
+
+**Entregas:**
+- `core/offsite.py` — envia `backups/auto/` (diário ~190 KB) +
+  `backups/auto-capturas/` (semanal, fatiado ≤48 MB) via `sendDocument`
+  multipart **stdlib**; idempotente por **nome+sha256** (estado
+  `data/offsite_state.json`, gravação atômica — mesmo nome com conteúdo
+  diferente reenvia); falha = retry + push no celular (cooldown 6 h,
+  igual ao backup); check **não-crítico** `offsite` no `/health` (idade
+  ok 48 h — degrada, não derruba); **fora por construção** sem
+  `OD_OFFSITE_CHAT`; `OD_OFFSITE=0` desliga; token padrão = bot de
+  monitoramento.
+- `runtime/launcher.py` — `build_offsite` (best-effort) +
+  `_run_offsite_forever` (em `to_thread`: upload de 316 MB não prende
+  o event loop do Telegram/WebSocket) + check + loop supervisionado.
+- `integrations/api/server.py` — campo `offsite` no `APIConfig`, bloco
+  no `/dashboard/stats`, card **"Off-site"** no `/admin` ("nunca" em
+  vermelho até o 1º envio — pendente honesto).
+- `tests/test_offsite.py` **+34** — `core/offsite.py` **100%**;
+  **mutações 3/3 capturadas** (idempotência removida · check virou
+  crítico · cooldown zerado) com reversão bit-exata.
+
+**Validação:** gate oficial **3525 passed / 16 skipped / 0 falha ·
+90,70%** (+34). pyflakes sem aviso novo.
+
+**Deploy (7.3):** `b7cdd05` pushado ANTES; restart verde **14:00:14** —
+MainPID 583482, NRestarts=0, journal **0 [ERROR]**, `/health` **24/24**,
+`/app/version` 1.43.0/2079 sha `9bc6ef18…` intacta (**sem bump**,
+backend puro). **Prova do modo seguro:** sem `OD_OFFSITE_CHAT` o serviço
+ficou **fora por construção** (journal: "Off-site fora — falta
+OD_OFFSITE_CHAT"), sem check e sem card — ativação não pode acontecer
+sem o id do canal.
+
+**Falta (2 passos):** (1) **dono**: adicionar **@nicky_monitor_bot como
+administrador** do canal privado e mandar qualquer mensagem lá;
+(2) **eu**: capturar o id do canal (`getUpdates`), gravar
+`OD_OFFSITE_CHAT` no `.env` + cofre, restart verde e **primeiro envio
+real = prova viva** (diário ~190 KB sobe na hora; captura semanal
+fatiada em 48 MB).
+
+**Estado:** código no ar e inerte até o clique do dono. TODO §2 linha
+do off-site atualizada; CHANGELOG §1.43.0 (sem bump); txt.txt escrito.

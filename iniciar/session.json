@@ -1,4 +1,25 @@
 {
+  "offsite_canal_privado_entregue_2026_10_20": {
+    "pedido": "Dono (20/10 ~13:30): 'prossiga' — confirmou a conclusao do off-site pelo canal privado (convite no txt.txt = canal fechado por ele; bot como admin ainda PENDENTE dele).",
+    "entregas": [
+      "core/offsite.py (novo): envia backups/auto/ (diario ~190 KB) + backups/auto-capturas/ (semanal ~316 MB) para o canal privado via sendDocument stdlib multipart. FATIAMENTO LAZY por gerador (<=48 MB por parte — o tar de 316 MB NUNCA fica inteiro na RAM; a versao interrompida carregava tudo, corrigido antes do commit). Idempotente por nome+sha256 (estado data/offsite_state.json, gravacao atomica); falha = retry + push no celular (cooldown 6 h); check NAO critico 'offsite' no /health (idade ok 48 h, degrada nao derruba); fora por construcao sem OD_OFFSITE_CHAT; OD_OFFSITE=0 desliga; token padrao = bot de monitoramento.",
+      "runtime/launcher.py: build_offsite (best-effort, warn+None) + _run_offsite_forever (to_thread, upload nao prende o loop) + check no /health + loop supervisionado.",
+      "integrations/api/server.py: campo offsite no APIConfig, bloco no /dashboard/stats, card 'Off-site' no /admin (nunca em vermelho ate o 1º envio).",
+      "tests/test_offsite.py +34: fatiamento lazy (gerador provado), multipart, envio unico/fatiado/recusa, idempotencia por nome E por sha, estado corrompido, push quebrado, cooldown, saude, fiação build_service/build_offsite, bloco stats + card. Mutações 3/3 capturadas (idempotencia removida, critical=True, cooldown=0) com reversao bit-exata."
+    ],
+    "validacao": "Gate oficial 3525 passed / 16 skipped / 0 falha, cobertura 90,70% (+34). pyflakes sem aviso novo (tempfile/orphanos removidos do rascunho).",
+    "deploy": "Commit b7cdd05 pushado ANTES; restart verde 14:00:14 (7.3): MainPID 583482, NRestarts=0, journal 0 [ERROR], /health 24/24 up, /app/version 1.43.0/2079 sha 9bc6ef18 intacta (backend puro, sem bump). PROVA DO MODO SEGURO: sem OD_OFFSITE_CHAT o servico fica fora por construcao — journal 'Off-site fora — falta OD_OFFSITE_CHAT', sem check, sem card.",
+    "falta_para_ativar": [
+      "1) DONO: adicionar @nicky_monitor_bot como ADMINISTRADOR do canal privado (Canal -> Administradores -> Adicionar) e mandar qualquer mensagem la.",
+      "2) EU: capturar o id do canal (getUpdates do bot com o canal postado), gravar OD_OFFSITE_CHAT no .env + cofre, restart verde, primeiro envio real = prova viva (o diario de ~190 KB sobe na hora; a captura semanal de 316 MB fatiada em partes de 48 MB)."
+    ],
+    "commits": [
+      "f2e4614 registros 20/10 13:25 — reverificacao verde + achado offsite interrompido",
+      "b7cdd05 feat(off-site): backups locais enviados para o canal PRIVADO do Telegram"
+    ],
+    "estado": "ENTREGUE E NO AR (inerte ate o OD_OFFSITE_CHAT) — codigo+testes+deploy verdes. AGUARDANDO o clique do dono de adicionar o bot ao canal.",
+    "transcricao": "iniciar/2026-10-20_conversa_omegadrakon.md (§10)"
+  },
   "reverificacao_2026_10_20_1321": {
     "pedido": "Usuario: 'leia iniciar' (~13:21 de 20/10) — reverificacao de rotina (regra 3) depois do fecho do CI + analise do canal (registros 04:56, commit 43bc840).",
     "achados_verdes": "SISTEMA VERDE: od-core active desde 04:17:22 (reinicio verde pos-CI), MainPID 78446, NRestarts=0, journal 0 [ERROR] desde 04:00; /health status=up com 24 checks NENHUM fora; /app/version 1.43.0/2079 sha256 9bc6ef18… == APK publicado (55700429 B); git HEAD 43bc840 == origin/master (0/0); UNICO resíduo = core/offsite.py NAO rastreado (ver 'achado'). Backups: estado de HOJE od-2026-10-20_0309.tar.gz (191 KB, 03:09, falhas=0); capturas semanal od-capturas-2026-10-16_1434 (316 MB) ok; snapshots HD 03:49 nos DOIS alvos (9,68 GB cada, montados); disco 66% (77G livres). notifier ticks=542 errors=0; auto-update metricas 19 pular/2 aplicar/0 falha.",
@@ -74,7 +95,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T13:25:00-03:00",
+  "updated_at": "2026-10-20T14:20:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
