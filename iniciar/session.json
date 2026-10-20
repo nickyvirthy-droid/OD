@@ -3596,5 +3596,25 @@
     "actions_e_app": "calibre_resync (espelho + importacao por ledger) + calibre_status + calibre_busca — categoria calibre, so admin; catalogo 112 -> 115 (test_actions_catalog + calibre:3, test_capabilities x6, orquestrador x6). Nenhuma action apaga/escreve. Botao 'Biblioteca' (odCalibreUri 8420) no card do painel (+3 testes). Capability calibre-biblioteca (fase v1.43.0).",
     "bump_e_gates": "9/9: .env 1.43.0 (+6 chaves OD_CALIBRE_*), capabilities fallback, pubspec 1.43.0+2079, _APP_VERSION_CODE 2079, site (versao x3, Actions 115, Testes 3.449), CHANGELOG, README_VERSAO, ANALISE, APK. APKs publicados pelo script canonico build_apk.sh (ACHADO: sem -Pforce-version-code-ignoring-abi o split soma 1000xABI e quebra a auto-atualizacao — meu build manual inicial saiu arm64=4079, refazido = 2079 nos dois, aapt confere). Flutter analyze 0 / test 198 (2 skipped).",
     "estado": "ENTREGA FECHADA: suíte final 3449 passed/16 skipped/0 falha, gate 90,61% >= 90; flutter analyze 0 / test 198; APK 1.43.0+2079 publicado pelo script canonico (aapt nos dois = 2079/1.43.0); commits 2d0e550 (entrega) + d49ec06 (fix do skip sem rede achado pelo E2E: resync 305s -> <60s) + registro; deploy verde (restart od-core, /app/version 1.43.0/2079, NRestarts=0); E2E vivo /tmp/opencode/e2e_v1430.py = 29 provas, 0 falhas. Series 'uma por vez' FECHADA (FlatNotes/File Browser/Calibre)."
+  },
+  "acesso_menu_e_chat_lateral_2026_10_20": {
+    "pedido": "Dono (20/10 ~18:30, logo após o dashboard unificado): 'está ok. so o acesso que poderia ser pelo menu principal, se estiver logado entra. chat também pode manter o menu lateral'.",
+    "entrega": "Duas coisas: (1) o ⋮ do SITE ganhou o item Painel (/dashboard) ANTES da clonagem da barra, e com sessão de dono o Admin entra nos DOIS menus (⋮ e barra) bebendo da MESMA resposta /auth/me que o tema já busca — uma ida à API; sem sessão o menu não faz NENHUMA chamada. (2) O FORMATO monta a barra lateral nas TRÊS páginas: no /chat só o herói/KPIs/relogio não rodam, e o papel do dono lá o FORMATO pergunta sozinho (papelChat, só com sessão).",
+    "arquitetura": [
+      "acessoMontar() roda ANTES de lateralMontar(): os dois menus continuam saindo dos MESMOS links (fonte única intacta) — Painel junto do Chat, no ⋮ e na barra por clonagem.",
+      "acessoAdmin() encadeado em temaSincronizar().then(acessoAdmin): a promise do /auth/me do tema passou a ser DEVOLVIDA e alimenta tema + item Admin — role === 'admin' no topo do payload.",
+      "Posição do Admin: no ⋮ junto do Chat (rede de sistema); na BARRA por último — a MESMA casa do lateralAdmin() do FORMATO nas páginas do painel.",
+      "iniciar() do FORMATO: lateralMontar() ANTES do cedo if (!odOla) — barra nas três páginas; no /chat só não há herói/KPIs/relogio/atualizar. A página não tem position: fixed, então o deslocamento de 236px é limpo.",
+      "papelChat(): o chat não tem quemAmI (página privada do painel), então o FORMATO pergunta o /auth/me sozinho — e SÓ com od_session_token no localStorage: anônimo não ganha ida à API nem item Admin.",
+      "Harness de node novo (_HARNESS_MENU): DOM de mentira com filhos/querySelector/insertBefore de verdade + fetch controlado — roda o od-nav.js real nos DOIS cenários (dono logado / sem sessão)."
+    ],
+    "guardas": [
+      "TestAcessoPeloMenuELateralChat (+4): estáticas (ordem acessoMontar antes do clonar, guarda role !== 'admin', resposta compartilhada temaSincronizar().then(acessoAdmin), /chat servido com FORMATO e UM ÚNICO <script>) + harness de node nos dois cenários.",
+      "Dono: Painel antes do Chat nos DOIS menus, Admin nos dois (barra = último) e EXATAMENTE 1 chamada /auth/me. Anônimo: Painel presente, Admin ausente e ZERO chamadas.",
+      "Correção no caminho: o seletor bate() do harness não tratava tag simples ('a') — só a[href=...] e .classe; e a comparação de ordem casou com a palavra dentro do COMENTÁRIO (a ordem do código estava certa)."
+    ],
+    "validacao": "Gate oficial 3539 passed / 16 skipped / 0 falha · 90,69% (+4). pyflakes: MESMOS 3 avisos pré-existentes. node --check ok. Restart verde 18:42:06 (NRestarts=0, journal 0 [ERROR], /health 25/25, /app/version 1.43.0/2079). /chat vivo servindo papelChat com 1 <script>; od-nav.js vivo servindo acessoMontar + a corrente do tema.",
+    "prova_visual": "Chromium headless + servidor legítimo com dono de teste (/tmp/opencode/ver_acesso.py, 3 cenários): SITE do dono com 16 links no ⋮ (Painel e Admin antes do Chat) e 15+marca na barra (Admin por último, padding 236px); /chat do DONO com PAINEL/CHAT/SITE/ADMIN e conteúdo deslocado (link_dentro=True); /chat ANÔNIMO com a barra SEM Admin e sem chamada à API. Render anônimo do SERVIÇO REAL depois do restart: /site com '#sobre, /dashboard, /chat, #download' no ⋮ e /chat com a barra (marca+Painel+Chat+Site, sem Admin).",
+    "estado": "ENTREGA FECHADA E NO AR. Duas ordens do dono do mesmo lote atendidas; fonte única dos menus intacta (clonagem); menu nunca depende de rede para aparecer. Canais: CHANGELOG §1.43.0 (subseção sem bump), TODO §3.9 [x], session.json (esta chave), transcrição §18, txt.txt, Telegram."
   }
 }

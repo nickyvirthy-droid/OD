@@ -153,20 +153,23 @@
   // O servidor é a verdade da CONTA; o localStorage é o cache que evita o
   // "pisca" de tema errado. Se o perfil tem outra escolha (feita no app,
   // por exemplo), ela vence na primeira visita a uma página com a sessão.
+  // A promise (e a RESPOSTA) é reaproveitada pelo acesso do menu (seção
+  // 6): uma ida à /auth/me alimenta tema + Admin, sem chamada duplicada.
   function temaSincronizar() {
     var token = temaSessao();
-    if (!token) return;
+    if (!token) return Promise.resolve(null);
     try {
-      fetch('/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
+      return fetch('/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
         .then(function (resp) { return resp.ok ? resp.json() : null; })
         .then(function (dados) {
           var doServidor = dados && dados.preferences && dados.preferences.theme;
-          if (TEMA_VALIDOS.indexOf(doServidor) < 0) return;
-          if (doServidor === temaLido()) return;
-          temaGravarLocal(doServidor);
-          temaAplicar(doServidor);
-        }).catch(function () {});
-    } catch (erro) {}
+          if (TEMA_VALIDOS.indexOf(doServidor) >= 0 && doServidor !== temaLido()) {
+            temaGravarLocal(doServidor);
+            temaAplicar(doServidor);
+          }
+          return dados;                 // quem consome é o acesso do menu
+        }).catch(function () { return null; });
+    } catch (erro) { return Promise.resolve(null); }
   }
 
   function temaMontarBotao() {
@@ -203,7 +206,8 @@
       });
     }
     // 3. o perfil manda (quando há sessão) e o sistema avisa quando muda.
-    temaSincronizar();
+    // A MESMA resposta entra no acesso do menu (seção 6): uma ida só.
+    temaSincronizar().then(acessoAdmin);
     try {
       window.matchMedia('(prefers-color-scheme: light)')
         .addEventListener('change', function () {
@@ -309,5 +313,48 @@
       } catch (erro) {}
     });
   }
+  /* --- 6. ACESSO PELO MENU PRINCIPAL (2026-10-20, pedido do dono) -----
+     "o acesso que poderia ser pelo menu principal, se estiver logado
+     entra": o item Painel entra no ⋮ ANTES da clonagem (os dois menus
+     saem dos MESMOS links) e leva ao /dashboard — logado, entra direto;
+     sem sessão, o /dashboard manda pro /chat (login). Com sessão de
+     DONO, o Admin entra nos DOIS (⋮ e barra) na RESPOSTA do /auth/me
+     que o tema já busca (uma ida à API, resposta compartilhada — a
+     promise vem da seção 3). Falhou a rede ou sem sessão? Só Painel:
+     o menu nunca fica esperando rede nem adivinha papel.
+     ---------------------------------------------------------------------- */
+  function acessoInserir(container, href, rotulo) {
+    if (!container || container.querySelector('a[href="' + href + '"]')) return;
+    var link = document.createElement('a');
+    link.setAttribute('href', href);
+    link.textContent = rotulo;
+    // Fica junto dos vizinhos de sistema (Chat) — ou no fim, se a
+    // página divergiu e não tem os links padrão (a divergência do menu
+    // já aconteceu; o item NUNCA some por causa disso).
+    var antes = container.querySelector('a[href="/chat"]') ||
+      container.querySelector('a[href="#download"]');
+    if (antes && antes.parentNode) antes.parentNode.insertBefore(link, antes);
+    else container.appendChild(link);
+  }
+
+  function acessoMontar() {
+    acessoInserir(document.getElementById('navPanel'), '/dashboard', 'Painel');
+  }
+
+  function acessoAdmin(dados) {
+    if (!dados || dados.role !== 'admin') return;
+    acessoInserir(document.getElementById('navPanel'), '/admin', 'Admin');
+    var barra = document.getElementById('odLateral');
+    var links = barra && barra.querySelector
+      ? barra.querySelector('.od-lateral-links') : null;
+    if (links && !links.querySelector('a[href="/admin"]')) {
+      var a = document.createElement('a');
+      a.setAttribute('href', '/admin');
+      a.textContent = 'Admin';
+      links.appendChild(a);
+    }
+  }
+
+  acessoMontar();     // Painel no ⋮ ANTES do clonar (barra herda o item)
   lateralMontar();
 })();

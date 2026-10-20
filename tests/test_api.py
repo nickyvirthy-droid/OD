@@ -1029,6 +1029,250 @@ console.log(JSON.stringify(saida));
             assert prob[rotulo][2] == "err", rotulo
 
 
+class TestAcessoPeloMenuELateralChat:
+    """Duas ordens do dono (20/10, logo após o dashboard unificado):
+    *"o acesso que poderia ser pelo menu principal, se estiver logado
+    entra"* e *"chat também pode manter o menu lateral"*.
+
+    1. O ⛮ do site ganha o item **Painel** (→ /dashboard) ANTES da
+       clonagem da barra — os dois menus saem dos MESMOS links; com
+       sessão de dono o **Admin** entra nos dois na MESMA resposta
+       `/auth/me` que o tema já busca (uma ida à API; sem sessão o
+       menu não faz chamada nenhuma).
+    2. O FORMATO monta a barra nas TRÊS páginas: no /chat só o herói
+       (`#odOla`) some — e o papel do dono lá o FORMATO pergunta
+       sozinho (a página náo tem quemAmI).
+    """
+
+    @staticmethod
+    def _raiz() -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    def _od_nav(self) -> str:
+        return (self._raiz() / "site" / "od-nav.js").read_text(encoding="utf-8")
+
+    def test_site_painel_no_menu_e_admin_do_dono_nos_dois(self) -> None:
+        js = self._od_nav()
+        # Painel (→ /dashboard) inserido no ⛮, junto do Chat
+        assert "acessoInserir" in js and "'/dashboard', 'Painel'" in js
+        assert "acessoMontar" in js
+        # ANTES do clonar: a barra herda o item do ⛮ (fonte única)
+        assert js.index("acessoMontar();") < js.index("lateralMontar();")
+        # Admin: papel conferido na MESMA resposta do tema (sem 2ª ida)
+        assert "temaSincronizar().then(acessoAdmin)" in js
+        assert "role !== \'admin\'" in js
+        assert "Promise.resolve(null)" in js        # sem sessão: sem fetch
+        # Admin entra nos DOIS: ⛮ e barra lateral
+        corpo = js[js.index("function acessoAdmin("):js.index("acessoMontar();")]
+        assert "\'/admin\'" in corpo and "odLateral" in corpo
+        assert ".od-lateral-links" in corpo
+
+    def test_chat_mantem_a_barra_no_formato(self, serve) -> None:
+        from integrations.api.server import _FORMATO_ORION_JS
+        fmt = _FORMATO_ORION_JS
+        # iniciar(): a barra monta ANTES do cedo (sem odOla só não há herói)
+        corpo = fmt[fmt.index("function iniciar()"):][:520]
+        precoce = 'if (!document.getElementById("odOla"))'
+        assert precoce in corpo, corpo[:200]
+        assert corpo.index("lateralMontar();") < corpo.index(precoce), corpo[:200]
+        assert "papelChat" in fmt and "lateralAdmin()" in fmt
+        # só com sessão: anônimo não ganha idà à API nem item Admin
+        pc = fmt[fmt.index("function papelChat()"):fmt.index("function iniciar()")]
+        assert "od_session_token" in pc and "lateralAdmin()" in pc
+        # servido: /chat recebe o FORMATO inteiro (CSS marcado + JS) num
+        # único <script> (a guarda de sintaxe continua medindo o mesmo bloco)
+        srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
+        status, corpo_bytes, _ = _request(srv.bound_port, "GET", "/chat")
+        html = corpo_bytes.decode("utf-8", "replace")
+        assert status == 200
+        assert "od-formato-orion-css" in html
+        assert "papelChat" in html and "lateralMontar" in html
+        assert html.count("<script>") == 1 and html.count("</script>") == 1
+
+    # --- Harness: roda o od-nav.js de VERDADE com DOM de mentira, nos dois
+    # cenários (dono logado / sem sessão) e lê o menu montado.
+    _HARNESS_MENU = r"""
+'use strict';
+const fs = require('fs'), vm = require('vm');
+const arquivo = process.argv[2];
+const ehDono = process.argv[3] === '1';
+const registro = {};
+
+function novoEl(tag) {
+  const e = {
+    tagName: String(tag || 'div').toUpperCase(),
+    _id: '', className: '', textContent: '', title: '', href: '',
+    type: '', style: {}, children: [], parentNode: null,
+    _attrs: {}, _h: {},
+    setAttribute(k, v) {
+      this._attrs[k] = String(v);
+      if (k === 'id') { this._id = String(v); registro[this._id] = this; }
+    },
+    getAttribute(k) { return k in this._attrs ? this._attrs[k] : null; },
+    removeAttribute(k) { delete this._attrs[k]; },
+    addEventListener(t, f) { this._h[t] = f; },
+    appendChild(c) { c.parentNode = this; this.children.push(c); return c; },
+    insertBefore(c, ref) {
+      c.parentNode = this;
+      const i = this.children.indexOf(ref);
+      if (i < 0) this.children.push(c); else this.children.splice(i, 0, c);
+      return c;
+    },
+    contains() { return false; },
+    cloneNode() {
+      const c = novoEl(this.tagName);
+      c.href = this.href; c.textContent = this.textContent;
+      c.title = this.title; c.className = this.className;
+      for (const k in this._attrs) c._attrs[k] = this._attrs[k];
+      return c;
+    },
+    querySelector(sel) { return achar(this, sel); },
+    querySelectorAll(sel) { return varredura(this, sel); },
+    classList: {
+      _s: new Set(),
+      toggle(c, f) {
+        const ligar = f === undefined ? !this._s.has(c) : !!f;
+        if (ligar) this._s.add(c); else this._s.delete(c);
+        return ligar;
+      },
+      contains(c) { return this._s.has(c); },
+      add(c) { this._s.add(c); },
+      remove(c) { this._s.delete(c); },
+    },
+  };
+  Object.defineProperty(e, 'id', {
+    get() { return this._id; },
+    set(v) { this._id = String(v); registro[this._id] = this; },
+    configurable: true,
+  });
+  return e;
+}
+
+function bate(el, sel) {
+  if (sel.indexOf(' ') >= 0) return false;          // 'nav .brand' → nada
+  const m = /^a\[href="([^"]+)"\]$/.exec(sel);
+  if (m) return el.tagName === 'A' && el.getAttribute('href') === m[1];
+  if (sel[0] === '.') return String(el.className).split(/\s+/).indexOf(sel.slice(1)) >= 0;
+  if (/^[a-zA-Z][a-zA-Z0-9-]*$/.test(sel)) return el.tagName === sel.toUpperCase();
+  return false;
+}
+function varredura(raiz, sel) {
+  const saida = [];
+  (function anda(el) {
+    for (const c of el.children) { if (bate(c, sel)) saida.push(c); anda(c); }
+  })(raiz);
+  return saida;
+}
+function achar(raiz, sel) { return varredura(raiz, sel)[0] || null; }
+
+const navPanel = novoEl('div');
+navPanel.id = 'navPanel';
+[ ['/site/loja.html', 'Loja'], ['/chat', 'Chat'], ['#download', 'Baixar APK'] ]
+  .forEach(([href, rot]) => {
+    const a = novoEl('a'); a.setAttribute('href', href); a.textContent = rot;
+    navPanel.appendChild(a);
+  });
+
+const document = {
+  readyState: 'complete',
+  documentElement: novoEl('html'),
+  body: novoEl('body'),
+  getElementById(id) { return registro[id] || null; },
+  querySelector() { return null; },
+  querySelectorAll() { return []; },
+  createElement(tag) { return novoEl(tag); },
+  addEventListener() {},
+};
+const store = {};
+if (ehDono) store.od_session_token = 'tk-dono';
+const localStorage = {
+  getItem(k) { return k in store ? store[k] : null; },
+  setItem(k, v) { store[k] = String(v); },
+  removeItem(k) { delete store[k]; },
+};
+const chamadas = [];
+const fetch = (url) => {
+  chamadas.push(url);
+  if (url === '/auth/me') {
+    return Promise.resolve(ehDono
+      ? { ok: true, json: async () => ({ ok: true, role: 'admin',
+          preferences: {}, user: { username: 'dono' } }) }
+      : { ok: false, json: async () => ({}) });
+  }
+  return Promise.resolve({ ok: true, json: async () => ({}) });
+};
+const window = {
+  matchMedia: () => ({ matches: false, addEventListener() {} }),
+  addEventListener() {}, scrollTo() {}, requestAnimationFrame() {},
+  scrollY: 0,
+};
+const ctx = { document, window, localStorage, fetch, console, Promise,
+              setTimeout, setInterval: () => 0 };
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(arquivo, 'utf8'), ctx, { filename: arquivo });
+
+setTimeout(() => {
+  const nav = registro['navPanel'];
+  const barra = registro['odLateral'];
+  const hrefs = (el) => el
+    ? el.querySelectorAll('a').map((a) => a.getAttribute('href')) : null;
+  console.log(JSON.stringify({
+    auth_me: chamadas.filter((u) => u === '/auth/me').length,
+    menu: hrefs(nav),
+    barra: hrefs(barra),
+  }));
+}, 30);
+"""
+
+    def _menu_no_node(self, tmp_path: Path, dono: bool) -> dict:
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:
+            return {}
+        js = tmp_path / "od_nav.js"
+        js.write_text(self._od_nav(), encoding="utf-8")
+        har = tmp_path / "har_menu.js"
+        har.write_text(self._HARNESS_MENU, encoding="utf-8")
+        r = _subprocess.run(
+            [node, str(har), str(js), "1" if dono else "0"],
+            capture_output=True, text=True, encoding="utf-8",
+            timeout=30)
+        assert r.returncode == 0, r.stderr[:800]
+        import json as _json
+        return _json.loads(r.stdout.strip().splitlines()[-1])
+
+    def test_menu_no_node_dono_gera_painel_e_admin(self, tmp_path: Path) -> None:
+        saida = self._menu_no_node(tmp_path, dono=True)
+        if not saida:          # node ausente: harness opcional (padrão da casa)
+            return
+        menu, barra = saida["menu"], saida["barra"]
+        # Painel no ⛮ ANTES do Chat, e a barra o CLONOU na mesma ordem
+        assert menu.index("/dashboard") < menu.index("/chat")
+        assert barra.index("/dashboard") < barra.index("/chat")
+        # dono logado: Admin nos DOIS, também antes do Chat
+        assert menu.index("/admin") < menu.index("/chat")
+        # na BARRA por último — a MESMA posição do lateralAdmin do
+        # FORMATO nas páginas do painel (um item Admin, mesma casa)
+        assert barra[-1] == "/admin"
+        # UMA ida à /auth/me (a mesma que já alimenta o tema)
+        assert saida["auth_me"] == 1
+
+    def test_menu_no_node_sem_sessao_so_painel_sem_chamada(
+            self, tmp_path: Path) -> None:
+        saida = self._menu_no_node(tmp_path, dono=False)
+        if not saida:
+            return
+        menu, barra = saida["menu"], saida["barra"]
+        # logado não está: Painel existe (vai dar de cara no /chat),
+        # Admin NÃO aparece em nenhum dos dois menus...
+        assert "/dashboard" in menu and "/dashboard" in barra
+        assert "/admin" not in menu and "/admin" not in barra
+        # ...e o menu não fez NENHUMA chamada à API só pra decidir isso
+        assert saida["auth_me"] == 0
+
+
 class TestLojaPorSecoes:
     """Loja do site separada por SEÇÕES = linhas da casa (pedido 16/10).
 

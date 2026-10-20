@@ -929,11 +929,22 @@ _FORMATO_ORION_JS = """(function () {
 
   /* --- Menu lateral (2026-10-20, formato Órion do dono) ------------------
      Barra fixa à esquerda (marca, itens, ☰ de recolher) como na
-     referência. Montada AQUI, na fonte única: /dashboard e /admin têm
-     #odOla e recebem; /chat sai cedo no iniciar() e mantém o próprio
+     referência. Montada AQUI, na fonte única: as TRÊS páginas recebem
+     (pedido do dono em 20/10: "chat também pode manter o menu lateral")
+     — no /chat só não há herói/KPIs/relogio, porque ele mantém o próprio
      cabeçalho. Itens sempre presentes: Painel, Chat, Site — o Admin só
-     entra para papel admin (o quemAmI da página repassa o papel em
-     odFormato.nome). Estado recolhido no localStorage, como no site. */
+     entra para papel admin: em /dashboard e /admin o quemAmI da página
+     repassa o papel em odFormato.nome; no /chat, quem pergunta é o
+     próprio FORMATO (papelChat — a página não tem quemAmI). Estado
+     recolhido no localStorage, como no site. */
+  function papelChat() {
+    var temSessao = false;
+    try { temSessao = !!localStorage.getItem("od_session_token"); } catch (e) {}
+    if (!temSessao) return;      // anônimo: sem ida à API, sem item Admin
+    buscarJson("/auth/me", true).then(function (d) {
+      if (d && d.role === "admin") lateralAdmin();
+    });
+  }
   function lateralMontar() {
     if (document.getElementById("odLateral")) return;  // idempotente
     var itens = [
@@ -1004,8 +1015,11 @@ _FORMATO_ORION_JS = """(function () {
   // pintar(); o herói não repete as mesmas requests). Relógio e versão
   // continuam de graça; a busca dupla não.
   function iniciar() {
-    if (!document.getElementById("odOla")) return;  // ex.: chat
+    // A barra vale nas TRÊS páginas (pedido 20/10): monta ANTES do cedo.
+    // Sem #odOla só não há herói/KPIs/relogio/atualizar — o chat mantém
+    // o próprio cabeçalho, e o papel dele o FORMATO pergunta sozinho.
     lateralMontar();
+    if (!document.getElementById("odOla")) { papelChat(); return; }
     relogio();
     setInterval(relogio, 1000);
     versao();

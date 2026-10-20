@@ -855,3 +855,76 @@ cards for função pura — e extraí-la custa um move, não um design.
 **Estado:** **ENTREGUE E NO AR.** Canais: CHANGELOG §1.43.0 (subseção
 sem bump) · TODO §3.6 marcado `[x]` · `session.json` (chave
 `dashboard_unificado_2026_10_20`) · `txt.txt` · Telegram.
+
+## §18 — Acesso pelo menu principal + /chat com a barra (20/10 ~18:30)
+
+**Pedido do dono:** *"está ok. so o acesso que poderia ser pelo menu
+principal, se estiver logado entra. chat também pode manter o menu
+lateral"*. Duas ordens de uma vez, logo atrás do dashboard unificado —
+ele confirmou o painel e apontou as duas pontas que faltavam do dia.
+
+**O que foi entregue:**
+
+1. **Acesso pelo menu principal (site, `od-nav.js`).** O ⋮ do site ganhou
+   o item **Painel** (`/dashboard`), inserido por `acessoMontar()`
+   **ANTES** da clonagem da barra — os dois menus continuam saindo dos
+   **MESMOS links** (fonte única intacta), junto do Chat. "Se estiver
+   logado entra": com sessão o `/dashboard` abre direto; **sem sessão o
+   menu não faz NENHUMA chamada à API** — o próprio `/dashboard` manda
+   pro `/chat` (login).
+2. **Admin do dono nos DOIS menus.** `acessoAdmin()` bebe da **mesma
+   resposta `/auth/me` que o tema já busca**
+   (`temaSincronizar().then(acessoAdmin)` — a promise passou a ser
+   devolvida; **uma ida à API, resposta compartilhada**). Com
+   `role === "admin"` o item **Admin** entra no **⋮ junto do Chat** e na
+   **barra por último** — a **mesma casa** do `lateralAdmin()` do FORMATO
+   nas páginas do painel (um item Admin, mesma posição, nas três telas).
+3. **`/chat` mantém o menu lateral (`_FORMATO_ORION_JS`).** `iniciar()`
+   agora chama `lateralMontar()` **antes** do cedo `if (!odOla)`: a barra
+   vale nas **três páginas**; no `/chat` só o herói/KPIs/relogio não
+   rodam (a página mantém o próprio cabeçalho — e ela **não tem nenhum
+   `position: fixed`**, então o deslocamento de 236px é limpo, sem o
+   defeito que o `<nav>` global causou no site). O papel do dono lá o
+   FORMATO pergunta sozinho: **`papelChat()`** — e **só com sessão**
+   (`od_session_token` no localStorage), porque anônimo não ganha ida à
+   API nem item Admin; a página não tem `quemAmI` (isso é do painel).
+
+**Guardas (`TestAcessoPeloMenuELateralChat`, +4):** estáticas — ordem
+`acessoMontar` antes do clonar, guarda `role !== 'admin'`, resposta
+compartilhada, `/chat` servido com o FORMATO e **um único `<script>`** —
+e um **harness de node** novo (`_HARNESS_MENU`: DOM de mentira com
+filhos/`querySelector`/`insertBefore` de verdade + fetch controlado) que
+roda o **`od-nav.js` de verdade** nos DOIS cenários: **dono** → Painel
+antes do Chat nos dois menus, Admin nos dois (barra = último) e
+**exatamente 1** chamada `/auth/me`; **anônimo** → Painel presente, Admin
+ausente e **ZERO** chamadas.
+
+**Correções no caminho (ambas do harness, não do produto):** o seletor
+`bate()` não tratava tag simples (`'a'`) — só `a[href=...]` e `.classe` —
+e uma comparação de ordem casou com a palavra dentro de um **comentário**
+(a ordem do código estava certa).
+
+**Validação:** gate **3539 passed / 16 skipped / 0 falha · 90,69%** (+4)
+· pyflakes **mesmos 3 avisos pré-existentes** · **restart verde
+18:42:06** (NRestarts=0, journal 0 `[ERROR]`, `/health` **25/25**,
+`/app/version` **1.43.0/2079**) · `/chat` vivo servindo `papelChat` com
+**1 `<script>`**, `od-nav.js` vivo servindo `acessoMontar` + a corrente
+do tema.
+
+**Prova visual** (chromium headless + servidor legítimo com dono de
+teste, 3 cenários — `/tmp/opencode/ver_acesso.py`): **site do dono** com
+16 links no ⋮ (Painel e Admin antes do Chat) e barra com Admin **por
+último** (padding 236px, link dentro da barra); **`/chat` do DONO** com
+**PAINEL/CHAT/SITE/ADMIN** e o conteúdo deslocado; **`/chat` ANÔNIMO**
+com a barra **sem** Admin. E o **render anônimo do serviço real** depois
+do restart: `/site` com `#sobre, /dashboard, /chat, #download` no ⋮ e
+`/chat` com a barra completa sem Admin.
+
+**Lição:** "menu nunca depende de rede" — o item que exige papel entra
+como **efeito colateral da chamada que já existe** (a do tema), nunca
+como pré-condição do menu aparecer. Se a rede falhar, o dono vê o
+menu completo menos um item; o visitante não vê mudança nenhuma.
+
+**Estado:** **ENTREGUE E NO AR.** Canais: CHANGELOG §1.43.0 (subseção
+sem bump) · TODO §3.9 marcado `[x]` · `session.json` (chave
+`acesso_menu_e_chat_lateral_2026_10_20`) · `txt.txt` · Telegram.
