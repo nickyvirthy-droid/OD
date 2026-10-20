@@ -125,3 +125,60 @@ resumo e o mesmo link. A página obedece as guardas da suíte (`od.css` +
 **Limite honesto registrado:** privatizar é **clique do dono na conta
 dele** — eu não consigo fazer (não tenho acesso à conta GitHub dele);
 o sistema confirma em 5 s pela API quando ele avisar.
+
+## §4 — Dono decide manter o repo PÚBLICO e pergunta o que está exposto: varredura completa da história (2.424 blobs, 483 commits)
+
+Decisão do dono (~02:20): **"o projeto é público, não tem motivo para
+privatizar"** → linha do TODO fechada como **MANTER PÚBLICO** (a sugestão
+tinha saído do registro da casa: em 15/10 foi apontado que o histórico
+pré-`3ed13cc` trazia segredos do compose, e o fecho de 17/10 registrou
+"privar + rotacionar"; **a rotação foi o que foi feito** — é a parte que
+importa). Em seguida ele perguntou: **"algum dado pessoal meu ou do
+sistema está exposto pelo GIT?"**.
+
+**Varredura feita no repo como o público o vê** (clone completo do
+GitHub, não o local): `git rev-list --objects --all` → 2.424 blobs de
+texto, casados contra **todos os valores vivos do `.env`** (por hash, sem
+imprimir nada) + padrões de segredo + padrões de dado pessoal.
+
+**1 SEGREDO VIVO (urgente):**
+- `TELEGRAM_BOT_TOKEN` — o bot `@Nicky_Virthy_bot`, o que manda os
+  alertas no celular do dono — está em **texto puro no histórico
+  público**, em `docs/SERVER_ANALYSIS.md` (linha 285; commits `a0de51e`
+  → `eca5e16`; o arquivo saiu da árvore pelo `fb22897`, mas o **histórico
+  público mantém**). Confirmado por hash == valor do `.env` de hoje.
+  Risco real: quem tiver o token **lê o que chega no bot e envia
+  mensagens como ele** no chat do dono. **Rotação = ação do dono no
+  BotFather**; o passo técnico (.env + cofre + restart) é meu.
+
+**Segredos mortos (sem valor hoje, confirmado por hash):** `OD_API_KEY`
+no mesmo arquivo (rotacionada 17/10 — a antiga dá 401) e
+`ADMIN_TOKEN` + pepper do Homebox no `docker/tools-compose.yaml` até
+`3ed13cc` (rotacionados 17/10). Nenhum outro valor vivo do `.env`
+aparece em lugar nenhum da história.
+
+**Dado pessoal exposto (sim):**
+- `nickyvirthy@gmail.com` nos **483 commits** (autor/committer) —
+  identidade do git, inevitável enquanto o repo existir;
+- nome real **"Alex Projeti"** em **206 arquivos** (linha "Arquiteto:"
+  dos docstrings);
+- **10 arquivos de `backups/` RASTREADOS na HEAD**: conversas antigas
+  (112 mensagens, 22 dele — "bom dia", perguntas gerais, sem
+  sensível), caches de agenda/lar/dólar (dados de teste + rotinas da
+  casa como "luzes a…") e um txt de ideias;
+- e-mail de serviço da conta **Firebase**
+  (`firebase-adminsdk-…@nicky-e4f99.iam.gserviceaccount.com`) numa
+  transcrição — **só o e-mail**: varri os 2.424 blobs atrás de
+  `BEGIN … PRIVATE KEY` e de `private_key` real e **não há chave nenhuma**
+  (os "hits" são a própria análise de 14/09 dizendo que não achou).
+
+**NÃO exposto:** `.env` (nunca rastreado), as 16 senhas do cofre,
+CPF/telefone/endereço (os "celulares" achados pelo padrão eram falsos
+positivos — bytes e datas), chave privada nenhuma.
+
+**Ações propostas (aguardando ordem — nada aplicado):** (1) rotacionar o
+token do bot (dono no BotFather, eu faço o resto); (2) tirar os 10
+arquivos pessoais de `backups/` da árvore (`git rm` + `.gitignore`) —
+história exige reescrita para sair de verdade, e isso muda todos os
+hashes, então só com ordem explícita; (3) guarda de padrão de segredo no
+CI (mesmo que o repo continue público).
