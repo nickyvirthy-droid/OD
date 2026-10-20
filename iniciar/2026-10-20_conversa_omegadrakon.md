@@ -607,3 +607,71 @@ CHANGELOG §1.43.0 (sem bump) · TODO §3 linha fechada.
 
 **Estado:** **CONCLUÍDO E NO AR.** Fila §3 do TODO sobra com o exemplo exato do
 tema (adiado pelo dono) e a câmera QR (v2).
+
+---
+
+## §14 — União dos documentos de versão fechada (20/10 ~16:25, ordem "faça a união")
+
+**Pedido:** "faça a união" dos 2 furos registrados no §13 (CHANGELOG sem a
+seção da **1.24.2**; README de Versão sem a da **1.42.0**).
+
+**Apuro antes de mexer — a causa é de CLASSE:** nenhum corpo estava faltando.
+Faltavam **cabeçalhos**, o mesmo defeito do `## [1.31.0]` engolido achado em
+16/10:
+
+- no CHANGELOG, o corpo da **1.24.2** estava **solto** entre `1.25.0` e
+  `1.24.1` (o título só existia no README);
+- no README, o corpo da **1.42.0** estava **solto** entre `1.43.0` e
+  `1.41.0` (o título só existia no CHANGELOG).
+
+**A guarda nova de "seções irmãs" achou mais 2:** **1.3.0** e **1.6.1**
+não existiam no README — nem título, nem corpo (só no CHANGELOG).
+
+**Entregas:**
+
+1. `docs/CHANGELOG.md` — `## [1.24.2] … 🜂 (2026-10-13)` reinserido acima do
+   corpo que já estava lá (título verbatim do README).
+2. `docs/README_VERSAO.md` — `## [1.42.0] … (2026-10-19)` reinserido acima do
+   corpo órfão (verbatim do CHANGELOG) **+ 2 seções portadas** no formato do
+   README (`### 1. O que foi feito` / `### 2. Evidência`): **1.6.1** (PATCH de
+   26/09: IP/portas pela action + anti-recusa) e **1.3.0** (19→26/09, saneamento
+   de versão, com o mesmo ponteiro para as seções `[1.2.0]` por ordem
+   cronológica — igual ao CHANGELOG).
+3. `tests/test_api.py` — **+1 teste** `test_docs_de_versao_completos_e_irmãos`:
+   os dois documentos têm o **mesmo** conjunto de seções `1.x` (o erro lista a
+   diferença), o topo dos dois é a **versão corrente** (`OD_VERSION`) e a
+   versão corrente aparece literal como `## [x.y.z]` nos dois. É a trava da
+   classe inteira: corpo órfão, release em um documento só e release em nenhum.
+4. CHANGELOG §1.43.0 — subseção "sem bump" · TODO §3 linha do histórico
+   atualizada com o conserto.
+
+**Validação:** gate oficial **3528 passed / 16 skipped / 0 falha · 90,68%**
+(exit 0, +1) · conferência por script: **74 == 74, conjuntos idênticos, topo
+1.43.0 == `OD_VERSION`** · **teste do teste: mutações 2/2 capturadas**
+(cabeçalho 1.6.1 borrado no README · cabeçalho 1.24.2 borrado no CHANGELOG) com
+restauração bit-exata. A guarda do `historico.html` continua verde (74 ⊆ 74).
+**Sem restart** (documentos lidos do disco).
+
+**Perguntas do dono nesta troca, respondidas:**
+
+- **"exemplo exato do tema"** — é a reprodução da falha residual do TODO §3.8
+  ("ainda falha mas bem menos", 16/10): preciso da **página exata**, do
+  **aparelho em claro ou escuro**, do **estado inicial do botão antes do
+  toque**, do **que aconteceu** e do **que deveria ter acontecido**. Sem isso
+  resta tentativa e erro (protocolo do §9: instrumentar → replicar → só então
+  mexer).
+- **"menu na lateral que vinha do Órion"** — **apurado, é real e está
+  pendente**: a análise da 1.39.0 listou 5 elementos do formato Órion
+  (herói, KPIs, mini-painéis vivos e **barra lateral colapsável**), mas a
+  entrega **ao site** foi só *chip vivo + números reais* — o site segue com a
+  nav fixa no topo e o painel `.nav-panel` aberto pelo `⋮` (HTML duplicado nas
+  11 páginas, motivo de o menu já ter divergido uma vez). As capturas de
+  referência (`analise/`, Sistema Órion/PMESP) mostram a sidebar fixa à
+  esquerda com logo, perfil e itens. **Não mexi sem ordem** — perguntei o
+  escopo (site todo × só o index × painel também) antes de codar.
+
+**Canais:** CHANGELOG + TODO · `session.json` (chave
+`uniao_documentos_versao_2026_10_20`) · `txt.txt` reescrito · Telegram.
+
+**Estado:** união **fechada no ar**; menu lateral aguardando o escopo do dono;
+tema aguardando o exemplo exato dele.
