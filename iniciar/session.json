@@ -1,4 +1,10 @@
 {
+  "ci_guarda_e_canal_off_site_2026_10_20": {
+    "pedido": "Dono 20/10: 'pode implementar o CI' (guarda de segredos) + 'se o problema e o canal ser publico, podemos fechar' (t.me/omegadrakon, para off-site).",
+    "ci_guarda_entregue": "tools/secret_guard.py (stdlib): varre arquivos RASTREADOS (git ls-files, 391) por 8 familias (PEM, ghp_/github_pat_, sk- com lookbehind anti task-sk-, AIza, token bot telegram id:token, AKIA, xox, glpat) -> exit 1 + anotacao ::error arquivo:linha. Step no ci.yml apos o setup Python. +27 testes (13 padroes, limites 35!=36, binario pulado, main 0/1/2, saida CI, VIVO repo limpo). Guarda pegou o proprio autor na 1a rodada (3 PEMs literais nos dados de teste) -> concat, limpo.",
+    "deploy_ci": "Suite 3491 passed / 16 skipped / 0 falha; push 0e99afa; run do GitHub actions completed/SECCESS com step 4 'Guarda de segredos' success (job inteiro verde). Fecho o risco residual do repo publico (TODO linha atualizada; CHANGELOG sem bump).",
+    "canal_off_site": "Fatos medidos: t.me/omegadrakon = PUBLICO (pagina aberta, 2 inscritos) e NAO referenciado no sistema (grep 0) -> fecha-lo nao quebra nada. Passo do dono: canal -> lapis -> Tipo -> Private. Depois: gravacao por bot admin (tar fatiado ~50 MB/peca) + recuperacao por conta propria Telethon (2 GB/peca). Mega: viavel via rclone (ausente; binario user-space) mas exige credenciais no .env+cofre. Recomendacao: canal privado (R$0). AGUARDANDO ordem para montar."
+  },
   "sete_respostas_executadas_2026_10_20": {
     "pedido": "Dono (20/10 ~04:00) respondeu as 7 pendencias de uma vez: 1 cofre pessoal = 'nao quero colocar nada ainda'; 2 fotos = 'vou usar depois, talvez apague'; 3 3D = 'só quando eu quiser, NAO PERGUNTE'; 4 off-site = perguntou melhor/custo/precisa; 5 token Nexus = 'esta no txt'; 6 = 'explique CI'; 7 = 'pode tirar'.",
     "executado_5_token_nexus": "Token lido do txt.txt, getMe vivo (@Nexus_Nicky_bot id 8854129409); trocado em OD_TELEGRAM_USUARIOS_TOKEN + TELEGRAM_BOT_LEGADO_TOKEN (valor vazado do Legado morto); allowlist nota atualizada (rotacionado 20/10); espelho do cofre 18/18 SEM falhas; restart verde (active, NRestarts=0, journal limpo, /health 24/24, 1.43.0/2079); prova viva msg 477 via @Nexus_Nicky_bot; token APAGADO do txt.txt. TODO §8.5 -> FECHADA (dois bots rotacionados em 20/10).",
@@ -60,7 +66,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T04:20:00-03:00",
+  "updated_at": "2026-10-20T05:10:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {

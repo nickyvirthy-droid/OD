@@ -54,6 +54,15 @@
 - **Correção de teste:** `test_presenca_confirmada_nao_vai_para_dead_letter` chamava a API real do Telegram (passava só porque o token velho era válido — com o 401 da rotação virou dead letter); agora injeta o sink falso como os vizinhos.
 - Testes: **3464 passed / 16 skipped / 0 falha** (+15: 11 dos papéis dos bots + 4 do orquestrador).
 
+### Guarda de segredos no CI — o repo nunca ganha um segredo novo sem alarme (ordem do dono "pode implementar o CI", 20/10, sem bump)
+
+**Resumo:** ordem do dono 20/10 (fechando o risco residual de manter o repo público). `tools/secret_guard.py` (stdlib, zero dependência) varre **todos os arquivos rastreados** (`git ls-files` — o que de fato vai ao GitHub; os 389/391 de hoje) por 8 famílias de padrão: chave privada PEM · GitHub (`ghp_`/`gho_`/`ghs_`/`ghu_`/`ghr_`/`github_pat_`) · OpenAI (`sk-`, com lookbehind que evita `task-sk-` como falso positivo) · Google/Gemini (`AIza…`) · token de bot Telegram (`id:token`) · AWS (`AKIA…`) · Slack (`xox…`) · GitLab (`glpat-`). Achei = **exit 1** com anotação `::error` pública `arquivo:linha` no job do Actions. Escopo deliberado: a árvore ATUAL (o histórico já foi auditado à parte em 20/10 e seus segredos mortos rotacionados) — a guarda é contra o **deslize novo**.
+
+- **Step no `.github/workflows/ci.yml`** logo após o setup do Python (falha em segundos, antes de instalar dependências).
+- **+27 testes** (`tests/test_secret_guard.py`): os 13 padrões, limites (token de 35 caracteres ≠ 36), binário pulado, `main()` com exit 0/1/2, saída CI → anotação, e o **teste vivo**: o repo real inteiro precisa varrer limpo — falha primeiro no seu PC do que num commit público.
+- **Prova da guarda no próprio dia:** os 3 PEMs literais dos dados de teste casaram na primeira rodada (a guarda pegou o próprio autor) → reconstruídos por concatenação, repo limpo de novo.
+- **Deploy verde:** suíte **3491 passed / 16 skipped / 0 falha** · push `0e99afa` · **run do GitHub: `completed/success`** com o step *"Guarda de segredos"* **success** (job "pytest + compileall + cobertura" inteiro verde).
+
 ## [1.42.0] — BOTÃO DA CAIXA NO PAINEL: SEM WEBVIEW, O APP ABRE NO NAVEGADOR (2026-10-19)
 
 **Resumo:** o dono respondeu à pergunta sobre webview (19/10): *"com o tailscale funcionando não existe finalidade em embutir, seria melhor apenas um botão que abre o navegador"* — **webview descartada**. O app ganha o botão **"Caixa de arquivos (abre no navegador)"** no card "Meu painel" (`launchUrl` no navegador de fora; URI derivada da mesma host do od-core, porta 8410) e, para o endereço valer de fora, a caixa ganhou **bind duplo** no compose — antes o `127.0.0.1` puro era **inalcançável do celular** (as provas da 1.41.0 diziam "pelo celular" sem testar o bind: honestidade corrigida com prova nova da tailnet).

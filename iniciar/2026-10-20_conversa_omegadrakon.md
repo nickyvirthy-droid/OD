@@ -348,3 +348,42 @@ repo público. **Aguardando ordem** (não montado).
 **Estado final da troca:** commits de código+TODO+registros · árvore
 limpa · od-core verde 1.43.0/2079 · cofre 18/18 · `txt.txt` sem segredos
 · fila §7 (orchestrator) zerada.
+
+## §8 — CI implementado (ordem "pode implementar o CI") + canal do Telegram para off-site (20/10 ~04:30–05:10)
+
+**§8.1 Guarda de segredos no CI — ENTREGUE (commit `0e99afa`):**
+`tools/secret_guard.py` (stdlib, sem dependência) varre os **arquivos
+rastreados** (`git ls-files` — 391 hoje) por 8 famílias de padrão (PEM ·
+GitHub `ghp_`/`github_pat_`… · OpenAI `sk-` · Google `AIza` · bot do
+Telegram `id:token` · AWS `AKIA` · Slack `xox…` · GitLab `glpat-`) e
+**derruba o build com `arquivo:linha`** (anotação `::error` no Actions).
+Step novo no `ci.yml` logo após o setup do Python (falha em segundos).
++27 testes — inclusive o **vivo do repo limpo** (falha primeiro no
+seu PC do que num commit público) e os limites do padrão (35≠36
+caracteres). **Prova irônica do mesmo dia:** a guarda pegou o PRÓPRIO
+autor — os 3 PEMs literais dos dados de teste casaram na 1ª rodada →
+reconstruídos por concatenação; repo limpo. Deploy: suíte **3491/0**,
+push, **run do GitHub `completed/success`** com step 4 (guarda) verde.
+Fechou o risco residual do repo público (linha do TODO atualizada).
+
+**§8.2 Off-site pelo Telegram — análise (pedido do dono 20/10):** ele
+sugeriu o canal `t.me/omegadrakon` ("praticamente ilimitado") e, ao
+saber que estava público, disse: *"se o problema é o canal ser público,
+podemos fechar"*. Fatos medidos: o canal é **PUBLIC** (página aberta,
+"View in Telegram", 2 inscritos) e **não é referenciado em lugar nenhum
+do sistema** (grep em html/md/py/json = 0) — fechá-lo não quebra nada.
+Passo do dono (Telegram: nome do canal → ✏️ → Tipo → **Private**). Depois
+de privado, a rota vira segura: **gravação por bot** (admin do canal;
+limite por arquivo do Bot API — ~50 MB, logo tar fatiado em partes) e
+**recuperação por conta própria** (Telethon/API_ID — lê e baixa o
+histórico, 2 GB por arquivo) — na prática: gravação agora, recuperação
+só na hora do desastre. **Mega (mega.nz):** viável via `rclone`
+(ausente aqui; binário user-space, sem sudo), mas exige credenciais da
+conta no `.env`+cofre. Recomendação: **Telegram canal privado** (R$0,
+ilimitado, já temos a infra) — decisão de ordem dele antes de montar.
+
+**§8.3 Perguntas anteriores respondidas no chat:** (4) off-site análise
+com custos (transcrição §7.1) e (6) explicação de CI (§7.2).
+
+**Estado final:** guardas e decisões do dia commitadas · CI verde no
+GitHub · árvore limpa · od-core 1.43.0/2079 · 3 bots comprovados.
