@@ -1,4 +1,17 @@
 {
+  "três_bots_divisao_e_rotação_2026_10_20": {
+    "pedido": "Dono (~03:10 de 20/10, apos rotacionar o token): 'como sao 3 bots no momento, pensei assim: Nicky_Virthy = Chat, Nexus_Nicky = alertas dos usuarios pedindo informacoes e nicky_monitor = monitoramento, alertas do sistema' -> divisao dos 3 bots implementada; antes (~03:00) pediu 'como posso te enviar os tokens' -> instruido a escrever no txt.txt; ~03:18 escreveu 'chat: <token novo>' e 'monitor: <token>'.",
+    "mapeamento": "chat=TELEGRAM_BOT_TOKEN (@Nicky_Virthy_bot, token NOVO apos /revoke do BotFather) -> conversa/comandos (TelegramBot polling); usuarios=OD_TELEGRAM_USUARIOS_TOKEN (@Nexus_Nicky_bot, vivo) -> chat_notify (sala das pecas 💬 + registro de posse 🔑); monitor=OD_TELEGRAM_MONITOR_TOKEN (@nicky_monitor_bot) -> notifier inteiro, presenca, face e _notificar_telegram do orquestrador. Chat por papel: OD_TELEGRAM_<PAPEL>_CHAT (default OD_TELEGRAM_ADMINS).",
+    "implementacao": "PAPEIS_BOT + build_telegram_sink(papel) no runtime/launcher.py (fallback: papel vazio cai no chat — um bot fora nunca cala o sistema); orquestrador._notificar_telegram usa OD_TELEGRAM_MONITOR_TOKEN com o mesmo fallback; docstring do launcher atualizada; vault_env_mirror.py +2 na allowlist.",
+    "provas": "getMe dos 3 tokens: VIVOS (@Nicky_Virthy_bot id 8515534015, @nicky_monitor_bot id 8541367022, @Nexus_Nicky_bot id 8854129409). Antes da troca: token antigo do chat = 401 (rotacao do dono confirmada ao vivo). Suite verde ANTES do deploy: 3464 passed / 16 skipped / 0 falha (+15 testes novos: 11 dos papéis + 4 do orquestrador). Fix: test_presenca_confirmada_nao_vai_para_dead_letter chamava a API REAL do Telegram (passava so porque o token velho era valido; apos a rotacao virou 401+dead letter) -> sink falso injetado.",
+    "deploy_verde": "Commit 00e09ea pushado. systemctl --user restart od-core (servico USER, sem sudo) as 03:33:52; NRestarts=0; journal LIMPO (TelegramBot inicializado commands=18, polling sem 401); /health 24/24 up; /app/version 1.43.0/2079; /actions 115.",
+    "prova_viva": "3 mensagens de teste entregues no chat do dono, cada uma de um bot: msg 3177 via @Nicky_Virthy_bot (chat), msg 476 via @Nexus_Nicky_bot (usuarios), msg 1029 via @nicky_monitor_bot (monitor).",
+    "cofre": "vault_env_mirror: 18/18 gravado+conferiu (16 antigas + OD_TELEGRAM_USUARIOS_TOKEN + OD_TELEGRAM_MONITOR_TOKEN; TELEGRAM_BOT_TOKEN atualizado com o valor novo). Cofre = 18 itens. Observacao: o mirror demora ~5-9s por operacao (18 itens ≈ 4 min) — nao e travamento.",
+    "txt_txt": "Tokens consumidos do txt.txt foram APAGADOS logo apos a leitura (so o .env e o cofre guardam os valores agora).",
+    "seguranca_sudo": "Dono perguntou o risco de eu ter a senha do sudo. Respondido: od-core NAO precisa (servico user); risco real = raio de acao total + senha persistir nos logs locais da sessao; recomendado o caminho do comando unico com regra sudoers estreita (eu nunca saberia a senha) ou ele rodar os comandos como em 17/10. NADA configurado ainda — sem ordem.",
+    "git": "Commit 00e09ea pushado (7 arquivos, +341/-23): launcher, orquestrador, 3 testes, vault mirror, CHANGELOG (entrada 'sem bump' na secao 1.43.0). Arvore limpa == origin/master.",
+    "decisao_do_dono": "Os outros riscos da varredura (email do sistema no historico, nome publico, backups/) = 'nao e importante' para ele; nome permanece publico no site. Token vazado do Nexus (TELEGRAM_BOT_LEGADO_TOKEN, fora do git) = ele optou por nao rotacionar; segue vivo em uso como bot de usuarios."
+  },
   "auditoria_git_exposicao_2026_10_20": {
     "pedido": "Dono (~02:20 de 20/10): (1) 'o projeto e publico, nao tem motivo para privatizar, de onde surgiu essa ideia' -> decisao: MANTER PUBLICO; (2) 'algum dado pessoal meu ou do sistema esta exposto pelo GIT?' -> varredura completa.",
     "varredura": "Clone COMPLETO do GitHub (o repo como o publico ve, nao o local): 483 commits, 2.424 blobs de texto, casados por HASH contra TODOS os valores vivos do .env (nenhum valor impresso) + padroes de segredo + padroes de dado pessoal.",
@@ -32,7 +45,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T06:05:00.000000+00:00",
+  "updated_at": "2026-10-20T03:40:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {

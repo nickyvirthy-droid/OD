@@ -182,3 +182,85 @@ arquivos pessoais de `backups/` da árvore (`git rm` + `.gitignore`) —
 história exige reescrita para sair de verdade, e isso muda todos os
 hashes, então só com ordem explícita; (3) guarda de padrão de segredo no
 CI (mesmo que o repo continue público).
+
+## §5 — Token rotacionado + 3 bots divididos: chat, usuários e monitoramento (20/10 ~03:18–03:40)
+
+**O que o dono disse (ordem cronológica):**
+1. *"rotacionei, todo o resto não é importante, o email é do sistema e meu
+   nome vai permanecer público no site. tenho 3 bots, Nexus_Nicky_bot,
+   Nicky_Virthy_bot e nicky_monitor_bot se pudermos dividir os serviços e
+   usar os três, e se for necessário criar mais eu quero muito"* — os
+   outros riscos da varredura §4 foram descartados por ele; a rotação do
+   segredo vivo, confirmada.
+2. *"como são 3 bots no momento, pensei assim: **Nicky_Virthy = Chat,
+   Nexus_Nicky = alertas dos usuários pedindo informações e nicky_monitor =
+   monitoramento, alertas do sistema**"* — a divisão do sistema passou a
+   ser a dele.
+3. *"como posso te enviar os tokens"* → instruído: escrever no `txt.txt`
+   (gitignorado). Escreveu ~03:18 (`chat:` + `monitor:`) e apaguei as
+   linhas assim que li.
+4. *"se te passar a senha do sudo do mesmo jeito... ela fica em segredo e
+   você consegue usar?"* e *"qual o risco de você possuir a senha sudo"* —
+   respondido sem configurar nada (ver §5.6).
+
+**§5.1 Prova da rotação (antes de qualquer troca):** `getMe` com o token
+antigo do `TELEGRAM_BOT_TOKEN` → **401 Unauthorized** (o `/revoke` do
+BotFather matou o valor do histórico público que a varredura §4 achou);
+`TELEGRAM_BOT_LEGADO_TOKEN` (@Nexus_Nicky_bot) seguia **vivo**. Consequência
+real: o sistema ficou ~1 h sem Telegram (notifier e orquestrador mandando
+para token morto; o push FCM continuava entregando).
+
+**§5.2 Encaixe exato da divisão no código:** o `chat_notify` existente
+dispara exatamente em "usuário pedindo informação" — 💬 mensagem na sala de
+bate-papo da peça (`_maybe_notify_chat`, 1 aviso/2 min por peça) e 🔑
+registro de posse (`registry_posse`). Ou seja: o Nexus já tinha o papel
+natural de bot de usuários; o notifier (saúde/restart/disco/stack),
+presença, face e o resumo de sessão do orquestrador são "alertas do
+sistema" → monitor.
+
+| Papel | Env | Bot | Saídas |
+|---|---|---|---|
+| `chat` | `TELEGRAM_BOT_TOKEN` | @Nicky_Virthy_bot (token novo) | conversa, comandos (polling) |
+| `usuarios` | `OD_TELEGRAM_USUARIOS_TOKEN` | @Nexus_Nicky_bot | 💬 chat das peças, 🔑 posse |
+| `monitor` | `OD_TELEGRAM_MONITOR_TOKEN` | @nicky_monitor_bot | notifier, presença, face, orquestrador |
+
+Cada papel aceita chat próprio (`OD_TELEGRAM_<PAPEL>_CHAT`, default
+`OD_TELEGRAM_ADMINS`) e, **se o token do papel vazio, cai no chat** —
+degradação honesta, um bot fora nunca cala o sistema.
+
+**§5.3 Entrega (commit `00e09ea`, push):** `PAPEIS_BOT` +
+`build_telegram_sink(papel)` no `runtime/launcher.py`; chamadas remapeadas
+(chat_notify→usuarios; notifier/presença/face→monitor); orquestrador usa
+`OD_TELEGRAM_MONITOR_TOKEN` com o mesmo fallback; docstring do launcher;
+allowlist do espelho +2; entrada "sem bump" no CHANGELOG; +15 testes
+(11 dos papéis + 4 do orquestrador).
+
+**§5.4 Teste que estava mentindo:** `test_presenca_confirmada_nao_vai_para_
+dead_letter` não injetava sink — chamava a **API real do Telegram** e passava
+só porque o token velho era válido (comprovado ao vivo: com a rotação, virou
+401 → dead letter → teste vermelho). Corrigido com o sink falso, como os
+testes vizinhos já faziam.
+
+**§5.5 Deploy verde (regra 7.3):** suíte **3464 passed / 16 skipped / 0
+falha** antes do restart · `systemctl --user restart od-core` 03:33:52
+(serviço **user** — sem sudo) · NRestarts=0 · journal **limpo**
+(TelegramBot commands=18, polling sem 401) · `/health` **24/24** ·
+`/app/version` **1.43.0/2079** · `/actions` 115. **Prova viva:** 3
+mensagens entregues no chat do dono, uma por bot — msg 3177 via
+@Nicky_Virthy_bot, msg 476 via @Nexus_Nicky_bot, msg 1029 via
+@nicky_monitor_bot. Cofre espelhado **18/18 gravado+conferiu** (os 2
+chaves novas; o mirror leva ~5–9 s por operação — não é travamento).
+
+**§5.6 Pergunta do sudo (respondido, NADA configurado):** `od-core` é
+serviço do usuário → não precisa de sudo. Riscos de eu ter a senha:
+raio de ação total (um erro meu ou conteúdo não confiável vira root),
+senha persistir nos logs locais da sessão, e perda da confirmação humana.
+Recomendação dada: (a) melhor — ele roda **um comando único** que eu
+preparo, criando regra estreita em `/etc/sudoers.d/` (só os comandos
+combinados, `NOPASSWD`, validada com `visudo -c`) — eu nunca saberia a
+senha; (b) sob demanda pelo `txt.txt` + apagar; (c) evitar: senha fixa.
+Sem ordem dele, segue tudo como está.
+
+**Estado final:** árvore limpa == `origin/master` (`00e09ea`) · os 3 bots
+vivos e provados · tokens novos só no `.env` + cofre (18 itens) ·
+`txt.txt` sem segredos · fila §7 zerada.
