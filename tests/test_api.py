@@ -878,6 +878,157 @@ class TestMenuLateralOrion:
         assert check.returncode == 0, check.stderr.decode()[:400]
 
 
+class TestVisaoDoSistema:
+    """Dashboard unificado "System Overview" (TODO §3.6, ordem do dono
+    20/10 "Dashboard unificado"): um card por subsistema no /admin, tudo
+    lido das MESMAS fontes de sempre (/health · /supervision ·
+    /dashboard/stats · /actions). A fila inteira de cards é montada por
+    UMA função pura `visaoCards`, que é a alavanca das travas: (a) a seção
+    existe e cobre todos os subsistemas; (b) o construtor de cards NÃO
+    busca nada (fonte paralela é proibida); (c) no node, com dado de
+    verdade cada subsistema aparece, e sem dado todos ficam "—" com a
+    classe vazia — verde de mentira é o defeito que esta suíte existe
+    para matar.
+    """
+
+    @staticmethod
+    def _raiz() -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    def _js_do_admin(self) -> str:
+        """O <script> único da página /admin, cru (sem o FORMATO)."""
+        from integrations.api.server import _ADMIN_PAGE_HTML
+        html = _ADMIN_PAGE_HTML
+        return html[html.index("<script>") + len("<script>"):
+                    html.rindex("</script>")]
+
+    def test_visao_no_admin_cobre_todos_os_subsistemas(self, serve) -> None:
+        srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
+        status, corpo, _ = _request(srv.bound_port, "GET", "/admin")
+        html = corpo.decode("utf-8", "replace")
+        assert status == 200
+        assert "Vis\u00e3o do sistema (System Overview)" in html
+        assert 'id="sys-resumo"' in html and 'id="sys"' in html
+        # um card por subsistema: o que J\u00e1 existia + os 4 que faltavam
+        for rotulo in ("Estado", "Loops", "Stack N\u00f4made", "Alertas",
+                       "Backup", "Off-site", "RAG", "Auto-update",
+                       "Downloads", "Ferramentas"):
+            assert f'"{rotulo}"' in html, rotulo
+        # cada card l\u00ea o bloco que o /dashboard/stats J\u00e1 emite
+        for bloco in ("vector_store", "auto_update", "downloads",
+                      "ferramentas", "nomad_tools", "notifier", "offsite"):
+            assert f"stats.{bloco}" in html, bloco
+
+    def test_construtor_de_cards_nao_busca_nada(self) -> None:
+        """Fonte \u00fanica: visaoCards \u00e9 função PURA — recebe os payloads e
+        s\u00f3 monta strings. Se um dia um fetch entrar dentro, a visão vira
+        fonte paralela e este teste derruba."""
+        import re
+        js = self._js_do_admin()
+        m = re.search(r"function visaoCards\(health, sup, stats\) \{[\s\S]*?\n\}",
+                      js)
+        assert m, "visaoCards n\u00e3o encontrada — vis\u00e3o sem alavanca"
+        corpo = m.group(0)
+        assert "fetch" not in corpo and "http" not in corpo.lower()
+        # fallback honesto em cada bloco ausente (sem dado, nada de verde)
+        assert corpo.count('"\u2014"') >= 4
+        # declarada UMA vez e chamada UMA vez (só dentro do loadSystem)
+        assert js.count("visaoCards(health, sup, stats)") == 2
+
+    _HARNESS = """
+'use strict';
+const fs = require('fs'), vm = require('vm');
+const arquivo = process.argv[2];
+function novoEl() {
+  return { style: {}, dataset: {}, _attrs: {}, innerHTML: '', textContent: '',
+    className: '', value: '', href: '', onclick: null,
+    setAttribute(k, v) { this._attrs[k] = String(v); },
+    getAttribute(k) { return k in this._attrs ? this._attrs[k] : 'href'; },
+    addEventListener() {},
+    classList: { toggle() {}, add() {}, remove() { return true; },
+                 contains() { return false; } } };
+}
+const document = { getElementById() { return novoEl(); },
+  querySelector() { return null; }, querySelectorAll() { return []; },
+  createElement() { return novoEl(); }, addEventListener() {},
+  documentElement: novoEl(), body: novoEl(), readyState: 'complete' };
+const window = { confirm() { return true; }, alert() {}, scrollTo() {},
+  matchMedia() { return { matches: true, addEventListener() {} }; } };
+const localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
+const location = { href: '' };
+const fetch = () => Promise.resolve({ ok: false, status: 401,
+  json: async () => ({ ok: false }) });
+const ctx = { document, window, localStorage, location, fetch, console,
+  setInterval: () => 0, setTimeout: () => 0, clearTimeout: () => {} };
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(arquivo, 'utf8'), ctx, { filename: arquivo });
+
+const health = { ok: true, status: "up" };
+const sup = { restarts: 0, ok: true };
+const cheio = {
+  uptime_s: 3671, processed: 42, avg_latency_ms: 12, cache: { entries: 3 },
+  nomad_tools: { up: 9, total: 9, fora: [] },
+  notifier: { alerts_emitted: 5, alerts_blocked: 1, errors: 0 },
+  backup: { estado: { ultimo_sucesso_em: "20/10 03:00", ultimo_bytes: 4096,
+                      pendente_hoje: false, falhas: 0 },
+            capturas: { ultimo_sucesso_em: "19/10 04:00", ultimo_bytes: 1024,
+                        pendente_hoje: false, falhas: 0 } },
+  offsite: { ultimo_diario: "20/10 03:01" },
+  vector_store: { docs: 42, namespaces: ["global"] },
+  auto_update: { alvos: 3, desabilitados: 0, pendentes: 1 },
+  downloads: { ativas: 2, concluidos: 7, erros: 0 },
+  ferramentas: { total: 12, ativas: 12, com_historico: 4, ultimo_erro: null },
+};
+const problema = JSON.parse(JSON.stringify(cheio));
+problema.auto_update.desabilitados = 2;
+problema.downloads.erros = 1;
+problema.ferramentas.ultimo_erro = "restaura\u00e7\u00e3o falhou";
+problema.offsite.ultimo_diario = null;
+const saida = {
+  cheio: ctx.visaoCards(health, sup, cheio),
+  vazio: ctx.visaoCards(health, sup, {}),
+  problema: ctx.visaoCards(health, sup, problema),
+};
+console.log(JSON.stringify(saida));
+"""
+
+    def test_cards_no_node_verdade_e_traco(self, tmp_path: Path) -> None:
+        """Roda o script do /admin em node com DOM de mentira e avalia a
+        visão em 3 estados: dado completo, dado vazio e dado problemático."""
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:
+            return
+        js = tmp_path / "admin.js"
+        js.write_text(self._js_do_admin(), encoding="utf-8")
+        har = tmp_path / "har.js"
+        har.write_text(self._HARNESS, encoding="utf-8")
+        r = _subprocess.run([node, str(har), str(js)], capture_output=True,
+                            text=True, encoding="utf-8")
+        assert r.returncode == 0, r.stderr[:800]
+        import json as _json
+        saida = _json.loads(r.stdout.strip().splitlines()[-1])
+        cartoes = {c[0]: c for c in saida["cheio"]}
+        # com dado de verdade, NENHUM subsistema fica em "—"
+        for rotulo in ("RAG", "Auto-update", "Downloads", "Ferramentas",
+                       "Alertas", "Stack N\u00f4made", "Backup", "Off-site"):
+            assert cartoes[rotulo][1] != "\u2014", rotulo
+        assert cartoes["RAG"][1].startswith("42 docs")
+        # sem dado: os blocos caem em "—" e NUNCA em verde
+        vazio = {c[0]: c for c in saida["vazio"]}
+        for rotulo in ("RAG", "Auto-update", "Downloads", "Ferramentas",
+                       "Alertas", "Stack N\u00f4made", "Backup", "Off-site"):
+            assert vazio[rotulo][1] == "\u2014", rotulo
+            assert vazio[rotulo][2] != "ok", rotulo
+        # problema real -> vermelho: auto-disable, erro de download,
+        # erro do depot e off-site que nunca saiu de casa
+        prob = {c[0]: c for c in saida["problema"]}
+        for rotulo in ("Auto-update", "Downloads", "Ferramentas", "Off-site"):
+            assert prob[rotulo][2] == "err", rotulo
+
+
 class TestLojaPorSecoes:
     """Loja do site separada por SEÇÕES = linhas da casa (pedido 16/10).
 

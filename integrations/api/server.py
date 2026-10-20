@@ -1427,7 +1427,13 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       <div><div class="n" id="kpiUptime">—</div><div class="l">Uptime do núcleo</div></div></div>
   </div>
   <section>
-    <h2>Sistema</h2>
+    <h2>Visão do sistema (System Overview)
+      <span class="pill" id="sys-resumo">…</span></h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Um card por subsistema — tudo lido das MESMAS fontes de sempre
+      (/health · /supervision · /dashboard/stats · /actions), sem busca
+      nova. Bloco sem dado, o campo fica "—"; verde só com dado existindo.
+    </p>
     <div class="grid" id="sys"></div>
     <details><summary>Loops do núcleo (/supervision)</summary><pre id="loops">—</pre></details>
     <details><summary>Métricas do orquestrador (/dashboard/stats)</summary><pre id="metrics">—</pre></details>
@@ -1761,15 +1767,7 @@ async function whoAmI() {
 // (bandeira lida no DOMContentLoaded antes da injeção iniciar).
 window.odFormatoGerenciado = true;
 
-async function loadSystem() {
-  const msg = document.getElementById("sys-msg");
-  try {
-    const [health, sup, stats, acoes] = await Promise.all([
-      fetch("/health", { headers: authHeaders() }).then(r => r.json()),
-      fetch("/supervision", { headers: authHeaders() }).then(r => r.json()),
-      fetch("/dashboard/stats", { headers: authHeaders() }).then(r => r.json()),
-      fetch("/actions", { headers: authHeaders() }).then(r => r.ok ? r.json() : null)
-    ]);
+function visaoCards(health, sup, stats) {
     const cards = [
       ["Estado", health.status || (health.ok ? "up" : "?"), health.ok ? "ok" : "err"],
       ["Uptime", fmtUptime(stats.uptime_s != null ? stats.uptime_s : health.uptime_s), ""],
@@ -1807,10 +1805,59 @@ async function loadSystem() {
         ? (stats.offsite.ultimo_diario
             ? "ok · " + stats.offsite.ultimo_diario : "nunca")
         : "—", stats.offsite && !stats.offsite.ultimo_diario ? "err" : ""],
+      // --- System Overview (TODO §3.6, 20/10): os quatro subsistemas que
+      // o /dashboard/stats JÁ trazia e a visão não mostrava. Sempre com
+      // fallback honesto: bloco ausente = "—" (nunca verde de mentira).
+      // RAG: a memória viva — documentos indexados e namespaces.
+      ["RAG", stats.vector_store
+        ? stats.vector_store.docs + " docs · " +
+          (stats.vector_store.namespaces || []).length + " ns"
+        : "—", ""],
+      // Auto-update (Parte E): alvos do manifesto × auto-disable ×
+      // pendentes — desligado é problema de verdade (vermelho).
+      ["Auto-update", stats.auto_update
+        ? stats.auto_update.alvos + " alvos · " +
+          stats.auto_update.desabilitados + " desl · " +
+          stats.auto_update.pendentes + " pend"
+        : "—",
+        stats.auto_update && stats.auto_update.desabilitados ? "err" : ""],
+      // Fila de downloads (Parte D): em voo × concluídos × erros.
+      ["Downloads", stats.downloads
+        ? stats.downloads.ativas + " ativas · " +
+          stats.downloads.concluidos + " ok · " +
+          stats.downloads.erros + " erro"
+        : "—",
+        stats.downloads && stats.downloads.erros ? "err" : ""],
+      // Supply Depot (Parte F): catálogo ativo, versões guardadas e o
+      // último erro de restauração (se existe, o card fica vermelho).
+      ["Ferramentas", stats.ferramentas
+        ? stats.ferramentas.ativas + "/" + stats.ferramentas.total +
+          " · " + stats.ferramentas.com_historico + " c/ histórico"
+        : "—",
+        stats.ferramentas && stats.ferramentas.ultimo_erro ? "err" : ""],
     ];
+  return cards;
+}
+
+async function loadSystem() {
+  const msg = document.getElementById("sys-msg");
+  try {
+    const [health, sup, stats, acoes] = await Promise.all([
+      fetch("/health", { headers: authHeaders() }).then(r => r.json()),
+      fetch("/supervision", { headers: authHeaders() }).then(r => r.json()),
+      fetch("/dashboard/stats", { headers: authHeaders() }).then(r => r.json()),
+      fetch("/actions", { headers: authHeaders() }).then(r => r.ok ? r.json() : null)
+    ]);
+    const cards = visaoCards(health, sup, stats);
     document.getElementById("sys").innerHTML = cards.map(c =>
       '<div class="card"><div class="k">' + c[0] + '</div><div class="v ' + c[2] + '">' + c[1] + "</div></div>"
     ).join("");
+    // Resumo da visão (§3.6): a pill conta os cards em atenção — o
+    // número vem dos MESMOS cards, então nunca pinta "tudo ok" por fora.
+    const resumo = document.getElementById("sys-resumo");
+    const atencao = cards.filter(c => c[2] === "err").length;
+    resumo.className = "pill " + (atencao ? "err" : "ok");
+    resumo.textContent = atencao ? atencao + " em atenção" : "tudo ok";
     document.getElementById("loops").textContent = JSON.stringify(sup, null, 2);
     document.getElementById("metrics").textContent = JSON.stringify(stats, null, 2);
     document.getElementById("nomadTools").textContent = stats.nomad_tools
