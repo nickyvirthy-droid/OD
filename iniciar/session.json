@@ -1,7 +1,27 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-19T19:29:26.061675+00:00",
+  "updated_at": "2026-10-20T04:38:09.781222+00:00",
+  "reverificacao_2026_10_20_0138": {
+    "pedido": "Usuario: 'leia iniciar' (~01:38 de 20/10) — reverificacao de rotina (regra 3) depois do fecho da v1.43.0+2079 (Calibre, 19/10 16:29, comits 2d0e550 + d49ec06 + aa3c5e5).",
+    "achados_verdes": "SISTEMA VERDE: od-core active desde 19/10 16:23:09 (9h15), MainPID 3639833, NRestarts=0, journal 0 [ERROR] desde o boot; /health status=up com 24 checks NENHUM fora (criticos 0 fora); /app/version 1.43.0/2079 sha256 9bc6ef18… == APK publicado (55700429 B); git status LIMPO, HEAD aa3c5e5 == origin/master (0/0); backup up (od-2026-10-19_0311.tar.gz, 0.18 MB, 22.4 h) e backup_capturas up (od-capturas-2026-10-16_1434.tar.gz, 301.62 MB, 83 h); disco 66% (78G livres); txt.txt SEM mensagem nova do dono (ultima escrita nossa 19/10 16:29 = entrega do Calibre); analise/ inalterado (2 capturas Sistema OrioN de 16/10 sem instrucao + fotos-adicionais/ com as 4).",
+    "provas_de_saude": "/dashboard/stats notifier {ticks:553, checks_run:8848, problems:10, alerts_emitted:2, alerts_blocked:7, errors:0} + nomad_tools {9,9,[]}.",
+    "fatos_novos_transitorios": [
+      "router:down (warn) 1 alerta desde o boot (19/10 20:16:35) — mesmo blip intermitente de ping ao 192.168.0.1 registrado desde 15/10; gateway responde agora; sem acao.",
+      "Um 'API erro | status=404' (WARN, 20/10 01:12:50) — pedido a caminho inexistente, pontual, sem repeticao.",
+      "Re-registros de push do app (01:25/01:27/01:34) com o MESMO token vivo d8Xhaf…crcY — renovacao normal do FCM, sem token zumbi.",
+      "Dono ativo agora na tailnet: WebSocket 100.80.224.73 autenticado 01:36 + mensagem processada 01:37 (route=llm, gemma-local, 53.9 s)."
+    ],
+    "estado": "SISTEMA ESTAVEL E NO AR — v1.43.0+2079; serie 'uma por vez' (FlatNotes/File Browser/Calibre) FECHADA; fila §7 zerada; nada em andamento; aguardando ordem do dono.",
+    "proximas_pendencias_dono": [
+      "analise/ com 2 capturas do Sistema OrioN (16/10 01:39) SEM instrucao.",
+      "Cofre pessoal no Vaultwarden (cofre do sistema 16/16 espelhado).",
+      "Privatizar o repo GitHub (clique do dono) + BotFather/@Nexus_Nicky_bot (§8.5, rotação técnica já feita 17/10).",
+      "4 fotos em analise/fotos-adicionais/; catalogo 3D/; completar historico.html.",
+      "Tema (§3.8): exemplo exato da falha residual segue adiado pelo dono."
+    ],
+    "transcricao": "iniciar/2026-10-20_conversa_omegadrakon.md (§1)"
+  },
   "pauta_explicada_e_todo_descrito_2026_10_16": {
     "pedido": "Dono (~19:50 de 16/10): 'me explique o tal de Pauta itens 3 e 5' e, ao ver a minha busca demorada nas transcrições, correu o processo: 'por isso pedi pra criar um TODO de atualizações... não precisa ficar assim procurando do que se trata'.",
     "apuracao_da_fonte": "'Pauta' = as 15 divergências Legado × sistema atual em docs/ANALISE_ECOSSISTEMA.md §6, com os próximos passos numerados 1–5 na §8 (criada 09/10). Itens 1 (organizar Legado) e 2 (/verificacao + Registro Mestre) já CONCLUÍDOS; os abertos são: 3 = ordem das frentes FAB/Living Systems/Semi-joias/Nicoly Valentina (só falta a decisão da ordem — o 1º passo pedido, Registro Mestre, saiu em v1.22.0 e a Etapa 4 em v1.30.0); 4 = unificação do formato de ID das peças (SKU 5 campos × MoC 4 campos hex do Legado, antes das semi-joias); 5 = rotação dos segredos vazados no Legado (bot @Nexus_Nicky_bot e chave Gemini ainda ATIVOS; decisão do dono: rotacionar após os testes). OBS: os transcripts antigos diziam '3 e 5 = unificação de ID e ordem das frentes' — a numeração real da §8 é 3=frentes, 4=ID, 5=segredos; a confusão de numeração era parte do problema.",
