@@ -802,19 +802,32 @@ _FORMATO_ORION_CSS = """<style>
     }
     .od-lateral-btn:hover { border-color: var(--accent); background: var(--bg3); }
     .od-lateral-links a {
-      display: block; padding: 10px 6px; color: var(--text);
+      display: flex; align-items: center; gap: 9px;
+      padding: 10px 6px; color: var(--text);
       font-size: .78rem; letter-spacing: .09em; text-transform: uppercase;
       text-decoration: none; border-bottom: 1px solid var(--border);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; overflow: hidden;
     }
+    .od-lateral-links a .od-ico {
+      flex: none; font-size: 1.05rem; letter-spacing: 0; line-height: 1;
+      /* Família explícita: sem ela, máquina sem fonte de emoji vira
+         quadradinho (o produto já usa emoji na UI — 🛡 Admin do topo,
+         🤖/⚖️ do select do chat — e este é o mesmo contrato). */
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+        "Twemoji Mozilla", sans-serif;
+    }
+    .od-lateral-links a .od-rot { overflow: hidden; text-overflow: ellipsis; }
     .od-lateral-links a:last-child { border-bottom: 0; }
     .od-lateral-links a:hover { color: var(--accent); }
-    /* Recolhida: a marca sai e os rótulos encolhem (sem ícones no kit —
-       texto curto centrado, nada de inventar iconografia). */
+    /* Recolhida (pedido do dono 20/10 — "quando o menu retrai fica pedaços
+       de palavras, seria melhor ícones"): a marca sai e os RÓTULOS saem
+       junto — só oÍCONE centrado; o nome fica no title (hover) e no
+       .od-rot do DOM (leitor de tela). Espelho exato do od.css do site. */
     html.od-lateral-recolhido .od-lateral-marca { display: none; }
     html.od-lateral-recolhido .od-lateral-links a {
-      text-align: center; font-size: .66rem; padding: 10px 2px;
+      justify-content: center; padding: 10px 2px; gap: 0;
     }
+    html.od-lateral-recolhido .od-lateral-links a .od-rot { display: none; }
   }
 </style>"""
 
@@ -948,9 +961,9 @@ _FORMATO_ORION_JS = """(function () {
   function lateralMontar() {
     if (document.getElementById("odLateral")) return;  // idempotente
     var itens = [
-      { href: "/dashboard", rot: "Painel" },
-      { href: "/chat", rot: "Chat" },
-      { href: "/site", rot: "Site" }
+      { href: "/dashboard", rot: "Painel", ico: "🖥️" },
+      { href: "/chat", rot: "Chat", ico: "💬" },
+      { href: "/site", rot: "Site", ico: "🌐" }
     ];
     var aside = document.createElement("aside");
     aside.id = "odLateral";
@@ -963,7 +976,10 @@ _FORMATO_ORION_JS = """(function () {
       '&#9776;</button></div><div class="od-lateral-links">';
     var html = marca;
     for (var i = 0; i < itens.length; i++) {
-      html += '<a href="' + itens[i].href + '">' + itens[i].rot + "</a>";
+      // title primeiro: recolhido, o rótulo some e o hover mostra o nome.
+      html += '<a href="' + itens[i].href + '" title="' + itens[i].rot + '">' +
+        '<span class="od-ico" aria-hidden="true">' + itens[i].ico + "</span>" +
+        '<span class="od-rot">' + itens[i].rot + "</span></a>";
     }
     aside.innerHTML = html + "</div>";
     document.body.appendChild(aside);
@@ -990,7 +1006,9 @@ _FORMATO_ORION_JS = """(function () {
     if (!links) return;
     var a = document.createElement("a");
     a.setAttribute("href", "/admin");
-    a.textContent = "Admin";
+    a.setAttribute("title", "Admin");
+    a.innerHTML = '<span class="od-ico" aria-hidden="true">🛡️</span>' +
+      '<span class="od-rot">Admin</span>';
     links.appendChild(a);
   }
 

@@ -928,3 +928,78 @@ menu completo menos um item; o visitante não vê mudança nenhuma.
 **Estado:** **ENTREGUE E NO AR.** Canais: CHANGELOG §1.43.0 (subseção
 sem bump) · TODO §3.9 marcado `[x]` · `session.json` (chave
 `acesso_menu_e_chat_lateral_2026_10_20`) · `txt.txt` · Telegram.
+
+## §19 — Ícones no menu lateral: recolhido sem pedaços de palavra (20/10 ~19:00)
+
+**Pedido do dono:** *"não ficou legal o sistema de escrita, quando o menu
+retrai fica pedaços de palavras, seria melhor ícones"*. Ele avaliou o
+lote do dia (dashboard + acesso + barra no chat) e apontou a ponta que
+sobrou: no estado **recolhido**, a barra de 68px cortava os rótulos.
+
+**Réplica ANTES (método da casa):** render headless com servidor
+legítimo + dono de teste, 4 capturas (site/chat × aberto/recolhido). O
+defeito saiu ao vivo: `MAR… ECO… SIST… PRO… HIST… VERI… PLÊI… PAIN…
+BAI… ADM…`. A causa: o CSS antigo só encolhia a fonte
+(`font-size: .66rem`) e deixava o `ellipsis` trabalhar — e apuramos de
+brinde que o **chat não tinha nenhum `title`** (o hover morria junto
+com o texto).
+
+**O que foi entregue:**
+
+1. **`od-nav.js` — tabela + resolvedor + forma única.** `ICONES` está
+   **por href** na mesma fonte única dos links; `iconeDe()` resolve as
+   variações (`/site#marca` ≡ `#marca`, `/site/historico.html#historico`
+   ≡ `#historico`) — as 12 páginas têm menus divergentes de propósito
+   (12/13/14 links; união = **28 hrefs**). O helper `lateralItem()`
+   monta `title` + `<span class="od-ico">` + `<span class="od-rot">` e é
+   o MESMO caminho do clonar e do Admin (forma única). Fora da tabela:
+   **"•"** — nunca palavra cortada.
+2. **`od.css` — flex e recolhida honesta.** Link vira flex (ícone fixo +
+   rótulo com ellipsis); recolhida: `justify-content: center` +
+   `.od-rot { display: none }` — **some o rótulo, sobra o ícone
+   centrado**, sem encolher fonte. O nome continua no `title` (hover) e
+   no DOM (leitor de tela).
+3. **Painel — espelho exato.** Mesmos glifos nos 4 itens (Painel 🖥️ ·
+   Chat 💬 · Site 🌐 · Admin 🛡️), `title` ganho em todos (o chat não
+   tinha), `lateralAdmin` na mesma forma, CSS copiado linha a linha.
+   Família de emoji explícita nos dois (`"Apple Color Emoji", "Segoe UI
+   Emoji", "Noto Color Emoji", …`).
+
+**Guardas (`TestIconesDoMenuLateral`, +4):** estáticas dos dois lados
+(inclusive: a regra da recolhida **não pode conter `font-size`** — é o
+que virou "pedaço de palavra"); **cobertura de divergência** — os 28
+hrefs da união de todos os menus avaliados no **`iconeDe()` REAL** no
+node (sem espelho da lógica no teste), nenhum cai no "•"; **paridade**
+painel = site nos 4 glifos; `/chat` servido com spans + CSS + um único
+`<script>`. Os 2 testes do harness de menu passaram a exigir ícone real
+(nunca "•") + rótulo + `title` em cada item, nos dois cenários.
+
+**Achado de ambiente (registrado no CHANGELOG):** a primeira prova
+"depois" saiu com **quadradinhos** — o chromium headless desta máquina
+não tinha fonte de emoji (`fc-list` = 0). A fonte foi instalada **em
+nível de usuário** (`~/.local/share/fonts`, fora do repositório, sem
+sudo) só para a prova. Produto não ganhou dependência: o emoji **já era
+contrato da UI** (🛡 Admin do topo do painel, 🤖/⚖️/🌟 do select do
+chat — coisas que o dono já viu).
+
+**Validação:** gate **3543 passed / 16 skipped / 0 falha · 90,69%** (+4)
+· pyflakes **mesmos 3 avisos pré-existentes** · **restart verde
+19:15:27** (NRestarts=0, journal 0 `[ERROR]`, `/health` **25/25**,
+`/app/version` **1.43.0/2079**).
+
+**Prova antes/depois:** 8 capturas (4 por fase). Depois: recolhido =
+**só ícones** nas DUAS superfícies (`sem_icone=0`, `cortado=0`,
+`title_ok=True`), aberto = ícone + rótulo sem corte; e **no ar**
+(render anônimo do serviço real): `/site/` **15 itens**, `/chat` **3
+itens** (anônimo sem Admin).
+
+**Lição:** "sem ícones no kit" foi uma decisão registrada em comentário
+CSS — o dono mudou a decisão, e a entrega correta não foi só trocar o
+glyph: foi tirar a REGRA que encolhia fonte (senão o texto cortado
+voltasse em qualquer item novo) e dar ao recolhido uma semântica própria
+(ícone + `title`), com a cobertura de todos os menus como guarda da
+divergência que este menu já tem.
+
+**Estado:** **ENTREGUE E NO AR.** Canais: CHANGELOG §1.43.0 (subseção
+sem bump) · TODO §3.9 marcado `[x]` · `session.json` (chave
+`icones_menu_lateral_2026_10_20`) · `txt.txt` · Telegram.

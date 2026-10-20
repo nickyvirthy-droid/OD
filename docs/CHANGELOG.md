@@ -146,6 +146,23 @@
 
 **Validação:** gate oficial **3539 passed / 16 skipped / 0 falha · cobertura 90,69%** (+4) · **restart verde 18:42:06** (NRestarts=0, journal 0 `[ERROR]`, `/health` **25/25**, `/app/version` **1.43.0/2079**) · **prova visual** (chromium headless + servidor legítimo com dono de teste): **site do dono** com Painel e Admin no ⋮ e na barra (Admin por último, 16/15 links), **`/chat` do dono** com PAINEL/CHAT/SITE/**ADMIN** e conteúdo deslocado 236px, **`/chat` anônimo** com a barra **sem** Admin · **no ar**: `/chat` servindo `papelChat` com **1 `<script>`**, `od-nav.js` servindo `acessoMontar` + a corrente do tema, e render anônimo do **serviço real** provando Painel no site (`#sobre, /dashboard, /chat, #download`) e barra no chat.
 
+### Ícones no menu lateral: recolhido sem pedaços de palavra (20/10, sem bump)
+
+**Resumo:** o dono avaliou o lote e apontou: *"não ficou legal o sistema de escrita, quando o menu retrai fica pedaços de palavras, seria melhor ícones"*.
+
+**Réplica ANTES (chromium headless, o método da casa):** captura do estado recolhido mostrou o defeito ao vivo — 68px com rótulo só encolhendo a fonte (`.66rem`), a barra lia `MAR… ECO… SIST… PRO… HIST… VERI… PLÊI… PAIN… BAI… ADM…`.
+
+| Peça | Entrega |
+|---|---|
+| **Site — `od-nav.js`** | Tabela `ICONES` **por href** na MESMA fonte única dos links + `iconeDe()` (as variações `/site#anc` e `/site/pag.html#anc` são o MESMO item — as 12 páginas têm menus divergentes de propósito) e o helper `lateralItem()`: todo item da barra vira `title` + `<span class="od-ico">` + `<span class="od-rot">`. Fora da tabela: **"•"**, nunca palavra cortada. `lateralItem` é o MESMO caminho do clonar e do Admin — forma única. |
+| **Site — `od.css`** | Link em flex (ícone fixo + rótulo com ellipsis); recolhida: `justify-content: center` + `.od-rot { display: none }` — **some o rótulo, sobra o ícone centrado**, sem encolher fonte. Nome continua no `title` (hover) e no DOM (leitor de tela). |
+| **Painel — `_FORMATO_ORION_JS` + CSS** | Mesmos glifos nos 4 itens (Painel 🖥️ · Chat 💬 · Site 🌐 · Admin 🛡️), `title` em todos (antes o chat não tinha nenhum), `lateralAdmin` montado na mesma forma; CSS **espelho exato** do site. Família de emoji explícita nos DOIS (`"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", …`) — o produto já usa 🛡 Admin do topo e 🤖/⚖️ no select do chat, é o mesmo contrato. |
+| **Guardas (`TestIconesDoMenuLateral`, +4)** | estáticas dos DOIS lados (regra do recolhida **sem** `font-size`, presente em ambas as folhas); **cobertura de divergência**: os hrefs da união de TODOS os menus do site (28) avaliados no **`iconeDe()` REAL** no node — nenhum cai no "•"; **paridade** painel = site nos 4 glifos compartilhados; `/chat` servido com spans, CSS e um único `<script>`. Os 2 testes do harness de menu agora também exigem ícone real (nunca "•") + rótulo + `title` em cada item. |
+
+**Validação:** gate oficial **3543 passed / 16 skipped / 0 falha · cobertura 90,69%** (+4) · pyflakes mesmos 3 avisos pré-existentes · **restart verde 19:15:27** (NRestarts=0, journal 0 `[ERROR]`, `/health` **25/25**, `/app/version` **1.43.0/2079**) · **prova visual antes/depois** (4 capturas por fase, servidor legítimo com dono): recolhido = **só ícones** (0 rótulos visíveis, 0 cortados, `title` em todos) nas DUAS superfícies; aberto = ícone + rótulo sem corte · **no ar**: render anônimo do serviço real confirmando `/site/` **15 itens** e `/chat` **3 itens** (anônimo sem Admin), `sem_icone=0`, `cortado=0`.
+
+**Nota de ambiente:** a captura "depois" inicial saiu com quadradinhos — o chromium headless da máquina de teste não tinha fonte de emoji (`fc-list` = 0). A fonte foi instalada **em nível de usuário** (`~/.local/share/fonts`, fora do repositório, sem sudo) só para a prova; nada de dependência nova no produto (o emoji já era contrato: 🛡 do painel, 🤖/⚖️ do chat).
+
 ## [1.42.0] — BOTÃO DA CAIXA NO PAINEL: SEM WEBVIEW, O APP ABRE NO NAVEGADOR (2026-10-19)
 
 **Resumo:** o dono respondeu à pergunta sobre webview (19/10): *"com o tailscale funcionando não existe finalidade em embutir, seria melhor apenas um botão que abre o navegador"* — **webview descartada**. O app ganha o botão **"Caixa de arquivos (abre no navegador)"** no card "Meu painel" (`launchUrl` no navegador de fora; URI derivada da mesma host do od-core, porta 8410) e, para o endereço valer de fora, a caixa ganhou **bind duplo** no compose — antes o `127.0.0.1` puro era **inalcançável do celular** (as provas da 1.41.0 diziam "pelo celular" sem testar o bind: honestidade corrigida com prova nova da tailnet).

@@ -3616,5 +3616,25 @@
     "validacao": "Gate oficial 3539 passed / 16 skipped / 0 falha · 90,69% (+4). pyflakes: MESMOS 3 avisos pré-existentes. node --check ok. Restart verde 18:42:06 (NRestarts=0, journal 0 [ERROR], /health 25/25, /app/version 1.43.0/2079). /chat vivo servindo papelChat com 1 <script>; od-nav.js vivo servindo acessoMontar + a corrente do tema.",
     "prova_visual": "Chromium headless + servidor legítimo com dono de teste (/tmp/opencode/ver_acesso.py, 3 cenários): SITE do dono com 16 links no ⋮ (Painel e Admin antes do Chat) e 15+marca na barra (Admin por último, padding 236px); /chat do DONO com PAINEL/CHAT/SITE/ADMIN e conteúdo deslocado (link_dentro=True); /chat ANÔNIMO com a barra SEM Admin e sem chamada à API. Render anônimo do SERVIÇO REAL depois do restart: /site com '#sobre, /dashboard, /chat, #download' no ⋮ e /chat com a barra (marca+Painel+Chat+Site, sem Admin).",
     "estado": "ENTREGA FECHADA E NO AR. Duas ordens do dono do mesmo lote atendidas; fonte única dos menus intacta (clonagem); menu nunca depende de rede para aparecer. Canais: CHANGELOG §1.43.0 (subseção sem bump), TODO §3.9 [x], session.json (esta chave), transcrição §18, txt.txt, Telegram."
+  },
+  "icones_menu_lateral_2026_10_20": {
+    "pedido": "Dono (20/10 ~19:00, avaliando o lote do menu): 'não ficou legal o sistema de escrita, quando o menu retrai fica pedaços de palavras, seria melhor ícones'.",
+    "replica_antes": "Render headless (chromium + servidor legítimo com dono, 4 capturas) mostrou o defeito vivo: recolhida (68px) a barra lia MAR… ECO… SIST… PRO… HIST… VERI… PLÊI… PAIN… BAI… ADM… — o CSS antigo só encolhia a fonte (.66rem) com ellipsis. Também apurado: o chat não tinha NENHUM title (hover morria no recolhido).",
+    "entrega": "Cada item da barra viraÍCONE + rótulo nos DOIS lados; recolhida o rótulo SAI e sobra o ícone centrado. O nome continua em title (hover) e em .od-rot no DOM (leitor de tela).",
+    "arquitetura": [
+      "od-nav.js: tabela ICONES por href na MESMA fonte única dos links + iconeDe() — as variações '/site#anc' e '/site/pag.html#anc' são o MESMO item (menus das 12 páginas já divergem, 12/13/14 links; união = 28 hrefs).",
+      "Helper único lateralItem(): title + <span od-ico> + <span od-rot>, usado pelo clonar do ⋮ E pelo link do Admin (forma única). Fora da tabela: '•' — nunca palavra cortada.",
+      "od.css: link em flex (ícone fixo, rótulo com ellipsis); recolhida: justify-content center + .od-rot display none — SEM encolher fonte (o .66rem foi a raiz do defeito).",
+      "FORMATO (painel): mesmos glifos nos 4 itens (Painel 🖥️ Chat 💬 Site 🌐 Admin 🛡️) + title ganho em todos; CSS espelho exato do site; família de emoji explícita nos doisCSS.",
+      "Precedente: o produto JÁ usa emoji naUI (🛡 Admin do topo do painel, 🤖/⚖️ 🌟 do select do chat) — o dono já viu isso e nunca reclamou; a fonte é doNAVEGADOR dele."
+    ],
+    "guardas": [
+      "TestIconesDoMenuLateral (+4): estáticas dos dois lados (regra do recolhida SEM font-size em ambas as folhas, família de emoji); cobertura: união dos 28 hrefs de TODOS os menus avaliados no iconeDe() REAL no node (sem espelho da lógica) — nenhum cai no '•'; paridade painel = site nos 4 glifos compartilhados; /chat servido com spans + CSS + 1 <script>.",
+      "Harness de menu (+2 asserts por cenário): cada item do od-nav.js real exige ícone real (nunca '•') + rótulo + title, nos DOIS cenários (dono e anônimo).",
+      "Achado ambiente: o chromium headless da máquina não tinha fonte deemoji (fc-list=0) — a primeira prova 'depois' saiu com quadradinhos; fonte instalada em nível de usuário (~/.local/share/fonts, fora do repo, sem sudo) SÓ para a prova."
+    ],
+    "validacao": "Gate oficial 3543 passed / 16 skipped / 0 falha · 90,69% (+4). pyflakes: MESMOS 3 avisos pré-existentes. Restart verde 19:15:27 (NRestarts=0, journal 0 [ERROR], /health 25/25, /app/version 1.43.0/2079).",
+    "prova_visual": "Antes/depois com 4 capturas por fase: recolhido = SÓ ícones (0 rótulos visíveis, 0 cortados, title em todos) nas DUAS superfícies; aberto = ícone + rótulo sem corte. NoAR (serviço real, anônimo): /site/ 15 itens e /chat 3 itens (sem Admin), sem_icone=0, cortado=0, title_ok=True.",
+    "estado": "ENTREGUE E NO AR. Defeito do recolhido resolvido nas duas superfícies com a mesma casa de ícones. Canais: CHANGELOG §1.43.0 (subseção sem bump), TODO §3.9 [x], session.json (esta chave), transcrição §19, txt.txt, Telegram."
   }
 }

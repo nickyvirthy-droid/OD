@@ -1220,6 +1220,12 @@ setTimeout(() => {
     auth_me: chamadas.filter((u) => u === '/auth/me').length,
     menu: hrefs(nav),
     barra: hrefs(barra),
+    itens: barra ? barra.querySelectorAll('a').map((a) => ({
+      href: a.getAttribute('href'),
+      title: a.title || null,
+      ico: (a.querySelector('.od-ico') || { textContent: null }).textContent,
+      rot: (a.querySelector('.od-rot') || { textContent: null }).textContent,
+    })) : null,
   }));
 }, 30);
 """
@@ -1258,6 +1264,11 @@ setTimeout(() => {
         assert barra[-1] == "/admin"
         # UMA ida à /auth/me (a mesma que já alimenta o tema)
         assert saida["auth_me"] == 1
+        # cada item da barra: ícone real (nunca o "•" de tabela faltando),
+        # rótulo e title — recolhido, sobra o ícone e o hover mostra o nome
+        for item in saida["itens"]:
+            assert item["ico"] and item["ico"] != "•", item
+            assert item["rot"] and item["title"], item
 
     def test_menu_no_node_sem_sessao_so_painel_sem_chamada(
             self, tmp_path: Path) -> None:
@@ -1271,6 +1282,150 @@ setTimeout(() => {
         assert "/admin" not in menu and "/admin" not in barra
         # ...e o menu não fez NENHUMA chamada à API só pra decidir isso
         assert saida["auth_me"] == 0
+        # anônimo ou não, item SEM ícone de tabela faltando (nunca "•")
+        for item in saida["itens"]:
+            assert item["ico"] and item["ico"] != "•", item
+            assert item["rot"] and item["title"], item
+
+
+class TestIconesDoMenuLateral:
+    """Pedido do dono (20/10 ~19:00): "não ficou legal o sistema de
+    escrita, quando o menu retrai fica pedaços de palavras, seria melhor
+    ícones".
+
+    Réplica ANTES (render headless) mostrou o defeito ao vivo: recolhida
+    (68px) a barra lia "MAR… ECO… SIST… PRO… HIST… VERI… PLÊI… PAIN…
+    BAI… ADM…". Entrega: cada item da barra vira ícone + rótulo nos DOIS
+    lados (site e painel); recolhida, o rótulo SAI e sobra o ícone
+    centrado — o nome continua no title (hover) e no .od-rot do DOM
+    (leitor de tela). Mesmos glifos nas duas superfícies (paridade).
+    """
+
+    @staticmethod
+    def _raiz() -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    def _js(self) -> str:
+        return (self._raiz() / "site" / "od-nav.js").read_text(encoding="utf-8")
+
+    def _css_site(self) -> str:
+        return (self._raiz() / "site" / "od.css").read_text(encoding="utf-8")
+
+    def test_icones_nos_dois_lados(self) -> None:
+        import re
+        from integrations.api.server import _FORMATO_ORION_CSS, _FORMATO_ORION_JS
+        js, css = self._js(), self._css_site()
+        # -- site: tabela por href + resolvedor + item com os DOIS spans
+        assert "var ICONES = {" in js and "function iconeDe(" in js
+        assert "'od-ico'" in js and "'od-rot'" in js and "lateralItem(" in js
+        assert "|| '•'" in js          # fora da tabela: nunca palavra cortada
+        # -- site CSS: flex + ícone fixo + rótulo com ellipsis…
+        assert ".od-lateral-links a .od-ico" in css
+        # família de emoji explícita no ícone (sem ela, máquina sem
+        # fonte de emoji vira quadradinho — prova da casa em 20/10)
+        assert '"Segoe UI Emoji"' in css and '"Noto Color Emoji"' in css
+        assert ".od-lateral-links a .od-rot { overflow: hidden; text-overflow: ellipsis; }" in css
+        bloco = re.search(
+            r"html\.od-lateral-recolhido \.od-lateral-links a \{([^}]*)\}",
+            css)
+        assert bloco, "regra do recolhido ausente no od.css"
+        # …e a recolhida NÃO encolhe mais fonte: centraliza e some o rótulo
+        # (foi o "font-size: .66rem" que virou "pedaço de palavra" pro dono)
+        assert "justify-content: center" in bloco.group(1)
+        assert "font-size" not in bloco.group(1)
+        assert "html.od-lateral-recolhido .od-lateral-links a .od-rot { display: none; }" in css
+        # -- painel: MESMO formato nos itens + title (hover do recolhido)
+        fjs = _FORMATO_ORION_JS
+        assert fjs.count("ico: ") >= 3
+        alvo = "title=\"' + itens[i].rot + '\""
+        assert alvo in fjs
+        assert '<span class="od-ico"' in fjs and '<span class="od-rot"' in fjs
+        adm = fjs[fjs.index("function lateralAdmin()"):]
+        assert 'setAttribute("title", "Admin")' in adm
+        assert "od-ico" in adm and "od-rot" in adm
+        # -- painel CSS: espelho exato do site (ícone fixo + recolhida)
+        assert ".od-lateral-links a .od-ico" in _FORMATO_ORION_CSS
+        assert '"Segoe UI Emoji"' in _FORMATO_ORION_CSS
+        assert '"Noto Color Emoji"' in _FORMATO_ORION_CSS
+        assert ".od-lateral-links a .od-rot { overflow: hidden; text-overflow: ellipsis; }" in _FORMATO_ORION_CSS
+        fb = re.search(
+            r"html\.od-lateral-recolhido \.od-lateral-links a \{([^}]*)\}",
+            _FORMATO_ORION_CSS)
+        assert fb and "justify-content: center" in fb.group(1)
+        assert "font-size" not in fb.group(1)
+        assert "html.od-lateral-recolhido .od-lateral-links a .od-rot { display: none; }" in _FORMATO_ORION_CSS
+
+    def test_tabela_cobre_todos_os_menus_do_site(self) -> None:
+        """Guarda contra divergência: os menus das 12 páginas JÁ divergem
+        (12/13/14 links) e as variações "/site#anc" existem — TODOS os
+        hrefs de TODAS as páginas precisam de ícone de verdade. Avalia o
+        iconeDe() REAL no node (sem espelho da lógica no teste)."""
+        import re
+        import shutil as _shutil
+        import subprocess as _subprocess
+        node = _shutil.which("node")
+        if not node:
+            return
+        js = self._js()
+        hrefs = set()
+        paginas = 0
+        for pagina in sorted((self._raiz() / "site").glob("*.html")):
+            h = pagina.read_text(encoding="utf-8")
+            bloco = re.search(r'<div class="nav-panel"[^>]*>(.*?)</div>\s*</div>',
+                              h, re.S)
+            if not bloco:
+                continue
+            paginas += 1
+            hrefs.update(re.findall(r'<a[^>]*href="([^"]+)"', bloco.group(1)))
+        hrefs.update(["/dashboard", "/admin"])   # injetados pelo od-nav.js
+        assert paginas >= 11 and len(hrefs) >= 14, (paginas, len(hrefs))
+        trecho = js[js.index("var ICONES ="):js.index("function lateralItem")]
+        import json as _json
+        import tempfile as _tempfile
+        with _tempfile.TemporaryDirectory() as td:
+            arq = Path(td) / "icone.js"
+            arq.write_text(
+                trecho + "\nconsole.log(JSON.stringify("
+                "process.argv.slice(2).map(iconeDe)));\n",
+                encoding="utf-8")
+            r = _subprocess.run(
+                [node, str(arq)] + sorted(hrefs),
+                capture_output=True, text=True, encoding="utf-8", timeout=30)
+        assert r.returncode == 0, r.stderr[:600]
+        glifos = _json.loads(r.stdout.strip().splitlines()[-1])
+        for href, glifo in zip(sorted(hrefs), glifos):
+            assert glifo != "•", f"href sem ícone: {href}"
+
+    def test_icone_do_painel_igual_ao_do_site(self) -> None:
+        """Os 4 itens compartilhados (Painel/Chat/Site/Admin) falam a
+        MESMA língua visual nas duas superfícies — não pode ser 🖥️ de um
+        lado e outra coisa do outro."""
+        import re
+        from integrations.api.server import _FORMATO_ORION_JS
+        site = dict(re.findall(
+            r"'([^']+)':\s*'([^']+)'",
+            self._js()[self._js().index("var ICONES ="):
+                       self._js().index("function iconeDe")]))
+        painel = dict(re.findall(
+            r'\{ href: "([^"]+)", rot: "[^"]+", ico: "([^"]+)" \}',
+            _FORMATO_ORION_JS))
+        adm = _FORMATO_ORION_JS[_FORMATO_ORION_JS.index("function lateralAdmin()"):]
+        painel["/admin"] = re.search(
+            r'aria-hidden="true">([^<]+)</span>', adm).group(1)
+        assert set(painel) == {"/dashboard", "/chat", "/site", "/admin"}
+        for href, glifo in painel.items():
+            assert site.get(href) == glifo, (href, glifo, site.get(href))
+
+    def test_painel_servido_com_icones(self, serve) -> None:
+        srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
+        status, corpo_bytes, _ = _request(srv.bound_port, "GET", "/chat")
+        html = corpo_bytes.decode("utf-8", "replace")
+        assert status == 200
+        assert '<span class="od-ico"' in html and '<span class="od-rot"' in html
+        assert ".od-lateral-links a .od-ico" in html          # CSS servido
+        assert "html.od-lateral-recolhido .od-lateral-links a .od-rot { display: none; }" in html
+        assert 'title="' in html                              # hover do recolhido
+        assert html.count("<script>") == 1 and html.count("</script>") == 1
 
 
 class TestLojaPorSecoes:

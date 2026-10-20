@@ -209,24 +209,38 @@ nav .nav-spacer { margin-left: auto; }
   }
   .od-lateral-btn:hover { border-color: var(--azul); background: var(--azul-soft); }
   .od-lateral-links a {
-    display: block; padding: 10px 6px; color: var(--texto);
+    display: flex; align-items: center; gap: 9px;
+    padding: 10px 6px; color: var(--texto);
     font-size: .78rem; letter-spacing: .09em; text-transform: uppercase;
     border-bottom: 1px solid var(--border);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; overflow: hidden;
   }
+  .od-lateral-links a .od-ico {
+    flex: none; font-size: 1.05rem; letter-spacing: 0; line-height: 1;
+    /* Família explícita: sem ela, máquina sem fonte de emoji vira
+       quadradinho (o produto já usa emoji na UI — 🛡 Admin do painel,
+       🤖/⚖️ do select do chat — e este é o mesmo contrato). */
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+      "Twemoji Mozilla", sans-serif;
+  }
+  .od-lateral-links a .od-rot { overflow: hidden; text-overflow: ellipsis; }
   .od-lateral-links a:last-child { border-bottom: 0; }
   .od-lateral-links a:hover { color: var(--azul); }
   .od-lateral-links a.cta {
     margin-top: 10px; background: var(--azul); color: var(--bg);
-    border-radius: 5px; text-align: center; font-weight: 600; border-bottom: 0;
+    border-radius: 5px; justify-content: center; font-weight: 600;
+    border-bottom: 0;
   }
   .od-lateral-links a.cta:hover { color: var(--bg); filter: brightness(1.12); }
-  /* Recolhida: a marca sai e os rótulos encolhem (sem ícones no kit —
-     texto curto centrado, nada de inventar iconografia). */
+  /* Recolhida (pedido do dono 20/10 — "quando o menu retrai fica pedaços
+     de palavras, seria melhor ícones"): a marca sai e os RÓTULOS saem
+     junto — sobra só oÍCONE centrado. O nome continua no title (hover)
+     e no .od-rot do DOM (leitor de tela). */
   html.od-lateral-recolhido .od-lateral .brand { display: none; }
   html.od-lateral-recolhido .od-lateral-links a {
-    text-align: center; font-size: .66rem; padding: 10px 2px;
+    justify-content: center; padding: 10px 2px; gap: 0;
   }
+  html.od-lateral-recolhido .od-lateral-links a .od-rot { display: none; }
 }
 
 /* --- Header ------------------------------------------------------------ */

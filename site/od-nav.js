@@ -260,6 +260,50 @@
      teste do tema segue limpo). Telas estreitas ficam com o ⋮ de
      sempre; o estado recolhido fica no localStorage.
      ---------------------------------------------------------------------- */
+  /* Ícones dos itens (pedido do dono 20/10: "quando o menu retrai fica
+     pedaços de palavras, seria melhor ícones"). Tabela POR HREF na MESMA
+     fonte única dos links; o resolvedor manda no "#ancora" (as variações
+     "/site#anc" e "/site/pag.html#anc" são o MESMO item — as 12 páginas
+     têm menus divergentes de propósito). Fora da tabela: "•", nunca
+     palavra cortada — e a guarda de cobertura (test_api) obriga a tabela
+     a cobrir TODOS os hrefs de TODOS os menus + Painel/Admin. */
+  var ICONES = {
+    '#marca': '🐉', '#ecossistema': '🌌', '#sistemas': '⚙️',
+    '#produtos': '📦', '#autenticidade': '🔐', '#historico': '🕰️',
+    '#pleiade': '✨', '#sobre': 'ℹ️', '#download': '📲',
+    '/site/loja.html': '🛒', '/site/protomaps.html': '🗺️',
+    '/site/verificacao.html': '🔍', '/site/avatares.html': '🎭',
+    '/site/historico.html': '🕰️', '/site/index.html': '🐉',
+    '/site': '🌐', '/dashboard': '🖥️', '/chat': '💬',
+    '/admin': '🛡️'
+  };
+  function iconeDe(href) {
+    var h = String(href || '');
+    var anc = h.indexOf('#');
+    if (anc >= 0) h = h.slice(anc);
+    return ICONES[h] || '•';
+  }
+  /* Um item da barra = link com title (hover quando recolhido) + ícone
+     + rótulo em <span class="od-rot">. O rótulo FICA no DOM (leitor de
+     tela) e some só no CSS da recolhida; link com filho (imagem) não é
+     reestruturado. Usado pelo clonar E pelo Admin (mesma casa, mesma
+     forma). */
+  function lateralItem(copia, href, rotulo) {
+    if (!copia.title) copia.title = rotulo;
+    if (copia.children && copia.children.length) return copia;
+    copia.textContent = '';
+    var ico = document.createElement('span');
+    ico.className = 'od-ico';
+    ico.setAttribute('aria-hidden', 'true');
+    ico.textContent = iconeDe(href);
+    var rot = document.createElement('span');
+    rot.className = 'od-rot';
+    rot.textContent = rotulo;
+    copia.appendChild(ico);
+    copia.appendChild(rot);
+    return copia;
+  }
+
   function lateralMontar() {
     if (document.getElementById('odLateral')) return;      // idempotente
     var painel = document.getElementById('navPanel');
@@ -292,8 +336,8 @@
     links.className = 'od-lateral-links';
     for (var i = 0; i < itens.length; i++) {
       var copia = itens[i].cloneNode(true);
-      if (!copia.title) copia.title = (copia.textContent || '').trim();
-      links.appendChild(copia);
+      links.appendChild(lateralItem(copia, copia.getAttribute('href') || '',
+                                    (copia.textContent || '').trim()));
     }
     aside.appendChild(links);
     document.body.appendChild(aside);
@@ -350,8 +394,7 @@
     if (links && !links.querySelector('a[href="/admin"]')) {
       var a = document.createElement('a');
       a.setAttribute('href', '/admin');
-      a.textContent = 'Admin';
-      links.appendChild(a);
+      links.appendChild(lateralItem(a, '/admin', 'Admin'));
     }
   }
 
