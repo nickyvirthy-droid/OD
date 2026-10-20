@@ -387,3 +387,38 @@ com custos (transcrição §7.1) e (6) explicação de CI (§7.2).
 
 **Estado final:** guardas e decisões do dia commitadas · CI verde no
 GitHub · árvore limpa · od-core 1.43.0/2079 · 3 bots comprovados.
+
+## §9 — Reverificação de rotina (20/10 ~13:21) + achado: off-site interrompido a meio
+
+**Pedido:** "leia iniciar" (~13:21) — reverificação de rotina (regra 3)
+depois do fecho do CI + análise do canal (registros 04:56, `43bc840`).
+
+**Verdes com prova:** od-core `active` desde 04:17:22 (restart verde
+pós-CI), NRestarts=0, journal 0 `[ERROR]` desde 04:00; `/health` up
+**24/24, nenhum fora**; `/app/version` 1.43.0/2079 sha `9bc6ef18…` ==
+APK publicado; git `43bc840` == origin/master (0/0). Backups: estado
+`od-2026-10-20_0309.tar.gz` (03:09, falhas=0) · capturas semanal
+`16_1434` (316 MB) · snapshots HD **03:49 nos dois alvos** (9,68 GB
+cada, montados). Disco 66% (77G livres). notifier 542 ticks / 0 erros.
+
+**Mensagem nova do dono:** `txt.txt` tem uma linha só, escrita por ele —
+o **convite do canal PRIVADO** do Telegram (`t.me/+…`). Ele cumpriu o
+passo de §8.2 (canal → Private) e mandou o link.
+
+**Achado — implementação interrompida:** `core/offsite.py` existe
+(12.286 B, 05:10) e **não está rastreado** — uma sessão anterior foi
+derrubada no meio da implementação (mesmo padrão do tema em 16/10). O
+módulo é v1 mínima e coerente: envia `backups/auto/` +
+`backups/auto-capturas/` para o canal privado via `sendDocument`
+(stdlib), fatia de 48 MB, idempotente por nome+sha256, estado em
+`data/offsite_state.json`, check `offsite` não-crítico no `/health`
+(idade ok 48 h), `build_service` fica fora sem `OD_OFFSITE_CHAT`. Falta:
+o id do canal no `.env`, o @nicky_monitor_bot como admin do canal
+(clicar do dono), wiring no launcher (padrão `build_backups`), testes
+(0 hoje), suíte verde, commit+push. O docstring afirma "ordem do dono",
+mas a ordem não está registrada em session.json — confirmar antes de
+deploy (regras 6/7/13).
+
+**Estado:** sistema estável e no ar; off-site a meio passo; aguardando
+confirmação do dono para concluir (e o clique dele de adicionar o bot
+ao canal).

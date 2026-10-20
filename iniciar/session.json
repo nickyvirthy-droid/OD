@@ -1,4 +1,12 @@
 {
+  "reverificacao_2026_10_20_1321": {
+    "pedido": "Usuario: 'leia iniciar' (~13:21 de 20/10) — reverificacao de rotina (regra 3) depois do fecho do CI + analise do canal (registros 04:56, commit 43bc840).",
+    "achados_verdes": "SISTEMA VERDE: od-core active desde 04:17:22 (reinicio verde pos-CI), MainPID 78446, NRestarts=0, journal 0 [ERROR] desde 04:00; /health status=up com 24 checks NENHUM fora; /app/version 1.43.0/2079 sha256 9bc6ef18… == APK publicado (55700429 B); git HEAD 43bc840 == origin/master (0/0); UNICO resíduo = core/offsite.py NAO rastreado (ver 'achado'). Backups: estado de HOJE od-2026-10-20_0309.tar.gz (191 KB, 03:09, falhas=0); capturas semanal od-capturas-2026-10-16_1434 (316 MB) ok; snapshots HD 03:49 nos DOIS alvos (9,68 GB cada, montados); disco 66% (77G livres). notifier ticks=542 errors=0; auto-update metricas 19 pular/2 aplicar/0 falha.",
+    "msg_nova_do_dono_no_txt": "txt.txt contem UMA linha nova escrita pelo dono: o convite do canal PRIVADO do Telegram (t.me/+…). Ele cumpriu o passo pedido em §8.2 (canal -> Private) e mandou o link — sinal de que segue a frente com o off-site pelo canal.",
+    "achado_interrupcao": "core/offsite.py EXISTE e nao esta rastreado (12.286 B, criado 05:10 por uma sessao que foi INTERROMPIDA no meio da implementacao, mesmo padrao do tema em 16/10). Conteudo v1 minimo e coerente: envia backups/auto/ + backups/auto-capturas/ para o canal privado via sendDocument stdlib, fatia 48 MB, idempotente por nome+sha256, estado em data/offsite_state.json, check offsite NAO critico no /health (idade ok 48 h), build_service fora sem OD_OFFSITE_CHAT/token. O QUE FALTA: OD_OFFSITE_CHAT (id do canal privado, tipo -100…) no .env, bot do monitor como ADMIN do canal (acao do dono), wiring no launcher (padrao build_backups/_run_backup_forever + bloco no /dashboard/stats), testes (0 hoje), suite verde, commit+push. O docstring afirma 'ordem do dono' mas session.json/transcricao nao a registram — confirmar antes de deploy (regra 7).",
+    "estado": "SISTEMA ESTAVEL E NO AR — v1.43.0/2079; CI verde no GitHub; canal PRIVADO (convite no txt.txt); implementacao do off-site INTERROMPIDA a meio (so o modulo puro existe). AGUARDANDO: confirmacao do dono para concluir o off-site (wiring+testes+deploy) e ele adicionar o @nicky_monitor_bot como admin do canal.",
+    "transcricao": "iniciar/2026-10-20_conversa_omegadrakon.md (§9)"
+  },
   "ci_guarda_e_canal_off_site_2026_10_20": {
     "pedido": "Dono 20/10: 'pode implementar o CI' (guarda de segredos) + 'se o problema e o canal ser publico, podemos fechar' (t.me/omegadrakon, para off-site).",
     "ci_guarda_entregue": "tools/secret_guard.py (stdlib): varre arquivos RASTREADOS (git ls-files, 391) por 8 familias (PEM, ghp_/github_pat_, sk- com lookbehind anti task-sk-, AIza, token bot telegram id:token, AKIA, xox, glpat) -> exit 1 + anotacao ::error arquivo:linha. Step no ci.yml apos o setup Python. +27 testes (13 padroes, limites 35!=36, binario pulado, main 0/1/2, saida CI, VIVO repo limpo). Guarda pegou o proprio autor na 1a rodada (3 PEMs literais nos dados de teste) -> concat, limpo.",
@@ -66,7 +74,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T05:10:00-03:00",
+  "updated_at": "2026-10-20T13:25:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
