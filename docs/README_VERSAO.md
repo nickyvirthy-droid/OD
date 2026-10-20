@@ -7,6 +7,71 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.44.0] — CÂMERA QR: O COMPRADOR REGISTRA A PEÇA LENDO O CARTÃO 🜂 (2026-10-20)
+
+### 1. O que foi feito
+
+A **v2 da Etapa 4 do Registro Mestre** — ordem direta do dono (*"faça o
+camera qr"*, 20/10) e a única sobra que o TODO registrava. Na v1 o
+comprador lia o QR do cartão com a câmera do celular (abria a página
+pública), copiava o código `POSSE-…` à mão e colava no app; agora **a
+aba Verificar do app tem câmera própria**: aponta, lê e o código cai
+sozinho pronto para confirmar — zero digitação.
+
+- **`app/lib/services/od_qr.dart` (NOVO)** — parser PURO da leitura:
+  o QR é a URL `{base}/site/verificacao.html?posse=…` e a leitura olha
+  **só o parâmetro, nunca o host** (o mesmo QR vale em LAN, tailnet,
+  funnel ou DDNS); `?codigo=` → consulta pública direta; texto cru
+  `POSSE-…` também serve; **QR alheio → null** (a tela ignora e segue
+  lendo — pode ser engano de mira). Puro de propósito: testável em VM
+  sem câmera; espelha o formato de `core/registry.py` (16 hex em 4
+  grupos; o servidor aceita com/sem hífen, a forma canônica daqui é
+  legibilidade na tela).
+- **`app/lib/screens/registry_screen.dart`** — botão **📷** no card
+  "Registrar minha peça" (com conta — registro segue exigindo
+  cadastro, decisão da Etapa 4) → leitor em tela cheia
+  (`mobile_scanner ^7.4.2`, retículo de mira, trava anti-rafale no
+  primeiro QR válido) → o comprador confere e toca em **Registrar**
+  ("quem tem o código é o dono" continua explícito).
+- **`AndroidManifest.xml`** — permissão `CAMERA` + `uses-feature
+  required=false`: **aparelho sem câmera continua instalando**, só
+  perde o leitor.
+- **Honestidade do caminho torto** — permissão negada ou aparelho sem
+  câmera → aviso dentro do próprio leitor e a digitação do código segue
+  no lugar: nada trava por causa da câmera.
+- **Site** — o cartão `?posse=` agora ensina "*aponte a câmera para
+  este QR (ou cole o código)*"; landing e linha do tempo do histórico
+  atualizadas pela régua da política de versão.
+
+### 2. Decisões registradas (fonte da verdade)
+
+1. **A câmera só dentro do card de posse (com conta)** — a v2 é do
+   COMPRADOR (quem tem o QR é quem comprou); consulta pública segue
+   sendo pelo ID gravado, que não é QR. Escopo que o próprio contrato
+   da Etapa 4 desenhou.
+2. **Nunca olhar o host do QR** — o servidor gera a URL com
+   `public_url` (qualquer das 4 bases); depender do host quebraria o
+   QR impresso quando a base mudasse. Só o parâmetro é contrato.
+3. **QR alheio não é erro** — a leitura continua (mirar errado é
+   normal); só o primeiro QR do Registro Mestre fecha a tela.
+4. **Bump completo v1.44.0+2080** nas 7 fontes da régua
+   (`test_version_policy.py`): `.env` + fallback congelado, pubspec,
+   `_APP_VERSION_CODE`, site ×2, CHANGELOG, ordem das seções — e o
+   README_VERSAO (este arquivo) como seção irmã.
+
+### 3. Validação (20/10, noite)
+
+`flutter analyze` **0 issues** · `flutter test` **206 passed / 2
+skipped** (era 198; **+8**: 6 do parser puro — URL cheia, sem
+hífen/caixa baixa → canônico, `?codigo=`, cru, QR alheio, vazio — e 2
+da tela: 📷 com conta no card certo, **sem conta = sem câmera** +
+instrução de login). APK pelo `build_apk.sh` canônico (completo +
+split-per-abi, `FORCE_VERSION_CODE` — achado da 1.43.0) publicado em
+`site/` e `/app/version` anunciando **1.44.0/2080** com o sha256 do
+binário novo. **Nota honesta:** a câmera em si (permissão, mira,
+leitura real) foi provada em analyzer + parser puro + widget — o teste
+de mira real é no aparelho do dono (aba Verificar → 📷 → cartão).
+
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 
 ### 1. O que foi feito

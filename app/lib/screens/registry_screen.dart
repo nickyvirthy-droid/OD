@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../services/od_api.dart';
+import '../services/od_qr.dart';
 
 /// Tela do Registro Mestre — aba "Verificar" (v1.24.0).
 ///
@@ -21,6 +23,8 @@ import '../services/od_api.dart';
 ///   - REGISTRO DO COMPRADOR (Etapa 4, 2026-10-15): quem tem o código
 ///     POSSE-… do cartão/QR da compra registra a peça no PRÓPRIO nome
 ///     (POST /registry/posse com conta) — quem tem o código é o dono.
+///   - CÂMERA QR (v1.44.0): o mesmo cartão lido pela câmera do app
+///     preenche o código sozinho (od_qr.dart + mobile_scanner).
 class RegistryScreen extends StatefulWidget {
   final OdApi api;
   const RegistryScreen({super.key, required this.api});
@@ -140,6 +144,36 @@ class _RegistryScreenState extends State<RegistryScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Falha no registro: $e')),
       );
+    }
+  }
+
+  /// Lê o QR do cartão com a câmera (v1.44.0, "câmera QR" — a v2 da
+  /// Etapa 4): abre o leitor em tela cheia e preenche sozinho o campo
+  /// que antes o comprador colava à mão. QR de posse → campo de posse
+  /// (ele confere e toca em Registrar — a decisão "quem tem o código é
+  /// o dono" continua explícita); QR com ?codigo= → consulta pública
+  /// direta. Câmera negada/ausente: aviso honesto no leitor, o campo
+  /// de código nunca sai do ar.
+  Future<void> _abrirLeitorQr() async {
+    final leitura = await Navigator.of(context).push<OdQrLeitura>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const _LeitorQrTela(),
+      ),
+    );
+    if (!mounted || leitura == null || leitura.vazio) return;
+    if (leitura.posse != null) {
+      setState(() => _posseCtrl.text = leitura.posse!);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '✔ QR lido — código de posse preenchido. Confira e toque em Registrar.',
+          ),
+        ),
+      );
+    } else if (leitura.codigo != null) {
+      setState(() => _codigoCtrl.text = leitura.codigo!);
+      await _verificar();
     }
   }
 
@@ -299,8 +333,9 @@ class _RegistryScreenState extends State<RegistryScreen> {
             const SizedBox(height: 4),
             Text(
               'Veio com a peça um cartão QR? Quem TEM o código é o dono: '
-              'cole abaixo e a peça registra no SEU nome (aparece seu '
-              'username na consulta pública — nome real, nunca).',
+              'aponte a câmera (botão 📷) ou cole abaixo o código e a '
+              'peça registra no SEU nome (aparece seu username na '
+              'consulta pública — nome real, nunca).',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
@@ -328,6 +363,12 @@ class _RegistryScreenState extends State<RegistryScreen> {
                     ),
                     onSubmitted: (_) => _registrarPosse(),
                   ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  onPressed: _abrirLeitorQr,
+                  tooltip: 'Ler QR com a câmera',
+                  icon: const Icon(Icons.qr_code_scanner),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
@@ -537,6 +578,109 @@ class _RegistryScreenState extends State<RegistryScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Leitor de QR em tela cheia (v1.44.0, "câmera QR").
+///
+/// Só faz UMA coisa: devolver a [OdQrLeitura] do primeiro QR do
+/// Registro Mestre que aparecer na câmera (pop com o resultado). QR de
+/// outro assunto é ignorado e a leitura segue — pode ter sido engano de
+/// mira. Sem permissão ou sem câmera, o `errorBuilder` mostra o aviso
+/// honesto na própria tela: o caminho principal (digitar o código)
+/// nunca trava por isto.
+class _LeitorQrTela extends StatefulWidget {
+  const _LeitorQrTela();
+
+  @override
+  State<_LeitorQrTela> createState() => _LeitorQrTelaState();
+}
+
+class _LeitorQrTelaState extends State<_LeitorQrTela> {
+  /// Trava anti-rafale: o `onDetect` dispara várias vezes por segundo
+  /// enquanto o QR está na mira — o primeiro que prestar fecha a tela.
+  bool _lido = false;
+
+  void _aoDetectar(BarcodeCapture captura) {
+    if (_lido || !mounted) return;
+    for (final barcode in captura.barcodes) {
+      final texto = barcode.rawValue;
+      if (texto == null || texto.trim().isEmpty) continue;
+      final leitura = extrairCodigoQr(texto);
+      if (leitura == null || leitura.vazio) continue; // QR alheio: segue
+      _lido = true;
+      Navigator.of(context).pop(leitura);
+      return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: const Text('Ler QR do cartão'),
+      ),
+      body: Stack(
+        alignment: Alignment.center,
+        children: [
+          MobileScanner(
+            onDetect: _aoDetectar,
+            errorBuilder: (context, erro) {
+              final semPermissao =
+                  erro.errorCode == MobileScannerErrorCode.permissionDenied;
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.no_photography,
+                          color: Colors.white54, size: 44),
+                      const SizedBox(height: 14),
+                      Text(
+                        semPermissao
+                            ? 'Sem permissão de câmera. Libere nos ajustes do '
+                                'app ou digite o código na mão — nada trava.'
+                            : 'Não deu para abrir a câmera neste aparelho '
+                                '(${erro.errorCode.name}). Digite o código na '
+                                'mão — nada trava.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          // Retículo de mira — moldura branca semitransparente.
+          IgnorePointer(
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white70, width: 2),
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+          ),
+          const Positioned(
+            left: 24,
+            right: 24,
+            bottom: 36,
+            child: Text(
+              'Aponte para o QR do cartão da compra — '
+              'QR de outro assunto é ignorado.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+        ],
       ),
     );
   }

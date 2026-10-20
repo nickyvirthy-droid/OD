@@ -6,6 +6,11 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <!-- Voz (v1.18.0): microfone para o chat por voz (STT no servidor). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Câmera QR (v1.44.0): leitura do QR do cartão na aba Verificar.
+         Aparelho sem câmera continua INSTALANDO (uses-feature abaixo com
+         required=false) — só fica sem o leitor, o campo de código não sai. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <application
         android:label="OmegaDrakon"
         android:name="${applicationName}"

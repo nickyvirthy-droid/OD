@@ -12,6 +12,40 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.44.0] — CÂMERA QR: O COMPRADOR REGISTRA A PEÇA LENDO O CARTÃO 🜂 (2026-10-20)
+
+**Resumo:** a **v2 da Etapa 4 do Registro Mestre** — a única sobra que o TODO registrava ("*sobra só a v2: câmera de QR dentro do app*") e ordem direta do dono (*"faça o camera qr"*, 20/10). Na v1 o comprador lia o QR do cartão com a câmera do celular (abria a página pública), copiava o código `POSSE-…` à mão e colava no app; agora **a aba Verificar do app tem câmera própria**: aponta, lê e o código cai sozinho pronto para confirmar — zero digitação. O contrato do QR não mudou (URL `{base}/site/verificacao.html?posse=…`, servida em qualquer base — LAN/tailnet/funnel/DDNS, e é isto que a leitura respeita: **só o parâmetro, nunca o host**).
+
+| Peça | Entrega |
+|---|---|
+| **`app/lib/services/od_qr.dart` (NOVO)** | Parser PURO da leitura: `?posse=` → forma canônica do cartão (`POSSE-XXXX-XXXX-XXXX-XXXX`, 16 hex em 4 grupos — espelho de `core/registry.py`), `?codigo=` → consulta pública direta, texto cru `POSSE-…` também serve, **QR alheio → null** (a tela ignora e segue lendo). Puro de propósito: testável em VM sem câmera. |
+| **`app/lib/screens/registry_screen.dart`** | Botão **📷** no card "Registrar minha peça" (com conta — registro segue exigindo cadastro, decisão da Etapa 4) → leitor em tela cheia (`mobile_scanner ^7.4.2`, retículo de mira, trava anti-rafale) → QR de posse preenche o formulário (comprador confere e toca em **Registrar** — "quem tem o código é o dono" continua explícito); `?codigo=` dispara a consulta da peça. **Permissão negada / aparelho sem câmera → aviso honesto no leitor, a digitação do código nunca sai do ar.** |
+| **`app/android/.../AndroidManifest.xml`** | Permissão `CAMERA` + `uses-feature` com `required=false` — aparelho sem câmera continua **instalando**, só perde o leitor. |
+| **Site** | Cartão `?posse=` da verificação pública agora ensina "*aponte a câmera para este QR (ou cole o código)*"; landing (`v1.44.0 · versionCode 2080`) e linha do tempo do histórico atualizados pela régua da política de versão. |
+| **Guardas** | `app/test/registry_qr_test.dart` (+8): 6 do parser (URL cheia, sem hífen/caixa baixa → canônico, `?codigo=`, cru, QR alheio, vazio) + 2 da tela (📷 com conta no card certo; **sem conta = sem câmera** + instrução de login). `flutter analyze` **0 issues** · `flutter test` **206 passed / 2 skipped** (era 198). Suíte Python regida pela política: bump nas **7 fontes** (`OD_VERSION` `.env` + fallback congelado, pubspec `1.44.0+2080`, `_APP_VERSION_CODE = 2080`, site ×2, CHANGELOG, ordem das seções). |
+
+**Validação:** gate oficial **3546 passed / 16 skipped / 0 falha · 90,69%** (nada do servidor mudou além do versionCode) · **APK pelo `build_apk.sh` canônico** (completo + split-per-abi, `FORCE_VERSION_CODE` — achado da 1.43.0) publicado em `site/` · restart verde anunciando **1.44.0/2080** com sha256 do binário novo (o contrato da auto-atualização: `test_version_policy.py` amarrando as 7 fontes). **Nota honesta:** a câmera em si (permissão, mira, leitura) foi provada em **analyzer + parser puro + widget** — o teste de mira real é no aparelho do dono: abrir a aba Verificar, tocar 📷 e apontar para o cartão.
+
+**Nota de calibração (achado do próprio gate):** o gate de calibração
+do RAG (`TestCalibracaoCorpusReal`) falhou nesta entrega e o diagnóstico
+é registro-valioso: a §1.44.0 das notas repetiu um **substantivo de UI
+genérico** 10× em três arquivos do corpus (o corpus do RAG é a própria
+memória — `docs/ + knowledge/ + iniciar/*.md`) e virou **falso-amigo**
+da irrelevante da fronteira (a pergunta sobre **clima** casava com o
+texto da câmera: comb **0.4215 > 0.4032** do relevante mais fraco;
+grid medido com **0 células válidas**). Stopwordar a palavra de tempo
+foi testado e **medido como pior** (0.4530 — sem o termo diluidor o
+embedding fica mais parecido com os chunks do jargão novo). Correção:
+**rewording do texto novo** ("no <UI>" → "no formulário"/"a
+digitação"), memória alheia intocada, **piso intocado — medido, não
+afrouxado**: comb de volta a **0.3940**, grid refeito com **900
+células válidas**, piso vigente dentro da região. Medição gravada no
+comentário de `memory/rag.py` ao lado das constantes · `test_rag.py`
+**92/92**. **Lição:** o corpus é a memória da casa — nota de entrega
+genérica demais vira falso-amigo do floor, e até a NOTA do incidente
+entra no corpus (esta aqui já foi reescrita uma vez por citar os
+termos ao vivo).
+
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 
 **Resumo:** 3ª da série "uma por vez" (FlatNotes ✅ → File Browser ✅ → **Calibre**). Dono decidiu **"Configurar e interligar"** (19/10) e apontou a fonte: *"os livros estão no google drive"* — pasta **"Biblioteca"** do Drive dele (22 pastas temáticas, **732 itens / 729 arquivos / 1,83 GB** medidos recursivamente; a contagem de 1º nível mentia: 363/1,35 GB). A entrega monta a cadeia inteira: **Drive → espelho local → `calibredb` → Calibre Web (web + OPDS) → actions + botão no app**, e o caminho ensinou duas lições registradas em código: **(1)** o dedup por título do calibre (`--automerge ignore`) **escondeu 156 arquivos de conteúdo diferente** (título embutido do PDF colidindo — provado ao vivo com a mensagem crua *"not added as they already exist"*), então o contrato de resync passou a ser um **LEDGER nosso** (`.calibre_ledger.json`: caminho→tamanho) + `-d --automerge new_record` (colisão de título vira registro próprio); **(2)** a análise de conteúdo por tamanho enganou com **cópias idênticas em duas pastas e zips extraídos** — 55 duplicados criados pela migração foram detectados por **sha256 par a par (55/55 idêntico)** e removidos **só** os ids da migração (54 originais intactos). Estado final provado: **693 livros, 729/729 arquivos com conteúdo, 0 pendentes, reimportação devolvendo `novos=0`**.

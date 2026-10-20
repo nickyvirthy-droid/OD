@@ -1053,3 +1053,76 @@ vizinho no dia seguinte) estava nos dois commits.
 **Estado:** **CORRIGIDO E NO AR.** Canais: CHANGELOG §1.43.0 (subseção
 sem bump) · TODO §3.9 marcado `[x]` · `session.json` (chave
 `respiro_main_verificacao_loja_2026_10_20`) · `txt.txt` · Telegram.
+
+## §21 — Câmera QR no app (v2 da Etapa 4) (20/10 ~21:00)
+
+**Pedido do dono:** *"faça o camera qr"* — fechando a única sobra que o
+TODO registrava da Etapa 4 do Registro Mestre.
+
+**O que era:** na v1 o comprador lia o QR do cartão com a câmera do
+celular (a câmera nativa abria a página pública), copiava o código
+`POSSE-…` à mão e colava no app. A v2 tira essa digitação: **a aba
+Verificar ganhou câmera própria**.
+
+**Entrega (app Flutter):**
+- **`od_qr.dart`** (novo) — parser PURO da leitura: o QR é a URL
+  `{base}/site/verificacao.html?posse=…` e a leitura olha **só o
+  parâmetro, nunca o host** (o mesmo QR vale em LAN, tailnet, funnel
+  ou DDNS); `?codigo=` leva à consulta direta da peça; texto cru
+  `POSSE-…` também serve; **QR alheio → null** e a tela segue lendo.
+- **Botão 📷** no card "Registrar minha peça" (com conta — registro
+  segue exigindo cadastro, decisão da Etapa 4) → leitor em tela cheia
+  (`mobile_scanner ^7.4.2`, retículo de mira, trava anti-rafale) → o
+  código cai canônico no formulário e o comprador confere e toca em
+  **Registrar** ("quem tem o código é o dono" continua explícito).
+- **Manifest:** `CAMERA` + `uses-feature required=false` — aparelho
+  **sem câmera continua instalando**, só perde o leitor.
+- **Honestidade:** permissão negada ou sem câmera → aviso no leitor e
+  a digitação do código continua no lugar — nada trava.
+
+**Guardas:** `registry_qr_test.dart` **+8** (6 do parser + 2 da tela:
+📷 com conta no card certo; **sem conta = sem câmera**). `flutter
+analyze` **0 issues** · `flutter test` **206 passed / 2 skipped** (era
+198).
+
+**Versão:** bump **v1.43.0+2079 → v1.44.0+2080** nas **7 fontes** da
+régua (`test_version_policy.py`): `.env` + fallback congelado, pubspec,
+`_APP_VERSION_CODE = 2080`, site (badge/card/versionCode), CHANGELOG no
+topo, ordem das seções. `historico.html` ganhou a linha da 1.44.0.
+APK pelo `build_apk.sh` canônico (completo + split-per-abi, o
+`FORCE_VERSION_CODE` achado na 1.43.0) publicado em `site/` — **achado
+do caminho:** o `JAVA_HOME` não vem no PATH da sessão; o JDK da máquina
+está em `/home/alex/jdk`.
+
+**Nota honesta registrada:** a câmera em si (permissão, mira, leitura
+real) foi provada em **analyzer + parser puro + widget** — o teste de
+mira real é no aparelho do dono: aba Verificar → 📷 → apontar para o
+cartão.
+
+**Achado do gate — recalibração do floor do RAG (20/10):** o gate pegou
+`TestCalibracaoCorpusReal` falhando na fronteira climática. Diagnóstico
+medido: a §1.44.0 que eu acabara de escrever repetiu um **substantivo
+de UI genérico 10× em três arquivos do corpus** (CHANGELOG, README e
+esta transcrição — o corpus do RAG é a memória) e virou **falso-amigo**:
+a pergunta de clima casava com o texto da câmera QR (comb **0.4215**,
+acima do relevante mais fraco **0.4032** — grid com **0 células
+válidas**). Testei **stopwordar a palavra de tempo** e a medição
+mostrou **pior** (0.4530 — sem o termo diluidor, o embedding fica MAIS
+parecido com os chunks do jargão novo). Correção honesta: **rewording do
+NOSSO texto novo** ("no <UI>" → "no formulário" / "a digitação"),
+memória alheia intocada e **piso intocado — medido, não afrouxado**:
+comb de volta a **0.3940**, grid refeito com **900 células válidas** e
+o piso vigente (0.399/0.036) **dentro** da região. A medição ficou
+registrada no comentário de `memory/rag.py` ao lado das constantes —
+próxima sessão que crescer o corpus já sabe o protocolo. `test_rag.py`
+**92/92**. **E o gate de novo pegou a nota do incidente:** o parágrafo
+anterior, com os termos citados ao vivo, recriou o falso-amigo dentro
+do corpus e o teste voltou a falhar no gate cheio — esta versão já saiu
+sem os termos literais (a precisão fica em `session.json` e no TODO,
+que não são corpus). Lição gravada: **a nota do incidente também é
+corpus**.
+
+**Estado:** ENTREGUE (validação + publicação no fim da rodada).
+Canais: CHANGELOG §1.44.0 · TODO §3.8 `[x]` + 3 linhas da Etapa 4 ·
+`session.json` (chave `camera_qr_app_v2_2026_10_20`) · transcrição §21 ·
+`txt.txt` · Telegram.

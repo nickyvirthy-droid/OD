@@ -173,6 +173,17 @@ PESO_OVERLAP = 0.2
 # TestCalibracaoCorpusReal/TestRecallParafrases): grid ms [0.393..0.405] ×
 # mo [0.001..0.071] mantém 8/8 rel. + 8/8 irr. bloqueadas e sobe o recall
 # de parafrases de 1/8 (floor velho) para 6/8. Centro medido:
+# Recalibração 2026-10-20 (mesmo protocolo, corpus com a 1.44.0): a
+# fronteira "previsão do tempo em campo grande" subiu a comb 0.4215
+# (acima do relevante mais fraco, 0.4032) — causa APURADA: a §1.44.0
+# das notas de entrega repetiu o jargão de UI "campo" 10× em três
+# arquivos do corpus e virou falso-amigo (a pergunta casava com o texto
+# da câmera QR). Corrigido rewording do NOSSO texto novo (memória alheia
+# intocada; piso intocado — medido, não afrouxado): volta a comb 0.3940,
+# grid refeito com 900 células válidas (8/8 rel + 8/8 irr + 6/6 para) e
+# o piso vigente (0.399/0.036) DENTRO da região válida. Experiência
+# medida que ficou: stopwordar "tempo" PIOROU (0.4530 — sem o termo
+# diluidor o embedding fica mais parecido com os chunks de "campo").
 PISO_SCORE = 0.399       # score combinado mínimo (comb de 8/8 rel. ≥ este)
 PISO_OVERLAP = 0.036     # overlap-IDF mínimo (ov=0 nunca injeta; teto 0.071:
                          # acima disso a parafrase "contêiner" cai)
