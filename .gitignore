@@ -185,3 +185,9 @@ backups/google-token-*
 
 # Caixa de entrada do dono — arquivos privados, nunca publicados (regra 17)
 /analise/
+
+# Dados PESSOAIS de backup — ordem do dono 20/10 ("pode tirar"): os 10
+# arquivos (conversas/caches pessoais) saíram da árvore; da HISTÓRIA só
+# sairiam com reescrita dos commits (só com ordem explícita). /backups/
+# inteiro ignorado pra nenhum arquivo pessoal voltar a ser versionado.
+backups/

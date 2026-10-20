@@ -290,3 +290,61 @@ Nicky_Virthy em 20/10 matou também o vazamento no `NICKY_v070_PROMPT
 segredo no CI · `git rm` dos 10 arquivos de `backups/` (histórico só com
 reescrita, ordem explícita). *§3 fila zerada:* próximas = câmera de QR
 (v2), `historico.html` (v1.25.0), exemplo exato do tema.
+
+## §7 — As 7 respostas do dono executadas (20/10 ~04:00–04:20)
+
+**O dono respondeu as 7 linhas de pendências de uma vez:**
+
+1. **Cofre pessoal** — *"não quero colocar nada pessoal ainda"* → linha
+   do §2 marcada como decisão dele (adiada; não cobrar).
+2. **Fotos `analise/fotos-adicionais/`** — *"vou usar depois, talvez até
+   apague"* → registrado; não cobrar.
+3. **Catálogo `3D/`** — *"só quando eu quiser, **não pergunte**"* →
+   **ORDEM**: linha do §2 só muda por iniciativa dele.
+4. **Off-site** — perguntou *"qual o melhor, qual o custo... realmente
+   preciso disso?"* → análise entregue (abaixo).
+5. **Token do Nexus** — *"está no txt"* → executado: token lido,
+   `getMe` vivo (@Nexus_Nicky_bot, id 8854129409), trocado em
+   `OD_TELEGRAM_USUARIOS_TOKEN` + `TELEGRAM_BOT_LEGADO_TOKEN` (o valor
+   vazado do Legado **morreu**), nota da allowlist atualizada, espelho
+   do cofre **18/18 sem falhas**, restart verde (24/24, NRestarts=0,
+   journal limpo), **prova viva msg 477** via @Nexus_Nicky_bot, token
+   apagado do `txt.txt`. Pauta §8.5 do TODO → **☑ FECHADA** (os dois
+   bots rotacionados hoje).
+6. **CI** — pediu explicação (entregue no chat).
+7. **Arquivos de `backups/`** — *"pode tirar"* → `git rm --cached` nos
+   **10 arquivos** (saem da árvore; **ficam no disco** — 17 GB intactos)
+   + `backups/` inteiro no `.gitignore` (nenhum pessoal volta a ser
+   versionado). `git ls-files backups/` = **0**. **Histórico continua
+   público** (só reescrita dos 483 commits tiraria — sem ordem, não
+   mexi).
+
+**§7.1 Análise de off-site (item 4):** já existe snapshot **DIÁRIO nas
+2 HDs externas** desde 17/10 (9,68 GB ×2 alvos, 03:40) — o que ele
+descreveu ("uma vez por semana para uma HD externa") **já acontece e é
+diário**. O que off-site protege é outro cenário: incêndio/roubo/
+alagamento leva disco + 2 HDs juntos (as duas estão na mesma casa). O
+que é irremediável: `data/` (341 MB — conversas/memória/registro), configs
+e as capturas; código está no GitHub e livros no Drive (reconstruíveis).
+Custo: **(a)** não fazer = R$0, legítimo se originais das fotos estiverem
+no Drive/Google Fotos; **(b)** recomendado — **3ª HD fixa em outra casa**
+(troca semanal na mão, rclone --verify para saber se copiou), **custo
+zero**; **(c)** nuvem: rclone criptografado pro Drive que ele já usa
+(grátis se couber na cota) ou Backblaze B2 ~US$6/TB/mês (10 GB ≈ centavos).
+Veredito honesto: **não é urgente** — as 2 HDs já cobrem o cenário comum
+(falha do disco); off-site é seguro contra perda total da casa. Decisão
+dele (linha do §2 atualizada com a análise).
+
+**§7.2 Explicação de CI (item 6):** CI = Integração Contínua — a cada
+push/PR o GitHub Actions roda sozinho o `.github/workflows/ci.yml`
+(Python 3.12 + compileall + suíte com gate de cobertura ≥ 90%, anotações
+de erro públicas na página do job; ~57×/dia × ~2,5 min, **grátis** em
+repo público). A "guarda de segredo no CI" = job a mais que varre todo
+commit por padrões (PEM, `ghp_`/`github_pat_`, `sk-`, token de bot,
+`.env`) e **falha o build com aviso** — nenhum segredo novo nasce
+público sem alarme. Cobriria o risco residual que ele aceitou ao manter o
+repo público. **Aguardando ordem** (não montado).
+
+**Estado final da troca:** commits de código+TODO+registros · árvore
+limpa · od-core verde 1.43.0/2079 · cofre 18/18 · `txt.txt` sem segredos
+· fila §7 (orchestrator) zerada.

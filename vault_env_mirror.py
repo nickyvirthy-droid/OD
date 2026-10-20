@@ -55,7 +55,10 @@ CREDENCIAIS: dict[str, str] = {
     "GROQ_API_KEY": "Chave de API da Groq.",
     "OD_MQTT_PASSWORD": "Senha do usuário MQTT (username via OD_MQTT_USERNAME).",
     "TELEGRAM_BOT_LEGADO_TOKEN": (
-        "ATENÇÃO: token vazado do bot legado — rotação §8.5 PENDENTE do dono."
+        "Bot @Nexus_Nicky_bot — ROTACIONADO pelo dono em 20/10 (novo "
+        "token, o vazado do Legado morreu com /revoke). Chave redundante: "
+        "é o MESMO valor de OD_TELEGRAM_USUARIOS_TOKEN (nenhum código "
+        "lê esta chave — só o espelho)."
     ),
     "OD_TELEGRAM_USUARIOS_TOKEN": (
         "Bot @Nexus_Nicky_bot — papel 'usuários' (💬 chat das peças, "

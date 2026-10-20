@@ -1,4 +1,13 @@
 {
+  "sete_respostas_executadas_2026_10_20": {
+    "pedido": "Dono (20/10 ~04:00) respondeu as 7 pendencias de uma vez: 1 cofre pessoal = 'nao quero colocar nada ainda'; 2 fotos = 'vou usar depois, talvez apague'; 3 3D = 'só quando eu quiser, NAO PERGUNTE'; 4 off-site = perguntou melhor/custo/precisa; 5 token Nexus = 'esta no txt'; 6 = 'explique CI'; 7 = 'pode tirar'.",
+    "executado_5_token_nexus": "Token lido do txt.txt, getMe vivo (@Nexus_Nicky_bot id 8854129409); trocado em OD_TELEGRAM_USUARIOS_TOKEN + TELEGRAM_BOT_LEGADO_TOKEN (valor vazado do Legado morto); allowlist nota atualizada (rotacionado 20/10); espelho do cofre 18/18 SEM falhas; restart verde (active, NRestarts=0, journal limpo, /health 24/24, 1.43.0/2079); prova viva msg 477 via @Nexus_Nicky_bot; token APAGADO do txt.txt. TODO §8.5 -> FECHADA (dois bots rotacionados em 20/10).",
+    "executado_7_backups": "git rm --cached nos 10 arquivos de backups/ (SAEM da arvore, CONTINUAM no disco — 17 GB intactos, verificado); backups/ inteiro no .gitignore (comentario da ordem do dono); git ls-files backups/ = 0. Historico CONTINUA publico (reescrita dos 483 commits exigiria ordem explicita — NAO feito).",
+    "respondido_4_off_site": "Analise: as 2 HDs externas ja recebem snapshot DIARIO (03:40, 9,68 GB x2) — a ideia dele ('semana p/ HD externa') ja existe e e diaria; off-site cobre so perda total da casa (as 2 HDs estao na mesma casa). Irremediavel: data/ 341 MB + configs + capturas; codigo no GitHub, livros no Drive. Opcoes: (a) nao fazer R$0; (b) RECOMENDADO custo zero: 3a HD fixa em outra casa, troca semanal na mao; (c) nuvem: rclone crypt no Drive (gratis se couber) ou Backblaze B2 ~US$6/TB (10 GB = centavos). Veredito: NAO urgente. Decisao dele.",
+    "respondido_6_ci": "CI = GitHub Actions rodando ci.yml a cada push (compileall + suite gate >=90%, ~57x/dia x 2,5 min, gratis em repo publico). Guarda de segredo = job extra que varre commits por padroes (PEM, ghp_, github_pat_, sk-, token bot, .env) e FALHA o build com aviso — cobre o risco residual aceito ao manter o repo publico. NAO montado — aguardando ordem.",
+    "respostas_1_2_3_registradas": "TODO §2 atualizado: cofre pessoal adiado por decisao do dono; fotos 'talvez apague'; 3D = ORDEM 'nao perguntar'; off-site com a analise. Nenhuma cobranca futura nessas 3 linhas.",
+    "gate": "Suite completa verde ANTES do restart: 3464 passed / 16 skipped / 0 falha."
+  },
   "status_degradado_janela_hd_e_pendencias_2026_10_20": {
     "pedido": "Dono (~03:44 de 20/10): 'Status esta mostrando degradado' + antes 'existem mais pendencias?'",
     "degradado_diagnostico": "Checks hd_midias/hd_arquivos = 'PENDENTE (agendado 03:40, falhas=0)', critical=false, HDs montadas. Janela DIARIA normal: 03:40 -> tick do loop (15 min) reporta PENDENTE ate o snapshot rodar; antes das 03:40 o check e 'agendado para 03:40' (up), por isso estava verde na reverificacao de 01:38. NAO relacionado ao restart/bots (o restart de 03:33 encurtou a janela; sem ele o tick seria ~03:53).",
@@ -51,7 +60,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T03:56:00-03:00",
+  "updated_at": "2026-10-20T04:20:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
