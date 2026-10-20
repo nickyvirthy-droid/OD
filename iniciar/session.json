@@ -1,4 +1,13 @@
 {
+  "reverificacao_2026_10_20_1530": {
+    "pedido": "Usuario: 'leia iniciar' (~15:30 de 20/10) — reverificacao de rotina (regra 3) depois do fecho do off-site (registros 14:40, comits 0446f14 + 2ea014b).",
+    "achados_verdes": "SISTEMA VERDE: od-core active desde 14:33:03 (55 min), MainPID 614254, NRestarts=0, journal 0 [ERROR] desde o boot (os 3 [ERROR] vistos sao do boot ANTERIOR, PID 3639833: 01:49 ValueError, 03:01/03:02 DNS do Telegram); /health status=up com 25 checks NENHUM fora; /app/version 1.43.0/2079 sha 9bc6ef18… == APK publicado (55700429 B); git ARVORE LIMPA, HEAD 2ea014b == origin/master (0/0, sem untracked).",
+    "offsite_pos_restart": "Loop habilitado no boot 14:33:04 (canal=-1001019416047, fatia 48 MB, 30 min, idade_ok 48 h). IDEMPOTENCIA SEGUIRA PROVADA: 0 'Off-site enviado' desde o boot; data/offsite_state.json intacto com os 2 perfis (diario od-2026-10-20_0309 191194 B sha 286d20a5… enviado 14:25:54; capturas od-capturas-2026-10-16_1434 316276693 B 7 partes enviado 14:27:40); /dashboard/stats.offsite bate (ultimo_envio=14:25:54).",
+    "provas": "notifier desde o boot: ticks=57, checks_run=912, problems=2, alerts_emitted=1 (o UNICO = key=restart, evento um-disparo por boot — comportamento esperado), errors=0. auto_update: ticks=2, 2x aguardar, 0 falhas. Backups: od-2026-10-20_0309.tar.gz (03:09) + capturas semanal 16_1434 (316 MB) no lugar; disco 66% (77G livres). /actions 200.",
+    "canais_do_dono": "txt.txt SEM mensagem nova (escrita nossa 14:37 = entrega do off-site). analise/ inalterado (2 capturas Sistema OrioN de 16/10 sem instrucao + fotos-adicionais/ com as 4).",
+    "estado": "SISTEMA ESTAVEL E NO AR — v1.43.0/2079; OFF-SITE ATIVO E PROVADO (frente fechada); nada em andamento; aguardando ordem do dono. Proximas do TODO: historico.html (v1.25.0), exemplo exato do tema, camera QR (v2) + pendencias dele (cofre pessoal/fotos/3D = decidoes de nao cobrar).",
+    "transcricao": "iniciar/2026-10-20_conversa_omegadrakon.md (§12)"
+  },
   "offsite_ativado_prova_viva_2026_10_20": {
     "pedido": "Dono (20/10 ~14:25): 'feito' — cumpriu o clique do txt.txt (adicionou @nicky_monitor_bot como admin do canal privado e mandou a mensagem 'ok').",
     "captura_do_id": "getUpdates do token do monitor (OD_TELEGRAM_MONITOR_TOKEN; sem conflito — so o bot de CHAT faz polling): my_chat_member cargo=administrator + channel_post 'ok' -> CANAL 'Omega Drakon' id=-1001019416047. Gravado OD_OFFSITE_CHAT no .env (fora do git, check-ignore confirmado; NAO e segredo — identificador, nao entra na allowlist do vault_env_mirror cujo _RE_SEGREDO nao casa CHAT).",
@@ -105,7 +114,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T14:40:00-03:00",
+  "updated_at": "2026-10-20T15:32:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {

@@ -523,3 +523,32 @@ HEAD == origin/master.
 todo dia (03:00) e toda semana (domingo 04:00) para o canal privado;
 conferência a cada 30 min; falha avisa no celular (1 push/6 h). Linha do
 TODO §2 fecha; CHANGELOG e Telegram registrados.
+
+## §12 — Reverificação de rotina (20/10 ~15:30): sistema verde, off-site seguindo ativo
+
+**Pedido:** "leia iniciar" (~15:30) — reverificação de rotina (regra 3)
+depois do fecho do off-site (registros 14:40, comits `0446f14` + `2ea014b`).
+
+**Verdes com prova (fonte viva, não o registro):**
+
+| Frente | Medição |
+|---|---|
+| Serviço | `od-core` active desde **14:33:03** (55 min), MainPID 614254, **NRestarts=0**, journal **0 `[ERROR]`** desde o boot |
+| Saúde | `/health` **status=up, 25 checks, nenhum fora** |
+| Versão | `/app/version` **1.43.0 / 2079**, sha256 `9bc6ef18…` == APK publicado (55.700.429 B) |
+| Git | árvore **limpa** (0 resíduos, 0 untracked), HEAD `2ea014b` == `origin/master` (0/0) |
+| Off-site | loop habilitado no boot 14:33:04; **0 reenvio** (idempotência segue provada); estado com os 2 perfis (diário `0309` 14:25:54 · capturas 7 partes 14:27:40); `stats.offsite` bate |
+| Backups | estado `od-2026-10-20_0309.tar.gz` (03:09) + capturas semanal `16_1434` (316 MB); disco **66%** (77G livres) |
+| Canais | `txt.txt` **sem mensagem nova** (nossa, 14:37) · `analise/` **inalterado** (Órion 16/10 sem instrução + `fotos-adicionais/`) |
+
+**Transitórios (dentro do esperado):** notifier desde o boot `ticks=57,
+errors=0`, `alerts_emitted=1` — o único é `key=restart` (evento de um
+disparo por boot, comportamento registrado em 16/10). auto-update `ticks=2`,
+ambos "aguardar", 0 falhas. Os 3 `[ERROR]` do journal são do **boot
+anterior** (PID 3639833: 01:49 `ValueError` da API interna, 03:01/03:02 DNS
+do Telegram — ambos do processo já encerrado).
+
+**Estado:** **SISTEMA ESTÁVEL E NO AR — v1.43.0+2079**; frente do off-site
+**fechada e provada**; nada em andamento. Próximas do TODO: `historico.html`
+(parou na v1.25.0), exemplo exato do tema (adiado), câmera QR (v2); pendências
+do dono (cofre pessoal, fotos, `3D/`) seguem com **decisão de não cobrar**.
