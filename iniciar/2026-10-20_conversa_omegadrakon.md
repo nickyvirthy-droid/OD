@@ -35,3 +35,56 @@ Estado: **SISTEMA ESTÁVEL E NO AR — v1.43.0+2079**, nada em andamento,
 fila §7 zerada; aguardando ordem do dono (pendências §2 do TODO: Órion sem
 instrução, cofre pessoal, privatizar o repo/BotFather, fotos, `3D/`,
 `historico.html`).
+
+## §2 — Dono contesta a lista de pendências ("acho que já foram resolvidas") — auditoria item a item: 3 de 7 estavam desatualizadas
+
+Pedido (~01:45): **"analise melhor porque acho que essas pendencias já
+foram resolvidas, pelo menos a maior parte"**. Verificação feita contra a
+**fonte viva** (git, API do GitHub, cofre, container do Calibre, site),
+não contra os registros:
+
+| Pendência | Veredito medido | Prova |
+|---|---|---|
+| Capturas do **Órion** | **JÁ RESOLVIDA** (17/10, v1.39.0+2072) | formato do Órion virou herói do painel + site (§8 da transcrição de 17/10); as capturas ficaram em `analise/` só como referência de design |
+| **Registro Mestre — Etapa 4** | **JÁ CONCLUÍDO** (15/10→16/10, v1.30.0+2060) | `/site/loja.html` + `/site/verificacao.html` no ar, rota pública `/registry/{id}` respondendo (404 = peça inexistente, esperado com o banco vazio) |
+| **Rotação de segredos (infra)** | **JÁ FECHADA** (17/10 §11) | `ADMIN_TOKEN`, pepper/key/senha Homebox, `OD_API_KEY` (antiga → 401), Postgres, MQTT + sudo do mosquitto pelo dono |
+| **Chave Gemini vazada** | **JÁ ROTACIONADA** | hash da chave do `.env` **≠** hash da chave nos documentos do Legado (comparação sem imprimir valor) |
+| **Bot legado `@Nexus_Nicky_bot`** | **ABERTO** | prova viva: `TELEGRAM_BOT_LEGADO_TOKEN` do `.env` = **o MESMO token vazado no Legado** e ainda responde `getMe` (id 8854129409) |
+| **Privatizar repo** | **ABERTO** | API do GitHub 20/10: `private=false, visibility=public` |
+| **Cofre pessoal** | **ABERTO** | cofre de serviço `od-sistema` com **16 itens, todos do `.env`**, nenhum pessoal |
+| **Fotos + catálogo 3D** | **ABERTOS** | os 4 arquivos de `analise/fotos-adicionais/` não estão no site (`/site/avatares` tem outras 9); `3D/` do repo vazia (a pasta dele `/home/alex/3D` é linha vermelha, intocável) |
+| Off-site (nuvem) | **ABERTO (decisão dele)** | as 2 HDs já recebem snapshot desde 17/10 (v1.39.3); falta conta/provedor de nuvem |
+
+**Achado novo (custo zero):** o token do bot do **SISTEMA**
+(`@Nicky_Virthy_bot`, o que manda os alertas do celular) **também está em
+texto puro num documento do Legado** —
+`Legado/Nicky/docs/Docs/NICKY_v070_PROMPT (2).md`. Mesmo risco do bot
+legado: a pasta é local (fora do git), mas se for compartilhada o token
+vai junto.
+
+**Ação:** `TODO.md` §2 reescrito (tabela + quadro de auditoria) e as duas
+notas velhas do §7 corrigidas (a lista citava Órion como pendência e a
+linha final do arquivo estava com um parêntese órfão). Commit + push.
+
+### Incidente da própria troca: "missing id or name"
+
+No fim da troca anterior apareceu no terminal do dono
+**`missing id or name`** e a resposta ficou pela metade. Apurado no log
+do OpenCode (`~/.local/share/opencode/log/opencode.log`, 01:48:54):
+
+```
+AI.Error: OpenAI Chat tool call delta is missing id or name
+   → Failed to drain Session  (sessionID ses_ea868460…)
+```
+
+Tradução: **eu** emiti uma chamada de ferramenta **malformada** (a chamada
+`edit` do TODO saiu corrompida no meio do envio); o OpenCode não conseguiu
+identificar **nome nem id** da ferramenta no fluxo do provedor e abortou
+o passo. **Não é defeito do OmegaDrakon** — a string não existe no repo,
+nem no painel, nem no app, nem no journal do od-core (grep confirmado).
+
+Prova de que nada quebrou: `git status` = só `TODO.md` modificado **com a
+edição válida** que eu tinha feito antes da chamada corrompida (32+/7−),
+árvore sem nenhum outro resíduo, od-core intocado (NRestarts=0, /health
+24/24). O que a chamada corrompida tentava fazer foi só a correção de
+texto do §7 — refaço-a aqui, sem perda.

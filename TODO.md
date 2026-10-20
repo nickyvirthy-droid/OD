@@ -67,15 +67,40 @@
 
 ## 2. Pendências do dono (não mexidas — são suas)
 
+> **Auditoria 20/10 (pedido do dono: "acho que essas pendências já foram
+> resolvidas" — verificação item a item com fonte viva, não com o registro):**
+> 3 das 7 linhas desta tabela estavam **desatualizadas** e foram
+> corrigidas; as demais continuam abertas com prova.
+>
+> | O que ele achava pendente | Veredito medido 20/10 |
+> |---|---|
+> | Capturas do Órion | **JÁ RESOLVIDO** (17/10, v1.39.0+2072): o formato do Órion virou o herói do painel e do site (§8 da transcrição de 17/10). As capturas seguem em `analise/` só como referência de design — saíram da lista de pendências do §2, mas ainda constavam na nota velha do §7 (corrigida aqui) |
+> | Registro Mestre — Etapa 4 | **JÁ CONCLUÍDO** (15/10→16/10, v1.30.0+2060): posse/QR/loja no ar — comprador registra no app, QR no cartão, consulta pública por ID gravado (`/site/verificacao.html` + `/site/loja.html` respondendo agora). Sobra só a v2 (câmera de QR dentro do app) |
+> | Rotação de segredos (técnicas + histórico) | **JÁ FECHADA 17/10** (§11): `ADMIN_TOKEN`, pepper/key/senha do Homebox, `OD_API_KEY` (antiga → 401 provado), senha Postgres, senha MQTT + o sudo do mosquitto pelo dono (20:47) |
+> | Chave Gemini vazada no Legado | **JÁ ROTACIONADA** — a chave que está no `.env` hoje **não é** a que está nos documentos do Legado (comparação por hash, sem imprimir valor). Única ressalva honesta: a revogação da antiga no console do Google é conta do dono e não é verificável daqui |
+> | Bot legado `@Nexus_Nicky_bot` | **ABERTO — prova viva 20/10:** o token que está no `.env` (`TELEGRAM_BOT_LEGADO_TOKEN`) é **o mesmo token vazado nos documentos do Legado** e ainda responde `getMe` (id 8854129409). Só o dono resolve (BotFather → `/revoke`) |
+> | Repo GitHub público | **ABERTO — prova viva 20/10:** API do GitHub responde `private=false, visibility=public`. O conteúdo do histórico é valor morto (rotacionado em 17/10); falta o clique: Settings → Danger Zone → *Change visibility* |
+> | Cofre pessoal do Vaultwarden | **ABERTO — medido 20/10:** o cofre de serviço (`od-sistema`) tem **exatamente 16 itens, todos do `.env`** (nenhum pessoal). As pessoais ficam na conta dele: `https://nicky-server.tail1b1f51.ts.net:8443` |
+> | Fotos `analise/fotos-adicionais/` + catálogo `3D/` | **ABERTOS (são dele):** os 4 arquivos (`athenae-ficha`, `luma-2`, `luma-3`, `vox-ficha`) **não** estão no site (`/site/avatares` tem 9 imagens outras) — "vou usar depois"; e a `3D/` do repo segue vazia (a pasta dele é `/home/alex/3D`, intocável — linha vermelha) |
+>
+> **Achado novo desta auditoria (custo zero, vale registro):** o token do
+> bot do **SISTEMA** (`@Nicky_Virthy_bot`, o que manda os alertas no seu
+> celular) **também está em texto puro num documento do Legado** —
+> `Legado/Nicky/docs/Docs/NICKY_v070_PROMPT (2).md`. Mesmo tipo de risco
+> do bot legado: a pasta é local (não está no git), mas se você a
+> compartilhar o token vai junto. Rotação = trocar no `.env` + cofre e
+> reiniciar (eu faço o passo técnico se você mandar).
+
 | Item | Status | Observação |
 |---|---|---|
-| **Vaultwarden** | ✅ | Conta do dono criada + registro aberto fechado em 15/10 (E2E com CLI oficial). O cofre já tem **as 12 senhas do `.env` espelhadas** (17/10, `vault_env_mirror.py` — cópia idempotente, sem tocar no `.env`); falta o dono popular com as **pessoais**: `https://nicky-server.tail1b1f51.ts.net:8443` |
-| **Registro Mestre — Etapa 4** | ☐ | Comprador / QR / loja do lote de brinquedos |
-| **Pauta §8.5 — Rotação dos segredos vazados no Legado** (09/10) | ☐ | Verificado 09/10: **bot antigo `@Nexus_Nicky_bot` e chave Gemini AINDA ATIVOS**. Decisão do dono: rotacionar só quando os testes em produção finalizarem. Nunca migrar segredo ao site (fonte: §6 linha 15 + §8 item 5 — mesmo assunto da linha "Rotação de segredos" abaixo) |
-| **Repo GitHub público — PRIVATIZAR (clique do dono)** | ☐ | **Rotação do histórico FEITA em 17/10** (linha abaixo) — o que sobra no histórico público agora é valor morto. Falta o dono privatizar: GitHub → Settings → Danger Zone → *Change visibility* |
-| **Rotação de segredos** | ☑ | **Executada 17/10** (infra, sem bump): do histórico — `ADMIN_TOKEN` + pepper Homebox (+ key regenerada + senha da conta redefinida); técnicas — `OD_API_KEY` (antiga → 401), senha Postgres (`ALTER ROLE`), senha MQTT no `.env`. Espelho do cofre 14/14. **FECHADA de vez:** o dono rodou o sudo do mosquitto (20:47) — mqtt up, health 22/22, E2E 21/21. Arquivo da senha apagado. Se o ESP-01S algum dia precisar de MQTT, regravar com a senha do cofre |
-| **Fotos em `analise/fotos-adicionais/`** | ☐ | "Vou usar depois" (4 fotos com prefixo `zz`/`zzz`) |
-| **Catálogo `3D/`** | ☐ | Pasta para catalogar modelos 3D |
+| **Vaultwarden** | ☐ | Conta do dono criada 15/10. Cofre de serviço **16/16 espelhados** do `.env` (re-verificado 20/10, `vault_env_mirror.py`); **falta o popular com as pessoais** (medido 20/10: 0 itens pessoais lá): `https://nicky-server.tail1b1f51.ts.net:8443` |
+| **Registro Mestre — Etapa 4** | ☑ | **CONCLUÍDO 15/10→16/10 (v1.30.0+2060):** posse/QR/loja no ar (comprador registra no app, QR no cartão, consulta pública por ID gravado). Corrigido em 20/10 — a linha estava ☐ com a informação do §7 desatualizada. Sobra v2 (câmera de QR no app), se você quiser |
+| **Pauta §8.5 — segredos vazados no Legado** (09/10) | ☐ | **Metade resolvida:** a chave Gemini **já foi rotacionada** (a do `.env` difere da vazada, 20/10). **Ainda aberto:** o bot `@Nexus_Nicky_bot` segue com o **mesmo token vazado** (getMe vivo 20/10) e, de bônus desta auditoria, o token do bot do **sistema** `@Nicky_Virthy_bot` também aparece num documento do Legado (`NICKY_v070_PROMPT (2).md`). Ação do dono: BotFather `/revoke` nos dois; o passo técnico (.env + cofre + restart) é meu |
+| **Repo GitHub público — PRIVATIZAR (clique do dono)** | ☐ | **Ainda público** (API do GitHub consultada 20/10: `visibility=public`). Rotação do histórico FEITA em 17/10 (abaixo) — o que sobra lá é valor morto. Falta o clique: GitHub → Settings → Danger Zone → *Change visibility* |
+| **Rotação de segredos (infra)** | ☑ | **Executada e FECHADA 17/10** (§11): histórico (`ADMIN_TOKEN` + pepper Homebox, key regenerada, senha da conta redefinida) + técnicas (`OD_API_KEY` antiga → 401, senha Postgres via `ALTER ROLE`, senha MQTT) + sudo do mosquitto pelo dono (20:47) → mqtt up, health 22/22, E2E 21/21. Espelho do cofre conferido |
+| **Fotos em `analise/fotos-adicionais/`** | ☐ | "Vou usar depois" — 4 arquivos (`athenae-ficha.png`, `luma-2.png`, `luma-3.png`, `vox-ficha.png`), conferido 20/10: **nenhum deles está no site** (`/site/avatares` tem outras 9) |
+| **Catálogo `3D/`** | ☐ | Pasta do repo vazia (confirmado 20/10); os modelos são os seus em `/home/alex/3D` (~1,2 GB) — **intocável** (linha vermelha do TODO). Catalogar é sua decisão de escopo |
+| **Off-site do backup (nuvem)** | ☐ | As **2 HDs externas** já recebem snapshot completo desde 17/10 (v1.39.3+2075) e os `backups/auto*` do dia seguem prontos para cópia. O que falta é a decisão de conta/provedor (S3/MinIO/rclone) — só entra se você quiser proteção contra morte do disco e das HDs ao mesmo tempo |
 
 ---
 
@@ -194,9 +219,16 @@
 > (§3.6), **Métricas Prometheus do auto-update** (§3.5) e **Tema
 > claro/escuro sincronizado** (§3.8, v1.32.0+2062). Sem candidato técnico
 > aberto no §3: as pendências vivas são do dono (§2 do todo da conversa —
-> Órion com 2 capturas sem instrução, Vaultwarden, repo público/pautas).
+> cofre pessoal do Vaultwarden, privatizar o repo, bot legado/BotFather,
+> fotos e catálogo `3D/`; **auditoria 20/10** corrigiu o §2: Órion e
+> Registro Mestre Etapa 4 já estavam concluídos e saíram da lista).
 
 ---
 
-rotação do histórico + técnica EXECUTADA 17/10 — §8.5 do legado (bot/BotFather) ainda pendente do dono)
+**Situação dos segredos (re-verificada 20/10):** rotação do histórico +
+técnica EXECUTADA em 17/10 (§11 da transcrição); **§8.5 do Legado segue
+aberta só no bot** — `@Nexus_Nicky_bot` ainda com o token vazado (getMe
+vivo) e o token do bot do sistema `@Nicky_Virthy_bot` também encontrado
+em texto puro em `Legado/Nicky/docs/Docs/NICKY_v070_PROMPT (2).md`;
+chave Gemini **já rotacionada**.
 **Próxima revisão:** na próxima "leia iniciar" ou nova ordem do dono.

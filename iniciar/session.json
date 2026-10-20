@@ -1,7 +1,31 @@
 {
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T04:38:09.781222+00:00",
+  "updated_at": "2026-10-20T05:02:00.000000+00:00",
+  "auditoria_pendencias_2026_10_20": {
+    "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
+    "vereditos": {
+      "ja_resolvidas": [
+        "Capturas do OrioN: RESOLVIDAS 17/10 (v1.39.0+2072) — formato do OrioN virou heroi do painel e do site; capturas ficaram em analise/ so como referencia de design",
+        "Registro Mestre Etapa 4: CONCLUIDO 15/10->16/10 (v1.30.0+2060) — /site/loja.html + /site/verificacao.html no ar, rota publica /registry/{id} respondendo",
+        "Rotacao de segredos (infra): FECHADA 17/10 (§11) — ADMIN_TOKEN, homebox pepper/key/senha, OD_API_KEY (antiga -> 401), Postgres, MQTT + sudo do mosquitto pelo dono",
+        "Chave Gemini vazada: JA ROTACIONADA — hash da chave do .env difere da chave nos documentos do Legado"
+      ],
+      "ainda_abertas_com_prova": [
+        "Bot legado @Nexus_Nicky_bot: TELEGRAM_BOT_LEGADO_TOKEN do .env == token vazado no Legado e ainda responde getMe (id 8854129409)",
+        "Privatizar repo: API do GitHub 20/10 private=false, visibility=public",
+        "Cofre pessoal do Vaultwarden: cofre de servico od-sistema com 16 itens, todos do .env, nenhum pessoal",
+        "Fotos analise/fotos-adicionais/: os 4 arquivos (athenae-ficha, luma-2, luma-3, vox-ficha) NAO estao no site (avatares.html tem outras 9)",
+        "Catalogo 3D/: 3D/ do repo vazia; pasta dele /home/alex/3D e linha vermelha, intocavel",
+        "Off-site do backup (nuvem): as 2 HDs ja recebem snapshot desde 17/10; falta conta/provedor"
+      ]
+    },
+    "achado_novo": "O token do bot do SISTEMA (@Nicky_Virthy_bot, o que manda os alertas) TAMBEM esta em texto puro em Legado/Nicky/docs/Docs/NICKY_v070_PROMPT (2).md — mesmo risco do bot legado; rotacao tecnica = trocar no .env + cofre + restart (acao do dono para revogar no BotFather)",
+    "correcoes_no_todo": "§2 reescrito (tabela + quadro de auditoria, Registro Mestre virou ☑ e §8.5 passou a refletir Gemini ok / bot aberto) + 2 notas velhas do §7 corrigidas (lista citava OrioN como pendencia; linha final com parentese orfao)",
+    "incidente_missing_id_or_name": "No fim da troca anterior o dono viu 'missing id or name' e a resposta ficou pela metade. Apurado no log do OpenCode (01:48:54): AI.Error 'OpenAI Chat tool call delta is missing id or name' -> Failed to drain Session. Causa: EU emiti chamada de ferramenta malformada (edit do TODO corrompida no envio) — o provedor nao entregou nome/id da ferramenta e o OpenCode abortou o passo. NAO e defeito do OmegaDrakon (string inexistente no repo/painel/app/journal, grep confirmado). Prova de nada quebrado: git status = so TODO.md com a edicao valida (32+/7-), od-core intocado (NRestarts=0, /health 24/24).",
+    "estado": "Auditoria FECHADA e publicada (TODO.md + transcricao §2). Lista de pendencias agora confiavel: 6 itens reais, sendo 2 do dono com clique (privatizar repo, revogar os 2 bots no BotFather) e 1 tecnico que eu executo quando ele mandar (trocar os 2 tokens + cofre + restart).",
+    "transcricao": "iniciar/2026-10-20_conversa_omegadrakon.md (§2)"
+  },
   "reverificacao_2026_10_20_0138": {
     "pedido": "Usuario: 'leia iniciar' (~01:38 de 20/10) — reverificacao de rotina (regra 3) depois do fecho da v1.43.0+2079 (Calibre, 19/10 16:29, comits 2d0e550 + d49ec06 + aa3c5e5).",
     "achados_verdes": "SISTEMA VERDE: od-core active desde 19/10 16:23:09 (9h15), MainPID 3639833, NRestarts=0, journal 0 [ERROR] desde o boot; /health status=up com 24 checks NENHUM fora (criticos 0 fora); /app/version 1.43.0/2079 sha256 9bc6ef18… == APK publicado (55700429 B); git status LIMPO, HEAD aa3c5e5 == origin/master (0/0); backup up (od-2026-10-19_0311.tar.gz, 0.18 MB, 22.4 h) e backup_capturas up (od-capturas-2026-10-16_1434.tar.gz, 301.62 MB, 83 h); disco 66% (78G livres); txt.txt SEM mensagem nova do dono (ultima escrita nossa 19/10 16:29 = entrega do Calibre); analise/ inalterado (2 capturas Sistema OrioN de 16/10 sem instrucao + fotos-adicionais/ com as 4).",
