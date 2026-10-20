@@ -675,3 +675,65 @@ restauração bit-exata. A guarda do `historico.html` continua verde (74 ⊆ 74)
 
 **Estado:** união **fechada no ar**; menu lateral aguardando o escopo do dono;
 tema aguardando o exemplo exato dele.
+
+---
+
+## §15 — Menu lateral do formato Órion no site e no painel (20/10 ~16:40)
+
+**Pedido:** o dono apontou o item pendente — *"ainda tem uma mudança no site
+que vinha do orion, menu na lateral"* — e, perguntado o escopo (só index /
+site inteiro / site + painel), escolheu **"site + painel juntos"**.
+
+**Apuro:** real e pendente desde a **1.39.0**: a análise do formato Órion
+listou 5 elementos (herói, KPIs, mini-painéis vivos e **barra lateral
+colapsável**), mas a entrega **ao site** foi só *chip vivo + números reais* —
+o menu seguiu o `⋮` no topo das 11 páginas, e no painel a navegação vivia
+dentro de um link injetado no herói.
+
+**Entregas:**
+
+1. **Site — `od-nav.js` (comportamento 5):** `lateralMontar()` injeta o
+   `<aside id="odLateral">` **clonando os MESMOS links do painel `⋮`**
+   (`cloneNode` da marca e de cada `<a>`, `cta` preservada) — o HTML do menu
+   continua existindo em **um lugar só**, que é justamente o que faltou quando
+   as páginas divergiram. Idempotente pela marca; **☰** recolhe (68px), grava
+   `od_lateral` no `localStorage` e reabre do jeito que ficou; sem elementos
+   (harness do tema) sai sem erro.
+2. **Site — `od.css`:** `.od-lateral` em `@media (min-width: 1024px)`; barra
+   236px fixa à esquerda, nav fixa acompanha por `--od-lat-w`, no desktop o
+   `⋮` dá lugar ao ☰, **<1024px nada muda**; recolhida a marca sai e os
+   rótulos encolhem (sem inventar iconografia); tinta só nas variáveis do
+   tema → claro e escuro sem paleta duplicada.
+3. **Painel — `_FORMATO_ORION_CSS`/`_JS`:** barra injetada no `/dashboard` e
+   `/admin` pela fonte única (mesma arquitetura do tema, um único `<script>`);
+   `/chat` **inócuo** (sem `#odOla` o `iniciar()` sai cedo); item **Admin só
+   para papel admin** — o `quemAmI` repassa o papel em
+   `odFormato.nome(nome, papel)` e `lateralAdmin()` acrescenta o item.
+
+**Guarda nova `TestMenuLateralOrion` (+4):** CSS/JS da barra · **as 11
+páginas continuam sem HTML de menu** (a barra é injetada — é isso que trava a
+duplicação) · painel servindo `odLateral` + `papel === "admin"` +
+`nome(data.user.username, role)` com **um único `<script>`** nas três páginas ·
+`node --check`. **Mutações 4/4** — as duas primeiras **escaparam** (o texto
+existia noutro lugar do arquivo) e a guarda foi **endurecida** antes de valer;
+restauração bit-exata.
+
+**Prova viva do JS (harness de node, DOM de mentira rodando o `od-nav.js` de
+verdade):** barra montada com a marca e os 3 links clonados (cta preservada) ·
+☰ recolhe e grava `recolhido` · 2º clique devolve `aberto` · **2ª chamada =
+1 barra**.
+
+**Validação/deploy:** gate **3532 passed / 16 skipped / 0 falha · 90,68%**
+(+4) · pyflakes sem aviso novo (os 3 do `server.py` são pré-existentes, diff
+com o HEAD provou). **Restart verde 16:45:20** (regra 7.3): NRestarts=0,
+journal **0 `[ERROR]`**, `/health` **25/25**, `/app/version` **1.43.0/2079**.
+Provas no ar: `/dashboard` e `/admin` com `odLateral` e um único `<script>`
+(**script extraído do ar e `node --check` OK**) · `/chat` inócuo · `od-nav.js`
+e `od.css` servindo a barra · `index.html` sem markup novo · `historico.html`
+200.
+
+**Canais:** CHANGELOG §1.43.0 (sem bump) · TODO **§3.9 nova** · `session.json`
+(chave `menu_lateral_orion_2026_10_20`) · `txt.txt` · Telegram.
+
+**Estado:** **ENTREGUE E NO AR.** Sobram do dono: o **exemplo exato do tema**
+(TODO §3.8, explicado nesta troca) e a câmera QR (v2).
