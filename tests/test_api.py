@@ -1036,20 +1036,70 @@ class TestAPISite:
     def test_site_index_chip_vivo_e_numeros_reais(self) -> None:
         """Formato Órion no site (17/10): a badge do herói traz os
         elementos do chip vivo (od-nav.js, comportamento 4) e os números
-        do topo são os REAIS desta entrega — o que o site afirma tem de
-        ser verdade no commit (os velhos 78 actions / +2.300 testes
-        mentiam e não podem voltar)."""
+        do topo são os REAIS do commit — o que o site afirma tem de ser
+        verdade agora (os velhos 78 actions / +2.300 testes mentiam e não
+        podem voltar). A contagem de testes é a da suíte completa na
+        última rodada do gate (3527 em 20/10, +1 guarda do historico)."""
         raiz = Path(__file__).resolve().parents[1]
         html = (raiz / "site" / "index.html").read_text(encoding="utf-8")
         # Chip vivo: versão (#odSiteVer) e estado (#odSiteOn) preenchidos
         # em runtime pelas rotas públicas /app/version e /health.
         assert 'id="odSiteVer"' in html and 'id="odSiteOn"' in html
         assert '<span class="od-site-ponto"></span>' in html
-        # Números reais do v1.43.0+2079.
+        # Números reais de hoje.
         assert "<b>115</b><span>Actions</span>" in html
-        assert "<b>3.449</b><span>Testes</span>" in html
+        assert "<b>3.527</b><span>Testes</span>" in html
         assert "<b>9</b><span>Ferramentas no ar</span>" in html
         assert "<b>78</b>" not in html and "+2.300" not in html
+
+    def test_historico_cobre_todos_os_releases_e_contagem_verdadeira(
+        self,
+    ) -> None:
+        """historico.html (20/10): a linha do tempo cobre TODOS os
+        releases do projeto e os números anunciados batem com a lista.
+
+        Trava a pauta antiga do TODO ("historico.html parou na v1.25.0")
+        e as contagens que já estavam erradas antes (a Era 5 dizia 8
+        releases e listava 10; index/od.css repetiam "48 / cinco eras").
+        Fonte = união de CHANGELOG e README de Versão: o CHANGELOG não
+        traz a 1.24.2 (só no README) e o README não traz a 1.42.0 (só no
+        CHANGELOG) — cada um deles sozinho deixaria a guarda cega de um
+        lado."""
+        import re
+
+        raiz = Path(__file__).resolve().parents[1]
+        hist = (raiz / "site" / "historico.html").read_text(encoding="utf-8")
+        index = (raiz / "site" / "index.html").read_text(encoding="utf-8")
+        ch = (raiz / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
+        rv = (raiz / "docs" / "README_VERSAO.md").read_text(encoding="utf-8")
+
+        lista = re.findall(r'<span class="r-ver">([0-9.]+)</span>', hist)
+        fonte = set(re.findall(r"^## \[(1\.[0-9.]+)\]", ch, re.M)) | set(
+            re.findall(r"^## \[(1\.[0-9.]+)\]", rv, re.M)
+        )
+        # 1) nada faltando: todo release documentado está na página
+        assert fonte <= set(lista), sorted(fonte - set(lista))
+        # 2) lista limpa: sem repetida e em ordem crescente
+        assert len(lista) == len(set(lista)), "release repetido"
+        assert lista == sorted(
+            lista, key=lambda s: [int(x) for x in s.split(".")]
+        ), "lista fora de ordem"
+        # 3) contagens da PRÓPRIA página batem com a lista real
+        total = len(lista)
+        assert f"Os {total} Lançamentos" in hist
+        assert f"{total} releases organizados" in hist
+        assert f"de v1.0.0 a v{lista[-1]}" in hist
+        spans = [int(n) for n in re.findall(r"· (\d+) releases</span>", hist)]
+        n_eras = hist.count('class="era-box"')
+        assert len(spans) == n_eras and sum(spans) == total, (
+            total,
+            n_eras,
+            spans,
+        )
+        # 4) o index anuncia o MESMO número (era a outra contagem velha)
+        assert f"<div class=\"num\">{total} Lançamentos</div>" in index
+        assert f"Ver os {total} releases" in index
+        assert "48 Lançamentos" not in index and "48 releases" not in hist
 
 
 # ===========================================================================

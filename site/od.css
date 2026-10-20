@@ -382,11 +382,13 @@ blockquote footer { margin-top: 12px; color: var(--muted); font-size: .8rem;
 blockquote footer { margin-top: 12px; color: var(--muted); font-size: .78rem;
   letter-spacing: .12em; text-transform: uppercase; }
 
-/* --- Linha do tempo de RELEASES (2026-10-10) ---------------------------
-   O CHANGELOG tem 2.737 linhas / 48 releases datados. O dono pediu para
-   organizar ("é tanto texto que só você pra organizar"): em vez de jogar a
-   lista crua na página, os 48 releases foram agrupados em 5 eras temáticas,
-   cada uma com o marco que resume o período.                          */
+/* --- Linha do tempo de RELEASES (2026-10-10; completada até a 1.43.0 em
+   2026-10-20) ------------------------------------------------------------
+   O CHANGELOG tem 4.058 linhas / 74 releases datados (união do CHANGELOG
+   com o README de Versão). O dono pediu para organizar ("é tanto texto que
+   só você pra organizar"): em vez de jogar a lista crua na página, os 74
+   releases foram agrupados em 9 eras temáticas, cada uma com o marco que
+   resume o período. A contagem é guardada por teste (TestAPISite).      */
 .era-box { background: var(--bg2); border: 1px solid var(--border);
   border-radius: 8px; padding: 24px 26px; margin-bottom: 16px;
   transition: border-color .18s; }
