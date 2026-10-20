@@ -318,6 +318,29 @@ class TestTick:
         assert svc.tick() == {"enviados": [], "erros": []}
         assert not (tmp_path / "estado.json").exists()
 
+    def test_diario_fica_registrado_mesmo_se_capturas_falharem(
+            self, perfis, tmp_path, monkeypatch) -> None:
+        """Gravação POR PERFIL (prova viva 20/10): o diário sobe em 4 s
+        e as capturas levam ~2 min — se o upload longo cair no meio, o
+        que já chegou NÃO pode ser reenviado no próximo tick."""
+        svc = _svc(perfis, tmp_path, push=_Push())
+        tg = _Telegram(falhar_em=1)  # 1ª parte das capturas é recusada
+        monkeypatch.setattr(urllib.request, "urlopen", tg.urlopen)
+        resumo = svc.tick()
+        assert len(resumo["enviados"]) == 1  # diário ok
+        assert resumo["erros"] and "PAYLOAD_TOO_LARGE" in resumo["erros"][0]
+        # o diário JÁ GRAVADO — prova do envio parcial
+        estado = json.loads((tmp_path / "offsite_state.json").read_text("utf-8"))
+        assert estado["diario"]["arquivo"] == "od-2026-10-20_0309.tar.gz"
+        assert "capturas" not in estado
+        # próximo tick: diário NÃO reenvia; só as capturas tentam de novo
+        tg2 = _Telegram()
+        monkeypatch.setattr(urllib.request, "urlopen", tg2.urlopen)
+        resumo2 = svc.tick()
+        assert len(resumo2["enviados"]) == 1
+        assert "capturas" in resumo2["enviados"][0]
+        assert len(tg2.envios) == 1  # só as capturas subiram
+
     def test_estado_corrompido_comeca_do_zero(self, perfis, tmp_path,
                                               monkeypatch) -> None:
         (tmp_path / "offsite_state.json").write_text("{{{", "utf-8")

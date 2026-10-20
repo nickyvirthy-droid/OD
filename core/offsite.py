@@ -213,11 +213,13 @@ class OffsiteService:
                 "partes": partes,
                 "enviado_em": time.time(),
             }
+            # Grava JÁ POR PERFIL (prova viva 20/10: o diário sobe em
+            # 4 s e as capturas levam ~2 min — se o upload longo cair
+            # no meio, o que já chegou fica registrado e NÃO reenvia).
+            self._gravar_estado(estado)
             enviados.append(f"{artefato.name} ({partes} parte(s))")
             log.info("Off-site enviado", perfil=perfil,
                      arquivo=artefato.name, partes=partes)
-        if enviados:
-            self._gravar_estado(estado)
         return {"enviados": enviados, "erros": erros}
 
     def _avisar_falha(self, texto: str) -> None:
