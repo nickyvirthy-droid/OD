@@ -1,4 +1,19 @@
 {
+  "historico_completo_2026_10_20": {
+    "pedido": "Dono (20/10 ~15:40): 'historico' — completar site/historico.html, a pauta de conteudo do TODO §3 (a linha do tempo parou na v1.25.0 desde 13/10).",
+    "levantamento": "Fonte viva: historico.html = 50 releases (1.0.0→1.25.0) em 5 eras; CHANGELOG = 73 seções 1.x (SEM a 1.24.2 — ela so existe no README de Versao); README_VERSAO = 73 de 1.x (SEM a 1.42.0 — so no CHANGELOG). Uniao = 74 = o total real. Achei tb 3 contagens ja erradas: Era 5 dizia '8 releases' e listava 10; index dizia '48 Lançamentos / Ver os 48 / cinco eras'; meta description e comentario do od.css idem.",
+    "entregas": [
+      "site/historico.html: +4 eras com os 24 releases que faltavam (Era 6 Ferramentas Nômades 14→15 out/4 · Era 7 Registro e Autonomia 15→16 out/5 · Era 8 Stack Nômade no Ar 16→17 out/7 · Era 9 Formato Órion e a Biblioteca 17→19 out/8) -> 74 releases em 9 eras; faixa da Era 5 corrigida (09→13 out, 10 releases); kicker/meta/intro/comentario do od.css atualizados (74/9/v1.43.0).",
+      "site/index.html: contagens 48->74 (num + tag) e 'cinco eras'->'nove eras' com os 9 nomes; Testes do topo 3.449->3.527 (numero real do gate de hoje — ficou para tras nas entregas sem bump).",
+      "tests/test_api.py: +1 guarda TestAPISite::test_historico_cobre_todos_os_releases_e_contagem_verdadeira (uniao CHANGELOG+README ⊆ lista, sem repetida, ordem crescente, kicker+meta+faixa finais batem, soma dos '· N releases' por era == total e nº de era-box == nº de faixas, index com o MESMO número, '48' proibido) + ajuste da guarda de numeros reais do index (3.527)."
+    ],
+    "achados_documentais": "2 furos de registro ANTERIORES a hoje: CHANGELOG sem a seção da 1.24.2 e README_VERSAO sem a da 1.42.0 (as duas versões existem de verdade). União dos dois cobre as 74 — e é a união que a guarda usa. NADA consertado (fora do pedido); registrado no TODO §3 e no txt.txt, conserto é pauta se o dono mandar.",
+    "validacao": "Gate oficial .venv/bin/python -m pytest --cov --cov-config=.coveragerc --cov-fail-under=90: 3527 passed / 16 skipped / 0 falha · 90,68% (+1). html.parser sem erro. TESTE DO TESTE por mutação: 4/4 capturadas (release apagado, kicker 74->73, faixa da era 4->5, 1.42.0 removida) com restauração bit-exata.",
+    "deploy": "Sem restart (site lido do disco por requisição). Prova viva: GET /site/historico.html = 200, 29.888 B, byte-idêntico ao disco, 74 'r-ver', 'Era 9' e 'Os 74 Lançamentos' no corpo servido; /site/index.html = 'Ver os 74 releases'; /actions = 115 (conferido).",
+    "canais": "txt.txt reescrito (regra 14) + Telegram msg 3180 (regra 15) + CHANGELOG §1.43.0 'historico completo' + TODO §3 linha fechada + transcrição §13.",
+    "estado": "CONCLUIDO E NO AR — 74 releases/9 eras com guarda contra regressão; fila §3 do TODO: sobram exemplo exato do tema (adiado) e câmera QR (v2).",
+    "transcricao": "iniciar/2026-10-20_conversa_omegadrakon.md (§13)"
+  },
   "reverificacao_2026_10_20_1530": {
     "pedido": "Usuario: 'leia iniciar' (~15:30 de 20/10) — reverificacao de rotina (regra 3) depois do fecho do off-site (registros 14:40, comits 0446f14 + 2ea014b).",
     "achados_verdes": "SISTEMA VERDE: od-core active desde 14:33:03 (55 min), MainPID 614254, NRestarts=0, journal 0 [ERROR] desde o boot (os 3 [ERROR] vistos sao do boot ANTERIOR, PID 3639833: 01:49 ValueError, 03:01/03:02 DNS do Telegram); /health status=up com 25 checks NENHUM fora; /app/version 1.43.0/2079 sha 9bc6ef18… == APK publicado (55700429 B); git ARVORE LIMPA, HEAD 2ea014b == origin/master (0/0, sem untracked).",
@@ -114,7 +129,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T15:32:00-03:00",
+  "updated_at": "2026-10-20T16:15:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {

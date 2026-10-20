@@ -552,3 +552,58 @@ do Telegram — ambos do processo já encerrado).
 **fechada e provada**; nada em andamento. Próximas do TODO: `historico.html`
 (parou na v1.25.0), exemplo exato do tema (adiado), câmera QR (v2); pendências
 do dono (cofre pessoal, fotos, `3D/`) seguem com **decisão de não cobrar**.
+
+## §13 — "historico": a linha do tempo completada até a v1.43.0 (74 releases em 9 eras)
+
+**Pedido:** dono (~15:40): **"historico"** — a pauta de conteúdo do §3 do
+TODO (`site/historico.html` parou na **v1.25.0** desde 13/10 enquanto o
+projeto chegou à **v1.43.0**).
+
+**Levantamento (fonte viva, antes de mexer):**
+
+| Fonte | Medição |
+|---|---|
+| `site/historico.html` | **50 releases** (1.0.0 → 1.25.0) em **5 eras** |
+| `docs/CHANGELOG.md` | **73** seções 1.x — **sem a 1.24.2** (ela existe só no README de Versão) |
+| `docs/README_VERSAO.md` | **73** seções 1.x — **sem a 1.42.0** (só no CHANGELOG) |
+| **União dos dois docs** | **74 = o total real** → faltavam **24** na página |
+| Contagens já erradas | Era 5 dizia **"8 releases"** e listava **10** (1.24.2/1.25.0 entraram sem atualizar a faixa) · index: **"48 Lançamentos / Ver os 48 / cinco eras"** · meta description e comentário do `od.css` idem |
+
+**Entregas:**
+- **4 eras novas** com os 24 releases (data + versão + título, tirados do
+  CHANGELOG — nada inventado): **Era 6 · Ferramentas Nômades** (14→15 out, 4) ·
+  **Era 7 · Registro e Autonomia** (15→16 out, 5) · **Era 8 · Stack Nômade no
+  Ar** (16→17 out, 7) · **Era 9 · Formato Órion e a Biblioteca** (17→19 out, 8)
+  → **74 releases em 9 eras**; faixa da Era 5 corrigida para `09 → 13 out · 10`.
+- **Contagens do index/od.css/meta** todas para 74 · 9 eras (com os 9 nomes no
+  index) · `Testes` do topo **3.449 → 3.527** (número real do gate de hoje —
+  tinha ficado para trás nas entregas "sem bump"; Actions **115** conferidas ao
+  vivo no `/actions`).
+- **Guarda nova** (`TestAPISite::test_historico_cobre_todos_os_releases_e_
+  contagem_verdadeira`, +1): união CHANGELOG+README ⊆ lista da página · sem
+  repetida · ordem crescente · kicker/meta/faixa final batem com a lista ·
+  **soma dos `· N releases` por era == total** e nº de `era-box` == nº de
+  faixas · index com o **mesmo** número · sobra de "48" proibida. O que o site
+  afirma passa a ter de ser verdade em todo commit.
+
+**Achado no caminho (registrado, NÃO consertado):** os 2 furos de registro
+anteriores — CHANGELOG sem a seção da **1.24.2** e README de Versão sem a da
+**1.42.0**. As duas versões existem de verdade; a união dos documentos cobre as
+74 e é justamente ela que a guarda usa. Conserto dos dois é pauta, se ele mandar
+(TODO §3 + `txt.txt` com a oferta).
+
+**Validação:** gate oficial **3527 passed / 16 skipped / 0 falha · 90,68%**
+(+1) · `html.parser` limpo. **Teste do teste:** mutações **4/4 capturadas**
+(release apagado · kicker 74→73 · faixa da era 4→5 · 1.42.0 removida) com
+restauração bit-exata.
+
+**Deploy:** **sem restart** (site é lido do disco por requisição). **Prova
+viva:** `GET /site/historico.html` → **200, 29.888 B, byte-idêntico ao disco**,
+**74** `r-ver`, `Era 9 · Formato Órion e a Biblioteca` e `Os 74 Lançamentos`
+no corpo servido; index → `Ver os 74 releases`.
+
+**Canais:** `txt.txt` reescrito (regra 14) · Telegram **msg 3180** (regra 15) ·
+CHANGELOG §1.43.0 (sem bump) · TODO §3 linha fechada.
+
+**Estado:** **CONCLUÍDO E NO AR.** Fila §3 do TODO sobra com o exemplo exato do
+tema (adiado pelo dono) e a câmera QR (v2).
