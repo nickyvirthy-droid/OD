@@ -1,4 +1,21 @@
 {
+  "correcao_menu_lateral_2026_10_20": {
+    "pedido": "Dono (20/10 ~17:10): 'menu ficou errado, etsa sobre a pagina' — defeito visual na entrega do menu lateral (§15).",
+    "reproducao": "Sem navegador conectado à sessão, instalei chromium HEADLESS isolado em /tmp/opencode/pwvenv (venv própria, fora do repo, sem sudo) e renderizei site + painel com fatos de layout + screenshots. Nas DUAS superfícies o offset de 236px existia, mas no SITE os itens da barra apareciam numa faixa de largura TOTAL por cima da página.",
+    "causa_raiz": "O contêiner dos links era um <nav> (od-nav.js createElement('nav'); painel: nav com class od-lateral-links) e o od.css tem regra GLOBAL 'nav { position: fixed; top:0; left:0; right:0; z-index:100 }' (a barra do topo do site) — o contêiner herdava fixed de ponta a ponta e encostava sobre o conteúdo. O painel não tem regra global de nav, por isso SÓ O SITE quebrou.",
+    "correcao": [
+      "site/od-nav.js: contêiner dos links <nav> -> div class od-lateral-links; item clonado ganhou title com o nome completo (rótulo encurta na barra recolhida).",
+      "site/od.css: deslocamento da nav do topo apertado em 'html.od-com-lateral body > nav' (filha direta do body) — nenhum nav de conteúdo pode ser deslocado.",
+      "integrations/api/server.py (_FORMATO_ORION_JS): mesma construção no painel (div class od-lateral-links) para as duas superfícies falarem igual."
+    ],
+    "guardas_novas": "A guarda de strings não pegou o defeito porque não afirmava a TAG do contêiner. Acrescentadas na mesma classe TestMenuLateralOrion: createElement('nav') proibido no od-nav.js · 'html.od-com-lateral body > nav' obrigatório no od.css · div od-lateral-links presente e nav od-lateral-links AUSENTE no painel servido.",
+    "validacao": "Gate 3532 passed / 16 skipped / 0 falha · 90,69% (as 4 travas seguem; a correção não mudou contagem). RESTART VERDE 17:27 (NRestarts=0, journal 0 [ERROR], /health 25/25, /app/version 1.43.0/2079). Provas vivas: /dashboard e /admin servem a div od-lateral-links com ZERO nav da barra; od-nav.js servido sem createElement('nav'); od.css com body > nav.",
+    "prova_de_render": "Re-render headless (chromium em /tmp): site index e historico com barra 236px e links DENTRO da barra; tema escuro idem; recolhida 68px com links dentro; celular (<1024px) sem barra e ⋮ intacto; painel dashboard/admin com barra 236px e conteúdo deslocado.",
+    "ferramenta": "chromium headless do playwright instalado isolado em /tmp/opencode/pwvenv (fora do repo, sem sudo) + /tmp/opencode/ver_menu.py e ver_estados.py (replicam layout + screenshots). Não vira dependência do projeto; serve de replicação quando o navegador do dono é o único sensor.",
+    "canais": "CHANGELOG §1.43.0 (defeito registrado e corrigido na mesma seção) + TODO §3.9 + txt.txt + Telegram + transcrição §16.",
+    "estado": "CORRIGIDO E NO AR — menu lateral nas duas superfícies, guarda da TAG do contêiner, render provando os 5 estados.",
+    "transcricao": "iniciar/2026-10-20_conversa_omegadrakon.md (§16)"
+  },
   "menu_lateral_orion_2026_10_20": {
     "pedido": "Dono (20/10 ~16:40, na mesma troca da uniao): 'ainda tem uma mudanca no site que vinha do orion, menu na lateral' + escolha de escopo via pergunta objetiva: 'site + painel juntos'.",
     "apuro": "Real e pendente desde a 1.39.0: a analise do formato Orion listou 5 elementos (heroi, KPIs, mini-paineis vivos e BARRA LATERAL COLAPSAVEL) mas a entrega ao SITE foi so chip vivo + numeros reais — o menu seguiu o '⋮' no topo das 11 paginas; o painel so tem header minimo (logo + h1) e a navegacao vivia dentro de um link injetado no heroi.",

@@ -737,3 +737,60 @@ e `od.css` servindo a barra · `index.html` sem markup novo · `historico.html`
 
 **Estado:** **ENTREGUE E NO AR.** Sobram do dono: o **exemplo exato do tema**
 (TODO §3.8, explicado nesta troca) e a câmera QR (v2).
+
+---
+
+## §16 — Defeito do menu lateral ("está sobre a página") — achado, causa raiz, correção (20/10 ~17:10)
+
+**Reporte do dono:** *"menu ficou errado, etsa sobre a pagina"*.
+
+**Replicação (sem navegador conectado à sessão):** instalei **chromium
+headless isolado** em `/tmp/opencode/pwvenv` (venv própria, fora do repositório,
+sem sudo) e renderizei site e painel com fatos de layout + screenshots. Nas
+DUAS superfícies o deslocamento de 236px existia — mas no **site** os itens da
+barra apareciam numa **faixa de largura total por cima da página** (captura
+`shot_site_index.png` antes do conserto: os links empilhados de ponta a
+ponta).
+
+**Causa raiz:** o contêiner dos links era um **`<nav>`**, e o `od.css` tem a
+regra **global** `nav { position: fixed; top:0; left:0; right:0; z-index:100 }`
+(a barra do topo do site). O contêiner da barra lateral **herdava `fixed` de
+ponta a ponta** e encostava sobre o conteúdo. O painel não tem regra global de
+`nav` — por isso **só o site quebrou** (e por isso meus fatos de layout, que
+mediam a `aside`, continuavam "certos": o defeito morava no contêiner interno).
+
+**Correção (3 pontos):**
+
+1. `site/od-nav.js` — contêiner dos links `<nav>` → **`<div
+   class="od-lateral-links">`**; item clonado ganha `title` (na barra
+   recolhida o rótulo encurta, o mouse mostra o nome inteiro).
+2. `site/od.css` — deslocamento da nav do topo apertado em **`html.od-com-lateral
+   body > nav`** (só a barra do topo, filha direta do `body`); nenhum `<nav>`
+   de conteúdo pode ser deslocado.
+3. `integrations/api/server.py` (`_FORMATO_ORION_JS`) — mesma construção no
+   painel (`<div class="od-lateral-links">`), para as duas superfícies
+   falarem igual.
+
+**Guardas novas (a de strings não pegou o defeito porque não afirmava a TAG):**
+`createElement('nav')` **proibido** no `od-nav.js` · `html.od-com-lateral
+body > nav` **obrigatório** no `od.css` · `<div class="od-lateral-links">`
+presente **e** `<nav class="od-lateral-links">` **ausente** no painel servido.
+
+**Validação:** gate **3532 passed / 16 skipped / 0 falha · 90,69%** ·
+**re-render** provando os 5 estados: site (236px, links dentro), página interna
+(historico), tema escuro, **recolhida (68px, links dentro, `dentro_da_barra:
+true`)** e celular (barra escondida, `⋮` intacto). **Restart verde 17:27**
+(NRestarts=0, journal 0 `[ERROR]`, `/health` 25/25, 1.43.0/2079). Provas no
+ar: `/dashboard` e `/admin` com `<div class="od-lateral-links">` e **zero**
+`<nav>` da barra; `od-nav.js` servido sem `createElement('nav')`; `od.css` com
+`body > nav`.
+
+**Lição registrada:** guarda de strings só trava o que ela afirma — a tag do
+contêiner é decisão de layout e agora está afirmada. E quando o único sensor é
+o navegador do dono, um **render headless** (ferramenta em `/tmp`, não vira
+dependência) transforma "está sobre a página" em causa raiz em minutos.
+
+**Estado:** **CORRIGIDO E NO AR.** Canais: CHANGELOG §1.43.0 (defeito
+registrado e corrigido na mesma seção, sem nova versão) · TODO §3.9 ·
+`session.json` (chave `correcao_menu_lateral_2026_10_20`) · `txt.txt` ·
+Telegram.
