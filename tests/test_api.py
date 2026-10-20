@@ -1428,6 +1428,68 @@ class TestIconesDoMenuLateral:
         assert html.count("<script>") == 1 and html.count("</script>") == 1
 
 
+class TestRespiroDoMainAbaixoDaNav:
+    """Defeito reportado pelo dono (20/10): "página verificação está
+    muito alta, está cortando o texto" — e ele confirmou "loja também".
+
+    Causa raiz: o od.css tem `.wrap { padding: 0 24px }` (CLASSE) e as
+    páginas mandavam `main { padding: 130px 0 70px }` (ELEMENTO) —
+    classe vence elemento, os 130px de respiro perdiam em silêncio e o
+    conteúdo subia embaixo da nav fixa (63px), cortando kicker e h1.
+    Regressão silenciosa desde 10/10 (b3b86d8 deu `padding: 0 24px` ao
+    .wrap; o main nasceu em 09/10 funcionando). Correção: `main.wrap
+    { padding: 130px 24px 70px }` — o 24px horizontal mantém a calha.
+
+    Guarda: página com `<main class="wrap">` NÃO pode ter regra de
+    `main` elemento puro com padding; e quando tem `main.wrap`, o
+    respiro de topo precisa passar a nav (63px) com folga.
+    """
+
+    @staticmethod
+    def _raiz() -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    def test_pagina_de_main_wrap_sem_regra_de_elemento(self) -> None:
+        import re
+        com_wrap = 0
+        for pagina in sorted((self._raiz() / "site").glob("*.html")):
+            html = pagina.read_text(encoding="utf-8")
+            if '<main class="wrap"' not in html:
+                continue
+            com_wrap += 1
+            colisao = re.search(r"(?<![\w.-])main\s*\{[^}]*padding", html)
+            assert colisao is None, (
+                f"{pagina.name}: regra 'main {{ padding ... }}' perde para "
+                f".wrap do od.css (classe vence elemento) — use main.wrap")
+        assert com_wrap >= 2, com_wrap      # verificacao + loja + teste-tema
+
+    def test_respiro_de_topo_passa_a_nav_fixa(self) -> None:
+        import re
+        com_regra = 0
+        for pagina in sorted((self._raiz() / "site").glob("*.html")):
+            html = pagina.read_text(encoding="utf-8")
+            regra = re.search(
+                r"main\.wrap\s*\{\s*padding:\s*(\d+)px\s+(\d+)px\s+(\d+)px",
+                html)
+            if not regra:
+                continue                    # teste-tema usa style inline
+            com_regra += 1
+            topo, laterais = int(regra.group(1)), int(regra.group(2))
+            assert topo >= 100, (pagina.name, topo)     # nav = 63px no render
+            assert laterais >= 16, (pagina.name, laterais)  # calha preservada
+        assert com_regra >= 2, com_regra    # as DUAS reportadas
+
+    def test_paginas_relatadas_servidas_ja_corrigidas(self, serve) -> None:
+        srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
+        for pagina in ("/site/verificacao.html", "/site/loja.html"):
+            status, corpo_bytes, _ = _request(srv.bound_port, "GET", pagina)
+            html = corpo_bytes.decode("utf-8", "replace")
+            assert status == 200, pagina
+            assert "main.wrap { padding: 130px 24px 70px; }" in html, pagina
+            assert "main { padding: 130px 0 70px; }" not in html, pagina
+            assert 'class="wrap"' in html, pagina
+
+
 class TestLojaPorSecoes:
     """Loja do site separada por SEÇÕES = linhas da casa (pedido 16/10).
 

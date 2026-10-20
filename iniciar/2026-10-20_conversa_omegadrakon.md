@@ -1003,3 +1003,53 @@ divergência que este menu já tem.
 **Estado:** **ENTREGUE E NO AR.** Canais: CHANGELOG §1.43.0 (subseção
 sem bump) · TODO §3.9 marcado `[x]` · `session.json` (chave
 `icones_menu_lateral_2026_10_20`) · `txt.txt` · Telegram.
+
+## §20 — Verificação e Loja: texto cortado sob a nav (20/10 ~20:00)
+
+**Pedido do dono:** *"pagina verificação esta muito alta, esta cortando
+o texto"* — e, quando expliquei a causa, ele confirmou: *"loja também"*.
+
+**Réplica ANTES:** render ao vivo (desktop + celular) mostrou o kicker
+"Registro Mestre · Verificação pública" **sumido sob a nav fixa** e o
+h1 "VERIFIQUE A AUTENTICIDADE" **cortado ao meio** (`main_topo=0`,
+padding computado `0px 24px`).
+
+**Causa raiz — colisão de especificidade (regressão silenciosa):**
+- As páginas mandavam `main { padding: 130px 0 70px }` — **elemento**.
+- O `od.css` tem `.wrap { padding: 0 24px }` — **classe**, que vence.
+- Resultado: os 130px de respiro perdiam em silêncio e o conteúdo subia
+  embaixo da nav fixa (63px).
+- **Linha do tempo:** o `main` nasceu em **09/10** (5d45ada, v1.22.0)
+  funcionando; em **10/10** (b3b86d8) o `.wrap` ganhou `padding: 0 24px`
+  e a colisão começou — dez dias de regressão que ninguém viu.
+- **Varredura:** só `verificacao.html` e `loja.html` têm
+  `<main class="wrap">` + regra de elemento (`teste-tema` usa `style`
+  inline, que vence); render das **11 páginas** confirmou nenhuma outra
+  cortada.
+
+**Correção (as DUAS páginas):** `main.wrap { padding: 130px 24px 70px }`
+— sub-especificidade que vence o `.wrap`; o **24px horizontal mantém a
+calha** do wrap (a regra antiga, se vencesse, mataria a margem lateral
+no celular). Comentário nas duas explicando a armadilha.
+
+**Guarda (`TestRespiroDoMainAbaixoDaNav`, +3):** varredura de **TODAS**
+as páginas — `<main class="wrap">` com regra `main { …padding }` de
+elemento puro = falha; respiro de topo ≥ 100px (nav = 63px) e calha ≥
+16px preservadas; e as DUAS reportadas conferidas **servidas** (regra
+nova presente, antiga ausente).
+
+**Validação:** gate **3546 passed / 16 skipped / 0 falha · 90,69%** (+3)
+· **sem restart** (só arquivos estáticos; servido == disco conferido por
+`curl` — o serviço seguia verde desde 19:15:27) · **prova visual:** as
+duas páginas em desktop e celular com kicker a **130px**, `h1` inteiro
+abaixo da nav (`cima: True`) e `padding` computado `130px 24px 70px`.
+
+**Lição:** "perdedor silencioso de especificidade" é a classe de defeito
+que mais some em teste unitário — o teste da casa agora varre o padrão
+inteiro (elemento vs classe em página que herda `.wrap`), não o caso
+reportado. E a história do git (nascido certo, quebrado por commit
+vizinho no dia seguinte) estava nos dois commits.
+
+**Estado:** **CORRIGIDO E NO AR.** Canais: CHANGELOG §1.43.0 (subseção
+sem bump) · TODO §3.9 marcado `[x]` · `session.json` (chave
+`respiro_main_verificacao_loja_2026_10_20`) · `txt.txt` · Telegram.

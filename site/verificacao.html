@@ -19,7 +19,12 @@
     --vermelho: #ff5c5c;
   }
   .wrap { max-width: 880px; }
-  main { padding: 130px 0 70px; }
+  /* main.wrap e NUNCA main: o od.css tem `.wrap { padding: 0 24px }` —
+     classe vence elemento e a página perdia os 130px de respiro, subindo
+     embaixo da nav fixa e CORTANDO o kicker e o h1 (dono reportou
+     "verificação está muito alta, cortando o texto", 20/10). O 24px
+     horizontal mantém a calha do .wrap. */
+  main.wrap { padding: 130px 24px 70px; }
   .kicker { color: var(--azul); font-size: .72rem; letter-spacing: .3em; text-transform: uppercase; }
   h1 { font-size: clamp(1.6rem, 4.5vw, 2.4rem); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin-top: 10px; }
   .intro { margin-top: 14px; color: var(--muted); max-width: 640px; }

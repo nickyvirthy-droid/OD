@@ -163,6 +163,19 @@
 
 **Nota de ambiente:** a captura "depois" inicial saiu com quadradinhos — o chromium headless da máquina de teste não tinha fonte de emoji (`fc-list` = 0). A fonte foi instalada **em nível de usuário** (`~/.local/share/fonts`, fora do repositório, sem sudo) só para a prova; nada de dependência nova no produto (o emoji já era contrato: 🛡 do painel, 🤖/⚖️ do chat).
 
+### Respiro do `main` na Verificação e na Loja: texto cortado sob a nav (20/10, sem bump)
+
+**Resumo:** o dono reportou *"página verificação está muito alta, está cortando o texto"* e, ao ser mostrada a causa, confirmou *"loja também"*.
+
+**Causa raiz (regressão silenciosa de 10/10):** o `od.css` tem `.wrap { padding: 0 24px }` (**classe**) e as páginas mandavam `main { padding: 130px 0 70px }` (**elemento**) — **classe vence elemento**, os 130px de respiro perdiam em silêncio e o conteúdo subia embaixo da **nav fixa (63px)**: o kicker "Registro Mestre · Verificação pública" sumia e o `h1` saía cortado ao meio. Linha do tempo: o `main` nasceu em **09/10** (5d45ada, v1.22.0) funcionando; em **10/10** (b3b86d8) o `.wrap` ganhou `padding: 0 24px` e a colisão começou. Varredura confirmou que **só** essas duas páginas têm `<main class="wrap">` com regra de elemento (`teste-tema` usa `style` inline, que vence) — e render de todas as 11 páginas mostrou nenhuma outra cortada.
+
+| Peça | Entrega |
+|---|---|
+| **`site/verificacao.html` + `site/loja.html`** | `main { padding: 130px 0 70px }` → **`main.wrap { padding: 130px 24px 70px }`** — sub-especificidade que vence o `.wrap`; o 24px horizontal **mantém a calha** do wrap (a regra antiga, se vencesse, mataria a margem lateral no celular). Comentário nas duas explicando a armadilha. |
+| **Guarda (`TestRespiroDoMainAbaixoDaNav`, +3)** | **varredura de TODAS as páginas**: `<main class="wrap">` com regra `main { …padding }` de elemento puro = falha (tem que ser `main.wrap`); respiro de topo ≥ 100px (nav = 63px) e calha ≥ 16px preservadas nas páginas com `main.wrap`; e as DUAS reportadas conferidas **servidas** (regra nova presente, antiga ausente). |
+
+**Validação:** gate oficial **3546 passed / 16 skipped / 0 falha · cobertura 90,69%** (+3) · **sem restart** (só arquivos estáticos; servido == disco conferido por `curl`) — serviço seguia verde desde o restart 19:15:27 (NRestarts=0, `/health` 25/25, 1.43.0/2079) · **prova visual**: render das DUAS páginas em desktop e celular com kicker a **130px** (nav termina em 63), `h1` inteiro abaixo (`cima: True`) e `padding` computado `130px 24px 70px` · **varredura das 11 páginas do site**: todas com o primeiro conteúdo acima da nav (`topo ≥ 130`).
+
 ## [1.42.0] — BOTÃO DA CAIXA NO PAINEL: SEM WEBVIEW, O APP ABRE NO NAVEGADOR (2026-10-19)
 
 **Resumo:** o dono respondeu à pergunta sobre webview (19/10): *"com o tailscale funcionando não existe finalidade em embutir, seria melhor apenas um botão que abre o navegador"* — **webview descartada**. O app ganha o botão **"Caixa de arquivos (abre no navegador)"** no card "Meu painel" (`launchUrl` no navegador de fora; URI derivada da mesma host do od-core, porta 8410) e, para o endereço valer de fora, a caixa ganhou **bind duplo** no compose — antes o `127.0.0.1` puro era **inalcançável do celular** (as provas da 1.41.0 diziam "pelo celular" sem testar o bind: honestidade corrigida com prova nova da tailnet).

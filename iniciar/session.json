@@ -3636,5 +3636,15 @@
     "validacao": "Gate oficial 3543 passed / 16 skipped / 0 falha · 90,69% (+4). pyflakes: MESMOS 3 avisos pré-existentes. Restart verde 19:15:27 (NRestarts=0, journal 0 [ERROR], /health 25/25, /app/version 1.43.0/2079).",
     "prova_visual": "Antes/depois com 4 capturas por fase: recolhido = SÓ ícones (0 rótulos visíveis, 0 cortados, title em todos) nas DUAS superfícies; aberto = ícone + rótulo sem corte. NoAR (serviço real, anônimo): /site/ 15 itens e /chat 3 itens (sem Admin), sem_icone=0, cortado=0, title_ok=True.",
     "estado": "ENTREGUE E NO AR. Defeito do recolhido resolvido nas duas superfícies com a mesma casa de ícones. Canais: CHANGELOG §1.43.0 (subseção sem bump), TODO §3.9 [x], session.json (esta chave), transcrição §19, txt.txt, Telegram."
+  },
+  "respiro_main_verificacao_loja_2026_10_20": {
+    "pedido": "Dono (20/10 ~20:00): 'pagina verificação esta muito alta, esta cortando o texto' — ao explicar a causa, ele confirmou 'loja também'.",
+    "replica_antes": "Render ao vivo (desktop+celular): o kicker 'Registro Mestre · Verificação pública' sumia sob a nav fixa (63px) e o h1 'VERIFIQUE A AUTENTICIDADE' saía cortado ao meio (main_topo=0, padding computado 0px 24px).",
+    "causa_raiz": "Colisão de especificidade: od.css `.wrap { padding: 0 24px }` (CLASSE) vence `main { padding: 130px 0 70px }` (ELEMENTO) das páginas — os 130px de respiro perdiam em silêncio e o conteúdo subia embaixo da nav. Regressão de 10/10: main nasceu 09/10 (5d45ada v1.22.0) funcionando; b3b86d8 (10/10) deu padding ao .wrap e começou a colisão. Varredura: SÓ verificacao.html e loja.html têm <main class=\"wrap\"> com regra de elemento (teste-tema usa style inline, que vence).",
+    "correção": "Nas DUAS páginas: `main.wrap { padding: 130px 24px 70px }` — sub-especificidade que vence .wrap; 24px horizontal mantém a calha do wrap (a regra antiga, se vencesse, mataria a margem lateral no celular). Comentário nas duas explicando a armadilha.",
+    "guardas": "TestRespiroDoMainAbaixoDaNav (+3): varredura de TODAS as páginas (regra de elemento em <main class=\"wrap\"> = falha), respiro ≥ 100px (nav 63) + calha ≥ 16px nas com main.wrap, e as DUAS reportadas conferidas SERVIDAS (regra nova presente, antiga ausente).",
+    "validacao": "Gate oficial 3546 passed / 16 skipped / 0 falha · 90,69% (+3). SEM RESTART — só arquivos estáticos (servido == disco conferido por curl); serviço seguia verde desde o restart 19:15:27 (NRestarts=0, /health 25/25, 1.43.0/2079).",
+    "prova_visual": "Render das DUAS páginas em desktop e celular: kicker a 130px (nav termina em 63), h1 inteiro abaixo (cima: True), padding computado 130px 24px 70px. Varredura das 11 páginas do site: todas com primeiro conteúdo acima da nav (topo ≥ 130).",
+    "estado": "CORRIGIDO E NO AR. Canais: CHANGELOG §1.43.0 (subseção sem bump), TODO §3.9 [x], session.json (esta chave), transcrição §20, txt.txt, Telegram."
   }
 }
