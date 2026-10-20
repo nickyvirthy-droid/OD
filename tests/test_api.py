@@ -783,6 +783,89 @@ console.log(JSON.stringify(saida));
         assert check.returncode == 0, check.stderr.decode()[:400]
 
 
+class TestMenuLateralOrion:
+    """Menu lateral (20/10, ordem do dono "site + painel"): a barra
+    colapsável que a análise da v1.39.0 listou no formato Órion (herói,
+    KPIs, mini-painéis vivos e **barra lateral colapsável**) e que só o
+    site ficou sem receber — a entrega de 17/10 ao site foi chip vivo +
+    números reais, e o menu continuou o ⋮ no topo.
+
+    No SITE ela é injetada pelo od-nav.js a partir dos MESMOS links do
+    painel ⋮ (clonagem — o HTML do menu segue existindo num lugar só, a
+    divergência entre páginas já aconteceu); no PAINEL, pelo
+    _FORMATO_ORION_JS, que já sai da fonte única injetada pelo _com_tema.
+    Telas estreitas ficam com o que existia; largura e estado recolhido
+    vivem em classes da raiz, então claro e escuro usam a mesma folha.
+    """
+
+    @staticmethod
+    def _raiz() -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    def test_site_menu_lateral_injetado_pelo_od_nav(self) -> None:
+        raiz = self._raiz()
+        css = (raiz / "site" / "od.css").read_text(encoding="utf-8")
+        js = (raiz / "site" / "od-nav.js").read_text(encoding="utf-8")
+        # o JS monta a barra a partir do painel ⋮ (fonte única dos links:
+        # marca e itens são CLONADOS, não reescritos)
+        assert "odLateral" in js and "navPanel" in js
+        assert "marca.cloneNode(true)" in js
+        assert "itens[i].cloneNode(true)" in js
+        assert "od_lateral" in js
+        assert "od-com-lateral" in js and "od-lateral-recolhido" in js
+        # o CSS estiliza só em tela larga (no celular o ⋮ continua)
+        assert ".od-lateral" in css and "@media (min-width: 1024px)" in css
+        assert "html.od-com-lateral" in css and "od-lateral-recolhido" in css
+        # recolhida, a marca sai e os rótulos encolhem (sem ícone inventado)
+        assert "html.od-lateral-recolhido .od-lateral .brand" in css
+
+    def test_site_nenhuma_pagina_ganhou_html_de_menu(self) -> None:
+        """A barra é INJETADA: as páginas continuam sem o markup novo —
+        foi o HTML do menu duplicado em N páginas que divergiu antes."""
+        paginas = sorted((self._raiz() / "site").glob("*.html"))
+        assert len(paginas) >= 11
+        for pagina in paginas:
+            html = pagina.read_text(encoding="utf-8")
+            assert "odLateral" not in html, pagina.name
+            assert "od-lateral" not in html, pagina.name
+
+    def test_painel_menu_lateral_no_formato_orion(
+            self, serve, tmp_path: Path) -> None:
+        srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
+        for pagina in ("/dashboard", "/admin", "/chat"):
+            status, corpo, _ = _request(srv.bound_port, "GET", pagina)
+            html = corpo.decode("utf-8", "replace")
+            assert status == 200, pagina
+            # a guarda de sintaxe do painel recorta UM bloco <script>
+            assert html.count("<script>") == 1, pagina
+            assert html.count("</script>") == 1, pagina
+            # a barra é inócua no /chat: sem #odOla o FORMATO sai cedo e
+            # o chat mantém o próprio cabeçalho
+            if pagina == "/chat":
+                continue
+            assert "odLateral" in html, pagina
+            assert "od-lateral-btn" in html, pagina
+            assert '"/dashboard"' in html and '"/chat"' in html, pagina
+            # o item Admin entra só para papel admin (quemAmI repassa o
+            # papel em odFormato.nome) — nunca fica verde de mentira
+            assert "lateralAdmin" in html, pagina
+            assert 'papel === "admin"' in html, pagina
+            assert "nome(data.user.username, role)" in html, pagina
+
+    def test_js_do_site_compila_com_a_barra(self) -> None:
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:
+            return
+        check = _subprocess.run(
+            [node, "--check", str(self._raiz() / "site" / "od-nav.js")],
+            capture_output=True,
+        )
+        assert check.returncode == 0, check.stderr.decode()[:400]
+
+
 class TestLojaPorSecoes:
     """Loja do site separada por SEÇÕES = linhas da casa (pedido 16/10).
 

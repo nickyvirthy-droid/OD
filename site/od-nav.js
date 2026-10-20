@@ -245,4 +245,63 @@
     }
   }
   chipVivo();
+
+  /* --- 5. MENU LATERAL (2026-10-20, formato Órion do dono) -------------
+     A referência dele (Sistema Órion, analisada na v1.39.0) traz barra
+     fixa à esquerda: marca em cima, itens embaixo, botão de recolher.
+     Este bloco MONTA essa barra clonando os MESMOS links do painel ⋮ —
+     o HTML do menu continua existindo num lugar só, o que mata a
+     divergência que já aconteceu entre as páginas. Só monta onde há
+     menu (as 11 páginas); sem elementos, sai sem erro (o harness de
+     teste do tema segue limpo). Telas estreitas ficam com o ⋮ de
+     sempre; o estado recolhido fica no localStorage.
+     ---------------------------------------------------------------------- */
+  function lateralMontar() {
+    if (document.getElementById('odLateral')) return;      // idempotente
+    var painel = document.getElementById('navPanel');
+    var itens = painel && painel.querySelectorAll
+      ? painel.querySelectorAll('a') : null;
+    if (!itens || !itens.length) return;                   // ex.: sem menu
+    if (!document.createElement || !document.body) return;
+    var marca = document.querySelector('nav .brand');
+
+    var aside = document.createElement('aside');
+    aside.id = 'odLateral';
+    aside.className = 'od-lateral';
+    aside.setAttribute('aria-label', 'Menu lateral');
+
+    var topo = document.createElement('div');
+    topo.className = 'od-lateral-topo';
+    if (marca) topo.appendChild(marca.cloneNode(true));
+    var botao = document.createElement('button');
+    botao.className = 'od-lateral-btn';
+    botao.setAttribute('aria-label', 'Recolher menu lateral');
+    botao.textContent = '\u2630';                          // ☰
+    topo.appendChild(botao);
+    aside.appendChild(topo);
+
+    var links = document.createElement('nav');
+    links.className = 'od-lateral-links';
+    for (var i = 0; i < itens.length; i++) {
+      links.appendChild(itens[i].cloneNode(true));
+    }
+    aside.appendChild(links);
+    document.body.appendChild(aside);
+    document.documentElement.classList.toggle('od-com-lateral', true);
+
+    var recolhido = false;
+    try { recolhido = localStorage.getItem('od_lateral') === 'recolhido'; }
+    catch (erro) {}
+    document.documentElement.classList.toggle('od-lateral-recolhido', recolhido);
+
+    botao.addEventListener('click', function () {
+      var agora = !document.documentElement
+        .classList.contains('od-lateral-recolhido');
+      document.documentElement.classList.toggle('od-lateral-recolhido', agora);
+      try {
+        localStorage.setItem('od_lateral', agora ? 'recolhido' : 'aberto');
+      } catch (erro) {}
+    });
+  }
+  lateralMontar();
 })();

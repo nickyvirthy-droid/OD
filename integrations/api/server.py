@@ -770,6 +770,52 @@ _FORMATO_ORION_CSS = """<style>
   }
   .od-hero .pill.ok { color: var(--ok); }
   .od-hero .pill.err { color: var(--err); }
+  /* --- Menu lateral (2026-10-20, formato Órion do dono) ------------------
+     A referência (Sistema Órion, capturas de 16/10) traz barra fixa à
+     esquerda: marca em cima, itens embaixo e botão de RECOLHER. Injetado
+     pelo _FORMATO_ORION_JS (fonte única, mesma arquitetura do tema):
+     /dashboard e /admin recebem; /chat mantém o próprio cabeçalho. Tinta
+     só nas variáveis do tema → claro e escuro sem paleta duplicada. */
+  .od-lateral { display: none; }
+  @media (min-width: 1024px) {
+    html.od-com-lateral {
+      --od-lat-w: 236px;
+      padding-left: var(--od-lat-w);
+      transition: padding-left .2s;
+    }
+    html.od-com-lateral.od-lateral-recolhido { --od-lat-w: 68px; }
+    html.od-com-lateral .od-lateral {
+      display: flex; flex-direction: column; gap: 10px;
+      position: fixed; top: 0; bottom: 0; left: 0; z-index: 120;
+      width: var(--od-lat-w); padding: 14px 12px; overflow-y: auto;
+      background: var(--bg2); border-right: 1px solid var(--border);
+      transition: width .2s;
+    }
+    .od-lateral-marca { display: grid; place-items: center; }
+    .od-lateral-marca img { width: 30px; height: 30px; }
+    .od-lateral-btn {
+      width: 34px; height: 34px; border-radius: 8px; flex: none; margin-left: auto;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text); cursor: pointer; font-size: 1rem; line-height: 1;
+      display: grid; place-items: center;
+      transition: border-color .18s, background .18s;
+    }
+    .od-lateral-btn:hover { border-color: var(--accent); background: var(--bg3); }
+    .od-lateral-links a {
+      display: block; padding: 10px 6px; color: var(--text);
+      font-size: .78rem; letter-spacing: .09em; text-transform: uppercase;
+      text-decoration: none; border-bottom: 1px solid var(--border);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .od-lateral-links a:last-child { border-bottom: 0; }
+    .od-lateral-links a:hover { color: var(--accent); }
+    /* Recolhida: a marca sai e os rótulos encolhem (sem ícones no kit —
+       texto curto centrado, nada de inventar iconografia). */
+    html.od-lateral-recolhido .od-lateral-marca { display: none; }
+    html.od-lateral-recolhido .od-lateral-links a {
+      text-align: center; font-size: .66rem; padding: 10px 2px;
+    }
+  }
 </style>"""
 
 
@@ -881,14 +927,72 @@ _FORMATO_ORION_JS = """(function () {
     });
   }
 
+  /* --- Menu lateral (2026-10-20, formato Órion do dono) ------------------
+     Barra fixa à esquerda (marca, itens, ☰ de recolher) como na
+     referência. Montada AQUI, na fonte única: /dashboard e /admin têm
+     #odOla e recebem; /chat sai cedo no iniciar() e mantém o próprio
+     cabeçalho. Itens sempre presentes: Painel, Chat, Site — o Admin só
+     entra para papel admin (o quemAmI da página repassa o papel em
+     odFormato.nome). Estado recolhido no localStorage, como no site. */
+  function lateralMontar() {
+    if (document.getElementById("odLateral")) return;  // idempotente
+    var itens = [
+      { href: "/dashboard", rot: "Painel" },
+      { href: "/chat", rot: "Chat" },
+      { href: "/site", rot: "Site" }
+    ];
+    var aside = document.createElement("aside");
+    aside.id = "odLateral";
+    aside.className = "od-lateral";
+    aside.setAttribute("aria-label", "Menu lateral");
+    var marca = '<div class="od-lateral-topo">' +
+      '<a class="od-lateral-marca" href="/dashboard">' +
+      '<img src="/site/simbolo_minimo.png" alt="OD"></a>' +
+      '<button class="od-lateral-btn" aria-label="Recolher menu lateral">' +
+      '&#9776;</button></div><nav class="od-lateral-links">';
+    var html = marca;
+    for (var i = 0; i < itens.length; i++) {
+      html += '<a href="' + itens[i].href + '">' + itens[i].rot + "</a>";
+    }
+    aside.innerHTML = html + "</nav>";
+    document.body.appendChild(aside);
+    document.documentElement.classList.toggle("od-com-lateral", true);
+    var recolhido = false;
+    try { recolhido = localStorage.getItem("od_lateral") === "recolhido"; }
+    catch (e) {}
+    document.documentElement.classList.toggle("od-lateral-recolhido", recolhido);
+    var btn = aside.querySelector(".od-lateral-btn");
+    if (btn) btn.addEventListener("click", function () {
+      var agora = !document.documentElement
+        .classList.contains("od-lateral-recolhido");
+      document.documentElement.classList.toggle("od-lateral-recolhido", agora);
+      try {
+        localStorage.setItem("od_lateral", agora ? "recolhido" : "aberto");
+      } catch (e) {}
+    });
+  }
+
+  function lateralAdmin() {
+    var l = document.getElementById("odLateral");
+    if (!l || l.querySelector('a[href="/admin"]')) return;
+    var links = l.querySelector(".od-lateral-links");
+    if (!links) return;
+    var a = document.createElement("a");
+    a.setAttribute("href", "/admin");
+    a.textContent = "Admin";
+    links.appendChild(a);
+  }
+
   // Interface para a página: o /admin chama pintar() no refresh do
-  // loadSystem; quem logar entrega o nome (o cabeçalho chama pelo nome).
+  // loadSystem; quem logar entrega o nome (o cabeçalho chama pelo nome) —
+  // e o papel, que decide o item Admin do menu lateral.
   window.odFormato = {
-    nome: function (n) {
+    nome: function (n, papel) {
       if (!n) return;
       nome = n;
       var ola = document.getElementById("odOla");
       if (ola) ola.textContent = saudacao() + ", " + nome;
+      if (papel === "admin") lateralAdmin();
     },
     pintar: pintar,
     atualizar: atualizar
@@ -901,6 +1005,7 @@ _FORMATO_ORION_JS = """(function () {
   // continuam de graça; a busca dupla não.
   function iniciar() {
     if (!document.getElementById("odOla")) return;  // ex.: chat
+    lateralMontar();
     relogio();
     setInterval(relogio, 1000);
     versao();
@@ -1109,7 +1214,7 @@ async function whoAmI() {
   document.getElementById("badge").innerHTML =
     "👤 <b>" + data.user.username + "</b> · " + role +
     ' · <a href="/chat">💬 Chat</a>' + (role === "admin" ? ' · <a href="/admin">🛡 Admin</a>' : "");
-  if (window.odFormato) window.odFormato.nome(data.user.username);
+  if (window.odFormato) window.odFormato.nome(data.user.username, role);
   return data;
 }
 
@@ -1647,7 +1752,7 @@ async function whoAmI() {
     document.body.innerHTML = "<main><h2>Acesso restrito ao admin.</h2><p class='muted'>Sua conta não tem papel admin. <a href='/chat'>Voltar ao chat</a></p></main>";
     return null;
   }
-  if (window.odFormato) window.odFormato.nome(data.user.username);
+  if (window.odFormato) window.odFormato.nome(data.user.username, role);
   return data;
 }
 

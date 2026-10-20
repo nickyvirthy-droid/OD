@@ -157,6 +157,9 @@
 
 ---
 
+### 3.9 Site e painel (formato Órion)
+- [x] **Menu lateral (barra lateral colapsável)** — o item do formato Órion que a análise da 1.39.0 listou e que só o site ficou sem receber (a entrega de 17/10 ao site foi chip vivo + números reais; o menu seguiu o `⋮` no topo). Achado pelo dono em 20/10: *"ainda tem uma mudança no site que vinha do orion, menu na lateral"*. **ENTREGUE 20/10 (escopo escolhido por ele: "site + painel juntos", sem bump):** no SITE o `od-nav.js` injeta a barra **clonando os MESMOS links do painel ⋮** (o HTML do menu continua num lugar só — a divergência entre páginas já aconteceu); no PAINEL o `_FORMATO_ORION_JS` injeta no `/dashboard` e `/admin` (o `/chat` mantém o próprio cabeçalho: sem `#odOla` o FORMATO sai cedo) e o item **Admin só entra para papel admin** (o `quemAmI` repassa o papel em `odFormato.nome`). Recolhível com **☰** + `localStorage` nas duas superfícies, **<1024px mantém o que existia**, tinta só nas variáveis do tema (claro e escuro sem paleta duplicada). Guarda nova **`TestMenuLateralOrion` (+4)** — as 11 páginas continuam **sem HTML de menu** (a barra é injetada, é isso que trava) — **mutações 4/4** e harness de node provando montagem/recolher/idempotência. Gate **3532/16 · 90,68%**; restart verde **16:45:20** (NRestarts=0, journal 0 `[ERROR]`, `/health` 25/25, `/app/version` 1.43.0/2079) e script do painel no ar com `node --check` OK.
+
 ## 4. Dívida técnica conhecida (baixa prioridade, mas registrada)
 
 | Área | Item | Impacto |
