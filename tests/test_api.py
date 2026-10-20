@@ -818,6 +818,13 @@ class TestMenuLateralOrion:
         assert "html.od-com-lateral" in css and "od-lateral-recolhido" in css
         # recolhida, a marca sai e os rótulos encolhem (sem ícone inventado)
         assert "html.od-lateral-recolhido .od-lateral .brand" in css
+        # O contêiner dos links NUNCA pode ser um <nav>: o od.css tem a
+        # regra global `nav { position: fixed; top:0; left:0; right:0 }` e
+        # um <nav> aqui viraria uma faixa de ponta a ponta POR CIMA da
+        # página — defeito real de 20/10, que só o render mostrou. E o
+        # deslocamento do topo é apertado (`body > nav`) pelo mesmo motivo.
+        assert "createElement('nav')" not in js
+        assert "html.od-com-lateral body > nav" in css
 
     def test_site_nenhuma_pagina_ganhou_html_de_menu(self) -> None:
         """A barra é INJETADA: as páginas continuam sem o markup novo —
@@ -846,6 +853,11 @@ class TestMenuLateralOrion:
             assert "odLateral" in html, pagina
             assert "od-lateral-btn" in html, pagina
             assert '"/dashboard"' in html and '"/chat"' in html, pagina
+            # mesmo defeito do site, prevenido no painel: o contêiner dos
+            # links é <div> — um <nav> casaria com regras globais de
+            # qualquer folha e viraria faixa por cima da página
+            assert '<div class="od-lateral-links">' in html, pagina
+            assert '<nav class="od-lateral-links">' not in html, pagina
             # o item Admin entra só para papel admin (quemAmI repassa o
             # papel em odFormato.nome) — nunca fica verde de mentira
             assert "lateralAdmin" in html, pagina

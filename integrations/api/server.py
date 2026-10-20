@@ -949,12 +949,12 @@ _FORMATO_ORION_JS = """(function () {
       '<a class="od-lateral-marca" href="/dashboard">' +
       '<img src="/site/simbolo_minimo.png" alt="OD"></a>' +
       '<button class="od-lateral-btn" aria-label="Recolher menu lateral">' +
-      '&#9776;</button></div><nav class="od-lateral-links">';
+      '&#9776;</button></div><div class="od-lateral-links">';
     var html = marca;
     for (var i = 0; i < itens.length; i++) {
       html += '<a href="' + itens[i].href + '">' + itens[i].rot + "</a>";
     }
-    aside.innerHTML = html + "</nav>";
+    aside.innerHTML = html + "</div>";
     document.body.appendChild(aside);
     document.documentElement.classList.toggle("od-com-lateral", true);
     var recolhido = false;

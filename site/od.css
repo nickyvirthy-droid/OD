@@ -191,9 +191,11 @@ nav .nav-spacer { margin-left: auto; }
     background: var(--bg2); border-right: 1px solid var(--border);
     transition: width .2s;
   }
-  /* A nav fixa e o painel ⋮ acompanham a barra (senão ficariam por
-     baixo dela); no desktop o ⋮ dá lugar ao ☰ lateral. */
-  html.od-com-lateral nav { left: var(--od-lat-w); transition: left .2s; }
+  /* A nav fixa do TOPO (filha direta do body) acompanha a barra — seletor
+     apertado de propósito: um <nav> qualquer dentro do conteúdo não pode
+     ser deslocado (foi um <nav> da barra lateral que, casando com a regra
+     global `nav { position: fixed }`, virou faixa por cima da página). */
+  html.od-com-lateral body > nav { left: var(--od-lat-w); transition: left .2s; }
   html.od-com-lateral .nav-toggle,
   html.od-com-lateral .nav-panel { display: none; }
 

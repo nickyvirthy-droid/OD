@@ -280,10 +280,16 @@
     topo.appendChild(botao);
     aside.appendChild(topo);
 
-    var links = document.createElement('nav');
+    /* O contêiner dos links é um <div> e NUNCA um <nav>: o od.css tem
+       `nav { position: fixed; top:0; left:0; right:0 }` global (a barra do
+       topo) e um <nav> aqui viraria uma faixa de ponta a ponta por cima
+       da página — defeito real achado e corrigido em 20/10 com render. */
+    var links = document.createElement('div');
     links.className = 'od-lateral-links';
     for (var i = 0; i < itens.length; i++) {
-      links.appendChild(itens[i].cloneNode(true));
+      var copia = itens[i].cloneNode(true);
+      if (!copia.title) copia.title = (copia.textContent || '').trim();
+      links.appendChild(copia);
     }
     aside.appendChild(links);
     document.body.appendChild(aside);
