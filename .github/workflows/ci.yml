@@ -28,6 +28,14 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      # Guarda de segredos (ordem do dono 20/10, "pode implementar o CI"):
+      # varre os arquivos RASTREADOS por padrões (PEM, ghp_, sk-, AIza,
+      # token de bot Telegram, AKIA, xox, glpat) e derruba o build com o
+      # arquivo:linha anotado. Sem dependências — roda antes de instalar
+      # tudo (falha em segundos). Local: python tools/secret_guard.py
+      - name: Guarda de segredos (nenhum segredo novo no repo)
+        run: python tools/secret_guard.py
+
       - name: Instalar dependências
         run: |
           python -m pip install --upgrade pip
