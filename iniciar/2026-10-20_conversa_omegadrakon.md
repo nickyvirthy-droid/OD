@@ -477,3 +477,49 @@ fatiada em 48 MB).
 
 **Estado:** código no ar e inerte até o clique do dono. TODO §2 linha
 do off-site atualizada; CHANGELOG §1.43.0 (sem bump); txt.txt escrito.
+
+## §11 — Off-site ATIVADO: primeira prova viva completa + defeito real corrigido no caminho (20/10 ~14:25–14:40)
+
+**Pedido:** dono respondeu **"feito"** — cumpriu o clique do `txt.txt`
+(adicionou **@nicky_monitor_bot como administrador** do canal privado e
+mandou a mensagem "ok").
+
+**Captura do id:** `getUpdates` do token do monitor (sem conflito — só
+o bot de CHAT faz polling): `my_chat_member` cargo=**administrator** +
+`channel_post` "ok" → canal **"Omega Drakon" `-1001019416047`**. Gravado
+`OD_OFFSITE_CHAT` no `.env` (fora do git; é identificador — não entra
+na allowlist do cofre, o `_RE_SEGREDO` do mirror não casa `CHAT`).
+
+**Ativação:** restart verde 14:25:47 (NRestarts=0, 0 erros). Boot:
+"Off-site no ar | canal=-1001019416047 | fatia_mb=48 | intervalo=30 min
+| idade_ok=48 h".
+
+**Prova viva (1º tick completo):**
+- **Diário** `od-2026-10-20_0309.tar.gz` — 1 parte, 14:25:54 (sha
+  `286d20a57c25…` == o sha do backup do dia conferido na reverificação)
+- **Capturas** `od-capturas-2026-10-16_1434.tar.gz` — **7 partes de
+  48 MB**, 14:27:40 (~2 min)
+- `data/offsite_state.json` com os 2 perfis · `/health` **25/25 nenhum
+  fora** · check `offsite` **up** · `/dashboard/stats` com o bloco
+
+**Defeito REAL encontrado ao vivo e corrigido:** durante o envio o
+check dizia "nunca enviado" — o estado só gravava no **fim** do tick.
+Com o diário subindo em 4 s e as capturas levando 2 min, uma queda de
+rede no meio descartaria o diário **já no canal** e o próximo tick o
+**reenviava**. Correção: gravação **por perfil** a cada envio
+(`core/offsite.py`); +1 teste (falha nas capturas mantém o diário
+registrado; retry manda só as capturas) — módulo **100%** (35 testes).
+
+**Validação:** gate oficial **3526 passed / 16 skipped / 0 falha ·
+90,70%** (exit 0).
+
+**Deploy final:** `0446f14` pushado ANTES do restart verde **14:33:04**
+(NRestarts=0, 0 `[ERROR]`). **Idempotência pós-restart provada:** o
+tick de boot **não reenviou nada** (0 "Off-site enviado" no journal;
+`stats.offsite.ultimo_envio` = 14:25:54, o envio original). Git limpo,
+HEAD == origin/master.
+
+**Estado:** **OFF-SITE ATIVO E PROVADO** — os backups saem de casa
+todo dia (03:00) e toda semana (domingo 04:00) para o canal privado;
+conferência a cada 30 min; falha avisa no celular (1 push/6 h). Linha do
+TODO §2 fecha; CHANGELOG e Telegram registrados.

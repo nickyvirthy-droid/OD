@@ -1,4 +1,14 @@
 {
+  "offsite_ativado_prova_viva_2026_10_20": {
+    "pedido": "Dono (20/10 ~14:25): 'feito' — cumpriu o clique do txt.txt (adicionou @nicky_monitor_bot como admin do canal privado e mandou a mensagem 'ok').",
+    "captura_do_id": "getUpdates do token do monitor (OD_TELEGRAM_MONITOR_TOKEN; sem conflito — so o bot de CHAT faz polling): my_chat_member cargo=administrator + channel_post 'ok' -> CANAL 'Omega Drakon' id=-1001019416047. Gravado OD_OFFSITE_CHAT no .env (fora do git, check-ignore confirmado; NAO e segredo — identificador, nao entra na allowlist do vault_env_mirror cujo _RE_SEGREDO nao casa CHAT).",
+    "ativacao": "Restart verde 14:25:47 (7.3): NRestarts=0, journal 0 [ERROR]. Boot logou 'Off-site no ar | canal=-1001019416047 | fatia_mb=48 | intervalo_min=30 | idade_ok_h=48' + 'Loop de off-site habilitado'.",
+    "prova_viva": "1º tick COMPLETO: diario od-2026-10-20_0309.tar.gz em 1 parte (14:25:54, sha 286d20a57c25 == o sha do backup do dia) + capturas od-capturas-2026-10-16_1434.tar.gz em 7 partes de 48 MB (14:27:40, ~2 min). data/offsite_state.json com os 2 perfis. /health 25/25 NENHUM fora, check offsite up ('od-2026-10-20_0309.tar.gz, ha 0.0 h'). /dashboard/stats offsite {canal:-1001019416047, ultimo_diario, ultimo_envio}.",
+    "defeito_real_corrigido": "Observado AO VIVO durante o 1º envio: o estado so era gravado no FIM do tick — o diario subia em 4 s mas as capturas levavam ~2 min; uma queda no meio descartaria o diario ja no canal e o proximo tick o REENVIANVA. Correcao: gravacao POR PERFIL a cada envio (core/offsite.py). +1 teste (falha nas capturas mantem o diario registrado; retry manda so as capturas); módulo 100% (35 testes).",
+    "validacao": "Gate oficial apos a correcao: 3526 passed / 16 skipped / 0 falha · 90,70% (exit 0).",
+    "deploy_final": "Commit 0446f14 pushado ANTES do restart verde 14:33:04 (NRestarts=0, 0 [ERROR]). IDEMPOTENCIA POS-RESTART PROVADA: tick de boot NAO reenviou nada (0 'Off-site enviado' no journal; stats.offsite.ultimo_envio = 14:25:54, o envio original). /health 25/25. Git limpo, HEAD == origin/master.",
+    "estado": "OFF-SITE ATIVO E PROVADO — backups saem de casa para o canal privado (diario 03:00, capturas semanal 04:00; tick de conferencia a cada 30 min). Pendencia §2 do TODO pode fechar."
+  },
   "offsite_canal_privado_entregue_2026_10_20": {
     "pedido": "Dono (20/10 ~13:30): 'prossiga' — confirmou a conclusao do off-site pelo canal privado (convite no txt.txt = canal fechado por ele; bot como admin ainda PENDENTE dele).",
     "entregas": [
@@ -95,7 +105,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T14:20:00-03:00",
+  "updated_at": "2026-10-20T14:40:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
