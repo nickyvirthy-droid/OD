@@ -1101,6 +1101,38 @@ class TestAPISite:
         assert f"Ver os {total} releases" in index
         assert "48 Lançamentos" not in index and "48 releases" not in hist
 
+    def test_docs_de_versao_completos_e_irmãos(self) -> None:
+        """CHANGELOG e README de Versão são IRMÃOS desde a nota de
+        12/09 ("toda entrega registra aqui ALÉM do README de Versão").
+
+        Trava a classe de defeito que os dois documentos tinham em
+        20/10: não era corpo faltando, era CABEÇALHO engolido — o
+        CHANGELOG trazia o corpo da 1.24.2 solto (sem `## [1.24.2]`) e o
+        README trazia o da 1.42.0 solto (sem `## [1.42.0]`), o mesmo
+        bug do `## [1.31.0]` engolido achado em 16/10. Os dois batem
+        cabeça a cabeça, e o topo dos dois precisa ser a versão corrente
+        (senão o release existe mas ninguém registrou em lugar nenhum)."""
+        import re
+
+        from core.capabilities import OD_VERSION
+
+        raiz = Path(__file__).resolve().parents[1]
+        ch = (raiz / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
+        rv = (raiz / "docs" / "README_VERSAO.md").read_text(encoding="utf-8")
+        secoes_ch = set(re.findall(r"^## \[(1\.[0-9.]+)\]", ch, re.M))
+        secoes_rv = set(re.findall(r"^## \[(1\.[0-9.]+)\]", rv, re.M))
+        assert secoes_ch == secoes_rv, (
+            f"só no CHANGELOG: {sorted(secoes_ch - secoes_rv)} · "
+            f"só no README: {sorted(secoes_rv - secoes_ch)}"
+        )
+        chave = lambda s: [int(x) for x in s.split(".")]
+        assert max(secoes_ch, key=chave) == OD_VERSION, (
+            "o topo dos documentos de versão não é a versão corrente"
+        )
+        # e nenhuma das duas seções pode estar órfã de cabeçalho: a
+        # versão corrente precisa aparecer como `## [x.y.z]` nos dois
+        assert f"## [{OD_VERSION}]" in ch and f"## [{OD_VERSION}]" in rv
+
 
 # ===========================================================================
 # Páginas internas do dono — site_admin/ (2026-10-10)

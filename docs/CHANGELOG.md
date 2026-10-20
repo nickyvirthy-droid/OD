@@ -91,6 +91,18 @@
 
 **Validação:** gate oficial **3527 passed / 16 skipped / 0 falha · cobertura 90,68%** (+1) · `html.parser` sem erro. **Sem restart** (site lido do disco por requisição). **Prova viva:** `GET /site/historico.html` → **200, 29.888 B, byte-idêntico ao disco**, **74** `r-ver`, `Era 9 · Formato Órion e a Biblioteca` e `Os 74 Lançamentos` no corpo servido; `/site/index.html` → `Ver os 74 releases`.
 
+### União dos documentos de versão fechada — 4 cabeçalhos ausentes, 0 corpo perdido (20/10, sem bump)
+
+**Resumo:** ordem do dono *"faça a união"* (20/10, tarde) fechando os 2 furos registrados no caminho do `historico.html`. Apuro de classe: **nenhum corpo está faltando — faltavam CABEÇALHOS**, o mesmo defeito do `## [1.31.0]` engolido achado em 16/10. O CHANGELOG trazia o corpo da **1.24.2** solto entre 1.25.0 e 1.24.1; o README_VERSAO trazia o da **1.42.0** solto entre 1.43.0 e 1.41.0. A guarda nova de "seções irmãs" ainda achou **mais dois**: **1.3.0** e **1.6.1** existiam só no CHANGELOG (nem corpo, nem título, no README) → portadas para lá.
+
+| Peça | Entrega |
+|---|---|
+| **`docs/CHANGELOG.md`** | `## [1.24.2] — EVAL DO ASSISTENTE (PARTE A) + CLIMA/CÂMBIO DO USER CONCERTADOS 🜂 (2026-10-13)` reinserido acima do corpo que já existia (título verbatim do README — o único lugar que o tinha). |
+| **`docs/README_VERSAO.md`** | `## [1.42.0] — BOTÃO DA CAIXA NO PAINEL: SEM WEBVIEW, O APP ABRE NO NAVEGADOR (2026-10-19)` reinserido acima do corpo órfão (título verbatim do CHANGELOG) + **2 seções portadas do CHANGELOG** no formato local (`### 1. O que foi feito` / `### 2. Evidência`): `## [1.6.1]` (IP/portas pela action + anti-recusa, PATCH de 26/09) e `## [1.3.0]` (papéis/histórico/painéis + saneamento de versão, 19→26/09, com o mesmo ponteiro para as seções [1.2.0] por ordem cronológica). |
+| **Guarda nova (teste do teste)** | `TestAPISite::test_docs_de_versao_completos_e_irmãos` (+1): CHANGELOG e README têm o **MESMO conjunto** de seções `1.x` (74 == 74, a diferença é listada no erro) · o topo dos dois é a **versão corrente** (`OD_VERSION`) · a versão corrente aparece literalmente como `## [x.y.z]` nos dois — mata a classe "corpo órfão de cabeçalho" e o "release que ninguém registrou". **Mutações 2/2 capturadas** (cabeçalho 1.6.1 borrado no README · cabeçalho 1.24.2 borrado no CHANGELOG), restauração bit-exata. |
+
+**Validação:** gate oficial **3528 passed / 16 skipped / 0 falha · cobertura 90,68%** (+1) · as duas fontes conferidas por script: **74 seções cada, conjuntos idênticos, topo 1.43.0 == `OD_VERSION`**. **Sem restart** (documentos lidos do disco; a união também é o que a guarda do `historico.html` consumia — ela continua verde com 74 ⊆ 74).
+
 ## [1.42.0] — BOTÃO DA CAIXA NO PAINEL: SEM WEBVIEW, O APP ABRE NO NAVEGADOR (2026-10-19)
 
 **Resumo:** o dono respondeu à pergunta sobre webview (19/10): *"com o tailscale funcionando não existe finalidade em embutir, seria melhor apenas um botão que abre o navegador"* — **webview descartada**. O app ganha o botão **"Caixa de arquivos (abre no navegador)"** no card "Meu painel" (`launchUrl` no navegador de fora; URI derivada da mesma host do od-core, porta 8410) e, para o endereço valer de fora, a caixa ganhou **bind duplo** no compose — antes o `127.0.0.1` puro era **inalcançável do celular** (as provas da 1.41.0 diziam "pelo celular" sem testar o bind: honestidade corrigida com prova nova da tailnet).
@@ -1326,6 +1338,7 @@ quando houver modelo de embedding melhor.
 
 ---
 
+## [1.24.2] — EVAL DO ASSISTENTE (PARTE A) + CLIMA/CÂMBIO DO USER CONCERTADOS 🜂 (2026-10-13)
 
 > **Bump PATCH (ordem do dono para as partes do Project NOMAD):** "vamos usar sua ordem. antes de implementar me explique para que serve, como acesso e como o sistema controla" → "ok. pode fazer" — Parte A (eval) primeiro.
 

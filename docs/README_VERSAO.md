@@ -106,7 +106,7 @@ duas lições que ficaram registradas em código:
   pela listagem o mesmo resync fechou **< 60s**, prova nova no E2E),
   journal sem ERROR e NRestarts=0.
 
-
+## [1.42.0] — BOTÃO DA CAIXA NO PAINEL: SEM WEBVIEW, O APP ABRE NO NAVEGADOR (2026-10-19)
 
 ### 1. O que foi feito
 
@@ -2386,6 +2386,31 @@ If-None-Match → 304
   se atualiza sozinho a cada versão nova) e conceder "Instalar apps
   desconhecidos" quando o Android pedir.
 
+## [1.6.1] — IP e portas pela ACTION no chat + anti-recusa do dono 🔧 (2026-09-26)
+
+### 1. O que foi feito
+
+> **Política:** correção com capacidade nova de leitura = PATCH com feature
+> pontual (`docs/VERSIONAMENTO.md` §1 — a intenção nova é caminho para dado
+> existente; nenhuma API nova).
+
+| Peça | Entrega |
+|---|---|
+| **fix(chat): "qual o ip do servidor" com DADO REAL** | O fast path de intenções não cobria IP/portas e a pergunta caía no LLM, que recusava ou alucinava etiqueta. Agora `ip_address` e `listening_ports` entram na detecção (`core/intents.py`) — o dono pergunta e recebe o dado do sistema, sem passagem pelo modelo. |
+| **fix(actions): nova `listening_ports`** | Portas TCP em escuta via `/proc/net/tcp{,6}` (IPv4+IPv6 decodificados, processo por inode) — catálogo 57 → 58. |
+| **fix(core): anti-recusa do dono** | `Orchestrator._refusal_reason` detecta recusas do modelo ("não posso fornecer", "sem acesso físico", etiquetas de log) na resposta ao ADMIN e refaz UMA geração com reforço; o papel user mantém a vedação de direito. |
+| **feat(auto_extension): allowlist de leitura de sistema** | `socket`, `os`, `platform`, `subprocess` só para comandos de leitura (ss/df/ls/hostname/uname/uptime/id) — é a base para o chat gerar a ferramenta que traz o dado que faltou. |
+| **Versões** | servidor `OD_VERSION=1.6.1` · app `1.6.1+16` (versionCode 16). |
+
+### 2. Evidência
+
+```
+servidor: pytest tests/ → 1955 passed, 16 skipped (+9 em test_resposta_transparente.py)
+teste do teste: 5 mutações, TODAS detectadas (prompt sem IPs; detector de recusa
+  desligado; intent de IP desligada; done sem profile_name; listening_ports
+  fora do catálogo)
+```
+
 ## [1.6.0] — RESPOSTA TRANSPARENTE: QUEM RESPONDEU, HORA E ADMIN COM ACESSO PLENO 🔍 (2026-09-26)
 
 ### 1. O que foi feito
@@ -2452,6 +2477,31 @@ Prova viva: /admin/cache/prune dry_run no ar; perfil auto por domínio;
 
 APK 1.4.0+13 (versionCode 13) publicado em site/
 ```
+
+## [1.3.0] — Papéis, histórico vivo e painéis 🎚️ (2026-09-19 a 2026-09-26 · saneamento de versão 2026-09-26)
+
+### 1. O que foi feito
+
+> **Política (2026-09-26):** o projeto aderiu ao Versionamento Semântico 2.0.0
+> — ver `docs/VERSIONAMENTO.md` e a regra 12 de `iniciar/RULES.md`. Feature
+> nova compatível sobe o MINOR; fix sobe o PATCH; o sufixo `+N` do app é
+> versionCode (metadado de build) e NUNCA substitui a versão.
+>
+> **Saneamento:** até aqui o servidor rodou `OD_VERSION=1.2.0` (de 09-12)
+> enquanto o app empilhava `1.2.8+8…+11` — o `+N` fazia o papel que era do
+> X.Y.Z. A release **1.3.0** contempla as entregas de 2026-09-19 a 2026-09-26
+> (autenticação de usuários, LoginGuard, dono do histórico, identidade pela
+> credencial, papéis, vínculo Telegram, anônimo, histórico visível/paginado
+> no app e no chat, painéis /dashboard e /admin, rotas terminais no
+> histórico).
+>
+> **Versões:** servidor `OD_VERSION=1.3.0` · app `1.3.0+12` (versionCode 12).
+
+### 2. Onde estão os detalhes
+
+As entradas detalhadas permanecem nas seções **[1.2.0]** abaixo por ordem
+cronológica de registro (a mesma decisão registrada no CHANGELOG §1.3.0);
+**a partir daqui, entradas novas nascem na seção da release vigente.**
 
 ## [1.2.0] — PUSH DE PONTA A PONTA (ENVIO PELO OD) 🔔 (2026-09-12)
 
