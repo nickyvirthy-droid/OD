@@ -229,7 +229,7 @@
   "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
  },
- "updated_at": "2026-10-21T19:25:00-03:00",
+ "updated_at": "2026-10-21T19:45:00-03:00",
  "auditoria_pendencias_2026_10_20": {
   "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
   "vereditos": {
@@ -3710,5 +3710,12 @@
   "aplicado": "TODO.md: regra escrita no topo (junto da regra 14) + parking lot §5 com 3 itens — (1) network_hosts enriquecida com o inventario do Vigia, (2) rotacao da senha de WiFi (elo mais fraco, palavra de dicionario; custo real: todos os aparelhos + re-pareamento dos ESPs), (3) diagnostico dos pings perdidos (adaptador USB wlx, oferta de 21/10).",
   "compromisso": "Daqui em diante toda ideia de melhoria nasce como item no §5 do TODO — dono decide no tempo dele (meses); eu nao implemento sem ordem.",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§5)"
+ },
+ "ideias_flatnotes_e_ferramentas_2026_10_21": {
+  "pedido": "Dono: 'temos varias ferramentas e nao estou aproveitando plenamente, como por exemplo acho que esse TODO deveria ser uma lista de possiveis melhorias dentro do flatnotes que creio ser o nosso programa de anotacoes'.",
+  "base_apurada": "FlatNotes = caderno markdown da casa (od-flatnotes:8200, v1.40.0, 18/10). Sistema ja anota e busca: flatnotes_anota(titulo, conteudo) / flatnotes_busca / flatnotes_status. Uma nota por titulo; coberto por snapshots; acesso via Tailscale.",
+  "registrado_todo_parking_lot": "1) Parking lot dentro do FlatNotes (uma ideia = uma nota; decidir: so o §5 vs tudo vs espelho; risco: duas fontes de verdade — casa opera com fonte unica). 2) Auditoria de ferramentas subaproveitadas (9 servicos + 115 actions x uso real -> relatorio ferramenta x uso x sugestao).",
+  "estado": "IDEIAS — sem implementar (regra do dono 21/10: TODO primeiro, ordem depois).",
+  "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§6)"
  }
 }

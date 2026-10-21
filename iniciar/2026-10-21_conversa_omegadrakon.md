@@ -280,3 +280,30 @@ durável.
 **Compromisso registrado:** daqui em diante, ideia de melhoria nasce
 como item no §5 do TODO — ele decide no tempo dele; eu não implemento
 sem ordem.
+
+---
+
+## §6 — DUAS IDEIAS DO DONO: TODO NO FLATNOTES + FERRAMENTAS SUBAPROVEITADAS
+
+**Pedido:** *"um exemplo é que temos várias ferramentas e não estou
+aproveitando plenamente, como por exemplo acho que esse TODO deveria ser
+uma lista de possiveis melhorias dentro do flatnotes que creio ser o
+nosso programa de anotações"*
+
+**Base apurada na fonte (antes de registrar):** o FlatNotes **é** o
+caderno markdown da casa (container `od-flatnotes`, porta 8200, no ar
+desde 18/10 — v1.40.0) e o sistema **já consegue anotar e buscar** nele:
+`flatnotes_anota(titulo, conteudo)` (uma nota por título, recusa
+repetição salvo `sobrescrever=true`) + `flatnotes_busca(termo)` +
+`flatnotes_status`. Caderno coberto pelos snapshots; acesso via
+Tailscale.
+
+**Registrado no TODO §5 (parking lot), sem implementar (regra §5):**
+1. **Parking lot dentro do FlatNotes** — modelo "uma ideia = uma nota";
+   a decidir: só o §5 vs tudo vs espelho; risco a evitar = duas fontes
+   de verdade divergentes (a casa opera com fonte única).
+2. **Auditoria de ferramentas subaproveitadas** — 9 serviços + 115
+   actions × uso real (journal/métricas) → relatório ferramenta × uso ×
+   sugestão concreta, formato possível no `txt.txt`.
+
+`session.json` — chave `ideias_flatnotes_e_ferramentas_2026_10_21`.
