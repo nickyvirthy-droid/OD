@@ -221,7 +221,15 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-21T15:55:00-03:00",
+  "roteador_revisao_portas_2026_10_21": {
+    "pedido": "Dono: 'ok, ja que controla o roteador, verifique possives falhas e revise todas as portas para o sistema funcionar' — revisao completa SÓ LEITURA da UI real (chromium headless, senha do .env).",
+    "achados": "WAN = CGNAT (100.64.175.223, RFC6598) => SEM IP PUBLICO: as regras de port forward nao alcancam a internet hoje (acesso externo = Tailscale funnel / e /ws -> 8000/8001, confirmado). 5 regras apontavam para 192.168.0.250 (este servidor, confirmado por ip addr): SSH 22->22, HTTP 80->8000, HTTPS 443->443 (ORFA: nada escuta 443 local, o 443 e do Tailscale), Controle 8001->8001, Teste 82->443 (lixo esquecido). CRITICO: Atualizacao Automatica de firmware LIGADA na janela 03:00-05:00 (mesma do backup; log mostra 3 downloads de firmware em 18/08) — pode reiniciar o roteador no meio do backup de novo. Verde confirmado: SPI Firewall on, ping WAN off, ping LAN on, DMZ off, QoS off, Controlo Parental off, telemetria TP-Link off, WPS off, convidados off, rede IoT propria com isolamento on, DHCP com reserva do servidor .250, hora/fuso ok, log so com ruudo DHCPv6 do ISP. ALG/passthroughs todos on (default), EasyMesh on sem meshes, UPnP on (4 entradas tailscale-portmap, NAT traversal do Tailscale). Limites honestos: teste de fora impossivel sob CGNAT (definicao); pings perdidos espalhados seguem como diagnostico aparte (sinal -51 dBm forte, nao e distancia).",
+    "aplicado_escolha_dono": "Opcao recomendada: 'Mover janela + limpar regras mortas'. (a) auto-update 03:00-05:00 -> 06:00-08:00 via combo real + GRAVAR, switch continua LIGADO (updates automaticos preservados, janela longe de backup 03:00/off-site 03:40/capturas dom 04:00/reboot dom 05:00 — 06:00-08:00 nao colide com nada). (b) regras 'Teste' (82->443) e 'HTTPS' (443->443) APAGADAS via botao Apagar da linha (sem modal de confirmacao nesta UI).",
+    "prova_final_releitura": "Releitura do zero: reboot 05:00/Todas as semanas/Domingo ativo; port forward = exatamente 3 regras [SSH 22->22, HTTP 80->8000, Controle 8001->8001] todas -> 192.168.0.250; firmware janela 06:00-08:00 com autoUpdateLigado=true. Screenshots /tmp/opencode/verificacao_final.png, pf_final.png, fw_prova.png.",
+    "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
+    "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
+  },
+  "updated_at": "2026-10-21T17:05:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {

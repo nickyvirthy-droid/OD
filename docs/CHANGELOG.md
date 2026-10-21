@@ -67,6 +67,31 @@ no `.env` (gitignorado) + cofre — espelho **19/19 gravado+conferiu**
 capturas (domingo 04:00). Gate **3546/0 · 90,69%** (só allowlist mudou;
 sem restart — nenhuma peça em runtime lê a chave).
 
+**Continuação (mesma tarde): revisão de falhas e portas, ordem do dono
+(*"verifique possíveis falhas e revise todas as portas"*).** Leitura
+integral da UI real + cruzamento com o servidor. **WAN = CGNAT**
+(100.64.175.223, RFC 6598) ⇒ **sem IP público**: as regras de port
+forward não alcançam a internet hoje (acesso externo = Tailscale
+funnel). **Achado crítico:** Atualização Automática de firmware **ligada
+na janela 03:00–05:00** — mesma janela do backup; o log mostra 3
+downloads de firmware (18/08), ou seja, o Archer podia se reiniciar
+sozinho no meio do backup de novo. **Aplicado com prova (escolha do
+dono: "mover janela + limpar regras mortas"):** auto-update →
+**06:00–08:00** (switch **continua ligado** — updates preservados,
+janela agora longe de backup/off-site/capturas/reboot) · regras mortas
+**"Teste" (82→443)** e **"HTTPS" (443→443, órfã — nada escuta 443
+local)** **apagadas**; sobraram as 3 vivas `[SSH 22→22, HTTP 80→8000,
+Controle 8001→8001]` → 192.168.0.250 (o servidor, confirmado). Prova
+final por releitura do zero nas 3 telas (`verificacao_final.png`).
+Verde medido: SPI Firewall on · ping WAN off · DMZ off · QoS off ·
+Controlo Parental off · telemetria TP-Link off · WPS off · convidados
+off · rede IoT própria **com isolamento on** · DHCP com reserva do
+servidor · sinal WiFi do servidor **-51 dBm** (pings perdidos espalhados
+não são distância — diagnóstico aparte, adaptador USB). Limites
+honestos: escanear de fora impossível sob CGNAT; UPnP mantido (Tailscale
+precisa para NAT traversal). Sem restart (nada em runtime mudou).
+
+
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 
 **Resumo:** 3ª da série "uma por vez" (FlatNotes ✅ → File Browser ✅ → **Calibre**). Dono decidiu **"Configurar e interligar"** (19/10) e apontou a fonte: *"os livros estão no google drive"* — pasta **"Biblioteca"** do Drive dele (22 pastas temáticas, **732 itens / 729 arquivos / 1,83 GB** medidos recursivamente; a contagem de 1º nível mentia: 363/1,35 GB). A entrega monta a cadeia inteira: **Drive → espelho local → `calibredb` → Calibre Web (web + OPDS) → actions + botão no app**, e o caminho ensinou duas lições registradas em código: **(1)** o dedup por título do calibre (`--automerge ignore`) **escondeu 156 arquivos de conteúdo diferente** (título embutido do PDF colidindo — provado ao vivo com a mensagem crua *"not added as they already exist"*), então o contrato de resync passou a ser um **LEDGER nosso** (`.calibre_ledger.json`: caminho→tamanho) + `-d --automerge new_record` (colisão de título vira registro próprio); **(2)** a análise de conteúdo por tamanho enganou com **cópias idênticas em duas pastas e zips extraídos** — 55 duplicados criados pela migração foram detectados por **sha256 par a par (55/55 idêntico)** e removidos **só** os ids da migração (54 originais intactos). Estado final provado: **693 livros, 729/729 arquivos com conteúdo, 0 pendentes, reimportação devolvendo `novos=0`**.

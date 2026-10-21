@@ -119,3 +119,72 @@ chat nem nos logs (scripts leem por env).
 "sem bump") · `session.json` · `txt.txt` · Telegram. Scripts de
 reconhecimento/leitura/aplicação em `/tmp/opencode/` (fora do repo — a
 ferramenta registrada de manipulação da UI do roteador).
+
+## §3 — Revisão de falhas e portas do roteador (21/10 ~16:00–17:00)
+
+**Pedido do dono:** *"ok, ja que controla o roteador, verifique possives
+falhas e revise todas as portas para o sistema funcionar"* — revisão
+completa **só leitura** da UI real (chromium headless, senha via env,
+nada impresso), cruzada com o lado do servidor (`ip addr`, `ss -tlnp`,
+tailscale).
+
+**O que a revisão mostrou (estado medido, não suposto):**
+
+- **WAN = CGNAT** (100.64.175.223, faixa RFC 6598 da operadora): **sem IP
+  público**. Consequência direta: **nenhuma regra de port forward alcança
+  a internet hoje**. O acesso externo de tudo é o **Tailscale** (funnel
+  `/` → 8000, `/ws` → 8001, Vaultwarden 8443 tailnet-only — confirmado no
+  `tailscale status`). DDNS TP-Link não configurado (e seria inútil sob
+  CGNAT).
+- **5 regras de Port Forwarding**, todas para **192.168.0.250 = este
+  servidor** (confirmado por `ip addr` + reserva DHCP): SSH 22→22 · HTTP
+  80→8000 (API) · HTTPS 443→443 (**órfã**: nada escuta 443 local — o 443
+  é do Tailscale) · Controle 8001→8001 (WebSocket) · **Teste 82→443
+  (lixo esquecido, nada escuta em 82)**.
+- **Achado crítico: Atualização Automática de firmware LIGADA, janela
+  03:00–05:00** — a mesma janela do backup diário. O log do roteador
+  mostra 3 downloads de firmware (18/08): qualquer noite com update
+  novo, o Archer se reinicia sozinho **no meio do backup de novo**. A
+  troca do reboot agendado (§2) sozinha não bastava.
+- **Verde confirmado com estado:** SPI Firewall ligado · ping WAN
+  desligado (não responde externo) · ping LAN ligado (monitor depende) ·
+  DMZ desligado · QoS desligado · Controlo Parental desligado ·
+  telemetria TP-Link desligada · WPS desligado · rede de convidados
+  desligada · rede IoT própria **com isolamento ligado** · DHCP com
+  reserva fixa do servidor (.250) · hora/fuso corretos · log só com
+  ruído DHCPv6 do provedor.
+- **Lado servidor:** só SSH (22), API (8000/8001) e Home Assistant
+  (8123) escutam em todas as interfaces; Postgres/MQTT/Calibre/banco em
+  localhost (esperado e bom). Sinal do WiFi do servidor: **-51 dBm
+  (forte)** — os pings perdidos espalhados não são distância; diagnóstico
+  separado segue de pé (energia do adaptador USB/cabo).
+- **Limites honestos:** escanear de fora é impossível sob CGNAT (sem
+  caminho por definição — a resposta "mortas" é conclusiva); ALG e
+  passthroughs todos ligados (default de fábrica, inócuos aqui); EasyMesh
+  ligado sem meshes (inócuo); UPnP ligado com 4 entradas do Tailscale
+  (portmap — NAT traversal, mantido de propósito).
+
+**Decisão do dono (pergunta objetiva):** opção recomendada — **"Mover
+janela + limpar regras mortas"**.
+
+**Aplicado (mutação autorizada, tudo com prova por reabertura):**
+
+1. **Auto-update: 03:00–05:00 → 06:00–08:00** (combo real da tela
+   firmware + GRAVAR; o switch de auto-update **continua ligado** —
+   updates automáticos preservados, janela agora longe de backup 03:00,
+   off-site 03:40, capturas dom 04:00 e reboot dom 05:00).
+2. **Regras "Teste" (82→443) e "HTTPS" (443→443) apagadas** pelo botão
+   "Apagar" da própria linha (nesta UI a exclusão é direta, sem modal de
+   confirmação — verificado com clique seco antes, sem alterar nada).
+
+**Prova final (leitura do zero, três telas):** reboot
+`05:00/Todas as semanas/Domingo` ativo · port forward = **exatamente 3
+regras** `[SSH 22→22, HTTP 80→8000, Controle 8001→8001]`, todas →
+192.168.0.250 · firmware `janela 06:00–08:00, auto-update ligado`.
+Screenshots em `/tmp/opencode/` (`verificacao_final.png`,
+`pf_final.png`, `fw_prova.png`).
+
+**Registrado:** `session.json` (chave `roteador_revisao_portas_2026_10_21`)
+· CHANGELOG §1.44.0 (mesma subseção "sem bump", estendida) · `txt.txt` ·
+Telegram. **Gate não refeito** (nenhum arquivo do sistema em runtime
+mudou — só registros; a última rodada verde do dia: 3546/0 · 90,69%).
