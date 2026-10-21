@@ -152,6 +152,41 @@ FlatNotes" **FECHADO** (esta entrega); seguem abertos no caderno:
 `network_hosts` com nomes do Vigia, rotação da senha de WiFi,
 diagnóstico dos pings e auditoria de ferramentas subaproveitadas.
 
+**Continuação (mesma noite): ACESSOS — 9 FERRAMENTAS NO LAN, CADERNO
+COM SENHA, MQTT E HA EXTERNOS (sem bump, ordem do dono: "quero ter
+acesso a todas as ferramentas sem tailscale" + "HA e MQTT possuem app
+próprio, só preciso de uma url externa").** **Casa sem Tailscale:**
+compose ganhou bind `192.168.0.250` em TODAS as 9 ferramentas (bind
+triplo nas que já tinham tailnet) — **prova final 9/9** (kiwix 200,
+cyberchef 200, it-tools 200, caderno 200, stirling 200, caixa 200,
+livros 302=login, homebox 200, cofre 200) + HA 200 (0.0.0.0 já era).
+**Caderno com senha** ("Todas as 9 + senha no Caderno"):
+`FLATNOTES_AUTH_TYPE=password` + usuário/senha/SECRET_KEY no `.env`
+(secret key exigida pelo v5.5.5 com auth — crash loop provado e
+resolvido); **`FlatNotesClient` ganhou login automático**: POST
+`/api/token` **JSON** → bearer (`Authorization:`; form-data dá 422 —
+contrato apurado ao vivo via OpenAPI, não chutado), renovação em 401
+com UMA tentativa, mensagem de erro honesta que **nunca ecoa a senha**;
+anônimo continua byte a byte o contrato antigo. +4 testes fiéis =
+**44 no módulo**; action ao vivo `flatnotes_status` → `auth_type:
+password, notas: 10, ok` (o sistema loga sozinho). Senha espelhada no
+cofre: item **"FlatNotes — caderno"** (padrão da casa; nunca no git nem
+em canal rastreável). **Externo:** HA já escutava em 0.0.0.0 (URL
+`http://100.77.67.53:8123` pela tailnet, provada 200 — nada a mudar);
+**Mosquitto externo via `tailscale serve --bg --tcp=1883
+tcp://127.0.0.1:1883`** (sintaxe oficial `--tcp=porta` — as tentativas
+com `tcp://:1883` falharam e o doc resolveu; **sem sudo**, serve
+sobrevive a reboot, Funnel NÃO carrega TCP por ser HTTP-only):
+**publicação real com credenciais provada pela tailnet**
+(`od/prova/externa2`). Aviso honesto registrado: expor LAN = quem tem a
+senha do WiFi alcança as ferramentas sem login (Kiwix/CyberChef/IT
+Tools/Stirling são genéricas, sem dado pessoal; o Caderno ganhou senha
+justamente por isso) — Vigia vigia aparelho novo, rotação da senha de
+WiFi segue no TODO 5. Pendente de decisão do dono: **"puxar para dentro
+do Site"** (fase 1 proposta: Caderno/CyberChef/IT Tools + Caixa
+`--baseurl` + Cofre via domínio; Calibre/Kiwix/Stirling/Homebox não
+suportam subcaminho e ficam casa+celular).
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 

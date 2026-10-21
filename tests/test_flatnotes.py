@@ -598,3 +598,120 @@ __all__ = [
     "TestActionsFlatNotes",
     "TestCatalogoFlatNotes",
 ]
+
+
+# ---------------------------------------------------------------------------
+# 21/10 — Caderno com senha (FLATNOTES_AUTH_TYPE=password): o cliente ganhou
+# login automático (POST /api/token JSON → bearer) + renovação em 401.
+# Dublês FIÉIS ao contrato apurado ao vivo via OpenAPI: form-data dá 422,
+# JSON devolve {"access_token": ..., "token_type": "bearer"}.
+# ---------------------------------------------------------------------------
+
+
+def _transporte_com_auth(negacoes_busca: int = 1):
+    """Dublê com estado: /api/search nega `negacoes_busca` vezes, /api/token
+    devolve o bearer, /health e /api/config são públicos (contrato vivo)."""
+    chamadas: list[dict[str, Any]] = []
+    tokens: list[int] = []
+
+    def fake(
+        url: str,
+        *,
+        timeout_s: float,
+        metodo: str = "GET",
+        corpo: dict[str, Any] | None = None,
+        cabecalhos: dict[str, str] | None = None,
+    ) -> tuple[int, dict[str, str], bytes]:
+        chamadas.append(
+            {"url": url, "metodo": metodo, "cabecalhos": dict(cabecalhos or {})}
+        )
+        if url.endswith("/api/token") and metodo == "POST":
+            tokens.append(1)
+            return (
+                200,
+                {},
+                b'{"access_token":"tok-abc123","token_type":"bearer"}',
+            )
+        if "/health" in url:
+            return 200, {}, b'{"status":"ok"}'
+        if "/api/config" in url:
+            return 200, {}, b'{"authType":"password"}'
+        if "/api/search" in url:
+            negadas = len([c for c in chamadas if "/api/search" in c["url"]]) - 1
+            if negadas < negacoes_busca:
+                return 401, {}, b'{"detail":"Not authenticated"}'
+            return 200, {}, b"[]"
+        return 404, {}, b"{}"
+
+    return fake, chamadas, tokens
+
+
+def test_senha__login_automatico_no_401__retry_com_bearer():
+    fake, chamadas, tokens = _transporte_com_auth()
+    c = FlatNotesClient(transporte=fake, usuario="dono", senha="s3nh4-ferrea")
+
+    r = c.status()
+
+    assert r["acessivel"] is True
+    assert r["auth_type"] == "password"
+    assert r["notas"] == 0
+    # login exato UMA vez, em POST /api/token com JSON (não form-data):
+    assert len(tokens) == 1
+    login = [c for c in chamadas if c["url"].endswith("/api/token")][0]
+    assert login["metodo"] == "POST"
+    # e a busca que passou levou o Bearer no cabeçalho:
+    com_bearer = [c for c in chamadas if "/api/search" in c["url"] and c["cabecalhos"]]
+    assert com_bearer
+    assert com_bearer[-1]["cabecalhos"]["Authorization"] == "Bearer tok-abc123"
+
+
+def test_senha__login_recusado__erro_honesto_sem_ecoar_a_senha():
+    def fake(url, *, timeout_s, metodo="GET", corpo=None, cabecalhos=None):
+        if url.endswith("/api/token"):
+            return 401, {}, b'{"detail":"bad credentials"}'
+        if "/api/search" in url:
+            return 401, {}, b'{"detail":"Not authenticated"}'
+        if "/health" in url:
+            return 200, {}, b'{"status":"ok"}'
+        return 200, {}, b'{"authType":"password"}'
+
+    segredo = "s3nh4-SECRETA-nunca-na-mensagem"
+    c = FlatNotesClient(transporte=fake, usuario="dono", senha=segredo)
+
+    with pytest.raises(FlatNotesError) as exc:
+        c.status()
+
+    assert exc.value.codigo == "flatnotes_login_falhou"
+    assert "FLATNOTES_PASSWORD" in exc.value.mensagem
+    assert segredo not in exc.value.mensagem
+
+
+def test_sem_credencial__401_vira_erro_e_nunca_tenta_login():
+    chamadas: list[str] = []
+
+    def fake(url, *, timeout_s, metodo="GET", corpo=None, cabecalhos=None):
+        chamadas.append(url)
+        if "/api/search" in url:
+            return 401, {}, b'{"detail":"Not authenticated"}'
+        if "/health" in url:
+            return 200, {}, b'{"status":"ok"}'
+        return 200, {}, b'{"authType":"password"}'
+
+    c = FlatNotesClient(transporte=fake)  # anônimo = contrato antigo intacto
+
+    with pytest.raises(FlatNotesError) as exc:
+        c.status()
+
+    assert exc.value.codigo == "flatnotes_falhou"
+    assert not any(u.endswith("/api/token") for u in chamadas)
+
+
+def test_token_reusado_entre_chamadas__sem_relogar():
+    fake, _chamadas, tokens = _transporte_com_auth()
+    c = FlatNotesClient(transporte=fake, usuario="dono", senha="x")
+
+    c.status()   # 401 → login → retry
+    r2 = c.status()  # token em mãos: nenhum login extra
+
+    assert r2["acessivel"] is True
+    assert len(tokens) == 1

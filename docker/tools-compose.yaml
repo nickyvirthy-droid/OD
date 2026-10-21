@@ -42,6 +42,9 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8090:8080"
+      # 192.168.0.250 = casa SEM Tailscale (ordem do dono 21/10: as 9
+      # ferramentas abrem por porta direta na rede interna).
+      - "192.168.0.250:8090:8080"
     volumes:
       - /home/alex/omegadrakon-tools/zim:/data:ro
     # O kiwix-serve precisa do arquivo ZIM como argumento posicional — sem
@@ -60,6 +63,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8100:80"
+      # LAN (ordem 21/10): casa sem Tailscale.
+      - "192.168.0.250:8100:80"
     mem_limit: 256m
     memswap_limit: 256m
 
@@ -72,13 +77,16 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8430:80"
+      # LAN (ordem 21/10): casa sem Tailscale.
+      - "192.168.0.250:8430:80"
     mem_limit: 128m
     memswap_limit: 128m
 
   # ---------------------------------------------------------------------------
   # 4. FlatNotes (Notes) — caderno markdown canônico do assistente
-  #    auth=none porque só é alcançável via Tailscale/localhost.
-  #    API REST que as actions flatnotes_status/anota/busca operam (v1.40.0).
+  #    auth=password desde 21/10 (aberto na LAN; notas/TODO não ficam
+  #    sem porta). API REST que as actions flatnotes_status/anota/busca
+  #    operam (v1.40.0) — o cliente faz login e carrega a sessão.
   # ---------------------------------------------------------------------------
   flatnotes:
     image: dullage/flatnotes:v5.5.5
@@ -86,21 +94,29 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8200:8080"
-      # 100.77.67.53 = o dono abre o TODO/caderno pelo celular via
-      # Tailscale (bind duplo, mesmo padrão da caixa e do calibre —
-      # TODO vive aqui desde 21/10 por decisão dele). auth=none só
-      # existe DENTRO da tailnet (aparelhos dele); nunca no Funnel.
+      # Bind triplo (21/10): 127.0.0.1 = ações do sistema; LAN =
+      # casa sem Tailscale; 100.77.67.53 = celular via Tailscale
+      # (TODO vive aqui desde 21/10). Nunca no Funnel.
+      - "192.168.0.250:8200:8080"
       - "100.77.67.53:8200:8080"
     volumes:
       - /home/alex/omegadrakon-tools/flatnotes:/data
     environment:
-      - FLATNOTES_AUTH_TYPE=none
+      # 21/10 (dono: "Todas as 9 + senha no Caderno"): senha LIGADA —
+      # com a rede interna aberta, notas/TODO não podem ficar sem
+      # porta. Credenciais no .env (nunca no git); o sistema entra
+      # pelo FlatNotesClient (login + sessão própria).
+      - FLATNOTES_AUTH_TYPE=${FLATNOTES_AUTH_TYPE:-password}
+      - FLATNOTES_USERNAME=${FLATNOTES_USERNAME:-dono}
+      - FLATNOTES_PASSWORD=${FLATNOTES_PASSWORD:?defina FLATNOTES_PASSWORD no .env (21/10)}
+      - FLATNOTES_SECRET_KEY=${FLATNOTES_SECRET_KEY:?defina FLATNOTES_SECRET_KEY no .env (21/10 — assina a sessão)}
     mem_limit: 256m
     memswap_limit: 256m
 
   # ---------------------------------------------------------------------------
   # 5. Stirling PDF — 50+ ferramentas de PDF (merge, split, OCR, assinar, cifrar)
-  #    SECURITY_ENABLELOGIN=false = sem login (só via Tailscale).
+  #    SECURITY_ENABLELOGIN=false = sem login (LAN + tailnet desde 21/10;
+  #    nunca no Funnel — o gate público é o Site).
   # ---------------------------------------------------------------------------
   stirling-pdf:
     image: ghcr.io/stirling-tools/s-pdf:2.13.1
@@ -108,6 +124,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8400:8080"
+      # LAN (ordem 21/10): casa sem Tailscale.
+      - "192.168.0.250:8400:8080"
     volumes:
       - /home/alex/omegadrakon-tools/stirling-pdf/configs:/configs
       - /home/alex/omegadrakon-tools/stirling-pdf/logs:/logs
@@ -133,11 +151,12 @@ services:
     container_name: od-filebrowser
     restart: unless-stopped
     ports:
-      # Bind duplo (19/10, decisão do dono: "um botão que abre o navegador"):
-      # 127.0.0.1 = ações do sistema (OD_FILEBROWSER_URL no .env); IP da
-      # tailnet = o dono abre do celular/PC. Só a interface do Tailscale —
-      # nunca LAN nem cara pública (o od-core é 0.0.0.0; aqui o estrito manda).
+      # Bind triplo (21/10): 127.0.0.1 = ações do sistema (OD_FILEBROWSER_URL
+ # no .env); 192.168.0.250 = casa sem Tailscale (ordem do dono); IP
+      # da tailnet = celular/PC via Tailscale. Nunca no Funnel (o gate
+ # público é o Site; login próprio é defesa em profundidade).
       - "127.0.0.1:8410:80"
+      - "192.168.0.250:8410:80"
       - "100.77.67.53:8410:80"
     volumes:
       - /home/alex/omegadrakon-tools/filebrowser/files:/srv
@@ -158,10 +177,11 @@ services:
     container_name: od-calibre-web
     restart: unless-stopped
     ports:
-      # Bind duplo (19/10, mesma régua do File Browser): 127.0.0.1 para as
-      # actions do sistema; IP da tailnet = o dono abre do celular/PC.
-      # Só a interface do Tailscale — nunca LAN nem cara pública.
+      # Bind triplo (21/10): 127.0.0.1 = actions do sistema; 192.168.0.250 =
+ # casa sem Tailscale (ordem do dono); IP da tailnet = celular/PC.
+      # Nunca no Funnel (o gate público é o Site).
       - "127.0.0.1:8420:8083"
+      - "192.168.0.250:8420:8083"
       - "100.77.67.53:8420:8083"
     volumes:
       - /home/alex/omegadrakon-tools/calibreweb/config:/config
@@ -185,6 +205,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8470:7745"
+      # LAN (ordem 21/10): casa sem Tailscale.
+      - "192.168.0.250:8470:7745"
     volumes:
       - /home/alex/omegadrakon-tools/homebox:/data
     environment:
@@ -205,6 +227,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8480:80"
+      # LAN (ordem 21/10): casa sem Tailscale — cofre com login próprio.
+      - "192.168.0.250:8480:80"
     volumes:
       - /home/alex/omegadrakon-tools/vaultwarden:/data
     environment:

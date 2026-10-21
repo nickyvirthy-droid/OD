@@ -158,10 +158,11 @@ def _transporte(
     timeout_s: float,
     metodo: str = "GET",
     corpo: Optional[dict[str, Any]] = None,
+    cabecalhos: Optional[dict[str, str]] = None,
 ) -> tuple[int, dict[str, str], bytes]:
     """urllib real → (status, headers, corpo). HTTPError É uma resposta."""
     dados = None
-    cabecalhos_envio: dict[str, str] = {}
+    cabecalhos_envio: dict[str, str] = dict(cabecalhos or {})
     if corpo is not None:
         dados = json.dumps(corpo, ensure_ascii=False).encode("utf-8")
         cabecalhos_envio["Content-Type"] = "application/json"
@@ -238,10 +239,20 @@ class FlatNotesClient:
         base_url: str = URL_PADRAO,
         timeout_s: float = TIMEOUT_PADRAO_S,
         transporte: Optional[Callable[..., tuple[int, dict[str, str], bytes]]] = None,
+        *,
+        usuario: str = "",
+        senha: str = "",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout_s = timeout_s
         self._transporte = transporte or _transporte
+        # 21/10: caderno ganhou senha (FLATNOTES_AUTH_TYPE=password).
+        # Vazio = anônimo (contrato antigo intacto); com credencial o
+        # cliente faz login sozinho quando a API nega (401) e renova
+        # token expirado sem virar erro para o dono.
+        self._usuario = usuario
+        self._senha = senha
+        self._token: Optional[str] = None
 
     # -- transporte --------------------------------------------------------
 
@@ -252,12 +263,22 @@ class FlatNotesClient:
         *,
         corpo: Optional[dict[str, Any]] = None,
         timeout_s: Optional[float] = None,
+        _renovou: bool = False,
     ) -> tuple[int, bytes]:
         url = f"{self.base_url}{caminho}"
         tempo = timeout_s or self.timeout_s
+        # Authorization SÓ quando há token — o caminho anônimo continua
+        # byte a byte o mesmo (contrato intacto p/ testes e 3ºs).
+        extra: dict[str, str] = {}
+        if self._token:
+            extra["Authorization"] = f"Bearer {self._token}"
         try:
             status, _cabecalhos, corpo_bytes = self._transporte(
-                url, timeout_s=tempo, metodo=metodo, corpo=corpo
+                url,
+                timeout_s=tempo,
+                metodo=metodo,
+                corpo=corpo,
+                **({"cabecalhos": extra} if extra else {}),
             )
         except FlatNotesError:
             raise
@@ -269,7 +290,52 @@ class FlatNotesClient:
         ) as exc:
             # Transporte injetado (testes/terceiros) sem mapeamento próprio.
             raise _erro_rede(exc, url, tempo) from None
+        if status == 401 and not _renovou and self._usuario and self._senha:
+            # Caderno com senha (21/10): renova a sessão UMA vez e tenta
+            # de novo — token expirado não vira erro para o dono.
+            self._login(timeout_s=tempo)
+            return self._chamada(
+                metodo, caminho, corpo=corpo, timeout_s=timeout_s, _renovou=True
+            )
         return status, corpo_bytes
+
+    def _login(self, *, timeout_s: Optional[float] = None) -> None:
+        """POST /api/token (JSON) → access_token (contrato apurado ao vivo
+        em 21/10 via OpenAPI: form-data dá 422; JSON devolve bearer)."""
+        tempo = timeout_s or self.timeout_s
+        url = f"{self.base_url}/api/token"
+        try:
+            status, _cabecalhos, corpo_bytes = self._transporte(
+                url,
+                timeout_s=tempo,
+                metodo="POST",
+                corpo={"username": self._usuario, "password": self._senha},
+            )
+        except FlatNotesError:
+            raise
+        except (
+            urllib.error.URLError,
+            socket.timeout,
+            ConnectionError,
+            OSError,
+        ) as exc:
+            raise _erro_rede(exc, url, tempo) from None
+        if not (200 <= status < 300):
+            # Mensagem honesta — e JAMAIS ecoa a senha.
+            raise FlatNotesError(
+                "flatnotes_login_falhou",
+                "Login do Caderno recusado (HTTP "
+                f"{status}) — confira FLATNOTES_USERNAME/FLATNOTES_PASSWORD "
+                "no .env.",
+            )
+        try:
+            token = json.loads(corpo_bytes.decode("utf-8"))["access_token"]
+        except (json.JSONDecodeError, KeyError, UnicodeDecodeError):
+            raise FlatNotesError(
+                "flatnotes_login_falhou",
+                "Login do Caderno: resposta sem access_token (JSON inesperado).",
+            ) from None
+        self._token = str(token)
 
     def _espera_200(self, status: int, corpo: bytes, onde: str) -> None:
         if not (200 <= status < 300):
@@ -444,7 +510,13 @@ def client_padrao() -> FlatNotesClient:
     global _CLIENTE
     if _CLIENTE is None:
         url = _env("OD_FLATNOTES_URL", URL_PADRAO)
-        _CLIENTE = FlatNotesClient(url)
+        # 21/10: caderno com senha — credenciais do .env entram aqui e o
+        # cliente loga sozinho no primeiro 401 (FLATNOTES_USERNAME/PASSWORD).
+        _CLIENTE = FlatNotesClient(
+            url,
+            usuario=_env("FLATNOTES_USERNAME", ""),
+            senha=_env("FLATNOTES_PASSWORD", ""),
+        )
         log.info("FlatNotes configurado", url=url)
     return _CLIENTE
 

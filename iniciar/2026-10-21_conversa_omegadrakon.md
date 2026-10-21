@@ -357,3 +357,65 @@ subaproveitadas.
 **Registrado:** CHANGELOG §1.44.0 (subseção "TODO migrado") ·
 `session.json` (chave `todo_migrado_flatnotes_2026_10_21`) · `txt.txt` ·
 Telegram.
+
+---
+
+## §9 — ACESSOS: 9 NO LAN (SEM TAILSCALE), CADERNO COM SENHA, MQTT E HA EXTERNOS (noite)
+
+**Pedidos encadeados:** (1) *"quando estou usando a rede interna
+192.168.0.250, quero ter acesso a todas as ferramentas sem tailscale"*;
+(2) escolha no questionário — **"Todas as 9 + senha no Caderno"**;
+(3) *"também quero ter acesso externo ao Homeassistant e ao mosquitto"`;
+(4) *"HA e MQTT possuem app próprio, só preciso de uma url externa"*.
+
+**Medição antes de mexer (regra da casa):** Site e HA já abriam no LAN
+(0.0.0.0); as 9 ferramentas estavam `127.0.0.1` (+ tailnet em 3);
+Mosquitto = serviço do sistema **só em `127.0.0.1:1883`** (nem de casa
+alcançava); sudo **indisponível** na conta (a casa opera em `--user`).
+
+**Parte A — casa sem Tailscale:** bind `192.168.0.250` em todas as 9
+(comentários atualizados — os antigos diziam "nunca LAN"). Duas
+couserros no caminho, ambos provados e consertados: (i) comentário de
+bloco perdeu o `#` e derrubou o YAML (`go-yaml load error` — consertado
+por sed na linha exata + `docker compose config --quiet` como gate);
+(ii) FlatNotes em crash loop — **`FLATNOTES_SECRET_KEY` é obrigatória
+com auth** (log provou: "Environment variable FLATNOTES_SECRET_KEY must
+be set"). Stirling era só Java devagar (healthy aos 59s). **Prova final
+9/9** em `http://192.168.0.250:<porta>` + HA 200.
+
+**Caderno com senha:** `FLATNOTES_AUTH_TYPE=password`, usuário `dono`,
+senha + secret key no `.env` (gitignorado). **Contrato de auth apurado
+ao vivo via `/openapi.json`** (não chutado): rota = `POST /api/token`
+**JSON** → `{"access_token","token_type":"bearer"}` (form-data dá 422);
+protegidos = `/api/notes/*` e `/api/search`; `/health` e `/api/config`
+públicos. `FlatNotesClient` estendido: `usuario`/`senha` explícitos
+(anônimo = contrato byte a byte intacto), `_login()` JSON→bearer,
+`Authorization` só quando há token, **401 renova a sessão UMA vez e
+repete**, erro `flatnotes_login_falhou` honesto que **nunca ecoa a
+senha**; fábrica lazy passa a injetar `FLATNOTES_USERNAME/PASSWORD` do
+`.env`. +4 testes fiéis ao contrato vivo = **44 no módulo**. od-core
+reiniciado (regra 7.3) → action ao vivo `POST /executa
+{"action":"flatnotes_status"}` → **`auth_type: password, notas: 10,
+ok`**. Senha espelhada no cofre via `VaultClient.guardar` → item
+**"FlatNotes — caderno"** (id 6ae32708; padrão da casa; fora de git,
+transcrição e txt.txt).
+
+**Externo:** HA já escutava em `0.0.0.0` → URL pronta
+`http://100.77.67.53:8123` (provada 200). Mosquitto: Funnel **não
+carrega TCP** (HTTP-only) e sudo não há → **`tailscale serve --bg
+--tcp=1883 tcp://127.0.0.1:1883`** (a sintaxe oficial `--tcp=porta`
+veio do doc depois de duas tentativas erradas `tcp://:1883`; serve é
+user-scope, persiste e sobrevive a reboot — listado no status como
+"tailnet only"). **Prova forte: `mosquitto_pub` real com as
+credenciais do `.env` publicou pela tailnet** (`od/prova/externa2`).
+
+**Aviso honesto entregue:** LAN = quem tem a senha do WiFi alcança as
+ferramentas (4 sem login, mas genéricas e sem dado pessoal; o Caderno
+foi justamente o que ganhou senha); Vigia vigia aparelho novo; rotação
+da senha de WiFi segue no TODO 5. **"Puxar para dentro do Site"**
+explicado com as travas de subcaminho provadas no portal 8443 (5 das 9
+quebradas lá) e **fase 1 proposta** — decisão do dono pendente.
+
+**Registrado:** CHANGELOG §1.44.0 (continuação "Acessos") ·
+`session.json` (chave `acessos_lan_externos_2026_10_21`) · `txt.txt` ·
+Telegram (senha só lá — canal privado).

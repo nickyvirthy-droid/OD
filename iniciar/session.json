@@ -229,7 +229,7 @@
   "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
  },
- "updated_at": "2026-10-21T20:05:00-03:00",
+ "updated_at": "2026-10-21T23:40:00-03:00",
  "auditoria_pendencias_2026_10_20": {
   "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
   "vereditos": {
@@ -3728,5 +3728,16 @@
   "regra_nova": "Ideias de melhoria agora nascem na nota 'TODO 5 — Parking lot' (sobrescrever=true quando entra/sai).",
   "fechado": "Item §5 'parking lot dentro do FlatNotes' FECHADO por esta entrega. Abertos: network_hosts com nomes do Vigia; rotacao senha WiFi; diagnostico dos pings; auditoria de ferramentas subaproveitadas.",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§7)"
+ },
+ "acessos_lan_externos_2026_10_21": {
+  "pedidos": "(1) todas as ferramentas no LAN 192.168.0.250 sem Tailscale; (2) escolha: 'Todas as 9 + senha no Caderno'; (3) acesso externo a HA e Mosquitto; (4) 'HA e MQTT possuem app proprio, so preciso de uma url externa'.",
+  "medido_antes": "Site/HA ja abriam no LAN (0.0.0.0); 9 ferramentas em 127.0.0.1 (+tailnet em 3); Mosquitto = servico do sistema SO em 127.0.0.1:1883; sudo indisponivel (casa opera em --user).",
+  "lan": "bind 192.168.0.250 em todas as 9 (bind triplo nas de tailnet); prova final 9/9 (livros 302=login) + HA 200. Consertos no caminho: comentario sem # derrubou YAML (sed + compose config gate); FlatNotes crash loop = FLATNOTES_SECRET_KEY obrigatoria com auth; Stirling so Java devagar.",
+  "caderno_senha": "FLATNOTES_AUTH_TYPE=password + dono + senha/SECRET_KEY no .env. Contrato apurado ao vivo via openapi.json: POST /api/token JSON -> bearer (form-data da 422); protegidos /api/notes/* e /api/search; /health e /api/config publicos. FlatNotesClient: usuario/senha explicitos (anonimo = contrato intacto), _login JSON->bearer, Authorization so com token, 401 renova 1x e repete, erro flatnotes_login_falhou sem ecoar senha; fabrica injeta env. +4 testes = 44 no modulo. od-core reiniciado; action viva flatnotes_status -> auth_type password, notas 10, ok.",
+  "cofre": "VaultClient.guardar -> item 'FlatNotes — caderno' (id 6ae32708-1070-4fdf-a9e6-d3af472ca363) com usuario doko/senha+URLs; senha NUNCA em git/transcricao/txt.",
+  "externo": "HA: 0.0.0.0 ja existia -> http://100.77.67.53:8123 (200 provado). Mosquitto: Funnel nao carrega TCP; sem sudo -> tailscale serve --bg --tcp=1883 tcp://127.0.0.1:1883 (sintaxe oficial --tcp=porta vinda do doc; user-scope, persiste reboot, 'tailnet only'); prova forte = mosquitto_pub real com credenciais publicou pela tailnet (od/prova/externa2).",
+  "aviso_honesto": "LAN = quem tem senha do WiFi alcanca; 4 sem login mas genericas sem dado pessoal; Caderno ganhou senha por isso; Vigia vigia aparelho novo; rotacao de senha WiFi segue no TODO 5.",
+  "pendente": "'Puxar para dentro do Site' explicado (portal 8443 prova: 5 das 9 quebradas por subcaminho); fase 1 proposta = Caderno/CyberChef/IT Tools + Caixa --baseurl + Cofre via dominio; Calibre/Kiwix/Stirling/Homebox nao suportam subcaminho. Decisao do dono pendente.",
+  "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§9)"
  }
 }
