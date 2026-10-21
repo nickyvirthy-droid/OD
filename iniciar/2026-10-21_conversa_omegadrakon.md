@@ -307,3 +307,53 @@ Tailscale.
    sugestão concreta, formato possível no `txt.txt`.
 
 `session.json` — chave `ideias_flatnotes_e_ferramentas_2026_10_21`.
+
+---
+
+## §7 — TODO MIGRADO PARA O FLATNOTES: (b) TUDO NO CADERNO, ARQUIVO SOLTO SAIU (noite)
+
+**Pedido:** *"faça o b, se existe ferramenta não tem porque não usar.
+arquivo solto só suja o sistema."* — (b) = mover **tudo** o TODO para o
+FlatNotes (a opção (a) era só o parking lot; ele escolheu o total).
+
+**Apurado antes de mexer (regra da casa: medir, não presumir):**
+- **Nenhum código/teste/painel/site lê o `TODO.md`** — grep no repo
+  inteiro: só transcrições históricas (`iniciar/`) e `session.json`
+  citam. Remover é seguro; o git guarda o histórico.
+- **FlatNotes preso em `127.0.0.1:8200`** — o dono **nem conseguia
+  abrir** no celular; para o TODO ser dele, o caderno precisava do
+  **bind duplo** (mesmo tratamento da Caixa e do Calibre, v1.41/1.43).
+- Cliente real: `FlatNotesClient.anota(titulo, conteudo,
+  sobrescrever)` / `.buscar` / `.status` (contract da v1.40.0).
+
+**Migração com prova (9 notas novas → 10 no caderno):**
+`TODO — Regras e linhas vermelhas` (as duas citações de regra do
+antigo cabeçalho entraram aqui) · `TODO 1 — Stack Nômade` · `TODO 1b —
+Decisão final` · `TODO 2 — Pendências do dono` · `TODO 3 — Melhoramentos
+técnicos` · `TODO 4 — Dívida técnica` · `TODO 5 — Parking lot` · `TODO 6
+— Definition of Done` · `TODO 7 — Fila de ordens (zerada)`. Rodapé de
+migração em cada nota; nota-mãe da 1.40.0 preservada; conteúdo indexado
+(busca "inventario" → 3 notas).
+
+**Bind duplo + remoção do arquivo:**
+compose ganhou `- "100.77.67.53:8200:8080"` (comentar do padrão da casa:
+auth=none só dentro da tailnet, nunca no Funnel) → recreate do
+`od-flatnotes` → **provas: `127.0.0.1:8200` = 200 e
+`100.77.67.53:8200` = 200**, `docker port` mostrando os dois binds, 10
+notas intactas (volume próprio). `git rm TODO.md`.
+
+**Nuance registrado (uso real):** a busca do FlatNotes é por **palavra
+simples** — "inventario" acha; "network_hosts" (com sublinhado) não
+tokeniza. Dica prática no `txt.txt`.
+
+**Regra do dia no lugar novo:** ideias de melhoria agora nascem como
+item na nota **"TODO 5 — Parking lot"** (o sistema reescreve a nota
+quando algo entra/sai; `sobrescrever=true` é a atualização declarada).
+Item §5 "parking lot dentro do FlatNotes" **FECHADO** por esta entrega;
+**abertos** no caderno: `network_hosts` com nomes do Vigia · rotação da
+senha de WiFi · diagnóstico dos pings · auditoria de ferramentas
+subaproveitadas.
+
+**Registrado:** CHANGELOG §1.44.0 (subseção "TODO migrado") ·
+`session.json` (chave `todo_migrado_flatnotes_2026_10_21`) · `txt.txt` ·
+Telegram.

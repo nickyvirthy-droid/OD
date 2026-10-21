@@ -125,6 +125,33 @@ vindo de fora (CGNAT) — e o elo mais fraco restante é a **senha de WiFi
 "omegadrakon"** (palavra de dicionário; rotação é operação à parte com
 custo em todos os aparelhos).
 
+**Continuação (mesma noite): TODO MIGRADO PARA O FLATNOTES — o caderno
+virou o canal (sem bump, ordem do dono: "faça o b, se existe ferramenta
+não tem porque não usar; arquivo solto só suja o sistema").** Contexto:
+o dono apontou duas coisas — várias ferramentas subaproveitadas, e que o
+`TODO.md` solto deveria viver **dentro do FlatNotes** (o caderno markdown
+da casa, v1.40.0 — o sistema já anota/busca por ação). Opção escolhida:
+**(b) tudo no FlatNotes**. **Apurado antes de mexer:** nenhum
+código/teste/painel lia o `TODO.md` (grep no repo inteiro — só
+transcrições históricas citam); o FlatNotes estava **preso em
+`127.0.0.1:8200`** (o dono nem conseguia abrir). **Migrado com prova:**
+9 notas criadas pelo cliente real (`FlatNotesClient.anota` — §0 regras +
+linhas vermelhas, §1 stack, §1b decisão final, §2 pendências, §3
+melhoramentos, §4 dívida, §5 parking lot, §6 DoD, §7 fila zerada) →
+**10 notas no caderno** (a marca-mãe da 1.40.0 sobrevive), conteúdo
+indexado pela busca (`inventario` → 3 notas). **Bind duplo do caderno**
+(`127.0.0.1:8200` + `100.77.67.53:8200`, mesmo padrão da Caixa e do
+Calibre; `FLATNOTES_AUTH_TYPE=none` só existe **dentro** da tailnet —
+aparelhos do dono; nunca no Funnel) com **HTTP 200 nos dois caminhos**
+após recreate do container (volume próprio, notas intactas). **`TODO.md`
+removido do repo** (histórico git preserva). Regra do dia reforçada no
+lugar novo: ideias agora nascem como item na nota **"TODO 5 — Parking
+lot"**. Nuance registrado: a busca do FlatNotes é por **palavra simples**
+(termo com sublinhado não tokeniza). Item §5 "parking lot dentro do
+FlatNotes" **FECHADO** (esta entrega); seguem abertos no caderno:
+`network_hosts` com nomes do Vigia, rotação da senha de WiFi,
+diagnóstico dos pings e auditoria de ferramentas subaproveitadas.
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 

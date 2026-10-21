@@ -229,7 +229,7 @@
   "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
  },
- "updated_at": "2026-10-21T19:45:00-03:00",
+ "updated_at": "2026-10-21T20:05:00-03:00",
  "auditoria_pendencias_2026_10_20": {
   "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
   "vereditos": {
@@ -3717,5 +3717,16 @@
   "registrado_todo_parking_lot": "1) Parking lot dentro do FlatNotes (uma ideia = uma nota; decidir: so o §5 vs tudo vs espelho; risco: duas fontes de verdade — casa opera com fonte unica). 2) Auditoria de ferramentas subaproveitadas (9 servicos + 115 actions x uso real -> relatorio ferramenta x uso x sugestao).",
   "estado": "IDEIAS — sem implementar (regra do dono 21/10: TODO primeiro, ordem depois).",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§6)"
+ },
+ "todo_migrado_flatnotes_2026_10_21": {
+  "pedido": "Dono: 'faca o b, se existe ferramenta nao tem porque nao usar. arquivo solto so suja o sistema.' — (b) = TODO INTEIRO no FlatNotes (opcao a era so o parking lot).",
+  "apurado_antes": "Nenhum codigo/teste/painel le o TODO.md (grep no repo — so transcrições historicas). FlatNotes PRESO em 127.0.0.1:8200 (dono nao conseguia abrir) => bind duplo necessario (padrao caixa/calibre).",
+  "migrado": "9 notas novas (10 no caderno): TODO — Regras e linhas vermelhas (caveçalho+regras), TODO 1 Stack, 1b Decisão final, 2 Pendências, 3 Melhoramentos, 4 Dívida, 5 Parking lot, 6 DoD, 7 Fila zerada. Rodape de migracao em cada; nota-mae 1.40.0 preservada; conteudo indexado (busca 'inventario' -> 3 notas).",
+  "bind_duplo": "compose: + 100.77.67.53:8200:8080 (auth=none so dentro da tailnet). Recreate od-flatnotes; PROVAS: 127.0.0.1=200 e 100.77.67.53=200, docker port com os dois binds, 10 notas intactas.",
+  "remocao": "git rm TODO.md (ordem: 'arquivo solto so suja'); historico git preserva; DoD §6 virou nota 'TODO 6'.",
+  "nuance_busca": "FlatNotes busca por palavra simples: 'inventario' acha, 'network_hosts' (sublinhado) nao tokeniza — dica no txt.txt.",
+  "regra_nova": "Ideias de melhoria agora nascem na nota 'TODO 5 — Parking lot' (sobrescrever=true quando entra/sai).",
+  "fechado": "Item §5 'parking lot dentro do FlatNotes' FECHADO por esta entrega. Abertos: network_hosts com nomes do Vigia; rotacao senha WiFi; diagnostico dos pings; auditoria de ferramentas subaproveitadas.",
+  "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§7)"
  }
 }
