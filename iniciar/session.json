@@ -1,4 +1,16 @@
 {
+  "reverificacao_2026_10_21_1420": {
+    "pedido": "Usuario: 'leia iniciar' (21/10 ~14:20) — reverificacao de rotina (regra 3) apos o fecho da v1.44.0+2080 (camera QR, registros 20/10 21:40, commit 9322352).",
+    "achados_verdes": "SISTEMA VERDE: od-core active desde 20/10 20:39:29 (17h40), MainPID 968535, NRestarts=0; /health (X-API-Key) ok=true, 25 checks NENHUM fora; /app/version 1.44.0/2080 sha aeb8566b… APK 72028650 B publicado; git ARVORE LIMPA, HEAD 9322352 == origin/master (0/0). Backups: diario od-2026-10-21_0310 (03:10) + OFF-SITE do diario enviado 03:40 (1 parte, sha a5c52232…); capturas semanal segue 16_1434 (proximo snapshot domingo 04:00); disco 66% (76G livres). nomad_tools 9/9; notifier ticks=1064 errors=2 problems=24 alerts_emitted=6 alerts_blocked=13.",
+    "transitorios": [
+      "Blip de rede 21/10 03:01-03:02: os 2 [ERROR] do boot sao 'Sink falhou | Telegram API indisponivel: Temporary failure in name resolution' (DNS) — mesmo padrao dos boots anteriores. Na mesma janela: router:down (ping 192.168.0.1 falhou), health:degraded (1 check fora = backup) e 100 dos WARN 'Transporte indisponivel' do polling (bot.py:500, TransportError transitorio). Recuperou sozinho.",
+      "router:down adicional 20/10 21:46, 21/10 05:26 e 06:37 — blip intermitente do gateway registrado desde 15/10; roteador responde agora.",
+      "WARNs 'Transporte indisponivel' fora do pico ~1/h entre 10h-14h (18 ontem das 20h39; 1142 em setembro — intermitencia antiga de rede/long-polling, nao regressao). getMe dos 3 bots VIVOS agora."
+    ],
+    "canais_do_dono": "txt.txt SEM mensagem nova (nossa entrega da camera QR 20/10 21:40). analise/ inalterado (2 capturas Sistema OrioN 16/10 sem instrucao + fotos-adicionais/ com as 4).",
+    "estado": "SISTEMA ESTAVEL E NO AR — v1.44.0/2080; fila do TODO zerada; nada em andamento; aguardando ordem do dono (exemplo exato do tema §3.8 continua a unica pauta de conteudo registrada).",
+    "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§1)"
+  },
   "dashboard_unificado_2026_10_20": {
     "pedido": "Dono (20/10, após o menu lateral): 'O que tem pra agora?' — ofereci a fila do TODO e ele escolheu a opção 'Dashboard unificado (Recomendado)' (TODO §3.6).",
     "entrega": "O /admin ganhou a seção 'Visão do sistema (System Overview)' com 15 cards (um por subsistema) lidos das MESMAS 4 fontes de sempre (/health · /supervision · /dashboard/stats · /actions) — sem busca nova. Os 4 que faltavam entraram: RAG (vector_store), Auto-update (alvos/desligados/pendentes), Downloads (fila) e Ferramentas (Supply Depot); Estado/API, Loops, Stack, Alertas do bot, Backups, HDs e Off-site já existiam.",
@@ -192,7 +204,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-20T16:15:00-03:00",
+  "updated_at": "2026-10-21T14:20:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
