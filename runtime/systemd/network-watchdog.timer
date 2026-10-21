@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer do Vigia da Rede - OmegaDrakon
+
+[Timer]
+# Primeiro ciclo 2 min após o boot e, daí em diante, a cada 5 min contado
+# do fim da execução anterior (o service é oneshot). A camada rica (UI do
+# roteador) roda a cada 3º ciclo (~15 min) — cadência interna do script.
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

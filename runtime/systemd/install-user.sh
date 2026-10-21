@@ -11,7 +11,9 @@ cp runtime/systemd/od-llm.service \
    runtime/systemd/od-core.service \
    runtime/systemd/od-control-bridge.service \
    runtime/systemd/router-monitor.service \
-   runtime/systemd/router-monitor.timer "$UNIT_DIR/"
+   runtime/systemd/router-monitor.timer \
+   runtime/systemd/network-watchdog.service \
+   runtime/systemd/network-watchdog.timer "$UNIT_DIR/"
 
 systemctl --user daemon-reload
 systemctl --user enable od-llm.service od-core.service od-control-bridge.service
@@ -22,9 +24,12 @@ systemctl --user restart od-llm.service od-core.service od-control-bridge.servic
 # esperar o próximo boot para o monitor entrar no ar.
 systemctl --user enable --now router-monitor.timer
 
+# Vigia da Rede: mesmo molde — timer de 5 min chamando o oneshot.
+systemctl --user enable --now network-watchdog.timer
+
 echo "✅ Units instaladas e ativadas:"
 systemctl --user status od-llm.service od-core.service od-control-bridge.service \
-    router-monitor.timer --no-pager | head -40
+    router-monitor.timer network-watchdog.timer --no-pager | head -45
 
 echo
 echo "💡 Para manter o OD no ar após logout/reboot (recomendado):"

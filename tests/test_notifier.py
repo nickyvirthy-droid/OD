@@ -436,8 +436,8 @@ class TestNotifierTick:
         await notifier.tick()
         snapshot = notifier.metrics.snapshot()
         assert snapshot["ticks"] == 1
-        # checks: orchestrator + llm + disk + restart + router = 5
-        assert snapshot["checks_run"] == 5
+        # checks: orchestrator + llm + disk + restart + router + network = 6
+        assert snapshot["checks_run"] == 6
         assert snapshot["problems"] == 0
 
     @pytest.mark.asyncio
@@ -445,7 +445,7 @@ class TestNotifierTick:
         notifier = make_notifier(orch(OfflineProvider()))
         await notifier.tick()
         snapshot = notifier.metrics.snapshot()
-        assert snapshot["checks_run"] == 5
+        assert snapshot["checks_run"] == 6
         assert snapshot["problems"] == 1  # apenas llm (abaixo do threshold)
 
 
@@ -796,7 +796,8 @@ class TestNotifierLoop:
         notifier = make_notifier(orch(OnlineProvider()), sinks=[lambda t: None])
         data = notifier.dump()
         assert data["pid"] >= 0
-        # Sondas padrão: orchestrator, llm, disk, loops (supervisão), restart e router
+        # Sondas padrão: orchestrator, llm, disk, loops (supervisão), restart,
+        # router e network (Vigia da Rede)
         assert data["checks"] == [
             "_check_orchestrator",
             "_check_llm",
@@ -804,6 +805,7 @@ class TestNotifierLoop:
             "_check_loops",
             "_check_restart",
             "_check_router",
+            "_check_network",
         ]
         assert data["sinks"] == 1
         assert data["metrics"]["ticks"] == 0
@@ -947,6 +949,165 @@ class TestCheckRouter:
             assert "erro ao ler" in result.detail
         finally:
             os.environ.pop("OD_LOG_DIR", None)
+
+
+# ===========================================================================
+# _check_network — Vigia da Rede (21/10/2026)
+# ===========================================================================
+
+
+class TestCheckNetwork:
+    """Sonda do Vigia da Rede (ler logs/network_watchdog.log).
+
+    Mesmo contrato da `_check_router`: última linha de estado manda; sem
+    log (vigia não instalado) → ok.
+    """
+
+    @staticmethod
+    def _estado_dir(tmp_path: Path, *linhas: str) -> None:
+        import os
+        log = tmp_path / "network_watchdog.log"
+        log.write_text("".join(l + "\n" for l in linhas), encoding="utf-8")
+        os.environ["OD_LOG_DIR"] = str(tmp_path)
+
+    def test_log_ausente_retorna_ok(self, tmp_path: Path) -> None:
+        from integrations.notifier import _check_network
+
+        notifier = make_notifier(orch(OnlineProvider()))
+        import os
+        os.environ["OD_LOG_DIR"] = str(tmp_path)
+        try:
+            result = _check_network(notifier)
+            assert result.ok is True
+            assert result.source == "network"
+            assert "ausente" in result.detail
+        finally:
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_estado_limpo_retorna_ok(self, tmp_path: Path) -> None:
+        """Estado sem pendências → ok com resumo de ativos."""
+        from integrations.notifier import _check_network
+
+        self._estado_dir(
+            tmp_path,
+            '{"ts":"t","tipo":"varredura","ativos":14,"novos":0,"rico":true}',
+            '{"ts":"t","tipo":"estado","ativos":19,"conhecidos_ativos":14,'
+            '"pendentes_novos":[],"pendentes_seguranca":[],"rich":true}',
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        try:
+            result = _check_network(notifier)
+            assert result.ok is True
+            assert "vigia" in result.detail.lower()
+            assert "14" in result.detail
+        finally:
+            import os
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_dispositivo_novo_alerta(self, tmp_path: Path) -> None:
+        """MAC pendente → ok=False, WARN, key net:dispositivo-novo."""
+        from integrations.notifier import _check_network
+
+        self._estado_dir(
+            tmp_path,
+            '{"ts":"t","tipo":"estado","ativos":15,"conhecidos_ativos":14,'
+            '"pendentes_novos":[{"mac":"AC:A7:04:F0:8F:88","ip":"192.168.0.224",'
+            '"fabricante":"Espressif Inc.","desde":"2026-10-21T17:00:00-03:00"}],'
+            '"pendentes_seguranca":[],"rich":true}',
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        try:
+            result = _check_network(notifier)
+            assert result.ok is False
+            assert result.severity == SEVERITY_WARN
+            assert result.key == "net:dispositivo-novo"
+            assert "AC:A7:04:F0:8F:88" in result.detail
+            assert "Espressif" in result.detail
+            assert "192.168.0.224" in result.detail
+        finally:
+            import os
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_dispositivo_novo_lista_truncada(self, tmp_path: Path) -> None:
+        """Mais de 3 pendentes → resumo com '+N outro(s)'."""
+        from integrations.notifier import _check_network
+
+        pendentes = ",".join(
+            '{"mac":"AA:00:00:00:00:0%d","ip":"192.168.0.10%d",'
+            '"fabricante":"X","desde":"t"}' % (i, i) for i in range(5)
+        )
+        self._estado_dir(
+            tmp_path,
+            '{"ts":"t","tipo":"estado","ativos":20,"conhecidos_ativos":15,'
+            f'"pendentes_novos":[{pendentes}],"pendentes_seguranca":[],"rich":true}}',
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        try:
+            result = _check_network(notifier)
+            assert result.ok is False
+            assert "+2 outro(s)" in result.detail
+        finally:
+            import os
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_seguranca_pendente_alerta(self, tmp_path: Path) -> None:
+        """Sem novos, mas com segurança pendente → key net:seguranca."""
+        from integrations.notifier import _check_network
+
+        self._estado_dir(
+            tmp_path,
+            '{"ts":"t","tipo":"estado","ativos":14,"conhecidos_ativos":14,'
+            '"pendentes_novos":[],"pendentes_seguranca":['
+            '{"origem":"sshd","msg":"Failed password for invalid user admin '
+            'from 192.168.0.50 port 5000 ssh2","ts_evento":"t"}],"rich":true}',
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        try:
+            result = _check_network(notifier)
+            assert result.ok is False
+            assert result.key == "net:seguranca"
+            assert "Failed password" in result.detail
+        finally:
+            import os
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_procura_estado_de_tras_pra_frente(self, tmp_path: Path) -> None:
+        """A linha de estado é a última; eventos anteriores não confundem."""
+        from integrations.notifier import _check_network
+
+        self._estado_dir(
+            tmp_path,
+            '{"ts":"t1","tipo":"dispositivo_novo","mac":"AA:BB:CC:DD:EE:FF"}',
+            '{"ts":"t2","tipo":"seguranca","origem":"roteador","msg":"x"}',
+            '{"ts":"t3","tipo":"estado","ativos":14,"conhecidos_ativos":14,'
+            '"pendentes_novos":[],"pendentes_seguranca":[],"rich":true}',
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        try:
+            result = _check_network(notifier)
+            assert result.ok is True
+        finally:
+            import os
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_linhas_corrompidas_nao_derrubam(self, tmp_path: Path) -> None:
+        """Lixo no log + estado válido → sonda segue funcionando."""
+        from integrations.notifier import _check_network
+
+        self._estado_dir(
+            tmp_path,
+            "linha sem json {{{",
+            '{"ts":"t","tipo":"estado","ativos":9,"conhecidos_ativos":9,'
+            '"pendentes_novos":[],"pendentes_seguranca":[]}',
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        try:
+            result = _check_network(notifier)
+            assert result.ok is True
+        finally:
+            import os
+            os.environ.pop("OD_LOG_DIR", None)
+
 
 # ===========================================================================
 # Observabilidade / Alertas Telegram — item 3.6 do TODO (2026-10-16)
@@ -1096,7 +1257,7 @@ class TestPonteDeSaude:
         assert alerts == []
         metrics = notifier.metrics.snapshot()
         assert metrics["errors"] == 1
-        assert metrics["checks_run"] == 5       # as outras 5 sondas seguiram
+        assert metrics["checks_run"] == 6       # as outras 6 sondas seguiram
 
     @pytest.mark.asyncio
     async def test_ponte_roda_depois_das_tools(self) -> None:

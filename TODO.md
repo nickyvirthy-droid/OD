@@ -2,6 +2,11 @@
 
 > **Regra:** este arquivo é o **canal do dono** (regra 14) — editável pelo painel `/admin` e pelo app. Não perca nada durante a caminhada.
 
+> **Regra do dono (21/10):** toda ideia de melhoria que eu tiver durante o
+> trabalho vira item aqui (§5) — para ele discutir e decidir **no tempo
+> dele** (meses podem passar; esquecer é humano, o TODO não esquece).
+> Ele decide; eu não implemento sem ordem.
+
 ---
 
 ## 🔴 Linhas vermelhas (NUNCA violar — ordem do dono)
@@ -180,6 +185,12 @@
 ---
 
 ## 5. Ideias de expansão (parking lot)
+
+> **Itens novos (regra do dono de 21/10 — "toda ideia de melhoria vai para o TODO"):**
+
+- **`network_hosts` enriquecida com o inventário do Vigia da Rede** — ideia da conversa de 21/10 (a action de consulta, que responde "quantas pessoas estão conectadas?" com a tabela ARP **uma vez**, poderia devolver **nome + fabricante + primeira vista** lidos do inventário do `network_watchdog` em vez de só IP/MAC cru). Custo pequeno: ler `logs/network_watchdog_estado.json` e casar por MAC — a action continua sendo foto, só ganha o contexto que o Vigia já tem. Aguarda decisão do dono.
+- **Rotação da senha de WiFi (o elo mais fraco que sobrou)** — apontada em 21/10 na revisão do roteador + criação do Vigia: a chave atual é **palavra de dicionário**; com WPS desligado não é destruição instantânea, mas alguém de carro parado consegue capturar o tráfego e tentar offline. Girar para uma chave forte é a proteção que mais vale hoje — **custo real**: todos os aparelhos digitam a nova (celular/notebook fáceis; **lâmpadas/tomada ESP precisam de re-pareamento no app**; Echos/Show refazem o wifi). Operação planejada (passo a passo pronto se ele mandar).
+- **Diagnóstico dos pings perdidos espalhados (adaptador WiFi USB)** — oferta registrada 21/10: o sinal está **forte** (-51 dBm), então a hipótese não é distância — energia do adaptador USB `wlx000f0037acf0` ou cabo. Separação por medição (trocar porta/energia e medir por dias no `router_monitor.log`). Não pedido ainda.
 
 - **Análise a fundo de FlatNotes, File Browser e Calibre Web — uma por vez** (pedido do dono 17/10): decidir junto manter/ligar ao sistema/tirar. **1ª CONCLUÍDA: FlatNotes — LIGADO em 18/10 (v1.40.0**, decisão do dono *"ligar"*): 3 actions `flatnotes_*`, patch v5.5.5, +40 testes; nota-marcador real no caderno dele. **2ª CONCLUÍDA: File Browser — LIGADO em 19/10 (v1.41.0**, decisão do dono *"Liga"*, depois da análise *"primeiro me explica"*): achados da análise viraram entrega (senha admin/admin **nunca funcionou** → rotacionada no `.env`+cofre; tag `:v2` → **pinada `:2.63.23`**; upload é corpo cru — multipart guardava o envelope); 3 actions `filebrowser_*`, +52 testes, marca-d'agua `Sistema-Od-v1.41.0.txt` na caixa dele. **3ª CONCLUÍDA: Calibre Web — INTERLIGADA em 19/10 (v1.43.0**, decisão do dono *"Configurar e interligar"* + *"os livros estão no google drive"*): espelho do Drive + `calibredb` com **LEDGER** (o `--automerge ignore` escondeu 156 arquivos de conteúdo diferente — provado ao vivo), **693 livros** com 729/729 arquivos com conteúdo, senha rotacionada (admin123 morta por hash), bind duplo, **3 actions `calibre_*`** (OPDS sondado antes de codificar) e botão "Biblioteca" no app — **série "uma por vez" FECHADA**. A ordem aprovada (17/10) segue fechada: **Vaultwarden ✅ (v1.35.0)** → **Stirling ✅ (v1.36.0)** → **Kiwix ✅ (v1.37.0)** → **Homebox ✅ (v1.38.0)** → **FlatNotes ✅ (v1.40.0)** → **File Browser ✅ (v1.41.0)** → **Calibre ✅ (v1.43.0)**
 - **Aba "Ferramentas" com webview dentro do app — DECIDIDO (dono, 19/10): DESCARTADO.** Resposta à minha pergunta: *"com o tailscale funcionando não existe finalidade em embutir, seria melhor apenas um botão que abre o navegador"*. Virou entrega na mesma tarde: **botão "Caixa de arquivos (abre no navegador)" no card "Meu painel"** (v1.42.0+2078, `url_launcher`, URI = host do od-core + porta 8410) + **bind duplo da caixa na tailnet** (antes `127.0.0.1` puro, inalcançável de fora; agora com prova de HTTP 200). Chrome com *Adicionar à tela inicial* segue como alternativa sem custo; **webview não entra** (sem dependência nova, sem manutenção Android extra).

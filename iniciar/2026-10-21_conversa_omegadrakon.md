@@ -188,3 +188,95 @@ Screenshots em `/tmp/opencode/` (`verificacao_final.png`,
 · CHANGELOG §1.44.0 (mesma subseção "sem bump", estendida) · `txt.txt` ·
 Telegram. **Gate não refeito** (nenhum arquivo do sistema em runtime
 mudou — só registros; a última rodada verde do dia: 3546/0 · 90,69%).
+
+---
+
+## §4 — VIGIA DA REDE: INVENTÁRIO DA LAN + ALARME DE INTRUSÃO (tarde, ordem do dono)
+
+**Pedido:** *"agora que consegue ver o roteador, o sistema consegue saber
+todos os dispositivos da rede e tambem avisar se alguem tentou invadir e
+me proteger?"*
+
+**Apuração (só leitura):** o Mapa de Rede do Archer expõe por cliente
+nome/MAC/IP/sinal/tráfego/tempo — **e já mostrava 2 "Desconhecido"**:
+`AC:A7:04:F0:8F:88` (OUI **Espressif** — chip ESP; provavelmente um IoT
+do dono não nomeado) e `0A:31:09:50:C4:5A` (MAC aleatorizado de celular,
+linha sem tráfego). A lista de negados do roteador tem **1 Tuya Smart
+bloqueado** (`C4:82:E1`) — evidência de que a Controlo de Acesso já foi
+usada. Resposta honesta ao dono: de fora **não há o que invadir**
+(CGNAT + zero portas abertas; acesso remoto = Tailscale); o vetor real é
+quem entra pela WiFi — e o elo mais fraco restante é a **senha "omegadrakon"**
+(palavra de dicionário; rotação = operação à parte com custo em todos os
+aparelhos, incl. re-pareamento dos ESPs).
+
+**Escolha do dono:** *"Sim, alerta primeiro"* — inventário + alerta
+imediato de dispositivo novo + vigia de logs, **bloqueio só sob ordem**
+(sem bloqueio automático: poderia trancar ele mesmo fora com aparelho novo
+ou visitante).
+
+**Entrega (padrão da casa: monitor registra, notifier alerta):**
+
+- `tools/monitor/network_watchdog.py` — duas camadas: **rápida** (varredura
+  ARP a cada 5 min via `network-watchdog.timer` novo; diff contra
+  inventário; MAC novo = evento `dispositivo_novo` PENDENTE até
+  `--conhecer`, lembrete por cooldown) e **rica** (a cada 3º ciclo ≈15 min,
+  `vigia_rich.py` no venv durável `/home/alex/od-vigia-venv` — chromium
+  headless **fora do `/tmp`**, que morre no reboot — lê a UI real: nomes/
+  sinais + Registo de Eventos; journal do sshd na mesma classe). Modos:
+  `--seed/--conhecer/--ack-seguranca/--bloquear/--report`.
+- `integrations/notifier.py` — sonda `_check_network` (lê a última linha de
+  estado do log JSON-lines, contrato do `router_monitor`) → alertas
+  `net:dispositivo-novo`/`net:seguranca` com cooldown.
+- Units em `runtime/systemd/` + `install-user.sh` atualizado; testes
+  `tests/test_network_watchdog.py` (77), `TestCheckNetwork` (7) e
+  `TestNetworkWatchdogUnits`.
+
+**Bugs achados no caminho (com teste):** `"dev"` no índice errado do
+`ip neigh`; IP colado ao MAC na grade (`\b` não casa — `\b` removido);
+primeira versão pegava só a 1ª célula (nome sem MAC) → parser único
+compartilhado juntando todas as células; menu lateral poluindo o log do
+roteador (filtro `^\d+ (INFO|WARNING|…)`); seed não reconhecia o que o
+1º ciclo do systemd já havia catalogado.
+
+**Provas:** seed ao vivo = **20 dispositivos com nome+IP+fabricante**
+(Echo-Alex/Echo-Sala/Amazon-Show, 5 lâmpadas Espressif, Tomada1, câmera
+MV20604159 = Shenzhen Bilian, celulares Redmi/Samsung com MAC aleatório,
+PC-Oficina Intel, o próprio servidor); camada rica = 19 clientes + 60
+entradas de log reais; timer no ar (1º ciclo systemd: ativos=10,
+rico=true, pendentes=20 → seed zerou); gate **3592 passed / 16 skipped**
+(+46 testes); od-core reiniciado **health 25/25**.
+
+**Registrado:** `session.json` (chave `vigia_da_rede_2026_10_21`) ·
+CHANGELOG §1.44.0 (subseção "sem bump" nova) · `tools/monitor/README.md`
+(seção Vigia) · `txt.txt` · Telegram.
+
+---
+
+## §5 — REGRA NOVA DO DONO: Toda IDEIA DE MELHORIA VIRA ITEM NO TODO (fim de tarde)
+
+**Pedido (regra de processo):** *"toda vez que tiver uma ideia de melhoria
+como essa do action mostrar os nomes do inventário do vigia, você coloca
+no TODO de atualização para podermos discutir se vamos implementar ou não.
+Às vezes posso demorar meses até resolver colocar algo em prática e nesse
+tempo posso até esquecer. Sua função, a do sistema, é me ajudar."*
+
+**Contexto:** ele perguntou se existiam dois programas fazendo a mesma
+coisa (rotina "leia iniciar" — resposta medida: `router_monitor` = "o
+roteador está no ar?", `network_hosts` = foto ARP sob demanda, Vigia =
+filme com inventário e alarme; nada duplicado, nada apagado). Na resposta
+eu citei uma melhoria possível (a action `network_hosts` devolver os
+nomes do inventário do Vigia) — e ele transformou o exemplo em regra
+durável.
+
+**Aplicado na hora:**
+1. `TODO.md` — regra escrita no topo do arquivo (junto da regra 14 do
+   canal) + seção §5 (parking lot) recebeu 3 itens: `network_hosts`
+   enriquecida com o inventário (a ideia do exemplo), **rotação da senha
+   de WiFi** (pendência técnica de hoje — palavra de dicionário; custo
+   real de reconfigurar tudo) e **diagnóstico dos pings perdidos**
+   (adaptador USB — oferta de hoje, não pedida).
+2. `session.json` — chave `regra_todo_ideias_2026_10_21`.
+
+**Compromisso registrado:** daqui em diante, ideia de melhoria nasce
+como item no §5 do TODO — ele decide no tempo dele; eu não implemento
+sem ordem.

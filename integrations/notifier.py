@@ -503,6 +503,115 @@ def _check_router(notifier: "ProactiveNotifier") -> CheckResult:
         )
 
 
+def _check_network(notifier: "ProactiveNotifier") -> CheckResult:
+    """Vigia da Rede (tools/monitor/network_watchdog.py) — dispositivo novo
+    e eventos de segurança na LAN.
+
+    O vigia escreve JSON-lines em ``<OD_LOG_DIR>/network_watchdog.log`` e a
+    **última linha** é sempre o estado corrente (``tipo="estado"``), no
+    mesmo espelho do ``router_monitor`` (contrato documentado no módulo do
+    vigia). Esta sonda lê os últimos KB, localiza essa linha e traduz
+    pendências em alerta:
+
+    - ``pendentes_novos`` (MAC fora do inventário) → ``net:dispositivo-novo``
+      (WARN; repete a cada cooldown enquanto o dono não reconhecer — é o
+      lembrete pedido: "avise se alguém tentar invadir");
+    - ``pendentes_seguranca`` (login errado/DoS/bloqueio no roteador,
+      Failed password/Invalid user no sshd) → ``net:seguranca``;
+    - sem pendências → ok com o resumo de dispositivos ativos.
+
+    Sem log (vigia ainda não instalado) → ok, como no ``_check_router``.
+    """
+    log_dir = os.environ.get("OD_LOG_DIR", "logs")
+    log_path = Path(log_dir) / "network_watchdog.log"
+
+    if not log_path.exists():
+        return CheckResult(
+            ok=True,
+            source="network",
+            detail="Vigia da Rede não configurado (log ausente).",
+        )
+
+    try:
+        with open(log_path, "rb") as fh:
+            fh.seek(0, 2)
+            size = fh.tell()
+            if size == 0:
+                return CheckResult(
+                    ok=True, source="network",
+                    detail="Vigia da Rede: log vazio.",
+                )
+            fh.seek(max(0, size - 8192))
+            chunk = fh.read().decode("utf-8", errors="replace")
+
+        estado: Optional[dict] = None
+        for linha in reversed(chunk.strip().split("\n")):
+            try:
+                dados = json.loads(linha)
+            except Exception:
+                continue
+            if dados.get("tipo") == "estado":
+                estado = dados
+                break
+
+        if estado is None:
+            return CheckResult(
+                ok=True, source="network",
+                detail="Vigia da Rede: ainda sem linha de estado.",
+            )
+
+        pendentes_novos = estado.get("pendentes_novos") or []
+        if pendentes_novos:
+            resumos = []
+            for p in pendentes_novos[:3]:
+                fab = p.get("fabricante") or "?"
+                ip = p.get("ip") or "?"
+                resumos.append(f"{p.get('mac', '?')} ({fab}, {ip})")
+            extra = (
+                f" +{len(pendentes_novos) - 3} outro(s)"
+                if len(pendentes_novos) > 3 else ""
+            )
+            return CheckResult(
+                ok=False,
+                severity=SEVERITY_WARN,
+                source="network",
+                key="net:dispositivo-novo",
+                detail=(
+                    f"Dispositivo(s) desconhecido(s) na rede: "
+                    f"{', '.join(resumos)}{extra}. Responda quando "
+                    f"reconhecer (ou 'bloqueia o X')."
+                ),
+            )
+
+        pendentes_seg = estado.get("pendentes_seguranca") or []
+        if pendentes_seg:
+            ultima = pendentes_seg[-1]
+            return CheckResult(
+                ok=False,
+                severity=SEVERITY_WARN,
+                source="network",
+                key="net:seguranca",
+                detail=(
+                    f"{len(pendentes_seg)} evento(s) de segurança "
+                    f"pendente(s) — última: "
+                    f"[{ultima.get('origem', '?')}] "
+                    f"{str(ultima.get('msg', '?'))[:140]}"
+                ),
+            )
+
+        ativos = estado.get("conhecidos_ativos", "?")
+        return CheckResult(
+            ok=True, source="network",
+            detail=f"Rede sob vigia — {ativos} dispositivo(s) conhecido(s) ativo(s).",
+        )
+    except Exception as exc:
+        return CheckResult(
+            ok=True,
+            source="network",
+            detail=f"Vigia da Rede: erro ao ler log: {exc}.",
+        )
+
+
 def nrestarts_do_systemd(unit: str) -> Optional[int]:
     """NRestarts da unit do systemd — o contador de restart AUTOMÁTICO.
 
@@ -786,6 +895,7 @@ class ProactiveNotifier:
             _check_loops,
             _check_restart,
             _check_router,
+            _check_network,
         ]
         if self.nomad_tools is not None:
             checks.append(_check_tools)

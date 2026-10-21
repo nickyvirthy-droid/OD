@@ -174,6 +174,60 @@ class TestRouterMonitorUnits:
 
 
 # ---------------------------------------------------------------------------
+# network-watchdog.service / network-watchdog.timer — Vigia da Rede
+# ---------------------------------------------------------------------------
+
+
+class TestNetworkWatchdogUnits:
+    """Vigia da Rede: oneshot de 5 min — inventário + detecção de intrusão."""
+
+    def test_files_exist(self) -> None:
+        assert (SYSTEMD_DIR / "network-watchdog.service").exists()
+        assert (SYSTEMD_DIR / "network-watchdog.timer").exists()
+
+    def test_service_runs_script_once(self) -> None:
+        unit = (SYSTEMD_DIR / "network-watchdog.service").read_text(
+            encoding="utf-8")
+        assert "network_watchdog.py --once" in unit
+        assert "/usr/bin/python3" in unit
+
+    def test_service_environment_file_para_senha_do_roteador(self) -> None:
+        # A camada rica lê a UI do roteador: a senha vem do .env via
+        # EnvironmentFile (nunca versionada, nunca em linha de comando).
+        unit = (SYSTEMD_DIR / "network-watchdog.service").read_text(
+            encoding="utf-8")
+        assert "EnvironmentFile=/home/alex/OmegaDrakon/.env" in unit
+
+    def test_service_does_not_restart(self) -> None:
+        # oneshot por 5 min: mesmo molde do router-monitor (estado é log).
+        unit = (SYSTEMD_DIR / "network-watchdog.service").read_text(
+            encoding="utf-8")
+        assert "Restart=" not in unit
+
+    def test_service_journal_identifier(self) -> None:
+        unit = (SYSTEMD_DIR / "network-watchdog.service").read_text(
+            encoding="utf-8")
+        assert "SyslogIdentifier=network-watchdog" in unit
+
+    def test_timer_fires_every_five_minutes(self) -> None:
+        timer = (SYSTEMD_DIR / "network-watchdog.timer").read_text(
+            encoding="utf-8")
+        assert "OnBootSec=2min" in timer
+        assert "OnUnitActiveSec=5min" in timer
+
+    def test_timer_install_target(self) -> None:
+        timer = (SYSTEMD_DIR / "network-watchdog.timer").read_text(
+            encoding="utf-8")
+        assert "WantedBy=timers.target" in timer
+
+    def test_installador_copia_as_units(self) -> None:
+        install = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
+        assert "network-watchdog.service" in install
+        assert "network-watchdog.timer" in install
+        assert "enable --now network-watchdog.timer" in install
+
+
+# ---------------------------------------------------------------------------
 # install-user.sh
 # ---------------------------------------------------------------------------
 

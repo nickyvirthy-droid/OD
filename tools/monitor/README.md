@@ -72,3 +72,70 @@ uma geração anterior (`<arquivo>.1`).
   medir. O mesmo acontecia com o `cat` de uma interface ausente. Agora o script
   não usa `set -e`, cada comando externo tem fallback, `--once` sai 0 (o estado
   fica no log) e há rotação de log. Testes: `tests/test_router_monitor.py`.
+
+---
+
+# Vigia da Rede 🕵️ (21/10/2026)
+
+Inventário de dispositivos da LAN + detecção de intrusão, a serviço do dono
+(*"o sistema consegue saber todos os dispositivos da rede e avisar se alguém
+tentou invadir?"* — escolha dele: **alerta primeiro**, bloqueio só sob ordem).
+
+## Como está rodando
+
+`network-watchdog.timer` (5 min, oneshot) chamando
+`tools/monitor/network_watchdog.py --once`. Duas camadas:
+
+- **Rápida** (todo ciclo, ~8 s, sem dependência externa): varredura ARP da
+  LAN (ping + `ip neigh`) → diff contra o inventário
+  (`logs/network_watchdog_estado.json`). MAC fora do inventário vira evento
+  `dispositivo_novo` e fica **pendente** até `--conhecer` (lembrete a cada
+  cooldown do notifier enquanto pendente).
+- **Rica** (a cada 3º ciclo ≈ 15 min): `vigia_rich.py` dentro do venv
+  durável `/home/alex/od-vigia-venv` (playwright/chromium — **fora do
+  `/tmp`**, que morre no reboot) lê a UI real do Archer: lista de clientes
+  (nome/sinal enriquecem o inventário; clientes que não responderam ao ping
+  também entram) e o Registo de Eventos (classificado por
+  `evento_seguranca`, com filtro de ruído e do menu lateral). Journal do
+  sshd (`Failed password`/`Invalid user`) entra na mesma classe de evento.
+
+A ponte para o Telegram é a sonda `_check_network`
+(`integrations/notifier.py`): lê a **última linha de estado** do log
+JSON-lines (contrato igual ao do `router_monitor`) e alerta
+`net:dispositivo-novo` / `net:seguranca` com cooldown padrão. O monitor
+**não** envia mensagem direta.
+
+## Uso manual
+
+```bash
+python3 tools/monitor/network_watchdog.py --seed          # reconhece a rede atual
+python3 tools/monitor/network_watchdog.py --conhecer MAC [NOME]
+python3 tools/monitor/network_watchdog.py --ack-seguranca
+python3 tools/monitor/network_watchdog.py --report        # resumo humano
+ROUTER_ADMIN_PASSWORD=... python3 tools/monitor/network_watchdog.py --bloquear MAC   # OPERADOR, sob ordem
+```
+
+## Configuração (variáveis de ambiente)
+
+`OD_LOG_DIR` · `OD_VIGIA_REDE` (padrão `192.168.0.`) · `OD_VIGIA_ALCANCE`
+(teste) · `OD_VIGIA_RICH_A_CADA` (3) · `OD_VIGIA_RICH` (0 desliga) ·
+`OD_VIGIA_OUI` (0 desliga a consulta de fabricante) · `OD_VIGIA_VENV_PY` ·
+`OD_ROUTER_IP` · `OD_VIGIA_MAX_LOG_BYTES` (5 MiB) · `ROUTER_ADMIN_PASSWORD`
+(via `EnvironmentFile=.env` na unit; nunca logada).
+
+## Limites conhecidos
+
+- Detecta e alerta; **não bloqueia sozinho** (`--bloquear` é operador e
+  depende da UI do roteador não mudar).
+- Celular dormindo pode não responder ao ping — a camada rica pega pelo
+  `ip neigh`/UI, mas a detecção instantânea de MAC novo assume aparelho
+  ativo (quem entra na rede está ativo).
+- Sem internet, fabricante fica "desconhecido" (cache local); sem venv do
+  chromium, a camada rica é pulada em silêncio e a rápida segue.
+- Sob CGNAT nada de fora alcança a LAN: o vetor real é a senha de WiFi —
+  vigia cobre quem usa, não quem descobre a senha.
+
+## Histórico
+
+- **2026-10-21** — criado e ligado no timer (`tests/test_network_watchdog.py`,
+  77 testes; sonda em `tests/test_notifier.py::TestCheckNetwork`).

@@ -1,0 +1,24 @@
+[Unit]
+Description=Vigia da Rede - inventário e detecção de intrusão - OmegaDrakon
+Documentation=file:/home/alex/OmegaDrakon/tools/monitor/README.md
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alex/OmegaDrakon
+ExecStart=/usr/bin/python3 /home/alex/OmegaDrakon/tools/monitor/network_watchdog.py --once
+
+# A senha da UI do roteador vem do .env (camada rica: leitura da lista de
+# clientes e do Registo de Eventos via chromium headless). O vigia NUNCA
+# loga/imprime o valor (contrato do módulo).
+EnvironmentFile=/home/alex/OmegaDrakon/.env
+Environment=HOME=/home/alex
+Environment=OD_LOG_DIR=/home/alex/OmegaDrakon/logs
+
+# O monitor NÃO falha o unit quando algo dá errado: o estado vai para o
+# log JSON-lines (mesma lição do router-monitor — exit != 0 a cada ciclo
+# durante um problema é journal pelo motivo errado). Falha dura só em
+# operação de mutação (--bloquear), que nunca roda por aqui.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=network-watchdog

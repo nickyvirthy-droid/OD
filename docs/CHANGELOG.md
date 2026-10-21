@@ -91,6 +91,40 @@ não são distância — diagnóstico aparte, adaptador USB). Limites
 honestos: escanear de fora impossível sob CGNAT; UPnP mantido (Tailscale
 precisa para NAT traversal). Sem restart (nada em runtime mudou).
 
+**Continuação (mesma tarde): VIGIA DA REDE — inventário + alarme de
+intrusão (sem bump, ordem do dono: "alerta primeiro").** Pergunta do dono:
+*"o sistema consegue saber todos os dispositivos da rede e avisar se
+alguém tentou invadir e me proteger?"* — resposta medida na fonte: o
+Archer expõe a lista completa de clientes (nome/MAC/IP/sinal/tráfego) e o
+Registo de Eventos; sob CGNAT o único vetor real é quem entra pela WiFi.
+**Entrega** (mesmo contrato do `router_monitor`: monitor só registra
+JSON-lines, a ponte para o Telegram é a sonda `_check_network` nova no
+notifier, com anti-spam por cooldown): `tools/monitor/network_watchdog.py`
+com **duas camadas** — rápida (varredura ARP a cada 5 min via
+`network-watchdog.timer`, diff contra inventário, MAC novo vira evento
+`dispositivo_novo` e fica **pendente** até o dono resolver, lembrete a
+cada cooldown) e rica (a cada 3º ciclo, chromium headless em venv
+durável `/home/alex/od-vigia-venv` — **fora do `/tmp`**, que morre no
+reboot — lê a UI real do roteador: enriquece nomes/sinais e classifica
+eventos de segurança do log, mais `Failed password`/`Invalid user` do
+journal do sshd). Modos de operador: `--seed`, `--conhecer MAC [nome]`,
+`--ack-seguranca`, `--bloquear MAC` (lista de negação pela UI, sob ordem
+direta — **o vigia não bloqueia sozinho**, escolha explícita do dono) e
+`--report`. **Provas:** seed com a rede real = **20 dispositivos
+catalogados com nome+IP+fabricante** (Echos, lâmpadas Espressif, celulares
+(máscara aleatória = sem OUI), câmera Shenzhen Bilian, o próprio
+servidor); camada rica ao vivo = **19 clientes + 60 entradas de log**
+(filtro do menu lateral, que usa as mesmas `tr.grid-content-tr` da
+grade); gate **3592 passed / 16 skipped** (+46 testes novos: parser com
+dados reais do dia, ciclo em sandbox hermético com rede injetável, sonda
+em tmp); od-core reiniciado com health **25/25**. Achados do dia já
+reportados: 2 MACs desconhecidos (Espressif `AC:A7:04…` e aleatório
+`0A:31:09…`) e 1 **Tuya Smart bloqueado** na lista de negação do
+roteador. Limites honestos: detecta e alerta; bloqueio sob ordem; nada
+vindo de fora (CGNAT) — e o elo mais fraco restante é a **senha de WiFi
+"omegadrakon"** (palavra de dicionário; rotação é operação à parte com
+custo em todos os aparelhos).
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 

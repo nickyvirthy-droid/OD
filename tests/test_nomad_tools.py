@@ -396,8 +396,8 @@ class TestNotifierTools:
     def test_default_checks_so_ganha_tools_com_monitor(self) -> None:
         sem = ProactiveNotifier(None)
         com = self._notifier(_monitor_com_sonda(lambda h, p, c, t: 200), _Clock())
-        assert len(sem._default_checks()) == 6
-        assert len(com._default_checks()) == 7  # + _check_tools
+        assert len(sem._default_checks()) == 7
+        assert len(com._default_checks()) == 8  # + _check_tools
 
     @pytest.mark.asyncio
     async def test_alerta_so_apos_persistencia_de_120s(self) -> None:
@@ -510,7 +510,7 @@ class TestLauncherWiring:
         try:
             assert notifier is not None
             assert notifier.nomad_tools is monitor
-            assert len(notifier._default_checks()) == 7
+            assert len(notifier._default_checks()) == 8
             # estado gravado NO TMP — nunca em data/ de produção
             assert str(notifier.config.state_file).startswith(str(tmp_path))
         finally:
@@ -523,7 +523,7 @@ class TestLauncherWiring:
         try:
             assert notifier is not None
             assert notifier.nomad_tools is None
-            assert len(notifier._default_checks()) == 6
+            assert len(notifier._default_checks()) == 7
             assert str(notifier.config.state_file).startswith(str(tmp_path))
         finally:
             notifier.stop()

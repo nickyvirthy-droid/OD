@@ -56,6 +56,8 @@ Thumbs.db
 logs/*.log
 logs/*.log.*
 logs/*.jsonl
+# Estado do Vigia da Rede (inventário da LAN — operacional, nunca versionar)
+logs/network_watchdog_estado.*
 
 # Backups (keep structure, ignore content)
 backups/*.bak
