@@ -92,6 +92,13 @@ CREDENCIAIS: dict[str, str] = {
         "Master da conta de serviço od-sistema — auto-referência do cofre "
         "(fica cifrada aqui; o bootstrap continua no .env)."
     ),
+    "ROUTER_ADMIN_PASSWORD": (
+        "Senha local de admin do roteador TP-Link Archer C6 (192.168.0.1). "
+        "Entrega do dono via txt.txt em 21/10/2026 — pauta do reboot "
+        "agendado (estava 03:00/diário, colidindo com o backup; mudado "
+        "para domingo 05:00 semanal pela UI real). Usada só por scripts "
+        "operacionais sob ordem; nunca commitada."
+    ),
 }
 
 # username pareado (valor de OUTRA chave do .env)

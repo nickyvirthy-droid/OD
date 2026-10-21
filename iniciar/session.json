@@ -1,4 +1,21 @@
 {
+  "roteador_reboot_agendado_2026_10_21": {
+    "pedido": "Dono (21/10 ~14:30): 'o problema do roteador vamos resolver agora. ele esta configurado para reiniciar as 3:00, justamente no horario dos backups. o sistema pode pegar o controle dele, te passo a senha pelo txt. existe um aplicativo que faz isso, tether, mas nao sei voce consegue clonar ou controlar ele.'",
+    "apuro_medido": "Fingerprint: roteador TP-Link (interface web local tpos, firmware c80_1.14.0_2024-10-08) em 192.168.0.1; /cgi-bin/luci = 403 (nao e OpenWrt); modelo exato so apos login. Historico do router_monitor (751 'down' no log+rotacao): o down de 21/10 03:00:20 foi o UNICO INSTANTANEO de todo o historico recente (latency_ms=5 = host unreachable na hora — assinatura de reboot), enquanto TODOS os outros downs sao timeout de 2009-2012 ms (ping perdido). CONFIRMA a hipotese do dono: o evento das 3:00 e o reboot agendado. MAS os outros ~10-20 min/dia de down espalhados (5:25, 5:50, 5:55, 6:00, 6:05, 6:36, 6:46... o dia inteiro, pico 09h-12h) sao timeouts ISOLADOS de 1 ping — nao e o roteador caindo; quando ele cai de verdade sao minutos consecutivos. Causa provavel: perda de pacote do adaptador WiFi USB do servidor (interface monitorada wlx000f0037acf0). Mudar o agendamento NAO vai zerar esses.",
+    "sobre_o_tether": "Nao e possivel clonar o app Tether (roda na conta TP-Link do celular do dono). Nao precisa: a interface local expoe o MESMO 'Reboot Schedule' e e o que eu consigo ler/mudar com a senha de admin via requests locais (a senha passa pelo tpEncrypt.new.js local).",
+    "plano_acordado_em_discussao": [
+      "1) DONO: escrever a senha de admin do roteador no txt.txt (e o modelo, se o Tether mostrar) — eu leio e APAGO na hora.",
+      "2) EU: ler o agendamento atual (Reboot Schedule) e MOSTRAR sem mudar.",
+      "3) Aplicar a mudanca de horario que o dono confirmar (recomendado: domingo 05:00 — longe do backup 03:00 e do off-site 03:40/capturas 04:00) ou desligar o agendamento, conforme escolha dele. Mutacao de estado externo = so com confirmacao (regra 7).",
+      "4) Senha gravada no .env + cofre (vault_env_mirror, allowlist +1) como os tokens dos bots; NUNCA no git.",
+      "5) Observacao honesta: os downs espalhados do dia a dia provavelmente nao somem (sao o WiFi do servidor); se ele quiser atacar esses depois, o diagnostico e separado (cabo vs tolerancia do check)."
+    ],
+    "estado_lido_sem_mudar_21_10": "LOGIN REAL via chromium headless (UI web do Archer C6, firmware tpos/c80; senha do ambiente, nunca impressa). Pagina #reboot = 'Programacao de Reinicializacao': ATIVADA (checkbox marcado), Perido 03:00 (text 03:00), Repetir = 'Todos os dias'. Opcoes do combo Repetir: Todos os dias / Todas as semanas / Todos os meses; com 'Todas as semanas' aparece campo de DIA da semana (ex. Segunda-feira) — testado SEM salvar (recarreguei; GRAVAR e o unico botao que grava). Hora Atual do roteador 21/10/2026 15:35 = fuso -03 correto (a propria UI avisa para conferir o fuso). Conclui a hipotese do dono: 03:00 todos os dias bate com o down instantaneo de 03:00:20.",
+    "aplicado_21_10": "Escolha do dono (pergunta objetiva): SEMANAL, DOMINGO 05:00. Aplicado pela UI real via chromium headless: combo hora 03->05, Repetir 'Todos os dias'->'Todas as semanas', dia 'Segunda-feira'->'Domingo', GRAVAR. PROVA por reabertura da pagina do zero: texts ['05','00','Todas as semanas','Domingo'], ativo=true — PASSOU (screenshot /tmp/opencode/reboot_prova.png). Tentativas que NADA gravaram no caminho: fill() em campo combobox-text readOnly (travou 20s, EPIPE do driver; estado conferido intacto depois) e JS setando value (nao dispara o widget) — caminho certo = abrir combo pelo wrapper + clicar opcao visivel. Proximo reboot: domingo 25/10 05:00 — longe do backup 03:00, off-site 03:40 e capturas domingos 04:00.",
+    "senha_garda": "ROUTER_ADMIN_PASSWORD no .env (gitignorado) + allowlist +1 no vault_env_mirror.py; espelho do cofre 19/19 gravado+conferiu (cofre 19 itens); token consumido do txt.txt APAGADO do arquivo na hora; nenhum valor impresso.",
+    "validacao": "Gate 3546 passed / 16 skipped / 0 falha · 90,69% (mudanca so na allowlist de script operacional; test_vault 33/33). SEM restart — nenhuma peca em runtime le a chave nova.",
+    "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§2)"
+  },
   "reverificacao_2026_10_21_1420": {
     "pedido": "Usuario: 'leia iniciar' (21/10 ~14:20) — reverificacao de rotina (regra 3) apos o fecho da v1.44.0+2080 (camera QR, registros 20/10 21:40, commit 9322352).",
     "achados_verdes": "SISTEMA VERDE: od-core active desde 20/10 20:39:29 (17h40), MainPID 968535, NRestarts=0; /health (X-API-Key) ok=true, 25 checks NENHUM fora; /app/version 1.44.0/2080 sha aeb8566b… APK 72028650 B publicado; git ARVORE LIMPA, HEAD 9322352 == origin/master (0/0). Backups: diario od-2026-10-21_0310 (03:10) + OFF-SITE do diario enviado 03:40 (1 parte, sha a5c52232…); capturas semanal segue 16_1434 (proximo snapshot domingo 04:00); disco 66% (76G livres). nomad_tools 9/9; notifier ticks=1064 errors=2 problems=24 alerts_emitted=6 alerts_blocked=13.",
@@ -204,7 +221,7 @@
   },
   "session_id": "conv-2026-09-11T12:45-omegadrakon-dev-status",
   "created_at": "2026-09-11T12:45:00Z",
-  "updated_at": "2026-10-21T14:20:00-03:00",
+  "updated_at": "2026-10-21T15:55:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {

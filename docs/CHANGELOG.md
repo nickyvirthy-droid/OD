@@ -46,6 +46,27 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### Reboot do roteador tirado da janela dos backups (sem bump — 21/10)
+
+Dono (*"o problema do roteador vamos resolver agora… ele está configurado
+para reiniciar às 3:00, justamente no horário dos backups"*). Apuração na
+fonte viva: no histórico do `router_monitor`, o down de **21/10 03:00:20
+latency=5 ms** foi o **único instantâneo** de todo o log (host unreachable
+na hora = assinatura de reboot) — os outros 750 downs são timeout de 2 s
+(perda de pacote do adaptador WiFi `wlx…` do servidor, espalhada o dia;
+isso **não** é o roteador caindo e não some com esta mudança). Leitura da
+UI real (chromium headless + senha entregue no `txt.txt`): Archer C6,
+**Programação de Reinicialização ligada, 03:00, Todos os dias** — a
+colisão confirmada. Aplicado pelo dono (*"semanal, domingo 05:00"*):
+**Todas as semanas · Domingo · 05:00** via combos reais da interface +
+**GRAVAR**, prova por reabertura da página (antes `03:00/Todos os dias` →
+depois `05:00/Todas as semanas/Domingo`, ativo). Senha `ROUTER_ADMIN_PASSWORD`
+no `.env` (gitignorado) + cofre — espelho **19/19 gravado+conferiu**
+(`vault_env_mirror.py` +1 na allowlist). Próximo reboot: **domingo
+25/10 05:00** — longe do backup (03:00), do off-site (03:40) e das
+capturas (domingo 04:00). Gate **3546/0 · 90,69%** (só allowlist mudou;
+sem restart — nenhuma peça em runtime lê a chave).
+
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 
 **Resumo:** 3ª da série "uma por vez" (FlatNotes ✅ → File Browser ✅ → **Calibre**). Dono decidiu **"Configurar e interligar"** (19/10) e apontou a fonte: *"os livros estão no google drive"* — pasta **"Biblioteca"** do Drive dele (22 pastas temáticas, **732 itens / 729 arquivos / 1,83 GB** medidos recursivamente; a contagem de 1º nível mentia: 363/1,35 GB). A entrega monta a cadeia inteira: **Drive → espelho local → `calibredb` → Calibre Web (web + OPDS) → actions + botão no app**, e o caminho ensinou duas lições registradas em código: **(1)** o dedup por título do calibre (`--automerge ignore`) **escondeu 156 arquivos de conteúdo diferente** (título embutido do PDF colidindo — provado ao vivo com a mensagem crua *"not added as they already exist"*), então o contrato de resync passou a ser um **LEDGER nosso** (`.calibre_ledger.json`: caminho→tamanho) + `-d --automerge new_record` (colisão de título vira registro próprio); **(2)** a análise de conteúdo por tamanho enganou com **cópias idênticas em duas pastas e zips extraídos** — 55 duplicados criados pela migração foram detectados por **sha256 par a par (55/55 idêntico)** e removidos **só** os ids da migração (54 originais intactos). Estado final provado: **693 livros, 729/729 arquivos com conteúdo, 0 pendentes, reimportação devolvendo `novos=0`**.
