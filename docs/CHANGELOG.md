@@ -449,6 +449,34 @@ usuário também: sobram na lixeira 4 itens-curados criados e jogados fora
 de outra chave, aviso de segredo-fora-da-allowlist. Gate
 **3632 passed / 16 skipped** (3625 + 7).
 
+### Auditor de conversas + a pré-história AIML no site (sem bump — 22/10)
+
+Ordem do dono (22/10, num bloco só): analisar `analise/AIML/` (o
+Nicky antigo em AIML/Delphi) para o histórico do site, reconhecer o
+celular da Nathalia no Vigia, **criar um analisador das conversas do
+chat** e incluir as IAs online sem perder o offline-first. Frentes
+fechadas uma por vez (ordem dele: *"faça uma por vez se for muita
+coisa"*):
+
+| Frente | Entrega |
+|---|---|
+| **Auditor de conversas `core/chat_audit.py` (NOVO)** | Audita as conversas em DUAS fontes com o mesmo juiz: os 66 logs legados do PascAlice (2022→2024, encoding corrompido lido com `errors=replace`, lado pt do `original\|traducao`) e o sistema atual (`conversation_messages` — cascata Postgres → SQLite → JSON). Cada turno vira `ok \| resposta_errada \| devaneio \| inconsistente \| erro` + justificativa; relatório JSON em `analise/` (gitignorado). Juiz plugável **offline-first**: Groq online (`GROQ_API_KEY` viva, `OpenAICompatProvider` já existente) com **gemma-local na reserva POR TURNO**; os dois fora = `erro` com os dois motivos (nunca silêncio). CLI `python -m core.chat_audit` (não sobe com o od-core). |
+| **Regra determinística antes do juiz** | Descoberta NA PROVA VIVA: o juiz alucinou "pertinente e correta" numa resposta VAZIA. Agora lacuna = `resposta_errada` e assistant órfão = `erro`, ambos sem LLM — fato, não opinião. |
+| **Guardas `tests/test_chat_audit.py` (+41)** | Parser (lado pt, encoding corrompido, recursivo, ordem), cascata, juiz (JSON com cerca, veredito desconhecido levanta, reserva por turno, montar_juiz nos 4 modos), auditoria (determinístico não toca o juiz; juiz que explode não para o lote) e CLI (1 sem turnos, 2 sem chave, caminho feliz). Módulo **94%**; pyflakes 0. |
+| **`docs/ANALISE_AIML_NICKY.md` (NOVO)** | Inventário medido (1406 arquivos/338 MB; `Original/` 24.546 categorias ALICE; `OK/` 134 pt-BR; `PascAlice.exe` sem fontes; 66 logs) e o veredito: **catalogar, não migrar** — respostas pt-BR do `OK/` ficam como candidatas a RAG (decisão do dono), ALICE genérico não rebaixa o Nicky. |
+| **Pré-história no site** | `site/historico.html` ganhou **"Fase 0 · Pré-História — o Nicky em AIML"** (timeline no padrão das outras fases, ANTES da Fase 1; contagens de releases/eras intactas — guarda `test_historico_cobre_todos_os_releases` verde) + `docs/ANALISE_AIML_NICKY.md` linkado na página. |
+| **Vigia** | Celular `42:19:FA:3B:BD:45` reconhecido como `Celular-Nathalia-manicure` (0 pendentes). |
+
+**Validação:** gate oficial **3706 passed / 16 skipped / 0 falha ·
+90,79%** (baseline 3665/16 a 90,74%). **Provas vivas:** legado sem juiz
+= **1065 turnos** extraídos dos 66 logs; juiz local classificou
+`"Bom dia" → "What kind of food do you like?"` como `resposta_errada`
+com justificativa; fonte Postgres viva = 4 turnos com **1
+`inconsistente` real** (o chat respondeu "o Qwen local" enquanto roda
+gemma-local); `historico.html` servido 200 byte-idêntico ao disco com
+a Fase 0. Sem restart — peça nova é ferramenta CLI; o od-core não foi
+tocado.
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 
