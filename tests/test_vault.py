@@ -89,12 +89,15 @@ class FakeRunner:
         return len(self.argvs(subcmd))
 
 
-def fazer_cliente(roteiro: dict[str, Any], *, alcanca: bool = True) -> VaultClient:
+def fazer_cliente(roteiro: dict[str, Any], *, alcanca: bool = True,
+                  org: str = "", colecao: str = "") -> VaultClient:
     return VaultClient(
         bw_bin="/home/alex/.local/bin/bw",
         servidor=SERVIDOR,
         email="od-sistema@omegadrakon.dev",
         master=MASTER,
+        org=org,
+        colecao=colecao,
         runner=FakeRunner(roteiro),
         pinger=lambda _s: alcanca,
     )
@@ -265,6 +268,24 @@ class TestVaultClientOperacoes:
         doc = decodifica_stdin(cria)
         assert doc["type"] == 1
         assert doc["login"]["password"] == "s3nh4"
+        assert "organizationId" not in doc  # sem OD_VAULT_ORG = cofre pessoal
+        assert "s3nh4" not in " ".join(cria["argv"])
+
+    def test_guardar_cria_dentro_da_org_quando_configurado(self) -> None:
+        cli = fazer_cliente({
+            "config": OK_CONFIG, "unlock": OK_UNLOCK,
+            "list": (0, "[]", ""),
+            "create": (0, json.dumps({"id": "id-org"}), ""),
+        }, org="org-1", colecao="col-1")
+        resultado = cli.guardar("Segredo da Org", "s3nh4")
+        assert resultado == {"id": "id-org", "nome": "Segredo da Org",
+                             "criado": True}
+        cria = cli._runner.calls[-1]
+        doc = decodifica_stdin(cria)
+        assert doc["organizationId"] == "org-1"
+        assert doc["collectionIds"] == ["col-1"]
+        # contrato do bw comorg: payload via stdin base64, sem flag em argv
+        assert "--organizationid" not in cria["argv"]
         assert "s3nh4" not in " ".join(cria["argv"])
 
     def test_guardar_atualiza_preserva_campos_nao_informados(self) -> None:
@@ -353,6 +374,18 @@ class TestFabricaLazy:
         assert isinstance(primeiro, VaultClient)
         assert primeiro.servidor == SERVIDOR
         assert client_padrao() is primeiro  # mesma sessão por processo
+
+    def test_fabrica_lê_org_compartilhada_do_env(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setattr(vault_mod, "_ENV_PATH", tmp_path / ".env")
+        monkeypatch.setenv("OD_VAULT_SERVER", SERVIDOR)
+        monkeypatch.setenv("OD_VAULT_EMAIL", "od-sistema@omegadrakon.dev")
+        monkeypatch.setenv("OD_VAULT_MASTER", MASTER)
+        monkeypatch.setenv("OD_VAULT_ORG", "org-x")
+        monkeypatch.setenv("OD_VAULT_COLECAO", "col-x")
+        cliente = client_padrao()
+        assert isinstance(cliente, VaultClient)
+        assert cliente.org == "org-x"
+        assert cliente.colecao == "col-x"
 
     def test_env_de_os_environ_lidera_sobre_env_file(self, tmp_path, monkeypatch) -> None:
         env_file = tmp_path / ".env"

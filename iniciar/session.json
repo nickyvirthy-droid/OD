@@ -242,7 +242,7 @@
   "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
  },
- "updated_at": "2026-10-21T23:40:00-03:00",
+ "updated_at": "2026-10-22T04:45:00-03:00",
  "auditoria_pendencias_2026_10_20": {
   "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
   "vereditos": {
@@ -3421,7 +3421,8 @@
   "provas_vivas": "/health: up, 21 checks, fora=nenhum, tools 8/8 · /dashboard/stats: nomad_tools total=8 up=8 fora=[] · /actions: 93 com vault_status/list/get/set · journal 0 erros (menções vault = só registro das actions no boot) · E2E NO COFRE REAL via wrapper de produção: status (conta de serviço, locked, alcanca=true) -> vault_set CRIADO -> vault_list só id/nome/tipo -> vault_get senha confere (case-insensitive) -> vault_set de novo ATUALIZA sem duplicar -> apagar -> cofre de volta a []. Ciclo create/edit/delete provado também direto no CLI. Conta do dono NUNCA usada; cofre terminou vazio.",
   "commits": "código 98fade6; registros no commit seguinte",
   "estado": "PRODUÇÃO v1.35.0+2067 no ar. Fila decidida: 2ª Stirling PDF -> 3ª Kiwix; Homebox volta com uso definido (decisão do dono 17/10) na sequência. Cofre vazio de propósito (.env continua bootstrap); popular é do dono; §8.5 rotação segue adiada por ele. Telegram msg 2992 enviada; txt.txt reescrito.",
-  "transcricao": "iniciar/2026-10-17_conversa_omegadrakon.md §3"
+  "transcricao": "iniciar/2026-10-17_conversa_omegadrakon.md §3",
+  "org_compartilhada_22_10": "Diagnóstico da tela vazia do dono: NÃO é bug — são 2 contas ativas (pessoal nickyvirthy vazia de propósito; serviço od-sistema com os 20 segredos), ambas sem 2FA (dono não quer — ponto fechado). Ordem do dono: 'monta a org'. Organização OmegaDrakon criada pela API com o payload dourado capturado da web vault oficial (POST /api/organizations exige crypto client-side: nome plano, key RSA-OAEP prefixo 4., collectionName AES 2., keys do par da org; o 422 teimoso era planType obrigatório). Conta de serviço = Owner Confirmada; convite da pessoal via /users/invite (emails[] + groups[] + coleção como objeto) confirmado por bw CLI (bw confirm org-member — sem SMTP). Migração: bw edit item --organizationid com payload base64 (bw re-criptografa com a chave da org): 20/20 na coleção Segredos, 0 pessoais, 0 falhas. Bot alinhado: vault.py ganhou org/colecao (env OD_VAULT_ORG/OD_VAULT_COLECAO, fora do git) e guardar() cria item DENTRO da org (contrato stdin-base64 intacto). Achado: JSON cru no stdin morre com 'Error parsing the encoded request data' — base64+\\n é o formato. +3 testes = 35/35 no vault; gate completo 3623 passed / 16 skipped. Provas vivas: vault_set gravando na org ao vivo e vault_get lendo; dono vê tudo ao abrir o app (sync puxa a org); segredos novos do bot caem na org — visíveis pra ele também."
  },
  "stirling_pipeline_documentos_2026_10_17": {
   "pedido": "Dono (17/10, ordem dupla): 'coloque todas as senhas do .env no cofre e começa a implantação da 2ª opção da fila, stirling'. Critério que rege a fila (dito pelo dono em 17/10): 'essas ferramentas só têm interesse para mim se o sistema puder usar-las' + simetria 'nada sai ou entra sem utilidade'. Fila aprovada: Vaultwarden (1ª, entregue) -> Stirling PDF (2ª, ESTA entrega) -> Kiwix (3ª) -> Homebox com uso definido.",

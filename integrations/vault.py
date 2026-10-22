@@ -151,6 +151,8 @@ class VaultClient:
         servidor: str,
         email: str,
         master: str,
+        org: str = "",
+        colecao: str = "",
         timeout_s: float = 30.0,
         runner: Optional[Callable[..., Any]] = None,
         pinger: Optional[Callable[[str], bool]] = None,
@@ -159,6 +161,10 @@ class VaultClient:
         self.servidor = servidor
         self.email = email
         self._master = master
+        # Org compartilhada (OD_VAULT_ORG/OD_VAULT_COLECAO): itens novos
+        # entram lá e as duas contas enxergam. Vazio = cofre pessoal.
+        self.org = org
+        self.colecao = colecao
         self.timeout_s = timeout_s
         self._runner = runner or subprocess.run
         self._pinger = pinger or _ping
@@ -383,6 +389,10 @@ class VaultClient:
             }
             if nota:
                 payload["notes"] = nota
+            if self.org:
+                payload["organizationId"] = self.org
+                if self.colecao:
+                    payload["collectionIds"] = [self.colecao]
             dados = self._codifica(payload)
             rc, out, err = self._run(
                 ["create", "item"],
@@ -466,11 +476,14 @@ def client_padrao() -> Optional[VaultClient]:
             servidor=servidor,
             email=email,
             master=master,
+            org=_env("OD_VAULT_ORG"),
+            colecao=_env("OD_VAULT_COLECAO"),
         )
         log.info(
             "Cofre do sistema configurado",
             servidor=servidor,
             conta=email,
+            org=_env("OD_VAULT_ORG") or "pessoal",
         )
     return _CLIENTE
 

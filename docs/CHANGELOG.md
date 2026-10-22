@@ -304,6 +304,34 @@ localStorage no shell, Cofre200 sem credencial, Caderno ainda302 →
 `/chat?next=` sem sessão; repro headless: Caderno com as notas na
 tela, Caixa em `/f/caixa/files/`, IT Tools fora do menu.
 
+**Continuação (22/10, cofre compartilhado — "monta a org"): AS DUAS
+CONTAS VEEM OS MESMOS SEGREDOS.** Análise anterior mostrou que a tela
+vazia não era bug: eram **2 contas** (a pessoal do dono, vazia de
+propósito, e a de serviço, com os 20 itens) — ordem do dono em
+seguida: *"monta a org"*. A organização **OmegaDrakon** entrou pela
+API do cofre com o **payload dourado capturado da web vault oficial**
+(`POST /api/organizations` exige crypto client-side: nome **plano**,
+`key` = chave da org em RSA-OAEP com prefixo `4.`, `collectionName` em
+AES `2.iv|mac|ct`, `keys` do par novo da org — repliquei byte a byte o
+que a UI envia; o422 persistente era **`planType` obrigatório** no
+struct). Conta de serviço = **Owner Confirmada**; convite da conta
+pessoal via `/users/invite` (`emails[]` + `groups[]` + coleção como
+objeto `{id, readOnly, …}`) e **confirmação pelo bw CLI**
+(`bw confirm org-member` — dispensa SMTP: o confirm é server-side).
+Os **20 itens migraram** pra coleção "Segredos" (`bw edit item
+--organizationid`, payload base64 — o bw re-criptografa com a chave
+da org;19/19 +1, zero falha). **Bot alinhado**: `vault.py` ganhou
+`org`/`colecao` (env `OD_VAULT_ORG`/`OD_VAULT_COLECAO`) e
+`guardar()` cria item **dentro** da org pelo mesmo contrato
+stdin-base64 que o update já usava. Achado registrado: payload de org
+em **JSON cru** no stdin morre com *"Error parsing the encoded
+request data"* — base64 com `\n` é o formato (o `_codifica` já fazia
+certo; meu teste é que mandou cru). +3 testes = **35/35** no vault.
+Provas vivas: org criada (200, `hasPublicAndPrivateKeys`), membro
+pessoal `status=2` (Confirmed), **20/20 na org ·0 pessoais**,
+`vault_set` ao vivo gravando na org e `vault_get` lendo de volta;
+dono vê tudo ao abrir o app (o sync puxa a org sozinho).
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 

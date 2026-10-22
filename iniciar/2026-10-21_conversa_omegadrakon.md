@@ -528,3 +528,56 @@ o portão de sessão** (clientes Bitwarden não falam cookie — senha-mestra
 atende os dois desejos dele de interface: `flatnotes_anota`/`flatnotes_busca`
 e `vault_list`/`vault_get`/`vault_set`. +5 testes = **25/25**; provas
 vivas no od-core reiniciado + repro headless completo.
+
+## §11 — Cofre compartilhado: organização OmegaDrakon (22/10, madrugada)
+
+**Gatilho:** o dono tentou logar o app na conta pessoal e viu tela
+vazia. Diagnóstico (painel admin do cofre): **2 contas ativas** —
+`nickyvirthy@gmail.com` (pessoal, criada15/10, vazia de propósito) e
+`od-sistema@omegadrakon.dev` (serviço, criada17/10, **os20 segredos**);
+ambas verificadas, sem2FA (ponto fechado: dono não quer ativar).
+Conselho dado (Telegram3198): logar o app na conta de serviço.
+Resposta do dono: **"monta a org"**.
+
+**Como entrou (API do cofre com o payload da web vault oficial):**
+`POST /api/organizations` devia422 teimoso; o struct do Vaultwarden
+exige `billingEmail` + `collectionName` + `key` + `name` +
+**`planType`** (este era o faltante — NumberOrString, ignorado depois,
+mas obrigatório). A crypto é client-side e o navegador fez a parte
+dele: capturei o pedido exato da UI (`/tmp/opencode/od_req_capta.json`)
+— `name` **plano**, `key` = chave da org em RSA-OAEP (`4.…`),
+`collectionName` em AES-CBC+HMAC (`2.iv|mac|ct`), `keys` = par novo da
+org, `planType:0` — e **repliquei byte a byte** com curl → **200**.
+Organização **OmegaDrakon** `96c6d166-…`, coleção **Segredos**
+`f2589058-…`; conta de serviço = Owner Confirmada.
+
+**Convite sem SMTP:** `POST /api/organizations/{id}/users/invite`
+(`emails:[]` + `groups:[]` obrigatório + coleção como objeto
+`{id, readOnly, hidePasswords, manage}`) → conta pessoal entrou
+`status=1` (Aceita) e o **`bw confirm org-member`** fechou em
+`status=2` (Confirmada) — o confirm é server-side, dispensa o email.
+Obs.: bw CLI exige `bw sync` antes ("No encryption key for this
+organization" = sync local atrasado).
+
+**Migração dos20 itens:** `bw edit item --organizationid` com o JSON
+em **base64** (argumento posicional) — o bw re-criptografa com a
+chave da org;19+1, **zero falha**, final:20 na org /0 pessoais.
+
+**Achado do bw CLI (registrado):** payload com org em **JSON cru** no
+stdin morre com *"Error parsing the encoded request data"* — o
+formato é **base64 + `\n`**. O `_codifica` do `vault.py` já fazia
+certo (o teste errado foi meu, não o código).
+
+**Bot alinhado (o único código que mudou):** `integrations/vault.py` —
+`VaultClient` ganhou `org`/`colecao` (fábrica lê `OD_VAULT_ORG` /
+`OD_VAULT_COLECAO` do `.env`) e `guardar()` injeta
+`organizationId` + `collectionIds` ao **criar** (update já carregava
+a org pelo doc do `bw get`). Prova viva: `vault_set('zz-teste-org-live',
+…)` gravou **dentro** da org, `vault_get` leu de volta, item de teste
+apagado permanente. +3 testes = **35/35** no `test_vault.py`.
+
+**Cadeia de prova final:** org criada (200, `hasPublicAndPrivateKeys`),
+membro pessoal Confirmed,20/20 na org, create/edit/delete de item de
+org nos3 formatos testados, `vault_set`/`vault_get` ao vivo. Dono vê
+tudo ao abrir o app (sync puxa a org); segredos novos do bot caem na
+org — visíveis pra ele também.
