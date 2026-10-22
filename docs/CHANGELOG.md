@@ -332,6 +332,30 @@ pessoal `status=2` (Confirmed), **20/20 na org ·0 pessoais**,
 `vault_set` ao vivo gravando na org e `vault_get` lendo de volta;
 dono vê tudo ao abrir o app (o sync puxa a org sozinho).
 
+**Continuação (22/10, correção — "não funcionou: site vazio, app nada"):
+O ITEM DA ORG SEM VÍNCULO DE COLEÇÃO.** Relato do dono minutos depois
+da org pronta (clientes sincronizando normal — sync 200 no log). O
+diagnóstico saiu do **banco SQLite do cofre lido em modo ro** (meu
+token de API tinha expirado): membro `status=2`, `akey` presente,
+chaves ok, `users_collections` com a linha dele — servidor perfeito —
+e **`ciphers_collections` com ZERO linhas**. Os 20 itens estavam na org
+**sem coleção**: `create`/`update` do bw **ignoram `collectionIds` no
+payload** (o fonte manda `None` nos dois caminhos — o bw até ecoa
+`collectionIds` na resposta); coleção só grava pelo endpoint dedicado
+`PUT /ciphers/{id}/collections`, chamada separada que a migração por
+CLI não fez. **Por que o teste antigo mentiu:** a conta de serviço é
+Owner `access_all=1` (vê tudo sem coleção) e a conta do dono é User
+`access_all=0` (vê **só** o que está em coleção) — ele via literalmente
+nada. Reparo ao vivo: `bw edit item-collections <id> <base64>` com
+**array cru** `["<colecao>"]` (objeto cru → **422** — o struct só
+aceita `collectionIds: Vec`) → **20/20 com coleção, antes 0**. Bot
+corrigido: `vault.py::_liga_colecao()` — `guardar()` anexa a coleção
+logo após o **create** e o **update** auto-cura item sem coleção.
++2 testes = **37/37** no vault. Provas vivas: create limpo gravando a
+linha `('f2589058-…',)` no banco (1º teste deu falso-negativo: o uuid
+capturado em `$()` levou junto o **log no stdout** — id de prova grava-se
+em arquivo). Sync do dono agora devolve os 20 itens — sem relogar.
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 

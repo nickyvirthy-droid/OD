@@ -270,23 +270,65 @@ class TestVaultClientOperacoes:
         assert doc["login"]["password"] == "s3nh4"
         assert "organizationId" not in doc  # sem OD_VAULT_ORG = cofre pessoal
         assert "s3nh4" not in " ".join(cria["argv"])
+        # cofre pessoal: NUNCA a chamada dedicada de coleção
+        assert not any("item-collections" in c["argv"] for c in cli._runner.calls)
 
     def test_guardar_cria_dentro_da_org_quando_configurado(self) -> None:
         cli = fazer_cliente({
             "config": OK_CONFIG, "unlock": OK_UNLOCK,
             "list": (0, "[]", ""),
             "create": (0, json.dumps({"id": "id-org"}), ""),
+            "edit": (0, "{}", ""),
         }, org="org-1", colecao="col-1")
         resultado = cli.guardar("Segredo da Org", "s3nh4")
         assert resultado == {"id": "id-org", "nome": "Segredo da Org",
                              "criado": True}
-        cria = cli._runner.calls[-1]
+        cria = next(c for c in cli._runner.calls if c["argv"][1] == "create")
         doc = decodifica_stdin(cria)
         assert doc["organizationId"] == "org-1"
         assert doc["collectionIds"] == ["col-1"]
         # contrato do bw comorg: payload via stdin base64, sem flag em argv
         assert "--organizationid" not in cria["argv"]
         assert "s3nh4" not in " ".join(cria["argv"])
+        # create IGNORA collectionIds: segunda chamada anexa a coleção
+        # (sem ela o item fica invisível pra conta pessoal do dono)
+        liga = [c for c in cli._runner.calls if "item-collections" in c["argv"]]
+        assert len(liga) == 1
+        assert liga[0]["argv"][1:4] == ["edit", "item-collections", "id-org"]
+        assert decodifica_stdin(liga[0]) == ["col-1"]  # array cru, não objeto
+        assert "col-1" not in " ".join(liga[0]["argv"])
+
+    def test_guardar_update_anexa_colecao_que_estava_faltando(self) -> None:
+        """Auto-cura: item de org criado sem coleção ganha a dela no update."""
+        item_org_sem_colecao = dict(ITEM_BRUTO, organizationId="org-1",
+                                    collectionIds=[])
+        cli = fazer_cliente({
+            "config": OK_CONFIG, "unlock": OK_UNLOCK,
+            "list": (0, json.dumps([item_org_sem_colecao]), ""),
+            "get": (0, json.dumps(item_org_sem_colecao), ""),
+            "edit": (0, json.dumps(item_org_sem_colecao), ""),
+        }, org="org-1", colecao="col-1")
+        resultado = cli.guardar("od prova", "pw-nova")
+        assert resultado["criado"] is False
+        liga = [c for c in cli._runner.calls if "item-collections" in c["argv"]]
+        assert len(liga) == 1
+        assert liga[0]["argv"][-1] == "id-1"
+        assert decodifica_stdin(liga[0]) == ["col-1"]
+
+    def test_guardar_update_nao_toca_em_item_ja_na_colecao(self) -> None:
+        """Item já ligado à coleção: update não gera chamada extra."""
+        item_ok = dict(ITEM_BRUTO, organizationId="org-1",
+                       collectionIds=["col-1"])
+        cli = fazer_cliente({
+            "config": OK_CONFIG, "unlock": OK_UNLOCK,
+            "list": (0, json.dumps([item_ok]), ""),
+            "get": (0, json.dumps(item_ok), ""),
+            "edit": (0, json.dumps(item_ok), ""),
+        }, org="org-1", colecao="col-1")
+        resultado = cli.guardar("od prova", "pw-nova")
+        assert resultado["criado"] is False
+        assert not any("item-collections" in c["argv"]
+                       for c in cli._runner.calls)
 
     def test_guardar_atualiza_preserva_campos_nao_informados(self) -> None:
         cli = fazer_cliente({

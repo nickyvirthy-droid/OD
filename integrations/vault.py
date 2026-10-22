@@ -405,6 +405,12 @@ class VaultClient:
                 item = json.loads(out)
             except json.JSONDecodeError:
                 raise VaultError("bw_falhou", "create: saída não-JSON") from None
+            if self.org and self.colecao:
+                # bw create IGNORA collectionIds (contrato é chamada
+                # dedicada) — item de org sem coleção é invisível pra
+                # membros comuns (escopo por coleção; o dono via
+                # access_all enxergava, por isso o bug passou)
+                self._liga_colecao(item.get("id", ""))
             return {"id": item.get("id", ""), "nome": nome, "criado": True}
 
         # Atualização: merge sobre o item completo (nunca apaga campo por omissão)
@@ -433,6 +439,12 @@ class VaultClient:
             item = json.loads(out)
         except json.JSONDecodeError:
             raise VaultError("bw_falhou", "edit: saída não-JSON") from None
+        if self.org and self.colecao and self.colecao not in (
+            doc.get("collectionIds") or []
+        ):
+            # auto-cura: item de org criado antes desta correção sem
+            # coleção ganha a coleção certa no primeiro update
+            self._liga_colecao(existente["id"])
         return {"id": item.get("id", ""), "nome": nome, "criado": False}
 
     def apagar(self, nome: str) -> dict[str, Any]:
@@ -453,6 +465,27 @@ class VaultClient:
         """JSON → base64 com \n (formato de stdin aceito pelo bw)."""
         bruto = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         return base64.b64encode(bruto).decode("ascii") + "\n"
+
+    def _liga_colecao(self, item_id: str) -> None:
+        """Anexa o item à coleção da org (bw edit item-collections).
+
+        Create/update do bw IGNORAM ``collectionIds`` no payload: a
+        coleção só grava por chamada dedicada, cujo corpo é o **array**
+        de ids codificado. Item de org sem coleção é invisível pra
+        membros comuns (escopo por coleção) — o dono via access_all
+        enxergava tudo, por isso o bug passou despercebido.
+        """
+        if not self.colecao:
+            return
+        bruto = json.dumps([self.colecao]).encode("utf-8")
+        dados = base64.b64encode(bruto).decode("ascii") + "\n"
+        rc, out, err = self._run(
+            ["edit", "item-collections", item_id],
+            sessao=self._sessao_valida(),
+            dados=dados,
+        )
+        if rc != 0:
+            raise self._mapeia_falha(err or out, "edit")
 
 
 # ---------------------------------------------------------------------------

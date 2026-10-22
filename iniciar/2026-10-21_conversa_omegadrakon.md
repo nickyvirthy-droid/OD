@@ -581,3 +581,53 @@ membro pessoal Confirmed,20/20 na org, create/edit/delete de item de
 org nos3 formatos testados, `vault_set`/`vault_get` ao vivo. Dono vê
 tudo ao abrir o app (sync puxa a org); segredos novos do bot caem na
 org — visíveis pra ele também.
+
+## §12 — "Não funcionou": o item da org SEM coleção (22/10, manhã)
+
+**Relato:** *"não funcionou. no site tela vazia, no app Bitwarden nada"*
+— logo depois da org pronta e confirmada. Os clientes dele sincronizavam
+normal (sync 200, login novo às 11:30 no log do cofre), então não era
+sessão velha: o servidor entregava sync e ele via vazio.
+
+**Diagnóstico sem chute (meu token de API tinha expirado — 401):** li o
+**banco SQLite do cofre direto** (db.sqlite3, modo ro). Membro `status=2`
+(Confirmed), `atype=2`, `akey` de 346 chars, usuário com chave pública E
+privada, `users_collections` com a linha dele ligada à Coleção Segredos.
+**Servidor perfeito** — e os 20 itens?
+
+**Achado:** `ciphers_collections` com **ZERO linhas**. Os 20 itens estavam
+na org mas **sem vínculo com a coleção**: `create`/`update` do bw
+**ignoram `collectionIds` no payload** (o fonte confirma —
+`update_cipher_from_data(…, None, …)`: os dois caminhos passam `None`;
+o bw até ecoa `collectionIds` na resposta, mentindo bonito). Coleção só
+grava pelo endpoint dedicado `PUT /ciphers/{id}/collections`, que o
+cliente oficial chama em separado depois de salvar — um passo que a
+migração por CLI não fez.
+
+**Por que passou despercebido pra mim:** a conta de serviço é Owner com
+`access_all=1` → enxerga os itens **mesmo sem coleção**; a conta pessoal
+do dono é User com `access_all=0` → enxerga **só o que está em coleção**.
+Meu "20/20 na org" media a metade errada. Lição registrada: provar a
+visão do USUÁRIO, não a do dono da API.
+
+**Formato do reparo (apurado ao vivo):** `bw edit item-collections <id>
+<base64>` com **array cru** `["<colecao>"]` — o objeto `{"id":…,
+"collectionIds":[…]}` devolve **422** (o struct `CollectionsAdminData`
+só aceita `collectionIds: Vec`); com o array, exit 0. **20/20 reparados →
+banco com 20 linhas** (antes: 0).
+
+**Patch no bot (`integrations/vault.py`):** método novo `_liga_colecao()`
+— `guardar()` chama `bw edit item-collections` logo após o **create**
+(item novo nasce com coleção) e o **update** auto-cura item sem a
+coleção (`collectionIds` do `bw get` não contém a dela → anexa). Prova
+viva: create limpo → linha `('f2589058-…',)` no banco. Falso negativo
+registrado: o primeiro teste deu "None" porque o uuid foi capturado em
+command substitution e o **log do cofre sai no stdout** junto — lição:
+gravar id em arquivo, nunca em `$()`.
+
+**Guardas:** +2 testes = **37/37** no `test_vault.py` (create anexa o
+array cru sem segredo em argv; update já-ligado não gera chamada extra;
+o caminho pessoal nunca chama `item-collections`).
+
+**Estado final:** sync do dono agora devolve os 20 itens — app e site
+mostram tudo no próximo sync, sem relogar.
