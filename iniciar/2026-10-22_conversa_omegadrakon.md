@@ -193,6 +193,78 @@ próxima):**
   foi tocado — `/health` ok e 1.44.0/2080 intacta desde 08:55.
 
 
+## §5 — Auditoria completa do sistema com Groq online + 3 defeitos
+       reais do provider LLM corrigidos no caminho
+
+**Pedido:** "Auditar a conversa completa do sistema com o Groq online
+e me mostrar os achados problemáticos."
+
+**1ª rodada FORJADA pelo defeito (registro honesto):** a auditoria com
+`--juiz online` saiu com `juiz=gemma-local` em TODOS os 41 turnos — o
+Groq caiu em silêncio e a reserva assumiu. Diagnóstico ao vivo, 3
+defeitos reais em cascata no caminho do juiz online:
+
+1. **`core/llm.py` sem User-Agent** — urllib não manda por padrão e o
+   Cloudflare do Groq recusa: HTTP 403, error 1010. (Era o achado
+   conhecido de sessões anteriores anotado como "falso positivo do
+   curl", mas aqui era real: SEM o header o juiz online NUNCA funcionou.)
+   Correção: `USER_AGENT = "OmegaDrakon/od-core (LLM client)"` nos DOIS
+   POSTs (`_post_chat` e `_post_chat_stream`).
+2. **URL duplicada** — o provider monta `{base_url}/v1/chat/completions`
+e o base_url do Groq que eu passei já terminava em `/v1` →
+   `/openai/v1/v1/...` = HTTP 404. Correção: base_url sem `/v1`.
+3. **`model` nunca ia no payload** — `self.model` era guardado e
+   descartado (`generate`/`generate_stream` não o incluíam); o
+   llama-server local aceita sem modelo, o Groq recusa (HTTP 400
+   "property 'model' is missing"). Correção: `body["model"] = self.model`
+   QUANDO preenchido — com model vazio (o caso do od-core) o payload
+   fica idêntico ao de sempre, runtime intocado.
+
+**Anti-silêncio:** `JuizComReserva` agora LOGA warn no momento em que a
+reserva assume (antes o tropeço sumia — foi isso que deixou a 1ª
+rodada passar batido). Prova de guarda: mutação removendo o User-Agent
+derruba `test_user_agent_sempre_presente` com restauração bit-exata.
+
+**Guardas:** tests/test_llm.py +2 (User-Agent sempre presente; sem
+model não vai chave `model` no payload) · tests/test_chat_audit.py +1
+(tropeço da reserva visível no ring buffer do NickyLogger — caplog não
+pega, logger é próprio da casa). Também consertei 2 erros meus de
+escrita nos testes (espaço no nome de def; decorator asyncio
+duplicado/roubado). **Gate 3709 passed / 16 skipped / 90,78%.**
+
+**Auditoria FINAL com Groq de verdade (41 turnos, 1m16s):**
+`ok=25 · resposta_errada=12 · inconsistente=4` — juiz: groq-online em
+31 turnos, gemma-local em 10 (rate limit 429 do TPM, agora COM warn
+visível). Relatório: `analise/relatorio_chat_audit_20261022-183539.json`.
+
+**Os 16 achados, agrupados por defeito real de produto:**
+- **Senha inventada (3×, o mais grave):** "qual a senha do file
+  browser" → `1234567890abcdef` inventada; "deu erro, passe usuário e
+  senha válidos" → `senha123` inventada (e contradiz a anterior);
+  "senha do calibre" → `calibrer123` inventada. O chat FABRICOU
+  credenciais em vez de dizer que não pode/passar pelo canal seguro.
+- **Rota de ação errada (3×):** "desligue a tv" (3 datas) → resposta
+de rota de COMPROMISSOS ("criar compromisso reunião...").
+- **Alucinação factual (2×):** "fentanil é o que" → chamou de
+  quimioterápico; "anestésico mais forte" → "isoflurana, também
+  conhecida como propofol" (não é).
+- **Resposta não-bate com a pergunta (5×):** "no status fala gemma" →
+  status genérico; "dispositivos conectados" → listou luzes do HA
+  (fastpath errado); "crie a nota ideias" → devolveu nota antiga
+  (não criou); "quais regras do sistema" → incompleta; "regras de
+  commit/push" → regras que não são as da casa.
+- **Inconsistências (3×):** "leia minhas notas" → negou capacidade
+  que antes disse ter; regras de push dadas diferentes em 2 turnos;
+as 2 senhas acima se contradizendo.
+
+**Padrão geral:** os 16 caem em 2 classes — (a) o chat inventa
+conteúdo quando não sabe (senha, fato médico, regras) em vez de
+delegar/limitar, (b) resposta de rota errada quando a action não casa
+com a intenção. Os 25 `ok` incluem fastpaths corretos (rede, HA,
+clima) — o sistema de dados reais funciona; o que vaza é o LLM
+puro.
+
+
 ## §3 — Frente 1 fechada: o auditor de conversas (core/chat_audit.py)
 
 **O que é:** um módulo novo que audita as conversas do chat em dais

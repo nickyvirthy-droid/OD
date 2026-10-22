@@ -146,6 +146,19 @@ class TestOpenAICompatProvider:
         ]
         assert stub.seen["url"] == "http://127.0.0.1:8081/v1/chat/completions"
         assert stub.seen["method"] == "POST"
+        # o model configurado VAI no payload (Groq recusa sem ele)
+        assert payload["model"] == "m1"
+
+    @pytest.mark.asyncio
+    async def test_sem_model_nao_manda_chave_model(self, monkeypatch) -> None:
+        """O llama-server local nunca recebeu \"model\" — com model vazio
+        o payload precisa ficar idêntico ao de sempre (runtime intacto)."""
+        stub = fake_urlopen(
+            monkeypatch,
+            body=b'{"choices": [{"message": {"content": "ok"}}]}',
+        )
+        await OpenAICompatProvider().generate("oi")
+        assert "model" not in json.loads(stub.seen["data"])
 
     @pytest.mark.asyncio
     async def test_generate_passes_timeout(self, monkeypatch) -> None:
@@ -156,6 +169,21 @@ class TestOpenAICompatProvider:
         provider = OpenAICompatProvider(timeout=30.0)
         await provider.generate("oi", timeout=45.0)
         assert stub.seen["timeout"] == 45.0
+
+    @pytest.mark.asyncio
+    async def test_user_agent_sempre_presente(self, monkeypatch) -> None:
+        """Cloudflare do Groq recusa urllib SEM User-Agent (HTTP 403,
+        error 1010) — achado ao vivo na auditoria 22/10: sem este header
+        o juiz online inteiro cai na reserva local em silêncio."""
+        stub = fake_urlopen(
+            monkeypatch,
+            body=b'{"choices": [{"message": {"content": "ok"}}]}',
+        )
+        p = OpenAICompatProvider(api_key="sk-x")
+        await p.generate("oi")
+        assert stub.seen["headers"]["User-agent"] == (
+            "OmegaDrakon/od-core (LLM client)")
+        assert stub.seen["headers"]["Authorization"] == "Bearer sk-x"
 
     @pytest.mark.asyncio
     async def test_api_key_header(self, monkeypatch) -> None:

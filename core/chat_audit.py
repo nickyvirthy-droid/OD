@@ -379,6 +379,12 @@ class JuizComReserva:
             return self.principal.julgar(turno, anterior)
         except Exception as exc:
             primeiro_erro = str(exc)
+            # Visível de propósito: na auditoria 22/10 o Groq caiu em TODOS
+            # os turnos (403 sem User-Agent) e a reserva assumiu em silêncio
+            # — relatório mostrou 'gemma-local' sem ninguém perceber.
+            log.warn("Juiz principal tropeçou — reserva assume no turno",
+                     juiz=getattr(self.principal, "nome", "principal"),
+                     fonte=turno.fonte, error=primeiro_erro)
         if self.reserva is not None:
             try:
                 return self.reserva.julgar(turno, anterior)
@@ -411,8 +417,11 @@ def montar_juiz(modo: str, env: Callable[[str, str], str]) -> Any:
         chave = env("GROQ_API_KEY", "").strip()
         if not chave:
             raise ValueError("--juiz online/auto sem GROQ_API_KEY")
+        # Sem /v1: o _post_chat do provider já acrescenta
+        # "/v1/chat/completions" (com /v1 no base_url a URL ficava
+        # /openai/v1/v1/... → HTTP 404, achado ao vivo 22/10).
         return JuizLLM(OpenAICompatProvider(
-            name="groq-online", base_url="https://api.groq.com/openai/v1",
+            name="groq-online", base_url="https://api.groq.com/openai",
             model=env("OD_AUDIT_GROQ_MODEL", "openai/gpt-oss-120b"),
             api_key=chave, max_tokens=1024, temperature=0.0),
             nome="groq-online")

@@ -39,6 +39,10 @@ IM_END = "<|im_end|>"
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_LLM_URL = "http://127.0.0.1:8081"  # llama-server local (legado)
+# urllib não manda User-Agent por padrão e o Cloudflare do Groq recusa
+# (HTTP 403, error 1010) — achado ao vivo na auditoria 22/10: SEM este
+# header todo o juiz online cai na reserva local em silêncio.
+USER_AGENT = "OmegaDrakon/od-core (LLM client)"
 
 _VALID_ROLES = {"system", "user", "assistant", "tool"}
 
@@ -129,6 +133,11 @@ class OpenAICompatProvider:
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
         }
+        if self.model:
+            # APIs de nuvem (Groq) RECUSAM sem "model" (HTTP 400). O
+            # llama-server local não pede — com model vazio o payload
+            # fica idêntico ao de sempre (runtime intocado).
+            body["model"] = self.model
         try:
             data = await asyncio.to_thread(
                 self._post_chat, body, timeout
@@ -173,6 +182,8 @@ class OpenAICompatProvider:
             "max_tokens": self.max_tokens,
             "stream": True,
         }
+        if self.model:
+            body["model"] = self.model  # ver _post_chat: Groq exige
         try:
             async for chunk in self._post_chat_stream(body, timeout):
                 yield chunk
@@ -209,7 +220,8 @@ class OpenAICompatProvider:
         (ex: gemma-4) podem mandar só `reasoning_content` — nesse caso o
         raciocínio é devolvido como melhor esforço, em vez de stream vazio.
         """
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json",
+                   "User-Agent": USER_AGENT}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         payload = json.dumps(body).encode("utf-8")
@@ -280,7 +292,8 @@ class OpenAICompatProvider:
             resp.close()
 
     def _post_chat(self, body: dict[str, Any], timeout: float) -> dict[str, Any]:
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json",
+                   "User-Agent": USER_AGENT}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         payload = json.dumps(body).encode("utf-8")

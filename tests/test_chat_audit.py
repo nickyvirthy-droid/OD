@@ -318,6 +318,23 @@ class TestJuiz:
         assert len(principal.chamadas) == 1
         assert len(reserva.chamadas) == 1
 
+    def test_tropeço_da_reserva_fica_visível_no_log(self) -> None:
+        """O silêncio escondeu o Groq fora na auditoria 22/10 — agora o
+        tropeço do principal é LOGADO no momento da reserva.
+        (Ring buffer do NickyLogger — caplog não pega: logger próprio.)"""
+        from core import chat_audit
+
+        chat_audit.log.clear_records()
+        principal = _Juiz(JuizError("403 error 1010"))
+        reserva = _Juiz(Veredito("ok", "local", "local"))
+        v = JuizComReserva(principal, reserva).julgar(
+            Turno("sistema", "", "u", "p", "r"))
+        assert v.juiz == "local"
+        avisos = [r for r in chat_audit.log.records
+                  if "reserva assume" in r.message]
+        assert avisos, [r.message for r in chat_audit.log.records]
+        assert avisos[0].context.get("error") == "403 error 1010"
+
     def test_sem_reserva_o_erro_vira_veredito(self) -> None:
         v = JuizComReserva(_Juiz(JuizError("sem LLM"))).julgar(
             Turno("sistema", "", "u", "p", "r"))
