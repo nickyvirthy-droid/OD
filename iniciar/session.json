@@ -1,4 +1,19 @@
 {
+ "reverificacao_botao_topo_vigia_e_gate_2026_10_22": {
+  "pedido": "Usuario: 'leia iniciar' (~15:20) — reverificacao de rotina (regra 3) apos (a) o update do OpenCode 2.0.20->2.1.3 pedido pelo dono ('update', servico reiniciado 15:06, TUI re-criada 15:19) e (b) o registro do cofre (commit 3f00c57, §14 do arquivo 21-22/10).",
+  "achados_verdes": "od-core active desde 08:55:28, MainPID 2950690, NRestarts=0; /health ok=true 25 checks NENHUM fora; /app/version 1.44.0/2080 sha aeb8566b == APK publicado; txt.txt sem mensagem nova do dono (ultima escrita = nossa 14:33, entrega do cofre); backups/off-site como registrados.",
+  "residuo_fechado": "Achados 2 arquivos modificados NAO commitados (15:09-15:10 = sessao build interrompida no meio do pedido do dono 'no site as páginas são muito compridas. coloque aquele círculo que retorna ao topo' — agentes tem ordem de nao commitar, quem commita e o orquestrador): (1) loja.html ganhou um SEGUNDO toTop (a pagina ja tinha o seu na linha 143; dois id=toTop = HTML invalido, 2o elemento morto); (2) teste-tema.html com o botao DEPOIS do <script od-nav.js> (o script roda no parse e o getElementById chegava a ver a pagina sem botao — nunca ligava, circulo invisivel). Conserto: loja de volta ao HEAD (botao unico ja existente); teste-tema com o botao ANTES do script (padrao das outras 11: botao, linha em branco, script).",
+  "guarda_nova": "tests/test_api.py +TestAPISite::test_botao_voltar_ao_topo_unico_e_ligado_em_todas_as_paginas — todos os site/*.html com exatamente UM id=toTop, classe .to-top e ordem antes do od-nav.js. Teste do teste: 2/2 mutacoes capturadas (duplicado devolvido; botao movido para depois do script) com restauracao bit-exata.",
+  "achado_vigia_sshd": "Para fechar o gate vi que o Vigia da Rede (21/10) estava com 39% de cobertura — o ciclo(), os modos de operador e o executor da camada rica so rodavam em SUBPROCESSO (fora da medição). O teste em processo do rico REVELOU defeito real de produção silencioso: journal_sshd() devolve o stdout do journalctl INTEIRO (string) e o ciclo() fazia 'for linha in journal_sshd(...)' — iterar string e iterar CARACTERES, nenhum 'Failed password' jamais casaria: o alarme de intrusão do SERVIDOR nunca funcionou (o log do roteador, lista no JSON, funcionava). Conserto: .splitlines() no laço + comentário no ponto do defeito; teste usa journal real multi-linha (Accepted ignorado, Failed vira evento).",
+  "entregas": "site/teste-tema.html (botao antes do od-nav.js) · tests/test_api.py (guarda) · tools/monitor/network_watchdog.py (.splitlines) · tests/test_network_watchdog.py +32 em processo (TestVigiaEmProcesso: ciclo com bordas injetadas — rede/UI/journal/OUI/logs em tmp_path; seed; rico com erro; rotação; estado corrompido; rodar_rich sem venv/sem senha/JSON quebrado/sucesso com ROUTER_PASS; --bloquear operador com MAC normalizado; --report; conhecer/ack; main() sob exceção) · CHANGELOG §1.44.0 'sem bump'.",
+  "validacao": "Gate oficial 3665 passed / 16 skipped / 0 falha · 90,74%. HONESTO: o gate estava VERMELHO antes desta rodada — baseline com stash medido: 3632/16 a 89,87% (queda PRE-EXISTENTE do portário+cofre; as últimas entregas registraram 'gate 3632/16' sem a cobertura). Cobertura do Vigia 39% -> 98%. pyflakes 0 aviso novo (2 pré-existentes confirmados contra o HEAD).",
+  "provas_vivas": "Vigia: network-watchdog.timer ativo; tick 15:53:27 rodando o script JA CORRIGIDO do disco (ciclos=252, 0 'ciclo_erro' em todo o log; camada rica viva — rico:true as 15:43:26; 21 dispositivos). od-core intocado: /health 25/25 up, 1.44.0/2080 intacta. Git: commit fab291e == origin/master, arvore limpa. Sem restart (vigia e one-shot por tick; od-core nao foi tocado).",
+  "no_radar": [
+   "analise/AIML/ depositado pelo dono AGORA (15:22): 1406 arquivos / 338 MB — pipeline de lotes .aiml (dividir/normalizar/traduzir/unir), Original/, Traduz/lotes/ (~130 lotes), knowledge_en/, 'Nicky Desenvolvimento/' (foto Nicky 045.jpg) e OK/ = corpus AIML do Nicky antigo com ferramentas de traducao. Regra 17: aguardando instrucao do dono (catalogar no Legado? traduzir? processar?).",
+   "Vigia: 1 dispositivo novo SEM reconhecer — 42:19:FA:3B:BD:45 @ 192.168.0.124 desde 13:53 (MAC localmente administrado = aleatorizacao de celular; se for o dele, so 'conhecer')."
+  ],
+  "transcricao": "iniciar/2026-10-22_conversa_omegadrakon.md (§1)"
+ },
  "portario_site_5_ferramentas_2026_10_21": {
   "pedidos": "(1) 'analisar se ele realmente precisa das outras 4 na internet' (Livros/Kiwix/Stirling/Homebox); (2) ideia do dono: 'kiwix pode ser fornecida dentro do chat' (ex.: 'define dia'); (3) fase 1 aprovada: 'sim fase 1 com as 5' — portário com login no od-core para Caderno/CyberChef/IT Tools/Caixa/Cofre em computador público.",
   "kiwix": "Verificado: integrations/kiwix.py (busca+artigo) existe e kiwix-serve responde busca JSON 200; o CHAT não o consulta hoje (só a action admin). Ideia registrada na nota 'TODO 5' do FlatNotes com o exemplo do dono; enciclopédia NÃO vai para a internet pública — o valor é o chat.",
@@ -242,7 +257,7 @@
   "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
  },
- "updated_at": "2026-10-22T04:45:00-03:00",
+ "updated_at": "2026-10-22T16:00:00-03:00",
  "auditoria_pendencias_2026_10_20": {
   "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
   "vereditos": {
