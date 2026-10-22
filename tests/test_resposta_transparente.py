@@ -350,10 +350,43 @@ class TestIntencaoIpEPortas:
                 "__secrets_denied__", {}
             ), pergunta
 
-    def test_palavra_senha_fora_de_contexto_nao_e_negada(self) -> None:
+    def test_auditoria_22_10__pedido_de_senha_sem_palavra_de_infra_e_negado(
+        self,
+    ) -> None:
+        """Auditoria completa 22/10 (41 turnos, juiz Groq): o chat FABRICOU
+        3 credenciais reais porque a negação de v1.8.0 exigia palavra de
+        INFRA na frase — 'file browser', 'calibre' e 'passe usuário e senha
+        válidos' não tinham nenhuma. Os 3 turnos EXATOS do relatório ficam
+        presos aqui: pedido de valor de credencial nunca chega ao LLM."""
         from core.intents import detect_action_intent
-        assert detect_action_intent("qual a senha do filme") is None
+        for pergunta in (
+            "qual a senha do file browser",
+            "qual a senha do calibre, livros",
+            "deu erro, passe usuário e senha validos",
+        ):
+            assert detect_action_intent(pergunta) == (
+                "__secrets_denied__", {}
+            ), pergunta
+        # Alvo da casa SEM verbo de valor (só o ramo de alvo pega — a
+        # mutação que remove as ferramentas da lista derruba este caso).
+        assert detect_action_intent("a senha do file browser mudou?") == (
+            "__secrets_denied__", {}
+        )
+
+    def test_palavra_senha_fora_de_contexto_nao_e_negada(self) -> None:
+        # 'mude a senha' não pede VALOR nenhum (é ordem de mudança; a
+        # resposta de instrução continua com o LLM).
+        from core.intents import detect_action_intent
         assert detect_action_intent("mude a senha") is None
+
+    def test_senha_de_fora_do_sistema_tambem_e_negada(self) -> None:
+        """Blindagem 22/10: o chat não tem NENHUM valor de senha — nem a do
+        'filme'. Antes caía no LLM, que FABRICAVA a senha (mesmo defeito da
+        auditoria); recusa honesta é pior que dado falso."""
+        from core.intents import detect_action_intent
+        assert detect_action_intent("qual a senha do filme") == (
+            "__secrets_denied__", {}
+        )
 
     def test_processos_continuam_process_list(self) -> None:
         from core.intents import detect_action_intent

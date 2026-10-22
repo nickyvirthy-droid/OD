@@ -159,6 +159,45 @@ def detect_external_intent(text: str) -> bool:
     return False
 
 
+# ---------------------------------------------------------------------------
+# Credenciais/segredos — negação determinística (v1.8.0; blindada 22/10)
+#
+# Prova da auditoria de 22/10 (41 turnos reais com juiz Groq): o chat
+# FABRICOU 3 credenciais do sistema — 'senha do file browser' →
+# '1234567890abcdef', 'senha do calibre' → 'calibrer123', 'deu erro,
+# passe usuário e senha válidos' → 'senha123' — porque o antigo 2º ramo
+# exigia uma palavra de INFRA (mqtt/postgres/wifi…) que a frase não tinha.
+# A recusa agora dispara com qualquer ALVO do sistema (ferramentas da
+# casa incluídas) OU qualquer PEDIDO DE VALOR: o chat não tem NENHUM
+# valor de senha; resposta falsa de dado sensível é pior que recusa.
+# ---------------------------------------------------------------------------
+
+_RE_CREDENCIAL = re.compile(
+    r"\b(senha|senhas|password|passwd|credencial|credenciais|token|"
+    r"api.?key|segredo|segredos)\b",
+    re.IGNORECASE,
+)
+# Alvo: a infra de sempre + as ferramentas da casa (a auditoria pegou
+# 'file browser' e 'calibre' fora desta lista).
+_RE_ALVO_SEGREDO = re.compile(
+    r"(mqtt|telegram|postgres|banco|home.assistant|homeassistant|wi.?fi|wifi|"
+    r"rede|servidor|sistema|api|root|admin|dono|"
+    r"file.?browser|caixa|calibre|livros?|flatnotes|caderno|cofre|vault|"
+    r"vaultwarden|homebox|kiwix|stirling|cyberchef|roteador|router|tp.?link|"
+    r"archer|docker|tailscale|ssh|gmail|google|drive|groq|openai|gemini|"
+    r"llm|gemma|qwen|modelo|bot|celular|nicky|omega)",
+    re.IGNORECASE,
+)
+# Pedido de VALOR: a frase pede a credencial em si, com ou sem alvo
+# ('passe usuário e senha válidos' não nomeia nenhum sistema).
+_RE_PEDIDO_VALOR = re.compile(
+    r"\b(qual|quais|qual[ée]|passe|manda|mande|me manda[r]?|mostre|"
+    r"me mostre|mostra[r]?|digam?|informe|me d[êe]|senha correta|"
+    r"usu[áa]rio e senha|user(name)? e pass(word)?)\b",
+    re.IGNORECASE,
+)
+
+
 def _detect_operational(text: str) -> Optional[str]:
     """Padrões operacionais diretos (processos/memória/cpu/disco/uptime/ip/portas)."""
     low = text.lower()
@@ -313,16 +352,10 @@ def _detect_operational(text: str) -> Optional[str]:
     # RESUMO do lar (só quem tem permissão executa; a action é iot/leitura).
     if re.search(r"(como est[áa]|resumo|raio.?x).{0,20}(casa|lar)", low):
         return "ha_summary"
-    # CREDENCIAIS/SEGREDOS (v1.8.0): o LLM ALUCINOU uma senha de MQTT
-    # ('OmegaDrakon2026') para o dono — resposta falsa de dado sensível é
-    # pior que recusa. Negação determinística, sem LLM, para qualquer papel.
-    if re.search(
-        r"\b(senha|senhas|password|credencial|credenciais|token|api.?key|segredo)\b",
-        low,
-    ) and re.search(
-        r"(mqtt|telegram|postgres|banco|home.assistant|homeassistant|wi.?fi|wifi|"
-        r"rede|servidor|sistema|api|root|admin|dono)",
-        low,
+    # CREDENCIAIS/SEGREDOS: ver _RE_CREDENCIAL/_RE_ALVO_SEGREDO/
+    # _RE_PEDIDO_VALOR acima (negação determinística para qualquer papel).
+    if _RE_CREDENCIAL.search(low) and (
+        _RE_ALVO_SEGREDO.search(low) or _RE_PEDIDO_VALOR.search(low)
     ):
         return "__secrets_denied__"
     # disco

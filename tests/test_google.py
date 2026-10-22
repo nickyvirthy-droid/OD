@@ -494,7 +494,12 @@ class TestGoogleIntents:
         assert detect_action_intent("meus arquivos no google drive")[0] == "google_drive_list"
 
     def test_senha_do_gmail_nao_vira_listagem(self) -> None:
-        assert detect_action_intent("qual a senha do gmail") is None
+        # 22/10 (blindagem da auditoria): era None e caía no LLM, que
+        # fabricava a senha — agora a negação determinística pega antes.
+        # O contrato daqui vale: NUNCA vira listagem de e-mails.
+        assert detect_action_intent("qual a senha do gmail") == (
+            "__secrets_denied__", {}
+        )
 
     def test_pasta_local_nao_vira_drive(self) -> None:
         # 'meus arquivos' sem 'drive' não deve capturar pergunta de arquivos locais
@@ -1526,7 +1531,9 @@ class TestGoogleWriteIntents:
 
     def test_leitura_de_arquivos_locais_nao_vira_escrita_google(self) -> None:
         assert detect_action_intent("liste meus arquivos") is None
-        assert detect_action_intent("qual a senha do gmail") is None
+        assert detect_action_intent("qual a senha do gmail") == (
+            "__secrets_denied__", {}
+        )
 
     def test_gmail_sem_verbo_de_envio_nao_vira_send(self) -> None:
         intent = detect_action_intent("sobre e-mail para ana")
