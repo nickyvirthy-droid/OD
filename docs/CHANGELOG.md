@@ -385,6 +385,32 @@ coleção é **"Default collection"** (o convite criou com o nome default;
 renomeável quando ele quiser).
 
 
+**Continuação (22/10, "existe um erro… a senha está escrito: ADMIN_TOKEN
+do painel do vaultwarden" — A SENHA DOS 19 ITENS ERA A DESCRIÇÃO: O
+ESPELHO COPIAVA A ALLOWLIST ERRADA).** O dono abriu o cofre que passou a
+funcionar e flagrou: no item `ADMIN_TOKEN` o campo senha continha
+literalmente *"ADMIN_TOKEN do painel do Vaultwarden."* (e
+`GEMINI_API_KEY`, *"Chave de API do Google Gemini."*). Causa raiz no
+`vault_env_mirror.py`: `alvo = {k: v for k, v in CREDENCIAIS.items() …}`
+montava o destino **do dicionário de descrições** (allowlist), não do
+`.env` — `valor = alvo[chave]` gravava a DESCRIÇÃO como senha em toda
+rodada, e a "conferência" comparava item com a própria descrição
+(**sempre passa**: a rodada da madrugada de 22/10 e a primeira reexecução
+de hoje reportaram 19/19 verdes em cima do dado errado). Conserto: `alvo`
+passa a ser `{k: valores[k] …}` (o valor do `.env`); descrição segue
+morando **na nota** de cada item (desenho original intacto). Reexecução:
+**19/19 gravados + verificação independente crua** (`bw sync` + `bw get`
+direto × `ler_env(.env)`) = **19/19 conferem** com os valores reais.
+Por que o dono viu "admin_token"/"chave gemini" com descrição no
+usuário também: sobram na lixeira 4 itens-curados criados e jogados fora
+às 08:55–08:59 (geração descartada — a ativa é a da allowlist).
+**Guarda nova: `tests/test_vault_env_mirror.py` (+7)** prende o contrato
+— senha = valor do `.env` (REGRESSÃO do bug), descrição vive na nota,
+`--check` acusa DIVERGENTE quando o cofre tem descrição, username vem
+de outra chave, aviso de segredo-fora-da-allowlist. Gate
+**3632 passed / 16 skipped** (3625 + 7).
+
+
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 
 **Resumo:** 3ª da série "uma por vez" (FlatNotes ✅ → File Browser ✅ → **Calibre**). Dono decidiu **"Configurar e interligar"** (19/10) e apontou a fonte: *"os livros estão no google drive"* — pasta **"Biblioteca"** do Drive dele (22 pastas temáticas, **732 itens / 729 arquivos / 1,83 GB** medidos recursivamente; a contagem de 1º nível mentia: 363/1,35 GB). A entrega monta a cadeia inteira: **Drive → espelho local → `calibredb` → Calibre Web (web + OPDS) → actions + botão no app**, e o caminho ensinou duas lições registradas em código: **(1)** o dedup por título do calibre (`--automerge ignore`) **escondeu 156 arquivos de conteúdo diferente** (título embutido do PDF colidindo — provado ao vivo com a mensagem crua *"not added as they already exist"*), então o contrato de resync passou a ser um **LEDGER nosso** (`.calibre_ledger.json`: caminho→tamanho) + `-d --automerge new_record` (colisão de título vira registro próprio); **(2)** a análise de conteúdo por tamanho enganou com **cópias idênticas em duas pastas e zips extraídos** — 55 duplicados criados pela migração foram detectados por **sha256 par a par (55/55 idêntico)** e removidos **só** os ids da migração (54 originais intactos). Estado final provado: **693 livros, 729/729 arquivos com conteúdo, 0 pendentes, reimportação devolvendo `novos=0`**.

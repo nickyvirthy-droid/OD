@@ -677,3 +677,49 @@ quando o dono quiser.
 **Estado final:** do lado do servidor não há nada a fazer — as duas
 peças restantes são do lado do dono (Dark Reader no Edge; sync/relogar
 no app com o servidor já atualizado).
+
+
+## §14 — "Existe um erro": a senha dos 19 itens era a descrição (22/10, tarde)
+
+O dono abriu o cofre (agora funcionando — site e app) e reportou, com
+exemplo: *"admin_token a senha está escrita: Admin_token do painel do
+vaultwarden, e mais outro com chave gemini"*. Os dois exemplos batem
+com os itens ativos `ADMIN_TOKEN` (senha = "ADMIN_TOKEN do painel do
+Vaultwarden.") e `GEMINI_API_KEY` (senha = "Chave de API do Google
+Gemini.") — **o campo senha dos 19 itens espelhados continha a DESCRIÇÃO,
+não o segredo.**
+
+**Causa raiz (uma linha, minha, no espelho):** `vault_env_mirror.py`
+montava `alvo = {k: v for k, v in CREDENCIAIS.items() …}` — o destino
+vinha do dicionário de **descrições** da allowlist, não do `.env`; o
+laço gravava `valor = alvo[chave]` (a descrição) como senha. Pior: a
+conferência `item == valor` comparava a descrição gravada com a própria
+descrição — **sempre passava**. Por isso a rodada da madrugada (01:27)
+e minha reexecução de hoje (13:52) reportaram "19/19 conferem" em cima
+do dado errado, e por isso o `--check` "confirmou". (Os spot-checks
+independentes contra o `.env` — hash lado a lado — é que denunciaram:
+cofre com 37 chars de prosa, `.env` com o valor real.)
+
+**Caça ao "segundo culpado" (era eu de novo):** durante a apuração os
+itens foram reescritos a cada ~13 s no log do Vaultwarden — 19 PUTs
+exatos = a própria rodada do espelho (6 chamadas de `bw` por item ≈
+13 s). Não havia daemon nem sessão irmã: o loop suspeito era o meu
+comando. Item "criado e lixeirado" em segundos às 08:55–08:59 = 4 itens
+curados descartados (geração antiga, na lixeira até hoje — inócuos).
+
+**Conserto:** `alvo = {k: valores[k] for k in CREDENCIAIS if
+valores.get(k)}` — o valor passa a vir do `.env`; descrição continua na
+nota de cada item (desenho original). Reexecução: 19/19 gravados e
+**verificação independente crua** (`bw sync` + `bw get item` direto ×
+`ler_env(.env)` para os 19) = **19/19 conferem** com os valores reais.
+
+**Guarda (bug deste porte não pode passar em branco de novo):**
+`tests/test_vault_env_mirror.py` **+7** — senha = valor do `.env`
+(regressão), descrição vive na nota, `--check` acusa DIVERGENTE quando
+o cofre tem descrição, username vem de outra chave do env, aviso de
+segredo fora da allowlist, allowlist ausente avisa. Gate completo
+**3632 passed / 16 skipped**.
+
+**Estado final:** cofre com os 19 segredos reais (mais o FlatNotes, já
+correto); dono só precisa dar um sync no app/site para ver as senhas
+certas; registros + commit nesta rodada.

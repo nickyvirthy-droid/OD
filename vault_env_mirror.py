@@ -152,7 +152,7 @@ def main(argv: list[str]) -> int:
                 f"AVISO: {chave} parece segredo e NÃO está na allowlist — "
                 "adicione em CREDENCIAIS se for credencial."
             )
-    alvo = {k: v for k, v in CREDENCIAIS.items() if valores.get(k)}
+    alvo = {k: valores[k] for k in CREDENCIAIS if valores.get(k)}
     for chave in CREDENCIAIS:
         if not valores.get(chave):
             avisos.append(f"AVISO: {chave} ausente/vazio no .env — item não tratado.")
