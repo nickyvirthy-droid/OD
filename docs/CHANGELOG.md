@@ -357,6 +357,34 @@ capturado em `$()` levou junto o **log no stdout** — id de prova grava-se
 em arquivo). Sync do dono agora devolve os 20 itens — sem relogar.
 
 
+**Continuação (22/10, "leia analise e veja o que estou vendo" — TELA
+PRETA NO SITE + APP VAZIO): DUAS CAUSAS DE CLIENTE, SERVIDOR PROVADO
+ÍNTEGRO.** O dono deixou dois prints na pasta nova `analise/` do repo:
+(a) cofre no **Edge (Windows 11)** com o `#/vault` **totalmente preto**
+(título da aba "Cofres | Vaultwarden Web" = o Angular chegou a navegar);
+(b) Caixa funcionando (o 409 é só upload duplicado — benigno). Cadeia
+de prova do servidor: **repro headless** (chromium, pt-BR, mesma URL
+`/f/cofre` pelo proxy) renderizando o vault **inteiro com os 20 itens**;
+sync real do dono executado no banco com a query `find_by_user` do
+fonte 1.36.0 = **21 itens** (20 da org + o pessoal dele de 15/10 —
+estruturalmente perfeito, formato "2."); logins/sync/profile dele
+todos 200; journal do od-core limpo; rota `GET /users/{id}/public-key`
+correta no fonte (akey dele é válido por construção). **Duas causas
+casadas com issues upstream idênticas ao sintoma:** (1) **tela preta =
+Dark Reader** (issue darkreader#15190 — "Bitwarden vault/dashboard is
+completely black", Win 11 + Edge, bug ABERTO): extensão injeta fundo
+preto por cima do vault — conserto do lado dele: ativar "Detect Dark
+Theme" no Dark Reader (ou pausar pro site / aba anônima); (2) **app
+"nada" = cliente Bitwarden 2026.7+ contra servidor < 1.37** (issue
+vaultwarden#7485: *"You need to update your Vaultwarden to v1.37.0 else
+you will keep seeing an empty vault"*) — **cofre atualizado 1.36.0 →
+1.37.4** (backup `db-pre-update-1.37.4-20261022-1043.sqlite3`, compose
+`docker/tools-compose.yaml`, container recriado; health ok; bw sync 20
+itens; proxy 200; repro renderiza). Achado cosmético: o nome real da
+coleção é **"Default collection"** (o convite criou com o nome default;
+renomeável quando ele quiser).
+
+
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 
 **Resumo:** 3ª da série "uma por vez" (FlatNotes ✅ → File Browser ✅ → **Calibre**). Dono decidiu **"Configurar e interligar"** (19/10) e apontou a fonte: *"os livros estão no google drive"* — pasta **"Biblioteca"** do Drive dele (22 pastas temáticas, **732 itens / 729 arquivos / 1,83 GB** medidos recursivamente; a contagem de 1º nível mentia: 363/1,35 GB). A entrega monta a cadeia inteira: **Drive → espelho local → `calibredb` → Calibre Web (web + OPDS) → actions + botão no app**, e o caminho ensinou duas lições registradas em código: **(1)** o dedup por título do calibre (`--automerge ignore`) **escondeu 156 arquivos de conteúdo diferente** (título embutido do PDF colidindo — provado ao vivo com a mensagem crua *"not added as they already exist"*), então o contrato de resync passou a ser um **LEDGER nosso** (`.calibre_ledger.json`: caminho→tamanho) + `-d --automerge new_record` (colisão de título vira registro próprio); **(2)** a análise de conteúdo por tamanho enganou com **cópias idênticas em duas pastas e zips extraídos** — 55 duplicados criados pela migração foram detectados por **sha256 par a par (55/55 idêntico)** e removidos **só** os ids da migração (54 originais intactos). Estado final provado: **693 livros, 729/729 arquivos com conteúdo, 0 pendentes, reimportação devolvendo `novos=0`**.

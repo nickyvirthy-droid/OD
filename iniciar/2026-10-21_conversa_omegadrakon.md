@@ -631,3 +631,49 @@ o caminho pessoal nunca chama `item-collections`).
 
 **Estado final:** sync do dono agora devolve os 20 itens — app e site
 mostram tudo no próximo sync, sem relogar.
+
+---
+
+## §13 — Tela preta no site + app vazio: duas causas de cliente (22/10)
+
+O dono mandou "leia analise e veja o que estou vendo" e deixou duas
+capturas na pasta nova `analise/` do repo (09:10 e 09:12): **(a)** o
+cofre aberto no **Edge (Windows 11)** em `…/f/cofre/#/vault` com a tela
+**totalmente preta** (título da aba "Cofres | Vaultwarden Web"); **(b)**
+a Caixa funcionando (um 409 de upload duplicado — benigno).
+
+**Diagnóstico — servidor provado íntegro em quatro frentes:**
+1. **Repro headless** (chromium, locale pt-BR, mesma URL pelo proxy):
+   login → onboarding → `#/vault` renderizando o vault **inteiro com os
+   20 itens da org**. Mesmo caminho, mesmo proxy, tudo pinta.
+2. **Sync real dele** executado no banco com a query `find_by_user` do
+   fonte 1.36.0: **21 itens** (20 da org + 1 pessoal de 15/10 —
+   estruturalmente perfeito, formato "2.").
+3. Logins/sync/profile da sessão dele: **todos 200**; journal do
+   od-core limpo (sem 5xx/exceções na janela).
+4. Rota `GET /users/{id}/public-key` no fonte 1.36.0 devolve a chave do
+   usuário pedido — o `akey` dele é válido por construção.
+
+**Causa 1 — tela preta no site = extensão Dark Reader.** Issue upstream
+aberta (darkreader#15190, "[Broken Website] Bitwarden vault/dashboard
+is completely black", Win 11 + **Edge**, sintoma idêntico: "the entire
+page goes completely black" ao logar no vault). O conserto é do lado
+do dono: ativar **"Detect Dark Theme"** no Dark Reader (ou pausar a
+extensão no site / abrir em aba anônima).
+
+**Causa 2 — app "nada" = servidor velho demais pro cliente novo.**
+Issue vaultwarden#7485: clientes Bitwarden **2026.7+** mostram cofre
+**vazio** contra servidores < 1.37 — *"You need to update your
+Vaultwarden to v1.37.0 else you will keep seeing an empty vault"*.
+Nosso cofre estava em **1.36.0**. Atualizado para **1.37.4**:
+backup do banco (`db-pre-update-1.37.4-20261022-1043.sqlite3`), tag no
+`docker/tools-compose.yaml`, container recriado; health ok, bw sync
+devolvendo 20 itens, proxy `/f/cofre/` 200, repro renderizando.
+
+**Achado cosmético:** o nome real da coleção é **"Default collection"**
+(o convite criou com o nome default — o bw decryptou). Renomeável
+quando o dono quiser.
+
+**Estado final:** do lado do servidor não há nada a fazer — as duas
+peças restantes são do lado do dono (Dark Reader no Edge; sync/relogar
+no app com o servidor já atualizado).
