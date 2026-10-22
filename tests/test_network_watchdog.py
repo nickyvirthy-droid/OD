@@ -381,3 +381,486 @@ class TestCicloSandbox:
         assert linhas[-1]["tipo"] == "estado"
         assert linhas[-1]["ativos"] == 0
         assert linhas[-1]["pendentes_novos"] == []
+
+
+# ---------------------------------------------------------------------------
+# Em processo — o ciclo inteiro medido (sandbox roda em SUBPROCESSO e o
+# coverage só mede o processo do pytest; sem isto o vigia fica "feito mas
+# não testado" no gate: 39% em 21/10).
+# ---------------------------------------------------------------------------
+
+
+class _FakeRespostaUrl:
+    """Context manager mínimo p/ urllib.request.urlopen nos testes."""
+
+    def __init__(self, corpo: bytes):
+        self._corpo = corpo
+
+    def __enter__(self) -> "_FakeRespostaUrl":
+        return self
+
+    def __exit__(self, *args: object) -> bool:
+        return False
+
+    def read(self) -> bytes:
+        return self._corpo
+
+
+class TestVigiaEmProcesso:
+    """Bordas injetadas: rede, chromium, journal, OUI e destinos de log."""
+
+    @pytest.fixture()
+    def vigia(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(vw, "LOG_DIR", tmp_path)
+        monkeypatch.setattr(vw, "LOG_FILE", tmp_path / "network_watchdog.log")
+        monkeypatch.setattr(vw, "ESTADO_FILE", tmp_path / "estado.json")
+        monkeypatch.setattr(vw, "OUI_HABILITADO", False)   # sem rede externa
+        monkeypatch.setattr(vw, "RICH_HABILITADO", False)  # sem chromium
+        return vw
+
+    @staticmethod
+    def _linhas(tmp_path: Path) -> list[dict]:
+        log = tmp_path / "network_watchdog.log"
+        if not log.exists():
+            return []
+        return [json.loads(l) for l in log.read_text("utf-8").splitlines()]
+
+    @staticmethod
+    def _estado(tmp_path: Path) -> dict:
+        return json.loads((tmp_path / "estado.json").read_text("utf-8"))
+
+    # -- camada rápida ---------------------------------------------------
+
+    def test_ciclo_em_processo_alarma_e_estado(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        monkeypatch.setenv(
+            "OD_VIGIA_VIZINHOS_JSON",
+            '{"94:3A:91:53:E2:8E": "192.168.0.202",'
+            ' "2C:F4:32:BF:0D:8E": "192.168.0.176"}',
+        )
+        r = vigia.ciclo()
+        assert r == {"ativos": 2, "novos": 2, "rico": False,
+                     "pendentes_novos": 2, "pendentes_seguranca": 0}
+        estado = self._estado(tmp_path)
+        assert estado["ciclos"] == 1
+        assert estado["ultima_varredura"] == {
+            "ts": estado["ultima_varredura"]["ts"],
+            "ativos": 2, "novos": 2, "rico": False,
+        }
+        tipos = [l["tipo"] for l in self._linhas(tmp_path)]
+        assert tipos[-2:] == ["varredura", "estado"]
+        # sem consulta OUI o fabricante é honesto, não inventado
+        assert all(d["fabricante"] == "desconhecido"
+                   for d in estado["dispositivos"].values())
+
+    def test_ciclo_conhecido_atualiza_ip_e_ultima_vez(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        monkeypatch.setenv(
+            "OD_VIGIA_VIZINHOS_JSON", '{"94:3A:91:53:E2:8E": "192.168.0.202"}')
+        vigia.ciclo()
+        monkeypatch.setenv(
+            "OD_VIGIA_VIZINHOS_JSON", '{"94:3A:91:53:E2:8E": "192.168.0.210"}')
+        r = vigia.ciclo()
+        assert r["novos"] == 0 and r["pendentes_novos"] == 1  # segue pendente
+        alvo = self._estado(tmp_path)["dispositivos"]["94:3A:91:53:E2:8E"]
+        assert alvo["ip"] == "192.168.0.210" and alvo["ultima_vez"]
+
+    def test_ciclo_passa_o_alcance_do_env_para_a_varredura(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        visto: dict = {}
+
+        def varre(rede, alcance=None):
+            visto["rede"], visto["alcance"] = rede, alcance
+            return {}
+
+        monkeypatch.setattr(vw, "varre_lan", varre)
+        monkeypatch.setenv("OD_VIGIA_ALCANCE", "192.168.0.2,192.168.0.3")
+        vigia.ciclo()
+        assert visto["alcance"] == ["192.168.0.2", "192.168.0.3"]
+        assert visto["rede"] == vw.REDE
+
+    # -- camada rica -----------------------------------------------------
+
+    def test_ciclo_rico_enriquece_ui_e_arma_seguranca(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        monkeypatch.setattr(vw, "RICH_HABILITADO", True)
+        monkeypatch.setattr(vw, "RICH_A_CADA", 1)
+        monkeypatch.setenv(
+            "OD_VIGIA_VIZINHOS_JSON", '{"94:3A:91:53:E2:8E": "192.168.0.202"}')
+        monkeypatch.setattr(vw, "rodar_rich", lambda senha, timeout=150: {
+            "clientes": [
+                {"mac": "94:3A:91:53:E2:8E", "nome": "Echo-Sala",
+                 "ip": "192.168.0.202"},
+                # dormindo: não respondeu ao ping, só aparece na UI
+                # (o vigia_rich emite MAC já normalizado — parser único)
+                {"mac": "AC:A7:04:F0:8F:88", "nome": "Celular",
+                 "ip": "192.168.0.224"},
+            ],
+            "log_roteador": [
+                "illegal login attempt from 192.168.0.50.",
+                "Auto update prepare to upgrade, user call download "
+                "firmware service.",          # ruído: NÃO vira evento
+            ],
+        })
+        monkeypatch.setattr(
+            vw, "journal_sshd",
+            # stdout INTEIRO como o journalctl devolve (multi-linha): o
+            # "Accepted" tem de ser ignorado e o "Failed" vira evento —
+            # iterar a string crua seria iterar caracteres (o defeito).
+            lambda desde: "Accepted password for alex from 192.168.0.111 "
+                          "port 64417 ssh2\n"
+                          "Failed password for root from 192.168.0.60 port "
+                          "22 ssh2\n",
+        )
+        r = vigia.ciclo()
+        assert r["rico"] is True and r["pendentes_novos"] == 2
+        estado = self._estado(tmp_path)
+        assert estado["dispositivos"]["94:3A:91:53:E2:8E"]["nome"] == \
+            "Echo-Sala"
+        assert estado["dispositivos"]["AC:A7:04:F0:8F:88"]["nota"] == \
+            "visto só na UI do roteador"
+        seg = {(p["origem"], p["msg"]) for p in estado["pendentes_seguranca"]}
+        assert ("roteador", "illegal login attempt from 192.168.0.50.") in seg
+        assert any(m == "Failed password for root from 192.168.0.60 port 22 "
+                      "ssh2" for _, m in seg)
+        assert all("Accepted" not in m and "firmware" not in m
+                   for _, m in seg)
+        assert estado["sshd_desde"]  # janela do próximo ciclo anda
+        eventos = [l for l in self._linhas(tmp_path) if l["tipo"] == "seguranca"]
+        assert len(eventos) == 2
+
+    def test_ciclo_rico_nao_duplica_seguranca_ja_pendente(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        monkeypatch.setattr(vw, "RICH_HABILITADO", True)
+        monkeypatch.setattr(vw, "RICH_A_CADA", 1)
+        monkeypatch.setenv("OD_VIGIA_VIZINHOS_JSON", "{}")
+        monkeypatch.setattr(vw, "rodar_rich", lambda senha, timeout=150: {
+            "clientes": [],
+            "log_roteador": ["illegal login attempt from 192.168.0.50."],
+        })
+        monkeypatch.setattr(vw, "journal_sshd", lambda desde: "")
+        vigia.ciclo()
+        vigia.ciclo()
+        assert len(self._estado(tmp_path)["pendentes_seguranca"]) == 1
+
+    def test_ciclo_rich_erro_registra_e_nao_derruba(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        monkeypatch.setattr(vw, "RICH_HABILITADO", True)
+        monkeypatch.setattr(vw, "RICH_A_CADA", 1)
+        monkeypatch.setenv("OD_VIGIA_VIZINHOS_JSON", "{}")
+        monkeypatch.setattr(
+            vw, "rodar_rich", lambda senha, timeout=150: {"_erro": "boom"})
+        r = vigia.ciclo()
+        assert r["rico"] is False
+        erro = [l for l in self._linhas(tmp_path) if l["tipo"] == "rich_erro"]
+        assert erro and erro[0]["detalhe"] == "boom"
+
+    def test_ciclo_rich_forcado_no_seed(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        """Seed SEMPRE tenta a camada rica (primeira leitura da casa)."""
+        monkeypatch.setattr(vw, "RICH_HABILITADO", True)
+        monkeypatch.setenv("OD_VIGIA_VIZINHOS_JSON", "{}")
+        monkeypatch.setattr(
+            vw, "rodar_rich", lambda senha, timeout=150: {"clientes": []})
+        monkeypatch.setattr(vw, "journal_sshd", lambda desde: "")
+        r = vigia.ciclo(seed=True)
+        assert r["rico"] is True
+        assert self._estado(tmp_path)["rich_ultima"]
+
+    def test_seed_zera_toda_pendencia(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        monkeypatch.setenv(
+            "OD_VIGIA_VIZINHOS_JSON", '{"94:3A:91:53:E2:8E": "192.168.0.202"}')
+        vigia.ciclo()
+        estado = self._estado(tmp_path)
+        estado["pendentes_seguranca"] = [
+            {"origem": "sshd", "msg": "x", "ts_evento": "t"}]
+        (tmp_path / "estado.json").write_text(json.dumps(estado), "utf-8")
+        vigia.ciclo(seed=True)
+        estado = self._estado(tmp_path)
+        assert all(d["conhecido"] for d in estado["dispositivos"].values())
+        assert estado["pendentes_novos"] == [] and \
+            estado["pendentes_seguranca"] == []
+
+    # -- I/O: estado, log, journal, OUI ----------------------------------
+
+    def test_estado_corrompido_vira_padrao(self, vigia, tmp_path: Path) -> None:
+        (tmp_path / "estado.json").write_text("{{{", encoding="utf-8")
+        estado = vigia.carregar_estado()
+        assert estado["dispositivos"] == {} and estado["ciclos"] == 0
+        assert estado["vendor_cache"] == {}
+
+    def test_salvar_estado_atomico_e_sem_lixeira(
+        self, vigia, tmp_path: Path,
+    ) -> None:
+        vigia.salvar_estado({"ciclos": 7})
+        assert self._estado(tmp_path)["ciclos"] == 7
+        assert not list(tmp_path.glob("*.tmp"))
+
+    def test_registrar_vazio_nao_cria_log(self, vigia, tmp_path: Path) -> None:
+        vigia.registrar([])
+        assert not (tmp_path / "network_watchdog.log").exists()
+
+    def test_registrar_acrescenta_e_rotaciona(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        monkeypatch.setattr(vw, "MAX_LOG_BYTES", 10)
+        vigia.registrar([{"tipo": "a"}, {"tipo": "b"}])
+        vigia.registrar([{"tipo": "c"}])
+        assert (tmp_path / "network_watchdog.log.1").exists()
+        assert [l["tipo"] for l in self._linhas(tmp_path)] == ["c"]
+
+    def test_rotacao_com_erro_de_so_nao_levanta(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        log = tmp_path / "log.txt"
+        log.write_text("x" * 50)
+        monkeypatch.setattr(
+            Path, "rename", lambda *a, **k: (_ for _ in ()).throw(OSError()))
+        vigia.rotaciona_log(log, 10)   # não pode levantar
+
+    def test_journal_sshd_devolve_o_stdout(self, monkeypatch) -> None:
+        class _Proc:
+            stdout = "Failed password for admin from 10.0.0.1 port 1 ssh2"
+
+        monkeypatch.setattr(vw.subprocess, "run", lambda *a, **k: _Proc())
+        assert "Failed password" in vw.journal_sshd("2026-10-21 00:00:00")
+
+    def test_journal_sshd_falha_devolve_vazio(self, monkeypatch) -> None:
+        def quebra(*a, **k):
+            raise OSError("sem journalctl")
+        monkeypatch.setattr(vw.subprocess, "run", quebra)
+        assert vw.journal_sshd("2026-10-21 00:00:00") == ""
+
+    def test_varre_lan_pinga_o_alcance_e_lê_o_kernel(self, monkeypatch) -> None:
+        chamados: list[list[str]] = []
+
+        class _Proc:
+            stdout = IP_NEIGH_REAL
+
+        def falso_run(cmd, **kwargs):
+            chamados.append(list(cmd))
+            return _Proc()
+
+        monkeypatch.setattr(vw.subprocess, "run", falso_run)
+        vizinhos = vw.varre_lan("192.168.0.", ["192.168.0.2", "192.168.0.3"])
+        pings = [c for c in chamados if c[0] == "ping"]
+        assert sorted(c[-1] for c in pings) == ["192.168.0.2", "192.168.0.3"]
+        assert chamados[-1][:2] == ["ip", "neigh"]
+        assert vizinhos["94:3A:91:53:E2:8E"] == "192.168.0.202"
+
+    def test_varre_lan_sem_ip_neigh_devolve_vazio(self, monkeypatch) -> None:
+        def falso_run(cmd, **kwargs):
+            if cmd[0] == "ip":
+                raise OSError("sem ip neigh")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        monkeypatch.setattr(vw.subprocess, "run", falso_run)
+        assert vw.varre_lan("192.168.0.", ["192.168.0.2"]) == {}
+
+    def test_oui_encontra_e_nao_encontra(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            vw.urllib.request, "urlopen",
+            lambda url, timeout: _FakeRespostaUrl(
+                b'{"found": true, "company": "  TP-Link  "}'))
+        assert vw.consulta_oui_maclookup("000F00") == "TP-Link"
+        monkeypatch.setattr(
+            vw.urllib.request, "urlopen",
+            lambda url, timeout: _FakeRespostaUrl(b'{"found": false}'))
+        assert vw.consulta_oui_maclookup("FFFFFF") is None
+        monkeypatch.setattr(
+            vw.urllib.request, "urlopen",
+            lambda url, timeout: _FakeRespostaUrl(
+                b'{"found": true, "company": "  "}'))
+        assert vw.consulta_oui_maclookup("FFFFFF") is None
+
+    # -- camada rica: o executor -----------------------------------------
+
+    def test_rodar_rich_sem_venv_ou_sem_senha_e_none(self, tmp_path: Path,
+                                                     monkeypatch) -> None:
+        monkeypatch.setattr(vw, "VENV_PY", str(tmp_path / "nao_existe"))
+        assert vw.rodar_rich("senha") is None
+        monkeypatch.setattr(vw, "VENV_PY", sys.executable)  # venv "existe"
+        assert vw.rodar_rich("") is None
+
+    def test_rodar_rich_saida_nao_zero_vira_erro(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        venv = tmp_path / "python"
+        venv.write_text("x")
+        monkeypatch.setattr(vw, "VENV_PY", str(venv))
+
+        class _Proc:
+            returncode = 1
+            stderr = "Traceback: chromium caiu"
+            stdout = ""
+
+        monkeypatch.setattr(vw.subprocess, "run", lambda *a, **k: _Proc())
+        assert vw.rodar_rich("senha")["_erro"] == "Traceback: chromium caiu"
+
+    def test_rodar_rich_json_quebrado_vira_erro(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        venv = tmp_path / "python"
+        venv.write_text("x")
+        monkeypatch.setattr(vw, "VENV_PY", str(venv))
+
+        class _Proc:
+            returncode = 0
+            stderr = ""
+            stdout = "não é json"
+
+        monkeypatch.setattr(vw.subprocess, "run", lambda *a, **k: _Proc())
+        assert "_erro" in vw.rodar_rich("senha")
+
+    def test_rodar_rich_sucesso_devolve_o_json(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        venv = tmp_path / "python"
+        venv.write_text("x")
+        monkeypatch.setattr(vw, "VENV_PY", str(venv))
+        capturado: dict = {}
+
+        class _Proc:
+            returncode = 0
+            stderr = ""
+            stdout = json.dumps({"clientes": [], "log_roteador": []})
+
+        def falso_run(cmd, **kwargs):
+            capturado["env"] = kwargs.get("env", {})
+            return _Proc()
+
+        monkeypatch.setattr(vw.subprocess, "run", falso_run)
+        assert vw.rodar_rich("s3nh4") == {"clientes": [], "log_roteador": []}
+        assert capturado["env"]["ROUTER_PASS"] == "s3nh4"
+
+    # -- modos de operador (em processo) ---------------------------------
+
+    def test_conhecer_sem_nome_e_com_nome(self, vigia, tmp_path: Path,
+                                         monkeypatch, capsys) -> None:
+        monkeypatch.setenv(
+            "OD_VIGIA_VIZINHOS_JSON", '{"94:3A:91:53:E2:8E": "192.168.0.202"}')
+        vigia.ciclo()
+        vigia.conhecer("94-3a-91-53-e2-8e")
+        estado = self._estado(tmp_path)
+        assert estado["dispositivos"]["94:3A:91:53:E2:8E"]["conhecido"] is True
+        assert "reconhecido" in capsys.readouterr().out
+        vigia.conhecer("94:3A:91:53:E2:8E", "Echo Sala")
+        assert self._estado(tmp_path)["dispositivos"][
+            "94:3A:91:53:E2:8E"]["nome"] == "Echo Sala"
+
+    def test_conhecer_fora_do_inventario_avisa_e_nao_grava(
+        self, vigia, tmp_path: Path, capsys,
+    ) -> None:
+        vigia.conhecer("AA:BB:CC:DD:EE:FF")
+        assert "não está no inventário" in capsys.readouterr().out
+        assert not (tmp_path / "estado.json").exists()
+
+    def test_ack_seguranca_imprime_quantos(
+        self, vigia, tmp_path: Path, capsys,
+    ) -> None:
+        vigia.salvar_estado({"pendentes_seguranca": [{"origem": "sshd"}]})
+        vigia.ack_seguranca()
+        assert "1 evento(s)" in capsys.readouterr().out
+        assert self._estado(tmp_path)["pendentes_seguranca"] == []
+
+    def test_report_lista_pendencias_e_seguranca(
+        self, vigia, tmp_path: Path, capsys,
+    ) -> None:
+        vigia.salvar_estado({
+            "ciclos": 3,
+            "dispositivos": {
+                "AC:A7:04:F0:8F:88": {
+                    "ip": "192.168.0.224", "nome": "", "conhecido": False,
+                    "fabricante": "Espressif Inc."},
+                "94:3A:91:53:E2:8E": {
+                    "ip": "192.168.0.202", "nome": "Echo-Sala",
+                    "conhecido": True, "fabricante": "Amazon"},
+            },
+            "pendentes_novos": [
+                {"mac": "AC:A7:04:F0:8F:88", "fabricante": "Espressif Inc.",
+                 "ip": "192.168.0.224", "desde": "2026-10-21T10:00:00"}],
+            "pendentes_seguranca": [
+                {"origem": "roteador", "msg": "illegal login attempt"}],
+        })
+        vigia.report()
+        saida = capsys.readouterr().out
+        assert "Inventário: 2 dispositivo(s)" in saida
+        assert "DESCONHECIDO" in saida and "Echo-Sala" in saida
+        assert "1 dispositivo(s) novo(s)" in saida
+        assert "SEGURANÇA [roteador]" in saida
+
+    def test_bloquear_sem_senha_retorna_2(
+        self, monkeypatch, capsys,
+    ) -> None:
+        monkeypatch.delenv("ROUTER_ADMIN_PASSWORD", raising=False)
+        assert vw.main(["--bloquear", "AA:BB:CC:DD:EE:FF"]) == 2
+        assert "FALHA" in capsys.readouterr().out
+
+    def test_bloquear_operador_manda_o_mac_normalizado(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        venv = tmp_path / "python"
+        venv.write_text("x")
+        monkeypatch.setattr(vw, "VENV_PY", str(venv))
+        monkeypatch.setenv("ROUTER_ADMIN_PASSWORD", "s3nh4")
+        capturado: dict = {}
+
+        class _Proc:
+            returncode = 0
+            stdout = "AA:BB:CC:DD:EE:FF bloqueado; releitura: 1 entrada."
+            stderr = ""
+
+        def falso_run(cmd, **kwargs):
+            capturado["cmd"] = cmd
+            capturado["env"] = kwargs.get("env", {})
+            return _Proc()
+
+        monkeypatch.setattr(vw.subprocess, "run", falso_run)
+        assert vw.main(["--bloquear", "aa-bb-cc-dd-ee-ff"]) == 0
+        assert capturado["cmd"][-1] == "AA:BB:CC:DD:EE:FF"
+        assert capturado["env"]["ROUTER_PASS"] == "s3nh4"
+
+    def test_main_once_devolve_o_json_do_ciclo(
+        self, vigia, tmp_path: Path, monkeypatch, capsys,
+    ) -> None:
+        monkeypatch.setattr(
+            vw, "ciclo", lambda seed=False: {"ativos": 1, "novos": 0})
+        assert vw.main(["--once"]) == 0
+        assert json.loads(capsys.readouterr().out) == {
+            "ativos": 1, "novos": 0}
+
+    def test_main_ciclo_excecao_sai_zero_e_registra(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        def explode(**kwargs):
+            raise RuntimeError("boom")
+        monkeypatch.setattr(vw, "ciclo", explode)
+        assert vw.main([]) == 0                      # monitor sobrevive
+        ultimo = self._linhas(tmp_path)[-1]
+        assert ultimo["tipo"] == "ciclo_erro" and "boom" in ultimo["detalhe"]
+
+    def test_main_conhecer_e_ack_sabem_os_dois_args(
+        self, vigia, tmp_path: Path, monkeypatch,
+    ) -> None:
+        monkeypatch.setenv(
+            "OD_VIGIA_VIZINHOS_JSON", '{"94:3A:91:53:E2:8E": "192.168.0.202"}')
+        vigia.ciclo()
+        assert vw.main(["--conhecer", "94:3A:91:53:E2:8E", "Echo"]) == 0
+        assert vw.main(["--ack-seguranca"]) == 0
+        assert vw.main(["--report"]) == 0
+
+    def test_main_seed_passa_seed_ao_ciclo(
+        self, vigia, tmp_path: Path, monkeypatch, capsys,
+    ) -> None:
+        visto: dict = {}
+        monkeypatch.setattr(
+            vw, "ciclo", lambda seed=False: visto.update(seed=seed) or {})
+        assert vw.main(["--seed"]) == 0 and visto["seed"] is True

@@ -46,6 +46,45 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### Botão ↑ fechando as 12 páginas + a camada `sshd` do Vigia descoberta muda (22/10, sem bump)
+
+**1) O círculo ↑ — pedido do dono** (*"no site as páginas são muito
+compridas. coloque aquele círculo que retorna ao topo"*). Nas 12 páginas
+do site, 10 já tinham o botão (desde 10/10); faltavam `loja.html` e
+`teste-tema.html`. A rodada que aplicou o pedido **duplicou** o da loja
+(dois `id="toTop"` = HTML inválido, o segundo elemento morto) e pôs o da
+página de teste **DEPOIS** do `od-nav.js` — o script roda no parse e o
+`getElementById` chegava a ver a página sem botão: nunca ligava e o
+círculo não aparecia. Conserto: exatamente UM botão por página, antes do
+`od-nav.js` (o padrão das outras 11) + guarda
+`TestAPISite::test_botao_voltar_ao_topo_unico_e_ligado_em_todas_as_paginas`
+(todos os `site/*.html`: um `id="toTop"`, classe `.to-top`, ordem antes
+do script). Mutações 2/2 capturadas com restauração bit-exata.
+
+**2) Achado no caminho: a camada `sshd` do Vigia da Rede estava MUDA.**
+`journal_sshd()` devolve o stdout do `journalctl` inteiro (string) e o
+`ciclo()` iterava direto — cada **caractere** virava uma "linha" e nenhum
+"Failed password" jamais casaria: o alarme de intrusão do servidor nunca
+disparou (o log do roteador, que vem em lista no JSON, funcionava).
+Conserto: `.splitlines()` no laço + comentário no ponto do defeito; o
+teste que o pegou usa journal multi-linha real ("Accepted" ignorado,
+"Failed" vira evento pendente).
+
+**3) Cobertura do Vigia 39% → 98% (o gate preto virou verde).** O Vigia
+(21/10) foi entregue com o `ciclo()`, os modos de operador e o executor da
+camada rica rodando só em SUBPROCESSO — fora da medição do gate; a
+soma das entregas do portário derrubou o gate a **89,85%**. Agora
+`tests/test_network_watchdog.py` **+32 em processo** (`TestVigiaEmProcesso`):
+ciclo completo com bordas injetadas (rede, UI do roteador, journal, OUI,
+destinos de log em `tmp_path`), seed, rico com erro, rotação, estado
+corrompido, `rodar_rich` (sem venv / sem senha / JSON quebrado / sucesso
+com `ROUTER_PASS`), `--bloquear` de operador com MAC normalizado,
+`--report`, `conhecer`/`ack` e `main()` sob exceção do ciclo. Gate oficial:
+**3665 passed / 16 skipped / 0 falha · 90,74%** (baseline medido antes:
+3632/16 a **89,87%** — a queda era pré-existente, não desta rodada).
+Sem restart: o vigia é executado a cada tick pelo timer (lê o script do
+disco) e o `od-core` não foi tocado.
+
 ### Reboot do roteador tirado da janela dos backups (sem bump — 21/10)
 
 Dono (*"o problema do roteador vamos resolver agora… ele está configurado

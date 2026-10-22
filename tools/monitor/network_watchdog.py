@@ -464,7 +464,13 @@ def ciclo(*, seed: bool = False) -> dict:
             desde = estado.get("sshd_desde") or (
                 datetime.now(Fuso) - timedelta(minutes=30)
             ).isoformat(timespec="seconds")
-            for linha in journal_sshd(desde.replace("T", " ").replace("-03:00", "")):
+            # .splitlines() de propósito: journal_sshd devolve o stdout
+            # INTEIRO (string) — iterar a string seria iterar CARACTERES e
+            # nenhum "Failed password" jamais casaria (defeito real achado
+            # pelo teste em processo de 22/10; a camada sshd ficou muda).
+            texto_ssh = journal_sshd(
+                desde.replace("T", " ").replace("-03:00", ""))
+            for linha in texto_ssh.splitlines():
                 ev = evento_seguranca(linha, "sshd")
                 if ev and (ev["origem"], ev["msg"]) not in chaves:
                     pendentes.append(ev)

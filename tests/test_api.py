@@ -1783,6 +1783,33 @@ class TestAPISite:
         assert "<b>9</b><span>Ferramentas no ar</span>" in html
         assert "<b>78</b>" not in html and "+2.300" not in html
 
+    def test_botao_voltar_ao_topo_unico_e_ligado_em_todas_as_paginas(
+        self,
+    ) -> None:
+        """Pedido do dono (22/10): "as páginas são muito compridas —
+        coloque aquele círculo que retorna ao topo".
+
+        O botão já existia em 10 das 12 páginas; a rodada que aplicou o
+        pedido DUPLICOU o da loja (dois id="toTop" = HTML inválido e o
+        segundo elemento fica morto) e pôs o da página de teste DEPOIS
+        do od-nav.js — o script roda no parse e o getElementById chegava
+        a ver a página sem botão (nunca ligava, o círculo não aparecia).
+        Trava: cada página tem EXATAMENTE UM botão .to-top e ele vem
+        antes do od-nav.js — que é o único lugar que liga scroll e clique.
+        """
+        raiz = Path(__file__).resolve().parents[1]
+        paginas = sorted((raiz / "site").glob("*.html"))
+        assert paginas, "site sem páginas"
+        for pagina in paginas:
+            html = pagina.read_text(encoding="utf-8")
+            nome = pagina.name
+            assert html.count('id="toTop"') == 1, f"{nome}: toTop duplicado"
+            assert 'class="to-top"' in html, f"{nome}: sem classe to-top"
+            if "<script src=\"/site/od-nav.js\">" in html:
+                assert html.index('id="toTop"') < html.index(
+                    '<script src="/site/od-nav.js">'
+                ), f"{nome}: botão depois do od-nav.js (fica morto)"
+
     def test_historico_cobre_todos_os_releases_e_contagem_verdadeira(
         self,
     ) -> None:
