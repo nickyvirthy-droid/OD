@@ -82,7 +82,33 @@ class _FerramentaStub(BaseHTTPRequestHandler):
             "metodo": self.command, "path": self.path,
             "corpo": corpo, "host": self.headers.get("Host"),
             "upgrade": self.headers.get("Upgrade"),
+            "cookie": self.headers.get("Cookie"),
         }
+        if self.path == "/api/login":
+            # Contrato real do FileBrowser v2 (22/10): JWT no CORPO,
+            # text/plain, sem Set-Cookie.
+            resposta = b"stub-jwt-caixa"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(resposta)))
+            self.end_headers()
+            self.wfile.write(resposta)
+            return
+        if self.path == "/pagina.html":
+            # SPA no estilo FlatNotes/IT Tools: vive na raiz do site.
+            resposta = (
+                b'<!doctype html><html><head><base href="/" />'
+                b'<link rel="stylesheet" href="/assets/app.css"></head>'
+                b'<body><script src="/assets/app.js"></script>'
+                b'<a href="/f/caixa/ja-prefixado">x</a>'
+                b'<a href="//cdn.example.com/p">y</a></body></html>'
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(resposta)))
+            self.end_headers()
+            self.wfile.write(resposta)
+            return
         if self.path == "/redireciona":
             self.send_response(302)
             self.send_header("Location", "/login")
@@ -257,19 +283,21 @@ class TestPortaoDoPortario:
         assert status == 401
         assert "Set-Cookie" not in cab
 
-    def test_menu_lateral_tem_as_5_e_mesma_aba(self, serve, tmp_path) -> None:
-        """Ordem do dono (22/10): as 5 no MENU lateral, dentro do site.
+    def test_menu_lateral_tem_as_4_e_mesma_aba(self, serve, tmp_path) -> None:
+        """Ordem do dono (22/10): as ferramentas no MENU, dentro do site.
 
         Duas reclamações travadas aqui: (1) os links tinham ido como
         botões no CORPO do admin — ele quer no MENU; (2) abriam em aba
-        nova — ele quer dentro do site (mesma aba).
+        nova — ele quer dentro do site (mesma aba). IT Tools saiu do
+        portário no mesmo dia (decisão dele: "a resposta é tirar").
         """
         srv = serve(_cfg(_loja(tmp_path)))
         status, corpo, _ = chamar(srv.bound_port, "GET", "/chat")
         assert status == 200
         pagina = corpo.decode("utf-8", "replace")
         assert "function lateralFerramentas" in pagina
-        for nome in ("caderno", "cyberchef", "itools", "caixa", "cofre"):
+        assert '"/f/itools/"' not in pagina          # fora do portário
+        for nome in ("caderno", "cyberchef", "caixa", "cofre"):
             assert f'"/f/{nome}/"' in pagina, f"menu sem {nome}"
         bloco = pagina.split("function lateralFerramentas")[1]
         bloco = bloco.split("window.odFormato")[0]
@@ -491,17 +519,18 @@ class TestProxyDasFerramentas:
 # ===========================================================================
 
 class TestMapaDoPortario:
-    """Só as 5 da fase 1 — as outras 4 ficam casa+celular por enquanto."""
+    """As 4 do portário — IT Tools saiu em 22/10; casa é casa."""
 
-    def test_somente_as_cinco_da_fase_1(self) -> None:
+    def test_somente_as_quatro_do_portario(self) -> None:
         assert set(APIHandler.FERRAMENTAS_PORTA) == {
-            "caderno", "cyberchef", "itools", "caixa", "cofre"}
+            "caderno", "cyberchef", "caixa", "cofre"}
         assert APIHandler.FERRAMENTAS_MANTEN_PREFIXO == {"cofre"}
+        assert APIHandler.FERRAMENTAS_SEM_PORTAO == ("cofre",)
         padrao = re.compile(ROTA_FERRAMENTAS)
-        for nome in ("caderno", "cyberchef", "itools", "caixa", "cofre"):
+        for nome in ("caderno", "cyberchef", "caixa", "cofre"):
             assert padrao.fullmatch(f"/f/{nome}/")
             assert padrao.fullmatch(f"/f/{nome}")
-        for outra in ("livros", "kiwix", "stirling", "homebox"):
+        for outra in ("livros", "kiwix", "stirling", "homebox", "itools"):
             assert padrao.fullmatch(f"/f/{outra}/") is None
 
     def test_ferramenta_de_casa_responde_404(self, serve, tmp_path) -> None:
@@ -509,3 +538,95 @@ class TestMapaDoPortario:
         srv = serve(_cfg(_loja(tmp_path)))
         status, _, _ = chamar(srv.bound_port, "GET", "/f/livros/")
         assert status == 404
+
+
+# ===========================================================================
+# Praticidade: nenhuma senha extra (decisões do dono, 22/10)
+# ===========================================================================
+
+class TestPraticidadeSemSenha:
+    """"Se for ter que digitar senha não vou querer; o objetivo é ser
+    prático" — o portário é o ÚNICO gate: HTML das SPA reescrito pro
+    prefixo, IT Tools fora, Cofre sem portão (clientes Bitwarden) e
+    Caixa logando sozinha."""
+
+    def test_itools_saiu_e_fica_404(self, serve, tmp_path) -> None:
+        """IT Tools saiu do portário (dono, 22/10): fora do menu e da
+        rota — continua em casa/tailnet na8430."""
+        srv = serve(_cfg(_loja(tmp_path)))
+        status, corpo, _ = chamar(srv.bound_port, "GET", "/chat")
+        assert status == 200
+        assert '"/f/itools/"' not in corpo.decode("utf-8", "replace")
+        status, _, _ = chamar(srv.bound_port, "GET", "/f/itools/")
+        assert status == 404
+
+    def test_html_das_spa_ganha_o_prefixo(
+            self, serve, tmp_path, ferramenta_stub, monkeypatch) -> None:
+        """`<base href="/">` e `/assets/...` absoluto viram `/f/<nome>/`.
+
+        Repro headless provou (22/10): sem isso o navegador pede os
+        assets na RAIZ do site → 404 → tela branca (foi o que o dono viu
+        no Caderno). `//protocolo` e `/f/...` já prefixado não se toca.
+        """
+        monkeypatch.setitem(APIHandler.FERRAMENTAS_PORTA, "caderno",
+                            ferramenta_stub)
+        srv = serve(_cfg(_loja(tmp_path)))
+        status, corpo, _ = chamar(
+            srv.bound_port, "GET", "/f/caderno/pagina.html",
+            headers=_cabeca(_token(srv, "dono")))
+        assert status == 200
+        texto = corpo.decode("utf-8")
+        assert '<base href="/f/caderno/"' in texto
+        assert 'href="/f/caderno/assets/app.css"' in texto
+        assert 'src="/f/caderno/assets/app.js"' in texto
+        assert 'href="/f/caixa/ja-prefixado"' in texto   # já prefixado
+        assert '//cdn.example.com' in texto              # protocolo intocado
+
+    def test_cofre_abre_sem_sessao_para_os_clientes(
+            self, serve, tmp_path, ferramenta_stub, monkeypatch) -> None:
+        """Clientes Bitwarden (app/extensão) não falam cookie od_sessao:
+        o portão do cofre é a senha-mestra, mesmo modelo de instância
+        pública — sem isso o celular nunca sincroniza."""
+        monkeypatch.setitem(APIHandler.FERRAMENTAS_PORTA, "cofre",
+                            ferramenta_stub)
+        srv = serve(_cfg(_loja(tmp_path)))
+        status, corpo, _ = chamar(srv.bound_port, "GET", "/f/cofre/")
+        assert status == 200                     # passa direto, sem 302
+        eco = json.loads(corpo)
+        assert eco["path"] == "/f/cofre/"        # prefixo mantido
+
+    def test_cookie_duplicado_um_valido_abre(
+            self, serve, tmp_path, ferramenta_stub, monkeypatch) -> None:
+        """Navegador pode mandar DOIS od_sessao (histórico de Path/instância):
+        qualquer um válido abre — um morto no meio não fecha o portão."""
+        monkeypatch.setitem(APIHandler.FERRAMENTAS_PORTA, "caderno",
+                            ferramenta_stub)
+        srv = serve(_cfg(_loja(tmp_path)))
+        status, _, _ = chamar(
+            srv.bound_port, "GET", "/f/caderno/",
+            headers={"Cookie": f"od_sessao=morto-antigo; "
+                               f"od_sessao={_token(srv, 'dono')}"})
+        assert status == 200
+
+    def test_caixa_loga_sozinho_e_entrega_o_cookie(
+            self, serve, tmp_path, ferramenta_stub, monkeypatch) -> None:
+        """Sem senha digitada: o portário loga no FileBrowser server-side
+        (credencial só no .env/cofre), entrega o cookie ao navegador E já
+        usa no pedido atual."""
+        monkeypatch.setitem(APIHandler.FERRAMENTAS_PORTA, "caixa",
+                            ferramenta_stub)
+        monkeypatch.setenv("OD_FILEBROWSER_PASSWORD", "senha-caixa-teste")
+        srv = serve(_cfg(_loja(tmp_path)))
+        status, corpo, cab = chamar(
+            srv.bound_port, "GET", "/f/caixa/pagina.html",
+            headers=_cabeca(_token(srv, "dono")))
+        assert status == 200
+        assert "auth=stub-jwt-caixa" in cab["Set-Cookie"]   # navegador
+        assert "Path=/f/caixa" in cab["Set-Cookie"]        # escopo dela
+        # a SPA do FileBrowser só reconhece o JWT no localStorage:
+        # o shell ganha o script que grava lá (fonte atrás do portão).
+        assert 'localStorage.setItem("jwt","stub-jwt-caixa")' \
+            in corpo.decode("utf-8")
+        # o pedido DE FATO chegou logado no backend
+        assert "auth=stub-jwt-caixa" in (
+            _FerramentaStub.ultimo["cookie"] or "")

@@ -504,3 +504,27 @@ ferramenta. Extras no mesmo fôlego: **barra do topo fixa**
 **botão flutuante ↑** no Painel e no Admin (monta depois da guarda do
 herói; **o chat não monta**, o dono confirmou que não precisa).
 20/20 no arquivo do portário; rotas 91→92 (mirror + público).
+
+**Rodada 3 (22/10 — "vamos parar e analisar"; ordem nova: praticidade):**
+O dono relatou: CyberChef abriu; Caderno e IT Tools não (tela branca);
+Caixa e Cofre pediam senha. Análise + repro headless (playwright no
+chromium do od-vigia-venv contra instância de teste em :8199 com conta
+temporária — sem tela no servidor, o navegador renderiza igual): causa
+raiz do Caderno = `<base href="/" />` do FlatNotes (assets resolviam
+contra a raiz do Site →404); IT Tools = `/assets/` absoluto. Decisões
+do dono (por escolha explícita): portário com **Cofre, Caixa, Caderno
+e CyberChef**; **IT Tools sai** ("a resposta é tirar" — fica em
+casa/tailnet:8430); **"se for ter que digitar senha não vou querer; o
+objetivo é ser prático; tudo o que puder ser feito com IA através do
+chat eu aprovo"**. Entrega: proxy reescreve o HTML das SPA pro
+prefixo; `FLATNOTES_AUTH_TYPE=none` (bot já opera sem login —
+`flatnotes_status`/`busca` provados); **Caixa com login automático**
+no proxy (FileBrowser v2: JWT no CORPO text/plain — apurado ao vivo;
+Set-Cookie `auth` escopado + JWT injetado no localStorage do shell, que
+é onde a SPA olha → `/f/caixa/files/` sem digitar nada); **Cofre tira
+o portão de sessão** (clientes Bitwarden não falam cookie — senha-mestra
+é o portão; web/app passam a funcionar do celular); portão reforçado
+(qualquer cookie válido entre duplicados + log com motivo). O chat já
+atende os dois desejos dele de interface: `flatnotes_anota`/`flatnotes_busca`
+e `vault_list`/`vault_get`/`vault_set`. +5 testes = **25/25**; provas
+vivas no od-core reiniciado + repro headless completo.

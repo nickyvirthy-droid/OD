@@ -1432,7 +1432,7 @@ class TestIconesDoMenuLateral:
         painel["/admin"] = re.search(
             r'aria-hidden="true">([^<]+)</span>', adm).group(1)
         compartilhados = {"/dashboard", "/chat", "/site", "/admin"}
-        ferramentas = {"/f/caderno/", "/f/cyberchef/", "/f/itools/",
+        ferramentas = {"/f/caderno/", "/f/cyberchef/",
                        "/f/caixa/", "/f/cofre/"}
         assert set(painel) == compartilhados | ferramentas
         for href in compartilhados:

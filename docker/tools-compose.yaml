@@ -102,11 +102,13 @@ services:
     volumes:
       - /home/alex/omegadrakon-tools/flatnotes:/data
     environment:
-      # 21/10 (dono: "Todas as 9 + senha no Caderno"): senha LIGADA —
-      # com a rede interna aberta, notas/TODO não podem ficar sem
-      # porta. Credenciais no .env (nunca no git); o sistema entra
-      # pelo FlatNotesClient (login + sessão própria).
-      - FLATNOTES_AUTH_TYPE=${FLATNOTES_AUTH_TYPE:-password}
+      # 22/10 (dono, ordem de praticidade: "se for ter que digitar senha
+      # não vou querer"): SENHA DESLIGADA (FLATNOTES_AUTH_TYPE=none no
+      # .env) — o portário do Site é o portão (só a conta do dono passa)
+      # e o cliente do sistema opera no caminho anônimo (flatnotes_anota/
+      # busca provados). Antes (21/10) era password; a rede interna
+      # aberta era o motivo — com o portário, o motivo caiu.
+      - FLATNOTES_AUTH_TYPE=${FLATNOTES_AUTH_TYPE:-none}
       - FLATNOTES_USERNAME=${FLATNOTES_USERNAME:-dono}
       - FLATNOTES_PASSWORD=${FLATNOTES_PASSWORD:?defina FLATNOTES_PASSWORD no .env (21/10)}
       - FLATNOTES_SECRET_KEY=${FLATNOTES_SECRET_KEY:?defina FLATNOTES_SECRET_KEY no .env (21/10 — assina a sessão)}

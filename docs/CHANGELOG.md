@@ -269,6 +269,41 @@ vivas: `lateralFerramentas` nas 3 telas, sticky nas 3, montagem do ↑
 só pós-guarda, session-cookie 401 sem credencial, portão ainda
 302 → `/chat?next=`.
 
+**Continuação (22/10, 2ª rodada — "praticidade": nenhuma senha extra):
+O PORTÁRIO FICA COM4 E NENHUMA FERRAMENTA PEDE SENHA.** Análise a
+pedido do dono ("vamos parar e analisar todas as ferramentas"):
+**IT Tools SAIU** (pouco uso fora de casa; continua em casa/tailnet na
+8430 — rota agora404 e fora do menu). Causa raiz da tela branca do
+Caderno achada em **repro headless** (playwright + chromium contra
+instância de teste local com conta temporária — o servidor não tem
+tela, mas o chromium renderiza): o FlatNotes publica `<base href="/" />`
+e o IT Tools pedia `/assets/...` na raiz → o navegador batia no Site e
+levava404. Conserto no proxy: **HTML das SPA reescrito** pro prefixo
+(`<base>` + `src/href/action` raiz → `/f/<nome>/`; //protocolo e `/f/`
+já prefixado não se toca; só texto puro, ≤1 MB). Ordem nova do dono:
+*"se for ter que digitar senha não vou querer; tudo o que puder ser
+feito com IA através do chat eu aprovo"* → (1) **Caderno sem senha
+própria** (`FLATNOTES_AUTH_TYPE=none` no `.env` — o cliente do bot já
+tem caminho anônimo; provado ao vivo: `flatnotes_status`/`flatnotes_busca`
+ok); (2) **Caixa loga sozinha**: o portário faz o login do FileBrowser
+server-side — JWT vem **no corpo** da resposta (contrato v2 apurado ao
+vivo, não em Set-Cookie), entrega `Set-Cookie auth` escopado em
+`/f/caixa` **e** injeta o JWT no `localStorage` do shell (a SPA só
+reconhece lá) → navegador cai direto em `/f/caixa/files/`, zero senha
+(credencial só no `.env` + cofre; só roda depois do portão da sessão);
+(3) **Cofre sem portão de sessão** (`FERRAMENTAS_SEM_PORTAO`): clientes
+Bitwarden (app do celular/extensão) não falam cookie od_sessao — o
+portão deles é a senha-mestra (modelo de instância pública; ADMIN_TOKEN
+já setado); senhas no dia a dia = **pelo chat** (`vault_list`/`vault_get`/
+`vault_set` existem). Robustez do portão: **qualquer** `od_sessao`
+válido entre cookies duplicados abre (histórico de Path não fecha o
+portão) e o302 loga `motivo=` (sem_credencial/sessao_invalida). +5
+testes = **25/25** no arquivo do portário. Provas vivas: `<base>`
+reescrito no Caderno, `/f/itools/`404, Caixa com Set-Cookie + script
+localStorage no shell, Cofre200 sem credencial, Caderno ainda302 →
+`/chat?next=` sem sessão; repro headless: Caderno com as notas na
+tela, Caixa em `/f/caixa/files/`, IT Tools fora do menu.
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 

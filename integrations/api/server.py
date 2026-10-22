@@ -122,10 +122,11 @@ PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/admin", "/site", "/site/{f
 #: Portário de ferramentas (fase 1 — ordem do dono 21/10): o Site vira
 #: portaria das ferramentas atrás do SEU login (gate de sessão + papel
 #: admin feitos DENTRO do handler — navegador não manda header).
-#: Só as 5 que suportam subcaminho (ver CHANGELOG §1.44.0); as outras
-#: 4 (Livros/Kiwix/Stirling/Homebox) ficam casa+celular por enquanto.
+#: As 4 do portário (IT Tools saiu em 22/10 por decisão do dono — fica
+#: em casa/tailnet); todas suportam subcaminho (CHANGELOG §1.44.0). As
+#: outras 4 (Livros/Kiwix/Stirling/Homebox) também ficam casa+celular.
 ROTA_FERRAMENTAS = (
-    "/f/(?P<nome>caderno|cyberchef|itools|caixa|cofre)(?P<resto>/.*)?"
+    "/f/(?P<nome>caderno|cyberchef|caixa|cofre)(?P<resto>/.*)?"
 )
 
 AUTH_EXEMPT_PATHS = frozenset(
@@ -1047,10 +1048,12 @@ _FORMATO_ORION_JS = """(function () {
     // Portário (22/10, pedido do dono): as 5 ferramentas no MENU, abrindo
     // DENTRO do site — mesma aba (ele reclamou da aba nova). Gate é a
     // sessão: sem login o /f/... leva para o formulário do chat.
+    // As 4 do portário (a ferramenta de dev saiu em 22/10 — decisão do
+    // dono: fica em casa/tailnet). Nenhuma senha extra: o portário é o
+    // único gate.
     var fs = [
       { href: "/f/caderno/", rot: "Caderno", ico: "📝" },
       { href: "/f/cyberchef/", rot: "CyberChef", ico: "🧪" },
-      { href: "/f/itools/", rot: "IT Tools", ico: "🧰" },
       { href: "/f/caixa/", rot: "Caixa", ico: "📂" },
       { href: "/f/cofre/", rot: "Cofre", ico: "🔒" }
     ];
@@ -5761,12 +5764,21 @@ class APIHandler(BaseHTTPRequestHandler):
     #: domínio com path — provado a fio em 21/10 no portal legado); as
     #: outras 4 (Livros/Kiwix/Stirling/Homebox) ficam casa+celular.
     FERRAMENTAS_PORTA: dict[str, int] = {
-        "caderno": 8200,    # FlatNotes — assets relativos (provado)
+        "caderno": 8200,    # FlatNotes — HTML reescrito pelo proxy (22/10)
         "cyberchef": 8100,  # app client-side puro (sem chamada de API)
-        "itools": 8430,     # SPA com caminhos relativos
         "caixa": 8410,      # FILEBROWSER_BASEURL=/f/caixa (compose)
         "cofre": 8480,      # DOMAIN=.../f/cofre (compose)
+        # IT Tools SAIU do portário (decisão do dono, 22/10: pouco uso
+        # fora de casa e SPA de caminhos absolutos). Continua em casa e
+        # na tailnet, direto em 127.0.0.1:8430.
     }
+
+    #: Ferramentas que NÃO passam pelo portão da sessão — o próprio app
+    #: autentica. No cofre, os clientes Bitwarden (app do celular,
+    #: extensão) falam o protocolo deles e não têm como mandar cookie
+    #: od_sessao: o portão deles é a senha-mestra, mesmo modelo de uma
+    #: instância pública do Vaultwarden (decisão do dono, 22/10).
+    FERRAMENTAS_SEM_PORTAO = ("cofre",)
 
     #: Ferramentas cujo backend JÁ vive sob o prefixo no próprio app
     #: (DOMAIN com path): o proxy NÃO tira /f/<nome> delas — só assim o
@@ -5787,9 +5799,17 @@ class APIHandler(BaseHTTPRequestHandler):
         A rota está em AUTH_EXEMPT_PATHS porque navegador não manda header:
         o gate é AQUI dentro (cookie od_sessao / Bearer / X-API-Key + papel
         admin). Sem credencial → 302 /auth/login; sessão sem papel admin →
-        403 (o registro é aberto, jamais vira passagem livre).
+        403 (o registro é aberto, jamais vira passagem livre). Cofre não
+        passa pelo portão (FERRAMENTAS_SEM_PORTAO): clientes Bitwarden
+        não falam cookie — o portão deles é a senha-mestra.
         """
-        if not self._portal_admin():
+        porta = self.FERRAMENTAS_PORTA.get(nome)
+        if porta is None:
+            # Fora do portário (IT Tools saiu em 22/10) ou nome inexistente.
+            self._json(404, {"ok": False, "error": "ferramenta_desconhecida",
+                             "ferramenta": nome})
+            return
+        if nome not in self.FERRAMENTAS_SEM_PORTAO and not self._portal_admin():
             return
         if not resto:
             # Sem barra final o navegador resolveria "assets/x" contra a
@@ -5813,15 +5833,23 @@ class APIHandler(BaseHTTPRequestHandler):
         """
         store = self.api._user_store
         token = ""
+        motivo = "sem_credencial"
         auth_header = self.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
-        if not token:
+        if not token and store is not None:
+            # TODOS os od_sessao do cabeçalho: o navegador pode mandar mais
+            # de um (histórico de Path/instância) — aceitar QUALQUER
+            # válido; um inválido no meio não pode fechar o portão.
             for parte in self.headers.get("Cookie", "").split(";"):
                 chave, _sep, valor = parte.partition("=")
-                if chave.strip() == "od_sessao":
+                if chave.strip() != "od_sessao" or not valor.strip():
+                    continue
+                user = store.validate_session(valor.strip())
+                if user is not None:
                     token = valor.strip()
                     break
+                motivo = "sessao_invalida"
         if token and store is not None:
             user = store.validate_session(token)
             if user is not None:
@@ -5833,6 +5861,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 # login seria loop de "logado sem acesso").
                 self._json(403, {"ok": False, "error": "acesso_negado"})
                 return False
+            motivo = "sessao_invalida"
         provided = self.headers.get("X-API-Key", "")
         if provided and store is not None:
             user = store.login_with_api_key(provided)
@@ -5850,7 +5879,7 @@ class APIHandler(BaseHTTPRequestHandler):
         # API e devolveria 405 para navegador). O ?next devolve o dono à
         # ferramenta que ele pediu depois de digitar a senha.
         log.info("Portário: redirecionando para o login",
-                 path=urlsplit(self.path).path)
+                 path=urlsplit(self.path).path, motivo=motivo)
         self.send_response(302)
         self.send_header(
             "Location",
@@ -5889,6 +5918,9 @@ class APIHandler(BaseHTTPRequestHandler):
             if chave.lower() not in proibidos
         }
         cabecalhos["Host"] = f"127.0.0.1:{porta}"
+        cookie_caixa = None
+        if nome == "caixa":
+            cookie_caixa = self._caixa_login_automatico(cabecalhos)
         conn = http.client.HTTPConnection("127.0.0.1", porta, timeout=120)
         try:
             try:
@@ -5903,12 +5935,41 @@ class APIHandler(BaseHTTPRequestHandler):
                                  "ferramenta": nome})
                 return
             self.send_response(resp.status)
+            # HTML das SPA que acham que vivem na raiz: reescreve os
+            # caminhos absolutos (e o <base href="/"> do FlatNotes) para
+            # /f/<nome>/ — sem isso o navegador pede /assets/... no site
+            # e a tela fica branca (repro headless provou: Caderno e IT
+            # Tools, 22/10). Só texto puro; resposta comprimida passa crua.
+            reescreve = (
+                resp.status == 200
+                and nome not in self.FERRAMENTAS_MANTEN_PREFIXO
+                and "text/html" in resp.getheader("Content-Type", "")
+                and not resp.getheader("Content-Encoding")
+            )
+            if reescreve:
+                inteiro = resp.read()
+                if len(inteiro) <= 1_048_576:   # shell de SPA cabe fácil
+                    extras = ""
+                    if cookie_caixa:
+                        # SPA do FileBrowser só reconhece o JWT no
+                        # localStorage — injeta no shell (fonte protegida
+                        # pelo portão; no-store, não vaza por cache).
+                        extras = ('<script>try{localStorage.setItem'
+                                  '("jwt","' + cookie_caixa[5:]
+                                  + '")}catch(e){}</script>')
+                    inteiro = self._reescreve_html_ferramenta(
+                        inteiro, nome, extras)
+                else:
+                    reescreve = False           # gigante: passa cru
             for chave, valor in resp.getheaders():
                 baixo = chave.lower()
                 if baixo in self._PROXY_HOP_A_HOP and not (
                     resp.status == 101
                     and baixo in ("connection", "upgrade")
                 ):
+                    continue
+                if reescreve and baixo == "content-length":
+                    # o corpo novo manda no tamanho (reescrito abaixo).
                     continue
                 if (baixo == "location" and valor.startswith("/")
                         and not valor.startswith(f"/f/{nome}")):
@@ -5917,11 +5978,23 @@ class APIHandler(BaseHTTPRequestHandler):
                     # nativo /f/caixa, DOMAIN /f/cofre) passa direto.
                     valor = f"/f/{nome}{valor}"
                 self.send_header(chave, valor)
+            if cookie_caixa:
+                # Navegador ganha o cookie escopado na Caixa: a partir da
+                #qui o FileBrowser recebe o login em todo pedido.
+                self.send_header(
+                    "Set-Cookie",
+                    f"{cookie_caixa}; Path=/f/caixa; HttpOnly; "
+                    f"SameSite=Lax")
             if resp.status == 101:
                 # 101 Switching Protocols: daqui em diante são bytes crus
                 # (frames WebSocket) — relé nos dois sentidos até fechar.
                 self.end_headers()
                 self._rele_websocket(conn)
+                return
+            if reescreve:
+                self.send_header("Content-Length", str(len(inteiro)))
+                self.end_headers()
+                self.wfile.write(inteiro)
                 return
             cl = resp.getheader("Content-Length")
             if cl is not None:
@@ -5939,6 +6012,81 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.wfile.write(inteiro)
         finally:
             conn.close()
+
+    def _caixa_login_automatico(self, cabecalhos: dict) -> Optional[str]:
+        """Login automático do FileBrowser — praticidade (pedido 22/10).
+
+        O dono não quer senha extra em ferramenta nenhuma ("se for ter
+        que digitar senha não vou querer"): sem o cookie auth do
+        FileBrowser no pedido, o portário loga server-side (credencial só
+        no .env + cofre), devolve o cookie ao navegador E usa no pedido
+        atual. O JWT vale horas — quando vencer, o próximo pedido loga de
+        novo sozinho. Só roda DEPOIS do portão da sessão (quem chega aqui
+        já é o dono), então não vira ampulheta de brute force.
+        """
+        senha = os.environ.get("OD_FILEBROWSER_PASSWORD", "")
+        if not senha:
+            return None
+        atual = cabecalhos.get("Cookie", "")
+        if re.search(r"(^|;)\s*auth=", atual):
+            return None
+        porta = self.FERRAMENTAS_PORTA["caixa"]
+        usuario = os.environ.get("OD_FILEBROWSER_USER", "admin")
+        conn = http.client.HTTPConnection("127.0.0.1", porta, timeout=15)
+        try:
+            corpo = json.dumps(
+                {"username": usuario, "password": senha}
+            ).encode("utf-8")
+            conn.request(
+                "POST", "/api/login", body=corpo,
+                headers={"Content-Type": "application/json",
+                         "Host": f"127.0.0.1:{porta}"})
+            resp = conn.getresponse()
+            bruto = resp.read().decode("utf-8", "replace").strip()
+            if resp.status != 200 or not bruto:
+                log.warn("Caixa: login automático recusado",
+                         status=resp.status)
+                return None
+            # Contrato do FileBrowser v2 (apurado ao vivo, 22/10): o JWT
+            # vem NO CORPO (text/plain) — não existe Set-Cookie no login.
+            par = f"auth={bruto}"
+            cabecalhos["Cookie"] = f"{atual}; {par}" if atual else par
+            return par
+        except (http.client.HTTPException, OSError, TimeoutError) as exc:
+            log.warn("Caixa: login automático fora do ar",
+                     erro=str(exc)[:120])
+        finally:
+            conn.close()
+        return None
+
+    def _reescreve_html_ferramenta(self, bruto: bytes, nome: str,
+                                   extras: str = "") -> bytes:
+        """HTML das SPA apontando para /f/<nome>/ em vez da raiz.
+
+        Dois defeitos reais (repro headless, 22/10): o FlatNotes publica
+        `<base href="/" />` — TODO URL relativo dele resolve contra a raiz
+        do site (tela branca no Caderno); o IT Tools referenciava
+        `/assets/...` absoluto. Regex só em atributo (src/href/action) e
+        nunca em //protocolo nem em /f/... (que já é do portário).
+        `extras` entra antes de </body> (ex.: o JWT do FileBrowser, que
+        a SPA só aceita pelo localStorage).
+        """
+        html = bruto.decode("utf-8", "replace")
+        prefixo = f"/f/{nome}/"
+        html = re.sub(
+            r'(<base\b[^>]*?href\s*=\s*["\'])/(["\'])',
+            rf"\g<1>{prefixo}\g<2>", html, count=1)
+        html = re.sub(
+            r'\b(src|href|action)(\s*=\s*["\'])/(?!/|f/)',
+            rf"\g<1>\g<2>{prefixo}", html)
+        if extras:
+            # Fonte só chega aqui atrás do portão (cookie od_sessao) — é
+            # o MESMO JWT que o cookie do navegador carrega, em outro
+            # suporte (a SPA do FileBrowser não lê cookie, lê localStorage).
+            marca = "</body>"
+            html = (html.replace(marca, extras + marca, 1)
+                    if marca in html else html + extras)
+        return html.encode("utf-8")
 
     def _rele_websocket(self, conn: http.client.HTTPConnection) -> None:
         """Relé cru cliente↔backend depois do 101 (WebSocket).
