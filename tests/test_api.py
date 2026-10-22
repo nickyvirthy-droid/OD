@@ -147,8 +147,9 @@ class TestAPIRoutes:
         2026-10-15) + lista pública /registry, registro do comprador
         /registry/posse e QR de posse do dono (Etapa 4 do Registro
         Mestre, 2026-10-15) + ciclos de coleção da frente NV (16/10) +
-        portário /f/<ferramenta> das 5 ferramentas (fase 1, 21/10)."""
-        assert len(ROUTES) == 91
+        portário /f/<ferramenta> das 5 ferramentas (fase 1, 21/10) +
+        /auth/session-cookie (sessão do chat vira cookie, 22/10)."""
+        assert len(ROUTES) == 92
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -202,6 +203,7 @@ class TestAPIRoutes:
             # Portário de ferramentas (fase 1 — 21/10): sem header de
             # dispatch; o gate é cookie od_sessao + papel admin DENTRO do
             # handler (AUTH_EXEMPT) — v. tests/test_portal_ferramentas.py
+            ("POST", "/auth/session-cookie"),
             ("GET", ROTA_FERRAMENTAS), ("POST", ROTA_FERRAMENTAS),
             ("PUT", ROTA_FERRAMENTAS), ("DELETE", ROTA_FERRAMENTAS),
             # Preferências do perfil (TODO §3.8: tema claro/escuro)
@@ -319,6 +321,7 @@ class TestAPIRoutes:
             # Portário de ferramentas (fase 1 — 21/10): rota sem header de
             # dispatch; o gate é cookie od_sessao + papel admin DENTRO do
             # handler (AUTH_EXEMPT) — v. tests/test_portal_ferramentas.py
+            ("POST", "/auth/session-cookie"),
             ("GET", ROTA_FERRAMENTAS), ("POST", ROTA_FERRAMENTAS),
             ("PUT", ROTA_FERRAMENTAS), ("DELETE", ROTA_FERRAMENTAS),
         }
@@ -1410,7 +1413,12 @@ class TestIconesDoMenuLateral:
     def test_icone_do_painel_igual_ao_do_site(self) -> None:
         """Os 4 itens compartilhados (Painel/Chat/Site/Admin) falam a
         MESMA língua visual nas duas superfícies — não pode ser 🖥️ de um
-        lado e outra coisa do outro."""
+        lado e outra coisa do outro.
+
+        22/10: o painel ganhou o grupo do portário (lateralFerramentas,
+        5 ferramentas do dono) — paridade só nos COMPARTILHADOS, porque
+        o site público não anuncia ferramenta de dono (sem login elas
+        levam ao formulário do chat)."""
         import re
         from integrations.api.server import _FORMATO_ORION_JS
         site = dict(re.findall(
@@ -1423,9 +1431,14 @@ class TestIconesDoMenuLateral:
         adm = _FORMATO_ORION_JS[_FORMATO_ORION_JS.index("function lateralAdmin()"):]
         painel["/admin"] = re.search(
             r'aria-hidden="true">([^<]+)</span>', adm).group(1)
-        assert set(painel) == {"/dashboard", "/chat", "/site", "/admin"}
-        for href, glifo in painel.items():
-            assert site.get(href) == glifo, (href, glifo, site.get(href))
+        compartilhados = {"/dashboard", "/chat", "/site", "/admin"}
+        ferramentas = {"/f/caderno/", "/f/cyberchef/", "/f/itools/",
+                       "/f/caixa/", "/f/cofre/"}
+        assert set(painel) == compartilhados | ferramentas
+        for href in compartilhados:
+            assert site.get(href) == painel[href], (href, painel[href])
+        for href in ferramentas:                    # glifos próprios, não vazios
+            assert painel[href] and painel[href] != "•", href
 
     def test_painel_servido_com_icones(self, serve) -> None:
         srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))

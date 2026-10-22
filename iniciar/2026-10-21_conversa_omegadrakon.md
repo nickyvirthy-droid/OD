@@ -486,3 +486,21 @@ administrador" → seção **🛠 Ferramentas** no `/admin` (5 cards, aba
 nova, mesma sessão). +2 testes de contrato (formulário/guarda no chat;
 menu das 5 no admin) = 16/16 no arquivo do portário; provas vivas do
 Location novo, do campo de senha e dos 5 links.
+
+**Rodada 2 (22/10, feedback em sequência — cada item com teste):**
+(1) *"...colocou como botão na tela do admin, quero que fique no
+menu"* → a seção de cards SAIU do corpo do admin e as 5 entraram no
+**menu lateral do Órion** (`lateralFerramentas`, mesmo gate de papel
+do item Admin). (2) *"...abrindo nova aba em vez de abrir dentro do
+próprio site"* → **mesma aba** (guarda de teste proíbe
+`target="_blank"` no bloco). (3) *"...mesmo já estando logado ele
+entra na tela de login e depois vai direto para o chat"* → causa: o
+token antigo vivia só no localStorage, **sem cookie**; solução: rota
+**`POST /auth/session-cookie`** (Bearer válido → grava `od_sessao`;
+inválido → 401 sem cookie) chamada pelo JS **em todo boot com sessão**
+e **antes** do salto `?next` — logado antigo agora vai direto à
+ferramenta. Extras no mesmo fôlego: **barra do topo fixa**
+(`position: sticky` nas 3 telas — o nome do dono sempre visível) e
+**botão flutuante ↑** no Painel e no Admin (monta depois da guarda do
+herói; **o chat não monta**, o dono confirmou que não precisa).
+20/20 no arquivo do portário; rotas 91→92 (mirror + público).

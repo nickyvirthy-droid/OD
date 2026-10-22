@@ -129,7 +129,8 @@ ROTA_FERRAMENTAS = (
 )
 
 AUTH_EXEMPT_PATHS = frozenset(
-    {"/auth/register", "/auth/login", "/anon/message", "/app/version",
+    {"/auth/register", "/auth/login", "/auth/session-cookie",
+     "/anon/message", "/app/version",
      "/registry", "/registry/collections", "/registry/{codigo}",
      "/registry/{codigo}/photo", "/registry/{codigo}/chat",
      # /f/*: o gate é o cookie od_sessao + papel admin no handler
@@ -318,6 +319,10 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/auth/login", "auth_login", False),
     ("POST", "/auth/logout", "auth_logout", True),
     ("GET", "/auth/me", "auth_me", True),
+    # Portário (22/10): a sessão do chat vira cookie od_sessao — o handler
+    # valida o Bearer e seta o cookie (AUTH_EXEMPT pelo mesmo motivo das
+    # rotas /f/*: navegador sem header no dispatch; gate é do handler).
+    ("POST", "/auth/session-cookie", "auth_session_cookie", False),
     # Portário de ferramentas (fase 1 — 21/10): /f/<nome>/* atrás do
     # login do Site. auth=False porque o gate (cookie od_sessao + admin)
     # é do handler; a rota está em AUTH_EXEMPT_PATHS pelo mesmo motivo.
@@ -977,7 +982,7 @@ _FORMATO_ORION_JS = """(function () {
     try { temSessao = !!localStorage.getItem("od_session_token"); } catch (e) {}
     if (!temSessao) return;      // anônimo: sem ida à API, sem item Admin
     buscarJson("/auth/me", true).then(function (d) {
-      if (d && d.role === "admin") lateralAdmin();
+      if (d && d.role === "admin") { lateralAdmin(); lateralFerramentas(); }
     });
   }
   function lateralMontar() {
@@ -1034,6 +1039,53 @@ _FORMATO_ORION_JS = """(function () {
     links.appendChild(a);
   }
 
+  function lateralFerramentas() {
+    var l = document.getElementById("odLateral");
+    if (!l || l.querySelector('a[href="/f/caderno/"]')) return;
+    var links = l.querySelector(".od-lateral-links");
+    if (!links) return;
+    // Portário (22/10, pedido do dono): as 5 ferramentas no MENU, abrindo
+    // DENTRO do site — mesma aba (ele reclamou da aba nova). Gate é a
+    // sessão: sem login o /f/... leva para o formulário do chat.
+    var fs = [
+      { href: "/f/caderno/", rot: "Caderno", ico: "📝" },
+      { href: "/f/cyberchef/", rot: "CyberChef", ico: "🧪" },
+      { href: "/f/itools/", rot: "IT Tools", ico: "🧰" },
+      { href: "/f/caixa/", rot: "Caixa", ico: "📂" },
+      { href: "/f/cofre/", rot: "Cofre", ico: "🔒" }
+    ];
+    for (var i = 0; i < fs.length; i++) {
+      var a = document.createElement("a");
+      a.setAttribute("href", fs[i].href);
+      a.setAttribute("title", fs[i].rot);
+      a.innerHTML = '<span class="od-ico" aria-hidden="true">' + fs[i].ico +
+        '</span><span class="od-rot">' + fs[i].rot + "</span>";
+      links.appendChild(a);
+    }
+  }
+
+  function topoBotao() {
+    // Botão flutuante "voltar ao topo" (pedido do dono, 22/10 — Painel e
+    // Admin; no chat o corpo não rola, mas o mesmo botão é inofensivo).
+    if (document.getElementById("odTopo")) return;
+    var b = document.createElement("button");
+    b.id = "odTopo";
+    b.setAttribute("aria-label", "Voltar ao topo");
+    b.title = "Voltar ao topo";
+    b.textContent = "↑";
+    b.style.cssText = "position:fixed;right:18px;bottom:18px;z-index:40;" +
+      "width:42px;height:42px;border-radius:50%;border:1px solid var(--border);" +
+      "background:var(--bg2);color:var(--text);font-size:1.1rem;cursor:pointer;" +
+      "display:none;box-shadow:0 4px 14px rgba(0,0,0,.35)";
+    b.addEventListener("click", function () {
+      window.scrollTo({top: 0, behavior: "smooth"});
+    });
+    window.addEventListener("scroll", function () {
+      b.style.display = window.scrollY > 320 ? "block" : "none";
+    }, {passive: true});
+    document.body.appendChild(b);
+  }
+
   // Interface para a página: o /admin chama pintar() no refresh do
   // loadSystem; quem logar entrega o nome (o cabeçalho chama pelo nome) —
   // e o papel, que decide o item Admin do menu lateral.
@@ -1043,7 +1095,7 @@ _FORMATO_ORION_JS = """(function () {
       nome = n;
       var ola = document.getElementById("odOla");
       if (ola) ola.textContent = saudacao() + ", " + nome;
-      if (papel === "admin") lateralAdmin();
+      if (papel === "admin") { lateralAdmin(); lateralFerramentas(); }
     },
     pintar: pintar,
     atualizar: atualizar
@@ -1060,6 +1112,7 @@ _FORMATO_ORION_JS = """(function () {
     // o próprio cabeçalho, e o papel dele o FORMATO pergunta sozinho.
     lateralMontar();
     if (!document.getElementById("odOla")) { papelChat(); return; }
+    topoBotao();   // só Painel/Admin montam (o chat não rola o corpo — 22/10)
     relogio();
     setInterval(relogio, 1000);
     versao();
@@ -1126,6 +1179,9 @@ _DASHBOARD_PAGE_HTML = """<!doctype html>
     -webkit-font-smoothing: antialiased;
   }
   header {
+    /* Barra do topo fixa (pedido do dono, 22/10): o nome do usuário
+       fica visível ao rolar a página. */
+    position: sticky; top: 0; z-index: 30;
     padding: 12px 20px; background: var(--bg2);
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 16px;
@@ -1386,6 +1442,9 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     -webkit-font-smoothing: antialiased;
   }
   header {
+    /* Barra do topo fixa (pedido do dono, 22/10): o nome do usuário
+       fica visível ao rolar a página. */
+    position: sticky; top: 0; z-index: 30;
     padding: 12px 20px; background: var(--bg2);
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 16px;
@@ -1480,35 +1539,6 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <div class="od-kpi"><div class="od-kpi-ico od-ico-verde">⏱</div>
       <div><div class="n" id="kpiUptime">—</div><div class="l">Uptime do núcleo</div></div></div>
   </div>
-  <section>
-    <h2>🛠 Ferramentas <span class="pill">portário · só tua conta</span></h2>
-    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
-      Abrem DENTRO do Site pelo teu login (a mesma sessão do chat) —
-      funcionam em qualquer computador, inclusive público. Desloga no fim.
-    </p>
-    <div class="grid">
-      <a class="card" href="/f/caderno/" target="_blank" rel="noopener"
-         style="text-decoration:none;color:inherit">
-        <div class="k">Caderno</div>
-        <div class="v" style="font-size:1rem">📝 FlatNotes</div></a>
-      <a class="card" href="/f/cyberchef/" target="_blank" rel="noopener"
-         style="text-decoration:none;color:inherit">
-        <div class="k">CyberChef</div>
-        <div class="v" style="font-size:1rem">🧪 Codificador</div></a>
-      <a class="card" href="/f/itools/" target="_blank" rel="noopener"
-         style="text-decoration:none;color:inherit">
-        <div class="k">IT Tools</div>
-        <div class="v" style="font-size:1rem">🧰 Ferramentas TI</div></a>
-      <a class="card" href="/f/caixa/" target="_blank" rel="noopener"
-         style="text-decoration:none;color:inherit">
-        <div class="k">Caixa</div>
-        <div class="v" style="font-size:1rem">📂 Arquivos</div></a>
-      <a class="card" href="/f/cofre/" target="_blank" rel="noopener"
-         style="text-decoration:none;color:inherit">
-        <div class="k">Cofre</div>
-        <div class="v" style="font-size:1rem">🔒 Senhas</div></a>
-    </div>
-  </section>
   <section>
     <h2>Visão do sistema (System Overview)
       <span class="pill" id="sys-resumo">…</span></h2>
@@ -3108,6 +3138,9 @@ _CHAT_PAGE_HTML = """<!doctype html>
   }
   /* --- Header --- */
   header {
+    /* Barra do topo fixa (pedido do dono, 22/10): o nome do usuário
+       fica visível ao rolar a conversa. */
+    position: sticky; top: 0; z-index: 30;
     padding: 12px 20px; background: var(--bg2);
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
@@ -3964,11 +3997,16 @@ $("enter").onclick = async () => {
     if (data.user && data.user.username) { user_id = data.user.username; }
     localStorage.setItem("od_session_token", token);
     resetProfileFilter();
-    showChat();
-    // Portário (fase 1): veio de /f/... pedindo ferramenta? login feito,
-    // volta para ela (só caminho do portário — sem open redirect).
+    // Portário (22/10): grava o cookie da MESMA sessão (o /f/... lê
+    // cookie) e, se veio pedindo ferramenta, segue direto para ela.
     const proximo = new URLSearchParams(location.search).get("next");
-    if (proximo && proximo.startsWith("/f/")) { location.href = proximo; }
+    try {
+      await fetch("/auth/session-cookie", {
+        method: "POST", headers: {"Authorization": "Bearer " + token}
+      });
+    } catch(e) {}
+    if (proximo && proximo.startsWith("/f/")) { location.replace(proximo); return; }
+    showChat();
   } catch(e) { $("err").textContent = "Falha de rede."; }
 };
 // --- Registro ---
@@ -4021,6 +4059,19 @@ async function tryAutoLogin() {
       if (resp.ok) {
         const data = await resp.json().catch(() => ({}));
         if (data.user && data.user.username) { user_id = data.user.username; }
+        // Portário (22/10): a MESMA sessão vira cookie od_sessao (o /f/...
+        // lê cookie — cura sessões antigas) e ?next=/f/... segue direto
+        // para a ferramenta pedida, já com o cookie gravado.
+        const proximoBoot = new URLSearchParams(location.search).get("next");
+        try {
+          await fetch("/auth/session-cookie", {
+            method: "POST",
+            headers: {"Authorization": "Bearer " + token}
+          });
+        } catch(e) {}
+        if (proximoBoot && proximoBoot.startsWith("/f/")) {
+          location.replace(proximoBoot); return;
+        }
         showChat(); return;
       }
     } catch(e) {}
@@ -5531,6 +5582,35 @@ class APIHandler(BaseHTTPRequestHandler):
                 "email": user.email,
             } if user else None,
         })
+
+    def auth_session_cookie(self) -> None:
+        """POST /auth/session-cookie — grava o cookie od_sessao da sessão.
+
+        O MESMO token que o chat guarda em localStorage vira cookie
+        HttpOnly para o navegador abrir /f/<ferramenta>/ (portário). O JS
+        do site chama com a sessão já aberta — cura sessões antigas (que
+        só tinham o token no localStorage, sem cookie: o dono caía no
+        login mesmo logado). Credencial inválida: 401 e nada de cookie.
+        """
+        auth_header = self.headers.get("Authorization", "")
+        token = (
+            auth_header[7:].strip()
+            if auth_header.startswith("Bearer ") else ""
+        )
+        user = (
+            self.api._user_store.validate_session(token)
+            if token and self.api._user_store is not None else None
+        )
+        if user is None:
+            self._json(401, {"ok": False, "error": "unauthorized"})
+            return
+        self._current_user = user
+        self._auth_via = "session"
+        self._cookies = [
+            f"od_sessao={token}; Path=/; HttpOnly; SameSite=Lax; "
+            "Max-Age=2592000"
+        ]
+        self._json(200, {"ok": True})
 
     def auth_logout(self) -> None:
         """POST /auth/logout — encerra a sessão atual.

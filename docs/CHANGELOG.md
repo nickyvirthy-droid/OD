@@ -245,6 +245,30 @@ aba nova com a mesma sessão) — ordem do dono. +2 testes de contrato
 provas vivas: 302 com Location novo, `id="login-pass"` e a guarda
 presentes no /chat, 5/5 links no /admin.
 
+**Continuação (22/10, feedback em rodada): AS 5 NO MENU LATERAL (MESMA
+ABA), SESSÃO VIRA COOKIE, BARRA FIXA E ↑ NO PAINEL/ADMIN.** Três
+reclamações do dono em sequência, cada uma com teste: (1) os links
+tinham ido como **botões no corpo do admin** — ele quer no **MENU**:
+saiu a seção e o grupo `lateralFerramentas` entrou no **menu lateral
+do Órion** (Painel/Chat/Site + Admin + as 5), com o mesmo gate de
+papel do item Admin; (2) abriam em **aba nova** — ele quer **dentro
+do site** → mesma aba (teste trava `target="_blank"` fora do bloco);
+(3) **logado no chat caía no login de novo** — o token antigo vivia só
+no localStorage, sem cookie → rota nova **`POST /auth/session-cookie`**
+(Bearer da sessão válida → grava `od_sessao`; inválida → 401 sem
+cookie) chamada pelo JS do site em **todo boot com sessão** (cura
+sessões antigas sozinha) e **antes** do salto do `?next` (login →
+ferramenta direto). Pedidos extras no mesmo fôlego: **barra do topo
+gruda** (`position: sticky` nas TRÊS telas — o nome do dono fica
+visível ao rolar) e **botão flutuante ↑ voltar ao topo** no Painel e
+no Admin (JS compartilhado; monta DEPOIS da guarda do herói — **o chat
+não monta**, o corpo dele não rola, confirmado pelo próprio dono).
++5 testes = **20/20** no arquivo do portário; contrato de rotas
+91→92 (`/auth/session-cookie` no mirror e no conjunto público). Provas
+vivas: `lateralFerramentas` nas 3 telas, sticky nas 3, montagem do ↑
+só pós-guarda, session-cookie 401 sem credencial, portão ainda
+302 → `/chat?next=`.
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 

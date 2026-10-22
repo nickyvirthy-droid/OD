@@ -228,15 +228,83 @@ class TestPortaoDoPortario:
         pagina = corpo.decode("utf-8", "replace")
         assert 'id="login-pass"' in pagina              # o campo de senha
         assert 'startsWith("/f/")' in pagina            # volta só p/ portário
+        assert "/auth/session-cookie" in pagina         # cura sessão→cookie
 
-    def test_admin_tem_menu_das_ferramentas(self, serve, tmp_path) -> None:
-        """Ordem do dono (22/10): link das 5 no menu do administrador."""
+    def test_session_cookie_converte_sessao_em_cookie(
+            self, serve, tmp_path) -> None:
+        """Sessão do chat (Bearer) vira cookie od_sessao — cura sessão antiga.
+
+        Reclamação do dono (22/10): logado no chat, o /f/... pedia login
+        de novo — o token antigo vivia só no localStorage, sem cookie.
+        """
+        srv = serve(_cfg(_loja(tmp_path)))
+        token = _token(srv, "dono")
+        status, corpo, cab = chamar(
+            srv.bound_port, "POST", "/auth/session-cookie",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert status == 200 and json.loads(corpo)["ok"]
+        assert cab.get("Set-Cookie", "").startswith(f"od_sessao={token}")
+
+    def test_session_cookie_sem_credencial_401_e_sem_cookie(
+            self, serve, tmp_path) -> None:
+        """Token inválido não ganha cookie nenhum."""
+        srv = serve(_cfg(_loja(tmp_path)))
+        status, _, cab = chamar(
+            srv.bound_port, "POST", "/auth/session-cookie",
+            headers={"Authorization": "Bearer mentira"},
+        )
+        assert status == 401
+        assert "Set-Cookie" not in cab
+
+    def test_menu_lateral_tem_as_5_e_mesma_aba(self, serve, tmp_path) -> None:
+        """Ordem do dono (22/10): as 5 no MENU lateral, dentro do site.
+
+        Duas reclamações travadas aqui: (1) os links tinham ido como
+        botões no CORPO do admin — ele quer no MENU; (2) abriam em aba
+        nova — ele quer dentro do site (mesma aba).
+        """
+        srv = serve(_cfg(_loja(tmp_path)))
+        status, corpo, _ = chamar(srv.bound_port, "GET", "/chat")
+        assert status == 200
+        pagina = corpo.decode("utf-8", "replace")
+        assert "function lateralFerramentas" in pagina
+        for nome in ("caderno", "cyberchef", "itools", "caixa", "cofre"):
+            assert f'"/f/{nome}/"' in pagina, f"menu sem {nome}"
+        bloco = pagina.split("function lateralFerramentas")[1]
+        bloco = bloco.split("window.odFormato")[0]
+        assert 'target="_blank"' not in bloco   # mesma aba, como ele pediu
+
+    def test_admin_sem_secao_de_botoes_no_corpo(self, serve, tmp_path) -> None:
+        """A seção de cards que existiu no corpo do admin saiu (ficou no menu)."""
         srv = serve(_cfg(_loja(tmp_path)))
         status, corpo, _ = chamar(srv.bound_port, "GET", "/admin")
         assert status == 200
-        pagina = corpo.decode("utf-8", "replace")
-        for nome in ("caderno", "cyberchef", "itools", "caixa", "cofre"):
-            assert f'href="/f/{nome}/"' in pagina, f"menu sem {nome}"
+        assert "portário · só tua conta" not in corpo.decode("utf-8", "replace")
+
+    def test_barra_fixa_e_botao_de_topo_nas_telas(self, serve, tmp_path) \
+            -> None:
+        """Pedidos do dono (22/10): nome fixo no topo + ↑ voltar ao topo.
+
+        A barra (com o nome do usuário) gruda no topo ao rolar — nas TRÊS
+        telas (chat/Painel/Admin); o botão flutuante ↑ é dos que têm
+        herói (Painel/Admin) — o chat não precisa, o corpo dele não rola
+        (pedido do dono, 22/10).
+        """
+        srv = serve(_cfg(_loja(tmp_path)))
+        for pagina, nome_tela in (("/chat", "chat"), ("/dashboard", "painel"),
+                                  ("/admin", "admin")):
+            status, corpo, _ = chamar(srv.bound_port, "GET", pagina)
+            assert status == 200, nome_tela
+            texto = corpo.decode("utf-8", "replace")
+            assert "position: sticky" in texto, f"barra não fixa em {nome_tela}"
+        assert "function topoBotao" in texto      # botão no JS compartilhado
+        assert 'b.id = "odTopo"' in texto
+        # A MONTAGEM fica DEPOIS da guarda do herói: chat não monta.
+        # (Ancora em lateralMontar(); — a atualizar() tem outra guarda odOla.)
+        guarda = texto.split("lateralMontar();")[1]
+        pos_monta = guarda.index("topoBotao();")
+        assert 'document.getElementById("odOla")' in guarda[:pos_monta]
 
     def test_conta_comum_logada_leva_403(self, serve, tmp_path) -> None:
         """Registro é aberto, mas conta comum não vira passagem livre."""
