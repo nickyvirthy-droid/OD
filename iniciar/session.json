@@ -7,7 +7,8 @@
   "cofre": "DOMAIN=https://nicky-server.tail1b1f51.ts.net/f/cofre (web vault nativo no path). O link direto :8443 do portal legado MORREU para o cofre; app Bitwarden deve passar para a URL nova (funnel público, vale em qualquer rede).",
   "provas": "14/14 testes novos (tests/test_portal_ferramentas.py) + gate completo; vivas: 302 /auth/login sem credencial (local e pelo funnel público), 5/5 com chave de operador, GET /f/caderno/api/config 200 com JSON, ativos da Caixa 200 em /f/caixa/static, cofre 200 no path, raiz do Site 200 intacta, /f/livros 404.",
   "analise_4": "Livros/Kiwix/Stirling/Homebox não suportam subcaminho (provado no portal 8443) e não vão para o Funnel: recomendação casa+celular (Tailscale) bastam; kiwix = dentro do chat; se algum dia precisar público: hostname próprio (DDNS+proxy), nunca subcaminho.",
-  "registrado": "CHANGELOG 1.44.0 (continuação 'Portário') + transcrição §10 + txt.txt + Telegram."
+  "registrado": "CHANGELOG 1.44.0 (continuação 'Portário') + transcrição §10 + txt.txt + Telegram.",
+  "correcao_22_10": "Feedback do dono: o 302 do portario parava em /auth/login (rota de API, sso POST) -> 405 JSON, tela sem campo para digitar. Correcao: portao agora manda para /chat?next=/f/<ferramenta>/ (o chat tem o formulario de verdade) + guarda next no JS do login (startsWith('/f/'), sem open redirect) -> senha digitada cai direto na ferramenta. Ordem nova: secao 'Ferramentas' no menu do /admin (5 cards, aba nova, mesma sessao). +2 testes de contrato = 16/16 no test_portal_ferramentas; provas vivas do Location novo, do campo de senha e dos 5 links."
  },
  "roteador_reboot_agendado_2026_10_21": {
   "pedido": "Dono (21/10 ~14:30): 'o problema do roteador vamos resolver agora. ele esta configurado para reiniciar as 3:00, justamente no horario dos backups. o sistema pode pegar o controle dele, te passo a senha pelo txt. existe um aplicativo que faz isso, tether, mas nao sei voce consegue clonar ou controlar ele.'",

@@ -473,3 +473,16 @@ celular (Tailscale) bastam** para Livros, Stirling e Homebox; o Kiwix
 fica com o destino novo (o chat). Se algum dia precisar de público de
 verdade, o caminho é **hostname próprio** (DDNS + proxy), nunca
 subcaminho.
+
+**Retrabalho (22/10, feedback do dono): o portário parava numa tela de
+login SEM campo para digitar.** Causa achada em produção: meu 302
+apontava para `/auth/login` — que é **rota de API (só POST)**; o
+navegador recebia 405 JSON. O formulário de verdade é o do `/chat` (o
+"gate" com `#login-user`/`#login-pass`). Correção: portão →
+`/chat?next=/f/<ferramenta>/` + guarda no JS do login (`startsWith
+("/f/")`, sem open redirect) — ele digita a senha e cai direto na
+ferramenta. **E a ordem nova:** "coloca um link no menu do
+administrador" → seção **🛠 Ferramentas** no `/admin` (5 cards, aba
+nova, mesma sessão). +2 testes de contrato (formulário/guarda no chat;
+menu das 5 no admin) = 16/16 no arquivo do portário; provas vivas do
+Location novo, do campo de senha e dos 5 links.

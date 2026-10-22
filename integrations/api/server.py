@@ -50,7 +50,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
 import urllib.error
 import urllib.request
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from tools.registry import ActionRegistry
 
@@ -1480,6 +1480,35 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <div class="od-kpi"><div class="od-kpi-ico od-ico-verde">⏱</div>
       <div><div class="n" id="kpiUptime">—</div><div class="l">Uptime do núcleo</div></div></div>
   </div>
+  <section>
+    <h2>🛠 Ferramentas <span class="pill">portário · só tua conta</span></h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Abrem DENTRO do Site pelo teu login (a mesma sessão do chat) —
+      funcionam em qualquer computador, inclusive público. Desloga no fim.
+    </p>
+    <div class="grid">
+      <a class="card" href="/f/caderno/" target="_blank" rel="noopener"
+         style="text-decoration:none;color:inherit">
+        <div class="k">Caderno</div>
+        <div class="v" style="font-size:1rem">📝 FlatNotes</div></a>
+      <a class="card" href="/f/cyberchef/" target="_blank" rel="noopener"
+         style="text-decoration:none;color:inherit">
+        <div class="k">CyberChef</div>
+        <div class="v" style="font-size:1rem">🧪 Codificador</div></a>
+      <a class="card" href="/f/itools/" target="_blank" rel="noopener"
+         style="text-decoration:none;color:inherit">
+        <div class="k">IT Tools</div>
+        <div class="v" style="font-size:1rem">🧰 Ferramentas TI</div></a>
+      <a class="card" href="/f/caixa/" target="_blank" rel="noopener"
+         style="text-decoration:none;color:inherit">
+        <div class="k">Caixa</div>
+        <div class="v" style="font-size:1rem">📂 Arquivos</div></a>
+      <a class="card" href="/f/cofre/" target="_blank" rel="noopener"
+         style="text-decoration:none;color:inherit">
+        <div class="k">Cofre</div>
+        <div class="v" style="font-size:1rem">🔒 Senhas</div></a>
+    </div>
+  </section>
   <section>
     <h2>Visão do sistema (System Overview)
       <span class="pill" id="sys-resumo">…</span></h2>
@@ -3936,6 +3965,10 @@ $("enter").onclick = async () => {
     localStorage.setItem("od_session_token", token);
     resetProfileFilter();
     showChat();
+    // Portário (fase 1): veio de /f/... pedindo ferramenta? login feito,
+    // volta para ela (só caminho do portário — sem open redirect).
+    const proximo = new URLSearchParams(location.search).get("next");
+    if (proximo && proximo.startsWith("/f/")) { location.href = proximo; }
   } catch(e) { $("err").textContent = "Falha de rede."; }
 };
 // --- Registro ---
@@ -5732,10 +5765,17 @@ class APIHandler(BaseHTTPRequestHandler):
         if expected and provided and hmac.compare_digest(provided, expected):
             self._auth_via = "server_key"  # chave de operador = admin
             return True
+        # Sem credencial: portão fechado e direção para a página de login
+        # DE VERDADE (o /chat tem o formulário; /auth/login é só rota de
+        # API e devolveria 405 para navegador). O ?next devolve o dono à
+        # ferramenta que ele pediu depois de digitar a senha.
         log.info("Portário: redirecionando para o login",
                  path=urlsplit(self.path).path)
         self.send_response(302)
-        self.send_header("Location", "/auth/login")
+        self.send_header(
+            "Location",
+            "/chat?next=" + quote(urlsplit(self.path).path, safe="/"),
+        )
         self.send_header("Content-Length", "0")
         self.end_headers()
         return False

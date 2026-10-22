@@ -229,6 +229,22 @@ melhor — **dentro do chat** (ideia do dono na nota TODO 5;
 consultá-lo). Se um dia algum precisar público, o caminho é **hostname
 próprio** (DDNS + proxy na frente), nunca subcaminho.
 
+**Continuação (22/10): CAMPO DE LOGIN CONCERTADO + MENU DAS FERRAMENTAS
+NO ADMIN (feedback do dono: "não está pedindo senha, está parando na
+tela de login, mas não tem como digitar... coloca um link no menu do
+administrador").** Causa: o 302 do portário apontava para
+`/auth/login`, que é **rota de API (só POST)** — o navegador parava num
+405 sem formulário nenhum. Correção: o portão agora manda para
+**`/chat?next=/f/<ferramenta>/`** (a página do chat é quem tem o
+formulário de verdade), e o JS do login ganhou a guarda `next`
+(`startsWith("/f/")` — só caminho do portário, sem open redirect): ele
+digita a senha e cai **direto na ferramenta** que pediu. **Menu do
+admin** ganhou a seção **🛠 Ferramentas** (5 links em cards, abrem em
+aba nova com a mesma sessão) — ordem do dono. +2 testes de contrato
+(formulário + guarda no /chat; menu com as 5 no /admin) = **16/16**;
+provas vivas: 302 com Location novo, `id="login-pass"` e a guarda
+presentes no /chat, 5/5 links no /admin.
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 

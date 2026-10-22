@@ -203,12 +203,40 @@ class TestPortaoDoPortario:
     """Quem não é o dono não vê ferramenta nenhuma."""
 
     def test_sem_credencial_vai_para_o_login(self, serve, tmp_path) -> None:
-        """Navegador sem sessão é jogado para a página de login (302)."""
+        """Navegador sem sessão vai para o formulário DE VERDADE (/chat).
+
+        Achado em produção (22/10): o alvo antigo /auth/login é rota de
+        API (só POST) e o navegador parava num 405 sem como digitar. O
+        ?next devolve o dono à ferramenta pedida após o login.
+        """
         srv = serve(_cfg(_loja(tmp_path)))
         status, corpo, cab = chamar(srv.bound_port, "GET", "/f/caderno/")
         assert status == 302
-        assert cab["Location"] == "/auth/login"
+        assert cab["Location"] == "/chat?next=/f/caderno/"
         assert corpo == b""
+
+    def test_chat_tem_formulario_e_guarda_do_next(self, serve, tmp_path) -> None:
+        """A página de login tem o formulário e o retorno só aceita /f/.
+
+        Trava o contrato que o dono usou em produção: sem isto ele parava
+        na tela sem campo para digitar, e depois de logado não voltava
+        para a ferramenta.
+        """
+        srv = serve(_cfg(_loja(tmp_path)))
+        status, corpo, _ = chamar(srv.bound_port, "GET", "/chat")
+        assert status == 200
+        pagina = corpo.decode("utf-8", "replace")
+        assert 'id="login-pass"' in pagina              # o campo de senha
+        assert 'startsWith("/f/")' in pagina            # volta só p/ portário
+
+    def test_admin_tem_menu_das_ferramentas(self, serve, tmp_path) -> None:
+        """Ordem do dono (22/10): link das 5 no menu do administrador."""
+        srv = serve(_cfg(_loja(tmp_path)))
+        status, corpo, _ = chamar(srv.bound_port, "GET", "/admin")
+        assert status == 200
+        pagina = corpo.decode("utf-8", "replace")
+        for nome in ("caderno", "cyberchef", "itools", "caixa", "cofre"):
+            assert f'href="/f/{nome}/"' in pagina, f"menu sem {nome}"
 
     def test_conta_comum_logada_leva_403(self, serve, tmp_path) -> None:
         """Registro é aberto, mas conta comum não vira passagem livre."""
