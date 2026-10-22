@@ -31,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hmac
+import http.client
 import io
 import json
 import mimetypes
@@ -47,6 +48,8 @@ from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
+import urllib.error
+import urllib.request
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from tools.registry import ActionRegistry
@@ -116,10 +119,22 @@ PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/admin", "/site", "/site/{f
 # conversar, sem conta — privilégio mínimo, nada é gravado) e o anúncio de
 # versão (o app consulta /app/version SEM credencial no boot — e o APK em si
 # já é público por /site/, coberto por test_site_public_under_auth_all).
+#: Portário de ferramentas (fase 1 — ordem do dono 21/10): o Site vira
+#: portaria das ferramentas atrás do SEU login (gate de sessão + papel
+#: admin feitos DENTRO do handler — navegador não manda header).
+#: Só as 5 que suportam subcaminho (ver CHANGELOG §1.44.0); as outras
+#: 4 (Livros/Kiwix/Stirling/Homebox) ficam casa+celular por enquanto.
+ROTA_FERRAMENTAS = (
+    "/f/(?P<nome>caderno|cyberchef|itools|caixa|cofre)(?P<resto>/.*)?"
+)
+
 AUTH_EXEMPT_PATHS = frozenset(
     {"/auth/register", "/auth/login", "/anon/message", "/app/version",
      "/registry", "/registry/collections", "/registry/{codigo}",
-     "/registry/{codigo}/photo", "/registry/{codigo}/chat"}
+     "/registry/{codigo}/photo", "/registry/{codigo}/chat",
+     # /f/*: o gate é o cookie od_sessao + papel admin no handler
+     # (APIHandler.ferramentas) — o dispatch não exige header.
+     ROTA_FERRAMENTAS}
 )
 
 
@@ -303,6 +318,13 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/auth/login", "auth_login", False),
     ("POST", "/auth/logout", "auth_logout", True),
     ("GET", "/auth/me", "auth_me", True),
+    # Portário de ferramentas (fase 1 — 21/10): /f/<nome>/* atrás do
+    # login do Site. auth=False porque o gate (cookie od_sessao + admin)
+    # é do handler; a rota está em AUTH_EXEMPT_PATHS pelo mesmo motivo.
+    ("GET", ROTA_FERRAMENTAS, "ferramentas", False),
+    ("POST", ROTA_FERRAMENTAS, "ferramentas", False),
+    ("PUT", ROTA_FERRAMENTAS, "ferramentas", False),
+    ("DELETE", ROTA_FERRAMENTAS, "ferramentas", False),
     # Preferências do perfil (TODO §3.8: tema claro/escuro sincronizado):
     # a MESMA preferência serve app, site e painel — o valor é validado no
     # servidor (allowlist) porque orienta a UI dos três.
@@ -4529,6 +4551,9 @@ class APIHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        # Cookies enfileirados pelo handler (ex.: od_sessao do portário).
+        for _cookie in getattr(self, "_cookies", []):
+            self.send_header("Set-Cookie", _cookie)
         self.end_headers()
         self.wfile.write(body)
 
@@ -5457,6 +5482,13 @@ class APIHandler(BaseHTTPRequestHandler):
         if guard is not None:
             guard.reset(ip, username)
         user = self.api._user_store.validate_session(token)
+        # Sessão do portário (fase 1 — 21/10): o MESMO token vira cookie
+        # HttpOnly para o navegador abrir /f/<ferramenta>/ — mesma
+        # validação, mesmo logout. SameSite=Lax fecha CSRF de POST cruzado.
+        self._cookies = [
+            f"od_sessao={token}; Path=/; HttpOnly; SameSite=Lax; "
+            "Max-Age=2592000"
+        ]
         self._json(200, {
             "ok": True,
             "token": token,
@@ -5479,6 +5511,10 @@ class APIHandler(BaseHTTPRequestHandler):
         if not token:
             raise APIError(400, "token não fornecido")
         self.api._user_store.logout(token)
+        # Portário: derruba TAMBÉM o cookie od_sessao (mesma sessão).
+        self._cookies = [
+            "od_sessao=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+        ]
         self._json(200, {"ok": True})
 
     def auth_me(self) -> None:
@@ -5600,6 +5636,230 @@ class APIHandler(BaseHTTPRequestHandler):
             user=self._current_user.username,
         )
         self._json(200, {"ok": True, "api_key": new_key})
+
+    # -- Portário de ferramentas (fase 1 — ordem do dono, 21/10) ------------
+    # /f/<nome>/* é a portaria: o MESMO login do chat guarda o token em
+    # cookie HttpOnly (od_sessao, criado no auth_login) e o handler valida
+    # sessão + papel admin ANTES de proxiar. Ferramenta alguma é exposta
+    # direto ao Funnel — o portão é sempre a sessão do dono.
+
+    #: Ferramentas da fase 1 e a porta local de cada uma. Só entram apps
+    #: que SUPORTAM subcaminho (assets relativos, baseurl nativo ou
+    #: domínio com path — provado a fio em 21/10 no portal legado); as
+    #: outras 4 (Livros/Kiwix/Stirling/Homebox) ficam casa+celular.
+    FERRAMENTAS_PORTA: dict[str, int] = {
+        "caderno": 8200,    # FlatNotes — assets relativos (provado)
+        "cyberchef": 8100,  # app client-side puro (sem chamada de API)
+        "itools": 8430,     # SPA com caminhos relativos
+        "caixa": 8410,      # FILEBROWSER_BASEURL=/f/caixa (compose)
+        "cofre": 8480,      # DOMAIN=.../f/cofre (compose)
+    }
+
+    #: Ferramentas cujo backend JÁ vive sob o prefixo no próprio app
+    #: (DOMAIN com path): o proxy NÃO tira /f/<nome> delas — só assim o
+    #: Vaultwarden acha o web vault dele em /f/cofre/.
+    FERRAMENTAS_MANTEN_PREFIXO = frozenset({"cofre"})
+
+    #: Hop-by-hop (RFC 7230) não podem ser repassados de um hop ao outro;
+    #: Host e Content-Length são do hop de origem e são refeitos à mão.
+    _PROXY_HOP_A_HOP = frozenset({
+        "connection", "keep-alive", "proxy-authenticate",
+        "proxy-authorization", "te", "trailers", "transfer-encoding",
+        "upgrade", "host", "content-length",
+    })
+
+    def ferramentas(self, nome: str, resto: Optional[str]) -> None:
+        """GET/POST/PUT/DELETE /f/<nome>/* — portário atrás do login.
+
+        A rota está em AUTH_EXEMPT_PATHS porque navegador não manda header:
+        o gate é AQUI dentro (cookie od_sessao / Bearer / X-API-Key + papel
+        admin). Sem credencial → 302 /auth/login; sessão sem papel admin →
+        403 (o registro é aberto, jamais vira passagem livre).
+        """
+        if not self._portal_admin():
+            return
+        if not resto:
+            # Sem barra final o navegador resolveria "assets/x" contra a
+            # raiz (/f/assets/x → 404): normaliza para /f/<nome>/.
+            self.send_response(302)
+            self.send_header("Location", f"/f/{nome}/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        caminho = (
+            f"/f/{nome}{resto}"
+            if nome in self.FERRAMENTAS_MANTEN_PREFIXO else resto
+        )
+        self._proxy_ferramenta(nome, self.FERRAMENTAS_PORTA[nome], caminho)
+
+    def _portal_admin(self) -> bool:
+        """True quando quem chamou é admin (conta do dono) no portário.
+
+        Mesma régua do _check_api_key, mas SEM escrever 401: navegador
+        precisa de redirect (302), não de JSON.
+        """
+        store = self.api._user_store
+        token = ""
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+        if not token:
+            for parte in self.headers.get("Cookie", "").split(";"):
+                chave, _sep, valor = parte.partition("=")
+                if chave.strip() == "od_sessao":
+                    token = valor.strip()
+                    break
+        if token and store is not None:
+            user = store.validate_session(token)
+            if user is not None:
+                self._current_user = user
+                self._auth_via = "session"
+                if self._role() == "admin":
+                    return True
+                # Conta comum logada: 403 (já é quem diz ser — jogar para o
+                # login seria loop de "logado sem acesso").
+                self._json(403, {"ok": False, "error": "acesso_negado"})
+                return False
+        provided = self.headers.get("X-API-Key", "")
+        if provided and store is not None:
+            user = store.login_with_api_key(provided)
+            if user is not None:
+                self._current_user = user
+                self._auth_via = "api_key"
+                if self._role() == "admin":
+                    return True
+        expected = self.api.config.api_key
+        if expected and provided and hmac.compare_digest(provided, expected):
+            self._auth_via = "server_key"  # chave de operador = admin
+            return True
+        log.info("Portário: redirecionando para o login",
+                 path=urlsplit(self.path).path)
+        self.send_response(302)
+        self.send_header("Location", "/auth/login")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return False
+
+    def _proxy_ferramenta(self, nome: str, porta: int, caminho: str) -> None:
+        """Repassa para 127.0.0.1:<porta> e devolve a resposta ao navegador.
+
+        http.client de propósito: ele NÃO segue redirect sozinho — o 3xx do
+        backend chega ao navegador com Location reescrito para o portário
+        (/f/<nome>/...), porque o backend acha que vive na raiz. Corpo vai
+        em blocos de 64 KB (download da Caixa não estoura RAM); só quando o
+        backend não manda Content-Length é que se lê tudo (raríssimo aqui).
+        """
+        query = urlsplit(self.path).query
+        alvo = caminho + (f"?{query}" if query else "")
+        corpo: Optional[bytes] = None
+        tamanho = self.headers.get("Content-Length", "")
+        if tamanho.isdigit():
+            corpo = self.rfile.read(int(tamanho))
+        # WebSocket (notificações do Cofre): o upgrade pede connection/
+        # upgrade — justamente os headers que o hop-by-hop manda jogar
+        # fora; neste caso eles SÃO o pedido e seguem adiante.
+        eh_ws = "websocket" in self.headers.get("Upgrade", "").lower()
+        proibidos = (
+            self._PROXY_HOP_A_HOP - {"connection", "upgrade"}
+            if eh_ws else self._PROXY_HOP_A_HOP
+        )
+        cabecalhos = {
+            chave: valor
+            for chave, valor in self.headers.items()
+            if chave.lower() not in proibidos
+        }
+        cabecalhos["Host"] = f"127.0.0.1:{porta}"
+        conn = http.client.HTTPConnection("127.0.0.1", porta, timeout=120)
+        try:
+            try:
+                conn.request(self.command, alvo, body=corpo,
+                             headers=cabecalhos)
+                resp = conn.getresponse()
+            except (http.client.HTTPException, OSError, TimeoutError) as exc:
+                log.warn("Portário: ferramenta fora do ar",
+                         ferramenta=nome, erro=str(exc)[:160])
+                self._json(502, {"ok": False,
+                                 "error": "ferramenta_indisponivel",
+                                 "ferramenta": nome})
+                return
+            self.send_response(resp.status)
+            for chave, valor in resp.getheaders():
+                baixo = chave.lower()
+                if baixo in self._PROXY_HOP_A_HOP and not (
+                    resp.status == 101
+                    and baixo in ("connection", "upgrade")
+                ):
+                    continue
+                if (baixo == "location" and valor.startswith("/")
+                        and not valor.startswith(f"/f/{nome}")):
+                    # Backend acha que vive na raiz ("/login..."): ganha o
+                    # caminho do portário. Quem já manda prefixado (baseurl
+                    # nativo /f/caixa, DOMAIN /f/cofre) passa direto.
+                    valor = f"/f/{nome}{valor}"
+                self.send_header(chave, valor)
+            if resp.status == 101:
+                # 101 Switching Protocols: daqui em diante são bytes crus
+                # (frames WebSocket) — relé nos dois sentidos até fechar.
+                self.end_headers()
+                self._rele_websocket(conn)
+                return
+            cl = resp.getheader("Content-Length")
+            if cl is not None:
+                self.send_header("Content-Length", cl)
+                self.end_headers()
+                while True:
+                    bloco = resp.read(65536)
+                    if not bloco:
+                        break
+                    self.wfile.write(bloco)
+            else:
+                inteiro = resp.read()
+                self.send_header("Content-Length", str(len(inteiro)))
+                self.end_headers()
+                self.wfile.write(inteiro)
+        finally:
+            conn.close()
+
+    def _rele_websocket(self, conn: http.client.HTTPConnection) -> None:
+        """Relé cru cliente↔backend depois do 101 (WebSocket).
+
+        O BaseHTTPRequestHandler não fala WebSocket, mas o socket já
+        entregou o handshake — basta passar bytes adiante nos dois
+        sentidos até qualquer lado fechar. Suficiente para o canal de
+        notificações do Cofre (frames não são inspecionados).
+        """
+        traseira = conn.sock
+        if traseira is None:  # pragma: sem cobertura — defensivo
+            return
+        traseira.settimeout(None)
+        self.connection.settimeout(None)
+        parado = threading.Event()
+
+        def bom(lado_de, lado_para) -> None:
+            try:
+                while not parado.is_set():
+                    bloco = lado_de.recv(65536)
+                    if not bloco:
+                        break
+                    lado_para.sendall(bloco)
+            except OSError:
+                pass
+            finally:
+                parado.set()
+                for lado in (lado_de, lado_para):
+                    try:
+                        lado.close()
+                    except OSError:
+                        pass
+
+        t1 = threading.Thread(
+            target=bom, args=(self.connection, traseira), daemon=True)
+        t2 = threading.Thread(
+            target=bom, args=(traseira, self.connection), daemon=True)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
 
     # -- Admin — gestão de contas (papel admin, 403 para os demais) ---------
 

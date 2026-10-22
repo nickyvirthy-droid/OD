@@ -187,6 +187,48 @@ do Site"** (fase 1 proposta: Caderno/CyberChef/IT Tools + Caixa
 `--baseurl` + Cofre via domínio; Calibre/Kiwix/Stirling/Homebox não
 suportam subcaminho e ficam casa+celular).
 
+**Continuação (mesma noite): PORTÁRIO `/f/<ferramenta>` — 5 FERRAMENTAS
+ATRÁS DO LOGIN DO SITE (fase 1 aprovada: "sim fase 1 com as 5"; sem
+bump).** O Site virou portaria: `od-core` ganhou rotas
+`GET/POST/PUT/DELETE /f/(caderno|cyberchef|itools|caixa|cofre)/*` com
+gate PRÓPRIO — a rota é `AUTH_EXEMPT` porque navegador não manda header;
+dentro do handler o **cookie `od_sessao` (HttpOnly, SameSite=Lax)** — o
+MESMO token de sessão que `/auth/login` já emitia (logout derruba os
+dois) — ou `Bearer`/`X-API-Key` abrem só para **papel admin** (`_role()`:
+conta do dono; o registro é aberto, então jamais vira passagem livre:
+conta comum logada = **403**, sem credencial = **302 →
+`/auth/login`**). Proxy em `http.client` de propósito (não segue redirect
+sozinho): strip do prefixo na ida — Cofre é a exceção, vive DENTRO do
+prefixo via `DOMAIN` com path (`FERRAMENTAS_MANTEN_PREFIXO`) —,
+**`Location` do backend reescrito** de volta para o portário, hop-by-hop
+higienizado, corpo em blocos de 64 KB (download da Caixa não estoura
+RAM), cookie do backend repassado ao navegador, e **`101` vira relé cru
+de WebSocket** (canal de notificações do Cofre). Caixa:
+`FILEBROWSER_BASEURL=/f/caixa` — precedência **settings.json > db > env**
+apurada ao vivo (env sozinho não bastou: um `baseURL ""` explícito no
+settings vencia banco e ambiente); settings versionado no repo
+(`docker/filebrowser-settings.json`) e montado como fonte única, senão
+recriação do container apagava a correção. Cofre: `DOMAIN=
+https://nicky-server.tail1b1f51.ts.net/f/cofre` (web vault nativo no
+path; **o link direto `:8443` do portal legado morreu para o cofre** —
+o app Bitwarden deve apontar a URL nova, que funciona em qualquer rede).
+**Provas:** **14/14** testes novos (`tests/test_portal_ferramentas.py`:
+portão sem credencial/conta comum/chave; strip+query+corpo; redirect
+prefixado; cookie do backend; 502 contido; relé WebSocket cru com
+backend fake; mapa das 5; `/f/livros` = 404) + vivas: sem credencial
+**302 `/auth/login`** (local e pelo Funnel público), as 5 **200** com
+chave de operador, `GET /f/caderno/api/config` **200** com JSON (a API
+relativa do FlatNotes chega inteira), ativos da Caixa **200** em
+`/f/caixa/static`, Cofre **200** no path, raiz do Site **200**
+intacta. **Análise das outras 4 (ordem do dono: "analisar se realmente
+preciso"):** Livros/Kiwix/Stirling/Homebox não suportam subcaminho
+(provado no portal 8443) e **não vão para o Funnel**; recomendação
+entregue: casa+celular (Tailscale) bastam, e o Kiwix ganhou destino
+melhor — **dentro do chat** (ideia do dono na nota TODO 5;
+`integrations/kiwix.py` + busca JSON provada, falta o orquestrador
+consultá-lo). Se um dia algum precisar público, o caminho é **hostname
+próprio** (DDNS + proxy na frente), nunca subcaminho.
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 

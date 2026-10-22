@@ -161,6 +161,16 @@ services:
     volumes:
       - /home/alex/omegadrakon-tools/filebrowser/files:/srv
       - /home/alex/omegadrakon-tools/filebrowser/db:/database
+      # Fonte do baseURL (e port/root/log): montado para sobreviver a
+      # recriação do container — sem ele o app volta para a raiz e quebra
+      # sob subcaminho (provado no portal legado: JS dava 404).
+      - ./filebrowser-settings.json:/config/settings.json:ro
+    environment:
+      # Fase 1 (21/10): UI e API sob /f/caixa no portário do Site.
+      # ATENÇÃO à precedência (apurada ao vivo): settings.json > db > env —
+      # o env sozinho NÃO basta (settings.json com baseURL "" explícito
+      # vence); por isso o settings versionado acima é a fonte única.
+      - FILEBROWSER_BASEURL=/f/caixa
     mem_limit: 128m
     memswap_limit: 128m
 
@@ -234,7 +244,10 @@ services:
     environment:
       - WEBSOCKET_ENABLED=true
       - SIGNUPS_ALLOWED=false
-      - DOMAIN=https://nicky-server.tail1b1f51.ts.net:8443
+      # Fase 1 (21/10): domínio com PATH — web vault sob /f/cofre no
+      # portário do Site (funnel público + LAN; opção nativa do Vault).
+      # O acesso direto :8443 segue no tailscale serve (legado, tailnet).
+      - DOMAIN=https://nicky-server.tail1b1f51.ts.net/f/cofre
       - ADMIN_TOKEN=${ADMIN_TOKEN:?defina ADMIN_TOKEN no .env (movido do compose em 2026-10-15)}
     mem_limit: 256m
     memswap_limit: 256m

@@ -419,3 +419,57 @@ quebradas lá) e **fase 1 proposta** — decisão do dono pendente.
 **Registrado:** CHANGELOG §1.44.0 (continuação "Acessos") ·
 `session.json` (chave `acessos_lan_externos_2026_10_21`) · `txt.txt` ·
 Telegram (senha só lá — canal privado).
+
+## 10 — FASE 1 DO PORTÁRIO: 5 FERRAMENTAS DENTRO DO SITE, ATRÁS DO LOGIN
+
+O dono respondeu **"sim fase 1 com as 5"** (Caderno, CyberChef,
+IT Tools, Caixa, Cofre) e pediu para **analisar se realmente precisa
+das outras 4 na internet** (Livros/Kiwix/Stirling/Homebox). Também
+vetou o Kiwix público com uma ideia melhor: *"kiwix é uma enciclopédia,
+ela pode ser fornecida dentro do chat"* (ex.: *"define dia"* → o chat
+explica que dia é uma duração de 24 horas) — **verificado antes de
+afirmar**: `integrations/kiwix.py` já tem busca+artigo e o kiwix-serve
+responde busca JSON 200; falta o orquestrador consultá-lo (hoje só a
+action admin usa). Ideia gravada na nota **TODO 5** do FlatNotes, com o
+exemplo do dono; a enciclopédia não vai para a internet pública.
+
+**Portário construído no od-core** (ferramenta nunca é exposta direto
+ao Funnel — o portão é sempre a sessão do dono):
+
+- Rotas `GET/POST/PUT/DELETE /f/(caderno|cyberchef|itools|caixa|cofre)/*`
+  em `AUTH_EXEMPT` (navegador não manda header) + **gate dentro do
+  handler**: cookie `od_sessao` (HttpOnly, SameSite=Lax — o MESMO token
+  de `/auth/login`; logout derruba os dois) ou `Bearer`/`X-API-Key`, e
+  sempre **papel admin** (`_role()`: conta do dono). Registro aberto não
+  vira passagem livre: conta comum logada = **403**; sem credencial =
+  **302 → `/auth/login`**.
+- **Proxy `http.client`** (não segue redirect sozinho, de propósito):
+  strip do prefixo na ida — exceto o **Cofre**, que vive dentro do
+  prefixo (`FERRAMENTAS_MANTEN_PREFIXO`) —, `Location` reescrito para o
+  portário, hop-by-hop higienizado, corpo em blocos de 64 KB (download
+  da Caixa sem estourar RAM), cookie do backend repassado, e **101 =
+  relé cru de WebSocket** (notificações do Cofre).
+- **Caixa**: `FILEBROWSER_BASEURL=/f/caixa`. Precedência **settings.json
+  > db > env** apurada ao vivo — o env sozinho não bastou (um
+  `baseURL ""` explícito vencia); solution durável = settings versionado
+  (`docker/filebrowser-settings.json`) montado como fonte única.
+- **Cofre**: `DOMAIN=https://nicky-server.tail1b1f51.ts.net/f/cofre`
+  (web vault nativo no path). **O link direto `:8443` do portal legado
+  morreu para o cofre** — o app Bitwarden deve apontar a URL nova, que
+  funciona em qualquer rede.
+
+**Provas:** 14/14 testes novos (`tests/test_portal_ferramentas.py` —
+portão, proxy, relé WebSocket cru com backend fake, mapa das 5,
+`/f/livros` = 404) + gate completo. Vivas: sem credencial **302**
+(local e pelo Funnel público), as 5 **200** com chave de operador,
+`/f/caderno/api/config` **200** com JSON (API relativa chega inteira),
+ativos da Caixa **200** em `/f/caixa/static`, Cofre **200** no path,
+raiz do Site **200** intacta.
+
+**Análise das outras 4 (a resposta ao dono):** as quatro **não entram
+no portário** — não suportam subcaminho (provado no portal 8443, 5 das
+9 quebradas lá) e o Funnel só publica o Site. Recomendação: **casa +
+celular (Tailscale) bastam** para Livros, Stirling e Homebox; o Kiwix
+fica com o destino novo (o chat). Se algum dia precisar de público de
+verdade, o caminho é **hostname próprio** (DDNS + proxy), nunca
+subcaminho.

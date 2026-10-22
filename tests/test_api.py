@@ -35,7 +35,7 @@ from integrations.api import (
     DEFAULT_PROFILE,
     ROUTES,
 )
-from integrations.api.server import _APP_VERSION_CODE
+from integrations.api.server import ROTA_FERRAMENTAS, _APP_VERSION_CODE
 from memory.cache import LLMCache
 from memory.history import ConversationHistory
 from memory.vector import VectorStore
@@ -146,8 +146,9 @@ class TestAPIRoutes:
         ferramentas/skills estilo Supply Depot (Parte F do NOMAD,
         2026-10-15) + lista pública /registry, registro do comprador
         /registry/posse e QR de posse do dono (Etapa 4 do Registro
-        Mestre, 2026-10-15) + ciclos de coleção da frente NV (16/10)."""
-        assert len(ROUTES) == 87
+        Mestre, 2026-10-15) + ciclos de coleção da frente NV (16/10) +
+        portário /f/<ferramenta> das 5 ferramentas (fase 1, 21/10)."""
+        assert len(ROUTES) == 91
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -198,6 +199,11 @@ class TestAPIRoutes:
             ("DELETE", "/admin/ferramentas/{id}"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
+            # Portário de ferramentas (fase 1 — 21/10): sem header de
+            # dispatch; o gate é cookie od_sessao + papel admin DENTRO do
+            # handler (AUTH_EXEMPT) — v. tests/test_portal_ferramentas.py
+            ("GET", ROTA_FERRAMENTAS), ("POST", ROTA_FERRAMENTAS),
+            ("PUT", ROTA_FERRAMENTAS), ("DELETE", ROTA_FERRAMENTAS),
             # Preferências do perfil (TODO §3.8: tema claro/escuro)
             ("GET", "/profile/preferences"), ("PUT", "/profile/preferences"),
             ("POST", "/account/password"), ("POST", "/account/api-key"),
@@ -310,6 +316,11 @@ class TestAPIRoutes:
             # gate no handler — v. test_routes_mirror_legacy.
             ("GET", "/admin/google/apis"),
             ("GET", "/admin/google/auth"),
+            # Portário de ferramentas (fase 1 — 21/10): rota sem header de
+            # dispatch; o gate é cookie od_sessao + papel admin DENTRO do
+            # handler (AUTH_EXEMPT) — v. tests/test_portal_ferramentas.py
+            ("GET", ROTA_FERRAMENTAS), ("POST", ROTA_FERRAMENTAS),
+            ("PUT", ROTA_FERRAMENTAS), ("DELETE", ROTA_FERRAMENTAS),
         }
 
 
