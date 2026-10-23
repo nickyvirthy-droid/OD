@@ -197,3 +197,47 @@ ordem dele para apagar ou manter até o arquivamento final).
 **Pasta por pasta restante de `Nicky Desenvolvimento/`** (ainda não
 analisadas, ele quer por pasta): `Nicky/` raiz, `ouro/`, `prata/`,
 `template/`, `conversa/`, `build/`, `dist/`, `AIMLU/`.
+
+
+## §7 — Transferência das imagens do legado (`ok/`, `ouro/`, `prata/`,
+       `template/`, `projetos/`) para a pasta pessoal
+
+**Pedido:** "o que for imagem transfira para Alex imagens, o resto
+analise e me diga o que fazer."
+
+**Mapeado (só `Nicky/` existe — `ouro/`, `prata/`, `template/` são
+subpastas dela, não da raiz):**
+- **Interface do Nicky** (`ok/`, `ouro/`, `prata/`, `template/`): 103
+  imagens de UI — botões, círculos, skins, `Capa.png`. Transferidas para
+  `Alex/imagens/nicky_ui/` (101 únicos; `Capa.png` e `CapaGrade.png`
+  repetidos entre subpastas colidiram no `cp`, bytes preservados).
+- **`projetos/`**: 4 `.psd` (arte editável do esboço — `Microfone`,
+  `Base`, `drk`, `Capa`). Foram para `Alex/legado/psd/` (formato de
+  edição, não imagem solta).
+
+**Resto (NÃO imagem) — análise e o que recomendo:**
+- **`Nicky/Nicky/` (127 `.aiml`)** — mesmo corpus do `OK/` já traduzido
+  (15 arquivos), só que em inglês/bruto + `000/` (41), `Normalizado/`
+  (85), `teste/` (1). Mesmo veredito do AIML: **descartar como código**.
+  Duplo do que já está em `OK/`.
+- **`Nicky/Nicky/` extras** — `PascAlice.exe`/`ShadowCheck.exe` (motor
+  Delphi, já catalogados), `startup.xml` (brainstorm de rotas do site
+  antigo, 15 KB), `000 variaveis.drk` + `.chatlog`/`.variables` (estado
+  salvo do bot). Nada portável.
+- **`conversa/` (66 `.log`, 332K, 2022-05-30→2024-06-12)** — conversas
+  reais do Nicky antigo, **já ingeridas pelo auditor** (`core/chat_audit.py`
+  rodou nesses 66 logs, 1065 turnos, na frente de ontem). São o
+  **histórico afetivo** — candidatos a ir junto no legado pessoal.
+- **`build/`, `dist/` (26M)** — `PyInstaller` morto: `.toc/.pyz/.pkg`,
+  19 `.so` do Python embutido. **Lixo de build, descartar.**
+- **`AIMLU/` (2 `.aiml`)** — aprendizado do bot por usuário, vazio/trivial.
+- **Soltos da raiz** — `fala.mp3` (3.8K) e `test.wav` (112K) = amostras
+  de voz do TTS; `inicio.xml`/`startup.xml` (XML de boot do site);
+  `terminal.spec` (spec do PyInstaller). Nada reaproveitável.
+
+**Recomendação:** mandar `conversa/` para `Alex/legado/conversa/` junto
+(como memória), e descartar `build/`, `dist/`, os `.aiml` em inglês e o
+resto de código — **aguardando sua ordem**. Nada removido ainda.
+
+**Estado:** `Alex/` = **591 arquivos, 229 MB** (firmas 89, documentos 48,
+veiculos 119, imagens 230, legado 105).
