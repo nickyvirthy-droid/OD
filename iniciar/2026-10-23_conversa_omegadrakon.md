@@ -373,3 +373,31 @@ Parking lot §5 (Kiwix no chat, network_hosts+Vigia, rota WiFi,
 auditoria de uso de ferramentas, MCP) aguardando ordem dele. Divida
 técnica §4 = 7 itens de limpeza, não-bloqueantes. Registro no
 `session.json` (chave `reverificacao_verde_2026_10_23_1413`).
+
+
+## §11 — O tar do legado já foi transferido pelo dono (23/10 ~14:2x)
+
+**Pedido:** "Transferir o tar do legado para a HD externa" — mas antes
+de eu copiar qualquer coisa, o próprio dono mandou: **"já transferi"**.
+A tarefa fica **encerrada por completa**, sem ação minha.
+
+**Verificação honesta antes de afirmar:** varredura por nome e por data
+em `/home/alex` (raiz), `/mnt/Arquivos` (sdc1), `/home/alex/dados`
+(sdb1) e `/mnt/Midia`: `analise_AIML_legado.tar.gz` **não existe em
+nenhum ponto do servidor** e nenhum arquivo novo nas 3 unidades desde
+13:00 — consistente com a transferência dele.
+
+**Definição registrada (do dono):** quando o dono diz **"HD externa"**
+é uma HD **fisicamente desconectada do servidor** — por isso a
+varredura das unidades montadas não a enxerga. Nada anormal, nada
+perdido.
+
+**Consequência honesta:** o legado bruto (303 MB, 1409 arquivos)
+agora existe **só na HD externa**. Re-rodar o auditor no legado
+(`core/chat_audit.py --fonte legado`) só será possível com aquela HD
+conectada, tar extraído e `--pasta` explícito. O material pessoal
+(`/home/alex/Alex`, 591 arqs / 229 MB) segue intacto no servidor.
+
+**Achado novo no caminho:** `analise/` foi re-criada hoje às **13:05**
+com **`Nicky Locutor/`** dentro (regra 17 — caixa de entrada do dono).
+**Não analisado**, aguardando ordem dele.

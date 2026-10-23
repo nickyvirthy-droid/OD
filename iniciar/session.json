@@ -1,4 +1,13 @@
 {
+ "tar_legado_ja_transferido_pelo_dono_2026_10_23": {
+  "pedido": "Dono (~14:2x): 'ja transferi' — o tar do legado ja foi pra HD externa por ele; a tarefa de transferencia que eu ia fazer fica cancelada por completa.",
+  "verificacao": "Varredura por nome e por data em /home/alex (raiz), /mnt/Arquivos (sdc1), /home/alex/dados (sdb1) e /mnt/Midia: analise_AIML_legado.tar.gz NAO existe mais em nenhum ponto do servidor e nenhum arquivo novo nas 3 unidades desde 13:00 — consistente com ele ter copiado pra uma HD (fisicamente desconectada do servidor, definicao dele) e removido a origem.",
+  "estado_material": "O legado bruto (303 MB, 1409 arqs) agora existe SO na HD externa do dono. Consequencia honesta: re-rodar o auditor no legado (core/chat_audit.py --fonte legado) so e possivel com a HD externa conectada e o tar extraido + --pasta explicito (o default da CLI ja apontava pra pasta removida). /home/alex/Alex (591 arqs / 229 MB) segue intacto no servidor.",
+  "novo_deposito": "analise/ foi re-criada hoje 13:05 com Nicky Locutor/ dentro (regra 17) — NAO analisado, aguardando ordem do dono.",
+  "estado": "TAREFA DE TRANSFERENCIA ENCERRADA pelo proprio dono. Sistema segue verde (v1.44.0/2080, HEAD 3ffded3). Fila do dono zerada; proxima pauta possivel = analise/Nicky Locutor.",
+  "updated_at": "2026-10-23T14:26:00-03:00",
+  "transcricao": "iniciar/2026-10-23_conversa_omegadrakon.md (§11)"
+ },
  "reverificacao_verde_2026_10_23_1413": {
   "pedido": "Usuario: 'leia iniciar' (23/10 ~14:13) — reverificacao de rotina (regra 3) apos o fecho do tema §3.8 (§9 da transcricao: commits d836349 + 105239d, restart verde 13:52:01).",
   "achados_verdes": "od-core active desde 13:52:01, MainPID 431579, NRestarts=0; journal desde boot 0 [ERROR] e 1 [WARN] = o proprio alerta proativo de restart do boot (esperado, key=restart); /health ok=True 25 checks nenhum fora; /app/version 1.44.0/2080 intacta (backend puro, sem bump = correto); git ARVORE LIMPA, HEAD 105239d == origin/master (0/0); disco 64% (80G livres).",
