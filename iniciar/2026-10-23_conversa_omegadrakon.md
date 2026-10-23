@@ -241,3 +241,38 @@ resto de código — **aguardando sua ordem**. Nada removido ainda.
 
 **Estado:** `Alex/` = **591 arquivos, 229 MB** (firmas 89, documentos 48,
 veiculos 119, imagens 230, legado 105).
+
+
+## §8 — Análise do legado CONCLUÍDA: `analise/` compactada e removida
+
+**Pedido:** "por mim considero a análise concluída. agora você compacta
+a pasta analise e limpa ela que vou transferir para uma hd externa."
+
+**Decisões dele (pergunta antes de apagar):** fotos `bart.jpg`/`Nicole.jpg`
+de `www/fotos/` ficam **só no tar** (não vão pra `Alex/`); o tar leva
+**tudo inteiro** (338 MB, incluindo os ~26 MB de `build`/`dist` de
+PyInstaller que ele já descartou — garantia de nada se perder); destino
+**`/home/alex/analise_AIML_legado.tar.gz`**.
+
+**Tar criado e verificado:** `analise_AIML_legado.tar.gz` = **303 MB
+comprimidos**, `gzip -t` OK, **1409/1409 arquivos** conferidos (contagem
+do tar == contagem da origem). Inclui `AIML/` legado + os 3
+`relatorio_chat_audit_*.json` do auditor (fora de `AIML/`).
+
+**Limpeza:** `analise/` **removida** (confirmado inexistente depois).
+`analise/` **não era rastreada pelo git** (`git ls-files analise/` = 0) →
+limpeza não gerou diff, árvore segue limpa no HEAD `166182d`.
+
+**Efeito colateral honesto (não-broken):** `core/chat_audit.py` tem o
+`--pasta`/default da CLI apontando pra `analise/AIML/...` (linhas 8, 27,
+539). É **on-demand** (só roda se invocar `--fonte legado`), nunca em
+runtime — apagar não derruba o sistema; só o default da CLI passa a
+apontar pra pasta inexistente se alguém rodar sem argumento. Se um dia
+ele quiser re-rodar o auditor no legado, é extrair o tar e passar
+`--pasta` explicitamente.
+
+**Estado:** análise por pasta **fechada**. Todo o material pessoal está
+em `/home/alex/Alex` (591 arqs / 229 MB, fora de git e backup). O legado
+bruto está no tar pra ir pra HD externa. Pauta de conteúdo que sobrou
+do dono (não-bloqueante): 134 respostas pt-BR do `OK/` (RAG ou parado) e
+o recorte de personalidade dos `.aiml`.

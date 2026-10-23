@@ -101,6 +101,19 @@
   ],
   "transcricao": "iniciar/2026-10-23_conversa_omegadrakon.md (§7)"
  },
+ "fechamento_legado_compactacao_2026_10_23": {
+  "pedido": "Dono: 'por mim considero a analise concluida. agora voce compacta a pasta analise e limpa ela que vou transferir para uma hd externa.'",
+  "decisoes_dono": [
+   "Fotos www/fotos/ bart.jpg + Nicole.jpg ficam SO no tar (nao vao pra Alex/).",
+   "Tar leva TUDO inteiro (338 MB, incluindo build/dist PyInstaller ~26MB ja descartados) — garantia de nada se perder.",
+   "Destino: /home/alex/analise_AIML_legado.tar.gz."
+  ],
+  "tar": "analise_AIML_legado.tar.gz = 303 MB comprimidos, gzip -t OK, 1409/1409 arquivos conferidos (tar == origem). Inclui AIML/ + 3 relatorio_chat_audit_*.json do auditor (fora de AIML/).",
+  "limpeza": "analise/ REMOVIDA (confirmada inexistente). Nao era rastreada pelo git (git ls-files = 0) -> limpeza sem diff, arvore limpa no HEAD 166182d.",
+  "efeito_colateral_honesto": "core/chat_audit.py tem --pasta/default da CLI apontando pra analise/AIML (linhas 8/27/539). On-demand (sso roda c/ --fonte legado), nunca runtime -> nada quebra; so o default da CLI passa a apontar pasta inexistente se rodar sem argumento. Pra re-rodar: extrair tar + --pasta explicito.",
+  "estado": "ANALISE POR PASTA FECHADA. Material pessoal em /home/alex/Alex (591 arqs/229MB, fora de git e backup). Legado bruto no tar pra HD externa. Pauta de conteudo nao-bloqueante restante: 134 respostas pt-BR do OK/ (RAG ou parado) + recorte de personalidade dos .aiml.",
+  "transcricao": "iniciar/2026-10-23_conversa_omegadrakon.md (§8)"
+ },
  "reverificacao_botao_topo_vigia_e_gate_2026_10_22": {
   "pedido": "Usuario: 'leia iniciar' (~15:20) — reverificacao de rotina (regra 3) apos (a) o update do OpenCode 2.0.20->2.1.3 pedido pelo dono ('update', servico reiniciado 15:06, TUI re-criada 15:19) e (b) o registro do cofre (commit 3f00c57, §14 do arquivo 21-22/10).",
   "achados_verdes": "od-core active desde 08:55:28, MainPID 2950690, NRestarts=0; /health ok=true 25 checks NENHUM fora; /app/version 1.44.0/2080 sha aeb8566b == APK publicado; txt.txt sem mensagem nova do dono (ultima escrita = nossa 14:33, entrega do cofre); backups/off-site como registrados.",
