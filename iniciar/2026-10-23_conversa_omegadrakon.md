@@ -341,3 +341,35 @@ verde antes, regra 7.3): journal 0 `[ERROR]`, `/health` ok=True,
 
 **Isso fecha a última pauta viva do TODO §3.8** — a pauta que o dono
 adiou em 16/10. A fila de frentes do dono continua zerada.
+
+
+## §10 — Reverificação de rotina ("leia iniciar", 23/10 ~14:13): verde
+       de ponta a ponta após o fecho do tema
+
+Sem resíduo desta vez (diferente da manhã: nada de trabalho no disco
+sem commit). Tudo conferido ao vivo:
+
+- **od-core** active desde **13:52:01** (o restart do §9), MainPID
+  431579, **NRestarts=0**. Journal desde o boot: **0 `[ERROR]`** e 1
+  `[WARN]` = o próprio **alerta proativo de restart** do boot
+  (`key=restart`) — esperado, não é defeito.
+- **/health**: `ok=True`, **25 checks, nenhum fora**. **/app/version**
+  **1.44.0/2080** intacta (backend puro, sem bump = correto).
+- **git**: árvore **limpa**, **HEAD `105239d` == `origin/master`** (0/0).
+- **Backups de hoje presentes**: diário `od-2026-10-23_0312`, snapshot
+  local `snapshot_od-2026-10-23_0342` e capturas
+  `od-capturas-2026-10-23_0412`. Disco 64% (80 G livres).
+- **Canais do dono**: `txt.txt` **vazio** (0 bytes, última escrita 13:21
+  — ele limpou após ler a entrega do tema); nenhuma mensagem nova
+  aguardando. `/home/alex/Alex` (591 arqs / 229 MB) e o tar
+  `analise_AIML_legado.tar.gz` (303 MB) intactos, aguardando a
+  transferência dele para a HD externa.
+
+**Estado:** sistema **verde e estável**; fila do dono **zerada**
+(B/A/C fechadas, tema §3.8 fechado, legado 100% encerrado, 134
+respostas AIML decididas — não viram RAG). Pautas "não cobrar" seguem:
+cofre pessoal Vaultwarden (adiado), fotos adicionais, catálogo 3D.
+Parking lot §5 (Kiwix no chat, network_hosts+Vigia, rota WiFi,
+auditoria de uso de ferramentas, MCP) aguardando ordem dele. Divida
+técnica §4 = 7 itens de limpeza, não-bloqueantes. Registro no
+`session.json` (chave `reverificacao_verde_2026_10_23_1413`).
