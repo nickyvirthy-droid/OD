@@ -544,11 +544,19 @@ luz/tomada).
 | **Guardas** | `tests/test_resposta_transparente.py` **+8** (`TestControleTV`): confirmação com `TV Sala`, `sim` executa `turn_off` no domínio `remote` (empate determinístico vs `media_player`), "tv da sala" também casa, user negado, TV inexistente honesta, frase sem verbo não sequestra, resolvedor e action aceitando os domínios novos. **Fixture autouse isola o global `_LIGHT_CONFIRMATIONS`** — sem ela a pendência vaza entre testes e derruba 2 testes antigos de luzes (o teste do teste: 3 falhas antes, 118/118 depois). |
 
 **Validação:** gate oficial **3732 passed / 16 skipped / 0 falha ·
-90,80%** (baseline 3724/16 a 90,80%; +8 testes). pyflakes sem aviso novo
+90,81%** (baseline 3724/16 a 90,80%; +8 testes; reexecutado após a edição
+desta nota, que entra no corpus do RAG). pyflakes sem aviso novo
 (os avisos dos arquivos tocados são pré-existentes, confirmados contra o
-HEAD). **Restart verde** (regra 7.3) + prova viva no chat real. Frente C
-(papel FAMÍLIA — terceiro papel que liga/desliga aparelhos) segue na
-fila do `iniciar/` como próxima frente.
+HEAD). **Restart verde 08:53:48** (regra 7.3 — gate verde antes;
+`MainPID 138285`, `NRestarts=0`, journal 0 `[ERROR]`, `/health` ok=True
+25/25, 1.44.0/2080 intacta) + **prova viva no chat real:** `"desligue a
+tv"` → `route=action_intent` *"Confirmar: desligar 'TV Sala'?"* (0 LLM),
+`"sim"` → *"TV Sala: desligar executado"*; no Postgres as 4 linhas da
+troca com `llm_used=fastpath:ha_device_control` — o turno que ANTES vazava
+no LLM e alucinava compromisso resolve no fastpath. Commit **`78087ea`**
+(== `origin/master`). Frente C (papel FAMÍLIA — terceiro papel que
+liga/desliga aparelhos) segue na fila do `iniciar/` como próxima frente.
+Transcrição: `iniciar/2026-10-23_conversa_omegadrakon.md` (§§1–3).
 
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
