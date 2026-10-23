@@ -144,3 +144,56 @@ od-core desde 08:53:48 sem reinício, `/health` 25/25.
 **Pauta de conteúdo pendente de decisão dele:** as **134 respostas
 pt-BR** do `OK/` do AIML (viram RAG ou ficam paradas) e o **exemplo
 exato** da falha residual do tema (TODO §3.8).
+
+
+## §6 — Análise do legado AIML (por pasta) e a pasta pessoal `/home/alex/Alex`
+
+**Pedido** (23/10, tarde): analisar `analise/AIML/` **pasta por pasta**
+(mais controle dele), decidir o que tem utilidade, e **arquivar os
+documentos pessoais fora do servidor** — preservando o que é vida dele
+(cartões, diplomas, carro, imagens, esboço do Nicky). Instrução explícita:
+**não sanitizar nada** (credenciais hardcoded ficam como estão).
+
+**Veredito por pasta (nenhum `.py`, `.aiml` nem `.php` reaproveitável):**
+- **`*.py` (30 arquivos):** `Kernel.py` = cópia da lib de terceiros
+  `python-aiml`; `nicky.py`+`pacotes/` = arquitetura antiga (MQTT +
+  googletrans + scraping) já superada por fastpaths/actions/UserStore;
+  `Traduz/` = pipeline de migração já cumprido. Único achado: **senha
+  MySQL hardcoded** `deo1mdu5` em `db.py`.
+- **`*.aiml`:** AIML é tecnologia de 1995 (matching de padrão cego). O
+  sistema já tem equivalente melhor e com gate: `memory/quick_responses.py`
+  (round-robin + analytics), fastpaths e RAG. Adotaria parser paralelo =
+  gate de segurança cego + duas fontes de verdade. Só a **personalidade/
+  bordões** teriam valor afetivo (alimentariam a Plêiade) — nunca como
+  parser. Não analisados como código.
+- **`www/` (59 `.php`):** site inseguro de ponta a ponta (SQL injection em
+  `validacao.php`/`logar.php`/`verlista.php` sem escape; `md5()` nas
+  senhas; `logar.php` devolve CPF/sanguínea/religião/escolaridade em claro
+  = vazamento LGPD). Nada a portar. Credencial de terceiro vazada em 5
+  arquivos: host **`sql212.sk4host.com`**, usuário `sk4_22874154`, senha
+  `deo1mdu5` — tratada como **comprometida**; anotada para **verificar no
+  futuro se a hospedagem ainda está viva**.
+
+**Pasta pessoal criada: `/home/alex/Alex`** (fora do OmegaDrakon, fora do
+git, **fora do backup automático** — escolha consciente dele; o
+`hd_backup` só cobre `/home/alex/dados` e `/mnt/Arquivos`). Cópia byte a
+byte verificada (contagens batem com as origens, que seguem intactas):
+- `firmas/` ← `www/card/` — 88 JPGs de cartões de visita digitalizados +
+  `firmas.json` (índice esqueleto, 5 firmas de exemplo preenchidas).
+- `documentos/` ← `www/docs/` — 48 (diplomas, certificados, histórico,
+  currículo).
+- `veiculos/` ← `www/Logus/` — 118 (Abastecimento/Mecanica/Outros Gastos
+  `.ods`, manual do Logus, fotos, vídeos, Tunning) + `veiculos.json`
+  pré-carregado: Logus comprado 20/05/11, R$ 7.000 entrada, 61.000 km,
+  total R$ 16.952,90.
+- `imagens/` ← `Nicky/Imagens/` (79) + `www/img/` (50 em `site_www_img/`).
+- `legado/` ← `www/projeto/` — 101 JPGs desenhados à mão (esboço do
+  Nicky, precisa de OCR).
+- **Total: 486 arquivos, 214 MB.**
+
+**Origens ainda intactas** (nada removido — cópia conferida, aguardando
+ordem dele para apagar ou manter até o arquivamento final).
+
+**Pasta por pasta restante de `Nicky Desenvolvimento/`** (ainda não
+analisadas, ele quer por pasta): `Nicky/` raiz, `ouro/`, `prata/`,
+`template/`, `conversa/`, `build/`, `dist/`, `AIMLU/`.

@@ -64,6 +64,22 @@
    "Registro final (CHANGELOG/txt/Telegram) ao fechar A e C."
   ]
  },
+ "analise_legado_aiml_e_pasta_pessoal_2026_10_23": {
+  "pedido": "Dono (23/10 tarde): 'vamos analisar as pastas separadas, acho melhor e tenho mais controle, quando acabar esses documentos serao arquivados fora do servidor. comec pelos .py, algum tem utilidade?' Depois: 'nao precisa mudar nada, vamos para o proximo... se AIML realmente nao tem utilidade nao tem porque analisa-los'; 'vamos para a www'; e por fim ordem de arquivar: card=cartoes de visita -> banco de firmas; docs=meus documentos/diplomas/curriculo; omg=imagens; Logus=meus carros -> banco futuro de veiculos; projeto=esboco inicial do Nicky (precisa OCR) -> legado. INSTRUCAO EXPLICITA: 'nao sanitize nada, vou guardar assim mesmo' + 'guarde o site de hospedagem, vamos no futuro verificar se ainda esta viva'.",
+  "veredito_por_pasta": {
+   "py_30_arquivos": "NENHUM reaproveitavel. Kernel.py = copia da lib de terceiros python-aiml; nicky.py + pacotes/ = arquitetura antiga (MQTT broker 192.168.0.200 + googletrans + scraping de HTML do Google) ja superada por fastpaths/actions/UserStore/quick_responses/RAG; Traduz/ = pipeline de migracao ja cumprido. Unico achado: senha MySQL HARDCODED 'deo1mdu5' em db.py.",
+   "aiml": "Tecnologia de 1995 (matching de padrao cego). O sistema ja tem equivalente MELHOR e com gate (memory/quick_responses.py round-robin+analytics, fastpaths, RAG). Adotar parser AIML paralelo = gate de seguro cego + duas fontes de verdade. Nao analisados como codigo. Residuo UNICO com valor afetivo = personalidade/bordoes (alimentariam a Plêiade) — pendente de decisao dele, nunca como parser.",
+   "www_59_php": "Site inseguro ponta a ponta: SQL injection em validacao.php/logar.php/verlista.php (escape comentado), md5() nas senhas, logar.php devolve CPF/sangue/religiao/escolaridade em claro (vazamento LGPD), paginas abertas por ID (0/index.php..9/index.php). Nada a portar. Credencial de TERCEIRO vazada em 5 arquivos: host sql212.sk4host.com, usuario sk4_22874154, senha deo1mdu5 — tratada como COMPROMETIDA, anotada para VERIFICAR NO FUTURO se a hospedagem ainda esta viva."
+  },
+  "pasta_pessoal_criada": "/home/alex/Alex — FORA do OmegaDrakon, FORA do git, FORA do backup automatico (hd_backup so cobre /home/alex/dados e /mnt/Arquivos; escolha CONSCIENTE do dono). Copia byte a byte verificada (contagens batem; origens intactas, nada removido ainda). Total 486 arquivos / 214 MB: firmas/ <- www/card/ 88 JPGs + firmas.json (esqueleto, 5 firmas de exemplo); documentos/ <- www/docs/ 48 (diplomas/certificados/historico/curriculo); veiculos/ <- www/Logus/ 118 (Abastecimento/Mecanica/Outros Gastos .ods, manual, fotos, videos, Tunning) + veiculos.json pre-carregado (Logus 20/05/11, R$7.000 entrada, 61.000 km, total R$16.952,90); imagens/ <- Nicky/Imagens/ (79) + www/img/ (50 em site_www_img/); legado/ <- www/projeto/ 101 JPGs desenhados a mao (esboco do Nicky, precisa OCR).",
+  "estado": "ANALISE POR PASTA EM CURSO (fila do dono). Fechadas: .py, .aiml, www/, e o arquivamento dos documentos pessoais. Origens em analise/AIML seguem INTACTAS (aguardando ordem dele para apagar ou manter ate o arquivamento final fora do servidor). PROXIMAS pastas de Nicky Desenvolvimento/ ainda nao analisadas: Nicky/ raiz, ouro/, prata/, template/, conversa/, build/, dist/, AIMLU/.",
+  "pauta_dono_pendente": [
+   "Origens em analise/AIML (card/docs/Logus/projeto/Imagens/www): remover apos copia conferida, ou manter ate arquivar tudo junto?",
+   "Personalidade/bordoes dos .aiml: faz o recorte antes de arquivar? (unico conteudo residual com valor)",
+   "As 134 respostas pt-BR do OK/ do AIML (RAG ou parado) e o exemplo exato do tema (TODO 3.8) — pauta de conteudo antiga."
+  ],
+  "transcricao": "iniciar/2026-10-23_conversa_omegadrakon.md (§6)"
+ },
  "reverificacao_botao_topo_vigia_e_gate_2026_10_22": {
   "pedido": "Usuario: 'leia iniciar' (~15:20) — reverificacao de rotina (regra 3) apos (a) o update do OpenCode 2.0.20->2.1.3 pedido pelo dono ('update', servico reiniciado 15:06, TUI re-criada 15:19) e (b) o registro do cofre (commit 3f00c57, §14 do arquivo 21-22/10).",
   "achados_verdes": "od-core active desde 08:55:28, MainPID 2950690, NRestarts=0; /health ok=true 25 checks NENHUM fora; /app/version 1.44.0/2080 sha aeb8566b == APK publicado; txt.txt sem mensagem nova do dono (ultima escrita = nossa 14:33, entrega do cofre); backups/off-site como registrados.",
