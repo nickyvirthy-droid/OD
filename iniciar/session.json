@@ -24,12 +24,12 @@
    ]
   },
   "achados_da_auditoria_22_10": [
-    "SENHA INVENTADA (3x, mais grave): file browser -> '1234567890abcdef'; 'passe usuario e senha validos' -> 'senha123' (contradiz a outra); calibre -> 'calibrer123'. O chat FABRICOU credenciais em vez de nao poder/passar pelo canal seguro.",
-    "ROTA DE ACAO ERRADA (3x): 'desligue a tv' em 3 datas -> resposta da rota de compromissos ('criar compromisso reunião...').",
-    "ALUCINACAO FACTUAL (2x): fentanil chamada de quimioterapeutico; 'isoflurana, tambem conhecida como propofol'.",
-    "RESPOSTA NAO-BATE (5x): 'no status fala gemma' -> status generico; 'dispositivos conectados' -> luzes do HA (fastpath errado); 'crie a nota ideias' -> devolveu nota antiga sem criar; regras do sistema incompletas; regras de commit que nao sao as da casa.",
-    "INCONSISTENCIAS (3x): negou ler notas depois de dizer que leu; regras de push diferentes em 2 turnos; senhas acima se contradizendo.",
-    "PADRAO: vaza o LLM puro (inventa quando nao sabe) — os fastpaths de dados reais (rede/HA/clima) estao nos 25 ok."
+   "SENHA INVENTADA (3x, mais grave): file browser -> '1234567890abcdef'; 'passe usuario e senha validos' -> 'senha123' (contradiz a outra); calibre -> 'calibrer123'. O chat FABRICOU credenciais em vez de nao poder/passar pelo canal seguro.",
+   "ROTA DE ACAO ERRADA (3x): 'desligue a tv' em 3 datas -> resposta da rota de compromissos ('criar compromisso reunião...').",
+   "ALUCINACAO FACTUAL (2x): fentanil chamada de quimioterapeutico; 'isoflurana, tambem conhecida como propofol'.",
+   "RESPOSTA NAO-BATE (5x): 'no status fala gemma' -> status generico; 'dispositivos conectados' -> luzes do HA (fastpath errado); 'crie a nota ideias' -> devolveu nota antiga sem criar; regras do sistema incompletas; regras de commit que nao sao as da casa.",
+   "INCONSISTENCIAS (3x): negou ler notas depois de dizer que leu; regras de push diferentes em 2 turnos; senhas acima se contradizendo.",
+   "PADRAO: vaza o LLM puro (inventa quando nao sabe) — os fastpaths de dados reais (rede/HA/clima) estao nos 25 ok."
   ],
   "ordem_do_dono_1635": "'porque esta parando? Coloque as atualizações na lista e faça uma por vez se for muita coisa.' -> FILA em uma frente por vez, cada uma fechada (codigo+teste+prova+registro) antes da proxima:",
   "fila": [
@@ -41,7 +41,14 @@
   "frente_fechada_2": "Auditor de conversas (22/10 17:05): core/chat_audit.py (parser legado PascAlice c/ encoding corrompido, cascata Postgres->SQLite->JSON, juiz plugavel Groq-online|gemma-local com reserva POR TURNO, veredito deterministico para lacuna/orfao — descoberto na prova viva que o juiz alucinava 'ok' em resposta vazia, relatorio JSON em analise/). +41 testes; módulo 94%; pyflakes 0; gate 3706/16 90,79%. Provas vivas: legado 1065 turnos nos 66 logs; juiz local classificou 'Bom dia'->'What kind of food do you like?' como resposta_errada; Postgres vivo 4 turnos com 1 inconsistente real (chat disse 'Qwen local' enquanto roda gemma-local).",
   "frente_fechada_3": "AIML->historico (22/10 17:30): docs/ANALISE_AIML_NICKY.md novo (inventario 1406 arqs/338MB, PascAlice sem fontes, veredito catalogar-nao-migrar; 134 cats pt-BR do OK/ como candidatas a RAG = decisao do dono) + site/historico.html com 'Fase 0 · Pre-Historia — o Nicky em AIML' (timeline ANTES da Fase 1, nao era-box: guarda de contagens intocada, 75 releases/9 eras preservados; meta+intro atualizadas). Prova viva: /site/historico.html 200, 31613 B, byte-identico ao disco; test_api 179/179.",
   "fechamento_bloco": "CHANGELOG §1.44.0 ganhou subsecao 'Auditor de conversas + a pre-historia AIML no site (sem bump — 22/10)' com tabela das 5 entregas. Gate final reexecutado APOS a edicao (corpus do RAG): 3706/16 a 90,79%. Sem restart (od-core intocado, 1.44.0/2080 desde 08:55). Commit+push + txt.txt + Telegram conforme regras 7.1/14/15.",
-  "updated_at": "2026-10-22T21:10:00-03:00"
+  "updated_at": "2026-10-22T22:00:41-03:00",
+  "senha_vem_do_cofre_22_10": "Ordem do dono em 3 recados: (1) 'voce bloqueou o master' = a blindagem negava senha ATE para ele; (2) 'o master admin pode fazer qualquer coisa, o usuario comum apenas aquilo que nao prejudica o sistema ou nao seja confidencial'; (3) 'as senhas vem do cofre'. ENTREGA (commit 1665ef9): ramo __secrets_denied__ ganhou gate de papel no orchestrator (os 4 chamadores de produto passam papel explicito: REST self._role(), Telegram, WS, anon). ADMIN: vault_list -> resolver por termo com sinônimos (roteador->ROUTER_ADMIN_PASSWORD) -> vault_get -> valor REAL; empatado = títulos; sem achado = títulos; cofre fora = recusa honesta; NUNCA LLM. SAÍDA terminal persist=False: valor fora do histórico (0 linhas no Postgres) e do journal. USER/ANONYMOUS: negação de sempre, cofre intocado. +13 testes; mutações 4/4 (gate removido, persist=True, ramo stream removido, resolvedor sem desempate); gate 3724/16 90,80%. Restart verde 21:xx (NRestarts=0, 0 [ERROR]). PROVA VIVA: admin recebeu '🔐 ROUTER_ADMIN_PASSWORD: <valor real confere>' route=action_intent; anônimo negado; Postgres 0 linhas com o valor; journal 0.",
+  "fila_frentes_22_10_noite": [
+   "B. Senha do dono vem do cofre. [FECHADA — 1665ef9 + prova viva]",
+   "A. TV: 'desligue a tv' acha TV Sala no HA (dominios remote/media_player + comando sem exigir luz/tomada). [EM CURSO]",
+   "C. Papel FAMÍLIA: terceiro papel — pode ligar/desligar aparelhos e luzes (comum nao pode). [FILA]",
+   "Registro final (CHANGELOG/txt/Telegram) ao fechar A e C."
+  ]
  },
  "reverificacao_botao_topo_vigia_e_gate_2026_10_22": {
   "pedido": "Usuario: 'leia iniciar' (~15:20) — reverificacao de rotina (regra 3) apos (a) o update do OpenCode 2.0.20->2.1.3 pedido pelo dono ('update', servico reiniciado 15:06, TUI re-criada 15:19) e (b) o registro do cofre (commit 3f00c57, §14 do arquivo 21-22/10).",

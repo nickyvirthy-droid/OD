@@ -373,7 +373,18 @@ def _detect_operational(text: str) -> Optional[str]:
         r"aparelho|energia)\b",
         low,
     ))
-    if _comando and (_cmd_luz or _cmd_tomada):
+    # 22/10 (ordem do dono — "tv esta no HomeAssistant, deveria ter achado e
+    # anexado"): APARELHOS do lar entram no comando. A fala não precisa mais
+    # dizer luz/tomada para chegar em ha_device_control — o resolvedor casa o
+    # nome REAL da entidade no HA e, se não casar, a action responde honesta
+    # ('não existe no Home Assistant'), nunca o LLM alucinando execução.
+    _cmd_aparelho = bool(re.search(
+        r"\b(tv|televis[ãa]o|televis[õo]es|televisor(es)?|ventilador(es)?|"
+        r"ar[- ]?condicionad[oa]s?|cafeteira(s)?|micro[- ]?ondas|"
+        r"geladeira(s)?|caixa(s)? de som|alt[- ]?falante(s)?|som)\b",
+        low,
+    ))
+    if _comando and (_cmd_luz or _cmd_tomada or _cmd_aparelho):
         # v1.9.1: comando em PLURAL/sem alvo ('luzes acesas' dito de forma
         # ambígua, 'as luzes') NUNCA vira confirmação com entidade
         # inventada ('Luzes Acessas') — o alvo específico é OBRIGATÓRIO;
@@ -1009,6 +1020,16 @@ _LIGHT_STOPWORDS = ("da", "de", "do", "das", "dos", "a", "o", "luz", "lámpada",
 _LIGHT_ON_WORDS = ("liga", "ligue", "acende", "acende")
 
 
+# 22/10 (TV do dono no HA): alvos CURTOS legítimos — o piso de 3 letras
+# existe para 'ar'/'da' não virarem nome de entidade, e 'tv' (2) é o caso
+# real pedido. Lista explícita, nunca curinga.
+_ALVO_CURTO_OK = frozenset({"tv"})
+
+# Domínios ATUADORES que o controle do lar aciona (liga/desliga): as luzes e
+# tomadas de sempre + a TV do dono (remote./media_player. — estado 'TV Sala').
+_ATUADORES_HA = frozenset({"switch", "light", "remote", "media_player"})
+
+
 def resolve_light_target(
     text: str,
 ) -> Optional[tuple[Optional[str], bool, str]]:
@@ -1036,7 +1057,9 @@ def resolve_light_target(
         text,
     )
     alvo = re.sub(r"\s+", " ", alvo).strip(" ?!.,")
-    if not alvo or len(alvo) < 3:
+    if not alvo:
+        return None
+    if len(alvo) < 3 and alvo.lower() not in _ALVO_CURTO_OK:
         return None
     states = _HA_ENTITIES
     if not states:
@@ -1060,7 +1083,9 @@ def resolve_light_target(
     best: Optional[tuple[int, int, str]] = None
     for s in states:
         eid = s.entity_id
-        if eid.split(".", 1)[0] not in ("switch", "light"):
+        # 22/10: domínios ATUADORES do lar — a TV do dono vive em
+        # remote.*/media_player.* (estado 'TV Sala') e estava fora daqui.
+        if eid.split(".", 1)[0] not in _ATUADORES_HA:
             continue
         name = (s.attributes or {}).get("friendly_name") or eid
         haystack = _norm(f"{name} {eid}")

@@ -913,13 +913,15 @@ def ha_device_control(
             "hint": f"'{entity_id}' não existe no Home Assistant",
         }
     domain = entity_id.split(".", 1)[0]
-    if domain not in ("switch", "light"):
+    # 22/10: a TV do dono (remote./media_player.) é atuadora como luz/tomada —
+    # o resolvedor da intenção já só devolve domínios de _ATUADORES_HA.
+    if domain not in ("switch", "light", "remote", "media_player"):
         return {
             "ok": False,
             "error": "nao_e_luz",
             "hint": (
-                f"'{entity_id}' não é luz/tomada/interruptor "
-                f"(domínio '{domain}' não é controlável aqui)"
+                f"'{entity_id}' não é aparelho controlável aqui "
+                f"(domínio '{domain}')"
             ),
         }
     states = _ha_states()

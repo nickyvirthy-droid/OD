@@ -665,6 +665,143 @@ class TestSegredoDoCofre:
         assert resolver_item_segredo("roteador", []) == (None, [])
 
 
+class TestControleTV:
+    """22/10 (ordem do dono): 'tv esta no HomeAssistant, deveria ter achado
+    e anexado' — 'desligue a tv' tem que casar a TV Sala (remote./media_player.)
+    e seguir o MESMO fluxo de permissão + confirmação das luzes. O caso real
+    da auditoria: a frase caía no LLM, que alucinava execução de compromisso.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _limpa_pendencias(self):
+        # _LIGHT_CONFIRMATIONS é global de módulo (actions.py): sem esta
+        # limpeza a pendência do teste anterior vaza — no mesmo user 'alex',
+        # a pendência velha faz o 1º passo executar direto e o 'sim' cair
+        # em 'nada pendente'; nos testes de luzes da frente, o 'sim' tenta
+        # executar a TV que não existe no servidor deles.
+        from tools.actions.actions import _LIGHT_CONFIRMATIONS
+        _LIGHT_CONFIRMATIONS.clear()
+        yield
+        _LIGHT_CONFIRMATIONS.clear()
+
+    @staticmethod
+    def _setup():
+        # Mesma infra do TestControleLuzes + a TV real do dono nos DOIS
+        # domínios que o HA expõe para o mesmo aparelho (igual produção).
+        base = TestControleLuzes._setup()
+        orch, llm, server, client = base
+        server.seed(
+            "remote.sala_de_estar_tv_sala", "off",
+            {"friendly_name": "TV Sala"},
+        )
+        server.seed(
+            "media_player.sala_de_estar_tv_sala", "off",
+            {"friendly_name": "TV Sala"},
+        )
+        from core.intents import configure_ha_entities
+        configure_ha_entities(server.list_states())
+        return orch, llm, server, client
+
+    def test_desligue_a_tv_pede_confirmacao(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "desligue a tv", role="admin",
+        ))
+        assert "Confirmar" in r.message and "TV Sala" in r.message
+        assert "desligar" in r.message.lower()
+        assert server.service_calls == []  # 1º passo NÃO executa
+        assert r.message != "RESPOSTA_DO_LLM_FAKE"  # zero LLM
+
+    def test_sim_executa_turn_off_na_tv(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        asyncio.run(orch.process(
+            "alex", "guardian", "desligue a tv", role="admin",
+        ))
+        r2 = asyncio.run(orch.process("alex", "guardian", "sim", role="admin"))
+        assert "executado" in r2.message
+        assert len(server.service_calls) == 1
+        # empate resolvido de forma determinística: o domínio remote (id
+        # mais curto) vence o media_player com o MESMO friendly_name
+        assert server.service_calls[0]["service"] == "turn_off"
+        assert server.service_calls[0]["domain"] == "remote"
+        assert (
+            server.service_calls[0]["entity_id"]
+            == "remote.sala_de_estar_tv_sala"
+        )
+
+    def test_tv_da_sala_tambem_casa(self) -> None:
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "desligue a tv da sala", role="admin",
+        ))
+        assert "Confirmar" in r.message and "TV Sala" in r.message
+        assert server.service_calls == []
+
+    def test_user_nao_desliga_tv(self) -> None:
+        """O gate de papel é o MESMO das luzes — o aparelho novo não cria
+        brecha para o usuário comum."""
+        import asyncio
+        orch, llm, server, client = self._setup()
+        r = asyncio.run(orch.process(
+            "bia", "guardian", "desligue a tv", role="user",
+        ))
+        assert r.route == "action_intent"
+        assert "só o dono" in r.message.lower()
+        assert server.service_calls == []
+        assert r.message != "RESPOSTA_DO_LLM_FAKE"  # zero LLM
+
+    def test_tv_inexistente_resposta_honesta_sem_llm(self) -> None:
+        """'desligue a tv' sem TV no HA: a action responde 'não existe' com o
+        termo — NUNCA o LLM alucinando que desligou."""
+        import asyncio
+        orch, llm, server, client = TestControleLuzes._setup()  # sem TV
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "desligue a tv", role="admin",
+        ))
+        assert "não existe no Home Assistant" in r.message
+        assert "tv" in r.message
+        assert server.service_calls == []
+        assert r.message != "RESPOSTA_DO_LLM_FAKE"
+
+    def test_frase_sem_verbo_de_comando_nao_sequestra_a_tv(self) -> None:
+        # Pergunta sobre a TV sem verbo de liga/desliga NÃO é ação do lar.
+        from core.intents import detect_action_intent
+        assert detect_action_intent("a tv da sala está ligada?") is None
+
+    def test_resolvedor_aceita_dominio_media_player(self) -> None:
+        """Unidade do resolvedor: media_player/remote NÃO são mais pulados
+        (mutação no filtro de domínio derruba aqui)."""
+        from core.intents import configure_ha_entities, resolve_light_target
+
+        class _Estado:
+            def __init__(self, eid, nome):
+                self.entity_id = eid
+                self.attributes = {"friendly_name": nome}
+
+        configure_ha_entities([
+            _Estado("media_player.sala_de_estar_tv_sala", "TV Sala"),
+        ])
+        alvo = resolve_light_target("desligue a tv")
+        assert alvo is not None
+        assert alvo[0] == "media_player.sala_de_estar_tv_sala"
+        assert alvo[1] is False  # desligar
+
+    def test_action_aceita_dominio_da_tv(self) -> None:
+        """Unidade da action: o gate de domínio não pode mais barrar
+        remote./media_player. (mutação no gate derruba aqui)."""
+        self._setup()  # liga o client falso no actions
+        from tools.actions.actions import ha_device_control
+        r = ha_device_control(
+            entity_id="media_player.sala_de_estar_tv_sala",
+            on=False, user_id="alex",
+        )
+        assert r.get("error") != "nao_e_luz"
+        assert r.get("needs_confirmation") is True
+
+
 def _desativa_rede_do_clima(monkeypatch) -> None:
     """Simula 'sem rede' para weather_city (2026-10-13).
 

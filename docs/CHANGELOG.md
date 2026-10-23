@@ -530,6 +530,26 @@ reproduzida em 7 tentativas posteriores, inclusive sob boot. Os outros
 factuais, respostas que não batem) ficam registrados em `iniciar/` como
 pauta do dono.
 
+### A senha do dono vem do COFRE + "desligue a tv" acha a TV Sala no HA (22–23/10, sem bump)
+
+Fechamento das frentes B e A da fila do dono (*"as senhas vem do cofre"*
+em 3 recados; e a rota de `"desligue a tv"` — 3× na auditoria — caía em
+COMPROMISSOS porque a action não reconhecia aparelhos que não fossem
+luz/tomada).
+
+| Frente | Entrega |
+|---|---|
+| **B — Senha vem do cofre** (`1665ef9`) | A recusa `__secrets_denied__` ganhou **gate de papel no orchestrator** (os 4 chamadores de produto repassam papel: REST, Telegram, WS, anônimo). **ADMIN:** `vault_list` → resolve o termo com sinônimos (*roteador* → `ROUTER_ADMIN_PASSWORD`) → `vault_get` → devolve o **valor real**; empatado = títulos; cofre fora do ar = recusa honesta; **nunca LLM**. **SAÍDA terminal (`persist=False`)**: o valor fica fora do histórico (0 linhas no Postgres) e do journal. **USER/ANONYMOUS:** negação de sempre, cofre intocado. +13 testes; mutações **4/4**. |
+| **A — TV no HA** | `core/intents.py`: comando de aparelho do lar (`tv/televisão/ventilador/ar-condicionado/cafeteira/micro-ondas/geladeira/caixa de som…`) entra na mesma rota de luz/tomada; `resolve_light_target` aceita os domínios **`remote.`/`media_player.`** (a TV do dono é `TV Sala`) e o alvo curto `tv` (2 letras — antes o piso de 3 a descartava). `tools/actions/actions.py`: `ha_device_control` aceita os 4 domínios atuadores (`switch/light/remote/media_player`). Fluxo **intocado**: mesmo gate de papel (user comum não desliga), mesma confirmação de 2 passos, TV inexistente → "não existe no Home Assistant" honesto **sem LLM**. |
+| **Guardas** | `tests/test_resposta_transparente.py` **+8** (`TestControleTV`): confirmação com `TV Sala`, `sim` executa `turn_off` no domínio `remote` (empate determinístico vs `media_player`), "tv da sala" também casa, user negado, TV inexistente honesta, frase sem verbo não sequestra, resolvedor e action aceitando os domínios novos. **Fixture autouse isola o global `_LIGHT_CONFIRMATIONS`** — sem ela a pendência vaza entre testes e derruba 2 testes antigos de luzes (o teste do teste: 3 falhas antes, 118/118 depois). |
+
+**Validação:** gate oficial **3732 passed / 16 skipped / 0 falha ·
+90,80%** (baseline 3724/16 a 90,80%; +8 testes). pyflakes sem aviso novo
+(os avisos dos arquivos tocados são pré-existentes, confirmados contra o
+HEAD). **Restart verde** (regra 7.3) + prova viva no chat real. Frente C
+(papel FAMÍLIA — terceiro papel que liga/desliga aparelhos) segue na
+fila do `iniciar/` como próxima frente.
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 
