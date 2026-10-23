@@ -104,6 +104,56 @@ executado, luz off, fastpath `ha_device_control`, 0 LLM**; mesma conta
 pedindo escrita Google → **🔒 negado**; comum e `familia` tentando
 promover → **403**.
 
+### Tema: o botão percorre os 3 estados e o "segue o aparelho" volta a ser alcançável (fecha §3.8, 23/10, sem bump)
+
+**A pauta que ficou aberta do TODO §3.8** — o dono adiou em 16/10
+(*"ainda falha mas bem menos, vamos deixar isso para depois"*). A causa
+raiz foi **reproduzida hoje com chromium headless** (controlando
+`prefers-color-scheme` e clicando no `#odTema` real nas duas portas) e
+confirmada por medição, não por palpite.
+
+**O defeito:** o ciclo `system → light → dark → system` foi
+**de propósito** encurtado para **pular o `system`** quando ele resolvia
+pra mesma cor do tema atual — porque senão um clique "não mudava a tela"
+(e era o que o dono sentia). Efeito colateral: num aparelho **claro** o
+botão travava alternando **claro↔escuro** e o **"segue o aparelho" ficava
+inalcançável** — a raiz nunca voltava ao automático. Era exatamente a
+sensação de "o botão não funciona / não volta pro aparelho".
+
+**A correção (fechada com o dono: "restaurar os 3 estados com feedback"):**
+- **Ciclo completo** em ambas as portas — `system → light → dark →
+  system`, percorrido **sempre** (`proximoTema`/`temaProximo` voltaram a
+  seguir o `CICLO` puro), **alinhando site e painel ao app**, que já tinha
+  o rádio de 3 estados (`ThemeMode.system|light|dark`).
+- **Feedback no `system`**: a raiz ganha **`data-tema-modo="auto"`** (e
+  perde `data-theme`) quando está no automático, e **`="fixo"`** numa
+  escolha explícita. O "clique morto" (uma tela igual à anterior) é
+  resolvido **com visibilidade**, não com salto: mesmo quando o `system`
+  resolve a uma cor, o **controle muda de estado** e o `data-tema-modo`
+  acusa "auto" — o dono vê que está no modo automático.
+
+**Duas portas alinhadas:** `site/od-nav.js` (site) e `_TEMA_PAINEL_JS`
+(`integrations/api/server.py`, painel) receberam a MESMA lógica. O painel
+também deixou de **gravizar `data-theme` no `system`** (antes fazia
+`setAttribute` sempre; agora `removeAttribute` + `data-tema-modo="auto"`,
+igual ao site — o automático ficava indetectável lá).
+
+**Guardas** (3 testes atualizados pro novo contrato, no mesmo harness
+Node de cliques que a casa já usa): `test_site_percorre_os_tres_estados_com_feedback`,
+`test_site_aparelho_claro_tambem_alcanca_o_system` (o lado que travava) e
+`test_painel_percorre_os_tres_estados_com_feedback`; o harness passou a
+expor `data-tema-modo`. **Mutação 2/2**: reinstalando o salto antigo no
+site (2 falhas) e no painel (1 falha) a guarda derruba; restauração
+bit a bit conferida por `diff`.
+
+**Validação:** gate oficial **3751 passed / 16 skipped / 0 falha**. Prova
+viva com chromium headless **nas duas portas e nos dois esquemas** (claro
+e escuro), contexto isolado por rodada: **ciclo `system → light → dark →
+system` percorrido em todas, `data-tema-modo` auto/fixo consistente, 0
+falhas**. Restart verde (regra 7.3): boot 13:52:01, journal 0 `[ERROR]`,
+`/health` ok=True, `/app/version` 1.44.0/2080 intacta (backend puro,
+**sem bump**). Commit `d836349`.
+
 ### Botão ↑ fechando as 12 páginas + a camada `sshd` do Vigia descoberta muda (22/10, sem bump)
 
 **1) O círculo ↑ — pedido do dono** (*"no site as páginas são muito

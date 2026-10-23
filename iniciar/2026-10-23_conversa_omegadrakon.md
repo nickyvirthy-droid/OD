@@ -294,3 +294,50 @@ inventariei, e essa pasta passou despercebida (estava fora do escopo
 (23/10), sem dano. **Lição gravada:** ao limpar uma pasta, inventariar
 **toda** a árvore (não só o subconjunto pedido) e conferir contra o tar
 antes do `rm -rf`.
+
+
+## §9 — Tema (§3.8) FECHADO: o botão percorre os 3 estados com feedback (23/10, tarde)
+
+**Pedido:** "verifique o tema então. consegue analisar sozinho usando o
+chromium ou precisa da minha ajuda?" — a última pauta viva do TODO.
+
+**Sim, analisei sozinho** — o defeito é de renderização (CSS/JS), não de
+credencial, então o chromium headless controlando `prefers-color-scheme`
+basta. Reproduzi de ponta a ponta sem pedir nada ao dono.
+
+**Causa raiz (reproduzida, não palpada):** o ciclo `system → light →
+dark → system` foi **de propósito** encurtado para **pular o `system`**
+quando ele resolvia pra mesma cor do tema atual — porque senão um clique
+"não mudava a tela" (era o que o dono sentia: *"às vezes não funciona"*).
+Efeito colateral: num aparelho **claro** o botão travava alternando
+**claro↔escuro** e o **"segue o aparelho" ficava inalcançável** — a raiz
+nunca voltava ao automático.
+
+**Correção (fechada com o dono: "restaurar os 3 estados com feedback"):**
+- Ciclo **completo** em **ambas** as portas — `site/od-nav.js` e
+  `_TEMA_PAINEL_JS` (`integrations/api/server.py`) — **alinhando site e
+  painel ao app**, que já tinha o rádio de 3 estados.
+- **Feedback no `system`**: a raiz ganha **`data-tema-modo="auto"`** (e
+  perde `data-theme`) no automático, **`="fixo"`** em escolha explícita.
+  O painel também deixou de **gravizar `data-theme` no `system`** (antes
+  `setAttribute` sempre; agora `removeAttribute` + `data-tema-modo="auto"`
+  — o automático ficava indetectável lá). O "clique morto" é resolvido
+  **com visibilidade**, não com salto.
+
+**Guardas** (3 testes atualizados no mesmo harness Node de cliques da
+casa; harness passou a expor `data-tema-modo`): `test_site_percorre_os_tres_estados_com_feedback`,
+`test_site_aparelho_claro_tambem_alcanca_o_system` (o lado que travava),
+`test_painel_percorre_os_tres_estados_com_feedback`. **Mutação 2/2**:
+salto reinstalado no site (2 falhas) e no painel (1 falha) derruba a
+guarda; restauração bit a bit conferida por `diff`.
+
+**Validação:** gate oficial **3751 passed / 16 skipped / 0 falha**.
+Prova viva com chromium headless **nas duas portas e nos dois esquemas**
+(claro/escuro), contexto isolado por rodada: **ciclo completo em todas,
+`data-tema-modo` consistente, 0 falhas**. Restart verde 13:52:01 (gate
+verde antes, regra 7.3): journal 0 `[ERROR]`, `/health` ok=True,
+`/app/version` 1.44.0/2080 intacta (backend puro, **sem bump**). Commit
+`d836349`.
+
+**Isso fecha a última pauta viva do TODO §3.8** — a pauta que o dono
+adiou em 16/10. A fila de frentes do dono continua zerada.

@@ -3892,5 +3892,15 @@
   "aviso_honesto": "LAN = quem tem senha do WiFi alcanca; 4 sem login mas genericas sem dado pessoal; Caderno ganhou senha por isso; Vigia vigia aparelho novo; rotacao de senha WiFi segue no TODO 5.",
   "pendente": "'Puxar para dentro do Site' explicado (portal 8443 prova: 5 das 9 quebradas por subcaminho); fase 1 proposta = Caderno/CyberChef/IT Tools + Caixa --baseurl + Cofre via dominio; Calibre/Kiwix/Stirling/Homebox nao suportam subcaminho. Decisao do dono pendente.",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§9)"
+ },
+ "tema_3_estados_feedback_fecha_3_8_2026_10_23": {
+  "pedido": "Dono: 'verifique o tema então. consegue analisar sozinho usando o chromium ou precisa da minha ajuda?' — a ultima pauta viva do TODO (§3.8, adiada por ele em 16/10).",
+  "analise_sozinha": "SIM — o defeito e de RENDERIZACAO (CSS/JS), nao de credencial, entao chromium headless controlando prefers-color-scheme basta. Reproduzi de ponta a ponta sem pedir nada ao dono.",
+  "causa_raiz_reproduzida": "O ciclo system -> light -> dark -> system foi DE PROPOSITO encurtado para PULAR o system quando ele resolvia pra mesma cor do atual — porque senao um clique 'nao mudava a tela' (o que o dono sentia: 'as vezes nao funciona'). Efeito colateral: em aparelho CLARO o botao travava alternando claro<->escuro e o 'segue o aparelho' ficava INALCANCAVEL — a raiz nunca voltava ao automatico.",
+  "correcao_fechada_com_dono": "Restaurar os 3 ESTADOS com FEEDBACK (escolha do dono). Ciclo COMPLETO em AMBAS as portas — site/od-nav.js e _TEMA_PAINEL_JS (integrations/api/server.py) — alinhando site e painel ao APP, que ja tinha o radio de 3 estados. Feedback no system: a raiz ganha data-tema-modo='auto' (e perde data-theme) no automatico, ='fixo' em escolha explicita. O painel TAMBEM deixou de GRAVIZAR data-theme no system (antes setAttribute sempre; agora removeAttribute + data-tema-modo='auto' — o automatico ficava indetectavel la). O 'clique morto' e resolvido com VISIBILIDADE, nao com salto.",
+  "guardas": "3 testes atualizados no mesmo harness Node de cliques da casa (harness passou a expor data-tema-modo): test_site_percorre_os_tres_estados_com_feedback, test_site_aparelho_claro_tambem_alcanca_o_system (o lado que travava), test_painel_percorre_os_tres_estados_com_feedback. MUTACAO 2/2: salto reinstalado no site (2 falhas) e no painel (1 falha) derruba a guarda; restauracao bit a bit conferida por diff.",
+  "validacao": "Gate oficial 3751 passed / 16 skipped / 0 falha. Prova viva com chromium headless NAS DUAS portas e nos DOIS esquemas (claro/escuro), contexto isolado por rodada: ciclo completo em todas, data-tema-modo consistente, 0 FALHAS. Restart verde 13:52:01 (gate verde antes, regra 7.3): journal 0 [ERROR], /health ok=True, /app/version 1.44.0/2080 intacta (backend puro, SEM bump). Commit d836349.",
+  "significado": "Isso FECHA a ultima pauta viva do TODO §3.8 — a pauta que o dono adiou em 16/10. A fila de frentes do dono continua ZERADA.",
+  "transcricao": "iniciar/2026-10-23_conversa_omegadrakon.md (§9)"
  }
 }
