@@ -98,24 +98,27 @@
       ? 'light' : 'dark';
   }
 
-  /* O ciclo tem 3 estados, mas NENHUM clique pode cair numa tela igual à
-     anterior: "escuro → segue o aparelho" num aparelho escuro (e "claro →
-     segue o aparelho" num claro) não muda nada visualmente — o dono
-     relatou "às vezes não funciona" (16/10). Quando o próximo estado
-     resolve para a MESMA cor do atual, pula para o seguinte: todo clique
-     pinta. Os 3 estados continuam válidos (o app tem o rádio completo e
-     "segue o aparelho" segue sendo o padrão de quem nunca escolheu). */
+  /* O ciclo percorre os 3 estados SEMPRE (system → claro → escuro → system),
+     como o app (rádio completo). A correção anterior — pular o "system" quando
+     ele resolvia pra mesma cor — fazia o dono travar em claro↔escuro sem
+     nunca voltar ao automático (§3.8). O "clique morto" (uma tela igual à
+     anterior) é resolvido com FEEDBACK, não com salto: no "system" a raiz
+     ganha data-tema-modo="auto" e o botão mostra o ícone de "segue o
+     aparelho", então o clique SEMPRE muda o estado visível do controle,
+     mesmo quando a cor do tema não muda. */
   function temaProximo(pref) {
-    var atual = temaResolvido(pref);
-    var proximo = TEMA_CICLO[pref] || 'system';
-    if (temaResolvido(proximo) === atual) proximo = TEMA_CICLO[proximo] || 'system';
-    return proximo;
+    return TEMA_CICLO[pref] || 'system';
   }
 
   function temaAplicar(pref) {
     var raiz = document.documentElement;
-    if (pref === 'system') raiz.removeAttribute('data-theme');
-    else raiz.setAttribute('data-theme', pref);
+    if (pref === 'system') {
+      raiz.removeAttribute('data-theme');
+      raiz.setAttribute('data-tema-modo', 'auto');   // feedback do automático
+    } else {
+      raiz.setAttribute('data-theme', pref);
+      raiz.setAttribute('data-tema-modo', 'fixo');   // escolha explícita
+    }
     raiz.style.colorScheme = temaResolvido(pref);
     var botao = document.getElementById('odTema');
     if (!botao) return;

@@ -636,20 +636,24 @@ _TEMA_PAINEL_JS = """(function () {
     if (pref === 'light' || pref === 'dark') return pref;
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
-  /* Nenhum clique pode cair numa tela igual à anterior (o dono relatou
-     "às vezes não funciona" em 16/10): "escuro → segue o aparelho" num
-     aparelho escuro não muda nada. Se o próximo estado resolve para a
-     MESMA cor do atual, pula para o seguinte — todo clique pinta. Os 3
-     estados continuam válidos (o app tem o rádio completo). */
+  /* O ciclo percorre os 3 estados SEMPRE (system → claro → escuro → system),
+     como o app e como o site (§3.8, alinhado em 23/10). A correção anterior
+     de pular o "system" quando resolvia pra mesma cor fazia o dono travar em
+     claro↔escuro sem voltar ao automático. O "clique morto" é resolvido com
+     FEEDBACK: no "system" a raiz fica sem data-theme e com
+     data-tema-modo="auto" (o botão mostra "segue o aparelho"). */
   function proximoTema(pref) {
-    var atual = resolvido(pref);
-    var proximo = CICLO[pref] || 'system';
-    if (resolvido(proximo) === atual) proximo = CICLO[proximo] || 'system';
-    return proximo;
+    return CICLO[pref] || 'system';
   }
   function aplicar(pref) {
     var raiz = document.documentElement;
-    raiz.setAttribute('data-theme', resolvido(pref));
+    if (pref === 'system') {
+      raiz.removeAttribute('data-theme');             // volta ao automático
+      raiz.setAttribute('data-tema-modo', 'auto');    // feedback
+    } else {
+      raiz.setAttribute('data-theme', resolvido(pref));
+      raiz.setAttribute('data-tema-modo', 'fixo');    // escolha explícita
+    }
     raiz.style.colorScheme = resolvido(pref);
     var b = document.getElementById('odTema');
     if (!b) return;

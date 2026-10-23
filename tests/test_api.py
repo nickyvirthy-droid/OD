@@ -710,7 +710,8 @@ vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(arquivo, 'utf8'), ctx, { filename: arquivo });
 function estado() {
   return { pref: store.od_theme || 'system',
-           aplicado: raiz.getAttribute('data-theme') || 'aparelho' };
+           aplicado: raiz.getAttribute('data-theme') || 'aparelho',
+           modo: raiz.getAttribute('data-tema-modo') || 'auto' };
 }
 const saida = [estado()];
 for (let i = 0; i < cliques; i++) { botao.click(); saida.push(estado()); }
@@ -745,43 +746,53 @@ console.log(JSON.stringify(saida));
         from integrations.api.server import _TEMA_PAINEL_JS
         return _TEMA_PAINEL_JS
 
-    def test_site_clique_nunca_cai_na_mesma_tela(self, tmp_path: Path) -> None:
-        """Regressão do "às vezes não funciona": em aparelho ESCURO, saindo
-        de 'escuro', o passo seguinte do ciclo era 'segue o aparelho' — que
-        resolve escuro igual à tela atual (clique "morto"). Agora pula."""
+    def test_site_percorre_os_tres_estados_com_feedback(
+            self, tmp_path: Path) -> None:
+        """§3.8 (corrigido 23/10): o botão percorre os 3 estados SEMPRE
+        (system → light → dark → system), como o app. O 'system' não fica
+        mais inalcançável e ganha feedback (data-tema-modo=auto)."""
         seq = self._cliques_no_node(tmp_path, self._od_nav_js(),
-                                    aparelho_claro=False, inicial="dark")
+                                    aparelho_claro=False, inicial="dark",
+                                    cliques=3)
         if not seq:  # node ausente: harness opcional (padrão da casa)
             return
-        # 1º clique já sai do escuro (pula o "system" invisível)
-        assert seq[1]["pref"] == "light" and seq[1]["aplicado"] == "light"
-        # e TODOS os cliques seguintes mudam a tela
-        for antes, depois in zip(seq, seq[1:]):
-            assert antes["aplicado"] != depois["aplicado"], seq
+        # inicial: escuro fixo
+        assert seq[0]["pref"] == "dark" and seq[0]["aplicado"] == "dark"
+        assert seq[0]["modo"] == "fixo"
+        # 1º clique → segue o aparelho (feedback, sem data-theme)
+        assert seq[1]["pref"] == "system" and seq[1]["aplicado"] == "aparelho"
+        assert seq[1]["modo"] == "auto"
+        # 2º → claro fixo; 3º → escuro fixo (volta ao início do ciclo)
+        assert seq[2]["pref"] == "light" and seq[2]["aplicado"] == "light"
+        assert seq[3]["pref"] == "dark" and seq[3]["aplicado"] == "dark"
 
-    def test_site_clique_pula_tela_igual_no_aparelho_claro(
+    def test_site_aparelho_claro_tambem_alcanca_o_system(
             self, tmp_path: Path) -> None:
-        """O mesmo do outro lado: aparelho CLARO em 'system' (tela clara) —
-        o 1º clique ia para 'claro' (igual) e não parecia funcionar."""
+        """No aparelho CLARO o 'system' também é alcançável (era o lado que
+        travava em claro↔escuro e nunca voltava ao automático)."""
         seq = self._cliques_no_node(tmp_path, self._od_nav_js(),
-                                    aparelho_claro=True, inicial="system")
+                                    aparelho_claro=True, inicial="system",
+                                    cliques=3)
         if not seq:
             return
-        assert seq[0]["pref"] == "system" and seq[0]["aplicado"] == "aparelho"
-        assert seq[1]["pref"] == "dark" and seq[1]["aplicado"] == "dark"
-        for antes, depois in zip(seq, seq[1:]):
-            assert antes["aplicado"] != depois["aplicado"], seq
+        assert seq[0]["pref"] == "system" and seq[0]["modo"] == "auto"
+        assert seq[1]["pref"] == "light" and seq[1]["modo"] == "fixo"
+        assert seq[2]["pref"] == "dark" and seq[2]["modo"] == "fixo"
+        assert seq[3]["pref"] == "system" and seq[3]["modo"] == "auto"
 
-    def test_painel_clique_nunca_cai_na_mesma_tela(
+    def test_painel_percorre_os_tres_estados_com_feedback(
             self, tmp_path: Path) -> None:
-        """A MESMA correção no JS embutido do painel (_TEMA_PAINEL_JS)."""
+        """A MESMA correção no JS embutido do painel (_TEMA_PAINEL_JS),
+        alinhado ao site e ao app."""
         seq = self._cliques_no_node(tmp_path, self._js_do_painel(),
-                                    aparelho_claro=False, inicial="dark")
+                                    aparelho_claro=False, inicial="dark",
+                                    cliques=3)
         if not seq:
             return
-        assert seq[1]["pref"] == "light" and seq[1]["aplicado"] == "light"
-        for antes, depois in zip(seq, seq[1:]):
-            assert antes["aplicado"] != depois["aplicado"], seq
+        assert seq[0]["pref"] == "dark" and seq[0]["modo"] == "fixo"
+        assert seq[1]["pref"] == "system" and seq[1]["aplicado"] == "aparelho"
+        assert seq[1]["modo"] == "auto"
+        assert seq[2]["pref"] == "light" and seq[3]["pref"] == "dark"
 
     def test_painel_js_compila(self) -> None:
         import shutil as _shutil
