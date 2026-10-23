@@ -46,6 +46,64 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### Papel FAMÍLIA: a conta de casa que liga/desliga aparelhos e luzes (23/10, sem bump)
+
+**Pedido do dono** (fila da noite de 22/10, frente C): *"o usuário comum
+não pode ligar/desligar aparelhos e luzes; crie um papel FAMÍLIA —
+terceiro papel — que possa."* Hoje o sistema só distinguia **dono=admin**
+do resto **user**; não existia papel próprio em conta nenhuma (o `_role()`
+do REST devolvia só admin/user e o `User` nem tinha campo de papel), então
+o gate de permissão já pronto (`DEFAULT_ROLE_PERMISSIONS`) não tinha
+como ser alcançado por ninguém.
+
+**Decisão do dono** (pergunta antes do código): atribuição por **campo
+`role` na conta** + **seletor no painel `/admin`** (e não lista no `.env`
+nem gate órfão). 
+
+**O que mudou (ponta a ponta):**
+- **Gate** (`core/security/permissions.py`): papel `familia` = a lista do
+  `user` (toda a leitura) **herdada por código** (`ROLE_HIERARQUIA =
+  {"familia": "user"}`) + a **única** escrita do lar `ha_device_control`.
+  Uma leitura nova que o `user` ganhar chega ao `familia` sozinha; a
+  única diferença entre os dois papéis é explícita. Continuam negados ao
+  `familia`: escrita Google, `system_env`, `ha_summary`, `database_*`,
+  `network_hosts`, `listening_ports`, `ip_address` (menor privilégio).
+- **Conta** (`integrations/api/auth.py`): `User.role` (default `user`),
+  coluna `role` no `SCHEMA_USERS`, migração idempotente
+  `_migra_coluna_role()` (o `Database` não migra sozinho — `create_table`
+  só cria o que falta), `set_role()` com allowlist `PAPEIS_CONTA_VALIDOS`
+  = ("user","familia") — **`admin` nunca é atribuível pela coluna** (o
+  dono é `OD_OWNER_USERNAME`), e os 5 SELECTs + JOIN de sessão +
+  construtores do `User` propagam o papel.
+- **REST** (`integrations/api/server.py`): `_role()` lê o papel da conta
+  (fail-safe para "user" se o banco devolver lixo), handler
+  `admin_set_role` (PUT) com allowlist, rota `PUT
+  /admin/users/{username}/role` registrada (93 rotas). `admin_users`
+  devolve o `role` de cada conta.
+- **Painel** (`/admin`): coluna "Papel" na tabela de contas com **seletor**
+  `user (comum)` / `família (luzes/aparelhos)` por conta não-dona (o dono
+  fixa "admin (dono)"), gravando via PUT e reverdando o select no banco
+  se o servidor recusar.
+
+**Guardas** (+29 testes): `tests/test_auth.py::TestPapelFamilia` (11 —
+persistência, migração em banco antigo, allowlist, rota PUT nos 5
+caminhos), `tests/test_security.py::TestPermissionEngine` (3 — herança,
+pode `ha_device_control`, segue negado em escrita/segredo; `test_revoke_role`
+ajustado para a lista que agora inclui `familia`),
+`tests/test_actions_catalog.py::TestGatePapelFamilia` (5 — o **gate real**
+`ActionRegistry` + `SecurityManager(mode="strict")`, o caminho que o
+`runtime/launcher` usa em produção: `user` denied, `familia` passa no
+`ha_device_control` e segue denied fora do lar, admin acima de todos) +
+guarda de rotas atualizada (93).
+
+**Prova viva** (servidor real, registry strict de produção, HA dublê — o
+banco/HA reais nunca tocados): conta `user` pede *"desliga a luz da
+cozinha"* → **🔒 negado, 0 LLM**; conta `familia` promovida pela rota →
+1ª mensagem registra intenção e pede confirmação; *"sim"* → **`turn_off`
+executado, luz off, fastpath `ha_device_control`, 0 LLM**; mesma conta
+pedindo escrita Google → **🔒 negado**; comum e `familia` tentando
+promover → **403**.
+
 ### Botão ↑ fechando as 12 páginas + a camada `sshd` do Vigia descoberta muda (22/10, sem bump)
 
 **1) O círculo ↑ — pedido do dono** (*"no site as páginas são muito

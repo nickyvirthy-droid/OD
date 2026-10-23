@@ -76,7 +76,7 @@ from integrations.telegram.commands import (
     NIVEL_1_ADMIN,
     NIVEL_2_DESTRUTIVO,
 )
-from integrations.api.auth import AuthError, _hash_password
+from integrations.api.auth import AuthError, PAPEIS_CONTA_VALIDOS, _hash_password
 from tools.registry import ActionNotFoundError
 
 __signature__ = "OD // CORE"
@@ -349,6 +349,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/admin/google/apis", "admin_google_apis", False),
     ("GET", "/admin/google/auth", "admin_google_auth", False),
     ("POST", "/admin/users/{username}/password", "admin_reset_password", True),
+    ("PUT", "/admin/users/{username}/role", "admin_set_role", True),
     ("DELETE", "/admin/users/{username}", "admin_delete_user", True),
     ("POST", "/admin/cache/prune", "admin_cache_prune", True),
     # Sessão de desenvolvimento on-demand + caixa de autorização (2026-10-08)
@@ -1655,7 +1656,7 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <table>
       <thead><tr>
         <th>Usuário</th><th>E-mail</th><th class="num">Msgs</th>
-        <th class="num">Sessões</th><th>Criada em</th><th>Ações</th>
+        <th class="num">Sessões</th><th>Criada em</th><th>Papel</th><th>Ações</th>
       </tr></thead>
       <tbody id="users"></tbody>
     </table>
@@ -2009,6 +2010,14 @@ async function loadUsers() {
   const data = await resp.json();
   document.getElementById("users").innerHTML = (data.users || []).map(u => {
     const isOwner = !!u.owner;
+    // 23/10 (frente C): seletor de papel por conta. O dono fixa "admin"
+    // (não alterável); as demais escolhem user/familia. Grava via PUT.
+    const papelCell = isOwner
+      ? '<span class="pill ok">admin (dono)</span>'
+      : '<select class="admin-role" data-user="' + esc(u.username) + '">' +
+        '<option value="user"' + (u.role !== "familia" ? " selected" : "") + '>user (comum)</option>' +
+        '<option value="familia"' + (u.role === "familia" ? " selected" : "") + '>família (luzes/aparelhos)</option>' +
+        '</select>';
     const actions = isOwner
       ? '<span class="pill ok">dono</span>'
       : '<input type="password" class="admin-pass" data-user="' + esc(u.username) + '" placeholder="nova senha" style="width:120px"> ' +
@@ -2016,8 +2025,10 @@ async function loadUsers() {
         '<button class="danger admin-del" data-user="' + esc(u.username) + '">Remover</button>';
     return "<tr><td><b>" + esc(u.username) + "</b>" + "</td><td class='muted'>" + esc(u.email) + '</td><td class="num">' + (u.messages || 0) +
       '</td><td class="num">' + (u.sessions || 0) + "</td><td class='muted'>" +
-      new Date(u.created_at * 1000).toLocaleDateString("pt-BR") + "</td><td>" + actions + "</td></tr>";
+      new Date(u.created_at * 1000).toLocaleDateString("pt-BR") + "</td><td>" + papelCell + "</td><td>" + actions + "</td></tr>";
   }).join("");
+  document.querySelectorAll(".admin-role").forEach(s =>
+    s.addEventListener("change", () => setUserRole(s.dataset.user, s.value)));
   document.querySelectorAll(".admin-reset").forEach(b =>
     b.addEventListener("click", () => resetPass(b.dataset.user)));
   document.querySelectorAll(".admin-del").forEach(b =>
@@ -2054,6 +2065,20 @@ async function delUser(username) {
   msg.textContent = resp.ok ? ("Conta removida: " + username) : (data.error || "Erro HTTP " + resp.status);
   msg.className = "msg " + (resp.ok ? "ok" : "err");
   if (resp.ok) loadUsers();
+}
+
+async function setUserRole(username, role) {
+  const resp = await fetch("/admin/users/" + encodeURIComponent(username) + "/role", {
+    method: "PUT", headers: authHeaders({"Content-Type": "application/json"}),
+    body: JSON.stringify({role: role})
+  });
+  const data = await resp.json().catch(() => ({}));
+  const msg = document.getElementById("users-msg");
+  msg.textContent = resp.ok
+    ? ("Papel de " + username + " agora: " + role)
+    : (data.error || "Erro HTTP " + resp.status);
+  msg.className = "msg " + (resp.ok ? "ok" : "err");
+  if (!resp.ok) loadUsers();  // reverte o select para o valor real do banco
 }
 
 // --- Sessão de desenvolvimento on-demand — canal (2026-10-08) ----------
@@ -4592,6 +4617,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
         - conta do dono (`OD_OWNER_USERNAME`, inclusive assumida pela
           `OD_API_KEY`) → **admin** (pode tudo; destrutiva pede confirmação);
+        - conta com papel `familia` no banco → **familia** (leitura +
+          ligar/desligar aparelhos e luzes — frente C, 23/10);
         - demais contas → **user** (conversa + ações sobre os próprios dados);
         - sem conta e autenticado pela chave do servidor/dev → **admin**, para
           preservar o comportamento anterior (chave de operador).
@@ -4601,7 +4628,11 @@ class APIHandler(BaseHTTPRequestHandler):
             return "admin"
         if self._is_owner_username(user.username):
             return "admin"
-        return "user"
+        # Papel da conta (coluna `users.role`); 'user' é o default de quem
+        # nunca foi promovido. O banco pode devolver papel fora da allowlist
+        # (banco editado à mão) — nesse caso cai no 'user' (fail-safe).
+        papel = (getattr(user, "role", "user") or "user").strip().lower()
+        return papel if papel in PAPEIS_CONTA_VALIDOS else "user"
 
     # -- Helpers de corpo/resposta -------------------------------------------
 
@@ -6236,6 +6267,8 @@ class APIHandler(BaseHTTPRequestHandler):
                 "sessions": store.count_sessions(row["id"]),
                 "messages": usage.get("messages", 0),
                 "conversations": usage.get("conversations", 0),
+                # 23/10 (frente C): papel da conta p/ o seletor do painel.
+                "role": (row["role"] or "user") if "role" in row.keys() else "user",
                 # A UI usa para inibir reset/remoção da conta do dono.
                 "owner": self._is_owner_username(uid),
             })
@@ -6313,6 +6346,29 @@ class APIHandler(BaseHTTPRequestHandler):
         store.delete_user(target.id)
         log.info("Conta removida pelo admin", alvo=target.username)
         self._json(200, {"ok": True, "user": target.username})
+
+    def admin_set_role(self, username: str) -> None:
+        """PUT /admin/users/{username}/role — atribui papel a uma conta (admin).
+
+        Body: {"role": "user"|"familia"} (PAPEIS_CONTA_VALIDOS). O papel
+        `admin` NÃO é atribuível por aqui — o dono é o OD_OWNER_USERNAME e a
+        coluna `role` não concede admin (uma conta comum jamais vira admin
+        pelo painel). `familia` = leitura + ligar/desligar aparelhos e luzes
+        (frente C, 23/10).
+
+        O dono não pode ser alvo (`_admin_target`): o papel dele é sempre
+        admin, resolvido pelo OD_OWNER_USERNAME.
+        """
+        store, target = self._admin_target(username)
+        data = self._read_json()
+        papel = str(data.get("role") or "").strip().lower()
+        if papel not in PAPEIS_CONTA_VALIDOS:
+            raise APIError(
+                400, f"papel_invalido: {papel!r} (use um de {PAPEIS_CONTA_VALIDOS})"
+            )
+        store.set_role(target.id, papel)
+        log.info("Papel atribuído pelo admin", alvo=target.username, role=papel)
+        self._json(200, {"ok": True, "user": target.username, "role": papel})
 
     def supervision(self) -> None:
         """GET /supervision — estado dos loops do núcleo (quedas e reinícios).

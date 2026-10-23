@@ -95,6 +95,18 @@ class User:
     email: str
     api_key: str
     created_at: float
+    # 23/10 (frente C — papel FAMÍLIA): papel da conta, guardado no banco.
+    # "user" (padrão) = conversa + leitura; "familia" = leitura + ligar/
+    # desligar aparelhos e luzes (ha_device_control); "admin" = o dono
+    # (resolvido pelo OD_OWNER_USERNAME, nunca por esta coluna).
+    role: str = "user"
+
+
+# Papéis que uma CONTA pode ter no banco. O "admin" NÃO está aqui de
+# propósito: admin é o dono (OD_OWNER_USERNAME), resolvido no _role() —
+# uma conta comum jamais vira admin por coluna (a coluna não dá direito
+# ao cofre, a arquivos nem a destrutiva).
+PAPEIS_CONTA_VALIDOS: tuple[str, ...] = ("user", "familia")
 
 
 # --- Preferências do perfil (TODO §3.8: tema claro/escuro sincronizado) -----
@@ -158,6 +170,11 @@ class UserStore:
         "password_hash": "TEXT NOT NULL",
         "api_key": "TEXT UNIQUE NOT NULL",
         "created_at": "REAL NOT NULL",
+        # 23/10 (frente C — papel FAMÍLIA): papel da conta. O dono é
+        # resolvido pelo OD_OWNER_USERNAME (nunca por esta coluna). Banco
+        # novo nasce com a coluna; banco existente ganha via
+        # `_migra_coluna_role()` idempotente.
+        "role": "TEXT NOT NULL DEFAULT 'user'",
     }
 
     SCHEMA_SESSIONS = {
@@ -197,6 +214,31 @@ class UserStore:
         db.create_table("sessions", self.SCHEMA_SESSIONS)
         db.create_table("telegram_links", self.SCHEMA_TELEGRAM_LINKS)
         db.create_table("user_prefs", self.SCHEMA_PREFS)
+        self._migra_coluna_role()
+
+    def _migra_coluna_role(self) -> None:
+        """Garante a coluna `users.role` (frente C — papel FAMÍLIA, 23/10).
+
+        O `Database` não tem migração automática (`create_table` só cria
+        o que falta). Banco novo já nasce com a coluna (SCHEMA_USERS); em
+        banco já existente o `ALTER TABLE ... ADD COLUMN` roda UMA vez e
+        o teste de coluna existente o torna idempotente nas próximas
+        partidas. Padrão 'user' (o papel de sempre) — ninguém ganha
+        privilégio por causa desta migração.
+        """
+        try:
+            colunas = {c["name"] for c in self._db.table_info("users")}
+        except Exception:  # tabela inexistente / banco fora — create_table já cuidou
+            return
+        if "role" not in colunas:
+            try:
+                self._db.execute(
+                    "ALTER TABLE users ADD COLUMN role TEXT "
+                    "NOT NULL DEFAULT 'user'"
+                )
+                log.info("Migração: coluna users.role adicionada (default user)")
+            except Exception as exc:  # corrida entre partidas — não fatal
+                log.warn("Migração users.role falhou (pode já existir)", erro=str(exc))
 
     # -- Registro -------------------------------------------------------------
 
@@ -240,6 +282,7 @@ class UserStore:
             email=email,
             api_key=api_key,
             created_at=now,
+            role="user",  # conta nova sempre começa comum; papel é atribuído pelo dono
         )
 
     # -- Login ----------------------------------------------------------------
@@ -249,7 +292,7 @@ class UserStore:
         username = username.strip().lower()
 
         rows = self._db.query(
-            "SELECT id, username, email, password_hash, api_key, created_at "
+            "SELECT id, username, email, password_hash, api_key, created_at, role "
             "FROM users WHERE username = ?",
             (username,),
             limit=1,
@@ -268,7 +311,7 @@ class UserStore:
     def login_with_api_key(self, api_key: str) -> Optional[User]:
         """Autentica por API key (para o app mobile e curl)."""
         rows = self._db.query(
-            "SELECT id, username, email, api_key, created_at "
+            "SELECT id, username, email, api_key, created_at, role "
             "FROM users WHERE api_key = ?",
             (api_key,),
             limit=1,
@@ -282,6 +325,7 @@ class UserStore:
             email=row["email"],
             api_key=row["api_key"],
             created_at=row["created_at"],
+            role=row["role"],
         )
 
     # -- Sessões --------------------------------------------------------------
@@ -303,7 +347,7 @@ class UserStore:
         """Valida um token de sessão. Retorna o User ou None."""
         rows = self._db.query(
             "SELECT s.token, s.user_id, s.expires_at, "
-            "u.id, u.username, u.email, u.api_key, u.created_at "
+            "u.id, u.username, u.email, u.api_key, u.created_at, u.role "
             "FROM sessions s JOIN users u ON s.user_id = u.id "
             "WHERE s.token = ?",
             (token,),
@@ -324,6 +368,7 @@ class UserStore:
             email=row["email"],
             api_key=row["api_key"],
             created_at=row["created_at"],
+            role=row["role"],
         )
 
     def logout(self, token: str) -> None:
@@ -419,7 +464,7 @@ class UserStore:
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         """Busca usuário por ID."""
         rows = self._db.query(
-            "SELECT id, username, email, api_key, created_at "
+            "SELECT id, username, email, api_key, created_at, role "
             "FROM users WHERE id = ?",
             (user_id,),
             limit=1,
@@ -433,12 +478,13 @@ class UserStore:
             email=row["email"],
             api_key=row["api_key"],
             created_at=row["created_at"],
+            role=row["role"],
         )
 
     def get_user_by_username(self, username: str) -> Optional[User]:
         """Busca usuário por username."""
         rows = self._db.query(
-            "SELECT id, username, email, api_key, created_at "
+            "SELECT id, username, email, api_key, created_at, role "
             "FROM users WHERE username = ?",
             (username.strip().lower(),),
             limit=1,
@@ -452,6 +498,7 @@ class UserStore:
             email=row["email"],
             api_key=row["api_key"],
             created_at=row["created_at"],
+            role=row["role"],
         )
 
     def verify_credentials(self, username: str, password: str) -> bool:
@@ -515,6 +562,23 @@ class UserStore:
         )
         log.info("API key rotacionada", user_id=user_id)
         return new_key
+
+    def set_role(self, user_id: int, role: str) -> str:
+        """Atribui um papel de conta (frente C — 23/10).
+
+        Só aceita os valores de PAPEIS_CONTA_VALIDOS ('user'/'familia');
+        'admin' NUNCA passa por aqui (é o dono, resolvido pelo
+        OD_OWNER_USERNAME). Levanta ValueError para papel inválido — o
+        chamador (REST) traduz em 400, sem gravar nada.
+        """
+        if role not in PAPEIS_CONTA_VALIDOS:
+            raise ValueError(f"papel_invalido: {role!r}")
+        self._db.execute(
+            "UPDATE users SET role = ? WHERE id = ?",
+            (role, user_id),
+        )
+        log.info("Papel da conta alterado", user_id=user_id, role=role)
+        return role
 
     def change_password(self, user_id: int, current: str, new: str) -> None:
         """Troca a senha do usuário — EXIGE a senha atual.
@@ -584,7 +648,7 @@ class UserStore:
     def list_users(self) -> list[dict[str, Any]]:
         """Lista todos os usuários (sem password_hash)."""
         return self._db.query(
-            "SELECT id, username, email, api_key, created_at FROM users "
+            "SELECT id, username, email, api_key, created_at, role FROM users "
             "ORDER BY created_at"
         )
 

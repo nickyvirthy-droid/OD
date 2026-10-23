@@ -148,8 +148,9 @@ class TestAPIRoutes:
         /registry/posse e QR de posse do dono (Etapa 4 do Registro
         Mestre, 2026-10-15) + ciclos de coleção da frente NV (16/10) +
         portário /f/<ferramenta> das 5 ferramentas (fase 1, 21/10) +
-        /auth/session-cookie (sessão do chat vira cookie, 22/10)."""
-        assert len(ROUTES) == 92
+        /auth/session-cookie (sessão do chat vira cookie, 22/10) +
+        PUT /admin/users/{username}/role (papel da conta, frente C, 23/10)."""
+        assert len(ROUTES) == 93
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -211,6 +212,7 @@ class TestAPIRoutes:
             ("POST", "/account/password"), ("POST", "/account/api-key"),
             ("GET", "/admin/users"),
             ("POST", "/admin/users/{username}/password"),
+            ("PUT", "/admin/users/{username}/role"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),
             ("POST", "/admin/dev/sessao"),
@@ -275,6 +277,7 @@ class TestAPIRoutes:
             ("POST", "/admin/ferramentas/{id}/rollback"),
             ("DELETE", "/admin/ferramentas/{id}"),
             ("POST", "/admin/users/{username}/password"),
+            ("PUT", "/admin/users/{username}/role"),
             ("DELETE", "/admin/users/{username}"),
             ("POST", "/admin/cache/prune"),
             ("POST", "/admin/dev/sessao"),

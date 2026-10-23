@@ -29,6 +29,7 @@ from integrations.api import APIConfig, APIServer
 from integrations.api.auth import (
     AuthError,
     LoginGuard,
+    PAPEIS_CONTA_VALIDOS,
     UserStore,
     _hash_password,
     _verify_password,
@@ -1802,3 +1803,137 @@ class TestAdminEndpoints:
             srv2.bound_port, "GET", "/admin/users", api_key="segredo123"
         )
         assert status == 503
+
+
+# ===========================================================================
+# Frente C — Papel FAMÍLIA (23/10): campo `role` na conta + rota admin
+# ===========================================================================
+
+class TestPapelFamilia:
+    """Coluna `users.role` e PUT /admin/users/{username}/role.
+
+    O papel `familia` dá à conta comum a leitura de sempre + a escrita do
+    lar (ha_device_control — ligar/desligar aparelhos e luzes). O `admin`
+    NUNCA é atribuível pela rota: é o dono (OD_OWNER_USERNAME).
+    """
+
+    def _cfg(self, **kwargs) -> APIConfig:
+        return APIConfig(port=0, rate_limit_max=0, **kwargs)
+
+    def _setup(self, serve, tmp_path, store):
+        """Dono alex + comum bia; retorna (srv, token_admin, token_user)."""
+        srv = serve(
+            make_orch(tmp_path),
+            config=self._cfg(
+                api_key="segredo123", user_store=store, owner_username="alex",
+            ),
+        )
+        store.register("alex", "alex@example.com", "senha123")
+        store.register("bia", "bia@example.com", "senha123")
+        return srv, store.login("alex", "senha123"), store.login("bia", "senha123")
+
+    # -- Persistência ------------------------------------------------------
+
+    def test_conta_nova_nasce_com_papel_user(self, store) -> None:
+        bia = store.register("bia", "bia@example.com", "senha123")
+        assert bia.role == "user"
+
+    def test_set_role_grava_e_devolve_na_sessao(self, store) -> None:
+        bia = store.register("bia", "bia@example.com", "senha123")
+        store.set_role(bia.id, "familia")
+        # O User devolvido pela SESSÃO carrega o papel novo (o gate lê daqui).
+        tok = store.login("bia", "senha123")
+        sess = store.validate_session(tok)
+        assert sess is not None and sess.role == "familia"
+
+    def test_set_role_rejeita_papel_fora_da_allowlist(self, store) -> None:
+        bia = store.register("bia", "bia@example.com", "senha123")
+        with pytest.raises(ValueError):
+            store.set_role(bia.id, "superuser")
+        # Nada gravado — a conta continua comum.
+        assert store.get_user_by_username("bia").role == "user"
+
+    def test_admin_nao_e_atribuivel_pela_coluna(self, store) -> None:
+        """'admin' fora de PAPEIS_CONTA_VALIDOS: o dono é resolvido pelo
+        OD_OWNER_USERNAME, nunca pela coluna — uma conta comum não vira
+        admin pelo painel."""
+        assert "admin" not in PAPEIS_CONTA_VALIDOS
+        bia = store.register("bia", "bia@example.com", "senha123")
+        with pytest.raises(ValueError):
+            store.set_role(bia.id, "admin")
+
+    def test_migracao_coluna_role_em_banco_existente(self, tmp_path: Path) -> None:
+        """Banco já existente (sem a coluna) ganha `role` DEFAULT 'user'."""
+        from storage.database import Database as _Db
+        db = _Db(tmp_path / "antigo.db")
+        db.execute(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, "
+            "email TEXT, password_hash TEXT, api_key TEXT, created_at REAL)"
+        )
+        db.execute(
+            "INSERT INTO users (username, email, password_hash, api_key, "
+            "created_at) VALUES ('velho', 'v@x.com', 'h', 'od_k', 1.0)"
+        )
+        store = UserStore(db)  # __init__ roda a migração idempotente
+        assert store.get_user_by_username("velho").role == "user"
+        # E a próxima partida não quebra (coluna já existe).
+        UserStore(db)
+        db.close()
+
+    # -- Rota PUT /admin/users/{username}/role -----------------------------
+
+    def test_admin_atribui_familia_pela_rota(self, serve, tmp_path, store) -> None:
+        srv, t_admin, _ = self._setup(serve, tmp_path, store)
+        status, body, _ = _request(
+            srv.bound_port, "PUT", "/admin/users/bia/role", bearer=t_admin,
+            body={"role": "familia"},
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["role"] == "familia"
+        assert store.get_user_by_username("bia").role == "familia"
+
+    def test_rota_rejeita_papel_admin(self, serve, tmp_path, store) -> None:
+        """'admin' não é atribuível pela rota (400) — o dono é o
+        OD_OWNER_USERNAME."""
+        srv, t_admin, _ = self._setup(serve, tmp_path, store)
+        status, body, _ = _request(
+            srv.bound_port, "PUT", "/admin/users/bia/role", bearer=t_admin,
+            body={"role": "admin"},
+        )
+        assert status == 400
+        assert store.get_user_by_username("bia").role == "user"
+
+    def test_rota_rejeita_papel_desconhecido(self, serve, tmp_path, store) -> None:
+        srv, t_admin, _ = self._setup(serve, tmp_path, store)
+        status, _, _ = _request(
+            srv.bound_port, "PUT", "/admin/users/bia/role", bearer=t_admin,
+            body={"role": "root"},
+        )
+        assert status == 400
+        assert store.get_user_by_username("bia").role == "user"
+
+    def test_comum_nao_atribui_papel(self, serve, tmp_path, store) -> None:
+        """O gate da rota é o mesmo do painel: só admin passa (403)."""
+        srv, _, t_user = self._setup(serve, tmp_path, store)
+        status, _, _ = _request(
+            srv.bound_port, "PUT", "/admin/users/bia/role", bearer=t_user,
+            body={"role": "familia"},
+        )
+        assert status == 403
+
+    def test_rota_nao_altera_o_dono(self, serve, tmp_path, store) -> None:
+        """A conta do dono não é alvo (403) — papel dele é sempre admin."""
+        srv, t_admin, _ = self._setup(serve, tmp_path, store)
+        status, _, _ = _request(
+            srv.bound_port, "PUT", "/admin/users/alex/role", bearer=t_admin,
+            body={"role": "familia"},
+        )
+        assert status == 403
+
+    def test_rota_404_para_conta_inexistente(self, serve, tmp_path, store) -> None:
+        srv, t_admin, _ = self._setup(serve, tmp_path, store)
+        status, _, _ = _request(
+            srv.bound_port, "PUT", "/admin/users/jonas/role", bearer=t_admin,
+            body={"role": "familia"},
+        )
+        assert status == 404

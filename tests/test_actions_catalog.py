@@ -577,3 +577,76 @@ class TestActionsSecurity:
         assert snap["denied"] == 1
         assert registry.history[0]["status"] == "denied"
         assert registry.dump()["actions"] == 115
+
+
+# ===========================================================================
+# Frente C — Papel FAMÍLIA no gate REAL (23/10): Registry + SecurityManager
+# ===========================================================================
+
+@pytest.mark.asyncio
+class TestGatePapelFamilia:
+    """O gate de permissão REAL (ActionRegistry + SecurityManager strict)
+    decide `ha_device_control` por papel: `user` negado, `familia` passa.
+
+    É a prova de integração do coração da frente C — não o engine isolado,
+    mas o caminho que a produção usa (runtime/launcher.build_action_registry).
+    Sem HA configurado a action degrada (ok=False), mas o GATE é que importa:
+    `user` nunca chega ao handler; `familia` chega.
+    """
+
+    def _registry(self) -> ActionRegistry:
+        return build_registry(security=SecurityManager(mode="strict"))
+
+    async def test_user_comum_negado_em_device_control(self) -> None:
+        result = await self._registry().execute(
+            "ha_device_control",
+            params={"entity_id": "light.cozinha", "on": False},
+            role="user",
+        )
+        assert result.status == "denied"
+        assert result.denied_by == "permission"
+
+    async def test_familia_passa_no_gate_de_device_control(self) -> None:
+        result = await self._registry().execute(
+            "ha_device_control",
+            params={"entity_id": "light.cozinha", "on": False},
+            role="familia",
+        )
+        # Passou pelo gate (não denied). Sem HA o handler degrada com
+        # ok=False/indisponivel — o ponto é que o GATE deixou o familia
+        # chegar ao handler, diferente do user (denied).
+        assert result.status != "denied"
+
+    async def test_familia_continua_negado_fora_do_lar(self) -> None:
+        """O familia NÃO vira admin: escrita Google e infra continuam negadas."""
+        registry = self._registry()
+        for acao, params in (
+            ("google_drive_create", {"name": "x", "content": "y"}),
+            ("google_gmail_send", {"para": "a@b.com", "assunto": "s",
+                                   "corpo": "b"}),
+            ("system_env", {}),
+            ("database_query", {"query": "SELECT 1"}),
+        ):
+            result = await registry.execute(acao, params=params, role="familia")
+            assert result.status == "denied", acao
+
+    async def test_user_comum_continua_negado_fora_do_lar(self) -> None:
+        """Regreção: o user comum não ganhou superfície nova (menor privilégio)."""
+        registry = self._registry()
+        casos = (
+            ("ha_device_control", {"entity_id": "light.cozinha", "on": False}),
+            ("system_env", {}),
+            ("database_query", {"query": "SELECT 1"}),
+        )
+        for acao, params in casos:
+            result = await registry.execute(acao, params=params, role="user")
+            assert result.status == "denied", acao
+
+    async def test_admin_continua_podendo_tudo(self) -> None:
+        """O admin/dono (wildcard) segue acima de todos os papéis de conta."""
+        result = await self._registry().execute(
+            "ha_device_control",
+            params={"entity_id": "light.cozinha", "on": False},
+            role="admin",
+        )
+        assert result.status != "denied"

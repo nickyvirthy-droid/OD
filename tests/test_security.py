@@ -277,7 +277,8 @@ class TestPermissionEngine:
     def test_revoke_role(self) -> None:
         engine = PermissionEngine()
         assert engine.revoke_role("agent") is True
-        assert engine.list_roles() == ["admin", "router", "user"]
+        # 'familia' existe desde a frente C (23/10) — herda do user.
+        assert engine.list_roles() == ["admin", "familia", "router", "user"]
 
     def test_evaluate_denied_reason(self) -> None:
         engine = PermissionEngine()
@@ -324,6 +325,32 @@ class TestPermissionEngine:
             "google_gmail_send", "database_query",
         ):
             assert engine.is_allowed("user", acao) is False, acao
+
+    # -- Papel FAMÍLIA (frente C, 23/10) ------------------------------------
+
+    def test_familia_herda_leitura_do_user(self) -> None:
+        """O família herda TODA a lista do user por código (não por cópia):
+        uma leitura nova que o user ganhar chega ao família sozinha."""
+        engine = PermissionEngine()
+        for acao in engine.permissions_for("user"):
+            assert engine.is_allowed("familia", acao) is True, acao
+
+    def test_familia_pode_controlar_dispositivos_do_lar(self) -> None:
+        """A ÚNICA diferença do família para o user: ha_device_control."""
+        engine = PermissionEngine()
+        assert engine.is_allowed("familia", "ha_device_control") is True
+        assert engine.is_allowed("user", "ha_device_control") is False
+
+    def test_familia_continua_sem_escrita_nem_segredo(self) -> None:
+        """Menor privilégio: o família NÃO vira admin — escrita Google,
+        segredo do sistema e infra continuam negados."""
+        engine = PermissionEngine()
+        for acao in (
+            "google_gmail_send", "google_drive_create",
+            "system_env", "database_query", "network_hosts",
+            "listening_ports", "ip_address", "ha_summary",
+        ):
+            assert engine.is_allowed("familia", acao) is False, acao
 
 
 # ===========================================================================

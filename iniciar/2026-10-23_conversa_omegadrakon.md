@@ -89,7 +89,48 @@ admin, 2 sessões independentes):**
   `[ERROR]`.
 
 
-## §3 — Estado e pauta
+## §4 — Frente C fechada: o papel FAMÍLIA (23/10)
+
+**Pedido** (fila da noite de 22/10): um terceiro papel que possa ligar/
+desligar aparelhos e luzes — o comum não pode. Hoje só havia dono=admin
+do resto user; nenhuma conta carregava papel próprio (`_role()` devolvia
+só admin/user, `User` sem campo de papel), então o gate pronto
+(`DEFAULT_ROLE_PERMISSIONS`) era inalcançável.
+
+**Decisão dele** (pergunta antes do código): campo `role` na conta +
+seletor no painel `/admin` (não lista no `.env`, não gate órfão).
+
+**Implementação (ponta a ponta):**
+- Gate `core/security/permissions.py`: papel `familia` = lista do `user`
+  **herdada por código** (`ROLE_HIERARQUIA`) + a única escrita do lar
+  `ha_device_control`. Segue negado: escrita Google, `system_env`,
+  `ha_summary`, `database_*`, `network_hosts`, `listening_ports`,
+  `ip_address`.
+- `integrations/api/auth.py`: `User.role` (default `user`), coluna no
+  `SCHEMA_USERS`, migração idempotente `_migra_coluna_role()`,
+  `set_role()` com allowlist `PAPEIS_CONTA_VALIDOS` ("user","familia") —
+  **`admin` nunca é atribuível pela coluna** (dono é `OD_OWNER_USERNAME`).
+- `integrations/api/server.py`: `_role()` lê o papel da conta (fail-safe
+  "user"), handler `admin_set_role` (PUT) + rota `PUT
+  /admin/users/{username}/role` (93 rotas); `admin_users` devolve `role`.
+- Painel `/admin`: coluna "Papel" com seletor `user`/`família` por conta
+  não-dona, gravando via PUT.
+
+**Guardas** (+29): `TestPapelFamilia` (11), `TestPermissionEngine` (+3 e
+`test_revoke_role` ajustado), `TestGatePapelFamilia` (5 — gate real
+`ActionRegistry`+`SecurityManager(strict)`), guarda de rotas 93.
+
+**Gate oficial:** `3751 passed / 16 skipped · 90,80%` (barra 90%).
+
+**Prova viva** (registry strict de produção, HA/banco dublês, reais nunca
+tocados): conta `user` pede *"desliga a luz da cozinha"* → **🔒 negado,
+0 LLM**; conta `familia` promovida pela rota → intenção + confirmação,
+*"sim"* → **`turn_off` executado, luz off, fastpath, 0 LLM**; mesma conta
+pede escrita Google → **🔒 negado**; comum e `familia` tentando promover
+→ **403**.
+
+
+## §5 — Estado e pauta
 
 **Sistema no ar e verde:** v1.44.0/2080, commit `78087ea` publicado,
 od-core desde 08:53:48 sem reinício, `/health` 25/25.
@@ -97,9 +138,8 @@ od-core desde 08:53:48 sem reinício, `/health` 25/25.
 **Fila do dono (uma por vez, ordem dele):**
 - ~~B — senha vem do cofre~~ **FECHADA** (`1665ef9`, ontem).
 - ~~A — TV no HA~~ **FECHADA** (`78087ea`, hoje, §2).
-- **C — papel FAMÍLIA** (terceiro papel: pode ligar/desligar aparelhos e
-  luzes; o comum continua sem poder) — **próxima frente**.
-- Registro final (CHANGELOG/txt/Telegram) ao fechar C.
+- ~~C — papel FAMÍLIA~~ **FECHADA** (hoje, §4).
+- Registro final (CHANGELOG/txt/Telegram) ao fechar C — **feito**.
 
 **Pauta de conteúdo pendente de decisão dele:** as **134 respostas
 pt-BR** do `OK/` do AIML (viram RAG ou ficam paradas) e o **exemplo

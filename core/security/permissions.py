@@ -91,11 +91,64 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "git_status", "git_branch", "git_log", "git_diff",
         "action_list", "action_info", "action_schema",
     ],
+    # Papel FAMÍLIA (23/10, frente C da fila do dono): a conta comum de
+    # casa que pode LIGAR/DESLIGAR aparelhos e luzes, mas nada além disso.
+    #
+    # É a lista do "user" (leitura) + a ÚNICA ação de escrita do lar:
+    # `ha_device_control`. O alvo precisa ser específico e a ação tem a
+    # confirmação de 2 passos (120s) já embutida — o mesmo fluxo do dono.
+    #
+    # Ficam DE PROPOSITO fora do alcance do família:
+    #   - toda a escrita Google (drive/calendar/gmail) — é do admin;
+    #   - `ha_summary` (raio-x: pessoas, bateria, rede) — leitura mais
+    #     ampla que ha_lights, já fora do "user";
+    #   - `system_env`, `database_*`, `network_hosts`, `listening_ports`,
+    #     `ip_address` — segredo/topologia do servidor (mesmo corte do user).
+    # Herda a lista do user POR CÓDIGO (abaixo) para o família nunca
+    # esquecer uma leitura nova que o user ganhar — a escrita do lar é a
+    # única diferença e é explícita.
+    "familia": [
+        "ha_device_control",
+    ],
     "admin": ["*"],
     "router": ["router.*"],
 }
 
 UNKNOWN_ROLE_POLICY = "deny"  # "deny" | "allow" — papéis desconhecidos
+
+
+# Papéis que HERDAM a lista de outro papel: {filho: pai}. 23/10 (frente C —
+# papel FAMÍLIA): o família herda tudo do user (leitura) e soma só a escrita
+# do lar. Herança por CÓDIGO, não por cópia manual — uma leitura nova que o
+# user ganhar chega ao família sozinha, e a única diferença entre os dois
+# papéis continua sendo a lista explícita do filho.
+ROLE_HIERARQUIA: dict[str, str] = {
+    "familia": "user",
+}
+
+
+def _build_role_permissions() -> dict[str, list[str]]:
+    """Copia o DEFAULT_ROLE_PERMISSIONS resolvendo a hierarquia de papéis.
+
+    O filho recebe os padrões do pai (pai primeiro) e depois os seus — a
+    ordem importa só para leitura/debug; `is_allowed` aceita qualquer
+    correspondência. Papel pai inexistente é ignorado (fail-safe: o filho
+    fica só com o que declarou, nunca levanta).
+    """
+    out: dict[str, list[str]] = {
+        role: list(patterns)
+        for role, patterns in DEFAULT_ROLE_PERMISSIONS.items()
+    }
+    for filho, pai in ROLE_HIERARQUIA.items():
+        if filho not in out:
+            out[filho] = []
+        herdados = list(out.get(pai, []))
+        # pai primeiro; o que o filho já tinha (e não está no pai) fica no fim
+        juntos = herdados + [
+            p for p in out[filho] if p not in herdados
+        ]
+        out[filho] = juntos
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -116,10 +169,7 @@ class PermissionEngine:
     """
 
     role_permissions: dict[str, list[str]] = field(
-        default_factory=lambda: {
-            role: list(patterns)
-            for role, patterns in DEFAULT_ROLE_PERMISSIONS.items()
-        }
+        default_factory=_build_role_permissions
     )
     unknown_role_policy: str = UNKNOWN_ROLE_POLICY
 
