@@ -111,7 +111,11 @@
   "tar": "analise_AIML_legado.tar.gz = 303 MB comprimidos, gzip -t OK, 1409/1409 arquivos conferidos (tar == origem). Inclui AIML/ + 3 relatorio_chat_audit_*.json do auditor (fora de AIML/).",
   "limpeza": "analise/ REMOVIDA (confirmada inexistente). Nao era rastreada pelo git (git ls-files = 0) -> limpeza sem diff, arvore limpa no HEAD 166182d.",
   "efeito_colateral_honesto": "core/chat_audit.py tem --pasta/default da CLI apontando pra analise/AIML (linhas 8/27/539). On-demand (sso roda c/ --fonte legado), nunca runtime -> nada quebra; so o default da CLI passa a apontar pasta inexistente se rodar sem argumento. Pra re-rodar: extrair tar + --pasta explicito.",
-  "estado": "ANALISE POR PASTA FECHADA. Material pessoal em /home/alex/Alex (591 arqs/229MB, fora de git e backup). Legado bruto no tar pra HD externa. Pauta de conteudo nao-bloqueante restante: 134 respostas pt-BR do OK/ (RAG ou parado) + recorte de personalidade dos .aiml.",
+  "decisoes_finais_dono_conteudo": [
+   "As 134 respostas pt-BR do OK/ NAO viram RAG — dono: 'nao precisa virar RAG, voce mesmo disse que nao resolve nada'.",
+   "Personalidade NAO precisa de recorte dos .aiml — ja definida nos avatares (Pleiade)."
+  ],
+  "estado": "ANALISE DO LEGADO 100% ENCERRADA (sem pendencia de conteudo). Material pessoal em /home/alex/Alex (591 arqs/229MB, fora de git e backup). Legado bruto no tar /home/alex/analise_AIML_legado.tar.gz (303MB, 1409/1409) pra dono transferir a HD externa.",
   "transcricao": "iniciar/2026-10-23_conversa_omegadrakon.md (§8)"
  },
  "reverificacao_botao_topo_vigia_e_gate_2026_10_22": {

@@ -273,6 +273,13 @@ ele quiser re-rodar o auditor no legado, é extrair o tar e passar
 
 **Estado:** análise por pasta **fechada**. Todo o material pessoal está
 em `/home/alex/Alex` (591 arqs / 229 MB, fora de git e backup). O legado
-bruto está no tar pra ir pra HD externa. Pauta de conteúdo que sobrou
-do dono (não-bloqueante): 134 respostas pt-BR do `OK/` (RAG ou parado) e
-o recorte de personalidade dos `.aiml`.
+bruto está no tar pra ir pra HD externa.
+
+**Duas decisões finais do dono (23/10) que ENCERRAM a pauta de conteúdo:**
+- **As 134 respostas pt-BR do `OK/` NÃO viram RAG** — dele: "não precisa
+  virar RAG, você mesmo disse que não resolve nada". Confirmado.
+- **Personalidade NÃO precisa de recorte dos `.aiml`** — já está definida
+  nos avatares (Plêiade). Confirmado.
+
+Com isso a análise do legado AIML está **100% encerrada** — sem pendência
+de conteúdo. Sobra só o tar pra ele transferir à HD externa.
