@@ -197,6 +197,87 @@ _RE_PEDIDO_VALOR = re.compile(
     re.IGNORECASE,
 )
 
+# ---------------------------------------------------------------------------
+# Credencial do DONO vem do COFRE (ordens do dono 22/10: "o master admin pode
+# fazer qualquer coisa" e "as senhas vem do cofre"). O GATE de papel fica no
+# Orchestrator (só admin chega ao caminho do valor); os helpers abaixo só
+# extraem o termo falado e o casam com um TÍTULO do cofre — o valor em si
+# nunca é produzido por código nosso: sai da action vault_get.
+# ---------------------------------------------------------------------------
+
+_RE_SEGREDO_LIMPA = re.compile(
+    r"\b(qual|quais|qual[ée]|me passe|passe|manda|mande|me manda[r]?|mostre|"
+    r"me mostre|mostra[r]?|digam?|informe|me d[êe]|favor|por|deu|erro|"
+    r"senha|senhas|password|passwd|credencial|credenciais|token|tokens|"
+    r"api.?key|chave|segredo|segredos|do|da|de|dos|das|a|o|as|os|é|esta|"
+    r"est[áa]|meu|minha|meus|minhas|seu|sua|seus|suas|usuario|usu[áa]rio|"
+    r"user|pass|validos|v[áa]lidos|e|em|com|para|pra|no|na|ou)\b",
+    re.IGNORECASE,
+)
+
+# Termo falado → pedaços do título do item (o cofre espelha as chaves do
+# .env: ROUTER_ADMIN_PASSWORD, OD_FILEBROWSER_PASSWORD, FlatNotes — caderno…).
+_SEGREDO_SINONIMOS: dict[str, tuple[str, ...]] = {
+    "roteador": ("router", "archer"),
+    "caixa": ("filebrowser",),
+    "arquivos": ("filebrowser",),
+    "livros": ("calibre",),
+    "caderno": ("flatnotes",),
+    "inventario": ("homebox",),
+    "cofre": ("vault", "master"),
+}
+
+
+def _norm_segredo(s: str) -> str:
+    """minúsculas + sem acento + tokens alfanuméricos."""
+    s = s.lower()
+    for a, b in (("á", "a"), ("ã", "a"), ("â", "a"), ("à", "a"),
+                 ("é", "e"), ("ê", "e"), ("í", "i"), ("ó", "o"),
+                 ("õ", "o"), ("ô", "o"), ("ú", "u"), ("ç", "c")):
+        s = s.replace(a, b)
+    return " ".join(w for w in re.split(r"[^a-z0-9]+", s) if w)
+
+
+def extrair_termo_segredo(text: str) -> str:
+    """'qual a senha do roteador' → 'roteador' — o que SOBRA do pedido."""
+    limpo = _RE_SEGREDO_LIMPA.sub(" ", text.lower())
+    return " ".join(_norm_segredo(limpo).split())
+
+
+def resolver_item_segredo(
+    termo: str, nomes: list[str]
+) -> tuple[Optional[str], list[str]]:
+    """Casa o termo falado com os TÍTULOS do cofre (substring por token,
+    com sinônimos da casa — 'roteador' acha ROUTER_ADMIN_PASSWORD).
+
+    Returns:
+        (melhor, empatados) — `melhor` só com vencedor ÚNICO; empatou =
+        os nomes empatados vêm em `empatados` e ninguém adivinha qual
+        ('qual o token do telegram' casa 4 itens → o dono escolhe).
+    """
+    if not termo or not nomes:
+        return None, []
+    tokens = _norm_segredo(termo).split()
+    if not tokens:
+        return None, []
+    expandido = list(tokens)
+    for t in tokens:
+        expandido.extend(_SEGREDO_SINONIMOS.get(t, ()))
+    placar: list[tuple[int, str]] = []
+    for nome in nomes:
+        alvo = _norm_segredo(nome).replace(" ", "")
+        pontos = sum(1 for t in expandido if t and t in alvo)
+        if pontos:
+            placar.append((pontos, nome))
+    if not placar:
+        return None, []
+    placar.sort(key=lambda p: -p[0])
+    melhor_p = placar[0][0]
+    ganhadores = [n for p, n in placar if p == melhor_p]
+    if len(ganhadores) == 1:
+        return ganhadores[0], []
+    return None, ganhadores
+
 
 def _detect_operational(text: str) -> Optional[str]:
     """Padrões operacionais diretos (processos/memória/cpu/disco/uptime/ip/portas)."""
@@ -1694,6 +1775,8 @@ __all__ = [
     "SAUDE_AVISO",
     "detect_action_intent",
     "detect_infra_intent",
+    "extrair_termo_segredo",
+    "resolver_item_segredo",
     "safe_math",
     "format_intent_result",
 ]

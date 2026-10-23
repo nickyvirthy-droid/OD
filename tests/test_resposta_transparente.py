@@ -395,6 +395,276 @@ class TestIntencaoIpEPortas:
         )
 
 
+# ---------------------------------------------------------------------------
+# Dublês do cofre (22/10 — ordem do dono: 'o master admin pode fazer qualquer
+# coisa' + 'as senhas vem do cofre'). Registry mínimo com a MESMA forma dos
+# dados do _vault_op (ok/itens/item.password) — o cofre de verdade NUNCA é
+# tocado nos testes.
+# ---------------------------------------------------------------------------
+
+class _ResAcao:
+    def __init__(self, status, data=None, error="", errors=None):
+        self.status = status
+        self.data = data
+        self.error = error
+        self.errors = errors or []
+
+
+class _CofreFalso:
+    def __init__(self, itens, valores=None, lista_ok=True, get_ok=True):
+        self.itens = itens
+        self.valores = valores or {}
+        self.lista_ok = lista_ok
+        self.get_ok = get_ok
+        self.chamadas: list[tuple[str, dict]] = []
+
+    async def execute(self, action_name, *, params=None, role="admin"):
+        self.chamadas.append((action_name, dict(params or {})))
+        if action_name == "vault_list":
+            if not self.lista_ok:
+                return _ResAcao("error", error="vault_locked")
+            return _ResAcao("ok", {
+                "ok": True, "total": len(self.itens),
+                "itens": [{"nome": n} for n in self.itens],
+            })
+        if action_name == "vault_get":
+            nome = str((params or {}).get("name") or "")
+            if not self.get_ok:
+                return _ResAcao("ok", {
+                    "ok": False, "error": "vault_locked",
+                    "message": "sessão do cofre bloqueada",
+                })
+            return _ResAcao("ok", {
+                "ok": True,
+                "item": {"name": nome,
+                         "password": self.valores.get(nome, "v-valor-real"),
+                         "username": "dono"},
+            })
+        return _ResAcao("not_found")
+
+
+class _LLMQueNaoPodeChamar:
+    name = "fake"
+
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    async def generate(self, prompt, timeout=None, **kw):
+        self.prompts.append(prompt)
+        return "LLM_NAO_DEVE_SER_CHAMADO"
+
+    async def generate_stream(self, prompt, timeout=None, **kw):
+        self.prompts.append(prompt)
+        yield "LLM_NAO_DEVE_SER_CHAMADO"
+
+
+class TestSegredoDoCofre:
+    """Admin/dono recebe a senha REAL do cofre; user e anonymous continuam
+    negados; o VALOR nunca entra no histórico (persist=False na saída)."""
+
+    ITENS = [
+        "ROUTER_ADMIN_PASSWORD", "OD_FILEBROWSER_PASSWORD",
+        "OD_MQTT_PASSWORD", "TELEGRAM_BOT_TOKEN",
+        "OD_TELEGRAM_MONITOR_TOKEN",
+    ]
+
+    @staticmethod
+    def _orch(cofre, history=None):
+        from core.orchestrator import Orchestrator, OrchestratorConfig
+        llm = _LLMQueNaoPodeChamar()
+        orch = Orchestrator(
+            providers=[llm],
+            history=history,
+            config=OrchestratorConfig(default_system_prompt="x"),
+        )
+        if cofre is not None:
+            orch.set_action_registry(cofre)
+        return orch, llm
+
+    def test_admin_recebe_o_valor_real_sem_llm(self) -> None:
+        import asyncio
+        cofre = _CofreFalso(
+            self.ITENS, valores={"ROUTER_ADMIN_PASSWORD": "s3nh4-real-teste"}
+        )
+        orch, llm = self._orch(cofre)
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "qual a senha do roteador", role="admin",
+        ))
+        assert r.route == "action_intent"
+        assert "s3nh4-real-teste" in r.message  # valor REAL, não inventado
+        assert "ROUTER_ADMIN_PASSWORD" in r.message
+        assert llm.prompts == []  # zero LLM
+        # sinônimo 'roteador' → título ROUTER_ADMIN_PASSWORD; get no MESMO item
+        assert ("vault_get", {"name": "ROUTER_ADMIN_PASSWORD"}) in cofre.chamadas
+
+    def test_valor_nunca_entra_no_historico(self, tmp_path) -> None:
+        """persist=False na saída do dono: o valor não vira histórico (e, sem
+        histórico, nunca vira prompt/cache nem relatório da auditoria)."""
+        import asyncio
+        from memory.history import ConversationHistory
+        hist = ConversationHistory(base_dir=tmp_path / "conversas")
+        cofre = _CofreFalso(
+            self.ITENS, valores={"OD_MQTT_PASSWORD": "mqtt-real-teste"}
+        )
+        orch, llm = self._orch(cofre, history=hist)
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "qual a senha do mqtt", role="admin",
+        ))
+        assert "mqtt-real-teste" in r.message
+        assert hist.get_history("alex", "guardian") == []  # nada gravado
+        assert llm.prompts == []
+
+    def test_user_continua_negado_sem_tocar_no_cofre(self) -> None:
+        import asyncio
+        cofre = _CofreFalso(self.ITENS)
+        orch, llm = self._orch(cofre)
+        r = asyncio.run(orch.process(
+            "bia", "guardian", "qual a senha do roteador", role="user",
+        ))
+        assert r.route == "action_intent"
+        assert "não são respondidas" in r.message  # negação de sempre
+        assert cofre.chamadas == []  # cofre intocado
+        assert llm.prompts == []
+
+    def test_anonymous_continua_negado(self) -> None:
+        import asyncio
+        cofre = _CofreFalso(self.ITENS)
+        orch, llm = self._orch(cofre)
+        r = asyncio.run(orch.process(
+            "anonimo", "guardian", "qual a senha do file browser",
+            role="anonymous", persist=False,
+        ))
+        assert "não são respondidas" in r.message
+        assert cofre.chamadas == []
+        assert llm.prompts == []
+
+    def test_stream_admin_tambem_recebe_e_nao_grava(self, tmp_path) -> None:
+        """WS (process_stream) tem o MESMO ramo do REST — mutação no ramo do
+        stream tem que ser pega por aqui."""
+        import asyncio
+        from memory.history import ConversationHistory
+        hist = ConversationHistory(base_dir=tmp_path / "conversas")
+        cofre = _CofreFalso(
+            self.ITENS, valores={"OD_FILEBROWSER_PASSWORD": "fb-real-teste"}
+        )
+        orch, llm = self._orch(cofre, history=hist)
+
+        async def _run():
+            return [c async for c in orch.process_stream(
+                "alex", "guardian", "qual a senha do file browser",
+                role="admin",
+            )]
+
+        chunks = asyncio.run(_run())
+        done = [c for c in chunks if c.get("type") == "done"]
+        assert done and "fb-real-teste" in done[0]["content"]
+        assert hist.get_history("alex", "guardian") == []
+        assert llm.prompts == []
+
+    def test_cofre_fora_resposta_honesta_sem_llm(self) -> None:
+        import asyncio
+        cofre = _CofreFalso(self.ITENS, lista_ok=False)
+        orch, llm = self._orch(cofre)
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "qual a senha do roteador", role="admin",
+        ))
+        assert "indisponível" in r.message
+        assert "inventar eu não invento" in r.message
+        assert llm.prompts == []
+
+    def test_empate_lista_os_titulos_e_o_dono_escolhe(self) -> None:
+        """'token do telegram' casa 2 itens — ninguém adivinha qual: os
+        TÍTULOS vão para o dono e o VALOR não sai do cofre."""
+        import asyncio
+        cofre = _CofreFalso(self.ITENS)
+        orch, llm = self._orch(cofre)
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "qual o token do telegram", role="admin",
+        ))
+        assert "Vários itens casam" in r.message
+        assert "TELEGRAM_BOT_TOKEN" in r.message
+        assert "OD_TELEGRAM_MONITOR_TOKEN" in r.message
+        assert "v-valor-real" not in r.message  # nenhum valor vazou
+        assert [nome for nome, _ in cofre.chamadas] == ["vault_list"]
+        assert llm.prompts == []
+
+    def test_sem_achado_lista_titulos_honesto(self) -> None:
+        import asyncio
+        cofre = _CofreFalso(self.ITENS)
+        orch, llm = self._orch(cofre)
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "qual a senha do wifi", role="admin",
+        ))
+        assert "Não achei 'wifi'" in r.message
+        assert "ROUTER_ADMIN_PASSWORD" in r.message  # títulos como pista
+        assert "v-valor-real" not in r.message
+        assert llm.prompts == []
+
+    def test_sem_termo_pergunta_qual_credencial(self) -> None:
+        import asyncio
+        cofre = _CofreFalso(self.ITENS)
+        orch, llm = self._orch(cofre)
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "qual a senha?", role="admin",
+        ))
+        assert "Qual credencial?" in r.message
+        assert "ROUTER_ADMIN_PASSWORD" in r.message
+        assert llm.prompts == []
+
+    def test_sem_registry_admin_leva_a_negacao_nunca_ao_llm(self) -> None:
+        import asyncio
+        orch, llm = self._orch(None)  # sem ActionRegistry
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "qual a senha do roteador", role="admin",
+        ))
+        assert "não são respondidas" in r.message
+        assert llm.prompts == []
+
+    def test_vault_get_com_erro_devolve_o_motivo(self) -> None:
+        import asyncio
+        cofre = _CofreFalso(self.ITENS, get_ok=False)
+        orch, llm = self._orch(cofre)
+        r = asyncio.run(orch.process(
+            "alex", "guardian", "qual a senha do roteador", role="admin",
+        ))
+        assert "sessão do cofre bloqueada" in r.message
+        assert r.message != "LLM_NAO_DEVE_SER_CHAMADO"
+        assert llm.prompts == []
+
+    # -- unidades dos helpers (core/intents) ------------------------------
+
+    def test_extrair_termo_segredo(self) -> None:
+        from core.intents import extrair_termo_segredo
+        assert extrair_termo_segredo("qual a senha do roteador") == "roteador"
+        assert extrair_termo_segredo(
+            "me passe as credenciais do file browser"
+        ) == "file browser"
+        assert extrair_termo_segredo("qual a senha do calibre, livros") == (
+            "calibre livros"
+        )
+        # turno real da auditoria sem alvo: não sobra nada para adivinhar
+        assert extrair_termo_segredo(
+            "deu erro, passe usuário e senha validos"
+        ) == ""
+
+    def test_resolver_item_segredo(self) -> None:
+        from core.intents import resolver_item_segredo
+        # sinônimo da casa: roteador → ROUTER_ADMIN_PASSWORD (único)
+        melhor, empatados = resolver_item_segredo("roteador", self.ITENS)
+        assert melhor == "ROUTER_ADMIN_PASSWORD" and empatados == []
+        # substring: 'file browser' casa OD_FILEBROWSER_PASSWORD (único)
+        melhor, empatados = resolver_item_segredo("file browser", self.ITENS)
+        assert melhor == "OD_FILEBROWSER_PASSWORD" and empatados == []
+        # empate honesto: telegram casa os 2 bots
+        melhor, empatados = resolver_item_segredo("telegram", self.ITENS)
+        assert melhor is None
+        assert empatados == ["TELEGRAM_BOT_TOKEN", "OD_TELEGRAM_MONITOR_TOKEN"]
+        # sem achado e entrada vazia
+        assert resolver_item_segredo("wifi", self.ITENS) == (None, [])
+        assert resolver_item_segredo("", self.ITENS) == (None, [])
+        assert resolver_item_segredo("roteador", []) == (None, [])
+
+
 def _desativa_rede_do_clima(monkeypatch) -> None:
     """Simula 'sem rede' para weather_city (2026-10-13).
 

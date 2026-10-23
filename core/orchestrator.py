@@ -809,6 +809,29 @@ class Orchestrator:
 
         intent = detect_action_intent(text)
         if intent is not None and intent[0] == "__secrets_denied__":
+            # Papel importa (ordem do dono 22/10: "o master admin pode fazer
+            # qualquer coisa" + "as senhas vem do cofre"): o DONO recebe o
+            # valor REAL do cofre; os demais papéis seguem com a negação
+            # honesta de sempre (confidencial = não passa).
+            if role == "admin":
+                segredo = await self._segredo_do_cofre(text, user_id, role)
+                self._metrics.intents += 1
+                result = self._stream_result(
+                    user_id, profile, text, ROUTE_INTENT, segredo, llm_used="",
+                )
+                # persist=False: o VALOR não entra no histórico (nunca vira
+                # prompt, cache nem relatório da auditoria).
+                await self._record_terminal(result, text, persist=False)
+                await self._finish(result, started)
+                yield {"type": "token", "content": segredo}
+                yield {
+                    "type": "done",
+                    "profile_name": _profile_display_name(profile),
+                    "content": segredo,
+                    "route": ROUTE_INTENT,
+                    "llm_used": "",
+                }
+                return
             self._metrics.infra_denied += 1
             result = self._stream_result(
                 user_id, profile, text, ROUTE_INTENT, SECRETS_DENIED_MESSAGE,
@@ -1277,6 +1300,17 @@ class Orchestrator:
 
         intent = detect_action_intent(text)
         if intent is not None and intent[0] == "__secrets_denied__":
+            # DONO (ordem 22/10): valor REAL do cofre, nunca LLM — e o
+            # resultado é terminal SEM persistência (o valor não entra no
+            # histórico). Demais papéis: negação honesta de sempre.
+            if role == "admin":
+                self._metrics.intents += 1
+                result.route = ROUTE_INTENT
+                result.message = await self._segredo_do_cofre(
+                    text, user_id, role
+                )
+                await self._record_terminal(result, text, persist=False)
+                return await self._finish(result, started)
             self._metrics.infra_denied += 1
             result.route = ROUTE_INTENT
             result.message = SECRETS_DENIED_MESSAGE
@@ -2022,6 +2056,62 @@ class Orchestrator:
         else:
             log.error("Orchestrator action error", action=action_name, error=result.error)
             return None
+
+    async def _segredo_do_cofre(self, text: str, user_id: str, role: str) -> str:
+        """Credencial do DONO vem do COFRE (ordens do dono 22/10:
+        "o master admin pode fazer qualquer coisa" + "as senhas vem do cofre").
+
+        Só o papel admin chega aqui (o gate fica na chamada). A resposta sai
+        das actions vault_list/vault_get — o sistema NUNCA gera valor: cofre
+        fora = recusa honesta, empatado = o dono escolhe, sem achado = lista
+        os títulos (títulos não são segredo). O resultado é terminal com
+        persist=False: o VALOR não entra no histórico — nunca vira prompt,
+        cache nem relatório da auditoria; o log só registra a rota.
+        """
+        from core.intents import extrair_termo_segredo, resolver_item_segredo
+
+        if self._action_registry is None:
+            return SECRETS_DENIED_MESSAGE
+        termo = extrair_termo_segredo(text)
+        lista = await self.execute_action(
+            "vault_list", {}, user_id=user_id, role=role
+        )
+        if not isinstance(lista, dict):
+            return ("🔒 Cofre indisponível agora — sem cofre não há senha para "
+                    "mostrar, e inventar eu não invento.")
+        if lista.get("ok") is False:
+            return (f"🔒 Cofre indisponível: "
+                    f"{lista.get('message') or lista.get('error')}.")
+        nomes = [str(i.get("nome") or "").strip()
+                 for i in (lista.get("itens") or [])]
+        nomes = [n for n in nomes if n]
+        melhor, empatados = resolver_item_segredo(termo, nomes)
+        if empatados:
+            return ("🔐 Vários itens casam com isso: " + ", ".join(empatados)
+                    + " — qual deles?")
+        if melhor is None:
+            if not termo:
+                return ("🔐 Qual credencial? Títulos do cofre: "
+                        + ", ".join(nomes) + ".")
+            return (f"🔐 Não achei '{termo}' no cofre. Títulos: "
+                    + ", ".join(nomes) + ".")
+        item = await self.execute_action(
+            "vault_get", {"name": melhor}, user_id=user_id, role=role
+        )
+        if not isinstance(item, dict):
+            return ("🔒 Cofre não respondeu — nada inventado; tente de novo "
+                    "em instantes.")
+        if item.get("ok") is False:
+            return f"🔒 Cofre: {item.get('message') or item.get('error')}."
+        dados = item.get("item") or {}
+        senha = str(dados.get("password") or "")
+        if not senha:
+            return f"🔐 {melhor}: o item existe mas está sem valor."
+        linha = f"🔐 {melhor}: {senha}"
+        usuario = str(dados.get("username") or "")
+        if usuario:
+            linha += f"\n   usuário: {usuario}"
+        return linha
 
     async def _publish_event(self, result: OrchestrationResult) -> None:
         """Publica orchestrator.responded no EventBus (best-effort)."""
