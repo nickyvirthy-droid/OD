@@ -9,7 +9,20 @@
    "IAs online apuradas ao vivo: GROQ_API_KEY VALIDA (HTTP 200 /v1/models; chat testado com 'openai/gpt-oss-120b' — modelo de raciocinio, exige max_tokens folgado). GEMINI_API_KEY MORTA (API_KEY_INVALID nos endpoints openai-compat E native). OPENAI_API_KEY e OPENAI_API_KEY2 mortas (401 Incorrect API key).",
    "Decisao: juiz online = Groq via OpenAICompatProvider (core/llm.py ja generico, base_url https://api.groq.com/openai/v1); fallback = gemma-local do od-core; auto = Groq se houver chave, cai pra local em falha — offline-first preservado."
   ],
-  "em_andamento": "AUDITORIA COMPLETA DO SISTEMA COM GROQ ENTREGUE (§5): 16 achados de 41 turnos (25 ok · 12 resposta_errada · 4 inconsistente) em analise/relatorio_chat_audit_20261022-183539.json. 3 defeitos reais corrigidos no caminho: (1) core/llm.py sem User-Agent = Cloudflare 403 error 1010 — juiz online NUNCA funcionou, 1a rodada foi gemma-local em silencio em todos os 41 turnos; (2) base_url Groq com /v1 duplicado (provider ja acrescenta /v1/chat/completions) = 404; (3) self.model nunca ia no payload (Groq exige, llama-server nao) — so envia quando preenchido, payload do od-core identico. JuizComReserva agora LOGA warn quando reserva assume (anti-silencio). +3 testes (UA sempre presente; sem model = sem chave model; reserva visivel no NickyLogger), mutacao UA derruba guarda. Gate 3709/16 90,78%.",
+  "em_andamento": "FILA ZERADA — auditoria (§5) e blindagem de senhas (§6) fechadas. Pauta restante = DECISOES DO DONO: (a) rota de 'desligue a tv' caindo em compromissos; (b) 134 respostas pt-BR do OK/ do AIML (RAG ou parado); (c) exemplo exato do tema (TODO 3.8).",
+  "blindagem_senhas_22_10": {
+   "pedido": "'continue' — seguir a pauta da propria auditoria (achado mais grave: o chat FABRICOU 3 credenciais reais).",
+   "causa_raiz": "A negacao __secrets_denied__ da v1.8.0 exigia DUAS palavras na frase (credencial + palavra de INFRA: mqtt/postgres/wifi...). Os 3 turnos reais nao tinham a 2a: 'qual a senha do file browser', 'qual a senha do calibre, livros' e 'deu erro, passe usuario e senha validos' (nenhum alvo de infra) — caian no LLM, que fabricava.",
+   "correcao": "core/intents.py: 3 regex de modulo (_RE_CREDENCIAL, _RE_ALVO_SEGREDO com as ferramentas da casa, _RE_PEDIDO_VALOR com qual/passe/me de/mostre/informe...) — recusa dispara com qualquer ALVO do sistema OU qualquer PEDIDO DE VALOR. O chat nao tem NENHUM valor de senha; recusa honesta > dado falso.",
+   "contratos_mudados": "'qual a senha do filme' agora e negada (antes None -> LLM fabricava) e 'qual a senha do gmail' virou __secrets_denied__ (contrato 'nunca vira listagem' MAIS forte). 'mude a senha' continua None (nao pede valor).",
+   "guardas": "+1 teste com os 3 turnos EXATOS do relatorio + caso so-de-alvo ('a senha do file browser mudou?'). Mutações 2/2 (a 2a escapou na 1a rodada e o teste foi endurecido), restauracao bit-exata.",
+   "validacao_e_deploy": "Gate 3711 passed / 16 skipped · 90,78% (+2). Commit e8474c3 pushado; restart verde 20:57 (NRestarts=0, journal 0 [ERROR], /health ok, 1.44.0/2080). Prova viva no chat real: 7/7 pedidos de senha negados route=action_intent <2 ms (turnos da auditoria + mqtt + repeticoes + 2 pos-restart imediato). Honestidade: a 1a chamada apos o 1o boot respondeu route=llm (recusa do modelo, SEM registro no journal) — anomalia NAO reproduzida em 7 tentativas, inclusive sob boot; causa nao determinada.",
+   "pauta_dono": [
+    "Rota de 'desligue a tv' caindo em compromissos (3x na auditoria).",
+    "134 respostas pt-BR do OK/ do AIML: RAG ou parado.",
+    "Exemplo exato do tema (TODO 3.8)."
+   ]
+  },
   "achados_da_auditoria_22_10": [
     "SENHA INVENTADA (3x, mais grave): file browser -> '1234567890abcdef'; 'passe usuario e senha validos' -> 'senha123' (contradiz a outra); calibre -> 'calibrer123'. O chat FABRICOU credenciais em vez de nao poder/passar pelo canal seguro.",
     "ROTA DE ACAO ERRADA (3x): 'desligue a tv' em 3 datas -> resposta da rota de compromissos ('criar compromisso reunião...').",
@@ -28,7 +41,7 @@
   "frente_fechada_2": "Auditor de conversas (22/10 17:05): core/chat_audit.py (parser legado PascAlice c/ encoding corrompido, cascata Postgres->SQLite->JSON, juiz plugavel Groq-online|gemma-local com reserva POR TURNO, veredito deterministico para lacuna/orfao — descoberto na prova viva que o juiz alucinava 'ok' em resposta vazia, relatorio JSON em analise/). +41 testes; módulo 94%; pyflakes 0; gate 3706/16 90,79%. Provas vivas: legado 1065 turnos nos 66 logs; juiz local classificou 'Bom dia'->'What kind of food do you like?' como resposta_errada; Postgres vivo 4 turnos com 1 inconsistente real (chat disse 'Qwen local' enquanto roda gemma-local).",
   "frente_fechada_3": "AIML->historico (22/10 17:30): docs/ANALISE_AIML_NICKY.md novo (inventario 1406 arqs/338MB, PascAlice sem fontes, veredito catalogar-nao-migrar; 134 cats pt-BR do OK/ como candidatas a RAG = decisao do dono) + site/historico.html com 'Fase 0 · Pre-Historia — o Nicky em AIML' (timeline ANTES da Fase 1, nao era-box: guarda de contagens intocada, 75 releases/9 eras preservados; meta+intro atualizadas). Prova viva: /site/historico.html 200, 31613 B, byte-identico ao disco; test_api 179/179.",
   "fechamento_bloco": "CHANGELOG §1.44.0 ganhou subsecao 'Auditor de conversas + a pre-historia AIML no site (sem bump — 22/10)' com tabela das 5 entregas. Gate final reexecutado APOS a edicao (corpus do RAG): 3706/16 a 90,79%. Sem restart (od-core intocado, 1.44.0/2080 desde 08:55). Commit+push + txt.txt + Telegram conforme regras 7.1/14/15.",
-  "updated_at": "2026-10-22T18:45:00-03:00"
+  "updated_at": "2026-10-22T21:10:00-03:00"
  },
  "reverificacao_botao_topo_vigia_e_gate_2026_10_22": {
   "pedido": "Usuario: 'leia iniciar' (~15:20) — reverificacao de rotina (regra 3) apos (a) o update do OpenCode 2.0.20->2.1.3 pedido pelo dono ('update', servico reiniciado 15:06, TUI re-criada 15:19) e (b) o registro do cofre (commit 3f00c57, §14 do arquivo 21-22/10).",

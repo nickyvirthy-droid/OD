@@ -316,3 +316,62 @@ passed / 16 skipped / 0 falha · 90,79%** (baseline 3665/16 a 90,74%).
   roda gemma-local (justificativa do juiz registrou).
 - Ferramenta: `python -m core.chat_audit --fonte auto --limite N`
   (não sobe com o od-core; relatório em `analise/`, gitignorado).
+
+
+## §6 — Blindagem: o chat para de FABRICAR senhas (frente fechada 22/10 ~21:00)
+
+**Pedido:** "continue" — seguir a pauta da própria auditoria (o achado
+mais grave: 3 credenciais inventadas). Frente nova na fila, uma por
+vez, conforme a ordem do dono.
+
+**Causa raiz (código, não opinião):** a negação `__secrets_denied__`
+da v1.8.0 exigia DUAS palavras na frase: credencial + palavra de INFRA
+(mqtt/postgres/wi-fi…). Os 3 turnos reais da auditoria não tinham a
+2ª: `"qual a senha do file browser"` (file browser fora da lista),
+`"qual a senha do calibre, livros"` (idem) e `"deu erro, passe usuário
+e senha válidos"` (nenhum alvo). Sem a 2ª palavra, o turno caía no LLM —
+que fabricava.
+
+**Correção (`core/intents.py`):** 3 regex de módulo (`_RE_CREDENCIAL`,
+`_RE_ALVO_SEGREDO`, `_RE_PEDIDO_VALOR`) — a recusa agora dispara com
+qualquer ALVO do sistema (infra de sempre + ferramentas da casa: file
+browser, caixa, calibre, livros, flatnotes, caderno, cofre, vault,
+homebox, kiwix, stirling, cyberchef, roteador, docker, tailscale, ssh,
+gmail, google, drive, groq, openai, gemini, llm, gemma, qwen, modelo,
+bot, celular, nicky, omega) **OU** qualquer PEDIDO DE VALOR
+(qual/quais/qualé/passe/manda/mostre/diga/informe/me dê/senha
+válida/usuário e senha). O chat não tem NENHUM valor de senha —
+recusa honesta > dado falso.
+
+**Contratos que mudaram de propósito (2):** `"qual a senha do filme"`
+agora é negada (antes None → LLM fabricava; test novo
+`test_senha_de_fora_do_sistema_tambem_e_negada`) e `"qual a senha do
+gmail"` virou `__secrets_denied__` (tests do test_google.py ajustados —
+o contrato "NUNCA vira listagem de e-mails" ficou MAIS forte).
+`"mude a senha"` continua None (não pede valor).
+
+**Guardas:** +1 teste com os 3 turnos EXATOS do relatório + o caso só
+-de-alvo ("a senha do file browser mudou?"). Mutações 2/2: (1) prong
+  de pedido de valor removido → 2 testes derrubam; (2) ferramentas
+  removidas do alvo → ESCAPOU na 1ª rodada, endurecido com o caso só-de-
+  alvo → agora derruba. Restauração bit-exata nas duas.
+
+**Validação:** gate **3711 passed / 16 skipped · 90,78%** (+2). pyflakes
+limpo (6 avisos pré-existentes confirmados contra o HEAD).
+
+**Deploy + prova viva:** commit `e8474c3` pushado; restart verde 20:57
+(NRestarts=0, journal 0 [ERROR], /health ok, 1.44.0/2080 intacta). No
+chat real (`POST /anon/message`): **7/7 pedidos de senha negados com
+route=action_intent em <2 ms** — os 3 turnos da auditoria, o mqtt
+clássico, 3 repetições e 2 chamadas imediatamente após um 2º restart.
+**Honestidade:** a 1ª chamada logo após o 1º boot respondeu route=llm
+(recusa genérica do modelo, SEM registro no journal da janela) —
+anomalia NÃO reproduzida em 7 tentativas posteriores, inclusive sob
+boot. Causa não determinada; se reaparecer, o journal é o primeiro
+lugar a olhar.
+
+**Pauta que ficou (decisão do dono, da auditoria §5):** rota de
+"desligue a tv" caindo em compromissos; alucinações factuais
+(fentanil/quimioterápico, isoflurana/propofol); respostas que não batem
+(dispositivos conectados → luzes; "crie a nota" sem criar); 134
+respostas pt-BR do OK/ (RAG ou parado).

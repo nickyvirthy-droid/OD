@@ -477,6 +477,59 @@ gemma-local); `historico.html` servido 200 byte-idêntico ao disco com
 a Fase 0. Sem restart — peça nova é ferramenta CLI; o od-core não foi
 tocado.
 
+### Auditoria completa do chat com o Groq online + o chat para de FABRICAR senhas (22/10, sem bump)
+
+Pedido: *"Auditar a conversa completa do sistema com o Groq online e
+me mostrar os achados problemáticos"*. Os **41 turnos** do sistema com
+o juiz online de verdade: **25 ok · 12 resposta_errada · 4
+inconsistente** (relatório em `analise/relatorio_chat_audit_20261022-183539.json`).
+A 1ª rodada saiu FALSA e o conserto valeu mais que o relatório: todos
+os 41 turnos com `juiz=gemma-local` — o Groq morria em silêncio
+(**Cloudflare 403 error 1010**: `_post_chat` não mandava `User-Agent`)
+e a reserva assumia sem avisar. Três defeitos corrigidos na causa:
+**(1)** `core/llm.py` ganhou `User-Agent` nos dois POSTs (stream e
+não-stream); **(2)** o juiz montava a URL do Groq com `/v1` duplicado
+(o provider já acrescenta `/v1/chat/completions` → 404); **(3)**
+`self.model` nunca foi ao payload (o llama-server local aceita sem, o
+Groq exige — só envia quando preenchido; o payload do od-core provado
+idêntico por teste). `JuizComReserva` agora **loga quando a reserva
+assume** — o silêncio foi o que deixou a rodada falsa passar. Groq vivo
+a **0,6 s/turno** (reauditoria completa: 1m16s); o 429 de rate limit
+apareceu com warn visível (31 turnos Groq · 10 gemma-local).
+
+**O achado mais grave da auditoria: o chat FABRICOU 3 credenciais** —
+`"qual a senha do file browser"` → `1234567890abcdef`, `"qual a senha
+do calibre"` → `calibrer123`, `"deu erro, passe usuário e senha
+válidos"` → `senha123` (ainda se contradizendo entre turnos). A negação
+determinística de v1.8.0 exigia uma palavra de INFRA na frase
+(mqtt/postgres/wi-fi…) e a frase real não tinha nenhuma. Blindagem em
+`core/intents.py`: o `__secrets_denied__` agora dispara com qualquer
+**ALVO do sistema** (ferramentas da casa incluídas: file browser,
+caixa, calibre, cofre, caderno, homebox, kiwix, groq, gemini…) **OU**
+qualquer **PEDIDO DE VALOR** (`qual/passe/me dê/mostre/informe…`) — o
+chat não tem NENHUM valor de senha; resposta falsa de dado sensível é
+pior que recusa. Os 3 turnos EXATOS do relatório viraram teste
+(`tests/test_resposta_transparente.py` +2; `tests/test_google.py` com o
+contrato "senha do gmail nunca vira listagem" agora cumprido por
+negação determinística em vez de cair no LLM). Mutações **2/2**
+capturadas (sem o prong de pedido de valor; sem as ferramentas no alvo)
+com restauração bit-exata — a 2ª escapou na 1ª rodada e o teste foi
+endurecido com um pedido sem verbo de valor ("a senha do file browser
+mudou?").
+
+**Validação:** gate oficial **3711 passed / 16 skipped / 0 falha ·
+90,78%**; pyflakes sem aviso novo (os 6 dos arquivos de teste são
+pré-existentes, confirmados contra o HEAD). **Restart verde 20:57
+(NRestarts=0, journal 0 [ERROR], /health ok, 1.44.0/2080 intacta) +
+prova viva no chat real: 7/7 turnos de pedido de senha negados com
+route=action_intent em <2 ms, incluindo imediatamente após um 2º
+restart.** Honestidade: a 1ª chamada logo após o 1º boot respondeu
+route=llm (recusa do modelo, sem registro no journal) — anomalia não
+reproduzida em 7 tentativas posteriores, inclusive sob boot. Os outros
+13 achados da auditoria (rota de "desligue a tv" errada, alucinações
+factuais, respostas que não batem) ficam registrados em `iniciar/` como
+pauta do dono.
+
 
 ## [1.43.0] — CALIBRE WEB INTERLIGADO: A BIBLIOTECA DE E-BOOKS VAI DO DRIVE AO LEITOR 🜂 (2026-10-19)
 
