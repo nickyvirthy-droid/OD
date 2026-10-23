@@ -116,6 +116,8 @@
    "Personalidade NAO precisa de recorte dos .aiml — ja definida nos avatares (Pleiade)."
   ],
   "estado": "ANALISE DO LEGADO 100% ENCERRADA (sem pendencia de conteudo). Material pessoal em /home/alex/Alex (591 arqs/229MB, fora de git e backup). Legado bruto no tar /home/alex/analise_AIML_legado.tar.gz (303MB, 1409/1409) pra dono transferir a HD externa.",
+  "leitura_todo_23_10": "TODO = 9 notas no FlatNotes do Caderno (omegadrakon-tools/flatnotes/TODO*). Fila §7 do dono ZERADA. §2 pendencias do dono = so 3, todas 'nao cobrar': cofre pessoal Vaultwarden (adiado), fotos adicionais, catalogo 3D/ (ordem: nao perguntar). Unica pendencia TECNICA viva = §3.8 falha residual do TEMA no site (adiado 16/10 'ainda falha mas bem menos'; protocolo = pedir exemplo exato + instrumentar antes de mexer; mecanismo intocado desde entao). §4 divida tecnica = 7 itens limpeza, nao-bloqueantes. §5 parking lot = ideias aguardando ordem (Kiwix no chat, network_hosts+Vigia, rota WiFi, pings perdidos, auditoria uso ferramentas, MCP). §1b Nômade = stack completo, so ProtoMaps (dev task) e LoRa (geladeira).",
+  "erro_perda_fotos_23_10": "ERRO MEU: na limpeza de analise/ perdi analise/fotos-adicionais/ (athenae-ficha, luma-2, luma-3, vox-ficha) — tar cobriu so o AIML/ inventariado, pasta fora do escopo mas dentro de analise/. Nao estavam no site (/site/avatares tem outras 9); dono confirmou 'eram descartáveis' (sem dano). LICOES: (1) inventariar TODA a arvore antes de rm -rf, nao so o subconjunto pedido; (2) conferir conteudo contra o tar antes de apagar.",
   "transcricao": "iniciar/2026-10-23_conversa_omegadrakon.md (§8)"
  },
  "reverificacao_botao_topo_vigia_e_gate_2026_10_22": {

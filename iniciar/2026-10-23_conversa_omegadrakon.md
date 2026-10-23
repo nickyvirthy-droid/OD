@@ -281,5 +281,16 @@ bruto está no tar pra ir pra HD externa.
 - **Personalidade NÃO precisa de recorte dos `.aiml`** — já está definida
   nos avatares (Plêiade). Confirmado.
 
-Com isso a análise do legado AIML está **100% encerrada** — sem pendência
-de conteúdo. Sobra só o tar pra ele transferir à HD externa.
+Com isso a análise do legado AIML está **100% encerrada** sem pendência
+de conteúdo.
+
+**⚠️ Erro meu registrado (lição, 23/10):** na limpeza de `analise/`,
+perdi a pasta `analise/fotos-adicionais/` (4 arquivos: `athenae-ficha`,
+`luma-2`, `luma-3`, `vox-ficha`) — o tar cobriu só o `AIML/` que
+inventariei, e essa pasta passou despercebida (estava fora do escopo
+`AIML/` mas dentro de `analise/`). Elas **não estavam no site**
+(`/site/avatares` tem outras 9) e o próprio dono as havia marcado como
+"usar depois, talvez apagar" — ele confirmou **"eram descartáveis"**
+(23/10), sem dano. **Lição gravada:** ao limpar uma pasta, inventariar
+**toda** a árvore (não só o subconjunto pedido) e conferir contra o tar
+antes do `rm -rf`.
