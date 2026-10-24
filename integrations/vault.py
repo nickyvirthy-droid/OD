@@ -12,13 +12,18 @@ Descrição: Cofre do sistema — leitura e escrita de segredos no Vaultwarden
              master do dono NUNCA são usadas aqui. A master da conta de
              serviço mora só no `.env` (`OD_VAULT_MASTER`) — nem argv, nem
              log, nem doc.
-           - `VaultClient`: wraps do `bw` (**pinado 2025.12.1 + Node 22**
-             — apuração viva de 17/10: todos os 2026.x testados (2026.8,
-             2026.10; em Node 18 e 22) **crasham decifrando cifras do
-             Vaultwarden 1.36** com item no cofre
-             ("invalid type: JsValue … expected a string"); o drill de
-             15/10 só tinha exercitado cofre vazio. O 2025.12.1 completa
-             list/create/edit/delete provados). Senha só via
+           - `VaultClient`: wraps do `bw` (**pinado 2026.10.0 + Node 22**
+             desde 24/10 — a migração fechou o item da dívida §4 com
+             apuração viva: em 17/10 os 2026.x crashavam decifrando
+             cifras do Vaultwarden **1.36** ("invalid type: JsValue …
+             expected a string"; o drill de 15/10 só exercitara cofre
+             vazio); re-testado ao vivo em 24/10 com Vaultwarden **1.37.4**
+             e a 2026.10.0 + Node 22 completa unlock + list (21 itens,
+             parse OK) — pin 2025.12.1 também seguia saudável, migração
+             escolhida pelo dono. Node 22 continua OBRIGATÓRIO (Node 18
+             panica: "Web Crypto API is unavailable"). E2E completo
+             provado na migração: guardar → obter → update sem duplicar
+             → apagar → cofre de volta a 21. Senha só via
              `--passwordenv` (env), sessão destravada cacheada em MEMÓRIA
              (thread-safe), JSON de item só por **stdin base64** (nunca em
              argv). Erros honestos e tipados (`bw_ausente`,
@@ -39,15 +44,18 @@ Baseado em:
     HTTP passa)
   - tools/actions/actions.py (actions vault_status/list/get/set)
   - drill E2E de 15/10 (registro com RegisterData oficial + CLI bw)
-  - ~/.local/share/bitwarden-cli (dispositivo PRÓPRIO do wrapper — nunca
-    misturado com as 2026.x; login persistido, unlock por sessão)
+  - ~/.local/share/bitwarden-cli (dispositivo PRÓPRIO do wrapper;
+    login persistido, unlock por sessão; snapshot de rollback
+    data.json.bak-2025-pin na migração de 24/10 — o 2025 rejeita keyring
+    gravado pela 2026)
 
 Decisões registradas (ver CHANGELOG):
   - CLI oficial em vez de crypto própria em Python: decifragem correta
     por construção (SDK Bitwarden), zero código criográfico nosso
-  - `bw` via wrapper /home/alex/.local/bin/bw = **2025.12.1 + Node 22 +
-    BITWARDENCLI_APPDATA_DIR próprio** (2026.x incompatível com
-    Vaultwarden 1.36; 2025.x exige Node ≥22 e config não poluída)
+  - `bw` via wrapper /home/alex/.local/bin/bw = **2026.10.0 + Node 22 +
+    BITWARDENCLI_APPDATA_DIR próprio** (migração 24/10 medida contra
+    Vaultwarden 1.37.4; rollback = ~/.local/opt/bw2025 +
+    data.json.bak-2025-pin; Node ≥22 segue obrigatório)
   - Lista devolve SÓ id/nome/tipo — segredo só volta em `obter()`
   - Retry único em sessão expirada (unlock novo + repete); criação NUNCA
     é retentada às cegas (evita duplicar segredo)
@@ -204,8 +212,7 @@ class VaultClient:
         except FileNotFoundError:
             raise VaultError(
                 "bw_ausente",
-                f"CLI bw não encontrado em {self.bw_bin} — instale "
-                "@bitwarden/cli@2025.12.1 (Node 22) e confira OD_BW_BIN "
+                f"CLI bw não encontrado em {self.bw_bin} — instale "                 "@bitwarden/cli@2026.10.0 (Node 22) e confira OD_BW_BIN "
                 "no .env.",
             ) from None
         except subprocess.TimeoutExpired:

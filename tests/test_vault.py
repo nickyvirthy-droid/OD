@@ -11,9 +11,10 @@ Arquiteto: Alex Projeti
 Baseado em:
   - integrations/vault.py (VaultClient + client_padrao, criado em 17/10)
   - tools/actions/actions.py (vault_status/list/get/set, categoria "vault")
-  - bw 2025.12.1 + Node 22 real (E2E 17/10: login + unlock + ciclo
-    create/edit/delete + list — os 2026.x crasham no parse de cifras do
-    Vaultwarden 1.36 com item no cofre)
+  - bw 2026.10.0 + Node 22 real (migração 24/10: E2E guardar → obter →
+    update sem duplicar → apagar, cofre de volta a 21 itens; em 17/10,
+    com Vaultwarden 1.36, os 2026.x crashavam no parse de cifras —
+    resolvido na 1.37.4; Node 18 panica no unlock)
 """
 
 from __future__ import annotations

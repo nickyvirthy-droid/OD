@@ -1,4 +1,15 @@
 {
+ "fecho_divida_4_itens_1_e_2_2026_10_24": {
+  "pedido": "Dono: 'Fechar os 7 itens restantes da dívida técnica §4' (fila do TODO 4 no FlatNotes). Dos 7, 5 ja estavam fechados no commit 9f97d54 da madrugada; restavam (1) bw CLI e (2) repo GitHub publico.",
+  "reavaliacao_bw_medida": "Item 1 pedia 'reavaliar ao upgrade da imagem/CLI' — e ambos mudaram: Vaultwarden 1.36->1.37.4 (up 40h) e npm latest = 2026.10.0. Testes ao vivo com ITEM REAL no cofre (appdata isolado em /tmp, snapshot do data.json de producao antes): (a) cifras RESOLVIDAS — 2026.10.0 + Node 22: unlock 88ch + list 21 itens parse OK (o crash 'invalid type: JsValue' era da dupla 2026.x x Vaultwarden 1.36); (b) Node 18 panica no unlock (Web Crypto indisponivel) — Node 22 segue OBRIGATORIO; (c) prelogin REMOVIDO do CLI (vault.py nunca usou — so unlock/list/get/create/edit/delete, todos existem); (d) pin 2025.12.1 tambem saudavel na 1.37.4 (contagem 20 vs 21 era cache local, bw sync igualou — mesmos itens, comprovado por diff de titulos).",
+  "decisoes_dono_ask_user": "(1) MIGRAR o pin para 2026.10.0 (escolha do dono); (2) repo GitHub SEGUE PUBLICO (confirmado via API private:False; credenciais rotacionadas 17/10, sem segredo vivo — fechado como DECISAO, nao pendencia).",
+  "migracao": "Wrapper ~/.local/bin/bw -> 2026.10.0 + Node 22 (instalado em ~/.local/opt/bw2026; BITWARDENCLI_APPDATA_DIR proprio mantido). Rollback: ~/.local/opt/bw2025 + data.json.bak-2025-pin. E2E completo pelo vault.py de producao: status locked/alcanca=True -> guardar criou (21->22) -> obter senha confere -> guardar de novo atualiza SEM duplicar -> apagar -> cofre de volta a 21. Senha so via --passwordenv; nenhum segredo impresso.",
+  "docs": "integrations/vault.py (cabecalho, decisoes, msg de erro bw_ausente), core/capabilities.py (descricao vault-cofre), tests/test_vault.py (docstring) com o pin novo; CHANGELOG 1.44.0 ganhou subsecao 'bw migra para 2026.10.0' (sem bump); TODO 4 do FlatNotes reescrito com coluna de estado = 7/7 FECHADOS.",
+  "validacao": "tests/test_vault.py 37/37; gate oficial 3759 passed / 16 skipped / 0 falha (>=90%); pyflakes 0 aviso novo. SEM restart (wrapper lido a cada chamada; so comentarios mudaram em runtime).",
+  "estado": "DIVIDA TECNICA §4 100% FECHADA (7/7). Sistema verde 1.44.0/2080. Proxima pauta do dono: analise/Nicky Locutor/ (aguardando ordem).",
+  "updated_at": "2026-10-24T03:20:00-03:00",
+  "transcricao": "iniciar/2026-10-24_conversa_omegadrakon.md (§2)"
+ },
  "reverificacao_e_fecho_divida_4_2026_10_24": {
   "pedido": "Usuario: 'leia iniciar' (24/10 ~02:30) — reverificacao de rotina (regra 3). Checkpoint: §11 (tar do legado transferido pelo dono).",
   "achado_principal": "RESIDUO NO DISCO: 6 arquivos modificados + 2 novos, ultima edicao 23/10 14:41-15:08 (11h parados = sessao morta). Era a diente tecnica §4 no MEIO: a sessao de ontem extraiu o JS do painel pra site/admin.js + versionou o ActionRegistry + comentou 3 politicas, mas morreu ANTES do gate e do commit (mesmo padrao das sessoes interrompidas de 21-22/10).",

@@ -60,3 +60,73 @@ HTTP **200, 17123 B**, com as duas seções (od-tema + formato Órion).
 Pautas "não cobrar" inalteradas (cofre pessoal adiado, fotos
 adicionais, catálogo 3D). Fila zerada de resto; dívida técnica §4
 **fechada**.
+
+
+## §2 — Dívida técnica §4: fecho dos 2 itens que restavam (24/10 ~03:00)
+
+**Pedido:** dono — "Fechar os 7 itens restantes da dívida técnica §4".
+Dos 7, **5 já tinham sido fechados no commit `9f97d54`** da madrugada
+(JS do painel → `site/admin.js`, registro versionado, 3 documentações
+de política). Restavam **(1) o pin do `bw`** e **(2) o repo GitHub
+público**.
+
+### Item 1 — `bw` CLI: reavaliação medida e migração
+
+A dívida pedia "reavaliar ao upgrade da imagem/CLI" — e **ambos
+mudaram**: Vaultwarden **1.36 → 1.37.4** e npm latest = **2026.10.0**.
+Testes ao vivo, **com item real no cofre** (o drill de 15/10 errara
+justamente por exercitar cofre vazio; appdata isolado, snapshot do
+`data.json` de produção antes de qualquer coisa):
+
+- **Cifras (bloqueio nº 2): RESOLVIDO.** 2026.10.0 + Node 22 contra a
+  1.37.4: unlock (88 ch) + `list items` = **21 itens decifrados**. O
+  crash `invalid type: JsValue … expected a string` era da dupla 2026.x
+  × Vaultwarden **1.36** e não se reproduz mais.
+- **Node 18 continua proibido:** a mesma 2026.10.0 **panica** no unlock
+  (`system RNG must not fail: Web Crypto API is unavailable`).
+- **`prelogin` (bloqueio nº 1): o comando foi REMOVIDO** do CLI 2026.x.
+  Irrelevante para a casa — o `vault.py` nunca usou prelogin (só
+  `unlock`/`list`/`get`/`create`/`edit`/`delete`, todos presentes).
+- **Honestidade:** o pin 2025.12.1 **também seguia saudável** na 1.37.4
+  (a contagem 20 vs 21 era **cache local**, não divergência de CLI —
+  provado por diff de títulos + `bw sync`). Migração = escolha do dono,
+  não necessidade.
+
+**Migração (escolha do dono via pergunta objetiva):** wrapper
+`~/.local/bin/bw` → **2026.10.0 + Node 22** (`~/.local/opt/bw2026`,
+`BITWARDENCLI_APPDATA_DIR` próprio mantido). Rollback à mão:
+`~/.local/opt/bw2025` + `data.json.bak-2025-pin` (o 2025 rejeita
+keyring gravado pela 2026). **E2E pelo `vault.py` de produção** (o
+mesmo das actions): `status` locked/alcança=True → `guardar` criou
+(21→22) → `obter` senha **confere** → `guardar` de novo **atualiza sem
+duplicar** → `apagar` → cofre **de volta a 21**. Senha sempre via
+`--passwordenv`; nenhum segredo impresso.
+
+### Item 2 — repo GitHub público: decisão do dono
+
+Confirmado ao vivo via API: `private: False` (**público**). Sem `gh` e
+sem token de admin no servidor, a privatização seria dele de qualquer
+forma — perguntei e ele decidiu: **segue público** (histórico antes de
+`3ed13cc` expôs ADMIN_TOKEN + pepper, ambos **rotacionados em 17/10**
+com valor morto; repo sem segredo vivo). Registrado como **decisão**,
+não como pendência.
+
+### Fechamento
+
+- `integrations/vault.py`, `core/capabilities.py`, `tests/test_vault.py`:
+  textos do pin atualizados (histórico do CHANGELOG intocado).
+- CHANGELOG 1.44.0 ganhou a subseção "bw migra para 2026.10.0"
+  (**sem bump** — infraestrutura).
+- TODO 4 do FlatNotes reescrito com coluna de estado = **7/7 FECHADOS**.
+- **Validação:** `tests/test_vault.py` **37/37** · gate oficial
+  **3759 passed / 16 skipped / 0 falha** · pyflakes 0 aviso novo.
+  **Sem restart** (o wrapper é lido a cada chamada; em runtime só
+  comentários mudaram).
+
+**Estado:** dívida técnica §4 **100% fechada (7/7)**; sistema verde
+1.44.0/2080. Próxima pauta do dono: `analise/Nicky Locutor/`.
+
+**Nota honesta:** num dos comandos de diagnóstico, 60 caracteres da
+chave de sessão (88 ch, efêmera — morta no próximo unlock/lock) de um
+unlock meu foram impressos no stdout por engano. Não é senha master
+nem segredo de cofre; registro aqui mesmo.

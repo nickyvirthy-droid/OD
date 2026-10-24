@@ -154,6 +154,50 @@ falhas**. Restart verde (regra 7.3): boot 13:52:01, journal 0 `[ERROR]`,
 `/health` ok=True, `/app/version` 1.44.0/2080 intacta (backend puro,
 **sem bump**). Commit `d836349`.
 
+### bw migra para 2026.10.0: o item nº 1 da dívida §4 fecha com medição (24/10, sem bump)
+
+**Reavaliação medida (ordem do dono: "migrar o pin"):** a dívida pedia
+"reavaliar ao upgrade da imagem/CLI" — e ambos mudaram: o Vaultwarden
+subiu para **1.37.4** (a nota da dívida documentava 1.36.0) e a última
+versão do CLI é a **2026.10.0**. Os dois bloqueios de 17/10 foram
+re-testados ao vivo, com **item real no cofre** (o drill de 15/10 errara
+justamente por testar cofre vazio):
+
+- **Cifras (bloqueio nº 2): RESOLVIDO.** `unlock` + `list items` na
+  2026.10.0 + **Node 22** contra Vaultwarden 1.37.4: parse OK, **21
+  itens** decifrados. O crash "invalid type: JsValue … expected a
+  string" não se reproduz (o bug era da dupla 2026.x × Vaultwarden
+  1.36).
+- **Node 18 continua proibido:** em Node 18 a mesma 2026.10.0 **panica**
+  no unlock (`system RNG must not fail: Web Crypto API is unavailable`).
+- **`prelogin` (bloqueio nº 1): removido do CLI** — a 2026.x nem tem o
+  comando. Irrelevante para a casa: o `vault.py` nunca usou prelogin
+  (só `unlock`/`list`/`get`/`create`/`edit`/`delete`).
+- **O pin antigo seguia saudável** na 1.37.4 (parse OK, mesmos 21
+  itens após `bw sync` — a contagem 20 vs 21 era cache local, não
+  divergência de CLI). A migração foi escolha do dono, não necessidade.
+
+**Migração:** wrapper `~/.local/bin/bw` agora executa
+**2026.10.0 + Node 22** (`~/.local/opt/bw2026`, `BITWARDENCLI_APPDATA_DIR`
+próprio mantido). Rollback à mão: `~/.local/opt/bw2025` +
+`data.json.bak-2025-pin` (o 2025 rejeita keyring gravado pela 2026).
+**E2E completo pelo cliente de produção** (`integrations/vault.py`, o
+mesmo das actions): `status` locked/alcança=True → `guardar` criou →
+`obter` senha **confere** → `guardar` de novo **atualiza sem duplicar**
+→ `apagar` → cofre **de volta a 21**. Senha sempre por
+`--passwordenv` (env, nunca argv); nenhum segredo impresso.
+
+**Validação:** `tests/test_vault.py` limpo · pyflakes sem aviso novo ·
+sem restart (o wrapper é lido a cada chamada; nenhuma peça de runtime
+code-mudou além de comentários). **Sem bump** — manutenção de
+infraestrutura; 1.44.0/2080 intacta.
+
+**Item nº 2 da mesma dívida (repo GitHub público): decisão do dono —
+segue PÚBLICO.** Confirmado ao vivo via API (`private: False`); o
+histórico antes de `3ed13cc` expôs ADMIN_TOKEN + pepper, ambos já
+**rotacionados em 17/10** (valor morto) e o repo não guarda segredo
+vivo. Registrado como decisão, não como pendência.
+
 ### Dívida técnica §4 fechada: o JS do painel sai das strings e vira `site/admin.js` (24/10, sem bump)
 
 **Origem:** a sessão de 23/10 trabalhou na limpeza da dívida técnica §4
