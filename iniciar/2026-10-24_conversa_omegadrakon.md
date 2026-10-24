@@ -181,3 +181,43 @@ perguntas factuais às vezes casam trechos fracos do próprio CHANGELOG
 cascata interna do orquestrador responde sem ir ao Kiwix — é o
 design (RAG primeiro), e quando o RAG não acha (Marie Curie) a
 etapa dispara e responde do artigo.
+
+
+## §4 — Reverificação de rotina ("leia iniciar", 24/10 ~10:48): tudo verde, sem resíduo
+
+**Pedido:** usuário: "leia iniciar" — reverificação de rotina (regra 3).
+Checkpoint lido: `session.json` (chave `kiwix_no_chat_etapa_4_6_2026_10_24`,
+§3 = entrega do Kiwix no chat) + transcrição `2026-10-24` (§1–§3).
+
+**Verde medido (sem achado novo):**
+
+- **Git:** árvore **LIMPA**, HEAD **`ee5b11e`** == `origin/master`
+  (`ls-remote` confirmou o mesmo sha) — últimos commits: registro do
+  Kiwix (`ee5b11e`), entrega do Kiwix (`fd8f420`), bw 2026.10.0 (`f38ad9d`).
+- **od-core:** active desde **04:48:07** (boot pós-entrega do Kiwix),
+  MainPID **1280750**, **NRestarts=0**; journal desde o boot
+  **0 `[ERROR]` e 0 `[WARN]`**.
+- **/health:** `ok=True`, **25 checks, nenhum fora**. `/app/version`
+  **1.44.0/2080** intacta (sha do APK `aeb8566b…`).
+- **Kiwix vivo (prova do serviço):** `/catalog/v2/entries` = **2 ZIMs**
+  (PT + EN) e busca com filtro `books.name` devolve artigos PT
+  (`Fotossíntese_*`); a consulta crua sem filtro continua devolvendo o
+  400 esperado do libkiwix#838 — é o motivo do filtro em
+  `memory/enciclopedia.py`, comportamento conhecido e tratado.
+- **Backups do dia (journal):** diário **03:09** ok (`od-2026-10-24_0309.tar.gz`,
+  sha `cd9f8ea52bbd`); **off-site enviado 03:39** (1 parte); snapshots
+  das 2 HDs **03:54** ok (10,9 GB cada — WARN conhecido dos 5 arquivos
+  ilegíveis do HA com recibo no `info.json`); capturas = ontem 04:12
+  (semanal, próximo ciclo no dia previsto).
+- **Canais do dono:** `txt.txt` = **só a nossa entrega do Kiwix**
+  (escrita 05:17) — **nenhuma mensagem nova dele**. `analise/` contém
+  apenas `Nicky Locutor/` (**pendente, aguardando ordem** — regra 17).
+- **Disco:** 65% (78 G livres).
+
+**Resíduo:** **NENHUM** (diferente das reverificações anteriores, nada
+modificado sem commit). **Fila do dono:** pauta única =
+`analise/Nicky Locutor/`; parking lot §5 restante (network_hosts+Vigia,
+rota WiFi, auditoria de uso de ferramentas, MCP) aguardando ordem.
+
+**Estado:** SISTEMA VERDE E ESTAVEL — v1.44.0/2080, HEAD `ee5b11e`,
+árvore limpa. Nenhuma ação executada além deste registro.

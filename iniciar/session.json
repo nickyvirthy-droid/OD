@@ -1,4 +1,14 @@
 {
+ "reverificacao_rotina_2026_10_24_1048": {
+  "pedido": "Usuario: 'leia iniciar' (24/10 ~10:48) — reverificacao de rotina (regra 3). Checkpoint: kiwix_no_chat (§3, entrega no ar).",
+  "achados_verdes": "Git ARVORE LIMPA, HEAD ee5b11e == origin/master (ls-remote confirmou). od-core active desde 04:48:07 (boot pos-entrega Kiwix), MainPID 1280750, NRestarts=0, journal desde o boot 0 [ERROR] e 0 [WARN]. /health ok=True 25 checks NENHUM fora; /app/version 1.44.0/2080 intacta (sha APK aeb8566b). Kiwix vivo: /catalog/v2/entries = 2 ZIMs (PT+EN) e busca com filtro books.name devolve artigos PT; consulta crua sem filtro = 400 esperado do libkiwix#838 (motivo do filtro em memory/enciclopedia.py).",
+  "backups_do_dia": "Journal: diario 03:09 ok (od-2026-10-24_0309.tar.gz, sha cd9f8ea52bbd); off-site enviado 03:39 (1 parte); snapshots das 2 HDs 03:54 ok (10,9 GB cada; WARN conhecido dos 5 arquivos ilegíveis do HA c/ recibo no info.json); capturas = ontem 04:12 (semanal). disco 65% (78G livres).",
+  "canais_do_dono": "txt.txt = SO a nossa entrega do Kiwix (escrita 05:17) — NENHUMA mensagem nova dele. analise/ = apenas Nicky Locutor/ (PENDENTE, aguardando ordem — regra 17).",
+  "residuo": "NENHUM — nada modificado sem commit (diferente das reverificações de 21-23/10). Nenhuma ação executada além do registro.",
+  "estado": "SISTEMA VERDE E ESTAVEL — v1.44.0/2080, HEAD ee5b11e, arvore limpa. Fila do dono: pauta unica = analise/Nicky Locutor/; parking lot §5 restante (network_hosts+Vigia, rota WiFi, auditoria de uso de ferramentas, MCP) aguardando ordem. Pautas 'nao cobrar' inalteradas.",
+  "updated_at": "2026-10-24T10:52:00-03:00",
+  "transcricao": "iniciar/2026-10-24_conversa_omegadrakon.md (§4)"
+ },
  "kiwix_no_chat_etapa_4_6_2026_10_24": {
   "pedido": "Parking lot §5 (ideia do dono em 21/10, txt.txt): 'kiwix pode ser fornecida dentro do chat' — exemplo dele: 'define dia' -> o chat responde que dia e uma duracao de 24 horas.",
   "entrega": "memory/enciclopedia.py NOVO = etapa 4.6 do orquestrador, roda SO quando o RAG local nao achou nada (memoria interna > acervo > enciclopedia). Ordem no prompt: depois do bloco do acervo (prefixo KV cache do llama-server intacto). Lazy no launcher: OD_KIWIX_CHAT=0 desliga. Caminhos: (1) titulo direto (limpa prefixo factual 'define/o que é/quem foi' + lookup de titulo exato PT primeiro), (2) busca em cascata PT->EN nos 2 acervos, (3) nada = segue sem o bloco.",
