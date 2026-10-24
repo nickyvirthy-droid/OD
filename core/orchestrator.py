@@ -571,6 +571,10 @@ class OrchestratorMetrics:
     rag_trechos: int = 0
     rag_descartados: int = 0
     rag_tokens_descartados: int = 0
+    # Etapa 4.6 (Kiwix, 24/10): Wikipédia offline como fallback do RAG.
+    enciclopedias: int = 0
+    enciclopedia_blocos: int = 0
+    enciclopedia_erros: int = 0
     contexto_descartados: int = 0  # turnos de histórico fora do orçamento
     total_latency_ms: float = 0.0
 
@@ -596,6 +600,9 @@ class OrchestratorMetrics:
             "rag_trechos": self.rag_trechos,
             "rag_descartados": self.rag_descartados,
             "rag_tokens_descartados": self.rag_tokens_descartados,
+            "enciclopedias": self.enciclopedias,
+            "enciclopedia_blocos": self.enciclopedia_blocos,
+            "enciclopedia_erros": self.enciclopedia_erros,
             "contexto_descartados": self.contexto_descartados,
             "avg_latency_ms": self.avg_latency_ms,
         }
@@ -630,6 +637,7 @@ class Orchestrator:
         clock: Optional[Callable[[], float]] = None,
         action_registry: Optional[Any] = None,
         rag: Optional[Any] = None,
+        enciclopedia: Optional[Any] = None,
     ) -> None:
         self._providers = list(providers or [])
         self.history = history
@@ -647,6 +655,10 @@ class Orchestrator:
         self._action_registry = action_registry
         self._action_callables: dict[str, Callable] = {}  # ações injetadas pelo framework
         self._rag = rag  # Parte B (NOMAD): pipeline de retrieval no prompt
+        # Etapa 4.6 (parking lot §5, 24/10): Wikipédia offline via Kiwix,
+        # consultada SÓ quando o RAG local não achou nada (memória interna
+        # é a 1ª fonte). Lazia e inofensiva: erro = block "" (sem exceção).
+        self._enciclopedia = enciclopedia
 
     # -- Propriedades --------------------------------------------------------
 
@@ -680,6 +692,15 @@ class Orchestrator:
     def set_rag(self, pipeline: Optional[Any]) -> None:
         """Define (ou desliga, com None) o pipeline RAG do prompt."""
         self._rag = pipeline
+
+    @property
+    def enciclopedia(self) -> Optional[Any]:
+        """Enciclopédia (Kiwix) — opcional; None = sem referência externa."""
+        return self._enciclopedia
+
+    def set_enciclopedia(self, enciclopedia: Optional[Any]) -> None:
+        """Define (ou desliga, com None) a enciclopédia do prompt."""
+        self._enciclopedia = enciclopedia
 
     def add_action(self, name: str, handler: Callable) -> None:
         """Adiciona uma ação injetável pelo framework (não usa o registry)."""
@@ -1049,6 +1070,11 @@ class Orchestrator:
             )
             rag_block = resultado_rag.block
             self._registrar_rag(resultado_rag)
+        # Etapa 4.6 — Enciclopédia (Kiwix, 24/10): Wikipédia offline só
+        # quando a memória interna não achou nada (duas fontes de verdade
+        # no mesmo prompt é receita para alucinação).
+        if not rag_block:
+            rag_block = self._bloco_enciclopedia(text)
 
         # Etapa 5 — Histórico: monta contexto ChatML
         prompt = self._build_prompt(
@@ -1472,6 +1498,11 @@ class Orchestrator:
             )
             rag_block = resultado_rag.block
             self._registrar_rag(resultado_rag)
+        # Etapa 4.6 — Enciclopédia (Kiwix, 24/10): Wikipédia offline só
+        # quando a memória interna não achou nada (duas fontes de verdade
+        # no mesmo prompt é receita para alucinação).
+        if not rag_block:
+            rag_block = self._bloco_enciclopedia(text)
 
         # Etapa 5 — Histórico: monta contexto ChatML
         prompt = self._build_prompt(
@@ -1777,6 +1808,33 @@ class Orchestrator:
         metrics.rag_tokens_descartados += int(
             getattr(resultado, "tokens_descartados", 0) or 0
         )
+
+    def _bloco_enciclopedia(self, text: str) -> str:
+        """Etapa 4.6 — Wikipédia offline (Kiwix) quando o RAG não achou.
+
+        Só é chamada com `rag_block == ""`: a memória interna é a 1ª
+        fonte da casa. Qualquer erro/timeout do Kiwix vira block "" +
+        métrica — o chat segue normalmente, sem exceção no caminho.
+        """
+        if self._enciclopedia is None:
+            return ""
+        metrics = self._metrics
+        metrics.enciclopedias += 1
+        try:
+            resultado = self._enciclopedia.consult(text)
+        except Exception as exc:  # noqa: BLE001 — nunca derrubar o chat
+            metrics.enciclopedia_erros += 1
+            log.warn(
+                "Enciclopédia falhou (chat segue sem bloco)",
+                erro=f"{type(exc).__name__}: {exc}",
+            )
+            return ""
+        bloco = getattr(resultado, "block", "") or ""
+        if getattr(resultado, "erro", ""):
+            metrics.enciclopedia_erros += 1
+        if bloco:
+            metrics.enciclopedia_blocos += 1
+        return bloco
 
     def _build_prompt(
         self,

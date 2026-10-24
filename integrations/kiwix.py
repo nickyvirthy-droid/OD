@@ -272,7 +272,11 @@ def _parse_busca(corpo: bytes) -> list[dict[str, Any]]:
     itens: list[dict[str, Any]] = []
     for bruto in parser.itens:
         titulo = re.sub(r"\s+", " ", html.unescape(bruto["titulo"])).strip()
-        caminho = str(bruto["caminho"]).strip()
+        # O href vem percent-encoded ("Fotoss%C3%ADntese"); o caminho é
+        # DECODIFICADO aqui porque ler() faz quote() de novo — sem isso o
+        # acento era cotado 2x e o artigo morria em 404 (defeito real
+        # achado na prova viva da etapa 4.6, 24/10).
+        caminho = urllib.parse.unquote(str(bruto["caminho"])).strip()
         if not titulo or not caminho:
             continue
         itens.append({
@@ -308,12 +312,26 @@ def _parse_catalogo(corpo: bytes) -> list[dict[str, Any]]:
         nome = texto("name")
         if not nome:
             continue  # entry sem nome não é acervo servível
+        # content-id: o href do link <link type="text/html" href="/content/XXX"/>.
+        # É o valor que o `books.name=` da busca aceita (apuração viva 24/10:
+        # com DOIS ZIMs de idiomas diferentes o /search sem filtro devolve 400
+        # "confusion of tongues" — libkiwix#838 — e o filtro casava com o
+        # content-id, NÃO com o <name>: name=wikipedia_en_all dava 400 e
+        # content-id=wikipedia_en_all_mini dava 200).
+        content_id = ""
+        for link in entry.findall(f"{ATOM}link"):
+            if link.get("type") == "text/html":
+                href = link.get("href") or ""
+                if href.startswith(PREFIXO_CONTEUDO):
+                    content_id = href[len(PREFIXO_CONTEUDO):].strip("/")
+                break
         acervos.append({
             "id": texto("id").removeprefix("urn:uuid:"),
             "titulo": texto("title"),
             "resumo": texto("summary"),
             "idioma": texto("language"),
             "nome": nome,
+            "content_id": content_id or nome,
             "artigos": inteiro("articleCount"),
             "midias": inteiro("mediaCount"),
         })
@@ -400,8 +418,24 @@ class KiwixClient:
             "acessivel": True,
         }
 
-    def buscar(self, pattern: str, quantidade: int = 5) -> dict[str, Any]:
-        """Busca no acervo offline → hits (título, caminho, trecho)."""
+    def buscar(
+        self,
+        pattern: str,
+        quantidade: int = 5,
+        *,
+        timeout_s: Optional[float] = None,
+        livro: str = "",
+    ) -> dict[str, Any]:
+        """Busca no acervo offline → hits (título, caminho, trecho).
+
+        `timeout_s` (opcional, 24/10) permite um orçamento mais curto ao
+        caminho do CHAT (a consulta embutida do orquestrador não pode
+        pendurar uma resposta); sem ele o comportamento continua o de
+        sempre (30 s). `livro` (content-id, 24/10) restringe a busca a
+        UM acervo: com dois ZIMs de idiomas diferentes o kiwix-serve 3.8
+        recusa a busca mista (HTTP 400 "confusion of tongues",
+        libkiwix#838) — o chat usa para buscar no PT e depois no EN.
+        """
         pattern = (pattern or "").strip()
         if not pattern:
             raise KiwixError(
@@ -409,14 +443,25 @@ class KiwixClient:
                 "pattern não pode ser vazio.",
             )
         quantidade = max(1, min(int(quantidade or 5), 25))
-        consulta = urllib.parse.urlencode({"pattern": pattern})
-        status, corpo = self._chamada(f"/search?{consulta}", timeout_s=30.0)
+        params = {"pattern": pattern}
+        if livro:
+            params["books.name"] = livro
+        consulta = urllib.parse.urlencode(params)
+        status, corpo = self._chamada(
+            f"/search?{consulta}", timeout_s=timeout_s or 30.0
+        )
         if not (200 <= status < 300):
             raise KiwixError("kiwix_falhou", f"/search: HTTP {status}.")
         itens = _parse_busca(corpo)
         return {"pattern": pattern, "resultados": itens[:quantidade]}
 
-    def ler(self, caminho: str, max_chars: int = LIMITE_PADRAO_TEXTO) -> dict[str, Any]:
+    def ler(
+        self,
+        caminho: str,
+        max_chars: int = LIMITE_PADRAO_TEXTO,
+        *,
+        timeout_s: Optional[float] = None,
+    ) -> dict[str, Any]:
         """Lê um artigo pelo caminho (ex.: 'wikipedia_en_all_mini/Unicórnio')."""
         caminho = (caminho or "").strip().lstrip("/")
         if not caminho or ".." in caminho:
@@ -427,7 +472,7 @@ class KiwixClient:
             )
         max_chars = max(200, min(int(max_chars or LIMITE_PADRAO_TEXTO), 100_000))
         rota = f"{PREFIXO_CONTEUDO}{urllib.parse.quote(caminho)}"
-        status, corpo = self._chamada(rota, timeout_s=30.0)
+        status, corpo = self._chamada(rota, timeout_s=timeout_s or 30.0)
         if status == 404:
             raise KiwixError(
                 "kiwix_artigo_nao_encontrado",

@@ -30,11 +30,16 @@ name: omegadrakon-tools
 
 services:
   # ---------------------------------------------------------------------------
-  # 1. Kiwix — Wikipédia + categorias offline (alimenta o RAG)
-  #    Baixar o ZIM antes de subir (o bind /data precisa conter *.zim):
+  # 1. Kiwix — Wikipédia offline (ação kiwix_* + etapa 4.6 do chat)
+  #    Baixar os ZIMs antes de subir (o bind /data precisa conter *.zim):
   #      wget -O /home/alex/omegadrakon-tools/zim/wikipedia_en_all_mini.zim \
   #        https://download.kiwix.org/zim/wikipedia/wikipedia_en_all_mini.zim
   #    (12,5 GB — owner escolheu "completa"; espelhos em download.kiwix.org)
+  #    wikipedia_pt_all_mini_2026-05.zim (1,7 GB, 24/10 — ordem do dono:
+  #    o chat fala pt-BR e termos em pt casavam 0 artigos no acervo só-EN;
+  #    sha-256 conferido contra o .meta4 oficial de download.kiwix.org).
+  #    A busca do kiwix-serve é GLOBAL nos dois ZIMs — por isso os dois
+  #    caminhos posicionais no command.
   # ---------------------------------------------------------------------------
   kiwix:
     image: ghcr.io/kiwix/kiwix-serve:3.8.1
@@ -49,8 +54,11 @@ services:
       - /home/alex/omegadrakon-tools/zim:/data:ro
     # O kiwix-serve precisa do arquivo ZIM como argumento posicional — sem
     # ele ele imprime o help e sai (crash loop). ZIM completo (14,4 GB)
-    # renomeado pelo script de download em 13/10.
-    command: ["--skipInvalid", "/data/wikipedia_en_all_mini.zim"]
+    # renomeado pelo script de download em 13/10; PT somado em 24/10.
+    command:
+      - "--skipInvalid"
+      - "/data/wikipedia_en_all_mini.zim"
+      - "/data/wikipedia_pt_all_mini_2026-05.zim"
     mem_limit: 512m
     memswap_limit: 512m
 

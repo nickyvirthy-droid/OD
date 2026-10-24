@@ -212,6 +212,27 @@ def build_rag() -> Optional[Any]:
         return None
 
 
+def build_enciclopedia() -> Optional[Any]:
+    """Enciclopédia (Kiwix) — etapa 4.6 do orquestrador (parking lot §5).
+
+    Wikipédia offline no prompt, SÓ quando o RAG local não acha nada.
+    OD_KIWIX_CHAT=0 desliga. Lazy por desenho: o cliente Kiwix nasce na
+    1ª consulta — kiwix-serve fora do ar degrada o bloco para "", nunca
+    o boot do od-core.
+    """
+    if env("OD_KIWIX_CHAT", "1") == "0":
+        return None
+    try:
+        from memory.enciclopedia import Enciclopedia
+
+        enciclopedia = Enciclopedia()
+        log.info("Enciclopédia Kiwix ligada (etapa 4.6, só com RAG vazio)")
+        return enciclopedia
+    except Exception as exc:
+        log.warn("Enciclopédia desabilitada", error=f"{type(exc).__name__}: {exc}")
+        return None
+
+
 def build_orchestrator(database: Any = None) -> Any:
     """Orchestrator real: LLM local + memórias persistentes em data/."""
     from core.llm import OpenAICompatProvider
@@ -241,6 +262,8 @@ def build_orchestrator(database: Any = None) -> Any:
     # O orçamento só liga quando há RAG — sem ele, o comportamento do
     # histórico é exatamente o de antes (limite por turnos).
     rag = build_rag()
+    # Etapa 4.6 (24/10): Wikipédia offline via Kiwix — só com RAG vazio.
+    enciclopedia = build_enciclopedia()
     from memory.rag import janela_do_modelo
 
     orchestrator = Orchestrator(
@@ -255,6 +278,7 @@ def build_orchestrator(database: Any = None) -> Any:
             **db_kwargs,
         ),
         rag=rag,
+        enciclopedia=enciclopedia,
         config=OrchestratorConfig(
             llm_timeout_s=llm_timeout,
             default_system_prompt=get_system_prompt(profile),
@@ -273,6 +297,7 @@ def build_orchestrator(database: Any = None) -> Any:
         history=str(DATA_DIR / "conversations"),
         backend="db" if database else "json",
         rag=rag.dump() if rag is not None else "desligado",
+        enciclopedia="ligada" if enciclopedia is not None else "desligada",
     )
     return orchestrator
 

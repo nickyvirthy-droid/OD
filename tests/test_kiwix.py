@@ -192,6 +192,42 @@ class TestParsers:
         assert a["artigos"] == 18095848
         assert a["midias"] == 33992
 
+    def test_parse_catalogo_extrai_content_id_do_link(self) -> None:
+        """O `books.name=` da busca aceita o content-id, NÃO o <name>.
+
+        Apuração viva 24/10: com dois ZIMs de idiomas diferentes a busca
+        mista devolve 400 (libkiwix#838); name=wikipedia_en_all dava 400
+        e content-id=wikipedia_en_all_mini dava 200. O content-id vem do
+        href do link <link type="text/html" href="/content/…"/>.
+        """
+        xml = (
+            b'<feed xmlns="http://www.w3.org/2005/Atom">'
+            b"<entry><name>wikipedia_en_all</name>"
+            b'<link type="text/html" href="/content/wikipedia_en_all_mini" />'
+            b"</entry></feed>"
+        )
+        acervos = _parse_catalogo(xml)
+        assert acervos[0]["nome"] == "wikipedia_en_all"
+        assert acervos[0]["content_id"] == "wikipedia_en_all_mini"
+
+    def test_parse_catalogo_sem_link_content_id_cai_no_nome(self) -> None:
+        """Feed sem o link (fixture antiga): content_id = nome (fallback)."""
+        acervos = _parse_catalogo(CATALOGO_ATOM)
+        assert acervos[0]["content_id"] == "wikipedia_en_all_mini"
+
+    def test_parse_busca_decodifica_caminho_percent_encoded(self) -> None:
+        """href percent-encoded era cotado 2× e o artigo morria em 404.
+
+        Defeito real achado na prova viva da etapa 4.6 (24/10): o href
+        vinha "…/Fotoss%C3%ADntese", ler() quote() de novo → 404.
+        """
+        html = (
+            b'<a href="/content/wikipedia_pt_all_mini_2026-05/Fotoss%C3%ADntese">'
+            b"Fotoss\xc3\xaddese</a>"
+        )
+        itens = _parse_busca(html)
+        assert itens[0]["caminho"] == "wikipedia_pt_all_mini_2026-05/Fotossíntese"
+
     def test_parse_catalogo_xml_invalido_e_tipado(self) -> None:
         with pytest.raises(KiwixError) as exc:
             _parse_catalogo(b"<feed><entry></feed>")

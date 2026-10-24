@@ -154,6 +154,34 @@ falhas**. Restart verde (regra 7.3): boot 13:52:01, journal 0 `[ERROR]`,
 `/health` ok=True, `/app/version` 1.44.0/2080 intacta (backend puro,
 **sem bump**). Commit `d836349`.
 
+### Kiwix dentro do chat: a Wikipédia offline responde o que a memória interna não sabe (24/10, sem bump)
+
+**Pedido do dono** (ideia de 21/10 no parking lot §5, escolhida em
+24/10 como frente): *"perguntas factuais exibem a Wikipédia offline —
+'define dia' → o chat responde que dia é uma duração de 24 horas"*. As
+peças já existiam (`integrations/kiwix.py` + kiwix-serve no ar desde
+17/10); faltava o ORQUESTRADOR consultá-lo — hoje só a action admin
+usava.
+
+| Peça | Entrega |
+|---|---|
+| **`memory/enciclopedia.py` (NOVO)** | Etapa 4.6 do pipeline. Consulta em **3 camadas medidas**: (1) **título direto** `/content/<livro>/<Título>` — o ranking do `/search` é fraco (apurado ao vivo: "dia" devolve "Sexta-feira" primeiro e o artigo "Dia" nem aparece no top-8); (2) **busca cascata PT → EN** com o filtro `books.name=` por livro; (3) **overlap de TÍTULO** como piso (sem 1 termo em comum, nada é injetado — artigo errado pior que silêncio). Verbos-guia iniciais ("define", "o que é"…) são removidos antes de virar termo de busca (sem isso "define" entrava como termo — medido). Bloco limitado a 1200 chars com truncamento declarado. **Lazy e inofensivo**: cliente nasce na 1ª consulta; qualquer erro/timeout vira `block ""` + warn + métrica — o chat nunca vê exceção. |
+| **`integrations/kiwix.py`** | `buscar()` ganhou `timeout_s` (chat: 8 s) e `livro` (`books.name=` — necessário porque, com DOIS ZIMs de idiomas diferentes, o kiwix-serve 3.8 recusa a busca mista: HTTP 400 "confusion of tongues", libkiwix#838); `_parse_catalogo` passou a expor o `content_id` (o `<name>` do feed NÃO é o valor que o filtro aceita — apurado ao vivo) e `_parse_busca` **decodifica** o href (vinha percent-encoded: `Fotoss%C3%ADntese` era cotado 2× e o artigo morria em 404 — defeito real achado na prova viva). |
+| **`core/orchestrator.py`** | Etapa 4.6 nos DOIS caminhos (REST + stream): `rag_block` vazio → `_bloco_enciclopedia(text)`. **A memória interna é a 1ª fonte** — com bloco do RAG, a enciclopédia fica de fora (duas fontes de verdade no mesmo prompt = receita de alucinação). Métricas novas: `enciclopedias` / `enciclopedia_blocos` / `enciclopedia_erros` (descartado é métrica, nunca silêncio). |
+| **`runtime/launcher.py`** | `build_enciclopedia()` — `OD_KIWIX_CHAT=0` desliga; falha degrada para None (o boot nunca depende do Kiwix, mesma régua do RAG). |
+| **Acervo PT (ordem do dono)** | Apurado ao vivo: o acervo era **só inglês** (en_all_mini) e termos em pt devolviam **0 hits** ("gravidade", "fotossíntese"). Baixado `wikipedia_pt_all_mini_2026-05` (**1,99 M artigos, 1,7 GB**, sha-256 `4bc657b2…81d7e` conferido contra o `.meta4` oficial) e o `docker/tools-compose.yaml` passou a servir os **DOIS** ZIMs (command com os dois caminhos). |
+| **Guardas** | `tests/test_enciclopedia.py` (NOVO, +21): contrato puro com cliente falso (sem rede) — saudação não consulta, termos sem stopwords, título direto antes da busca, cascata PT→EN, catálogo fora = busca sem filtro (sem cache negativo), piso de sem-overlap = block "", truncamento declarado, erros = vazio com código tipado; e etapa 4.6 no orquestrador (entra com RAG vazio, fica de fora com RAG cheio, erro não derruba o chat, stream idem, papel user também recebe — acervo é público). +2 novos no `test_kiwix.py` (content_id no catálogo; caminho decodificado). |
+
+**Validação:** `tests/test_enciclopedia.py` **21/21** · kiwix +
+enciclopédia **61/61** · **gate oficial 3780 passed / 16 skipped /
+0 falha** (≥90%, executado DEPOIS desta edição — o CHANGELOG entra no
+corpus do RAG) · pyflakes 0 aviso novo. **Prova viva medida** (Kiwix real,
+dois acervos): *"define dia"* → artigo **"Dia"** (título direto),
+*"o que é gravidade?"* → **"Gravidade"**, *"quem foi napoleão
+bonaparte"* → **"Napoleão Bonaparte"**, *"o que é fotossíntese"* →
+**"Fotossíntese"**, *"oi"* → sem bloco (não consulta). **Sem bump** —
+1.44.0/2080 intacta.
+
 ### bw migra para 2026.10.0: o item nº 1 da dívida §4 fecha com medição (24/10, sem bump)
 
 **Reavaliação medida (ordem do dono: "migrar o pin"):** a dívida pedia
