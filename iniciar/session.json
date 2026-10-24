@@ -1,4 +1,19 @@
 {
+ "reverificacao_e_fecho_divida_4_2026_10_24": {
+  "pedido": "Usuario: 'leia iniciar' (24/10 ~02:30) — reverificacao de rotina (regra 3). Checkpoint: §11 (tar do legado transferido pelo dono).",
+  "achado_principal": "RESIDUO NO DISCO: 6 arquivos modificados + 2 novos, ultima edicao 23/10 14:41-15:08 (11h parados = sessao morta). Era a diente tecnica §4 no MEIO: a sessao de ontem extraiu o JS do painel pra site/admin.js + versionou o ActionRegistry + comentou 3 politicas, mas morreu ANTES do gate e do commit (mesmo padrao das sessoes interrompidas de 21-22/10).",
+  "oque_faltava_e_foi_completado": [
+   "2 guards VERMELHOS deixados em tests/test_portal_ferramentas.py (liam o JS inline no HTML do painel) migrados para meder o /site/admin.js SERVIDO — intencao preservada (4 ferramentas, sem itools, mesma aba, montagem do ↑ depois da guarda odOla).",
+   "Gate canonico (pytest da raiz) QUEBRADO NA COLECAO pelo deposito do dono analise/Nicky Locutor/ (test_async.py importa feedparser) — causa raiz corrigida com pytest.ini NOVO: norecursedirs = defaults + analise/, backups/, data/, logs/ (analise/ e caixa de entrada arbitraria dele, regra 17 — nunca mais derruba o gate)."
+  ],
+  "entrega_validada": "site/admin.js (NOVO, 396 linhas: od-tema 3 estados + formato Orion inteiro) servido por /site/{file} e injetado no painel por <script src> ANTES do script da pagina; server.py -451 linhas; tools/registry.py loga upgrade/downgrade de versao (_eh_downgrade reusa _parse_semver da Parte E; bloqueio continua no Supply Depot); comentarios de politica em capabilities (fallback congelado), launcher (_ENV_CACHE snapshot) e auto_extension (depot=None = modo degradado deliberado).",
+  "validacao": "Gate oficial 2x: 3759 passed / 16 skipped / 0 falha (>=90%) — a 2a DEPOIS da edicao do CHANGELOG (corpus do RAG). pyflakes 0 aviso novo (10 pre-existentes conferidos contra o HEAD via git show). node --check site/admin.js limpo. CHANGELOG 1.44.0 ganhou subsecao 'Divenida tecnica §4 fechada' (sem bump).",
+  "deploy": "Commit 9f97d54 pushado (11 arqs, +754/-458), HEAD == origin/master, ARVORE LIMPA. Restart verde 02:39:09 (regra 7.3): MainPID 1149026, NRestarts=0, journal 0 [ERROR], /health ok=True 25 checks NENHUM fora, /app/version 1.44.0/2080 intacta. Prova viva: /site/admin.js HTTP 200, 17123 B, com as duas secoes.",
+  "pauta_dono": "analise/Nicky Locutor/ (depositada ontem 13:05, regra 17) continua NAO ANALISADA — projeto locutor/TTS (main.py+feedparser, docker-compose.yml, Dockerfile, locucoes/, requirements.txt) — aguardando ordem dele. Pautas 'nao cobrar' inalteradas.",
+  "estado": "SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD 9f97d54, arvore limpa. Divenida tecnica §4 FECHADA. Fila do dono: so o Nicky Locutor (aguardando ordem).",
+  "updated_at": "2026-10-24T02:45:00-03:00",
+  "transcricao": "iniciar/2026-10-24_conversa_omegadrakon.md (§1)"
+ },
  "tar_legado_ja_transferido_pelo_dono_2026_10_23": {
   "pedido": "Dono (~14:2x): 'ja transferi' — o tar do legado ja foi pra HD externa por ele; a tarefa de transferencia que eu ia fazer fica cancelada por completa.",
   "verificacao": "Varredura por nome e por data em /home/alex (raiz), /mnt/Arquivos (sdc1), /home/alex/dados (sdb1) e /mnt/Midia: analise_AIML_legado.tar.gz NAO existe mais em nenhum ponto do servidor e nenhum arquivo novo nas 3 unidades desde 13:00 — consistente com ele ter copiado pra uma HD (fisicamente desconectada do servidor, definicao dele) e removido a origem.",
