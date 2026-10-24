@@ -123,6 +123,13 @@ class AutoExtension:
         # Parte F: Supply Depot (tools/supply_depot.py). Com depot, o /gerar
         # faz pré-VOO antes de gastar LLM, persiste a ferramenta em disco e
         # devolve conflito honesto (antes: "ok" mesmo com registro pulado).
+        #
+        # depot=None NÃO é caminho legado (dívida técnica §4, fechada
+        # 23/10): é o MODO DEGRADADO deliberado. O launcher SEMPRE passa
+        # o depot quando ele sobe (build_supply_depot); se o Supply Depot
+        # falhar no boot (exceção -> None), o /gerar continua gerando e
+        # registrando sem persistência — degradação honesta, não código
+        # morto. Remover o ramo tiraria o /gerar do ar junto com o depot.
         self.depot = depot
         self.metrics = ExtensionMetrics()
         self._generated: dict[str, str] = {}

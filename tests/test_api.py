@@ -497,9 +497,11 @@ class TestAPIPublicEndpoints:
 
     def test_painel_admin_no_formato_orion(self, serve, tmp_path: Path) -> None:
         """Formato Órion (17/10 — referência visual escolhida pelo dono):
-        o /admin serve o herói de saudação + a faixa de KPIs, e todo o JS
-        novo vive DENTRO do script único da página (a guarda de sintaxe
-        recorta do primeiro <script> ao último — bloco novo quebraria)."""
+        o /admin serve o herói de saudação + a faixa de KPIs. O JS do
+        formato (e o do tema) vive em site/admin.js desde 23/10 (dívida
+        técnica §4) e chega por <script src> injetado ANTES do script
+        da página — a guarda de sintaxe continua medindo o bloco próprio
+        da página."""
         srv = serve(make_orch(tmp_path))
         status, body, _ = _request(srv.bound_port, "GET", "/admin")
         html = body.decode("utf-8", "replace")
@@ -513,18 +515,23 @@ class TestAPIPublicEndpoints:
         for campo in ("kpiAcoes", "kpiStack", "kpiChecks", "kpiUptime"):
             assert f'id="{campo}"' in html, campo
         # Fontes honestas: o herói lê rotas que existem (versão pública e
-        # catálogo) — nenhuma fonte paralela inventada.
-        assert '"/app/version"' in html and '"/actions"' in html
+        # catálogo) — nenhuma fonte paralela inventada. O /app/version
+        # vive no FORMATO (site/admin.js); o /actions, no script da página.
+        assert '"/actions"' in html
         # O CSS do formato CHEGA na página (regras .od-hero dentro de um
         # <style>) — a v1.39.1 injetou só o JS (marca compartilhada
         # enganou o guarda) e o herói aparecia pelado ("texto comum",
         # reporte do dono em 17/10). Marcas separadas por injeção.
         assert ".od-hero {" in html and ".od-kpis {" in html
-        assert "od-formato-orion-css" in html and "od-formato-orion-js" in html
+        assert "od-formato-orion-css" in html
         # O /admin alimenta o herói pelo loadSystem (sem busca dupla —
-        # declara a bandeira; o JS injetado a lê e não repete as buscas).
+        # declara a bandeira; o JS do formato a lê e não repete as buscas).
         assert "odFormatoGerenciado = true" in html
-        # O JS do herói está no script da página (não em bloco separado).
+        # JS do painel: UM <script src="/site/admin.js"> ANTES do bloco
+        # próprio da página (ordem de execução garantida — script clássico
+        # bloqueia); o bloco inline continua sendo só o da página.
+        assert html.count('<script src="/site/admin.js"></script>') == 1
+        assert html.index('<script src="/site/admin.js"></script>') < html.index("<script>")
         assert html.count("<script>") == 1
 
     def test_dashboard_no_formato_orion_para_todos(
@@ -547,16 +554,22 @@ class TestAPIPublicEndpoints:
         # REGRAS (.od-hero {) tem de estar lá: a v1.39.1 perdeu o CSS
         # (marca compartilhada enganou o guarda da injeção) e o herói
         # aparecia como texto sem formatação (reporte do dono em 17/10).
-        assert "od-formato-orion-css" in html and "od-formato-orion-js" in html
+        assert "od-formato-orion-css" in html
         assert ".od-hero {" in html and ".od-kpis {" in html
+        assert html.count('<script src="/site/admin.js"></script>') == 1
         assert html.count("<script>") == 1
         # O /dashboard busca sozinho (só o /admin declara a bandeira de
-        # alimentação — a referência no JS injetado é de todas as páginas).
+        # alimentação — a referência no JS do formato é de todas as páginas).
         assert "odFormatoGerenciado = true" not in html
         # O /admin bebe da MESMA fonte (injeção), sem cópia local.
         _s, corpo_admin, _h = _request(srv.bound_port, "GET", "/admin")
         admin = corpo_admin.decode("utf-8", "replace")
         assert "od-formato-orion-css" in admin and ".od-hero {" in admin
+        # O FORMATO é o MESMO arquivo servido para as três páginas
+        # (/site/admin.js é público — só UI, sem dado; dívida §4).
+        _s, corpo_js, _h = _request(srv.bound_port, "GET", "/site/admin.js")
+        js = corpo_js.decode("utf-8", "replace")
+        assert '"/app/version"' in js and "od-formato-orion-js" in js
         # O /chat não ganha cabeçalho: sem #odOla o JS sai cedo e o
         # markup não existe lá (CSS/JS injetados ali são inócuos).
         _s, corpo_chat, _h = _request(srv.bound_port, "GET", "/chat")
@@ -602,39 +615,46 @@ class TestTemaClaroEscuro:
 
     def test_paginas_do_painel_trazem_o_tema(self, serve, tmp_path: Path) -> None:
         srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
+        _s, corpo_js, _h = _request(srv.bound_port, "GET", "/site/admin.js")
+        js = corpo_js.decode("utf-8", "replace")
+        assert corpo_js and "odTema" in js          # o JS do tema está no arquivo
         for pagina in ("/dashboard", "/admin", "/chat"):
             status, corpo, _ = _request(srv.bound_port, "GET", pagina)
             html = corpo.decode("utf-8", "replace")
             assert status == 200, pagina
-            # o botão é CRIADO pelo JS (id odTema) — o HTML não o traz
-            assert 'odTema' in html, pagina
+            # o botão é CRIADO pelo JS (id odTema) — o HTML não o traz,
+            # mas a PÁGINA amarra o arquivo que o cria
+            assert '<script src="/site/admin.js"></script>' in html, pagina
             assert '#odTema' in html, pagina               # e o CSS o estiliza
-            assert 'od_theme' in html, pagina              # cópia local
+            assert 'od_theme' in js, pagina               # cópia local (arquivo)
             assert ':root[data-theme="light"]' in html, pagina
             assert 'prefers-color-scheme: light' in html, pagina
             assert '--bg: #F4F6FB' in html, pagina         # paleta clara
-            assert "/profile/preferences" in html, pagina  # sincronia
+            assert "/profile/preferences" in js  # sincronia (arquivo)
 
     def test_js_do_tema_entra_num_unico_bloco_script(
             self, serve, tmp_path: Path) -> None:
-        """A guarda de sintaxe do painel extrai UM bloco — não criar dois."""
+        """A guarda de sintaxe do painel extrai UM bloco inline — o JS do
+        tema/formato é externo (site/admin.js) e não conta aqui."""
         srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
         for pagina in ("/dashboard", "/admin", "/chat"):
             _s, corpo, _h = _request(srv.bound_port, "GET", pagina)
             html = corpo.decode("utf-8", "replace")
             assert html.count("<script>") == 1, pagina
-            assert html.count("</script>") == 1, pagina
+            assert html.count('<script src="/site/admin.js"></script>') == 1, pagina
             dentro = html.split("<script>", 1)[1].rsplit("</script>", 1)[0]
-            assert "odTema" in dentro and "od_theme" in dentro, pagina
+            assert "odTema" not in dentro and "od_theme" not in dentro, (
+                pagina, "o tema saiu do bloco inline para site/admin.js")
 
     def test_injecao_do_tema_e_idempotente(self) -> None:
         from integrations.api.server import _com_tema
 
-        base = "<html><head><style>x</style></head><body><script>1</script></body></html>"
+        base = "<html><head></head><body><script>1</script></body></html>"
         uma = _com_tema(base)
         duas = _com_tema(uma)
         assert uma == duas
-        assert uma.count("odTema") == duas.count("odTema")
+        tag = '<script src="/site/admin.js"></script>'
+        assert uma.count(tag) == 1 and duas.count(tag) == 1
 
     def test_site_tem_paleta_clara_e_botao_injetado(self) -> None:
         raiz = self._raiz()
@@ -675,7 +695,7 @@ class TestTemaClaroEscuro:
 
     # --- "às vezes não funciona" (16/10): clique nenhum pode cair numa tela
     # igual à anterior. Harness de node com DOM de mentira que RODA o JS de
-    # verdade (od-nav.js e o _TEMA_PAINEL_JS embutido) e clica o botão.
+    # verdade (od-nav.js e o site/admin.js do painel) e clica o botão.
     _HARNESS = """
 'use strict';
 const fs = require('fs'), vm = require('vm');
@@ -743,8 +763,10 @@ console.log(JSON.stringify(saida));
         return (self._raiz() / "site" / "od-nav.js").read_text(encoding="utf-8")
 
     def _js_do_painel(self) -> str:
-        from integrations.api.server import _TEMA_PAINEL_JS
-        return _TEMA_PAINEL_JS
+        """Seção do tema de site/admin.js (a fonte única desde 23/10)."""
+        texto = (self._raiz() / "site" / "admin.js").read_text(encoding="utf-8")
+        corte = texto.index("/* ===== SEÇÃO: od-formato-orion")
+        return texto[:corte]
 
     def test_site_percorre_os_tres_estados_com_feedback(
             self, tmp_path: Path) -> None:
@@ -782,7 +804,7 @@ console.log(JSON.stringify(saida));
 
     def test_painel_percorre_os_tres_estados_com_feedback(
             self, tmp_path: Path) -> None:
-        """A MESMA correção no JS embutido do painel (_TEMA_PAINEL_JS),
+        """A MESMA correção no JS do painel (site/admin.js, seção od-tema),
         alinhado ao site e ao app."""
         seq = self._cliques_no_node(tmp_path, self._js_do_painel(),
                                     aparelho_claro=False, inicial="dark",
@@ -795,19 +817,17 @@ console.log(JSON.stringify(saida));
         assert seq[2]["pref"] == "light" and seq[3]["pref"] == "dark"
 
     def test_painel_js_compila(self) -> None:
+        """site/admin.js (arquivo real) compila — node --check direto no
+        arquivo, sem exportar string nenhuma do Python."""
         import shutil as _shutil
         import subprocess as _subprocess
 
         node = _shutil.which("node")
         if not node:
             return
-        import tempfile as _tempfile
-        with _tempfile.NamedTemporaryFile(
-                "w", suffix=".js", delete=False, encoding="utf-8") as f:
-            f.write(self._js_do_painel())
-            caminho = f.name
-        check = _subprocess.run([node, "--check", caminho],
-                                capture_output=True)
+        check = _subprocess.run(
+            [node, "--check", str(self._raiz() / "site" / "admin.js")],
+            capture_output=True)
         assert check.returncode == 0, check.stderr.decode()[:400]
 
 
@@ -820,8 +840,8 @@ class TestMenuLateralOrion:
 
     No SITE ela é injetada pelo od-nav.js a partir dos MESMOS links do
     painel ⋮ (clonagem — o HTML do menu segue existindo num lugar só, a
-    divergência entre páginas já aconteceu); no PAINEL, pelo
-    _FORMATO_ORION_JS, que já sai da fonte única injetada pelo _com_tema.
+    divergência entre páginas já aconteceu); no PAINEL, pelo site/admin.js
+    (seção od-formato-orion, a fonte única que o _com_tema liga na página).
     Telas estreitas ficam com o que existia; largura e estado recolhido
     vivem em classes da raiz, então claro e escuro usam a mesma folha.
     """
@@ -867,30 +887,34 @@ class TestMenuLateralOrion:
     def test_painel_menu_lateral_no_formato_orion(
             self, serve, tmp_path: Path) -> None:
         srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
+        # O FORMATO vive em site/admin.js — é dele que saem lateralMontar,
+        # lateralAdmin e o item condicional ao papel.
+        _s, corpo_js, _h = _request(srv.bound_port, "GET", "/site/admin.js")
+        fmt = corpo_js.decode("utf-8", "replace")
+        assert "odLateral" in fmt and "od-lateral-btn" in fmt
+        assert '"/dashboard"' in fmt and '"/chat"' in fmt
+        assert '<div class="od-lateral-links">' in fmt
+        assert '<nav class="od-lateral-links">' not in fmt
+        assert "lateralAdmin" in fmt
+        assert 'papel === "admin"' in fmt
         for pagina in ("/dashboard", "/admin", "/chat"):
             status, corpo, _ = _request(srv.bound_port, "GET", pagina)
             html = corpo.decode("utf-8", "replace")
             assert status == 200, pagina
-            # a guarda de sintaxe do painel recorta UM bloco <script>
+            # a guarda de sintaxe do painel recorta UM bloco inline
             assert html.count("<script>") == 1, pagina
-            assert html.count("</script>") == 1, pagina
+            assert html.count('<script src="/site/admin.js"></script>') == 1, pagina
+            # as páginas que TÊM herói repassam o papel em odFormato.nome
+            # (o /chat pergunta sozinho — sem quemAmI)
+            if pagina != "/chat":
+                assert "nome(data.user.username, role)" in html, pagina
             # a barra é inócua no /chat: sem #odOla o FORMATO sai cedo e
             # o chat mantém o próprio cabeçalho
             if pagina == "/chat":
                 continue
-            assert "odLateral" in html, pagina
-            assert "od-lateral-btn" in html, pagina
-            assert '"/dashboard"' in html and '"/chat"' in html, pagina
-            # mesmo defeito do site, prevenido no painel: o contêiner dos
-            # links é <div> — um <nav> casaria com regras globais de
-            # qualquer folha e viraria faixa por cima da página
-            assert '<div class="od-lateral-links">' in html, pagina
-            assert '<nav class="od-lateral-links">' not in html, pagina
-            # o item Admin entra só para papel admin (quemAmI repassa o
-            # papel em odFormato.nome) — nunca fica verde de mentira
-            assert "lateralAdmin" in html, pagina
-            assert 'papel === "admin"' in html, pagina
-            assert "nome(data.user.username, role)" in html, pagina
+            # o container dos links é <div> — um <nav> casaria com regras
+            # globais de qualquer folha e viraria faixa por cima da página
+            # (defeito real de 20/10, prevenido no JS que a página carrega)
 
     def test_js_do_site_compila_com_a_barra(self) -> None:
         import shutil as _shutil
@@ -1096,8 +1120,13 @@ class TestAcessoPeloMenuELateralChat:
         assert ".od-lateral-links" in corpo
 
     def test_chat_mantem_a_barra_no_formato(self, serve) -> None:
-        from integrations.api.server import _FORMATO_ORION_JS
-        fmt = _FORMATO_ORION_JS
+        """O FORMATO (site/admin.js, seção od-formato-orion) monta a barra
+        nas TRÊS páginas — no /chat, inócua (sem #odOla o herói sai).
+        """
+        fmt = (self._raiz() / "site" / "admin.js").read_text(encoding="utf-8")
+        # a seção do FORMATO (a seção od-tema vem antes no arquivo e
+        # também tem iniciar())
+        fmt = fmt[fmt.index("/* ===== SEÇÃO: od-formato-orion"):]
         # iniciar(): a barra monta ANTES do cedo (sem odOla só não há herói)
         corpo = fmt[fmt.index("function iniciar()"):][:520]
         precoce = 'if (!document.getElementById("odOla"))'
@@ -1107,15 +1136,15 @@ class TestAcessoPeloMenuELateralChat:
         # só com sessão: anônimo não ganha idà à API nem item Admin
         pc = fmt[fmt.index("function papelChat()"):fmt.index("function iniciar()")]
         assert "od_session_token" in pc and "lateralAdmin()" in pc
-        # servido: /chat recebe o FORMATO inteiro (CSS marcado + JS) num
-        # único <script> (a guarda de sintaxe continua medindo o mesmo bloco)
+        # servido: /chat amarra o arquivo do FORMATO (CSS marcado na página
+        # + <script src> na ordem antes do bloco próprio)
         srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
         status, corpo_bytes, _ = _request(srv.bound_port, "GET", "/chat")
         html = corpo_bytes.decode("utf-8", "replace")
         assert status == 200
         assert "od-formato-orion-css" in html
-        assert "papelChat" in html and "lateralMontar" in html
-        assert html.count("<script>") == 1 and html.count("</script>") == 1
+        assert html.count('<script src="/site/admin.js"></script>') == 1
+        assert html.count("<script>") == 1
 
     # --- Harness: roda o od-nav.js de VERDADE com DOM de mentira, nos dois
     # cenários (dono logado / sem sessão) e lê o menu montado.
@@ -1341,7 +1370,10 @@ class TestIconesDoMenuLateral:
 
     def test_icones_nos_dois_lados(self) -> None:
         import re
-        from integrations.api.server import _FORMATO_ORION_CSS, _FORMATO_ORION_JS
+        from integrations.api.server import _FORMATO_ORION_CSS
+        # O FORMATO do painel vive em site/admin.js (dívida técnica §4)
+        _FORMATO_ORION_JS = (self._raiz() / "site" / "admin.js").read_text(
+            encoding="utf-8")
         js, css = self._js(), self._css_site()
         # -- site: tabela por href + resolvedor + item com os DOIS spans
         assert "var ICONES = {" in js and "function iconeDe(" in js
@@ -1434,7 +1466,8 @@ class TestIconesDoMenuLateral:
         o site público não anuncia ferramenta de dono (sem login elas
         levam ao formulário do chat)."""
         import re
-        from integrations.api.server import _FORMATO_ORION_JS
+        _FORMATO_ORION_JS = (self._raiz() / "site" / "admin.js").read_text(
+            encoding="utf-8")
         site = dict(re.findall(
             r"'([^']+)':\s*'([^']+)'",
             self._js()[self._js().index("var ICONES ="):
@@ -1459,11 +1492,15 @@ class TestIconesDoMenuLateral:
         status, corpo_bytes, _ = _request(srv.bound_port, "GET", "/chat")
         html = corpo_bytes.decode("utf-8", "replace")
         assert status == 200
-        assert '<span class="od-ico"' in html and '<span class="od-rot"' in html
+        # os itens (spans) saem do site/admin.js — o /chat amarra o arquivo
+        _s, js_bytes, _h = _request(srv.bound_port, "GET", "/site/admin.js")
+        fmt = js_bytes.decode("utf-8", "replace")
+        assert '<span class="od-ico"' in fmt and '<span class="od-rot"' in fmt
         assert ".od-lateral-links a .od-ico" in html          # CSS servido
         assert "html.od-lateral-recolhido .od-lateral-links a .od-rot { display: none; }" in html
         assert 'title="' in html                              # hover do recolhido
-        assert html.count("<script>") == 1 and html.count("</script>") == 1
+        # UM bloco inline + a tag do arquivo do painel (fecha o próprio)
+        assert html.count("<script>") == 1 and html.count("</script>") == 2
 
 
 class TestRespiroDoMainAbaixoDaNav:

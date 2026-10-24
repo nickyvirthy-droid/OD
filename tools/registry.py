@@ -81,6 +81,22 @@ DEFAULT_HISTORY_SIZE = 200
 RESULT_STATUSES = ("ok", "invalid", "denied", "error", "not_found")
 
 
+def _eh_downgrade(versao_atual: str, versao_nova: str) -> bool:
+    """True quando as DUAS são semver (X.Y.Z) e a nova é menor que a atual.
+
+    Qualquer lado não-semver = False (sem comparação inventada — o
+    registro não adivinha; quem tem política é o Supply Depot). Reusa o
+    `_parse_semver` da Parte E para não existir duas leituras de versão.
+    """
+    try:
+        from core.auto_update import _parse_semver
+        atual = _parse_semver(versao_atual)
+        nova = _parse_semver(versao_nova)
+    except Exception:  # pragma: no cover — defensivo
+        return False
+    return atual is not None and nova is not None and nova < atual
+
+
 # ---------------------------------------------------------------------------
 # Exceções
 # ---------------------------------------------------------------------------
@@ -287,7 +303,15 @@ class ActionRegistry:
     # -- Registro ------------------------------------------------------------
 
     def register(self, action: Action) -> bool:
-        """Registra (ou substitui) uma ação. Retorna True se registrada."""
+        """Registra (ou substitui) uma ação. Retorna True se registrada.
+
+        O campo `version` é COMPARADO aqui (dívida técnica §4, fechada
+        23/10): um overwrite com versão MAIOR loga o upgrade
+        (existente→nova) e um com versão MENOR loga DOWNGRADE em warn —
+        o registro nunca substitui em silêncio. Quem BLOQUEIA downgrade
+        continua sendo o Supply Depot (pré-voo com política); aqui é
+        só visibilidade honesta, sem mudar semântica de overwrite.
+        """
         self._validate_action(action)
         with self._lock:
             existing = self._actions.get(action.name)
@@ -296,8 +320,21 @@ class ActionRegistry:
                     "Action skipped (nome duplicado)",
                     action=action.name,
                     existing_source=existing.source or "manual",
+                    existing_version=existing.version,
+                    nova_versao=action.version,
                 )
                 return False
+            if existing is not None and existing.version != action.version:
+                metodo = log.warn if _eh_downgrade(
+                    existing.version, action.version
+                ) else log.info
+                metodo(
+                    "Action re-registrada com versão diferente",
+                    action=action.name,
+                    versao_existente=existing.version,
+                    versao_nova=action.version,
+                    source=action.source or "manual",
+                )
             self._actions[action.name] = action
             # aliases apontam para o nome canônico
             self._aliases.pop(action.name, None)

@@ -73,6 +73,13 @@ def _env_file_value(name: str, path: pathlib.Path = _ENV_PATH) -> Optional[str]:
 # O `.env` é lido aqui porque nem todo entrypoint passa pelo carregador do
 # launcher (ex: uvicorn subindo a API direto) — sem isso a versão do `.env`
 # não chegaria ao manifesto.
+#
+# O fallback congelado é POLÍTICA, não descuido (dívida técnica §4,
+# fechada 23/10): a política §5.2 de docs/VERSIONAMENTO.md manda o
+# literal acompanhar a versão vigente em cada bump, e a guarda
+# tests/test_version_policy.py::test_fallback_congelado_e_a_versao_vigente
+# derruba a suíte quando o literal fica velho — sem essa trava o CI
+# (checkout limpo, sem .env) validaria uma versão fantasma.
 OD_VERSION = (
     os.environ.get("OD_VERSION")
     or _env_file_value("OD_VERSION")

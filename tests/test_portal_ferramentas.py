@@ -295,11 +295,17 @@ class TestPortaoDoPortario:
         status, corpo, _ = chamar(srv.bound_port, "GET", "/chat")
         assert status == 200
         pagina = corpo.decode("utf-8", "replace")
-        assert "function lateralFerramentas" in pagina
-        assert '"/f/itools/"' not in pagina          # fora do portário
+        # Desde 23/10 (dívida técnica §4) o JS do menu vive em
+        # site/admin.js — fonte única — e chega por <script src> na página.
+        assert '<script src="/site/admin.js"></script>' in pagina
+        st, corpo_js, _ = chamar(srv.bound_port, "GET", "/site/admin.js")
+        assert st == 200
+        js = corpo_js.decode("utf-8", "replace")
+        assert "function lateralFerramentas" in js
+        assert '"/f/itools/"' not in js              # fora do portário
         for nome in ("caderno", "cyberchef", "caixa", "cofre"):
-            assert f'"/f/{nome}/"' in pagina, f"menu sem {nome}"
-        bloco = pagina.split("function lateralFerramentas")[1]
+            assert f'"/f/{nome}/"' in js, f"menu sem {nome}"
+        bloco = js.split("function lateralFerramentas")[1]
         bloco = bloco.split("window.odFormato")[0]
         assert 'target="_blank"' not in bloco   # mesma aba, como ele pediu
 
@@ -326,11 +332,16 @@ class TestPortaoDoPortario:
             assert status == 200, nome_tela
             texto = corpo.decode("utf-8", "replace")
             assert "position: sticky" in texto, f"barra não fixa em {nome_tela}"
-        assert "function topoBotao" in texto      # botão no JS compartilhado
-        assert 'b.id = "odTopo"' in texto
+        # O JS compartilhado (botão ↑ e a ordem de montagem) vive em
+        # site/admin.js desde 23/10 (dívida técnica §4, fonte única).
+        st, corpo_js, _ = chamar(srv.bound_port, "GET", "/site/admin.js")
+        assert st == 200
+        js = corpo_js.decode("utf-8", "replace")
+        assert "function topoBotao" in js
+        assert 'b.id = "odTopo"' in js
         # A MONTAGEM fica DEPOIS da guarda do herói: chat não monta.
         # (Ancora em lateralMontar(); — a atualizar() tem outra guarda odOla.)
-        guarda = texto.split("lateralMontar();")[1]
+        guarda = js.split("lateralMontar();")[1]
         pos_monta = guarda.index("topoBotao();")
         assert 'document.getElementById("odOla")' in guarda[:pos_monta]
 

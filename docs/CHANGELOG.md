@@ -154,6 +154,32 @@ falhas**. Restart verde (regra 7.3): boot 13:52:01, journal 0 `[ERROR]`,
 `/health` ok=True, `/app/version` 1.44.0/2080 intacta (backend puro,
 **sem bump**). Commit `d836349`.
 
+### Dívida técnica §4 fechada: o JS do painel sai das strings e vira `site/admin.js` (24/10, sem bump)
+
+**Origem:** a sessão de 23/10 trabalhou na limpeza da dívida técnica §4
+(7 itens, não-bloqueantes) e **morreu no meio** — 6 arquivos alterados +
+2 novos no disco desde 15:08 de 23/10 **sem gate e sem commit** (mesmo
+padrão das sessões interrompidas de 21–22/10). A reverificação de rotina
+do 24/10 achou o resíduo, validou, completou o que faltava e fechou.
+
+| Peça | Entrega |
+|---|---|
+| **`site/admin.js` (NOVO)** | O JS do painel (`_TEMA_PAINEL_JS` + `_FORMATO_ORION_JS`) saiu das strings gigantes do Python e virou **arquivo real** no site: editável, `node --check` direto e servido por `/site/{file}`. Duas seções na ordem de execução: od-tema (3 estados + feedback `data-tema-modo`) e formato Órion (herói, KPIs, menu lateral, glifos, botão ↑). O servidor injeta `<script src="/site/admin.js">` ANTES do script da página (`_com_tema`) — script clássico bloqueia, ordem garantida. |
+| **`integrations/api/server.py`** | `_TEMA_PAINEL_JS` e o JS do formato removidos das strings (−451 linhas); `_TAG_JS_PAINEL` é a única fonte da tag. Comportamento idêntico, entrega por `<script src>`. |
+| **`tools/registry.py`** | Contrato de VERSÃO no registro (item 4 da dívida): `version` nunca era comparada aqui — agora um overwrite com versão diferente é **logado** (upgrade em info, downgrade em warn, `_eh_downgrade` reaproveitando o `_parse_semver` da Parte E). Quem BLOQUEIA downgrade continua sendo o Supply Depot; aqui é só visibilidade honesta. |
+| **`core/capabilities.py` · `runtime/launcher.py` · `tools/auto_extension/engine.py`** | Comentários de POLÍTICA nos 3 pontos que a dívida marcou como “código morto” e não eram: fallback congelado da versão (travado pela guarda da política §5.2), snapshot `_ENV_CACHE` do launcher e o `depot=None` como modo degradado deliberado do `/gerar`. |
+| **`pytest.ini` (NOVO)** | O gate canônico (`pytest` da raiz) **quebrou na coleta** quando o dono depositou `analise/Nicky Locutor/` (contém `test_async.py` com `feedparser` que nem é nossa). `analise/` é caixa de entrada de arquivos arbitrários dele (regra 17) — `norecursedirs` mantém os defaults do pytest e exclui `analise/`, `backups/`, `data/`, `logs/`. |
+| **Guardas** | `tests/test_action_registry.py` (NOVO, +6): versionamento no registro (upgrade/downgrade logados, não-semver intocado). `tests/test_api.py`: as travas do painel apontam para a fonte única (tag ANTES do script inline, UM `<script>`, `node --check` no arquivo novo). `tests/test_portal_ferramentas.py`: os 2 guards que liam o JS inline no HTML agora medem o `/site/admin.js` servido (o resíduo deixou esses 2 vermelhos). |
+
+**Validação:** gate oficial **3759 passed / 16 skipped / 0 falha ·
+≥90%** (reexecutado DEPOIS desta edição — o CHANGELOG entra no corpus do
+RAG). pyflakes: **0 aviso novo** (os 10 pré-existentes conferidos contra
+o HEAD). `node --check site/admin.js` limpo. Prova viva: `/admin`,
+`/dashboard` e `/chat` servindo a tag única antes do script da página e
+`/site/admin.js` 200 com as duas seções. **Sem bump** (limpeza de
+backend, versão 1.44.0/2080 intacta) · restart verde com o novo binário
+no ar (regra 7.3, registrado com prova viva em `iniciar/`).
+
 ### Botão ↑ fechando as 12 páginas + a camada `sshd` do Vigia descoberta muda (22/10, sem bump)
 
 **1) O círculo ↑ — pedido do dono** (*"no site as páginas são muito

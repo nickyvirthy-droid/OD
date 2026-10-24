@@ -113,11 +113,23 @@ def load_env(path: pathlib.Path = ENV_PATH) -> dict[str, str]:
     return data
 
 
+# Snapshot do ambiente, congelado na PRIMEIRA chamada de env() e nunca
+# mais relido (dívida técnica §4, documentada 23/10): .env é sobrescrito
+# pelo environ no momento do boot, e mudanças posteriores em os.environ
+# NÃO aparecem aqui. Consequência prática para testes: monkeypatch.setenv
+# não basta depois da primeira leitura — patcheie o próprio cache:
+#   monkeypatch.setattr(launcher, "_ENV_CACHE", dict(launcher._ENV_CACHE or {}))
+# (padrão já usado em tests/test_voice_api.py, test_telegram_bots.py,
+# test_nomad_tools.py e test_launcher_health_external.py).
 _ENV_CACHE: Optional[dict[str, str]] = None
 
 
 def env(name: str, default: str = "") -> str:
-    """Valor de ambiente: os.environ primeiro, .env depois."""
+    """Valor de ambiente: os.environ primeiro, .env depois (via _ENV_CACHE).
+
+    Lê o SNAPSHOT `_ENV_CACHE` (populado uma vez no boot, ver comentário
+    acima) — não relê os.environ a cada chamada.
+    """
     global _ENV_CACHE
     if _ENV_CACHE is None:
         _ENV_CACHE = dict(os.environ)
