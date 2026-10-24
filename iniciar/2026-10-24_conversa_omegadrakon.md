@@ -130,3 +130,54 @@ não como pendência.
 chave de sessão (88 ch, efêmera — morta no próximo unlock/lock) de um
 unlock meu foram impressos no stdout por engano. Não é senha master
 nem segredo de cofre; registro aqui mesmo.
+
+
+## §3 — Kiwix no chat: Wikipédia offline entra como etapa 4.6 do
+       orquestrador (parking lot §5 — pedido do dono de 21/10)
+
+**Pedido (parking lot §5, do `txt.txt` de 21/10):** "kiwix pode ser
+fornecida dentro do chat" — exemplo dado por ele: *"define dia"* → o
+chat responde que dia é uma duração de 24 horas. Hoje tirei da fila e
+entreguei.
+
+**Desenho:** `memory/enciclopedia.py` novo — **etapa 4.6**, roda SÓ
+quando o RAG local não achou nada (ordem da casa preservada: memória
+interna > acervo > enciclopédia). Caminhos: (1) **título direto** —
+limpeza de prefixo factual ("define ", "o que é a ", "quem foi ") e
+lookup por título exato no PT primeiro; (2) **busca** em cascata
+**PT → EN** (2 acervos); (3) nada = segue sem o bloco. Lazy no launcher
+(`OD_KIWIX_CHAT=0` desliga). Bloco no prompt DEPOIS do acervo (prefixo
+de KV cache do llama-server intacto — mesma regra da etapa 4.5).
+
+**Acervo PT:** `wikipedia_pt_all_mini_2026-05` (1,7 GB) baixado com
+**sha-256 conferido contra o `.meta4` oficial** (`4bc657b2…81d7e`).
+`docker/tools-compose.yaml` serve os dois ZIMs.
+
+**Defeitos encontrados e corrigidos no caminho (todos medidos):**
+- Busca com os 2 ZIMs dava **400 "Invalid request"**: causa raiz
+  libkiwix#838 — o `kiwix-serve` bloqueia busca que mistura livros de
+  idiomas diferentes. Correção = filtro `books.name=` por acervo (o
+  nome aceito é o do ARQUIVO com versão, não o do catálogo atômico).
+- Artigo PT retornava 404 no `ler()`: o href vem percent-encoded e o
+  parser fazia `quote()` de novo (double-encode) — `unquote` na
+  extração.
+- Qualidade do ranking cru: "define dia" caía em "Dia sideral" —
+  título direto antes da busca resolveu (artigo exato "Dia").
+
+**Validação:** `tests/test_enciclopedia.py` novo **21/21** + 2 guards
+novas em `tests/test_kiwix.py` (cascata + título direto). **Gate
+oficial 3783 passed / 16 skipped / 0 falha · ≥90%**. Commit **`fd8f420`**
+pushado (árvore limpa). Restart verde (regra 7.3): health **25/25**.
+
+**Prova viva no chat real (REST /message + journal):** "define dia" →
+artigo **"Dia"** (resposta cita "24 horas"); "fotossíntese" →
+**"Fotossíntese"**; "napoleão bonaparte" → **"Napoleão Bonaparte"**;
+"quem foi Marie Curie" → journal prova a etapa: `Enciclopédia no
+prompt | titulo=Marie Curie | chars=1329 | livro=wikipedia_en_all_mini`.
+
+**Nota honesta:** com o corpus do RAG completo (58 arquivos),
+perguntas factuais às vezes casam trechos fracos do próprio CHANGELOG
+(ex.: "define dia" casa com o registro desta entrega) e aí a
+cascata interna do orquestrador responde sem ir ao Kiwix — é o
+design (RAG primeiro), e quando o RAG não acha (Marie Curie) a
+etapa dispara e responde do artigo.

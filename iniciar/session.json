@@ -1,4 +1,20 @@
 {
+ "kiwix_no_chat_etapa_4_6_2026_10_24": {
+  "pedido": "Parking lot §5 (ideia do dono em 21/10, txt.txt): 'kiwix pode ser fornecida dentro do chat' — exemplo dele: 'define dia' -> o chat responde que dia e uma duracao de 24 horas.",
+  "entrega": "memory/enciclopedia.py NOVO = etapa 4.6 do orquestrador, roda SO quando o RAG local nao achou nada (memoria interna > acervo > enciclopedia). Ordem no prompt: depois do bloco do acervo (prefixo KV cache do llama-server intacto). Lazy no launcher: OD_KIWIX_CHAT=0 desliga. Caminhos: (1) titulo direto (limpa prefixo factual 'define/o que é/quem foi' + lookup de titulo exato PT primeiro), (2) busca em cascata PT->EN nos 2 acervos, (3) nada = segue sem o bloco.",
+  "acervo_pt": "wikipedia_pt_all_mini_2026-05 (1,7 GB) baixado do mirror oficial com sha-256 CONFERIDO contra o .meta4 (4bc657b2...81d7e). docker/tools-compose.yaml serve os 2 ZIMs.",
+  "defeitos_corrigidos": [
+    "Busca com os 2 ZIMs dava 400 'Invalid request' — causa raiz libkiwix#838: kiwix-serve bloqueia busca que mistura livros de idiomas diferentes. Correcao = filtro books.name= por acervo (o nome aceito e o do ARQUIVO com versao, nao o do catalogo atomico).",
+    "ler() devolvia 404 em artigo PT: href vem percent-encoded e o parser fazia quote() de novo (double-encode) — unquote na extracao.",
+    "Ranking cru fraco ('define dia' caia em 'Dia sideral') — tentativa de TITULO DIRETO antes da busca resolveu (artigo exato)."
+   ],
+  "validacao": "tests/test_enciclopedia.py novo 21/21 + 2 guards novas em tests/test_kiwix.py. Gate oficial 3783 passed / 16 skipped / 0 falha (>=90%). Commit fd8f420 pushado, arvore limpa. Restart verde (regra 7.3): health 25/25.",
+  "prova_viva": "REST /message real: 'define dia' -> artigo 'Dia' (resposta cita 24 horas); 'fotossintese' -> 'Fotossintese'; 'napoleao bonaparte' -> 'Napoleao Bonaparte'; 'quem foi Marie Curie' -> journal prova a etapa: 'Enciclopedia no prompt | titulo=Marie Curie | chars=1329 | livro=wikipedia_en_all_mini'.",
+  "nota_honesta": "Com o corpus do RAG completo (58 arquivos), perguntas factuais as vezes casam trechos fracos do proprio CHANGELOG (ex.: 'define dia' casa com o registro desta entrega) e a cascata do orquestrador responde sem ir ao Kiwix — design (RAG primeiro); quando o RAG nao acha (Marie Curie) a etapa dispara e responde do artigo.",
+  "estado": "ENTREGUE E NO AR. Parking lot §5: item 'Kiwix no chat' FECHADO; restantes (network_hosts+Vigia, rota WiFi, auditoria de uso de ferramentas, MCP) aguardando ordem do dono.",
+  "updated_at": "2026-10-24T05:15:00-03:00",
+  "transcricao": "iniciar/2026-10-24_conversa_omegadrakon.md (§3)"
+ },
  "fecho_divida_4_itens_1_e_2_2026_10_24": {
   "pedido": "Dono: 'Fechar os 7 itens restantes da dívida técnica §4' (fila do TODO 4 no FlatNotes). Dos 7, 5 ja estavam fechados no commit 9f97d54 da madrugada; restavam (1) bw CLI e (2) repo GitHub publico.",
   "reavaliacao_bw_medida": "Item 1 pedia 'reavaliar ao upgrade da imagem/CLI' — e ambos mudaram: Vaultwarden 1.36->1.37.4 (up 40h) e npm latest = 2026.10.0. Testes ao vivo com ITEM REAL no cofre (appdata isolado em /tmp, snapshot do data.json de producao antes): (a) cifras RESOLVIDAS — 2026.10.0 + Node 22: unlock 88ch + list 21 itens parse OK (o crash 'invalid type: JsValue' era da dupla 2026.x x Vaultwarden 1.36); (b) Node 18 panica no unlock (Web Crypto indisponivel) — Node 22 segue OBRIGATORIO; (c) prelogin REMOVIDO do CLI (vault.py nunca usou — so unlock/list/get/create/edit/delete, todos existem); (d) pin 2025.12.1 tambem saudavel na 1.37.4 (contagem 20 vs 21 era cache local, bw sync igualou — mesmos itens, comprovado por diff de titulos).",
