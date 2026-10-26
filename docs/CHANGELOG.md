@@ -208,9 +208,29 @@ turnos / 146 mensagens desde 29/09): a auditoria diária é barata.
 | **`runtime/systemd/od-vigia-mensagens.{service,timer}`** | Timer diário **04:30** (`Persistent=true` recupera o ciclo perdido com a máquina desligada), longe da janela de backups (03:00–04:12); `EnvironmentFile=.env` (mesmos segredos do od-core, carregado por `setdefault`, nunca impresso); `TimeoutStartSec=55min` porque o gate completo roda dentro do ciclo. `install-user.sh` copia, `enable --now` e verifica. |
 | **Guardas** | `tests/test_vigia_mensagens.py` **+32** e `tests/test_chat_audit.py` **+4**: sondas acham o defeito e ficam verdes quando consertado; reparo **idempotente** no código de hoje (`sem_defeito \| aplicado`, nunca `ancora_ausente` — vale ANTES e DEPOIS do conserto); âncora sumida por refatoração → fila e o teste aponta a mudança no gate (em vez de o vigia acordar às 04:30 mudo); gate vermelho → rollback; arquivo sujo → fila; `--seco` não toca git/gate/Telegram. |
 
-**Validação:** `tests/test_vigia_mensagens.py` **32/32** +
-`tests/test_chat_audit.py` **48/48** · **gate oficial 3826 passed / 16
-skipped / 0 falha · 90,52%** · pyflakes **0 aviso** · reparos aplicados
+**Prova AO VIVO (26/10 11:23, `systemctl --user start
+od-vigia-mensagens.service`):** o job encontrou as **2 sondas
+vermelhas**, aplicou as duas pelo CoderEngine (sandbox → runner passou
+→ backup → promoção), rodou o **gate completo (4 min) → VERDE**,
+**commitou e pushou sozinho** (`0b07622`) e **reiniciou o od-core**
+(11:27:18, `/health` ok, 1.44.0/2080 intacta) — 245 s de ciclo,
+relatório em `analise/` e o resumo no Telegram do dono. A auditoria da
+janela achou 1 problema real (a própria "quantas pessoas conectadas" do
+dia) e o encaixou na fila.
+
+**A prova viva achou 2 defeitos do PRÓPRIO relatório (não do conserto)
+— corrigidos na mesma frente:** (1) a re-sonda lia o **cache de módulo**
+(o processo já tinha importado `core/intents` antes do patch) e
+reportava "aplicado mas a sonda continua vermelha" — falso alarme; o
+gate, em subprocesso novo, estava verde e os consertos são reais (num
+processo novo as duas sondas estão verdes); (2) o JSON era gravado ANTES
+do aviso, então `avisado: False` era o default gravado enquanto o
+Telegram aceitava a mensagem (HTTP 200). Mais 1 higiene: `.od_backups/`
+e `.od_sandbox/` entravam no `git status` e foram para o `.gitignore`.
+
+**Validação:** `tests/test_vigia_mensagens.py` **37/37** +
+`tests/test_chat_audit.py` **48/48** · **gate oficial 3831 passed / 16
+skipped / 0 falha · 90,55%** · pyflakes **0 aviso** · reparos aplicados
 em memória antes do gate: os dois geram Python que compila e passam no
 `confere_staged`. **Sem bump** — 1.44.0/2080 intacta (mudança de
 backend).

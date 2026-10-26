@@ -266,6 +266,7 @@ class Sonda:
     nome = ""
     classe = ""
     arquivos: tuple[str, ...] = ()
+    modulos: tuple[str, ...] = ()
     descricao = ""
 
     def vermelha(self, *args: Any, **kwargs: Any) -> bool:
@@ -310,6 +311,7 @@ class SondaRotaAparelho(Sonda):
     nome = "rota_aparelho_infinitivo"
     classe = "rota_errada"
     arquivos = ("core/intents.py",)
+    modulos = ("core.intents",)
     descricao = ("infinitivo fora do regex de comando: 'ligar TV' e "
                  "'desligar o ar' não chegam em ha_device_control")
 
@@ -371,6 +373,7 @@ class SondaRedeSemBridge(Sonda):
     nome = "rede_sem_bridge"
     classe = "network_hosts_bridge"
     arquivos = ("tools/actions/actions.py",)
+    modulos = ("tools.actions",)
     descricao = ("network_hosts lista bridges virtuais (docker/veth) como "
                  "dispositivos da casa")
 
@@ -490,6 +493,21 @@ def _hosts_com_arp(arp: str) -> list[dict[str, Any]]:
         return list(ac.network_hosts().get("hosts") or [])
     finally:
         ac._read_proc = original
+
+
+def _invalidar_modulos(prefixos: tuple[str, ...]) -> None:
+    """Descarrega o cache de módulos para a re-sonda ver o código NOVO.
+
+    A prova pós-reparo roda no MESMO processo que já importou o alvo;
+    sem isto a sonda continuaria lendo o módulo velho e o relatório
+    mentiria ("aplicado mas a sonda continua vermelha" — falso alarme
+    da primeira execução ao vivo, 26/10 11:23). O GATE (subprocesso
+    novo) é que manda na decisão; isto conserta a MEDIDA.
+    """
+    import sys
+    for nome in tuple(sys.modules):
+        if any(nome == p or nome.startswith(p + ".") for p in prefixos):
+            del sys.modules[nome]
 
 
 # ---------------------------------------------------------------------------
@@ -684,6 +702,7 @@ async def rodar(*, horas: float = 24.0, reparar: bool = True,
         if arquivos_alvo:
             provas = []
             for sonda in vermelhas:
+                _invalidar_modulos(sonda.modulos)  # ver o código novo
                 try:
                     verde = not sonda.vermelha()
                 except Exception:
@@ -691,9 +710,12 @@ async def rodar(*, horas: float = 24.0, reparar: bool = True,
                 provas.append({"sonda": sonda.nome,
                                "depois": "verde" if verde else "vermelha"})
                 if not verde:
+                    # O GATE decide (subprocesso novo importa o código
+                    # recém-promovido); isto é um alerta de medição.
                     relatorio["fila"].append({
                         "origem": "reparo", "sonda": sonda.nome,
-                        "motivo": "aplicado mas a sonda continua vermelha",
+                        "motivo": "sonda ainda vermelha após aplicar — "
+                                  "conferir (o gate é quem decide)",
                     })
             relatorio["provas"] = provas
 
@@ -737,23 +759,27 @@ async def rodar(*, horas: float = 24.0, reparar: bool = True,
                 "motivo": "vermelha, mas --sem-reparo (só auditoria)",
             })
 
-    # 5) Relatório + aviso (regra 15: sem silêncio; só quando há notícia).
-    relatorio["duracao_s"] = round(time.time() - inicio, 1)
-    caminho = RAIZ / "analise" / (
-        f"relatorio_vigia_mensagens_{time.strftime('%Y%m%d-%H%M%S')}.json")
-    try:
-        caminho.parent.mkdir(parents=True, exist_ok=True)
-        caminho.write_text(json.dumps(relatorio, ensure_ascii=False,
-                                      indent=2), encoding="utf-8")
-        relatorio["relatorio"] = str(caminho)
-    except OSError as exc:
-        log.warn("Vigia: relatório não gravou", error=str(exc)[:160])
-
+    # 5) Aviso + relatório (regra 15: sem silêncio; só quando há notícia).
+    #    O AVISO vem ANTES da gravação: na primeira execução ao vivo o
+    #    JSON foi salvo com `avisado: False` de default enquanto o
+    #    Telegram de fato aceitou a mensagem (26/10 11:27) — relatório
+    #    não pode mentir sobre o que já aconteceu.
     noticia = (relatorio["aplicados"] or relatorio["fila"]
                or relatorio["auditoria"].get("problematicos"))
     if aviso and not dry_run and noticia:
         relatorio["avisado"] = await asyncio.to_thread(
             _avisar, _resumo_telegram(relatorio))
+
+    relatorio["duracao_s"] = round(time.time() - inicio, 1)
+    caminho = RAIZ / "analise" / (
+        f"relatorio_vigia_mensagens_{time.strftime('%Y%m%d-%H%M%S')}.json")
+    relatorio["relatorio"] = str(caminho)
+    try:
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+        caminho.write_text(json.dumps(relatorio, ensure_ascii=False,
+                                      indent=2), encoding="utf-8")
+    except OSError as exc:
+        log.warn("Vigia: relatório não gravou", error=str(exc)[:160])
 
     log.info("Vigia: ciclo concluído",
              modo=relatorio["modo"],

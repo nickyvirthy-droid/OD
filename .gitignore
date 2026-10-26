@@ -193,3 +193,10 @@ backups/google-token-*
 # sairiam com reescrita dos commits (só com ordem explícita). /backups/
 # inteiro ignorado pra nenhum arquivo pessoal voltar a ser versionado.
 backups/
+
+# Caches do Coder Engine (pipeline sandbox → testes → backup → promoção,
+# usado pelo Self Repair e pelo Vigia das Mensagens): o sandbox é
+# descartável e o backup é cópia do arquivo versionado — nenhum dos dois
+# entra na árvore (achado da 1ª execução ao vivo do vigia, 26/10 11:23).
+.od_backups/
+.od_sandbox/

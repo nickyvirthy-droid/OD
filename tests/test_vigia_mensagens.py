@@ -24,6 +24,8 @@ commit, ou ROLLBACK bit a bit. O que está travado aqui:
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Optional
 
 import pytest
@@ -502,3 +504,107 @@ def asyncio_run(coro: Any) -> Any:
     """Roda o coro num teste síncrono (pytest-asyncio só marca async)."""
     import asyncio
     return asyncio.run(coro)
+
+
+# ---------------------------------------------------------------------------
+# Defeitos achados pela PRIMEIRA EXECUÇÃO AO VIVO (26/10 11:23) e corrigidos
+# ---------------------------------------------------------------------------
+
+
+class TestCorrecoesDaExecucaoAoVivo:
+    """A prova viva de 26/10 encontrou 2 defeitos do PRÓPRIO relatório
+    (não do conserto) e 1 furo de higiene. Guardas para não voltarem:
+
+      1. a re-sonda lia o CACHE de módulo (o processo já tinha importado
+         `core/intents` antes do patch) e reportava "continua vermelha"
+         — falso alarme; o gate, em subprocesso novo, estava verde;
+      2. o JSON era gravado ANTES do aviso, então `avisado: False` era
+         o default gravado enquanto o Telegram aceitava a mensagem;
+      3. `.od_backups/` (cópias do Coder) entrava no `git status`.
+    """
+
+    def test_invalidar_modulos_descarrega_o_cache(self) -> None:
+        import importlib
+        import sys
+
+        importlib.import_module("core.intents")  # popula o cache
+        assert "core.intents" in sys.modules
+
+        vm._invalidar_modulos(("core.intents",))
+
+        assert "core.intents" not in sys.modules
+        # volta a existir no próximo import (nada quebra no resto do job)
+        assert importlib.import_module("core.intents") is not None
+
+    def test_invalidar_modulos_preserva_o_que_nao_e_alvo(self) -> None:
+        import sys
+
+        vm._invalidar_modulos(("core.intents",))
+
+        assert "core.logger" in sys.modules  # alheio ao alvo, intocado
+
+    @pytest.mark.asyncio
+    async def test_prova_pos_reparo_invalida_cache_antes(self,
+                                                         monkeypatch,
+                                                         tmp_path) -> None:
+        class _SondaCache(_SondaFalsa):
+            modulos = ("core.intents",)
+
+            def __init__(self) -> None:
+                super().__init__(vermelha=True)
+                self.provas: list[str] = []
+
+            def vermelha(self, *args: Any, **kwargs: Any) -> bool:
+                self.provas.append("prova")
+                return len(self.provas) == 1  # vermelha antes, verde depois
+
+        sonda = _SondaCache()
+        sonda._rep = {"status": "aplicado", "arquivos": {"a.py": "x"}}
+        _base(monkeypatch, tmp_path, sonda=sonda)
+        invalidados: list[Any] = []
+        monkeypatch.setattr(vm, "_invalidar_modulos",
+                            lambda prefixos: invalidados.append(prefixos))
+        monkeypatch.setattr(vm, "_arquivos_limpos", lambda arq: True)
+
+        async def aplicar(s: Any, arquivos: dict[str, str]) -> list[str]:
+            return sorted(arquivos)
+
+        monkeypatch.setattr(vm, "_aplicar", aplicar)
+        monkeypatch.setattr(vm, "_rodar_gate", lambda timeout=1500.0:
+                            (True, "ok"))
+
+        relatorio = await vm.rodar(horas=24.0)
+
+        assert invalidados == [("core.intents",)]   # antes da re-sonda
+        assert sonda.provas == ["prova", "prova"]
+        assert relatorio["provas"] == [{"sonda": "falsa", "depois": "verde"}]
+        assert relatorio["fila"] == []              # sem falso alarme
+
+    @pytest.mark.asyncio
+    async def test_relatorio_gravado_depois_do_aviso(self, monkeypatch,
+                                                     tmp_path) -> None:
+        """O JSON não pode mentir: `avisado` e o próprio caminho precisam
+        estar DENTRO do arquivo gravado (o default False antes era falso)."""
+        _base(monkeypatch, tmp_path, sonda=_SondaFalsa(vermelha=False),
+              problema=1)
+        monkeypatch.setattr(vm, "_avisar", lambda texto: True)
+
+        relatorio = await vm.rodar(horas=24.0)
+
+        gravado = json.loads(Path(relatorio["relatorio"]).read_text(
+            encoding="utf-8"))
+        assert gravado["avisado"] is True
+        assert gravado["relatorio"] == relatorio["relatorio"]
+        assert gravado["fila"] and gravado["auditoria"]["problematicos"] == 1
+
+    @pytest.mark.asyncio
+    async def test_aviso_falho_nao_derruba_o_ciclo(self, monkeypatch,
+                                                   tmp_path) -> None:
+        _base(monkeypatch, tmp_path, sonda=_SondaFalsa(vermelha=False),
+              problema=1)
+        monkeypatch.setattr(vm, "_avisar", lambda texto: False)
+
+        relatorio = await vm.rodar(horas=24.0)
+
+        assert relatorio["avisado"] is False
+        assert relatorio["fila"]  # o problema segue registrado no relatório
