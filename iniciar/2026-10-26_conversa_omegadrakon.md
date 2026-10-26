@@ -84,3 +84,56 @@ alterado** — fora do escopo da frente, aguardando ordem.
 **Estado:** SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD `4135c0e`,
 árvore limpa. Parking lot §5: **+1 fechado** (network_hosts + Vigia);
 restam aguardando ordem: rota WiFi, auditoria de uso de ferramentas, MCP.
+
+
+## §2 — "O Vigia está vigiando o que exatamente?" (26/10 ~10:25)
+
+**Pedido:** dono: *"continue. o vigia esta vigiando o que exatamente?"* —
+resposta apoiada em código + logs lidos antes de afirmar (regra 5).
+
+**O que é (duas camadas, `tools/monitor/network_watchdog.py`, timer
+`network-watchdog.timer` de 5 min, ativo desde 21/10 18:57):**
+
+| Camada | Quando | O que faz |
+|---|---|---|
+| **Rápida** | todo ciclo (~8 s) | Varredura ARP da LAN `192.168.0.2..254` (ping + `ip neigh`) → **diff contra o inventário** (`logs/network_watchdog_estado.json`). MAC desconhecido = evento `dispositivo_novo`, fica **pendente** até `--conhecer`, com lembrete no Telegram a cada cooldown. |
+| **Rica** | a cada 3º ciclo (~15 min) | `vigia_rich.py` (playwright/chromium, venv durável) lê a **UI real do Archer C6**: lista de clientes (nome + sinal enriquecem o inventário) e o **Registo de Eventos** do roteador; o **journal do sshd** do servidor (`Failed password` / `Invalid user` / `Authentication failure`) entra na mesma classe de evento. |
+
+**Ponte de alerta:** a sonda `_check_network` do `integrations/notifier.py`
+— traduz as pendências em `net:dispositivo-novo` / `net:seguranca`
+(cooldown de 1 h). O monitor **não** manda mensagem sozinho. **Não
+bloqueia**: `--bloquear` é operador, só sob ordem. O
+`router-monitor.timer` (1 min, `router_monitor.sh`) é **outro** monitor —
+disponibilidade do gateway, não o Vigia.
+
+**Estado vivo medido agora:** inventário **23** dispositivos · **1335
+ciclos** · última camada rica **26/10 10:13** · 11 ativos no tick das
+10:23 · log com 2710 linhas = 1335 varredura + 1335 estado + **23
+`dispositivo_novo`** (1 por aparelho, na primeira vista) + 17
+`rich_erro` + **0 eventos `seguranca` em todo o histórico**.
+
+**Camada sshd (honestidade):** 0 `failed password`/`invalid user` em 7
+ dias — ela está **ociosa porque não há ataque**, não porque esteja muda:
+ o defeito do `.splitlines()` (o stdout do `journalctl` inteiro era
+ iterado como caracteres, e nenhum alarme jamais casaria) foi corrigido
+ em 22/10 e tem teste cobrindo.
+
+**Achado com ação pendente — 2 aparelhos desconhecidos há dias:**
+
+| MAC | Nome (UI do roteador) | IP | Desde |
+|---|---|---|---|
+| `7A:A7:13:05:6D:3A` | iPhone | 192.168.0.232 | 23/10 18:13 |
+| `16:05:EA:56:FB:9E` | iPad | 192.168.0.210 | 25/10 20:46 |
+
+Os dois MACs são **localmente administrados** (endereço WiFi privado do
+Apple, aleatorizado) — provavelmente aparelhos da casa, **não intruso**;
+mas estão disparando o alerta `net:dispositivo-novo` **a cada cooldown**
+(último no journal: 26/10 10:24:32). **Sem ação nesta troca** —
+`--conhecer`/`--bloquear` é estado externo e depende da ordem dele.
+
+**Menor:** 17 `rich_erro` (todos `Page.goto Timeout 20000ms` na UI do
+roteador, espalhados 22/10–25/10) — a camada rica voltou sozinha hoje
+(10:13); transitório de rede, sem ação.
+
+**Estado:** verde (v1.44.0/2080, HEAD `3f6002f`, árvore limpa, health
+25/25). Pendência única aberta: os 2 aparelhos aguardando ordem.
