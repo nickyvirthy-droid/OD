@@ -363,8 +363,14 @@ def _detect_operational(text: str) -> Optional[str]:
     # + confirmação de 2 passos. v1.9.0: comando estendido a TOMADAS e
     # dispositivos switch.* ('liga a tomada do servidor').
     _comando = re.search(
-        r"\b(liga|ligue|acende|acenda|acende|desliga|desligue|apaga|apague|"
-        r"toggle|desconecta|desconecte|desplug|conecta|conecte|plug)\b",
+        # 26/10 (Vigia das Mensagens): o INFINITIVO entra — 'ligar TV',
+        # 'desligar o ar' e 'apagar a luz' caíam no LLM (a rota de
+        # compromissos chegou a responder por eles). Os verbos que
+        # DESLIGAM também estão no tuple do `on` logo abaixo.
+        r"\b(ligar|ligue|liga|acender|acenda|acende|desligar|desligue|"
+        r"desliga|apagar|apague|apaga|toggle|desconectar|desconecte|"
+        r"desconecta|desplugar|desplug|conectar|conecte|conecta|"
+        r"plugar|plug)\b",
         low,
     )
     _cmd_luz = bool(re.search(r"\b(luz|luzes|l[áa]mpada|interruptor)\b", low))
@@ -425,8 +431,10 @@ def _detect_operational(text: str) -> Optional[str]:
         # — pede o alvo genérico (o formatador responde 'Qual luz ou
         # tomada?'). Nunca inventa entidade a partir do próprio comando.
         return "ha_device_control", {"entity_id": "", "on": bool(
-            _comando.group(1) not in ("desliga", "desligue", "apaga", "apague",
-                                      "desconecta", "desconecte", "desplug")
+            _comando.group(1) not in ("desligar", "desliga", "desligue",
+                                      "apagar", "apaga", "apague",
+                                      "desconectar", "desconecta",
+                                      "desconecte", "desplugar", "desplug")
         )}
     if re.search(r"\b(luz(es)?|l[áa]mpada(s)?|interruptor(es)?)\b", low) and re.search(
         r"(aces[ao]s?|apagad[ao]s?|acesas|acessas|ligad[ao]s?|desligad[ao]s?|"
@@ -1050,7 +1058,8 @@ def resolve_light_target(
     # Remove o verbo e conectores: 'liga a luz da cozinha' → 'cozinha';
     # 'liga a tomada do servidor' → 'servidor' (v1.9.0: tomada/soquete).
     alvo = re.sub(
-        r"\b(liga|ligue|acende|desliga|desligue|apaga|apague|toggle|a|o|as|os|"
+        r"\b(ligar|ligue|liga|acender|acende|desligar|desligue|desliga|"
+        r"apagar|apague|apaga|toggle|a|o|as|os|"
         r"luz|luzes|l[áa]mpada|interruptor|tomada|tomadas|soquete|soquetes|socket|"
         r"dispositivo|dispositivos|aparelho|por favor|agora)\b",
         " ",

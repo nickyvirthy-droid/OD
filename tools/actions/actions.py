@@ -1918,6 +1918,14 @@ def _inventario_vigia() -> dict[str, dict[str, Any]]:
     }
 
 
+# 26/10 (Vigia das Mensagens): bridges virtuais (docker, veth,
+# tailscale…) não são aparelhos de ninguém na rede da casa —
+# "quantas pessoas estão conectadas" listava 9 contêineres do
+# Docker atrás de br-b7119289ffc4.
+_IFACES_VIRTUAIS = ("br-", "docker", "veth", "virbr", "tailscale",
+                    "zt", "wg", "tun", "tap")
+
+
 def network_hosts() -> dict[str, Any]:
     """Hosts da rede local via /proc/net/arp (vizinhança real IP+MAC).
 
@@ -1942,6 +1950,8 @@ def network_hosts() -> dict[str, Any]:
         ip, _hw_type, flags, mac, _mask, iface = parts[:6]
         if mac == "00:00:00:00:00:00":
             continue  # entrada sem vizinho resolvido
+        if iface.startswith(_IFACES_VIRTUAIS):
+            continue  # bridge/container: não é dispositivo da casa
         host: dict[str, Any] = {
             "ip": ip,
             "mac": mac,
