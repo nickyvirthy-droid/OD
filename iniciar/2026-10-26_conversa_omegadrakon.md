@@ -389,3 +389,94 @@ Nicky Locutor/` segue aguardando ordem.
 **Estado:** SISTEMA VERDE E ESTÁVEL — v1.44.0/2080, HEAD `a1e3620`,
 árvore limpa, health ok. Próximo evento automático: vigia das mensagens
 em 27/10 04:33.
+
+
+## §7 — Retomada de rotina ("leia iniciar", 26/10 ~19:46): resíduo da
+       frente EM CURSO (régua do dono) achado e FECHADO — fallback do
+       inventário fora da raiz + sonda 4
+
+**Pedido:** usuário: "leia iniciar" — reverificação de rotina (regra 3).
+Checkpoint lido: `session.json` (chave `regua_aprendizado_2026_10_26`,
+estado "EM CURSO — frente única do estado contraditório", apontando
+**§7** deste arquivo — seção que **não existia**: a sessão anterior
+morreu antes de escrever o registro) + transcrição `2026-10-26` §1–§6 +
+`RULES.md`.
+
+**Achado principal — RESÍDUO NO DISCO (sessão morta às 19:04):**
+`git status` sujo com **3 arquivos** (`core/vigia_mensagens.py` +77,
+`tools/actions/actions.py` +26/−4, `iniciar/session.json` +14), última
+edição **19:04** — 42 min parados. Contexto medido antes de decidir
+(regra 5):
+
+- o commit **`8389a27`** (18:58:23, já pushado, HEAD == origin/master)
+  **fechou a frente do estado contraditório** descrita no checkpoint:
+  sonda 3 `estado_contraditorio`, `_estado_pos_comando()` lendo até 3×,
+  formato honesto (`⚠️ … NÃO confirmou`) e **+20 guardas**;
+- restart verde em seguida (18:58:37) — o sistema já estava **no ar com
+  aquele conserto**;
+- o que ficou no disco era o **próximo passo da mesma régua**, escrito e
+  abandonado antes do gate: o conserto do inventário + a **sonda 4**.
+
+**Defeito reproduzido AO VIVO (não é palpite):** POST `/message` real,
+*"quantas pessoas estão conectadas na rede?"* → 10 dispositivos **sem
+nenhum nome**, só IP/MAC, com `logs/network_watchdog_estado.json` vivo
+(23 aparelhos nomeados). Causa raiz no código: o fallback do diretório
+era `parents[1]` de `tools/actions/actions.py` = **`tools/logs`**
+(inexistente) e o **od-core roda sem `OD_LOG_DIR`** (só as units do
+Vigia e do router-monitor o definem) → inventário **vazio em
+produção**. As guardas setavam `OD_LOG_DIR` em `tmp_path` e **nunca
+caíam no fallback** — por isso o gate da manhã passou com o defeito
+vivo.
+
+**Fechamento (regras 4/7.1/7.3):**
+
+1. `tools/actions/actions.py`: **`_dir_logs_vigia()`** extraído
+   (`OD_LOG_DIR` ou `parents[2] / "logs"` = raiz do projeto) e
+   `_inventario_vigia()` passou a chamá-lo.
+2. `core/vigia_mensagens.py`: **sonda 4 `inventario_fora_da_raiz`** —
+   probe puro (pop/restaura `OD_LOG_DIR`, compara com `<raiz>/logs`, não
+   depende de arquivo existir), reparo ancorado em 1 ponto (`D1`),
+   `confere_staged` exige `parents[2]` e a ausência de `parents[1]`,
+   probe que explode conta como vermelho; registrada em `SONDAS`.
+3. Guardas **+12** (`tests/test_vigia_mensagens.py` **+11** — incluindo
+   a lista do registro de estratégias — e `tests/test_intents.py` **+1**
+   do fallback). **Mutação 5/5**: recolocando `parents[1]`, 5 guardas
+   falham; restauração **bit a bit** por `diff`.
+4. CHANGELOG 1.44.0 ganhou a subseção **"O inventário do Vigia volta a
+   ser lido em produção"** (**sem bump** — backend), com a origem
+   honesta (achado na prova viva).
+5. **Gate oficial 2×**: **3863 passed / 16 skipped / 0 falha · 90,58%**
+   antes e **o mesmo resultado DEPOIS** da edição do CHANGELOG (alimenta
+   o corpus do RAG). Eram 3851 — os **+12** são as guardas novas.
+   pyflakes **0 aviso novo** (os 2 de `actions.py` conferidos contra o
+   HEAD via `git show`).
+6. Commit **`ce57289`** pushado (5 arquivos), HEAD == `origin/master`,
+   sem resíduo além do `iniciar/` desta troca.
+7. **Restart verde (regra 7.3): 26/10 20:06:11**, MainPID **619339**,
+   **NRestarts=0**, `/health` `ok=True` **25/25 nenhum fora**,
+   `/app/version` **1.44.0/2080** intacta, journal desde o boot **0
+   `[ERROR]`**.
+
+**Prova viva (pós-restart):** a MESMA pergunta → `route=action_intent`,
+`llm_used=fastpath:network_hosts`, **0 LLM**, e a lista sai **com nome**:
+`TV Samsung · 192.168.0.192`, `Amazon-Show · 192.168.0.136`,
+`PC-Oficina · 192.168.0.227`, `Tomada1 · 192.168.0.234`, com o
+fabricante preenchendo quem não tem nome (`192.168.0.1 · TP-Link
+Systems Inc`). Antes do conserto: 10 linhas **sem nome nenhum**.
+
+**Canais do dono:** `txt.txt` = **zerado desde 18:25:58** (painel
+admin — nenhuma mensagem nova dele). `analise/` = apenas `Nicky
+Locutor/` (**pendente, aguardando ordem** — regra 17) + os 4 relatórios
+que o próprio vigia gerou hoje.
+
+**Fila do dono (inalterada):** (a) **fatos do modelo local** (6×
+24/10) — mudança de ordem das fontes é **decisão de design**, régua
+aguardando ele; (b) parking lot §5 restante: rota WiFi, auditoria de uso
+de ferramentas, MCP; (c) `analise/Nicky Locutor/`. O juiz continua com
+os 10 `resposta_errada` + 5 `inconsistente` da auditoria 22–26/10
+marcados como **histórico** (régua do dono: não retroagir).
+
+**Estado:** SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD `ce57289`,
+árvore limpa, health 25/25. **Frente do estado contraditório +
+inventário FECHADAS**; sonda 4 no ar (próximo disparo do vigia:
+27/10 04:33).

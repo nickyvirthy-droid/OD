@@ -1,4 +1,37 @@
 {
+ "reverificacao_rotina_2026_10_26_1946": {
+  "pedido": "Usuario: 'leia iniciar' (26/10 ~19:46) — reverificacao de rotina (regra 3). Checkpoint: regua_aprendizado_2026_10_26 (EM CURSO, §7 inexistente = sessao morta no meio da frente).",
+  "achado_principal": "RESIDUO = sessao morta as 19:04 (42 min): 3 arquivos modificados sem gate/commit (core/vigia_mensagens.py +77, tools/actions/actions.py +26/-4, iniciar/session.json +14). Contexto: o commit 8389a27 (18:58, pushado) JA tinha fechado a frente do estado contraditório (sonda 3 + _estado_pos_comando + formato honesto + 20 guardas) e o restart 18:58:37 ja o colocou no ar; no disco ficou o PROXIMO passo da mesma regua, abandonado antes do gate.",
+  "defeito_reproduzido_ao_vivo": "POST /message 'quantas pessoas estao conectadas na rede?' -> 10 dispositivos SO IP/MAC, nenhum nome, com logs/network_watchdog_estado.json vivo (23 aparelhos nomeados). Causa raiz: fallback parents[1] de tools/actions/actions.py = tools/logs (inexistente) e o od-core roda SEM OD_LOG_DIR (só network-watchdog e router-monitor definem) -> inventario vazio em PRODUCAO. As guardas setavam OD_LOG_DIR em tmp_path e nunca caiam no fallback (gate da manhã verde com o defeito vivo).",
+  "entrega": [
+   "tools/actions/actions.py: _dir_logs_vigia() extraido (OD_LOG_DIR ou parents[2]/logs = raiz); _inventario_vigia() passou a chama-lo.",
+   "core/vigia_mensagens.py: sonda 4 inventario_fora_da_raiz — probe puro (pop/restaura OD_LOG_DIR, compara com <raiz>/logs, sem depender de arquivo), reparo ancorado em 1 ponto (D1), confere_staged exige parents[2] e ausencia de parents[1], probe que explode = vermelho; registrada em SONDAS.",
+   "Guardas +12: tests/test_vigia_mensagens.py +11 (inclui a lista do registro de estrategias) e tests/test_intents.py +1 (fallback). MUTACAO 5/5 (parents[1] de volta = 5 guardas falham; restauracao bit a bit por diff).",
+   "CHANGELOG 1.44.0 subsecao 'O inventario do Vigia volta a ser lido em producao' (sem bump, com origem honesta e prova viva)."
+  ],
+  "validacao": "Gate oficial 2x: 3863 passed / 16 skipped / 0 falha · 90,58% (eram 3851; os +12 sao as guardas novas) antes e DEPOIS da edicao do CHANGELOG. pyflakes 0 aviso novo (os 2 de actions.py pre-existentes, conferidos contra o HEAD via git show). Comando do gate: .venv/bin/python -m pytest --cov --cov-config=.coveragerc --cov-fail-under=90 -q (pytest-cov so existe no .venv).",
+  "deploy": "Commit ce57289 pushado (5 arqs), HEAD == origin/master. Restart verde (7.3) 26/10 20:06:11: MainPID 619339, NRestarts=0, /health ok=True 25/25 nenhum fora, /app/version 1.44.0/2080 intacta, journal desde o boot 0 [ERROR].",
+  "prova_viva": "A MESMA pergunta pos-restart -> route=action_intent, llm_used=fastpath:network_hosts, 0 LLM, lista COM nome: 'TV Samsung · 192.168.0.192', 'Amazon-Show · 192.168.0.136', 'PC-Oficina · 192.168.0.227', 'Tomada1 · 192.168.0.234' e fabricante preenchendo quem nao tem nome (192.168.0.1 · TP-Link Systems Inc). Antes do conserto: 10 linhas sem nome nenhum.",
+  "canais_do_dono": "txt.txt ZERADO desde 18:25:58 (painel admin — nenhuma mensagem nova dele). analise/ = apenas Nicky Locutor/ (PENDENTE, aguardando ordem, regra 17) + 4 relatorios gerados hoje pelo vigia.",
+  "fila_do_dono": "(a) FATOS DO MODELO LOCAL (6x 24/10): mudanca da ordem das fontes e DECISAO DE DESIGN, regua aguardando ele; (b) parking lot §5 restante: rota WiFi, auditoria de uso de ferramentas, MCP; (c) analise/Nicky Locutor/. Juiz: 10 resposta_errada + 5 inconsistente da auditoria 22-26/10 = historico (regua do dono: nao retroagir).",
+  "estado": "SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD ce57289, arvore limpa, health 25/25. Frentes do estado contraditorio + inventario FECHADAS; sonda 4 no ar (proximo disparo do vigia: 27/10 04:33). Nenhuma mutacao de estado externo nesta troca.",
+  "updated_at": "2026-10-26T20:12:00-03:00",
+  "transcricao": "iniciar/2026-10-26_conversa_omegadrakon.md (§7)"
+ },
+ "regua_aprendizado_2026_10_26": {
+  "pedido_dono": "Dono (26/10 ~18:40): 'nao precisa consertar os erros das conversas passadas, ela devem vir certas nas proximas, aprenda com o passado, responda certo no presente, melhore para o futuro'.",
+  "decisao": "FILA DO PASSADO ENCERRADA (regra 6): as 10 resposta_errada + 5 inconsistente da auditoria 22-26/10 e o item 'quantas pessoas' de 10:11 NAO serao retroagidos — conversa historica fica como historico. O que vale e transformar cada CLASSE de achado em garantia PARA O FUTURO: sonda/defesa deterministica que impede a repeticao.",
+  "classes_e_status": [
+   "ROTA infinitivo ('ligar TV' -> compromissos): JA coberta pela sonda rota_aparelho_infinitivo (reparo automatico 0b07622).",
+   "REDE com bridges do Docker: JA coberta pela sonda rede_sem_bridge (0b07622).",
+   "ESTADO CONTRADITORIO do HA (4x 23/10: 'ligar executado (estado: off)', 'desligar executado (estado: on)'): REPRODUZ no codigo de HOJE — format_intent_result deduz o estado da acao quando state_after falta/improduto e imprime '✅ ... estado agora: X' mesmo quando X contradiz o comando. FECHADO 26/10 18:58 (8389a27) + 20:06 (ce57289): conserto honesto (estado so afirmado quando CONFIRMADO) + sonda 3 + sonda 4 do inventario achado na prova viva.",
+   "FATOS DO MODELO LOCAL (6x 24/10): nao e deterministico — design 'RAG primeiro' (duas fontes de verdade no mesmo prompt = alucinacao, docstring 4.6). Mudar a ordem das fontes e DECISAO DE DESIGN, nao conserto automatico: opcao = fonte verificada (Kiwix) para perguntas de definicao quando o bloco do RAG for fraco. AGUARDANDO régua do dono.",
+   "UX network_hosts ('quantas pessoas'): JA coberta pela sonda rede_sem_bridge."
+  ],
+  "estado": "FECHADO — frente unica do estado contraditorio entregue em 8389a27 (18:58) e o achado da prova viva (inventario fora da raiz) em ce57289 (20:06); ambas provadas ao vivo e registradas no §7.",
+  "updated_at": "2026-10-26T20:12:00-03:00",
+  "transcricao": "iniciar/2026-10-26_conversa_omegadrakon.md (§7)"
+ },
  "reverificacao_rotina_2026_10_26_1828": {
   "pedido": "Usuario: 'leia iniciar' (26/10 ~18:28) — reverificacao de rotina (regra 3). Checkpoint: vigia_das_mensagens_2026_10_26 (updated 12:05, §5.1 fechado).",
   "achados_verdes": "Git ARVORE LIMPA (status 0), HEAD a1e3620 == origin/master (registro §5.1, 11:48). od-core active desde 11:27:18, MainPID 122670, NRestarts=0. /health ok=True TODOS os checks ok; /app/version 1.44.0/2080 intacta (sha aeb8566b). NENHUM residuo: nada modificado desde 12:05 alem de iniciar/ e txt.txt. Vigia da rede tick 18:25:12: ativos 23, pendentes_novos [], pendentes_seguranca [], rich true. Timer od-vigia-mensagens ativo, proximo disparo 27/10 04:33 (Persistent). Disco 65% (78G livres).",

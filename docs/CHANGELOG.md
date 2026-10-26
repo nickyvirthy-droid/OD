@@ -306,10 +306,23 @@ passou — mesmo padrão de "teste que não cobre o caminho do produtor".
 `diff`.
 
 **Validação:** gate oficial **3863 passed / 16 skipped / 0 falha ·
-90,58%** (eram 3851 — os **+12** são as guardas novas; executado DEPOIS
-desta edição, o CHANGELOG entra no corpus do RAG) · pyflakes **0 aviso
-novo** (os 2 de `actions.py` são pré-existentes, conferidos contra o
-HEAD). **Sem bump** — 1.44.0/2080 intacta (mudança de backend).
+cobertura ≥ 90** (eram 3851 — os **+12** são as guardas novas; o gate foi reexecutado após
+cada edição de CHANGELOG/transcrição, que entram no corpus do RAG, e
+devolveu sempre **≥ 90** — última medição **90,58%**) · pyflakes **0
+aviso novo** (os 2
+de `actions.py` são pré-existentes, conferidos contra o HEAD). **Sem
+bump** — 1.44.0/2080 intacta (mudança de backend).
+
+**Prova viva (restart verde 26/10 20:06:11, `ce57289`):** POST `/message`
+real com *"quantas pessoas estão conectadas na rede?"* →
+`route=action_intent`, `llm_used=fastpath:network_hosts`, **0 LLM**, e a
+lista sai com o nome de cada aparelho — `TV Samsung · 192.168.0.192`,
+`Amazon-Show · 192.168.0.136`, `PC-Oficina · 192.168.0.227`, `Tomada1 ·
+192.168.0.234` — com o fabricante preenchendo quem não tem nome
+(`192.168.0.1 · TP-Link Systems Inc`). **A MESMA chamada, antes do
+conserto, devolvia as linhas sem nome nenhum.** Restart com
+`NRestarts=0`, `/health` **25/25 nenhum fora**, journal desde o boot
+**0 `[ERROR]`**.
 
 ### Kiwix dentro do chat: a Wikipédia offline responde o que a memória interna não sabe (24/10, sem bump)
 
