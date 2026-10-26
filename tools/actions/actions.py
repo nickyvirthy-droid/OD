@@ -43,6 +43,7 @@ import fnmatch
 import hashlib
 import hmac
 import ipaddress
+import json
 import os
 import pwd
 import re
@@ -1880,16 +1881,59 @@ def system_ping(host: str, port: int = 443, timeout: float = 1.0) -> dict[str, A
     return {"ok": True, "host": host, "port": port, "reachable": reachable}
 
 
+def _inventario_vigia() -> dict[str, dict[str, Any]]:
+    """Inventário do Vigia (MAC canônico -> entrada) — parking lot §5.
+
+    Fonte única: `logs/network_watchdog_estado.json`, o MESMO arquivo que o
+    Vigia (`tools/monitor/network_watchdog.py`) grava a cada ciclo, com nome,
+    fabricante e estado de cada dispositivo conhecido da rede. `OD_LOG_DIR`
+    respeitado — mesmo contrato do Vigia.
+
+    Leitura tolerante e sem depender do processo do Vigia: arquivo ausente,
+    ilegível ou corrompido = dicionário vazio e `network_hosts` responde só
+    com o ARP, exatamente como sempre (o Vigia é opcional, nunca quebra a
+    ação nem o boot).
+    """
+    log_dir = Path(
+        os.environ.get("OD_LOG_DIR")
+        or Path(__file__).resolve().parents[1] / "logs"
+    )
+    try:
+        estado = json.loads(
+            (log_dir / "network_watchdog_estado.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    except (OSError, ValueError):
+        return {}
+    dispositivos = estado.get("dispositivos") if isinstance(estado, dict) else None
+    if not isinstance(dispositivos, dict):
+        return {}
+    # O ARP do kernel vem em minúsculas; as chaves do Vigia são o MAC
+    # canônico (maiúsculo, com dois-pontos) — normalizar os dois lados.
+    return {
+        str(mac).strip().upper(): entrada
+        for mac, entrada in dispositivos.items()
+        if isinstance(entrada, dict)
+    }
+
+
 def network_hosts() -> dict[str, Any]:
     """Hosts da rede local via /proc/net/arp (vizinhança real IP+MAC).
 
     Leitura 100% stdlib e sem rede ativa — responde "quantos dispositivos /
     pessoas estão conectados na rede" com a tabela ARP do kernel (entradas
     válidas = endereço MAC real). Complementar OD (não existia no NV).
+
+    Parking lot §5 (ideia do dono de 21/10): cada vizinho conhecido pelo
+    Vigia ganha o `nome` do inventário (e o `fabricante` do cache OUI quando
+    não há nome) — "quem está na rede?" responde "TV Samsung", não só um IP.
+    Sem entrada no inventário o host fica intocado (formato original).
     """
     raw = _read_proc("net/arp")
     if not raw:
         return _unavailable("network", "/proc/net/arp indisponível")
+    inventario = _inventario_vigia()
     hosts: list[dict[str, Any]] = []
     for line in raw.splitlines()[1:]:  # pula o cabeçalho
         parts = line.split()
@@ -1898,12 +1942,21 @@ def network_hosts() -> dict[str, Any]:
         ip, _hw_type, flags, mac, _mask, iface = parts[:6]
         if mac == "00:00:00:00:00:00":
             continue  # entrada sem vizinho resolvido
-        hosts.append({
+        host: dict[str, Any] = {
             "ip": ip,
             "mac": mac,
             "interface": iface,
             "state": "reachable" if flags == "0x2" else "stale",
-        })
+        }
+        entrada = inventario.get(mac.strip().upper())
+        if entrada:
+            nome = str(entrada.get("nome") or "").strip()
+            if nome:
+                host["nome"] = nome
+            fabricante = str(entrada.get("fabricante") or "").strip()
+            if fabricante and fabricante.lower() != "desconhecido":
+                host["fabricante"] = fabricante
+        hosts.append(host)
     hosts.sort(key=lambda h: h["ip"])
     return {"ok": True, "count": len(hosts), "hosts": hosts}
 

@@ -447,6 +447,42 @@ class TestFormatIntentResult:
         assert text.count("192.168.0.") == 10
         assert "... e mais 1" in text
 
+    def test_network_hosts_com_nome_do_vigia(self) -> None:
+        """Parking lot §5: o nome do inventário do Vigia vira rótulo da
+        linha — 'quem está na rede?' responde TV Samsung, não só o IP."""
+        data = {
+            "ok": True,
+            "count": 1,
+            "hosts": [{
+                "ip": "192.168.0.192", "mac": "1C:AF:4A:D5:2D:69",
+                "interface": "wlx0", "state": "reachable",
+                "nome": "TV Samsung",
+                "fabricante": "Samsung Electronics Co.,Ltd",
+            }],
+        }
+        text = format_intent_result("network_hosts", data)
+        assert text is not None
+        assert "TV Samsung · 192.168.0.192" in text
+        # com nome, o fabricante não repete na linha (já está no rótulo)
+        assert "Samsung Electronics" not in text
+
+    def test_network_hosts_fabricante_preenche_sem_nome(self) -> None:
+        """Sem nome no inventário, o fabricante (cache OUI) vira rótulo;
+        sem nenhum dos dois a linha é byte a byte a original."""
+        data = {
+            "ok": True,
+            "count": 1,
+            "hosts": [{
+                "ip": "192.168.0.216", "mac": "0A:31:09:50:C4:5A",
+                "interface": "wlx0", "state": "stale",
+                "fabricante": "Intel Corporate",
+            }],
+        }
+        text = format_intent_result("network_hosts", data)
+        assert text is not None
+        assert ("  • 192.168.0.216  (0A:31:09:50:C4:5A · wlx0 · stale · "
+                "Intel Corporate)") in text
+
     def test_cpu_info(self) -> None:
         text = format_intent_result("cpu_info", {
             "ok": True, "cores": 8, "load1": 0.42,
@@ -507,6 +543,98 @@ class TestFormatIntentResult:
 
 
 # ---------------------------------------------------------------------------
+# network_hosts × inventário do Vigia (parking lot §5 — ideia do dono 21/10)
+# ---------------------------------------------------------------------------
+
+class TestNetworkHostsInventarioVigia:
+    """Ação enriquecida com logs/network_watchdog_estado.json (fonte única
+    do Vigia). Sem inventário a ação continua sendo só o ARP — o Vigia é
+    opcional, nunca quebra a resposta."""
+
+    @staticmethod
+    def _escreve_estado(tmp_path, dispositivos) -> None:
+        import json
+        (tmp_path / "network_watchdog_estado.json").write_text(
+            json.dumps({"dispositivos": dispositivos}), encoding="utf-8"
+        )
+
+    @staticmethod
+    def _arp() -> str:
+        return ARP_SAMPLE
+
+    def test_nome_e_fabricante_do_inventario(self, monkeypatch, tmp_path) -> None:
+        """MAC conhecido (chave maiúscula do Vigia × ARP minúsculo do
+        kernel) ganha nome e fabricante; host fora do inventário fica
+        intocado, com o formato original."""
+        from tools.actions.actions import network_hosts
+
+        monkeypatch.setenv("OD_LOG_DIR", str(tmp_path))
+        self._escreve_estado(tmp_path, {
+            "AA:BB:CC:DD:EE:FF": {
+                "ip": "192.168.0.20", "nome": "TV Samsung",
+                "conhecido": True, "fabricante": "Samsung Electronics Co.,Ltd",
+            },
+        })
+        monkeypatch.setattr(
+            "tools.actions.actions._read_proc", lambda name: self._arp()
+        )
+        result = network_hosts()
+        assert result["ok"] is True
+        alvo = next(h for h in result["hosts"] if h["ip"] == "192.168.0.20")
+        assert alvo["nome"] == "TV Samsung"
+        assert alvo["fabricante"] == "Samsung Electronics Co.,Ltd"
+        fora = next(h for h in result["hosts"] if h["ip"] == "192.168.0.1")
+        assert "nome" not in fora and "fabricante" not in fora
+
+    def test_fabricante_desconhecido_nao_vaza(self, monkeypatch, tmp_path) -> None:
+        """'desconhecido' (placeholder do OUI) não vira campo — só valor
+        real de fabricante entra no payload."""
+        from tools.actions.actions import network_hosts
+
+        monkeypatch.setenv("OD_LOG_DIR", str(tmp_path))
+        self._escreve_estado(tmp_path, {
+            "AA:BB:CC:DD:EE:FF": {
+                "nome": "", "fabricante": "desconhecido", "conhecido": True,
+            },
+        })
+        monkeypatch.setattr(
+            "tools.actions.actions._read_proc", lambda name: self._arp()
+        )
+        result = network_hosts()
+        alvo = next(h for h in result["hosts"] if h["ip"] == "192.168.0.20")
+        assert "nome" not in alvo and "fabricante" not in alvo
+
+    def test_sem_arquivo_segue_so_com_arp(self, monkeypatch, tmp_path) -> None:
+        """OD_LOG_DIR apontando para diretório sem estado = resposta
+        original, sem campos novos (Vigia opcional)."""
+        from tools.actions.actions import network_hosts
+
+        monkeypatch.setenv("OD_LOG_DIR", str(tmp_path))
+        monkeypatch.setattr(
+            "tools.actions.actions._read_proc", lambda name: self._arp()
+        )
+        result = network_hosts()
+        assert result["ok"] is True and result["count"] == 3
+        assert all("nome" not in h for h in result["hosts"])
+
+    def test_estado_corrompido_nao_quebra(self, monkeypatch, tmp_path) -> None:
+        """JSON ilegível = dicionário vazio e ação responde (tolerância;
+        nunca propagate erro do Vigia para a ação)."""
+        from tools.actions.actions import network_hosts
+
+        monkeypatch.setenv("OD_LOG_DIR", str(tmp_path))
+        (tmp_path / "network_watchdog_estado.json").write_text(
+            "{isso nao e json", encoding="utf-8"
+        )
+        monkeypatch.setattr(
+            "tools.actions.actions._read_proc", lambda name: self._arp()
+        )
+        result = network_hosts()
+        assert result["ok"] is True and result["count"] == 3
+        assert all("nome" not in h for h in result["hosts"])
+
+
+# ---------------------------------------------------------------------------
 # Integração no pipeline do Orchestrator (etapa 3.5)
 # ---------------------------------------------------------------------------
 
@@ -535,6 +663,30 @@ class TestFastPathOrchestrator:
         assert result.llm_used == "fastpath:network_hosts"
         assert "3 dispositivo(s)" in result.message
         assert orch.metrics.intents == 1
+        assert orch.metrics.llm == 0
+
+    @pytest.mark.asyncio
+    async def test_rede_mostra_nomes_do_vigia_sem_llm(self, monkeypatch, tmp_path) -> None:
+        """Parking lot §5 — ponta a ponta: a mesma pergunta do fastpath
+        responde com o NOME do inventário do Vigia (0 idas ao LLM)."""
+        import json
+
+        monkeypatch.setenv("OD_LOG_DIR", str(tmp_path))
+        (tmp_path / "network_watchdog_estado.json").write_text(
+            json.dumps({"dispositivos": {
+                "00:11:22:33:44:55": {
+                    "nome": "Alex-Note", "conhecido": True,
+                    "fabricante": "HUNAN FN-LINK TECHNOLOGY LIMITED",
+                },
+            }}),
+            encoding="utf-8",
+        )
+        orch = self._orch(monkeypatch)
+        result = await orch.process("u1", "guardian", "quantas pessoas estão conectadas na rede?")
+        assert result.route == "action_intent"
+        assert result.llm_used == "fastpath:network_hosts"
+        assert "Alex-Note · 192.168.0.1" in result.message
+        assert "3 dispositivo(s)" in result.message
         assert orch.metrics.llm == 0
 
     @pytest.mark.asyncio

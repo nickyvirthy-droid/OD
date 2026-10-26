@@ -1640,10 +1640,21 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
                     "vazia — sem tráfego recente de outros aparelhos).")
         lines = [f"🖧 Há {count} dispositivo(s) na rede local:"]
         for host in hosts[:10]:
-            lines.append(
-                f"  • {host.get('ip')}  ({host.get('mac')} · "
-                f"{host.get('interface')} · {host.get('state')})"
+            # Parking lot §5: nome do inventário do Vigia vira rótulo; sem
+            # nome, o fabricante (cache OUI) preenche — e sem nenhuma das
+            # duas a linha sai exatamente no formato original.
+            nome = str(host.get("nome") or "").strip()
+            fabricante = str(host.get("fabricante") or "").strip()
+            cabeca = (
+                f"{nome} · {host.get('ip')}" if nome else str(host.get("ip"))
             )
+            detalhe = (
+                f"{host.get('mac')} · {host.get('interface')} · "
+                f"{host.get('state')}"
+            )
+            if fabricante and not nome:
+                detalhe += f" · {fabricante}"
+            lines.append(f"  • {cabeca}  ({detalhe})")
         if count > 10:
             lines.append(f"  ... e mais {count - 10}")
         return "\n".join(lines)

@@ -154,6 +154,34 @@ falhas**. Restart verde (regra 7.3): boot 13:52:01, journal 0 `[ERROR]`,
 `/health` ok=True, `/app/version` 1.44.0/2080 intacta (backend puro,
 **sem bump**). Commit `d836349`.
 
+### "Quem está na rede?" responde com o NOME de cada aparelho: `network_hosts` ganha o inventário do Vigia (26/10, sem bump)
+
+**Pedido do dono** (parking lot §5, ideia de 21/10): a action de rede
+devolvia só IP/MAC/interface — *"quem está na rede?"* virava uma lista de
+números. Agora cada vizinho conhecido pelo **Vigia da Rede** aparece com
+o nome do inventário (`TV Samsung · 192.168.0.192`) e, na ausência de
+nome, com o **fabricante** do cache OUI; quem não está no inventário sai
+**byte a byte no formato original** (o Vigia é opcional, nunca quebra a
+ação).
+
+| Peça | Entrega |
+|---|---|
+| **`tools/actions/actions.py`** | `_inventario_vigia()` lê `logs/network_watchdog_estado.json` — o **mesmo arquivo que o Vigia grava a cada ciclo** (fonte única, `OD_LOG_DIR` respeitado, mesmo contrato dele). Chave normalizada nos dois lados (ARP do kernel é minúsculo, a chave do Vigia é MAC canônico maiúsculo); arquivo ausente, ilegível ou corrompido = dicionário vazio e a ação responde só com o ARP. `fabricante` só entra se não for o placeholder `desconhecido`; `nome` vazio não vira campo. |
+| **`core/intents.py`** | `format_intent_result("network_hosts")`: com nome, a linha vira `nome · ip` (o fabricante não repete — já está no rótulo); sem nome, `fabricante` preenche o fim do parêntese; sem nenhum dos dois, a linha é idêntica à anterior. |
+| **Guardas** | `tests/test_intents.py` **+7**: nome como rótulo, fabricante preenchendo sem nome, `desconhecido` não vaza, estado ausente/corrompido não quebra, MAC conhecido × ARP minúsculo com host fora do inventário intocado — e **ponta a ponta no orquestrador**: *"quantas pessoas estão conectadas na rede?"* → `route=action_intent`, `llm_used=fastpath:network_hosts`, resposta com o nome, **0 idas ao LLM**. |
+
+**Origem honesta:** o trabalho foi encontrado no disco na reverificação
+de rotina de 26/10 — a sessão de 24/10 (10:55–10:59) morreu **no meio
+da frente, antes do gate e do commit** (mesmo padrão das interrupções de
+21–23/10). Fechado na íntegra nesta data, sem alterar a intenção do
+rascunho.
+
+**Validação:** `tests/test_intents.py` **94/94** · **gate oficial 3790
+passed / 16 skipped / 0 falha · 90,81%** (executado DEPOIS desta edição —
+o CHANGELOG entra no corpus do RAG) · pyflakes **0 aviso novo** (os 2 de
+`actions.py` são pré-existentes, conferidos contra o HEAD). **Sem bump**
+— 1.44.0/2080 intacta (mudança de backend).
+
 ### Kiwix dentro do chat: a Wikipédia offline responde o que a memória interna não sabe (24/10, sem bump)
 
 **Pedido do dono** (ideia de 21/10 no parking lot §5, escolhida em
