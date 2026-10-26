@@ -1,4 +1,23 @@
 {
+ "vigia_das_mensagens_diagnostico_2026_10_26": {
+  "pedido": "Dono (26/10 ~10:45): 'existe algum tipo de vigia para as mensagens? percebi que algumas perguntas nao recebem respostas corretas. o sistema tem como verificar isso pelo menos uma vez no dia e consertar?'",
+  "o_que_existe": "core/chat_audit.py (entrega 22/10, ordem dele) — juiz plugavel classificando cada turno em ok/resposta_errada/devaneio/inconsistente/erro, relatorio JSON em analise/. MANUAL: sem timer, sem aviso, sem conserto. list-timers do usuario so tem network-watchdog (5 min), router-monitor (1 min) e dpkg-db-backup — nenhum job de auditoria de mensagens.",
+  "auditoria_ao_vivo": "30 turnos mais recentes (postgres, 22/10 21:55 -> 26/10 10:11): 15 ok / 10 resposta_errada / 5 inconsistente; juiz groq 26 + reserva local 4. Volume real do sistema = 73 turnos / 146 mensagens desde 29/09 (~10-15 turnos/dia) -> auditoria diaria e BARATA.",
+  "padroes_achados": [
+   "6x resposta factual errada do RAG/local em 24/10 04:50-05:36 (define dia, Marie Curie, relatividade, sol, clorofila) — llm_used=gemma-local, o juiz pegou erro de conteudo.",
+   "4x contradicao de estado no HA (23/10): 'sim' -> 'TV Sala: ligar executado (estado: off)', 'desligue a luz da cozinha -> executado (estado: on)'.",
+   "1x rota errada: 'ligar TV' -> resposta de compromissos (23/10 13:40).",
+   "1x UX: 'quantas pessoas estao conectadas' devolve lista de dispositivos com bridges do Docker (hoje 10:11)."
+  ],
+  "defeitos_do_auditor_para_o_plano": [
+   "--limite N pega os MAIS ANTIGOS (ORDER BY ts ASC): nao existe janela --ultimas 24h, que e o que o job diario precisa.",
+   "Groq HTTP 429 (TPM 8000) em 4/30 turnos; reserva local assumiu (design ok), mas o job precisa de throttle ~1,5s ou juiz local como padrao.",
+   "Sem saida de alerta (so JSON em analise/), sem resumo para o dono."
+  ],
+  "estado": "DIAGNOSTICO CONCLUIDO, NADA IMPLANTADO (sem timer, sem mudanca de codigo). Aguardando decisao do dono: nivel do 'consertar' (so aviso / aviso + fila de conserto / auto-reparo) e ordem de comecar.",
+  "updated_at": "2026-10-26T10:50:00-03:00",
+  "transcricao": "iniciar/2026-10-26_conversa_omegadrakon.md (§4)"
+ },
  "conhecer_iphone_ipad_2026_10_26": {
   "pedido": "Dono (26/10 ~10:32, via pergunta objetiva): 'Sao meus — reconhecer os dois' (os 2 pendentes do Vigia achados na troca anterior: iPhone 7A:A7:13:05:6D:3A @ 192.168.0.232 desde 23/10 e iPad 16:05:EA:56:FB:9E @ 192.168.0.210 desde 25/10).",
   "executado": "OD_LOG_DIR=logs python3 tools/monitor/network_watchdog.py --conhecer <mac> x2 (só inventario local, sem mutacao no roteador) + --once para reescrever a LINHA DE ESTADO do log — a sonda _check_network do notificador le a ultima linha, entao sem o ciclo novo o alerta horario continuaria ate o proximo tick das 10:28.",
@@ -47,10 +66,10 @@
   "entrega": "memory/enciclopedia.py NOVO = etapa 4.6 do orquestrador, roda SO quando o RAG local nao achou nada (memoria interna > acervo > enciclopedia). Ordem no prompt: depois do bloco do acervo (prefixo KV cache do llama-server intacto). Lazy no launcher: OD_KIWIX_CHAT=0 desliga. Caminhos: (1) titulo direto (limpa prefixo factual 'define/o que é/quem foi' + lookup de titulo exato PT primeiro), (2) busca em cascata PT->EN nos 2 acervos, (3) nada = segue sem o bloco.",
   "acervo_pt": "wikipedia_pt_all_mini_2026-05 (1,7 GB) baixado do mirror oficial com sha-256 CONFERIDO contra o .meta4 (4bc657b2...81d7e). docker/tools-compose.yaml serve os 2 ZIMs.",
   "defeitos_corrigidos": [
-    "Busca com os 2 ZIMs dava 400 'Invalid request' — causa raiz libkiwix#838: kiwix-serve bloqueia busca que mistura livros de idiomas diferentes. Correcao = filtro books.name= por acervo (o nome aceito e o do ARQUIVO com versao, nao o do catalogo atomico).",
-    "ler() devolvia 404 em artigo PT: href vem percent-encoded e o parser fazia quote() de novo (double-encode) — unquote na extracao.",
-    "Ranking cru fraco ('define dia' caia em 'Dia sideral') — tentativa de TITULO DIRETO antes da busca resolveu (artigo exato)."
-   ],
+   "Busca com os 2 ZIMs dava 400 'Invalid request' — causa raiz libkiwix#838: kiwix-serve bloqueia busca que mistura livros de idiomas diferentes. Correcao = filtro books.name= por acervo (o nome aceito e o do ARQUIVO com versao, nao o do catalogo atomico).",
+   "ler() devolvia 404 em artigo PT: href vem percent-encoded e o parser fazia quote() de novo (double-encode) — unquote na extracao.",
+   "Ranking cru fraco ('define dia' caia em 'Dia sideral') — tentativa de TITULO DIRETO antes da busca resolveu (artigo exato)."
+  ],
   "validacao": "tests/test_enciclopedia.py novo 21/21 + 2 guards novas em tests/test_kiwix.py. Gate oficial 3783 passed / 16 skipped / 0 falha (>=90%). Commit fd8f420 pushado, arvore limpa. Restart verde (regra 7.3): health 25/25.",
   "prova_viva": "REST /message real: 'define dia' -> artigo 'Dia' (resposta cita 24 horas); 'fotossintese' -> 'Fotossintese'; 'napoleao bonaparte' -> 'Napoleao Bonaparte'; 'quem foi Marie Curie' -> journal prova a etapa: 'Enciclopedia no prompt | titulo=Marie Curie | chars=1329 | livro=wikipedia_en_all_mini'.",
   "nota_honesta": "Com o corpus do RAG completo (58 arquivos), perguntas factuais as vezes casam trechos fracos do proprio CHANGELOG (ex.: 'define dia' casa com o registro desta entrega) e a cascata do orquestrador responde sem ir ao Kiwix — design (RAG primeiro); quando o RAG nao acha (Marie Curie) a etapa dispara e responde do artigo.",

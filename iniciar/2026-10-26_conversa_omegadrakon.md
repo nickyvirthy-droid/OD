@@ -169,3 +169,61 @@ aparelho a uma pessoa seria inventar. Renomear quando quiser:
 
 **Estado:** Vigia **sem pendências** (23 inventariados, 23
 conhecidos); sistema verde 1.44.0/2080, HEAD `7f8de9c`, árvore limpa.
+
+
+## §4 — "Existe vigia para as mensagens?" — auditoria ao vivo das últimas
+       30 conversas: 15 ok / 10 resposta_errada / 5 inconsistente
+
+**Pedido:** dono (26/10 ~10:45): *"existe algum tipo de vigia para as
+mensagens? percebi que algumas perguntas não recebem respostas corretas.
+o sistema tem como verificar isso pelo menos uma vez no dia e
+consertar?"*
+
+**O que já existe (lido, não suposto):** o **auditor
+`core/chat_audit.py`** (entrega da frente 1 de 22/10, ordem dele).
+Classifica cada turno com juiz plugável (`ok | resposta_errada |
+devaneio | inconsistente | erro`) e grava relatório JSON em `analise/`.
+**Mas é manual:** CLI `python -m core.chat_audit`, **sem timer, sem
+aviso, sem conserto** — hoje ninguém o roda. `systemctl --user
+list-timers`: só `network-watchdog` (5 min), `router-monitor` (1 min) e
+um timer de cache do dpkg — **nenhum job de auditoria de mensagens**.
+
+**Auditoria AO VIVO executada agora** (fonte postgres, 30 turnos mais
+recentes, 22/10 21:55 → 26/10 10:11, juiz Groq com reserva local):
+
+| Veredito | Qtd |
+|---|---|
+| `ok` | **15** |
+| `resposta_errada` | **10** |
+| `inconsistente` | **5** |
+| juiz online / reserva local | 26 / 4 |
+
+**Padrões achados (evidência da percepção do dono — ele tinha razão):**
+
+1. **Respostas factuais do RAG/local com erro de conteúdo (6×, 24/10
+   04:50–05:36)** — "define dia" (diz 6h–18h), "quem foi Marie Curie"
+   (Nobel/radônio), "relatividade" ("Teoria de Lorentz"), "defina sol"
+   ("Terra no centro"), "clorofila" — todos `llm_used=gemma-local`, ou
+   seja, o LLM local respondeu sem (ou com) bloco errado e o juiz pegou.
+2. **Contradição de estado no Home Assistant (4×, 23/10)** — *"sim" →
+   "TV Sala: ligar executado (estado agora: off)"*, *"desligue a luz da
+   cozinha → executado (estado: on)"* — a action reporta sucesso com o
+   estado contrário ao comando.
+3. **Rota errada (1×)** — *"ligar TV" → resposta da rota de compromissos*
+   (o mesmo achado da auditoria de 22/10; a frente A corrigiu o alvo, mas
+   este turno é de 23/10 13:40).
+4. **UX do network_hosts (1×, hoje 10:11)** — *"quantas pessoas estão
+   conectadas"* devolveu a lista de dispositivos (inclui bridges do
+   Docker) em vez de pessoas.
+
+**Defeitos do próprio auditor descobertos no caminho (para o plano):**
+- `--limite N` pega os **mais antigos** (SQL `ORDER BY ts ASC`) — não
+  existe janela temporal **`--ultimas 24h`**, exatamente o que um job
+  diário precisa.
+- **Groq bateu rate limit (HTTP 429, TPM 8000)** em 4 dos 30 turnos; a
+  reserva local assumiu (funcionou, é o design), mas um job diário
+  precisa de throttle (~1,5 s) ou juiz local como padrão.
+- Sem saída de alerta (só JSON em `analise/`), sem resumo para o dono.
+
+**Nada foi implantado** (sem timer, sem mudança de código) — a troca
+terminou em diagnóstico; a decisão de construir é do dono.
