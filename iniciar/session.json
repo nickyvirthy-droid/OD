@@ -1,4 +1,15 @@
 {
+ "reverificacao_rotina_2026_10_26_1828": {
+  "pedido": "Usuario: 'leia iniciar' (26/10 ~18:28) — reverificacao de rotina (regra 3). Checkpoint: vigia_das_mensagens_2026_10_26 (updated 12:05, §5.1 fechado).",
+  "achados_verdes": "Git ARVORE LIMPA (status 0), HEAD a1e3620 == origin/master (registro §5.1, 11:48). od-core active desde 11:27:18, MainPID 122670, NRestarts=0. /health ok=True TODOS os checks ok; /app/version 1.44.0/2080 intacta (sha aeb8566b). NENHUM residuo: nada modificado desde 12:05 alem de iniciar/ e txt.txt. Vigia da rede tick 18:25:12: ativos 23, pendentes_novos [], pendentes_seguranca [], rich true. Timer od-vigia-mensagens ativo, proximo disparo 27/10 04:33 (Persistent). Disco 65% (78G livres).",
+  "unico_error_transitorio": "1 [ERROR] desde o restart = 16:05:50 'Telegram API indisponivel: Temporary failure in name resolution', dentro de queda de internet/roteador de ~4 min (16:04:44→16:08:48): alerta router:down (gateway 192.168.0.1 ping_failed) + Push falhou + 23 WARNs 'Transporte indisponivel'. RECUPEROU SOZINHO. 2o blip breve 18:26:04 (router:down) — gateway OK no ping 18:28:41, push reenviado 18:26:05 (enviados=1|falhas=0). Nenhuma mutacao (rede = estado externo, regra 7).",
+  "canais_do_dono": "txt.txt ZERADO pelo painel admin as 18:25:58 (INFO no journal = ele limpou) — NENHUMA mensagem nova aguardando. analise/ = apenas Nicky Locutor/ (PENDENTE, aguardando ordem, regra 17) + 4 relatorios do vigia gerados hoje (nossos).",
+  "backups_dia": "Diario 03:07 od-2026-10-26_0307.tar.gz (191733 B, 21 membros, sha bde966cc) · off-site 03:22 (1 parte) · snapshots 03:52/03:53 snapshot_od-2026-10-26_0352 (10,9 GB cada, WARN conhecido dos 5 ilegiveis do HA c/ recibo no info.json) · capturas semanais = 23/10 04:12 (7 dias, proxima ~30/10).",
+  "fila_inalterada": "1 item do juiz ('quantas pessoas estao conectadas' 10:11, sem estrategia de reparo deterministico) + 10 resposta_errada e 5 inconsistente da auditoria 22-26/10 (contradicao de estado do HA, fatos do modelo local) — nao conserta sozinho por design. analise/Nicky Locutor/ aguardando ordem.",
+  "estado": "SISTEMA VERDE E ESTAVEL — v1.44.0/2080, HEAD a1e3620, arvore limpa, health ok. Nenhuma mutacao nesta troca. Proximo evento automatico: vigia das mensagens 27/10 04:33.",
+  "updated_at": "2026-10-26T18:32:00-03:00",
+  "transcricao": "iniciar/2026-10-26_conversa_omegadrakon.md (§6)"
+ },
  "vigia_das_mensagens_2026_10_26": {
   "regua_do_dono": "26/10: nivel = 'Reparo automático completo'; fonte = 'Usa os achados da auditoria' (nao ele manda exemplos). Registrado antes de codar (regra 4).",
   "diagnostico_reconfirmado": "Contra o codigo de HOJE: (a) 'ligar TV' -> detect_action_intent = None (infinitivo fora do regex _comando; 'liga a tv' funcionava) — REPRODUZ; (b) network_hosts com 9 bridges do Docker (br-b7119289ffc4) de 20 vizinhos — REPRODUZ; (c) contradicao de estado do HA e (d) fatos errados do modelo local: sem estrategia deterministica -> FILA (regua do dono). Ancoras verificadas 1x cada (A1/A2/A3 em core/intents.py; B1/B2 em tools/actions/actions.py).",

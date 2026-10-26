@@ -337,3 +337,55 @@ resposta errada de 26/10 10:11 ("quantas pessoas conectadas" — a
 própria que hoje o conserto já cobre; a conversa antiga continua errada
 no histórico) + as 10+5 da auditoria de 22/22→26/10 que exigem
 investigação (contradição de estado do HA, fatos do modelo local).
+
+## §6 — Reverificação de rotina ("leia iniciar", 26/10 ~18:28): verde,
+       sem resíduo; 1 [ERROR] do dia = queda de rede transitória (4 min)
+
+**Pedido:** usuário: "leia iniciar" — reverificação de rotina (regra 3).
+Checkpoints lidos: `session.json` (chave `vigia_das_mensagens_2026_10_26`,
+`updated_at` 12:05) + §5–§5.1 desta transcrição + `RULES.md`.
+
+**Verde confirmado (medido, não presumido):**
+
+| Item | Medição |
+|---|---|
+| Git | árvore **limpa** (`git status --porcelain` = 0), HEAD **`a1e3620`** == `origin/master` (registro do §5.1, 11:48) |
+| od-core | **active** desde **11:27:18**, MainPID **122670**, **NRestarts=0** |
+| Saúde | `/health` `ok=True` — **todos os checks ok**; `/app/version` **1.44.0/2080** intacta (sha `aeb8566b…`) |
+| Resíduo | **NENHUM** — nada modificado desde o registro das 12:05 (só `iniciar/` e `txt.txt`) |
+| Vigia da rede | tick **18:25:12**: `ativos: 23`, **`pendentes_novos: []`**, `pendentes_seguranca: []`, `rich: true` |
+| Timer do vigia de mensagens | `od-vigia-mensagens.timer` ativo — próximo disparo **27/10 04:33** (`Persistent=true`) |
+| Disco | **65%** (78 G livres) |
+
+**Único `[ERROR]` desde o restart — transitório, sem ação:** às
+**16:05:50** `Sink falhou | Telegram API indisponível: Temporary failure
+in name resolution`, dentro de uma **queda de internet/roteador de ~4
+min** (16:04:44 → 16:08:48): alerta proativo `router:down`
+(gateway 192.168.0.1 ping_failed), `Push falhou` e 23 WARNs de
+"Transporte indisponível — aguardando...". Recuperou **sozinho**. Um 2º
+blip breve às **18:26:04** (`router:down` de novo) — gateway respondendo
+no ping às 18:28:41 e o push reenviado com sucesso às 18:26:05
+(`enviados=1 | falhas=0`). **Nenhuma mutação executada** (rede é estado
+externo, regra 7).
+
+**Canais do dono:** `txt.txt` = **zerado pelo painel admin às 18:25:58**
+(1 INFO no journal — ele limpou; nenhuma mensagem nova aguardando).
+`analise/` = apenas `Nicky Locutor/` (**pendente, aguardando ordem** —
+regra 17) + os 4 relatórios gerados pelo vigia hoje (nossos).
+
+**Backups do dia (todos ok):** diário **03:07** `od-2026-10-26_0307.tar.gz`
+(191.733 B, 21 membros, sha `bde966cc…`) · off-site **03:22** (1 parte) ·
+snapshots **03:52/03:53** `snapshot_od-2026-10-26_0352` (10,9 GB cada,
+com o WARN conhecido dos 5 arquivos ilegíveis do HA + recibo no
+`info.json`) · capturas semanais = **23/10 04:12** (cadência de 7 dias,
+próxima ~30/10).
+
+**Fila inalterada:** 1 item do juiz (`quantas pessoas estao conectadas`
+10:11, "sem estratégia de reparo determinístico") + as 10 `resposta_errada`
+e 5 `inconsistente` da auditoria 22–26/10 (contradição de estado do HA e
+fatos do modelo local) — **não conserta sozinho por design**. `analise/
+Nicky Locutor/` segue aguardando ordem.
+
+**Estado:** SISTEMA VERDE E ESTÁVEL — v1.44.0/2080, HEAD `a1e3620`,
+árvore limpa, health ok. Próximo evento automático: vigia das mensagens
+em 27/10 04:33.
