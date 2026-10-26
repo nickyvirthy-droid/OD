@@ -421,6 +421,96 @@ class SondaRedeSemBridge(Sonda):
                 and "iface.startswith(_IFACES_VIRTUAIS)" in texto)
 
 
+class SondaEstadoContraditorio(Sonda):
+    """A resposta nunca pode confirmar um estado CONTRÁRIO ao comando.
+
+    Diagnóstico de 26/10 (auditoria 23/10, 4 turnos): *"sim"* → *"TV Sala:
+    ligar executado (estado agora: off)"* e *"desligue a luz da cozinha"* →
+    *"executado (estado: on)"*. A causa estava no FORMATO: sem
+    `state_after` utilizável ele deduzia o resultado da ação e imprimia
+    ✅ — o chat afirmava o inverso do que mandou.
+
+    A sonda é PURA (`format_intent_result` com payload contraditório):
+    não precisa do HA nem de rede, roda igual no gate e às 04:30.
+    """
+
+    nome = "estado_contraditorio"
+    classe = "resposta_errada"
+    arquivos = ("core/intents.py",)
+    modulos = ("core.intents",)
+    descricao = ("estado contradito vira '✅ executado': ligar com estado "
+                 "'off' (ou sem leitura) era confirmado como sucesso")
+
+    # (ação, estado lido) dos turnos reais da auditoria 23/10 — os dois
+    # sentidos da mentira + o caso sem leitura (deduzia "on" da ação).
+    CASOS: tuple[tuple[str, Optional[str]], ...] = (
+        ("ligar", "off"),
+        ("desligar", "on"),
+        ("ligar", None),
+    )
+
+    def _format(self) -> Callable[..., Any]:
+        from core.intents import format_intent_result
+        return format_intent_result
+
+    @staticmethod
+    def _mentiu(texto: str, estado: Optional[str]) -> bool:
+        """O texto afirma estado que a leitura não deu?
+
+        * com estado lido: ✅ E o valor contraditório na frase;
+        * sem leitura (`None`): qualquer "estado agora:" é invenção.
+        """
+        if estado is None:
+            return "estado agora:" in texto
+        return "✅" in texto and estado in texto
+
+    def vermelha(self, detect: Optional[Callable[..., Any]] = None) -> bool:
+        """True se ALGUMA frase ainda confirmar o estado contrário."""
+        fmt = detect or self._format()
+        for acao, estado in self.CASOS:
+            try:
+                texto = fmt("ha_device_control", {
+                    "ok": True, "executed": True, "action": acao,
+                    "state_after": estado, "name": "Luz da Cozinha",
+                })
+            except Exception as exc:  # format quebrado = sonda vermelha
+                log.warn("Vigia: probe de estado explodiu",
+                         acao=acao, error=str(exc)[:160])
+                return True
+            if not texto:
+                return True  # sem resposta não há como responder certo
+            if self._mentiu(texto, estado):
+                return True
+        return False
+
+    def reparo(self, conteudo: Optional[str] = None) -> dict[str, Any]:
+        """Troca o bloco de formato pelo que só afirma estado confirmado."""
+        texto = conteudo
+        if texto is None:
+            if not self.vermelha():
+                return {"status": "sem_defeito"}
+            texto = (RAIZ / "core/intents.py").read_text(encoding="utf-8")
+        faltando: list[str] = []
+        novo = texto
+        for rotulo, antigo, novo_bloco in _TROCAS_ESTADO:
+            if antigo in novo:
+                novo = novo.replace(antigo, novo_bloco, 1)
+            else:
+                faltando.append(rotulo)
+        if faltando:
+            return {"status": "ancora_ausente", "faltando": faltando}
+        if novo == texto:
+            return {"status": "sem_defeito"}
+        return {"status": "aplicado",
+                "arquivos": {"core/intents.py": novo}}
+
+    def confere_staged(self, texto: str) -> bool:
+        return ("estado_confirmado" in texto
+                and "NÃO confirmou" in texto
+                and "esperado = \"on\" if acao == \"ligar\" else \"off\"" in texto
+                and "estado = data.get(\"state_after\") or" not in texto)
+
+
 # Âncoras exatas do código de 26/10 (verificadas: 1 ocorrência cada).
 # Se alguém refatorar os blocos, a âncora some → status "ancora_ausente"
 # → FILA (nunca escrita às cegas) e a guarda de teste aponta a mudança.
@@ -476,7 +566,50 @@ _TROCAS_REDE = (
      "            continue  # bridge/container: não é dispositivo da casa"),
 )
 
-SONDAS: tuple[Sonda, ...] = (SondaRotaAparelho(), SondaRedeSemBridge())
+# Âncoras da sonda de ESTADO (26/10): o bloco antigo deduzia o resultado
+# da ação; o novo só afirma estado lido e confirmado.
+_TROCAS_ESTADO = (
+    ("C1 · bloco executado de format_intent_result",
+     '        if data.get("executed"):\n'
+     '            estado = data.get("state_after") or ("on" if data.get("action") == "ligar" else "off")\n'
+     '            emoji = "🟢" if estado == "on" else "⚪"\n'
+     "            return (\n"
+     "                f\"✅ {data.get('name')}: {data.get('action')} executado \"\n"
+     '                f"({emoji} estado agora: {estado})."\n'
+     "            )\n",
+     '        if data.get("executed"):\n'
+     '            # 26/10 (Vigia das Mensagens): a frase só afirma estado\n'
+     '            # CONFIRMADO. O fallback antigo deduzia o estado da ação\n'
+     '            # (\'state_after\' vazio => "on" quando a ação era \'ligar\') e\n'
+     "            # imprimia '✅ executado (estado: off)' mesmo com o aparelho\n"
+     '            # desligado — 4 turnos de contradição na auditoria 23/10.\n'
+     '            nome = data.get("name") or data.get("entity") or "dispositivo"\n'
+     '            acao = data.get("action") or ""\n'
+     '            estado = data.get("state_after")\n'
+     '            confirmado = data.get("estado_confirmado")\n'
+     '            if confirmado is None:\n'
+     '                # Dado antigo/sem flag: só afirma se o estado bater com o\n'
+     '                # pedido — deduzir da ação é exatamente a mentira antiga.\n'
+     '                esperado = "on" if acao == "ligar" else "off"\n'
+     '                confirmado = bool(estado) and estado == esperado\n'
+     '            if confirmado:\n'
+     '                emoji = "⚪" if estado == "off" else "🟢"\n'
+     "                return (\n"
+     '                    f"✅ {nome}: {acao} executado "\n'
+     '                    f"({emoji} estado agora: {estado})."\n'
+     "                )\n"
+     '            lido = estado if estado else "sem leitura"\n'
+     "            return (\n"
+     '                f"⚠️ {nome}: {acao} enviado, mas o aparelho NÃO confirmou "\n'
+     '                f"(estado lido: {lido}).\\n"\n'
+     '                "Pode levar alguns segundos ou o aparelho não aceitou — "\n'
+     '                "confira em \'luzes acesas\' ou peça de novo."\n'
+     "            )\n"),
+)
+
+SONDAS: tuple[Sonda, ...] = (
+    SondaRotaAparelho(), SondaRedeSemBridge(), SondaEstadoContraditorio(),
+)
 
 
 def _hosts_com_arp(arp: str) -> list[dict[str, Any]]:

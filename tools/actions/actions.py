@@ -857,6 +857,54 @@ def peek_pending_light_confirmation(
     return best
 
 
+# 26/10 (Vigia das Mensagens): o HA nem sempre reflete o comando na
+# primeira leitura. Relê até N vezes antes de dizer o estado — e, se não
+# confirmar, a resposta diz "não confirmou" em vez de mentir.
+_ESTADO_TENTATIVAS = 3
+_ESTADO_ESPERA_S = 0.2
+
+
+def _estado_confirma(after: Optional[str], on: bool, domain: str) -> bool:
+    """O estado lido CONFIRMA o pedido de liga/desliga?
+
+    Desligar = `off` em qualquer domínio. Ligar = `on` (switch/light/
+    remote); no `media_player` qualquer estado que não seja `off` já é
+    aparelho ligado (uma TV ligada fica `playing`/`idle`, não `on`).
+    `unknown`/`unavailable` nunca confirmam nada.
+    """
+    if not after or after in ("unknown", "unavailable"):
+        return False
+    if not on:
+        return after == "off"
+    if after == "on":
+        return True
+    return domain == "media_player" and after != "off"
+
+
+def _estado_pos_comando(
+    client: Any, entity_id: str, on: bool, domain: str,
+) -> tuple[Optional[str], bool]:
+    """Estado pós-comando + se ele confirma o pedido (best-effort).
+
+    Auditoria 23/10 (4 turnos): a resposta saía como
+    "✅ ligar executado (estado: off)" — o estado lido era o CONTRÁRIO do
+    comando e o texto imprimia tudo como confirmação. Daqui pra frente o
+    par (estado, confirmado) é o único insumo da frase.
+    """
+    after: Optional[str] = None
+    for tentativa in range(max(1, _ESTADO_TENTATIVAS)):
+        try:
+            post = client.get_state(entity_id)
+            after = post.state if post else None
+        except Exception:
+            after = None
+        if _estado_confirma(after, on, domain):
+            return after, True
+        if tentativa < _ESTADO_TENTATIVAS - 1:
+            time.sleep(_ESTADO_ESPERA_S)
+    return after, False
+
+
 def ha_device_control(
     entity_id: str = "", on: bool = True, user_id: str = "", termo: str = "",
     alvo: str = "", plural: bool = False,
@@ -953,14 +1001,10 @@ def ha_device_control(
         return _unavailable(
             "ha_device_control", f"falha ao {service} {entity_id}: {exc}"
         )
-    # Lê o estado pós-comando (o HA pode levar um instante; o valor lido
-    # é best-effort — o comando foi aceito).
-    after = None
-    try:
-        post = client.get_state(entity_id)
-        after = post.state if post else None
-    except Exception:
-        pass
+    # Lê o estado pós-comando até bater com o pedido (releitura curta).
+    # O resultado é o par honesto que a resposta vai dizer: sem
+    # confirmação a frase é "não confirmou", nunca "✅ executado".
+    after, confirmado = _estado_pos_comando(client, entity_id, on, domain)
     # Consome a confirmação (um uso).
     _LIGHT_CONFIRMATIONS.pop((user_id or "desconhecido", entity_id, bool(on)), None)
     return {
@@ -970,6 +1014,7 @@ def ha_device_control(
         "name": name,
         "action": "ligar" if on else "desligar",
         "state_after": after,
+        "estado_confirmado": confirmado,
     }
 
 

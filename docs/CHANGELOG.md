@@ -235,6 +235,48 @@ em memória antes do gate: os dois geram Python que compila e passam no
 `confere_staged`. **Sem bump** — 1.44.0/2080 intacta (mudança de
 backend).
 
+### Resposta certa no presente: o chat nunca mais confirma um estado CONTRÁRIO ao comando (régua do dono, 26/10, sem bump)
+
+**Régua do dono** (26/10, tarde): *"não precisa consertar os erros das
+conversas passadas, eles devem vir certas nas próximas — aprenda com o
+passado, responda certo no presente, melhore para o futuro"* → a **fila do
+passado foi encerrada** (as 10 `resposta_errada` + 5 `inconsistente` da
+auditoria 22–26/10 ficam como histórico, nada de retroagir) e cada CLASSE
+de achado vira garantia para as próximas respostas.
+
+| Classe de erro (auditoria) | O que passa a valer |
+|---|---|
+| *"ligar TV"* parando na rota de compromissos | já coberto pela **sonda 1** `rota_aparelho_infinitivo` (0b07622) |
+| `network_hosts` listando bridges do Docker | já coberto pela **sonda 2** `rede_sem_bridge` (0b07622) |
+| **contradição de estado do HA (4×, 23/10)** — *"sim" → "TV Sala: ligar executado (estado agora: off)"*, *"desligue a luz da cozinha → executado (estado: on)"* | **desta frente**: conserto + **sonda 3** `estado_contraditorio` |
+| fatos errados do modelo local (6×, 24/10) | sem estratégia determinística — a ordem das fontes (RAG primeiro × fonte verificada) é **decisão de design** e está com a régua do dono em aberto |
+
+**Causa raiz (lida no código, regra 5):** `ha_device_control` lia o
+estado **uma vez**, logo após o serviço, e `format_intent_result`
+fazia `estado = state_after or ("on" se a ação for ligar…)` — ou seja,
+**sem leitura utilizável ele deduzia o resultado da ação** e imprimia
+`✅ … executado (estado agora: X)` mesmo quando `X` contradizia o pedido.
+
+| Peça | Entrega |
+|---|---|
+| **`tools/actions/actions.py`** | `_estado_pos_comando()` rele o estado até **3×** (0,2 s entre leituras) até bater com o pedido e devolve o par honesto **`(state_after, estado_confirmado)`**. `_estado_confirma()` define o que vale como confirmação por domínio: desligar = `off`; ligar = `on` (switch/light/remote) ou qualquer estado ≠ `off` no `media_player` (TV ligada fica `playing`); `unknown`/`unavailable` **nunca** confirmam. |
+| **`core/intents.py`** | O bloco `executado` do `format_intent_result` só afirma estado **confirmado**: confirmado → `✅ … executado (estado agora: X)` como sempre; sem confirmação → **`⚠️ … enviado, mas o aparelho NÃO confirmou (estado lido: X)`** com a sugestão de conferir; sem leitura → `sem leitura` (**nada de inventar `on`**). Payload antigo (sem flag) só é afirmado quando o estado bate com o pedido. |
+| **Sonda 3 — `estado_contraditorio`** (`core/vigia_mensagens.py`) | Probe **puro** sobre `format_intent_result` com os 3 payloads contraditórios reais (`ligar`+`off`, `desligar`+`on`, `ligar`+`None`) — não precisa do HA, roda igual no gate e às 04:30. Reparo ancorado em 1 ponto (o bloco de formato) e `confere_staged` exige a flag, a mensagem honesta e a ausência do fallback antigo. |
+| **Guardas** | `tests/test_resposta_transparente.py` **+10** (formato ×6: contraditório ×2, sem leitura, confirmado, `playing`, dado antigo; action ×3: HA que não muda, HA responsivo, releitura; + a regra por domínio) e `tests/test_vigia_mensagens.py` **+10** (sonda pega a mentira, pega assertiva sem leitura, verde hoje, reparo/âncora/idempotente/`confere_staged`, âncoras conferidas contra o arquivo vivo, runner). |
+
+**Validação:** gate oficial **3851 passed / 16 skipped / 0 falha ·
+90,58%** (eram 3831 — os **+20** são as guardas novas; executado DEPOIS
+desta edição, o CHANGELOG entra no corpus do RAG) · pyflakes **0 aviso
+novo** (os 7 restantes são pré-existentes, conferidos contra o HEAD).
+**Prova determinística:** com o payload da auditoria (`ligar` +
+`state_after="off"`), o formato devolve `⚠️ Luz da Cozinha: ligar enviado,
+mas o aparelho NÃO confirmou (estado lido: off)` — antes, a mesma chamada
+devolvia `✅ … executado (⚪ estado agora: off)`. **Nota honesta:** a prova
+AO VIVO executando um comando real no HA (o "sim") **não foi feita** —
+mudar o estado da casa exige autorização explícita (regra 7); o caminho
+de rota/confirmação foi provado sem executar nada. **Sem bump** —
+1.44.0/2080 intacta (mudança de backend).
+
 ### Kiwix dentro do chat: a Wikipédia offline responde o que a memória interna não sabe (24/10, sem bump)
 
 **Pedido do dono** (ideia de 21/10 no parking lot §5, escolhida em

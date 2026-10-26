@@ -1396,6 +1396,173 @@ class TestCoerenciaDoLar:
         )
 
 
+class TestEstadoSoAfirmadoSeConfirmado:
+    """26/10 (Vigia das Mensagens): a auditoria de 23/10 achou 4 turnos em
+    que a frase afirmava o estado CONTRÁRIO ao comando — "sim" → "TV Sala:
+    ligar executado (estado agora: off)" e "desligue a luz da cozinha" →
+    "executado (estado: on)".
+
+    A garantia é do FORMATO (quem fala com o dono): sem leitura que
+    confirme, a resposta é de "não confirmou" — e nada de deduzir o
+    resultado da ação (o fallback antigo inventava "on").
+    """
+
+    @pytest.fixture(autouse=True)
+    def _limpa_pendencias(self):
+        from tools.actions.actions import _LIGHT_CONFIRMATIONS
+        _LIGHT_CONFIRMATIONS.clear()
+        yield
+        _LIGHT_CONFIRMATIONS.clear()
+
+    @staticmethod
+    def _formata(**dados) -> str:
+        from core.intents import format_intent_result
+        base = {
+            "ok": True, "executed": True, "name": "Luz da Cozinha",
+        }
+        base.update(dados)
+        return format_intent_result("ha_device_control", base) or ""
+
+    # -- o formato: nunca confirmar estado contrário -----------------------
+
+    def test_ligar_com_estado_off_nao_vira_confirmacao(self) -> None:
+        """Caso real da auditoria: ligar + estado 'off' era ✅."""
+        texto = self._formata(action="ligar", state_after="off")
+
+        assert "✅" not in texto
+        assert "NÃO confirmou" in texto
+        assert "estado lido: off" in texto
+
+    def test_desligar_com_estado_on_nao_vira_confirmacao(self) -> None:
+        texto = self._formata(action="desligar", state_after="on")
+
+        assert "✅" not in texto
+        assert "NÃO confirmou" in texto
+
+    def test_sem_leitura_de_estado_nao_inventa_o_resultado(self) -> None:
+        """O fallback antigo deduzia 'on' da ação quando state_after era
+        vazio — invenção pura, agora é 'sem leitura'."""
+        texto = self._formata(action="ligar", state_after=None)
+
+        assert "✅" not in texto
+        assert "estado agora:" not in texto
+        assert "sem leitura" in texto
+
+    def test_estado_confirmado_continua_respondendo_como_sempre(self) -> None:
+        texto = self._formata(
+            action="ligar", state_after="on", estado_confirmado=True)
+
+        assert texto == (
+            "✅ Luz da Cozinha: ligar executado (🟢 estado agora: on)."
+        )
+
+    def test_estado_diferente_de_on_pode_ser_confirmacao(self) -> None:
+        """TV ligada fica 'playing', não 'on' — confirmada pela action,
+        a frase mostra o estado real em vez de recusar o ✅."""
+        texto = self._formata(
+            action="ligar", state_after="playing", estado_confirmado=True)
+
+        assert "✅" in texto and "playing" in texto
+
+    def test_dado_antigo_com_estado_batendo_continua_cert(self) -> None:
+        """Compatibilidade: payload sem a flag só é afirmado quando o
+        estado bate com o pedido (que é o caso honesto)."""
+        texto = self._formata(action="desligar", state_after="off")
+
+        assert "✅" in texto and "estado agora: off" in texto
+
+    # -- a action: par honesto (estado, confirmado) ------------------------
+
+    def test_ha_que_aceita_mas_nao_muda_responde_nao_confirmado(
+        self, monkeypatch,
+    ) -> None:
+        """HA que aceita o serviço e NÃO reflete o estado (o caso real da
+        auditoria): a action devolve confirmado=False e a frase é de
+        'não confirmou' — nunca '✅ executado'."""
+        monkeypatch.setattr("tools.actions.actions._ESTADO_ESPERA_S", 0.0)
+        orch, llm, server, client = TestControleLuzes._setup()
+        monkeypatch.setattr(server, "_apply", lambda ent, svc: None)
+
+        from core.intents import format_intent_result
+        from tools.actions.actions import ha_device_control
+
+        alvo = "switch.luz_cozinha_sonoff_1"
+        r1 = ha_device_control(entity_id=alvo, on=True, user_id="alex")
+        assert r1.get("needs_confirmation") is True
+
+        r2 = ha_device_control(entity_id=alvo, on=True, user_id="alex")
+        assert r2.get("executed") is True
+        assert r2.get("estado_confirmado") is False
+        assert r2.get("state_after") == "off"  # estado real, sem maquiagem
+
+        texto = format_intent_result("ha_device_control", r2) or ""
+        assert "✅" not in texto and "NÃO confirmou" in texto
+
+    def test_ha_responsivo_confirma_o_comando(self, monkeypatch) -> None:
+        monkeypatch.setattr("tools.actions.actions._ESTADO_ESPERA_S", 0.0)
+        orch, llm, server, client = TestControleLuzes._setup()
+
+        from core.intents import format_intent_result
+        from tools.actions.actions import ha_device_control
+
+        alvo = "switch.luz_cozinha_sonoff_1"
+        ha_device_control(entity_id=alvo, on=True, user_id="alex")
+        r2 = ha_device_control(entity_id=alvo, on=True, user_id="alex")
+
+        assert r2.get("estado_confirmado") is True
+        assert r2.get("state_after") == "on"
+        texto = format_intent_result("ha_device_control", r2) or ""
+        assert "✅" in texto and "estado agora: on" in texto
+
+    def test_releitura_nao_trava_quando_o_ha_demora(self, monkeypatch) -> None:
+        """Se o estado só reflete na 3ª leitura, a action enxerga (releitura
+        curta) em vez de responder 'não confirmou' à toa."""
+        monkeypatch.setattr("tools.actions.actions._ESTADO_ESPERA_S", 0.0)
+        orch, llm, server, client = TestControleLuzes._setup()
+        alvo = "switch.luz_cozinha_sonoff_1"
+        real_get, real_call = server.get_state, server.call_service
+        leituras = {"n": 99}  # fora do comando: leitura normal
+
+        class _AindaVelho:
+            entity_id = alvo
+            state = "off"  # o HA ainda não refletiu o turn_on
+
+        def _call(domain, service, **dados):
+            leituras["n"] = 0  # o contador só corre depois do comando
+            return real_call(domain, service, **dados)
+
+        def _get(entity_id):
+            if entity_id == alvo and leituras["n"] < 2:
+                leituras["n"] += 1
+                return _AindaVelho()
+            return real_get(entity_id)
+
+        monkeypatch.setattr(server, "call_service", _call)
+        monkeypatch.setattr(server, "get_state", _get)
+
+        from tools.actions.actions import ha_device_control
+        ha_device_control(entity_id=alvo, on=True, user_id="alex")
+        r2 = ha_device_control(entity_id=alvo, on=True, user_id="alex")
+
+        assert leituras["n"] == 2  # leu 2× velho, 3ª viu o 'on'
+        assert r2.get("estado_confirmado") is True
+        assert r2.get("state_after") == "on"
+
+    def test_regra_de_confirmacao_por_dominio(self) -> None:
+        """O que vale como 'confirmou' em cada domínio (media_player ligado
+        não precisa dizer 'on'; unknown/unavailable nunca confirmam)."""
+        from tools.actions.actions import _estado_confirma
+
+        assert _estado_confirma("on", True, "light") is True
+        assert _estado_confirma("off", True, "light") is False
+        assert _estado_confirma("off", False, "switch") is True
+        assert _estado_confirma("on", False, "switch") is False
+        assert _estado_confirma("playing", True, "media_player") is True
+        assert _estado_confirma("off", True, "media_player") is False
+        assert _estado_confirma(None, True, "light") is False
+        assert _estado_confirma("unknown", False, "remote") is False
+
+
 class TestCacheSemRecusa:
     """O cache é servido ANTES da etapa 6.5 (anti-recusa) — uma recusa
     cacheada vira PERMANENTE. Bug do ar (28/09): a alucinação 'informação

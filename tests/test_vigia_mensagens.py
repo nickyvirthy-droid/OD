@@ -184,10 +184,14 @@ class TestSondaRedeSemBridge:
 
 
 class TestRegistroDeEstrategias:
-    def test_sondas_cobrem_os_dois_defeitos_diagnosticados(self) -> None:
+    def test_sondas_cobrem_os_defeitos_diagnosticados(self) -> None:
         nomes = {s.nome for s in vm.SONDAS}
 
-        assert nomes == {"rota_aparelho_infinitivo", "rede_sem_bridge"}
+        assert nomes == {
+            "rota_aparelho_infinitivo",
+            "rede_sem_bridge",
+            "estado_contraditorio",
+        }
         for sonda in vm.SONDAS:
             for arq in sonda.arquivos:
                 assert (vm.RAIZ / arq).exists(), (sonda.nome, arq)
@@ -201,6 +205,108 @@ class TestRegistroDeEstrategias:
                 continue
             rep = sonda.reparo()
             assert rep["status"] == "aplicado", (sonda.nome, rep)
+
+
+# ---------------------------------------------------------------------------
+# Sonda 3 — estado contradito vira "✅ executado" (core/intents.py)
+# ---------------------------------------------------------------------------
+
+
+class TestSondaEstadoContraditorio:
+    """'ligar' com estado lido 'off' não pode sair como ✅ executado."""
+
+    @staticmethod
+    def _format_antigo(action: str, data: dict) -> str:
+        """O formato ANTES do conserto (26/10) — a mentira da auditoria
+        23/10: deduz o estado da ação e imprime ✅ do mesmo jeito."""
+        if not data.get("executed"):
+            return ""
+        estado = data.get("state_after") or (
+            "on" if data.get("action") == "ligar" else "off")
+        emoji = "🟢" if estado == "on" else "⚪"
+        return (f"✅ {data.get('name')}: {data.get('action')} executado "
+                f"({emoji} estado agora: {estado}).")
+
+    @staticmethod
+    def _format_com_assertiva_sem_leitura(action: str, data: dict) -> str:
+        """Formato que afirma 'estado agora:' mesmo sem state_after."""
+        if not data.get("executed"):
+            return ""
+        return "✅ Luz da Cozinha: ligar executado (🟢 estado agora: on)."
+
+    def test_sonda_pega_o_estado_contrario_do_formato_antigo(self) -> None:
+        """O payload contraditório da auditoria ('ligar' + 'off') deixa a
+        sonda vermelha quando o formato é o de antes."""
+        assert vm.SondaEstadoContraditorio().vermelha(
+            self._format_antigo) is True
+
+    def test_sonda_pega_assertiva_feita_sem_leitura(self) -> None:
+        """Deduzir 'on' da ação (sem state_after) também é mentira."""
+        assert vm.SondaEstadoContraditorio().vermelha(
+            self._format_com_assertiva_sem_leitura) is True
+
+    def test_sonda_verde_no_formato_de_hoje(self) -> None:
+        assert vm.SondaEstadoContraditorio().vermelha() is False
+
+    def test_format_quebrado_ou_mudo_conta_como_vermelha(self) -> None:
+        def _explode(action: str, data: dict) -> str:
+            raise RuntimeError("sem intents")
+
+        assert vm.SondaEstadoContraditorio().vermelha(_explode) is True
+        assert vm.SondaEstadoContraditorio().vermelha(
+            lambda action, data: None) is True  # sem resposta não há resposta
+
+    def test_reparo_sobre_o_bloco_antigo_conserta(self) -> None:
+        rep = vm.SondaEstadoContraditorio().reparo(
+            conteudo=_blocos(vm._TROCAS_ESTADO))
+
+        assert rep["status"] == "aplicado"
+        texto = rep["arquivos"]["core/intents.py"]
+        assert "estado_confirmado" in texto and "NÃO confirmou" in texto
+        assert 'estado = data.get("state_after") or' not in texto
+        assert vm.SondaEstadoContraditorio().confere_staged(texto) is True
+
+    def test_reparo_com_ancora_sumida_vai_para_fila(self) -> None:
+        rep = vm.SondaEstadoContraditorio().reparo(
+            conteudo="# refatorado sem aviso\n")
+
+        assert rep["status"] == "ancora_ausente"
+        assert len(rep["faltando"]) == 1  # só a âncora C1
+
+    def test_reparo_no_codigo_de_hoje_e_idempotente(self) -> None:
+        """Hoje o formato já é honesto: sem_defeito (nunca âncora ausente
+        — que seria fila às 04:30 sem conserto)."""
+        sonda = vm.SondaEstadoContraditorio()
+
+        assert sonda.reparo()["status"] == "sem_defeito"
+
+    def test_confere_staged_rejeita_o_codigo_antigo(self) -> None:
+        sonda = vm.SondaEstadoContraditorio()
+
+        assert sonda.confere_staged(_blocos(vm._TROCAS_ESTADO)) is False
+        assert sonda.confere_staged(
+            _blocos(vm._TROCAS_ESTADO, novo=True)) is True
+
+    def test_bloco_novo_e_o_que_esta_no_arquivo_real(self) -> None:
+        """Âncoras conferidas contra o arquivo vivo: o lado novo está lá
+        (sonda verde) e o antigo saiu (o conserto já foi aplicado)."""
+        alvo = (vm.RAIZ / "core/intents.py").read_text(encoding="utf-8")
+
+        assert _blocos(vm._TROCAS_ESTADO, novo=True) in alvo
+        assert _blocos(vm._TROCAS_ESTADO) not in alvo
+
+    def test_runner_do_coder_le_o_arquivo_staged(self, tmp_path) -> None:
+        staged = tmp_path / "intents.py"
+        runner = vm.SondaEstadoContraditorio().runner()
+
+        staged.write_text(_blocos(vm._TROCAS_ESTADO, novo=True),
+                          encoding="utf-8")
+        assert runner(relpath="core/intents.py", staged_file=str(staged),
+                      sandbox_dir=str(tmp_path), original_file="") is True
+
+        staged.write_text(_blocos(vm._TROCAS_ESTADO), encoding="utf-8")
+        assert runner(relpath="core/intents.py", staged_file=str(staged),
+                      sandbox_dir=str(tmp_path), original_file="") is False
 
 
 # ---------------------------------------------------------------------------

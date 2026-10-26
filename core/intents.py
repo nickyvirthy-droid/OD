@@ -1588,11 +1588,32 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
                 "Responda **sim** para executar — a confirmação vale por 2 minutos."
             )
         if data.get("executed"):
-            estado = data.get("state_after") or ("on" if data.get("action") == "ligar" else "off")
-            emoji = "🟢" if estado == "on" else "⚪"
+            # 26/10 (Vigia das Mensagens): a frase só afirma estado
+            # CONFIRMADO. O fallback antigo deduzia o estado da ação
+            # ('state_after' vazio => "on" quando a ação era 'ligar') e
+            # imprimia '✅ executado (estado: off)' mesmo com o aparelho
+            # desligado — 4 turnos de contradição na auditoria 23/10.
+            nome = data.get("name") or data.get("entity") or "dispositivo"
+            acao = data.get("action") or ""
+            estado = data.get("state_after")
+            confirmado = data.get("estado_confirmado")
+            if confirmado is None:
+                # Dado antigo/sem flag: só afirma se o estado bater com o
+                # pedido — deduzir da ação é exatamente a mentira antiga.
+                esperado = "on" if acao == "ligar" else "off"
+                confirmado = bool(estado) and estado == esperado
+            if confirmado:
+                emoji = "⚪" if estado == "off" else "🟢"
+                return (
+                    f"✅ {nome}: {acao} executado "
+                    f"({emoji} estado agora: {estado})."
+                )
+            lido = estado if estado else "sem leitura"
             return (
-                f"✅ {data.get('name')}: {data.get('action')} executado "
-                f"({emoji} estado agora: {estado})."
+                f"⚠️ {nome}: {acao} enviado, mas o aparelho NÃO confirmou "
+                f"(estado lido: {lido}).\n"
+                "Pode levar alguns segundos ou o aparelho não aceitou — "
+                "confira em 'luzes acesas' ou peça de novo."
             )
         return None
 
