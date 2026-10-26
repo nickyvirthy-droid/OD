@@ -277,6 +277,40 @@ mudar o estado da casa exige autorização explícita (regra 7); o caminho
 de rota/confirmação foi provado sem executar nada. **Sem bump** —
 1.44.0/2080 intacta (mudança de backend).
 
+### O inventário do Vigia volta a ser lido em produção: fallback fora de `tools/` + sonda 4 `inventario_fora_da_raiz` (26/10, sem bump)
+
+**Onde o defeito foi achado:** na **prova viva** da entrega anterior —
+POST `/message` real com *"quantas pessoas estão conectadas na rede?"*
+devolvia **10 dispositivos só com IP/MAC, nenhum nome**, mesmo com
+`logs/network_watchdog_estado.json` vivo (23 aparelhos nomeados pelo
+Vigia). O `format_intent_result` não tinha o que imprimir.
+
+**Causa raiz (lida no código, regra 5):** o fallback do diretório era
+`Path(__file__).resolve().parents[1] / "logs"` — `parents[1]` de
+`tools/actions/actions.py` é **`tools/`**, ou seja `tools/logs`, que
+**não existe**; e o od-core roda **sem `OD_LOG_DIR`** (só as units
+`network-watchdog` e `od-vigia-mensagens` definem a variável). Em
+produção o inventário nascia vazio. As guardas setavam `OD_LOG_DIR` em
+`tmp_path` e **nunca caíam no fallback**, por isso o gate da manhã
+passou — mesmo padrão de "teste que não cobre o caminho do produtor".
+
+| Peça | Entrega |
+|---|---|
+| **`tools/actions/actions.py`** | `_dir_logs_vigia()` extraído: `OD_LOG_DIR` ou **`parents[2] / "logs"`** (a raiz do projeto). `_inventario_vigia()` passou a chamá-lo — mesmo contrato de antes, num único ponto para corrigir. |
+| **Sonda 4 — `inventario_fora_da_raiz`** (`core/vigia_mensagens.py`) | Probe **puro**: `pop` em `OD_LOG_DIR` (com restauração em `finally`) e comparação do diretório resolvido com `<raiz>/logs` — não depende de arquivo algum existir, roda igual no gate e às 04:30. Reparo ancorado em **1 ponto** (`D1`), `confere_staged` exige `parents[2]` e a **ausência** de `parents[1]`; probe que explode conta como vermelho (nunca falso-verde). |
+| **Guardas** | `tests/test_intents.py` **+1** (fallback sem `OD_LOG_DIR` == raiz do projeto, `tools/logs` rejeitado, `OD_LOG_DIR` vence) · `tests/test_vigia_mensagens.py` **+11** (verde no código de hoje, pega o fallback de `tools`, verde na raiz, `OD_LOG_DIR` vence e é restaurado, probe quebrado, reparo/âncora/idempotente/`confere_staged`, âncoras conferidas contra o arquivo vivo, runner) — e a lista do **registro de estratégias** ganhou o 4º nome (a guarda que falha se alguém adicionar sonda sem catalogar). |
+
+**Mutação:** recolocando `parents[1]` no arquivo, **5 guardas falham**
+(sonda verde hoje, idempotente, âncoras do arquivo vivo, fallback em
+`test_intents` e a de ambiente); restauração **bit a bit** conferida por
+`diff`.
+
+**Validação:** gate oficial **3863 passed / 16 skipped / 0 falha ·
+90,58%** (eram 3851 — os **+12** são as guardas novas; executado DEPOIS
+desta edição, o CHANGELOG entra no corpus do RAG) · pyflakes **0 aviso
+novo** (os 2 de `actions.py` são pré-existentes, conferidos contra o
+HEAD). **Sem bump** — 1.44.0/2080 intacta (mudança de backend).
+
 ### Kiwix dentro do chat: a Wikipédia offline responde o que a memória interna não sabe (24/10, sem bump)
 
 **Pedido do dono** (ideia de 21/10 no parking lot §5, escolhida em

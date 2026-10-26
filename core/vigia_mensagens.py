@@ -511,6 +511,70 @@ class SondaEstadoContraditorio(Sonda):
                 and "estado = data.get(\"state_after\") or" not in texto)
 
 
+class SondaInventarioForaDaRaiz(Sonda):
+    """`network_hosts` só responde com NOME se achar o inventário do Vigia.
+
+    Diagnóstico de 26/10 (achado na prova viva da frente): o fallback do
+    diretório era `parents[1]` = `tools/logs` (**inexistente**) e o od-core
+    roda **sem** `OD_LOG_DIR` — inventário vazio em produção e a lista saía
+    só com IP/MAC. Os testes setavam a variável e nunca caiam no fallback.
+
+    Probe puro: com `OD_LOG_DIR` fora do ambiente, o diretório resolvido
+    tem que ser `<raiz>/logs` — não depende de arquivo algum existir.
+    """
+
+    nome = "inventario_fora_da_raiz"
+    classe = "resposta_errada"
+    arquivos = ("tools/actions/actions.py",)
+    modulos = ("tools.actions",)
+    descricao = ("inventário do Vigia aponta para tools/logs (inexistente): "
+                 "a resposta de rede perde o nome de cada aparelho")
+
+    def _dir(self) -> Callable[..., Any]:
+        from tools.actions.actions import _dir_logs_vigia
+        return _dir_logs_vigia
+
+    def vermelha(self, dir_fn: Optional[Callable[[], Any]] = None) -> bool:
+        """True se, sem `OD_LOG_DIR`, o diretório NÃO for `<raiz>/logs`."""
+        fn = dir_fn or self._dir()
+        original = os.environ.pop("OD_LOG_DIR", None)
+        try:
+            achado = Path(fn())
+        except Exception as exc:  # probe quebrado = sonda vermelha
+            log.warn("Vigia: probe do inventário explodiu", error=str(exc)[:160])
+            return True
+        finally:
+            if original is not None:
+                os.environ["OD_LOG_DIR"] = original
+        return achado != (RAIZ / "logs")
+
+    def reparo(self, conteudo: Optional[str] = None) -> dict[str, Any]:
+        """`parents[1]` (tools/) vira `parents[2]` (raiz do projeto)."""
+        texto = conteudo
+        if texto is None:
+            if not self.vermelha():
+                return {"status": "sem_defeito"}
+            texto = (RAIZ / "tools/actions/actions.py").read_text(
+                encoding="utf-8")
+        faltando: list[str] = []
+        novo = texto
+        for rotulo, antigo, novo_bloco in _TROCAS_INV:
+            if antigo in novo:
+                novo = novo.replace(antigo, novo_bloco, 1)
+            else:
+                faltando.append(rotulo)
+        if faltando:
+            return {"status": "ancora_ausente", "faltando": faltando}
+        if novo == texto:
+            return {"status": "sem_defeito"}
+        return {"status": "aplicado",
+                "arquivos": {"tools/actions/actions.py": novo}}
+
+    def confere_staged(self, texto: str) -> bool:
+        return ("parents[2] / \"logs\"" in texto
+                and "parents[1] / \"logs\"" not in texto)
+
+
 # Âncoras exatas do código de 26/10 (verificadas: 1 ocorrência cada).
 # Se alguém refatorar os blocos, a âncora some → status "ancora_ausente"
 # → FILA (nunca escrita às cegas) e a guarda de teste aponta a mudança.
@@ -607,8 +671,21 @@ _TROCAS_ESTADO = (
      "            )\n"),
 )
 
+# Âncora da sonda de INVENTÁRIO (26/10): o fallback apontava para
+# tools/ (parents[1]) em vez da raiz do projeto (parents[2]).
+_TROCAS_INV = (
+    ("D1 · fallback do diretório do Vigia (_dir_logs_vigia)",
+     '        or Path(__file__).resolve().parents[1] / "logs"',
+     "        # 26/10 (Vigia das Mensagens): parents[1] é tools/, não a\n"
+     "        # raiz — tools/logs não existe e o od-core roda SEM\n"
+     "        # OD_LOG_DIR, então o inventário voltava vazio em produção\n"
+     "        # (a resposta de rede perdia o nome de cada aparelho).\n"
+     '        or Path(__file__).resolve().parents[2] / "logs"'),
+)
+
 SONDAS: tuple[Sonda, ...] = (
     SondaRotaAparelho(), SondaRedeSemBridge(), SondaEstadoContraditorio(),
+    SondaInventarioForaDaRaiz(),
 )
 
 

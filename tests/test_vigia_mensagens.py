@@ -25,6 +25,7 @@ commit, ou ROLLBACK bit a bit. O que está travado aqui:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -191,6 +192,7 @@ class TestRegistroDeEstrategias:
             "rota_aparelho_infinitivo",
             "rede_sem_bridge",
             "estado_contraditorio",
+            "inventario_fora_da_raiz",
         }
         for sonda in vm.SONDAS:
             for arq in sonda.arquivos:
@@ -307,6 +309,107 @@ class TestSondaEstadoContraditorio:
         staged.write_text(_blocos(vm._TROCAS_ESTADO), encoding="utf-8")
         assert runner(relpath="core/intents.py", staged_file=str(staged),
                       sandbox_dir=str(tmp_path), original_file="") is False
+
+
+# ---------------------------------------------------------------------------
+# Sonda 4 — inventário do Vigia fora da raiz (tools/actions/actions.py)
+# ---------------------------------------------------------------------------
+
+
+class TestSondaInventarioForaDaRaiz:
+    """`network_hosts` só responde com NOME se achar o inventário.
+
+    Defeito achado na prova viva de 26/10: fallback `parents[1]` =
+    `tools/logs` (inexistente) e o od-core roda sem `OD_LOG_DIR` →
+    inventário vazio em produção, resposta só com IP/MAC.
+    """
+
+    def test_sonda_verde_no_codigo_de_hoje(self) -> None:
+        assert vm.SondaInventarioForaDaRaiz().vermelha() is False
+
+    def test_sonda_pega_o_fallback_de_tools(self) -> None:
+        """Fallback apontando para `tools/logs` = vermelha (o defeito de
+        produção, reproduzido sem depender do ambiente)."""
+        def dir_errado() -> Path:
+            return vm.RAIZ / "tools" / "logs"
+
+        assert vm.SondaInventarioForaDaRaiz().vermelha(dir_errado) is True
+
+    def test_sonda_verde_quando_o_diretorio_e_a_raiz(self) -> None:
+        def dir_certo() -> Path:
+            return vm.RAIZ / "logs"
+
+        assert vm.SondaInventarioForaDaRaiz().vermelha(dir_certo) is False
+
+    def test_od_log_dir_vence_e_e_restaurado(self, monkeypatch,
+                                             tmp_path) -> None:
+        """Com `OD_LOG_DIR` no ambiente o probe não pode fingir vermelho —
+        e a variável precisa voltar pro lugar depois."""
+        monkeypatch.setenv("OD_LOG_DIR", str(tmp_path))
+
+        assert vm.SondaInventarioForaDaRaiz().vermelha() is False
+        assert Path(os.environ["OD_LOG_DIR"]) == tmp_path
+
+    def test_probe_quebrado_conta_como_vermelha(self) -> None:
+        def _explode() -> Path:
+            raise RuntimeError("sem pathlib")
+
+        assert vm.SondaInventarioForaDaRaiz().vermelha(_explode) is True
+
+    def test_reparo_sobre_o_fallback_antigo_conserta(self) -> None:
+        rep = vm.SondaInventarioForaDaRaiz().reparo(
+            conteudo=_blocos(vm._TROCAS_INV))
+
+        assert rep["status"] == "aplicado"
+        texto = rep["arquivos"]["tools/actions/actions.py"]
+        assert 'parents[2] / "logs"' in texto
+        assert 'parents[1] / "logs"' not in texto
+        assert vm.SondaInventarioForaDaRaiz().confere_staged(texto) is True
+
+    def test_reparo_com_ancora_sumida_vai_para_fila(self) -> None:
+        rep = vm.SondaInventarioForaDaRaiz().reparo(
+            conteudo="# refatorado sem aviso\n")
+
+        assert rep["status"] == "ancora_ausente"
+        assert len(rep["faltando"]) == 1  # só a âncora D1
+
+    def test_reparo_no_codigo_de_hoje_e_idempotente(self) -> None:
+        """Hoje o fallback já é a raiz: sem_defeito (nunca âncora ausente
+        — que seria fila às 04:30 sem conserto)."""
+        sonda = vm.SondaInventarioForaDaRaiz()
+
+        assert sonda.reparo()["status"] == "sem_defeito"
+
+    def test_confere_staged_rejeita_o_codigo_antigo(self) -> None:
+        sonda = vm.SondaInventarioForaDaRaiz()
+
+        assert sonda.confere_staged(_blocos(vm._TROCAS_INV)) is False
+        assert sonda.confere_staged(
+            _blocos(vm._TROCAS_INV, novo=True)) is True
+
+    def test_fallback_novo_e_o_que_esta_no_arquivo_real(self) -> None:
+        """Âncoras conferidas contra o arquivo vivo: lado novo está lá e o
+        antigo saiu (o conserto já está aplicado no disco)."""
+        alvo = (vm.RAIZ / "tools/actions/actions.py").read_text(
+            encoding="utf-8")
+
+        assert _blocos(vm._TROCAS_INV, novo=True) in alvo
+        assert _blocos(vm._TROCAS_INV) not in alvo
+
+    def test_runner_do_coder_le_o_arquivo_staged(self, tmp_path) -> None:
+        staged = tmp_path / "actions.py"
+        runner = vm.SondaInventarioForaDaRaiz().runner()
+
+        staged.write_text(_blocos(vm._TROCAS_INV, novo=True),
+                          encoding="utf-8")
+        assert runner(relpath="tools/actions/actions.py",
+                      staged_file=str(staged), sandbox_dir=str(tmp_path),
+                      original_file="") is True
+
+        staged.write_text(_blocos(vm._TROCAS_INV), encoding="utf-8")
+        assert runner(relpath="tools/actions/actions.py",
+                      staged_file=str(staged), sandbox_dir=str(tmp_path),
+                      original_file="") is False
 
 
 # ---------------------------------------------------------------------------

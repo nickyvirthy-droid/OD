@@ -633,6 +633,28 @@ class TestNetworkHostsInventarioVigia:
         assert result["ok"] is True and result["count"] == 3
         assert all("nome" not in h for h in result["hosts"])
 
+    def test_fallback_sem_od_log_dir_e_a_raiz_do_projeto(
+            self, monkeypatch) -> None:
+        """26/10 (achado na prova viva): o od-core roda SEM `OD_LOG_DIR` e
+        o fallback antigo era `parents[1]` = `tools/logs` (**inexistente**)
+        — inventário vazio em produção e a resposta de rede saía só com
+        IP/MAC. Os testes setavam a variável e nunca caiam no fallback,
+        por isso o defeito passou no gate da manhã.
+        """
+        from pathlib import Path
+
+        import tools.actions.actions as acoes
+        from tools.actions.actions import _dir_logs_vigia
+
+        raiz = Path(acoes.__file__).resolve().parents[2]
+        monkeypatch.delenv("OD_LOG_DIR", raising=False)
+
+        assert _dir_logs_vigia() == raiz / "logs"
+        assert _dir_logs_vigia() != raiz / "tools" / "logs"
+
+        monkeypatch.setenv("OD_LOG_DIR", "/tmp/logs-do-vigia")
+        assert _dir_logs_vigia() == Path("/tmp/logs-do-vigia")
+
 
 # ---------------------------------------------------------------------------
 # Integração no pipeline do Orchestrator (etapa 3.5)

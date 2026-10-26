@@ -1926,6 +1926,27 @@ def system_ping(host: str, port: int = 443, timeout: float = 1.0) -> dict[str, A
     return {"ok": True, "host": host, "port": port, "reachable": reachable}
 
 
+def _dir_logs_vigia() -> Path:
+    """Diretório dos logs do Vigia: `OD_LOG_DIR` ou `<raiz do projeto>/logs`.
+
+    A raiz é `parents[2]` de `tools/actions/actions.py` (`tools/` é o
+    `parents[1]`). O código de 26/10 de manhã trazia `parents[1]` — ou
+    seja, `tools/logs`, que **não existe** — e como o od-core roda SEM
+    `OD_LOG_DIR` no ambiente, o inventário voltava **vazio em produção**:
+    "quantas pessoas estão conectadas" perdia o nome/fabricante de cada
+    aparelho (os testes setavam a variável e nunca caiam no fallback).
+    Guarda: sonda `inventario_fora_da_raiz` + tests/test_intents.py.
+    """
+    return Path(
+        os.environ.get("OD_LOG_DIR")
+        # 26/10 (Vigia das Mensagens): parents[1] é tools/, não a
+        # raiz — tools/logs não existe e o od-core roda SEM
+        # OD_LOG_DIR, então o inventário voltava vazio em produção
+        # (a resposta de rede perdia o nome de cada aparelho).
+        or Path(__file__).resolve().parents[2] / "logs"
+    )
+
+
 def _inventario_vigia() -> dict[str, dict[str, Any]]:
     """Inventário do Vigia (MAC canônico -> entrada) — parking lot §5.
 
@@ -1939,10 +1960,7 @@ def _inventario_vigia() -> dict[str, dict[str, Any]]:
     com o ARP, exatamente como sempre (o Vigia é opcional, nunca quebra a
     ação nem o boot).
     """
-    log_dir = Path(
-        os.environ.get("OD_LOG_DIR")
-        or Path(__file__).resolve().parents[1] / "logs"
-    )
+    log_dir = _dir_logs_vigia()
     try:
         estado = json.loads(
             (log_dir / "network_watchdog_estado.json").read_text(
