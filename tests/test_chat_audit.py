@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -28,10 +29,12 @@ from core.chat_audit import (
     JuizLLM,
     Turno,
     Veredito,
+    _linha_depois,
     auditar,
     carregar_turnos_cascata,
     carregar_turnos_json,
     carregar_turnos_legados,
+    carregar_turnos_sistema,
     gerar_relatorio,
     main,
     montar_juiz,
@@ -492,3 +495,74 @@ class TestCLI:
         carga = json.loads(gerados[0].read_text(encoding="utf-8"))
         assert carga["total_turnos"] == 1
         assert carga["contagens"]["erro"] == 1  # sem juiz = erro, nunca ok
+
+
+class TestJanelaTemporalDoVigia:
+    """Janela `--ultimas N horas` (ordem do dono 26/10: "verificar isso
+    pelo menos uma vez no dia").
+
+    O defeito corrigido do próprio auditor: `--limite N` vinha com
+    `ORDER BY ts ASC` — pegava os turnos MAIS ANTIGOS, o oposto do que
+    um job diário precisa. Agora o corte é por `ts` (epoch) e acontece
+    ANTES de virar `Turno`; `--throttle` pausa entre juizadas porque o
+    Groq devolveu HTTP 429 (TPM 8000) em 4 de 30 turnos em 26/10.
+    """
+
+    @staticmethod
+    def _linha(ts: Any, pergunta: str = "oi") -> dict[str, Any]:
+        return {"user_id": "u", "profile": "alex", "role": "user",
+                "content": pergunta, "ts": ts, "llm_used": ""}
+
+    def test_linha_depois_corta_por_epoch(self) -> None:
+        assert _linha_depois({"ts": 100.0}, desde=None) is True
+        assert _linha_depois({"ts": 100.0}, desde=50.0) is True
+        assert _linha_depois({"ts": 100.0}, desde=150.0) is False
+
+    def test_linha_estranha_nao_some_da_auditoria(self) -> None:
+        """Linha sem `ts` numérico passa reto: corte temporal não é
+        motivo de perder registro de conversa (nunca silêncio)."""
+        assert _linha_depois({"ts": "abc"}, desde=1.0) is True
+        assert _linha_depois({}, desde=1.0) is True
+        assert _linha_depois(None, desde=1.0) is True
+
+    def test_carregar_turnos_sistema_desde_corta_as_recentes(self) -> None:
+        class _DBFake:
+            def __init__(self, linhas: list[dict[str, Any]]) -> None:
+                self._linhas = linhas
+
+            def query(self, _sql: str, _params: Any = (),
+                      limit: Any = None) -> list[dict[str, Any]]:
+                return self._linhas[:limit] if limit else self._linhas
+
+        db = _DBFake([self._linha(100.0, "velha"), self._linha(200.0, "ontem"),
+                      self._linha(300.0, "hoje")])
+
+        turnos = carregar_turnos_sistema(db, desde=150.0)
+
+        assert [t.pergunta for t in turnos] == ["ontem", "hoje"]
+        assert len(carregar_turnos_sistema(db)) == 3  # sem corte, tudo
+
+    def test_throttle_pausa_somente_as_juizadas(self,
+                                                monkeypatch) -> None:
+        """Pausa protege a chamada de LLM; veredito determinístico
+        (resposta vazia) não paga a pausa — não há chamada a proteger."""
+        pausas: list[float] = []
+        monkeypatch.setattr("core.chat_audit.time.sleep",
+                            lambda s: pausas.append(s))
+
+        class _Juiz:
+            def julgar(self, turno: Any, anterior: Any) -> Veredito:
+                return Veredito("ok", "tudo certo", juiz="fake")
+
+        turnos = [
+            Turno(fonte="sistema", quando="x", usuario="a",
+                  pergunta="meus e-mails", resposta=""),
+            Turno(fonte="sistema", quando="y", usuario="a",
+                  pergunta="bom dia", resposta="oi!"),
+        ]
+
+        resultados = auditar(turnos, _Juiz(), throttle=1.5)
+
+        assert pausas == [1.5]          # só o turno completo foi juizado
+        assert resultados[0]["veredito"] == "resposta_errada"
+        assert resultados[1]["veredito"] == "ok"

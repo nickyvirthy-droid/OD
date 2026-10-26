@@ -182,6 +182,39 @@ o CHANGELOG entra no corpus do RAG) · pyflakes **0 aviso novo** (os 2 de
 `actions.py` são pré-existentes, conferidos contra o HEAD). **Sem bump**
 — 1.44.0/2080 intacta (mudança de backend).
 
+### Vigia das Mensagens: o chat é auditado 1× por dia e o que tem conserto determinístico é consertado SOZINHO (ordem do dono, 26/10, sem bump)
+
+**Pedido do dono** (26/10, ~10:45): *"existe algum tipo de vigia para
+as mensagens? percebi que algumas perguntas não recebem respostas
+corretas. o sistema tem como verificar isso pelo menos uma vez no dia e
+consertar?"* — e, na pergunta de régua do conserto, ele respondeu:
+**"reparo automático completo"**, mandando partir dos achados da
+auditoria do dia.
+
+**Auditoria ao vivo do diagnóstico** (30 turnos mais recentes, 22/10 →
+26/10, juiz Groq com reserva local por turno): **15 ok / 10
+resposta_errada / 5 inconsistente**. Padrões: 6× resposta factual errada
+do modelo local (24/10 de madrugada), 4× contradição de estado do HA,
+1× *"ligar TV"* parando na rota de compromissos, 1× `network_hosts`
+listando as bridges do Docker. Volume real ≈ **10–15 turnos/dia** (73
+turnos / 146 mensagens desde 29/09): a auditoria diária é barata.
+
+| Peça | Entrega |
+|---|---|
+| **`core/vigia_mensagens.py` (NOVO)** | O job diário: (1) audita as últimas 24 h (`--ultimas`, janela nova do auditor, throttle 1,5 s contra o HTTP 429 do Groq); (2) roda SONDAS determinísticas — **sem LLM no caminho do reparo**: o juiz só classifica, quem escreve é a estratégia ancorada no texto do arquivo; (3) sonda vermelha → `CoderEngine.apply_change` (sandbox → compile → backup → promoção atômica) → **GATE COMPLETO** → verde: commit + push (7.1) + restart verde (7.3) + aviso; vermelho: **rollback bit a bit** (`git checkout --` só nos arquivos que ele alterou) + fila + alerta; (4) relatório JSON em `analise/` + resumo no Telegram (regra 15). Vereditos do juiz **sem estratégia determinística** (alucinação factual, contradição de estado) **viram fila com motivo** — adivinhar consertaria uma resposta errada nova no lugar da antiga. Garantias codificadas: árvore limpa nos arquivos-alvo (resíduo de sessão alheia → fila, nunca sobrescrito), âncora ausente → fila (nunca escrita às cegas), idempotente, `--seco` sem git/gate/Telegram. |
+| **`core/chat_audit.py`** | Janela temporal **`--ultimas N horas`** (`_linha_depois` + `desde=` cortam por `ts` ANTES de virar `Turno`; linha sem data confiável passa reto — nunca silêncio) e **`--throttle`** entre juizadas. Os dois defeitos do próprio auditor que o job diário esbarrava: `--limite N` vinha com `ORDER BY ts ASC` e pegava os turnos **MAIS ANTIGOS** (o oposto do que um corte diário precisa); e o Groq devolveu HTTP 429 (TPM 8000) em 4 de 30 turnos em 26/10. |
+| **Sonda 1 — `rota_aparelho_infinitivo`** | `core/intents.py`: o **infinitivo** (ligar, desligar, apagar, acender, conectar) estava FORA do regex `_comando` — só `liga/ligue/desliga/…` casavam. Prova viva: `detect_action_intent("ligar TV")` = `None` (caía no LLM; a rota de compromissos respondeu de verdade em 23/10 13:40). Reparo ancorado em 3 pontos (regex de detecção, cálculo do `on`, strip de alvo do `resolve_light_target`) e probe de 4 frases-expectativa: `"ligar TV"`→on, `"desligar o ar-condicionado"`→off, `"apagar a luz da cozinha"`→off, `"acender a luz do corredor"`→on. |
+| **Sonda 2 — `rede_sem_bridge`** | `tools/actions/actions.py`: `network_hosts` contava **9 contêineres do Docker** (interface `br-b7119289ffc4`) como aparelhos da casa — *"quantas pessoas estão conectadas"* devolvia 20 vizinhos sendo 11 de gente. Reparo ancorado em 2 pontos (constante `_IFACES_VIRTUAIS` + `continue`), probe com **ARP sintético injetado** (o `_read_proc` é trocado só durante a chamada e devolvido no `finally` — determinístico em qualquer máquina, com ou sem Docker). |
+| **`runtime/systemd/od-vigia-mensagens.{service,timer}`** | Timer diário **04:30** (`Persistent=true` recupera o ciclo perdido com a máquina desligada), longe da janela de backups (03:00–04:12); `EnvironmentFile=.env` (mesmos segredos do od-core, carregado por `setdefault`, nunca impresso); `TimeoutStartSec=55min` porque o gate completo roda dentro do ciclo. `install-user.sh` copia, `enable --now` e verifica. |
+| **Guardas** | `tests/test_vigia_mensagens.py` **+32** e `tests/test_chat_audit.py` **+4**: sondas acham o defeito e ficam verdes quando consertado; reparo **idempotente** no código de hoje (`sem_defeito \| aplicado`, nunca `ancora_ausente` — vale ANTES e DEPOIS do conserto); âncora sumida por refatoração → fila e o teste aponta a mudança no gate (em vez de o vigia acordar às 04:30 mudo); gate vermelho → rollback; arquivo sujo → fila; `--seco` não toca git/gate/Telegram. |
+
+**Validação:** `tests/test_vigia_mensagens.py` **32/32** +
+`tests/test_chat_audit.py` **48/48** · **gate oficial 3826 passed / 16
+skipped / 0 falha · 90,52%** · pyflakes **0 aviso** · reparos aplicados
+em memória antes do gate: os dois geram Python que compila e passam no
+`confere_staged`. **Sem bump** — 1.44.0/2080 intacta (mudança de
+backend).
+
 ### Kiwix dentro do chat: a Wikipédia offline responde o que a memória interna não sabe (24/10, sem bump)
 
 **Pedido do dono** (ideia de 21/10 no parking lot §5, escolhida em

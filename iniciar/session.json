@@ -1,4 +1,17 @@
 {
+ "vigia_das_mensagens_2026_10_26": {
+  "regua_do_dono": "26/10: nivel = 'Reparo automático completo'; fonte = 'Usa os achados da auditoria' (nao ele manda exemplos). Registrado antes de codar (regra 4).",
+  "diagnostico_reconfirmado": "Contra o codigo de HOJE: (a) 'ligar TV' -> detect_action_intent = None (infinitivo fora do regex _comando; 'liga a tv' funcionava) — REPRODUZ; (b) network_hosts com 9 bridges do Docker (br-b7119289ffc4) de 20 vizinhos — REPRODUZ; (c) contradicao de estado do HA e (d) fatos errados do modelo local: sem estrategia deterministica -> FILA (regua do dono). Ancoras verificadas 1x cada (A1/A2/A3 em core/intents.py; B1/B2 em tools/actions/actions.py).",
+  "entregue": [
+   "core/chat_audit.py: janela --ultimas N horas (_linha_depois + desde= antes de virar Turno; linha sem data passa reto) e --throttle entre juizadas (Groq HTTP 429 TPM 8000 em 4/30 turnos em 26/10).",
+   "core/vigia_mensagens.py (NOVO): audita 24h -> sondas deterministas -> CoderEngine (sandbox/compile/backup/promocao) -> GATE -> verde: commit+push (7.1)+restart verde (7.3)+Telegram; vermelho: rollback git checkout -- so nos arquivos alterados + fila + alerta. Garantias: arvore limpa nos alvos, ancora ausente -> fila, idempotente, sem LLM escrevendo codigo, --seco sem git/gate/Telegram.",
+   "tests/test_vigia_mensagens.py (+32) e tests/test_chat_audit.py (+4).",
+   "runtime/systemd/od-vigia-mensagens.{service,timer} (diario 04:30, Persistent, EnvironmentFile=.env, TimeoutStartSec=55min) + install-user.sh."
+  ],
+  "estado": "EM IMPLANTACAO (gate oficial rodando, depois commit, instalacao das units e execucao AO VIVO do vigia que deve consertar as 2 sondas sozinho).",
+  "updated_at": "2026-10-26T11:40:00-03:00",
+  "transcricao": "iniciar/2026-10-26_conversa_omegadrakon.md (§5)"
+ },
  "vigia_das_mensagens_diagnostico_2026_10_26": {
   "pedido": "Dono (26/10 ~10:45): 'existe algum tipo de vigia para as mensagens? percebi que algumas perguntas nao recebem respostas corretas. o sistema tem como verificar isso pelo menos uma vez no dia e consertar?'",
   "o_que_existe": "core/chat_audit.py (entrega 22/10, ordem dele) — juiz plugavel classificando cada turno em ok/resposta_errada/devaneio/inconsistente/erro, relatorio JSON em analise/. MANUAL: sem timer, sem aviso, sem conserto. list-timers do usuario so tem network-watchdog (5 min), router-monitor (1 min) e dpkg-db-backup — nenhum job de auditoria de mensagens.",

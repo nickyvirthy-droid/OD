@@ -13,7 +13,9 @@ cp runtime/systemd/od-llm.service \
    runtime/systemd/router-monitor.service \
    runtime/systemd/router-monitor.timer \
    runtime/systemd/network-watchdog.service \
-   runtime/systemd/network-watchdog.timer "$UNIT_DIR/"
+   runtime/systemd/network-watchdog.timer \
+   runtime/systemd/od-vigia-mensagens.service \
+   runtime/systemd/od-vigia-mensagens.timer "$UNIT_DIR/"
 
 systemctl --user daemon-reload
 systemctl --user enable od-llm.service od-core.service od-control-bridge.service
@@ -26,6 +28,12 @@ systemctl --user enable --now router-monitor.timer
 
 # Vigia da Rede: mesmo molde — timer de 5 min chamando o oneshot.
 systemctl --user enable --now network-watchdog.timer
+
+# Vigia das Mensagens (26/10): mesmo molde — timer DIÁRIO (04:30) chamando
+# o oneshot que audita as últimas 24 h de conversa e conserta causas
+# determinísticas (CoderEngine + gate + rollback; o que não tem estratégia
+# vira fila com motivo no Telegram/relatório).
+systemctl --user enable --now od-vigia-mensagens.timer
 
 echo "✅ Units instaladas e ativadas:"
 systemctl --user status od-llm.service od-core.service od-control-bridge.service \
@@ -48,4 +56,11 @@ if systemctl --user is-enabled router-monitor.timer >/dev/null 2>&1; then
 else
     echo "⚠️  router-monitor.timer NÃO habilitado — rode:"
     echo "   systemctl --user enable --now router-monitor.timer"
+fi
+
+if systemctl --user is-enabled od-vigia-mensagens.timer >/dev/null 2>&1; then
+    echo "✅ od-vigia-mensagens.timer habilitado (auditoria diária do chat, 04:30)"
+else
+    echo "⚠️  od-vigia-mensagens.timer NÃO habilitado — rode:"
+    echo "   systemctl --user enable --now od-vigia-mensagens.timer"
 fi

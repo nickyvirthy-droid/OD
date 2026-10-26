@@ -1,0 +1,15 @@
+[Unit]
+Description=Timer do Vigia das Mensagens - OmegaDrakon
+
+[Timer]
+# Diário às 04:30 — longe da janela de backups (03:00–04:12) e das
+# capturas de 04:00. Persistent=true roda o ciclo que foi perdido com a
+# máquina desligada; o atraso aleatório espalha execuções se houver mais
+# de uma caixa no mesmo relógio.
+OnCalendar=*-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=5min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

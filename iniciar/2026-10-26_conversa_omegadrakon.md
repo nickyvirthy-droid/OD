@@ -227,3 +227,52 @@ recentes, 22/10 21:55 → 26/10 10:11, juiz Groq com reserva local):
 
 **Nada foi implantado** (sem timer, sem mudança de código) — a troca
 terminou em diagnóstico; a decisão de construir é do dono.
+
+
+## §5 — VIGIA DAS MENSAGENS construído: auditoria diária do chat +
+       reparo automático de causas determinísticas (ordem do dono)
+
+**Régua do dono** (26/10, resposta às minhas 2 perguntas): nível =
+**"Reparo automático completo"**; fonte dos erros = **"Usa os achados
+da auditoria"** (não ele manda exemplos). Registrado antes de codar.
+
+**Diagnóstico reconfirmado contra o código de HOJE** (só o que ainda
+se reproduz entra no reparo — regra 5):
+
+| Achado de 26/10 | Reproduz hoje? | Causa |
+|---|---|---|
+| `"ligar TV"` → rota de compromissos | **SIM** — `detect_action_intent("ligar TV")` = `None` | infinitivo fora do regex `_comando` (só `liga/ligue/desliga/…` casavam); `"liga a tv"` funcionava, `"ligar TV"`/`"desligar o ar-condicionado"`/`"apagar a luz…"`/`"acender a luz…"` = `None` |
+| `network_hosts` com bridges do Docker | **SIM** — 20 vizinhos, 9 em `br-b7119289ffc4`, 11 LAN | sem filtro de iface virtual |
+| Contradição de estado do HA | não reproduzível sem o HA real | **sem estratégia determinística** → fila (régua do dono: adivinharia errado) |
+| Respostas factuais erradas do modelo local | alucinação de LLM | **sem estratégia determinística** → fila |
+
+**Âncoras conferidas únicas no arquivo real** (programaticamente, antes
+de escrever o reparo): `core/intents.py` A1 (regex `_comando`),
+A2 (tuple do `on`), A3 (strip do `resolve_light_target`);
+`tools/actions/actions.py` B1 (`def network_hosts`), B2 (`continue #
+entrada sem vizinho resolvido`). 1 ocorrência cada.
+
+**O que foi construído:**
+1. `core/chat_audit.py` (+janela +throttle): `_linha_depois` +
+   `desde=` em `carregar_turnos_sistema/cascata` (corte por `ts` ANTES
+   de virar Turno; linha sem data confiável passa reto = nunca silêncio),
+   `auditar(..., throttle=)` pausando SÓ juizadas, CLI `--ultimas` /
+   `--throttle`, docstring.
+2. `core/vigia_mensagens.py` (NOVO): audita a janela → sondas
+   determinísticas → `CoderEngine.apply_change` (sandbox→compile→
+   backup→promoção) → **gate completo** → verde: commit+push (7.1) +
+   restart verde (7.3) + Telegram; vermelho: **rollback `git checkout --`**
+   só nos arquivos alterados + fila + alerta. Garantias codificadas:
+   árvore limpa nos alvos (resíduo alheio → fila), âncora ausente →
+   fila, idempotente, **sem LLM escrevendo código** (o juiz só
+   classifica), `--seco` sem git/gate/Telegram.
+3. `tests/test_vigia_mensagens.py` (NOVO, 32 guardas) +
+   `tests/test_chat_audit.py` (+4: corte por epoch, linha estranha
+   mantida, corte nas recentes, throttle só em juizadas).
+4. `runtime/systemd/od-vigia-mensagens.{service,timer}` (diário 04:30,
+   `Persistent=true`, `EnvironmentFile=.env`, `TimeoutStartSec=55min`)
+   + `install-user.sh` (cp + `enable --now` + verificação).
+
+**Bug de teste achado e corrigido no caminho:** `_linha_depois` com `ts`
+ausente/zero devolvia `False` (linha sumiria da auditoria) → virou
+`True` (mantém; corte não é motivo de perder registro).

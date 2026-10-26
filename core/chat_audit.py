@@ -24,8 +24,14 @@ relatório JSON sai em `analise/` (gitignorado — não entra no repo).
 
 CLI (ferramenta de análise, não sobe com o od-core):
     python -m core.chat_audit --fonte auto --limite 200
+    python -m core.chat_audit --fonte sistema --ultimas 24 --throttle 1.5
     python -m core.chat_audit --fonte legado --pasta "analise/AIML/..."
     python -m core.chat_audit --fonte sistema --juiz local
+
+`--ultimas N` corta as últimas N horas (fonte de sistema) — é a janela
+que o job diário `core/vigia_mensagens.py` usa; `--throttle` pausa entre
+juizadas para o Groq não devolver 429 (a reserva local assume, mas o
+veredito piora).
 """
 from __future__ import annotations
 
@@ -228,9 +234,35 @@ def turnos_de_mensagens(linhas: list[dict[str, Any]],
     return turnos
 
 
-def carregar_turnos_sistema(db: Any, *, limite: Optional[int] = None) -> list[Turno]:
-    """Turnos do sistema via `storage.Database` (Postgres ou SQLite)."""
+def _linha_depois(linha: Any, desde: Optional[float]) -> bool:
+    """True se a mensagem está na janela `desde` (epoch) — None = sem corte.
+
+    Usado pelo job diário do Vigia das Mensagens (`core/vigia_mensagens.py`):
+    sem janela temporal o `--limite` do SQL pega os turnos MAIS ANTIGOS
+    (`ORDER BY ts ASC`), exatamente o contrário do que um corte diário precisa.
+    """
+    if not desde:
+        return True
+    try:
+        ts = float(linha.get("ts") or 0.0)
+    except (TypeError, ValueError, AttributeError):
+        return True  # linha estranha não some da auditoria por causa do corte
+    if ts <= 0.0:
+        return True  # sem data confiável: mantém (nunca silêncio)
+    return ts >= float(desde)
+
+
+def carregar_turnos_sistema(db: Any, *, limite: Optional[int] = None,
+                            desde: Optional[float] = None) -> list[Turno]:
+    """Turnos do sistema via `storage.Database` (Postgres ou SQLite).
+
+    `desde` (epoch) corta para as mensagens mais recentes que o instante —
+    o corte acontece ANTES de virar `Turno`, então o `limite` do SQL segue
+    valendo como trava de tamanho.
+    """
     linhas = db.query(_SQL_CONVERSACOES, (), limit=limite)
+    if desde is not None:
+        linhas = [ln for ln in linhas if _linha_depois(ln, desde)]
     return turnos_de_mensagens(linhas)
 
 
@@ -257,24 +289,30 @@ def carregar_turnos_json(pasta: Path) -> list[Turno]:
 
 def carregar_turnos_cascata(*, dsn: str = "", sqlite_path: Optional[Path] = None,
                             json_dir: Optional[Path] = None,
-                            limite: Optional[int] = None) -> tuple[list[Turno], str]:
+                            limite: Optional[int] = None,
+                            desde: Optional[float] = None
+                            ) -> tuple[list[Turno], str]:
     """Fonte das conversas do sistema atual, em cascata.
 
     PostgreSQL (dsn) → SQLite (arquivo existente) → JSON legado.
     Devolve (turnos, nome_da_fonte). Nada achado = ([], "vazia").
+
+    `desde` (epoch) vale para as fontes de sistema (Postgres/SQLite); no
+    legado o corte é por arquivo e é ignorado (documentado na CLI).
     """
     if dsn:
         try:
             from storage import Database
             db = Database(pool_size=1, dsn=dsn)
-            return carregar_turnos_sistema(db, limite=limite), "postgres"
+            return (carregar_turnos_sistema(db, limite=limite, desde=desde),
+                    "postgres")
         except Exception as exc:  # banco fora → tenta a próxima fonte
             log.warn("Cascata: Postgres falhou, seguindo", error=str(exc))
     if sqlite_path and Path(sqlite_path).exists():
         try:
             from storage import Database
             db = Database(sqlite_path, pool_size=1)
-            return carregar_turnos_sistema(db, limite=limite), "sqlite"
+            return carregar_turnos_sistema(db, limite=limite, desde=desde), "sqlite"
         except Exception as exc:
             log.warn("Cascata: SQLite falhou, seguindo", error=str(exc))
     if json_dir and Path(json_dir).exists():
@@ -462,8 +500,15 @@ def veredito_deterministico(turno: Turno) -> Optional[Veredito]:
     return None
 
 
-def auditar(turnos: list[Turno], juiz: Any) -> list[dict[str, Any]]:
-    """Classifica cada turno (com o turno anterior como contexto)."""
+def auditar(turnos: list[Turno], juiz: Any,
+            *, throttle: float = 0.0) -> list[dict[str, Any]]:
+    """Classifica cada turno (com o turno anterior como contexto).
+
+    `throttle` (segundos) pausa entre JUIZADAS — o Groq devolve HTTP 429
+    (TPM 8000) quando o lote é apressado; a reserva local assume, mas o
+    veredito fica pior e o log, ruidoso. 0 = sem pausa (comportamento
+    original).
+    """
     resultados: list[dict[str, Any]] = []
     for i, turno in enumerate(turnos):
         anterior = turnos[i - 1] if i > 0 else None
@@ -474,6 +519,8 @@ def auditar(turnos: list[Turno], juiz: Any) -> list[dict[str, Any]]:
             else:
                 veredito = juiz.julgar(turno, anterior) if juiz is not None \
                     else Veredito("erro", "sem juiz configurado", juiz="nenhum")
+                if throttle:
+                    time.sleep(throttle)
         except Exception as exc:  # defesa extra: auditoria nunca para
             veredito = Veredito("erro", f"juiz explodiu: {exc}", juiz="erro")
         resultados.append({
@@ -541,11 +588,17 @@ def main(argv: Optional[list[str]] = None) -> int:
                         default="auto")
     parser.add_argument("--limite", type=int, default=0,
                         help="limita o nº de turnos (0 = todos)")
+    parser.add_argument("--ultimas", type=float, default=0.0,
+                        help="janela: só turnos das últimas N horas "
+                             "(0 = sem corte; fonte de sistema)")
+    parser.add_argument("--throttle", type=float, default=0.0,
+                        help="pausa em segundos entre juizadas (evita 429)")
     parser.add_argument("--destino", default=str(raiz / "analise"),
                         help="pasta do relatório JSON (padrão: analise/)")
     args = parser.parse_args(argv)
 
     limite = args.limite or None
+    desde = (time.time() - args.ultimas * 3600.0) if args.ultimas > 0 else None
     turnos: list[Turno] = []
     fonte = "vazia"
     if args.fonte in ("auto", "sistema"):
@@ -553,7 +606,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             dsn=env("OD_DB_URL", ""),
             sqlite_path=raiz / "data" / "od.db",
             json_dir=raiz / "data" / "conversations",
-            limite=limite)
+            limite=limite,
+            desde=desde)
     if not turnos and args.fonte in ("auto", "legado"):
         pasta = Path(args.pasta or raiz / "analise" / "AIML" /
                      "Nicky Desenvolvimento" / "conversa")
@@ -571,14 +625,16 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 2
 
     log.info("Auditoria iniciada", fonte=fonte, turnos=len(turnos),
-             juiz=args.juiz)
-    resultados = auditar(turnos, juiz)
+             juiz=args.juiz, janela_h=args.ultimas, throttle_s=args.throttle)
+    resultados = auditar(turnos, juiz, throttle=args.throttle)
     relatorio = gerar_relatorio(resultados, fonte=fonte)
+    relatorio["janela_horas"] = args.ultimas
     caminho = salvar_relatorio(relatorio, Path(args.destino))
 
     contagens = relatorio["contagens"]
+    janela = (f" · janela {args.ultimas:g} h" if args.ultimas > 0 else "")
     print(f"Fonte: {fonte} · turnos: {relatorio['total_turnos']} · "
-          f"problemáticos: {relatorio['problematicos']}")
+          f"problemáticos: {relatorio['problematicos']}{janela}")
     print("Vereditos: " + " · ".join(
         f"{k}={v}" for k, v in contagens.items() if v))
     print(f"Relatório: {caminho}")

@@ -1,0 +1,30 @@
+[Unit]
+Description=Vigia das Mensagens - auditoria diária do chat + reparo automático - OmegaDrakon
+Documentation=file:/home/alex/OmegaDrakon/core/vigia_mensagens.py
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alex/OmegaDrakon
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python -m core.vigia_mensagens --horas 24
+
+# Juiz (GROQ_API_KEY), banco (OD_DB_URL) e Telegram vêm do MESMO .env do
+# od-core; o módulo carrega por setdefault e nunca imprime segredo.
+EnvironmentFile=/home/alex/OmegaDrakon/.env
+Environment=HOME=/home/alex
+Environment=OD_LOG_DIR=/home/alex/OmegaDrakon/logs
+
+# Ciclo longo de propósito: auditoria com throttle (~2 min) + sondas +
+# CoderEngine (sandbox → compile → backup → promoção) + GATE COMPLETO
+# (~4 min) + commit/push + restart verde. Pedido do dono (26/10):
+# "verificar pelo menos uma vez no dia e consertar" — resposta dele:
+# "reparo automático completo" (somente causas determinísticas; o que
+# não tem estratégia vira fila com motivo, nunca chute).
+TimeoutStartSec=55min
+
+# Falha de qualquer etapa vira item de fila no relatório + aviso no
+# Telegram (regra 15: sem silêncio); exit != 0 fica para crash de código.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=od-vigia-mensagens
