@@ -8,9 +8,11 @@
    "tests/test_vigia_mensagens.py (+32) e tests/test_chat_audit.py (+4).",
    "runtime/systemd/od-vigia-mensagens.{service,timer} (diario 04:30, Persistent, EnvironmentFile=.env, TimeoutStartSec=55min) + install-user.sh."
   ],
-  "estado": "EM IMPLANTACAO (gate oficial rodando, depois commit, instalacao das units e execucao AO VIVO do vigia que deve consertar as 2 sondas sozinho).",
-  "updated_at": "2026-10-26T11:40:00-03:00",
-  "transcricao": "iniciar/2026-10-26_conversa_omegadrakon.md (§5)"
+  "estado": "ENTREGUE E PROVADO AO VIVO (26/10). 1a execucao 11:23-11:27 (245s): 2 sondas vermelhas -> CoderEngine (sandbox/runner/backup/promocao) -> GATE VERDE -> commit+push sozinho 0b07622 -> restart verde (od-core 11:27:18, health 25/25, NRestarts=0, 1.44.0/2080) -> aviso no Telegram. 2a execucao 11:42 (5,7s): sondas verdes, idempotente, avisado:True, fila 1 item do juiz. A prova viva achou 2 defeitos do PROPRIO relatorio (cache de modulo na re-sonda; JSON gravado antes do aviso) + .od_backups/.od_sandbox sem gitignore -> corrigidos +5 guardas, commit d0eacdf. Prova ponta a ponta: 'ligar TV' -> fastpath:ha_device_control (antes: LLM/compromissos); 'quantas pessoas' -> 9 aparelhos 192.168.0.x, 0 bridges (antes: 20 c/ 9 do Docker). gate 3831/16/90,55%, pyflakes 0. Timer od-vigia-mensagens.timer ativo, proximo disparo 27/10 04:32 (04:30, Persistent).",
+  "updated_at": "2026-10-26T12:05:00-03:00",
+  "transcricao": "iniciar/2026-10-26_conversa_omegadrakon.md (§5)",
+  "commits": "b6fad55 (vigia+timer+guardas) | 0b07622 (conserto automatico do vigia) | d0eacdf (fixes da prova viva)",
+  "fila_aberta": "resposta errada 26/10 10:11 'quantas pessoas' (historico antigo) + 10 resposta_errada e 5 inconsistente da auditoria 22-26/10: contradicao de estado do HA (4x) e fatos do modelo local (6x) — sem estrategia deterministica, nao conserta sozinho por design."
  },
  "vigia_das_mensagens_diagnostico_2026_10_26": {
   "pedido": "Dono (26/10 ~10:45): 'existe algum tipo de vigia para as mensagens? percebi que algumas perguntas nao recebem respostas corretas. o sistema tem como verificar isso pelo menos uma vez no dia e consertar?'",

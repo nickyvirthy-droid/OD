@@ -276,3 +276,64 @@ entrada sem vizinho resolvido`). 1 ocorrência cada.
 **Bug de teste achado e corrigido no caminho:** `_linha_depois` com `ts`
 ausente/zero devolvia `False` (linha sumiria da auditoria) → virou
 `True` (mantém; corte não é motivo de perder registro).
+
+### §5.1 — FECHADO: execução AO VIVO + 2ª prova + consertos do próprio
+       vigia (26/10, 11:23–11:43)
+
+**1ª execução ao vivo (11:23:19 → 11:27:25, 245 s, `systemctl --user
+start od-vigia-mensagens.service`)** — o job trabalhou SOZINHO:
+
+| Etapa | Resultado |
+|---|---|
+| Auditoria (24 h, throttle 1,5 s) | fonte postgres · 2 turnos · 1 problemático (`quantas pessoas…` 10:11, juiz groq-online) |
+| Sondas | **2 vermelhas** (rota_aparelho_infinitivo + rede_sem_bridge) |
+| CoderEngine | `core/intents.py` sandbox→runner→backup→promoção `2362950bf4e6` · `tools/actions/actions.py` `e1ea2640090f` |
+| **Gate completo** | **VERDE** (4 min) |
+| Commit/push | **`0b07622`** "vigia-mensagens: conserto automático — rota_aparelho_infinitivo, rede_sem_bridge" |
+| Restart | od-core 11:27:18, `/health` ok, 1.44.0/2080, `NRestarts=0` |
+| Aviso | Telegram do dono (o ciclo avisa por design) |
+
+**A prova viva achou 2 defeitos do PRÓPRIO relatório (não do conserto)
+— corrigidos com guardas:**
+1. **Prova pós-reparo mentiu**: o processo já importara `core/intents`
+   antes do patch → a re-sonda leu o **cache de módulo** e reportou
+   "aplicado mas a sonda continua vermelha" (falso alarme em 2 linhas
+   da fila). O gate, em subprocesso novo, estava verde — e num processo
+   novo as duas sondas estavam verdes (consertos REAIS).
+   Fix: `_invalidar_modulos()` descarrega os alvos antes da re-sonda.
+2. **`avisado: False` no JSON era falso**: o relatório era gravado ANTES
+   do `_avisar` → o default ia para o arquivo enquanto o Telegram
+   aceitava (HTTP 200). Fix: gravação no fim, com o próprio caminho
+   dentro.
+3. **`.od_backups/` e `.od_sandbox/`** entravam no `git status` (não
+   estavam no `.gitignore` — as linhas que eu "vi" eram saída do `ls`).
+   Fix: `.gitignore`.
+
+**2ª execução ao vivo (11:42:48, 5,7 s)** — o caminho tranquilo:
+sondas `['verde','verde']` (idempotente), 0 aplicados, 0 commit, fila
+= 1 item do juiz, **`avisado: True`**, relatório com o caminho dentro.
+
+**Commit `d0eacdf`** (fixes + 5 guardas = 37 no arquivo) · gate
+final **3831 passed / 16 skipped / 90,55%** · pyflakes 0.
+
+**Prova ponta a ponta no chat real (`POST /message`, papel admin):**
+- *"ligar TV"* → `route=action_intent` · `llm_used=fastpath:
+  ha_device_control` → *"💡 Confirmar: ligar 'TV Sala' (agora: off)?
+  Responda **sim**…"* — **antes caía no LLM e a rota de compromissos
+  respondia**; nada foi executado (não respondi "sim").
+- *"quantas pessoas estão conectadas na rede?"* → `fastpath:
+  network_hosts` → **9 dispositivos, todos `192.168.0.x` em
+  `wlx000f0037acf0`** — **0 bridges** (antes: 20 vizinhos, 9 em
+  `br-b7119289ffc4`). Consulta SQL: `count(*)` de `br-%` nas últimas 4
+  respostas = **0**.
+- Journal do od-core desde o restart: **0 `[ERROR]`** · saúde **25/25**
+  · árvore limpa = `origin/master`.
+
+**Timer**: `od-vigia-mensagens.timer` habilitado — próximo disparo
+**27/10 04:32** (04:30 + atraso aleatório), `Persistent=true`.
+
+**Fila aberta (para você/meu próximo lote, não é automático):**
+resposta errada de 26/10 10:11 ("quantas pessoas conectadas" — a
+própria que hoje o conserto já cobre; a conversa antiga continua errada
+no histórico) + as 10+5 da auditoria de 22/22→26/10 que exigem
+investigação (contradição de estado do HA, fatos do modelo local).
