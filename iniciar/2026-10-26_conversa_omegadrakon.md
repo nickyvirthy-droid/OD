@@ -137,3 +137,35 @@ roteador, espalhados 22/10–25/10) — a camada rica voltou sozinha hoje
 
 **Estado:** verde (v1.44.0/2080, HEAD `3f6002f`, árvore limpa, health
 25/25). Pendência única aberta: os 2 aparelhos aguardando ordem.
+
+
+## §3 — Dono reconhece os 2 aparelhos: Vigia sem pendências (26/10 ~10:32)
+
+**Pedido:** dono, via pergunta objetiva: *"São meus — reconhecer os
+dois"* (os pendentes achados no §2).
+
+**Executado:** `--conhecer 7A:A7:13:05:6D:3A` e `--conhecer
+16:05:EA:56:FB:9E` (só inventário local — **nenhuma mutação no
+roteador**) e, em seguida, `--once` para **reescrever a linha de estado
+do log**: a sonda `_check_network` lê a *última* linha, então sem o
+ciclo novo o alerta horário continuaria até o próximo tick.
+
+**Prova:**
+
+- `--report`: **`Pendências: 0 dispositivo(s) novo(s), 0 evento(s) de
+  segurança`** — os 2 MACs saíram de `[DESCONHECIDO]` para
+  `[conhecido]`.
+- Última linha do log (26/10 **10:28:07**): `pendentes_novos: []`.
+- Chat real: `network_hosts` formatado devolve **`iPad ·
+  192.168.0.210`**.
+- Alerta `net:dispositivo-novo` (que saía a cada cooldown desde 23/10)
+  para de ser emitido a partir do próximo tick.
+
+**Decisão de nome (honestidade):** mantive **`iPhone`** e **`iPad`** —
+os nomes da UI do Archer. **Não** apliquei os rótulos
+"iPhone-Nicoly/iPad-Nicoly" que eu sugeri na pergunta: atribuir o
+aparelho a uma pessoa seria inventar. Renomear quando quiser:
+`--conhecer MAC NOME`.
+
+**Estado:** Vigia **sem pendências** (23 inventariados, 23
+conhecidos); sistema verde 1.44.0/2080, HEAD `7f8de9c`, árvore limpa.
