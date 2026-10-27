@@ -222,3 +222,35 @@ império espanhol no lugar do Sol.
 **Estado:** SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD `311f4de`,
 árvore limpa, health 25/25. Fila do dono inalterada: `analise/Nicky
 Locutor/`, rota WiFi, auditoria de uso de ferramentas, MCP.
+
+## §4 — "leia iniciar" (27/10 ~16:50): reverificação de rotina — tudo
+       verde, sem resíduo, fila do dono inalterada
+
+**Pedido:** usuário: "leia iniciar" — reverificação de rotina (regra 3).
+Checkpoint lido: `session.json` (chave `frase_crua_limpa_para_o_kiwix_2026_10_27`,
+updated 16:10, §3 — frente FECHADA) + transcrição de 27/10 §1–§3 + `RULES.md`.
+
+**Achados verdes (medidos, regra 5):** git **ÁRVORE LIMPA**, HEAD `bf9fa51`
+(commit de registro da §3) == `origin/master`. `od-core` active desde
+**16:03:08**, MainPID 1750867, 41 min sem restart. `/health` autenticado
+**ok=True, 25 checks NENHUM fora**; `/app/version` **1.44.0/2080** intacta.
+Journal desde o restart: **0 `[ERROR]`** e **1 `[WARN]`** = o próprio alerta
+proativo `key=restart` do boot (esperado). **Nenhum resíduo** — nada
+modificado sem commit desde a §3 (diferente do padrão das interrupções de
+21–26/10).
+
+**Canais do dono:** `txt.txt` = nossa entrega da §3 escrita 16:06 —
+**NENHUMA mensagem nova dele**. `analise/` = apenas `Nicky Locutor/`
+(PENDENTE desde 23/10, aguardando ordem — regra 17) + 5 relatórios do
+vigia (nossos).
+
+**Vigia:** disparou 27/10 04:33/04:34 — 4 sondas **VERDES**, fila de
+8 itens, **todos anteriores** às frentes fechadas hoje (5× "quantas
+pessoas" + 3× fato errado de 26/10 20:43 — "define dia", "o que é o
+sol?", "quem descobriu a penicilina?" — consertados e provados ao vivo
+nas §1/§2/§3). Nenhum problema novo. Próximo disparo: 28/10 04:30.
+
+**Estado:** SISTEMA VERDE E ESTÁVEL — v1.44.0/2080, HEAD `bf9fa51`,
+árvore limpa, health 25/25. Nenhuma mutação nesta troca. Fila do dono:
+(a) `analise/Nicky Locutor/` (pauta única de conteúdo), (b) parking lot
+§5 restante: rota WiFi, auditoria de uso de ferramentas, MCP.

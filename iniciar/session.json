@@ -1,4 +1,15 @@
 {
+ "reverificacao_rotina_2026_10_27_1650": {
+  "pedido": "Usuario: 'leia iniciar' (27/10 ~16:50) — reverificacao de rotina (regra 3). Checkpoint: frase_crua_limpa_para_o_kiwix_2026_10_27 (updated 16:10, §3 — frente FECHADA).",
+  "achados_verdes": "Git ARVORE LIMPA, HEAD bf9fa51 (commit de registro da §3) == origin/master. od-core active desde 16:03:08, MainPID 1750867, 41 min sem restart. /health autenticado ok=True, 25 checks NENHUM fora. /app/version 1.44.0/2080 intacta. Journal desde o restart: 0 [ERROR] e 1 [WARN] = o proprio alerta proativo key=restart do boot (esperado).",
+  "residuo": "NENHUM — nada modificado sem commit desde o registro da §3 (diferente dos residuos de 21-26/10).",
+  "canais_do_dono": "txt.txt = nossa entrega da §3 escrita 16:06 — NENHUMA mensagem nova dele (painel nao tem nada posterior). analise/ = apenas Nicky Locutor/ (PENDENTE desde 23/10, aguardando ordem, regra 17) + 5 relatorios do vigia (nossos).",
+  "vigia": "Disparou 27/10 04:33/04:34: 4 sondas VERDES, fila 8 itens = todos ANTERIORES as frentes fechadas hoje (5x 'quantas pessoas' de 26/10 + 3x fato errado de 26/10 20:43 — 'define dia', 'o que e o sol?', 'quem descobriu a penicilina?' — que a §1/§2/§3 de 27/10 consertaram e provaram ao vivo). Nenhum problema NOVO desde o proximo tick. Proximo disparo: 28/10 04:30.",
+  "estado": "SISTEMA VERDE E ESTAVEL — v1.44.0/2080, HEAD bf9fa51, arvore limpa, health 25/25. Frentes de 27/10 (fatos do modelo local, 4.6b+poda, verbos-guia) TODAS FECHADAS e provadas. Nenhuma mutacao nesta troca.",
+  "fila_do_dono": "(a) analise/Nicky Locutor/ (pauta unica de conteudo, aguardando ordem); (b) parking lot §5 restante: rota WiFi, auditoria de uso de ferramentas, MCP. Sem novidade no txt.txt.",
+  "updated_at": "2026-10-27T16:52:00-03:00",
+  "transcricao": "iniciar/2026-10-27_conversa_omegadrakon.md (§4)"
+ },
  "frase_crua_limpa_para_o_kiwix_2026_10_27": {
   "pedido": "Dono (27/10 ~15:50) escolheu o follow-up: 'Limpar os verbos-guia do assunto consultado no Kiwix para a Wikipedia achar o artigo com a frase crua'.",
   "defeito_medido": "_assunto_da_pergunta so tirava o prefixo (define/o que e/quem foi). Sobravam na busca: 'quem descobriu a penicilina?' -> termos 'quem descobriu penicilina' (o 'quem' nem era stopword da casa) -> kiwix sem artigo; 'o que e o sol, em uma frase?' -> 'sol responda frase' -> titulo direto Sol_Frase 404 -> artigo tangencial (o 'imperio' da §1); 'quem foi marie curie, em 3 frases?' -> 'marie curie frases'.",
