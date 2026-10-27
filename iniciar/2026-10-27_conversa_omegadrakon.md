@@ -175,3 +175,50 @@ junto com a decisão de piso do acervo (que hoje já tem o piso de fato).
 **Estado:** SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD `d5d2daf`,
 árvore limpa, health 25/25, cache com 93 linhas (90 podadas + 3 recriadas
 **pelas respostas novas** da prova viva). `txt.txt` + Telegram avisados.
+
+## §3 — "Limpar os verbos-guia do assunto consultado no Kiwix" (27/10
+       ~15:50): a frase CRUA agora acha o artigo — 3 provas vivas pelo
+       título direto
+
+**Pedido:** dono escolheu o follow-up da §2 — *"Limpar os verbos-guia do
+assunto consultado no Kiwix para a Wikipedia achar o artigo com a frase
+crua"*.
+
+**O que estava errado (medido na prova viva da §2):** `_assunto_da_pergunta`
+só tirava o prefixo `define/o que é/quem foi…`. Sobravam na busca:
+
+- `quem descobriu a penicilina?` → termos **`quem descobriu penicilina`**
+  (3 termos, `quem` nem era stopword da casa) → kiwix sem artigo;
+- `o que é o sol, em uma frase?` → **`sol responda frase`** → título
+  direto `Sol_Frase` 404 → busca escolhia o artigo tangencial (o
+  "império" da §1);
+- `quem foi marie curie, em 3 frases?` → `marie curie frases`.
+
+**Entrega (`memory/enciclopedia.py`):** o assunto passa a ter **3
+limpezas** — (1) prefixo (já existia), (2) **enquadramento à esquerda**
+(wh + stopwords + verbos-guia até o primeiro conteúdo) **com safeguard**
+(só come o verbo se RESTAR conteúdo: *"o que é a descoberta?"* mantém
+`descoberta`), (3) **instrução final** cortada (`", em 3 frases"`,
+`", em uma frase"`, `"responda com uma frase"`). Guardas **+4**; o caso
+tangencial da §1 agora cobre as duas travas no mesmo teste.
+
+**Validação:** gate **3895 passed / 16 skipped / 0 falha** em todas as
+rodadas, **≥ 90% sempre** (faixa de 90,4% a 90,6% com corpus reeditado
+entre as rodadas; eram 3892) · pyflakes 0 aviso novo · commit **`311f4de`**
+pushado, árvore limpa · **restart verde 16:03:08** (MainPID 1750867,
+NRestarts=0, health 25/25, 1.44.0/2080, journal 0 `[ERROR]`).
+
+**Prova viva (as 3 no TÍTULO DIRETO do acervo PT, `candidatos=0`):**
+
+| pergunta (crua) | journal | resposta |
+|---|---|---|
+| `quem inventou a penicilina?` | `titulo=Penicilina \| chars=1329` | "Alex Fleming" |
+| `quem foi marie curie, em 3 frases?` | `titulo=Marie Curie \| chars=1330` | física/química, 2 Nobels |
+| `o que é o sol, em uma frase?` | `titulo=Sol \| chars=1322` | "estrela central do Sistema Solar… 99,86% da massa" |
+
+Antes: frase crua sem artigo, instrução poluindo a busca e o artigo do
+império espanhol no lugar do Sol.
+
+**Estado:** SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD `311f4de`,
+árvore limpa, health 25/25. Fila do dono inalterada: `analise/Nicky
+Locutor/`, rota WiFi, auditoria de uso de ferramentas, MCP.

@@ -1,4 +1,18 @@
 {
+ "frase_crua_limpa_para_o_kiwix_2026_10_27": {
+  "pedido": "Dono (27/10 ~15:50) escolheu o follow-up: 'Limpar os verbos-guia do assunto consultado no Kiwix para a Wikipedia achar o artigo com a frase crua'.",
+  "defeito_medido": "_assunto_da_pergunta so tirava o prefixo (define/o que e/quem foi). Sobravam na busca: 'quem descobriu a penicilina?' -> termos 'quem descobriu penicilina' (o 'quem' nem era stopword da casa) -> kiwix sem artigo; 'o que e o sol, em uma frase?' -> 'sol responda frase' -> titulo direto Sol_Frase 404 -> artigo tangencial (o 'imperio' da §1); 'quem foi marie curie, em 3 frases?' -> 'marie curie frases'.",
+  "entrega": "memory/enciclopedia.py: _assunto_da_pergunta() com 3 limpezas — (1) prefixo (existia), (2) ENQUADRAMENTO a esquerda (wh + stopwords + _VERBOS_GUIA ate o primeiro conteudo) COM safeguard (so come o verbo se RESTAR conteudo: 'o que e a descoberta?' mantem 'descoberta'), (3) INSTRUCAO FINAL cortada (', em 3 frases', ', em uma frase', 'responda com uma frase'). _ENQUADRAMENTO = STOPWORDS_PT | _VERBOS_GUIA | {'quem'}.",
+  "guardas": "+4 em tests/test_enciclopedia.py (guia/wh fora da busca com artigo pelo titulo direto; instrucao final nos 2 formatos medidos; verbo-guia-como-assunto preservado) e o caso tangencial da §1 agora cobre as DUAS travas no mesmo teste.",
+  "validacao": "Gate oficial 3895 passed / 16 skipped / 0 falha em TODAS as rodadas, >=90% sempre (faixa de 90,4% a 90,6% com corpus reeditado entre as rodadas; eram 3892) · pyflakes 0 aviso novo.",
+  "deploy": "Commit 311f4de pushado, HEAD == origin/master, arvore limpa. Restart verde 27/10 16:03:08: MainPID 1750867, NRestarts=0, /health 25/25, /app/version 1.44.0/2080, journal 0 [ERROR].",
+  "prova_viva": "As 3 pelo TITULO DIRETO do acervo PT com candidatos=0 (nem precisou buscar): 'quem inventou a penicilina?' -> titulo=Penicilina chars=1329 -> 'Alex Fleming'; 'quem foi marie curie, em 3 frases?' -> titulo=Marie Curie chars=1330 -> fisica/quimica, 2 Nobels; 'o que e o sol, em uma frase?' -> titulo=Sol chars=1322 -> 'estrela central do Sistema Solar… 99,86% da massa'. ANTES: frase crua sem artigo, instrucao poluindo a busca e o artigo do imperio espanhol no lugar do Sol.",
+  "canais_do_dono": "txt.txt escrito + Telegram enviado (regras 14/15). analise/Nicky Locutor/ segue PENDENTE (regra 17).",
+  "estado": "SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD 311f4de, arvore limpa, health 25/25.",
+  "fila_do_dono": "parking lot §5: rota WiFi, auditoria de uso de ferramentas, MCP; (b) analise/Nicky Locutor/.",
+  "updated_at": "2026-10-27T16:10:00-03:00",
+  "transcricao": "iniciar/2026-10-27_conversa_omegadrakon.md (§3)"
+ },
  "fecha_4_6b_e_poda_cache_2026_10_27": {
   "pedido": "Dono (27/10 ~14:40): 'continue. feche o 4.6b e limpe o cache' — as duas pendencias que a §1 apontou como fila.",
   "medição_antes_de_codar": "Pipeline RAG real (2216 chunks): 'quem inventou o flogisto liquido?' passava no floor antigo com 1 trecho do CHANGELOG (ov=0.66 — o raro 'flogisto' nao estava la; o overlap vinha de palavra comum) => o prompt nunca ficava vazio e a 4.6b nunca disparava. As outras 3 (odmistica/xilofonética/odralak) nao tinham trecho so porque o termo nao existe no corpus. Perguntas legitimas do corpus (omegadrakon ov=1.0, vigia 0.69, versao 0.76) continuam passando.",

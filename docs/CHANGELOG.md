@@ -324,6 +324,41 @@ conserto, devolvia as linhas sem nome nenhum.** Restart com
 `NRestarts=0`, `/health` **25/25 nenhum fora**, journal desde o boot
 **0 `[ERROR]`**.
 
+### A frase CRUA vai limpa ao Kiwix: enquadramento (wh/stopword/verbo-guia) e instrução final fora da busca (27/10, sem bump)
+
+**Onde foi achado:** na prova viva da entrega anterior —
+*"quem descobriu a penicilina?"* não achava o artigo **"Penicilina"**
+porque a consulta era a **frase inteira** (3 termos: `quem descobriu
+penicilina`), e *"o que é o sol, em uma frase?"* buscava **`sol responda
+frase"`** — o título direto tentava `Sol_Frase` e a busca caía no artigo
+tangencial (o "império no qual o sol nunca se põe" da §1).
+
+| Peça | Entrega |
+|---|---|
+| **`memory/enciclopedia.py`** | `_assunto_da_pergunta()` passa a fazer **3 limpezas**: (1) prefixo de verbo-guia (até 3 encadeáveis, já existia); (2) **enquadramento à esquerda** — come wh + stopwords + verbo-guia até o primeiro conteúdo (*"quem descobriu a penicilina?"* → `penicilina`), com **safeguard**: o verbo-guia só sai se **RESTAR** conteúdo depois (*"o que é a descoberta?"* mantém `descoberta` — lá o verbo é o assunto); (3) **instrução final** cortada (*", em 3 frases"*, *", em uma frase"*, *"responda com uma frase"*). `_VERBOS_GUIA` + `_ENQUADRAMENTO` novos (o `quem` nem era stopword da casa e inflava a busca). |
+| **Guardas** | `tests/test_enciclopedia.py` **+4** (guia/wh fora da busca com artigo servido pelo título direto; instrução final nos 2 formatos medidos; verbo-guia-como-assunto preservado) e o caso tangencial da prova viva agora cobre **as duas travas** (limpeza da consulta + recusa do título fora do assunto). |
+
+**Validação:** gate oficial **3895 passed / 16 skipped / 0 falha** em
+**todas as rodadas** (eram 3892) e **≥ 90% sempre** — as medições
+ficaram na faixa de **90,4% a 90,6%**, com o corpus reeditado (CHANGELOG +
+`iniciar/`) entre uma e outra. pyflakes **0 aviso novo**. **Sem bump** —
+1.44.0/2080 intacta.
+
+**Prova viva (restart verde 27/10 16:03:08, `311f4de`; `MainPID`
+1750867, `NRestarts=0`, `/health` **25/25**, journal **0 `[ERROR]`**) —
+as 3 pelo **título direto no acervo PT**, `candidatos=0` (nem precisou
+buscar):
+
+- *"quem inventou a penicilina?"* → **`titulo=Penicilina | chars=1329`**
+  → **"Alex Fleming"** (antes: a frase crua não achava o artigo).
+- *"quem foi marie curie, em 3 frases?"* → **`titulo=Marie Curie |
+  chars=1330`** → física/química polonesa, 2 Nobels (a instrução "em 3
+  frases" saiu da consulta).
+- *"o que é o sol, em uma frase?"* → **`titulo=Sol | chars=1322`** →
+  **"estrela central do Sistema Solar… 99,86% da massa"** (antes:
+  *"O império no qual o sol nunca se põe"* e depois *"gigante
+  asteróide"*).
+
 ### A 4.6b fecha de verdade: o acervo só responde FATO se casar com ele — e o cache perde as 20 respostas erradas (ordem do dono, 27/10, sem bump)
 
 **Pedido direto (27/10):** *"continue. feche o 4.6b e limpe o cache"*.
