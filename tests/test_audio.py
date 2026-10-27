@@ -402,3 +402,214 @@ class TestTTS:
         snap = tts.snapshot()
         assert snap["enabled"] is True
         assert "voices" in snap
+        assert "locucao" in snap
+
+
+# ─── TTS — auto-descoberta de vozes (integração Nicky Locutor) ──────────────
+
+
+def _criar_voz(dir_path: Path, nome: str) -> None:
+    """Cria o par *.onnx + *.onnx.json de uma voz falsa."""
+    dir_path.mkdir(parents=True, exist_ok=True)
+    (dir_path / f"{nome}.onnx").write_bytes(b"onnx fake")
+    (dir_path / f"{nome}.onnx.json").write_text("{}", encoding="utf-8")
+
+
+class TestVozesDescobertas:
+    def test_vozes_do_diretorio_viram_vozes_nomeadas(self, tmp_path: Path) -> None:
+        voices = tmp_path / "tts"
+        _criar_voz(voices, "hal")
+        _criar_voz(voices, "pt_BR-jeff-medium")
+        cfg = TTSConfig(
+            binary=str(tmp_path / "piper"),
+            model=str(tmp_path / "dii.onnx"),
+            config=str(tmp_path / "dii.onnx.json"),
+            voices_dir=str(voices),
+        )
+        tts = PiperTTS(cfg)
+        assert "hal" in tts.vozes
+        assert "pt_BR-jeff-medium" in tts.vozes
+        # default/regulus seguem existindo
+        assert "default" in tts.vozes and "regulus" in tts.vozes
+        # resolução por nome devolve o modelo descoberto
+        assert tts._resolve_voice("hal")[0] == str(voices / "hal.onnx")
+
+    def test_voz_sem_config_json_e_ignorada(self, tmp_path: Path) -> None:
+        voices = tmp_path / "tts"
+        voices.mkdir(parents=True, exist_ok=True)
+        (voices / "sem-json.onnx").write_bytes(b"onnx")
+        cfg = TTSConfig(
+            binary=str(tmp_path / "piper"),
+            model=str(tmp_path / "dii.onnx"),
+            config=str(tmp_path / "dii.onnx.json"),
+            voices_dir=str(voices),
+        )
+        tts = PiperTTS(cfg)
+        assert "sem-json" not in tts.vozes
+
+    def test_descoberta_nao_sobrescreve_default_e_regulus(self, tmp_path: Path) -> None:
+        voices = tmp_path / "tts"
+        _criar_voz(voices, "default")
+        _criar_voz(voices, "regulus")
+        cfg = TTSConfig(
+            binary=str(tmp_path / "piper"),
+            model=str(tmp_path / "dii.onnx"),
+            config=str(tmp_path / "dii.onnx.json"),
+            regulus_model=str(tmp_path / "faber.onnx"),
+            regulus_config=str(tmp_path / "faber.onnx.json"),
+            voices_dir=str(voices),
+        )
+        tts = PiperTTS(cfg)
+        assert tts._resolve_voice(None)[0] == str(tmp_path / "dii.onnx")
+        assert tts._resolve_voice("regulus")[0] == str(tmp_path / "faber.onnx")
+
+    def test_voices_dir_inexistente_nao_quebra(self, tmp_path: Path) -> None:
+        cfg = TTSConfig(
+            binary=str(tmp_path / "piper"),
+            model=str(tmp_path / "dii.onnx"),
+            config=str(tmp_path / "dii.onnx.json"),
+            voices_dir=str(tmp_path / "nao-existe"),
+        )
+        tts = PiperTTS(cfg)
+        assert set(tts.vozes) == {"default", "regulus"}
+
+    def test_voices_dir_none_so_tem_explicitas(self, tmp_path: Path) -> None:
+        cfg = TTSConfig(
+            binary=str(tmp_path / "piper"),
+            model=str(tmp_path / "dii.onnx"),
+            config=str(tmp_path / "dii.onnx.json"),
+            voices_dir=None,
+        )
+        tts = PiperTTS(cfg)
+        assert set(tts.vozes) == {"default", "regulus"}
+
+
+# ─── TTS — cadeia de locução de rádio (integração Nicky Locutor) ────────────
+
+
+class TestLocucaoRadio:
+    def _cfg(self, tmp_path: Path, **kwargs) -> TTSConfig:
+        base = dict(
+            binary=str(tmp_path / "piper"),
+            model=str(tmp_path / "dii.onnx"),
+            config=str(tmp_path / "dii.onnx.json"),
+            ffmpeg_bin=str(tmp_path / "ffmpeg"),
+        )
+        base.update(kwargs)
+        return TTSConfig(**base)
+
+    def test_locucao_disponivel_exige_ffmpeg(self, tmp_path: Path) -> None:
+        (tmp_path / "piper").write_bytes(b"bin")
+        (tmp_path / "dii.onnx").write_bytes(b"onnx")
+        (tmp_path / "dii.onnx.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "ffmpeg").write_bytes(b"bin")
+        assert PiperTTS(self._cfg(tmp_path)).locucao_disponivel
+        # sem ffmpeg no disco = locução indisponível (mesmo com piper ok)
+        (tmp_path / "ffmpeg").unlink()
+        assert not PiperTTS(self._cfg(tmp_path)).locucao_disponivel
+
+    def test_comando_locucao_cadeia_completa(self, tmp_path: Path) -> None:
+        tts = PiperTTS(self._cfg(tmp_path))
+        cmd = tts._comando_locucao(tmp_path / "in.wav", tmp_path / "out.mp3")
+        linha = " ".join(cmd)
+        assert "equalizer=f=80" in linha  # presença/grave de voz
+        assert "equalizer=f=8000" in linha  # brilho
+        assert "compand=" in linha  # volume de locução
+        assert "adelay=2500|2500" in linha  # 2,5 s antes da fala
+        assert "anoisesrc=d=15" in linha  # fundo de ruído branco
+        assert "amix=inputs=2:duration=first" in linha
+        assert "128k" in linha  # mp3 128k como a rádio
+        assert cmd[-1] == str(tmp_path / "out.mp3")  # saída por último
+
+    def test_locucao_desabilitada_sem_binarios(self, tmp_path: Path) -> None:
+        cfg = self._cfg(tmp_path)  # paths inexistentes
+        tts = PiperTTS(cfg)
+
+        async def run() -> None:
+            assert not await tts.synthesize_locucao_to_file(
+                "boa noite, rádio", tmp_path / "out.mp3"
+            )
+
+        asyncio.run(run())
+
+    def test_locucao_texto_vazio(self, tmp_path: Path) -> None:
+        (tmp_path / "piper").write_bytes(b"bin")
+        (tmp_path / "dii.onnx").write_bytes(b"onnx")
+        (tmp_path / "dii.onnx.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "ffmpeg").write_bytes(b"bin")
+        tts = PiperTTS(self._cfg(tmp_path))
+
+        async def run() -> None:
+            assert not await tts.synthesize_locucao_to_file("  ", tmp_path / "o.mp3")
+
+        asyncio.run(run())
+
+    def test_locucao_sucesso_piper_e_ffmpeg(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "piper").write_bytes(b"bin")
+        (tmp_path / "dii.onnx").write_bytes(b"onnx")
+        (tmp_path / "dii.onnx.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "ffmpeg").write_bytes(b"bin")
+        tts = PiperTTS(self._cfg(tmp_path))
+
+        async def fake_exec(*args, **kwargs):
+            destino = Path(args[-1])
+            if destino.suffix == ".mp3":
+                destino.write_bytes(b"ID3mp3 fake")
+            else:
+                make_wav(destino)
+            return FakeProc(returncode=0)
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+        out = tmp_path / "locucao.mp3"
+
+        async def run() -> None:
+            assert await tts.synthesize_locucao_to_file("boa noite", out)
+            assert out.is_file() and out.stat().st_size > 0
+
+        asyncio.run(run())
+
+    def test_locucao_ffmpeg_falha(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "piper").write_bytes(b"bin")
+        (tmp_path / "dii.onnx").write_bytes(b"onnx")
+        (tmp_path / "dii.onnx.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "ffmpeg").write_bytes(b"bin")
+        tts = PiperTTS(self._cfg(tmp_path))
+
+        async def fake_exec(*args, **kwargs):
+            destino = Path(args[-1])
+            if destino.suffix == ".mp3":
+                return FakeProc(returncode=1, stderr=b"filtro invalido")
+            make_wav(destino)
+            return FakeProc(returncode=0)
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+        async def run() -> None:
+            assert not await tts.synthesize_locucao_to_file(
+                "boa noite", tmp_path / "locucao.mp3"
+            )
+
+        asyncio.run(run())
+
+    def test_locucao_piper_falha_nao_chama_ffmpeg(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "piper").write_bytes(b"bin")
+        (tmp_path / "dii.onnx").write_bytes(b"onnx")
+        (tmp_path / "dii.onnx.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "ffmpeg").write_bytes(b"bin")
+        tts = PiperTTS(self._cfg(tmp_path))
+        chamadas: list = []
+
+        async def fake_exec(*args, **kwargs):
+            chamadas.append(args[0])
+            return FakeProc(returncode=1, stderr=b"piper quebrou")
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+        async def run() -> None:
+            assert not await tts.synthesize_locucao_to_file(
+                "boa noite", tmp_path / "locucao.mp3"
+            )
+            # só o piper foi chamado (nada de ffmpeg)
+            assert chamadas == [str(tmp_path / "piper")]
+
+        asyncio.run(run())
