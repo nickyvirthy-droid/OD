@@ -367,6 +367,31 @@ aviso novo** (os 4 do `orchestrator.py`/`launcher.py` são
 pré-existentes, conferidos contra o HEAD via `git stash`). **Sem
 bump** — 1.44.0/2080 intacta (mudança de backend).
 
+**Prova viva (restart verde 27/10 14:11:23, `b98971c`; `MainPID`
+1633473, `NRestarts=0`, `/health` **25/25**, journal **0 `[ERROR]`**):**
+
+- *"qual é o sol?"* → journal **`Enciclopédia: artigo por título
+direto | titulo=Sol | livro=wikipedia_pt_all_mini_2026-05`** +
+**`Enciclopédia no prompt | titulo=Sol | chars=1322`** → resposta
+**"O Sol é a estrela central do Sistema Solar… 150 milhões de
+quilômetros"** (antes do front: *"gigante asteróide"* / *"estrela
+gigante… iluminação da Terra durante a noite"*, saído do modelo sem
+fonte). `RAG` **não** foi consultado — uma fonte por prompt.
+- *"quem foi alexander fleming?"* → **`titulo=Alexander Fleming | chars=624`**
+→ resposta com datas e descoberta da penicilina corretas.
+- Métricas do ciclo: `enciclopedias=6 · blocos=2 · erros=0 ·
+sem_fonte=0 · rag_consultas=5` — as 3 primeiras perguntas de fato
+consultaram **primeiro** a fonte verificada e o acervo entrou só nas
+que ficaram sem artigo (contrato da régua).
+- **Nota honesta (limitação medida, pauta para a próxima frente):** a
+etapa 4.6b não chegou a disparar AO VIVO em 6 tentativas — sem artigo
+no Kiwix, o acervo da casa devolve trecho fraco mesmo para termo
+inventado (`min_overlap 0.036`), o prompt não fica vazio e o modelo
+local segue livre para inventar (ex.: *"quem inventou o flogisto
+líquido?"*). A nota é correta por spec, mas só acontece quando o RAG
+realmente não achou nada — a escolha de exigir relevância do trecho do
+acervo em pergunta de fato é **decisão de design**, fila do dono.
+
 ### Kiwix dentro do chat: a Wikipédia offline responde o que a memória interna não sabe (24/10, sem bump)
 
 **Pedido do dono** (ideia de 21/10 no parking lot §5, escolhida em
