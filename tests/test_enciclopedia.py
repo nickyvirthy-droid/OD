@@ -310,23 +310,22 @@ class TestConsulta:
         assert r.block == "" and r.recusados == 1 and r.titulo == ""
 
     def test_titulo_tangencial_com_extras_e_recusado(self):
-        """Prova viva 27/10: 1 termo em comum não basta — "o que é o
-        sol, em uma frase?" devolveu "O império no qual o sol nunca se
-        põe" (4 tokens fora do assunto) e o piso antigo deixava passar.
+        """Prova viva 27/10: 1 termo em comum não basta — a pergunta
+        injetou "O império no qual o sol nunca se põe" (4 tokens fora do
+        assunto) e o piso antigo deixava passar. Aqui o artigo vem como
+        REDIRECT do título direto, e a instrução "em uma frase" já
+        saíra da consulta (duas travas no mesmo turno).
         """
         base = "wikipedia_pt_all_mini_2026-05"
         cliente = _ClienteFalso(
-            hits=[{
-                "titulo": "O império no qual o sol nunca se põe",
-                "caminho": "pt/Império",
-                "trecho": "", "palavras": 100,
-            }],
-            artigos={f"{base}/Sol_Frase": {
+            hits=[],
+            artigos={f"{base}/Sol": {
                 "titulo": "O império no qual o sol nunca se põe",
                 "texto": "Sobre o Império Espanhol…",
             }},
         )
         r = _enc(cliente).consult("o que é o sol, em uma frase?")
+        assert r.consulta_final == "sol"  # instrução final limpa
         assert r.block == "" and r.recusados == 1 and r.titulo == ""
 
     def test_titulo_com_um_token_extra_passa(self):
@@ -379,6 +378,57 @@ class TestDegradacao:
     def test_resultado_padrao_e_dataclass_limpa(self):
         r = ResultadoEnciclopedia()
         assert r.block == "" and r.erro == "" and r.chars == 0
+
+
+# ---------------------------------------------------------------------------
+# Enquadramento da pergunta — a frase CRUA tem que achar o artigo (27/10)
+# ---------------------------------------------------------------------------
+
+class TestAssuntoDaPergunta:
+    BASE = "wikipedia_pt_all_mini_2026-05"
+
+    def test_verbo_guia_e_wh_saiem_da_busca(self):
+        """Medido ao vivo 27/10: "quem descobriu a penicilina?" buscava a
+        frase inteira e o kiwix não achava o artigo. Agora busca
+        `penicilina` e o título direto serve o artigo.
+        """
+        cliente = _ClienteFalso(artigos={f"{self.BASE}/Penicilina": {
+            "titulo": "Penicilina",
+            "texto": "Antibiótico descoberto por Alexander Fleming em 1928.",
+        }})
+        r = _enc(cliente).consult("quem descobriu a penicilina?")
+        assert r.consulta_final == "penicilina"
+        assert cliente.leituras == [f"{self.BASE}/Penicilina"]
+        assert cliente.buscas == []  # o título direto já resolveu
+        assert "[Penicilina]" in r.block
+
+    def test_instrucao_final_nao_entra_na_busca(self):
+        """"… em uma frase" / "… responda com uma frase" (medido 27/10)
+        viravam termo de busca ("sol responda frase").
+        """
+        cliente = _ClienteFalso(artigos={f"{self.BASE}/Sol": {
+            "titulo": "Sol", "texto": "Estrela do sistema solar.",
+        }})
+        r = _enc(cliente).consult("o que é o sol, em uma frase?")
+        assert r.consulta_final == "sol" and cliente.buscas == []
+
+        cliente2 = _ClienteFalso(artigos={f"{self.BASE}/Marie_Curie": {
+            "titulo": "Marie Curie", "texto": "Física polonesa (1867-1934).",
+        }})
+        r2 = _enc(cliente2).consult("quem foi marie curie, em 3 frases?")
+        assert r2.consulta_final == "marie curie"
+        assert cliente2.leituras == [f"{self.BASE}/Marie_Curie"]
+
+    def test_verbo_guia_como_assunto_nao_e_comido(self):
+        """Safeguard: "o que é a descoberta?" mantém o assunto — o verbo
+        só sai quando RESTA conteúdo depois dele.
+        """
+        cliente = _ClienteFalso(artigos={f"{self.BASE}/Descoberta": {
+            "titulo": "Descoberta", "texto": "Ato de descobrir algo novo.",
+        }})
+        r = _enc(cliente).consult("o que é a descoberta?")
+        assert r.consulta_final == "descoberta"
+        assert "[Descoberta]" in r.block
 
 
 # ---------------------------------------------------------------------------

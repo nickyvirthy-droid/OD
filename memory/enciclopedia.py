@@ -28,9 +28,14 @@ Descrição: Wikipédia offline dentro do chat — a etapa "enciclopédia" do
              sobre a pergunta de fato, o orquestrador injeta a nota
              honesta (etapa 4.6b) em vez de deixar o modelo local
              inventar.
-           - **Consulta:** os termos de conteúdo da pergunta (o MESMO
-             filtro `termos_da_consulta` do RAG — stopwords PT/EN fora)
-             entram no `/search` do kiwix-serve; o hit escolhido é o de
+           - **Consulta:** o ASSUNTO da pergunta vai cru para o `/search`
+             depois de 3 limpezas medidas (prefixo de verbo-guia,
+             enquadramento wh/stopword/verbo à esquerda e instrução
+             final "em uma frase") — *"quem descobriu a penicilina?"*
+             busca `penicilina`, não a frase inteira (27/10). Os termos
+             são os do MESMO
+             filtro `termos_da_consulta` do RAG — stopwords PT/EN fora) —
+             e o hit escolhido é o de
              **maior overlap de título** com os termos da pergunta (o
              ranking cru do kiwix é fraco — apurado ao vivo: "day" devolve
              "Day After Day" antes de "Day"), com piso honesto: sem overlap
@@ -78,7 +83,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from core.logger import get_logger
-from memory.rag import termos_da_consulta
+from memory.rag import STOPWORDS_PT, termos_da_consulta
 
 log = get_logger("omega.memory.enciclopedia")
 
@@ -147,6 +152,57 @@ _ABERTURA_FATO = re.compile(
     re.IGNORECASE,
 )
 
+# -- Enquadramento da pergunta (limpeza 27/10) ------------------------------
+# Verbos-guia que descrevem a PERGUNTA, não o assunto: "quem DESCOBRIU a
+# penicilina" → o assunto é a penicilina. Medido ao vivo 27/10: sem esta
+# limpeza a busca era de 3 termos ("quem descobriu penicilina") e o
+# kiwix-serve não achava o artigo "Penicilina" — a resposta saía do
+# acervo da casa em vez da Wikipédia.
+_VERBOS_GUIA: frozenset[str] = frozenset(
+    """
+    descobriu descobriram descobrem descobria
+    inventou inventaram inventa inventava
+    criou criaram cria criava
+    fundou fundaram funda fundava
+    projetou projetaram projeta
+    desenvolveu desenvolveram desenvolve
+    escreveu escreveram escreve
+    compôs compuseram compõe
+    causou causaram causa
+    ganhou ganharam ganha
+    venceu venceram vence
+    nasceu nasceram nasce
+    faleceu faleceram morreu morreram morre
+    governou governaram governa
+    reinou reinaram reina
+    descreve descrevem descreveram
+    representa representam significa significam
+    existe existem existiu aconteceu aconteceram
+    começou começaram terminou terminaram
+    ficou ficaram fica
+    está estava estavam estão
+    """.split()
+)
+
+#: Palavra que NÃO abre assunto: stopword da casa + guia + "quem"
+#: (o "quem" não está em STOPWORDS_PT e inflava a busca como termo).
+_ENQUADRAMENTO: frozenset[str] = frozenset(STOPWORDS_PT) | _VERBOS_GUIA | {
+    "quem"
+}
+
+_PONTUACAO = re.compile(r"[^\w]+")
+
+#: Instrução no FINAL da frase — medida na prova viva de 27/10: \
+#: "… em uma frase" / "… responda com uma frase" entravam como termos de
+#: BUSCA ("sol responda frase") e o artigo certo nem era tentado.
+_RE_INSTRUCAO_FINAL = re.compile(
+    r"(?:(?:,\s*|\s+)responda\b[^!?]*"
+    r"|,?\s*em\s+\d+\s+fras(?:e|es)"
+    r"|,?\s*(?:com|em)\s+uma\s+frase"
+    r")\s*[?!.]*\s*$",
+    re.IGNORECASE,
+)
+
 
 def eh_pergunta_de_fato(pergunta: str) -> bool:
     """É pergunta de FATO/definição? (ordem das fontes, régua 26/10).
@@ -189,11 +245,44 @@ def _eh_pt(idioma: Any) -> bool:
     return cod in ("pt", "por") or cod.startswith(("pt-", "pt_"))
 
 
-def _assunto_da_pergunta(pergunta: str) -> str:
-    """Remove os verbos-guia iniciais (até 3, encadeáveis).
+def _corta_enquadramento(texto: str) -> str:
+    """Come o enquadramento à esquerda: wh + stopwords + verbo-guia.
 
-    'define dia' → 'dia'; 'o que é a fotossíntese?' → 'a fotossíntese?'
-    (o termos_da_consulta seguinte já tira 'a' e '?').
+    'quem descobriu a penicilina?' → 'penicilina?'; 'como está o sistema'
+    → 'o sistema'. Um verbo-guia só é comido se RESTAR conteúdo depois
+    ('o que é a descoberta?' mantém 'descoberta' — lá o verbo É o
+    assunto), senão a pergunta ficava sem consulta nenhuma.
+    """
+    palavras = texto.split()
+    i = 0
+    while i < len(palavras):
+        nucleo = _PONTUACAO.sub("", palavras[i]).casefold()
+        if not nucleo:
+            i += 1
+            continue
+        if nucleo in _VERBOS_GUIA and not termos_da_consulta(
+            " ".join(palavras[i + 1 :])
+        ):
+            break
+        if nucleo in _ENQUADRAMENTO:
+            i += 1
+            continue
+        break
+    return " ".join(palavras[i:])
+
+
+def _assunto_da_pergunta(pergunta: str) -> str:
+    """O ASSUNTO — o que a busca do kiwix procura (e o que a trava de
+    título é comparado).
+
+    Três limpezas, todas medidas ao vivo (24-27/10):
+
+    1. prefixo de verbo-guia, até 3 encadeáveis: 'define dia' → 'dia';
+    2. enquadramento à esquerda (wh + stopwords + verbo-guia):
+       'quem descobriu a penicilina?' → 'penicilina?';
+    3. instrução no final: 'o que é o sol, em uma frase?' → 'o sol,'.
+
+    (o `termos_da_consulta` seguinte tira pontuação e stopwords.)
     """
     texto = pergunta or ""
     for _ in range(3):
@@ -201,6 +290,7 @@ def _assunto_da_pergunta(pergunta: str) -> str:
         if novo == texto:
             break
         texto = novo
+    texto = _RE_INSTRUCAO_FINAL.sub("", _corta_enquadramento(texto))
     return texto.strip()
 
 
