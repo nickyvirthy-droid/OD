@@ -714,6 +714,64 @@ def build_voice_handlers() -> tuple[Any, Any]:
     return stt, tts
 
 
+def build_radio_handler(database: Any) -> tuple[Any, str]:
+    """Webhook do locutor da rádio Nicky (Etapa D, 27/10).
+
+    O AzuraCast dispara quando a música muda; aqui a fala é montada
+    (integrations/radio_webhook.py: frases do banco + notícia G1 +
+    hora + clima do legado) e o MP3 sai com a pele de locução (Piper +
+    ffmpeg, tools/audio/tts.py). O arquivo é gravado num diretório que
+    o AzuraCast enxerga — bind-mount do compose em /home/alex/azuracast.
+
+    Retorna (handler, token):
+      * handler: callable síncrono (payload Now Playing) -> {"status"};
+        None = rádio desligada (sem banco, sem Piper ou OD_RADIO=0) —
+        a rota continua registrada e responde 503.
+      * token: segredo do path /radio/webhook/{token} (OD_RADIO_TOKEN);
+        vazio = rádio desligada (o handler responde 404, como se a rota
+        não existisse).
+    """
+    token = env("OD_RADIO_TOKEN", "")
+    if not token:
+        log.warn("Rádio sem OD_RADIO_TOKEN — webhook desligado")
+        return None, ""
+    if env("OD_RADIO", "1") == "0":
+        log.info("Rádio desligada por OD_RADIO=0")
+        return None, ""
+    if database is None:
+        log.warn("Rádio sem banco de frases — webhook desligado")
+        return None, ""
+
+    from integrations.radio import garantir_frases
+    from integrations.radio_webhook import processar
+    from tools.audio import PiperTTS
+
+    # As frases do legado vivem no banco do OD: garante na subida (mesma
+    # chamada idempotente do runtime/setup_frases_radio.py).
+    try:
+        garantir_frases(database)
+    except Exception as exc:  # pragma: no cover — banco cai no boot
+        log.warn("Frases da rádio não puderam ser garantidas", error=str(exc))
+
+    piper = PiperTTS()
+    if not piper.locucao_disponivel:
+        log.warn("Rádio sem Piper/ffmpeg — webhook desligado")
+        return None, ""
+
+    destino = env(
+        "OD_RADIO_ARQUIVO",
+        "/home/alex/azuracast/locucoes/anuncio_musica.mp3",
+    )
+    voz = env("OD_RADIO_VOZ", "dii_pt-BR")
+
+    def _radio(payload: dict) -> dict:
+        return processar(payload, tts=piper, db=database,
+                         destino=destino, voz=voz)
+
+    log.info("Webhook da rádio plugado", voz=voz, destino=destino)
+    return _radio, token
+
+
 def build_api_server(
     orchestrator: Any, metrics: Any = None, health: Any = None,
     action_registry: Any = None, push: Any = None, database: Any = None,
@@ -744,6 +802,9 @@ def build_api_server(
     # ser 501 quando os binários da Fase 6 existem (mesmos do Telegram).
     voice_stt, voice_tts = build_voice_handlers()
 
+    # Rádio Nicky (Etapa D, 27/10): webhook do AzuraCast → locução.
+    radio_handler, radio_token = build_radio_handler(database)
+
     # auth_all: bind exposto na LAN exige X-API-Key em TODOS os endpoints
     server = APIServer(
         orchestrator,
@@ -771,6 +832,8 @@ def build_api_server(
             ),
             stt=voice_stt,  # v1.17.3: /transcribe real (whisper.cpp)
             tts=voice_tts,  # v1.17.3: /tts real (Piper)
+            radio=radio_handler,  # Etapa D: locutor da rádio (AzuraCast)
+            radio_token=radio_token,  # segredo do path /radio/webhook/{token}
             # Freio contra força bruta no login (LoginGuard)
             login_max_attempts=int(env("OD_LOGIN_MAX_ATTEMPTS", "5")),
             login_window_s=float(env("OD_LOGIN_WINDOW_S", "300")),

@@ -324,6 +324,33 @@ conserto, devolvia as linhas sem nome nenhum.** Restart com
 `NRestarts=0`, `/health` **25/25 nenhum fora**, journal desde o boot
 **0 `[ERROR]`**.
 
+### O locutor da rádioNicky fala de verdade: AzuraCast → webhook → voznova no ar (integração Nicky Locutor, etapa D, 27/10, sem bump)
+
+Etapa D da integração (ordem do dono: *"integrar e implantar… instale
+azura… recrie as frases"*): o **AzuraCast** (instalado na etapa C) dispara
+um webhook quando a música muda e o **od-core monta a fala e gera o MP3**
+da locução — a mesma montagem do legado `main.py` (notícia 15% → frase da
+música → curiosidade → hora certa → próxima → clima/assinatura), com a
+**voz Piper `dii_pt-BR`** e a cadeia de áudio de rádio (EQ + compand +
+2,5 s de respiro) já provada na etapa A.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/radio_webhook.py` (NOVO)** | `montar_locucao()` (porte fiel da montagem do legado — ordem, probabilidades e `limpar_pronuncia` mantidos; rng/relógio/notícia/clima injetáveis) + `noticia_g1()`/`clima_wttr()` **só com stdlib** (urllib + xml.etree — feedparser/requests não entram no requirements por causa de uma vinheta) + `processar()` (Piper → ffmpeg → **`os.replace` atômico** no destino; nunca lança — erro vira `{"status":"erro"}`). |
+| **`integrations/api/server.py`** | Rota **`POST /radio/webhook/{token}`** (94ª) em `AUTH_EXEMPT_PATHS`: o AzuraCast não manda `X-API-Key`, então o gate é o **token secreto no path** (`hmac.compare_digest`, desenho do `/f/*`); token errado/vazio → **404** (sem oráculo de segredo), processador ausente → **503**. `APIConfig` ganha `radio` + `radio_token`. |
+| **`runtime/launcher.py`** | `build_radio_handler(database)`: garante as frases (idempotente, etapa B), liga Piper + destino (`OD_RADIO_ARQUIVO`) + voz (`OD_RADIO_VOZ`, padrão `dii_pt-BR`) e devolve (handler, token); sem `OD_RADIO_TOKEN` = rádio desligada (rota responde 404). |
+| **Guardas** | `tests/test_radio_webhook.py` (**NOVO, 31**): ramos da montagem com RNG roteirizado (notícia/curiosidade/hora "em ponto"/próxima/clima), fontes com rede quebrada, MP3 atômico, falha de síntese não apaga o arquivo no ar; `tests/test_api.py` **+6** (token errado/ausente, 503, payload chega inteiro, 502, `auth_all` não bloqueia) e contagem de rotas 93→94. |
+
+**Correções sobre o legado (registradas no módulo):** "e em ponto" →
+**"22 horas em ponto"**/**"e 23 minutos"** (o texto vira voz falada);
+frase de banco vazia **não anexa ". "** (o legado mandava "· · " no ar
+com o MySQL fora); clima falhou → **assinatura fecha** (a rádio nunca
+fala sem se despedir).
+
+**Validação:** gate oficial **3957 passed / 16 skipped / 0 falha ·
+90,58%** · pyflakes 0 aviso novo. A prova viva ponta a ponta (payload
+real do AzuraCast → MP3 no ar) é a etapa E, registrada na sequência.
+
 ### As frases da rádio Nicky vivem no banco do OD (integração Nicky Locutor, etapa B, 27/10, sem bump)
 
 Ordem do dono (*"integrar e implantar… use o banco que já temos e recrie

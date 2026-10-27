@@ -1,4 +1,27 @@
 {
+ "nicky_locutor_integrar_implantar_2026_10_27": {
+  "pedido": "Dono (27/10 ~16:55): '1' -> analise/Nicky Locutor/; depois, ao perguntar integrar x implantar: 'integrar e implantar. instale azura, use o banco que ja temos e recrie as frases. deixe tudo dentro do servidor'.",
+  "o_que_e": "analise/Nicky Locutor/ = bot locutor da radio web Nicky (FastAPI, webhook /webhook-radio do AzuraCast): monta texto (musica passada/proxima, curiosidade, hora, clima, noticia G1 15%) e sintetiza com Piper + cadeia ffmpeg de locucao (EQ/compand/delay/ruido) -> anuncio_musica.mp3. 2 versoes: v0.0.0 (edge-tts) e atual (Piper CLI, voz em locutor.txt). 9 vozes ONNX (544MB); dii e faber BYTE-IDENTICAS as de voice/tts do OD (md5 confere). Residuos: .venv 400MB, .main.py.swp, test_async.py quebrado. Nao roda aqui como esta: exige MySQL CasaOS (172.17.0.1) e rede azuracast_default.",
+  "decisao_dono": "Integrar ao OD (vozes extras + cadeia de som de radio viram recurso do sistema) E implantar como servico (AzuraCast instalado NESTE servidor, frases recriadas no banco que ja temos = Postgres do OD, tudo local).",
+  "reconhecimento": "RAM 7.7G total / 3.0G available + swap 8G (5G usado) — AzuraCast AIO cabe com folga apertada; porta 8000 do od-core CONFLITA com a 8000 padrao do AzuraCast -> instalar em portas alternativas (ex 8081/8444); ffmpeg /usr/bin OK; piper do repo exige LD_LIBRARY_PATH (tts.py ja cuida); NENHUMA musica no servidor (dono sobe pelo painel depois); docker ativo, nenhum azura instalado.",
+  "plano": [
+   "A) Integrar ao OD: vozes extras -> voice/tts/ + vozes auto-descobertas + locucao radio (cadeia ffmpeg) em tools/audio/tts.py + guardas. [FECHADA b3c72ca — 11 vozes, locucao hal 174751B, gate 3907/16]",
+   "B) Frases no Postgres do OD: tabelas frases_passado/frases_proxima/intro_curiosidade/assinaturas + populacao com as frases do setup_db.py original. [FECHADA ba3fb7a — 40/10/8/6 no Postgres real, idempotente, gate 3920/16]",
+   "C) AzuraCast: instalar (image AIO oficial) em portas alternativas, criar estacao Nicky + webhook -> locutor. [QUASE — instalado em /home/alex/azuracast (web 8091/8445, stream 8600-8699, SFTP 20220), admin criado, estacao Nicky id=1 no ar; FALTA bind-mount locucoes/ + criar webhook Generic song_changed via API + OD_RADIO_TOKEN no .env]",
+   "D) nicky-locutor adaptado: Postgres do OD no lugar do MySQL CasaOS, paths do OD, rota POST /radio/webhook/{token} no od-core. [FECHADA — integrations/radio_webhook.py (montagem fiel do legado + noticia G1/clima stdlib + MP3 atomico), rota 94 em AUTH_EXEMPT (gate=token no path, hmac), APIConfig.radio/radio_token, build_radio_handler no launcher; guardas 31+6 novas; gate 3957/16 90,58%, pyflakes 0 novo]",
+   "E) Prova viva ponta a ponta (webhook fake -> mp3) + registro + txt.txt + Telegram."
+  ],
+  "estado": "EM CURSO — etapa C (fechar: bind-mount + webhook AzuraCast + token) e etapa E (prova viva). A, B e D fechadas.",
+  "updated_at": "2026-10-27T19:05:00-03:00",
+  "transcricao": "iniciar/2026-10-27_conversa_omegadrakon.md (§5)",
+  "proximos_passos": [
+   "1) gerar OD_RADIO_TOKEN (secrets.token_urlsafe) no .env do OD",
+   "2) compose do AzuraCast: bind-mount /home/alex/azuracast/locucoes -> /var/azuracast/stations/nicky/media/locucoes + docker compose up -d",
+   "3) criar webhook Generic song_changed na estacao 1 via API (webhook_url=http://172.20.0.1:8000/radio/webhook/<token>, timeout>=15)",
+   "4) restart verde do od-core (gate verde) + PUT /webhook/{id}/test = prova viva (mp3 novo no bind-mount)",
+   "5) registro §5 iniciar/, txt.txt, Telegram, commit final"
+  ]
+ },
  "reverificacao_rotina_2026_10_27_1650": {
   "pedido": "Usuario: 'leia iniciar' (27/10 ~16:50) — reverificacao de rotina (regra 3). Checkpoint: frase_crua_limpa_para_o_kiwix_2026_10_27 (updated 16:10, §3 — frente FECHADA).",
   "achados_verdes": "Git ARVORE LIMPA, HEAD bf9fa51 (commit de registro da §3) == origin/master. od-core active desde 16:03:08, MainPID 1750867, 41 min sem restart. /health autenticado ok=True, 25 checks NENHUM fora. /app/version 1.44.0/2080 intacta. Journal desde o restart: 0 [ERROR] e 1 [WARN] = o proprio alerta proativo key=restart do boot (esperado).",
@@ -28,10 +51,10 @@
   "pedido": "Dono (27/10 ~14:40): 'continue. feche o 4.6b e limpe o cache' — as duas pendencias que a §1 apontou como fila.",
   "medição_antes_de_codar": "Pipeline RAG real (2216 chunks): 'quem inventou o flogisto liquido?' passava no floor antigo com 1 trecho do CHANGELOG (ov=0.66 — o raro 'flogisto' nao estava la; o overlap vinha de palavra comum) => o prompt nunca ficava vazio e a 4.6b nunca disparava. As outras 3 (odmistica/xilofonética/odralak) nao tinham trecho so porque o termo nao existe no corpus. Perguntas legitimas do corpus (omegadrakon ov=1.0, vigia 0.69, versao 0.76) continuam passando.",
   "entrega": [
-    "memory/rag.py: consult(..., fato=True) = PISO DE FATO — o trecho so entra se citar o termo MAIS RARO da pergunta ORIGINAL (maior IDF = identidade do assunto; termo nunca visto tem o maior idf e nao pode estar em nenhum trecho -> derruba o bloco). Descarte conta como descartados_floor. Fora de fato=True nada muda no floor de hoje.",
-    "core/orchestrator.py: _bloco_rag(..., fato=True) SO no caminho de pergunta de fato; sem artigo no Kiwix E sem trecho que case -> nota 4.6b.",
-    "Guardas +3 (tests/test_rag.py +1: termo identidade presente segue, inventado derruba com block '' e descarte; tests/test_enciclopedia.py +2: kw fato=True só no fato, False fora).",
-    "runtime/llm_cache_saneamento.py: PODA_PROMPTS ampliado com 20 prompts EVIDENCIADOS pelo juiz (4 fabricadas 22/10 = 3 senhas + 'fentanila quimioterapico'; 6x fato errado 24/10; 3x fila do vigia 26/10; 4x inventadas na apuracao viva 27/10) + motivo do snapshot atualizado."
+   "memory/rag.py: consult(..., fato=True) = PISO DE FATO — o trecho so entra se citar o termo MAIS RARO da pergunta ORIGINAL (maior IDF = identidade do assunto; termo nunca visto tem o maior idf e nao pode estar em nenhum trecho -> derruba o bloco). Descarte conta como descartados_floor. Fora de fato=True nada muda no floor de hoje.",
+   "core/orchestrator.py: _bloco_rag(..., fato=True) SO no caminho de pergunta de fato; sem artigo no Kiwix E sem trecho que case -> nota 4.6b.",
+   "Guardas +3 (tests/test_rag.py +1: termo identidade presente segue, inventado derruba com block '' e descarte; tests/test_enciclopedia.py +2: kw fato=True só no fato, False fora).",
+   "runtime/llm_cache_saneamento.py: PODA_PROMPTS ampliado com 20 prompts EVIDENCIADOS pelo juiz (4 fabricadas 22/10 = 3 senhas + 'fentanila quimioterapico'; 6x fato errado 24/10; 3x fila do vigia 26/10; 4x inventadas na apuracao viva 27/10) + motivo do snapshot atualizado."
   ],
   "poda_executada": "Dry-run conferido linha a linha -> --so poda --apply removeu 20 LINHAS (110 -> 90) com snapshot de rollback backups/llm-cache-poda-20261027-150933.bak (todas as colunas + INSERTs de restauro). Entre as podadas: senha fabricada do file browser, calibrer123, 'fentanila quimioterapico', 'Sol e um gigante asteroide', 'Antoine Marie Eschaton'. Cache e lido do Postgres a cada consulta (_get_db) -> vale SEM restart.",
   "validacao": "Gate oficial 3892 passed / 16 skipped / 0 falha · 90,60% (eram 3889; +3 = guardas novas) · pyflakes 0 aviso novo.",
@@ -48,18 +71,18 @@
   "pedido": "Usuario: 'leia iniciar. continue de onde parou' (27/10 ~13:45) — retomada (regras 3/4). Checkpoint: reverificacao_rotina_2026_10_26_1946 (26/10 20:12) + regua_aprendizado_2026_10_26 (frente dos FATOS DO MODELO LOCAL marcada AGUARDANDO regua do dono).",
   "residuo_achado": "SESSAO MORTA 26/10 21:16 (17 h parados): memory/enciclopedia.py MODIFICADO (+18/-5, SO a docstring) sem gate/commit — a docstring ja trazia a regua do dono de 26/10 ('pergunta de FATO consulta ESTA fonte ANTES do acervo') e as 3 travas medidas, mas NENHUMA linha de codigo existia. Mesmo padrao das interrupcoes de 21-26/10. Antes de decidir (regra 5): HEAD 8b84eab == origin/master, arvore limpa fora do residuo, txt.txt zerado desde 26/10 18:25, vigia 27/10 04:33 com as 4 sondas VERDES e fila de 8 itens (3x novos resposta_errada de 26/10 20:43 = 'define dia', 'o que e o sol?', 'quem descobriu a penicilina?').",
   "entrega": [
-    "memory/enciclopedia.py: eh_pergunta_de_fato() (verbo-guia ou interrogativo factual; 'quantas...' fica FORA — contagem e dado do sistema); _eh_pt() — 'por' (ISO 639-2) agora ordena o acervo PT primeiro (a ordem antiga comparava com 'pt' e o EN vencia); _eh_desambiguacao() recusa pagina de sentidos nos 2 caminhos; trava final: titulo tem que CASAR com o assunto (>=1 termo em comum e no maximo 1 token extra, ou 2 em comum); NOTA_SEM_FONTE (4.6b) + campo recusados.",
-    "core/orchestrator.py: _bloco_de_referencia() centraliza 4.5/4.6/4.6b nos DOIS transportes — fato: fonte verificada primeiro, acervo so se nao houver artigo, sem artigo em nenhuma -> nota honesta; fora de fato: ordem antiga. Uma fonte por prompt. Metrica nova enciclopedia_sem_fonte.",
-    "runtime/launcher.py: docstring/log da build_enciclopedia() atualizados para a ordem nova.",
-    "Guardas +26 (tests/test_enciclopedia.py 21 -> 47)."
+   "memory/enciclopedia.py: eh_pergunta_de_fato() (verbo-guia ou interrogativo factual; 'quantas...' fica FORA — contagem e dado do sistema); _eh_pt() — 'por' (ISO 639-2) agora ordena o acervo PT primeiro (a ordem antiga comparava com 'pt' e o EN vencia); _eh_desambiguacao() recusa pagina de sentidos nos 2 caminhos; trava final: titulo tem que CASAR com o assunto (>=1 termo em comum e no maximo 1 token extra, ou 2 em comum); NOTA_SEM_FONTE (4.6b) + campo recusados.",
+   "core/orchestrator.py: _bloco_de_referencia() centraliza 4.5/4.6/4.6b nos DOIS transportes — fato: fonte verificada primeiro, acervo so se nao houver artigo, sem artigo em nenhuma -> nota honesta; fora de fato: ordem antiga. Uma fonte por prompt. Metrica nova enciclopedia_sem_fonte.",
+   "runtime/launcher.py: docstring/log da build_enciclopedia() atualizados para a ordem nova.",
+   "Guardas +26 (tests/test_enciclopedia.py 21 -> 47)."
   ],
   "prova_viva_achou_defeito_da_entrega": "27/10 pos-restart: 'o que e o sol, em uma frase?' injetou 'O imperio no qual o sol nunca se pone' (1 termo em comum, 4 extras) — o piso era de 1 overlap. Trava 3 endurecida no MESMO dia +2 guardas (o caso ao vivo e o qualifier de 1 token que continua valendo).",
   "validacao": "Gate oficial 3x verde: 3887/16 90,59% (antes do CHANGELOG), 3887 de novo APOS a edicao do CHANGELOG, 3889 apos o endurecimento + CHANGELOG (eram 3863; +26 = guardas novas). pyflakes 0 aviso novo (os 4 de orchestrator/launcher conferidos contra o HEAD via git stash).",
   "deploy": "Commits 7e0b8a4 (frente) + b98971c (endurecimento) pushados, HEAD == origin/master, arvore limpa. Restart verde 27/10 14:11:23: MainPID 1633473, NRestarts=0, /health 25/25 nenhum fora, /app/version 1.44.0/2080 intacta, journal desde o boot 0 [ERROR].",
   "prova_viva": "POST /message real: 'qual e o sol?' -> journal 'Enciclopedia: artigo por titulo direto | titulo=Sol | livro=wikipedia_pt_all_mini_2026-05' + 'Encyclopedia no prompt | titulo=Sol | chars=1322' -> 'O Sol e a estrela central do Sistema Solar... ~150 milhoes de km' (ANTES: 'gigante asteroide'/'estrela gigante... iluminacao da Terra durante a noite'), RAG NAO consultado. 'quem foi alexander fleming?' -> 'Alexander Fleming | chars=624' -> datas e penicilina corretas. Metricas do ciclo: enciclopedias=6, blocos=2, erros=0, sem_fonte=0, rag_consultas=5 — fato consultou PRIMEIRO a fonte verificada; acervo entrou so nas sem artigo.",
   "achados_honestos_para_a_fila": [
-    "4.6b NAO disparou ao vivo em 6 tentativas: sem artigo no Kiwix o acervo devolve trecho fraco para termo inventado (min_overlap 0.036), o prompt nao fica vazio e o modelo local segue livre para inventar ('quem inventou o flogisto liquido?'). Exigir relevancia do trecho do acervo em pergunta de fato = DECISAO DE DESIGN (fila do dono).",
-    "As respostas erradas de 26/10 continuam no CACHE do LLM (route=cache serviu a penicilina inventada). Poda = runtime/llm_cache_saneamento.py --so poda --apply, acao destrutiva com snapshot — AGUARDANDO ORDEM (regra 7)."
+   "4.6b NAO disparou ao vivo em 6 tentativas: sem artigo no Kiwix o acervo devolve trecho fraco para termo inventado (min_overlap 0.036), o prompt nao fica vazio e o modelo local segue livre para inventar ('quem inventou o flogisto liquido?'). Exigir relevancia do trecho do acervo em pergunta de fato = DECISAO DE DESIGN (fila do dono).",
+   "As respostas erradas de 26/10 continuam no CACHE do LLM (route=cache serviu a penicilina inventada). Poda = runtime/llm_cache_saneamento.py --so poda --apply, acao destrutiva com snapshot — AGUARDANDO ORDEM (regra 7)."
   ],
   "canais_do_dono": "txt.txt escrito com o resumo (regra 14) + mesmo resumo no Telegram (regra 15). analise/ = Nicky Locutor/ (PENDENTE, aguardando ordem, regra 17) + relatorios do vigia.",
   "estado": "SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD b98971c, arvore limpa, health 25/25. Frente dos FATOS DO MODELO LOCAL (ordem das fontes) FECHADA e provada ao vivo.",

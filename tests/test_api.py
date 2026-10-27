@@ -150,7 +150,7 @@ class TestAPIRoutes:
         portário /f/<ferramenta> das 5 ferramentas (fase 1, 21/10) +
         /auth/session-cookie (sessão do chat vira cookie, 22/10) +
         PUT /admin/users/{username}/role (papel da conta, frente C, 23/10)."""
-        assert len(ROUTES) == 93
+        assert len(ROUTES) == 94
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -228,6 +228,9 @@ class TestAPIRoutes:
             ("POST", "/message"), ("POST", "/anon/message"),
             ("POST", "/executa"),
             ("POST", "/transcribe"), ("POST", "/tts"),
+            # Rádio Nicky (Etapa D, 27/10): AzuraCast → locução. Auth é o
+            # token no path (AUTH_EXEMPT; gate no handler radio_webhook).
+            ("POST", "/radio/webhook/{token}"),
             ("POST", "/push/register"), ("POST", "/push/unregister"),
             ("POST", "/push/test"), ("GET", "/push/devices"),
             ("GET", "/supervision"),
@@ -327,6 +330,9 @@ class TestAPIRoutes:
             ("POST", "/auth/session-cookie"),
             ("GET", ROTA_FERRAMENTAS), ("POST", ROTA_FERRAMENTAS),
             ("PUT", ROTA_FERRAMENTAS), ("DELETE", ROTA_FERRAMENTAS),
+            # Rádio Nicky (Etapa D, 27/10): gate é o token no path,
+            # conferido no handler (radio_webhook) — v. RADIO_TOKEN.
+            ("POST", "/radio/webhook/{token}"),
         }
 
 
@@ -2544,6 +2550,98 @@ class TestAPIAudio:
         srv = serve(make_orch(tmp_path), config=self._cfg(tts=lambda t: b"x"))
         status, body, _ = _request(srv.bound_port, "POST", "/tts", body={})
         assert _json_response((status, body, _))["error"] == "text_obrigatorio"
+
+
+# ===========================================================================
+# Rádio Nicky — webhook do AzuraCast (Etapa D, 27/10)
+# ===========================================================================
+
+class TestAPIRadioWebhook:
+    """Token no path é o gate; auth_all de produção não bloqueia."""
+
+    TOKEN = "segredo-radio-123"
+
+    def _cfg(self, **kwargs) -> APIConfig:
+        kwargs.setdefault("radio_token", self.TOKEN)
+        return APIConfig(port=0, rate_limit_max=0, **kwargs)
+
+    def test_token_errado_404(self, serve, tmp_path: Path) -> None:
+        """Token errado = a rota não existe (sem oracle de segredo)."""
+        srv = serve(
+            make_orch(tmp_path),
+            config=self._cfg(radio=lambda d: {"status": "ok"}),
+        )
+        status, body, _ = _request(
+            srv.bound_port, "POST", "/radio/webhook/errado", body={}
+        )
+        assert status == 404
+
+    def test_sem_token_configurado_404(self, serve, tmp_path: Path) -> None:
+        """OD_RADIO_TOKEN vazio = rádio desligada (rota responde 404)."""
+        srv = serve(
+            make_orch(tmp_path),
+            config=self._cfg(radio_token="", radio=lambda d: {"status": "ok"}),
+        )
+        status, _, _ = _request(
+            srv.bound_port, "POST", f"/radio/webhook/{self.TOKEN}", body={}
+        )
+        assert status == 404
+
+    def test_sem_handler_503(self, serve, tmp_path: Path) -> None:
+        """Token certo sem processador (banco/Piper ausente) → 503."""
+        srv = serve(make_orch(tmp_path), config=self._cfg(radio=None))
+        status, body, _ = _request(
+            srv.bound_port, "POST", f"/radio/webhook/{self.TOKEN}", body={}
+        )
+        data = _json_response((status, body, _))
+        assert status == 503 and data["error"] == "radio_indisponivel"
+
+    def test_payload_vira_locucao(self, serve, tmp_path: Path) -> None:
+        """Payload do Now Playing chega inteiro no processador."""
+        seen: list[dict] = []
+
+        def fake_radio(payload: dict) -> dict:
+            seen.append(payload)
+            return {"status": "ok", "frase": "boa noite, rádio"}
+
+        srv = serve(make_orch(tmp_path), config=self._cfg(radio=fake_radio))
+        payload = {"now_playing": {"song": {"artist": "Tim Maia"}}}
+        status, body, _ = _request(
+            srv.bound_port, "POST", f"/radio/webhook/{self.TOKEN}",
+            body=payload,
+        )
+        data = _json_response((status, body, _))
+        assert status == 200 and data["ok"] is True
+        assert data["frase"] == "boa noite, rádio"
+        assert seen == [payload]
+
+    def test_processador_falhou_502(self, serve, tmp_path: Path) -> None:
+        """Síntese/montagem falhou → 502 com o motivo (log do AzuraCast)."""
+        srv = serve(
+            make_orch(tmp_path),
+            config=self._cfg(radio=lambda d: {"status": "erro",
+                                              "message": "sintese_falhou"}),
+        )
+        status, body, _ = _request(
+            srv.bound_port, "POST", f"/radio/webhook/{self.TOKEN}", body={}
+        )
+        data = _json_response((status, body, _))
+        assert status == 502 and data["ok"] is False
+        assert data["message"] == "sintese_falhou"
+
+    def test_auth_all_nao_bloqueia(self, serve, tmp_path: Path) -> None:
+        """Em produção auth_all=1: o POST sem X-API-Key não pode cair.
+
+        O AzuraCast só manda JSON — por isso a rota está em
+        AUTH_EXEMPT_PATHS e o gate é o token do path.
+        """
+        cfg = self._cfg(radio=lambda d: {"status": "ok"}, auth_all=True)
+        cfg.api_key = "chave-de-producao"
+        srv = serve(make_orch(tmp_path), config=cfg)
+        status, _, _ = _request(
+            srv.bound_port, "POST", f"/radio/webhook/{self.TOKEN}", body={}
+        )
+        assert status == 200
 
 
 # ===========================================================================

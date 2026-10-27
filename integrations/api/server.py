@@ -136,7 +136,11 @@ AUTH_EXEMPT_PATHS = frozenset(
      "/registry/{codigo}/photo", "/registry/{codigo}/chat",
      # /f/*: o gate é o cookie od_sessao + papel admin no handler
      # (APIHandler.ferramentas) — o dispatch não exige header.
-     ROTA_FERRAMENTAS}
+     ROTA_FERRAMENTAS,
+     # /radio/webhook/{token}: o gate é o token secreto no path
+     # (hmac.compare_digest no handler radio_webhook) — o AzuraCast não
+     # envia X-API-Key e o auth_all de produção bloquearia o POST.
+     "/radio/webhook/{token}"}
 )
 
 
@@ -180,6 +184,11 @@ class APIConfig:
         max_body_bytes: Limite de corpo em POSTs (413 acima disso).
         stt:            Handler plugável de transcrição (bytes) -> texto.
         tts:            Handler plugável de síntese (texto) -> áudio bytes.
+        radio:          Handler plugável do webhook do locutor da rádio
+                        (payload do Now Playing) -> {"status", ...}
+                        (integrations/radio_webhook.py). Ausente = 503.
+        radio_token:    Segredo no path /radio/webhook/{token} (o AzuraCast
+                        não manda X-API-Key; o gate é o token, padrão /f/*).
         metrics:        MetricsCollector opcional (Fase 7.2): quando
                         presente, o GET /metrics renderiza o coletor
                         (que inclui os contadores od_api_* e fontes
@@ -218,6 +227,9 @@ class APIConfig:
     max_body_bytes: int = 256_000
     stt: Optional[Callable[[bytes], Optional[str]]] = None
     tts: Optional[Callable[[str], Optional[bytes]]] = None
+    # Rádio Nicky (Etapa D, 27/10): webhook do AzuraCast → locução.
+    radio: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None
+    radio_token: str = ""
     metrics: Optional[Any] = None
     health: Optional[Any] = None
     site_dir: Optional[str] = None
@@ -424,6 +436,10 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/supervision", "supervision", True),
     ("POST", "/transcribe", "transcribe", True),
     ("POST", "/tts", "tts", True),
+    # Rádio Nicky (Etapa D, 27/10): o AzuraCast dispara quando a música
+    # muda e o od-core monta a fala + gera o MP3 da locução. Auth é o
+    # token secreto no path (em AUTH_EXEMPT_PATHS; gate no handler).
+    ("POST", "/radio/webhook/{token}", "radio_webhook", False),
     ("DELETE", "/history/{user_id}", "history_delete", True),
     ("DELETE", "/history/{user_id}/messages/{message_id}", "history_delete_message", True),
     ("GET", "/history/{user_id}/stats", "history_stats", True),
@@ -6089,6 +6105,36 @@ class APIHandler(BaseHTTPRequestHandler):
                 "bytes": len(audio),
             },
         )
+
+    def radio_webhook(self, token: str) -> None:
+        """POST /radio/webhook/{token} — AzuraCast → locução da rádio.
+
+        O AzuraCast dispara quando a música muda (trigger song_changed)
+        com o payload do Now Playing; o od-core monta a fala (frases do
+        banco + notícia/hora/clima do legado) e grava o MP3 que a
+        estação passa a tocar.
+
+        Gate: token secreto no path (hmac.compare_digest) — o AzuraCast
+        não envia X-API-Key, então a rota vive em AUTH_EXEMPT_PATHS e o
+        segredo é conferido AQUI (mesmo desenho de /f/<ferramenta>).
+        Token errado ou rádio não configurada → 404 (a rota não existe
+        para quem não sabe o segredo).
+        """
+        esperado = self.api.config.radio_token
+        if not esperado or not hmac.compare_digest(str(token), esperado):
+            raise APIError(404, "not_found")
+        handler = self.api.config.radio
+        if handler is None:
+            raise APIError(503, "radio_indisponivel")
+        data = self._read_json()
+        try:
+            resultado = handler(data)
+        except Exception as exc:  # pragma: no cover — handler plugado
+            raise APIError(502, f"radio_falhou: {exc}") from exc
+        if resultado.get("status") != "ok":
+            self._json(502, {"ok": False, **resultado})
+            return
+        self._json(200, {"ok": True, **resultado})
 
     def _historico_existe(self, uid: str) -> bool:
         """True quando o `user_id` é uma CONTA ou um balde com mensagens.
