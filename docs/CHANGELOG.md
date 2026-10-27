@@ -324,6 +324,24 @@ conserto, devolvia as linhas sem nome nenhum.** Restart com
 `NRestarts=0`, `/health` **25/25 nenhum fora**, journal desde o boot
 **0 `[ERROR]`**.
 
+### As frases da rádio Nicky vivem no banco do OD (integração Nicky Locutor, etapa B, 27/10, sem bump)
+
+Ordem do dono (*"integrar e implantar… use o banco que já temos e recrie
+as frases"*): as 4 famílias de frases do locutor da rádio — **40** de
+música passada (`{a}`/`{t}`), **10** de próxima (`{a_n}`/`{t_n}`), **8**
+intros de curiosidade e **6** assinaturas, **literais do legado**) passam
+a viver no **mesmo Postgres do OD** em vez do MySQL CasaOS do original.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/radio.py` (NOVO)** | Frases + `garantir_frases()` (cria as tabelas e povoa só as **vazias** — re-rodar nunca duplica nem apaga o que já está no ar; o script original fazia `DELETE` em massa) + `frase_aleatoria()`/`frase_formatada()` (webhook nunca derruba a vinheta: banco indisponível → `""`; placeholder ausente — música sem artista — vira `""` em vez do KeyError do legado). |
+| **`runtime/setup_frases_radio.py` (NOVO)** | CLI idempotente (Postgres via `OD_DB_URL`, ou `--db` SQLite). |
+| **Guardas** | `tests/test_radio.py` **+13**: carga (4 tabelas, contagens do legado, idempotência, preserva frase do dono), webhook (tabela desconhecida, banco sem tabela, placeholders) e CLI. |
+
+**Prova no servidor:** carga no Postgres real **40/10/8/6** e re-rodada
+devolve as mesmas contagens (idempotente). Gate **3920 passed / 16
+skipped / 0 falha · 90,54%** · pyflakes 0 aviso novo.
+
 ### A frase CRUA vai limpa ao Kiwix: enquadramento (wh/stopword/verbo-guia) e instrução final fora da busca (27/10, sem bump)
 
 **Onde foi achado:** na prova viva da entrega anterior —
