@@ -515,6 +515,34 @@ class TestConsulta:
         assert r2.trechos == []
         assert r2.descartados_floor >= 1
 
+    def test_piso_de_fato_exige_o_termo_identidade(self, tmp_path):
+        """Etapa 4.6b fechada (27/10): em pergunta de FATO o acervo só é
+        ouvido se o trecho citar o termo mais raro da pergunta — sem
+        artigo no Kiwix, um trecho fraco não pode virar permissão para o
+        modelo local inventar (caso ao vivo: 'flogisto líquido')."""
+        rag = RAGPipeline(
+            VectorStore(
+                store_dir=tmp_path / "fato",
+                provider=ProviderSemStopwords(HashEmbeddingProvider()),
+                top_k=24,
+            ),
+            fontes=[_fonte(
+                tmp_path, "receita.md",
+                "# Receita de bolo\n\nReceita de bolo de cenoura rapida "
+                "para o cafe da tarde.\n",
+            )],
+        )
+        rag.sync()
+        # Sem piso de fato o trecho serve (floor normal).
+        assert rag.consult("receita de bolo de cenoura", papel="admin").trechos
+        # Com piso de fato e o termo identidade PRESENTE: segue servindo.
+        r2 = rag.consult("receita de bolo de cenoura", papel="admin", fato=True)
+        assert r2.trechos and r2.block
+        # Com piso de fato e termo INVENTADO: nada serve -> bloco "".
+        r3 = rag.consult("receita de bolo de flogisto", papel="admin", fato=True)
+        assert r3.trechos == [] and r3.block == ""
+        assert r3.descartados_floor >= 1
+
     def test_prefixo_de_instrucao_nao_derruba_consulta_certa(self, tmp_path):
         # Reproduz o incidente do serviço (2026-10-14): a frase crua
         # "responda curto: ..." diluía a soma_idf (idf de palavra rara de

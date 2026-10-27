@@ -1798,9 +1798,19 @@ class Orchestrator:
         )
 
     def _bloco_rag(
-        self, text: str, contexto: Any, role: str, system_efetivo: str
+        self,
+        text: str,
+        contexto: Any,
+        role: str,
+        system_efetivo: str,
+        *,
+        fato: bool = False,
     ) -> str:
-        """Etapa 4.5 — bloco do acervo da casa ("" sem RAG plugado)."""
+        """Etapa 4.5 — bloco do acervo da casa ("" sem RAG plugado).
+
+        `fato=True` repassa o piso de FATO do RAG: o trecho tem que citar
+        o termo mais raro da pergunta, senão vira nota 4.6b honesta.
+        """
         if self._rag is None:
             return ""
         resultado_rag = self._rag.consult(
@@ -1808,6 +1818,7 @@ class Orchestrator:
             historico=contexto,
             papel=role,
             system_prompt=system_efetivo,
+            fato=fato,
         )
         self._registrar_rag(resultado_rag)
         return resultado_rag.block or ""
@@ -1837,7 +1848,11 @@ class Orchestrator:
             bloco = self._bloco_enciclopedia(text)  # fonte verificada 1ª
             if bloco:
                 return bloco
-            bloco = self._bloco_rag(text, contexto, role, system_efetivo)
+            # Acervo só se CASAR com o fato (piso de fato do RAG) — trecho
+            # fraco não abre mão da nota honesta.
+            bloco = self._bloco_rag(
+                text, contexto, role, system_efetivo, fato=True
+            )
             if bloco:
                 return bloco
             # Etapa 4.6b — nenhuma fonte tem o artigo: nota honesta no

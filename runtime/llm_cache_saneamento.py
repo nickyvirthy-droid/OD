@@ -77,6 +77,37 @@ PODA_PROMPTS: tuple[str, ...] = (
     "crie uma sckill, processo ou ação para saber isso",
     # raiz do Drive explicada como se '/' fosse o caminho dele
     "/",
+    # -- Respostas ERRADAS do juiz (ampliação 27/10, ordem do dono -------
+    # "limpe o cache"): enquanto estiverem na tabela a etapa 4 serve a
+    # resposta errada ANTES de qualquer fonte nova — a frente dos fatos
+    # nem chega a rodar. Evidência de cada grupo:
+    #   * 22/10 — auditoria: chat FABRICOU credenciais (3x) e alucinou
+    #     fentanil/quimioterápico (blindagem depois negou, o cache não).
+    #   * 24/10 04:49-05:36 — juiz: 6x resposta factual errada do
+    #     modelo local (define dia, Marie Curie, relatividade, sol,
+    #     clorofila).
+    #   * 26/10 20:43 — fila do vigia: 3x resposta_errada de fato.
+    #   * 27/10 — apuração viva antes do piso de fato: 4x inventadas.
+    "qual a senha da minha biblioteca",
+    "qual a senha do calibre, livros",
+    "qual a senha do file browser",
+    "deu erro, passe usuário e senha validos",
+    "fentanil é o que",
+    "define dia",
+    "defina sol",
+    "clorofila",
+    "quem foi marie curie",
+    "quem foi Marie Curie?",
+    "quem foi marie curie, em 3 frases?",
+    "o que é a teoria da relatividade de einstein?",
+    "o que e o sol?",
+    "o que e o sol? responda com uma frase",
+    "o que e o sol, em uma frase?",
+    "quem descobriu a penicilina?",
+    "quem inventou o flogisto liquido?",
+    "quem descobriu a odmistica?",
+    "quem foi o sábio odralak?",
+    "o que é a xilofonética?",
 )
 
 
@@ -234,7 +265,10 @@ def apply_poda(
         snapshot = _snapshot(
             backup_dir, "llm-cache-poda",
             {
-                "motivo": "podar respostas devaneio (auditoria 08/10)",
+                "motivo": (
+                    "podar respostas erradas (auditoria 08/10 + fatos "
+                    "errados 22-27/10, ordem do dono 27/10)"
+                ),
                 "linhas": alvos,
                 "rollback": _insert_rollback(alvos),
             },

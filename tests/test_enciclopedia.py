@@ -430,11 +430,13 @@ class _RagFalso:
     def __init__(self, block: str = "") -> None:
         self._block = block
         self.consultas = 0
+        self.fato = None  # kw recebido do orquestrador (piso de fato)
 
     def consult(self, pergunta, **kw):
         from memory.rag import ResultadoRAG
 
         self.consultas += 1
+        self.fato = kw.get("fato")
         return ResultadoRAG(consulta_original=pergunta, block=self._block)
 
 
@@ -523,6 +525,29 @@ class TestEtapa46Orquestrador:
         )
         assert NOTA_SEM_FONTE not in r.prompt
         assert orch.metrics.snapshot()["enciclopedia_sem_fonte"] == 0
+
+    @pytest.mark.asyncio
+    async def test_fato_ativa_o_piso_de_relevancia_do_acervo(self):
+        """4.6b fechada (27/10): em pergunta de fato o acervo só é ouvido
+        COM o piso de fato — trecho fraco não veta a nota honesta."""
+        rag = _RagFalso(block="")
+        orch = _orch(enc=_EncFalsa(block=""), rag=rag)
+        await orch.process(
+            "u12", "guardian", "quem inventou o flogisto líquido?",
+            role="admin", persist=False,
+        )
+        assert rag.fato is True
+
+    @pytest.mark.asyncio
+    async def test_fora_de_fato_o_acervo_segue_sem_o_piso(self):
+        """Fora de pergunta de fato a ordem antiga não muda de comportamento."""
+        rag = _RagFalso(block="Acervo de referência (interno; …)")
+        orch = _orch(enc=_EncFalsa(block=""), rag=rag)
+        r = await orch.process(
+            "u13", "guardian", "me ajuda a fechar o orçamento do mês",
+            role="admin", persist=False,
+        )
+        assert rag.fato is False and "Acervo de referência" in r.prompt
 
     @pytest.mark.asyncio
     async def test_erro_da_enciclopedia_nao_derruba_o_chat(self):

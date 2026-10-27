@@ -710,12 +710,22 @@ class RAGPipeline:
         historico: Iterable[Any] = (),
         papel: str = "user",
         system_prompt: str = "",
+        fato: bool = False,
     ) -> ResultadoRAG:
         """Consulta o corpus e monta o bloco de referência (ou "").
 
         Etapas: reescrita com histórico → busca → floor duplo (score
         combinado + overlap-IDF) → visibilidade do papel → reranker →
         orçamento de tokens (o que sobrou vira métrica).
+
+        `fato=True` (pergunta de FATO — etapa 4.6b do orquestrador) vale
+        um piso a mais: o trecho só entra se citar o termo MAIS RARO da
+        pergunta original, a identidade do assunto. Sem esta trava o
+        floor devolvia trecho fraco para termo INVENTADO (apuração viva
+        27/10: "quem inventou o flogisto líquido?" → trecho do CHANGELOG
+        com ov=0.66) e o prompt não ficava vazio — a nota honesta da
+        4.6b nunca chegava e o modelo local respondia inventando.
+        Descarte conta como floor (descartado = métrica, nunca silêncio).
         """
         resultado = ResultadoRAG(consulta_original=pergunta)
         historico = list(historico)
@@ -733,6 +743,13 @@ class RAGPipeline:
             qt = set(termos_da_consulta(consulta))
             if not qt:
                 return resultado
+            # Piso de FATO (27/10): a identidade da pergunta vem do texto
+            # ORIGINAL (não da reescrita com histórico) — o termo de maior
+            # IDF é o que dá assunto; termo nunca visto no corpus tem o
+            # maior idf de todos e, como não pode estar em nenhum trecho,
+            # derruba o bloco inteiro = a 4.6b responde com a nota honesta.
+            termos_fato = set(termos_da_consulta(pergunta)) if fato else set()
+            raro = max(sorted(termos_fato), key=self._idf) if termos_fato else ""
             candidatos = self._store.search(
                 self._namespace, consulta, top_k=self._top_k
             )
@@ -747,6 +764,12 @@ class RAGPipeline:
                     resultado.descartados_visibilidade += 1
                     continue
                 dt = set(termos(cand.text))
+                if raro and raro not in dt:
+                    # Piso de fato: trecho sem o termo identidade não
+                    # responde a pergunta de fato — não dá permissão para
+                    # o modelo inventar por cima.
+                    resultado.descartados_floor += 1
+                    continue
                 overlap = sum(self._idf(t) for t in (qt & dt)) / soma_idf
                 combinado_score = combinado(float(cand.score), overlap)
                 if (
