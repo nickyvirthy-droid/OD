@@ -1,4 +1,24 @@
 {
+ "fecha_4_6b_e_poda_cache_2026_10_27": {
+  "pedido": "Dono (27/10 ~14:40): 'continue. feche o 4.6b e limpe o cache' — as duas pendencias que a §1 apontou como fila.",
+  "medição_antes_de_codar": "Pipeline RAG real (2216 chunks): 'quem inventou o flogisto liquido?' passava no floor antigo com 1 trecho do CHANGELOG (ov=0.66 — o raro 'flogisto' nao estava la; o overlap vinha de palavra comum) => o prompt nunca ficava vazio e a 4.6b nunca disparava. As outras 3 (odmistica/xilofonética/odralak) nao tinham trecho so porque o termo nao existe no corpus. Perguntas legitimas do corpus (omegadrakon ov=1.0, vigia 0.69, versao 0.76) continuam passando.",
+  "entrega": [
+    "memory/rag.py: consult(..., fato=True) = PISO DE FATO — o trecho so entra se citar o termo MAIS RARO da pergunta ORIGINAL (maior IDF = identidade do assunto; termo nunca visto tem o maior idf e nao pode estar em nenhum trecho -> derruba o bloco). Descarte conta como descartados_floor. Fora de fato=True nada muda no floor de hoje.",
+    "core/orchestrator.py: _bloco_rag(..., fato=True) SO no caminho de pergunta de fato; sem artigo no Kiwix E sem trecho que case -> nota 4.6b.",
+    "Guardas +3 (tests/test_rag.py +1: termo identidade presente segue, inventado derruba com block '' e descarte; tests/test_enciclopedia.py +2: kw fato=True só no fato, False fora).",
+    "runtime/llm_cache_saneamento.py: PODA_PROMPTS ampliado com 20 prompts EVIDENCIADOS pelo juiz (4 fabricadas 22/10 = 3 senhas + 'fentanila quimioterapico'; 6x fato errado 24/10; 3x fila do vigia 26/10; 4x inventadas na apuracao viva 27/10) + motivo do snapshot atualizado."
+  ],
+  "poda_executada": "Dry-run conferido linha a linha -> --so poda --apply removeu 20 LINHAS (110 -> 90) com snapshot de rollback backups/llm-cache-poda-20261027-150933.bak (todas as colunas + INSERTs de restauro). Entre as podadas: senha fabricada do file browser, calibrer123, 'fentanila quimioterapico', 'Sol e um gigante asteroide', 'Antoine Marie Eschaton'. Cache e lido do Postgres a cada consulta (_get_db) -> vale SEM restart.",
+  "validacao": "Gate oficial 3892 passed / 16 skipped / 0 falha · 90,60% (eram 3889; +3 = guardas novas) · pyflakes 0 aviso novo.",
+  "deploy": "Commit d5d2daf pushado, HEAD == origin/master, arvore limpa. Restart verde 27/10 15:14:12: MainPID 1696462, NRestarts=0, /health 25/25, /app/version 1.44.0/2080, journal 0 [ERROR].",
+  "prova_viva": "cache_hits=0 nas 3 perguntas podadas (a poda funcionou). (1) 'quem inventou o flogisto liquido?' -> journal 'Nota de fonte (4.6b): pergunta de fato sem artigo' + metrica enciclopedia_sem_fonte=1 -> 'Isso nao existe no sistema.' (antes: 'criada por William Cullen em 1746', inventada e servida pelo cache). (2) 'define dia' -> 'artigo por titulo direto | titulo=Dia' -> 'intervalo igual a 24 horas'. (3) 'quem descobriu a penicilina?' -> acervo casou pelo termo identidade -> Alexander Fleming 1928 (a errada cachada dizia 'Antoine Marie Eschaton').",
+  "nota_honesta_fila": "A limpeza de verbos-guia ('quem descobriu…') no ASSUNTO da consulta do Kiwix nao esta coberta — por isso a Wikipedia nao achou 'Penicilina' com a frase crua (busca de 3 termos). Candidata a proxima frente.",
+  "canais_do_dono": "txt.txt escrito + Telegram enviado (regras 14/15). analise/Nicky Locutor/ segue PENDENTE (regra 17).",
+  "estado": "SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD d5d2daf, arvore limpa, health 25/25, cache 93 linhas (90 + 3 recriadas pela prova viva). Frentes 4.6b + poda FECHADAS.",
+  "fila_do_dono": "(a) verbos-guia no assunto da consulta Kiwix (faz a Wikipedia achar o artigo certo com frase crua); (b) parking lot §5: rota WiFi, auditoria de uso de ferramentas, MCP; (c) analise/Nicky Locutor/.",
+  "updated_at": "2026-10-27T15:30:00-03:00",
+  "transcricao": "iniciar/2026-10-27_conversa_omegadrakon.md (§2)"
+ },
  "fatos_do_modelo_local_ordem_das_fontes_2026_10_27": {
   "pedido": "Usuario: 'leia iniciar. continue de onde parou' (27/10 ~13:45) — retomada (regras 3/4). Checkpoint: reverificacao_rotina_2026_10_26_1946 (26/10 20:12) + regua_aprendizado_2026_10_26 (frente dos FATOS DO MODELO LOCAL marcada AGUARDANDO regua do dono).",
   "residuo_achado": "SESSAO MORTA 26/10 21:16 (17 h parados): memory/enciclopedia.py MODIFICADO (+18/-5, SO a docstring) sem gate/commit — a docstring ja trazia a regua do dono de 26/10 ('pergunta de FATO consulta ESTA fonte ANTES do acervo') e as 3 travas medidas, mas NENHUMA linha de codigo existia. Mesmo padrao das interrupcoes de 21-26/10. Antes de decidir (regra 5): HEAD 8b84eab == origin/master, arvore limpa fora do residuo, txt.txt zerado desde 26/10 18:25, vigia 27/10 04:33 com as 4 sondas VERDES e fila de 8 itens (3x novos resposta_errada de 26/10 20:43 = 'define dia', 'o que e o sol?', 'quem descobriu a penicilina?').",
@@ -18,7 +38,7 @@
   ],
   "canais_do_dono": "txt.txt escrito com o resumo (regra 14) + mesmo resumo no Telegram (regra 15). analise/ = Nicky Locutor/ (PENDENTE, aguardando ordem, regra 17) + relatorios do vigia.",
   "estado": "SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD b98971c, arvore limpa, health 25/25. Frente dos FATOS DO MODELO LOCAL (ordem das fontes) FECHADA e provada ao vivo.",
-  "fila_do_dono": "(a) relevancia do trecho do acervo em pergunta de fato (design, 4.6b raro ao vivo); (b) PODA do cache com respostas erradas de 24-26/10 (destrutiva, sob ordem); (c) parking lot §5 restante: rota WiFi, auditoria de uso de ferramentas, MCP; (d) analise/Nicky Locutor/.",
+  "fila_do_dono": "(a) ~~relevancia do trecho do acervo em pergunta de fato~~ FECHADO 27/10 (piso de fato na 4.6b); (b) ~~PODA do cache~~ FECHADO 27/10 (20 linhas podadas com snapshot); (c) parking lot §5 restante: rota WiFi, auditoria de uso de ferramentas, MCP; (d) analise/Nicky Locutor/.",
   "updated_at": "2026-10-27T14:30:00-03:00",
   "transcricao": "iniciar/2026-10-27_conversa_omegadrakon.md (§1)"
  },

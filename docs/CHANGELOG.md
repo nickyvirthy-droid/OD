@@ -324,6 +324,61 @@ conserto, devolvia as linhas sem nome nenhum.** Restart com
 `NRestarts=0`, `/health` **25/25 nenhum fora**, journal desde o boot
 **0 `[ERROR]`**.
 
+### A 4.6b fecha de verdade: o acervo só responde FATO se casar com ele — e o cache perde as 20 respostas erradas (ordem do dono, 27/10, sem bump)
+
+**Pedido direto (27/10):** *"continue. feche o 4.6b e limpe o cache"*.
+Os dois tinham sido apontados como limitação honesta da entrega anterior:
+a nota 4.6b não disparava ao vivo e as respostas erradas continuavam
+sendo servidas pela etapa 4 (cache) **antes** de qualquer fonte nova.
+
+**O que foi medido antes de codar (regra 5):** com o pipeline RAG real
+(2216 chunks) as 4 perguntas inventadas de 27/10 passavam no floor
+antigo — *"quem inventou o flogisto líquido?"* devolvia **1 trecho do
+CHANGELOG com ov=0.66** (o termo raro `flogisto` não estava lá; o overlap
+vinha de palavras comuns), o prompt **nunca ficava vazio** e a nota
+honesta nunca chegava. As outras 3 (`odmistica`, `xilofonética`,
+`odralak`) só não tinham trecho porque o termo não existia no corpus.
+
+| Peça | Entrega |
+|---|---|
+| **`memory/rag.py`** | `consult(..., fato=True)` — **piso de fato**: o trecho só entra se citar o termo MAIS RARO da pergunta **original** (maior IDF do corpus = identidade do assunto; termo nunca visto tem o maior IDF e, por não poder estar em nenhum trecho, derruba o bloco inteiro). Descarte conta como `descartados_floor` (descartado = métrica, nunca silêncio). Fora de `fato=True` **nada muda** no floor de hoje. |
+| **`core/orchestrator.py`** | `_bloco_rag(..., fato=True)` só no caminho de pergunta de fato; fora dele o parâmetro continua `False`. Sem artigo no Kiwix **e** sem trecho que case → **nota 4.6b** no prompt. |
+| **`runtime/llm_cache_saneamento.py`** | `PODA_PROMPTS` ampliado com **20 prompts EVIDENCIADOS pelo juiz** (não palpite): 4 fabricadas de 22/10 (3 senhas + fentanila "quimioterápico"), 6× fato errado de 24/10 (define dia / Marie Curie ×3 / relatividade / defina sol / clorofila), 3× da fila do vigia de 26/10 e 4× inventadas na apuração viva de 27/10. Motivo do snapshot atualizado. |
+| **Guardas** | `tests/test_rag.py` **+1** (piso de fato: termo identidade presente → segue valendo; termo inventado → `block ""` + descarte registrado) · `tests/test_enciclopedia.py` **+2** (`fato=True` só no caminho de fato, `False` fora dele). |
+
+**Poda executada (ordem do dono):** `--so poda --apply` → **20 linhas**
+removidas (110 → 90) com **snapshot de rollback**
+`backups/llm-cache-poda-20261027-150933.bak` (todas as colunas + INSERTs
+de restauro). Dry-run antes, conferido linha a linha — entre as podadas
+estavam *"senha do file browser = senha123"*, *"calibrer123"* e
+*"fentanila … quimioterápico"*. O cache é lido do Postgres a cada
+consulta (`_get_db`), então a poda vale sem restart.
+
+**Validação:** gate oficial **3892 passed / 16 skipped / 0 falha** em
+**todas as rodadas** (eram 3889 — os **+3** são as guardas novas),
+**≥ 90% sempre** — as medições ficaram entre **90,58% e 90,60%**, com o
+corpus reeditado (CHANGELOG + `iniciar/`) entre uma e outra. pyflakes
+**0 aviso novo**. **Sem bump** — 1.44.0/2080 intacta.
+
+**Prova viva (restart verde 27/10 15:14:12, `d5d2daf`; `MainPID`
+1696462, `NRestarts=0`, `/health` **25/25**, journal **0 `[ERROR]`**):
+`cache_hits=0` nas 3 perguntas podadas (a poda funcionou) e —
+
+- *"quem inventou o flogisto líquido?"* → journal **`Nota de fonte
+  (4.6b): pergunta de fato sem artigo`** + métrica
+  **`enciclopedia_sem_fonte=1`** → resposta **"Isso não existe no
+  sistema."** (ANTES: *"a ferramenta conhecida como 'flogisto líquido'
+  foi criada por William Cullen em 1746"* — inventada e ainda servida
+  pelo cache).
+- *"define dia"* → **`artigo por título direto | titulo=Dia`** →
+  **"intervalo igual a 24 horas"** (a promessa original da etapa 4.6).
+- *"quem descobriu a penicilina?"* → Wikipédia não achou artigo com a
+  frase crua (busca de 3 termos), o acervo casou pelo termo identidade e
+  a resposta saiu **Alexander Fleming, 1928** (a errada cachada dizia
+  *"Antoine Marie Eschaton"*). **Nota honesta:** a limpeza de
+  verbos-guia (`quem descobriu…`) no assunto da consulta continua não
+  coberta — fila, junto da decisão de piso do acervo.
+
 ### Resposta certa no presente: a pergunta de FATO consulta a Wikipédia offline ANTES do acervo — e sem fonte nenhuma o chat avisa em vez de inventar (régua do dono, 26/10, sem bump)
 
 **Origem honesta:** frente aberta pela **régua do dono de 26/10**

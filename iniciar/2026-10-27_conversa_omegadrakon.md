@@ -108,3 +108,70 @@ trecho do acervo em pergunta de fato (design), (b) poda do cache com
 respostas erradas de 24–26/10 (destrutiva, sob ordem), (c) parking lot §5
 restante: rota WiFi, auditoria de uso de ferramentas, MCP, (d)
 `analise/Nicky Locutor/`.
+
+## §2 — "continue. feche o 4.6b e limpe o cache" (27/10 ~14:40): piso de
+       fato no acervo + PODA de 20 respostas erradas — as duas limitações
+       honestas da §1 fechadas no mesmo turno
+
+**Pedido:** dono: *"continue. feche o 4.6b e limpe o cache"* — as duas
+pendências que eu mesmo apontei na §1 (régua dele já valendo: os dois
+itens foram oferecidos como fila e ele mandou executar).
+
+**Medição antes de codar (regra 5 — pipeline RAG real, 2216 chunks):**
+
+| pergunta (sem artigo no Kiwix) | floor antigo | piso de fato |
+|---|---|---|
+| `quem inventou o flogisto líquido?` | **1 trecho do CHANGELOG, ov=0.66** (o raro `flogisto` não estava lá — o overlap vinha de palavra comum) | bloco vazio → 4.6b |
+| `quem descobriu a odmistica?` / `o que é a xilofonética?` / `quem foi o sábio odralak?` | 0 trechos (sorte: o termo não existe no corpus) | idem |
+| `o que é o omegadrakon?` / `quem é o vigia…` / `qual a versão atual…` | 4 / 3 / 2 trechos, ov 1.0 / 0.69 / 0.76 | **seguem passando** (termo identidade presente) |
+
+**Entrega:**
+
+1. `memory/rag.py`: `consult(..., fato=True)` — **piso de fato**: o trecho
+   só entra se citar o termo **mais raro** da pergunta **original** (maior
+   IDF do corpus = identidade do assunto; termo nunca visto tem o maior
+   IDF e não pode estar em nenhum trecho → derruba o bloco). Descarte
+   conta como `descartados_floor`. Fora de `fato=True`, **nada muda**.
+2. `core/orchestrator.py`: `_bloco_rag(..., fato=True)` **só** no caminho
+   de pergunta de fato; sem artigo E sem trecho que case → **nota 4.6b**.
+3. Guardas **+3** (`test_rag.py` +1 — presente segue, inventado derruba;
+   `test_enciclopedia.py` +2 — `fato=True` só no caminho de fato).
+4. `runtime/llm_cache_saneamento.py`: `PODA_PROMPTS` ampliado com **20
+   prompts EVIDENCIADOS pelo juiz** — 4 fabricadas de 22/10 (3 senhas +
+   "fentanila quimioterápico"), 6× fato errado de 24/10, 3× da fila do
+   vigia de 26/10, 4× inventadas na apuração viva de 27/10.
+
+**Poda (regra 7: dry-run primeiro, `--apply` sob ordem dele):** dry-run
+conferido linha a linha → `--so poda --apply` removeu **20 linhas**
+(110 → 90) com snapshot de rollback
+`backups/llm-cache-poda-20261027-150933.bak`. Entre as podadas: a senha
+fabricada do file browser, `calibrer123`, "fentanila quimioterápico",
+"Sol é um gigante asteróide" e "Antoine Marie Eschaton". Cache é lido do
+Postgres a cada consulta → vale **sem restart**.
+
+**Validação:** gate oficial **3892 passed / 16 skipped / 0 falha ·
+90,60%** (eram 3889 — os **+3** são as guardas novas); pyflakes 0 aviso
+novo. Commit **`d5d2daf`** pushado, árvore limpa, HEAD == origin/master.
+**Restart verde 15:14:12** (MainPID 1696462, NRestarts=0, health 25/25,
+1.44.0/2080, journal 0 `[ERROR]`).
+
+**Prova viva (`cache_hits=0` nas 3 perguntas podadas — a poda funcionou):**
+
+- *"quem inventou o flogisto líquido?"* → journal **`Nota de fonte
+  (4.6b): pergunta de fato sem artigo`** + **`enciclopedia_sem_fonte=1`**
+  → **"Isso não existe no sistema."** (antes: *"criada por William Cullen
+  em 1746"*, inventada **e** servida pelo cache).
+- *"define dia"* → **`artigo por título direto | titulo=Dia`** →
+  **"intervalo igual a 24 horas"** (promessa original da etapa 4.6).
+- *"quem descobriu a penicilina?"* → Wikipédia sem artigo para a frase
+  crua, o acervo casou pelo termo identidade → **Alexander Fleming, 1928**
+  (a errada cachada dizia *"Antoine Marie Eschaton"*).
+
+**Nota honesta / fila:** a limpeza de verbos-guia (`quem descobriu…`) no
+assunto da consulta do Kiwix **não** está coberta — por isso a Wikipédia
+não achou "Penicilina" com a frase crua. Candidata a próxima frente,
+junto com a decisão de piso do acervo (que hoje já tem o piso de fato).
+
+**Estado:** SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD `d5d2daf`,
+árvore limpa, health 25/25, cache com 93 linhas (90 podadas + 3 recriadas
+**pelas respostas novas** da prova viva). `txt.txt` + Telegram avisados.
