@@ -309,6 +309,42 @@ class TestConsulta:
         r = _enc(cliente).consult("define gravidade")
         assert r.block == "" and r.recusados == 1 and r.titulo == ""
 
+    def test_titulo_tangencial_com_extras_e_recusado(self):
+        """Prova viva 27/10: 1 termo em comum não basta — "o que é o
+        sol, em uma frase?" devolveu "O império no qual o sol nunca se
+        põe" (4 tokens fora do assunto) e o piso antigo deixava passar.
+        """
+        base = "wikipedia_pt_all_mini_2026-05"
+        cliente = _ClienteFalso(
+            hits=[{
+                "titulo": "O império no qual o sol nunca se põe",
+                "caminho": "pt/Império",
+                "trecho": "", "palavras": 100,
+            }],
+            artigos={f"{base}/Sol_Frase": {
+                "titulo": "O império no qual o sol nunca se põe",
+                "texto": "Sobre o Império Espanhol…",
+            }},
+        )
+        r = _enc(cliente).consult("o que é o sol, em uma frase?")
+        assert r.block == "" and r.recusados == 1 and r.titulo == ""
+
+    def test_titulo_com_um_token_extra_passa(self):
+        """Qualifier comum da wiki ("Teoria da relatividade" para
+        "relatividade") segue valendo — só o token FORA do assunto é que
+        não pode se acumular.
+        """
+        base = "wikipedia_pt_all_mini_2026-05"
+        cliente = _ClienteFalso(
+            hits=[],
+            artigos={f"{base}/Relatividade": {
+                "titulo": "Teoria da relatividade",
+                "texto": "Einstein…",
+            }},
+        )
+        r = _enc(cliente).consult("o que é relatividade?")
+        assert "[Teoria da relatividade]" in r.block and r.recusados == 0
+
     def test_truncamento_declarado(self):
         cliente = _ClienteFalso(hits=[{
             "titulo": "Dia", "caminho": "pt/Dia", "trecho": "", "palavras": 100,

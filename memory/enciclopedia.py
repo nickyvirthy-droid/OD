@@ -18,8 +18,12 @@ Descrição: Wikipédia offline dentro do chat — a etapa "enciclopédia" do
              may refer to:"`) e até o artigo ERRADO ("Clorofila" = a
              banda mexicana, não o pigmento); (2) página de
              DESAMBIGUAÇÃO é recusada; (3) o título resolvido tem que
-             casar com o assunto da pergunta. Sem artigo bom = `block ""`
-             honesto (artigo errado pior que silêncio).
+             CASAR com o assunto — ao menos 1 termo em comum E no
+             máximo 1 token extra (ou 2 em comum); piso medido ao vivo
+             em 27/10: *"o que é o sol, em uma frase?"* devolveu "O
+             império no qual o sol nunca se põe" (1 em comum, 4 extras)
+             e o piso de 1 overlap deixava passar. Sem artigo bom =
+             `block ""` honesto (artigo errado pior que silêncio).
            - **Sem fonte:** quando nem esta fonte nem o acervo têm nada
              sobre a pergunta de fato, o orquestrador injeta a nota
              honesta (etapa 4.6b) em vez de deixar o modelo local
@@ -336,14 +340,24 @@ class Enciclopedia:
             log.info("Enciclopédia: desambiguação recusada", titulo=titulo)
             return resultado
         assunto_tokens = _tokens_titulo(_assunto_da_pergunta(pergunta or ""))
-        if assunto_tokens and not (assunto_tokens & _tokens_titulo(titulo)):
-            resultado.recusados += 1
-            log.info(
-                "Enciclopédia: título fora do assunto recusado",
-                titulo=titulo,
-                assunto=_assunto_da_pergunta(pergunta or ""),
-            )
-            return resultado
+        titulo_tokens = _tokens_titulo(titulo)
+        if assunto_tokens:
+            overlap = len(assunto_tokens & titulo_tokens)
+            extras = len(titulo_tokens - assunto_tokens)
+            # "Casa com o assunto": ao menos 1 termo em comum E no
+            # máximo 1 token que não esteja no assunto (ou 2 em comum).
+            # Piso de 1 overlap sozinho deixava passar "O império no
+            # qual o sol nunca se põe" para "o que é o sol?" (27/10).
+            if overlap == 0 or (extras > 1 and overlap < 2):
+                resultado.recusados += 1
+                log.info(
+                    "Enciclopédia: título fora do assunto recusado",
+                    titulo=titulo,
+                    assunto=_assunto_da_pergunta(pergunta or ""),
+                    overlap=overlap,
+                    extras=extras,
+                )
+                return resultado
 
         truncado = bool(artigo.get("truncado"))
         resultado.titulo = titulo
