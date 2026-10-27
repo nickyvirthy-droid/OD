@@ -575,6 +575,9 @@ class OrchestratorMetrics:
     enciclopedias: int = 0
     enciclopedia_blocos: int = 0
     enciclopedia_erros: int = 0
+    # Etapa 4.6b (26/10): pergunta de fato sem artigo em NENHUMA fonte —
+    # a nota honesta entrou no prompt em vez de o modelo local inventar.
+    enciclopedia_sem_fonte: int = 0
     contexto_descartados: int = 0  # turnos de histórico fora do orçamento
     total_latency_ms: float = 0.0
 
@@ -603,6 +606,7 @@ class OrchestratorMetrics:
             "enciclopedias": self.enciclopedias,
             "enciclopedia_blocos": self.enciclopedia_blocos,
             "enciclopedia_erros": self.enciclopedia_erros,
+            "enciclopedia_sem_fonte": self.enciclopedia_sem_fonte,
             "contexto_descartados": self.contexto_descartados,
             "avg_latency_ms": self.avg_latency_ms,
         }
@@ -1060,21 +1064,13 @@ class Orchestrator:
         # responderiam com bagagens diferentes.
         contexto = self._contexto_msgs(user_id, profile, None)
         system_efetivo = self._resolve_system(system_prompt, profile, role)
-        rag_block = ""
-        if self._rag is not None:
-            resultado_rag = self._rag.consult(
-                text,
-                historico=contexto,
-                papel=role,
-                system_prompt=system_efetivo,
-            )
-            rag_block = resultado_rag.block
-            self._registrar_rag(resultado_rag)
-        # Etapa 4.6 — Enciclopédia (Kiwix, 24/10): Wikipédia offline só
-        # quando a memória interna não achou nada (duas fontes de verdade
-        # no mesmo prompt é receita para alucinação).
-        if not rag_block:
-            rag_block = self._bloco_enciclopedia(text)
+        # Etapas 4.5 (RAG) + 4.6 (enciclopédia) + 4.6b (nota de fonte):
+        # UMA fonte por prompt — duas fontes de verdade brigando no mesmo
+        # prompt é receita para alucinação. Em pergunta de FATO a ordem é
+        # a nova (régua do dono, 26/10): fonte verificada primeiro.
+        rag_block = self._bloco_de_referencia(
+            text, contexto, role, system_efetivo
+        )
 
         # Etapa 5 — Histórico: monta contexto ChatML
         prompt = self._build_prompt(
@@ -1488,21 +1484,13 @@ class Orchestrator:
         # registrado em métricas (nunca some em silêncio).
         contexto = self._contexto_msgs(user_id, profile, extra_history)
         system_efetivo = self._resolve_system(system_prompt, profile, role)
-        rag_block = ""
-        if self._rag is not None:
-            resultado_rag = self._rag.consult(
-                text,
-                historico=contexto,
-                papel=role,
-                system_prompt=system_efetivo,
-            )
-            rag_block = resultado_rag.block
-            self._registrar_rag(resultado_rag)
-        # Etapa 4.6 — Enciclopédia (Kiwix, 24/10): Wikipédia offline só
-        # quando a memória interna não achou nada (duas fontes de verdade
-        # no mesmo prompt é receita para alucinação).
-        if not rag_block:
-            rag_block = self._bloco_enciclopedia(text)
+        # Etapas 4.5 (RAG) + 4.6 (enciclopédia) + 4.6b (nota de fonte):
+        # UMA fonte por prompt — duas fontes de verdade brigando no mesmo
+        # prompt é receita para alucinação. Em pergunta de FATO a ordem é
+        # a nova (régua do dono, 26/10): fonte verificada primeiro.
+        rag_block = self._bloco_de_referencia(
+            text, contexto, role, system_efetivo
+        )
 
         # Etapa 5 — Histórico: monta contexto ChatML
         prompt = self._build_prompt(
@@ -1809,12 +1797,67 @@ class Orchestrator:
             getattr(resultado, "tokens_descartados", 0) or 0
         )
 
-    def _bloco_enciclopedia(self, text: str) -> str:
-        """Etapa 4.6 — Wikipédia offline (Kiwix) quando o RAG não achou.
+    def _bloco_rag(
+        self, text: str, contexto: Any, role: str, system_efetivo: str
+    ) -> str:
+        """Etapa 4.5 — bloco do acervo da casa ("" sem RAG plugado)."""
+        if self._rag is None:
+            return ""
+        resultado_rag = self._rag.consult(
+            text,
+            historico=contexto,
+            papel=role,
+            system_prompt=system_efetivo,
+        )
+        self._registrar_rag(resultado_rag)
+        return resultado_rag.block or ""
 
-        Só é chamada com `rag_block == ""`: a memória interna é a 1ª
-        fonte da casa. Qualquer erro/timeout do Kiwix vira block "" +
-        métrica — o chat segue normalmente, sem exceção no caminho.
+    def _bloco_de_referencia(
+        self, text: str, contexto: Any, role: str, system_efetivo: str
+    ) -> str:
+        """Etapa 4.5 + 4.6 + 4.6b — escolhe a FONTE do prompt (uma só).
+
+        Ordem das fontes (régua do dono, 26/10 — "aprenda com o passado,
+        responda certo no presente"):
+
+        - **pergunta de FATO** (`eh_pergunta_de_fato`): a fonte verificada
+          (Wikipédia offline, etapa 4.6) é consultada ANTES do acervo da
+          casa; o acervo só entra se a fonte não achar artigo. Sem artigo
+          em NENHUMA das duas → **nota honesta 4.6b** — o modelo local
+          respondia o fato inventado (6x na auditoria de 24/10).
+        - **fora de pergunta de fato**: ordem antiga (memória interna >
+          enciclopédia).
+
+        Uma fonte por prompt: duas fontes de verdade brigando é receita
+        para alucinação (docstring de memory/enciclopedia.py).
+        """
+        from memory.enciclopedia import NOTA_SEM_FONTE, eh_pergunta_de_fato
+
+        if self._enciclopedia is not None and eh_pergunta_de_fato(text):
+            bloco = self._bloco_enciclopedia(text)  # fonte verificada 1ª
+            if bloco:
+                return bloco
+            bloco = self._bloco_rag(text, contexto, role, system_efetivo)
+            if bloco:
+                return bloco
+            # Etapa 4.6b — nenhuma fonte tem o artigo: nota honesta no
+            # lugar do silêncio (sem ela o modelo local inventava).
+            self._metrics.enciclopedia_sem_fonte += 1
+            log.info("Nota de fonte (4.6b): pergunta de fato sem artigo")
+            return NOTA_SEM_FONTE
+
+        bloco = self._bloco_rag(text, contexto, role, system_efetivo)
+        if bloco:
+            return bloco
+        return self._bloco_enciclopedia(text)
+
+    def _bloco_enciclopedia(self, text: str) -> str:
+        """Etapa 4.6 — Wikipédia offline (Kiwix).
+
+        Em pergunta de fato é a PRIMEIRA fonte (chamada antes do RAG);
+        fora disso só entra com `rag_block == ""` — uma fonte por prompt.
+        Qualquer erro/timeout do Kiwix vira block "" + métrica — o chat
+        segue normalmente, sem exceção no caminho.
         """
         if self._enciclopedia is None:
             return ""

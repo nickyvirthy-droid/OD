@@ -17,9 +17,11 @@ import pytest
 
 from memory.enciclopedia import (
     CABECALHO_BLOCO,
+    NOTA_SEM_FONTE,
     Enciclopedia,
     ResultadoEnciclopedia,
     _tokens_titulo,
+    eh_pergunta_de_fato,
 )
 
 
@@ -78,6 +80,40 @@ class _ClienteFalso:
 
 def _enc(cliente, **kw) -> Enciclopedia:
     return Enciclopedia(fabrica_cliente=lambda: cliente, **kw)
+
+
+# ---------------------------------------------------------------------------
+# eh_pergunta_de_fato — ordem das fontes (régua do dono, 26/10)
+# ---------------------------------------------------------------------------
+
+class TestEhPerguntaDeFato:
+    @pytest.mark.parametrize("pergunta", [
+        "define dia",
+        "o que é o sol?",
+        "quem descobriu a penicilina?",
+        "onde fica paris?",
+        "qual é a capital da frança?",
+        "quando foi a independência?",
+        "explique fotossíntese",
+        "Qual a diferença entre diurno e noturno?",
+    ])
+    def test_pergunta_de_fato_entra_na_lista(self, pergunta):
+        assert eh_pergunta_de_fato(pergunta) is True
+
+    @pytest.mark.parametrize("pergunta", [
+        "",
+        "   ",
+        "oi",
+        "bom dia!",
+        "desligue a luz da sala",
+        "ligar TV",
+        # contagem é dado do SISTEMA (fastpath de rede), não fato de
+        # enciclopédia — não pode puxar o Kiwix antes do acervo.
+        "quantas pessoas estão conectadas na rede?",
+        "me ajuda a fechar o orçamento do mês",
+    ])
+    def test_fora_de_pergunta_de_fato(self, pergunta):
+        assert eh_pergunta_de_fato(pergunta) is False
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +242,73 @@ class TestConsulta:
         assert cliente.leituras == ["wikipedia_pt_all_mini_2026-05/Gravidade"]
         assert r.descartados_sem_overlap == 1 and r.candidatos == 1
 
+    def test_titulo_direto_tenta_o_acervo_pt_primeiro(self):
+        """Regressão 26/10: o catálogo devolve "por" (ISO 639-2) e a
+        ordem antiga comparava com "pt" — empatava com "eng" e o EN
+        vinha primeiro, devolvendo desambiguação e o artigo errado.
+        """
+        en = {"nome": "wikipedia_en_all", "content_id": "wikipedia_en_all_mini",
+              "idioma": "eng"}
+        pt = {"nome": "wikipedia_pt_all",
+              "content_id": "wikipedia_pt_all_mini_2026-05", "idioma": "por"}
+        base = "wikipedia_pt_all_mini_2026-05"
+        cliente = _ClienteFalso(
+            acervos=[en, pt],  # EN listado primeiro (ordem do catálogo)
+            artigos={
+                f"{base}/Clorofila": {
+                    "titulo": "Clorofila",
+                    "texto": "Pigmento verde responsável pela fotossíntese.",
+                },
+                "wikipedia_en_all_mini/Clorofila": {
+                    "titulo": "Clorofila",
+                    "texto": "Clorofila is a Mexican band formed in 1996.",
+                },
+            },
+        )
+        r = _enc(cliente).consult("o que é clorofila?")
+        assert cliente.leituras[0].startswith(base)
+        assert "Pigmento verde" in r.block and "Mexican band" not in r.block
+
+    def test_desambiguacao_no_titulo_direto_e_recusada(self):
+        """Lista de sentidos não responde a pergunta (26/10)."""
+        base = "wikipedia_pt_all_mini_2026-05"
+        cliente = _ClienteFalso(
+            hits=[],
+            artigos={f"{base}/Sol": {
+                "titulo": "Sol or SOL may refer to:",
+                "texto": "Sol may refer to: the star; a unit of time…",
+            }},
+        )
+        r = _enc(cliente).consult("o que é o sol?")
+        assert r.block == "" and r.recusados == 1 and r.titulo == ""
+
+    def test_desambiguacao_no_resultado_da_busca_pula_para_o_proximo(self):
+        hits = [
+            {"titulo": "Sol or SOL may refer to:", "caminho": "en/disamb",
+             "trecho": "", "palavras": 10},
+            {"titulo": "Sol", "caminho": "pt/Sol", "trecho": "",
+             "palavras": 100},
+        ]
+        cliente = _ClienteFalso(hits=hits, artigos={
+            "pt/Sol": {"titulo": "Sol", "texto": "Estrela do sistema solar."},
+        })
+        r = _enc(cliente).consult("o que é o sol?")
+        assert r.titulo == "Sol" and r.recusados == 1
+        assert cliente.leituras[-1] == "pt/Sol"
+
+    def test_titulo_fora_do_assunto_e_recusado(self):
+        """Redirect/artigo que não casa com o assunto = block \"\" honesto."""
+        base = "wikipedia_pt_all_mini_2026-05"
+        cliente = _ClienteFalso(
+            hits=[],
+            artigos={f"{base}/Gravidade": {
+                "titulo": "Day After Day",
+                "texto": "Um álbum de…",
+            }},
+        )
+        r = _enc(cliente).consult("define gravidade")
+        assert r.block == "" and r.recusados == 1 and r.titulo == ""
+
     def test_truncamento_declarado(self):
         cliente = _ClienteFalso(hits=[{
             "titulo": "Dia", "caminho": "pt/Dia", "trecho": "", "palavras": 100,
@@ -323,17 +426,67 @@ class TestEtapa46Orquestrador:
 
     @pytest.mark.asyncio
     async def test_com_rag_de_bloco_a_enciclopedia_fica_de_fora(self):
-        """Memória interna > enciclopédia: duas fontes = alucinação."""
+        """Memória interna > enciclopédia FORA de pergunta de fato."""
         enc = _EncFalsa(block="NÃO DEVERIA ESTAR AQUI")
         rag = _RagFalso(block="Acervo de referência (interno; …)")
         orch = _orch(enc=enc, rag=rag)
         r = await orch.process(
-            "u3", "guardian", "o que é o orçamento?", role="admin",
-            persist=False,
+            "u3", "guardian", "me ajuda a fechar o orçamento do mês",
+            role="admin", persist=False,
         )
         assert "NÃO DEVERIA ESTAR AQUI" not in r.prompt
         assert "Acervo de referência" in r.prompt
         assert enc.consultas == [] and rag.consultas == 1
+
+    @pytest.mark.asyncio
+    async def test_fato_fonte_verificada_antes_do_acervo(self):
+        """Régua 26/10: pergunta de fato consulta a fonte PRIMEIRO — o
+        acervo da casa só entra se não houver artigo."""
+        enc = _EncFalsa(block=f"{CABECALHO_BLOCO}\n[Sol] Estrela no centro.")
+        rag = _RagFalso(block="Acervo interno (NÃO DEVERIA ENTRAR)")
+        orch = _orch(enc=enc, rag=rag)
+        r = await orch.process(
+            "u8", "guardian", "o que é o sol?", role="admin", persist=False,
+        )
+        assert "[Sol] Estrela" in r.prompt
+        assert "NÃO DEVERIA ENTRAR" not in r.prompt
+        assert enc.consultas == ["o que é o sol?"] and rag.consultas == 0
+
+    @pytest.mark.asyncio
+    async def test_fato_sem_artigo_no_kiwix_o_acervo_entra(self):
+        enc = _EncFalsa(block="")
+        rag = _RagFalso(block="Acervo de referência (interno; …)")
+        orch = _orch(enc=enc, rag=rag)
+        r = await orch.process(
+            "u9", "guardian", "define dia", role="admin", persist=False,
+        )
+        assert "Acervo de referência" in r.prompt
+        assert NOTA_SEM_FONTE not in r.prompt
+        assert rag.consultas == 1
+
+    @pytest.mark.asyncio
+    async def test_fato_sem_nenhuma_fonte_recebe_nota_honesta(self):
+        """Etapa 4.6b: sem artigo em NENHUMA fonte, a nota honesta entra
+        no prompt — o modelo local inventava o fato (6x em 24/10)."""
+        enc = _EncFalsa(block="")
+        rag = _RagFalso(block="")
+        orch = _orch(enc=enc, rag=rag)
+        r = await orch.process(
+            "u10", "guardian", "quem descobriu a penicilina?",
+            role="admin", persist=False,
+        )
+        assert NOTA_SEM_FONTE in r.prompt
+        assert orch.metrics.snapshot()["enciclopedia_sem_fonte"] == 1
+
+    @pytest.mark.asyncio
+    async def test_sem_enciclopedia_plugada_nao_ha_nota_46b(self):
+        """OD_KIWIX_CHAT=0 = recurso desligado: nota só com a fonte ligada."""
+        orch = _orch(rag=_RagFalso(block=""))
+        r = await orch.process(
+            "u11", "guardian", "define dia", role="admin", persist=False,
+        )
+        assert NOTA_SEM_FONTE not in r.prompt
+        assert orch.metrics.snapshot()["enciclopedia_sem_fonte"] == 0
 
     @pytest.mark.asyncio
     async def test_erro_da_enciclopedia_nao_derruba_o_chat(self):
@@ -343,7 +496,9 @@ class TestEtapa46Orquestrador:
             "u4", "guardian", "define dia", role="admin", persist=False,
         )
         assert r.route == "llm"
-        assert "Wikipédia offline" not in r.prompt
+        # 4.6b assume: sem fonte disponível a nota honesta entra (o chat
+        # continua normalmente — nunca exceção no caminho).
+        assert NOTA_SEM_FONTE in r.prompt
         m = orch.metrics.snapshot()
         assert m["enciclopedias"] == 1 and m["enciclopedia_erros"] == 1
 

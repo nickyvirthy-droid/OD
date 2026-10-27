@@ -324,6 +324,42 @@ conserto, devolvia as linhas sem nome nenhum.** Restart com
 `NRestarts=0`, `/health` **25/25 nenhum fora**, journal desde o boot
 **0 `[ERROR]`**.
 
+### Resposta certa no presente: a pergunta de FATO consulta a Wikipédia offline ANTES do acervo — e sem fonte nenhuma o chat avisa em vez de inventar (régua do dono, 26/10, sem bump)
+
+**Origem honesta:** frente aberta pela **régua do dono de 26/10**
+(*"não precisa consertar os erros das conversas passadas, elas devem
+vir certas nas próximas; aprenda com o passado, responda certo no
+presente"*) e retomada do **resíduo da sessão interrompida às 21:16**:
+`memory/enciclopedia.py` estava com a docstring da nova ordem escrita e
+**nenhuma linha de código** — o mesmo padrão das sessões mortas de
+21–26/10 (auditado antes de decidir, regra 5).
+
+**O defeito medido (não é palpite):** o juiz marcou **6×
+`resposta_errada`** factual em 24/10 e **3× novas** no restore de
+26/10 20:43 — *"define dia"*, *"o que é o sol?"*, *"quem descobriu a
+penicilina?"* saíam do **modelo local sem fonte nenhuma** (a ordem
+antiga só ia ao Kiwix quando o acervo da casa ficava vazio, e o acervo
+tem trecho fraco para qualquer pergunta). Achado extra na medição de
+26/10: a cascata de acervos comparava `"por"` (ISO 639-2 do ZIM PT)
+com `"pt"` — **empatava com `"eng"` e o EN vencia pela ordem do
+catálogo**, devolvendo página de desambiguação (*"Sol or SOL may refer
+to:"*) e até o artigo errado (*"Clorofila"* = banda mexicana, não o
+pigmento).
+
+| Peça | Entrega |
+|---|---|
+| **`memory/enciclopedia.py`** | `eh_pergunta_de_fato()` (verbo-guia `define/o que é/quem foi…` ou interrogativo factual; **contagem fica de fora** — *"quantas pessoas"* é dado do sistema, não enciclopédia) · `_eh_pt()` — `por`/`pt`/`pt-BR` agora ordenam o acervo **PT primeiro** · `_eh_desambiguacao()` recusa página de sentidos no título direto e no hit da busca · trava final: o título resolvido tem que **casar com o assunto** da pergunta (fecha o caminho do redirect, que não tinha trava nenhuma) · `NOTA_SEM_FONTE` (etapa 4.6b) · `ResultadoEnciclopedia.recusados` — recusa é métrica, não silêncio. |
+| **`core/orchestrator.py`** | `_bloco_de_referencia()` centraliza as etapas 4.5/4.6/4.6b nos **DOIS transportes** (REST + WS): em pergunta de fato a fonte verificada é consultada **primeiro** e o acervo só entra se não houver artigo; sem artigo em **nenhuma** das duas → nota honesta no prompt. Fora de pergunta de fato, a ordem antiga intacta. **Uma fonte por prompt** — duas fontes de verdade brigando é receita para alucinação. Métrica nova `enciclopedia_sem_fonte`. |
+| **`runtime/launcher.py`** | Docstring/log da `build_enciclopedia()` atualizados para a ordem nova (o texto antigo ainda dizia "só com RAG vazio"). |
+| **Guardas** | `tests/test_enciclopedia.py` **+24** (era 21 → 45): 16 do `eh_pergunta_de_fato` (8 fato / 8 fora, incluindo *"quantas pessoas"*), PT-first com `por` vencendo o EN listado primeiro, desambiguação nos 2 caminhos, título fora do assunto, e 5 do orquestrador (fato → fonte antes do acervo, fato sem artigo → acervo entra, fato sem nenhuma fonte → 4.6b + métrica, sem enciclopédia plugada → sem nota, ordem antiga fora de fato). |
+
+**Validação:** gate oficial **3887 passed / 16 skipped / 0 falha ·
+≥ 90%** (eram 3863 — os **+24** são as guardas novas; reexecutado após
+a edição deste CHANGELOG, que entra no corpus do RAG) · pyflakes **0
+aviso novo** (os 4 do `orchestrator.py`/`launcher.py` são
+pré-existentes, conferidos contra o HEAD via `git stash`). **Sem
+bump** — 1.44.0/2080 intacta (mudança de backend).
+
 ### Kiwix dentro do chat: a Wikipédia offline responde o que a memória interna não sabe (24/10, sem bump)
 
 **Pedido do dono** (ideia de 21/10 no parking lot §5, escolhida em

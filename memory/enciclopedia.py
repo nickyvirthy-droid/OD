@@ -6,11 +6,24 @@ Descrição: Wikipédia offline dentro do chat — a etapa "enciclopédia" do
            orquestrador (ideia do dono em 21/10, parking lot §5: *"'define
            dia' → o chat responde que dia é uma duração de 24 horas"*).
 
-           - **Posição no pipeline:** DEPOIS do RAG local e SÓ quando o
-             RAG local não achou nada (`block == ""`). A memória interna
-             (docs/ + knowledge/ + iniciar/) é a primeira fonte — se ela
-             respondeu, a enciclopédia fica de fora (duas fontes de
-             verdade brigando no mesmo prompt é receita para alucinação).
+           - **Posição no pipeline (régua do dono, 26/10):** pergunta de
+             FATO/definição (`eh_pergunta_de_fato`) consulta ESTA fonte
+             ANTES do acervo da casa; o acervo só entra se a fonte não
+             achar artigo. Fora de pergunta de fato vale a ordem antiga
+             (memória interna > enciclopédia). Uma fonte por prompt —
+             duas fontes de verdade brigando é receita para alucinação.
+           - **Travas (medição viva 26/10):** (1) acervo PT é o primeiro
+             a ser tentado — a ordem antiga comparava `"por"` com `"pt"` e
+             o EN ganhava sempre, devolvendo desambiguação (`"Sol or SOL
+             may refer to:"`) e até o artigo ERRADO ("Clorofila" = a
+             banda mexicana, não o pigmento); (2) página de
+             DESAMBIGUAÇÃO é recusada; (3) o título resolvido tem que
+             casar com o assunto da pergunta. Sem artigo bom = `block ""`
+             honesto (artigo errado pior que silêncio).
+           - **Sem fonte:** quando nem esta fonte nem o acervo têm nada
+             sobre a pergunta de fato, o orquestrador injeta a nota
+             honesta (etapa 4.6b) em vez de deixar o modelo local
+             inventar.
            - **Consulta:** os termos de conteúdo da pergunta (o MESMO
              filtro `termos_da_consulta` do RAG — stopwords PT/EN fora)
              entram no `/search` do kiwix-serve; o hit escolhido é o de
@@ -75,7 +88,28 @@ CABECALHO_BLOCO = (
     "se não for, responda normalmente):"
 )
 
+# Etapa 4.6b — pergunta de FATO sem artigo em nenhuma das duas fontes:
+# a nota honesta entra no prompt no lugar do silêncio (o modelo local
+# inventava o fato — 6x na auditoria de 24/10). Um erro de fonte não é
+# licença para alucinar.
+NOTA_SEM_FONTE = (
+    "Nota de fonte: não há artigo disponível sobre este assunto no acervo "
+    "interno nem na Wikipédia offline (fonte ausente ou indisponível). "
+    "Não apresente fato sem fonte como certo — diga honestamente que não "
+    "há referência confiável disponível."
+)
+
 _TOKENS_TITULO = re.compile(r"[a-zà-ú0-9]+")
+
+# Página de desambiguação não é resposta: "Sol or SOL may refer to: …"
+# (EN) e "Clorofila (desambiguação)" (PT) listam SENTIDOS, não explicam
+# o assunto — injetá-la no prompt devolve a lista no lugar da resposta
+# (medição viva 26/10, quando o acervo EN era tentado primeiro).
+_RE_DESAMBIGUACAO = re.compile(
+    r"(?:\((?:desambiguação|desambiguacao|desambiguation|disambiguation)\)"
+    r"|may refer to|pode referir[- ]se|podem referir[- ]se)",
+    re.IGNORECASE,
+)
 
 # Prefixos de pergunta factual (verbos-guia): "define dia", "o que é a
 # fotossíntese", "quem foi napoleão…". Sem esta limpeza "define" entrava
@@ -97,6 +131,58 @@ _PREFIXO_PERGUNTA = re.compile(
     r")\s+",
     re.IGNORECASE,
 )
+
+
+# Aberturas interrogativas de FATO — cobrem o que o verbo-guia de
+# _PREFIXO_PERGUNTA não alcança ("quem descobriu a penicilina?",
+# "onde fica paris?", "o que acontece com…"). Quantidade/contagem
+# ("quantas pessoas estão conectadas?") fica DE FORA de propósito:
+# não é fato de enciclopédia, é dado do sistema (fastpath de rede).
+_ABERTURA_FATO = re.compile(
+    r"^\s*(?:o que\b|quem\b|onde\b|quando\b|qual\b|quais\b)",
+    re.IGNORECASE,
+)
+
+
+def eh_pergunta_de_fato(pergunta: str) -> bool:
+    """É pergunta de FATO/definição? (ordem das fontes, régua 26/10).
+
+    `True` = a enciclopédia é consultada ANTES do acervo da casa (etapa
+    4.6); `False` = vale a ordem antiga (memória interna > enciclopédia).
+    Critério é a ABERTURA da frase: verbo-guia ("define dia", "o que é…")
+    ou interrogativo factual ("quem descobriu…"). Saudação, comando e
+    pedido de ação não casam — sem artigo, sem consulta.
+    """
+    texto = (pergunta or "").strip()
+    if not texto:
+        return False
+    return bool(_PREFIXO_PERGUNTA.match(texto)) or bool(
+        _ABERTURA_FATO.match(texto)
+    )
+
+
+def _eh_desambiguacao(titulo: str, texto: str = "") -> bool:
+    """É página de desambiguação? (título OU abertura do corpo).
+
+    Checagem barata e determinística: título com marcador, ou as
+    primeiras 300 chars do corpo começando pela lista de sentidos.
+    """
+    if _RE_DESAMBIGUACAO.search(titulo or ""):
+        return True
+    inicio = (texto or "")[:300].casefold()
+    return (
+        "may refer to" in inicio
+        or "pode referir" in inicio
+        or "desambigu" in inicio
+    )
+
+
+def _eh_pt(idioma: Any) -> bool:
+    """O acervo é português? `pt`, `pt-BR`… e `por` (ISO 639-2 — é o
+    código que o catálogo do kiwix-serve devolve para o ZIM PT).
+    """
+    cod = str(idioma or "").strip().lower()
+    return cod in ("pt", "por") or cod.startswith(("pt-", "pt_"))
 
 
 def _assunto_da_pergunta(pergunta: str) -> str:
@@ -127,6 +213,7 @@ class ResultadoEnciclopedia:
     block: str = ""
     candidatos: int = 0
     descartados_sem_overlap: int = 0
+    recusados: int = 0  # desambiguação ou título fora do assunto
     erro: str = ""  # código tipado do Kiwix ("" = sem erro)
 
 
@@ -196,7 +283,7 @@ class Enciclopedia:
         # viva de 24/10: "dia" devolve "Sexta-feira" primeiro e o artigo
         # "Dia" nem aparece no top-8; /content/<livro>/<Título> serve o
         # artigo certo quando ele existe.
-        artigo, livro = self._titulo_direto(cliente, consulta)
+        artigo, livro = self._titulo_direto(cliente, consulta, resultado)
 
         if artigo is None:
             # 2ª tentativa: busca cascata (PT → EN) com overlap de título.
@@ -240,6 +327,24 @@ class Enciclopedia:
             return resultado
 
         titulo = (artigo.get("titulo") or consulta.title()).strip()
+
+        # Travas finais (26/10) — valem para os DOIS caminhos (título
+        # direto pode ser um redirect): sem artigo BOM, block "" honesto
+        # (artigo errado pior que silêncio).
+        if _eh_desambiguacao(titulo, texto):
+            resultado.recusados += 1
+            log.info("Enciclopédia: desambiguação recusada", titulo=titulo)
+            return resultado
+        assunto_tokens = _tokens_titulo(_assunto_da_pergunta(pergunta or ""))
+        if assunto_tokens and not (assunto_tokens & _tokens_titulo(titulo)):
+            resultado.recusados += 1
+            log.info(
+                "Enciclopédia: título fora do assunto recusado",
+                titulo=titulo,
+                assunto=_assunto_da_pergunta(pergunta or ""),
+            )
+            return resultado
+
         truncado = bool(artigo.get("truncado"))
         resultado.titulo = titulo
         resultado.caminho = str(artigo.get("caminho") or "")
@@ -260,7 +365,10 @@ class Enciclopedia:
         return resultado
 
     def _titulo_direto(
-        self, cliente: Any, consulta: str
+        self,
+        cliente: Any,
+        consulta: str,
+        resultado: ResultadoEnciclopedia,
     ) -> tuple[Optional[dict[str, Any]], str]:
         """Tenta o artigo canônico pelo TÍTULO antes de buscar (best-effort).
 
@@ -287,13 +395,25 @@ class Enciclopedia:
                 )
             except Exception:  # noqa: BLE001 — best-effort (404 = normal)
                 continue
-            if (artigo.get("texto") or "").strip():
+            texto_direto = (artigo.get("texto") or "").strip()
+            if not texto_direto:
+                continue
+            if _eh_desambiguacao(str(artigo.get("titulo") or ""), texto_direto):
+                # Lista de sentidos não responde a pergunta — passa
+                # reto para o próximo acervo / busca cascata.
+                resultado.recusados += 1
                 log.info(
-                    "Enciclopédia: artigo por título direto",
+                    "Enciclopédia: desambiguação no título direto",
                     titulo=str(artigo.get("titulo") or titulo),
                     livro=content_id,
                 )
-                return artigo, content_id
+                continue
+            log.info(
+                "Enciclopédia: artigo por título direto",
+                titulo=str(artigo.get("titulo") or titulo),
+                livro=content_id,
+            )
+            return artigo, content_id
         return None, ""
 
     # -- Cascata de acervos (PT primeiro, depois EN) -------------------------
@@ -321,10 +441,11 @@ class Enciclopedia:
             # cache negativo aqui seria permanente (sem filtro + 2 idiomas
             # = 400 para sempre). Reprove no próximo turno.
             return []
-        acervos.sort(
-            key=lambda a: 0 if str(a.get("idioma") or "").lower().startswith("pt")
-            else 1
-        )
+        # PT primeiro (o chat fala pt-BR). O catálogo devolve "por"
+        # (ISO 639-2) e a ordem antiga comparava com "pt" — "por" empatava
+        # com "eng" e a ordem do catálogo (EN primeiro) vencia, devolvendo
+        # desambiguação e artigo errado (apuração viva 26/10).
+        acervos.sort(key=lambda a: 0 if _eh_pt(a.get("idioma")) else 1)
         with self._lock:
             self._cache_livros = acervos
         return acervos
@@ -385,7 +506,13 @@ class Enciclopedia:
         melhor: Optional[dict[str, Any]] = None
         melhor_chave: Optional[tuple[int, int]] = None
         for hit in hits:
-            titulo_tokens = _tokens_titulo(str(hit.get("titulo") or ""))
+            titulo_hit = str(hit.get("titulo") or "")
+            if _eh_desambiguacao(titulo_hit):
+                # Sentidos listados = resposta nenhuma; o próximo hit
+                # com overlap é melhor (trava 2, 26/10).
+                resultado.recusados += 1
+                continue
+            titulo_tokens = _tokens_titulo(titulo_hit)
             overlap = len(termos & titulo_tokens)
             extras = len(titulo_tokens - termos)  # tokens fora da pergunta
             chave = (overlap, -extras)  # maior overlap; empate → menos extras

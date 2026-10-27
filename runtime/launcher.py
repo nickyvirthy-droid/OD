@@ -215,7 +215,9 @@ def build_rag() -> Optional[Any]:
 def build_enciclopedia() -> Optional[Any]:
     """Enciclopédia (Kiwix) — etapa 4.6 do orquestrador (parking lot §5).
 
-    Wikipédia offline no prompt, SÓ quando o RAG local não acha nada.
+    Wikipédia offline no prompt: em pergunta de FATO ela é a primeira
+    fonte (régua do dono, 26/10); fora disso só quando o RAG local não
+    acha nada — uma fonte por prompt.
     OD_KIWIX_CHAT=0 desliga. Lazy por desenho: o cliente Kiwix nasce na
     1ª consulta — kiwix-serve fora do ar degrada o bloco para "", nunca
     o boot do od-core.
@@ -226,7 +228,7 @@ def build_enciclopedia() -> Optional[Any]:
         from memory.enciclopedia import Enciclopedia
 
         enciclopedia = Enciclopedia()
-        log.info("Enciclopédia Kiwix ligada (etapa 4.6, só com RAG vazio)")
+        log.info("Enciclopédia Kiwix ligada (etapa 4.6)")
         return enciclopedia
     except Exception as exc:
         log.warn("Enciclopédia desabilitada", error=f"{type(exc).__name__}: {exc}")
@@ -262,7 +264,8 @@ def build_orchestrator(database: Any = None) -> Any:
     # O orçamento só liga quando há RAG — sem ele, o comportamento do
     # histórico é exatamente o de antes (limite por turnos).
     rag = build_rag()
-    # Etapa 4.6 (24/10): Wikipédia offline via Kiwix — só com RAG vazio.
+    # Etapa 4.6 (24/10): Wikipédia offline via Kiwix — 1ª fonte em
+    # pergunta de fato, fallback do RAG fora disso (uma fonte por prompt).
     enciclopedia = build_enciclopedia()
     from memory.rag import janela_do_modelo
 
