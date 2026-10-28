@@ -188,3 +188,78 @@ serviço ligado, qualquer chamada com `porta=0` quebraria.
 (login = o do próprio AzuraCast), link no painel `/admin` e link "Rádio
 Nicky" na home. Registro: esta seção + `session.json` chave
 `painel_azura_tailnet_2026_10_28`.
+
+## §4 — "funnel parou de funcionar" + acervo da HD na estação Nicky (28/10 ~17:15)
+
+**Pedido (em duas trocas):** dono: *"funnel parou de funcionar"*; depois
+*"funnel voltou"*. Continuando a frente (a) da §3: legado `nicky-musicas`
+instalado na HD Mídia e o acervo ligado à estação.
+
+### 1. Funnel — caiu, voltou sozinho; causa medida
+- Estado na hora do alarme: `tailscale serve status`/`funnel status` →
+  `# Funnel on` com os 3 handlers da 443 (`/` → 8000, `/ws` → 8001,
+  `/radio.mp3` → 8600), 8443/8446 tailnet intactos.
+- **Causa provável (meçida, não suposta):** o `tailscale netcheck` das
+  17:16:35 registrou `portmap: monitor: gateway and self IP changed
+  gw=192.168.0.1 self=192.168.0.250` — o uplink deste servidor é **WiFi**
+  (`wlx000f0037acf0`), então um blip do link derruba o Funnel na hora e ele
+  volta sozinho quando o tailscaled reconecta. `tailscaled` não reiniciou
+  (uptime 26 dias), od-core sem restart, 0 erro novo no journal.
+- **Provas de fora (borda pública do Tailscale, `--resolve` para
+  209.177.145.97/192):** `/` 200 · `/site/` 200 (24310 B) ·
+  `/site/od-nav.js` 200 · `/site/admin.js` 200 · `/admin/` 200 ·
+  `/ws` 426 · `/radio.mp3` **206 audio/mpeg (MPEG layer III 192 kb/s)**
+  — 3 sondagens seguidas, ~1,0 s cada.
+- `/f/` → 404 JSON `not_found` é **comportamento correto** (o portário só
+  aceita `/f/<nome>`: caderno|cyberchef|caixa|cofre).
+
+### 2. Legado nicky-musicas v1.6 na HD (frente (a), fechada)
+- Instalado em `/home/alex/dados/musicas/`: `musica.py` v1.6 + `run.sh`
+  (chave Gemini embutida) + `venv` (yt-dlp 2026.10.26, mutagen, requests)
+  + pastas `temp/ limpar/ acervo/ logs/`.
+- **Prova viva de download real (13:22–13:25):** playlist com 1 URL →
+  `Me at the zoo` baixado → tags com Gemini (`Jawed Karim — Me at the Zoo`)
+  → renomeado → movido para `acervo/Jawed Karim/` → classificação por
+  gênero rodou nas 33 músicas → `Pipeline concluído v1.6.`
+- Acervo final: **33 mp3 / 208 MB** em `acervo/{Eletrônica,Gospel,
+  Internacional,Jawed Karim,MPB,Outros,Pop,Rock,Sertanejo}`.
+
+### 3. Acervo ligado à estação Nicky (bind-mount + playlist)
+- Mount já existia no compose (`…/musicas/acervo:/var/azuracast/stations/
+  nicky/media/acervo:ro`); conferido **dentro** do container: 33 mp3 visíveis.
+- `azuracast_cli azuracast:media:sync nicky` → 35 arquivos / 207,8 MB
+  (34 unchanged, 1 updated, 0 deleted) = biblioteca já populada.
+- **Ligação:** `PUT /api/station/1/files/batch` com
+  `{"do":"playlist","playlists":["1"],"dirs":["acervo"]}` →
+  `{"success":true,"errors":[]}` → playlist **default (id 1)**:
+  `num_songs=33`, `total_length=9050 s` (~2h31) e
+  `playlist_default.m3u` com as 33 entradas anotadas.
+- **Armadilha de API apurada ao vivo:** o `PUT` devolvia
+  `403 NotLoggedInException` mesmo com sessão válida — `ApiAuth::getApiUser`
+  só confia na sessão em `GET`; para o resto exige **`X-API-CSRF`** (token
+  `apiCsrf` embutido no HTML do dashboard) ou `X-API-Key`. GET puro funciona
+  sem token (foi como login `username`/`password` em `POST /login` caiu
+  direto no `/dashboard`).
+- **Mecanismo automático para os próximos downloads** (conferido no código
+  e no cron, não repetido para não duplicar faixa): o container roda
+  `azuracast_cli azuracast:sync:run` **a cada minuto**
+  (`util/docker/web/cron/azuracast:1`) → `CheckMediaTask` importa o arquivo
+  novo que aparecer em `acervo/` e `CheckFolderPlaylistsTask` o poe na
+  playlist da pasta. Ou seja: baixou no legado → em ~1 min está no ar.
+
+### 4. Prova viva (música no ar)
+- `GET /api/nowplaying/1` → **`'Alicia Castillo' — 'Mi Única Virtud'`,
+  playlist `default`** (antes: só `vinhetas`/locuções).
+- Log do liquidsoap no mesmo instante: `nextsong` →
+  `media:acervo/Mpb/Adriana Calcanhotto - Fico Assim Sem Você.mp3` e o
+  decoder lendo `/var/azuracast/stations/nicky/media/acervo/…` (feedback
+  com `playlist_id":"1"`).
+- Stream público: `https://nicky-server.tail1b1f51.ts.net/radio.mp3` →
+  **206 audio/mpeg, 8001 B, MPEG ADTS layer III 192 kb/s**.
+- Vinhetas continuam na rotação (playlist `vinhetas`, 2 locuções) — o
+  AutoDJ alterna as duas playlists.
+
+**Nenhuma mudança de código do repositório nesta seção** (só estado do
+AzuraCast, que é sistema externo) → gate não precisou rodar, od-core não
+foi reiniciado, árvore limpa; registro = esta seção + `session.json`
+chave `acervo_na_estacao_2026_10_28`.
