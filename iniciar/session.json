@@ -1,4 +1,22 @@
 {
+ "radio_no_funnel_2026_10_28": {
+  "pedido": "Dono (28/10 ~01:20): 'coloque a radio dentro do funnel' — o stream da estacao Nicky (integrada ontem, §5 de 27/10) passa a ser ouvido fora da rede local pela URL publica do Tailscale.",
+  "diagnostico": "Funnel = 443 com / -> od-core 8000 e /ws -> 8001 (8443 tailnet-only com as ferramentas). O od-core so tem a rota do webhook — NENHUM caminho servia o audio: stream vive no icecast do AzuraCast (127.0.0.1:8600/radio.mp3 e 8091/listen/nicky/radio.mp3), so na LAN. Publicar o painel 8091 inteiro exporia admin a internet -> FORA de plano: o pedido e o audio.",
+  "sandbox_regra_10": "tailscale serve --bg --https=9443 --set-path=/radio.mp3 http://127.0.0.1:8600/radio.mp3 numa porta NOVA tailnet-only, antes de tocar a 443. Medido: :9443/radio.mp3 -> 200 audio/mpeg (curl --max-time 6 saiu exit 28 com 206 KB = stream infinito) e /radio.mp3/radio.mp3 -> 404 (handler casa o caminho exato). Sandbox removida (--https=9443 off) antes do passo real.",
+  "implantacao": [
+   "Rollback antes: tailscale serve status --json -> backups/tailscale-serve-20261028-013152-status.json (o get-config devolve {version 0.0.1}, o formato util e o do status).",
+   "tailscale funnel --bg --yes --https=443 --set-path=/radio.mp3 http://127.0.0.1:8600/radio.mp3 -> 3 handlers na 443 (/, /ws, /radio.mp3), 8443 intacto, 9443 fora.",
+   "site/radio.html (NOVO): pagina no estilo da casa (nav + od.css + footer + od-nav.js), audio ao vivo com origem decidida no cliente — https usa /radio.mp3 do mesmo host; http (LAN) usa icecast :8600 (fonte https nao carrega http, mixed content). 3 cartoes: estacao, locucao automatica, acesso — sem credencial de admin no publico.",
+   "site/od-nav.js: '/site/radio.html': '\ud83d\udcfb' na tabela ICONES."
+  ],
+  "guarda_que_pegou": "1a rodada do gate: TestIconesDoMenuLateral::test_tabela_cobre_todos_os_menus_do_site varre os nav-panel de todas as site/*.html e exige glifo real para todo href (iconeDe() avaliado em node) -> 1 failed / 3957 passed (link novo fora da tabela). Conserto na causa: glifo na tabela; node --check limpo; grupo 4/4 verdes.",
+  "validacao": "Gate 2x (antes e DEPOIS da entrada no CHANGELOG, corpus do RAG): 3958 passed / 16 skipped / 0 falha · 90,57% nas duas. CHANGELOG 1.44.0 ganhou subsecao 'A radio Nicky toca fora de casa' (sem bump). Nenhum .py mudou -> pyflakes sem mudanca nova e NENHUM restart (pagina servida do disco; Funnel externo ao od-core).",
+  "prova_viva": "GET https://nicky-server.tail1b1f51.ts.net/radio.mp3 -> 200 audio/mpeg, 179-208 KB em 5-6 s, file = MPEG ADTS layer III 192 kb/s 44,1 kHz (stream vivo saindo de fora). Regressoes da 443: / 200 · /app/version 200 · /site/ 200 · /ws 426. Pagina: local 200 text/html 6104 B e pelo Funnel 200 6104 B. od-core intocado: MainPID 2081285 (boot 27/10 21:06), NRestarts=0, /health ok.",
+  "estado": "NO AR — pagina publica em https://nicky-server.tail1b1f51.ts.net/site/radio.html e audio em /radio.mp3. Painel AzuraCast (8091) segue SÓ na LAN/tailnet (decisao de seguranca).",
+  "fila_do_dono": "(a) ouvir e dizer se ficou bom (qualidade do stream via Funnel); (b) subir musicas pelo painel 8091 (a entrega de 27/10); (c) destino de analise/Nicky Locutor/; (d) 2 dispositivos pendentes no Vigia (26:14:7A:43:2E:11 e 7A:25:D5:8C:03:EE) aguardando ordem; (e) parking lot §5: rota WiFi, auditoria de uso de ferramentas, MCP.",
+  "updated_at": "2026-10-28T01:55:00-03:00",
+  "transcricao": "iniciar/2026-10-28_conversa_omegadrakon.md (§2)"
+ },
  "reverificacao_rotina_2026_10_28_0110": {
   "pedido": "Usuario: 'leia iniciar' (28/10 ~01:10) — reverificacao de rotina (regra 3). Checkpoint: nicky_locutor_integrar_implantar_2026_10_27 (updated 27/10 21:10, §5 — frente ENTREGUE).",
   "achados_verdes": "Git ARVORE LIMPA (status 0), HEAD 7ccf955 == origin/master (ls-remote confirmou o mesmo sha). od-core active desde 27/10 21:06:45, MainPID 2081285, NRestarts=0. /health (X-API-Key) ok=True, 25 checks NENHUM fora. /app/version 1.44.0/2080 intacta (sha aeb8566b). Journal das ultimas 6h: 0 [ERROR]. Radio Nicky VIVA: container azuracast Up 5 hours, GET /listen/nicky/radio.mp3 -> 200 audio/mpeg (255791 B na amostra) = ciclo automatico song_changed -> locucao seguindo no ar desde a entrega.",

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rádio Nicky — Omega Drakon</title>
+<meta name="description" content="Rádio web Nicky ao vivo: música + locução gerada pelo od-core, no ar 24 horas pelo Funnel do Omega Drakon.">
+<link rel="icon" href="/site/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site/od.css">
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="/site"><img src="/site/simbolo_minimo.png" alt="OD"> OMEGA DRAKON</a>
+    <div class="nav-spacer"></div>
+    <button class="nav-toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="navPanel"><span class="dots">&#8942;</span></button>
+  </div>
+</nav>
+<div class="nav-panel" id="navPanel">
+  <div class="wrap">
+    <a href="/site#marca">Marca</a>
+    <a href="/site#ecossistema">Ecossistema</a>
+    <a href="/site#sistemas">Sistemas</a>
+    <a href="/site#produtos">Produtos</a>
+    <a href="/site#autenticidade">Autenticidade</a>
+    <a href="/site/verificacao.html">Verificar peça</a>
+    <a href="/site/historico.html#historico">Histórico</a>
+    <a href="/site/radio.html">Rádio Nicky</a>
+    <a href="/site#pleiade">Plêiade</a>
+    <a href="/site#sobre">Sobre</a>
+    <a href="/chat">Chat</a>
+    <a class="cta" href="/site#download">Baixar APK</a>
+  </div>
+</div>
+
+<header class="compacto">
+  <div class="wrap">
+    <div><span class="badge">Rádio web · Ao vivo</span></div>
+    <h1>Rádio Nicky</h1>
+    <div class="tagline">Música e locução que o od-core anuncia sozinho, 24 horas por dia</div>
+    <p class="migalha"><a href="/site">&#8592; Voltar ao site</a></p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Player</div>
+      <h2>Ouvir ao vivo</h2>
+      <p>Clique no botão para abrir o stream. Pela internet o áudio sai pelo
+      Funnel do Omega Drakon (mesmo endereço desta página); na rede local a
+      rádio também toca direto no servidor.</p>
+    </div>
+
+    <div class="card" style="text-align:center;padding:32px 20px;">
+      <button id="btnTocar" class="btn btn-primary" style="font-size:1.05rem;padding:14px 32px;">&#9654;&nbsp; Ouvir ao vivo</button>
+      <audio id="player" preload="none" crossorigin="anonymous"></audio>
+      <p id="status" style="margin:16px 0 0;color:var(--muted);font-size:.9rem;">Parado — 192 kb/s · 44,1 kHz · MPEG</p>
+    </div>
+
+    <div class="grid g3" style="margin-top:24px;">
+      <div class="card">
+        <div class="num">No ar</div>
+        <h3>Estação Nicky</h3>
+        <p>Stream servido pelo AzuraCast instalado neste servidor: liquidsoap
+        + icecast, playlist de vinhetas e música rodando sem operador.</p>
+      </div>
+      <div class="card">
+        <div class="num">Locutor</div>
+        <h3>Locução automática</h3>
+        <p>A cada música que muda o AzuraCast chama o od-core, que monta a
+        fala (notícia, hora, clima, próxima música) e grava o MP3 novo com a
+        voz Piper — a rádio se anuncia sozinha entre as faixas.</p>
+      </div>
+      <div class="card">
+        <div class="num">Acesso</div>
+        <h3>Funnel público</h3>
+        <p>O stream está publicado em <code>/radio.mp3</code> pela URL pública
+        do Funnel. O painel de administração continua só na rede local — esta
+        página não expõe nada de administração.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="f-brand">
+      <img src="/site/simbolo_minimo.png" alt="OD">
+      <span>OMEGA DRAKON</span>
+    </div>
+    <p class="f-sig">Interface Viva: Nicky Virthy &nbsp;·&nbsp; Arquiteto: Alex Projeti &nbsp;·&nbsp; Assinatura: OD // CORE</p>
+    <div class="f-links">
+      <a href="/site#marca">Marca</a>
+      <a href="/site#ecossistema">Ecossistema</a>
+      <a href="/site/historico.html#historico">Histórico</a>
+      <a href="/site/verificacao.html">Verificar peça</a>
+      <a href="/chat">Chat</a>
+    </div>
+  </div>
+</footer>
+
+<button class="to-top" id="toTop" aria-label="Voltar ao topo" title="Voltar ao topo">&#8593;</button>
+
+<script src="/site/od-nav.js"></script>
+
+<script>
+(function () {
+  var player = document.getElementById('player');
+  var btn = document.getElementById('btnTocar');
+  var status = document.getElementById('status');
+
+  // Página aberta pelo Funnel (https): o stream sai do MESMO origem (/radio.mp3).
+  // Página aberta na rede local (http://192.168.0.250:8000): o stream sai
+  // direto do icecast na porta 8600 — fonte https nunca carrega http (mixed
+  // content), por isso os dois caminhos.
+  function fonte() {
+    if (location.protocol === 'https:') return location.origin + '/radio.mp3';
+    var host = location.hostname.replace(/:\d+$/, '');
+    return 'http://' + host + ':8600/radio.mp3';
+  }
+
+  var tocando = false;
+
+  btn.addEventListener('click', function () {
+    if (tocando) {
+      player.pause();
+      return;
+    }
+    player.src = fonte();
+    player.play().then(function () {
+      tocando = true;
+      btn.innerHTML = '&#10074;&#10074;&nbsp; Pausar';
+      status.textContent = 'Ao vivo — 192 kb/s · 44,1 kHz · MPEG';
+    }).catch(function (err) {
+      status.textContent = 'Não consegui tocar o stream (' + err.name + '). Tente de novo.';
+    });
+  });
+
+  player.addEventListener('pause', function () {
+    tocando = false;
+    btn.innerHTML = '&#9654;&nbsp; Ouvir ao vivo';
+    if (player.src) status.textContent = 'Pausado — 192 kb/s · 44,1 kHz · MPEG';
+  });
+
+  player.addEventListener('error', function () {
+    status.textContent = 'Stream indisponível no momento — tente de novo em alguns segundos.';
+    tocando = false;
+    btn.innerHTML = '&#9654;&nbsp; Ouvir ao vivo';
+  });
+})();
+</script>
+</body>
+</html>

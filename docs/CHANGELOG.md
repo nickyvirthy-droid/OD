@@ -46,6 +46,50 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### A rádio Nicky toca fora de casa: o stream entrou no Funnel público (28/10, sem bump)
+
+**Pedido do dono** (28/10 ~01:20): *"coloque a rádio dentro do funnel"* — o
+stream da estação implantada ontem (integração Nicky Locutor, etapa E)
+passou a ser ouvido também fora da rede local, pela URL pública do
+Tailscale.
+
+**O que mudou (nenhum `.py` tocado — zero restart do od-core):**
+
+- **Funnel:** `tailscale funnel --bg --yes --https=443
+  --set-path=/radio.mp3 http://127.0.0.1:8600/radio.mp3` — caminho novo
+  na 443 apontando para o icecast local. A semântica do `--set-path` foi
+  medida ANTES, em sandbox (porta nova 9443, removida em seguida):
+  `/radio.mp3` devolve o áudio, caminho duplicado cai em 404 — e os
+  caminhos `/` e `/ws` continuaram de pé. Snapshot de rollback em
+  `backups/tailscale-serve-20261028-013152-status.json`.
+- **`site/radio.html` (NOVO):** página no estilo da casa (nav, cabeçalho,
+  áudio ao vivo e 3 cartões: estação, locução automática, acesso). A
+  origem do áudio é decidida no cliente: em `https://` (Funnel) usa
+  `/radio.mp3` do mesmo host; em `http://` (LAN) usa o icecast `:8600` —
+  fonte https não carrega http e vice-versa, por isso os dois caminhos.
+- **`site/od-nav.js`:** `'/site/radio.html': '📻'` na tabela `ICONES`.
+- **Painel AzuraCast (8091) ficou FORA de propósito:** só o áudio foi
+  publicado; administração continua na rede local/tailnet.
+
+**Guarda que derrubou o gate na 1ª rodada:**
+`test_tabela_cobre_todos_os_menus_do_site` varre os `nav-panel` de todas
+as páginas do `site/` e exige glifo real para todo href (avalia o
+`iconeDe()` em node) — o link novo sem entrada na tabela falhou 1 teste;
+conserto na causa (o glifo na tabela), grupo de ícones 4/4 verdes.
+
+**Validação:** gate **3958 passed / 16 skipped / 0 falha · 90,57%**
+(re-rodado DEPOIS desta entrada, porque o CHANGELOG é corpus do RAG) ·
+`node --check site/od-nav.js` limpo.
+
+**Prova viva (medida):** pela URL pública `GET /radio.mp3` → **200
+`audio/mpeg`**, 179–208 KB baixados em 5–6 s (stream infinito; `file` =
+MPEG ADTS layer III **192 kb/s · 44,1 kHz**) e regressões da 443 intactas:
+`/` 200 · `/app/version` 200 · `/site/` 200 · `/ws` 426. Página servida
+local e pelo Funnel: 200, 6104 B.
+
+**Estado:** no ar em
+`https://nicky-server.tail1b1f51.ts.net/site/radio.html`.
+
 ### Papel FAMÍLIA: a conta de casa que liga/desliga aparelhos e luzes (23/10, sem bump)
 
 **Pedido do dono** (fila da noite de 22/10, frente C): *"o usuário comum

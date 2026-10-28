@@ -276,6 +276,7 @@
     '#pleiade': '✨', '#sobre': 'ℹ️', '#download': '📲',
     '/site/loja.html': '🛒', '/site/protomaps.html': '🗺️',
     '/site/verificacao.html': '🔍', '/site/avatares.html': '🎭',
+    '/site/radio.html': '📻',
     '/site/historico.html': '🕰️', '/site/index.html': '🐉',
     '/site': '🌐', '/dashboard': '🖥️', '/chat': '💬',
     '/admin': '🛡️'
