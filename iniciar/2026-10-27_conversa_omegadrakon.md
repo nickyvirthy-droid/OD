@@ -321,11 +321,16 @@ do banco **já pontuada** ("com Tim Maia.. " no ar; mesma classe do "e
 em ponto" corrigido na Etapa D). Guarda nova
 `test_campos_vazios_nao_viram_ponto_no_ar` (31→32 no arquivo).
 
-**Estado:** rádio **no ar e se regenerando sozinha**. Gate oficial
-**3958 passed / 16 skipped / 0 falha · 90,58%** + pyflakes 0 aviso novo
-(os avisos de `server.py`/`launcher.py` são baseline pré-integração —
-comparados contra `3ea0790~1`, idênticos). Commit final + push conjunto
-(`b3c72ca`, `ba3fb7a`, `3ea0790` e o desta entrega) e restart verde do
-od-core (fix do ponto duplo) a seguir. `analise/Nicky Locutor/`
-**intacto** — o conteúdo foi integrado; apagar/mover o legado é decisão
-do dono (regra 17).
+**Estado:** **ENTREGUE** — gate final **3958 passed / 16 skipped / 0
+falha · 90,57%** + pyflakes 0 aviso novo (os avisos de `server.py`/
+`launcher.py` são baseline pré-integração — comparados contra
+`3ea0790~1`, idênticos). Commit `1b4dd88` **pushado** com os 4
+commits da integração (`04aa66a..1b4dd88`). Od-core reiniciado com
+gate verde (PID novo, 25/25): a frase saiu no ar **sem "com .." e
+sem ponto duplo** e o ciclo automático continuou sozinho (9
+locauções em 2 min pós-restart). Painel AzuraCast em
+`http://192.168.0.250:8091` (`admin@omegadrakon.local` / senha
+`nicky2026`, nota `/home/alex/azuracast/ACESSO.txt` fora do git — a
+senha do setup se perdeu, redefinida). `analise/Nicky Locutor/`
+**intacto** — o conteúdo foi integrado; apagar/mover o legado é
+decisão do dono (regra 17).
