@@ -1,6 +1,6 @@
 {
  "painel_azura_tailnet_2026_10_28": {
-  "pedido": "Dono (28/10 ~01:45): (a) preparar para baixar musicas do YouTube salvas na HD externa; (b) 'Adicione um link Radio Nicky na pagina inicial do site para eu encontrar facil'; (c) 'Coloque o painel AzuraCast atras de login no od-core para eu acessar de fora com seguranca'. Respostas as perguntas ANTES do codigo: painel -> porta na tailnet + link no painel (SPA de caminhos absolutos nao encaixa em /f/); downloads -> /home/alex/dados/musicas/ (HD Midia); (a) combinada como LER analise/ e discutir o modo eficiente com o dono (regra 17, nada implementado).",
+  "pedido": "Dono (28/10 ~13:00): (a) preparar para baixar musicas do YouTube salvas na HD externa; (b) 'Adicione um link Radio Nicky na pagina inicial do site para eu encontrar facil'; (c) 'Coloque o painel AzuraCast atras de login no od-core para eu acessar de fora com seguranca'. Respostas as perguntas ANTES do codigo: painel -> porta na tailnet + link no painel (SPA de caminhos absolutos nao encaixa em /f/); downloads -> /home/alex/dados/musicas/ (HD Midia); (a) combinada como LER analise/ e discutir o modo eficiente com o dono (regra 17, nada implementado).",
   "diagnostico": "Publicar a 8446 direto no container derrubava a SPA em 500: o tailscale serve manda Host E X-Forwarded-Host com a porta (dominio:8446) e o guzzle do AzuraCast recusa host com porta ('Invalid host', Uri.php). A 8446 ja existia apontando para 127.0.0.1:8447, que NINGUEM escutava.",
   "implantacao": [
    "runtime/azura_proxy.py (NOVO, stdlib): Host -> 127.0.0.1:8091 e X-Forwarded-Host so com o dominio; repassa sem bufferizar (stream/upload inteiros); redirect do backend reescrito; backend morto -> 502; 411 chunked. Sobe so em 127.0.0.1:8466.",
@@ -13,7 +13,7 @@
   "validacao": "Gate 3966 passed / 16 skipped / 0 falha · 90% (2x, antes e DEPOIS da entrada no CHANGELOG, corpus do RAG) · node --check limpo · pyflakes limpo.",
   "prova_viva": "tailnet :8446/login -> 200 (SPA), assets 200, /api/nowplaying -> 200 JSON com a estacao Nicky, / -> 302, /listen/nicky/radio.mp3 -> 200 audio/mpeg (203 KB). FORA da tailnet: https://192.168.0.250:8446 sem resposta (000). Home /site/ -> 200 com 1x 'Radio Nicky', local e pelo Funnel (24310 B). Od-core intocado.",
   "estado": "NO AR: painel AzuraCast fora de casa pela porta tailnet 8446 (login = o do proprio AzuraCast), link no painel /admin e link 'Radio Nicky' na home. Fila: (a) YouTube/musicas -> ler analise/ e discutir com o dono; resto da fila anterior (musicas no painel 8091, destino de analise/Nicky Locutor/, 2 dispositivos pendentes no Vigia).",
-  "updated_at": "2026-10-28T02:10:00-03:00",
+  "updated_at": "2026-10-28T13:05:00-03:00",
   "transcricao": "iniciar/2026-10-28_conversa_omegadrakon.md (§3)"
  },
  "radio_no_funnel_2026_10_28": {

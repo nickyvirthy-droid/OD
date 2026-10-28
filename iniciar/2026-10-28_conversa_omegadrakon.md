@@ -121,10 +121,10 @@ público e o áudio em `/radio.mp3`. Painel AzuraCast segue só na LAN
 ---
 
 ## §3 — "painel AzuraCast atrás de login" + "link Rádio Nicky na home"
-       (28/10 ~01:45): porta tailnet com proxy que conserta o Host, link
+       (28/10 ~13:00): porta tailnet com proxy que conserta o Host, link
        no painel do od-core e link na home — ordem do dono
 
-**Pedidos (28/10, madrugada):** (a) *"vamos preparar também para baixar
+**Pedidos (28/10, meio-dia):** (a) *"vamos preparar também para baixar
 musicas do youtube. vamos salvar as musicas na HD externa"*; (b) *"Adicione
 um link 'Rádio Nicky' na página inicial do site para eu encontrar fácil"*;
 (c) *"Coloque o painel AzuraCast atrás de login no od-core para eu acessar
