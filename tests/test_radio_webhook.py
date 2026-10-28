@@ -271,6 +271,25 @@ class TestMontarLocucao:
         texto = self._montar(payload={}, clima=lambda: "Faz agora 28° em X.")
         assert "Nicky" in texto and "Sucesso" in texto
 
+    def test_campos_vazios_nao_viram_ponto_no_ar(self) -> None:
+        """Payload real do AzuraCast traz artist/title COMO CHAVE VAZIA.
+
+        `.get(k, d)` devolveria "" e a frase sairia "com .." no ar — o
+        fallback é `or`, igual ao legado intuía (27/10, prova viva).
+        """
+        db = DBFalso({
+            **{t: [] for t in _CONTEUDO},
+            "frases_passado": ["Mais uma joia musical: {t}, com {a}."],
+        })
+        payload = {"now_playing": {"song": {"artist": "", "title": "Station offline"}}}
+        texto = self._montar(payload=payload, db=db, clima=lambda: "")
+        assert "Mais uma joia musical: Station offline, com Nicky." in texto
+        assert ".." not in texto
+
+        payload_titulo = {"now_playing": {"song": {"artist": "Tim Maia", "title": ""}}}
+        texto_titulo = self._montar(payload=payload_titulo, db=db, clima=lambda: "")
+        assert "Mais uma joia musical: Sucesso, com Tim maia." in texto_titulo
+
     def test_pronuncia_custom_field_vence(self) -> None:
         """custom_field pronuncia_artista > limpeza automática."""
         payload = {

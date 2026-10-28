@@ -7,19 +7,18 @@
   "plano": [
    "A) Integrar ao OD: vozes extras -> voice/tts/ + vozes auto-descobertas + locucao radio (cadeia ffmpeg) em tools/audio/tts.py + guardas. [FECHADA b3c72ca — 11 vozes, locucao hal 174751B, gate 3907/16]",
    "B) Frases no Postgres do OD: tabelas frases_passado/frases_proxima/intro_curiosidade/assinaturas + populacao com as frases do setup_db.py original. [FECHADA ba3fb7a — 40/10/8/6 no Postgres real, idempotente, gate 3920/16]",
-   "C) AzuraCast: instalar (image AIO oficial) em portas alternativas, criar estacao Nicky + webhook -> locutor. [QUASE — instalado em /home/alex/azuracast (web 8091/8445, stream 8600-8699, SFTP 20220), admin criado, estacao Nicky id=1 no ar; FALTA bind-mount locucoes/ + criar webhook Generic song_changed via API + OD_RADIO_TOKEN no .env]",
-   "D) nicky-locutor adaptado: Postgres do OD no lugar do MySQL CasaOS, paths do OD, rota POST /radio/webhook/{token} no od-core. [FECHADA — integrations/radio_webhook.py (montagem fiel do legado + noticia G1/clima stdlib + MP3 atomico), rota 94 em AUTH_EXEMPT (gate=token no path, hmac), APIConfig.radio/radio_token, build_radio_handler no launcher; guardas 31+6 novas; gate 3957/16 90,58%, pyflakes 0 novo]",
-   "E) Prova viva ponta a ponta (webhook fake -> mp3) + registro + txt.txt + Telegram."
+   "C) AzuraCast: instalar (image AIO oficial) em portas alternativas, criar estacao Nicky + webhook -> locutor. [FECHADA — /home/alex/azuracast (web 8091, stream 8600-8699, SFTP 20220), estacao Nicky id=1 no ar (liquidsoap+icecast), bind-mount ./locucoes, webhook id=1 song_changed -> od-core, filter_local_user_urls=0, setup completo, OD_RADIO_TOKEN no .env. Achados: SSRF interno bloqueado; setup_complete_time=0; start real = POST /api/station/1/restart; currentDirectory sem barra inicial; GRAVE: console via docker exec root criou app_nowplaying-*.log root-owned -> worker azuracast tomava Permission denied ao logar, excecao em cascata matava o passe e a fila parava de repor ('Queue is empty!' no ar) — chown azuracast + console via docker exec -u azuracast]",
+   "D) nicky-locutor adaptado: Postgres do OD no lugar do MySQL CasaOS, paths do OD, rota POST /radio/webhook/{token} no od-core. [FECHADA 3ea0790 — integrations/radio_webhook.py (montagem fiel do legado + noticia G1/clima stdlib + MP3 atomico), rota 94 em AUTH_EXEMPT (gate=token no path, hmac.compare_digest), APIConfig.radio/radio_token, build_radio_handler no launcher, 31 testes no arquivo]",
+   "E) Prova viva ponta a ponta + correcoes de ar + empacotamento. [FECHADA — webhook real -> od-core 200 -> MP3 249147B (ID3v2.4/128kbps); stream /listen/nicky/radio.mp3 200 MPEG 192kbps; CICLO AUTOMATICO: song_changed -> 3 locucoes sozinhas em 20s, 28 em 20min, rotacao anuncio_musica<->vinheta_nicky ~11s com feedback por play e fila 3-4 rows a frente; vinheta_nicky.mp3 gerada pela propria cadeia Piper (224488B) porque o AutoDJ nunca toca a mesma faixa 2x seguidas e o prefetch do liquidsoap tem armadilha com item unico; song_id estavel = md5(texto sem espacos/traços) do fallback de nome de arquivo; fixes od-core: artist/title vazios -> 'or Nicky/Sucesso' + _fecha_frase (legado anexava '. ' apos frase pontuada -> 'com Tim Maia..'); teste novo test_campos_vazios_nao_viram_ponto_no_ar (31->32); gate 3958 passed/16 skipped/0 falha 90,58% + pyflakes 0 aviso novo]"
   ],
-  "estado": "EM CURSO — etapa C (fechar: bind-mount + webhook AzuraCast + token) e etapa E (prova viva). A, B e D fechadas.",
-  "updated_at": "2026-10-27T19:05:00-03:00",
+  "estado": "FECHADA — A b3c72ca, B ba3fb7a, C AzuraCast implantado e estacao no ar, D 3ea0790, E prova viva ponta a ponta + ciclo automatico provado ao vivo (MP3 se regenerando sozinho). Gate oficial 3958 passed / 16 skipped / 0 falha · 90,58% + pyflakes 0 aviso novo (avisos de server.py/launcher.py sao baseline pre-integracao). Restam o commit final + push conjunto (b3c72ca, ba3fb7a, 3ea0790 e o desta entrega), restart verde do od-core (fix do ponto duplo) e a entrega txt.txt + Telegram.",
+  "updated_at": "2026-10-27T20:59-03:00",
   "transcricao": "iniciar/2026-10-27_conversa_omegadrakon.md (§5)",
   "proximos_passos": [
-   "1) gerar OD_RADIO_TOKEN (secrets.token_urlsafe) no .env do OD",
-   "2) compose do AzuraCast: bind-mount /home/alex/azuracast/locucoes -> /var/azuracast/stations/nicky/media/locucoes + docker compose up -d",
-   "3) criar webhook Generic song_changed na estacao 1 via API (webhook_url=http://172.20.0.1:8000/radio/webhook/<token>, timeout>=15)",
-   "4) restart verde do od-core (gate verde) + PUT /webhook/{id}/test = prova viva (mp3 novo no bind-mount)",
-   "5) registro §5 iniciar/, txt.txt, Telegram, commit final"
+   "1) re-run de confirmacao do gate (pos-CHANGELOG/session/registro)",
+   "2) commit final + push conjunto dos 4 commits",
+   "3) restart verde od-core (gate verde, regra 7.3) + conferir no ar a frase 'com Nicky.' sem pontos duplos",
+   "4) txt.txt de entrega + Telegram chat 660518870"
   ]
  },
  "reverificacao_rotina_2026_10_27_1650": {

@@ -115,6 +115,21 @@ def noticia_g1(*, timeout_s: float = TIMEOUT_FONTE_S) -> str:
         return ""
 
 
+def _fecha_frase(frase: str) -> str:
+    """Fecha a frase com pontuação + espaço, sem duplicar o ponto no ar.
+
+    O banco termina as frases em '.'; o legado somava '. ' e saía
+    "com Tim Maia.. " (mesma classe do "e em ponto" corrigido na Etapa D).
+    Frase vazia/whitespace devolve "" — nada de ". " órfão.
+    """
+    fim = frase.strip()
+    if not fim:
+        return ""
+    if fim.endswith((".", "!", "?", "…")):
+        return fim + " "
+    return fim + ". "
+
+
 def _texto_clima(bruto: str) -> str:
     """wttr.in `format=%t` ("+28°C") → fala da rádio ("28°").
 
@@ -170,12 +185,15 @@ def montar_locucao(
     song = np.get("song") or {}
     custom = song.get("custom_fields") or {}
 
-    # Lógica de pronúncia (custom_field do AzuraCast > limpeza automática)
+    # Lógica de pronúncia (custom_field do AzuraCast > limpeza automática).
+    # `or` e não `.get(k, d)`: o AzuraCast envia "" (chave presente e vazia)
+    # quando a faixa não tem artista — ex.: payload de teste "Station offline"
+    # — e "" cairia na frase como "com .." no ar.
     artista_fala = custom.get("pronuncia_artista") or limpar_pronuncia(
-        song.get("artist", "Nicky")
+        song.get("artist") or "Nicky"
     )
     titulo_fala = custom.get("pronuncia_titulo") or limpar_pronuncia(
-        song.get("title", "Sucesso")
+        song.get("title") or "Sucesso"
     )
     curiosidade = custom.get("curiosidade")
 
@@ -196,17 +214,18 @@ def montar_locucao(
     if rng.random() < 0.15:
         n = noticia_fn()
         if n:
-            texto += f"Giro de notícias Nicky. {n}. "
+            texto += "Giro de notícias Nicky. " + _fecha_frase(n)
             deu_noticia = True
 
     # 2. Música passado
     frase_p = frase_formatada(db, "frases_passado", a=artista_fala, t=titulo_fala)
-    if frase_p:
-        texto += frase_p + ". "
+    texto += _fecha_frase(frase_p)
 
     # 3. Curiosidade (se não deu notícia)
     if not deu_noticia and curiosidade and rng.random() < 0.70:
-        texto += frase_aleatoria(db, "intro_curiosidade") + curiosidade + ". "
+        texto += _fecha_frase(
+            frase_aleatoria(db, "intro_curiosidade") + curiosidade
+        )
 
     # 4. Hora certa (se não deu notícia) — soma a duração da música + 10 s
     #    de processamento (legado). Correção do "e em ponto" do legado.
@@ -224,8 +243,7 @@ def montar_locucao(
         frase_nx = frase_formatada(
             db, "frases_proxima", a_n=next_artista, t_n=next_titulo
         )
-        if frase_nx:
-            texto += frase_nx + ". "
+        texto += _fecha_frase(frase_nx)
 
     # 6. Finalização: 20% clima; se a fonte falhou (ou o sorteio não deu),
     #    a assinatura do banco fecha a fala — a rádio nunca fala sem se

@@ -324,6 +324,70 @@ conserto, devolvia as linhas sem nome nenhum.** Restart com
 `NRestarts=0`, `/health` **25/25 nenhum fora**, journal desde o boot
 **0 `[ERROR]`**.
 
+### A rádio Nicky no ar e se regenerando sozinha: prova viva + achados de implantação (integração Nicky Locutor, etapa E, 27/10, sem bump)
+
+Etapa E — fecho da ordem do dono (*"integrar e implantar…"*): a
+ponta a ponta **medida**, não afirmada, e os achados de implantação do
+AzuraCast, todos resolvidos.
+
+**Prova viva:** disparo real do webhook AzuraCast → od-core **200** →
+MP3 **249.147 B** (ID3v2.4, MPEG 128 kb/s, 44,1 kHz) no bind-mount (host
++ container); estação **no ar** — liquidsoap + icecast rodando e
+`GET /listen/nicky/radio.mp3` devolvendo **200, MPEG 192 kb/s** com
+áudio. E o **ciclo automático fechado**: `song_changed` → od-core →
+**3 locuções geradas sozinhas em 20 s** (20:48:59 / 20:49:11 /
+20:49:18), mtime novo no MP3, fila andando — **28 locuções automáticas**
+em 20 min, rotação `anuncio_musica` ↔ `vinheta_nicky` a cada ~11 s, cada
+play com feedback e a fila sempre 3–4 rows à frente. A rádio se anuncia
+entre as músicas **sem toque humano**.
+
+**Rotação com 2 itens na playlist "vinhetas" (id 2), por achado:** o
+AutoDJ **nunca toca a mesma faixa 2× seguidas** (`BuildQueue::setNextSongs`
+rejeita `lastPlayedSongId === song_id`) e o prefetch do liquidsoap tem
+armadilha com item único — a 2ª execução decodificava mas **nunca
+iniciava no ar** (row `sent_to_autodj=1, is_played=0` presa → "Queue is
+empty!" para sempre + fallback `error.mp3`). Com dois itens distintos a
+rotação sustenta. `vinheta_nicky.mp3` (identidade da estação) é
+**gerada pela própria cadeia Piper do od-core** — voz `dii_pt-BR`,
+224.488 B. **song_id estável**: fórmula `md5(text sem espaços/traços/
+aspas, lowercase)` de "artist - title"; o título vem do **fallback de
+nome de arquivo** (o ffmpeg do od-core não grava ID3) → regenerações
+nunca mudam song_id (confirmado: `1eb7b684…` = md5("anunciomusica"),
+`f59acb52…` = md5("vinhetanicky")).
+
+**Achados de implantação (a parte "implantar" da ordem):**
+1. **SSRF**: AzuraCast recusa IPs internos ("Internal URLs are
+   disabled") → `filter_local_user_urls=0`; sem isso o webhook nunca
+   sai do container.
+2. **Setup incompleto** (`setup_complete_time=0`): login redireciona
+   `/setup` e nada sobe → `PUT /api/admin/settings/general`.
+3. **Estação não iniciada** (`has_started=0`): `azuracast:radio:restart`
+   sozinho não sobe o backend → start real é
+   `POST /api/station/1/restart` (gera o supervisord.conf da estação e
+   sobe liquidsoap + icecast).
+4. **Mídia**: sync/reprocess + `currentDirectory=locucoes` **sem barra
+   inicial** (com `/` vira LIKE errado e falso "File Processing" eterno);
+   playlist order default é shuffle.
+5. **GRAVE — log root-owned derrubava o worker**: meus `docker exec` de
+   console **como root** criaram `app_nowplaying-*.log` root-owned em
+   `www_tmp/`; o worker `azuracast` tomava `Permission denied` ao logar,
+   a exceção em cascata matava o passe e **a fila parava de repor**
+   ("Queue is empty!" no ar). Corrigido com `chown azuracast:azuracast`;
+   console passou a rodar via `docker exec -u azuracast`.
+
+**Correções de ar (od-core):** payload real do AzuraCast traz `artist:
+""` (**chave presente e vazia**) e o `.get(k, d)` devolvia vazio →
+"com .." no ar → agora `or "Nicky"` / `or "Sucesso"`; e
+`_fecha_frase()` — o legado anexava `". "` após frase do banco **já
+pontuada** ("com Tim Maia.. " no ar; mesma classe do "e em ponto"
+corrigido na etapa D), aplicada nos 4 pontos de frase (notícia,
+passado, curiosidade, próxima).
+
+**Validação:** gate oficial **3958 passed / 16 skipped / 0 falha ·
+90,58%** · pyflakes 0 aviso novo. `analise/Nicky Locutor/` intacto — o
+conteúdo foi integrado; apagar/mover o legado é decisão do dono
+(regra 17).
+
 ### O locutor da rádioNicky fala de verdade: AzuraCast → webhook → voznova no ar (integração Nicky Locutor, etapa D, 27/10, sem bump)
 
 Etapa D da integração (ordem do dono: *"integrar e implantar… instale
