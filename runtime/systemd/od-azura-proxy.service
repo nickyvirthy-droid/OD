@@ -1,0 +1,30 @@
+[Unit]
+Description=Omega Drakon — Proxy do painel AzuraCast (porta tailnet 8446, atrás do login)
+Documentation=file:/home/alex/OmegaDrakon/runtime/azura_proxy.py
+After=network-online.target docker.service
+Wants=network-online.target
+
+# Por que existe (medido 28/10): o tailscale serve manda Host e
+# X-Forwarded-Host com a porta (dominio:8446) e o guzzle do AzuraCast
+# responde 500 "Invalid host". Este proxy tira a porta e encaminha para o
+# container. A cadeia inteira é: navegador -> :8446 (porta TAILNET ONLY,
+# credenciais Tailscale-User-*) -> 127.0.0.1:8466 (aqui) -> 127.0.0.1:8091
+# (azuracast) -> login do proprio AzuraCast.
+
+[Service]
+Type=simple
+WorkingDirectory=/home/alex/OmegaDrakon
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python -m runtime.azura_proxy
+Restart=on-failure
+RestartSec=3
+Environment=HOME=/home/alex
+Environment=OD_LOG_DIR=/home/alex/OmegaDrakon/logs
+# Sem EnvironmentFile do .env de propósito: o proxy não precisa de nenhum
+# segredo (nenhuma credencial do Od trafega aqui — só o painel do AzuraCast
+# com o login dele).
+
+# Só fala com 127.0.0.1:8091; nada escuta em porta pública.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

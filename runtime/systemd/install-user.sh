@@ -10,6 +10,7 @@ mkdir -p "$UNIT_DIR"
 cp runtime/systemd/od-llm.service \
    runtime/systemd/od-core.service \
    runtime/systemd/od-control-bridge.service \
+   runtime/systemd/od-azura-proxy.service \
    runtime/systemd/router-monitor.service \
    runtime/systemd/router-monitor.timer \
    runtime/systemd/network-watchdog.service \
@@ -34,6 +35,10 @@ systemctl --user enable --now network-watchdog.timer
 # determinísticas (CoderEngine + gate + rollback; o que não tem estratégia
 # vira fila com motivo no Telegram/relatório).
 systemctl --user enable --now od-vigia-mensagens.timer
+
+# Proxy do painel AzuraCast (28/10): conserta o Host com porta (o 500 do
+# guzzle) e fica atrás da porta TAILNET 8446 — nunca pública.
+systemctl --user enable --now od-azura-proxy.service
 
 echo "✅ Units instaladas e ativadas:"
 systemctl --user status od-llm.service od-core.service od-control-bridge.service \

@@ -46,6 +46,64 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### Painel AzuraCast atrás da porta tailnet + link na home (28/10, sem bump)
+
+**Pedidos do dono** (28/10, madrugada): *"Adicione um link 'Rádio Nicky'
+na página inicial do site para eu encontrar fácil"* + *"Coloque o painel
+AzuraCast atrás de login no od-core para eu acessar de fora com
+segurança"* — e a pergunta de método (antes do código) foi respondida por
+ele: **porta tailnet + link no painel** (a SPA do AzuraCast usa caminhos
+absolutos e não encaixa no portário `/f/`), com a pasta de downloads do
+YouTube em `/home/alex/dados/musicas/` (HD Mídia).
+
+**Por que não deu para publicar direto:** a porta tailnet entregue pelo
+`tailscale serve` manda ao backend `Host` **e** `X-Forwarded-Host` com a
+porta (`dominio:8446`) — o guzzle do AzuraCast recusa host com porta
+(*"Invalid host"*, `Uri.php`) e a SPA morria em **500**. Medido ao vivo
+antes de codar; o conserto é tirar a porta no meio do caminho.
+
+**O que mudou:**
+
+- **`runtime/azura_proxy.py` (NOVO):** proxy mínimo (stdlib pura) que
+  reescreve o pedido (`Host` do backend `127.0.0.1:8091`,
+  `X-Forwarded-Host` só com o domínio), repassa corpo/cabeçalhos/resposta
+  **sem bufferizar** (stream e upload passam inteiros), redirect do
+  backend reescrito quando o alvo é o próprio backend, backend morto →
+  **502** honesto, 411 para corpo chunked. Só escuta em `127.0.0.1:8466`.
+- **`runtime/systemd/od-azura-proxy.service` (NOVO)** + linha em
+  `install-user.sh`: unit de usuário com auto-start.
+- **Cadeia de acesso:** navegador → `https://nicky-server.tail1b1f51.ts.net:8446`
+  (**tailnet only** — fora da tailnet não responde) → proxy → container.
+  O login é o do próprio AzuraCast por cima; **nada entrou no Funnel
+  público** (443 segue com `/`, `/ws`, `/radio.mp3` apenas).
+- **`site/admin.js`:** link **📻 Rádio** lateral no painel `/admin` do
+  od-core apontando para a porta tailnet — é o "atrás de login" que o
+  dono pediu: ele já está logado no od-core, clica e cai no painel.
+- **`site/index.html`:** link **Rádio Nicky** na nav da home →
+  `/site/radio.html` (o pedido do dono).
+- **`runtime/systemd/install-user.sh`:** copia + `enable --now` da unit.
+
+**Guardas:** `tests/test_azura_proxy.py` (NOVO, 8): reescrita de Host/XFH
+(com e sem porta, ausente → host original), redirect reescrito/deixa
+passar, POST corpo íntegro, resposta chunked peça a peça, backend morto →
+502 — rodando **contra o serviço real de porta**, o que pegou um bug do
+próprio proxy (`porta=0` efêmera virava `PORTA` pelo `or`, e com o
+serviço no ar o bind colidia: `Address already in use`; conserto
+`PORTA if porta is None else porta`). `tests/test_api.py`:
+`TestIconesDoMenuLateral` cobre o href novo do menu.
+
+**Validação:** gate **3966 passed / 16 skipped / 0 falha · 90%** (re-rodado
+DEPOIS desta entrada, porque o CHANGELOG é corpus do RAG) · `node --check`
+limpo em `admin.js` e `od-nav.js` · pyflakes limpo.
+
+**Prova viva (medida):** pelo tailnet `:8446` → `/login` **200** (SPA),
+assets `/static/vite_dist/…` 200, `/api/nowplaying` **200 JSON** com a
+estação Nicky, `/` 302 → login, stream `/listen/nicky/radio.mp3` **200
+`audio/mpeg`** (203 KB) e **`https://192.168.0.250:8446` sem resposta**
+(000) = fora da tailnet não existe. Home: `/site/` 200 com 1× "Rádio
+Nicky" na nav, local e pelo Funnel. Od-core intocado (nenhum `.py` do
+serviço mudou — só arquivo novo).
+
 ### A rádio Nicky toca fora de casa: o stream entrou no Funnel público (28/10, sem bump)
 
 **Pedido do dono** (28/10 ~01:20): *"coloque a rádio dentro do funnel"* — o

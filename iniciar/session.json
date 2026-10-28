@@ -1,4 +1,21 @@
 {
+ "painel_azura_tailnet_2026_10_28": {
+  "pedido": "Dono (28/10 ~01:45): (a) preparar para baixar musicas do YouTube salvas na HD externa; (b) 'Adicione um link Radio Nicky na pagina inicial do site para eu encontrar facil'; (c) 'Coloque o painel AzuraCast atras de login no od-core para eu acessar de fora com seguranca'. Respostas as perguntas ANTES do codigo: painel -> porta na tailnet + link no painel (SPA de caminhos absolutos nao encaixa em /f/); downloads -> /home/alex/dados/musicas/ (HD Midia); (a) combinada como LER analise/ e discutir o modo eficiente com o dono (regra 17, nada implementado).",
+  "diagnostico": "Publicar a 8446 direto no container derrubava a SPA em 500: o tailscale serve manda Host E X-Forwarded-Host com a porta (dominio:8446) e o guzzle do AzuraCast recusa host com porta ('Invalid host', Uri.php). A 8446 ja existia apontando para 127.0.0.1:8447, que NINGUEM escutava.",
+  "implantacao": [
+   "runtime/azura_proxy.py (NOVO, stdlib): Host -> 127.0.0.1:8091 e X-Forwarded-Host so com o dominio; repassa sem bufferizar (stream/upload inteiros); redirect do backend reescrito; backend morto -> 502; 411 chunked. Sobe so em 127.0.0.1:8466.",
+   "runtime/systemd/od-azura-proxy.service (NOVO) + linha no install-user.sh (cp + enable --now) — active, NRestarts=0.",
+   "tailscale serve --bg --https=8446 http://127.0.0.1:8466 (tailnet only). Funnel 443 NAO tocado.",
+   "site/admin.js: link radio no lateral do /admin do od-core -> :8446 (o 'atras de login' = dono ja logado no od-core clica); tests/test_api.py TestIconesDoMenuLateral cobre o href.",
+   "site/index.html: link 'Radio Nicky' na nav da home -> /site/radio.html."
+  ],
+  "guarda_que_pegou": "8 testes novos (tests/test_azura_proxy.py) rodam contra servidor real e falharam com 'Address already in use': construir(porta=0) virava PORTA pelo 'porta or PORTA' (0 e falso) e colidia com o servico no ar. Conserto: PORTA if porta is None else porta. Bug real — com o servico ligado qualquer porta=0 quebraria.",
+  "validacao": "Gate 3966 passed / 16 skipped / 0 falha · 90% (2x, antes e DEPOIS da entrada no CHANGELOG, corpus do RAG) · node --check limpo · pyflakes limpo.",
+  "prova_viva": "tailnet :8446/login -> 200 (SPA), assets 200, /api/nowplaying -> 200 JSON com a estacao Nicky, / -> 302, /listen/nicky/radio.mp3 -> 200 audio/mpeg (203 KB). FORA da tailnet: https://192.168.0.250:8446 sem resposta (000). Home /site/ -> 200 com 1x 'Radio Nicky', local e pelo Funnel (24310 B). Od-core intocado.",
+  "estado": "NO AR: painel AzuraCast fora de casa pela porta tailnet 8446 (login = o do proprio AzuraCast), link no painel /admin e link 'Radio Nicky' na home. Fila: (a) YouTube/musicas -> ler analise/ e discutir com o dono; resto da fila anterior (musicas no painel 8091, destino de analise/Nicky Locutor/, 2 dispositivos pendentes no Vigia).",
+  "updated_at": "2026-10-28T02:10:00-03:00",
+  "transcricao": "iniciar/2026-10-28_conversa_omegadrakon.md (§3)"
+ },
  "radio_no_funnel_2026_10_28": {
   "pedido": "Dono (28/10 ~01:20): 'coloque a radio dentro do funnel' — o stream da estacao Nicky (integrada ontem, §5 de 27/10) passa a ser ouvido fora da rede local pela URL publica do Tailscale.",
   "diagnostico": "Funnel = 443 com / -> od-core 8000 e /ws -> 8001 (8443 tailnet-only com as ferramentas). O od-core so tem a rota do webhook — NENHUM caminho servia o audio: stream vive no icecast do AzuraCast (127.0.0.1:8600/radio.mp3 e 8091/listen/nicky/radio.mp3), so na LAN. Publicar o painel 8091 inteiro exporia admin a internet -> FORA de plano: o pedido e o audio.",
@@ -7,7 +24,7 @@
    "Rollback antes: tailscale serve status --json -> backups/tailscale-serve-20261028-013152-status.json (o get-config devolve {version 0.0.1}, o formato util e o do status).",
    "tailscale funnel --bg --yes --https=443 --set-path=/radio.mp3 http://127.0.0.1:8600/radio.mp3 -> 3 handlers na 443 (/, /ws, /radio.mp3), 8443 intacto, 9443 fora.",
    "site/radio.html (NOVO): pagina no estilo da casa (nav + od.css + footer + od-nav.js), audio ao vivo com origem decidida no cliente — https usa /radio.mp3 do mesmo host; http (LAN) usa icecast :8600 (fonte https nao carrega http, mixed content). 3 cartoes: estacao, locucao automatica, acesso — sem credencial de admin no publico.",
-   "site/od-nav.js: '/site/radio.html': '\ud83d\udcfb' na tabela ICONES."
+   "site/od-nav.js: '/site/radio.html': '📻' na tabela ICONES."
   ],
   "guarda_que_pegou": "1a rodada do gate: TestIconesDoMenuLateral::test_tabela_cobre_todos_os_menus_do_site varre os nav-panel de todas as site/*.html e exige glifo real para todo href (iconeDe() avaliado em node) -> 1 failed / 3957 passed (link novo fora da tabela). Conserto na causa: glifo na tabela; node --check limpo; grupo 4/4 verdes.",
   "validacao": "Gate 2x (antes e DEPOIS da entrada no CHANGELOG, corpus do RAG): 3958 passed / 16 skipped / 0 falha · 90,57% nas duas. CHANGELOG 1.44.0 ganhou subsecao 'A radio Nicky toca fora de casa' (sem bump). Nenhum .py mudou -> pyflakes sem mudanca nova e NENHUM restart (pagina servida do disco; Funnel externo ao od-core).",

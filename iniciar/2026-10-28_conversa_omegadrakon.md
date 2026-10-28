@@ -117,3 +117,74 @@ necessário** (a página é servida do disco; o Funnel é externo ao od-core).
 público e o áudio em `/radio.mp3`. Painel AzuraCast segue só na LAN
 (8091). Registro: esta seção + `session.json` chave
 `radio_no_funnel_2026_10_28`.
+
+---
+
+## §3 — "painel AzuraCast atrás de login" + "link Rádio Nicky na home"
+       (28/10 ~01:45): porta tailnet com proxy que conserta o Host, link
+       no painel do od-core e link na home — ordem do dono
+
+**Pedidos (28/10, madrugada):** (a) *"vamos preparar também para baixar
+musicas do youtube. vamos salvar as musicas na HD externa"*; (b) *"Adicione
+um link 'Rádio Nicky' na página inicial do site para eu encontrar fácil"*;
+(c) *"Coloque o painel AzuraCast atrás de login no od-core para eu acessar
+de fora com segurança"*. **Respostas do dono às perguntas antes do código:**
+painel → **porta na tailnet + link no painel** (não o portário `/f/` — a SPA
+do AzuraCast é de caminhos absolutos e não encaixa); downloads → pasta
+`/home/alex/dados/musicas/` (HD Mídia). A parte (a) ficou combinada assim:
+**ler `analise/` primeiro e discutir o modo eficiente com ele** (regra 17 —
+não implementei nada ainda).
+
+**Diagnóstico medido antes de codar:** publicar a 8446 direto no container
+derrubava a SPA em **500** — o `tailscale serve` entrega ao backend `Host`
+**e** `X-Forwarded-Host` com a porta (`dominio:8446`) e o guzzle do
+AzuraCast recusa host com porta (*"Invalid host"*, `Uri.php`). A porta
+8446 já existia na config apontando para `127.0.0.1:8447`, **que não tinha
+ninguém escutando**.
+
+**Implantação:**
+
+1. `runtime/azura_proxy.py` (NOVO, stdlib pura): reescreve `Host` →
+   `127.0.0.1:8091` e `X-Forwarded-Host` → só o domínio (sem porta);
+   repassa corpo/cabeçalhos/resposta **sem bufferizar** (stream/upload
+   inteiros); redirect do backend reescrito quando o alvo é o próprio
+   backend; backend morto → 502; 411 para corpo chunked. Escuta só em
+   `127.0.0.1:8466` (`OD_AZURA_PROXY_PORTA`/`OD_AZURA_BACKEND`).
+2. `runtime/systemd/od-azura-proxy.service` (NOVO) + linha no
+   `install-user.sh` (cp + `enable --now`) — no ar, NRestarts=0.
+3. `tailscale serve --bg --https=8446 http://127.0.0.1:8466` — a 8446
+   (tailnet only) agora passa pelo proxy. A 443 (Funnel) **não foi tocada**.
+4. `site/admin.js`: link **📻 Rádio** no lateral do `/admin` do od-core →
+   `https://nicky-server.tail1b1f51.ts.net:8446` (é o "atrás de login": o
+   dono já está logado no od-core e clica). `tests/test_api.py`
+   `TestIconesDoMenuLateral` cobre o href novo.
+5. `site/index.html`: link **Rádio Nicky** na nav da home →
+   `/site/radio.html` (pedido (b)).
+
+**Guarda da casa pegou um bug do próprio proxy:** os 8 testes novos
+(`tests/test_azura_proxy.py`) rodam contra um servidor real e falharam
+com `Address already in use` — `construir(porta=0)` virava `PORTA` pelo
+`porta or PORTA` (0 é falso) e colidia com o serviço no ar. Conserto na
+causa: `PORTA if porta is None else porta`. Bug real, não de teste: com o
+serviço ligado, qualquer chamada com `porta=0` quebraria.
+
+**Validação:** gate **3966 passed / 16 skipped / 0 falha · 90%** (rodado
+2x — antes e DEPOIS da entrada no CHANGELOG, corpus do RAG) ·
+`node --check` limpo (`admin.js`, `od-nav.js`) · pyflakes limpo.
+
+**Prova viva (medida):**
+- tailnet `https://nicky-server.tail1b1f51.ts.net:8446/login` → **200**
+  (SPA), assets `/static/vite_dist/…` 200, `/api/nowplaying` → **200 JSON**
+  com a estação Nicky, `/` → 302 (redirect do AzuraCast),
+  `/listen/nicky/radio.mp3` → **200 audio/mpeg** (203 KB);
+- **fora da tailnet não existe:** `https://192.168.0.250:8446` → sem
+  resposta (000); Funnel 443 intacto (`/`, `/ws`, `/radio.mp3` só);
+- home: `/site/` → 200 com 1× "Rádio Nicky" na nav, igual local e pelo
+  Funnel (24310 B nos dois);
+- od-core intocado (nenhum `.py` de serviço mudou — só arquivo novo);
+  proxy `active`, NRestarts=0.
+
+**Estado:** painel do AzuraCast acessível de fora pela porta tailnet 8446
+(login = o do próprio AzuraCast), link no painel `/admin` e link "Rádio
+Nicky" na home. Registro: esta seção + `session.json` chave
+`painel_azura_tailnet_2026_10_28`.

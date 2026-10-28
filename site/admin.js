@@ -324,7 +324,11 @@
       { href: "/f/caderno/", rot: "Caderno", ico: "📝" },
       { href: "/f/cyberchef/", rot: "CyberChef", ico: "🧪" },
       { href: "/f/caixa/", rot: "Caixa", ico: "📂" },
-      { href: "/f/cofre/", rot: "Cofre", ico: "🔒" }
+      { href: "/f/cofre/", rot: "Cofre", ico: "🔒" },
+      // Rádio (28/10, pedido do dono): painel do AzuraCast pela porta TAILNET
+      // 8446 (nunca pública) — proxy od conserta o Host com porta (guzzle
+      // 500) e o login é o do próprio AzuraCast por cima. Mesma aba.
+      { href: "https://nicky-server.tail1b1f51.ts.net:8446", rot: "Rádio", ico: "📻" }
     ];
     for (var i = 0; i < fs.length; i++) {
       var a = document.createElement("a");

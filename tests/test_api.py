@@ -1486,7 +1486,11 @@ class TestIconesDoMenuLateral:
             r'aria-hidden="true">([^<]+)</span>', adm).group(1)
         compartilhados = {"/dashboard", "/chat", "/site", "/admin"}
         ferramentas = {"/f/caderno/", "/f/cyberchef/",
-                       "/f/caixa/", "/f/cofre/"}
+                       "/f/caixa/", "/f/cofre/",
+                       # Rádio (28/10): AzuraCast pela porta tailnet 8446,
+                       # fora do portário (SPA de caminhos absolutos não
+                       # encaixa em /f/ — decisão medida com o dono).
+                       "https://nicky-server.tail1b1f51.ts.net:8446"}
         assert set(painel) == compartilhados | ferramentas
         for href in compartilhados:
             assert site.get(href) == painel[href], (href, painel[href])
