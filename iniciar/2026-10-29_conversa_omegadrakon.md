@@ -233,3 +233,92 @@ nomeado** (sem sudo — honesto, não chutei).
 
 **Canais:** inventário inteiro escrito no `txt.txt` (regra 14 — o arquivo
 havia sido zerado por ele às 10:47).
+
+## §6 — Player da rádio no menu lateral + botão Rádio do admin (29/10 ~13:14)
+
+**Pedido (duas partes, no canal `txt.txt`):** dono: *"Toda vez que mudo de
+página a rádio para. O player deveria ficar no menu lateral, assim iria
+permanecer tocando enquanto navego do site"*; e *"o botão rádio dentro do
+menu admin não está abrindo (`https://nicky-server.tail1b1f51.ts.net:8446/`)
+… ERR_CONNECTION_TIMED_OUT"*. Duas decisões perguntadas antes de codar
+(`ask_user`): **retomar automático** (não SPA, não janela à parte) e
+**botão adaptativo à origem** (não só-LAN, não manter como estava).
+
+### 1. Causa medida dos dois sintomas
+- **Som morria:** o site é **multipágina** — navegar recarrega o documento
+  e mata o `<audio>` que vivia dentro de `site/radio.html`. Mudar o lugar do
+  elemento sozinho não faria nada tocar; o que atravessa a troca é o
+  **estado**, que passou a morar no `localStorage` (`od_radio`).
+- **Timeout do 8446:** o `tailscale serve` escuta **só** em
+  `100.77.67.53:8446` (medido: `302` pela tailnet, **`000`** pela LAN) e
+  **nenhum outro nó da tailnet estava conectado** (`tailscale status`: todos
+  *offline, last seen 1d/14d/35d*) → no aparelho o nome resolvia pelo cache
+  e o TCP morria. **Nada no servidor estava quebrado**: backend
+  `127.0.0.1:8466` respondendo e o painel da LAN já aberto
+  (`http://192.168.0.250:8091 → 302 → /login 200`).
+
+### 2. O que foi feito
+- **`site/od-nav.js` (seção 7, +163):** `radioMontar()` chamado **depois** de
+  `lateralMontar()` — um SÓ `<audio>` (filho do `body`, `display:none`;
+  recolher a barra não encerra a transmissão) e **dois controles do mesmo
+  estado**: dentro da barra (13 páginas) e pílula flutuante que só aparece
+  com som (abaixo de 1024px a barra é `display:none` — sem a pílula o áudio
+  religado seria mudo: dava para começar e não havia como parar). Quem saiu
+  ouvindo religa **no instante da montagem**; a pausa do ouvinte apaga o
+  cache. Rótulo segue o estado REAL: autoplay segurado → *"Retomar"*, stream
+  fora → *"Sem sinal"*. Contrato público `window.odRadio`
+  (`alternar`/`estado`/`aoMudar`).
+- **`site/od.css` (+54):** player na barra e na barra **recolhida** (só o
+  botão), pílula em `@media (max-width: 1023px)`, `<audio>` escondido.
+- **`site/radio.html`:** sai o `<audio>` próprio (dois players brigariam
+  pelo cache); a página **delega** para `odRadio.aoMudar` e mantém botão +
+  aviso honestos.
+- **`site/admin.js` (+15):** `hrefNaOrigem()` — `http://` (rede local) manda
+  para `http://<host>:8091` (porta já aberta pela regra 18, `200` no
+  `/login`); `https://` (tailnet/Funnel) mantém a `8446`, **nunca pública**.
+
+### 3. Verificação (evidência)
+- **Gate 2×: 4010 passed / 16 skipped / 0 falha · 90,54% e 90,53%**
+  (pós-CHANGELOG), `PIPESTATUS=0` nos dois · `node --check` nos 2 arquivos ·
+  **pyflakes: 0 aviso novo** (o `_cacheable` sem uso de `test_api.py:3573`
+  já existia no HEAD — fora do meu diff, não mexi).
+- **Estado real no node** (o MESMO DOM de mentira da barra, com `<audio>`
+  jogável), duas corridas:
+  `{"barra":true,"pilula":true,"audio":1,"antes":{"ico":"▶","rot":"Rádio",
+  "ativo":false,"cache":null},"depois":{"ico":"⏸","rot":"No ar",
+  "ativo":true,"cache":"tocando"}}` ·
+  `{"antes":{"ico":"⏸",…,"cache":"tocando"},"depois":{"ico":"▶",…,
+  "cache":"parado"}}` — a 2ª é a página NOVA religando sozinha.
+- **od-core vivo entregando os arquivos novos** (sem restart: `/site/*` é
+  lido do disco): `od-nav.js` 24129 B, `od.css` 30012 B, `admin.js` 18212 B,
+  `radio.html` 6176 B com **0** `<audio>` e 4 `window.odRadio`.
+- **Rede:** stream da LAN `200 audio/mpeg` (icecast ecoando o Origin → o
+  `crossorigin` segue seguro) · `8446` continua **000** pela LAN · painel
+  `302 → /login 200`.
+- **Sem navegador no host** (Chrome não instalado): o que ficou provado é o
+  estado (node) e a entrega dos arquivos (HTTP) — o olho do dono fecha o
+  resto. Guardas novas: `tests/test_api.py` **+5** (4005 → 4010).
+
+### 4. Duas correções honestas sobre a §5
+- **Achado (1) da §5 estava errado no essencial:** `18555` **não é** uma API
+  de vídeo sem senha. Lido o config dentro do container (gerado pela HA):
+  `api.listen: ""` + `unix_listen` em socket **0600** (a API do go2rtc **não
+  existe em TCP**), `rtsp.listen: 127.0.0.1:18554` e
+  `webrtc.listen: ":18555/tcp"` — 18555 é o **ICE/WebRTC sobre TCP**, dono
+  confirmado por inode (`/bin/go2rtc`, filho de `python3 -m homeassistant`).
+  Sondas de HTTP e STUN de dentro e de fora da LAN dão *reset*, ou seja,
+  não serve conteúdo. **Sem restringir a 127.0.0.1:** a sinalização é o
+  socket unix (inalcançável da rede) e o arquivo é *"managed by Home
+  Assistant — do not edit"*; baixar o bind quebraria o fallback TCP do vídeo
+  das câmeras e seria revertido no próximo start da HA. Risco residual
+  ~nulo, custo real → **mantido como está, com motivo registrado**.
+- **As 3 portas UDP de root que ficaram sem nome foram nomeadas sem sudo:**
+  rodando o mapeamento de inode **dentro** do container (root, mesmo netns)
+  — `1900` SSDP, `5353` mDNS e os efêmeros `38787`/`53141` são **todos do
+  Home Assistant** (`python3 -m homeassistant`); `41641` é o `tailscaled`
+  (`--port=41641`, visível no `ps`) e `53` é o `resolved` (só loopback).
+  **Inventário da §5 fechado por completo.**
+
+**Git:** `1dcbc10` (6 arquivos, +522/−39) — árvore limpa, push na sequência.
+**Sem restart:** só arquivos estáticos (`/site/*` lido do disco), od-core
+continua desde 27/10 21:06.
