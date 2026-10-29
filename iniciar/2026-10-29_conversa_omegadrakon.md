@@ -171,3 +171,23 @@ aberta no fim desta seção).
   determinístico" por design.
 - Parking lot §5: rota WiFi, auditoria de uso de ferramentas, MCP.
 - Subir músicas pelo painel AzuraCast 8091 (entrega de 27–28/10).
+
+## §4 — Nova regra: `192.168.0.250` livre para portas (29/10 ~10:30)
+
+**Pedido:** dono: *"nova regra: o IP interno 192.168.0.250 é livre. todas as
+portas podem ser abertas nele, como funciona apenas na rede interna e
+equipamentos estranhos são bloqueados o acesso a navegação pode ser livre".*
+
+- **Registrada como regra 18** em `iniciar/RULES.md` (alteração explícita,
+  como o rodapé do arquivo exige): abrir porta escutando na LAN deste
+  servidor passa a ser **operação de rotina** — a exigência de ordem
+  explícita da regra 7 **não se aplica** a elas.
+- **Motivo dele ficou escrito junto:** o serviço roda só na rede interna e
+  os equipamentos estranhos já são bloqueados de navegar.
+- **Fronteira registrada (a justificativa dele é "só na rede interna"):** o
+  que terminar alcançável **fora da LAN** — Funnel 443 do Tailscale,
+  `tailscale serve`/portas tailnet, DDNS, túnel, internet — **não** é
+  coberto pela regra 18 e segue exigindo ordem explícita (regra 7).
+  Porta nova = registrar aqui a porta + o serviço.
+- **Nenhuma porta aberta nesta troca:** só o registro da regra — nenhum
+  serviço novo escutando, nenhum bind alterado, nenhuma mutação de rede.

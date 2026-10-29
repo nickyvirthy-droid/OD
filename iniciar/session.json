@@ -1,4 +1,12 @@
 {
+ "regra_ip_interno_livre_2026_10_29": {
+  "pedido": "Dono (29/10 ~10:30): 'nova regra: o IP interno 192.168.0.250 e livre. todas as portas podem ser abertas nele, como funciona apenas na rede interna e equipamentos estranhos sao bloqueados o acesso a navegacao pode ser livre'.",
+  "o_que_mudou": "Regra 18 adicionada ao iniciar/RULES.md (alteracao explicita, como o rodape do arquivo exige): portas LAN em 192.168.0.250 viram operacao de rotina — a exigencia de ordem explica da regra 7 NAO se aplica a elas. Motivo dele registrado: servico so na rede interna + equipamentos estranhos bloqueados de navegar.",
+  "fronteira_registrada": "A justificativa dele e 'so na rede interna', entao a regra deixa explicito que o que terminar alcancavel FORA da LAN (Funnel 443 do Tailscale, tailscale serve/portas tailnet, DDNS, tunel, internet) NAO e coberto e segue exigindo ordem explica (regra 7). Novas portas: registrar em iniciar/ a porta e o servico.",
+  "nenhuma_porta_aberta_nesta_troca": "Apenas registro da regra — nenhum servico novo escutando, nenhum bind alterado, nenhuma mutacao de rede (regra 7 intocada fora do que a 18 autoriza).",
+  "updated_at": "2026-10-29T10:35:00-03:00",
+  "transcricao": "iniciar/2026-10-29_conversa_omegadrakon.md (§4)"
+ },
  "reverificacao_residuo_tts_2026_10_29": {
   "pedido": "Usuario: 'leia iniciar' (29/10 ~09:05) — reverificacao de rotina (regra 3). Checkpoint: acervo_na_estacao_2026_10_28 (28/10 17:40, §4).",
   "achados_verdes": "od-core active desde 27/10 21:06:45, MainPID 2081285, NRestarts=0; /health autenticado ok=true, 25 checks NENHUM fora; /app/version 1.44.0/2080 (sha aeb8566b); journal 24h ZERO entradas warning/erro; Funnel ON com os 3 handlers da 443 (/, /ws, /radio.mp3) e 8443 tailnet intacta; estacao Nicky no ar (icecast+liquidsoap). Vigia da rede tick 29/10 09:07: 25 ativos, rich true, os MESMOS 2 pendentes de 27/10 (26:14:7A:43:2E:11 e 7A:25:D5:8C:03:EE, aguardando ordem).",
