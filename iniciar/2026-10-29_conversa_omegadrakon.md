@@ -85,3 +85,75 @@ fechada e Funnel de volta).
   tools/audio/tts.py`) — árvore limpa e gate volta a ~90,57%, sem
   perder nada versionado (o diff morre, mas nunca foi commitado).
 - Nenhuma mutação feita nesta troca além deste registro (regra 7).
+
+## §2 — "terminar a frente edge-tts" + "conhecer os dois" (29/10 ~09:30)
+
+**Pedido (ask_user):** dono escolheu **(A) terminar a frente edge-tts** e
+**conhecer os 2 dispositivos do Vigia** (nomes ainda não dados — pendência
+aberta no fim desta seção).
+
+### 1. Entrega
+- **Dependência:** `edge-tts 7.3.1` instalado no `.venv` + item **7** no
+  `requirements.txt` (comentário no estilo da casa: import tardio, fora do
+  caminho crítico; puxa `aiohttp`/`yarl`, já presentes).
+- **`tools/audio/tts.py` (2 defeitos do resíduo consertados na causa):**
+  1. `_resolve_voice` fazia `profile.lower()` e comparava com as chaves
+     **sensíveis a maiúsculas** de `EDGE_TTS_VOICES` → **nenhuma voz
+     Microsoft era alguma vez escolhida** (sempre o default) e, mesmo
+     casando, devolveria o nome minúsculo que a API da Microsoft recusa.
+     Agora: comparação case-insensitiva devolvendo o **nome canônico**.
+  2. `EdgeTTSTTS.available` devolvia `True` com o pacote **fora** do
+     ambiente (só olhava `enabled`) → introspecção mentia (`vozes`,
+     `snapshot`, locução prometiam o que a síntese não entregaria).
+     Novo `edge_tts_instalado()` com `importlib.util.find_spec`, sem cache.
+  3. Docstring apontava `analise/Nicky Locutor/…`, pasta que **não existe
+     mais** (o dono renomeou para `Nicky Radio/`/`Nicky Musicas/` em 28/10)
+     → texto corrigido; EOF com newline.
+- **`tools/audio/__init__.py`:** exporta `EdgeTTSTTS` e `TTS` (+ docstring
+  do pacote).
+- **`tests/test_audio.py` 35 → 74 testes (+39):** fixtures `edge_falso`
+  (módulo falso em `sys.modules`) e `edge_ausente` (`sys.modules=None` →
+  `ImportError` de verdade); síntese/saída vazia/timeout/ausência do
+  pacote; cadeia da locução linha a linha; **3 cascatas × 3 métodos**
+  (primário entrega → só ele; primário falha → fallback entrega; sem
+  fallback → ninguém é chamado); introspecção com/sem pacote; resolução
+  de voz com caixa mista.
+- **`docs/CHANGELOG.md`:** subseção 1.44.0 "Voz Microsoft Neural (edge-tts)
+  como engine opcional do sintetizador (29/10, sem bump)" com a origem
+  honesta (resíduo), os 2 defeitos e a prova viva.
+
+### 2. Validação (gate 2x, antes e depois do CHANGELOG)
+- **1ª rodada: 4005 passed / 16 skipped / 0 falha · 90,53%** (era 89,94%
+  no resíduo; 3966 + 39 guardas novas).
+- **2ª rodada (pós-CHANGELOG): 4005 passed / 16 skipped / 0 falha ·
+  90,52%** — `PIPESTATUS[0]=0` nos dois.
+- `pyflakes` 0 aviso (`tts.py`, `__init__.py`, `test_audio.py`),
+  `py_compile` OK.
+- **Commit `c234a2f` pushado** (5 arquivos, 873+/12−), HEAD == origin/master.
+
+### 3. Prova viva (29/10 ~09:46, rede real)
+- `EdgeTTSTTS.synthesize` → **26 640 bytes em 1,8 s**, voz
+  `pt-BR-FranciscaNeural`, `file` = **MPEG ADTS layer III 48 kHz**;
+- locução real (edge + ffmpeg da casa) → **187 289 bytes, ID3v2.4,
+  128 kb/s · 44,1 kHz estéreo · 11,7 s**;
+- `PiperTTS.synthesize_to_file` intacto → **WAV 73 888 bytes**;
+- `TTS().snapshot()` → engine `piper`, **17 vozes**.
+
+### 4. Deploy verde (regra 7.3) + canais (regras 14/15)
+- `systemctl --user restart od-core` **29/10 10:02:23**: MainPID
+  **171882**, **NRestarts=0**, `/health` **ok=true, 25 checks, 0 fora**,
+  `/app/version` **1.44.0/2080**, journal desde o restart **0 [ERROR]**.
+- `POST /tts` autenticado → **200**, JSON `ok:true` com **WAV** (`RIFF`)
+  de 119 053 B base64 = a rota de voz do servidor vivo com o código novo.
+- `txt.txt` reescrito no topo (regra 14) + **Telegram enviado**
+  (`ok:true`, message_id 3477, chat 660518870 — regra 15).
+
+### 5. Pendência aberta (ordem dada, faltando dado)
+- **Vigia:** o dono escolheu **"conhecer os dois"** mas ainda não deu os
+  nomes → `26:14:7A:43:2E:11` (192.168.0.163) e `7A:25:D5:8C:03:EE`
+  (192.168.0.233) seguem **pendentes**, sem mutação (regra 7). Com os
+  nomes: `OD_LOG_DIR=logs python3 tools/monitor/network_watchdog.py
+  --conhecer <mac> <nome>` + `--once` para reescrever a linha de estado.
+- Fila do juiz: 2 itens de 28/10 (sem estratégia de reparo determinístico;
+  um deles é o IP do pendente acima). Parking lot §5: rota WiFi,
+  auditoria de uso de ferramentas, MCP.
