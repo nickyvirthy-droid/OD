@@ -11,10 +11,10 @@
   "prova_viva": "29/10 ~09:46 rede real: EdgeTTSTTS.synthesize -> 26640 bytes em 1,8 s voz pt-BR-FranciscaNeural (file = MPEG ADTS layer III 48 kHz); locucao real edge+ffmpeg -> 187289 bytes ID3v2.4 128 kb/s 44,1 kHz estereo 11,7 s; Piper intacto -> WAV 73888 bytes; snapshot unificado com 17 vozes.",
   "deploy_verde": "restart 29/10 10:02:23 (regra 7.3): MainPID 171882, NRestarts=0, /health ok=true 25/25 nenhum fora, /app/version 1.44.0/2080, journal desde o restart 0 [ERROR]. POST /tts autenticado -> 200 com WAV (RIFF) = rota de voz viva com o codigo novo. txt.txt reescrito no topo + Telegram enviado (ok:true, message_id 3477, chat 660518870).",
   "estado": "SISTEMA VERDE E NO AR — v1.44.0/2080, HEAD c234a2f, arvore limpa, health 25/25, Funnel e radio no ar. Frente edge-tts FECHADA; chat e radio seguem com a MESMA voz (Piper) — a engine nova e opt-in por TTSConfig.engine.",
-  "decisao_pendente": "Vigia: dono escolheu 'conhecer os dois' mas NAO deu os nomes -> 26:14:7A:43:2E:11 (192.168.0.163) e 7A:25:D5:8C:03:EE (192.168.0.233) seguem PENDENTES, sem mutacao (regra 7). Com os nomes: OD_LOG_DIR=logs python3 tools/monitor/network_watchdog.py --conhecer <mac> <nome> + --once.",
-  "fila_inalterada": "Fila do juiz: 2 itens de 28/10 sem estrategia de reparo deterministico (um deles e o IP do pendente do Vigia acima) + parking lot §5: rota WiFi, auditoria de uso de ferramentas, MCP.",
-  "updated_at": "2026-10-29T10:10:00-03:00",
-  "transcricao": "iniciar/2026-10-29_conversa_omegadrakon.md (§1 e §2)"
+  "vigia_reconhecido": "29/10 10:15 — dono escolheu 'Smartphone' para os DOIS: --conhecer 26:14:7A:43:2E:11 Smartphone e --conhecer 7A:25:D5:8C:03:EE Smartphone (so inventario local) + --once para reescrever a linha de estado. Prova: --report 'Pendencias: 0 dispositivo(s) novo(s), 0 evento(s) de seguranca', os dois [conhecido] nome=Smartphone, ultima linha do log 10:15:53 com pendentes_novos: [] e ativos 25 -> alerta net:dispositivo-novo para de ser emitido no proximo tick. Nomes iguais por escolha dele (IP distingue); renomear quando quiser com --conhecer MAC NOME.",
+  "fila_inalterada": "Fila do juiz: 2 itens de 28/10 sem estrategia de reparo deterministico ('quais os dispositivos conectados na rede' e 'quem esta no IP 192.168.0.233' — este ja tem nome no inventario agora) + parking lot §5: rota WiFi, auditoria de uso de ferramentas, MCP + subir musicas pelo painel 8091.",
+  "updated_at": "2026-10-29T10:20:00-03:00",
+  "transcricao": "iniciar/2026-10-29_conversa_omegadrakon.md (§1, §2 e §3)"
  },
  "acervo_na_estacao_2026_10_28": {
   "pedido": "Dono (28/10 ~17:15): 'funnel parou de funcionar' e, minutos depois, 'funnel voltou'. Continuando a frente (a) da §3: legado nicky-musicas na HD Mídia + acervo ligado a estacao Nicky.",

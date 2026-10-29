@@ -148,12 +148,26 @@ aberta no fim desta seção).
 - `txt.txt` reescrito no topo (regra 14) + **Telegram enviado**
   (`ok:true`, message_id 3477, chat 660518870 — regra 15).
 
-### 5. Pendência aberta (ordem dada, faltando dado)
-- **Vigia:** o dono escolheu **"conhecer os dois"** mas ainda não deu os
-  nomes → `26:14:7A:43:2E:11` (192.168.0.163) e `7A:25:D5:8C:03:EE`
-  (192.168.0.233) seguem **pendentes**, sem mutação (regra 7). Com os
-  nomes: `OD_LOG_DIR=logs python3 tools/monitor/network_watchdog.py
-  --conhecer <mac> <nome>` + `--once` para reescrever a linha de estado.
-- Fila do juiz: 2 itens de 28/10 (sem estratégia de reparo determinístico;
-  um deles é o IP do pendente acima). Parking lot §5: rota WiFi,
-  auditoria de uso de ferramentas, MCP.
+### 5. Pendência fechada (29/10 ~10:15) — os 2 aparelhos do Vigia conhecidos
+- O dono respondeu o ask_user: **os dois = "Smartphone"**.
+- Executado: `OD_LOG_DIR=logs python3 tools/monitor/network_watchdog.py
+  --conhecer 26:14:7A:43:2E:11 Smartphone` e o mesmo para
+  `7A:25:D5:8C:03:EE` (só inventário local, sem mutação no roteador) +
+  `--once` para reescrever a **linha de estado** (a sonda `_check_network`
+  do notificador lê a última linha — sem o ciclo novo o alerta horário
+  continuaria).
+- **Prova:** `--report` → `Pendências: 0 dispositivo(s) novo(s), 0 evento(s)
+  de segurança`, os dois MACs agora `[conhecido] nome=Smartphone`, última
+  linha do log `10:15:53` com `pendentes_novos: []` e `ativos: 25`.
+  Alerta `net:dispositivo-novo` deixa de ser emitido a partir do próximo
+  tick (o `network-watchdog.timer` de 5 min).
+- Nomes **iguais por escolha dele** (os dois "Smartphone", IP distingue);
+  renomear a qualquer momento com `--conhecer MAC NOME`.
+
+### 6. Fila restante
+- Fila do juiz: 2 itens de 28/10 (`quais os dispositivos conectados na
+  rede` — inconsistente; `quem está no IP 192.168.0.233` — resposta_errada,
+  agora o IP já tem nome no inventário) — ambos "sem estratégia de reparo
+  determinístico" por design.
+- Parking lot §5: rota WiFi, auditoria de uso de ferramentas, MCP.
+- Subir músicas pelo painel AzuraCast 8091 (entrega de 27–28/10).
