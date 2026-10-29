@@ -771,6 +771,53 @@ _FORMATO_ORION_CSS = """<style>
       justify-content: center; padding: 10px 2px; gap: 0;
     }
     html.od-lateral-recolhido .od-lateral-links a .od-rot { display: none; }
+    /* Player da rádio (29/10, pedido do dono — "leva o mesmo player para
+       /dashboard, /admin e /chat"): espelho das regras do od.css do site,
+       MESMAS classes — o estado é o do localStorage compartilhado, então o
+       som atravessa a troca site ↔ painel. Fica entre a marca e os links. */
+    .od-lateral .od-radio {
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .od-radio-btn {
+      width: 34px; height: 34px; border-radius: 8px; flex: none;
+      background: var(--accent); border: 1px solid var(--accent); color: var(--bg2);
+      font-size: .95rem; line-height: 1; cursor: pointer;
+      display: grid; place-items: center;
+      transition: filter .18s;
+    }
+    .od-radio-btn:hover { filter: brightness(1.12); }
+    .od-radio-ico {
+      /* Família explícita (mesmo contrato de .od-lateral-links a .od-ico). */
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+        "Twemoji Mozilla", sans-serif;
+      line-height: 1;
+    }
+    .od-radio-rot {
+      font-size: .72rem; letter-spacing: .09em; text-transform: uppercase;
+      color: var(--muted); white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .od-radio.ativo .od-radio-rot { color: var(--accent); }
+    html.od-lateral-recolhido .od-lateral .od-radio {
+      justify-content: center; padding-bottom: 6px;
+    }
+    html.od-lateral-recolhido .od-radio-rot { display: none; }
+  }
+  /* Pílula flutuante: abaixo de 1024px a barra é display:none e sem este
+     controle não haveria como parar o áudio que a página nova religou.
+     Só aparece quando tem som; acima de 1024px some (a barra já mostra). */
+  .od-radio-flut { display: none; }
+  .od-radio-audio { display: none; }   /* <audio> invisível, som continua */
+  @media (max-width: 1023px) {
+    .od-radio-flut.ativo {
+      display: flex; align-items: center; gap: 8px;
+      position: fixed; left: 12px; bottom: 14px; z-index: 130;
+      padding: 6px 14px 6px 6px; border-radius: 999px;
+      background: var(--bg2); border: 1px solid var(--border);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, .38);
+    }
+    .od-radio-flut .od-radio-btn { width: 30px; height: 30px; font-size: .85rem; }
   }
 </style>"""
 

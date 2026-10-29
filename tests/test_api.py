@@ -936,6 +936,140 @@ class TestMenuLateralOrion:
         assert check.returncode == 0, check.stderr.decode()[:400]
 
 
+# DOM de mentira para rodar site/admin.js INTEIRO (seção od-formato-orion
+# incluída): é o mesmo formato do harness da barra do site, com o que o
+# painel precisa a mais — innerHTML (a barra é montada com string),
+# location (a fonte do stream) e <audio> que emite os MESMOS eventos que o
+# navegador dá (play/pause). Sem semente o player nasce parado; com a
+# semente 'tocando' ele tem que religar sozinho.
+_HARNESS_PAINEL = r"""
+'use strict';
+const fs = require('fs'), vm = require('vm');
+const arquivo = process.argv[2];
+const comSemente = process.argv[3] === '1';
+
+const registro = {};
+
+function novoEl(tag) {
+  const e = {
+    tagName: String(tag || 'div').toUpperCase(),
+    _id: '', className: '', textContent: '', title: '', href: '', type: '',
+    innerHTML: '', style: {}, children: [], parentNode: null,
+    _attrs: {}, _h: {},
+    setAttribute(k, v) {
+      this._attrs[k] = String(v);
+      if (k === 'id') { this._id = String(v); registro[this._id] = this; }
+    },
+    getAttribute(k) { return k in this._attrs ? this._attrs[k] : null; },
+    removeAttribute(k) { delete this._attrs[k]; },
+    addEventListener(t, f) { this._h[t] = f; },
+    appendChild(c) { c.parentNode = this; this.children.push(c); return c; },
+    insertBefore(c, ref) {
+      c.parentNode = this;
+      const i = this.children.indexOf(ref);
+      if (i < 0) this.children.push(c); else this.children.splice(i, 0, c);
+      return c;
+    },
+    contains() { return false; },
+    querySelector(sel) { return achar(this, sel); },
+    querySelectorAll(sel) { return varredura(this, sel); },
+    classList: {
+      _s: new Set(),
+      toggle(c, f) {
+        const ligar = f === undefined ? !this._s.has(c) : !!f;
+        if (ligar) this._s.add(c); else this._s.delete(c);
+        return ligar;
+      },
+      contains(c) { return this._s.has(c); },
+      add(c) { this._s.add(c); },
+      remove(c) { this._s.delete(c); },
+    },
+  };
+  Object.defineProperty(e, 'id', {
+    get() { return this._id; },
+    set(v) { this._id = String(v); registro[this._id] = this; },
+    configurable: true,
+  });
+  return e;
+}
+
+function bate(el, sel) {
+  if (sel.indexOf(' ') >= 0) return false;
+  const m = /^a\[href="([^"]+)"\]$/.exec(sel);
+  if (m) return el.tagName === 'A' && el.getAttribute('href') === m[1];
+  if (sel[0] === '.') return String(el.className).split(/\s+/).indexOf(sel.slice(1)) >= 0;
+  if (/^[a-zA-Z][a-zA-Z0-9-]*$/.test(sel)) return el.tagName === sel.toUpperCase();
+  return false;
+}
+function varredura(raiz, sel) {
+  const saida = [];
+  (function anda(el) {
+    for (const c of el.children) { if (bate(c, sel)) saida.push(c); anda(c); }
+  })(raiz);
+  return saida;
+}
+function achar(raiz, sel) { return varredura(raiz, sel)[0] || null; }
+
+const document = {
+  readyState: 'complete',
+  documentElement: novoEl('html'),
+  body: novoEl('body'),
+  getElementById(id) { return registro[id] || null; },
+  querySelector() { return null; },
+  querySelectorAll() { return []; },
+  createElement(tag) {
+    const e = novoEl(tag);
+    if (String(tag).toLowerCase() === 'audio') {
+      e.paused = true;
+      e.play = function () { this.paused = false;
+        const h = this._h.play; if (h) h(); return Promise.resolve(); };
+      e.pause = function () { this.paused = true;
+        const h = this._h.pause; if (h) h(); };
+    }
+    return e;
+  },
+  addEventListener() {},
+};
+
+const store = {};
+if (comSemente) store.od_radio = 'tocando';
+const localStorage = {
+  getItem(k) { return k in store ? store[k] : null; },
+  setItem(k, v) { store[k] = String(v); },
+  removeItem(k) { delete store[k]; },
+};
+const location = { protocol: 'http:', hostname: '192.168.0.250',
+                   origin: 'http://192.168.0.250:8000' };
+const window = {
+  matchMedia: () => ({ matches: false, addEventListener() {} }),
+  addEventListener() {}, scrollTo() {}, requestAnimationFrame() {}, scrollY: 0,
+};
+const ctx = { document, window, localStorage, location, console, Promise,
+              fetch() { return { catch() {} }; },
+              setInterval: () => 0, setTimeout: () => 0 };
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(arquivo, 'utf8'), ctx, { filename: arquivo });
+
+const barra = registro['odLateral'];
+const ctrl = registro['odRadio'];
+const flut = registro['odRadioFlut'];
+const btn = ctrl ? ctrl.querySelector('button') : null;
+const ler = () => ({
+  ico: ctrl.querySelector('.od-radio-ico').textContent,
+  rot: ctrl.querySelector('.od-radio-rot').textContent,
+  ativo: ctrl.classList.contains('ativo'),
+  cache: localStorage.getItem('od_radio'),
+});
+const antes = ctrl ? ler() : null;
+if (btn && btn._h.click) btn._h.click();
+console.log(JSON.stringify({
+  barra: !!barra, radio: !!ctrl, pilula: !!flut,
+  audio: document.body.querySelectorAll('.od-radio-audio').length,
+  antes: antes, depois: ctrl ? ler() : null,
+}));
+"""
+
+
 class TestPlayerDaRadioNoMenu:
     """Player da rádio no MENU LATERAL (29/10, pedido do dono: *"toda vez
     que mudo de página a rádio para. O player deveria ficar no menu
@@ -1098,6 +1232,82 @@ setTimeout(() => {
         assert retomado["antes"]["ico"] == "⏸"
         assert retomado["antes"]["cache"] == "tocando"
         # e a pausa do ouvinte apaga o cache: a próxima NÃO religa
+        assert retomado["depois"]["ico"] == "▶"
+        assert retomado["depois"]["cache"] == "parado"
+
+    def test_painel_ganha_o_mesmo_player(self, serve) -> None:
+        """/dashboard, /admin e /chat (29/10, ordem do dono: *"leva o mesmo
+        player para /dashboard, /admin e /chat, que hoje param ao sair do
+        site"*). Não dá para carregar o od-nav.js aqui: ele traz o TEMA e
+        botaria um SEGUNDO handler no mesmo botão — o painel tem o próprio
+        (precedente da casa: tema e formato já vivem um por superfície,
+        cada um com suas guardas). Então o player é irmão, não gêmeo
+        esquecido: MESMA chave `od_radio`, para o som atravessar a troca
+        site ↔ painel, e MESMAS classes — o CSS do painel é um espelho em
+        Python (as três páginas não carregam od.css)."""
+        from integrations.api.server import _FORMATO_ORION_CSS
+
+        js = (self._raiz() / "site" / "admin.js").read_text(encoding="utf-8")
+        assert '"od_radio"' in js and "function radioMontar(" in js
+        assert "window.odRadio" in js
+        # monta DEPOIS da barra e ANTES do cedo do herói: o /chat sai cedo
+        # (sem #odOla ele faz return) e ainda assim tem que ganhar o player
+        # — recortando o iniciar() do FORMATO (o do tema é o primeiro do
+        # arquivo e também cita odOla, na linha da saudação)
+        inicio = js.rindex("function iniciar()")
+        trecho = js[inicio:js.index("})();", inicio)]
+        assert "lateralMontar();\n    radioMontar();" in trecho, trecho[:400]
+        pos_rail = trecho.index("lateralMontar();\n    radioMontar();")
+        assert pos_rail < trecho.index('if (!document.getElementById("odOla"))')
+        # o CSS espelho no Python (injetado pelo _com_tema nas 3 páginas)
+        assert ".od-lateral .od-radio" in _FORMATO_ORION_CSS
+        assert "html.od-lateral-recolhido .od-radio-rot" in _FORMATO_ORION_CSS
+        assert ".od-radio-flut.ativo" in _FORMATO_ORION_CSS
+        assert ".od-radio-audio { display: none; }" in _FORMATO_ORION_CSS
+        # e chega na página SERVIDA, sem mudar a estrutura de scripts
+        srv = serve(None, config=APIConfig(port=0, rate_limit_max=0))
+        for pagina in ("/dashboard", "/admin", "/chat"):
+            status, corpo, _ = _request(srv.bound_port, "GET", pagina)
+            html = corpo.decode("utf-8", "replace")
+            assert status == 200, pagina
+            assert ".od-radio-flut.ativo" in html, pagina
+            assert html.count("<script>") == 1, pagina
+            assert html.count('<script src="/site/admin.js"></script>') == 1, pagina
+
+    def test_estado_real_no_node_no_painel(self, tmp_path: Path) -> None:
+        """site/admin.js de VERDADE (arquivo inteiro) com um DOM de mentira:
+        a barra monta, o player entra nela e o estado percorre parado →
+        tocando → parado; com o cache 'tocando' a página NOVA nasce tocando
+        — o mesmo percurso provado no site, agora nas três páginas do
+        painel."""
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:
+            return
+        js = tmp_path / "admin.js"
+        js.write_text((self._raiz() / "site" / "admin.js").read_text(encoding="utf-8"),
+                      encoding="utf-8")
+        har_arq = tmp_path / "har_painel.js"
+        har_arq.write_text(_HARNESS_PAINEL, encoding="utf-8")
+
+        def rodar(ovo: bool) -> dict:
+            r = _subprocess.run([node, str(har_arq), str(js), "1" if ovo else "0"],
+                                 capture_output=True, text=True, encoding="utf-8")
+            assert r.returncode == 0, r.stderr[:700]
+            return json.loads(r.stdout.strip().splitlines()[-1])
+
+        parado = rodar(False)
+        assert parado["barra"] and parado["radio"] and parado["pilula"]
+        assert parado["audio"] == 1                    # um SÓ <audio> por página
+        assert parado["antes"]["ico"] == "▶" and parado["antes"]["cache"] is None
+        assert parado["depois"]["ico"] == "⏸"
+        assert parado["depois"]["cache"] == "tocando"
+
+        retomado = rodar(True)
+        assert retomado["antes"]["ico"] == "⏸"
+        assert retomado["antes"]["cache"] == "tocando"
         assert retomado["depois"]["ico"] == "▶"
         assert retomado["depois"]["cache"] == "parado"
 

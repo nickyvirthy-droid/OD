@@ -46,6 +46,33 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### O mesmo player da rádio em /dashboard, /admin e /chat (29/10, sem bump)
+
+**Pedido (logo em seguida, no canal `txt.txt`):** dono: *"Leve o mesmo
+player para /dashboard, /admin e /chat, que hoje param ao sair do site"*.
+
+**Por que não foi o `od-nav.js` carregado nas três páginas (decisão medida,
+não preguiça):** ele traz o **tema** junto — dois handlers no mesmo botão
+`#odTema` (o painel tem o próprio, criado no DOMContentLoaded) e dois
+ciclos brigando pelo mesmo estado. A casa já resolve isso por **superfície**:
+tema e formato vivem um arquivo por página, cada um com suas guardas. Então
+o painel ganhou um **irmão** do player, não um gêmeo esquecido.
+
+| Peça | Entrega |
+|---|---|
+| **`site/admin.js` (+150)** | Espelho da seção 7 do `od-nav.js`, **MESMA chave `od_radio`** — é isso que faz o som atravessar a troca site ↔ painel (o que viaja é o estado, não o elemento). `radioMontar()` roda em `iniciar()` **logo após `lateralMontar()` e ANTES do cedo do herói**, porque o `/chat` sai cedo (sem `#odOla` ele faz `return`) e ainda assim tem que receber. Um SÓ `<audio>` (filho do `body`, escondido) + barra e pílula do mesmo estado; rótulo segue o estado real (`Retomar` / `Sem sinal`). Contrato `window.odRadio` igual ao do site. |
+| **`integrations/api/server.py`** | Regras do player no **`_FORMATO_ORION_CSS`** — as três páginas do painel não carregam `od.css`, o CSS delas é o espelho em Python injetado pelo `_com_tema`. Mesmas classes, tinta nas variáveis do painel (`--accent`). |
+| **Guardas** | `tests/test_api.py` **+2** (4010 → 4012): presença + ordem em `iniciar()`, CSS espelho nas **páginas servidas** (sem mudar a estrutura de `<script>`), e o **estado real no node** com `site/admin.js` INTEIRO rodando num DOM de mentira novo (`_HARNESS_PAINEL`, com `innerHTML` e `<audio>` jogável). |
+
+**Validação (evidência):** gate oficial **4012 passed / 16 skipped / 0
+falha · 90,53%** (`PIPESTATUS=0`) · `node --check` em `admin.js` · harness
+do painel: sem semente `▶ Rádio` → clique → `⏸ No ar` + `od_radio=tocando`;
+com semente a página NOVA nasce `⏸ No ar` **sozinha** → clique → `▶` +
+`parado` — o MESMO percurso provado no site · `/chat`, `/admin` e
+`/dashboard` servindo o CSS novo (exige **restart do od-core**: o CSS do
+painel é código Python carregado em memória, diferente do site, que lê
+arquivo do disco).
+
 ### Player da rádio que atravessa a troca de página + botão Rádio do admin adaptativo à origem (29/10, sem bump)
 
 **Pedido (duas partes, no canal `txt.txt`):** dono: *"Toda vez que mudo de

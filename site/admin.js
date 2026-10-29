@@ -375,6 +375,153 @@
     document.body.appendChild(b);
   }
 
+  /* --- Player da rádio (29/10, pedido do dono — "leva o mesmo player para
+     /dashboard, /admin e /chat") -------------------------------------
+     Espelho da seção 7 do site/od-nav.js, MESMA chave de estado
+     (localStorage `od_radio`): o som atravessa a troca entre o site e o
+     painel, porque o que viaja é o estado, não o elemento. Aqui a barra é
+     montada por lateralMontar() com innerHTML, então o player entra nela
+     DEPOIS — e, como abaixo de 1024px a barra é display:none, ganha a
+     mesma pílula flutuante (sem ela o áudio religado seria mudo).
+     Um SÓ <audio> por página, filho do body e escondido: recolher a barra
+     não encerra a transmissão. O rótulo segue o estado REAL do elemento —
+     autoplay segurado vira "Retomar", stream fora vira "Sem sinal". */
+  var RADIO_CHAVE = "od_radio";
+  var RADIO_ESTADOS = {
+    parado:  { ico: "▶", rot: "Rádio",    aria: "Tocar a rádio Nicky" },
+    tocando: { ico: "⏸", rot: "No ar",    aria: "Pausar a rádio" },
+    retomar: { ico: "▶", rot: "Retomar",  aria: "Retomar a rádio" },
+    erro:    { ico: "⚠", rot: "Sem sinal", aria: "Tentar de novo a rádio" }
+  };
+  var radio = { audio: null, estado: "parado", controles: [], ouvintes: [] };
+
+  function radioFonte() {
+    // Mesmo caminho do site: por https (tailnet/Funnel) o stream sai da
+    // própria origem em /radio.mp3; por http (rede local) vai direto no
+    // icecast da 8600 — fonte https nunca carrega http (mixed content).
+    if (location.protocol === "https:") return location.origin + "/radio.mp3";
+    return "http://" + location.hostname + ":8600/radio.mp3";
+  }
+
+  function radioQuerOuvir() {
+    try { return localStorage.getItem(RADIO_CHAVE) === "tocando"; }
+    catch (e) { return false; }
+  }
+
+  function radioGuardar(ligado) {
+    try { localStorage.setItem(RADIO_CHAVE, ligado ? "tocando" : "parado"); }
+    catch (e) {}
+  }
+
+  function radioPintar() {
+    var texto = RADIO_ESTADOS[radio.estado] || RADIO_ESTADOS.parado;
+    for (var i = 0; i < radio.controles.length; i++) {
+      var c = radio.controles[i];
+      c.ico.textContent = texto.ico;
+      c.rot.textContent = texto.rot;
+      c.btn.setAttribute("aria-label", texto.aria);
+      c.btn.title = texto.aria;
+      c.caixa.classList.toggle("ativo", radio.estado !== "parado");
+    }
+    for (var j = 0; j < radio.ouvintes.length; j++) {
+      try { radio.ouvintes[j](radio.estado); } catch (e) {}
+    }
+  }
+
+  function radioEstado(estado) {
+    radio.estado = estado;
+    radioPintar();
+  }
+
+  function radioTocar() {
+    if (!radio.audio) return;
+    if (!radio.audio.src) radio.audio.src = radioFonte();
+    var promessa = null;
+    try { promessa = radio.audio.play(); }
+    catch (e) { radioEstado("erro"); return; }
+    // O cache NÃO é apagado aqui: 'retomar'/'erro' continuam querendo
+    // ouvir e é isso que a próxima página religa. Só a pausa do
+    // ouvinte (radioAlternar) grava 'parado'.
+    if (promessa && typeof promessa.catch === "function") {
+      promessa.catch(function () { radioEstado("retomar"); });
+    }
+  }
+
+  function radioAlternar() {
+    if (!radio.audio) return;
+    if (radio.estado === "tocando") {
+      radioGuardar(false);          // pausa EXPLícita: atravessa a troca
+      radio.audio.pause();
+      radioEstado("parado");
+    } else {
+      radioTocar();
+    }
+  }
+
+  function radioControle(flutuante) {
+    var caixa = document.createElement("div");
+    caixa.id = flutuante ? "odRadioFlut" : "odRadio";
+    caixa.className = flutuante ? "od-radio od-radio-flut" : "od-radio";
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "od-radio-btn";
+    var ico = document.createElement("span");
+    ico.className = "od-radio-ico";
+    ico.setAttribute("aria-hidden", "true");
+    btn.appendChild(ico);
+    var rot = document.createElement("span");
+    rot.className = "od-radio-rot";
+    caixa.appendChild(btn);
+    caixa.appendChild(rot);
+    btn.addEventListener("click", function (e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      radioAlternar();
+    });
+    var controle = { caixa: caixa, btn: btn, ico: ico, rot: rot };
+    radio.controles.push(controle);
+    return controle;
+  }
+
+  function radioMontar() {
+    var barra = document.getElementById("odLateral");
+    if (!barra || !document.createElement || !document.body) return;
+
+    var audio = document.createElement("audio");
+    audio.className = "od-radio-audio";
+    audio.preload = "none";
+    audio.crossOrigin = "anonymous";
+    audio.controls = false;
+    // O estado sai dos EVENTOS do elemento (prova real de que tocou),
+    // nunca do resultado de uma chamada — e a pausa do ouvinte é quem
+    // grava, para o navegador não apagar o pedido ao descarregar.
+    audio.addEventListener("play", function () {
+      radioGuardar(true);
+      radioEstado("tocando");
+    });
+    audio.addEventListener("pause", function () { radioEstado("parado"); });
+    audio.addEventListener("error", function () { radioEstado("erro"); });
+    radio.audio = audio;
+    document.body.appendChild(audio);
+
+    var controle = radioControle(false);
+    var links = barra.querySelector(".od-lateral-links");
+    if (links && links.parentNode === barra) barra.insertBefore(controle.caixa, links);
+    else barra.appendChild(controle.caixa);
+    document.body.appendChild(radioControle(true).caixa);
+
+    // Religa no MESMO instante da montagem: encurta a lacuna da troca.
+    if (radioQuerOuvir()) radioTocar();
+    else radioEstado("parado");
+  }
+
+  // Contrato para quem quiser o MESMO player nesta página (mesmo formato
+  // do site) — o estado é o do localStorage, compartilhado com o site.
+  window.odRadio = {
+    alternar: function () { radioAlternar(); },
+    estado: function () { return radio.estado; },
+    aoMudar: function (fn) { if (typeof fn === "function") radio.ouvintes.push(fn); }
+  };
+
   // Interface para a página: o /admin chama pintar() no refresh do
   // loadSystem; quem logar entrega o nome (o cabeçalho chama pelo nome) —
   // e o papel, que decide o item Admin do menu lateral.
@@ -400,6 +547,7 @@
     // Sem #odOla só não há herói/KPIs/relogio/atualizar — o chat mantém
     // o próprio cabeçalho, e o papel dele o FORMATO pergunta sozinho.
     lateralMontar();
+    radioMontar();     // depois da barra: o player é filho dela (29/10)
     if (!document.getElementById("odOla")) { papelChat(); return; }
     topoBotao();   // só Painel/Admin montam (o chat não rola o corpo — 22/10)
     relogio();
