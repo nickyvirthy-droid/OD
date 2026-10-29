@@ -241,6 +241,60 @@ nav .nav-spacer { margin-left: auto; }
     justify-content: center; padding: 10px 2px; gap: 0;
   }
   html.od-lateral-recolhido .od-lateral-links a .od-rot { display: none; }
+
+  /* Player da rádio no MENU LATERAL (29/10, pedido do dono: "o player
+     deveria ficar no menu lateral, assim iria permanecer tocando enquanto
+     navego do site"). Fica entre a marca e os links. O <audio> é filho do
+     BODY (fora daqui) e escondido: recolher a barra não pode encerrar a
+     transmissão. */
+  .od-lateral .od-radio {
+    display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .od-radio-btn {
+    width: 34px; height: 34px; border-radius: 8px; flex: none;
+    background: var(--azul); border: 1px solid var(--azul); color: var(--bg);
+    font-size: .95rem; line-height: 1; cursor: pointer;
+    display: grid; place-items: center;
+    transition: filter .18s;
+  }
+  .od-radio-btn:hover { filter: brightness(1.12); }
+  .od-radio-ico {
+    /* Mesma família explícita dos ícones da barra (emoji sem fonte vira
+       quadradinho) — é o mesmo contrato de .od-lateral-links a .od-ico. */
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+      "Twemoji Mozilla", sans-serif;
+    line-height: 1;
+  }
+  .od-radio-rot {
+    font-size: .72rem; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--muted); white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .od-radio.ativo .od-radio-rot { color: var(--azul); }
+  html.od-lateral-recolhido .od-lateral .od-radio {
+    justify-content: center; padding-bottom: 6px;
+  }
+  html.od-lateral-recolhido .od-radio-rot { display: none; }
+}
+
+/* --- Player da rádio fora da barra -------------------------------------
+   Abaixo de 1024px a barra é `display:none` (o ⋮ de sempre assume), então
+   o MESMO estado também vira uma pílula flutuante — só quando tem som.
+   Sem ela o áudio religado pela página nova seria mudo: dava para começar
+   a tocar e não havia como parar. Acima de 1024px some (a barra já mostra).
+   ---------------------------------------------------------------------- */
+.od-radio-flut { display: none; }
+.od-radio-audio { display: none; }   /* <audio> invisível, som continua */
+@media (max-width: 1023px) {
+  .od-radio-flut.ativo {
+    display: flex; align-items: center; gap: 8px;
+    position: fixed; left: 12px; bottom: 14px; z-index: 130;
+    padding: 6px 14px 6px 6px; border-radius: 999px;
+    background: var(--bg2); border: 1px solid var(--border);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .38);
+  }
+  .od-radio-flut .od-radio-btn { width: 30px; height: 30px; font-size: .85rem; }
 }
 
 /* --- Header ------------------------------------------------------------ */

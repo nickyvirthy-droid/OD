@@ -58,8 +58,9 @@
 
     <div class="card" style="text-align:center;padding:32px 20px;">
       <button id="btnTocar" class="btn btn-primary" style="font-size:1.05rem;padding:14px 32px;">&#9654;&nbsp; Ouvir ao vivo</button>
-      <audio id="player" preload="none" crossorigin="anonymous"></audio>
       <p id="status" style="margin:16px 0 0;color:var(--muted);font-size:.9rem;">Parado — 192 kb/s · 44,1 kHz · MPEG</p>
+      <p style="margin:8px 0 0;color:var(--muted);font-size:.82rem;">O som mora no menu lateral: ele atravessa a troca de página e continua
+      no seu lugar em qualquer tela.</p>
     </div>
 
     <div class="grid g3" style="margin-top:24px;">
@@ -109,49 +110,42 @@
 <script src="/site/od-nav.js"></script>
 
 <script>
+// 29/10: a página DELEGA para o player do menu lateral (od-nav.js, seção
+// 7). Antes cada página tinha seu próprio player de áudio, que morria na
+// troca —
+// era isso que o dono via ("toda vez que mudo de página a rádio para").
+// Um SÓ elemento por página: aqui ficam o botão grande e o aviso, e o
+// estado (parado / no ar / retomar / sem sinal) chega por odRadio.aoMudar.
 (function () {
-  var player = document.getElementById('player');
   var btn = document.getElementById('btnTocar');
   var status = document.getElementById('status');
+  var TEXTO = {
+    parado: 'Parado — 192 kb/s · 44,1 kHz · MPEG',
+    tocando: 'Ao vivo — 192 kb/s · 44,1 kHz · MPEG',
+    retomar: 'Toque em "Ouvir ao vivo" para começar — o navegador segurou o início automático.',
+    erro: 'Stream indisponível no momento — tente de novo em alguns segundos.'
+  };
+  var ICONE = {
+    parado: '&#9654;&nbsp; Ouvir ao vivo',
+    tocando: '&#10074;&#10074;&nbsp; Pausar',
+    retomar: '&#9654;&nbsp; Retomar',
+    erro: '&#9654;&nbsp; Tentar de novo'
+  };
 
-  // Página aberta pelo Funnel (https): o stream sai do MESMO origem (/radio.mp3).
-  // Página aberta na rede local (http://192.168.0.250:8000): o stream sai
-  // direto do icecast na porta 8600 — fonte https nunca carrega http (mixed
-  // content), por isso os dois caminhos.
-  function fonte() {
-    if (location.protocol === 'https:') return location.origin + '/radio.mp3';
-    var host = location.hostname.replace(/:\d+$/, '');
-    return 'http://' + host + ':8600/radio.mp3';
+  function pintar(estado) {
+    var e = estado || (window.odRadio && window.odRadio.estado()) || 'parado';
+    btn.innerHTML = ICONE[e] || ICONE.parado;
+    status.textContent = TEXTO[e] || TEXTO.parado;
   }
 
-  var tocando = false;
-
-  btn.addEventListener('click', function () {
-    if (tocando) {
-      player.pause();
-      return;
-    }
-    player.src = fonte();
-    player.play().then(function () {
-      tocando = true;
-      btn.innerHTML = '&#10074;&#10074;&nbsp; Pausar';
-      status.textContent = 'Ao vivo — 192 kb/s · 44,1 kHz · MPEG';
-    }).catch(function (err) {
-      status.textContent = 'Não consegui tocar o stream (' + err.name + '). Tente de novo.';
-    });
-  });
-
-  player.addEventListener('pause', function () {
-    tocando = false;
-    btn.innerHTML = '&#9654;&nbsp; Ouvir ao vivo';
-    if (player.src) status.textContent = 'Pausado — 192 kb/s · 44,1 kHz · MPEG';
-  });
-
-  player.addEventListener('error', function () {
-    status.textContent = 'Stream indisponível no momento — tente de novo em alguns segundos.';
-    tocando = false;
-    btn.innerHTML = '&#9654;&nbsp; Ouvir ao vivo';
-  });
+  if (!window.odRadio) {          // od-nav.js não chegou: não há player
+    btn.disabled = true;
+    status.textContent = 'Player indisponível — recarregue a página.';
+    return;
+  }
+  btn.addEventListener('click', function () { window.odRadio.alternar(); });
+  window.odRadio.aoMudar(pintar);
+  pintar();
 })();
 </script>
 </body>

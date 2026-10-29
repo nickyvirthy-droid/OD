@@ -402,6 +402,169 @@
     }
   }
 
+  /* --- 7. PLAYER DA RÁDIO NO MENU LATERAL (29/10, pedido do dono) ------
+     "Toda vez que mudo de página a rádio para. O player deveria ficar no
+     menu lateral, assim iria permanecer tocando enquanto navego do site."
+
+     O site é MULTIPÁGINA: navegar recarrega o documento e mata o
+     <audio> — só mudar o lugar do elemento não faria nada continuar.
+     O que atravessa a troca é o ESTADO, no localStorage (`od_radio`):
+     quem estava ouvindo tem a PRÓXIMA página religando o stream assim
+     que a barra monta, e a pausa também sobrevive. O custo é o próprio
+     carregamento da página, e o rótulo NUNCA mente: se o navegador
+     bloquear o início automático (origem sem interação prévia), o
+     controle vira "retomar" em vez de fingir que está no ar.
+
+     Dois controles do MESMO estado: dentro da barra lateral (tela
+     larga) e uma pílula flutuante que só aparece com som — abaixo de
+     1024px a barra é `display:none` e sem a pílula não haveria como
+     parar o áudio que a página nova religou. Um SÓ <audio> por página,
+     filho do body e escondido: recolher a barra não pode encerrar a
+     transmissão. Quem toca sozinho é a página da rádio (radio.html),
+     que delega para window.odRadio em vez de ter um segundo player.
+     -------------------------------------------------------------------- */
+  var RADIO_CHAVE = 'od_radio';
+  var RADIO_ESTADOS = {
+    parado:  { ico: '▶', rot: 'Rádio',    aria: 'Tocar a rádio Nicky' },
+    tocando: { ico: '⏸', rot: 'No ar',    aria: 'Pausar a rádio' },
+    retomar: { ico: '▶', rot: 'Retomar',  aria: 'Retomar a rádio' },
+    erro:    { ico: '⚠', rot: 'Sem sinal', aria: 'Tentar de novo a rádio' }
+  };
+  var radio = { audio: null, estado: 'parado', controles: [], ouvintes: [] };
+
+  function radioFonte() {
+    // Mesmo caminho que o botão da página da rádio usava: por https
+    // (Funnel/tailnet) o stream sai da MESMA origem em /radio.mp3; por
+    // http (rede local) vai direto no icecast da 8600 — fonte https
+    // nunca carrega http (mixed content). Medido em 29/10: o icecast
+    // ecoa o Origin em Access-Control-Allow-Origin, então o
+    // crossorigin="anonymous" do elemento continua seguro.
+    if (location.protocol === 'https:') return location.origin + '/radio.mp3';
+    return 'http://' + location.hostname + ':8600/radio.mp3';
+  }
+
+  function radioQuerOuvir() {
+    try { return localStorage.getItem(RADIO_CHAVE) === 'tocando'; }
+    catch (erro) { return false; }
+  }
+
+  function radioGuardar(ligado) {
+    try { localStorage.setItem(RADIO_CHAVE, ligado ? 'tocando' : 'parado'); }
+    catch (erro) {}
+  }
+
+  function radioPintar() {
+    var texto = RADIO_ESTADOS[radio.estado] || RADIO_ESTADOS.parado;
+    for (var i = 0; i < radio.controles.length; i++) {
+      var c = radio.controles[i];
+      c.ico.textContent = texto.ico;
+      c.rot.textContent = texto.rot;
+      c.btn.setAttribute('aria-label', texto.aria);
+      c.btn.title = texto.aria;
+      c.caixa.classList.toggle('ativo', radio.estado !== 'parado');
+    }
+    for (var j = 0; j < radio.ouvintes.length; j++) {
+      try { radio.ouvintes[j](radio.estado); } catch (erro) {}
+    }
+  }
+
+  function radioEstado(estado) {
+    radio.estado = estado;
+    radioPintar();
+  }
+
+  function radioTocar() {
+    if (!radio.audio) return;
+    if (!radio.audio.src) radio.audio.src = radioFonte();
+    var promessa = null;
+    try { promessa = radio.audio.play(); }
+    catch (erro) { radioEstado('erro'); return; }
+    // O cache NÃO é apagado aqui: 'retomar'/'erro' continuam querendo
+    // ouvir, e é isso que a próxima página religa. Só a pausa do
+    // ouvinte (radioAlternar) grava 'parado'.
+    if (promessa && typeof promessa.catch === 'function') {
+      promessa.catch(function () { radioEstado('retomar'); });
+    }
+  }
+
+  function radioAlternar() {
+    if (!radio.audio) return;
+    if (radio.estado === 'tocando') {
+      radioGuardar(false);          // pausa EXPLícita: atravessa a troca
+      radio.audio.pause();
+      radioEstado('parado');
+    } else {
+      radioTocar();
+    }
+  }
+
+  function radioControle(flutuante) {
+    var caixa = document.createElement('div');
+    caixa.id = flutuante ? 'odRadioFlut' : 'odRadio';
+    caixa.className = flutuante ? 'od-radio od-radio-flut' : 'od-radio';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'od-radio-btn';
+    var ico = document.createElement('span');
+    ico.className = 'od-radio-ico';
+    ico.setAttribute('aria-hidden', 'true');
+    btn.appendChild(ico);
+    var rot = document.createElement('span');
+    rot.className = 'od-radio-rot';
+    caixa.appendChild(btn);
+    caixa.appendChild(rot);
+    btn.addEventListener('click', function (evento) {
+      if (evento && evento.stopPropagation) evento.stopPropagation();
+      radioAlternar();
+    });
+    var controle = { caixa: caixa, btn: btn, ico: ico, rot: rot };
+    radio.controles.push(controle);
+    return controle;
+  }
+
+  function radioMontar() {
+    // Só onde existe MENU (as 13 páginas): sem barra não há o que
+    // ancorar — e o harness de tema (página sem navPanel) sai sem erro.
+    var barra = document.getElementById('odLateral');
+    if (!barra || !document.createElement || !document.body) return;
+
+    var audio = document.createElement('audio');
+    audio.className = 'od-radio-audio';
+    audio.preload = 'none';
+    audio.crossOrigin = 'anonymous';
+    audio.controls = false;
+    // O estado sai dos EVENTOS do elemento (prova real de que tocou),
+    // nunca do resultado de uma chamada — e a pausa do ouvinte é quem
+    // grava, para o navegador não apagar o pedido ao descarregar.
+    audio.addEventListener('play', function () {
+      radioGuardar(true);
+      radioEstado('tocando');
+    });
+    audio.addEventListener('pause', function () { radioEstado('parado'); });
+    audio.addEventListener('error', function () { radioEstado('erro'); });
+    radio.audio = audio;
+    document.body.appendChild(audio);
+
+    var controle = radioControle(false);
+    var links = barra.querySelector('.od-lateral-links');
+    if (links && links.parentNode === barra) barra.insertBefore(controle.caixa, links);
+    else barra.appendChild(controle.caixa);
+    document.body.appendChild(radioControle(true).caixa);
+
+    // O mais cedo possível: encurta a lacuna da troca de página.
+    if (radioQuerOuvir()) radioTocar();
+    else radioEstado('parado');
+  }
+
+  // Contrato para quem quiser o MESMO player (a página da rádio). O
+  // elemento é único por página — dois players brigariam pelo estado.
+  window.odRadio = {
+    alternar: function () { radioAlternar(); },
+    estado: function () { return radio.estado; },
+    aoMudar: function (fn) { if (typeof fn === 'function') radio.ouvintes.push(fn); }
+  };
+
   acessoMontar();     // Painel no ⋮ ANTES do clonar (barra herda o item)
   lateralMontar();
+  radioMontar();      // depois da barra: o player é filho dela
 })();

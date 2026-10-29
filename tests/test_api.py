@@ -936,6 +936,226 @@ class TestMenuLateralOrion:
         assert check.returncode == 0, check.stderr.decode()[:400]
 
 
+class TestPlayerDaRadioNoMenu:
+    """Player da rádio no MENU LATERAL (29/10, pedido do dono: *"toda vez
+    que mudo de página a rádio para. O player deveria ficar no menu
+    lateral, assim iria permanecer tocando enquanto navego do site"*).
+
+    O site é MULTIPÁGINA: navegar recarrega o documento e mata o <audio>,
+    então só mudar o lugar do elemento não faria nada continuar. O que
+    atravessa a troca é o ESTADO no localStorage (``od_radio``) — e é
+    isso que esta suíte trava:
+
+    (a) o od-nav.js monta o player DENTRO da barra (depois de ela
+        existir) e publica o contrato ``window.odRadio``, do qual a
+        página da rádio delega — um SÓ <audio> por página, dois
+        brigariam pelo estado;
+    (b) o CSS o estiliza na barra e cria a pílula da tela estreita, onde
+        a barra é ``display:none`` (sem a pílula o áudio religado pela
+        página nova seria mudo);
+    (c) no node, com o MESMO DOM de mentira de sempre, o estado real
+        percorre parado → tocando → parado e a RETOMADA lê o cache — é
+        ela que cumpre o "continuar tocando" do pedido.
+    """
+
+    @staticmethod
+    def _raiz() -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    def _od_nav(self) -> str:
+        return (self._raiz() / "site" / "od-nav.js").read_text(encoding="utf-8")
+
+    def test_od_nav_monta_o_player_depois_da_barra(self) -> None:
+        js = self._od_nav()
+        # o player é FILHO da barra: só monta onde existe menu, e a
+        # chamada vem DEPOIS de a barra estar montada
+        assert "function radioMontar(" in js
+        assert js.index("lateralMontar();") < js.index("radioMontar();")
+        assert "getElementById('odLateral')" in js
+        assert "insertBefore(controle.caixa, links)" in js
+        # um SÓ <audio> por página, fora da barra (recolher não encerra)
+        assert "'od-radio-audio'" in js and "document.body.appendChild(audio)" in js
+        # estado FORA da página + contrato de quem delega (radio.html)
+        assert "'od_radio'" in js and "window.odRadio" in js
+        assert "aoMudar" in js
+        # a retomada roda no MESMO instante da montagem (lacuna mínima)
+        trecho = js[js.index("function radioMontar("):
+                    js.index("window.odRadio = {")]
+        assert "if (radioQuerOuvir()) radioTocar();" in trecho, trecho[-400:]
+
+    def test_css_do_player_na_barra_e_na_pilha(self) -> None:
+        css = (self._raiz() / "site" / "od.css").read_text(encoding="utf-8")
+        # barra (tela larga) e barra RECOLHIDA (só o botão, sem rótulo)
+        assert ".od-lateral .od-radio" in css
+        assert "html.od-lateral-recolhido .od-radio-rot" in css
+        # pílula: só em tela estreita e só quando há som
+        assert "@media (max-width: 1023px)" in css
+        assert ".od-radio-flut { display: none; }" in css
+        assert ".od-radio-flut.ativo" in css
+        # o <audio> some da tela sem deixar de tocar
+        assert ".od-radio-audio { display: none; }" in css
+
+    def test_radio_html_delega_para_o_player_compartilhado(self) -> None:
+        html = (self._raiz() / "site" / "radio.html").read_text(encoding="utf-8")
+        # sem <audio> próprio: dois players brigariam por od_radio
+        assert "<audio" not in html
+        assert "window.odRadio" in html and "aoMudar" in html
+        # o od-nav.js (que CRIA o player) entra antes do bloco que delega
+        assert (html.index('<script src="/site/od-nav.js"></script>')
+                < html.index("<script>"))
+        # a página continua com botão e aviso — e o aviso nunca mente
+        assert 'id="btnTocar"' in html and 'id="status"' in html
+        assert "Ao vivo — 192 kb/s" in html and "Retomar" in html
+
+    def test_estado_real_no_node_para_e_religa(self, tmp_path: Path) -> None:
+        """od-nav.js de VERDADE com o DOM de mentira de sempre (o MESMO
+        harness da barra, com o <audio> jogável): sem semente o player
+        nasce parado; clicado, toca e grava; e numa página NOVA com o
+        cache 'tocando' ele religa sozinho — a retomada é o que dá vida
+        ao "continuar tocando" do pedido."""
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:
+            return
+        har = TestAcessoPeloMenuELateralChat._HARNESS_MENU
+        # (a) semente: a página anterior SAIU tocando
+        antigo = "if (ehDono) store.od_session_token = 'tk-dono';"
+        assert antigo in har
+        har = har.replace(
+            antigo,
+            "if (process.argv[4] === '1') store.od_radio = 'tocando';\n" + antigo)
+        # (b) location (o player monta a fonte do stream) e um <audio>
+        #     que emite os MESMOS eventos que o navegador dá de verdade
+        antigo_ctx = ("const ctx = { document, window, localStorage, fetch, "
+                      "console, Promise,")
+        assert antigo_ctx in har
+        har = har.replace(
+            antigo_ctx,
+            "const ctx = { location: { protocol: 'http:', "
+            "hostname: '192.168.0.250', origin: 'http://192.168.0.250:8000' },\n"
+            "              document, window, localStorage, fetch, console, Promise,")
+        antigo_ce = ("  createElement(tag) { return novoEl(tag); },\n"
+                     "  addEventListener() {},\n};")
+        assert antigo_ce in har
+        har = har.replace(
+            antigo_ce,
+            "  createElement(tag) {\n"
+            "    const e = novoEl(tag);\n"
+            "    if (String(tag).toLowerCase() === 'audio') {\n"
+            "      e.paused = true;\n"
+            "      e.play = function () { this.paused = false;\n"
+            "        const h = this._h.play; if (h) h(); return Promise.resolve(); };\n"
+            "      e.pause = function () { this.paused = true;\n"
+            "        const h = this._h.pause; if (h) h(); };\n"
+            "    }\n"
+            "    return e;\n"
+            "  },\n"
+            "  addEventListener() {},\n};")
+        # (c) leitura do estado: antes e depois de um clique no controle
+        har += """
+setTimeout(() => {
+  const c = registro['odRadio'];
+  const flut = registro['odRadioFlut'];
+  const btn = c ? c.querySelector('button') : null;
+  const ler = () => ({
+    ico: c.querySelector('.od-radio-ico').textContent,
+    rot: c.querySelector('.od-radio-rot').textContent,
+    ativo: c.classList.contains('ativo'),
+    cache: localStorage.getItem('od_radio'),
+  });
+  const antes = c ? ler() : null;
+  if (btn && btn._h.click) btn._h.click();   // o DOM de mentira não tem .click()
+  console.log(JSON.stringify({ barra: !!c, pilula: !!flut,
+    audio: document.body.querySelectorAll('.od-radio-audio').length,
+    antes: antes, depois: c ? ler() : null }));
+}, 60);
+"""
+        js = tmp_path / "od_nav.js"
+        js.write_text(self._od_nav(), encoding="utf-8")
+        har_arq = tmp_path / "har_radio.js"
+        har_arq.write_text(har, encoding="utf-8")
+
+        def rodar(ovo: bool) -> dict:
+            r = _subprocess.run(
+                [node, str(har_arq), str(js), "0", "1" if ovo else "0"],
+                capture_output=True, text=True, encoding="utf-8")
+            assert r.returncode == 0, r.stderr[:700]
+            return json.loads(r.stdout.strip().splitlines()[-1])
+
+        parado = rodar(False)
+        # barra + pílula do MESMO estado, um <audio> só
+        assert parado["barra"] and parado["pilula"] and parado["audio"] == 1
+        assert parado["antes"]["ico"] == "▶" and parado["antes"]["cache"] is None
+        # clique → toca e grava (é a escrita que a próxima página lê)
+        assert parado["depois"]["ico"] == "⏸"
+        assert parado["depois"]["cache"] == "tocando"
+        assert parado["depois"]["ativo"] is True
+
+        retomado = rodar(True)
+        # página NOVA com o cache 'tocando' → religa SEM clique algum
+        assert retomado["antes"]["ico"] == "⏸"
+        assert retomado["antes"]["cache"] == "tocando"
+        # e a pausa do ouvinte apaga o cache: a próxima NÃO religa
+        assert retomado["depois"]["ico"] == "▶"
+        assert retomado["depois"]["cache"] == "parado"
+
+    def test_botao_radio_do_painel_adaptativo_a_origem(self, tmp_path: Path) -> None:
+        """29/10 — *"o botão rádio dentro do menu admin não está abrindo …
+        ERR_CONNECTION_TIMED_OUT"*: a 8446 só existe NA TAILNET (medido:
+        302 pela tailnet, 000 pela LAN) e ele estava sem Tailscale no
+        aparelho. Avalia o ``hrefNaOrigem`` REAL no node (sem espelho da
+        lógica no teste): pela rede local vai direto no painel 8091, que
+        já está aberto (regra 18) e responde 200 no /login; por https
+        continua a 8446, que nunca é pública."""
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:
+            return
+        js = (self._raiz() / "site" / "admin.js").read_text(encoding="utf-8")
+        trecho = js[js.index("function hrefNaOrigem("):
+                    js.index("function lateralFerramentas(")]
+        assert ":8446" in trecho and "8091" in trecho
+        arq = tmp_path / "href_origem.js"
+        arq.write_text(trecho, encoding="utf-8")
+        harness = tmp_path / "har_href.js"
+        harness.write_text(
+            "'use strict';\n"
+            "const fs = require('fs'), vm = require('vm');\n"
+            "const codigo = fs.readFileSync(process.argv[2], 'utf8');\n"
+            "const casos = JSON.parse(process.argv[3]);\n"
+            "const saida = casos.map(function (c) {\n"
+            "  const ctx = { location: { protocol: c.p, hostname: c.h } };\n"
+            "  vm.createContext(ctx);\n"
+            "  vm.runInContext(codigo + '\\nthis.r = hrefNaOrigem(' +\n"
+            "                   JSON.stringify(c.href) + ');', ctx);\n"
+            "  return ctx.r;\n"
+            "});\n"
+            "console.log(JSON.stringify(saida));\n", encoding="utf-8")
+        casos = [
+            {"p": "http:", "h": "192.168.0.250",
+             "href": "https://nicky-server.tail1b1f51.ts.net:8446"},
+            {"p": "https:", "h": "nicky-server.tail1b1f51.ts.net",
+             "href": "https://nicky-server.tail1b1f51.ts.net:8446"},
+            {"p": "http:", "h": "192.168.0.250", "href": "/f/caderno/"},
+            {"p": "https:", "h": "nicky-server.tail1b1f51.ts.net",
+             "href": "/f/cofre/"},
+        ]
+        r = _subprocess.run([node, str(harness), str(arq), json.dumps(casos)],
+                             capture_output=True, text=True, encoding="utf-8")
+        assert r.returncode == 0, r.stderr[:600]
+        saida = json.loads(r.stdout.strip().splitlines()[-1])
+        assert saida == [
+            "http://192.168.0.250:8091",
+            "https://nicky-server.tail1b1f51.ts.net:8446",
+            "/f/caderno/",
+            "/f/cofre/",
+        ], saida
+
+
 class TestVisaoDoSistema:
     """Dashboard unificado "System Overview" (TODO §3.6, ordem do dono
     20/10 "Dashboard unificado"): um card por subsistema no /admin, tudo

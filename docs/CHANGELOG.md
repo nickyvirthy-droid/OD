@@ -46,6 +46,45 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### Player da rádio que atravessa a troca de página + botão Rádio do admin adaptativo à origem (29/10, sem bump)
+
+**Pedido (duas partes, no canal `txt.txt`):** dono: *"Toda vez que mudo de
+página a rádio para. O player deveria ficar no menu lateral, assim iria
+permanecer tocando enquanto navego do site"*; e *"o botão rádio dentro do
+menu admin não está abrindo (`…:8446/`) … ERR_CONNECTION_TIMED_OUT"*.
+
+**Por que o som morria (medido, não suposto):** o site é **multipágina** —
+navegar recarrega o documento e mata o `<audio>` que vivia dentro de
+`site/radio.html`; trocar o lugar do elemento não faria nada continuar. O
+que atravessa a troca é o **estado**, e ele passou a morar no
+`localStorage` (`od_radio`).
+
+| Peça | Entrega |
+|---|---|
+| **`site/od-nav.js` (seção 7, NOVA)** | `radioMontar()`, chamado **depois** de a barra existir: um SÓ `<audio>` (filho do `body`, escondido — recolher a barra não encerra a transmissão) e **dois controles do mesmo estado**: dentro da barra (as 13 páginas) e uma pílula flutuante que só aparece com som. Quem saiu ouvindo **religa sozinho no instante da montagem**; a pausa do ouvinte apaga o cache, então a próxima página não religa. O rótulo segue o estado REAL do elemento — autoplay segurado → *"Retomar"*, stream fora → *"Sem sinal"* — nunca verde de mentira. Contrato público `window.odRadio` (`alternar` / `estado` / `aoMudar`). |
+| **`site/od.css`** | Regras do controle na barra e na barra **recolhida** (só o botão) + a pílula em `@media (max-width: 1023px)`, faixa onde a barra é `display:none`: sem ela o áudio religado seria mudo — dava para começar e não havia como parar. |
+| **`site/radio.html`** | A página **delega**: sai o `<audio>` próprio (dois players brigariam pelo mesmo cache), ficam o botão grande e o aviso, alimentados por `odRadio.aoMudar`. |
+| **`site/admin.js`** | `hrefNaOrigem()`: o item **Rádio** do painel do dono escolhe pela origem da página — `http://` (rede local) → `http://<host>:8091`, porta **já aberta** pela regra 18 e que responde 200 no `/login`; `https://` (tailnet/Funnel) → a `8446`, que continua **nunca pública**. |
+| **Guardas** | `tests/test_api.py` **+5** (4005 → 4010): montagem depois da barra, CSS (barra + pílula + `<audio>` escondido), delegação da página, o `hrefNaOrigem` **real** avaliado no node (4 casos) e o **estado real** no node com o DOM de mentira de sempre (parado → tocando → parado, mais a retomada pelo cache). |
+
+**Achado de causa (o timeout):** a `8446` só existe **na tailnet** — o
+`tailscale serve` escuta em `100.77.67.53:8446` (302 pela tailnet, **000**
+pela LAN) e **nenhum outro nó da sua tailnet estava conectado** na hora
+todos *offline*), então o nome resolvia pelo cache e o TCP morria. Nada no
+servidor estava quebrado; o painel direto da LAN já respondia (`302 →
+/login 200`).
+
+**Validação (evidência):** gate oficial **4010 passed / 16 skipped / 0
+falha · 90,54%** (2×, `PIPESTATUS=0`) · `node --check` nos dois arquivos ·
+harness de node com o `od-nav.js` de verdade: sem semente `▶ Rádio` →
+clique → `⏸ No ar` + `od_radio=tocando`; com semente a página nova nasce
+`⏸ No ar` sozinha → clique → `▶` + `parado` · od-core vivo servindo os 4
+arquivos novos (`/site/radio.html` com **0** `<audio>`) · stream da LAN
+`200 audio/mpeg` com o icecast ecoando o Origin (o `crossorigin` segue
+seguro) · `8446` continua inacessível pela LAN. **Sem navegador no host**:
+o que ficou provado é o estado e a entrega dos arquivos — o olho do dono no
+site fecha o resto.
+
 ### Voz Microsoft Neural (edge-tts) como engine opcional do sintetizador (29/10, sem bump)
 
 **Origem honesta:** a frente nasceu numa sessão que morreu sem registro

@@ -309,6 +309,19 @@
     links.appendChild(a);
   }
 
+  // 29/10, pedido do dono: "o botão rádio dentro do menu admin não está
+  // abrindo … ERR_CONNECTION_TIMED_OUT". A causa medida: a 8446 só existe
+  // NA TAILNET — o `tailscale serve` escuta em 100.77.67.53:8446 (302 pela
+  // tailnet, 000 pela LAN) e nenhum outro nó estava conectado no momento,
+  // então o nome resolvia no cache e o TCP morria. Página aberta por http
+  // (rede local) vai direto no painel da LAN na 8091, que já está aberta
+  // (regra 18) e responde 200 no /login; por https (tailnet ou Funnel)
+  // fica a 8446 — que continua nunca pública.
+  function hrefNaOrigem(href) {
+    if (location.protocol !== "http:" || href.indexOf(":8446") < 0) return href;
+    return "http://" + location.hostname + ":8091";
+  }
+
   function lateralFerramentas() {
     var l = document.getElementById("odLateral");
     if (!l || l.querySelector('a[href="/f/caderno/"]')) return;
@@ -332,7 +345,7 @@
     ];
     for (var i = 0; i < fs.length; i++) {
       var a = document.createElement("a");
-      a.setAttribute("href", fs[i].href);
+      a.setAttribute("href", hrefNaOrigem(fs[i].href));
       a.setAttribute("title", fs[i].rot);
       a.innerHTML = '<span class="od-ico" aria-hidden="true">' + fs[i].ico +
         '</span><span class="od-rot">' + fs[i].rot + "</span>";
