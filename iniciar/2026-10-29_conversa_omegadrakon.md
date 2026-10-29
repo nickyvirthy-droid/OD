@@ -322,3 +322,62 @@ menu admin não está abrindo (`https://nicky-server.tail1b1f51.ts.net:8446/`)
 **Git:** `1dcbc10` (6 arquivos, +522/−39) — árvore limpa, push na sequência.
 **Sem restart:** só arquivos estáticos (`/site/*` lido do disco), od-core
 continua desde 27/10 21:06.
+
+## §7 — O mesmo player levado para /dashboard, /admin e /chat (29/10 ~15:40)
+
+**Pedido:** dono (follow-up direto da §6): *"Leve o mesmo player para
+/dashboard, /admin e /chat, que hoje param ao sair do site"*.
+
+### 1. Por que NÃO foi o `od-nav.js` carregado nas três páginas
+Medido antes de escolher: o `od-nav.js` traz o **tema** junto — ele cria o
+botão `#odTema` no DOMContentLoaded, e o `site/admin.js` do painel cria o
+SEU no mesmo momento. Dois handlers no mesmo botão = dois ciclos brigando
+pelo mesmo estado (o defeito §3.8 da casa). A solução da casa para isso é
+por **superfície**: tema/formato vivem um arquivo por página. Então o
+painel ganhou um **irmão** do player, não um gêmeo esquecido — MESMA chave
+`od_radio`, então **o estado atravessa a troca site ↔ painel** (o que viaja
+é o cache, não o elemento).
+
+### 2. O que foi feito
+- **`site/admin.js` (+148):** espelho da seção 7 do `od-nav.js` dentro da
+  seção od-formato-orion. `radioMontar()` roda em `iniciar()` **logo após
+  `lateralMontar()` e ANTES do cedo do herói** — decida assim porque o
+  `/chat` sai cedo (`sem #odOla → papelChat(); return`) e ainda assim tem
+  que receber o player. Um SÓ `<audio>` (filho do `body`, escondido) +
+  barra e pílula do mesmo estado; rótulo segue o estado real (`Retomar` /
+  `Sem sinal`); contrato `window.odRadio` igual ao do site.
+- **`integrations/api/server.py` (+47):** regras do player no
+  **`_FORMATO_ORION_CSS`** — as 3 páginas do painel **não carregam
+  `od.css`**, o CSS delas é o espelho em Python injetado pelo `_com_tema`.
+  Mesmas classes, tinta nas variáveis do painel (`--accent`).
+- **`tests/test_api.py` (+210, 4010 → 4012):** (a) presença + ORDEM em
+  `iniciar()` (recortando o `iniciar()` do FORMATO com `rindex`, porque o
+  do tema também cita `odOla`) e CSS espelho nas **páginas servidas**, sem
+  mudar a estrutura de `<script>` (1 inline + 1 do admin.js); (b) **estado
+  real no node** com `site/admin.js` INTEIRO rodando num DOM de mentira
+  novo (`_HARNESS_PAINEL`, com `innerHTML`, `location` e `<audio>`
+  jogável).
+
+### 3. Verificação (evidência)
+- **Gate 2×: 4012 passed / 16 skipped / 0 falha · 90,53% e 90,51%**,
+  `PIPESTATUS=0` nos dois · `node --check` no `admin.js` · **pyflakes 0
+  aviso novo** (os 4 do `server.py` e o `_cacheable` do `test_api.py`
+  já existiam no HEAD — conferido com `git show HEAD:arquivo | pyflakes`).
+- **Harness do painel (admin.js real), duas corridas:**
+  sem semente `{"barra":true,"radio":true,"pilula":true,"audio":1,
+  "antes":{"ico":"▶","rot":"Rádio","cache":null},"depois":{"ico":"⏸",
+  "rot":"No ar","cache":"tocando"}}` · com semente a página NOVA nasce
+  `⏸ No ar` sozinha (`cache":"tocando"`) → clique → `▶` + `parado`.
+- **Deploy verde (regra 7.3):** `restart` **16:01:10** → MainPID
+  **527739**, **NRestarts=0**, `/health` **ok=true, 25/25 nenhum fora**,
+  `/app/version` **1.44.0/2080**, journal desde o restart **0 warning/0
+  erro**. Restart NECESSÁRIO desta vez (diferente da §6): o CSS do painel
+  é **código Python** carregado em memória — antes dele as 3 páginas
+  serviam 0 ocorrências de `od-radio`, agora **12 cada**; estrutura de
+  scripts intacta (1 inline + 1 admin.js).
+- **Borda intacta pós-restart:** Funnel `/` **200**, `/radio.mp3` **206
+  audio/mpeg**, painel LAN **302**, `tailscale serve` com os 3 handlers da
+  443 + 1883 + 8443/8446.
+
+**Git:** `01b1d6d` (4 arquivos, +432) pushado, árvore limpa
+(HEAD == `origin/master`).
