@@ -1,4 +1,15 @@
 {
+ "inventario_portas_2026_10_29": {
+  "pedido": "Dono (29/10 ~11:00, follow-up da regra 18): 'Inventarie quais portas ja estao escutando hoje em 192.168.0.250 e o que cada uma serve'.",
+  "metodo": "SO LEITURA: ss -tln/-uln (255 sockets TCP; 200 = faixa 8600-8699 do AzuraCast em IPv4+IPv6) -> docker ps (binds) -> systemctl show od-* -> tailscale serve/funnel status -> script /proc/net/tcp+udp mapeando inode para /proc/*/fd RODADO DENTRO dos containers (foi assim que ss -p, sem root, foi contornado) -> sondas curl no bind certo.",
+  "lan": "22 sshd | 8000/8001 od-core (API+ws) | 8090 Kiwix | 8091 e 8445 painel AzuraCast HTTP/HTTPS | 8100 CyberChef | 8123 Home Assistant | 8200 FlatNotes | 8400 Stirling | 8410 FileBrowser | 8420 Calibre | 8430 IT-Tools | 8470 Homebox | 8480 Vaultwarden | 8600-8699 streams AzuraCast (8600=/radio.mp3) | 18555 go2rtc | 20220 SFTP | 37603/41377 listeners efemeros de descoberta do HA.",
+  "so_local": "53 resolved | 5432 Postgres (banco do OD) | 8081 llama-server (od-llm) | 8466 od-azura-proxy | 8765 od-control-bridge | 18554 go2rtc | 49374 opencode serve.",
+  "so_tailnet": "443 FUNNEL (unica saida para a internet) | 1883 (mosquitso so em 127.0.0.1, tailnet encaminha) | 8443 ferramentas | 8446 painel Azura de fora | 40804/55870 pagina 'Hello, this is my Tailscale device' do proprio tailscaled.",
+  "udp_e_limite": "1900 SSDP, 5353 mDNS, 38787/53141 efemeros, 41641 WireGuard, 53 local. Dono de 1900/38787/53141 e processo de root: NAO NOMEADO (sem sudo — nao chutei).",
+  "achados_sem_agir": "(1) 18555 go2rtc (cameras) em TODAS as interfaces SEM senha; (2) 20220/8091/8445 em 0.0.0.0 com login. Nenhuma porta exposta a internet alem da 443 do Funnel. Ordem pendente para enxugar qualquer uma.",
+  "updated_at": "2026-10-29T11:30:00-03:00",
+  "transcricao": "iniciar/2026-10-29_conversa_omegadrakon.md (§5)"
+ },
  "regra_ip_interno_livre_2026_10_29": {
   "pedido": "Dono (29/10 ~10:30): 'nova regra: o IP interno 192.168.0.250 e livre. todas as portas podem ser abertas nele, como funciona apenas na rede interna e equipamentos estranhos sao bloqueados o acesso a navegacao pode ser livre'.",
   "o_que_mudou": "Regra 18 adicionada ao iniciar/RULES.md (alteracao explicita, como o rodape do arquivo exige): portas LAN em 192.168.0.250 viram operacao de rotina — a exigencia de ordem explica da regra 7 NAO se aplica a elas. Motivo dele registrado: servico so na rede interna + equipamentos estranhos bloqueados de navegar.",

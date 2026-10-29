@@ -191,3 +191,45 @@ equipamentos estranhos são bloqueados o acesso a navegação pode ser livre".*
   Porta nova = registrar aqui a porta + o serviço.
 - **Nenhuma porta aberta nesta troca:** só o registro da regra — nenhum
   serviço novo escutando, nenhum bind alterado, nenhuma mutação de rede.
+
+## §5 — Inventário de portas do `192.168.0.250` (29/10 ~11:30)
+
+**Pedido:** dono: *"Inventarie quais portas já estão escutando hoje em
+192.168.0.250 e o que cada uma serve"* — resposta do follow-up da regra 18.
+**Só leitura** (nenhuma porta aberta/fechada, nenhuma mutação).
+
+**Método:** `ss -tln/-uln` (255 sockets TCP LISTEN; 200 = faixa
+8600–8699 do AzuraCast em IPv4+IPv6) → `docker ps` (binds por container) →
+`systemctl show od-*` (od-core 8000/8001, od-llm 8081, od-azura-proxy 8466,
+od-control-bridge 8765) → `tailscale serve/funnel status` (o que é tailnet)
+→ script `/proc/net/{tcp,udp}*` + inode → `/proc/*/fd` rodado **dentro** dos
+containers (método que nomeou o que `ss -p` esconde sem root) → sondas
+`curl` no bind certo.
+
+**Resultado — LAN (`0.0.0.0`/`192.168.0.250`/`*`):** 22 (sshd) · 8000/8001
+(od-core API + `/ws`) · 8090 Kiwix · 8091/8445 painel AzuraCast (HTTP/HTTPS,
+nginx → `/login`) · 8100 CyberChef · 8123 Home Assistant · 8200 FlatNotes ·
+8400 Stirling PDF · 8410 File Browser · 8420 Calibre Web · 8430 IT Tools ·
+8470 Homebox · 8480 Vaultwarden · 8600–8699 streams AzuraCast (8600 =
+`/radio.mp3`) · 18555 go2rtc · 20220 SFTP AzuraCast · 37603/41377
+(listeners efêmeros de descoberta do HA).
+
+**Só local (`127.0.0.1`):** 53 resolved · 5432 PostgreSQL · 8081
+llama-server (od-llm) · 8466 od-azura-proxy · 8765 od-control-bridge ·
+18554 go2rtc · 49374 `opencode serve --service`.
+
+**Só tailnet:** 443 (Funnel — a ÚNICA saída para a internet) · 1883 (o
+mosquitto escuta só em `127.0.0.1` e a tailnet encaminha) · 8443
+(ferramentas) · 8446 (painel Azura de fora) · 40804/55870 (página
+*"Hello, this is my Tailscale device"* do próprio `tailscaled`, efêmera).
+
+**UDP:** 1900 SSDP · 5353 mDNS · 38787/53141 efêmeros · 41641 WireGuard ·
+53 local. Dono de 1900/38787/53141 é processo de **root** e **não foi
+nomeado** (sem sudo — honesto, não chutei).
+
+**Achados entregues ao dono (sem agir):** (1) `18555` (go2rtc, câmeras) em
+**todas as interfaces sem senha**; (2) `20220`/`8091`/`8445` em `0.0.0.0`
+(com login). Dois apertos possíveis, aguardando ordem.
+
+**Canais:** inventário inteiro escrito no `txt.txt` (regra 14 — o arquivo
+havia sido zerado por ele às 10:47).
