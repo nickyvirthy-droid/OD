@@ -46,6 +46,53 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### Voz Microsoft Neural (edge-tts) como engine opcional do sintetizador (29/10, sem bump)
+
+**Origem honesta:** a frente nasceu numa sessão que morreu sem registro
+(editou `tools/audio/tts.py` em 28/10 20:22 e nunca commitou — regra 4
+violada) e ficou como **resíduo** até esta retomada de 29/10: 326 linhas sem
+o pacote instalado, sem chamador, sem guarda e sem esta entrada — o gate
+medido sobre o resíduo caiu para **89,94%** (piso de 90). Fechada aqui com o
+que faltava.
+
+**O que é:** `tools/audio/tts.py` passa a expor três portas — `PiperTTS`
+(local, **inalterada**), `EdgeTTSTTS` (vozes Microsoft Neural via pacote
+`edge-tts`, sem binário no disco) e `TTS` (unificação: engine primário +
+fallback, `engine="piper" | "edge-tts" | "both"`). A engine nova reaproveita
+a MESMA cadeia de locução de rádio (ffmpeg: EQ de presença + compand + 2,5 s
+antes da fala + ruído), então as duas vozes falam com a "pele" da rádio.
+Catálogo `pt-BR` fixo: Francisca/Antonio (default/regulus) + Thalita/Daniel.
+`runtime/launcher.py` continua plugando `PiperTTS` — **nada muda no que sai
+no ar**; a porta nova é opt-in por `TTSConfig.engine`.
+
+**Dois defeitos do resíduo, medidos e consertados na causa:**
+(1) `_resolve_voice` lowercasava o perfil e comparava com as chaves
+sensíveis a maiúsculas do catálogo — **nenhuma voz Microsoft era alguma vez
+eescolhida** (sempre caía no default) e, mesmo casando, devolveria o nome
+minúsculo que a API da Microsoft recusa → agora a comparação é
+case-insensitiva e devolve o **nome canônico**; (2) `available` devolvia
+`True` com o pacote fora do ambiente (só olhava `enabled`) — a
+introspecção prometia vozes que a síntese não entregaria → `edge_tts_instalado()`
+prova o ambiente com `find_spec` e o resto (`vozes`, `snapshot`, locução)
+passa a refletir a verdade.
+
+**Guardas:** `tests/test_audio.py` **35 → 74** (39 novas): síntese real
+mockada, timeout, arquivo não gerado, `ImportError` do pacote ausente,
+linha a linha da cadeia de locução, as **três cascatas de fallback** dos
+três métodos (primário falha → fallback entrega; sem fallback → nada é
+chamado), introspecção com/sem pacote e a resolução de voz com caixa mista.
+
+**Validação:** gate oficial **4005 passed / 16 skipped / 0 falha · 90,53%**
+(2ª rodada logo abaixo, após esta entrada — o corpus do RAG muda com o
+`.md`) · `pyflakes` 0 aviso novo · `requirements.txt` ganhou o item 7
+(`edge-tts>=7.0`, import tardio).
+
+**Prova viva (29/10, ~09:46, contra a Microsoft de verdade):**
+`synthesize` → **26 640 bytes em 1,8 s** (`file` = MPEG layer III, voz
+`pt-BR-FranciscaNeural`); locução real via ffmpeg → **187 289 bytes,
+128 kb/s · 44,1 kHz estéreo · 11,7 s**; Piper intacto → WAV 73 888 bytes;
+`TTS().snapshot()` com **17 vozes**.
+
 ### Painel AzuraCast atrás da porta tailnet + link na home (28/10, sem bump)
 
 **Pedidos do dono** (28/10, madrugada): *"Adicione um link 'Rádio Nicky'

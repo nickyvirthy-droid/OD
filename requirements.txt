@@ -39,3 +39,11 @@ requests>=2.31
 #    (PIL não é necessário no caminho SVG); import tardio no handler —
 #    sem ela a rota responde 503 qr_indisponivel e nada mais quebra.
 qrcode>=8.0
+#
+# 7) edge-tts — engine OPCIONAL de voz Microsoft Neural em
+#    tools/audio/tts.py (classe EdgeTTSTTS, migração do legado
+#    analise/Nicky Radio/nicky-radio v0.0.0, 28/10). Import tardio dentro de
+#    synthesize_to_file; sem ela a engine padrão (Piper) segue intacta e o
+#    módulo só registra o log de indisponibilidade. Traz aiohttp/yarl (cliente
+#    da API da Microsoft) — nada disso entra no caminho crítico do od-core.
+edge-tts>=7.0

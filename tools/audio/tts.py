@@ -3,7 +3,8 @@ OMEGA DRAKON • CORE
 Tecnologia que respira.
 Módulo: tools/audio/tts.py
 Descrição: TTS (Fase 6, item 6.4) — síntese de voz local via Piper
-           (binário compilado chamado por subprocess assíncrono). Voz por
+           (binário compilado chamado por subprocess assíncrono) e edge-tts
+           (Microsoft Neural Voices via biblioteca Python). Voz por
            perfil: "regulus" usa voz masculina (faber); qualquer outro perfil
            usa a voz feminina padrão (dii) — espelhando o legado Nicky
            interfaces/text_to_speech.py.
@@ -13,12 +14,18 @@ Arquiteto: Alex Projeti
 Baseado em:
   - Nicky interfaces/text_to_speech.py (Piper via subprocess, vozes por perfil)
   - ROADMAP_ABSORCAO.md Fase 6, item 6.4 (tools/audio/tts.py)
-  - analise/Nicky Locutor/ (integração 27/10: vozes extras + cadeia de
-    locução de rádio — ver CHANGELOG)
+  - analise/Nicky Radio/ (integração 27/10: vozes extras + cadeia de
+    locução de rádio — ver CHANGELOG; a caixa de entrada era
+    "Nicky Locutor" e o dono a renomeou em 28/10)
+  - nicky-locutor v0.0.0 (legado edge-tts, migrado como engine opcional em
+    28/10; a pasta saiu da caixa de entrada no mesmo dia em que o dono
+    reorganizou analise/)
 
 Decisões registradas (ver CHANGELOG):
   - Binário Piper e vozes pt-BR REAIS do legado reaproveitados no servidor
     (piper + dii_pt-BR.onnx feminina, pt_BR-faber-medium.onnx masculina)
+  - edge-tts (v0.0.0) migrado como engine opcional: vozes Microsoft Neural
+    (pt-BR-FranciscaNeural, pt-BR-AntonioNeural, etc.) — não requer binário
   - Nunca lança: qualquer falha retorna None/False (padrão das integrações OD)
   - Auto-descoberta de vozes (27/10): todo par *.onnx + *.onnx.json em
     voice/tts/ vira voz nomeada (ex.: "hal", "pt_BR-jeff-medium") — o
@@ -32,7 +39,6 @@ Decisões registradas (ver CHANGELOG):
 from __future__ import annotations
 
 import asyncio
-import logging
 import tempfile
 import time
 from dataclasses import dataclass
@@ -77,23 +83,58 @@ LOCUCAO_FILTER = (
 #: usa o default do sistema).
 DEFAULT_ESPEAK_DATA = "/opt/omegadrakon/voice/espeak-ng-data"
 
+#: Vozes Microsoft Neural disponíveis via edge-tts (pt-BR).
+EDGE_TTS_VOICES = {
+    "pt-BR-FranciscaNeural": "Francisca (feminina, natural)",
+    "pt-BR-AntonioNeural": "Antonio (masculino, natural)",
+    "pt-BR-ThalitaNeural": "Thalita (feminina, expressiva)",
+    "pt-BR-DanielNeural": "Daniel (masculino, expressivo)",
+}
+#: Voz edge-tts padrão (feminina, espelha dii do Piper).
+EDGE_TTS_DEFAULT = "pt-BR-FranciscaNeural"
+#: Voz edge-tts para regulus (masculino, espelha faber do Piper).
+EDGE_TTS_REGULUS = "pt-BR-AntonioNeural"
+
+
+def edge_tts_instalado() -> bool:
+    """True quando o pacote edge-tts existe no ambiente.
+
+    Usa ``find_spec`` (não importa o módulo): a introspecção
+    (``available``/``vozes``/``snapshot``) tem que refletir o ambiente real —
+    com ``enabled=True`` e pacote ausente a engine reportava "disponível" e
+    prometia vozes que a síntese não entregaria. Chamada barata, sem cache de
+    módulo para não congelar teste que simula ausência.
+    """
+    import importlib.util
+
+    try:
+        return importlib.util.find_spec("edge_tts") is not None
+    except (ImportError, ValueError):  # pragma: no cover — defensivo
+        return False
+
 
 @dataclass(slots=True)
 class TTSConfig:
-    """Configuração da síntese via Piper."""
+    """Configuração da síntese via Piper e/ou edge-tts."""
 
+    # Engine: "piper" | "edge-tts" | "both" (prioridade piper, fallback edge-tts)
+    engine: str = "piper"
     binary: Union[str, Path] = DEFAULT_BINARY
     model: Union[str, Path] = DEFAULT_MODEL
     config: Union[str, Path] = DEFAULT_CONFIG
     regulus_model: Union[str, Path] = REGULUS_MODEL
     regulus_config: Union[str, Path] = REGULUS_CONFIG
     espeak_data: Union[str, Path, None] = DEFAULT_ESPEAK_DATA
-    #: Diretório da auto-descoberta de vozes (None = só default/regulus).
+    #: Diretório da auto-descoberta de vozes Piper (None = só default/regulus).
     voices_dir: Union[str, Path, None] = VOICES_DIR
     #: ffmpeg da cadeia de locução de rádio (None = locução indisponível).
     ffmpeg_bin: Union[str, Path, None] = FFMPEG_BIN
     enabled: bool = True
     timeout_s: float = 60.0
+    #: Voz edge-tts padrão (feminina).
+    edge_tts_default: str = EDGE_TTS_DEFAULT
+    #: Voz edge-tts para regulus (masculina).
+    edge_tts_regulus: str = EDGE_TTS_REGULUS
 
 
 class PiperTTS:
@@ -369,4 +410,313 @@ class PiperTTS:
             "binary": str(self.config.binary),
             "locucao": self.locucao_disponivel,
             "voices": {k: v[0] for k, v in self._voice_map.items()},
+        }
+
+
+class EdgeTTSTTS:
+    """TTS via edge-tts (Microsoft Neural Voices, sem binário local)."""
+
+    def __init__(self, config: Optional[TTSConfig] = None) -> None:
+        self.config = config or TTSConfig()
+        self._voice_map = {
+            "default": self.config.edge_tts_default,
+            "regulus": self.config.edge_tts_regulus,
+        }
+        # Adiciona vozes conhecidas do edge-tts
+        self._voice_map.update(EDGE_TTS_VOICES)
+
+    @property
+    def vozes(self) -> dict[str, str]:
+        """Nomes das vozes edge-tts disponíveis (nome -> descrição)."""
+        return {k: EDGE_TTS_VOICES.get(k, k) for k in self._voice_map.keys()}
+
+    @property
+    def enabled(self) -> bool:
+        return self.config.enabled
+
+    @property
+    def available(self) -> bool:
+        """Habilitado E com o pacote edge-tts instalado (sem binário local)."""
+        return self.config.enabled and edge_tts_instalado()
+
+    def _resolve_voice(self, profile: Optional[str]) -> str:
+        """Voz edge-tts para o perfil, com fallback para default.
+
+        A API da Microsoft é case-sensitive, então a comparação é
+        case-insensitive mas devolve sempre o nome CANÔNICO do catálogo —
+        o ``.lower()`` antigo comparava chave minúscula com chave sensível a
+        maiúsculas e nenhuma voz escolhida era alguma vez encontrada (sempre
+        caía no default).
+        """
+        key = (profile or "").strip()
+        if not key or key.lower() == "default":
+            return self.config.edge_tts_default
+        if key.lower() == "regulus":
+            return self.config.edge_tts_regulus
+        for nome in EDGE_TTS_VOICES:
+            if nome.lower() == key.lower():
+                return nome
+        return self.config.edge_tts_default
+
+    async def synthesize_to_file(
+        self,
+        text: str,
+        output_path: Union[str, Path],
+        profile: Optional[str] = None,
+    ) -> bool:
+        """Sintetiza texto em MP3 gravando em output_path. True em sucesso."""
+        if not self.config.enabled:
+            log.warn("edge-tts desabilitado (enabled=False)")
+            return False
+        if not text or not text.strip():
+            log.warn("Texto vazio recebido para síntese edge-tts")
+            return False
+
+        voice = self._resolve_voice(profile)
+        t0 = time.monotonic()
+        try:
+            import edge_tts
+            communicate = edge_tts.Communicate(text, voice)
+            await asyncio.wait_for(
+                communicate.save(str(output_path)),
+                timeout=self.config.timeout_s,
+            )
+            elapsed = time.monotonic() - t0
+
+            out = Path(output_path)
+            if not out.is_file() or out.stat().st_size == 0:
+                log.error("edge-tts não gerou arquivo de áudio válido")
+                return False
+            log.info(
+                "Síntese edge-tts concluída",
+                elapsed_s=round(elapsed, 2),
+                bytes=out.stat().st_size,
+                voice=voice,
+            )
+            return True
+        except asyncio.TimeoutError:
+            log.error("edge-tts timeout", timeout_s=self.config.timeout_s)
+            return False
+        except ImportError:
+            log.error("edge-tts não instalado (pip install edge-tts)")
+            return False
+        except Exception as exc:  # pragma: no cover
+            log.error("edge-tts exceção", error=str(exc))
+            return False
+
+    async def synthesize(
+        self, text: str, profile: Optional[str] = None
+    ) -> Optional[bytes]:
+        """Ponto de entrada principal: retorna bytes do MP3 (ou None)."""
+        if not self.config.enabled:
+            log.warn("edge-tts desabilitado (enabled=False)")
+            return None
+        if not text or not text.strip():
+            return None
+        try:
+            with tempfile.TemporaryDirectory(prefix="od_tts_edge_") as tmp_dir:
+                out_path = Path(tmp_dir) / "speech.mp3"
+                ok = await self.synthesize_to_file(text, out_path, profile)
+                if not ok:
+                    return None
+                return out_path.read_bytes()
+        except Exception as exc:  # pragma: no cover
+            log.error("edge-tts exceção", error=str(exc))
+            return None
+
+    # -- Locução de rádio (edge-tts + ffmpeg) ------------------------------
+
+    @property
+    def locucao_disponivel(self) -> bool:
+        """edge-tts + ffmpeg presentes."""
+        return (
+            self.available
+            and bool(self.config.ffmpeg_bin)
+            and Path(str(self.config.ffmpeg_bin)).is_file()
+        )
+
+    def _comando_locucao(self, mp3_in: Path, mp3_out: Path) -> list[str]:
+        """Linha do ffmpeg da locução: recebe MP3 do edge-tts, aplica cadeia."""
+        delay = str(LOCUCAO_DELAY_MS)
+        filtro = LOCUCAO_FILTER.format(delay=delay)
+        return [
+            str(self.config.ffmpeg_bin),
+            "-y", "-loglevel", "error",
+            "-i", str(mp3_in),
+            "-f", "lavfi",
+            "-i", f"anoisesrc=d={LOCUCAO_RUIDO_S}:c=white:amplitude=0.0001",
+            "-filter_complex", f"[0:a]{filtro}; [a1][1:a]amix=inputs=2:duration=first",
+            "-ar", "44100", "-ac", "2", "-b:a", "128k",
+            str(mp3_out),
+        ]
+
+    async def synthesize_locucao_to_file(
+        self,
+        text: str,
+        output_path: Union[str, Path],
+        profile: Optional[str] = None,
+    ) -> bool:
+        """Texto → MP3 com a pele de locução de rádio (edge-tts + ffmpeg)."""
+        if not self.locucao_disponivel:
+            log.warn("Locução edge-tts indisponível (ffmpeg ausente)")
+            return False
+        if not text or not text.strip():
+            return False
+        try:
+            with tempfile.TemporaryDirectory(prefix="od_locucao_edge_") as tmp_dir:
+                mp3_in = Path(tmp_dir) / "fala.mp3"
+                ok = await self.synthesize_to_file(text, mp3_in, profile)
+                if not ok:
+                    return False
+                proc = await asyncio.create_subprocess_exec(
+                    *self._comando_locucao(mp3_in, Path(output_path)),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await asyncio.wait_for(
+                    proc.communicate(), timeout=self.config.timeout_s
+                )
+                if proc.returncode != 0:
+                    log.error(
+                        "ffmpeg da locução edge-tts falhou",
+                        returncode=proc.returncode,
+                        stderr=stderr.decode(errors="ignore")[:300],
+                    )
+                    return False
+                out = Path(output_path)
+                if not out.is_file() or out.stat().st_size == 0:
+                    log.error("Locução edge-tts não gerou MP3 válido")
+                    return False
+                log.info(
+                    "Locução de rádio edge-tts concluída",
+                    bytes=out.stat().st_size,
+                    voice=profile or "default",
+                )
+                return True
+        except asyncio.TimeoutError:
+            log.error("Locução edge-tts timeout", timeout_s=self.config.timeout_s)
+            return False
+        except Exception as exc:  # pragma: no cover
+            log.error("Locução edge-tts exceção", error=str(exc))
+            return False
+
+    # -- Introspecção --------------------------------------------------------
+
+    def snapshot(self) -> dict[str, object]:
+        return {
+            "enabled": self.config.enabled,
+            "available": self.available,
+            "engine": "edge-tts",
+            "locucao": self.locucao_disponivel,
+            "voices": self.vozes,
+        }
+
+
+class TTS:
+    """TTS unificado: tenta engine primário, cai para fallback se configurado."""
+
+    def __init__(self, config: Optional[TTSConfig] = None) -> None:
+        self.config = config or TTSConfig()
+        self.piper = PiperTTS(self.config)
+        self.edge = EdgeTTSTTS(self.config)
+
+    def _primary_engine(self):
+        if self.config.engine == "edge-tts":
+            return self.edge
+        return self.piper
+
+    def _fallback_engine(self):
+        if self.config.engine == "piper":
+            return None
+        if self.config.engine == "edge-tts":
+            return self.piper
+        return self.edge  # "both"
+
+    @property
+    def enabled(self) -> bool:
+        return self.config.enabled
+
+    @property
+    def available(self) -> bool:
+        primary = self._primary_engine()
+        if primary.available:
+            return True
+        fallback = self._fallback_engine()
+        return fallback is not None and fallback.available
+
+    @property
+    def vozes(self) -> dict[str, str]:
+        """Todas as vozes disponíveis (Piper + edge-tts)."""
+        all_voices = {}
+        if self.piper.available:
+            all_voices.update({f"piper:{k}": v for k, v in self.piper.vozes.items()})
+        if self.edge.available:
+            all_voices.update({f"edge:{k}": v for k, v in self.edge.vozes.items()})
+        return all_voices
+
+    @property
+    def locucao_disponivel(self) -> bool:
+        primary = self._primary_engine()
+        if primary.locucao_disponivel:
+            return True
+        fallback = self._fallback_engine()
+        return fallback is not None and fallback.locucao_disponivel
+
+    async def synthesize(
+        self, text: str, profile: Optional[str] = None
+    ) -> Optional[bytes]:
+        """Síntese primária com fallback automático."""
+        primary = self._primary_engine()
+        result = await primary.synthesize(text, profile)
+        if result is not None:
+            return result
+        fallback = self._fallback_engine()
+        if fallback and fallback.available:
+            log.info("TTS fallback ativado", primary=type(primary).__name__, fallback=type(fallback).__name__)
+            return await fallback.synthesize(text, profile)
+        return None
+
+    async def synthesize_to_file(
+        self,
+        text: str,
+        output_path: Union[str, Path],
+        profile: Optional[str] = None,
+    ) -> bool:
+        """Síntese para arquivo com fallback."""
+        primary = self._primary_engine()
+        ok = await primary.synthesize_to_file(text, output_path, profile)
+        if ok:
+            return True
+        fallback = self._fallback_engine()
+        if fallback and fallback.available:
+            log.info("TTS fallback para arquivo", primary=type(primary).__name__, fallback=type(fallback).__name__)
+            return await fallback.synthesize_to_file(text, output_path, profile)
+        return False
+
+    async def synthesize_locucao_to_file(
+        self,
+        text: str,
+        output_path: Union[str, Path],
+        profile: Optional[str] = None,
+    ) -> bool:
+        """Locução de rádio com fallback."""
+        primary = self._primary_engine()
+        ok = await primary.synthesize_locucao_to_file(text, output_path, profile)
+        if ok:
+            return True
+        fallback = self._fallback_engine()
+        if fallback and fallback.locucao_disponivel:
+            log.info("Locução fallback", primary=type(primary).__name__, fallback=type(fallback).__name__)
+            return await fallback.synthesize_locucao_to_file(text, output_path, profile)
+        return False
+
+    def snapshot(self) -> dict[str, object]:
+        return {
+            "enabled": self.config.enabled,
+            "available": self.available,
+            "engine": self.config.engine,
+            "locucao": self.locucao_disponivel,
+            "voices": self.vozes,
+            "piper": self.piper.snapshot() if self.piper.available else {"available": False},
+            "edge": self.edge.snapshot() if self.edge.available else {"available": False},
         }
