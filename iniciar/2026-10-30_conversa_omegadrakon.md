@@ -125,3 +125,38 @@ casa — o mesmo padrão do "funnel parou" de 28/10.
 
 **Recomendação:** (a) quando ele voltar para casa — 10 minutos, resolve
 a causa raiz.
+
+## §3 — "deu 400 bad request" na 8446 (30/10 ~14:25): causa encontrada
+
+**Pedido:** dono: "deu 400 bad request. certo, chegando em casa troco"
+(2 = falha no painel de fora; 3 = aprovou o plano (a) — cabo Ethernet
+quando voltar para casa).
+
+### Reprodução e causa (medida, não presumida)
+- Serviços saudáveis: `od-azura-proxy` active desde 28/10 12:40,
+  MainPID 3086957; backend 8091 -> 302; proxy 8466 -> 302.
+- `https://nicky-server.tail1b1f51.ts.net:8446/` -> **302** e
+  `/login` -> **200** (funciona).
+- **`http://...:8446/` -> 400 com corpo "Client sent an HTTP request
+  to an HTTPS server."** = EXATAMENTE o erro que ele viu.
+- **Causa:** o navegador foi em `http://` (sem o `https://`). A 8446 do
+  tailscale serve só aceita TLS; a requisição em claro é recusada com
+  400. Provável origem: digitou a URL no celular sem o esquema e o
+  navegador pesquisou/usou http.
+- `https://192.168.0.250:8446/` -> 000 (a 8446 NAO existe na LAN — é
+  tailnet only, comportamento esperado e desejado).
+
+### Condições para funcionar (as 2, nessa ordem)
+1. App **Tailscale ligado e conectado** à tailnet no aparelho.
+2. URL com **`https://`** explícito:
+   `https://nicky-server.tail1b1f51.ts.net:8446` -> `/login` 200.
+
+### Melhoria proposta (PENDENTE de ordem — mutação na tailnet, regra 7)
+Fazer o tailscale serve redirecionar `http://...:8446` -> `https://`
+(evitando o 400 para quem esquecer o esquema). Não implementado: é
+mutação fora da LAN (tailnet), exige ordem explícita.
+
+### 3. Cabo Ethernet
+Dono: "chegando em casa troco" = plano (a) APROVADO, aguardando ele em
+casa. Checklist lá na frente: backup de config, troca para enp2s0,
+verificação de rota/Funnel/rádio, rollback se falhar.
