@@ -81,3 +81,47 @@ mutação nesta troca (regra 7 intocada).
 ficou bom — o teste que só o olho dele fecha; (b) subir músicas pelo
 painel 8091 (HD Mídia pronta); (c) parking lot §5: rota WiFi (agora com
 prova nova dos blips), auditoria de uso de ferramentas, MCP.
+
+## §2 — dono responde a fila (30/10 ~14:05): rádio aprovada, música de fora, rota WiFi
+
+**Pedido:** dono: "1. ok. 2. não estou em casa, acho que não tem como
+subir musicas. me explique o que quer fazer em 3".
+
+### 1. Rádio aprovada
+"1. ok" = o teste que só o olho dele fecha está cumprido (site e
+painel).
+
+### 2. Música de fora — TEM como (tailnet 8446)
+Ele não precisa estar em casa: o painel AzuraCast está publicado na
+tailnet desde 28/10 — `https://nicky-server.tail1b1f51.ts.net:8446`
+(tailnet only, atrás do proxy que corrige o Host). Com o app Tailscale
+no celular/Notebook conectado à tailnet, ele abre o painel de qualquer
+lugar e sobe música pelo Upload. Ressalva honesta: se o aparelho dele
+NÃO estiver conectado à tailnet, mesmo de fora não há como — o Funnel
+443 só expõe `/`, `/ws` e `/radio.mp3` (decisão de segurança da
+§2 de 28/10: não publicar o painel na internet). URL escrita no
+`txt.txt` (regra 14).
+
+### 3. Rota WiFi — o que eu quero fazer (explicação pedida)
+**Problema medido (router_monitor.log, 13 dias, 18655 amostras de 1
+min):** o servidor saí para a internet por **WiFi USB**
+(`wlx000f0037acf0`), e o link cai com frequência: **300 minutos down**
+no total (~1-3%/dia; 29/10: 46 min = 3%; **30/10: 88 min = 11%**, com
+janela longa 04:34-06:59). Cada blip = DNS fora (Telegram sink, clima,
+notícia G1), Funnel cai da internet e a rádio fica inacessível fora de
+casa — o mesmo padrão do "funnel parou" de 28/10.
+
+**O que eu quero fazer (nada disto agora, ele fora = ordem pendente):**
+- **(a) Cabo Ethernet** — a placa `enp2s0` já existe e está só
+  esperando um cabo até o roteador. Solução definitiva, custo zero em
+  código. Precisa dele em casa (físico).
+- **(b) Failover com o 2º adapter USB** (`wlx00e2b0101555`, hoje
+  parado) — rede reserva que assume quando a principal cai. Arrisca
+  derrubar a rede do servidor se errar a configuração => só com ele em
+  casa ou ordem explícita.
+- **(c) Antena/posição** — medir sinal e reposicionar o adapter.
+- **(d) Só monitorar** — já existe (router-monitor 1 min + alertas
+  proativos).
+
+**Recomendação:** (a) quando ele voltar para casa — 10 minutos, resolve
+a causa raiz.
