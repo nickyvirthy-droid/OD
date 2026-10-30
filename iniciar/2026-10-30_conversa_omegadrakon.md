@@ -160,3 +160,53 @@ mutação fora da LAN (tailnet), exige ordem explícita.
 Dono: "chegando em casa troco" = plano (a) APROVADO, aguardando ele em
 casa. Checklist lá na frente: backup de config, troca para enp2s0,
 verificação de rota/Funnel/rádio, rollback se falhar.
+
+## §4 — dono corrige o fluxo de música (30/10 ~14:40): não é upload cru
+
+**Pedido:** dono: "subir musica não é bem assim que deve funcionar.
+temos que verificar se a musica já existe, qual a qualidade da musica,
+precisa normalizar e enrriquecer os dados, colocar na pasta correta e
+mais coisas que não lembro agora". Antes dele: "pelo que entendi é pra
+subir a musica diretamente dentro do azura, é isso mesmo?" -> **NÃO**
+(upload cru nunca foi o caminho; o AzuraCast importa o `acervo/`
+sozinho, cron de 1 min).
+
+### Levantamento (regra 16 — Legado como referência, lido antes de opinar)
+`/home/alex/dados/musicas/musica.py` **v1.6, 718 linhas** + `doc/README.md`:
+
+| Pedido do dono | Existe na v1.6? | Evidência |
+|---|---|---|
+| Normalizar | **SIM** | `converter_local()` — ffmpeg `loudnorm` EBU R128 (alvo configurável; ele mesmo discute -16/-14/-18 LUFS) |
+| Enriquecer dados | **SIM** | `enriquecer_pendentes_em_lotes()` — Gemini: artista, título, ano, pronúncia, curiosidade; `tags_validas()` trava TPE1+TIT2+TIT3 antes de mover |
+| Colocar na pasta correta | **SIM (com defeito)** | `organizar_acervo()` + `classificar_para_azuracast()` — gênero em subpasta; **defeito: `Mpb` (3 arqs) x `MPB` (0) duplicados por caixa** (`.title()`), + `Outros` e `Jawed Karim` (teste) no acervo |
+| Verificar se já existe | **NÃO** | só `gerar_nome_unico()` evita colisão de NOME de arquivo — a MESMA música com nome diferente entra 2x |
+| Qualidade | **NÃO** | converte tudo p/ `MP3_BITRATE=192k` sem medir a FONTE (fonte 64k vira "192k" de fachada) |
+
+### Descobertas
+- **`analise/Nicky Musicas/Prompt.txt`** = pedido do próprio dono da
+  **v1.7: exportar .m3u** (uma playlist por gênero do acervo + "Mix
+  Radio" balanceada 40/30/20/10, limite de faixas, sem Gemini nessa
+  etapa) — já depositado na caixa de entrada (regra 17), não executado.
+- **`dados/musicas/000/` = 254 mp3 brutos** (192 kbps, nomes de vídeo
+  YouTube) = backlog de entrada nunca processado.
+- **acervo/ = 33 mp3** (os que já tocam na estação), 10 subpastas.
+- `analise/Nicky Radio/` = 2613 arquivos (nicky-radio v0.1..v0.7, outro
+  projeto — não mexer).
+- `run.sh` tem a chave Gemini embutida (Legado — nunca publicar).
+
+### 400 da 8446 — estado do diagnóstico
+- desktop-4icaj6f (Edge) **ACTIVE na tailnet** (100.77.242.82, direct).
+- Reproduzido: `https://...:8446/login` -> **200** com UA do Edge e
+  HTTP/2; `http://...:8446` -> 400 **texto puro sem "nginx"** (tailscale).
+- A página dele ("400 Bad Request" + rodapé **nginx**) casa com o
+  **nginx do AzuraCast** (reproduzido: 8445 com HTTP puro -> 400 "The
+  plain HTTP request was sent to HTTPS port" + `<hr>nginx`). Quem
+  devolve nginx NA CADEIA 8446 é o backend do azura_proxy — pedido
+  específico do Edge chegou lá e o nginx recusou, ou ele tocou outra
+  porta. **Pendente: teste ao vivo com eu lendo o log em tempo real**
+  (azura_proxy não loga pedidos; access.log do AzuraCast está vazio).
+
+### Decisão
+NADA codado nesta troca — o dono está desenhando o fluxo. Próximo
+passo: apresentar o mapeamento + plano de pipeline e perguntar as
+escolhas de design (aprovação, regra de qualidade, dedup).
