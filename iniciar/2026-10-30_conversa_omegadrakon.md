@@ -411,3 +411,22 @@ Pendências do dono: ligar Tailscale no desktop-4icaj6f (offline 20h) —
 sem ele, o painel :8446 (tailnet-only, não é Funnel) continua
 inacessível; `od.sesite.site` segue inexistente no DNS mundial (nunca
 existiu). Pipeline v1.7: normalização a 1h21m (ETA ~14h).
+
+**§9 (cont. 3) — v1.8 em lotes (ordem do dono) e RÁDIO TOCANDO MÚSICA.**
+Dono: "gemini tem limites... o certo é umas 10 musicas por vez, assim a
+rádio já toca e se o limite do gemini acabar não tem problema".
+**v1.8 construída**: entrega em lotes (MP3_LOTE=10, pausa 20s), cada
+lote = loudnorm → Gemini (fallback por palavras-chave se 429 — música
+vai ao ar mesmo sem IA) → acervo → .m3u → `azuracast:media:sync` via
+docker; `--sem-renomear` novo (renomear já tinha rodado; evita gastar
+cota). run.sh agora repassa argumentos. Sandbox = instalado (md5
+02ee6e12...). v1.7 encerrada com SIGTERM (nada perdido; arquivos em
+temp/). **1º lote entregue 12:19:43 músicas no ar** (10 novas com
+Gemini 10/10 + 33 que já traziam tags da v1.6 — maioria caiu em
+"Outros" por gênero antigo ausente). API nowplaying confirma:
+"Scelgo Ancora Te — Giorgia" na playlist default. Lição: pkill -f cascou
+duas vezes na própria shell (padrão casava com a linha de comando do
+shell; até o truque do [f] falhou porque a palavra aparecia antes na
+mesma string) — agora só PIDs explícitos via ps/awk. Pendência:
+acompanhar os ~29 lotes até o fim (ETA ~14h–15h), aviso final no
+txt.txt (dono apagou o anterior).
