@@ -236,3 +236,37 @@ nova.
 **Próximo passo:** v1.7 do pipeline = dedup (chave forte + revisar) +
 portão de qualidade (<192k reprovado) + fix Mpb/MPB + export .m3u do
 Prompt.txt. Sandbox antes do real (regra 10).
+
+## §6 — ordem do dono: RESET LIMPO do acervo (31/10 ~09:30)
+
+**Pedido:** dono: "apague as pastas vazias, coloque todas as musicas na
+pasta 000 e reinicie a classificação de forma limpa. não tem problema a
+rádio sair do ar, o importante é ela começar de forma limpa e certa.
+da menos trabalho agora que no futuro". Item 1 (lista de etapas extras)
+= "sim, pode listar".
+
+### Execução (com backup, sem perda)
+1. **Backup**: `backups/acervo-20261031-antes-reset.tar.gz` (214 MB,
+   33 mp3 + estrutura) em `/home/alex/dados/musicas/backups/`.
+2. **Colisão checada antes**: `comm` entre nomes de `000/` e do acervo
+   = 0 colisões (mv -n ainda assim usado).
+3. **Achatamento**: 33 mp3 do acervo → `000/` (agora **287 arquivos**,
+   254 brutas + 33 já enriquecidas). Acervo: **0 arquivos, 0 subpastas**
+   (`Mpb`, `MPB`, `Gospel`, `Rock`, `Sertanejo`, `Pop`, `Internacional`,
+   `Eletrônica`, `Outros` — incl. `Jawed Karim` do teste — todas
+   apagadas; pasta raiz `acervo/` mantida = alvo do mount do AzuraCast).
+4. **AzuraCast sincronizado** (`azuracast:media:sync nicky`): storage
+   com **2 arquivos** (só `locucoes/`: anuncio_musica + vinheta_nicky) =
+   playlist `default` vazia, sem lixo de referência.
+
+### Estado da rádio (honesto)
+- Stream **200 audio/mpeg** vivo. Tocava ainda "Algo Novo" (fd aberto
+  antes do mv — termina e some sozinho); próxima = anuncio música.
+- Rádio segue NO AR em modo **só vinhetas/locuções** (estado conhecido
+  de antes de 27/10, quando não havia música). Sem música até a v1.7
+  reclassificar o `000/`.
+
+### Próximo
+v1.7 (dedup chave forte+revisar · qualidade <192k reprovadas · fix
+caixa Mpb/MPB · .m3u do Prompt.txt) em sandbox, dry-run contra os 287,
+e aí a reclassificação limpa que ele ordenou.
