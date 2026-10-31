@@ -303,3 +303,50 @@ e aí a reclassificação limpa que ele ordenou.
 ser <192 kbps (m4a ~129k) — o portão de qualidade literal reprovaria a
 maioria dos downloads novos; os 287 de 000/ (192k/48k) passam todos.
 Limiar configurável; decisão de ajuste fica com ele.
+
+## §8 — v1.7 construída, validada em sandbox e EXECUÇÃO REAL iniciada (31/10 ~10:20)
+
+### Construção (sandbox `.od_sandbox/musica-v17/`, regra 10)
+`musica.py` v1.7 (1.146 linhas) escrita a partir da v1.6 lida por inteiro.
+Escopo conforme §5+§7: dedup chave forte (exato → `revisar/duplicadas/`,
+parecido → `revisar/`, **nada apagado**), portão de qualidade ffprobe na
+fonte (<192k ou <44,1kHz → `reprovadas/` + motivo; limiar `MP3_BITRATE_MIN`),
+loudnorm medido em TODOS os mp3 (v1.6 não normalizava downloads — achado),
+gênero via Gemini em TCON (lista fixa de 8, validado; `validar_genero`),
+classificação única por TCON com fallback palavras-chave e pastas
+case-insensitive (fix Mpb/MPB), `.m3u` por gênero + Mix Radio 40/30/20/10
+(`--max-faixas`, seed fixa, caminhos relativos), CLI completo (urls,
+`--dry-run`, `--clean`, `--max-faixas`, `--sem-m3u`), `MP3_BASE_DIR` para
+sandbox, entrada `000/` drenada no início (`drenar_entrada()`), removidos:
+stub playlist inteligente, `organizar_acervo()`, PROMPT_ORGANIZACAO,
+PROMPT_GENERO_AZURACAST (briga de classificação dupla — achado). Extras:
+tags substituídas em vez de acumular frames; renomeação em lotes de 10.
+
+### Validação (antes do real)
+- 22 testes unitários (`/tmp/opencode/testa_v17.py`): normalização de chave,
+  validar_genero, pasta case-insensitive, dedup exato/parecido/novo, extração
+  de nomes YouTube ( ` - `, `｜`, `_` sanitizado), ffprobe 192k passa / 64k
+  reprova — **todos verdes**.
+- **Dry-run contra os 287 reais**: 287 reconhecidos, 0 reprovados (todos
+  192k+), 0 duplicatas (chave única confirmada por teste externo: 287 chaves
+  únicas; os 18 "parecidos" aparentes eram músicas DIFERENTES do mesmo artista
+  com sufixo igual "[Clipe Oficial]" — falso positivo corrigido com o núcleo
+  do título), 287 pendentes de Gemini (33 precisam só do gênero). Dry-run
+  prova-read-only: md5 do listing 000/+acervo idêntico antes/depois.
+- Defeitos achados e corrigidos durante a validação: (1) dry-run não via a
+  entrada `000/` (pipeline só olhava temp/); (2) nomes `Artista ｜ Título`
+  viravam artista "Desconhecido"; (3) similaridade inflada por sufixos;
+  (4) `oficial` faltando no regex de qualificadores; (5) sequência
+  sanitização→extração: `｜` virava `_` antes do leitor ver (corrigido
+  tratando `_` espaçado). Um kill de processo matou minha própria shell
+  (pkill casou na linha de comando) — lição, sem dano.
+
+### Instalação e execução real
+- v1.6 salva em `backups/musica-v16-20261031.py`; v1.7 instalada em
+  `/home/alex/dados/musicas/musica.py` (md5 confere com o sandbox);
+  `doc/README.md` reescrito para a v1.7.
+- Execução real lançada 10:20:48 (pid 2973898) com a chave do `run.sh`
+  exportada sem exibir. 287 drenados de `000/` → `temp/` (000 vazio por
+  design). Etapas: sanitização → renomear (Gemini lotes) → dedup →
+  qualidade → tags → loudnorm (~1h) → enrich Gemini (~15 min) → acervo →
+  classificação → .m3u. Estimativa total ~1,5–2h. Acompanhar e reportar.
