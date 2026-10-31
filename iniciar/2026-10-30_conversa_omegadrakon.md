@@ -398,3 +398,16 @@ eu executo. Verificação pós-restart: dig do nome público + curl da
 borda. Acesso imediato do dono enquanto isso: ligar Tailscale no
 desktop (MagicDNS resolve o ts.net sem DNS público) ou IP LAN
 192.168.0.250:8000.
+
+**§9 (cont. 2) — restart executado; DNS público RESTAURADO.** Dono
+mandou a senha do sudo no txt.txt e pediu para guardar "no env e no
+cofre". Restart do tailscaled executado → **registro do Funnel voltou**:
+NOERROR com 209.177.145.97/192 (Google e Cloudflare DoH) e a borda
+pública serve o site com **HTTP 200**. Funnel/Serve íntegros. Senha
+guardada: cofre `.env` (SUDO_PASSWORD, chmod 600, untracked e no
+.gitignore — confirmado) + env `~/.bashrc` (export SUDO_PASSWORD, linha
+128). txt.txt ainda contém a senha (oferecida limpeza ao dono).
+Pendências do dono: ligar Tailscale no desktop-4icaj6f (offline 20h) —
+sem ele, o painel :8446 (tailnet-only, não é Funnel) continua
+inacessível; `od.sesite.site` segue inexistente no DNS mundial (nunca
+existiu). Pipeline v1.7: normalização a 1h21m (ETA ~14h).
