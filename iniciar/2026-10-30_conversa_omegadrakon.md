@@ -385,3 +385,16 @@ desktop → MagicDNS resolve o nome na hora, mesmo com DNS público morto;
 fallback IP literal. (B) reiniciar tailscaled no servidor (~5s, sem
 clientes no funnel agora) para o control plane republicar o registro
 público do Funnel; se não voltar, é caso de console admin do Tailscale.
+
+**§9 (cont.) — aval dado, restart travado em sudo interativo.** Dono
+aprovou reiniciar o tailscaled. Execução bloqueada: `sudo -n` / polkit
+exigem senha interativa (NOPASSWD só mariadb/nexus-router); pokes sem
+root (`tailscale set --hostname`, `tailscale up`) não republicaram o
+registro (NXDOMAIN persiste via 8.8.8.8/1.1.1.1/DoH). tailscaled no ar
+desde 01/10 (sem restart desde então). Entregue ao dono: rodar
+`sudo systemctl restart tailscaled` num terminal do servidor, ou
+`sudo -v` (Ubuntu compartilha o timestamp do sudo entre terminais) que
+eu executo. Verificação pós-restart: dig do nome público + curl da
+borda. Acesso imediato do dono enquanto isso: ligar Tailscale no
+desktop (MagicDNS resolve o ts.net sem DNS público) ou IP LAN
+192.168.0.250:8000.
