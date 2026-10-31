@@ -270,3 +270,36 @@ da menos trabalho agora que no futuro". Item 1 (lista de etapas extras)
 v1.7 (dedup chave forte+revisar · qualidade <192k reprovadas · fix
 caixa Mpb/MPB · .m3u do Prompt.txt) em sandbox, dry-run contra os 287,
 e aí a reclassificação limpa que ele ordenou.
+
+## §7 — escopo fechado da v1.7 (31/10 ~10:00)
+
+**Pedido:** dono respondeu as 3 perguntas da lista de extras:
+1. **CLI completo**: `urls` por argumento, `--dry-run` (simula sem
+   mover/baixar) e `--clean` (limpa `temp/` e `logs/` antes).
+2. **Gênero via Gemini**: ENTRA — enrichment passa a responder também o
+   gênero (lista fixa: Gospel, Sertanejo, Rock, Pop, MPB, Internacional,
+   Eletrônica, Outros), gravado em TCON; classificação usa TCON quando
+   existir, com fallback nas palavras-chave de hoje. Resolve o "Outros"
+   documentado no README.
+3. **Itens mortos**: remover o stub `sugerir_playlist_inteligente()`
+   (README já diz "não mantida"); manter `sugerir_renomear_temp()`.
+
+**Escopo v1.7 fechado (com as escolhas da §5):**
+- dedup: chave forte artista+título normalizados; exato → descarta+loga;
+  parecido (mesmo artista + título próximo, difflib) → `revisar/`;
+  nada apagado sozinho.
+- qualidade: ffprobe na FONTE; <192 kbps ou <44,1 kHz → `reprovadas/`
+  com motivo no log (limiar via env MP3_BITRATE_MIN p/ ajuste fino).
+- fix caixa: pastas do acervo casadas case-insensitive (Mpb/MPB).
+- export `.m3u` (Prompt.txt): por gênero + Mix Radio 40/30/20/10,
+  limite de faixas (padrão 50, `--max-faixas`), caminhos relativos,
+  sem Gemini nessa etapa.
+- registro: BASE_DIR configurável via env MP3_BASE_DIR (para sandbox
+  apontar pro acervo real sem copiar 287 arquivos).
+- dry-run NÃO chama Gemini nem move nada (verifica tags/ffprobe/dedup e
+  relata).
+
+**Ressalva honesta p/ dono (a entregar):** fontes do YouTube costumam
+ser <192 kbps (m4a ~129k) — o portão de qualidade literal reprovaria a
+maioria dos downloads novos; os 287 de 000/ (192k/48k) passam todos.
+Limiar configurável; decisão de ajuste fica com ele.
