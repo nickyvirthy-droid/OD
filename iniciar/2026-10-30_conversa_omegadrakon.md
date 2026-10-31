@@ -210,3 +210,29 @@ sozinho, cron de 1 min).
 NADA codado nesta troca — o dono está desenhando o fluxo. Próximo
 passo: apresentar o mapeamento + plano de pipeline e perguntar as
 escolhas de design (aprovação, regra de qualidade, dedup).
+
+## §5 — escolhas de design do fluxo de música (30/10 ~15:00)
+
+**Pedido:** dono respondeu as 3 perguntas (ask_user):
+1. **Dedup: "Chave forte + revisão"** — chave = artista+título
+   normalizados. Bate exato → descarta e loga. Bate 'parecido' (mesmo
+   artista, título com variação) → pasta `revisar/` para ele olhar.
+   Nada é apagado sozinho.
+2. **Qualidade: "Recusar abaixo de 192k"** — bitrate real <192 kbps ou
+   sample rate <44,1 kHz → pasta `reprovadas/` com o motivo no log.
+3. **Aprovação: "Publicação automática"** — passou nas regras (dedup +
+   qualidade + tags completas) já entra no acervo e toca em ~1 min
+   (relatório continua gerado, mas sem bloquear).
+
+**Observação honesta do combo:** dedup exato e qualidade são
+bloqueios AUTOMÁTICOS; só o "parecido" vai para revisão — coere com
+aprovação automática.
+
+**Sistema na virada do dia (31/10 ~00:00, regra 3):** od-core active,
+MainPID 527739, NRestarts=0, /health ok, árvore limpa (HEAD 64c070e),
+Vigia 31/10 04:31 4 sondas verdes, fila vazia, txt.txt sem mensagem
+nova.
+
+**Próximo passo:** v1.7 do pipeline = dedup (chave forte + revisar) +
+portão de qualidade (<192k reprovado) + fix Mpb/MPB + export .m3u do
+Prompt.txt. Sandbox antes do real (regra 10).
