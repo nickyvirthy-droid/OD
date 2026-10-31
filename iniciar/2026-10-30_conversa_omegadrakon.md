@@ -350,3 +350,38 @@ tags substituídas em vez de acumular frames; renomeação em lotes de 10.
   design). Etapas: sanitização → renomear (Gemini lotes) → dedup →
   qualidade → tags → loudnorm (~1h) → enrich Gemini (~15 min) → acervo →
   classificação → .m3u. Estimativa total ~1,5–2h. Acompanhar e reportar.
+
+## §9 — dono: bitrate mínimo para 128 + DNS NXDOMAIN (31/10 ~11:30)
+
+**Pedido 1:** dono: "ajuste o bitrate minimo para 128, assim o youtube
+funciona". **EXECUTADO**: `MP3_BITRATE_MIN` default 128 em
+`/home/alex/dados/musicas/musica.py` = sandbox (md5 idêntico), README
+atualizado; teste: limiar ativo 128, 64k continua reprovado. Vale p/
+downloads futuros; a execução em curso já passou pelo portão (287/192k).
+
+**Pedido 2 (pendente de resposta):** dono: "não consigo acessar a pagina.
+dns_probe_finished_nxdomain". **Evidências coletadas:**
+- NXDOMAIN **autoritativo** (zone ts.net via ns1.dnsimple.com, DoH
+  Status 3) para `nicky-server.tail1b1f51.ts.net` E para
+  `od.sesite.site`; zona `sesite.site` **nem existe** (NS → NXDOMAIN) —
+  se foi essa a URL, o domínio não existe em lugar nenhum.
+- Borda pública do Funnel (IPs 209.177.145.97/192 de 30/10) **mortos**
+  (curl 000/erro TLS) — o caminho público sumiu, não é só DNS.
+- Config local do Funnel **íntegra** (`tailscale funnel status`: on,
+  /, /ws, /radio.mp3) — o control plane parou de publicar o registro.
+- `desktop-4icaj6f` **OFFLINE da tailnet há 20h** (Tailscale dele
+  parado) → sem MagicDNS no dele também.
+- od-core faz bind em 0.0.0.0:8000 (confirmado) — **IP literal
+  `http://100.77.67.53:8000` funciona sem DNS** assim que o Tailscale
+  dele voltar (health respondeu pela tailnet IP).
+- /health "ok": false visto sem chave = só auth (com X-API-Key segue
+  ok: true) — sem problema de sistema.
+- logs tailscaled: "major link change" 04:05/04:06 da madrugada
+  (rebind) — possível marco da queda do registro público.
+- Repo sem nenhuma referência a sesite.site.
+
+**Plano proposto (aguardando aval):** (A) dono liga o Tailscale no
+desktop → MagicDNS resolve o nome na hora, mesmo com DNS público morto;
+fallback IP literal. (B) reiniciar tailscaled no servidor (~5s, sem
+clientes no funnel agora) para o control plane republicar o registro
+público do Funnel; se não voltar, é caso de console admin do Tailscale.
