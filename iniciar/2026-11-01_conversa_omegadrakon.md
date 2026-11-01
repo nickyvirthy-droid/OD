@@ -170,6 +170,12 @@ roteador"; depois "B. leia o txt também".
   falso positivo (`ja_reservado`) porque a lista de clientes DHCP do MESMO
   painel também mostra o par. Correção: `_linhas_reservas()` restrito ao
   painel "Reserva de Endereço" (3 linhas).
+- O gate pegou a 2ª sobra de design: `TestBindDuploCompose` exigia
+  `100.77.67.53:8410` no compose (a guarda antiga codificava a corrida em
+  si). Guarda atualizada para o contrato novo: `127.0.0.1` + `.205`
+  presentes e o IP da tailnet **proibido** no compose.
+- Gate final: **4012 passed / 16 skipped / 0 falha · 90,47%** · pyflakes
+  0 aviso novo. Commit `db0b4a1` pushado; Telegram msg 3518 (regra 15).
 - EXECUTADO: `Servidor-Cabo / 84:7B:EB:FB:09:39 → 192.168.0.205` — tabela
   re-lida mostrou 4 linhas com a reserva no topo; servidor segue em .205.
 
