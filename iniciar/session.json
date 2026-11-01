@@ -1,4 +1,16 @@
 {
+ "reverificacao_noite_2026_11_01": {
+  "pedido": "Usuario: 'leia iniciar' (01/11 ~20:22) — reverificacao de rotina (regra 3, SO LEITURA). Checkpoint anterior: corrida_reserva_dhcp_opcaoB_2026_11_01 (07:20).",
+  "estado": "VERDE — git ARVORE LIMPA HEAD 53c463a == origin/master (0 residuos; ultimo commit 'Registro: gate final 4012/16/0 90,47%...'); od-core active desde 31/10 14:42:30 MainPID 1217 NRestarts=0 (~30h); /health autenticado ok=true status=up NENHUM check fora; journal 07:20->20:22 ZERO warning/erro; Funnel 200; /radio.mp3 206 audio/mpeg; nowplaying 'Isadora Pompeo - Hey, Pai' (acervo tocando).",
+  "pos_corrida_opcaoB": "9/9 portas LAN no .205 (8090=200 8100=200 8200=200 8400=200 8410=200 8420=302 8430=200 8470=200 8480=404 raiz=normal); .250 MORTO nos binds movidos (8200/8420=000, esperado); tailnet serve das 3: 8200=200, 8410=200, 8420=302 via 100.77.67.53. Prova de BOOT da correcao da corrida ainda PENDENTE — nenhum reboot desde 31/10 14:42; sera provada no proximo boot.",
+  "v18": "Fechou 06:10:47; acervo 287 mp3, 000/ vazio, temp/ vazio (sem resquicios da execucao). Aviso final ENTREGUE: txt.txt (item 4) + Telegram msg 3518 (regra 15).",
+  "vigia": "watchdog tick 20:23: ativos 26, pendentes_novos [], pendentes_seguranca [], rich true. Relatorio mensagens 04:35: 4 sondas verdes, fila do juiz vazia, avisado=false.",
+  "canais": "txt.txt (mtime 20:00 = reescrita nossa/painel; conteudo ainda e a entrega 07:05, NENHUMA mensagem nova do dono). analise/ sem pasta nova: Prompt_Nicky_Musicas.txt (31/10, ja conhecido) e Nicky Radio/ intacta.",
+  "fila_do_dono": "(a) ORDEM PENDENTE (oferecida no txt.txt 07:05): 3 encaminhamentos do roteador Archer C6 (SSH 22, HTTP 80->8000, Controle 8001) ainda apontam para o .250 — trocar para .205 quando ele pedir (mutacao de router exige ordem); (b) parking lot: auditoria de uso de ferramentas, MCP; (c) no proximo reboot, conferir se a corrida docker x tailscale nao se repetiu (correcao ja implantada).",
+  "acoes_desta_troca": "SO LEITURA: git, systemctl, /health autenticado, journal, borda (Funnel/radio), 9 portas LAN + 3 tailnet, nowplaying, estado do watchdog, txt.txt, analise/. NENHUMA mutacao, git intocado.",
+  "updated_at": "2026-11-01T20:25:00-03:00",
+  "transcricao": "iniciar/2026-11-01_conversa_omegadrakon.md (§4)"
+ },
  "corrida_reserva_dhcp_opcaoB_2026_11_01": {
   "pedido": "Dono (01/11 ~05:45): 'certo. 3 pode mexer, corrija' (corrida docker×tailscale); 'não precisa trocar os ips final 250 para 205?'; 'e também fixar esse ip no roteador'; depois 'B. leia o txt também' (escolha da opção B + leitura do txt.txt).",
   "correcao_corrida": "docker/tools-compose.yaml: binds 100.77.67.53:* removidos dos 3 containers (flatnotes 8200, filebrowser 8410, calibre-web 8420) com comentário da causa (dockerd programa bind na CRIAÇÃO antes do tailscaled dar IP ao tailscale0 -> exit 128). Tailnet via tailscale serve --bg --tcp=PORTA tcp://127.0.0.1:PORTA (rollback: backups/tailscale-serve-20261101-0550-status.json). Sandbox provou TCP serve = bind direto (IP+hostname 200/302, LAN OK); HTTP serve deu 404 e foi descartado. Verificado: /books 8443->302, Funnel->200, health verde.",

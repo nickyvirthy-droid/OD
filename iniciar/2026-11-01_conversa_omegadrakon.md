@@ -212,3 +212,54 @@ roteador"; depois "B. leia o txt também".
 - Acervo **287 mp3** (223 → 233 → 287), temp vazio; classificação: Gospel 88,
   Internacional 13, MPB 7, Outros 165, Pop 9, Rock 2, Sertanejo 3; .m3u por
   gênero + Mix_Radio.m3u; AzuraCast sincronizada.
+
+## §4 — "leia iniciar" (01/11 ~20:22): reverificação noturna, tudo verde
+
+**Pedido:** usuário: "leia iniciar" — reverificação de rotina (regra 3, SO
+LEITURA). Checkpoint: `corrida_reserva_dhcp_opcaoB_2026_11_01` (07:20).
+
+### 1. Estado medido (20:22–20:24, tudo por evidência)
+
+- **Git ARVORE LIMPA**, HEAD `53c463a` == `origin/master` (0 resíduos).
+- **od-core:** active desde 31/10 14:42:30, MainPID **1217**,
+  **NRestarts=0** (~30h no ar).
+- **/health autenticado:** `ok=true`, `status=up`, **nenhum check fora**.
+- **Journal 07:20 → 20:22:** **ZERO** warning/erro (primeiro trecho limpo
+  depois dos blips de link da madrugada — uplink agora é o cabo).
+- **Borda:** Funnel `/` **200**; `/radio.mp3` **206 audio/mpeg**;
+  nowplaying "Isadora Pompeo — Hey, Pai" (acervo no ar).
+
+### 2. Depois da corrida + opção B (prova das 9 + 3)
+
+- **LAN .205: 9/9** — 8090/8100/8200/8400/8410/8430/8470 → 200, 8420 → 302,
+  8480 → 404 na raiz (comportamento normal, `/f/cofre` é 200).
+- **.250 morto** nos binds movidos (8200/8420 → 000, esperado).
+- **Tailnet (serve TCP):** 8200 → 200, 8410 → 200, 8420 → 302 via
+  `100.77.67.53`.
+- **Prova de boot ainda pendente:** nenhum reboot desde 31/10 14:42 — a
+  correção da corrida será provada no próximo boot (registro feito na §3).
+
+### 3. v1.8, Vigia e canais
+
+- v1.8 fechou 06:10:47; **acervo 287 mp3**, `000/` e `temp/` vazios (sem
+  resquícios). Aviso final já ENTREGUE (txt.txt item 4 + Telegram 3518).
+- Vigia tick 20:23: 26 ativos, `pendentes_novos: []`,
+  `pendentes_seguranca: []`; relatório 04:35 com 4 sondas verdes e fila do
+  juiz vazia.
+- **txt.txt:** sem mensagem nova do dono (conteudo ainda é a entrega 07:05).
+- **analise/:** nada novo (Prompt_Nicky_Musicas.txt 31/10 já conhecido;
+  Nicky Radio/ intacta).
+
+### 4. Estado e fila
+
+**SISTEMA VERDE E ESTÁVEL — v1.44.0/2080, HEAD `53c463a`, árvore limpa,
+health ok=true, 9 ferramentas no .205 + tailnet no ar, rádio no ar, Vigia
+sem pendências.**
+
+**Fila do dono:** (a) ORDEM PENDENTE oferecida no txt.txt: os 3
+encaminhamentos do roteador (SSH 22, HTTP 80→8000, Controle 8001) ainda
+apontam para o `.250` — trocar para `.205` quando ele pedir; (b) parking
+lot: auditoria de uso de ferramentas, MCP; (c) no próximo reboot, conferir
+se a corrida não se repetiu.
+
+**Ações desta troca:** NENHUMA mutação — só leitura e registro (regras 3 e 4).
