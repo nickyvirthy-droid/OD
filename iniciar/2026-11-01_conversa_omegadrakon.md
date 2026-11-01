@@ -79,9 +79,12 @@ tick).
 - Estado no retomar: **223 mp3 no acervo** (já no ar) + **64 em
   `temp/`** (o 65º é o artefato `__ln_*` do loudnorm interrompido — o
   pipeline já o ignora, `musica.py:1164/1199`); `000/` vazio.
-- **Retomada 01/11 05:21:45** (pid 839442): `./run.sh --sem-renomear` →
-  `Dedup: 64 novo(s), 0 duplicado(s)` → lote de 10 rodando (55 restam).
-  Log: `logs/execucao_v18_retomada_20261101.log`.
+- **Retomada 01/11 05:21:45:** `./run.sh --sem-renomear` → `Dedup: 64
+  novo(s), 0 duplicado(s)` → lote de 10 (55 restam). **1ª tentativa
+  MORREU** com o fim do shell (nohup sozinho não bastou — o harness mata
+  o process group; lição: é `setsid`). **2ª tentativa 05:26:06 (pid
+  843908, sid próprio 843907 = desvinculado)** e viva: já normalizando
+  (1ª música 05:26:25). Log: `logs/execucao_v18_retomada_20261101.log`.
 - **Achados honestos da execução de 31/10 (reconstruídos do log):**
   dezenas de **429 do Gemini** (rate limit) → fallback por palavras-
   chave (por isso 161 em "Outros" no classification), 3× "Gemini falhou
