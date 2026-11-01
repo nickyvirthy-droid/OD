@@ -779,8 +779,12 @@ class TestCatalogoFileBrowser:
 class TestBindDuploCompose:
     """Bind duplo da caixa (infra 19/10, decisão do dono — o botão do app
     abre a caixa no navegador de fora): 127.0.0.1 para as actions do
-    sistema e o IP da tailnet para o dono. O estado antigo (127.0.0.1
-    puro) era INALCANÇÁVEL do celular; as duas linhas têm de existir."""
+    sistema e o IP da LAN para o dono. CONTRATO NOVO (01/11, ordem do
+    dono "corrija" + opção B): o IP da tailnet NÃO pode estar no compose
+    (o dockerd programava o bind antes do tailscaled dar IP ao tailscale0
+    e derrubava o container no boot — exit 128); a tailnet passa pelo
+    `tailscale serve --tcp=8410 tcp://127.0.0.1:8410`. O bind LAN segue
+    o IP do CABO (.205 desde 01/11, com reserva DHCP no roteador)."""
 
     def test_duas_portas_no_compose(self) -> None:
         raiz = Path(__file__).resolve().parents[1]
@@ -790,8 +794,12 @@ class TestBindDuploCompose:
         assert '- "127.0.0.1:8410:80"' in compose, (
             "actions do sistema sem o bind local (127.0.0.1:8410)"
         )
-        assert '- "100.77.67.53:8410:80"' in compose, (
-            "dono sem o bind da tailnet — o botão do app não abriria de fora"
+        assert '- "192.168.0.205:8410:80"' in compose, (
+            "dono sem o bind da LAN (IP do cabo .205, opção B de 01/11)"
+        )
+        assert "100.77.67.53:8410" not in compose, (
+            "bind direto da tailnet voltou ao compose — é a corrida de boot "
+            "corrigida em 01/11 (tailnet via tailscale serve)"
         )
 
 

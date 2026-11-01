@@ -135,3 +135,74 @@ ferramentas, MCP (rota WiFi resolvida pelo cabo).
 4. **SSH das 05:07 foi ELE** ("sim") — caso fechado: era o desktop dele
    com `ALEX` maiúsculo; benigno, sem evento de segurança real (usuário
    correto `alex`; aviso escrito no txt.txt).
+
+## §3 — corrida corrigida, reserva DHCP criada, opção B aplicada (01/11 ~05:45–07:00)
+
+**Pedido:** dono: "certo. 3 pode mexer, corrija" (corrida docker×tailscale);
+"não precisa trocar os ips final 250 para 205?"; "e também fixar esse ip no
+roteador"; depois "B. leia o txt também".
+
+### 1. Correção da corrida (item 3 — autorizado)
+
+- `docker/tools-compose.yaml`: binds `100.77.67.53:*` removidos dos 3
+  containers (flatnotes 8200, filebrowser 8410, calibre-web 8420) com
+  comentário explicando a causa (dockerd programa o bind na CRIAÇÃO antes do
+  tailscaled atribuir o IP ao tailscale0 → exit 128 no boot).
+- Tailnet agora via `tailscale serve --bg --tcp=PORTA tcp://127.0.0.1:PORTA`
+  (backup em `backups/tailscale-serve-20261101-0550-status.json`).
+- Prova (sandbox antes do real, regra 10): TCP serve = mesmo comportamento do
+  bind direto (IP tailnet + hostname → 200/302; LAN OK). HTTP serve deu 404
+  por IP literal e foi descartado.
+- Verificação: IP+hostname+LAN+loopback 200/200/302 nos 3; `/books` da 8443 →
+  302 e Funnel → 200 intactos; health verde.
+
+### 2. Reserva DHCP do .205 no roteador (ordem "fixar esse ip")
+
+- Roteador TP-Link Archer C6 (UI `tpos`, PT-BR); senha já no cofre `.env`
+  (`ROUTER_ADMIN_PASSWORD`, registrado 21/10). Automação nova via playwright
+  (venv do vigia) — rotas descobertas por exploração read-only:
+  Avançado → `#dhcpServerAdv` → seção "Reserva de Endereço" (botão Adicionar).
+- Diálogo mapeado: 8 campos = Nome + 6 octetos MAC (`-----`) + Endereço IP.
+- Código: `_reservar()` em `tools/monitor/vigia_rich.py` (espelho de
+  `_bloquear`, prova por releitura) + modo `--reservar MAC IP [NOME]` em
+  `tools/monitor/network_watchdog.py` (espelho de `--bloquear`).
+- BUG pego na prova: 1ª versão checou MAC+IP no corpo INTEIRO da página →
+  falso positivo (`ja_reservado`) porque a lista de clientes DHCP do MESMO
+  painel também mostra o par. Correção: `_linhas_reservas()` restrito ao
+  painel "Reserva de Endereço" (3 linhas).
+- EXECUTADO: `Servidor-Cabo / 84:7B:EB:FB:09:39 → 192.168.0.205` — tabela
+  re-lida mostrou 4 linhas com a reserva no topo; servidor segue em .205.
+
+### 3. Pergunta .250 → .205 (medição) e escolha do dono
+
+- Medido: `192.168.0.250:{8420,8410,8200}` → 302/200/200;
+  `192.168.0.205:` mesmas portas → 000 (services no .250).
+- Opções entregues: (A) manter .250; (B) trocar binds para .205.
+  **Dono escolheu B.**
+
+### 4. Opção B aplicada
+
+- 9 binds LAN do compose: `192.168.0.250:` → `192.168.0.205:` (comentário do
+  kiwix atualizado explicando a troca + reserva DHCP).
+- `docker compose -f docker/tools-compose.yaml up -d` recriou os 9.
+- Verificação: 9/9 respondendo no .205 (8480 com 404 na raiz = comportamento
+  normal, `/f/cofre` → 200); .250 morto nos binds (esperado); tailnet
+  (serve) 200/200/302 por IP e hostname; loopback OK; `/books` 302; Funnel
+  200; health `ok: true` nenhum fora (stirling 000 momentâneo = Spring Boot
+  ainda subindo, depois healthy).
+
+### 5. txt.txt: aviso repetido do SSH (pergunta do dono)
+
+- Pergunta dele: "o que é isso. porque está repetindo?" (WARN de 4 eventos
+  de segurança pendentes — `Invalid user ALEX`).
+- Resposta: era ELE (desktop via tailnet, 100.77.242.82) com `ALEX` maiúsculo
+  às 05:07–05:08; cada tentativa inválida vira um evento novo no Vigia e o
+  alerta do Telegram só some quando a fila é reconhecida. Executado
+  `--ack-seguranca` → 4 reconhecidos, pendências zeradas.
+
+### 6. v1.8 fechou
+
+- 06:10:47 `Pipeline concluído v1.8` (pid 843908, setsid — sobreviveu).
+- Acervo **287 mp3** (223 → 233 → 287), temp vazio; classificação: Gospel 88,
+  Internacional 13, MPB 7, Outros 165, Pop 9, Rock 2, Sertanejo 3; .m3u por
+  gênero + Mix_Radio.m3u; AzuraCast sincronizada.

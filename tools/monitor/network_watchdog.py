@@ -559,6 +559,24 @@ def bloquear(mac: str) -> int:
     return proc.returncode
 
 
+def reservar(mac: str, ip: str, nome: str = "") -> int:
+    """OPERADOR: cria Reserva de Endereço (DHCP) fixando IP para o MAC."""
+    senha = os.environ.get("ROUTER_ADMIN_PASSWORD", "")
+    if not senha or not Path(VENV_PY).exists():
+        print("FALHA: sem senha (ROUTER_ADMIN_PASSWORD) ou venv do chromium.")
+        return 2
+    cmd = [VENV_PY, str(SCRIPT_RICH), "--reservar",
+           normaliza_mac(mac), ip]
+    if nome:
+        cmd.append(nome)
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=150,
+        env={**os.environ, "ROUTER_PASS": senha},
+    )
+    print((proc.stdout or proc.stderr or "sem saída").strip())
+    return proc.returncode
+
+
 def report() -> None:
     estado = carregar_estado()
     dispositivos = estado["dispositivos"]
@@ -590,6 +608,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="limpa eventos de segurança pendentes")
     parser.add_argument("--bloquear", metavar="MAC",
                         help="OPERADOR: bloqueia MAC no roteador (UI real)")
+    parser.add_argument("--reservar", nargs="+", metavar="MAC IP [NOME]",
+                        help="OPERADOR: fixa IP para MAC (Reserva de Endereço "
+                             "DHCP) no roteador (UI real)")
     parser.add_argument("--report", action="store_true", help="resumo humano")
     args = parser.parse_args(argv)
 
@@ -601,6 +622,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0
     if args.bloquear:
         return bloquear(args.bloquear)
+    if args.reservar:
+        if len(args.reservar) < 2:
+            print("--reservar exige MAC e IP", file=sys.stderr)
+            return 2
+        return reservar(args.reservar[0], args.reservar[1],
+                        args.reservar[2] if len(args.reservar) > 2 else "")
     if args.report:
         report()
         return 0

@@ -47,9 +47,11 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8090:8080"
-      # 192.168.0.250 = casa SEM Tailscale (ordem do dono 21/10: as 9
-      # ferramentas abrem por porta direta na rede interna).
-      - "192.168.0.250:8090:8080"
+      # 192.168.0.205 = casa SEM Tailscale (ordem do dono 21/10: as 9
+      # ferramentas abrem por porta direta na rede interna; IP do CABO,
+      # trocado de .250 p/ .205 em 01/11 por ordem do dono — opção B,
+      # com reserva DHCP fixando o .205 no roteador).
+      - "192.168.0.205:8090:8080"
     volumes:
       - /home/alex/omegadrakon-tools/zim:/data:ro
     # O kiwix-serve precisa do arquivo ZIM como argumento posicional — sem
@@ -72,7 +74,7 @@ services:
     ports:
       - "127.0.0.1:8100:80"
       # LAN (ordem 21/10): casa sem Tailscale.
-      - "192.168.0.250:8100:80"
+      - "192.168.0.205:8100:80"
     mem_limit: 256m
     memswap_limit: 256m
 
@@ -86,7 +88,7 @@ services:
     ports:
       - "127.0.0.1:8430:80"
       # LAN (ordem 21/10): casa sem Tailscale.
-      - "192.168.0.250:8430:80"
+      - "192.168.0.205:8430:80"
     mem_limit: 128m
     memswap_limit: 128m
 
@@ -103,10 +105,11 @@ services:
     ports:
       - "127.0.0.1:8200:8080"
       # Bind triplo (21/10): 127.0.0.1 = ações do sistema; LAN =
-      # casa sem Tailscale; 100.77.67.53 = celular via Tailscale
-      # (TODO vive aqui desde 21/10). Nunca no Funnel.
-      - "192.168.0.250:8200:8080"
-      - "100.77.67.53:8200:8080"
+      # casa sem Tailscale; tailnet via `tailscale serve --bg
+      # --tcp=8200 tcp://127.0.0.1:8200` (01/11, ordem do dono
+      # "corrija" — ver serviço 7: bind no IP da tailnet derrubava o
+      # container no boot por corrida docker x tailscaled). Funnel: não.
+      - "192.168.0.205:8200:8080"
     volumes:
       - /home/alex/omegadrakon-tools/flatnotes:/data
     environment:
@@ -135,7 +138,7 @@ services:
     ports:
       - "127.0.0.1:8400:8080"
       # LAN (ordem 21/10): casa sem Tailscale.
-      - "192.168.0.250:8400:8080"
+      - "192.168.0.205:8400:8080"
     volumes:
       - /home/alex/omegadrakon-tools/stirling-pdf/configs:/configs
       - /home/alex/omegadrakon-tools/stirling-pdf/logs:/logs
@@ -161,13 +164,12 @@ services:
     container_name: od-filebrowser
     restart: unless-stopped
     ports:
-      # Bind triplo (21/10): 127.0.0.1 = ações do sistema (OD_FILEBROWSER_URL
- # no .env); 192.168.0.250 = casa sem Tailscale (ordem do dono); IP
-      # da tailnet = celular/PC via Tailscale. Nunca no Funnel (o gate
- # público é o Site; login próprio é defesa em profundidade).
+      # Bind duplo (01/11, ordem do dono "corrija" — mesma causa raiz
+      # do calibre, serviço 7): IP da tailnet fora do compose; tailnet
+      # via `tailscale serve --bg --tcp=8410 tcp://127.0.0.1:8410`.
+      # Gate público segue o Site; login próprio é defesa em profundidade.
       - "127.0.0.1:8410:80"
-      - "192.168.0.250:8410:80"
-      - "100.77.67.53:8410:80"
+      - "192.168.0.205:8410:80"
     volumes:
       - /home/alex/omegadrakon-tools/filebrowser/files:/srv
       - /home/alex/omegadrakon-tools/filebrowser/db:/database
@@ -197,12 +199,16 @@ services:
     container_name: od-calibre-web
     restart: unless-stopped
     ports:
-      # Bind triplo (21/10): 127.0.0.1 = actions do sistema; 192.168.0.250 =
- # casa sem Tailscale (ordem do dono); IP da tailnet = celular/PC.
-      # Nunca no Funnel (o gate público é o Site).
+      # Bind duplo (01/11, ordem do dono "corrija"): Causa raiz do
+      # exit 128 no reboot de 31/10 — o dockerd programava o bind em
+      # 100.77.67.53:8420 ANTES do tailscaled atribuir o IP ao
+      # tailscale0 ("cannot assign requested address"; o docker só
+      # programa a rede na CRIAÇÃO, então start/restart depois não
+      # consertavam). Tailnet agora via `tailscale serve --bg
+      # --tcp=8420 tcp://127.0.0.1:8420` — mesma URL (IP e hostname),
+      # tailnet only, e127.0.0.1 nunca falha no boot.
       - "127.0.0.1:8420:8083"
-      - "192.168.0.250:8420:8083"
-      - "100.77.67.53:8420:8083"
+      - "192.168.0.205:8420:8083"
     volumes:
       - /home/alex/omegadrakon-tools/calibreweb/config:/config
       - /home/alex/omegadrakon-tools/books:/books
@@ -226,7 +232,7 @@ services:
     ports:
       - "127.0.0.1:8470:7745"
       # LAN (ordem 21/10): casa sem Tailscale.
-      - "192.168.0.250:8470:7745"
+      - "192.168.0.205:8470:7745"
     volumes:
       - /home/alex/omegadrakon-tools/homebox:/data
     environment:
@@ -251,7 +257,7 @@ services:
     ports:
       - "127.0.0.1:8480:80"
       # LAN (ordem 21/10): casa sem Tailscale — cofre com login próprio.
-      - "192.168.0.250:8480:80"
+      - "192.168.0.205:8480:80"
     volumes:
       - /home/alex/omegadrakon-tools/vaultwarden:/data
     environment:

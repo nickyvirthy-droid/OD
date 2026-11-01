@@ -46,6 +46,31 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### A corrida docker×tailscale acabou, o .205 virou IP fixo e as 9 ferramentas passaram pro cabo (01/11, sem bump)
+
+**Pedido (canal `txt.txt`, dono):** *"corrija"* (a corrida de boot que derrubava
+o calibre-web), *"e também fixar esse ip no roteador"*, e a escolha **(B)**
+da pergunta *"não precisa trocar os ips final 250 para 205?"*.
+
+| Peça | Entrega |
+|---|---|
+| **`docker/tools-compose.yaml`** | **(a)** Os 3 binds `100.77.67.53:*` saíram do compose: o dockerd programa o bind na *criação* do container, antes do tailscaled atribuir o IP ao `tailscale0` → `exit 128` ("cannot assign requested address") em **todo** boot limpo; `docker start` depois não consertava (sem reprogramar a porta). Tailnet agora via `tailscale serve --bg --tcp=PORTA tcp://127.0.0.1:PORTA` — **mesma URL de antes** (IP e hostname), loopback nunca falha no boot; rollback em `backups/tailscale-serve-20261101-0550-status.json`. **(b)** Os 9 binds LAN: `192.168.0.250:` → `192.168.0.205:` (opção B do dono — serviços no IP do CABO, mais estável que o WiFi). |
+| **`tools/monitor/vigia_rich.py` (NOVO)** | `_reservar()`: cria **Reserva de Endereço** na UI real do Archer C6 (`#dhcpServerAdv` → Adicionar → Nome + 6 octetos do MAC + IP → GRAVAR) e **prova por releitura restrita ao painel da reserva** — a 1ª versão checava o corpo inteiro da página e a lista de clientes DHCP do mesmo painel dava *falso ja_reservado* (bug pego na prova, não no código). |
+| **`tools/monitor/network_watchdog.py`** | `--reservar MAC IP [NOME]` — modo de OPERADOR espelho do `--bloquear` (mesma venv do chromium, mesma senha do cofre). |
+| **`tests/test_filebrowser.py`** | A guarda do "bind duplo" codificava o design antigo (exigia `100.77.67.53:8410` no compose = a corrida em si). Contrato novo: `127.0.0.1:8410` + `192.168.0.205:8410` presentes e o IP da tailnet **proibido** no compose. |
+
+**Executado e provado:** reserva `Servidor-Cabo / 84:7B:EB:FB:09:39 →
+192.168.0.205` no roteador (tabela relida com 4 linhas, reserva no topo;
+reserva DHCP garante o .205 mesmo se o cabo religar) · compose recriado:
+**9/9 respondendo no .205** · tailnet 200/200/302 por IP e hostname ·
+`/books` 302 e Funnel 200 intactos · health `ok: true`, nenhum check fora.
+
+**Validação:** gate **4012 passed / 16 skipped / 0 falha · 90,47%** ·
+pyflakes **0 aviso novo** (os 2 do diff já existiam no HEAD) ·
+63 testes do Vigia verdes. **Fora do repo:** a v1.8 de música fechou às
+06:10:47 — 287 mp3 no acervo, gêneros classificados, `.m3u` geradas,
+AzuraCast sincronizada.
+
 ### O mesmo player da rádio em /dashboard, /admin e /chat (29/10, sem bump)
 
 **Pedido (logo em seguida, no canal `txt.txt`):** dono: *"Leve o mesmo
