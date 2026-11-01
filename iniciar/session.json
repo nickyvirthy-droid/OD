@@ -9,9 +9,10 @@
   "seguranca_ssh_alex": "4 eventos sshd pendentes (pendentes_seguranca) hoje 05:07: 'Invalid user ALEX' + Failed password vindo de 100.77.242.82 = O DESKTOP DELE (desktop-4icaj6f, via tailnet). Usuario real 'alex' minusculo = provavel erro de digitacao dele. NAO e ataque externo (tailnet). INFORMAR NO CHAT: usar alex minusculo.",
   "canais_analise": "txt.txt: mensagem dele 01/11 04:44 (a de cima); reescrito no topo com o resumo desta troca. analise/: Prompt_Nicky_Musicas.txt NOVO 31/10 11:55 = MESMO pedido v1.7 (.m3u) ja executado (sem acao nova); pasta 'Nicky Musicas/' NAO existe mais em analise/ (renomeada/movida por ele); 'Nicky Radio/' intacta.",
   "acoes_desta_troca": "1) docker compose up -d recriou od-calibre-web -> health verde. 2) --conhecer do MAC do servidor (Servidor-Cabo). 3) retomada da v1.8 (--sem-renomear, background, pid 839442). NENHUMA mutacao de codigo; git intocado (registro em iniciar/ e commit normal).",
-  "fila_do_dono": "(a) aguardar v1.8 fechar (aviso txt.txt + Telegram); (b) dizer se o SSH 05:07 foi ele (usar 'alex' minusculo); (c) decidir correcao da corrida docker x tailscale do calibre; (d) parking lot: auditoria de uso de ferramentas, MCP (rota WiFi resolvida pelo cabo).",
-  "updated_at": "2026-11-01T05:30:00-03:00",
-  "transcricao": "iniciar/2026-11-01_conversa_omegadrakon.md (§1)"
+  "resposta_dono_01_11": "'1. ok. 2. ok. 3. ok. 4. sim.' — (1) cabo confirmado; (2) retomada da v1.8 confirmada (1o lote fechou 05:31:38, acervo 223 -> 233, sync feito, 2o lote no ar, ETA ~06:07); (3) calibre ciente — NAO e ordem para a correcao docker x tailscale (segue pendente, mutacao de compose exige ordem); (4) SSH 05:07 FOI ELE (desktop, ALEX maiusculo) = caso fechado, benigno.",
+  "fila_do_dono": "(a) aguardar v1.8 fechar (aviso txt.txt + Telegram); (b) ~~SSH 05:07~~ resolvido (foi ele); (c) decidir correcao da corrida docker x tailscale do calibre; (d) parking lot: auditoria de uso de ferramentas, MCP (rota WiFi resolvida pelo cabo).",
+  "updated_at": "2026-11-01T05:42:00-03:00",
+  "transcricao": "iniciar/2026-11-01_conversa_omegadrakon.md (§1, §2)"
  },
  "reverificacao_rotina_2026_10_30": {
   "pedido": "Usuario: 'leia iniciar' (30/10 ~13:50) — reverificacao de rotina (regra 3). Checkpoint: player_radio_painel_2026_10_29 (29/10 16:10, §7 — frente ENTREGUE).",

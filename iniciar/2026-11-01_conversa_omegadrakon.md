@@ -119,3 +119,19 @@ quando fechar — regra 15); (b) dizer se o SSH de 05:07 foi ele (usar
 `alex`, minúsculo); (c) definir correção da corrida docker×tailscale do
 calibre (§4) quando quiser; (d) parking lot: auditoria de uso de
 ferramentas, MCP (rota WiFi resolvida pelo cabo).
+
+## §2 — dono responde a fila (01/11 ~05:40): tudo confirmado
+
+**Pedido:** dono: "1. ok. 2. ok. 3. ok. 4. sim."
+
+1. **Cabo** — confirmado dele (plano (a) fechado).
+2. **Retomada da v1.8** — confirmado; execução seguindo: 1º lote fechou
+   05:31:38 (acervo 223 → **233**, .m3u regeneradas, AzuraCast
+   sync), 2º lote no ar (44 + 10 em processamento). Ritmo ~5min45/lote
+   → ETA **~06:07**.
+3. **Calibre-web** — "ok" = ciente. **NÃO interpretado como ordem** para
+   a correção da corrida docker×tailscale (mutação de compose exige
+   ordem explícita — segue como pendência registrada na §1.4).
+4. **SSH das 05:07 foi ELE** ("sim") — caso fechado: era o desktop dele
+   com `ALEX` maiúsculo; benigno, sem evento de segurança real (usuário
+   correto `alex`; aviso escrito no txt.txt).
