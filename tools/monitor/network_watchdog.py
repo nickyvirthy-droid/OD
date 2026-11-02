@@ -37,6 +37,8 @@ Uso:
    network_watchdog.py --conhecer MAC [nome]   # reconhece dispositivo (limpa pendência)
    network_watchdog.py --ack-seguranca # limpa eventos de segurança pendentes
    network_watchdog.py --bloquear MAC  # OPERADOR: adds MAC à lista de negação
+   network_watchdog.py --reservar MAC IP [NOME]  # OPERADOR: Reserva de Endereço DHCP
+   network_watchdog.py --encaminhar NOME IP  # OPERADOR: Port Forwarding -> IP novo
    network_watchdog.py --report        # resumo humano do inventário
 
 Saída (JSON-lines, <OD_LOG_DIR>/network_watchdog.log):
@@ -61,8 +63,9 @@ Configuração (env, todas opcionais):
 
 Exit code: `--once`/`--seed` saem 0 sempre que o ciclo rodou — inclusive
 com a rede vazia ou a UI do roteador fora (mesma lição do router_monitor:
-estado é registro, não exit code). Falha dura só com `--bloquear` (opera-
-ção de mutação precisa saber se não aconteceu).
+estado é registro, não exit code). Falha dura nos modos de OPERADOR
+(`--bloquear`, `--reservar`, `--encaminhar` — mutação precisa saber se
+não aconteceu).
 
 HISTÓRICO — por que existe (21/10/2026):
    Revisão de portas do dia mostrou que o único vetor real de invasão é
@@ -577,6 +580,21 @@ def reservar(mac: str, ip: str, nome: str = "") -> int:
     return proc.returncode
 
 
+def encaminhar(nome: str, ip: str) -> int:
+    """OPERADOR: aponta a regra de Port Forwarding para outro IP (UI real)."""
+    senha = os.environ.get("ROUTER_ADMIN_PASSWORD", "")
+    if not senha or not Path(VENV_PY).exists():
+        print("FALHA: sem senha (ROUTER_ADMIN_PASSWORD) ou venv do chromium.")
+        return 2
+    proc = subprocess.run(
+        [VENV_PY, str(SCRIPT_RICH), "--encaminhar", nome, ip],
+        capture_output=True, text=True, timeout=150,
+        env={**os.environ, "ROUTER_PASS": senha},
+    )
+    print((proc.stdout or proc.stderr or "sem saída").strip())
+    return proc.returncode
+
+
 def report() -> None:
     estado = carregar_estado()
     dispositivos = estado["dispositivos"]
@@ -611,6 +629,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--reservar", nargs="+", metavar="MAC IP [NOME]",
                         help="OPERADOR: fixa IP para MAC (Reserva de Endereço "
                              "DHCP) no roteador (UI real)")
+    parser.add_argument("--encaminhar", nargs=2, metavar="NOME IP",
+                        help="OPERADOR: aponta Port Forwarding para IP novo "
+                             "(ex.: mover binds .250 -> .205) no roteador")
     parser.add_argument("--report", action="store_true", help="resumo humano")
     args = parser.parse_args(argv)
 
@@ -628,6 +649,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             return 2
         return reservar(args.reservar[0], args.reservar[1],
                         args.reservar[2] if len(args.reservar) > 2 else "")
+    if args.encaminhar:
+        return encaminhar(args.encaminhar[0], args.encaminhar[1])
     if args.report:
         report()
         return 0

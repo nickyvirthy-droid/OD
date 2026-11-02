@@ -16,6 +16,10 @@ Modos:
                       OPERADOR: cria Reserva de Endereço (Servidor DHCP,
                       #dhcpServerAdv) fixando IP para o MAC e prova por
                       releitura.
+   --encaminhar NOME IP
+                      OPERADOR: aponta a regra de Port Forwarding
+                      (#portForwarding) para outro IP (ex.: mover os binds
+                      do .250 para o .205) e prova por releitura.
 
 Env: ROUTER_PASS (obrigatória — senha da UI; nunca é logada/impressa).
 
@@ -284,6 +288,106 @@ def _reservar(pg, mac: str, ip: str, nome: str) -> dict:
     return {"ok": prova, "gravacao": r, "mac": mac, "ip": ip, "nome": nome}
 
 
+def _linhas_portfwd(pg) -> list[str]:
+    """Linhas da tabela de Port Forwarding (#portForwarding).
+
+    Página dedicada = uma grade só (a lição do painel de reservas: a prova
+    casa na linha certa, nunca no corpo inteiro da página).
+    """
+    return pg.evaluate(
+        """() => [...document.querySelectorAll('tr.grid-content-tr')]
+        .map(l => { const c = [...l.querySelectorAll('.content, .td-content')];
+          return (c.length ? c : [l])
+            .map(x => x.textContent.trim()).join(' | '); })
+        .filter(Boolean)"""
+    )
+
+
+def _encaminhar(pg, nome: str, ip: str) -> dict:
+    """Aponta a regra de Port Forwarding `nome` para `ip` e prova por releitura."""
+    pg.goto(f"{BASE}/#portForwarding", wait_until="domcontentloaded",
+            timeout=15000)
+    pg.wait_for_timeout(4000)
+    linhas = _linhas_portfwd(pg)
+    # casa pela 1ª célula NÃO vazia (formato " | SSH | SSH | ... | EditarApagar")
+    def _primeira(linha: str) -> str:
+        return next((c.strip() for c in linha.split("|") if c.strip()), "")
+
+    alvo = next((l for l in linhas
+                 if _primeira(l).lower() == nome.lower()), None)
+    if alvo is None:
+        return {"ok": False, "erro": "regra nao encontrada", "nome": nome,
+                "linhas": linhas}
+    if ip in alvo:
+        return {"ok": True, "ja_apontado": True, "nome": nome, "ip": ip}
+    r = pg.evaluate("""(nome) => {
+      const linhas = [...document.querySelectorAll('tr.grid-content-tr')];
+      const alvo = linhas.find(l => {
+        const c = [...l.querySelectorAll('.content, .td-content')]
+          .map(x => x.textContent.trim()).filter(Boolean);
+        return c.length && c[0].toLowerCase() === nome.toLowerCase();
+      });
+      if (!alvo) return 'sem linha';
+      const b = [...alvo.querySelectorAll('a,button,span')].find(e =>
+        /^Editar$/i.test((e.textContent||'').trim()));
+      if (!b) return 'sem Editar';
+      b.click(); return 'clicou';
+    }""", nome)
+    if r != "clicou":
+        return {"ok": False, "erro": r, "nome": nome}
+    pg.wait_for_timeout(2500)
+    # diálogo: 5 campos de texto — Nome, IP do Dispositivo, Porta Externa,
+    # Porta Interna, Protocolo; o alvo é o único valor com forma de IP.
+    preenchido = pg.evaluate(r"""(ip) => {
+      const vis = e => e.offsetParent !== null;
+      const gravar = [...document.querySelectorAll('a,button')]
+        .find(e => vis(e) && /^GRAVAR$/i.test((e.textContent||'').trim()));
+      if (!gravar) return 'sem GRAVAR';
+      let box = gravar;
+      while (box && box.querySelectorAll('input[type=text]').length < 5
+             && box.parentElement) box = box.parentElement;
+      const campos = [...box.querySelectorAll('input[type=text]')].filter(vis);
+      if (campos.length < 5) return 'campos inesperados: ' + campos.length;
+      const alvo = campos.find(c => /^\d+\.\d+\.\d+\.\d+$/.test(c.value))
+        || campos[1];
+      alvo.value = ip;
+      for (const ev of ['input','change','keyup'])
+        alvo.dispatchEvent(new Event(ev, {bubbles:true}));
+      return 'preencheu';
+    }""", ip)
+    if preenchido != "preencheu":
+        return {"ok": False, "erro": preenchido, "nome": nome}
+    pg.wait_for_timeout(800)
+    r = pg.evaluate("""() => {
+      const vis = e => e.offsetParent !== null;
+      const b = [...document.querySelectorAll('a, button')].find(e =>
+        vis(e) && /^(GRAVAR|Salvar|OK|Guardar)$/i.test((e.textContent||'').trim()));
+      if (!b) return 'sem gravar';
+      b.click(); return 'clicou ' + b.textContent.trim();
+    }""")
+    pg.wait_for_timeout(3000)
+    for _ in range(3):  # confirmações tipo SIM/OK
+        ok = pg.evaluate("""() => {
+          const vis = e => e.offsetParent !== null;
+          const b = [...document.querySelectorAll('a, button')].find(e =>
+            vis(e) && /^(SIM|OK)$/i.test((e.textContent||'').trim()) &&
+            !/PROCURAR|ATUALIZAR/.test((e.textContent||'').trim()));
+          if (b) { b.click(); return true; } return false;
+        }""")
+        if not ok:
+            break
+        pg.wait_for_timeout(2000)
+    # PROVA: releitura da tabela de Port Forwarding
+    pg.goto(f"{BASE}/#networkMap", wait_until="domcontentloaded", timeout=15000)
+    pg.wait_for_timeout(1500)
+    pg.goto(f"{BASE}/#portForwarding", wait_until="domcontentloaded",
+            timeout=15000)
+    pg.wait_for_timeout(4000)
+    prova = any(_primeira(l).lower() == nome.lower() and ip in l
+                for l in _linhas_portfwd(pg))
+    return {"ok": prova, "gravacao": r, "nome": nome, "ip": ip}
+
+
 def main() -> int:
     if not SENHA:
         print("sem ROUTER_PASS", file=sys.stderr)
@@ -305,6 +409,14 @@ def main() -> int:
         reservar_mac = resto[0].upper().replace("-", ":")
         reservar_ip = resto[1]
         reservar_nome = resto[2] if len(resto) > 2 else ""
+    encaminhar_nome = encaminhar_ip = None
+    if "--encaminhar" in sys.argv:
+        idx = sys.argv.index("--encaminhar")
+        resto = sys.argv[idx + 1:]
+        if len(resto) < 2:
+            print("--encaminhar exige NOME e IP", file=sys.stderr)
+            return 2
+        encaminhar_nome, encaminhar_ip = resto[0], resto[1]
 
     with sync_playwright() as p:
         nav = p.chromium.launch(headless=True)
@@ -321,6 +433,10 @@ def main() -> int:
             if reservar_mac:
                 resultado = _reservar(pg, reservar_mac, reservar_ip,
                                       reservar_nome or "")
+                print(json.dumps(resultado, ensure_ascii=False))
+                return 0 if resultado.get("ok") else 3
+            if encaminhar_nome:
+                resultado = _encaminhar(pg, encaminhar_nome, encaminhar_ip)
                 print(json.dumps(resultado, ensure_ascii=False))
                 return 0 if resultado.get("ok") else 3
             clientes = _clientes(pg)

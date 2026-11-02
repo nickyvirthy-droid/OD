@@ -828,6 +828,37 @@ class TestVigiaEmProcesso:
         assert capturado["cmd"][-1] == "AA:BB:CC:DD:EE:FF"
         assert capturado["env"]["ROUTER_PASS"] == "s3nh4"
 
+    def test_encaminhar_sem_senha_retorna_2(
+        self, monkeypatch, capsys,
+    ) -> None:
+        monkeypatch.delenv("ROUTER_ADMIN_PASSWORD", raising=False)
+        assert vw.main(["--encaminhar", "SSH", "192.168.0.205"]) == 2
+        assert "FALHA" in capsys.readouterr().out
+
+    def test_encaminhar_operador_manda_nome_e_ip(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        venv = tmp_path / "python"
+        venv.write_text("x")
+        monkeypatch.setattr(vw, "VENV_PY", str(venv))
+        monkeypatch.setenv("ROUTER_ADMIN_PASSWORD", "s3nh4")
+        capturado: dict = {}
+
+        class _Proc:
+            returncode = 0
+            stdout = '{"ok": true, "nome": "SSH", "ip": "192.168.0.205"}'
+            stderr = ""
+
+        def falso_run(cmd, **kwargs):
+            capturado["cmd"] = cmd
+            capturado["env"] = kwargs.get("env", {})
+            return _Proc()
+
+        monkeypatch.setattr(vw.subprocess, "run", falso_run)
+        assert vw.main(["--encaminhar", "SSH", "192.168.0.205"]) == 0
+        assert capturado["cmd"][-2:] == ["SSH", "192.168.0.205"]
+        assert capturado["env"]["ROUTER_PASS"] == "s3nh4"
+
     def test_main_once_devolve_o_json_do_ciclo(
         self, vigia, tmp_path: Path, monkeypatch, capsys,
     ) -> None:
