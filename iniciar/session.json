@@ -1,4 +1,14 @@
 {
+ "fila_parking_lot_fechada_2026_11_02": {
+  "pedido": "Usuario (02/11 ~11:35): 'Revisar o parking lot restante do FlatNotes para fechar a fila' (follow-up da §1).",
+  "o_que_fiz": "Abri a nota 'TODO 5 — Parking lot (ideias de expansão)' (API /api/notes/, busca /api/search?term=) e conferi CADA item no codigo/entrega antes de marcar status (regra 5). Depois gravei um bloco 'REVISÃO DA FILA — 02/11' no TOPO da propria nota via action flatnotes_anota(sobrescrever=true), preservando o conteudo original (prova por releitura: tamanho 9792, 'REVISÃO DA FILA' no topo e 'Migrado do TODO.md' preservado).",
+  "resultado_8_concluidos": "(1) parking lot dentro do FlatNotes (decisao (b) 21/10); (2) auditoria de ferramentas 01/11; (3) network_hosts enriquecida — LIDA no actions.py: le network_watchdog_estado.json e devolve nome do inventario + fabricante OUI; (4) serie 'uma por vez' fechada (FlatNotes/FileBrowser/Calibre); (5) webview descartada pelo dono, botao entregue v1.42.0; (6) MCP Server 02/11 (commit 48e3c16); (7) Kiwix no chat — orquestrador injeta enciclopedia com contadores enciclopedias/blocos/erros/sem_fonte; (8) 'outras 4 na internet' analise fechada 21/10 = nao vai.",
+  "resultado_1_parcial": "Voice/TTS/STT: TTS pronto (Piper + edge-tts, 29/10) e STT no bot (whisper.cpp em integrations/telegram/voice.py + tools/audio/stt.py), MAS o item pedia 'integrar como actions' — confirmado no registry (115 actions): NENHUMA action stt/transcrever. Marcado como PARCIAL na nota.",
+  "resultado_4_pendentes": "(10) rotacao da senha WiFi = ordem do dono (custo: re-pareamento ESP/Echos); (11) pings perdidos do adaptador WiFi USB = PREMISSA MUDOU (desde 01/11 uplink e o cabo .205, WiFi e reserva metric 600) -> sugerido arquivar; (12) plugin marketplace (plugins/manager.py existe, sem manifest oficial); (13) multi-tenant (so OD_ACCOUNT_ALIASES); (14) auto-repair de ferramentas (RecoveryLoop existe, auto-repair nao).",
+  "canais": "txt.txt reescrito com o quadro da fila revisada (regra 14) + Telegram (regra 15). NENHUMA mutacao de codigo/servico: git intocado fora do registro, od-core intocado.",
+  "updated_at": "2026-11-02T11:45:00-03:00",
+  "transcricao": "iniciar/2026-11-02_conversa_omegadrakon.md (§2)"
+ },
  "mcp_publicado_e_reverificacao_2026_11_02": {
   "pedido": "Usuario: 'leia iniciar' (02/11 ~10:52) — reverificacao de rotina (regra 3). Checkpoint: reverificacao_noite_2026_11_01 (01/11 20:25).",
   "residuo_encontrado": "TRABALHO DA SECAO ANTERIOR SEM COMMIT (sessao morreu no meio, regra 4): runtime/mcp_od.py (NOVO, 238 linhas), tests/test_mcp_od.py (NOVO, 220 linhas, 18 guardas) e entrada +25 em docs/CHANGELOG.md — item 3b 'MCP Server = EM ANDAMENTO' no txt.txt 01/11 22:10. Resgatado, validado e publicado nesta troca.",
