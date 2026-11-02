@@ -246,26 +246,36 @@ completa, com proteção: acervo 100% vazio não zera o banco). CLI
 
 ### 3. Validação e deploy
 
-- `tests/test_radio_agora.py` (NOVO): **17 guardas** — contrato da
+- `tests/test_radio_agora.py` (NOVO): **18 guardas** — contrato da
   página, curiosidade real/placeholder/fora do banco, locução no ar e
   na próxima, AzuraCast fora não derruba o JSON, últimas do arquivo
-  (recência correta, música do ar fora da lista), cobertura por
-  histórico, registro idempotente/rotação/nunca-lança, rota pública
-  isenta (inclusive a isenção do limiter, por fonte).
+  (recência correta, música do ar fora da lista), **arquivo nascente
+  só com a do ar → o histórico cobre** (a lista nunca nasce vazia),
+  cobertura por histórico, registro idempotente/rotação/nunca-lança,
+  rota pública isenta (inclusive a isenção do limiter, por fonte).
 - A **1ª passada do gate** achou só as 2 guardas de contagem da casa
   (`len(ROUTES)` 94→95 + mirror do conjunto público) — corrigidas.
-- **GATE OFICIAL: 4053 passed / 16 skipped / 0 falha · 90,42%**
-  (era 4036; +17). pyflakes **0 aviso novo** (8 pre-existentes
+- **GATE OFICIAL: 4054 passed / 16 skipped / 0 falha · 90,44%**
+  (era 4036; +18). pyflakes **0 aviso novo** (8 pre-existentes
   conferidos vs HEAD). `node --check` nos 2 blocos de JS da página OK.
-- **Restart (regra 7.3) — nota honesta:** o restart saiu **antes** da
+- **Prova do hook (ao vivo):** o `tocadas.txt` nasceu às **16:20** com
+  `Isadora Pompeo - Cicatrizes`; a locução `anuncio musica` que tocou
+  16 s antes **ficou de fora** (filtro do `registrar_tocada`) e, na
+  troca seguinte, a página já lia a lista do arquivo (música do ar
+  removida). Detalhe observado e **deixado p/ decisão do dono**: o
+  hook também grava `vinheta nicky` — o filtro atual só exclui
+  `anuncio musica`; excluir vinhetas seria item à parte.
+- **Restarts (regra 7.3) — nota honesta:** o **1º** saiu **antes** da
   suite completa desta etapa (ordem invertida; o diff já passava por
-  `py_compile`, pyflakes, import/registro da rota e os 17 testes do
-  módulo) — a suite verde veio em seguida, mesmo commit. Prova viva:
-  PID 2843442, NRestarts=0, ativo desde 15:53:47, health **25/25**,
+  `py_compile`, pyflakes, import/registro da rota e os testes do
+  módulo) — a suite verde veio em seguida, mesmo commit. O **2º**
+  (após o ajuste do fallback) respeitou a ordem: **gate verde
+  primeiro**. Prova viva: PIDs 2843442 (15:53:47) e **2886848**
+  (16:30:58), NRestarts=0 nos dois, health **25/25**,
   journal **0 `[ERROR]`**, `/ws` 101, "Webhook da rádio plugado".
 - **Provas vivas da rota:** 200 em LAN (`192.168.0.250:8000`) e
   **pública pelo Funnel** (`https://nicky-server.tail1b1f51.ts.net/api/radio/agora`
-  → JSON completo com últimas 5), página `/site/radio.html` 200 público
+  → JSON completo com últimas), página `/site/radio.html` 200 público
   com a seção, curiosidade real aparecendo no JSON (banco lido em modo
   leitura).
 

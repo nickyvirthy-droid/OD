@@ -63,28 +63,37 @@ vivo, sondagem de 15 s).
 | **`integrations/api/server.py`** | Rota `GET /api/radio/agora` pública (`auth=False` + `AUTH_EXEMPT_PATHS` — sem isso o `auth_all` de produção bloquearia a página) e **isenta do rate limit** (sondagem de 15 s com cache no handler, mesma natureza de `/app/version`) + handler `api_radio_agora` (503 honesto se a montagem falhar). |
 | **`runtime/launcher.py`** | Hook no wrapper `_radio`: `registrar_tocada` roda **antes** do `processar` — o histórico da página sobrevive mesmo se o Piper falhar na locução. |
 | **`site/radio.html`** | Seção "Tocando agora" (música + curiosidade + próxima + ouvintes + últimas 5) com sondagem de 15 s; falha de rede mantém o último estado bom — a página nunca quebra por aqui. |
-| **`tests/test_radio_agora.py` (NOVO)** | **17 guardas**: contrato da página, curiosidade real/placeholder/fora do banco, locução no ar e na próxima, AzuraCast fora não derruba o JSON, arquivo → últimas (música do ar fora da lista, recência correta), cobertura por histórico, registro idempotente/rotação/nunca-lança, rota pública isenta (inclui a isenção do limiter por fonte). |
+| **`tests/test_radio_agora.py` (NOVO)** | **18 guardas**: contrato da página, curiosidade real/placeholder/fora do banco, locução no ar e na próxima, AzuraCast fora não derruba o JSON, arquivo → últimas (música do ar fora da lista, recência correta), **arquivo nascente só com a do ar → o histórico cobre** (a lista nunca nasce vazia), cobertura por histórico, registro idempotente/rotação/nunca-lança, rota pública isenta (inclui a isenção do limiter por fonte). |
 
 **Prova viva:** a rota respondendo em `127.0.0.1:8000` **e** pelo
 Funnel público (`https://nicky-server.tail1b1f51.ts.net/api/radio/agora`
 → 200 com o JSON), página `/site/radio.html` 200, `acervo.db`
 consultável em modo leitura pela rota (curiosidade real aparecendo na
 resposta) e "Webhook da rádio plugado" no journal após o restart via
-`systemctl --user`. **Nota honesta:** o restart saiu **antes** da suíte
-completa desta etapa (ordem invertida da regra 7.3 — o diff já passara
-por `py_compile`, pyflakes, import/registro da rota e os 17 testes do
-módulo); a suíte completa foi executada em seguida no mesmo commit —
-números na validação abaixo.
+`systemctl --user`.
 
-**Validação:** gate oficial **4053 passed / 16 skipped / 0 falha ·
-90,42%** (+17 = `tests/test_radio_agora.py`; era 4036) · a primeira
-passada achou **só as 2 guardas de contagem de rota** da casa
-(`len(ROUTES)` 94 → 95 + mirror do conjunto público, corrigidas no
-mesmo commit) · pyflakes **0 aviso novo** (os 8 do diff conferidos
-arquivo a arquivo contra o HEAD) · `node --check` nos 2 blocos de JS da
-`radio.html` OK · **restart com prova viva**: PID 2843442, NRestarts=0,
-ativo desde 15:53:47, health **25/25 ok**, journal **0 `[ERROR]`**,
-`/ws` respondendo 101 e "Webhook da rádio plugado" no log.
+**Prova do hook (ao vivo):** na primeira troca de música depois do
+deploy o `tocadas.txt` nasceu com `16:20 | Isadora Pompeo - Cicatrizes`
+— e a locução `anuncio musica` que tocou 16 s antes **ficou de fora**
+(filtro do `registrar_tocada`), como manda o design; a lista da página
+passou a vir do arquivo (música do ar removida da lista).
+
+**Nota honesta:** o **1º restart** saiu **antes** da suíte completa
+desta etapa (ordem invertida da regra 7.3 — o diff já passara por
+`py_compile`, pyflakes, import/registro da rota e os testes do módulo);
+a suíte verde veio em seguida. O **2º restart** (após o ajuste do
+fallback) respeitou a ordem: **gate verde primeiro**.
+
+**Validação:** gate oficial **4054 passed / 16 skipped / 0 falha ·
+90,44%** (+18 = `tests/test_radio_agora.py`; era 4036) · a 1ª passada
+achou **só as 2 guardas de contagem de rota** da casa (`len(ROUTES)`
+94 → 95 + mirror do conjunto público, corrigidas no mesmo commit) ·
+pyflakes **0 aviso novo** (os 8 do diff conferidos arquivo a arquivo
+contra o HEAD) · `node --check` nos 2 blocos de JS da `radio.html` OK ·
+**restarts com prova viva:** 1º PID 2843442 (15:53:47) e 2º **PID
+2886848** (16:30:58), NRestarts=0, health **25/25 ok**, journal
+**0 `[ERROR]`**, `/ws` respondendo 101, rota pública 200 e "Webhook da
+rádio plugado" nos dois.
 
 ### Transcrição de áudio vira action `stt_transcrever` no catálogo (02/11, sem bump)
 
