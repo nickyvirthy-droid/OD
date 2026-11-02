@@ -63,6 +63,19 @@
       no seu lugar em qualquer tela.</p>
     </div>
 
+    <!-- Item 1 (01/11): Tocando agora — lê /api/radio/agora a cada 15 s
+         (agora + curiosidade do acervo.db + últimas do tocadas.txt). -->
+    <div class="card" id="agoraCard" style="margin-top:24px;padding:24px 20px;text-align:center;">
+      <div class="kicker">Tocando agora</div>
+      <div id="agoraMusica" style="font-size:1.12rem;font-weight:600;margin-top:10px;">Carregando…</div>
+      <div id="agoraCurio" style="color:var(--muted);margin-top:8px;font-size:.92rem;max-width:62ch;margin-left:auto;margin-right:auto;"></div>
+      <div style="display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:12px;color:var(--muted);font-size:.88rem;">
+        <span id="agoraProxima">Próxima: —</span>
+        <span id="agoraOuvintes">—</span>
+      </div>
+      <div id="agoraUltimas" style="margin-top:18px;text-align:left;max-width:56ch;margin-left:auto;margin-right:auto;"></div>
+    </div>
+
     <div class="grid g3" style="margin-top:24px;">
       <div class="card">
         <div class="num">No ar</div>
@@ -146,6 +159,60 @@
   btn.addEventListener('click', function () { window.odRadio.alternar(); });
   window.odRadio.aoMudar(pintar);
   pintar();
+})();
+</script>
+
+<script>
+// 02/11: Item 1 — "Tocando agora". O od-core serve /api/radio/agora
+// (nowplaying do AzuraCast + curiosidade lida do acervo.db + últimas 5
+// do tocadas.txt que a locução alimenta a cada troca). Sondagem de 15 s;
+// falhou = mantém o último estado bom — a página nunca quebra por aqui.
+(function () {
+  var el = function (id) { return document.getElementById(id); };
+  var temDados = false;
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  function pintar(d) {
+    if (!d || !d.ok) { return; }
+    temDados = true;
+    var t = d.tocando;
+    el('agoraMusica').textContent = t
+      ? ((t.artista ? t.artista + ' — ' : '') + t.titulo)
+      : 'Aguardando a próxima música…';
+    el('agoraCurio').textContent = (t && t.curiosidade) ? t.curiosidade : '';
+    el('agoraProxima').textContent = d.proxima
+      ? ('Próxima: ' + (d.proxima.artista ? d.proxima.artista + ' — ' : '') + d.proxima.titulo)
+      : 'Próxima: —';
+    var n = d.ouvintes || 0;
+    el('agoraOuvintes').textContent = n + (n === 1 ? ' ouvinte ao vivo' : ' ouvintes ao vivo');
+    var u = d.ultimas || [];
+    if (!u.length) { el('agoraUltimas').innerHTML = ''; return; }
+    var html = '<div class="kicker">Últimas tocadas</div>' +
+      '<ol style="margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:.88rem;line-height:1.7;">';
+    for (var i = 0; i < u.length; i++) {
+      html += '<li>' + esc(u[i].hora) + ' · ' + esc(u[i].nome) + '</li>';
+    }
+    el('agoraUltimas').innerHTML = html + '</ol>';
+  }
+
+  function carregar() {
+    fetch('/api/radio/agora', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(pintar)
+      .catch(function () {
+        if (!temDados) {
+          el('agoraMusica').textContent = 'Tocando agora indisponível no momento.';
+        }
+      });
+  }
+
+  carregar();
+  setInterval(carregar, 15000);
 })();
 </script>
 </body>

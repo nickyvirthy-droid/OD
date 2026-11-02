@@ -46,6 +46,46 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### Rádio Nicky ganha "Tocando agora" na página e o acervo vira índice SQLite (02/11, sem bump)
+
+**Pedido (chat, dono):** itens da rádio aprovados um por vez na
+conversa — **Item 4** (*"ok. no banco fica o link apontando para a
+música, não a música de verdade"*): banco `acervo.db` com o **caminho**,
+nunca o áudio; e **Item 1** (seção "Tocando agora" na `radio.html`:
+artista—título + curiosidade, últimas 5 em arquivo de texto, **só a
+próxima** — sorteio do AzuraCast, sem fila de exibição —, ouvintes ao
+vivo, sondagem de 15 s).
+
+| Peça | Entrega |
+|---|---|
+| **`musica.py` v1.8.1** (HD Mídia, fora do repo) | `acervo.db` (SQLite): uma linha por mp3 com o **caminho relativo** (o link — áudio nunca entra no banco) + artista, título, ano, gênero, curiosidade (TIT3), pronúncias (TCOM/TEXT), duração e bytes. `indexar_acervo()` idempotente (upsert por caminho; duração só recalcula se o arquivo mudou; órfãos só na varredura completa, com proteção de acervo vazio) chamada **a cada lote** + CLI `--indexar` (backfill/manutenção). Backfill executado: **287/287 linhas em ~116 KB** (137 com curiosidade real — os ~150 fallbacks do Gemini de 31/10 ficaram com o placeholder tratado como vazio). |
+| **`integrations/radio_agora.py` (NOVO)** | `montar_agora()` — só stdlib (urllib + sqlite3 `mode=ro`; o requirements do od-core não ganhou dependência): nowplaying do AzuraCast com cache de 5 s, curiosidade do banco, "próxima" declarando a locução como locução (a vinheta `anuncio musica` nunca vira música), últimas do `tocadas.txt` (sem arquivo → `song_history` cobre o histórico inicial) e ouvintes. `registrar_tocada(payload)` alimenta o texto a cada troca — **nunca lança**: a locução da rádio não morre por causa da página. |
+| **`integrations/api/server.py`** | Rota `GET /api/radio/agora` pública (`auth=False` + `AUTH_EXEMPT_PATHS` — sem isso o `auth_all` de produção bloquearia a página) e **isenta do rate limit** (sondagem de 15 s com cache no handler, mesma natureza de `/app/version`) + handler `api_radio_agora` (503 honesto se a montagem falhar). |
+| **`runtime/launcher.py`** | Hook no wrapper `_radio`: `registrar_tocada` roda **antes** do `processar` — o histórico da página sobrevive mesmo se o Piper falhar na locução. |
+| **`site/radio.html`** | Seção "Tocando agora" (música + curiosidade + próxima + ouvintes + últimas 5) com sondagem de 15 s; falha de rede mantém o último estado bom — a página nunca quebra por aqui. |
+| **`tests/test_radio_agora.py` (NOVO)** | **17 guardas**: contrato da página, curiosidade real/placeholder/fora do banco, locução no ar e na próxima, AzuraCast fora não derruba o JSON, arquivo → últimas (música do ar fora da lista, recência correta), cobertura por histórico, registro idempotente/rotação/nunca-lança, rota pública isenta (inclui a isenção do limiter por fonte). |
+
+**Prova viva:** a rota respondendo em `127.0.0.1:8000` **e** pelo
+Funnel público (`https://nicky-server.tail1b1f51.ts.net/api/radio/agora`
+→ 200 com o JSON), página `/site/radio.html` 200, `acervo.db`
+consultável em modo leitura pela rota (curiosidade real aparecendo na
+resposta) e "Webhook da rádio plugado" no journal após o restart via
+`systemctl --user`. **Nota honesta:** o restart saiu **antes** da suíte
+completa desta etapa (ordem invertida da regra 7.3 — o diff já passara
+por `py_compile`, pyflakes, import/registro da rota e os 17 testes do
+módulo); a suíte completa foi executada em seguida no mesmo commit —
+números na validação abaixo.
+
+**Validação:** gate oficial **4053 passed / 16 skipped / 0 falha ·
+90,42%** (+17 = `tests/test_radio_agora.py`; era 4036) · a primeira
+passada achou **só as 2 guardas de contagem de rota** da casa
+(`len(ROUTES)` 94 → 95 + mirror do conjunto público, corrigidas no
+mesmo commit) · pyflakes **0 aviso novo** (os 8 do diff conferidos
+arquivo a arquivo contra o HEAD) · `node --check` nos 2 blocos de JS da
+`radio.html` OK · **restart com prova viva**: PID 2843442, NRestarts=0,
+ativo desde 15:53:47, health **25/25 ok**, journal **0 `[ERROR]`**,
+`/ws` respondendo 101 e "Webhook da rádio plugado" no log.
+
 ### Transcrição de áudio vira action `stt_transcrever` no catálogo (02/11, sem bump)
 
 **Pedido (chat, dono):** *"Virar a transcrição de áudio em action

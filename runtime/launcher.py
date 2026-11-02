@@ -765,6 +765,14 @@ def build_radio_handler(database: Any) -> tuple[Any, str]:
     voz = env("OD_RADIO_VOZ", "dii_pt-BR")
 
     def _radio(payload: dict) -> dict:
+        # Item 1 (01/11): registra a troca no tocadas.txt ANTES da fala —
+        # o histórico da página sobrevive mesmo se o Piper falhar.
+        # registrar_tocada nunca lança (defesa dentro dela).
+        try:
+            from integrations.radio_agora import registrar_tocada
+            registrar_tocada(payload)
+        except Exception as exc:  # pragma: no cover
+            log.warn("tocadas.txt pulado", error=str(exc))
         return processar(payload, tts=piper, db=database,
                          destino=destino, voz=voz)
 

@@ -132,6 +132,9 @@ ROTA_FERRAMENTAS = (
 AUTH_EXEMPT_PATHS = frozenset(
     {"/auth/register", "/auth/login", "/auth/session-cookie",
      "/anon/message", "/app/version",
+     # Rádio (Item 1): a página da rádio consulta /api/radio/agora sem
+     # credencial — mesma natureza de /app/version (só metadados).
+     "/api/radio/agora",
      "/registry", "/registry/collections", "/registry/{codigo}",
      "/registry/{codigo}/photo", "/registry/{codigo}/chat",
      # /f/*: o gate é o cookie od_sessao + papel admin no handler
@@ -312,6 +315,10 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/site", "site_index", False),
     ("GET", "/site/{file}", "site_file", False),
     ("GET", "/app/version", "app_version", False),
+    # Rádio (Item 1 do dono, 01/11): a página da rádio sonda a seção
+    # "Tocando agora" a cada 15 s — público como /app/version (só
+    # metadados; o áudio continua exclusivamente no /radio.mp3).
+    ("GET", "/api/radio/agora", "api_radio_agora", False),
     # Registro Mestre: consulta pública de autenticidade de peças — o ID
     # vem GRAVADO na peça; público sem credencial (mesma natureza de
     # /app/version, v. AUTH_EXEMPT_PATHS). /registry (lista) alimenta a
@@ -4153,7 +4160,10 @@ class APIHandler(BaseHTTPRequestHandler):
             o navegador pedir o documento: um abrir de /dashboard custa
             ~10 requests (HTML, ícones, auth, dados, chip do herói);
           * GET /app/version — leitura de um inteiro; o app e os chips
-            do site chamam em toda abertura de página.
+            do site chamam em toda abertura de página;
+          * GET /api/radio/agora — sondagem da página da rádio (15 s)
+            pela seção "Tocando agora"; o handler cacheia o nowplaying
+            por 5 s (mesma natureza de /app/version).
         /auth/register e /auth/login SEGUEM contados (superfície de
         força-bruta) e /health SEGUI contado (roda os checks ao vivo —
         o cache curto do handler é o que o barateia, não a isenção).
@@ -4163,7 +4173,8 @@ class APIHandler(BaseHTTPRequestHandler):
         if path.startswith("/admin"):
             return True
         if method == "GET" and (
-            path in ("/", "/chat", "/dashboard", "/site", "/app/version")
+            path in ("/", "/chat", "/dashboard", "/site", "/app/version",
+                     "/api/radio/agora")
             or path.startswith("/site/")
         ):
             return True
@@ -4590,6 +4601,25 @@ class APIHandler(BaseHTTPRequestHandler):
                 for chunk in iter(lambda: fh.read(1 << 20), b""):
                     digest.update(chunk)
             payload["sha256"] = digest.hexdigest()
+        self._json(200, payload)
+
+    def api_radio_agora(self) -> None:
+        """GET /api/radio/agora — "Tocando agora" da rádio (Item 1, público).
+
+        Une três fontes em um JSON barato (integrations/radio_agora):
+        nowplaying do AzuraCast (o que toca/ouve), curiosidade lida do
+        acervo.db (Item 4, modo leitura) e as últimas 5 do tocadas.txt
+        que o webhook alimenta a cada troca de música. Sem credencial —
+        é a própria página site/radio.html quem chama a cada 15 s; o
+        áudio nunca passa por aqui, só metadados.
+        """
+        from integrations.radio_agora import montar_agora
+
+        try:
+            payload = montar_agora()
+        except Exception as exc:              # pragma: no cover — fonte fora
+            self._json(503, {"ok": False, "error": str(exc)})
+            return
         self._json(200, payload)
 
     def registry_list(self) -> None:
