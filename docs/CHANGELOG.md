@@ -46,6 +46,25 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### Transcrição de áudio vira action `stt_transcrever` no catálogo (02/11, sem bump)
+
+**Pedido (chat, dono):** *"Virar a transcrição de áudio em action
+stt/transcrever no catálogo do OD"* — o item **PARCIAL** da revisão da
+fila do parking lot da nota `TODO 5` no mesmo dia (o item pedia
+"integrar o stt como action"; a revisão marcou parcial porque não
+existia nenhuma `stt`/`transcrever` nas 115).
+
+| Peça | Entrega |
+|---|---|
+| **`tools/actions/actions.py`** | Handler async `stt_transcrever(caminho, idioma="")`: import **LAZY** de `tools/audio/stt.py` (o whisper só entra no processo quando a action é chamada), `STTConfig()` do servidor, **nunca lança** — arquivo inexistente → `audio_nao_encontrado`; binário/modelo ausentes → `stt_indisponivel` + snapshot; silêncio/timeout/falha do whisper → `transcricao_falhou`; sucesso devolve `path/idioma/chars/texto`. Categoria nova **`stt`** no `CATEGORIES` + spec com permissão nominal (gate `stt_transcrever`) — catálogo vai a **116 actions**. |
+| **`runtime/mcp_od.py` · `tools/actions/__init__.py`** | Contagens 115 → 116 (docstring/instruções) e o `instructions` do MCP agora deriva de `len(registry.list_actions())` — para de quebrar a cada action nova. |
+| **Testes** | `TestSttAction` (4 novos): registrada com permission nominal; caminho inexistente → `audio_nao_encontrado` sem exceção; STT indisponível → `stt_indisponivel` com snapshot no `data`; **áudio real** (wav 16 kHz mono gerado no teste) processado ponta a ponta com os binários do servidor. Contagens duras 115 → 116 em 6 arquivos de teste + `site/index.html`; `stt: 1` no `EXPECTED_CATEGORIES`. |
+
+**Validação:** gate **4036 passed / 16 skipped / 0 falha** (+4 = os
+testes novos; era 4032) · pyflakes 0 aviso novo (os 2 do diff já
+existiam no HEAD). A mesma ação agora roda pelo orquestrador **e** aparece
+no `tools/list` do MCP sem código extra (116 tools).
+
 ### Encaminhamentos no .205, auditoria de uso das ferramentas e o OD vira servidor MCP (01/11, sem bump)
 
 **Pedido (canal `txt.txt`, dono):** *"faça 1 e 3"* — (1) os 3

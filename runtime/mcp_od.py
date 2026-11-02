@@ -2,7 +2,7 @@
 """
 OMEGA DRAKON • MCP SERVER
 Módulo: runtime/mcp_od.py
-Descrição: Expõe o catálogo do OD (ActionRegistry — 115 actions) via
+Descrição: Expõe o catálogo do OD (ActionRegistry — 116 actions) via
            Model Context Protocol (stdio JSON-RPC 2.0) para clientes
            desktop externos (Claude Desktop, Cursor etc.). Idea do parking
            lot do dono (21/10: "MCP Server — expor actions/ferramentas do
@@ -152,9 +152,11 @@ def tratar_mensagem(
             "protocolVersion": PROTOCOLO if cliente == PROTOCOLO else cliente,
             "capabilities": {"tools": {"listChanged": False}},
             "serverInfo": {"name": NOME, "version": VERSAO},
-            "instructions":
-                "Catálogo OmegaDrakon: as 115 actions do OD executadas "
-                "localmente (stdio). Permissão = gate do próprio OD.",
+            "instructions": (
+                "Catálogo OmegaDrakon: as "
+                f"{len(registry.list_actions())} actions do OD executadas "
+                "localmente (stdio). Permissão = gate do próprio OD."
+            ),
         })
     if metodo == "notifications/initialized":
         return None  # notificação: sem resposta

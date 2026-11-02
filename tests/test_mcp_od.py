@@ -4,7 +4,7 @@ Testes: tests/test_mcp_od.py — protocolo MCP do runtime/mcp_od.py.
 
 Cobertura (guardas da casa — estado real, sem teclado):
    - handshake initialize / notifications/initialized / ping
-   - tools/list com o catálogo REAL (115 actions) e inputSchema convertido
+   - tools/list com o catálogo REAL (116 actions) e inputSchema convertido
    - conversão de schema da casa (str/int/...) → JSON Schema
    - tools/call: execução real (datetime), unknown -32602, denied/error
      mapeados como isError, exceção do handler contida
@@ -82,7 +82,7 @@ class TestToolsList:
     def test_catalogo_real_completo_e_convertido(self) -> None:
         from tools.actions import build_registry
         tools = mcp_od.ferramentas_do_registry(build_registry())
-        assert len(tools) == 115
+        assert len(tools) == 116
         for t in tools:
             assert t["name"] and t["inputSchema"]["type"] == "object"
         busca = next(t for t in tools if t["name"] == "flatnotes_busca")

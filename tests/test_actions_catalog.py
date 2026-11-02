@@ -57,6 +57,7 @@ EXPECTED_CATEGORIES = {
     "flatnotes": 3,  # caderno de notas do dono (v1.40.0): status/anota/busca
     "filebrowser": 3,  # caixa de arquivos do dono (v1.41.0): status/lista/envia
     "calibre": 3,  # biblioteca de e-books do dono (v1.43.0): resync/status/busca
+    "stt": 1,  # transcrição local de áudio (02/11): stt_transcrever (whisper.cpp)
 }
 
 
@@ -71,13 +72,13 @@ def strict_admin(tmp_path: Path) -> SecurityManager:
 # ===========================================================================
 
 class TestActionsCatalog:
-    """115 ações catalogadas por categoria com metadados consistentes."""
+    """116 ações catalogadas por categoria com metadados consistentes."""
 
     def test_catalog_count_and_categories(self) -> None:
-        assert ACTIONS_COUNT == 115
-        assert len(CATALOG) == 115
+        assert ACTIONS_COUNT == 116
+        assert len(CATALOG) == 116
         assert CATEGORIES == EXPECTED_CATEGORIES
-        assert sum(CATEGORIES.values()) == 115
+        assert sum(CATEGORIES.values()) == 116
 
     def test_names_unique_and_dotted_clean(self) -> None:
         names = [spec["name"] for spec in CATALOG]
@@ -132,8 +133,8 @@ class TestActionsRegistration:
 
     def test_build_registry_registers_56(self) -> None:
         registry = build_registry()
-        assert len(registry.list_actions()) == 115
-        assert registry.metrics.actions == 115
+        assert len(registry.list_actions()) == 116
+        assert registry.metrics.actions == 116
 
     def test_every_action_has_permission_and_schema(self) -> None:
         registry = build_registry()
@@ -148,7 +149,7 @@ class TestActionsRegistration:
         registry = ActionRegistry()
         first = register_all(registry)
         second = register_all(registry)
-        assert first == 115
+        assert first == 116
         assert second == 0
 
     def test_find_by_category(self) -> None:
@@ -223,7 +224,7 @@ class TestSystemActions:
         registry = self._registry()
         listed = await registry.execute("action_list", role="admin")
         assert listed.status == "ok"
-        assert listed.data["count"] == 115
+        assert listed.data["count"] == 116
         info = await registry.execute(
             "action_info", params={"name": "git_status"}, role="admin"
         )
@@ -576,7 +577,7 @@ class TestActionsSecurity:
         assert snap["ok"] == 1
         assert snap["denied"] == 1
         assert registry.history[0]["status"] == "denied"
-        assert registry.dump()["actions"] == 115
+        assert registry.dump()["actions"] == 116
 
 
 # ===========================================================================
@@ -650,3 +651,95 @@ class TestGatePapelFamilia:
             role="admin",
         )
         assert result.status != "denied"
+
+
+@pytest.mark.asyncio
+class TestSttAction:
+    """02/11 — stt_transcrever: transcrição local de áudio no catálogo.
+
+    Item do parking lot do dono (02/11: "o stt/transcrever pode virar
+    action"): reutiliza o STT já existente do bot (tools/audio/stt.py,
+    whisper.cpp) — a mesma capacidade agora é action do orquestrador e
+    aparece no MCP. O registry embala o dict do handler em result.data
+    (status "ok" do registry mesmo em falha honesta): erro é data["ok"]
+    False + data["error"], nunca exceção (regra 3).
+    """
+
+    async def test_registrada_com_permission_allow(self) -> None:
+        names = [spec["name"] for spec in CATALOG]
+        assert "stt_transcrever" in names
+        act = build_registry().get("stt_transcrever")
+        # gate nominal da casa: permission == nome da action (Security Layer)
+        assert act.permission == "stt_transcrever"
+
+    async def test_caminho_inexistente_ok_false_sem_excecao(self, tmp_path) -> None:
+        result = await build_registry().execute(
+            "stt_transcrever",
+            params={"caminho": str(tmp_path / "nao_existe.ogg")},
+        )
+        assert result.data["ok"] is False
+        assert result.data["error"] == "audio_nao_encontrado"
+
+    async def test_stt_indisponivel_ok_false_com_snapshot(self, tmp_path) -> None:
+        import tools.audio.stt as stt_mod
+
+        audio = tmp_path / "voz.ogg"
+        audio.write_bytes(b"OggS\x00falso")
+
+        class _Indisponivel:
+            """Stub: binário/modelo ausentes — mesmo contrato do WhisperSTT."""
+
+            available = False
+
+            def __init__(self, cfg=None) -> None:
+                self.config = cfg
+
+            def snapshot(self) -> dict:
+                return {
+                    "enabled": True,
+                    "binary": "/nonexistent/whisper-cli",
+                    "model": "/nonexistent/ggml.bin",
+                    "language": "pt",
+                    "threads": 4,
+                }
+
+        original = stt_mod.WhisperSTT
+        stt_mod.WhisperSTT = _Indisponivel
+        try:
+            result = await build_registry().execute(
+                "stt_transcrever", params={"caminho": str(audio)})
+        finally:
+            stt_mod.WhisperSTT = original
+        assert result.data["ok"] is False
+        assert result.data["error"] == "stt_indisponivel"
+        assert result.data["binary"] == "/nonexistent/whisper-cli"
+
+    async def test_audio_real_processa_ponta_a_ponta(self, tmp_path) -> None:
+        """Wav 16kHz mono com bip de 1kHz: STT real do servidor → ok True
+        com chars/texto, ou falha honesta (stt_indisponivel/transcricao_falhou)
+        — nunca exceção (regra 3)."""
+        import math
+        import struct
+        import wave
+
+        wav = tmp_path / "bip.wav"
+        with wave.open(str(wav), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(16000)
+            w.writeframes(b"".join(
+                struct.pack(
+                    "<h",
+                    int(12000 * math.sin(2 * math.pi * 1000 * n / 16000)),
+                )
+                for n in range(16000)
+            ))
+        result = await build_registry().execute(
+            "stt_transcrever", params={"caminho": str(wav)})
+        data = result.data
+        if data["ok"]:
+            assert data["path"].endswith("bip.wav")
+            assert data["idioma"] == "pt"
+            assert data["chars"] == len(data["texto"])
+        else:
+            assert data["error"] in ("stt_indisponivel", "transcricao_falhou")

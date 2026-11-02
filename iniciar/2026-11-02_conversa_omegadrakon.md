@@ -120,3 +120,44 @@ Sem mutação de código/serviço — só a nota do caderno, o `txt.txt`
 (regra 14) e o Telegram (regra 15). Fila fechada: **do meu lado não
 sobrou nada aberto**; os 4 itens acima dependem de decisão/ordem dele.
 
+## §3 — "Virar a transcrição de áudio em action stt/transcrever" (~12:40): o item parcial da voz fechou
+
+**Pedido:** usuário: "Virar a transcrição de áudio em action
+stt/transcrever no catálogo do OD" — fecha o único item **PARCIAL** da
+fila revisada na §2 (nota `TODO 5`: voz/TTS/STT já funcionavam no bot,
+mas não existia `stt`/`transcrever` nas 115 actions).
+
+### 1. O que mudou (código)
+
+- **`tools/actions/actions.py`**: handler async **`stt_transcrever(caminho, idioma="")`**
+  — import **LAZY** de `tools/audio/stt.py` (o whisper só entra no
+  processo na chamada); mesma engenheira do bot: ffmpeg → WAV 16 kHz
+  mono → whisper-cli + ggml-base, sem residência em RAM. **Nunca lança**:
+  `audio_nao_encontrado` / `stt_indisponivel` + snapshot / `transcricao_falhou`;
+  sucesso = `path/idioma/chars/texto`. Categoria nova **`stt`** no
+  `CATEGORIES` + permissão nominal (`stt_transcrever`) → catálogo **116**.
+- **`runtime/mcp_od.py` + `tools/actions/__init__.py`**: contagens
+  115→116 e o `instructions` do MCP passou a derivar de
+  `len(registry.list_actions())` (para de quebrar a cada action nova).
+- Contagens duras 115→116 em 6 arquivos de teste + `site/index.html`;
+  `stt: 1` no `EXPECTED_CATEGORIES`.
+
+### 2. Provas (regra 6)
+
+- **`TestSttAction` (4)**: registrada com permission nominal; caminho
+  inexistente → `audio_nao_encontrado` sem exceção; stub indisponível →
+  `stt_indisponivel` com snapshot; **áudio REAL** (wav 16 kHz mono de
+  1 kHz gerado no teste) processado ponta a ponta com os binários do servidor.
+- **Gate completo: 4036 passed / 16 skipped / 0 falha** (+4 = os testes
+  novos; era 4032/16/0) · pyflakes 0 aviso novo (os 2 do diff já existiam no HEAD).
+- A mesma ação agora roda pelo orquestrador **e** aparece no
+  `tools/list` do MCP (**116 tools**) sem código extra.
+
+### 3. Fechamento (regras 4/7.1/14/15)
+
+CHANGELOG (sub-seção "02/11, sem bump" — precedente do MCP) ·
+`session.json` (chave `stt_transcrever_action_2026_11_02`, updated_at
+renovado) · `txt.txt` escrito para o dono (regra 14) · Telegram
+enviado (**msg 3548**, regra 15) · commit + push da entrega nesta etapa
+(regra 7.1, autorização permanente).
+

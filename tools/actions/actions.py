@@ -3365,6 +3365,47 @@ def action_validate(name: str, params: dict[str, Any]) -> dict[str, Any]:
 # Catálogo (78 actions)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# STT — transcrição local de áudio (parking lot "voz", 02/11/2026)
+# ---------------------------------------------------------------------------
+
+async def stt_transcrever(caminho: str, idioma: str = "") -> dict[str, Any]:
+    """Transcreve um arquivo de áudio local (ogg/mp3/wav/m4a...) via whisper.cpp.
+
+    STT local SEM estado — a MESMA engenheira do bot do Telegram
+    (`integrations/telegram/voice.py` → `tools/audio/stt.py`): ffmpeg
+    converte para WAV 16 kHz mono e o whisper-cli transcreve (modelo
+    ggml-base.bin, sem residência em RAM). Import LAZY do módulo de áudio:
+    o whisper só entra no processo quando a action é chamada. Nunca lança —
+    arquivo inexistente, binário/modelo ausentes ou transcrição vazia
+    viram erro honesto no resultado (padrão das integrações OD).
+    """
+    from tools.audio.stt import STTConfig, WhisperSTT
+
+    alvo = _path(caminho)
+    if not alvo.is_file():
+        return {"ok": False, "error": "audio_nao_encontrado", "path": str(alvo)}
+    cfg = STTConfig(language=idioma) if idioma else STTConfig()
+    stt = WhisperSTT(cfg)
+    if not stt.available:
+        return {"ok": False, "error": "stt_indisponivel", **stt.snapshot()}
+    texto = await stt.transcribe(alvo)
+    if texto is None:
+        return {
+            "ok": False,
+            "error": "transcricao_falhou",
+            "message": "whisper não devolveu texto (silêncio, timeout ou falha — veja o journal)",
+            "path": str(alvo.resolve()),
+        }
+    return {
+        "ok": True,
+        "path": str(alvo.resolve()),
+        "idioma": cfg.language,
+        "chars": len(texto),
+        "texto": texto,
+    }
+
+
 def _spec(
     name: str,
     category: str,
@@ -3584,6 +3625,9 @@ CATALOG: list[dict[str, Any]] = [
           {"required": ["termo"], "properties": {
               "termo": S, "limite": {**I, "default": 10},
           }}),
+    # --- STT: transcrição local de áudio (02/11, parking lot "voz") ---
+    _spec("stt_transcrever", "stt", "Transcreve áudio local (ogg/mp3/wav...) via whisper.cpp — pt por padrão, sem estado", stt_transcrever,
+          {"required": ["caminho"], "properties": {"caminho": S, "idioma": {**S, "default": ""}}}),
     # --- Serviços (3) ---
     _spec("service_list", "service", "Lista serviços systemd", service_list),
     _spec("service_status", "service", "Status de um serviço", service_status,
