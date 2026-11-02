@@ -163,6 +163,20 @@ class TestUltimasTocadas:
             ["Victor & Leo - Boa Sorte", "Damares - O Maior Troféu"]
         assert all(re.fullmatch(r"\d{2}:\d{2}", u["hora"]) for u in d["ultimas"])
 
+    def test_arquivo_so_com_a_do_ar_cai_no_historico(self, monkeypatch) -> None:
+        """Arquivo nascente (só a música do ar) → a lista não fica vazia."""
+        ra.TOCADAS_ARQ.write_text(
+            "16:20 | Isadora Pompeo - Cicatrizes\n", encoding="utf-8")
+        hist = [{"played_at": 1793642001,
+                 "song": {"artist": "Tiago Iorc", "title": "Amei Te Ver"}}]
+        monkeypatch.setattr(ra, "_nowplaying",
+                            lambda: _azura(titulo="Cicatrizes",
+                                           artista="Isadora Pompeo",
+                                           historico=hist))
+        d = ra.montar_agora()
+        assert [u["nome"] for u in d["ultimas"]] == ["Tiago Iorc - Amei Te Ver"]
+        assert d["ultimas"][0]["hora"] != ""
+
     def test_locucao_nao_entra_no_historico(self, monkeypatch) -> None:
         hist = [{"played_at": 1793642001,
                  "song": {"artist": "", "title": "anuncio musica"}}]

@@ -114,6 +114,29 @@ def _curiosidade(artista: str, titulo: str) -> str:
     return texto
 
 
+def _historico(dados: dict) -> list[dict]:
+    """Cobertura do AzuraCast: song_history (mais recente primeiro).
+
+    Usa quando o tocadas.txt ainda não existe, nasceu agora (só tem a
+    música do ar) ou está ilegível — a página nunca fica sem lista.
+    """
+    saida = []
+    for item in (dados.get("song_history") or [])[:LIMITE_TOCADAS]:
+        cancao = item.get("song") or {}
+        titulo = (cancao.get("title") or "").strip()
+        if not titulo or titulo.lower() == ANUNCIO:
+            continue
+        artista = (cancao.get("artist") or "").strip()
+        try:
+            hora = datetime.fromtimestamp(
+                int(item.get("played_at") or 0)).strftime("%H:%M")
+        except (TypeError, ValueError, OSError):
+            hora = "--:--"
+        saida.append({"hora": hora,
+                      "nome": f"{artista} - {titulo}".strip(" -")})
+    return saida
+
+
 def _tocadas(dados: dict) -> list[dict]:
     """Linhas do tocadas.txt (mais recente primeiro); sem ele, o histórico.
 
@@ -134,22 +157,7 @@ def _tocadas(dados: dict) -> list[dict]:
                 return list(reversed(saida))
     except OSError as exc:
         log.warn("tocadas.txt ilegível", error=str(exc))
-    # cobertura inicial: histórico do AzuraCast (mais recente primeiro)
-    saida = []
-    for item in (dados.get("song_history") or [])[:LIMITE_TOCADAS]:
-        cancao = item.get("song") or {}
-        titulo = (cancao.get("title") or "").strip()
-        if not titulo or titulo.lower() == ANUNCIO:
-            continue
-        artista = (cancao.get("artist") or "").strip()
-        try:
-            hora = datetime.fromtimestamp(
-                int(item.get("played_at") or 0)).strftime("%H:%M")
-        except (TypeError, ValueError, OSError):
-            hora = "--:--"
-        saida.append({"hora": hora,
-                      "nome": f"{artista} - {titulo}".strip(" -")})
-    return saida
+    return _historico(dados)
 
 
 def registrar_tocada(payload: dict) -> None:
@@ -238,7 +246,12 @@ def montar_agora() -> dict:
     ultimas = _tocadas(dados)
     if tocando:
         no_ar = f"{tocando['artista']} - {tocando['titulo']}".strip(" -")
-        ultimas = [u for u in ultimas if u["nome"] != no_ar][:LIMITE_TOCADAS]
+        vivas = [u for u in ultimas if u["nome"] != no_ar]
+        if not vivas:
+            # o arquivo nasceu agora e só tem a música do ar
+            vivas = _historico(dados)
+        ultimas = vivas
+    ultimas = ultimas[:LIMITE_TOCADAS]
 
     ouvintes = dados.get("listeners") or {}
     try:
