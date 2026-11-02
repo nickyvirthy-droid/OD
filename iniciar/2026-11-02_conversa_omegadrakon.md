@@ -163,6 +163,15 @@ serviço devolve **116 actions** com `stt_transcrever` (categoria `stt`,
 permissão nominal, params `caminho`+`idioma`) — a action está viva no
 processo, não só no repositório.
 
+### 2.1 — Nota TODO 5 atualizada (follow-up do dono, ~13:00)
+
+Item **(9) de voz marcado CONCLUÍDO** na nota do FlatNotes: cabeçalho
+"pode riscar" **8 → 9**, item promovido para a seção ✅ com as provas,
+bloco **🔶 PARCIAL removido** (agora vazio) e rodapé da revisão
+atualizado. Gravado via `flatnotes_anota(sobrescrever=true)` e provado
+por releitura: **9750 → 9965 chars**, conteúdo histórico preservado
+(`Migrado do TODO.md` + a linha original "integrar no bot como actions").
+
 ### 3. Fechamento (regras 4/7.1/14/15)
 
 CHANGELOG (sub-seção "02/11, sem bump" — precedente do MCP) ·
