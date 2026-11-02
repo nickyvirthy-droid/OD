@@ -172,6 +172,17 @@ atualizado. Gravado via `flatnotes_anota(sobrescrever=true)` e provado
 por releitura: **9750 → 9965 chars**, conteúdo histórico preservado
 (`Migrado do TODO.md` + a linha original "integrar no bot como actions").
 
+### 2.2 — Item (11) arquivado na nota TODO 5 (follow-up do dono, ~13:15)
+
+**Pedido:** "Arquivar o item (11) dos pings do WiFi USB na nota TODO 5
+(premisa mudou com o cabo)". Feito: cabeçalho **ABERTOS 4 → 3**, item 11
+saiu da lista e virou seção **📦 ARQUIVADO (1)** com o motivo técnico
+(`enp2s0` .205 metric 100 é o uplink; `wlx000f0037acf0` .250 é reserva
+metric 600 — pings do USB perderam o objeto, só voltam a importar se o
+WiFi voltar a ser primário); rodapé deixa de listá-lo como pendência.
+Prova por releitura: **9965 → 10133 chars**, histórico preservado.
+Sobra da fila: **(10) senha WiFi, (12) marketplace, (13) multi-tenant**.
+
 ### 3. Fechamento (regras 4/7.1/14/15)
 
 CHANGELOG (sub-seção "02/11, sem bump" — precedente do MCP) ·
