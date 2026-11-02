@@ -46,6 +46,31 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### Encaminhamentos no .205, auditoria de uso das ferramentas e o OD vira servidor MCP (01/11, sem bump)
+
+**Pedido (canal `txt.txt`, dono):** *"faça 1 e 3"* — (1) os 3
+encaminhamentos do Archer C6 que ainda apontavam para o WiFi; (3) o
+parking lot §5 da nota `TODO 5` do FlatNotes: **auditoria de uso de
+ferramentas** + **MCP Server**.
+
+| Peça | Entrega |
+|---|---|
+| **`tools/monitor/vigia_rich.py`** | `_encaminhar(NOME, IP)`: edita a regra em `#portForwarding` pela UI real (clicar Editar na linha → trocar o único campo com forma de IP → GRAVAR) e **prova por releitura da própria linha**; `_linhas_portfwd()` mantém a lição do painel de reservas (nunca o corpo inteiro da página). |
+| **`tools/monitor/network_watchdog.py`** | `--encaminhar NOME IP` — 3º modo de OPERADOR, espelho do `--bloquear`/`--reservar`. **EXECUTADO:** SSH 22, HTTP 80→8000 e Controle 8001 migrados `192.168.0.250` → `192.168.0.205` (tabela relida: 3/3; alvos vivos: banner OpenSSH no .205:22, 426 no .205:8001). |
+| **Auditoria de uso (sem código)** | Medição honesta de 30 dias: journal od-core (79k linhas), turnos Postgres (105), `/metrics`, `/capabilities` e logs dos 11 containers. Veredito: **10 de 115 actions usadas** (9%); campeã `google_calendar_*` (52), depois HA (28) e `network_hosts` (13); serviços web sem access-log = uso **não-mensurável** por fora (sugestão registrada, nada executado). Relatório completo: nota **"Auditoria de uso das ferramentas — 2026-11-01"** no FlatNotes + quadro no `txt.txt`. |
+| **`runtime/mcp_od.py` (NOVO)** | Servidor **MCP** (stdio, JSON-RPC 2024-11-05, **stdlib puro — sem dependência nova**): `initialize`/`tools/list`/`tools/call`/`ping` sobre o `ActionRegistry` real (115 actions com `inputSchema` convertido do schema da casa `str`/`int` → JSON Schema). `role="admin"` + `session_id="mcp"` (o processo nasce sob comando do dono na própria máquina — **nenhuma porta aberta**, regra 7 intocada); logs do logger da casa redirecionados ao **stderr** (stdout é o protocolo); `.env` carregado sem sobrescrever env do cliente. |
+| **`tests/test_mcp_od.py` (NOVO)** | **18 guardas**: handshake, `tools/list` com o catálogo REAL (115 + schema do `flatnotes_busca`), execução real `datetime`, `uptime` e `flatnotes_busca` ao vivo, `-32602`/`-32601`/`-32700`, denied/exceção → `isError`, `carregar_env` sem sobrescrever, loop stdio com notificação sem resposta. |
+
+**Prova viva (processo real, não unitário):**
+`initialize` → `omega-drakon v1.44.0` · `tools/list` → **115 tools** ·
+`tools/call uptime` → `ok` · `tools/call flatnotes_busca {"termo":"Parking lot"}`
+→ achou a nota `TODO 5` no caderno — protocolo no stdout limpo, boot no
+stderr.
+
+**Validação:** gate **4032 passed / 16 skipped / 0 falha · 90,49%**
+(reexecutado na publicação, 02/11 — mesma contagem, piso de 90% ok) ·
+pyflakes **0 aviso novo** (os 2 do diff já existiam no HEAD).
+
 ### A corrida docker×tailscale acabou, o .205 virou IP fixo e as 9 ferramentas passaram pro cabo (01/11, sem bump)
 
 **Pedido (canal `txt.txt`, dono):** *"corrija"* (a corrida de boot que derrubava
