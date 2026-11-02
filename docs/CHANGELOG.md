@@ -46,6 +46,33 @@ genérica demais vira falso-amigo do floor, e até a NOTA do incidente
 entra no corpus (esta aqui já foi reescrita uma vez por citar os
 termos ao vivo).
 
+### A locução passa a falar a curiosidade do banco (Item 2) e vinheta/anúncio somem das últimas (02/11, sem bump)
+
+**Pedido (chat, dono):** *"retire a vinheta das ultimas, deixa apenas
+musicas, vinhecas e anunciosos são locutor falando, não aparece. item 2
+pode implementar"* — dois de uma vez: o **filtro do locutor** (vinheta e
+anúncio são o locutor falando, não aparecem) e o **Item 2** da fila (a
+curiosidade falada passa a ler do nosso banco).
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/radio_agora.py`** | `_e_locucao()` — "anuncio musica" E vinhetas ("vinheta nicky") ficam de fora em quatro pontos: escrita no `tocadas.txt`, leitura das últimas (some até linha antiga), histórico do AzuraCast e "Tocando agora"/"próxima" (mostram "Locução da rádio", como já fazia com o anúncio). `_curiosidade()` vira `curiosidade_da_musica()` — pública, **fonte única** da página e da fala. Linha `16:29 \| vinheta nicky` removida do arquivo a pedido do dono. |
+| **`integrations/radio_webhook.py` (Item 2)** | `montar_locucao()` ganha `curiosidade_fn` (injetável, como os demais): o ramo da curiosidade (70%, só sem notícia) passa a ler o **acervo.db** (mesmo leitor da página, `mode=ro`) — o `custom_field` do AzuraCast, que vem **vazio**, virou fallback. Antes o ramo **nunca disparava** (campo vazio); agora a rádio fala a curiosidade real quando a música tem. |
+| **Testes** | `test_radio_agora.py` **23** (+5: vinheta no ar, na próxima, no arquivo, no histórico e na escrita) · `test_radio_webhook.py` **34** (+2: banco **vence** o custom_field; o padrão abre o `acervo.db` de ponta a ponta) · helpers `_montar`/`_processar` herméticos (`curiosidade_fn=lambda a,t:""`) — nenhum teste toca o banco real. |
+
+**Prova viva (Item 2):** script com payload **real** do AzuraCast +
+`build_database()` real (Postgres) + rng roteirizado no ramo de 70% → a
+fala montada contém **exatamente** a linha do `acervo.db` (*"Amanda
+Wanessa é uma das vozes mais queridas do gospel…"*) depois da intro do
+banco; música cuja curiosidade é só o placeholder → o ramo não dispara e
+a fala fica limpa.
+
+**Validação:** gate oficial **4061 passed / 16 skipped / 0 falha ·
+90,43%** (+7 = 5 do filtro + 2 do Item 2; era 4054) · pyflakes **0 aviso
+novo** · **3º restart depois do verde** (regra 7.3): **PID 2928162**
+(17:10:59), NRestarts=0, journal **0 `[ERROR]`**, rota pública 200 — e
+`tocadas.txt` limpo, só música.
+
 ### Rádio Nicky ganha "Tocando agora" na página e o acervo vira índice SQLite (02/11, sem bump)
 
 **Pedido (chat, dono):** itens da rádio aprovados um por vez na

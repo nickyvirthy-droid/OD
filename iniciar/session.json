@@ -10,6 +10,16 @@
   "estado": "ITENS 1 E 4 NO AR E VALIDADOS. PROVA DO HOOK (ao vivo): tocadas.txt nasceu às 16:20 com 'Isadora Pompeo - Cicatrizes'; a locução 'anuncio musica' que tocou 16 s antes ficou de fora (filtro do registrar_tocada); as últimas da página passaram a vir do arquivo (música do ar removida da lista). AJUSTE pós-2º restart: arquivo nascente só com a do ar → histórico do AzuraCast cobre (a lista nunca nasce vazia). DETALHE EM ABERTO p/ decisão do dono: o hook também grava 'vinheta nicky' (o filtro atual só exclui 'anuncio musica') — se ele quiser, excluir vinhetas vira item à parte. Item 2 (locução lê do banco — recomendado 'depois') AGUARDA AVAL do dono; Item 3 (letra) guardado como futuro (direito autor). Próximo da fila: página de acervo pro ouvinte (depois do Item 2); 'escolher uma música' é item à parte.",
   "transcricao": "iniciar/2026-11-02_conversa_omegadrakon.md (§4)"
  },
+ "radio_item2_locucao_e_filtro_vinheta_2026_11_02": {
+  "quando": "2026-11-02T17:12:00-03:00",
+  "pedido": "Chat do dono (verbatim): 'retire a vinheta das ultimas, deixa apenas musicas, vinhecas e anunciosos são locutor falando, não aparece. item 2 pode implementar' — dois itens de uma vez: filtro do locutor nas últimas + Item 2 da fila (curiosidade falada lendo do nosso banco).",
+  "filtro_locutor": "integrations/radio_agora.py: _e_locucao() — 'anuncio musica' E vinhetas ('vinheta nicky') fora em 4 pontos: escrita no tocadas.txt, leitura das últimas (some até linha antiga), histórico do AzuraCast e Tocando agora/próxima (mostram 'Locução da rádio'). _curiosidade() renomeada para curiosidade_da_musica() — pública, fonte única da página e da fala. Linha '16:29 | vinheta nicky' removida do arquivo a pedido do dono.",
+  "item2_locucao": "integrations/radio_webhook.py: montar_locucao() ganhou curiosidade_fn (injetável) — o ramo da curiosidade (70%, só sem notícia) lê o acervo.db (mesmo leitor da página, mode=ro); o custom_field do AzuraCast (vazio) virou fallback. Antes o ramo NUNCA disparava porque o campo vinha vazio.",
+  "testes": "tests/test_radio_agora.py 23 (+5: vinheta no ar, na próxima, no arquivo, no histórico, na escrita); tests/test_radio_webhook.py 34 (+2: banco vence o custom_field; padrão abre acervo.db ponta a ponta) — helpers herméticos com curiosidade_fn=lambda a,t:''. GATE OFICIAL: 4061 passed / 16 skipped / 0 falha · 90,43% (era 4054; +7). pyflakes 0 aviso novo.",
+  "provas_vivas": "Item 2: script com payload REAL do AzuraCast + build_database() real (Postgres) + rng roteirizado no ramo de 70% → fala montada contém exatamente a linha do acervo.db ('Amanda Wanessa é uma das vozes mais queridas do gospel…') após a intro do banco; música com só placeholder → ramo não dispara, fala limpa. 3º restart (regra 7.3, gate verde primeiro): PID 2928162 (17:10:59), NRestarts=0, journal 0 [ERROR], rota pública 200, tocadas.txt limpo só com música.",
+  "estado": "FILTRO E ITEM 2 NO AR. Fila restante: página de acervo pro ouvinte; Item 3 (letra) guardado por direito autoral; 'escolher uma música' é item à parte.",
+  "transcricao": "iniciar/2026-11-02_conversa_omegadrakon.md (§5)"
+ },
  "stt_transcrever_action_2026_11_02": {
   "quando": "2026-11-02T12:40:00-03:00",
   "pedido": "Usuario (chat): 'Virar a transcrição de áudio em action stt/transcrever no catálogo do OD' — fecha o item PARCIAL da revisao da fila do parking lot (nota TODO 5, 02/11: voz era o unico item parcial por nao ter action no catalogo).",
@@ -879,7 +889,7 @@
   "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
  },
- "updated_at": "2026-11-02T16:18:00-03:00",
+ "updated_at": "2026-11-02T17:12:00-03:00",
  "auditoria_pendencias_2026_10_20": {
   "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
   "vereditos": {

@@ -285,3 +285,58 @@ CHANGELOG (sub-seção "02/11, sem bump") · `session.json` (chave
 `radio_tocando_agora_e_acervo_db_2026_11_02`, `updated_at` renovado) ·
 `txt.txt` para o dono (regra 14) · Telegram (regra 15) · commit + push
 (regra 7.1, autorização permanente).
+
+## §5 — Filtro do locutor (vinheta/anúncio) + Item 2: a curiosidade falada do banco (~16:50–17:15)
+
+### 1. Pedido do dono (verbatim)
+
+> *"retire a vinheta das ultimas, deixa apenas musicas, vinhecas e
+> anunciosos são locutor falando, não aparece. item 2 pode implementar"*
+
+Dois de uma vez: **(a)** vinheta e anúncio são o locutor falando → não
+aparecem (a linha `16:29 | vinheta nicky` que o hook gravara virou prova
+do problema); **(b) Item 2 aprovado** — a locução falada passa a ler a
+curiosidade do **nosso** `acervo.db` (ordem da fila acordada em §4:
+banco → Item 1 → Item 2).
+
+### 2. Filtro do locutor (`integrations/radio_agora.py`)
+
+Helper único `_e_locucao(titulo)` ("anuncio musica" **ou** "vinheta" no
+título) aplicado em **quatro** pontos: escrita no `tocadas.txt`
+(`registrar_tocada`), leitura das últimas (linha antiga de vinheta
+some do arquivo), histórico do AzuraCast (`_historico`) e "Tocando
+agora"/"próxima" (mostram **"Locução da rádio"**, como já fazia com o
+anúncio). `_curiosidade()` renomeada para **`curiosidade_da_musica()`**
+(pública) — fonte única da página **e** da fala. Linha da vinheta
+removida do `tocadas.txt` a pedido do dono.
+
+### 3. Item 2 — a curiosidade falada (`integrations/radio_webhook.py`)
+
+`montar_locucao()` ganhou `curiosidade_fn` (injetável, como `rng`,
+`noticia_fn`, `clima_fn`): o ramo da curiosidade (70%, só sem notícia)
+agora lê o **acervo.db** (mesmo leitor da página, `mode=ro`) — o
+`custom_field` do AzuraCast, que vem **vazio**, virou fallback. Antes o
+ramo **nunca disparava** (é `if curiosidade:` e o campo era `None`);
+agora a rádio fala a curiosidade real quando a música tem (137 de 287).
+
+### 4. Validação e deploy
+
+- **Gate 4: 4061 passed / 16 skipped / 0 falha · 90,43%** (+7 = 5 do
+  filtro + 2 do Item 2; era 4054) · pyflakes 0 aviso novo ·
+  `py_compile` OK nos dois módulos.
+- **Prova viva do Item 2:** payload real do AzuraCast +
+  `build_database()` real (Postgres) + rng roteirizado no ramo de 70% →
+  a fala montada contém **exatamente** a linha do banco (*"Amanda
+  Wanessa é uma das vozes mais queridas do gospel…"*) após a intro; a
+  música no ar (placeholder) → ramo não dispara, fala limpa.
+- **3º restart** (regra 7.3, gate verde primeiro): **PID 2928162**
+  (17:10:59), NRestarts=0, journal **0 `[ERROR]`**, rota pública 200,
+  `tocadas.txt` limpo (só música).
+
+### 5. Fechamento (regras 4/7.1/14/15)
+
+CHANGELOG (sub-seção nova acima da anterior) · `session.json` (chave
+`radio_item2_locucao_e_filtro_vinheta_2026_11_02`) · `txt.txt` (regra
+14) · Telegram (regra 15) · commit + push (regra 7.1). Fila restante:
+página de acervo pro ouvinte; Item 3 (letra) guardado; "escolher uma
+música" à parte.
