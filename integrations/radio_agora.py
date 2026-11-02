@@ -22,8 +22,9 @@ Decisões registradas (ver iniciar/2026-10-30_conversa_omegadrakon.md):
   - tocadas.txt é a fonte das "últimas 5" (ordem do dono: arquivo de
     texto mesmo); sem arquivo ainda → song_history do AzuraCast cobre
     o histórico inicial — nada se perde entre o texto e o histórico
-  - a locução ("anuncio musica") entra na página como locução, nunca
-    como música — e não contamina o histórico de faixas
+  - locutor falando não é música: "anuncio musica" E vinhetas ("vinheta
+    nicky") ficam de fora das últimas, do arquivo e do "Tocando agora"
+    — dono, 02/11: "vinhetas e anúncios são locutor falando, não aparece"
   - montar_agora() NUNCA derruba a página: fonte que falhou vira campo
     vazio; erro geral vira {"ok": false} e o handler responde 503
   - cache de 5 s no nowplaying: a página sonda a cada 15 s e cada
@@ -61,6 +62,17 @@ LIMITE_ARQUIVO = 500                      # rotação do tocadas.txt
 _cache: dict[str, Any] = {"em": 0.0, "dados": None}
 
 
+def _e_locucao(titulo: str) -> bool:
+    """O locutor falando (vinheta/anúncio) não é música — não aparece.
+
+    Dono, 02/11: "vinhetas e anúncios são locutor falando, não aparece"
+    — vale para as últimas, o tocadas.txt e o "Tocando agora" (que mostra
+    "Locução da rádio" no lugar, como já fazia com o anúncio).
+    """
+    t = (titulo or "").strip().lower()
+    return bool(t) and (t == ANUNCIO or "vinheta" in t or t.startswith("anuncio"))
+
+
 # ---------------------------------------------------------------------------
 #  Fontes
 # ---------------------------------------------------------------------------
@@ -79,8 +91,13 @@ def _nowplaying() -> dict:
     return dados
 
 
-def _curiosidade(artista: str, titulo: str) -> str:
-    """Curiosidade da música no acervo.db (leitura mode=ro, nunca escreve)."""
+def curiosidade_da_musica(artista: str, titulo: str) -> str:
+    """Curiosidade da música no acervo.db (leitura mode=ro, nunca escreve).
+
+    Item 2 (02/11): a mesma fonte da página e da locução falada — quem
+    escreve é só o pipeline; aqui só se lê. Placeholder ("curiosidade
+    pendente") conta como vazia.
+    """
     if not titulo:
         return ""
     try:
@@ -124,7 +141,7 @@ def _historico(dados: dict) -> list[dict]:
     for item in (dados.get("song_history") or [])[:LIMITE_TOCADAS]:
         cancao = item.get("song") or {}
         titulo = (cancao.get("title") or "").strip()
-        if not titulo or titulo.lower() == ANUNCIO:
+        if not titulo or _e_locucao(titulo):
             continue
         artista = (cancao.get("artist") or "").strip()
         try:
@@ -151,8 +168,13 @@ def _tocadas(dados: dict) -> list[dict]:
             saida = []
             for linha in linhas:
                 hora, sep, nome = linha.partition(" | ")
-                if sep and nome:
-                    saida.append({"hora": hora, "nome": nome})
+                if not sep or not nome:
+                    continue
+                # linha antiga de vinheta/anúncio (escrita antes do filtro
+                # do dono, 02/11) também some da página
+                if _e_locucao(nome.rsplit(" - ", 1)[-1]):
+                    continue
+                saida.append({"hora": hora, "nome": nome})
             if saida:
                 return list(reversed(saida))
     except OSError as exc:
@@ -170,8 +192,8 @@ def registrar_tocada(payload: dict) -> None:
     try:
         cancao = ((payload or {}).get("now_playing") or {}).get("song") or {}
         titulo = (cancao.get("title") or "").strip()
-        if not titulo or titulo.lower() == ANUNCIO:
-            return                            # locução não entra no histórico
+        if not titulo or _e_locucao(titulo):
+            return                            # locutor falando: fora do arquivo
         artista = (cancao.get("artist") or "").strip()
         nome = f"{artista} - {titulo}".strip(" -")
         linhas: list[str] = []
@@ -221,21 +243,22 @@ def montar_agora() -> dict:
     artista = (cancao.get("artist") or "").strip()
     tocando: Optional[dict[str, str]] = None
     if titulo:
-        if titulo.lower() == ANUNCIO:
-            # a locução está no ar: página mostra a fala, não uma "música"
+        if _e_locucao(titulo):
+            # locutor no ar (vinheta/anúncio): página mostra a fala,
+            # não uma "música"
             tocando = {"artista": "", "titulo": "Locução da rádio", "curiosidade": ""}
         else:
             tocando = {
                 "artista": artista,
                 "titulo": titulo,
-                "curiosidade": _curiosidade(artista, titulo),
+                "curiosidade": curiosidade_da_musica(artista, titulo),
             }
 
     prox_song = ((dados.get("playing_next") or {}).get("song")) or {}
     prox_titulo = (prox_song.get("title") or "").strip()
     proxima: Optional[dict[str, str]] = None
     if prox_titulo:
-        if prox_titulo.lower() == ANUNCIO:
+        if _e_locucao(prox_titulo):
             proxima = {"artista": "", "titulo": "Locução da rádio"}
         else:
             proxima = {

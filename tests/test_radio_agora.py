@@ -115,6 +115,20 @@ class TestMontarAgora:
         d = ra.montar_agora()
         assert d["proxima"]["titulo"] == "Locução da rádio"
 
+    def test_vinheta_no_ar_mostra_locucao(self, monkeypatch) -> None:
+        """Vinheta = locutor falando (dono, 02/11): não vira música."""
+        monkeypatch.setattr(ra, "_nowplaying",
+                            lambda: _azura(titulo="vinheta nicky", artista=""))
+        d = ra.montar_agora()
+        assert d["tocando"]["titulo"] == "Locução da rádio"
+        assert d["tocando"]["curiosidade"] == ""
+
+    def test_proxima_vinheta_e_declarada_como_locucao(self, monkeypatch) -> None:
+        monkeypatch.setattr(ra, "_nowplaying",
+                            lambda: _azura(proximo=("", "vinheta nicky")))
+        d = ra.montar_agora()
+        assert d["proxima"]["titulo"] == "Locução da rádio"
+
     def test_azura_fora_responde_com_o_que_existe(self, monkeypatch) -> None:
         def _caiu() -> dict:
             raise OSError("sem rede")
@@ -183,6 +197,29 @@ class TestUltimasTocadas:
         monkeypatch.setattr(ra, "_nowplaying", lambda: _azura(historico=hist))
         assert ra.montar_agora()["ultimas"] == []
 
+    def test_vinheta_no_historico_nao_aparece(self, monkeypatch) -> None:
+        hist = [{"played_at": 1793642001,
+                 "song": {"artist": "", "title": "vinheta nicky"}},
+                {"played_at": 1793641701,
+                 "song": {"artist": "Damares", "title": "O Maior Troféu"}}]
+        monkeypatch.setattr(ra, "_nowplaying", lambda: _azura(historico=hist))
+        d = ra.montar_agora()
+        assert [u["nome"] for u in d["ultimas"]] == \
+            ["Damares - O Maior Troféu"]
+
+    def test_vinheta_no_arquivo_nao_aparece(self, monkeypatch) -> None:
+        """Linha antiga de vinheta (gravada antes do filtro) some da página."""
+        ra.TOCADAS_ARQ.write_text(
+            "16:25 | Tiago Iorc - Amei Te Ver\n"
+            "16:29 | vinheta nicky\n"
+            "16:30 | Fernandinho - Todas as Coisas\n", encoding="utf-8")
+        monkeypatch.setattr(ra, "_nowplaying",
+                            lambda: _azura(titulo="Todas as Coisas",
+                                           artista="Fernandinho"))
+        d = ra.montar_agora()
+        assert [u["nome"] for u in d["ultimas"]] == \
+            ["Tiago Iorc - Amei Te Ver"]
+
 
 # ---------------------------------------------------------------------------
 #  registrar_tocada — o hook do webhook
@@ -208,6 +245,10 @@ class TestRegistrarTocada:
 
     def test_locucao_nao_entra_no_arquivo(self) -> None:
         ra.registrar_tocada(self._payload(titulo="anuncio musica", artista=""))
+        assert not ra.TOCADAS_ARQ.exists()
+
+    def test_vinheta_nao_grava_no_arquivo(self) -> None:
+        ra.registrar_tocada(self._payload(titulo="vinheta nicky", artista=""))
         assert not ra.TOCADAS_ARQ.exists()
 
     def test_nunca_lanca_mesmo_com_caminho_impossivel(

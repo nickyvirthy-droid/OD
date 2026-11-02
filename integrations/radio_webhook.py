@@ -25,6 +25,10 @@ Decisões registradas (ver CHANGELOG):
     e 23 minutos" (o texto vira voz falada, o erro de português ouvia)
   - MP3 gravado em tmp e trocado com os.replace (atômico): o liquidsoap
     lê o arquivo no minuto em que toca — nunca pode ver meio arquivo
+  - Item 2 (02/11, ordem do dono): a curiosidade FALADA lê do nosso
+    acervo.db (modo leitura, mesma fonte da página) — o custom_field do
+    AzuraCast vem vazio e o ramo de 70% nunca disparava; o custom_field
+    ficou como fallback. `curiosidade_fn` é injetável como os demais.
   - processar() nunca lança: erro vira {"status": "erro"} e o AzuraCast
     registra a falha no log dele sem derrubar nada
 """
@@ -43,6 +47,7 @@ from zoneinfo import ZoneInfo
 
 from core.logger import get_logger
 from integrations.radio import frase_aleatoria, frase_formatada
+from integrations.radio_agora import curiosidade_da_musica
 
 __signature__ = "OD // CORE"
 
@@ -162,23 +167,26 @@ def montar_locucao(
     agora: Optional[datetime] = None,
     noticia_fn: Optional[Callable[[], str]] = None,
     clima_fn: Optional[Callable[[], str]] = None,
+    curiosidade_fn: Optional[Callable[[str, str], str]] = None,
 ) -> str:
     """Monta o texto da locução a partir do Now Playing do AzuraCast.
 
     Ordem e probabilidades do legado (main.py radio_webhook):
       1. notícia (15%) — "Giro de notícias Nicky..."
       2. frase da música passada (sempre)
-      3. curiosidade do custom_field (70%, só sem notícia)
+      3. curiosidade (70%, só sem notícia) — Item 2 (02/11): lida do
+         acervo.db (nosso banco); custom_field do AzuraCast é fallback
       4. hora certa projetada no fim da música (50%, só sem notícia)
       5. próxima música (50%, só se houver)
       6. clima (20%) senão assinatura — fecha a fala SEMPRE
 
-    `rng`, `agora`, `noticia_fn` e `clima_fn` são injetáveis: os testes
-    rodam determinísticos e sem rede.
+    `rng`, `agora`, `noticia_fn`, `clima_fn` e `curiosidade_fn` são
+    injetáveis: os testes rodam determinísticos e sem rede.
     """
     agora = agora or datetime.now(TIMEZONE)
     noticia_fn = noticia_fn or noticia_g1
     clima_fn = clima_fn or clima_wttr
+    curiosidade_fn = curiosidade_fn or curiosidade_da_musica
 
     np = payload.get("now_playing") or {}
     duration = int(np.get("duration") or 0)
@@ -195,7 +203,12 @@ def montar_locucao(
     titulo_fala = custom.get("pronuncia_titulo") or limpar_pronuncia(
         song.get("title") or "Sucesso"
     )
-    curiosidade = custom.get("curiosidade")
+    # Item 2 (02/11): curiosidade falada vem do NOSSO banco (acervo.db,
+    # modo leitura — mesma fonte da página); o custom_field do AzuraCast
+    # (hoje vazio) só entra se o banco não tiver a música.
+    curiosidade = curiosidade_fn(
+        song.get("artist") or "", song.get("title") or ""
+    ) or custom.get("curiosidade") or ""
 
     next_p = payload.get("playing_next") or {}
     next_song = next_p.get("song") or {}
@@ -280,6 +293,7 @@ def processar(
     agora: Optional[datetime] = None,
     noticia_fn: Optional[Callable[[], str]] = None,
     clima_fn: Optional[Callable[[], str]] = None,
+    curiosidade_fn: Optional[Callable[[str, str], str]] = None,
 ) -> dict[str, Any]:
     """Webhook completo: monta a fala, gera o MP3 e o entrega ao AzuraCast.
 
@@ -293,6 +307,7 @@ def processar(
         texto = montar_locucao(
             payload, db, rng=rng, agora=agora,
             noticia_fn=noticia_fn, clima_fn=clima_fn,
+            curiosidade_fn=curiosidade_fn,
         )
     except Exception as exc:  # noqa: BLE001 — montagem nunca derruba nada
         log.warn("Montagem da locução falhou", error=str(exc))

@@ -184,7 +184,8 @@ class TestMontarLocucao:
     """Cada ramo da montagem, com rng roteirizado e fontes injetadas."""
 
     def _montar(self, *, rng=None, payload=None, db=None, agora=AGORA_FIXO,
-                noticia=lambda: "", clima=lambda: "") -> str:
+                noticia=lambda: "", clima=lambda: "",
+                curiosidade=lambda a, t: "") -> str:
         return montar_locucao(
             payload if payload is not None else PAYLOAD,
             db if db is not None else DBFalso(),
@@ -192,6 +193,7 @@ class TestMontarLocucao:
             agora=agora,
             noticia_fn=noticia,
             clima_fn=clima,
+            curiosidade_fn=curiosidade,
         )
 
     def test_caminho_base_frase_e_assinatura(self) -> None:
@@ -213,7 +215,7 @@ class TestMontarLocucao:
         assert "Tim maia" in texto
 
     def test_curiosidade_70_por_cento(self) -> None:
-        """Ramo 3: curiosidade do custom_field entra com a intro do banco."""
+        """Ramo 3: banco sem a música → custom_field do AzuraCast entra."""
         payload = {
             "now_playing": {
                 "song": {"artist": "Jorge Ben",
@@ -225,6 +227,55 @@ class TestMontarLocucao:
         texto = self._montar(rng=RNGFalso([0.50, 0.50]), payload=payload)
         assert "Foi gravada em 1963." in texto
         assert _CONTEUDO["intro_curiosidade"][0] in texto
+
+    def test_curiosidade_vem_do_banco_e_vence_o_custom_field(self) -> None:
+        """Item 2 (02/11): a fala lê do NOSSO banco (acervo.db)."""
+        payload = {
+            "now_playing": {
+                "song": {"artist": "Jorge Ben",
+                         "title": "Mas Que Nada",
+                         "custom_fields": {
+                             "curiosidade": "Velha do campo."}},
+            },
+        }
+        texto = self._montar(
+            rng=RNGFalso([0.50, 0.50]), payload=payload,
+            curiosidade=lambda a, t: "Bateu o tambor na gravação de 1969."
+            if t == "Mas Que Nada" else "")
+        assert "Bateu o tambor na gravação de 1969." in texto
+        assert "Velha do campo." not in texto      # banco vence o campo
+        assert _CONTEUDO["intro_curiosidade"][0] in texto
+
+    def test_curiosidade_padrao_le_o_acervo_db(
+            self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """O padrão (sem injetar) abre o acervo.db — Item 2 ponta a ponta."""
+        import sqlite3
+
+        from integrations import radio_agora
+
+        banco = tmp_path / "acervo.db"
+        conn = sqlite3.connect(str(banco))
+        conn.execute("""CREATE TABLE musicas (
+            caminho TEXT PRIMARY KEY, artista TEXT, titulo TEXT, ano TEXT,
+            genero TEXT, curiosidade TEXT, pronuncia_artista TEXT,
+            pronuncia_titulo TEXT, duracao_s INTEGER, bytes INTEGER,
+            atualizado_em TEXT)""")
+        conn.execute(
+            "INSERT INTO musicas (caminho, artista, titulo, curiosidade)"
+            " VALUES (?, ?, ?, ?)",
+            ("acervo/x.mp3", "Jorge Ben", "Mas Que Nada",
+             "Gravada no Estúdio Philtro em 1969."))
+        conn.commit()
+        conn.close()
+        monkeypatch.setattr(radio_agora, "BANCO_ACERVO", banco)
+
+        payload = {"now_playing": {"song": {
+            "artist": "Jorge Ben", "title": "Mas Que Nada",
+            "custom_fields": {}}}}
+        texto = montar_locucao(
+            payload, DBFalso(), rng=RNGFalso([0.50, 0.50]), agora=AGORA_FIXO,
+            noticia_fn=lambda: "", clima_fn=lambda: "")
+        assert "Gravada no Estúdio Philtro em 1969." in texto
 
     def test_hora_certa_com_minutos(self) -> None:
         """Ramo 4: agora + duração + 10 s falado por extenso."""
@@ -309,7 +360,8 @@ class TestProcessar:
     """O processador nunca lança e o destino só troca quando pronto."""
 
     def _processar(self, tmp_path: Path, *, tts=None, db=None, rng=None,
-                   payload=None, noticia=lambda: "", clima=lambda: "") -> dict:
+                   payload=None, noticia=lambda: "", clima=lambda: "",
+                   curiosidade=lambda a, t: "") -> dict:
         destino = tmp_path / "locucoes" / "anuncio_musica.mp3"
         return processar(
             payload if payload is not None else PAYLOAD,
@@ -321,6 +373,7 @@ class TestProcessar:
             agora=AGORA_FIXO,
             noticia_fn=noticia,
             clima_fn=clima,
+            curiosidade_fn=curiosidade,
         )
 
     def test_sucesso_grava_mp3_atomico(self, tmp_path: Path) -> None:
@@ -339,6 +392,7 @@ class TestProcessar:
         resultado = processar(
             PAYLOAD, tts=TTSFalso(), db=DBFalso(), destino=destino,
             rng=RNGFalso(), noticia_fn=lambda: "", clima_fn=lambda: "",
+            curiosidade_fn=lambda a, t: "",
         )
         assert resultado["status"] == "ok" and destino.is_file()
 
@@ -347,6 +401,7 @@ class TestProcessar:
         resultado = processar(
             PAYLOAD, tts=TTSFalso(ok=False), db=DBFalso(), destino=destino,
             rng=RNGFalso(), noticia_fn=lambda: "", clima_fn=lambda: "",
+            curiosidade_fn=lambda a, t: "",
         )
         assert resultado == {"status": "erro", "message": "sintese_falhou"}
         assert not destino.exists()
@@ -356,6 +411,7 @@ class TestProcessar:
         resultado = processar(
             PAYLOAD, tts=TTSFalso(explode=True), db=DBFalso(), destino=destino,
             rng=RNGFalso(), noticia_fn=lambda: "", clima_fn=lambda: "",
+            curiosidade_fn=lambda a, t: "",
         )
         assert resultado["status"] == "erro"
         assert "piper morreu" in resultado["message"]
@@ -368,6 +424,7 @@ class TestProcessar:
         resultado = processar(
             PAYLOAD, tts=tts, db=db, destino=tmp_path / "fala.mp3",
             rng=RNGFalso(), noticia_fn=lambda: "", clima_fn=lambda: "",
+            curiosidade_fn=lambda a, t: "",
         )
         assert resultado["status"] == "erro"
         assert tts.texto is None  # síntese nunca foi chamada
@@ -379,6 +436,7 @@ class TestProcessar:
         resultado = processar(
             PAYLOAD, tts=TTSFalso(ok=False), db=DBFalso(), destino=destino,
             rng=RNGFalso(), noticia_fn=lambda: "", clima_fn=lambda: "",
+            curiosidade_fn=lambda a, t: "",
         )
         assert resultado["status"] == "erro"
         assert destino.read_bytes() == b"versao-no-ar"
