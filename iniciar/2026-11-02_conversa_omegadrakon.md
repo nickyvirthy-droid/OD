@@ -83,48 +83,40 @@ boot pendente); (d) parking lot — MCP FECHADO.
 **Pedido:** usuário: "Revisar o parking lot restante do FlatNotes para
 fechar a fila".
 
-### 1. Método
+### 1. Método (regra 5 — código antes de suposição)
 
-Nota `TODO 5 — Parking lot (ideias de expansão)` aberta pela API do
-FlatNotes (`/api/search?term=` → `/api/notes/{título}`) e **cada item
-conferido no código/entrega** antes de marcar status (regra 5 — código
-antes de suposição):
+Nota `TODO 5 — Parking lot (ideias de expansão)` lida pela API do
+FlatNotes (`GET /api/notes/{titulo}`) e **cada status conferido no
+próprio código** antes de marcar: `tools/actions/actions.py`,
+`core/orchestrator.py`, `integrations/telegram/voice.py` +
+`tools/audio/stt.py`, `plugins/`, `core/identity.py`, registro de 115
+e `.env`. Nada marcado por memória.
 
-- `network_hosts` + inventário: lido em `tools/actions/actions.py`
-  (lê `logs/network_watchdog_estado.json`, devolve **nome** do
-  inventário e **fabricante** OUI) → feito;
-- Kiwix no chat: `core/orchestrator.py` injeta `enciclopedia` e conta
-  `enciclopedias/enciclopedia_blocos/enciclopedia_erros/
-  enciclopedia_sem_fonte` → feito;
-- STT: `tools/audio/stt.py` + `integrations/telegram/voice.py`
-  existem (whisper.cpp), mas **nenhuma action `stt/transcrever`** no
-  registry de 115 → **parcial** (o item pedia "integrar como actions");
-- plugins: `plugins/manager.py` existe desde 04/09, **sem** manifest/
-  marketplace oficial → pendente;
-- multi-tenant: só `OD_ACCOUNT_ALIASES` (`core/identity.py`) → pendente;
-- auto-repair: `RecoveryLoop` sim, auto-repair não → pendente;
-- senha WiFi: nenhuma credencial nova no `.env` → pendente (ordem).
+### 2. Resultado (gravado na própria nota, original preservado)
 
-### 2. Resultado gravado na própria nota
+Bloco **"🔍 REVISÃO DA FILA — 02/11"** no topo da nota, via action
+`flatnotes_anota(sobrescrever=true)` — prova por releitura: 9792 chars,
+começa com o bloco novo e mantém "Migrado do `TODO.md`".
 
-Bloco **"🔍 REVISÃO DA FILA — 02/11/2026"** no topo da nota, via action
-`flatnotes_anota(título, sobrescrever=true)` — **conteúdo original
-preservado** (prova por releitura: 9792 chars, "REVISÃO DA FILA" no
-topo e "Migrado do `TODO.md`" intacto).
-
-- **✅ 8 concluídos:** parking lot no FlatNotes · auditoria de uso
-  (01/11) · `network_hosts` com inventário · série "uma por vez"
-  (FlatNotes/FileBrowser/Calibre) · webview descartada (botão v1.42.0)
-  · **MCP Server (02/11, `48e3c16`)** · Kiwix no chat · "outras 4 na
-  internet" (análise fechada: não vai).
-- **🔶 1 parcial:** Voice/TTS/STT — TTS e STT no bot prontos, falta
-  virar action.
-- **⬜ 4 abertos:** senha WiFi (ordem) · pings do adaptador WiFi USB
-  (**premissa mudou**: uplink é o cabo desde 01/11, sugerido arquivar)
-  · plugin marketplace · multi-tenant · auto-repair (na verdade 5
-  contando o parcial).
+- **✅ 8 CONCLUÍDOS:** parking lot dentro do FlatNotes (decisão (b),
+  21/10) · auditoria de uso (01/11) · `network_hosts` enriquecida com
+  **nome do inventário + fabricante OUI** (lido em `actions.py`) ·
+  série "uma por vez" (v1.40/1.41/1.43) · webview descartada + botão
+  v1.42.0 · **MCP Server (02/11, `48e3c16`)** · Kiwix dentro do chat
+  (orchestrator injeta enciclopédia, contadores `enciclopedias/`
+  `enciclopedia_blocos/enciclopedia_sem_fonte`) · "outras 4 na
+  internet" (análise fechada 21/10 — não vão).
+- **🔶 1 PARCIAL:** voz — TTS (Piper + edge-tts) e STT do Telegram
+  prontos, **falta virar action** (nenhuma `stt`/transcrever nas 115).
+- **⬜ 4 ABERTOS (só o dono decide):** senha WiFi (religar ESP/Ecos) ·
+  pings do WiFi USB (**premessa mudou**: uplink é o cabo desde 01/11 →
+  recomendado **arquivar**) · plugin marketplace (`plugins/manager.py`
+  existe, sem manifest) · multi-tenant (só `OD_ACCOUNT_ALIASES`) +
+  auto-repair (`RecoveryLoop` existe, auto-repair não).
 
 ### 3. Estado
 
-Sem mutação de código/serviço — só a nota do caderno e o registro.
-txt.txt reescrito com o quadro (regra 14) + Telegram (regra 15).
+Sem mutação de código/serviço — só a nota do caderno, o `txt.txt`
+(regra 14) e o Telegram (regra 15). Fila fechada: **do meu lado não
+sobrou nada aberto**; os 4 itens acima dependem de decisão/ordem dele.
+
