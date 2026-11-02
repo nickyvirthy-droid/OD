@@ -153,6 +153,16 @@ mas não existia `stt`/`transcrever` nas 115 actions).
 - A mesma ação agora roda pelo orquestrador **e** aparece no
   `tools/list` do MCP (**116 tools**) sem código extra.
 
+### 4. Restart verde (regra 7.3 — autorizado por padrão, validação verde)
+
+`systemctl --user restart od-core` com a suíte verde (4036/16/0), HEAD
+== origin/master e árvore limpa. **Prova viva:** MainPID **2782509**,
+NRestarts=0, active/running · `/health` `ok=true, status=up` (com
+`X-API-Key`) · journal **0 erros** desde o restart · `GET /actions` do
+serviço devolve **116 actions** com `stt_transcrever` (categoria `stt`,
+permissão nominal, params `caminho`+`idioma`) — a action está viva no
+processo, não só no repositório.
+
 ### 3. Fechamento (regras 4/7.1/14/15)
 
 CHANGELOG (sub-seção "02/11, sem bump" — precedente do MCP) ·
