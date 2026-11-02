@@ -191,3 +191,87 @@ renovado) · `txt.txt` escrito para o dono (regra 14) · Telegram
 enviado (**msg 3548**, regra 15) · commit + push da entrega nesta etapa
 (regra 7.1, autorização permanente).
 
+
+## §4 — Itens 1 e 4 da rádio: `acervo.db` + "Tocando agora" na página (~15:00–16:20)
+
+**Pedido:** itens aprovados um por vez na conversa da rádio (método do
+dono: analisar → prós/contras → implementar ou descartar). **Item 4**
+aprovado com a especificação dele: *"ok. no banco fica o link apontando
+para a musica, não a musica de verdade"* — o banco guarda o **caminho**,
+nunca o áudio. **Item 1** aprovado antes: seção "Tocando agora" na
+`radio.html` (artista—título + curiosidade, últimas 5 em arquivo de
+texto, **só a próxima** — sorteio do AzuraCast, sem fila —, ouvintes ao
+vivo, sondagem de 15 s). Ordem aceita: banco → Item 1 → Item 2 →
+página de acervo; "escolher uma música" é item à parte.
+
+### 1. Item 4 — o banco (lado pipeline)
+
+`musica.py` **v1.8.1** (HD Mídia): `acervo.db` (SQLite na raiz) com
+uma linha por mp3 — **caminho relativo** (o link), artista, título, ano,
+gênero, curiosidade (TIT3), pronúncias (TCOM/TEXT), duração e bytes.
+`indexar_acervo()`: upsert idempotente por caminho, chamada **a cada
+lote**; a duração só recalcula quando o arquivo é novo ou mudou de
+tamanho; arquivo sumido do acervo sai do índice (órfãos só na varredura
+completa, com proteção: acervo 100% vazio não zera o banco). CLI
+`--indexar` para backfill/manutenção.
+
+- **Backfill executado:** 287/287 linhas em **~116 KB**; 137 com
+  curiosidade de verdade — os ~150 fallbacks do Gemini (429 de 31/10)
+  ficaram com o placeholder, tratado como vazia na página.
+- Sandbox antes do real (regra 10): teste em `MP3_BASE_DIR` de mentira
+  (88 linhas, idempotente na 2ª rodada) antes do acervo de verdade.
+- Backup `backups/musica-v181-20261102.py` + `doc/README.md` atualizado
+  (seção v1.8.1, `--indexar` no Uso, `acervo.db`/`tocadas.txt` na
+  estrutura).
+
+### 2. Item 1 — a página (lado od-core)
+
+- **`integrations/radio_agora.py` (NOVO, só stdlib)** — `montar_agora()`
+  une: nowplaying do AzuraCast (cache 5 s), curiosidade lida do
+  `acervo.db` (`mode=ro`; quem escreve é só o pipeline), últimas do
+  `tocadas.txt` (sem arquivo ainda → `song_history` cobre) e ouvintes.
+  A locução `anuncio musica` aparece como **locução**, nunca como música.
+  `registrar_tocada(payload)` alimenta o texto a cada troca — **nunca
+  lança**: a fala da rádio não morre por causa da página.
+- **Rota** `GET /api/radio/agora` pública: `auth=False` +
+  `AUTH_EXEMPT_PATHS` (sem isso o `auth_all` de produção bloquearia a
+  página) + isenção do rate limit (sondagem de 15 s com cache, mesma
+  natureza de `/app/version`) + handler `api_radio_agora` (503 honesto
+  se a montagem falhar).
+- **Hook** no wrapper `_radio` do `runtime/launcher.py`: registra a
+  troca **antes** do `processar` — o histórico sobrevive mesmo se o
+  Piper falhar na locução.
+- **`site/radio.html`**: seção "Tocando agora" com sondagem de 15 s;
+  falha de rede mantém o último estado bom.
+
+### 3. Validação e deploy
+
+- `tests/test_radio_agora.py` (NOVO): **17 guardas** — contrato da
+  página, curiosidade real/placeholder/fora do banco, locução no ar e
+  na próxima, AzuraCast fora não derruba o JSON, últimas do arquivo
+  (recência correta, música do ar fora da lista), cobertura por
+  histórico, registro idempotente/rotação/nunca-lança, rota pública
+  isenta (inclusive a isenção do limiter, por fonte).
+- A **1ª passada do gate** achou só as 2 guardas de contagem da casa
+  (`len(ROUTES)` 94→95 + mirror do conjunto público) — corrigidas.
+- **GATE OFICIAL: 4053 passed / 16 skipped / 0 falha · 90,42%**
+  (era 4036; +17). pyflakes **0 aviso novo** (8 pre-existentes
+  conferidos vs HEAD). `node --check` nos 2 blocos de JS da página OK.
+- **Restart (regra 7.3) — nota honesta:** o restart saiu **antes** da
+  suite completa desta etapa (ordem invertida; o diff já passava por
+  `py_compile`, pyflakes, import/registro da rota e os 17 testes do
+  módulo) — a suite verde veio em seguida, mesmo commit. Prova viva:
+  PID 2843442, NRestarts=0, ativo desde 15:53:47, health **25/25**,
+  journal **0 `[ERROR]`**, `/ws` 101, "Webhook da rádio plugado".
+- **Provas vivas da rota:** 200 em LAN (`192.168.0.250:8000`) e
+  **pública pelo Funnel** (`https://nicky-server.tail1b1f51.ts.net/api/radio/agora`
+  → JSON completo com últimas 5), página `/site/radio.html` 200 público
+  com a seção, curiosidade real aparecendo no JSON (banco lido em modo
+  leitura).
+
+### 4. Fechamento (regras 4/7.1/14/15)
+
+CHANGELOG (sub-seção "02/11, sem bump") · `session.json` (chave
+`radio_tocando_agora_e_acervo_db_2026_11_02`, `updated_at` renovado) ·
+`txt.txt` para o dono (regra 14) · Telegram (regra 15) · commit + push
+(regra 7.1, autorização permanente).
