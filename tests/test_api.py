@@ -150,8 +150,9 @@ class TestAPIRoutes:
         portário /f/<ferramenta> das 5 ferramentas (fase 1, 21/10) +
         /auth/session-cookie (sessão do chat vira cookie, 22/10) +
         PUT /admin/users/{username}/role (papel da conta, frente C, 23/10) +
-        GET /api/radio/agora ("Tocando agora" da rádio, Item 1, 02/11)."""
-        assert len(ROUTES) == 95
+        GET /api/radio/agora ("Tocando agora" da rádio, Item 1, 02/11) +
+        /radio-pro e /api/radio/pro/* (área do ouvinte logado, 04/11)."""
+        assert len(ROUTES) == 98
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -163,6 +164,10 @@ class TestAPIRoutes:
             # Rádio (Item 1, 02/11): "Tocando agora" — pública como
             # /app/version (a página do ouvinte sonda sem credencial)
             ("GET", "/api/radio/agora"),
+            # Área do ouvinte logado (04/11): gate de sessão no handler.
+            ("GET", "/radio-pro"),
+            ("GET", "/api/radio/pro/dados"),
+            ("POST", "/api/radio/pro/pedido"),
             # Páginas internas do dono (2026-10-10): saíram de /site/ (onde
             # qualquer um as alcançava pelo Funnel) para site_admin/. A rota
             # é pública porque a navegação é de navegador; o gate real é o
@@ -318,6 +323,10 @@ class TestAPIRoutes:
             ("GET", "/site"), ("GET", "/site/{file}"),
             ("GET", "/app/version"),
             ("GET", "/api/radio/agora"),  # Tocando agora da rádio (02/11)
+            # Área do ouvinte logado (04/11): gate de sessão no handler.
+            ("GET", "/radio-pro"),
+            ("GET", "/api/radio/pro/dados"),
+            ("POST", "/api/radio/pro/pedido"),
             ("GET", "/registry"),  # lista pública da loja (Etapa 4)
             ("GET", "/registry/collections"),  # ciclos NV (16/10)
             ("GET", "/registry/{codigo}"),

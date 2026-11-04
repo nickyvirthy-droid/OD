@@ -112,7 +112,10 @@ DEFAULT_SITE_ADMIN_DIR = Path(__file__).resolve().parents[2] / "site_admin"
 # continuam abertos para o navegador carregar a UI mesmo com auth_all.
 # /site* entra aqui para a landing + download do APK funcionarem no
 # celular (Tailscale) sem exigir X-API-Key no navegador.
-PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/admin", "/site", "/site/{file}", "/auth/register", "/auth/login"})
+PAGE_PATHS = frozenset({"/", "/chat", "/dashboard", "/admin", "/site", "/site/{file}", "/auth/register", "/auth/login",
+                        # Área do ouvinte: shell de página, gate de sessão
+                        # no handler (anônimo cai no /chat).
+                        "/radio-pro"})
 
 # Endpoints que NÃO passam pela chave mesmo com auth_all ligado: o fluxo de
 # autenticação em si (register/login), a conversa ANÔNIMA (quem só quer
@@ -137,6 +140,9 @@ AUTH_EXEMPT_PATHS = frozenset(
      "/api/radio/agora",
      "/registry", "/registry/collections", "/registry/{codigo}",
      "/registry/{codigo}/photo", "/registry/{codigo}/chat",
+     # Área do ouvinte logado (04/11): o gate é a sessão do ouvinte no
+     # handler (cookie od_sessao / Bearer) — o dispatch não exige header.
+     "/radio-pro", "/api/radio/pro/dados", "/api/radio/pro/pedido",
      # /f/*: o gate é o cookie od_sessao + papel admin no handler
      # (APIHandler.ferramentas) — o dispatch não exige header.
      ROTA_FERRAMENTAS,
@@ -319,6 +325,13 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     # "Tocando agora" a cada 15 s — público como /app/version (só
     # metadados; o áudio continua exclusivamente no /radio.mp3).
     ("GET", "/api/radio/agora", "api_radio_agora", False),
+    # Área do ouvinte LOGADO (ordem do dono, 04/11): página própria com a
+    # letra da música do ar e o pedido de música. auth=False porque o gate
+    # é a SESSÃO dentro do handler (cookie od_sessao / Bearer) — navegador
+    # não manda header e a página redireciona o anônimo para o login.
+    ("GET", "/radio-pro", "radio_pro_page", False),
+    ("GET", "/api/radio/pro/dados", "api_radio_pro_dados", False),
+    ("POST", "/api/radio/pro/pedido", "api_radio_pro_pedido", False),
     # Registro Mestre: consulta pública de autenticidade de peças — o ID
     # vem GRAVADO na peça; público sem credencial (mesma natureza de
     # /app/version, v. AUTH_EXEMPT_PATHS). /registry (lista) alimenta a
@@ -4621,6 +4634,150 @@ class APIHandler(BaseHTTPRequestHandler):
             self._json(503, {"ok": False, "error": str(exc)})
             return
         self._json(200, payload)
+
+    # -- Rádio: área do ouvinte LOGADO (ordem do dono, 04/11) -------------- -
+    def _sessao_do_ouvinte(self) -> bool:
+        """True com sessão válida de QUALQUER conta; não escreve resposta.
+
+        Mesma régua do _portal_admin, sem exigir papel: o ouvinte comum tem
+        a área dele (a página é pública de conteúdo, privada de recursos).
+        Cookie od_sessao é a via do navegador; Bearer e X-API-Key atendem
+        app e testes. Sem credencial nenhuma → False (quem chama decide:
+        302 para a página, 401 para a API).
+        """
+        store = self.api._user_store
+        if store is None:
+            return False
+        token = ""
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+        if not token:
+            # Qualquer od_sessao válido serve (o navegador pode mandar
+            # mais de um após trocas de Path/instância).
+            for parte in self.headers.get("Cookie", "").split(";"):
+                chave, _sep, valor = parte.partition("=")
+                if chave.strip() != "od_sessao" or not valor.strip():
+                    continue
+                if store.validate_session(valor.strip()) is not None:
+                    token = valor.strip()
+                    break
+        if token:
+            user = store.validate_session(token)
+            if user is not None:
+                self._current_user = user
+                self._auth_via = "session"
+                return True
+        provided = self.headers.get("X-API-Key", "")
+        if provided:
+            user = store.login_with_api_key(provided)
+            if user is not None:
+                self._current_user = user
+                self._auth_via = "api_key"
+                return True
+        return False
+
+    def _nome_do_ouvinte(self) -> str:
+        """Username da sessão atual (string vazia se não houver)."""
+        user = self._current_user
+        if isinstance(user, dict):
+            return str(user.get("username") or "").strip()
+        return str(getattr(user, "username", "") or "").strip()
+
+    def radio_pro_page(self) -> None:
+        """GET /radio-pro — área do ouvinte logado (letra + pedido).
+
+        O gate é AQUI, no servidor: anônimo não recebe o HTML (nada de
+        esconder por CSS). Sem sessão → /chat?next=/radio-pro, o formulário
+        de entrada de verdade do site; quem já está logado vê a página.
+        """
+        if not self._sessao_do_ouvinte():
+            self.send_response(302)
+            self.send_header("Location", "/chat?next=/radio-pro")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self._serve_site_file("radio-pro.html")
+
+    def api_radio_pro_dados(self) -> None:
+        """GET /api/radio/pro/dados — o que a área do ouvinte mostra.
+
+        Só com sessão: tocando agora (radio_agora), letra do acervo/serviço
+        público, catálogo do acervo.db (busca ?q=) e os MEUS pedidos.
+        Letra indisponível não é erro: a página mostra o aviso e o resto.
+        """
+        if not self._sessao_do_ouvinte():
+            self._json(401, {"ok": False, "error": "login_necessario",
+                             "entrar": "/chat?next=/radio-pro"})
+            return
+        from integrations.radio_agora import montar_agora
+        from integrations.radio_pro import (
+            catalogo_musicas, letra_da_musica, meus_pedidos,
+        )
+
+        query = parse_qs(urlsplit(self.path).query)
+        termo = (query.get("q") or [""])[0].strip()[:80]
+        try:
+            agora = montar_agora()
+        except Exception:                     # fonte fora não derruba a tela
+            agora = {"ok": False, "tocando": None, "proxima": None,
+                     "ultimas": [], "ouvintes": 0}
+        tocando = (agora or {}).get("tocando") or {}
+        letra = letra_da_musica(str(tocando.get("artista") or ""),
+                                str(tocando.get("titulo") or ""))
+        usuario = self._nome_do_ouvinte()
+        self._json(200, {
+            "ok": True,
+            "usuario": usuario,
+            "agora": agora,
+            "letra": letra,
+            "catalogo": catalogo_musicas(termo),
+            "pedidos": meus_pedidos(usuario),
+        })
+
+    def api_radio_pro_pedido(self) -> None:
+        """POST /api/radio/pro/pedido — pedido do ouvinte logado.
+
+        Body: {"caminho": str do catálogo, "recado": str opcional}.
+        Só música que existe no acervo (o caminho vem do servidor); o
+        pedido entra na fila como 'pendente' e o dono é avisado — tocar
+        de fato depende da decisão dele (fila x na hora).
+        """
+        if not self._sessao_do_ouvinte():
+            self._json(401, {"ok": False, "error": "login_necessario",
+                             "entrar": "/chat?next=/radio-pro"})
+            return
+        from integrations.radio_pro import criar_pedido, meus_pedidos
+
+        data = self._read_json()
+        usuario = self._nome_do_ouvinte()
+        try:
+            pedido = criar_pedido(
+                usuario,
+                str(data.get("caminho") or ""),
+                str(data.get("recado") or ""),
+            )
+        except ValueError as exc:
+            motivo = str(exc)
+            status = {"login_obrigatorio": 401,
+                      "musica_desconhecida": 400,
+                      "recado_longo": 400,
+                      "ja_tem_pedido": 409,
+                      "limite_diario": 429}.get(motivo, 400)
+            self._json(status, {"ok": False, "error": motivo})
+            return
+        notify = self.api.config.chat_notify
+        if notify is not None:
+            try:
+                texto = (f"🎵 Pedido de @{pedido['usuario']}: "
+                         f"{pedido['artista']} - {pedido['titulo']}")
+                if pedido["recado"]:
+                    texto += f" — recado: “{pedido['recado']}”"
+                notify(texto)
+            except Exception:                 # aviso nunca derruba o pedido
+                pass
+        self._json(201, {"ok": True, "pedido": pedido,
+                         "pedidos": meus_pedidos(usuario)})
 
     def registry_list(self) -> None:
         """GET /registry — lista PÚBLICA das peças (loja do site).

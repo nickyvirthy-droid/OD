@@ -12,6 +12,29 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Área do ouvinte logado — letra da música + pedido (2026-11-04, sem bump)
+
+**Resumo:** ordem do dono (04/11): *"crie uma segunda página rádio que só aparece
+para usuário logado, nela vai conter a letra da música e a opção de pedido de
+música. se não estiver logado vê a página que existe agora"* + *"o que for
+melhor e mais seguro de implementar"*. A página pública (`/site/radio.html`)
+continua idêntica; nasceu a **área do ouvinte** — HTML servido **só com sessão**
+(gate no servidor, nunca por CSS), com a letra do que está no ar e o pedido de
+música com recado para a locutora.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/radio_pro.py` (NOVO)** | stdlib puro: `letra_da_musica()` (serviço público lyrics.ovh, cache em arquivo — 7 dias achada, 6 h negativa, teto 400, nunca levanta), `catalogo_musicas()`/`musica_do_acervo()` (acervo.db em `mode=ro`), `criar_pedido()`/`meus_pedidos()` (SQLite próprio `data/radio_pedidos.db`, WAL, tabela criada na hora — sem migração do core). |
+| **Rotas** | `GET /radio-pro` (302 para `/chat?next=/radio-pro` sem sessão), `GET /api/radio/pro/dados` (401 sem sessão; agora + letra + catálogo + meus pedidos) e `POST /api/radio/pro/pedido` (201; 400 música fora do acervo/recado longo, 409 já tem pendente, 429 limite diário). Gate em `_sessao_do_ouvinte()` — cookie `od_sessao`, Bearer ou X-API-Key de conta, **qualquer papel**. |
+| **`site/radio-pro.html` (NOVO)** | mesma casa visual (od.css + od-nav.js + to-top): tocando agora, letra, busca no acervo, recado (200) e meus pedidos; sondagem de 15 s. Link discreto na página pública para quem já tem conta. |
+| **Segurança do MVP** | pedido só de música **que existe no acervo** (caminho vem do servidor), 1 pendente por conta, 3 por dia, recado limpo em uma linha; dono avisado pelo Telegram a cada pedido. Tocar de fato (fila × na hora, aprovação) aguarda a decisão do dono — registrado em `iniciar/`. |
+| **Guardas** | `tests/test_radio_pro.py` (+24): letra com cache/dupla/negativa/fonte fora/cache corrompido, catálogo (ordem, busca, limite, banco ausente), pedidos (válido, sem login, fora do acervo, recado longo, 1 pendente, limite diário, isolamento entre contas) e rotas/página (gate 302, isenção da chave global). `len(ROUTES)` 95 → **98** e espelhos de rotas públicas no `test_api.py`. |
+
+**Validação:** gate oficial **4085 passed / 16 skipped / 0 falha** (era 4061) ·
+pyflakes 0 aviso novo · `node --check` no JS da página OK. **Sem bump de
+versão** (mudança só de servidor/site, precedente do MCP em 01/11 e do STT em
+02/11): a versão segue **1.44.0/2080** e o APK não mudou.
+
 ## [1.44.0] — CÂMERA QR: O COMPRADOR REGISTRA A PEÇA LENDO O CARTÃO 🜂 (2026-10-20)
 
 **Resumo:** a **v2 da Etapa 4 do Registro Mestre** — a única sobra que o TODO registrava ("*sobra só a v2: câmera de QR dentro do app*") e ordem direta do dono (*"faça o camera qr"*, 20/10). Na v1 o comprador lia o QR do cartão com a câmera do celular (abria a página pública), copiava o código `POSSE-…` à mão e colava no app; agora **a aba Verificar do app tem câmera própria**: aponta, lê e o código cai sozinho pronto para confirmar — zero digitação. O contrato do QR não mudou (URL `{base}/site/verificacao.html?posse=…`, servida em qualquer base — LAN/tailnet/funnel/DDNS, e é isto que a leitura respeita: **só o parâmetro, nunca o host**).

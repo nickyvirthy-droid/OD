@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rádio Nicky — Área do ouvinte</title>
+<meta name="description" content="Área do ouvinte da Rádio Nicky: letra da música que está tocando e pedido de música para quem tem conta no Omega Drakon.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/site/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site/od.css">
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="/site"><img src="/site/simbolo_minimo.png" alt="OD"> OMEGA DRAKON</a>
+    <div class="nav-spacer"></div>
+    <button class="nav-toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="navPanel"><span class="dots">&#8942;</span></button>
+  </div>
+</nav>
+<div class="nav-panel" id="navPanel">
+  <div class="wrap">
+    <a href="/site#marca">Marca</a>
+    <a href="/site#sistemas">Sistemas</a>
+    <a href="/site/radio.html">Rádio Nicky</a>
+    <a href="/chat">Chat</a>
+  </div>
+</div>
+
+<header class="compacto">
+  <div class="wrap">
+    <div><span class="badge">Área do ouvinte · Só para quem tem conta</span></div>
+    <h1>Rádio Nicky</h1>
+    <div class="tagline">A letra da música que está tocando e o seu pedido para a locutora</div>
+    <p class="migalha"><a href="/site/radio.html">&#8592; Rádio pública</a></p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+
+    <div class="card" id="agoraCard" style="padding:24px 20px;">
+      <div class="kicker">Tocando agora</div>
+      <div id="agoraMusica" style="font-size:1.12rem;font-weight:600;margin-top:10px;">Carregando…</div>
+      <div id="agoraProxima" style="color:var(--muted);margin-top:6px;font-size:.9rem;">Próxima: —</div>
+      <div id="ouvintes" style="color:var(--muted);margin-top:6px;font-size:.88rem;"></div>
+    </div>
+
+    <div class="card" style="margin-top:24px;padding:24px 20px;">
+      <div class="kicker">Letra</div>
+      <h2 style="margin-top:8px;">Letra da música</h2>
+      <div id="letraStatus" style="color:var(--muted);font-size:.9rem;">Buscando…</div>
+      <pre id="letra" style="white-space:pre-wrap;font-family:inherit;line-height:1.6;margin:14px 0 0;font-size:.98rem;"></pre>
+    </div>
+
+    <div class="card" style="margin-top:24px;padding:24px 20px;">
+      <div class="kicker">Pedido</div>
+      <h2 style="margin-top:8px;">Pedir uma música</h2>
+      <p style="color:var(--muted);font-size:.9rem;margin-top:6px;">
+        Escolha entre as músicas do servidor. Se quiser, deixe um recado — a
+        locutora lê antes de tocar. Sem recado, ela avisa que é um pedido seu.
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+        <input id="busca" type="search" placeholder="Buscar por artista ou música"
+               style="flex:1;min-width:220px;padding:10px 12px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;">
+        <button id="btnBuscar" class="btn" type="button">Buscar</button>
+      </div>
+      <select id="lista" size="8" style="width:100%;margin-top:12px;padding:8px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;"></select>
+      <input id="recado" type="text" maxlength="200" placeholder="Recado para a locutora (opcional, até 200 caracteres)"
+             style="width:100%;margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;">
+      <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <button id="btnPedir" class="btn btn-primary" type="button">Enviar pedido</button>
+        <span id="pedidoStatus" style="color:var(--muted);font-size:.88rem;"></span>
+      </div>
+      <div id="meusPedidos" style="margin-top:16px;font-size:.9rem;color:var(--muted);"></div>
+    </div>
+
+  </div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="f-brand">
+      <img src="/site/simbolo_minimo.png" alt="OD">
+      <span>OMEGA DRAKON</span>
+    </div>
+    <p class="f-sig">Interface Viva: Nicky Virthy &nbsp;·&nbsp; Arquiteto: Alex Projeti &nbsp;·&nbsp; Assinatura: OD // CORE</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var pedidoEmCurso = false;
+
+  function texto(id, valor) { var el = $(id); if (el) el.textContent = valor; }
+
+  function desenhaAgora(d) {
+    var agora = (d && d.agora) || {};
+    var t = agora.tocando || null;
+    if (!t || !t.titulo) {
+      texto("agoraMusica", "Nada tocando no momento");
+    } else if (t.artista) {
+      texto("agoraMusica", t.artista + " — " + t.titulo);
+    } else {
+      texto("agoraMusica", t.titulo);
+    }
+    var p = agora.proxima;
+    texto("agoraProxima", p && p.titulo
+      ? "Próxima: " + (p.artista ? p.artista + " — " : "") + p.titulo
+      : "Próxima: —");
+    texto("ouvintes", typeof agora.ouvintes === "number"
+      ? agora.ouvintes + " ouvinte(s) agora" : "");
+  }
+
+  function desenhaLetra(l) {
+    var el = $("letra");
+    if (!l || !l.ok) {
+      var motivo = (l && l.motivo) || "nao_encontrada";
+      texto("letraStatus", motivo === "indisponivel"
+        ? "O serviço de letras está fora do ar agora — tente de novo em instantes."
+        : (motivo === "sem_musica"
+          ? "Neste instante a rádio está com a locução no ar, sem música."
+          : "Não encontrei a letra desta música."));
+      if (el) el.textContent = "";
+      return;
+    }
+    texto("letraStatus", l.cache ? "Letra guardada em cache." : "");
+    if (el) el.textContent = l.letra || "";
+  }
+
+  function desenhaCatalogo(itens) {
+    var lista = $("lista");
+    if (!lista) return;
+    lista.innerHTML = "";
+    (itens || []).forEach(function (m) {
+      var op = document.createElement("option");
+      op.value = m.caminho;
+      op.textContent = (m.artista ? m.artista + " — " : "") + m.titulo;
+      lista.appendChild(op);
+    });
+    if (!itens || !itens.length) {
+      var vazio = document.createElement("option");
+      vazio.disabled = true;
+      vazio.textContent = "Nenhuma música encontrada";
+      lista.appendChild(vazio);
+    }
+  }
+
+  function desenhaPedidos(pedidos) {
+    var alvo = $("meusPedidos");
+    if (!alvo) return;
+    if (!pedidos || !pedidos.length) { alvo.textContent = ""; return; }
+    alvo.innerHTML = "";
+    var titulo = document.createElement("div");
+    titulo.textContent = "Seus últimos pedidos:";
+    alvo.appendChild(titulo);
+    pedidos.forEach(function (p) {
+      var linha = document.createElement("div");
+      linha.textContent = "• " + (p.artista ? p.artista + " — " : "") + p.titulo +
+        " · " + p.status + (p.recado ? " · recado: " + p.recado : "");
+      alvo.appendChild(linha);
+    });
+  }
+
+  function carrega(termo) {
+    var url = "/api/radio/pro/dados" + (termo ? "?q=" + encodeURIComponent(termo) : "");
+    return fetch(url, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) throw new Error((d && d.error) || "falhou");
+        desenhaAgora(d);
+        desenhaLetra(d.letra);
+        desenhaCatalogo(d.catalogo);
+        desenhaPedidos(d.pedidos);
+        return d;
+      })
+      .catch(function (e) {
+        texto("agoraMusica", "Não consegui falar com o servidor agora.");
+        texto("letraStatus", "");
+        console.warn("área do ouvinte:", e);
+      });
+  }
+
+  function pedir() {
+    if (pedidoEmCurso) return;
+    var lista = $("lista");
+    var caminho = lista && lista.value;
+    if (!caminho) { texto("pedidoStatus", "Escolha uma música primeiro."); return; }
+    pedidoEmCurso = true;
+    texto("pedidoStatus", "Enviando…");
+    fetch("/api/radio/pro/pedido", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caminho: caminho, recado: ($("recado") || {}).value || "" })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d }; }); })
+      .then(function (res) {
+        var d = res.d || {};
+        if (res.status === 201 && d.ok) {
+          texto("pedidoStatus", "Pedido registrado! A locutora já foi avisada.");
+          if ($("recado")) $("recado").value = "";
+          desenhaPedidos(d.pedidos);
+        } else if (res.status === 409) {
+          texto("pedidoStatus", "Você já tem um pedido na fila — espere ele tocar.");
+        } else if (res.status === 429) {
+          texto("pedidoStatus", "Limite de pedidos do dia atingido. Amanhã tem mais.");
+        } else if (res.status === 401) {
+          texto("pedidoStatus", "Sua sessão expirou. Entre de novo pelo chat.");
+        } else if (d.error === "recado_longo") {
+          texto("pedidoStatus", "O recado passa de 200 caracteres.");
+        } else {
+          texto("pedidoStatus", "Não deu para registrar o pedido agora.");
+        }
+      })
+      .catch(function () { texto("pedidoStatus", "Falha de rede — tente de novo."); })
+      .then(function () { pedidoEmCurso = false; });
+  }
+
+  // Menu, tema, player e botão de topo são do od-nav.js (um handler só).
+  document.addEventListener("DOMContentLoaded", function () {
+    if ($("btnPedir")) $("btnPedir").addEventListener("click", pedir);
+    if ($("btnBuscar")) $("btnBuscar").addEventListener("click", function () {
+      carrega(($("busca") || {}).value || "");
+    });
+    if ($("busca")) $("busca").addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") { ev.preventDefault(); carrega($("busca").value || ""); }
+    });
+    carrega("");
+    setInterval(function () { carrega(($("busca") || {}).value || ""); }, 15000);
+  });
+})();
+</script>
+
+<button class="to-top" id="toTop" aria-label="Voltar ao topo" title="Voltar ao topo">&#8593;</button>
+
+<script src="/site/od-nav.js"></script>
+</body>
+</html>
