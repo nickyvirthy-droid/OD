@@ -321,3 +321,78 @@ exatamente como era.
 (ou autorizar descarte); (3) nomear o Chromecast (.104) e decidir o aparelho de
 MAC aleatório (.163) — reserva por MAC não resolve; (4) Item 3 (letra) está
 liberado e já tem base pronta.
+
+## §5 — "leia iniciar" (04/11 15:05): residuo do manicode morto
+
+**Pedido:** usuário: "leia iniciar" — reverificação de rotina (regra 3,
+somente leitura). Checkpoint anterior: §4 (14:40).
+
+### 1. Estado medido (15:05–15:10)
+
+- **Git:** HEAD `d92ee43` == `origin/master` (commit da §4, 14:34) — **porém**
+  `integrations/radio_pro.py` **modificado e não commitado** (ver §2).
+- **od-core:** active desde **04/11 14:22:09** (restart verde da §4),
+  MainPID **1325274**, **NRestarts=0**; `/health` `ok=true` `status=up`
+  sem check fora; versão 1.44.0/2080 `aeb8566b` inalterada.
+- **Journal desde 14:40:** **0 [ERROR]/[CRITICAL]** e **6 [WARN]** rotineiros
+  (RSS do G1 quebrado ×1, `API erro status=404` ×3, `Transporte indisponível` ×2).
+  **Correção de medição honesta:** a tag real é `[WARN]`, não `[WARNING]` —
+  as contagens anteriores ("0 [WARNING]") não a capturavam. Desde 02/11 17:12:
+  **197 [WARN]** (83 RSS de feed, 45 alerta de dispositivo novo, 45 clima
+  wttr.in fora, 14 transporte, 3 API 404, 4 snapshot HD, 2 health degraded,
+  1 restart) e **ZERO [ERROR]**.
+- **Borda:** Funnel `/` 200; `/radio.mp3` 200 `audio/mpeg`;
+  `/api/radio/agora` 200 (*Esther e Estefany — Jesus Te Ama Sim* tocando,
+  próxima *Isadora Pompeo — Se Eu Pudesse*); `/radio-pro` anônimo **302 →
+  login** (gate intacto).
+
+### 2. O achado: outro agente (manicode) morreu com o trabalho na mão
+
+O dono roda **dois agentes**. O `manicode`
+(`~/.config/manicode/projects/OmegaDrakon/chats/2026-11-04T15-46-33.943Z`)
+conduziu a sessão de **12:46 às 14:39** com as mesmas ordens da §4 e depois
+**3 ordens novas**:
+
+1. *"Nomeie o Chromecast e trate o aparelho de MAC aleatório no Vigia"* (14:38)
+   — **cumprida**: `F4:F5:E8:53:BA:B0` → "Chromecast",
+   `DE:26:20:74:D6:AE` → conhecido, `pendentes_novos: []`.
+2. *"Ligue o pedido de música para tocar de verdade na rádio, com fila e
+   aviso da locutora"* (14:39) — **não executada**.
+3. *"Melhore a letra da área do ouvinte com uma segunda fonte para cobrir
+   gospel e lançamentos"* (14:39) — **não executada**.
+
+**Morreu às 14:58:57** com `AI_APICallError: Gone` (a API do modelo caiu no
+meio do turno; "Main prompt finished" com `outputType: error`). As duas
+últimas ordens ficaram sem resposta — **sessão perdida**, o padrão que a
+regra 4 existe para evitar.
+
+**Resíduo deixado:** `integrations/radio_pro.py` **+216/−13, não commitado,
+não rodando** (o serviço foi às 14:22, antes da edição):
+
+- cadeia de letras **lrclib.net → lyrics.ovh** com campo `fonte` no cache
+  (a resposta para a ordem 3, escrita mas não testada em campo);
+- helpers da fila real (`_azuracast`, `pedir_no_ar`, `marcar_status`,
+  `anuncio_de_pedido`) que **ninguém chama** — `server.py` intacto.
+
+`tests/test_radio_pro.py`: **24 passed** (não cobrem o novo). `pyflakes`
+indisponível neste ambiente. Nada mais modificado no repositório.
+
+### 3. O pedido real do dono está parado no ar
+
+`data/radio_pedidos.db`: **id=2, "alex" — *Ana Castela - Neon*, `pendente`,
+criado 04/11 15:02:35** — pedido feito **pelo próprio dono** na página
+`/radio-pro` **depois** da morte do manicode (o id=1 era o teste da §4).
+Não toca porque a ligação pedido→AzuraCast não existe e, mesmo existindo,
+`AZURACAST_API_KEY` **não está no `.env`** (`pedir_no_ar` devolveria
+`sem_chave`).
+
+### 4. Fila e ação
+
+Ordem dada e não executada = decisão já tomada (**fila**, com aviso da
+locutora). Falta: chave da API do AzuraCast, `enable_requests` na estação,
+escrita no `.env` e ligação na rota — **mutações externas**, por isso antes
+de agir: pergunta ao dono se **eu assumo o WIP morto** ou ele retoma o manicode.
+
+**Ações desta troca:** somente leitura (git, serviço, banco, containers,
+chat do manicode); nenhuma mutação, **sem restart**. Registro +
+commit/push (7.1) + Telegram (15).

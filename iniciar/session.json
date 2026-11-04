@@ -938,7 +938,7 @@
   "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
  },
- "updated_at": "2026-11-02T17:12:00-03:00",
+ "updated_at": "2026-11-04T15:10:00-03:00",
  "auditoria_pendencias_2026_10_20": {
   "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
   "vereditos": {
@@ -2042,7 +2042,7 @@
    "agents": "profiles (7 perfis Plêiade) + nicky_virthy identity/soul"
   }
  },
- "topic": "OmegaDrakon v1.29.0+2059 — ordem A→F do Project NOMAD COMPLETA (última: Parte F Supply Depot no ar); TODO.md com roadmap organizado publicado; aguardando ordem do dono (candidatos no TODO.md §7 — DECISÃO FINAL 12/10 sugerida, começando pelo Vaultwarden)",
+ "topic": "OmegaDrakon v1.44.0+2080 — area do ouvinte logado no ar (§4 04/11); RESIDUO: manicode morreu as 14:58 com AI_APICallError: Gone deixando integrations/radio_pro.py modificado e NAO commitado (2a fonte de letra lrclib + fila real do AzuraCast, sem chamar em lugar nenhum); pedido real do dono (Ana Castela - Neon, 15:02) pendente na fila; aguardando decisao dele sobre assumir o WIP",
  "estado_2026_09_19": {
   "git": "HEAD com alterações no working tree (app/ + iniciar/)",
   "od_core": "active desde 2026-09-18 05:55:15 (PID 413665, NRestarts=0). :8000 e :8001 escutando.",
@@ -3030,7 +3030,7 @@
   "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
   "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
  },
- "last_turn": "2026-10-17T23:25:00-03:00",
+ "last_turn": "2026-11-04T15:10:00-03:00",
  "cache_historico_2026_09_24_fechamento": {
   "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
   "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
@@ -4462,5 +4462,17 @@
   "validacao": "Gate oficial 3751 passed / 16 skipped / 0 falha. Prova viva com chromium headless NAS DUAS portas e nos DOIS esquemas (claro/escuro), contexto isolado por rodada: ciclo completo em todas, data-tema-modo consistente, 0 FALHAS. Restart verde 13:52:01 (gate verde antes, regra 7.3): journal 0 [ERROR], /health ok=True, /app/version 1.44.0/2080 intacta (backend puro, SEM bump). Commit d836349.",
   "significado": "Isso FECHA a ultima pauta viva do TODO §3.8 — a pauta que o dono adiou em 16/10. A fila de frentes do dono continua ZERADA.",
   "transcricao": "iniciar/2026-10-23_conversa_omegadrakon.md (§9)"
- }
+ },
+ "reverificacao_0411_fim_tarde_residuo_manicode": {
+  "pedido": "Usuario: 'leia iniciar' (04/11 ~15:05) — reverificacao de rotina (regra 3, SO LEITURA). Checkpoint anterior: area_ouvinte_logado_e_acervo_0411_2026_11_04 (04/11 14:40).",
+  "estado": "VERDE — git HEAD d92ee43 == origin/master (commit 14:34 do checkpoint anterior); od-core active desde 04/11 14:22:09, MainPID 1325274, NRestarts=0 (~50 min, o restart verde da §4); /health ok=true status=up com NENHUM check fora; versao 1.44.0/2080 sha aeb8566b inalterada. Journal desde 14:40: 0 [ERROR]/[CRITICAL] e 6 [WARN] rotineiros (1 RSS do G1 quebrado, 3 'API erro status=404 detail=not_found', 2 'Transporte indisponivel'). CORRECAO DE MEDICAO HONESTA: a tag real do journal e [WARN] e nao [WARNING] — as contagens anteriores ('0 [WARNING]') nao capturavam; desde 02/11 17:12 sao 197 [WARN] (83 RSS de feed, 45 alerta de dispositivo novo na rede, 45 clima wttr.in fora, 14 transporte, 3 API 404, 4 snapshot HD ilegivel, 2 health degraded, 1 restart) e ZERO [ERROR].",
+  "borda": "Funnel / 200; /radio.mp3 200 audio/mpeg; /api/radio/agora 200 (tocando 'Esther e Estefany - Jesus Te Ama Sim', proxima 'Isadora Pompeo - Se Eu Pudesse'); /radio-pro anonimo 302 -> /chat?next=/radio-pro (gate intacto); AzuraCast no ar.",
+  "residuo_manicode": "ACHADO CENTRAL: OUTRO AGENTE (manicode, ~/.config/manicode/projects/OmegaDrakon/chats/2026-11-04T15-46-33.943Z) conduziu a sessao de 12:46 as 14:39 — recebeu do dono as mesmas ordens da §4 ('leia iniciar' 12:46, os 4 pedidos 13:04-13:52, 'continue' 14:26) e depois 3 ordens NOVAS: (1) 'Nomeie o Chromecast e trate o aparelho de MAC aleatorio no Vigia da rede' (14:38, CUMPRIDA: F4:F5:E8:53:BA:B0 nomeado 'Chromecast' e DE:26:20:74:D6:AE marcado conhecido em logs/network_watchdog_estado.json, pendentes_novos=[]), (2) 'Ligue o pedido de musica para tocar de verdade na radio, com fila e aviso da locutora' (14:39), (3) 'Melhore a letra da area do ouvinte com uma segunda fonte para cobrir gospel e lancamentos' (14:39). MORREU as 14:58:57 com AI_APICallError: Gone (sem responder as ordens 2 e 3). Residuo: integrations/radio_pro.py MODIFICADO (+216/-13, mtime 14:58:56, NAO commitado, NAO rodando no servico): cadeia de letras lrclib.net -> lyrics.ovh com campo 'fonte' no cache, mais helpers da fila (_azuracast, pedir_no_ar, marcar_status, anuncio_de_pedido) que NINGUEM chama (server.py intacto). test_radio_pro.py 24 passed (nao cobrem o novo); pyflakes indisponivel neste ambiente.",
+  "pedido_real": "data/radio_pedidos.db: id=2, usuario 'alex', 'Ana Castela - Neon', status pendente, criado 04/11 15:02:35 — pedido FEITO PELO PROPIO DONO na pagina /radio-pro depois da morte do manicode (id=1 era o teste da §4, apagado). Nao toca: so vira 'na_fila' quando a ligacao pedido->AzuraCast existir. AZURACAST_API_KEY NAO existe no .env (nem variavel AZURA_*) — pedir_no_ar devolveria 'sem_chave'. Painel AzuraCast 192.168.0.250:8091 (credenciais em ~/azuracast/ACESSO.txt).",
+  "canais_dono": "txt.txt com mtime 14:34 = a NOSSA entrega da §4 (nenhuma mensagem nova dele; recado de 02/11 preservado no fim). analise/ sem pasta nova.",
+  "acoes": "SO LEITURA em git/servico/banco/containers/chat do manicode; nenhuma mutacao de codigo, servico ou rede; SEM restart. Registro em iniciar/ + commit/push (regra 7.1) + Telegram (regra 15).",
+  "fila": "(1) Pergunta ao dono: assumo o WIP morto do manicode (ligar pedido->fila AzuraCast + aviso da locutora + 2a fonte de letra, com gate, commit e restart verde) ou ele vai retomar o manicode? (2) ja decidido e nao executado: FILA (na ordem 2 do manicode) — falta criar AZURACAST_API_KEY, ligar enable_requests na estacao e escrever o .env (mutacao externa, por isso antes de agir); (3) restos da §4: 19 faixas em para_analisar/, Item 3 (letra).",
+  "updated_at": "2026-11-04T15:10:00-03:00",
+  "transcricao": "iniciar/2026-11-04_conversa_omegadrakon.md (§5)"
+}
 }
