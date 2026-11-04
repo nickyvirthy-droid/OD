@@ -48,6 +48,7 @@ from zoneinfo import ZoneInfo
 from core.logger import get_logger
 from integrations.radio import frase_aleatoria, frase_formatada
 from integrations.radio_agora import curiosidade_da_musica
+from integrations.radio_pro import anuncio_de_pedido
 
 __signature__ = "OD // CORE"
 
@@ -168,10 +169,12 @@ def montar_locucao(
     noticia_fn: Optional[Callable[[], str]] = None,
     clima_fn: Optional[Callable[[], str]] = None,
     curiosidade_fn: Optional[Callable[[str, str], str]] = None,
+    pedido_fn: Optional[Callable[[str, str], str]] = None,
 ) -> str:
     """Monta o texto da locução a partir do Now Playing do AzuraCast.
 
     Ordem e probabilidades do legado (main.py radio_webhook):
+      0. aviso de pedido do ouvinte (se a faixa pedida está por vir)
       1. notícia (15%) — "Giro de notícias Nicky..."
       2. frase da música passada (sempre)
       3. curiosidade (70%, só sem notícia) — Item 2 (02/11): lida do
@@ -180,13 +183,14 @@ def montar_locucao(
       5. próxima música (50%, só se houver)
       6. clima (20%) senão assinatura — fecha a fala SEMPRE
 
-    `rng`, `agora`, `noticia_fn`, `clima_fn` e `curiosidade_fn` são
-    injetáveis: os testes rodam determinísticos e sem rede.
+    `rng`, `agora`, `noticia_fn`, `clima_fn`, `curiosidade_fn` e
+    `pedido_fn` são injetáveis: os testes rodam determinísticos e sem rede.
     """
     agora = agora or datetime.now(TIMEZONE)
     noticia_fn = noticia_fn or noticia_g1
     clima_fn = clima_fn or clima_wttr
     curiosidade_fn = curiosidade_fn or curiosidade_da_musica
+    pedido_fn = pedido_fn or anuncio_de_pedido
 
     np = payload.get("now_playing") or {}
     duration = int(np.get("duration") or 0)
@@ -219,6 +223,17 @@ def montar_locucao(
     next_titulo = next_custom.get("pronuncia_titulo") or limpar_pronuncia(
         next_song.get("title", "")
     )
+
+    # Aviso de pedido do ouvinte (ordem do dono, 04/11: "com fila e aviso
+    # da locutora"): a locutora lê o recado ANTES de a música tocar. Esta
+    # locução nasce durante a música atual e vira vinheta antes da
+    # próxima — o alvo é playing_next; se algum ciclo perder, o
+    # now_playing ainda é anunciado (anuncio_de_pedido marca 'tocada' na
+    # primeira leitura, então a fala nunca repete).
+    aviso = (pedido_fn(str(next_song.get("artist") or ""),
+                       str(next_song.get("title") or ""))
+             or pedido_fn(str(song.get("artist") or ""),
+                          str(song.get("title") or "")))
 
     texto = ""
     deu_noticia = False
@@ -271,6 +286,8 @@ def montar_locucao(
         assinatura = frase_aleatoria(db, "assinaturas")
         if assinatura:
             texto += assinatura
+    if aviso:
+        texto = f"{aviso} {texto}".strip()
     return texto
 
 
@@ -294,6 +311,7 @@ def processar(
     noticia_fn: Optional[Callable[[], str]] = None,
     clima_fn: Optional[Callable[[], str]] = None,
     curiosidade_fn: Optional[Callable[[str, str], str]] = None,
+    pedido_fn: Optional[Callable[[str, str], str]] = None,
 ) -> dict[str, Any]:
     """Webhook completo: monta a fala, gera o MP3 e o entrega ao AzuraCast.
 
@@ -307,7 +325,7 @@ def processar(
         texto = montar_locucao(
             payload, db, rng=rng, agora=agora,
             noticia_fn=noticia_fn, clima_fn=clima_fn,
-            curiosidade_fn=curiosidade_fn,
+            curiosidade_fn=curiosidade_fn, pedido_fn=pedido_fn,
         )
     except Exception as exc:  # noqa: BLE001 — montagem nunca derruba nada
         log.warn("Montagem da locução falhou", error=str(exc))

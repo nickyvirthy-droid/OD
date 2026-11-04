@@ -280,3 +280,274 @@ class TestRotas:
         trecho = texto.split("def radio_pro_page", 1)[1].split("def ", 1)[0]
         assert "/chat?next=/radio-pro" in trecho
         assert "send_response(302)" in trecho
+
+
+# ---------------------------------------------------------------------------
+#  2ª fonte de letra (lrclib → lyrics.ovh) — ordem do dono 04/11
+# ---------------------------------------------------------------------------
+
+class _RespostaFake:
+    """urlopen de mentira: context manager que devolve um JSON."""
+
+    def __init__(self, dados):
+        self._dados = dados
+
+    def read(self) -> bytes:
+        return json.dumps(self._dados).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc) -> bool:
+        return False
+
+
+class TestLetraDuasFontes:
+    def test_lrclib_primeiro_e_lyrics_ovh_na_reserva(
+            self, bancos, monkeypatch) -> None:
+        chamadas: list[tuple[str, str, str]] = []
+
+        def lrclib(a: str, t: str, timeout: float = 8.0):
+            chamadas.append(("lrclib", a, t))
+            return None                       # gospel não achou lá
+
+        def ovh(a: str, t: str, timeout: float = 6.0):
+            chamadas.append(("ovh", a, t))
+            return "Letra que o lyrics.ovh trouxe."
+
+        monkeypatch.setattr(rp, "_busca_lrclib", lrclib)
+        monkeypatch.setattr(rp, "_busca_lyrics_ovh", ovh)
+        r = rp.letra_da_musica("Fernandinho", "Todas as Coisas",
+                               cache_arq=bancos["cache"])
+        assert r == {"ok": True, "letra": "Letra que o lyrics.ovh trouxe.",
+                     "fonte": "lyrics.ovh", "cache": False}
+        assert [c[0] for c in chamadas] == ["lrclib", "ovh"]
+
+    def test_lrclib_vence_quando_tem_letra(self, bancos, monkeypatch) -> None:
+        monkeypatch.setattr(rp, "_busca_lrclib",
+                            lambda a, t, timeout=8.0: "Letra do lrclib.")
+        monkeypatch.setattr(
+            rp, "_busca_lyrics_ovh",
+            lambda *a, timeout=6.0: (_ for _ in ()).throw(
+                AssertionError("não deveria ir para a reserva")))
+        r = rp.letra_da_musica("Jota Quest", "Do Seu Lado",
+                               cache_arq=bancos["cache"])
+        assert r["ok"] and r["fonte"] == "lrclib"
+
+    def test_cache_guarda_a_fonte_e_devolve_nela(
+            self, bancos, monkeypatch) -> None:
+        monkeypatch.setattr(rp, "_busca_lrclib",
+                            lambda a, t, timeout=8.0: "Guardada.")
+        rp.letra_da_musica("Jota Quest", "Do Seu Lado",
+                           cache_arq=bancos["cache"])
+        r = rp.letra_da_musica("Jota Quest", "Do Seu Lado",
+                               cache_arq=bancos["cache"],
+                               buscar=lambda *a: AssertionError("cache"))
+        assert r == {"ok": True, "letra": "Guardada.",
+                     "fonte": "lrclib", "cache": True}
+
+    def test_nenhuma_fonte_responde_e_nao_encontrada(
+            self, bancos, monkeypatch) -> None:
+        monkeypatch.setattr(rp, "_busca_lrclib",
+                            lambda a, t, timeout=8.0: None)
+        monkeypatch.setattr(rp, "_busca_lyrics_ovh",
+                            lambda a, t, timeout=6.0: None)
+        r = rp.letra_da_musica("Desconhecido", "Xptz",
+                               cache_arq=bancos["cache"])
+        assert r == {"ok": False, "motivo": "nao_encontrada"}
+
+    def test_lrclib_parseia_lista_com_letra(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            rp, "urlopen",
+            lambda req, timeout=0: _RespostaFake(
+                [{"plainLyrics": "Primeira\nlinha"}, {"plainLyrics": ""}]))
+        assert rp._busca_lrclib("Tim Maia", "Azul") == "Primeira\nlinha"
+
+    def test_lrclib_parseia_dict_e_lista_vazia(self, monkeypatch) -> None:
+        monkeypatch.setattr(rp, "urlopen",
+                            lambda req, timeout=0: _RespostaFake(
+                                {"plainLyrics": "  Só isto.  "}))
+        assert rp._busca_lrclib("A", "B") == "Só isto."
+        monkeypatch.setattr(rp, "urlopen",
+                            lambda req, timeout=0: _RespostaFake([]))
+        assert rp._busca_lrclib("A", "B") is None
+
+    def test_lrclib_fora_do_ar_devolve_none_e_nunca_levanta(
+            self, monkeypatch) -> None:
+        from urllib.error import URLError
+
+        def _quebra(*a, **k):
+            raise URLError("sem rede")
+
+        monkeypatch.setattr(rp, "urlopen", _quebra)
+        assert rp._busca_lrclib("A", "B") is None
+
+
+# ---------------------------------------------------------------------------
+#  Fila REAL do AzuraCast (ordem do dono 04/11: "com fila")
+# ---------------------------------------------------------------------------
+
+class TestFilaAzuraCast:
+    def _criar(self, bancos, usuario="ana", recado="toca ai"):
+        return rp.criar_pedido(usuario, CAMINHO, recado,
+                               banco=bancos["pedidos"],
+                               banco_acervo=bancos["acervo"])
+
+    def _status(self, bancos, pedido_id: int) -> str:
+        conn = sqlite3.connect(str(bancos["pedidos"]))
+        try:
+            return conn.execute("SELECT status FROM pedidos WHERE id = ?",
+                                (pedido_id,)).fetchone()[0]
+        finally:
+            conn.close()
+
+    def test_sem_chave_nao_inventa_fila(self) -> None:
+        r = rp.pedir_no_ar("Fernandinho", "Todas as Coisas", chave="")
+        assert r == {"ok": False, "motivo": "sem_chave"}
+
+    def test_encontra_na_lista_e_envia_para_a_fila(
+            self, monkeypatch) -> None:
+        chamadas: list[tuple[str, str]] = []
+
+        def fake(caminho, *, metodo="GET", api=None, chave=None,
+                 timeout=8.0):
+            chamadas.append((metodo, caminho))
+            if metodo == "GET":
+                return 200, [{
+                    "request_url": "/api/station/1/request/abc123",
+                    "song": {"artist": "Fernandinho",
+                             "title": "Todas as Coisas"}}]
+            return 200, {"ok": True}
+
+        monkeypatch.setattr(rp, "_azuracast", fake)
+        r = rp.pedir_no_ar("Fernandinho", "Todas as Coisas", chave="k")
+        assert r == {"ok": True, "fila": "azuracast"}
+        assert chamadas == [
+            ("GET", "/api/station/nicky/requests"),
+            ("POST", "/api/station/1/request/abc123")]
+
+    def test_fora_da_lista_e_nao_pedivel(self, monkeypatch) -> None:
+        monkeypatch.setattr(rp, "_azuracast",
+                            lambda *a, **k: (200, []))
+        r = rp.pedir_no_ar("Alguém", "Que Não Existe", chave="k")
+        assert r == {"ok": False, "motivo": "nao_pedivel"}
+
+    def test_url_de_fora_da_api_e_ignorada(self, monkeypatch) -> None:
+        def fake(caminho, *, metodo="GET", api=None, chave=None,
+                 timeout=8.0):
+            if metodo == "GET":
+                return 200, [{"request_url": "http://evil.tld/x",
+                              "song": {"artist": "A", "title": "B"}}]
+            raise AssertionError("não deve POSTar para fora")
+
+        monkeypatch.setattr(rp, "_azuracast", fake)
+        r = rp.pedir_no_ar("A", "B", chave="k")
+        assert r == {"ok": False, "motivo": "nao_pedivel"}
+
+    def test_azuracast_recusa_e_vira_recusado(self, monkeypatch) -> None:
+        def fake(caminho, *, metodo="GET", api=None, chave=None,
+                 timeout=8.0):
+            if metodo == "GET":
+                return 200, [{"request_url": "/api/station/1/request/x",
+                              "song": {"artist": "A", "title": "B"}}]
+            return 409, None                    # já está na fila
+
+        monkeypatch.setattr(rp, "_azuracast", fake)
+        r = rp.pedir_no_ar("A", "B", chave="k")
+        assert r == {"ok": False, "motivo": "recusado"}
+
+    def test_marcar_status_muda_a_linha(self, bancos) -> None:
+        p = self._criar(bancos)
+        assert rp.marcar_status(p["id"], "na_fila",
+                                banco=bancos["pedidos"]) is True
+        assert self._status(bancos, p["id"]) == "na_fila"
+
+    def test_marcar_status_sem_banco_e_false(self, tmp_path: Path) -> None:
+        assert rp.marcar_status(1, "na_fila",
+                                banco=tmp_path / "nada.db") is False
+
+    def test_anuncio_carrega_o_recado_e_marca_tocada(self, bancos) -> None:
+        p = self._criar(bancos, usuario="alex", recado="boa noite pra dona")
+        texto = rp.anuncio_de_pedido("Fernandinho", "Todas as Coisas",
+                                     banco=bancos["pedidos"])
+        assert texto == "Pedido de alex: boa noite pra dona"
+        assert self._status(bancos, p["id"]) == "tocada"
+        # segunda vez não repete a fala
+        assert rp.anuncio_de_pedido("Fernandinho", "Todas as Coisas",
+                                    banco=bancos["pedidos"]) == ""
+
+    def test_anuncio_sem_recado_fala_só_o_pedido(self, bancos) -> None:
+        self._criar(bancos, usuario="bia", recado="")
+        texto = rp.anuncio_de_pedido("Fernandinho", "Todas as Coisas",
+                                     banco=bancos["pedidos"])
+        assert texto == "Pedido do ouvinte bia."
+
+    def test_anuncio_de_outra_musica_nao_marca(self, bancos) -> None:
+        p = self._criar(bancos)
+        assert rp.anuncio_de_pedido("Jota Quest", "Do Seu Lado",
+                                    banco=bancos["pedidos"]) == ""
+        assert self._status(bancos, p["id"]) == "pendente"
+
+    def test_lancar_na_fila_atualiza_status(self, bancos) -> None:
+        p = self._criar(bancos)
+        r = rp.lancar_pedido_na_fila(
+            p, enviar=lambda a, t: {"ok": True, "fila": "azuracast"},
+            banco=bancos["pedidos"])
+        assert r["fila"] == "azuracast" and r["status"] == "na_fila"
+        assert self._status(bancos, p["id"]) == "na_fila"
+
+    def test_lancar_sem_chave_fica_pendente_com_motivo(self, bancos) -> None:
+        p = self._criar(bancos)
+        r = rp.lancar_pedido_na_fila(
+            p, enviar=lambda a, t: {"ok": False, "motivo": "sem_chave"})
+        assert r["fila"] is None and r["motivo"] == "sem_chave"
+        assert r["status"] == "pendente"
+        assert self._status(bancos, p["id"]) == "pendente"
+
+    def test_lancar_nao_repete_ja_na_fila(self, bancos) -> None:
+        p = self._criar(bancos)
+        rp.marcar_status(p["id"], "na_fila", banco=bancos["pedidos"])
+        p["status"] = "na_fila"
+
+        def nao_deve_chamar(*a):
+            raise AssertionError("já está na fila")
+
+        r = rp.lancar_pedido_na_fila(p, enviar=nao_deve_chamar)
+        assert r["status"] == "na_fila" and "fila" not in r
+
+    def test_lancar_com_envio_quebrado_nao_derruba(self, bancos) -> None:
+        p = self._criar(bancos)
+
+        def quebra(*a):
+            raise RuntimeError("rede caiu")
+
+        r = rp.lancar_pedido_na_fila(p, enviar=quebra)
+        assert r["fila"] is None and r["motivo"] == "recusado"
+        assert self._status(bancos, p["id"]) == "pendente"
+
+    def test_na_fila_ocupa_o_limite_de_um_por_conta(self, bancos) -> None:
+        p = self._criar(bancos)
+        rp.marcar_status(p["id"], "na_fila", banco=bancos["pedidos"])
+        with pytest.raises(ValueError, match="ja_tem_pedido"):
+            self._criar(bancos)
+
+    def test_pedido_do_handler_vai_para_a_fila(self) -> None:
+        """O handler liga o pedido à fila REAL (ordem do dono 04/11)."""
+        from integrations.api import server
+
+        fonte = Path(server.__file__).read_text(encoding="utf-8")
+        trecho = fonte.split("def api_radio_pro_pedido", 1)[1].split("def ", 1)[0]
+        assert "lancar_pedido_na_fila" in trecho
+        assert '"fila"' in trecho, "a resposta informa o desfecho da fila"
+        assert "na fila da rádio" in trecho, "o aviso do dono diz se entrou"
+
+    def test_lrclib_404_e_ausencia_nao_e_pane(self, monkeypatch) -> None:
+        """404 = música fora do catálogo: devolve None sem gritar no log."""
+        from urllib.error import HTTPError
+
+        def _nao_acha(*a, **k):
+            raise HTTPError("https://lrclib.net/x", 404, "Not Found",
+                            {}, None)
+
+        monkeypatch.setattr(rp, "urlopen", _nao_acha)
+        assert rp._busca_lrclib("Ana Castela", "Neon") is None

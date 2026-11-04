@@ -4740,14 +4740,17 @@ class APIHandler(BaseHTTPRequestHandler):
 
         Body: {"caminho": str do catálogo, "recado": str opcional}.
         Só música que existe no acervo (o caminho vem do servidor); o
-        pedido entra na fila como 'pendente' e o dono é avisado — tocar
-        de fato depende da decisão dele (fila x na hora).
+        pedido entra na fila REAL do AzuraCast (decisão do dono, 04/11:
+        "com fila") e o dono é avisado no Telegram com o desfecho — sem
+        chave da API ele fica 'pendente' e a página avisa, sem sumir.
         """
         if not self._sessao_do_ouvinte():
             self._json(401, {"ok": False, "error": "login_necessario",
                              "entrar": "/chat?next=/radio-pro"})
             return
-        from integrations.radio_pro import criar_pedido, meus_pedidos
+        from integrations.radio_pro import (
+            criar_pedido, lancar_pedido_na_fila, meus_pedidos,
+        )
 
         data = self._read_json()
         usuario = self._nome_do_ouvinte()
@@ -4766,6 +4769,7 @@ class APIHandler(BaseHTTPRequestHandler):
                       "limite_diario": 429}.get(motivo, 400)
             self._json(status, {"ok": False, "error": motivo})
             return
+        pedido = lancar_pedido_na_fila(pedido)
         notify = self.api.config.chat_notify
         if notify is not None:
             try:
@@ -4773,10 +4777,14 @@ class APIHandler(BaseHTTPRequestHandler):
                          f"{pedido['artista']} - {pedido['titulo']}")
                 if pedido["recado"]:
                     texto += f" — recado: “{pedido['recado']}”"
+                texto += (" → na fila da rádio ✓" if pedido.get("fila")
+                          else f" → pendente ({pedido.get('motivo')})")
                 notify(texto)
             except Exception:                 # aviso nunca derruba o pedido
                 pass
         self._json(201, {"ok": True, "pedido": pedido,
+                         "fila": pedido.get("fila"),
+                         "motivo": pedido.get("motivo"),
                          "pedidos": meus_pedidos(usuario)})
 
     def registry_list(self) -> None:

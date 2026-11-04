@@ -159,10 +159,13 @@
     var titulo = document.createElement("div");
     titulo.textContent = "Seus últimos pedidos:";
     alvo.appendChild(titulo);
+    var rotulos = { pendente: "aguardando a fila", na_fila: "na fila ✓",
+                    tocada: "tocada" };
     pedidos.forEach(function (p) {
       var linha = document.createElement("div");
       linha.textContent = "• " + (p.artista ? p.artista + " — " : "") + p.titulo +
-        " · " + p.status + (p.recado ? " · recado: " + p.recado : "");
+        " · " + (rotulos[p.status] || p.status) +
+        (p.recado ? " · recado: " + p.recado : "");
       alvo.appendChild(linha);
     });
   }
@@ -203,7 +206,9 @@
       .then(function (res) {
         var d = res.d || {};
         if (res.status === 201 && d.ok) {
-          texto("pedidoStatus", "Pedido registrado! A locutora já foi avisada.");
+          texto("pedidoStatus", d.fila === "azuracast"
+            ? "Pedido enviado para a fila da rádio! A locutora avisa antes de tocar."
+            : "Pedido registrado! A fila está fora do ar agora — o dono foi avisado.");
           if ($("recado")) $("recado").value = "";
           desenhaPedidos(d.pedidos);
         } else if (res.status === 409) {

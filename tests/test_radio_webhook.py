@@ -440,3 +440,80 @@ class TestProcessar:
         )
         assert resultado["status"] == "erro"
         assert destino.read_bytes() == b"versao-no-ar"
+
+
+# ===========================================================================
+# Aviso de pedido do ouvinte (ordem do dono, 04/11: "com fila e aviso da
+# locutora") — o recado é lido ANTES de a música tocar e nunca repete
+# ===========================================================================
+
+class TestAvisoDePedido:
+    def _montar(self, pedido_fn, payload=None, rng=None):
+        return montar_locucao(
+            payload if payload is not None else PAYLOAD,
+            DBFalso(),
+            rng=rng or RNGFalso(),
+            agora=AGORA_FIXO,
+            noticia_fn=lambda: "",
+            clima_fn=lambda: "",
+            curiosidade_fn=lambda a, t: "",
+            pedido_fn=pedido_fn,
+        )
+
+    def test_aviso_abre_a_fala_antes_de_tudo(self) -> None:
+        texto = self._montar(lambda a, t: "Pedido de alex: boa noite!")
+        assert texto.startswith("Pedido de alex: boa noite! ")
+
+    def test_o_alvo_e_primeiro_a_proxima_faixa(self) -> None:
+        alvos: list[tuple[str, str]] = []
+
+        def pedido(a: str, t: str) -> str:
+            alvos.append((a, t))
+            return "Pedido de ana: manda ver." if t == "Take It Easy" else ""
+
+        texto = self._montar(pedido)
+        # achou na próxima → curto-circuito: nem consulta a atual
+        assert alvos == [("Jorge Ben", "Take It Easy")]
+        assert texto.startswith("Pedido de ana: manda ver.")
+
+    def test_quando_a_proxima_nao_e_a_pedida_consulta_a_atual(self) -> None:
+        alvos: list[tuple[str, str]] = []
+
+        def pedido(a: str, t: str) -> str:
+            alvos.append((a, t))
+            return ("Pedido de bia: vai tocar!" if t == "Azul da Cor do Mar"
+                    else "")
+
+        texto = self._montar(pedido)
+        assert alvos == [("Jorge Ben", "Take It Easy"),
+                         ("Tim Maia", "Azul da Cor do Mar")]
+        assert texto.startswith("Pedido de bia: vai tocar!")
+
+    def test_pedido_da_faixa_atual_tambem_anuncia(self) -> None:
+        payload = {"now_playing": {"song": {
+            "artist": "Tim Maia", "title": "Azul da Cor do Mar",
+            "custom_fields": {}}}}
+        texto = self._montar(
+            lambda a, t: "Pedido de bia: tudo bem!"
+            if t == "Azul da Cor do Mar" else "", payload=payload)
+        assert texto.startswith("Pedido de bia: tudo bem!")
+
+    def test_sem_pedido_a_fala_nao_ganha_espaco_nem_rabo(self) -> None:
+        texto = self._montar(lambda a, t: "")
+        assert not texto.startswith(" ")
+        assert "Pedido" not in texto
+
+    def test_processar_repassa_o_aviso_para_a_fala(
+            self, tmp_path: Path) -> None:
+        tts = TTSFalso()
+        r = processar(
+            PAYLOAD, tts=tts, db=DBFalso(),
+            destino=tmp_path / "anuncio.mp3",
+            rng=RNGFalso(), noticia_fn=lambda: "", clima_fn=lambda: "",
+            curiosidade_fn=lambda a, t: "",
+            pedido_fn=lambda a, t: "Pedido de ana: valeu!"
+            if t == "Take It Easy" else "",
+        )
+        assert r["status"] == "ok"
+        assert tts.texto is not None
+        assert tts.texto.startswith("Pedido de ana: valeu!")

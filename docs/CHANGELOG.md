@@ -12,6 +12,32 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Fila REAL de pedidos + 2ª fonte de letra (2026-11-04, sem bump)
+
+**Resumo:** ordens do dono (04/11, 14:39): *"Ligue o pedido de música para
+tocar de verdade na rádio, com fila e aviso da locutora"* + *"Melhore a letra
+da área do ouvinte com uma segunda fonte para cobrir gospel e lançamentos"*.
+As duas foram entregues por esta sessão retomando o rascunho que o **manicode**
+deixou ao morrer (`AI_APICallError: Gone`, 14:58 — registrado em `iniciar/`).
+O pedido agora **entra na fila real do AzuraCast** (é ele quem enfileira e
+segure repetição) e a **locutora lê o recado antes de a música tocar**; a letra
+ganhou **lrclib.net como 1ª fonte**, com lyrics.ovh na reserva.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/radio_pro.py`** | `pedir_no_ar()` submete à fila real (`X-API-Key` no `GET /requests` + `POST` no `request_url` da faixa — só caminho `/api/`, nunca URL de fora); `lancar_pedido_na_fila()` liga o pedido ao AzuraCast e devolve `fila="azuracast"` ou `fila=None` + motivo (sem chave → continua `pendente`, nada some); `marcar_status()` e `anuncio_de_pedido()` (recado + marca `tocada` na 1ª leitura, nunca repete); cadeia de letras **lrclib → lyrics.ovh** com campo `fonte` no cache; 404 do lrclib = "não achei" (não vira WARN); `criar_pedido()` passa a contar `na_fila` no limite de 1 por conta. |
+| **`integrations/api/server.py`** | `POST /api/radio/pro/pedido` chama `lancar_pedido_na_fila()` antes do aviso: o Telegram do dono diz *"→ na fila da rádio ✓"* ou *"→ pendente (motivo)"*; resposta 201 traz `fila`/`motivo`. |
+| **`integrations/radio_webhook.py`** | `montar_locucao()` ganha `pedido_fn` (padrão `anuncio_de_pedido`): o aviso abre a fala no ciclo em que a faixa pedida está por vir (`playing_next` primeiro; `now_playing` como rede de segurança) — lido **antes** de ela tocar. |
+| **`site/radio-pro.html`** | status em pt-BR na lista (*na fila ✓ / aguardando a fila / tocada*) e a confirmação do pedido diz o desfecho da fila. |
+| **Chave e config** | `AZURACAST_API_KEY` criada pela API oficial do painel (conta admin) e gravada no `.env` (`EnvironmentFile` do systemd — sem ela o pedido fica `pendente`, caminho antigo). Estação: pedidos já habilitados (`requests_enabled=true`), 267 itens pedíveis (265 faixas + 2 locuções). |
+| **Guardas** | `tests/test_radio_pro.py` +24 → **48** (cadeia lrclib/reserva/cache/404, fila: submissão, URL forasteira, recusa, `marcar_status`, anúncio com e sem recado, curto-circuito, `na_fila` ocupa o limite) e `tests/test_radio_webhook.py` +6 (aviso abre a fala, alvo é a próxima, `processar` repassa). |
+
+**Validação:** gate oficial **4115 passed / 16 skipped / 0 falha** (era 4085) ·
+pyflakes 0 aviso novo (4 pre-existentes no `server.py`) · `node --check` no JS
+da página OK · prova viva: *Juliano Son — Lindo És* e *Jota Quest — Do Seu
+Lado* (falhavam) voltam em **lrclib**. **Sem bump de versão** (mudança só de
+servidor/site): segue **1.44.0/2080**.
+
 ## Área do ouvinte logado — letra da música + pedido (2026-11-04, sem bump)
 
 **Resumo:** ordem do dono (04/11): *"crie uma segunda página rádio que só aparece
