@@ -396,3 +396,93 @@ de agir: pergunta ao dono se **eu assumo o WIP morto** ou ele retoma o manicode.
 **Ações desta troca:** somente leitura (git, serviço, banco, containers,
 chat do manicode); nenhuma mutação, **sem restart**. Registro +
 commit/push (7.1) + Telegram (15).
+
+## §6 — "Assumo e concluo" (04/11 15:10–16:30): fila do AzuraCast no ar
+
+**Pedido:** dono respondeu **"Assumo e concluo (Recomendado)"** — eu assumo
+o WIP morto do manicode (ordens 2 e 3 dele) e fecho: pedido de música na
+**fila real** do AzuraCast com **aviso da locutora** + **2ª fonte de letra**
+(lrclib), com testes, gate, commit e restart verde. Checkpoint anterior:
+§5 (15:10).
+
+### 1. O que foi feito (commit `f8a1a7c`)
+
+- **Chave da API criada pela API oficial do painel** (login `POST /login` +
+  header `X-API-CSRF` tirado do HTML do dashboard — sessão, não key
+  improvisada): `AZURACAST_API_KEY` gravada no `.env` (backup antes em
+  `backups/env-backup-antes-fila-pedido-*.env`); `enable_requests` já estava
+  **true** na estação `nicky`.
+- **`integrations/radio_pro.py`:** `lancar_pedido_na_fila()` (submete e
+  atualiza `pendente → na_fila`; falha vira `motivo`, nada some) — com bug
+  `banco=` **pego em teste** e corrigido; `criar_pedido` passou a contar
+  `na_fila` no limite de 1 pendente por conta; `anuncio_de_pedido` devolve o
+  recado do ouvinte e marca `tocada` na 1ª leitura (a fala não repete).
+- **`integrations/api/server.py`:** `api_radio_pro_pedido` chama a fila e
+  informa no Telegram e na resposta (`→ na fila da rádio ✓` ou
+  `→ pendente (motivo)`); `chat_notify` plugado (mesmo caminho do launcher).
+- **`integrations/radio_webhook.py`:** `montar_locucao`/`processar` com
+  `pedido_fn` — o aviso **abre a fala** e o alvo é `playing_next` (a locução
+  nasce durante a música atual e vira vinheta antes da próxima); se o ciclo
+  perder, `now_playing` anuncia na sequência.
+- **Cadeia de letras:** lrclib.net **primeiro** (catálogo aberto, cobre
+  gospel/lancamentos), lyrics.ovh na reserva; **404 do lrclib = "não
+  achei"**, não gera WARN. Campo `fonte` no cache.
+- **`site/radio-pro.html`:** labels pt-BR de status e mensagem de fila.
+- **`docs/CHANGELOG.md`:** seção nova **sem bump** (política verde; segue
+  1.44.0/2080, APK intacto).
+
+**Gate oficial:** `.venv/bin/python -m pytest tests/ -q` → **4115 passed /
+16 skipped / 0 falha** (era 4085; +24 em `test_radio_pro.py`, +6
+`TestAvisoDePedido` em `test_radio_webhook.py`). pyflakes **0 aviso novo**;
+`node --check` OK.
+
+### 2. Restart verde (regra 7.3, gate antes) — 16:09:35
+
+`systemctl --user restart od-core` → **MainPID 1438243, NRestarts=0**;
+`/health` com `X-API-Key` → **ok=true, status=up, 25 checks, NENHUM fora**
+(3 sondagens seguidas iguais); journal desde o boot **0 [ERROR]** (1 `[WARN]`
+rotineiro do próprio restart: `key=restart`); `AZURACAST_API_KEY` confirmada
+em `/proc/1438243/environ`. API na **porta 8000** (o 8080 que testei à toa
+não existe — a API é 8000, o site é servido por ela).
+
+### 3. Provas vivas
+
+- **Fila real:** pedido do dono **id=2** (*Ana Castela — Neon*, estava
+  `pendente`) → `lancar_pedido_na_fila` → **`fila=azuracast`**, banco
+  **`na_fila`**. Repetir o POST no AzuraCast devolve
+  **500 "This song was already requested and will play soon"** = a música
+  **já está na fila dele e tocará em breve**. `GET /api/station/nicky/queue`
+  responde 200 com a fila de verdade.
+- **Locutora:** simulação com **cópia** do banco real (para não consumir o
+  pedido que vai tocar): payload com a faixa pedida em `playing_next` →
+  locução **"Pedido de alex: Vamos dançar"** (o recado real do pedido); a
+  cópia virou `tocada`, o **banco real segue `na_fila`**. Ao tocar de
+  verdade, o webhook do AzuraCast dispara o mesmo aviso e marca `tocada`.
+- **2ª fonte de letra (lrclib):** *Juliano Son — Lindo És* → lrclib 669 B;
+  *Ana Castela — Neon* → lrclib 1330 B; *Jota Quest — Do Seu Lado* → lrclib
+  **1772 B** (estava preso num **cache negativo stale** gravado às 14:29 pelo
+  código antigo, só-lyrics.ovh — entrada removida, hoje o lrclib acha).
+- **HTTP:** anônimo `/radio-pro` → **302** `/chat?next=/radio-pro`;
+  anônimo `/api/radio/pro/dados` → **401**; com chave de **conta**
+  (`od_…`, a `OD_API_KEY` do servidor não passa no gate de ouvinte —
+  comportamento do `_sessao_do_ouvinte`, não regressão) → página **200**
+  (10 593 B) e dados **200** (*Maria Marçal — Deixa* tocando, catálogo 40,
+  pedidos `[]`, letra `fonte=lrclib`); `POST` com caminho inválido → **400
+  `musica_desconhecida`** (sem efeito na fila).
+- **Borda pública:** Funnel `/` **200**, `/api/radio/agora` **200** com JSON
+  completo, `/radio.mp3` **206 audio/mpeg**.
+
+### 4. Limites honestos e pendências
+
+- **O pedido id=2 está na fila do AzuraCast** e tocará quando a estação
+  chegar nele — nesse ciclo a locutora fala o recado e marca `tocada`.
+- **Chaves órfãs no AzuraCast** (para o dono decidir): `odradio1` (hack de
+  DB do manicode, segredo em `/tmp/od_azura_key`) e `9b4e93652a048442` —
+  ambas **sem referência no repo**; a que vale é a do `.env`.
+- **Restos da §4:** 19 faixas em `para_analisar/` aguardando artistas;
+  Chromecast já nomeado pelo manicode (ordem 1 dele cumprida).
+- **Sem bump de versão:** mudança só de servidor/site → **1.44.0/2080**.
+
+**Ações desta troca:** chave API criada (mutação externa autorizada pela
+escolha do dono), código + testes, gate verde, restart verde, provas vivas,
+registro + commit/push (7.1) + txt.txt + Telegram (15).

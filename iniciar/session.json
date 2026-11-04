@@ -938,7 +938,7 @@
   "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
  },
- "updated_at": "2026-11-04T15:10:00-03:00",
+ "updated_at": "2026-11-04T16:30:00-03:00",
  "auditoria_pendencias_2026_10_20": {
   "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
   "vereditos": {
@@ -2042,7 +2042,7 @@
    "agents": "profiles (7 perfis Plêiade) + nicky_virthy identity/soul"
   }
  },
- "topic": "OmegaDrakon v1.44.0+2080 — area do ouvinte logado no ar (§4 04/11); RESIDUO: manicode morreu as 14:58 com AI_APICallError: Gone deixando integrations/radio_pro.py modificado e NAO commitado (2a fonte de letra lrclib + fila real do AzuraCast, sem chamar em lugar nenhum); pedido real do dono (Ana Castela - Neon, 15:02) pendente na fila; aguardando decisao dele sobre assumir o WIP",
+ "topic": "OmegaDrakon v1.44.0+2080 — PEDIDO DE MUSICA NA FILA REAL DO AZURACAST no ar (§6 04/11): chave API criada pela API oficial do painel, lancar_pedido_na_fila ligado (pendente -> na_fila), aviso da locutora antes de tocar (alvo playing_next), 2a fonte de letra lrclib -> lyrics.ovh, gate 4115 verde, restart verde 16:09 (MainPID 1438243, health 25 checks), pedido do dono id=2 (Ana Castela - Neon) CONFIRMADO na fila do AzuraCast; chaves orfas do AzuraCast (odradio1, 9b4e93652a048442) aguardando decisao dele",
  "estado_2026_09_19": {
   "git": "HEAD com alterações no working tree (app/ + iniciar/)",
   "od_core": "active desde 2026-09-18 05:55:15 (PID 413665, NRestarts=0). :8000 e :8001 escutando.",
@@ -3030,7 +3030,7 @@
   "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
   "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
  },
- "last_turn": "2026-11-04T15:10:00-03:00",
+ "last_turn": "2026-11-04T16:30:00-03:00",
  "cache_historico_2026_09_24_fechamento": {
   "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
   "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
@@ -4474,5 +4474,16 @@
   "fila": "(1) Pergunta ao dono: assumo o WIP morto do manicode (ligar pedido->fila AzuraCast + aviso da locutora + 2a fonte de letra, com gate, commit e restart verde) ou ele vai retomar o manicode? (2) ja decidido e nao executado: FILA (na ordem 2 do manicode) — falta criar AZURACAST_API_KEY, ligar enable_requests na estacao e escrever o .env (mutacao externa, por isso antes de agir); (3) restos da §4: 19 faixas em para_analisar/, Item 3 (letra).",
   "updated_at": "2026-11-04T15:10:00-03:00",
   "transcricao": "iniciar/2026-11-04_conversa_omegadrakon.md (§5)"
-}
+ },
+ "fila_pedido_azuracast_lrclib_2026_11_04": {
+  "pedido": "Dono (04/11 15:10): 'Assumo e concluo (Recomendado)' — ASSUMO o WIP morto do manicode (ordens dele 2 e 3: ligar o pedido de musica a fila REAL do AzuraCast com aviso da locutora + 2a fonte de letras para gospel/lancamentos) e fecho com testes, gate, commit e restart verde. Checkpoint anterior: reverificacao_0411_fim_tarde_residuo_manicode (15:10).",
+  "entrega": "Commit f8a1a7c pushado (HEAD == origin/master, arvore limpa). Chave AZURACAST_API_KEY criada pela API OFICIAL do painel (POST /login + header X-API-CSRF do dashboard; sessao, nao key improvisada) e gravada no .env (backup antes em backups/env-backup-antes-fila-pedido-*.env); enable_requests ja estava true na estacao nicky. radio_pro.py: lancar_pedido_na_fila() (pendente -> na_fila; falha vira motivo, nada some) com bug 'banco=' PEGO EM TESTE e corrigido; criar_pedido conta na_fila no limite 1/conta; anuncio_de_pedido devolve o recado e marca tocada na 1a leitura. server.py: api_radio_pro_pedido chama a fila e informa Telegram + resposta ('na fila da radio' ou 'pendente (motivo)'), chat_notify plugado. radio_webhook.py: montar_locucao/processar com pedido_fn — aviso ABRE a fala, alvo playing_next (nasce durante a musica atual, vira vinheta antes da proxima); se o ciclo perder, now_playing anuncia. Cadeia de letras: lrclib.net PRIMEIRO, lyrics.ovh na reserva, 404 do lrclib = 'nao achei' (sem WARN), campo 'fonte' no cache. site/radio-pro.html com labels pt-BR. CHANGELOG com secao nova SEM BUMP (segue 1.44.0/2080, APK intacto).",
+  "testes": "GATE OFICIAL .venv/bin/python -m pytest tests/ -q -> 4115 passed / 16 skipped / 0 falha (era 4085; +24 em tests/test_radio_pro.py, +6 TestAvisoDePedido em tests/test_radio_webhook.py). pyflakes 0 aviso novo; node --check OK. Re-rodado APOS o restart: mesmo resultado, verde.",
+  "deploy": "Restart verde 16:09:35 (regra 7.3, gate ANTES): MainPID 1438243, NRestarts=0, /health (X-API-Key) ok=true status=up 25 checks NENHUM fora (3 sondagens seguidas), journal 0 [ERROR] (1 [WARN] rotineiro key=restart do proprio boot), AZURACAST_API_KEY presente em /proc/1438243/environ. API na porta 8000 (o 8080 que testei nao existe — a API e 8000 e o site e servido por ela).",
+  "provas_vivas": "FILA REAL: pedido do dono id=2 (Ana Castela - Neon, pendente) -> lancar_pedido_na_fila -> fila=azuracast, banco na_fila; repetir o POST no AzuraCast devolve 500 'This song was already requested and will play soon' = ja na fila dele e tocará em breve; GET /api/station/nicky/queue 200. LOCUTORA: simulacao com COPIA do banco real (nao consumir o pedido que vai tocar) -> payload com a faixa em playing_next -> locucao 'Pedido de alex: Vamos dançar' (recado real); copia virou tocada, banco REAL segue na_fila. LETRA: Juliano Son - Lido Es lrclib 669B, Ana Castela - Neon lrclib 1330B, Jota Quest - Do Seu Lado lrclib 1772B (estava preso em cache negativo STALE gravado 14:29 pelo codigo antigo so-lyrics.ovh — entrada removida). HTTP: anonimo /radio-pro 302 -> /chat?next=/radio-pro; anonimo /api/radio/pro/dados 401; com chave de CONTA (od_..., a OD_API_KEY do servidor nao passa no gate de ouvinte — comportamento do _sessao_do_ouvinte, nao regressao) pagina 200 (10593 B) e dados 200 (Maria Marçal - Deixa tocando, catalogo 40, pedidos [], letra fonte=lrclib); POST caminho invalido 400 musica_desconhecida. BORDA: Funnel / 200, /api/radio/agora 200, /radio.mp3 206 audio/mpeg.",
+  "canais_dono": "txt.txt atualizado com a entrega; Telegram enviado (regra 15); recado do dono de 02/11 preservado no fim do txt.txt.",
+  "fila_pendencias": "(1) CHAVES ORFAS no AzuraCast para o dono decidir: 'odradio1' (hack de DB do manicode, segredo em /tmp/od_azura_key) e '9b4e93652a048442' — ambas SEM referencia no repo; a que vale e a do .env. (2) Restos da §4: 19 faixas em para_analisar/ aguardando artistas; Chromecast ja nomeado pelo manicode (ordem 1 dele cumprida). (3) O pedido id=2 toca quando a estacao chegar nele — nesse ciclo a locutora fala o recado e marca tocada.",
+  "updated_at": "2026-11-04T16:30:00-03:00",
+  "transcricao": "iniciar/2026-11-04_conversa_omegadrakon.md (§6)"
+ }
 }
