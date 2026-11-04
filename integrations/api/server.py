@@ -4765,8 +4765,7 @@ class APIHandler(BaseHTTPRequestHandler):
             status = {"login_obrigatorio": 401,
                       "musica_desconhecida": 400,
                       "recado_longo": 400,
-                      "ja_tem_pedido": 409,
-                      "limite_diario": 429}.get(motivo, 400)
+                      "limite_tempo": 429}.get(motivo, 400)
             self._json(status, {"ok": False, "error": motivo})
             return
         pedido = lancar_pedido_na_fila(pedido)

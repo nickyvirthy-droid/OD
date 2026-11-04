@@ -160,7 +160,7 @@
     titulo.textContent = "Seus últimos pedidos:";
     alvo.appendChild(titulo);
     var rotulos = { pendente: "aguardando a fila", na_fila: "na fila ✓",
-                    tocada: "tocada" };
+                    no_ar: "saindo no ar", tocada: "tocada" };
     pedidos.forEach(function (p) {
       var linha = document.createElement("div");
       linha.textContent = "• " + (p.artista ? p.artista + " — " : "") + p.titulo +
@@ -211,10 +211,8 @@
             : "Pedido registrado! A fila está fora do ar agora — o dono foi avisado.");
           if ($("recado")) $("recado").value = "";
           desenhaPedidos(d.pedidos);
-        } else if (res.status === 409) {
-          texto("pedidoStatus", "Você já tem um pedido na fila — espere ele tocar.");
         } else if (res.status === 429) {
-          texto("pedidoStatus", "Limite de pedidos do dia atingido. Amanhã tem mais.");
+          texto("pedidoStatus", "Você pediu há pouco — espere 30 minutos para pedir de novo.");
         } else if (res.status === 401) {
           texto("pedidoStatus", "Sua sessão expirou. Entre de novo pelo chat.");
         } else if (d.error === "recado_longo") {

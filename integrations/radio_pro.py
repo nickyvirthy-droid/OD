@@ -36,10 +36,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shlex
 import sqlite3
+import subprocess
 import time
 import unicodedata
-from datetime import date
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Optional
 from urllib.error import HTTPError, URLError
@@ -72,8 +75,7 @@ TTL_ENCONTRADA_S = 7 * 24 * 3600         # letra boa dura a semana
 TTL_NAO_ENCONTRADA_S = 6 * 3600          # negativa curta: pode aparecer depois
 CACHE_MAX = 400                          # teto do arquivo de cache
 RECADO_MAX = 200                         # recado da locução
-PENDENTES_POR_CONTA = 1                  # um pedido esperando por vez
-PEDIDOS_POR_DIA = 3                      # teto diário por conta
+COOLDOWN_MINUTOS = 30                    # um pedido por conta a cada meia hora
 CATALOGO_LIMITE = 40
 CATALOGO_LIMITE_MAX = 200
 
@@ -372,12 +374,19 @@ def criar_pedido(
     *,
     banco: Optional[Path] = None,
     banco_acervo: Optional[Path] = None,
+    agora: Optional[datetime] = None,
 ) -> dict[str, Any]:
     """Registra um pedido de música do ouvinte logado.
 
     Levanta ValueError com um motivo estável (o handler vira status HTTP):
       login_obrigatorio · musica_desconhecida · recado_longo ·
-      ja_tem_pedido · limite_diario
+      limite_tempo
+
+    Um pedido por conta a cada COOLDOWN_MINUTOS (ordem do dono, 04/11:
+    "deixe o usuário realizar pedidos a cada meia hora") — o relógio é
+    por conta e vale para QUALQUER status: conta o tempo desde o último
+    pedido da conta, nem o pendente perdido nem a música já tocada
+    voltam a segurar a fila. `agora` injeta o instante nos testes.
     """
     usuario = (usuario or "").strip()
     if not usuario:
@@ -390,25 +399,27 @@ def criar_pedido(
         raise ValueError("recado_longo")
 
     banco = banco or BANCO_PEDIDOS
+    instante = agora or datetime.now()
     conn = _conexao(banco)
     try:
-        # 'na_fila' também conta: pedido esperando tocar é pendente de
-        # verdade — sem isso a conta pedia outra música no meio da fila.
-        pendentes = conn.execute(
-            "SELECT count(*) FROM pedidos WHERE usuario = ?"
-            " AND status IN ('pendente', 'na_fila')",
+        # O único limite é o tempo desde o ÚLTIMO pedido da conta — o
+        # status dele nem importa (antigamente eram "1 pendente" e
+        # "3 por dia"; o dono pediu 1 a cada meia hora).
+        ultima = conn.execute(
+            "SELECT criado_em FROM pedidos WHERE usuario = ?"
+            " ORDER BY id DESC LIMIT 1",
             (usuario,),
-        ).fetchone()[0]
-        if pendentes >= PENDENTES_POR_CONTA:
-            raise ValueError("ja_tem_pedido")
-        hoje = date.today().isoformat()
-        do_dia = conn.execute(
-            "SELECT count(*) FROM pedidos WHERE usuario = ? AND criado_em LIKE ?",
-            (usuario, f"{hoje}%"),
-        ).fetchone()[0]
-        if do_dia >= PEDIDOS_POR_DIA:
-            raise ValueError("limite_diario")
-        agora = time.strftime("%Y-%m-%dT%H:%M:%S")
+        ).fetchone()
+        if ultima is not None:
+            try:
+                anterior = datetime.fromisoformat(str(ultima[0]))
+            except ValueError:
+                anterior = None
+            if (anterior is not None
+                    and instante - anterior < timedelta(
+                        minutes=COOLDOWN_MINUTOS)):
+                raise ValueError("limite_tempo")
+        agora = instante.strftime("%Y-%m-%dT%H:%M:%S")
         cursor = conn.execute(
             "INSERT INTO pedidos (criado_em, usuario, artista, titulo,"
             " caminho, recado, status) VALUES (?, ?, ?, ?, ?, ?, 'pendente')",
@@ -459,6 +470,26 @@ def meus_pedidos(
 #  Fila real da estação (AzuraCast) — o pedido TOCA
 # ---------------------------------------------------------------------------
 
+#: unique_id do jingle "anuncio musica" no acervo do AzuraCast — o mesmo
+#: id da URL /request/{unique_id}; no INSERT ele vira track_id via um
+#: SELECT em station_media.
+JINGLE_ANUNCIO = "e3115b6a17e7ee9d668d5e9d"
+#: Título da mídia do jingle (o dono troca o MP3, o nome fica).
+ANUNCIO_TITULO = "anuncio musica"
+#: request_delay do AzuraCast (15 min) + folga: timestamp com 31 min já
+#: consumidos vence o shouldPlayNow mesmo com o sorteio no máximo
+#: (15 + random_int(0..15)) — jingle e música nascem jogáveis juntos e
+#: o AutoDJ (getNextSongFromRequests, ordem por id) monta [jingle, música].
+ATRASO_SEGURO_MIN = 31
+#: request_threshold do AzuraCast: o jingle tocado há menos de 10 min
+#: trava um novo jingle (isDuplicateOfPlayedTrack). Nesse caso a música
+#: entra com timestamp NORMAL — ela só fica jogável (15 min) depois de o
+#: jingle destravar (10 min), e a ordem J→P se mantém mesmo assim.
+JINGLE_ESPERA_MIN = 10
+#: Coluna ip de station_requests é NOT NULL: o SubmitAction grava o IP
+#: do ouvinte, aqui é sempre o nosso núcleo.
+PEDIDO_IP = "od-core"
+
 def _azuracast(
     caminho: str,
     *,
@@ -500,19 +531,145 @@ def _mesma_musica(a: str, b: str) -> bool:
     return bool(a) and bool(b) and a == b
 
 
+def _uid_valido(uid: str) -> bool:
+    """unique_id do AzuraCast:24 hex — só isso chega ao SQL."""
+    return bool(re.fullmatch(r"[0-9a-f]{24}", uid or ""))
+
+
+def _jingle_tocou_recentemente(
+    *, api: Optional[str] = None, chave: Optional[str] = None
+) -> bool:
+    """True quando o jingle "anuncio musica" tocou nos últimos 10 min.
+
+    É a régua do request_threshold do AzuraCast lida pelo nosso lado:
+    jingle recente trava o próximo jingle dele, e aí a música pedida
+    entra com timestamp normal para a ordem J→P não se perder.
+    """
+    status, dados = _azuracast(
+        f"/api/station/{AZURA_STATION}/history?limit=50", api=api, chave=chave
+    )
+    if status != 200 or not isinstance(dados, list):
+        return False
+    corte = time.time() - JINGLE_ESPERA_MIN * 60
+    for item in dados:
+        song = (item or {}).get("song") or {}
+        if not _mesma_musica(str(song.get("title") or ""), ANUNCIO_TITULO):
+            continue
+        try:
+            quando = float((item or {}).get("played_at") or 0)
+        except (TypeError, ValueError):
+            quando = 0.0
+        if quando >= corte:
+            return True
+    return False
+
+
+def _mariadb(sql: str) -> tuple[bool, str]:
+    """Roda SQL no MariaDB do container AzuraCast (docker exec).
+
+    Devolve (ok, saída). É o mesmo caminho das demais operações da casa
+    (sem porta nova na rede e sem dependência de driver no od-core).
+    """
+    comando = (
+        'mariadb -N -B -h"$MYSQL_HOST" -u"$MYSQL_USER"'
+        ' -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e ' + shlex.quote(sql)
+    )
+    try:
+        proc = subprocess.run(
+            ["docker", "exec", "azuracast", "sh", "-c", comando],
+            capture_output=True, text=True, timeout=20,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log.warn("MariaDB do AzuraCast inacessível", error=type(exc).__name__)
+        return False, ""
+    return proc.returncode == 0, proc.stdout or ""
+
+
+def _inserir_requests(
+    uid_jingle: str, uid_musica: str, ts_jingle: str, ts_musica: str,
+    *, rodar: Optional[Callable[[str], tuple[bool, str]]] = None,
+) -> bool:
+    """Enfileira J (jingle) e P (música) direto em station_requests.
+
+    É o MESMO INSERT do SubmitAction da API do AzuraCast (station_id,
+    track_id, timestamp, skip_delay=0, played_at NULL) — só que com o
+    timestamp já vencido nos DOIS, o que garante a ordem J→P na fila
+    (getNextSongFromRequests devolve por id) sem o sorteio de 15–30 min
+    por música que inverteria as duas quase metade das vezes.
+
+    `rodar` é o executor de SQL (padrão: docker exec no mariadb) —
+    injetável nos testes, que exercitam o parser e o INSERT sem container.
+    """
+    if not (_uid_valido(uid_jingle) and _uid_valido(uid_musica)):
+        return False
+    rodar = rodar or _mariadb
+    ok, saida = rodar(
+        "SELECT 'mid', unique_id, id FROM station_media"
+        f" WHERE unique_id IN ('{uid_jingle}', '{uid_musica}');"
+        " SELECT 'st', '', id FROM station WHERE LOWER(name)"
+        f" = LOWER('{AZURA_STATION}');"
+    )
+    if not ok:
+        return False
+    mids: dict[str, int] = {}
+    estacao = 0
+    for linha in saida.splitlines():
+        partes = linha.split("\t")
+        if len(partes) != 3:
+            continue
+        marca, chave, valor = partes
+        if marca == "mid":
+            try:
+                mids[chave] = int(valor)
+            except ValueError:
+                continue
+        elif marca == "st":
+            try:
+                estacao = int(valor)
+            except ValueError:
+                continue
+    if not estacao or uid_jingle not in mids or uid_musica not in mids:
+        log.warn("AzuraCast sem jingle/música/estação no acervo",
+                 jingle=uid_jingle in mids, musica=uid_musica in mids,
+                 estacao=estacao)
+        return False
+    valores = ", ".join(
+        f"({estacao}, {mids[uid]}, '{ts}', 0, '{PEDIDO_IP}')"
+        for uid, ts in ((uid_jingle, ts_jingle), (uid_musica, ts_musica))
+    )
+    ok, _ = rodar(
+        "INSERT INTO station_requests"
+        " (station_id, track_id, timestamp, skip_delay, ip)"
+        f" VALUES {valores};"
+    )
+    return ok
+
+
 def pedir_no_ar(
     artista: str,
     titulo: str,
     *,
     api: Optional[str] = None,
     chave: Optional[str] = None,
+    jingle_recente: Optional[Callable[[], bool]] = None,
+    inserir: Optional[Callable[[str, str, str, str], bool]] = None,
 ) -> dict[str, Any]:
     """Coloca a música na fila REAL da estação (o pedido toca de verdade).
 
-    {"ok": true, "fila": "azuracast"} quando o AzuraCast aceita;
+    Enfileira o JINGLE ("anuncio musica") e a MÚSICA pedida como duas
+    linhas em station_requests com timestamps de 31 min atrás: os dois
+    nascem jogáveis e a fila monta [jingle, música] adjacente — a
+    locutora fala o recado na vinheta imediatamente anterior ao pedido.
+    A ordem não pode vir do sorteio da API (15–30 min POR música, quase
+    metade das vezes invertida): por isso o INSERT direto, o mesmo do
+    SubmitAction do AzuraCast, só com o atraso já consumido.
+
+    {"ok": true, "fila": "azuracast"} quando as linhas entram;
     {"ok": false, "motivo": "sem_chave"|"fila_fora"|"nao_pedivel"|"recusado"}.
-    O AzuraCast aplica o atraso mínimo e o limite da estação (15 min / 10
-    pedidos hoje) — é ele quem segura repetição, não a nossa fila.
+
+    `jingle_recente` (10 min de histórico — trava o jingle novo) e
+    `inserir` (o docker exec no mariadb) são injetáveis nos testes, como
+    `enviar` é em lancar_pedido_na_fila: rede e container ficam fora do gate.
     """
     if not (chave if chave is not None else AZURA_KEY):
         return {"ok": False, "motivo": "sem_chave"}
@@ -541,10 +698,34 @@ def pedir_no_ar(
     request_url = str(alvo.get("request_url") or "")
     if not request_url.startswith("/api/"):     # nunca URL de fora
         return {"ok": False, "motivo": "nao_pedivel"}
-    status, _ = _azuracast(request_url, metodo="POST", api=api, chave=chave)
-    if status in (200, 201, 202):
-        return {"ok": True, "fila": "azuracast"}
-    return {"ok": False, "motivo": "recusado"}
+    uid_musica = request_url.rsplit("/", 1)[-1]
+    if not _uid_valido(uid_musica):
+        return {"ok": False, "motivo": "nao_pedivel"}
+    if jingle_recente is None:
+        jingle_recente = _jingle_tocou_recentemente
+    try:
+        travado = bool(jingle_recente())
+    except Exception as exc:              # histórico é pista, não portão
+        log.warn("histórico do jingle indisponível", error=type(exc).__name__)
+        travado = False
+    instante = datetime.now()
+    ts_jingle = (instante - timedelta(
+        minutes=ATRASO_SEGURO_MIN)).strftime("%Y-%m-%d %H:%M:%S")
+    # Jingle travado pelo histórico → música com timestamp NORMAL: ela só
+    # fica jogável (15 min) DEPOIS de o jingle destravar (10 min), e a
+    # ordem J→P se mantém; fora disso, os dois juntos e adjacentes.
+    ts_musica = (instante.strftime("%Y-%m-%d %H:%M:%S")
+                 if travado else ts_jingle)
+    if inserir is None:
+        inserir = _inserir_requests
+    try:
+        ok = inserir(JINGLE_ANUNCIO, uid_musica, ts_jingle, ts_musica)
+    except Exception as exc:
+        log.warn("enfileirar pedido falhou", error=type(exc).__name__)
+        ok = False
+    if not ok:
+        return {"ok": False, "motivo": "recusado"}
+    return {"ok": True, "fila": "azuracast"}
 
 
 def marcar_status(
@@ -569,14 +750,46 @@ def marcar_status(
         conn.close()
 
 
+def confirmar_recados_no_ar(*, banco: Optional[Path] = None) -> int:
+    """Marca como 'tocada' todo recado em 'no_ar' — o jingle começou a tocar.
+
+    O webhook chama isso no instante em que "anuncio musica" entra no ar:
+    o arquivo que o liquidsoap está lendo É a locução com o recado, então
+    o recado foi ao ar e não pode se repetir no ciclo seguinte.
+    Devolve quantos recados confirmados.
+    """
+    banco = banco or BANCO_PEDIDOS
+    if not banco.exists():
+        return 0
+    try:
+        conn = _conexao(banco)
+    except sqlite3.Error:
+        return 0
+    try:
+        cursor = conn.execute(
+            "UPDATE pedidos SET status = 'tocada' WHERE status = 'no_ar'"
+        )
+        conn.commit()
+        return int(cursor.rowcount or 0)
+    except (sqlite3.Error, ValueError):
+        return 0
+    finally:
+        conn.close()
+
+
 def anuncio_de_pedido(
     artista: str, titulo: str, *, banco: Optional[Path] = None
 ) -> str:
     """Fala da locutora para o pedido que está entrando no ar.
 
-    Procura um pedido pendente/na fila da MESMA música e devolve o texto
-    (com o recado do ouvinte) — e o marca como 'tocada', para a locução
-    não repetir o mesmo recado na próxima troca. Sem pedido: "".
+    Duas entradas — a ordem importa, é o par que montar_locucao faz:
+      1. `titulo` é o jingle "anuncio musica" (a PRÓXIMA faixa): é a
+         janela exata do recado — pega o pedido mais antigo em 'na_fila'
+         (ou 'no_ar', de ciclo anterior), marca 'no_ar' e devolve a fala;
+      2. `titulo` é uma música com pedido (a ATUAL, em queda): o recado
+         não foi ao ar a tempo — marca 'tocada' com WARN e devolve ""
+         (o aviso atrasado saía DEPOIS da música: era o bug do 04/11).
+    Sem pedido: "".
     """
     if not titulo:
         return ""
@@ -588,22 +801,43 @@ def anuncio_de_pedido(
     except sqlite3.Error:
         return ""
     try:
-        linhas = conn.execute(
-            "SELECT id, usuario, recado, artista, titulo FROM pedidos"
-            " WHERE status IN ('pendente', 'na_fila') ORDER BY id"
-        ).fetchall()
-        for pedido_id, usuario, recado, ped_artista, ped_titulo in linhas:
-            if not _mesma_musica(str(ped_titulo or ""), titulo):
-                continue
-            if artista and ped_artista and not _mesma_musica(str(ped_artista), artista):
-                continue
-            conn.execute("UPDATE pedidos SET status = 'tocada' WHERE id = ?",
-                         (int(pedido_id),))
+        if _mesma_musica(titulo, ANUNCIO_TITULO):
+            linha = conn.execute(
+                "SELECT id, usuario, recado FROM pedidos"
+                " WHERE status IN ('na_fila', 'no_ar')"
+                " ORDER BY id LIMIT 1"
+            ).fetchone()
+            if linha is None:
+                return ""
+            pedido_id, usuario, recado = linha
+            conn.execute(
+                "UPDATE pedidos SET status = 'no_ar' WHERE id = ?",
+                (int(pedido_id),),
+            )
             conn.commit()
             recado = str(recado or "").strip()
             if recado:
                 return f"Pedido de {usuario}: {recado}"
             return f"Pedido do ouvinte {usuario}."
+        linhas = conn.execute(
+            "SELECT id, usuario, recado, artista, titulo, status FROM pedidos"
+            " WHERE status IN ('pendente', 'na_fila', 'no_ar') ORDER BY id"
+        ).fetchall()
+        for pedido_id, usuario, recado, ped_artista, ped_titulo, status in linhas:
+            if not _mesma_musica(str(ped_titulo or ""), titulo):
+                continue
+            if artista and ped_artista and not _mesma_musica(
+                    str(ped_artista), artista):
+                continue
+            conn.execute(
+                "UPDATE pedidos SET status = 'tocada' WHERE id = ?",
+                (int(pedido_id),),
+            )
+            conn.commit()
+            if status in ("na_fila", "no_ar"):
+                log.warn("recado não foi ao ar antes da música",
+                         pedido=int(pedido_id), status=str(status))
+            return ""
     except sqlite3.Error:
         return ""
     finally:
@@ -620,8 +854,10 @@ def lancar_pedido_na_fila(
     """Empurra o pedido para a fila REAL da estação (ordem do dono 04/11).
 
     "Ligue o pedido de música para tocar de verdade na rádio, com fila":
-    o AzuraCast é quem enfileira (ele segura repetição e respeita o
-    histórico de tocadas) — aqui só submete e atualiza o status.
+    o AzuraCast é quem enfileira — o pedido entra como JINGle + MÚSICA
+    (pedir_no_ar), com a ordem já garantida [jingle, música] para o
+    recado cair na vinheta imediatamente anterior. Aqui só submete e
+    atualiza o status.
 
     Devolve o MESMO pedido com:
       fila="azuracast"         → aceito, status vira 'na_fila';

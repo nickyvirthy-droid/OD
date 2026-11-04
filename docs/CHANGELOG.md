@@ -12,6 +12,40 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Recado SEMPRE no ar + 1 pedido/30 min + chaves órfãs (2026-11-04, sem bump)
+
+**Resumo:** ordens do dono (04/11, fim de tarde): corrigir o **bug do recado
+da locutora que não foi ao ar** (provado 2× hoje — pedidos id=2 e id=3
+tocaram e a fala não saiu), **1 pedido por usuário a cada 30 minutos** e
+**apagar as 2 chaves órfãs** do AzuraCast. Causa raiz apurada na fonte:
+`shouldPlayNow` sorteia `15 + random_int(0..15)` min **por request**
+submetido via API (a ordem jingle→música nunca foi garantida), o aviso nascia
+fora da janela e `processar` reescrevia o MP3 no instante da leitura. Agora o
+jingle e a música entram **juntos e adjacentes** por INSERT direto, o recado
+nasce quando o jingle é a **próxima** faixa e o arquivo é **preservado**
+quando o jingle toca.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/radio_pro.py`** | `pedir_no_ar()` reescrita: descobre o `unique_id` (24 hex validado) em `GET /requests` e injeta **J (`anuncio musica`) + P** em `station_requests` via **mesmo INSERT do `SubmitAction`** (`_mariadb` = docker exec no mariadb; `jingle_recente`/`inserir`/`rodar` injetáveis — rede e container fora do gate), ts = **now−31 min** (`ATRASO_SEGURO_MIN` vence o pior sorteio 15+15) → o AutoDJ monta **[J, P] adjacentes** por `id`; jingle tocado há <10 min (`JINGLE_ESPERA_MIN`, `/history played_at`) → P com ts normal, espera J destravar e **a ordem se mantém**; `anuncio_de_pedido()` em 2 ramos (jingle como **próxima** → pedido mais antigo em `na_fila/no_ar` → status **`no_ar`** + fala; música do pedido na atual → drop + **WARN**, fim do aviso atrasado); `confirmar_recados_no_ar()` (`no_ar→tocada`); `criar_pedido()` com **`COOLDOWN_MINUTOS=30`** (motivo `limite_tempo`, `agora` injetável) no lugar de `ja_tem_pedido`/`limite_diario`. |
+| **`integrations/radio_webhook.py`** | `processar()`: `now_playing` é o jingle → **não gera nada** (o liquidsoap está lendo a locução com o recado) e confirma via `confirmar_fn` (padrão `confirmar_recados_no_ar`), log `Jingle no ar — locução preservada`; `montar_locucao()` com o comentário da janela (alvo segue `playing_next`). |
+| **`integrations/api/server.py`** | mapa de motivos: `limite_tempo → 429` (o 409 do antigo `ja_tem_pedido` saiu). |
+| **`site/radio-pro.html`** | mensagem 429 "Você pediu há pouco — espere 30 minutos…", ramo 409 removido, label `no_ar` "saindo no ar". |
+| **Chaves** | `DELETE` das 2 órfãs (`odradio1`, `9b4e93652a048442`); restou **só `bca7d6593b9f9454`**, verificada (sha512 do segredo bate com o `.env`; `/requests` → 200 com 267 pedíveis). |
+| **Guardas** | `tests/test_radio_pro.py` 48 → **57** (cooldown nas 2 direções, pedidos antigos não bloqueiam, parser do INSERT ×3, uid sujo não chega ao SQL, janelas do jingle, ts backdatado/travado, ramos do anuncio) e `tests/test_radio_webhook.py` +3 (janela do jingle em `montar`; skip+confirm em `processar` ×2). |
+
+**Validação:** gate oficial **4127 passed / 16 skipped / 0 falha** (era 4115) ·
+pyflakes 0 aviso novo (4 pre-existentes no `server.py`) · `node --check` no JS
+da página OK · **prova viva ponta a ponta:** pedido de teste → `na_fila` com
+INSERT ts−31 → fila `[18:54:54] anuncio musica req=True` +
+`[18:55:12] Amanda Wanessa req=True` **adjacentes** → aviso 18:49:21
+(`no_ar`) → jingle 18:54:59 (`Jingle no ar — locução preservada |
+confirmados=1`, `tocada`, arquivo não regravado) → música 18:55:17
+`req=True` — **recado no ar antes da música**, 0 `[ERROR]`. Defeito pego ao
+vivo na própria prova (parser da linha `st` do mariadb) corrigido com 3
+testes de regressão. **Sem bump de versão** (mudança só de servidor/site):
+segue **1.44.0/2080**.
+
 ## Fila REAL de pedidos + 2ª fonte de letra (2026-11-04, sem bump)
 
 **Resumo:** ordens do dono (04/11, 14:39): *"Ligue o pedido de música para

@@ -517,3 +517,71 @@ class TestAvisoDePedido:
         assert r["status"] == "ok"
         assert tts.texto is not None
         assert tts.texto.startswith("Pedido de ana: valeu!")
+
+    def test_jingle_na_fila_e_a_janela_exata_do_recado(self) -> None:
+        """Pedido entra com o JINGLE do lado: próxima = "anuncio musica"."""
+        payload = {
+            "now_playing": {"duration": 200, "elapsed": 42, "song": {
+                "artist": "Tim Maia", "title": "Azul da Cor do Mar",
+                "custom_fields": {}}},
+            "playing_next": {"song": {"artist": "",
+                                      "title": "anuncio musica",
+                                      "custom_fields": {}}},
+        }
+        alvos: list[tuple[str, str]] = []
+
+        def pedido(a: str, t: str) -> str:
+            alvos.append((a, t))
+            return ("Pedido de ana: manda ver."
+                    if t == "anuncio musica" else "")
+
+        texto = self._montar(pedido, payload=payload)
+        # a janela é a próxima: curto-circuito, nem consulta a atual
+        assert alvos == [("", "anuncio musica")]
+        assert texto.startswith("Pedido de ana: manda ver.")
+
+
+# ===========================================================================
+# Jingle no ar: o arquivo LIDO agora É o recado — nada se regrava nesta
+# janela e o recado confirmado sai de 'no_ar' (ordem do dono, 04/11:
+# "o recado vai ao ar ANTES da música, sempre")
+# ===========================================================================
+
+class TestJingleNoAr:
+    PAYLOAD_JINGLE = {
+        "now_playing": {"duration": 12, "elapsed": 1, "song": {
+            "artist": "", "title": "anuncio musica", "custom_fields": {}}},
+        "playing_next": {"song": {"artist": "Tim Maia",
+                                  "title": "Azul da Cor do Mar"}},
+    }
+
+    def test_pula_a_geracao_e_confirma_o_recado(self, tmp_path: Path) -> None:
+        tts = TTSFalso()
+        destino = tmp_path / "anuncio.mp3"
+        destino.write_bytes(b"locucao-com-recado")
+        confirmados: list[int] = []
+
+        r = processar(
+            self.PAYLOAD_JINGLE, tts=tts, db=DBFalso(), destino=destino,
+            rng=RNGFalso(), noticia_fn=lambda: "", clima_fn=lambda: "",
+            curiosidade_fn=lambda a, t: "",
+            confirmar_fn=lambda: confirmados.append(1) or 1,
+        )
+        assert r["status"] == "ok" and r["frase"] == "jingle_no_ar"
+        # o arquivo no ar NÃO é tocado: sem síntese, sem troca
+        assert tts.texto is None
+        assert destino.read_bytes() == b"locucao-com-recado"
+        assert confirmados == [1]
+
+    def test_confirmacao_quebrada_nao_derruba_o_webhook(
+            self, tmp_path: Path) -> None:
+        def confirma():
+            raise RuntimeError("banco caiu")
+
+        r = processar(
+            self.PAYLOAD_JINGLE, tts=TTSFalso(), db=DBFalso(),
+            destino=tmp_path / "anuncio.mp3", rng=RNGFalso(),
+            noticia_fn=lambda: "", clima_fn=lambda: "",
+            curiosidade_fn=lambda a, t: "", confirmar_fn=confirma,
+        )
+        assert r["status"] == "ok"

@@ -48,7 +48,11 @@ from zoneinfo import ZoneInfo
 from core.logger import get_logger
 from integrations.radio import frase_aleatoria, frase_formatada
 from integrations.radio_agora import curiosidade_da_musica
-from integrations.radio_pro import anuncio_de_pedido
+from integrations.radio_pro import (
+    ANUNCIO_TITULO,
+    anuncio_de_pedido,
+    confirmar_recados_no_ar,
+)
 
 __signature__ = "OD // CORE"
 
@@ -225,11 +229,13 @@ def montar_locucao(
     )
 
     # Aviso de pedido do ouvinte (ordem do dono, 04/11: "com fila e aviso
-    # da locutora"): a locutora lê o recado ANTES de a música tocar. Esta
-    # locução nasce durante a música atual e vira vinheta antes da
-    # próxima — o alvo é playing_next; se algum ciclo perder, o
-    # now_playing ainda é anunciado (anuncio_de_pedido marca 'tocada' na
-    # primeira leitura, então a fala nunca repete).
+    # da locutora"): a locutora lê o recado ANTES de a música tocar. O
+    # pedido entra na fila com o JINGLE do lado ("anuncio musica" é a
+    # próxima) — esta é a janela exata: o recado nasce aqui, o arquivo
+    # vai pro ar no jingle e o processar confirma no_ar→tocada na hora.
+    # Se a música tocar sem o jingle ter ido ao ar, anuncio_de_pedido
+    # derruba o recado com WARN (nada de fala atrasada DEPOIS da música,
+    # que era o bug do 04/11).
     aviso = (pedido_fn(str(next_song.get("artist") or ""),
                        str(next_song.get("title") or ""))
              or pedido_fn(str(song.get("artist") or ""),
@@ -312,6 +318,7 @@ def processar(
     clima_fn: Optional[Callable[[], str]] = None,
     curiosidade_fn: Optional[Callable[[str, str], str]] = None,
     pedido_fn: Optional[Callable[[str, str], str]] = None,
+    confirmar_fn: Optional[Callable[[], int]] = None,
 ) -> dict[str, Any]:
     """Webhook completo: monta a fala, gera o MP3 e o entrega ao AzuraCast.
 
@@ -319,9 +326,30 @@ def processar(
     rádio; o MP3 é gravado em tmp e trocado no destino com os.replace
     (atômico) — o liquidsoap lê o arquivo no minuto em que toca.
 
+    Quando o que está tocando É o jingle "anuncio musica", nada é gerado:
+    o arquivo no ar é justamente o recado — só se confirma (no_ar→tocada)
+    via `confirmar_fn` (padrão: confirmar_recados_no_ar).
+
     Devolve {"status": "ok", "frase": texto, ...} do legado; nunca lança.
     """
     try:
+        # Jingle no ar: o liquidsoap está lendo AGORA a locução com o
+        # recado — não se regrava o arquivo nesta janela (conteúdo
+        # determinístico, sem corrida com a síntese) e o recado confirmado
+        # sai de 'no_ar' para 'tocada'.
+        tocando = str((((payload.get("now_playing") or {}).get("song"))
+                       or {}).get("title") or "").strip().lower()
+        if tocando == ANUNCIO_TITULO:
+            try:
+                confirmar = confirmar_fn or confirmar_recados_no_ar
+                confirmados = int(confirmar())
+            except Exception as exc:  # noqa: BLE001 — confirmação é extra
+                log.warn("confirmação do recado falhou", error=str(exc))
+                confirmados = 0
+            log.info("Jingle no ar — locução preservada",
+                     confirmados=confirmados)
+            return {"status": "ok", "frase": "jingle_no_ar",
+                    "arquivo": str(destino)}
         texto = montar_locucao(
             payload, db, rng=rng, agora=agora,
             noticia_fn=noticia_fn, clima_fn=clima_fn,

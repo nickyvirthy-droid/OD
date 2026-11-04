@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -180,10 +180,11 @@ CAMINHO = "acervo/Gospel/Fernandinho - Todas as Coisas.mp3"
 
 
 class TestPedidos:
-    def _criar(self, bancos, usuario="ana", caminho=CAMINHO, recado=""):
+    def _criar(self, bancos, usuario="ana", caminho=CAMINHO, recado="",
+               agora=None):
         return rp.criar_pedido(usuario, caminho, recado,
                                banco=bancos["pedidos"],
-                               banco_acervo=bancos["acervo"])
+                               banco_acervo=bancos["acervo"], agora=agora)
 
     def test_pedido_valido_entra_pendente(self, bancos) -> None:
         p = self._criar(bancos, recado="  toca   essa   pra   mim  ")
@@ -207,26 +208,30 @@ class TestPedidos:
         with pytest.raises(ValueError, match="recado_longo"):
             self._criar(bancos, recado="a" * (rp.RECADO_MAX + 1))
 
-    def test_um_pendente_por_conta(self, bancos) -> None:
+    def test_cooldown_de_meia_hora_por_conta(self, bancos) -> None:
+        """Um pedido por conta a cada 30 min — o relógio é o limite."""
         self._criar(bancos)
-        with pytest.raises(ValueError, match="ja_tem_pedido"):
+        with pytest.raises(ValueError, match="limite_tempo"):
             self._criar(bancos)
         # outra conta não é afetada
         self._criar(bancos, usuario="bia")
+        # passada a meia hora da MESMA conta, pode pedir de novo
+        depois = datetime.now() + timedelta(minutes=rp.COOLDOWN_MINUTOS + 1)
+        assert self._criar(bancos, agora=depois)["status"] == "pendente"
 
-    def test_limite_diario(self, bancos) -> None:
+    def test_pedidos_antigos_nao_bloqueiam(self, bancos) -> None:
+        """Os status antigos saíram de cena: só o tempo desde o último conta."""
         rp._conexao(bancos["pedidos"]).close()
         conn = sqlite3.connect(str(bancos["pedidos"]))
-        hoje = time.strftime("%Y-%m-%d")
-        for i in range(rp.PEDIDOS_POR_DIA):
+        ontem = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        for _ in range(3):                      # eram as3/dia do limite_diario
             conn.execute(
                 "INSERT INTO pedidos (criado_em, usuario, artista, titulo,"
                 " caminho, recado, status) VALUES (?, ?, '', '', ?, '', 'tocada')",
-                (f"{hoje}T0{i}:00:00", "ana", CAMINHO))
+                (ontem, "ana", CAMINHO))
         conn.commit()
         conn.close()
-        with pytest.raises(ValueError, match="limite_diario"):
-            self._criar(bancos)
+        assert self._criar(bancos)["status"] == "pendente"
 
     def test_meus_pedidos_nao_vaza_de_outra_conta(self, bancos) -> None:
         self._criar(bancos, usuario="ana")
@@ -405,26 +410,65 @@ class TestFilaAzuraCast:
         r = rp.pedir_no_ar("Fernandinho", "Todas as Coisas", chave="")
         assert r == {"ok": False, "motivo": "sem_chave"}
 
-    def test_encontra_na_lista_e_envia_para_a_fila(
+    def test_encontra_na_lista_e_enfileira_jingle_e_musica(
             self, monkeypatch) -> None:
-        chamadas: list[tuple[str, str]] = []
+        uid = "abc123abc123abc123abc123"
+        caminhos: list[tuple[str, str]] = []
 
         def fake(caminho, *, metodo="GET", api=None, chave=None,
                  timeout=8.0):
-            chamadas.append((metodo, caminho))
-            if metodo == "GET":
-                return 200, [{
-                    "request_url": "/api/station/1/request/abc123",
-                    "song": {"artist": "Fernandinho",
-                             "title": "Todas as Coisas"}}]
-            return 200, {"ok": True}
+            caminhos.append((metodo, caminho))
+            return 200, [{
+                "request_url": f"/api/station/1/request/{uid}",
+                "song": {"artist": "Fernandinho",
+                         "title": "Todas as Coisas"}}]
+
+        chamado: dict[str, str] = {}
+
+        def inserir(uj: str, up: str, tsj: str, tsp: str) -> bool:
+            chamado.update(jingle=uj, musica=up,
+                           ts_jingle=tsj, ts_musica=tsp)
+            return True
 
         monkeypatch.setattr(rp, "_azuracast", fake)
-        r = rp.pedir_no_ar("Fernandinho", "Todas as Coisas", chave="k")
+        r = rp.pedir_no_ar("Fernandinho", "Todas as Coisas", chave="k",
+                           jingle_recente=lambda: False, inserir=inserir)
         assert r == {"ok": True, "fila": "azuracast"}
-        assert chamadas == [
-            ("GET", "/api/station/nicky/requests"),
-            ("POST", "/api/station/1/request/abc123")]
+        assert caminhos == [("GET", "/api/station/nicky/requests")]
+        assert chamado["jingle"] == rp.JINGLE_ANUNCIO
+        assert chamado["musica"] == uid
+        # os DOIS nascem com31 min já consumidos → ordem J→P fixa na fila
+        assert chamado["ts_jingle"] == chamado["ts_musica"]
+        nascimento = datetime.strptime(chamado["ts_jingle"],
+                                       "%Y-%m-%d %H:%M:%S")
+        desde = datetime.now() - nascimento
+        assert timedelta(minutes=rp.ATRASO_SEGURO_MIN - 1) <= desde <= \
+            timedelta(minutes=rp.ATRASO_SEGURO_MIN + 1)
+
+    def test_jingle_recente_deixa_a_musica_com_atraso_normal(
+            self, monkeypatch) -> None:
+        """Jingle travado nos10 min → música com timestamp NORMAL.
+
+        A música só fica jogável (15 min) depois de o jingle destravar
+        (10 min): a ordem J→P sobrevive mesmo com o bloqueio.
+        """
+        uid = "abc123abc123abc123abc123"
+        monkeypatch.setattr(
+            rp, "_azuracast",
+            lambda *a, **k: (200, [{"request_url":
+                                    f"/api/station/1/request/{uid}",
+                                    "song": {"artist": "A", "title": "B"}}]),
+        )
+        chamado: dict[str, str] = {}
+
+        def inserir(uj: str, up: str, tsj: str, tsp: str) -> bool:
+            chamado.update(ts_jingle=tsj, ts_musica=tsp)
+            return True
+
+        r = rp.pedir_no_ar("A", "B", chave="k",
+                           jingle_recente=lambda: True, inserir=inserir)
+        assert r == {"ok": True, "fila": "azuracast"}
+        assert chamado["ts_musica"] > chamado["ts_jingle"]
 
     def test_fora_da_lista_e_nao_pedivel(self, monkeypatch) -> None:
         monkeypatch.setattr(rp, "_azuracast",
@@ -433,28 +477,105 @@ class TestFilaAzuraCast:
         assert r == {"ok": False, "motivo": "nao_pedivel"}
 
     def test_url_de_fora_da_api_e_ignorada(self, monkeypatch) -> None:
-        def fake(caminho, *, metodo="GET", api=None, chave=None,
-                 timeout=8.0):
-            if metodo == "GET":
-                return 200, [{"request_url": "http://evil.tld/x",
-                              "song": {"artist": "A", "title": "B"}}]
-            raise AssertionError("não deve POSTar para fora")
+        monkeypatch.setattr(
+            rp, "_azuracast",
+            lambda *a, **k: (200, [{"request_url": "http://evil.tld/x",
+                                    "song": {"artist": "A", "title": "B"}}]),
+        )
 
-        monkeypatch.setattr(rp, "_azuracast", fake)
-        r = rp.pedir_no_ar("A", "B", chave="k")
+        def nao_deve_chamar(*_a):
+            raise AssertionError("não deve enfileirar URL de fora")
+
+        r = rp.pedir_no_ar("A", "B", chave="k",
+                           jingle_recente=lambda: False,
+                           inserir=nao_deve_chamar)
         assert r == {"ok": False, "motivo": "nao_pedivel"}
 
-    def test_azuracast_recusa_e_vira_recusado(self, monkeypatch) -> None:
-        def fake(caminho, *, metodo="GET", api=None, chave=None,
-                 timeout=8.0):
-            if metodo == "GET":
-                return 200, [{"request_url": "/api/station/1/request/x",
-                              "song": {"artist": "A", "title": "B"}}]
-            return 409, None                    # já está na fila
+    def test_id_que_nao_e_unique_id_nao_vai_ao_sql(self, monkeypatch) -> None:
+        """Só unique_id de24 hex chega ao mariadb (nada de SQL de fora)."""
+        monkeypatch.setattr(
+            rp, "_azuracast",
+            lambda *a, **k: (200, [{"request_url":
+                                    "/api/station/1/request/nao-e-hex",
+                                    "song": {"artist": "A", "title": "B"}}]),
+        )
 
-        monkeypatch.setattr(rp, "_azuracast", fake)
-        r = rp.pedir_no_ar("A", "B", chave="k")
+        def nao_deve_chamar(*_a):
+            raise AssertionError("não deve chamar o inserir")
+
+        r = rp.pedir_no_ar("A", "B", chave="k",
+                           jingle_recente=lambda: False,
+                           inserir=nao_deve_chamar)
+        assert r == {"ok": False, "motivo": "nao_pedivel"}
+
+    def test_insercao_recusada_ou_quebrada_vira_recusado(
+            self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            rp, "_azuracast",
+            lambda *a, **k: (200, [{"request_url":
+                                    "/api/station/1/request/"
+                                    "abc123abc123abc123abc123",
+                                    "song": {"artist": "A", "title": "B"}}]),
+        )
+        r = rp.pedir_no_ar("A", "B", chave="k",
+                           jingle_recente=lambda: False,
+                           inserir=lambda *_a: False)
         assert r == {"ok": False, "motivo": "recusado"}
+
+        def quebra(*_a):
+            raise RuntimeError("docker morreu")
+
+        r = rp.pedir_no_ar("A", "B", chave="k",
+                           jingle_recente=lambda: False, inserir=quebra)
+        assert r == {"ok": False, "motivo": "recusado"}
+
+    def test_inserir_monta_o_insert_com_os_dois_ids(self) -> None:
+        """O INSERT sai com estação, os DOIS tracks e os DOIS timestamps."""
+        uid_j, uid_p = "a" * 24, "b" * 24
+        vistas: list[str] = []
+
+        def rodar(sql: str) -> tuple[bool, str]:
+            vistas.append(sql)
+            if "station_media" in sql:
+                return True, (f"mid\t{uid_j}\t7\n"
+                              f"mid\t{uid_p}\t423\n"
+                              "st\t\t1\n")
+            return True, ""
+
+        ok = rp._inserir_requests(uid_j, uid_p,
+                                  "2026-11-04 17:00:00",
+                                  "2026-11-04 17:00:00", rodar=rodar)
+        assert ok is True
+        insert = vistas[-1]
+        assert "INSERT INTO station_requests" in insert
+        assert "(1, 7, '2026-11-04 17:00:00', 0, 'od-core')" in insert
+        assert "(1, 423, '2026-11-04 17:00:00', 0, 'od-core')" in insert
+
+    def test_inserir_sem_estacao_nao_insere_nada(self) -> None:
+        """Linha da estação faltando → nada de INSERT pela metade."""
+        uid_j, uid_p = "a" * 24, "b" * 24
+        vistas: list[str] = []
+
+        def rodar(sql: str) -> tuple[bool, str]:
+            vistas.append(sql)
+            if "station_media" in sql:
+                return True, f"mid\t{uid_j}\t7\nmid\t{uid_p}\t423\n"
+            return True, ""
+
+        ok = rp._inserir_requests(uid_j, uid_p,
+                                  "2026-11-04 17:00:00",
+                                  "2026-11-04 17:00:00", rodar=rodar)
+        assert ok is False
+        assert len(vistas) == 1          # só o SELECT: nenhum INSERT
+
+    def test_inserir_uid_fora_do_padrao_nem_chama_o_sql(self) -> None:
+        def rodar(*_a):
+            raise AssertionError("não deve tocar o banco com uid sujo")
+
+        assert rp._inserir_requests("'; DROP TABLE", "b" * 24,
+                                    "2026-11-04 17:00:00",
+                                    "2026-11-04 17:00:00",
+                                    rodar=rodar) is False
 
     def test_marcar_status_muda_a_linha(self, bancos) -> None:
         p = self._criar(bancos)
@@ -466,21 +587,50 @@ class TestFilaAzuraCast:
         assert rp.marcar_status(1, "na_fila",
                                 banco=tmp_path / "nada.db") is False
 
-    def test_anuncio_carrega_o_recado_e_marca_tocada(self, bancos) -> None:
+    def test_aviso_no_jingle_marca_no_ar_e_confirma(self, bancos) -> None:
+        """Janela exata: próxima=jingle → recado entra e vira 'no_ar'."""
         p = self._criar(bancos, usuario="alex", recado="boa noite pra dona")
-        texto = rp.anuncio_de_pedido("Fernandinho", "Todas as Coisas",
+        rp.marcar_status(p["id"], "na_fila", banco=bancos["pedidos"])
+        texto = rp.anuncio_de_pedido("", "anuncio musica",
                                      banco=bancos["pedidos"])
         assert texto == "Pedido de alex: boa noite pra dona"
+        assert self._status(bancos, p["id"]) == "no_ar"
+        # jingle seguinte sem janela nova mantém o recado vivo
+        assert rp.anuncio_de_pedido("", "anuncio musica",
+                                    banco=bancos["pedidos"]) == texto
+        # o webhook confirma no INSTANTE em que o jingle toca
+        assert rp.confirmar_recados_no_ar(banco=bancos["pedidos"]) == 1
         assert self._status(bancos, p["id"]) == "tocada"
-        # segunda vez não repete a fala
-        assert rp.anuncio_de_pedido("Fernandinho", "Todas as Coisas",
+        assert rp.anuncio_de_pedido("", "anuncio musica",
                                     banco=bancos["pedidos"]) == ""
 
-    def test_anuncio_sem_recado_fala_só_o_pedido(self, bancos) -> None:
-        self._criar(bancos, usuario="bia", recado="")
-        texto = rp.anuncio_de_pedido("Fernandinho", "Todas as Coisas",
+    def test_aviso_sem_recado_fala_só_o_pedido(self, bancos) -> None:
+        p = self._criar(bancos, usuario="bia", recado="")
+        rp.marcar_status(p["id"], "na_fila", banco=bancos["pedidos"])
+        texto = rp.anuncio_de_pedido("", "anuncio musica",
                                      banco=bancos["pedidos"])
         assert texto == "Pedido do ouvinte bia."
+        assert self._status(bancos, p["id"]) == "no_ar"
+
+    def test_musica_do_pedido_cai_sem_aviso_atrasado(self, bancos) -> None:
+        """O bug do 04/11: música sem o jingle → drop com WARN, nunca
+        fala o recado DEPOIS da música."""
+        p = self._criar(bancos, recado="canta pra mim")
+        rp.marcar_status(p["id"], "na_fila", banco=bancos["pedidos"])
+        assert rp.anuncio_de_pedido("Fernandinho", "Todas as Coisas",
+                                    banco=bancos["pedidos"]) == ""
+        assert self._status(bancos, p["id"]) == "tocada"
+
+    def test_jingle_sem_pedido_nao_fala_nada(self, bancos) -> None:
+        assert rp.anuncio_de_pedido("", "anuncio musica",
+                                    banco=bancos["pedidos"]) == ""
+
+    def test_confirmar_sem_nada_retorna_zero(self, bancos) -> None:
+        assert rp.confirmar_recados_no_ar(banco=bancos["pedidos"]) == 0
+
+    def test_confirmar_sem_banco_retorna_zero(self, tmp_path: Path) -> None:
+        assert rp.confirmar_recados_no_ar(
+            banco=tmp_path / "nada.db") == 0
 
     def test_anuncio_de_outra_musica_nao_marca(self, bancos) -> None:
         p = self._criar(bancos)
@@ -525,10 +675,11 @@ class TestFilaAzuraCast:
         assert r["fila"] is None and r["motivo"] == "recusado"
         assert self._status(bancos, p["id"]) == "pendente"
 
-    def test_na_fila_ocupa_o_limite_de_um_por_conta(self, bancos) -> None:
+    def test_status_nao_substitui_o_relógio(self, bancos) -> None:
+        """Nem 'na_fila' nem 'tocada' liberam antes dos 30 minutos."""
         p = self._criar(bancos)
-        rp.marcar_status(p["id"], "na_fila", banco=bancos["pedidos"])
-        with pytest.raises(ValueError, match="ja_tem_pedido"):
+        rp.marcar_status(p["id"], "tocada", banco=bancos["pedidos"])
+        with pytest.raises(ValueError, match="limite_tempo"):
             self._criar(bancos)
 
     def test_pedido_do_handler_vai_para_a_fila(self) -> None:
