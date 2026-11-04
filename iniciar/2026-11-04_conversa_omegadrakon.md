@@ -179,3 +179,53 @@ continua em `revisar` e eu resolvo.
 **Fila do dono:** decidir o que fazer com *Kailane Frauches - Os Melhores
 Clipes* (compilação) e com as 20 faixas de artista `Desconhecido` (nomes
 finlandeses/poloneses sem artista no título). Itens da §1 continuam abertos.
+
+## §3 — "leia iniciar" (04/11 ~12:45): reverificação de rotina (só leitura)
+
+**Pedido:** usuário: "leia iniciar". Checkpoint anterior: §2 (11:30).
+
+### Estado medido (12:45–12:55)
+
+- **Git:** árvore limpa, `HEAD fde8e21 == origin/master` — o trabalho da §2
+  está publicado, nenhum resíduo.
+- **Serviço:** `od-core` active desde 02/11 17:10:59, MainPID 2928162,
+  **NRestarts=0** (~1 dia e 20 h). `/health` autenticado `ok=true` com
+  **nenhum check fora**; versão 1.44.0/2080 e sha `aeb8566b` inalterados.
+- **Journal:** de 04/11 00:00 até 12:50 — **0 [ERROR] e 0 [WARNING]**.
+- **Borda:** Funnel `/` 200; `/radio.mp3` público 200 `audio/mpeg` e icecast
+  `127.0.0.1:8600` 200 `audio/mpeg`; `/api/radio/agora` público 200 com
+  `Mantra da Prosperidade - Eu Recebo Dinheiro com Gratidão e Alegria`
+  tocando, próxima `Duda Santos - Eu Confio em Ti`, últimas 5 com nomes
+  limpos; `/site/index.html` 200.
+- **Acervo:** AzuraCast 287 mp3 = **285 faixas + 2 locuções** — bate com o
+  resultado da §2.
+- **Vigia (tick 12:48:52):** 6 ativos no ciclo, 0 novos, `rich` true,
+  `pendentes_seguranca []`; 28 dispositivos no inventário. Seguem os **mesmos
+  2 pendentes** de dispositivo (DE:26:20:74:D6:AE / 192.168.0.163 desde
+  01/11 21:53 e F4:F5:E8:53:BA:B0 / 192.168.0.104 desde 02/11 15:26).
+- **Auditoria do chat (04/11 04:32):** 1 turno, veredito `ok`, 0 problemáticos.
+
+### Falso alarme evitado (registro honesto)
+
+Sondei `http://127.0.0.1:8000/radio.mp3` e veio **404** — quase reportei o
+stream caído. O áudio **não mora no od-core**: a 8000 é a API, e o
+`/radio.mp3` é caminho do Funnel → icecast `8600`. Pela rota certa: 200 nos
+dois. (Mesma pegadinha vale para o painel: `8000/listen/...` também 404.)
+
+### Canais do dono
+
+`txt.txt` com mtime 11:33 = **nossa** entrega de 11:30; nenhuma mensagem nova
+dele, e o recado de 02/11 continua preservado no arquivo. `analise/` sem pasta
+nova (só Nicky Radio/, Prompt_Nicky_Musicas.txt e os relatórios de 04/11).
+
+### Fila
+
+1. **Decisão do dono:** *Kailane Frauches - Os Melhores Clipes* é compilação,
+   não faixa — tiro?
+2. **Decisão do dono:** as faixas `Desconhecido` (19 arquivos com esse início
+   de nome) ficam assim ou ele passa os nomes dos artistas?
+3. Abertos da §1: pedido de música pelo usuário (4 decisões), os 2
+   dispositivos da rede e o Item 3 (letra, guardado por direito autoral).
+
+**Ações:** só leitura em git/serviço/banco/containers; nenhuma mutação, sem
+restart (nada de código mudou). Registro + commit/push (7.1) + Telegram (15).
