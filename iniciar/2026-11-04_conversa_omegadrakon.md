@@ -229,3 +229,95 @@ nova (só Nicky Radio/, Prompt_Nicky_Musicas.txt e os relatórios de 04/11).
 
 **Ações:** só leitura em git/serviço/banco/containers; nenhuma mutação, sem
 restart (nada de código mudou). Registro + commit/push (7.1) + Telegram (15).
+
+## §4 — Acervo a limpo + área do ouvinte logado (04/11 13:00–14:40)
+
+**Pedido (4 mensagens):** "1. tira. 2. coloca em uma pasta separada para eu
+analisar. 3. vamos analisar as decisões, verifique o dispositivo por endereço
+MAC, ip pode ser reatribuido, ignore direitos autorais, a rádio não é pública,
+não vai ter muitos usuários" · "crie uma segunda pagina rádio que só aparece
+para usuário logado, nela vai conter a letra da musica e a opção de pedido de
+musica" · "ou paineis que só aparecem para quem estiver logado. o que for
+melhor e mais seguro de implementar" · "conclua".
+
+### 1. Acervo: 285 → 265 faixas
+
+- *Kailane Frauches - Os Melhores Clipes* (era `acervo/Gospel/`) →
+  `removidas/compilacao/`.
+- **19 faixas `Desconhecido*`** → `para_analisar/` (pastas Gospel/ e Outros/
+  mantidas) com `LEIA-ME.txt` (duração e gênero de cada uma). Nada apagado.
+- Mapa reversível: `logs/movidas_20261104_131451.json` (20 itens).
+- `indexar_acervo()` → **265 linhas** no acervo.db, `.m3u` regerados (Gospel,
+  Internacional, MPB, Outros, Pop, Rock, Sertanejo e Mix) e
+  `azuracast:media:sync` → **265 arquivos + 2 locuções = 267** linhas em
+  `station_media`, **0 sobras** das faixas movidas. Rádio seguiu no ar.
+
+### 2. Dispositivos por MAC (IP pode ser reatribuído — pedido do dono)
+
+- **F4:F5:E8:53:BA:B0** — OUI **Google, Inc.**, nome já conhecido na lista de
+  clientes do roteador: **"Chromecast"**, IP .104, última vez 02/11 17:17.
+  É um cast/Google da casa; pode ser nomeado (some a pendência) e, se ele
+  quiser, ganhar reserva DHCP.
+- **DE:26:20:74:D6:AE** — **MAC aleatório** (bit de administração local ligado:
+  `0xDE`), sem nome, IP .163, visto em 01/11 21:53 e 04/11 05:37 → celular ou
+  tablet com MAC privado (Android/iOS). **Consequência:** trocar IP é o menor
+  problema — esse MAC também muda. Nomear/reservar por MAC não segura o
+  aparelho; o caminho é descobrir qual é (quando estiver ligado) e decidir se
+  libera. Ambos estavam dormindo/offline na checagem (ping e portas 8008/8009
+  fechadas).
+
+### 3. Decisões do pedido de música (análise para o dono escolher)
+
+| Decisão | O que já existe (medido) | Recomendação |
+|---|---|---|
+| Quem é "usuário logado" | Contas de verdade: `/auth/register`, `/auth/login`, tabela `users` com papel (hoje **2 contas**: alex, teste) | Usar a conta que já existe (site/chat/app) — nada de login novo |
+| Fila × toca na hora | AzuraCast **já tem** o recurso: `enable_requests=0`, `request_delay=5`, `request_threshold=15` na estação `nicky` | Ligar o pedido nativo com atraso (15–30 min): segura repetição e não atropela a locução |
+| Limite por usuário | — | **1 pendente por conta + 3 por dia** (já implementado no MVP) |
+| "Cadastrar o usuário" | Sem direito autoral na jogada, o cadastro perde a função de infração | Vira curadoria: quem pediu, quando, o que aconteceu + aviso no Telegram |
+
+**Pendente de escolha:** fila (atraso) × tocar na hora — é o que falta para o
+pedido sair da fila e entrar no ar.
+
+### 4. Entregue: área do ouvinte LOGADO (o "melhor e mais seguro")
+
+Segurança primeiro: **o gate é no servidor**, não CSS — anônimo nem recebe o
+HTML (`302 → /chat?next=/radio-pro`); a página pública `/site/radio.html` fica
+exatamente como era.
+
+- **`integrations/radio_pro.py` (NOVO, stdlib)**: `letra_da_musica()` (serviço
+  público lyrics.ovh + cache em arquivo: 7 dias achada, 6 h negativa, teto 400,
+  nunca levanta), `catalogo_musicas()`/`musica_do_acervo()` (acervo.db em
+  `mode=ro`) e `criar_pedido()`/`meus_pedidos()` (SQLite próprio
+  `data/radio_pedidos.db`, WAL, tabela criada na hora — sem migração do core).
+- **Rotas**: `GET /radio-pro`, `GET /api/radio/pro/dados` (401 sem sessão),
+  `POST /api/radio/pro/pedido` (201; 400 fora do acervo/recado > 200; 409 já
+  tem pendente; 429 limite diário). Gate `_sessao_do_ouvinte()`: cookie
+  `od_sessao`, Bearer ou X-API-Key **de conta**, qualquer papel.
+- **`site/radio-pro.html`**: tocando agora, letra, busca no acervo, recado e
+  meus pedidos; 15 s de sondagem; od.css + od-nav.js + to-top (padrão da casa).
+  Link discreto na página pública.
+- **Gate oficial**: **4085 passed / 16 skipped / 0 falha** (era 4061; +24 em
+  `tests/test_radio_pro.py`), `len(ROUTES)` 95 → 98, pyflakes 0 aviso novo,
+  `node --check` OK.
+- **Restart verde** (regra 7.3, gate antes): MainPID **1325274**, NRestarts=0,
+  `/health` ok sem check fora, journal **0 erro / 0 aviso**.
+- **Provas vivas**: anônimo 302 → login; API anônima 401; com chave de conta
+  página **200** (10 214 B) e dados **200** (tocando *Juliano Son — Lindo És +
+  Só Quero Ver Você*, catálogo 40); `POST` pedido **201** (linha de teste
+  criada e **removida** em seguida — a fila real ficou limpa).
+
+### 5. Limites honestos
+
+- **Letra** depende de serviço público: cobre bem pop/MPB (*Legião Urbana —
+  Tempo Perdido* → 941 caracteres) e falha em parte do gospel/lançamentos
+  (*Juliano Son*, *Jota Quest — Do Seu Lado* → "não encontrada"). A página
+  avisa e o resto continua funcionando.
+- **O pedido ainda não toca**: entra como `pendente` e avisa o dono no
+  Telegram; ligar no ar depende da escolha fila × na hora.
+- **Sem bump de versão** (mudança só de servidor/site; precedente do MCP em
+  01/11 e do STT em 02/11): segue **1.44.0/2080**, APK intacto.
+
+**Fila:** (1) fila × na hora; (2) revisar `para_analisar/` e dizer os artistas
+(ou autorizar descarte); (3) nomear o Chromecast (.104) e decidir o aparelho de
+MAC aleatório (.163) — reserva por MAC não resolve; (4) Item 3 (letra) está
+liberado e já tem base pronta.
