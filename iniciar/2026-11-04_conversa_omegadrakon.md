@@ -486,3 +486,118 @@ não existe — a API é 8000, o site é servido por ela).
 **Ações desta troca:** chave API criada (mutação externa autorizada pela
 escolha do dono), código + testes, gate verde, restart verde, provas vivas,
 registro + commit/push (7.1) + txt.txt + Telegram (15).
+
+---
+
+## §7 — Recado SEMPRE no ar + 1 pedido/30 min + chaves órfãs (04/11 17:50–19:10)
+
+**Pedido:** dono mandou fechar três ordens: (a) corrigir o **bug do recado
+da locutora que não foi ao ar** (provado 2× hoje: pedidos **id=2** e
+**id=3** tocaram e o recado não falou), (b) **1 pedido por usuário a cada
+30 minutos**, (c) **apagar as 2 chaves órfãs** do AzuraCast. No meio, pergunta
+respondida: `enable_requests` está **LIGADO** (`request_delay=15`,
+`request_threshold=10`) — o dono não quis saber quem ligou, só se está
+ligado. Checkpoint anterior: §6 (16:30).
+
+### 1. Causa raiz do recado perdido (apurada na fonte, código do AzuraCast)
+
+- **`shouldPlayNow` sorteia `15 + random_int(0..15)` min POR request**
+  submetido via API, e o sorteio é re-rolado a cada build da fila →
+  submeter jingle e música por fora **não garante a ordem J→P** (quase
+  metade das vezes invertida) nem o encaixe no tempo.
+- **`getNextSongFromRequests` roda em TODA construção de fila** (prioridade
+  5) e enfileira o **primeiro request jogável** (ordem `skip_delay DESC,
+  id ASC` = FIFO) como próxima música; bloqueio extra: jingle tocado há
+  **<10 min** (`isDuplicateOfPlayedTrack` / `request_threshold`) trava um
+  novo jingle.
+- Do nosso lado, o aviso nascia na janela errada (quando a música do pedido
+  já estava tocando = tarde demais) e `processar` **reescrevia o MP3 no
+  instante em que o liquidsoap lia o jingle** — corrida pelo arquivo.
+  Resultado empírico: 2 de 2 pedidos perderam o recado.
+
+### 2. O que foi feito
+
+- **Fila com ordem garantida (`radio_pro.py`):** `pedir_no_ar` reescrita —
+  descobre o `unique_id` (24 hex, validado) do pedido na `/requests` e
+  injeta **J (jingle `anuncio musica`) + P (música)** direto em
+  `station_requests` via **mesmo INSERT do `SubmitAction`** (`docker exec
+  azuracast mariadb`; colunas `station_id, track_id, timestamp, skip_delay,
+  ip`), ambos com **ts = now − 31 min** (`ATRASO_SEGURO_MIN` vence o pior
+  sorteio: 15+15=30) → os dois nascem jogáveis e o AutoDJ monta
+  **[J, P] adjacentes** por `id`. **Exceção:** se o jingle tocou nos
+  últimos 10 min (`_jingle_tocou_recentemente`, `/history` campo
+  `played_at`), P fica com ts normal → só fica jogável (+15 min) depois de
+  J destravar (+10 min) — atrasa, mas **a ordem se mantém**. `jingle_recente`
+  e `inserir` injetáveis nos testes (rede e container fora do gate).
+- **Aviso na janela exata:** `anuncio_de_pedido` com 2 ramos —
+  `titulo=="anuncio musica"` (a **PRÓXIMA** faixa) → pedido mais antigo em
+  `na_fila`/`no_ar` → status **`no_ar`** + fala do recado; música do pedido
+  tocando na **ATUAL** → drop com **WARN** (o fallback de aviso atrasado
+  foi removido — fala depois da música era o bug).
+- **Confirmação sem corrida (`radio_webhook.py`):** em `processar`, se
+  `now_playing` é o jingle → **não grava o arquivo** (o liquidsoap está
+  lendo a locução com o recado) e confirma `no_ar→tocada` via
+  `confirmar_recados_no_ar`, log `Jingle no ar — locução preservada`.
+- **Cooldown (ordem b):** `COOLDOWN_MINUTOS=30` em `criar_pedido` — por
+  **conta**, contando do **último pedido de qualquer status** (substitui
+  `ja_tem_pedido`(409) e `limite_diario`); motivo `limite_tempo` → **429**
+  no handler, site com mensagem nova ("espere 30 minutos"), ramo 409
+  removido e label `no_ar` "saindo no ar".
+- **Chaves (ordem c):** `DELETE FROM api_keys WHERE id IN ('odradio1',
+  '9b4e93652a048442')` — restou **só `bca7d6593b9f9454`**, verificada
+  (sha512 do segredo bate com o `AZURACAST_API_KEY` do `.env`;
+  `/requests` → 200 com 267 pedíveis).
+
+### 3. Gate, restarts e defeito pego na prova viva
+
+- **Gate oficial:** `.venv/bin/python -m pytest tests/ -q` →
+  **4127 passed / 16 skipped / 0 falha** (era 4115 da §6; +12: janela do
+  jingle, cooldown, parser do INSERT ×3, skip+confirm ×2 etc.).
+  pyflakes **0 aviso novo** (os 4 do `server.py` são pré-existentes, fora
+  do diff); `node --check` no bloco do site **OK**.
+- **Restarts verdes:** 18:23:44 e ~18:29 (o 2º após o fix abaixo);
+  journal desde o boot **0 [ERROR]**, 2 `[WARN]` `key=restart` esperados.
+- **Bug achado AO VIVO e corrigido:** o 1º `lancar` (18:25) falhou com
+  `AzuraCast sem … estação no acervo | estacao=0` — a linha `st` sai do
+  mariadb como `st<TAB>id<TAB>` e o parser lia a 3ª coluna. Corrigido para
+  `SELECT 'st', '', id` + **3 testes de regressão** do parser (que era a
+  lacuna: os testes injetavam o `inserir` inteiro); 2º restart verde.
+
+### 4. Prova viva ponta a ponta (pedido de teste `teste-recado`)
+
+Pedido id=4, *Amanda Wanessa — É Adorar*, recado "teste do recado — tem
+que falar antes da música":
+
+| hora (BRT) | evento | evidência |
+|---|---|---|
+| 18:25:39 | pedido criado → `lancar` → **`na_fila`** | INSERT id5 (jingle, track 1) + id6 (track 298), **ts 17:57:18 = −31 min**, `ip=od-core` |
+| 18:30:49 | build enfileira **J** | fila `[18:54:54] anuncio musica \| req=True` (pulou rotação) |
+| 18:37:16 | build enfileira **P** | fila `[18:55:12] Amanda Wanessa \| req=True` — **[J,P] adjacentes** |
+| 18:49:21 | **aviso gerado** (Sobre as Águas, next=J) | MP3 260014→339008 B com o recado, status → **`no_ar`**, log `Locução da rádio gerada \| chars=230` |
+| 18:54:59 | **J toca** | log `Jingle no ar — locução preservada \| confirmados=1`, status → **`tocada`**, arquivo **não** regravado (próxima gravação só 18:55:16, após o jingle) |
+| 18:55:17 | **P toca** | history `Amanda Wanessa - É Adorar \| req=True` logo após `anuncio musica \| req=True` |
+
+**Mecanismo físico confirmado:** a mídia `anuncio musica` tem
+`path=locucoes/anuncio_musica.mp3` = **o mesmo arquivo que o od-core
+gera** → a leitura do jingle É a locução com o recado. **Ciclo completo
+`pendente → na_fila → no_ar → tocada`**; 0 `[ERROR]`. Cooldown provado nas
+duas direções (passou dos 30 min → criou id=5; tentativa imediata seguinte
+→ `limite_tempo`).
+
+### 5. Limites honestos e pendências
+
+- **Evidências ficam no banco real:** pedidos de teste id=4 (`tocada`) e
+  id=5 (`pendente`, artefato da prova do cooldown) do usuário
+  `teste-recado` — são a prova; id=5 não dispara nada (sem retentativa).
+- **Jingle travado:** o par pode atrasar ~10–15 min (P espera J destravar),
+  ordem preservada — comportamento documentado na constante `JINGLE_ESPERA_MIN`.
+- A API do AzuraCast continua **não** garantindo ordem por design (é por
+  isso o INSERT direto); se o schema de `station_requests` mudar, os
+  testes de regressão do parser pegam.
+- Restos da §6 seguem: 19 faixas em `para_analisar/`, Chromecast já
+  nomeado. **Sem bump de versão: 1.44.0/2080.**
+
+**Ações desta troca:** código + testes + site, gate verde, 2 restarts
+verdes, prova viva ponta a ponta (fila/histórico/journal), 2 chaves órfãs
+apagadas (mutação externa autorizada pela ordem do dono), registro §7 +
+commit/push (7.1) + txt.txt + Telegram (15).
