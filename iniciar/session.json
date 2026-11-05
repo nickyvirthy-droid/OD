@@ -4508,5 +4508,21 @@
    "iniciar/2026-11-04_conversa_omegadrakon.md"
   ],
   "checkpoint": "radio_pro_menu_historico_faixa_invertida_2026_11_05"
+ },
+ "pedido_por_link_youtube_2026_11_05": {
+  "pedido": "Dono (recado 02/11, item 1, escolhido em 05/11): 'se nao for repetida o sistema baixa, transforma e classifica entao ela passa a fazer parte do acervo. se o link for uma lista, baixa todas, mas vai todar apenas a primeira' + 'se a musica for link deve avisar o dono ... e cadastrar tambem o usuario para que ele possa ser comunicado da infracao'. Checkpoint anterior: radio_pro_menu_historico_faixa_invertida_2026_11_05 (05/11 01:35).",
+  "entrega": "radio_pro.py: pedidos ganhou link/motivo (migracao idempotente PRAGMA+ALTER); link_do_youtube() canoniza watch/youtu.be/shorts/embed/live/music e /playlist?list= (watch?v&list continua video); criar_pedido_link() reusa cooldown 30min, grava conta+link, nasce 'baixando', mesmo link vivo em outra conta = musica_repetida (409); pedido_por_id/atualizar_pedido; meus_pedidos devolve link/motivo. radio_link.py (novo): worker desanexado (python -m integrations.radio_link --pedido id) — extrai entradas com yt-dlp do venv do acervo; roda musica.py oficial com TEMP_DIR/PLAYLIST_FILE/LIMPAR_DIR isolados e drenar_entrada anulado; flock em .od_pipeline.lock; detecta faixa nova no acervo.db via snapshot e chama lancar_pedido_na_fila; pre-checagem de titulo evita download de repetida; lista toca a 1a e baixa entries[1:] em segundo plano; avisa o dono no Telegram (bot usuarios, OD_TELEGRAM_ADMINS) na criacao e no desfecho, com @conta+link (caderneta de infracao). server.py: POST /api/radio/pro/pedido aceita link OU caminho; 201 status baixando + disparo; link_invalido 400, musica_repetida 409; falha de disparo = rejeitada/falha_agendamento; aviso de criacao antes do worker. radio-pro.html: campo de link, pedir() manda link quando preenchido, rotulos baixando/rejeitada + motivos.",
+  "gate": "4166 passed / 16 skipped / 0 falha (eram 4128; +38 de tests/test_radio_link.py: parser, criacao/cooldown/repeticao, migracao de banco antigo, worker single/repetida/falha/lista/1a entrada/idempotencia, aviso e disparo desanexado, fonte do handler e da pagina). node --check do JS inline OK; py_compile OK. server.py mudou -> 1 restart do od-core + health. Versao segue 1.44.0/2080 (sem bump).",
+  "limites": "DOWNLOAD_DELAY=3min entre faixas: lista grande baixa por horas em segundo plano (1a toca na hora) e segura o flock (outros pedidos por link esperam a vez; HTTP nao espera). Repeticao decidida pelo dedupe do pipeline; pre-checagem de titulo e heuristica. Restart com pedido 'baixando' nao retoma o worker automaticamente.",
+  "arquivos": [
+   "integrations/radio_pro.py",
+   "integrations/radio_link.py (novo)",
+   "integrations/api/server.py",
+   "site/radio-pro.html",
+   "tests/test_radio_link.py (novo)",
+   "docs/CHANGELOG.md",
+   "iniciar/2026-11-04_conversa_omegadrakon.md"
+  ],
+  "checkpoint": "pedido_por_link_youtube_2026_11_05"
  }
 }

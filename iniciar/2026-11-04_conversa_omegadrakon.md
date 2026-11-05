@@ -653,3 +653,86 @@ commit/push (7.1) + txt.txt + Telegram (15).
 **Ações desta troca:** código + site + testes, gate verde, correção do
 acervo provada na fonte (MariaDB), registro §8 + commit/push (7.1) +
 txt.txt + Telegram (15).
+
+## §9 — Pedido por link do YouTube (05/11 01:35–02:05)
+
+### 1. A ordem do dono
+
+Recado de 02/11 (item 1), literal: *"usuário logado pode escolher uma musica
+na lista das musicas presentes no servidor. se não quiser nenhuma pode
+enviar o link da musica do youtube, se não for repetida o sistema baixa,
+transforma e classifica então ela passa a fazer parte do acervo. se o link
+for uma lista, baixa todas, mas vai todar apenas a primeira."* E: *"se a
+musica for link deve avisar o dono para que se for incoveniente não toca
+mais e sai da lista, vai cadastrar também o usuário para que ele possa ser
+comunicado da infração."*
+
+### 2. O que foi feito
+
+- **Pedido (`integrations/radio_pro.py`):** a tabela `pedidos` ganhou
+  `link` e `motivo` com migração idempotente (`PRAGMA table_info` +
+  `ALTER TABLE`) — o `data/radio_pedidos.db` real (pedidos antigos) abre
+  sem perder nada. `link_do_youtube()` canoniza vídeo (`watch?v=`,
+  `youtu.be`, `/shorts/`, `/embed/`, `/live/`, `music.youtube.com`) e
+  playlist (`/playlist?list=`); `watch?v=…&list=…` continua vídeo (não
+  baixa a lista por causa de um share de vídeo). `criar_pedido_link()`
+  reusa o cooldown de 30 min, valida o recado (200), grava a conta + link
+  e nasce `baixando`; o MESMO link vivo em outra conta é
+  `musica_repetida` (409). `pedido_por_id()` e `atualizar_pedido()` dão
+  ao worker o que ele precisa; `meus_pedidos()` passou a devolver
+  `link`/`motivo`.
+- **Worker (`integrations/radio_link.py`, novo):** processo desanexado
+  (`start_new_session=True`) para o download/Gemini não prender a thread
+  do `http.server`. Extrai as entradas com o yt-dlp do venv do acervo
+  (o venv do od-core não tem yt-dlp) e roda o `musica.py` oficial com
+  `TEMP_DIR`, `PLAYLIST_FILE` e `LIMPAR_DIR` isolados e
+  `drenar_entrada` anulado — não disputa o `temp/playlist.json` do dono
+  nem mexe em `000/`/`limpar/`; acervo, `.m3u` e AzuraCast são os
+  compartilhados de propósito. `flock` em
+  `/home/alex/dados/musicas/.od_pipeline.lock` serializa execuções (o
+  flock morre com o processo). Depois do pipeline, compara o `acervo.db`
+  antes/depois: faixa nova → preenche artista/título/caminho, chama
+  `lancar_pedido_na_fila`; nada novo → `rejeitada` com
+  `musica_repetida` (código 0 = dedupe do pipeline) ou `falha_download`.
+  Antes de baixar, uma pré-checagem de título evita o download óbvio de
+  repetida. Lista: a PRIMEIRA toca; `entries[1:]` vão para o mesmo
+  worker em segundo plano ("baixa todas"). Aviso ao dono no Telegram
+  (bot `usuarios`, chat `OD_TELEGRAM_ADMINS`) na criação e no desfecho,
+  com @conta + link (caderneta de infração).
+- **Handler (`integrations/api/server.py`):** `POST /api/radio/pro/pedido`
+  aceita `link` **ou** `caminho` (contrato antigo intacto). Link inválido
+  400, repetida 409, recado/limite como antes; 201 com
+  `pedido.status='baixando'` e `baixando: true`. Se o disparo do worker
+  falhar, o pedido vira `rejeitada/falha_agendamento` e o dono é
+  avisado — nada fica "baixando" para sempre. O aviso de criação sai
+  ANTES de o worker começar (link + conta + recado).
+- **Página (`site/radio-pro.html`):** campo "…ou cole o link do YouTube
+  (vídeo ou playlist)". `pedir()` manda `link` quando preenchido e
+  `caminho` quando a escolha é do catálogo; o 201 de link mostra
+  "baixando e classificando"; a lista de pedidos ganhou `baixando`,
+  `rejeitada` e os motivos em português.
+
+### 3. Gate e provas
+
+- `.venv/bin/python -m pytest tests/ -q` → **4166 passed / 16 skipped /
+  0 falha** (+38 de `tests/test_radio_link.py`).
+- `node --check` do JS inline de `radio-pro.html` OK; `py_compile` dos
+  três módulos OK.
+- `server.py` mudou → **1 restart** do `od-core` e health conferido.
+- Versão segue **1.44.0/2080** (sem bump, como combinado).
+
+### 4. Limites conhecidos (honestos)
+
+- O `musica.py` dorme `DOWNLOAD_DELAY` (3 min) entre as faixas: uma lista
+  grande continua baixando por horas em segundo plano — a primeira toca
+  na hora, o resto entra depois. Enquanto o lote roda, o `flock` segura
+  os outros pedidos por link (eles esperam a vez; o HTTP não espera).
+- A repetição é decidida na fonte (dedupe do pipeline). A pré-checagem de
+  título é heurística: um título muito diferente pode baixar à toa, mas o
+  dedupe barra a entrada no acervo.
+- Restart do serviço com pedido `baixando` não retoma o worker
+  automaticamente (o pedido fica visível na página; o dono pode pedir de
+  novo depois do cooldown). Fica como limite conhecido, não como surpresa.
+
+**Ações desta troca:** código + site + testes, gate verde, 1 restart,
+registro §9 + commit/push (7.1) + txt.txt + Telegram (15).
