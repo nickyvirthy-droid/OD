@@ -1,4 +1,17 @@
 {
+ "lista_youtube_lotes_e_faixas_longas_2026_11_05": {
+  "pedido": "Dono (05/11 15:45): 'leia iniciar' (reverificacao, regra 3) + no meio: 'porque o resto das musicas da lista do legiao urbana não foram baixadas?' e 'existem musicas muito longas na lista, varias em um só arquivo, não gosto disso, prefiro separadas. vamos analisar essas também para saber o que vou fazer'. Checkpoint anterior: recado_no_ar_cooldown_chaves_2026_11_04 (04/11 19:15).",
+  "estado": "VERDE antes da mudanca: HEAD 78b0916 == origin/master, arvore limpa; od-core active desde 05/11 01:47:20 MainPID 2014305 NRestarts=0 (~14h); /health ok=true status=up; journal desde 04/11 19:00 = 0 [ERROR] e 54 [WARN] rotineiros; versao 1.44.0/2080.",
+  "bug_resto_lista": "Pedido id=8 (playlist PLk_SH7F8Y60WEjS87AGhEPBNvyjd3lvxh) extraiu 97 entradas, baixou 6 e morreu as 04:03:50 com TimeoutExpired em logs/radio_link_8.log — exatamente 20 min apos o inicio (03:43:50) = TIMEOUT_PRIMEIRA=1200 aplicado ao lote inteiro, porque _baixar_resto() chamava rodar(urls) sem timeout. As 5 faixas ja baixadas ficaram orfas em /tmp/od_link_2z1h3l5i. O dono nao era avisado (so [WARN] no journal).",
+  "correcao": "integrations/radio_link.py: resto da lista em LOTES (LOTE_RESTO=10), cada lote e uma execucao do pipeline (acervo cresce a cada lote) com timeout_do_lote() = 300 s/faixa, piso TIMEOUT_PRIMEIRA, teto TIMEOUT_RESTO; lote que falha nao derruba os seguintes; desfecho avisado ao dono com contagem de lotes e falhas. Sem restart (worker e processo novo por pedido; server.py nao mudou).",
+  "recuperacao_e_gemini": "As 5 faixas orfas + Tempo Perdido passaram pelo pipeline oficial com TEMP_DIR=/tmp/od_link_2z1h3l5i (acervo 267 -> 273) e o /tmp foi removido. ACHADO: GEMINI_API_KEY do .env responde 400 API_KEY_INVALID (testada tambem em gemini-2.5-flash; nao e cota) — por isso as 6 nasceram 'Desconhecido'. Corrigidas com evidencia (lista 'Todas as musicas do Legiao Urbana'): TPE1=Legiao Urbana, TIT2 do titulo, arquivos renomeados, acervo.db 273 sem Desconhecido, .m3u regerados, AzuraCast sincronizado. Acervo tem agora 8 faixas do Legiao.",
+  "analise_longas": "273 faixas / 25,2 h; 42 com >=7 min, 11 candidatas a 'varias em um arquivo'. Medido com ffmpeg silencedetect (-30 dB, 1,2 s) e ffprobe (0 capitulos em todos). Separaveis por silencio: Fernandinho - Louvores que Tocam o Coracao (77:29, 8 emendas; blocos 13:39/6:58/5:21/6:50/5:17/24:30/5:15/3:18/6:18 — um bloco de 24:30 sem pausa) e Blues Gospel - Ele Perdoou Antes do Pedido (40:18, cortes geram fragmentos de 5-20 s = nao separa sozinho). NAO separaveis por silencio (medley emendado): Eyshila/Dani Ferber 8:55 (0 silencios), Morada 8:49 (4 musicas), Fernanda Madaloni 8:32, Casa Worship 8:43, Fhop 7:57, Juliano Son 7:26, Morada 7:23. Mantra da Prosperidade 17:33 e Julliany Souza - Lindo Momento 14:54 sao faixas unicas longas (0 silencios), nao varias musicas. Opcoes para decisao: (a) mover as 2 grandes para removidas/; (b) cortar por marcas de timestamp dadas pelo dono (preciso, tags no mesmo passo); (c) cortar so o que o silencio resolve e revisar faixa a faixa; (d) deixar como esta e nao tocar na radio.",
+  "testes": "GATE OFICIAL .venv/bin/python -m pytest tests/ -q -> 4169 passed / 16 skipped / 0 falha (era 4166; +3 em tests/test_radio_link.py: lotes 10/10/4 com timeout proporcional, lote que falha nao cancela o seguinte, timeout_do_lote cresce e respeita teto). pyflakes 0 aviso nos 2 arquivos; 41 testes no modulo.",
+  "nao_feito": "NAO retomei o resto da lista (91-93 faixas, ~5 h): depende da decisao sobre as faixas longas e da chave do Gemini (sem ela tudo entraria como 'Desconhecido'). NAO implementei a lista de cantores indesejados do txt.txt (recado 05/11 04:34, exemplo Annita) — feature nova com decisoes em aberto. SEM restart e SEM bump (1.44.0/2080).",
+  "fila": "(1) DECISAO do dono sobre as faixas longas (tabela na transcricao §1.5); (2) nova GEMINI_API_KEY (a atual e invalida); (3) retomar o resto da lista depois de (1) e (2); (4) cantores indesejados do txt: onde a lista mora, o que acontece com faixas ja no acervo e o 'baixa, toca para ele e depois deleta'; (5) 19 faixas em para_analisar/ aguardando artistas.",
+  "updated_at": "2026-11-05T17:00:00-03:00",
+  "transcricao": "iniciar/2026-11-05_conversa_omegadrakon.md (§1)"
+ },
  "area_ouvinte_logado_e_acervo_0411_2026_11_04": {
   "pedido": "Dono (04/11 ~13:00): (1) 'tira' a compilacao Kailane; (2) 'coloca em uma pasta separada para eu analisar' as faixas Desconhecido; (3) 'vamos analisar as decisoes, verifique o dispositivo por endereco MAC, ip pode ser reatribuido, ignore direitos autorais, a radio nao e publica, nao vai ter muitos usuarios'; (4) 'crie uma segunda pagina radio que so aparece para usuario logado, nela vai conter a letra da musica e a opcao de pedido de musica. se nao estiver logado ve a pagina que existe agora' + 'ou paineis que so aparecem para quem estiver logado. o que for melhor e mais seguro de implementar' + 'conclua'.",
   "acervo": "285 -> 265 faixas. 'Kailane Frauches - Os Melhores Clipes' (compilacao, estava em acervo/Gospel/) FOI para removidas/compilacao/. 19 faixas 'Desconhecido*' foram para para_analisar/ (mantendo Gospel/ e Outros/) com LEIA-ME.txt listando duracao e genero; nada apagado. Mapa reversivel em logs/movidas_20261104_131451.json (20 itens). indexar_acervo (265 linhas), .m3u regerados, azuracast:media:sync -> 265 arquivos + 2 locucoes = 267 linhas em station_media, 0 sobras. Radio no ar com nomes limpos (Juliano Son, Jorge e Mateus...).",
@@ -938,7 +951,7 @@
   "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
   "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
  },
- "updated_at": "2026-11-04T16:30:00-03:00",
+ "updated_at": "2026-11-05T17:00:00-03:00",
  "auditoria_pendencias_2026_10_20": {
   "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
   "vereditos": {
@@ -2042,7 +2055,7 @@
    "agents": "profiles (7 perfis Plêiade) + nicky_virthy identity/soul"
   }
  },
- "topic": "OmegaDrakon v1.44.0+2080 — PEDIDO DE MUSICA NA FILA REAL DO AZURACAST no ar (§6 04/11): chave API criada pela API oficial do painel, lancar_pedido_na_fila ligado (pendente -> na_fila), aviso da locutora antes de tocar (alvo playing_next), 2a fonte de letra lrclib -> lyrics.ovh, gate 4115 verde, restart verde 16:09 (MainPID 1438243, health 25 checks), pedido do dono id=2 (Ana Castela - Neon) CONFIRMADO na fila do AzuraCast; chaves orfas do AzuraCast (odradio1, 9b4e93652a048442) aguardando decisao dele",
+ "topic": "OmegaDrakon v1.44.0+2080 — LISTA DO YOUTUBE EM LOTES (05/11): o resto da lista morria no timeout de 1200 s do download unico (6 de 97 baixadas); agora lotes de 10 com timeout proporcional, falha de lote nao derruba o resto e o dono e avisado; 5 faixas orfas recuperadas + 6 corrigidas para Legiao Urbana (267 -> 273); gate 4169; GEMINI_API_KEY invalida (400) e analise das 11 faixas longas/multi-musica aguardando decisao do dono sobre cortar ou remover",
  "estado_2026_09_19": {
   "git": "HEAD com alterações no working tree (app/ + iniciar/)",
   "od_core": "active desde 2026-09-18 05:55:15 (PID 413665, NRestarts=0). :8000 e :8001 escutando.",
@@ -3030,7 +3043,7 @@
   "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
   "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
  },
- "last_turn": "2026-11-04T16:30:00-03:00",
+ "last_turn": "2026-11-05T17:00:00-03:00",
  "cache_historico_2026_09_24_fechamento": {
   "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
   "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."

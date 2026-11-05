@@ -71,6 +71,12 @@ TIMEOUT_EXTRAIR = int(os.environ.get("OD_RADIO_LINK_TIMEOUT_EXTRACAO", "180"))
 #: A lista "baixa todas" pode levar horas (DOWNLOAD_DELAY=3 min por faixa);
 #: o teto é só para não deixar um processo pendurado para sempre.
 TIMEOUT_RESTO = int(os.environ.get("OD_RADIO_LINK_TIMEOUT_RESTO", "86400"))
+#: O resto da lista vai em LOTES: cada lote vira uma execução do pipeline
+#: (acervo atualizado a cada lote) e ganha timeout proporcional ao tamanho —
+#: antes o lote inteiro herdava os 1200 s do download único e morria no meio.
+LOTE_RESTO = int(os.environ.get("OD_RADIO_LINK_LOTE_RESTO", "10"))
+SEGUNDOS_POR_FAIXA = int(os.environ.get("OD_RADIO_LINK_SEG_POR_FAIXA",
+                                     "300"))
 
 #: Extração plana (rápida, sem baixar): devolve JSON com url/título de cada
 #: entrada, na ordem da lista. Roda no venv do acervo (tem yt-dlp).
@@ -371,34 +377,71 @@ def _avisar_resultado(
     _avisar(texto, notificar)
 
 
+def timeout_do_lote(quantidade: int) -> int:
+    """Teto de tempo de um lote do resto da lista (nunca o do download único)."""
+    return min(TIMEOUT_RESTO,
+               max(TIMEOUT_PRIMEIRA, SEGUNDOS_POR_FAIXA * max(1, quantidade)))
+
+
 def _baixar_resto(
     restantes: list[dict[str, str]],
     pedido: dict[str, Any],
     *,
     trava: Callable[[], Any],
-    rodar: Callable[[list[str]], int],
+    rodar: Callable[..., int],
     notificar: Optional[Callable[[str], Any]],
+    lote: Optional[int] = None,
 ) -> None:
-    """Lista: baixa TODAS as outras faixas em segundo plano (só a 1ª toca)."""
+    """Lista: baixa TODAS as outras faixas em segundo plano (só a 1ª toca).
+
+    Vai em lotes de ``LOTE_RESTO`` faixas. Cada lote é uma execução do
+    pipeline (o acervo cresce a cada lote) com timeout proporcional ao
+    tamanho — um lote são 10 faixas × 3 min de espera, não caberia nos
+    1200 s do download único. Um lote que falha não derruba os seguintes.
+    """
     urls = [str(item["url"]) for item in restantes if item.get("url")]
     if not urls:
         return
+    tamanho = max(1, int(lote or LOTE_RESTO))
     _avisar(
         f"📥 Lista de @{pedido.get('usuario')}: {len(urls)} faixa(s)"
-        " restante(s) baixando em segundo plano (só a primeira toca agora).",
+        " restante(s) baixando em segundo plano, em lotes de"
+        f" {min(tamanho, len(urls))} (só a primeira toca agora).",
         notificar,
     )
-    try:
-        with trava():
-            codigo = int(rodar(urls) or 0)
-    except Exception as exc:
-        log.warn("download do resto da lista falhou",
-                 error=type(exc).__name__)
-        return
-    if codigo == 0:
+    falhas = 0
+    lotes = 0
+    for inicio in range(0, len(urls), tamanho):
+        bloco = urls[inicio:inicio + tamanho]
+        lotes += 1
+        try:
+            with trava():
+                codigo = int(rodar(
+                    bloco, timeout=timeout_do_lote(len(bloco))) or 0)
+        except Exception as exc:
+            falhas += 1
+            log.warn("download do resto da lista falhou",
+                     error=type(exc).__name__,
+                     lote=f"{inicio + 1}-{inicio + len(bloco)}")
+            continue
+        if codigo != 0:
+            falhas += 1
+            log.warn("lote do resto da lista saiu com erro",
+                     codigo=codigo,
+                     lote=f"{inicio + 1}-{inicio + len(bloco)}")
+    if falhas:
+        _avisar(
+            f"⚠️ Lista de @{pedido.get('usuario')}: {len(urls)} faixa(s)"
+            f" restante(s) em {lotes} lote(s), {falhas} com falha — o resto"
+            " entrou no acervo. Detalhe em logs/radio_link_"
+            f"{pedido.get('id')}.log.",
+            notificar,
+        )
+    else:
         _avisar(
             f"📥 Lista de @{pedido.get('usuario')}: as {len(urls)} faixa(s)"
-            " restantes entraram no acervo.",
+            f" restantes foram processadas em {lotes} lote(s) (as repetidas"
+            " o dedupe descarta).",
             notificar,
         )
 

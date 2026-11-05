@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import sqlite3
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -166,7 +167,7 @@ class TestProcessarPedido:
         return lambda _link: entradas
 
     def _rodar(self, bancos, novos=(), codigo=0, chamadas=None):
-        def rodar(urls):
+        def rodar(urls, **_kw):
             if chamadas is not None:
                 chamadas.append(list(urls))
             for caminho, artista, titulo in novos:
@@ -254,7 +255,7 @@ class TestProcessarPedido:
         r = rl.processar_pedido(
             p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
             extrair=lambda _l: [],
-            rodar=lambda _u: 0, lancar=self._na_fila(bancos),
+            rodar=lambda _u, **_kw: 0, lancar=self._na_fila(bancos),
             notificar=lambda _t: None, trava=contextlib.nullcontext,
         )
         assert r["motivo"] == "link_invalido"
@@ -267,7 +268,7 @@ class TestProcessarPedido:
         avisos: list[str] = []
         primeira = {"feito": False}
 
-        def rodar(lista):
+        def rodar(lista, **_kw):
             chamadas.append(list(lista))
             if not primeira["feito"]:
                 primeira["feito"] = True
@@ -285,6 +286,58 @@ class TestProcessarPedido:
         assert chamadas[0] == [VIDEO], "só a primeira toca agora"
         assert chamadas[1] == urls[1:], "as outras baixam em segundo plano"
         assert any("restante" in a for a in avisos)
+
+    def test_resto_vai_em_lotes_com_timeout_proporcional(self, bancos) -> None:
+        # 25 entradas: a 1ª toca, as 24 restantes vão em lotes de 10/10/4.
+        urls = [VIDEO] + [f"https://youtu.be/{i:011d}" for i in range(24)]
+        p = _criar(bancos, link=LISTA)
+        chamadas: list[list[str]] = []
+        tempos: list[int] = []
+
+        def rodar(lista, **kw):
+            chamadas.append(list(lista))
+            tempos.append(kw.get("timeout"))
+            if len(chamadas) == 1:
+                _adicionar(bancos["acervo"],
+                           "acervo/Outros/Um - Dois.mp3", "Um", "Dois")
+            return 0
+
+        r = rl.processar_pedido(
+            p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
+            extrair=self._extrair(*urls, titulo="Um - Dois"),
+            rodar=rodar, lancar=self._na_fila(bancos),
+            notificar=lambda _t: None, trava=contextlib.nullcontext,
+        )
+        assert r["fila"] is True
+        assert [len(c) for c in chamadas[1:]] == [10, 10, 4]
+        assert tempos[1:] == [rl.timeout_do_lote(n) for n in (10, 10, 4)]
+        assert all(t >= rl.TIMEOUT_PRIMEIRA for t in tempos[1:])
+
+    def test_lote_que_falha_nao_derruba_o_resto(self, bancos) -> None:
+        # 11 restantes em 2 lotes: o 1º estoura o tempo, o 2º continua.
+        urls = [VIDEO] + [f"https://youtu.be/{i:011d}" for i in range(11)]
+        p = _criar(bancos, link=LISTA)
+        chamadas: list[list[str]] = []
+        avisos: list[str] = []
+
+        def rodar(lista, **kw):
+            chamadas.append(list(lista))
+            if len(chamadas) == 1:
+                _adicionar(bancos["acervo"],
+                           "acervo/Outros/Um - Dois.mp3", "Um", "Dois")
+                return 0
+            if len(chamadas) == 2:
+                raise subprocess.TimeoutExpired("musica.py", 3000)
+            return 0
+
+        rl.processar_pedido(
+            p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
+            extrair=self._extrair(*urls, titulo="Um - Dois"),
+            rodar=rodar, lancar=self._na_fila(bancos),
+            notificar=avisos.append, trava=contextlib.nullcontext,
+        )
+        assert len(chamadas) == 3, "o lote que falhou não cancela o seguinte"
+        assert any("com falha" in a for a in avisos)
 
     def test_escolhe_a_faixa_da_primeira_entrada(self, bancos) -> None:
         p = _criar(bancos)
@@ -314,6 +367,13 @@ class TestProcessarPedido:
             trava=contextlib.nullcontext,
         )
         assert r["motivo"] == "ja_processado" and chamadas == []
+
+
+class TestTimeoutDoLote:
+    def test_cresce_com_o_tamanho_e_respeita_o_teto(self) -> None:
+        assert rl.timeout_do_lote(1) == rl.TIMEOUT_PRIMEIRA
+        assert rl.timeout_do_lote(10) == rl.SEGUNDOS_POR_FAIXA * 10
+        assert rl.timeout_do_lote(10**6) == rl.TIMEOUT_RESTO
 
 
 class TestAvisoEDisparo:

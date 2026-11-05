@@ -12,6 +12,43 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Lista do YouTube: resto baixado em lotes (2026-11-05, sem bump)
+
+**Resumo:** pergunta do dono (05/11): *"porque o resto das musicas da lista do
+legiao urbana não foram baixadas?"*. Medido no log do worker: a lista tem 97
+entradas na extração, **6 foram baixadas** (1 tocou, 5 ficaram no `/tmp`) e o
+resto nunca foi baixado. Causa raiz em `integrations/radio_link.py`: o
+"resto da lista" chamava `rodar_pipeline` **sem timeout** e herdava o
+`TIMEOUT_PRIMEIRA` (1200 s) do download único — o lote de 96 faixas × 3 min de
+`DOWNLOAD_DELAY` foi morto aos 20 min com `TimeoutExpired`. O `except` só
+deixava um `[WARN]` no journal; o dono não era avisado.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/radio_link.py`** | o resto da lista vai em **lotes** (`LOTE_RESTO=10`); cada lote é uma execução do pipeline (o acervo cresce a cada lote) e ganha `timeout_do_lote()` = `SEGUNDOS_POR_FAIXA` (300 s) × faixas, com piso `TIMEOUT_PRIMEIRA` e teto `TIMEOUT_RESTO`; **lote que falha não derruba os seguintes**; o desfecho é avisado ao dono com contagem de lotes e de falhas (antes só logava). |
+| **`tests/test_radio_link.py`** | +3 guardas (41 no módulo): resto em lotes de 10/10/4 com timeout proporcional; lote que estoura o tempo não cancela o seguinte e o aviso diz "com falha"; `timeout_do_lote()` cresce com o tamanho e respeita o teto. |
+
+**Validação:** gate oficial **4169 passed / 16 skipped / 0 falha** (eram 4166;
++3) · `pyflakes` sem aviso nos dois arquivos · sem restart (o worker é processo
+novo a cada pedido; `server.py` não mudou) · versão segue **1.44.0/2080**.
+
+**Prova viva:** as 5 faixas que estavam órfãs no `/tmp/od_link_2z1h3l5i`
+(Eu Sei, O Senhor da Guerra, Perfeição, Teorema, A Dança, Antes das Seis)
+foram processadas pelo pipeline oficial (acervo **267 → 273 faixas**), o
+artista foi corrigido para `Legião Urbana` (a chave do Gemini está inválida,
+ver abaixo), `.m3u` regerados e AzuraCast sincronizado; o `/tmp` ficou limpo.
+
+**Achado honesto:** a `GEMINI_API_KEY` do `.env` responde **400
+`API_KEY_INVALID`** (não é cota: testada em `gemini-3-flash-preview` e
+`gemini-2.5-flash`). Com a chave inválida o pipeline cai no fallback e grava
+`Desconhecido - <título>` — as 6 faixas recuperadas nasceram assim e foram
+corrigidas à mão. Sem chave nova, o resto da lista entraria todo como
+`Desconhecido`.
+
+**Limites conhecidos:** o lote ainda é uma execução só do `musica.py` (10
+faixas × 3 min de espera ≈ 30 min); um lote interrompido perde só as faixas
+daquele lote (o `/tmp` é preservado para inspeção) e o seguinte continua.
+
 ## Pedido por link do YouTube na área do ouvinte (2026-11-05, sem bump)
 
 **Resumo:** ordem do dono (recado de 02/11, item 1): *"se não for repetida o
