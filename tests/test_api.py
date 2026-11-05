@@ -1561,7 +1561,7 @@ class TestAcessoPeloMenuELateralChat:
         # ANTES do clonar: a barra herda o item do ⛮ (fonte única)
         assert js.index("acessoMontar();") < js.index("lateralMontar();")
         # Admin: papel conferido na MESMA resposta do tema (sem 2ª ida)
-        assert "temaSincronizar().then(acessoAdmin)" in js
+        assert "temaSincronizar().then(acessoSessao)" in js
         assert "role !== \'admin\'" in js
         assert "Promise.resolve(null)" in js        # sem sessão: sem fetch
         # Admin entra nos DOIS: ⛮ e barra lateral
@@ -1674,7 +1674,8 @@ function achar(raiz, sel) { return varredura(raiz, sel)[0] || null; }
 
 const navPanel = novoEl('div');
 navPanel.id = 'navPanel';
-[ ['/site/loja.html', 'Loja'], ['/chat', 'Chat'], ['#download', 'Baixar APK'] ]
+[ ['/site/loja.html', 'Loja'], ['/chat', 'Chat'],
+  ['/site/radio.html', 'Rádio Nicky'], ['#download', 'Baixar APK'] ]
   .forEach(([href, rot]) => {
     const a = novoEl('a'); a.setAttribute('href', href); a.textContent = rot;
     navPanel.appendChild(a);
@@ -1793,6 +1794,23 @@ setTimeout(() => {
         for item in saida["itens"]:
             assert item["ico"] and item["ico"] != "•", item
             assert item["rot"] and item["title"], item
+
+    def test_menu_no_node_troca_a_radio_pela_area_do_ouvinte(
+            self, tmp_path: Path) -> None:
+        """05/11 (ordem do dono: *"mesmo conectado ela não aparece no menu.
+        devia ficar no lugar do link da rádio"*): logado, o item da rádio
+        leva ao /radio-pro nos DOIS menus (⋮ e barra); sem sessão, a rádio
+        pública continua — e o menu não inventa chamada extra à API."""
+        dono = self._menu_no_node(tmp_path, dono=True)
+        if not dono:
+            return
+        for menu in (dono["menu"], dono["barra"]):
+            assert "/radio-pro" in menu, menu
+            assert "/site/radio.html" not in menu, menu
+        anon = self._menu_no_node(tmp_path, dono=False)
+        for menu in (anon["menu"], anon["barra"]):
+            assert "/site/radio.html" in menu, menu
+            assert "/radio-pro" not in menu, menu
 
 
 class TestIconesDoMenuLateral:

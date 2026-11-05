@@ -12,6 +12,22 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Área do ouvinte no menu (logado) + histórico em /site#historico + faixa desinvertida (2026-11-05, sem bump)
+
+**Resumo:** ordens do dono (05/11): *"como acesso a pagina radio-pro, mesmo
+conectato ela não aparece no menu. devia ficar no lugar do link da radio"*,
+*"link histórico também esta errado. o correto é site#historico"* e
+*"Ore Mais - Angélica Azevedo esta invertido"*.
+
+| Peça | Entrega |
+|---|---|
+| **`site/od-nav.js`** | `acessoRadio()` troca o item da rádio (`/site/radio.html`) por **`/radio-pro`** nos dois menus (⋮ e barra) quando o `/auth/me` confirma sessão; anônimo mantém a rádio pública. Rótulo/ícone iguais, `'/radio-pro': '📻'` na tabela `ICONES`; `acessoSessao()` consome a **mesma** promise do tema/Admin (zero chamada nova). |
+| **`site/*.html` (11 páginas)** | os 2 links de menu (topo e rodapé) de `/site/historico.html#historico` → **`/site#historico`**; a página completa `site/historico.html` continua no ar pelos links de conteúdo do índice. |
+| **Acervo / AzuraCast** | faixa com tags invertidas (`TPE1=Ore Mais`, `TIT2=Angélica Azevedo`) corrigida com as funções do `musica.py`: tags regravadas, arquivo renomeado para `Angélica Azevedo - Ore Mais.mp3`, `acervo.db` reindexado (265), `.m3u` regerados e `azuracast:media:sync nicky` (267 unchanged); conferido no MariaDB (id 559). `tocadas.txt`: 2 linhas antigas corrigidas. |
+| **Guardas** | `tests/test_api.py`: harness do menu ganha o item da rádio; teste node novo (logado → `/radio-pro` nos dois menus; anônimo → pública); guarda do consumidor atualizada para `acessoSessao`. |
+
+**Validação:** gate oficial **4128 passed / 16 skipped / 0 falha** (era 4127) · `node --check site/od-nav.js` OK · `server.py` intacto → **sem restart** · versão segue **1.44.0/2080**.
+
 ## Recado SEMPRE no ar + 1 pedido/30 min + chaves órfãs (2026-11-04, sem bump)
 
 **Resumo:** ordens do dono (04/11, fim de tarde): corrigir o **bug do recado

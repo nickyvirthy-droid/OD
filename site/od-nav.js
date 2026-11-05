@@ -210,7 +210,7 @@
     }
     // 3. o perfil manda (quando há sessão) e o sistema avisa quando muda.
     // A MESMA resposta entra no acesso do menu (seção 6): uma ida só.
-    temaSincronizar().then(acessoAdmin);
+    temaSincronizar().then(acessoSessao);
     try {
       window.matchMedia('(prefers-color-scheme: light)')
         .addEventListener('change', function () {
@@ -276,7 +276,7 @@
     '#pleiade': '✨', '#sobre': 'ℹ️', '#download': '📲',
     '/site/loja.html': '🛒', '/site/protomaps.html': '🗺️',
     '/site/verificacao.html': '🔍', '/site/avatares.html': '🎭',
-    '/site/radio.html': '📻',
+    '/site/radio.html': '📻', '/radio-pro': '📻',
     '/site/historico.html': '🕰️', '/site/index.html': '🐉',
     '/site': '🌐', '/dashboard': '🖥️', '/chat': '💬',
     '/admin': '🛡️'
@@ -400,6 +400,35 @@
       a.setAttribute('href', '/admin');
       links.appendChild(lateralItem(a, '/admin', 'Admin'));
     }
+  }
+
+  /* Mesma sessão, outra troca (05/11, ordem do dono: *"mesmo conectado
+     ela não aparece no menu. devia ficar no lugar do link da rádio"*):
+     logado, o item da rádio leva à ÁREA DO OUVINTE (/radio-pro); sem
+     sessão, a rádio pública (/site/radio.html) fica como está — o gate
+     do /radio-pro já manda anônimo para o login, mas o menu não deve
+     oferecer um link que só redireciona. O item é trocado nos DOIS menus
+     (⋮ e barra lateral); rótulo e ícone não mudam. */
+  function acessoRadio(dados) {
+    if (!dados) return;                 // sem sessão: rádio pública
+    var barra = document.getElementById('odLateral');
+    var caixas = [document.getElementById('navPanel')];
+    if (barra && barra.querySelector) {
+      caixas.push(barra.querySelector('.od-lateral-links'));
+    }
+    for (var i = 0; i < caixas.length; i++) {
+      var link = caixas[i] && caixas[i].querySelector
+        ? caixas[i].querySelector('a[href="/site/radio.html"]') : null;
+      if (!link) continue;
+      link.setAttribute('href', '/radio-pro');
+      var ico = link.querySelector ? link.querySelector('.od-ico') : null;
+      if (ico) ico.textContent = iconeDe('/radio-pro');
+    }
+  }
+
+  function acessoSessao(dados) {
+    acessoAdmin(dados);
+    acessoRadio(dados);
   }
 
   /* --- 7. PLAYER DA RÁDIO NO MENU LATERAL (29/10, pedido do dono) ------
