@@ -601,3 +601,55 @@ duas direções (passou dos 30 min → criou id=5; tentativa imediata seguinte
 verdes, prova viva ponta a ponta (fila/histórico/journal), 2 chaves órfãs
 apagadas (mutação externa autorizada pela ordem do dono), registro §7 +
 commit/push (7.1) + txt.txt + Telegram (15).
+
+## §8 — Rádio-pro no menu (logado) + link do histórico + faixa invertida (05/11 01:00–01:35)
+
+### 1. As três ordens do dono
+
+1. **Rádio-pro no menu:** *"como acesso a pagina radio-pro, mesmo conectato
+   ela não aparece no menu. devia ficar no lugar do link da radio"*.
+   A página já abria direto logado (200) e o anônimo caía no
+   `/chat?next=/radio-pro`; faltava a DESCOBERTA pelo menu.
+2. **Link do histórico:** *"link histórico também esta errado. o correto é
+   site#historico"*.
+3. **Faixa invertida:** *"Ore Mais - Angélica Azevedo esta invertido"* —
+   o acervo/AzuraCast tinham `artist=Ore Mais`, `title=Angélica Azevedo`
+   (o inverso; o certo é Angélica Azevedo — Ore Mais).
+
+### 2. O que foi feito
+
+- **Menu (`site/od-nav.js`, fonte única):** `acessoRadio` troca o
+  `href="/site/radio.html"` por `/radio-pro` nos DOIS menus (⋮ e barra)
+  quando o `/auth/me` confirma sessão; sem sessão a rádio pública fica
+  (o menu não oferece link que só redireciona). Rótulo e ícone não mudam;
+  `'/radio-pro': '📻'` entrou na tabela ICONES. O consumidor da promise
+  do tema virou `acessoSessao` (Admin + rádio na MESMA ida, zero chamada
+  nova).
+- **Histórico:** 11 páginas trocaram os 2 links de menu (topo e rodapé)
+  de `/site/historico.html#historico` para `/site#historico`; o índice já
+  usava `#historico` e nada mais mudou (a página `site/historico.html`
+  continua existindo e é alcançada pelos links de conteúdo do índice).
+- **Faixa:** correção no acervo com as MESMAS funções do `musica.py`
+  (o `--limpar-nomes` não pegou: sem evidência de catálogo para provar a
+  ordem): TPE1/TIT2 regravados (`Angélica Azevedo`/`Ore Mais`), arquivo
+  renomeado para `Angélica Azevedo - Ore Mais.mp3`, `acervo.db`
+  reindexado (265), `.m3u` regerados e `azuracast:media:sync nicky`
+  (267 unchanged, 0 criado/apagado). **Conferido no MariaDB do
+  AzuraCast:** id 559 = `acervo/Outros/Angélica Azevedo - Ore Mais.mp3`,
+  artist `Angélica Azevedo`, title `Ore Mais`. `tocadas.txt`: as 2 linhas
+  antigas (08:31 e 01:13) também corrigidas.
+
+### 3. Gate e provas
+
+- `.venv/bin/python -m pytest tests/ -q` → **4128 passed / 16 skipped /
+  0 falha** (+1: harness do menu ganhou o item da rádio; teste node novo
+  cobre logado → `/radio-pro` nos dois menus e anônimo → pública; guarda
+  estática do consumidor atualizada para `acessoSessao`).
+- `node --check site/od-nav.js` OK; `test_tabela_cobre_todos_os_menus`
+  verde (o `#historico` já cai no ícone 🕰️).
+- **Sem restart:** `server.py` não mudou (site estático + JS servidos
+  direto). Versão continua **1.44.0/2080**.
+
+**Ações desta troca:** código + site + testes, gate verde, correção do
+acervo provada na fonte (MariaDB), registro §8 + commit/push (7.1) +
+txt.txt + Telegram (15).

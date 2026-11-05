@@ -4496,5 +4496,17 @@
   "pendencias": "(1) Evidencias no banco real: pedidos de teste id=4 (tocada) e id=5 (pendente, artefato da prova do cooldown) do usuario 'teste-recado' — id=5 nao dispara nada (sem retentativa). (2) Jingle travado: o par pode atrasar ~10-15 min (P espera J destravar), ordem preservada — documentado em JINGLE_ESPERA_MIN. (3) Restos da secao 6: 19 faixas em para_analisar/ aguardando artistas; link do YouTube no pedido e escolha de atraso seguem pendentes no recado do dono. (4) A API do AzuraCast continua nao garantindo ordem por design (por isso o INSERT direto); se o schema de station_requests mudar, os testes de regressao do parser pegam.",
   "updated_at": "2026-11-04T19:15:00-03:00",
   "transcricao": "iniciar/2026-11-04_conversa_omegadrakon.md (§7)"
+ },
+ "radio_pro_menu_historico_faixa_invertida_2026_11_05": {
+  "pedido": "Dono (05/11): 'como acesso a pagina radio-pro, mesmo conectato ela não aparece no menu. devia ficar no lugar do link da radio' + 'link histórico também esta errado. o correto é site#historico' + 'Ore Mais - Angélica Azevedo esta invertido'. Checkpoint anterior: recado_no_ar_cooldown_chaves_2026_11_04 (04/11 19:10).",
+  "entrega": "site/od-nav.js: acessoRadio/acessoSessao — com sessao confirmada pelo /auth/me (mesma ida do tema/Admin, zero chamada nova) o item da radio vira /radio-pro nos DOIS menus (navPanel e od-lateral-links), rotulo/icone iguais; anonimo mantem /site/radio.html. ICONES ganhou '/radio-pro': '📻'. Historico: 11 paginas trocaram os 2 links de menu de /site/historico.html#historico para /site#historico (indice ja usava #historico; a pagina historico.html continua e e alcancada pelo conteudo do indice). Faixa: acervo tinha TPE1=Ore Mais/TIT2=Angélica Azevedo (o --limpar-nomes nao provou a inversao); corrigido com as funcoes do musica.py — tags regravadas, arquivo renomeado para 'Angélica Azevedo - Ore Mais.mp3', acervo.db reindexado (265), .m3u regerados, azuracast:media:sync nicky (267 unchanged, 0 created/deleted) e conferido no MariaDB do AzuraCast (id 559, path/artist/title corretos); tocadas.txt com as 2 linhas antigas (08:31 e 01:13) corrigidas.",
+  "gate": "4128 passed / 16 skipped / 0 falha (+1 teste node: logado troca a radio nos dois menus, anonimo mantem a publica; harness do menu ganhou o item da radio; guarda estatica do consumidor virou acessoSessao). node --check site/od-nav.js OK. server.py nao mudou -> SEM restart. Versao segue 1.44.0/2080.",
+  "arquivos": [
+   "site/od-nav.js",
+   "site/*.html (11 paginas, links de menu)",
+   "tests/test_api.py",
+   "iniciar/2026-11-04_conversa_omegadrakon.md"
+  ],
+  "checkpoint": "radio_pro_menu_historico_faixa_invertida_2026_11_05"
  }
 }
