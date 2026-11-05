@@ -12,6 +12,29 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Pedido por link do YouTube na área do ouvinte (2026-11-05, sem bump)
+
+**Resumo:** ordem do dono (recado de 02/11, item 1): *"se não for repetida o
+sistema baixa, transforma e classifica então ela passa a fazer parte do
+acervo. se o link for uma lista, baixa todas, mas vai todar apenas a
+primeira."* O ouvinte logado agora escolhe do acervo **ou** cola um link do
+YouTube em `/radio-pro`; o pedido por link nasce `baixando`, o pipeline
+oficial do acervo baixa/classifica e a faixa entra na fila real da rádio. O
+dono recebe o link + a conta já na criação (caderneta de infração) e o
+desfecho (na fila / repetida / falha).
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/radio_pro.py`** | `pedidos` ganhou `link` e `motivo` (migração idempotente por PRAGMA/ALTER TABLE); `link_do_youtube()` canoniza watch/youtu.be/shorts/embed/live/music e `/playlist?list=`; `criar_pedido_link()` aplica o mesmo cooldown de 30 min e recusa link repetido vivo; `pedido_por_id()`/`atualizar_pedido()` para o worker; `meus_pedidos()` devolve link/motivo. |
+| **`integrations/radio_link.py` (novo)** | worker desanexado (`python -m integrations.radio_link --pedido <id>`): extrai as entradas com yt-dlp do venv do acervo; roda o `musica.py` oficial com `TEMP_DIR`/`playlist.json`/`limpar` isolados e `drenar_entrada` anulado (não toca `000/` nem o `temp/` do dono); `flock` serializa execuções; detecta a faixa nova no `acervo.db` (pré-checagem de título evita download de repetida) e chama `lancar_pedido_na_fila`; lista: toca a 1ª e baixa `entries[1:]` em segundo plano; avisa o dono no Telegram (bot "usuarios", caindo em `OD_TELEGRAM_ADMINS`). |
+| **`integrations/api/server.py`** | `POST /api/radio/pro/pedido` aceita `link` (ou `caminho` como antes); 201 com `status='baixando'` e disparo do worker; erros `link_invalido` (400), `musica_repetida` (409), `recado_longo`/`limite_tempo` como antes; falha de disparo vira `rejeitada/falha_agendamento`. O aviso do dono na criação inclui @conta + link + recado. |
+| **`site/radio-pro.html`** | campo "cole o link do YouTube (vídeo ou playlist)"; `pedir()` manda `link` quando preenchido; rótulos `baixando`/`rejeitada` e o motivo em português; limpa o campo após o 201. |
+| **Guardas** | `tests/test_radio_link.py` (38): parser, criação/cooldown/repetição, migração do banco antigo, worker (single/repetida/falha/lista/primeira entrada/idempotência), aviso e disparo desanexado, fonte do handler e da página. |
+
+**Validação:** gate oficial **4166 passed / 16 skipped / 0 falha** (eram 4128; +38) · `node --check` do JS inline OK · `server.py` mudou → **1 restart** do `od-core` · versão segue **1.44.0/2080**.
+
+**Limites conhecidos:** o `musica.py` dorme `DOWNLOAD_DELAY` (3 min) entre as faixas da lista — uma lista grande continua baixando por horas em segundo plano (só a primeira toca na hora); listas longas seguram o `flock` e os outros pedidos por link esperam a vez; a repetição é decidida pelo dedupe do pipeline (título diferente pode deixar passar a pré-checagem, mas o dedupe barra na entrada do acervo); se o servidor reiniciar com um pedido `baixando`, o worker não é retomado automaticamente.
+
 ## Área do ouvinte no menu (logado) + histórico em /site#historico + faixa desinvertida (2026-11-05, sem bump)
 
 **Resumo:** ordens do dono (05/11): *"como acesso a pagina radio-pro, mesmo

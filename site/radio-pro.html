@@ -60,8 +60,10 @@
       <div class="kicker">Pedido</div>
       <h2 style="margin-top:8px;">Pedir uma música</h2>
       <p style="color:var(--muted);font-size:.9rem;margin-top:6px;">
-        Escolha entre as músicas do servidor. Se quiser, deixe um recado — a
-        locutora lê antes de tocar. Sem recado, ela avisa que é um pedido seu.
+        Escolha entre as músicas do servidor ou cole o link de um vídeo ou
+        lista do YouTube — o sistema baixa, classifica e traz para o acervo.
+        Se quiser, deixe um recado — a locutora lê antes de tocar. Sem
+        recado, ela avisa que é um pedido seu.
       </p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
         <input id="busca" type="search" placeholder="Buscar por artista ou música"
@@ -69,6 +71,8 @@
         <button id="btnBuscar" class="btn" type="button">Buscar</button>
       </div>
       <select id="lista" size="8" style="width:100%;margin-top:12px;padding:8px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;"></select>
+      <input id="link" type="url" maxlength="500" placeholder="…ou cole o link do YouTube (vídeo ou playlist)"
+             style="width:100%;margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;">
       <input id="recado" type="text" maxlength="200" placeholder="Recado para a locutora (opcional, até 200 caracteres)"
              style="width:100%;margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;">
       <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
@@ -159,12 +163,22 @@
     var titulo = document.createElement("div");
     titulo.textContent = "Seus últimos pedidos:";
     alvo.appendChild(titulo);
-    var rotulos = { pendente: "aguardando a fila", na_fila: "na fila ✓",
-                    no_ar: "saindo no ar", tocada: "tocada" };
+    var rotulos = { baixando: "baixando e classificando…",
+                    pendente: "aguardando a fila", na_fila: "na fila ✓",
+                    no_ar: "saindo no ar", tocada: "tocada",
+                    rejeitada: "não entrou" };
+    var motivos = { musica_repetida: "já está no acervo",
+                    link_repetido: "link já pedido",
+                    link_invalido: "link inválido",
+                    falha_download: "não consegui baixar",
+                    falha_agendamento: "falha ao agendar" };
     pedidos.forEach(function (p) {
       var linha = document.createElement("div");
-      linha.textContent = "• " + (p.artista ? p.artista + " — " : "") + p.titulo +
-        " · " + (rotulos[p.status] || p.status) +
+      var nome = (p.artista ? p.artista + " — " : "") +
+        (p.titulo || (p.link ? "link do YouTube" : ""));
+      var extra = p.motivo ? " (" + (motivos[p.motivo] || p.motivo) + ")" : "";
+      linha.textContent = "• " + nome + " · " +
+        (rotulos[p.status] || p.status) + extra +
         (p.recado ? " · recado: " + p.recado : "");
       alvo.appendChild(linha);
     });
@@ -193,28 +207,43 @@
     if (pedidoEmCurso) return;
     var lista = $("lista");
     var caminho = lista && lista.value;
-    if (!caminho) { texto("pedidoStatus", "Escolha uma música primeiro."); return; }
+    var link = (($("link") || {}).value || "").trim();
+    if (!caminho && !link) {
+      texto("pedidoStatus", "Escolha uma música ou cole um link do YouTube.");
+      return;
+    }
     pedidoEmCurso = true;
     texto("pedidoStatus", "Enviando…");
+    var corpo = { recado: ($("recado") || {}).value || "" };
+    if (link) { corpo.link = link; } else { corpo.caminho = caminho; }
     fetch("/api/radio/pro/pedido", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ caminho: caminho, recado: ($("recado") || {}).value || "" })
+      body: JSON.stringify(corpo)
     })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d }; }); })
       .then(function (res) {
         var d = res.d || {};
         if (res.status === 201 && d.ok) {
-          texto("pedidoStatus", d.fila === "azuracast"
-            ? "Pedido enviado para a fila da rádio! A locutora avisa antes de tocar."
-            : "Pedido registrado! A fila está fora do ar agora — o dono foi avisado.");
+          if (d.baixando) {
+            texto("pedidoStatus", "Link recebido! Baixando e classificando — o pedido entra na fila assim que a música estiver no acervo.");
+          } else {
+            texto("pedidoStatus", d.fila === "azuracast"
+              ? "Pedido enviado para a fila da rádio! A locutora avisa antes de tocar."
+              : "Pedido registrado! A fila está fora do ar agora — o dono foi avisado.");
+          }
           if ($("recado")) $("recado").value = "";
+          if ($("link")) $("link").value = "";
           desenhaPedidos(d.pedidos);
+        } else if (res.status === 409 && d.error === "musica_repetida") {
+          texto("pedidoStatus", "Essa música já está no servidor ou já foi pedida.");
         } else if (res.status === 429) {
           texto("pedidoStatus", "Você pediu há pouco — espere 30 minutos para pedir de novo.");
         } else if (res.status === 401) {
           texto("pedidoStatus", "Sua sessão expirou. Entre de novo pelo chat.");
+        } else if (d.error === "link_invalido") {
+          texto("pedidoStatus", "Link inválido — mande um link de vídeo ou playlist do YouTube.");
         } else if (d.error === "recado_longo") {
           texto("pedidoStatus", "O recado passa de 200 caracteres.");
         } else {

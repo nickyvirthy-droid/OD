@@ -27,9 +27,15 @@ Decisões registradas (ver iniciar/2026-11-04_conversa_omegadrakon.md):
   - O aviso da locutora: anuncio_de_pedido() devolve o texto do recado no
     ciclo de locução em que a faixa pedida está por vir — lido antes de
     ela tocar e marcado 'tocada' para não repetir (radio_webhook).
-  - Limites de segurança já no MVP: 1 pedido pendente por conta, 3 por
-    dia, recado de até 200 caracteres e só música que existe no acervo
-    (nada de caminho inventado — o nome vem do catálogo do servidor).
+  - Limites de segurança já no MVP: 1 pedido por conta a cada 30 minutos
+    (decisão do dono, 04/11), recado de até 200 caracteres e, no pedido
+    do catálogo, só música que existe no acervo (nada de caminho
+    inventado — o nome vem do catálogo do servidor).
+  - Pedido por LINK do YouTube (ordem do dono, 02/11 — item 1): nasce
+    'baixando' com o link e a conta gravados; o worker
+    integrations/radio_link.py roda o pipeline oficial (musica.py) e
+    devolve a faixa à fila. Lista baixa todas e só a primeira toca;
+    repetida é decidida pelo dedupe do pipeline (nada novo = rejeitada).
 """
 
 from __future__ import annotations
@@ -46,7 +52,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlsplit
 from urllib.request import Request, urlopen
 
 from core.logger import get_logger
@@ -75,6 +81,7 @@ TTL_ENCONTRADA_S = 7 * 24 * 3600         # letra boa dura a semana
 TTL_NAO_ENCONTRADA_S = 6 * 3600          # negativa curta: pode aparecer depois
 CACHE_MAX = 400                          # teto do arquivo de cache
 RECADO_MAX = 200                         # recado da locução
+LINK_MAX = 500                           # link do YouTube (pedido por link)
 COOLDOWN_MINUTOS = 30                    # um pedido por conta a cada meia hora
 CATALOGO_LIMITE = 40
 CATALOGO_LIMITE_MAX = 200
@@ -349,9 +356,17 @@ CREATE TABLE IF NOT EXISTS pedidos (
     titulo    TEXT NOT NULL DEFAULT '',
     caminho   TEXT NOT NULL,
     recado    TEXT NOT NULL DEFAULT '',
-    status    TEXT NOT NULL DEFAULT 'pendente'
+    status    TEXT NOT NULL DEFAULT 'pendente',
+    link      TEXT NOT NULL DEFAULT '',
+    motivo    TEXT NOT NULL DEFAULT ''
 )
 """
+
+#: Colunas que chegaram depois do MVP (pedido por link do YouTube, 05/11).
+#: CREATE TABLE IF NOT EXISTS não altera a tabela antiga: a migração é
+#: feita por PRAGMA e ALTER TABLE, idempotente, no mesmo SQLite de sempre.
+_COLUNAS_NOVAS = (("link", "TEXT NOT NULL DEFAULT ''"),
+                  ("motivo", "TEXT NOT NULL DEFAULT ''"))
 
 
 def _conexao(banco: Path) -> sqlite3.Connection:
@@ -359,12 +374,41 @@ def _conexao(banco: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(banco), timeout=10)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute(_ESQUEMA_PEDIDOS)
+    colunas = {str(linha[1]) for linha in conn.execute("PRAGMA table_info(pedidos)")}
+    for nome, tipo in _COLUNAS_NOVAS:
+        if nome not in colunas:
+            conn.execute(f"ALTER TABLE pedidos ADD COLUMN {nome} {tipo}")
+    conn.commit()
     return conn
 
 
 def limpar_recado(recado: str) -> str:
     """Recado numa linha só, sem espaço sobrando — é fala de locutora."""
     return " ".join(str(recado or "").split())
+
+
+def _checar_cooldown(
+    conn: sqlite3.Connection, usuario: str, instante: datetime
+) -> None:
+    """Um pedido por conta a cada COOLDOWN_MINUTOS (qualquer status).
+
+    O relógio conta desde o ÚLTIMO pedido da conta — nem o pendente
+    perdido nem a música já tocada voltam a segurar a fila.
+    Levanta ValueError("limite_tempo") quando ainda está cedo.
+    """
+    ultima = conn.execute(
+        "SELECT criado_em FROM pedidos WHERE usuario = ?"
+        " ORDER BY id DESC LIMIT 1",
+        (usuario,),
+    ).fetchone()
+    if ultima is None:
+        return
+    try:
+        anterior = datetime.fromisoformat(str(ultima[0]))
+    except ValueError:
+        return
+    if instante - anterior < timedelta(minutes=COOLDOWN_MINUTOS):
+        raise ValueError("limite_tempo")
 
 
 def criar_pedido(
@@ -405,20 +449,7 @@ def criar_pedido(
         # O único limite é o tempo desde o ÚLTIMO pedido da conta — o
         # status dele nem importa (antigamente eram "1 pendente" e
         # "3 por dia"; o dono pediu 1 a cada meia hora).
-        ultima = conn.execute(
-            "SELECT criado_em FROM pedidos WHERE usuario = ?"
-            " ORDER BY id DESC LIMIT 1",
-            (usuario,),
-        ).fetchone()
-        if ultima is not None:
-            try:
-                anterior = datetime.fromisoformat(str(ultima[0]))
-            except ValueError:
-                anterior = None
-            if (anterior is not None
-                    and instante - anterior < timedelta(
-                        minutes=COOLDOWN_MINUTOS)):
-                raise ValueError("limite_tempo")
+        _checar_cooldown(conn, usuario, instante)
         agora = instante.strftime("%Y-%m-%dT%H:%M:%S")
         cursor = conn.execute(
             "INSERT INTO pedidos (criado_em, usuario, artista, titulo,"
@@ -433,6 +464,206 @@ def criar_pedido(
     return {"id": pedido_id, "criado_em": agora, "usuario": usuario,
             "artista": musica["artista"], "titulo": musica["titulo"],
             "recado": recado, "status": "pendente"}
+
+
+# ---------------------------------------------------------------------------
+#  Pedido por LINK do YouTube (ordem do dono, 02/11 — item 1)
+# ---------------------------------------------------------------------------
+#
+# "se não for repetida o sistema baixa, transforma e classifica então ela
+# passa a fazer parte do acervo. se o link for uma lista, baixa todas, mas
+# vai tocar apenas a primeira." O download/classificação é o MESMO pipeline
+# de /home/alex/dados/musicas (musica.py, venv próprio); aqui só nasce o
+# pedido com o link e o usuário registrados. Quem roda o pipeline é o
+# worker integrations/radio_link.py — a thread do HTTP não espera minutos.
+
+#: Hosts do YouTube aceitos. Só vídeo/playlist pública: o yt-dlp baixa,
+#: o dedupe/Gemini/acervo é o do pipeline oficial.
+_YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com",
+                  "music.youtube.com", "youtu.be", "www.youtu.be"}
+_ID_VIDEO = re.compile(r"^[A-Za-z0-9_-]{11}$")
+_ID_LISTA = re.compile(r"^[A-Za-z0-9_-]{10,120}$")
+
+
+def link_do_youtube(valor: str) -> str:
+    """Normaliza link de vídeo/playlist do YouTube; "" se não for YouTube.
+
+    Aceita youtube.com/watch?v=…, youtu.be/…, /shorts/, /embed/, /live/,
+    music.youtube.com e /playlist?list=… (lista = "baixa todas"). Devolve
+    uma URL canônica (https, sem parâmetro de rastreio) ou "" — quem chama
+    transforma o vazio em "link_invalido".
+    """
+    valor = str(valor or "").strip()
+    if not valor or len(valor) > LINK_MAX:
+        return ""
+    if not re.match(r"^[a-z]+://", valor, re.I):
+        valor = "https://" + valor
+    try:
+        partes = urlsplit(valor)
+    except ValueError:
+        return ""
+    if partes.scheme.lower() not in ("http", "https"):
+        return ""
+    host = (partes.hostname or "").lower()
+    if host not in _YOUTUBE_HOSTS:
+        return ""
+    query = parse_qs(partes.query)
+    lista = str((query.get("list") or [""])[0]).strip()
+    if lista and not _ID_LISTA.match(lista):
+        lista = ""
+    caminho = partes.path.rstrip("/") or "/"
+    if host in ("youtu.be", "www.youtu.be"):
+        video = caminho.strip("/").split("/")[0]
+        return (f"https://www.youtube.com/watch?v={video}"
+                if _ID_VIDEO.match(video) else "")
+    if caminho == "/watch":
+        video = str((query.get("v") or [""])[0]).strip()
+        if _ID_VIDEO.match(video):
+            return f"https://www.youtube.com/watch?v={video}"
+        if lista:
+            return f"https://www.youtube.com/playlist?list={lista}"
+        return ""
+    if caminho == "/playlist":
+        return (f"https://www.youtube.com/playlist?list={lista}"
+                if lista else "")
+    achado = re.match(r"^/(?:shorts|embed|live)/([A-Za-z0-9_-]{11})(?:/|$)",
+                      caminho)
+    if achado:
+        return f"https://www.youtube.com/watch?v={achado.group(1)}"
+    return ""
+
+
+def criar_pedido_link(
+    usuario: str,
+    link: str,
+    recado: str = "",
+    *,
+    banco: Optional[Path] = None,
+    agora: Optional[datetime] = None,
+) -> dict[str, Any]:
+    """Registra um pedido por LINK do YouTube (nasce 'baixando').
+
+    Levanta ValueError com motivo estável (o handler vira status HTTP):
+      login_obrigatorio · link_invalido · recado_longo · limite_tempo ·
+      musica_repetida
+
+    O caminho/artista/título ficam vazios até o worker terminar: é ele
+    quem preenche depois de o pipeline do acervo baixar e classificar.
+    O usuário e o link ficam gravados desde já — é a caderneta do dono
+    para avisar em caso de infração (ordem do dono, 02/11).
+    """
+    usuario = (usuario or "").strip()
+    if not usuario:
+        raise ValueError("login_obrigatorio")
+    link = link_do_youtube(link)
+    if not link:
+        raise ValueError("link_invalido")
+    recado = limpar_recado(recado)
+    if len(recado) > RECADO_MAX:
+        raise ValueError("recado_longo")
+
+    banco = banco or BANCO_PEDIDOS
+    instante = agora or datetime.now()
+    conn = _conexao(banco)
+    try:
+        _checar_cooldown(conn, usuario, instante)
+        # O MESMO link ainda vivo em qualquer conta: já foi (ou está
+        # sendo) baixado — não baixa de novo. 'rejeitada' não conta:
+        # depois de uma falha o ouvinte pode tentar outra vez.
+        repetido = conn.execute(
+            "SELECT 1 FROM pedidos WHERE link = ?"
+            " AND status != 'rejeitada' LIMIT 1",
+            (link,),
+        ).fetchone()
+        if repetido is not None:
+            raise ValueError("musica_repetida")
+        agora = instante.strftime("%Y-%m-%dT%H:%M:%S")
+        cursor = conn.execute(
+            "INSERT INTO pedidos (criado_em, usuario, artista, titulo,"
+            " caminho, recado, status, link) VALUES (?, ?, '', '', '', ?,"
+            " 'baixando', ?)",
+            (agora, usuario, recado, link),
+        )
+        conn.commit()
+        pedido_id = int(cursor.lastrowid or 0)
+    finally:
+        conn.close()
+    return {"id": pedido_id, "criado_em": agora, "usuario": usuario,
+            "artista": "", "titulo": "", "caminho": "", "recado": recado,
+            "status": "baixando", "link": link, "motivo": ""}
+
+
+#: Ordem das colunas usada por pedido_por_id/meus_pedidos e pelo worker.
+_CAMPOS_PEDIDO = ("id, criado_em, usuario, artista, titulo, caminho,"
+                  " recado, status, link, motivo")
+
+
+def _pedido_da_linha(linha: tuple[Any, ...]) -> dict[str, Any]:
+    return {"id": int(linha[0]), "criado_em": str(linha[1]),
+            "usuario": str(linha[2] or ""), "artista": str(linha[3] or ""),
+            "titulo": str(linha[4] or ""), "caminho": str(linha[5] or ""),
+            "recado": str(linha[6] or ""), "status": str(linha[7] or ""),
+            "link": str(linha[8] or ""), "motivo": str(linha[9] or "")}
+
+
+def pedido_por_id(
+    pedido_id: int, *, banco: Optional[Path] = None
+) -> Optional[dict[str, Any]]:
+    """Um pedido pelo id (ou None) — leitura do worker e do handler."""
+    banco = banco or BANCO_PEDIDOS
+    if not banco.exists():
+        return None
+    try:
+        conn = _conexao(banco)
+    except sqlite3.Error:
+        return None
+    try:
+        linha = conn.execute(
+            f"SELECT {_CAMPOS_PEDIDO} FROM pedidos WHERE id = ?",
+            (int(pedido_id),),
+        ).fetchone()
+    except (sqlite3.Error, ValueError):
+        return None
+    finally:
+        conn.close()
+    return _pedido_da_linha(linha) if linha is not None else None
+
+
+def atualizar_pedido(
+    pedido_id: int,
+    *,
+    artista: Optional[str] = None,
+    titulo: Optional[str] = None,
+    caminho: Optional[str] = None,
+    status: Optional[str] = None,
+    motivo: Optional[str] = None,
+    banco: Optional[Path] = None,
+) -> Optional[dict[str, Any]]:
+    """Atualiza só os campos informados (worker do link); devolve o pedido."""
+    campos: dict[str, str] = {}
+    for nome, valor in (("artista", artista), ("titulo", titulo),
+                        ("caminho", caminho), ("status", status),
+                        ("motivo", motivo)):
+        if valor is not None:
+            campos[nome] = str(valor)
+    banco = banco or BANCO_PEDIDOS
+    if campos:
+        try:
+            conn = _conexao(banco)
+        except sqlite3.Error:
+            return pedido_por_id(pedido_id, banco=banco)
+        try:
+            sets = ", ".join(f"{nome} = ?" for nome in campos)
+            conn.execute(
+                f"UPDATE pedidos SET {sets} WHERE id = ?",
+                (*campos.values(), int(pedido_id)),
+            )
+            conn.commit()
+        except (sqlite3.Error, ValueError):
+            pass
+        finally:
+            conn.close()
+    return pedido_por_id(pedido_id, banco=banco)
 
 
 def meus_pedidos(
@@ -451,19 +682,15 @@ def meus_pedidos(
         return []
     try:
         linhas = conn.execute(
-            "SELECT id, criado_em, artista, titulo, recado, status"
-            " FROM pedidos WHERE usuario = ? ORDER BY id DESC LIMIT ?",
+            f"SELECT {_CAMPOS_PEDIDO} FROM pedidos WHERE usuario = ?"
+            " ORDER BY id DESC LIMIT ?",
             (usuario, max(1, int(limite))),
         ).fetchall()
     except sqlite3.Error:
         return []
     finally:
         conn.close()
-    return [
-        {"id": int(i), "criado_em": str(c), "artista": str(a or ""),
-         "titulo": str(t or ""), "recado": str(r or ""), "status": str(s)}
-        for i, c, a, t, r, s in linhas
-    ]
+    return [_pedido_da_linha(linha) for linha in linhas]
 
 
 # ---------------------------------------------------------------------------

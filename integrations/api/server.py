@@ -4738,38 +4738,90 @@ class APIHandler(BaseHTTPRequestHandler):
     def api_radio_pro_pedido(self) -> None:
         """POST /api/radio/pro/pedido — pedido do ouvinte logado.
 
-        Body: {"caminho": str do catálogo, "recado": str opcional}.
-        Só música que existe no acervo (o caminho vem do servidor); o
-        pedido entra na fila REAL do AzuraCast (decisão do dono, 04/11:
-        "com fila") e o dono é avisado no Telegram com o desfecho — sem
-        chave da API ele fica 'pendente' e a página avisa, sem sumir.
+        Body: {"caminho": str do catálogo, "recado": str opcional} OU
+        {"link": str do YouTube, "recado": str opcional} (ordem do dono,
+        02/11 — item 1). O caminho só vale se existe no acervo; o link
+        nasce 'baixando' e o worker integrations/radio_link.py baixa/
+        classifica no pipeline oficial, fora da thread do HTTP. O pedido
+        do catálogo entra na fila REAL do AzuraCast (decisão do dono,
+        04/11: "com fila") e o dono é avisado no Telegram com o desfecho
+        — sem chave da API ele fica 'pendente' e a página avisa, sem
+        sumir. Pedido por link avisa o dono já na criação (link + conta,
+        a caderneta de infração) e de novo no desfecho.
         """
         if not self._sessao_do_ouvinte():
             self._json(401, {"ok": False, "error": "login_necessario",
                              "entrar": "/chat?next=/radio-pro"})
             return
+        from integrations import radio_link
         from integrations.radio_pro import (
-            criar_pedido, lancar_pedido_na_fila, meus_pedidos,
+            atualizar_pedido, criar_pedido, criar_pedido_link,
+            lancar_pedido_na_fila, meus_pedidos,
         )
 
         data = self._read_json()
         usuario = self._nome_do_ouvinte()
+        link = str(data.get("link") or "").strip()
         try:
-            pedido = criar_pedido(
-                usuario,
-                str(data.get("caminho") or ""),
-                str(data.get("recado") or ""),
-            )
+            if link:
+                pedido = criar_pedido_link(
+                    usuario, link, str(data.get("recado") or ""))
+            else:
+                pedido = criar_pedido(
+                    usuario,
+                    str(data.get("caminho") or ""),
+                    str(data.get("recado") or ""),
+                )
         except ValueError as exc:
             motivo = str(exc)
             status = {"login_obrigatorio": 401,
                       "musica_desconhecida": 400,
+                      "link_invalido": 400,
                       "recado_longo": 400,
+                      "musica_repetida": 409,
                       "limite_tempo": 429}.get(motivo, 400)
             self._json(status, {"ok": False, "error": motivo})
             return
-        pedido = lancar_pedido_na_fila(pedido)
+
         notify = self.api.config.chat_notify
+        if link:
+            # Aviso NA CRIAÇÃO (ordem do dono): o dono vê o link e a
+            # conta do ouvinte ANTES de a música tocar — dá tempo de
+            # tirar da lista se for inconveniente.
+            if notify is not None:
+                try:
+                    texto = (f"🎧 Pedido por LINK de @{pedido['usuario']}"
+                             " (conta cadastrada para contato):"
+                             f" {pedido['link']}")
+                    if pedido.get("recado"):
+                        texto += f" — recado: “{pedido['recado']}”"
+                    texto += " → baixando e classificando; aviso no desfecho."
+                    notify(texto)
+                except Exception:         # aviso nunca derruba o pedido
+                    pass
+            try:
+                radio_link.iniciar_processamento(int(pedido["id"]))
+            except Exception as exc:      # sem worker o pedido não sairia
+                log.warn("worker do pedido por link não subiu",
+                         error=type(exc).__name__)
+                pedido = atualizar_pedido(
+                    int(pedido["id"]), status="rejeitada",
+                    motivo="falha_agendamento") or pedido
+                if notify is not None:
+                    try:
+                        notify(f"⚠️ Pedido por link de @{pedido['usuario']}"
+                               " não pôde ser agendado (falha_agendamento).")
+                    except Exception:
+                        pass
+            self._json(201, {"ok": True, "pedido": pedido,
+                             "baixando":
+                                 pedido.get("status") == "baixando",
+                             "fila": None,
+                             "motivo": pedido.get("motivo") or "",
+                             "pedidos": meus_pedidos(usuario)})
+            return
+
+        pedido = lancar_pedido_na_fila(pedido)
         if notify is not None:
             try:
                 texto = (f"🎵 Pedido de @{pedido['usuario']}: "
