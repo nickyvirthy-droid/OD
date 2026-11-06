@@ -79,3 +79,59 @@ Uma delas apareceu como **próxima** na rádio agora. Candidatas a sair.
 
 Nada disso foi executado: a sessão foi **só leitura**. Sem restart, sem bump,
 sem tocar no acervo.
+
+---
+
+## §2 — Conserto autorizado (06/11 ~14:00)
+
+Ordens do dono: *"Carimbar 'Legião Urbana' nas 98 faixas novas, renomear
+arquivos, regravar tags, indexar e sincronizar a rádio"*, *"Tirar as duas
+faixas de Cocomelon do acervo e ressincronizar a rádio"* e *"Ajustar a ordem
+das IAs para groq,local enquanto não houver chave nova do Gemini"*.
+
+### 1. Acervo: 360 → 351
+
+| Ação | Quantos |
+|---|---|
+| Renomeadas + `TPE1 = Legião Urbana` | **91** |
+| Duplicatas exatas removidas (já existiam certas) | **7** |
+| Cocomelon removidas | **2** |
+| Erros | **0** |
+
+- As 7 duplicatas foram conferidas por duração **e** tamanho (A Dança, Antes
+das Seis, Eu Sei, O Senhor da Guerra, Perfeição, Tempo Perdido, Teorema) —
+mesma gravação, ficou a que já tinha o artista certo.
+- `Pais e Filhos` (308 s) **não** é duplicata da de 302 s: virou
+`Legião Urbana - Pais e Filhos (2).mp3`.
+- `acervo.db`: **351 linhas**, **0 `Desconhecido`**, **99 Legião**;
+`classificar`/`.m3u` refeitos (13:53) e AzuraCast **353** = 351 + 2 locuções.
+- Estação sem nenhum caminho `Desconhecido` e sem Cocomelon (API conferida
+página a página; a chave do paginador é `rows`, não `items`).
+
+### 2. Cadeia de IA: Groq → local
+
+- `OD_IA_ORDEM=groq,local` gravado no `.env` (a linha entra logo abaixo de
+  `GROQ_API_KEY`). Teste real: a ordem lida é `['groq','local']` e a resposta
+  veio em ~1 s, sem o 400 do Gemini.
+- `.env` só é lido no start do `od-core` (`load_dotenv` no `orquestrador`), e
+  o pipeline herda o env do processo pai → **restart necessário**.
+- Gate antes do restart: `.venv/bin/python -m pytest tests/ -q` →
+  **4177 passed / 16 skipped / 0 falha** (192 s).
+- `systemctl --user restart od-core` às **14:05**: `MainPID 4105067`,
+  `NRestarts=0`, `OD_IA_ORDEM=groq,local` visível no `/proc/<pid>/environ`,
+  `/health` **25/25**, journal **0 `[ERROR]` e 0 `[WARNING]`** depois.
+
+### 3. Sobrou de olho
+
+- 5 títulos do lote têm cara de solo/cover do Renato Russo e não de Legião:
+  `The Last Time I Saw Richard`, `Rhapsody In Blue`, `Head On`,
+  `Come Share My Life`, `Riding Song`. Ficaram com o artista que o dono pediu;
+  revisar quando ele quiser.
+- O log do lote mostrou que o pipeline **corta o parêntese do título**
+  ("The Last Time I Saw Richard (Ao Vivo Em São Paulo / 1999)" → sem o
+  "Ao Vivo") — pode ser interessante preservar a versão no nome futuro.
+- Seguem na mesa: 31 faixas de 7–10 min, tela da lista de cantores, pedido por
+  link, forwards `.250 → .205`, senha WiFi e a chave nova do Gemini.
+
+Registro: CHANGELOG (entrada de 06/11, sem bump), `session.json`, este arquivo,
+`txt.txt` e Telegram.

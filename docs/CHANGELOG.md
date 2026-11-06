@@ -12,6 +12,18 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Lote do Legião consertado e cadeia de IA em Groq → local (2026-11-06, sem bump)
+
+**Resumo:** o dono autorizou (06/11) o conserto das 98 faixas que entraram sem
+artista na madrugada, a saída das 2 faixas de criança e a reordenação da cadeia
+de IA enquanto o Gemini não tiver chave nova.
+
+| Peça | Entrega |
+|---|---|
+| **Acervo (HD Mídia)** | as **98** faixas do lote entraram como `Desconhecido` porque os títulos do YouTube vinham só com o nome da música e a IA não identifica cantor pelo título (medido: Groq e local devolvem `Desconhecido` para "Tempo Perdido"). Correção: **91** arquivos renomeados e **TPE1 = `Legião Urbana`**, **7 duplicatas exatas** removidas (já existiam com o artista certo, conferidas por duração/tamanho: A Dança, Antes das Seis, Eu Sei, O Senhor da Guerra, Perfeição, Tempo Perdido, Teorema) e **2 Cocomelon** fora (`Wheels On The Bus`, `Fire Truck Song`). `Pais e Filhos` (308 s) ficou como `Legião Urbana - Pais e Filhos (2).mp3` — gravação diferente da de 302 s, não é duplicata. Acervo **360 → 351**, `acervo.db` 351 linhas, **0 `Desconhecido`**, **99 Legião**, `.m3u` refeitos 13:53, AzuraCast **353** = 351 + 2 locuções. |
+| **Cadeia de IA** | `GEMINI_API_KEY` passou a devolver `400 API_KEY_INVALID` com header **e** em `/v1beta/models` (chave revogada; ver `docs/IAS_DISPONIVEIS.md`). `.env` ganhou `OD_IA_ORDEM=groq,local`; a ordem é lida no início do `musica.py`, então o `od-core` foi reiniciado às 14:05 para o env chegar ao pipeline (env do processo novo conferido). Gate antes do restart: **4177 passed / 16 skipped / 0 falha**; `/health` 25/25 e journal com 0 `[ERROR]` e 0 `[WARNING]` depois. Groq responde em ~1 s. |
+| **Pendências que sobraram** | 5 títulos do lote parecem solo/cover do Renato Russo, não Legião (`The Last Time I Saw Richard`, `Rhapsody In Blue`, `Head On`, `Come Share My Life`, `Riding Song`) — ficaram com o artista pedido pelo dono, revisar depois. Seguem na mesa: 31 faixas de 7–10 min, tela da lista de cantores, pedido por link, forwards `.250 → .205` e senha WiFi. |
+
 ## Músicas longas, teto de 25 min e cantores indesejados (2026-11-05, sem bump)
 
 **Resumo:** ordens do dono (05/11 20:35/20:41): *"musicas longas apaga. faca o

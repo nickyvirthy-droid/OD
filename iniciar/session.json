@@ -1,4 +1,15 @@
 {
+ "conserto_lote_legiao_ia_2026_11_06": {
+  "pedido": "Dono (06/11 ~14:00), tres ordens em sequencia: (1) carimbar 'Legiao Urbana' nas 98 faixas novas, renomear, regravar tags, indexar e sincronizar; (2) tirar as 2 faixas de Cocomelon e ressincronizar; (3) ajustar a ordem das IAs para groq,local enquanto nao houver chave nova do Gemini.",
+  "acervo": "360 -> 351. 91 arquivos renomeados para 'Legiao Urbana - <titulo>.mp3' com TPE1=Legiao Urbana (TIT2/TCON/TIT3/curiosidade preservados); 7 duplicatas EXATAS removidas (A Danca, Antes das Seis, Eu Sei, O Senhor da Guerra, Perfeicao, Tempo Perdido, Teorema — conferidas por duracao e bytes: mesmas gravacoes das que ja estavam certas); 2 Cocomelon fora (Wheels On The Bus, Fire Truck Song); 0 erro. 'Pais e Filhos' de 308s NAO e duplicata da de 302s -> ficou como 'Legiao Urbana - Pais e Filhos (2).mp3'. acervo.db 351 linhas, 0 'Desconhecido', 99 Legiao; .m3u refeitos 13:53; AzuraCast 353 = 351 + 2 locucoes, sem caminho Desconhecido nem Cocomelon.",
+  "ia": "OD_IA_ORDEM=groq,local gravado no .env (linha 14, logo abaixo de GROQ_API_KEY). Teste real: musica.IA_ORDEM=['groq','local'], resposta em ~1s sem o 400 do Gemini. Como o .env so e lido no start do od-core (load_dotenv no orquestrador) e o pipeline herda o env do pai, foi preciso restart.",
+  "gate_e_restart": "pytest tests/ -q = 4177 passed / 16 skipped / 0 falha (192s) ANTES do restart. systemctl --user restart od-core as 14:05 -> MainPID 4105067, NRestarts=0, ActiveState=active, OD_IA_ORDEM=groq,local confirmado em /proc/<pid>/environ, /health ok=true 25/25, journal depois do restart com 0 [ERROR]/[CRITICAL] e 0 [WARNING].",
+  "comandos": "Script pontual /tmp/fix_legiao.py (dry-run e --apply) usando as proprias funcoes do musica.py: indexar_acervo(), exportar_playlists_m3u(), publicar_azuracast() (docker exec azuracast media:sync nicky). Nada de bump de versao (mudanca de acervo/operacao).",
+  "revisar_depois": "5 titulos do lote parecem solo/cover do Renato Russo e nao Legiao: The Last Time I Saw Richard, Rhapsody In Blue, Head On, Come Share My Life, Riding Song — ficaram com o artista que o dono pediu. O pipeline tambem corta parenteses do titulo ('... (Ao Vivo Em Sao Paulo / 1999)' virou so o nome).",
+  "fila_do_dono": "31 faixas de 7-10 min (apagar?); tela da lista de cantores no painel; pedido por link de artista indesejado; forwards .250 -> .205; rotacao da senha WiFi; chave nova do GEMINI_API_KEY (a atual esta revogada).",
+  "updated_at": "2026-11-06T14:10:00-03:00",
+  "transcricao": "iniciar/2026-11-06_conversa_omegadrakon.md (§2)"
+ },
  "reverificacao_0611_2026_11_06": {
   "pedido": "Dono (06/11 ~13:00): 'leia iniciar' — retomada do zero (regra 3). Checkpoint anterior: revisao_pendencias_2026_11_05 (05/11 22:30).",
   "estado": "VERDE — git ARVORE LIMPA, HEAD 34ea596 == origin/master; od-core active desde 05/11 21:23:56 MainPID 3145390 NRestarts=0; /health ok=true status=up 25/25 checks, nenhum fora; journal desde o restart = 0 [ERROR]/[CRITICAL] e 0 [WARNING]; app 1.44.0/2080 sha aeb8566b (sem bump).",
