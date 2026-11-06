@@ -1,4 +1,13 @@
 {
+ "playlists_por_genero_azuracast_2026_11_06": {
+  "pedido": "Dono (06/11 ~16:20): criar no AzuraCast as playlists por gênero a partir dos .m3u, com pesos e evitando repetição.",
+  "feito": "8 playlists de gênero (type=default, order=shuffle, avoid_duplicates=true), cada uma amarrada à pasta via PUT /station/1/playlist/{id}/apply-to com directories=['acervo/<Gênero>']: Outros 199, Gospel 84, MPB 18, Pop 18, Internacional 15, Rock 7, Sertanejo 7, Eletrônica 3 = 351. Peso = número de faixas (chance igual por faixa); vinhetas (2) intacta.",
+  "default_removida": "A playlist 'default' (que tinha as 351 via pasta acervo) foi esvaziada com DELETE /station/1/playlist/1/empty e depois apagada, senão cada faixa tocaria duas vezes. Backup da configuração anterior em /tmp/azuracast_playlists_backup.json.",
+  "verificacao": "353 arquivos na biblioteca: 0 sem playlist e 0 em mais de uma; soma das 8 playlists = 351 + 2 vinhetas. Fila do AutoDJ já traz o gênero (Se… → MPB, Fico Assim sem Você → Outros, Mi Única Virtud → Outros); estação online e tocando. media:sync rodado depois: contagens iguais.",
+  "manutencao": "Playlist de pasta se mantém sozinha: CheckFolderPlaylistsTask roda a cada 5 min e inclui arquivo novo de acervo/<Gênero>. Pega-pega: faixa que mudar de pasta pode continuar na playlist antiga — nesse caso empty + apply-to.",
+  "updated_at": "2026-11-06T16:25:00-03:00",
+  "transcricao": "iniciar/2026-11-06_conversa_omegadrakon.md (§8)"
+ },
  "conferencia_azuracast_2026_11_06": {
   "pedido": "Dono (06/11 ~16:00): conferir no painel do AzuraCast se as playlists grandes importaram e a rádio está tocando o acervo inteiro.",
   "achado": "O AzuraCast NÃO importa .m3u: publicar_azuracast() só roda azuracast:media:sync, que varre a pasta acervo/ montada como mídia. O .m3u é arquivo local (player/DJ). Quem alimenta a rádio é o sync da pasta.",

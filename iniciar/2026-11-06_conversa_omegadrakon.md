@@ -303,3 +303,54 @@ Se o dono quiser os gêneros **dentro** da rádio (pesos, evitar repetição por
 bloco), dá para criar playlists reais no AzuraCast via API a partir dos `.m3u`
 — hoje existe só a `default` com tudo. Não fiz: seria mudança na programação da
 rádio, não é o que foi pedido.
+
+---
+
+## §8 — Playlists por gênero na rádio (06/11 ~16:20)
+
+Ordem do dono: criar no AzuraCast as playlists por gênero a partir dos `.m3u`,
+com pesos e evitando repetição.
+
+### Como fiz
+
+- **8 playlists** (`type=default`, `order=shuffle`, `avoid_duplicates=true`),
+cada uma amarrada à sua pasta via `PUT /station/1/playlist/{id}/apply-to` com
+`directories: ["acervo/<Gênero>"]`:
+
+| Playlist | Faixas | Peso |
+|---|---|---|
+| Outros | 199 | 199 |
+| Gospel | 84 | 84 |
+| MPB | 18 | 18 |
+| Pop | 18 | 18 |
+| Internacional | 15 | 15 |
+| Rock | 7 | 7 |
+| Sertanejo | 7 | 7 |
+| Eletrônica | 3 | 3 |
+
+- **Peso = nº de faixas**: com o sorteio ponderado do AutoDJ, isso dá a cada
+faixa a mesma chance de tocar (gênero grande não engole gênero pequeno) e
+mantém o espírito do 40/30/20/10 da Mix. Se o dono preferir balanço fixo por
+gênero, é só trocar os pesos.
+- **Repetição**: `avoid_duplicates` ligado em todas (padrão do AzuraCast), e
+`vinhetas` (2 jingles) ficou intacta.
+- A `default` antiga, que tinha o acervo inteiro, foi **esvaziada
+(`DELETE …/empty`) e apagada** — sem isso cada faixa tocaria duas vezes.
+Backup da configuração anterior em `/tmp/azuracast_playlists_backup.json`.
+
+### Verificação
+
+- 353 arquivos na biblioteca: **0 sem playlist**, **0 em mais de uma**; a soma
+das 8 playlists dá exatamente **351** + 2 do `vinhetas`.
+- Fila do AutoDJ já vem com o gênero: `Se… (MPB)`, `Fico Assim sem Você
+(Outros)`, `Mi Única Virtud (Outros)`. Estação **online**, tocando.
+- `media:sync` rodado depois da mudança: nada regrediu (contagens iguais).
+
+### Manutenção
+
+- Playlist de pasta se atualiza sozinha: o `CheckFolderPlaylistsTask` roda a
+cada **5 min** e inclui arquivo novo de `acervo/<Gênero>` na playlist certa —
+não precisa mexer no pipeline.
+- **Pega-pega**: se uma faixa mudar de pasta (reclassificação de gênero), ela
+pode continuar na playlist antiga além da nova — vale um `empty` + `apply-to`
+quando isso acontecer.
