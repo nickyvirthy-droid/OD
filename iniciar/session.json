@@ -1,4 +1,12 @@
 {
+ "facil_jota_quest_2026_11_06": {
+  "pedido": "Dono (06/11 ~15:45): corrigir o arquivo 'Fácil - Jota Quest.mp3' que está com artista e título trocados.",
+  "causa": "Log de 10/02 registra 'Iniciando: Fácil - Jota Quest': o YouTube entregou nessa ordem e o pipeline antigo (pré-v1.9) leu como 'artista - título'. Tags ficaram TPE1=Fácil e TIT2=Jota Quest.",
+  "correcao": "TPE1=Jota Quest, TIT2=Fácil (319 s, mesma gravação); arquivo agora acervo/Outros/Jota Quest - Fácil.mp3. indexar_acervo + exportar_playlists_m3u + publicar_azuracast rodados.",
+  "verificacao": "Acervo 351, estação 353 (351 + 2 locuções), caminho novo na biblioteca do AzuraCast, nenhum arquivo antigo sobrando. Jota Quest com 7 faixas. O .m3u corta em 50 faixas por arquivo, então 'Fácil' ficou fora de Outros.m3u/Mix_Radio.m3u — a rádio toca pelo sync da biblioteca.",
+  "updated_at": "2026-11-06T15:50:00-03:00",
+  "transcricao": "iniciar/2026-11-06_conversa_omegadrakon.md (§5)"
+ },
  "subtitulos_e_testes_do_nome_2026_11_06": {
   "pedido": "Dono (06/11 ~15:30): 'restaurar titulos originais que perderam o subtitulo (ex.: Hoy Me Voy Para Mexico) nas faixas ja baixadas' e 'criar testes automatizados para limpar_enfeite e separar_nome_musical do musica.py'.",
   "restauracao": "Varri 578 titulos de download nos logs e cruzei com os 351 do acervo.db, agindo so quando o artista do log batia com o do banco. 41 faixas recuperaram o marcador de versao ((Ao Vivo), (Ao Vivo em Brasilia), (Acustico), (Live Session), (Versao Acustica)) e 1 recuperou subtitulo de titulo: 'Hoje a Noite Nao Tem Luar (Hoy Me Voy Para Mexico) (Live)'. Script /tmp/restaura_subtitulos.py (dry-run + --apply).",

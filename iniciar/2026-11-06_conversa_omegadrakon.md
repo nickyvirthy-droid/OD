@@ -221,5 +221,26 @@ no venv do projeto (não entrou no `requirements.txt`, que é de produção).
 ### 3. Achado para a próxima rodada
 
 `acervo/Outros/Fácil - Jota Quest.mp3` está com artista e título trocados —
-`Fácil` é a música e `Jota Quest` o artista. Não mexi: é outro defeito, fora
-desta ordem.
+`Fácil` é a música e `Jota Quest` o artista. Não mexi naquela rodada: é outro
+defeito, fora da ordem.
+
+---
+
+## §5 — Artista e título trocados (06/11 ~15:45)
+
+Ordem do dono: corrigir o arquivo.
+
+- Origem: o log de 10/02 registra `Iniciando: Fácil - Jota Quest` — o YouTube
+  entregou nessa ordem e o pipeline antigo (antes da v1.9) leu como
+  "artista - título", gravando `TPE1=Fácil` e `TIT2=Jota Quest`.
+- Correção: `TPE1=Jota Quest`, `TIT2=Fácil` (319 s, mesma gravação), arquivo
+  renomeado para `acervo/Outros/Jota Quest - Fácil.mp3`.
+- Refiz `indexar_acervo` + `exportar_playlists_m3u` + `publicar_azuracast`:
+  acervo **351** linhas, estação **353** (351 + 2 locuções), caminho novo
+  presente na biblioteca, nenhum arquivo antigo sobrando.
+- Jota Quest passa a ter 7 faixas no acervo: `Dentro de um Abraço`,
+  `Do Seu Lado`, `Só Hoje`, `Dias Melhores`, `Pra Quando Você se Lembrar de
+  Mim`, `O Sol` (com Milton Nascimento) e `Fácil`.
+- O `.m3u` corta em 50 faixas por arquivo, então `Fácil` não entrou em
+  `Outros.m3u`/`Mix_Radio.m3u` — a rádio toca pelo sync da biblioteca, que
+  pegou o arquivo. Se o dono quiser, dá para trocar o critério de corte.
