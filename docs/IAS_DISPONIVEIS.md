@@ -78,7 +78,10 @@ artista/gênero.
 ## 4. Pegadinhas que já custaram tempo (não redescobrir)
 
 1. **Gemini**: `?key=` na URL → `400 API_KEY_INVALID` mesmo com chave boa;
-   header `x-goog-api-key` → 200. `API_KEY_INVALID` **não** é chave morta.
+   header `x-goog-api-key` é a forma certa. Mas `API_KEY_INVALID` **também**
+   aparece em chave revogada: em 06/11 a mesma chave passou a dar 400 no
+   header **e** no `/v1beta/models` (e a chave-lixo dá o mesmo texto). Regra:
+   testar as duas formas **e** o `/v1beta/models`; 400 nos dois = chave morta.
 2. **Groq**: UA padrão do Python → `403` imediato (Cloudflare). Use
    `User-Agent` de navegador; `gpt-oss` é modelo de raciocínio — com
    `max_tokens` curto o `content` volta **vazio** (use ≥2000).
@@ -93,3 +96,4 @@ artista/gênero.
 | Data | O que mudou |
 |---|---|
 | 2026-11-05 | inventário inicial + benchmark (Gemini 3 Flash escolhido; Groq reserva; OpenAI sem créditos; CLIs sem login) |
+| 2026-11-06 | `GEMINI_API_KEY` do `.env` passou a devolver `400 API_KEY_INVALID` com header e em `/v1beta/models` (3×) — chave revogada/expirada; Groq segue 200. Cadeia efetiva hoje: Groq → local. Nenhuma IA identifica artista só pelo título (Groq e local devolveram `Desconhecido` para "Tempo Perdido") |
