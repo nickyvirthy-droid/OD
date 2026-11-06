@@ -428,3 +428,21 @@ nunca entra no acervo. `py_compile` OK, `pyflakes` 0 aviso.
    no acervo antes de ser marcado (funciona, mas gasta um download que depois
    é apagado).
 4. Sem bump do app (1.44.0/2080 — mudança de servidor, precedente mantido).
+
+## §6 — revisão das pendências no TODO (05/11 ~22:20)
+
+Pedido: *"me mostre em formato de lista as pendencias, existe um arquivo TODO
+para isso. toda pendencia tem um motivo de ser, os prós e contras, acho que já
+discutimos isso"*.
+
+- Os TODO **não** estão no repo: vivem no FlatNotes
+  (`/home/alex/omegadrakon-tools/flatnotes/`, TODO 1–7) desde 21/10, quando o
+  `TODO.md` saiu do repo por decisão dele ("(b) tudo no FlatNotes").
+- Consolidei tudo num bloco datado **"REVISÃO DA FILA — 05/11/2026"** no topo
+  da nota **TODO 5 — Parking lot**, preservando o conteúdo anterior (prova por
+  `flatnotes_busca`: 14.839 chars, bloco novo indexado).
+- Estrutura: **A** 5 decisões dele (com motivo/prós/contras) · **B** 1 em
+  andamento · **C** 4 adiadas por decisão dele · **D** 2 que o tempo prova ·
+  **E** 4 técnicas opcionais sem demanda.
+- Nada novo foi decidido na revisão: só o "porquê" de cada linha, tirado das
+  notas e dos checkpoints.
