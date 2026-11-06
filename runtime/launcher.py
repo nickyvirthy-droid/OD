@@ -773,6 +773,14 @@ def build_radio_handler(database: Any) -> tuple[Any, str]:
             registrar_tocada(payload)
         except Exception as exc:  # pragma: no cover
             log.warn("tocadas.txt pulado", error=str(exc))
+        # Cantores indesejados (05/11): a cada troca de faixa, o que já
+        # tocou sai do acervo. Só roda quando há algo marcado.
+        try:
+            from integrations import radio_cantores
+            if radio_cantores.pendentes():
+                radio_cantores.limpar_tocados()
+        except Exception as exc:  # pragma: no cover
+            log.warn("limpeza de cantores indesejados pulada", error=str(exc))
         return processar(payload, tts=piper, db=database,
                          destino=destino, voz=voz)
 

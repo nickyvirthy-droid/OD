@@ -332,6 +332,12 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/radio-pro", "radio_pro_page", False),
     ("GET", "/api/radio/pro/dados", "api_radio_pro_dados", False),
     ("POST", "/api/radio/pro/pedido", "api_radio_pro_pedido", False),
+    # Cantores indesejados (ordem do dono, 05/11): a lista mora em
+    # data/cantores_indesejados.txt (editável à mão) e o dono também pode
+    # incluir/tirar pela API. Só admin — é curadoria do acervo.
+    ("GET", "/api/radio/cantores", "api_radio_cantores", True),
+    ("POST", "/api/radio/cantores", "api_radio_cantores_add", True),
+    ("DELETE", "/api/radio/cantores", "api_radio_cantores_remove", True),
     # Registro Mestre: consulta pública de autenticidade de peças — o ID
     # vem GRAVADO na peça; público sem credencial (mesma natureza de
     # /app/version, v. AUTH_EXEMPT_PATHS). /registry (lista) alimenta a
@@ -4837,6 +4843,59 @@ class APIHandler(BaseHTTPRequestHandler):
                          "fila": pedido.get("fila"),
                          "motivo": pedido.get("motivo"),
                          "pedidos": meus_pedidos(usuario)})
+
+    def api_radio_cantores(self) -> None:
+        """GET /api/radio/cantores — a lista de cantores indesejados (admin).
+
+        Devolve os nomes cadastrados, o arquivo cru (o dono edita à mão) e
+        quantas faixas estão marcadas para sair depois de tocar. Regra do
+        dono (05/11): pedida uma música de artista da lista, ela toca uma
+        vez para quem pediu e é apagada.
+        """
+        self._require_admin()
+        from integrations import radio_cantores
+
+        self._json(200, {
+            "ok": True,
+            "cantores": radio_cantores.listar(),
+            "arquivo": str(radio_cantores.LISTA),
+            "conteudo": radio_cantores.linhas_do_arquivo(),
+            "apagar_depois": radio_cantores.pendentes(),
+        })
+
+    def api_radio_cantores_add(self) -> None:
+        """POST /api/radio/cantores — inclui um cantor (admin).
+
+        Body: {"nome": "Annita"}. Idempotente: 200 com `novo=false`
+        quando já estava na lista.
+        """
+        self._require_admin()
+        from integrations import radio_cantores
+
+        nome = str((self._read_json() or {}).get("nome") or "").strip()
+        if not nome:
+            self._json(400, {"ok": False, "error": "nome_obrigatorio"})
+            return
+        novo = radio_cantores.adicionar(nome)
+        self._json(200, {"ok": True, "novo": novo,
+                         "cantores": radio_cantores.listar()})
+
+    def api_radio_cantores_remove(self) -> None:
+        """DELETE /api/radio/cantores — tira um cantor da lista (admin).
+
+        Body: {"nome": "Annita"}. 404 quando não estava na lista.
+        """
+        self._require_admin()
+        from integrations import radio_cantores
+
+        nome = str((self._read_json() or {}).get("nome") or "").strip()
+        if not nome:
+            self._json(400, {"ok": False, "error": "nome_obrigatorio"})
+            return
+        if not radio_cantores.remover(nome):
+            self._json(404, {"ok": False, "error": "nao_estava_na_lista"})
+            return
+        self._json(200, {"ok": True, "cantores": radio_cantores.listar()})
 
     def registry_list(self) -> None:
         """GET /registry — lista PÚBLICA das peças (loja do site).

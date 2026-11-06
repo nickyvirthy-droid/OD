@@ -223,7 +223,7 @@ Inventário salvo em `/home/alex/dados/musicas/logs/remocao_autorizada_20261105.
    depois deleta".
 5. ~~`para_analisar/`~~ **apagado por ordem dele** — vai rebaixar depois.
 
-## §3 — "pesquise todas as IAs e use a melhor" (05/11 ~20:00)
+## §3 — inventário e medição das IAs da máquina (05/11 ~20:00)
 
 ### 1. O pedido
 
@@ -335,3 +335,96 @@ Criado **`docs/IAS_DISPONIVEIS.md`** — fonte única com:
 
 A **regra 19** do `iniciar/RULES.md` agora aponta para esse documento e diz
 explicitamente para lê-lo antes de refazer a pesquisa.
+
+## §5 — longas apagadas, resto da lista rodando e lista de cantores (05/11 20:35–21:45)
+
+### 1. O pedido
+
+1. *"vamos seguir, musicas longas apaga. faca o resto da lista e a lista de
+   cantores, vejo o que mais falta"*.
+2. No meio: *"vamos colocar o limite de tempo de 25 minutos, já que existe uma
+   do pink floyde e no acrevo ja tem um mantra também"*.
+
+### 2. Músicas longas: apagadas
+
+As **11 faixas da tabela** analisada (a mesma que o dono leu no `txt.txt`)
+saíram do acervo: 77:29 Fernandinho *Louvores que Tocam o Coração*, 40:18
+Blues Gospel *Ele Perdoou*, 17:33 *Mantra da Prosperidade*, 14:54 Julliany
+Souza *Lindo Momento*, 8:55 Eyshila/Dani Ferber, 8:49 Morada *Só Tu És Santo*,
+8:43 Casa Worship *Yeshua*, 8:32 Fernanda Madaloni *Maranata*, 7:57 Fhop *Tu
+És*, 7:26 Juliano Son *Lindo És*, 7:23 Morada *É Tudo sobre Você / Ser Mudado*.
+
+- Inventário em `/home/alex/dados/musicas/logs/remocao_longas_20261105.txt`.
+- Acervo **273 → 262**; `indexar_acervo`, `.m3u` e sync refeitos; AzuraCast
+  **264** = 262 + 2 locuções; maior faixa agora tem **625 s**.
+- **Ficaram de fora da decisão** as outras 31 faixas de 7–10 min (são músicas
+  únicas, não medley) — se ele quiser, saem também.
+
+### 3. Teto de 25 minutos (`musica.py` v1.10.1)
+
+`MAX_DURACAO_S = MP3_DURACAO_MAX` (1500 s). `verificar_qualidade()` reprova
+com `duração Xs > 1500s (música longa)` e o arquivo vai para `reprovadas/` —
+nunca entra no acervo. `py_compile` OK, `pyflakes` 0 aviso.
+
+### 4. Resto da lista do Legião: rodando desanexado
+
+- `tools/baixar_resto_lista.py` reaproveita o que já era testado do
+  `radio_link`: `extrair_entradas`, `trava_pipeline` (flock), `rodar_pipeline`,
+  `timeout_do_lote` e `notificar_dono`. Lotes de 10, timeout de 3000 s por
+  lote, um lote que falha não derruba os seguintes.
+- Rodando desde **20:49** (PID 3105896, `setsid`), log em
+  `logs/radio_link_lista_legiao_v2.log`. **99 entradas** na lista.
+- A pré-checagem de repetidas deu 0 porque os títulos do YouTube vêm só com o
+  nome da música — o dedupe do pipeline é quem barra as repetidas (custa um
+  download a mais, nada entra duplicado).
+- **Lote 1 fechou 21:22: +10 faixas (262 → 272).** 10 lotes no total, ~3 min
+  por faixa → **ETA ~5 h** (fim por volta de 02:00–03:00), com aviso no
+  Telegram no fim.
+- Nada me acorda quando ele termina: quem quiser acompanhar é
+  `tail -f logs/radio_link_lista_legiao_v2.log`.
+
+### 5. Lista de cantores indesejados (nova)
+
+`integrations/radio_cantores.py` (stdlib puro):
+
+- **Lista**: `data/cantores_indesejados.txt`, uma pessoa por linha, `#` é
+  comentário, editável à mão (já com **Annita**). Fica em `data/` (gitignored).
+- **Comparação por pessoa**, sem caixa/acento: `Annita` casa *"Annita e
+  Fulano"* e *"Fulano ft. Annita"*, e **não** casa *"Anitta"* (outra pessoa).
+- **Regra "toca uma vez e apaga"**: o pedido do ouvinte **não é bloqueado**;
+  a faixa entra em `data/radio_apagar_depois.json` e `limpar_tocados()` apaga
+  o arquivo quando ela aparece no histórico do AzuraCast (ou após 48 h sem
+  tocar), tira a linha do `acervo.db` e refaz `.m3u` + sync pelo venv do
+  acervo. Caminho fora do acervo nunca é apagado.
+- **Ganchos**: `radio_pro.lancar_pedido_na_fila` (marca ao entrar na fila) e
+  `runtime/launcher._radio` (limpa a cada troca de faixa, só quando há algo
+  marcado — não pesa no caminho normal).
+- **API admin**: `GET/POST/DELETE /api/radio/cantores` (`auth=True` +
+  `_require_admin`).
+
+### 6. Testes e restart
+
+- **8 testes novos** em `tests/test_radio_cantores.py`; `tests/test_api.py`
+  atualizado (`len(ROUTES)` 98 → 101 + os 3 caminhos no conjunto `auth`).
+- **Gate oficial: 4177 passed / 16 skipped / 0 falha.**
+- **Bug de calibragem pego e corrigido**: a transcrição desta sessão entra no
+  corpus do RAG (`iniciar/*.md`) e o título *"§3 — use a melhor"* derrubou
+  `test_irrelevante_e_bloqueada[qual o melhor time de basquete]` (score
+  0.4299). Título trocado para *"inventário e medição das IAs"* → verde.
+  **Lição**: texto novo em `iniciar/` mexe na calibragem do RAG.
+- **Restart verde (regra 7.3)**: `MainPID 3145390`, `NRestarts=0`,
+  `/health` 25/25, journal 0 `[ERROR]`. Provas vivas: sem chave **401**;
+  `GET` lista `["Annita"]`; `POST "Teste OD"` novo=true; `POST "teste od"`
+  novo=false; `DELETE` 200; lista final `["Annita"]`.
+  `_ressincronizar()` testado de verdade → `True` em 1 s. O download da lista
+  não foi afetado (processo desanexado).
+
+### 7. O que falta / não foi feito
+
+1. **UI da lista de cantores** (painel `/admin` ou `txt.txt`) — hoje é arquivo
+   + API; ele disse que vai preenchendo.
+2. **As 31 faixas de 7–10 min** — decisão dele.
+3. Pedido por **link** de artista indesejado ainda baixa pelo pipeline e entra
+   no acervo antes de ser marcado (funciona, mas gasta um download que depois
+   é apagado).
+4. Sem bump do app (1.44.0/2080 — mudança de servidor, precedente mantido).

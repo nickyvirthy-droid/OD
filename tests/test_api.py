@@ -151,8 +151,9 @@ class TestAPIRoutes:
         /auth/session-cookie (sessão do chat vira cookie, 22/10) +
         PUT /admin/users/{username}/role (papel da conta, frente C, 23/10) +
         GET /api/radio/agora ("Tocando agora" da rádio, Item 1, 02/11) +
-        /radio-pro e /api/radio/pro/* (área do ouvinte logado, 04/11)."""
-        assert len(ROUTES) == 98
+        /radio-pro e /api/radio/pro/* (área do ouvinte logado, 04/11) +
+        /api/radio/cantores (lista de cantores indesejados, 05/11)."""
+        assert len(ROUTES) == 101
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -168,6 +169,10 @@ class TestAPIRoutes:
             ("GET", "/radio-pro"),
             ("GET", "/api/radio/pro/dados"),
             ("POST", "/api/radio/pro/pedido"),
+            # Cantores indesejados (05/11): leitura e escrita só do dono.
+            ("GET", "/api/radio/cantores"),
+            ("POST", "/api/radio/cantores"),
+            ("DELETE", "/api/radio/cantores"),
             # Páginas internas do dono (2026-10-10): saíram de /site/ (onde
             # qualquer um as alcançava pelo Funnel) para site_admin/. A rota
             # é pública porque a navegação é de navegador; o gate real é o
@@ -313,6 +318,10 @@ class TestAPIRoutes:
             ("GET", "/history/{user_id}/stats"),
             ("GET", "/history/{user_id}"),
             ("GET", "/memory/{user_id}/search"), ("GET", "/ws/chat"),
+            # Cantores indesejados (05/11): curadoria do acervo, só admin.
+            ("GET", "/api/radio/cantores"),
+            ("POST", "/api/radio/cantores"),
+            ("DELETE", "/api/radio/cantores"),
         }
         public = {(r.method, r.path) for r in ROUTES if not r.auth}
         assert public == {
