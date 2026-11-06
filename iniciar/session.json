@@ -1,4 +1,12 @@
 {
+ "playlists_sem_teto_2026_11_06": {
+  "pedido": "Dono (06/11 ~15:50): aumentar o limite de faixas por .m3u para o acervo inteiro entrar nas playlists.",
+  "mudanca": "musica.py 1.11.0 -> 1.11.1: MAX_FAIXAS = 0 (sem limite) como padrão na constante e no --max-faixas da CLI; --max-faixas N continua para capar.",
+  "bug_corrigido": "O limite da Mix_Radio era recalculado a cada volta do laço (sum(len(f) for _, f in filas)) e encolhia junto com as filas: sem teto ela pararia em 177 de 351. Agora o limite é fixado antes do laço.",
+  "verificacao": "Gospel 84, Outros 199, MPB 18, Pop 18, Internacional 15, Rock 7, Sertanejo 7, Eletrônica 3 = 351 no total; Mix_Radio 351 faixas sem duplicata; 'Jota Quest - Fácil' em Outros.m3u e Mix_Radio.m3u. tests/test_musica.py: 21 passed.",
+  "updated_at": "2026-11-06T15:55:00-03:00",
+  "transcricao": "iniciar/2026-11-06_conversa_omegadrakon.md (§6)"
+ },
  "facil_jota_quest_2026_11_06": {
   "pedido": "Dono (06/11 ~15:45): corrigir o arquivo 'Fácil - Jota Quest.mp3' que está com artista e título trocados.",
   "causa": "Log de 10/02 registra 'Iniciando: Fácil - Jota Quest': o YouTube entregou nessa ordem e o pipeline antigo (pré-v1.9) leu como 'artista - título'. Tags ficaram TPE1=Fácil e TIT2=Jota Quest.",

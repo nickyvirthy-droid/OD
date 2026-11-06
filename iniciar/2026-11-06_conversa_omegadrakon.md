@@ -244,3 +244,19 @@ Ordem do dono: corrigir o arquivo.
 - O `.m3u` corta em 50 faixas por arquivo, então `Fácil` não entrou em
   `Outros.m3u`/`Mix_Radio.m3u` — a rádio toca pelo sync da biblioteca, que
   pegou o arquivo. Se o dono quiser, dá para trocar o critério de corte.
+
+---
+
+## §6 — Playlist com o acervo inteiro (06/11 ~15:50)
+
+Ordem do dono: acabar com o teto de 50 faixas por `.m3u`.
+
+- `MAX_FAIXAS = 0` (sem limite) virou padrão, tanto na constante quanto no
+  `--max-faixas` da CLI; `--max-faixas N` continua disponível para capar.
+- Resultado: `Gospel` 84, `Outros` 199, `MPB` 18, `Pop` 18, `Internacional`
+  15, `Rock` 7, `Sertanejo` 7, `Eletrônica` 3 — **351** no total, e
+  `Mix_Radio.m3u` com **351** faixas, sem duplicata.
+- **Bug que o teto escondia**: o limite da Mix era recalculado a cada volta
+  (`sum(len(f) for _, f in filas)`) e encolhia junto com as filas; sem teto ela
+  pararia em **177 de 351**. Agora o limite é fixado antes do laço.
+- `musica.py` **v1.11.1**; `tests/test_musica.py` continua verde (21 passed).
