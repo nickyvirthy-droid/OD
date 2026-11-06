@@ -12,6 +12,20 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Pipeline cria as playlists da rádio e a rotação explicada (2026-11-06, sem bump)
+
+**Resumo:** duas ordens do dono (06/11 ~16:50 e ~17:20): entender por que 108
+faixas não tocaram e fazer o pipeline criar/atualizar as playlists no AzuraCast
+em vez de só gerar `.m3u` local.
+
+| Peça | Entrega |
+|---|---|
+| **Rotação investigada** | Histórico com **10.514** entradas (27/10 20:21 → 06/11 16:36), mas **8.109 são jingles** (`vinheta nicky`, `anuncio musica`, ~13 s) — só **2.405 são músicas** (~240/dia ≈ 10/h). O laço de **5.933 jingles em 28/10** é o que inflava o total. Legião Urbana: **99 faixas**, apenas **14 plays** e **10 títulos distintos** desde que o lote entrou (05/11 04:25), contra ~115 esperados se a rotação fosse uniforme (28% do acervo) — **3,4%**. O grosso das "108 que não tocaram" é esse lote novo; parte do resto é faixa renomeada hoje (o AzuraCast cria mídia nova e o histórico antigo não casa) e casamento por artista+título que erra em Gospel. Diagnóstico completo na transcrição §9. |
+| **Rotação agora** | Com as 8 playlists de pasta (peso = nº de faixas, `avoid_duplicates`), a chance é igual por música e faixa nova entra sozinha em 5 min. Ciclo completo a ~10 músicas/h ≈ **35 h** para 351 faixas; gêneros pequenos fecham antes (Gospel 84 ≈ 8 h). Conferir cobertura em janelas de 24 h contra o `acervo.db`, nunca pelo histórico inteiro (laço de jingles). |
+| **Pipeline v1.12.0** | `musica.py` (HD Mídia) ganhou `sincronizar_playlists_azuracast()`, chamada dentro de `publicar_azuracast()` — roda **ao fim de cada lote** e no `--limpar-nomes --aplicar`. Para cada pasta de `acervo/`: cria a playlist que falta (`POST`, `type=default`, `source=songs`, `order=shuffle`, `weight=nº de faixas`, `avoid_duplicates=true`, `is_enabled=true`) e aplica a pasta (`PUT …/apply-to` com `directories=["acervo/<Gênero>"]`); se já existe, corrige peso/ordem/duplicata/habilitada por `PUT` só no que divergiu. O `.m3u` continua sendo gerado — `faixas_por_genero()` alimenta os dois caminhos. |
+| **Chave e desligar** | `AZURACAST_API_KEY` vem do ambiente ou do `.env` do projeto; o `run.sh` do pipeline lê a chave do `.env` do OmegaDrakon (fonte única, sem duplicar segredo no script). Endereço em `AZURACAST_API`, desligar com `--sem-playlists-azuracast` ou `MP3_AZURACAST_PLAYLISTS=0`. Falha de API vira `warning` e o lote segue. |
+| **Verificação** | `pytest tests/ -q` → **25 passed** (21 antigos + 4 das playlists). Rodada real: 1ª passada **8 playlists em dia**; `Outros` forçado para peso 198 voltou a **199** na 2ª passada. Criação exercitada com `Teste Pipeline` (peso 1, `shuffle`, `avoid_duplicates`, pasta aplicada) e apagada depois — estação de volta às 9 playlists (8 gêneros + `vinhetas`). |
+
 ## Lote do Legião consertado e cadeia de IA em Groq → local (2026-11-06, sem bump)
 
 **Resumo:** o dono autorizou (06/11) o conserto das 98 faixas que entraram sem

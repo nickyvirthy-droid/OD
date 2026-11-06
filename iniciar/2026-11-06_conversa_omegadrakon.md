@@ -354,3 +354,96 @@ não precisa mexer no pipeline.
 - **Pega-pega**: se uma faixa mudar de pasta (reclassificação de gênero), ela
 pode continuar na playlist antiga além da nova — vale um `empty` + `apply-to`
 quando isso acontecer.
+
+## §9 — Por que 108 faixas não tocaram e se a rotação pega todas (06/11 ~16:50)
+
+Ordem do dono: *"investigar por que 108 faixas do acervo ainda não tocaram e se
+a rotação está pegando todas"*. Só leitura na rádio — nada foi alterado nesta
+etapa.
+
+### O que o histórico mostra
+
+- **10.514 entradas** no histórico do AzuraCast entre 27/10 20:21 e 06/11 16:36.
+- **8.109 são jingles** (`vinheta nicky`, `anuncio musica`, ~13 s) — só **2.405
+  são músicas**. No dia 28/10 houve um laço de **5.933 jingles** (a vinheta
+  entrou em sequência porque a playlist `vinhetas` era a única com fila), e é
+  ele que infla o total do histórico. Contar "tocou/não tocou" pelo histórico
+  bruto engana: o que interessa são as 2.405 músicas (~240/dia ≈ 10 por hora).
+- Legião Urbana: **99 faixas** no acervo, **14 plays** desde que o lote entrou
+  (05/11 04:25) e **10 títulos distintos**. No mesmo período houve 411 músicas
+  no ar; se a rotação fosse uniforme, Legião (28% do acervo) teria ~115 plays.
+  Está em **3,4%** — muito abaixo do esperado.
+- Nas janelas medidas depois das playlists por gênero (a partir de 16:20), a
+  fila já vem com o gênero certo (`MPB`, `Outros`) e a rádio está tocando.
+
+### Por que as 108 (que viram ~105 no acervo de hoje) não tocaram
+
+1. **O grosso é o lote novo do Legião (05–06/11).** 88 dos 90 nomes que eu
+   consegui casar com o histórico são Legião: entraram no acervo na madrugada e
+   a rádio vinha tocando quase só o repertório antigo.
+2. **Renomeadas hoje contam como "nunca tocaram"**: quando o arquivo é
+   renomeado/corrigido (ex.: `Jota Quest - Fácil`), o AzuraCast cria uma linha
+   de mídia nova e o histórico antigo deixa de casar com o nome atual. Isso
+   infla a lista de "nunca tocaram" — parte dessas faixas já tocou com o nome
+   velho.
+3. **Casamento por artista+título é frouxo**: na conferência de agora, 245 de
+   350 nomes casam com o histórico, mas a lista de "nunca" inclui Gospel que
+   tocou hoje (Aline Barros, Gabriela Rocha) — ou seja, o número exato de
+   "nunca tocou" é **menor** que 108; o que é real e grande é a ausência do
+   Legião.
+
+### A rotação pega todas?
+
+- **Antes de hoje**: a rádio tinha **uma** playlist (`default`) com o acervo
+  inteiro e peso 3 — não havia peso por gênero nem garantia de cobertura.
+  O sintoma medido é o Legião: 14 plays em 36 h, 3,4% contra 28% esperados.
+- **Agora**: 8 playlists de pasta, **peso = nº de faixas** e
+  `avoid_duplicates` — a chance é igual por música e a playlist de pasta inclui
+  faixa nova sozinha a cada 5 min. Um ciclo completo a ~10 músicas/h leva
+  **~35 h** (351 faixas); gêneros pequenos fecham o ciclo antes (Rock 7 ≈ 45
+  min de música, Gospel 84 ≈ 8 h).
+- **Como saber se está pegando todas**: comparar o histórico com o `acervo.db`
+  em janelas de 24 h (não com o histórico inteiro, que tem o laço de jingles).
+  Se em 24 h aparecerem ~240 músicas distintas de 351, a cobertura está certa.
+
+## §10 — Pipeline cria/atualiza as playlists no AzuraCast (06/11 ~17:20)
+
+Ordem do dono: *"ajustar o pipeline para também criar/atualizar playlists no
+AzuraCast em vez de gerar só .m3u local"*.
+
+### O que mudou (`musica.py` **v1.12.0**)
+
+- Nova etapa `sincronizar_playlists_azuracast()`: para cada pasta de
+  `acervo/`, **garante** a playlist de mesmo nome no AzuraCast.
+  - Não existe → `POST /station/{id}/playlists` (`type=default`, `source=songs`,
+    `order=shuffle`, `weight=nº de faixas`, `avoid_duplicates=true`,
+    `is_enabled=true`) e em seguida `PUT …/playlist/{id}/apply-to` com
+    `{"directories": ["acervo/<Gênero>"]}`.
+  - Existe → confere peso/ordem/duplicata/habilitada e corrige por `PUT` só o
+    que estiver diferente (o resumo no log separa `criadas`, `atualizadas`,
+    `em dia`).
+- **Peso = nº de faixas do gênero**, recalculado a cada lote: chance igual por
+  música e a proporção entre gêneros se ajusta sozinha quando o acervo cresce.
+- **O `.m3u` continua sendo gerado** (é o arquivo que o dono abre/leva); a
+  rádio passa a ser alimentada pelas playlists da estação. A lista de pastas
+  vem de `faixas_por_genero()`, usada pelos dois caminhos — não há duas
+  verdades.
+- Chamada dentro de `publicar_azuracast()`, ou seja, **ao fim de cada lote** e
+  no `--limpar-nomes --aplicar`.
+- Chave: `AZURACAST_API_KEY` do ambiente ou do `.env` do projeto; o `run.sh`
+  passou a ler a chave do `.env` do OmegaDrakon (fonte única, sem duplicar
+  segredo no script).
+- Desligar: `--sem-playlists-azuracast` ou `MP3_AZURACAST_PLAYLISTS=0`.
+  Endereço configurável por `AZURACAST_API` (padrão `http://127.0.0.1:8091/api`).
+- Falha de API não derruba o pipeline: vira `warning` e o lote segue.
+
+### Verificação
+
+- `venv/bin/python -m pytest tests/ -q` → **25 passed** (21 antigos + 4 novos:
+  pasta vazia ignorada, criação com peso e `apply-to`, correção do peso quando o
+  gênero cresce, chave de desligar).
+- Rodada real contra a estação: 1ª passada **8 playlists em dia**; forcei
+  `Outros` para peso 198 e a 2ª passada corrigiu (`Outros: weight=199`).
+- Caminho de criação exercitado com uma playlist `Teste Pipeline` (criada com
+  peso 1, `shuffle`, `avoid_duplicates`, pasta aplicada) e **apagada** em
+  seguida; a estação voltou às 9 playlists (8 gêneros + `vinhetas`).
