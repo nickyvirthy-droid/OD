@@ -178,3 +178,48 @@ já está no pipeline (`MAX_DURACAO_S = 1500`). Fecha o **A1** do quadro de 05/1
 - Acervo segue **351**, estação **353** (351 + 2 locuções).
 
 Documentação da versão nova em `dados/musicas/doc/README.md` (v1.11).
+
+---
+
+## §4 — Subtítulo perdido e testes do nome (06/11 ~15:40)
+
+### 1. Mais 42 faixas com o título mutilado
+
+Ordem do dono: restaurar os títulos que perderam subtítulo (ex.:
+"Hoy Me Voy Para México"). Varri os **578 títulos** de `Iniciando:` nos logs,
+cruzei com os **351** do `acervo.db` e só agi onde o artista do log batia com o
+do banco (evita casar faixa errada):
+
+| O que voltou | Quantas |
+|---|---|
+| `(Ao Vivo)`, `(Ao Vivo em Brasília)`, `(Acústico)`, `(Live Session)`, `(Versão Acústica)` | 41 |
+| subtítulo de título — `Hoje a Noite Não Tem Luar (Hoy Me Voy Para México) (Live)` | 1 |
+
+Ficaram **de fora, de propósito**: `(Clipe Oficial)`, `(Official Video)`,
+`(Lyric)`, `(DVD …)`, `(CD …)`, `(Vevo Presents)`, `(Cover)`, `(Audio)`,
+`(Marquinhos Gomes)` e `(O Encontro)` — crédito, álbum ou formato, não título.
+O relatório completo fica no script `/tmp/restaura_subtitulos.py` (dry-run).
+
+Acervo segue **351**, estação **353** (351 + 2 locuções); conferido na API:
+46 caminhos com "Ao Vivo", 3 com "(Live" e 1 com "Hoy Me Voy".
+
+### 2. Testes do nome — `dados/musicas/tests/test_musica.py`
+
+21 casos em pytest cobrindo `limpar_enfeite()` e `separar_nome_musical()`:
+
+- enfeite sai (`Clipe Oficial`, `Cover`, hashtag, emoji);
+- versão fica e é normalizada (`⧸` → `-`, `Em` → `em`, `MTV` não vira `Mtv`);
+- subtítulo entre parênteses não é confundido com enfeite;
+- o ano final não quebra o parêntese da versão;
+- `limpar_enfeite` é idempotente e fecha parêntese quebrado;
+- `separar_nome_musical` devolve `auto` / `igual` / `revisar` nos casos certos e
+  o nome final sempre "artista - título", sem espaço duplo.
+
+Gate: `venv/bin/python -m pytest tests/ -q` → **21 passed**. `pytest` instalado
+no venv do projeto (não entrou no `requirements.txt`, que é de produção).
+
+### 3. Achado para a próxima rodada
+
+`acervo/Outros/Fácil - Jota Quest.mp3` está com artista e título trocados —
+`Fácil` é a música e `Jota Quest` o artista. Não mexi: é outro defeito, fora
+desta ordem.

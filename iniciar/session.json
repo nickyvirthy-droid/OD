@@ -1,4 +1,14 @@
 {
+ "subtitulos_e_testes_do_nome_2026_11_06": {
+  "pedido": "Dono (06/11 ~15:30): 'restaurar titulos originais que perderam o subtitulo (ex.: Hoy Me Voy Para Mexico) nas faixas ja baixadas' e 'criar testes automatizados para limpar_enfeite e separar_nome_musical do musica.py'.",
+  "restauracao": "Varri 578 titulos de download nos logs e cruzei com os 351 do acervo.db, agindo so quando o artista do log batia com o do banco. 41 faixas recuperaram o marcador de versao ((Ao Vivo), (Ao Vivo em Brasilia), (Acustico), (Live Session), (Versao Acustica)) e 1 recuperou subtitulo de titulo: 'Hoje a Noite Nao Tem Luar (Hoy Me Voy Para Mexico) (Live)'. Script /tmp/restaura_subtitulos.py (dry-run + --apply).",
+  "fora_de_proposito": "Nao voltei credito/album/formato: (Clipe Oficial), (Official Video), (Lyric), (DVD ...), (CD ...), (Vevo Presents), (Cover), (Audio), (Marquinhos Gomes), (O Encontro). Tambem pulei 'Lauseet on vaan lauseita (Vain elamaa kausi 16)' (programa de TV) e 'Sagrado Coracao (Instrumental)' (duvida se a gravacao e instrumental).",
+  "verificacao_acervo": "Acervo 351 linhas, estacao 353 (351 + 2 locucoes); API confirma 46 caminhos com 'Ao Vivo', 3 com '(Live' e 1 com 'Hoy Me Voy'. indexar_acervo + exportar_playlists_m3u + publicar_azuracast rodados.",
+  "testes": "dados/musicas/tests/test_musica.py com 21 casos pytest para limpar_enfeite() e separar_nome_musical(): enfeite que sai, versao normalizada que fica, subtitulo preservado, ano que nao quebra parentese, idempotencia, parentese quebrado fechado e status auto/igual/revisar. Gate: venv/bin/python -m pytest tests/ -q -> 21 passed. pytest instalado no venv do projeto (fora do requirements.txt de producao).",
+  "achado": "acervo/Outros/Facil - Jota Quest.mp3 esta com artista e titulo trocados (Facil e a musica, Jota Quest o artista). Nao corrigido: fora da ordem.",
+  "updated_at": "2026-11-06T15:45:00-03:00",
+  "transcricao": "iniciar/2026-11-06_conversa_omegadrakon.md (§4)"
+ },
  "versao_no_nome_e_faixas_7_10_2026_11_06": {
   "pedido": "Dono (06/11 ~15:00): (1) 'separar as 5 faixas que parecem solo/cover do Renato Russo'; (2) 'fazer o pipeline preservar o sufixo de versao (Ao Vivo...) no titulo e no nome do arquivo'; (3) 'faixas de 7 a 10 ficam. o limite é 25'.",
   "separacao_nao_feita": "NAO separei: a hipotese estava errada. Evidencia: The Last Time I Saw Richard, Head On e On The Way Home / Rise estao no Acustico MTV (1999); Come Share My Life no V (1991); Riding Song em Uma Outra Estacao (1997); Rhapsody In Blue e exit music de Musica p/ Acampamentos (1992). O artista 'Legiao Urbana' estava certo — o erro era meu diagnostico do checkpoint anterior, corrigido no CHANGELOG.",
