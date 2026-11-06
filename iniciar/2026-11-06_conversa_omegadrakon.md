@@ -135,3 +135,46 @@ página a página; a chave do paginador é `rows`, não `items`).
 
 Registro: CHANGELOG (entrada de 06/11, sem bump), `session.json`, este arquivo,
 `txt.txt` e Telegram.
+
+---
+
+## §3 — Versão no nome, faixas de 7–10 min e a separação que não houve (06/11 ~15:00)
+
+### 1. As "5 do Renato Russo" eram Legião Urbana
+
+Fui conferir antes de mexer e **não separei nada** — a hipótese do §2 estava
+errada:
+
+| Faixa | Onde está |
+|---|---|
+| `The Last Time I Saw Richard` | **Acústico MTV (1999)**, cover de Joni Mitchell |
+| `Head On` | **Acústico MTV (1999)**, cover de The Jesus and Mary Chain |
+| `On The Way Home / Rise` | **Acústico MTV (1999)**, Neil Young / Public Image Ltd |
+| `Come Share My Life` | **V (1991)**, folclore americano |
+| `Riding Song` | **Uma Outra Estação (1997)**, Russo/Villa-Lobos/Bonfá |
+| `Rhapsody In Blue` | *exit music* de **Música p/ Acampamentos (1992)**, Gershwin |
+
+O artista `Legião Urbana` que o dono pediu estava certo desde o começo.
+
+### 2. Decisão do dono: as 31 faixas de 7–10 min ficam
+
+*"faixas de 7 a 10 ficam. o limite é 25"* — nada a apagar; o teto de 25 min
+já está no pipeline (`MAX_DURACAO_S = 1500`). Fecha o **A1** do quadro de 05/11.
+
+### 3. Pipeline preserva o sufixo de versão — `musica.py` v1.11.0
+
+- O corte vinha de `limpar_enfeite` (o regex `_NOME_ENFEITE` tratava "ao vivo"
+  como enfeite) e de `_nome_extremos` (cortava o ano final).
+- Agora o sufixo é extraído antes da limpeza e volta no fim: `(Ao Vivo)`,
+  `(Ao Vivo Em São Paulo / 1999)`, `(Live)`, `(Acústico MTV)`, `(Remix)`,
+  `(Remasterizado 2019)`. Barra interna vira ` - ` (nome de arquivo e medley).
+- `_nome_extremos` só corta ano quando o parêntese continua fechado; `MTV`
+  entrou nos acrônimos (antes virava `Mtv`).
+- Enfeite continua saindo: `Faroeste Caboclo (Clipe Oficial)` → `Faroeste Caboclo`.
+- **10 faixas** do lote que já estavam no acervo com a versão cortada foram
+  corrigidas (título + arquivo + índice + `.m3u` + AzuraCast), ex.:
+  `Índios (Ao Vivo em São Paulo - 1999)`, `Meninos e Meninas (Ao Vivo)`,
+  `Hoje a Noite Não Tem Luar (Live)`, `Rhapsody In Blue (Live From Brazil - 1992)`.
+- Acervo segue **351**, estação **353** (351 + 2 locuções).
+
+Documentação da versão nova em `dados/musicas/doc/README.md` (v1.11).
