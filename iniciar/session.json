@@ -1,4 +1,13 @@
 {
+ "conferencia_azuracast_2026_11_06": {
+  "pedido": "Dono (06/11 ~16:00): conferir no painel do AzuraCast se as playlists grandes importaram e a rádio está tocando o acervo inteiro.",
+  "achado": "O AzuraCast NÃO importa .m3u: publicar_azuracast() só roda azuracast:media:sync, que varre a pasta acervo/ montada como mídia. O .m3u é arquivo local (player/DJ). Quem alimenta a rádio é o sync da pasta.",
+  "estado": "Biblioteca 353 arquivos = playlist 'default' 351 (folder acervo, peso 3) + 'vinhetas' 2; 0 sem playlist. As 42 faixas restauradas estão na default. No ar: Isadora Pompeo - Tetelestai (AutoDJ, estação online, fila 4). Histórico 10507 entradas; 243 das 351 já tocaram — as 108 restantes são quase todas do lote novo do Legião.",
+  "saude": "od-core active, health 25/25.",
+  "em_aberto": "Se o dono quiser gêneros dentro da rádio (pesos/evitar repetição), criar playlists reais no AzuraCast via API a partir dos .m3u. Não fiz: muda a programação, fora do pedido.",
+  "updated_at": "2026-11-06T16:05:00-03:00",
+  "transcricao": "iniciar/2026-11-06_conversa_omegadrakon.md (§7)"
+ },
  "playlists_sem_teto_2026_11_06": {
   "pedido": "Dono (06/11 ~15:50): aumentar o limite de faixas por .m3u para o acervo inteiro entrar nas playlists.",
   "mudanca": "musica.py 1.11.0 -> 1.11.1: MAX_FAIXAS = 0 (sem limite) como padrão na constante e no --max-faixas da CLI; --max-faixas N continua para capar.",

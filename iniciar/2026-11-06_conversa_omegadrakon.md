@@ -260,3 +260,46 @@ Ordem do dono: acabar com o teto de 50 faixas por `.m3u`.
   (`sum(len(f) for _, f in filas)`) e encolhia junto com as filas; sem teto ela
   pararia em **177 de 351**. Agora o limite é fixado antes do laço.
 - `musica.py` **v1.11.1**; `tests/test_musica.py` continua verde (21 passed).
+
+---
+
+## §7 — Conferência na rádio (06/11 ~16:00, só leitura)
+
+Pergunta do dono: as playlists grandes importaram e a rádio toca o acervo
+inteiro?
+
+### O `.m3u` não entra no AzuraCast
+
+`publicar_azuracast()` roda só `azuracast:media:sync nicky`, que varre a pasta
+`acervo/` montada como mídia da estação. O AzuraCast **não importa `.m3u`** —
+não existe esse caminho no pipeline nem na API. O `.m3u` é arquivo local (para
+player/DJ); quem alimenta a rádio é a pasta.
+
+### E o acervo inteiro toca? Sim
+
+| Medida | Valor |
+|---|---|
+| arquivos na biblioteca | **353** |
+| na playlist `default` (folder `acervo`, peso 3) | **351** |
+| na playlist `vinhetas` | **2** (locuções) |
+| arquivos sem playlist | **0** |
+
+Percorri os 353 registros de `/api/station/1/files`: cada um traz o campo
+`playlists`, e todas as 351 músicas estão na `default` — inclusive as 42
+restauradas (`Head On (Ao Vivo em São Paulo - 1999)`, `…(Hoy Me Voy Para
+México) (Live)`, `Índios (Ao Vivo em São Paulo - 1999)`…).
+
+### Está tocando
+
+- No ar: `Isadora Pompeo - Tetelestai` (AutoDJ, estação online, 4 na fila).
+- Histórico: **10.507** entradas, **243 das 351** já tocaram desde a criação da
+  estação. As 108 que faltam são quase todas do lote novo do Legião (entrou em
+  05–06/11) — entram na rotação normalmente.
+- `od-core` `active`, health **25/25**.
+
+### O que fica em aberto
+
+Se o dono quiser os gêneros **dentro** da rádio (pesos, evitar repetição por
+bloco), dá para criar playlists reais no AzuraCast via API a partir dos `.m3u`
+— hoje existe só a `default` com tudo. Não fiz: seria mudança na programação da
+rádio, não é o que foi pedido.
