@@ -12,6 +12,61 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Músicas longas, teto de 25 min e cantores indesejados (2026-11-05, sem bump)
+
+**Resumo:** ordens do dono (05/11 20:35/20:41): *"musicas longas apaga. faca o
+resto da lista e a lista de cantores"* e *"vamos colocar o limite de tempo de
+25 minutos"*. Três frentes: o acervo perdeu as faixas longas, o pipeline passou
+a recusar faixa acima de 25 min e nasceu a lista de cantores que ele não quer —
+pedida uma música de artista da lista, ela toca uma vez e é apagada.
+
+| Peça | Entrega |
+|---|---|
+| **Acervo (HD Mídia)** | as **11 faixas da tabela analisada** foram apagadas (77:29 Fernandinho *Louvores que Tocam o Coração*, 40:18 Blues Gospel *Ele Perdoou*, 17:33 *Mantra da Prosperidade*, 14:54 Julliany Souza *Lindo Momento*, 8:55 Eyshila/Dani Ferber, 8:49 Morada *Só Tu És Santo*, 8:43 Casa Worship *Yeshua*, 8:32 Fernanda Madaloni *Maranata*, 7:57 Fhop *Tu És*, 7:26 Juliano Son *Lindo És*, 7:23 Morada *É Tudo sobre Você / Ser Mudado*). Acervo **273 → 262**, `indexar_acervo`/`.m3u`/sync refeitos, AzuraCast **264** = 262 + 2 locuções. Inventário em `dados/musicas/logs/remocao_longas_20261105.txt`. Ficaram as **31 faixas de 7–10 min** que são música única (decisão pendente do dono). |
+| **`musica.py` v1.10.1** (HD Mídia) | `MAX_DURACAO_S = MP3_DURACAO_MAX` (1500 s): `verificar_qualidade()` reprova `duração Xs > 1500s (música longa)` e o arquivo vai para `reprovadas/` — nunca entra no acervo. |
+| **`integrations/radio_cantores.py`** (novo) | lista em `data/cantores_indesejados.txt` (uma pessoa por linha, `#` comentário, editável à mão), comparação **por pessoa** sem caixa/acento (`Annita` casa "Annita e Fulano", não casa "Anitta"), registro `data/radio_apagar_depois.json` e `limpar_tocados()`: apaga o arquivo quando a faixa entra no histórico do AzuraCast (ou em 48 h sem tocar), remove a linha do `acervo.db` e refaz `.m3u` + sync pelo venv do acervo; **nunca** apaga caminho fora do acervo. |
+| **Ganchos** | `radio_pro.lancar_pedido_na_fila` marca o pedido **sem bloquear o ouvinte** (ele pediu, toca) e `runtime/launcher._radio` limpa a cada troca de faixa (só quando há algo marcado). Rotas admin `GET/POST/DELETE /api/radio/cantores` (`auth=True` + `_require_admin`). |
+| **`tools/baixar_resto_lista.py`** (novo) | runner operacional do "resto da lista" reutilizando o que já era testado no `radio_link` (`extrair_entradas`, `trava_pipeline`, `rodar_pipeline`, `timeout_do_lote`, `notificar_dono`); lotes de 10, timeout de 3000 s por lote. Usado no Legião Urbana (99 entradas, rodando desde 20:49, 1º lote **+10**). |
+| **`tests/test_radio_cantores.py`** (novo) | 8 guardas: comparação por pessoa, arquivo preserva comentário, registro idempotente, só apaga depois de tocar, prazo de 48 h, caminho fora do acervo nunca apaga, fila marca sem bloquear, fila não marca quem não está na lista. `tests/test_api.py`: `len(ROUTES)` 98 → 101 + os 3 caminhos no conjunto `auth`. |
+
+**Validação:** gate oficial **4177 passed / 16 skipped / 0 falha** (eram 4169;
++8) · `pyflakes` limpo no módulo novo (os 8 avisos de `launcher`/`server` são
+pré-existentes) · restart verde **regra 7.3** → `MainPID 3145390`,
+`NRestarts=0`, `/health` 25/25, journal 0 `[ERROR]` · versão segue
+**1.44.0/2080**.
+
+**Prova viva:** sem chave `GET /api/radio/cantores` → **401**; `GET` lista
+`["Annita"]`; `POST "Teste OD"` → `novo=true`; `POST "teste od"` → `novo=false`
+(idempotente); `DELETE` → 200; lista final `["Annita"]`;
+`radio_cantores._ressincronizar()` → `True` em 1 s. O download da lista não foi
+afetado pelo restart (processo desanexado, `setsid`).
+
+**Limite honesto:** pedido por **link** de artista indesejado ainda baixa pelo
+pipeline e entra no acervo antes de ser marcado (funciona, mas gasta um
+download que depois é apagado); a UI de preenchimento da lista ainda é o
+arquivo + API.
+
+## IAs: Gemini era autenticação, cadeia com fallback e dossiê (2026-11-05, sem bump)
+
+**Resumo:** a chave do Gemini "inválida" não estava inválida. Medido com a
+**mesma** chave: `?key=` na URL → **400 `API_KEY_INVALID`**; header
+`x-goog-api-key` → **200**. O `musica.py` autenticava pela query e por isso
+toda faixa nova nascia `Desconhecido - <título>`. Depois, ordem do dono:
+*"pesquise todas as IAs e use a melhor"*.
+
+| Peça | Entrega |
+|---|---|
+| **`musica.py` v1.9.1** (HD Mídia) | `chamar_gemini()` autentica por **header**; a chave não aparece mais em URL/log. |
+| **`musica.py` v1.10.0** | cadeia `chamar_ia()` com fallback medido: **gemini-3-flash-preview** (5,6 s · 3/3) → **groq gpt-oss-120b** (3,4 s · 3/3) → **llama-server local qwen2.5-coder-3b** (31 s · 2/3, sem cota). Ordem configurável em `OD_IA_ORDEM`; falha de um provedor passa para o próximo **sem backoff longo**. Groq exige `User-Agent` de navegador (Cloudflare 403) e `max_tokens` ≥ 2000 (gpt-oss é modelo de raciocínio). `chamar_gemini()` mantido para os 4 pontos de chamada. |
+| **`docs/IAS_DISPONIVEIS.md`** (novo) | fonte única do inventário (modelos locais e o que não cabe em 8 GB, chaves online e estado real, CLIs de código com caminho/versão), benchmark e pegadinhas + "Histórico de medições". Regra 19 do `iniciar/RULES.md` aponta para ele. |
+
+**Medição:** OpenAI sem créditos nas duas chaves (`429 credit_balance_exhausted`);
+`groq qwen3.8-27b` não respeita os 8 campos; Kilo/OpenCode/Aider/Freebuff
+existem mas nenhum serve como motor de lote (login/chave/credito).
+
+**Validação:** `py_compile` OK e `pyflakes` 0 aviso · prova viva com Gemini
+quebrado de propósito → `IA groq respondeu no lugar da principal` em **1,0 s**.
+
 ## Lista do YouTube: resto baixado em lotes (2026-11-05, sem bump)
 
 **Resumo:** pergunta do dono (05/11): *"porque o resto das musicas da lista do
