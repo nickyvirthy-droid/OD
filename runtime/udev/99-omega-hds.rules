@@ -1,0 +1,16 @@
+# Omega Drakon — HDs externas montam sozinhas quando aparecem.
+#
+# Sem isso, trocar a HD de porta USB a deixa sem montagem até alguém rodar
+# "systemctl start <unit>" (o /etc/fstab já está correto, por UUID — a porta
+# não importa; o que falta é o hotplug não remontar).
+#
+# Ordem 99 de propósito: o 60-persistent-storage.rules é quem preenche o
+# ID_FS_UUID no evento; regra avaliada antes disso nunca casa.
+#
+# Instalação: sudo bash runtime/udev/install.sh
+
+# HD "Arquivos" (ext4) → /mnt/Arquivos
+ACTION=="add", SUBSYSTEM=="block", ENV{ID_FS_UUID}=="81225f7d-9eff-4d9f-a51b-5ad8d0311ee7", RUN+="/usr/bin/systemctl start --no-block mnt-Arquivos.mount"
+
+# HD "MIDIA" (ext4) → /home/alex/dados
+ACTION=="add", SUBSYSTEM=="block", ENV{ID_FS_UUID}=="f2c818bc-bc38-494c-8eb5-c8c291bf8fc1", RUN+="/usr/bin/systemctl start --no-block home-alex-dados.mount"
