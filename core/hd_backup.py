@@ -128,6 +128,10 @@ SEMANAIS_PADRAO = 8                  # retenção HD: 1 por semana ISO
 # tamanho medido depois do 1º sucesso (mesma alquimia do backup tar).
 ESTIMATIVA_PADRAO_BYTES = 5 * 1024 ** 3
 PASTA_PADRAO = "od_snapshots"
+# De onde sai o device de cada ponto de montagem — é o que permite ao check
+# separar "HD plugada mas sem mount" de "HD desconectada" (08/11/2026: o
+# /health disse "desconectada" por dois dias com o disco plugado).
+FSTAB_PADRAO = Path("/etc/fstab")
 # `Rótulo=/caminho` por vírgula — rótulo é o nome do dono (aparece no
 # check do /health e no stats), caminho é o ponto de montagem.
 ALVOS_PADRAO = "Mídias=/home/alex/dados,Arquivos=/mnt/Arquivos"
@@ -400,6 +404,65 @@ def _montado_padrao(caminho: Path) -> bool:
         return False
 
 
+def _desescapar(campo: str) -> str:
+    """fstab escapa espaço/tab como \\040/\\011 (caminho com espaço)."""
+    return campo.replace("\\040", " ").replace("\\011", "\t")
+
+
+def dispositivo_do_alvo(
+    caminho: Path, *, fstab: Optional[Path] = None,
+) -> Optional[str]:
+    """O `What=` do fstab para este ponto de montagem (UUID=…, /dev/…).
+
+    None = ponto fora do fstab (ou fstab ilegível): sem essa informação o
+    check não tem como afirmar se a HD está plugada.
+    """
+    try:
+        linhas = (fstab or FSTAB_PADRAO).read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
+    except OSError:
+        return None
+    alvo = str(Path(caminho))
+    for linha in linhas:
+        campos = linha.split("#", 1)[0].split()
+        if len(campos) < 2:
+            continue
+        if _desescapar(campos[1]) == alvo:
+            return campos[0]
+    return None
+
+
+def _dispositivo_presente_padrao(caminho: Path) -> Optional[bool]:
+    """O disco do fstab está plugado? None = não dá para saber.
+
+    Com `nofail` a pasta existe com ou sem disco; o device presente (UUID,
+    label ou `/dev/...`) + pasta não montada é a assinatura de **mount
+    caído**, não de HD desconectada.
+    """
+    what = dispositivo_do_alvo(Path(caminho))
+    if not what:
+        return None
+    for prefixo, pasta in (
+        ("UUID=", "/dev/disk/by-uuid"),
+        ("LABEL=", "/dev/disk/by-label"),
+    ):
+        if what.startswith(prefixo):
+            return Path(pasta, what[len(prefixo):]).exists()
+    if what.startswith("/"):
+        return Path(what).exists()
+    return None
+
+
+def unit_do_mount(caminho: Path) -> str:
+    """Nome da unit do systemd para o ponto ('/mnt/x' → 'mnt-x.mount').
+
+    Suficiente para os pontos desta casa (sem '-' nem espaço no caminho,
+    os únicos casos em que o escape do systemd muda o nome).
+    """
+    return str(caminho).strip("/").replace("/", "-") + ".mount"
+
+
 class HDBackupService:
     """Executor do snapshot-dir de UM alvo: rsync + retenção + estado.
 
@@ -416,6 +479,7 @@ class HDBackupService:
         clock: Callable[[], float] = time.time,
         espaco_livre_fn: Optional[Callable[[Path], Optional[int]]] = None,
         montado_fn: Optional[Callable[[Path], bool]] = None,
+        presente_fn: Optional[Callable[[Path], Optional[bool]]] = None,
         rsync_bin: str = "rsync",
     ) -> None:
         self.cfg = cfg
@@ -423,6 +487,7 @@ class HDBackupService:
         self._clock = clock
         self._espaco_livre_fn = espaco_livre_fn or _espaco_livre
         self._montado_fn = montado_fn or _montado_padrao
+        self._presente_fn = presente_fn or _dispositivo_presente_padrao
         self._rsync = rsync_bin
         self._lock = threading.RLock()
 
@@ -564,6 +629,28 @@ class HDBackupService:
                 ),
             }
         if not montado:
+            presente = self._presente_fn(Path(self.cfg.alvo))
+            if presente:
+                return {
+                    "ok": False,
+                    "status": "degraded",
+                    "detail": (
+                        f"{rotulo} PENDENTE — HD plugada mas SEM montagem em "
+                        f"{self.cfg.alvo} (mount caiu; `systemctl start "
+                        f"{unit_do_mount(Path(self.cfg.alvo))}` resolve — "
+                        "o fstab está certo)."
+                    ),
+                }
+            if presente is None:
+                return {
+                    "ok": False,
+                    "status": "degraded",
+                    "detail": (
+                        f"{rotulo} PENDENTE — {self.cfg.alvo} sem montagem "
+                        "(ponto fora do fstab: não dá para saber se a HD "
+                        "está plugada)."
+                    ),
+                }
             return {
                 "ok": False,
                 "status": "degraded",

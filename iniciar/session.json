@@ -1,4 +1,29 @@
 {
+  "wifi_usb_dongle_ausente_2026_11_08": {
+    "pedido": "Dono (08/11 ~13:00): 'plug wifi usb tambem parece não responder'.",
+    "medicao": "O netplan (/etc/netplan/50-cloud-init.yaml) espera wlx000f0037acf0 (IP .250, SSID Drakon, rota default metric 600 = reserva), e esse USB NAO existe: nenhum evento com esse MAC desde 01/10, systemd fica 'Expecting device' no boot. O dongle plugado e outro: 148f:7601 MT7601U (wlx00e2b0101555), fora do netplan, DOWN. Driver carrega mas o kernel emite WARNING lin2dBd (calibracao TSSI) e faz usb 1-5 reset no boot. Teste com wpa_supplicant/wpa_cli: scan de 15s viu 0 redes (nem a Drakon). Sem over-current; topologia USB normal.",
+    "leitura": "O adaptador configurado esta desplugado ou morto; o que esta na maquina e o segundo dongle, sem config e sem ouvir beacons. 'Nao ouvir' pode ser o proprio MT7601U (aviso de calibracao) ou o roteador estar so em 5 GHz (o MT7601U e 2,4 GHz) — nao da para separar sem roteador/dongle.",
+    "estado": "AGUARDANDO DECISAO DO DONO: (A) recolocar o dongle .250; (B) eu configurar o MT7601U no netplan com a senha do Drakon ja gravada no 50-cloud-init, rota metric 600 como reserva. Nada alterado em rede; scan desfeito (iface DOWN, wpa_supplicant de teste encerrado).",
+    "transcricao": "iniciar/2026-11-08_conversa_omegadrakon.md (§5)",
+    "updated_at": "2026-11-08T13:40:00-03:00"
+  },
+  "health_hd_plugada_sem_mount_2026_11_08": {
+    "pedido": "Dono (08/11): 'Faça o /health diferenciar disco plugado sem mount de HD realmente desconectada'.",
+    "feito": "core/hd_backup.py: FSTAB_PADRAO, dispositivo_do_alvo() (le o What= do fstab do ponto, desescapa \\040), _dispositivo_presente_padrao() (UUID/LABEL/caminho do device existe?) e unit_do_mount(). HDBackupService ganhou presente_fn= injetavel (molde do montado_fn). Mensagens: plugada sem mount diz 'HD plugada mas SEM montagem … systemctl start <unit>'; device ausente mantem 'HD desconectada'; ponto fora do fstab diz que nao da para saber.",
+    "prova": "pytest tests/test_hd_backup.py -q -> 38 passed (3 novos: plugada sem mount, ponto fora do fstab, parse UUID//dev/ com espaco escapado). Checagem viva do parser: /mnt/Arquivos -> UUID 81225f7d…/plugado=True; /home/alex/dados -> UUID f2c818bc…/plugado=True. Changelog: docs/CHANGELOG.md.",
+    "pendente": "od-core NAO reiniciado (regra 7.1: deploy/restart exige ordem do dono). Ate o restart o /health em execucao mostra a mensagem antiga.",
+    "transcricao": "iniciar/2026-11-08_conversa_omegadrakon.md (§4)",
+    "updated_at": "2026-11-08T13:40:00-03:00"
+  },
+  "hd_arquivos_udev_repo_e_midia_2026_11_08": {
+    "pedido": "Donos (08/11): 'Guarde a regra udev no repo com script de instalação, para sobreviver a uma reinstalação do servidor' + 'Faça a HD Mídia também voltar sozinha ao ser replugada'.",
+    "feito": "runtime/udev/99-omega-hds.rules com as duas regras por UUID (81225f7d… -> mnt-Arquivos.mount; f2c818bc… -> home-alex-dados.mount, RUN+='systemctl start --no-block') e runtime/udev/install.sh (root, instala em /etc/udev/rules.d, reload-rules e confere cada UUID com udevadm test, avisando quando o disco nao esta plugado). Substituiu a 99-mnt-arquivos.rules avulsa no host.",
+    "defeitos_pegos": "(1) udevadm test | grep -q sob pipefail morre por SIGPIPE e dava falso 'regra NAO casou' — agora a saida vai para uma variavel. (2) findmnt --source no symlink nao casa; passou a usar readlink -f.",
+    "prova": "Prova viva da Midia: systemctl stop home-alex-dados.mount + udevadm trigger --action=add --sysname-match=sdb1 -> remontou sozinha em ~2s; df 786G livres; /mnt/Arquivos intacto (763G/107G). install.sh rc=0 conferindo os dois UUIDs ('regra OK'). /health 25/25 depois dos testes.",
+    "limite": "Dispara quando a particao aparece (plug/boot); mount caido com disco ja plugado (umount manual/erro I/O) ainda exige systemctl start.",
+    "transcricao": "iniciar/2026-11-08_conversa_omegadrakon.md (§3)",
+    "updated_at": "2026-11-08T13:40:00-03:00"
+  },
   "hd_arquivos_automount_udev_2026_11_08": {
     "pedido": "Dono (08/11 ~12:20): 'Deixe o /mnt/Arquivos montando sozinho quando a HD for replugada em outra porta'.",
     "feito": "Regra udev /etc/udev/rules.d/99-mnt-arquivos.rules (root:root 644) casando ENV{ID_FS_UUID}=='81225f7d-9eff-4d9f-a51b-5ad8d0311ee7' com RUN+='/usr/bin/systemctl start --no-block mnt-Arquivos.mount'. O fstab NAO foi alterado (segue UUID + noatime + nofail); udevadm control --reload-rules aplicado.",
@@ -1108,7 +1133,7 @@
     "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
     "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
   },
-  "updated_at": "2026-11-08T12:48:00-03:00",
+  "updated_at": "2026-11-08T13:40:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
@@ -3200,7 +3225,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": "2026-11-08T12:48:00-03:00",
+  "last_turn": "2026-11-08T13:40:00-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."

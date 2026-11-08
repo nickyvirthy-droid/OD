@@ -108,3 +108,81 @@ sudo udevadm trigger --action=add --sysname-match=sdc1   # reemite o "plug"
   e o mount cair por outro motivo (erro de I/O, `umount` manual), continua
   precisando de `systemctl start` — a regra não fica vigiando.
 - Sem mudança de código no repo; o `txt.txt` não foi usado.
+
+## §3 — Regra udev no repo + HD Mídia (pedidos seguintes, ~13:00–13:20)
+
+**Pedidos:** *"Guarde a regra udev no repo com script de instalação, para
+sobreviver a uma reinstalação do servidor"* e *"Faça a HD Mídia também voltar
+sozinha ao ser replugada"*.
+
+- `runtime/udev/99-omega-hds.rules` — as duas regras (Arquivos `81225f7d…`
+  → `mnt-Arquivos.mount`; Mídia `f2c818bc…` → `home-alex-dados.mount`), com o
+  porquê da ordem 99 e do `RUN+=` no cabeçalho.
+- `runtime/udev/install.sh` — `sudo bash runtime/udev/install.sh`: instala,
+  recarrega o udev e confere cada UUID com `udevadm test`.
+
+**Dois defeitos pegos na execução, ambos corrigidos no arquivo do repo:**
+
+1. `udevadm test | grep -q` sob `set -o pipefail` morre por **SIGPIPE** e
+   dava "a regra NÃO casou" com a regra certa. Agora a saída é capturada numa
+   variável e o `grep` lê dali.
+2. A conferência mostrava o disco/mount via `findmnt --source` do symlink
+   (que não casa); passou a usar `readlink -f`.
+
+**Prova viva da Mídia:** `systemctl stop home-alex-dados.mount` +
+`udevadm trigger --action=add --sysname-match=sdb1` → **remontou sozinha em
+~2 s**; `df` 786G livres, `/mnt/Arquivos` intacto (763G/107G).
+Instalado no host como `/etc/udev/rules.d/99-omega-hds.rules` (a versão
+antiga `99-mnt-arquivos.rules` foi removida para não duplicar a regra).
+
+## §4 — `/health`: plugada sem mount ≠ desconectada (~13:20–13:35)
+
+**Pedido:** *"Faça o /health diferenciar disco plugado sem mount de HD
+realmente desconectada"*.
+
+Em `core/hd_backup.py`: `FSTAB_PADRAO`, `dispositivo_do_alvo()` (lê o `What=`
+do fstab do ponto, desescapando `\040`), `_dispositivo_presente_padrao()`
+(UUID/LABEL/caminho do device existe?) e `unit_do_mount()`. O
+`HDBackupService` ganhou `presente_fn=` injetável (mesmo molde do
+`montado_fn`), então o teste não toca no host.
+
+Mensagens agora:
+- disco plugado e sem mount → *"HD plugada mas SEM montagem em /mnt/Arquivos
+  (mount caiu; `systemctl start mnt-Arquivos.mount` resolve — o fstab está
+  certo)"*;
+- device ausente → a antiga *"HD desconectada"*;
+- ponto fora do fstab → *"não dá para saber se a HD está plugada"*.
+
+**Verificação:** `pytest tests/test_hd_backup.py -q` → **38 passed** (3 novos).
+Checagem viva do parser: `/mnt/Arquivos` → `UUID=81225f7d…`/plugado=True;
+`/home/alex/dados` → `UUID=f2c818bc…`/plugado=True.
+
+**PENDENTE:** o `od-core` **não foi reiniciado** (regra 7.1: deploy/restart
+exige ordem do dono). Até o restart, o `/health` em execução continua com a
+mensagem antiga.
+
+## §5 — Wi-Fi USB não responde (~13:00–13:15)
+
+**Pedido:** *"plug wifi usb tambem parece não responder"*.
+
+O que o host mostra:
+
+| Fato | Evidência |
+|---|---|
+| O dongle **configurado** não está presente | `/etc/netplan/50-cloud-init.yaml` define `wlx000f0037acf0` com IP `.250`, SSID `Drakon` e rota default métrica 600 (reserva); nenhum USB com esse MAC desde 01/10 — `systemd` fica "Expecting device …wlx000f0037acf0" no boot |
+| O dongle **plugado** é outro | `lsusb` → `148f:7601 Ralink MT7601U`, interface `wlx00e2b0101555`; fora do netplan, por isso `DOWN` |
+| Driver carrega, mas com aviso | `mt7601u` registra o adaptador e o kernel emite `WARNING … lin2dBd` (calibração TSSI) no boot; `usb 1-5: reset` no mesmo instante |
+| Não vê nenhuma rede | `wpa_supplicant` + `wpa_cli scan` por 15 s → **0 redes** (nem a `Drakon`) |
+| Sem erro de energia/porta | nenhum `over-current`; topologia USB normal (porta 1-5 livre para ele) |
+
+Leitura: o adaptador que o netplan espera está **desplugado (ou morto)** e o
+que está na máquina é o segundo dongle — sem configuração e sem ouvir beacons.
+A causa de "não ouvir" pode ser o adaptador (aviso de calibração) **ou** o
+roteador estar só em 5 GHz (o MT7601U é 2,4 GHz) — não dá para separar sem
+mexer no roteador ou trocar o dongle.
+
+Estado: **aguardando decisão do dono** (recolocar o dongle `.250` ou eu
+configurar o MT7601U no netplan usando a senha do `Drakon` já gravada no
+50-cloud-init, rota métrica 600 como reserva). Nada foi alterado em rede; o
+teste de scan foi desfeito (interface de volta a `DOWN`, `wpa_supplicant` de
+teste encerrado).

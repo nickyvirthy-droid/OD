@@ -157,6 +157,7 @@ class _Arvore:
 
     def svc(self, cfg: ConfigHD | None = None, *, relogio: _Clock | None = None,
             montado: bool = True, espaco: int = 10 ** 15,
+            presente: bool | None = None,
             push=None, rsync: str = "rsync") -> HDBackupService:
         return HDBackupService(
             cfg=cfg or self.cfg(),
@@ -164,6 +165,7 @@ class _Arvore:
             push=push,
             espaco_livre_fn=lambda _p: espaco,
             montado_fn=lambda _p: montado,
+            presente_fn=lambda _p: presente,
             rsync_bin=rsync,
         )
 
@@ -641,7 +643,7 @@ class TestSaude:
         # 3) janela passada + HD desconectada: degrada dizendo o motivo
         cfg.estado_path.unlink()
         svc_sem_disco = arv.svc(cfg=cfg, relogio=_Clock(
-            _epoch("2026-10-17 10:00")), montado=False)
+            _epoch("2026-10-17 10:00")), montado=False, presente=False)
         c = svc_sem_disco.check_saude()
         assert c["ok"] is False and c["status"] == "degraded"
         assert "desconectada" in c["detail"]
@@ -655,6 +657,63 @@ class TestSaude:
         assert c["ok"] is False
         assert "PENDENTE" in c["detail"] and "falhas=3" in c["detail"]
         assert "rsync rc=23" in c["detail"]
+
+    def test_plugada_sem_mount_nao_e_desconectada(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """08/11/2026: disco plugado, mount caído — o check tem que dizer
+        isso e o comando que resolve, não "HD desconectada"."""
+        arv = _Arvore(tmp_path, monkeypatch)
+        svc = arv.svc(relogio=_Clock(_epoch("2026-10-17 10:00")),
+                      montado=False, presente=True)
+        c = svc.check_saude()
+        assert c["ok"] is False and c["status"] == "degraded"
+        assert "plugada mas SEM montagem" in c["detail"]
+        assert "systemctl start" in c["detail"]
+        assert "desconectada" not in c["detail"]
+
+    def test_sem_entrada_no_fstab_admite_que_nao_sabe(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        arv = _Arvore(tmp_path, monkeypatch)
+        svc = arv.svc(relogio=_Clock(_epoch("2026-10-17 10:00")),
+                      montado=False, presente=None)
+        c = svc.check_saude()
+        assert c["ok"] is False
+        assert "não dá para saber" in c["detail"]
+        assert "desconectada" not in c["detail"]
+
+    def test_presenca_sai_do_fstab_por_uuid_ou_dev(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        fstab = tmp_path / "fstab"
+        dev = tmp_path / "sdb1"
+        dev.write_text("", encoding="utf-8")
+        fstab.write_text(
+            "# comentário\n"
+            f"{dev} /mnt/meu\\040disco ext4 defaults,nofail 0 2\n"
+            "UUID=00000000-0000-0000-0000-000000000000 "
+            "/mnt/uuid ext4 defaults,nofail 0 2\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(hd_backup, "FSTAB_PADRAO", fstab)
+
+        assert hd_backup.dispositivo_do_alvo(Path("/mnt/meu disco")) == str(dev)
+        assert hd_backup._dispositivo_presente_padrao(Path("/mnt/meu disco")) is True
+        assert hd_backup._dispositivo_presente_padrao(Path("/mnt/uuid")) is False
+        assert hd_backup.dispositivo_do_alvo(Path("/mnt/fora")) is None
+        assert hd_backup._dispositivo_presente_padrao(Path("/mnt/fora")) is None
+
+        dev.unlink()
+        assert hd_backup._dispositivo_presente_padrao(Path("/mnt/meu disco")) is False
+
+    def test_unit_do_mount(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        assert hd_backup.unit_do_mount(Path("/mnt/Arquivos")) == \
+            "mnt-Arquivos.mount"
+        assert hd_backup.unit_do_mount(Path("/home/alex/dados")) == \
+            "home-alex-dados.mount"
 
     def test_registra_check_nao_critico_no_health(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,

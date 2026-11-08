@@ -12,6 +12,34 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## /health separa HD plugada sem mount de HD desconectada (2026-11-08, sem bump)
+
+**Resumo:** ordem do dono depois de a HD "Arquivos" ficar dois dias como "HD
+desconectada" com o disco plugado (mount tinha caído). O check agora consulta o
+`/etc/fstab` para achar o device do ponto de montagem e, se ele existe em
+`/dev/disk/by-uuid`, diz a verdade — **plugada mas SEM montagem** — junto do
+comando que resolve. Desconectada de verdade mantém a mensagem antiga; ponto
+fora do fstab admite que não sabe.
+
+| Peça | Entrega |
+|---|---|
+| **`core/hd_backup.py`** | `FSTAB_PADRAO`, `dispositivo_do_alvo()` (o `What=` do fstab, desescapando `\040`), `_dispositivo_presente_padrao()` (UUID/LABEL/caminho do device existe?) e `unit_do_mount()` (`/mnt/x` → `mnt-x.mount`). `HDBackupService` ganhou `presente_fn=` injetável, no mesmo molde do `montado_fn` — teste sem tocar no host. |
+| **Efeito no `/health`** | Mount caído: `HD plugada mas SEM montagem em /mnt/Arquivos (mount caiu; systemctl start mnt-Arquivos.mount resolve — o fstab está certo)`. Disco fora: `HD desconectada` (como antes). Sem entrada no fstab: `não dá para saber`. |
+| **Verificação** | `pytest tests/test_hd_backup.py -q` → **38 passed** (3 novos: plugada sem mount, ponto fora do fstab, parse UUID/`/dev/…` com espaço escapado). Checagem viva: `/mnt/Arquivos` → UUID `81225f7d…` e `/home/alex/dados` → UUID `f2c818bc…`, ambos "plugado=True". **od-core não reiniciado** — regra 7.1 (deploy/restart exige ordem do dono); até lá o `/health` em execução mostra a mensagem antiga. |
+
+## HDs externas montam sozinhas ao replugar; regra no repo (2026-11-08, sem bump)
+
+**Resumo:** a troca de porta USB derrubou o mount das duas HDs e nada remontava
+sozinho. Regra udev por UUID (porta não importa) dispara o mount no evento de
+plug, e a regra passou a viver no repo com instalador.
+
+| Peça | Entrega |
+|---|---|
+| **`runtime/udev/99-omega-hds.rules`** | Duas regras `ACTION=="add", SUBSYSTEM=="block", ENV{ID_FS_UUID}=="…", RUN+="/usr/bin/systemctl start --no-block <unit>.mount"` — Arquivos (`81225f7d…` → `mnt-Arquivos.mount`) e Mídia (`f2c818bc…` → `home-alex-dados.mount`). Ordem **99** de propósito: o `60-persistent-storage.rules` é quem preenche o `ID_FS_UUID`; em `60-…` a regra nunca casa (erro medido). |
+| **`runtime/udev/install.sh`** | `sudo bash runtime/udev/install.sh`: copia para `/etc/udev/rules.d/`, `udevadm control --reload-rules` e confere cada UUID com `udevadm test` (avisa quando o disco não está plugado). O `grep -q` lê a saída de uma variável — com `pipefail`, `udevadm test | grep -q` morre por SIGPIPE e dava falso negativo. |
+| **Prova viva** | `systemctl stop <mount>` + `udevadm trigger --action=add --sysname-match=sdb1/sdc1` → as duas voltam sozinhas em ~2 s (`/mnt/Arquivos` 763G/107G; `/home/alex/dados` 786G livres). `udevadm test` mostra as regras casando; `/health` 25/25 depois. |
+| **Limite registrado** | Dispara quando a partição **aparece** (plug/boot). Mount caído com o disco já plugado (`umount` manual/erro de I/O) continua exigindo `systemctl start`. |
+
 ## Pipeline cria as playlists da rádio e a rotação explicada (2026-11-06, sem bump)
 
 **Resumo:** duas ordens do dono (06/11 ~16:50 e ~17:20): entender por que 108
