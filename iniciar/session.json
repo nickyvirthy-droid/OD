@@ -1,4 +1,14 @@
 {
+  "hd_arquivos_remontada_troca_porta_2026_11_08": {
+    "pedido": "Dono (08/11 ~11:50): 'troquei a hd de porta e não esta mais acessivel'; depois 'o root esta no cofre' (autorizou usar o SUDO_PASSWORD do .env).",
+    "medicao": "HD Arquivos plugada e reconhecida (sdc1, 931,5G, ext4, UUID 81225f7d-…), mas mnt-Arquivos.mount inactive (dead) e /mnt/Arquivos vazio; /dev/sdc1 recriado em 06/11 19:25 (hora da troca de porta). fstab correto (UUID+noatime+nofail). /health degraded 25 checks, só hd_arquivos: 'HD desconectada de /mnt/Arquivos'. Ultimo snapshot no alvo: snapshot_od-2026-11-06_0354 (21 rodadas, 0 falhas). Midias (sdb1) normal, snapshot de 08/11 03:50.",
+    "causa": "Troca de porta USB derrubou o mount; nada remonta sozinho em hotplug (a unidade systemd ficou dead e o loop pulou com alvo_ausente). UUID no fstab nao quebra por porta — faltou so remontar.",
+    "acao": "sudo systemctl start mnt-Arquivos.mount (rc=0), executado com o SUDO_PASSWORD lido do .env em memoria, sem imprimir/ecoa/logar o valor. udisksctl/polkit e sudo -n tinham recusado antes (sem tty).",
+    "prova": "mnt-Arquivos.mount active (mounted) desde 11:59:39; df 763G usados/107G livres (88%); conteudo preservado (od_snapshots ate 06/11, Imagens, Temp, backup_od_2026-09-05); escrita OK; catch-up automatico no tick das 12:06 gerou snapshot_od-2026-11-08_1206 (10.530.977.256 bytes, falhas=0, 9,9G no disco por hardlink); /health up 25/25 com hd_arquivos ok.",
+    "pendencia": "Sem mudanca de codigo. Se o dono mover o cabo de novo o mount cai outra vez: causa-raiz opcional = x-systemd.automount/device-timeout no fstab ou regra udev (mexe em /etc/fstab, com root).",
+    "transcricao": "iniciar/2026-11-08_conversa_omegadrakon.md (§1)",
+    "updated_at": "2026-11-08T12:10:00-03:00"
+  },
   "pipeline_playlists_azuracast_2026_11_06": {
     "pedido": "Dono (06/11 ~17:20): ajustar o pipeline para também criar/atualizar playlists no AzuraCast em vez de gerar só .m3u local.",
     "feito": "musica.py v1.12.0 (HD Mídia): nova sincronizar_playlists_azuracast(), chamada dentro de publicar_azuracast() (fim de cada lote e --limpar-nomes --aplicar). Para cada pasta de acervo/: cria a playlist que falta (POST type=default/source=songs/order=shuffle/weight=nº de faixas/avoid_duplicates=true/is_enabled=true) e aplica a pasta (PUT .../apply-to directories=['acervo/<Gênero>']); se existe, corrige por PUT só o que divergiu (peso/ordem/duplicata/habilitada). faixas_por_genero() passou a alimentar .m3u e playlists.",
@@ -1089,7 +1099,7 @@
     "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
     "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
   },
-  "updated_at": "2026-11-05T17:00:00-03:00",
+  "updated_at": "2026-11-08T12:10:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
@@ -3181,7 +3191,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": "2026-11-05T17:00:00-03:00",
+  "last_turn": "2026-11-08T12:10:00-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
