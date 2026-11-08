@@ -1,4 +1,13 @@
 {
+  "hd_arquivos_automount_udev_2026_11_08": {
+    "pedido": "Dono (08/11 ~12:20): 'Deixe o /mnt/Arquivos montando sozinho quando a HD for replugada em outra porta'.",
+    "feito": "Regra udev /etc/udev/rules.d/99-mnt-arquivos.rules (root:root 644) casando ENV{ID_FS_UUID}=='81225f7d-9eff-4d9f-a51b-5ad8d0311ee7' com RUN+='/usr/bin/systemctl start --no-block mnt-Arquivos.mount'. O fstab NAO foi alterado (segue UUID + noatime + nofail); udevadm control --reload-rules aplicado.",
+    "por_que_99": "Tentativas na ordem 60 falharam: 60-mnt-arquivos.rules e avaliado ANTES do 60-persistent-storage.rules, que e quem preenche ID_FS_UUID no evento, então a regra nao casava. ENV{SYSTEMD_WANTS} tambem nao acorda o systemd quando o unit dev-...device ja esta ativo (teste com evento reemitido); por isso RUN+systemctl, provado no teste.",
+    "prova": "sudo systemctl stop mnt-Arquivos.mount + sudo udevadm trigger --action=add --sysname-match=sdc1 → remontou sozinho em ~2s, em duas rodadas (inclusive com a versao final da regra, sem log de debug). udevadm test /sys/class/block/sdc1 lista o RUN. Depois dos testes: mount active, df 763G usados/107G livres (88%), /health up 25/25 com hd_arquivos ok (snapshot 12:06), od-core sem restart.",
+    "limite": "Dispara quando a particao aparece (plug/boot). Mount caido com a HD ja plugada (umount manual, erro de I/O) ainda exige systemctl start — a regra nao vigia.",
+    "transcricao": "iniciar/2026-11-08_conversa_omegadrakon.md (§2)",
+    "updated_at": "2026-11-08T12:48:00-03:00"
+  },
   "hd_arquivos_remontada_troca_porta_2026_11_08": {
     "pedido": "Dono (08/11 ~11:50): 'troquei a hd de porta e não esta mais acessivel'; depois 'o root esta no cofre' (autorizou usar o SUDO_PASSWORD do .env).",
     "medicao": "HD Arquivos plugada e reconhecida (sdc1, 931,5G, ext4, UUID 81225f7d-…), mas mnt-Arquivos.mount inactive (dead) e /mnt/Arquivos vazio; /dev/sdc1 recriado em 06/11 19:25 (hora da troca de porta). fstab correto (UUID+noatime+nofail). /health degraded 25 checks, só hd_arquivos: 'HD desconectada de /mnt/Arquivos'. Ultimo snapshot no alvo: snapshot_od-2026-11-06_0354 (21 rodadas, 0 falhas). Midias (sdb1) normal, snapshot de 08/11 03:50.",
@@ -1099,7 +1108,7 @@
     "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
     "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
   },
-  "updated_at": "2026-11-08T12:10:00-03:00",
+  "updated_at": "2026-11-08T12:48:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
@@ -3191,7 +3200,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": "2026-11-08T12:10:00-03:00",
+  "last_turn": "2026-11-08T12:48:00-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."

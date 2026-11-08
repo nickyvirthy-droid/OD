@@ -56,3 +56,55 @@ hotplug). Caminho de causa raiz, se ele quiser: `x-systemd.automount` (e
 `/etc/fstab` com root, feita fora do horário de uso da HD.
 
 **Nada de código alterado; nenhum segredo impresso.**
+
+## §2 — Montagem automática ao replugar (pedido seguinte, ~12:20–12:48)
+
+**Pedido do dono:** *"Deixe o /mnt/Arquivos montando sozinho quando a HD for
+replugada em outra porta"*.
+
+### Solução escolhida
+
+Regra udev no host, casada por **UUID** (não por porta) — o
+`/etc/fstab` não foi tocado:
+
+`/etc/udev/rules.d/99-mnt-arquivos.rules`
+
+```
+# HD "Arquivos" (ext4, UUID 81225f7d-9eff-4d9f-a51b-5ad8d0311ee7):
+# monta /mnt/Arquivos sozinha quando a particao aparece, em qualquer porta USB.
+# Ordem 99: depois do 60-persistent-storage, que e quem preenche ID_FS_UUID.
+# Sem isso, trocar a HD de porta a deixa sem montagem ate alguem rodar
+# "systemctl start mnt-Arquivos.mount" (o fstab ja esta correto, por UUID).
+ACTION=="add", SUBSYSTEM=="block", ENV{ID_FS_UUID}=="81225f7d-9eff-4d9f-a51b-5ad8d0311ee7", RUN+="/usr/bin/systemctl start --no-block mnt-Arquivos.mount"
+```
+
+### Duas tentativas que falharam (e por quê)
+
+1. **`ENV{SYSTEMD_WANTS}+="mnt-Arquivos.mount"` (arquivo `60-mnt-arquivos.rules`)** —
+   regra não casava: `60-mnt-…` ordena **antes** de `60-persistent-storage.rules`,
+   que é quem preenche `ID_FS_UUID` no evento. Além disso, o teste com evento
+   reemitido (`udevadm trigger --action=add`) não acorda o systemd porque o unit
+   `dev-…device` já está ativo — ele só reavalia a transição inactive→active,
+   que só acontece num plug real.
+2. **`RUN+="systemctl start"` ainda na ordem 60** — mesma causa (UUID ausente na
+   hora da avaliação). Reordenar para **99** resolveu.
+
+### Prova viva (teste repetido com a regra final)
+
+```
+sudo systemctl stop mnt-Arquivos.mount      # desmonta
+sudo udevadm trigger --action=add --sysname-match=sdc1   # reemite o "plug"
+→ /mnt/Arquivos montado de novo em ~2 s (duas execuções seguidas)
+```
+
+- `99-mnt-arquivos.rules` é o único arquivo em `/etc/udev/rules.d/` além do LVM.
+- `udevadm test /sys/class/block/sdc1` lista o `RUN` da regra (casa).
+- Após os testes: `mnt-Arquivos.mount` **active**, `df` 763G/107G, `/health`
+  **up 25/25** (`hd_arquivos` ok, snapshot de 12:06), od-core sem restart.
+
+### Limites
+
+- Dispara quando a partição **aparece** (plug/boot). Se a HD já estiver plugada
+  e o mount cair por outro motivo (erro de I/O, `umount` manual), continua
+  precisando de `systemctl start` — a regra não fica vigiando.
+- Sem mudança de código no repo; o `txt.txt` não foi usado.
