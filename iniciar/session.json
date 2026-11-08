@@ -1141,7 +1141,7 @@
     "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
     "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
   },
-  "updated_at": "2026-11-08T15:00:00-03:00",
+  "updated_at": "2026-11-08T15:15:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
@@ -3233,7 +3233,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": "2026-11-08T15:00:00-03:00",
+  "last_turn": "2026-11-08T15:15:00-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."
@@ -4743,8 +4743,10 @@
     "achados": "match: por macaddress nao funciona em wifi no networkd ('only by interface name'); netplan exige arquivo 0600 (senao avisa 'too open'); substituicao de senha em python/json porque sed quebraria com & e aspas.",
     "defeito_meu_corrigido": "A 1a versao do instalador, com --prefixo (sandbox), gravava em /etc/netplan de verdade e instalou o 70 no host durante o teste; DESTINO passou a usar $PREFIXO, o arquivo foi removido e o generate do host voltou a rc=0 com os arquivos originais.",
     "prova": "Sandbox com os netplan reais: rc=0, Address=192.168.0.250/24 Metric=600, 600 root, marcador substituido; sem senha rc=1 sem instalar; --mac 00:11:22:33:44:55 -> wlx001122334455; senha com espaco/&/aspas gera YAML valido. Host inalterado (50 ativo, generate rc=0).",
-    "nao_feito": "Nao instalei o 70 no host: a reserva ja esta ativa pelo 50 e o pedido era guardar no repo. Instalar = rodar o script com --aplicar.",
     "transcricao": "iniciar/2026-11-08_conversa_omegadrakon.md (§9)",
-    "updated_at": "2026-11-08T15:00:00-03:00"
+    "updated_at": "2026-11-08T15:15:00-03:00",
+    "instalado_no_host": "Ordem do dono (08/11): 'Instale o 70 no host com o instalador e confirme que a reserva continua de pe'. sudo bash runtime/netplan/install.sh --aplicar -> rc=0; senha resolvida do proprio host (nao impressa).",
+    "prova_no_host": "/etc/netplan/70-wifi-reserva.yaml 600 root:root; wlx000f0037acf0 UP 192.168.0.250/24; wpa_state=COMPLETED (Drakon, ip_address=.250); ping -I wlx000f0037acf0 192.168.0.1 3/3 0% perda (~3,7 ms); rotas default cabo metric 100 + wifi metric 600; .network mesclado com UM Address/Metric e wpa conf com UM network={} (50+70 nao duplicaram); enp2s0 .205; /health 25/25; Tailscale ok.",
+    "limite": "70 e 50 precisam seguir com os mesmos dados (IP, metrica, senha). Se o cloud-init regerar o 50 diferente, o netplan mescla e a copia do repo (70) e a que deve mandar: rodar o instalador de novo para alinhar ou tirar o wifi do 50."
   }
 }

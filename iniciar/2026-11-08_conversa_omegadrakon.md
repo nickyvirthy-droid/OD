@@ -353,3 +353,36 @@ A primeira versão do instalador, com `--prefixo` (modo sandbox), gravava em
 `DESTINO` passou a ser `$PREFIXO/etc/netplan/…`; o arquivo instalado por engano foi
 removido e o `netplan generate` do host rodou rc=0 depois, só com os arquivos
 originais.
+
+## §10 — O 70-wifi-reserva instalado no host e a reserva de pé (15:05–15:15)
+
+**Pedido:** *"Instale o 70-wifi-reserva no host com o instalador e confirme que a
+reserva continua de pé"*.
+
+`sudo bash runtime/netplan/install.sh --aplicar` → **rc=0**:
+
+```
+✅ /etc/netplan/70-wifi-reserva.yaml instalado (interface wlx000f0037acf0, SSID Drakon)
+• netplan generate OK: Address=192.168.0.250/24 Metric=600
+• atenção: wlx000f0037acf0 também está definida em 50-cloud-init.yaml — o netplan mescla
+```
+
+A senha foi resolvida do próprio host (nenhuma linha com ela na saída).
+
+### Estado depois do `apply`
+
+| Item | Resultado |
+|---|---|
+| Arquivo no host | `600 root:root /etc/netplan/70-wifi-reserva.yaml` |
+| Interface | `wlx000f0037acf0 UP 192.168.0.250/24` (+ IPv6) |
+| Associação | `wpa_state=COMPLETED`, `ssid=Drakon`, `ip_address=192.168.0.250` |
+| Tráfego | `ping -I wlx000f0037acf0 192.168.0.1` → **3/3, 0% perda** (~3,7 ms) |
+| Rotas | `default … enp2s0 metric 100` (principal) + `default … wlx… metric 600` (reserva) |
+| Mesclagem | `.network` gerado tem **um** bloco `Address`/`Metric`; `wpa-wlx000f0037acf0.conf` tem **um** `network={…}` — as duas definições (50 e 70) não duplicaram nada |
+| Resto | `enp2s0 .205`, `/health` **25/25**, Tailscale `nicky-server` ok |
+
+**Limite registrado:** a reserva agora depende de o `70` e o `50` continuarem com
+os mesmos dados (IP, métrica e senha). Se o cloud-init regerar o 50 com valores
+diferentes, o netplan mescla e a cópia do repo (70) é a que deve mandar — o
+instalador avisa sobre a coexistência, e a saída é remover o bloco de wifi do 50
+ou rodar o instalador de novo para alinhar.
