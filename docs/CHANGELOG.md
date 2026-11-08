@@ -12,6 +12,21 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Wi-Fi de reserva guardado no repo com instalador (2026-11-08, sem bump)
+
+**Resumo:** a segunda saída de rede do servidor (dongle USB em 192.168.0.250)
+só existia dentro do `/etc/netplan/50-cloud-init.yaml` — arquivo que o cloud-init
+regenera. Numa reinstalação do host, ou numa regeração, o servidor voltaria a
+ter **só o cabo**, como aconteceu entre 01/10 e 08/11. A configuração provada em
+produção agora vive no repo, com instalador, e a senha do Wi-Fi fica fora do git.
+
+| Peça | Entrega |
+|---|---|
+| **`runtime/netplan/70-wifi-reserva.yaml`** | Wi-Fi `Drakon` em `wlx000f0037acf0`, `192.168.0.250/24`, rota default via `192.168.0.1` **métrica 600** (perde do cabo, que é 100). Sem `match:` de propósito: o backend networkd recusa (`networkd backend does not support wifi with match:, only by interface name`) — medido. O `password` é o marcador `SENHA-DO-WIFI-AQUI`; nada de segredo no repositório. |
+| **`runtime/netplan/install.sh`** | `sudo bash runtime/netplan/install.sh`: deriva a interface do MAC, resolve a senha por `--psk`, `$OD_WIFI_PSK` **ou** a que já estiver em `/etc/netplan/*.yaml` para o mesmo SSID (nunca imprime), instala em `0600 root`, roda `netplan generate` e confere o `.network` gerado (`Address=`/`Metric=`); se o generate falhar, o arquivo sai. `--mac` atende dongle trocado e `--aplicar` faz o `netplan apply` explícito. Avisa quando a mesma interface também está no `50-cloud-init.yaml` (o netplan mescla — verificado rc=0). |
+| **Por que não editar o 50** | O cloud-init pode regerar o arquivo e derrubar o boot sem rede; o 70 é independente e sobrevive à regeração. O mesmo endereço em dois arquivos é mesclado pelo netplan, sem erro. |
+| **Verificação** | Sandbox com os netplan reais: instalador rc=0, `Address=192.168.0.250/24 Metric=600`, arquivo `600 root`, marcador substituído. Sem senha em lugar nenhum: rc=1 sem instalar nada. `--mac 00:11:22:33:44:55` → `wlx001122334455`; senha com espaço, `&` e aspas gera YAML válido (substituição em python/json, não sed). Host **não** foi alterado: continua com o 50-cloud-init ativo e `netplan generate` rc=0. |
+
 ## /health separa HD plugada sem mount de HD desconectada (2026-11-08, sem bump)
 
 **Resumo:** ordem do dono depois de a HD "Arquivos" ficar dois dias como "HD

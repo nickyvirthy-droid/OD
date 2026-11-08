@@ -308,3 +308,48 @@ Ressalva honesta: eu **preferi** a opção de recolocar o `.250` porque ela era
 plug-and-play (o `50-cloud-init` já o configurava) — foi conveniência minha, não
 medição. O que sustentava o diagnóstico era o scan vazio, e isso não mudou com
 a config no lugar.
+
+## §9 — Config de Wi-Fi de reserva guardada no repo, com instalador (14:40–15:00)
+
+**Pedido:** *"Guarde a configuração de Wi-Fi no repo com instalador, para a reserva
+sobreviver a uma reinstalação do servidor"*.
+
+**Problema real:** a reserva só existia no `/etc/netplan/50-cloud-init.yaml`, que
+o cloud-init gera. Numa reinstalação (ou regeração) o host volta a ter apenas o
+cabo — foi exatamente o buraco entre 01/10 e 08/11.
+
+| Peça | O que faz |
+|---|---|
+| `runtime/netplan/70-wifi-reserva.yaml` | `Drakon` em `wlx000f0037acf0`, `192.168.0.250/24`, rota default métrica 600; senha como **marcador**, nunca no git |
+| `runtime/netplan/install.sh` | deriva a interface do MAC, resolve a senha (`--psk` > `$OD_WIFI_PSK` > a que já está no host), instala `0600 root`, roda `netplan generate` e confere o `.network`; `--mac` para dongle trocado, `--aplicar` para ativar |
+
+### Medições que definiram o desenho
+
+- `netplan generate` com a **mesma interface em dois arquivos** → **rc=0**, um único
+  `10-netplan-wlx000f0037acf0.network` mesclado. Por isso o 70 pode conviver com o
+  50 sem quebrar nada.
+- `match: {macaddress: …}` em wifi → **erro**: `networkd backend does not support
+  wifi with match:, only by interface name`. O nome da interface vem do MAC
+  (`wlx` + MAC sem `:`), e o instalador aceita `--mac` para recalcular.
+- Permissão: `netplan generate` reclama de arquivo "too open" — o instalador grava
+  `0600 root` (mesmo padrão dos outros arquivos do host).
+
+### Prova (sandbox com cópia dos netplan reais)
+
+| Caso | Resultado |
+|---|---|
+| Instalação normal | rc=0; `Address=192.168.0.250/24 Metric=600`; arquivo `600 root`; marcador substituído |
+| Sem senha disponível | **rc=1** e nada instalado (só o aviso de como passar `--psk`) |
+| `--mac 00:11:22:33:44:55` | interface `wlx001122334455` |
+| Senha com espaço, `&` e aspas | YAML válido — a substituição é em python/json, não em `sed` (sed trataria `&` como sintaxe) |
+
+Host **não** foi alterado: segue com o `50-cloud-init.yaml` ativo e `netplan generate`
+rc=0; o 70 entra no dia da reinstalação (ou por vontade do dono, com `--aplicar`).
+
+### Defeito meu, pego no teste
+
+A primeira versão do instalador, com `--prefixo` (modo sandbox), gravava em
+`/etc/netplan` **de verdade** — instalou o 70 no host durante o teste. Corrigido:
+`DESTINO` passou a ser `$PREFIXO/etc/netplan/…`; o arquivo instalado por engano foi
+removido e o `netplan generate` do host rodou rc=0 depois, só com os arquivos
+originais.

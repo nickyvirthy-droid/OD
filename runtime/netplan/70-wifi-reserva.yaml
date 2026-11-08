@@ -1,0 +1,41 @@
+# Omega Drakon — Wi-Fi de reserva (dongle USB MT7601U, 192.168.0.250).
+#
+# Por que existe: o servidor fica no cabo (enp2s0, .205, métrica 100) e este
+# Wi-Fi é a segunda saída para o mesmo roteador, com métrica maior (600) — só
+# assume se o cabo cair. Em 08/11/2026 o dongle ficou um mês fora e o acesso
+# remoto dependia só do cabo; esta config é a que ficou provada em produção.
+#
+# NÃO é instalado direto: o `password` abaixo é um marcador. Use
+#   sudo bash runtime/netplan/install.sh
+# que troca a senha (nunca no git), instala em /etc/netplan/70-wifi-reserva.yaml
+# (600, root) e confere com `netplan generate`.
+#
+# A interface é o nome que o systemd deriva do MAC do dongle
+# (wlx + MAC sem ':' ). Dongle trocado = outro nome: o instalador aceita
+# `--mac 00:0f:00:37:ac:f0` e recalcula.
+#
+# Detalhes medidos (08/11/2026):
+# - `match:` por MAC NÃO funciona para wifi no backend networkd
+#   ("networkd backend does not support wifi with match:, only by interface
+#   name") — por isso o bloco é nomeado direto.
+# - métrica 600 e não outra: o Wi-Fi precisa perder do cabo (100) e o netplan
+#   recusa duas rotas default com a mesma métrica.
+# - o mesmo endereço pode aparecer também no 50-cloud-init.yaml: o netplan
+#   mescla os arquivos (verificado com `netplan generate` rc=0). Se o
+#   cloud-init regerar aquele arquivo, este continua valendo.
+network:
+  version: 2
+  wifis:
+    wlx000f0037acf0:
+      dhcp4: false
+      addresses:
+        - "192.168.0.250/24"
+      routes:
+        - to: "default"
+          via: "192.168.0.1"
+          metric: 600
+      access-points:
+        "Drakon":
+          auth:
+            key-management: "psk"
+            password: "SENHA-DO-WIFI-AQUI"
