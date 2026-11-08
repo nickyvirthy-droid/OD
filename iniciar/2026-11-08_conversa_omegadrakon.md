@@ -186,3 +186,85 @@ configurar o MT7601U no netplan usando a senha do `Drakon` já gravada no
 50-cloud-init, rota métrica 600 como reserva). Nada foi alterado em rede; o
 teste de scan foi desfeito (interface de volta a `DOWN`, `wpa_supplicant` de
 teste encerrado).
+
+## §6 — Reinício do `od-core` com o `/health` novo (13:50–14:00)
+
+**Pedido:** *"Reinicie o od-core para o novo /health entrar em vigor"* — ordem
+explícita de deploy (regra 7.1).
+
+- Gate antes do restart: `pytest tests/ -q` → **4181 passed, 16 skipped** (188 s).
+- `systemctl --user restart od-core` → pid **2460220**.
+- Depois: `/health` → **25/25 `up`**; `journalctl --user -u od-core` sem `[ERROR]`.
+- A mensagem nova de HD plugada sem mount passou a valer (fim do "PENDENTE" do §4).
+
+## §7 — MT7601U como reserva de Wi-Fi e conferência do 2,4 GHz (13:00–14:10)
+
+**Pedidos:** *"Configure o MT7601U como reserva Wi-Fi no netplan"* e
+*"Verifique no roteador se o 2,4 GHz está desligado"*.
+
+### 2,4 GHz no roteador: **ligado**
+
+Archer C6, UI aberta com `tools/monitor/vigia_rich.py` (Playwright), rota
+`#networkMap`: **17 clientes** — 1 por cabo, **13 em 2,4 GHz**, 2 em 5 GHz.
+WAN PPPoE, IP de internet `100.64.165.225` (CGNAT). Ou seja: a banda está no ar;
+o dongle é que não a escuta.
+
+### Netplan: arquivo novo, `50-cloud-init.yaml` intocado
+
+Decisão: **não** editar `50-cloud-init.yaml` (o cloud-init pode regenerá-lo e
+derrubar o boot com a rede quebrada). A reserva virou
+`/etc/netplan/61-wifi-reserva.yaml` (root:root 600):
+
+```yaml
+network:
+  version: 2
+  wifis:
+    wlx00e2b0101555:            # MT7601U 148f:7601
+      dhcp4: false
+      addresses: [192.168.0.251/24]
+      access-points:
+        "Drakon": {password: <PSK copiada do 50-cloud-init>}
+      routes:
+        - to: default
+          via: 192.168.0.1
+          metric: 700
+```
+
+IP `.251` de propósito: o `.250` é do dongle ausente e voltaria a colidir.
+Métrica **700**: com 600 o netplan recusa o conjunto
+(`Conflicting default route declarations for IPv4 (table: main, metric: 600)`)
+porque o Wi-Fi principal já usa 600.
+
+### O que passou e o que não passou
+
+| Passo | Resultado |
+|---|---|
+| `netplan generate` (com o 50 restaurado) | **rc=0** — sintaxe e conjunto válidos |
+| `netplan apply` | **rc≠0**: `A dependency job for netplan-wpa-wlx000f0037acf0.service failed` |
+| Config do `.251` gerada | **sim**: `/run/systemd/network/10-netplan-wlx00e2b0101555.network` |
+| `wpa_supplicant` do MT7601U | **rodando** com a config nova (`scanning`) |
+| Associação / IP | **não**: `no-carrier (configuring)`, `ip -br addr` sem endereço |
+| Escuta de beacons | `wpa_cli scan` OK e, após 10 s, **0 redes** (nem a `Drakon`) |
+| Rede cabeada | intacta: `enp2s0` `.205`, default `metric 100`, `/health` 25/25 |
+
+O erro do `apply` **não é desta troca**: é a unit do dongle `.250`, que o netplan
+ainda gera a partir do `50-cloud-init.yaml` desde que ele sumiu (01/10). Todo
+`netplan apply` falha assim desde então — inclusive antes de eu escrever o 61.
+A config nova entra mesmo com o rc≠0 (prova: os arquivos em `/run/systemd/network`
+e o `wpa_supplicant` do `.251` em execução).
+
+### Veredito honesto
+
+A reserva está **configurada**, mas o MT7601U **não ouve nenhum AP** — com o
+2,4 GHz ligado e 13 clientes nele. Somado ao `WARNING … lin2dBd` (calibração
+TSSI) e ao `usb 1-5: reset` no boot, a leitura é **adaptador surdo**, não senha
+nem banda. A reserva passa a valer no dia em que houver um rádio que escute: o
+dongle `.250` de volta (plug-and-play, o 50 já o configura) ou um adaptador novo
+(aí muda só o nome da interface no 61).
+
+### Segurança e limpeza
+
+- Backup: `/etc/netplan/50-cloud-init.yaml.bak-2026-11-08`; `diff` confirma que o
+  arquivo em uso está **idêntico** ao backup.
+- Temporários com a PSK (`/tmp/61-wifi-reserva.yaml`, `/tmp/50-cloud-init.yaml`)
+  e os scripts de roteador (`/tmp/wifi_router*.py`) **apagados**.
