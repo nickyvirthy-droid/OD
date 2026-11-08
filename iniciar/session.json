@@ -3,14 +3,17 @@
     "pedido": "Dono (08/11 ~13:00): 'plug wifi usb tambem parece não responder'; depois: 'Configure o MT7601U como reserva Wi-Fi no netplan' e 'Verifique no roteador se o 2,4 GHz está desligado'.",
     "medicao": "O netplan (/etc/netplan/50-cloud-init.yaml) espera wlx000f0037acf0 (IP .250, SSID Drakon, rota default metric 600 = reserva), e esse USB NAO existe: nenhum evento com esse MAC desde 01/10, systemd fica 'Expecting device' no boot. O dongle plugado e outro: 148f:7601 MT7601U (wlx00e2b0101555), fora do netplan, DOWN. Driver carrega mas o kernel emite WARNING lin2dBd (calibracao TSSI) e faz usb 1-5 reset no boot. Teste com wpa_supplicant/wpa_cli: scan de 15s viu 0 redes (nem a Drakon). Sem over-current; topologia USB normal.",
     "leitura": "Reserva configurada, mas o MT7601U nao ouve nenhum AP com 2,4 GHz ligado e 13 clientes nele; somado ao WARNING lin2dBd (calibracao TSSI) e ao usb reset no boot => adaptador surdo, nao senha/banda.",
-    "estado": "AGUARDANDO DONO: a reserva so vale com radio que escute — recolocar o dongle .250 (plug-and-play) ou adaptador novo (muda so o nome da interface no 61). Nada mais a fazer por software.",
-    "transcricao": "iniciar/2026-11-08_conversa_omegadrakon.md (§5 e §7)",
+    "estado": "RESOLVIDO: reserva Wi-Fi ativa e testada. 50-cloud-init.yaml e 61 (.bak) ficam como estao; nenhum outro ajuste de rede pendente.",
+    "transcricao": "iniciar/2026-11-08_conversa_omegadrakon.md (§5, §7 e §8)",
     "updated_at": "2026-11-08T13:40:00-03:00",
     "roteador_24ghz": "Archer C6 via Playwright (tools/monitor/vigia_rich.py, #networkMap): 17 clientes = 1 cabo, 13 em 2,4 GHz, 2 em 5 GHz. WAN PPPoE, IP 100.64.165.225 (CGNAT). 2,4 GHz LIGADO.",
     "netplan": "Criado /etc/netplan/61-wifi-reserva.yaml (600 root): wlx00e2b0101555 (MT7601U), 192.168.0.251/24, SSID Drakon com PSK copiada do 50-cloud-init, rota default via 192.168.0.1 metric 700. Decisao: NAO editar 50-cloud-init.yaml (cloud-init pode regenerar e quebrar o boot); backup em /etc/netplan/50-cloud-init.yaml.bak-2026-11-08, diff confirma 50 identico ao backup.",
     "metric_700": "600 colidia com o Wi-Fi principal: 'Conflicting default route declarations for IPv4 (table: main, metric: 600)'.",
     "prova": "netplan generate rc=0; /run/systemd/network/10-netplan-wlx00e2b0101555.network gerado; wpa_supplicant do .251 rodando; enp2s0 .205 default metric 100; /health 25/25; 0 redes no scan; no-carrier.",
-    "bloqueio": "netplan apply rc!=0: 'A dependency job for netplan-wpa-wlx000f0037acf0.service failed' — unit do dongle ausente, defeito ANTERIOR a esta troca (desde 01/10). A config nova entra mesmo assim."
+    "bloqueio": "netplan apply rc!=0: 'A dependency job for netplan-wpa-wlx000f0037acf0.service failed' — unit do dongle ausente, defeito ANTERIOR a esta troca (desde 01/10). A config nova entra mesmo assim.",
+    "desfecho": "Dono trocou o dongle (14:20). O que entrou e o wlx000f0037acf0 (00:0f:00:37:ac:f0, o .250 que o 50-cloud-init ja esperava); o 61-wifi-reserva.yaml ficou orfao e foi arquivado como .bak-2026-11-08. netplan generate rc=0 e netplan apply rc=0 (o erro de unit sumiu com o device de volta).",
+    "prova_final": "wpa_state=COMPLETED, ssid=Drakon, WPA2-PSK, IP 192.168.0.250/24; ping -I wlx000f0037acf0 192.168.0.1 3/3 0% perda ~1,0 ms; canal 6 (2437 MHz), link 65 Mbps; rotas cabo metric 100 + wifi metric 600; /health 25/25; enp2s0 .205; Tailscale ok.",
+    "veredito_dongle_antigo": "O adaptador que saiu nao estava configurado no comeco do diagnostico, mas DEPOIS de configurado (61, IP .251) seguiu vendo 0 redes em dois scans com a iface UP. O AP esta no canal 6, que qualquer MT7601U enxerga, entao nao era banda/regiao. O dongle novo e o MESMO modelo (148f:7601), mesmo driver e mesmo caminho de config, e associou de primeira: o que mudou foi o hardware."
   },
   "health_hd_plugada_sem_mount_2026_11_08": {
     "pedido": "Dono (08/11): 'Faça o /health diferenciar disco plugado sem mount de HD realmente desconectada'.",
@@ -1138,7 +1141,7 @@
     "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
     "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
   },
-  "updated_at": "2026-11-08T14:11:00-03:00",
+  "updated_at": "2026-11-08T14:35:00-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
@@ -3230,7 +3233,7 @@
     "estado": "PRONTO AGUARDANDO O DONO — duas rotas sem copiar nada: (A) scp tools/google_oauth_helper.py para o PC + python3 google_oauth_helper.py (captura e manda por SSH); (B) ssh -L 8766:127.0.0.1:8766 + abrir /site/google_auth.html e clicar (eu subo o capturador no servidor). Depois que o código chegar: runtime.google_auth --code → --check → restart od-core → prova viva → bump MINOR 1.18.0.",
     "transcricao": "iniciar/2026-10-03_conversa_omegadrakon.md (§5)"
   },
-  "last_turn": "2026-11-08T14:11:00-03:00",
+  "last_turn": "2026-11-08T14:35:00-03:00",
   "cache_historico_2026_09_24_fechamento": {
     "pedido": "Confirmação do dono em 2026-09-25 14:30: as conversas do usuário teste aparecem no site.",
     "estado": "FECHADO — 2ee947b provado servidor (6/6) e confirmado visualmente pelo dono. Nada pendente no ponto."

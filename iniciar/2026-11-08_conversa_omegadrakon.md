@@ -268,3 +268,43 @@ dongle `.250` de volta (plug-and-play, o 50 já o configura) ou um adaptador nov
   arquivo em uso está **idêntico** ao backup.
 - Temporários com a PSK (`/tmp/61-wifi-reserva.yaml`, `/tmp/50-cloud-init.yaml`)
   e os scripts de roteador (`/tmp/wifi_router*.py`) **apagados**.
+
+## §8 — Dongle trocado: a reserva Wi-Fi entrou no ar (14:20–14:35)
+
+**Pedido:** *"troquei o dongle"*. Medição antes de tocar em nada:
+
+| Fato | Evidência |
+|---|---|
+| O USB plugado agora é o **`.250`** | `lsusb` 148f:7601, interface `wlx000f0037acf0` (00:0f:00:37:ac:f0); kernel: `mt7601u … renamed from wlan0` às 14:21:05 |
+| O dongle anterior (00:e2:b0:10:15:55) saiu | interface `wlx00e2b0101555` não existe mais |
+| O `61-wifi-reserva.yaml` virou config órfã | apontava para o MAC que saiu — geraria a mesma falha de dependência |
+
+Ação: `61-wifi-reserva.yaml` → `61-wifi-reserva.yaml.bak-2026-11-08` (netplan só lê `*.yaml`),
+`netplan generate` rc=0 e **`netplan apply` rc=0** — o erro de unit que existia desde
+01/10 desapareceu junto com a volta do dispositivo esperado.
+
+### Prova viva
+
+| Item | Resultado |
+|---|---|
+| Associação | `wpa_state=COMPLETED`, `ssid=Drakon`, `key_mgmt=WPA2-PSK` |
+| IP | `192.168.0.250/24` (o mesmo que o `50-cloud-init.yaml` já definia) |
+| Tráfego pela reserva | `ping -I wlx000f0037acf0 192.168.0.1` → **3/3, 0% perda**, 1,0 ms |
+| Sinal | link 65 Mbps, **frequência 2437 (canal 6)** |
+| Rotas | cabo `metric 100` (principal) e Wi-Fi `metric 600` (reserva), como projetado |
+| `/health` | **25/25 `up`**; cabeada segue `.205`; Tailscale ok |
+
+### Sobre o dongle que saiu (resposta ao dono)
+
+Ele **não** estava configurado no netplan quando eu o diagnostiquei (só passou a
+estar às 13:51, no `61`), mas **depois de configurado ele continuou vendo 0 redes**
+— dois scans, 15 s e 10 s forçados, com a interface UP e o `wpa_supplicant` rodando.
+Hoje o AP está no **canal 6**, que qualquer MT7601U enxerga, o que derruba a
+hipótese de "banda/região". O adaptador atual é **o mesmo modelo** (148f:7601), no
+mesmo driver e no mesmo caminho de config, e associou de primeira: o que mudou
+foi o hardware, não a configuração.
+
+Ressalva honesta: eu **preferi** a opção de recolocar o `.250` porque ela era
+plug-and-play (o `50-cloud-init` já o configurava) — foi conveniência minha, não
+medição. O que sustentava o diagnóstico era o scan vazio, e isso não mudou com
+a config no lugar.
