@@ -12,6 +12,23 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Telegram no auto-update: aplicado, auto-desligado e rollback (2026-11-09, sem bump)
+
+**Resumo:** o TODO §3.2 fechou o último canal do auto-update: quando um alvo é
+aplicado, quando o serviço se auto-desliga após 3 falhas duras e quando o dono
+faz rollback, o aviso agora sai também no Telegram do dono — pelo bot de
+monitoramento (@nicky_monitor_bot), o mesmo dos alertas do sistema. O push FCM
+continua; os dois canais são independentes e best-effort.
+
+| Peça | Entrega |
+|---|---|
+| **`core/auto_update.py` — `_anunciar`** | Passou a receber `titulo` e dispara **FCM + Telegram**. O sink do Telegram é assíncrono; `_anunciar_telegram` o executa num thread daemon curto (`asyncio.run`) e nunca segura o lock do ciclo. Sink quebrado/ausente só gera `warn`. |
+| **Auto-disable** | `_registrar_falha` chama `_anunciar(..., titulo="Auto-update desligado")` **uma única vez**, na transição para `desabilitado=True`; a mensagem traz o alvo, o motivo (3 falhas) e "religável pelo painel". |
+| **Rollback** | O aviso do rollback leva `titulo="Auto-update rollback"` (o FCM antigo dizia "aplicado" — corrigido). |
+| **`runtime/launcher.py` — `build_auto_update`** | Monta `telegram=build_telegram_sink("monitor")` com try/except (falha de config → `None`); loga `telegram=ligado/ausente`. O sink usa `OD_TELEGRAM_MONITOR_TOKEN/CHAT` e cai no bot/chat admin se ausente. |
+| **Testes** | `tests/test_auto_update.py` +5: aplicado no RAG sync, auto-desligado (texto/título), download concluído, sink que levanta (ciclo segue) e sink **assíncrono real** executado. |
+| **Verificação** | Focados **82 passed**. Gate completo **4204 passed / 16 skipped / 0 falha**. Restart `od-core` (`MainPID 3997151`, `NRestarts=0`), `/health` **25/25 up**, journal 0 `[ERROR]`, log `Auto-update no ar ... telegram=ligado`; prova viva do sink `monitor` enviada. Sem bump: app segue **1.44.0/2080**. |
+
 ## E4: retenção, prioridade de downloads e rollback de modelo (2026-11-09, sem bump)
 
 **Resumo:** os três itens de robustez do bloco E (TODO 3.1–3.3) que estavam

@@ -37,8 +37,10 @@ Arquiteto: Omega Drakon
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import hashlib
+import inspect
 import json
 import os
 import queue as queue_mod
@@ -485,6 +487,7 @@ class AutoUpdateService:
         rag_sync_fn: Optional[Callable[[], dict[str, int]]] = None,
         fila: Any = None,
         push: Any = None,
+        telegram: Any = None,
         clock: Callable[[], float] = time.time,
         espaco_livre_fn: Optional[Callable[[Path], int]] = None,
     ) -> None:
@@ -500,6 +503,10 @@ class AutoUpdateService:
         # "auto-update aplicado" no celular do dono. None = sem aviso —
         # o ciclo funciona igual.
         self._push = push
+        # Sink do Telegram (TODO §3.2): `build_telegram_sink("monitor")` no
+        # launcher. É assíncrono; `_anunciar_telegram` o executa numa thread
+        # própria para não segurar o lock nem o ciclo. None = sem aviso.
+        self._telegram = telegram
         self._clock = clock
         self._espaco_livre_fn = espaco_livre_fn or _espaco_livre
         self._lock = threading.Lock()
@@ -804,21 +811,60 @@ class AutoUpdateService:
                   if alvo is not None and alvo.versao_nova else "")
         self._anunciar(f"{alvo_id} aplicado{versao}{destino}")
 
-    def _anunciar(self, corpo: str) -> None:
-        """Notificação FCM ao dono — "auto-update aplicado" (TODO §3.8).
+    def _anunciar(self, corpo: str, *,
+                  titulo: str = "Auto-update aplicado") -> None:
+        """Avisa o dono por FCM e Telegram (TODO §3.8 + §3.2).
 
         Best-effort na mesma cadência do notifier: `PushService.notify`
         nunca levanta (falha de envio é resumo, não exceção) e o
         try/except cobre um push falso em teste — o ciclo de auto-update
-        NUNCA pode morrer por causa de um aviso.
+        NUNCA pode morrer por causa de um aviso. O sink do Telegram é
+        assíncrono e roda numa thread própria; o push segue síncrono.
         """
-        if self._push is None:
+        if self._push is None and self._telegram is None:
             return
+        if self._push is not None:
+            try:
+                self._push.notify(titulo, corpo,
+                                  data={"origem": "auto-update"})
+            except Exception as exc:  # pragma: no cover — push degrada sozinho
+                log.warn("Auto-update: aviso de push falhou (ciclo segue)",
+                         error=_curto(exc))
+        self._anunciar_telegram(titulo, corpo)
+
+    def _anunciar_telegram(self, titulo: str, corpo: str) -> None:
+        """Dispara o sink do Telegram sem bloquear o lock/ciclo.
+
+        O sink (`build_telegram_sink`) devolve um awaitable; executamos
+        num thread daemon curto com `asyncio.run`. Um sink síncrono
+        (fake de teste) simplesmente retorna None e não abre thread.
+        """
+        if self._telegram is None:
+            return
+        texto = f"{titulo} — {corpo}"
         try:
-            self._push.notify("Auto-update aplicado", corpo,
-                              data={"origem": "auto-update"})
-        except Exception as exc:  # pragma: no cover — push degrada sozinho
-            log.warn("Auto-update: aviso de push falhou (ciclo segue)",
+            out = self._telegram(texto)
+        except Exception as exc:  # pragma: no cover — sink quebrou
+            log.warn("Auto-update: aviso de Telegram falhou (ciclo segue)",
+                     error=_curto(exc))
+            return
+        if not inspect.isawaitable(out):
+            return
+        threading.Thread(
+            target=self._rodar_sink, args=(out,),
+            name="od-auto-update-telegram", daemon=True,
+        ).start()
+
+    @staticmethod
+    def _rodar_sink(out: Any) -> None:
+        """Executa o awaitable do sink num loop próprio (thread dele)."""
+        async def _aguardar() -> Any:
+            return await out
+
+        try:
+            asyncio.run(_aguardar())
+        except Exception as exc:  # pragma: no cover — rede/sink
+            log.warn("Auto-update: envio de Telegram falhou (ciclo segue)",
                      error=_curto(exc))
 
     def _alvo_por_id(self, alvo_id: str) -> Optional[AlvoUpdate]:
@@ -997,7 +1043,8 @@ class AutoUpdateService:
         log.info("Auto-update: rollback de modelo aplicado", alvo=alvo_id,
                  para=est.versao_instalada, arquivo=destino_rel)
         self._anunciar(f"Rollback de {alvo_id} para {est.versao_instalada or '?'} "
-                       f"({destino_rel})")
+                       f"({destino_rel})",
+                       titulo="Auto-update rollback")
         return {"ok": True, "alvo": alvo_id,
                 "versao": est.versao_instalada,
                 "versao_rejeitada": est.versao_rejeitada,
@@ -1024,6 +1071,11 @@ class AutoUpdateService:
             log.error("Auto-update DESLIGADO automaticamente",
                       alvo=est.id, motivo=est.motivo_desabilitado,
                       religavel_pelo_painel=True)
+            self._anunciar(
+                f"{est.id} DESLIGADO automaticamente: "
+                f"{est.motivo_desabilitado} (religável pelo painel)",
+                titulo="Auto-update desligado",
+            )
 
     # -- Consumo dos eventos da fila -----------------------------------------
 

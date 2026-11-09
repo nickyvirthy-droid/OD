@@ -417,6 +417,9 @@ def build_auto_update(
     derruba o processo por um extra). OD_UPDATE_ENABLED=0 desliga.
     `push` (PushService): aviso "auto-update aplicado" no celular do
     dono (TODO §3.8, 2026-10-16) — best-effort, nunca derruba o ciclo.
+    Telegram: o mesmo aviso (aplicado/auto-desligado/rollback) vai pelo
+    bot de monitoramento (TODO §3.2, 2026-11-09) — best-effort; sink
+    ausente apenas silencia esse canal.
     """
     try:
         from core.auto_update import AutoUpdateService, ConfigUpdate
@@ -428,6 +431,13 @@ def build_auto_update(
         rag = getattr(orchestrator, "rag", None) if orchestrator else None
         raiz = (fila.raiz if fila is not None
                 else DATA_DIR / "downloads")
+        # Sink do Telegram: um token ausente/erro de construção degrada
+        # para None (nunca derruba o auto-update nem o core).
+        try:
+            telegram = build_telegram_sink("monitor")
+        except Exception as exc:  # pragma: no cover — config do bot
+            telegram = None
+            log.warn("Auto-update: Telegram indisponível", error=str(exc))
         svc = AutoUpdateService(
             cfg=cfg,
             estado_path=DATA_DIR / "auto_update_estado.json",
@@ -437,6 +447,7 @@ def build_auto_update(
             rag_sync_fn=(rag.sync if rag is not None else None),
             fila=fila,
             push=push,
+            telegram=telegram,
         )
         svc.start()   # consumidor dos eventos da fila (sucesso/falha)
         # Manifesto editável do dono: nasce com o exemplo (só se não existe
@@ -461,7 +472,8 @@ def build_auto_update(
                  cap_mb=cfg.cap_bytes // 1024 ** 2,
                  max_falhas=cfg.max_falhas,
                  intervalo_min=cfg.intervalo_s / 60.0,
-                 rag=("ligado" if rag is not None else "ausente"))
+                 rag=("ligado" if rag is not None else "ausente"),
+                 telegram=("ligado" if telegram is not None else "ausente"))
         return svc
     except Exception as exc:
         log.warn("Auto-update desabilitado", error=str(exc))

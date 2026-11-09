@@ -110,6 +110,7 @@ def _mk(tmp_path: Path, *, cfg: Optional[ConfigUpdate] = None,
         rag: Optional[CallableRag] = None,
         fila: Optional[_FilaFake] = None,
         push: Any = None,
+        telegram: Any = None,
         clock_value: Optional[float] = None,
         espaco: int = SEM_REDE) -> AutoUpdateService:
     """Serviço hermético: tudo em tmp_path, relógio e disco falsos."""
@@ -123,6 +124,7 @@ def _mk(tmp_path: Path, *, cfg: Optional[ConfigUpdate] = None,
         rag_sync_fn=(rag.chamar if rag is not None else None),
         fila=fila,
         push=push,
+        telegram=telegram,
         clock=(lambda: clock_value if clock_value is not None else AGORA),
         espaco_livre_fn=lambda _p: espaco,
     )
@@ -201,6 +203,31 @@ class _PushFake:
             raise RuntimeError("sem rede FCM")
         self.chamadas.append((title, body))
         return {"ok": True, "sent": 1, "failed": 0}
+
+
+class _TelegramFake:
+    """Sink síncrono falso: registra a mensagem e pode levantar."""
+
+    def __init__(self, falhar: bool = False) -> None:
+        self.chamadas: list[str] = []
+        self.falhar = falhar
+
+    def __call__(self, texto: str) -> None:
+        if self.falhar:
+            raise RuntimeError("sem rede Telegram")
+        self.chamadas.append(texto)
+
+
+class _TelegramAsyncFake:
+    """Sink assíncrono falso: prova que o serviço executa awaitables."""
+
+    def __init__(self) -> None:
+        self.chamadas: list[str] = []
+        self.pronto = threading.Event()
+
+    async def __call__(self, texto: str) -> None:
+        self.chamadas.append(texto)
+        self.pronto.set()
 
 
 # --- 1. Pipeline puro: camada a camada --------------------------------------
@@ -485,6 +512,75 @@ class TestExecutor:
         assert push.chamadas == []        # e a falha ficou contida
         estado = json.loads((tmp_path / "estado.json").read_text())["alvos"]
         assert estado["modelo-x"]["versao_instalada"] == "abc123"
+
+    def test_telegram_anuncia_aplicado_no_rag_sync(
+            self, tmp_path: Path) -> None:
+        """TODO §3.2: o evento de sucesso também vai para o Telegram."""
+        rag = CallableRag()
+        telegram = _TelegramFake()
+        svc = _mk(tmp_path, alvos=[_alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0,
+                                         versao_atual="", versao_nova="abc123")],
+                  rag=rag, telegram=telegram)
+        assert svc.tick()[0].acao == APLICAR
+        assert telegram.chamadas == [
+            "Auto-update aplicado — "
+            "Índice RAG re-sincronizado — 9 chunks (modelo-x)",
+        ]
+
+    def test_telegram_anuncia_auto_desligado(self, tmp_path: Path) -> None:
+        """3 falhas duras: aviso único com título próprio e religação."""
+        rag = CallableRag(falhar=True)
+        cfg = ConfigUpdate(max_falhas=3, cooloff_s=0.0, intervalo_s=0.0)
+        alvo = _alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0, versao_nova="abc")
+        telegram = _TelegramFake()
+        svc = _mk(tmp_path, cfg=cfg, alvos=[alvo], rag=rag,
+                  telegram=telegram)
+        for _ in range(3):
+            svc.tick()
+        assert len(telegram.chamadas) == 1
+        texto = telegram.chamadas[0]
+        assert texto.startswith("Auto-update desligado — modelo-x DESLIGADO")
+        assert "3 falhas seguidas" in texto
+        assert "religável pelo painel" in texto
+
+    def test_telegram_anuncia_quando_o_download_conclui(
+            self, tmp_path: Path) -> None:
+        """Evento público da fila: sucesso → mensagem com alvo + versão."""
+        telegram = _TelegramFake()
+        svc = _mk(tmp_path, alvos=[_alvo()], telegram=telegram)
+        svc._pendentes["job1"] = "modelo-x"
+        svc.tratar_evento({"job": {"id": "job1", "status": "concluido"}})
+        assert telegram.chamadas == [
+            "Auto-update aplicado — modelo-x aplicado (1.0.1)",
+        ]
+
+    def test_telegram_falho_nao_derruba_o_ciclo(
+            self, tmp_path: Path) -> None:
+        """O aviso é best-effort: sink que levanta não trava o ciclo."""
+        rag = CallableRag()
+        telegram = _TelegramFake(falhar=True)
+        svc = _mk(tmp_path, alvos=[_alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0,
+                                         versao_atual="", versao_nova="abc123")],
+                  rag=rag, telegram=telegram)
+        assert svc.tick()[0].acao == APLICAR
+        assert rag.chamadas == 1          # o sync aconteceu apesar do aviso
+        assert telegram.chamadas == []    # e a falha ficou contida
+        estado = json.loads((tmp_path / "estado.json").read_text())["alvos"]
+        assert estado["modelo-x"]["versao_instalada"] == "abc123"
+
+    def test_telegram_async_e_executado(self, tmp_path: Path) -> None:
+        """O sink real é assíncrono: o serviço executa o awaitable."""
+        rag = CallableRag()
+        telegram = _TelegramAsyncFake()
+        svc = _mk(tmp_path, alvos=[_alvo(acao=ACAO_RAG_SYNC, cooloff_s=0.0,
+                                         versao_atual="", versao_nova="abc123")],
+                  rag=rag, telegram=telegram)
+        assert svc.tick()[0].acao == APLICAR
+        assert telegram.pronto.wait(2.0) is True
+        assert telegram.chamadas == [
+            "Auto-update aplicado — "
+            "Índice RAG re-sincronizado — 9 chunks (modelo-x)",
+        ]
 
     def test_rag_sync_falha_conta_e_auto_disable_ao_limite(
             self, tmp_path: Path) -> None:

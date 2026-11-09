@@ -387,3 +387,52 @@ ainda são válidas"* — antes de escolher a próxima melhoria.
 - Nada implementado, nada reiniciado. Aguardando a escolha do dono.
   Recomendação: **3.2** (pequeno e isolado) ou **3.1 import/export** (mais
   substancial).
+
+## §10 — 3.2: aviso no Telegram quando o auto-update aplica/auto-desliga (09/11)
+
+**Pedido:** *"ok, siga 3.2"* — o item aberto do TODO 3.2: quando um alvo for
+aplicado ou o serviço se auto-desligar, avisar o dono (hoje só o FCM).
+
+### 1. O que foi feito
+
+- `core/auto_update.py` — `_anunciar(corpo, *, titulo=...)` agora dispara
+  **FCM + Telegram**. O sink do Telegram é assíncrono (`build_telegram_sink`);
+  `_anunciar_telegram` o executa num thread daemon curto (`asyncio.run`) —
+  não segura o lock do ciclo e falha só gera `warn`.
+- **Aplicado:** os avisos de RAG sync e de download concluído já passam por
+  `_anunciar` e agora também chegam no Telegram.
+- **Auto-desligado:** `_registrar_falha` chama
+  `_anunciar(..., titulo="Auto-update desligado")` **uma vez**, na transição
+  para `desabilitado=True`, com o alvo, o motivo (3 falhas) e "religável pelo
+  painel".
+- **Rollback:** o aviso leva `titulo="Auto-update rollback"` (antes o FCM
+  dizia "aplicado").
+- `runtime/launcher.py` — `build_auto_update` monta
+  `telegram=build_telegram_sink("monitor")` com try/except (falha de config →
+  `None`) e loga `telegram=ligado/ausente`. O bot é o @nicky_monitor_bot, o
+  mesmo dos alertas do sistema.
+
+### 2. Testes e gate
+
+- `tests/test_auto_update.py` **82 passed** (+5): aplicado no RAG sync,
+  auto-desligado (título/texto), download concluído, sink que levanta (ciclo
+  segue) e sink **assíncrono real** executado.
+- Gate oficial: **4204 passed / 16 skipped / 0 falha** (193,61 s; eram 4199).
+
+### 3. Restart e prova viva
+
+- `od-core` reiniciado: `MainPID 3997151`, `NRestarts=0`, `/health` **25/25
+  up**, journal **0 `[ERROR]`**.
+- Log do launcher: `Auto-update no ar ... telegram=ligado`.
+- Prova viva do sink `monitor`: mensagem de teste enviada pelo
+  `build_telegram_sink("monitor")` (sem exceção; o bot @nicky_monitor_bot
+  entregou).
+- Sem bump: app segue **1.44.0/2080**.
+
+### 4. Fila
+
+- TODO 3.2 Telegram marcado entregue; TODO 3.4 cache e TODO 5 E2/E3 corrigidos
+  (já existiam — ver §9).
+- Abertos: 3.1 (import/export, diff, Ed25519, semver, ferramentas nativas),
+  3.3 (.part órfãos, webhook), 3.5 (templates/teste gerado/staging), 3.7
+  (Legado); A4/A5 dependem do dono; C3/C4 adiados; E1 sem demanda.
