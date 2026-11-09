@@ -399,6 +399,39 @@ class TestAtualizacao:
             depot.instalar(nome="util.soma", codigo=codigo, versao=f"1.0.{v}")
         assert len(depot.obter("util.soma").anteriores) == 5  # MAX_HISTORICO
 
+    def test_historico_respeita_env(self, tmp_path: Path,
+                                    monkeypatch: pytest.MonkeyPatch) -> None:
+        depot, _ = _mk_depot(tmp_path)
+        monkeypatch.setenv("OD_SUPPLY_DEPOT_MAX_HISTORY", "2")
+        depot.instalar(nome="util.soma", codigo=CODE_V1, versao="1.0.0")
+        for v in range(1, 5):
+            codigo = CODE_V2 if v % 2 else CODE_V1
+            depot.instalar(nome="util.soma", codigo=codigo,
+                           versao=f"1.0.{v}")
+        assert len(depot.obter("util.soma").anteriores) == 2
+
+    def test_historico_zero_desliga_o_rollback(
+            self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        depot, _ = _mk_depot(tmp_path)
+        monkeypatch.setenv("OD_SUPPLY_DEPOT_MAX_HISTORY", "0")
+        depot.instalar(nome="util.soma", codigo=CODE_V1, versao="1.0.0")
+        depot.instalar(nome="util.soma", codigo=CODE_V2, versao="1.0.1")
+        assert depot.obter("util.soma").anteriores == []
+        r = depot.rollback("util.soma")
+        assert r["ok"] is False
+        assert r["motivo"] == "sem_historico_de_versoes"
+
+    def test_historico_env_invalido_usa_o_padrao(
+            self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        depot, _ = _mk_depot(tmp_path)
+        monkeypatch.setenv("OD_SUPPLY_DEPOT_MAX_HISTORY", "muitas")
+        depot.instalar(nome="util.soma", codigo=CODE_V1, versao="1.0.0")
+        for v in range(1, 8):
+            codigo = CODE_V2 if v % 2 else CODE_V1
+            depot.instalar(nome="util.soma", codigo=codigo,
+                           versao=f"1.0.{v}")
+        assert len(depot.obter("util.soma").anteriores) == 5
+
     def test_falha_no_registro_dispara_rollback_total(
         self, tmp_path: Path,
     ) -> None:

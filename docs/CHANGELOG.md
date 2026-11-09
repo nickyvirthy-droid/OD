@@ -12,6 +12,23 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## E4: retenção, prioridade de downloads e rollback de modelo (2026-11-09, sem bump)
+
+**Resumo:** os três itens de robustez do bloco E (TODO 3.1–3.3) que estavam
+abertos. Nenhum muda o caminho feliz: a retenção só recorta o histórico, a
+prioridade só escolhe o próximo job e o rollback só age depois de um
+`pos_download: mover` já aplicado.
+
+| Peça | Entrega |
+|---|---|
+| **Supply Depot — retenção** | `OD_SUPPLY_DEPOT_MAX_HISTORY` (padrão 5, teto 50, `0` desliga o histórico e, com ele, o rollback). Lido a cada uso — mudar o `.env` e reiniciar basta; valor inválido cai no padrão com `warn`. |
+| **Downloads — prioridade** | `priority` (`baixa`/`normal`/`alta`) no job e no body do `POST /admin/downloads`; o worker escolhe **maior prioridade primeiro** e mantém FIFO no empate. Não há preempção de stream (só decide o próximo). Coluna e seletor no painel; valor inválido → `400 prioridade_invalida`; sobrevive ao restart. |
+| **Auto-update — rollback de modelo** | Antes do `os.replace`, a versão que sai vai para `data/modelos_backup/<alvo>/` e entra em `data/auto_update_historico.json` (últimos 3 por alvo). `POST /admin/auto-update/rollback` restaura o arquivo, **guarda a versão que falhou** (rollback desfazível) e grava `versao_rejeitada` — o ciclo não reaplica a mesma versão; um manifesto com versão nova volta a fluir. Botão **↩** no painel. Se a troca falhar, o backup volta para o lugar e a entrada é esquecida. |
+| **Verificação** | Focados: **416 passed** (10 novos: retenção com env 2/0/inválido, prioridade alta/fura-FIFO/empate/persistência/400, backup+rollback+rejeição, rotas 400/404). Gate completo **4199 passed / 16 skipped / 0 falha**; `node --check` no script do painel OK. Restart `MainPID 3393877`, `NRestarts=0`, `/health` **25/25**, journal 0 `[ERROR]`; `GET /admin/auto-update` já expõe `backups` e o `/admin` serve o seletor e o ↩. |
+
+**Fora do escopo:** “mais ferramentas nativas no depot” (lista aberta do 3.1) não
+entrou — é catálogo, não robustez, e não havia demanda.
+
 ## Cadeia de IAs volta a começar pelo Gemini (2026-11-09, sem bump)
 
 **Resumo:** com a chave autenticando de novo (3 chaves medidas, todas 200), a

@@ -60,8 +60,28 @@ log = get_logger("omega.tools.supply_depot")
 
 LIMITE_CODIGO = 8000          # chars — mesma guarda do AutoExtension
 MARGEM_DISCO = 1.10           # 10% de folga (igual à Parte E)
-MAX_HISTORICO = 5             # versões anteriores guardadas por ferramenta
+MAX_HISTORICO = 5             # padrão: versões anteriores guardadas por ferramenta
+MAX_HISTORICO_TETO = 50       # teto do env (protege o catálogo de crescer sem fim)
 MAX_NOME = 64                 # id da action não vira nome infinito
+
+
+def max_historico() -> int:
+    """Quantas versões anteriores guardar (``OD_SUPPLY_DEPOT_MAX_HISTORY``).
+
+    Lido a cada uso (não no import): mudar o `.env` e reiniciar o serviço
+    basta. Valor inválido cai no padrão 5; 0 desliga o histórico — e com
+    ele o rollback (o painel avisa no resultado).
+    """
+    bruto = os.environ.get("OD_SUPPLY_DEPOT_MAX_HISTORY", "")
+    if bruto.strip() == "":
+        return MAX_HISTORICO
+    try:
+        valor = int(bruto)
+    except (TypeError, ValueError):
+        log.warn("OD_SUPPLY_DEPOT_MAX_HISTORY invalido; usando o padrao",
+                 valor=bruto[:20])
+        return MAX_HISTORICO
+    return max(0, min(valor, MAX_HISTORICO_TETO))
 
 CATALOGO_PADRAO = Path("data/ferramentas_catalogo.json")
 CODIGOS_PADRAO = Path("data/ferramentas")
@@ -557,7 +577,9 @@ class SupplyDepot:
                     entrada_dict = entrada_antiga.para_dict()
                     entrada_dict["arquivo_backup"] = nome_backup
                     nova.anteriores.append(entrada_dict)
-                    nova.anteriores = nova.anteriores[-MAX_HISTORICO:]
+                    limite = max_historico()
+                    nova.anteriores = (nova.anteriores[-limite:]
+                                       if limite else [])
                 nova.arquivo_backup = ""
             # 2. Código novo (atômico) + 3. catálogo (atômico).
             nova.arquivo = self._gravar_codigo(id_f, codigo)
@@ -667,7 +689,9 @@ class SupplyDepot:
                 atual_dict["arquivo_backup"] = nome_atual
             restantes = [a for a in entrada.anteriores if a is not alvo]
             nova_hist = restantes + [atual_dict]
-            entrada_alvo.anteriores = nova_hist[-MAX_HISTORICO:]
+            limite = max_historico()
+            entrada_alvo.anteriores = (nova_hist[-limite:]
+                                       if limite else [])
             entrada_alvo.criada_em = entrada.criada_em
             entrada_alvo.atualizada_em = self._clock()
             entrada_alvo.arquivo = self._gravar_codigo(id_f, codigo_alvo)

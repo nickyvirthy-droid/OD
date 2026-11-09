@@ -129,6 +129,50 @@ def _mk(tmp_path: Path, *, cfg: Optional[ConfigUpdate] = None,
     return svc
 
 
+class TestRollbackModelo:
+    """E4: troca guarda a versão anterior; rollback restaura e segura a ruim."""
+
+    def test_mover_guarda_backup_e_rollback_restaura(
+            self, tmp_path: Path) -> None:
+        alvo = _alvo(pos_download=POS_MOVER, mover_para="modelos/modelo.bin")
+        destino = tmp_path / "modelos" / "modelo.bin"
+        destino.parent.mkdir(parents=True)
+        destino.write_text("v1", encoding="utf-8")
+        baixado = tmp_path / "downloads" / "modelo.bin"
+        baixado.parent.mkdir(parents=True)
+        baixado.write_text("v2", encoding="utf-8")
+        svc = _mk(tmp_path, alvos=[alvo])
+        svc.gravar_estado({"modelo-x": EstadoAlvo(
+            id="modelo-x", versao_instalada="1.0.0")})
+        est = svc.carregar_estado()["modelo-x"]
+
+        assert svc._mover(alvo, est) is None
+        assert destino.read_text(encoding="utf-8") == "v2"
+        backups = svc.historico_backups()
+        assert len(backups) == 1
+        assert backups[0]["versao"] == "1.0.0"
+
+        r = svc.rollback("modelo-x")
+        assert r["ok"] is True
+        assert destino.read_text(encoding="utf-8") == "v1"
+        guardado = svc.carregar_estado()["modelo-x"]
+        assert guardado.versao_instalada == "1.0.0"
+        assert guardado.versao_rejeitada == "1.0.1"
+
+        # O ciclo não reaplica a versão rejeitada.
+        decisoes = svc.tick(dry_run=True)
+        d = next(d for d in decisoes if d.alvo == "modelo-x")
+        assert d.acao == PULAR
+        assert "rejeitada" in d.motivo
+
+    def test_rollback_sem_backup_e_honesto(self, tmp_path: Path) -> None:
+        svc = _mk(tmp_path, alvos=[_alvo()])
+        r = svc.rollback("modelo-x")
+        assert r["ok"] is False
+        assert r["motivo"] == "sem_backup_de_versao"
+        assert svc.rollback("nao-existe")["motivo"] == "alvo_inexistente"
+
+
 class CallableRag:
     """rag.sync() falso: conta chamadas e pode falhar."""
 
@@ -1042,7 +1086,8 @@ class TestAutoUpdateRotas:
             port=0, rate_limit_max=0, api_key="segredo123", auth_all=True))
         for metodo, caminho in (("GET", "/admin/auto-update"),
                                 ("POST", "/admin/auto-update/dry-run"),
-                                ("POST", "/admin/auto-update/reset")):
+                                ("POST", "/admin/auto-update/reset"),
+                                ("POST", "/admin/auto-update/rollback")):
             status, corpo = _request(servidor.bound_port, metodo, caminho,
                                      api_key="segredo123")
             assert status == 503, caminho
@@ -1077,6 +1122,20 @@ class TestAutoUpdateRotas:
         assert data["metricas"]["ticks_dry_run"] == 1
         assert data["metricas"]["ticks"] == 0
         assert data["metricas"]["aplicados"] == 0
+
+    def test_rollback_valida_alvo_e_sem_backup(self, srv_auto) -> None:
+        servidor, _, _ = srv_auto
+        status, corpo = _request(servidor.bound_port, "POST",
+                                 "/admin/auto-update/rollback",
+                                 api_key="segredo123", body={})
+        assert status == 400
+        assert _json_body(corpo)["error"] == "alvo_obrigatorio"
+        status, corpo = _request(servidor.bound_port, "POST",
+                                 "/admin/auto-update/rollback",
+                                 api_key="segredo123",
+                                 body={"alvo": "modelo-x"})
+        assert status == 404
+        assert _json_body(corpo)["error"] == "sem_backup_de_versao"
 
     def test_reset_valida_alvo(self, srv_auto) -> None:
         servidor, svc, _ = srv_auto

@@ -146,6 +146,9 @@ class EstadoAlvo:
 
     id: str
     versao_instalada: str = ""
+    #: Versão que o dono rejeitou no rollback — o ciclo NÃO a reaplica
+    #: sozinho; um manifesto com versão diferente volta a fluir.
+    versao_rejeitada: str = ""
     primeiro_visto: Optional[float] = None   # âncora do cool-off
     vista_versao: str = ""                   # a qual versão o âncora refere
     falhas: int = 0                          # falhas DURAS consecutivas
@@ -158,6 +161,7 @@ class EstadoAlvo:
     def para_dict(self) -> dict[str, Any]:
         return {
             "id": self.id, "versao_instalada": self.versao_instalada,
+            "versao_rejeitada": self.versao_rejeitada,
             "primeiro_visto": self.primeiro_visto,
             "vista_versao": self.vista_versao, "falhas": self.falhas,
             "desabilitado": self.desabilitado,
@@ -170,8 +174,8 @@ class EstadoAlvo:
     @classmethod
     def de_dict(cls, dados: dict[str, Any]) -> "EstadoAlvo":
         est = cls(id=str(dados.get("id", "")))
-        for f in ("versao_instalada", "vista_versao", "motivo_desabilitado",
-                  "ultimo_erro"):
+        for f in ("versao_instalada", "versao_rejeitada", "vista_versao",
+                  "motivo_desabilitado", "ultimo_erro"):
             setattr(est, f, str(dados.get(f, "") or ""))
         for f in ("primeiro_visto", "ultima_tentativa", "ultima_sucesso"):
             valor = dados.get(f)
@@ -332,6 +336,11 @@ def _avaliar_um(
     # 3. sem mudança — nada novo, ou versão nova vazia (só registro).
     if not alvo.versao_nova or alvo.versao_nova == est.versao_instalada:
         d.motivo = "sem_atualizacao"
+        return d
+
+    # 3b. versão rejeitada pelo dono no rollback — não reaplica sozinha.
+    if est.versao_rejeitada and alvo.versao_nova == est.versao_rejeitada:
+        d.motivo = f"versao_rejeitada_pelo_dono: {alvo.versao_nova}"
         return d
 
     # 4. só minor/patch — major é decisão do dono (nunca automática).
@@ -495,6 +504,13 @@ class AutoUpdateService:
         self._espaco_livre_fn = espaco_livre_fn or _espaco_livre
         self._lock = threading.Lock()
         self._pendentes: dict[str, str] = {}   # job_id → alvo_id
+        # Rollback de modelo (E4): cada aplicação guarda o arquivo anterior
+        # em data/modelos_backup/<alvo>/ e o histórico em JSON. O painel
+        # mostra o botão e o rollback restaura + segura a versão ruim.
+        self._backup_dir = Path(self.repo_root).resolve() / "data" / "modelos_backup"
+        self._historico_path = (Path(self.repo_root).resolve() / "data"
+                                / "auto_update_historico.json")
+        self._backups_por_alvo = 3
         self._consumidor: Optional[threading.Thread] = None
         self._parar = threading.Event()
         self.ultimas_decisoes: list[dict[str, Any]] = []
@@ -774,6 +790,7 @@ class AutoUpdateService:
                     return
             est.versao_instalada = (alvo.versao_nova if alvo is not None
                                     else est.versao_instalada)
+            est.versao_rejeitada = ""
             est.falhas = 0
             est.ultimo_erro = ""
             est.ultima_sucesso = agora
@@ -825,14 +842,166 @@ class AutoUpdateService:
         origem = (self.raiz_downloads / alvo.destino).resolve()
         if not origem.is_file():
             return "arquivo_baixado_ausente"
+        backup_rel = ""
         try:
             destino.parent.mkdir(parents=True, exist_ok=True)
+            if destino.is_file():
+                # E4 — rollback de modelo: a versão que sai vira backup
+                # ANTES da troca; sem isso não haveria como voltar.
+                backup_rel = self._guardar_backup(
+                    alvo.id, destino,
+                    versao=est.versao_instalada or alvo.versao_atual,
+                    destino_rel=str(alvo.mover_para or ""),
+                ) or ""
             os.replace(origem, destino)
         except Exception as exc:
+            # A troca falhou: devolve o backup para o lugar e esquece a
+            # entrada — o alvo fica como estava antes da tentativa.
+            if backup_rel:
+                try:
+                    shutil.move(str(Path(self.repo_root) / backup_rel),
+                                str(destino))
+                except Exception:
+                    pass
+                self._gravar_historico([
+                    i for i in self._ler_historico()
+                    if i.get("arquivo") != backup_rel])
             return f"mover: {_curto(exc)}"
         log.info("Auto-update: arquivo movido para o destino",
                  alvo=alvo.id, destino=str(destino))
         return None
+
+    # -- Backup e rollback de modelo (E4) ------------------------------------
+
+    @staticmethod
+    def _nome_seguro(texto: str) -> str:
+        return re.sub(r"[^a-z0-9_.-]+", "_", (texto or "alvo").lower())[:60]
+
+    def _ler_historico(self) -> list[dict[str, Any]]:
+        try:
+            bruto = json.loads(self._historico_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        itens = bruto.get("backups") if isinstance(bruto, dict) else bruto
+        return [i for i in (itens or []) if isinstance(i, dict)]
+
+    def _gravar_historico(self, itens: list[dict[str, Any]]) -> None:
+        self._historico_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._historico_path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps({"backups": itens}, ensure_ascii=False,
+                                  indent=1), encoding="utf-8")
+        tmp.replace(self._historico_path)
+
+    def _guardar_backup(self, alvo_id: str, arquivo: Path, *,
+                        versao: str, destino_rel: str) -> Optional[str]:
+        """Move o arquivo atual para o backup e registra no histórico.
+
+        ``os.replace`` mantém a troca barata (modelos são GB); se o backup
+        estiver em outro sistema de arquivos, cai para copiar+apagar.
+        """
+        pasta = self._backup_dir / self._nome_seguro(alvo_id)
+        pasta.mkdir(parents=True, exist_ok=True)
+        alvo_backup = pasta / f"{time.time_ns()}-{arquivo.name}"
+        try:
+            os.replace(arquivo, alvo_backup)
+        except OSError:
+            shutil.copy2(arquivo, alvo_backup)
+            try:
+                arquivo.unlink()
+            except OSError:
+                pass
+        try:
+            rel = str(alvo_backup.relative_to(Path(self.repo_root).resolve()))
+        except ValueError:                     # pragma: no cover
+            rel = str(alvo_backup)
+        itens = self._ler_historico()
+        itens.append({"alvo": alvo_id, "versao": str(versao or ""),
+                      "arquivo": rel, "destino": str(destino_rel or ""),
+                      "criado_em": self._clock()})
+        do_alvo = [i for i in itens if i.get("alvo") == alvo_id]
+        excedente = len(do_alvo) - self._backups_por_alvo
+        if excedente > 0:
+            antigos = do_alvo[:excedente]
+            for item in antigos:
+                itens.remove(item)
+                caminho = Path(self.repo_root) / str(item.get("arquivo") or "")
+                try:
+                    caminho.unlink(missing_ok=True)
+                except OSError:
+                    pass
+        self._gravar_historico(itens)
+        log.info("Auto-update: backup da versão anterior", alvo=alvo_id,
+                 versao=versao, arquivo=rel)
+        return rel
+
+    def historico_backups(self) -> list[dict[str, Any]]:
+        """Backups disponíveis para rollback (mais novo por último)."""
+        return self._ler_historico()
+
+    def rollback(self, alvo_id: str) -> dict[str, Any]:
+        """Restaura a versão anterior do arquivo e segura a versão ruim.
+
+        A versão atual (a que falhou) também vira backup, então o rollback
+        é desfazível. ``versao_rejeitada`` impede o ciclo de reaplicar a
+        mesma versão; quando o manifesto trouxer outra, volta a fluir.
+        """
+        alvo = self._alvo_por_id(alvo_id)
+        if alvo is None:
+            return {"ok": False, "motivo": "alvo_inexistente"}
+        with self._lock:
+            itens = self._ler_historico()
+            meus = [i for i in itens if i.get("alvo") == alvo_id]
+            if not meus:
+                return {"ok": False, "motivo": "sem_backup_de_versao"}
+            escolhido = meus[-1]
+            destino_rel = str(alvo.mover_para or escolhido.get("destino") or "")
+            if not destino_rel:
+                return {"ok": False, "motivo": "destino_vazio"}
+            destino = (Path(self.repo_root) / destino_rel).resolve()
+            try:
+                destino.relative_to(Path(self.repo_root).resolve())
+            except ValueError:
+                return {"ok": False, "motivo": "destino_fora_da_arvore"}
+            origem = (Path(self.repo_root) / str(escolhido.get("arquivo") or "")).resolve()
+            try:
+                origem.relative_to(self._backup_dir)
+            except ValueError:
+                return {"ok": False, "motivo": "backup_fora_da_arvore"}
+            if not origem.is_file():
+                return {"ok": False, "motivo": "backup_ausente"}
+            estado = self.carregar_estado()
+            est = estado.setdefault(alvo_id, EstadoAlvo(id=alvo_id))
+            ruim = alvo.versao_nova or est.versao_instalada
+            # A versão que está saindo também fica disponível (desfazer).
+            if destino.is_file():
+                self._guardar_backup(alvo_id, destino, versao=ruim,
+                                     destino_rel=destino_rel)
+            destino.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.move(str(origem), str(destino))
+            except Exception as exc:
+                return {"ok": False, "motivo": f"rollback: {_curto(exc)}"}
+            # Remove a entrada usada do histórico (o arquivo virou destino).
+            itens = [i for i in self._ler_historico() if i is not escolhido]
+            itens = [i for i in itens
+                     if not (i.get("alvo") == alvo_id
+                             and i.get("arquivo") == escolhido.get("arquivo"))]
+            self._gravar_historico(itens)
+            est.versao_instalada = str(escolhido.get("versao") or "")
+            if ruim and ruim != est.versao_instalada:
+                est.versao_rejeitada = ruim
+            est.falhas = 0
+            est.ultimo_erro = ""
+            est.ultima_sucesso = self._clock()
+            self.gravar_estado(estado)
+        log.info("Auto-update: rollback de modelo aplicado", alvo=alvo_id,
+                 para=est.versao_instalada, arquivo=destino_rel)
+        self._anunciar(f"Rollback de {alvo_id} para {est.versao_instalada or '?'} "
+                       f"({destino_rel})")
+        return {"ok": True, "alvo": alvo_id,
+                "versao": est.versao_instalada,
+                "versao_rejeitada": est.versao_rejeitada,
+                "arquivo": destino_rel}
 
     def _registrar_falha(self, est: EstadoAlvo, motivo: str, agora: float,
                          *, dura: bool) -> None:
@@ -922,6 +1091,7 @@ class AutoUpdateService:
                           for j_id, a_id in self._pendentes.items()],
             "ultimas_decisoes": self.ultimas_decisoes,
             "ultimo_tick": self.ultimo_tick,
+            "backups": self.historico_backups(),
         }
 
     def prometheus_lines(self) -> list[str]:

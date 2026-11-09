@@ -1,4 +1,17 @@
 {
+  "e4_retencao_prioridade_rollback_2026_11_09": {
+    "pedido": "Dono (09/11): 'pode fazer o E4' — os tres itens de robustez do bloco E (TODO 3.1-3.3).",
+    "retencao": "tools/supply_depot.py: max_historico() le OD_SUPPLY_DEPOT_MAX_HISTORY a cada uso (padrao 5, teto 50, 0 desliga historico e rollback; invalido = padrao com warn). Os dois recortes de anteriores usam a funcao (inclui o rollback manual).",
+    "prioridade": "core/downloads.py: DownloadJob.priority (baixa|normal|alta), enqueue(priority=), _proximo escolhe maior prioridade primeiro e mantem FIFO no empate, para_dict/persistencia incluem. POST /admin/downloads aceita priority; invalido = 400 prioridade_invalida. Painel: seletor + coluna Prior.",
+    "rollback_modelo": "core/auto_update.py: antes do os.replace a versao que sai vai para data/modelos_backup/<alvo>/ e data/auto_update_historico.json (3 por alvo); rollback() restaura, guarda a versao que falhou (desfazivel) e grava versao_rejeitada para o ciclo nao reaplicar; falha na troca devolve o backup e esquece a entrada. POST /admin/auto-update/rollback + botao no painel (aparece so com backup).",
+    "testes": "Focados 416 passed (10 novos). Gate completo 4199 passed / 16 skipped / 0 falha (eram 4189). node --check no script do painel OK.",
+    "restart": "MainPID 3393877, NRestarts=0, /health 25/25 up, journal 0 [ERROR]; GET /admin/auto-update devolve backups (0 hoje) e o /admin serve o seletor e o botao de rollback.",
+    "fora_de_escopo": "Mais ferramentas nativas no depot (lista aberta do 3.1) nao entrou — catalogo, sem demanda.",
+    "notas": "TODO 3: 3.1 retencao, 3.2 rollback de modelo e 3.3 prioridade marcados ENTREGUES 09/11. TODO 5: E4 ENTREGUE; C1 FECHADO (cofre usado; conta de servico ve 21 itens: 19 do .env + FlatNotes — caderno e Home Assistant HA; pessoais na conta dele) e C2 FECHADO (analise/fotos-adicionais nao existe; analise/ so tem os JSON diarios do Vigia). TODO 2: linhas do Vaultwarden e das fotos fechadas.",
+    "sem_bump": "Servidor/painel; app segue 1.44.0/2080.",
+    "updated_at": "2026-11-09T05:45:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§8)"
+  },
   "chaves_gemini_mesmo_projeto_2026_11_09": {
     "pedido": "Dono (09/11): 'feito, leia txt' — print do AI Studio com as 3 chaves.",
     "achado": "As 3 chaves (…vCcc Gemini API Key, …Omi4 nicky, …7jxE Default Gemini API Key) estao no MESMO projeto gen-lang-client-0888452285, nivel gratuito.",

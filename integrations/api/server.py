@@ -438,6 +438,7 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/admin/auto-update", "admin_auto_update_get", True),
     ("POST", "/admin/auto-update/dry-run", "admin_auto_update_dry_run", True),
     ("POST", "/admin/auto-update/reset", "admin_auto_update_reset", True),
+    ("POST", "/admin/auto-update/rollback", "admin_auto_update_rollback", True),
     # Registro de ferramentas/skills estilo Supply Depot (Parte F do NOMAD,
     # 2026-10-15) — catálogo persistente: instala/atualiza com pré-voo,
     # customização do dono (PUT), rollback por versão e desinstalação.
@@ -1512,16 +1513,21 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <div class="row">
       <input id="dl-url" placeholder="https://…/arquivo.bin" style="flex:1;min-width:260px">
       <input id="dl-destino" placeholder="destino (opcional, sob downloads/)" style="width:210px">
+      <select id="dl-prioridade" title="prioridade na fila">
+        <option value="alta">alta</option>
+        <option value="normal" selected>normal</option>
+        <option value="baixa">baixa</option>
+      </select>
       <button id="dl-add" style="border-color:var(--accent);color:var(--accent)">↓ Baixar</button>
       <button id="dl-refresh">↻ Carregar</button>
       <span class="muted msg" id="dl-msg"></span>
     </div>
     <table style="margin-top:10px">
       <thead><tr>
-        <th>ID</th><th>Arquivo</th><th>Progresso</th><th>Status</th>
+        <th>ID</th><th>Arquivo</th><th>Prior.</th><th>Progresso</th><th>Status</th>
         <th>Tentativas</th><th class="num">Bytes</th><th>Ações</th>
       </tr></thead>
-      <tbody id="dl-jobs"><tr><td colspan="7" class="muted">Carregando…</td></tr></tbody>
+      <tbody id="dl-jobs"><tr><td colspan="8" class="muted">Carregando…</td></tr></tbody>
     </table>
     <p class="muted" style="font-size:0.75rem;margin-top:6px">
       📡 ao vivo por SSE (<code>/admin/downloads/events</code>); se a conexão
@@ -2493,17 +2499,20 @@ function dlRender() {
       ? '<div class="muted" style="font-size:0.72rem">' + esc(j.erro) +
         (j.proximo_retry ? " · próxima tentativa agendada" : "") + "</div>"
       : "";
+    const prior = j.priority === "alta" ? "▲ alta" :
+                  (j.priority === "baixa" ? "▽ baixa" : "normal");
+    const corPrior = j.priority === "alta" ? "color:var(--accent)" : "";
     return "<tr><td><code>" + esc(j.id) + "</code></td>" +
       "<td><b>" + esc(j.nome) + "</b>" + detalhe + "</td>" +
+      '<td class="muted" style="' + corPrior + '">' + prior + "</td>" +
       "<td>" + barra + (pct != null ? " " + pct + "%" : "") + "</td>" +
       '<td><span class="pill ' + pill + '">' + (DL_STATUS[j.status] || esc(j.status)) + "</span></td>" +
       '<td class="muted">' + j.tentativas + "/" + j.max_tentativas + "</td>" +
       '<td class="num muted">' + dlBytes(j.bytes_feitos) +
         (j.bytes_total > 0 ? " / " + dlBytes(j.bytes_total) : "") + "</td>" +
       "<td>" + acoes + "</td></tr>";
-  }).join("");
-  document.getElementById("dl-jobs").innerHTML = corpo ||
-    '<tr><td colspan="7" class="muted">Nenhum download ainda.</td></tr>';
+  }).join("");    document.getElementById("dl-jobs").innerHTML = corpo ||
+    '<tr><td colspan="8" class="muted">Nenhum download ainda.</td></tr>';
   document.querySelectorAll(".dl-cancel").forEach(b =>
     b.addEventListener("click", () => dlAcao(b.dataset.id, "cancel")));
   document.querySelectorAll(".dl-del").forEach(b =>
@@ -2538,11 +2547,12 @@ async function dlAdd() {
   const url = (document.getElementById("dl-url").value || "").trim();
   if (!url) { dlSetMsg("Cole a URL do arquivo.", "err"); return; }
   const destino = (document.getElementById("dl-destino").value || "").trim();
+  const prioridade = (document.getElementById("dl-prioridade").value || "normal");
   try {
     const resp = await fetch("/admin/downloads", {
       method: "POST",
       headers: authHeaders({"Content-Type": "application/json"}),
-      body: JSON.stringify({ url: url, destino: destino })
+      body: JSON.stringify({ url: url, destino: destino, priority: prioridade })
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) { dlSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
@@ -2658,6 +2668,9 @@ function auRender() {
           ? " → <b>" + esc(a.versao_nova) + "</b>" : "")
       : (a.versao_nova ? "<b>" + esc(a.versao_nova) + "</b>" : "—");
     let pill, status, acoes = "";
+    const temBackup = (auEstado.backups || []).some(b => b.alvo === a.id);
+    if (temBackup)
+      acoes += '<button class="au-rollback" data-id="' + esc(a.id) + '" title="voltar à versão anterior">↩</button> ';
     if (e.desabilitado) {
       pill = "err";
       status = "Desligado: " + esc(e.motivo_desabilitado || "");
@@ -2684,9 +2697,10 @@ function auRender() {
       "<td>" + acoes + "</td></tr>";
   }).join("");
   document.getElementById("au-alvos").innerHTML = corpo ||
-    '<tr><td colspan="7" class="muted">Nenhum alvo declarado.</td></tr>';
-  document.querySelectorAll(".au-reset").forEach(b =>
+    '<tr><td colspan="7" class="muted">Nenhum alvo declarado.</td></tr>';        document.querySelectorAll(".au-reset").forEach(b =>
     b.addEventListener("click", () => auReset(b.dataset.id)));
+  document.querySelectorAll(".au-rollback").forEach(b =>
+    b.addEventListener("click", () => auRollback(b.dataset.id)));
 }
 
 async function auLoad() {
@@ -2720,6 +2734,22 @@ async function auDry() {
     auEstado = data;
     auRender();
     auSetMsg("dry-run: nada foi executado", "ok");
+  } catch (e) { auSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function auRollback(id) {
+  if (!window.confirm("↩ Voltar " + id + " para a versão anterior? A versão atual fica guardada e o ciclo não reaplica a rejeitada.")) return;
+  try {
+    const resp = await fetch("/admin/auto-update/rollback", {
+      method: "POST",
+      headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify({ alvo: id })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { auSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    auSetMsg("↩ " + id + " voltou para " + (data.versao || "?") +
+             " (rejeitada: " + (data.versao_rejeitada || "—") + ")", "ok");
+    auLoad();
   } catch (e) { auSetMsg("Falha: " + e.message, "err"); }
 }
 
@@ -6891,6 +6921,7 @@ class APIHandler(BaseHTTPRequestHandler):
             job, criado = fila.enqueue(
                 str(data.get("url") or ""), str(data.get("destino") or ""),
                 str(data.get("sha256") or ""),
+                priority=str(data.get("priority") or "normal"),
             )
         except ValueError as exc:
             raise APIError(400, str(exc)) from exc
@@ -7022,6 +7053,28 @@ class APIHandler(BaseHTTPRequestHandler):
                          "decisoes": [d.para_dict() for d in decisoes],
                          "metricas": svc.metricas.snapshot(),
                          **svc.estado_resumo()})
+
+    def admin_auto_update_rollback(self) -> None:
+        """POST /admin/auto-update/rollback — volta à versão anterior.
+
+        Body: {"alvo": "modelo-x"}. Só existe backup quando o alvo já foi
+        aplicado com `pos_download=mover`; a versão que estava em uso vira
+        backup (rollback desfazível) e a rejeitada não é reaplicada pelo
+        ciclo até o manifesto trazer outra versão.
+        """
+        self._require_admin()
+        svc = self._auto_update_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict) or not str(data.get("alvo") or ""):
+            raise APIError(400, "alvo_obrigatorio")
+        resultado = svc.rollback(str(data["alvo"]))
+        if not resultado.get("ok"):
+            motivo = str(resultado.get("motivo") or "rollback_falhou")
+            codigo = (404 if motivo in ("alvo_inexistente",
+                                        "sem_backup_de_versao")
+                      else 409)
+            raise APIError(codigo, motivo)
+        self._json(200, resultado)
 
     def admin_auto_update_reset(self) -> None:
         """POST /admin/auto-update/reset — religa um alvo auto-desligado.

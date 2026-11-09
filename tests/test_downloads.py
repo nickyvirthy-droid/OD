@@ -100,6 +100,43 @@ def _parte(caminho: Path) -> Path:
 # ---------------------------------------------------------------------------#
 # Enfileiramento e validação                                                  #
 # ---------------------------------------------------------------------------#
+class TestPrioridade:
+    """E4: prioridade escolhe o PRÓXIMO job; empate mantém a ordem."""
+
+    def test_alta_fura_a_fifo_e_empate_mantem_a_ordem(
+            self, tmp_path: Path) -> None:
+        fila = _mk(tmp_path, lambda req, timeout=None: _Resp(b"x"))
+        baixa, _ = fila.enqueue("https://exemplo.test/a.bin", "a.bin",
+                                priority="baixa")
+        alta, _ = fila.enqueue("https://exemplo.test/b.bin", "b.bin",
+                               priority="alta")
+        normal1, _ = fila.enqueue("https://exemplo.test/c.bin", "c.bin")
+        normal2, _ = fila.enqueue("https://exemplo.test/d.bin", "d.bin")
+        assert fila._proximo(time.time()).id == alta.id
+        alta.status = CONCLUIDO
+        assert fila._proximo(time.time()).id == normal1.id
+        normal1.status = CONCLUIDO
+        assert fila._proximo(time.time()).id == normal2.id
+        normal2.status = CONCLUIDO
+        assert fila._proximo(time.time()).id == baixa.id
+
+    def test_prioridade_invalida(self, tmp_path: Path) -> None:
+        fila = _mk(tmp_path, lambda req, timeout=None: _Resp(b"x"))
+        with pytest.raises(ValueError, match="prioridade_invalida"):
+            fila.enqueue("https://exemplo.test/a.bin", priority="urgente")
+
+    def test_prioridade_persiste_e_aparece_no_payload(
+            self, tmp_path: Path) -> None:
+        fila = _mk(tmp_path, lambda req, timeout=None: _Resp(b"x"))
+        job, _ = fila.enqueue("https://exemplo.test/a.bin", "a.bin",
+                              priority="alta")
+        assert job.para_dict()["priority"] == "alta"
+        fila._persistir(forcar=True)
+        outra = DownloadQueue(base_dir=tmp_path / "dl",
+                              state_path=tmp_path / "fila.json")
+        assert outra.get(job.id).priority == "alta"
+
+
 class TestEnfileirar:
     @pytest.mark.parametrize("url", ["", "ftp://x/a.bin", "sem-esquema/a.bin",
                                      "file:///etc/passwd"])
@@ -550,6 +587,22 @@ class TestDownloadAPI:
         data = _json_body(corpo)
         assert data["duplicado"] is True
         assert data["job"]["id"] == "dl-0001"
+
+    def test_prioridade_no_corpo(self, srv_downloads) -> None:
+        servidor, _ = srv_downloads
+        status, corpo = _request(
+            servidor.bound_port, "POST", "/admin/downloads",
+            api_key="segredo123",
+            body={"url": "https://exemplo.test/a.bin", "priority": "alta"})
+        assert status == 201, corpo
+        assert _json_body(corpo)["job"]["priority"] == "alta"
+        status, corpo = _request(
+            servidor.bound_port, "POST", "/admin/downloads",
+            api_key="segredo123",
+            body={"url": "https://exemplo.test/b.bin",
+                  "priority": "urgente"})
+        assert status == 400
+        assert _json_body(corpo)["error"] == "prioridade_invalida"
 
     def test_url_invalida_400(self, srv_downloads) -> None:
         servidor, _ = srv_downloads

@@ -153,7 +153,7 @@ class TestAPIRoutes:
         GET /api/radio/agora ("Tocando agora" da rádio, Item 1, 02/11) +
         /radio-pro e /api/radio/pro/* (área do ouvinte logado, 04/11) +
         /api/radio/cantores (lista de cantores indesejados, 05/11)."""
-        assert len(ROUTES) == 101
+        assert len(ROUTES) == 102
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -207,6 +207,7 @@ class TestAPIRoutes:
             ("GET", "/admin/auto-update"),
             ("POST", "/admin/auto-update/dry-run"),
             ("POST", "/admin/auto-update/reset"),
+            ("POST", "/admin/auto-update/rollback"),
             # Registro de ferramentas/skills estilo Supply Depot (Parte F)
             ("GET", "/admin/ferramentas"),
             ("POST", "/admin/ferramentas"),
@@ -287,6 +288,7 @@ class TestAPIRoutes:
             ("GET", "/admin/auto-update"),
             ("POST", "/admin/auto-update/dry-run"),
             ("POST", "/admin/auto-update/reset"),
+            ("POST", "/admin/auto-update/rollback"),
             # Registro de ferramentas/skills estilo Supply Depot (Parte F)
             ("GET", "/admin/ferramentas"),
             ("POST", "/admin/ferramentas"),

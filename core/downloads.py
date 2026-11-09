@@ -61,6 +61,9 @@ ERRO = "erro"
 CANCELADO = "cancelado"
 TERMINAIS = frozenset({CONCLUIDO, ERRO, CANCELADO})
 
+# Ordem de atendimento (quanto maior, antes). Fora do mapa = normal.
+PRIORIDADES = {"baixa": 0, "normal": 1, "alta": 2}
+
 # Transferência.
 _CHUNK = 64 * 1024            # 64 KiB por leitura
 _TIMEOUT_S = 30.0             # sem bloco novo em 30 s = falha transitória
@@ -112,6 +115,7 @@ class DownloadJob:
     destino: str                 # caminho absoluto final (arquivo pronto)
     nome: str                    # nome do arquivo (exibição)
     status: str = NA_FILA
+    priority: str = "normal"     # baixa | normal | alta (fura a FIFO)
     bytes_feitos: int = 0
     bytes_total: int = -1        # -1 = o servidor não anunciou o tamanho
     tentativas: int = 0
@@ -145,6 +149,7 @@ class DownloadJob:
             "destino": self.destino,
             "nome": self.nome,
             "status": self.status,
+            "priority": self.priority,
             "bytes_feitos": self.bytes_feitos,
             "bytes_total": self.bytes_total,
             "pct": self.pct,
@@ -269,9 +274,17 @@ class DownloadQueue:
     # Operações da API                                                   #
     # ------------------------------------------------------------------#
     def enqueue(self, url: str, destino: str = "",
-                sha256: str = "") -> tuple[DownloadJob, bool]:
+                sha256: str = "", *,
+                priority: str = "normal") -> tuple[DownloadJob, bool]:
         """Enfileira. Devolve (job, True) quando criou; (existente, False)
-        no dedup — mesma URL+destino já ativa na fila."""
+        no dedup — mesma URL+destino já ativa na fila.
+
+        ``priority`` (baixa|normal|alta) só decide a ORDEM de atendimento:
+        alta fura a FIFO; empate mantém a ordem de chegada.
+        """
+        prioridade = str(priority or "normal").strip().lower()
+        if prioridade not in PRIORIDADES:
+            raise ValueError("prioridade_invalida")
         url = str(url or "").strip()
         partes = urlsplit(url)
         if partes.scheme not in ("http", "https") or not partes.netloc:
@@ -295,6 +308,7 @@ class DownloadQueue:
                 url=url,
                 destino=str(caminho),
                 nome=caminho.name,
+                priority=prioridade,
                 bytes_feitos=_tamanho(Path(str(caminho) + ".part")),
                 max_tentativas=self._max_tentativas,
                 sha256=sha256,
@@ -426,14 +440,23 @@ class DownloadQueue:
                         self._finalizar(job, ERRO)
 
     def _proximo(self, agora: float) -> Optional[DownloadJob]:
-        """Pronto para baixar: na_fila (FIFO) ou aguardando vencido."""
+        """Pronto para baixar: maior prioridade; empate = FIFO.
+
+        A prioridade não "pausa" um download em voo — só escolhe o próximo
+        quando o worker fica livre (não há preempção de stream).
+        """
+        melhor: Optional[DownloadJob] = None
         for job_id in self._ordem:
             job = self._jobs[job_id]
-            if job.status == NA_FILA:
-                return job
-            if job.status == AGUARDANDO and (job.proximo_retry or 0) <= agora:
-                return job
-        return None
+            pronto = (job.status == NA_FILA or
+                      (job.status == AGUARDANDO
+                       and (job.proximo_retry or 0) <= agora))
+            if not pronto:
+                continue
+            if melhor is None or PRIORIDADES.get(job.priority, 1) > \
+                    PRIORIDADES.get(melhor.priority, 1):
+                melhor = job
+        return melhor
 
     def _espera(self, agora: float) -> Optional[float]:
         """Segundos até o próximo retry (None = nada agendado)."""

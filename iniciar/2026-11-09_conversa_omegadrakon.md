@@ -292,3 +292,58 @@ dividem a mesma cota — trocar de chave no `429` não acrescenta nada.
   para o Groq (rápido) e o local.
 - Registrado em `docs/IAS_DISPONIVEIS.md` (linha do Gemini + histórico) para não
   ser repesquisado.
+
+## §8 — E4 entregue: retenção, prioridade e rollback de modelo (09/11)
+
+**Pedido:** *"pode fazer o E4"* — os três itens de robustez do bloco E
+(TODO 3.1–3.3).
+
+### 1. Retenção configurável (Supply Depot)
+
+- `OD_SUPPLY_DEPOT_MAX_HISTORY` (padrão 5, teto 50; `0` desliga o histórico e,
+  com ele, o rollback). Lido **a cada uso**, então muda com restart do serviço;
+  valor inválido cai no padrão com `warn`.
+- Os dois pontos que recortavam `anteriores` passaram a usar `max_historico()`
+  (inclusive o rollback manual, que devolve a versão atual ao histórico).
+
+### 2. Prioridade na fila de downloads
+
+- `priority` (`baixa`/`normal`/`alta`) no `DownloadJob` e no body do
+  `POST /admin/downloads`; o worker escolhe **maior prioridade primeiro** e
+  mantém FIFO no empate. Sem preempção de stream: só decide o próximo.
+- Coluna “Prior.” e seletor no painel; valor inválido → `400
+  prioridade_invalida`; persistido no `downloads_fila.json`.
+
+### 3. Rollback de modelo (auto-update)
+
+- Antes do `os.replace`, a versão que sai vai para
+  `data/modelos_backup/<alvo>/` e para `data/auto_update_historico.json`
+  (últimos 3 por alvo; `os.replace` e, se cruzar filesystem, copiar+apagar).
+- `POST /admin/auto-update/rollback` restaura o arquivo e **guarda a versão que
+  falhou** (rollback desfazível). `versao_rejeitada` impede o ciclo de reaplicar
+  a mesma versão; um manifesto com versão nova volta a fluir. Botão **↩** no
+  painel, que aparece só quando há backup.
+- Se a troca falhar, o backup volta para o destino e a entrada é esquecida — o
+  alvo fica como estava.
+
+### 4. Verificação
+
+- Focados: **416 passed** (10 novos: retenção env 2/0/inválido, prioridade
+  alta/fura-FIFO/empate/persistência/400, backup+rollback+rejeição, rotas
+  400/404). `node --check` no script do painel OK.
+- Gate completo: **4199 passed / 16 skipped / 0 falha** (eram 4189).
+- Restart: `MainPID 3393877`, `NRestarts=0`, `/health` **25/25**, journal 0
+  `[ERROR]`. `GET /admin/auto-update` já devolve `backups` (0 hoje, alvo ainda
+  não aplicado) e o `/admin` serve o seletor e o botão ↩.
+- **Fora do escopo:** “mais ferramentas nativas no depot” (lista aberta do 3.1)
+  não entrou — é catálogo, não robustez, e não havia demanda.
+- Sem bump: servidor/painel; app segue 1.44.0/2080.
+
+### 5. Fechamentos de nota aproveitados
+
+- **C2** fechado: `analise/fotos-adicionais/` não existe mais e os 4 arquivos
+  não estão no projeto; `analise/` só guarda os relatórios JSON diários do
+  Vigia (não versionados).
+- **C1** fechado: o dono passou a usar o cofre. A conta de serviço vê **21
+  itens** (19 do `.env` + `FlatNotes — caderno` e `Home Assistant HA`); os
+  pessoais ficam na conta dele e não são visíveis para a conta de serviço.
