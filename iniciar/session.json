@@ -1,4 +1,15 @@
 {
+  "lista_cantor_indesejado_so_primeira_2026_11_09": {
+    "pedido": "Dono (09/11): 'em uma lista de um cantor recusado, so a primeira musica e apagada e o resto fica. deveria ser o contrario. em uma lista a primeira baixa, toca e apaga, o resto verifica se e do cantor recusado, se for nem baixa'.",
+    "erro": "_baixar_resto mandava TODAS as entradas restantes para o pipeline; a marcacao valia so para a primeira, entao as demais do artista recusado entravam no acervo e ficavam para sempre.",
+    "feito": "integrations/radio_link.py: _do_cantor_indesejado(entrada, lista) reusa _pistas_de_artista e decide antes de baixar; _baixar_resto separa aceitas x ignoradas e so as aceitas viram lotes; avisos mostram quantas foram ignoradas (e 'nenhuma foi baixada' quando todas). Primeira faixa intacta: baixa, toca e e apagada.",
+    "testes": "tests/test_radio_link.py 47 passed (+2: lista toda recusada baixa so a primeira; lista mista baixa so as aceitas). Gate completo 4189 passed / 16 skipped / 0 falha (eram 4187).",
+    "restart": "Regra 7.3 com gate verde antes. MainPID 3266347, NRestarts=0, /health 25/25 up, journal 0 [ERROR]. hd_arquivos/hd_midias vieram degraded nas primeiras leituras por causa do snapshot noturno snapshot_od-2026-11-09_0340 (9,81 GB) e voltaram a up sozinhos.",
+    "sem_bump": "Servidor; rotas inalteradas; app segue 1.44.0/2080.",
+    "fila": "Assunto dos cantores indesejados fechado. Seguem com o dono: A4 forwards .250 -> .205, A5 senha do Wi-Fi e chave nova do Gemini. C1-C4 adiadas; E1-E4 backlog.",
+    "updated_at": "2026-11-09T03:32:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§4)"
+  },
   "marcacao_cantor_indesejado_no_link_2026_11_09": {
     "pedido": "Dono (09/11): 'Implemente a marcacao de artista indesejado no nascimento do pedido por link, usando o metadado do link'. Antes ele apontou que sem baixar nao ha como o ouvinte ouvir.",
     "desenho": "O download continua SEMPRE (sem arquivo nao ha stream). O que muda e QUANDO marca: antes de lancar_pedido_na_fila, e decidido pelas pistas do proprio link, nao pelo artista tagueado pela IA.",

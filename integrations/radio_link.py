@@ -426,6 +426,24 @@ def timeout_do_lote(quantidade: int) -> int:
                max(TIMEOUT_PRIMEIRA, SEGUNDOS_POR_FAIXA * max(1, quantidade)))
 
 
+def _do_cantor_indesejado(entrada: dict[str, Any],
+                          lista: Optional[Path] = None) -> bool:
+    """O link já diz o artista? Então nem baixa se ele está na lista.
+
+    Vale só para o RESTO de uma lista: a primeira faixa é a do pedido —
+    baixa, toca para quem pediu e é apagada (regra do dono, 05/11). As
+    demais de cantor indesejado não entram no acervo nem por um minuto.
+    """
+    try:
+        from integrations import radio_cantores
+        return any(radio_cantores.indesejado(pista, caminho=lista)
+                   for pista in _pistas_de_artista(entrada))
+    except Exception as exc:                  # lista é regra, não portão
+        log.warn("checagem de cantor indesejado na lista falhou",
+                 error=type(exc).__name__)
+        return False
+
+
 def _baixar_resto(
     restantes: list[dict[str, str]],
     pedido: dict[str, Any],
@@ -434,22 +452,42 @@ def _baixar_resto(
     rodar: Callable[..., int],
     notificar: Optional[Callable[[str], Any]],
     lote: Optional[int] = None,
+    lista: Optional[Path] = None,
 ) -> None:
-    """Lista: baixa TODAS as outras faixas em segundo plano (só a 1ª toca).
+    """Lista: baixa as outras faixas ACEITAS em segundo plano (só a 1ª toca).
 
-    Vai em lotes de ``LOTE_RESTO`` faixas. Cada lote é uma execução do
-    pipeline (o acervo cresce a cada lote) com timeout proporcional ao
-    tamanho — um lote são 10 faixas × 3 min de espera, não caberia nos
-    1200 s do download único. Um lote que falha não derruba os seguintes.
+    Faixa de cantor indesejado que o link já identifica **nem é baixada**
+    (ordem do dono, 09/11): só a primeira — a do pedido — baixa, toca e é
+    apagada. Vai em lotes de ``LOTE_RESTO`` faixas. Cada lote é uma
+    execução do pipeline (o acervo cresce a cada lote) com timeout
+    proporcional ao tamanho — um lote são 10 faixas × 3 min de espera, não
+    caberia nos 1200 s do download único. Um lote que falha não derruba
+    os seguintes.
     """
-    urls = [str(item["url"]) for item in restantes if item.get("url")]
+    com_url = [item for item in restantes if item.get("url")]
+    aceitas = [item for item in com_url
+               if not _do_cantor_indesejado(item, lista)]
+    ignoradas = len(com_url) - len(aceitas)
+    if ignoradas:
+        log.info("faixas de cantor indesejado nem baixadas",
+                 quantidade=ignoradas, pedido=int(pedido.get("id") or 0))
+    urls = [str(item["url"]) for item in aceitas]
     if not urls:
+        if ignoradas:
+            _avisar(
+                f"🚫 Lista de @{pedido.get('usuario')}: as {ignoradas}"
+                " faixa(s) restante(s) são de cantor indesejado — nenhuma"
+                " foi baixada.",
+                notificar,
+            )
         return
     tamanho = max(1, int(lote or LOTE_RESTO))
+    extra = (f" ({ignoradas} de cantor indesejado nem baixada(s))"
+             if ignoradas else "")
     _avisar(
         f"📥 Lista de @{pedido.get('usuario')}: {len(urls)} faixa(s)"
         " restante(s) baixando em segundo plano, em lotes de"
-        f" {min(tamanho, len(urls))} (só a primeira toca agora).",
+        f" {min(tamanho, len(urls))} (só a primeira toca agora){extra}.",
         notificar,
     )
     falhas = 0
@@ -484,7 +522,9 @@ def _baixar_resto(
         _avisar(
             f"📥 Lista de @{pedido.get('usuario')}: as {len(urls)} faixa(s)"
             f" restantes foram processadas em {lotes} lote(s) (as repetidas"
-            " o dedupe descarta).",
+            " o dedupe descarta)" +
+            (f"; {ignoradas} de cantor indesejado nem baixada(s)."
+             if ignoradas else "."),
             notificar,
         )
 
@@ -559,7 +599,7 @@ def processar_pedido(
                               notificar=notificar)
         if len(entradas) > 1:
             _baixar_resto(entradas[1:], pedido, trava=trava, rodar=rodar,
-                          notificar=notificar)
+                          notificar=notificar, lista=cantores_lista)
         return resultado
     codigo = 1
     try:
@@ -580,7 +620,7 @@ def processar_pedido(
                               notificar=notificar)
         if codigo == 0 and len(entradas) > 1:
             _baixar_resto(entradas[1:], pedido, trava=trava, rodar=rodar,
-                          notificar=notificar)
+                          notificar=notificar, lista=cantores_lista)
         return resultado
 
     musica = _escolher(novas, str(primeira.get("title") or ""))
@@ -614,7 +654,7 @@ def processar_pedido(
 
     if len(entradas) > 1:
         _baixar_resto(entradas[1:], pedido, trava=trava, rodar=rodar,
-                      notificar=notificar)
+                      notificar=notificar, lista=cantores_lista)
     return {"ok": True, "pedido": pedido,
             "fila": pedido.get("status") == "na_fila",
             "motivo": pedido.get("motivo") or ""}

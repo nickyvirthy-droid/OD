@@ -146,3 +146,47 @@ para o pedido (a primeira faixa), como antes.
 
 A3 sai. Seguem com o dono: **A4** (forwards do Archer `.250` → `.205`),
 **A5** (senha do Wi-Fi) e a chave nova do Gemini. C1–C4 adiadas; E1–E4 backlog.
+
+## §4 — Lista de cantor indesejado: só a primeira baixa (09/11)
+
+**Ordem do dono, literal:** *"em uma lista de um cantor recusado, só a primeira
+música é apagada e o resto fica. deveria ser o contrário. em uma lista a
+primeira baixa, toca e apaga, o resto verifica se é do cantor recusado, se for
+nem baixa"*.
+
+### 1. O erro
+
+O `_baixar_resto` mandava **todas** as entradas restantes para o pipeline. A
+marcação existia só para a primeira — então as demais do artista recusado
+entravam no acervo como música normal e ficavam para sempre. A regra do dono
+sempre foi a oposta para o resto: se o link já identifica o cantor recusado, a
+faixa **nem desce**.
+
+### 2. Entrega (`integrations/radio_link.py`)
+
+| Peça | O que faz |
+|---|---|
+| `_do_cantor_indesejado(entrada, lista)` | Reaproveita as pistas do link (`artist`/`creator`/`uploader`/`channel` + prefixo do título) e responde antes de qualquer download |
+| `_baixar_resto(..., lista=)` | Separa `aceitas` × `ignoradas`; só as aceitas viram URLs de lote. As ignoradas não gastam download, IA, nem entram no acervo |
+| Avisos | "N restante(s) … (M de cantor indesejado nem baixada(s))"; se **todas** forem, manda "🚫 … nenhuma foi baixada" |
+| Primeira faixa | Intacta: baixa, toca e é apagada — a marcação no nascimento (entrega anterior) continua valendo |
+
+### 3. Verificação
+
+- `pytest tests/test_radio_link.py -q` → **47 passed**; 2 novos:
+  lista inteira do cantor recusado (chamadas ao pipeline = só `[primeira]`) e
+  lista mista (baixa a aceita, pula a recusada).
+- Gate completo: **4189 passed / 16 skipped / 0 falha** (eram 4187).
+- Restart (regra 7.3, gate verde antes): `MainPID 3266347`, `NRestarts=0`,
+  `/health` **25/25 up**, journal 0 `[ERROR]`.
+  Nota honesta: nas primeiras leituras os checks `hd_arquivos`/`hd_midias`
+  vieram `degraded` porque o snapshot noturno `snapshot_od-2026-11-09_0340`
+  estava rodando (9,81 GB, 0,0 h); mounts e devices estavam certos e os dois
+  voltaram a `up` sozinhos.
+- Sem bump: servidor; rotas inalteradas; app segue 1.44.0/2080.
+
+### 4. Fila
+
+A3 e esta correção fecham o assunto dos cantores indesejados. Seguem com o
+dono: **A4** (forwards do Archer `.250` → `.205`), **A5** (senha do Wi-Fi) e a
+chave nova do Gemini. C1–C4 adiadas; E1–E4 backlog.

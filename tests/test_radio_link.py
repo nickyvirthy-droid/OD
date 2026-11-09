@@ -443,6 +443,72 @@ class TestCantorIndesejadoNoLink:
         assert r["fila"] is True
         assert rc.pendentes(registro=registro) == []
 
+    def test_lista_de_cantor_indesejado_baixa_so_a_primeira(
+            self, bancos, tmp_path) -> None:
+        lista = self._lista(tmp_path, "Annita")
+        registro = tmp_path / "apagar.json"
+        p = _criar(bancos, link=LISTA)
+        urls = [VIDEO, "https://youtu.be/aaaaaaaaaaa",
+                "https://youtu.be/bbbbbbbbbbb"]
+        entradas = [{"url": u, "title": f"Annita - Faixa {i}",
+                     "artistas": ["Annita"]} for i, u in enumerate(urls)]
+        chamadas: list[list[str]] = []
+
+        def rodar(bloco, **_kw):
+            chamadas.append(list(bloco))
+            if len(chamadas) == 1:
+                _adicionar(bancos["acervo"],
+                           "acervo/Outros/Annita - Faixa 0.mp3",
+                           "Annita", "Faixa 0")
+            return 0
+
+        avisos: list[str] = []
+        rl.processar_pedido(
+            p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
+            extrair=lambda _l: entradas, rodar=rodar,
+            lancar=lambda ped: rp.marcar_status(
+                int(ped["id"]), "na_fila", banco=bancos["pedidos"]),
+            notificar=avisos.append, trava=contextlib.nullcontext,
+            cantores_lista=lista, cantores_registro=registro,
+        )
+        assert chamadas == [[VIDEO]], "o resto do cantor recusado nem baixa"
+        assert any("cantor indesejado" in a and "nenhuma" in a
+                   for a in avisos)
+
+    def test_lista_mista_baixa_so_as_faixas_aceitas(
+            self, bancos, tmp_path) -> None:
+        lista = self._lista(tmp_path, "Annita")
+        registro = tmp_path / "apagar.json"
+        p = _criar(bancos, link=LISTA)
+        recusada = "https://youtu.be/aaaaaaaaaaa"
+        aceita = "https://youtu.be/bbbbbbbbbbb"
+        entradas = [{"url": VIDEO, "title": "Annita - Faixa 0",
+                     "artistas": ["Annita"]},
+                    {"url": recusada, "title": "Annita - Faixa 1",
+                     "artistas": ["Annita - Topic"]},
+                    {"url": aceita, "title": "Fulano - Faixa 2",
+                     "artistas": ["Fulano"]}]
+        chamadas: list[list[str]] = []
+
+        def rodar(bloco, **_kw):
+            chamadas.append(list(bloco))
+            if len(chamadas) == 1:
+                _adicionar(bancos["acervo"],
+                           "acervo/Outros/Annita - Faixa 0.mp3",
+                           "Annita", "Faixa 0")
+            return 0
+
+        rl.processar_pedido(
+            p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
+            extrair=lambda _l: entradas, rodar=rodar,
+            lancar=lambda ped: rp.marcar_status(
+                int(ped["id"]), "na_fila", banco=bancos["pedidos"]),
+            notificar=lambda _t: None, trava=contextlib.nullcontext,
+            cantores_lista=lista, cantores_registro=registro,
+        )
+        assert chamadas == [[VIDEO], [aceita]]
+        assert recusada not in [u for bloco in chamadas for u in bloco]
+
     def test_pistas_juntam_metadados_e_titulo(self) -> None:
         pistas = rl._pistas_de_artista(
             {"title": "Annita - Envolver (Clipe Oficial)",

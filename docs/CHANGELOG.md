@@ -12,6 +12,21 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Lista de cantor indesejado: só a primeira faixa baixa (2026-11-09, sem bump)
+
+**Resumo:** correção da regra da lista (ordem do dono, 09/11): *"em uma lista a
+primeira baixa, toca e apaga; o resto verifica se é do cantor recusado, se for
+nem baixa"*. Antes o `_baixar_resto` baixava **todas** as faixas restantes e só
+a primeira era marcada — as outras do artista recusado entravam no acervo e
+ficavam lá.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/radio_link.py` — `_do_cantor_indesejado()`** | Usa as mesmas pistas do link (`artist`/`creator`/`uploader`/`channel` + prefixo do título) para decidir, **antes de baixar**, se a faixa do resto da lista é de cantor recusado. |
+| **`_baixar_resto()`** | Separa `aceitas` × `ignoradas`; as ignoradas **nunca** chegam ao `rodar_pipeline` (nem download, nem IA, nem acervo). Lotes e timeouts seguem iguais para as aceitas; os avisos dizem quantas foram ignoradas — e, se todas forem, avisa que nenhuma foi baixada. |
+| **Primeira faixa intacta** | Continua baixando, tocando para quem pediu e sendo apagada depois (marcada no nascimento, entrega anterior). A regra vale só para o resto da lista. |
+| **Verificação** | `tests/test_radio_link.py` → **47 passed** (2 novos: lista toda do cantor recusado baixa só a primeira; lista mista baixa apenas as aceitas). Gate completo **4189 passed / 16 skipped / 0 falha**. Restart `MainPID 3266347`, `NRestarts=0`, `/health` **25/25**, journal 0 `[ERROR]` (os dois checks de HD ficaram `degraded` por alguns minutos durante o snapshot `snapshot_od-2026-11-09_0340` e voltaram a `up` sozinhos). |
+
 ## Pedido por link de artista indesejado já nasce marcado (2026-11-09, sem bump)
 
 **Resumo:** ordem do dono depois de entender o A3: o link **sempre** baixa
