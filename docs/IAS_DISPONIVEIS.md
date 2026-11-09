@@ -24,7 +24,7 @@
 
 | Chave | Provedor | Estado em 05/11/2026 | Observação |
 |---|---|---|---|
-| `GEMINI_API_KEY` | Google (Gemini) | **válida** | só funciona com a chave no **header** `x-goog-api-key`; com `?key=` dá `400 API_KEY_INVALID` na MESMA chave |
+| `GEMINI_API_KEY` | Google (Gemini) | **válida** (revalidada 09/11) | só funciona com a chave no **header** `x-goog-api-key`; com `?key=` dá `400 API_KEY_INVALID` na MESMA chave. Em 09/11 autenticou em `generateContent` e `/v1beta/models` |
 | `GROQ_API_KEY` | Groq | **válida** | exige `User-Agent` de navegador (Cloudflare devolve 403 para o UA do Python) |
 | `OPENAI_API_KEY` | OpenAI | **sem créditos** | `429 credit_balance_exhausted` |
 | `OPENAI_API_KEY2` | OpenAI | **sem créditos** | idem |
@@ -90,6 +90,12 @@ artista/gênero.
    `opencode models`, `kilo models`.
 4. **`HBOX` não é IA** (é Homebox). O cofre não tem chaves extras de IA.
 5. **`gemma-4-E4B` em 8 GB** não é opção: ram + latência inviáveis.
+6. **Chave exportada no shell vence o `.env`**: `load_dotenv()` não sobrescreve
+   variável já presente no ambiente. Em 09/11 um teste manual pegou uma
+   `GEMINI_API_KEY` velha exportada na sessão e deu `400 API_KEY_INVALID` com
+   a chave do `.env` **boa** — o serviço (`/proc/<pid>/environ`) estava com a
+   chave certa o tempo todo. Em teste manual, passe o valor do `.env`
+   explicitamente (`env=dict(os.environ, GEMINI_API_KEY=<do .env>)`).
 
 ## 5. Histórico de medições
 
@@ -97,3 +103,4 @@ artista/gênero.
 |---|---|
 | 2026-11-05 | inventário inicial + benchmark (Gemini 3 Flash escolhido; Groq reserva; OpenAI sem créditos; CLIs sem login) |
 | 2026-11-06 | `GEMINI_API_KEY` do `.env` passou a devolver `400 API_KEY_INVALID` com header e em `/v1beta/models` (3×) — chave revogada/expirada; Groq segue 200. Cadeia efetiva hoje: Groq → local. Nenhuma IA identifica artista só pelo título (Groq e local devolveram `Desconhecido` para "Tempo Perdido") |
+| 2026-11-09 | **Chave volta a autenticar**: 3 chaves testadas, todas 200 em `generateContent` e `/v1beta/models` (inclusive a do `.env`). `OD_IA_ORDEM` restaurado para `gemini,groq,local`; no prompt real do pipeline o Gemini respondeu em **2,87 s**, sem fallback. O `400` de um teste manual era chave velha exportada no shell (pegadinha 6) |

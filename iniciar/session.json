@@ -1,4 +1,15 @@
 {
+  "cadeia_ia_volta_gemini_2026_11_09": {
+    "pedido": "Dono (09/11): 'proximo' — unico item ativo era a ordem da cadeia de IAs.",
+    "feito": ".env: OD_IA_ORDEM=gemini,groq,local (linha 14). Restart od-core: MainPID 3318743, NRestarts=0, /health 25/25 up, journal 0 [ERROR]; /proc/<pid>/environ confirma a ordem.",
+    "prova": "No venv do acervo, musica.chamar_ia(PROMPT_SISTEMA, 'acervo/Gospel/Amanda Wanessa - É Adorar.mp3') -> 2,87 s, 1 linha valida, sem fallback.",
+    "susto_400": "O primeiro teste manual deu 400 INVALID_ARGUMENT/API key not valid porque o SHELL tem uma GEMINI_API_KEY antiga exportada (sha aa33b91c) e load_dotenv nao sobrescreve o ambiente; o servico estava com a chave certa (1787e9a5, igual ao .env). Com a chave do .env explicita -> 200. Pegadinha 6 registrada em docs/IAS_DISPONIVEIS.md.",
+    "pergunta_dono": "3 chaves = mais tokens? Quota do Gemini e por PROJETO, nao por chave: chaves do mesmo projeto dividem a cota (rotacao nao ajuda); chaves em projetos diferentes tem cotas separadas (rotacao no 429 faria sentido). A API nao revela o projeto da chave; so o console. Nada implementado — o pipeline ja cai para Groq/local.",
+    "sem_bump": "Configuracao/servidor; app segue 1.44.0/2080.",
+    "fila": "A4/A5 pulados (dono fora de casa); cadeia resolvida. Resta backlog E1-E4 sem demanda e C1-C4 adiadas.",
+    "updated_at": "2026-11-09T04:50:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§6)"
+  },
   "rotacao_bot_sistema_gemini_2026_11_09": {
     "pedido": "Dono (09/11): 'leia txt' — no txt.txt estavam 3 chaves do Gemini ('teste as 3 antes de eu criar outra') e o token novo do @Nicky_Virthy_bot.",
     "gemini": "As 3 chaves autenticam: generateContent no gemini-3-flash-preview e GET /v1beta/models com header x-goog-api-key -> HTTP 200 (fingerprints 1787e9a5 a do .env, 9b5c4ab3, 3eb29168). Nao precisa criar chave nova; a falha de 06/11 nao se reproduz. Cadeia segue OD_IA_ORDEM=groq,local ate decisao do dono (regra 19 sugere gemini,groq,local).",

@@ -12,6 +12,20 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Cadeia de IAs volta a começar pelo Gemini (2026-11-09, sem bump)
+
+**Resumo:** com a chave autenticando de novo (3 chaves medidas, todas 200), a
+cadeia voltou ao que a regra 19 manda: `gemini-3-flash-preview` primeiro,
+Groq de reserva e local por último. O `OD_IA_ORDEM=groq,local` era exceção de
+06/11, quando a chave parecia morta.
+
+| Peça | Entrega |
+|---|---|
+| **`.env`** | `OD_IA_ORDEM=gemini,groq,local` (linha 14), conferido no ambiente do serviço (`/proc/<pid>/environ`). |
+| **Prova real** | `musica.chamar_ia(PROMPT_SISTEMA, <faixa real>)` no venv do acervo: **2,87 s**, 1 linha válida, **sem fallback** — o Gemini respondeu. |
+| **Falso alarme registrado** | Um teste manual deu `400 API_KEY_INVALID` porque o **shell tinha uma chave velha exportada** e `load_dotenv()` não sobrescreve o ambiente; o serviço estava com a chave certa. Pegadinha adicionada em `docs/IAS_DISPONIVEIS.md` (item 6) para não custar tempo de novo. |
+| **Verificação** | `od-core` reiniciado (`MainPID 3318743`, `NRestarts=0`), `/health` **25/25 up**, journal 0 `[ERROR]`. Sem bump: app segue 1.44.0/2080. |
+
 ## Token do bot do sistema rotacionado; 3 chaves do Gemini testadas (2026-11-09, sem bump)
 
 **Resumo:** o token do bot que manda os alertas no celular (`@Nicky_Virthy_bot`)

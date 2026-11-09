@@ -229,3 +229,41 @@ dono (a regra 19 sugere `gemini,groq,local`).
 - `txt.txt` está no `.gitignore` (linha 173); nenhum segredo foi para o git.
 - Backup temporário do `.env` em `/tmp` (removido após a prova).
 - Chaves 2 e 3 do Gemini não foram usadas; podem ser apagadas no console.
+
+## §6 — Cadeia de IAs volta ao Gemini (09/11)
+
+**Pedido:** *"proximo"* — depois da rotação, o único item ativo era a ordem da
+cadeia. A regra 19 (do dono) manda começar pelo `gemini-3-flash-preview`; a
+exceção `groq,local` era de 06/11, quando a chave parecia morta.
+
+### 1. Entrega e prova
+
+- `.env`: `OD_IA_ORDEM=gemini,groq,local` (linha 14).
+- Restart do `od-core`: `MainPID 3318743`, `NRestarts=0`, `/health` **25/25 up**,
+  journal 0 `[ERROR]`; `/proc/<pid>/environ` confirma a ordem nova.
+- **Prova real** no venv do acervo, com o prompt oficial e uma faixa do acervo:
+  `musica.chamar_ia(PROMPT_SISTEMA, "acervo/Gospel/Amanda Wanessa - É Adorar.mp3")`
+  → **2,87 s**, 1 linha válida, **sem fallback** (stderr vazio).
+
+### 2. O susto do 400 (era o shell, não a chave)
+
+O primeiro teste deu `400 INVALID_ARGUMENT: API key not valid` — e quase virou
+diagnóstico errado. Causa: o **shell tem uma `GEMINI_API_KEY` antiga exportada**
+(sha `aa33b91c…`) e `load_dotenv()` **não sobrescreve** o que já está no
+ambiente; o serviço estava com a chave certa (`1787e9a5…`, igual ao `.env`).
+Repetindo com a chave do `.env` explícita, o Gemini respondeu 200. Pegadinha
+registrada em `docs/IAS_DISPONIVEIS.md` (item 6) e no histórico de medições.
+
+### 3. Pergunta do dono: 3 chaves = mais tokens?
+
+Resposta curta: **quota do Gemini é por projeto, não por chave.** Várias chaves
+do mesmo projeto dividem a mesma cota — trocar de chave não acrescenta nada. Se
+cada chave estiver num projeto diferente, aí sim cada uma tem cota própria e a
+rotação no `429` faria sentido. A API não informa o projeto da chave; isso só se
+vê no console (AI Studio/Cloud). Nada foi implementado: o pipeline já cai para
+Groq (rápido) e local, e hoje o Gemini responde bem.
+
+### 4. Higiene
+
+- `txt.txt` já não contém as chaves (o dono limpou); a do `.env` é a `1787e9a5…`.
+- Sem bump: configuração/servidor; app segue 1.44.0/2080.
