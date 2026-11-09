@@ -1,4 +1,16 @@
 {
+  "fechamento_todo_a1_b1_d1_2026_11_09": {
+    "pedido": "Dono (09/11): 'Atualize a nota TODO 5 e TODO 7 no FlatNotes fechando A1, B1 e D1 e corrigindo o rodape de segredos'.",
+    "onde": "FlatNotes 127.0.0.1:8200 (authType none), 11 notas; TODO 5 = parking lot (revisao da fila de 05/11 no topo) e TODO 7 = fila de ordens (situacao dos segredos no rodape).",
+    "a1": "FECHADO por decisao do dono em 06/11: as 31 faixas de 7-10 min ficam; teto de 25 min (MAX_DURACAO_S = MP3_DURACAO_MAX = 1500 s, musica.py v1.10.1). Nada apagado.",
+    "b1": "FECHADO: resto da lista do Legiao concluido em 06/11 02:14:41 — 10 lotes, 0 falha, acervo 262 -> 360 (+98; 99 entradas, 1 barrada pelo dedupe). AzuraCast 362 = 360 + 2 locucoes. Log logs/radio_link_lista_legiao_v2.log.",
+    "d1": "FECHADO 09/11 com prova viva: host reiniciou em 06/11 18:30:45 (uptime -s) e a corrida docker x tailscale nao voltou — 0 containers com bind em 100.77.67.53, 11 no ar, tailscale serve com 4 TCP, /health ok=true up 25/25, od-core active NRestarts=0.",
+    "notas": "TODO 5 14839 -> 16309 chars: bloco 'REVISAO DA FILA — 09/11/2026 (A1, B1 e D1 fechados)' no topo, com prova de cada item e a fila restante; bloco de 05/11 preservado como historico. TODO 7 3538 -> 3697 chars: rodape 'Situacao dos segredos' corrigido (de '§8.5 segue aberta / @Nexus_Nicky_bot com token vazado' para §8.5 FECHADA em 20/10: dois bots rotacionados no BotFather, prova viva msg 477, .env + cofre 18/18 + restart verde, tokens antigos mortos; Gemini recusada em 06/11, cadeia groq,local; repo publico por decisao do dono com guarda no CI 0e99afa), lista do §2 sem 'privatizar o repo'/'bot legado', linha de data no topo.",
+    "verificacao": "PATCH via API /api/notes/{titulo} com newContent e releitura das duas notas: marcador novo presente, bloco antigo preservado, rodape novo presente e frases velhas ausentes. Nenhum arquivo de codigo tocado; sem restart e sem bump (1.44.0/2080).",
+    "fila": "Seguem do dono: A2 tela da lista de cantores, A3 pedido por link de artista indesejado, A4 forwards do Archer .250 -> .205, A5 rotacao da senha do Wi-Fi e chave nova do Gemini. C1-C4 adiadas por ele; E1-E4 backlog tecnico sem demanda.",
+    "updated_at": "2026-11-09T02:15:17-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§1)"
+  },
   "wifi_usb_dongle_ausente_2026_11_08": {
     "pedido": "Dono (08/11 ~13:00): 'plug wifi usb tambem parece não responder'; depois: 'Configure o MT7601U como reserva Wi-Fi no netplan' e 'Verifique no roteador se o 2,4 GHz está desligado'.",
     "medicao": "O netplan (/etc/netplan/50-cloud-init.yaml) espera wlx000f0037acf0 (IP .250, SSID Drakon, rota default metric 600 = reserva), e esse USB NAO existe: nenhum evento com esse MAC desde 01/10, systemd fica 'Expecting device' no boot. O dongle plugado e outro: 148f:7601 MT7601U (wlx00e2b0101555), fora do netplan, DOWN. Driver carrega mas o kernel emite WARNING lin2dBd (calibracao TSSI) e faz usb 1-5 reset no boot. Teste com wpa_supplicant/wpa_cli: scan de 15s viu 0 redes (nem a Drakon). Sem over-current; topologia USB normal.",
