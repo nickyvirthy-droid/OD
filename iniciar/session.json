@@ -1,4 +1,16 @@
 {
+  "tela_cantores_admin_2026_11_09": {
+    "pedido": "Dono (09/11): 'proximo' — continuidade da fila depois de fechar A1/B1/D1; proximo item sem dependencia dele era A2.",
+    "antes": "A API ja existia desde 05/11 (GET/POST/DELETE /api/radio/cantores, auth+admin, devolve cantores/conteudo/apagar_depois) e a lista mora em data/cantores_indesejados.txt; faltava so a tela.",
+    "feito": "integrations/api/server.py: secao 'Radio — cantores indesejados' no /admin (campo + Incluir, pills com X, tabela das marcadas para apagar, arquivo cru em details) e JS cantoresLoad/cantorAdd/cantorRemove no MESMO endpoint; entrou no carregarTudo. Nome digitado nunca vira atributo HTML (acao por indice data-i, texto por esc).",
+    "testes": "tests/test_api.py: TestAdminCantoresIndesejados (+2) — secao/endpoints existentes e guarda de injecao. node --check no script do painel OK.",
+    "gate": "pytest tests/ -q -> 4183 passed / 16 skipped / 0 falha (eram 4181; 190,60 s).",
+    "restart": "Regra 7.3 com gate verde antes. MainPID 3198596, NRestarts=0, /health 25/25 up, journal 0 [ERROR]; secao servida em /admin (curl). mqtt degraded por ~5 s na primeira leitura e voltou sozinho quando o loop conectou.",
+    "sem_bump": "Mudanca de servidor/painel (precedente das entregas de UI); rotas inalteradas; app segue 1.44.0/2080.",
+    "fila": "A2 fechado. Seguem com o dono: A3 pedido por link, A4 forwards .250 -> .205, A5 senha do Wi-Fi e chave nova do Gemini. C1-C4 adiadas; E1-E4 backlog.",
+    "updated_at": "2026-11-09T02:40:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§2)"
+  },
   "fechamento_todo_a1_b1_d1_2026_11_09": {
     "pedido": "Dono (09/11): 'Atualize a nota TODO 5 e TODO 7 no FlatNotes fechando A1, B1 e D1 e corrigindo o rodape de segredos'.",
     "onde": "FlatNotes 127.0.0.1:8200 (authType none), 11 notas; TODO 5 = parking lot (revisao da fila de 05/11 no topo) e TODO 7 = fila de ordens (situacao dos segredos no rodape).",

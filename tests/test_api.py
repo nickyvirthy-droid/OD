@@ -4630,3 +4630,45 @@ class TestAdminLimitacoes:
         data = _json_response((status, body, _h))
         assert data["ok"] is True and data["total"] == 0
         limpar_limitacoes()  # higiene entre testes
+
+
+class TestAdminCantoresIndesejados:
+    """Fila A2 (09/11): a lista de cantores indesejados, que até então só
+    existia em arquivo + API, ganhou o atalho no painel /admin.
+
+    Guardas: (a) a seção existe e usa os MESMOS endpoints de 05/11 — rota
+    nova aqui seria fonte paralela; (b) o nome digitado pelo dono nunca vira
+    atributo HTML (aspas quebrariam a marcação) — a ação é indexada; (c) a
+    lista carrega junto com o resto do painel.
+    """
+
+    def _js_da_secao(self) -> str:
+        from integrations.api.server import _ADMIN_PAGE_HTML
+
+        html = _ADMIN_PAGE_HTML
+        inicio = html.index("// --- Rádio: cantores indesejados")
+        fim = html.index("// Páginas internas do Google")
+        return html[inicio:fim]
+
+    def test_secao_no_painel_usa_os_endpoints_existentes(self) -> None:
+        from integrations.api.server import _ADMIN_PAGE_HTML
+
+        html = _ADMIN_PAGE_HTML
+        assert "Rádio — cantores indesejados" in html
+        for ident in ("cantor-nome", "cantor-add", "cantor-lista",
+                      "cantor-pendentes", "cantor-arquivo"):
+            assert f'id="{ident}"' in html, ident
+
+        js = self._js_da_secao()
+        assert 'fetch("/api/radio/cantores"' in js
+        assert 'method: "POST"' in js and 'method: "DELETE"' in js
+        assert '"/admin/cantores"' not in html      # nenhuma rota inventada
+
+        # entra no carregamento geral do painel
+        assert "limLoad(); cantoresLoad();" in html
+
+    def test_nome_do_cantor_nao_vai_para_atributo_html(self) -> None:
+        js = self._js_da_secao()
+        assert 'data-i="' in js
+        assert "data-nome" not in js
+        assert "esc(n)" in js

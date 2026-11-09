@@ -1376,6 +1376,35 @@ _ADMIN_PAGE_HTML = """<!doctype html>
   </section>
 
   <section>
+    <h2>Rádio — cantores indesejados</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Lista do dono (fila A2, 05/11): se um ouvinte pedir música de um
+      artista daqui, ela <b>toca uma vez</b> para ele e depois sai do acervo
+      (arquivo, banco e playlists). A mesma lista mora em
+      <code>data/cantores_indesejados.txt</code> — dá para editar à mão; aqui
+      é o atalho, inclusive do celular.
+    </p>
+    <div class="row">
+      <input id="cantor-nome" placeholder="Nome do cantor (ex.: Annita)" style="width:230px">
+      <button id="cantor-add" style="border-color:var(--accent);color:var(--accent)">＋ Incluir</button>
+      <button id="cantor-refresh">↻ Carregar</button>
+      <span class="muted msg" id="cantor-msg"></span>
+    </div>
+    <div id="cantor-lista" style="margin-top:10px">— carregando… —</div>
+    <details style="margin-top:8px">
+      <summary>Marcadas para apagar depois de tocar</summary>
+      <table style="margin-top:6px">
+        <thead><tr><th>Artista</th><th>Título</th><th>Marcada em</th></tr></thead>
+        <tbody id="cantor-pendentes"><tr><td colspan="3" class="muted">— nenhuma —</td></tr></tbody>
+      </table>
+    </details>
+    <details style="margin-top:8px">
+      <summary>Arquivo como está (data/cantores_indesejados.txt)</summary>
+      <pre id="cantor-arquivo" style="max-height:200px;overflow:auto">—</pre>
+    </details>
+  </section>
+
+  <section>
     <h2>Contas</h2>
     <table>
       <thead><tr>
@@ -2830,6 +2859,83 @@ async function frDelete(id) {
   } catch (e) { frSetMsg("Falha: " + e.message, "err"); }
 }
 
+// --- Rádio: cantores indesejados (fila A2, 09/11) ---------------------
+// A lista é um arquivo (data/cantores_indesejados.txt) e a API já existia
+// desde 05/11 — esta seção é só o atalho do painel. Nomes NUNCA vão para
+// atributo HTML: o índice é a chave das ações (nome com aspas não quebra).
+let cantoresAtuais = [];
+
+function cantorSetMsg(t, cls) {
+  const el = document.getElementById("cantor-msg");
+  el.textContent = t;
+  el.className = "muted msg " + (cls || "");
+}
+
+function cantorPintar(data) {
+  cantoresAtuais = data.cantores || [];
+  const lista = cantoresAtuais.length
+    ? cantoresAtuais.map((n, i) =>
+        '<span class="pill" style="margin:0 6px 6px 0">' + esc(n) +
+        ' <button class="cantor-del" data-i="' + i +
+        '" title="Tirar da lista">✕</button></span>').join("")
+    : '<span class="muted">— lista vazia —</span>';
+  document.getElementById("cantor-lista").innerHTML = lista;
+  document.querySelectorAll(".cantor-del").forEach(b => {
+    b.onclick = () => cantorRemove(cantoresAtuais[Number(b.getAttribute("data-i"))]);
+  });
+  const pend = data.apagar_depois || [];
+  document.getElementById("cantor-pendentes").innerHTML = pend.length
+    ? pend.map(p => "<tr><td>" + esc(p.artista) + "</td><td>" + esc(p.titulo) +
+        "</td><td>" + esc(p.criado_em || "—") + "</td></tr>").join("")
+    : '<tr><td colspan="3" class="muted">— nenhuma —</td></tr>';
+  document.getElementById("cantor-arquivo").textContent = data.conteudo || "—";
+}
+
+async function cantoresLoad() {
+  try {
+    const resp = await fetch("/api/radio/cantores", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { cantorSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    cantorPintar(data);
+  } catch (e) { cantorSetMsg("Falha ao carregar: " + e.message, "err"); }
+}
+
+async function cantorAdd() {
+  const campo = document.getElementById("cantor-nome");
+  const nome = (campo.value || "").trim();
+  if (!nome) { cantorSetMsg("Escreva o nome do cantor.", "err"); return; }
+  try {
+    const resp = await fetch("/api/radio/cantores", {
+      method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ nome: nome })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { cantorSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    campo.value = "";
+    await cantoresLoad();
+    cantorSetMsg(data.novo ? "＋ " + nome + " incluído." : nome + " já estava na lista.", "ok");
+  } catch (e) { cantorSetMsg("Falha ao incluir: " + e.message, "err"); }
+}
+
+async function cantorRemove(nome) {
+  if (!nome) return;
+  if (!window.confirm("Tirar " + nome + " da lista?")) return;
+  try {
+    const resp = await fetch("/api/radio/cantores", {
+      method: "DELETE", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ nome: nome })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { cantorSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    await cantoresLoad();
+    cantorSetMsg("✕ " + nome + " removido.", "ok");
+  } catch (e) { cantorSetMsg("Falha ao remover: " + e.message, "err"); }
+}
+
+document.getElementById("cantor-add").onclick = cantorAdd;
+document.getElementById("cantor-refresh").onclick = cantoresLoad;
+document.getElementById("cantor-nome").addEventListener("keydown", e => { if (e.key === "Enter") cantorAdd(); });
+
 // Páginas internas do Google: o link precisa do token da sessão na query
 // porque o navegador navega sem header — o handler valida e exige dono.
 function linkGoogle() {
@@ -2840,7 +2946,7 @@ function linkGoogle() {
   });
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); regLoad(); colLoad(); dlLoad(); auLoad(); frLoad(); linkGoogle(); };
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); cantoresLoad(); regLoad(); colLoad(); dlLoad(); auLoad(); frLoad(); linkGoogle(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;

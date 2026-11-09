@@ -12,6 +12,21 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Cantores indesejados ganham atalho no painel `/admin` (2026-11-09, sem bump)
+
+**Resumo:** fila A2 da revisão de 05/11 — a lista existia só em arquivo
+(`data/cantores_indesejados.txt`) + API, e o dono disse que ia preenchendo
+conforme lembrasse. Agora ele inclui e tira cantores pelo painel, inclusive do
+celular. **Nenhum endpoint novo:** a tela usa o `GET/POST/DELETE
+/api/radio/cantores` já entregue em 05/11.
+
+| Peça | Entrega |
+|---|---|
+| **`/admin` — seção "Rádio — cantores indesejados"** | Campo + `＋ Incluir`, lista em pills com `✕` por nome, tabela das **marcadas para apagar depois de tocar** (artista/título/quando) e o **arquivo cru** em `<details>` para conferir o que está gravado. Entra no `carregarTudo`: atualiza junto com o resto do painel. |
+| **Semântica preservada** | `POST` é idempotente ("já estava na lista") e `DELETE` responde honesto quando o nome não estava lá; a mensagem do painel diz qual dos dois aconteceu. A regra "toca uma vez e apaga" não mudou. |
+| **Injeção** | Nome digitado pelo dono **nunca** vira atributo HTML (aspas quebrariam a marcação): a ação é indexada (`data-i`) e o texto visível passa pelo `esc()`. |
+| **Verificação** | `pytest tests/test_api.py -q -k CantoresIndesejados` → **2 passed** (seção/endpoints + injeção); `node --check` no `<script>` do painel OK; gate completo **4183 passed / 16 skipped / 0 falha** (eram 4181). Restart verde: `MainPID 3198596`, `NRestarts=0`, `/health` **25/25** (o `mqtt` aparece `degraded` por ~5 s enquanto conecta, depois up), journal 0 `[ERROR]` e a seção servida em `/admin` (curl). |
+
 ## Wi-Fi de reserva guardado no repo com instalador (2026-11-08, sem bump)
 
 **Resumo:** a segunda saída de rede do servidor (dongle USB em 192.168.0.250)

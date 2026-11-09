@@ -53,3 +53,44 @@ antigos do Legado mortos), chave Gemini recusada em 06/11 (cadeia em
   tema residual do site).
 - **Backlog técnico sem demanda:** E1–E4 (marketplace, multi-tenant, RAG
   externo/híbrido/cache, robustez de Supply Depot/downloads/auto-update).
+
+## §2 — A2 fechado: tela dos cantores indesejados no `/admin` (09/11)
+
+**Pedido:** *"proximo"* — depois de fechar A1/B1/D1 nas notas, a fila apontava
+A2 como o próximo item que não depende do dono (a API já existia desde 05/11).
+
+### 1. O que já existia (lido antes de codificar)
+
+- `integrations/radio_cantores.py`: lista em `data/cantores_indesejados.txt`
+  (uma pessoa por linha, `#` comenta), comparação por pessoa sem caixa/acento e
+  a regra "toca uma vez e apaga" com registro em `data/radio_apagar_depois.json`.
+- API em `integrations/api/server.py`: `GET/POST/DELETE /api/radio/cantores`
+  (`auth=True` + `_require_admin`), com `cantores`, `conteudo`, `apagar_depois`.
+- **Faltava só a tela.** Nada de rota nova.
+
+### 2. Entrega
+
+| Peça | O que faz |
+|---|---|
+| Seção **"Rádio — cantores indesejados"** no `/admin` | Campo + `＋ Incluir`, lista em pills com `✕`, tabela das marcadas para apagar (artista/título/quando) e o arquivo cru em `<details>` |
+| JS no `<script>` da página | `cantoresLoad`/`cantorAdd`/`cantorRemove` falando com os 3 verbos existentes; entrou no `carregarTudo` |
+| Injeção | Nome digitado nunca vira atributo HTML — ação por índice (`data-i`), texto visível por `esc()` |
+
+### 3. Verificação
+
+- `pytest tests/test_api.py -q -k CantoresIndesejados` → **2 passed**
+  (`TestAdminCantoresIndesejados`: seção/endpoints e injeção).
+- `node --check` no script extraído do painel → **OK**.
+- Gate completo: **4183 passed / 16 skipped / 0 falha** (eram 4181; +2 guardas).
+- Restart (regra 7.3, gate verde antes): `MainPID 3198596`, `NRestarts=0`,
+  `/health` **25/25 up**, journal 0 `[ERROR]`, e a seção presente no `/admin`
+  servido (curl). O `mqtt` apareceu `degraded` por ~5 s na primeira leitura e
+  voltou sozinho quando o loop conectou (`MQTT conectado | 127.0.0.1:1883`).
+- Sem bump: mudança de servidor (precedente das entregas de painel), app segue
+  1.44.0/2080; rotas inalteradas.
+
+### 4. Fila depois deste fechamento
+
+A2 sai. Continuam com o dono: **A3** (pedido por link de artista indesejado),
+**A4** (forwards do Archer `.250` → `.205`), **A5** (senha do Wi-Fi) e a chave
+nova do Gemini. C1–C4 adiadas; E1–E4 backlog técnico.
