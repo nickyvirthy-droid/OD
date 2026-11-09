@@ -12,6 +12,22 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Pedido por link de artista indesejado já nasce marcado (2026-11-09, sem bump)
+
+**Resumo:** ordem do dono depois de entender o A3: o link **sempre** baixa
+(sem arquivo não há stream), mas a marcação "toca uma vez e apaga" deixou de
+depender de a fila aceitar o pedido e de a IA acertar o nome do artista. O
+próprio link já diz quem canta — `uploader`/`channel`/`artist`/`creator` e o
+prefixo do título —, e é isso que decide a marcação, antes do download.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/radio_link.py` — extração** | O `extract_flat` passou a devolver `artistas` (lista, sem duplicar) além de `url`/`title`; nenhum byte a mais é baixado. |
+| **`_pistas_de_artista()`** | Junta os metadados, tira sufixo de canal oficial (" - Topic", "VEVO") e usa o primeiro trecho do título ("Fulano - Música", até 60 chars) para vídeo postado em canal de fã. São **pistas**: só decidem se marca, não bloqueiam o pedido. |
+| **Marcação antes da fila** | `processar_pedido` grava em `radio_apagar_depois.json` logo depois de o acervo dar artista/título/caminho reais e **antes** de `lancar_pedido_na_fila`. Fila recusada não deixa mais faixa indesejada sem marcação; IA que taguou "Desconhecido" não impede mais a limpeza (a pista do link decide, os valores gravados são os do acervo — é com eles que o histórico do AzuraCast casa). |
+| **Injeção para teste** | `cantores_lista=` e `cantores_registro=` (mesmo molde de `extrair`/`rodar`/`lancar`); nada de escrever na lista/registro reais no gate. |
+| **Verificação** | `pytest tests/test_radio_link.py -q` → **45 passed** (4 novos: fila recusando, IA errando o nome, artista fora da lista e parsing das pistas); gate completo **4187 passed / 16 skipped / 0 falha**; restart `MainPID 3243408`, `NRestarts=0`, `/health` **25/25**, journal 0 `[ERROR]`; prova viva sem rede: título/uploader de Annita → `['Annita']`, `indesejado=True`. |
+
 ## Cantores indesejados ganham atalho no painel `/admin` (2026-11-09, sem bump)
 
 **Resumo:** fila A2 da revisão de 05/11 — a lista existia só em arquivo

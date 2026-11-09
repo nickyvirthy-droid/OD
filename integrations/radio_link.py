@@ -93,16 +93,26 @@ def url_de(e):
         u = 'https://www.youtube.com/watch?v=' + u
     return u
 
+def artistas_de(e):
+    nomes = []
+    for chave in ('artist', 'creator', 'album_artist', 'uploader', 'channel'):
+        v = str(e.get(chave) or '').strip()
+        if v and v not in nomes:
+            nomes.append(v)
+    return nomes
+
 entradas = []
 for e in (info.get('entries') or []):
     if not e:
         continue
     u = url_de(e)
     if u:
-        entradas.append({'url': u, 'title': str(e.get('title') or '')})
+        entradas.append({'url': u, 'title': str(e.get('title') or ''),
+                         'artistas': artistas_de(e)})
 if not entradas:
     u = str(info.get('webpage_url') or sys.argv[1])
-    entradas = [{'url': u, 'title': str(info.get('title') or '')}]
+    entradas = [{'url': u, 'title': str(info.get('title') or ''),
+                 'artistas': artistas_de(info)}]
 print(json.dumps(entradas, ensure_ascii=False))
 """
 
@@ -165,10 +175,43 @@ def extrair_entradas(
         dados = json.loads(linhas[-1])
     except ValueError:
         return []
-    return [{"url": str(item.get("url") or ""),
-             "title": str(item.get("title") or "")}
-            for item in dados
-            if isinstance(item, dict) and item.get("url")]
+    saida = []
+    for item in dados:
+        if not isinstance(item, dict) or not item.get("url"):
+            continue
+        pistas = item.get("artistas")
+        if isinstance(pistas, str):
+            pistas = [pistas]
+        saida.append({"url": str(item.get("url") or ""),
+                      "title": str(item.get("title") or ""),
+                      "artistas": [str(n).strip() for n in (pistas or [])
+                                   if str(n).strip()]})
+    return saida
+
+
+def _pistas_de_artista(entrada: dict[str, Any]) -> list[str]:
+    """Nomes de artista que o LINK já entrega — sem baixar e sem IA.
+
+    O yt-dlp traz ``artist``/``creator``/``album_artist``/``uploader``/
+    ``channel``; canal oficial costuma vir como "Fulano - Topic" e VEVO.
+    O primeiro trecho do título ("Fulano - Música") cobre vídeo postado em
+    canal de fã, onde o uploader não é o artista. São PISTAS: elas só
+    decidem se a faixa nasce marcada para apagar — não bloqueiam nada.
+    """
+    pistas: list[str] = []
+    brutos = entrada.get("artistas")
+    if isinstance(brutos, str):
+        brutos = [brutos]
+    for nome in (brutos or []):
+        nome = re.sub(r"\s*-\s*Topic$", "", str(nome).strip(), flags=re.I)
+        nome = re.sub(r"\s*VEVO$", "", nome, flags=re.I).strip()
+        if nome and nome not in pistas:
+            pistas.append(nome)
+    titulo = str(entrada.get("title") or "").strip()
+    cabeca = re.split(r"\s+[-\u2013\u2014]\s+", titulo, maxsplit=1)[0].strip()
+    if cabeca and len(cabeca) <= 60 and cabeca not in pistas:
+        pistas.append(cabeca)
+    return pistas
 
 
 def rodar_pipeline(
@@ -456,6 +499,8 @@ def processar_pedido(
     lancar: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None,
     notificar: Optional[Callable[[str], Any]] = None,
     trava: Optional[Callable[[], Any]] = None,
+    cantores_lista: Optional[Path] = None,
+    cantores_registro: Optional[Path] = None,
 ) -> dict[str, Any]:
     """Baixa/classifica o link do pedido e o devolve à fila.
 
@@ -493,6 +538,19 @@ def processar_pedido(
                          notificar=notificar)
 
     primeira = entradas[0]
+    # Cantor indesejado (ordem do dono 05/11): o link JÁ diz o artista antes
+    # de baixar. Se ele está na lista, a faixa nasce marcada — mesmo que o
+    # AzuraCast recuse a fila ou a IA tagueie o artista errado depois.
+    try:
+        from integrations import radio_cantores
+        indesejado_no_link = any(
+            radio_cantores.indesejado(pista, caminho=cantores_lista)
+            for pista in _pistas_de_artista(primeira))
+    except Exception as exc:                  # lista é regra, não portão
+        log.warn("checagem de cantor indesejado falhou",
+                 error=type(exc).__name__)
+        radio_cantores = None
+        indesejado_no_link = False
     antes = _musicas_do_acervo(banco_acervo)
     if _parece_repetida(str(primeira.get("title") or ""), antes):
         # Já está no acervo pelo título: não baixa de novo (o pipeline
@@ -530,6 +588,20 @@ def processar_pedido(
         int(pedido_id), artista=musica["artista"], titulo=musica["titulo"],
         caminho=musica["caminho"], status="pendente", motivo="",
         banco=banco) or pedido
+
+    if radio_cantores is not None:
+        try:
+            if indesejado_no_link or radio_cantores.indesejado(
+                    str(musica.get("artista") or ""),
+                    caminho=cantores_lista):
+                radio_cantores.registrar_para_apagar(
+                    str(musica.get("artista") or ""),
+                    str(musica.get("titulo") or ""),
+                    str(musica.get("caminho") or ""),
+                    registro=cantores_registro)
+        except Exception as exc:
+            log.warn("registro de cantor indesejado falhou",
+                     error=type(exc).__name__)
 
     lancar = lancar or (lambda p: rp.lancar_pedido_na_fila(p, banco=banco))
     try:

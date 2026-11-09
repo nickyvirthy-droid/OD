@@ -94,3 +94,55 @@ A2 como o próximo item que não depende do dono (a API já existia desde 05/11)
 A2 sai. Continuam com o dono: **A3** (pedido por link de artista indesejado),
 **A4** (forwards do Archer `.250` → `.205`), **A5** (senha do Wi-Fi) e a chave
 nova do Gemini. C1–C4 adiadas; E1–E4 backlog técnico.
+
+## §3 — A3 fechado: pedido por link de cantor indesejado nasce marcado (09/11)
+
+**Pedido:** *"Implemente a marcação de artista indesejado no nascimento do
+pedido por link, usando o metadado do link"* — depois de o dono apontar, com
+razão, que "sem baixar não tem como o ouvinte ouvir".
+
+### 1. O esclarecimento que guiou o desenho
+
+O download **continua sempre**: sem o áudio não há stream. O que muda é *quando*
+a faixa é marcada para apagar. Antes, a marcação só era gravada em
+`lancar_pedido_na_fila`, **depois** de o AzuraCast aceitar — se a fila recusasse
+(fora do ar, faixa não encontrada), a música ficava no acervo sem marcação. E a
+checagem usava só o artista tagueado pela IA, que às vezes vem "Desconhecido".
+
+### 2. Entrega (`integrations/radio_link.py`)
+
+| Peça | O que faz |
+|---|---|
+| Extração | `extract_flat` agora devolve também `artistas`: `artist`, `creator`, `album_artist`, `uploader`, `channel` (sem duplicar, sem baixar nada a mais) |
+| `_pistas_de_artista()` | Tira sufixo de canal oficial (` - Topic`, `VEVO`) e usa o primeiro trecho do título (`Fulano - Música`, até 60 chars) para vídeo de canal de fã |
+| Marcação antecipada | Depois de o acervo dar artista/título/caminho **reais** e **antes** de `lancar_pedido_na_fila`; a pista decide *se* marca, os valores gravados são os do acervo (é com eles que o histórico do AzuraCast casa) |
+| Injeção | `cantores_lista=` / `cantores_registro=` para o teste não tocar na lista/registro reais |
+
+A marcação em `radio_pro.lancar_pedido_na_fila` foi mantida (idempotente) —
+cobre pedidos que não vêm por link.
+
+### 3. Verificação
+
+- `pytest tests/test_radio_link.py -q` → **45 passed**; 4 novos:
+  fila recusando (marca mesmo assim), IA taguando "Desconhecido" (a pista do
+  link vale), artista fora da lista (não marca) e parsing das pistas.
+- Gate completo: **4187 passed / 16 skipped / 0 falha** (eram 4183).
+- Restart (regra 7.3, gate verde antes): `MainPID 3243408`, `NRestarts=0`,
+  `/health` **25/25 up**, journal 0 `[ERROR]`.
+- Prova viva, sem rede: título/uploader de Annita → pistas `['Annita']` e
+  `indesejado=True` com a lista real (`data/cantores_indesejados.txt` tem
+  "Annita" desde 05/11).
+- Sem bump: comportamento de servidor, rotas inalteradas; app segue 1.44.0/2080.
+
+### 4. O que NÃO foi feito (e por quê)
+
+A variante "não entra no acervo" (download para pasta temporária + upload direto
+na biblioteca do AzuraCast) não foi implementada: exige um segundo caminho de
+pipeline e não muda o que o dono pediu — o ouvinte ouve e a faixa sai depois.
+Também ficou fora marcar as demais faixas de uma playlist: a regra da lista vale
+para o pedido (a primeira faixa), como antes.
+
+### 5. Fila
+
+A3 sai. Seguem com o dono: **A4** (forwards do Archer `.250` → `.205`),
+**A5** (senha do Wi-Fi) e a chave nova do Gemini. C1–C4 adiadas; E1–E4 backlog.

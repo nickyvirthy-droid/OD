@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from integrations import radio_cantores as rc
 from integrations import radio_link as rl
 from integrations import radio_pro as rp
 
@@ -367,6 +368,86 @@ class TestProcessarPedido:
             trava=contextlib.nullcontext,
         )
         assert r["motivo"] == "ja_processado" and chamadas == []
+
+
+class TestCantorIndesejadoNoLink:
+    """A3: o link já entrega o artista — a faixa nasce marcada, sem esperar
+    a fila aceitar nem a IA acertar o nome."""
+
+    def _lista(self, tmp_path: Path, *nomes: str) -> Path:
+        caminho = tmp_path / "cantores_indesejados.txt"
+        caminho.write_text("\n".join(nomes) + "\n", encoding="utf-8")
+        return caminho
+
+    @staticmethod
+    def _rodar(banco: Path, artista: str, titulo: str):
+        def rodar(_urls, **_kw):
+            _adicionar(banco, f"acervo/Outros/{artista} - {titulo}.mp3",
+                       artista, titulo)
+            return 0
+        return rodar
+
+    def _processar(self, bancos, tmp_path, *, artistas, titulo, **kwargs):
+        lista = self._lista(tmp_path, "Annita")
+        registro = tmp_path / "radio_apagar_depois.json"
+        p = _criar(bancos)
+        r = rl.processar_pedido(
+            p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
+            extrair=lambda _l: [{"url": VIDEO, "title": titulo,
+                                 "artistas": artistas}],
+            notificar=lambda _t: None, trava=contextlib.nullcontext,
+            cantores_lista=lista, cantores_registro=registro, **kwargs)
+        return p, r, registro
+
+    def test_uploader_na_lista_marca_mesmo_com_a_fila_recusando(
+            self, bancos, tmp_path) -> None:
+        p, r, registro = self._processar(
+            bancos, tmp_path, artistas=["Annita - Topic"],
+            titulo="Annita - Envolver",
+            rodar=self._rodar(bancos["acervo"], "Annita", "Envolver"),
+            lancar=lambda pedido: pedido,          # AzuraCast recusou
+        )
+        assert r["fila"] is False
+        assert rp.pedido_por_id(p["id"], banco=bancos["pedidos"])["status"] \
+            == "pendente"
+        pendentes = rc.pendentes(registro=registro)
+        assert len(pendentes) == 1, "marcou antes de tentar a fila"
+        assert pendentes[0]["artista"] == "Annita"
+        assert pendentes[0]["titulo"] == "Envolver"
+        assert pendentes[0]["caminho"].endswith("Annita - Envolver.mp3")
+
+    def test_pista_do_link_vale_quando_a_ia_tagueia_errado(
+            self, bancos, tmp_path) -> None:
+        _, r, registro = self._processar(
+            bancos, tmp_path, artistas=["Annita"],
+            titulo="Clipe oficial",
+            rodar=self._rodar(bancos["acervo"], "Desconhecido", "Envolver"),
+            lancar=lambda p: rp.marcar_status(int(p["id"]), "na_fila",
+                                              banco=bancos["pedidos"]),
+        )
+        assert r["fila"] is True
+        pendentes = rc.pendentes(registro=registro)
+        assert len(pendentes) == 1
+        assert pendentes[0]["artista"] == "Desconhecido", \
+            "grava o artista real do acervo, que é o que o histórico casa"
+        assert pendentes[0]["titulo"] == "Envolver"
+
+    def test_fora_da_lista_nao_marca(self, bancos, tmp_path) -> None:
+        _, r, registro = self._processar(
+            bancos, tmp_path, artistas=["Fulano"],
+            titulo="Fulano - Musica",
+            rodar=self._rodar(bancos["acervo"], "Fulano", "Musica"),
+            lancar=lambda p: rp.marcar_status(int(p["id"]), "na_fila",
+                                              banco=bancos["pedidos"]),
+        )
+        assert r["fila"] is True
+        assert rc.pendentes(registro=registro) == []
+
+    def test_pistas_juntam_metadados_e_titulo(self) -> None:
+        pistas = rl._pistas_de_artista(
+            {"title": "Annita - Envolver (Clipe Oficial)",
+             "artistas": ["Annita - Topic", "AnnitaVEVO"]})
+        assert pistas == ["Annita"]
 
 
 class TestTimeoutDoLote:
