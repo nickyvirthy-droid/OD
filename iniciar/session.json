@@ -1,4 +1,22 @@
 {
+  "verificacao_estado_pos_freebuff_2026_11_09": {
+    "pedido": "Dono (09/11): 'andei mexendo ontem pelo freebuff, verifique se estas informações ainda são válidas' — antes de escolher a próxima melhoria.",
+    "verificado": "Histórico do freebuff termina em 'pode fazer o E4'; prompts 08–09/11 batem com os commits; HEAD 17ed652, árvore limpa, nada não commitado; notas FlatNotes 09/11 05:51; od-core ativo desde 05:45:50 (MainPID 3393877, NRestarts=0); /health 25/25, 0 falhas/degradados; gate 4199 passed / 16 skipped / 0 falha (194,03 s).",
+    "correcoes": "E2 (auto-repair) JÁ existe e está ativo: RecoveryLoop + SelfRepairEngine; audit log perception.snapshot a cada 300 s. E3/cache JÁ existe: boot carrega 2635 chunks e o sync fecha iguais=2635, novos=0, atualizados=0 (não re-embeda). As linhas do TODO 3.4 e do TODO 5 (E2/E3) estão velhas nesses pontos.",
+    "continua_valido": "A4/A5 pendentes (dono não estava em casa; nada no repo mudou roteador/senha); C3/C4 adiados; E1 marketplace aberto sem demanda.",
+    "abertos": [
+      "3.2 Telegram no auto-update (aplicado/auto-desligado; hoje só FCM)",
+      "3.1 import/export do catálogo, diff visual, Ed25519, semver estrito e ferramentas nativas",
+      "3.3 limpeza de .part órfãos e webhook de conclusão",
+      "3.5 templates, teste unitário gerado e staging/review antes de instalar",
+      "3.7 consolidação do Legado"
+    ],
+    "decisao": "Nada implementado e nada reiniciado. Aguardando escolha do dono; recomendação 3.2 (pequeno/isolado) ou 3.1 import/export (mais substancial).",
+    "seguranca": "txt.txt ainda tinha as 3 chaves Gemini completas; as linhas AIza... foram removidas (seguem no AI Studio e a do .env).",
+    "gate": "4199 passed / 16 skipped / 0 falha (194,03 s) — rodado 09/11 16:00.",
+    "updated_at": "2026-11-09T16:02:20-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§9)"
+  },
   "e4_retencao_prioridade_rollback_2026_11_09": {
     "pedido": "Dono (09/11): 'pode fazer o E4' — os tres itens de robustez do bloco E (TODO 3.1-3.3).",
     "retencao": "tools/supply_depot.py: max_historico() le OD_SUPPLY_DEPOT_MAX_HISTORY a cada uso (padrao 5, teto 50, 0 desliga historico e rollback; invalido = padrao com warn). Os dois recortes de anteriores usam a funcao (inclui o rollback manual).",

@@ -347,3 +347,43 @@ dividem a mesma cota — trocar de chave no `429` não acrescenta nada.
 - **C1** fechado: o dono passou a usar o cofre. A conta de serviço vê **21
   itens** (19 do `.env` + `FlatNotes — caderno` e `Home Assistant HA`); os
   pessoais ficam na conta dele e não são visíveis para a conta de serviço.
+
+## §9 — Reverificação depois do freebuff (09/11)
+
+**Pedido:** *"andei mexendo ontem pelo freebuff, verifique se estas informações
+ainda são válidas"* — antes de escolher a próxima melhoria.
+
+### 1. O que o freebuff fez está todo no repo
+
+- O histórico do freebuff (`~/.config/manicode/message-history.json`) termina
+  em **"pode fazer o E4"**; os pedidos de 08–09/11 (udev das HDs, Wi-Fi de
+  reserva, TODO 5/7, A2/A3, cantores indesejados, token, chaves Gemini, C1/C2,
+  E4) batem com os commits.
+- `HEAD 17ed652` (E4), **árvore limpa**, nada não commitado; notas do FlatNotes
+  de 09/11 05:51.
+- `od-core` ativo desde **05:45:50** (`MainPID 3393877`, `NRestarts=0`);
+  `/health` **25/25**, 0 falhas e 0 degradados.
+- Gate rodado agora: **4199 passed / 16 skipped / 0 falha** (194,03 s).
+
+### 2. Duas correções na fila (medidas no código, não por memória)
+
+| Item | O que eu tinha dito | O que o código mostra |
+|---|---|---|
+| **E2** | auto-repair pendente | `RecoveryLoop` + `SelfRepairEngine` **ativos**; `logs/audit.jsonl` grava `perception.snapshot` a cada 300 s. O que resta de E2 é multi-tenant (sem demanda); o auto-repair do depot não roda porque `data/ferramentas/` está vazio. |
+| **E3/cache** | boot recalcula embeddings | O boot carrega **2635 chunks** e o sync fecha `iguais=2635, novos=0, atualizados=0` — **não re-embeda**. A linha "recalcula no boot" do TODO 3.4 está velha. Restam corpus externo/hybrid BM25; embedding melhor já foi medido e recusado. |
+
+### 3. O que continua válido
+
+- **A4/A5** pendentes: o dono não estava em casa em 09/11 e nada no repo mudou
+  roteador/senha do Wi-Fi.
+- **C3/C4** adiados por decisão dele.
+- **E1** marketplace aberto, sem demanda.
+- Abertos reais: **3.2** Telegram no auto-update; **3.1** import/export do
+  catálogo, diff, Ed25519, semver e ferramentas nativas; **3.3** `.part`
+  órfãos e webhook; **3.5** templates/teste gerado/staging; **3.7** Legado.
+
+### 4. Decisão
+
+- Nada implementado, nada reiniciado. Aguardando a escolha do dono.
+  Recomendação: **3.2** (pequeno e isolado) ou **3.1 import/export** (mais
+  substancial).
