@@ -1,4 +1,15 @@
 {
+  "rotacao_bot_sistema_gemini_2026_11_09": {
+    "pedido": "Dono (09/11): 'leia txt' — no txt.txt estavam 3 chaves do Gemini ('teste as 3 antes de eu criar outra') e o token novo do @Nicky_Virthy_bot.",
+    "gemini": "As 3 chaves autenticam: generateContent no gemini-3-flash-preview e GET /v1beta/models com header x-goog-api-key -> HTTP 200 (fingerprints 1787e9a5 a do .env, 9b5c4ab3, 3eb29168). Nao precisa criar chave nova; a falha de 06/11 nao se reproduz. Cadeia segue OD_IA_ORDEM=groq,local ate decisao do dono (regra 19 sugere gemini,groq,local).",
+    "bot": "O TELEGRAM_BOT_TOKEN antigo respondia 401 (ja revogado). Novo token do txt -> getMe ok=true @Nicky_Virthy_bot; .env atualizado e conferido por releitura + getMe. Restart: MainPID 3297732, NRestarts=0, /health 25/25 up, journal 0 [ERROR]. Prova viva: mensagem pelo bot novo ok=true msg_id=3710.",
+    "cofre": "vault_env_mirror.py disparado para espelhar o token novo (mesmo caminho de 20/10); saida em /tmp/vault_mirror_rotacao.log.",
+    "higiene": "txt.txt ignorado pelo git (.gitignore:173); nenhum segredo foi para o repo/commit. Backup temporario do .env em /tmp removido. Chaves 2 e 3 do Gemini nao usadas — podem ser apagadas no console.",
+    "sem_bump": "Servidor/config; app segue 1.44.0/2080.",
+    "fila": "A4/A5 pulados (dono nao esta em casa). Gemini deixa de ser pendencia de chave; resta decidir a ordem da cadeia. E1-E4 backlog sem demanda; C1-C4 adiadas.",
+    "updated_at": "2026-11-09T04:20:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§5)"
+  },
   "lista_cantor_indesejado_so_primeira_2026_11_09": {
     "pedido": "Dono (09/11): 'em uma lista de um cantor recusado, so a primeira musica e apagada e o resto fica. deveria ser o contrario. em uma lista a primeira baixa, toca e apaga, o resto verifica se e do cantor recusado, se for nem baixa'.",
     "erro": "_baixar_resto mandava TODAS as entradas restantes para o pipeline; a marcacao valia so para a primeira, entao as demais do artista recusado entravam no acervo e ficavam para sempre.",

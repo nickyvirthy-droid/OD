@@ -190,3 +190,42 @@ faixa **nem desce**.
 A3 e esta correção fecham o assunto dos cantores indesejados. Seguem com o
 dono: **A4** (forwards do Archer `.250` → `.205`), **A5** (senha do Wi-Fi) e a
 chave nova do Gemini. C1–C4 adiadas; E1–E4 backlog.
+
+## §5 — Token do bot do sistema rotacionado + 3 chaves do Gemini testadas (09/11)
+
+**Pedido:** *"leia txt"* -> o dono deixou no `txt.txt` três chaves do Gemini
+("teste as 3 antes de eu criar outra") e, em seguida, o **token novo** do
+`@Nicky_Virthy_bot`.
+
+### 1. Gemini: as 3 funcionam
+
+Medição com header `x-goog-api-key` no `gemini-3-flash-preview`
+(`generateContent` e `GET /v1beta/models`) — nada de chave impressa, só
+fingerprint SHA-256:
+
+| Chave (fingerprint) | generateContent | /models |
+|---|---|---|
+| `1787e9a5…` (**a do `.env`**) | 200 `ok` | 200 |
+| `9b5c4ab3…` | 200 `ok` | 200 |
+| `3eb29168…` | 200 `ok` | 200 |
+
+**Conclusão: não precisa criar chave nova.** A falha de 06/11 (`API_KEY_INVALID`)
+não se reproduz agora; a cadeia segue `OD_IA_ORDEM=groq,local` até decisão do
+dono (a regra 19 sugere `gemini,groq,local`).
+
+### 2. Bot do sistema
+
+- O `TELEGRAM_BOT_TOKEN` do `.env` respondia **401** (o dono já tinha revogado).
+- O token novo do `txt.txt` -> `getMe` `ok=true @Nicky_Virthy_bot`.
+- `.env` atualizado (linha única, sem tocar no resto), releitura + `getMe` OK.
+- `od-core` reiniciado: `MainPID 3297732`, `NRestarts=0`, `/health` **25/25 up**,
+  journal 0 `[ERROR]`.
+- **Prova viva:** mensagem enviada pelo bot novo ao chat do dono —
+  `ok=true`, `msg_id=3710`.
+- Cofre: `vault_env_mirror.py` disparado para espelhar o token novo.
+
+### 3. Higiene
+
+- `txt.txt` está no `.gitignore` (linha 173); nenhum segredo foi para o git.
+- Backup temporário do `.env` em `/tmp` (removido após a prova).
+- Chaves 2 e 3 do Gemini não foram usadas; podem ser apagadas no console.

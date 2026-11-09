@@ -12,6 +12,21 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Token do bot do sistema rotacionado; 3 chaves do Gemini testadas (2026-11-09, sem bump)
+
+**Resumo:** o token do bot que manda os alertas no celular (`@Nicky_Virthy_bot`)
+estava em texto puro num documento da pasta Legado (achado do TODO 2). O dono
+revogou no BotFather e entregou o novo pelo `txt.txt`; o antigo passou a
+responder **401** e o novo foi instalado no `.env`. No mesmo teste, as **3
+chaves do Gemini** que ele deixou no `txt.txt` foram medidas: todas autenticam.
+
+| Peça | Entrega |
+|---|---|
+| **`.env`** | `TELEGRAM_BOT_TOKEN` trocado pelo token novo; conferido por `getMe` -> `ok=true @Nicky_Virthy_bot`. Nada de segredo no git (`txt.txt` é ignorado, `.env` também). |
+| **Prova viva** | Mensagem enviada **pelo bot novo** ao chat do dono: `ok=true, msg_id=3710`. `od-core` reiniciado (`MainPID 3297732`, `NRestarts=0`), `/health` **25/25 up**, journal 0 `[ERROR]`. O token antigo respondia 401 antes da troca — era o canal de alerta que estava fora. |
+| **Cofre** | `vault_env_mirror.py` rodado para espelhar o token novo (mesmo caminho de 20/10). |
+| **Gemini — 3 chaves medidas** | `generateContent` no `gemini-3-flash-preview` **e** `GET /v1beta/models`, com header `x-goog-api-key`: **HTTP 200 nas 3**, incluindo a que já estava no `.env`. Ou seja: **não precisa criar chave nova**; a falha de 06/11 não se reproduz agora. Cadeia segue `OD_IA_ORDEM=groq,local` até decisão do dono (regra 19 sugere voltar `gemini,groq,local`). |
+
 ## Lista de cantor indesejado: só a primeira faixa baixa (2026-11-09, sem bump)
 
 **Resumo:** correção da regra da lista (ordem do dono, 09/11): *"em uma lista a
