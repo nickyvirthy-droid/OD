@@ -267,3 +267,28 @@ Groq (rápido) e local, e hoje o Gemini responde bem.
 
 - `txt.txt` já não contém as chaves (o dono limpou); a do `.env` é a `1787e9a5…`.
 - Sem bump: configuração/servidor; app segue 1.44.0/2080.
+
+## §7 — As 3 chaves do Gemini são do mesmo projeto (09/11)
+
+**Pedido:** *"feito, leia txt"* — o dono colou no `txt.txt` o print do console do
+AI Studio com as três chaves.
+
+### O que o print mostra
+
+| Chave | Projeto | Nível |
+|---|---|---|
+| `…vCcc` (Gemini API Key) | `gen-lang-client-0888452285` | gratuito |
+| `…Omi4` (nicky) | `gen-lang-client-0888452285` | gratuito |
+| `…7jxE` (Default Gemini API Key) | `gen-lang-client-0888452285` | gratuito |
+
+**As três estão no MESMO projeto.** Cota do Gemini é por projeto, então as três
+dividem a mesma cota — trocar de chave no `429` não acrescenta nada.
+
+### Decisão
+
+- **Não implementar rotação entre chaves**: seria código sem ganho.
+- Se um dia faltar cota, os caminhos são outro projeto (com o custo de gestão) ou
+  faturamento no projeto atual. A cadeia `gemini,groq,local` já cobre a queda
+  para o Groq (rápido) e o local.
+- Registrado em `docs/IAS_DISPONIVEIS.md` (linha do Gemini + histórico) para não
+  ser repesquisado.

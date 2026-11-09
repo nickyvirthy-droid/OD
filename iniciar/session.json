@@ -1,4 +1,13 @@
 {
+  "chaves_gemini_mesmo_projeto_2026_11_09": {
+    "pedido": "Dono (09/11): 'feito, leia txt' — print do AI Studio com as 3 chaves.",
+    "achado": "As 3 chaves (…vCcc Gemini API Key, …Omi4 nicky, …7jxE Default Gemini API Key) estao no MESMO projeto gen-lang-client-0888452285, nivel gratuito.",
+    "conclusao": "Cota do Gemini e por projeto, nao por chave: as 3 dividem a mesma cota. Rotacao entre elas nao acrescenta nada; NAO implementada. Para mais cota: outro projeto (custo de gestao) ou faturamento. A cadeia gemini,groq,local ja cobre a queda para Groq/local.",
+    "registro": "docs/IAS_DISPONIVEIS.md — linha do GEMINI_API_KEY e historico de 09/11.",
+    "sem_bump": "Sem mudanca de codigo; app segue 1.44.0/2080.",
+    "updated_at": "2026-11-09T05:02:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§7)"
+  },
   "cadeia_ia_volta_gemini_2026_11_09": {
     "pedido": "Dono (09/11): 'proximo' — unico item ativo era a ordem da cadeia de IAs.",
     "feito": ".env: OD_IA_ORDEM=gemini,groq,local (linha 14). Restart od-core: MainPID 3318743, NRestarts=0, /health 25/25 up, journal 0 [ERROR]; /proc/<pid>/environ confirma a ordem.",
