@@ -82,6 +82,11 @@ _BACKOFF_CAP_S = 60.0
 # Histórico terminal guardado no estado (os arquivos NÃO são apagados).
 _HISTORICO_MAX = 50
 
+# Limpeza de parciais órfãos (TODO §3.3): o job roda no boot e a cada
+# 24 h; só apaga `.part` SEM job ativo e com mais de 24 h de idade.
+_LIMPEZA_INTERVALO_S = 24 * 3600.0
+_PART_MAX_IDADE_S = 24 * 3600.0
+
 # 4xx transitórios (vale tentar de novo); demais 4xx = permanente.
 _HTTP_RETENTAVEIS = frozenset({408, 425, 429})
 
@@ -213,6 +218,8 @@ class DownloadQueue:
         opener: Optional[Callable[..., Any]] = None,
         historico_max: int = _HISTORICO_MAX,
         timeout_s: float = _TIMEOUT_S,
+        limpeza_intervalo_s: float = _LIMPEZA_INTERVALO_S,
+        part_max_idade_s: float = _PART_MAX_IDADE_S,
     ) -> None:
         raiz = base_dir or Path(
             os.environ.get("OD_DOWNLOADS_DIR", "") or _RAIZ_PADRAO
@@ -224,6 +231,8 @@ class DownloadQueue:
         self._backoff_cap = float(backoff_cap_s)
         self._historico_max = int(historico_max)
         self._timeout = float(timeout_s)
+        self._limpeza_intervalo = max(0.0, float(limpeza_intervalo_s))
+        self._part_max_idade = max(0.0, float(part_max_idade_s))
         # injetável para testes herméticos (sem rede)
         self._abrir = opener or urllib.request.urlopen
 
@@ -234,6 +243,7 @@ class DownloadQueue:
         self._cond = threading.Condition(self._lock)
         self._parar = threading.Event()
         self._thread: Optional[threading.Thread] = None
+        self._limpeza_thread: Optional[threading.Thread] = None
         self._ultima_gravacao = 0.0
 
         self._carregar()
@@ -251,15 +261,99 @@ class DownloadQueue:
                 target=self._loop, name="od-downloads", daemon=True
             )
             self._thread.start()
+            if self._limpeza_intervalo > 0 and self._part_max_idade > 0 \
+                    and (self._limpeza_thread is None
+                         or not self._limpeza_thread.is_alive()):
+                self._limpeza_thread = threading.Thread(
+                    target=self._loop_limpeza,
+                    name="od-downloads-limpeza", daemon=True,
+                )
+                self._limpeza_thread.start()
 
     def stop(self, timeout: float = 5.0) -> None:
-        """Encerra o worker (o estado fica gravado; o boot re-enfileira)."""
+        """Encerra o worker e o job de limpeza (estado fica gravado)."""
         self._parar.set()
         with self._cond:
             self._cond.notify_all()
-        thread = self._thread
-        if thread is not None and thread.is_alive():
-            thread.join(timeout=timeout)
+        for thread in (self._thread, self._limpeza_thread):
+            if thread is not None and thread.is_alive():
+                thread.join(timeout=timeout)
+
+    def _loop_limpeza(self) -> None:
+        """Limpeza no boot e a cada ``limpeza_intervalo_s`` (daemon)."""
+        while not self._parar.is_set():
+            try:
+                self.limpar_partes_orfas()
+            except Exception as exc:  # pragma: no cover — defeito inesperado
+                log.warn("Limpeza de parciais órfãos falhou",
+                         error=str(exc)[:300])
+            if self._parar.wait(self._limpeza_intervalo):
+                return
+
+    def limpar_partes_orfas(
+        self, *, max_idade_s: Optional[float] = None,
+        agora: Optional[float] = None,
+    ) -> dict[str, Any]:
+        """Remove `.part` sem dono ativo e com idade acima do limite.
+
+        Segurança por construção: só varre dentro de ``self.raiz``,
+        preserva qualquer parcial de job ATIVO (na fila, baixando ou
+        aguardando retry) e exige idade mínima (padrão 24 h) para os
+        demais. Job terminal (erro/cancelado) **não** é dono — o parcial
+        dele vira órfão depois do prazo. ``0`` desliga a limpeza.
+        """
+        idade = self._part_max_idade if max_idade_s is None \
+            else float(max_idade_s)
+        if idade <= 0:
+            return {"removidos": 0, "bytes": 0, "preservados": 0,
+                    "erros": []}
+        agora = _agora() if agora is None else float(agora)
+        removidos = 0
+        bytes_removidos = 0
+        preservados = 0
+        erros: list[str] = []
+        # O lock cobre o snapshot dos donos E a remoção: um enqueue não
+        # pode reivindicar um `.part` entre a checagem e o unlink.
+        with self._lock:
+            ativos = {
+                Path(job.destino + ".part").resolve()
+                for job in self._jobs.values() if job.ativo
+            }
+            try:
+                partes = list(self._base.rglob("*.part"))
+            except OSError as exc:
+                return {"removidos": 0, "bytes": 0, "preservados": 0,
+                        "erros": [str(exc)[:300]]}
+            for part in partes:
+                try:
+                    st = part.stat()
+                except OSError:
+                    continue
+                if not part.is_file():
+                    continue
+                try:
+                    chave = part.resolve()
+                except (OSError, RuntimeError):
+                    continue
+                if chave in ativos:
+                    preservados += 1
+                    continue
+                if agora - st.st_mtime < idade:
+                    preservados += 1
+                    continue
+                try:
+                    part.unlink()
+                except OSError as exc:
+                    erros.append(f"{part}: {str(exc)[:200]}")
+                    continue
+                removidos += 1
+                bytes_removidos += int(st.st_size)
+        if removidos or erros:
+            log.info("Limpeza de parciais órfãos", removidos=removidos,
+                     bytes=bytes_removidos, preservados=preservados,
+                     erros=len(erros))
+        return {"removidos": removidos, "bytes": bytes_removidos,
+                "preservados": preservados, "erros": erros}
 
     @property
     def raiz(self) -> Path:

@@ -436,3 +436,64 @@ aplicado ou o serviço se auto-desligar, avisar o dono (hoje só o FCM).
 - Abertos: 3.1 (import/export, diff, Ed25519, semver, ferramentas nativas),
   3.3 (.part órfãos, webhook), 3.5 (templates/teste gerado/staging), 3.7
   (Legado); A4/A5 dependem do dono; C3/C4 adiados; E1 sem demanda.
+
+## §11 — 3.3: limpeza diária de `.part` órfãos + A4 reconfirmado (09/11)
+
+**Pedido:** o dono disse que está em casa, mas **A5** (senha do Wi-Fi) daria
+dor de cabeça e não queria mexer hoje; concordou com os demais itens da fila.
+Antes de seguir, a checagem ao vivo mostrou que o **A4 já estava entregue
+desde 01/11** — a nota do TODO 5 estava velha. Com A5 adiado, o próximo item
+era o **3.3**.
+
+### 1. A4 — correção de registro
+
+- O `docs/CHANGELOG.md` já registrava a migração de 01/11; a linha do TODO 5
+  ainda dizia "pendente".
+- Releitura **read-only** da tabela `#portForwarding` do Archer C6 com o venv
+  do Vigia (`/home/alex/od-vigia-venv/bin/python`, Playwright) em 09/11:
+  **3/3** regras apontam para `192.168.0.205` — SSH 22, HTTP 80→8000 e
+  Controle 8001.
+- FlatNotes corrigido: TODO 5 ganhou a linha A4 em "FECHADOS em 09/11" e a
+  linha histórica de 05/11 foi anotada como **ENTREGUE 01/11**. **A5** segue
+  adiado por decisão do dono.
+
+### 2. O que foi feito no 3.3
+
+- `core/downloads.py`:
+  - `limpar_partes_orfas(max_idade_s=None, agora=None)` varre
+    `self.raiz` por `*.part`, monta o conjunto de donos **ativos**
+    (`job.ativo`) e apaga os demais com `mtime` > 24 h. Tudo sob o mesmo
+    `_lock` do enqueue/worker — um job não pode reivindicar um parcial entre
+    a checagem e o `unlink`. Devolve `removidos/bytes/preservados/erros`;
+    `max_idade_s=0` desliga.
+  - Job terminal (erro/cancelado) **não é dono**: o parcial dele vira órfão
+    depois do prazo. Se o dono retentar depois, `_transferir()` lê o `.part`
+    do disco; sem parcial, recomeça do zero (sem Range em arquivo apagado).
+  - `start()` sobe também a thread daemon `od-downloads-limpeza`, que roda
+    **no boot** e depois a cada `limpeza_intervalo_s` (padrão **24 h**);
+    `stop()` encerra e junta a thread. Exceção inesperada vira `warn` e o
+    ciclo continua.
+- `tests/test_downloads.py` — `TestLimpezaPartes` (+5): órfão antigo removido
+  e recente preservado; parcial de job ativo preservado; parcial de job
+  terminal removido; limpeza roda no `start()` e a thread morre no `stop()`;
+  intervalo `0` desliga.
+
+### 3. Gate, restart e prova viva
+
+- Focados: `tests/test_downloads.py` **55 passed**.
+- Gate oficial: **4209 passed / 16 skipped / 0 falha** (189,72 s; eram 4204).
+- `od-core` reiniciado: **`MainPID 4059703`**, `NRestarts=0`, `/health`
+  **25/25 up**, journal **0 `[ERROR]`**.
+- Prova viva: criei `data/downloads/.prova-limpeza-3.3.part` com `mtime` de
+  25 h e reiniciei; o arquivo sumiu no boot e o journal registrou
+  `Limpeza de parciais órfãos | removidos=1 | bytes=10 | preservados=0 |
+  erros=0`.
+- Sem bump: app segue **1.44.0/2080**.
+
+### 4. Fila
+
+- 3.3 `.part` marcado entregue; A4 corrigido como entregue em 01/11.
+- **A5** adiado pelo dono (exige ele em casa e re-pareamento dos ESP/Echos).
+- Abertos: 3.1 (import/export, diff, Ed25519, semver, ferramentas nativas),
+  3.3 webhook de conclusão, 3.5 (templates/teste gerado/staging), 3.7
+  (Legado); C3/C4 adiados; E1 sem demanda.

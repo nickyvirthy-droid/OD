@@ -1,4 +1,17 @@
 {
+  "limpeza_partes_orfas_2026_11_09": {
+    "pedido": "Dono (09/11): está em casa, mas A5 (senha do WiFi) daria dor de cabeça e não quer mexer hoje; concordou com os demais itens da fila. Antes de seguir, a checagem ao vivo mostrou que o A4 já estava entregue desde 01/11.",
+    "a4_correcao": "A4 JÁ ENTREGUE em 01/11; a linha do TODO 5 estava velha. Releitura read-only de #portForwarding do Archer C6 em 09/11: 3/3 regras no 192.168.0.205 (SSH 22, HTTP 80->8000, Controle 8001). FlatNotes TODO 5 corrigido (linha em FECHADOS e nota histórica). A5 segue adiado.",
+    "feito": "core/downloads.py: limpar_partes_orfas() varre self.raiz por *.part, preserva parciais de jobs ativos (job.ativo) e apaga os demais com mtime > 24h, sob o mesmo lock do enqueue/worker; devolve removidos/bytes/preservados/erros; max_idade_s=0 desliga. Job terminal não é dono; retry sem parcial recomeça do zero. start() sobe a thread daemon od-downloads-limpeza (boot + a cada 24h); stop() encerra e junta; exceção vira warn.",
+    "testes": "tests/test_downloads.py +5 (TestLimpezaPartes): órfão antigo removido/recente preservado; parcial de job ativo preservado; parcial de job terminal removido; start limpa no boot e stop encerra; intervalo 0 desliga. Focados 55 passed.",
+    "gate": "4209 passed / 16 skipped / 0 falha (189,72 s; eram 4204).",
+    "restart": "MainPID 4059703, NRestarts=0, /health 25/25 up, journal 0 [ERROR].",
+    "prova_viva": "data/downloads/.prova-limpeza-3.3.part com mtime de 25h removido no boot; journal: 'Limpeza de parciais órfãos | removidos=1 | bytes=10 | preservados=0 | erros=0'.",
+    "notas": "TODO 3.3 marcado entregue; TODO 5 A4 corrigido; CHANGELOG §3.3 e transcrição §11.",
+    "sem_bump": "Servidor/painel; app segue 1.44.0/2080.",
+    "updated_at": "2026-11-09T17:20:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§11)"
+  },
   "telegram_auto_update_2026_11_09": {
     "pedido": "Dono (09/11): 'ok, siga 3.2' — aviso no Telegram quando o auto-update aplica um alvo ou se auto-desliga.",
     "feito": "core/auto_update.py: _anunciar(corpo, *, titulo=...) dispara FCM + Telegram; _anunciar_telegram executa o sink assincrono num thread daemon curto (asyncio.run) e falha so gera warn. Aplicado cobre RAG sync e download concluido; auto-desligado chama _anunciar uma vez na transicao para desabilitado=True (titulo 'Auto-update desligado', motivo e 'religavel pelo painel'); rollback leva titulo 'Auto-update rollback'.",

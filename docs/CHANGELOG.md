@@ -12,6 +12,25 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Limpeza diária de `.part` órfãos na fila de downloads (2026-11-09, sem bump)
+
+**Resumo:** o TODO §3.3 fechou o bloco de downloads. A fila agora sobe um
+job daemon que roda **no boot e a cada 24 h** e remove parciais `.part` que
+não pertencem a nenhum job ativo e estão velhos há mais de 24 h. O objetivo é
+não deixar lixo de transferências canceladas/erradas crescendo para sempre;
+um parcial de job ativo (na fila, baixando ou aguardando retry) nunca é
+tocado.
+
+| Peça | Entrega |
+|---|---|
+| **`core/downloads.py` — `limpar_partes_orfas()`** | Varre `self.raiz` por `*.part`; monta o conjunto de donos **ativos** (`job.ativo`) e preserva-os; apaga os demais com `mtime` acima de 24 h. Tudo sob o mesmo `_lock` do enqueue/worker, então um job não pode reivindicar um parcial entre a checagem e o `unlink`. Devolve `removidos/bytes/preservados/erros`; `max_idade_s=0` desliga. |
+| **`core/downloads.py` — job diário** | `start()` sobe também a thread daemon `od-downloads-limpeza`: executa imediatamente (limpa o resíduo do boot) e depois espera `limpeza_intervalo_s` (padrão **24 h**). `stop()` encerra e junta a thread; exceção inesperada vira `warn` e o ciclo continua. |
+| **Semântica de dono** | Job terminal (erro/cancelado) **não** é dono: o parcial dele vira órfão depois do prazo. Se o dono retentar depois, `_transferir()` lê o `.part` do disco; sem parcial, recomeça do zero — não há Range em cima de arquivo apagado. |
+| **Testes** | `tests/test_downloads.py` +5 (`TestLimpezaPartes`): órfão antigo removido e recente preservado; parcial de job ativo preservado; parcial de job terminal removido; limpeza roda no `start()` e a thread morre no `stop()`; intervalo `0` desliga. Focados **55 passed**. |
+| **Prova viva** | Criei um `.part` de prova com `mtime` de 25 h em `data/downloads/` e reiniciei: ele sumiu no boot e o journal registrou `Limpeza de parciais órfãos ... removidos=1 bytes=10`. |
+| **Verificação** | Gate completo **4209 passed / 16 skipped / 0 falha**. Restart `od-core` (`MainPID 4059703`, `NRestarts=0`), `/health` **25/25 up**, journal 0 `[ERROR]`. Sem bump: app segue **1.44.0/2080**. |
+| **Correção de registro (A4)** | O A4 **já estava entregue desde 01/11**; a nota do TODO 5 estava velha. Releitura ao vivo em 09/11: as **3/3** regras de Port Forwarding (SSH 22, HTTP 80→8000, Controle 8001) apontam para `192.168.0.205`. TODO 5 corrigido; **A5** segue adiado por decisão do dono. |
+
 ## Telegram no auto-update: aplicado, auto-desligado e rollback (2026-11-09, sem bump)
 
 **Resumo:** o TODO §3.2 fechou o último canal do auto-update: quando um alvo é

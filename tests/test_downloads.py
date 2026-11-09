@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import socket
 import sys
 import time
@@ -95,6 +96,15 @@ def _mk(tmp_path: Path, opener, **kw) -> DownloadQueue:
 
 def _parte(caminho: Path) -> Path:
     return Path(str(caminho) + ".part")
+
+
+def _esperar(cond, timeout: float = 5.0) -> None:
+    fim = time.time() + timeout
+    while time.time() < fim:
+        if cond():
+            return
+        time.sleep(0.01)
+    raise AssertionError("condição não alcançada no tempo dado")
 
 
 # ---------------------------------------------------------------------------#
@@ -407,6 +417,91 @@ class TestControle:
         fila = _mk(tmp_path, lambda req, timeout=None: _Resp(b"x"))
         with pytest.raises(ValueError, match="job_inexistente"):
             fila.cancelar("dl-9999")
+
+
+# ---------------------------------------------------------------------------#
+# Limpeza de parciais órfãos (TODO §3.3)                                      #
+# ---------------------------------------------------------------------------#
+class TestLimpezaPartes:
+    def test_remove_antigo_sem_dono_e_preserva_recente(
+            self, tmp_path: Path) -> None:
+        base = tmp_path / "dl"
+        base.mkdir(parents=True)
+        agora = time.time()
+        antigo = base / "velho.bin.part"
+        antigo.write_bytes(b"x" * 123)
+        os.utime(antigo, (agora - 25 * 3600, agora - 25 * 3600))
+        recente = base / "novo.bin.part"
+        recente.write_bytes(b"y" * 10)
+        os.utime(recente, (agora, agora))
+        comum = base / "ok.bin"
+        comum.write_bytes(b"z")
+
+        fila = _mk(tmp_path, lambda req, timeout=None: pytest.fail("sem rede"))
+        r = fila.limpar_partes_orfas(max_idade_s=24 * 3600, agora=agora)
+
+        assert r["removidos"] == 1
+        assert r["bytes"] == 123
+        assert r["preservados"] == 1
+        assert not antigo.exists()
+        assert recente.exists() and comum.exists()
+
+    def test_preserva_part_de_job_ativo(self, tmp_path: Path) -> None:
+        fila = _mk(tmp_path, lambda req, timeout=None: _Resp(b"x"))
+        job, _ = fila.enqueue("https://exemplo.test/a.bin")
+        part = _parte(Path(job.destino))
+        part.write_bytes(b"parcial")
+        agora = time.time()
+        os.utime(part, (agora - 25 * 3600, agora - 25 * 3600))
+
+        r = fila.limpar_partes_orfas(max_idade_s=24 * 3600, agora=agora)
+
+        assert r["removidos"] == 0
+        assert r["preservados"] == 1
+        assert part.exists()
+
+    def test_remove_part_de_job_terminal(self, tmp_path: Path) -> None:
+        fila = _mk(tmp_path, lambda req, timeout=None: _Resp(b"x"))
+        job, _ = fila.enqueue("https://exemplo.test/a.bin")
+        part = _parte(Path(job.destino))
+        part.write_bytes(b"parcial")
+        agora = time.time()
+        os.utime(part, (agora - 25 * 3600, agora - 25 * 3600))
+        with fila._lock:
+            job.status = ERRO       # terminal não é dono do parcial
+
+        r = fila.limpar_partes_orfas(max_idade_s=24 * 3600, agora=agora)
+
+        assert r["removidos"] == 1
+        assert not part.exists()
+
+    def test_start_limpa_no_boot_e_stop_encerra(self, tmp_path: Path) -> None:
+        base = tmp_path / "dl"
+        base.mkdir(parents=True)
+        antigo = base / "velho.bin.part"
+        antigo.write_bytes(b"x" * 5)
+        agora = time.time()
+        os.utime(antigo, (agora - 25 * 3600, agora - 25 * 3600))
+        fila = _mk(tmp_path, lambda req, timeout=None: _Resp(b"x"),
+                   limpeza_intervalo_s=3600.0)
+
+        fila.start()
+        try:
+            _esperar(lambda: not antigo.exists())
+            assert fila._limpeza_thread is not None
+            assert fila._limpeza_thread.is_alive()
+        finally:
+            fila.stop(timeout=5)
+        assert not fila._limpeza_thread.is_alive()
+
+    def test_intervalo_zero_desliga_a_limpeza(self, tmp_path: Path) -> None:
+        fila = _mk(tmp_path, lambda req, timeout=None: _Resp(b"x"),
+                   limpeza_intervalo_s=0.0)
+        fila.start()
+        try:
+            assert fila._limpeza_thread is None
+        finally:
+            fila.stop(timeout=5)
 
 
 # ---------------------------------------------------------------------------#
