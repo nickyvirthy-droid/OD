@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer da sonda de latencia (a cada 5 minutos)
+Requires=od-io-probe.service
+
+[Timer]
+# 3 min após o boot (deixa o od-core subir) e a cada 5 min depois.
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=od-io-probe.service
+
+[Install]
+WantedBy=timers.target

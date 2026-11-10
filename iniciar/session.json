@@ -1,4 +1,15 @@
 {
+  "sonda_latencia_periodica_e_check_health_2026_11_10": {
+    "pedido": "Dono: ligar a sonda io_probe ao monitor periódico e registrar p50/p95 no /health.",
+    "feito": "io_probe.py ganhou --gravar (merge atômico por alvo com ts/iso), --rotulo e --api-key-file (lê OD_API_KEY do .env). runtime/launcher.py: check não-crítico 'latencia' (check_latencia) no build_health. systemd/od-io-probe.service + .timer (OnBootSec=3min, OnUnitActiveSec=5min, dois ExecStart: /site/ 20+20 amostras e /health 5 amostras a 1,1 s). Units copiadas para ~/.config/systemd/user/ e timer habilitado.",
+    "regras": "Arquivo ausente = up (instalação nova); idade > OD_IO_MONITOR_MAX_IDADE_S (900) = degraded (timer parado); pior p95 > OD_IO_MONITOR_P95_MS (250) = degraded nomeando o alvo; nunca crítico.",
+    "testes": "tests/test_io_monitor.py +13; gate 4241 passed / 16 skipped / 0 falha (187,32 s).",
+    "prova_viva": "Timer ativo; execução manual success/0; data/io_monitor.json com site (p50 1,04 / p95 1,17 ms) e health (p50 7,88 / p95 32,56 ms); /health 27/27 com latencia ok=True up 'p50=7.88ms p95=32.56ms alvos=2 idade=222s'; MainPID 1096866, NRestarts=0.",
+    "observacao": "data/ está no .gitignore (estado de máquina); as units entram no repo em systemd/.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§6)",
+    "updated_at": "2026-11-10T14:45:00-03:00"
+  },
   "f3_fatia2_site_health_login_2026_11_10": {
     "pedido": "Dono: sondar /site/*, /auth/login e os checks do /health e corrigir o que a medicao apontar.",
     "medido_antes": "/site/ p50 0,95 ms mas max 1.031,64 ms com 200 conexoes/8 threads (186,4 req/s); /site/logo.png 766,5 req/s; /health sem cache p50 18,08 ms (26 checks); PBKDF2 do login 158,5 ms por verificacao.",

@@ -69,6 +69,31 @@ span, nenhum campo é inventado.
   `set_tracer_provider` aceita só a primeira chamada do processo, o que
   impediria reconfiguração em testes e hot-reload.
 
+## Monitor de latência (F3)
+
+A sonda `tools/monitor/io_probe.py` mede p50/p95 de endpoints do `od-core` de
+fora do processo e grava `data/io_monitor.json` (atômico, com `ts`/`iso`).
+O timer de usuário **`od-io-probe.timer`** roda o serviço a cada 5 minutos
+(3 min após o boot) e faz duas passadas, que alimentam o mesmo arquivo:
+
+| Alvo | Amostras | Por quê |
+|---|---|---|
+| `GET /site/` | 20 em série + 20 concorrentes (8 threads) | estático e isento do limiter — mede o custo do socket/servidor sem consumir orçamento |
+| `GET /health` | 5 em série, 1,1 s de intervalo | mede a rota real da API; 5 req/5 min cabe no limiter de 30/min |
+
+O check não-crítico **`latencia`** do `/health` (`runtime/launcher.py::check_latencia`)
+lê esse arquivo e devolve `p50`, `p95`, número de alvos e idade em `detail`:
+
+- arquivo ausente → `up` ("sonda ainda não rodou"): instalação nova não degrada
+  antes do primeiro disparo;
+- idade > `OD_IO_MONITOR_MAX_IDADE_S` (padrão **900**) → `degraded` (o timer
+  parou);
+- pior p95 > `OD_IO_MONITOR_P95_MS` (padrão **250**) → `degraded`, nomeando o alvo.
+
+Operação: `systemctl --user list-timers od-io-probe.timer`,
+`journalctl --user -u od-io-probe` e `cat data/io_monitor.json`. As units vivem
+em `systemd/` (instaladas em `~/.config/systemd/user/`).
+
 ## O que ainda não existe (roadmap)
 
 - OTel Collector/Grafana (Tempo + Loki + Prometheus) no host — a config do

@@ -30,14 +30,31 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import statistics
 import sys
 import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from pathlib import Path
 
 __signature__ = "OD // TOOLS"
+
+# Onde o monitor periódico grava; o check `latencia` do /health lê daqui.
+ARQUIVO_PADRAO = Path(__file__).resolve().parents[2] / "data" / "io_monitor.json"
+
+
+
+def urlsplit_path(url: str) -> str:
+    """Rótulo curto do alvo: o path da URL ("/site/", "/health")."""
+    from urllib.parse import urlsplit
+
+    try:
+        return urlsplit(url).path or "/"
+    except ValueError:
+        return ""
 
 
 def _percentil(valores: list[float], p: float) -> float:
@@ -110,6 +127,50 @@ def _resumo(lat: list[float], codigos: dict[int, int]) -> dict:
     }
 
 
+def _chave_api_de_arquivo(caminho: str) -> str:
+    """Lê OD_API_KEY de um .env (o serviço do timer não herda shell)."""
+    try:
+        for linha in Path(caminho).read_text(encoding="utf-8").splitlines():
+            linha = linha.strip()
+            if linha.startswith("OD_API_KEY="):
+                return linha.split("=", 1)[1].strip().strip('"').strip("'")
+    except OSError:
+        return ""
+    return ""
+
+
+def gravar_resultado(
+    caminho: Path, rotulo: str, url: str, serie_res: dict, conc_res: dict
+) -> None:
+    """Grava/atualiza o JSON do monitor de forma atômica.
+
+    O mesmo arquivo é alimentado por mais de um alvo (o timer roda a sonda
+    duas vezes): ler-modificar-escrever preserva os alvos anteriores, e o
+    `ts`/`iso` sempre refletem a última execução (idade do arquivo = frescor).
+    """
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    dados: dict = {"versao": 1, "alvos": {}}
+    try:
+        existente = json.loads(caminho.read_text(encoding="utf-8"))
+        if isinstance(existente, dict) and isinstance(existente.get("alvos"), dict):
+            dados["alvos"] = existente["alvos"]
+    except (OSError, ValueError):
+        pass
+    agora = time.time()
+    dados["ts"] = round(agora, 3)
+    dados["iso"] = datetime.fromtimestamp(agora).astimezone().isoformat(timespec="seconds")
+    dados["alvos"][rotulo] = {
+        "url": url,
+        "serie": serie_res,
+        "concorrente": conc_res,
+    }
+    temporario = caminho.with_suffix(caminho.suffix + ".tmp")
+    temporario.write_text(
+        json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    os.replace(temporario, caminho)
+
+
 def custo_de_loop(n: int = 200) -> dict:
     """Quanto custa criar+descartar um event loop (o que a API faz por request)."""
 
@@ -127,6 +188,15 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Sonda de latência do od-core (F3)")
     p.add_argument("--url", default="http://127.0.0.1:8000/health")
     p.add_argument("--api-key", default="")
+    p.add_argument(
+        "--api-key-file", default="",
+        help="lê OD_API_KEY de um .env (usado pelo serviço do monitor)",
+    )
+    p.add_argument(
+        "--gravar", default="",
+        help=f"grava/atualiza o JSON do monitor (padrão do timer: {ARQUIVO_PADRAO})",
+    )
+    p.add_argument("--rotulo", default="", help="nome do alvo no JSON (padrão: path)")
     p.add_argument("--series", type=int, default=100, help="requisições em série")
     p.add_argument(
         "--intervalo", type=float, default=0.0,
@@ -138,16 +208,25 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--json", action="store_true", help="saída só em JSON")
     args = p.parse_args(argv)
 
+    api_key = args.api_key or (
+        _chave_api_de_arquivo(args.api_key_file) if args.api_key_file else ""
+    )
+    serie_res = serie(args.url, api_key, args.series, args.timeout, args.intervalo)
+    conc_res = concorrente(
+        args.url, api_key, args.concurrentes, args.threads, args.timeout
+    ) if args.concurrentes > 0 else {}
     resultado = {
         "url": args.url,
-        "serie": serie(
-            args.url, args.api_key, args.series, args.timeout, args.intervalo
-        ),
-        "concorrente": concorrente(
-            args.url, args.api_key, args.concurrentes, args.threads, args.timeout
-        ),
+        "serie": serie_res,
+        "concorrente": conc_res,
         "custo_loop": custo_de_loop(),
     }
+    if args.gravar:
+        destino = Path(args.gravar).expanduser()
+        rotulo = args.rotulo or (urlsplit_path(args.url) or "alvo")
+        gravar_resultado(destino, rotulo, args.url, serie_res, conc_res)
+        if not args.json:
+            print(f"gravado: {destino} (alvo={rotulo})")
     if args.json:
         print(json.dumps(resultado, ensure_ascii=False, indent=2))
         return 0
@@ -155,7 +234,10 @@ def main(argv: list[str] | None = None) -> int:
     s, c, l = resultado["serie"], resultado["concorrente"], resultado["custo_loop"]
     print(f"GET {args.url}")
     print(f"  série       n={s['n']:<4} p50={s['p50_ms']:>7} ms  p95={s['p95_ms']:>7} ms  max={s['max_ms']:>7} ms  {s['codigos']}")
-    print(f"  concorrente n={c['n']:<4} p50={c['p50_ms']:>7} ms  p95={c['p95_ms']:>7} ms  max={c['max_ms']:>7} ms  {c['rps']} req/s  {c['codigos']}")
+    if c:
+        print(f"  concorrente n={c['n']:<4} p50={c['p50_ms']:>7} ms  p95={c['p95_ms']:>7} ms  max={c['max_ms']:>7} ms  {c['rps']} req/s  {c['codigos']}")
+    else:
+        print("  concorrente desligada (--concurrentes 0)")
     print(f"  asyncio.run() novo por chamada: {l['por_loop_us']} µs")
     return 0
 

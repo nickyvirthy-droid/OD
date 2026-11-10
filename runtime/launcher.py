@@ -1159,7 +1159,76 @@ def build_health(
     monitor.register("mqtt", _check_mqtt_placeholder, critical=False)
     monitor.register("loops", _check_loops, critical=False)
     monitor.register("telemetria", _check_telemetria, critical=False)
+    monitor.register("latencia", check_latencia, critical=False)
     return monitor
+
+
+def check_latencia(mon: Any) -> dict[str, Any]:
+    """Check `latencia`: lê o p50/p95 que a sonda periódica gravou (F3).
+
+    `tools/monitor/io_probe.py` roda pelo timer `od-io-probe` e grava
+    `data/io_monitor.json` (a mesma sonda usada nas medições de 10/11).
+    Regras:
+      * arquivo ausente — up, "sonda ainda não rodou" (não degrada um
+        sistema recém-instalado antes do primeiro disparo do timer);
+      * arquivo velho além de `OD_IO_MONITOR_MAX_IDADE_S` — degraded (o
+        timer parou: a métrica não vale mais);
+      * p95 do pior alvo acima de `OD_IO_MONITOR_P95_MS` — degraded.
+    Nunca é crítico: é sinal de desempenho, não de disponibilidade.
+    """
+    caminho = pathlib.Path(
+        os.environ.get("OD_IO_MONITOR_PATH", "")
+        or pathlib.Path(__file__).resolve().parents[1] / "data" / "io_monitor.json"
+    )
+    try:
+        idade_max = float(os.environ.get("OD_IO_MONITOR_MAX_IDADE_S", "900"))
+        p95_limite = float(os.environ.get("OD_IO_MONITOR_P95_MS", "250"))
+    except ValueError:
+        idade_max, p95_limite = 900.0, 250.0
+    try:
+        dados = json.loads(caminho.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {"ok": True, "status": "up", "detail": "sonda ainda não rodou"}
+    except (OSError, ValueError) as exc:
+        return {
+            "ok": False,
+            "status": "degraded",
+            "detail": f"sonda ilegível: {type(exc).__name__}",
+        }
+    alvos = dados.get("alvos") if isinstance(dados, dict) else None
+    if not isinstance(alvos, dict) or not alvos:
+        return {"ok": False, "status": "degraded", "detail": "sonda sem alvos"}
+    idade = max(0.0, time.time() - float(dados.get("ts") or 0))
+    piores: list[str] = []
+    pior_p95 = 0.0
+    pior_p50 = 0.0
+    for nome, alvo in alvos.items():
+        serie = (alvo or {}).get("serie") or {}
+        try:
+            p95 = float(serie.get("p95_ms") or 0)
+            p50 = float(serie.get("p50_ms") or 0)
+        except (TypeError, ValueError):
+            continue
+        if p95 > pior_p95:
+            pior_p95, pior_p50 = p95, p50
+        piores.append(f"{nome} p95={p95:.1f}ms")
+    resumo = (
+        f"p50={pior_p50:.2f}ms p95={pior_p95:.2f}ms "
+        f"alvos={len(alvos)} idade={int(idade)}s"
+    )
+    if idade > idade_max:
+        return {
+            "ok": False,
+            "status": "degraded",
+            "detail": f"sonda parada há {int(idade)}s (> {int(idade_max)}s) — {resumo}",
+        }
+    if pior_p95 > p95_limite:
+        return {
+            "ok": False,
+            "status": "degraded",
+            "detail": f"p95 acima de {p95_limite:.0f}ms — {'; '.join(piores)}",
+        }
+    return {"ok": True, "status": "up", "detail": resumo}
 
 
 def _homeassistant_check(presence: Any) -> Any:

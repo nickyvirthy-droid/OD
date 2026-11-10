@@ -1,0 +1,24 @@
+[Unit]
+Description=Omega Drakon - Sonda de latencia (F3) -> data/io_monitor.json
+Documentation=https://github.com/OmegaDrakon
+After=od-core.service
+Wants=od-core.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alex/OmegaDrakon
+# Dois alvos por rodada: /site/ (estático, isento do limiter — 20 amostras
+# em série + 20 concorrentes) e /health (5 amostras espaçadas 1,1 s, dentro
+# do orçamento de 30 req/min). O JSON é lido pelo check `latencia` do /health.
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python tools/monitor/io_probe.py --url http://127.0.0.1:8000/site/ --rotulo site --series 20 --concurrentes 20 --threads 8 --gravar /home/alex/OmegaDrakon/data/io_monitor.json
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python tools/monitor/io_probe.py --url http://127.0.0.1:8000/health --rotulo health --api-key-file /home/alex/OmegaDrakon/.env --series 5 --intervalo 1.1 --concurrentes 0 --gravar /home/alex/OmegaDrakon/data/io_monitor.json
+TimeoutStartSec=180
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=od-io-probe
+
+# Segurança
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/home/alex/OmegaDrakon/data

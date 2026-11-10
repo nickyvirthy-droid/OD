@@ -245,7 +245,44 @@ passou de 1.000 req/s e o gargalo era o backlog.
   ao vivo antes/depois.
 - Sem bump: app segue **1.44.0/2080**.
 
-### 6. Fila
+## §6 — Sonda de latência periódica + check no /health (10/11)
+
+**Pedido do dono:** *"ligue a sonda io_probe ao monitor periódico e registre
+p50/p95 no /health"*.
+
+### 1. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| `tools/monitor/io_probe.py` | `--gravar` (merge atômico por alvo, com `ts`/`iso`), `--rotulo` e `--api-key-file` (lê `OD_API_KEY` do `.env`; o serviço do timer não herda o shell). |
+| `runtime/launcher.py` | `check_latencia` + registro não-crítico `latencia` no `build_health`. |
+| `systemd/od-io-probe.service` / `.timer` | Oneshot com dois `ExecStart`: `/site/` (20 em série + 20 concorrentes) e `/health` (5 amostras, 1,1 s de intervalo — 5 req/5 min, dentro dos 30/min). `OnBootSec=3min`, `OnUnitActiveSec=5min`. |
+| `tests/test_io_monitor.py` | +13 testes. |
+
+### 2. Regras do check (prós e contras)
+
+- **Arquivo ausente = `up`**: instalação nova não degrada antes do primeiro
+  disparo do timer. Contra: mascara um timer que nunca subiu; mitigado pelo
+  fato de que a ausência de `data/io_monitor.json` também aparece no journal.
+- **Idade > 900 s = `degraded`**: pega o timer parado (sinal de que a métrica
+  não vale mais). 900 s = 3 ciclos de 5 min, tolera um disparo atrasado.
+- **Pior p95 > 250 ms = `degraded`**: limite folgado de propósito — o
+  `/health` sem cache oscila (18–46 ms) e a série de `/site/` é ~1 ms; 250 ms
+  só marca regressão de verdade, não ruído.
+- Não-crítico: desempenho não derruba o core, só tinge o status.
+
+### 3. Verificação
+
+- Gate completo: **4241 passed / 16 skipped / 0 falha** (187,32 s).
+- Timer habilitado e ativo; execução manual `success/0`; JSON com os dois
+  alvos (`site` p50 1,04 / p95 1,17 ms; `health` p50 7,88 / p95 32,56 ms).
+- Restart: **MainPID 1096866**, `NRestarts=0`; `/health` **27/27** com
+  `latencia: ok=True up "p50=7.88ms p95=32.56ms alvos=2 idade=222s"`.
+- `data/` está no `.gitignore` — o JSON é estado de máquina, não entra no
+  repositório; as units entram em `systemd/`.
+- Sem bump: app segue **1.44.0/2080**.
+
+### 4. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2
   (OpenTelemetry)** — menor risco e maior visibilidade.

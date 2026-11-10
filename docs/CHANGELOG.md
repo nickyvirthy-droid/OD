@@ -12,6 +12,20 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Sonda de latência periódica e check no /health (F3, 2026-11-10, sem bump)
+
+**Resumo:** a sonda usada nas duas fatias do F3 virou monitor contínuo. O
+timer de usuário roda a cada 5 minutos, grava `data/io_monitor.json` e o
+`/health` passa a expor o p50/p95 medido de fora do processo.
+
+| Peça | Entrega |
+|---|---|
+| **`tools/monitor/io_probe.py`** | `--gravar` (merge atômico por alvo, com `ts`/`iso`), `--rotulo` e `--api-key-file` (lê `OD_API_KEY` do `.env`, que o timer não herda). |
+| **`runtime/launcher.py`** | Check não-crítico `latencia` (`check_latencia`): ausente = up; idade > `OD_IO_MONITOR_MAX_IDADE_S` (900) = degraded; pior p95 > `OD_IO_MONITOR_P95_MS` (250) = degraded. |
+| **`systemd/od-io-probe.service` + `.timer`** | Oneshot com dois `ExecStart` (`/site/` 20+20 amostras; `/health` 5 amostras espaçadas 1,1 s), `OnBootSec=3min`, `OnUnitActiveSec=5min`. Instalados em `~/.config/systemd/user/` e habilitados. |
+| **`tests/test_io_monitor.py`** | +13 (gravação, merge entre alvos, arquivo corrompido, sem `.tmp`; check: ausente/fresco/pior alvo/velho/p95 alto/limite por env/ilegível/sem alvos/registro no `build_health`). |
+| **Verificação** | Gate **4241 passed / 16 skipped / 0 falha** (187,32 s). Ao vivo: check `latencia` = `up` — `p50=7.88ms p95=32.56ms alvos=2 idade=222s`; `/health` 27/27 checks. Sem bump: app segue **1.44.0/2080**. |
+
 ## Fila de listen do servidor em 128 (F3 fatia 2, 2026-11-10, sem bump)
 
 **Resumo:** a varredura de `/site/*`, `/health` e `/auth/login` mostrou que
