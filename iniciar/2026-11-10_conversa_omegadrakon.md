@@ -282,7 +282,54 @@ p50/p95 no /health"*.
   repositório; as units entram em `systemd/`.
 - Sem bump: app segue **1.44.0/2080**.
 
-### 4. Fila
+## §7 — F3 encerrado no TODO (10/11)
+
+**Pedido do dono:** *"feche o F3 no TODO com o resumo das fatias e dos
+descartes medidos"*.
+
+### 1. O que foi alterado em `docs/ANALISE_SISTEMA_TODO.md`
+
+- **Matriz (§2):** a linha do F3 passou a “~~Substituir I/O síncrono por
+  async em todo o core~~ **ENCERRADO (10/11)** com escopo revisado por
+  medição”, com esforço corrigido de Alto → Baixo.
+- **§3:** bloco novo **“F3 — FECHAMENTO”** com as quatro entregas (cache do
+  APK, fila de listen, monitor contínuo, sonda), cada uma com commit e
+  número antes → depois, mais uma tabela dos sete descartes e a medição que
+  derrubou cada um.
+- **§4 Semana 3-4:** checkboxes fechados com a conclusão de cada um, e
+  “connection pools globais” mantido aberto como item **sem demanda medida**
+  (reabre quando existir cliente HTTP de alto volume ou Redis em I1/R1).
+
+### 2. Números do fechamento
+
+| Entrega | Antes → Depois |
+|---|---|
+| Cache do APK (`/app/version`) | p50 174,15 → **0,81 ms**; 20,0 → **182,7 req/s** |
+| Fila de listen 5 → 128 | máx 1.031,64 → **20,16 ms**; 186,4 → **994,8 req/s** |
+| Sonda + check `latencia` | `/health` 26 → **27 checks**, p50/p95 vivos |
+
+### 3. Descartes registrados
+
+`requests`→`aiohttp` (não há `requests` no caminho), `sqlite3`→`aiosqlite`
+(thread-por-requisição, sem ganho), loop compartilhado (~130 µs de custo por
+`asyncio.run`), `subprocess`→`asyncio.subprocess` (só em contexto síncrono ou
+já em `to_thread`), TTL maior no `/health` (18 ms sem cache), afrouxar o
+login (PBKDF2 158,5 ms é deliberado) e `sendfile` no `/site/*` (vazão já em
+~1.000 req/s).
+
+### 4. Herança e gatilho de reabertura
+
+Fica o padrão “medir antes de migrar” e a sonda como régua. O F3 só volta à
+mesa se a API mudar de modelo (ASGI/FastAPI, P5) ou se entrar um cliente HTTP
+de alto volume — hoje não há item async pendente no core.
+
+### 5. Verificação
+
+- Só documentação: RAG revalidado (`tests/test_rag.py` 93 passed), porque
+  `docs/` entra no corpus.
+- Sem bump: app segue **1.44.0/2080**.
+
+### 6. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2
   (OpenTelemetry)** — menor risco e maior visibilidade.

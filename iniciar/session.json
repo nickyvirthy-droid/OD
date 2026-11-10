@@ -1,4 +1,15 @@
 {
+  "f3_encerrado_no_todo_2026_11_10": {
+    "pedido": "Dono: fechar o F3 no TODO com o resumo das fatias e dos descartes medidos.",
+    "feito": "docs/ANALISE_SISTEMA_TODO.md: matriz §2 marca F3 ENCERRADO com escopo revisado (esforço Alto -> Baixo); §3 ganhou bloco 'F3 — FECHAMENTO' com 4 entregas (commit + antes/depois), tabela de 7 descartes com a medição que os derrubou, herança e gatilho de reabertura; §4 Semana 3-4 com checkboxes concluídos e 'connection pools globais' mantido aberto como sem demanda medida.",
+    "numeros": "cache do APK p50 174,15 -> 0,81 ms e 20,0 -> 182,7 req/s; fila de listen 5->128 max 1.031,64 -> 20,16 ms e 186,4 -> 994,8 req/s; sonda+check latencia (/health 26 -> 27 checks).",
+    "descartes": "requests->aiohttp (nao existe no caminho), sqlite3->aiosqlite, loop compartilhado (~130 us por asyncio.run), subprocess->asyncio.subprocess, TTL maior no /health, afrouxar login (PBKDF2 158,5 ms deliberado), sendfile no /site/*.",
+    "reabertura": "So se a API virar ASGI/FastAPI (P5) ou entrar cliente HTTP de alto volume/Redis (I1/R1).",
+    "testes": "somente docs; tests/test_rag.py 93 passed.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§7)",
+    "updated_at": "2026-11-10T15:05:00-03:00"
+  },
   "sonda_latencia_periodica_e_check_health_2026_11_10": {
     "pedido": "Dono: ligar a sonda io_probe ao monitor periódico e registrar p50/p95 no /health.",
     "feito": "io_probe.py ganhou --gravar (merge atômico por alvo com ts/iso), --rotulo e --api-key-file (lê OD_API_KEY do .env). runtime/launcher.py: check não-crítico 'latencia' (check_latencia) no build_health. systemd/od-io-probe.service + .timer (OnBootSec=3min, OnUnitActiveSec=5min, dois ExecStart: /site/ 20+20 amostras e /health 5 amostras a 1,1 s). Units copiadas para ~/.config/systemd/user/ e timer habilitado.",

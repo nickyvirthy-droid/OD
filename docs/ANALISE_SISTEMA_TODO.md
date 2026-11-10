@@ -29,7 +29,7 @@
 |----|------|---------|---------|------------|
 | **F1** | **Migrar orquestrador para grafo de execução (LangGraph-style)** | Alto | 🔥🔥🔥 | LangGraph blog 2024-2025: checkpointing, parallelization, streaming, human-in-the-loop, task queue, tracing nativo |
 | **F2** | **Implementar OpenTelemetry distribuído (traces + metrics + logs correlacionados)** | Médio | 🔥🔥🔥 | python-observability.com, structlog + OTel + BatchSpanProcessor |
-| **F3** | **Substituir I/O síncrono por async em todo o core** | Alto | 🔥🔥 | `aiohttp`, `asyncpg`, `asyncio.to_thread` para bloqueantes |
+| **F3** | ~~Substituir I/O síncrono por async em todo o core~~ **ENCERRADO (10/11)** com escopo revisado por medição: o problema real era trabalho de CPU no handler e backlog de socket — ver §3 | Alto → Baixo | 🔥🔥 | `aiohttp`, `asyncpg`, `asyncio.to_thread` para bloqueantes |
 | **F4** | **Memory Layer estruturada (Mem0/Zep-style: grafo temporal + consolidação)** | Alto | 🔥🔥🔥 | Mem0 (arXiv 2504.19413), Zep (arXiv 2501.13956), LOCOMO/LongMemEval |
 
 ### 🟡 ALTO — Inteligência & Performance
@@ -204,6 +204,36 @@ logger = structlog.get_logger()
 > Nenhum dos três precisa de `async`: a API é thread-por-requisição e o custo
 > real estava em configuração de socket e em trabalho de CPU no handler.
 
+#### F3 — FECHAMENTO (2026-11-10)
+
+**Status: encerrado.** O item foi executado como auditoria medida, não como
+migração em massa, porque o diagnóstico original não sobreviveu à medição.
+Entregas e seus números:
+
+| # | Entrega | Antes → Depois (medido) | Commit |
+|---|---|---|---|
+| 1 | Cache de metadados do APK em `GET /app/version` (invalida por mtime+tamanho) | p50 **174,15 → 0,81 ms**; p95 183,19 → 1,01 ms; **20,0 → 182,7 req/s** (215× e 9×) | `8f6dae3` |
+| 2 | `APIServer.request_queue_size` 5 → 128 (backlog de listen) | máx **1.031,64 → 20,16 ms**; **186,4 → 994,8 req/s** (5,3×); 400/32: 1.127 req/s | `4b39d65` |
+| 3 | Sonda `io_probe` virou monitor periódico (timer 5 min) + check não-crítico `latencia` no `/health` | `/health` passou de 26 para **27 checks**, com p50/p95 ao vivo (`p50=8,03ms p95=44,58ms alvos=2 idade=134s`) | `0006eff` |
+| 4 | Régua reutilizável `tools/monitor/io_probe.py` (série, concorrência, custo de `asyncio.run()`) | — | `8f6dae3`/`0006eff` |
+
+**Descartes, com o número que os justificou:**
+
+| Proposta original | Medição que a derrubou |
+|---|---|
+| `requests` → `aiohttp` em `auto_update`/`downloads`/`notifier` | Não há `requests` nesses módulos: `downloads` usa `urllib` em worker próprio, `notifier` já usa `asyncio.to_thread`, `auto_update` já é `asyncio`. |
+| `sqlite3` → `aiosqlite` | SQLite é síncrono em thread de request/worker; não há loop compartilhado para bloquear. `aiosqlite` é só uma thread por baixo — custo sem ganho. |
+| Loop compartilhado para a API | `asyncio.run()` novo custa **~130 µs**; tirar isso economizaria ruído e exigiria refatorar todos os handlers. |
+| `subprocess.run` → `asyncio.subprocess` | Só rodam em contexto síncrono (timer/CLI) ou já em `to_thread`. |
+| `/health` com TTL maior | Sem cache: **18,08 ms** para 26 checks; o TTL de 8 s já cobre os chips do painel. Ganho não paga a perda de frescor. |
+| Afrouxar o login | **158,5 ms** de PBKDF2-SHA256 (260k iterações) é custo deliberado contra força-bruta, atrás do limiter de 30 req/min. |
+| `sendfile`/async no `/site/*` | Vazão já em ~1.000 req/s após a fila de listen; o gargalo era o backlog, não o envio. |
+
+**O que fica de herança:** a sonda como régua para qualquer mudança de
+performance e o padrão "medir antes de migrar". Se um dia a API virar
+ASGI/loop compartilhado (P5/React ou FastAPI), aí sim o pacote `async`
+inteiro passa a fazer sentido — hoje não há item async pendente no core.
+
 **Problemas originais (histórico):** `requests` bloqueante em `auto_update.py`, `downloads.py`, `integrations/notifier.py`; `subprocess.run` síncrono; `sqlite3` síncrono.
 
 **Migração:**
@@ -319,10 +349,16 @@ class MemoryGraph:
 - [ ] Dashboards Grafana (Tempo traces, Loki logs, Prometheus metrics)
 - [ ] Alertas: p95 latency, error rate, cache hit rate, disk/memory
 
-### Semana 3-4: Async I/O + Connection Pooling
-- [ ] F3: Migrar `requests` → `aiohttp` em `auto_update`, `downloads`, `notifier`
-- [ ] F3: `sqlite3` → `aiosqlite`, `subprocess` → `asyncio.subprocess`
-- [ ] Connection pools globais (HTTP, DB, Redis)
+### Semana 3-4: Async I/O + Connection Pooling — **F3 ENCERRADO em 10/11**
+- [x] F3: `requests` → `aiohttp` — **não aplicável**: não há `requests` nesses
+      módulos (ver §3); substituído por auditoria medida
+- [x] F3: `sqlite3` → `aiosqlite`, `subprocess` → `asyncio.subprocess` — **descartado**
+      com medição (thread-por-requisição; `to_thread` onde já é async)
+- [x] F3: ganhos reais encontrados e medidos: cache do APK em `/app/version`
+      (215× no p50) e `request_queue_size` 5→128 (máx 1,03 s → 20 ms)
+- [x] F3: monitor contínuo de p50/p95 (timer 5 min + check `latencia` no `/health`)
+- [ ] Connection pools globais (HTTP, DB, Redis) — **sem demanda medida**;
+      reabrir quando existir cliente HTTP de alto volume ou Redis (I1/R1)
 
 ### Semana 5-6: Memory Layer (Fase 1)
 - [ ] F4: `core/memory_layer.py` com MemoryGraph (SQLite + embeddings)
