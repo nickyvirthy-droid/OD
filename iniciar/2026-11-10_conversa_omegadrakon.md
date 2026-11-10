@@ -801,3 +801,67 @@ para o loop atual.
   como nós terminais, cache como nó condicional), usar `thread_id` estável por
   sessão e retomar do último checkpoint após restart do `od-core`.
 - Depois: fan-out real das actions no `execute_parallel` e resumo pós-falha.
+
+---
+
+## §18 — F1 fase 3: pipeline completo no grafo (etapas 1–4 e 8)
+
+**Pedido do dono:** levar as etapas 1 a 4 e 8 do `process()` para o grafo como
+nós terminais/condicionais.
+
+### 1. O que entrou
+
+| Peça | Entrega |
+|---|---|
+| Etapas 1–4 | `_etapa_rate_limit`, `_etapa_datetime`, `_etapa_quick`, `_etapa_infra`, `_etapa_intents` e `_etapa_cache`: corpo original movido do `process()`, com o `OrchestrationResult` local e retorno em dict (`terminal`, `route`, `message`, `registrar`). |
+| Etapa 8 | `_etapa_post_processo`: grava cache + histórico só para rota de LLM bem-sucedida e com `persist`. |
+| Grafo | `_executar_grafo` monta os 8 nós (`rate_limit → datetime → quick → infra_guard → intents → cache → generate → post_process`) com rota condicional `terminal ? END : próximo`; `recursion_limit` 50 e checkpoint por passo. |
+| Direto | `_executar_direto` chama **os mesmos métodos**, em sequência; `_executar_pipeline` escolhe grafo ou direto e cai no direto em qualquer exceção. |
+| Finalização | `_finalizar_estado` centraliza rota/mensagem/llm/prompt/erro/cache e o `_record_terminal` das rotas sem LLM — antes espalhado por seis pontos de retorno. |
+
+### 2. Medição
+
+- 30 mensagens com provider stub: direto p50 **0,22 ms**; grafo p50 **1,40 ms**
+  → **+1,17 ms** (9 checkpoints WAL). A primeira mensagem paga ~16 ms de
+  abertura do banco.
+- Rota terminal para cedo custa menos: datetime grava 3 checkpoints
+  (inicial + rate_limit + datetime) e não chega ao LLM.
+
+### 3. Prós e contras
+
+- **Uma implementação só:** grafo e fallback chamam os mesmos métodos de
+  etapa; não existe cópia da regra de negócio para divergir. Contra: cada etapa
+  agora cria um `OrchestrationResult` local e devolve dict, então o fluxo é
+  menos direto de ler que o `process()` linear.
+- **Terminais como `END`:** qualquer etapa pode encerrar o grafo sem `if`
+  aninhado no chamador; contra: `terminal` é um campo de estado que precisa ser
+  limpo/entendido por quem adicionar um nó novo (o gerador devolve `False`
+  justamente para seguir à etapa 8).
+- **Etapa 8 como nó:** o pós-processamento aparece no checkpoint e no fluxo
+  como qualquer outra etapa; contra: `pos_processado` é só auditoria —
+  `_post_process` continua engolindo falha de cache/histórico por desenho.
+- **Fallback recomputa o pipeline:** se o grafo falhar no meio, o direto roda
+  tudo de novo. Não há resposta duplicada (o `_record_terminal` só acontece na
+  finalização), mas métricas de etapas já executadas podem contar duas vezes.
+- **9 checkpoints por mensagem:** auditoria completa de onde a mensagem parou;
+  contra: ~2 KB por mensagem e +1,17 ms — aceitável e desligável com a flag.
+
+### 4. Verificação
+
+- `tests/test_orchestrator_graph_integration.py`: **+4** (datetime para cedo
+  com 3 checkpoints, cache sem chamar LLM, anônimo sem gravar nada, direto e
+  grafo concordando em rota/resposta) e o fluxo LLM passou a exigir 9
+  checkpoints.
+- Gate completo: **4368 passed / 16 skipped / 0 falha** (194,83 s; eram
+  4364/16).
+- Prova viva: `od-core` reiniciado (MainPID **1342914**), `POST /message` real
+  roteou `llm/gemma-local` e a thread `alex:prova-f1-fase3:cb671519…` ficou com
+  **9 passos** (último = 8); `/health` **up, 27/27**.
+- Sem bump: app segue **1.44.0/2080**.
+
+### 5. Fila
+
+- **F1 fase 4:** `thread_id` estável por sessão (hoje é por mensagem) e
+  retomada automática do último checkpoint após restart do `od-core` — o
+  grafo já grava o estado e os próximos nós, falta o consumidor.
+- Depois: fan-out real das actions no `execute_parallel` e resumo pós-falha.

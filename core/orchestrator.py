@@ -1274,12 +1274,56 @@ class Orchestrator:
             text=text,
         )
 
+        # Pipeline completo: etapas 1–4 e 8 como nós terminais/condicionais
+        # quando OD_ORCHESTRATOR_GRAPH=1; sem a flag, o mesmo encadeamento é
+        # executado direto (fallback também cai aqui).
+        estado = await self._executar_pipeline(
+            user_id=user_id,
+            profile=profile,
+            text=text,
+            system_prompt=system_prompt,
+            session_id=session_id,
+            role=role,
+            persist=persist,
+            extra_history=extra_history,
+        )
+        return await self._finalizar_estado(result, estado, text, persist, started)
+
+    @staticmethod
+    def _estado_terminal(
+        result: OrchestrationResult,
+        *,
+        registrar: Optional[bool] = None,
+    ) -> dict[str, Any]:
+        """Snapshot de uma rota terminal — o que o grafo e o direto devolvem."""
+        return {
+            "terminal": True,
+            "route": result.route,
+            "message": result.message,
+            "llm_used": result.llm_used,
+            "cached": result.cached,
+            "fallback_used": result.fallback_used,
+            "prompt": result.prompt,
+            "error": result.error,
+            "registrar": registrar,
+        }
+
+    async def _etapa_rate_limit(self, *, user_id: str, profile: str, text: str) -> dict[str, Any]:
+        """Etapa 1: janela deslizante. Vazio = segue o pipeline."""
+        result = OrchestrationResult(user_id=user_id, profile=profile, text=text)
+
         # Etapa 1 — Rate limit (janela deslizante por usuário)
         if not self._limiter.allow(user_id):
             result.route = ROUTE_RATE_LIMITED
             result.message = RATE_LIMITED_MESSAGE
             self._metrics.rate_limited += 1
-            return await self._finish(result, started)
+            return self._estado_terminal(result, registrar=None)
+
+        return {}
+
+    async def _etapa_datetime(self, *, user_id: str, profile: str, text: str, persist: bool) -> dict[str, Any]:
+        """Etapa 2: data/hora em PT-BR, sem LLM."""
+        result = OrchestrationResult(user_id=user_id, profile=profile, text=text)
 
         # Etapa 2 — Datetime (resposta direta PT-BR, sem LLM)
         if self._config.inject_datetime:
@@ -1288,8 +1332,13 @@ class Orchestrator:
                 result.route = ROUTE_DATETIME
                 result.message = answer
                 self._metrics.datetime += 1
-                await self._record_terminal(result, text, persist=persist)
-                return await self._finish(result, started)
+                return self._estado_terminal(result, registrar=persist)
+
+        return {}
+
+    async def _etapa_quick(self, *, user_id: str, profile: str, text: str, persist: bool) -> dict[str, Any]:
+        """Etapa 3: respostas rápidas do AIML legado."""
+        result = OrchestrationResult(user_id=user_id, profile=profile, text=text)
 
         # Etapa 3 — Quick responses (AIML legado)
         if self.quick is not None:
@@ -1298,8 +1347,13 @@ class Orchestrator:
                 result.route = ROUTE_QUICK
                 result.message = quick_answer
                 self._metrics.quick += 1
-                await self._record_terminal(result, text, persist=persist)
-                return await self._finish(result, started)
+                return self._estado_terminal(result, registrar=persist)
+
+        return {}
+
+    async def _etapa_infra(self, *, user_id: str, profile: str, text: str, role: str, persist: bool) -> dict[str, Any]:
+        """Etapa 3.4: negação determinística de infraestrutura para não-admin."""
+        result = OrchestrationResult(user_id=user_id, profile=profile, text=text)
 
         # Etapa 3.4 — GUARDA de infraestrutura: IP/portas/topologia são do
         # dono. Para user/anônimo é NEGAÇÃO determinística, sem LLM (o gemma
@@ -1311,8 +1365,13 @@ class Orchestrator:
                 self._metrics.infra_denied += 1
                 result.route = ROUTE_INTENT
                 result.message = INFRA_DENIED_MESSAGE
-                await self._record_terminal(result, text, persist=persist)
-                return await self._finish(result, started)
+                return self._estado_terminal(result, registrar=persist)
+
+        return {}
+
+    async def _etapa_intents(self, *, user_id: str, profile: str, text: str, role: str, persist: bool) -> dict[str, Any]:
+        """Etapa 3.5: fast path de intenções/actions sem LLM."""
+        result = OrchestrationResult(user_id=user_id, profile=profile, text=text)
 
         # Etapa 3.5 — Fast path de intenções (v0.27.5): respostas
         # operacionais sem LLM (matemática básica + actions de leitura),
@@ -1342,13 +1401,11 @@ class Orchestrator:
                 result.message = await self._segredo_do_cofre(
                     text, user_id, role
                 )
-                await self._record_terminal(result, text, persist=False)
-                return await self._finish(result, started)
+                return self._estado_terminal(result, registrar=False)
             self._metrics.infra_denied += 1
             result.route = ROUTE_INTENT
             result.message = SECRETS_DENIED_MESSAGE
-            await self._record_terminal(result, text, persist=persist)
-            return await self._finish(result, started)
+            return self._estado_terminal(result, registrar=persist)
         if (
             self._config.enable_action_intents
             and self._action_registry is not None
@@ -1472,8 +1529,13 @@ class Orchestrator:
                 result.message = answer
                 result.llm_used = f"fastpath:{route_detail}"
                 self._metrics.intents += 1
-                await self._record_terminal(result, text, persist=persist)
-                return await self._finish(result, started)
+                return self._estado_terminal(result, registrar=persist)
+
+        return {}
+
+    async def _etapa_cache(self, *, user_id: str, profile: str, text: str, persist: bool) -> dict[str, Any]:
+        """Etapa 4: cache LLM (nunca para conversa anônima)."""
+        result = OrchestrationResult(user_id=user_id, profile=profile, text=text)
 
         # Etapa 4 — Cache LLM (SHA-256, prompt normalizado + perfil).
         # `persist=False` (conversa anônima) NÃO usa o cache: ele vive no
@@ -1485,47 +1547,11 @@ class Orchestrator:
                 result.message = cached
                 result.cached = True
                 self._metrics.cache_hits += 1
-                await self._record_terminal(result, text, persist=persist)
-                return await self._finish(result, started)
+                return self._estado_terminal(result, registrar=persist)
 
-        # Etapas 4.5–6.7 — RAG, prompt, LLM e guardas. Com
-        # OD_ORCHESTRATOR_GRAPH=1 essa fatia roda como grafo (checkpoint por
-        # passo); qualquer falha do grafo cai no caminho direto, que segue
-        # sendo o padrão.
-        message, llm_used, fallback_used, prompt = await self._resposta_llm(
-            user_id=user_id,
-            profile=profile,
-            text=text,
-            system_prompt=system_prompt,
-            role=role,
-            session_id=session_id,
-            extra_history=extra_history,
-        )
-        if message is None:
-            result.route = ROUTE_UNAVAILABLE
-            result.message = self._config.unavailable_message
-            result.error = DEFAULT_UNAVAILABLE_ERROR
-            result.prompt = prompt
-            self._metrics.unavailable += 1
-            return await self._finish(result, started)
+        return {}
 
-        result.route = ROUTE_FALLBACK if fallback_used else ROUTE_LLM
-        result.message = message
-        result.llm_used = llm_used
-        result.fallback_used = fallback_used
-        result.prompt = prompt
-        if fallback_used:
-            self._metrics.fallback += 1
-        else:
-            self._metrics.llm += 1
-
-        # Etapa 8 — Pós-processamento: persiste cache + histórico
-        # (a conversa anônima não grava nada — "nada no banco").
-        if persist:
-            await self._post_process(user_id, profile, text, message, llm_used)
-        return await self._finish(result, started)
-
-    async def _resposta_llm(
+    async def _etapa_llm(
         self,
         *,
         user_id: str,
@@ -1533,35 +1559,10 @@ class Orchestrator:
         text: str,
         system_prompt: str,
         role: str,
-        session_id: str = "",
         extra_history: Optional[list[dict[str, str]]] = None,
-    ) -> tuple[Optional[str], str, bool, str]:
-        """Gera a resposta com o grafo (se ligado) ou com o caminho direto.
-
-        O grafo é opt-in (`OD_ORCHESTRATOR_GRAPH=1`) e experimental: ele roda
-        as MESMAS etapas 4.5–6.7, só que como nós com checkpoint. Qualquer
-        exceção nele — flag mal configurada, SQLite indisponível, nó com bug —
-        cai no caminho direto, que é o comportamento histórico.
-        """
-        from core.orchestrator_graph import habilitado_por_env
-
-        if habilitado_por_env():
-            try:
-                return await self._resposta_llm_grafo(
-                    user_id=user_id,
-                    profile=profile,
-                    text=text,
-                    system_prompt=system_prompt,
-                    role=role,
-                    session_id=session_id,
-                    extra_history=extra_history,
-                )
-            except Exception as exc:
-                log.warn(
-                    "Grafo do orquestrador falhou — usando o caminho direto",
-                    motivo=f"{type(exc).__name__}: {exc}",
-                )
-        return await self._gerar_com_contexto(
+    ) -> dict[str, Any]:
+        """Etapas 4.5–6.7: contexto, RAG, prompt, LLM e guardas."""
+        message, llm_used, fallback_used, prompt = await self._gerar_com_contexto(
             user_id=user_id,
             profile=profile,
             text=text,
@@ -1569,6 +1570,287 @@ class Orchestrator:
             role=role,
             extra_history=extra_history,
         )
+        if message is None:
+            self._metrics.unavailable += 1
+            return {
+                "terminal": True,
+                "route": ROUTE_UNAVAILABLE,
+                "message": self._config.unavailable_message,
+                "error": DEFAULT_UNAVAILABLE_ERROR,
+                "prompt": prompt,
+                "registrar": None,
+            }
+        if fallback_used:
+            self._metrics.fallback += 1
+        else:
+            self._metrics.llm += 1
+        return {
+            # Não é terminal: ainda passa pelo nó de pós-processamento.
+            "terminal": False,
+            "route": ROUTE_FALLBACK if fallback_used else ROUTE_LLM,
+            "message": message,
+            "llm_used": llm_used,
+            "fallback_used": fallback_used,
+            "prompt": prompt,
+        }
+
+    async def _etapa_post_processo(
+        self,
+        *,
+        user_id: str,
+        profile: str,
+        text: str,
+        persist: bool,
+        estado: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Etapa 8: cache + histórico, só para resposta de LLM bem-sucedida."""
+        if persist and estado.get("route") in (ROUTE_LLM, ROUTE_FALLBACK):
+            await self._post_process(
+                user_id,
+                profile,
+                text,
+                str(estado.get("message") or ""),
+                str(estado.get("llm_used") or ""),
+            )
+        return {"pos_processado": True}
+
+    async def _executar_direto(
+        self,
+        *,
+        user_id: str,
+        profile: str,
+        text: str,
+        system_prompt: str,
+        session_id: str,
+        role: str,
+        persist: bool,
+        extra_history: Optional[list[dict[str, str]]] = None,
+    ) -> dict[str, Any]:
+        """Encadeamento linear (fallback e flag desligada), etapa por etapa."""
+        # Fábricas, não corrotinas: etapa terminal não deve deixar as
+        # seguintes criadas sem await (RuntimeWarning de coroutine órfã).
+        etapas = (
+            lambda: self._etapa_rate_limit(
+                user_id=user_id, profile=profile, text=text
+            ),
+            lambda: self._etapa_datetime(
+                user_id=user_id, profile=profile, text=text, persist=persist
+            ),
+            lambda: self._etapa_quick(
+                user_id=user_id, profile=profile, text=text, persist=persist
+            ),
+            lambda: self._etapa_infra(
+                user_id=user_id, profile=profile, text=text, role=role, persist=persist
+            ),
+            lambda: self._etapa_intents(
+                user_id=user_id, profile=profile, text=text, role=role, persist=persist
+            ),
+            lambda: self._etapa_cache(
+                user_id=user_id, profile=profile, text=text, persist=persist
+            ),
+        )
+        for etapa in etapas:
+            estado = await etapa()
+            if estado:
+                return estado
+
+        estado = await self._etapa_llm(
+            user_id=user_id,
+            profile=profile,
+            text=text,
+            system_prompt=system_prompt,
+            role=role,
+            extra_history=extra_history,
+        )
+        if estado.get("terminal"):
+            return estado
+        await self._etapa_post_processo(
+            user_id=user_id,
+            profile=profile,
+            text=text,
+            persist=persist,
+            estado=estado,
+        )
+        return estado
+
+    async def _executar_grafo(
+        self,
+        *,
+        user_id: str,
+        profile: str,
+        text: str,
+        system_prompt: str,
+        session_id: str,
+        role: str,
+        persist: bool,
+        extra_history: Optional[list[dict[str, str]]] = None,
+    ) -> dict[str, Any]:
+        """Pipeline inteiro como grafo: terminais viram END, LLM segue p/ etapa 8."""
+        from core.orchestrator_graph import (
+            END,
+            REDUTORES,
+            START,
+            OrchestratorState,
+            StateGraph,
+        )
+
+        async def no_rate(estado: dict[str, Any]) -> dict[str, Any]:
+            return await self._etapa_rate_limit(
+                user_id=user_id, profile=profile, text=text
+            )
+
+        async def no_datetime(estado: dict[str, Any]) -> dict[str, Any]:
+            return await self._etapa_datetime(
+                user_id=user_id, profile=profile, text=text, persist=persist
+            )
+
+        async def no_quick(estado: dict[str, Any]) -> dict[str, Any]:
+            return await self._etapa_quick(
+                user_id=user_id, profile=profile, text=text, persist=persist
+            )
+
+        async def no_infra(estado: dict[str, Any]) -> dict[str, Any]:
+            return await self._etapa_infra(
+                user_id=user_id, profile=profile, text=text, role=role, persist=persist
+            )
+
+        async def no_intents(estado: dict[str, Any]) -> dict[str, Any]:
+            return await self._etapa_intents(
+                user_id=user_id, profile=profile, text=text, role=role, persist=persist
+            )
+
+        async def no_cache(estado: dict[str, Any]) -> dict[str, Any]:
+            return await self._etapa_cache(
+                user_id=user_id, profile=profile, text=text, persist=persist
+            )
+
+        async def no_llm(estado: dict[str, Any]) -> dict[str, Any]:
+            return await self._etapa_llm(
+                user_id=user_id,
+                profile=profile,
+                text=text,
+                system_prompt=system_prompt,
+                role=role,
+                extra_history=extra_history,
+            )
+
+        async def no_post(estado: dict[str, Any]) -> dict[str, Any]:
+            return await self._etapa_post_processo(
+                user_id=user_id,
+                profile=profile,
+                text=text,
+                persist=persist,
+                estado=estado,
+            )
+
+        def rota(proximo: str):
+            def _rota(estado: dict[str, Any]) -> str:
+                return END if estado.get("terminal") else proximo
+
+            return _rota
+
+        builder = StateGraph(OrchestratorState, reducers=REDUTORES)
+        for nome, fn in (
+            ("rate_limit", no_rate),
+            ("datetime", no_datetime),
+            ("quick", no_quick),
+            ("infra_guard", no_infra),
+            ("intents", no_intents),
+            ("cache", no_cache),
+            ("generate", no_llm),
+            ("post_process", no_post),
+        ):
+            builder.add_node(nome, fn)
+        builder.add_edge(START, "rate_limit")
+        builder.add_conditional_edges("rate_limit", rota("datetime"))
+        builder.add_conditional_edges("datetime", rota("quick"))
+        builder.add_conditional_edges("quick", rota("infra_guard"))
+        builder.add_conditional_edges("infra_guard", rota("intents"))
+        builder.add_conditional_edges("intents", rota("cache"))
+        builder.add_conditional_edges("cache", rota("generate"))
+        builder.add_conditional_edges("generate", rota("post_process"))
+        builder.add_edge("post_process", END)
+
+        grafo = builder.compile(checkpointer=self._obter_graph_saver())
+        thread_id = f"{user_id}:{session_id or 'sem-sessao'}:{uuid.uuid4().hex}"
+        return await grafo.ainvoke(
+            {
+                "user_id": user_id,
+                "profile": profile,
+                "session_id": session_id,
+                "role": role,
+                "text": text,
+                "messages": [{"role": "user", "content": text}],
+            },
+            {
+                "configurable": {"thread_id": thread_id},
+                "recursion_limit": 50,
+            },
+        )
+
+    async def _executar_pipeline(
+        self,
+        *,
+        user_id: str,
+        profile: str,
+        text: str,
+        system_prompt: str,
+        session_id: str,
+        role: str,
+        persist: bool,
+        extra_history: Optional[list[dict[str, str]]] = None,
+    ) -> dict[str, Any]:
+        """Grafo se ligado; fallback imediato para o encadeamento direto."""
+        from core.orchestrator_graph import habilitado_por_env
+
+        if habilitado_por_env():
+            try:
+                return await self._executar_grafo(
+                    user_id=user_id,
+                    profile=profile,
+                    text=text,
+                    system_prompt=system_prompt,
+                    session_id=session_id,
+                    role=role,
+                    persist=persist,
+                    extra_history=extra_history,
+                )
+            except Exception as exc:
+                log.warn(
+                    "Grafo do orquestrador falhou — usando o pipeline direto",
+                    motivo=f"{type(exc).__name__}: {exc}",
+                )
+        return await self._executar_direto(
+            user_id=user_id,
+            profile=profile,
+            text=text,
+            system_prompt=system_prompt,
+            session_id=session_id,
+            role=role,
+            persist=persist,
+            extra_history=extra_history,
+        )
+
+    async def _finalizar_estado(
+        self,
+        result: OrchestrationResult,
+        estado: dict[str, Any],
+        text: str,
+        persist: bool,
+        started: float,
+    ) -> OrchestrationResult:
+        """Monta o resultado a partir do estado e registra rota terminal."""
+        result.route = str(estado.get("route") or "")
+        result.message = str(estado.get("message") or "")
+        result.llm_used = str(estado.get("llm_used") or "")
+        result.cached = bool(estado.get("cached"))
+        result.fallback_used = bool(estado.get("fallback_used"))
+        result.prompt = str(estado.get("prompt") or "")
+        result.error = str(estado.get("error") or "")
+        registrar = estado.get("registrar")
+        if registrar is not None:
+            await self._record_terminal(result, text, persist=bool(registrar))
+        return await self._finish(result, started)
 
     async def _gerar_com_contexto(
         self,
@@ -1641,80 +1923,6 @@ class Orchestrator:
             )
             message = FAKE_ACTION_MESSAGE
         return message, llm_used, fallback_used, prompt
-
-    async def _resposta_llm_grafo(
-        self,
-        *,
-        user_id: str,
-        profile: str,
-        text: str,
-        system_prompt: str,
-        role: str,
-        session_id: str = "",
-        extra_history: Optional[list[dict[str, str]]] = None,
-    ) -> tuple[Optional[str], str, bool, str]:
-        """Fatia 4.5–6.7 como grafo: classify → generate → human_loop."""
-        from core.orchestrator_graph import construir_grafo
-
-        async def classificar(estado: dict[str, Any]) -> str:
-            # Fast path de actions já respondeu antes da etapa 4; aqui só
-            # sobra conversa, então o grafo não abre fan-out de ferramentas.
-            return "chat"
-
-        async def selecionar(estado: dict[str, Any]) -> list[str]:
-            return []
-
-        async def executar(ferramenta: str, estado: dict[str, Any]) -> Any:
-            return None
-
-        async def gerar(estado: dict[str, Any]) -> dict[str, Any]:
-            message, llm_used, fallback_used, prompt = (
-                await self._gerar_com_contexto(
-                    user_id=user_id,
-                    profile=profile,
-                    text=text,
-                    system_prompt=system_prompt,
-                    role=role,
-                    extra_history=extra_history,
-                )
-            )
-            return {
-                "response": message,
-                "llm_used": llm_used,
-                "fallback_used": fallback_used,
-                "prompt": prompt,
-            }
-
-        grafo = construir_grafo(
-            classificar=classificar,
-            selecionar=selecionar,
-            executar=executar,
-            gerar=gerar,
-            checkpointer=self._obter_graph_saver(),
-        )
-        # Thread por mensagem: sem isso, duas mensagens da mesma sessão
-        # sobrescreveriam os passos uma da outra no SQLite.
-        thread_id = f"{user_id}:{session_id or 'sem-sessao'}:{uuid.uuid4().hex}"
-        final = await grafo.ainvoke(
-            {
-                "user_id": user_id,
-                "profile": profile,
-                "session_id": session_id,
-                "role": role,
-                "text": text,
-                "messages": [{"role": "user", "content": text}],
-            },
-            {
-                "configurable": {"thread_id": thread_id},
-                "recursion_limit": 50,
-            },
-        )
-        return (
-            final.get("response"),
-            str(final.get("llm_used") or ""),
-            bool(final.get("fallback_used")),
-            str(final.get("prompt") or ""),
-        )
 
     def _obter_graph_saver(self) -> Any:
         """SqliteSaver preguiçoso — abrir banco no boot é desperdício."""

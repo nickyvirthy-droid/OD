@@ -117,6 +117,14 @@ class OrchestratorState(TypedDict, total=False):
     pending_human_input: Optional[dict[str, Any]]
     human_decision: Optional[str]
     error: str
+    # Pipeline completo (F1 fase 3): rotas terminais e pós-processamento.
+    terminal: bool
+    registrar: Optional[bool]
+    cached: bool
+    fallback_used: bool
+    llm_used: str
+    prompt: str
+    pos_processado: bool
 
 
 REDUTORES: dict[str, Callable[[Any, Any], Any]] = {

@@ -1,4 +1,15 @@
 {
+  "f1_fase3_pipeline_completo_no_grafo_2026_11_10": {
+    "pedido": "Dono: levar as etapas 1 a 4 e 8 do process() para o grafo como nos terminais/condicionais.",
+    "feito": "core/orchestrator.py: etapas 1-4 extraidas do process() para _etapa_rate_limit, _etapa_datetime, _etapa_quick, _etapa_infra, _etapa_intents e _etapa_cache (corpo original, OrchestrationResult local, retorno em dict com terminal/route/message/registrar); etapa 8 em _etapa_post_processo (cache+historico so para rota LLM e persist). _executar_grafo monta os 8 nos com rota terminal ? END : proximo, recursion_limit 50 e checkpointer; _executar_direto usa os MESMOS metodos em sequencia; _executar_pipeline escolhe e cai no direto em excecao; _finalizar_estado centraliza a montagem do resultado e o _record_terminal das rotas sem LLM. core/orchestrator_graph.py: OrchestratorState ganhou terminal, registrar, cached, fallback_used, llm_used, prompt e pos_processado.",
+    "medicao": "30 mensagens com provider stub: direto p50 0,22 ms; grafo p50 1,40 ms (+1,17 ms) com 9 checkpoints WAL; primeira mensagem paga ~16 ms de abertura do banco. Rota datetime grava 3 checkpoints e nao chega ao LLM.",
+    "testes": "tests/test_orchestrator_graph_integration.py +4 (datetime para cedo com 3 checkpoints, cache sem chamar LLM, anonimo persist=False sem gravar, direto e grafo concordam em rota/resposta) e fluxo LLM passou a exigir 9 checkpoints. Gate completo 4368 passed / 16 skipped / 0 falha (194,83 s; eram 4364/16).",
+    "trade_off": "Uma unica implementacao das etapas (grafo e fallback chamam os mesmos metodos), ao custo de cada etapa criar um OrchestrationResult local e devolver dict, o que deixa o fluxo menos linear de ler. Terminais como END simplificam o encadeamento, mas exigem que todo no novo entenda o campo terminal (o gerador devolve False para seguir a etapa 8). Se o grafo falhar no meio, o fallback recomputa o pipeline: nao duplica resposta, mas metricas de etapas ja executadas podem contar duas vezes. 9 checkpoints por mensagem custam ~2 KB e +1,17 ms.",
+    "prova": "od-core reiniciado (MainPID 1342914); POST /message real roteou llm/gemma-local e gravou 9 passos na thread alex:prova-f1-fase3:cb671519f1434b40ab92b8814bf8dec1 (ultimo passo 8); /health up 27/27.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§18)",
+    "updated_at": "2026-11-10T17:25:47-03:00"
+  },
   "f1_fase2_grafo_no_process_2026_11_10": {
     "pedido": "Dono: ligar o grafo ao process() atras de OD_ORCHESTRATOR_GRAPH=1 com fallback para o loop atual.",
     "feito": "core/orchestrator.py: etapas 4.5-6.7 (contexto/RAG/prompt/LLM/anti-recusa/anti-falso-sucesso) extraidas de process() para _gerar_com_contexto (mesmo codigo para grafo e fallback); _resposta_llm le OD_ORCHESTRATOR_GRAPH e tenta _resposta_llm_grafo, caindo no caminho direto em qualquer excecao (log.warn); _resposta_llm_grafo monta classify -> generate -> human_loop com thread_id por mensagem (usuario:sessao:uuid) e recursion_limit 50; _obter_graph_saver abre SqliteSaver sob demanda em OD_GRAPH_CHECKPOINT_DB (padrao data/checkpoints.db). core/orchestrator_graph.py: habilitado_por_env() e SqliteSaver com WAL + synchronous=NORMAL. .env de producao recebeu OD_ORCHESTRATOR_GRAPH=1 (0 desliga, fora do git). Etapas 1-4 e 8 continuam lineares (fase 3).",
@@ -1566,7 +1577,7 @@
     "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
     "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
   },
-  "updated_at": "2026-11-10T17:02:37-03:00",
+  "updated_at": "2026-11-10T17:25:47-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {

@@ -560,8 +560,11 @@ esperar o timeout.
 - [x] F1 fase 2: fatia 4.5–6.7 do `process()` (RAG, prompt, LLM, anti-recusa,
       anti-falso-sucesso) roda no grafo com `{"recursion_limit": 50}` atrás de
       `OD_ORCHESTRATOR_GRAPH=1`; falha do grafo cai no caminho direto
-- [ ] F1 fase 3: levar etapas 1–4 e 8 (rate limit, datetime, quick, cache,
-      histórico) para o grafo e usar retomada pós-restart pelo `thread_id`
+- [x] F1 fase 3: pipeline completo no grafo — etapas 1–4 (rate limit,
+      datetime, quick, infra, intenções, cache) como nós terminais e etapa 8
+      (cache + histórico) como nó final, comuns ao caminho direto
+- [ ] F1 fase 4: `thread_id` estável por sessão e retomada automática do
+      último checkpoint após restart do `od-core`
 
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)

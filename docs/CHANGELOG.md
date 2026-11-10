@@ -12,6 +12,22 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Orquestrador em grafo, fase 3: pipeline completo (F1, 2026-11-10, sem bump)
+
+**Resumo:** só a fatia de LLM era grafo; rate limit, datetime, quick, infra,
+intenções, cache e pós-processamento continuavam inline. Agora o `process()`
+inteiro é oito nós, com terminais virando `END` e a etapa 8 como nó final — e o
+caminho direto chama os MESMOS métodos, então não há duas implementações.
+
+| Peça | Entrega |
+|---|---|
+| **`core/orchestrator.py`** | Etapas extraídas para `_etapa_rate_limit`, `_etapa_datetime`, `_etapa_quick`, `_etapa_infra`, `_etapa_intents`, `_etapa_cache`, `_etapa_llm` e `_etapa_post_processo` (corpo original preservado; retorno terminal vira dict). `_executar_grafo` encadeia os 8 nós com rotas condicionais; `_executar_direto` é o fallback linear; `_executar_pipeline` escolhe; `_finalizar_estado` monta o `OrchestrationResult` e registra rotas terminais. |
+| **`core/orchestrator_graph.py`** | `OrchestratorState` ganhou `terminal`, `registrar`, `cached`, `fallback_used`, `llm_used`, `prompt` e `pos_processado`. |
+| **Testes** | `tests/test_orchestrator_graph_integration.py` **+4** (datetime para cedo com 3 checkpoints, cache sem chamar LLM, anônimo sem gravar, direto e grafo concordam em rota/resposta) e expectativa de 9 checkpoints no fluxo LLM. |
+| **Medição** | 30 mensagens, provider stub: direto p50 **0,22 ms**, grafo **1,40 ms** (**+1,17 ms**, 9 checkpoints). |
+| **Prova viva** | `od-core` reiniciado (MainPID 1342914), mensagem real via `/message` roteou `gemma-local` e gravou **9 passos** (`alex:prova-f1-fase3`); `/health` **27/27 up**. |
+| **Verificação** | Gate **4368 passed / 16 skipped / 0 falha** (194,83 s). Sem bump: **1.44.0/2080**. |
+
 ## Orquestrador em grafo, fase 2: process() atrás de flag (F1, 2026-11-10, sem bump)
 
 **Resumo:** a base do grafo existia mas ninguém a chamava. Agora a fatia de
