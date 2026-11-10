@@ -187,6 +187,77 @@ class TestFallbackSemantico:
         achados = grafo.buscar("alex", "tenho algum animal?")
         assert achados and all("mia" not in n.conteudo for n in achados)
 
+    # -- cache de resultados (fase 4b) -------------------------------------
+
+    def test_repeticao_nao_chama_provider(self, grafo, semantica_ligada):
+        _semear(grafo)
+        grafo.buscar("alex", "tenho algum animal?")
+        chamadas = len(semantica_ligada)
+        grafo.buscar("alex", "tenho algum animal?")
+        assert len(semantica_ligada) == chamadas
+        assert grafo.stats()["semantica_cache"]["hits"] == 1
+
+    def test_variacao_de_caixa_e_pontuacao_usa_cache(self, grafo, semantica_ligada):
+        _semear(grafo)
+        grafo.buscar("alex", "tenho algum animal?")
+        chamadas = len(semantica_ligada)
+        achados = grafo.buscar("alex", "  TENHO   algum animal!! ")
+        assert len(semantica_ligada) == chamadas
+        assert any("cachorro" in n.conteudo for n in achados)
+
+    def test_resultado_vazio_tambem_entra_no_cache(self, grafo, semantica_ligada):
+        _semear(grafo)
+        assert grafo.buscar("alex", "qual a capital do brasil?") == []
+        chamadas = len(semantica_ligada)
+        assert grafo.buscar("alex", "qual a capital do brasil?") == []
+        assert len(semantica_ligada) == chamadas
+
+    def test_fato_novo_invalida_resultado_cacheado(self, grafo, semantica_ligada):
+        _semear(grafo)
+        assert grafo.buscar("alex", "tenho algum animal?") != []
+        chamadas = len(semantica_ligada)
+        grafo.adicionar_fato("alex", "tem um gato chamado mia", entidade="bicho")
+        grafo.buscar("alex", "tenho algum animal?")
+        assert len(semantica_ligada) > chamadas
+
+    def test_fato_substituido_sai_do_resultado(self, grafo, semantica_ligada):
+        grafo.adicionar_fato("alex", "tem um cachorro chamado rex", entidade="possui")
+        for conteudo, entidade in (
+            ("mora em curitiba", "cidade"),
+            ("nome é alex", "nome"),
+            ("trabalha com suporte", "trabalho"),
+        ):
+            grafo.adicionar_fato("alex", conteudo, entidade=entidade)
+        antes = grafo.buscar("alex", "tenho algum animal?")
+        assert any("rex" in n.conteudo for n in antes)
+        grafo.adicionar_fato("alex", "tem um cachorro chamado bob", entidade="possui")
+        depois = grafo.buscar("alex", "tenho algum animal?")
+        assert all("rex" not in n.conteudo for n in depois)
+        assert any("bob" in n.conteudo for n in depois)
+
+    def test_cache_pode_ser_desligado(self, grafo, semantica_ligada, monkeypatch):
+        _semear(grafo)
+        monkeypatch.setenv("OD_MEMORY_SEMANTICA_CACHE_S", "0")
+        grafo.buscar("alex", "tenho algum animal?")
+        chamadas = len(semantica_ligada)
+        grafo.buscar("alex", "tenho algum animal?")
+        assert len(semantica_ligada) > chamadas
+        assert grafo.stats()["semantica_cache"]["entradas"] == 0
+
+    def test_cache_expira_por_ttl(self, tmp_path, semantica_ligada, monkeypatch):
+        agora = [1_800_000_000.0]
+        g = MemoryGraph(tmp_path / "ttl.db", clock=lambda: agora[0])
+        try:
+            _semear(g)
+            monkeypatch.setenv("OD_MEMORY_SEMANTICA_CACHE_S", "60")
+            g.buscar("alex", "tenho algum animal?")
+            chamadas = len(semantica_ligada)
+            agora[0] += 61
+            g.buscar("alex", "tenho algum animal?")
+            assert len(semantica_ligada) > chamadas
+        finally:
+            g.fechar()
+
     def test_falha_do_provider_nao_quebra_busca(self, grafo, monkeypatch):
         _semear(grafo)
 

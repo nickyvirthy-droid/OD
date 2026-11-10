@@ -55,6 +55,7 @@ import threading
 import time
 import unicodedata
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -113,6 +114,32 @@ REL_SUBSTITUI = "substitui"  # fato novo → fato antigo (contradição)
 # TTL padrão de fato efêmero ("hoje estou cansado", "tenho reunião amanhã"):
 # uma semana. Sobrescrevível por OD_MEMORY_EFEMERO_DIAS.
 TTL_EFEMERO_DIAS = 7.0
+
+# Cache de RESULTADOS do fallback semântico (F4, fase 4b). A chamada de
+# embedding da consulta custa ~0,4 s; repetir a mesma pergunta no fio da
+# conversa é comum, e o resultado só depende da consulta + dos fatos ativos.
+# `OD_MEMORY_SEMANTICA_CACHE_S=0` desliga; a chave também carrega a assinatura
+# dos fatos ativos, então fato novo/removido invalida sozinho.
+CACHE_SEMANTICO_TTL_S = 300.0
+CACHE_SEMANTICO_MAX = 256
+
+
+def _env_float(nome: str, padrao: float) -> float:
+    """Float do ambiente; valor inválido volta ao padrão sem levantar."""
+    import os
+
+    try:
+        return float(os.environ.get(nome, padrao))
+    except (TypeError, ValueError):
+        return padrao
+
+
+def _normalizar_consulta(consulta: str) -> str:
+    """Forma canônica da consulta para o cache: caixa, acento e pontuação fora."""
+    texto = unicodedata.normalize("NFKD", consulta or "")
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    texto = re.sub(r"[^\w\s]", " ", texto.casefold())
+    return " ".join(texto.split())
 
 # Marcadores de tempo relativo: o fato descreve um ESTADO passageiro.
 _EFEMERO = re.compile(
@@ -371,6 +398,9 @@ class MemoryGraph:
         self._caminho = Path(caminho)
         self._clock = clock or time.time
         self._lock = threading.RLock()
+        self._cache_semantico: "OrderedDict[tuple, tuple[float, list[str]]]" = OrderedDict()
+        self._cache_semantico_hits = 0
+        self._cache_semantico_misses = 0
         if str(self._caminho) != ":memory:":
             self._caminho.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -557,7 +587,8 @@ class MemoryGraph:
         Se NENHUM fato casar por termos e `semantica=True`, tenta o fallback
         por embedding (fase 4) — que é o único jeito de ligar "tenho algum
         animal?" a "tem um cachorro chamado Rex", e é pago: uma chamada de
-        API por consulta sem match lexical.
+        API por consulta sem match lexical. O resultado fica em cache pela
+        consulta normalizada (fase 4b), inclusive o vazio.
         """
         user = (user_id or "").strip()
         if not user:
@@ -653,11 +684,26 @@ class MemoryGraph:
         try:
             from core import memory_embeddings as emb
 
+            if not emb.provedor_ativo() or len(ativos) < 3:
+                return []
+            # A assinatura dos ativos entra na chave: fato novo, removido ou
+            # atualizado muda a chave e o resultado velho nem é consultado.
+            chave = (
+                user_id.strip(),
+                _normalizar_consulta(consulta),
+                emb.modelo(),
+                tuple((n.id, n.updated_at) for n in ativos),
+            )
+            guardados = self._cache_semantico_ler(chave)
+            if guardados is not None:
+                por_id = {n.id: n for n in ativos}
+                return [por_id[i] for i in guardados if i in por_id]
             itens = self._vetores(ativos)
             if len(itens) < 3:
                 return []
             vetor_consulta = emb.embed_textos([consulta])
             if not vetor_consulta:
+                # Provider falhou: não cacheia o vazio para não envenenar o TTL.
                 return []
             notas = sorted(
                 ((emb.cosseno(vetor_consulta[0], v), n) for n, v in itens),
@@ -666,14 +712,48 @@ class MemoryGraph:
             )
             topo = notas[0][0]
             mediana = sorted(n for n, _ in notas)[len(notas) // 2]
-            if topo < emb.minimo() or topo - mediana < emb.margem():
-                return []
-            return [n for _, n in notas[:limite]]
+            resultado = (
+                []
+                if topo < emb.minimo() or topo - mediana < emb.margem()
+                else [n for _, n in notas[:limite]]
+            )
+            self._cache_semantico_guardar(chave, [n.id for n in resultado])
+            return resultado
         except MemoryLayerError:
             raise
         except Exception as exc:  # noqa: BLE001 — memória nunca derruba o chat
             _log.debug(f"memoria: fallback semântico falhou ({type(exc).__name__})")
             return []
+
+    def _cache_semantico_ler(self, chave: tuple) -> Optional[list[str]]:
+        """Ids cacheados para a consulta, ou `None` se ausente/vencido."""
+        ttl = _env_float("OD_MEMORY_SEMANTICA_CACHE_S", CACHE_SEMANTICO_TTL_S)
+        if ttl <= 0:
+            return None
+        with self._lock:
+            item = self._cache_semantico.get(chave)
+            if item is None:
+                self._cache_semantico_misses += 1
+                return None
+            expira_em, ids = item
+            if expira_em <= self._clock():
+                self._cache_semantico.pop(chave, None)
+                self._cache_semantico_misses += 1
+                return None
+            self._cache_semantico.move_to_end(chave)
+            self._cache_semantico_hits += 1
+            return list(ids)
+
+    def _cache_semantico_guardar(self, chave: tuple, ids: list[str]) -> None:
+        """Guarda o resultado (inclusive vazio) com TTL e teto de entradas."""
+        ttl = _env_float("OD_MEMORY_SEMANTICA_CACHE_S", CACHE_SEMANTICO_TTL_S)
+        if ttl <= 0:
+            return
+        with self._lock:
+            self._cache_semantico[chave] = (self._clock() + ttl, list(ids))
+            self._cache_semantico.move_to_end(chave)
+            while len(self._cache_semantico) > CACHE_SEMANTICO_MAX:
+                self._cache_semantico.popitem(last=False)
 
     def ativos(
         self,
@@ -889,6 +969,11 @@ class MemoryGraph:
             "efemeros": int(efemeros),
             "expirados": int(expirados),
             "vetores": int(vetores),
+            "semantica_cache": {
+                "entradas": len(self._cache_semantico),
+                "hits": int(self._cache_semantico_hits),
+                "misses": int(self._cache_semantico_misses),
+            },
             "arquivo": str(self._caminho),
         }
 

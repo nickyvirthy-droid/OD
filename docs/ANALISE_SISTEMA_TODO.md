@@ -11,7 +11,7 @@
 | Dimensão | Estado Atual | Gap Principal |
 |----------|--------------|---------------|
 | **Orquestração** | `orchestrator.py` monolítico (2285 linhas), loop síncrono, sem checkpointing | Sem durabilidade, sem resumo pós-falha, sem paralelismo controlado |
-| **Memória** | **F4 completo (fases 1–4):** grafo temporal de fatos/entidades em `data/memory.db` (substituição sem apagar), ações `salvar_fato`/`buscar_memoria`, captura automática no chat, bloco no prompt (recall 90% → 100% com vetor), consolidação semanal e expiração de efêmero | Histórico de chat segue em 20 mensagens por perfil; busca semântica custa ~0,4 s quando a lexical não acha nada |
+| **Memória** | **F4 completo (fases 1–4):** grafo temporal de fatos/entidades em `data/memory.db` (substituição sem apagar), ações `salvar_fato`/`buscar_memoria`, captura automática no chat, bloco no prompt (recall 90% → 100% com vetor), consolidação semanal e expiração de efêmero; resultado semântico cacheado por consulta normalizada | Histórico de chat segue em 20 mensagens por perfil; a primeira consulta sem match lexical ainda paga ~0,4 s (repetição: ~0,7 ms) |
 | **RAG** | Embedding local + busca vetorial simples, cache LLM básico | Sem semantic caching, sem hybrid search, sem otimização KV-cache, latência não medida |
 | **Observabilidade** | **F2 entregue:** `core/telemetry.py` (OTel spans + métricas), log com `trace_id`/`span_id`, checks `telemetria` e `latencia` no `/health` | Sem coletor OTel/Grafana (infra) nem alertas — o código já exporta para o endpoint que for configurado |
 | **Resiliência** | **R2 entregue:** `core/resilience.py` com disjuntor por provider de LLM e degradação via fallback | Sem task queue (R1) nem retry policy declarativo; bulkhead dispensado por falta de pool saturado medido |
@@ -461,7 +461,8 @@ precisa de vetor, não de regex.
 | **Fallback, não substituto** | `buscar()` só chama embedding quando **nenhum** fato casa por termos. Acerto lexical continua em **0,26 ms**; só o caso sem match paga a API. `semantica=False` desliga por chamada. |
 | **Cache de vetores** | Tabela `memory_vectors` no mesmo `memory.db`, com o nome do modelo na chave — trocar de modelo re-embeda em vez de misturar espaços vetoriais. Fatos são embedados em lote (1 chamada) na primeira busca sem match. |
 | **Regra de aceitação** | Cosseno do Gemini já fica ~0,75 até em par sem relação, então limiar absoluto não decide: exige piso **0,78** (`OD_MEMORY_SEMANTICA_MIN`) **e** margem de **0,05** sobre a mediana dos fatos (`OD_MEMORY_SEMANTICA_MARGEM`). |
-| **Testes** | `tests/test_memory_embeddings.py` **+17** (provider liga/desliga, falha de rede, texto vazio, cosseno, sinônimo entra, assunto aleatório rejeitado, hit lexical não paga embedding, cache reutilizado, <3 fatos não chama API, isolamento, falha não quebra busca). `conftest` força `OD_MEMORY_EMBEDDING=off`: a suíte nunca fala com a rede. |
+| **Cache de resultados (fase 4b)** | O resultado do fallback — inclusive o vazio — fica em memória pela consulta normalizada (caixa, acento e pontuação fora), com TTL de 5 min (`OD_MEMORY_SEMANTICA_CACHE_S`, `0` desliga) e teto de 256 entradas (LRU). A chave carrega a assinatura dos fatos ativos (`id`+`updated_at`), então fato novo, substituído ou expirado invalida sozinho. Falha do provider não cacheia o vazio. |
+| **Testes** | `tests/test_memory_embeddings.py` **+24** (provider liga/desliga, falha de rede, texto vazio, cosseno, sinônimo entra, assunto aleatório rejeitado, hit lexical não paga embedding, cache de vetores, <3 fatos não chama API, isolamento, falha não quebra busca; cache de resultado: repetição, normalização, vazio, fato novo, fato substituído, desligável, TTL). `conftest` força `OD_MEMORY_EMBEDDING=off`: a suíte nunca fala com a rede. |
 
 **Medido (provider real, 10 fatos × 10 perguntas + 10 perguntas fora):**
 recall@5 **9/10 → 10/10**, falsos positivos **0/10**, margem in-domain
@@ -469,10 +470,17 @@ recall@5 **9/10 → 10/10**, falsos positivos **0/10**, margem in-domain
 semântico **431 ms p50** (embedding da consulta), primeira busca com vetores
 frios de 10 fatos **1,27 s**, cache quente sem custo de fatos.
 
+**Custo depois do cache de resultados (fase 4b, medido com o provider real):**
+consulta repetida **439,8 ms → 0,67 ms**, variante de caixa/pontuação **0,70 ms**,
+consulta fora de assunto repetida **0,33 ms** no embedder instrumentado. O
+primeiro acerto semântico continua pagando a consulta (~0,4 s); o cache só
+remove a repetição. Em produção, consulta inédita no fio da conversa segue
+nesse custo — o que muda é a segunda pergunta igual.
+
 **Trade-off declarado:** mensagem que não casa com nenhuma memória paga ~0,4 s
-no bloco de memória. É o preço de ligar "animal" a "cachorro"; quem não
-quiser, `OD_MEMORY_EMBEDDING=off` (ou `semantica=False`) volta ao lexical puro
-sem tocar em nenhum outro caminho.
+na **primeira** consulta daquele texto (dentro de 5 min); repetição custa
+~1 ms. Quem não quiser nada disso, `OD_MEMORY_EMBEDDING=off` (ou
+`semantica=False`) volta ao lexical puro sem tocar em nenhum outro caminho.
 
 ### R2 — Circuit Breaker (detalhe)
 
@@ -535,6 +543,8 @@ esperar o timeout.
 - [x] F4 fase 4: busca semântica sob demanda (`core/memory_embeddings.py`,
       Gemini 768 dims, cache em SQLite) — recall@5 9/10 → **10/10**, 0 falsos
       positivos, +0,4 s só no caso sem match lexical
+- [x] F4 fase 4b: cache do resultado semântico por consulta normalizada —
+      repetição cai de ~440 ms para **0,7 ms**; invalidado por mudança nos fatos
 
 ### Semana 7-8: Orquestrador como Grafo
 - [ ] F1: Definir `OrchestratorState` (TypedDict + reducers)

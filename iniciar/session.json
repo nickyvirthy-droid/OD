@@ -1,4 +1,15 @@
 {
+  "f4_fase4b_cache_resultado_semantico_2026_11_10": {
+    "pedido": "Dono: reduzir o custo de 0,4 s do fallback semantico com cache de resultados por consulta normalizada.",
+    "feito": "core/memory_layer.py: cache em memoria do resultado do fallback (inclusive vazio) com chave = usuario + consulta normalizada (NFKD, caixa e pontuacao fora) + modelo + assinatura (id, updated_at) dos fatos ativos; TTL 300 s por OD_MEMORY_SEMANTICA_CACHE_S (0 desliga), teto 256 entradas com LRU, invalidacao automatica quando fato novo/substituido/expirado muda o conjunto ativo; falha do provider nao cacheia vazio; stats() ganhou semantica_cache (entradas/hits/misses). tests/test_memory_embeddings.py +7.",
+    "medicao": "Provider real (10 fatos): primeira consulta 1352 ms (10 vetores frios), repetida 0,852 ms, variante TENHO/espacos/!! 0,703 ms; fora de assunto primeiro 439,8 ms, repetido 0,673 ms. Embedder instrumentado com sleep de 0,4 s: 401,2 ms -> 0,333 ms. Chamadas de provider caem de 2 para 1 por consulta repetida.",
+    "achado": "O GEMINI_API_KEY do .env esta invalido (HTTP 400 API_KEY_INVALID) nesta sessao; o processo od-core carrega outra chave (hash diferente, 39 x 40 chars) que respondeu OK, e foi com ela que a medicao real rodou. Nao alterei o .env nem expus os valores.",
+    "trade_off": "So a repeticao dentro de 5 min se beneficia; consulta inedita continua pagando ~0,4 s. Cache e por processo: restart do od-core esvazia (sem persistencia em disco para nao servir resultado velho).",
+    "testes": "Gate 4330 passed / 16 skipped / 0 falha (190,52 s; eram 4323/16).",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§13)",
+    "updated_at": "2026-11-10T18:05:00-03:00"
+  },
   "f4_fase4_busca_semantica_2026_11_10": {
     "pedido": "Dono: adicionar embeddings para sinonímia na busca de memória longa e re-medir o recall (fase 4 do F4).",
     "medicao_previa": "Gemini gemini-embedding-001 respondeu ~120 ms/chamada; OpenAI text-embedding-3-small devolveu 429 (cota) e ficou fora. Cosseno do Gemini fica ~0,75 até em par sem relação: limiar absoluto não separa, margem sobre a mediana sim (0,063-0,159 dentro x 0,010-0,041 fora).",

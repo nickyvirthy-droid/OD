@@ -523,3 +523,63 @@ a mediana** dos fatos (0,063–0,159 dentro do assunto contra 0,010–0,041 fora
   (OpenTelemetry)** — menor risco e maior visibilidade.
 - **A5** (senha Wi-Fi) segue adiado pelo dono; **C3/C4** adiados.
 - Sem bump em nenhuma destas entregas: app segue **1.44.0/2080**.
+
+---
+
+## §13 — F4 fase 4b: cache de resultados do fallback semântico
+
+**Pedido do dono:** reduzir o custo de 0,4 s do fallback semântico com cache de
+resultados por consulta normalizada.
+
+### 1. Onde o custo estava
+
+O embedding dos fatos já era cacheado em `memory_vectors`; o que sobrava era a
+chamada de embedding **da consulta**, ~431 ms, repetida a cada mensagem sem
+match lexical. Perguntar a mesma coisa duas vezes pagava duas vezes.
+
+### 2. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `MemoryGraph._cache_semantico_ler/_guardar` | Cache em memória do **resultado** (inclusive vazio), LRU de 256 entradas, TTL 300 s (`OD_MEMORY_SEMANTICA_CACHE_S`, `0` desliga). |
+| Chave | usuário + consulta normalizada (NFKD, caixa e pontuação fora) + modelo + `(id, updated_at)` dos fatos ativos. Fato novo, substituído ou expirado muda a assinatura e invalida sozinho. |
+| Segurança | Falha do provider não cacheia o vazio (não envenena o TTL); `stats()["semantica_cache"]` expõe entradas/hits/misses. |
+| Testes | `tests/test_memory_embeddings.py` **+7** (repetição, variante de caixa/pontuação, vazio cacheado, fato novo invalida, fato substituído sai, desligável, TTL por clock injetado). |
+
+### 3. Medição
+
+- Provider real, 10 fatos: primeira consulta **1.352 ms** (10 vetores frios);
+  repetida **0,852 ms**; variante `  TENHO  algum animal!!` **0,703 ms**.
+- Fora de assunto: primeiro **439,8 ms** → repetido **0,673 ms**.
+- Embedder instrumentado com `sleep(0.4)` (mesmo formato de chamada): 401,2 ms
+  → **0,333 ms** em 20 repetições.
+- Chamadas ao provider por consulta repetida: **2 → 1** (só a primeira paga a
+  consulta; a segunda nem toca na rede).
+
+**Achado colateral:** o `GEMINI_API_KEY` do `.env` está inválido (HTTP 400
+`API_KEY_INVALID`). O processo `od-core` carrega outra chave, válida, e foi com
+ela que a medição real rodou — sem alterar o `.env` e sem expor valores.
+
+### 4. Prós e contras
+
+- **Cache de resultado em vez de só cachear embedding da consulta:** evita
+  também recalcular cossenos e permite cachear o "nada" (o caso mais comum de
+  quem conversa fora do assunto); contra: se os fatos mudam, a entrada velha é
+  descartada e o custo volta — o que é o comportamento correto.
+- **Chave com assinatura dos fatos:** elimina o risco de servir fato removido
+  ou substituído sem precisar varrer/limpar cache a cada escrita.
+- **Memória do processo, sem tabela:** zero migração e nada velho sobrevive a
+  restart; contra: cada restart do `od-core` esfria o cache.
+- **TTL de 5 min:** evita entrada eterna em conversa longa; contra: consulta
+  repetida depois de 5 min paga de novo.
+
+### 5. Verificação
+
+- Gate completo: **4330 passed / 16 skipped / 0 falha** (190,52 s; eram
+  4323/16).
+- Sem bump: app segue **1.44.0/2080**.
+
+### 6. Fila
+
+- Próximo recomendado: **F1** (orquestrador em grafo) — maior impacto
+  estrutural; alternativa barata é iniciar **P** (dependências mortas).
