@@ -477,7 +477,47 @@ O dedupe começou por `(user, tipo, entidade)` e **nunca dispararia**: `adiciona
 - Ao vivo: restart do `od-core` (MainPID **1191128**, `NRestarts=0`), `/health` **27/27**; `stats()` do banco real responde com os campos novos (`efemeros`, `expirados`).
 - Sem bump: app segue **1.44.0/2080**.
 
-### 5. Fila
+## §12 — F4 fase 4: busca semântica sob demanda (10/11)
+
+**Pedido do dono:** *"adicione embeddings para sinonímia na busca de memória e
+re-meça o recall"*.
+
+### 1. Medição antes de codar
+
+Antes de escolher provider, medi os dois candidatos com as chaves do `.env`:
+Gemini `gemini-embedding-001` respondeu em ~120 ms/chamada; **OpenAI devolveu
+429** (cota), então ficou fora. Com o Gemini, o cosseno de par sem relação já
+fica ~0,75 — limiar absoluto não separa nada; o que separa é a **margem sobre
+a mediana** dos fatos (0,063–0,159 dentro do assunto contra 0,010–0,041 fora).
+
+### 2. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `core/memory_embeddings.py` | Provider opcional via `urllib` (sem SDK), 768 dims, timeout 3 s, qualquer falha → `None`. `auto`/`off`/`gemini` por `OD_MEMORY_EMBEDDING`. |
+| Fallback, não substituto | `buscar()` só embeda quando **nenhum** fato casa por termos; acerto lexical segue em 0,26 ms. Cache de vetores em `memory_vectors` (modelo na chave), fatos embedados em lote na primeira busca sem match. |
+| Regra de aceitação | Piso 0,78 **e** margem 0,05 sobre a mediana — sem isso o "assunto aleatório" passaria. |
+| Testes | `tests/test_memory_embeddings.py` +17 com embedder falso; `conftest` força `OD_MEMORY_EMBEDDING=off` para a suíte nunca falar com a rede. |
+
+### 3. Recall re-medido (provider real)
+
+- Conjunto de 10 fatos × 10 perguntas: **lexical 9/10 → lexical+semântica 10/10**.
+- 10 perguntas fora de assunto: **0 falsos positivos** (todas rejeitadas pela margem).
+- Custo: miss semântico **431 ms p50** (embedding da consulta); primeira busca com 10 fatos frios **1,27 s**; hit lexical inalterado (0,26 ms).
+
+### 4. Prós e contras
+
+- **Fallback em vez de busca vetorial completa:** preserva latência do caso comum e não exige embedar o banco inteiro; contra: quando o lexical acha *alguma coisa* (mesmo fraca), o vetor não é consultado — sinônimo com palavra parcialmente casada continua perdido.
+- **Margem em vez de limiar absoluto:** foi o único critério que separou dentro/fora nos dados reais; contra: exige ≥3 fatos (com 1-2 a mediana não distingue e o fallback se cala de propósito).
+- **API em vez de modelo local:** zero dependência nova (~2 GB de torch evitados) e funciona no servidor atual; contra: depende de rede/cota e manda o texto do fato para fora — quem não quiser desliga com `OD_MEMORY_EMBEDDING=off`.
+
+### 5. Verificação
+
+- Gate completo: **4323 passed / 16 skipped / 0 falha** (191,19 s; eram 4306/16).
+- Ao vivo: restart do `od-core` (MainPID **1216766**, `NRestarts=0`), `/health` **27/27**; `GEMINI_API_KEY` presente no ambiente do processo e `provedor_ativo() == 'gemini'` com `stats()` do banco real respondendo (agora inclui `vetores`).
+- Sem bump: app segue **1.44.0/2080**.
+
+### 6. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2
   (OpenTelemetry)** — menor risco e maior visibilidade.

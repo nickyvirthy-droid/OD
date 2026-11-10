@@ -443,9 +443,11 @@ class TestMemoriaNoPrompt:
         """Recall@5 do bloco injetado — medido, não presumido.
 
         Baseline sem a fase 2: 0/10 (os fatos não existem no prompt).
-        Medido hoje: 9/10. O único furo é "tenho algum animal?" → fato
-        "tem um cachorro chamado Rex": sinônimo (animal≈cachorro) exige
-        embedding, que é a fase 3 — não é bug do termo.
+        Medido com busca só lexical (a suíte roda com embedding desligado):
+        9/10. O único furo é "tenho algum animal?" → fato "tem um cachorro
+        chamado Rex" (sinônimo). Com o fallback semântico da fase 4 medido no
+        provider real, o mesmo conjunto dá 10/10 — mas o teste não usa rede,
+        então aqui o número honesto é 9.
         """
         casos = [
             ("mora em Curitiba", "cidade", "onde eu moro?"),

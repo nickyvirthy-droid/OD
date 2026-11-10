@@ -30,9 +30,12 @@ Architecture:
     de um usuário nunca aparece para outro. O id do nó é aleatório (uuid4),
     não derivado do conteúdo, para não vazar nada por id.
 
-    Extração (fase 1) é determinística: regex PT-BR sobre o texto do usuário.
-    Nada de LLM, nada de embedding — o que mantém a fase 1 barata e testável.
-    Embeddings e consolidação periódica são a fase 2 do roadmap.
+    Extração é determinística: regex PT-BR sobre o texto do usuário. Nada de
+    LLM — o que mantém a escrita barata e testável.
+
+    Busca: sobreposição de termos (sempre) e, SÓ quando ela volta vazia,
+    fallback semântico opcional via `core/memory_embeddings` (sinônimo:
+    "animal" ≈ "cachorro"). Sem chave/rede o fallback simplesmente não existe.
 
 Usage:
     from core.memory_layer import MemoryGraph
@@ -92,6 +95,15 @@ CREATE TABLE IF NOT EXISTS memory_edges (
     PRIMARY KEY (source, target, relacao)
 );
 CREATE INDEX IF NOT EXISTS idx_mem_edge_target ON memory_edges(target, relacao);
+
+-- Fase 4: vetores do fallback semântico (sinônimo). Ficam no mesmo banco e
+-- são recalculados se o modelo mudar — o nome do modelo é parte da chave.
+CREATE TABLE IF NOT EXISTS memory_vectors (
+    node_id    TEXT PRIMARY KEY,
+    modelo     TEXT NOT NULL,
+    vetor      BLOB NOT NULL,
+    created_at REAL NOT NULL
+);
 """
 
 # Relações do grafo.
@@ -529,11 +541,23 @@ class MemoryGraph:
 
     # -- leitura -------------------------------------------------------------
 
-    def buscar(self, user_id: str, consulta: str, *, limite: int = 5) -> list[MemoryNode]:
+    def buscar(
+        self,
+        user_id: str,
+        consulta: str,
+        *,
+        limite: int = 5,
+        semantica: bool = True,
+    ) -> list[MemoryNode]:
         """Busca fatos ativos do usuário por sobreposição de termos.
 
         Pontuação: fração dos termos da consulta presentes no fato/entidade,
         com desempate por recência. Consulta vazia devolve os mais recentes.
+
+        Se NENHUM fato casar por termos e `semantica=True`, tenta o fallback
+        por embedding (fase 4) — que é o único jeito de ligar "tenho algum
+        animal?" a "tem um cachorro chamado Rex", e é pago: uma chamada de
+        API por consulta sem match lexical.
         """
         user = (user_id or "").strip()
         if not user:
@@ -559,8 +583,97 @@ class MemoryGraph:
 
         pontuados = [(pontuar(n), n) for n in ativos]
         pontuados = [(p, n) for p, n in pontuados if p > 0]
+        if not pontuados and semantica:
+            return self._busca_semantica(user, consulta, ativos, limite)
         pontuados.sort(key=lambda item: (item[0], item[1].created_at), reverse=True)
         return [n for _, n in pontuados[:limite]]
+
+    # -- fallback semântico (fase 4) -----------------------------------------
+
+    def _vetores(
+        self, ativos: list[MemoryNode]
+    ) -> list[tuple[MemoryNode, list[float]]]:
+        """Pares (fato, vetor) dos ativos, embedando e cacheando os que faltam."""
+        from array import array
+
+        from core import memory_embeddings as emb
+
+        if not emb.provedor_ativo() or len(ativos) < 3:
+            # Com 1-2 fatos a mediana não distingue assunto de ruído: nesse
+            # caso o fallback só custaria latência.
+            return []
+        modelo = emb.modelo()
+        ids = [n.id for n in ativos]
+        marcadores = ",".join("?" for _ in ids)
+        with self._lock:
+            try:
+                linhas = self._conn.execute(
+                    f"SELECT node_id, vetor FROM memory_vectors "
+                    f"WHERE modelo = ? AND node_id IN ({marcadores})",
+                    (modelo, *ids),
+                ).fetchall()
+            except sqlite3.Error as exc:  # pragma: no cover — banco estranho
+                raise MemoryLayerError(f"falha ao ler vetores: {exc}") from exc
+        cache = {
+            str(r["node_id"]): array("f", r["vetor"]).tolist() for r in linhas
+        }
+        faltam = [n for n in ativos if n.id not in cache]
+        if faltam:
+            vetores = emb.embed_textos([f"{n.entidade} {n.conteudo}" for n in faltam])
+            if vetores is None:
+                return []
+            agora = float(self._clock())
+            with self._lock:
+                for node, vetor in zip(faltam, vetores):
+                    cache[node.id] = vetor
+                    self._conn.execute(
+                        "INSERT OR REPLACE INTO memory_vectors "
+                        "(node_id, modelo, vetor, created_at) VALUES (?, ?, ?, ?)",
+                        (node.id, modelo, array("f", vetor).tobytes(), agora),
+                    )
+                self._conn.commit()
+        return [(n, cache[n.id]) for n in ativos if n.id in cache]
+
+    def _busca_semantica(
+        self,
+        user_id: str,
+        consulta: str,
+        ativos: list[MemoryNode],
+        limite: int,
+    ) -> list[MemoryNode]:
+        """Top fatos por cosseno, aceitos só com piso E margem sobre a mediana.
+
+        O Gemini devolve ~0,75 de cosseno até para pares sem relação, então
+        limiar absoluto sozinho aceitaria qualquer coisa. A regra é: o melhor
+        fato precisa estar acima do piso `OD_MEMORY_SEMANTICA_MIN` (0,78) e
+        separado da mediana dos fatos por `OD_MEMORY_SEMANTICA_MARGEM` (0,05)
+        — medido em 10 consultas do usuário (margem 0,063-0,159) contra 10
+        fora de assunto (0,010-0,041).
+        """
+        try:
+            from core import memory_embeddings as emb
+
+            itens = self._vetores(ativos)
+            if len(itens) < 3:
+                return []
+            vetor_consulta = emb.embed_textos([consulta])
+            if not vetor_consulta:
+                return []
+            notas = sorted(
+                ((emb.cosseno(vetor_consulta[0], v), n) for n, v in itens),
+                key=lambda item: item[0],
+                reverse=True,
+            )
+            topo = notas[0][0]
+            mediana = sorted(n for n, _ in notas)[len(notas) // 2]
+            if topo < emb.minimo() or topo - mediana < emb.margem():
+                return []
+            return [n for _, n in notas[:limite]]
+        except MemoryLayerError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — memória nunca derruba o chat
+            _log.debug(f"memoria: fallback semântico falhou ({type(exc).__name__})")
+            return []
 
     def ativos(
         self,
@@ -760,6 +873,12 @@ class MemoryGraph:
                 f"SELECT COUNT(*) FROM memory_nodes WHERE {filtro}expira_em IS NOT NULL AND expira_em <= ?",
                 (*args, agora),
             ).fetchone()[0]
+            vetores = self._conn.execute(
+                "SELECT COUNT(*) FROM memory_vectors AS v "
+                "JOIN memory_nodes AS n ON n.id = v.node_id"
+                + (" WHERE n.user_id = ?" if user_id else ""),
+                args,
+            ).fetchone()[0]
         return {
             "fatos": int(fatos),
             "ativos": int(ativos),
@@ -769,6 +888,7 @@ class MemoryGraph:
             "usuarios": int(usuarios),
             "efemeros": int(efemeros),
             "expirados": int(expirados),
+            "vetores": int(vetores),
             "arquivo": str(self._caminho),
         }
 

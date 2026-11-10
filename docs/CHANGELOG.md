@@ -12,6 +12,21 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Memória longa fase 4: busca semântica sob demanda (F4, 2026-11-10, sem bump)
+
+**Resumo:** o único caso que a busca por termos não resolvia era sinônimo
+("tenho algum animal?" → "tem um cachorro chamado Rex"). Agora há vetor — mas
+como *fallback*, pago só quando a lexical volta vazia.
+
+| Peça | Entrega |
+|---|---|
+| **`core/memory_embeddings.py`** | Provider opcional sem SDK (`urllib`): Gemini `gemini-embedding-001` a 768 dims. `OD_MEMORY_EMBEDDING=auto` (padrão) liga com `GEMINI_API_KEY`; `off` desliga. Falha/timeout de 3 s devolve `None` — memória nunca é caminho crítico. |
+| **`MemoryGraph.buscar`** | Fallback semântico só quando nenhum fato casa por termos (`semantica=False` desliga por chamada). Vetores em `memory_vectors` no mesmo SQLite, com o modelo na chave. |
+| **Regra de aceitação** | Piso 0,78 (`OD_MEMORY_SEMANTICA_MIN`) **e** margem 0,05 sobre a mediana dos fatos (`OD_MEMORY_SEMANTICA_MARGEM`) — o Gemini dá ~0,75 até em par sem relação, então piso sozinho não decide. |
+| **Testes** | `tests/test_memory_embeddings.py` **+17**, com embedder falso; `conftest` força `OD_MEMORY_EMBEDDING=off` (suíte sem rede). |
+| **Medição** | recall@5 **9/10 → 10/10**; falsos positivos **0/10** em perguntas fora de assunto; acerto lexical 0,26 ms, miss semântico 431 ms p50 (1,27 s na primeira vez, embedando 10 fatos). |
+| **Verificação** | Gate **4323 passed / 16 skipped / 0 falha** (191 s); restart do `od-core` (MainPID 1216766), `/health` 27/27, `GEMINI_API_KEY` presente no processo e `provedor_ativo() == 'gemini'`. Sem bump: **1.44.0/2080**. |
+
 ## Memória longa fase 3: consolidação semanal e efêmero (F4, 2026-11-10, sem bump)
 
 **Resumo:** a memória não tinha prazo nem faxina — o grafo só crescia e

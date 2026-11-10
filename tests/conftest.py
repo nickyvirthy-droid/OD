@@ -50,6 +50,8 @@ def _memoria_longao_isolada(tmp_path, monkeypatch):
     from core import memory_layer
 
     monkeypatch.setenv("OD_MEMORY_PATH", str(tmp_path / "memory.db"))
+    # F4 fase 4: a suíte nunca fala com provider de embedding (rede/cota).
+    monkeypatch.setenv("OD_MEMORY_EMBEDDING", "off")
     memory_layer.resetar_memoria()
     yield
     memory_layer.resetar_memoria()

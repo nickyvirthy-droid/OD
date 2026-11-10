@@ -11,7 +11,7 @@
 | Dimensão | Estado Atual | Gap Principal |
 |----------|--------------|---------------|
 | **Orquestração** | `orchestrator.py` monolítico (2285 linhas), loop síncrono, sem checkpointing | Sem durabilidade, sem resumo pós-falha, sem paralelismo controlado |
-| **Memória** | **F4 fase 1 entregue:** grafo temporal de fatos/entidades em `data/memory.db` (substituição sem apagar), ações `salvar_fato`/`buscar_memoria`, captura automática no chat | Histórico de chat segue em 20 mensagens por perfil; faltam embeddings (busca semântica) e consolidação periódica |
+| **Memória** | **F4 completo (fases 1–4):** grafo temporal de fatos/entidades em `data/memory.db` (substituição sem apagar), ações `salvar_fato`/`buscar_memoria`, captura automática no chat, bloco no prompt (recall 90% → 100% com vetor), consolidação semanal e expiração de efêmero | Histórico de chat segue em 20 mensagens por perfil; busca semântica custa ~0,4 s quando a lexical não acha nada |
 | **RAG** | Embedding local + busca vetorial simples, cache LLM básico | Sem semantic caching, sem hybrid search, sem otimização KV-cache, latência não medida |
 | **Observabilidade** | **F2 entregue:** `core/telemetry.py` (OTel spans + métricas), log com `trace_id`/`span_id`, checks `telemetria` e `latencia` no `/health` | Sem coletor OTel/Grafana (infra) nem alertas — o código já exporta para o endpoint que for configurado |
 | **Resiliência** | **R2 entregue:** `core/resilience.py` com disjuntor por provider de LLM e degradação via fallback | Sem task queue (R1) nem retry policy declarativo; bulkhead dispensado por falta de pool saturado medido |
@@ -30,7 +30,7 @@
 | **F1** | **Migrar orquestrador para grafo de execução (LangGraph-style)** | Alto | 🔥🔥🔥 | LangGraph blog 2024-2025: checkpointing, parallelization, streaming, human-in-the-loop, task queue, tracing nativo |
 | **F2** | ~~Implementar OpenTelemetry distribuído (traces + metrics + logs correlacionados)~~ **ENTREGUE (10/11)**: SDK + spans + métricas + log correlacionado + check no `/health`; falta só o coletor/Grafana (infra) — ver §3 | Médio | 🔥🔥🔥 | python-observability.com, structlog + OTel + BatchSpanProcessor |
 | **F3** | ~~Substituir I/O síncrono por async em todo o core~~ **ENCERRADO (10/11)** com escopo revisado por medição: o problema real era trabalho de CPU no handler e backlog de socket — ver §3 | Alto → Baixo | 🔥🔥 | `aiohttp`, `asyncpg`, `asyncio.to_thread` para bloqueantes |
-| **F4** | **Memory Layer estruturada (Mem0/Zep-style: grafo temporal + consolidação)** — **fases 1, 2 e 3 ENTREGUES (10/11)**: grafo temporal em SQLite, extração determinística, 2 actions, bloco de memória no prompt (recall@5 0% → 90%) e consolidação semanal com expiração de efêmero; falta só embeddings (§3) | Alto → Médio | 🔥🔥🔥 | Mem0 (arXiv 2504.19413), Zep (arXiv 2501.13956), LOCOMO/LongMemEval |
+| **F4** | **Memory Layer estruturada (Mem0/Zep-style: grafo temporal + consolidação)** — **fases 1–4 ENTREGUES (10/11)**: grafo temporal em SQLite, extração determinística, 2 actions, bloco de memória no prompt (recall@5 0% → 90%), consolidação semanal com expiração de efêmero e busca semântica sob demanda (**recall@5 9/10 → 10/10**, 0 falsos positivos) (§3) | Alto → Médio | 🔥🔥🔥 | Mem0 (arXiv 2504.19413), Zep (arXiv 2501.13956), LOCOMO/LongMemEval |
 
 ### 🟡 ALTO — Inteligência & Performance
 
@@ -449,8 +449,30 @@ substitui fato novo da mesma entidade. Foi refeito para **conteúdo
 normalizado**, que é exatamente o duplicado que dois caminhos diferentes
 geram. Fica registrado porque o primeiro desenho teria virado código morto.
 
-**O que ainda falta (fase 4, opcional):** embeddings para sinonímia — o único
-caso que a busca por termo não cobre ("animal" vs "cachorro").
+#### F4 — FASE 4 (busca semântica sob demanda) ENTREGUE (2026-11-10)
+
+**Status: o furo de sinonímia fechou.** A busca por termos acertava 9/10; o
+caso que sobrava ("tenho algum animal?" → "tem um cachorro chamado Rex")
+precisa de vetor, não de regex.
+
+| Peça | O que entrou |
+|---|---|
+| **`core/memory_embeddings.py`** | Provider opcional via `urllib` (sem SDK): Gemini `gemini-embedding-001` a 768 dims. `OD_MEMORY_EMBEDDING=auto` liga se houver `GEMINI_API_KEY`; `off` desliga; `gemini` força. Qualquer falha (sem chave, sem rede, 429, timeout de 3 s) devolve `None` e a busca lexical segue sozinha. |
+| **Fallback, não substituto** | `buscar()` só chama embedding quando **nenhum** fato casa por termos. Acerto lexical continua em **0,26 ms**; só o caso sem match paga a API. `semantica=False` desliga por chamada. |
+| **Cache de vetores** | Tabela `memory_vectors` no mesmo `memory.db`, com o nome do modelo na chave — trocar de modelo re-embeda em vez de misturar espaços vetoriais. Fatos são embedados em lote (1 chamada) na primeira busca sem match. |
+| **Regra de aceitação** | Cosseno do Gemini já fica ~0,75 até em par sem relação, então limiar absoluto não decide: exige piso **0,78** (`OD_MEMORY_SEMANTICA_MIN`) **e** margem de **0,05** sobre a mediana dos fatos (`OD_MEMORY_SEMANTICA_MARGEM`). |
+| **Testes** | `tests/test_memory_embeddings.py` **+17** (provider liga/desliga, falha de rede, texto vazio, cosseno, sinônimo entra, assunto aleatório rejeitado, hit lexical não paga embedding, cache reutilizado, <3 fatos não chama API, isolamento, falha não quebra busca). `conftest` força `OD_MEMORY_EMBEDDING=off`: a suíte nunca fala com a rede. |
+
+**Medido (provider real, 10 fatos × 10 perguntas + 10 perguntas fora):**
+recall@5 **9/10 → 10/10**, falsos positivos **0/10**, margem in-domain
+0,063–0,159 contra 0,010–0,041 fora de assunto (por isso 0,05). Custo: miss
+semântico **431 ms p50** (embedding da consulta), primeira busca com vetores
+frios de 10 fatos **1,27 s**, cache quente sem custo de fatos.
+
+**Trade-off declarado:** mensagem que não casa com nenhuma memória paga ~0,4 s
+no bloco de memória. É o preço de ligar "animal" a "cachorro"; quem não
+quiser, `OD_MEMORY_EMBEDDING=off` (ou `semantica=False`) volta ao lexical puro
+sem tocar em nenhum outro caminho.
 
 ### R2 — Circuit Breaker (detalhe)
 
@@ -509,7 +531,10 @@ esperar o timeout.
 - [x] F4 fase 2: injeção do bloco de memória no prompt — recall@5 de 0% para
       **90%**, +3,6% de prompt, 0,2 ms de recuperação
 - [x] F4 fase 3: consolidação semanal (dedupe + expiração de efêmero) no
-      timer `od-memory-consolidate`; falta só embeddings (sinônimos)
+      timer `od-memory-consolidate`
+- [x] F4 fase 4: busca semântica sob demanda (`core/memory_embeddings.py`,
+      Gemini 768 dims, cache em SQLite) — recall@5 9/10 → **10/10**, 0 falsos
+      positivos, +0,4 s só no caso sem match lexical
 
 ### Semana 7-8: Orquestrador como Grafo
 - [ ] F1: Definir `OrchestratorState` (TypedDict + reducers)

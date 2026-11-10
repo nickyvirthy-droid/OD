@@ -1,4 +1,16 @@
 {
+  "f4_fase4_busca_semantica_2026_11_10": {
+    "pedido": "Dono: adicionar embeddings para sinonímia na busca de memória longa e re-medir o recall (fase 4 do F4).",
+    "medicao_previa": "Gemini gemini-embedding-001 respondeu ~120 ms/chamada; OpenAI text-embedding-3-small devolveu 429 (cota) e ficou fora. Cosseno do Gemini fica ~0,75 até em par sem relação: limiar absoluto não separa, margem sobre a mediana sim (0,063-0,159 dentro x 0,010-0,041 fora).",
+    "feito": "core/memory_embeddings.py: provider opcional via urllib (sem SDK), 768 dims, timeout 3 s, qualquer falha devolve None; OD_MEMORY_EMBEDDING=auto|off|gemini. MemoryGraph.buscar ganhou fallback semantico que so dispara quando nenhum fato casa por termos (semantica=False desliga por chamada), cache de vetores na tabela memory_vectors (modelo na chave, float32, lote na primeira busca sem match), regra de aceitacao piso 0,78 + margem 0,05 sobre a mediana. stats() agora informa vetores. conftest forca OD_MEMORY_EMBEDDING=off e tests/test_memory_embeddings.py (+17) usa embedder falso.",
+    "resultado": "Recall@5 medido com provider real: lexical 9/10 -> lexical+semantica 10/10; 0/10 falsos positivos em 10 perguntas fora de assunto. Custo: hit lexical 0,26 ms; miss semantico 431 ms p50 (embedding da consulta); primeira busca com 10 fatos frios 1,27 s.",
+    "trade_off": "Mensagem que nao casa com nenhuma memoria paga ~0,4 s no bloco de memoria; desligavel por OD_MEMORY_EMBEDDING=off sem afetar o lexical.",
+    "testes": "Gate 4323 passed / 16 skipped / 0 falha (191,19 s).",
+    "prova_viva": "Restart do od-core: MainPID 1216766, NRestarts=0, /health 27/27; GEMINI_API_KEY presente no ambiente do processo e provedor_ativo()='gemini'; stats() do banco real responde com vetores=0 (nenhum fato ainda).",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§12)",
+    "updated_at": "2026-11-10T17:20:00-03:00"
+  },
   "f4_fase3_consolidacao_e_efemero_2026_11_10": {
     "pedido": "Dono: fazer a fase 3 do F4 (consolidacao semanal de fatos repetidos e expiracao do efemero).",
     "feito": "core/memory_layer.py: coluna expira_em com migracao automatica, adicionar_fato(ttl_s=...), extracao marcando efemero (hoje/amanha/no momento/daqui a) e MemoryGraph.consolidar() com dedupe por conteudo normalizado (o mais recente fica, os outros ganham aresta substitui) e expiracao dos vencidos; ativos/buscar/stats/bloco do prompt ignoram fato vencido. TTL por OD_MEMORY_EFEMERO_DIAS (padrao 7 dias). CLI tools/monitor/memory_consolidate.py (--user, --dry-run, --json). systemd/od-memory-consolidate.{service,timer}: OnCalendar=Sun 04:20, Persistent=true, instalado e habilitado.",
