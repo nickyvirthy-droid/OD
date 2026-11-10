@@ -563,8 +563,23 @@ esperar o timeout.
 - [x] F1 fase 3: pipeline completo no grafo — etapas 1–4 (rate limit,
       datetime, quick, infra, intenções, cache) como nós terminais e etapa 8
       (cache + histórico) como nó final, comuns ao caminho direto
-- [ ] F1 fase 4: `thread_id` estável por sessão e retomada automática do
-      último checkpoint após restart do `od-core`
+- [x] F1 fase 4: `thread_id` determinístico por sessão+mensagem (hash de
+      texto/perfil/papel), `concluido` no checkpoint e retomada automática do
+      turno interrompido após restart — sem repetir o LLM
+
+#### Backlog de sugestões de acompanhamento
+> As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
+> pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
+> sugestão não escolhida é anotada aqui para não perder a melhoria.
+- [ ] F1: fazer o `execute_parallel` executar as actions reais do registry, com
+      timeout por ferramenta (hoje o `process()` responde actions pelo fast
+      path e o grafo só orquestra conversa)
+- [ ] F1: `RetryPolicy` por nó para falha transitória de LLM/action, sem
+      reexecutar o pipeline inteiro
+- [ ] F1: consumir `pending_human_input` de verdade no chat (pausa + aprovação
+      do dono) usando `retomar()`, hoje só testado no motor
+- [ ] RAG: avaliar cache de embedding de documento (evitar reembeddar o mesmo
+      texto após restart)
 
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)

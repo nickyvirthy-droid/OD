@@ -14,6 +14,7 @@ Baseado em:
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 
 import pytest
@@ -170,6 +171,132 @@ class TestProcessoComGrafo:
             )
             respostas[flag] = (resultado.route, resultado.message)
         assert respostas["0"] == respostas["1"] == ("llm", "mesma resposta")
+
+    async def test_thread_estavel_por_sessao_e_texto(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        orch = Orchestrator(providers=[StaticProvider("stub", "resposta")])
+
+        await orch.process("alex", "guardian", "mesma pergunta", session_id="s1")
+        await orch.process("alex", "guardian", "mesma pergunta", session_id="s1")
+        await orch.process("alex", "guardian", "mesma pergunta", session_id="s2")
+
+        chave = hashlib.sha256(
+            b"s1\x00mesma pergunta\x00guardian\x00admin"
+        ).hexdigest()[:20]
+        with sqlite3.connect(tmp_path / "ck.db") as conn:
+            threads = [
+                r[0]
+                for r in conn.execute(
+                    "SELECT DISTINCT thread_id FROM od_graph_checkpoints"
+                )
+            ]
+        assert len(threads) == 2
+        assert f"alex:s1:{chave}" in threads
+
+    async def test_retoma_turno_interrompido_sem_repetir_llm(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+
+        class ProviderContador:
+            name = "contador"
+
+            def __init__(self) -> None:
+                self.chamadas = 0
+
+            def generate(self, prompt: str, timeout=None) -> str:
+                self.chamadas += 1
+                return "resposta única"
+
+        # Primeiro processo: morre logo depois de gerar a resposta.
+        p1 = ProviderContador()
+        orch1 = Orchestrator(providers=[p1])
+
+        async def explode(**_kwargs):
+            raise RuntimeError("restart simulado")
+
+        original = Orchestrator._etapa_post_processo
+        monkeypatch.setattr(orch1, "_etapa_post_processo", explode)
+        with pytest.raises(RuntimeError):
+            await orch1._executar_grafo(
+                user_id="alex",
+                profile="guardian",
+                text="pergunta que sobrevive ao restart",
+                system_prompt="",
+                session_id="sess-restart",
+                role="admin",
+                persist=True,
+            )
+        assert p1.chamadas == 1
+
+        # Segundo processo: instância nova, mesmo banco — retoma do checkpoint.
+        p2 = ProviderContador()
+        orch2 = Orchestrator(providers=[p2])
+        monkeypatch.setattr(orch2, "_etapa_post_processo", original.__get__(orch2))
+        final = await orch2._executar_grafo(
+            user_id="alex",
+            profile="guardian",
+            text="pergunta que sobrevive ao restart",
+            system_prompt="",
+            session_id="sess-restart",
+            role="admin",
+            persist=True,
+        )
+
+        assert final["route"] == "llm"
+        assert final["message"] == "resposta única"
+        assert final.get("pos_processado") is True
+        assert p2.chamadas == 0  # LLM não foi pago de novo
+
+        chave = hashlib.sha256(
+            b"sess-restart\x00pergunta que sobrevive ao restart\x00guardian\x00admin"
+        ).hexdigest()[:20]
+        with sqlite3.connect(tmp_path / "ck.db") as conn:
+            concluido = conn.execute(
+                "SELECT concluido FROM od_graph_checkpoints "
+                "WHERE thread_id = ? ORDER BY passo DESC LIMIT 1",
+                (f"alex:sess-restart:{chave}",),
+            ).fetchone()[0]
+        assert concluido == 1
+
+    async def test_falha_em_processo_nao_deixa_turno_retomavel(
+        self, tmp_path, monkeypatch
+    ):
+        """Se o grafo falha e o direto responde, o turno não fica 'pendente'."""
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        orch = Orchestrator(providers=[StaticProvider("stub", "resposta")])
+
+        original = Orchestrator._etapa_post_processo
+        falhas = {"n": 0}
+
+        async def explode(**kwargs):
+            # Só o grafo falha; o fallback direto completa normalmente.
+            falhas["n"] += 1
+            if falhas["n"] == 1:
+                raise RuntimeError("falha simulada no nó final")
+            return await original.__get__(orch)(**kwargs)
+
+        monkeypatch.setattr(orch, "_etapa_post_processo", explode)
+        result = await orch.process(
+            "alex", "guardian", "pergunta com falha", session_id="s-falha"
+        )
+
+        assert result.route == "llm"
+        assert result.message == "resposta"
+        chave = hashlib.sha256(
+            b"s-falha\x00pergunta com falha\x00guardian\x00admin"
+        ).hexdigest()[:20]
+        with sqlite3.connect(tmp_path / "ck.db") as conn:
+            concluido, proximos = conn.execute(
+                "SELECT concluido, proximos FROM od_graph_checkpoints "
+                "WHERE thread_id = ? ORDER BY passo DESC LIMIT 1",
+                (f"alex:s-falha:{chave}",),
+            ).fetchone()
+        assert concluido == 1
+        assert proximos == "[]"
 
     async def test_flag_desligada_nao_cria_banco(self, tmp_path, monkeypatch):
         monkeypatch.delenv("OD_ORCHESTRATOR_GRAPH", raising=False)

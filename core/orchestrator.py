@@ -55,12 +55,12 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import os
 import re
 import threading
 import time
-import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
@@ -1771,22 +1771,47 @@ class Orchestrator:
         builder.add_conditional_edges("generate", rota("post_process"))
         builder.add_edge("post_process", END)
 
-        grafo = builder.compile(checkpointer=self._obter_graph_saver())
-        thread_id = f"{user_id}:{session_id or 'sem-sessao'}:{uuid.uuid4().hex}"
+        saver = self._obter_graph_saver()
+        grafo = builder.compile(checkpointer=saver)
+        thread_id = self._thread_grafo(user_id, session_id, text, profile, role)
+        salvo = saver.ultimo(thread_id)
+        retomar = salvo is not None and not salvo.concluido
+        if retomar:
+            log.info(
+                f"Grafo: retomando turno interrompido {thread_id} "
+                f"(passo {salvo.passo}, próximos={salvo.proximos})"
+            )
+        entrada = None if retomar else {
+            "user_id": user_id,
+            "profile": profile,
+            "session_id": session_id,
+            "role": role,
+            "text": text,
+            "messages": [{"role": "user", "content": text}],
+        }
         return await grafo.ainvoke(
-            {
-                "user_id": user_id,
-                "profile": profile,
-                "session_id": session_id,
-                "role": role,
-                "text": text,
-                "messages": [{"role": "user", "content": text}],
-            },
+            entrada,
             {
                 "configurable": {"thread_id": thread_id},
                 "recursion_limit": 50,
             },
+            resume=retomar,
         )
+
+    @staticmethod
+    def _thread_grafo(
+        user_id: str, session_id: str, text: str, profile: str, role: str
+    ) -> str:
+        """Thread determinística por turno.
+
+        O MESMO texto na MESMA sessão é o retry do cliente depois de um
+        restart, então retoma o checkpoint em vez de pagar o LLM de novo.
+        Texto/perfil/papel diferentes = thread nova, sem herdar estado alheio.
+        """
+        chave = hashlib.sha256(
+            f"{session_id}\x00{text}\x00{profile}\x00{role}".encode("utf-8")
+        ).hexdigest()[:20]
+        return f"{user_id}:{session_id or 'sem-sessao'}:{chave}"
 
     async def _executar_pipeline(
         self,
@@ -1820,6 +1845,21 @@ class Orchestrator:
                     "Grafo do orquestrador falhou — usando o pipeline direto",
                     motivo=f"{type(exc).__name__}: {exc}",
                 )
+                # O direto vai responder agora; este turno não deve ser
+                # retomado depois como se o processo tivesse morrido.
+                if self._graph_saver is not None:
+                    thread_id = self._thread_grafo(
+                        user_id, session_id, text, profile, role
+                    )
+                    ultimo = self._graph_saver.ultimo(thread_id)
+                    if ultimo is not None and not ultimo.concluido:
+                        self._graph_saver.put(
+                            thread_id,
+                            ultimo.passo,
+                            ultimo.estado,
+                            [],
+                            concluido=True,
+                        )
         return await self._executar_direto(
             user_id=user_id,
             profile=profile,

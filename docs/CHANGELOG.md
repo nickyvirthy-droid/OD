@@ -12,6 +12,21 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Orquestrador em grafo, fase 4: retomada pós-restart (F1, 2026-11-10, sem bump)
+
+**Resumo:** o checkpoint existia, mas a thread era aleatória por mensagem —
+ninguém conseguia retomá-la. Agora o `thread_id` é determinístico por turno e o
+checkpoint marca se concluiu; turno interrompido por restart retoma do último
+nó sem pagar o LLM de novo.
+
+| Peça | Entrega |
+|---|---|
+| **`core/orchestrator.py`** | `_thread_grafo`: SHA-256 de sessão+texto+perfil+papel (20 chars), então o retry do MESMO texto na MESMA sessão acha o checkpoint. `_executar_grafo` retoma (`resume=True`) só quando o último checkpoint está incompleto. Se o grafo falha e o fallback direto responde, o turno é marcado concluído para não ser retomado por engano. |
+| **`core/orchestrator_graph.py`** | Coluna `concluido` (com migração `ALTER TABLE` para bancos antigos), `Checkpoint.concluido`, `put(..., concluido=...)`; o último superstep marca 1, pausa humana e crash ficam 0; retomar thread concluída não a reescreve. |
+| **Testes** | `tests/test_orchestrator_graph.py` **+3** (concluído só no último passo, migração de banco antigo, resume não reescreve thread concluída) e `tests/test_orchestrator_graph_integration.py` **+3** (thread estável por sessão/texto, retomada cross-instance sem repetir LLM, falha em processo não deixa turno pendente). |
+| **Prova viva** | `od-core` reiniciado (MainPID 1362905); mensagem real criou `alex:prova-f1-fase4:<hash>` com **9 passos, concluído=1**; `/health` **27/27 up**. |
+| **Verificação** | Gate **4374 passed / 16 skipped / 0 falha** (192,28 s). Sem bump: **1.44.0/2080**. |
+
 ## Orquestrador em grafo, fase 3: pipeline completo (F1, 2026-11-10, sem bump)
 
 **Resumo:** só a fatia de LLM era grafo; rate limit, datetime, quick, infra,

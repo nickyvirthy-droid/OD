@@ -148,6 +148,7 @@ class Checkpoint:
     estado: dict[str, Any]
     proximos: list[str]
     created_at: float
+    concluido: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -155,6 +156,7 @@ class Checkpoint:
             "passo": self.passo,
             "estado": dict(self.estado),
             "proximos": list(self.proximos),
+            "concluido": self.concluido,
             "created_at": self.created_at,
         }
 
@@ -166,6 +168,7 @@ CREATE TABLE IF NOT EXISTS od_graph_checkpoints (
     estado     TEXT NOT NULL,
     proximos   TEXT NOT NULL,
     created_at REAL NOT NULL,
+    concluido  INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (thread_id, passo)
 );
 CREATE INDEX IF NOT EXISTS idx_od_graph_thread ON od_graph_checkpoints(thread_id, passo);
@@ -190,6 +193,19 @@ class SqliteSaver:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.executescript(_SCHEMA_CHECKPOINT)
+        # Bancos criados antes da fase 4 não têm `concluido`: migra sem perder
+        # histórico (o passo antigo fica marcado como incompleto e é retomado).
+        colunas = {
+            str(linha["name"])
+            for linha in self._conn.execute(
+                "PRAGMA table_info(od_graph_checkpoints)"
+            ).fetchall()
+        }
+        if "concluido" not in colunas:
+            self._conn.execute(
+                "ALTER TABLE od_graph_checkpoints ADD COLUMN "
+                "concluido INTEGER NOT NULL DEFAULT 0"
+            )
         self._conn.commit()
 
     def put(
@@ -198,18 +214,22 @@ class SqliteSaver:
         passo: int,
         estado: dict[str, Any],
         proximos: list[str],
+        *,
+        concluido: bool = False,
     ) -> None:
         """Grava (ou substitui) o checkpoint de um passo."""
         with self._lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO od_graph_checkpoints "
-                "(thread_id, passo, estado, proximos, created_at) VALUES (?, ?, ?, ?, ?)",
+                "(thread_id, passo, estado, proximos, created_at, concluido) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     thread_id,
                     int(passo),
                     json.dumps(estado, ensure_ascii=False, default=str),
                     json.dumps(list(proximos), ensure_ascii=False),
                     time.time(),
+                    1 if concluido else 0,
                 ),
             )
             # Teto por thread: histórico de auditoria, não despejo infinito.
@@ -253,6 +273,7 @@ class SqliteSaver:
             estado=dict(estado or {}),
             proximos=[str(n) for n in (proximos or [])],
             created_at=float(linha["created_at"]),
+            concluido=bool(linha["concluido"]),
         )
 
     def fechar(self) -> None:
@@ -413,6 +434,7 @@ class CompiledGraph:
         estado: dict[str, Any] = {}
         passo = 0
         proximos: list[str] = [self.entry]
+        carregado = False
 
         if resume and self.checkpointer is not None and thread_id:
             salvo = self.checkpointer.ultimo(thread_id)
@@ -420,10 +442,12 @@ class CompiledGraph:
                 estado = dict(salvo.estado)
                 proximos = list(salvo.proximos)
                 passo = salvo.passo
+                carregado = True
         elif entrada is not None:
             estado = dict(entrada)
 
-        if self.checkpointer is not None and thread_id:
+        # Retomar thread já concluída não deve reescrevê-la como incompleta.
+        if self.checkpointer is not None and thread_id and not (carregado and not proximos):
             self.checkpointer.put(thread_id, passo, estado, proximos)
 
         if not proximos:
@@ -470,7 +494,13 @@ class CompiledGraph:
                 return
 
             if self.checkpointer is not None and thread_id:
-                self.checkpointer.put(thread_id, passo, estado, proximos)
+                self.checkpointer.put(
+                    thread_id,
+                    passo,
+                    estado,
+                    proximos,
+                    concluido=not proximos,
+                )
             yield {
                 "passo": passo,
                 "nos": executados,

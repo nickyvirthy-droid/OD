@@ -15,6 +15,7 @@ Baseado em:
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 import time
 
 import pytest
@@ -136,6 +137,39 @@ class TestCheckpoint:
         assert final["response"].startswith("resposta")
         assert final["active_tools"] == ["clima", "agenda"]
         saver2.fechar()
+
+    def test_concluido_so_no_ultimo_passo(self, tmp_path):
+        saver = SqliteSaver(tmp_path / "ck.db")
+        saver.put("t1", 0, {}, ["n1"])
+        assert saver.ultimo("t1").concluido is False
+        saver.put("t1", 1, {}, [], concluido=True)
+        ultimo = saver.ultimo("t1")
+        assert ultimo.concluido is True
+        assert ultimo.proximos == []
+        assert saver.historico("t1")[0].concluido is False
+        saver.fechar()
+
+    def test_migracao_de_banco_antigo_adiciona_concluido(self, tmp_path):
+        caminho = tmp_path / "antigo.db"
+        conn = sqlite3.connect(caminho)
+        conn.executescript(
+            "CREATE TABLE od_graph_checkpoints ("
+            "thread_id TEXT NOT NULL, passo INTEGER NOT NULL, estado TEXT NOT NULL, "
+            "proximos TEXT NOT NULL, created_at REAL NOT NULL, "
+            "PRIMARY KEY (thread_id, passo));"
+        )
+        conn.execute(
+            "INSERT INTO od_graph_checkpoints VALUES ('old', 0, '{}', '[\"x\"]', 1.0)"
+        )
+        conn.commit()
+        conn.close()
+
+        saver = SqliteSaver(caminho)
+        salvo = saver.ultimo("old")
+        assert salvo is not None and salvo.concluido is False
+        saver.put("old", 1, {}, [], concluido=True)
+        assert saver.ultimo("old").concluido is True
+        saver.fechar()
 
     def test_retomar_sem_checkpoint_falha(self, tmp_path):
         saver = SqliteSaver(tmp_path / "ck.db")
@@ -263,6 +297,22 @@ class TestMotor:
         grafo = builder.compile()
         with pytest.raises(GraphStateError):
             asyncio.run(grafo.ainvoke({}))
+
+    def test_resume_de_thread_concluida_preserva_checkpoint(self, tmp_path):
+        saver = SqliteSaver(tmp_path / "ck.db")
+        grafo, _ = _grafo(checkpointer=saver)
+        asyncio.run(
+            grafo.ainvoke({"text": "oi"}, {"configurable": {"thread_id": "done"}})
+        )
+        antes = saver.ultimo("done")
+        assert antes.concluido is True
+        asyncio.run(
+            grafo.ainvoke(None, {"configurable": {"thread_id": "done"}}, resume=True)
+        )
+        depois = saver.ultimo("done")
+        assert depois.concluido is True
+        assert depois.passo == antes.passo
+        saver.fechar()
 
     def test_stream_rende_updates_por_passo(self):
         grafo, _ = _grafo()

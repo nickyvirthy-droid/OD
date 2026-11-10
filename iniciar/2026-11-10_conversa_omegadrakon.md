@@ -865,3 +865,79 @@ nós terminais/condicionais.
   retomada automática do último checkpoint após restart do `od-core` — o
   grafo já grava o estado e os próximos nós, falta o consumidor.
 - Depois: fan-out real das actions no `execute_parallel` e resumo pós-falha.
+
+---
+
+## §19 — F1 fase 4: thread estável por sessão e retomada pós-restart
+
+**Pedido do dono:** usar `thread_id` estável por sessão e retomar do último
+checkpoint após restart do `od-core`.
+
+### 1. O que entrou
+
+| Peça | Entrega |
+|---|---|
+| `_thread_grafo` | SHA-256 de `sessão + texto + perfil + papel` (20 chars) → `usuário:sessão:hash`. O retry do MESMO texto na MESMA sessão cai na mesma thread; texto/perfil/papel diferentes abrem thread nova. |
+| Retomada | `_executar_grafo` consulta o último checkpoint: `concluido=0` → `ainvoke(None, resume=True)`; `concluido=1` → execução nova (cache/LLM normais). |
+| `concluido` | Coluna nova em `od_graph_checkpoints` (`ALTER TABLE` automático em banco antigo). O último superstep grava `1`; pausa humana e crash ficam `0`. `Checkpoint.concluido` expõe isso. |
+| Falha em processo | Se o grafo levanta e o fallback direto responde, `_executar_pipeline` marca o turno como concluído — senão o próximo retry “retomaria” um turno que já teve resposta. |
+| Segurança | `resume` de thread concluída não reescreve o checkpoint (não volta status para pendente). |
+
+### 2. Medição
+
+- Sem custo novo por mensagem: a consulta `ultimo()` é um SELECT pela PK; o
+  hash SHA-256 de uma string curta é microssegundos.
+- O ganho é de retrabalho: restart entre `generate` e `post_process` retoma na
+  etapa 8 e **não chama o LLM de novo** (teste cross-instance comprova
+  `chamadas == 0` na segunda instância).
+
+### 3. Prós e contras
+
+- **Thread por conteúdo, não por sessão inteira:** o mesmo texto repetido é
+  tratado como retry; uma pergunta nova nunca herda estado da anterior. Contra:
+  duas mensagens idênticas simultâneas na mesma sessão disputam a mesma thread
+  (a última gravação vence) — caso raro e sem corrupção.
+- **`concluido` no banco:** decisão de retomar fica auditável e sobrevive a
+  restart. Contra: é mais uma coluna para migrar (feito automaticamente) e um
+  UPDATE a mais no último passo.
+- **Fallback marca concluído:** evita retomada fantasma. Contra: o checkpoint
+  não guarda a resposta do fallback, então auditoria vê estado sem `message`.
+- **Sem retomada automática no boot:** o turno só é retomado quando o cliente
+  reenvia o mesmo texto/sessão. Retomar sozinho exigiria reenviar a resposta
+  por um canal que pode ter morrido junto com o processo.
+
+### 4. Verificação
+
+- `tests/test_orchestrator_graph.py` **+3** — `concluido` só no último passo,
+  migração de banco sem a coluna, resume não reescreve thread concluída.
+- `tests/test_orchestrator_graph_integration.py` **+3** — thread estável por
+  sessão+texto (duas sessões = duas threads), retomada entre instâncias sem
+  repetir LLM, falha em processo marcando o turno como concluído.
+- Gate completo: **4374 passed / 16 skipped / 0 falha** (192,28 s; eram
+  4368/16).
+- Prova viva: `od-core` reiniciado (MainPID **1362905**); `POST /message` real
+  criou `alex:prova-f1-fase4:25f1454fe1dcd5b8084d` com **9 passos,
+  concluído=1**; `/health` **up, 27/27**.
+- Sem bump: app segue **1.44.0/2080**.
+
+### 5. Fila
+
+- **F1 fase 5:** consumir `pending_human_input` no chat (pausa + aprovação do
+  dono) e ações reais no `execute_parallel`, com `RetryPolicy` por nó. Itens
+  registrados no backlog de sugestões do `docs/ANALISE_SISTEMA_TODO.md`.
+
+---
+
+## §20 — Convenção: sugestões de acompanhamento não escolhidas vão para o TODO
+
+**Pergunta do dono:** “você sempre me mostra 3 sugestões; escolho uma — o que
+acontece com as outras? Coloque no TODO para não perder possíveis melhorias.”
+
+**Resposta:** as três são cartões efêmeros do cliente. Só a clicada vira
+mensagem; as outras não são salvas em disco nem enviadas a lugar nenhum — somem
+quando o turno termina. Para não perder a ideia, a partir de 10/11/2026 toda
+sugestão não escolhida é anotada em
+`docs/ANALISE_SISTEMA_TODO.md §4 — Backlog de sugestões de acompanhamento`,
+com checkbox. As pendentes de hoje: actions reais no `execute_parallel` com
+timeout, `RetryPolicy` por nó, consumo real de `pending_human_input` no chat e
+cache de embedding de documento no RAG.

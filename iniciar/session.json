@@ -1,4 +1,23 @@
 {
+  "f1_fase4_retomada_pos_restart_2026_11_10": {
+    "pedido": "Dono: usar thread_id estavel por sessao e retomar do ultimo checkpoint apos restart do od-core.",
+    "feito": "core/orchestrator.py: _thread_grafo calcula SHA-256 de sessao+texto+perfil+papel (20 chars) e monta usuario:sessao:hash; _executar_grafo consulta o ultimo checkpoint e retoma (resume=True, entrada None) apenas quando concluido=0; execucao nova quando concluido=1. _executar_pipeline marca o turno como concluido quando o grafo falha em processo e o fallback direto responde, evitando retomada fantasma. core/orchestrator_graph.py: coluna concluido em od_graph_checkpoints (migracao ALTER TABLE automatica em banco antigo), Checkpoint.concluido, put(..., concluido=...); ultimo superstep grava 1, pausa humana/crash ficam 0; resume de thread concluida nao reescreve o checkpoint.",
+    "medicao": "Sem custo relevante por mensagem (SELECT pela PK + SHA-256 de string curta). Ganho: restart entre generate e post_process retoma na etapa 8 sem chamar o LLM de novo (teste cross-instance: segunda instancia com 0 chamadas).",
+    "testes": "tests/test_orchestrator_graph.py +3 (concluido so no ultimo passo, migracao de banco antigo, resume nao reescreve thread concluida) e tests/test_orchestrator_graph_integration.py +3 (thread estavel por sessao/texto, retomada cross-instance sem repetir LLM, falha em processo nao deixa turno pendente). Gate 4374 passed / 16 skipped / 0 falha (192,28 s; eram 4368/16).",
+    "trade_off": "Thread por conteudo trata o mesmo texto como retry e nunca herda estado de pergunta anterior; contra: mensagens identicas simultaneas na mesma sessao disputam a thread (ultima gravacao vence, sem corrupcao). concluido no banco torna a decisao auditavel e sobrevive a restart, ao custo de uma coluna migrada automaticamente. Fallback marca concluido mas nao guarda a resposta no checkpoint. Nao ha retomada automatica no boot: o cliente precisa reenviar o mesmo texto/sessao.",
+    "prova": "od-core reiniciado (MainPID 1362905); POST /message real criou alex:prova-f1-fase4:25f1454fe1dcd5b8084d com 9 passos e concluido=1; /health up 27/27.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§19)",
+    "updated_at": "2026-11-10T17:43:31-03:00"
+  },
+  "backlog_sugestoes_no_todo_2026_11_10": {
+    "pedido": "Dono: as 3 sugestoes de acompanhamento mostradas a cada turno somem quando ele escolhe uma; registrar as nao escolhidas no TODO para nao perder melhorias.",
+    "feito": "docs/ANALISE_SISTEMA_TODO.md ganhou a secao 'Backlog de sugestoes de acompanhamento' dentro do §4, com a convencao (a partir de 10/11/2026 toda sugestao nao escolhida vira checkbox) e as pendencias atuais: actions reais no execute_parallel com timeout, RetryPolicy por no, consumo real de pending_human_input no chat e cache de embedding de documento no RAG. Transcricao registrada no §20.",
+    "esclarecimento": "As sugestoes sao cartoes efemeros do cliente: apenas a clicada e enviada como mensagem; as outras nao sao persistidas em disco nem enviadas a lugar nenhum.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§20)",
+    "updated_at": "2026-11-10T17:43:31-03:00"
+  },
   "f1_fase3_pipeline_completo_no_grafo_2026_11_10": {
     "pedido": "Dono: levar as etapas 1 a 4 e 8 do process() para o grafo como nos terminais/condicionais.",
     "feito": "core/orchestrator.py: etapas 1-4 extraidas do process() para _etapa_rate_limit, _etapa_datetime, _etapa_quick, _etapa_infra, _etapa_intents e _etapa_cache (corpo original, OrchestrationResult local, retorno em dict com terminal/route/message/registrar); etapa 8 em _etapa_post_processo (cache+historico so para rota LLM e persist). _executar_grafo monta os 8 nos com rota terminal ? END : proximo, recursion_limit 50 e checkpointer; _executar_direto usa os MESMOS metodos em sequencia; _executar_pipeline escolhe e cai no direto em excecao; _finalizar_estado centraliza a montagem do resultado e o _record_terminal das rotas sem LLM. core/orchestrator_graph.py: OrchestratorState ganhou terminal, registrar, cached, fallback_used, llm_used, prompt e pos_processado.",
@@ -1577,7 +1596,7 @@
     "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
     "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
   },
-  "updated_at": "2026-11-10T17:25:47-03:00",
+  "updated_at": "2026-11-10T17:43:31-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
