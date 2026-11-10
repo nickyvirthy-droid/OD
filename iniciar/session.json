@@ -1,4 +1,14 @@
 {
+  "r2_circuit_breaker_2026_11_10": {
+    "pedido": "Continuidade da autorização do dono (10/11): implementar o que não precisa da presença dele.",
+    "feito": "core/resilience.py novo (CircuitBreaker thread-safe: fechado/aberto/meia_aberto, relogio injetavel, permitir/registrar_sucesso/registrar_falha/executar/status; registro global). core/llm.py: breaker por provider (llm:<nome>) em generate/generate_stream, is_available sem sonda quando aberto; recusa vira LLMError e cai no fallback do Orchestrator.",
+    "config": "OD_CIRCUIT_FAILURES=5 (padrao), OD_CIRCUIT_RECOVERY_S=30 (padrao), OD_CIRCUIT_BREAKER=0 desliga.",
+    "testes": "tests/test_resilience.py +16; gate completo 4226 passed / 16 skipped / 0 falha (188,73 s).",
+    "restart": "MainPID 989123, NRestarts=0, /health 26/26 up ok=true, journal 0 [ERROR].",
+    "sem_bump": "Servidor; app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§3)",
+    "updated_at": "2026-11-10T12:20:00-03:00"
+  },
   "f2_telemetria_2026_11_10": {
     "pedido": "Dono (10/11, saindo): 'implemente todas as atualizações que não precisam da minha presença', autorizado instalar ferramentas. Primeiro item: F2 (OpenTelemetry) do roadmap.",
     "feito": "core/telemetry.py novo (configurar idempotente, span, cronometrar, contar, atribuir, trace_id/span_id, status, desligar; providers no módulo; no-op sem SDK). core/logger.py anexa trace_id/span_id ao contexto quando há span ativo. integrations/api/server.py: span http.request + od.http_request.seconds + od.http_requests com status; despacho em _despachar. memory/rag.py: consult() instrumentado, corpo em _consultar(). runtime/launcher.py: configurar() no main + check não-crítico 'telemetria' no /health. docs/TELEMETRIA.md; requirements item 8 (OTel opcional).",

@@ -97,6 +97,32 @@ Escolhido o F2 do roadmap: menor risco, maior visibilidade (Semana 1-2).
 - Fixture que chamava `reset_loggers()` quebrava testes de outros módulos
   (referência antiga do logger) — removida do `test_telemetry.py`.
 
+## §3 — R2: circuit breaker nos providers LLM (10/11)
+
+**Pedido:** continuidade da autorização "implemente o que não precisa de mim"
+— item R2 do TODO (Resiliência, baixo esforço e alto impacto).
+
+### 1. O que foi feito
+
+| Arquivo | Entrega |
+|---|---|
+| `core/resilience.py` (novo) | `CircuitBreaker` thread-safe (fechado → aberto → meia-aberto), relógio injetável, `permitir`/`registrar_sucesso`/`registrar_falha`/`executar`/`status`; registro global (`obter_breaker`, `status_breakers`, `resetar_breakers`); `OD_CIRCUIT_BREAKER=0` desliga. |
+| `core/llm.py` | Breaker por provider (`llm:<nome>`): `generate`/`generate_stream` recusam sem tocar a rede com circuito aberto, contam sucesso/falha; `is_available()` devolve False sem sonda quando aberto. A recusa é `LLMError`, já tratado pela cadeia de fallback do Orchestrator. |
+| `tests/test_resilience.py` | +16 testes (estados, limite, janela, meia-abertura, desligado, `executar`, registro e integração — a 3ª chamada não vai à rede). |
+
+### 2. Configuração
+
+- `OD_CIRCUIT_FAILURES` (padrão 5) — falhas consecutivas que abrem.
+- `OD_CIRCUIT_RECOVERY_S` (padrão 30) — janela antes da meia-abertura.
+- `OD_CIRCUIT_BREAKER=0` — desliga o disjuntor.
+
+### 3. Verificação
+
+- Gate completo: **4226 passed / 16 skipped / 0 falha** (188,73 s).
+- Restart `od-core`: **MainPID 989123**, `NRestarts=0`, `/health` **26/26 up**
+  (`ok=true`), journal **0 `[ERROR]`** na janela.
+- Sem bump: app segue **1.44.0/2080**.
+
 ### 4. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2
