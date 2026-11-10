@@ -1,0 +1,14 @@
+[Unit]
+Description=Timer semanal da consolidacao da memoria longa
+Requires=od-memory-consolidate.service
+
+[Timer]
+# Domingo 04:20 (horário local), com folga de 10 min; se a máquina estava
+# desligada no horário, o Persistent dispara na próxima subida.
+OnCalendar=Sun 04:20
+AccuracySec=10min
+Persistent=true
+Unit=od-memory-consolidate.service
+
+[Install]
+WantedBy=timers.target

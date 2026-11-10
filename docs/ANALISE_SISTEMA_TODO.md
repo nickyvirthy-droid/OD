@@ -30,7 +30,7 @@
 | **F1** | **Migrar orquestrador para grafo de execução (LangGraph-style)** | Alto | 🔥🔥🔥 | LangGraph blog 2024-2025: checkpointing, parallelization, streaming, human-in-the-loop, task queue, tracing nativo |
 | **F2** | ~~Implementar OpenTelemetry distribuído (traces + metrics + logs correlacionados)~~ **ENTREGUE (10/11)**: SDK + spans + métricas + log correlacionado + check no `/health`; falta só o coletor/Grafana (infra) — ver §3 | Médio | 🔥🔥🔥 | python-observability.com, structlog + OTel + BatchSpanProcessor |
 | **F3** | ~~Substituir I/O síncrono por async em todo o core~~ **ENCERRADO (10/11)** com escopo revisado por medição: o problema real era trabalho de CPU no handler e backlog de socket — ver §3 | Alto → Baixo | 🔥🔥 | `aiohttp`, `asyncpg`, `asyncio.to_thread` para bloqueantes |
-| **F4** | **Memory Layer estruturada (Mem0/Zep-style: grafo temporal + consolidação)** — **fases 1 e 2 ENTREGUES (10/11)**: grafo temporal em SQLite, extração determinística, 2 actions e bloco de memória no prompt (recall@5 0% → 90%); faltam embeddings e consolidação (§3) | Alto → Médio | 🔥🔥🔥 | Mem0 (arXiv 2504.19413), Zep (arXiv 2501.13956), LOCOMO/LongMemEval |
+| **F4** | **Memory Layer estruturada (Mem0/Zep-style: grafo temporal + consolidação)** — **fases 1, 2 e 3 ENTREGUES (10/11)**: grafo temporal em SQLite, extração determinística, 2 actions, bloco de memória no prompt (recall@5 0% → 90%) e consolidação semanal com expiração de efêmero; falta só embeddings (§3) | Alto → Médio | 🔥🔥🔥 | Mem0 (arXiv 2504.19413), Zep (arXiv 2501.13956), LOCOMO/LongMemEval |
 
 ### 🟡 ALTO — Inteligência & Performance
 
@@ -428,8 +428,29 @@ devolve bloco vazio e loga — memória nunca derruba o chat. A busca ganhou
 radical leve PT-BR (`moro`/`mora`/`morar` → `mor`), senão "onde eu moro?"
 não achava "mora em Curitiba".
 
-**Fase 3 (não iniciada):** embeddings para sinônimos (os 10% que faltam) e
-consolidação periódica semanal (fundir fatos repetidos, expirar o efêmero).
+#### F4 — FASE 3 (consolidação semanal + efêmero) ENTREGUE (2026-11-10)
+
+**Status: consolidação entregue.** A memória agora tem prazo e faxina — sem
+isso o grafo só crescia e "hoje estou cansado" ficaria verdadeiro para
+sempre.
+
+| Peça | O que entrou |
+|---|---|
+| **Efêmero** | Fato extraído com marcador de tempo relativo ("hoje", "amanhã", "no momento", "daqui a") nasce com `expira_em = agora + OD_MEMORY_EFEMERO_DIAS` (padrão **7**) e sai da busca ao vencer — a linha **continua no banco** para auditoria. |
+| **`MemoryGraph.consolidar()`** | Duas operações idempotentes: (1) **dedupe** por conteúdo normalizado — fatos ativos com os mesmos tokens viram um só, o mais recente fica e os outros ganham aresta `substitui` (pega duplicado de caminhos diferentes: action com entidade fixa vs captura automática); (2) **expiração** dos efêmeros vencidos. Roda por usuário ou para todos. |
+| **Leitura** | `ativos`, `buscar`, `stats` e o bloco do prompt ignoram fato vencido, então a expiração vale na hora, sem job de limpeza. |
+| **`tools/monitor/memory_consolidate.py`** | CLI (`--user`, `--dry-run`, `--json`) que imprime antes/depois e é o que o timer executa. |
+| **`systemd/od-memory-consolidate.{service,timer}`** | Oneshot semanal: `OnCalendar=Sun 04:20`, `Persistent=true` (roda na próxima subida se a máquina estava desligada). Instalado e habilitado em `~/.config/systemd/user/`. |
+| **Testes** | `tests/test_memory_layer.py` **+11** (marcador efêmero, expiração saindo da busca sem apagar, fato expirado não bloqueia repetição, TTL por env, dedupe por entidades diferentes, idempotência, isolamento entre usuários, contagem de expirados, stats, CLI). |
+
+**Decisão que mudou no meio do caminho:** o dedupe começou por
+(user, tipo, entidade) — e isso nunca dispararia, porque `adicionar_fato` já
+substitui fato novo da mesma entidade. Foi refeito para **conteúdo
+normalizado**, que é exatamente o duplicado que dois caminhos diferentes
+geram. Fica registrado porque o primeiro desenho teria virado código morto.
+
+**O que ainda falta (fase 4, opcional):** embeddings para sinonímia — o único
+caso que a busca por termo não cobre ("animal" vs "cachorro").
 
 ### R2 — Circuit Breaker (detalhe)
 
@@ -487,7 +508,8 @@ esperar o timeout.
       + captura automática no `_post_process`)
 - [x] F4 fase 2: injeção do bloco de memória no prompt — recall@5 de 0% para
       **90%**, +3,6% de prompt, 0,2 ms de recuperação
-- [ ] F4 fase 3: embeddings (sinônimos) e consolidação semanal
+- [x] F4 fase 3: consolidação semanal (dedupe + expiração de efêmero) no
+      timer `od-memory-consolidate`; falta só embeddings (sinônimos)
 
 ### Semana 7-8: Orquestrador como Grafo
 - [ ] F1: Definir `OrchestratorState` (TypedDict + reducers)

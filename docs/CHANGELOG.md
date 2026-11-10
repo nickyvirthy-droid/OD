@@ -12,6 +12,21 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Memória longa fase 3: consolidação semanal e efêmero (F4, 2026-11-10, sem bump)
+
+**Resumo:** a memória não tinha prazo nem faxina — o grafo só crescia e
+"hoje estou cansado" ficaria verdadeiro para sempre. Agora fato com tempo
+relativo nasce com validade, e um timer semanal deduplica o repetido.
+
+| Peça | Entrega |
+|---|---|
+| **`core/memory_layer.py`** | `expira_em` (migração automática em bancos antigos), `adicionar_fato(ttl_s=...)`, extração marcando `efemero` ("hoje", "amanhã", "no momento", "daqui a") e `consolidar()`: dedupe por conteúdo normalizado (o mais recente fica, os outros ganham `substitui`) + expiração dos vencidos. `ativos`/`buscar`/`stats` ignoram fato vencido. |
+| **TTL** | `OD_MEMORY_EFEMERO_DIAS` (padrão **7**). Expirar não apaga: a linha fica para auditoria. |
+| **`tools/monitor/memory_consolidate.py`** | CLI com `--user`, `--dry-run` e `--json`, imprimindo antes/depois. |
+| **`systemd/od-memory-consolidate.{service,timer}`** | Oneshot semanal (`OnCalendar=Sun 04:20`, `Persistent=true`), instalado e habilitado. Próximo disparo: dom 15/11 04:20. |
+| **Testes** | `tests/test_memory_layer.py` **+11** (efêmero, expiração sem apagar, repetição após expirar, TTL por env, dedupe entre entidades, idempotência, isolamento, stats, CLI). |
+| **Verificação** | Gate completo **4306 passed / 16 skipped / 0 falha**; `od-memory-consolidate.service` rodou `success/0` (`duplicados=0 expirados=0`) e criou `data/memory.db`; `/health` 27/27 após restart. Sem bump: app segue **1.44.0/2080**. |
+
 ## Memória longa fase 2: bloco de memória no prompt (F4, 2026-11-10, sem bump)
 
 **Resumo:** até agora a memória longa só era alcançável por action — o LLM

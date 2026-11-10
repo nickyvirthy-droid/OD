@@ -444,6 +444,39 @@ prompt do LLM e medir o ganho de recall"*.
 - Ao vivo: restart do `od-core` (MainPID **1174808**, `NRestarts=0`); `/health` **27/27** após o MQTT reconectar (o primeiro `/health` pós-restart marcou `mqtt degraded` por ~20 s — transitório, não regressão).
 - Sem bump: app segue **1.44.0/2080**.
 
+## §11 — F4 fase 3: consolidação semanal e efêmero (10/11)
+
+**Pedido do dono:** *"faça a fase 3 do F4: consolidação semanal de fatos
+repetidos e expiração do efêmero"*.
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| Efêmero | Fato com marcador de tempo relativo ("hoje", "amanhã", "no momento", "daqui a") nasce com `expira_em = agora + OD_MEMORY_EFEMERO_DIAS` (padrão 7) e sai da busca ao vencer — a linha **fica no banco** para auditoria. |
+| `MemoryGraph.consolidar()` | (1) dedupe por conteúdo normalizado (mesmos tokens → fica o mais recente, os outros ganham aresta `substitui`); (2) expiração dos efêmeros vencidos. Idempotente, por usuário ou global. |
+| Leitura | `ativos`, `buscar`, `stats` e o bloco do prompt ignoram vencido — expiração vale na hora, sem job de limpeza. |
+| CLI + timer | `tools/monitor/memory_consolidate.py` (`--user`, `--dry-run`, `--json`) e `od-memory-consolidate.{service,timer}` semanais (`OnCalendar=Sun 04:20`, `Persistent=true`). |
+| Migração | Bancos criados na fase 1 ganham a coluna `expira_em` no `__init__` (sem perder dados). |
+| Testes | `tests/test_memory_layer.py` **+11**. |
+
+### 2. Decisão que mudou no meio — e por quê
+
+O dedupe começou por `(user, tipo, entidade)` e **nunca dispararia**: `adicionar_fato` já substitui fato novo da mesma entidade. Refiz para **conteúdo normalizado**, que é o duplicado que dois caminhos diferentes geram (action com entidade fixa vs captura automática pela extração). O primeiro desenho teria virado código morto — fica registrado.
+
+### 3. Prós e contras
+
+- **Expirar sem apagar:** mantém auditoria e permite "quando eu disse isso?"; contra: o banco guarda fato vencido para sempre — o teto de 500 e o dedupe contêm o crescimento.
+- **TTL por marcador textual, não por LLM:** determinístico e testável; contra: "hoje" numa frase estável ("meu aniversário é hoje") também expira — erro na direção segura (memória efêmera demais, nunca permanente demais).
+- **Timer semanal em vez de a cada request:** custo zero no chat; contra: entre a expiração e a próxima consolidação os vencidos continuam no banco (mas já fora da busca — o filtro é na leitura).
+
+### 4. Verificação
+
+- Gate completo: **4306 passed / 16 skipped / 0 falha** (205,42 s; eram 4295/16).
+- `od-memory-consolidate.service` rodou `success/0` (`duplicados=0 expirados=0 usuarios=0`) e criou `data/memory.db`; timer agendado para **dom 15/11 04:20**.
+- Ao vivo: restart do `od-core` (MainPID **1191128**, `NRestarts=0`), `/health` **27/27**; `stats()` do banco real responde com os campos novos (`efemeros`, `expirados`).
+- Sem bump: app segue **1.44.0/2080**.
+
 ### 5. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2

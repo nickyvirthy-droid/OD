@@ -1,0 +1,20 @@
+[Unit]
+Description=Omega Drakon - Consolidacao da memoria longa (F4 fase 3)
+Documentation=https://github.com/OmegaDrakon
+After=od-core.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alex/OmegaDrakon
+# Deduplica fatos repetidos e aposenta efemeros vencidos; nunca apaga linha,
+# so cria aresta `substitui` ou filtra por `expira_em`.
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python tools/monitor/memory_consolidate.py
+TimeoutStartSec=120
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=od-memory-consolidate
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/home/alex/OmegaDrakon/data

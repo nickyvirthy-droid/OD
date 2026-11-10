@@ -257,6 +257,118 @@ class TestActions:
         assert obter_memoria() is obter_memoria()
 
 
+class TestEfemero:
+    """F4 fase 3: fato com tempo relativo nasce com prazo de validade."""
+
+    def test_marcador_de_tempo_marca_efemero(self):
+        fatos = extrair_fatos("lembre que hoje tenho reunião")
+        assert fatos and fatos[0]["efemero"] is True
+
+    def test_fato_estavel_nao_e_efemero(self):
+        fatos = extrair_fatos("moro em Curitiba")
+        assert fatos and fatos[0]["efemero"] is False
+
+    def test_expira_e_sai_da_busca_sem_apagar(self, tmp_path):
+        relogio = [1000.0]
+        g = MemoryGraph(tmp_path / "mem.db", clock=lambda: relogio[0])
+        try:
+            g.adicionar_fato("alex", "esta cansado hoje", entidade="estado", ttl_s=60)
+            assert len(g.ativos("alex")) == 1
+            relogio[0] += 61
+            assert g.ativos("alex") == []
+            assert g.buscar("alex", "cansado") == []
+            # continua auditável
+            assert [n.conteudo for n in g.historico("alex", "estado")] == ["esta cansado hoje"]
+            assert g.stats("alex")["expirados"] == 1
+        finally:
+            g.fechar()
+
+    def test_fato_expirado_nao_bloqueia_repeticao(self, tmp_path):
+        relogio = [1000.0]
+        g = MemoryGraph(tmp_path / "mem.db", clock=lambda: relogio[0])
+        try:
+            velho = g.adicionar_fato("alex", "no momento cansado", entidade="estado", ttl_s=10)
+            relogio[0] += 20
+            novo = g.adicionar_fato("alex", "no momento cansado", entidade="estado", ttl_s=10)
+            assert novo.id != velho.id
+            assert len(g.ativos("alex")) == 1
+        finally:
+            g.fechar()
+
+    def test_salvar_aplica_ttl_do_env(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_MEMORY_EFEMERO_DIAS", "1")
+        relogio = [1000.0]
+        g = MemoryGraph(tmp_path / "mem.db", clock=lambda: relogio[0])
+        try:
+            g.salvar("lembre que hoje tenho reunião", user_id="alex")
+            ativo = g.ativos("alex")
+            assert ativo and ativo[0].expira_em == 1000.0 + 86400
+            relogio[0] += 86401
+            assert g.ativos("alex") == []
+        finally:
+            g.fechar()
+
+
+class TestConsolidacao:
+    """F4 fase 3: deduplicação idempotente por conteúdo normalizado."""
+
+    def test_duplicata_por_entidades_diferentes_vira_uma(self, grafo):
+        grafo.adicionar_fato("alex", "mora em curitiba", entidade="cidade")
+        grafo.adicionar_fato("alex", "mora em Curitiba", entidade="residencia")
+        assert len(grafo.ativos("alex")) == 2
+        r = grafo.consolidar("alex")
+        assert r["duplicados"] == 1
+        assert len(grafo.ativos("alex")) == 1
+        assert len(grafo.historico("alex", "cidade")) >= 1
+
+    def test_consolidacao_e_idempotente(self, grafo):
+        grafo.adicionar_fato("alex", "nome é alex", entidade="nome")
+        grafo.adicionar_fato("alex", "nome é  Alex", entidade="nome_2")
+        assert grafo.consolidar("alex")["duplicados"] == 1
+        assert grafo.consolidar("alex")["duplicados"] == 0
+
+    def test_nao_mistura_usuarios(self, grafo):
+        grafo.adicionar_fato("alex", "mora em curitiba", entidade="cidade")
+        grafo.adicionar_fato("maria", "mora em curitiba", entidade="cidade")
+        grafo.consolidar()
+        assert len(grafo.ativos("alex")) == 1
+        assert len(grafo.ativos("maria")) == 1
+
+    def test_conta_expirados_e_limpa_busca(self, tmp_path):
+        relogio = [1000.0]
+        g = MemoryGraph(tmp_path / "mem.db", clock=lambda: relogio[0])
+        try:
+            g.adicionar_fato("alex", "hoje cansado", entidade="estado", ttl_s=5)
+            relogio[0] += 10
+            r = g.consolidar()
+            assert r["expirados"] == 1
+            assert r["usuarios"] == 1
+            assert g.buscar("alex", "cansado") == []
+        finally:
+            g.fechar()
+
+    def test_stats_expoem_efemeros(self, grafo):
+        grafo.adicionar_fato("alex", "hoje cansado", entidade="estado", ttl_s=999)
+        s = grafo.stats()
+        assert s["efemeros"] == 1 and s["expirados"] == 0
+
+    def test_cli_de_consolidacao(self, tmp_path, monkeypatch, capsys):
+        from tools.monitor.memory_consolidate import main
+
+        monkeypatch.setenv("OD_MEMORY_PATH", str(tmp_path / "mem.db"))
+        resetar_memoria()
+        try:
+            obter_memoria().adicionar_fato("alex", "nome é alex", entidade="nome")
+            obter_memoria().adicionar_fato("alex", "nome é Alex", entidade="nome2")
+            assert main(["--json"]) == 0
+            saida = capsys.readouterr().out
+            assert '"duplicados": 1' in saida
+            assert main(["--dry-run"]) == 0
+            assert "nada foi alterado" in capsys.readouterr().out
+        finally:
+            resetar_memoria()
+
+
 class TestMemoriaNoPrompt:
     """F4 fase 2: os fatos do usuário entram no prompt antes do LLM."""
 

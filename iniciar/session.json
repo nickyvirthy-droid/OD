@@ -1,4 +1,15 @@
 {
+  "f4_fase3_consolidacao_e_efemero_2026_11_10": {
+    "pedido": "Dono: fazer a fase 3 do F4 (consolidacao semanal de fatos repetidos e expiracao do efemero).",
+    "feito": "core/memory_layer.py: coluna expira_em com migracao automatica, adicionar_fato(ttl_s=...), extracao marcando efemero (hoje/amanha/no momento/daqui a) e MemoryGraph.consolidar() com dedupe por conteudo normalizado (o mais recente fica, os outros ganham aresta substitui) e expiracao dos vencidos; ativos/buscar/stats/bloco do prompt ignoram fato vencido. TTL por OD_MEMORY_EFEMERO_DIAS (padrao 7 dias). CLI tools/monitor/memory_consolidate.py (--user, --dry-run, --json). systemd/od-memory-consolidate.{service,timer}: OnCalendar=Sun 04:20, Persistent=true, instalado e habilitado.",
+    "decisao": "O dedupe comecou por (user, tipo, entidade) e nunca dispararia, porque adicionar_fato ja substitui fato da mesma entidade; refeito para conteudo normalizado, que e o duplicado gerado por caminhos diferentes (action vs captura automatica).",
+    "testes": "tests/test_memory_layer.py +11 (efemero, expiracao sem apagar, repeticao apos expirar, TTL por env, dedupe entre entidades, idempotencia, isolamento, stats, CLI). Gate 4306 passed / 16 skipped / 0 falha (205,42 s).",
+    "prova_viva": "od-memory-consolidate.service success/0 (duplicados=0 expirados=0 usuarios=0), criou data/memory.db (32 KB); timer agendado para dom 15/11 04:20. Restart do od-core: MainPID 1191128, NRestarts=0, /health 27/27; stats() do banco real responde com efemeros/expirados.",
+    "restante": "Fase 4 opcional: embeddings para sinonimia (animal ~ cachorro).",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§11)",
+    "updated_at": "2026-11-10T16:45:00-03:00"
+  },
   "f4_fase2_memoria_no_prompt_2026_11_10": {
     "pedido": "Dono: fazer a fase 2 do F4 (injetar bloco de memoria no prompt) e medir o ganho de recall.",
     "feito": "Orchestrator._build_prompt chama _bloco_memoria(user_id, text); bloco entra depois do system/data-hora e do RAG. Orcamento memoria_max_fatos=5 e memoria_max_chars=600; memoria_no_prompt=False desliga. Sem memoria/usuario vazio = prompt identico ao da fase 1; erro de leitura = bloco vazio + log. memory_layer.buscar ganhou radical leve PT-BR (moro/mora/morar -> mor) sem o qual 'onde eu moro?' nao achava 'mora em Curitiba'.",

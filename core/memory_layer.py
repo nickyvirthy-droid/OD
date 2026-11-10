@@ -77,7 +77,8 @@ CREATE TABLE IF NOT EXISTS memory_nodes (
     metadata    TEXT NOT NULL DEFAULT '{}',
     origem      TEXT NOT NULL DEFAULT '',
     created_at  REAL NOT NULL,
-    updated_at  REAL NOT NULL
+    updated_at  REAL NOT NULL,
+    expira_em   REAL
 );
 CREATE INDEX IF NOT EXISTS idx_mem_user_tipo ON memory_nodes(user_id, tipo);
 CREATE INDEX IF NOT EXISTS idx_mem_entidade  ON memory_nodes(user_id, entidade);
@@ -96,6 +97,16 @@ CREATE INDEX IF NOT EXISTS idx_mem_edge_target ON memory_edges(target, relacao);
 # Relações do grafo.
 REL_MENCIONA = "menciona"   # fato → entidade
 REL_SUBSTITUI = "substitui"  # fato novo → fato antigo (contradição)
+
+# TTL padrão de fato efêmero ("hoje estou cansado", "tenho reunião amanhã"):
+# uma semana. Sobrescrevível por OD_MEMORY_EFEMERO_DIAS.
+TTL_EFEMERO_DIAS = 7.0
+
+# Marcadores de tempo relativo: o fato descreve um ESTADO passageiro.
+_EFEMERO = re.compile(
+    r"\b(hoje|amanha|amanhã|agora|esta semana|essa semana|nesta semana|neste mes|neste mês|"
+    r"daqui a|por enquanto|no momento|esta noite|essa noite|hoje a noite)\b"
+)
 
 
 class MemoryLayerError(Exception):
@@ -119,6 +130,7 @@ class MemoryNode:
     origem: str = ""
     created_at: float = 0.0
     updated_at: float = 0.0
+    expira_em: Optional[float] = None  # None = permanente
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -131,28 +143,39 @@ class MemoryNode:
             "origem": self.origem,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "expira_em": self.expira_em,
         }
 
     @classmethod
     def from_row(cls, row: sqlite3.Row | tuple[Any, ...]) -> "MemoryNode":
-        (
-            id_, user_id, tipo, conteudo, entidade, metadata, origem,
-            created_at, updated_at,
-        ) = row
+        dados = row if isinstance(row, sqlite3.Row) else None
+        campos = dict(dados) if dados is not None else None
+
+        def pegar(nome: str, indice: int, padrao: Any = None) -> Any:
+            if campos is not None:
+                return campos.get(nome, padrao)
+            try:
+                return row[indice]  # type: ignore[index]
+            except IndexError:
+                return padrao
+
+        metadata = pegar("metadata", 5, "{}")
         try:
             meta = json.loads(metadata) if metadata else {}
         except ValueError:
             meta = {}
+        expira = pegar("expira_em", 9, None)
         return cls(
-            id=id_,
-            user_id=user_id,
-            tipo=tipo,
-            conteudo=conteudo,
-            entidade=entidade or "",
+            id=str(pegar("id", 0, "")),
+            user_id=str(pegar("user_id", 1, "")),
+            tipo=str(pegar("tipo", 2, "fato")),
+            conteudo=str(pegar("conteudo", 3, "")),
+            entidade=str(pegar("entidade", 4, "") or ""),
             metadata=meta if isinstance(meta, dict) else {},
-            origem=origem or "",
-            created_at=float(created_at or 0.0),
-            updated_at=float(updated_at or 0.0),
+            origem=str(pegar("origem", 6, "") or ""),
+            created_at=float(pegar("created_at", 7, 0.0) or 0.0),
+            updated_at=float(pegar("updated_at", 8, 0.0) or 0.0),
+            expira_em=float(expira) if expira is not None else None,
         )
 
 
@@ -288,7 +311,14 @@ def extrair_fatos(texto: str) -> list[dict[str, str]]:
             if chave in vistos:
                 continue
             vistos.add(chave)
-            out.append({"tipo": tipo, "entidade": entidade, "conteudo": conteudo})
+            out.append(
+                {
+                    "tipo": tipo,
+                    "entidade": entidade,
+                    "conteudo": conteudo,
+                    "efemero": bool(_EFEMERO.search(valor)),
+                }
+            )
     for m in _POSSE.finditer(normalizar(texto)):
         valor = m.group(1).strip(" .,;:!?-\t")
         if len(valor) < 3 or next(iter(tokens(valor)), "") in _POSSE_IGNORAR:
@@ -297,7 +327,14 @@ def extrair_fatos(texto: str) -> list[dict[str, str]]:
         if chave in vistos:
             continue
         vistos.add(chave)
-        out.append({"tipo": "fato", "entidade": "possui", "conteudo": f"tem {valor}"})
+        out.append(
+            {
+                "tipo": "fato",
+                "entidade": "possui",
+                "conteudo": f"tem {valor}",
+                "efemero": bool(_EFEMERO.search(valor)),
+            }
+        )
     return out
 
 
@@ -333,11 +370,22 @@ class MemoryGraph:
                 self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA synchronous=NORMAL")
             self._conn.executescript(_SCHEMA)
+            self._migrar()
             self._conn.commit()
         except sqlite3.DatabaseError as exc:
             raise MemoryLayerError(f"banco de memória inválido: {exc}") from exc
 
     # -- ciclo de vida -------------------------------------------------------
+
+    def _migrar(self) -> None:
+        """Ajusta bancos criados antes da fase 3 (coluna `expira_em`)."""
+        colunas = {
+            str(r["name"])
+            for r in self._conn.execute("PRAGMA table_info(memory_nodes)")
+        }
+        if colunas and "expira_em" not in colunas:
+            self._conn.execute("ALTER TABLE memory_nodes ADD COLUMN expira_em REAL")
+            _log.info("memoria: migração aplicada (coluna expira_em)")
 
     def fechar(self) -> None:
         """Fecha a conexão (idempotente)."""
@@ -364,6 +412,7 @@ class MemoryGraph:
         entidade: str = "",
         metadata: Optional[dict[str, Any]] = None,
         origem: str = "",
+        ttl_s: Optional[float] = None,
     ) -> MemoryNode:
         """Grava um fato (idempotente) e devolve o nó resultante.
 
@@ -373,7 +422,9 @@ class MemoryGraph:
           * fato novo com a mesma (user, tipo, entidade) e conteúdo diferente
             → aresta `substitui` do novo para os antigos, que saem da busca;
           * teto de `MAX_FATOS_POR_USUARIO` — os mais antigos são substituídos
-            para não crescer sem limite.
+            para não crescer sem limite;
+          * `ttl_s` marca o fato como efêmero: sai da busca quando expira, sem
+            ser apagado (continua no histórico).
         """
         user = (user_id or "").strip()
         if not user:
@@ -383,6 +434,7 @@ class MemoryGraph:
             raise MemoryLayerError("fato vazio não é memória")
         ent = slug(entidade) if entidade else ""
         agora = float(self._clock())
+        expira_em = agora + float(ttl_s) if ttl_s and ttl_s > 0 else None
         meta_json = json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True)
 
         with self._lock:
@@ -392,13 +444,14 @@ class MemoryGraph:
                     SELECT * FROM memory_nodes AS n
                      WHERE n.user_id = ? AND n.tipo = ? AND n.entidade = ?
                        AND n.conteudo = ?
+                       AND (n.expira_em IS NULL OR n.expira_em > ?)
                        AND NOT EXISTS (
                            SELECT 1 FROM memory_edges AS e
                             WHERE e.target = n.id AND e.relacao = ?
                        )
                      LIMIT 1
                     """,
-                    (user, tipo, ent, texto, REL_SUBSTITUI),
+                    (user, tipo, ent, texto, agora, REL_SUBSTITUI),
                 )
                 linha = cur.fetchone()
                 if linha is not None:
@@ -411,10 +464,13 @@ class MemoryGraph:
                     """
                     INSERT INTO memory_nodes
                         (id, user_id, tipo, conteudo, entidade, metadata, origem,
-                         created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         created_at, updated_at, expira_em)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (node_id, user, tipo, texto, ent, meta_json, origem or "", agora, agora),
+                    (
+                        node_id, user, tipo, texto, ent, meta_json, origem or "",
+                        agora, agora, expira_em,
+                    ),
                 )
                 if ent:
                     ent_id = self._garantir_entidade(user, ent, agora)
@@ -433,7 +489,7 @@ class MemoryGraph:
         return MemoryNode(
             id=node_id, user_id=user, tipo=tipo, conteudo=texto, entidade=ent,
             metadata=dict(metadata or {}), origem=origem or "",
-            created_at=agora, updated_at=agora,
+            created_at=agora, updated_at=agora, expira_em=expira_em,
         )
 
     def salvar(
@@ -444,7 +500,17 @@ class MemoryGraph:
         origem: str = "",
         tipo: str = "",
     ) -> list[MemoryNode]:
-        """Extrai fatos de um texto livre e grava todos (escopo do usuário)."""
+        """Extrai fatos de um texto livre e grava todos (escopo do usuário).
+
+        Fato com marcador de tempo relativo ("hoje", "amanhã", "no momento")
+        entra como efêmero com TTL de `OD_MEMORY_EFEMERO_DIAS` (padrão 7).
+        """
+        import os as _os
+
+        try:
+            dias = float(_os.environ.get("OD_MEMORY_EFEMERO_DIAS", TTL_EFEMERO_DIAS))
+        except ValueError:
+            dias = TTL_EFEMERO_DIAS
         salvos: list[MemoryNode] = []
         for fato in extrair_fatos(texto):
             if tipo and fato["tipo"] != tipo:
@@ -456,6 +522,7 @@ class MemoryGraph:
                     tipo=fato["tipo"],
                     entidade=fato["entidade"],
                     origem=origem,
+                    ttl_s=dias * 86400 if fato.get("efemero") else None,
                 )
             )
         return salvos
@@ -511,12 +578,13 @@ class MemoryGraph:
         sql = """
             SELECT n.* FROM memory_nodes AS n
              WHERE n.user_id = ? AND n.tipo != 'entidade'
+               AND (n.expira_em IS NULL OR n.expira_em > ?)
                AND NOT EXISTS (
                    SELECT 1 FROM memory_edges AS e
                     WHERE e.target = n.id AND e.relacao = ?
                )
         """
-        params: list[Any] = [user, REL_SUBSTITUI]
+        params: list[Any] = [user, float(self._clock()), REL_SUBSTITUI]
         if tipo:
             sql += " AND n.tipo = ?"
             params.append(tipo)
@@ -551,6 +619,81 @@ class MemoryGraph:
                 (user, ent),
             )
             return [MemoryNode.from_row(r) for r in cur.fetchall()]
+
+    def consolidar(self, user_id: Optional[str] = None) -> dict[str, Any]:
+        """Consolidação periódica (F4 fase 3) — roda no timer semanal.
+
+        Duas operações idempotentes:
+
+        1. **Deduplicação:** fatos ativos cujo CONTEÚDO NORMALIZADO coincide
+           (caixa/acento/espaço/radical) viram um só — o mais recente fica,
+           os outros ganham aresta `substitui` e saem da busca, sem apagar
+           nada. Ignora tipo/entidade de propósito: é aqui que entram os
+           duplicados gravados por caminhos diferentes (action com entidade
+           fixa vs captura automática pela extração).
+        2. **Expiração:** fatos com `expira_em <= agora` saem da busca. Eles
+           não recebem aresta (podem voltar a ser ditos e viram fato novo);
+           a linha continua no banco para auditoria.
+
+        Returns:
+            `{"duplicados", "expirados", "usuarios", "agora"}`.
+        """
+        agora = float(self._clock())
+        usuarios: set[str] = set()
+        duplicados = 0
+        expirados = 0
+        with self._lock:
+            try:
+                if user_id:
+                    alvo = [user_id]
+                else:
+                    alvo = [
+                        str(r[0])
+                        for r in self._conn.execute(
+                            "SELECT DISTINCT user_id FROM memory_nodes"
+                        )
+                    ]
+                for user in alvo:
+                    usuarios.add(user)
+                    # 1. deduplicação por conteúdo normalizado
+                    grupos: dict[str, list[MemoryNode]] = {}
+                    for node in self.ativos(user, limite=MAX_FATOS_POR_USUARIO * 2):
+                        chave = " ".join(sorted(tokens_busca(node.conteudo)))
+                        if not chave:
+                            continue
+                        grupos.setdefault(chave, []).append(node)
+                    for nodes in grupos.values():
+                        if len(nodes) < 2:
+                            continue
+                        nodes.sort(key=lambda n: (n.created_at, n.id))
+                        fica = nodes[-1]
+                        for velho in nodes[:-1]:
+                            self._conectar(fica.id, velho.id, REL_SUBSTITUI, agora)
+                            duplicados += 1
+                    # 2. expiração dos efêmeros vencidos
+                    expirados += self._conn.execute(
+                        """
+                        UPDATE memory_nodes
+                           SET updated_at = ?
+                         WHERE user_id = ? AND tipo != 'entidade'
+                           AND expira_em IS NOT NULL AND expira_em <= ?
+                        """,
+                        (agora, user, agora),
+                    ).rowcount or 0
+                self._conn.commit()
+            except sqlite3.Error as exc:
+                self._conn.rollback()
+                raise MemoryLayerError(f"falha ao consolidar memória: {exc}") from exc
+        _log.info(
+            f"memoria: consolidação duplicados={duplicados} "
+            f"expirados={expirados} usuarios={len(usuarios)}"
+        )
+        return {
+            "duplicados": duplicados,
+            "expirados": expirados,
+            "usuarios": len(usuarios),
+            "agora": agora,
+        }
 
     def vizinhos(self, node_id: str, *, relacao: str = "") -> list[MemoryEdge]:
         """Arestas que saem do nó (opcionalmente filtradas por relação)."""
@@ -590,12 +733,14 @@ class MemoryGraph:
                 ativos = self._conn.execute(
                     """
                     SELECT COUNT(*) FROM memory_nodes AS n
-                     WHERE n.tipo != 'entidade' AND NOT EXISTS (
-                         SELECT 1 FROM memory_edges AS e
-                          WHERE e.target = n.id AND e.relacao = ?
+                     WHERE n.tipo != 'entidade'
+                       AND (n.expira_em IS NULL OR n.expira_em > ?)
+                       AND NOT EXISTS (
+                           SELECT 1 FROM memory_edges AS e
+                            WHERE e.target = n.id AND e.relacao = ?
                      )
                     """,
-                    (REL_SUBSTITUI,),
+                    (float(self._clock()), REL_SUBSTITUI),
                 ).fetchone()[0]
                 entidades = self._conn.execute(
                     "SELECT COUNT(*) FROM memory_nodes WHERE tipo = 'entidade'"
@@ -604,6 +749,17 @@ class MemoryGraph:
                     "SELECT COUNT(DISTINCT user_id) FROM memory_nodes"
                 ).fetchone()[0]
             arestas = self._conn.execute("SELECT COUNT(*) FROM memory_edges").fetchone()[0]
+            filtro = "user_id = ? AND " if user_id else ""
+            args = (user_id,) if user_id else ()
+            agora = float(self._clock())
+            efemeros = self._conn.execute(
+                f"SELECT COUNT(*) FROM memory_nodes WHERE {filtro}expira_em IS NOT NULL",
+                args,
+            ).fetchone()[0]
+            expirados = self._conn.execute(
+                f"SELECT COUNT(*) FROM memory_nodes WHERE {filtro}expira_em IS NOT NULL AND expira_em <= ?",
+                (*args, agora),
+            ).fetchone()[0]
         return {
             "fatos": int(fatos),
             "ativos": int(ativos),
@@ -611,6 +767,8 @@ class MemoryGraph:
             "entidades": int(entidades),
             "arestas": int(arestas),
             "usuarios": int(usuarios),
+            "efemeros": int(efemeros),
+            "expirados": int(expirados),
             "arquivo": str(self._caminho),
         }
 
