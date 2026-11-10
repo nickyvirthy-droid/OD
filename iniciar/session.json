@@ -1,4 +1,15 @@
 {
+  "f1_fase2_grafo_no_process_2026_11_10": {
+    "pedido": "Dono: ligar o grafo ao process() atras de OD_ORCHESTRATOR_GRAPH=1 com fallback para o loop atual.",
+    "feito": "core/orchestrator.py: etapas 4.5-6.7 (contexto/RAG/prompt/LLM/anti-recusa/anti-falso-sucesso) extraidas de process() para _gerar_com_contexto (mesmo codigo para grafo e fallback); _resposta_llm le OD_ORCHESTRATOR_GRAPH e tenta _resposta_llm_grafo, caindo no caminho direto em qualquer excecao (log.warn); _resposta_llm_grafo monta classify -> generate -> human_loop com thread_id por mensagem (usuario:sessao:uuid) e recursion_limit 50; _obter_graph_saver abre SqliteSaver sob demanda em OD_GRAPH_CHECKPOINT_DB (padrao data/checkpoints.db). core/orchestrator_graph.py: habilitado_por_env() e SqliteSaver com WAL + synchronous=NORMAL. .env de producao recebeu OD_ORCHESTRATOR_GRAPH=1 (0 desliga, fora do git). Etapas 1-4 e 8 continuam lineares (fase 3).",
+    "medicao": "Benchmark 30 mensagens com provider stub: direto p50 0,21 ms; grafo p50 0,84 ms (+0,63 ms) depois de WAL+NORMAL. Antes do WAL o overhead era +12,39 ms (4 commits com fsync por mensagem). Primeira chamada do grafo paga ~10 ms (abertura do banco).",
+    "testes": "tests/test_orchestrator_graph_integration.py +15 (flag desligada por padrao, 8 grafias de valor, resposta/rota preservadas, 4 checkpoints por mensagem, anti-falso-sucesso dentro do no, fallback com saver quebrado, flag desligada nao cria banco). Gate completo 4364 passed / 16 skipped / 0 falha (197,90 s; eram 4349/16).",
+    "trade_off": "Extrair a fatia em metodo evita duas implementacoes das guardas divergirem, ao custo de uma tupla de 4 valores no process(). Thread por mensagem evita colisao de passos, mas ainda nao ha retomada real pos-restart (fase 3). Flag ligada no .env valida o caminho em producao, com fallback imediato; cada mensagem grava 4 checkpoints (~1 KB) e a flag nao esta no git (config de maquina).",
+    "prova": "od-core reiniciado (MainPID 1312322) com OD_ORCHESTRATOR_GRAPH=1 no processo; POST /message real roteou llm/gemma-local e gravou 4 checkpoints na thread alex:prova-f1-fase2:42f651af3d904d83b924f88fb57d96b9; /health up 27/27.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§17)",
+    "updated_at": "2026-11-10T17:02:37-03:00"
+  },
   "f1_fase1_grafo_estado_checkpoint_2026_11_10": {
     "pedido": "Dono: iniciar F1 do roadmap (orquestrador em grafo com OrchestratorState e SqliteSaver).",
     "feito": "core/orchestrator_graph.py (novo): OrchestratorState TypedDict com reducers de concatenacao (messages, active_tools, tool_results, steps); criar_nos() monta classify, select_tools, execute_parallel, generate e human_loop sobre funcoes injetadas (sync/async); StateGraph/CompiledGraph com edges estaticas e condicionais, START/END, supersteps em asyncio.gather com teto max_paralelo e asyncio.to_thread para ferramentas sincronas; astream() rende update por superstep, aceita resume e recursion_limit (padrao 50, GraphRecursionError); SqliteSaver grava od_graph_checkpoints (thread_id, passo, estado JSON, proximos, created_at; PK composta, teto de 200 por thread); pausa human-in-the-loop quando pending_human_input existe sem human_decision, com checkpoint apontando para human_loop e retomar(thread_id, update) para aplicar a decisao. Decisao: NAO instalar langgraph (ausente e pesado para o caminho critico); mesmo contrato de estado/nos/astream permite troca futura. O loop atual (process/process_stream) segue intacto.",
@@ -1555,7 +1566,7 @@
     "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
     "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
   },
-  "updated_at": "2026-11-10T16:46:11-03:00",
+  "updated_at": "2026-11-10T17:02:37-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {

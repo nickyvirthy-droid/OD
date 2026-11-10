@@ -12,6 +12,22 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Orquestrador em grafo, fase 2: process() atrás de flag (F1, 2026-11-10, sem bump)
+
+**Resumo:** a base do grafo existia mas ninguém a chamava. Agora a fatia de
+LLM do `process()` (RAG, prompt, geração, anti-recusa e anti-falso-sucesso) roda
+como grafo quando `OD_ORCHESTRATOR_GRAPH=1`, com checkpoint por passo e queda
+silenciosa para o loop direto em qualquer falha.
+
+| Peça | Entrega |
+|---|---|
+| **`core/orchestrator.py`** | Etapas 4.5–6.7 extraídas para `_gerar_com_contexto` (mesmo código e mesmas guardas); `_resposta_llm` escolhe grafo ou direto; `_resposta_llm_grafo` monta `classify → generate → human_loop` com `thread_id` por mensagem; `_obter_graph_saver` abre o SQLite só na primeira mensagem. |
+| **`core/orchestrator_graph.py`** | `habilitado_por_env()` (desligado por padrão); `SqliteSaver` com WAL + `synchronous=NORMAL` — checkpoint não é dado de negócio e o fsync custava ~12 ms/mensagem. |
+| **Testes** | `tests/test_orchestrator_graph_integration.py` **+15**: flag ligada/desligada, 8 grafias de valor, resposta/rota preservadas, 4 checkpoints por mensagem, guarda anti-falso-sucesso dentro do nó, fallback quando o saver explode, flag desligada não cria banco. |
+| **Medição** | Overhead p50 do grafo contra o direto: **12,39 ms → 0,63 ms** depois do WAL (30 mensagens, provider stub). |
+| **Prova viva** | `OD_ORCHESTRATOR_GRAPH=1` no `.env`, `od-core` reiniciado (MainPID 1312322), mensagem real pelo `/message` roteou `llm/gemma-local` e gravou **4 checkpoints** (`alex:prova-f1-fase2`); `/health` **27/27 up**. |
+| **Verificação** | Gate **4364 passed / 16 skipped / 0 falha** (197,90 s). Sem bump: **1.44.0/2080**. |
+
 ## Orquestrador em grafo, fase 1: estado + nós + checkpoint SQLite (F1, 2026-11-10, sem bump)
 
 **Resumo:** o `Orchestrator` ainda é um loop monolítico, sem retomada nem

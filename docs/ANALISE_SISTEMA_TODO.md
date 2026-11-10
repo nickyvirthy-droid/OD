@@ -557,8 +557,11 @@ esperar o timeout.
       fan-out paralelo e teto `max_paralelo`
 - [x] F1 fase 1: `SqliteSaver` (`od_graph_checkpoints`, checkpoint por
       superstep) + `astream()` com `resume`, `recursion_limit` e pausa humana
-- [ ] F1 fase 2: Migrar loop atual para `graph.astream()` com config
-      `{"recursion_limit": 50}` atrás de flag, com fallback para `process()`
+- [x] F1 fase 2: fatia 4.5–6.7 do `process()` (RAG, prompt, LLM, anti-recusa,
+      anti-falso-sucesso) roda no grafo com `{"recursion_limit": 50}` atrás de
+      `OD_ORCHESTRATOR_GRAPH=1`; falha do grafo cai no caminho direto
+- [ ] F1 fase 3: levar etapas 1–4 e 8 (rate limit, datetime, quick, cache,
+      histórico) para o grafo e usar retomada pós-restart pelo `thread_id`
 
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)

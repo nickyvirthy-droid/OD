@@ -60,6 +60,7 @@ import os
 import re
 import threading
 import time
+import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
@@ -670,6 +671,9 @@ class Orchestrator:
         # consultada SÓ quando o RAG local não achou nada (memória interna
         # é a 1ª fonte). Lazia e inofensiva: erro = block "" (sem exceção).
         self._enciclopedia = enciclopedia
+        # F1 fase 2: checkpointer do grafo, criado só na primeira mensagem
+        # quando OD_ORCHESTRATOR_GRAPH=1 (abrir SQLite no boot é desperdício).
+        self._graph_saver: Optional[Any] = None
 
     # -- Propriedades --------------------------------------------------------
 
@@ -1484,6 +1488,99 @@ class Orchestrator:
                 await self._record_terminal(result, text, persist=persist)
                 return await self._finish(result, started)
 
+        # Etapas 4.5–6.7 — RAG, prompt, LLM e guardas. Com
+        # OD_ORCHESTRATOR_GRAPH=1 essa fatia roda como grafo (checkpoint por
+        # passo); qualquer falha do grafo cai no caminho direto, que segue
+        # sendo o padrão.
+        message, llm_used, fallback_used, prompt = await self._resposta_llm(
+            user_id=user_id,
+            profile=profile,
+            text=text,
+            system_prompt=system_prompt,
+            role=role,
+            session_id=session_id,
+            extra_history=extra_history,
+        )
+        if message is None:
+            result.route = ROUTE_UNAVAILABLE
+            result.message = self._config.unavailable_message
+            result.error = DEFAULT_UNAVAILABLE_ERROR
+            result.prompt = prompt
+            self._metrics.unavailable += 1
+            return await self._finish(result, started)
+
+        result.route = ROUTE_FALLBACK if fallback_used else ROUTE_LLM
+        result.message = message
+        result.llm_used = llm_used
+        result.fallback_used = fallback_used
+        result.prompt = prompt
+        if fallback_used:
+            self._metrics.fallback += 1
+        else:
+            self._metrics.llm += 1
+
+        # Etapa 8 — Pós-processamento: persiste cache + histórico
+        # (a conversa anônima não grava nada — "nada no banco").
+        if persist:
+            await self._post_process(user_id, profile, text, message, llm_used)
+        return await self._finish(result, started)
+
+    async def _resposta_llm(
+        self,
+        *,
+        user_id: str,
+        profile: str,
+        text: str,
+        system_prompt: str,
+        role: str,
+        session_id: str = "",
+        extra_history: Optional[list[dict[str, str]]] = None,
+    ) -> tuple[Optional[str], str, bool, str]:
+        """Gera a resposta com o grafo (se ligado) ou com o caminho direto.
+
+        O grafo é opt-in (`OD_ORCHESTRATOR_GRAPH=1`) e experimental: ele roda
+        as MESMAS etapas 4.5–6.7, só que como nós com checkpoint. Qualquer
+        exceção nele — flag mal configurada, SQLite indisponível, nó com bug —
+        cai no caminho direto, que é o comportamento histórico.
+        """
+        from core.orchestrator_graph import habilitado_por_env
+
+        if habilitado_por_env():
+            try:
+                return await self._resposta_llm_grafo(
+                    user_id=user_id,
+                    profile=profile,
+                    text=text,
+                    system_prompt=system_prompt,
+                    role=role,
+                    session_id=session_id,
+                    extra_history=extra_history,
+                )
+            except Exception as exc:
+                log.warn(
+                    "Grafo do orquestrador falhou — usando o caminho direto",
+                    motivo=f"{type(exc).__name__}: {exc}",
+                )
+        return await self._gerar_com_contexto(
+            user_id=user_id,
+            profile=profile,
+            text=text,
+            system_prompt=system_prompt,
+            role=role,
+            extra_history=extra_history,
+        )
+
+    async def _gerar_com_contexto(
+        self,
+        *,
+        user_id: str,
+        profile: str,
+        text: str,
+        system_prompt: str,
+        role: str,
+        extra_history: Optional[list[dict[str, str]]] = None,
+    ) -> tuple[Optional[str], str, bool, str]:
+        """Etapas 4.5–6.7: contexto + RAG + prompt + LLM + guardas."""
         # Etapa 4.5 — RAG (Parte B NOMAD): reescrita da consulta com o
         # histórico, floor de relevância duplo, reranker e orçamento do
         # bloco de referência. Recuperado ANTES do prompt e injetado no
@@ -1512,12 +1609,7 @@ class Orchestrator:
         # Etapas 6 e 7 — LLM com fallback
         message, llm_used, fallback_used = await self._generate(prompt)
         if message is None:
-            result.route = ROUTE_UNAVAILABLE
-            result.message = self._config.unavailable_message
-            result.error = DEFAULT_UNAVAILABLE_ERROR
-            result.prompt = prompt
-            self._metrics.unavailable += 1
-            return await self._finish(result, started)
+            return None, llm_used, fallback_used, prompt
 
         # Etapa 6.5 — Anti-recusa (2026-09-28): o REST não tinha esta etapa
         # (assimetria com o WS) e a recusa-alucinação do gemma chegava
@@ -1548,22 +1640,95 @@ class Orchestrator:
                 reason=fake,
             )
             message = FAKE_ACTION_MESSAGE
+        return message, llm_used, fallback_used, prompt
 
-        result.route = ROUTE_FALLBACK if fallback_used else ROUTE_LLM
-        result.message = message
-        result.llm_used = llm_used
-        result.fallback_used = fallback_used
-        result.prompt = prompt
-        if fallback_used:
-            self._metrics.fallback += 1
-        else:
-            self._metrics.llm += 1
+    async def _resposta_llm_grafo(
+        self,
+        *,
+        user_id: str,
+        profile: str,
+        text: str,
+        system_prompt: str,
+        role: str,
+        session_id: str = "",
+        extra_history: Optional[list[dict[str, str]]] = None,
+    ) -> tuple[Optional[str], str, bool, str]:
+        """Fatia 4.5–6.7 como grafo: classify → generate → human_loop."""
+        from core.orchestrator_graph import construir_grafo
 
-        # Etapa 8 — Pós-processamento: persiste cache + histórico
-        # (a conversa anônima não grava nada — "nada no banco").
-        if persist:
-            await self._post_process(user_id, profile, text, message, llm_used)
-        return await self._finish(result, started)
+        async def classificar(estado: dict[str, Any]) -> str:
+            # Fast path de actions já respondeu antes da etapa 4; aqui só
+            # sobra conversa, então o grafo não abre fan-out de ferramentas.
+            return "chat"
+
+        async def selecionar(estado: dict[str, Any]) -> list[str]:
+            return []
+
+        async def executar(ferramenta: str, estado: dict[str, Any]) -> Any:
+            return None
+
+        async def gerar(estado: dict[str, Any]) -> dict[str, Any]:
+            message, llm_used, fallback_used, prompt = (
+                await self._gerar_com_contexto(
+                    user_id=user_id,
+                    profile=profile,
+                    text=text,
+                    system_prompt=system_prompt,
+                    role=role,
+                    extra_history=extra_history,
+                )
+            )
+            return {
+                "response": message,
+                "llm_used": llm_used,
+                "fallback_used": fallback_used,
+                "prompt": prompt,
+            }
+
+        grafo = construir_grafo(
+            classificar=classificar,
+            selecionar=selecionar,
+            executar=executar,
+            gerar=gerar,
+            checkpointer=self._obter_graph_saver(),
+        )
+        # Thread por mensagem: sem isso, duas mensagens da mesma sessão
+        # sobrescreveriam os passos uma da outra no SQLite.
+        thread_id = f"{user_id}:{session_id or 'sem-sessao'}:{uuid.uuid4().hex}"
+        final = await grafo.ainvoke(
+            {
+                "user_id": user_id,
+                "profile": profile,
+                "session_id": session_id,
+                "role": role,
+                "text": text,
+                "messages": [{"role": "user", "content": text}],
+            },
+            {
+                "configurable": {"thread_id": thread_id},
+                "recursion_limit": 50,
+            },
+        )
+        return (
+            final.get("response"),
+            str(final.get("llm_used") or ""),
+            bool(final.get("fallback_used")),
+            str(final.get("prompt") or ""),
+        )
+
+    def _obter_graph_saver(self) -> Any:
+        """SqliteSaver preguiçoso — abrir banco no boot é desperdício."""
+        if self._graph_saver is None:
+            from core.orchestrator_graph import SqliteSaver
+
+            caminho = os.getenv("OD_GRAPH_CHECKPOINT_DB", "")
+            if not caminho:
+                raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                caminho = os.path.join(raiz, "data", "checkpoints.db")
+            with self._lock:
+                if self._graph_saver is None:
+                    self._graph_saver = SqliteSaver(caminho)
+        return self._graph_saver
 
     # -- Etapas internas -----------------------------------------------------
 

@@ -739,3 +739,65 @@ o pacote oficial depois, os nós e o estado já estão no formato dele
   fallback para o loop atual.
 - Depois: fan-out real das actions no `execute_parallel`, retomada após restart
   do `od-core` usando o `thread_id` da sessão e resumo pós-falha.
+
+---
+
+## §17 — F1 fase 2: grafo ligado ao `process()` atrás de `OD_ORCHESTRATOR_GRAPH=1`
+
+**Pedido do dono:** ligar o grafo ao `process()` atrás da flag, com fallback
+para o loop atual.
+
+### 1. O que entrou
+
+| Peça | Entrega |
+|---|---|
+| `_gerar_com_contexto` | Etapas 4.5–6.7 (contexto, RAG, prompt, LLM, anti-recusa, anti-falso-sucesso) saíram de dentro de `process()` para um método único — mesma ordem, mesmas guardas, mesmos logs. |
+| `_resposta_llm` | Lê `OD_ORCHESTRATOR_GRAPH`; ligada, tenta `_resposta_llm_grafo`; qualquer exceção vira `log.warn` e cai no método direto. Desligada, chama o direto sem tocar em SQLite. |
+| `_resposta_llm_grafo` | `classify → generate → human_loop` com `thread_id = usuário:sessão:uuid` (uma thread por mensagem, para duas mensagens da mesma sessão não sobrescreverem os passos uma da outra). O nó `generate` chama `_gerar_com_contexto`. |
+| `_obter_graph_saver` | Abre `OD_GRAPH_CHECKPOINT_DB` (padrão `data/checkpoints.db`) só na primeira mensagem; `SqliteSaver` com `PRAGMA journal_mode=WAL` e `synchronous=NORMAL`. |
+| `.env` (fora do repo) | `OD_ORCHESTRATOR_GRAPH=1` — o serviço está rodando com o grafo ligado; `0` volta ao loop direto. |
+
+### 2. Medição
+
+- Antes do WAL: p50 **12,61 ms** contra **0,22 ms** do direto → **+12,39 ms**
+  (4 commits SQLite por mensagem, com fsync).
+- Depois de WAL + `NORMAL`: p50 **0,84 ms** contra **0,21 ms** →
+  **+0,63 ms** (30 mensagens, provider stub, banco em tmp).
+- Checkpoint não é dado de negócio: num crash do processo o WAL sobrevive; num
+  crash de SO, perder o último passo custa retomar do anterior.
+
+### 3. Prós e contras
+
+- **Extrair a fatia em método, não duplicar:** o grafo e o fallback chamam o
+  MESMO código — não existe uma segunda implementação das guardas para
+  divergir. Contra: `process()` agora depende de um método que devolve uma
+  tupla de 4 valores; é menos legível que o inline anterior.
+- **Thread por mensagem:** evita colisão de passos no SQLite; contra: ainda
+  não há retomada real pós-restart (ninguém procura a thread antiga) — isso é
+  fase 3.
+- **Flag ligada no `.env`:** valida o caminho de verdade em produção, com
+  fallback imediato; contra: cada mensagem grava 4 checkpoints (~1 KB) e a
+  flag não aparece no git (config de máquina).
+- **Etapas 1–4 e 8 seguem fora do grafo:** rate limit, datetime, quick, cache
+  e pós-processamento continuam lineares. Levar tudo para o grafo é a fase 3.
+
+### 4. Verificação
+
+- `tests/test_orchestrator_graph_integration.py`: **15 testes** — flag
+  desligada por padrão, 8 grafias de valor, resposta/rota preservadas, 4
+  checkpoints por mensagem, anti-falso-sucesso dentro do nó, fallback com
+  saver quebrado, flag desligada não cria banco.
+- Gate completo: **4364 passed / 16 skipped / 0 falha** (197,90 s; eram
+  4349/16).
+- Prova viva: `od-core` reiniciado (MainPID **1312322**), `OD_ORCHESTRATOR_GRAPH=1`
+  presente no processo, `POST /message` real roteou `llm/gemma-local` e a
+  thread `alex:prova-f1-fase2:42f651af…` ficou com **4 passos** em
+  `data/checkpoints.db`; `/health` **up, 27/27**.
+- Sem bump: app segue **1.44.0/2080**.
+
+### 5. Fila
+
+- **F1 fase 3:** mover etapas 1–4 e 8 para o grafo (rate limit/datetime/quick
+  como nós terminais, cache como nó condicional), usar `thread_id` estável por
+  sessão e retomar do último checkpoint após restart do `od-core`.
+- Depois: fan-out real das actions no `execute_parallel` e resumo pós-falha.

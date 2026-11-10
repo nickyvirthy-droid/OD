@@ -50,6 +50,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import os
 import sqlite3
 import threading
 import time
@@ -67,6 +68,12 @@ START = "__start__"
 END = "__end__"
 LIMITE_RECURSAO_PADRAO = 50
 MAX_CHECKPOINTS_POR_THREAD = 200
+VERDADEIROS = {"1", "true", "yes", "on", "sim"}
+
+
+def habilitado_por_env(variavel: str = "OD_ORCHESTRATOR_GRAPH") -> bool:
+    """Flag do grafo: desligada por padrão, sem exigir restart de código."""
+    return str(os.getenv(variavel, "")).strip().lower() in VERDADEIROS
 
 
 class GraphRecursionError(RuntimeError):
@@ -169,6 +176,11 @@ class SqliteSaver:
             str(self._caminho), check_same_thread=False, timeout=10.0
         )
         self._conn.row_factory = sqlite3.Row
+        # Checkpoint não é dado de negócio: WAL + NORMAL troca fsync por
+        # sobrevivência a crash do processo (perder o último passo num crash
+        # de SO só custa retomar do anterior).
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.executescript(_SCHEMA_CHECKPOINT)
         self._conn.commit()
 
