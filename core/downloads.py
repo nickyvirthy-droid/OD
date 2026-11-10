@@ -220,6 +220,8 @@ class DownloadQueue:
         timeout_s: float = _TIMEOUT_S,
         limpeza_intervalo_s: float = _LIMPEZA_INTERVALO_S,
         part_max_idade_s: float = _PART_MAX_IDADE_S,
+        webhook_url: str = "",
+        webhook_timeout_s: float = 10.0,
     ) -> None:
         raiz = base_dir or Path(
             os.environ.get("OD_DOWNLOADS_DIR", "") or _RAIZ_PADRAO
@@ -235,6 +237,11 @@ class DownloadQueue:
         self._part_max_idade = max(0.0, float(part_max_idade_s))
         # injetável para testes herméticos (sem rede)
         self._abrir = opener or urllib.request.urlopen
+
+        # Webhook de conclusão (TODO §3.3) — chamado em thread separada
+        # para não bloquear o worker. URL pode vir do env OD_DOWNLOAD_WEBHOOK.
+        self._webhook_url = (webhook_url or os.environ.get("OD_DOWNLOAD_WEBHOOK", "")).strip()
+        self._webhook_timeout = float(webhook_timeout_s)
 
         self._jobs: dict[str, DownloadJob] = {}
         self._ordem: list[str] = []          # FIFO por criado_em
@@ -764,6 +771,8 @@ class DownloadQueue:
         self._recortar_historico()
         self._persistir(forcar=True)
         self._publicar("estado", job)
+        # Webhook de conclusão (TODO §3.3) — fora do lock para não travar
+        self._disparar_webhook(job)
         self._cond.notify_all()
 
     def _recortar_historico(self) -> None:
@@ -851,6 +860,54 @@ class DownloadQueue:
                     fila.put_nowait(pacote)
                 except (queue_mod.Empty, queue_mod.Full):  # pragma: no cover
                     pass
+
+    def _disparar_webhook(self, job: DownloadJob) -> None:
+        """Dispara webhook de conclusão (sucesso/erro/cancelado) em thread daemon.
+
+        Não bloqueia o worker: falha só gera warn. Payload JSON com campos
+        essenciais do job. Respeita timeout configurado.
+        """
+        if not self._webhook_url:
+            return
+        payload = {
+            "evento": "download_concluido",
+            "job_id": job.id,
+            "url": job.url,
+            "destino": job.destino,
+            "nome": job.nome,
+            "status": job.status,
+            "bytes_feitos": job.bytes_feitos,
+            "bytes_total": job.bytes_total,
+            "sha256": job.sha256,
+            "sha256_real": job.sha256_real,
+            "tentativas": job.tentativas,
+            "erro": job.erro,
+            "criado_em": job.criado_em,
+            "fim_em": job.fim_em,
+        }
+
+        def _enviar() -> None:
+            try:
+                dados = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                req = urllib.request.Request(
+                    self._webhook_url,
+                    data=dados,
+                    headers={"Content-Type": "application/json",
+                             "User-Agent": _USER_AGENT},
+                    method="POST",
+                )
+                with self._abrir(req, timeout=self._webhook_timeout) as resp:
+                    # Lê e descarta resposta para fechar conexão limpa
+                    resp.read()
+                    if resp.getcode() >= 400:
+                        log.warn("Webhook de download falhou",
+                                 job=job.id, status=resp.getcode())
+            except Exception as exc:  # pragma: no cover — rede/timeout
+                log.warn("Webhook de download erro", job=job.id,
+                         erro=str(exc)[:200])
+
+        threading.Thread(target=_enviar, name="od-dl-webhook",
+                         daemon=True).start()
 
     # ------------------------------------------------------------------#
     # Destino                                                            #
