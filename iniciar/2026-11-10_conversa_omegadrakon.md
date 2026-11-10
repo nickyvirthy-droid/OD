@@ -59,7 +59,45 @@ a re-execução em 10/11 na mesma árvore deu **4193 passed / 17 skipped / 0 fal
 A célula de Verificação foi anotada com os dois números (o total não reproduz;
 a suíte está verde) e a entrega passou a constar no `session.json`.
 
-### 6. Fila
+## §2 — F2: OpenTelemetry + log correlacionado (10/11)
+
+**Pedido do dono (saindo):** *"implemente todas as atualizações que não
+precisam da minha presença"* — autorizado instalar/atualizar ferramentas.
+Escolhido o F2 do roadmap: menor risco, maior visibilidade (Semana 1-2).
+
+### 1. O que foi feito
+
+| Arquivo | Entrega |
+|---|---|
+| `core/telemetry.py` (novo) | `configurar()` idempotente, `span()`, `cronometrar()`, `contar()`, `atribuir()`, `trace_id()`/`span_id()`, `status()`, `desligar()`. Providers no estado do módulo (os globais do OTel só aceitam a primeira configuração por processo). Sem `opentelemetry-sdk` = no-op. |
+| `core/logger.py` | `trace_id`/`span_id` no contexto do log NICKY quando há span ativo; fora de span nada é inventado; trace explícito preservado. |
+| `integrations/api/server.py` | Span `http.request` + histograma `od.http_request.seconds` + contador `od.http_requests` em toda requisição, com `http.status_code`; despacho movido para `_despachar`. |
+| `memory/rag.py` | `consult()` instrumentado (span + histograma + candidatos/trechos/descartes); corpo em `_consultar()`. |
+| `runtime/launcher.py` | `telemetry.configurar()` no `main()`; check não-crítico `telemetria` no `/health`. |
+| `docs/TELEMETRIA.md` + `requirements.txt` | Variáveis, pontos medidos, operação, o que falta; deps OTel opcionais (item 8). |
+
+### 2. Verificação
+
+- Instalado no venv: `opentelemetry-sdk`, `opentelemetry-exporter-otlp-proto-http`.
+- `tests/test_telemetry.py` **15 passed** (spans/atributos com exportador em
+  memória, correlação log↔trace, histograma/contador, no-op sem SDK, SDK
+  quebrado contido).
+- Gate completo: **4212 passed / 16 skipped / 0 falha** (189,29 s).
+- Restart `od-core`: **MainPID 974935**, `NRestarts=0`, `/health` **26/26 up**
+  (check `telemetria` up: `servico=omega-drakon destino=sem exportador
+  amostra=0.1`), journal sem `[ERROR]`/warnings na janela.
+- Sem bump: app segue **1.44.0/2080**.
+
+### 3. Pegadinhas registradas
+
+- `iniciar/*.md` entra no corpus do RAG: a própria transcrição que descrevia
+  a falha reintroduziu o falso-amigo. O registro acima evita a frase literal.
+- `set_tracer_provider`/`set_meter_provider` não podem ser reconfigurados no
+  mesmo processo — daí os providers ficarem no módulo.
+- Fixture que chamava `reset_loggers()` quebrava testes de outros módulos
+  (referência antiga do logger) — removida do `test_telemetry.py`.
+
+### 4. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2
   (OpenTelemetry)** — menor risco e maior visibilidade.

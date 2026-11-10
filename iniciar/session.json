@@ -1,4 +1,15 @@
 {
+  "f2_telemetria_2026_11_10": {
+    "pedido": "Dono (10/11, saindo): 'implemente todas as atualizações que não precisam da minha presença', autorizado instalar ferramentas. Primeiro item: F2 (OpenTelemetry) do roadmap.",
+    "feito": "core/telemetry.py novo (configurar idempotente, span, cronometrar, contar, atribuir, trace_id/span_id, status, desligar; providers no módulo; no-op sem SDK). core/logger.py anexa trace_id/span_id ao contexto quando há span ativo. integrations/api/server.py: span http.request + od.http_request.seconds + od.http_requests com status; despacho em _despachar. memory/rag.py: consult() instrumentado, corpo em _consultar(). runtime/launcher.py: configurar() no main + check não-crítico 'telemetria' no /health. docs/TELEMETRIA.md; requirements item 8 (OTel opcional).",
+    "deps": "opentelemetry-sdk e opentelemetry-exporter-otlp-proto-http instalados no .venv (-q).",
+    "testes": "tests/test_telemetry.py 15 passed; gate completo 4212 passed / 16 skipped / 0 falha (189,29 s).",
+    "restart": "MainPID 974935, NRestarts=0, /health 26/26 up (telemetria up), journal sem ERROR/warnings na janela.",
+    "pegadinhas": "iniciar/*.md entra no corpus do RAG (a transcrição pode reintroduzir falso-amigo); set_tracer_provider/set_meter_provider só aceitam a primeira configuração do processo; reset_loggers() em fixture quebra testes de outros módulos.",
+    "sem_bump": "Servidor/launcher/docs; app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§2)",
+    "updated_at": "2026-11-10T11:55:00-03:00"
+  },
   "higiene_entregas_pendentes_2026_11_10": {
     "pedido": "Dono (10/11): fechar a higiene primeiro — gate, commit e push das entregas que estavam só no disco.",
     "antes": "HEAD d541dba, árvore suja com 3.1 extras, webhook 3.3, 3.5, 3.7, E1 marketplace, os_updater+units, análise e o export/import do catálogo (este sem registro em iniciar/).",
