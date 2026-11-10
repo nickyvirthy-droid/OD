@@ -209,6 +209,27 @@ def tokens(texto: str, *, com_stopwords: bool = False) -> list[str]:
     return [t for t in bruto if t not in _STOPWORDS and len(t) > 1]
 
 
+def radical(token: str) -> str:
+    """Radical leve PT-BR: 'moro'/'mora'/'morar' → 'mor'.
+
+    Não é stemming de verdade — é o mínimo para a busca não perder a mesma
+    ideia escrita em flexão diferente (moro/mora, trabalho/trabalha).
+    """
+    t = token
+    if len(t) > 3 and t.endswith("s"):
+        t = t[:-1]
+    if len(t) > 3 and t.endswith("r"):
+        t = t[:-1]
+    if len(t) > 3 and t[-1] in "aeo":
+        t = t[:-1]
+    return t
+
+
+def tokens_busca(texto: str) -> set[str]:
+    """Tokens para a busca: sem stopword e reduzidos ao radical."""
+    return {radical(t) for t in tokens(texto)}
+
+
 def slug(texto: str, *, limite: int = 48) -> str:
     """Chave estável de entidade: 'São Paulo' → 'sao_paulo'."""
     partes = re.findall(r"[a-z0-9]+", normalizar(texto))
@@ -452,21 +473,20 @@ class MemoryGraph:
             return []
         limite = max(1, min(int(limite or 5), 50))
         ativos = self.ativos(user, limite=MAX_FATOS_POR_USUARIO)
-        pedacos = tokens(consulta)
-        if not pedacos:
+        pedacos_radicais = tokens_busca(consulta)
+        if not pedacos_radicais:
             return ativos[:limite]
-        alvo = set(pedacos)
 
         def pontuar(node: MemoryNode) -> float:
-            texto = set(tokens(f"{node.entidade} {node.conteudo}"))
+            texto = tokens_busca(f"{node.entidade} {node.conteudo}")
             if not texto:
                 return 0.0
-            comum = len(alvo & texto)
+            comum = len(pedacos_radicais & texto)
             if not comum:
                 return 0.0
-            base = comum / len(alvo)
+            base = comum / max(1, len(pedacos_radicais))
             # entidade que casa inteira vale mais que palavra solta no conteúdo
-            if set(tokens(node.entidade)) & alvo:
+            if tokens_busca(node.entidade) & pedacos_radicais:
                 base += 0.25
             return base
 

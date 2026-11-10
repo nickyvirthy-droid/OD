@@ -407,7 +407,44 @@ desconhecido. Esse é o gap real do F4 (não "mais histórico").
 - Custo medido: extração p50 114 µs (34 chars) / 341 µs (131 chars); gravação idempotente 0,026 ms; fato novo com aresta 0,76 ms; busca 3,4 ms com 200 fatos.
 - Sem bump: app segue **1.44.0/2080**.
 
-### 4. Fila
+## §10 — F4 fase 2: memória no prompt e ganho medido (10/11)
+
+**Pedido do dono:** *"faça a fase 2 do F4: injetar o bloco de memória no
+prompt do LLM e medir o ganho de recall"*.
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `Orchestrator._build_prompt` | Passou a chamar `_bloco_memoria(user_id, text)`; o bloco entra **depois** do system/data-hora e do bloco RAG (prefixo cacheado do llama-server sobrevive melhor, e fato do usuário é mais estável que texto recuperado). |
+| Orçamento | `memoria_max_fatos=5`, `memoria_max_chars=600`; `memoria_no_prompt=False` desliga. |
+| `_bloco_memoria` | Usuário vazio ou sem memória → bloco `""` (prompt idêntico à fase 1); erro de leitura → bloco `""` + log. Memória nunca é caminho crítico. |
+| `memory_layer.buscar` | Ganhou radical leve PT-BR (`moro`/`mora`/`morar` → `mor`); sem isso "onde eu moro?" não achava "mora em Curitiba". |
+| Testes | `tests/test_memory_layer.py` **+7**, incluindo o recall medido. |
+
+### 2. Ganho medido (10 fatos × 10 perguntas, `RecordingProvider`)
+
+| Métrica | Sem injeção | Com injeção |
+|---|---|---|
+| Recall@5 do fato certo no prompt | 0/10 (**0%**) | 9/10 (**90%**) |
+| Prompt médio | 3.332 chars | 3.451 chars (**+3,6%**) |
+| Recuperação | — | p50 **0,205 ms** |
+
+**O furo honesto:** `"tenho algum animal?"` → fato `"tem um cachorro chamado Rex"`. Igualdade semântica (animal ≈ cachorro) exige embedding — é a fase 3, não um bug de termo. O teste mede os 10 casos e exige ≥ 9, com o furo nomeado no docstring; nada foi escondido.
+
+### 3. Prós e contras
+
+- **Injeção só do que casa com a mensagem:** prompt cresce 3,6% e mantém o assunto; contra: sem embedding, pergunta com sinônimo não traz o fato.
+- **Bloco depois do RAG:** preserva o prefixo cacheado; contra: se RAG e memória trouxerem o mesmo dado, o modelo vê os dois (duplicação barata, sem conflito).
+- **Limite duro de 600 chars:** garante que memória nunca expulsa histórico; contra: usuário com muitos fatos vê só os 5 mais relevantes.
+
+### 4. Verificação
+
+- Gate completo: **4295 passed / 16 skipped / 0 falha** (189,53 s; eram 4288/16).
+- Ao vivo: restart do `od-core` (MainPID **1174808**, `NRestarts=0`); `/health` **27/27** após o MQTT reconectar (o primeiro `/health` pós-restart marcou `mqtt degraded` por ~20 s — transitório, não regressão).
+- Sem bump: app segue **1.44.0/2080**.
+
+### 5. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2
   (OpenTelemetry)** — menor risco e maior visibilidade.

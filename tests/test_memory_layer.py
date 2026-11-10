@@ -257,6 +257,108 @@ class TestActions:
         assert obter_memoria() is obter_memoria()
 
 
+class TestMemoriaNoPrompt:
+    """F4 fase 2: os fatos do usuário entram no prompt antes do LLM."""
+
+    def _orch(self, tmp_path, **config):
+        from core.orchestrator import Orchestrator, OrchestratorConfig, RecordingProvider
+        from memory.history import ConversationHistory
+
+        provider = RecordingProvider("qwen", "resposta")
+        return (
+            Orchestrator(
+                providers=[provider],
+                history=ConversationHistory(base_dir=tmp_path / "conversas"),
+                config=OrchestratorConfig(**config) if config else None,
+            ),
+            provider,
+        )
+
+    @pytest.mark.asyncio
+    async def test_fato_do_usuario_entra_no_prompt(self, tmp_path):
+        obter_memoria().adicionar_fato(
+            "alex", "mora em curitiba", entidade="cidade"
+        )
+        orch, provider = self._orch(tmp_path)
+        await orch.process("alex", "guardian", "onde eu moro?")
+        assert "mora em curitiba" in provider.prompts[-1]
+        assert "Memória do usuário" in provider.prompts[-1]
+
+    @pytest.mark.asyncio
+    async def test_sem_memoria_o_prompt_nao_ganha_bloco(self, tmp_path):
+        orch, provider = self._orch(tmp_path)
+        await orch.process("alex", "guardian", "qual a capital do brasil?")
+        assert "Memória do usuário" not in provider.prompts[-1]
+
+    @pytest.mark.asyncio
+    async def test_memoria_de_outro_usuario_nao_vaza(self, tmp_path):
+        obter_memoria().adicionar_fato("maria", "mora em recife", entidade="cidade")
+        orch, provider = self._orch(tmp_path)
+        await orch.process("alex", "guardian", "onde eu moro?")
+        assert "recife" not in provider.prompts[-1]
+
+    @pytest.mark.asyncio
+    async def test_desligavel_na_config(self, tmp_path):
+        obter_memoria().adicionar_fato("alex", "mora em curitiba", entidade="cidade")
+        orch, provider = self._orch(tmp_path, memoria_no_prompt=False)
+        await orch.process("alex", "guardian", "onde eu moro?")
+        assert "mora em curitiba" not in provider.prompts[-1]
+
+    @pytest.mark.asyncio
+    async def test_respeita_o_limite_de_fatos(self, tmp_path):
+        memoria = obter_memoria()
+        for i in range(8):
+            memoria.adicionar_fato("alex", f"gosta de item {i}", entidade="gosto")
+        orch, provider = self._orch(tmp_path, memoria_max_fatos=2)
+        await orch.process("alex", "guardian", "do que eu gosto?")
+        prompt = provider.prompts[-1]
+        assert prompt.count("- gosta de item") <= 2
+
+    @pytest.mark.asyncio
+    async def test_bloco_respeita_orcamento_de_chars(self, tmp_path):
+        memoria = obter_memoria()
+        for i in range(5):
+            memoria.adicionar_fato(
+                "alex", f"gosta de coisa{i} " + "detalhe " * 40, entidade=f"a{i}"
+            )
+        orch, provider = self._orch(tmp_path, memoria_max_chars=200)
+        await orch.process("alex", "guardian", "do que eu gosto?")
+        bloco = provider.prompts[-1].split("Memória do usuário")[-1]
+        assert bloco.count("detalhe") <= 20
+
+    @pytest.mark.asyncio
+    async def test_recall_do_bloco_injetado(self, tmp_path):
+        """Recall@5 do bloco injetado — medido, não presumido.
+
+        Baseline sem a fase 2: 0/10 (os fatos não existem no prompt).
+        Medido hoje: 9/10. O único furo é "tenho algum animal?" → fato
+        "tem um cachorro chamado Rex": sinônimo (animal≈cachorro) exige
+        embedding, que é a fase 3 — não é bug do termo.
+        """
+        casos = [
+            ("mora em Curitiba", "cidade", "onde eu moro?"),
+            ("nome é Alex", "nome", "qual é o meu nome?"),
+            ("trabalha com suporte", "trabalho", "com o que eu trabalho?"),
+            ("prefere respostas curtas", "preferencia", "como eu gosto das respostas?"),
+            ("não gosta de barulho", "nao_gosto", "do que eu não gosto?"),
+            ("tem um cachorro chamado Rex", "possui", "tenho algum animal?"),
+            ("aniversário é 3 de maio", "aniversario", "quando é meu aniversário?"),
+            ("e-mail é alex@exemplo.com", "email", "qual é o meu e-mail?"),
+            ("estuda engenharia", "estudo", "o que eu estudo?"),
+            ("projeto é Omega", "projeto", "qual é o meu projeto?"),
+        ]
+        memoria = obter_memoria()
+        for conteudo, entidade, _pergunta in casos:
+            memoria.adicionar_fato("alex", conteudo, entidade=entidade)
+        orch, provider = self._orch(tmp_path)
+        acertos = 0
+        for conteudo, _entidade, pergunta in casos:
+            await orch.process("alex", "guardian", pergunta)
+            if conteudo in provider.prompts[-1]:
+                acertos += 1
+        assert acertos >= 9  # 10/10 só com busca semântica (fase 3)
+
+
 class TestOrquestrador:
     """O chat alimenta a memória sem o usuário pedir (melhor esforço)."""
 

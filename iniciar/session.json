@@ -1,4 +1,15 @@
 {
+  "f4_fase2_memoria_no_prompt_2026_11_10": {
+    "pedido": "Dono: fazer a fase 2 do F4 (injetar bloco de memoria no prompt) e medir o ganho de recall.",
+    "feito": "Orchestrator._build_prompt chama _bloco_memoria(user_id, text); bloco entra depois do system/data-hora e do RAG. Orcamento memoria_max_fatos=5 e memoria_max_chars=600; memoria_no_prompt=False desliga. Sem memoria/usuario vazio = prompt identico ao da fase 1; erro de leitura = bloco vazio + log. memory_layer.buscar ganhou radical leve PT-BR (moro/mora/morar -> mor) sem o qual 'onde eu moro?' nao achava 'mora em Curitiba'.",
+    "medicao": "10 fatos x 10 perguntas com RecordingProvider: recall@5 do fato certo no prompt 0/10 (0%) -> 9/10 (90%); prompt medio 3.332 -> 3.451 chars (+3,6%); recuperacao p50 0,205 ms.",
+    "limitacao": "Furo restante: 'tenho algum animal?' -> 'tem um cachorro chamado Rex' (sinonimia) exige embedding = fase 3. O teste mede os 10 casos e exige >= 9, com o furo documentado.",
+    "testes": "tests/test_memory_layer.py +7 (entra no prompt, sem memoria nao ganha bloco, isolamento, desligavel, limites de fatos e chars, recall medido). Gate 4295 passed / 16 skipped / 0 falha (189,53 s).",
+    "prova_viva": "Restart do od-core: MainPID 1174808, NRestarts=0; /health 27/27 (mqtt marcou degraded por ~20 s no primeiro health pos-restart e voltou a 'conectado' sozinho).",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§10)",
+    "updated_at": "2026-11-10T16:20:00-03:00"
+  },
   "f4_fase1_memoria_longa_2026_11_10": {
     "pedido": "Dono: prosseguir (proximo item do roadmap = F4 Memory Layer).",
     "medicao_previa": "memory/history.py guarda 20 mensagens por perfil: trocar de perfil ou passar de 20 mensagens faz o usuario voltar a ser desconhecido. Gap real do F4 = memoria entre sessoes/perfis.",

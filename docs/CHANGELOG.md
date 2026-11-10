@@ -12,6 +12,20 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Memória longa fase 2: bloco de memória no prompt (F4, 2026-11-10, sem bump)
+
+**Resumo:** até agora a memória longa só era alcançável por action — o LLM
+não a via. Agora o `Orchestrator` injeta no prompt os fatos do próprio
+usuário que casam com a mensagem, antes da chamada ao modelo.
+
+| Peça | Entrega |
+|---|---|
+| **`core/orchestrator.py`** | `_bloco_memoria(user_id, text)` chamado em `_build_prompt` **depois** do system/data-hora e do bloco RAG (o prefixo cacheado do llama-server sobrevive melhor). Orçamento por `memoria_max_fatos=5` e `memoria_max_chars=600`; desligável com `memoria_no_prompt=False`. Usuário vazio/sem memória = prompt idêntico ao de antes; erro de leitura = bloco vazio + log. |
+| **`core/memory_layer.py`** | Radical leve PT-BR (`moro`/`mora`/`morar` → `mor`) na busca — sem isso "onde eu moro?" não achava "mora em Curitiba". |
+| **Ganho medido** | Recall@5 do fato certo no prompt: **0/10 (0%) → 9/10 (90%)**; prompt médio 3.332 → 3.451 chars (**+3,6%**); recuperação **0,205 ms** (p50). O furo restante é sinonímia ("animal" vs "cachorro"), que exige embedding. |
+| **Testes** | `tests/test_memory_layer.py` **+7** (fato entra no prompt, sem memória não ganha bloco, memória de outro usuário não vaza, desligável, limites de fatos e de chars, recall medido ≥ 9/10). |
+| **Verificação** | Gate completo **4295 passed / 16 skipped / 0 falha**. Sem bump: app segue **1.44.0/2080**. |
+
 ## Memória longa fase 1: grafo temporal de fatos (F4, 2026-11-10, sem bump)
 
 **Resumo:** o que faltava não era mais histórico (o `memory/history.py` já

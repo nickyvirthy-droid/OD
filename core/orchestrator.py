@@ -493,6 +493,12 @@ class OrchestratorConfig:
     # métrica (contexto_descartados).
     orcamento_janela: int = 0
     orcamento_resposta: int = 512
+    # Memória longa no prompt (F4 fase 2): injeta os fatos do próprio
+    # usuário que casam com a mensagem, antes do LLM. Orçamento em fatos e
+    # em caracteres para o bloco nunca competir com o histórico.
+    memoria_no_prompt: bool = True
+    memoria_max_fatos: int = 5
+    memoria_max_chars: int = 600
 
 
 @dataclass(slots=True)
@@ -1867,6 +1873,42 @@ class Orchestrator:
             return bloco
         return self._bloco_enciclopedia(text)
 
+    def _bloco_memoria(self, user_id: str, text: str) -> str:
+        """Bloco de memória longa (F4 fase 2): o que já se sabe do usuário.
+
+        Recupera os fatos do GRÁFO daquele usuário que casam com a mensagem
+        (até `memoria_max_fatos`, cortados em `memoria_max_chars`). Sem
+        memória, usuário anônimo ou erro: devolve "" e o prompt segue
+        idêntico ao de antes da fase 2 — memória é acessório, nunca caminho
+        crítico.
+        """
+        if not self._config.memoria_no_prompt:
+            return ""
+        if not user_id:
+            return ""
+        try:
+            from core.memory_layer import obter_memoria
+
+            fatos = obter_memoria().buscar(
+                user_id, text, limite=max(1, self._config.memoria_max_fatos)
+            )
+        except Exception as exc:  # noqa: BLE001 — memória nunca derruba o chat
+            log.warn(
+                "Memória longa: leitura falhou (prompt segue sem bloco)",
+                erro=f"{type(exc).__name__}: {exc}",
+            )
+            return ""
+        if not fatos:
+            return ""
+        linhas = "\n".join(f"- {fato.conteudo}" for fato in fatos)
+        bloco = (
+            "Memória do usuário (fatos que ele mesmo contou em conversas "
+            "anteriores; use se ajudar, sem repetir à toa):\n" + linhas
+        )
+        if len(bloco) > self._config.memoria_max_chars:
+            bloco = bloco[: self._config.memoria_max_chars].rstrip() + "…"
+        return bloco
+
     def _bloco_enciclopedia(self, text: str) -> str:
         """Etapa 4.6 — Wikipédia offline (Kiwix).
 
@@ -1928,6 +1970,12 @@ class Orchestrator:
             system = f"{system}\n{context_line}".strip() if system else context_line
         if rag_block:
             system = f"{system}\n{rag_block}"
+        bloco_memoria = self._bloco_memoria(user_id, text)
+        if bloco_memoria:
+            # Memória entra DEPOIS do bloco de referência: o que o usuário
+            # contou sobre si é mais estável que o texto recuperado, então
+            # o prefixo cacheado do llama-server sobrevive melhor aqui.
+            system = f"{system}\n{bloco_memoria}"
 
         if contexto is None:
             messages = self._contexto_msgs(user_id, profile, extra_history)

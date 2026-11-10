@@ -30,7 +30,7 @@
 | **F1** | **Migrar orquestrador para grafo de execução (LangGraph-style)** | Alto | 🔥🔥🔥 | LangGraph blog 2024-2025: checkpointing, parallelization, streaming, human-in-the-loop, task queue, tracing nativo |
 | **F2** | ~~Implementar OpenTelemetry distribuído (traces + metrics + logs correlacionados)~~ **ENTREGUE (10/11)**: SDK + spans + métricas + log correlacionado + check no `/health`; falta só o coletor/Grafana (infra) — ver §3 | Médio | 🔥🔥🔥 | python-observability.com, structlog + OTel + BatchSpanProcessor |
 | **F3** | ~~Substituir I/O síncrono por async em todo o core~~ **ENCERRADO (10/11)** com escopo revisado por medição: o problema real era trabalho de CPU no handler e backlog de socket — ver §3 | Alto → Baixo | 🔥🔥 | `aiohttp`, `asyncpg`, `asyncio.to_thread` para bloqueantes |
-| **F4** | **Memory Layer estruturada (Mem0/Zep-style: grafo temporal + consolidação)** — **fase 1 ENTREGUE (10/11)**: grafo temporal em SQLite, extração determinística e 2 actions; faltam embeddings e consolidação (§3) | Alto → Médio | 🔥🔥🔥 | Mem0 (arXiv 2504.19413), Zep (arXiv 2501.13956), LOCOMO/LongMemEval |
+| **F4** | **Memory Layer estruturada (Mem0/Zep-style: grafo temporal + consolidação)** — **fases 1 e 2 ENTREGUES (10/11)**: grafo temporal em SQLite, extração determinística, 2 actions e bloco de memória no prompt (recall@5 0% → 90%); faltam embeddings e consolidação (§3) | Alto → Médio | 🔥🔥🔥 | Mem0 (arXiv 2504.19413), Zep (arXiv 2501.13956), LOCOMO/LongMemEval |
 
 ### 🟡 ALTO — Inteligência & Performance
 
@@ -396,9 +396,40 @@ temporal barato e determinístico.
 | Guardar memória no histórico de chat | É exatamente o que não escala (20 mensagens, por perfil). Grafo separado, escopo por usuário. |
 | `aiosqlite` | F3 já mostrou que thread-por-requisição não ganha com async; SQLite com lock é o padrão do projeto. |
 
-**Fase 2 (não iniciada):** busca semântica com embeddings, consolidação
-periódica (semanal) e injeção do bloco de memória no prompt do LLM — hoje as
-memórias só são acessíveis por action.
+#### F4 — FASE 2 (injeção no prompt) ENTREGUE (2026-11-10)
+
+**Status: injeção entregue e medida; embeddings e consolidação continuam na
+fase 3.**
+
+Até aqui a memória só era alcançável por action — o LLM não a via. Agora
+`Orchestrator._build_prompt` chama `_bloco_memoria(user_id, text)`: busca os
+fatos do usuário que casam com a mensagem (até `memoria_max_fatos=5`,
+cortados em `memoria_max_chars=600`) e injeta um bloco **depois** do
+system/data-hora e do bloco RAG — o prefixo cacheado do llama-server
+sobrevive melhor, e o que o usuário contou sobre si é mais estável que o
+texto recuperado.
+
+**Ganho medido (10 fatos × 10 perguntas, `RecordingProvider`, sem LLM real):**
+
+| Métrica | Sem injeção | Com injeção |
+|---|---|---|
+| Recall@5 do fato certo no prompt | **0/10 (0%)** | **9/10 (90%)** |
+| Tamanho médio do prompt | 3.332 chars | 3.451 chars (**+3,6%**) |
+| Custo da recuperação | — | p50 **0,205 ms** |
+
+O único furo é `"tenho algum animal?"` → fato `"tem um cachorro chamado
+Rex"`: igualdade semântica (animal ≈ cachorro) exige embedding, que é a
+fase 3. Nada disso foi escondido no teste — `test_recall_do_bloco_injetado`
+mede os 10 casos e exige ≥ 9, com o furo documentado no docstring.
+
+**Salvaguardas:** desligável por `memoria_no_prompt=False`; usuário vazio ou
+sem memória não recebe bloco (prompt idêntico ao da fase 1); erro de leitura
+devolve bloco vazio e loga — memória nunca derruba o chat. A busca ganhou
+radical leve PT-BR (`moro`/`mora`/`morar` → `mor`), senão "onde eu moro?"
+não achava "mora em Curitiba".
+
+**Fase 3 (não iniciada):** embeddings para sinônimos (os 10% que faltam) e
+consolidação periódica semanal (fundir fatos repetidos, expirar o efêmero).
 
 ### R2 — Circuit Breaker (detalhe)
 
@@ -454,8 +485,9 @@ esperar o timeout.
       na fase 1 (extração determinística + busca por termos)
 - [x] F4: integração no Orchestrator (`salvar_fato`/`buscar_memoria` no catálogo
       + captura automática no `_post_process`)
-- [ ] F4 fase 2: busca semântica (embeddings), consolidação semanal e injeção
-      do bloco de memória no prompt
+- [x] F4 fase 2: injeção do bloco de memória no prompt — recall@5 de 0% para
+      **90%**, +3,6% de prompt, 0,2 ms de recuperação
+- [ ] F4 fase 3: embeddings (sinônimos) e consolidação semanal
 
 ### Semana 7-8: Orquestrador como Grafo
 - [ ] F1: Definir `OrchestratorState` (TypedDict + reducers)
