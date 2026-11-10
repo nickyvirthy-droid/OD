@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Legado Omega Drakon — Consolidação Canônica</title>
+<link rel="icon" href="/site/favicon.png">
+<link rel="stylesheet" href="/site/od.css">
+<script src="/site/od-nav.js" defer></script>
+<style>
+  :root {
+    --bg: #06080f; --bg2: #0c1120; --bg3: #111830;
+    --text: #e8eaf0; --muted: #7a839a; --border: #1c2440;
+    --accent: #f59e0b; --ok: #34d399; --err: #f87171;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #F4F6FB; --bg2: #FFFFFF; --bg3: #E9EEF7;
+      --text: #131722; --muted: #5B6478; --border: #D5DCEA;
+      --accent: #F59E0B; --ok: #0F766E; --err: #B91C1C;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100dvh;
+    -webkit-font-smoothing: antialiased; line-height: 1.6;
+  }
+  header {
+    position: sticky; top: 0; z-index: 30;
+    padding: 12px 20px; background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+  }
+  header a { color: var(--text); text-decoration: none; font-weight: 700; }
+  header a:hover { color: var(--accent); }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; color: var(--muted); }
+  main { max-width: 960px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
+  section { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  section h2 { font-size: 1.1rem; margin-bottom: 12px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  section h3 { font-size: 0.95rem; margin: 16px 0 8px; color: var(--text); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 12px 0; }
+  th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+  code { background: var(--bg3); color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
+  pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 0.8rem; line-height: 1.5; }
+  pre code { background: none; padding: 0; color: var(--text); }
+  .card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin: 8px 0; }
+  .card .k { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .card .v { font-size: 0.95rem; font-weight: 600; margin-top: 4px; color: var(--accent); }
+  .warning { background: rgba(245,158,11,0.15); border: 1px solid var(--accent); border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+  .warning strong { color: var(--accent); }
+  .muted { color: var(--muted); font-size: 0.9rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; background: var(--bg3); border: 1px solid var(--border); color: var(--muted); }
+  .badge.ok { color: var(--ok); border-color: var(--ok); }
+  .badge.warn { color: var(--warn); border-color: var(--warn); }
+  .toc { display: grid; gap: 8px; margin-bottom: 16px; }
+  .toc a { color: var(--accent); text-decoration: none; font-weight: 500; }
+  .toc a:hover { text-decoration: underline; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  footer { text-align: center; padding: 24px; color: var(--muted); font-size: 0.8rem; border-top: 1px solid var(--border); margin-top: 24px; }
+  ul { margin-left: 1.2rem; }
+  li { margin: 6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/"><img src="/site/simbolo_minimo.png" alt="OD" style="width:22px;height:22px;vertical-align:-4px"></a>
+  <h1>Legado Omega Drakon — Consolidação Canônica</h1>
+</header>
+<main>
+  <section>
+    <h2>Visão Geral</h2>
+    <p>Este documento é a <strong>bússola</strong> para o núcleo da marca Omega Drakon e a história dos projetos predecessores (Nicky Virthy, Nicky, NV, Nexus). O canônico que manda hoje é <code>/home/alex/Legado/OMEGA_DRAKON/</code> e o repositório Git do projeto atual.</p>
+    <div class="toc">
+      <a href="#nucleo-marca">1. Núcleo da Marca (VIVO)</a>
+      <a href="#consolidacoes">2. Consolidações Técnicas (2026-08)</a>
+      <a href="#historico">3. Projetos Históricos</a>
+      <a href="#duplicacoes">4. Mapa de Duplicações</a>
+      <a href="#seguranca">5. Aviso de Segurança</a>
+      <a href="#nao-fazer">6. O que NÃO fazer</a>
+      <a href="#referencias">7. Referências Cruzadas</a>
+    </div>
+  </section>
+
+  <section id="nucleo-marca">
+    <h2>1. Núcleo da Marca <span class="badge ok">VIVO — canônico atual</span></h2>
+    <p><strong>Localização:</strong> <code>/home/alex/Legado/OMEGA_DRAKON/</code></p>
+    <div class="grid">
+      <div class="card"><div class="k">Identidade Visual</div><div class="v">MANUAL_IDENTIDADE_VISUAL_v1.md</div></div>
+      <div class="card"><div class="k">Códice da Marca</div><div class="v">01_CODICE_MARCA.md</div></div>
+      <div class="card"><div class="k">Símbolos Oficiais</div><div class="v">Logo, simbolo_minimo, Retrato Futurista</div></div>
+      <div class="card"><div class="k">Comunicação Aprovada</div><div class="v">Textos_Aprovados/</div></div>
+      <div class="card"><div class="k">Estratégia de Voz</div><div class="v">ESTRATEGIA_DE_VOZ.md</div></div>
+      <div class="card"><div class="k">Registro Mestre / MoC</div><div class="v">06_REGISTRO_MESTRE/</div></div>
+      <div class="card"><div class="k">Numeração Oficial</div><div class="v">02_NUMERACAO/</div></div>
+    </div>
+    <p class="muted"><strong>Regra:</strong> Qualquer decisão sobre identidade visual, tom de voz, produtos, autenticidade ou história do ecossistema deve passar por aqui antes de ser inventada.</p>
+  </section>
+
+  <section id="consolidacoes">
+    <h2>2. Consolidações Técnicas Canônicas <span class="badge ok">Google Drive — 2026-08</span></h2>
+    <p>4 documentos no Google Drive (<code>OmegaDrakon</code> / <code>OD</code>) que resumem 26+23+23 fontes do Legado:</p>
+    <table>
+      <thead><tr><th>Documento</th><th>Conteúdo</th><th>Cópia Local</th></tr></thead>
+      <tbody>
+        <tr><td><code>OMEGADRAKON_SPEC.md</code></td><td>Especificação técnica completa</td><td><code>docs/OMEGADRAKON_SPEC.md</code></td></tr>
+        <tr><td><code>OMEGA_DRAKON_SOURCE_MAP.md</code></td><td>Mapa de fontes bit a bit</td><td>—</td></tr>
+        <tr><td><code>NICKY_VIRTHY_KNOWLEDGE.md</code></td><td>Conhecimento consolidado</td><td><code>knowledge/</code></td></tr>
+        <tr><td><code>CONTROL_BRIDGE.md</code></td><td>Ponte de controle sistemas legados</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="historico">
+    <h2>3. Projetos Históricos <span class="badge">Absorvidos — não são norma vigente</span></h2>
+    <table>
+      <thead><tr><th>Projeto</th><th>Período</th><th>O que era</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Nicky Virthy</strong></td><td>2025-01 → 2026-02</td><td>Primeira assistente (v0.1→v0.3.9) + marca original</td></tr>
+        <tr><td><strong>Nicky</strong></td><td>2026-02 → 2026-07</td><td>PWA, /codigo agêntico, STT/TTS (v0.4→v0.7)</td></tr>
+        <tr><td><strong>NV Runtime</strong></td><td>2026-07 → 2026-08</td><td>Arquitetura v1.11: tool runtime, security, workflows</td></tr>
+        <tr><td><strong>Nexus</strong></td><td>2026-07 → 2026-08</td><td>Monitor casa/servidor (HA, MariaDB); berço da Plêiade</td></tr>
+      </tbody>
+    </table>
+    <h3>Linha do Tempo</h3>
+    <ol>
+      <li>2025-01 — Nicky Virthy v0.1 (já com marca Omega Drakon)</li>
+      <li>2026-02-02 — Manifesto OD selado, Registro Mestre criado</li>
+      <li>2026-04→07 — Nicky v0.3 → v0.7</li>
+      <li>2026-07→08 — Nexus (Plêiade) e NV Runtime v1.11 em paralelo</li>
+      <li>2026-08 (fim) — Consolidações canônicas no Drive (4 docs)</li>
+      <li>2026-09 — Absorção total no <strong>OmegaDrakon v1.0</strong> (Git)</li>
+      <li>2026-10 — v1.21.2 no ar; site institucional publicado</li>
+    </ol>
+  </section>
+
+  <section id="duplicacoes">
+    <h2>4. Mapa de Duplicações <span class="badge">Medido bit a bit — 09/10/2026</span></h2>
+    <p><strong>Nada foi apagado.</strong> Inventário para limpeza futura segura (só com backup + confirmação do dono).</p>
+    <h3>4.1 Pares IDÊNTICOS (sha256 igual — 4 pares)</h3>
+    <table>
+      <thead><tr><th>Arquivo A</th><th>Arquivo B</th></tr></thead>
+      <tbody>
+        <tr><td>ESTRATEGIA_DE_VOZ.md</td><td>ESTRATEGIA_DE_VOZ 1.md</td></tr>
+        <tr><td>01_CODICE_MARCA.md</td><td>1. Posicionamento da Marca.md</td></tr>
+        <tr><td>Servidor Dell.md</td><td>Servidor Dell(1).md</td></tr>
+        <tr><td>ARCHITECTURE.md</td><td>ARCHITECTURE(1).md</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">Candidatos seguros a remoção (custo zero). Só mediante confirmação.</p>
+    <h3>4.2 Pares DIVERGENTES (camadas geológicas — NÃO são cópias)</h3>
+    <p>Ex.: <code>PROCEDIMENTO OFICIAL DE FECHAMENTO.md</code> em NV e Nexus (versões diferentes), <code>Regras de Trabalho.md</code> em NV e Nexus, changelogs de eras diferentes, 3 versões de <code>ativar venv.md</code>.</p>
+    <p class="muted"><strong>Conclusão:</strong> "Duplicatas" são camadas geológicas — mesmo documento em fases diferentes. Apagar seria perder histórico. Caminho futuro: índice/merge consciente.</p>
+  </section>
+
+  <section id="seguranca" class="warning">
+    <strong>⚠️ AVISO DE SEGURANÇA (permanente)</strong><br>
+    Documentos antigos (principalmente <code>Nicky/docs/Docs/POST_TRANSFER_CHECKLIST.md</code>) contêm <strong>segredos em texto puro</strong>: token de bot Telegram, chave Gemini, senhas MariaDB/HA, IPs e chaves de acesso.
+    <br><br>
+    <strong>NUNCA</strong> copiar esses valores para o repositório, site ou novos documentos. Credenciais vivas estão no <code>.env</code> do projeto atual.
+  </section>
+
+  <section id="nao-fazer">
+    <h2>6. O que NÃO fazer com o Legado</h2>
+    <ol>
+      <li>Não apagar nada sem backup + confirmação do dono (regra 9).</li>
+      <li>Não tratar documento histórico como norma vigente — cânone da marca é <code>OMEGA_DRAKON/</code>; cânone do software é o Git.</li>
+      <li>Não migrar segredos (ver §5).</li>
+      <li>Se mover/reorganizar a pasta, atualizar este documento e <code>docs/ANALISE_ECOSSISTEMA.md</code>.</li>
+    </ol>
+  </section>
+
+  <section id="referencias">
+    <h2>7. Referências Cruzadas no Projeto Atual</h2>
+    <table>
+      <thead><tr><th>No projeto atual</th><th>Origem no Legado</th></tr></thead>
+      <tbody>
+        <tr><td><code>docs/REGRAS_DE_TRABALHO.md</code></td><td>Derivado de NV + Nexus</td></tr>
+        <tr><td><code>docs/VERSIONAMENTO.md</code></td><td><code>OMEGA_DRAKON/02_NUMERACAO/</code></td></tr>
+        <tr><td><code>site/</code> (identidade visual)</td><td><code>OMEGA_DRAKON/01_NUCLEO_DA_MARCA/Identidade_Visual/</code></td></tr>
+        <tr><td><code>agents/profiles.py</code> (Plêiade)</td><td><code>Nexus/docs/Personagens.md</code></td></tr>
+        <tr><td><code>core/identity.py</code> (Registro Mestre)</td><td><code>OMEGA_DRAKON/06_REGISTRO_MESTRE/</code></td></tr>
+        <tr><td><code>docs/CHANGELOG.md</code></td><td>Continuidade de <code>NV/docs/CHANGELOG.md</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Como usar esta consolidação</h2>
+    <ul>
+      <li><strong>Decisões de marca/identidade:</strong> Comece pelo <a href="#nucleo-marca">§1</a> (núcleo vivo).</li>
+      <li><strong>História técnica:</strong> Leia <a href="#consolidacoes">§2</a> + <a href="#historico">§3</a>.</li>
+      <li><strong>Limpeza futura:</strong> Use <a href="#duplicacoes">§4</a> (mapa medido bit a bit).</li>
+      <li><strong>Auditoria de segurança:</strong> <a href="#seguranca">§5</a> (avisos de segredos).</li>
+      <li><strong>Desenvolvimento:</strong> <a href="#referencias">§7</a> (onde o código bebe da fonte).</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Assinatura: OD // CORE · Criado em: 2026-11-09</p>
+    <p>Baseado em: <code>/home/alex/Legado/00_MAPA_DO_LEGADO.md</code></p>
+    <p><a href="/site/legado_consolidado.md" style="color:var(--accent)">Ver versão Markdown (docs/LEGADO_CONSOLIDADO.md)</a></p>
+  </footer>
+  <button id="toTop" class="to-top" title="Voltar ao topo" style="display:none;position:fixed;bottom:24px;right:24px;width:44px;height:44px;border-radius:50%;background:var(--accent);color:var(--bg);border:none;cursor:pointer;font-size:1.2rem;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:100">↑</button>
+</main>
+</body>
+</html>
