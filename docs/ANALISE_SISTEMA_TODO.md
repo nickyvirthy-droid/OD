@@ -551,10 +551,14 @@ esperar o timeout.
       repetição após restart do `od-core` em **1,2 ms** (antes: ~1,3 s fria)
 
 ### Semana 7-8: Orquestrador como Grafo
-- [ ] F1: Definir `OrchestratorState` (TypedDict + reducers)
-- [ ] F1: Implementar nós atômicos (classify, select, execute, generate, human)
-- [ ] F1: Compilar grafo com `SqliteSaver` checkpointing
-- [ ] F1: Migrar loop atual para `graph.astream()` com config `{"recursion_limit": 50}`
+- [x] F1 fase 1: `OrchestratorState` (TypedDict + reducers) e motor de grafo
+      próprio em `core/orchestrator_graph.py` (sem `langgraph` instalado)
+- [x] F1 fase 1: nós atômicos (classify, select, execute, generate, human) com
+      fan-out paralelo e teto `max_paralelo`
+- [x] F1 fase 1: `SqliteSaver` (`od_graph_checkpoints`, checkpoint por
+      superstep) + `astream()` com `resume`, `recursion_limit` e pausa humana
+- [ ] F1 fase 2: Migrar loop atual para `graph.astream()` com config
+      `{"recursion_limit": 50}` atrás de flag, com fallback para `process()`
 
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)

@@ -677,3 +677,65 @@ restart do `od-core`.
 ### 5. Fila
 
 - Próximo: **F1** (orquestrador em grafo, pedido na sequência do dono).
+
+---
+
+## §16 — F1 fase 1: orquestrador em grafo (estado, nós, checkpoint SQLite)
+
+**Pedido do dono:** iniciar o F1 do roadmap — orquestrador em grafo com
+`OrchestratorState` e `SqliteSaver`.
+
+### 1. Decisão de dependência
+
+`langgraph` **não está instalado** e não aparece em `requirements*.txt`. O
+roadmap cita `StateGraph`/`SqliteSaver` como desenho, não como pacote
+obrigatório; instalar arrastaria uma árvore grande para o caminho crítico do
+orquestrador. A fase 1 implementa o mesmo contrato em `core/orchestrator_graph.py`
+com stdlib (`asyncio` + `sqlite3`), mantendo a porta aberta: se o dono quiser
+o pacote oficial depois, os nós e o estado já estão no formato dele
+(`TypedDict` + reducers + `astream`).
+
+### 2. O que entrou
+
+| Peça | Entrega |
+|---|---|
+| `OrchestratorState` | `TypedDict` com `messages`, `user_id`, `session_id`, `profile`, `text`, `intent`, `active_tools`, `tool_results`, `steps`, `response`, `pending_human_input`, `human_decision`, `error`. Listas usam reducer de concatenação (`Annotated[..., somar_listas]`). |
+| Nós atômicos | `criar_nos()` monta `classify`, `select_tools`, `execute_parallel`, `generate`, `human_loop` sobre funções injetadas; aceita sync e async. |
+| Fan-out paralelo | Superstep roda todos os nós pendentes em `asyncio.gather`; ferramentas do mesmo passo têm teto `max_paralelo` (padrão 4) e funções síncronas vão para thread (`asyncio.to_thread`), senão o `gather` não paralelizaria de verdade. |
+| `SqliteSaver` | Tabela `od_graph_checkpoints` (thread, passo, estado JSON, próximos nós, `created_at`), PK composta, teto de 200 passos por thread. Um checkpoint por superstep. |
+| `astream()` | Rende `{passo, nos, proximos, estado}` por superstep; `resume=True` carrega o último checkpoint; `recursion_limit` (padrão 50) vira `GraphRecursionError`. |
+| Human-in-the-loop | Se `pending_human_input` está preenchido e não há `human_decision`, o grafo **pausa** e rende `{"__interrupt__": ...}` com o checkpoint apontando para `human_loop`; `retomar(thread_id, {"human_decision": ...})` aplica a decisão e o `astream(resume=True)` fecha a pausa. |
+| Rotas | `rota_por_intencao`: `intent == "tools"` → `select_tools`, resto → `generate`. `END` é aceito em edges estáticas e condicionais. |
+
+### 3. Prós e contras
+
+- **Sem dependência nova:** nada muda no install/CI e o núcleo segue leve;
+  contra: o motor é nosso (~500 linhas) e não cobre recursos avançados do
+  LangGraph (subgrafos, `Send` dinâmico, store, time-travel).
+- **Checkpoint por superstep:** retomada após restart e auditoria barata;
+  contra: uma escrita SQLite por passo (aceitável: poucos passos por mensagem).
+- **Threads para ferramentas síncronas:** paralelismo real sem exigir que todo
+  action vire `async`; contra: custo de thread por ferramenta e um `timeout`
+  externo ainda é responsabilidade de quem injeta `executar`.
+- **Pausa humana antes do `human_loop`:** o ponto de retomada não se perde;
+  contra: o estado pausado fica gravado com `pending_human_input`, então quem
+  consultar checkpoints antigos vê a pendência até a decisão.
+
+### 4. Verificação
+
+- `tests/test_orchestrator_graph.py`: **15 testes** — fluxo direto, fluxo com
+  ferramentas, paralelismo (2 × 0,2 s em < 0,35 s), nó async, checkpoint por
+  superstep, persistência entre instâncias, pausa/retomada humana, pausa sem
+  decisão, reducer no mesmo passo, `recursion_limit`, rota inválida, nó que não
+  devolve dict, sequência do `astream`.
+- Isolado: **15 passed em 0,42 s**.
+- Gate completo: **4349 passed / 16 skipped / 0 falha** (196,24 s; eram
+  4334/16). Nenhum teste existente precisou de ajuste.
+
+### 5. Fila
+
+- **F1 fase 2 (próxima fatia):** ligar o grafo ao `process()` atrás de flag
+  (`OD_ORCHESTRATOR_GRAPH=1`), começando pelo caminho sem ferramentas, com
+  fallback para o loop atual.
+- Depois: fan-out real das actions no `execute_parallel`, retomada após restart
+  do `od-core` usando o `thread_id` da sessão e resumo pós-falha.

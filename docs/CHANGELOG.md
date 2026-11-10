@@ -12,6 +12,20 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Orquestrador em grafo, fase 1: estado + nós + checkpoint SQLite (F1, 2026-11-10, sem bump)
+
+**Resumo:** o `Orchestrator` ainda é um loop monolítico, sem retomada nem
+pausa para decisão humana. Esta fatia entrega a base do F1 sem mexer no loop
+em produção: estado tipado, nós atômicos, fan-out paralelo, checkpoint em
+SQLite e `astream()` — no mesmo contrato do LangGraph, sem instalar o pacote.
+
+| Peça | Entrega |
+|---|---|
+| **`core/orchestrator_graph.py`** | `OrchestratorState` (`TypedDict`) com reducers de concatenação em `messages`/`active_tools`/`tool_results`/`steps`; `criar_nos()` (classify, select, execute, generate, human) aceitando sync/async; `StateGraph`/`CompiledGraph` com edge condicional e `END`; supersteps em `asyncio.gather` e ferramentas síncronas em `asyncio.to_thread`; `SqliteSaver` (`od_graph_checkpoints`, 1 checkpoint por passo, teto de 200/thread); `astream()` com `resume` e `recursion_limit` (50); pausa human-in-the-loop via `pending_human_input` e `retomar()`. |
+| **Testes** | `tests/test_orchestrator_graph.py` **+15**: fluxo direto, com ferramentas, paralelismo real (2 × 0,2 s em < 0,35 s), nó async, checkpoint por superstep, persistência entre instâncias, pausa/retomada humana, pausa sem decisão, reducer no mesmo passo, `recursion_limit`, rota inválida, nó que não devolve dict, sequência do `astream`. |
+| **Decisão** | Sem `langgraph` (ausente e pesado para o caminho crítico): motor próprio em stdlib, com a mesma forma de estado/nós/`astream` para permitir troca futura. |
+| **Verificação** | Isolado **15 passed / 0 falha** (0,42 s); gate completo **4349 passed / 16 skipped / 0 falha** (196,24 s). Sem bump: **1.44.0/2080**. |
+
 ## Memória longa fase 4b: cache de resultados semânticos (F4, 2026-11-10, sem bump)
 
 **Resumo:** o fallback semântico pagava ~0,4 s em **toda** mensagem sem match

@@ -1,4 +1,14 @@
 {
+  "f1_fase1_grafo_estado_checkpoint_2026_11_10": {
+    "pedido": "Dono: iniciar F1 do roadmap (orquestrador em grafo com OrchestratorState e SqliteSaver).",
+    "feito": "core/orchestrator_graph.py (novo): OrchestratorState TypedDict com reducers de concatenacao (messages, active_tools, tool_results, steps); criar_nos() monta classify, select_tools, execute_parallel, generate e human_loop sobre funcoes injetadas (sync/async); StateGraph/CompiledGraph com edges estaticas e condicionais, START/END, supersteps em asyncio.gather com teto max_paralelo e asyncio.to_thread para ferramentas sincronas; astream() rende update por superstep, aceita resume e recursion_limit (padrao 50, GraphRecursionError); SqliteSaver grava od_graph_checkpoints (thread_id, passo, estado JSON, proximos, created_at; PK composta, teto de 200 por thread); pausa human-in-the-loop quando pending_human_input existe sem human_decision, com checkpoint apontando para human_loop e retomar(thread_id, update) para aplicar a decisao. Decisao: NAO instalar langgraph (ausente e pesado para o caminho critico); mesmo contrato de estado/nos/astream permite troca futura. O loop atual (process/process_stream) segue intacto.",
+    "medicao": "tests/test_orchestrator_graph.py isolado: 15 passed em 0,42 s; paralelismo medido no teste: 2 ferramentas de 0,2 s terminam em <0,35 s (sequencial seria 0,4 s).",
+    "testes": "tests/test_orchestrator_graph.py +15 (fluxo direto, com ferramentas, paralelismo, no async, checkpoint por superstep, persistencia entre instancias, pausa/retomada humana, pausa sem decisao, reducer no mesmo passo, recursion_limit, rota invalida, no que nao devolve dict, sequencia do astream). Gate completo 4349 passed / 16 skipped / 0 falha (196,24 s; eram 4334/16).",
+    "trade_off": "Motor proprio (~500 linhas) evita dependencia nova e mantem o install/CI leves; contra: nao cobre subgrafos, Send dinamico, store nem time-travel do LangGraph. Checkpoint por superstep custa uma escrita SQLite por passo, em troca de retomada pos-restart e auditoria. Ferramentas sincronas vao para thread para o gather paralelizar de verdade; timeout continua responsabilidade de quem injeta executar.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§16)",
+    "updated_at": "2026-11-10T16:46:11-03:00"
+  },
   "f4_fase4b_l2_cache_persistente_2026_11_10": {
     "pedido": "Dono: persistir o cache semantico em SQLite para sobreviver a restart do od-core.",
     "feito": "core/memory_layer.py: tabela memory_semantic_cache (chave TEXT PK = sha256 da chave logica, ids JSON, created_at, expira_em) criada no _SCHEMA; _cache_semantico_ler consulta L1 em memoria e depois L2 no SQLite, repovoando o L1 com o TTL absoluto restante; _cache_semantico_guardar grava nos dois niveis e faz limpeza oportunista (DELETE vencidos + teto de 256 por created_at/rowid); erros de SQLite no cache sao logados em debug e nunca quebram a busca; stats()['semantica_cache'] ganhou hits_disco e persistidos. TTL continua OD_MEMORY_SEMANTICA_CACHE_S (0 desliga os dois niveis). Chave inclui a assinatura (id, updated_at) dos fatos ativos, entao restart com fato novo/substituido nao serve resultado velho.",
@@ -1545,7 +1555,7 @@
     "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
     "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
   },
-  "updated_at": "2026-11-08T15:15:00-03:00",
+  "updated_at": "2026-11-10T16:46:11-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
