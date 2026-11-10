@@ -12,6 +12,26 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Fila de listen do servidor em 128 (F3 fatia 2, 2026-11-10, sem bump)
+
+**Resumo:** a varredura de `/site/*`, `/health` e `/auth/login` mostrou que
+a landing e os assets estavam rápidos em série (0,95–1,56 ms) mas batiam
+**1.031 ms de máximo** sob 200 conexões simultâneas. Causa: o
+`ThreadingHTTPServer` herdava do `socketserver` uma fila de listen de **5**;
+com a rajada o backlog estourava e o kernel reenviava SYN (stall clássico de
+accept).
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/api/server.py`** | `APIServer.request_queue_size = 128`. |
+| **Testes** | `tests/test_api.py::test_servidor_tem_fila_de_listen_maior_que_o_padrao`. |
+| **Verificação** | Gate **4228 passed / 16 skipped / 0 falha** (186,73 s). Ao vivo: `/site/` máx **1.031 → 20,16 ms**, vazão **186 → 995 req/s** (5,3×); 400 conexões/32 threads: máx 35,93 ms, 1.127 req/s; série inalterada (p50 1,01 ms). Sem bump: app segue **1.44.0/2080**. |
+
+**Descartados com número:** `/health` sem cache = p50 18,08 ms (26 checks) —
+TTL de 8 s já basta; `POST /auth/login` = 158,5 ms de PBKDF2 deliberado
+(260k iterações) contra força-bruta, atrás do limiter. Nenhum dos dois pede
+`async`.
+
 ## /app/version com cache de metadados do APK (F3, 2026-11-10, sem bump)
 
 **Resumo:** a auditoria do F3 mostrou que o diagnóstico do roadmap

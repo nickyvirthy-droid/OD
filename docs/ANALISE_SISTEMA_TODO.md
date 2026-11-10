@@ -192,6 +192,17 @@ logger = structlog.get_logger()
 > **Escopo revisado do F3:** em vez de trocar `requests`→`aiohttp` (não há o
 > que trocar), caçar trabalho bloqueante/CPU no caminho de requisição com a
 > sonda como régua, e só então decidir pooling/async onde houver ganho medido.
+>
+> **Fatia 2 (mesmo dia) — varredura dos suspeitos restantes:**
+>
+> | Alvo | Medido | Ação |
+> |---|---|---|
+> | `GET /site/` e `/site/logo.png` | p50 0,95 / 1,56 ms, mas **máx 1.031 ms** com 200 conexões | **Corrigido:** `request_queue_size` era o padrão do `socketserver` (**5**) — backlog de listen estourava e o kernel reenviava SYN. Subiu para 128: máx 1.031 → **20,16 ms**, vazão 186 → **995 req/s** (5,3×); com 400 conexões/32 threads, máx 35,93 ms e 1.127 req/s. |
+> | `GET /health` (sem cache, TTL 8 s) | p50 **18,08 ms**, máx 46,44 ms para 26 checks | Sem ação — o cache de 8 s já protege os chips do herói e o limiter. |
+> | `POST /auth/login` | **158,5 ms** por verificação (PBKDF2-SHA256, 260k iterações) | Sem ação — custo deliberado contra força-bruta, atrás do limiter de 30 req/min. Só trocar por Argon2id se um dia entrar dependência. |
+>
+> Nenhum dos três precisa de `async`: a API é thread-por-requisição e o custo
+> real estava em configuração de socket e em trabalho de CPU no handler.
 
 **Problemas originais (histórico):** `requests` bloqueante em `auto_update.py`, `downloads.py`, `integrations/notifier.py`; `subprocess.run` síncrono; `sqlite3` síncrono.
 

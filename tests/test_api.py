@@ -2222,6 +2222,15 @@ setTimeout(() => {
         assert check.returncode == 0, check.stderr.decode()[:400]
 
 
+def test_servidor_tem_fila_de_listen_maior_que_o_padrao():
+    """F3 (10/11): com request_queue_size=5 (padrão do socketserver) uma
+    rajada de conexões estourava o backlog e o kernel reenviava SYN — ~1,03 s
+    de máximo medido no /site/. A fila precisa absorver a rajada."""
+    from integrations.api.server import APIServer
+
+    assert APIServer.request_queue_size >= 128
+
+
 class TestAPISite:
     """GET /site serve a landing e /site/{file} serve arquivos (APK).
 

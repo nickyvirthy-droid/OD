@@ -1,4 +1,18 @@
 {
+  "f3_fatia2_site_health_login_2026_11_10": {
+    "pedido": "Dono: sondar /site/*, /auth/login e os checks do /health e corrigir o que a medicao apontar.",
+    "medido_antes": "/site/ p50 0,95 ms mas max 1.031,64 ms com 200 conexoes/8 threads (186,4 req/s); /site/logo.png 766,5 req/s; /health sem cache p50 18,08 ms (26 checks); PBKDF2 do login 158,5 ms por verificacao.",
+    "diagnostico": "Nao era I/O nem handler: ThreadingHTTPServer herdava request_queue_size=5 do socketserver; backlog de listen estourava e o kernel reenviava SYN (stall de accept ~1 s).",
+    "correcao": "integrations/api/server.py: APIServer.request_queue_size = 128; teste de contrato em tests/test_api.py.",
+    "depois": "/site/ max 1.031,64 -> 20,16 ms; p95 16,55 -> 12,66 ms; vazao 186,4 -> 994,8 req/s (5,3x). Rajada 400/32: max 35,93 ms, 1.127 req/s. Serie inalterada (p50 1,01 ms).",
+    "descartados": "/health 18 ms com TTL 8 s (frescor do painel vale mais); login 158,5 ms de PBKDF2 deliberado atras do limiter de 30 req/min; migrar /site para aiohttp desnecessario.",
+    "testes": "gate 4228 passed / 16 skipped / 0 falha (186,73 s).",
+    "restart": "MainPID 1077948, NRestarts=0.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "proximo": "F3 fechado o essencial; seguir para F4 (memory layer fase 1) salvo o dono preferir outra ordem.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§5)",
+    "updated_at": "2026-11-10T14:05:00-03:00"
+  },
   "retomada_dono_e_f3_fatia1_2026_11_10": {
     "pedido": "Dono voltou: 'vamos prosseguir do primeiro até o último, em ordem, testando e discutindo os prós e contras, anotando tudo para auditoria'.",
     "ordem": "F2 ok -> F3 (agora) -> F4 -> F1 -> I1/I2/I4/I5 -> R1/R5 -> P. R2 adiantado.",

@@ -191,7 +191,61 @@ Procurar o mesmo padrão nos outros handlers com a sonda: servir `/site/*`
 `/health` quando algum check pesado entra na conta. Só migrar para async se
 a medição mandar.
 
-### 7. Fila
+## §5 — F3, fatia 2: /site/*, /health e /auth/login (10/11)
+
+**Pedido do dono:** *"sondar /site/*, /auth/login e os checks do /health e
+corrigir o que a medição apontar"*.
+
+### 1. Medições (antes)
+
+| Alvo | Série (p50) | Concorrência (200/8) |
+|---|---|---|
+| `/site/` | 0,95 ms | p50 6,77 ms · p95 16,55 ms · **máx 1.031,64 ms** · 186,4 req/s |
+| `/site/logo.png` (436 KB) | 1,56 ms | p50 9,78 ms · p95 15,51 ms · 766,5 req/s |
+| `/health` sem cache | 18,08 ms (26 checks) | — |
+| `POST /auth/login` (PBKDF2) | 158,5 ms por verificação | — |
+
+### 2. O que estava errado
+
+Não era I/O bloqueante nem handler pesado em `/site/*`: era **configuração de
+socket**. O `ThreadingHTTPServer` herda `request_queue_size = 5` do
+`socketserver`; com 200 conexões simultâneas o backlog estourava e o kernel
+reenviava SYN — daí o máximo de ~1 s com p95 de 16 ms (assinatura de stall de
+accept, não de processamento).
+
+### 3. Correção
+
+`integrations/api/server.py`: `request_queue_size = 128` (+ teste de contrato
+em `tests/test_api.py`).
+
+| Métrica (`/site/`, 200 conexões/8 threads) | Antes | Depois |
+|---|---|---|
+| Máximo | 1.031,64 ms | **20,16 ms** |
+| p95 | 16,55 ms | 12,66 ms |
+| Vazão | 186,4 req/s | **994,8 req/s** |
+
+Rajada maior (400 conexões/32 threads): máx 35,93 ms, 1.127 req/s.
+Série inalterada (p50 1,01 ms) — a correção só afeta a fila de conexões.
+
+### 4. Descartados com número (e por quê)
+
+- **`/health`**: 18,08 ms sem cache para 26 checks, com TTL de 8 s. Aumentar
+o TTL só ganharia milissegundos e custaria frescor do painel — não vale.
+- **`/auth/login`**: 158,5 ms de PBKDF2-SHA256 (260k iterações) é o preço
+deliberado contra força-bruta; o limiter de 30 req/min já contém abuso.
+Baixar iterações seria afrouxar segurança para ganhar algo que ninguém
+percebe (login é raro).
+- **Migrar `/site/*` para `aiohttp`/`sendfile`**: desnecessário — a vazão já
+passou de 1.000 req/s e o gargalo era o backlog.
+
+### 5. Verificação
+
+- Gate completo: **4228 passed / 16 skipped / 0 falha** (186,73 s).
+- Restart: **MainPID 1077948**, `NRestarts=0`; `/site/` e probes conferidos
+  ao vivo antes/depois.
+- Sem bump: app segue **1.44.0/2080**.
+
+### 6. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2
   (OpenTelemetry)** — menor risco e maior visibilidade.

@@ -4142,6 +4142,11 @@ class APIServer(ThreadingHTTPServer):
 
     daemon_threads = True
     allow_reuse_address = True
+    # F3 (10/11): o padrão do socketserver é uma fila de listen de 5. Com 200
+    # conexões simultâneas (navegador do site + app + sondas) o backlog
+    # estourava e o kernel reenviava SYN — medido em ~1,03 s de máximo no
+    # /site/, com p95 de 16 ms: stall clássico de accept. 128 absorve rajada.
+    request_queue_size = 128
     # serve_forever checa o evento de shutdown a cada poll_interval —
     # padrão 0.5s deixaria stop() lento em testes com muitos servidores.
     poll_interval = 0.05
