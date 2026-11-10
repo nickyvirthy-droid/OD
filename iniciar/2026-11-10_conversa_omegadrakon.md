@@ -556,9 +556,14 @@ match lexical. Perguntar a mesma coisa duas vezes pagava duas vezes.
 - Chamadas ao provider por consulta repetida: **2 → 1** (só a primeira paga a
   consulta; a segunda nem toca na rede).
 
-**Achado colateral:** o `GEMINI_API_KEY` do `.env` está inválido (HTTP 400
-`API_KEY_INVALID`). O processo `od-core` carrega outra chave, válida, e foi com
-ela que a medição real rodou — sem alterar o `.env` e sem expor valores.
+**Achado colateral (corrigido depois):** durante a medição, uma chamada com o
+que parecia ser a chave do `.env` devolveu HTTP 400 `API_KEY_INVALID`. Na
+verificação seguinte, a chave do `.env` revelou-se **válida e idêntica** à do
+processo `od-core` (hash `1787e9a5`, 39 chars, 768 dims, cosseno
+cachorro × animal 0,8123). O valor inválido vinha de uma `GEMINI_API_KEY`
+**exportada no ambiente do shell desta sessão** (40 chars, hash `aa33b91c`),
+que `load_dotenv` não sobrescreve. Nada foi alterado no `.env`; valores nunca
+foram impressos.
 
 ### 4. Prós e contras
 
