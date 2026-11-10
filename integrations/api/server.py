@@ -52,6 +52,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
+from core import telemetry
 from tools.registry import ActionRegistry
 
 from core.capabilities import OD_VERSION, capabilities_manifest
@@ -4319,6 +4320,28 @@ class APIHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _handle(self, method: str) -> None:
+        """Instrumenta a requisição (F2): span + histograma + contador.
+
+        O despacho em si continua em `_despachar` — aqui só envolvemos para
+        que todo endpoint, inclusive os que respondem cedo (404/405/401),
+        tenha span e duração medidos.
+        """
+        rota = urlsplit(self.path).path
+        self._status_http = 0
+        telemetry.contar("http_requests", 1, metodo=method)
+        with telemetry.span("http.request", metodo=method, rota=rota) as _sp:
+            with telemetry.cronometrar("http_request", metodo=method):
+                self._despachar(method)
+            if self._status_http:
+                telemetry.atribuir("http.status_code", self._status_http)
+
+    def send_response(self, code: int, message: str | None = None) -> None:
+        """Registra o código HTTP no span ativo (F2) e responde normalmente."""
+        self._status_http = code
+        telemetry.atribuir("http.status_code", code)
+        super().send_response(code, message)
+
+    def _despachar(self, method: str) -> None:
         self.api.count_request()
         self._current_user = None  # preenchido pelo _check_api_key (sessão/API key de usuário)
         self._auth_via = None  # 'session' | 'api_key' — de onde veio a credencial

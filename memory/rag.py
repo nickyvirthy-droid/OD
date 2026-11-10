@@ -66,6 +66,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+from core import telemetry
 from core.logger import make_audit_nicky
 
 _audit_nicky = make_audit_nicky("omega.memory.rag")
@@ -704,6 +705,36 @@ class RAGPipeline:
     # -- Consulta ------------------------------------------------------------
 
     def consult(
+        self,
+        pergunta: str,
+        *,
+        historico: Iterable[Any] = (),
+        papel: str = "user",
+        system_prompt: str = "",
+        fato: bool = False,
+    ) -> ResultadoRAG:
+        """Consulta o corpus, instrumentada (F2): span + histograma + atributos.
+
+        O trabalho pesado segue em `_consultar`; aqui só envolvemos para que
+        toda consulta — inclusive as que voltam cedo por falta de corpus —
+        apareça nos traces com papel, trechos e candidatos.
+        """
+        with telemetry.span("rag.consult", papel=papel, fato=fato):
+            with telemetry.cronometrar("rag_retrieval", papel=papel):
+                resultado = self._consultar(
+                    pergunta,
+                    historico=historico,
+                    papel=papel,
+                    system_prompt=system_prompt,
+                    fato=fato,
+                )
+            telemetry.atribuir("od.candidatos", resultado.candidatos)
+            telemetry.atribuir("od.trechos", len(resultado.trechos))
+            telemetry.atribuir("od.descartados_floor", resultado.descartados_floor)
+            telemetry.atribuir("od.reescrita", resultado.reescrita)
+            return resultado
+
+    def _consultar(
         self,
         pergunta: str,
         *,

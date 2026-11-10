@@ -1120,6 +1120,26 @@ def build_health(
         """Placeholder até a ponte MQTT ser construída."""
         return {"ok": True, "status": "up", "detail": "mqtt não configurado (ok)"}
 
+    def _check_telemetria(mon: Any) -> dict[str, Any]:
+        """Telemetria (F2): desligada é ok; ligada sem SDK é degradação."""
+        from core import telemetry
+
+        s = telemetry.status()
+        if s["ligado"]:
+            destino = s["endpoint"] or "sem exportador"
+            return {
+                "ok": True,
+                "status": "up",
+                "detail": f"servico={s['servico']} destino={destino} amostra={s['amostra']}",
+            }
+        if s["sdk_disponivel"]:
+            return {"ok": True, "status": "up", "detail": "desligada por configuração (ok)"}
+        return {
+            "ok": False,
+            "status": "degraded",
+            "detail": s["erro"] or "sdk ausente",
+        }
+
     def _check_loops(mon: Any) -> dict[str, Any]:
         """Loops do núcleo (2026-09-15): queda recente degrada o /health.
 
@@ -1138,6 +1158,7 @@ def build_health(
     monitor.register("homeassistant", _check_homeassistant_placeholder, critical=False)
     monitor.register("mqtt", _check_mqtt_placeholder, critical=False)
     monitor.register("loops", _check_loops, critical=False)
+    monitor.register("telemetria", _check_telemetria, critical=False)
     return monitor
 
 
@@ -1936,6 +1957,19 @@ def main() -> int:
         from core.capabilities import render_json
         print(render_json())
         return 0
+    # Observabilidade (F2, 10/11/2026): OTel opcional e de import tardio.
+    # Sem OD_OTEL_ENDPOINT nada sai pela rede; com span ativo, cada linha do
+    # log NICKY carrega trace_id/span_id e casa com o trace no coletor.
+    from core import telemetry
+
+    telemetry.configurar()
+    _tel = telemetry.status()
+    log.info(
+        "Telemetria",
+        ligado=_tel["ligado"],
+        servico=_tel["servico"],
+        endpoint=_tel["endpoint"] or "-",
+    )
     # Database Layer é montada PRIMEIRO (v1.0.0 item 1.2 — memória usa DB)
     database = build_database()
     orchestrator = build_orchestrator(database=database)

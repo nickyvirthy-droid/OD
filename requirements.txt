@@ -47,3 +47,12 @@ qrcode>=8.0
 #    módulo só registra o log de indisponibilidade. Traz aiohttp/yarl (cliente
 #    da API da Microsoft) — nada disso entra no caminho crítico do od-core.
 edge-tts>=7.0
+#
+# 8) opentelemetry-sdk + exporter OTLP/HTTP — observabilidade (F2, 10/11/2026).
+#    core/telemetry.py: traces e métricas com exportador OTLP/HTTP (porta 4318
+#    do OTel Collector). Import TARDIO: sem os pacotes o od-core sobe normal,
+#    o /health mostra o check "telemetria" degradado e tudo o mais funciona
+#    (o log NICKY também só ganha trace_id quando há span ativo).
+#    Ligar: OD_OTEL_ENDPOINT=http://127.0.0.1:4318 no .env.
+opentelemetry-sdk>=1.27
+opentelemetry-exporter-otlp-proto-http>=1.27

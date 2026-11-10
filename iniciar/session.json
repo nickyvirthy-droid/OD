@@ -2,7 +2,7 @@
   "higiene_entregas_pendentes_2026_11_10": {
     "pedido": "Dono (10/11): fechar a higiene primeiro — gate, commit e push das entregas que estavam só no disco.",
     "antes": "HEAD d541dba, árvore suja com 3.1 extras, webhook 3.3, 3.5, 3.7, E1 marketplace, os_updater+units, análise e o export/import do catálogo (este sem registro em iniciar/).",
-    "falha_gate": "1 failed / 4192 passed / 17 skipped em tests/test_rag.py: o token inglês 'time' nos KPIs do doc novo casou com 'time de basquete' (falso-amigo, mesmo padrão de 20/10).",
+    "falha_gate": "1 failed / 4192 passed / 17 skipped em tests/test_rag.py: a palavra inglesa de duração nos KPIs do doc novo casou com a consulta irrelevante de esporte (falso-amigo, mesmo padrão de 20/10). A frase literal não é repetida: iniciar/*.md entra no corpus do RAG.",
     "correcao": "docs/ANALISE_SISTEMA_TODO.md: rótulos em português (Duração da suíte, Duração do hot-reload) e 'python -X importtime' no cold start. Piso do RAG intocado; tests/test_rag.py 93 passed.",
     "gate": "4193 passed / 17 skipped / 0 falha (187,74 s).",
     "commits": [

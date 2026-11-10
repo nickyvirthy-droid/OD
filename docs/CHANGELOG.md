@@ -12,6 +12,26 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Telemetria F2: traces, métricas e log correlacionado (2026-11-10, sem bump)
+
+**Resumo:** fundação de observabilidade do roadmap (`docs/ANALISE_SISTEMA_TODO.md`
+§F2). `core/telemetry.py` monta TracerProvider/MeterProvider com Resource
+(`service.name` + `OD_VERSION` + ambiente), amostragem configurável e
+exportador OTLP/HTTP ou console; sem `opentelemetry-sdk` tudo vira no-op e o
+sistema segue de pé. O log NICKY passa a carregar `trace_id`/`span_id` do span
+ativo, então a linha de log casa com o trace no coletor.
+
+| Peça | Entrega |
+|---|---|
+| **`core/telemetry.py`** | `configurar()` (idempotente, lê `OD_TELEMETRY_ENABLED`, `OD_OTEL_ENDPOINT`, `OD_OTEL_SERVICE`, `OD_OTEL_SAMPLE_RATIO`, `OD_TELEMETRY_CONSOLE`, `OD_OTEL_HEADERS`), `span()`, `cronometrar()`, `contar()`, `atribuir()`, `trace_id()`/`span_id()`, `status()`, `desligar()`. Providers ficam no estado do módulo (não nos globais do OTel, que só aceitam a primeira configuração do processo). |
+| **`core/logger.py`** | `trace_id`/`span_id` anexados ao contexto quando há span ativo; `trace_id` explícito nunca é sobrescrito; fora de span nada é inventado. |
+| **`integrations/api/server.py`** | `APIHandler._handle` abre span `http.request` (método, rota, status), mede `od.http_request.seconds` e conta `od.http_requests`; `send_response` grava `http.status_code` no span. Despacho movido para `_despachar` sem mudança de comportamento. |
+| **`memory/rag.py`** | `RAGPipeline.consult` vira wrapper instrumentado (span `rag.consult`, histograma `od.rag_retrieval.seconds`, atributos de candidatos/trechos/descartes); o corpo segue em `_consultar`. |
+| **`runtime/launcher.py`** | `telemetry.configurar()` no início do `main()` com log de estado; check não-crítico `telemetria` no `/health` (desligada é ok; SDK ausente é degraded). |
+| **Docs/deps** | `docs/TELEMETRIA.md` (variáveis, pontos medidos, operação e o que falta), `requirements.txt` item 8 (`opentelemetry-sdk` + exporter OTLP/HTTP, import tardio). |
+| **Testes** | `tests/test_telemetry.py` +15 (liga/desliga, idempotência, spans e atributos, correlação log↔trace, histograma/contador em exportador em memória, no-op sem SDK, SDK quebrado contido). |
+| **Verificação** | Gate completo **4212 passed / 16 skipped / 0 falha** (189,29 s; eram 4193/17). Sem bump: servidor/launcher/docs; app segue **1.44.0/2080**. |
+
 ## Exportação/importação do catálogo do Supply Depot (2026-11-09, sem bump)
 
 **Resumo:** o TODO §3.1 ganhou backup/restauração do catálogo inteiro. O

@@ -62,6 +62,26 @@ DEFAULT_FILE_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 DEFAULT_FILE_BACKUP_COUNT = 3
 
 
+# Telemetria opcional: o log NICKY anexa trace_id/span_id do span ativo, para
+# a linha de log casar com o trace no Tempo/Grafana (F2, 10/11/2026). O import
+# é tardio e tolerante — sem OTel instalado nada muda.
+_telemetria: Any = None
+_telemetria_procurada = False
+
+
+def _telemetria_mod() -> Any:
+    global _telemetria, _telemetria_procurada
+    if not _telemetria_procurada:
+        _telemetria_procurada = True
+        try:
+            from core import telemetry as _mod
+
+            _telemetria = _mod
+        except Exception:  # pragma: no cover - ambiente sem o módulo
+            _telemetria = None
+    return _telemetria
+
+
 # ---------------------------------------------------------------------------
 # Levels
 # ---------------------------------------------------------------------------
@@ -338,6 +358,23 @@ class NickyLogger:
             return
 
         merged = {**self._bound_context, **context}
+        # Correlação com o trace ativo (F2). Nunca sobrescreve um trace_id
+        # explícito no contexto da chamada.
+        if "trace_id" not in merged:
+            tel = _telemetria_mod()
+            if tel is not None:
+                try:
+                    tid = tel.trace_id()
+                except Exception:
+                    tid = ""
+                if tid:
+                    merged["trace_id"] = tid
+                    try:
+                        sid = tel.span_id()
+                    except Exception:
+                        sid = ""
+                    if sid:
+                        merged["span_id"] = sid
         record = LogRecord(
             ts=time.time(),
             level=level,

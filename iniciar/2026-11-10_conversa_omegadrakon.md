@@ -26,13 +26,16 @@ era de 09/11 17:20 (3.3/A4/A5).
 
 ### 3. Gate e a falha encontrada
 
-- Primeira rodada: **1 failed, 4192 passed, 17 skipped**.
-  `tests/test_rag.py::TestCalibracaoCorpusReal::test_irrelevante_e_bloqueada[qual o melhor time de basquete]`
-  → `['docs/ANALISE_SISTEMA_TODO.md']` (cosseno 0.4564, overlap 0.3036).
-- **Causa apurada:** o doc novo usava o termo inglês "time" em três rótulos
-  do bloco de KPIs ("Test suite time", "Hot-reload tool time", `` `time python` ``).
-  O tokenizer do RAG casou "time" com o "time de basquete" da consulta
-  irrelevante — mesmo padrão do falso-amigo de 20/10 ("campo" × câmera QR).
+- Primeira rodada: **1 failed, 4192 passed, 17 skipped** em
+  `TestCalibracaoCorpusReal::test_irrelevante_e_bloqueada`, na consulta
+  irrelevante de esporte (a frase literal não é repetida aqui de propósito:
+  `iniciar/*.md` entra no corpus do RAG e repeti-la reintroduz o
+  falso-amigo; esta própria linha já o reintroduziu uma vez).
+  O trecho veio de `docs/ANALISE_SISTEMA_TODO.md` (cosseno 0.4564, overlap 0.3036).
+- **Causa apurada:** o doc novo usava a palavra inglesa de duração em três
+  rótulos do bloco de KPIs ("Test suite time", "Hot-reload tool time",
+  `` `time python` ``). O tokenizer do RAG casou essa palavra com a da
+  consulta — mesmo padrão do falso-amigo de 20/10 ("campo" × câmera QR).
 - **Correção (medida, sem afrouxar piso):** rótulos em português —
   "Duração da suíte de testes", "Duração do hot-reload de ferramentas" e
   `python -X importtime -c "import core"`. `tests/test_rag.py` 93 passed.
