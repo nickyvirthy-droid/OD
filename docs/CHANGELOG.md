@@ -16,14 +16,15 @@
 
 **Resumo:** o fallback semântico pagava ~0,4 s em **toda** mensagem sem match
 lexical, mesmo quando a mesma pergunta já tinha sido feita. Agora o resultado
-(inclusive "nada") fica em cache pela consulta normalizada.
+(inclusive "nada") fica em cache pela consulta normalizada — em memória e em
+SQLite, então sobrevive a restart.
 
 | Peça | Entrega |
 |---|---|
-| **`core/memory_layer.py`** | `_cache_semantico_ler`/`_guardar`: LRU de 256 entradas, TTL 300 s (`OD_MEMORY_SEMANTICA_CACHE_S`, `0` desliga). Chave = usuário + consulta normalizada (caixa/acento/pontuação) + modelo + assinatura `(id, updated_at)` dos fatos ativos, então fato novo, substituído ou expirado invalida o resultado. Falha do provider não cacheia o vazio. `stats()['semantica_cache']` expõe entradas/hits/misses. |
-| **Testes** | `tests/test_memory_embeddings.py` **+7** (repetição, variante de caixa/pontuação, vazio cacheado, fato novo invalida, fato substituído sai, desligável, TTL por clock injetado). |
-| **Medição** | Provider real: consulta repetida **439,8 ms → 0,67 ms**; variante normalizada **0,70 ms**; fora de assunto repetida **0,33 ms** no embedder instrumentado. Primeira consulta inédita segue ~0,4 s. |
-| **Verificação** | Gate **4330 passed / 16 skipped / 0 falha** (190,52 s). Sem bump: **1.44.0/2080**. |
+| **`core/memory_layer.py`** | `_cache_semantico_ler`/`_guardar`: L1 LRU de 256 entradas + **L2 na tabela `memory_semantic_cache`**, TTL 300 s (`OD_MEMORY_SEMANTICA_CACHE_S`, `0` desliga). Chave = hash SHA-256 de usuário + consulta normalizada (caixa/acento/pontuação) + modelo + assinatura `(id, updated_at)` dos fatos ativos, então fato novo, substituído ou expirado invalida o resultado. Limpeza oportunista remove vencidos e excedentes; falha do provider não cacheia o vazio. `stats()['semantica_cache']` expõe entradas/hits/hits_disco/misses/persistidos. |
+| **Testes** | `tests/test_memory_embeddings.py` **+11** (repetição, variante de caixa/pontuação, vazio cacheado, fato novo invalida, fato substituído sai, desligável, TTL por clock injetado, sobrevive a restart, TTL em disco, invalidação pós-restart, desligado não grava). |
+| **Medição** | Provider real: consulta repetida **439,8 ms → 0,67 ms**; variante normalizada **0,70 ms**; após restart (L2) **1,19 ms** contra **1.326 ms** fria. Primeira consulta inédita segue ~0,4 s. |
+| **Verificação** | Gate **4334 passed / 16 skipped / 0 falha** (192,91 s). Sem bump: **1.44.0/2080**. |
 
 ## Memória longa fase 4: busca semântica sob demanda (F4, 2026-11-10, sem bump)
 

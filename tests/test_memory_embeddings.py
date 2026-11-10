@@ -258,6 +258,66 @@ class TestFallbackSemantico:
         finally:
             g.fechar()
 
+    # -- cache persistente (fase 4b, L2 em SQLite) --------------------------
+
+    def test_resultado_sobrevive_ao_restart(self, tmp_path, semantica_ligada):
+        caminho = tmp_path / "persist.db"
+        g1 = MemoryGraph(caminho)
+        _semear(g1)
+        antes = [n.conteudo for n in g1.buscar("alex", "tenho algum animal?")]
+        assert antes
+        g1.fechar()
+        chamadas = len(semantica_ligada)
+        g2 = MemoryGraph(caminho)
+        try:
+            depois = [n.conteudo for n in g2.buscar("alex", "tenho algum animal?")]
+            assert depois == antes
+            assert len(semantica_ligada) == chamadas  # nada de rede
+            assert g2.stats()["semantica_cache"]["hits_disco"] == 1
+            assert g2.stats()["semantica_cache"]["persistidos"] >= 1
+        finally:
+            g2.fechar()
+
+    def test_ttl_persistido_expira_apos_restart(
+        self, tmp_path, semantica_ligada, monkeypatch
+    ):
+        monkeypatch.setenv("OD_MEMORY_SEMANTICA_CACHE_S", "60")
+        agora = [1_800_000_000.0]
+        caminho = tmp_path / "ttl-persist.db"
+        g1 = MemoryGraph(caminho, clock=lambda: agora[0])
+        _semear(g1)
+        g1.buscar("alex", "tenho algum animal?")
+        g1.fechar()
+        chamadas = len(semantica_ligada)
+        agora[0] += 61
+        g2 = MemoryGraph(caminho, clock=lambda: agora[0])
+        try:
+            g2.buscar("alex", "tenho algum animal?")
+            assert len(semantica_ligada) > chamadas
+        finally:
+            g2.fechar()
+
+    def test_restart_com_fato_novo_nao_usa_cache_velho(self, tmp_path, semantica_ligada):
+        caminho = tmp_path / "invalida.db"
+        g1 = MemoryGraph(caminho)
+        _semear(g1)
+        assert g1.buscar("alex", "tenho algum animal?")
+        g1.fechar()
+        g2 = MemoryGraph(caminho)
+        try:
+            g2.adicionar_fato("alex", "tem um gato chamado mia", entidade="bicho")
+            chamadas = len(semantica_ligada)
+            g2.buscar("alex", "tenho algum animal?")
+            assert len(semantica_ligada) > chamadas
+        finally:
+            g2.fechar()
+
+    def test_cache_desligado_nao_persiste(self, grafo, semantica_ligada, monkeypatch):
+        _semear(grafo)
+        monkeypatch.setenv("OD_MEMORY_SEMANTICA_CACHE_S", "0")
+        grafo.buscar("alex", "tenho algum animal?")
+        assert grafo.stats()["semantica_cache"]["persistidos"] == 0
+
     def test_falha_do_provider_nao_quebra_busca(self, grafo, monkeypatch):
         _semear(grafo)
 

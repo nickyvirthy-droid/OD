@@ -48,6 +48,7 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -105,6 +106,17 @@ CREATE TABLE IF NOT EXISTS memory_vectors (
     vetor      BLOB NOT NULL,
     created_at REAL NOT NULL
 );
+
+-- Fase 4b: cache persistente do RESULTADO do fallback semântico. A chave é
+-- o hash de consulta normalizada + modelo + assinatura dos fatos ativos;
+-- expira_em absoluto permite sobreviver a restart sem servir resultado velho.
+CREATE TABLE IF NOT EXISTS memory_semantic_cache (
+    chave      TEXT PRIMARY KEY,
+    ids        TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    expira_em  REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mem_sem_cache_exp ON memory_semantic_cache(expira_em);
 """
 
 # Relações do grafo.
@@ -400,6 +412,7 @@ class MemoryGraph:
         self._lock = threading.RLock()
         self._cache_semantico: "OrderedDict[tuple, tuple[float, list[str]]]" = OrderedDict()
         self._cache_semantico_hits = 0
+        self._cache_semantico_disco_hits = 0
         self._cache_semantico_misses = 0
         if str(self._caminho) != ":memory:":
             self._caminho.parent.mkdir(parents=True, exist_ok=True)
@@ -725,35 +738,87 @@ class MemoryGraph:
             _log.debug(f"memoria: fallback semântico falhou ({type(exc).__name__})")
             return []
 
+    @staticmethod
+    def _cache_semantico_hash(chave: tuple) -> str:
+        """Hash estável da chave (consulta + modelo + assinatura dos fatos)."""
+        return hashlib.sha256(
+            json.dumps(chave, ensure_ascii=False, separators=(",", ":")).encode()
+        ).hexdigest()
+
     def _cache_semantico_ler(self, chave: tuple) -> Optional[list[str]]:
-        """Ids cacheados para a consulta, ou `None` se ausente/vencido."""
+        """Ids cacheados (L1 em memória, depois L2 em SQLite); `None` se frio."""
         ttl = _env_float("OD_MEMORY_SEMANTICA_CACHE_S", CACHE_SEMANTICO_TTL_S)
         if ttl <= 0:
             return None
+        agora = float(self._clock())
         with self._lock:
             item = self._cache_semantico.get(chave)
-            if item is None:
-                self._cache_semantico_misses += 1
-                return None
-            expira_em, ids = item
-            if expira_em <= self._clock():
+            if item is not None:
+                expira_em, ids = item
+                if expira_em > agora:
+                    self._cache_semantico.move_to_end(chave)
+                    self._cache_semantico_hits += 1
+                    return list(ids)
                 self._cache_semantico.pop(chave, None)
-                self._cache_semantico_misses += 1
-                return None
-            self._cache_semantico.move_to_end(chave)
-            self._cache_semantico_hits += 1
-            return list(ids)
+            # L2: sobrevive a restart; o TTL absoluto impede servir resultado velho.
+            try:
+                linha = self._conn.execute(
+                    "SELECT ids, expira_em FROM memory_semantic_cache WHERE chave = ?",
+                    (self._cache_semantico_hash(chave),),
+                ).fetchone()
+            except sqlite3.Error as exc:  # pragma: no cover — banco estranho
+                _log.debug(f"memoria: cache em disco indisponível ({type(exc).__name__})")
+                linha = None
+            if linha is not None and float(linha["expira_em"]) > agora:
+                try:
+                    ids = [str(i) for i in json.loads(linha["ids"])]
+                except (TypeError, ValueError):
+                    ids = None
+                if ids is not None:
+                    self._cache_semantico[chave] = (float(linha["expira_em"]), ids)
+                    self._cache_semantico.move_to_end(chave)
+                    self._cache_semantico_disco_hits += 1
+                    return list(ids)
+            self._cache_semantico_misses += 1
+            return None
 
     def _cache_semantico_guardar(self, chave: tuple, ids: list[str]) -> None:
-        """Guarda o resultado (inclusive vazio) com TTL e teto de entradas."""
+        """Guarda o resultado (inclusive vazio) em L1 e no SQLite, com TTL e teto."""
         ttl = _env_float("OD_MEMORY_SEMANTICA_CACHE_S", CACHE_SEMANTICO_TTL_S)
         if ttl <= 0:
             return
+        agora = float(self._clock())
+        expira_em = agora + ttl
         with self._lock:
-            self._cache_semantico[chave] = (self._clock() + ttl, list(ids))
+            self._cache_semantico[chave] = (expira_em, list(ids))
             self._cache_semantico.move_to_end(chave)
             while len(self._cache_semantico) > CACHE_SEMANTICO_MAX:
                 self._cache_semantico.popitem(last=False)
+            try:
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO memory_semantic_cache "
+                    "(chave, ids, created_at, expira_em) VALUES (?, ?, ?, ?)",
+                    (
+                        self._cache_semantico_hash(chave),
+                        json.dumps(list(ids), separators=(",", ":")),
+                        agora,
+                        expira_em,
+                    ),
+                )
+                # Limpeza oportunista: uma consulta fria também faxina o vencido
+                # e mantém o arquivo no teto de entradas.
+                self._conn.execute(
+                    "DELETE FROM memory_semantic_cache WHERE expira_em <= ?", (agora,)
+                )
+                self._conn.execute(
+                    "DELETE FROM memory_semantic_cache WHERE chave NOT IN ("
+                    "SELECT chave FROM memory_semantic_cache "
+                    "ORDER BY created_at DESC, rowid DESC LIMIT ?)",
+                    (CACHE_SEMANTICO_MAX,),
+                )
+                self._conn.commit()
+            except sqlite3.Error as exc:  # pragma: no cover — cache é acessório
+                _log.debug(f"memoria: falha ao persistir cache semântico ({type(exc).__name__})")
 
     def ativos(
         self,
@@ -972,7 +1037,14 @@ class MemoryGraph:
             "semantica_cache": {
                 "entradas": len(self._cache_semantico),
                 "hits": int(self._cache_semantico_hits),
+                "hits_disco": int(self._cache_semantico_disco_hits),
                 "misses": int(self._cache_semantico_misses),
+                "persistidos": int(
+                    self._conn.execute(
+                        "SELECT COUNT(*) FROM memory_semantic_cache WHERE expira_em > ?",
+                        (float(self._clock()),),
+                    ).fetchone()[0]
+                ),
             },
             "arquivo": str(self._caminho),
         }

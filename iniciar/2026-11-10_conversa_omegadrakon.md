@@ -630,3 +630,50 @@ idêntica à do processo `od-core`.
 - Mudança fora do repositório (home), sem código alterado — gate não se aplica;
   o último gate segue **4330 passed / 16 skipped / 0 falha**.
 - Sem bump: app segue **1.44.0/2080**.
+
+---
+
+## §15 — F4 fase 4b (L2): cache semântico persistido em SQLite
+
+**Pedido do dono:** persistir o cache semântico em SQLite para sobreviver a
+restart do `od-core`.
+
+### 1. O que entrou
+
+| Peça | Entrega |
+|---|---|
+| Tabela `memory_semantic_cache` | `chave` TEXT PK (SHA-256 da chave lógica), `ids` JSON, `created_at`, `expira_em`; criada por `CREATE TABLE IF NOT EXISTS` no init, sem migração manual. |
+| Leitura | L1 em memória (LRU) → L2 no SQLite; ao acertar no disco, repovoa o L1 com o TTL absoluto restante. |
+| Escrita | Grava nos dois níveis e faxina na mesma transação: remove vencidos por `expira_em` e mantém o teto de 256 por `created_at`/`rowid`. |
+| Segurança | Erro de SQLite no cache vira `_log.debug` e a busca segue; `stats()["semantica_cache"]` agora expõe `hits_disco` e `persistidos`. |
+| Invalidação | A chave continua carregando `(id, updated_at)` dos fatos ativos — restart com fato novo/substituído não serve resultado velho. `OD_MEMORY_SEMANTICA_CACHE_S=0` desliga L1 e L2. |
+
+### 2. Medição (provider real, 10 fatos)
+
+- Fria: **1.326,1 ms**.
+- Novo `MemoryGraph` no mesmo arquivo (equivalente a restart): **1,187 ms**,
+  com resultado idêntico ao de antes do restart (`hits_disco=1`,
+  `persistidos=1`).
+- L1 na sequência: **0,746 ms**.
+
+### 3. Prós e contras
+
+- **Persistir o resultado, não o embedding da consulta:** evita rede e também
+  os cossenos; contra: uma linha (~100 bytes) por consulta, podada por TTL/teto.
+- **TTL absoluto em `expira_em`:** restart não rejuvenesce a entrada; contra:
+  relógio do sistema muito errado poderia expirar cedo/tarde (aceitável para
+  cache acessório).
+- **Cache é acessório:** qualquer erro de SQLite é engolido e a busca lexical
+  ou semântica segue — memória nunca vira caminho crítico.
+
+### 4. Verificação
+
+- `tests/test_memory_embeddings.py` **+4** (restart, TTL em disco, fato novo
+  pós-restart, desligado não persiste).
+- Gate completo: **4334 passed / 16 skipped / 0 falha** (192,91 s; eram
+  4330/16).
+- Sem bump: app segue **1.44.0/2080**.
+
+### 5. Fila
+
+- Próximo: **F1** (orquestrador em grafo, pedido na sequência do dono).

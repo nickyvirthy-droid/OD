@@ -1,4 +1,14 @@
 {
+  "f4_fase4b_l2_cache_persistente_2026_11_10": {
+    "pedido": "Dono: persistir o cache semantico em SQLite para sobreviver a restart do od-core.",
+    "feito": "core/memory_layer.py: tabela memory_semantic_cache (chave TEXT PK = sha256 da chave logica, ids JSON, created_at, expira_em) criada no _SCHEMA; _cache_semantico_ler consulta L1 em memoria e depois L2 no SQLite, repovoando o L1 com o TTL absoluto restante; _cache_semantico_guardar grava nos dois niveis e faz limpeza oportunista (DELETE vencidos + teto de 256 por created_at/rowid); erros de SQLite no cache sao logados em debug e nunca quebram a busca; stats()['semantica_cache'] ganhou hits_disco e persistidos. TTL continua OD_MEMORY_SEMANTICA_CACHE_S (0 desliga os dois niveis). Chave inclui a assinatura (id, updated_at) dos fatos ativos, entao restart com fato novo/substituido nao serve resultado velho.",
+    "medicao": "Provider real, 10 fatos: fria 1.326,1 ms; novo MemoryGraph no mesmo banco (equivalente a restart) 1,187 ms; L1 seguinte 0,746 ms; resultado identico ao pre-restart; stats hits_disco=1 persistidos=1.",
+    "testes": "tests/test_memory_embeddings.py +4 (sobrevive a restart, TTL em disco expira, fato novo pos-restart invalida, desligado nao persiste). Gate 4334 passed / 16 skipped / 0 falha (192,91 s; eram 4330/16).",
+    "trade_off": "Entrada persistida ocupa ~100 bytes por consulta e sobrevive no arquivo ate o TTL/teto; em troca, restart do od-core nao esfria mais o cache. Sem migracao manual: CREATE TABLE IF NOT EXISTS roda no init.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§15)",
+    "updated_at": "2026-11-10T19:20:00-03:00"
+  },
   "gemini_key_velha_no_bashrc_2026_11_10": {
     "pedido": "Dono: localizar onde a GEMINI_API_KEY velha era exportada no shell e remove-la.",
     "diagnostico": "A variavel vinha de ~/.bashrc linha 127 (export GEMINI_API_KEY=..., 40 chars, hash aa33b91c), herdada por bash -> freebuff -> node/agente; systemd --user nao a tinha e nenhum outro arquivo de inicializacao casava. A chave do .env (39 chars, hash 1787e9a5) e a valida e identica a do processo od-core.",
