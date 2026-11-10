@@ -12,6 +12,23 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Circuit breaker nos providers LLM (R2, 2026-11-10, sem bump)
+
+**Resumo:** quando um provider de LLM cai, cada mensagem gastava o timeout
+inteiro nele antes de cair para o próximo da cadeia. Agora um disjuntor por
+provider conta falhas consecutivas e, ao atingir o limite
+(`OD_CIRCUIT_FAILURES`, padrão 5), abre por `OD_CIRCUIT_RECOVERY_S`
+(padrão 30 s): a chamada seguinte falha **na hora**, sem rede, e o
+Orchestrator segue para o próximo provider — degradação graciosa. Passada a
+janela, uma tentativa é liberada (meia-aberta): sucesso fecha, falha reabre.
+
+| Peça | Entrega |
+|---|---|
+| **`core/resilience.py`** | `CircuitBreaker` thread-safe (fechado → aberto → meia-aberto), relógio injetável, `permitir()`, `registrar_sucesso()`, `registrar_falha()`, `executar()`, `status()`; registro global `obter_breaker()`/`status_breakers()`/`resetar_breakers()`; desligável com `OD_CIRCUIT_BREAKER=0`. |
+| **`core/llm.py`** | `OpenAICompatProvider` ganha um breaker por nome (`llm:<provider>`): `generate` e `generate_stream` recusam sem tocar a rede com o circuito aberto e contam sucesso/falha; `is_available()` devolve False sem sonda quando aberto. A recusa vira `LLMError`, que o Orchestrator já trata na cadeia de fallback. |
+| **Testes** | `tests/test_resilience.py` +16 (estados, limite, janela, meia-abertura, sucesso/falha, desligado, `executar()`, registro e integração com o provider — a 3ª chamada não toca a rede). |
+| **Verificação** | Gate completo **4226 passed / 16 skipped / 0 falha** (188,73 s; eram 4212/16). Sem bump: servidor; app segue **1.44.0/2080**. |
+
 ## Telemetria F2: traces, métricas e log correlacionado (2026-11-10, sem bump)
 
 **Resumo:** fundação de observabilidade do roadmap (`docs/ANALISE_SISTEMA_TODO.md`

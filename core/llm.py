@@ -26,6 +26,7 @@ import urllib.request
 from typing import Any, Optional
 
 from core.logger import get_logger
+from core.resilience import obter_breaker
 
 __signature__ = "OD // CORE"
 
@@ -115,6 +116,11 @@ class OpenAICompatProvider:
         self.max_tokens = max_tokens
         self.temperature = temperature
         self._health_url = f"{self.base_url}/health"
+        # Disjuntor por provider (R2): quando o servidor cai, cada mensagem
+        # esperava o timeout cheio antes de cair para o próximo. Aberto, a
+        # chamada falha na hora e o Orchestrator passa adiante. Ver
+        # core/resilience.py (OD_CIRCUIT_BREAKER/FALHAS/RECOVERY_S).
+        self._breaker = obter_breaker(f"llm:{self.name}")
 
     # -- API (usada pelo Orchestrator) ---------------------------------------
 
@@ -138,16 +144,24 @@ class OpenAICompatProvider:
             # llama-server local não pede — com model vazio o payload
             # fica idêntico ao de sempre (runtime intocado).
             body["model"] = self.model
+        if not self._breaker.permitir():
+            raise LLMError(
+                f"{self.name} com circuito aberto (falhas recentes)"
+            )
         try:
             data = await asyncio.to_thread(
                 self._post_chat, body, timeout
             )
-        except LLMError:
+        except LLMError as exc:
+            self._breaker.registrar_falha(str(exc))
             raise
         except Exception as exc:
-            raise LLMError(
+            erro = LLMError(
                 f"falha ao gerar com {self.name}: {type(exc).__name__}: {exc}"
-            ) from exc
+            )
+            self._breaker.registrar_falha(str(erro))
+            raise erro from exc
+        self._breaker.registrar_sucesso()
         message = (data.get("choices") or [{}])[0].get("message") or {}
         content = (message.get("content") or "").strip()
         if content:
@@ -184,18 +198,32 @@ class OpenAICompatProvider:
         }
         if self.model:
             body["model"] = self.model  # ver _post_chat: Groq exige
+        if not self._breaker.permitir():
+            raise LLMError(
+                f"{self.name} com circuito aberto (falhas recentes)"
+            )
         try:
             async for chunk in self._post_chat_stream(body, timeout):
                 yield chunk
-        except LLMError:
+        except LLMError as exc:
+            self._breaker.registrar_falha(str(exc))
             raise
         except Exception as exc:
-            raise LLMError(
+            erro = LLMError(
                 f"falha ao gerar stream com {self.name}: {type(exc).__name__}: {exc}"
-            ) from exc
+            )
+            self._breaker.registrar_falha(str(erro))
+            raise erro from exc
+        self._breaker.registrar_sucesso()
 
     def is_available(self) -> bool:
-        """Sonda /health do servidor (usado pelo ProactiveNotifier)."""
+        """Sonda /health do servidor (usado pelo ProactiveNotifier).
+
+        Com o circuito aberto devolve False sem rede — o próprio provider já
+        falhou o suficiente para isso ser a resposta honesta.
+        """
+        if self._breaker.estado() == "aberto":
+            return False
         request = urllib.request.Request(
             self._health_url, method="GET"
         )
