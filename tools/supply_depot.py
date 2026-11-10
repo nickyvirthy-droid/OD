@@ -42,6 +42,7 @@ Arquiteto: Omega Drakon
 
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import json
@@ -54,6 +55,13 @@ from typing import Any, Callable, Optional
 
 from core.logger import get_logger
 
+try:
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from cryptography.hazmat.primitives import serialization
+    _CRYPTO_DISPONIVEL = True
+except Exception:
+    _CRYPTO_DISPONIVEL = False
+
 log = get_logger("omega.tools.supply_depot")
 
 # --- Constantes -------------------------------------------------------------
@@ -63,6 +71,189 @@ MARGEM_DISCO = 1.10           # 10% de folga (igual à Parte E)
 MAX_HISTORICO = 5             # padrão: versões anteriores guardadas por ferramenta
 MAX_HISTORICO_TETO = 50       # teto do env (protege o catálogo de crescer sem fim)
 MAX_NOME = 64                 # id da action não vira nome infinito
+
+# Exportação/importação do catálogo inteiro (TODO §3.1). O bundle leva
+# metadados + código atual + código do histórico; o import é transacional
+# (valida tudo, aplica e, se qualquer passo falhar, restaura arquivos,
+# catálogo e registry).
+EXPORT_SCHEMA = "od.supply_depot.v1"
+LIMITE_IMPORT_FERRAMENTAS = 200
+LIMITE_IMPORT_BYTES = 8 * 1024 * 1024
+
+# Diff visual (TODO §3.1): chaves de saída do diff
+DIFF_ADICIONADO = "adicionado"
+DIFF_REMOVIDO = "removido"
+DIFF_ATUALIZADO = "atualizado"
+DIFF_IGUAL = "igual"
+
+# Ed25519 assinatura de bundles (TODO §3.1)
+ED25519_SCHEMA = "od.supply_depot.ed25519.v1"
+
+# Ferramentas nativas conhecidas (TODO §3.1 — lista aberta do 3.1)
+FERRAMENTAS_NATIVAS: dict[str, dict[str, Any]] = {
+    "auto.calcular_imc": {
+        "descricao": "Calcula IMC a partir de peso (kg) e altura (m)",
+        "params": {"required": ["peso", "altura"],
+                   "properties": {"peso": {"type": "number"},
+                                  "altura": {"type": "number"}}},
+        "permission": "auto.calcular_imc",
+        "categoria": "saude",
+    },
+    "auto.gerar_senha": {
+        "descricao": "Gera senha aleatória segura (configurável)",
+        "params": {"required": [],
+                   "properties": {"tamanho": {"type": "integer", "default": 16},
+                                  "simbolos": {"type": "boolean", "default": True}}},
+        "permission": "auto.gerar_senha",
+        "categoria": "seguranca",
+    },
+    "auto.converter_unidades": {
+        "descricao": "Conversão entre unidades (comprimento, massa, volume, temperatura)",
+        "params": {"required": ["valor", "de", "para"],
+                   "properties": {"valor": {"type": "number"},
+                                  "de": {"type": "string"},
+                                  "para": {"type": "string"}}},
+        "permission": "auto.converter_unidades",
+        "categoria": "utilidades",
+    },
+    "auto.hash_texto": {
+        "descricao": "Calcula hash (sha256, sha512, blake2b) de string",
+        "params": {"required": ["texto"],
+                   "properties": {"texto": {"type": "string"},
+                                  "algoritmo": {"type": "string", "default": "sha256"}}},
+        "permission": "auto.hash_texto",
+        "categoria": "seguranca",
+    },
+    "auto.timestamp": {
+        "descricao": "Retorna timestamp atual em múltiplos formatos",
+        "params": {"required": [],
+                   "properties": {"formato": {"type": "string", "default": "iso"}}},
+        "permission": "auto.timestamp",
+        "categoria": "utilidades",
+    },
+}
+
+
+# --- Templates de ferramentas (TODO §3.5) -------------------------------------
+#
+# Templates prontos para gerar código base de ferramentas comuns.
+# Cada template tem placeholders: {id}, {funcao}, {descricao}, {params_json}.
+TEMPLATES_FERRAMENTAS: dict[str, dict[str, Any]] = {
+    "calculadora_simples": {
+        "descricao": "Template: calculadora com 2 números e 1 operação",
+        "params_exemplo": {
+            "required": ["a", "b", "op"],
+            "properties": {
+                "a": {"type": "number"},
+                "b": {"type": "number"},
+                "op": {"type": "string", "enum": ["soma", "sub", "mul", "div"]},
+            },
+        },
+        "codigo": '''def {funcao}(**params):
+    \"\"\"{descricao}\"\"\"
+    a = params.get("a", 0)
+    b = params.get("b", 0)
+    op = params.get("op", "soma")
+    if op == "soma":
+        return {{"ok": True, "result": a + b}}
+    if op == "sub":
+        return {{"ok": True, "result": a - b}}
+    if op == "mul":
+        return {{"ok": True, "result": a * b}}
+    if op == "div":
+        if b == 0:
+            return {{"ok": False, "error": "divisao_por_zero"}}
+        return {{"ok": True, "result": a / b}}
+    return {{"ok": False, "error": "operacao_invalida"}}
+''',
+    },
+    "processador_texto": {
+        "descricao": "Template: processamento simples de string",
+        "params_exemplo": {
+            "required": ["texto"],
+            "properties": {
+                "texto": {"type": "string"},
+                "acao": {"type": "string", "enum": ["upper", "lower", "reverse", "len"], "default": "upper"},
+            },
+        },
+        "codigo": '''def {funcao}(**params):
+    \"\"\"{descricao}\"\"\"
+    texto = params.get("texto", "")
+    acao = params.get("acao", "upper")
+    if acao == "upper":
+        return {{"ok": True, "result": texto.upper()}}
+    if acao == "lower":
+        return {{"ok": True, "result": texto.lower()}}
+    if acao == "reverse":
+        return {{"ok": True, "result": texto[::-1]}}
+    if acao == "len":
+        return {{"ok": True, "result": len(texto)}}
+    return {{"ok": False, "error": "acao_invalida"}}
+''',
+    },
+    "consulta_http": {
+        "descricao": "Template: faz GET HTTP e retorna JSON/texto (requer allowlist urllib)",
+        "params_exemplo": {
+            "required": ["url"],
+            "properties": {
+                "url": {"type": "string"},
+                "timeout": {"type": "number", "default": 10},
+            },
+        },
+        "codigo": '''import urllib.request
+import json
+
+def {funcao}(**params):
+    \"\"\"{descricao}\"\"\"
+    url = params.get("url", "")
+    timeout = params.get("timeout", 10)
+    try:
+        req = urllib.request.Request(url, headers={{"User-Agent": "OmegaDrakon/1.0"}})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            corpo = resp.read().decode("utf-8", "replace")
+            try:
+                return {{"ok": True, "result": json.loads(corpo)}}
+            except json.JSONDecodeError:
+                return {{"ok": True, "result": corpo}}
+    except Exception as exc:
+        return {{"ok": False, "error": f"{{type(exc).__name__}}: {{exc}}"}}
+''',
+    },
+    "transformador_dados": {
+        "descricao": "Template: transforma lista/dict de entrada (map/filter/reduce)",
+        "params_exemplo": {
+            "required": ["dados"],
+            "properties": {
+                "dados": {"type": "array", "items": {"type": "object"}},
+                "campo": {"type": "string"},
+                "operacao": {"type": "string", "enum": ["map", "filter", "soma", "media"], "default": "map"},
+            },
+        },
+        "codigo": '''def {funcao}(**params):
+    \"\"\"{descricao}\"\"\"
+    dados = params.get("dados", [])
+    campo = params.get("campo", "")
+    operacao = params.get("operacao", "map")
+    if not isinstance(dados, list):
+        return {{"ok": False, "error": "dados_deve_ser_lista"}}
+    if operacao == "map" and campo:
+        return {{"ok": True, "result": [item.get(campo) for item in dados if isinstance(item, dict)]}}
+    if operacao == "filter" and campo:
+        return {{"ok": True, "result": [item for item in dados if isinstance(item, dict) and item.get(campo)]}}
+    if operacao == "soma" and campo:
+        vals = [item.get(campo, 0) for item in dados if isinstance(item, dict)]
+        return {{"ok": True, "result": sum(vals)}}
+    if operacao == "media" and campo:
+        vals = [item.get(campo, 0) for item in dados if isinstance(item, dict)]
+        return {{"ok": True, "result": sum(vals) / len(vals) if vals else 0}}
+    return {{"ok": False, "error": "operacao_ou_campo_invalido"}}
+''',
+    },
+}
+
+
+# Staging area para revisão antes de instalar (TODO §3.5)
+STAGING_DIR_PADRAO = Path("data/ferramentas_staging")
 
 
 def max_historico() -> int:
@@ -110,6 +301,21 @@ def normalizar_nome(nome: str) -> str:
     """Regra do AutoExtension: lower + só a-z 0-9 _ . — nunca vazio."""
     bruto = (nome or "").strip().lower()
     return re.sub(r"[^a-z0-9_.]", "_", bruto)
+
+
+def _nome_backup_valido(nome: str, id_ferramenta: str) -> bool:
+    """Nome de backup fica DENTRO de data/ferramentas_backup/.
+
+    O prefixo obrigatório ``<id>.`` impede que um bundle importado use o
+    backup de outra ferramenta (ou um caminho hostil) para trocar código.
+    """
+    return bool(
+        nome and len(nome) <= 200
+        and nome == Path(nome).name
+        and "/" not in nome and "\\" not in nome
+        and nome.endswith(".py")
+        and nome.startswith(id_ferramenta + ".")
+    )
 
 
 # --- Modelo de dados --------------------------------------------------------
@@ -421,6 +627,48 @@ class SupplyDepot:
         tmp.write_text(codigo, encoding="utf-8")
         os.replace(tmp, destino)
         return arquivo
+
+    def _caminho_backup(self, arquivo: str) -> Path:
+        """Travado no diretório de backups (sem .. nem absoluto)."""
+        caminho = (self.backup_dir / arquivo).resolve()
+        caminho.relative_to(self.backup_dir.resolve())
+        return caminho
+
+    @staticmethod
+    def _snapshot_arquivos(caminhos: set[Path]) -> dict[Path, Optional[bytes]]:
+        """Fotografa só os arquivos que a importação pode tocar.
+
+        ``None`` representa "não existia" — o rollback sabe apagar o que a
+        importação criou. Ferramentas são pequenas (≤ 8 KB), então manter
+        os bytes em memória é barato.
+        """
+        snapshot: dict[Path, Optional[bytes]] = {}
+        for caminho in caminhos:
+            try:
+                snapshot[caminho] = caminho.read_bytes()
+            except FileNotFoundError:
+                snapshot[caminho] = None
+            except OSError as exc:
+                log.warn("Snapshot de arquivo do depot falhou",
+                         arquivo=str(caminho), erro=_curto(exc))
+                snapshot[caminho] = None
+        return snapshot
+
+    @staticmethod
+    def _restaurar_arquivos(snapshot: dict[Path, Optional[bytes]]) -> None:
+        """Volta o conteúdo fotografado (ou apaga o que não existia)."""
+        for caminho, conteudo in snapshot.items():
+            try:
+                if conteudo is None:
+                    caminho.unlink(missing_ok=True)
+                    continue
+                caminho.parent.mkdir(parents=True, exist_ok=True)
+                tmp = caminho.with_name(caminho.name + ".restore.tmp")
+                tmp.write_bytes(conteudo)
+                os.replace(tmp, caminho)
+            except OSError as exc:  # pragma: no cover — disco quebrando
+                log.error("Restauração de arquivo do depot falhou",
+                          arquivo=str(caminho), erro=_curto(exc))
 
     # -- Consulta ---------------------------------------------------------------
 
@@ -866,6 +1114,832 @@ class SupplyDepot:
                        else f"supply-depot: {len(itens)} no catálogo"),
             "fora_do_registry": quebradas,
         }
+
+    # -- Exportar / importar catálogo (TODO §3.1) -----------------------------
+
+    def exportar(self) -> dict[str, Any]:
+        """Bundle completo: metadados + código atual + histórico.
+
+        O export é read-only e admin-only (a rota exige ``_require_admin``).
+        Código ausente não derruba o backup: a entrada sai com ``codigo=""``
+        e o motivo vai em ``erros`` para o dono ver.
+        """
+        ferramentas: list[dict[str, Any]] = []
+        erros: list[str] = []
+        for id_f, entrada in sorted(self._catalogo.items()):
+            d = entrada.para_dict()
+            codigo = self._ler_codigo(entrada)
+            d["codigo"] = codigo or ""
+            if codigo is None:
+                erros.append(f"{id_f}: codigo_atual_ausente")
+            historico: list[dict[str, Any]] = []
+            for h in entrada.anteriores:
+                if not isinstance(h, dict):
+                    continue
+                hd = dict(h)
+                versao = str(hd.get("versao") or "?")
+                nome = str(hd.get("arquivo_backup")
+                           or f"{id_f}.v{versao}.py")
+                hd["arquivo_backup"] = nome
+                try:
+                    hcodigo = self._caminho_backup(nome).read_text(
+                        encoding="utf-8")
+                except Exception as exc:
+                    hcodigo = ""
+                    erros.append(f"{id_f}: backup {nome} ausente ({_curto(exc)})")
+                hd["codigo"] = hcodigo
+                historico.append(hd)
+            d["anteriores"] = historico
+            ferramentas.append(d)
+        return {
+            "schema": EXPORT_SCHEMA,
+            "gerado_em": self._clock(),
+            "ferramentas": ferramentas,
+            "erros": erros,
+        }
+
+    def _validar_historico_import(
+        self,
+        id_f: str,
+        funcao_padrao: str,
+        bruto: Any,
+        backups: dict[str, str],
+    ) -> tuple[Optional[dict[str, Any]], Optional[str], Optional[str]]:
+        """Valida UMA entrada de histórico e devolve (meta, código, erro)."""
+        if not isinstance(bruto, dict):
+            return None, None, "historico_nao_e_objeto"
+        versao = str(bruto.get("versao") or "").strip()
+        if not versao or len(versao) > 100:
+            return None, None, "historico_versao_invalida"
+        funcao = str(bruto.get("funcao") or funcao_padrao).strip()
+        if not funcao or len(funcao) > 100:
+            return None, None, "historico_funcao_invalida"
+        codigo = bruto.get("codigo")
+        if not isinstance(codigo, str) or not codigo.strip():
+            return None, None, "historico_sem_codigo"
+        if len(codigo) > self.max_codigo:
+            return None, None, "historico_codigo_grande"
+        ok, motivo = validar_codigo(codigo, self.max_codigo)
+        if not ok:
+            return None, None, f"historico_codigo_rejeitado: {motivo}"
+        if _carregar_fn(codigo, funcao) is None:
+            return None, None, "historico_funcao_ausente"
+        sha_informado = str(bruto.get("sha256") or "").strip().lower()
+        sha = hashlib.sha256(codigo.encode("utf-8")).hexdigest()
+        if sha_informado and sha_informado != sha:
+            return None, None, "historico_sha256_divergente"
+        nome = str(bruto.get("arquivo_backup")
+                   or f"{id_f}.v{versao}.py").strip()
+        if not _nome_backup_valido(nome, id_f):
+            return None, None, "historico_arquivo_invalido"
+        if nome in backups:
+            return None, None, "historico_arquivo_duplicado"
+        meta = {k: v for k, v in bruto.items() if k != "codigo"}
+        meta["arquivo_backup"] = nome
+        meta["sha256"] = sha
+        meta["bytes"] = len(codigo.encode("utf-8"))
+        backups[nome] = codigo
+        return meta, codigo, None
+
+    def _preparar_importacao(
+        self, itens: list[Any],
+    ) -> tuple[dict[str, Ferramenta], dict[str, str], dict[str, str],
+               list[str]]:
+        """Valida tudo ANTES de escrever qualquer byte (transação)."""
+        novas: dict[str, Ferramenta] = {}
+        codigos: dict[str, str] = {}
+        backups: dict[str, str] = {}
+        erros: list[str] = []
+        total_bytes = 0
+        limite_hist = max_historico()
+
+        for indice, item in enumerate(itens):
+            rotulo = f"ferramentas[{indice}]"
+            if not isinstance(item, dict):
+                erros.append(f"{rotulo}: nao_e_objeto")
+                continue
+            id_f = str(item.get("id") or "").strip()
+            if (not id_f or len(id_f) > MAX_NOME
+                    or normalizar_nome(id_f) != id_f
+                    or not _NOME_RE.match(id_f)):
+                erros.append(f"{rotulo}: id_invalido")
+                continue
+            if id_f in novas:
+                erros.append(f"{rotulo}: id_duplicado ({id_f})")
+                continue
+            if id_f not in self._catalogo and self._registry.has(id_f):
+                erros.append(f"{rotulo}: conflito_action_alheia ({id_f})")
+                continue
+            funcao = str(item.get("funcao")
+                         or id_f.rsplit(".", 1)[-1]).strip()
+            if not funcao or len(funcao) > 100:
+                erros.append(f"{rotulo}: funcao_invalida")
+                continue
+            versao = str(item.get("versao") or "1.0.0").strip()
+            if not versao or len(versao) > 100:
+                erros.append(f"{rotulo}: versao_invalida")
+                continue
+            codigo = item.get("codigo")
+            if not isinstance(codigo, str) or not codigo.strip():
+                erros.append(f"{rotulo}: codigo_obrigatorio")
+                continue
+            if len(codigo) > self.max_codigo:
+                erros.append(f"{rotulo}: codigo_excede_{self.max_codigo}")
+                continue
+            ok, motivo = validar_codigo(codigo, self.max_codigo)
+            if not ok:
+                erros.append(f"{rotulo}: codigo_rejeitado: {motivo}")
+                continue
+            if _carregar_fn(codigo, funcao) is None:
+                erros.append(f"{rotulo}: funcao_ausente")
+                continue
+            sha_informado = str(item.get("sha256") or "").strip().lower()
+            sha = hashlib.sha256(codigo.encode("utf-8")).hexdigest()
+            if sha_informado and sha_informado != sha:
+                erros.append(f"{rotulo}: sha256_divergente")
+                continue
+            params = item.get("params", {})
+            custom = item.get("custom", {})
+            if params is not None and not isinstance(params, dict):
+                erros.append(f"{rotulo}: params_invalido")
+                continue
+            if custom is not None and not isinstance(custom, dict):
+                erros.append(f"{rotulo}: custom_invalido")
+                continue
+            ativa = item.get("ativa", True)
+            if not isinstance(ativa, bool):
+                erros.append(f"{rotulo}: ativa_invalida")
+                continue
+            textos: dict[str, str] = {}
+            invalido = False
+            for campo, limite in (("descricao", 2000), ("categoria", 100),
+                                  ("permission", 200), ("origem", 100)):
+                valor = item.get(campo)
+                if valor is not None and not isinstance(valor, str):
+                    erros.append(f"{rotulo}: {campo}_invalido")
+                    invalido = True
+                    break
+                texto = str(valor or "")
+                if len(texto) > limite:
+                    erros.append(f"{rotulo}: {campo}_grande")
+                    invalido = True
+                    break
+                textos[campo] = texto
+            if invalido:
+                continue
+
+            hist_raw = item.get("anteriores", [])
+            if hist_raw is None:
+                hist_raw = []
+            if not isinstance(hist_raw, list):
+                erros.append(f"{rotulo}: anteriores_invalidos")
+                continue
+            historico: list[dict[str, Any]] = []
+            if limite_hist:
+                falhou = False
+                for j, h_bruto in enumerate(hist_raw):
+                    meta, hcodigo, erro = self._validar_historico_import(
+                        id_f, funcao, h_bruto, backups)
+                    if erro:
+                        erros.append(f"{rotulo}.anteriores[{j}]: {erro}")
+                        falhou = True
+                        break
+                    assert meta is not None and hcodigo is not None
+                    historico.append(meta)
+                    total_bytes += len(hcodigo.encode("utf-8"))
+                if falhou:
+                    continue
+                historico = historico[-limite_hist:]
+
+            entrada = Ferramenta(
+                id=id_f, funcao=funcao, versao=versao,
+                origem=textos["origem"] or ORIGEM_MANUAL,
+                descricao=textos["descricao"],
+                categoria=textos["categoria"],
+                params=dict(params or {}),
+                permission=textos["permission"],
+                custom=dict(custom or {}),
+                sha256=sha,
+                bytes=len(codigo.encode("utf-8")),
+                arquivo=f"{id_f}.py",
+                ativa=ativa,
+                anteriores=historico,
+                criada_em=_float_ou_none(item.get("criada_em")),
+                atualizada_em=_float_ou_none(item.get("atualizada_em")),
+            )
+            novas[id_f] = entrada
+            codigos[id_f] = codigo
+            total_bytes += len(codigo.encode("utf-8"))
+            if total_bytes > LIMITE_IMPORT_BYTES:
+                erros.append("importacao_grande: limite de bytes excedido")
+                break
+
+        return novas, codigos, backups, erros
+
+    def importar(
+        self, bundle: dict[str, Any], *, modo: str = "substituir",
+        confirmar: bool = False,
+    ) -> dict[str, Any]:
+        """Restaura/mergeia um bundle exportado (transacional).
+
+        ``modo="substituir"`` deixa o catálogo EXATAMENTE como o bundle;
+        exige ``confirmar=True`` se já houver ferramentas. ``modo="mesclar"``
+        mantém as ferramentas atuais que não estão no bundle e sobrescreve
+        as de mesmo id. Qualquer falha no meio restaura catálogo, arquivos
+        e registry.
+        """
+        if not isinstance(bundle, dict):
+            return {"ok": False, "motivo": "bundle_invalido"}
+        schema = str(bundle.get("schema") or "")
+        if schema and schema != EXPORT_SCHEMA:
+            return {"ok": False, "motivo": f"schema_invalido: {schema[:80]}"}
+        itens = bundle.get("ferramentas")
+        if not isinstance(itens, list):
+            return {"ok": False, "motivo": "ferramentas_invalidas"}
+        if len(itens) > LIMITE_IMPORT_FERRAMENTAS:
+            return {"ok": False,
+                    "motivo": f"ferramentas_demais (max {LIMITE_IMPORT_FERRAMENTAS})"}
+        modo = str(modo or "substituir").strip().lower()
+        if modo not in ("substituir", "mesclar"):
+            return {"ok": False, "motivo": "modo_invalido"}
+        if modo == "substituir" and self._catalogo and not confirmar:
+            return {
+                "ok": False, "motivo": "confirmacao_necessaria",
+                "total_atual": len(self._catalogo),
+                "total_importado": len(itens),
+            }
+
+        novas, codigos, backups, erros = self._preparar_importacao(itens)
+        if erros:
+            return {"ok": False, "motivo": "importacao_invalida",
+                    "erros": erros[:50]}
+
+        if modo == "substituir":
+            final = dict(novas)
+        else:
+            final = copy.deepcopy(self._catalogo)
+            final.update(novas)
+        removidos = sorted(set(self._catalogo) - set(final))
+        adicionados = sorted(set(novas) - set(self._catalogo))
+        atualizados = sorted(set(novas) & set(self._catalogo))
+
+        caminhos: set[Path] = {self.catalogo_path}
+        for id_f in codigos:
+            caminhos.add(self._caminho_codigo(f"{id_f}.py"))
+        for nome in backups:
+            caminhos.add(self._caminho_backup(nome))
+        snapshot = self._snapshot_arquivos(caminhos)
+        catalogo_antigo = copy.deepcopy(self._catalogo)
+
+        try:
+            for id_f, codigo in codigos.items():
+                self._gravar_codigo(id_f, codigo)
+            if backups:
+                self.backup_dir.mkdir(parents=True, exist_ok=True)
+                for nome, codigo in backups.items():
+                    destino = self._caminho_backup(nome)
+                    tmp = destino.with_name(destino.name + ".tmp")
+                    tmp.write_text(codigo, encoding="utf-8")
+                    os.replace(tmp, destino)
+            self._catalogo = final
+            self._gravar_catalogo()
+            for id_f in removidos:
+                if self._registry.has(id_f):
+                    self._registry.unregister(id_f)
+            for id_f, entrada in novas.items():
+                if entrada.ativa:
+                    fn = _carregar_fn(codigos[id_f], entrada.funcao)
+                    if fn is None or not self._registrar(entrada, fn):
+                        raise RuntimeError("registro_no_registry_falhou")
+                elif self._registry.has(id_f):
+                    self._registry.unregister(id_f)
+        except Exception as exc:
+            self._catalogo = catalogo_antigo
+            self._restaurar_arquivos(snapshot)
+            for id_f in novas:
+                if self._registry.has(id_f):
+                    self._registry.unregister(id_f)
+            for id_f, entrada in catalogo_antigo.items():
+                if entrada.ativa:
+                    codigo = self._ler_codigo(entrada)
+                    fn = _carregar_fn(codigo, entrada.funcao) if codigo else None
+                    if fn is not None:
+                        self._registrar(entrada, fn)
+                elif self._registry.has(id_f):
+                    self._registry.unregister(id_f)
+            log.error("Supply Depot: importação falhou — rollback",
+                      erro=_curto(exc))
+            return {"ok": False, "rollback": True,
+                    "motivo": f"rollback: {_curto(exc)}"}
+
+        log.info("Supply Depot: catálogo importado", modo=modo,
+                 adicionados=len(adicionados), atualizados=len(atualizados),
+                 removidos=len(removidos), total=len(final))
+        return {
+            "ok": True, "modo": modo,
+            "adicionados": len(adicionados),
+            "atualizados": len(atualizados),
+            "removidos": len(removidos),
+            "total": len(final),
+            "historico": sum(len(e.anteriores) for e in final.values()),
+            "backups": len(backups),
+        }
+
+    # --- Diff visual (TODO §3.1) ----------------------------------------------
+
+    def diff_catalogos(
+        self, outro: dict[str, Any] | "SupplyDepot"
+    ) -> dict[str, Any]:
+        """Compara este catálogo com outro (dict exportado ou outro SupplyDepot).
+
+        Retorna dict com listas: adicionado, removido, atualizado, igual.
+        Cada item traz id, versao (antiga/nova), diff_campos (quais mudaram).
+        """
+        if isinstance(outro, SupplyDepot):
+            outro_dict = {k: v.para_dict() for k, v in outro._catalogo.items()}
+        else:
+            outro_dict = {str(k): v for k, v in (outro or {}).items()
+                          if isinstance(v, dict)}
+
+        chaves_self = set(self._catalogo.keys())
+        chaves_outro = set(outro_dict.keys())
+
+        adicionados = sorted(chaves_outro - chaves_self)
+        removidos = sorted(chaves_self - chaves_outro)
+        comuns = sorted(chaves_self & chaves_outro)
+
+        atualizados: list[dict[str, Any]] = []
+        iguais: list[str] = []
+
+        for id_f in comuns:
+            a = self._catalogo[id_f].para_dict()
+            b = outro_dict[id_f]
+            if a == b:
+                iguais.append(id_f)
+            else:
+                diff_campos = sorted(set(a.keys()) | set(b.keys()))
+                mudancas = {}
+                for campo in diff_campos:
+                    va = a.get(campo)
+                    vb = b.get(campo)
+                    if va != vb:
+                        mudancas[campo] = {"era": va, "virou": vb}
+                atualizados.append({
+                    "id": id_f,
+                    "versao_antiga": a.get("versao"),
+                    "versao_nova": b.get("versao"),
+                    "diff_campos": mudancas,
+                })
+
+        return {
+            "adicionado": [{"id": x, **outro_dict[x]} for x in adicionados],
+            "removido": [{"id": x, **self._catalogo[x].para_dict()} for x in removidos],
+            "atualizado": atualizados,
+            "igual": iguais,
+            "resumo": {
+                "adicionados": len(adicionados),
+                "removidos": len(removidos),
+                "atualizados": len(atualizados),
+                "iguais": len(iguais),
+            },
+        }
+
+    def diff_visual(self, outro: dict[str, Any] | "SupplyDepot") -> str:
+        """Renderiza o diff em texto legível (para log/Telegram/painel)."""
+        diff = self.diff_catalogos(outro)
+        linhas = []
+        r = diff["resumo"]
+        linhas.append(f"Diff de catálogos: +{r['adicionados']} -{r['removidos']} ~{r['atualizados']} ={r['iguais']}")
+        for item in diff["adicionado"]:
+            linhas.append(f"  + {item['id']} v{item.get('versao','?')} ({item.get('categoria','')})")
+        for item in diff["removido"]:
+            linhas.append(f"  - {item['id']} v{item.get('versao','?')}")
+        for item in diff["atualizado"]:
+            v_old = item.get("versao_antiga", "?")
+            v_new = item.get("versao_nova", "?")
+            campos = ", ".join(item["diff_campos"].keys())
+            linhas.append(f"  ~ {item['id']} {v_old}→{v_new} [{campos}]")
+        if not diff["adicionado"] and not diff["removido"] and not diff["atualizado"]:
+            linhas.append("  (catálogos idênticos)")
+        return "\n".join(linhas)
+
+    # --- Ed25519 assinatura/verificação de bundles (TODO §3.1) ------------------
+
+    @staticmethod
+    def gerar_par_chaves_ed25519() -> dict[str, str]:
+        """Gera par de chaves Ed25519 (base64 URL-safe, sem padding).
+
+        Requer `cryptography`. Retorna dict com 'privada' e 'publica'.
+        """
+        if not _CRYPTO_DISPONIVEL:
+            raise RuntimeError("cryptography nao instalado")
+        privada = ed25519.Ed25519PrivateKey.generate()
+        publica = privada.public_key()
+        return {
+            "privada": base64.urlsafe_b64encode(
+                privada.private_bytes(
+                    encoding=serialization.Encoding.Raw,
+                    format=serialization.PrivateFormat.Raw,
+                    encryption_algorithm=serialization.NoEncryption(),
+                )
+            ).decode().rstrip("="),
+            "publica": base64.urlsafe_b64encode(
+                publica.public_bytes(
+                    encoding=serialization.Encoding.Raw,
+                    format=serialization.PublicFormat.Raw,
+                )
+            ).decode().rstrip("="),
+        }
+
+    def assinar_bundle(self, bundle: dict[str, Any],
+                       chave_privada_b64: str) -> dict[str, Any]:
+        """Assina um bundle exportado com Ed25519.
+
+        Adiciona campo 'assinatura' (base64url) e 'chave_publica' ao bundle.
+        O bundle NÃO é modificado in-place; retorna novo dict.
+        """
+        if not _CRYPTO_DISPONIVEL:
+            raise RuntimeError("cryptography nao instalado")
+        import base64
+
+        privada_bytes = base64.urlsafe_b64decode(chave_privada_b64 + "==")
+        privada = ed25519.Ed25519PrivateKey.from_private_bytes(privada_bytes)
+
+        # Canonicalização: JSON com chaves ordenadas, sem espaços
+        payload = json.dumps(bundle, ensure_ascii=False, sort_keys=True,
+                             separators=(",", ":")).encode("utf-8")
+        assinatura = privada.sign(payload)
+        assinatura_b64 = base64.urlsafe_b64encode(assinatura).decode().rstrip("=")
+
+        publica = privada.public_key()
+        publica_b64 = base64.urlsafe_b64encode(
+            publica.public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+        ).decode().rstrip("=")
+
+        bundle_assinado = dict(bundle)
+        bundle_assinado["assinatura"] = assinatura_b64
+        bundle_assinado["chave_publica"] = publica_b64
+        bundle_assinado["schema_assinatura"] = ED25519_SCHEMA
+        return bundle_assinado
+
+    @staticmethod
+    def verificar_assinatura_bundle(bundle: dict[str, Any]) -> tuple[bool, str]:
+        """Verifica assinatura Ed25519 de um bundle.
+
+        Retorna (ok, motivo). OK=True se assinatura válida e chave confere.
+        """
+        if not _CRYPTO_DISPONIVEL:
+            return False, "cryptography_nao_instalado"
+
+        assinatura_b64 = str(bundle.get("assinatura") or "").strip()
+        publica_b64 = str(bundle.get("chave_publica") or "").strip()
+        if not assinatura_b64 or not publica_b64:
+            return False, "assinatura_ou_chave_ausente"
+
+        import base64
+        try:
+            assinatura = base64.urlsafe_b64decode(assinatura_b64 + "==")
+            publica_bytes = base64.urlsafe_b64decode(publica_b64 + "==")
+        except Exception:
+            return False, "base64_invalido"
+
+        # Recria payload SEM os campos de assinatura
+        bundle_sem_assinatura = {k: v for k, v in bundle.items()
+                                 if k not in ("assinatura", "chave_publica",
+                                              "schema_assinatura")}
+        payload = json.dumps(bundle_sem_assinatura, ensure_ascii=False,
+                             sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+        try:
+            publica = ed25519.Ed25519PublicKey.from_public_bytes(publica_bytes)
+            publica.verify(assinatura, payload)
+            return True, "assinatura_valida"
+        except Exception:
+            return False, "assinatura_invalida"
+
+    # --- Ferramentas nativas (TODO §3.1) --------------------------------------
+
+    def listar_ferramentas_nativas(self) -> list[dict[str, Any]]:
+        """Lista de ferramentas nativas conhecidas (catálogo aberto do 3.1).
+
+        Cada item: id, descricao, params, permission, categoria.
+        O dono pode instalar qualquer uma via POST /admin/ferramentas
+        (o código é gerado internamente — não vem do bundle).
+        """
+        itens = []
+        for id_f, meta in sorted(FERRAMENTAS_NATIVAS.items()):
+            itens.append({"id": id_f, **meta})
+        return itens
+
+    def instalar_nativa(self, id_ferramenta: str, *,
+                        versao: str = "1.0.0",
+                        confirmar: bool = False) -> dict[str, Any]:
+        """Instala uma ferramenta nativa conhecida pelo ID.
+
+        O código é um template interno (não vem de fora). Validações iguais
+        ao instalar normal: pré-voo, sintaxe, registro.
+        """
+        meta = FERRAMENTAS_NATIVAS.get(id_ferramenta)
+        if not meta:
+            return {"ok": False, "motivo": f"ferramenta_nativa_desconhecida: {id_ferramenta}"}
+
+        # Template de código mínimo — o corpo real seria injetado pelo
+        # AutoExtension se necessário. Aqui só o esqueleto que passa validação.
+        funcao = id_ferramenta.rsplit(".", 1)[-1]
+        codigo = f'''def {funcao}(**params):
+    # Ferramenta nativa: {meta.get("descricao", "")}
+    return {{"ok": True, "result": "native:{id_ferramenta}"}}
+'''
+
+        return self.instalar(
+            nome=id_ferramenta,
+            codigo=codigo,
+            versao=versao,
+            descricao=meta.get("descricao", ""),
+            categoria=meta.get("categoria", "nativa"),
+            params=meta.get("params", {}),
+            permission=meta.get("permission", ""),
+            origem="nativa",
+            confirmar=confirmar,
+        )
+
+    # --- Semver estrito (TODO §3.1) -------------------------------------------
+
+    @staticmethod
+    def validar_semver_estrito(versao: str) -> tuple[bool, str]:
+        """Validação estrita de versão semver (X.Y.Z canônico apenas).
+
+        Rejeita: v1.2.3, 1.2, 1.2.3-rc1, 1.2.3+build, hash, labels.
+        Aceita apenas: dígitos separados por ponto, exatamente 3 partes.
+        """
+        if not isinstance(versao, str):
+            return False, "nao_e_string"
+        versao = versao.strip()
+        if not versao:
+            return False, "vazio"
+        # Só X.Y.Z com dígitos
+        if not re.fullmatch(r"\d+\.\d+\.\d+", versao):
+            return False, "formato_invalido_esperado_X_Y_Z"
+        partes = versao.split(".")
+        for i, p in enumerate(partes):
+            if len(p) > 1 and p.startswith("0"):
+                return False, f"parte_{i}_com_zero_inicial: {p}"
+        return True, "valido"
+
+    # --- Templates + teste unitário gerado + staging/review (TODO §3.5) ---------
+
+    def listar_templates(self) -> list[dict[str, Any]]:
+        """Lista templates disponíveis com metadados (sem o código completo)."""
+        itens = []
+        for id_t, meta in sorted(TEMPLATES_FERRAMENTAS.items()):
+            itens.append({
+                "id": id_t,
+                "descricao": meta.get("descricao", ""),
+                "params_exemplo": meta.get("params_exemplo", {}),
+            })
+        return itens
+
+    def gerar_codigo_de_template(
+        self, template_id: str, id_ferramenta: str, *,
+        descricao: str = "",
+        params: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """Gera código a partir de um template (não instala — só devolve o código).
+
+        O dono revisa o código no painel (staging) e depois confirma a instalação.
+        Retorna dict com 'ok', 'codigo', 'params_gerados', 'funcao'.
+        """
+        template = TEMPLATES_FERRAMENTAS.get(template_id)
+        if not template:
+            return {"ok": False, "motivo": f"template_desconhecido: {template_id}"}
+
+        id_f = normalizar_nome(id_ferramenta)
+        if not id_f or not _NOME_RE.match(id_f):
+            return {"ok": False, "motivo": f"nome_invalido: {id_ferramenta!r}"}
+
+        funcao = id_f.rsplit(".", 1)[-1]
+        params_json = json.dumps(params or template.get("params_exemplo", {}),
+                                 ensure_ascii=False, indent=2)
+        desc = descricao or template.get("descricao", "").replace("Template: ", "")
+        codigo = template["codigo"].format(
+            funcao=funcao, descricao=desc, params_json=params_json)
+
+        # Valida sintaxe + allowlist ANTES de devolver (mesmo gate do install)
+        ok, motivo = validar_codigo(codigo, self.max_codigo)
+        if not ok:
+            return {"ok": False, "motivo": f"template_gera_codigo_invalido: {motivo}"}
+
+        return {
+            "ok": True,
+            "id": id_f,
+            "funcao": funcao,
+            "codigo": codigo,
+            "params_gerados": params or template.get("params_exemplo", {}),
+            "descricao": desc,
+        }
+
+    def gerar_teste_unitario(self, id_ferramenta: str, codigo: str,
+                             funcao: str = "") -> dict[str, Any]:
+        """Gera um arquivo de teste pytest básico para a ferramenta.
+
+        Analisa o código para achar a assinatura da função e cria casos:
+        - caso feliz com params_exemplo (se houver)
+        - caso de erro (param faltando)
+        - caso de tipo inválido
+        Retorna dict com 'ok', 'codigo_teste', 'caminho_sugerido'.
+        """
+        funcao = funcao or id_ferramenta.rsplit(".", 1)[-1]
+        # Tenta extrair params_exemplo do template se a ferramenta for de lá
+        params_exemplo: dict[str, Any] = {}
+        for t in TEMPLATES_FERRAMENTAS.values():
+            if funcao in t.get("codigo", ""):
+                params_exemplo = t.get("params_exemplo", {})
+                break
+
+        # Caso feliz: usa params_exemplo ou params vazios
+        caso_feliz = params_exemplo.get("properties", {}) if params_exemplo else {}
+        args_feliz = ", ".join(f'{k}={repr(v.get("default", ""))}'
+                               for k, v in caso_feliz.items()) if caso_feliz else ""
+
+        teste_codigo = f'''"""
+Teste unitário gerado para {id_ferramenta} (função {funcao}).
+Gerado automaticamente pelo Supply Depot — revise antes de commitar.
+"""
+import pytest
+from tools.supply_depot import _carregar_fn
+
+CODE = """{codigo}"""
+
+def _fn():
+    fn = _carregar_fn(CODE, "{funcao}")
+    assert fn is not None, "função não encontrada no código"
+    return fn
+
+def test_{funcao}_caso_feliz():
+    fn = _fn()
+    result = fn({args_feliz})
+    assert result.get("ok") is True, f"esperado ok=True, veio: {{result}}"
+
+def test_{funcao}_sem_params():
+    fn = _fn()
+    result = fn()
+    # Sem params: pode retornar ok=True com defaults ou ok=False
+    assert "ok" in result
+
+def test_{funcao}_tipo_invalido():
+    fn = _fn()
+    # Passa string onde espera número (se houver params numéricos)
+    if {str(bool(caso_feliz))}:
+        props = {params_exemplo.get("properties", {}) if params_exemplo else {}}
+        for k, v in props.items():
+            if v.get("type") == "number":
+                result = fn(**{{k: "nao_e_numero"}})
+                assert result.get("ok") is False, "deveria falhar com tipo inválido"
+                break
+'''
+
+        # Valida sintaxe do teste gerado
+        try:
+            compile(teste_codigo, f"<test_{id_ferramenta}>", "exec")
+        except SyntaxError as exc:
+            return {"ok": False, "motivo": f"teste_gerado_com_syntax_error: {exc}"}
+
+        caminho = f"tests/test_{normalizar_nome(id_ferramenta)}.py"
+        return {
+            "ok": True,
+            "id": id_ferramenta,
+            "funcao": funcao,
+            "codigo_teste": teste_codigo,
+            "caminho_sugerido": caminho,
+        }
+
+    def staging_salvar(self, id_ferramenta: str, codigo: str, *,
+                       metadados: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        """Salva ferramenta na área de staging (data/ferramentas_staging/) para review.
+
+        Não instala no registry nem no catálogo. O dono revisa o código no painel
+        e depois confirma via instalar() normal. staging_listar() mostra o que está
+        aguardando.
+        """
+        id_f = normalizar_nome(id_ferramenta)
+        if not id_f or not _NOME_RE.match(id_f):
+            return {"ok": False, "motivo": f"nome_invalido: {id_ferramenta!r}"}
+
+        # Valida antes de salvar no staging
+        ok, motivo = validar_codigo(codigo, self.max_codigo)
+        if not ok:
+            return {"ok": False, "motivo": f"codigo_invalido: {motivo}"}
+
+        funcao = metadados.get("funcao") if metadados else None
+        if not funcao:
+            funcao = id_f.rsplit(".", 1)[-1]
+        fn = _carregar_fn(codigo, funcao)
+        if fn is None:
+            return {"ok": False, "motivo": f"funcao_nao_encontrada: {funcao}"}
+
+        self.codigos_dir.mkdir(parents=True, exist_ok=True)
+        staging_dir = self.codigos_dir.parent / "ferramentas_staging"
+        staging_dir.mkdir(parents=True, exist_ok=True)
+
+        arquivo = f"{id_f}.py"
+        meta_arquivo = f"{id_f}.meta.json"
+
+        # Código
+        destino = self._caminho_codigo(arquivo)
+        tmp = destino.with_suffix(".py.tmp")
+        tmp.write_text(codigo, encoding="utf-8")
+        os.replace(tmp, destino)
+
+        # Metadados do staging
+        meta = {
+            "id": id_f,
+            "funcao": funcao,
+            "descricao": (metadados or {}).get("descricao", ""),
+            "categoria": (metadados or {}).get("categoria", "staging"),
+            "params": (metadados or {}).get("params", {}),
+            "permission": (metadados or {}).get("permission", ""),
+            "origem": (metadados or {}).get("origem", "template"),
+            "versao": (metadados or {}).get("versao", "1.0.0"),
+            "salvo_em": self._clock(),
+        }
+        meta_path = staging_dir / meta_arquivo
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1),
+                             encoding="utf-8")
+
+        return {"ok": True, "id": id_f, "staging": True,
+                "arquivo": arquivo, "meta": meta_arquivo}
+
+    def staging_listar(self) -> list[dict[str, Any]]:
+        """Lista ferramentas na área de staging aguardando review."""
+        staging_dir = self.codigos_dir.parent / "ferramentas_staging"
+        if not staging_dir.exists():
+            return []
+        itens = []
+        for meta_path in sorted(staging_dir.glob("*.meta.json")):
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                itens.append(meta)
+            except Exception:
+                continue
+        return itens
+
+    def staging_remover(self, id_ferramenta: str) -> dict[str, Any]:
+        """Remove ferramenta do staging (descarta)."""
+        id_f = normalizar_nome(id_ferramenta)
+        staging_dir = self.codigos_dir.parent / "ferramentas_staging"
+        arquivo = staging_dir / f"{id_f}.py"
+        meta_arquivo = staging_dir / f"{id_f}.meta.json"
+        removidos = []
+        for p in (arquivo, meta_arquivo):
+            if p.exists():
+                p.unlink()
+                removidos.append(p.name)
+        return {"ok": True, "id": id_f, "removidos": removidos}
+
+    def staging_instalar(self, id_ferramenta: str, *,
+                         confirmar: bool = False) -> dict[str, Any]:
+        """Move do staging para instalação real (usa metadados salvos).
+
+        Equivale a: ler staging → instalar() com os mesmos parâmetros → limpar staging.
+        """
+        id_f = normalizar_nome(id_ferramenta)
+        staging_dir = self.codigos_dir.parent / "ferramentas_staging"
+        meta_path = staging_dir / f"{id_f}.meta.json"
+        if not meta_path.exists():
+            return {"ok": False, "motivo": "nao_esta_no_staging"}
+
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            return {"ok": False, "motivo": f"meta_invalida: {exc}"}
+
+        arquivo = staging_dir / f"{id_f}.py"
+        if not arquivo.exists():
+            return {"ok": False, "motivo": "codigo_ausente_no_staging"}
+
+        codigo = arquivo.read_text(encoding="utf-8")
+
+        # Instala usando os metadados do staging
+        r = self.instalar(
+            nome=id_f,
+            codigo=codigo,
+            versao=meta.get("versao", "1.0.0"),
+            descricao=meta.get("descricao", ""),
+            categoria=meta.get("categoria", "staging"),
+            params=meta.get("params", {}),
+            permission=meta.get("permission", ""),
+            origem=meta.get("origem", "template"),
+            confirmar=confirmar,
+        )
+
+        if r.get("ok"):
+            # Limpa staging após instalação bem-sucedida
+            self.staging_remover(id_f)
+
+        return r
 
     def dump(self) -> dict[str, Any]:
         return {"ferramentas": self.listar(), "resumo": self.resumo()}

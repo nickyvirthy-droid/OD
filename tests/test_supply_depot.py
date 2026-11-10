@@ -8,8 +8,9 @@ Descrição: Parte F do Project NOMAD — Supply Depot (registro de
            manual por versão (síndico: pode ser desfeito), customização
            do dono que SOBREVIVE a atualização/restart, restauração no
            boot (ferramenta gerada não some mais), integração com o
-           /gerar do Auto Extension (pré-voa antes de gastar LLM) e as
-           5 rotas /admin/ferramentas + seção do painel + stats.
+           /gerar do Auto Extension (pré-voa antes de gastar LLM), as
+           8 rotas /admin/ferramentas + export/import do catálogo, seção
+           do painel e stats.
 Interface Viva: Nicky Virthy
 Arquiteto: Alex Projeti
 """
@@ -29,6 +30,7 @@ from tools.registry import ActionRegistry
 from tools.supply_depot import (
     ATUALIZAR,
     BLOQUEAR,
+    EXPORT_SCHEMA,
     INSTALAR,
     LIMITE_CODIGO,
     SEM_ACAO,
@@ -797,6 +799,146 @@ class TestResumoEDump:
 
 
 # ===========================================================================
+# 7.5 Exportação/importação do catálogo (TODO §3.1)
+# ===========================================================================
+
+class TestExportarImportar:
+    def test_exportar_inclui_codigo_atual_e_historico(
+        self, tmp_path: Path,
+    ) -> None:
+        depot, _ = _mk_depot(tmp_path)
+        depot.instalar(nome="util.soma", codigo=CODE_V1, versao="1.0.0")
+        depot.instalar(nome="util.soma", codigo=CODE_V2, versao="1.0.1")
+
+        bundle = depot.exportar()
+        assert bundle["schema"] == EXPORT_SCHEMA
+        assert bundle["erros"] == []
+        f = next(x for x in bundle["ferramentas"] if x["id"] == "util.soma")
+        assert f["codigo"] == CODE_V2
+        assert len(f["anteriores"]) == 1
+        assert f["anteriores"][0]["codigo"] == CODE_V1
+        assert f["anteriores"][0]["arquivo_backup"] == "util.soma.v1.0.0.py"
+
+    def test_importar_roundtrip_restaura_registry_e_historico(
+        self, tmp_path: Path,
+    ) -> None:
+        origem, _ = _mk_depot(tmp_path / "origem")
+        origem.instalar(nome="util.soma", codigo=CODE_V1, versao="1.0.0")
+        origem.instalar(nome="util.soma", codigo=CODE_V2, versao="1.0.1")
+        origem.instalar(nome="util.multiplica", codigo=CODE_MULT)
+        bundle = origem.exportar()
+
+        destino, reg = _mk_depot(tmp_path / "destino")
+        r = destino.importar(bundle, modo="substituir")
+        assert r["ok"] is True
+        assert r["total"] == 2 and r["backups"] == 1
+        assert sorted(f["id"] for f in destino.listar()) == [
+            "util.multiplica", "util.soma"]
+        assert reg.get("util.soma").handler(a=5, b=3)["result"] == 2
+        assert destino.obter("util.soma").anteriores[0]["versao"] == "1.0.0"
+        assert (tmp_path / "destino" / "ferramentas" / "util.soma.py").exists()
+
+        # O histórico veio junto: rollback volta para a soma de verdade.
+        rb = destino.rollback("util.soma")
+        assert rb["ok"] is True and rb["para"] == "1.0.0"
+        assert reg.get("util.soma").handler(a=5, b=3)["result"] == 8
+
+    def test_importar_substituir_exige_confirmacao(
+        self, tmp_path: Path,
+    ) -> None:
+        origem, _ = _mk_depot(tmp_path / "origem")
+        origem.instalar(nome="util.multiplica", codigo=CODE_MULT)
+        bundle = origem.exportar()
+
+        destino, reg = _mk_depot(tmp_path / "destino")
+        destino.instalar(nome="util.soma", codigo=CODE_V1)
+        r = destino.importar(bundle, modo="substituir")
+        assert r["ok"] is False and r["motivo"] == "confirmacao_necessaria"
+        assert [f["id"] for f in destino.listar()] == ["util.soma"]
+        assert reg.has("util.soma")
+
+        r = destino.importar(bundle, modo="substituir", confirmar=True)
+        assert r["ok"] is True and r["removidos"] == 1
+        assert [f["id"] for f in destino.listar()] == ["util.multiplica"]
+        assert not reg.has("util.soma")
+        assert reg.has("util.multiplica")
+
+    def test_importar_mesclar_preserva_ausentes(
+        self, tmp_path: Path,
+    ) -> None:
+        origem, _ = _mk_depot(tmp_path / "origem")
+        origem.instalar(nome="util.multiplica", codigo=CODE_MULT)
+        bundle = origem.exportar()
+
+        destino, reg = _mk_depot(tmp_path / "destino")
+        destino.instalar(nome="util.soma", codigo=CODE_V1)
+        r = destino.importar(bundle, modo="mesclar")
+        assert r["ok"] is True and r["removidos"] == 0
+        assert sorted(f["id"] for f in destino.listar()) == [
+            "util.multiplica", "util.soma"]
+        assert reg.has("util.soma") and reg.has("util.multiplica")
+
+    def test_importar_rejeita_bundle_invalido_sem_tocar_no_catalogo(
+        self, tmp_path: Path,
+    ) -> None:
+        depot, reg = _mk_depot(tmp_path)
+        depot.instalar(nome="util.soma", codigo=CODE_V1)
+        antes = (tmp_path / "ferramentas" / "util.soma.py").read_text()
+        bundle = {
+            "schema": EXPORT_SCHEMA,
+            "ferramentas": [{
+                "id": "util.ruim", "funcao": "pegar",
+                "versao": "1.0.0", "codigo": CODE_IMPORT_PROIBIDO,
+            }],
+        }
+        r = depot.importar(bundle, modo="mesclar")
+        assert r["ok"] is False and r["motivo"] == "importacao_invalida"
+        assert any("codigo_rejeitado" in e for e in r["erros"])
+        assert [f["id"] for f in depot.listar()] == ["util.soma"]
+        assert (tmp_path / "ferramentas" / "util.soma.py").read_text() == antes
+        assert reg.get("util.soma").handler(a=2, b=3)["result"] == 5
+
+    def test_importar_rejeita_backup_com_path_traversal(
+        self, tmp_path: Path,
+    ) -> None:
+        origem, _ = _mk_depot(tmp_path / "origem")
+        origem.instalar(nome="util.soma", codigo=CODE_V1, versao="1.0.0")
+        origem.instalar(nome="util.soma", codigo=CODE_V2, versao="1.0.1")
+        bundle = origem.exportar()
+        bundle["ferramentas"][0]["anteriores"][0]["arquivo_backup"] = \
+            "../../evil.py"
+
+        destino, _ = _mk_depot(tmp_path / "destino")
+        r = destino.importar(bundle, modo="substituir")
+        assert r["ok"] is False
+        assert any("historico_arquivo_invalido" in e for e in r["erros"])
+        assert destino.listar() == []
+        assert not (tmp_path / "evil.py").exists()
+
+    def test_importar_rollback_se_gravacao_falhar(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        origem, _ = _mk_depot(tmp_path / "origem")
+        origem.instalar(nome="util.multiplica", codigo=CODE_MULT)
+        bundle = origem.exportar()
+
+        destino, reg = _mk_depot(tmp_path / "destino")
+        destino.instalar(nome="util.soma", codigo=CODE_V1)
+        antes = (tmp_path / "destino" / "ferramentas" / "util.soma.py").read_text()
+
+        def boom() -> None:
+            raise OSError("disco cheio na prova")
+
+        monkeypatch.setattr(destino, "_gravar_catalogo", boom)
+        r = destino.importar(bundle, modo="substituir", confirmar=True)
+        assert r["ok"] is False and r["rollback"] is True
+        assert [f["id"] for f in destino.listar()] == ["util.soma"]
+        assert (tmp_path / "destino" / "ferramentas" / "util.soma.py").read_text() == antes
+        assert reg.get("util.soma").handler(a=2, b=3)["result"] == 5
+        assert not reg.has("util.multiplica")
+
+
+# ===========================================================================
 # 8. Integração com o Auto Extension (/gerar)
 # ===========================================================================
 
@@ -969,6 +1111,9 @@ class TestSupplyDepotRotas:
         casos = (
             ("GET", "/admin/ferramentas", None),
             ("POST", "/admin/ferramentas", {}),
+            ("GET", "/admin/ferramentas/export", None),
+            ("GET", "/admin/ferramentas/import", None),
+            ("POST", "/admin/ferramentas/import", {}),
             ("PUT", "/admin/ferramentas/util.soma", {"descricao": "x"}),
             ("POST", "/admin/ferramentas/util.soma/rollback", None),
             ("DELETE", "/admin/ferramentas/util.soma", None),
@@ -1171,6 +1316,74 @@ class TestSupplyDepotRotas:
         ferramentas = data["ferramentas"]
         assert ferramentas["total"] == 1 and ferramentas["ativas"] == 1
 
+    def test_export_e_import_rotas(self, srv_depot) -> None:
+        servidor, _, reg = srv_depot
+        _request(servidor.bound_port, "POST", "/admin/ferramentas",
+                 api_key="segredo123",
+                 body={"nome": "util.soma", "codigo": CODE_V1})
+        status, corpo = _request(servidor.bound_port, "GET",
+                                 "/admin/ferramentas/export",
+                                 api_key="segredo123")
+        data = _json_body(corpo)
+        assert status == 200 and data["ok"] is True
+        assert data["schema"] == EXPORT_SCHEMA
+        assert data["ferramentas"][0]["codigo"] == CODE_V1
+
+        # Alias GET /import devolve o mesmo bundle (compatibilidade do TODO).
+        status, corpo = _request(servidor.bound_port, "GET",
+                                 "/admin/ferramentas/import",
+                                 api_key="segredo123")
+        assert status == 200 and _json_body(corpo)["schema"] == EXPORT_SCHEMA
+
+        status, corpo = _request(
+            servidor.bound_port, "POST", "/admin/ferramentas/import",
+            api_key="segredo123",
+            body={**data, "modo": "substituir", "confirmar": True})
+        data_import = _json_body(corpo)
+        assert status == 200 and data_import["ok"] is True
+        assert data_import["total"] == 1
+        assert reg.get("util.soma").handler(a=2, b=3)["result"] == 5
+
+    def test_import_confirmacao_409_e_invalido_400(self, srv_depot) -> None:
+        servidor, _, reg = srv_depot
+        _request(servidor.bound_port, "POST", "/admin/ferramentas",
+                 api_key="segredo123",
+                 body={"nome": "util.soma", "codigo": CODE_V1})
+        bundle = {
+            "schema": EXPORT_SCHEMA,
+            "ferramentas": [{
+                "id": "util.multiplica", "funcao": "multiplica",
+                "versao": "1.0.0", "codigo": CODE_MULT,
+            }],
+        }
+        status, corpo = _request(
+            servidor.bound_port, "POST", "/admin/ferramentas/import",
+            api_key="segredo123", body=bundle)
+        assert status == 409
+        assert _json_body(corpo)["error"] == "confirmacao_necessaria"
+        assert reg.has("util.soma")
+
+        status, corpo = _request(
+            servidor.bound_port, "POST", "/admin/ferramentas/import",
+            api_key="segredo123", body={**bundle, "confirmar": True})
+        assert status == 200
+        assert _json_body(corpo)["total"] == 1
+        assert reg.has("util.multiplica") and not reg.has("util.soma")
+
+        invalido = {
+            "schema": EXPORT_SCHEMA,
+            "ferramentas": [{
+                "id": "util.ruim", "funcao": "pegar",
+                "versao": "1.0.0", "codigo": CODE_IMPORT_PROIBIDO,
+            }],
+        }
+        status, corpo = _request(
+            servidor.bound_port, "POST", "/admin/ferramentas/import",
+            api_key="segredo123", body={**invalido, "confirmar": True})
+        assert status == 400
+        assert _json_body(corpo)["error"] == "importacao_invalida"
+        assert reg.has("util.multiplica") and not reg.has("util.ruim")
+
     def test_painel_traz_a_secao(self, srv_depot) -> None:
         servidor, _, _ = srv_depot
         status, corpo = _request(servidor.bound_port, "GET", "/admin",
@@ -1180,3 +1393,5 @@ class TestSupplyDepotRotas:
         assert "Ferramentas (Supply Depot)" in html
         assert "frLoad" in html and "/admin/ferramentas" in html
         assert "data/ferramentas_backup" in html
+        assert "fr-export" in html and "/admin/ferramentas/export" in html
+        assert "fr-import" in html and "frImportFile" in html
