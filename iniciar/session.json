@@ -1,4 +1,14 @@
 {
+  "f2_e_r2_status_no_roadmap_2026_11_10": {
+    "pedido": "Dono: atualizar o roadmap no TODO com o status do F2 e do R2, como foi feito com o F3.",
+    "feito": "docs/ANALISE_SISTEMA_TODO.md: §1 resumo executivo com 4 linhas reescritas (observabilidade, resiliencia, performance, DX 4241 testes); §2 matriz marca F2 e R2 como ENTREGUES; §3 ganhou 'F2 — FECHAMENTO' (pecas, desvios com motivo, infra faltante) e secao nova 'R2 — Circuit Breaker (detalhe)'; §4 Semana 1-2 e Semana 11-12 com checkboxes fechados; §8 proximos passos corrigidos e dependencias descartadas removidas.",
+    "f2": "core/telemetry.py, trace_id/span_id no log, span+medidas em HTTP e RAG, check nao-critico 'telemetria', +15 testes; commit c65223e; gate 4212/16/0. Desvios: sem structlog, sem auto-instrumentacao, sem prometheus-client multiprocess; falta coletor/Grafana e alertas (infra).",
+    "r2": "core/resilience.py (CircuitBreaker thread-safe, relogio injetavel, registro global, desligavel por OD_CIRCUIT_BREAKER), disjuntor por provider em core/llm.py, +16 testes; commit 7d8b958; gate 4226/16/0. Desvios: sem pybreaker, bulkhead dispensado, sem retry proprio, estado local (um processo).",
+    "testes": "somente docs; tests/test_rag.py 93 passed.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§8)",
+    "updated_at": "2026-11-10T15:25:00-03:00"
+  },
   "f3_encerrado_no_todo_2026_11_10": {
     "pedido": "Dono: fechar o F3 no TODO com o resumo das fatias e dos descartes medidos.",
     "feito": "docs/ANALISE_SISTEMA_TODO.md: matriz §2 marca F3 ENCERRADO com escopo revisado (esforço Alto -> Baixo); §3 ganhou bloco 'F3 — FECHAMENTO' com 4 entregas (commit + antes/depois), tabela de 7 descartes com a medição que os derrubou, herança e gatilho de reabertura; §4 Semana 3-4 com checkboxes concluídos e 'connection pools globais' mantido aberto como sem demanda medida.",

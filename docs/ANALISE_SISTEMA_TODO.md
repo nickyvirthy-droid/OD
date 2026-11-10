@@ -13,11 +13,11 @@
 | **Orquestração** | `orchestrator.py` monolítico (2285 linhas), loop síncrono, sem checkpointing | Sem durabilidade, sem resumo pós-falha, sem paralelismo controlado |
 | **Memória** | Histórico de chat simples + RAG básico (chunks JSON diários) | Sem memória longa estruturada (Mem0/Zep), sem grafo temporal, sem recall multi-sessão |
 | **RAG** | Embedding local + busca vetorial simples, cache LLM básico | Sem semantic caching, sem hybrid search, sem otimização KV-cache, latência não medida |
-| **Observabilidade** | Logs estruturados básicos (`core/logger.py`), `/health`, `/metrics` | Sem distributed tracing (OTel), sem structured logging com trace correlation, sem dashboards |
-| **Resiliência** | `SelfRepairEngine` + `RecoveryLoop` básicos | Sem task queue, sem retry policy declarativo, sem circuit breaker, sem graceful degradation |
-| **Performance** | Single-threaded event loop, bloqueio em I/O síncrono (`requests`, `apt`, `fwupdmgr`) | Sem async I/O, sem connection pooling, sem batch processing, sem streaming |
+| **Observabilidade** | **F2 entregue:** `core/telemetry.py` (OTel spans + métricas), log com `trace_id`/`span_id`, checks `telemetria` e `latencia` no `/health` | Sem coletor OTel/Grafana (infra) nem alertas — o código já exporta para o endpoint que for configurado |
+| **Resiliência** | **R2 entregue:** `core/resilience.py` com disjuntor por provider de LLM e degradação via fallback | Sem task queue (R1) nem retry policy declarativo; bulkhead dispensado por falta de pool saturado medido |
+| **Performance** | **F3 encerrado:** gargalos reais medidos e corrigidos (cache do APK, fila de listen); sonda contínua de p50/p95 | Sem async I/O — descartado com medição (thread-por-requisição); connection pooling sem demanda medida |
 | **Segurança** | Security Layer (scope, permissions, approval) | Sem sandbox real para plugins, sem supply chain verification além Ed25519 |
-| **Developer Experience** | Canal de dev on-demand, testes 4193 passed | Sem hot-reload de código, sem time-travel debugging, sem eval framework |
+| **Developer Experience** | Canal de dev on-demand, testes 4241 passed | Sem hot-reload de código, sem time-travel debugging, sem eval framework |
 
 ---
 
@@ -28,7 +28,7 @@
 | ID | Item | Esforço | Impacto | Referência |
 |----|------|---------|---------|------------|
 | **F1** | **Migrar orquestrador para grafo de execução (LangGraph-style)** | Alto | 🔥🔥🔥 | LangGraph blog 2024-2025: checkpointing, parallelization, streaming, human-in-the-loop, task queue, tracing nativo |
-| **F2** | **Implementar OpenTelemetry distribuído (traces + metrics + logs correlacionados)** | Médio | 🔥🔥🔥 | python-observability.com, structlog + OTel + BatchSpanProcessor |
+| **F2** | ~~Implementar OpenTelemetry distribuído (traces + metrics + logs correlacionados)~~ **ENTREGUE (10/11)**: SDK + spans + métricas + log correlacionado + check no `/health`; falta só o coletor/Grafana (infra) — ver §3 | Médio | 🔥🔥🔥 | python-observability.com, structlog + OTel + BatchSpanProcessor |
 | **F3** | ~~Substituir I/O síncrono por async em todo o core~~ **ENCERRADO (10/11)** com escopo revisado por medição: o problema real era trabalho de CPU no handler e backlog de socket — ver §3 | Alto → Baixo | 🔥🔥 | `aiohttp`, `asyncpg`, `asyncio.to_thread` para bloqueantes |
 | **F4** | **Memory Layer estruturada (Mem0/Zep-style: grafo temporal + consolidação)** | Alto | 🔥🔥🔥 | Mem0 (arXiv 2504.19413), Zep (arXiv 2501.13956), LOCOMO/LongMemEval |
 
@@ -48,7 +48,7 @@
 | ID | Item | Esforço | Impacto | Referência |
 |----|------|---------|---------|------------|
 | **R1** | **Task Queue durável (Redis/RQ ou Celery) + RetryPolicy declarativo** | Médio | 🔥🔥 | LangGraph Platform, circuit breaker pattern |
-| **R2** | **Circuit Breaker + Bulkhead + Graceful Degradation** | Baixo | 🔥 | Resilience4j patterns, AWS Well-Architected |
+| **R2** | ~~Circuit Breaker + Bulkhead + Graceful Degradation~~ **ENTREGUE (10/11)**: disjuntor por provider de LLM, degradação graciosa pelo fallback existente; bulkhead não aplicável hoje — ver §3 | Baixo | 🔥 | Resilience4j patterns, AWS Well-Architected |
 | **R3** | **Hot-reload de ferramentas/plugins sem reiniciar od-core** | Médio | 🔥 | PluginManager já tem reload, integrar com watchdog |
 | **R4** | **Time-travel debugging (checkpoint replay) para orquestrador** | Alto | 🔥 | LangGraph checkpointing + time travel |
 | **R5** | **Eval Framework automatizado (LOCOMO/LongMemEval + custom)** | Médio | 🔥🔥 | Letta Leaderboard, Zep benchmarks, benchmarking contínuo |
@@ -158,6 +158,34 @@ logger = structlog.get_logger()
 
 # Uso: logger.info("evento", trace_id=trace.get_current_span().get_span_context().trace_id)
 ```
+
+#### F2 — FECHAMENTO (2026-11-10)
+
+**Status: entregue a fatia de software; resta a infraestrutura** (coletor +
+Grafana), que depende de decisão de hospedagem e não de código.
+
+| Peça | O que entrou |
+|---|---|
+| `core/telemetry.py` | `configurar()` idempotente, `span()`, `cronometrar()`, `contar()`, `atribuir()`, `trace_id()`/`span_id()`, `status()`, `desligar()`. Providers no estado do módulo — os globais do OTel aceitam só a primeira configuração do processo, o que quebraria testes e hot-reload. |
+| `core/logger.py` | `trace_id`/`span_id` do span ativo anexados à linha (texto ou JSON); nada inventado fora de span. |
+| `integrations/api/server.py` | Span `http.request` + `od.http_request.seconds` + `od.http_requests` por chamada. |
+| `memory/rag.py` | `RAGPipeline.consult` → span `rag.consult` + histograma `od.rag_retrieval.seconds`. |
+| `runtime/launcher.py` | `telemetry.configurar()` no `main()` e check não-crítico `telemetria` (desligada = ok; SDK ausente = degraded). |
+| `tests/test_telemetry.py` | +15 testes, incluindo exportador em memória e no-op sem SDK. |
+| Commit / gate | `c65223e`; **4212 passed / 16 skipped / 0 falha** (189,29 s). |
+
+**Desvios do plano original, com o motivo:**
+
+| Plano | O que foi feito e por quê |
+|---|---|
+| `structlog` | Mantido o log NICKY (`core/logger.py`): já é JSON/texto estruturado e tem 4.200 testes em cima. Trocar a lib não daria observabilidade nova — a correlação foi feita no formato existente. |
+| `opentelemetry-instrument` (auto) | Instrumentação manual nos 3 pontos que importam (HTTP, RAG, log). A auto-instrumentação de `requests`/`aiohttp`/`asyncio` pressupõe o stack async do F3, que foi descartado por medição. |
+| `prometheus-client` multiprocess | Métricas via MeterProvider do próprio OTel; expor `/metrics` exigiria servidor separado ou promiscuidade na API. Fica junto com a decisão do coletor. |
+| `opentelemetry-sdk` como dependência fixa | Import tardio + no-op: sem a dependência o core segue de pé, e o item é opcional em `requirements.txt`. |
+
+**Falta (infra, não código):** OTel Collector configurado, dashboards
+Tempo/Loki/Prometheus e os alertas de p95/error rate. Quando o coletor
+existir, basta apontar `OD_OTEL_ENDPOINT` — nada de código muda.
 
 **Métricas-chave (Prometheus):**
 | Métrica | Tipo | Target |
@@ -340,14 +368,43 @@ class MemoryGraph:
 | Retrieval latency (p95) | ~2s | < 160ms |
 | Context tokens/query | ~10k | < 5k |
 
+### R2 — Circuit Breaker (detalhe)
+
+**Status: entregue** (commit `7d8b958`; `tests/test_resilience.py` +16; gate
+**4226 passed / 16 skipped / 0 falha**).
+
+O cenário: provider de LLM fora do ar fazia cada mensagem gastar o timeout
+inteiro nele antes de cair para o próximo da cadeia.
+
+| Peça | O que entrou |
+|---|---|
+| `core/resilience.py` | `CircuitBreaker` thread-safe (fechado → aberto → meia-aberto) com relógio injetável, `permitir()`/`registrar_sucesso()`/`registrar_falha()`/`executar()`/`status()`; registro global por nome e desligável por `OD_CIRCUIT_BREAKER=0`. |
+| `core/llm.py` | Um disjuntor por provider (`llm:<nome>`): com o circuito aberto, `generate`/`generate_stream` recusam **sem tocar a rede** e `is_available()` não sonda. A recusa é `LLMError`, que a cadeia de fallback já conhece. |
+| Parâmetros | `OD_CIRCUIT_FAILURES` (padrão 5) e `OD_CIRCUIT_RECOVERY_S` (padrão 30 s); passada a janela, uma tentativa libera (meia-aberta): sucesso fecha, falha reabre. |
+
+**Descartes:**
+
+| Plano | Motivo |
+|---|---|
+| `pybreaker` | A regra é 80 linhas de stdlib e precisa de relógio injetável para testar sem `sleep`; dependência não pagaria. |
+| Bulkhead (limite de concorrência por recurso) | A API é thread-por-requisição com fila de listen de 128 e o limiter de 30 req/min já contém a entrada. Não há pool saturado medido para isolar. |
+| Retry próprio dentro do breaker | Já existe cadeia de fallback no Orchestrator; dois mecanismos de retry multiplicariam tentativas. |
+| Estado do disjuntor no Redis | Um processo só; estado local é coerente e não adiciona rede ao caminho de falha. Se I1/R1 trouxer Redis e mais workers, aí sim. |
+
+**O que fica:** o circuito é por nome de provider e o registro é global —
+openar um provider novo não exige tocar no `llm.py`. Ganho visível: no
+circuito aberto, a resposta de fallback sai em milissegundos em vez de
+esperar o timeout.
+
 ---
 
 ## 4. IMPLEMENTAÇÃO INCREMENTAL (ROADMAP 12 SEMANAS)
 
-### Semana 1-2: Fundação Observabilidade
-- [ ] F2: OTel SDK + structlog + BatchSpanProcessor + OTel Collector config
-- [ ] Dashboards Grafana (Tempo traces, Loki logs, Prometheus metrics)
-- [ ] Alertas: p95 latency, error rate, cache hit rate, disk/memory
+### Semana 1-2: Fundação Observabilidade — **F2 ENTREGUE em 10/11**
+- [x] F2: OTel SDK + spans + métricas + log correlacionado + check no `/health`
+- [x] F2: `BatchSpanProcessor` com exportador OTLP/HTTP ou console (em `core/telemetry.py`)
+- [ ] OTel Collector config + Dashboards Grafana (Tempo/Loki/Prometheus) — **infra**, não código
+- [ ] Alertas: p95 latency, error rate, cache hit rate, disk/memory (depende do coletor)
 
 ### Semana 3-4: Async I/O + Connection Pooling — **F3 ENCERRADO em 10/11**
 - [x] F3: `requests` → `aiohttp` — **não aplicável**: não há `requests` nesses
@@ -379,7 +436,8 @@ class MemoryGraph:
 
 ### Semana 11-12: Resiliência + Eval
 - [ ] R1: Task Queue (Redis/RQ) + RetryPolicy por nó
-- [ ] R2: Circuit Breaker (pybreaker) em chamadas externas
+- [x] R2: Circuit Breaker em chamadas externas — feito sem `pybreaker`, por
+      provider de LLM (`core/resilience.py`); bulkhead dispensado (ver §3)
 - [ ] R5: Eval Framework (LOCOMO subset + custom benchmarks) rodando no CI
 - [ ] Documentação de arquitetura atualizada (`docs/ARCHITECTURE_v2.md`)
 
@@ -426,9 +484,9 @@ class MemoryGraph:
 
 ## 8. PRÓXIMOS PASSOS IMEDIATOS (ESTA SEMANA)
 
-1. **Criar branch `feat/arch-v2`** e configurar CI para rodar testes paralelos
-2. **Implementar F2 (OTel)** — menor risco, maior visibilidade imediata
-3. **Adicionar `pyproject.toml` dependências:** `opentelemetry-sdk`, `structlog`, `aiohttp`, `aiosqlite`, `redis`, `rank-bm25`, `sentence-transformers`, `pybreaker`
+1. ~~Criar branch `feat/arch-v2`~~ — trabalho segue em `master` com gate verde por item
+2. ~~Implementar F2 (OTel)~~ — **entregue em 10/11** (`core/telemetry.py`); resta infra do coletor
+3. **Adicionar `pyproject.toml` dependências:** `opentelemetry-sdk` (já em `requirements.txt`, import tardio), `redis`, `rank-bm25`, `sentence-transformers` — `aiohttp`/`aiosqlite`/`pybreaker` **descartados** com medição (F3/R2)
 4. **Criar `docs/ARCHITECTURE_v2.md`** com diagramas Mermaid do novo grafo
 5. **Agendar sync semanal** com dono para revisar progresso e ajustar prioridades
 

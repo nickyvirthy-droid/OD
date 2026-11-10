@@ -329,7 +329,50 @@ de alto volume — hoje não há item async pendente no core.
   `docs/` entra no corpus.
 - Sem bump: app segue **1.44.0/2080**.
 
-### 6. Fila
+## §8 — F2 e R2 com status no roadmap (10/11)
+
+**Pedido do dono:** *"atualize o roadmap no TODO com o status do F2 e do R2,
+como fizemos com o F3"*.
+
+### 1. O que foi alterado em `docs/ANALISE_SISTEMA_TODO.md`
+
+- **§1 Resumo executivo:** quatro linhas reescritas — Observabilidade (F2),
+  Resiliência (R2), Performance (F3) e DX (4241 testes) — trocando “sem X”
+  pelo que existe e pelo gap real que sobrou.
+- **§2 Matriz:** F2 marcado **ENTREGUE** com “falta só coletor/Grafana”; R2
+  **ENTREGUE** com “bulkhead não aplicável hoje”.
+- **§3:** bloco **“F2 — FECHAMENTO”** (peças, desvios do plano com motivo,
+  o que falta de infra) e seção nova **“R2 — Circuit Breaker (detalhe)”**
+  (peças, parâmetros, descartes, herança).
+- **§4 Roadmap:** Semana 1-2 fechada como F2 entregue (com itens de infra
+  ainda abertos) e Semana 11-12 com R2 marcado feito “sem `pybreaker`”.
+- **§8 Próximos passos:** itens 1 e 2 riscados/fechados; dependências do
+  item 3 corrigidas (aiohttp/aiosqlite/pybreaker descartados com medição).
+
+### 2. Fatos registrados
+
+| Item | Entrega | Commit / gate |
+|---|---|---|
+| F2 | `core/telemetry.py`, `trace_id`/`span_id` no log, span/medida em HTTP e RAG, check `telemetria`, +15 testes | `c65223e`, 4212/16/0 |
+| R2 | `core/resilience.py`, disjuntor por provider em `core/llm.py`, +16 testes | `7d8b958`, 4226/16/0 |
+
+### 3. Desvios que ficaram explícitos no doc
+
+- F2: `structlog` não entrou (o log NICKY já é estruturado e tem a suíte em
+  cima); auto-instrumentação não entrou (pressupõe o stack async descartado
+  no F3); `prometheus-client` multiprocess não entrou (métricas pelo
+  MeterProvider do OTel; `/metrics` fica para a decisão do coletor).
+- R2: `pybreaker` não entrou (80 linhas de stdlib com relógio injetável);
+  bulkhead dispensado (fila de listen 128 + limiter 30/min); sem retry
+  próprio (a cadeia de fallback do Orchestrator já cobre); estado do
+  disjuntor local, não em Redis (um processo só).
+
+### 4. Verificação
+
+- Só documentação: RAG revalidado, **93 passed** (docs entram no corpus).
+- Sem bump: app segue **1.44.0/2080**.
+
+### 5. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2
   (OpenTelemetry)** — menor risco e maior visibilidade.
