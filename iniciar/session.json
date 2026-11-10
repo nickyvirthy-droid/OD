@@ -1,4 +1,16 @@
 {
+  "f4_fase1_memoria_longa_2026_11_10": {
+    "pedido": "Dono: prosseguir (proximo item do roadmap = F4 Memory Layer).",
+    "medicao_previa": "memory/history.py guarda 20 mensagens por perfil: trocar de perfil ou passar de 20 mensagens faz o usuario voltar a ser desconhecido. Gap real do F4 = memoria entre sessoes/perfis.",
+    "feito": "core/memory_layer.py (MemoryGraph SQLite em data/memory.db com WAL): fatos+entidades, aresta menciona e substitui (fato contraditorio nao e apagado, sai da busca e fica no historico), escopo por user_id em toda leitura, teto de 500 fatos. Extracao deterministica com 13 padroes PT-BR. Actions salvar_fato/buscar_memoria (categoria memoria, catalogo 116->118) liberadas ao papel user. Captura automatica em Orchestrator._post_process -> _memorizar (melhor esforco, OD_MEMORY_AUTO=0 desliga, conversa anonima nao grava).",
+    "testes": "tests/test_memory_layer.py +47; tests/conftest.py isola OD_MEMORY_PATH em tmp; contagens 116->118 ajustadas em 5 arquivos. Gate 4288 passed / 16 skipped / 0 falha (188,80 s).",
+    "custo": "extracao p50 114 us (34 chars) / 341 us (131 chars); gravacao idempotente 0,026 ms; fato novo com aresta 0,76 ms; busca 3,4 ms com 200 fatos.",
+    "prova_viva": "Restart do od-core: MainPID 1162796, NRestarts=0, /health 27/27 (latencia p50=6,09ms p95=35,24ms), ACTIONS_COUNT=118 com categoria memoria=2. data/memory.db nasce no primeiro fato dito.",
+    "fase2": "Busca semantica com embeddings, consolidacao semanal e injecao do bloco de memoria no prompt.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§9)",
+    "updated_at": "2026-11-10T15:55:00-03:00"
+  },
   "f2_e_r2_status_no_roadmap_2026_11_10": {
     "pedido": "Dono: atualizar o roadmap no TODO com o status do F2 e do R2, como foi feito com o F3.",
     "feito": "docs/ANALISE_SISTEMA_TODO.md: §1 resumo executivo com 4 linhas reescritas (observabilidade, resiliencia, performance, DX 4241 testes); §2 matriz marca F2 e R2 como ENTREGUES; §3 ganhou 'F2 — FECHAMENTO' (pecas, desvios com motivo, infra faltante) e secao nova 'R2 — Circuit Breaker (detalhe)'; §4 Semana 1-2 e Semana 11-12 com checkboxes fechados; §8 proximos passos corrigidos e dependencias descartadas removidas.",

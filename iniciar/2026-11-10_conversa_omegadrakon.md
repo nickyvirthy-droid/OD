@@ -372,7 +372,42 @@ como fizemos com o F3"*.
 - Só documentação: RAG revalidado, **93 passed** (docs entram no corpus).
 - Sem bump: app segue **1.44.0/2080**.
 
-### 5. Fila
+## §9 — F4 fase 1: memória longa (grafo temporal) (10/11)
+
+**Pedido do dono:** *"prossiga"* (seguir para o F4 pela ordem do roadmap).
+
+### 0. Medição antes de codar
+
+`memory/history.py` guarda **20 mensagens por perfil** — o LLM não sabe nada
+além da janela atual. Trocar de perfil ou passar de 20 mensagens = usuário
+desconhecido. Esse é o gap real do F4 (não "mais histórico").
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `core/memory_layer.py` | `MemoryGraph` em SQLite (`data/memory.db`, WAL): fatos + entidades, aresta `menciona`, e a contradição vira aresta `substitui` (novo → antigo) — o fato velho sai da busca mas **continua no histórico**. Escopo por `user_id` em toda leitura, teto de 500 fatos/usuário. |
+| Extração | 13 padrões PT-BR por regex; 'tenho uma dúvida' não vira memória; 58–341 µs por mensagem. |
+| Actions | `salvar_fato` e `buscar_memoria` (categoria `memoria`, 116 → **118** actions), liberadas ao papel `user`. |
+| Captura automática | `Orchestrator._post_process` → `_memorizar`; melhor esforço, desligável com `OD_MEMORY_AUTO=0`, nunca grava conversa anônima. |
+| Testes | `tests/test_memory_layer.py` **+47** e `tests/conftest.py` isolando `OD_MEMORY_PATH` em tmp. |
+
+### 2. Prós e contras das escolhas
+
+- **Regex em vez de LLM na extração:** barato (µs) e testável sem rede; contra: só pega o que casa com os 13 padrões. O LLM entra na fase 2 para o resto.
+- **Não apagar o fato antigo:** ganha auditoria ("quando mudei de cidade?"); contra: o banco cresce — mitigado pelo teto de 500 e pela substituição (substituídos não entram na busca).
+- **Captura automática no `_post_process`:** o usuário não precisa pedir; contra: qualquer mensagem passa por 13 regex (114 µs) — irrelevante diante dos ~3 s do LLM, mas é custo em todo turno.
+- **Sem embeddings na fase 1:** evita dependência pesada sem baseline de recall; contra: busca por termo não entende sinônimo ("onde moro" casa com `cidade` porque a entidade está no índice).
+
+### 3. Verificação
+
+- Gate completo: **4288 passed / 16 skipped / 0 falha** (188,80 s; eram 4241/16).
+- Ao vivo: restart do `od-core` (MainPID **1162796**, `NRestarts=0`), `/health` **27/27**, `ACTIONS_COUNT=118` e categoria `memoria` com 2 ações.
+- `data/memory.db` nasce no primeiro fato dito no chat (nada gravado até então — comportamento esperado).
+- Custo medido: extração p50 114 µs (34 chars) / 341 µs (131 chars); gravação idempotente 0,026 ms; fato novo com aresta 0,76 ms; busca 3,4 ms com 200 fatos.
+- Sem bump: app segue **1.44.0/2080**.
+
+### 4. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2
   (OpenTelemetry)** — menor risco e maior visibilidade.

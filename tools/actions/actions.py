@@ -3406,6 +3406,61 @@ async def stt_transcrever(caminho: str, idioma: str = "") -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# Memória longa (F4, fase 1) — leitura/escrita do grafo do próprio usuário
+# ---------------------------------------------------------------------------
+
+def _memoria() -> Any:
+    """Instância compartilhada do grafo (import tardio, sem custo no import)."""
+    from core.memory_layer import obter_memoria
+
+    return obter_memoria()
+
+
+def salvar_fato(texto: str, user_id: str, tipo: str = "") -> dict[str, Any]:
+    """Extrai fatos de um texto e grava na memória longa do usuário.
+
+    Exemplos que viram memória: "meu nome é Alex", "moro em Curitiba",
+    "prefiro respostas curtas", "lembre que o projeto X vence em março".
+    Texto sem fato reconhecível grava nada e devolve `count=0` (não é erro).
+    """
+    try:
+        memoria = _memoria()
+        salvos = memoria.salvar(texto, user_id=user_id, origem="chat", tipo=tipo)
+    except Exception as exc:  # memória é acessório — nunca derruba o chat
+        return {"ok": False, "tool": "salvar_fato", "error": str(exc)}
+    return {
+        "ok": True,
+        "tool": "salvar_fato",
+        "count": len(salvos),
+        "salvos": [n.to_dict() for n in salvos],
+    }
+
+
+def buscar_memoria(consulta: str, user_id: str, limite: int = 5) -> dict[str, Any]:
+    """Busca fatos ativos do usuário (grafo temporal, sem embedding)."""
+    try:
+        memoria = _memoria()
+        encontrados = memoria.buscar(user_id, consulta, limite=limite)
+    except Exception as exc:
+        return {"ok": False, "tool": "buscar_memoria", "error": str(exc)}
+    agora = time.time()
+    return {
+        "ok": True,
+        "tool": "buscar_memoria",
+        "count": len(encontrados),
+        "memorias": [
+            {
+                "conteudo": n.conteudo,
+                "entidade": n.entidade,
+                "tipo": n.tipo,
+                "ha_segundos": max(0, int(agora - n.created_at)),
+            }
+            for n in encontrados
+        ],
+    }
+
+
 def _spec(
     name: str,
     category: str,
@@ -3713,6 +3768,17 @@ CATALOG: list[dict[str, Any]] = [
     _spec("saude_medicamento", "saude", "Bula FDA (indicações/avisos) do medicamento citado",
           saude_medicamento,
           {"required": ["texto"], "properties": {"texto": S}}),
+    # --- Memória longa (F4, fase 1) — grafo temporal por usuário ---
+    # Extração determinística (regex), sem LLM e sem embedding; o que não é
+    # reconhecido como fato não entra. Escopo sempre o user_id do chamador.
+    _spec("salvar_fato", "memoria", "Guarda fatos ditos pelo usuário (nome, cidade, preferências...)",
+          salvar_fato,
+          {"required": ["texto", "user_id"], "properties": {
+              "texto": S, "user_id": S, "tipo": {**S, "default": ""}}}),
+    _spec("buscar_memoria", "memoria", "Busca o que já se sabe do usuário sobre um assunto",
+          buscar_memoria,
+          {"required": ["consulta", "user_id"], "properties": {
+              "consulta": S, "user_id": S, "limite": {**I, "default": 5}}}),
 ]
 
 ACTIONS_COUNT = len(CATALOG)

@@ -37,3 +37,19 @@ def _limitacoes_isoladas(tmp_path, monkeypatch):
     # registra bloqueia o registro do seguinte na mesma chave).
     monkeypatch.setattr(limitacoes, "_ultimo_registro", {})
     yield
+
+
+@pytest.fixture(autouse=True)
+def _memoria_longao_isolada(tmp_path, monkeypatch):
+    """Memória longa (F4): cada teste usa um SQLite próprio (nunca data/).
+
+    O Orchestrator grava fatos no `_post_process` (melhor esforço), então a
+    suíte precisa apontar `OD_MEMORY_PATH` para tmp e descartar o singleton
+    entre testes — senão o banco real do dono ganharia fatos da suíte.
+    """
+    from core import memory_layer
+
+    monkeypatch.setenv("OD_MEMORY_PATH", str(tmp_path / "memory.db"))
+    memory_layer.resetar_memoria()
+    yield
+    memory_layer.resetar_memoria()

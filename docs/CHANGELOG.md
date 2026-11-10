@@ -12,6 +12,25 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Memória longa fase 1: grafo temporal de fatos (F4, 2026-11-10, sem bump)
+
+**Resumo:** o que faltava não era mais histórico (o `memory/history.py` já
+guarda 20 mensagens por perfil), e sim memória entre sessões/perfis — ao
+trocar de perfil, o usuário voltava a ser um desconhecido. A fase 1 do F4
+cria um grafo temporal de fatos e entidades em SQLite, alimentado por
+extração determinística no próprio chat.
+
+| Peça | Entrega |
+|---|---|
+| **`core/memory_layer.py`** | `MemoryGraph` (SQLite em `data/memory.db`, WAL): `adicionar_fato` idempotente, `salvar` (extrai + grava), `buscar`, `ativos`, `historico`, `vizinhos`, `stats`. Fato contraditório **não é apagado**: aresta `substitui` (novo → antigo) o tira da busca e mantém o histórico auditável. Entidades por `slug`, escopo estrito por `user_id`, teto de 500 fatos/usuário. |
+| **Extração** | 13 padrões PT-BR por regex (nome, cidade, aniversário, e-mail, telefone, trabalho, estudo, projeto, preferência, gosto, não gosto, “lembre que ...”, posse concreta); “tenho uma dúvida” não vira memória. Sem LLM, sem embedding. |
+| **`tools/actions/actions.py`** | Actions `salvar_fato` e `buscar_memoria` (categoria `memoria`) — catálogo **116 → 118**; liberadas ao papel `user` (só tocam o próprio grafo). |
+| **`core/orchestrator.py`** | `_post_process` → `_memorizar`: captura automática do que o usuário disse, melhor esforço (falha não quebra a resposta), desligável com `OD_MEMORY_AUTO=0`; nunca grava conversa anônima (`persist=False`). |
+| **`core/security/permissions.py`** | `salvar_fato`/`buscar_memoria` no papel `user`. |
+| **Testes** | `tests/test_memory_layer.py` **+47** (extração, idempotência, substituição sem apagar, histórico, isolamento entre usuários, persistência, arquivo corrompido, teto, busca, actions e orquestrador); `tests/conftest.py` isola `OD_MEMORY_PATH` em tmp para a suíte nunca sujar `data/memory.db`. Contagens 116 → 118 ajustadas em 5 arquivos de teste. |
+| **Custo medido** | Extração p50 **114 µs** (34 chars) / 341 µs (131 chars); gravação idempotente **0,026 ms**; fato novo com aresta **0,76 ms**; busca **3,4 ms** com 200 fatos — irrelevante ao lado de ~3 s do LLM. |
+| **Verificação** | Gate completo **4288 passed / 16 skipped / 0 falha** (188 s; eram 4241/16). Sem bump: app segue **1.44.0/2080**. |
+
 ## Sonda de latência periódica e check no /health (F3, 2026-11-10, sem bump)
 
 **Resumo:** a sonda usada nas duas fatias do F3 virou monitor contínuo. O

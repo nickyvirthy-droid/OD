@@ -77,6 +77,10 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
         # segredo; resposta sempre com disclaimer (SAUDE_AVISO) e nunca
         # inventa (fonte ausente = 'não achei').
         "saude_condicao", "saude_interacoes", "saude_medicamento",
+        # Memória longa (F4 fase 1): grava/lê SOMENTE o grafo do próprio
+        # user_id — dado privado do usuário, sem credencial e sem execução
+        # externa. O escopo é filtrado no SQL por user_id (core/memory_layer).
+        "salvar_fato", "buscar_memoria",
         # Google Workspace SOMENTE LEITURA — decisão explícita do
         # dono (2026-10-02: 'dono + usuário leitura'). Toda a escrita é do
         # admin (2º lote). Sem credencial configurada as actions degradam.

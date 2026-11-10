@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import os
 import re
 import threading
 import time
@@ -2063,6 +2064,38 @@ class Orchestrator:
                     "Orchestrator history write failed",
                     error=f"{type(exc).__name__}: {exc}",
                 )
+        self._memorizar(user_id, text)
+
+    def _memorizar(self, user_id: str, text: str) -> None:
+        """Memória longa (F4 fase 1): guarda fatos do que o usuário disse.
+
+        A extração é determinística (regex em `core/memory_layer`), custa
+        microssegundos e só toca o SQLite quando há fato reconhecido. É
+        melhor-esforço: falha de memória NUNCA quebra a resposta.
+        Desligável com `OD_MEMORY_AUTO=0`.
+        """
+        if os.environ.get("OD_MEMORY_AUTO", "1").strip().lower() in {"0", "false", "no"}:
+            return
+        try:
+            from core.memory_layer import extrair_fatos, obter_memoria
+
+            fatos = extrair_fatos(text)
+            if not fatos:
+                return
+            memoria = obter_memoria()
+            for fato in fatos:
+                memoria.adicionar_fato(
+                    user_id,
+                    fato["conteudo"],
+                    tipo=fato["tipo"],
+                    entidade=fato["entidade"],
+                    origem="chat",
+                )
+        except Exception as exc:
+            log.warn(
+                "Memória longa: gravação falhou",
+                error=f"{type(exc).__name__}: {exc}",
+            )
 
     def _stream_result(
         self,

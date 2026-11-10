@@ -11,7 +11,7 @@
 | Dimensão | Estado Atual | Gap Principal |
 |----------|--------------|---------------|
 | **Orquestração** | `orchestrator.py` monolítico (2285 linhas), loop síncrono, sem checkpointing | Sem durabilidade, sem resumo pós-falha, sem paralelismo controlado |
-| **Memória** | Histórico de chat simples + RAG básico (chunks JSON diários) | Sem memória longa estruturada (Mem0/Zep), sem grafo temporal, sem recall multi-sessão |
+| **Memória** | **F4 fase 1 entregue:** grafo temporal de fatos/entidades em `data/memory.db` (substituição sem apagar), ações `salvar_fato`/`buscar_memoria`, captura automática no chat | Histórico de chat segue em 20 mensagens por perfil; faltam embeddings (busca semântica) e consolidação periódica |
 | **RAG** | Embedding local + busca vetorial simples, cache LLM básico | Sem semantic caching, sem hybrid search, sem otimização KV-cache, latência não medida |
 | **Observabilidade** | **F2 entregue:** `core/telemetry.py` (OTel spans + métricas), log com `trace_id`/`span_id`, checks `telemetria` e `latencia` no `/health` | Sem coletor OTel/Grafana (infra) nem alertas — o código já exporta para o endpoint que for configurado |
 | **Resiliência** | **R2 entregue:** `core/resilience.py` com disjuntor por provider de LLM e degradação via fallback | Sem task queue (R1) nem retry policy declarativo; bulkhead dispensado por falta de pool saturado medido |
@@ -30,7 +30,7 @@
 | **F1** | **Migrar orquestrador para grafo de execução (LangGraph-style)** | Alto | 🔥🔥🔥 | LangGraph blog 2024-2025: checkpointing, parallelization, streaming, human-in-the-loop, task queue, tracing nativo |
 | **F2** | ~~Implementar OpenTelemetry distribuído (traces + metrics + logs correlacionados)~~ **ENTREGUE (10/11)**: SDK + spans + métricas + log correlacionado + check no `/health`; falta só o coletor/Grafana (infra) — ver §3 | Médio | 🔥🔥🔥 | python-observability.com, structlog + OTel + BatchSpanProcessor |
 | **F3** | ~~Substituir I/O síncrono por async em todo o core~~ **ENCERRADO (10/11)** com escopo revisado por medição: o problema real era trabalho de CPU no handler e backlog de socket — ver §3 | Alto → Baixo | 🔥🔥 | `aiohttp`, `asyncpg`, `asyncio.to_thread` para bloqueantes |
-| **F4** | **Memory Layer estruturada (Mem0/Zep-style: grafo temporal + consolidação)** | Alto | 🔥🔥🔥 | Mem0 (arXiv 2504.19413), Zep (arXiv 2501.13956), LOCOMO/LongMemEval |
+| **F4** | **Memory Layer estruturada (Mem0/Zep-style: grafo temporal + consolidação)** — **fase 1 ENTREGUE (10/11)**: grafo temporal em SQLite, extração determinística e 2 actions; faltam embeddings e consolidação (§3) | Alto → Médio | 🔥🔥🔥 | Mem0 (arXiv 2504.19413), Zep (arXiv 2501.13956), LOCOMO/LongMemEval |
 
 ### 🟡 ALTO — Inteligência & Performance
 
@@ -368,6 +368,38 @@ class MemoryGraph:
 | Retrieval latency (p95) | ~2s | < 160ms |
 | Context tokens/query | ~10k | < 5k |
 
+#### F4 — FASE 1 ENTREGUE (2026-11-10)
+
+**Status: fase 1 entregue.** O que faltava não era “mais histórico” (o
+`memory/history.py` já guarda 20 mensagens por perfil), e sim **memória entre
+sessões/perfis**: hoje, ao trocar de perfil ou passar de 20 mensagens, o
+usuário volta a ser um desconhecido. A fase 1 resolve isso com um grafo
+temporal barato e determinístico.
+
+| Peça | O que entrou |
+|---|---|
+| `core/memory_layer.py` | `MemoryNode`/`MemoryEdge`/`MemoryGraph` em SQLite (`data/memory.db`, WAL). Fatos substituídos **não são apagados**: nasce a aresta `substitui` (novo → antigo) e o antigo sai das buscas, mas continua no histórico auditável. |
+| Extração | 13 padrões PT-BR por regex (nome, cidade, aniversário, e-mail, telefone, trabalho, estudo, projeto, preferência, gosto, não gosto, “lembre que ...”, posse concreta). Sem LLM, sem embedding: 58–341 µs por mensagem. |
+| Escopo | Todo nó tem `user_id` e **toda** leitura filtra por ele — memória de um usuário não aparece para outro, nem por busca vazia. |
+| Actions | `salvar_fato` e `buscar_memoria` no catálogo (categoria `memoria`, 116 → **118** actions), liberadas para o papel `user` porque só tocam o próprio grafo. |
+| Captura automática | `Orchestrator._post_process` → `_memorizar`: grava o que o usuário disse, sem ele pedir. Melhor esforço (falha nunca quebra a resposta) e desligável com `OD_MEMORY_AUTO=0`. |
+| Testes | `tests/test_memory_layer.py` **+47** (extração, idempotência, substituição, histórico, isolamento por usuário, persistência, arquivo corrompido, teto de 500 fatos, busca, actions, orquestrador). |
+| Custo medido | Extração p50 **114 µs** (34 chars) / 341 µs (131 chars); gravação idempotente **0,026 ms**; fato novo com aresta **0,76 ms**; busca **3,4 ms** com 200 fatos. Irrelevante ao lado de ~3 s do LLM. |
+
+**Decisões e descartes da fase 1:**
+
+| Alternativa | Por que não |
+|---|---|
+| Extração por LLM | Cada mensagem viraria uma chamada extra; regex cobre o que o dono realmente diz e é testável sem rede. LLM entra na fase 2 só para o que sobrar. |
+| Embeddings/`sentence-transformers` | Dependência pesada e sem baseline de recall medido; a busca por termos + entidade já resolve “onde eu moro”. Fase 2. |
+| Apagar fato antigo | Perde auditoria e a resposta “quando eu mudei de cidade?”. A aresta `substitui` dá as duas coisas. |
+| Guardar memória no histórico de chat | É exatamente o que não escala (20 mensagens, por perfil). Grafo separado, escopo por usuário. |
+| `aiosqlite` | F3 já mostrou que thread-por-requisição não ganha com async; SQLite com lock é o padrão do projeto. |
+
+**Fase 2 (não iniciada):** busca semântica com embeddings, consolidação
+periódica (semanal) e injeção do bloco de memória no prompt do LLM — hoje as
+memórias só são acessíveis por action.
+
 ### R2 — Circuit Breaker (detalhe)
 
 **Status: entregue** (commit `7d8b958`; `tests/test_resilience.py` +16; gate
@@ -417,10 +449,13 @@ esperar o timeout.
 - [ ] Connection pools globais (HTTP, DB, Redis) — **sem demanda medida**;
       reabrir quando existir cliente HTTP de alto volume ou Redis (I1/R1)
 
-### Semana 5-6: Memory Layer (Fase 1)
-- [ ] F4: `core/memory_layer.py` com MemoryGraph (SQLite + embeddings)
-- [ ] Integração no orchestrator: `save_fact`, `search_memory` como tools
-- [ ] Consolidação periódica (cron job semanal)
+### Semana 5-6: Memory Layer (Fase 1) — **F4 FASE 1 ENTREGUE em 10/11**
+- [x] F4: `core/memory_layer.py` com MemoryGraph em SQLite — **sem embeddings**
+      na fase 1 (extração determinística + busca por termos)
+- [x] F4: integração no Orchestrator (`salvar_fato`/`buscar_memoria` no catálogo
+      + captura automática no `_post_process`)
+- [ ] F4 fase 2: busca semântica (embeddings), consolidação semanal e injeção
+      do bloco de memória no prompt
 
 ### Semana 7-8: Orquestrador como Grafo
 - [ ] F1: Definir `OrchestratorState` (TypedDict + reducers)
