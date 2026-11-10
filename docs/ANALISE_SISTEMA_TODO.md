@@ -170,7 +170,30 @@ logger = structlog.get_logger()
 | `error_rate` | Counter | < 0.1% |
 
 ### F3 — Async I/O em Todo o Core
-**Problemas atuais:** `requests` bloqueante em `auto_update.py`, `downloads.py`, `integrations/notifier.py`; `subprocess.run` síncrono; `sqlite3` síncrono.
+
+> **Auditoria de 2026-11-10 (antes de migrar):** o diagnóstico abaixo estava
+> desatualizado. Medido no código e no serviço vivo:
+>
+> | Premissa | Realidade |
+> |---|---|
+> | `requests` bloqueante em `downloads.py` | Não existe: `downloads.py` usa `urllib` **dentro de um worker thread próprio** (fila + `Condition`); o loop nunca é tocado. |
+> | `requests` bloqueante em `notifier.py` | Não existe: já usa `asyncio.to_thread` para `subprocess`. |
+> | `requests` bloqueante em `auto_update.py` | Não existe: já é `asyncio`. `requests` segue no `requirements.txt` só para ferramentas locais. |
+> | "bloquear o event loop" | Não há loop compartilhado: a API é `ThreadingHTTPServer` (thread por request) e cada handler faz seu `asyncio.run()`. I/O bloqueante atrasa **aquela** requisição, não o servidor. |
+>
+> Custo real medido: criar um loop novo por chamada = **~130 µs** (ruído frente
+> a qualquer handler). O risco verdadeiro é **trabalho pesado dentro do
+> handler** — e havia um: `/app/version` relia e re-hashava o APK de 72 MB a
+> cada chamada. Linha de base (`tools/monitor/io_probe.py`, 8 threads):
+> p50 **174,15 ms**, p95 183,19 ms, **20,0 req/s**; `/health` p50 7,75 ms.
+> Depois do cache por (mtime, tamanho): p50 **0,81 ms**, p95 1,01 ms,
+> **182,7 req/s** (215× e 9×).
+>
+> **Escopo revisado do F3:** em vez de trocar `requests`→`aiohttp` (não há o
+> que trocar), caçar trabalho bloqueante/CPU no caminho de requisição com a
+> sonda como régua, e só então decidir pooling/async onde houver ganho medido.
+
+**Problemas originais (histórico):** `requests` bloqueante em `auto_update.py`, `downloads.py`, `integrations/notifier.py`; `subprocess.run` síncrono; `sqlite3` síncrono.
 
 **Migração:**
 ```python

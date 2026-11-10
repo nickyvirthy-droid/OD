@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import hmac
 import http.client
 import io
@@ -65,6 +66,41 @@ from core.dev_canal import ideia_ja_implementada
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
 _APP_VERSION_CODE = 2080  # versionCode cru do APK publicado (v1.44.0+2080)
+
+# Cache dos metadados do APK (F3, 2026-11-10): o handler de /app/version
+# relia e re-hashava ~70 MB a CADA chamada (p50 medido: 174 ms; 20 req/s com
+# 8 threads). O app sonda esse endpoint a cada abertura, e o site também.
+# O cache invalida por (mtime_ns, tamanho): publicar um APK novo muda os dois
+# e o próximo request recalcula. `stat()` por request custa microssegundos.
+_APK_CACHE: dict[str, tuple[int, int, str]] = {}
+_APK_CACHE_LOCK = threading.Lock()
+
+
+def _hash_apk(caminho: Path) -> str:
+    """SHA-256 do APK em blocos de 1 MB (uma leitura, sem carregar tudo)."""
+    digest = hashlib.sha256()
+    with caminho.open("rb") as fh:
+        for bloco in iter(lambda: fh.read(1 << 20), b""):
+            digest.update(bloco)
+    return digest.hexdigest()
+
+
+def _metadados_apk(caminho: Path) -> Optional[tuple[int, str]]:
+    """(tamanho, sha256) do APK, com cache invalidado por mtime+tamanho."""
+    try:
+        st = caminho.stat()
+    except OSError:
+        return None
+    chave = str(caminho)
+    with _APK_CACHE_LOCK:
+        em_cache = _APK_CACHE.get(chave)
+        if em_cache is not None:
+            mtime_ns, tamanho, digest = em_cache
+            if mtime_ns == st.st_mtime_ns and tamanho == st.st_size:
+                return tamanho, digest
+        digest = _hash_apk(caminho)
+        _APK_CACHE[chave] = (st.st_mtime_ns, st.st_size, digest)
+        return st.st_size, digest
 from core.identity import resolve_account
 from agents.profiles import resolve_auto as resolve_auto_profile
 from agents.profiles import profile_display_name as _profile_display_name
@@ -4869,8 +4905,6 @@ class APIHandler(BaseHTTPRequestHandler):
         ~50 MB não deve pesar na memória nem na CPU de quem só checa se há
         atualização (o endpoint é público e o app o sonda a cada aberto).
         """
-        import hashlib
-
         base = Path(self.api.config.site_dir or DEFAULT_SITE_DIR).resolve()
         apk = base / "OmegaDrakon.apk"
         payload: dict[str, Any] = {
@@ -4879,13 +4913,9 @@ class APIHandler(BaseHTTPRequestHandler):
             "version_code": _APP_VERSION_CODE,
             "apk": "/site/OmegaDrakon.apk",
         }
-        if apk.is_file():
-            payload["size"] = apk.stat().st_size
-            digest = hashlib.sha256()
-            with apk.open("rb") as fh:
-                for chunk in iter(lambda: fh.read(1 << 20), b""):
-                    digest.update(chunk)
-            payload["sha256"] = digest.hexdigest()
+        metadados = _metadados_apk(apk)
+        if metadados is not None:
+            payload["size"], payload["sha256"] = metadados
         self._json(200, payload)
 
     def api_radio_agora(self) -> None:

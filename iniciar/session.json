@@ -1,4 +1,18 @@
 {
+  "retomada_dono_e_f3_fatia1_2026_11_10": {
+    "pedido": "Dono voltou: 'vamos prosseguir do primeiro até o último, em ordem, testando e discutindo os prós e contras, anotando tudo para auditoria'.",
+    "ordem": "F2 ok -> F3 (agora) -> F4 -> F1 -> I1/I2/I4/I5 -> R1/R5 -> P. R2 adiantado.",
+    "auditoria_f3": "Diagnóstico do TODO desatualizado: downloads.py usa urllib em worker próprio; notifier.py já usa asyncio.to_thread; auto_update.py já é asyncio; não há requests no caminho. API é ThreadingHTTPServer com asyncio.run por request (~130 us, ruído). Escopo revisado: medir trabalho pesado no handler.",
+    "achado": "/app/version relia e re-hashava o APK de 72 MB por chamada. Linha de base (8 threads, 200 req): p50 174,15 ms, p95 183,19 ms, 20,0 req/s. /health p50 7,75 ms.",
+    "correcao": "integrations/api/server.py: _metadados_apk() com cache (mtime_ns, tamanho) e _hash_apk() em blocos de 1 MB sob lock; servidor/_hash_apk importado no topo. tools/monitor/io_probe.py novo (série/concorrência + custo de asyncio.run, --intervalo p/ limiter).",
+    "depois": "p50 0,81 ms, p95 1,01 ms, 182,7 req/s (215x e 9x); sha256/size corretos.",
+    "testes": "test_api.py::test_app_version_cacheia_hash_e_invalida_por_mtime; gate 4227 passed / 16 skipped / 0 falha (226,63 s); test_rag 93 passed.",
+    "restart": "MainPID 1061707, NRestarts=0.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "proximo": "F3 fatia 2: sondar /site/*, /auth/login e checks do /health; só migrar para async se a medição mandar.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§4)",
+    "updated_at": "2026-11-10T13:10:00-03:00"
+  },
   "r2_circuit_breaker_2026_11_10": {
     "pedido": "Continuidade da autorização do dono (10/11): implementar o que não precisa da presença dele.",
     "feito": "core/resilience.py novo (CircuitBreaker thread-safe: fechado/aberto/meia_aberto, relogio injetavel, permitir/registrar_sucesso/registrar_falha/executar/status; registro global). core/llm.py: breaker por provider (llm:<nome>) em generate/generate_stream, is_available sem sonda quando aberto; recusa vira LLMError e cai no fallback do Orchestrator.",

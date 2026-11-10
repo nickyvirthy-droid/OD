@@ -2627,6 +2627,49 @@ class TestAPIAppVersion:
         assert data["size"] == len(payload)
         assert data["sha256"] == hashlib.sha256(payload).hexdigest()
 
+    def test_app_version_cacheia_hash_e_invalida_por_mtime(
+        self, serve, tmp_path: Path, monkeypatch
+    ) -> None:
+        """F3 (10/11): /app/version re-hashava ~70 MB por chamada (p50 174 ms).
+
+        O cache vale por (mtime_ns, tamanho) e é refeito quando o APK muda —
+        o app confia no sha256 para instalar, então stale não é opção.
+        """
+        import os
+        import time
+
+        from integrations.api import server as server_mod
+
+        apk = tmp_path / "OmegaDrakon.apk"
+        apk.write_bytes(b"PK\x03\x04" + b"y" * 4096)
+        contagem = {"n": 0}
+        original = server_mod._hash_apk
+
+        def _contando(caminho):
+            contagem["n"] += 1
+            return original(caminho)
+
+        monkeypatch.setattr(server_mod, "_hash_apk", _contando)
+        srv = serve(None, config=self._cfg(tmp_path))
+        port = srv.bound_port
+        for _ in range(3):
+            status, body, headers = _request(port, "GET", "/app/version")
+            assert status == 200
+            assert len(_json_response((status, body, headers))["sha256"]) == 64
+        assert contagem["n"] == 1, "o hash deve ser reaproveitado entre requests"
+
+        # Republicação: conteúdo e mtime mudam → próximo request recalcula.
+        apk.write_bytes(b"PK\x03\x04" + b"z" * 4096)
+        futuro = time.time() + 10
+        os.utime(apk, (futuro, futuro))
+        status, body, headers = _request(port, "GET", "/app/version")
+        assert status == 200
+        assert contagem["n"] == 2
+        import hashlib
+        assert _json_response((status, body, headers))["sha256"] == (
+            hashlib.sha256(apk.read_bytes()).hexdigest()
+        )
+
     def test_app_version_without_apk(self, serve, tmp_path: Path) -> None:
         """Sem APK publicado, o endpoint responde o básico (sem size/sha)."""
         srv = serve(None, config=self._cfg(tmp_path))

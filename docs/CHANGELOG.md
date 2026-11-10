@@ -12,6 +12,21 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## /app/version com cache de metadados do APK (F3, 2026-11-10, sem bump)
+
+**Resumo:** a auditoria do F3 mostrou que o diagnóstico do roadmap
+(`requests` bloqueante) não valia mais — e revelou o problema real: o handler
+de `/app/version` lia e calculava SHA-256 de um APK de **72 MB a cada
+chamada**. O app sonda esse endpoint a cada abertura e o site também, então
+era CPU/IO puro no caminho da requisição.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/api/server.py`** | `_metadados_apk()` com cache por `(mtime_ns, tamanho)`: o primeiro request de um APK novo paga o hash; os seguintes só fazem `stat()`. Republicar o binário muda mtime/tamanho e invalida sozinho. `_hash_apk()` lê em blocos de 1 MB, sob lock (nunca dois hashes de 72 MB em paralelo). |
+| **`tools/monitor/io_probe.py`** (novo) | Sonda de latência (série e concorrente) + custo de `asyncio.run()`, com `--intervalo` para respeitar o limiter de 30 req/min. É a régua das próximas fatias do F3. |
+| **Testes** | `tests/test_api.py::test_app_version_cacheia_hash_e_invalida_por_mtime`: 3 requests = 1 hash, e republicar o APK recalcula. |
+| **Verificação** | Gate **4227 passed / 16 skipped / 0 falha** (226,63 s). Ao vivo (8 threads, 200 requests): p50 **174,15 → 0,81 ms**, p95 183,19 → 1,01 ms, **20,0 → 182,7 req/s**; `sha256`/`size` continuam corretos. Sem bump: app segue **1.44.0/2080**. |
+
 ## Circuit breaker nos providers LLM (R2, 2026-11-10, sem bump)
 
 **Resumo:** quando um provider de LLM cai, cada mensagem gastava o timeout

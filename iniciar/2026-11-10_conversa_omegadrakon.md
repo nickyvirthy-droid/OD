@@ -123,7 +123,75 @@ Escolhido o F2 do roadmap: menor risco, maior visibilidade (Semana 1-2).
   (`ok=true`), journal **0 `[ERROR]`** na janela.
 - Sem bump: app segue **1.44.0/2080**.
 
-### 4. Fila
+## §4 — Retomada do dono e F3: auditoria + primeira fatia (10/11)
+
+**Dono voltou:** *"vamos prosseguir… do primeiro até o último, em ordem,
+testando e discutindo os prós e contras, anotando tudo para auditoria"*.
+
+### 1. Ordem acordada (a do roadmap §4, não a da matriz)
+
+F2 (observabilidade) ✔ → **F3 (I/O e trabalho bloqueante) ← agora** →
+F4 (memory layer) → F1 (orquestrador em grafo) → I1/I2/I4/I5 (RAG) →
+R1/R5 (fila e eval) → itens P. R2 foi adiantado porque era barato e
+independente. Cada item: medir → implementar a menor fatia útil → gate →
+registrar → discutir.
+
+### 2. Prós e contras do F3 como estava escrito
+
+**Prós:** menos threads paradas em timeout; pooling evita handshake por
+chamada; `async` ajuda quando o número de conexões cresce.
+
+**Contras (medidos):** o diagnóstico estava velho — `downloads.py` usa
+`urllib` **em worker próprio**, `notifier.py` já usa `asyncio.to_thread`,
+`auto_update.py` já é `asyncio`; não há `requests` no caminho. A API é
+`ThreadingHTTPServer` com `asyncio.run()` por request: não existe loop
+compartilhado para bloquear. Criar um loop custa **~130 µs** — ruído. Migrar
+para `aiohttp`/`aiosqlite` sem número que justifique só adicionaria
+superfície de falha no caminho crítico do chat.
+
+**Conclusão:** escopo revisado — caçar trabalho pesado no handler, com sonda
+como régua. Foi o que achou o problema abaixo.
+
+### 3. O que a sonda achou (linha de base, 8 threads)
+
+| Endpoint | p50 | p95 | Vazão |
+|---|---|---|---|
+| `/app/version` | **174,15 ms** | 183,19 ms | **20,0 req/s** |
+| `/health` | 7,75 ms | 47,35 ms | — |
+
+Causa: `/app/version` relia e re-hashava o APK de **72 MB a cada chamada**
+(o comentário dizia "lazy", mas o hash era inline). O app sonda esse endpoint
+a cada abertura.
+
+### 4. Correção
+
+- `integrations/api/server.py`: `_metadados_apk()` com cache por
+  `(mtime_ns, tamanho)`; `_hash_apk()` em blocos de 1 MB sob lock. Republicar
+  o APK invalida sozinho — o `sha256` que o app usa para instalar nunca fica
+  velho.
+- `tools/monitor/io_probe.py` (novo): sonda série/concorrência + custo de
+  `asyncio.run()`, com `--intervalo` para o limiter de 30 req/min.
+
+### 5. Resultado medido (mesma sonda, 200 requests)
+
+| Métrica | Antes | Depois | Ganho |
+|---|---|---|---|
+| p50 | 174,15 ms | **0,81 ms** | 215× |
+| p95 | 183,19 ms | 1,01 ms | 181× |
+| Vazão (8 threads) | 20,0 req/s | **182,7 req/s** | 9× |
+
+Gate **4227 passed / 16 skipped / 0 falha** (226,63 s); RAG 93 passed depois
+das edições de docs. Restart: MainPID 1061707, `NRestarts=0`. Sem bump:
+app segue **1.44.0/2080**.
+
+### 6. Próximo (F3, fatia 2)
+
+Procurar o mesmo padrão nos outros handlers com a sonda: servir `/site/*`
+(arquivos grandes por thread), `/auth/login` (custo de hash de senha) e
+`/health` quando algum check pesado entra na conta. Só migrar para async se
+a medição mandar.
+
+### 7. Fila
 
 - Análise/TODO de 10/11: execução devagar; próximo recomendado é **F2
   (OpenTelemetry)** — menor risco e maior visibilidade.
