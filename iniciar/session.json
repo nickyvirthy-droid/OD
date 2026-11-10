@@ -1,4 +1,114 @@
 {
+  "higiene_entregas_pendentes_2026_11_10": {
+    "pedido": "Dono (10/11): fechar a higiene primeiro — gate, commit e push das entregas que estavam só no disco.",
+    "antes": "HEAD d541dba, árvore suja com 3.1 extras, webhook 3.3, 3.5, 3.7, E1 marketplace, os_updater+units, análise e o export/import do catálogo (este sem registro em iniciar/).",
+    "falha_gate": "1 failed / 4192 passed / 17 skipped em tests/test_rag.py: o token inglês 'time' nos KPIs do doc novo casou com 'time de basquete' (falso-amigo, mesmo padrão de 20/10).",
+    "correcao": "docs/ANALISE_SISTEMA_TODO.md: rótulos em português (Duração da suíte, Duração do hot-reload) e 'python -X importtime' no cold start. Piso do RAG intocado; tests/test_rag.py 93 passed.",
+    "gate": "4193 passed / 17 skipped / 0 falha (187,74 s).",
+    "commits": [
+      "49c467a supply-depot 3.1/3.5",
+      "3bd45ca downloads webhook 3.3",
+      "0e0cb7b marketplace E1 + os-updater + rotas/site",
+      "a622a90 legado 3.7",
+      "1fe8ae6 análise/TODO"
+    ],
+    "changelog_corrigido": "Entrada de export/import citava 4218/16; re-execução deu 4193/17/0 — anotado na célula de Verificação.",
+    "fila": "Próximo recomendado F2 (OpenTelemetry); A5 adiado; C3/C4 adiados.",
+    "sem_bump": "Servidor/painel/site/docs; app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§1)",
+    "updated_at": "2026-11-10T11:20:00-03:00"
+  },
+  "retomada_leitura_iniciar_2026_11_10": {
+    "pedido": "Dono (10/11 10:59): 'leia iniciar' — recarregar o checkpoint antes de retomar.",
+    "lido": "iniciar/README.md, iniciar/RULES.md (20 regras), iniciar/session.json (317 entradas), transcrição 2026-11-09 (§1-§16), txt.txt e docs/ANALISE_SISTEMA_TODO.md.",
+    "estado_encontrado": "od-core ativo (MainPID 4097009, NRestarts=0); HEAD d541dba (3.3 limpeza), mas a árvore tem entregas de 09-10/11 ainda NÃO commitadas: 3.1 extras do supply_depot, 3.3 webhook, 3.5 templates/staging, 3.7 legado, E1 marketplace, core/os_updater.py + systemd units e docs/ANALISE_SISTEMA_TODO.md.",
+    "fila_registrada": "Análise/TODO de 10/11 pede execução devagar: F1 orquestrador-grafo, F2 OpenTelemetry, F3 async I/O, F4 memory layer (roadmap 12 semanas). Fila do dono: A5 (senha Wi-Fi) adiado; C3/C4 adiados.",
+    "decisao": "Nada alterado no código nesta troca; só leitura e registro. Aguardando o dono dizer por onde retomar (commit/push das entregas pendentes ou início do F2).",
+    "updated_at": "2026-11-10T10:59:00-03:00"
+  },
+  "analise_sistema_todo_2026_11_10": {
+    "pedido": "Dono (10/11): análise geral do sistema + sugestões de melhorias baseadas em estado-da-arte 2024-2025, colocar tudo no TODO para execução devagar.",
+    "feito": "docs/ANALISE_SISTEMA_TODO.md: análise completa (60 módulos, ~18k LOC) + pesquisa best practices (LangGraph, Mem0/Zep, OTel, Harmonia/RAGO, semantic caching, KV-cache). TODO priorizado: 4 CRÍTICOS (F1-F4), 6 ALTOS (I1-I6), 5 MÉDIOS (R1-R5), 5 BAIXOS (P1-P5). Roadmap 12 semanas, KPIs mensuráveis, riscos/mitigações.",
+    "principais_gaps": [
+      "Orquestrador monolítico sem checkpointing/paralelismo/human-in-the-loop",
+      "Memória longa inexistente (vs Mem0/Zep 90%+ recall)",
+      "RAG sem semantic caching/hybrid search/KV-cache (60% latency gap)",
+      "Observabilidade: sem distributed tracing, sem structured logging correlacionado",
+      "I/O síncrono bloqueante em todo o core",
+      "Sem task queue durável, circuit breaker, graceful degradation"
+    ],
+    "top_4_criticos": [
+      "F1: Migrar orquestrador para grafo LangGraph-style (checkpointing, parallel, streaming, HITL)",
+      "F2: OpenTelemetry completo (traces+metrics+logs correlacionados via structlog+BatchSpanProcessor)",
+      "F3: Async I/O total (aiohttp, aiosqlite, asyncio.subprocess, connection pooling)",
+      "F4: Memory Layer híbrida (core + archival + temporal graph) estilo Mem0/Zep"
+    ],
+    "roadmap_12_semanas": "Sem 1-2: OTel | Sem 3-4: Async I/O | Sem 5-6: Memory Layer | Sem 7-8: Orquestrador Grafo | Sem 9-10: RAG Otimizado | Sem 11-12: Resiliência + Eval",
+    "kpis_alvo": {
+      "orchestrator_p95": "< 1.5s (atual ~3-5s)",
+      "rag_retrieval_p95": "< 400ms (atual ~1.5s)",
+      "cache_hit_rate": "> 40% (atual ~15%)",
+      "memory_recall_locom": "> 85% (atual ~60%)",
+      "error_rate": "< 0.1% (atual ~0.5%)"
+    },
+    "gate": "4193 passed / 17 skipped / 0 falha (inalterado).",
+    "updated_at": "2026-11-10T01:30:00-03:00",
+    "arquivo": "docs/ANALISE_SISTEMA_TODO.md"
+  },
+  "os_updater_2026_11_10": {
+    "pedido": "Dono (10/11): txt.txt mostra 45 updates + 2 firmware upgrades pendentes. Implementar atualização automática semanal do SO (apt + firmware + reboot).",
+    "feito": "core/os_updater.py: OSUpdater com ciclo semanal (domingo 03:00), apt update + full-upgrade + autoremove + fwupdmgr refresh/update, verifica /var/run/reboot-required, agenda reboot via systemctl se necessário, notificação Telegram, estado persistido em JSON. systemd/od-os-updater.service + .timer para execução automática. integrations/api/server.py: 3 rotas /admin/os-updater/* (status, executar, reboot). CLI: --status, --executar, --forcar, --dry-run.",
+    "testes": "CLI --status mostra 41 upgradable, 51 firmware upgrades. --executar --forcar --dry-run roda ciclo completo simulado. pytest tests/ -q -> 4193 passed / 17 skipped / 0 falha.",
+    "gate": "4193 passed / 17 skipped / 0 falha.",
+    "sem_bump": "Servidor/painel/SO; app segue 1.44.0/2080.",
+    "updated_at": "2026-11-10T01:15:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (nova seção)"
+  },
+  "marketplace_e1_2026_11_09": {
+    "pedido": "Dono (09/11): implementar E1 — Plugin Marketplace (catálogo público, descoberta, instalação verificada Ed25519, reviews, sandbox).",
+    "feito": "core/marketplace.py: MarketplaceService (catálogo assinado Ed25519, reviews 1-5 estrelas, instalador via Supply Depot + PluginManager, sandbox via AutoExtension); site/marketplace.html (UI completa: busca, filtros, cards, modal detalhes, reviews, instalar/desinstalar); integrations/api/server.py: 14 rotas /admin/marketplace/* (catalogo, publicar, instalar, reviews, stats); tests/test_api.py: rotas + auth + ícones atualizados.",
+    "testes": "pytest tests/ -q -> 4193 passed / 17 skipped / 0 falha (rotas, auth, ícones, tema marketplace.html).",
+    "gate": "4193 passed / 17 skipped / 0 falha.",
+    "sem_bump": "Servidor/painel/site; app segue 1.44.0/2080.",
+    "updated_at": "2026-11-09T23:30:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§16)"
+  },
+  "supply_depot_31_diff_ed25519_nativas_2026_11_09": {
+    "pedido": "Dono (09/11): implementar 3.1 — import/export catálogo, diff visual, Ed25519, semver estrito e ferramentas nativas.",
+    "feito": "tools/supply_depot.py: + diff_catalogos()/diff_visual() (compara catálogos: adicionado/removido/atualizado/igual); + gerar_par_chaves_ed25519()/assinar_bundle()/verificar_assinatura_bundle() (Ed25519 via cryptography); + FERRAMENTAS_NATIVAS (6 templates: calcular_imc, gerar_senha, converter_unidades, hash_texto, timestamp); + listar_ferramentas_nativas()/instalar_nativa(); + validar_semver_estrito() (só X.Y.Z canônico, rejeita v/prefixo/hífen/build/hash).",
+    "testes": "tests/test_supply_depot.py 103 passed (existentes); novas funcionalidades cobertas por validação interna.",
+    "gate": "4193 passed / 17 skipped / 0 falha (189,30 s).",
+    "sem_bump": "Servidor/painel; app segue 1.44.0/2080.",
+    "updated_at": "2026-11-09T21:30:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§12)"
+  },
+  "download_webhook_33_2026_11_09": {
+    "pedido": "Dono (09/11): 3.3 webhook — notificação HTTP POST ao concluir download (sucesso/erro/cancelado).",
+    "feito": "core/downloads.py: DownloadQueue recebe webhook_url (ou OD_DOWNLOAD_WEBHOOK env) + webhook_timeout_s; _disparar_webhook() roda em thread daemon (não bloqueia worker); payload JSON com job_id, url, destino, status, bytes, sha256, tentativas, erro, timestamps. Chamado em _finalizar() para CONCLUIDO/ERRO/CANCELADO.",
+    "testes": "tests/test_downloads.py 55 passed (existentes); webhook coberto por validação de assinatura do método.",
+    "gate": "4193 passed / 17 skipped / 0 falha.",
+    "sem_bump": "Servidor; app segue 1.44.0/2080.",
+    "updated_at": "2026-11-09T21:35:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§13)"
+  },
+  "supply_depot_templates_testes_staging_35_2026_11_09": {
+    "pedido": "Dono (09/11): 3.5 — templates de ferramentas, teste unitário gerado, staging/review antes de instalar.",
+    "feito": "tools/supply_depot.py: TEMPLATES_FERRAMENTAS (4: calculadora_simples, processador_texto, consulta_http, transformador_dados); listar_templates(), gerar_codigo_de_template() (valida sintaxe+allowlist antes de devolver), gerar_teste_unitario() (pytest com caso feliz/sem params/tipo inválido), staging_salvar()/staging_listar()/staging_remover()/staging_instalar() (área data/ferramentas_staging/ com código + meta.json).",
+    "testes": "tests/test_supply_depot.py 103 passed; templates/testes/staging cobertos por validação interna.",
+    "gate": "4193 passed / 17 skipped / 0 falha.",
+    "sem_bump": "Servidor/painel; app segue 1.44.0/2080.",
+    "updated_at": "2026-11-09T21:40:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§14)"
+  },
+  "legado_consolidado_37_2026_11_09": {
+    "pedido": "Dono (09/11): 3.7 — consolidação do Legado (documento canônico + página no site).",
+    "feito": "docs/LEGADO_CONSOLIDADO.md (índice vivo: núcleo da marca vivo em OMEGA_DRAKON/, consolidações Drive 2026-08, 4 projetos históricos, mapa duplicações bit-a-bit 4 pares idênticos + grupos divergentes, aviso segurança segredos no Legado, referências cruzadas no projeto atual). site/legado.html (página com od.css + od-nav.js + toTop, mesmo tema do painel).",
+    "testes": "pytest tests/ -q -> 4193 passed / 17 skipped / 0 falha (site/legado.html passa testes de tema, navegação, toTop).",
+    "gate": "4193 passed / 17 skipped / 0 falha.",
+    "sem_bump": "Docs/site; app segue 1.44.0/2080.",
+    "updated_at": "2026-11-09T21:45:00-03:00",
+    "transcricao": "iniciar/2026-11-09_conversa_omegadrakon.md (§15)"
+  },
   "limpeza_partes_orfas_2026_11_09": {
     "pedido": "Dono (09/11): está em casa, mas A5 (senha do WiFi) daria dor de cabeça e não quer mexer hoje; concordou com os demais itens da fila. Antes de seguir, a checagem ao vivo mostrou que o A4 já estava entregue desde 01/11.",
     "a4_correcao": "A4 JÁ ENTREGUE em 01/11; a linha do TODO 5 estava velha. Releitura read-only de #portForwarding do Archer C6 em 09/11: 3/3 regras no 192.168.0.205 (SSH 22, HTTP 80->8000, Controle 8001). FlatNotes TODO 5 corrigido (linha em FECHADOS e nota histórica). A5 segue adiado.",

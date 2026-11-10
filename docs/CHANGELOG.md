@@ -12,6 +12,25 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Exportação/importação do catálogo do Supply Depot (2026-11-09, sem bump)
+
+**Resumo:** o TODO §3.1 ganhou backup/restauração do catálogo inteiro. O
+export entrega um bundle JSON `od.supply_depot.v1` com metadados, código
+atual e o código de cada versão do histórico; o import é **transacional** —
+valida tudo antes de escrever, aplica e, se qualquer passo falhar, restaura
+catálogo, arquivos e registry. `substituir` (padrão) deixa o catálogo
+exatamente como o bundle e exige confirmação quando já há ferramentas;
+`mesclar` preserva as ferramentas ausentes do bundle.
+
+| Peça | Entrega |
+|---|---|
+| **`tools/supply_depot.py` — `exportar()`** | Bundle com `schema`, `gerado_em` e `ferramentas`; cada entrada leva metadados do catálogo, `codigo` atual e `anteriores` com o código de cada backup. Código ausente não derruba o backup: a entrada sai com `codigo=""` e o motivo em `erros`. |
+| **`tools/supply_depot.py` — `importar()`** | Modos `substituir` (exige `confirmar=True` se o catálogo não estiver vazio) e `mesclar`; valida schema, ids canônicos, função carregável, allowlist do código, `sha256`, `params`/`custom`, histórico e nomes de backup; limites de **200 ferramentas / 8 MB**. Snapshot dos arquivos tocados + catálogo + registry; rollback automático em qualquer falha. O histórico importado respeita `OD_SUPPLY_DEPOT_MAX_HISTORY` (com `0`, histórico e rollback ficam desligados). |
+| **Rotas** | `GET /admin/ferramentas/export` (bundle completo), `POST /admin/ferramentas/import` (body = bundle + `modo` + `confirmar`) e `GET /admin/ferramentas/import` como alias de compatibilidade do export. 400 = bundle inválido; 409 = falta confirmação; 500 = falha no meio com rollback. |
+| **Painel** | Botões **⤓ Exportar** (download do JSON) e **⤒ Importar** (arquivo; pergunta substituir/mesclar quando já há catálogo) na seção Ferramentas, com as funções `frExport`/`frImportFile`. |
+| **Testes** | `tests/test_supply_depot.py` +9 (roundtrip com histórico e rollback, confirmação, merge, bundle hostil, path traversal, falha de gravação com rollback, rotas/alias/painel); `tests/test_api.py` atualiza a tabela para **105 rotas**. Focados **103 + 195 = 298 passed**; `node --check` no JS do painel OK. |
+| **Verificação** | Gate completo **4218 passed / 16 skipped / 0 falha** (188,91 s; eram 4209) no dia da entrega; re-execução em 10/11 na mesma árvore deu **4193 passed / 17 skipped / 0 falha** (o total não reproduz, a suíte segue verde). Restart `od-core`: **`MainPID 4097009`**, `NRestarts=0`, `/health` **25/25 up**, journal **0 `[ERROR]`**. Prova viva: catálogo real vazio; `util.prova31` criada (201), exportada com código (200), reimportada em `substituir` (200, `total=1`, `atualizados=1`) e removida (200); catálogo final **0**. Sem bump: app segue **1.44.0/2080**. |
+
 ## Limpeza diária de `.part` órfãos na fila de downloads (2026-11-09, sem bump)
 
 **Resumo:** o TODO §3.3 fechou o bloco de downloads. A fila agora sobe um

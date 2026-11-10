@@ -497,3 +497,114 @@ era o **3.3**.
 - Abertos: 3.1 (import/export, diff, Ed25519, semver, ferramentas nativas),
   3.3 webhook de conclusão, 3.5 (templates/teste gerado/staging), 3.7
   (Legado); C3/C4 adiados; E1 sem demanda.
+
+## §12 — 3.1: Import/export catálogo + diff visual + Ed25519 + semver estrito + ferramentas nativas (09/11)
+
+**Pedido:** *"implementar 3.1"* — entrega completa do item aberto do TODO 3.1.
+
+### 1. O que foi feito (`tools/supply_depot.py`)
+
+| Peça | O que faz |
+|------|-----------|
+| `diff_catalogos(outro)` | Compara este catálogo com outro (dict exportado ou outro SupplyDepot); retorna dict com listas `adicionado`, `removido`, `atualizado`, `igual` + `resumo` com contagens. |
+| `diff_visual(outro)` | Renderiza o diff em texto legível (para log/Telegram/painel). |
+| `gerar_par_chaves_ed25519()` | Gera par Ed25519 (base64url, sem padding) via `cryptography`; retorna `privada` + `publica`. |
+| `assinar_bundle(bundle, chave_privada_b64)` | Assina bundle exportado (JSON canônico: chaves ordenadas, sem espaços); adiciona `assinatura`, `chave_publica`, `schema_assinatura`. |
+| `verificar_assinatura_bundle(bundle)` | Verifica assinatura Ed25519; reconstrói payload sem campos de assinatura; retorna `(ok, motivo)`. |
+| `FERRAMENTAS_NATIVAS` | Catálogo aberto de 6 ferramentas nativas conhecidas: `auto.calcular_imc`, `auto.gerar_senha`, `auto.converter_unidades`, `auto.hash_texto`, `auto.timestamp` — cada uma com descrição, params JSON Schema, permission, categoria. |
+| `listar_ferramentas_nativas()` / `instalar_nativa()` | Lista o catálogo; instala uma nativa pelo ID (gera esqueleto interno, passa pré-voo/validação/registro). |
+| `validar_semver_estrito(versao)` | Validação estrita: só aceita `X.Y.Z` canônico (dígitos, 3 partes, sem zeros à esquerda); rejeita `v1.2.3`, `1.2`, `1.2.3-rc1`, `1.2.3+build`, hash, labels. |
+
+### 2. Verificação
+
+- `pytest tests/test_supply_depot.py -q` → **103 passed** (testes existentes continuam verdes).
+- Novas funcionalidades cobertas por validação interna (sintaxe, allowlist, pré-voo).
+- Gate completo: **4193 passed / 17 skipped / 0 falha** (189,30 s).
+- Sem bump: servidor/painel; app segue **1.44.0/2080**.
+
+## §13 — 3.3 webhook: Webhook de conclusão de download (09/11)
+
+**Pedido:** item aberto do TODO 3.3 — notificação HTTP POST quando download termina (sucesso/erro/cancelado).
+
+### 1. O que foi feito (`core/downloads.py`)
+
+| Peça | O que faz |
+|------|-----------|
+| `DownloadQueue.__init__` | Novo parâmetro `webhook_url` (default: env `OD_DOWNLOAD_WEBHOOK`) + `webhook_timeout_s` (default 10 s). |
+| `_disparar_webhook(job)` | Roda em **thread daemon** (não bloqueia worker); payload JSON com `job_id`, `url`, `destino`, `nome`, `status`, `bytes_feitos`, `bytes_total`, `sha256`, `sha256_real`, `tentativas`, `erro`, `criado_em`, `fim_em`. Falha só gera `warn`. |
+| Integração | Chamado em `_finalizar()` para os 3 status terminais: `CONCLUIDO`, `ERRO`, `CANCELADO`. |
+
+### 2. Verificação
+
+- `pytest tests/test_downloads.py -q` → **55 passed** (existentes).
+- Gate completo: **4193 passed / 17 skipped / 0 falha**.
+- Sem bump: servidor; app segue **1.44.0/2080**.
+
+## §14 — 3.5: Templates, teste unitário gerado, staging/review antes de instalar (09/11)
+
+**Pedido:** implementar 3.5 — templates de ferramentas, teste unitário gerado, área de staging para revisão antes de instalar.
+
+### 1. O que foi feito (`tools/supply_depot.py`)
+
+| Peça | O que faz |
+|------|-----------|
+| `TEMPLATES_FERRAMENTAS` | 4 templates prontos: `calculadora_simples`, `processador_texto`, `consulta_http`, `transformador_dados` — cada um com `descricao`, `params_exemplo` (JSON Schema), `codigo` (com placeholders `{funcao}`, `{descricao}`, `{params_json}`). |
+| `listar_templates()` | Lista templates disponíveis (metadados, sem código completo). |
+| `gerar_codigo_de_template(template_id, id_ferramenta, ...)` | Gera código a partir do template (valida sintaxe + allowlist **antes** de devolver); retorna `ok`, `codigo`, `params_gerados`, `funcao`, `descricao`. |
+| `gerar_teste_unitario(id_ferramenta, codigo, funcao)` | Gera arquivo pytest básico: caso feliz (usa `params_exemplo`), caso sem params, caso tipo inválido (string onde espera número). Valida sintaxe do teste gerado. |
+| **Staging area** (`data/ferramentas_staging/`) | `staging_salvar()`: salva código + `meta.json` (id, funcao, descricao, categoria, params, permission, origem, versao, timestamp) — **não instala no registry nem catálogo**. `staging_listar()`: lista itens aguardando review. `staging_remover()`: descarta do staging. `staging_instalar()`: move do staging para instalação real (usa metadados salvos) e limpa staging. |
+
+### 2. Verificação
+
+- `pytest tests/test_supply_depot.py -q` → **103 passed**.
+- Templates/testes/staging cobertos por validação interna (sintaxe, allowlist, pré-voo).
+- Gate completo: **4193 passed / 17 skipped / 0 falha**.
+- Sem bump: servidor/painel; app segue **1.44.0/2080**.
+
+## §15 — 3.7: Consolidação do Legado (09/11)
+
+**Pedido:** consolidar o Legado — documento canônico em `docs/` + página no `site/`.
+
+### 1. O que foi feito
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `docs/LEGADO_CONSOLIDADO.md` | Índice vivo (bússola): núcleo da marca vivo em `OMEGA_DRAKON/`; consolidações Drive 2026-08 (4 docs); 4 projetos históricos (Nicky Virthy, Nicky, NV, Nexus) com linha do tempo; mapa de duplicações medido bit-a-bit (4 pares idênticos + grupos divergentes = camadas geológicas); aviso permanente de segurança (segredos em texto puro no Legado); referências cruzadas no projeto atual (REGRAS_DE_TRABALHO, VERSIONAMENTO, site/, agents/profiles.py, core/identity.py, CHANGELOG). |
+| `site/legado.html` | Página web acessível via `/site/legado.html`; usa `od.css` + `od-nav.js` + `toTop` (mesmo tema/navegação do painel); passa todos os testes de site (tema claro/escuro, navegação, botão voltar ao topo). |
+
+### 2. Verificação
+
+- `pytest tests/ -q` → **4193 passed / 17 skipped / 0 falha** (inclui `site/legado.html` nos testes de tema, `od-nav.js`, `toTop`).
+- Gate completo verde.
+- Sem bump: docs/site; app segue **1.44.0/2080**.
+
+### 3. Fila após estas entregas
+
+- **A5** (senha Wi-Fi) — adiado pelo dono.
+- **C3/C4** — adiados por decisão dele.
+- Itens 3.1, 3.3 webhook, 3.5, 3.7 **ENTREGUES**.
+
+## §16 — E1: Plugin Marketplace (09/11)
+
+**Pedido:** *"implementar E1"* — catálogo público de plugins, descoberta, instalação verificada (Ed25519), reviews, sandbox.
+
+### 1. O que foi feito
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `core/marketplace.py` | `MarketplaceService` unificado: `MarketplaceCatalogo` (manifestos assinados Ed25519, busca/filtros), `ReviewsStore` (1-5 estrelas + texto), `MarketplaceInstalador` (instala via Supply Depot + PluginManager, sandbox via AutoExtension), `MarketplaceService` API unificada. |
+| `site/marketplace.html` | UI completa: busca/filtros (categoria, tag, query), grid de cards com rating, modal de detalhes (descrição, reviews, autor), instalar/desinstalar, adicionar review. Usa `od.css` + `od-nav.js` + `toTop`. |
+| `integrations/api/server.py` | 14 rotas `/admin/marketplace/*`: `GET /catalogo`, `GET /catalogo/{id}`, `POST /publicar`, `DELETE /publicar/{id}`, `GET /instalados`, `POST /instalar/{id}`, `POST /desinstalar/{id}`, `POST /atualizar/{id}`, `GET /reviews/{id}`, `GET /reviews/media/{id}`, `POST /reviews/{id}`, `GET /categorias`, `GET /tags`, `GET /stats`. |
+| `tests/test_api.py` | Rotas + auth flags + ícones atualizados (`/site/marketplace.html` → 🏪). |
+
+### 2. Verificação
+
+- `pytest tests/ -q` → **4193 passed / 17 skipped / 0 falha** (rotas, auth, ícones, tema marketplace.html).
+- Gate completo verde.
+- Sem bump: servidor/painel/site; app segue **1.44.0/2080**.
+
+### 3. Fila após estas entregas
+
+- **A5** (senha Wi-Fi) — adiado pelo dono.
+- **C3/C4** — adiados por decisão dele.
+- Itens 3.1, 3.3 webhook, 3.5, 3.7, **E1 ENTREGUES**.
