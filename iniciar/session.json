@@ -1,4 +1,14 @@
 {
+  "gemini_key_velha_no_bashrc_2026_11_10": {
+    "pedido": "Dono: localizar onde a GEMINI_API_KEY velha era exportada no shell e remove-la.",
+    "diagnostico": "A variavel vinha de ~/.bashrc linha 127 (export GEMINI_API_KEY=..., 40 chars, hash aa33b91c), herdada por bash -> freebuff -> node/agente; systemd --user nao a tinha e nenhum outro arquivo de inicializacao casava. A chave do .env (39 chars, hash 1787e9a5) e a valida e identica a do processo od-core.",
+    "feito": "Removida a unica linha export GEMINI_API_KEY do ~/.bashrc (136 -> 135 linhas, sem backup com o segredo; a chave valida segue no .env, gitignored). Nenhum valor foi impresso.",
+    "prova": "bash novo com env -u: ausente. Sem GEMINI_API_KEY no ambiente, load_dotenv('.env') fornece 39 chars hash 1787e9a5 e embed_textos responde OK com 768 dims.",
+    "observacao": "O processo freebuff/node desta sessao ja nasceu com a variavel velha; so sessoes/terminais novos ficam limpos (reiniciar o cliente resolve). od-core nao precisa de restart: usa EnvironmentFile=.env e ja tinha a chave valida.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§14)",
+    "updated_at": "2026-11-10T18:35:00-03:00"
+  },
   "f4_fase4b_cache_resultado_semantico_2026_11_10": {
     "pedido": "Dono: reduzir o custo de 0,4 s do fallback semantico com cache de resultados por consulta normalizada.",
     "feito": "core/memory_layer.py: cache em memoria do resultado do fallback (inclusive vazio) com chave = usuario + consulta normalizada (NFKD, caixa e pontuacao fora) + modelo + assinatura (id, updated_at) dos fatos ativos; TTL 300 s por OD_MEMORY_SEMANTICA_CACHE_S (0 desliga), teto 256 entradas com LRU, invalidacao automatica quando fato novo/substituido/expirado muda o conjunto ativo; falha do provider nao cacheia vazio; stats() ganhou semantica_cache (entradas/hits/misses). tests/test_memory_embeddings.py +7.",

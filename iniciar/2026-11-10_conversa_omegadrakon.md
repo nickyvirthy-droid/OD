@@ -588,3 +588,45 @@ foram impressos.
 
 - Próximo recomendado: **F1** (orquestrador em grafo) — maior impacto
   estrutural; alternativa barata é iniciar **P** (dependências mortas).
+
+---
+
+## §14 — Limpeza da GEMINI_API_KEY velha no shell
+
+**Pedido do dono:** localizar onde a chave velha era exportada no shell e
+removê-la.
+
+### 1. Rastreamento
+
+- Arquivos de inicialização do home: **`~/.bashrc` linha 127**
+  (`export GEMINI_API_KEY=...`, 40 chars, hash `aa33b91c`). Nenhum outro
+  (`.bash_profile`, `.profile`, `.zshrc`, `~/.config/environment.d/`) casava.
+- `systemctl --user show-environment`: **não** continha a variável.
+- Cadeia de processos desta sessão: `bash → freebuff → node/freebuff → python`,
+  todos herdando o mesmo hash `aa33b91c` — ou seja, veio do shell que abriu o
+  cliente, não de serviço ou `.env`.
+
+A chave válida continua sendo a do `.env` (39 chars, hash `1787e9a5`),
+idêntica à do processo `od-core`.
+
+### 2. Correção
+
+- Removida a única linha `export GEMINI_API_KEY=` do `~/.bashrc`
+  (136 → 135 linhas). Sem backup com o segredo: a chave válida permanece no
+  `.env`, que é gitignored.
+- Nenhum valor de chave foi impresso em nenhum passo.
+
+### 3. Prova
+
+- `env -u GEMINI_API_KEY bash -ic '...'` → **ausente** no shell novo.
+- Sem a variável no ambiente, `load_dotenv(".env")` fornece 39 chars
+  hash `1787e9a5` e `embed_textos` responde com **768 dims**.
+- O processo `freebuff`/`node` desta sessão nasceu com a variável velha; só
+  terminais/sessões novos ficam limpos. O `od-core` não precisa de restart:
+  usa `EnvironmentFile=.env` e já rodava com a chave válida.
+
+### 4. Verificação
+
+- Mudança fora do repositório (home), sem código alterado — gate não se aplica;
+  o último gate segue **4330 passed / 16 skipped / 0 falha**.
+- Sem bump: app segue **1.44.0/2080**.
