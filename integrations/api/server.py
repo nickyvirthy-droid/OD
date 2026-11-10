@@ -444,10 +444,35 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     # customização do dono (PUT), rollback por versão e desinstalação.
     ("GET", "/admin/ferramentas", "admin_ferramentas_list", True),
     ("POST", "/admin/ferramentas", "admin_ferramentas_create", True),
+    # Exporta/importa o catálogo inteiro (TODO §3.1). O GET em /import é
+    # alias de compatibilidade; o canônico é /export.
+    ("GET", "/admin/ferramentas/export", "admin_ferramentas_export", True),
+    ("GET", "/admin/ferramentas/import", "admin_ferramentas_export", True),
+    ("POST", "/admin/ferramentas/import", "admin_ferramentas_import", True),
     ("PUT", "/admin/ferramentas/{id}", "admin_ferramentas_update", True),
     ("POST", "/admin/ferramentas/{id}/rollback",
      "admin_ferramentas_rollback", True),
     ("DELETE", "/admin/ferramentas/{id}", "admin_ferramentas_delete", True),
+    # Plugin Marketplace (E1, 2026-11-09) — catálogo público, descoberta,
+    # instalação verificada (Ed25519), reviews, sandbox.
+    ("GET", "/admin/marketplace/catalogo", "admin_marketplace_catalogo", True),
+    ("GET", "/admin/marketplace/catalogo/{id}", "admin_marketplace_catalogo_obter", True),
+    ("POST", "/admin/marketplace/publicar", "admin_marketplace_publicar", True),
+    ("DELETE", "/admin/marketplace/publicar/{id}", "admin_marketplace_remover", True),
+    ("GET", "/admin/marketplace/instalados", "admin_marketplace_instalados", True),
+    ("POST", "/admin/marketplace/instalar/{id}", "admin_marketplace_instalar", True),
+    ("POST", "/admin/marketplace/desinstalar/{id}", "admin_marketplace_desinstalar", True),
+    ("POST", "/admin/marketplace/atualizar/{id}", "admin_marketplace_atualizar", True),
+    ("GET", "/admin/marketplace/reviews/{id}", "admin_marketplace_reviews", True),
+    ("GET", "/admin/marketplace/reviews/media/{id}", "admin_marketplace_reviews_media", True),
+    ("POST", "/admin/marketplace/reviews/{id}", "admin_marketplace_review_add", True),
+    ("GET", "/admin/marketplace/categorias", "admin_marketplace_categorias", True),
+    ("GET", "/admin/marketplace/tags", "admin_marketplace_tags", True),
+    ("GET", "/admin/marketplace/stats", "admin_marketplace_stats", True),
+    # OS Updater (2026-11-10) — atualização semanal do SO (apt + firmware + reboot)
+    ("GET", "/admin/os-updater/status", "admin_os_updater_status", True),
+    ("POST", "/admin/os-updater/executar", "admin_os_updater_executar", True),
+    ("POST", "/admin/os-updater/reboot", "admin_os_updater_reboot", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -1591,6 +1616,9 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       <input id="fr-desc" placeholder="descrição" style="flex:1;min-width:160px">
       <button id="fr-add" style="border-color:var(--accent);color:var(--accent)">＋ Instalar</button>
       <button id="fr-refresh">↻ Carregar</button>
+      <button id="fr-export" title="baixar catálogo + código + histórico em JSON">⤓ Exportar</button>
+      <button id="fr-import-btn" title="restaurar catálogo de um JSON">⤒ Importar</button>
+      <input id="fr-import" type="file" accept=".json,application/json" style="display:none">
       <span class="muted msg" id="fr-msg"></span>
     </div>
     <textarea id="fr-codigo" rows="5" spellcheck="false"
@@ -1606,9 +1634,10 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <p class="muted" style="font-size:0.75rem;margin-top:6px">
       ✎ edita a descrição (sobrevive a atualizações); ⟲ volta para a versão
       anterior (backup em <code>data/ferramentas_backup/</code>); ✕
-      desinstala (o arquivo é preservado no backup). No bot,
-      <code>/gerar</code> cria ferramentas novas e avisa conflito antes de
-      gastar o LLM.
+      desinstala (o arquivo é preservado no backup); ⤓/⤒ exporta/importa o
+      catálogo inteiro em JSON (código + histórico; importar substitui ou
+      mescla, sempre com confirmação). No bot, <code>/gerar</code> cria
+      ferramentas novas e avisa conflito antes de gastar o LLM.
     </p>
   </section>
 </main>
@@ -2824,6 +2853,80 @@ async function frLoad() {
   } catch (e) { frSetMsg("Falha: " + e.message, "err"); }
 }
 
+async function frExport() {
+  frSetMsg("⤓ preparando backup do catálogo…", "");
+  try {
+    const resp = await fetch("/admin/ferramentas/export",
+      { headers: authHeaders() });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      frSetMsg(data.error || "Erro HTTP " + resp.status, "err");
+      return;
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ferramentas_catalogo_" +
+      new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    frSetMsg("⤓ catálogo exportado (metadados + código + histórico)", "ok");
+  } catch (e) { frSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function frImportFile(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = "";
+  if (!file) return;
+  let bundle;
+  try {
+    bundle = JSON.parse(await file.text());
+  } catch (e) {
+    frSetMsg("JSON inválido: " + e.message, "err");
+    return;
+  }
+  if (!bundle || typeof bundle !== "object") {
+    frSetMsg("JSON sem catálogo de ferramentas", "err");
+    return;
+  }
+  let modo = "substituir";
+  if (frLista.length) {
+    if (confirm("Substituir TODO o catálogo atual pelo arquivo? " +
+                "OK = substituir; Cancelar = escolher mesclar.")) {
+      modo = "substituir";
+    } else if (confirm("Mesclar com o catálogo atual? " +
+                       "(mantém as ferramentas que não estão no arquivo)")) {
+      modo = "mesclar";
+    } else {
+      frSetMsg("importação cancelada", "");
+      return;
+    }
+  }
+  const corpo = Array.isArray(bundle) ? { ferramentas: bundle } : bundle;
+  corpo.modo = modo;
+  corpo.confirmar = true;
+  frSetMsg("⤒ importando catálogo…", "");
+  try {
+    const resp = await fetch("/admin/ferramentas/import", {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(corpo)
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      frSetMsg(data.error || "Erro HTTP " + resp.status, "err");
+      return;
+    }
+    frSetMsg("⤒ " + data.total + " no catálogo (" + data.adicionados +
+      " novos, " + data.atualizados + " atualizados" +
+      (data.removidos ? ", " + data.removidos + " removidos" : "") + ")", "ok");
+    frLoad();
+  } catch (e) { frSetMsg("Falha: " + e.message, "err"); }
+}
+
 async function frAdd() {
   const nome = (document.getElementById("fr-nome").value || "").trim();
   const codigo = document.getElementById("fr-codigo").value || "";
@@ -2990,6 +3093,10 @@ document.getElementById("au-dry").onclick = auDry;
 document.getElementById("au-refresh").onclick = auLoad;
 document.getElementById("fr-add").onclick = frAdd;
 document.getElementById("fr-refresh").onclick = frLoad;
+document.getElementById("fr-export").onclick = frExport;
+document.getElementById("fr-import-btn").onclick = () =>
+  document.getElementById("fr-import").click();
+document.getElementById("fr-import").addEventListener("change", frImportFile);
 document.getElementById("fr-nome").addEventListener("keydown", e => { if (e.key === "Enter") frAdd(); });
 whoAmI().then(u => { if (u) { carregarTudo(); dlSse(); } });
 // a sessão roda fora do od-core: o painel acompanha de 5 em 5 s
@@ -7112,6 +7219,46 @@ class APIHandler(BaseHTTPRequestHandler):
         self._json(200, {"ok": True, "ferramentas": depot.listar(),
                          **depot.resumo()})
 
+    def admin_ferramentas_export(self) -> None:
+        """GET /admin/ferramentas/export — bundle completo do catálogo.
+
+        Inclui metadados, código atual e código do histórico. O alias
+        `GET /admin/ferramentas/import` devolve o mesmo bundle.
+        """
+        self._require_admin()
+        depot = self._supply_depot_or_503()
+        self._json(200, {"ok": True, **depot.exportar()})
+
+    def admin_ferramentas_import(self) -> None:
+        """POST /admin/ferramentas/import — restaura/mescla um bundle.
+
+        Body: o JSON devolvido pelo export, acrescido de `modo`
+        (`substituir` padrão ou `mesclar`) e `confirmar` (obrigatório para
+        substituir um catálogo não vazio). 400 = bundle inválido;
+        409 = falta confirmação; 500 = falha no meio (rollback feito).
+        """
+        self._require_admin()
+        depot = self._supply_depot_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if isinstance(data, list):
+            data = {"ferramentas": data}
+        if not isinstance(data, dict):
+            raise APIError(400, "corpo_invalido")
+        resultado = depot.importar(
+            data,
+            modo=str(data.get("modo") or "substituir"),
+            confirmar=data.get("confirmar") is True,
+        )
+        if resultado.get("ok"):
+            self._json(200, {"ok": True, **resultado})
+            return
+        motivo = str(resultado.get("motivo") or "importacao_falhou")
+        if resultado.get("rollback"):
+            raise APIError(500, motivo)
+        if motivo == "confirmacao_necessaria":
+            raise APIError(409, motivo)
+        raise APIError(400, motivo)
+
     def admin_ferramentas_create(self) -> None:
         """POST /admin/ferramentas — instala/atualiza com pré-voo no caminho.
 
@@ -7225,6 +7372,239 @@ class APIHandler(BaseHTTPRequestHandler):
             self._json(200, resultado)
             return
         raise APIError(404, str(resultado.get("motivo") or "nao_removido"))
+
+    # --- Marketplace (E1, 2026-11-09) -------------------------------------
+    def _marketplace_or_503(self) -> Any:
+        svc = getattr(self.api.config, "marketplace", None)
+        if svc is None:
+            raise APIError(503, "marketplace_indisponivel")
+        return svc
+
+    def admin_marketplace_catalogo(self) -> None:
+        """GET /admin/marketplace/catalogo — lista plugins com filtros.
+        Query: categoria, tag, query (busca em id/nome/descricao).
+        Retorna: {ok: true, plugins: [...], categorias: [...], tags: [...]}.
+        """
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        from urllib.parse import parse_qs, urlsplit
+        qs = parse_qs(urlsplit(self.path).query)
+        categoria = (qs.get("categoria", [""])[0] or "").strip()
+        tag = (qs.get("tag", [""])[0] or "").strip()
+        query = (qs.get("query", [""])[0] or "").strip()
+        plugins = svc.buscar(categoria=categoria, tag=tag, query=query)
+        self._json(200, {"ok": True, "plugins": plugins,
+                         "categorias": svc.categorias(), "tags": svc.tags()})
+
+    def admin_marketplace_catalogo_obter(self, id: str) -> None:
+        """GET /admin/marketplace/catalogo/{id} — detalhes de um plugin."""
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        p = svc.obter(id)
+        if not p:
+            raise APIError(404, "plugin_nao_encontrado")
+        self._json(200, {"ok": True, "plugin": p})
+
+    def admin_marketplace_publicar(self) -> None:
+        """POST /admin/marketplace/publicar — publica/atualiza plugin no catálogo.
+        Body: manifest completo + assinatura + chave_publica (Ed25519).
+        O manifest deve ter: id, nome, versao, descricao, autor, categoria,
+        tags, codigo, funcao, depende, permission, build_ts, build_sha256.
+        A assinatura Ed25519 é OBRIGATÓRIA (verificada pelo catálogo).
+        """
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            raise APIError(400, "corpo_invalido")
+        manifest_dict = data.get("manifest")
+        assinatura = str(data.get("assinatura") or "").strip()
+        chave_publica = str(data.get("chave_publica") or "").strip()
+        if not manifest_dict or not isinstance(manifest_dict, dict):
+            raise APIError(400, "manifest_obrigatorio")
+        if not assinatura or not chave_publica:
+            raise APIError(400, "assinatura_e_chave_publica_obrigatorias")
+        from core.marketplace import PluginManifest
+        manifest = PluginManifest.from_dict(manifest_dict)
+        resultado = svc.publicar(manifest, assinatura, chave_publica)
+        if resultado.get("ok"):
+            self._json(201, {"ok": True, **resultado})
+        else:
+            raise APIError(400, str(resultado.get("motivo") or "publicacao_falhou"))
+
+    def admin_marketplace_remover(self, id: str) -> None:
+        """DELETE /admin/marketplace/publicar/{id} — remove do catálogo."""
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        resultado = svc.remover_publicacao(id)
+        if resultado.get("ok"):
+            self._json(200, resultado)
+        else:
+            raise APIError(404, str(resultado.get("motivo") or "nao_removido"))
+
+    def admin_marketplace_instalados(self) -> None:
+        """GET /admin/marketplace/instalados — lista plugins instalados localmente."""
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        self._json(200, {"ok": True, "instalados": svc.listar_instalados()})
+
+    def admin_marketplace_instalar(self, id: str) -> None:
+        """POST /admin/marketplace/instalar/{id} — instala plugin do catálogo.
+        Body opcional: {forcar: bool}. Retorna info da instalação.
+        """
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        data = self._read_json() if self._has_body() else {}
+        forcar = bool(data.get("forcar")) if isinstance(data, dict) else False
+        resultado = svc.instalar(id, forcar=forcar)
+        if resultado.get("ok"):
+            self._json(200, resultado)
+        else:
+            motivo = str(resultado.get("motivo") or "")
+            if motivo == "plugin_nao_encontrado_no_catalogo":
+                raise APIError(404, motivo)
+            if motivo == "ja_instalado":
+                raise APIError(409, motivo)
+            raise APIError(400, motivo or "instalacao_falhou")
+
+    def admin_marketplace_desinstalar(self, id: str) -> None:
+        """POST /admin/marketplace/desinstalar/{id} — remove plugin instalado."""
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        resultado = svc.desinstalar(id)
+        if resultado.get("ok"):
+            self._json(200, resultado)
+        else:
+            raise APIError(404, str(resultado.get("motivo") or "nao_desinstalado"))
+
+    def admin_marketplace_atualizar(self, id: str) -> None:
+        """POST /admin/marketplace/atualizar/{id} — atualiza para versão do catálogo."""
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        resultado = svc.atualizar(id)
+        if resultado.get("ok"):
+            self._json(200, resultado)
+        else:
+            motivo = str(resultado.get("motivo") or "")
+            if motivo == "plugin_nao_encontrado_no_catalogo":
+                raise APIError(404, motivo)
+            raise APIError(400, motivo or "atualizacao_falhou")
+
+    def admin_marketplace_reviews(self, id: str) -> None:
+        """GET /admin/marketplace/reviews/{id} — lista reviews do plugin."""
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        self._json(200, {"ok": True, "reviews": svc.reviews_listar(id)})
+
+    def admin_marketplace_reviews_media(self, id: str) -> None:
+        """GET /admin/marketplace/reviews/media/{id} — média das reviews."""
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        self._json(200, {"ok": True, **svc.reviews_media(id)})
+
+    def admin_marketplace_review_add(self, id: str) -> None:
+        """POST /admin/marketplace/reviews/{id} — adiciona review.
+        Body: {estrelas: 1-5, texto?: string, usuario?: string}.
+        Se usuario não informado, usa identidade da sessão/API key.
+        """
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            raise APIError(400, "corpo_invalido")
+        estrelas = int(data.get("estrelas", 0))
+        texto = str(data.get("texto") or "").strip()
+        usuario = str(data.get("usuario") or "").strip()
+        if not 1 <= estrelas <= 5:
+            raise APIError(400, "estrelas_invalidas")
+        if not usuario:
+            auth = self.headers.get("Authorization", "")
+            if auth.startswith("Bearer "):
+                usuario = auth[7:20]
+            else:
+                usuario = "anon"
+        from core.marketplace import PluginReview
+        review = PluginReview(
+            plugin_id=id,
+            usuario=usuario,
+            estrelas=estrelas,
+            texto=texto,
+            ts=time.time(),
+        )
+        resultado = svc.reviews_adicionar(review)
+        if resultado.get("ok"):
+            self._json(200, resultado)
+        else:
+            raise APIError(400, str(resultado.get("motivo") or "review_falhou"))
+
+    def admin_marketplace_categorias(self) -> None:
+        """GET /admin/marketplace/categorias — lista categorias disponíveis."""
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        self._json(200, {"ok": True, "categorias": svc.categorias()})
+
+    def admin_marketplace_tags(self) -> None:
+        """GET /admin/marketplace/tags — lista tags disponíveis."""
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        self._json(200, {"ok": True, "tags": svc.tags()})
+
+    def admin_marketplace_stats(self) -> None:
+        """GET /admin/marketplace/stats — estatísticas gerais."""
+        self._require_admin()
+        svc = self._marketplace_or_503()
+        self._json(200, {"ok": True, **svc.stats()})
+
+    # --- OS Updater (2026-11-10) -----------------------------------------
+    def _os_updater_or_503(self) -> Any:
+        updater = getattr(self.api.config, "os_updater", None)
+        if updater is None:
+            raise APIError(503, "os_updater_indisponivel")
+        return updater
+
+    def admin_os_updater_status(self) -> None:
+        """GET /admin/os-updater/status — status do atualizador do SO."""
+        self._require_admin()
+        updater = self._os_updater_or_503()
+        self._json(200, {"ok": True, **updater.status()})
+
+    def admin_os_updater_executar(self) -> None:
+        """POST /admin/os-updater/executar — força execução do ciclo de atualização.
+        Body opcional: {forcar: true, dry_run: false}
+        """
+        self._require_admin()
+        updater = self._os_updater_or_503()
+        data = self._read_json() if self._has_body() else {}
+        forcar = bool(data.get("forcar")) if isinstance(data, dict) else True
+        dry_run = bool(data.get("dry_run")) if isinstance(data, dict) else False
+        # Se dry_run solicitado, cria instância temporária
+        if dry_run and not updater.dry_run:
+            from core.os_updater import OSUpdater
+            updater = OSUpdater(
+                schedule=updater.schedule,
+                day=updater.day,
+                hour=updater.hour,
+                dry_run=True,
+            )
+        resultado = updater.executar_ciclo(forcar=forcar)
+        if resultado.get("ok"):
+            self._json(200, {"ok": True, **resultado})
+        else:
+            self._json(500, {"ok": False, **resultado})
+
+    def admin_os_updater_reboot(self) -> None:
+        """POST /admin/os-updater/reboot — força reboot se necessário."""
+        self._require_admin()
+        updater = self._os_updater_or_503()
+        from core.os_updater import _precisa_reboot, _reboot
+        if not _precisa_reboot():
+            self._json(409, {"ok": False, "motivo": "reboot_nao_necessario"})
+            return
+        ok, msg = _reboot()
+        if ok:
+            self._json(200, {"ok": True, "reboot": "agendado"})
+        else:
+            self._json(500, {"ok": False, "erro": msg})
 
     def admin_cache_prune(self) -> None:
         """POST /admin/cache/prune — saneia o cache LLM (admin/dono).

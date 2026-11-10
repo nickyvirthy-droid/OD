@@ -25,19 +25,49 @@
   --bg: #0A0A0A;
   --bg2: #111111;
   --bg3: #171717;
+  --bg4: #1F1F1F;           /* inputs, dropdowns, modais */
   --grafite: #2C2C2C;
   --azul: #0088FF;
   --azul-soft: rgba(0, 136, 255, .14);
+  --azul-hover: #00A0FF;    /* hover de links/botões azuis */
   --texto: #F2F2F2;
+  --texto-dim: #B8BEC8;     /* timestamps, placeholders, labels */
   --muted: #9aa3b2;
   --border: #2C2C2C;
   --border-lit: #3a4a5c;
+  --border-focus: #0088FF;  /* foco de inputs */
   /* Cores que estavam cravadas no CSS e sumiriam no claro. */
   --nav-bg: rgba(10, 10, 10, .92);
   --header-top: #0d0d0d;
   --tracejado: #1e1e1e;
   --foto-fundo: #0A0A0A;
   --sombra-azul: rgba(0, 136, 255, .35);
+
+  /* --- Funcionais (chat, status, feedback) ------------------------------- */
+  --sucesso: #00C853;       /* verde sóbrio — confirmações, "online" */
+  --sucesso-soft: rgba(0, 200, 83, .12);
+  --aviso: #FFB800;         /* âmbar — atenção, pendente */
+  --aviso-soft: rgba(255, 184, 0, .12);
+  --erro: #E64A4A;          /* vermelho contido — erros, destrutivo */
+  --erro-soft: rgba(230, 74, 74, .12);
+  --info: #0088FF;          /* igual ao azul — info neutra */
+  --info-soft: rgba(0, 136, 255, .12);
+
+  /* Chat / bolhas */
+  --bolha-eu-bg: #0088FF;           /* minha mensagem */
+  --bolha-eu-texto: #FFFFFF;
+  --bolha-outro-bg: #171717;        /* mensagem do outro/IA */
+  --bolha-outro-texto: #F2F2F2;
+  --bolha-outro-border: #2C2C2C;
+  --bolha-sistema-bg: #1A1A2E;      /* sistema, avisos */
+  --bolha-sistema-texto: #9aa3b2;
+  --bloco-codigo-bg: #0D0D0D;       /* code blocks, snippets */
+  --bloco-codigo-border: #2C2C2C;
+
+  /* Estados interativos */
+  --hover-overlay: rgba(255,255,255,.04);
+  --active-overlay: rgba(255,255,255,.08);
+  --focus-ring: 0 0 0 2px #0088FF;
 }
 
 /* Tema CLARO — porta 1: o aparelho pede (vale para quem nunca escolheu
@@ -49,18 +79,48 @@
     --bg: #F5F7FA;
     --bg2: #FFFFFF;
     --bg3: #EBEFF5;
+    --bg4: #E8EBF0;
     --grafite: #D7DEE8;
     --azul: #0070D8;
     --azul-soft: rgba(0, 112, 216, .12);
+    --azul-hover: #0058C0;
     --texto: #10141A;
+    --texto-dim: #5A6472;
     --muted: #5A6472;
     --border: #DCE2EA;
     --border-lit: #B9C4D2;
+    --border-focus: #0070D8;
     --nav-bg: rgba(255, 255, 255, .92);
     --header-top: #FFFFFF;
     --tracejado: #E4E9F0;
     --foto-fundo: #EDF1F6;
     --sombra-azul: rgba(0, 112, 216, .22);
+
+    /* --- Funcionais (chat, status, feedback) ------------------------------- */
+    --sucesso: #00A044;
+    --sucesso-soft: rgba(0, 160, 68, .10);
+    --aviso: #D4A000;
+    --aviso-soft: rgba(212, 160, 0, .10);
+    --erro: #C83838;
+    --erro-soft: rgba(200, 56, 56, .10);
+    --info: #0070D8;
+    --info-soft: rgba(0, 112, 216, .10);
+
+    /* Chat / bolhas */
+    --bolha-eu-bg: #0070D8;
+    --bolha-eu-texto: #FFFFFF;
+    --bolha-outro-bg: #EBEFF5;
+    --bolha-outro-texto: #10141A;
+    --bolha-outro-border: #DCE2EA;
+    --bolha-sistema-bg: #E8EAF5;
+    --bolha-sistema-texto: #5A6472;
+    --bloco-codigo-bg: #F0F2F5;
+    --bloco-codigo-border: #DCE2EA;
+
+    /* Estados interativos */
+    --hover-overlay: rgba(0,0,0,.04);
+    --active-overlay: rgba(0,0,0,.08);
+    --focus-ring: 0 0 0 2px #0070D8;
   }
 }
 
@@ -70,18 +130,48 @@
   --bg: #F5F7FA;
   --bg2: #FFFFFF;
   --bg3: #EBEFF5;
+  --bg4: #E8EBF0;
   --grafite: #D7DEE8;
   --azul: #0070D8;
   --azul-soft: rgba(0, 112, 216, .12);
+  --azul-hover: #0058C0;
   --texto: #10141A;
+  --texto-dim: #5A6472;
   --muted: #5A6472;
   --border: #DCE2EA;
   --border-lit: #B9C4D2;
+  --border-focus: #0070D8;
   --nav-bg: rgba(255, 255, 255, .92);
   --header-top: #FFFFFF;
   --tracejado: #E4E9F0;
   --foto-fundo: #EDF1F6;
   --sombra-azul: rgba(0, 112, 216, .22);
+
+  /* --- Funcionais (chat, status, feedback) ------------------------------- */
+  --sucesso: #00A044;
+  --sucesso-soft: rgba(0, 160, 68, .10);
+  --aviso: #D4A000;
+  --aviso-soft: rgba(212, 160, 0, .10);
+  --erro: #C83838;
+  --erro-soft: rgba(200, 56, 56, .10);
+  --info: #0070D8;
+  --info-soft: rgba(0, 112, 216, .10);
+
+  /* Chat / bolhas */
+  --bolha-eu-bg: #0070D8;
+  --bolha-eu-texto: #FFFFFF;
+  --bolha-outro-bg: #EBEFF5;
+  --bolha-outro-texto: #10141A;
+  --bolha-outro-border: #DCE2EA;
+  --bolha-sistema-bg: #E8EAF5;
+  --bolha-sistema-texto: #5A6472;
+  --bloco-codigo-bg: #F0F2F5;
+  --bloco-codigo-border: #DCE2EA;
+
+  /* Estados interativos */
+  --hover-overlay: rgba(0,0,0,.04);
+  --active-overlay: rgba(0,0,0,.08);
+  --focus-ring: 0 0 0 2px #0070D8;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

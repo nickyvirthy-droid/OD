@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer semanal para Omega Drakon OS Updater
+Requires=od-os-updater.service
+
+[Timer]
+# Domingos às 03:00 (configurável via --day/--hour no serviço)
+OnCalendar=Sun *-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=30m
+Unit=od-os-updater.service
+
+[Install]
+WantedBy=timers.target

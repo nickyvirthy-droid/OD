@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marketplace — Omega Drakon</title>
+<link rel="icon" href="/site/favicon.png">
+<link rel="stylesheet" href="/site/od.css">
+</head>
+<body>
+<nav>
+  <div class="wrap">
+    <a class="brand" href="/site"><img src="/site/simbolo_minimo.png" alt="OD"> OMEGA DRAKON</a>
+    <div class="nav-spacer"></div>
+    <button class="nav-toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="navPanel"><span class="dots">&#8942;</span></button>
+  </div>
+</nav>
+<div class="nav-panel" id="navPanel">
+  <div class="wrap">
+    <a href="/site">Início</a>
+    <a href="/site/marketplace.html">Marketplace</a>
+    <a href="/site/loja.html">Loja</a>
+    <a href="/site/radio.html">Rádio Nicky</a>
+    <a href="/site/avatares.html">Avatares</a>
+    <a href="/chat">Chat</a>
+  </div>
+</div>
+
+<header>
+  <div class="wrap">
+    <span class="badge"><b id="odSiteVer">v1.44.0</b> &nbsp;·&nbsp; <span class="od-site-on" id="odSiteOn"><span class="od-site-ponto"></span>Sistema ativo</span></span>
+    <h1>Plugin Marketplace</h1>
+    <div class="tagline">Descubra, instale e compartilhe ferramentas para a Interface Viva</div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- Busca e filtros -->
+  <section class="card" style="margin-bottom: 24px;">
+    <div class="row" style="gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">
+      <div style="flex: 1; min-width: 200px;">
+        <label>Buscar</label>
+        <input type="search" id="mpBusca" placeholder="Nome, descrição, tags..." style="width: 100%;">
+      </div>
+      <div style="min-width: 160px;">
+        <label>Categoria</label>
+        <select id="mpCategoria" style="width: 100%;">
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <div style="min-width: 160px;">
+        <label>Tag</label>
+        <select id="mpTag" style="width: 100%;">
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <div style="min-width: 100px; align-self: end;">
+        <button id="mpLimpar" class="btn-ghost" style="width: 100%;">Limpar</button>
+      </div>
+    </div>
+    <div class="muted" id="mpContador" style="font-size: 0.85rem;">Carregando catálogo…</div>
+  </section>
+
+  <!-- Grid de plugins -->
+  <section>
+    <div id="mpGrid" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+      <!-- Cards injetados aqui -->
+    </div>
+    <div class="muted" id="mpVazio" style="display: none; text-align: center; padding: 40px;">
+      Nenhum plugin encontrado.
+    </div>
+  </section>
+
+  <!-- Modal de detalhes -->
+  <dialog id="mpModal" style="border: none; border-radius: 16px; padding: 0; max-width: 560px; width: 90vw; background: var(--bg2); box-shadow: 0 24px 48px rgba(0,0,0,.4);">
+    <form method="dialog" style="display: flex; flex-direction: column;">
+      <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <div class="kicker" id="mpModalCat" style="font-size: 0.7rem;"></div>
+          <h3 id="mpModalNome" style="margin: 4px 0 0; font-size: 1.2rem;"></h3>
+          <div class="muted" id="mpModalVersao" style="font-size: 0.8rem;"></div>
+        </div>
+        <button value="close" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted);">&times;</button>
+      </div>
+      <div style="padding: 20px; max-height: 50vh; overflow-y: auto;">
+        <p id="mpModalDesc" class="muted" style="margin-bottom: 16px;"></p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;" id="mpModalTags"></div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="kicker">Autor</div>
+          <div id="mpModalAutor" class="v" style="font-size: 0.9rem;"></div>
+        </div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="kicker">Avaliações</div>
+          <div id="mpModalStars" style="font-size: 1.5rem; letter-spacing: 4px;"></div>
+          <div class="muted" id="mpModalReviewsCount"></div>
+        </div>
+        <div style="margin-bottom: 16px;">
+          <div class="kicker">Reviews</div>
+          <div id="mpModalReviews" style="max-height: 200px; overflow-y: auto;"></div>
+        </div>
+        <div class="kicker">Adicionar sua avaliação</div>
+        <div class="row" style="gap: 8px; margin-bottom: 8px;">
+          <select id="mpReviewStars" style="flex: 1;">
+            <option value="5">⭐⭐⭐⭐⭐ Excelente</option>
+            <option value="4">⭐⭐⭐⭐ Muito bom</option>
+            <option value="3" selected>⭐⭐⭐ Bom</option>
+            <option value="2">⭐⭐ Regular</option>
+            <option value="1">⭐ Ruim</option>
+          </select>
+        </div>
+        <label>Comentário (opcional)</label>
+        <textarea id="mpReviewText" rows="3" placeholder="O que achou do plugin?" style="width: 100%; resize: vertical;"></textarea>
+      </div>
+      <div style="padding: 16px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end;">
+        <button id="mpModalInstall" class="btn-primary" style="flex: 1;">Instalar</button>
+        <button id="mpModalUninstall" class="btn-ghost danger" style="flex: 1; display: none;">Desinstalar</button>
+        <button value="close" class="btn-ghost" style="flex: 1;">Fechar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Toast -->
+  <div id="mpToast" style="position: fixed; bottom: 24px; right: 24px; z-index: 1000; display: none; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 360px;">
+    <div id="mpToastMsg" style="color: var(--texto);"></div>
+  </div>
+</main>
+
+<button id="toTop" class="to-top" title="Voltar ao topo">↑</button>
+<script src="/site/od-nav.js"></script>
+<script>
+// ============================================================================
+// MARKETPLACE CLIENT
+// ============================================================================
+
+const API_BASE = '/admin/marketplace';
+const CATALOGO_ENDPOINT = API_BASE + '/catalogo';
+const INSTALADOS_ENDPOINT = API_BASE + '/instalados';
+const REVIEWS_ENDPOINT = (id) => API_BASE + '/reviews/' + id;
+const INSTALAR_ENDPOINT = (id) => API_BASE + '/instalar/' + id;
+const DESINSTALAR_ENDPOINT = (id) => API_BASE + '/desinstalar/' + id;
+const REVIEW_ADD_ENDPOINT = (id) => API_BASE + '/reviews/' + id;
+
+let pluginsCache = [];
+let instaladosCache = new Set();
+let currentModalPlugin = null;
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+function apiKey() {
+  return localStorage.getItem('od_api_key') || '';
+}
+
+async function fetchJson(url, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  const key = apiKey();
+  if (key) headers['X-API-Key'] = key;
+  const resp = await fetch(url, { ...opts, headers, credentials: 'include' });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    throw new Error(`HTTP ${resp.status}: ${txt}`);
+  }
+  return resp.json();
+}
+
+function showToast(msg, erro = false) {
+  const t = $('#mpToast');
+  $('#mpToastMsg').textContent = msg;
+  t.style.borderColor = erro ? 'var(--err)' : 'var(--ok)';
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
+
+function renderStars(n) {
+  const cheio = '⭐';
+  const vazio = '☆';
+  return cheio.repeat(Math.round(n)) + vazio.repeat(5 - Math.round(n));
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'''}[c]));
+}
+
+function formatDate(ts) {
+  if (!ts) return '—';
+  return new Date(ts * 1000).toLocaleDateString('pt-BR');
+}
+
+async function loadCatalogo() {
+  try {
+    const data = await fetchJson(CATALOGO_ENDPOINT);
+    pluginsCache = data.plugins || [];
+    populateFilters();
+    renderGrid();
+    $('#mpContador').textContent = `${pluginsCache.length} plugin(s) no catálogo`;
+  } catch (e) {
+    console.error(e);
+    $('#mpContador').textContent = 'Erro ao carregar catálogo';
+    showToast('Falha ao carregar catálogo', true);
+  }
+}
+
+async function loadInstalados() {
+  try {
+    const data = await fetchJson(INSTALADOS_ENDPOINT);
+    instaladosCache = new Set((data.instalados || []).map(p => p.id));
+    renderGrid(); // re-render para atualizar botões
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function populateFilters() {
+  const cats = new Set();
+  const tags = new Set();
+  for (const p of pluginsCache) {
+    if (p.categoria) cats.add(p.categoria);
+    if (p.tags) p.tags.forEach(t => tags.add(t));
+  }
+  const catSel = $('#mpCategoria');
+  const tagSel = $('#mpTag');
+  catSel.innerHTML = '<option value="">Todas</option>' + [...cats].sort().map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  tagSel.innerHTML = '<option value="">Todas</option>' + [...tags].sort().map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+}
+
+function renderGrid() {
+  const grid = $('#mpGrid');
+  const vazio = $('#mpVazio');
+  const busca = $('#mpBusca').value.toLowerCase().trim();
+  const cat = $('#mpCategoria').value;
+  const tag = $('#mpTag').value;
+
+  let filtrados = pluginsCache.filter(p => {
+    if (busca && !p.id.toLowerCase().includes(busca) && !p.nome.toLowerCase().includes(busca) && !p.descricao.toLowerCase().includes(busca)) return false;
+    if (cat && p.categoria !== cat) return false;
+    if (tag && (!p.tags || !p.tags.includes(tag))) return false;
+    return true;
+  });
+
+  if (filtrados.length === 0) {
+    grid.innerHTML = '';
+    vazio.style.display = 'block';
+    return;
+  }
+  vazio.style.display = 'none';
+  grid.innerHTML = filtrados.map(p => {
+    const instalado = instaladosCache.has(p.id);
+    const media = (p.reviews_media || 0).toFixed(1);
+    const totalReviews = p.reviews_total || 0;
+    return `
+      <article class="card" style="display: flex; flex-direction: column;" data-id="${escapeHtml(p.id)}">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+          <span class="badge" style="font-size: 0.65rem;">${escapeHtml(p.categoria || 'geral')}</span>
+          <span class="muted" style="font-size: 0.75rem;">v${escapeHtml(p.versao)}</span>
+        </div>
+        <h3 style="margin: 4px 0 8px; font-size: 1.05rem;">${escapeHtml(p.nome)}</h3>
+        <p class="muted" style="font-size: 0.85rem; flex: 1; margin-bottom: 12px;">${escapeHtml(p.descricao)}</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
+          ${(p.tags || []).slice(0, 5).map(t => `<span class="badge" style="font-size: 0.6rem;">${escapeHtml(t)}</span>`).join('')}
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border);">
+          <div>
+            <span style="color: var(--accent);">${renderStars(media)}</span>
+            <span class="muted" style="font-size: 0.8rem; margin-left: 6px;">(${totalReviews})</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-${instalado ? 'ghost danger' : 'primary'}" data-action="${instalado ? 'desinstalar' : 'instalar'}" data-id="${escapeHtml(p.id)}" style="font-size: 0.8rem; padding: 6px 12px;">${instalado ? 'Desinstalar' : 'Instalar'}</button>
+            <button class="btn-ghost" data-action="detalhes" data-id="${escapeHtml(p.id)}" style="font-size: 0.8rem; padding: 6px 12px;">Detalhes</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+async function openModal(pluginId) {
+  const p = pluginsCache.find(x => x.id === pluginId);
+  if (!p) return;
+  currentModalPlugin = p;
+  const instalado = instaladosCache.has(p.id);
+
+  $('#mpModalCat').textContent = p.categoria || 'geral';
+  $('#mpModalNome').textContent = p.nome;
+  $('#mpModalVersao').textContent = `v${p.versao} · ${p.id}`;
+  $('#mpModalDesc').textContent = p.descricao;
+  $('#mpModalAutor').textContent = p.autor || '—';
+  $('#mpModalStars').textContent = renderStars(p.reviews_media || 0);
+  $('#mpModalReviewsCount').textContent = `${p.reviews_total || 0} avaliação(ões)`;
+  $('#mpModalTags').innerHTML = (p.tags || []).map(t => `<span class="badge">${escapeHtml(t)}</span>`).join('');
+
+  // Reviews
+  try {
+    const reviews = await fetchJson(REVIEWS_ENDPOINT(pluginId));
+    const media = await fetchJson(REVIEWS_ENDPOINT(pluginId).replace('/reviews/', '/reviews/media/'));
+    $('#mpModalStars').textContent = renderStars(media.media);
+    $('#mpModalReviewsCount').textContent = `${media.total} avaliação(ões)`;
+    if (reviews.length === 0) {
+      $('#mpModalReviews').innerHTML = '<p class="muted" style="font-size: 0.85rem;">Nenhuma avaliação ainda.</p>';
+    } else {
+      $('#mpModalReviews').innerHTML = reviews.map(r => `
+        <div class="card" style="margin-bottom: 8px; padding: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <strong>${escapeHtml(r.usuario)}</strong>
+            <span style="color: var(--accent);">${renderStars(r.estrelas)}</span>
+          </div>
+          <div class="muted" style="font-size: 0.85rem;">${escapeHtml(r.texto || '(sem comentário)')}</div>
+          <div class="muted" style="font-size: 0.7rem; margin-top: 4px;">${formatDate(r.ts)}</div>
+        </div>
+      `).join('');
+    }
+  } catch (e) {
+    $('#mpModalReviews').innerHTML = '<p class="muted">Erro ao carregar reviews.</p>';
+  }
+
+  // Botões
+  const btnInstall = $('#mpModalInstall');
+  const btnUninstall = $('#mpModalUninstall');
+  if (instalado) {
+    btnInstall.style.display = 'none';
+    btnUninstall.style.display = 'inline-flex';
+    btnUninstall.onclick = () => doUninstall(pluginId);
+  } else {
+    btnInstall.style.display = 'inline-flex';
+    btnUninstall.style.display = 'none';
+    btnInstall.onclick = () => doInstall(pluginId);
+  }
+
+  // Review form
+  $('#mpReviewStars').value = '3';
+  $('#mpReviewText').value = '';
+  const oldSubmit = $('#mpModal form').onsubmit;
+  $('#mpModal form').onsubmit = (e) => {
+    e.preventDefault();
+    doReview(pluginId);
+  };
+
+  $('#mpModal').showModal();
+}
+
+function closeModal() {
+  $('#mpModal').close();
+  currentModalPlugin = null;
+}
+
+async function doInstall(pluginId) {
+  const btn = currentModalPlugin ? $('#mpModalInstall') : $(`[data-action="instalar"][data-id="${pluginId}"]`);
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Instalando…';
+  try {
+    await fetchJson(INSTALAR_ENDPOINT(pluginId), { method: 'POST' });
+    showToast('Plugin instalado com sucesso!');
+    instaladosCache.add(pluginId);
+    await loadInstalados();
+    if (currentModalPlugin && currentModalPlugin.id === pluginId) closeModal();
+  } catch (e) {
+    showToast('Falha ao instalar: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+}
+
+async function doUninstall(pluginId) {
+  const btn = currentModalPlugin ? $('#mpModalUninstall') : $(`[data-action="desinstalar"][data-id="${pluginId}"]`);
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Removendo…';
+  try {
+    await fetchJson(DESINSTALAR_ENDPOINT(pluginId), { method: 'POST' });
+    showToast('Plugin removido');
+    instaladosCache.delete(pluginId);
+    await loadInstalados();
+    if (currentModalPlugin && currentModalPlugin.id === pluginId) closeModal();
+  } catch (e) {
+    showToast('Falha ao remover: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+}
+
+async function doReview(pluginId) {
+  const estrelas = parseInt($('#mpReviewStars').value);
+  const texto = $('#mpReviewText').value.trim();
+  try {
+    await fetchJson(REVIEW_ADD_ENDPOINT(pluginId), {
+      method: 'POST',
+      body: JSON.stringify({ estrelas, texto })
+    });
+    showToast('Avaliação enviada!');
+    $('#mpReviewText').value = '';
+    if (currentModalPlugin && currentModalPlugin.id === pluginId) {
+      await openModal(pluginId); // recarrega reviews
+    }
+  } catch (e) {
+    showToast('Falha ao enviar avaliação: ' + e.message, true);
+  }
+}
+
+// Event delegation
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const id = btn.dataset.id;
+  if (action === 'instalar') await doInstall(id);
+  else if (action === 'desinstalar') await doUninstall(id);
+  else if (action === 'detalhes') await openModal(id);
+});
+
+$('#mpBusca').addEventListener('input', renderGrid);
+$('#mpCategoria').addEventListener('change', renderGrid);
+$('#mpTag').addEventListener('change', renderGrid);
+$('#mpLimpar').addEventListener('click', () => {
+  $('#mpBusca').value = '';
+  $('#mpCategoria').value = '';
+  $('#mpTag').value = '';
+  renderGrid();
+});
+
+$('#mpModal').addEventListener('close', closeModal);
+$('#mpModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// Init
+loadCatalogo();
+loadInstalados();
+</script>
+</body>
+</html>

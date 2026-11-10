@@ -1,0 +1,27 @@
+[Unit]
+Description=Omega Drakon OS Updater - Atualização semanal do SO
+Documentation=https://github.com/OmegaDrakon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=alex
+Group=alex
+WorkingDirectory=/home/alex/OmegaDrakon
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python -m core.os_updater --executar
+# Timeout generoso para upgrades grandes + reboot
+TimeoutStartSec=3600
+# Logs vão para journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=od-os-updater
+
+# Segurança
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/home/alex/OmegaDrakon/data /var/run/reboot-required
+# Precisa de CAP_DAC_OVERRIDE para apt/fwupdmgr funcionar
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_SYS_REBOOT
+AmbientCapabilities=CAP_DAC_OVERRIDE CAP_SYS_REBOOT

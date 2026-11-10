@@ -152,8 +152,9 @@ class TestAPIRoutes:
         PUT /admin/users/{username}/role (papel da conta, frente C, 23/10) +
         GET /api/radio/agora ("Tocando agora" da rádio, Item 1, 02/11) +
         /radio-pro e /api/radio/pro/* (área do ouvinte logado, 04/11) +
-        /api/radio/cantores (lista de cantores indesejados, 05/11)."""
-        assert len(ROUTES) == 102
+        /api/radio/cantores (lista de cantores indesejados, 05/11) +
+        export/import do catálogo do Supply Depot (TODO §3.1, 09/11)."""
+        assert len(ROUTES) == 122
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -211,9 +212,31 @@ class TestAPIRoutes:
             # Registro de ferramentas/skills estilo Supply Depot (Parte F)
             ("GET", "/admin/ferramentas"),
             ("POST", "/admin/ferramentas"),
+            ("GET", "/admin/ferramentas/export"),
+            ("GET", "/admin/ferramentas/import"),
+            ("POST", "/admin/ferramentas/import"),
             ("PUT", "/admin/ferramentas/{id}"),
             ("POST", "/admin/ferramentas/{id}/rollback"),
             ("DELETE", "/admin/ferramentas/{id}"),
+            # Marketplace (E1, 2026-11-09)
+            ("GET", "/admin/marketplace/catalogo"),
+            ("GET", "/admin/marketplace/catalogo/{id}"),
+            ("POST", "/admin/marketplace/publicar"),
+            ("DELETE", "/admin/marketplace/publicar/{id}"),
+            ("GET", "/admin/marketplace/instalados"),
+            ("POST", "/admin/marketplace/instalar/{id}"),
+            ("POST", "/admin/marketplace/desinstalar/{id}"),
+            ("POST", "/admin/marketplace/atualizar/{id}"),
+            ("GET", "/admin/marketplace/reviews/{id}"),
+            ("GET", "/admin/marketplace/reviews/media/{id}"),
+            ("POST", "/admin/marketplace/reviews/{id}"),
+            ("GET", "/admin/marketplace/categorias"),
+            ("GET", "/admin/marketplace/tags"),
+            ("GET", "/admin/marketplace/stats"),
+            # OS Updater (2026-11-10)
+            ("GET", "/admin/os-updater/status"),
+            ("POST", "/admin/os-updater/executar"),
+            ("POST", "/admin/os-updater/reboot"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             # Portário de ferramentas (fase 1 — 21/10): sem header de
@@ -292,9 +315,31 @@ class TestAPIRoutes:
             # Registro de ferramentas/skills estilo Supply Depot (Parte F)
             ("GET", "/admin/ferramentas"),
             ("POST", "/admin/ferramentas"),
+            ("GET", "/admin/ferramentas/export"),
+            ("GET", "/admin/ferramentas/import"),
+            ("POST", "/admin/ferramentas/import"),
             ("PUT", "/admin/ferramentas/{id}"),
             ("POST", "/admin/ferramentas/{id}/rollback"),
             ("DELETE", "/admin/ferramentas/{id}"),
+            # Marketplace (E1, 2026-11-09)
+            ("GET", "/admin/marketplace/catalogo"),
+            ("GET", "/admin/marketplace/catalogo/{id}"),
+            ("POST", "/admin/marketplace/publicar"),
+            ("DELETE", "/admin/marketplace/publicar/{id}"),
+            ("GET", "/admin/marketplace/instalados"),
+            ("POST", "/admin/marketplace/instalar/{id}"),
+            ("POST", "/admin/marketplace/desinstalar/{id}"),
+            ("POST", "/admin/marketplace/atualizar/{id}"),
+            ("GET", "/admin/marketplace/reviews/{id}"),
+            ("GET", "/admin/marketplace/reviews/media/{id}"),
+            ("POST", "/admin/marketplace/reviews/{id}"),
+            ("GET", "/admin/marketplace/categorias"),
+            ("GET", "/admin/marketplace/tags"),
+            ("GET", "/admin/marketplace/stats"),
+            # OS Updater (2026-11-10)
+            ("GET", "/admin/os-updater/status"),
+            ("POST", "/admin/os-updater/executar"),
+            ("POST", "/admin/os-updater/reboot"),
             ("POST", "/admin/users/{username}/password"),
             ("PUT", "/admin/users/{username}/role"),
             ("DELETE", "/admin/users/{username}"),

@@ -278,6 +278,7 @@
     '/site/verificacao.html': '🔍', '/site/avatares.html': '🎭',
     '/site/radio.html': '📻', '/radio-pro': '📻',
     '/site/historico.html': '🕰️', '/site/index.html': '🐉',
+    '/site/marketplace.html': '🏪',
     '/site': '🌐', '/dashboard': '🖥️', '/chat': '💬',
     '/admin': '🛡️'
   };
