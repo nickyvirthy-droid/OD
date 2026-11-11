@@ -592,8 +592,16 @@ esperar o timeout.
       `gemini-3-flash-preview`/Groq existem no `.env` e são usados só em
       `musica.py`/`chat_audit.py` (regra 19). Avaliar medir e promover o Gemini
       a 1º provider do chat, com o local como reserva (custo/quota)
+- [ ] Pesquisa web: criar action de busca ("pesquise na internet …" hoje cai
+      no LLM e ele recusa alegando não ter internet) — é a queixa literal do dono
+      em 11/11: "não está pesquisando"
 - [ ] R1: Task Queue (Redis/RQ) — sugestão recorrente de 11/11; segue aberta no
       roadmap da Semana 11-12
+
+> Turno de 11/11 14:25 (registro da regra 21): sugestões mostradas e não
+> escolhidas → "colocar o Gemini como 1º provider do chat", "criar action de
+> pesquisa web" e "formatador de radio_play/radio_stop" — todas já estão como
+> checkbox acima; nenhuma perdida.
 
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
