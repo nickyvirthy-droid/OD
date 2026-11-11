@@ -34,6 +34,14 @@ import pytest
 from core import vigia_mensagens as vm
 
 
+@pytest.fixture(autouse=True)
+def _sem_env_real(monkeypatch) -> None:
+    """`main()` chama _ler_env() no .env real; num teste isso derrama
+    OD_ORCHESTRATOR_GRAPH/OD_QUERY_ROUTER_* no os.environ global e muda a
+    rota dos módulos seguintes da suíte."""
+    monkeypatch.setattr(vm, "_ler_env", lambda: None)
+
+
 def _blocos(trocas: Any, novo: bool = False) -> str:
     """Concatena o lado ANTIGO (0) ou NOVO (1) das trocas ancoradas.
 

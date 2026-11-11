@@ -4,7 +4,7 @@ Testes: tests/test_mcp_od.py — protocolo MCP do runtime/mcp_od.py.
 
 Cobertura (guardas da casa — estado real, sem teclado):
    - handshake initialize / notifications/initialized / ping
-   - tools/list com o catálogo REAL (118 actions) e inputSchema convertido
+   - tools/list com o catálogo REAL (122 actions) e inputSchema convertido
    - conversão de schema da casa (str/int/...) → JSON Schema
    - tools/call: execução real (datetime), unknown -32602, denied/error
      mapeados como isError, exceção do handler contida
@@ -19,6 +19,8 @@ import io
 import json
 import os
 from pathlib import Path
+
+import pytest
 
 from runtime import mcp_od
 from tools.registry import ActionResult
@@ -82,7 +84,7 @@ class TestToolsList:
     def test_catalogo_real_completo_e_convertido(self) -> None:
         from tools.actions import build_registry
         tools = mcp_od.ferramentas_do_registry(build_registry())
-        assert len(tools) == 118
+        assert len(tools) == 122
         for t in tools:
             assert t["name"] and t["inputSchema"]["type"] == "object"
         busca = next(t for t in tools if t["name"] == "flatnotes_busca")
@@ -205,6 +207,13 @@ class TestCarregarEnv:
 # -- Loop stdio --------------------------------------------------------------
 
 class TestLoopStdio:
+    @pytest.fixture(autouse=True)
+    def _nao_carrega_env_real(self, monkeypatch, tmp_path: Path) -> None:
+        # `principal()` chama carregar_env() no .env real; num teste isso
+        # derramaria OD_ORCHESTRATOR_GRAPH/OD_QUERY_ROUTER_* no os.environ
+        # global e mudaria a rota dos módulos seguintes da suíte.
+        monkeypatch.setenv("OD_MCP_ENV", str(tmp_path / "sem.env"))
+
     def test_parse_error_responde_e_notificacao_nao(self) -> None:
         entrada = io.StringIO(
             '{invalido\n'

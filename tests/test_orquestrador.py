@@ -32,6 +32,14 @@ from integrations.api.server import APIHandler
 #: Seletor do painel — precisa casar com CLI_SESSAO_OPCOES do orquestrador
 #: (o 400 `cli_invalida` do servidor é a outra metade do contrato).
 CLIS_SESSAO_SERVER = APIHandler.SESSAO_CLIS
+@pytest.fixture(autouse=True)
+def _sem_dotenv_real(monkeypatch) -> None:
+    """`main()` chama load_dotenv() no .env real; num teste isso derrama
+    OD_ORCHESTRATOR_GRAPH/OD_QUERY_ROUTER_* no os.environ global e muda a
+    rota dos módulos seguintes da suíte."""
+    monkeypatch.setattr(orch, "load_dotenv", lambda *a, **k: None)
+
+
 from orquestrador import (
     CLIS,
     SESSAO_HEARTBEAT_S,

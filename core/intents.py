@@ -469,6 +469,45 @@ def _detect_operational(text: str) -> Optional[str]:
     if re.search(r"(informa[çc][õo]es|info|sobre|dados).{0,12}(do|da|sobre).{0,8}sistema", low) or \
        re.search(r"(qual|o que).{0,12}(sistema|m[aá]quina|servidor).{0,12}(tem|roda|usa)", low):
         return "system_info"
+
+    # RÁDIO local (v1.0): stream direto na placa de som via ffplay + pactl
+    # Comandos: "liga a rádio", "toca a rádio", "para a rádio", "desliga a rádio",
+    # "volume 50", "aumenta o volume", "abaixa o volume", "status da rádio"
+    # Aceita com e sem acento: radio/rádio
+    radio_keywords = r"\b(r[aá]dio|r[aá]dios|radio|radios)\b"
+    volume_keywords = r"\bvolume\b"
+    status_keywords = r"\b(status|estado|como est[áa])\b"
+
+    # Se mencionou "rádio" OU comandos de volume/status genéricos
+    if re.search(radio_keywords, low) or re.search(volume_keywords, low) or re.search(status_keywords, low):
+        # "liga a rádio" / "toca a rádio" / "inicia a rádio"
+        if re.search(radio_keywords, low) and re.search(r"\b(ligar|ligue|liga|toca|toque|iniciar|inicia|play)\b", low):
+            return "radio_play", {}
+        # "para a rádio" / "desliga a rádio" / "pausa a rádio" / "stop"
+        if re.search(radio_keywords, low) and re.search(r"\b(parar|pare|para|desligar|desligue|desliga|pausar|pausa|stop|pausar)\b", low):
+            return "radio_stop", {}
+        # "volume 50" / "volume 70" / "aumenta o volume" / "abaixa o volume" / "sobe o volume" / "diminui o volume"
+        # Aceita comandos de volume com ou sem mencionar "rádio"
+        if re.search(volume_keywords, low):
+            # Extrai número do volume se houver
+            import re as _re
+            vol_match = _re.search(r"volume\s+(\d+)", low)
+            params = {}
+            if vol_match:
+                params["volume"] = int(vol_match.group(1))
+            elif re.search(r"\b(aumenta|aumente|sobe|suba|mais alto|mais)\b", low):
+                params["volume"] = "up"
+            elif re.search(r"\b(abaixa|abaixe|diminui|diminua|mais baixo|menos)\b", low):
+                params["volume"] = "down"
+            return "radio_volume", params
+        # "status da rádio" / "estado da rádio" / "como está a rádio"
+        # Aceita com ou sem mencionar "rádio"
+        if re.search(radio_keywords, low) and re.search(status_keywords, low):
+            return "radio_status", {}
+        # Se mencionou "rádio" mas não um comando reconhecido, deixa cair para LLM
+        if re.search(radio_keywords, low):
+            return None
+
     return None
 
 

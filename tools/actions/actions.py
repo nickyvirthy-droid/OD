@@ -52,6 +52,7 @@ import signal
 import socket
 import stat
 import subprocess
+import threading
 import time
 import zipfile
 from pathlib import Path
@@ -1068,6 +1069,238 @@ def ha_summary() -> dict[str, Any]:
         "people": people,
         "batteries": batteries,
         "router": router,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Rádio local — stream direto na placa de som (ffplay + pactl)
+# ---------------------------------------------------------------------------
+
+_RADIO_PROCESS: Optional[subprocess.Popen] = None
+_RADIO_LOCK = threading.Lock()
+_RADIO_STREAM_URL = os.environ.get(
+    "OD_RADIO_STREAM_URL", "http://127.0.0.1:8600/radio.mp3"
+)
+_RADIO_SINK = os.environ.get("OD_RADIO_SINK", "@DEFAULT_SINK@")
+
+# volume clamp 0–150% (pactl permite >100%)
+def _radio_volume_clamp(v: int) -> int:
+    return max(0, min(150, v))
+
+
+def radio_play(
+    stream_url: str = "",
+    volume: int = 70,
+    sink: str = "",
+    power_entity: str = "switch.note_servidor_socket_1",
+    auto_power: bool = True,
+) -> dict[str, Any]:
+    """Inicia a rádio no stream URL (ffplay) na placa de som padrão.
+
+    Args:
+        stream_url: URL do stream (padrão: OD_RADIO_STREAM_URL ou http://127.0.0.1:8600/radio.mp3)
+        volume: Volume 0–150 (padrão 70)
+        sink: Sink PulseAudio (padrão: @DEFAULT_SINK@)
+        power_entity: Entity do Home Assistant para ligar/desligar a energia da caixa (padrão: switch.note_servidor_socket_1)
+        auto_power: Se True, liga a energia antes de tocar e desliga ao parar (padrão: True)
+
+    O player usado é ffplay (vem com ffmpeg) — sem interface gráfica,
+    saída direta na placa de som via PulseAudio. Volume controlado via pactl.
+    """
+    global _RADIO_PROCESS
+
+    url = stream_url or _RADIO_STREAM_URL
+    sink = sink or _RADIO_SINK
+    vol = _radio_volume_clamp(volume)
+
+    with _RADIO_LOCK:
+        if _RADIO_PROCESS is not None and _RADIO_PROCESS.poll() is None:
+            return {"ok": False, "error": "ja_tocando", "hint": "radio_stop() antes de trocar de stream"}
+
+        # Liga a energia da caixa (se auto_power e entity configurada)
+        if auto_power and power_entity:
+            power_result = ha_device_control(
+                entity_id=power_entity,
+                on=True,
+                user_id="alex",
+                alvo="caixa de som",
+            )
+            if not power_result.get("ok") and not power_result.get("needs_confirmation"):
+                return _unavailable("radio_play", f"falha ao ligar energia: {power_result.get('error')}")
+            elif power_result.get("needs_confirmation"):
+                # Precisa confirmar - tenta confirmar
+                power_result = ha_device_control(
+                    entity_id=power_entity,
+                    on=True,
+                    user_id="alex",
+                    alvo="caixa de som",
+                )
+                if not power_result.get("ok"):
+                    return _unavailable("radio_play", f"falha ao confirmar energia: {power_result.get('error')}")
+
+        # Seta volume inicial no sink
+        _run(["pactl", "set-sink-volume", sink, f"{vol}%"])
+
+        # Inicia ffplay sem vídeo, sem interface, saída PulseAudio
+        # -nodisp: sem janela de vídeo
+        # -autoexit: sai quando stream acaba
+        # -loglevel error: log mínimo
+        cmd = [
+            "ffplay",
+            "-nodisp",
+            "-autoexit",
+            "-loglevel",
+            "error",
+            "-af",
+            f"volume={vol/100:.2f}",  # volume interno do ffplay também
+            url,
+        ]
+        try:
+            _RADIO_PROCESS = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,  # grupo de processo próprio
+            )
+        except FileNotFoundError:
+            return _unavailable("radio_play", "ffplay não encontrado (instale ffmpeg)")
+        except Exception as exc:
+            return _unavailable("radio_play", f"falha ao iniciar ffplay: {exc}")
+
+    return {
+        "ok": True,
+        "status": "tocando",
+        "stream_url": url,
+        "volume": vol,
+        "sink": sink,
+        "pid": _RADIO_PROCESS.pid,
+    }
+
+
+def radio_stop(
+    power_entity: str = "switch.note_servidor_socket_1",
+    auto_power: bool = True,
+) -> dict[str, Any]:
+    """Para a rádio (mata o ffplay) e opcionalmente desliga a energia da caixa."""
+    global _RADIO_PROCESS
+
+    # Desliga a energia da caixa (se auto_power) - faz isso ANTES de verificar o processo
+    # para garantir que a energia seja desligada mesmo se a rádio já estava parada
+    power_turned_off = False
+    if auto_power and power_entity:
+        power_result = ha_device_control(
+            entity_id=power_entity,
+            on=False,
+            user_id="alex",
+            alvo="caixa de som",
+        )
+        if not power_result.get("ok") and not power_result.get("needs_confirmation"):
+            log.warn("radio_stop: falha ao desligar energia", error=power_result.get("error"))
+        elif power_result.get("needs_confirmation"):
+            power_result = ha_device_control(
+                entity_id=power_entity,
+                on=False,
+                user_id="alex",
+                alvo="caixa de som",
+            )
+            if not power_result.get("ok"):
+                log.warn("radio_stop: falha ao confirmar desligar", error=power_result.get("error"))
+            else:
+                power_turned_off = True
+        else:
+            power_turned_off = True
+
+    with _RADIO_LOCK:
+        if _RADIO_PROCESS is None or _RADIO_PROCESS.poll() is not None:
+            _RADIO_PROCESS = None
+            msg = "já estava parado"
+            if power_turned_off:
+                msg += ", energia da caixa desligada"
+            return {"ok": True, "status": "parado", "hint": msg}
+
+        try:
+            # Termina grupo de processo (ffplay + filhos)
+            os.killpg(os.getpgid(_RADIO_PROCESS.pid), signal.SIGTERM)
+            _RADIO_PROCESS.wait(timeout=3)
+        except Exception:
+            try:
+                os.killpg(os.getpgid(_RADIO_PROCESS.pid), signal.SIGKILL)
+            except Exception:
+                pass
+        finally:
+            _RADIO_PROCESS = None
+
+    return {"ok": True, "status": "parado", "hint": "rádio parada" + (", energia da caixa desligada" if power_turned_off else "")}
+
+
+def radio_volume(volume: int | str, sink: str = "") -> dict[str, Any]:
+    """Ajusta volume da rádio (0–150% ou 'up'/'down' para relativo).
+
+    Ajusta no sink PulseAudio (pactl). Se ffplay rodando, o volume interno
+    é setado no start; para volume preciso em tempo real, o volume do
+    PulseAudio basta.
+    """
+    global _RADIO_PROCESS
+
+    sink = sink or _RADIO_SINK
+
+    # Obtém volume atual do sink para ajustes relativos
+    current_vol = 50  # default
+    rc, out, err = _run(["pactl", "get-sink-volume", sink])
+    if rc == 0:
+        # Output: "Volume: front-left: 32768 /  50% / -18.06 dB, ..."
+        import re as _re
+        match = _re.search(r"(\d+)%", out)
+        if match:
+            current_vol = int(match.group(1))
+
+    # Resolve volume alvo
+    if isinstance(volume, str):
+        if volume == "up":
+            target_vol = min(current_vol + 10, 150)
+        elif volume == "down":
+            target_vol = max(current_vol - 10, 0)
+        else:
+            target_vol = current_vol
+    else:
+        target_vol = _radio_volume_clamp(volume)
+
+    # Ajusta no PulseAudio
+    rc, out, err = _run(["pactl", "set-sink-volume", sink, f"{target_vol}%"])
+    if rc != 0:
+        return _unavailable("radio_volume", f"pactl falhou: {err}")
+
+    with _RADIO_LOCK:
+        pid = _RADIO_PROCESS.pid if _RADIO_PROCESS and _RADIO_PROCESS.poll() is None else None
+
+    return {
+        "ok": True,
+        "volume": target_vol,
+        "sink": sink,
+        "pid": pid,
+    }
+
+
+def radio_status() -> dict[str, Any]:
+    """Status atual da rádio."""
+    global _RADIO_PROCESS
+
+    with _RADIO_LOCK:
+        if _RADIO_PROCESS is None or _RADIO_PROCESS.poll() is not None:
+            _RADIO_PROCESS = None
+            return {"ok": True, "status": "parado", "stream_url": _RADIO_STREAM_URL}
+
+        pid = _RADIO_PROCESS.pid
+        # Volume atual do sink
+        rc, out, err = _run(["pactl", "get-sink-volume", _RADIO_SINK])
+        vol_atual = out.strip() if rc == 0 else "desconhecido"
+
+    return {
+        "ok": True,
+        "status": "tocando",
+        "stream_url": _RADIO_STREAM_URL,
+        "pid": pid,
+        "volume_sink": vol_atual,
     }
 
 
@@ -3509,6 +3742,26 @@ CATALOG: list[dict[str, Any]] = [
               "alvo": {**S, "default": ""},
               "plural": {**B, "default": False},
           }}),
+    # --- Rádio local (stream direto na placa de som via ffplay + pactl) ---
+    _spec("radio_play", "iot", "Toca stream de rádio na placa de som (ffplay + pactl) com auto-power da caixa", radio_play,
+          {"properties": {
+              "stream_url": {**S, "default": ""},
+              "volume": {**I, "default": 70},
+              "sink": {**S, "default": ""},
+              "power_entity": {**S, "default": "switch.note_servidor_socket_1"},
+              "auto_power": {**B, "default": True},
+          }}),
+    _spec("radio_stop", "iot", "Para a rádio e opcionalmente desliga a energia da caixa", radio_stop,
+          {"properties": {
+              "power_entity": {**S, "default": "switch.note_servidor_socket_1"},
+              "auto_power": {**B, "default": True},
+          }}),
+    _spec("radio_volume", "iot", "Ajusta volume da rádio (0–150%) via pactl", radio_volume,
+          {"required": ["volume"], "properties": {
+              "volume": I,
+              "sink": {**S, "default": ""},
+          }}),
+    _spec("radio_status", "iot", "Status atual da rádio (tocando/parado, PID, volume)", radio_status),
     # --- Google Workspace (leitura) ---
     _spec("google_drive_list", "google", "Lista/busca arquivos do Google Drive", google_drive_list,
           {"query": {**S, "default": ""}, "limit": {**I, "default": 20}}),
