@@ -12,6 +12,28 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## RAG otimizado, streaming e rádio local — lote de 10/11 publicado (2026-11-11, sem bump)
+
+**Resumo:** o lote de 10/11 ficou um dia só no disco (sem commit, sem deploy).
+Esta entrada cobre a publicação das fases 5–6 do F1, do RAG otimizado
+(I1/I2/I4/I5), das actions de rádio local, da stack de observabilidade e das
+correções encontradas no caminho.
+
+| Peça | Entrega |
+|---|---|
+| **`core/orchestrator_graph.py`** | `RetryPolicy` por nó (backoff exponencial + jitter; retry só em timeout/conexão/IO; desligado em nós terminais). Override por `OD_RETRY_<NÓ>`; padrão `generate` 2 tentativas 1–10 s. |
+| **`core/orchestrator.py`** | `retomar_turno_humano` com o grafo completo: a **duplicata** que sombreava o método (nós vazios) foi removida, e a retomada agora executa `human_loop` **e** `post_process` (antes pulava a etapa 8). `process_stream_sse()` emite `progress`/`token`/`done`/`human_loop_pending`/`error`. Integração do Query Router (I4) na etapa de intenções e no grafo. |
+| **`memory/semantic_cache.py`** | Cache semântico do RAG por embedding da consulta, com TTL e teto de entradas; devolve o resultado ou `None` sem quebrar o caminho. |
+| **`core/hybrid_search.py`** + **`core/embeddings.py`** | Busca híbrida BM25 + denso com reranker e provider de embeddings via `urllib` (768 dims, sem SDK). |
+| **`core/query_router.py`** | Roteador TF-IDF + LogisticRegression com bootstrap e fallback por regras; `scikit-learn` entrou no `requirements.txt` como dependência opcional (import tardio). |
+| **`integrations/api/server.py`** | `GET /api/v1/chat/stream` (SSE, `text/event-stream`, API Key obrigatória, `X-Accel-Buffering: no`). |
+| **`tools/actions/actions.py`** + **`core/intents.py`** | `radio_play`/`radio_stop`/`radio_volume`/`radio_status` (ffplay + pactl, auto-power `switch.note_servidor_socket_1`), só para admin. Catálogo **118 → 122** actions. |
+| **`integrations/telegram/bot.py`** | Consome turno pausado (`paused`), pede aprovação e aplica `sim`/`não` via `retomar_turno_humano`. Código duplicado e espaços à direita removidos. |
+| **`docker/`** | Stack OTel: `otel-collector-config.yaml` (OTLP → Tempo/Loki/Prometheus) + `tempo.yaml`, `loki.yaml`, `prometheus.yml`, `grafana-datasources.yaml` e serviços no `tools-compose.yaml`. Corrigidos o exporter `logging` referenciado sem definição, as portas OTLP do Tempo (4318, não 3200), o endpoint OTLP do Loki e o `--web-enable-remote-write-receiver`. Stack **não implantada** nesta entrega. |
+| **Correções de suíte** | `test_mcp_od` e `test_vigia_mensagens` carregavam o `.env` real no `os.environ` e mudavam a rota dos módulos seguintes (69 → 0 falhas); `test_sse` passou a usar `tmp_path`; contagens 118 → 122 em 4 arquivos. |
+| **Verificação** | Gate **4422 passed / 17 skipped / 0 falha** (175,41 s). Sem bump: **1.44.0/2080**. |
+| **Prova viva** | `od-core` reiniciado (MainPID **2379496**, `NRestarts=0`, `active`); `/health` **27/27**; `/capabilities` **122 actions**; SSE real com `text=que horas são?` devolveu `progress` + `token` + `done` (`route=datetime`); `journalctl -p err` **0 entradas**. |
+
 ## Orquestrador em grafo, fase 4: retomada pós-restart (F1, 2026-11-10, sem bump)
 
 **Resumo:** o checkpoint existia, mas a thread era aleatória por mensagem —

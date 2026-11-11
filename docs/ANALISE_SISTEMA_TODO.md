@@ -571,13 +571,13 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
-- [ ] F1: fazer o `execute_parallel` executar as actions reais do registry, com
+- [x] F1: fazer o `execute_parallel` executar as actions reais do registry, com
       timeout por ferramenta (hoje o `process()` responde actions pelo fast
-      path e o grafo só orquestra conversa)
-- [ ] F1: `RetryPolicy` por nó para falha transitória de LLM/action, sem
-      reexecutar o pipeline inteiro
-- [ ] F1: consumir `pending_human_input` de verdade no chat (pausa + aprovação
-      do dono) usando `retomar()`, hoje só testado no motor
+      path e o grafo só orquestra conversa) — **ENTREGUE 10/11: nós `select_tools` e `execute_parallel` no grafo usam `execute_action` do orchestrator**
+- [x] F1: `RetryPolicy` por nó para falha transitória de LLM/action, sem
+      reexecutar o pipeline inteiro — **ENTREGUE 10/11: políticas padrão + `OD_RETRY_<NÓ>` no motor do grafo; ver §21 da transcrição**
+- [x] F1: consumir `pending_human_input` de verdade no chat (pausa + aprovação
+      do dono) usando `retomar()`, hoje só testado no motor — **ENTREGUE 10/11: `retomar_turno_humano` no orchestrator + `_pending_human_loop` + `_handle_human_loop_decision` no Telegram bot; 11/11: duplicata que sombreava o método foi removida e a retomada agora roda `human_loop` + `post_process` (teste em `test_orchestrator_graph_integration.py`). Falta só a ORIGEM: nenhum nó cria `pending_human_input` a partir de action sensível**
 - [ ] RAG: avaliar cache de embedding de documento (evitar reembeddar o mesmo
       texto após restart)
 
@@ -642,6 +642,7 @@ esperar o timeout.
 3. **Adicionar `pyproject.toml` dependências:** `opentelemetry-sdk` (já em `requirements.txt`, import tardio), `redis`, `rank-bm25`, `sentence-transformers` — `aiohttp`/`aiosqlite`/`pybreaker` **descartados** com medição (F3/R2)
 4. **Criar `docs/ARCHITECTURE_v2.md`** com diagramas Mermaid do novo grafo
 5. **Agendar sync semanal** com dono para revisar progresso e ajustar prioridades
+6. **Bluetooth pairing:** celular emparelha mas falha na autenticação (PIN 0000) — agent D-Bus registra mas `AuthenticationFailed`; tentar outro dia com `bluetoothctl --agent` ou `bluez-test-device`
 
 ---
 

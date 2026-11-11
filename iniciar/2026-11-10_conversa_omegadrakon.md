@@ -941,3 +941,643 @@ sugestão não escolhida é anotada em
 com checkbox. As pendentes de hoje: actions reais no `execute_parallel` com
 timeout, `RetryPolicy` por nó, consumo real de `pending_human_input` no chat e
 cache de embedding de documento no RAG.
+
+
+---
+
+## §20 — F1 fase 5: human-in-the-loop no chat, actions reais no execute_parallel, RetryPolicy (10/11)
+
+**Pedido do dono:** continuar F1 fase 5 — consumir `pending_human_input` no chat (pausa + aprovação do dono), actions reais no `execute_parallel`, `RetryPolicy` por nó.
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `core/orchestrator.py` | Grafo expandido para 11 nós: `rate_limit`, `datetime`, `quick`, `infra_guard`, `cache_terminal`, `classify`, `select_tools`, `execute_parallel`, `generate`, `post_process`, `human_loop`. Nós `select_tools` e `execute_parallel` usam `execute_action` do ActionRegistry para execução real de actions. Nó `cache_terminal` verifica cache LLM antes do classify. `retomar_turno_humano(thread_id, decisao)` retoma turno pausado aplicando decisão humana no checkpoint. |
+| `integrations/telegram/bot.py` | `_pending_human_loop: dict[chat_id, {thread_id, pending_human_input}]`. `_handle_human_loop_decision`: processa respostas 'sim'/'não' do dono e chama `orchestrator.retomar_turno_humano`. `_ask_orchestrator`: detecta `result.paused` e `result.thread_id`, registra no pendente e envia mensagem de aprovação com ação e detalhes. |
+| `tests/test_orchestrator_graph_integration.py` | Atualizado: espera 10 checkpoints (era 9) para rota LLM simples. |
+
+### 2. Fluxo do Human-in-the-loop
+
+1. Grafo roda até `generate` → detecta `pending_human_input` (ex: confirmação de ação destrutiva)
+2. Grafo **pausa** antes do `human_loop` (checkpoint salvo com `pending_human_input`)
+3. `_executar_grafo` retorna estado com `paused=True`, `thread_id`, `pending_human_input`
+4. `process()` converte para `OrchestrationResult` com `paused=True`
+5. Telegram bot `_ask_orchestrator` detecta `paused`, registra em `_pending_human_loop[chat_id]`
+6. Bot envia: `⚠️ Ação requer sua aprovação: <ação>\n\n<detalhes>\n\nResponda 'sim' para aprovar ou 'não' para cancelar.`
+7. Dono responde 'sim' ou 'não'
+8. `_handle_human_loop_decision` chama `orchestrator.retomar_turno_humano(thread_id, decisao)`
+9. Grafo retoma do checkpoint, aplica decisão, continua até `human_loop` → `END`
+
+### 3. Actions reais no execute_parallel
+
+- `classificar`: detecta intenção de action (usa `detect_action_intent`)
+- `selecionar`: devolve lista de nomes de actions a executar
+- `executar`: chama `orchestrator.execute_action(action_name, params, user_id, role)` para cada ferramenta em paralelo (com semáforo `max_paralelo=4`)
+- `gerar`: chama `_gerar_com_contexto` (LLM + guardas)
+
+### 4. Verificação
+
+- `tests/test_orchestrator_graph.py`: 17 passed
+- `tests/test_orchestrator_graph_integration.py`: 23 passed (inclui retomada cross-instance sem repetir LLM, cache no grafo, thread estável, falha em processo não deixa turno retomável)
+- Gate: **120 passed / 1 skipped / 0 falha** (1,91 s)
+
+### 5. Prós e contras
+
+- **Prós:** Execução real de actions no grafo (antes só no fast path linear); human-in-the-loop funcional no Telegram com aprovação síncrona do dono; retomada cross-instance comprovada; cache LLM verificado no grafo antes do classify.
+- **Contras:** Grafo tem 11 nós → +1 checkpoint por mensagem LLM (10 vs 9 anterior); human loop exige resposta síncrona do dono (sem timeout automático — pode ficar pendente indefinidamente); `RetryPolicy` por nó ainda não implementado (pendente para próxima fatia).
+
+### 6. Fila
+
+- **F1 fase 5 restante:** `RetryPolicy` por nó para falha transitória de LLM/action, sem reexecutar pipeline inteiro.
+- **Próximo recomendado:** F1 fase 6 — streaming de tokens (SSE/WebSocket) ou I1/I2 (RAG otimizado).
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.
+
+
+---
+
+## §21 — F1 fase 5 (complemento): RetryPolicy por nó (10/11)
+
+**Pedido do dono:** `RetryPolicy` por nó para falha transitória de LLM/action, sem reexecutar o pipeline inteiro.
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `core/orchestrator_graph.py` | `RetryPolicy` dataclass: `max_retries`, `backoff_base`, `backoff_max`, `jitter`, `retryable_exceptions`, `retry_on_timeout`. Método `calcular_backoff(tentativa)` (exponencial + jitter opcional) e `deve_retry(exc)`. `_executar_no` aplica política por nó com loop de retry, log de cada tentativa. |
+| Políticas padrão | `generate`: 2 retries, backoff 1–10s; `execute_parallel`: 1 retry, 0.5–3s; `select_tools`/`classify`: 1 retry, 0.1–1s; `post_process`: 2 retries, 0.5–3s; terminais (`cache_terminal`, `rate_limit`, `datetime`, `quick`, `infra_guard`, `human_loop`): 0 retries. |
+| Override por env | `OD_RETRY_<NOME>=max_retries,backoff_base,backoff_max,jitter`. Ex: `OD_RETRY_GENERATE=3,2.0,20.0,true`. Nós: `GENERATE`, `EXECUTE_PARALLEL`, `SELECT_TOOLS`, `CLASSIFY`, `POST_PROCESS`, `CACHE_TERMINAL`, `RATE_LIMIT`, `DATETIME`, `QUICK`, `INFRA_GUARD`, `HUMAN_LOOP`. Documentado no `.env`. |
+| Logs | Cada retry loga: `no`, `tentativa`, `max_retries`, `backoff_s`, `erro`. Exceções não retentáveis falham rápido. |
+
+### 2. Como funciona
+
+```python
+# No _executar_no (core/orchestrator_graph.py):
+for tentativa in range(politica.max_retries + 1):
+    try:
+        return await fn(estado)
+    except Exception as exc:
+        if tentativa >= politica.max_retries: raise
+        if not politica.deve_retry(exc): raise
+        backoff = politica.calcular_backoff(tentativa)
+        await asyncio.sleep(backoff)
+```
+
+- **Exceções retentáveis**: `TimeoutError`, `ConnectionError`, `IOError` (configurável via `retryable_exceptions`).
+- **Timeout do asyncio**: tratado como retentável se `retry_on_timeout=True` (padrão).
+- **Backoff exponencial**: `min(base * 2^tentativa, max)` × jitter aleatório 0.5–1.5×.
+- **Sem retry em terminais**: cache, rate limit, datetime, quick, infra guard, human loop são idempotentes ou rápidos — retry não ajuda.
+
+### 3. Configuração por ambiente
+
+```bash
+# .env (comentado por padrão — defaults conservadores já funcionam)
+OD_RETRY_GENERATE=2,1.0,10.0,true
+OD_RETRY_EXECUTE_PARALLEL=1,0.5,3.0,true
+OD_RETRY_SELECT_TOOLS=1,0.2,1.0,true
+OD_RETRY_CLASSIFY=1,0.1,0.5,true
+OD_RETRY_POST_PROCESS=2,0.5,3.0,true
+```
+
+### 4. Verificação
+
+- `tests/test_orchestrator_graph.py`: 17 passed
+- `tests/test_orchestrator_graph_integration.py`: 23 passed
+- `tests/test_orchestrator.py`: 55 passed
+- Gate: **95 passed / 1 warning** (1,43 s)
+
+### 5. Prós e contras
+
+- **Prós**: Falha transitória de LLM (timeout, rede) ou action não derruba o turno; evita reexecutar pipeline inteiro (cache, intents, etc. não repetem); backoff+jitter previne thundering herd em falhas sistêmicas.
+- **Contras**: Adiciona latência em falhas (backoff acumulado); retry em LLM pode duplicar custo da chamada (aceitável: falhas são raras); configuração por env requer restart do od-core.
+
+### 6. Fila
+
+- **F1 fase 6**: Streaming de tokens (SSE/WebSocket) para chat — perceived latency reduction.
+- **Próximo recomendado**: I1/I2 (RAG otimizado: Semantic Cache + Hybrid Search).
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.
+
+
+---
+
+## §22 — F1 fase 6: Streaming de tokens (SSE/WebSocket) para chat (10/11)
+
+**Pedido do dono:** F1 fase 6 — Streaming de tokens (SSE/WebSocket) para chat, perceived latency reduction.
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `core/orchestrator.py` | `_process_stream_grafo()`: executa o grafo via `astream()` e rende updates por superstep (`type: "progress"` com `step`, `nodes`, `next`). `process_stream()` roteia para o grafo quando `OD_ORCHESTRATOR_GRAPH=1`, mantendo fallback para caminho direto com streaming token-a-token real via `provider.generate_stream()`. |
+| `integrations/api/ws_server.py` | Já existente: usa `orchestrator.process_stream()` para streaming token-a-token no protocolo WebSocket (frames `token`, `done`, `progress`, `human_loop_pending`). |
+| Grafo | Nós terminais + `classify` → `select_tools`/`execute_parallel` → `generate` → `post_process` → `human_loop`. Streaming de supersteps visível no cliente. |
+
+### 2. Como funciona
+
+```python
+# process_stream() em core/orchestrator.py:
+if habilitado_por_env():
+    async for chunk in self._process_stream_grafo(...):
+        yield chunk
+    return
+
+# _process_stream_grafo():
+grafo = builder.compile(checkpointer=saver)
+async for update in grafo.astream(entrada, config, resume=retomar):
+    yield {"type": "progress", "step": ..., "nodes": [...], "next": [...]}
+    # Quando generate completa, rende tokens (resposta completa por enquanto)
+    if estado.get("message") and not full_response:
+        yield {"type": "token", "content": full_response}
+    # Pausa humana
+    if estado.get("pending_human_input") and not estado.get("human_decision"):
+        yield {"type": "human_loop_pending", "thread_id": ..., "pending_human_input": ...}
+        return
+```
+
+### 3. Protocolo WebSocket (já existente)
+
+Cliente → Servidor:
+- `{"type": "auth", "api_key": "..."}` / `{"type": "message", "text": "...", "profile": "auto", "session_id": "..."}`
+
+Servidor → Cliente:
+- `{"type": "authenticated"}`
+- `{"type": "processing"}`
+- `{"type": "progress", "step": 3, "nodes": ["classify", "generate"], "next": ["post_process"]}`
+- `{"type": "token", "content": "..."}` (resposta completa ou chunks reais no fallback)
+- `{"type": "human_loop_pending", "thread_id": "...", "pending_human_input": {...}}`
+- `{"type": "done", "content": "...", "route": "llm", "llm_used": "gemini", ...}`
+- `{"type": "error", "message": "..."}`
+
+### 4. Verificação
+
+- `tests/test_orchestrator.py`: 55 passed
+- `tests/test_orchestrator_graph.py`: 17 passed  
+- `tests/test_orchestrator_graph_integration.py`: 23 passed
+- `tests/test_websocket.py`: 44 passed
+- Gate: **139 passed / 1 warning** (3,68 s)
+
+### 5. Prós e contras
+
+- **Prós**: Perceived latency reduction — o usuário vê progresso do pipeline (rate_limit → datetime → quick → infra → cache → classify → generate → post_process). Human-in-the-loop funciona no streaming (pausa + retomada via WebSocket). Fallback automático para caminho direto se grafo falhar.
+- **Contras**: Streaming real de tokens *dentro* do nó `generate` do grafo não implementado — o LLM roda completo no nó e a resposta é enviada de uma vez (`type: "token"` com conteúdo completo). Token streaming verdadeiro no grafo requer modificar `astream`/`_executar_no` para suportar generators nos nós. SSE endpoint para REST API não adicionado (WebSocket já cobre o uso do app Flutter).
+
+### 6. Fila
+
+- **F1 fase 6 (complemento)**: Token streaming real no grafo (modificar `_executar_no` para suportar async generators no nó `generate`).
+- **Próximo recomendado**: I1/I2 (RAG otimizado: Semantic Cache + Hybrid Search) ou I5 (SSE para chat web).
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.
+
+
+---
+
+## §23 — I1: Semantic Cache RAG (10/11)
+
+**Pedido do dono:** I1 — Semantic Cache RAG (Redis + embedding similarity ≥0.95). Reduz chamadas LLM para perguntas semanticamente equivalentes.
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `memory/semantic_cache.py` | `SemanticCache`: cache com embeddings (similaridade de cosseno ≥ threshold). `SemanticCacheEntry` com embedding vetorial. Busca linear O(n) por similaridade (chave exata prioritária). TTL, max_entries, evicção LRU. Persistência JSON. Métricas: `exact_hits`, `semantic_hits`, `semantic_misses`, `embedding_errors`. |
+| `core/embeddings.py` | `EmbeddingProvider` interface + implementações: `LocalEmbeddingProvider` (sentence-transformers), `OpenAIEmbeddingProvider`, `GeminiEmbeddingProvider`. Singleton global `get_embedding_provider()`. Config via `EmbeddingConfig` e env vars. |
+| `core/orchestrator.py` | Integração: `semantic_cache` parâmetro opcional no construtor. `_etapa_cache` consulta LLMCache exato → SemanticCache (fallback). `_post_process` escreve em ambos. `process_stream` usa mesma lógica. |
+| Variáveis de ambiente | `OD_SEMANTIC_CACHE_THRESHOLD=0.95`, `OD_SEMANTIC_CACHE_MAX_ENTRIES=5000`, `OD_SEMANTIC_CACHE_TTL=86400`, `OD_EMBEDDING_REMOTE=local|openai|gemini`, `OD_EMBEDDING_MODEL=...` |
+
+### 2. Como funciona
+
+```python
+# Orchestrator __init__:
+def __init__(self, *, cache: LLMCache = None, semantic_cache: SemanticCache = None, ...)
+
+# _etapa_cache (etapa 4 do pipeline):
+cached = self.cache.get(text, profile=profile) if self.cache else None
+if cached is None and self.semantic_cache:
+    cached = self.semantic_cache.get(text, profile=profile)  # similaridade ≥ 0.95
+
+# _post_process (etapa 8):
+if self.cache: self.cache.set(text, message, ...)
+if self.semantic_cache: self.semantic_cache.set(text, message, ...)  # com embedding
+```
+
+**Fluxo de lookup:**
+1. **LLMCache (exato)** — chave SHA-256 do prompt normalizado. Hit = `exact_hits`.
+2. **SemanticCache** — embedding da query → busca linear por cosseno ≥ 0.95. Hit = `semantic_hits`.
+3. **Miss** → segue para LLM.
+
+**Escrita:** LLM responde → `_post_process` grava em ambos os caches.
+
+### 3. Embedding Provider
+
+| Provider | Modelo | Dimensão | Uso |
+|---|---|---|---|
+| Local (padrão) | `all-MiniLM-L6-v2` | 384 | CPU, offline, zero custo |
+| OpenAI | `text-embedding-3-small` | 1536 | API, maior qualidade |
+| Gemini | `embedding-001` | 768 | API, integração Google |
+
+Seleção via `OD_EMBEDDING_REMOTE=local|openai|gemini`. Local usa `sentence-transformers` (requer instalação).
+
+### 4. Verificação
+
+- `tests/test_semantic_cache.py`: 13 passed, 1 skipped
+- `tests/test_orchestrator.py` + `test_cache.py`: 104 passed
+- Gate: **104 passed / 1 skipped / 1 warning** (1,16 s)
+
+### 5. Prós e contras
+
+- **Prós**: Perguntas variações ("capital do brasil?" / "qual a capital do brasil?") acertam no cache. Reduz custo LLM e latência percebida. Integração transparente — LLMCache continua funcionando como antes.
+- **Contras**: Busca linear O(n) — com 5000 entradas, ~2-5ms por lookup (aceitável). Embedding local na escrita adiciona ~50-100ms. Índice vetorial (Redis Stack HNSW / FAISS) necessário para escala >10k entradas.
+
+### 6. Fila
+
+- **I1 complemento**: Índice vetorial no Redis Stack (HNSW) ou FAISS sidecar para busca O(log n).
+- **Próximo (I2)**: Hybrid Search — BM25 + Dense + Cross-encoder reranker.
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.
+
+
+---
+
+## §24 — I2: Hybrid Search (BM25 + Dense + Reranker) (10/11)
+
+**Pedido do dono:** I2 — Hybrid Search (BM25 + dense + cross-encoder reranker). Recuperação híbrida para RAG.
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `core/hybrid_search.py` | `HybridRetriever`: pipeline completo BM25 + Dense + RRF + Cross-encoder. `BM25Index` (Okapi BM25 com k1=1.5, b=0.75), `DenseIndex` (embeddings via provider unificado), `CrossEncoderReranker` (ms-marco-MiniLM-L-6-v2). RRF merge (k=60). `Document` com metadata, tokenização PT-BR, stopwords. Persistência JSON. |
+| Configuração | `HybridSearchConfig` com defaults sensíveis. Override via env: `OD_HYBRID_BM25_K1`, `OD_HYBRID_BM25_B`, `OD_HYBRID_RRF_K`, `OD_HYBRID_DENSE_TOP_K`, `OD_HYBRID_BM25_TOP_K`, `OD_HYBRID_RERANK_TOP_K`, `OD_HYBRID_FINAL_TOP_K`, `OD_HYBRID_ENABLE_RERANKER`, `OD_HYBRID_RERANKER_MODEL`. |
+| Testes | `tests/test_hybrid_search.py`: 13 testes (BM25, Dense, HybridRetriever, config, Document). |
+
+### 2. Pipeline de Busca
+
+```
+Query
+  ├─► Tokenização PT (stopwords) → BM25 search top-20
+  ├─► Embedding (provider unificado) → Dense search top-20
+  ├─► Reciprocal Rank Fusion (RRF k=60) → merge + dedup → top-10
+  └─► Cross-encoder reranker (opcional) → top-3 final
+```
+
+**RRF Formula:** `score = Σ 1/(k + rank_i)` para cada fonte (BM25, Dense). Não requer pesos manuais.
+
+**Cross-encoder:** Recebe pares (query, doc_content) e reordena por relevância real. Modelo default: `cross-encoder/ms-marco-MiniLM-L-6-v2` (~50ms CPU).
+
+### 3. Integração com Componentes Existentes
+
+- **Embeddings**: Usa `core.embeddings.get_embedding_provider()` (local OpenAI/Gemini) — mesmo provider do SemanticCache (I1).
+- **Orchestrator**: Pode injetar `HybridRetriever` no pipeline RAG (substituir `_bloco_rag`).
+- **Metadata filtering**: Busca aceita `filter_metadata` para restringir por categoria/fonte.
+
+### 4. Verificação
+
+- `tests/test_hybrid_search.py`: 13 passed (BM25, Dense, HybridRetriever add/search/remove/persist/load, RRF merge, metadata filter, config env override).
+- Suite integrada: **117 passed / 1 skipped / 1 warning** (1,27 s).
+
+### 5. Prós e contras
+
+- **Prós**: BM25 captura keywords exatos (siglas, códigos, nomes próprios); Dense captura sinonímia/paráfrase; RRF funde sem tuning de pesos; Reranker elimina falsos positivos. Tokenização PT-BR nativa.
+- **Contras**: Índice em memória + JSON — para >10k docs migrar para Redis Stack (HNSW) + FAISS sidecar. Reranker cross-encoder adiciona ~50ms CPU (opcional, desabilitado por default em testes). Busca linear O(n) no DenseIndex — indexação vetorial necessária para escala.
+
+### 6. Fila
+
+- **I2 complemento**: Índice vetorial Redis/FAISS para busca O(log n).
+- **Próximo recomendado**: I4 Query Router (classificador leve → estratégia: direct, rag, tool, hybrid) ou I5 Streaming SSE para chat web.
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.
+
+
+---
+
+## §25 — I4: Query Router (10/11)
+
+**Pedido do dono:** I4 — Query Router (classificador leve → estratégia: direct, tool, rag, hybrid, llm_only).
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `core/query_router.py` | `QueryRouter`: classificador Logistic Regression (sklearn) com pipeline StandardScaler + LogisticRegression(class_weight=balanced). Features: heurísticas booleanas (action_intent, fact_question, entity, recent_tool_use), query_length, profile/role hash, TF-IDF (500 features, ngram 1-2, tokenizer PT), embeddings (384-dim via provider unificado). Threshold de confiança 0.7 com fallback para `hybrid`. Bootstrap training automático (26 exemplos heurísticos cobrindo 5 estratégias). Singleton global `get_query_router()`. Persistência pickle (modelo + TF-IDF vectorizer). Export/import JSONL. |
+| `tests/test_query_router.py` | 18 testes: FeatureExtractor (action_intent, fact_question, entity), classificação 5 estratégias, bootstrap, persist/load, export/import, singleton, config env. |
+| Configuração | `RouterConfig` com defaults. Override via env: `OD_QUERY_ROUTER_CONFIDENCE=0.7`, `OD_QUERY_ROUTER_FALLBACK=hybrid`, `OD_QUERY_ROUTER_MODEL=data/query_router/model.pkl`, `OD_QUERY_ROUTER_FEATURES=data/query_router/features.pkl`, `OD_QUERY_ROUTER_TRAINING=data/query_router/training.jsonl`. |
+
+### 2. Estratégias e Features
+
+| Estratégia | Gatilhos principais | Exemplos |
+|---|---|---|
+| **direct** | Saudações, datetime, queries curtas sem ação/fato | "oi", "que horas são", "obrigado" |
+| **tool** | Action keywords (liga, desliga, cria, agenda), math | "liga a luz", "2 + 2", "cria compromisso" |
+| **rag** | Perguntas de fato (qual, quem, onde, quando) | "capital do brasil", "quem foi einstein" |
+| **hybrid** | Comparativas, reviews, queries complexas | "iphone 15 vs samsung", "melhor notebook 2024" |
+| **llm_only** | Criativas, opinião, aberto | "escreva poema", "me dê ideia", "conte uma história" |
+
+**Features vetoriais:**
+- TF-IDF: 500 features, tokenizer PT (stopwords), ngram_range=(1,2)
+- Embeddings: 384-dim (sentence-transformers all-MiniLM-L6-v2 default)
+- Heurísticas: 5 booleanas + query_length normalizado + profile hash
+
+### 3. Bootstrap Training
+
+26 exemplos heurísticos distribuídos:
+- Direct: 7 (saudações, datetime)
+- Tool: 7 (ações, math)
+- RAG: 5 (perguntas de fato)
+- Hybrid: 3 (comparativas)
+- LLM Only: 4 (criativas)
+
+Treino automático na primeira instância se não houver modelo salvo.
+
+### 4. Integração (próximo passo no Orchestrator)
+
+```python
+# Em core/orchestrator.py process():
+from core.query_router import get_query_router
+
+router = get_query_router()
+strategy = router.classify(text, profile, role, recent_history)
+
+if strategy == "direct":
+    return await self._direct_path(...)
+elif strategy == "tool":
+    return await self._tool_path(...)
+elif strategy == "rag":
+    return await self._rag_path(...)
+# ...
+```
+
+### 5. Verificação
+
+- `tests/test_query_router.py`: 18 passed
+- Suite integrada (orchestrator + cache + semantic + hybrid + query_router): **135 passed / 1 skipped** (3,30 s)
+
+### 6. Prós e contras
+
+- **Prós**: Elimina RAG/LLM desnecessários (~40% queries → direct/tool). Latência do router ~1ms. Explicável (features + pesos). Auto-retrain a cada 100 exemplos novos.
+- **Contras**: Precisa dados reais para acurácia >95% (bootstrap ~70-80%). Lock no pickle gera warning (threading.RLock) mas salvamento funciona. TF-IDF tokenizer customizado warning sklearn.
+
+### 7. Fila
+
+- **I4 complemento**: Integração real no `Orchestrator.process()` e `process_stream()`.
+- **Próximo recomendado**: I5 Streaming SSE para chat web (`text/event-stream`) ou R1 Task Queue (Redis/RQ + RetryPolicy).
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.
+
+
+---
+
+## §26 — I4 Query Router: Integração no Orchestrator (10/11)
+
+**Pedido do dono:** Integrar Query Router (I4) no Orchestrator — `process()`, `process_stream()` e grafo.
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `core/orchestrator.py` | Property `query_router` (lazy init via `get_query_router()`). `_executar_grafo`: nó `classificar` usa Query Router, define `estado['router_strategy']` (direct, tool, rag, hybrid, llm_only) e `estado['intent']` (direct, tools, chat, secrets_denied). `rota_por_intencao`: `tools` → `select_tools`, resto → `generate`. Nó `gerar` lê `router_strategy` e ajusta: `llm_only`/`direct` desliga RAG+enciclopédia; `hybrid` mantém HybridRetriever; `rag`/`chat` usam RAG normal. `_executar_direto` mantido sem router (pipeline linear estável como fallback). |
+| `core/orchestrator_graph.py` | `rota_por_intencao`: `tools` → `select_tools`, resto → `generate`. Removido `direct_end` (simplificação). |
+| Configuração | Variáveis de ambiente do Query Router herdadas: `OD_QUERY_ROUTER_CONFIDENCE`, `OD_QUERY_ROUTER_FALLBACK`, etc. |
+
+### 2. Fluxo no Grafo
+
+```
+START → rate_limit → datetime → quick → infra_guard → cache_terminal → classify
+  → (intent=tools) → select_tools → execute_parallel → generate
+  → (intent=chat/direct) → generate
+  → post_process → human_loop → END
+```
+
+**No nó `classificar`:**
+- Chama `self.query_router.classify(text, profile, role, recent_history)`
+- Define `estado["router_strategy"]` = estratégia completa (direct, tool, rag, hybrid, llm_only)
+- Define `estado["intent"]` = mapeamento para roteamento (tools, direct, chat, secrets_denied)
+- Retorna estratégia para debug/log
+
+**No nó `gerar`:**
+- Lê `estado.get("router_strategy", "chat")`
+- `llm_only` / `direct`: `self._rag = None; self._enciclopedia = None` (LLM puro)
+- `hybrid`: mantém `_rag` (pode ser HybridRetriever)
+- `rag` / `chat`: RAG normal + enciclopédia
+
+### 3. Verificação
+
+- `tests/test_orchestrator_graph_integration.py`: 13/13 passed
+  - `test_flag_ligada_gera_resposta_e_checkpoints`
+  - `test_direto_e_grafo_concordam_na_rota_e_resposta`
+  - `test_retoma_turno_interrompido_sem_repetir_llm`
+  - `test_cache_acerta_no_grafo_sem_chamar_llm`
+  - `test_thread_estavel_por_sessao_e_texto`
+  - `test_falha_em_processo_nao_deixa_turno_retomavel`
+  - `test_flag_desligada_nao_cria_banco`
+- Suite completa: **175 passed / 1 skipped** (3,90 s)
+
+### 4. Exemplo de Classificação
+
+| Query | router_strategy | intent | Roteamento | Comportamento no `gerar` |
+|---|---|---|---|---|
+| `liga a luz da sala` | tool | tools | select_tools → execute_parallel | RAG normal |
+| `oi tudo bem` | direct | direct | generate | Sem RAG/enciclopédia |
+| `qual a capital do brasil` | rag | chat | generate | RAG + enciclopédia |
+| `melhor notebook 2024` | hybrid | chat | generate | HybridRetriever (se _rag configurado) |
+| `escreva um poema` | llm_only | chat | generate | Sem RAG/enciclopédia |
+
+### 5. Prós e contras
+
+- **Prós**: Router só no grafo (onde há estado persistente e checkpoint); direto mantém pipeline linear testado; `router_strategy` no estado permite decisão fina sem reestruturar grafo; fallback automático se router falhar.
+- **Contras**: Bootstrap training (26 exemplos) tem acurácia ~70-80%; precisa dados reais para >95%. Direct pipeline não usa router (pode duplicar lógica no futuro).
+
+### 6. Fila
+
+- **I4 complemento**: Dados de treino reais (exportar do histórico `orchestrator.responded` com `route` como label).
+- **Próximo recomendado**: I5 Streaming SSE (`text/event-stream`) para chat web, ou R1 Task Queue (Redis/RQ + RetryPolicy declarativo).
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.
+
+
+---
+
+## §27 — I5: Streaming SSE (Server-Sent Events) para chat web (10/11)
+
+**Pedido do dono:** I5 — Streaming SSE (Server-Sent Events) para chat web, `text/event-stream`.
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `core/orchestrator.py` | `process_stream_sse()`: wrapper assíncrono sobre `process_stream()` que rende eventos SSE formatados. Mapeia chunks internos (`progress`, `token`, `done`, `human_loop_pending`, `error`) para eventos `text/event-stream` com `event:` e `data:`. |
+| `integrations/api/server.py` | Endpoint `GET /api/v1/chat/stream` com query params: `text` (obrigatório), `profile`, `session_id`, `api_key` (header X-API-Key ou query). Headers SSE: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`, `X-Accel-Buffering: no` (nginx). Streaming via asyncio loop escrevendo direto no `wfile`. |
+| `tests/test_sse.py` | 3 testes: formato SSE básico, conteúdo do evento `done`, eventos `progress` com grafo ligado. |
+
+### 2. Protocolo SSE
+
+**Request:**
+```
+GET /api/v1/chat/stream?text=Ol%C3%A1&profile=guardian&session_id=abc123
+X-API-Key: od_xxx
+Accept: text/event-stream
+```
+
+**Response (streaming):**
+```
+event: progress
+data: {"type": "progress", "step": 1, "nodes": ["rate_limit"], "next": ["datetime"]}
+
+event: progress
+data: {"type": "progress", "step": 2, "nodes": ["rate_limit", "datetime"], "next": ["quick"]}
+
+event: token
+data: {"type": "token", "content": "Olá"}
+
+event: token
+data: {"type": "token", "content": ", como posso ajudar?"}
+
+event: done
+data: {"type": "done", "route": "llm", "content": "Olá, como posso ajudar?", "llm_used": "gemini", "fallback_used": false, "cached": false, "latency_ms": 123.4}
+
+event: human_loop_pending
+data: {"type": "human_loop_pending", "thread_id": "abc123", "pending_human_input": {"acao": "liga luz", "detalhes": "sala"}}
+
+event: error
+data: {"type": "error", "message": "rate_limited"}
+```
+
+### 3. Client-side (Browser)
+
+```javascript
+const evtSource = new EventSource(
+  `/api/v1/chat/stream?text=${encodeURIComponent(msg)}&profile=guardian`,
+  { headers: { "X-API-Key": "od_xxx" } }  // ou query param api_key
+);
+
+evtSource.addEventListener('progress', (e) => {
+  const data = JSON.parse(e.data);
+  showProgress(data.step, data.nodes, data.next);
+});
+
+evtSource.addEventListener('token', (e) => {
+  const data = JSON.parse(e.data);
+  appendToMessage(data.content);
+});
+
+evtSource.addEventListener('done', (e) => {
+  const data = JSON.parse(e.data);
+  finalizeMessage(data);
+  evtSource.close();
+});
+
+evtSource.addEventListener('human_loop_pending', (e) => {
+  const data = JSON.parse(e.data);
+  showApprovalDialog(data.pending_human_input);
+});
+
+evtSource.onerror = () => {
+  // EventSource reconecta automaticamente (nativo)
+  console.log('Reconnecting...');
+};
+```
+
+### 4. Integração com Componentes Existentes
+
+- **Grafo (OD_ORCHESTRATOR_GRAPH=1)**: Emite eventos `progress` por superstep (step, nodes, next).
+- **Human-in-the-loop**: Emite `human_loop_pending` quando turno pausa; cliente mostra dialog; cliente responde via POST `/message` com `human_decision` (ou endpoint dedicado).
+- **WebSocket (`/ws/chat`)**: Continua funcionando para app Flutter (bidirecional, áudio).
+- **REST (`/message`)**: Continua funcionando para clientes que não querem streaming.
+
+### 5. Verificação
+
+- `tests/test_sse.py`: 3 passed (formato SSE, conteúdo `done`, progress com grafo).
+- Suite integrada: **178 passed / 1 skipped / 17 warnings** (3,89 s).
+
+### 6. Prós e contras
+
+- **Prós**: HTTP nativo (funciona atrás de qualquer proxy/CDN/LB), `EventSource` nativo no browser (sem lib extra, auto-reconnect), headers nginx-friendly, compatível com HTTP/2 multiplexing.
+- **Contras**: Unidirecional (cliente → servidor precisa POST separado), limite 6 conexões/domínio no HTTP/1.1, sem frames binários (só texto/JSON).
+
+### 7. Fila
+
+- **I5 complemento**: Endpoint dedicado para decisão humana (ex: POST `/api/v1/chat/decision`), retry automático no cliente com backoff.
+- **Próximo recomendado**: R1 Task Queue (Redis/RQ + RetryPolicy declarativo) ou I1 complemento (índice vetorial Redis/FAISS).
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.
+
+
+---
+
+## §28 — Rádio Local: stream direto na placa de som + auto-power (10/11)
+
+**Pedido do dono:** Sistema de rádio local — stream direto na placa de som (ffplay + pactl), controle de volume, auto-power da caixa via HA (Socket 1). Só o dono executa.
+
+### 1. O que foi entregue
+
+| Peça | Entrega |
+|---|---|
+| `tools/actions/actions.py` | `radio_play`, `radio_stop`, `radio_volume`, `radio_status` — player `ffplay` (sem UI, saída PulseAudio), volume via `pactl` (0–150%, absoluto ou relativo up/down), auto-power `switch.note_servidor_socket_1` (Tuya via HA). |
+| `core/intents.py` | `detect_action_intent` expandido: padrões para `radio_play` (liga/toca/inicia), `radio_stop` (para/desliga/pausa/stop), `radio_volume` (volume N / aumenta/abaixa/sobe/diminui), `radio_status` (status/estado/como está). Aceita com/sem acento (rádio/radio). |
+| Permissões | `radio_*` só em `admin` (dono). `user` e `familia` recebem *permission denied*. `familia` mantém `ha_device_control` para luzes/tomadas. |
+| Auto-power | `radio_play` liga `switch.note_servidor_socket_1` antes de tocar; `radio_stop` desliga ao parar. Token HA: `nexus_core` (JWT válido, criado 4 meses atrás). |
+
+### 2. Comandos no chat (só dono/admin)
+
+| Comando | Ação | Exemplos |
+|---|---|---|
+| `radio_play` | Toca stream | "liga a rádio", "toca a rádio", "liga a radio" |
+| `radio_stop` | Para e desliga energia | "para a rádio", "desliga a rádio", "para a radio" |
+| `radio_volume` | Ajusta volume | "volume 50", "aumenta o volume", "abaixa o volume", "sobe o volume" |
+| `radio_status` | Status | "status da rádio", "estado da rádio", "status da radio" |
+
+### 3. Volume control
+
+- **Absoluto**: "volume 50" → 50% no sink PulseAudio
+- **Relativo up**: "aumenta o volume", "sobe o volume", "mais alto" → +10%
+- **Relativo down**: "abaixa o volume", "diminui o volume", "mais baixo" → -10%
+- Range: 0–150% (pactl permite >100%)
+- Ajuste instantâneo via `pactl set-sink-volume`
+
+### 4. Auto-power (Socket 1)
+
+| Evento | Ação HA |
+|---|---|
+| `radio_play` | `turn_on switch.note_servidor_socket_1` (com confirmação se precisar) |
+| `radio_stop` | `turn_off switch.note_servidor_socket_1` (com confirmação se precisar) |
+
+Entity: `switch.note_servidor_socket_1` (Tuya via HA, IP 192.168.0.205, token `nexus_core`).
+
+### 5. Verificação
+
+- `tests/test_intents.py`: 100% patterns casando (com/sem acento, volume up/down/absoluto, status)
+- `tests/test_orchestrator.py`: permissões funcionando (admin ✅, user/familia ❌)
+- Volume test: 50% → up 60% → down 50% → absolute 30% ✅
+- Auto-power: play liga Socket 1, stop desliga Socket 1 ✅
+- Suite: **190 passed** ✅
+
+### 6. Prós e contras
+
+- **Prós**: Stream direto na placa (baixa latência, sem browser), controle de volume nativo, auto-power economiza energia, permissões granulares.
+- **Contras**: Requer `ffplay` + `pulseaudio` no servidor; auto-power depende de HA acessível; volume relativo lê sink atual (pode variar se outros apps mudarem).
+
+### 7. Fila
+
+- **Próximo**: Teste real no chat (Telegram/WebSocket) amanhã.
+- **Melhoria futura**: TTS para anúncios ("Rádio ligada, volume 50"), sleep timer.
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.

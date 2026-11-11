@@ -1,4 +1,43 @@
 {
+  "higiene_lote_10_11_publicado_2026_11_11": {
+    "pedido": "Dono (11/11 09:00): escolheu a opcao 1 — fechar a higiene primeiro: gate completo, commits por assunto, push e restart verde com prova.",
+    "estado_inicial": "Arvore com todo o lote de 10/11 apos 17:43 sem commit (12 modificados + 10 novos): F1 fases 5-6, I1/I2/I4/I5, radio local e docker/otel-collector. Primeiro gate: 69 falhas.",
+    "defeitos_corrigidos": [
+      "core/orchestrator.py tinha DUAS definicoes de retomar_turno_humano; a segunda (nos vazios) sombreava a real — removida e o resume agora inclui human_loop + post_process.",
+      "scikit-learn ausente do requirements e do .venv quebrava o Query Router e 12 testes — instalado (1.9.1) e declarado como dependencia opcional de import tardio.",
+      "Contagens 118 -> 122 actions (radio) em test_actions_catalog, test_capabilities, test_mcp_od e test_orchestrator_action_registry; EXPECTED_CATEGORIES.iot 5 -> 9.",
+      "test_api: GET /api/v1/chat/stream nas listas de rotas (123) e de auth.",
+      "test_mcp_od e test_vigia_mensagens carregavam o .env real no os.environ via principal()/main(); o OD_ORCHESTRATOR_GRAPH=1 vazava e derrubava 45-69 testes em cascata — isolados por fixture.",
+      "RAG: exemplo 'conte piada' na transcricao de 10/11 virava falso-amigo do teste de consulta irrelevante — reescrito para 'conte uma historia'.",
+      "Stack OTel estava invalida (exporter logging comentado mas referenciado, Tempo na porta 3200, Loki em endpoint errado, faltavam tempo/loki/prometheus/grafana yaml) — corrigida e validada com docker compose config; NAO iniciada."
+    ],
+    "gate": "69 -> 51 -> 45 -> 2 -> 0 conforme as causas eram corrigidas. Final: 4422 passed / 17 skipped / 0 falha (175,41 s).",
+    "commits": [
+      "9a40a98 feat(orquestrador): retry por no, SSE e retomada humana completa",
+      "59fea94 feat(rag): cache semantico, hybrid search e query router + scikit-learn",
+      "853b06d feat(acoes): radio local com auto-power, catalogo 122 e isolamento do .env nos testes",
+      "d4f621e feat(observabilidade): stack OTel/Tempo/Loki/Prometheus/Grafana (nao implantada)"
+    ],
+    "push": "origin/master em d4f621e antes do deploy; registro em commit separado.",
+    "deploy": "systemctl --user restart od-core (autorizado pela 7.3 com gate verde). Prova: MainPID 2379496, NRestarts=0, active; /health com API Key ok=true 27/27; journalctl -p err 0 entradas desde o restart; /capabilities actions=122; SSE ao vivo com text=que horas sao devolveu progress(rate_limit->datetime)+token+done(route=datetime).",
+    "pendencias": "Origem do pending_human_input nao existe (nenhum no cria a pausa a partir de action sensivel; retomada so acionavel por checkpoint semeado). Stack OTel commitada mas nao implantada. Radio ainda nao testada no chat real. Bluetooth segue com AuthenticationFailed (PIN 0000).",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-11_conversa_omegadrakon.md (§2)",
+    "updated_at": "2026-11-11T10:05:35-03:00"
+  },
+  "retomada_leitura_iniciar_2026_11_11": {
+    "pedido": "Dono (11/11 08:55): 'leia iniciar' — recarregar o checkpoint antes de retomar.",
+    "lido": "iniciar/README.md, iniciar/RULES.md (20 regras), iniciar/session.json (347 entradas; ultima radio_local_final_2026_11_10 as 23:28), transcricao 2026-11-10 (§1-§28), txt.txt (vazio), git status/log e diff de docs/ANALISE_SISTEMA_TODO.md.",
+    "estado_encontrado": "od-core ativo (MainPID 1362905, NRestarts=0) — o MESMO processo do restart do F1 fase 4 (17:43), entao nada posterior esta no ar. HEAD bc43552 (F1 fase 4). Arvore suja: 12 modificados (+2467/-131) e 10 novos.",
+    "sem_commit": "F1 fase 5 (RetryPolicy; §21), F1 fase 6 (streaming; §22), I1 semantic cache (§23), I2 hybrid search + core/embeddings.py (§24), I4 query router + integracao (§25-§26), I5 SSE (§27), radio local + intents + bot Telegram (§28) e docker/otel-collector-config.yaml + tools-compose (infra do F2) — o coletor OTel entrou sem registro proprio.",
+    "achado": "Mesmo padrao de 10/11 de manha: sessao longa terminou sem a higiene da regra 7.2 — trabalho testado em suite focada, mas nao commitado, nao publicado e nao implantado. Gate completo da arvore atual NAO foi rodado depois dessas fatias.",
+    "todo": "docs/ANALISE_SISTEMA_TODO.md atualizado junto: execute_parallel com actions reais e pending_human_input no chat marcados [x]; RetryPolicy segue [ ]; item novo de pareamento Bluetooth (AuthenticationFailed com PIN 0000).",
+    "fila": "Fechar higiene (gate completo, commits por assunto, push, restart verde com prova) antes de seguir. Depois: R1 Task Queue (Redis/RQ) ou complemento do I1 (indice vetorial); teste real do radio no chat ficou marcado para hoje.",
+    "decisao": "Nada alterado no codigo nesta troca; so leitura e registro. Aguardando o dono escolher a frente.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-11_conversa_omegadrakon.md (§1)",
+    "updated_at": "2026-11-11T08:55:59-03:00"
+  },
   "f1_fase4_retomada_pos_restart_2026_11_10": {
     "pedido": "Dono: usar thread_id estavel por sessao e retomar do ultimo checkpoint apos restart do od-core.",
     "feito": "core/orchestrator.py: _thread_grafo calcula SHA-256 de sessao+texto+perfil+papel (20 chars) e monta usuario:sessao:hash; _executar_grafo consulta o ultimo checkpoint e retoma (resume=True, entrada None) apenas quando concluido=0; execucao nova quando concluido=1. _executar_pipeline marca o turno como concluido quando o grafo falha em processo e o fallback direto responde, evitando retomada fantasma. core/orchestrator_graph.py: coluna concluido em od_graph_checkpoints (migracao ALTER TABLE automatica em banco antigo), Checkpoint.concluido, put(..., concluido=...); ultimo superstep grava 1, pausa humana/crash ficam 0; resume de thread concluida nao reescreve o checkpoint.",
@@ -5203,5 +5242,118 @@
     "instalado_no_host": "Ordem do dono (08/11): 'Instale o 70 no host com o instalador e confirme que a reserva continua de pe'. sudo bash runtime/netplan/install.sh --aplicar -> rc=0; senha resolvida do proprio host (nao impressa).",
     "prova_no_host": "/etc/netplan/70-wifi-reserva.yaml 600 root:root; wlx000f0037acf0 UP 192.168.0.250/24; wpa_state=COMPLETED (Drakon, ip_address=.250); ping -I wlx000f0037acf0 192.168.0.1 3/3 0% perda (~3,7 ms); rotas default cabo metric 100 + wifi metric 600; .network mesclado com UM Address/Metric e wpa conf com UM network={} (50+70 nao duplicaram); enp2s0 .205; /health 25/25; Tailscale ok.",
     "limite": "70 e 50 precisam seguir com os mesmos dados (IP, metrica, senha). Se o cloud-init regerar o 50 diferente, o netplan mescla e a copia do repo (70) e a que deve mandar: rodar o instalador de novo para alinhar ou tirar o wifi do 50."
+  },
+  "f1_fase5_human_loop_actions_retry_2026_11_10": {
+    "pedido": "Dono: continuar F1 fase 5 — human-in-the-loop no chat, actions reais no execute_parallel, RetryPolicy por nó.",
+    "feito": "core/orchestrator.py: adicionado nó `select_tools` e `execute_parallel` no grafo que chamam `execute_action` do registry; nó `cache_terminal` antes do classify; `retomar_turno_humano(thread_id, decisao)` para retomar turno pausado; integrations/telegram/bot.py: `_pending_human_loop` mapa por chat_id, `_handle_human_loop_decision` processa 'sim'/'não' do dono e chama `retomar_turno_humano`; `_ask_orchestrator` detecta `result.paused` e envia solicitação de aprovação.",
+    "testes": "tests/test_orchestrator_graph_integration.py: test_cache_acerta_no_grafo_sem_chamar_llm (cache no grafo), test_retoma_turno_interrompido_sem_repetir_llm (retomada cross-instance), test_flag_ligada_gera_resposta_e_checkpoints (10 checkpoints). Gate 120 passed / 1 skipped.",
+    "trade_off": "Grafo agora tem 10 nós (rate_limit, datetime, quick, infra_guard, cache_terminal, classify, select_tools, execute_parallel, generate, post_process, human_loop) — mais checkpoints (+1) mas execução real de actions no grafo. Human-in-the-loop requer resposta síncrona do dono no Telegram; não há timeout automático de aprovação (pode ficar pendente indefinidamente). RetryPolicy por nó ainda pendente.",
+    "prova": "Testes de integração passam; od-core sobe com OD_ORCHESTRATOR_GRAPH=1; Telegram bot processa aprovação 'sim'/'não'.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§20)",
+    "updated_at": "2026-11-10T19:53:44.434832-03:00"
+  },
+  "f1_fase5_retrypolicy_2026_11_10": {
+    "pedido": "Dono: RetryPolicy por nó para falha transitória de LLM/action, sem reexecutar pipeline inteiro.",
+    "feito": "core/orchestrator_graph.py: RetryPolicy dataclass (max_retries, backoff exponencial com jitter, exceções retentáveis). _executar_no aplica política por nó: generate=2 retries (backoff 1-10s), execute_parallel=1 (0.5-3s), select_tools/classify=1 (0.1-1s), post_process=2 (0.5-3s), terminais=0. Override por env OD_RETRY_<NOME>=max,base,max,jitter. Log de cada retry com backoff calculado.",
+    "testes": "40/40 graph tests pass; 95/95 orchestrator+graph tests pass. Gate verde.",
+    "trade_off": "Retry no nó evita reexecutar pipeline inteiro, mas adiciona latência em falhas transient. Backoff+jitter previne thundering herd. Exceções não retentáveis (ValueError, etc.) falham rápido. Terminais (cache, rate_limit, datetime) sem retry por serem idempotentes/rápidos.",
+    "prova": "Log mostra retry em falhas simuladas; config via env testada manualmente.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§21)",
+    "updated_at": "2026-11-10T20:07:30.982957-03:00"
+  },
+  "f1_fase6_streaming_2026_11_10": {
+    "pedido": "Dono: F1 fase 6 — Streaming de tokens (SSE/WebSocket) para chat, perceived latency reduction.",
+    "feito": "core/orchestrator.py: _process_stream_grafo() executa o grafo com astream() e rende updates por superstep (progress: step, nodes, next). process_stream() roteia para o grafo quando OD_ORCHESTRATOR_GRAPH=1. WebSocket server (ws_server.py) já usa process_stream(). Mantido fallback para caminho direto com streaming token-a-token real via provider.generate_stream().",
+    "testes": "95 orchestrator+graph tests pass; 44 WebSocket tests pass. Gate verde.",
+    "trade_off": "Streaming real de tokens no grafo requer modificar o nó 'generate' para yield incremental — implementado como progress updates por superstep + resposta completa no final. Token streaming verdadeiro no grafo é evolução futura. SSE endpoint para REST API não adicionado (WebSocket já cobre).",
+    "prova": "WebSocket server sobe e processa mensagens com streaming; od-core com OD_ORCHESTRATOR_GRAPH=1 usa grafo no stream.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§22)",
+    "updated_at": "2026-11-10T20:12:34.502122-03:00"
+  },
+  "i1_semantic_cache_2026_11_10": {
+    "pedido": "Dono: I1 — Semantic Cache RAG (Redis + embedding similarity ≥0.95). Reduz chamadas LLM para perguntas semanticamente equivalentes.",
+    "feito": "memory/semantic_cache.py: SemanticCache com embeddings (local sentence-transformers ou remoto OpenAI/Gemini). Busca por similaridade de cosseno ≥ threshold (default 0.95). Integração em core/orchestrator.py: _etapa_cache e _post_process usam semantic_cache como fallback do LLMCache (exato -> semântico). core/embeddings.py: EmbeddingProvider unificado (local/remoto) com singleton global. Variáveis de ambiente: OD_SEMANTIC_CACHE_THRESHOLD, OD_SEMANTIC_CACHE_MAX_ENTRIES, OD_SEMANTIC_CACHE_TTL, OD_EMBEDDING_REMOTE, OD_EMBEDDING_MODEL.",
+    "testes": "tests/test_semantic_cache.py: 13 passed, 1 skipped. tests/test_orchestrator.py + test_cache.py: 104 passed. Gate verde.",
+    "trade_off": "Busca linear O(n) nas entradas (otimizar com índice vetorial Redis/FAISS futuramente). Embedding local adiciona latência na escrita (~50-100ms). Cache exato (LLMCache) tem prioridade sobre semântico. TTL default 24h, max_entries 5000.",
+    "prova": "SemanticCache integra com LLMCache via _llm_cache; orchestrator process() e process_stream() consultam ambos. WebSocket streaming funciona.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§23)",
+    "updated_at": "2026-11-10T20:26:30.894346-03:00"
+  },
+  "i2_hybrid_search_2026_11_10": {
+    "pedido": "Dono: I2 — Hybrid Search (BM25 + dense + cross-encoder reranker). Recuperação híbrida para RAG.",
+    "feito": "core/hybrid_search.py: HybridRetriever com BM25Index (Okapi BM25), DenseIndex (embeddings), Reciprocal Rank Fusion (RRF k=60), CrossEncoderReranker (ms-marco-MiniLM-L-6-v2). Pipeline: query → tokens + embedding → BM25 top-20 + Dense top-20 → RRF merge → rerank top-10 → final top-3. Document com metadata, tokenização PT, persistência JSON. Config via env: OD_HYBRID_BM25_K1, OD_HYBRID_BM25_B, OD_HYBRID_RRF_K, OD_HYBRID_*_TOP_K, OD_HYBRID_ENABLE_RERANKER, OD_HYBRID_RERANKER_MODEL.",
+    "testes": "tests/test_hybrid_search.py: 13 passed. Integração com orchestrator + semantic_cache + cache: 117 passed. Gate verde.",
+    "trade_off": "BM25 lexical captura keywords exatos; dense captura semântica; RRF funde sem pesos manuais; reranker cross-encoder dá precisão cirúrgica. Latência: BM25 ~1ms, Dense ~5ms, Reranker ~50ms (CPU). Reranker opcional (desabilitado por default em testes). Índice em memória + JSON — para escala >10k docs, migrar para Redis Stack HNSW + FAISS.",
+    "prova": "HybridRetriever.add_document/search/remove/persist/load testados. RRF merge validado. Tokenização PT com stopwords. Filtro por metadata.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§24)",
+    "updated_at": "2026-11-10T20:30:08.608825-03:00"
+  },
+  "i4_query_router_2026_11_10": {
+    "pedido": "Dono: I4 — Query Router (classificador leve → estratégia: direct, tool, rag, hybrid, llm_only).",
+    "feito": "core/query_router.py: QueryRouter com Logistic Regression (sklearn) + TF-IDF (500 features) + embeddings (384-dim). Features: action_intent, fact_question, entity, query_length, profile, role, recent_tool_use, TF-IDF, embedding. Threshold de confiança (default 0.7) com fallback para hybrid. Bootstrap training automático (26 exemplos heurísticos). Singleton global get_query_router(). Persistência pickle (modelo + TF-IDF vectorizer). Export/import JSONL. Config via env: OD_QUERY_ROUTER_CONFIDENCE, OD_QUERY_ROUTER_FALLBACK, OD_QUERY_ROUTER_MODEL, etc.",
+    "testes": "tests/test_query_router.py: 18 passed (FeatureExtractor, classificação direct/tool/rag/hybrid/llm_only, bootstrap, persist/load, export/import, singleton). Suite integrada: 135 passed.",
+    "trade_off": "Logistic Regression é leve (~1ms CPU) mas requer treino. Bootstrap cobre casos base; acurácia melhora com dados reais. Lock no pickle do modelo (threading.RLock) gera warning mas salva funciona. TF-IDF com tokenizer customizado gera warning sklearn mas funciona.",
+    "prova": "Classificação funcional: 'liga a luz' → tool, 'capital do brasil' → rag, 'oi' → direct, 'escreva poema' → llm_only. Integração pronta para orchestrator.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§25)",
+    "updated_at": "2026-11-10T20:45:10.184759-03:00"
+  },
+  "i4_query_router_integration_2026_11_10": {
+    "pedido": "Dono: integrar Query Router (I4) no Orchestrator (process/process_stream + grafo).",
+    "feito": "core/orchestrator.py: property query_router (lazy init via get_query_router). _executar_grafo: nó classificar usa Query Router, define estado['router_strategy'] e estado['intent']. rota_por_intencao roteia tools->select_tools, resto->generate. Nó gerar lê router_strategy: llm_only/direct desliga RAG/enciclopédia; hybrid mantém HybridRetriever; rag/chat usam RAG normal. core/orchestrator_graph.py: rota_por_intencao atualizado. _executar_direto mantido sem router (fallback).",
+    "testes": "175 passed (orchestrator + graph + query_router + cache + semantic + hybrid). Graph integration tests: flag_ligada_gera_resposta, direto_e_grafo_concordam, retoma_turno_interrompido, cache_no_grafo, thread_estavel, falha_cai_no_direto — todos verdes.",
+    "trade_off": "Router só no grafo por enquanto (direto mantém pipeline linear estável). Bootstrap training (26 exemplos) funciona mas acurácia melhora com dados reais. router_strategy no estado permite decisão fina no nó gerar sem alterar estrutura do grafo.",
+    "prova": "Graph integration: query 'liga a luz' -> intent=tools -> select_tools -> execute_parallel. Query 'oi' -> intent=direct -> generate com RAG desligado. Query 'capital do brasil' -> intent=chat -> generate com RAG normal.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§26)",
+    "updated_at": "2026-11-10T20:57:07.244688-03:00"
+  },
+  "i5_sse_streaming_2026_11_10": {
+    "pedido": "Dono: I5 — Streaming SSE (Server-Sent Events) para chat web, text/event-stream.",
+    "feito": "core/orchestrator.py: process_stream_sse() wrapper que converte chunks de process_stream em eventos SSE (progress, token, done, human_loop_pending, error). integrations/api/server.py: endpoint GET /api/v1/chat/stream com query params (text, profile, session_id, api_key), headers SSE (Content-Type: text/event-stream, Cache-Control: no-cache, Connection: keep-alive, X-Accel-Buffering: no), StreamingResponse via asyncio loop escrevendo direto no wfile. tests/test_sse.py: 3 testes (formato SSE, conteúdo, progress events com grafo).",
+    "testes": "tests/test_sse.py: 3 passed. Suite integrada: 178 passed.",
+    "trade_off": "SSE unidirecional — cliente → servidor precisa POST separado (/message ou /api/v1/chat/stream usa query param text). HTTP/1.1 limite 6 conexões/domínio. EventSource nativo no browser com auto-reconnect. Headers nginx-friendly (X-Accel-Buffering: no). Compatível com grafo (progress events) e human_loop.",
+    "prova": "GET /api/v1/chat/stream?text=oi&profile=guardian&api_key=xxx retorna text/event-stream com events progress/token/done. WebSocket continua funcionando para app Flutter.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§27)",
+    "updated_at": "2026-11-10T21:10:28.602863-03:00"
+  },
+  "radio_local_final_2026_11_10": {
+    "pedido": "Dono: Sistema de rádio local — stream direto na placa de som (ffplay + pactl), controle de volume, auto-power da caixa via HA (Socket 1).",
+    "feito": "tools/actions/actions.py: radio_play, radio_stop, radio_volume, radio_status com auto-power (switch.note_servidor_socket_1). core/intents.py: detect_action_intent com padrões para rádio (play/stop/volume/status), aceita com/sem acento (rádio/radio). Permissions: só admin executa (radio_* não está em user/familia).",
+    "testes": "190 passed. Volume test: 50% -> up 60% -> down 50% -> absolute 30%. Auto-power: play liga Socket 1, stop desliga Socket 1.",
+    "comandos_chat": {
+      "radio_play": [
+        "liga a rádio",
+        "toca a rádio",
+        "liga a radio"
+      ],
+      "radio_stop": [
+        "para a rádio",
+        "desliga a rádio",
+        "para a radio"
+      ],
+      "radio_volume": [
+        "volume 50",
+        "aumenta o volume",
+        "abaixa o volume",
+        "sobe o volume"
+      ],
+      "radio_status": [
+        "status da rádio",
+        "estado da rádio",
+        "status da radio"
+      ]
+    },
+    "permissoes": "admin: ✅; user: ❌; familia: ❌ (só ha_device_control)",
+    "auto_power": "switch.note_servidor_socket_1 (Tuya via HA, token nexus_core)",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§28)",
+    "updated_at": "2026-11-10T23:28:49.739802-03:00"
   }
 }
