@@ -75,6 +75,29 @@ artista/gênero.
 - variáveis: `GEMINI_MODEL`, `GROQ_MODEL`, `OD_GROQ_URL`, `OD_LLM_URL`,
   `OD_LLM_MODEL`.
 
+## 3.1 Como está no core do OD (chat) — desde 11/11/2026
+
+O chat do `od-core` passou a usar a **mesma ordem** do `musica.py`, com o
+local por último:
+
+- `OD_CHAT_PROVIDERS` (padrão `gemini,groq,local`) define a cadeia;
+- `core/llm.py`: `GeminiProvider` (porta OpenAI-compatível, `Bearer`,
+  `gemini-3-flash-preview`) e `GroqProvider` (`openai/gpt-oss-120b`, piso de
+  2048 tokens); o `OpenAICompatProvider` local segue em
+  `/v1/chat/completions`;
+- provider sem chave sai da cadeia com `warn` no journal;
+- **OpenAI fica fora**: as duas chaves do `.env` respondem `429 no credits
+  remaining` (remensurado 11/11); incluí-la só gastaria uma tentativa por
+  mensagem;
+- o disjuntor por provider (R2) evita repetir um provedor que acabou de
+  falhar: `429` do Gemini → Groq na mesma mensagem, sem esperar timeout.
+
+**Medição de 11/11 (chat, 6 prompts iguais):** Gemini p50 ≈ 2,4 s (máx 3,1 s),
+respostas completas; local p50 ≈ 7,7 s (máx 20,8 s), truncando e inventando;
+Groq 0,48 s numa chamada curta. A cota gratuita do Gemini é apertada — em
+rajada, `429` já na segunda chamada; por isso a cadeia (e não a promessa de
+que a nuvem sempre responde) é o que sustenta o chat.
+
 ## 4. Pegadinhas que já custaram tempo (não redescobrir)
 
 1. **Gemini**: `?key=` na URL → `400 API_KEY_INVALID` mesmo com chave boa;
@@ -103,4 +126,5 @@ artista/gênero.
 |---|---|
 | 2026-11-05 | inventário inicial + benchmark (Gemini 3 Flash escolhido; Groq reserva; OpenAI sem créditos; CLIs sem login) |
 | 2026-11-06 | `GEMINI_API_KEY` do `.env` passou a devolver `400 API_KEY_INVALID` com header e em `/v1beta/models` (3×) — chave revogada/expirada; Groq segue 200. Cadeia efetiva hoje: Groq → local. Nenhuma IA identifica artista só pelo título (Groq e local devolveram `Desconhecido` para "Tempo Perdido") |
+| 2026-11-11 | **Chat do core na cadeia completa**: Gemini → Groq → local (`OD_CHAT_PROVIDERS`). Gemini p50 ≈ 2,4 s × local p50 ≈ 7,7 s nos mesmos 6 prompts; Groq 0,48 s; OpenAI segue sem créditos (429 nas duas chaves). Cota gratuita do Gemini estoura em rajada (429 na 2ª chamada). |
 | 2026-11-09 | **Chave volta a autenticar**: 3 chaves testadas, todas 200 em `generateContent` e `/v1beta/models` (inclusive a do `.env`). `OD_IA_ORDEM` restaurado para `gemini,groq,local`; no prompt real do pipeline o Gemini respondeu em **2,87 s**, sem fallback. O `400` de um teste manual era chave velha exportada no shell (pegadinha 6). Console do AI Studio: as 3 chaves pertencem ao **mesmo projeto** `gen-lang-client-0888452285` (nível gratuito) — cota compartilhada, rotação entre chaves sem ganho; para mais cota só outro projeto ou faturamento |

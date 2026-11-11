@@ -12,6 +12,21 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Chat na cadeia completa de IAs: Gemini → Groq → local (2026-11-11, sem bump)
+
+**Resumo:** o core respondia tudo no `qwen2.5-coder-3b` local (devaneios em
+conversa aberta e respostas absurdas), embora o `.env` tivesse Gemini e Groq
+válidos. Agora o chat percorre **todas** as IAs utilizáveis, com o modelo
+local por **último** — ele é o "sem internet", não a primeira escolha.
+
+| Peça | Entrega |
+|---|---|
+| **`core/llm.py`** | `chat_path` no `OpenAICompatProvider` (base do Gemini já tem o prefixo) e duas subclasses: `GeminiProvider` (porta OpenAI-compatível, `Bearer`, modelo `gemini-3-flash-preview`) e `GroqProvider` (`openai/gpt-oss-120b`, piso de **2048** tokens — com teto curto o `content` do modelo de raciocínio volta vazio). |
+| **`runtime/launcher.py`** | `build_llm_providers()` monta a cadeia de `OD_CHAT_PROVIDERS` (padrão **`gemini,groq,local`**); provider sem chave fica fora com aviso; nome desconhecido é ignorado; se nada sobrar entra o local. OpenAI **fora**: as duas chaves devolvem `429 no credits remaining` (remensurado 11/11). |
+| **Testes** | `test_llm.py` **+9**: URL/modelo/`Bearer` do Gemini e do Groq (piso de tokens), local ainda em `/v1/chat/completions`, ordem padrão da cadeia, chave ausente tira o provider, nome inválido ignorado, Gemini falhando cai no local, e um **smoke de boot** do `build_orchestrator` (o deploy anterior morreu em loop por `llm_timeout` indefinido — nenhum teste chamava a função inteira). |
+| **Medição** | 6 prompts iguais nos dois modelos: Gemini **p50 ≈ 2,4 s** (máx 3,1 s) e respostas completas (Turing com Enigma/máquina/teste; e-mail com assunto e pedido de prazo); local **p50 ≈ 7,7 s** (máx 20,8 s), truncando e inventando ("Omega Drakon é uma criatura mitológica grega"). Groq respondeu "ok" em **0,48 s**. Cota do Gemini é apertada: em rajada, **429** já na 2ª chamada. |
+| **Verificação** | Gate **4460 passed / 17 skipped / 0 falha** (186,43 s); deploy com `/health` **27/27** e `/llms` com 2 providers. Sem bump: **1.44.0/2080**. |
+
 ## Aprovação visível no app e no chat web + expiração (2026-11-11, sem bump)
 
 **Resumo:** o frame `decision` existia no servidor, mas nenhum cliente o

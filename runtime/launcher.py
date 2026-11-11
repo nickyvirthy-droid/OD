@@ -238,21 +238,23 @@ def build_enciclopedia() -> Optional[Any]:
 def build_llm_providers() -> list[Any]:
     """Cadeia de LLM do chat, na ordem de tentativa (regra 19).
 
-    Padrão `gemini,local`: o Gemini responde primeiro (modelo do dono,
-    `gemini-3-flash-preview`) e o llama-server local é a reserva — sem
-    internet/cota o chat continua de pé, só com a qualidade do 3B.
+    Padrão `gemini,groq,local` (ordem medida em docs/IAS_DISPONIVEIS.md):
+    Gemini primeiro (modelo do dono), Groq como segunda nuvem e o
+    llama-server local por ÚLTIMO — é o "sem internet" do dono, não a
+    primeira escolha. OpenAI fica fora da cadeia: as duas chaves do `.env`
+    devolvem 429 `no credits remaining` (remensurado 11/11).
 
     `OD_CHAT_PROVIDERS` (lista separada por vírgula) troca a ordem;
     `local` sozinho reproduz o comportamento anterior a 11/11. Valor
     desconhecido é ignorado com warn; se nada sobrar, entra o local.
     """
-    from core.llm import GeminiProvider, OpenAICompatProvider
+    from core.llm import GeminiProvider, GroqProvider, OpenAICompatProvider
 
     llm_timeout = float(env("OD_LLM_TIMEOUT_S", "240"))
     max_tokens = int(env("OD_LLM_MAX_TOKENS", "512"))
     ordem = [
         parte.strip().lower()
-        for parte in env("OD_CHAT_PROVIDERS", "gemini,local").split(",")
+        for parte in env("OD_CHAT_PROVIDERS", "gemini,groq,local").split(",")
         if parte.strip()
     ]
     providers: list[Any] = []
@@ -272,6 +274,18 @@ def build_llm_providers() -> list[Any]:
                 log.warn("Gemini sem GEMINI_API_KEY — fora da cadeia do chat")
                 continue
             providers.append(gemini)
+        elif nome in ("groq",):
+            groq = GroqProvider(
+                model=env("OD_GROQ_MODEL", "openai/gpt-oss-120b"),
+                api_key=env("GROQ_API_KEY", ""),
+                base_url=env("OD_GROQ_URL", "https://api.groq.com/openai/v1"),
+                timeout=float(env("OD_GROQ_TIMEOUT_S", "45")),
+                max_tokens=max_tokens,
+            )
+            if not groq.configurado:
+                log.warn("Groq sem GROQ_API_KEY — fora da cadeia do chat")
+                continue
+            providers.append(groq)
         elif nome in ("local", "gemma-local", "llama"):
             providers.append(
                 OpenAICompatProvider(

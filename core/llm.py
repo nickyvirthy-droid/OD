@@ -45,6 +45,11 @@ DEFAULT_LLM_URL = "http://127.0.0.1:8081"  # llama-server local (legado)
 # o prefixo: a URL final é `<base>/chat/completions`, não `<base>/v1/...`.
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 GEMINI_MODEL_PADRAO = "gemini-3-flash-preview"  # modelo do dono (regra 19)
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+GROQ_MODEL_PADRAO = "openai/gpt-oss-120b"  # 2º da ordem medida (docs/IAS_DISPONIVEIS.md)
+# `gpt-oss` é modelo de raciocínio: com max_tokens curto o `content` volta
+# VAZIO (o raciocínio come o orçamento). Piso de 2000, medido em 22/10.
+GROQ_MAX_TOKENS_MIN = 2048
 DEFAULT_CHAT_PATH = "/v1/chat/completions"
 # urllib não manda User-Agent por padrão e o Cloudflare do Groq recusa
 # (HTTP 403, error 1010) — achado ao vivo na auditoria 22/10: SEM este
@@ -417,6 +422,46 @@ class GeminiProvider(OpenAICompatProvider):
     @property
     def configurado(self) -> bool:
         """Tem chave? Sem chave o provider não entra na cadeia."""
+        return bool(self.api_key)
+
+    def is_available(self) -> bool:
+        return self.configurado and self._breaker.estado() != "aberto"
+
+
+class GroqProvider(OpenAICompatProvider):
+    """Groq pela porta OpenAI (2º da cadeia; offline não precisa dele).
+
+    Duas pegadinhas já pagas: (a) sem `User-Agent` de cliente o Cloudflare
+    devolve 403 (o `USER_AGENT` do módulo resolve); (b) `openai/gpt-oss-120b`
+    é modelo de raciocínio — com `max_tokens` curto o `content` volta vazio,
+    então o piso é `GROQ_MAX_TOKENS_MIN`.
+    """
+
+    def __init__(
+        self,
+        name: str = "groq",
+        *,
+        model: str = "",
+        api_key: str = "",
+        base_url: str = "",
+        timeout: float = 45.0,
+        max_tokens: int = GROQ_MAX_TOKENS_MIN,
+        temperature: float = DEFAULT_TEMPERATURE,
+    ) -> None:
+        chave = api_key or os.getenv("GROQ_API_KEY", "").strip()
+        super().__init__(
+            name=name,
+            base_url=(base_url or GROQ_BASE_URL).rstrip("/"),
+            model=(model or GROQ_MODEL_PADRAO).strip(),
+            api_key=chave,
+            timeout=timeout,
+            max_tokens=max(max_tokens, GROQ_MAX_TOKENS_MIN),
+            temperature=temperature,
+            chat_path="/chat/completions",
+        )
+
+    @property
+    def configurado(self) -> bool:
         return bool(self.api_key)
 
     def is_available(self) -> bool:

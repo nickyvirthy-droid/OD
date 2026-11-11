@@ -360,10 +360,49 @@ class TestGeminiProvider:
         assert fake.seen["url"] == "http://127.0.0.1:8081/v1/chat/completions"
 
 
-class TestCadeiaDoChat:
-    """build_llm_providers: Gemini primeiro, local de reserva."""
+class TestGroqProvider:
+    def test_url_modelo_e_piso_de_tokens(self, monkeypatch) -> None:
+        from core.llm import GROQ_MAX_TOKENS_MIN, GroqProvider
 
-    def _build(self, monkeypatch, ordem: str | None, chave: str | None):
+        fake = fake_urlopen(
+            monkeypatch,
+            body=json.dumps(
+                {"choices": [{"message": {"role": "assistant", "content": "ok"}}]}
+            ).encode(),
+        )
+        # max_tokens curto de propósito: o piso do gpt-oss tem de valer.
+        provider = GroqProvider(api_key="gsk-teste", max_tokens=64)
+        assert provider.max_tokens >= GROQ_MAX_TOKENS_MIN
+
+        import asyncio
+
+        asyncio.run(provider.generate(chatml_body()))
+
+        assert fake.seen["url"] == "https://api.groq.com/openai/v1/chat/completions"
+        assert fake.seen["headers"]["Authorization"] == "Bearer gsk-teste"
+        corpo = json.loads(fake.seen["data"])
+        assert corpo["model"] == "openai/gpt-oss-120b"
+        assert corpo["max_tokens"] >= GROQ_MAX_TOKENS_MIN
+
+    def test_sem_chave_nao_esta_configurado(self, monkeypatch) -> None:
+        from core.llm import GroqProvider
+
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+        prov = GroqProvider(api_key="")
+        assert prov.configurado is False
+        assert prov.is_available() is False
+
+
+class TestCadeiaDoChat:
+    """build_llm_providers: nuvem primeiro (Gemini, Groq), local por último."""
+
+    def _build(
+        self,
+        monkeypatch,
+        ordem: str | None,
+        chave: str | None,
+        chave_groq: str | None = "chave-groq",
+    ):
         import runtime.launcher as launcher
 
         # Hermético: sem ler o .env real da máquina (ele tem chave de verdade).
@@ -373,23 +412,33 @@ class TestCadeiaDoChat:
             monkeypatch.delenv("OD_CHAT_PROVIDERS", raising=False)
         else:
             monkeypatch.setenv("OD_CHAT_PROVIDERS", ordem)
-        if chave is None:
-            monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        else:
-            monkeypatch.setenv("GEMINI_API_KEY", chave)
+        for nome, valor in (
+            ("GEMINI_API_KEY", chave), ("GROQ_API_KEY", chave_groq)
+        ):
+            if valor is None:
+                monkeypatch.delenv(nome, raising=False)
+            else:
+                monkeypatch.setenv(nome, valor)
         return launcher.build_llm_providers()
 
-    def test_padrao_e_gemini_e_depois_local(self, monkeypatch) -> None:
+    def test_padrao_e_gemini_groq_e_local(self, monkeypatch) -> None:
         providers = self._build(monkeypatch, None, "chave")
-        assert [p.name for p in providers] == ["gemini", "gemma-local"]
+        # Local é o ÚLTIMO — é o "sem internet" (ordem do dono, 11/11).
+        assert [p.name for p in providers] == ["gemini", "groq", "gemma-local"]
 
     def test_local_sozinho_reproduz_o_comportamento_antigo(self, monkeypatch) -> None:
         providers = self._build(monkeypatch, "local", "chave")
         assert [p.name for p in providers] == ["gemma-local"]
 
     def test_sem_chave_o_gemini_fica_fora(self, monkeypatch) -> None:
-        providers = self._build(monkeypatch, "gemini,local", None)
-        assert [p.name for p in providers] == ["gemma-local"]
+        providers = self._build(monkeypatch, "gemini,groq,local", None)
+        assert [p.name for p in providers] == ["groq", "gemma-local"]
+
+    def test_sem_chave_o_groq_fica_fora(self, monkeypatch) -> None:
+        providers = self._build(
+            monkeypatch, "gemini,groq,local", "chave", chave_groq=None
+        )
+        assert [p.name for p in providers] == ["gemini", "gemma-local"]
 
     def test_nome_desconhecido_e_ignorado(self, monkeypatch) -> None:
         providers = self._build(monkeypatch, "local,openai-antigo", "chave")
@@ -458,8 +507,13 @@ class TestCadeiaDoChat:
             launcher, "build_enciclopedia", lambda: None, raising=True
         )
         monkeypatch.setenv("GEMINI_API_KEY", "chave")
+        monkeypatch.setenv("GROQ_API_KEY", "chave-groq")
 
         orch = launcher.build_orchestrator(database=None)
 
-        assert [p.name for p in orch.providers] == ["gemini", "gemma-local"]
+        assert [p.name for p in orch.providers] == [
+            "gemini",
+            "groq",
+            "gemma-local",
+        ]
         assert orch.cache is not None
