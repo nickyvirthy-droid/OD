@@ -426,6 +426,74 @@ class TestAprovacaoHumana:
         assert final["pending_human_input"] is None
         assert "cancelada" in final["message"].lower()
 
+    async def test_calendar_create_pausa_e_aprova(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        monkeypatch.delenv("OD_HUMAN_APPROVAL_ACTIONS", raising=False)
+        orch, chamadas = self._orch_com_registro(monkeypatch)
+
+        result = await orch.process(
+            "alex", "guardian", "cria um compromisso reuniao amanha as 15 horas",
+            role="admin", session_id="s-aprova-cal",
+        )
+        assert result.paused is True
+        assert result.pending_human_input["acao"] == "google_calendar_create"
+        final = await orch.retomar_turno_humano(result.thread_id, "aprovar")
+
+        assert [c[0] for c in chamadas] == ["google_calendar_create"]
+        assert final["pending_human_input"] is None
+
+    async def test_ha_device_control_pausa_e_aprova(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        monkeypatch.delenv("OD_HUMAN_APPROVAL_ACTIONS", raising=False)
+        import core.intents as intents_mod
+
+        def fake_intent(texto):
+            if "luz" in texto:
+                return (
+                    "ha_device_control",
+                    {"entity_id": "switch.luz_cozinha", "on": True,
+                     "alvo": "cozinha"},
+                )
+            return None
+
+        monkeypatch.setattr(intents_mod, "detect_action_intent", fake_intent)
+        orch, chamadas = self._orch_com_registro(monkeypatch)
+
+        result = await orch.process(
+            "alex", "guardian", "liga a luz da cozinha",
+            role="admin", session_id="s-aprova-ha",
+        )
+        assert result.paused is True
+        assert result.pending_human_input["acao"] == "ha_device_control"
+        final = await orch.retomar_turno_humano(result.thread_id, "aprovar")
+
+        assert [c[0] for c in chamadas] == ["ha_device_control"]
+        assert final["pending_human_input"] is None
+
+    async def test_aprovacao_humana_pula_confirmacao_de_2_passos(self):
+        from tools.actions.actions import (
+            _light_confirm_check,
+            _write_confirm_check,
+            aprovacao_humana_em_curso,
+        )
+
+        assert _light_confirm_check("user-teste-bypass", "switch.luz", True) == "required"
+        with aprovacao_humana_em_curso():
+            assert _light_confirm_check("user-teste-bypass", "switch.luz", True) == "confirmed"
+
+        params = {"name": "notas"}
+        assert _write_confirm_check(
+            "user-teste-bypass", "google_drive_create", "chave",
+            alvo="notas", params=params,
+        ) == "required"
+        with aprovacao_humana_em_curso():
+            assert _write_confirm_check(
+                "user-teste-bypass", "google_drive_create", "chave",
+                alvo="notas", params=params,
+            ) == "confirmed"
+
     async def test_lista_desligada_executa_sem_pausar(self, tmp_path, monkeypatch):
         monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
         monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))

@@ -38,6 +38,8 @@ Segurança e robustez:
 from __future__ import annotations
 
 import base64
+import contextlib
+import contextvars
 import datetime
 import fnmatch
 import hashlib
@@ -758,6 +760,24 @@ def _light_name_for(entity_id: str, states: Optional[list[Any]]) -> str:
     return entity_id
 
 
+# Quando o turno foi pausado pelo human_loop e o dono JÁ aprovou, a action
+# não deve pedir a confirmação de 2 passos de novo: o contexto marca que a
+# aprovação humana já aconteceu (e que ela é a fonte de verdade).
+_APROVACAO_HUMANA: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "od_aprovacao_humana", default=False
+)
+
+
+@contextlib.contextmanager
+def aprovacao_humana_em_curso():
+    """Marca o bloco como execução de uma ação já aprovada pelo dono."""
+    token = _APROVACAO_HUMANA.set(True)
+    try:
+        yield
+    finally:
+        _APROVACAO_HUMANA.reset(token)
+
+
 def _light_confirm_check(
     user_id: str, entity_id: str, on: bool,
     *, now: Optional[float] = None, alvo: str = "",
@@ -774,6 +794,8 @@ def _light_confirm_check(
         registra now e pede confirmação.
         "confirmed" — o mesmo user confirmou dentro do TTL.
     """
+    if _APROVACAO_HUMANA.get():
+        return "confirmed"
     stamp = time.time() if now is None else now
     key = (user_id, entity_id, bool(on))
     pending = _LIGHT_CONFIRMATIONS.get(key)
@@ -1463,6 +1485,8 @@ def _write_confirm_check(
     """Confirmação de 2 passos da escrita Google (espelho de
     _light_confirm_check): "required" na 1ª menção, "confirmed" quando o
     mesmo user repete dentro do TTL."""
+    if _APROVACAO_HUMANA.get():
+        return "confirmed"
     stamp = time.time() if now is None else now
     key = (user_id, action, chave)
     pending = _WRITE_CONFIRMATIONS.get(key)

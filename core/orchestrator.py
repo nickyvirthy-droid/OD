@@ -133,9 +133,11 @@ ACOES_SENSIVEIS_PADRAO: frozenset[str] = frozenset({
     "google_drive_create",
     "google_drive_update",
     "google_drive_delete",
+    "google_calendar_create",
     "google_calendar_delete",
     "google_gmail_send",
     "google_gmail_delete",
+    "ha_device_control",
 })
 
 
@@ -2225,8 +2227,16 @@ class Orchestrator:
             intent = detect_action_intent(estado.get("text", ""))
             if intent is not None and intent[0] != "__secrets_denied__":
                 action_name, params = intent
-                if action_name in ("ha_device_control",) or action_name in ("google_calendar_create",):
-                    # Para confirmações de 2 passos, não seleciona ferramenta aqui
+                # Fluxo próprio de completar o pedido: sem alvo/quando não há
+                # o que aprovar — o generate pede o dado que falta.
+                if action_name == "ha_device_control" and not params.get(
+                    "entity_id"
+                ):
+                    return []
+                if action_name == "google_calendar_create" and not (
+                    params.get("quando") or params.get("data")
+                    or params.get("start")
+                ):
                     return []
                 if self._exige_aprovacao_humana(action_name):
                     # ORIGEM do human_loop: não executa ação sensível sem o
@@ -2547,9 +2557,14 @@ class Orchestrator:
             "google_drive_create": "criar arquivo no Drive",
             "google_drive_update": "atualizar arquivo no Drive",
             "google_drive_delete": "apagar arquivo do Drive",
+            "google_calendar_create": "criar compromisso na agenda",
             "google_calendar_delete": "apagar compromisso da agenda",
             "google_gmail_send": "enviar e-mail",
             "google_gmail_delete": "apagar e-mail",
+            "ha_device_control": (
+                "ligar dispositivo do lar" if params.get("on", True)
+                else "desligar dispositivo do lar"
+            ),
         }
         alvo = str(
             params.get("alvo")
@@ -2617,12 +2632,17 @@ class Orchestrator:
                 "steps": ["human_loop"],
             }
 
-        data = await self.execute_action(
-            acao,
-            params,
-            str(estado.get("user_id") or ""),
-            role=str(estado.get("role") or "admin"),
-        )
+        # A aprovação humana é a confirmação: a action não deve pedir o
+        # "sim" de 2 passos outra vez (HA e escritas Google).
+        from tools.actions.actions import aprovacao_humana_em_curso
+
+        with aprovacao_humana_em_curso():
+            data = await self.execute_action(
+                acao,
+                params,
+                str(estado.get("user_id") or ""),
+                role=str(estado.get("role") or "admin"),
+            )
         from core.intents import format_intent_result
 
         resposta = format_intent_result(acao, data) or "✅ Ação executada."
