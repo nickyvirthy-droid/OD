@@ -549,3 +549,90 @@ class TestAprovacaoHumana:
 
         assert result.paused is False
         assert [c[0] for c in chamadas] == ["google_drive_delete"]
+
+
+@pytest.mark.asyncio
+class TestFerramentasNoGrafo:
+    """O grafo precisa usar as ferramentas do sistema — e responder com o dado.
+
+    Dois defeitos reais (11/11): (1) o Query Router, um classificador de 26
+    exemplos, devolvia `hybrid` para "quanto está o dólar hoje" e a action
+    `exchange_rate` nunca rodava; (2) mesmo quando a ferramenta rodava, o nó
+    `generate` chamava o LLM por cima e o valor medido virava invenção.
+    """
+
+    async def test_intent_deterministico_vence_o_query_router(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        monkeypatch.delenv("OD_HUMAN_APPROVAL_ACTIONS", raising=False)
+        import core.intents as intents_mod
+        import core.query_router as qr_mod
+
+        def fake_intent(texto):
+            if "dolar" in texto:
+                return ("exchange_rate", {"moeda": "dolar"})
+            return None
+
+        class RouterQueErra:
+            def classify(self, *args, **kwargs):
+                return "hybrid"  # foi o que o roteador devolveu de verdade
+
+        monkeypatch.setattr(intents_mod, "detect_action_intent", fake_intent)
+        monkeypatch.setattr(qr_mod, "get_query_router", lambda: RouterQueErra())
+
+        provider = StaticProvider("stub", "O dólar está R$ 4,95 (inventado)")
+        orch = Orchestrator(providers=[provider])
+        chamadas: list[str] = []
+
+        async def fake_execute(nome, params=None, user_id="", role=""):
+            chamadas.append(nome)
+            return {"moeda": "dolar", "bid": 5.4321, "ask": 5.44}
+
+        monkeypatch.setattr(orch, "execute_action", fake_execute)
+
+        result = await orch.process(
+            "alex", "guardian", "quanto esta o dolar hoje",
+            role="admin", session_id="s-dolar",
+        )
+
+        assert chamadas == ["exchange_rate"], chamadas
+        assert result.route == "action_intent"
+        assert result.llm_used == "fastpath:exchange_rate"
+        # O valor vem da API, não do modelo.
+        assert "5,4321" in result.message
+        assert "4,95" not in result.message
+
+    async def test_resposta_do_grafo_vem_do_resultado_da_ferramenta(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        monkeypatch.delenv("OD_HUMAN_APPROVAL_ACTIONS", raising=False)
+        import core.intents as intents_mod
+
+        def fake_intent(texto):
+            if "temperatura" in texto:
+                return ("cpu_temp", {})
+            return None
+
+        monkeypatch.setattr(intents_mod, "detect_action_intent", fake_intent)
+        provider = StaticProvider("stub", "está bem quente, uns 70 graus")
+        orch = Orchestrator(providers=[provider])
+
+        async def fake_execute(nome, params=None, user_id="", role=""):
+            return {"celsius": 52.5, "hottest": {"type": "x86_pkg_temp",
+                                                  "celsius": 52.5}}
+
+        monkeypatch.setattr(orch, "execute_action", fake_execute)
+
+        result = await orch.process(
+            "alex", "guardian", "qual a temperatura da cpu",
+            role="admin", session_id="s-cpu",
+        )
+
+        assert result.llm_used == "fastpath:cpu_temp", result.llm_used
+        assert result.route == "action_intent"
+        assert "52.5" in result.message or "52,5" in result.message
+        assert "70 graus" not in result.message  # não é a prosa do modelo

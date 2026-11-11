@@ -2288,6 +2288,17 @@ class Orchestrator:
                 estado["intent"] = "tools"
                 estado["router_strategy"] = "tool"
                 return "tool"
+
+            # 11/11: a intenção DETERMINÍSTICA vence o Query Router. O roteador
+            # é um classificador de 26 exemplos e devolvia `hybrid` para
+            # "quanto está o dólar hoje"/"qual a temperatura da cpu" — a action
+            # de câmbio/CPU nunca rodava e o LLM respondia um valor inventado
+            # ("R$ 4,95"). O caminho direto já confia no detect_action_intent;
+            # o grafo agora faz o mesmo, senão os dois divergem.
+            if intent is not None:
+                estado["intent"] = "tools"
+                estado["router_strategy"] = "tool"
+                return "tool"
             
             # Query Router para classificação rica
             try:
@@ -2378,6 +2389,29 @@ class Orchestrator:
 
         # Função de geração de resposta (LLM)
         async def gerar(estado: dict[str, Any]) -> dict[str, Any]:
+            # A ferramenta JÁ executou: a resposta sai do resultado real, não
+            # do LLM. Sem isto o `execute_parallel` rodava a action e o modelo
+            # reescrevia por cima — dado medido (câmbio, CPU, clima) virava
+            # paráfrase/ invenção. Mesmo formatador do fast path direto.
+            from core.intents import format_intent_result
+
+            for item in reversed(estado.get("tool_results") or []):
+                acao = str(item.get("tool") or "")
+                saida = item.get("output")
+                if not acao or not isinstance(saida, dict):
+                    continue
+                texto = format_intent_result(acao, saida)
+                if not texto:
+                    continue
+                self._metrics.intents += 1
+                return {
+                    "terminal": True,
+                    "route": ROUTE_INTENT,
+                    "message": texto,
+                    "llm_used": f"fastpath:{acao}",
+                    "registrar": estado.get("persist", True),
+                }
+
             router_strategy = estado.get("router_strategy", "chat")
             
             # Ajusta comportamento baseado na estratégia do Query Router
