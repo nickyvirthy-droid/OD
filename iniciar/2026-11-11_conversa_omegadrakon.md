@@ -197,3 +197,40 @@ mostrou que não era só contagem:
 ---
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §5 — Endpoint REST de decisão do human_loop (11/11 ~10:50)
+
+**Pedido do dono:** criar endpoint REST para o app responder aprovação
+(sim/não) de turno pausado.
+
+### 1. O que mudou
+
+| Peça | Entrega |
+|---|---|
+| `integrations/api/server.py` | `POST /api/v1/chat/decision` (API Key obrigatória). Body: `{"thread_id": "...", "decision": "sim"|"nao"}`; aceita `decisao`, `aprovar/cancelar`, `s/n`, `true/false`. Valida que a conta autenticada só decide o próprio turno (`thread_id` começa com `<username>:`); sem conta (API key de operador) mantém o comportamento legado. Chama `retomar_turno_humano` e devolve `route`, `message`, `pending_human_input`, `pos_processado`. Erros: 400 campos, 403 turno de outro usuário, 409 grafo desligado/thread sem checkpoint, 503 orquestrador ausente. |
+| Testes | `test_api.py` **+3** (validação, 409 sem grafo, cancelamento de checkpoint pausado) e contrato de rotas 123 → 124 + auth. |
+
+### 2. Verificação
+
+- Gate completo: **4432 passed / 17 skipped / 0 falha** (182,50 s).
+- Prova viva:
+  1. `POST /message` “liga a luz da cozinha” → `human_loop_pending`,
+     `thread_id=alex:prova-decision-endpoint:c4f211a5644458a7ea35`;
+  2. `POST /api/v1/chat/decision` com `decision=nao` → **200**,
+     `route=human_loop_cancelado`, “🚫 Ação cancelada — nada foi executado.”,
+     `pending_human_input=null`, `pos_processado=true`.
+- Serviço: MainPID **2435532**, `NRestarts=0`, `/health` **27/27**,
+  `journalctl -p err` **0 entradas**.
+
+### 3. Prós e contras
+
+- **Prós:** app/chat web fecham o ciclo sem depender do Telegram; a decisão é
+  auditável no checkpoint e o endpoint é simétrico ao `/message`.
+- **Contras:** é uma ação de decisão sensível — exige API Key e checagem de
+  dono do turno. Não há expiração: thread antiga sem checkpoint devolve 409 (e
+  a mensagem “Thread sem checkpoint”); aprovar depois de o estado já ter sido
+  consumido também dá 409.
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.

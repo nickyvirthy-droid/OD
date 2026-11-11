@@ -12,6 +12,19 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Endpoint REST de decisão do human_loop (2026-11-11, sem bump)
+
+**Resumo:** o turno pausado só podia ser aprovado pelo Telegram. O app/REST
+não tinha como responder. Agora `POST /api/v1/chat/decision` retoma o
+checkpoint com “sim” ou “não”.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/api/server.py`** | Rota `POST /api/v1/chat/decision` (API Key obrigatória): recebe `thread_id` + `decision` (aceita `sim/s/yes/aprovar/confirmo` e `nao/cancelar/recuso`), valida dono do turno quando há conta autenticada, chama `retomar_turno_humano` e devolve `route`, `message`, `pending_human_input` e `pos_processado`. Erros: 400 (campos), 403 (turno de outro usuário), 409 (grafo desligado/thread sem checkpoint), 503 (orquestrador ausente). |
+| **Testes** | `tests/test_api.py` **+3** (validação dos campos, 409 com grafo desligado, cancelamento de checkpoint pausado); contrato de rotas 123 → 124 e a rota entra na lista de auth. |
+| **Verificação** | Gate **4432 passed / 17 skipped / 0 falha** (182,50 s). Sem bump: **1.44.0/2080**. |
+| **Prova viva** | `POST /message` real pausou “liga a luz da cozinha” (`human_loop_pending`); `POST /api/v1/chat/decision` com `decision=nao` devolveu 200, `route=human_loop_cancelado`, “Ação cancelada”, `pending=null`. MainPID **2435532**, `NRestarts=0`, `/health` **27/27**, journal **0 erro**. |
+
 ## Human-loop unificado: HA e calendar create (F1, 2026-11-11, sem bump)
 
 **Resumo:** `ha_device_control` e `google_calendar_create` tinham fluxo próprio

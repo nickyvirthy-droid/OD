@@ -1,4 +1,14 @@
 {
+  "endpoint_decisao_human_loop_2026_11_11": {
+    "pedido": "Dono (11/11 ~10:45): criar endpoint REST para o app responder aprovacao (sim/nao) de turno pausado.",
+    "feito": "integrations/api/server.py: POST /api/v1/chat/decision com API Key obrigatoria; body {thread_id, decision} (aceita decisao, sim/s, nao/n, aprovar/cancelar, true/false); valida que conta autenticada so decide o proprio turno (prefixo <username>:); chama retomar_turno_humano e devolve route/message/pending_human_input/pos_processado. Erros 400/403/409/503.",
+    "testes": "tests/test_api.py +3 (validacao dos campos, 409 com grafo desligado, cancelamento de checkpoint pausado); contrato de rotas 123 -> 124 e rota na lista de auth. Gate completo 4432 passed / 17 skipped / 0 falha (182,50 s).",
+    "prova": "POST /message real 'liga a luz da cozinha' pausou (human_loop_pending, thread alex:prova-decision-endpoint:c4f211a5644458a7ea35); POST /api/v1/chat/decision com decision=nao devolveu 200, route=human_loop_cancelado, mensagem 'Acao cancelada', pending=null, pos_processado=true. od-core reiniciado: MainPID 2435532, NRestarts=0, /health 27/27, journal 0 erro.",
+    "trade_off": "Endpoint exige API Key e checagem de dono; sem expiracao — thread antiga ou ja consumida devolve 409. Equivalente REST do fluxo que o Telegram ja tinha; o SSE continua devolvendo thread_id para o cliente decidir depois.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-11_conversa_omegadrakon.md (§5)",
+    "updated_at": "2026-11-11T10:50:37-03:00"
+  },
   "human_loop_unificado_ha_calendar_2026_11_11": {
     "pedido": "Dono (11/11 ~10:30): unificar ha_device_control e google_calendar_create no human_loop.",
     "feito": "tools/actions/actions.py: contextvar _APROVACAO_HUMANA + aprovacao_humana_em_curso(); _light_confirm_check e _write_confirm_check devolvem confirmed dentro do contexto (a aprovacao do dono e a confirmacao). core/orchestrator.py: as duas actions entraram em ACOES_SENSIVEIS_PADRAO; selecionar so pausa quando o pedido esta completo (entity_id resolvido / quando presente) e deixa incompleto para o generate; _aplicar_decisao_humana executa dentro do contexto de aprovacao.",
