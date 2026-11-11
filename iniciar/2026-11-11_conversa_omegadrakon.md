@@ -287,3 +287,53 @@ do app (o Flutter fala WS, não REST).
 ---
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §7 — Aprovação no app, no chat web e expiração (11/11 ~11:30)
+
+Pedido do dono, em três partes: (a) o app Flutter enviar o frame `decision` ao
+receber `human_loop_pending`; (b) aprovações pendentes expirarem após um tempo
+configurável; (c) botões sim/não no chat web quando o turno pausar.
+
+### 1. O que mudou
+
+| Peça | Entrega |
+|---|---|
+| `app/lib/services/od_ws.dart` | `OdHumanApproval` a partir do frame; `OdChatDelta.approval` e `finalText`; `decide()` abre socket, autentica, manda `decision` e lê o turno retomado. `OdStreamingProtocolError` não cai para o REST. |
+| `app/lib/screens/chat_screen.dart` | Card "Aprovação necessária" (texto do servidor + Sim/Não) no rodapé; `_decidir()` consome o stream da decisão; card volta com aviso se falhar. |
+| `core/orchestrator.py` | `criado_em` no pedido; `ttl_aprovacao_humana()`/`pending_expirado()`; rota `human_loop_expirado`. Padrão 30 min, `OD_HUMAN_APPROVAL_TTL` em minutos, `off`/`0` desliga; checkpoint antigo sem `criado_em` não expira. |
+| `integrations/api/server.py` | Chat web: `human_loop_pending` monta o card `.approval` com Sim/Não; decisão pelo WS (REST como reserva); selo "Aprovado"/"Cancelado". |
+
+### 2. Decisões e por quês
+
+1. **A pausa fecha o socket; a decisão abre outro.** O servidor retoma do
+   checkpoint e valida o dono pelo prefixo do `thread_id`, então não precisa da
+   conexão original — decisão virou método próprio (`decide`).
+2. **Uma tentativa só ao decidir.** Se a conexão cair depois da execução,
+   reenviar poderia executar a ação duas vezes (Drive/agenda). O erro orienta a
+   conferir antes de decidir de novo.
+3. **Frame de pausa sem `thread_id` não cai para o REST.** Reenviar a mensagem
+   geraria um segundo pedido de aprovação; virou `OdStreamingProtocolError`.
+4. **Expiração no servidor, não no cliente.** Vale para os três transportes
+   (app, chat web, Telegram) e para qualquer cliente futuro; o card do app some
+   porque o servidor recusa, não porque o relógio do celular decidiu.
+5. **Pedido sem `criado_em` não expira.** Checkpoints gravados antes desta
+   regra continuam válidos — não se inventa idade para dado antigo.
+
+### 3. Verificação
+
+- Gate completo: **4445 passed / 17 skipped / 0 falha** (180,63 s).
+- App: `flutter analyze` → **No issues found!**; `flutter test` → **213
+  passed / 2 skipped** (5 novos no serviço, 2 de widget).
+- Chat web: script extraído e validado com `node --check` → **JS_OK**.
+
+### 4. Prós e contras
+
+- **Prós:** o ciclo de aprovação fecha no celular e no navegador, sem depender
+  do Telegram; a expiração elimina aprovação esquecida executando horas depois;
+  o chat web deixa de reenviar a mensagem pausada pelo REST.
+- **Contras:** o card do app não mostra contagem regressiva (o servidor é quem
+  recusa); a decisão pelo app não tem retry automático (por desenho); o chat web
+  só foi verificado por sintaxe + testes de servidor — não há navegador nesta
+  máquina para prova visual.
+
+**Sem bump:** app segue **1.44.0/2080**.

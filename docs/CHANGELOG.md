@@ -12,6 +12,23 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Aprovação visível no app e no chat web + expiração (2026-11-11, sem bump)
+
+**Resumo:** o frame `decision` existia no servidor, mas nenhum cliente o
+usava — app e chat web deixavam o turno pendurado até o timeout (e o chat web
+ainda reenviava a mensagem pelo REST, gerando um segundo pedido). Agora os dois
+mostram **Sim/Não** ao receber `human_loop_pending` e a aprovação passa a
+expirar: `OD_HUMAN_APPROVAL_TTL` (minutos, padrão **30**, `off`/`0` desliga).
+
+| Peça | Entrega |
+|---|---|
+| **`app/lib/services/od_ws.dart`** | `OdHumanApproval` (thread_id, ação, detalhes, params) a partir do frame `human_loop_pending`; `OdChatDelta.approval`/`finalText`; `decide(aprovacao, aprovar:)` abre o socket, autentica, manda `{"type":"decision","thread_id","decision":"sim"|"nao"}` e transmite o turno retomado. Tentativa **única** de propósito (reenviar após execução poderia executar duas vezes). `OdStreamingProtocolError` não cai para o REST — evita repetir a mensagem que já pausou. |
+| **`app/lib/screens/chat_screen.dart`** | Card "Aprovação necessária" acima do campo de texto, com o texto do servidor e os botões **Sim**/**Não**; spinner durante a decisão e card devolvido com aviso se a entrega falhar. Texto do `done` sem tokens (decisão retomada) entra na bolha. |
+| **`core/orchestrator.py`** | Pedido de aprovação ganha `criado_em`; `ttl_aprovacao_humana()` (env, padrão 30 min) e `pending_expirado()`; `_aplicar_decisao_humana` devolve `route=human_loop_expirado`, "⏰ Aprovação expirada — nada foi executado" e `pending=null`. Checkpoint antigo **sem** `criado_em` nunca expira. |
+| **`integrations/api/server.py` (chat web)** | `human_loop_pending` encerra o envio sem cair para o REST e desenha o card `.approval` com Sim/Não; `decidirWs` manda o frame (REST `/api/v1/chat/decision` como reserva), mostra o resultado e o selo "✅ Aprovado"/"🚫 Cancelado". CSS `.approval` no tema do chat. |
+| **Testes** | Servidor: `test_orchestrator.py` **+5** (padrão, minutos/desligamento, recente × antigo, sem `criado_em`, TTL off) e `test_api.py` **+2** (expirada não executa, TTL off aceita decisão antiga). App: `od_ws_test.dart` **+5** e `widget_test.dart` **+2** (pausa sem thread_id é erro; Sim/Não mandam `sim`/`nao`). |
+| **Verificação** | Gate **4445 passed / 17 skipped / 0 falha** (180,63 s). App: `flutter analyze` **No issues found!** e `flutter test` **213 passed / 2 skipped**. Sintaxe do script do chat web validada com `node --check`. Sem bump: **1.44.0/2080**. |
+
 ## Decisão do human_loop no WebSocket do app (2026-11-11, sem bump)
 
 **Resumo:** o app Flutter fala WebSocket, não REST. Ele agora recebe
