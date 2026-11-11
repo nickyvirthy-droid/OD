@@ -1,4 +1,15 @@
 {
+  "decisao_human_loop_websocket_2026_11_11": {
+    "pedido": "Dono (11/11 ~11:00): adicionar a decisao de aprovacao ao protocolo WebSocket do app.",
+    "feito": "integrations/api/ws_server.py: frame {type: decision, thread_id, decision} chama retomar_turno_humano e devolve done com content/route/decision/thread_id/pending_human_input/pos_processado; erros thread_id_obrigatorio, decision_invalida, thread_de_outro_usuario e decisao_falhou. integrations/api/server.py: normalizar_decisao() compartilhado entre REST e WS. core/orchestrator.py: _process_stream_grafo espelha o grafo de process (acao sensivel forca tools e selecionar devolve pending_human_input). core/orchestrator_graph.py: SqliteSaver.ultimo ordena por created_at e a poda mantem os mais recentes.",
+    "testes": "tests/test_websocket.py +4 (cancelar, validacao, erro do orquestrador, turno de outra conta); tests/test_orchestrator_graph_integration.py +1 (streaming pausa antes de executar); tests/test_orchestrator_graph.py +1 (ultimo = mais recente). Gate completo 4438 passed / 17 skipped / 0 falha (181,14 s).",
+    "prova": "WS real em :8001 com OD_API_KEY: 'desliga a luz da cozinha' -> human_loop_pending (ha_device_control); frame decision 'nao' -> done, route=human_loop_cancelado, 'Acao cancelada', pending=null, pos_processado=true; novo turno -> decision 'sim' -> route=ha_device_control, 'Luz Cozinha: desligar executado (off)'. od-core reiniciado: MainPID 2460735, NRestarts=0, /health 27/27, journal 0 erro.",
+    "defeitos_corrigidos": "1) O grafo de streaming tinha copia propria da classificacao sem aprovacao e executava HA/calendar direto — o frame decision nunca teria o que decidir. 2) SqliteSaver.ultimo ordenava por passo DESC: turno repetido na mesma thread (passo 0) devolvia o turno antigo e a decisao era aplicada no estado errado. Ambos cobertos por teste.",
+    "trade_off": "Aprovacao pendente ainda nao expira; o cliente precisa do thread_id recebido em human_loop_pending (se perdeu o frame, reenvia a mensagem). Nao mexi no app Flutter: ele so precisa enviar o frame decision.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-11_conversa_omegadrakon.md (§6)",
+    "updated_at": "2026-11-11T11:14:30-03:00"
+  },
   "endpoint_decisao_human_loop_2026_11_11": {
     "pedido": "Dono (11/11 ~10:45): criar endpoint REST para o app responder aprovacao (sim/nao) de turno pausado.",
     "feito": "integrations/api/server.py: POST /api/v1/chat/decision com API Key obrigatoria; body {thread_id, decision} (aceita decisao, sim/s, nao/n, aprovar/cancelar, true/false); valida que conta autenticada so decide o proprio turno (prefixo <username>:); chama retomar_turno_humano e devolve route/message/pending_human_input/pos_processado. Erros 400/403/409/503.",

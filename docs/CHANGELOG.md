@@ -12,6 +12,24 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Decisão do human_loop no WebSocket do app (2026-11-11, sem bump)
+
+**Resumo:** o app Flutter fala WebSocket, não REST. Ele agora recebe
+`human_loop_pending` com `thread_id` e responde com o frame `decision`.
+Ao ligar isso, dois defeitos reais apareceram e foram corrigidos: o caminho
+de streaming executava ação sensível sem pausar, e o checkpoint “último” de
+uma thread repetida era o de maior passo (turno antigo), não o mais recente.
+
+| Peça | Entrega |
+|---|---|
+| **`integrations/api/ws_server.py`** | Frame `{"type": "decision", "thread_id", "decision"}` chama `retomar_turno_humano` e devolve `done` com `content`, `route`, `decision`, `thread_id`, `pending_human_input` e `pos_processado`. Erros: `thread_id_obrigatorio`, `decision_invalida`, `thread_de_outro_usuario` (conta autenticada só decide o próprio turno) e `decisao_falhou: ...`. Protocolo documentado no cabeçalho. |
+| **`integrations/api/server.py`** | `normalizar_decisao()` extraído para ser compartilhado por REST e WS (mesmas palavras aceitas nos dois transportes). |
+| **`core/orchestrator.py`** | `_process_stream_grafo` passa a espelhar o grafo de `process`: ação sensível força `tools` e `selecionar` devolve `pending_human_input` em vez de pular direto ao `generate`. |
+| **`core/orchestrator_graph.py`** | `SqliteSaver.ultimo` ordena por `created_at` (não por `passo`) e a poda mantém os checkpoints mais recentes — retomar uma thread reaproveitada não devolve mais o turno antigo. |
+| **Testes** | `tests/test_websocket.py` **+4** (cancelar, validação, erro do orquestrador, turno de outra conta); `tests/test_orchestrator_graph_integration.py` **+1** (streaming pausa); `tests/test_orchestrator_graph.py` **+1** (último = mais recente). |
+| **Verificação** | Gate **4438 passed / 17 skipped / 0 falha** (181,14 s). Sem bump: **1.44.0/2080**. |
+| **Prova viva** | WS :8001 real: “desliga a luz da cozinha” → `human_loop_pending`; frame `decision` `nao` → `route=human_loop_cancelado`, “🚫 Ação cancelada”, `pending=null`; novo turno → `decision` `sim` → `route=ha_device_control`, “✅ desligar executado (⚪ off)”. MainPID **2460735**, `NRestarts=0`, `/health` **27/27**, journal **0 erro**. |
+
 ## Endpoint REST de decisão do human_loop (2026-11-11, sem bump)
 
 **Resumo:** o turno pausado só podia ser aprovado pelo Telegram. O app/REST

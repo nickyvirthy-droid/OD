@@ -234,3 +234,56 @@ mostrou que não era só contagem:
 ---
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §6 — Decisão de aprovação no WebSocket do app (11/11 ~11:10)
+
+**Pedido do dono:** adicionar a decisão de aprovação ao protocolo WebSocket
+do app (o Flutter fala WS, não REST).
+
+### 1. O que mudou
+
+| Peça | Entrega |
+|---|---|
+| `integrations/api/ws_server.py` | Frame `{"type": "decision", "thread_id": "...", "decision": "sim"|"nao"}`. Responde `processing` e depois `done` com `content`, `route`, `decision`, `thread_id`, `pending_human_input`, `pos_processado`. Erros: `thread_id_obrigatorio`, `decision_invalida`, `thread_de_outro_usuario`, `decisao_falhou: ...`. Protocolo no docstring. |
+| `integrations/api/server.py` | `normalizar_decisao()` compartilhado: REST e WS aceitam as mesmas palavras (`sim/s/yes/aprovar/confirmo/true/1`, `nao/não/n/cancelar/recuso/false/0`). |
+| `core/orchestrator.py` | `_process_stream_grafo` espelha o grafo de `process`: ação sensível força a rota `tools` e `selecionar` devolve `pending_human_input` — antes o streaming executava direto. |
+| `core/orchestrator_graph.py` | `SqliteSaver.ultimo` ordena por `created_at` (não por `passo`); a poda mantém os mais recentes. |
+| Testes | `test_websocket.py` **+4**, `test_orchestrator_graph_integration.py` **+1** (stream pausa), `test_orchestrator_graph.py` **+1** (último = mais recente). |
+
+### 2. Defeitos encontrados no caminho (e por que importam)
+
+1. **Streaming não pausava.** `_process_stream_grafo` tinha uma cópia própria
+   da classificação, sem `_exige_aprovacao_humana`, e devolvia `[]` para HA e
+   calendar create. Resultado da primeira prova viva: o WS “liga a luz da
+   cozinha” **executou direto** — o frame `decision` nunca teria o que decidir.
+   Corrigido espelhando a lógica do grafo de `process`.
+2. **Checkpoint antigo ganhava do novo.** Turno repetido na mesma thread
+   (mesmo texto/sessão/perfil) recomeça no passo 0, mas `ultimo()` ordenava por
+   `passo DESC` e devolvia o turno anterior. A prova viva do `nao` respondeu com
+   a mensagem do turno velho (`route=llm`). Agora a ordem é `created_at DESC`.
+
+### 3. Verificação
+
+- Gate completo: **4438 passed / 17 skipped / 0 falha** (181,14 s).
+- Prova viva por WS real (`ws://127.0.0.1:8001`, API Key + `user_id`):
+  1. “desliga a luz da cozinha” → `human_loop_pending` (`ha_device_control`);
+  2. `{"type": "decision", "decision": "nao"}` → `done`,
+     `route=human_loop_cancelado`, “🚫 Ação cancelada — nada foi executado.”,
+     `pending=null`, `pos_processado=true`;
+  3. novo turno → `decision: sim` → `route=ha_device_control`,
+     “✅ Luz Cozinha: desligar executado (⚪ estado agora: off)”.
+- Serviço: MainPID **2460735**, `NRestarts=0`, `/health` **27/27**,
+  journal **0 ERROR/Traceback**.
+
+### 4. Prós e contras
+
+- **Prós:** o app fecha o ciclo de aprovação no transporte que já usa, sem
+  REST extra; a checagem de dono do turno vale também no WS; a pausa do
+  streaming alinha os dois transportes.
+- **Contras:** ainda não há expiração de aprovação pendente; o frame exige o
+  `thread_id` recebido em `human_loop_pending` (cliente que perdeu o frame
+  precisa reenviar a mensagem).
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.
