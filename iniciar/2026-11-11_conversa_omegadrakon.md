@@ -157,3 +157,43 @@ mostrou que não era só contagem:
 ---
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §4 — Human-loop unificado: HA e calendar create (11/11 ~10:40)
+
+**Pedido do dono:** unificar `ha_device_control` e `google_calendar_create` no
+`human_loop`.
+
+### 1. O que mudou
+
+| Peça | Entrega |
+|---|---|
+| `tools/actions/actions.py` | Contextvar `_APROVACAO_HUMANA` e `aprovacao_humana_em_curso()`; `_light_confirm_check` e `_write_confirm_check` devolvem `confirmed` dentro do contexto. A aprovação do dono no `human_loop` passa a ser a confirmação — a action não pede “sim” uma segunda vez. |
+| `core/orchestrator.py` | `ha_device_control` e `google_calendar_create` entraram em `ACOES_SENSIVEIS_PADRAO`. `selecionar` só seleciona quando o pedido está completo (`entity_id` resolvido / `quando` presente); sem isso continua indo ao `generate` para pedir o dado que falta. `_aplicar_decisao_humana` executa dentro do contexto de aprovação. |
+| Testes | `test_orchestrator_graph_integration.py` **+3**: calendar create pausa/aprova, HA pausa/aprova e a aprovação pula as confirmações de 2 passos (luz e escrita Google). |
+
+### 2. Verificação
+
+- Gate completo: **4429 passed / 17 skipped / 0 falha** (180,36 s).
+- Prova viva (`POST /message` real):
+  - “liga a luz da cozinha” → `human_loop_pending`,
+    `pending.acao=ha_device_control`,
+    `entity_id=switch.luz_cozinha_sonoff_1000ab588f` (nada foi ligado);
+  - “cria um compromisso teste_prova amanhã às 15 horas” →
+    `human_loop_pending`, `pending.acao=google_calendar_create` (nada criado);
+  - ambos retomados com “cancelar” → “🚫 Ação cancelada — nada foi executado”.
+- Serviço: MainPID **2421067**, `NRestarts=0`, `/health` **27/27**,
+  `journalctl -p err` **0 entradas**.
+
+### 3. Prós e contras
+
+- **Prós:** um único mecanismo de aprovação para toda ação sensível reaproveita
+  o checkpoint (sobrevive a restart) e evita confirmação dupla; o pedido
+  incompleto continua sendo completado pelo `generate` em vez de pausar à toa.
+- **Contras:** o contexto de aprovação é do processo — quem chamar a action
+  diretamente (fora do grafo) continua vendo o fluxo de 2 passos. Retomada
+  depende do grafo ligado e de o cliente saber responder à pausa (Telegram já
+  responde; REST ainda não tem endpoint de decisão).
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.

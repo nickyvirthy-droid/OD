@@ -12,6 +12,21 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Human-loop unificado: HA e calendar create (F1, 2026-11-11, sem bump)
+
+**Resumo:** `ha_device_control` e `google_calendar_create` tinham fluxo próprio
+(2 passos interno) e ficavam fora do `select_tools`. Agora entram no mesmo
+`human_loop`: com alvo ou `quando` resolvidos, o turno pausa e só executa
+depois do “sim”; a confirmação interna é pulada para não pedir duas vezes.
+
+| Peça | Entrega |
+|---|---|
+| **`tools/actions/actions.py`** | Contextvar `_APROVACAO_HUMANA` + `aprovacao_humana_em_curso()`; `_light_confirm_check` e `_write_confirm_check` devolvem `confirmed` dentro do contexto — a aprovação do human_loop é a confirmação. |
+| **`core/orchestrator.py`** | `ha_device_control` e `google_calendar_create` na lista padrão de sensíveis. `selecionar` só pausa quando há alvo (`entity_id`) ou `quando`; pedido incompleto continua indo ao `generate`. `_aplicar_decisao_humana` executa a action dentro de `aprovacao_humana_em_curso()`. |
+| **Testes** | `tests/test_orchestrator_graph_integration.py` **+3**: calendar create pausa e aprova, HA pausa e aprova, e a aprovação humana pula as confirmações de 2 passos (luz e escrita Google). |
+| **Verificação** | Gate **4429 passed / 17 skipped / 0 falha** (180,36 s). Sem bump: **1.44.0/2080**. |
+| **Prova viva** | `POST /message` real: “liga a luz da cozinha” → `human_loop_pending` (`switch.luz_cozinha_sonoff_…`) e “cria um compromisso teste_prova amanhã às 15 horas” → `human_loop_pending` (`google_calendar_create`); ambos retomados com “cancelar” responderam “Ação cancelada” sem executar nada. MainPID **2421067**, `NRestarts=0`, `/health` **27/27**, journal **0 erro**. |
+
 ## Aprovação humana para ações sensíveis (F1, 2026-11-11, sem bump)
 
 **Resumo:** o `human_loop` existia mas nada criava a pausa. Agora ação sensível

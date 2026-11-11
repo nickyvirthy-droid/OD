@@ -1,4 +1,14 @@
 {
+  "human_loop_unificado_ha_calendar_2026_11_11": {
+    "pedido": "Dono (11/11 ~10:30): unificar ha_device_control e google_calendar_create no human_loop.",
+    "feito": "tools/actions/actions.py: contextvar _APROVACAO_HUMANA + aprovacao_humana_em_curso(); _light_confirm_check e _write_confirm_check devolvem confirmed dentro do contexto (a aprovacao do dono e a confirmacao). core/orchestrator.py: as duas actions entraram em ACOES_SENSIVEIS_PADRAO; selecionar so pausa quando o pedido esta completo (entity_id resolvido / quando presente) e deixa incompleto para o generate; _aplicar_decisao_humana executa dentro do contexto de aprovacao.",
+    "testes": "tests/test_orchestrator_graph_integration.py +3 (calendar pausa/aprova, HA pausa/aprova, aprovacao pula as confirmacoes de 2 passos de luz e escrita Google). Gate completo 4429 passed / 17 skipped / 0 falha (180,36 s).",
+    "prova": "POST /message real: 'liga a luz da cozinha' -> human_loop_pending com entity switch.luz_cozinha_sonoff_1000ab588f (nada ligado); 'cria um compromisso teste_prova amanha as 15 horas' -> human_loop_pending google_calendar_create (nada criado). Ambos retomados com cancelar -> 'Acao cancelada'. od-core reiniciado: MainPID 2421067, NRestarts=0, /health 27/27, journal 0 erro.",
+    "trade_off": "Contexto de aprovacao e do processo: quem chama a action direto (fora do grafo) continua no fluxo de 2 passos. Retomada depende do grafo ligado e de cliente que saiba responder a pausa (Telegram sim; REST ainda nao tem endpoint de decisao). Pedido incompleto (sem alvo/quando) nao pausa — segue para o generate.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-11_conversa_omegadrakon.md (§4)",
+    "updated_at": "2026-11-11T10:40:00-03:00"
+  },
   "origem_human_loop_acao_sensivel_2026_11_11": {
     "pedido": "Dono (11/11 ~10:20): ligar a origem do human_loop — actions sensiveis criarem pending_human_input e pausarem o turno.",
     "feito": "core/orchestrator.py: ACOES_SENSIVEIS_PADRAO (escritas no Google: drive create/update/delete, calendar delete, gmail send/delete) com override OD_HUMAN_APPROVAL_ACTIONS (lista ou off); classificar forca rota tool quando a intencao detectada e sensivel; selecionar devolve pending_human_input (acao/params/texto/detalhes) e o motor pausa antes do human_loop; _aplicar_decisao_humana executa a action no sim (execute_action com o papel do dono) ou responde cancelada no nao, limpando a pausa. core/orchestrator_graph.py: no_select aceita dict do seletor e rota_por_intencao reconhece tool (estrategia do Query Router) alem de tools.",

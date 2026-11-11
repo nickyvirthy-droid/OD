@@ -577,7 +577,7 @@ esperar o timeout.
 - [x] F1: `RetryPolicy` por nó para falha transitória de LLM/action, sem
       reexecutar o pipeline inteiro — **ENTREGUE 10/11: políticas padrão + `OD_RETRY_<NÓ>` no motor do grafo; ver §21 da transcrição**
 - [x] F1: consumir `pending_human_input` de verdade no chat (pausa + aprovação
-      do dono) usando `retomar()`, hoje só testado no motor — **ENTREGUE 10/11: `retomar_turno_humano` no orchestrator + `_pending_human_loop` + `_handle_human_loop_decision` no Telegram bot; 11/11: duplicata que sombreava o método foi removida, a retomada roda `human_loop` + `post_process` e a **origem foi ligada** — `select_tools` pausa ações sensíveis (`OD_HUMAN_APPROVAL_ACTIONS`, padrão: escritas no Google) com `pending_human_input`, e o `sim` executa a action no resume; 4 testes em `test_orchestrator_graph_integration.py`**
+      do dono) usando `retomar()`, hoje só testado no motor — **ENTREGUE 10/11: `retomar_turno_humano` no orchestrator + `_pending_human_loop` + `_handle_human_loop_decision` no Telegram bot; 11/11: duplicata que sombreava o método foi removida, a retomada roda `human_loop` + `post_process` e a **origem foi ligada** — `select_tools` pausa ações sensíveis (`OD_HUMAN_APPROVAL_ACTIONS`, padrão: escritas no Google) com `pending_human_input`, e o `sim` executa a action no resume; 4 testes em `test_orchestrator_graph_integration.py`. 11/11: `ha_device_control` e `google_calendar_create` foram unificados no mesmo human_loop (com alvo/`quando`), pulando a confirmação de 2 passos interna via contextvar — +3 testes**
 - [ ] RAG: avaliar cache de embedding de documento (evitar reembeddar o mesmo
       texto após restart)
 
