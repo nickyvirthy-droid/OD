@@ -467,6 +467,11 @@ class TestAprovacaoHumana:
         )
         assert result.paused is True
         assert result.pending_human_input["acao"] == "ha_device_control"
+        # O card precisa dizer QUAL luz: o `alvo` do resolvedor é só "cozinha".
+        assert (
+            result.pending_human_input["detalhes"]
+            == "ligar dispositivo do lar: luz da cozinha"
+        ), result.pending_human_input["detalhes"]
         final = await orch.retomar_turno_humano(result.thread_id, "aprovar")
 
         assert [c[0] for c in chamadas] == ["ha_device_control"]

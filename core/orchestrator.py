@@ -176,6 +176,42 @@ def ttl_aprovacao_humana() -> float:
     return max(0.0, minutos) * 60.0
 
 
+# Verbo de comando do lar, no começo da frase ('liga a luz da cozinha').
+_HA_VERBO = (
+    r"(?:ligar|ligue|liga|acender|acende|desligar|desligue|desliga|"
+    r"apagar|apague|apaga|ativar|ative|ativa|toggle)"
+)
+_RE_ALVO_FALADO = re.compile(
+    r"^\s*(?:(?:quero|queria|pode|voc[êe]\s+pode)\s+)?"
+    r"(?:(?:pra|para)\s+mim\s+)?(?:por\s+favor[,\s]+)?" + _HA_VERBO + r"\s+",
+    re.IGNORECASE,
+)
+
+
+def _alvo_falado_ha(texto: str, limite: int = 60) -> str:
+    """Trecho que nomeia o dispositivo, do jeito que o dono falou.
+
+    'liga a luz da cozinha' -> 'luz da cozinha'. O `alvo` devolvido pelo
+    resolvedor de intenção perde o substantivo (luz/tomada/interruptor, de
+    propósito, para casar com o nome da entidade) — usado sozinho no pedido de
+    aprovação virava 'ligar dispositivo do lar: da cozinha', sem dizer o que
+    seria ligado. Frase sem o verbo no começo (ou longa demais) devolve "" e
+    quem chama cai no `alvo` de sempre.
+    """
+    achado = _RE_ALVO_FALADO.match(texto or "")
+    if achado is None:
+        return ""
+    limpo = (texto or "")[achado.end():]
+    limpo = re.sub(r"^(?:a|o|as|os)\s+", "", limpo, flags=re.IGNORECASE)
+    limpo = re.sub(
+        r"\s+(?:agora|por\s+favor)\s*$", "", limpo, flags=re.IGNORECASE
+    )
+    limpo = limpo.strip(" ?!.,")
+    if not limpo or len(limpo) > limite:
+        return ""
+    return limpo
+
+
 def pending_expirado(
     pendente: dict[str, Any], *, agora: Optional[float] = None
 ) -> str:
@@ -2644,6 +2680,9 @@ class Orchestrator:
             or params.get("para")
             or ""
         ).strip()
+        if acao == "ha_device_control":
+            # 'luz da cozinha' em vez do `alvo` cru ('da cozinha').
+            alvo = _alvo_falado_ha(text) or alvo
         detalhes = descricoes.get(acao, "executar ação externa")
         if alvo:
             detalhes = f"{detalhes}: {alvo}"

@@ -1046,3 +1046,59 @@ class TestHumanApprovalTTL:
         monkeypatch.setenv("OD_HUMAN_APPROVAL_TTL", "off")
         antigo = {"acao": "x", "criado_em": 0.0}
         assert pending_expirado(antigo, agora=1_800_000_000.0) == ""
+
+
+class TestAlvoDoPedidoDeAprovacao:
+    """O pedido de aprovação precisa dizer QUAL dispositivo será acionado.
+
+    O `alvo` do resolvedor de intenção perde o substantivo de propósito
+    ('liga a luz da cozinha' → 'da cozinha'), e usado sozinho o card mostrava
+    'ligar dispositivo do lar: da cozinha' — o dono não sabia o que aprovava.
+    """
+
+    def test_alvo_falado_mantem_o_substantivo(self) -> None:
+        from core.orchestrator import _alvo_falado_ha
+
+        assert _alvo_falado_ha("liga a luz da cozinha") == "luz da cozinha"
+        assert _alvo_falado_ha("desliga a tomada do servidor") == "tomada do servidor"
+        assert _alvo_falado_ha("acende a luz do quarto por favor") == "luz do quarto"
+        assert _alvo_falado_ha("liga a TV agora") == "TV"
+        assert _alvo_falado_ha("por favor, desliga o ventilador") == "ventilador"
+
+    def test_frase_sem_verbo_no_comeco_cai_no_alvo_de_sempre(self) -> None:
+        from core.orchestrator import _alvo_falado_ha
+
+        assert _alvo_falado_ha("") == ""
+        assert _alvo_falado_ha("a luz da cozinha") == ""
+        assert _alvo_falado_ha("liga " + "x" * 80) == ""
+
+    def test_pedido_de_ha_mostra_o_alvo_completo(self) -> None:
+        from core.orchestrator import Orchestrator
+
+        pedido = Orchestrator._pedido_de_aprovacao(
+            "ha_device_control",
+            {"entity_id": "switch.luz_cozinha", "on": True, "alvo": "da cozinha"},
+            "liga a luz da cozinha",
+        )
+        assert pedido["acao"] == "ha_device_control"
+        assert pedido["detalhes"] == "ligar dispositivo do lar: luz da cozinha"
+
+    def test_desligar_aparece_no_pedido(self) -> None:
+        from core.orchestrator import Orchestrator
+
+        pedido = Orchestrator._pedido_de_aprovacao(
+            "ha_device_control",
+            {"entity_id": "switch.tv", "on": False, "alvo": "sala"},
+            "desliga a TV da sala",
+        )
+        assert pedido["detalhes"] == "desligar dispositivo do lar: TV da sala"
+
+    def test_outras_acoes_seguem_intocadas(self) -> None:
+        from core.orchestrator import Orchestrator
+
+        pedido = Orchestrator._pedido_de_aprovacao(
+            "google_calendar_create",
+            {"titulo": "teste_prova", "quando": "amanha 15h"},
+            "cria um compromisso teste_prova amanha as 15 horas",
+        )
+        assert pedido["detalhes"] == "criar compromisso na agenda: teste_prova"
