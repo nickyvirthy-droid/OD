@@ -115,3 +115,45 @@ mostrou que não era só contagem:
 ---
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §3 — Origem do human_loop ligada (11/11 ~10:40)
+
+**Pedido do dono:** ligar a origem do `human_loop` — action sensível cria
+`pending_human_input` e pausa o turno.
+
+### 1. O que mudou
+
+| Peça | Entrega |
+|---|---|
+| `core/orchestrator.py` | `ACOES_SENSIVEIS_PADRAO` = escritas no Google (drive create/update/delete, calendar delete, gmail send/delete); override por `OD_HUMAN_APPROVAL_ACTIONS` (lista por vírgula ou `off`). `classificar` força a rota `tool` quando a intenção detectada é sensível (não depende do acerto do classificador). `selecionar` devolve `pending_human_input` (ação, params, texto, detalhes) e o motor pausa antes do `human_loop`. `_aplicar_decisao_humana` executa a action no `sim` — via `execute_action`, com o papel do dono — ou responde “cancelada” no `não`, limpando a pausa. |
+| `core/orchestrator_graph.py` | `no_select` aceita dict do seletor (pausa) e `rota_por_intencao` passou a reconhecer `tool` (estratégia do Query Router) além de `tools` — antes a estratégia `tool` caía em `generate`. |
+| Testes | `test_orchestrator_graph_integration.py` **+4**: pausa sem executar, `aprovar` executa, `cancelar` não executa, lista `off` mantém o fluxo; a retomada agora também cobre a execução da action. |
+
+### 2. Verificação
+
+- Gate completo: **4426 passed / 17 skipped / 0 falha** (179,09 s).
+- `POST /message` real (“apaga o arquivo teste_prova_human_loop no drive”):
+  `route=human_loop_pending`, `paused=true`,
+  `thread_id=alex:prova-human-loop-11-11:f1c2002567ce42395621`,
+  `pending_human_input.acao=google_drive_delete` — nada executou.
+- Retomada real com “cancelar” no checkpoint de produção:
+  `route=human_loop_cancelado`, mensagem “🚫 Ação cancelada — nada foi
+  executado.”, `pending=None`.
+- Serviço: MainPID **2404384**, `NRestarts=0`, `/health` **27/27**,
+  `journalctl -p err` **0 entradas**.
+
+### 3. Prós e contras
+
+- **Prós:** a ação sensível deixa de depender de o classificador acertar;
+  a pausa fica no checkpoint (sobrevive a restart) e a decisão é auditável.
+  O caminho do Google já tinha confirmação de 2 passos no modo direto; agora
+  o modo grafo usa o `human_loop` como fonte única.
+- **Contras:** o pacote inteiro de params vai para o checkpoint (sem segredos
+  na lista padrão); a retomada exige o grafo ligado (`OD_ORCHESTRATOR_GRAPH=1`
+  está no `.env` de produção). `ha_device_control` e `google_calendar_create`
+  continuam fora do `select_tools` (fluxo próprio), então **não** passam por
+  este human_loop — fica para uma próxima unificação.
+
+---
+
+**Sem bump:** app segue **1.44.0/2080**.

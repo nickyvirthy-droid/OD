@@ -1,4 +1,15 @@
 {
+  "origem_human_loop_acao_sensivel_2026_11_11": {
+    "pedido": "Dono (11/11 ~10:20): ligar a origem do human_loop — actions sensiveis criarem pending_human_input e pausarem o turno.",
+    "feito": "core/orchestrator.py: ACOES_SENSIVEIS_PADRAO (escritas no Google: drive create/update/delete, calendar delete, gmail send/delete) com override OD_HUMAN_APPROVAL_ACTIONS (lista ou off); classificar forca rota tool quando a intencao detectada e sensivel; selecionar devolve pending_human_input (acao/params/texto/detalhes) e o motor pausa antes do human_loop; _aplicar_decisao_humana executa a action no sim (execute_action com o papel do dono) ou responde cancelada no nao, limpando a pausa. core/orchestrator_graph.py: no_select aceita dict do seletor e rota_por_intencao reconhece tool (estrategia do Query Router) alem de tools.",
+    "achado": "A estrategia STRATEGY_TOOL e a string 'tool', mas rota_por_intencao so aceitava 'tools' — o roteador nunca chegava ao select_tools; corrigido junto (sem isso a pausa nao aconteceria).",
+    "testes": "tests/test_orchestrator_graph_integration.py +4 (pausa sem executar, aprovar executa, cancelar nao executa, lista off mantem o fluxo) e o teste de retomada agora cobre a execucao da action. Gate completo 4426 passed / 17 skipped / 0 falha (179,09 s).",
+    "prova": "POST /message real com 'apaga o arquivo teste_prova_human_loop no drive' -> route=human_loop_pending, paused=true, thread_id alex:prova-human-loop-11-11:f1c2002567ce42395621, pending.acao=google_drive_delete, nada executado. Retomada real com 'cancelar' nesse checkpoint -> route=human_loop_cancelado, mensagem 'Acao cancelada', pending=None. od-core reiniciado: MainPID 2404384, NRestarts=0, /health 27/27, journal 0 erro.",
+    "trade_off": "Params inteiros vao para o checkpoint (lista padrao sem segredos); a retomada exige o grafo ligado. ha_device_control e google_calendar_create continuam fora do select_tools (fluxo proprio) e nao passam por este human_loop — unificacao futura. O caminho direto mantem a confirmacao de 2 passos que ja existia.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-11_conversa_omegadrakon.md (§3)",
+    "updated_at": "2026-11-11T10:41:00-03:00"
+  },
   "higiene_lote_10_11_publicado_2026_11_11": {
     "pedido": "Dono (11/11 09:00): escolheu a opcao 1 — fechar a higiene primeiro: gate completo, commits por assunto, push e restart verde com prova.",
     "estado_inicial": "Arvore com todo o lote de 10/11 apos 17:43 sem commit (12 modificados + 10 novos): F1 fases 5-6, I1/I2/I4/I5, radio local e docker/otel-collector. Primeiro gate: 69 falhas.",

@@ -12,6 +12,20 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Aprovação humana para ações sensíveis (F1, 2026-11-11, sem bump)
+
+**Resumo:** o `human_loop` existia mas nada criava a pausa. Agora ação sensível
+não executa direto: o grafo pausa com `pending_human_input`, o Telegram pede
+aprovação e o `sim` executa a action no checkpoint retomado.
+
+| Peça | Entrega |
+|---|---|
+| **`core/orchestrator.py`** | `ACOES_SENSIVEIS_PADRAO` (escritas no Google: drive create/update/delete, calendar delete, gmail send/delete) e override `OD_HUMAN_APPROVAL_ACTIONS` (lista ou `off`). `classificar` força a rota `tool` para ação sensível (não depende do acerto do ML); `selecionar` devolve `pending_human_input` com ação/params/detalhes e o motor pausa antes do `human_loop`. `_aplicar_decisao_humana` executa a action no `sim` (via `execute_action`, com papel do dono) ou responde “cancelada” no `não`, limpando a pausa. |
+| **`core/orchestrator_graph.py`** | `no_select` aceita dict do seletor (pausa) e `rota_por_intencao` reconhece `tool` (estratégia do Query Router) além de `tools`. |
+| **Testes** | `tests/test_orchestrator_graph_integration.py` **+4**: ação sensível pausa sem executar, `aprovar` executa, `cancelar` não executa, lista `off` mantém o fluxo antigo; retomada passou a cobrir a execução da action. |
+| **Verificação** | Gate **4426 passed / 17 skipped / 0 falha** (179,09 s). Sem bump: **1.44.0/2080**. |
+| **Prova viva** | `POST /message` real com “apaga o arquivo teste_prova_human_loop no drive” devolveu `route=human_loop_pending`, `paused=true` e `thread_id=alex:prova-human-loop-11-11:…`; retomada com “cancelar” respondeu “Ação cancelada” e limpou a pausa. `/health` **27/27**, journal **0 erro**. |
+
 ## RAG otimizado, streaming e rádio local — lote de 10/11 publicado (2026-11-11, sem bump)
 
 **Resumo:** o lote de 10/11 ficou um dia só no disco (sem commit, sem deploy).
