@@ -385,3 +385,67 @@ de embedding de documento no RAG → R1 Task Queue → R5 Eval →
 `docs/ARCHITECTURE_v2.md` → implantar a stack OTel (commitada, não implantada).
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §9 — Deploy da aprovação (TTL + card do chat web) e prova viva (11/11 ~13:46)
+
+Pedido do dono: reiniciar o `od-core` e fazer a prova viva da expiração do
+`human_loop` e do card do chat web.
+
+### 1. Pré-condições
+
+`HEAD` = `origin/master` (`ce56eb0`), árvore limpa, gate da fatia verde
+(4445/17/0) e `tests/test_rag.py` **reexecutado antes do restart**: 93 passed —
+a transcrição nova (§8) entra no corpus do RAG e já causou falso-positivo antes.
+
+### 2. Como a expiração foi provada de verdade
+
+Esperar 30 min não era viável e forjar `criado_em` no checkpoint seria dado
+fabricado. Então a janela de teste foi a própria máquina:
+
+1. `systemctl --user set-environment OD_HUMAN_APPROVAL_TTL=1` + restart
+   (13:37:46, MainPID **2609290**), TTL de 1 min confirmado no
+   `/proc/<pid>/environ`.
+2. Prova do fluxo completo (abaixo).
+3. `unset-environment` + restart (13:42:25, MainPID **2614065**) — volta ao
+   padrão de 1800 s.
+
+### 3. Prova viva (janela de 1 min)
+
+| Passo | Resultado |
+|---|---|
+| REST `POST /message` "liga a luz da cozinha" | `200`, `route=human_loop_pending`, `paused=true`, thread `alex:prova-ttl-rest:660f1e1715c77752844f`, `pending.acao=ha_device_control` **com `criado_em` numérico** |
+| WS `:8001` autenticado → mesma mensagem | frames `processing`, 7x `progress`, **`human_loop_pending`** com `thread_id` e `criado_em` — é esse frame que faz o card aparecer no app e no chat web |
+| WS `decision: nao` | `done`, `route=human_loop_cancelado`, `decision=cancelar`, `pending=null`, `pos_processado=true` |
+| REST `POST /api/v1/chat/decision` "nao" no turno pausado | `route=human_loop_cancelado`, "🚫 Ação cancelada — nada foi executado." |
+| Turno novo pausado + **70 s** + `decision: sim` | `route=human_loop_expirado`, "⏰ Aprovação expirada — nada foi executado. O pedido valia 1 min…", `pending=null` |
+
+Nada foi executado em nenhum dos casos (os cancelamentos e a expiração
+devolveram `pending_human_input=null` e rota própria, sem passar pela action).
+
+### 4. Card do chat web
+
+`GET /chat` servido com **57.248 bytes** contendo `mostrarAprovacao` (2x), o
+tratamento de `frame.type === "human_loop_pending"`, o título "Aprovação
+necessária", o CSS `.approval button.primary` e a rota
+`/api/v1/chat/decision` como reserva quando o WS cai.
+
+Não há navegador nesta máquina: a prova é o frame real do WS + a página
+servida, **não** houve clique visual nos botões.
+
+### 5. Estado final
+
+| Item | Valor |
+|---|---|
+| od-core | `active`, MainPID **2614065**, NRestarts=0, subido 13:42:25 |
+| `/health` | `ok=true`, **27/27** checks up |
+| journal `-p err` desde o restart | **0** entradas |
+| TTL efetivo | `OD_HUMAN_APPROVAL_TTL` ausente do processo → `ttl_aprovacao_humana()` = **1800 s** |
+| Resíduos | script temporário `_prova_ttl_tmp.py` removido |
+
+### 6. Achado cosmético
+
+A descrição do pending de HA saiu como "ligar dispositivo do lar: **da
+cozinha**" — o alvo perdeu o substantivo ("luz"). Vem de `params.get("alvo")`;
+não afeta a decisão nem a execução. Anotado para ajuste futuro.
+
+**Sem bump:** app segue **1.44.0/2080** (nenhuma mudança de app nesta entrega).

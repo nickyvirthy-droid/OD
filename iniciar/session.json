@@ -1,4 +1,18 @@
 {
+  "deploy_aprovacao_ttl_chat_web_2026_11_11": {
+    "pedido": "Dono (11/11 13:35): reiniciar o od-core e fazer a prova viva da expiração do human_loop e do card do chat web.",
+    "pre_condicao": "HEAD == origin/master (ce56eb0), arvore limpa, gate da fatia verde (4445/17/0) e tests/test_rag.py reexecutado antes do restart: 93 passed (a transcricao nova entra no corpus do RAG, ja causou falso-amigo antes).",
+    "execucao": "Duas subidas: (1) 13:37:46, MainPID 2609290, com OD_HUMAN_APPROVAL_TTL=1 via systemctl --user set-environment, para provar a expiracao de verdade sem esperar 30 min; (2) 13:42:25, MainPID 2614065, ja com o env removido (unset-environment), voltando ao padrao de 1800 s.",
+    "prova_viva": "REST /message 'liga a luz da cozinha' -> 200 human_loop_pending, paused=true, thread alex:prova-ttl-rest:660f1e1715c77752844f, pending.acao=ha_device_control com criado_em numerico. WS :8001 autenticado -> frames processing, 7x progress, human_loop_pending (thread ws_user:prova-ttl-ws:393efd4ddfafcfcb9416, criado_em presente) e decision 'nao' -> done route=human_loop_cancelado, pending=null, pos_processado=true. REST /api/v1/chat/decision 'nao' no turno pausado -> route=human_loop_cancelado, 'Acao cancelada — nada foi executado'. Turno novo pausado + 70 s de espera + decision 'sim' -> route=human_loop_expirado, mensagem 'Aprovacao expirada — nada foi executado. O pedido valia 1 min', pending=null, nada executado.",
+    "chat_web": "GET /chat servido com 57.248 bytes contendo mostrarAprovacao (2x), tratamento de frame.type === 'human_loop_pending' (1x), titulo 'Aprovacao necessaria', CSS .approval button.primary e a rota REST /api/v1/chat/decision como reserva. Sem navegador nesta maquina: prova estatica + frame real do WS, nao houve clique visual.",
+    "estado_final": "od-core active, MainPID 2614065, NRestarts=0, subido 13:42:25; /health ok=true 27/27 up; journal -p err 0 entradas desde o restart; /proc/<pid>/environ sem OD_HUMAN_APPROVAL_TTL (ttl_aprovacao_humana() = 1800 s, padrao). Nenhum residuo: script temporario _prova_ttl_tmp.py removido.",
+    "achado": "A descricao do pending de HA saiu como 'ligar dispositivo do lar: da cozinha' — o alvo perdeu o substantivo ('luz'). Cosmetico (vem de params.get('alvo')); a acao foi executada/pausada corretamente em entregas anteriores. Anotado para eventual ajuste.",
+    "decisoes": "1) Trocar o TTL temporariamente na propria maquina (1 min) em vez de forjar criado_em no checkpoint: prova real, com janela de ~5 min e revertida. 2) Duas subidas em vez de uma para o estado final nao ficar com TTL de 1 min. 3) Nada de codigo alterado nesta entrega — so deploy e prova.",
+    "trade_off": "Durante a janela de teste qualquer aprovacao pendente expirava em 1 min; nenhum pedido do dono estava pendente no momento. O card do chat web segue sem prova visual (nao ha navegador na maquina).",
+    "sem_bump": "app segue 1.44.0/2080 (nenhuma mudanca de app nesta entrega).",
+    "transcricao": "iniciar/2026-11-11_conversa_omegadrakon.md (§9)",
+    "updated_at": "2026-11-11T13:46:00-03:00"
+  },
   "retomada_leitura_iniciar_2026_11_11_tarde": {
     "pedido": "Dono (11/11, apos a entrega §7): 'leia iniciar' — recarregar o checkpoint antes de retomar.",
     "lido": "iniciar/README.md, iniciar/RULES.md, iniciar/session.json (entrada mais recente: aprovacao_app_chat_web_ttl_2026_11_11 11:35) e a transcricao 2026-11-11 (§1-§7, 339 linhas). txt.txt vazio.",
