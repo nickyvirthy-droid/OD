@@ -56,3 +56,10 @@ edge-tts>=7.0
 #    Ligar: OD_OTEL_ENDPOINT=http://127.0.0.1:4318 no .env.
 opentelemetry-sdk>=1.27
 opentelemetry-exporter-otlp-proto-http>=1.27
+#
+# 9) scikit-learn — classificador do Query Router (I4, 10/11/2026).
+#    core/query_router.py: TF-IDF + LogisticRegression como features do
+#    roteador; sem o pacote o módulo cai no fallback por regras e loga o
+#    aviso "Failed to load Query Router model". Import TARDIO, fora do
+#    caminho crítico do od-core.
+scikit-learn>=1.5
