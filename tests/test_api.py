@@ -3053,6 +3053,89 @@ class TestAPIHumanLoopDecision:
         assert "cancelada" in data["message"].lower()
         assert data["pending_human_input"] is None
 
+    def test_aprovacao_expirada_nao_executa(
+        self, serve, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Passado o OD_HUMAN_APPROVAL_TTL, o "sim" atrasado não executa nada."""
+        import time
+
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv(
+            "OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db")
+        )
+        monkeypatch.setenv("OD_HUMAN_APPROVAL_TTL", "10")
+        orch = make_orch(tmp_path)
+        thread_id = "alex:api:expirada"
+        orch._obter_graph_saver().put(
+            thread_id,
+            3,
+            {
+                "user_id": "alex", "profile": "guardian",
+                "session_id": "api:expirada", "role": "admin",
+                "text": "apaga o contrato", "system_prompt": "",
+                "persist": False, "extra_history": None,
+                "route": "llm", "message": "", "llm_used": "",
+                "prompt": "", "terminal": False,
+                "pending_human_input": {
+                    "acao": "google_drive_delete",
+                    "params": {"file_id": "x"},
+                    "criado_em": time.time() - 3600,
+                },
+                "steps": ["select_tools"],
+            },
+            ["human_loop"],
+        )
+        srv = serve(orch)
+
+        status, data = self._post(
+            srv, {"thread_id": thread_id, "decision": "sim"}
+        )
+
+        assert status == 200
+        assert data["route"] == "human_loop_expirado"
+        assert "expirada" in data["message"].lower()
+        assert data["pending_human_input"] is None
+
+    def test_ttl_desligado_aceita_decisao_antiga(
+        self, serve, tmp_path: Path, monkeypatch
+    ) -> None:
+        import time
+
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv(
+            "OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db")
+        )
+        monkeypatch.setenv("OD_HUMAN_APPROVAL_TTL", "off")
+        orch = make_orch(tmp_path)
+        thread_id = "alex:api:sem-ttl"
+        orch._obter_graph_saver().put(
+            thread_id,
+            3,
+            {
+                "user_id": "alex", "profile": "guardian",
+                "session_id": "api:sem-ttl", "role": "admin",
+                "text": "liga a luz", "system_prompt": "",
+                "persist": False, "extra_history": None,
+                "route": "llm", "message": "", "llm_used": "",
+                "prompt": "", "terminal": False,
+                "pending_human_input": {
+                    "acao": "ha_device_control",
+                    "params": {"entity_id": "switch.x", "on": True},
+                    "criado_em": time.time() - 86400,
+                },
+                "steps": ["select_tools"],
+            },
+            ["human_loop"],
+        )
+        srv = serve(orch)
+
+        status, data = self._post(
+            srv, {"thread_id": thread_id, "decision": "nao"}
+        )
+
+        assert status == 200
+        assert "cancelada" in data["message"].lower()
+
 
 class TestAPIHistoryAndMemory:
     """DELETE /history/{uid}, stats e busca semântica (VectorStore)."""

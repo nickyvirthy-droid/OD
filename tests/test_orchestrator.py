@@ -995,3 +995,54 @@ class TestFalsoSucessoDaAgenda:
         assert done is not None and done["route"] == "action_intent"
         assert "nada pendente" in done["content"], done["content"]
         assert provider.prompts == []
+
+
+class TestHumanApprovalTTL:
+    """Validade configurável do pedido de aprovação (OD_HUMAN_APPROVAL_TTL)."""
+
+    def test_padrao_e_30_minutos(self, monkeypatch) -> None:
+        from core.orchestrator import (
+            HUMAN_APPROVAL_TTL_PADRAO_MIN,
+            ttl_aprovacao_humana,
+        )
+
+        monkeypatch.delenv("OD_HUMAN_APPROVAL_TTL", raising=False)
+        assert ttl_aprovacao_humana() == HUMAN_APPROVAL_TTL_PADRAO_MIN * 60
+
+    def test_minutos_do_env_e_desligamento(self, monkeypatch) -> None:
+        from core.orchestrator import ttl_aprovacao_humana
+
+        monkeypatch.setenv("OD_HUMAN_APPROVAL_TTL", "5")
+        assert ttl_aprovacao_humana() == 300
+        monkeypatch.setenv("OD_HUMAN_APPROVAL_TTL", "2,5")
+        assert ttl_aprovacao_humana() == 150
+        for desligado in ("off", "0", "false"):
+            monkeypatch.setenv("OD_HUMAN_APPROVAL_TTL", desligado)
+            assert ttl_aprovacao_humana() == 0
+
+    def test_pedido_recente_vale_e_antigo_expira(self, monkeypatch) -> None:
+        from core.orchestrator import pending_expirado
+
+        monkeypatch.setenv("OD_HUMAN_APPROVAL_TTL", "10")
+        agora = 1_800_000_000.0
+        recente = {"acao": "ha_device_control", "criado_em": agora - 60}
+        antigo = {"acao": "ha_device_control", "criado_em": agora - 3600}
+
+        assert pending_expirado(recente, agora=agora) == ""
+        aviso = pending_expirado(antigo, agora=agora)
+        assert "expirada" in aviso and "10 min" in aviso
+
+    def test_sem_criado_em_nunca_expira(self, monkeypatch) -> None:
+        # Checkpoints gravados antes da expiração existir não podem morrer.
+        from core.orchestrator import pending_expirado
+
+        monkeypatch.setenv("OD_HUMAN_APPROVAL_TTL", "1")
+        assert pending_expirado({"acao": "x"}, agora=1_800_000_000.0) == ""
+        assert pending_expirado({"acao": "x"}, agora=1_800_000_000.0) == ""
+
+    def test_ttl_desligado_nao_expira(self, monkeypatch) -> None:
+        from core.orchestrator import pending_expirado
+
+        monkeypatch.setenv("OD_HUMAN_APPROVAL_TTL", "off")
+        antigo = {"acao": "x", "criado_em": 0.0}
+        assert pending_expirado(antigo, agora=1_800_000_000.0) == ""

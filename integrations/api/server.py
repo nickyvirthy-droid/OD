@@ -3253,6 +3253,32 @@ _CHAT_PAGE_HTML = """<!doctype html>
   .typing { align-self: flex-start; padding: 12px 16px; font-size: 0.85rem; color: var(--muted); }
   .typing::after { content: '...'; animation: dots 1.2s infinite; }
   @keyframes dots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
+  /* Aprovação (human-in-the-loop): o turno pausou e o dono decide AQUI —
+     sem isso a resposta ficava pendurada até o timeout do socket. */
+  .approval {
+    align-self: flex-start; max-width: 75%; padding: 12px 16px;
+    border-radius: 14px; border-bottom-left-radius: 4px;
+    background: var(--od-bg); border: 1px solid var(--accent);
+    font-size: 0.9rem; line-height: 1.5; animation: fadeIn 0.15s ease;
+  }
+  .approval .approval-title {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 6px;
+  }
+  .approval .approval-actions {
+    display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;
+  }
+  .approval button {
+    padding: 7px 16px; border-radius: 9px; font-size: 0.85rem;
+    font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+    background: var(--bg2); color: var(--text);
+  }
+  .approval button.primary {
+    background: var(--accent); color: #000; border-color: var(--accent);
+  }
+  .approval button.danger { color: #f85149; }
+  .approval button:disabled { opacity: 0.5; cursor: default; }
+  .approval.done { border-color: var(--border); }
   /* Histórico carregado: agrupamento por dia + hora discreta na bolha. */
   .day-sep {
     align-self: center; margin: 8px 0 2px; padding: 3px 12px;
@@ -3851,6 +3877,18 @@ function sendWs(text, profile) {
           bubble.textContent = buffer;
           $("messages").scrollTop = $("messages").scrollHeight;
         }
+        if (frame.type === "human_loop_pending") {
+          // Turno PAUSADO: a ação sensível espera o "sim"/"não" do dono.
+          // Encerra este envio com sucesso (NÃO cai para o REST, que
+          // repetiria a mensagem) e mostra os botões.
+          clearTimeout(timeout);
+          ws.onmessage = null;
+          removeTyping();
+          setTransport("ws");
+          mostrarAprovacao(frame);
+          resolve("");
+          return;
+        }
         if (frame.type === "done") {
           clearTimeout(timeout);
           ws.onmessage = null;
@@ -3874,6 +3912,138 @@ function sendWs(text, profile) {
     };
     ws.send(JSON.stringify({ type: "message", text: text, profile: profile, user_id: user_id }));
   });
+}
+
+// --- Aprovação de turno pausado (human_loop) ---
+// O frame `human_loop_pending` avisa que o OD parou antes de uma ação externa
+// (Drive, agenda, dispositivo da casa). O dono decide aqui; a decisão vai pelo
+// frame `decision` no MESMO socket e, se ele estiver fora, pelo REST.
+let aprovacaoAtual = null;
+
+function mostrarAprovacao(frame) {
+  const pend = frame.pending_human_input || {};
+  const detalhes = pend.detalhes || pend.acao || "executar uma ação externa";
+  aprovacaoAtual = { thread_id: frame.thread_id, detalhes: detalhes };
+
+  const div = document.createElement("div");
+  div.className = "approval";
+  const titulo = document.createElement("div");
+  titulo.className = "approval-title";
+  titulo.textContent = "⚠️ Aprovação necessária";
+  const texto = document.createElement("div");
+  texto.textContent = "O OD quer " + detalhes +
+    ". Nada foi executado ainda — responda para liberar ou cancelar.";
+  const acoes = document.createElement("div");
+  acoes.className = "approval-actions";
+  const nao = document.createElement("button");
+  nao.className = "danger";
+  nao.textContent = "Não";
+  nao.onclick = () => decidirAprovacao(false, div);
+  const sim = document.createElement("button");
+  sim.className = "primary";
+  sim.textContent = "Sim";
+  sim.onclick = () => decidirAprovacao(true, div);
+  acoes.append(nao, sim);
+  div.append(titulo, texto, acoes);
+
+  clearWelcome();
+  $("messages").appendChild(div);
+  scrollToLatest();
+}
+
+async function decidirAprovacao(aprovar, card) {
+  const atual = aprovacaoAtual;
+  if (!atual || busy) return;
+  busy = true; $("send").disabled = true;
+  card.querySelectorAll("button").forEach(b => b.disabled = true);
+  const aviso = document.createElement("div");
+  aviso.className = "meta";
+  aviso.textContent = aprovar ? "Aprovando…" : "Cancelando…";
+  card.appendChild(aviso);
+  try {
+    const resposta = wsReady
+      ? await decidirWs(atual.thread_id, aprovar)
+      : await decidirRest(atual.thread_id, aprovar);
+    aprovacaoAtual = null;
+    card.classList.add("done");
+    const acoes = card.querySelector(".approval-actions");
+    if (acoes) acoes.remove();
+    card.querySelector(".approval-title").textContent =
+      aprovar ? "✅ Aprovado" : "🚫 Cancelado";
+    aviso.remove();
+    speak(resposta);
+  } catch (e) {
+    aviso.textContent = "Falha ao responder: " + (e.message || e) +
+      " — confira se a ação foi executada antes de tentar de novo.";
+    card.querySelectorAll("button").forEach(b => b.disabled = false);
+  } finally {
+    busy = false; $("send").disabled = false; $("text").focus();
+  }
+}
+
+function decidirWs(threadId, aprovar) {
+  return new Promise((resolve, reject) => {
+    if (!wsReady || !ws || ws.readyState !== 1) {
+      return reject(new Error("WebSocket indisponível"));
+    }
+    let buffer = "";
+    let bubble = null;
+    const timeout = setTimeout(() => {
+      ws.onmessage = null;
+      reject(new Error("sem resposta do servidor"));
+    }, 120000);
+    ws.onmessage = (ev) => {
+      try {
+        const frame = JSON.parse(ev.data);
+        if (frame.type === "token" && frame.content) {
+          if (!bubble) { bubble = addBubble("od", ""); }
+          buffer += frame.content;
+          bubble.textContent = buffer;
+          scrollToLatest();
+        }
+        if (frame.type === "done") {
+          clearTimeout(timeout);
+          ws.onmessage = null;
+          const rota = frame.route || "";
+          // Sem tokens (execução direta), o texto vem inteiro no `done`.
+          if (!buffer && frame.content) {
+            addBubble("od", frame.content, "WebSocket · " + rota);
+          } else if (bubble) {
+            const m = document.createElement("div");
+            m.className = "meta";
+            m.textContent = "WebSocket · " + rota;
+            bubble.appendChild(m);
+          }
+          resolve(buffer || frame.content || "");
+        }
+        if (frame.type === "error") {
+          clearTimeout(timeout);
+          ws.onmessage = null;
+          reject(new Error(frame.message || "erro"));
+        }
+      } catch (e) {}
+    };
+    ws.send(JSON.stringify({
+      type: "decision",
+      thread_id: threadId,
+      decision: aprovar ? "sim" : "nao"
+    }));
+  });
+}
+
+async function decidirRest(threadId, aprovar) {
+  const resp = await fetch("/api/v1/chat/decision", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      thread_id: threadId,
+      decision: aprovar ? "sim" : "nao"
+    })
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || ("erro " + resp.status));
+  addBubble("od", data.message || "(sem resposta)", "API · " + (data.route || ""));
+  return data.message || "";
 }
 
 // --- REST fallback ---

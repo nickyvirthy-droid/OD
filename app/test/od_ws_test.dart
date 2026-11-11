@@ -17,6 +17,7 @@ class ScriptedChannel implements OdWsChannel {
   ScriptedChannel({
     this.authReply = '{"type":"authenticated"}',
     this.onMessage,
+    this.onDecision,
   });
 
   /// Frame devolvido ao `auth` (por padrão, autenticado).
@@ -24,6 +25,9 @@ class ScriptedChannel implements OdWsChannel {
 
   /// Chamado quando o cliente manda `message` — o roteiro do teste.
   final void Function(ScriptedChannel channel)? onMessage;
+
+  /// Chamado quando o cliente manda `decision` (aprovação do human_loop).
+  final void Function(ScriptedChannel channel)? onDecision;
 
   final List<Map<String, dynamic>> sent = [];
   final _controller = StreamController<String>();
@@ -41,6 +45,8 @@ class ScriptedChannel implements OdWsChannel {
         _controller.add(authReply);
       case 'message':
         onMessage?.call(this);
+      case 'decision':
+        onDecision?.call(this);
     }
   }
 
@@ -240,6 +246,161 @@ void main() {
       expect(deltas, hasLength(1));
       expect(deltas.single.text, '');
       expect(deltas.single.done, isTrue);
+    });
+  });
+
+  group('OdStreamingChat — aprovação (human_loop_pending)', () {
+    test('o frame de pausa vira pedido de aprovação e encerra o turno',
+        () async {
+      final channel = ScriptedChannel(
+        onMessage: (c) {
+          c.emit({'type': 'processing'});
+          c.emit({
+            'type': 'human_loop_pending',
+            'thread_id': 'alex:ws:alex:abc123',
+            'pending_human_input': {
+              'acao': 'ha_device_control',
+              'params': {'alvo': 'Luz Cozinha', 'on': false},
+              'texto': 'desliga a luz da cozinha',
+              'detalhes': 'desligar dispositivo do lar: Luz Cozinha',
+            },
+          });
+        },
+      );
+      final chat = OdStreamingChat(
+        apiWith(restOk()),
+        connector: FakeConnector((_) => channel).connect,
+      );
+
+      final deltas = await chat.send('desliga a luz da cozinha').toList();
+
+      expect(deltas, hasLength(1)); // pausa não gera texto
+      final aprovacao = deltas.single.approval;
+      expect(aprovacao, isNotNull);
+      expect(aprovacao!.threadId, 'alex:ws:alex:abc123');
+      expect(aprovacao.acao, 'ha_device_control');
+      expect(aprovacao.detalhes, 'desligar dispositivo do lar: Luz Cozinha');
+      expect(aprovacao.params['alvo'], 'Luz Cozinha');
+      expect(deltas.single.done, isTrue);
+      expect(channel.closed, isTrue); // socket fechado: a decisão abre outro
+    });
+
+    test('pausa sem thread_id é erro (botão não teria o que decidir)',
+        () async {
+      final channel = ScriptedChannel(
+        onMessage: (c) => c.emit({
+          'type': 'human_loop_pending',
+          'thread_id': '',
+          'pending_human_input': {'acao': 'ha_device_control'},
+        }),
+      );
+      final chat = OdStreamingChat(
+        apiWith(restOk()),
+        connector: FakeConnector((_) => channel).connect,
+      );
+
+      // NÃO cai para o REST: o turno já pausou no servidor e reenviar a
+      // mensagem geraria um segundo pedido de aprovação.
+      await expectLater(
+        chat.send('oi').toList(),
+        throwsA(isA<OdStreamingProtocolError>()),
+      );
+    });
+
+    test('decide manda o frame decision e devolve o turno retomado',
+        () async {
+      final channel = ScriptedChannel(
+        onDecision: (c) {
+          c.emit({'type': 'processing'});
+          c.emit({'type': 'token', 'content': '✅ Luz Cozinha: desligar'});
+          c.emit({
+            'type': 'done',
+            'content': '✅ Luz Cozinha: desligar executado (⚪ off)',
+            'route': 'ha_device_control',
+            'decision': 'sim',
+            'thread_id': 'alex:ws:alex:abc123',
+            'pending_human_input': null,
+            'pos_processado': true,
+          });
+        },
+      );
+      final api = apiWith(MockClient((_) async => fail('não usa REST')));
+      await api.setApiKey('minha-chave');
+
+      final chat = OdStreamingChat(
+        api,
+        connector: FakeConnector((_) => channel).connect,
+      );
+
+      final deltas = await chat
+          .decide(
+            const OdHumanApproval(threadId: 'alex:ws:alex:abc123'),
+            aprovar: true,
+          )
+          .toList();
+
+      final decisao = channel.sent[1];
+      expect(decisao['type'], 'decision');
+      expect(decisao['thread_id'], 'alex:ws:alex:abc123');
+      expect(decisao['decision'], 'sim');
+
+      expect(deltas.map((d) => d.text).join(), '✅ Luz Cozinha: desligar');
+      expect(deltas.last.done, isTrue);
+      expect(deltas.last.route, 'ha_device_control');
+      expect(channel.closed, isTrue);
+    });
+
+    test('decide com "não" manda nao (mesma palavra do REST)', () async {
+      final channel = ScriptedChannel(
+        onDecision: (c) => c.emit({
+          'type': 'done',
+          'content': '🚫 Ação cancelada — nada foi executado.',
+          'route': 'human_loop_cancelado',
+          'decision': 'nao',
+        }),
+      );
+      final chat = OdStreamingChat(
+        apiWith(restOk()),
+        connector: FakeConnector((_) => channel).connect,
+      );
+
+      await chat
+          .decide(
+            const OdHumanApproval(threadId: 'alex:ws:alex:abc123'),
+            aprovar: false,
+          )
+          .toList();
+
+      expect(channel.sent[1]['decision'], 'nao');
+    });
+
+    test('erro ao retomar vira OdApiError em português', () async {
+      final channel = ScriptedChannel(
+        onDecision: (c) => c.emit({
+          'type': 'error',
+          'message': 'decisao_falhou: Thread sem checkpoint',
+        }),
+      );
+      final chat = OdStreamingChat(
+        apiWith(restOk()),
+        connector: FakeConnector((_) => channel).connect,
+      );
+
+      await expectLater(
+        chat
+            .decide(
+              const OdHumanApproval(threadId: 'alex:ws:alex:abc123'),
+              aprovar: true,
+            )
+            .toList(),
+        throwsA(
+          isA<OdApiError>().having(
+            (e) => e.message,
+            'message',
+            contains('não conseguiu concluir a aprovação'),
+          ),
+        ),
+      );
     });
   });
 

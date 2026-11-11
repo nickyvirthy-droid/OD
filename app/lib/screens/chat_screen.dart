@@ -43,6 +43,10 @@ class _ChatScreenState extends State<ChatScreen> {
   /// De onde veio a última resposta (selo discreto acima do campo de texto).
   OdChatTransport? _lastTransport;
 
+  /// Aprovação aguardando o "sim"/"não" do dono (frame `human_loop_pending`).
+  /// Enquanto não for respondida, o turno segue pausado no servidor.
+  OdHumanApproval? _pendingApproval;
+
   /// Voz (v1.17.3): estado do microfone — o botão alterna gravar/parar e
   /// mostra progresso enquanto o servidor transcreve.
   OdVoiceState _voiceState = OdVoiceState.idle;
@@ -197,6 +201,41 @@ class _ChatScreenState extends State<ChatScreen> {
     _controller.clear();
     _scrollToBottom();
 
+    await _consume(_chat.send(text, profile: _selectedProfile));
+  }
+
+  /// Responde ao pedido de aprovação pendente: manda o frame `decision` pelo
+  /// WebSocket (`sim`/`nao`) e mostra o resultado do turno retomado.
+  ///
+  /// O card SOME enquanto a decisão está a caminho; se ela falhar, ele volta
+  /// para o dono poder tentar de novo (o aviso de erro manda conferir antes).
+  Future<void> _decidir(bool aprovar) async {
+    final aprovacao = _pendingApproval;
+    if (aprovacao == null || _isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+      _liveIndex = null;
+      _pendingApproval = null;
+    });
+    _scrollToBottom();
+
+    await _consume(
+      _chat.decide(aprovacao, aprovar: aprovar),
+      restore: aprovacao,
+    );
+  }
+
+  /// Consome um stream do chat (mensagem nova ou decisão de aprovação),
+  /// preenchendo a bolha do assistente token-a-token.
+  ///
+  /// [restore] devolve o card de aprovação à tela quando a decisão não pôde ser
+  /// entregue. O frame `human_loop_pending` NÃO cria bolha: o pedido aparece no
+  /// card do rodapé (com os botões), não como resposta vazia.
+  Future<void> _consume(
+    Stream<OdChatDelta> stream, {
+    OdHumanApproval? restore,
+  }) async {
     final buffer = StringBuffer();
     // Quem/resposta do frame `done` (profile_name/llm_used/route). O streaming
     // só mostra o TEXTO; os metadados chegam no final.
@@ -204,18 +243,25 @@ class _ChatScreenState extends State<ChatScreen> {
     var route = '';
 
     try {
-      await for (final delta in _chat.send(text, profile: _selectedProfile)) {
+      await for (final delta in stream) {
         if (!mounted) return;
+        _lastTransport = delta.transport;
+        final aprovacao = delta.approval;
+        if (aprovacao != null) {
+          setState(() => _pendingApproval = aprovacao);
+          continue;
+        }
         buffer.write(delta.text);
         if (delta.answeredBy.isNotEmpty) answeredBy = delta.answeredBy;
         if (delta.route.isNotEmpty) route = delta.route;
+        // Sem token nenhum (decisão retomada), o texto vem inteiro no `done`.
+        final texto = buffer.isEmpty ? delta.finalText : buffer.toString();
         setState(() {
-          _lastTransport = delta.transport;
           if (_liveIndex == null) {
             _messages.add(
               OdMessage(
                 role: 'assistant',
-                content: buffer.toString(),
+                content: texto,
                 answeredBy: answeredBy,
                 route: route,
               ),
@@ -224,7 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
           } else {
             _messages[_liveIndex!] = OdMessage(
               role: 'assistant',
-              content: buffer.toString(),
+              content: texto,
               answeredBy: answeredBy,
               route: route,
             );
@@ -235,6 +281,9 @@ class _ChatScreenState extends State<ChatScreen> {
     } on OdStreamingError catch (e) {
       _showInterruption(e.message, buffer.toString());
     } catch (e) {
+      if (restore != null) {
+        setState(() => _pendingApproval = restore);
+      }
       setState(() {
         _messages.add(OdMessage(
           role: 'assistant',
@@ -559,6 +608,67 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// Card de aprovação (human-in-the-loop): o turno pausou esperando o
+  /// "sim"/"não" do dono, e a resposta sai pelo frame `decision` do WebSocket.
+  Widget _buildApprovalCard() {
+    final aprovacao = _pendingApproval;
+    if (aprovacao == null) return const SizedBox.shrink();
+    final colorScheme = Theme.of(context).colorScheme;
+    final detalhes = aprovacao.detalhes.isNotEmpty
+        ? aprovacao.detalhes
+        : (aprovacao.acao.isNotEmpty
+            ? 'executar ${aprovacao.acao}'
+            : 'executar uma ação externa');
+
+    return Container(
+      key: const ValueKey('od-aprovacao-pendente'),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 4),
+      decoration: BoxDecoration(
+        color: colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.verified_user_outlined,
+                  size: 18, color: colorScheme.primary),
+              const SizedBox(width: 6),
+              const Text(
+                'Aprovação necessária',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'O OD quer $detalhes. Nada foi executado ainda — responda para '
+            'liberar ou cancelar.',
+            style: const TextStyle(fontSize: 13),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: _isLoading ? null : () => _decidir(false),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Não'),
+              ),
+              const SizedBox(width: 4),
+              FilledButton(
+                onPressed: _isLoading ? null : () => _decidir(true),
+                child: const Text('Sim'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInput() {
     return Container(
       padding: const EdgeInsets.all(8),
@@ -575,6 +685,7 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          _buildApprovalCard(),
           _buildTransportBadge(),
           Row(
             children: [

@@ -25,9 +25,12 @@ import 'od_api.dart';
 //
 //   app → core: `{"type":"auth","api_key":...,"user_id":"app"}`
 //               `{"type":"message","text":...,"profile":...}`
+//               `{"type":"decision","thread_id":...,"decision":"sim"|"nao"}`
 //   core → app: `{"type":"authenticated"}` · `{"type":"processing"}`
 //               `{"type":"token","content":"..."}` (vários)
 //               `{"type":"done","content":...,"route":...}` · `{"type":"error"}`
+//               `{"type":"human_loop_pending","thread_id":...,
+//                "pending_human_input":{...}}` — ação sensível pausada.
 //
 // Nota de dependência: usa `dart:io` (`WebSocket`), que é o mesmo caminho de
 // rede já usado pelo `OdApi` — nenhum pacote novo entra no pubspec por causa
@@ -53,6 +56,55 @@ enum OdChatTransport {
   rest,
 }
 
+/// Pedido de aprovação que PAUSOU o turno (frame `human_loop_pending`).
+///
+/// O turno não terminou: o core gravou um checkpoint e fica esperando a
+/// decisão. O app devolve pelo frame `decision` usando [threadId] — sem ele o
+/// servidor não sabe qual turno retomar.
+class OdHumanApproval {
+  const OdHumanApproval({
+    required this.threadId,
+    this.acao = '',
+    this.detalhes = '',
+    this.params = const {},
+  });
+
+  /// Thread do grafo pausado (vai no frame `decision`).
+  final String threadId;
+
+  /// Ação que aguarda o "sim" (ex.: `google_drive_delete`).
+  final String acao;
+
+  /// Texto pronto do servidor para mostrar ao dono
+  /// (ex.: "apagar arquivo do Drive: contrato.pdf").
+  final String detalhes;
+
+  /// Parâmetros da ação — o app só exibe; quem executa é o core.
+  final Map<String, dynamic> params;
+
+  /// `null` quando o frame veio sem `thread_id`: aí não há como decidir e o
+  /// cliente trata como erro em vez de mostrar botões que não funcionariam.
+  static OdHumanApproval? fromFrame(Map<String, dynamic> frame) {
+    final threadId = '${frame['thread_id'] ?? ''}'.trim();
+    if (threadId.isEmpty) return null;
+    final pendente = frame['pending_human_input'];
+    final dados = pendente is Map ? pendente : const {};
+    final params = dados['params'];
+    return OdHumanApproval(
+      threadId: threadId,
+      acao: '${dados['acao'] ?? ''}',
+      detalhes: '${dados['detalhes'] ?? ''}',
+      params: params is Map
+          ? Map<String, dynamic>.from(params)
+          : const <String, dynamic>{},
+    );
+  }
+
+  @override
+  String toString() =>
+      'OdHumanApproval($threadId, acao: $acao, detalhes: $detalhes)';
+}
+
 /// Pedaço de resposta do chat.
 ///
 /// O consumidor concatena os [text] em ordem e para quando [done] for `true`.
@@ -60,12 +112,20 @@ enum OdChatTransport {
 /// [answeredBy] e [route] só vêm preenchidos no delta final (frame `done`):
 /// QUEM respondeu (nome canônico do perfil — Regulus, Nyx...) e por qual
 /// caminho (llm/cache/datetime/quick_response/action_intent).
+/// [approval] só vem no frame `human_loop_pending` (turno pausado, nenhum
+/// texto ainda).
+/// [finalText] é o `content` do frame `done`: é o texto INTEIRO que o servidor
+/// mandou de uma vez (o caso da aprovação retomada, que não vem token-a-token).
+/// A tela só usa esse texto quando nenhum token chegou — nos turnos normais os
+/// tokens já formaram a resposta.
 class OdChatDelta {
   final String text;
   final bool done;
   final OdChatTransport transport;
   final String answeredBy;
   final String route;
+  final String finalText;
+  final OdHumanApproval? approval;
 
   const OdChatDelta({
     required this.text,
@@ -73,12 +133,14 @@ class OdChatDelta {
     required this.transport,
     this.answeredBy = '',
     this.route = '',
+    this.finalText = '',
+    this.approval,
   });
 
   @override
   String toString() =>
       'OdChatDelta("$text", done: $done, transport: ${transport.name}, '
-      'answeredBy: $answeredBy, route: $route)';
+      'answeredBy: $answeredBy, route: $route, approval: $approval)';
 }
 
 /// Falha do streaming depois que parte da resposta já foi exibida.
@@ -88,6 +150,16 @@ class OdChatDelta {
 /// uma segunda inferência). A tela mostra o que chegou e avisa que foi cortado.
 class OdStreamingError extends OdApiError {
   OdStreamingError(super.message);
+}
+
+/// Frame de protocolo inválido no streaming.
+///
+/// NÃO cai para o REST de propósito: o turno no servidor já foi processado
+/// (ex.: pausou no human_loop) e reenviar a mensagem por outro caminho geraria
+/// uma segunda inferência — e, no caso da pausa, um segundo pedido de
+/// aprovação. O erro sobe para a tela como está.
+class OdStreamingProtocolError extends OdApiError {
+  OdStreamingProtocolError(super.message);
 }
 
 /// Canal WebSocket mínimo — é o que os testes substituem.
@@ -222,6 +294,8 @@ class OdStreamingChat {
             yield delta;
           }
           return;
+        } on OdStreamingProtocolError {
+          rethrow; // protocolo quebrado: o REST repetiria o turno
         } catch (error) {
           // Se já chegou texto ao usuário, não tenta a outra URL (duplicaria).
           if (recebidos > 0) {
@@ -269,21 +343,7 @@ class OdStreamingChat {
     final frames = StreamIterator<String>(channel.incoming);
     try {
       // 1) Autenticação — o core recusa mensagem de sessão não autenticada.
-      // Com sessão de conta, manda o token (a identidade sai da credencial e
-      // o histórico é o da conta); senão, o caminho avançado por API key.
-      channel.send(jsonEncode({
-        'type': 'auth',
-        if (api.token.isNotEmpty) 'token': api.token else 'api_key': api.apiKey,
-        'user_id': 'app',
-      }));
-      final auth = await _nextFrame(frames, connectTimeout);
-      final authType = auth['type'];
-      if (authType == 'error') {
-        throw OdApiError(_describeServerError(auth), statusCode: 401);
-      }
-      if (authType != 'authenticated') {
-        throw OdApiError('Handshake do streaming inesperado: $auth');
-      }
+      await _autenticar(channel, frames);
 
       // 2) Mensagem.
       channel.send(jsonEncode({
@@ -293,37 +353,8 @@ class OdStreamingChat {
         'user_id': 'app',
       }));
 
-      // 3) Frames de resposta até `done` (ou erro).
-      while (true) {
-        final frame = await _nextFrame(frames, frameTimeout);
-        switch (frame['type']) {
-          case 'token':
-            final content = frame['content'];
-            if (content is String && content.isNotEmpty) {
-              yield OdChatDelta(
-                text: content,
-                done: false,
-                transport: OdChatTransport.webSocket,
-              );
-            }
-          case 'done':
-            yield OdChatDelta(
-              text: '',
-              done: true,
-              transport: OdChatTransport.webSocket,
-              answeredBy: (frame['profile_name'] as String?) ??
-                  ((frame['llm_used'] as String?) ?? ''),
-              route: (frame['route'] as String?) ?? '',
-            );
-            return;
-          case 'error':
-            throw OdApiError(_describeServerError(frame));
-          default:
-            // `processing` e qualquer frame novo do servidor: ignorado de
-            // propósito (o app não quebra se o core evoluir o protocolo).
-            continue;
-        }
-      }
+      // 3) Frames de resposta até `done`/pausa (ou erro).
+      yield* _traduzirFrames(frames);
     } finally {
       // Encerramento best-effort e SEM await: nem o cancel da assinatura nem o
       // close handshake do socket completam garantidamente (o outro lado pode
@@ -331,6 +362,127 @@ class OdStreamingChat {
       // Esperar por eles deixaria a tela travada com a resposta já pronta —
       // foi exatamente o que o teste de widget pegou (o spinner não destravava
       // porque o gerador não retornava).
+      unawaited(frames.cancel());
+      unawaited(channel.close().catchError((Object _) {}));
+    }
+  }
+
+  /// Handshake de autenticação.
+  ///
+  /// Com sessão de conta, manda o token (a identidade sai da credencial e o
+  /// histórico é o da conta); senão, o caminho avançado por API key.
+  Future<void> _autenticar(
+    OdWsChannel channel,
+    StreamIterator<String> frames,
+  ) async {
+    channel.send(jsonEncode({
+      'type': 'auth',
+      if (api.token.isNotEmpty) 'token': api.token else 'api_key': api.apiKey,
+      'user_id': 'app',
+    }));
+    final auth = await _nextFrame(frames, connectTimeout);
+    final authType = auth['type'];
+    if (authType == 'error') {
+      throw OdApiError(_describeServerError(auth), statusCode: 401);
+    }
+    if (authType != 'authenticated') {
+      throw OdApiError('Handshake do streaming inesperado: $auth');
+    }
+  }
+
+  /// Traduz os frames do core em deltas até o turno terminar OU pausar.
+  ///
+  /// `human_loop_pending` encerra o stream com um delta sem texto carregando o
+  /// [OdHumanApproval]: o socket fecha aqui de propósito e a decisão sai por
+  /// [decide] (o servidor retoma do checkpoint, não precisa deste socket).
+  Stream<OdChatDelta> _traduzirFrames(StreamIterator<String> frames) async* {
+    while (true) {
+      final frame = await _nextFrame(frames, frameTimeout);
+      switch (frame['type']) {
+        case 'token':
+          final content = frame['content'];
+          if (content is String && content.isNotEmpty) {
+            yield OdChatDelta(
+              text: content,
+              done: false,
+              transport: OdChatTransport.webSocket,
+            );
+          }
+        case 'done':
+          yield OdChatDelta(
+            text: '',
+            done: true,
+            transport: OdChatTransport.webSocket,
+            answeredBy: (frame['profile_name'] as String?) ??
+                ((frame['llm_used'] as String?) ?? ''),
+            route: (frame['route'] as String?) ?? '',
+            finalText: (frame['content'] as String?) ?? '',
+          );
+          return;
+        case 'human_loop_pending':
+          final aprovacao = OdHumanApproval.fromFrame(frame);
+          if (aprovacao == null) {
+            throw OdStreamingProtocolError(
+              'O OD pausou o turno mas não enviou o thread_id da aprovação',
+            );
+          }
+          yield OdChatDelta(
+            text: '',
+            done: true,
+            transport: OdChatTransport.webSocket,
+            approval: aprovacao,
+          );
+          return;
+        case 'error':
+          throw OdApiError(_describeServerError(frame));
+        default:
+          // `processing` e qualquer frame novo do servidor: ignorado de
+          // propósito (o app não quebra se o core evoluir o protocolo).
+          continue;
+      }
+    }
+  }
+
+  /// Responde a um pedido de aprovação (frame `decision`) e transmite o
+  /// resultado do turno retomado.
+  ///
+  /// Tentativa ÚNICA de propósito: se a conexão cair depois de o servidor
+  /// executar a ação, reenviar a decisão poderia executá-la duas vezes. O erro
+  /// sobe para a tela, que avisa para conferir antes de decidir de novo.
+  ///
+  /// [aprovar] `true` manda `sim`; `false`, `nao` (mesmas palavras que o core
+  /// aceita no REST e no Telegram).
+  Stream<OdChatDelta> decide(
+    OdHumanApproval aprovacao, {
+    required bool aprovar,
+  }) async* {
+    final OdWsChannel channel;
+    try {
+      channel = await _connector(wsUri, connectTimeout);
+    } catch (error) {
+      _markWsFailure();
+      throw OdApiError(
+        'Não foi possível abrir o streaming para responder à aprovação '
+        '(${_describe(error)}). Tente de novo.',
+      );
+    }
+    final frames = StreamIterator<String>(channel.incoming);
+    try {
+      await _autenticar(channel, frames);
+      channel.send(jsonEncode({
+        'type': 'decision',
+        'thread_id': aprovacao.threadId,
+        'decision': aprovar ? 'sim' : 'nao',
+      }));
+      yield* _traduzirFrames(frames);
+    } catch (error) {
+      if (error is OdApiError) rethrow;
+      _markWsFailure();
+      throw OdApiError(
+        'Não foi possível concluir a aprovação (${_describe(error)}). '
+        'Confira se a ação foi executada antes de decidir de novo.',
+      );
+    } finally {
       unawaited(frames.cancel());
       unawaited(channel.close().catchError((Object _) {}));
     }
@@ -368,9 +520,18 @@ class OdStreamingChat {
         return 'Muitas mensagens em pouco tempo. Aguarde um instante.';
       case 'text_obrigatorio':
         return 'Mensagem vazia não pode ser enviada';
+      case 'decision_invalida':
+        return 'Decisão de aprovação inválida';
+      case 'thread_id_obrigatorio':
+        return 'O pedido de aprovação chegou sem o turno (thread_id)';
+      case 'thread_de_outro_usuario':
+        return 'Este pedido de aprovação é de outra conta';
     }
     if (code.startsWith('erro_processamento')) {
       return 'Erro do OD ao processar a mensagem ($code)';
+    }
+    if (code.startsWith('decisao_falhou')) {
+      return 'O OD não conseguiu concluir a aprovação ($code)';
     }
     return 'Erro do OD no streaming: $code';
   }

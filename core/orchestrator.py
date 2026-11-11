@@ -151,6 +151,55 @@ def acoes_que_exigem_aprovacao() -> frozenset[str]:
         return frozenset()
     return frozenset(p.strip() for p in bruto.split(",") if p.strip())
 
+
+# Validade de um pedido de aprovação (human-in-the-loop), em MINUTOS.
+# Passado o prazo, o "sim" atrasado NÃO executa nada: uma ação de horas atrás
+# rodaria fora do contexto em que foi pedida (o dono já nem lembra do pedido).
+# `OD_HUMAN_APPROVAL_TTL` aceita minutos (ex.: 15, 2.5); off/0 desliga a
+# expiração. Pedidos antigos gravados SEM `criado_em` nunca expiram — evita
+# quebrar checkpoints anteriores a esta regra.
+HUMAN_APPROVAL_TTL_PADRAO_MIN = 30
+
+
+def ttl_aprovacao_humana() -> float:
+    """Validade efetiva da aprovação, em segundos (0.0 = sem expiração)."""
+    bruto = os.getenv("OD_HUMAN_APPROVAL_TTL")
+    if bruto is None:
+        return HUMAN_APPROVAL_TTL_PADRAO_MIN * 60.0
+    bruto = bruto.strip()
+    if not bruto or bruto.lower() in {"off", "0", "false", "nao", "não"}:
+        return 0.0
+    try:
+        minutos = float(bruto.replace(",", "."))
+    except ValueError:
+        return HUMAN_APPROVAL_TTL_PADRAO_MIN * 60.0
+    return max(0.0, minutos) * 60.0
+
+
+def pending_expirado(
+    pendente: dict[str, Any], *, agora: Optional[float] = None
+) -> str:
+    """Mensagem de expiração se o pedido passou da validade; "" se ainda vale.
+
+    Pedido sem `criado_em` (checkpoint gravado antes da expiração existir) é
+    tratado como válido — não se inventa idade para dado antigo.
+    """
+    ttl = ttl_aprovacao_humana()
+    if ttl <= 0:
+        return ""
+    criado = pendente.get("criado_em")
+    if not isinstance(criado, (int, float)):
+        return ""
+    agora = time.time() if agora is None else agora
+    if agora - float(criado) <= ttl:
+        return ""
+    minutos = max(1, int(round(ttl / 60)))
+    return (
+        "⏰ Aprovação expirada — nada foi executado. "
+        f"O pedido valia {minutos} min e a resposta chegou depois disso; "
+        "peça de novo se ainda quiser."
+    )
+
 # Respostas que NUNCA entram no cache: são falha do momento (LLM alucinou
 # etiqueta de log, recusou por prompt interno, truncou) e não conhecimento.
 # Cacheadas, renasciam a cada repetição da pergunta — "resposta de cache sem
@@ -2603,6 +2652,8 @@ class Orchestrator:
             "params": dict(params),
             "texto": text,
             "detalhes": detalhes,
+            # `criado_em` é o relógio da validade (ttl_aprovacao_humana).
+            "criado_em": time.time(),
         }
 
     async def _aplicar_decisao_humana(
@@ -2617,6 +2668,19 @@ class Orchestrator:
         decisao = str(estado.get("human_decision") or "").strip().lower()
         if not pendente:
             return {"pending_human_input": None, "steps": ["human_loop"]}
+
+        # Validade do pedido: um "sim" atrasado não executa ação fora de
+        # contexto. Sem `criado_em` (checkpoint anterior), não expira.
+        expirado_em = pending_expirado(pendente)
+        if expirado_em:
+            return {
+                "pending_human_input": None,
+                "human_decision": None,
+                "message": expirado_em,
+                "route": "human_loop_expirado",
+                "registrar": False,
+                "steps": ["human_loop"],
+            }
 
         aprovacoes = {"aprovar", "aprovo", "sim", "s", "yes", "y", "confirmo", "ok"}
         recusas = {"cancelar", "cancela", "recusar", "recuso", "nao", "não", "n", "no"}

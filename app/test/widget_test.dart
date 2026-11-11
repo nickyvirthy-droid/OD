@@ -20,9 +20,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Canal WebSocket falso: responde o `auth` e chama o roteiro no `message`.
 class _ScriptedChannel implements OdWsChannel {
-  _ScriptedChannel({this.onMessage});
+  _ScriptedChannel({this.onMessage, this.onDecision});
 
   final FutureOr<void> Function(_ScriptedChannel channel)? onMessage;
+
+  /// Roteiro do frame `decision` (aprovação do human_loop).
+  final FutureOr<void> Function(_ScriptedChannel channel)? onDecision;
   final List<Map<String, dynamic>> sent = [];
   final _controller = StreamController<String>();
 
@@ -37,6 +40,8 @@ class _ScriptedChannel implements OdWsChannel {
       _controller.add('{"type":"authenticated"}');
     } else if (frame['type'] == 'message') {
       onMessage?.call(this);
+    } else if (frame['type'] == 'decision') {
+      onDecision?.call(this);
     }
   }
 
@@ -428,6 +433,121 @@ void main() {
       // o gerador ficava preso no encerramento do canal).
       expect(find.byIcon(Icons.send), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('turno pausado mostra Sim/Não e o toque manda o frame decision',
+        (tester) async {
+      // A pausa fecha o socket; a decisão abre OUTRA conexão (o servidor
+      // retoma do checkpoint) — por isso um canal por conexão.
+      final pausa = _ScriptedChannel(
+        onMessage: (c) {
+          c.emit({'type': 'processing'});
+          c.emit({
+            'type': 'human_loop_pending',
+            'thread_id': 'alex:ws:app:abc',
+            'pending_human_input': {
+              'acao': 'ha_device_control',
+              'params': {'alvo': 'Luz Cozinha', 'on': false},
+              'detalhes': 'desligar dispositivo do lar: Luz Cozinha',
+            },
+          });
+        },
+      );
+      final retomada = _ScriptedChannel(
+        onDecision: (c) {
+          c.emit({
+            'type': 'token',
+            'content': '✅ Luz Cozinha: desligar executado (⚪ off)',
+          });
+          c.emit({
+            'type': 'done',
+            'content': '✅ Luz Cozinha: desligar executado (⚪ off)',
+            'route': 'ha_device_control',
+          });
+        },
+      );
+      var conexoes = 0;
+      final api = _mockApi();
+      await tester.pumpWidget(_wrap(ChatScreen(
+        api: api,
+        chat: OdStreamingChat(
+          api,
+          connector: (url, timeout) async =>
+              conexoes++ == 0 ? pausa : retomada,
+        ),
+      )));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'desliga a luz da cozinha');
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      // O card aparece, com os dois botões, e ainda NADA foi executado.
+      expect(find.text('Aprovação necessária'), findsOneWidget);
+      expect(
+        find.textContaining('desligar dispositivo do lar: Luz Cozinha'),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(TextButton, 'Não'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Sim'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Sim'));
+      await tester.pumpAndSettle();
+
+      final decisao =
+          retomada.sent.firstWhere((f) => f['type'] == 'decision');
+      expect(decisao['thread_id'], 'alex:ws:app:abc');
+      expect(decisao['decision'], 'sim');
+
+      expect(find.text('Aprovação necessária'), findsNothing);
+      expect(
+        find.text('✅ Luz Cozinha: desligar executado (⚪ off)'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('cancelar manda nao e o card some', (tester) async {
+      final pausa = _ScriptedChannel(
+        onMessage: (c) => c.emit({
+          'type': 'human_loop_pending',
+          'thread_id': 'alex:ws:app:xyz',
+          'pending_human_input': {'detalhes': 'enviar e-mail: contrato'},
+        }),
+      );
+      final retomada = _ScriptedChannel(
+        onDecision: (c) => c.emit({
+          'type': 'done',
+          'content': '🚫 Ação cancelada — nada foi executado.',
+          'route': 'human_loop_cancelado',
+        }),
+      );
+      var conexoes = 0;
+      final api = _mockApi();
+      await tester.pumpWidget(_wrap(ChatScreen(
+        api: api,
+        chat: OdStreamingChat(
+          api,
+          connector: (url, timeout) async =>
+              conexoes++ == 0 ? pausa : retomada,
+        ),
+      )));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'manda o contrato');
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Não'));
+      await tester.pumpAndSettle();
+
+      final decisao =
+          retomada.sent.firstWhere((f) => f['type'] == 'decision');
+      expect(decisao['decision'], 'nao');
+      expect(decisao['thread_id'], 'alex:ws:app:xyz');
+      expect(find.text('Aprovação necessária'), findsNothing);
+      expect(
+        find.text('🚫 Ação cancelada — nada foi executado.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('sem WebSocket cai para o POST /message e avisa o transporte',
