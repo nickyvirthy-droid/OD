@@ -154,7 +154,7 @@ class TestAPIRoutes:
         /radio-pro e /api/radio/pro/* (área do ouvinte logado, 04/11) +
         /api/radio/cantores (lista de cantores indesejados, 05/11) +
         export/import do catálogo do Supply Depot (TODO §3.1, 09/11)."""
-        assert len(ROUTES) == 123
+        assert len(ROUTES) == 124
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -174,6 +174,8 @@ class TestAPIRoutes:
             ("GET", "/api/radio/cantores"),
             # Streaming SSE do chat web (I5, 10/11): exige API Key.
             ("GET", "/api/v1/chat/stream"),
+            # Decisão humana de turno pausado (human_loop).
+            ("POST", "/api/v1/chat/decision"),
             ("POST", "/api/radio/cantores"),
             ("DELETE", "/api/radio/cantores"),
             # Páginas internas do dono (2026-10-10): saíram de /site/ (onde
@@ -371,6 +373,8 @@ class TestAPIRoutes:
             ("GET", "/api/radio/cantores"),
             # Streaming SSE do chat web (I5, 10/11): exige API Key.
             ("GET", "/api/v1/chat/stream"),
+            # Decisão humana de turno pausado (human_loop).
+            ("POST", "/api/v1/chat/decision"),
             ("POST", "/api/radio/cantores"),
             ("DELETE", "/api/radio/cantores"),
         }
@@ -2979,6 +2983,76 @@ class TestAPIMessage:
 # ===========================================================================
 # History e Memory (RAG)
 # ===========================================================================
+
+class TestAPIHumanLoopDecision:
+    """POST /api/v1/chat/decision — aprovação de turno pausado."""
+
+    @staticmethod
+    def _post(srv: APIServer, body: dict) -> tuple[int, dict]:
+        status, resp, _ = _request(
+            srv.bound_port, "POST", "/api/v1/chat/decision", body=body
+        )
+        return status, json.loads(resp.decode("utf-8"))
+
+    def test_validacao(self, serve, tmp_path: Path) -> None:
+        srv = serve(make_orch(tmp_path))
+        status, data = self._post(srv, {})
+        assert status == 400 and data["error"] == "thread_id_obrigatorio"
+        status, data = self._post(srv, {"thread_id": "x"})
+        assert status == 400 and data["error"] == "decision_obrigatoria"
+        status, data = self._post(
+            srv, {"thread_id": "x", "decision": "talvez"}
+        )
+        assert status == 400 and "decision_invalida" in data["error"]
+
+    def test_grafo_desligado_devolve_409(
+        self, serve, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.delenv("OD_ORCHESTRATOR_GRAPH", raising=False)
+        srv = serve(make_orch(tmp_path))
+        status, data = self._post(
+            srv, {"thread_id": "alex:s:1", "decision": "sim"}
+        )
+        assert status == 409 and "Grafo" in data["error"]
+
+    def test_cancelar_turno_pausado(
+        self, serve, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv(
+            "OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db")
+        )
+        orch = make_orch(tmp_path)
+        thread_id = "alex:api:prova"
+        orch._obter_graph_saver().put(
+            thread_id,
+            3,
+            {
+                "user_id": "alex", "profile": "guardian",
+                "session_id": "api:prova", "role": "admin",
+                "text": "liga a luz", "system_prompt": "",
+                "persist": False, "extra_history": None,
+                "route": "llm", "message": "", "llm_used": "",
+                "prompt": "", "terminal": False,
+                "pending_human_input": {
+                    "acao": "ha_device_control",
+                    "params": {"entity_id": "switch.x", "on": True},
+                },
+                "steps": ["select_tools"],
+            },
+            ["human_loop"],
+        )
+        srv = serve(orch)
+
+        status, data = self._post(
+            srv, {"thread_id": thread_id, "decision": "nao"}
+        )
+
+        assert status == 200
+        assert data["decision"] == "cancelar"
+        assert "cancelada" in data["message"].lower()
+        assert data["pending_human_input"] is None
+
 
 class TestAPIHistoryAndMemory:
     """DELETE /history/{uid}, stats e busca semântica (VectorStore)."""

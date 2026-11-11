@@ -527,6 +527,8 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("POST", "/tts", "tts", True),
     # SSE Streaming (I5) — Server-Sent Events para chat web
     ("GET", "/api/v1/chat/stream", "api_chat_stream", True),
+    # Decisão humana de turno pausado (human_loop)
+    ("POST", "/api/v1/chat/decision", "api_chat_decision", True),
     # Rádio Nicky (Etapa D, 27/10): o AzuraCast dispara quando a música
     # muda e o od-core monta a fala + gera o MP3 da locução. Auth é o
     # token secreto no path (em AUTH_EXEMPT_PATHS; gate no handler).
@@ -5794,6 +5796,64 @@ class APIHandler(BaseHTTPRequestHandler):
                     break
         finally:
             loop.close()
+
+    def api_chat_decision(self) -> None:
+        """POST /api/v1/chat/decision — aprova/cancela um turno pausado.
+
+        Body: {"thread_id": "...", "decision": "sim"|"nao"}
+        (aceita também `decisao`, `aprovar`/`cancelar`, sim/não).
+        """
+        data = self._read_json()
+        thread_id = str(data.get("thread_id") or "").strip()
+        bruto = str(
+            data.get("decision") or data.get("decisao") or ""
+        ).strip().lower()
+        if not thread_id:
+            raise APIError(400, "thread_id_obrigatorio")
+        if not bruto:
+            raise APIError(400, "decision_obrigatoria")
+
+        aprovacoes = {
+            "sim", "s", "yes", "y", "aprovar", "aprovo", "confirmo",
+            "ok", "true", "1",
+        }
+        recusas = {
+            "nao", "não", "n", "no", "cancelar", "cancela", "recusar",
+            "recuso", "false", "0",
+        }
+        if bruto in aprovacoes:
+            decisao = "aprovar"
+        elif bruto in recusas:
+            decisao = "cancelar"
+        else:
+            raise APIError(400, "decision_invalida (use sim/nao)")
+
+        if self.api.orchestrator is None:
+            raise APIError(503, "orchestrator_indisponivel")
+
+        # A thread começa com o user_id do dono do turno; conta autenticada
+        # só decide o próprio turno (API key de operador segue sem user).
+        user = self._current_user
+        if user is not None and not thread_id.startswith(f"{user.username}:"):
+            raise APIError(403, "thread_de_outro_usuario")
+
+        try:
+            estado = asyncio.run(
+                self.api.orchestrator.retomar_turno_humano(thread_id, decisao)
+            )
+        except RuntimeError as exc:
+            # Grafo desligado ou thread sem checkpoint.
+            raise APIError(409, str(exc))
+
+        self._json(200, {
+            "ok": True,
+            "thread_id": thread_id,
+            "decision": decisao,
+            "route": estado.get("route", ""),
+            "message": estado.get("message", ""),
+            "pending_human_input": estado.get("pending_human_input"),
+            "pos_processado": bool(estado.get("pos_processado")),
+        })
 
     # -- Catálogo e execução de actions (v1.2.0 — app Android) ---------------
 
