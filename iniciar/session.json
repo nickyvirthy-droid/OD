@@ -1,4 +1,16 @@
 {
+  "alvo_completo_no_pedido_de_aprovacao_2026_11_11": {
+    "pedido": "Dono (11/11 13:47): corrigir o texto do pending de HA para mostrar o alvo completo (ex.: 'luz da cozinha').",
+    "causa": "core/intents.resolve_light_target remove de propósito o substantivo (luz/tomada/interruptor) para casar com o nome da entidade no HA, então `params['alvo']` chega como 'da cozinha' e o card mostrava 'ligar dispositivo do lar: da cozinha'.",
+    "feito": "core/orchestrator.py: _alvo_falado_ha(texto) — se o verbo de comando do lar abre a frase, devolve o trecho falado sem verbo/artigo ('liga a luz da cozinha' -> 'luz da cozinha'), com limite de 60 chars; sem verbo no começo (ou frase longa) devolve '' e o pedido cai no `alvo` de sempre. _pedido_de_aprovacao usa esse texto só para ha_device_control; Google (Drive/agenda/Gmail) intocado.",
+    "testes": "tests/test_orchestrator.py +5 (classe TestAlvoDoPedidoDeAprovacao: substantivo mantido, fallback sem verbo/frase longa, pedido de HA completo, desligar, outras acoes intocadas) e tests/test_orchestrator_graph_integration.py +1 assert no teste de pausa de HA. Rodados: test_orchestrator.py + graph + graph_integration 115 passed; test_api.py + test_websocket.py 250 passed.",
+    "prova": "od-core reiniciado (MainPID 2624116, NRestarts=0, /health 27/27 ok, journal 0 erro). POST /message real 'liga a luz da cozinha' -> route=human_loop_pending, paused=true, detalhes='ligar dispositivo do lar: luz da cozinha' (thread alex:prova-alvo-completo:937eade6cbdeefc6d64f); decisao 'nao' -> human_loop_cancelado, pending=None, 'Acao cancelada — nada foi executado'.",
+    "decisoes": "1) Corrigir no pedido de aprovacao (camada de apresentacao) e nao em resolve_light_target: o `alvo` sem substantivo e o que faz o casamento com a entidade funcionar, e mexer nele atingiria todas as respostas do HA. 2) Reaproveitar o texto falado em vez de consultar o friendly_name do HA: sem dependencia nova e sem estado extra no checkpoint. 3) Frase que nao comeca pelo verbo cai no `alvo` antigo, para nao imprimir o pedido inteiro no card.",
+    "trade_off": "Frase com o verbo no meio ('quero que voce ligue a luz da cozinha') continua mostrando o alvo antigo ('da cozinha'); o verbo aceito e o do comeco da frase. Nada muda no casamento da entidade nem na execucao.",
+    "sem_bump": "app segue 1.44.0/2080; correcao so de texto no servidor, mesma pratica das entregas anteriores.",
+    "transcricao": "iniciar/2026-11-11_conversa_omegadrakon.md (§10)",
+    "updated_at": "2026-11-11T13:55:00-03:00"
+  },
   "deploy_aprovacao_ttl_chat_web_2026_11_11": {
     "pedido": "Dono (11/11 13:35): reiniciar o od-core e fazer a prova viva da expiração do human_loop e do card do chat web.",
     "pre_condicao": "HEAD == origin/master (ce56eb0), arvore limpa, gate da fatia verde (4445/17/0) e tests/test_rag.py reexecutado antes do restart: 93 passed (a transcricao nova entra no corpus do RAG, ja causou falso-amigo antes).",

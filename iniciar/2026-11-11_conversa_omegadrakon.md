@@ -449,3 +449,66 @@ cozinha**" — o alvo perdeu o substantivo ("luz"). Vem de `params.get("alvo")`;
 não afeta a decisão nem a execução. Anotado para ajuste futuro.
 
 **Sem bump:** app segue **1.44.0/2080** (nenhuma mudança de app nesta entrega).
+
+## §10 — Alvo completo no pedido de aprovação do lar (11/11 ~13:55)
+
+Pedido do dono: corrigir o texto do pending de HA para mostrar o alvo completo
+(ex.: "luz da cozinha").
+
+### 1. Causa
+
+`core/intents.resolve_light_target` remove **de propósito** o substantivo
+(luz/tomada/interruptor) para casar o que foi falado com o nome da entidade no
+HA. O `params["alvo"]` que chega ao pedido é, então, "da cozinha" — e o card
+mostrava "ligar dispositivo do lar: **da cozinha**", sem dizer o que seria
+ligado.
+
+### 2. Correção
+
+`core/orchestrator.py` ganhou `_alvo_falado_ha(texto)`: quando o verbo de
+comando do lar abre a frase, devolve o trecho falado sem verbo e sem artigo
+("liga a luz da cozinha" → "luz da cozinha"), com teto de 60 caracteres. Sem
+verbo no começo (ou frase longa), devolve `""` e o pedido cai no `alvo` de
+sempre. `_pedido_de_aprovacao` usa esse texto **só** em `ha_device_control`;
+Drive/agenda/Gmail ficam intocados.
+
+Decisões:
+1. Corrigir na **apresentação** (o pedido), não em `resolve_light_target` — o
+   `alvo` sem substantivo é o que faz o casamento com a entidade funcionar, e
+   mexer nele atingiria todas as respostas do HA.
+2. Reaproveitar o texto falado em vez de consultar o `friendly_name` no HA: sem
+   dependência nova e sem estado extra no checkpoint.
+3. Frase que não começa pelo verbo cai no `alvo` antigo, para não imprimir o
+   pedido inteiro no card.
+
+### 3. Verificação
+
+- `tests/test_orchestrator.py` +5 (`TestAlvoDoPedidoDeAprovacao`) e
+  `tests/test_orchestrator_graph_integration.py` +1 assert no teste de pausa
+  de HA.
+- Rodados: `test_orchestrator.py` + grafo + integração → **115 passed**;
+  `test_api.py` + `test_websocket.py` → **250 passed**.
+
+### 4. Deploy e prova viva
+
+| Item | Valor |
+|---|---|
+| od-core | `active`, MainPID **2624116**, NRestarts=0 |
+| `/health` | `ok=true`, **27/27** up |
+| journal `-p err` | 0 entradas |
+| Commit | `6ee89d8` (publicado) |
+
+Prova real: `POST /message` "liga a luz da cozinha" → `human_loop_pending`,
+`paused=true`, **`detalhes = "ligar dispositivo do lar: luz da cozinha"`**
+(thread `alex:prova-alvo-completo:937eade6cbdeefc6d64f`). Decisão "nao" →
+`human_loop_cancelado`, `pending=null`, "🚫 Ação cancelada — nada foi
+executado."
+
+### 5. Prós e contras
+
+- **Prós:** o dono passa a ver o que aprova; nenhuma mudança no casamento de
+  entidade nem na execução; Google intocado.
+- **Contras:** frase com o verbo no meio ("quero que você ligue a luz da
+  cozinha") continua caindo no alvo antigo — o verbo aceito é o do começo.
+
+**Sem bump:** app segue **1.44.0/2080** (correção só de texto no servidor).
