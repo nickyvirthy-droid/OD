@@ -1,0 +1,10 @@
+# OmegaDrakon — Prometheus (métricas)
+# Montado em /etc/prometheus/prometheus.yml pelo docker/tools-compose.yaml.
+# Os dados chegam por remote write do otel-collector (--web.enable-remote-write-receiver).
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

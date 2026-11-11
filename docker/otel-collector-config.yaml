@@ -1,0 +1,59 @@
+# OmegaDrakon — OpenTelemetry Collector Configuration
+# Recebe OTLP/HTTP (porta 4318) e exporta para Tempo, Loki, Prometheus
+# Subir: docker compose -f docker/tools-compose.yaml up -d otel-collector
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        # Para desenvolvimento: aceita qualquer header
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: "production"
+        action: upsert
+
+exporters:
+  # Tempo (traces) — OTLP/HTTP na porta 4318 do Tempo (a 3200 é a API de consulta)
+  otlphttp/tempo:
+    endpoint: "http://tempo:4318"
+  # Loki (logs) — OTLP/HTTP; o exporter acrescenta /v1/logs
+  otlphttp/loki:
+    endpoint: "http://loki:3100/otlp"
+  # Prometheus (metrics) — Prometheus Remote Write
+  prometheusremotewrite:
+    endpoint: "http://prometheus:9090/api/v1/write"
+    # Para Tempo/Grafana Cloud usar:
+    # endpoint: "https://prometheus-prod-xx.grafana.net/api/prom/push"
+    # headers:
+    #   Authorization: "Bearer ${GRAFANA_CLOUD_TOKEN}"
+  # Debug: stdout (as pipelines abaixo referenciam este exporter)
+  logging:
+    verbosity: normal
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlphttp/tempo, logging]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [prometheusremotewrite, logging]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlphttp/loki, logging]
