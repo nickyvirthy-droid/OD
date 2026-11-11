@@ -309,6 +309,7 @@ def build_orchestrator(database: Any = None) -> Any:
     from memory.history import ConversationHistory
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    llm_timeout = float(env("OD_LLM_TIMEOUT_S", "240"))
     providers = build_llm_providers()
     provider = providers[-1]  # reserva (local) — identidade do log de boot
     # Identidade da Interface Viva injetada por padrão (agents/personality)

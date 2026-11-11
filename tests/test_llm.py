@@ -440,3 +440,26 @@ class TestCadeiaDoChat:
         # index > 0 na cadeia ⇒ resposta de reserva.
         assert result.route == "fallback"
         assert result.fallback_used is True
+
+    def test_build_orchestrator_sobe_com_a_cadeia(self, monkeypatch, tmp_path) -> None:
+        """Smoke: o boot do orchestrator real monta Gemini + local.
+
+        Este teste existe porque o deploy de 11/11 crashou em loop: o
+        `llm_timeout` saiu do `build_orchestrator` e continuou sendo usado no
+        `OrchestratorConfig` — nenhum teste chamava a função inteira.
+        """
+        import runtime.launcher as launcher
+
+        monkeypatch.setattr(launcher, "load_env", lambda: {}, raising=True)
+        monkeypatch.setattr(launcher, "_ENV_CACHE", None, raising=False)
+        monkeypatch.setattr(launcher, "DATA_DIR", tmp_path, raising=True)
+        monkeypatch.setattr(launcher, "build_rag", lambda: None, raising=True)
+        monkeypatch.setattr(
+            launcher, "build_enciclopedia", lambda: None, raising=True
+        )
+        monkeypatch.setenv("GEMINI_API_KEY", "chave")
+
+        orch = launcher.build_orchestrator(database=None)
+
+        assert [p.name for p in orch.providers] == ["gemini", "gemma-local"]
+        assert orch.cache is not None
