@@ -512,3 +512,64 @@ executado."
   cozinha") continua caindo no alvo antigo — o verbo aceito é o do começo.
 
 **Sem bump:** app segue **1.44.0/2080** (correção só de texto no servidor).
+
+## §11 — "leia txt": devaneios no chat e o backlog das sugestões (11/11 ~14:25)
+
+O `txt.txt` trouxe duas coisas: (a) o chat gerando devaneios, sem pesquisar e
+sem usar as ferramentas; (b) a cobrança de que as sugestões não escolhidas
+virem **regra** de registro no TODO.
+
+### 1. Diagnóstico (medido, não suposto)
+
+Três causas, todas confirmadas em prova viva:
+
+| # | Causa | Evidência |
+|---|---|---|
+| 1 | O grafo (ligado em produção) **não tem nó de intenções** e deixa a rota para o **Query Router**, um classificador de 26 exemplos | `classify`: "quanto está o dólar hoje" → `hybrid`; "qual a temperatura da cpu" → `hybrid`; "o que você sabe sobre a minha casa" → `llm_only` |
+| 2 | Mesmo quando a ferramenta rodava, o nó `generate` chamava o **LLM por cima** do resultado | `execute_parallel` executava, a resposta final vinha do modelo |
+| 3 | A cadeia de LLM do core tem **um** provider: `gemma-local` = `qwen2.5-coder-3b-instruct-q4_k_m` (llama.cpp :8081) | `/health`: `llm = up \| 1 provider(s): gemma-local`; Gemini/Groq existem no `.env` só para `musica.py`/`chat_audit.py` |
+
+Prova do sintoma, antes do ajuste:
+
+- "quanto esta o dolar hoje" → `route=llm`, 11,7 s, **"R$ 4,95"** (inventado; a API de câmbio existe e não foi chamada).
+- "pesquise na internet as noticias de tecnologia de hoje" → recusa honesta — **não existe action de pesquisa web**.
+- "o que voce sabe sobre a minha casa" → "não tenho acesso a informações da sua residência", com o Home Assistant inteiro disponível.
+
+### 2. Correção
+
+`core/orchestrator.py` (caminho do grafo):
+
+1. **`classificar` prioriza o intent determinístico** antes do Query Router — a mesma confiança que o caminho direto já tinha. Sem isso, o roteador de 26 exemplos continuaria engolindo o dólar/CPU/clima.
+2. **`gerar` responde com o resultado da ferramenta** quando existe `tool_results`: usa `format_intent_result` (o mesmo formatador do fast path), `route=action_intent`, `llm_used=fastpath:<ação>`, sem chamar o modelo.
+
+Testes: `tests/test_orchestrator_graph_integration.py` +2 (`TestFerramentasNoGrafo`) — roteador errando não impede o `exchange_rate`; a resposta vem do dado, não da prosa do modelo. Gate completo: **4452 passed / 17 skipped / 0 falha** (183,88 s).
+
+### 3. Cache envenenado
+
+O `llm_cache` (Postgres) tinha 15 entradas gravadas **hoje** com resposta inventada: "R$ 4,95", "Estado verificado. Radio ligada.", "Status da rádio: ligada e no ar.", "Luzes acesas na casa, estado verificado.", "8 dispositivos encontrados…", "que horas são? → Agora são 10:04". **Removidas as 15** (126 → 111); é cache, regenera sozinho.
+
+### 4. Prova viva (depois, MainPID 2648069)
+
+| Pedido | Antes | Agora |
+|---|---|---|
+| "quanto esta o dolar hoje" | `llm`, 11,7 s, "R$ 4,95" | **`action_intent`**, `fastpath:exchange_rate`, **0,13 s**, "Dólar americano: **R$ 5,5615** … Fonte: AwesomeAPI" |
+| "qual a temperatura da cpu" | `llm` | **`action_intent`**, `fastpath:cpu_temp`, 0,01 s, **56,5 °C** real |
+| "ligar a radio" | texto inventado do modelo | **`action_intent`**, `fastpath:radio_play`, 1,49 s, `status=tocando` |
+
+De quebra, isso fecha o item antigo "rádio nunca testada no chat real".
+
+### 5. Registro das sugestões (o que ele cobrou)
+
+- `iniciar/RULES.md` ganhou a **regra 21**: toda sugestão não escolhida vira checkbox em `docs/ANALISE_SISTEMA_TODO.md` (§4).
+- O backlog foi preenchido com o que faltava: rádio testada (feito), **formatador próprio de `radio_play`/`radio_stop`**, **Bluetooth `AuthenticationFailed`/PIN 0000**, **Gemini/Groq no core** e **R1 Task Queue**.
+- Honestidade: a convenção existia desde 10/11 mas **não foi seguida nos turnos de hoje** — por isso virou regra.
+
+### 6. O que continua em aberto
+
+1. **O chat ainda responde conversa aberta com o 3B local.** "Devaneio" fora de rota de ferramenta só acaba promovendo `gemini-3-flash-preview`/Groq a 1º provider do core (regra 19) — decisão de custo/quota do dono.
+2. **Não existe action de pesquisa web** — "pesquise…" segue recusando honestamente.
+3. **Buracos de intenção**: "qual o uso de disco" → `None`, enquanto "quanto de espaço livre no disco" → `disk_usage`.
+4. **Sem formatador** `radio_play`/`radio_stop` mostra dicionário cru ("ok: True; status: tocando…").
+5. **Guarda de cache** deixou entrar resposta sem nexo ("que horas são?" gravado).
+
+**Sem bump:** app segue **1.44.0/2080**.

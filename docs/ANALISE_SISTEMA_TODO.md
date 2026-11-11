@@ -580,6 +580,20 @@ esperar o timeout.
       do dono) usando `retomar()`, hoje só testado no motor — **ENTREGUE 10/11: `retomar_turno_humano` no orchestrator + `_pending_human_loop` + `_handle_human_loop_decision` no Telegram bot; 11/11: duplicata que sombreava o método foi removida, a retomada roda `human_loop` + `post_process` e a **origem foi ligada** — `select_tools` pausa ações sensíveis (`OD_HUMAN_APPROVAL_ACTIONS`, padrão: escritas no Google) com `pending_human_input`, e o `sim` executa a action no resume; 4 testes em `test_orchestrator_graph_integration.py`. 11/11: `ha_device_control` e `google_calendar_create` foram unificados no mesmo human_loop (com alvo/`quando`), pulando a confirmação de 2 passos interna via contextvar — +3 testes**
 - [ ] RAG: avaliar cache de embedding de documento (evitar reembeddar o mesmo
       texto após restart)
+- [x] Rádio: testar de verdade pelo chat (entregue em 10/11, nunca exercitada
+      no chat real) — **FEITO 11/11 14:20: "ligar a radio" → `route=action_intent`,
+      `fastpath:radio_play`, 1,49 s, stream no ar (`status=tocando`)**
+- [ ] Rádio: formatador próprio para `radio_play`/`radio_stop` — com o roteamento
+      consertado a resposta passou a vir do resultado real, mas sem formatador
+      ela sai como dicionário cru ("ok: True; status: tocando; stream_url: …")
+- [ ] Bluetooth: pareamento falha com `AuthenticationFailed` usando PIN `0000`
+      (o adaptador recusa o PIN padrão; investigar e documentar o PIN real)
+- [ ] Chat: o core só tem `gemma-local` (qwen2.5-coder-3b) na cadeia de LLM —
+      `gemini-3-flash-preview`/Groq existem no `.env` e são usados só em
+      `musica.py`/`chat_audit.py` (regra 19). Avaliar medir e promover o Gemini
+      a 1º provider do chat, com o local como reserva (custo/quota)
+- [ ] R1: Task Queue (Redis/RQ) — sugestão recorrente de 11/11; segue aberta no
+      roadmap da Semana 11-12
 
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
