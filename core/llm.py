@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import urllib.error
 import urllib.request
 from typing import Any, Optional
@@ -40,6 +41,11 @@ IM_END = "<|im_end|>"
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_LLM_URL = "http://127.0.0.1:8081"  # llama-server local (legado)
+# Gemini expõe o MESMO contrato OpenAI (chat/completions), mas a base já traz
+# o prefixo: a URL final é `<base>/chat/completions`, não `<base>/v1/...`.
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+GEMINI_MODEL_PADRAO = "gemini-3-flash-preview"  # modelo do dono (regra 19)
+DEFAULT_CHAT_PATH = "/v1/chat/completions"
 # urllib não manda User-Agent por padrão e o Cloudflare do Groq recusa
 # (HTTP 403, error 1010) — achado ao vivo na auditoria 22/10: SEM este
 # header todo o juiz online cai na reserva local em silêncio.
@@ -107,9 +113,13 @@ class OpenAICompatProvider:
         timeout: float = 120.0,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float = DEFAULT_TEMPERATURE,
+        chat_path: str = DEFAULT_CHAT_PATH,
     ) -> None:
         self.name = name
         self.base_url = (base_url or DEFAULT_LLM_URL).rstrip("/")
+        # Caminho do POST: local/Groq usam /v1/chat/completions; Gemini já
+        # embute o prefixo na base e só aceita /chat/completions.
+        self.chat_path = chat_path or DEFAULT_CHAT_PATH
         self.model = model
         self.api_key = api_key
         self.timeout = timeout
@@ -254,7 +264,7 @@ class OpenAICompatProvider:
             headers["Authorization"] = f"Bearer {self.api_key}"
         payload = json.dumps(body).encode("utf-8")
         request = urllib.request.Request(
-            f"{self.base_url}/v1/chat/completions",
+            f"{self.base_url}{self.chat_path}",
             data=payload,
             headers=headers,
             method="POST",
@@ -326,7 +336,7 @@ class OpenAICompatProvider:
             headers["Authorization"] = f"Bearer {self.api_key}"
         payload = json.dumps(body).encode("utf-8")
         request = urllib.request.Request(
-            f"{self.base_url}/v1/chat/completions",
+            f"{self.base_url}{self.chat_path}",
             data=payload,
             headers=headers,
             method="POST",
@@ -367,3 +377,47 @@ class OpenAICompatProvider:
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
         }
+
+
+class GeminiProvider(OpenAICompatProvider):
+    """Gemini pela porta OpenAI-compatível (regra 19: 1º no chat).
+
+    Por que pela porta OpenAI e não pela API nativa: o contrato de
+    `messages` já é o que o Orchestrator produz (parse_chatml), o streaming
+    vem no mesmo formato e o disjuntor/timeout valem sem código novo. A
+    chave vai em `Authorization: Bearer` — a pegadinha da v1.9.0 do
+    `musica.py` (usar `?key=` na API nativa) não se aplica aqui.
+
+    `is_available()` não sonda `/health` (a base do Gemini não tem esse
+    endpoint): vale a chave presente + circuito fechado.
+    """
+
+    def __init__(
+        self,
+        name: str = "gemini",
+        *,
+        model: str = "",
+        api_key: str = "",
+        timeout: float = 60.0,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        temperature: float = DEFAULT_TEMPERATURE,
+    ) -> None:
+        chave = api_key or os.getenv("GEMINI_API_KEY", "").strip()
+        super().__init__(
+            name=name,
+            base_url=GEMINI_BASE_URL,
+            model=(model or GEMINI_MODEL_PADRAO).strip(),
+            api_key=chave,
+            timeout=timeout,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            chat_path="/chat/completions",
+        )
+
+    @property
+    def configurado(self) -> bool:
+        """Tem chave? Sem chave o provider não entra na cadeia."""
+        return bool(self.api_key)
+
+    def is_available(self) -> bool:
+        return self.configurado and self._breaker.estado() != "aberto"

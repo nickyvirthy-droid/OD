@@ -307,3 +307,136 @@ class TestOrchestratorWithProvider:
         result = await orch.process("alex", "guardian", "oi")
         assert result.route == "llm_unavailable"
         assert not result.ok
+
+# ===========================================================================
+# Gemini como 1º provider do chat (regra 19) + cadeia do launcher
+# ===========================================================================
+
+
+class TestGeminiProvider:
+    def test_url_modelo_e_autenticacao(self, monkeypatch) -> None:
+        from core.llm import GeminiProvider
+
+        fake = fake_urlopen(
+            monkeypatch,
+            body=json.dumps(
+                {"choices": [{"message": {"role": "assistant", "content": "ok"}}]}
+            ).encode(),
+        )
+        provider = GeminiProvider(api_key="chave-teste")
+        assert provider.configurado is True
+        assert provider.model == "gemini-3-flash-preview"
+
+        import asyncio
+
+        saida = asyncio.run(provider.generate(chatml_body(user="oi")))
+
+        assert saida == "ok"
+        # A base do Gemini já tem o prefixo: NADA de /v1/chat/completions.
+        assert fake.seen["url"] == (
+            "https://generativelanguage.googleapis.com/v1beta/openai"
+            "/chat/completions"
+        )
+        assert fake.seen["headers"]["Authorization"] == "Bearer chave-teste"
+        assert json.loads(fake.seen["data"])["model"] == "gemini-3-flash-preview"
+
+    def test_sem_chave_nao_esta_configurado(self, monkeypatch) -> None:
+        from core.llm import GeminiProvider
+
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        provider = GeminiProvider(api_key="")
+        assert provider.configurado is False
+        assert provider.is_available() is False
+
+    def test_local_continua_em_v1_chat_completions(self, monkeypatch) -> None:
+        # Regressão: o caminho do llama-server não pode mudar.
+        fake = fake_urlopen(monkeypatch, body=b"{}")
+        provider = OpenAICompatProvider(name="local", base_url="http://127.0.0.1:8081")
+
+        import asyncio
+
+        asyncio.run(provider.generate(chatml_body()))
+
+        assert fake.seen["url"] == "http://127.0.0.1:8081/v1/chat/completions"
+
+
+class TestCadeiaDoChat:
+    """build_llm_providers: Gemini primeiro, local de reserva."""
+
+    def _build(self, monkeypatch, ordem: str | None, chave: str | None):
+        import runtime.launcher as launcher
+
+        # Hermético: sem ler o .env real da máquina (ele tem chave de verdade).
+        monkeypatch.setattr(launcher, "load_env", lambda: {}, raising=True)
+        monkeypatch.setattr(launcher, "_ENV_CACHE", None, raising=False)
+        if ordem is None:
+            monkeypatch.delenv("OD_CHAT_PROVIDERS", raising=False)
+        else:
+            monkeypatch.setenv("OD_CHAT_PROVIDERS", ordem)
+        if chave is None:
+            monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        else:
+            monkeypatch.setenv("GEMINI_API_KEY", chave)
+        return launcher.build_llm_providers()
+
+    def test_padrao_e_gemini_e_depois_local(self, monkeypatch) -> None:
+        providers = self._build(monkeypatch, None, "chave")
+        assert [p.name for p in providers] == ["gemini", "gemma-local"]
+
+    def test_local_sozinho_reproduz_o_comportamento_antigo(self, monkeypatch) -> None:
+        providers = self._build(monkeypatch, "local", "chave")
+        assert [p.name for p in providers] == ["gemma-local"]
+
+    def test_sem_chave_o_gemini_fica_fora(self, monkeypatch) -> None:
+        providers = self._build(monkeypatch, "gemini,local", None)
+        assert [p.name for p in providers] == ["gemma-local"]
+
+    def test_nome_desconhecido_e_ignorado(self, monkeypatch) -> None:
+        providers = self._build(monkeypatch, "local,openai-antigo", "chave")
+        assert [p.name for p in providers] == ["gemma-local"]
+
+    @pytest.mark.asyncio
+    async def test_gemini_falhando_cai_no_local(self, monkeypatch) -> None:
+        """Sem internet/cota o chat continua: Gemini erra, local responde."""
+        import urllib.error
+
+        from core.llm import GeminiProvider
+
+        corpo = json.dumps(
+            {"choices": [{"message": {"role": "assistant",
+                                      "content": "resposta local"}}]}
+        ).encode()
+
+        def fake(request, timeout=None):
+            if "generativelanguage" in request.full_url:
+                raise urllib.error.URLError("sem internet")
+
+            class Resp:
+                status = 200
+
+                def read(self) -> bytes:
+                    return corpo
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *exc):
+                    return None
+
+            return Resp()
+
+        monkeypatch.setattr("urllib.request.urlopen", fake)
+        orch = Orchestrator(
+            providers=[
+                GeminiProvider(api_key="chave"),
+                OpenAICompatProvider(name="gemma-local"),
+            ]
+        )
+
+        result = await orch.process("alex", "guardian", "oi")
+
+        assert result.llm_used == "gemma-local"
+        assert result.message == "resposta local"
+        # index > 0 na cadeia ⇒ resposta de reserva.
+        assert result.route == "fallback"
+        assert result.fallback_used is True

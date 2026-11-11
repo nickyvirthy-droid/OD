@@ -235,22 +235,82 @@ def build_enciclopedia() -> Optional[Any]:
         return None
 
 
+def build_llm_providers() -> list[Any]:
+    """Cadeia de LLM do chat, na ordem de tentativa (regra 19).
+
+    Padrão `gemini,local`: o Gemini responde primeiro (modelo do dono,
+    `gemini-3-flash-preview`) e o llama-server local é a reserva — sem
+    internet/cota o chat continua de pé, só com a qualidade do 3B.
+
+    `OD_CHAT_PROVIDERS` (lista separada por vírgula) troca a ordem;
+    `local` sozinho reproduz o comportamento anterior a 11/11. Valor
+    desconhecido é ignorado com warn; se nada sobrar, entra o local.
+    """
+    from core.llm import GeminiProvider, OpenAICompatProvider
+
+    llm_timeout = float(env("OD_LLM_TIMEOUT_S", "240"))
+    max_tokens = int(env("OD_LLM_MAX_TOKENS", "512"))
+    ordem = [
+        parte.strip().lower()
+        for parte in env("OD_CHAT_PROVIDERS", "gemini,local").split(",")
+        if parte.strip()
+    ]
+    providers: list[Any] = []
+    for nome in ordem:
+        if nome in ("gemini", "gemini-online", "online"):
+            gemini = GeminiProvider(
+                model=env("OD_GEMINI_MODEL", "gemini-3-flash-preview"),
+                # `env()` (snapshot do .env) e não os.getenv: rodando fora do
+                # systemd a chave pode existir só no .env carregado.
+                api_key=env("GEMINI_API_KEY", ""),
+                # Gemini em nuvem responde em segundos: 20% do teto do
+                # local basta e libera a cadeia rápido quando dá erro.
+                timeout=float(env("OD_GEMINI_TIMEOUT_S", "30")),
+                max_tokens=max_tokens,
+            )
+            if not gemini.configurado:
+                log.warn("Gemini sem GEMINI_API_KEY — fora da cadeia do chat")
+                continue
+            providers.append(gemini)
+        elif nome in ("local", "gemma-local", "llama"):
+            providers.append(
+                OpenAICompatProvider(
+                    name="gemma-local",
+                    base_url=env("OD_LLM_URL", "http://127.0.0.1:8081"),
+                    timeout=llm_timeout,
+                    # 512: resposta completa em CPU (~5 tok/s) mantém pior
+                    # caso < 2min
+                    max_tokens=max_tokens,
+                )
+            )
+        else:
+            log.warn("Provider de chat desconhecido ignorado", provider=nome)
+    if not providers:
+        log.warn("Nenhum provider válido em OD_CHAT_PROVIDERS — usando o local")
+        providers.append(
+            OpenAICompatProvider(
+                name="gemma-local",
+                base_url=env("OD_LLM_URL", "http://127.0.0.1:8081"),
+                timeout=llm_timeout,
+                max_tokens=max_tokens,
+            )
+        )
+    log.info(
+        "Cadeia de LLM do chat montada",
+        ordem=[p.name for p in providers],
+    )
+    return providers
+
+
 def build_orchestrator(database: Any = None) -> Any:
-    """Orchestrator real: LLM local + memórias persistentes em data/."""
-    from core.llm import OpenAICompatProvider
+    """Orchestrator real: LLM (nuvem + local) + memórias persistentes em data/."""
     from core.orchestrator import Orchestrator, OrchestratorConfig
     from memory.cache import LLMCache
     from memory.history import ConversationHistory
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    llm_timeout = float(env("OD_LLM_TIMEOUT_S", "240"))
-    provider = OpenAICompatProvider(
-        name="gemma-local",
-        base_url=env("OD_LLM_URL", "http://127.0.0.1:8081"),
-        timeout=llm_timeout,
-        # 512: resposta completa em CPU (~5 tok/s) mantém pior caso < 2min
-        max_tokens=int(env("OD_LLM_MAX_TOKENS", "512")),
-    )
+    providers = build_llm_providers()
+    provider = providers[-1]  # reserva (local) — identidade do log de boot
     # Identidade da Interface Viva injetada por padrão (agents/personality)
     from agents.nicky_virthy.personality import (
         DEFAULT_PROFILE,
@@ -270,7 +330,7 @@ def build_orchestrator(database: Any = None) -> Any:
     from memory.rag import janela_do_modelo
 
     orchestrator = Orchestrator(
-        providers=[provider],
+        providers=providers,
         history=ConversationHistory(
             base_dir=DATA_DIR / "conversations", **db_kwargs
         ),
@@ -295,7 +355,7 @@ def build_orchestrator(database: Any = None) -> Any:
     )
     log.info(
         "Orchestrator real montado",
-        llm=provider.name,
+        llm=[p.name for p in providers],
         url=provider.base_url,
         history=str(DATA_DIR / "conversations"),
         backend="db" if database else "json",
