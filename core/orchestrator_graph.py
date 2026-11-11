@@ -51,10 +51,11 @@ import asyncio
 import inspect
 import json
 import os
+import random
 import sqlite3
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any, Callable, Optional, TypedDict
 
@@ -69,6 +70,103 @@ END = "__end__"
 LIMITE_RECURSAO_PADRAO = 50
 MAX_CHECKPOINTS_POR_THREAD = 200
 VERDADEIROS = {"1", "true", "yes", "on", "sim"}
+
+
+# ---------------------------------------------------------------------------
+# RetryPolicy (F1 fase 5)
+# ---------------------------------------------------------------------------
+
+@dataclass(slots=True)
+class RetryPolicy:
+    """Política de retentativa para execução de nós.
+
+    Args:
+        max_retries: Máximo de tentativas (padrão 2 = 1 original + 2 retries).
+        backoff_base: Base do backoff exponencial em segundos (padrão 0.5s).
+        backoff_max: Teto do backoff em segundos (padrão 5.0s).
+        jitter: Adiciona aleatoriedade ao backoff (padrão True).
+        retryable_exceptions: Tupla de tipos de exceção que disparam retry.
+                              Padrão: (TimeoutError, ConnectionError, IOError).
+        retry_on_timeout: Se True, trata asyncio.TimeoutError como retentável.
+    """
+    max_retries: int = 2
+    backoff_base: float = 0.5
+    backoff_max: float = 5.0
+    jitter: bool = True
+    retryable_exceptions: tuple[type[Exception], ...] = (
+        TimeoutError,
+        ConnectionError,
+        IOError,
+    )
+    retry_on_timeout: bool = True
+
+    def __post_init__(self) -> None:
+        self.max_retries = max(0, self.max_retries)
+        self.backoff_base = max(0.0, self.backoff_base)
+        self.backoff_max = max(self.backoff_base, self.backoff_max)
+
+    def calcular_backoff(self, tentativa: int) -> float:
+        """Backoff exponencial com jitter opcional."""
+        backoff = min(self.backoff_base * (2 ** tentativa), self.backoff_max)
+        if self.jitter:
+            backoff *= random.uniform(0.5, 1.5)
+        return backoff
+
+    def deve_retry(self, exc: Exception) -> bool:
+        """True se a exceção é retentável segundo a política."""
+        if self.retry_on_timeout and isinstance(exc, asyncio.TimeoutError):
+            return True
+        return isinstance(exc, self.retryable_exceptions)
+
+
+# Políticas padrão por tipo de nó
+RETRY_POLITICAS_PADRAO: dict[str, RetryPolicy] = {
+    "generate": RetryPolicy(max_retries=2, backoff_base=1.0, backoff_max=10.0),
+    "execute_parallel": RetryPolicy(max_retries=1, backoff_base=0.5, backoff_max=3.0),
+    "select_tools": RetryPolicy(max_retries=1, backoff_base=0.2, backoff_max=1.0),
+    "classify": RetryPolicy(max_retries=1, backoff_base=0.1, backoff_max=0.5),
+    "cache_terminal": RetryPolicy(max_retries=0),  # sem retry no cache
+    "rate_limit": RetryPolicy(max_retries=0),
+    "datetime": RetryPolicy(max_retries=0),
+    "quick": RetryPolicy(max_retries=0),
+    "infra_guard": RetryPolicy(max_retries=0),
+    "post_process": RetryPolicy(max_retries=2, backoff_base=0.5, backoff_max=3.0),
+    "human_loop": RetryPolicy(max_retries=0),
+}
+
+
+def _obter_politica_no(nome: str) -> RetryPolicy:
+    """Retorna a política de retry para um nó (padrão conservador).
+
+    Suporta override por variável de ambiente:
+    `OD_RETRY_<NOME_DONO>=max_retries,backoff_base,backoff_max,jitter`
+    Ex: `OD_RETRY_GENERATE=3,2.0,20.0,true`
+    """
+    base = RETRY_POLITICAS_PADRAO.get(nome, RetryPolicy(max_retries=1))
+
+    # Override por env: OD_RETRY_GENERATE=max_retries,backoff_base,backoff_max,jitter
+    env_key = f"OD_RETRY_{nome.upper()}"
+    env_val = os.getenv(env_key, "").strip()
+    if not env_val:
+        return base
+
+    try:
+        partes = [p.strip() for p in env_val.split(",")]
+        max_retries = int(partes[0]) if len(partes) > 0 and partes[0] else base.max_retries
+        backoff_base = float(partes[1]) if len(partes) > 1 and partes[1] else base.backoff_base
+        backoff_max = float(partes[2]) if len(partes) > 2 and partes[2] else base.backoff_max
+        jitter = partes[3].lower() in VERDADEIROS if len(partes) > 3 and partes[3] else base.jitter
+        return RetryPolicy(
+            max_retries=max_retries,
+            backoff_base=backoff_base,
+            backoff_max=backoff_max,
+            jitter=jitter,
+            retryable_exceptions=base.retryable_exceptions,
+            retry_on_timeout=base.retry_on_timeout,
+        )
+    except Exception:
+        _log.warn("RetryPolicy inválida no env, usando padrão", env=env_key, valor=env_val)
+        return base
 
 
 def habilitado_por_env(variavel: str = "OD_ORCHESTRATOR_GRAPH") -> bool:
@@ -409,11 +507,48 @@ class CompiledGraph:
     # -- execução ----------------------------------------------------------
 
     async def _executar_no(self, nome: str, estado: dict[str, Any]) -> Any:
+        """Executa um nó com política de retry.
+
+        Aplica RetryPolicy específica do nó: retry exponencial com jitter
+        para exceções transient (timeout, conexão, I/O). Loga cada retry.
+        """
         fn = self.nodes[nome]
-        retorno = fn(estado)
-        if inspect.isawaitable(retorno):
-            return await retorno
-        return retorno
+        politica = _obter_politica_no(nome)
+
+        for tentativa in range(politica.max_retries + 1):
+            try:
+                retorno = fn(estado)
+                if inspect.isawaitable(retorno):
+                    return await retorno
+                return retorno
+            except Exception as exc:
+                if tentativa >= politica.max_retries:
+                    _log.error(
+                        "Nó falhou após retries",
+                        no=nome,
+                        tentativas=tentativa + 1,
+                        erro=f"{type(exc).__name__}: {exc}",
+                    )
+                    raise
+                if not politica.deve_retry(exc):
+                    _log.warn(
+                        "Nó falhou com exceção não retentável",
+                        no=nome,
+                        erro=f"{type(exc).__name__}: {exc}",
+                    )
+                    raise
+                backoff = politica.calcular_backoff(tentativa)
+                _log.warn(
+                    "Retry no nó",
+                    no=nome,
+                    tentativa=tentativa + 1,
+                    max_retries=politica.max_retries,
+                    backoff_s=round(backoff, 3),
+                    erro=f"{type(exc).__name__}: {exc}",
+                )
+                await asyncio.sleep(backoff)
+        # Não deveria chegar aqui
+        raise RuntimeError(f"Retry logic falhou para nó {nome}")
 
     async def astream(
         self,
@@ -626,8 +761,11 @@ def criar_nos(
 
 
 def rota_por_intencao(estado: dict[str, Any]) -> str:
-    """Intenção com ferramenta vai para a seleção; o resto gera direto."""
-    return "select_tools" if estado.get("intent") == "tools" else "generate"
+    """Intenção com ferramenta vai para a seleção; direct vai para generate (sem RAG); o resto gera direto."""
+    intent = estado.get("intent", "chat")
+    if intent == "tools":
+        return "select_tools"
+    return "generate"
 
 
 def construir_grafo(

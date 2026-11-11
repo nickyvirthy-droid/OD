@@ -167,6 +167,9 @@ class TelegramBot:
         # updates com update_id < offset). Persistido em arquivo para que
         # reinícios nunca reprocessem updates já confirmados.
         self._offset: Optional[int] = self._load_offset()
+        # Human-in-the-loop: aguarda decisão do dono para turno pausado.
+        # Mapa: chat_id -> {"thread_id": str, "pending_human_input": dict}
+        self._pending_human_loop: dict[int, dict[str, Any]] = {}
         log.info(
             "TelegramBot inicializado",
             commands=len(self.commands),
@@ -311,9 +314,17 @@ class TelegramBot:
         if message is None:
             return None
         self.metrics.messages += 1
+
+        chat_id = message.chat_id
+
+        # Verifica se há um human loop pendente para este chat
+        if chat_id in self._pending_human_loop:
+            return await self._handle_human_loop_decision(message)
+
         if message.has_voice:
             return await self._handle_voice(message)
         return await self._handle_text(message)
+
 
     async def _handle_text(self, message: Message) -> Optional[str]:
         resolved = self.find_command(message.text)
@@ -323,6 +334,46 @@ class TelegramBot:
         else:
             reply = await self._ask_orchestrator(message)
         return await self._send_reply(message.chat_id, reply)
+
+    async def _handle_human_loop_decision(self, message: Message) -> Optional[str]:
+        """Processa a resposta do dono para um turno pausado no human_loop."""
+        chat_id = message.chat_id
+        texto = (message.text or "").strip().lower()
+        pendente = self._pending_human_loop.get(chat_id)
+        if not pendente:
+            return await self._handle_text(message)
+
+        thread_id = pendente["thread_id"]
+
+        # Aceita variações de sim/não
+        if texto in ("sim", "s", "yes", "y", "aprovar", "aprovo", "confirmo", "ok"):
+            decisao = "aprovar"
+        elif texto in ("não", "nao", "n", "no", "cancelar", "cancela", "recusar", "recuso"):
+            decisao = "cancelar"
+        else:
+            return "Por favor, responda 'sim' para aprovar ou 'não' para cancelar."
+
+        # Remove do pendente antes de chamar (evita loop se der erro)
+        del self._pending_human_loop[chat_id]
+
+        try:
+            estado_final = await self.orchestrator.retomar_turno_humano(thread_id, decisao)
+            # Converte o estado final em OrchestrationResult para manter consistência
+            if estado_final.get("pending_human_input") and not estado_final.get("human_decision"):
+                # Ainda pausado (não deveria acontecer se a decisão foi aplicada)
+                self._pending_human_loop[chat_id] = {
+                    "thread_id": thread_id,
+                    "pending_human_input": estado_final["pending_human_input"],
+                }
+                return "Ação ainda pendente. Tente novamente."
+            message_final = estado_final.get("message", "")
+            if not estado_final.get("ok", True):
+                self.metrics.errors += 1
+            return message_final or "Ação processada."
+        except Exception as exc:
+            self.metrics.errors += 1
+            log.error("Falha ao retomar turno humano", error=str(exc))
+            return f"Erro ao processar sua decisão: {type(exc).__name__}"
 
     async def _handle_voice(self, message: Message) -> Optional[str]:
         """14º recurso: voz → STT → texto → pipeline normal."""
@@ -437,18 +488,38 @@ class TelegramBot:
                 "Não consigo conversar agora — o Orchestrator não está "
                 "conectado. Use /help para os comandos disponíveis."
             )
-        profile = _resolve_auto(self.get_profile(message.chat_id), message.text)
+        chat_id = message.chat_id
+        profile = _resolve_auto(self.get_profile(chat_id), message.text)
         try:
             # Papel no fast path de intenções: admin do bot fala como admin
             # (actions de leitura/sistema); os demais, como conta comum.
             is_admin = bool(message.user) and self.is_admin(message.user.id)
             result: OrchestrationResult = await self.orchestrator.process(
-                self._account_for(message.chat_id),
+                self._account_for(chat_id),
                 profile,
                 message.text,
-                session_id=f"tg:{message.chat_id}",
+                session_id=f"tg:{chat_id}",
                 role="admin" if is_admin else "user",
             )
+
+            # Human-in-the-loop: turno pausado aguardando decisão do dono.
+            if getattr(result, "paused", False) and result.thread_id:
+                pendente = result.pending_human_input or {}
+                self._pending_human_loop[chat_id] = {
+                    "thread_id": result.thread_id,
+                    "pending_human_input": pendente,
+                }
+                # Monta a mensagem de solicitação de aprovação
+                acao = pendente.get("acao", "ação")
+                detalhes = pendente.get("detalhes", "")
+                msg = f"⚠️ Ação requer sua aprovação:\n\n{acao}"
+                if detalhes:
+                    msg += f"\n\n{detalhes}"
+                msg += "\n\nResponda 'sim' para aprovar ou 'não' para cancelar."
+                if not result.ok:
+                    self.metrics.errors += 1
+                return msg
+
             if not result.ok:
                 self.metrics.errors += 1
             return result.message

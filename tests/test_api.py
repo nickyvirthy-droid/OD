@@ -154,7 +154,7 @@ class TestAPIRoutes:
         /radio-pro e /api/radio/pro/* (área do ouvinte logado, 04/11) +
         /api/radio/cantores (lista de cantores indesejados, 05/11) +
         export/import do catálogo do Supply Depot (TODO §3.1, 09/11)."""
-        assert len(ROUTES) == 122
+        assert len(ROUTES) == 123
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -172,6 +172,8 @@ class TestAPIRoutes:
             ("POST", "/api/radio/pro/pedido"),
             # Cantores indesejados (05/11): leitura e escrita só do dono.
             ("GET", "/api/radio/cantores"),
+            # Streaming SSE do chat web (I5, 10/11): exige API Key.
+            ("GET", "/api/v1/chat/stream"),
             ("POST", "/api/radio/cantores"),
             ("DELETE", "/api/radio/cantores"),
             # Páginas internas do dono (2026-10-10): saíram de /site/ (onde
@@ -367,6 +369,8 @@ class TestAPIRoutes:
             ("GET", "/memory/{user_id}/search"), ("GET", "/ws/chat"),
             # Cantores indesejados (05/11): curadoria do acervo, só admin.
             ("GET", "/api/radio/cantores"),
+            # Streaming SSE do chat web (I5, 10/11): exige API Key.
+            ("GET", "/api/v1/chat/stream"),
             ("POST", "/api/radio/cantores"),
             ("DELETE", "/api/radio/cantores"),
         }

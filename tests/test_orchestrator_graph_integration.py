@@ -62,8 +62,9 @@ class TestProcessoComGrafo:
             total = conn.execute(
                 "SELECT COUNT(*) FROM od_graph_checkpoints"
             ).fetchone()[0]
-            # 8 nós do pipeline + checkpoint inicial.
-            assert total == 9
+            # 10 nós do pipeline + checkpoint inicial (rate_limit, datetime, quick,
+            # infra_guard, cache_terminal, classify, generate, post_process, human_loop).
+            assert total == 10
 
     async def test_flag_ligada_preserva_guardas_e_pos_processamento(
         self, tmp_path, monkeypatch
@@ -307,3 +308,43 @@ class TestProcessoComGrafo:
 
         assert result.route == "llm"
         assert not (tmp_path / "ck.db").exists()
+
+
+@pytest.mark.asyncio
+class TestRetomadaHumana:
+    async def test_retomar_fecha_pausa_e_roda_post_process(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        orch = _orch()
+        saver = orch._obter_graph_saver()
+        thread_id = "alex:tg:1:abc"
+        # Checkpoint de um turno pausado no human_loop (o que o astream grava).
+        saver.put(
+            thread_id,
+            5,
+            {
+                "user_id": "alex",
+                "profile": "guardian",
+                "session_id": "tg:1",
+                "role": "admin",
+                "text": "liga a luz",
+                "system_prompt": "",
+                "persist": False,
+                "extra_history": None,
+                "route": "llm",
+                "message": "resposta do stub",
+                "llm_used": "stub",
+                "prompt": "p",
+                "terminal": False,
+                "pending_human_input": {"acao": "liga a luz"},
+                "steps": ["generate"],
+            },
+            ["human_loop"],
+        )
+
+        final = await orch.retomar_turno_humano(thread_id, "aprovar")
+
+        assert final["human_decision"] == "aprovar"
+        assert final["pending_human_input"] is None
+        assert final["pos_processado"] is True
+        assert "human_loop" in final["steps"]

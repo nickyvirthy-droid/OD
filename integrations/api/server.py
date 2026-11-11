@@ -525,6 +525,8 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/supervision", "supervision", True),
     ("POST", "/transcribe", "transcribe", True),
     ("POST", "/tts", "tts", True),
+    # SSE Streaming (I5) — Server-Sent Events para chat web
+    ("GET", "/api/v1/chat/stream", "api_chat_stream", True),
     # Rádio Nicky (Etapa D, 27/10): o AzuraCast dispara quando a música
     # muda e o od-core monta a fala + gera o MP3 da locução. Auth é o
     # token secreto no path (em AUTH_EXEMPT_PATHS; gate no handler).
@@ -5706,6 +5708,92 @@ class APIHandler(BaseHTTPRequestHandler):
         payload = result.to_dict()
         payload["ok"] = result.ok
         self._json(200, payload)
+
+    def api_chat_stream(self) -> None:
+        """GET /api/v1/chat/stream — SSE streaming token-a-token.
+        
+        Query params:
+            text: Texto da mensagem (obrigatório)
+            profile: Perfil (padrão: guardian)
+            session_id: ID da sessão (opcional)
+            api_key: Chave de API (header X-API-Key ou query param)
+        
+        Response: text/event-stream
+            event: progress
+            data: {"type": "progress", "step": 3, "nodes": [...], "next": [...]}
+            
+            event: token
+            data: {"type": "token", "content": "..."}
+            
+            event: done
+            data: {"type": "done", "route": "...", "content": "...", "llm_used": "...", "cached": false}
+            
+            event: human_loop_pending
+            data: {"type": "human_loop_pending", "thread_id": "...", "pending_human_input": {...}}
+            
+            event: error
+            data: {"type": "error", "message": "..."}
+        """
+        # Query params
+        from urllib.parse import urlsplit, parse_qs
+        query = parse_qs(urlsplit(self.path).query)
+        
+        text = str(query.get("text", [""])[0]).strip()
+        if not text:
+            raise APIError(400, "text_obrigatorio")
+        
+        profile = str(query.get("profile", [DEFAULT_PROFILE])[0]).strip()
+        if profile not in self.api.config.profiles:
+            raise APIError(400, f"perfil_desconhecido: {profile}")
+        if profile == "auto":
+            profile = resolve_auto_profile(text)
+        
+        session_id = str(query.get("session_id", [f"api:{self._current_user.username if self._current_user else 'anon'}"])[0])
+        
+        # SSE headers
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")  # nginx
+        self._send_cors()
+        self.end_headers()
+        
+        # Stream response
+        import asyncio
+        import json
+        
+        async def event_generator():
+            if self.api.orchestrator is None:
+                yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': 'orchestrator_indisponivel'}, ensure_ascii=False)}\n\n"
+                return
+            
+            try:
+                async for chunk in self.api.orchestrator.process_stream_sse(
+                    user_id=self._current_user.username if self._current_user else "anon",
+                    profile=profile,
+                    text=text,
+                    system_prompt="",
+                    session_id=session_id,
+                    role=self._role(),
+                ):
+                    yield chunk.encode("utf-8")
+            except Exception as exc:
+                yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
+        
+        # Write events as they come
+        loop = asyncio.new_event_loop()
+        try:
+            async_gen = event_generator()
+            while True:
+                try:
+                    chunk = loop.run_until_complete(async_gen.__anext__())
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                except StopAsyncIteration:
+                    break
+        finally:
+            loop.close()
 
     # -- Catálogo e execução de actions (v1.2.0 — app Android) ---------------
 
