@@ -573,3 +573,61 @@ De quebra, isso fecha o item antigo "rádio nunca testada no chat real".
 5. **Guarda de cache** deixou entrar resposta sem nexo ("que horas são?" gravado).
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §12 — Cadeia completa de IAs no chat: Gemini → Groq → local (11/11 ~15:05)
+
+Dois pedidos do dono, o segundo chegando no meio do trabalho:
+
+1. "Coloca o `gemini-3-flash-preview` como 1º provider do chat, com o local de reserva, e mede latência e qualidade."
+2. "O sistema possui várias IAs, tem um arquivo explicando isso. **Use todas** e deixe a local por último, pra quando não houver internet."
+
+### 1. Inventário lido antes de mexer
+
+`docs/IAS_DISPONIVEIS.md`: Gemini (chave válida, cota gratuita apertada), Groq (válida, `openai/gpt-oss-120b`), **OpenAI sem crédito nas duas chaves** (remensurado hoje: `429 You have no credits remaining`), local `qwen2.5-coder-3b`.
+
+### 2. O que foi feito
+
+| Peça | Entrega |
+|---|---|
+| `core/llm.py` | `chat_path` no `OpenAICompatProvider` (a base do Gemini já traz `/v1beta/openai`); `GeminiProvider` (Bearer, `gemini-3-flash-preview`) e `GroqProvider` (`openai/gpt-oss-120b`, **piso de 2048 tokens** — com teto curto o `content` do modelo de raciocínio volta vazio). |
+| `runtime/launcher.py` | `build_llm_providers()` lê `OD_CHAT_PROVIDERS`, padrão **`gemini,groq,local`**. Sem chave o provider sai com `warn`; nome desconhecido é ignorado; se nada sobrar entra o local. |
+| OpenAI | Fora da cadeia enquanto não houver crédito — incluir só gastaria uma tentativa por mensagem. |
+
+### 3. Medição (6 prompts iguais nos dois modelos)
+
+| | Gemini 3 Flash | Local qwen2.5-coder-3b |
+|---|---|---|
+| p50 | **≈ 2,4 s** | ≈ 7,7 s |
+| pior caso | 3,08 s | 20,8 s |
+| Turing | completo (Enigma, máquina, teste) | truncou no meio |
+| "o que é o Omega Drakon" | coerente | **"criatura mitológica de origem grega"** |
+| e-mail de orçamento | assunto, prazo, condições | deixou `[Nickname]` no lugar da assinatura |
+
+Groq: **0,48 s** numa chamada curta. Cota do Gemini: em rajada, `429` já na 2ª chamada.
+
+### 4. Incidente no deploy (honesto)
+
+O primeiro deploy (`a952c6a`) **derrubou o serviço em loop**: ao extrair `build_llm_providers()` eu tirei `llm_timeout` do `build_orchestrator`, que continuava usando a variável no `OrchestratorConfig` (`NameError`). O journal mostrou na hora, o `Restart=on-failure` reiniciava, e o serviço ficou `activating` com `MainPID=0`.
+
+Corrigido em `503331d`, com um **smoke test novo** que chama `build_orchestrator` inteiro — nenhum teste fazia isso antes. Lição: extração no caminho de boot exige teste da função completa, não só do pedaço extraído.
+
+### 5. Prova viva (MainPID 2691066)
+
+| Item | Resultado |
+|---|---|
+| `/llms` | `['gemini', 'groq', 'gemma-local']` |
+| `/health` | **27/27 up**, `ok=true` |
+| journal | 0 erro desde o restart |
+| "escreva um e-mail curto pedindo orçamento de um HD de 4TB" | `route=fallback`, **`llm=groq`**, 3,09 s, e-mail com assunto/prazo/condições |
+| "quem foi Ada Lovelace" | `llm=groq`, 1,9 s, resposta correta |
+| journal do Gemini | `LLM provider failed | provider=gemini | HTTP 429 quota exceeded` → `Message processed llm=groq` |
+
+Ou seja: a cadeia está fazendo exatamente o que devia — o Gemini **tenta primeiro**, a cota estourou, o Groq assumiu na mesma mensagem e o local ficou por último.
+
+### 6. O que continua em aberto
+
+1. **A cota gratuita do Gemini é o gargalo**: com o prompt real do chat ele devolve 429 e quem responde é o Groq. Enxugar o contexto/prompt é o caminho para o Gemini voltar a caber.
+2. **OpenAI** entra na cadeia quando houver saldo (e aí vale um teste de crédito no boot).
+3. **Cota do Groq** ainda não aparece no `/health` — sem alerta, o próximo limite derruba para o 3B local em silêncio.
+
+**Sem bump:** app segue **1.44.0/2080**.

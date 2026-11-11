@@ -588,10 +588,15 @@ esperar o timeout.
       ela sai como dicionário cru ("ok: True; status: tocando; stream_url: …")
 - [ ] Bluetooth: pareamento falha com `AuthenticationFailed` usando PIN `0000`
       (o adaptador recusa o PIN padrão; investigar e documentar o PIN real)
-- [ ] Chat: o core só tem `gemma-local` (qwen2.5-coder-3b) na cadeia de LLM —
-      `gemini-3-flash-preview`/Groq existem no `.env` e são usados só em
-      `musica.py`/`chat_audit.py` (regra 19). Avaliar medir e promover o Gemini
-      a 1º provider do chat, com o local como reserva (custo/quota)
+- [x] Chat: o core só tinha `gemma-local` (qwen2.5-coder-3b) na cadeia de LLM
+      — **ENTREGUE 11/11: cadeia `gemini,groq,local` via `OD_CHAT_PROVIDERS`,
+      `GeminiProvider`/`GroqProvider` em `core/llm.py`; local por último**
+- [ ] Chat: enxugar o prompt/contexto para o Gemini caber na cota gratuita —
+      hoje o prompt real devolve `429 quota exceeded` e quem responde é o Groq
+- [ ] Chat: incluir OpenAI na cadeia automaticamente quando as chaves tiverem
+      saldo (hoje as duas dão `429 no credits remaining`; teste de crédito no boot)
+- [ ] Chat: cota do Groq visível/alertada no `/health` — sem alerta, o próximo
+      limite cai no 3B local em silêncio
 - [ ] Pesquisa web: criar action de busca ("pesquise na internet …" hoje cai
       no LLM e ele recusa alegando não ter internet) — é a queixa literal do dono
       em 11/11: "não está pesquisando"
