@@ -15,6 +15,7 @@ Protocolo:
     {"type": "auth", "token": "..."}                      # sessão do chat web
     {"type": "auth", "api_key": "od_..."}                 # API key de usuário
     {"type": "message", "text": "...", "profile": "...", "session_id": "..."}
+    {"type": "decision", "thread_id": "...", "decision": "sim"|"nao"}
 
 Identidade (mesma regra do POST /message do REST):
   - credencial de USUÁRIO (sessão `token` ou API key `od_...`) → o servidor usa
@@ -28,6 +29,9 @@ Identidade (mesma regra do POST /message do REST):
     {"type": "processing"}
     {"type": "token", "content": "..."}
     {"type": "done", "content": "...", "route": "...", "llm_used": "..."}
+    {"type": "human_loop_pending", "thread_id": "...", "pending_human_input": {...}}
+    {"type": "done", "content": "...", "route": "...", "decision": "...",
+     "thread_id": "...", "pending_human_input": null, "pos_processado": true}
     {"type": "error", "message": "..."}
 
 O servidor usa a API moderna do websockets (>=14):
@@ -54,7 +58,12 @@ from core.orchestrator import Orchestrator
 # `auto` por padrão).
 from agents.profiles import resolve_auto
 from core.identity import resolve_account
-from integrations.api.server import DEFAULT_PROFILE, DEFAULT_PROFILES, valid_user_id
+from integrations.api.server import (
+    DEFAULT_PROFILE,
+    DEFAULT_PROFILES,
+    normalizar_decisao,
+    valid_user_id,
+)
 
 __signature__ = "OD // CORE"
 
@@ -301,6 +310,60 @@ class WebSocketServer:
                             "type": "error",
                             "message": f"erro_processamento: {type(exc).__name__}"
                         }))
+                elif msg_type == "decision":
+                    # Aprovação de turno pausado (human_loop): o cliente
+                    # recebeu `human_loop_pending` com o thread_id e devolve
+                    # sim/não por aqui, sem depender do Telegram.
+                    thread_id = str(data.get("thread_id") or "").strip()
+                    if not thread_id:
+                        await ws.send(json.dumps({
+                            "type": "error", "message": "thread_id_obrigatorio",
+                        }))
+                        continue
+                    decisao = normalizar_decisao(
+                        str(data.get("decision") or data.get("decisao") or "")
+                    )
+                    if decisao is None:
+                        await ws.send(json.dumps({
+                            "type": "error", "message": "decision_invalida",
+                        }))
+                        continue
+                    if identidade and not thread_id.startswith(
+                        f"{identidade}:"
+                    ):
+                        await ws.send(json.dumps({
+                            "type": "error",
+                            "message": "thread_de_outro_usuario",
+                        }))
+                        continue
+                    await ws.send(json.dumps({"type": "processing"}))
+                    try:
+                        estado = await self.orchestrator.retomar_turno_humano(
+                            thread_id, decisao
+                        )
+                    except Exception as exc:
+                        log.error(
+                            "WebSocket decision error", error=str(exc)
+                        )
+                        await ws.send(json.dumps({
+                            "type": "error",
+                            "message": f"decisao_falhou: {exc}",
+                        }))
+                        continue
+                    await ws.send(json.dumps({
+                        "type": "done",
+                        "content": estado.get("message", ""),
+                        "route": estado.get("route", ""),
+                        "decision": decisao,
+                        "thread_id": thread_id,
+                        "pending_human_input": estado.get(
+                            "pending_human_input"
+                        ),
+                        "pos_processado": bool(
+                            estado.get("pos_processado")
+                        ),
+                    }))
+
                 else:
                     await ws.send(json.dumps({"type": "error", "message": f"tipo_desconhecido: {msg_type}"}))
                     

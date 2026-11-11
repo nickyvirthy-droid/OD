@@ -804,6 +804,11 @@ class Orchestrator:
             intent = detect_action_intent(estado.get("text", ""))
             if intent is not None and intent[0] == "__secrets_denied__":
                 return "secrets_denied"
+            # Ação sensível não depende do acerto do classificador: vai para
+            # select_tools, que pausa o turno (human_loop) — mesma regra do
+            # grafo de `process`, senão o streaming executa sem aprovação.
+            if intent is not None and self._exige_aprovacao_humana(intent[0]):
+                return "tools"
             if (
                 self._config.enable_action_intents
                 and self._action_registry is not None
@@ -813,13 +818,30 @@ class Orchestrator:
             return "chat"
 
         # Função de seleção de ferramentas
-        async def selecionar(estado: dict[str, Any]) -> list[str]:
+        async def selecionar(estado: dict[str, Any]) -> Any:
             from core.intents import detect_action_intent
             intent = detect_action_intent(estado.get("text", ""))
             if intent is not None and intent[0] != "__secrets_denied__":
                 action_name, params = intent
-                if action_name in ("ha_device_control",) or action_name in ("google_calendar_create",):
+                # Pedido incompleto segue para o generate (falta dado).
+                if action_name == "ha_device_control" and not params.get(
+                    "entity_id"
+                ):
                     return []
+                if action_name == "google_calendar_create" and not (
+                    params.get("quando") or params.get("data")
+                    or params.get("start")
+                ):
+                    return []
+                if self._exige_aprovacao_humana(action_name):
+                    # Streaming também pausa: o app recebe
+                    # `human_loop_pending` e decide por frame `decision`.
+                    return {
+                        "intent": "tools",
+                        "pending_human_input": self._pedido_de_aprovacao(
+                            action_name, params, estado.get("text", "")
+                        ),
+                    }
                 return [action_name]
             return []
 

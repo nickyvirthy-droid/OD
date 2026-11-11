@@ -472,6 +472,39 @@ class TestAprovacaoHumana:
         assert [c[0] for c in chamadas] == ["ha_device_control"]
         assert final["pending_human_input"] is None
 
+    async def test_stream_pausa_acao_sensivel(self, tmp_path, monkeypatch):
+        """O caminho de streaming (WS) também pausa antes de executar.
+
+        Antes ele tinha uma cópia própria da classificação sem a checagem de
+        aprovação: o app recebia a ação executada em vez de
+        `human_loop_pending` — e o frame `decision` nunca teria o que decidir.
+        """
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        monkeypatch.delenv("OD_HUMAN_APPROVAL_ACTIONS", raising=False)
+        orch, chamadas = self._orch_com_registro(monkeypatch)
+
+        chunks = [
+            chunk
+            async for chunk in orch.process_stream(
+                "alex", "guardian", "apaga o arquivo relatorio no drive",
+                session_id="s-stream-aprova", role="admin",
+            )
+        ]
+
+        pausas = [c for c in chunks if c["type"] == "human_loop_pending"]
+        assert len(pausas) == 1
+        assert pausas[0]["thread_id"]
+        assert pausas[0]["pending_human_input"]["acao"] == "google_drive_delete"
+        assert not [c for c in chunks if c["type"] == "done"]
+        assert chamadas == []
+
+        final = await orch.retomar_turno_humano(
+            pausas[0]["thread_id"], "cancelar"
+        )
+        assert chamadas == []
+        assert final["pending_human_input"] is None
+
     async def test_aprovacao_humana_pula_confirmacao_de_2_passos(self):
         from tools.actions.actions import (
             _light_confirm_check,

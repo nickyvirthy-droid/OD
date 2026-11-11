@@ -79,6 +79,20 @@ class StubOrchestrator:
             },
         ]
         self._error = error
+        self.decision_calls: list[tuple[str, str]] = []
+        self.decision_result = {
+            "route": "human_loop_cancelado",
+            "message": "🚫 Ação cancelada — nada foi executado.",
+            "pending_human_input": None,
+            "pos_processado": True,
+        }
+        self.decision_error: Exception | None = None
+
+    async def retomar_turno_humano(self, thread_id: str, decisao: str) -> dict:
+        self.decision_calls.append((thread_id, decisao))
+        if self.decision_error is not None:
+            raise self.decision_error
+        return dict(self.decision_result)
 
     async def process_stream(
         self, user_id, profile, text, *, session_id="", role="admin"
@@ -402,6 +416,75 @@ class TestWebSocketProtocolo:
         assert desconhecido == {"type": "error", "message": "tipo_desconhecido: telepatia"}
         assert orchestra.calls == []
 
+    def test_decision_cancela_turno_pausado(self, servidor):
+        server, orchestra = servidor
+        from websockets.asyncio.client import connect
+
+        async def _fluxo():
+            async with connect(self._url(server)) as ws:
+                await ws.send(json.dumps({"type": "auth", "api_key": "chave-certa"}))
+                await ws.recv()  # authenticated
+                await ws.send(json.dumps({
+                    "type": "decision",
+                    "thread_id": "alex:ws:1",
+                    "decision": "não",
+                }))
+                return [json.loads(await ws.recv()) for _ in range(2)]
+
+        recebidos = _run(_fluxo())
+        assert recebidos[0] == {"type": "processing"}
+        fim = recebidos[1]
+        assert fim["type"] == "done"
+        assert fim["decision"] == "cancelar"
+        assert fim["thread_id"] == "alex:ws:1"
+        assert "cancelada" in fim["content"].lower()
+        assert fim["pending_human_input"] is None
+        assert orchestra.decision_calls == [("alex:ws:1", "cancelar")]
+
+    def test_decision_invalida_e_sem_thread(self, servidor):
+        server, orchestra = servidor
+        from websockets.asyncio.client import connect
+
+        async def _fluxo():
+            async with connect(self._url(server)) as ws:
+                await ws.send(json.dumps({"type": "auth", "api_key": "chave-certa"}))
+                await ws.recv()
+                await ws.send(json.dumps({"type": "decision", "decision": "sim"}))
+                sem_thread = json.loads(await ws.recv())
+                await ws.send(json.dumps({
+                    "type": "decision", "thread_id": "x",
+                    "decision": "talvez",
+                }))
+                invalida = json.loads(await ws.recv())
+                return sem_thread, invalida
+
+        sem_thread, invalida = _run(_fluxo())
+        assert sem_thread == {
+            "type": "error", "message": "thread_id_obrigatorio",
+        }
+        assert invalida == {"type": "error", "message": "decision_invalida"}
+        assert orchestra.decision_calls == []
+
+    def test_decision_com_erro_do_orchestrator_vira_error(self, servidor):
+        server, orchestra = servidor
+        orchestra.decision_error = RuntimeError("Thread sem checkpoint: x")
+        from websockets.asyncio.client import connect
+
+        async def _fluxo():
+            async with connect(self._url(server)) as ws:
+                await ws.send(json.dumps({"type": "auth", "api_key": "chave-certa"}))
+                await ws.recv()
+                await ws.send(json.dumps({
+                    "type": "decision", "thread_id": "x",
+                    "decision": "sim",
+                }))
+                await ws.recv()  # processing
+                return json.loads(await ws.recv())
+
+        erro = _run(_fluxo())
+        assert erro["type"] == "error"
+        assert "decisao_falhou" in erro["message"]
+
     def test_queda_no_meio_do_stream_nao_vira_erro_e_servidor_sobrevive(self, ws_log):
         """Cliente aborta no meio do stream: rotina, não ERROR (achado do sandbox).
 
@@ -634,6 +717,31 @@ class TestWebSocketIdentidade:
         )
         assert fim["type"] == "done"
         assert orchestra.calls[0]["user_id"] == "app"
+
+    def test_decision_so_vale_para_o_proprio_turno(self, servidor):
+        """Conta autenticada não aprova turno de outra, pelo WS também."""
+        server, orchestra, store = servidor
+        store.register("alex", "alex@example.com", "senha123")
+        bia = store.register("bia", "bia@example.com", "senha123")
+        from websockets.asyncio.client import connect
+
+        async def _fluxo():
+            async with connect(self._url(server)) as ws:
+                await ws.send(json.dumps(
+                    {"type": "auth", "api_key": bia.api_key}
+                ))
+                await ws.recv()  # authenticated
+                await ws.send(json.dumps({
+                    "type": "decision", "thread_id": "alex:web:1",
+                    "decision": "sim",
+                }))
+                return json.loads(await ws.recv())
+
+        erro = _run(_fluxo())
+        assert erro == {
+            "type": "error", "message": "thread_de_outro_usuario",
+        }
+        assert orchestra.decision_calls == []
 
     def test_alias_de_transporte_cai_na_conta(self):
         """`OD_ACCOUNT_ALIASES` mapeia o `user_id` legado (app) para a conta.

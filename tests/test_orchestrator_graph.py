@@ -149,6 +149,23 @@ class TestCheckpoint:
         assert saver.historico("t1")[0].concluido is False
         saver.fechar()
 
+    def test_ultimo_e_o_gravado_por_ultimo_nao_o_de_maior_passo(self, tmp_path):
+        """Turno repetido na mesma thread recomeça no passo 0.
+
+        O checkpoint antigo (passo 9, do turno anterior) continuava sendo
+        devolvido como "último": a decisão humana era aplicada no estado
+        velho — e o cancelado respondia com a mensagem do turno anterior.
+        """
+        saver = SqliteSaver(tmp_path / "ck.db")
+        saver.put("t", 0, {"texto": "antigo"}, ["n1"])
+        saver.put("t", 9, {"texto": "antigo"}, ["human_loop"])
+        saver.put("t", 0, {"texto": "novo"}, ["human_loop"])
+
+        ultimo = saver.ultimo("t")
+        assert ultimo.passo == 0
+        assert ultimo.estado == {"texto": "novo"}
+        saver.fechar()
+
     def test_migracao_de_banco_antigo_adiciona_concluido(self, tmp_path):
         caminho = tmp_path / "antigo.db"
         conn = sqlite3.connect(caminho)

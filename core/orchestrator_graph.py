@@ -331,20 +331,27 @@ class SqliteSaver:
                 ),
             )
             # Teto por thread: histórico de auditoria, não despejo infinito.
+            # Poda pelos mais RECENTES (created_at), coerente com `ultimo`.
             self._conn.execute(
-                "DELETE FROM od_graph_checkpoints WHERE thread_id = ? AND passo NOT IN ("
-                "SELECT passo FROM od_graph_checkpoints WHERE thread_id = ? "
-                "ORDER BY passo DESC LIMIT ?)",
+                "DELETE FROM od_graph_checkpoints WHERE thread_id = ? AND rowid NOT IN ("
+                "SELECT rowid FROM od_graph_checkpoints WHERE thread_id = ? "
+                "ORDER BY created_at DESC LIMIT ?)",
                 (thread_id, thread_id, MAX_CHECKPOINTS_POR_THREAD),
             )
             self._conn.commit()
 
     def ultimo(self, thread_id: str) -> Optional[Checkpoint]:
-        """Último checkpoint da thread, ou `None`."""
+        """Último checkpoint da thread, ou `None`.
+
+        Ordena por `created_at`, não por `passo`: um turno repetido na mesma
+        thread (retry do mesmo texto) recomeça no passo 0 e as linhas antigas
+        — com passo maior — ficam no histórico. Ordenar por passo devolvia o
+        turno velho e a aprovação humana era aplicada no estado errado.
+        """
         with self._lock:
             linha = self._conn.execute(
                 "SELECT * FROM od_graph_checkpoints WHERE thread_id = ? "
-                "ORDER BY passo DESC LIMIT 1",
+                "ORDER BY created_at DESC, passo DESC, rowid DESC LIMIT 1",
                 (thread_id,),
             ).fetchone()
         return self._linha(linha) if linha is not None else None

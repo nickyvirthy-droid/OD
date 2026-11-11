@@ -659,6 +659,31 @@ def valid_user_id(user_id: str) -> bool:
     return bool(_USER_ID_RE.fullmatch(user_id)) and user_id not in (".", "..")
 
 
+_APROVACOES_HUMANAS = {
+    "sim", "s", "yes", "y", "aprovar", "aprovo", "confirmo", "ok",
+    "true", "1",
+}
+_RECUSAS_HUMANAS = {
+    "nao", "não", "n", "no", "cancelar", "cancela", "recusar", "recuso",
+    "false", "0",
+}
+
+
+def normalizar_decisao(bruto: str) -> Optional[str]:
+    """Normaliza a resposta do dono para "aprovar"/"cancelar".
+
+    Usado pelo REST (/api/v1/chat/decision) e pelo frame `decision` do
+    WebSocket — o app fala "sim"/"não", e a retomada espera a decisão
+    canônica. Devolve None quando o texto não é uma decisão.
+    """
+    valor = str(bruto or "").strip().lower()
+    if valor in _APROVACOES_HUMANAS:
+        return "aprovar"
+    if valor in _RECUSAS_HUMANAS:
+        return "cancelar"
+    return None
+
+
 @dataclass(slots=True)
 class _Route:
     method: str
@@ -5813,19 +5838,8 @@ class APIHandler(BaseHTTPRequestHandler):
         if not bruto:
             raise APIError(400, "decision_obrigatoria")
 
-        aprovacoes = {
-            "sim", "s", "yes", "y", "aprovar", "aprovo", "confirmo",
-            "ok", "true", "1",
-        }
-        recusas = {
-            "nao", "não", "n", "no", "cancelar", "cancela", "recusar",
-            "recuso", "false", "0",
-        }
-        if bruto in aprovacoes:
-            decisao = "aprovar"
-        elif bruto in recusas:
-            decisao = "cancelar"
-        else:
+        decisao = normalizar_decisao(bruto)
+        if decisao is None:
             raise APIError(400, "decision_invalida (use sim/nao)")
 
         if self.api.orchestrator is None:
