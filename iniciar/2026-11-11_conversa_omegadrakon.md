@@ -337,3 +337,51 @@ configurável; (c) botões sim/não no chat web quando o turno pausar.
   máquina para prova visual.
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §8 — Retomada ("leia iniciar") depois da entrega §7 (11/11 ~11:58)
+
+Pedido do dono: `leia iniciar`. Só leitura e registro — nada de código foi
+alterado nesta troca.
+
+### 1. O que foi lido
+
+`iniciar/README.md`, `iniciar/RULES.md`, `iniciar/session.json` (entrada mais
+recente: `aprovacao_app_chat_web_ttl_2026_11_11`, 11:35) e esta transcrição
+(§1–§7). `txt.txt` está vazio (nada deixado pelo dono).
+
+### 2. Estado encontrado
+
+| Item | Estado |
+|---|---|
+| Árvore de trabalho | limpa (nenhum modificado, nenhum novo) |
+| HEAD | `3738ba1` — igual a `origin/master` |
+| od-core | `active`, MainPID **2460735**, NRestarts=0 |
+| Restart do processo | 11:10:29 (§6) |
+| Último commit de código | `eab2d57`, 11:45:13 |
+
+### 3. Achado que importa
+
+O processo no ar é **anterior** ao commit `eab2d57`. Ou seja: a expiração do
+`human_loop_pending` (`OD_HUMAN_APPROVAL_TTL`, rota `human_loop_expirado`) e o
+card Sim/Não do chat web estão **commitados e testados, mas não estão
+rodando**. O `/health`, o WS `decision` e o endpoint REST de decisão (§5–§6) já
+estão no ar, porque entraram antes do restart.
+
+### 4. Situação da validação
+
+- Gate completo da fatia: **4445 passed / 17 skipped / 0 falha** (180,63 s).
+- App: `flutter analyze` limpo; `flutter test` 213 passed / 2 skipped.
+- Chat web: só `node --check` (não há navegador nesta máquina).
+
+### 5. Leitura
+
+A fatia está fechada em código e publicada; falta apenas o deploy verde para
+ficar viva. Deploy é mutação de estado externo e depende de autorização do dono
+(regra 7), mesmo com a validação verde.
+
+**Fila registrada:** restart verde do od-core (põe o TTL/card no ar) → teste
+real do rádio no chat → Bluetooth (`AuthenticationFailed` com PIN 0000) → cache
+de embedding de documento no RAG → R1 Task Queue → R5 Eval →
+`docs/ARCHITECTURE_v2.md` → implantar a stack OTel (commitada, não implantada).
+
+**Sem bump:** app segue **1.44.0/2080**.

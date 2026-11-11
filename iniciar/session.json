@@ -1,4 +1,16 @@
 {
+  "retomada_leitura_iniciar_2026_11_11_tarde": {
+    "pedido": "Dono (11/11, apos a entrega §7): 'leia iniciar' — recarregar o checkpoint antes de retomar.",
+    "lido": "iniciar/README.md, iniciar/RULES.md, iniciar/session.json (entrada mais recente: aprovacao_app_chat_web_ttl_2026_11_11 11:35) e a transcricao 2026-11-11 (§1-§7, 339 linhas). txt.txt vazio.",
+    "estado_encontrado": "Arvore limpa e HEAD == origin/master em 3738ba1 (docs/iniciar). od-core ativo, MainPID 2460735, NRestarts=0.",
+    "achado": "O restart do od-core foi as 11:10:29 (secao §6), mas o commit eab2d57 (aprovacao no app/chat web + TTL do pending) e de 11:45 — entao a expiracao do human_loop e o card Sim/Nao do chat web estao commitados e testados, NAO estao rodando. Faltam deploy verde e prova viva desta fatia.",
+    "situacao": "Gate da fatia: 4445 passed / 17 skipped / 0 falha (180,63 s); flutter analyze/test limpos; JS do chat web so validado por node --check (sem navegador na maquina). App segue 1.44.0/2080.",
+    "decisao": "Nada alterado no codigo nesta troca; so leitura e registro. Deploy do TTL/card do chat web depende de autorizacao do dono (regra 7), ainda que a validacao esteja verde.",
+    "fila": "Curto prazo: restart verde do od-core para por a fatia no ar. Depois: teste real do radio no chat, Bluetooth (AuthenticationFailed com PIN 0000), cache de embedding de documento no RAG, R1 Task Queue, R5 Eval, docs/ARCHITECTURE_v2 e implantar a stack OTel (commitada, nao implantada).",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-11_conversa_omegadrakon.md (§8)",
+    "updated_at": "2026-11-11T11:58:00-03:00"
+  },
   "aprovacao_app_chat_web_ttl_2026_11_11": {
     "pedido": "Dono (11/11 ~11:20): (a) app Flutter enviar o frame decision ao receber human_loop_pending; (b) aprovacoes pendentes expirarem apos tempo configuravel; (c) botoes sim/nao no chat web quando o turno pausar.",
     "feito": "app/lib/services/od_ws.dart: OdHumanApproval a partir do frame human_loop_pending, OdChatDelta.approval/finalText, decide(aprovacao, aprovar:) que abre o socket, autentica, manda {type: decision, thread_id, decision} e le o turno retomado; OdStreamingProtocolError nao cai para o REST. app/lib/screens/chat_screen.dart: card 'Aprovacao necessaria' com botoes Sim/Nao, _decidir(), card devolvido com aviso se a entrega falhar. core/orchestrator.py: criado_em no pedido, ttl_aprovacao_humana() e pending_expirado(), rota human_loop_expirado. integrations/api/server.py: chat web desenha o card .approval no human_loop_pending, decide pelo WS (REST /api/v1/chat/decision como reserva) e mostra Aprovado/Cancelado.",
