@@ -125,6 +125,30 @@ ROUTE_QUICK = "quick_response"
 ROUTE_INTENT = "action_intent"
 ROUTE_CACHE = "cache"
 
+# Human-in-the-loop: ações que mudam estado FORA do sistema (escrita no Google)
+# não executam no fast path — o turno pausa com `pending_human_input` e só roda
+# depois do "sim" do dono (retomada pelo checkpoint). `OD_HUMAN_APPROVAL_ACTIONS`
+# substitui a lista (separada por vírgula) ou desliga com off/0/false.
+ACOES_SENSIVEIS_PADRAO: frozenset[str] = frozenset({
+    "google_drive_create",
+    "google_drive_update",
+    "google_drive_delete",
+    "google_calendar_delete",
+    "google_gmail_send",
+    "google_gmail_delete",
+})
+
+
+def acoes_que_exigem_aprovacao() -> frozenset[str]:
+    """Lista efetiva de ações sensíveis (padrão ou override do .env)."""
+    bruto = os.getenv("OD_HUMAN_APPROVAL_ACTIONS")
+    if bruto is None:
+        return ACOES_SENSIVEIS_PADRAO
+    bruto = bruto.strip()
+    if not bruto or bruto.lower() in {"off", "0", "false", "nao", "não"}:
+        return frozenset()
+    return frozenset(p.strip() for p in bruto.split(",") if p.strip())
+
 # Respostas que NUNCA entram no cache: são falha do momento (LLM alucinou
 # etiqueta de log, recusou por prompt interno, truncou) e não conhecimento.
 # Cacheadas, renasciam a cada repetição da pergunta — "resposta de cache sem
@@ -848,8 +872,8 @@ class Orchestrator:
 
         # Nó de decisão humana
         async def humano(estado: dict[str, Any]) -> dict[str, Any]:
-            if estado.get("pending_human_input") and estado.get("human_decision"):
-                return {"pending_human_input": None, "steps": ["human_loop"]}
+            if estado.get("pending_human_input"):
+                return await self._aplicar_decisao_humana(estado)
             return {"steps": ["human_loop"]}
 
         # Cache terminal
@@ -2148,6 +2172,13 @@ class Orchestrator:
                 estado["intent"] = "secrets_denied"
                 estado["router_strategy"] = "secrets_denied"
                 return "secrets_denied"
+
+            # Ação sensível NÃO pode depender do acerto do classificador: o
+            # pedido vai para select_tools, que pausa o turno (human_loop).
+            if intent is not None and self._exige_aprovacao_humana(intent[0]):
+                estado["intent"] = "tools"
+                estado["router_strategy"] = "tool"
+                return "tool"
             
             # Query Router para classificação rica
             try:
@@ -2189,7 +2220,7 @@ class Orchestrator:
                 return "chat"
 
         # Função de seleção de ferramentas
-        async def selecionar(estado: dict[str, Any]) -> list[str]:
+        async def selecionar(estado: dict[str, Any]) -> Any:
             from core.intents import detect_action_intent, safe_math
             intent = detect_action_intent(estado.get("text", ""))
             if intent is not None and intent[0] != "__secrets_denied__":
@@ -2197,6 +2228,15 @@ class Orchestrator:
                 if action_name in ("ha_device_control",) or action_name in ("google_calendar_create",):
                     # Para confirmações de 2 passos, não seleciona ferramenta aqui
                     return []
+                if self._exige_aprovacao_humana(action_name):
+                    # ORIGEM do human_loop: não executa ação sensível sem o
+                    # "sim" do dono; o motor pausa e grava o checkpoint.
+                    return {
+                        "intent": "tools",
+                        "pending_human_input": self._pedido_de_aprovacao(
+                            action_name, params, estado.get("text", "")
+                        ),
+                    }
                 return [action_name]
             # Matemática básica não precisa de ferramenta no grafo
             return []
@@ -2282,9 +2322,9 @@ class Orchestrator:
 
         # Nó de decisão humana (para aprovações)
         async def humano(estado: dict[str, Any]) -> dict[str, Any]:
-            if estado.get("pending_human_input") and estado.get("human_decision"):
-                return {"pending_human_input": None, "steps": ["human_loop"]}
-            # A lógica de pausa humana já é tratada no motor do grafo
+            if estado.get("pending_human_input"):
+                return await self._aplicar_decisao_humana(estado)
+            # A pausa em si é tratada no motor do grafo.
             return {"steps": ["human_loop"]}
 
         # Cache terminal (verifica cache LLM antes de ir para o LLM)
@@ -2493,6 +2533,109 @@ class Orchestrator:
             extra_history=extra_history,
         )
 
+    @staticmethod
+    def _exige_aprovacao_humana(acao: str) -> bool:
+        """True se a ação precisa passar pelo human_loop antes de executar."""
+        return acao in acoes_que_exigem_aprovacao()
+
+    @staticmethod
+    def _pedido_de_aprovacao(
+        acao: str, params: dict[str, Any], text: str
+    ) -> dict[str, Any]:
+        """Pacote de `pending_human_input` guardado no checkpoint."""
+        descricoes = {
+            "google_drive_create": "criar arquivo no Drive",
+            "google_drive_update": "atualizar arquivo no Drive",
+            "google_drive_delete": "apagar arquivo do Drive",
+            "google_calendar_delete": "apagar compromisso da agenda",
+            "google_gmail_send": "enviar e-mail",
+            "google_gmail_delete": "apagar e-mail",
+        }
+        alvo = str(
+            params.get("alvo")
+            or params.get("name")
+            or params.get("titulo")
+            or params.get("para")
+            or ""
+        ).strip()
+        detalhes = descricoes.get(acao, "executar ação externa")
+        if alvo:
+            detalhes = f"{detalhes}: {alvo}"
+        return {
+            "acao": acao,
+            "params": dict(params),
+            "texto": text,
+            "detalhes": detalhes,
+        }
+
+    async def _aplicar_decisao_humana(
+        self, estado: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Fecha a pausa e executa (ou descarta) a ação aprovada.
+
+        Só roda depois que o dono respondeu: o grafo pausa ANTES do nó
+        `human_loop` quando há `pending_human_input` sem decisão.
+        """
+        pendente = estado.get("pending_human_input") or {}
+        decisao = str(estado.get("human_decision") or "").strip().lower()
+        if not pendente:
+            return {"pending_human_input": None, "steps": ["human_loop"]}
+
+        aprovacoes = {"aprovar", "aprovo", "sim", "s", "yes", "y", "confirmo", "ok"}
+        recusas = {"cancelar", "cancela", "recusar", "recuso", "nao", "não", "n", "no"}
+
+        if decisao not in aprovacoes and decisao not in recusas:
+            return {
+                "steps": ["human_loop"],
+                "message": (
+                    "❓ Ação pendente. Responda 'sim' para aprovar ou "
+                    "'não' para cancelar."
+                ),
+                "route": "human_loop_pendente",
+                "registrar": False,
+            }
+
+        if decisao in recusas:
+            return {
+                "pending_human_input": None,
+                "human_decision": None,
+                "message": "🚫 Ação cancelada — nada foi executado.",
+                "route": "human_loop_cancelado",
+                "registrar": False,
+                "steps": ["human_loop"],
+            }
+
+        acao = str(pendente.get("acao") or "")
+        params = dict(pendente.get("params") or {})
+        if not acao:
+            return {
+                "pending_human_input": None,
+                "human_decision": None,
+                "message": "⚠️ Pedido de aprovação sem ação — nada executado.",
+                "route": "human_loop_invalido",
+                "registrar": False,
+                "steps": ["human_loop"],
+            }
+
+        data = await self.execute_action(
+            acao,
+            params,
+            str(estado.get("user_id") or ""),
+            role=str(estado.get("role") or "admin"),
+        )
+        from core.intents import format_intent_result
+
+        resposta = format_intent_result(acao, data) or "✅ Ação executada."
+        return {
+            "pending_human_input": None,
+            "human_decision": None,
+            "message": resposta,
+            "route": acao,
+            "llm_used": f"human_loop:{acao}",
+            "registrar": False,
+            "steps": ["human_loop"],
+        }
+
     async def retomar_turno_humano(
         self,
         thread_id: str,
@@ -2518,7 +2661,8 @@ class Orchestrator:
         # retomar só o human_loop pularia a etapa 8.
         estado = dict(salvo.estado)
         estado["human_decision"] = decisao
-        estado["pending_human_input"] = None
+        # `pending_human_input` fica no estado: o nó human_loop precisa da
+        # ação/params para executar depois do "sim" (ou descartar no "não").
         proximos = list(salvo.proximos)
         if proximos == ["human_loop"]:
             proximos = ["human_loop", "post_process"]
@@ -2594,8 +2738,9 @@ class Orchestrator:
             )
 
         async def no_humano(estado: dict[str, Any]) -> dict[str, Any]:
-            # A decisão já foi gravada no checkpoint; aqui só fecha a pausa.
-            return {"pending_human_input": None, "steps": ["human_loop"]}
+            # Executa a ação aprovada (ou descarta, se cancelada) e fecha a
+            # pausa; o pedido segue no estado até este ponto.
+            return await self._aplicar_decisao_humana(estado)
 
         def rota(proximo: str):
             def _rota(estado: dict[str, Any]) -> str:

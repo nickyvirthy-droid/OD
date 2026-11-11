@@ -701,6 +701,12 @@ def criar_nos(
         ferramentas = selecionar(dict(estado))
         if inspect.isawaitable(ferramentas):
             ferramentas = await ferramentas
+        if isinstance(ferramentas, dict):
+            # O seletor pode pausar o turno (ex.: ação sensível aguardando
+            # aprovação humana) devolvendo o próprio update de estado.
+            update = dict(ferramentas)
+            update["steps"] = ["select_tools"]
+            return update
         return {"active_tools": list(ferramentas or []), "steps": ["select_tools"]}
 
     async def no_execute(estado: dict[str, Any]) -> dict[str, Any]:
@@ -761,9 +767,13 @@ def criar_nos(
 
 
 def rota_por_intencao(estado: dict[str, Any]) -> str:
-    """Intenção com ferramenta vai para a seleção; direct vai para generate (sem RAG); o resto gera direto."""
+    """Intenção com ferramenta vai para a seleção; o resto gera direto.
+
+    Aceita `tools` (fallback da casa) e `tool` (STRATEGY_TOOL do Query
+    Router) — o classificador devolve a estratégia e ela caía em `generate`.
+    """
     intent = estado.get("intent", "chat")
-    if intent == "tools":
+    if intent in ("tools", "tool"):
         return "select_tools"
     return "generate"
 

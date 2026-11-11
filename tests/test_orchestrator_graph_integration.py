@@ -316,6 +316,13 @@ class TestRetomadaHumana:
         monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
         monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
         orch = _orch()
+        chamadas: list[str] = []
+
+        async def fake_execute(nome, params=None, user_id="", role=""):
+            chamadas.append(nome)
+            return {"ok": True}
+
+        monkeypatch.setattr(orch, "execute_action", fake_execute)
         saver = orch._obter_graph_saver()
         thread_id = "alex:tg:1:abc"
         # Checkpoint de um turno pausado no human_loop (o que o astream grava).
@@ -336,7 +343,10 @@ class TestRetomadaHumana:
                 "llm_used": "stub",
                 "prompt": "p",
                 "terminal": False,
-                "pending_human_input": {"acao": "liga a luz"},
+                "pending_human_input": {
+                    "acao": "ha_device_control",
+                    "params": {"entity_id": "switch.luz", "on": True},
+                },
                 "steps": ["generate"],
             },
             ["human_loop"],
@@ -344,7 +354,92 @@ class TestRetomadaHumana:
 
         final = await orch.retomar_turno_humano(thread_id, "aprovar")
 
-        assert final["human_decision"] == "aprovar"
+        assert final["human_decision"] is None  # consumida pela aprovação
         assert final["pending_human_input"] is None
         assert final["pos_processado"] is True
         assert "human_loop" in final["steps"]
+        assert chamadas == ["ha_device_control"]
+
+
+@pytest.mark.asyncio
+class TestAprovacaoHumana:
+    """Origem do human_loop: ação sensível pausa antes de executar."""
+
+    def _orch_com_registro(self, monkeypatch):
+        chamadas: list[tuple] = []
+
+        async def fake_execute(nome, params=None, user_id="", role=""):
+            chamadas.append((nome, params, user_id, role))
+            return {"ok": True, "name": (params or {}).get("name", "arquivo")}
+
+        orch = _orch()
+        monkeypatch.setattr(orch, "execute_action", fake_execute)
+        return orch, chamadas
+
+    async def test_acao_sensivel_pausa_sem_executar(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        monkeypatch.delenv("OD_HUMAN_APPROVAL_ACTIONS", raising=False)
+        orch, chamadas = self._orch_com_registro(monkeypatch)
+
+        result = await orch.process(
+            "alex", "guardian", "apaga o arquivo relatorio no drive",
+            role="admin", session_id="s-aprova",
+        )
+
+        assert result.paused is True
+        assert result.route == "human_loop_pending"
+        assert result.pending_human_input["acao"] == "google_drive_delete"
+        assert result.thread_id
+        assert chamadas == []  # nada executou antes da aprovação
+
+    async def test_aprovar_executa_a_acao(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        monkeypatch.delenv("OD_HUMAN_APPROVAL_ACTIONS", raising=False)
+        orch, chamadas = self._orch_com_registro(monkeypatch)
+
+        result = await orch.process(
+            "alex", "guardian", "apaga o arquivo relatorio no drive",
+            role="admin", session_id="s-aprova-2",
+        )
+        final = await orch.retomar_turno_humano(result.thread_id, "aprovar")
+
+        assert [c[0] for c in chamadas] == ["google_drive_delete"]
+        assert final["pending_human_input"] is None
+        assert final["message"]
+        assert final["route"] == "google_drive_delete"
+
+    async def test_cancelar_nao_executa(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        monkeypatch.delenv("OD_HUMAN_APPROVAL_ACTIONS", raising=False)
+        orch, chamadas = self._orch_com_registro(monkeypatch)
+
+        result = await orch.process(
+            "alex", "guardian", "apaga o arquivo relatorio no drive",
+            role="admin", session_id="s-aprova-3",
+        )
+        final = await orch.retomar_turno_humano(result.thread_id, "cancelar")
+
+        assert chamadas == []
+        assert final["pending_human_input"] is None
+        assert "cancelada" in final["message"].lower()
+
+    async def test_lista_desligada_executa_sem_pausar(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck.db"))
+        monkeypatch.setenv("OD_HUMAN_APPROVAL_ACTIONS", "off")
+        orch, chamadas = self._orch_com_registro(monkeypatch)
+        # Sem a lista de aprovação, quem decide a rota é o classificador.
+        orch._query_router = type(
+            "RouterTool", (), {"classify": lambda *a, **k: "tool"}
+        )()
+
+        result = await orch.process(
+            "alex", "guardian", "apaga o arquivo relatorio no drive",
+            role="admin", session_id="s-aprova-4",
+        )
+
+        assert result.paused is False
+        assert [c[0] for c in chamadas] == ["google_drive_delete"]
