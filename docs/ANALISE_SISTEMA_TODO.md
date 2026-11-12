@@ -667,8 +667,13 @@ esperar o timeout.
       compra nº 1; sem ela nenhum outro ganho sobrevive ao apagão
 - [ ] **Comunicação:** segundo nó na LAN (ntfy/Matrix local + PWA offline) ou
       2 rádios LoRa Meshtastic — hoje o Telegram é o único canal externo
-- [ ] **Acervo:** baixar ~25 GB de ZIMs (Wikipédia PT completa, WikiMed,
-      WikiHow, iFixit/Appropedia) + mapas offline da região
+- [x] **Acervo:** baixar ~25 GB de ZIMs (Wikipédia PT completa, WikiMed,
+      WikiHow, iFixit/Appropedia) — **FEITO 12/11: 14 ZIMs, ~42,8 GB (12 quentes
+      no SSD + 2 frios no HD USB); Kiwix recriado com os 14 caminhos e
+      `readiness_report` somando os dois diretórios**
+- [ ] **Mapas offline:** extrair o recorte regional em `.pmtiles` (Brasil:
+      1–3 GB, medir antes) e colocar em `site/maps/brasil.pmtiles` — a página
+      já detecta o arquivo e troca sozinha para o modo offline
 - [ ] **Backup fora da máquina:** SSD/pendrive criptografado com snapshot do
       Postgres + `data/` + cofre exportado; testar a restauração
 - [ ] **Modo colapso declarado:** trocar para a cadeia local e avisar no chat/UI

@@ -12,6 +12,41 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Acervo offline ampliado + mapa com modo offline (2026-11-12, sem bump)
+
+**Resumo:** o "fazer agora" do plano de continuidade foi executado: o acervo
+saiu de 2 ZIMs (15 GB) para **14 ZIMs (~42,8 GB)**, com os dois pesados não
+prioritários no HD USB (ordem do dono: *"use os HDs USB para armazenamento
+daquilo que não for prioridade"*), e a página de mapas deixou de depender de
+tiles remotos para abrir.
+
+**Acervo quente (SSD, 12 ZIMs em `/home/alex/omegadrakon-tools/zim`):**
+Wikipédia PT maxi (20,6 GB), WikiMed PT maxi, Wikcionário PT, Wikivoyage PT,
+Wikipédia PT mini antiga saiu para o frio; zimgit medicina, pós-desastre, água,
+preparo de alimentos e nós; iFixit, Appropedia e Energypedia.
+**Acervo frio (HD USB, 2 ZIMs em `/home/alex/dados/od-zim`):** Wikipédia EN
+mini (14,4 GB) e Wikipédia PT mini de 24/10.
+
+`docker/tools-compose.yaml`: o Kiwix monta os dois diretórios e lista os 14
+caminhos no `command` (o kiwix-serve não aceita glob); limite de memória de
+512 MB para 1 GB — com 14 índices mmap o cgroup estourava ao abrir artigos
+grandes. Container recriado: `running`, `RestartCount=0`, `/catalog/v2/entries`
+com os 14 ZIMs.
+
+`readiness_report`: o item **conhecimento** soma o acervo quente e o frio
+(`zim_dir_frio` / `OD_KIWIX_ZIM_DIR_FRIO`, padrão `/home/alex/dados/od-zim`),
+porque para sobreviver o que conta é o total, não onde o arquivo mora.
+
+`site/protomaps.html`: registra o protocolo `pmtiles://` no MapLibre, usa
+`/site/maps/brasil.pmtiles` quando o arquivo existe e cai no raster OSM quando
+não existe (com aviso visível do modo); marcador na casa e fallback visual
+preservado. **Bug corrigido:** o handler `map.on('error')` estava fora do
+escopo da IIFE que cria o mapa — `ReferenceError` no load.
+
+**Testes:** gate **4539 passed / 17 skipped / 0 falha** (180,02 s); JS inline
+validado com `node --check` e `docker compose config` limpo. **Sem bump:**
+1.44.0/2080 (infra e action de servidor).
+
 ## Prontidão para resistir: medida no sistema + plano de continuidade (2026-11-12, sem bump)
 
 **Resumo:** `txt.txt` pediu preparação para colapso ("use o máximo da internet
