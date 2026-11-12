@@ -1,4 +1,15 @@
 {
+  "mapa_offline_brasil_pmtiles_2026_11_12": {
+    "pedido": "Dono (12/11): 'prossiga' — proximo item do backlog (recorte .pmtiles do Brasil).",
+    "medido": "Build diario protomaps 20261112 (planeta 139 GB). Dry-run bbox (-74,-34,-32,5.5) maxzoom=14: 2.811.716 tiles, 3,1 GB, 3,2 GB de trafego. Disco 66 GB livres. Extracao real 2,9 GB em 1m38s (95 requests).",
+    "criado": "site/maps/brasil.pmtiles (2,9 GB, zoom 0-14, MVT gzip, OSM 12/11, gitignored). site/vendor/maplibre-gl.js+css (894 KB+68 KB), pmtiles.js (20 KB), fontes Noto Sans Regular latin 0-1279 (5 PBFs, 500 KB).",
+    "defeitos": "1) HEAD no roteador responde 501 — deteccao do modo offline trocada para GET com Range bytes=0-0. 2) protocolo pmtiles exige URL absoluta (testado no proprio pmtiles.js: relativa lanca 'Failed to parse URL'); MAPA_LOCAL usa location.origin. 3) camadas do basemap v4 sao plurais (roads/pois/places/landuse/water/earth/boundaries) e o estilo usava singular. 4) estilo sem glyphs — symbol layers nao desenham rotulo; glyphs local + Noto Sans Regular.",
+    "verificacao": "pmtiles show/tile (magic PMTiles, z0=93230 bytes); Range 206 no pmtiles, libs e glifos; 0 refs a unpkg; node --check no JS inline; sem restart (estatico).",
+    "limitacao": "Sem navegador na maquina: nao houve prova visual. So glifos latinos (cobre pt-BR); outros alfabetos nao aparecem offline.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§7)",
+    "updated_at": "2026-11-12T13:20:00-03:00"
+  },
   "acervo_14_zims_e_mapa_offline_2026_11_12": {
     "pedido": "Dono (12/11): 'leia iniciar. continue' — retomar do checkpoint.",
     "estado_encontrado": "O §5 fechou 10:35; depois disso a arvore ganhou 4 arquivos sem registro/commit/deploy (o 'fazer agora' do plano executado ate a metade): 12 ZIMs quentes baixados 10:45-11:55 (25,3 GiB), 2 frios movidos para o HD USB (15,0 GiB), compose do Kiwix com os 14 caminhos e 1 GB de memoria, readiness somando quente+frio, protomaps.html com modo offline. Container od-kiwix ainda rodava o compose antigo (2 ZIMs).",

@@ -12,6 +12,44 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Mapa offline real: Brasil em PMTiles + libs e glifos locais (2026-11-12, sem bump)
+
+**Resumo:** o modo offline da página de mapas deixou de ser promessa. O recorte
+do Brasil foi extraído do build diário do Protomaps e as bibliotecas que
+renderizam o mapa agora são locais — sem internet, nada vinha do unpkg e o
+mapa não abriria.
+
+**Arquivo:** `site/maps/brasil.pmtiles`, **2,9 GB**, zoom 0–14, bbox
+(-74, -34, -32, 5.5), 2.811.716 entradas, MVT gzip, dados OSM de 12/11
+(`pmtiles show`). Extraído com `pmtiles extract` (dry-run mediu 3,1 GB; 3,2 GB
+trafegados em 1m38s, 95 requests). **Fora do git** (`site/maps/*.pmtiles` no
+`.gitignore`) — infra, não código.
+
+**Bibliotecas locais (`site/vendor/`):** `maplibre-gl.js` 894 KB,
+`maplibre-gl.css` 68 KB e `pmtiles.js` 20 KB (versões que a página já usava);
+glifos `Noto Sans Regular` latin 0–1279 (5 PBFs, 500 KB) para os rótulos.
+
+**Defeitos corrigidos no caminho:**
+1. A detecção usava `HEAD`, que o roteador responde **501** — o modo offline
+   nunca ativaria. Agora é `GET` com `Range: bytes=0-0` (206 quando existe).
+2. `pmtiles://` exige URL **absoluta**: `new URL('/site/...')` lança
+   "Failed to parse URL" (provado rodando o próprio `pmtiles.js` no Node).
+3. As camadas do basemap v4 são **plurais** (`roads`, `pois`, `places`); o
+   estilo usava singular e essas camadas não renderizavam (confirmado no tile
+   real: `earth`, `roads`, `water`, `landuse`, `places`, `boundaries`).
+4. O estilo não declarava `glyphs`; sem isso os `symbol` layers não desenham
+   rótulo. Fonte trocada para `Noto Sans Regular` (local).
+
+**Verificação:** `pmtiles show`/`tile` (magic `PMTiles`, tile z0 de 93 KB);
+HTTP `Range` 206 no pmtiles, nas libs e nos glifos; `pmtiles.js` real devolve
+tile pela URL absoluta e falha na relativa; JS inline com `node --check`; zero
+referências a `unpkg` na página. Sem restart (só arquivos estáticos).
+**Sem bump:** 1.44.0/2080.
+
+**Limitação:** apenas glifos latinos foram embutidos (cobre pt-BR); rótulos em
+outros alfabetos não aparecem offline. Não houve prova visual (não há navegador
+nesta máquina) — a validação foi por HTTP, tile real e sintaxe.
+
 ## Acervo offline ampliado + mapa com modo offline (2026-11-12, sem bump)
 
 **Resumo:** o "fazer agora" do plano de continuidade foi executado: o acervo

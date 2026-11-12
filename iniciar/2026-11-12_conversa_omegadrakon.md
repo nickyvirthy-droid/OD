@@ -389,3 +389,49 @@ SO) e **comunicação** (0 nós online além deste servidor) — as duas compras
 Fase 1 do plano, que dependem de decisão do dono.
 
 **Sem bump:** app segue 1.44.0/2080.
+
+## §7 — "prossiga": mapa offline de verdade (Brasil PMTiles) (12/11 ~13:20)
+
+**Pedido:** "prossiga" — o próximo item do backlog era o recorte `.pmtiles`.
+
+### 1. Medido antes de baixar
+
+- Fonte: build diário do Protomaps `20261112.pmtiles` (planeta, 139 GB).
+- `pmtiles extract --dry-run` com bbox do Brasil (-74,-34,-32,5.5) e
+  `--maxzoom=14`: **2.811.716 tiles, 3,2 GB de tráfego, 3,1 GB de arquivo**.
+- Disco: 66 GB livres. Extração real: **2,9 GB em 1m38s** (95 requests).
+
+### 2. O que foi criado
+
+| Item | Medida |
+|---|---|
+| `site/maps/brasil.pmtiles` | 2,9 GB, zoom 0–14, MVT gzip, OSM de 12/11; **gitignored** |
+| `site/vendor/maplibre-gl.js` + `.css` | 894 KB + 68 KB |
+| `site/vendor/pmtiles.js` | 20 KB |
+| `site/vendor/fonts/Noto Sans Regular/*.pbf` | latin 0–1279, 5 arquivos, 500 KB |
+
+### 3. Quatro defeitos encontrados e corrigidos
+
+1. **`HEAD` responde 501** no roteador: `temMapaLocal()` usava `HEAD` e o modo
+   offline **nunca** ativaria. Trocado por `GET` com `Range: bytes=0-0`.
+2. **URL relativa não funciona no protocolo:** rodei o `pmtiles.js` real no
+   Node — `pmtiles:///site/maps/...` lança "Failed to parse URL"; com URL
+   absoluta devolve tile (93 KB no z0). `MAPA_LOCAL` passou a usar
+   `location.origin`.
+3. **Camadas plurais:** o basemap v4 tem `earth`, `roads`, `water`, `landuse`,
+   `places`, `boundaries`; o estilo usava `road`/`poi`/`place` e nada
+   renderizava nessas camadas. Corrigido e confirmado no tile real.
+4. **Sem `glyphs`:** `symbol` layers não desenham rótulo sem fonte de glifos.
+   Adicionado `glyphs` local e `text-font: Noto Sans Regular` (antes pedia
+   Orbitron/Montserrat, que nem existem no acervo de glifos).
+
+### 4. Verificação
+
+`pmtiles show` (magic `PMTiles`, bounds, zoom 0–14) e `pmtiles tile`
+(z0 = 93.230 bytes); HTTP `Range` **206** no pmtiles, nas libs e nos glifos;
+página com **0 referências a unpkg**; JS inline `node --check` OK. Sem restart
+(só arquivos estáticos). **Sem bump.**
+
+**Limitação honesta:** não há navegador nesta máquina, então não houve prova
+visual do mapa renderizado; a prova é HTTP + tile real + sintaxe. Só glifos
+latinos foram embutidos (cobre pt-BR).

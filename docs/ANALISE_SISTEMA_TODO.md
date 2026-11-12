@@ -671,9 +671,12 @@ esperar o timeout.
       WikiHow, iFixit/Appropedia) — **FEITO 12/11: 14 ZIMs, 40,3 GB (25,3 GiB
       quentes no SSD + 15,0 GiB frios no HD USB); Kiwix recriado com os 14 caminhos e
       `readiness_report` somando os dois diretórios**
-- [ ] **Mapas offline:** extrair o recorte regional em `.pmtiles` (Brasil:
-      1–3 GB, medir antes) e colocar em `site/maps/brasil.pmtiles` — a página
-      já detecta o arquivo e troca sozinha para o modo offline
+- [x] **Mapas offline:** extrair o recorte regional em `.pmtiles` (Brasil:
+      1–3 GB, medir antes) e colocar em `site/maps/brasil.pmtiles` — **FEITO
+      12/11: 2,9 GB, zoom 0–14, bbox do Brasil; libs e glifos latinos em
+      `site/vendor/`, detecção por Range (HEAD responde 501). Fora do git.**
+- [ ] **Mapas offline (próximo):** incluir rótulos não-latinos (só latin 0–1279
+      foi embutido) e considerar zoom 15 em áreas urbanas se o uso pedir
 - [ ] **Backup fora da máquina:** SSD/pendrive criptografado com snapshot do
       Postgres + `data/` + cofre exportado; testar a restauração
 - [ ] **Modo colapso declarado:** trocar para a cadeia local e avisar no chat/UI
