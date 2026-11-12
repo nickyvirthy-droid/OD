@@ -632,6 +632,17 @@ esperar o timeout.
 - [ ] Rádio: `radio_status` responde "Saída: desconhecido" — descobrir o sink real
       do `pactl` (ou omitir a linha quando não houver sink identificado)
 
+> Turno de 12/11 10:00 (intenções de disco/memória/cpu): sugestões não
+> escolhidas → "auditar as demais actions contra o gate de escopo" e "corpus de
+> frases reais do dono na suíte de intenções" entraram como checkbox abaixo;
+> "sink do radio_status" já estava registrado, não duplicado.
+
+- [ ] Segurança: auditar as demais actions de leitura contra o gate de escopo —
+      `disk_usage` estava sendo negada em silêncio (e caindo no LLM); pode haver
+      outras com o mesmo sintoma
+- [ ] Intenções: montar um corpus com frases reais do dono (do `txt.txt` e das
+      transcrições) como teste de detecção — os buracos só apareciam em uso
+
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
 - [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder reranker)
