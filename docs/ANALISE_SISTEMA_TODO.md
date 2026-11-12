@@ -647,6 +647,16 @@ esperar o timeout.
 - [ ] Intenções: montar um corpus com frases reais do dono (do `txt.txt` e das
       transcrições) como teste de detecção — os buracos só apareciam em uso
 
+> Turno de 12/11 10:22 (auditoria de escopo): sugestões não escolhidas →
+> "decidir a política de /tmp e fechar o bypass do escopo" virou checkbox
+> abaixo; "sink do radio_status" e "cota/disjuntores no /health" já estavam
+> registrados.
+
+- [ ] Segurança: decidir a política de `/tmp` e fechar o bypass — se `/tmp`
+      pode ser lido, ele entra em `allowed_roots` e `caminho`/`origem` entram nas
+      chaves de escopo; senão o STT e o envio para a caixa só funcionam dentro
+      do projeto
+
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
 - [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder reranker)
