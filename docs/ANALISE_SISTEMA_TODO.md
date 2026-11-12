@@ -668,8 +668,8 @@ esperar o timeout.
 - [ ] **Comunicação:** segundo nó na LAN (ntfy/Matrix local + PWA offline) ou
       2 rádios LoRa Meshtastic — hoje o Telegram é o único canal externo
 - [x] **Acervo:** baixar ~25 GB de ZIMs (Wikipédia PT completa, WikiMed,
-      WikiHow, iFixit/Appropedia) — **FEITO 12/11: 14 ZIMs, ~42,8 GB (12 quentes
-      no SSD + 2 frios no HD USB); Kiwix recriado com os 14 caminhos e
+      WikiHow, iFixit/Appropedia) — **FEITO 12/11: 14 ZIMs, 40,3 GB (25,3 GiB
+      quentes no SSD + 15,0 GiB frios no HD USB); Kiwix recriado com os 14 caminhos e
       `readiness_report` somando os dois diretórios**
 - [ ] **Mapas offline:** extrair o recorte regional em `.pmtiles` (Brasil:
       1–3 GB, medir antes) e colocar em `site/maps/brasil.pmtiles` — a página

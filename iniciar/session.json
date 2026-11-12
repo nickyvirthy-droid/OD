@@ -1,4 +1,23 @@
 {
+  "acervo_14_zims_e_mapa_offline_2026_11_12": {
+    "pedido": "Dono (12/11): 'leia iniciar. continue' — retomar do checkpoint.",
+    "estado_encontrado": "O §5 fechou 10:35; depois disso a arvore ganhou 4 arquivos sem registro/commit/deploy (o 'fazer agora' do plano executado ate a metade): 12 ZIMs quentes baixados 10:45-11:55 (25,3 GiB), 2 frios movidos para o HD USB (15,0 GiB), compose do Kiwix com os 14 caminhos e 1 GB de memoria, readiness somando quente+frio, protomaps.html com modo offline. Container od-kiwix ainda rodava o compose antigo (2 ZIMs).",
+    "bug_corrigido": "site/protomaps.html: map.on('error') estava FORA da IIFE async que cria o map (const de escopo de funcao) — ReferenceError no load e o fallback visual nunca rodava. Movido para dentro; JS inline validado com node --check.",
+    "feito": "Kiwix recriado com docker compose up -d kiwix: running, RestartCount=0, Memory=1 GB, /catalog/v2/entries com os 14 ZIMs, HTTP 200 na 8090. CHANGELOG com a entrada do acervo/mapa; TODO: acervo marcado [x] e 'mapas offline' virou checkbox proprio (falta o .pmtiles).",
+    "testes": "Gate completo 4539 passed / 17 skipped / 0 falha (180,02 s). docker compose config -q limpo; node --check no JS inline (2 blocos).",
+    "commits": [
+      "93c162e feat(acervo): 14 ZIMs no Kiwix, frios no HD USB e readiness somando os dois diretorios",
+      "8696b94 fix(mapa): registra o protocolo pmtiles, cai no raster sem arquivo local e corrige handler de erro",
+      "6e55b2d docs(continuidade): acervo de 14 ZIMs publicado e mapa offline pronto para o .pmtiles"
+    ],
+    "deploy": "systemctl --user restart od-core (regra 7.3, HEAD publicado em 6e55b2d). MainPID 3996872, NRestarts=0, active desde 12:57:43; /health 27/27 (26/27 no primeiro check de aquecimento, 27/27 8 s depois); journal -p err 0 entradas.",
+    "prova_viva": "'qual a prontidao do sistema' -> action_intent fastpath:readiness_report 49,68 ms. 7/9 (77,8%): conhecimento passou a APROVAR (14 ZIMs, 40,3 GB, quente+frio). Pendem apenas energia (sem UPS visivel ao SO) e comunicacao (0 nos online alem do servidor). /site/protomaps.html HTTP 200; /site/maps/brasil.pmtiles 404 (modo online, esperado sem o arquivo).",
+    "decisoes": "1) Acervo frio no HD USB e nao descartado: entra na soma do readiness porque sobrevivencia conta o total, nao o meio. 2) Kiwix com 1 GB: 14 indices mmap estouravam o cgroup de 512 MB. 3) Mapa com deteccao por HEAD do arquivo local, caindo no raster OSM, em vez de fixar a URL remota (que deixava o mapa vazio quando offline).",
+    "restante": "Recorte regional em .pmtiles (Brasil, 1-3 GB, medir antes) para o modo offline de verdade; energia (nobreak com USB) e comunicacao (segundo no/LoRa) seguem dependendo de decisao/compra do dono.",
+    "sem_bump": "app segue 1.44.0/2080 (infra + action de servidor).",
+    "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§6)",
+    "updated_at": "2026-11-12T13:02:00-03:00"
+  },
   "prontidao_medida_e_plano_de_continuidade_2026_11_12": {
     "pedido": "Dono via txt.txt (12/11): varios paises pedindo kits de 72h, 'algo vai acontecer'; usar o maximo da internet enquanto existe, preparar o OD para o colapso, buscar alternativas para continuar funcionando e se comunicando; responder o que fazer, o que comprar e o que criar.",
     "medido": "i5-6500, 7,7 GB RAM (4,4 GB disp.), disco 232 GB com 76 GB livres; /sys/class/power_supply VAZIO (sem UPS); Kiwix com 2 ZIMs = 15 GB; IA local qwen2.5-coder-3b em :8081; 11 containers locais; backups/ com ultimo arquivo de 7h mas tudo na mesma maquina; Tailscale com 0 nos online alem deste; Telegram e o unico canal externo.",
@@ -30,7 +49,11 @@
     "fix_escopo": "core/security/scope.py: SCOPE_EXEMPT_ACTIONS = {disk_usage} — path de metrica e ponto de montagem, nao acesso a arquivo. A excecao vale so para metrica; escrita e paths de filesystem seguem negados (teste).",
     "testes": "Dois gates completos: 4515 e 4517 passed / 17 skipped / 0 falha. +10 de deteccao (disco/memoria/cpu, temperatura preservada, compra de HD) e +2 de escopo.",
     "prova_viva": "MainPID 3810200, NRestarts=0, /health 27/27, journal 0 erro. 'qual o uso de disco' -> action_intent fastpath:disk_usage 31,8 ms '62,7% usado · 75,7 GB livres de 231,2 GB'; 'quanto de espaco livre no disco' -> mesmo dado 20 ms; 'quanto de memoria livre' -> memory_usage 6,2 ms; 'qual o uso de cpu' -> cpu_info 7,2 ms; 'qual a temperatura da cpu' -> cpu_temp 7,6 ms (nao regrediu); 'quanto custa um hd de 4tb' -> conversa.",
-    "commits": ["742e054 fix(intents): cobre qual o uso de disco / quanto de memoria livre / cpu", "c863780 fix(disco): intencao nao manda path", "5dde610 fix(segurança): metrica de disco nao passa pelo escopo de arquivo"],
+    "commits": [
+      "742e054 fix(intents): cobre qual o uso de disco / quanto de memoria livre / cpu",
+      "c863780 fix(disco): intencao nao manda path",
+      "5dde610 fix(segurança): metrica de disco nao passa pelo escopo de arquivo"
+    ],
     "sem_bump": "app segue 1.44.0/2080.",
     "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§3)",
     "updated_at": "2026-11-12T09:59:00-03:00"

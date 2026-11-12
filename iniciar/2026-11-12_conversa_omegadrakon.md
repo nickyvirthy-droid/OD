@@ -326,3 +326,66 @@ sobrevivência física (água, comida, remédios, documentos) não é decisão d
 software — o plano só aponta onde ela encaixa (kit 72 h no app).
 
 **Sem bump:** app segue **1.44.0/2080** (ação de servidor).
+
+## §6 — "continue": acervo de 14 ZIMs, mapa com modo offline e higiene (12/11 ~13:05)
+
+**Pedido do dono:** "leia iniciar. continue" — retomar do checkpoint.
+
+### 1. O que estava interrompido (não registrado)
+
+O §5 fechou às 10:35 com o plano de continuidade. Depois disso a árvore ganhou
+4 arquivos modificados sem registro, sem commit e sem deploy — o "fazer agora"
+do próprio plano executado até a metade:
+
+| Arquivo | O que havia |
+|---|---|
+| `docker/tools-compose.yaml` | Kiwix com 12 ZIMs quentes + bind do frio no HD USB, memória 512 MB→1 GB |
+| `tools/actions/actions.py` | `readiness_report` somando acervo quente (`zim_dir`) + frio (`zim_dir_frio`) |
+| `tests/test_readiness.py` | 4 chamadas ajustadas para `zim_dir_frio` |
+| `site/protomaps.html` | protocolo `pmtiles://`, mapa local com reserva raster OSM, marcador da casa |
+
+Medido: 12 ZIMs quentes no SSD (25,3 GiB, baixados 10:45–11:55) e 2 frios no HD
+USB (15,0 GiB) — 40,3 GB no total, disco com 51 GB livres. O container `od-kiwix` ainda rodava com
+o compose antigo (2 ZIMs) — não servia o acervo novo.
+
+### 2. O que foi feito nesta retomada
+
+1. **Bug de JS corrigido** em `site/protomaps.html`: o handler `map.on('error')`
+   estava **fora** da IIFE assíncrona que cria o `map` (`const` no escopo da
+   função) — `ReferenceError` no load e o fallback visual nunca rodava. Handler
+   movido para dentro, depois da criação do mapa. JS inline validado com
+   `node --check` (2 blocos).
+2. **Kiwix recriado** com o compose novo: `running`, `RestartCount=0`,
+   `Memory=1 GB`; `/catalog/v2/entries` lista os **14 ZIMs**; HTTP 200 na 8090.
+3. **Gate completo:** **4539 passed / 17 skipped / 0 falha** (180,02 s).
+   `docker compose config -q` limpo.
+4. Higiene: commits por assunto, push, restart verde com prova viva (abaixo),
+   CHANGELOG, TODO (acervo marcado como feito; mapas offline segue
+   aberto esperando o `.pmtiles`) e os três arquivos de sessão.
+
+### 3. Prova viva (restart 12:57)
+
+`od-core` active, **MainPID 3996872**, `NRestarts=0`, `/health` **27/27**
+(o primeiro check logo após o restart marcou 26/27 durante o aquecimento;
+8 s depois, 27/27), `journalctl -p err` **0 entradas**. `/site/protomaps.html`
+HTTP 200 e `/site/maps/brasil.pmtiles` 404 (por isso o modo online, como
+esperado sem o arquivo).
+
+```
+qual a prontidao do sistema -> action_intent fastpath:readiness_report 49,68 ms
+🛡️ Prontidão: 7/9 (77.8%)
+⚠️ energia: sem UPS/bateria no SO — apagão derruba o servidor sem shutdown
+✅ conhecimento: 14 ZIM(s), 40.3 GB (quente: …/zim; frio: …/dados/od-zim)
+✅ ia_local, ✅ internet, ✅ backup, ✅ nuvem, ✅ disco (65.4 GB livres), ✅ memória
+⚠️ comunicacao: 0 nó(s) online na malha privada além do servidor
+Pendente: energia, comunicacao
+```
+
+### 4. Resultado
+
+A prontidão do conhecimento deixou de reprovar: o acervo passou de 15 GB para
+40,3 GB (piso de 30 GB do check). Restam **energia** (sem nobreak visível ao
+SO) e **comunicação** (0 nós online além deste servidor) — as duas compras da
+Fase 1 do plano, que dependem de decisão do dono.
+
+**Sem bump:** app segue 1.44.0/2080.

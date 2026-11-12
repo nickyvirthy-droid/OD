@@ -15,7 +15,7 @@
 ## Acervo offline ampliado + mapa com modo offline (2026-11-12, sem bump)
 
 **Resumo:** o "fazer agora" do plano de continuidade foi executado: o acervo
-saiu de 2 ZIMs (15 GB) para **14 ZIMs (~42,8 GB)**, com os dois pesados não
+saiu de 2 ZIMs (15 GB) para **14 ZIMs (40,3 GB, medido pela action)**, com os dois pesados não
 prioritários no HD USB (ordem do dono: *"use os HDs USB para armazenamento
 daquilo que não for prioridade"*), e a página de mapas deixou de depender de
 tiles remotos para abrir.
