@@ -608,6 +608,18 @@ esperar o timeout.
 > pesquisa web" e "formatador de radio_play/radio_stop" — todas já estão como
 > checkbox acima; nenhuma perdida.
 
+> Turno de 11/11 15:35 (registro da regra 21): o texto exato das 3 sugestões
+> não foi persistido (são cartões efêmeros) — o que ficou registrado é o que o
+> próprio turno declarou em aberto, virando os checkboxes abaixo.
+
+- [ ] Chat: decidir se as **20 requisições/dia** do Gemini devem ser reservadas
+      para o que exige mais qualidade (rota/custo), em vez de serem gastas na
+      primeira mensagem do dia e abrirem o disjuntor
+- [ ] Chat: expor o **status dos disjuntores** (aberto/fechado + reativação) no
+      `/health` — hoje a decisão de quando o Gemini volta só existe no journal
+- [ ] Chat: `llm_cache` ainda pode servir resposta inventada de **conversa
+      comum** (o guarda atual só bloqueia comando de action)
+
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
 - [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder reranker)
