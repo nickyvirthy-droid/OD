@@ -678,6 +678,10 @@ esperar o timeout.
 - [ ] **Espelho de pacotes:** `pip download` + `docker save` das 11 imagens
 - [ ] **Fila de download resumable** de acervo (padrão NOMAD, progresso por SSE)
 
+> Turno de 12/11 10:35 (plano de continuidade): as sugestões não escolhidas
+> (baixar o acervo, modo colapso e medir o 7B) já estão como checkbox acima —
+> nenhuma duplicada.
+
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
 - [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder reranker)
