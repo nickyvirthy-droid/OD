@@ -1492,6 +1492,54 @@ def _formata_saude(action: str, data: dict[str, Any]) -> str:
     return "\n".join(["🩺 Referência indisponível por enquanto.", SAUDE_AVISO])
 
 
+def _formata_radio(action: str, data: dict[str, Any]) -> Optional[str]:
+    """Resposta da rádio a partir do retorno real do player (sem inventar)."""
+    if data.get("ok") is False:
+        motivo = data.get("error") or "falha desconhecida"
+        return f"🔇 Não consegui acionar a rádio: {motivo}."
+    status = str(data.get("status") or "")
+    if action == "radio_play":
+        vol = data.get("volume")
+        linha = "📻 Rádio tocando"
+        if vol is not None:
+            linha += f" (volume {vol}%)"
+        linha += "."
+        dica = str(data.get("hint") or "")
+        if dica and "duplicada" in dica:
+            linha += f"\n  • {dica}."
+        return linha
+    if action == "radio_stop":
+        if status == "parado":
+            dica = str(data.get("hint") or "rádio parada")
+            if dica.startswith("rádio parada"):
+                dica = dica[len("rádio parada"):].lstrip(" —,")
+            linha = "📻 Rádio parada"
+            if dica:
+                linha += f" — {dica}"
+            return linha + "."
+        return "📻 Rádio parada."
+    if action == "radio_volume":
+        vol = data.get("volume")
+        if vol is None:
+            return None
+        return f"🔊 Volume da rádio: {vol}%."
+    if action == "radio_status":
+        if status == "tocando":
+            linha = "📻 Rádio tocando"
+            if data.get("pid"):
+                linha += f" (player {data.get('pid')})"
+            if data.get("volume_sink"):
+                linha += f"\n  • Saída: {data.get('volume_sink')}"
+            dica = str(data.get("hint") or "")
+            if dica:
+                linha += f"\n  • {dica}"
+            return linha
+        if status == "parado":
+            return "📻 Rádio parada."
+        return None
+    return None
+
+
 def format_intent_result(action: str, data: Any) -> Optional[str]:
     """Converte o retorno da action em uma resposta PT-BR curta.
 
@@ -1502,6 +1550,11 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
     if not isinstance(data, dict):
         return None
     ok = data.get("ok", True)
+    # RÁDIO: a resposta é o que o player REALMENTE fez. Sem isto a action
+    # rodava e o texto vinha do cache/LLM — o dono ouvia "ligada com
+    # sucesso" sem nenhum áudio (11/11).
+    if action.startswith("radio_"):
+        return _formata_radio(action, data)
     if (
         ok is not True
         and action != "ha_device_control"

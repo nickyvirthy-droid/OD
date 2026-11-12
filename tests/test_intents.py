@@ -795,3 +795,74 @@ class TestFastPathOrchestrator:
             actions.configure_google_client(None)
             actions.drop_pending_calendar_when(uid)
             actions.drop_pending_google_write(uid)
+
+class TestFormataRadio:
+    """Resposta da rádio = o que o player fez (11/11: sumia e vinha do cache)."""
+
+    def test_play_fala_volume_real(self) -> None:
+        from core.intents import format_intent_result
+
+        txt = format_intent_result(
+            "radio_play", {"ok": True, "status": "tocando", "volume": 70}
+        )
+        assert txt is not None
+        assert "Rádio tocando" in txt and "70%" in txt
+
+    def test_play_que_reaproveitou_player_avisa(self) -> None:
+        from core.intents import format_intent_result
+
+        txt = format_intent_result(
+            "radio_play",
+            {"ok": True, "status": "tocando", "volume": 70,
+             "hint": "já estava tocando (1 instância(s) duplicada(s) encerrada(s))"},
+        )
+        assert txt is not None and "duplicada" in txt
+
+    def test_play_com_falha_e_honesto(self) -> None:
+        from core.intents import format_intent_result
+
+        txt = format_intent_result(
+            "radio_play", {"ok": False, "error": "ffplay não encontrado"}
+        )
+        assert txt is not None
+        assert "Não consegui" in txt and "ffplay" in txt
+
+    def test_stop_diz_quantas_instancias(self) -> None:
+        from core.intents import format_intent_result
+
+        txt = format_intent_result(
+            "radio_stop",
+            {"ok": True, "status": "parado",
+             "hint": "rádio parada — 2 instâncias encerradas, energia da caixa desligada"},
+        )
+        assert txt is not None
+        assert "Rádio parada" in txt
+        assert "2 instâncias encerradas" in txt
+        assert txt.count("rádio parada") == 0 or txt.startswith("📻 Rádio parada")
+        assert "rádio parada — " not in txt
+
+    def test_stop_ja_parada(self) -> None:
+        from core.intents import format_intent_result
+
+        txt = format_intent_result(
+            "radio_stop", {"ok": True, "status": "parado", "hint": "já estava parado"}
+        )
+        assert txt == "📻 Rádio parada — já estava parado."
+
+    def test_volume(self) -> None:
+        from core.intents import format_intent_result
+
+        assert format_intent_result(
+            "radio_volume", {"ok": True, "volume": 45}
+        ) == "🔊 Volume da rádio: 45%."
+
+    def test_status_tocando_e_parado(self) -> None:
+        from core.intents import format_intent_result
+
+        tocando = format_intent_result(
+            "radio_status", {"ok": True, "status": "tocando", "pid": 1234,
+                             "volume_sink": "Volume: 50%"}
+        )
+        assert tocando is not None and "1234" in tocando
+        parado = format_intent_result("radio_status", {"ok": True, "status": "parado"})
+        assert parado == "📻 Rádio parada."

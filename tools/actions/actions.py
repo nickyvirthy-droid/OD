@@ -1100,6 +1100,10 @@ def ha_summary() -> dict[str, Any]:
 
 _RADIO_PROCESS: Optional[subprocess.Popen] = None
 _RADIO_LOCK = threading.Lock()
+#: Marca nos filhos ffplay: permite achar players órfãos de um boot anterior
+#: (o `start_new_session=True` os desliga do od-core, mas eles continuam
+#: tocando — e o singleton em memória some no restart).
+_RADIO_CHILD_ENV = "OD_RADIO_CHILD=1"
 _RADIO_STREAM_URL = os.environ.get(
     "OD_RADIO_STREAM_URL", "http://127.0.0.1:8600/radio.mp3"
 )
@@ -1108,6 +1112,85 @@ _RADIO_SINK = os.environ.get("OD_RADIO_SINK", "@DEFAULT_SINK@")
 # volume clamp 0–150% (pactl permite >100%)
 def _radio_volume_clamp(v: int) -> int:
     return max(0, min(150, v))
+
+
+def _radio_ffplay_pids(proc_root: str = "/proc") -> list[int]:
+    """PIDs de ffplay da rádio vivos no SO, de qualquer instância do od-core.
+
+    O singleton `_RADIO_PROCESS` só conhece o filho DESTE processo: depois de
+    um restart ele volta limpo enquanto o ffplay antigo segue tocando — daí
+    duas rádios ao mesmo tempo. Aqui a fonte da verdade é o sistema: ffplay
+    com a marca `OD_RADIO_CHILD=1` (players nossos) ou tocando um dos streams
+    de rádio conhecidos (players antigos, sem marca).
+    """
+    alvos = {u for u in (_RADIO_STREAM_URL, os.environ.get("OD_RADIO_STREAM_URL", "")) if u}
+    pids: list[int] = []
+    try:
+        entradas = os.listdir(proc_root)
+    except OSError:
+        return pids
+    for entrada in entradas:
+        if not entrada.isdigit():
+            continue
+        pid = int(entrada)
+        if pid == os.getpid():
+            continue
+        try:
+            with open(f"{proc_root}/{pid}/cmdline", "rb") as fh:
+                partes = [p.decode("utf-8", "replace") for p in fh.read().split(b"\0") if p]
+        except OSError:
+            continue
+        if not partes or os.path.basename(partes[0]) != "ffplay":
+            continue
+        marcado = False
+        try:
+            with open(f"{proc_root}/{pid}/environ", "rb") as fh:
+                marcado = _RADIO_CHILD_ENV.encode() in fh.read()
+        except OSError:
+            pass
+        if marcado or any(a in partes for a in alvos):
+            pids.append(pid)
+    return sorted(pids)
+
+
+def _radio_pid_vivo(pid: int) -> bool:
+    """Vivo de verdade: zumbi conta como morto (já não toca nada).
+
+    `os.kill(pid, 0)` continua respondendo enquanto o pai não faz o `wait`
+    do filho — sem o teste de estado, um player encerrado aparecia como
+    "resistiram" no hint do radio_stop (visto ao vivo em 11/11).
+    """
+    try:
+        with open(f"/proc/{pid}/stat", "rb") as fh:
+            campos = fh.read().split(b")")
+        if len(campos) > 1 and campos[1].split()[0:1] == [b"Z"]:
+            return False
+    except OSError:
+        pass
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def _radio_terminate(pid: int) -> bool:
+    """Termina o ffplay e o grupo dele (o player roda em sessão própria)."""
+    for sinal in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(os.getpgid(pid), sinal)
+        except Exception:
+            try:
+                os.kill(pid, sinal)
+            except Exception:
+                return not _radio_pid_vivo(pid)
+        for _ in range(20):
+            if not _radio_pid_vivo(pid):
+                return True
+            time.sleep(0.05)
+    return not _radio_pid_vivo(pid)
 
 
 def radio_play(
@@ -1136,8 +1219,31 @@ def radio_play(
     vol = _radio_volume_clamp(volume)
 
     with _RADIO_LOCK:
-        if _RADIO_PROCESS is not None and _RADIO_PROCESS.poll() is None:
-            return {"ok": False, "error": "ja_tocando", "hint": "radio_stop() antes de trocar de stream"}
+        # Já existe player no ar? Adota em vez de abrir um segundo áudio —
+        # cobre o singleton vivo, o órfão de um restart e o duplicado por engano.
+        vivos = _radio_ffplay_pids()
+        if vivos:
+            meu = _RADIO_PROCESS.pid if _RADIO_PROCESS and _RADIO_PROCESS.poll() is None else None
+            if meu not in vivos:
+                _RADIO_PROCESS = None
+                meu = None
+            principal = meu if meu else vivos[0]
+            duplicatas = [p for p in vivos if p != principal]
+            for pid in duplicatas:
+                _radio_terminate(pid)
+            hint = "já estava tocando"
+            if duplicatas:
+                hint += f" ({len(duplicatas)} instância(s) duplicada(s) encerrada(s))"
+            log.warn("radio_play: player já no ar, sem abrir segundo", pid=principal, duplicatas=len(duplicatas))
+            return {
+                "ok": True,
+                "status": "tocando",
+                "stream_url": url,
+                "volume": vol,
+                "sink": sink,
+                "pid": principal,
+                "hint": hint,
+            }
 
         # Liga a energia da caixa (se auto_power e entity configurada)
         if auto_power and power_entity:
@@ -1183,6 +1289,7 @@ def radio_play(
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,  # grupo de processo próprio
+                env={**os.environ, "OD_RADIO_CHILD": "1"},
             )
         except FileNotFoundError:
             return _unavailable("radio_play", "ffplay não encontrado (instale ffmpeg)")
@@ -1203,7 +1310,12 @@ def radio_stop(
     power_entity: str = "switch.note_servidor_socket_1",
     auto_power: bool = True,
 ) -> dict[str, Any]:
-    """Para a rádio (mata o ffplay) e opcionalmente desliga a energia da caixa."""
+    """Para a rádio (mata TODO ffplay da rádio) e opcionalmente desliga a caixa.
+
+    A varredura é no SO, não só no `_RADIO_PROCESS`: players órfãos de um
+    restart (ou abertos por outra instância) também são encerrados — senão
+    "desligar a rádio" deixa o áudio tocando.
+    """
     global _RADIO_PROCESS
 
     # Desliga a energia da caixa (se auto_power) - faz isso ANTES de verificar o processo
@@ -1233,26 +1345,26 @@ def radio_stop(
             power_turned_off = True
 
     with _RADIO_LOCK:
-        if _RADIO_PROCESS is None or _RADIO_PROCESS.poll() is not None:
-            _RADIO_PROCESS = None
-            msg = "já estava parado"
-            if power_turned_off:
-                msg += ", energia da caixa desligada"
-            return {"ok": True, "status": "parado", "hint": msg}
-
-        try:
-            # Termina grupo de processo (ffplay + filhos)
-            os.killpg(os.getpgid(_RADIO_PROCESS.pid), signal.SIGTERM)
-            _RADIO_PROCESS.wait(timeout=3)
-        except Exception:
+        pids = _radio_ffplay_pids()
+        parados = [pid for pid in pids if _radio_terminate(pid)]
+        if _RADIO_PROCESS is not None:
             try:
-                os.killpg(os.getpgid(_RADIO_PROCESS.pid), signal.SIGKILL)
+                _RADIO_PROCESS.wait(timeout=1)
             except Exception:
                 pass
-        finally:
-            _RADIO_PROCESS = None
+        _RADIO_PROCESS = None
 
-    return {"ok": True, "status": "parado", "hint": "rádio parada" + (", energia da caixa desligada" if power_turned_off else "")}
+    if not pids:
+        msg = "já estava parado"
+    else:
+        msg = "rádio parada"
+        if len(parados) != len(pids):
+            msg += f" ({len(pids) - len(parados)} player(s) resistiram)"
+        if len(pids) > 1:
+            msg += f" — {len(pids)} instâncias encerradas"
+    if power_turned_off:
+        msg += ", energia da caixa desligada"
+    return {"ok": True, "status": "parado", "hint": msg, "pids_encerrados": parados}
 
 
 def radio_volume(volume: int | str, sink: str = "") -> dict[str, Any]:
@@ -1293,7 +1405,8 @@ def radio_volume(volume: int | str, sink: str = "") -> dict[str, Any]:
         return _unavailable("radio_volume", f"pactl falhou: {err}")
 
     with _RADIO_LOCK:
-        pid = _RADIO_PROCESS.pid if _RADIO_PROCESS and _RADIO_PROCESS.poll() is None else None
+        vivos = _radio_ffplay_pids()
+        pid = vivos[0] if vivos else None
 
     return {
         "ok": True,
@@ -1308,22 +1421,28 @@ def radio_status() -> dict[str, Any]:
     global _RADIO_PROCESS
 
     with _RADIO_LOCK:
-        if _RADIO_PROCESS is None or _RADIO_PROCESS.poll() is not None:
+        vivos = _radio_ffplay_pids()
+        if not vivos:
             _RADIO_PROCESS = None
             return {"ok": True, "status": "parado", "stream_url": _RADIO_STREAM_URL}
 
-        pid = _RADIO_PROCESS.pid
+        pid = vivos[0]
         # Volume atual do sink
         rc, out, err = _run(["pactl", "get-sink-volume", _RADIO_SINK])
         vol_atual = out.strip() if rc == 0 else "desconhecido"
 
-    return {
+    resultado = {
         "ok": True,
         "status": "tocando",
         "stream_url": _RADIO_STREAM_URL,
         "pid": pid,
         "volume_sink": vol_atual,
     }
+    if len(vivos) > 1:
+        # Duplicata não é silenciada no status: o chat pede para parar/limpar.
+        resultado["instancias"] = vivos
+        resultado["hint"] = f"{len(vivos)} players da rádio no ar — fale 'desliga a rádio' para encerrar todos"
+    return resultado
 
 
 # ---------------------------------------------------------------------------
