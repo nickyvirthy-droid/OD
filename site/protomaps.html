@@ -10,7 +10,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/site/od.css">
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.4.0/dist/maplibre-gl.css">
+<!-- Bibliotecas locais (site/vendor/): o modo offline não pode depender de
+     CDN — sem internet o unpkg não responde e o mapa não abriria. -->
+<link rel="stylesheet" href="/site/vendor/maplibre-gl.css">
 </head>
 <body>
 
@@ -119,8 +121,8 @@
 <button class="to-top" id="toTop" aria-label="Voltar ao topo" title="Voltar ao topo">&#8593;</button>
 
 <script src="/site/od-nav.js"></script>
-<script src="https://unpkg.com/maplibre-gl@5.4.0/dist/maplibre-gl.js"></script>
-<script src="https://unpkg.com/pmtiles@4.3.0/dist/pmtiles.js"></script>
+<script src="/site/vendor/maplibre-gl.js"></script>
+<script src="/site/vendor/pmtiles.js"></script>
 <script>
   // PMTiles exige o protocolo registrado no MapLibre — sem isto o esquema
   // `pmtiles://` é desconhecido e o mapa fica VAZIO (bug de 12/11).
@@ -129,13 +131,19 @@
 
   // Mapa offline: coloque o arquivo aqui (ex.: brasil.pmtiles) que a página
   // passa a usar sozinha. Sem o arquivo, cai no modo online (tiles OSM).
-  const MAPA_LOCAL = "/site/maps/brasil.pmtiles";
+  // URL ABSOLUTA: o protocolo PMTiles faz `new URL(...)` no caminho, e um
+  // caminho relativo ("pmtiles:///site/...") não tem base para resolver.
+  const MAPA_LOCAL = new URL("/site/maps/brasil.pmtiles", location.origin).href;
   const CASA = [-51.8505, -21.8713]; // localização real da casa (HA)
 </script>
 <script>
   // Estilo Omega Drakon para MapLibre (baseado em OSM Bright, adaptado)
   const odStyle = {
     version: 8,
+    // Basemap Protomaps v4 (planetiler 4.15): as camadas são PLURAIS —
+    // "road"/"poi"/"place" no singular não existem no arquivo.
+    // Glifos locais (latinos) para os rótulos funcionarem sem internet.
+    glyphs: "/site/vendor/fonts/{fontstack}/{range}.pbf",
     name: "Omega Drakon ProtoMaps",
     metadata: {
       "maputnik:renderer": "mbgljs"
@@ -170,7 +178,7 @@
         id: "road",
         type: "line",
         source: "protomaps",
-        "source-layer": "road",
+        "source-layer": "roads",
         paint: {
           "line-color": "#2a2a2a",
           "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.5, 10, 1.5, 14, 3]
@@ -180,10 +188,10 @@
         id: "road-label",
         type: "symbol",
         source: "protomaps",
-        "source-layer": "road",
+        "source-layer": "roads",
         layout: {
           "text-field": ["get", "name"],
-          "text-font": ["Montserrat Regular"],
+          "text-font": ["Noto Sans Regular"],
           "text-size": 10,
           "symbol-placement": "line"
         },
@@ -193,7 +201,7 @@
         id: "poi",
         type: "circle",
         source: "protomaps",
-        "source-layer": "poi",
+        "source-layer": "pois",
         paint: {
           "circle-radius": 4,
           "circle-color": "#0088FF",
@@ -204,10 +212,10 @@
         id: "place-label",
         type: "symbol",
         source: "protomaps",
-        "source-layer": "place",
+        "source-layer": "places",
         layout: {
           "text-field": ["get", "name"],
-          "text-font": ["Orbitron Medium"],
+          "text-font": ["Noto Sans Regular"],
           "text-size": ["interpolate", ["linear"], ["zoom"], 5, 10, 10, 14]
         },
         paint: { "text-color": "#0088FF", "text-halo-color": "#0A0A0A", "text-halo-width": 2 }
@@ -234,7 +242,12 @@
 
   async function temMapaLocal() {
     try {
-      const r = await fetch(MAPA_LOCAL, { method: "HEAD", cache: "no-store" });
+      // O roteador do OD responde 501 a HEAD; um GET de 1 byte com Range
+      // responde 206 quando o arquivo existe e 404 quando não existe.
+      const r = await fetch(MAPA_LOCAL, {
+        headers: { Range: "bytes=0-0" },
+        cache: "no-store"
+      });
       return r.ok;
     } catch (e) {
       return false;

@@ -200,3 +200,6 @@ backups/
 # entra na árvore (achado da 1ª execução ao vivo do vigia, 26/10 11:23).
 .od_backups/
 .od_sandbox/
+
+# Mapas offline (recortes .pmtiles, 1-3 GB cada): ficam fora do git.
+site/maps/*.pmtiles
