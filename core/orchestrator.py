@@ -2105,6 +2105,17 @@ class Orchestrator:
         # Etapa 4 — Cache LLM (SHA-256, prompt normalizado + perfil).
         # `persist=False` (conversa anônima) NÃO usa o cache: ele vive no
         # banco e serviria resposta de outra conversa.
+        #
+        # COMANDO de action NUNCA vem do cache: a resposta tem que ser o que
+        # a ferramenta fez AGORA. Em 11/11 o grafo consultava o cache antes
+        # dos intents e "liga a radio" devolveu uma frase inventada gravada
+        # antes ('Radio ligada com sucesso') sem abrir player nenhum — é a
+        # origem dos "devaneios" que o dono relatou.
+        from core.intents import detect_action_intent
+
+        if detect_action_intent(text) is not None:
+            return {}
+
         cached = None
         cache_route = ROUTE_CACHE
         if self.cache is not None and persist:
@@ -3739,6 +3750,10 @@ class Orchestrator:
             profile=result.profile or "-",
             llm=result.llm_used or "-",
             latency_ms=round(result.latency_ms, 3),
+            # Tamanho do prompt que foi ao provider: é o número que decide se
+            # a cota (429) é de REQUISIÇÃO ou de TOKENS — sem ele a discussão
+            # de "enxugar o prompt" era opinião, não medida.
+            prompt_chars=len(result.prompt or ""),
         )
         return result
 

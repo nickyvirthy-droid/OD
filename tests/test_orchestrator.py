@@ -214,6 +214,49 @@ class TestOrchestratorShortCircuits:
 # ===========================================================================
 
 @pytest.mark.asyncio
+class TestCacheNaoServeComando:
+    """Bug real de 11/11: "liga a radio" veio do cache, sem abrir player.
+
+    O grafo consulta o cache antes da classificação; uma resposta gravada
+    antes ("Radio ligada com sucesso. Estado verificado.") era servida como
+    se a action tivesse rodado — o dono chamou isso de "devaneio".
+    Comando de ferramenta tem que executar e responder o resultado real.
+    """
+
+    async def test_comando_de_action_ignora_cache(self, tmp_path: Path) -> None:
+        cache = _cache(tmp_path)
+        cache.set(
+            "liga a radio",
+            "Radio ligada com sucesso. Estado verificado.",
+            profile="guardian",
+            llm_used="gemma-local",
+        )
+        provider = RecordingProvider("qwen", "resposta do llm")
+        orch = Orchestrator(
+            providers=[provider], cache=cache, history=_history(tmp_path)
+        )
+        result = await orch.process("alex", "guardian", "liga a radio")
+        assert result.route != "cache"
+        assert result.message != "Radio ligada com sucesso. Estado verificado."
+
+    async def test_conversa_comum_continua_usando_cache(self, tmp_path: Path) -> None:
+        cache = _cache(tmp_path)
+        cache.set(
+            "qual a capital do brasil?",
+            "Brasília.",
+            profile="guardian",
+            llm_used="gemma-local",
+        )
+        provider = RecordingProvider("qwen", "resposta do llm")
+        orch = Orchestrator(
+            providers=[provider], cache=cache, history=_history(tmp_path)
+        )
+        result = await orch.process("alex", "guardian", "qual a capital do brasil?")
+        assert result.route == "cache"
+        assert result.message == "Brasília."
+
+
+@pytest.mark.asyncio
 class TestOrchestratorAnonimo:
     """Conversa sem conta: papel "anonymous" e persist=False (nada no banco)."""
 
