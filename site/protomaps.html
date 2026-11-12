@@ -56,7 +56,8 @@
     <div style="margin-top:16px;padding:16px;background:var(--card);border-radius:12px;border:1px solid var(--border);">
       <h3 style="margin:0 0 8px;font-size:1rem;">Controles e Informações</h3>
       <ul style="margin:0;padding-left:20px;color:var(--muted);font-size:.9rem;line-height:1.8;">
-        <li><b>Tiles:</b> ProtoMaps (PMTiles vetoriais) — servidos localmente ou via CDN</li>
+        <li><b>Tiles:</b> ProtoMaps (PMTiles vetoriais) quando o arquivo local existe; senão, raster OSM</li>
+        <li><b id="modoMapa">Verificando tiles…</b></li>
         <li><b>Estilo:</b> Estilo base OSM Bright adaptado para tema Omega Drakon (Preto Profundo #0A0A0A / Azul Elétrico #0088FF)</li>
         <li><b>Navegação:</b> Scroll para zoom, arrastar para mover, Shift+arrastar para rotacionar</li>
         <li><b>Offline:</b> Tiles podem ser baixados como .pmtiles para uso totalmente offline</li>
@@ -86,7 +87,7 @@
       <div class="card">
         <div class="num">Tiles</div>
         <h3>Fontes de Tiles</h3>
-        <p>Tiles base: <a href="https://protomaps.com/docs/tiles" target="_blank" style="color:var(--azul);">ProtoMaps OSM</a> (atualizados semanalmente). Para uso offline, baixar .pmtiles regional (ex: Brasil ~500 MB) e servir via HTTP local.</p>
+        <p>Tiles base: <a href="https://protomaps.com/docs/tiles" target="_blank" style="color:var(--azul);">ProtoMaps OSM</a> (atualizados semanalmente). Para offline, extrair o recorte regional em .pmtiles (Brasil: estimativa de 1–3 GB — medir antes de baixar) e colocar em <code>/site/maps/brasil.pmtiles</code>.</p>
       </div>
       <div class="card">
         <div class="num">Integração</div>
@@ -119,6 +120,18 @@
 
 <script src="/site/od-nav.js"></script>
 <script src="https://unpkg.com/maplibre-gl@5.4.0/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@4.3.0/dist/pmtiles.js"></script>
+<script>
+  // PMTiles exige o protocolo registrado no MapLibre — sem isto o esquema
+  // `pmtiles://` é desconhecido e o mapa fica VAZIO (bug de 12/11).
+  const protocoloPmtiles = new pmtiles.Protocol();
+  maplibregl.addProtocol("pmtiles", protocoloPmtiles.tile);
+
+  // Mapa offline: coloque o arquivo aqui (ex.: brasil.pmtiles) que a página
+  // passa a usar sozinha. Sem o arquivo, cai no modo online (tiles OSM).
+  const MAPA_LOCAL = "/site/maps/brasil.pmtiles";
+  const CASA = [-51.8505, -21.8713]; // localização real da casa (HA)
+</script>
 <script>
   // Estilo Omega Drakon para MapLibre (baseado em OSM Bright, adaptado)
   const odStyle = {
@@ -130,9 +143,7 @@
     sources: {
       "protomaps": {
         type: "vector",
-        url: "pmtiles://https://pmtiles.protomaps.com/planet.pmtiles"
-        // Para uso offline, substituir por: "pmtiles:///caminho/local/brasil.pmtiles"
-        // ou servir via HTTP local: "pmtiles://http://127.0.0.1:8080/tiles/brasil.pmtiles"
+        url: `pmtiles://${MAPA_LOCAL}`
       }
     },
     layers: [
@@ -204,26 +215,60 @@
     ]
   };
 
-  // Inicializa o mapa
-  const map = new maplibregl.Map({
-    container: 'map',
-    style: odStyle,
-    center: [-51.2, -20.5], // Centro do Brasil (aproximado)
-    zoom: 4,
-    attributionControl: false
-  });
+  // Estilo raster de reserva: funciona sempre que houver internet.
+  const odRaster = {
+    version: 8,
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        attribution: "© OpenStreetMap"
+      }
+    },
+    layers: [
+      { id: "bg", type: "background", paint: { "background-color": "#0A0A0A" } },
+      { id: "osm", type: "raster", source: "osm" }
+    ]
+  };
 
-  map.addControl(new maplibregl.NavigationControl(), 'top-right');
-  map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+  async function temMapaLocal() {
+    try {
+      const r = await fetch(MAPA_LOCAL, { method: "HEAD", cache: "no-store" });
+      return r.ok;
+    } catch (e) {
+      return false;
+    }
+  }
 
-  map.on('load', () => {
-    console.log('[ProtoMaps] Mapa carregado com estilo Omega Drakon');
-  });
+  (async () => {
+    const local = await temMapaLocal();
+    const aviso = document.getElementById("modoMapa");
+    if (aviso) {
+      aviso.textContent = local
+        ? "Modo OFFLINE: tiles vetoriais locais (PMTiles)."
+        : "Modo ONLINE: tiles OSM. Para offline, coloque brasil.pmtiles em /site/maps/.";
+    }
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: local ? odStyle : odRaster,
+      center: local ? CASA : [-51.2, -20.5],
+      zoom: local ? 11 : 4,
+      attributionControl: true
+    });
 
-  map.on('error', (e) => {
-    console.warn('[ProtoMaps] Erro no mapa:', e.error);
-    // Fallback visual se tiles não carregarem
-    document.getElementById('map').innerHTML = `
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+    new maplibregl.Marker({ color: "#0088FF" }).setLngLat(CASA).addTo(map);
+
+    map.on('load', () => {
+      console.log('[ProtoMaps] Mapa carregado', local ? 'offline' : 'online');
+    });
+
+    map.on('error', (e) => {
+      console.warn('[ProtoMaps] Erro no mapa:', e.error);
+      // Fallback visual se tiles não carregarem
+      document.getElementById('map').innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:40px;">
         <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:16px;opacity:0.5;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
         <h3 style="margin:0 0 8px;color:var(--text);">Tiles ProtoMaps não carregaram</h3>
@@ -231,7 +276,8 @@
         <button onclick="location.reload()" style="padding:8px 16px;background:var(--azul);color:#0A0A0A;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Tentar novamente</button>
       </div>
     `;
-  });
+    });
+  })();
 </script>
 </body>
 </html>
