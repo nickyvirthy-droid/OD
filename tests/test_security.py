@@ -475,6 +475,28 @@ class TestScopeEngine:
         result = engine.evaluate(req)
         assert result.allowed is False  # path extraído dos params
 
+    def test_disk_usage_mede_montagem_sem_escopo_de_arquivo(self) -> None:
+        """`path` de métrica de disco é ponto de montagem, não arquivo.
+
+        Bug de 12/11: a action era negada ("Path '/' is outside the allowed
+        project scope") — mesmo sem a intenção mandar o param, porque o
+        schema preenche o default "/" antes do gate.
+        """
+        engine = ScopeEngine()
+        for params in ({"path": "/"}, {"path": "/home/alex"}):
+            req = ActionRequest(action="disk_usage", params=params)
+            assert engine.evaluate(req).allowed is True, params
+
+    def test_excecao_do_disco_nao_vale_para_escrita(self) -> None:
+        """A exceção é só da métrica: escrita com path fora da raiz segue negada."""
+        engine = ScopeEngine()
+        req = ActionRequest(
+            action="filesystem.write",
+            params={"path": "/etc/passwd"},
+            metadata={"operation": "write"},
+        )
+        assert engine.evaluate(req).allowed is False
+
     def test_dump(self) -> None:
         engine = ScopeEngine()
         d = engine.dump()

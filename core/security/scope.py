@@ -78,6 +78,14 @@ _PATH_PARAM_KEYS = (
 )
 
 
+#: Ações de MÉTRICA do sistema em que o `path` é o ponto de montagem medido
+#: (ex.: "/"), não um arquivo a ser acessado — o escopo de filesystem não se
+#: aplica. Sem isto, `disk_usage` era negada ("Path '/' is outside the allowed
+#: project scope") e toda pergunta de disco caía no LLM (medido em 12/11).
+#: Ações destrutivas/de escrita continuam sujeitas às outras camadas.
+SCOPE_EXEMPT_ACTIONS = frozenset({"disk_usage"})
+
+
 def extract_paths(request: ActionRequest) -> list[str]:
     """Extrai candidatos a caminhos dos params da requisição."""
     found: list[str] = list(request.paths)
@@ -227,9 +235,10 @@ class ScopeEngine:
                 reason="Destructive operations require explicit approval",
             )
 
-        # 3. Escopo de filesystem (spec §7.1)
+        # 3. Escopo de filesystem (spec §7.1). Métricas de sistema medidas por
+        # caminho (disco) não são acesso a arquivo: nada a validar aqui.
         operation = classify_operation(request)
-        paths = extract_paths(request)
+        paths = [] if request.action in SCOPE_EXEMPT_ACTIONS else extract_paths(request)
         for raw in paths:
             candidate = Path(raw).expanduser()
             # Caminhos relativos são resolvidos contra a primeira raiz
