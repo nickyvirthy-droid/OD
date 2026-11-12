@@ -12,6 +12,37 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Prontidão para resistir: medida no sistema + plano de continuidade (2026-11-12, sem bump)
+
+**Resumo:** `txt.txt` pediu preparação para colapso ("use o máximo da internet
+enquanto existe"). Em vez de texto genérico, o sistema passou a **medir** a
+prontidão e o plano foi escrito em `docs/CONTINUIDADE.md` com esses números.
+
+**Ação nova `readiness_report`** (categoria system, catálogo **123**): nove
+checks com o dado que os sustenta — energia (UPS visível ao SO), disco, memória,
+conhecimento offline (ZIM), IA local, internet agora, backup recente, nó
+alternativo na malha privada e dependência de nuvem. No chat: "como estamos
+preparados para o colapso" / "qual a prontidão do sistema" / "o que falta para
+resistir".
+
+**Estado medido (6/9 — 66,7%)**: reprovam **energia** (sem UPS), **conhecimento**
+(2 ZIMs, 15 GB) e **comunicação** (0 nós online além deste servidor). Aprovam
+disco, memória, IA local, internet, backup recente e dependência de nuvem
+informativa.
+
+**Plano (`docs/CONTINUIDADE.md`)**: fazer agora (25 GB de acervo, Qwen2.5-7B q4,
+espelho de pip/Docker, cofre + Postgres fora da máquina), comprar por risco
+(nobreak com USB + SSD + 4G; 2 rádios LoRa; solar/bateria/HD 4 TB — e **não**
+comprar servidor reserva ainda), criar (modo colapso declarado, fila de
+download, mapas offline, RAG de manuais, backup verificado + offsite, espelho
+de pacotes, ponte LoRa↔OD, kit 72 h, monitor de UPS), runbook 10 min/1 h/24 h/
+72 h e as 5 decisões que dependem do dono.
+
+**Testes:** `tests/test_readiness.py` (14) e contagens de catálogo atualizadas
+(122→123). Gate **4539 passed / 17 skipped / 0 falha** (178,31 s). **Prova viva**
+(MainPID 3846447, `/health` 27/27, journal 0 erro): `fastpath:readiness_report`
+em 119,8 ms e 32,9 ms. **Sem bump:** 1.44.0/2080.
+
 ## Auditoria do gate de escopo nas 122 actions (2026-11-12, sem bump)
 
 **Resumo:** depois do bug do `disk_usage` (action negada em silêncio), a

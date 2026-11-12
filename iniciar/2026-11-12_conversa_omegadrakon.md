@@ -249,3 +249,80 @@ entrou — **nenhum código de produção mudou**, então **não houve restart**
 `od-core` segue no MainPID **3810200**, `NRestarts=0`.
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §5 — "prepare o Omega Drakon para resistir": prontidão medida + plano (12/11 ~10:35)
+
+**Pedido do dono (`txt.txt`):** kits de 72 horas estão sendo distribuídos pelo
+mundo, "algo vai acontecer"; usar o máximo da internet enquanto ela existe,
+preparar para o colapso, buscar alternativas para continuar funcionando e se
+comunicando — e responder **o que fazer, o que comprar, o que criar**.
+
+### 1. O que foi medido antes de opinar
+
+| Item | Medido em 12/11 |
+|---|---|
+| Hardware | i5-6500, 7,7 GB RAM (4,4 GB disponíveis), disco 232 GB / **76 GB livres** |
+| Energia | `/sys/class/power_supply` **vazio** — sem UPS/bateria visível ao SO |
+| Acervo offline | Kiwix com **2 ZIMs = 15 GB** (Wikipédia EN mini 14 GB + PT mini 1,6 GB) |
+| IA local | llama.cpp :8081 com `qwen2.5-coder-3b` (o mais fraco da cadeia) |
+| Serviços | **11 containers** locais (Kiwix, Stirling, FileBrowser, Calibre-Web, FlatNotes, Vaultwarden, Homebox, IT-Tools, CyberChef, AzuraCast, Home Assistant) |
+| Backup | `backups/` com último arquivo há **7 h**, mas **tudo na mesma máquina** |
+| Comunicação | Telegram (nuvem) + API/chat web só na LAN; Tailscale com **0 nós online** além deste |
+
+### 2. Entrega em software: `readiness_report`
+
+Ação nova no catálogo (sistema, **123 actions**): mede **9 itens** e devolve
+número, não prosa — energia, disco, memória, conhecimento offline, IA local,
+internet, backup recente, nó alternativo na malha e dependência de nuvem.
+
+No chat: *"como estamos preparados para o colapso"*, *"qual a prontidão do
+sistema"*, *"o que falta para resistir"* → `fastpath:readiness_report`.
+
+**Prova viva (MainPID 3846447, NRestarts=0, `/health` 27/27, journal 0 erro):**
+
+```
+🛡️ Prontidão: 6/9 (66.7%)
+⚠️ energia: sem UPS/bateria no SO
+✅ disco: 75.7 GB livres · ✅ memória: 4460 MB
+⚠️ conhecimento: 2 ZIM(s), 15.0 GB
+✅ ia_local: respondendo em 127.0.0.1:8081 · ✅ internet: no ar
+✅ backup: último arquivo em 7 h
+⚠️ comunicacao: 0 nó(s) online além do servidor
+✅ nuvem: 3 provedor(es) de IA na nuvem
+Pendente: energia, conhecimento, comunicacao
+```
+
+Duas chamadas: 119,8 ms (primeira, com cache frio) e 32,9 ms. `/capabilities`
+passou a anunciar **123 actions**; 14 testes novos em `tests/test_readiness.py`
+(estrutura, pontuação, acervo reprovado, backup ausente, caminhos inexistentes,
+intenção no chat e formatador). Contagens de catálogo/capabilities atualizadas.
+
+### 3. Plano escrito: `docs/CONTINUIDADE.md`
+
+Responde as três perguntas do dono com os números acima:
+
+- **Fazer agora (0–7 dias):** baixar ~25 GB de acervo (Wikipédia PT completa,
+  WikiMed, WikiHow, iFixit/Appropedia, mapas), testar `Qwen2.5-7B q4` no lugar
+  do 3B, espelhar pip/Docker, exportar cofre + snapshot do Postgres para mídia
+  **fora** da máquina.
+- **Comprar (por risco, não por preço):** Fase 1 nobreak com USB + 1 SSD
+  externo + roteador 4G (~R$ 2–3,5 mil); Fase 2 dois rádios LoRa Meshtastic
+  (~R$ 600–1.500); Fase 3 solar + bateria + HD 4 TB. **Não comprar** servidor
+  reserva agora — o gargalo é energia/comunicação, não CPU.
+- **Criar (software):** modo colapso declarado (troca para local), fila de
+  download resumable de acervo, mapas offline, RAG de manuais, backup
+  verificado + offsite, espelho de pacotes, ponte LoRa↔OD, kit 72 h no app e
+  monitor de UPS.
+- **Runbook** de 10 min / 1 h / 24 h / 72 h e as **5 decisões** que dependem do
+  dono (nobreak, LoRa vs 4G, quais ZIMs, onde é o offsite, modo colapso
+automático).
+
+### 4. Honestidade sobre o pedido
+
+O documento **não promete** que o OD sobrevive a um colapso longo: ele diz o
+que já é local (dados, serviços, IA de reserva, rádio, casa), o que quebra
+primeiro (energia e comunicação) e quanto custa fechar cada buraco. A parte de
+sobrevivência física (água, comida, remédios, documentos) não é decisão de
+software — o plano só aponta onde ela encaixa (kit 72 h no app).
+
+**Sem bump:** app segue **1.44.0/2080** (ação de servidor).

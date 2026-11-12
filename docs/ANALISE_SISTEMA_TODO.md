@@ -657,6 +657,27 @@ esperar o timeout.
       chaves de escopo; senão o STT e o envio para a caixa só funcionam dentro
       do projeto
 
+### Continuidade (plano de 12/11 — `docs/CONTINUIDADE.md`)
+
+> A `readiness_report` mediu **6/9**: reprovam energia, conhecimento e
+> comunicação. Estas são as tarefas que fecham os buracos, em ordem de risco.
+
+- [x] Medir a prontidão no sistema (`readiness_report` + `docs/CONTINUIDADE.md`)
+- [ ] **Energia:** nobreak 1200–1500 VA **com USB** (shutdown gracioso) — é a
+      compra nº 1; sem ela nenhum outro ganho sobrevive ao apagão
+- [ ] **Comunicação:** segundo nó na LAN (ntfy/Matrix local + PWA offline) ou
+      2 rádios LoRa Meshtastic — hoje o Telegram é o único canal externo
+- [ ] **Acervo:** baixar ~25 GB de ZIMs (Wikipédia PT completa, WikiMed,
+      WikiHow, iFixit/Appropedia) + mapas offline da região
+- [ ] **Backup fora da máquina:** SSD/pendrive criptografado com snapshot do
+      Postgres + `data/` + cofre exportado; testar a restauração
+- [ ] **Modo colapso declarado:** trocar para a cadeia local e avisar no chat/UI
+      quando a nuvem falhar N vezes (ou por ordem do dono)
+- [ ] **IA local melhor:** medir Qwen2.5-7B q4_K_M contra o 3B atual (mesmo
+      benchmark de 11/11) e só então trocar
+- [ ] **Espelho de pacotes:** `pip download` + `docker save` das 11 imagens
+- [ ] **Fila de download resumable** de acervo (padrão NOMAD, progresso por SSE)
+
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
 - [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder reranker)

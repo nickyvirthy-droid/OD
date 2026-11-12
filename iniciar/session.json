@@ -1,4 +1,15 @@
 {
+  "prontidao_medida_e_plano_de_continuidade_2026_11_12": {
+    "pedido": "Dono via txt.txt (12/11): varios paises pedindo kits de 72h, 'algo vai acontecer'; usar o maximo da internet enquanto existe, preparar o OD para o colapso, buscar alternativas para continuar funcionando e se comunicando; responder o que fazer, o que comprar e o que criar.",
+    "medido": "i5-6500, 7,7 GB RAM (4,4 GB disp.), disco 232 GB com 76 GB livres; /sys/class/power_supply VAZIO (sem UPS); Kiwix com 2 ZIMs = 15 GB; IA local qwen2.5-coder-3b em :8081; 11 containers locais; backups/ com ultimo arquivo de 7h mas tudo na mesma maquina; Tailscale com 0 nos online alem deste; Telegram e o unico canal externo.",
+    "feito_codigo": "Action nova readiness_report (system, catalogo 122->123): mede 9 itens (energia, disco, memoria, conhecimento offline, ia_local, internet, backup recente, no alternativo na malha, dependencia de nuvem) e devolve pontos/percent/itens/pendentes. core/intents: deteccao ('prontidao', 'colapso', 'resistir', 'o que falta para sobreviver') + _formata de leitura. tests/test_readiness.py (14). Contagens 122->123 atualizadas em catalog/capabilities/mcp/orchestrator.",
+    "feito_plano": "docs/CONTINUIDADE.md: principio (soberania local + degradacao declarada), inventario medido, o que fazer agora (0-7 dias: ~25 GB de ZIMs, Qwen2.5-7B q4, pip/docker espelhados, cofre+Postgres fora da maquina), o que comprar por risco (Fase 1 nobreak+SSD+4G ~R$2-3,5k; Fase 2 2 radios LoRa; Fase 3 solar+bateria+HD 4TB; nao comprar servidor reserva), o que criar (modo colapso declarado, fila de download, mapas offline, RAG de manuais, backup verificado+offsite, espelho de pacotes, ponte LoRa, kit 72h, monitor de UPS), runbook 10min/1h/24h/72h e 5 decisoes do dono.",
+    "testes": "Gate completo 4539 passed / 17 skipped / 0 falha (178,31 s; eram 4525). /capabilities anuncia 123 actions.",
+    "prova_viva": "MainPID 3846447, NRestarts=0, /health 27/27, journal 0 erro. 'como estamos preparados para o colapso' -> action_intent fastpath:readiness_report 119,8 ms; 'qual a prontidao do sistema' -> 32,9 ms. Resultado 6/9 (66,7%): reprovam energia (sem UPS), conhecimento (2 ZIMs/15 GB) e comunicacao (0 nos online alem do servidor).",
+    "sem_bump": "app segue 1.44.0/2080 (acao de servidor, nada de app).",
+    "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§5)",
+    "updated_at": "2026-11-12T10:35:00-03:00"
+  },
   "auditoria_do_gate_de_escopo_2026_11_12": {
     "pedido": "Dono (12/11): auditar as outras actions de leitura contra o gate de escopo, para achar mais negacoes silenciosas como a do disco.",
     "metodo": "As 122 actions do CATALOG avaliadas pelo SecurityManager(mode='strict') de producao, com params preenchidos pelo schema (defaults + exemplos nos obrigatorios), em tres papeis.",
