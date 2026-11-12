@@ -63,6 +63,19 @@ class TestCircuitBreaker:
         assert b.permitir() is False
         assert b.status()["recusas"] == 1
 
+    def test_abrir_e_imediato_sem_esperar_o_limite(self):
+        """Cota estourada (429) abre na primeira falha: insistir só queima cota."""
+        b = CircuitBreaker("teste", falhas_limite=5, recuperacao_s=30.0)
+        b.abrir("HTTP 429 quota exceeded")
+        assert b.estado() == resilience.ABERTO
+        assert b.permitir() is False
+        assert "429" in b.status()["ultimo_erro"]
+
+    def test_abrir_desligado_nao_faz_nada(self):
+        b = CircuitBreaker("teste", ligado=False)
+        b.abrir("x")
+        assert b.estado() == resilience.FECHADO
+
     def test_sucesso_zera_as_falhas(self):
         b = CircuitBreaker("teste", falhas_limite=3)
         b.registrar_falha()

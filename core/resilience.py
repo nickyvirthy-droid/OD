@@ -133,6 +133,9 @@ class CircuitBreaker:
         self._sucessos = 0
         self._recusas = 0
         self._ultimo_erro = ""
+        # Janela específica da última abertura forçada (ex.: cota diária do
+        # provider, que só volta horas depois) — 0 = usa `recuperacao_s`.
+        self._recuperacao_aberta = 0.0
 
     # -- Consulta ------------------------------------------------------------
 
@@ -160,7 +163,8 @@ class CircuitBreaker:
             return True
 
     def _janela_vencida(self) -> bool:
-        return (self._relogio() - self._aberto_em) >= self.recuperacao_s
+        janela = self._recuperacao_aberta or self.recuperacao_s
+        return (self._relogio() - self._aberto_em) >= janela
 
     # -- Resultado -----------------------------------------------------------
 
@@ -173,6 +177,7 @@ class CircuitBreaker:
             self._falhas = 0
             self._sucessos += 1
             self._ultimo_erro = ""
+            self._recuperacao_aberta = 0.0
 
     def registrar_falha(self, erro: str = "") -> None:
         """Conta a falha; ao atingir o limite, abre o circuito."""
@@ -203,6 +208,36 @@ class CircuitBreaker:
         self.registrar_sucesso()
         return resultado
 
+    def abrir(self, erro: str = "", recuperacao_s: float | None = None) -> None:
+        """Abre o circuito NA HORA, sem esperar o limite de falhas.
+
+        Para erro que não é instabilidade passageira: cota estourada (HTTP
+        429) não melhora tentando de novo na mensagem seguinte — continuar
+        insistindo só queima a janela inteira da cota (medido em 11/11: o
+        Gemini devolvia 429 em ~4 de cada 5 mensagens e o chat pagava a
+        tentativa toda vez).
+
+        `recuperacao_s` sobrepõe a janela padrão desta abertura — é o que a
+        cota DIÁRIA exige (o provedor diz "retry em 13h": reabrir a cada
+        30 s gastaria uma tentativa por mensagem num serviço que só volta
+        no dia seguinte).
+        """
+        with self._lock:
+            if not self._ligado:
+                return
+            self._falhas = max(self._falhas + 1, self.falhas_limite)
+            if erro:
+                self._ultimo_erro = erro[:200]
+            self._recuperacao_aberta = max(0.0, float(recuperacao_s or 0.0))
+            janela = self._recuperacao_aberta or self.recuperacao_s
+            if self._estado != ABERTO:
+                _LOG.warning(
+                    "Circuito ABERTO (forçado) | breaker=%s recuperacao_s=%s erro=%s",
+                    self.nome, janela, self._ultimo_erro,
+                )
+            self._estado = ABERTO
+            self._aberto_em = self._relogio()
+
     def resetar(self) -> None:
         """Volta ao fechado e zera contadores (painel/testes)."""
         with self._lock:
@@ -210,6 +245,7 @@ class CircuitBreaker:
             self._falhas = 0
             self._aberto_em = 0.0
             self._ultimo_erro = ""
+            self._recuperacao_aberta = 0.0
 
     def status(self) -> dict[str, Any]:
         with self._lock:

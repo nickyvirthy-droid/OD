@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from typing import Any, Optional
@@ -57,6 +58,45 @@ DEFAULT_CHAT_PATH = "/v1/chat/completions"
 USER_AGENT = "OmegaDrakon/od-core (LLM client)"
 
 _VALID_ROLES = {"system", "user", "assistant", "tool"}
+
+
+#: Teto da espera sugerida por um 429 (o provedor pode pedir dias; ficar
+#: com o disjuntor aberto por dias esconderia o problema de quem opera).
+ESPERA_MAXIMA_429_S = 6 * 3600.0
+
+
+def _espera_do_429(erro: str) -> float:
+    """Quanto o provedor pediu para esperar, a partir do erro HTTP.
+
+    O Gemini devolve `"retryDelay": "48373s"` e a explicação da cota DIÁRIA
+    (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, limite 20). Sem
+    ler isso, o disjuntor reabriria a cada 30 s e pagaria uma tentativa por
+    mensagem num serviço que só volta no dia seguinte. Devolve 0 quando o
+    erro não traz o dado (aí vale a janela padrão do disjuntor).
+    """
+    achado = re.search(r"retryDelay\D{0,10}(\d+(?:\.\d+)?)s", erro)
+    if not achado:
+        return 0.0
+    try:
+        espera = float(achado.group(1))
+    except ValueError:
+        return 0.0
+    return max(0.0, min(espera, ESPERA_MAXIMA_429_S))
+
+
+def _erro_http(nome: str, exc: urllib.error.HTTPError) -> str:
+    """Mensagem do erro HTTP com o `retryDelay` preservado.
+
+    O corpo (Google) traz o pedido de espera no FIM do JSON: cortar em 300
+    caracteres para o log jogava fora justamente o dado que o disjuntor
+    precisa para não reabrir no meio de uma cota diária.
+    """
+    corpo = exc.read().decode("utf-8", errors="replace")
+    espera = _espera_do_429(corpo)
+    detalhe = corpo[:300]
+    if espera:
+        detalhe += f" retryDelay={espera:.0f}s"
+    return f"{nome} HTTP {exc.code}: {detalhe}"
 
 
 class LLMError(Exception):
@@ -139,6 +179,19 @@ class OpenAICompatProvider:
 
     # -- API (usada pelo Orchestrator) ---------------------------------------
 
+    def _falhar(self, erro: str) -> None:
+        """Registra a falha; cota estourada (429) abre o circuito na hora.
+
+        Sem isto, um provider sem cota era tentado em TODA mensagem: o usuário
+        pagava ~0,4 s de espera e a cota não tinha folga para a próxima
+        janela (medido em 11/11 com o Gemini). Passageiro (timeout, 5xx)
+        segue a regra do disjuntor: só abre depois de `falhas_limite`.
+        """
+        if "HTTP 429" in erro or "quota" in erro.lower():
+            self._breaker.abrir(erro, recuperacao_s=_espera_do_429(erro))
+            return
+        self._breaker.registrar_falha(erro)
+
     async def generate(
         self, prompt: str, **options: Any
     ) -> Optional[str]:
@@ -168,13 +221,13 @@ class OpenAICompatProvider:
                 self._post_chat, body, timeout
             )
         except LLMError as exc:
-            self._breaker.registrar_falha(str(exc))
+            self._falhar(str(exc))
             raise
         except Exception as exc:
             erro = LLMError(
                 f"falha ao gerar com {self.name}: {type(exc).__name__}: {exc}"
             )
-            self._breaker.registrar_falha(str(erro))
+            self._falhar(str(erro))
             raise erro from exc
         self._breaker.registrar_sucesso()
         message = (data.get("choices") or [{}])[0].get("message") or {}
@@ -221,13 +274,13 @@ class OpenAICompatProvider:
             async for chunk in self._post_chat_stream(body, timeout):
                 yield chunk
         except LLMError as exc:
-            self._breaker.registrar_falha(str(exc))
+            self._falhar(str(exc))
             raise
         except Exception as exc:
             erro = LLMError(
                 f"falha ao gerar stream com {self.name}: {type(exc).__name__}: {exc}"
             )
-            self._breaker.registrar_falha(str(erro))
+            self._falhar(str(erro))
             raise erro from exc
         self._breaker.registrar_sucesso()
 
@@ -279,10 +332,7 @@ class OpenAICompatProvider:
                 lambda: urllib.request.urlopen(request, timeout=timeout)
             )
         except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")[:300]
-            raise LLMError(
-                f"{self.name} HTTP {exc.code}: {detail}"
-            ) from exc
+            raise LLMError(_erro_http(self.name, exc)) from exc
         except urllib.error.URLError as exc:
             raise LLMError(
                 f"{self.name} indisponível: {exc.reason or exc}"
@@ -350,10 +400,7 @@ class OpenAICompatProvider:
             with urllib.request.urlopen(request, timeout=timeout) as resp:
                 raw = resp.read()
         except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")[:300]
-            raise LLMError(
-                f"{self.name} HTTP {exc.code}: {detail}"
-            ) from exc
+            raise LLMError(_erro_http(self.name, exc)) from exc
         except urllib.error.URLError as exc:
             raise LLMError(
                 f"{self.name} indisponível: {exc.reason or exc}"

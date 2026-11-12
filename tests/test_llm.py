@@ -517,3 +517,118 @@ class TestCadeiaDoChat:
             "gemma-local",
         ]
         assert orch.cache is not None
+
+
+class TestCotaEstouradaAbreODisjuntor:
+    """429 não é instabilidade: insistir no Gemini a cada mensagem queima a
+    cota e atrasa o chat (medido 11/11: ~4 de 5 mensagens davam 429)."""
+
+    @pytest.mark.asyncio
+    async def test_429_abre_e_a_proxima_mensagem_nao_insiste(self, monkeypatch) -> None:
+        import io
+        import urllib.error
+
+        from core.llm import GeminiProvider
+        from core.resilience import obter_breaker
+
+        corpo = json.dumps(
+            {"choices": [{"message": {"role": "assistant",
+                                      "content": "resposta local"}}]}
+        ).encode()
+        chamadas: list[str] = []
+
+        def fake(request, timeout=None):
+            chamadas.append(request.full_url)
+            if "generativelanguage" in request.full_url:
+                raise urllib.error.HTTPError(
+                    request.full_url, 429, "quota exceeded", {},
+                    io.BytesIO(b'{"error": "quota exceeded"}'),
+                )
+
+            class Resp:
+                status = 200
+
+                def read(self) -> bytes:
+                    return corpo
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *exc):
+                    return None
+
+            return Resp()
+
+        monkeypatch.setattr("urllib.request.urlopen", fake)
+        obter_breaker("llm:gemini").resetar()
+        try:
+            orch = Orchestrator(
+                providers=[
+                    GeminiProvider(api_key="chave"),
+                    OpenAICompatProvider(name="gemma-local"),
+                ]
+            )
+            r1 = await orch.process("alex", "guardian", "primeira pergunta")
+            r2 = await orch.process("alex", "guardian", "segunda pergunta")
+
+            assert r1.message == "resposta local"
+            assert r2.message == "resposta local"
+            # Uma única tentativa no Gemini: a segunda nem foi à rede.
+            gemini = [u for u in chamadas if "generativelanguage" in u]
+            assert len(gemini) == 1, chamadas
+            assert obter_breaker("llm:gemini").estado() == "aberto"
+        finally:
+            obter_breaker("llm:gemini").resetar()
+
+
+class TestEsperaDo429:
+    """Cota DIÁRIA do Gemini (20 req/dia) pede espera de horas, não de 30 s."""
+
+    def test_le_o_retry_delay_do_corpo(self) -> None:
+        from core.llm import _espera_do_429
+
+        corpo = (
+            'gemini HTTP 429: [{"error": {"code": 429, "details": '
+            '[{"@type": "google.rpc.RetryInfo", "retryDelay": "1800s"}]}}]'
+        )
+        assert _espera_do_429(corpo) == 1800.0
+
+    def test_teto_de_seis_horas(self) -> None:
+        from core.llm import ESPERA_MAXIMA_429_S, _espera_do_429
+
+        assert _espera_do_429('"retryDelay": "172800s"') == ESPERA_MAXIMA_429_S
+
+    def test_sem_retry_delay_usa_a_janela_padrao(self) -> None:
+        from core.llm import _espera_do_429
+
+        assert _espera_do_429("gemini HTTP 429: quota exceeded") == 0.0
+
+    def test_disjuntor_respeita_a_janela_forcada(self) -> None:
+        from core.resilience import ABERTO, MEIA_ABERTO, CircuitBreaker
+
+        agora = [0.0]
+        b = CircuitBreaker(
+            "teste", falhas_limite=5, recuperacao_s=30.0,
+            relogio=lambda: agora[0],
+        )
+        b.abrir("429", recuperacao_s=600.0)
+        agora[0] = 31.0
+        assert b.estado() == ABERTO  # 30 s não bastam para uma cota diária
+        agora[0] = 601.0
+        assert b.estado() == MEIA_ABERTO
+        b.registrar_sucesso()
+        assert b.estado() == "fechado"
+
+    def test_erro_http_preserva_o_retry_delay(self) -> None:
+        import io
+        import urllib.error
+
+        from core.llm import _erro_http
+
+        corpo = json.dumps(
+            {"error": {"code": 429, "message": "quota " + "x" * 400,
+                       "details": [{"retryDelay": "1800s"}]}}
+        ).encode()
+        exc = urllib.error.HTTPError("url", 429, "quota", {}, io.BytesIO(corpo))
+        msg = _erro_http("gemini", exc)
+        assert "retryDelay=1800s" in msg  # o corte de 300 chars não o perde
