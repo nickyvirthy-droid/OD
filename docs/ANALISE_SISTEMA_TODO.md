@@ -687,6 +687,16 @@ esperar o timeout.
 > (baixar o acervo, modo colapso e medir o 7B) já estão como checkbox acima —
 > nenhuma duplicada.
 
+> Turno de 12/11 13:05 (acervo/mapa): sugestões não escolhidas → "baixar o
+> .pmtiles do Brasil" já é o checkbox de mapas offline; "monitor de UPS" e
+> "teste que amarra o compose ao readiness" entraram abaixo.
+
+- [ ] **Energia:** monitor de UPS no `readiness_report` — ler `upsc`/`/sys`
+      quando o nobreak chegar e reprovar se a bateria estiver sem USB ou baixa
+- [ ] **Acervo:** teste que compara os ZIMs listados em
+      `docker/tools-compose.yaml` com os arquivos presentes nos dois diretórios
+      — hoje um ZIM novo só entra na busca se alguém lembrar do `command`
+
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
 - [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder reranker)
