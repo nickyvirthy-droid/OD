@@ -631,3 +631,64 @@ Ou seja: a cadeia está fazendo exatamente o que devia — o Gemini **tenta prim
 3. **Cota do Groq** ainda não aparece no `/health` — sem alerta, o próximo limite derruba para o 3B local em silêncio.
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §13 — Devaneios: cache servindo comando · rádio em duplicata · cota do Gemini (11/11 ~15:35)
+
+`txt.txt` trouxe três queixas: (1) o chat "está gerando devaneios, não pesquisa nem usa as ferramentas"; (2) "a rádio parece que está rodando duas instâncias"; (3) "quando mando desligar a rádio o player também deveria ser desligado".
+
+### 1. A causa dos devaneios (bug de verdade, provado ao vivo)
+
+Duas instâncias reais de `ffplay` estavam tocando havia **15h54** e **15h49** (volumes 0,30 e 0,50). E `"liga a radio"` respondeu **"Radio ligada com sucesso. Estado verificado."** com **zero players no ar** e nenhuma `Action executed` no journal.
+
+Rastro: `route=cache`. O grafo do pipeline consulta o **cache antes** do nó de intents (edges: `infra_guard → cache_terminal → classify`). Havia uma resposta antiga e inventada gravada para o texto `"liga a radio"`, e ela era servida como se a ferramenta tivesse rodado. **Comando nunca pode vir do cache.**
+
+| Correção | Onde |
+|---|---|
+| Cache ignora texto que é comando de action (`detect_action_intent`) | `core/orchestrator.py` (`_etapa_cache`) |
+| Formatador próprio de `radio_play`/`radio_stop`/`radio_volume`/`radio_status` — antes a action rodava e a resposta vinha do LLM/cache (o dicionário cru `ok: True; status: tocando…` era sintoma disso) | `core/intents.py` (`_formata_radio`) |
+
+### 2. Rádio: player único e stop que cala de verdade
+
+Causa da duplicata: `_RADIO_PROCESS` é memória do processo. Cada restart do od-core zera o singleton, mas o `ffplay` roda em sessão própria (`start_new_session=True`) e continua órfão (PPID 1) tocando. O `radio_stop` só matava o filho **daquele** processo.
+
+| Correção | Efeito |
+|---|---|
+| `_radio_ffplay_pids()` varre `/proc` atrás de ffplay da rádio (marca `OD_RADIO_CHILD=1` nos filhos novos; URL do stream nos antigos) | o SO passa a ser a fonte da verdade, não o módulo |
+| `radio_play` **adota** player que já está no ar e encerra duplicatas | 2 pedidos de ligar = 1 áudio |
+| `radio_stop` encerra **todos** os PIDs encontrados (e o singleton) | "desliga a rádio" cala tudo, inclusive órfão de restart |
+| `_radio_pid_vivo` conta zumbi como morto | o hint não diz mais "1 player(s) resistiram" com 0 players vivos |
+| `radio_status` mostra `instancias` quando há mais de uma | duplicata aparece no chat em vez de passar em silêncio |
+
+### 3. Cota do Gemini: o prompt **não** era o gargalo (medido)
+
+Pedido do dono: "enxuga o prompt para o Gemini caber na cota". Medi antes de cortar:
+
+- **Prompt real do chat: 4.962 caracteres** (≈1,2k tokens) — depois de 5 turnos, 6.300 (≈1,6k). Composição: identidade 2.992 + bloco RAG até 2.858 (teto 768 tokens) + histórico de 3 turnos.
+- Experimento controlado contra o Gemini, 5 chamadas cada, 3 s de intervalo: **prompt de 9 caracteres → 1 sucesso em 5**; **prompt de 4.300 caracteres → 1 sucesso em 5**. Mesma proporção.
+- O corpo do erro fecha a questão: `Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, **limit: 20** ... Generate content requests **per day** limit exceeded on Free Tier` + `"retryDelay": "48373s"` (**13h26m**).
+
+**Conclusão honesta:** o gargalo é **20 requisições por dia** ao `gemini-3-flash` no plano gratuito. Enxugar o prompt não muda nada — cada mensagem custa 1 requisição, tenha 9 ou 6.300 caracteres — e cortar o bloco RAG pioraria justamente a fundamentação. **Não cortei o prompt.** O que fiz foi parar de queimar as requisições que existem:
+
+| Correção | Efeito |
+|---|---|
+| 429 abre o disjuntor **na hora** (`CircuitBreaker.abrir` + `_falhar`) | não espera 5 falhas para tirar o provider sem cota do caminho |
+| Espera lida do `retryDelay` do próprio 429, com teto de 6 h (`_espera_do_429`) | cooldown de 30 s reabriria a cada mensagem uma cota que só volta no dia seguinte |
+| `prompt_chars` no log `Message processed` | tamanho do prompt vira medida, não opinião |
+
+Prova viva (MainPID 2730824):
+
+| Mensagem | Resultado |
+|---|---|
+| "fale uma frase sobre o mar" | gemini 429 → `Circuito ABERTO (forçado)` → groq, 2,68 s |
+| "fale uma frase sobre montanhas" | `gemini com circuito aberto` (sem rede) → groq, **1,01 s** (economia de 1,7 s só por não insistir) |
+| "liga a radio" | `action_intent fastpath:radio_play`, 1,49 s, **1 player** |
+| "desliga a radio" | `action_intent fastpath:radio_stop`, 0,85 s, **0 players**, sem "resistiram" |
+| "/health" | **27/27**, `ok=true` |
+
+### 4. O que continua aberto
+
+1. Cota do Gemini é gratuita e pequena: com o disjuntor o chat não espera, mas quem responde no dia a dia é o **Groq**.
+2. `prompt_chars` agora sai no `Message processed` — a próxima discussão sobre tamanho de prompt tem número, não opinião.
+3. `llm_cache` ainda pode ter outras respostas inventadas de **conversa comum** (não de comando): o guarda de ação já não as serve para ferramenta nenhuma.
+
+**Sem bump:** app segue **1.44.0/2080**.
