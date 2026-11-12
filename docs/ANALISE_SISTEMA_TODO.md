@@ -620,6 +620,16 @@ esperar o timeout.
 - [ ] Chat: `llm_cache` ainda pode servir resposta inventada de **conversa
       comum** (o guarda atual só bloqueia comando de action)
 
+> Turno de 12/11 09:35 (higiene de 11/11 publicada): sugestões mostradas e não
+> escolhidas → "tapar os buracos de intenção" e "resolver o `Saída:
+> desconhecido` do `radio_status`" entraram como checkbox abaixo; "implantar a
+> stack OTel" já existe como item de infra na Semana 1-2 (não duplicado).
+
+- [ ] Intenções: tapar os buracos de casamento ("qual o uso de disco" → `None`,
+      enquanto "quanto de espaço livre no disco" → `disk_usage`)
+- [ ] Rádio: `radio_status` responde "Saída: desconhecido" — descobrir o sink real
+      do `pactl` (ou omitir a linha quando não houver sink identificado)
+
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
 - [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder reranker)
