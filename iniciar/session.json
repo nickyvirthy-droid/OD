@@ -1,4 +1,22 @@
 {
+  "higiene_lote_11_11_publicado_2026_11_12": {
+    "pedido": "Dono (12/11): fechar a higiene do lote de 11/11 — gate completo, commits por assunto, push e restart verde com prova viva.",
+    "gate": "Gravado antes: .venv/bin/python -m pytest tests/ -q -> 4494 passed / 17 skipped / 0 falha (180,40 s). Nenhuma correcao necessaria.",
+    "commits": [
+      "5af9012 fix(radio): player unico por SO e stop que cala todas as instancias (actions.py, intents.py, test_intents.py, test_radio_player.py novo)",
+      "b6d6144 fix(llm): cota estourada abre o disjuntor na hora e a espera vem do 429 (llm.py, resilience.py, test_llm.py, test_resilience.py)",
+      "8e08d7d fix(grafo): comando de action nunca e servido pelo cache e o log mede o prompt (orchestrator.py, test_orchestrator.py)",
+      "15531f6 docs(iniciar): registra o diagnostico dos devaneios, da radio e da cota (transcricao de 11/11)"
+    ],
+    "push": "origin/master em 15531f6; arvore limpa antes do restart.",
+    "deploy": "systemctl --user restart od-core (regra 7.3). MainPID 3773109, NRestarts=0, active, subido 09:26:26. /health ok=true 27/27; /llms = gemini, groq, gemma-local; journal -p err 0 entradas desde o restart.",
+    "prova_viva": "'liga a radio' -> action_intent fastpath:radio_play 1,05 s, 1 player; de novo -> 74 ms, ainda 1 player (adotou); duplicata forçada (OD_RADIO_CHILD=1 ffplay) -> 2 para 1 player com '1 instancia(s) duplicada(s) encerrada(s)'; 'status da radio' -> tocando player 3773991; 'desliga a radio' -> 0 players, 'Radio parada — energia da caixa desligada', sem 'resistiram'. Comando repetido NAO veio do cache (route=action_intent nas duas).",
+    "medicao": "Conversa aberta: route=llm, llm=gemini, 3,45 s, prompt_chars=6565 — a cota diaria do Gemini voltou e respondeu com o prompt real; confirma a medicao de 11/11 (gargalo e requisicao/dia, nao tamanho de prompt).",
+    "residuos": "pgrep ffplay vazio; nenhum script temporario; versao sem bump.",
+    "sem_bump": "app segue 1.44.0/2080 (correcoes de servidor, sem mudanca de app/API).",
+    "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§2)",
+    "updated_at": "2026-11-12T09:32:00-03:00"
+  },
   "retomada_leitura_iniciar_2026_11_12": {
     "pedido": "Dono (12/11): 'leia iniciar' — recarregar o checkpoint antes de retomar.",
     "lido": "iniciar/README.md, iniciar/RULES.md (21 regras), iniciar/session.json (entrada mais recente: devaneios_cache_comando_radio_duplicada_e_cota_gemini_2026_11_11, 11/11 15:05), transcricao 2026-11-11 inteira (§1-§13, 694 linhas), txt.txt (com as 3 queixas de 11/11) e git status/log.",

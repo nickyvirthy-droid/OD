@@ -12,6 +12,35 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Higiene de 11/11 + devaneios, rádio única e cota (2026-11-12, sem bump)
+
+**Resumo:** o lote de 11/11 estava testado mas fora do git e do ar. Fechado
+com gate completo, três commits por assunto, push e restart verde com prova
+viva dos três defeitos que o dono relatou no `txt.txt`.
+
+| Defeito relatado | Causa medida | Correção |
+|---|---|---|
+| "o chat está gerando devaneios" | o grafo consultava o `llm_cache` **antes** dos intents e servia frase inventada gravada antes para `"liga a radio"` | `_etapa_cache` não serve texto que é comando de action (`detect_action_intent`) |
+| "a rádio parece que está rodando duas instâncias" | o singleton `_RADIO_PROCESS` zera no restart, mas o `ffplay` roda em sessão própria e segue tocando | `_radio_ffplay_pids()` varre `/proc` (marca `OD_RADIO_CHILD=1` + URL do stream); `radio_play` adota o player no ar e encerra duplicatas |
+| "quando mando desligar a rádio o player também deveria ser desligado" | `radio_stop` só matava o filho **daquele** processo | `radio_stop` encerra **todos** os PIDs encontrados; zumbi conta como morto |
+
+**Extra (cota):** 429 abre o disjuntor na hora (`CircuitBreaker.abrir`) e a
+janela vem do `retryDelay` do próprio erro (teto de 6 h). Medição do prompt
+virou campo de log: `prompt_chars`.
+
+**Testes:** gate completo **4494 passed / 17 skipped / 0 falha** (180,40 s).
+Novos: `tests/test_radio_player.py` (13), `TestFormataRadio` (7),
+`TestCacheNaoServeComando` (2), cota/disjuntor (8).
+
+**Prova viva (MainPID 3773109, NRestarts=0):** `/health` **27/27** ok, journal
+0 erro. Rádio: 2 players forçados → `radio_play` adotou e encerrou a duplicata
+(1 player, "1 instância(s) duplicada(s) encerrada(s)"); `radio_stop` → **0
+players**, sem "resistiram". Comando repetido não veio do cache
+(`route=action_intent` nas duas vezes). Conversa aberta: `llm=gemini`, 3,45 s,
+`prompt_chars=6565`.
+
+**Sem bump:** 1.44.0/2080 (correções de servidor, sem mudança de app/API).
+
 ## Chat na cadeia completa de IAs: Gemini → Groq → local (2026-11-11, sem bump)
 
 **Resumo:** o core respondia tudo no `qwen2.5-coder-3b` local (devaneios em

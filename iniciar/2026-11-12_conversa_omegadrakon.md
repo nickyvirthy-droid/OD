@@ -59,3 +59,55 @@ Nada alterado no código: só leitura e registro. O deploy/higiene do lote do
 §13 fica para a próxima ordem do dono.
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §2 — Higiene do lote de 11/11: gate, commits, push e restart verde (12/11 ~09:30)
+
+**Pedido do dono:** fechar a higiene — gate completo, commits por assunto, push
+e restart verde com prova viva.
+
+### 1. Gate completo
+
+`.venv/bin/python -m pytest tests/ -q` → **4494 passed / 17 skipped / 0 falha**
+(180,40 s). Nenhuma correção foi necessária: o lote de 11/11 já estava verde
+(eram 4489 no registro anterior; +5 pelo `test_radio_player.py` que entrou na
+contagem desta rodada).
+
+### 2. Commits por assunto (e o que cada um resolve)
+
+| Commit | Arquivos | Assunto |
+|---|---|---|
+| `5af9012` | `tools/actions/actions.py`, `core/intents.py`, `test_intents.py`, `test_radio_player.py` | **rádio**: player único por SO e stop que cala todas as instâncias |
+| `b6d6144` | `core/llm.py`, `core/resilience.py`, `test_llm.py`, `test_resilience.py` | **cota**: 429 abre o disjuntor na hora e a espera vem do `retryDelay` |
+| `8e08d7d` | `core/orchestrator.py`, `test_orchestrator.py` | **grafo**: comando de action nunca vem do cache; `prompt_chars` no log |
+| `15531f6` | `iniciar/2026-11-11_conversa_omegadrakon.md` | registro do diagnóstico (§13) |
+
+Push: `origin/master` em **`15531f6`**, árvore limpa.
+
+### 3. Deploy e prova viva
+
+`systemctl --user restart od-core` (regra 7.3, validação verde):
+**MainPID 3773109**, `NRestarts=0`, `active`, subido 09:26:26.
+`/health` **27/27 up**, `ok=true`; `/llms` = `gemini, groq, gemma-local`;
+journal `-p err` **0 entradas** desde o restart.
+
+| Cenário | Resultado |
+|---|---|
+| "liga a radio" (sem player) | `action_intent fastpath:radio_play`, 1,05 s, **1 player** |
+| "liga a radio" de novo | `action_intent` (não cache), 74 ms, **1 player** — adotou o que estava no ar |
+| duplicata forçada (`OD_RADIO_CHILD=1 ffplay`) → "liga a radio" | **2 → 1 player**, resposta com "1 instância(s) duplicada(s) encerrada(s)" |
+| "status da radio" | `radio_status`, 26 ms, "Rádio tocando (player 3773991)" |
+| "desliga a radio" | `radio_stop`, 860 ms, **0 players**, "Rádio parada — energia da caixa desligada" (sem "resistiram") |
+| conversa aberta (disjuntor) | `route=llm`, **`llm=gemini`**, 3,45 s, `prompt_chars=6565` |
+
+Nota medida: a cota do Gemini **voltou** (é diária, 20/dia) e o Gemini
+respondeu a conversa aberta com o prompt real de 6.565 caracteres — reforça a
+medição de 11/11 de que o gargalo é requisição/dia, não tamanho de prompt.
+
+### 4. Resíduos
+
+- Player de teste encerrado (`pgrep ffplay` vazio); nenhum script temporário
+  criado nesta entrega.
+- Versão **sem bump**: 1.44.0/2080 (correções de servidor; sem mudança de app,
+  de API ou de contrato — mesma prática registrada nas entregas anteriores).
+
+**Sem bump:** app segue **1.44.0/2080**.
