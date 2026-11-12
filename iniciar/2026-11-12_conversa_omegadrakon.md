@@ -111,3 +111,79 @@ medição de 11/11 de que o gargalo é requisição/dia, não tamanho de prompt.
   de API ou de contrato — mesma prática registrada nas entregas anteriores).
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §3 — Buracos de intenção: disco, memória e CPU (12/11 ~09:57)
+
+**Pedido do dono:** "qual o uso de disco" deveria acionar a action de disco,
+como "quanto de espaço livre" já faz.
+
+### 1. O buraco de detecção
+
+Medido com `detect_action_intent` antes de mexer:
+
+| Frase | Antes |
+|---|---|
+| "qual o uso de disco" / "uso de disco" / "qual o uso de hd" | `None` (ia para o LLM) |
+| "quanto de espaço livre no disco" | `disk_usage` |
+| "quanto de memória livre" | `None` (só "quanta memória" casava) |
+| "qual o uso de cpu" | `None` (só "uso da cpu"/"processador" casavam) |
+
+A causa era o vocabulário do segundo termo: as regras exigiam
+`usado|livre|quanto|como está` e não aceitavam `uso`, `ocupa`, `cheio`,
+`disponível`, `quantos`.
+
+### 2. Correção e travas
+
+- `core/intents.py`: disco, memória e cpu passaram a aceitar esses termos.
+- **Travas que não podiam regredir:** temperatura continua indo para
+  `cpu_temp` (o bloco de cpu ignora a frase quando há
+  `temperatura|graus|calor|térmic`); e comprar/preço de HD não vira leitura de
+  disco (`custa|compr|preço|barat|orçamento|modelo|marca`).
+- A intenção de disco deixou de mandar `path` explícito (a action já mede
+  `/` por padrão).
+
+### 3. O segundo defeito: a action era NEGADA
+
+Com a detecção corrigida, a prova viva ainda respondeu `route=fallback`
+(`llm=gemini`, 8,8 s). O journal mostrou a causa:
+
+```
+CRIT Path outside allowed roots | action=disk_usage | path=/
+CRIT Action denied by security | action=disk_usage | denied_by=scope
+WARN Orchestrator action denied | Path '/' is outside the allowed project scope
+```
+
+O schema da action preenche `path="/"` **antes** do gate, então tirar o param
+da intenção não resolvia. Ou seja: **toda** pergunta de disco era negada e caía
+no LLM — a detecção nunca chegou a produzir resposta.
+
+- `core/security/scope.py`: `SCOPE_EXEMPT_ACTIONS = {"disk_usage"}` — o `path`
+  de uma métrica é o ponto de montagem medido, não acesso a arquivo, então o
+  escopo de filesystem não se aplica.
+- A exceção é só da métrica: escrita e paths de filesystem continuam negados
+  (coberto por teste).
+
+### 4. Testes e deploy
+
+Dois gates completos (um por commit): **4515** e **4517 passed / 17 skipped /
+0 falha**. Novos testes: 10 de detecção (disco/memória/cpu, temperatura
+preservada, compra de HD não confunde) e 2 de escopo (disco isento, escrita
+ainda negada).
+
+Restart: **MainPID 3810200**, `NRestarts=0`, `/health` **27/27**, journal 0 erro.
+
+### 5. Prova viva
+
+| Frase | Resultado |
+|---|---|
+| "qual o uso de disco" | `action_intent`, `fastpath:disk_usage`, **31,8 ms**, "62,7% usado · 75,7 GB livres de 231,2 GB" |
+| "quanto de espaço livre no disco" | `action_intent`, `fastpath:disk_usage`, 20,0 ms, mesmo dado real |
+| "quanto de memoria livre" | `action_intent`, `fastpath:memory_usage`, 6,2 ms |
+| "qual o uso de cpu" | `action_intent`, `fastpath:cpu_info`, 7,2 ms |
+| "qual a temperatura da cpu" | `action_intent`, **`fastpath:cpu_temp`** (não regrediu), 7,6 ms |
+| "quanto custa um hd de 4tb" | conversa (não aciona disco) |
+
+Commits: `742e054` (detecção), `c863780` (intenção sem path), `5dde610`
+(exceção de escopo).
+
+**Sem bump:** app segue **1.44.0/2080**.

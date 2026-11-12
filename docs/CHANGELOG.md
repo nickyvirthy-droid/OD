@@ -12,6 +12,27 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Intenções operacionais: disco, memória e CPU respondem com dado real (2026-11-12, sem bump)
+
+**Resumo:** "qual o uso de disco" caía no LLM e voltava invenção, enquanto
+"quanto de espaço livre" acertava. Eram **dois** defeitos em série.
+
+| # | Defeito | Correção |
+|---|---|---|
+| 1 | `core/intents.py` exigia `usado|livre|quanto|como está` — a pergunta mais natural (`uso`, `ocupa`, `cheio`, `disponível`, `quantos`) não casava | regras de disco/memória/cpu aceitam o vocabulário todo; temperatura segue indo para `cpu_temp` e comprar/preço de HD não vira leitura de disco |
+| 2 | a action rodava e era **negada**: o schema preenche `path="/"` antes do gate e o escopo recusava ("Path outside allowed roots") | `SCOPE_EXEMPT_ACTIONS = {"disk_usage"}` em `core/security/scope.py` — métrica medida por caminho não é acesso a arquivo; escrita/filesystem seguem negados |
+
+**Testes:** dois gates completos (**4515** e **4517 passed / 17 skipped / 0 falha**);
++10 de detecção e +2 de escopo.
+
+**Prova viva (MainPID 3810200):** "qual o uso de disco" → `action_intent`,
+`fastpath:disk_usage`, **31,8 ms**, "62,7% usado · 75,7 GB livres de 231,2 GB";
+"quanto de memoria livre" → `memory_usage` 6,2 ms; "qual o uso de cpu" →
+`cpu_info` 7,2 ms; "qual a temperatura da cpu" → `cpu_temp` 7,6 ms (não
+regrediu).
+
+**Sem bump:** 1.44.0/2080.
+
 ## Higiene de 11/11 + devaneios, rádio única e cota (2026-11-12, sem bump)
 
 **Resumo:** o lote de 11/11 estava testado mas fora do git e do ar. Fechado

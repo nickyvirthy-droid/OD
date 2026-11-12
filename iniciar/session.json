@@ -1,4 +1,17 @@
 {
+  "buracos_de_intencao_disco_memoria_cpu_2026_11_12": {
+    "pedido": "Dono (12/11): 'qual o uso de disco' deveria acionar a action de disco, como 'quanto de espaço livre' ja faz.",
+    "buraco_deteccao": "Regras de disco/memoria/cpu exigiam usado|livre|quanto|como esta e nao aceitavam uso/ocupa/cheio/disponivel/quantos. Medido: 'qual o uso de disco', 'uso de disco', 'qual o uso de hd', 'quanto de memoria livre' e 'qual o uso de cpu' -> None.",
+    "fix_deteccao": "core/intents.py: disco, memoria e cpu aceitam os termos novos. Travas: temperatura continua em cpu_temp (bloco de cpu ignora frases com temperatura/graus/calor/termic) e comprar/preco de HD nao vira leitura de disco (custa|compr|preco|barat|orcamento|modelo|marca). A intencao de disco deixou de mandar path.",
+    "segundo_defeito": "Mesmo com a deteccao corrigida, a prova viva deu route=fallback (gemini, 8,8 s). Journal: CRIT 'Path outside allowed roots | action=disk_usage | path=/' e 'Action denied by security | denied_by=scope' — o schema preenche path='/' antes do gate, entao TODA pergunta de disco era negada e caia no LLM.",
+    "fix_escopo": "core/security/scope.py: SCOPE_EXEMPT_ACTIONS = {disk_usage} — path de metrica e ponto de montagem, nao acesso a arquivo. A excecao vale so para metrica; escrita e paths de filesystem seguem negados (teste).",
+    "testes": "Dois gates completos: 4515 e 4517 passed / 17 skipped / 0 falha. +10 de deteccao (disco/memoria/cpu, temperatura preservada, compra de HD) e +2 de escopo.",
+    "prova_viva": "MainPID 3810200, NRestarts=0, /health 27/27, journal 0 erro. 'qual o uso de disco' -> action_intent fastpath:disk_usage 31,8 ms '62,7% usado · 75,7 GB livres de 231,2 GB'; 'quanto de espaco livre no disco' -> mesmo dado 20 ms; 'quanto de memoria livre' -> memory_usage 6,2 ms; 'qual o uso de cpu' -> cpu_info 7,2 ms; 'qual a temperatura da cpu' -> cpu_temp 7,6 ms (nao regrediu); 'quanto custa um hd de 4tb' -> conversa.",
+    "commits": ["742e054 fix(intents): cobre qual o uso de disco / quanto de memoria livre / cpu", "c863780 fix(disco): intencao nao manda path", "5dde610 fix(segurança): metrica de disco nao passa pelo escopo de arquivo"],
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§3)",
+    "updated_at": "2026-11-12T09:59:00-03:00"
+  },
   "higiene_lote_11_11_publicado_2026_11_12": {
     "pedido": "Dono (12/11): fechar a higiene do lote de 11/11 — gate completo, commits por assunto, push e restart verde com prova viva.",
     "gate": "Gravado antes: .venv/bin/python -m pytest tests/ -q -> 4494 passed / 17 skipped / 0 falha (180,40 s). Nenhuma correcao necessaria.",

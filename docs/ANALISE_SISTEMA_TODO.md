@@ -625,8 +625,10 @@ esperar o timeout.
 > desconhecido` do `radio_status`" entraram como checkbox abaixo; "implantar a
 > stack OTel" já existe como item de infra na Semana 1-2 (não duplicado).
 
-- [ ] Intenções: tapar os buracos de casamento ("qual o uso de disco" → `None`,
-      enquanto "quanto de espaço livre no disco" → `disk_usage`)
+- [x] Intenções: tapar os buracos de casamento ("qual o uso de disco" → `None`,
+      enquanto "quanto de espaço livre no disco" → `disk_usage`) — **FEITO 12/11:
+      disco/memória/cpu aceitam uso/ocupa/cheio/disponível/quantos; e a action
+      de disco deixou de ser NEGADA pelo escopo (`SCOPE_EXEMPT_ACTIONS`)**
 - [ ] Rádio: `radio_status` responde "Saída: desconhecido" — descobrir o sink real
       do `pactl` (ou omitir a linha quando não houver sink identificado)
 
