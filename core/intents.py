@@ -986,8 +986,10 @@ def detect_action_intent(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     # retornam (nome, params) completo de _detect_operational.
     if isinstance(action, tuple):
         return action
-    if action == "disk_usage":
-        return action, {"path": "/"}
+    # disk_usage NÃO leva `path`: a action já mede "/" por padrão, e passar o
+    # caminho explícito fazia a camada de escopo negar a leitura ("Path '/' is
+    # outside the allowed project scope", CRIT no journal) — por isso toda
+    # pergunta de disco caía no LLM no fim das contas (medido em 12/12).
     return action, {}
 
 

@@ -337,11 +337,23 @@ class TestDetectActionIntent:
 
     def test_disco(self) -> None:
         assert detect_action_intent("quanto de disco está livre?") == (
-            "disk_usage", {"path": "/"}
+            "disk_usage", {}
         )
         assert detect_action_intent("como está o espaço do HD?") == (
-            "disk_usage", {"path": "/"}
+            "disk_usage", {}
         )
+
+    @pytest.mark.parametrize("text", [
+        "qual o uso de disco",
+        "quanto de espaço livre no disco",
+        "o disco está cheio?",
+    ])
+    def test_disco_sem_path(self, text: str) -> None:
+        """Sem `path` explícito: a camada de escopo negava a leitura ("/" fora
+        das raízes permitidas) e a pergunta caía no LLM (medido em 12/11)."""
+        action, params = detect_action_intent(text)
+        assert action == "disk_usage"
+        assert "path" not in params
 
     @pytest.mark.parametrize("text", [
         "qual o uso de disco",
@@ -353,7 +365,7 @@ class TestDetectActionIntent:
     ])
     def test_disco_uso(self, text: str) -> None:
         """O caso relatado em 12/11: "qual o uso de disco" → action, não LLM."""
-        assert detect_action_intent(text) == ("disk_usage", {"path": "/"})
+        assert detect_action_intent(text) == ("disk_usage", {})
 
     @pytest.mark.parametrize("text", [
         "quanto custa um hd de 4tb",
