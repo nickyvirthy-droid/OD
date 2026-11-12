@@ -311,13 +311,21 @@ def _detect_operational(text: str) -> Optional[str]:
     # processos
     if re.search(r"(quantos|lista|ver).{0,12}processos", low):
         return "process_list"
-    # memória
-    if re.search(r"(mem[oó]ria|ram)\b", low) and re.search(r"(us[oa]ndo|uso|consumo|quanta|como est[áa])", low):
+    # memória — "livre"/"disponível"/"quanto" cobrem "quanto de memória
+    # livre", que caía no LLM (buraco medido em 12/11).
+    if re.search(r"(mem[oó]ria|ram)\b", low) and re.search(
+        r"(us[oa]ndo|uso|consumo|quant[ao]|livre|dispon[íi]vel|como est[áa])", low
+    ):
         return "memory_usage"
-    if re.search(r"quanta\s+(mem[oó]ria|ram)", low):
-        return "memory_usage"
-    # cpu
-    if re.search(r"(uso\s+da\s+cpu|cpu\s+em|quanto\s+.*cpu|processador)", low):
+    # cpu — antes só casava "uso da cpu"/"cpu em"/"processador", então a
+    # pergunta mais natural ("qual o uso de cpu") ia para o LLM. Temperatura
+    # fica FORA de propósito: pertence à action cpu_temp logo abaixo.
+    _cpu = re.search(r"\b(cpu|processador)\b", low)
+    if _cpu and not re.search(r"(temperatura|graus|calor|t[ée]rmic)", low) and re.search(
+        r"(uso|usad[ao]|carga|n[úu]cleos?|quant[ao]s?|como est[áa])", low
+    ):
+        return "cpu_info"
+    if re.search(r"cpu\s+em", low):
         return "cpu_info"
     # temperatura DO SERVIDOR (a de cidade é do mundo externo — e, com HA
     # ligado, vira dado REAL pela action ha_weather; a da máquina é
@@ -458,9 +466,17 @@ def _detect_operational(text: str) -> Optional[str]:
         _RE_ALVO_SEGREDO.search(low) or _RE_PEDIDO_VALOR.search(low)
     ):
         return "__secrets_denied__"
-    # disco
-    if re.search(r"(disco|espa[çc]o|armazenamento|hd|ssd)", low) and \
-       re.search(r"(us[oa]do|livre|quanto|como est[áa])", low):
+    # disco — "uso"/"ocupa"/"cheio" entram junto de "usado"/"livre":
+    # "qual o uso de disco" era o buraco relatado em 12/11 (caía no LLM e a
+    # resposta virava invenção, enquanto "quanto de espaço livre" acertava).
+    if re.search(r"(disco|espa[çc]o|armazenamento|hd|ssd)", low) and re.search(
+        r"(us[oa]do|uso|livre|quanto|quant[ao]|como est[áa]|ocupa|cheio|"
+        r"dispon[íi]vel|restante)", low
+    ) and not re.search(
+        # comprar HD/SSD é conversa, não leitura da máquina ("quanto custa
+        # um hd de 4tb" já caía aqui antes; mantido fora agora).
+        r"(cust|compr|pre[çc]o|barat|or[çc]amento|modelo|marca)", low
+    ):
         return "disk_usage"
     # uptime
     if re.search(r"(uptime|h[aá] quanto tempo|tempo\s+(de\s+)?(ligado|no ar|atividade))", low):

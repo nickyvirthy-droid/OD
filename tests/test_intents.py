@@ -300,6 +300,15 @@ class TestDetectActionIntent:
             "memory_usage", {}
         )
 
+    @pytest.mark.parametrize("text", [
+        "quanto de memória livre",
+        "quanto de ram disponível",
+        "qual o uso de memória",
+    ])
+    def test_memoria_livre_e_uso(self, text: str) -> None:
+        """Buraco de 12/11: "quanto de memória livre" caía no LLM."""
+        assert detect_action_intent(text) == ("memory_usage", {})
+
     def test_cpu(self) -> None:
         assert detect_action_intent("quanto está a carga da CPU?") == (
             "cpu_info", {}
@@ -308,6 +317,24 @@ class TestDetectActionIntent:
             "cpu_info", {}
         )
 
+    @pytest.mark.parametrize("text", [
+        "qual o uso de cpu",
+        "quanto de cpu está em uso",
+        "quantos núcleos tem a cpu",
+        "cpu em 40%",
+    ])
+    def test_cpu_uso_sem_artigo(self, text: str) -> None:
+        """Buraco de 12/11: sem "da"/"processador" a pergunta ia ao LLM."""
+        assert detect_action_intent(text) == ("cpu_info", {})
+
+    @pytest.mark.parametrize("text", [
+        "qual a temperatura da cpu",
+        "quanto está a temperatura da cpu",
+    ])
+    def test_cpu_quente_continua_sendo_temperatura(self, text: str) -> None:
+        """Temperatura é dado térmico (cpu_temp), não carga — não regride."""
+        assert detect_action_intent(text) == ("cpu_temp", {})
+
     def test_disco(self) -> None:
         assert detect_action_intent("quanto de disco está livre?") == (
             "disk_usage", {"path": "/"}
@@ -315,6 +342,27 @@ class TestDetectActionIntent:
         assert detect_action_intent("como está o espaço do HD?") == (
             "disk_usage", {"path": "/"}
         )
+
+    @pytest.mark.parametrize("text", [
+        "qual o uso de disco",
+        "qual o uso do disco",
+        "uso de disco",
+        "como está o disco",
+        "qual o uso de hd",
+        "o disco está cheio?",
+    ])
+    def test_disco_uso(self, text: str) -> None:
+        """O caso relatado em 12/11: "qual o uso de disco" → action, não LLM."""
+        assert detect_action_intent(text) == ("disk_usage", {"path": "/"})
+
+    @pytest.mark.parametrize("text", [
+        "quanto custa um hd de 4tb",
+        "qual o melhor ssd do mercado",
+        "escreva um e-mail pedindo orçamento de um HD de 4TB",
+    ])
+    def test_disco_nao_confunde_compra(self, text: str) -> None:
+        """Comprar/preço é conversa: nunca vira leitura de disco."""
+        assert detect_action_intent(text) is None
 
     def test_uptime(self) -> None:
         assert detect_action_intent("há quanto tempo o sistema está ligado?") == (
