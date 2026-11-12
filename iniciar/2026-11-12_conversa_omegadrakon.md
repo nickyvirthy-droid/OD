@@ -187,3 +187,65 @@ Commits: `742e054` (detecção), `c863780` (intenção sem path), `5dde610`
 (exceção de escopo).
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §4 — Auditoria do gate de escopo em todas as actions (12/11 ~10:20)
+
+**Pedido do dono:** auditar as outras actions de leitura contra o gate de
+escopo, para achar mais negações silenciosas como a do disco.
+
+### 1. Método
+
+As 122 actions do `CATALOG` foram avaliadas pelo **mesmo pipeline de produção**
+(`SecurityManager(mode="strict")`), com os params preenchidos pelo schema
+(defaults + valores de exemplo para os obrigatórios) e três papéis.
+
+### 2. Resultado
+
+| Papel | Negadas | Leitura |
+|---|---|---|
+| `admin` (dono) | **0** de 122 | só o meu exemplo de `action_validate` feriu o schema (`params` é dict) |
+| `user` | 80 | **todas por `permission`**, de propósito: escrita Google, `vault_*`, `database_*`, `network_hosts`, `filesystem_read/delete/write`, `radio_*`, `kiwix_*`, `stirling_*` etc. |
+| `guardian` | todas | **`guardian` é perfil de conversa, não papel do Security Layer**; papel desconhecido = deny-all (`UNKNOWN_ROLE_POLICY = "deny"`) |
+
+Ou seja: **a negação silenciosa do disco era a única dessa classe**. Nenhuma
+action de leitura nasce negada pelo gate com seus próprios defaults.
+
+### 3. O achado inverso (mais interessante que o pedido)
+
+A varredura de chaves de caminho (`_PATH_PARAM_KEYS`) mostra poucas actions
+com `path`/`source`/`dest` — e **duas leem caminho local com nomes fora da
+lista de escopo**:
+
+| Action | Param | O que faz | Situação |
+|---|---|---|---|
+| `stt_transcrever` | `caminho` | abre um áudio **local** e transcreve | **não passa pelo escopo** |
+| `filebrowser_envia` | `origem` | lê um **arquivo local** e envia para a caixa | **não passa pelo escopo** |
+
+Não corrigi: incluir `caminho`/`origem` na lista passaria a negar `/tmp/...`
+(áudio e arquivos fora do projeto), o que é decisão de política do dono, não
+um bug de código. Registrado no TODO.
+
+### 4. Rede de regressão criada
+
+`tests/test_scope_audit.py` (8 testes, novo):
+
+1. **nenhuma action negada com os próprios defaults** (admin) — é o teste que
+   pega a volta do bug do disco;
+2. **canário dos params de caminho** — action nova com `path`/`source`/`dest`
+   quebra a lista e obriga a decisão (local? serviço?);
+3. **a isenção só cobre métrica de sistema**;
+4. **escopo não afrouxou**: `filesystem_read/delete/write/list` com
+   `/etc/passwd` continuam negados;
+5. **disco mede qualquer montagem** (`stat`, não leitura de conteúdo).
+
+**Teste do teste (mutação):** removendo `disk_usage` de
+`SCOPE_EXEMPT_ACTIONS`, dois testes falham (o do default e o da montagem);
+arquivo restaurado bit a bit depois (`git diff` vazio).
+
+### 5. Verificação e estado
+
+Gate completo: **4525 passed / 17 skipped / 0 falha** (176,99 s). Só teste novo
+entrou — **nenhum código de produção mudou**, então **não houve restart**: o
+`od-core` segue no MainPID **3810200**, `NRestarts=0`.
+
+**Sem bump:** app segue **1.44.0/2080**.

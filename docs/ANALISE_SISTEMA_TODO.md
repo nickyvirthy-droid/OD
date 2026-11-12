@@ -637,9 +637,13 @@ esperar o timeout.
 > frases reais do dono na suíte de intenções" entraram como checkbox abaixo;
 > "sink do radio_status" já estava registrado, não duplicado.
 
-- [ ] Segurança: auditar as demais actions de leitura contra o gate de escopo —
-      `disk_usage` estava sendo negada em silêncio (e caindo no LLM); pode haver
-      outras com o mesmo sintoma
+- [x] Segurança: auditar as demais actions de leitura contra o gate de escopo —
+      **FEITO 12/11: as 122 actions × 3 papéis; a do disco era a única negação
+      indevida. `tests/test_scope_audit.py` virou rede de regressão**
+- [ ] Segurança (achado inverso da auditoria): `stt_transcrever(caminho)` e
+      `filebrowser_envia(origem)` leem arquivo LOCAL com chave fora de
+      `_PATH_PARAM_KEYS` e não passam pelo escopo. Incluir as chaves passaria a
+      negar `/tmp` — precisa da decisão de política do dono
 - [ ] Intenções: montar um corpus com frases reais do dono (do `txt.txt` e das
       transcrições) como teste de detecção — os buracos só apareciam em uso
 

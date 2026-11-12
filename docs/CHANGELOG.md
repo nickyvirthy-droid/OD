@@ -12,6 +12,33 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Auditoria do gate de escopo nas 122 actions (2026-11-12, sem bump)
+
+**Resumo:** depois do bug do `disk_usage` (action negada em silêncio), a
+pergunta era se havia mais negações dessa classe. As **122 actions × 3 papéis**
+foram avaliadas pelo mesmo `SecurityManager(mode="strict")` da produção, com
+params preenchidos pelo schema.
+
+| Papel | Negadas | Leitura |
+|---|---|---|
+| `admin` (dono) | **0** de 122 | — |
+| `user` | 80 | todas por `permission`, de propósito (escrita Google, `vault_*`, `database_*`, `filesystem_read/delete/write`, `radio_*`, etc.) |
+| `guardian` | todas | `guardian` é perfil de conversa, não papel do Security Layer (papel desconhecido = deny-all) |
+
+**Achado inverso:** `stt_transcrever(caminho)` e `filebrowser_envia(origem)`
+leem arquivo **local** com chaves fora de `_PATH_PARAM_KEYS` e não passam pelo
+escopo. Não corrigido de propósito — incluir as chaves passaria a negar `/tmp`,
+o que é decisão de política do dono (registrado no TODO).
+
+**Rede de regressão:** `tests/test_scope_audit.py` (novo, 8 testes) — nenhuma
+action negada com os próprios defaults, canário para params de caminho,
+insenção restrita a métrica de sistema e escopo sem afrouxar (arquivo fora da
+raiz segue negado). Teste do teste por mutação: sem a isenção, 2 testes falham.
+
+**Verificação:** gate **4525 passed / 17 skipped / 0 falha** (176,99 s). Só
+teste entrou — sem mudança de produção, **sem restart** (MainPID 3810200).
+**Sem bump:** 1.44.0/2080.
+
 ## Intenções operacionais: disco, memória e CPU respondem com dado real (2026-11-12, sem bump)
 
 **Resumo:** "qual o uso de disco" caía no LLM e voltava invenção, enquanto

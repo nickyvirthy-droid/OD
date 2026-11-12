@@ -1,4 +1,16 @@
 {
+  "auditoria_do_gate_de_escopo_2026_11_12": {
+    "pedido": "Dono (12/11): auditar as outras actions de leitura contra o gate de escopo, para achar mais negacoes silenciosas como a do disco.",
+    "metodo": "As 122 actions do CATALOG avaliadas pelo SecurityManager(mode='strict') de producao, com params preenchidos pelo schema (defaults + exemplos nos obrigatorios), em tres papeis.",
+    "resultado": "admin: 0 negadas de 122 (so o exemplo de action_validate feriu schema). user: 80 negadas, TODAS por permission e de proposito. guardian: tudo negado porque 'guardian' e perfil de conversa, nao papel do Security Layer (UNKNOWN_ROLE_POLICY=deny). Logo a negacao silenciosa do disco era a unica da classe — nenhuma action de leitura nasce negada com seus defaults.",
+    "achado_inverso": "Duas actions leem caminho LOCAL com nomes fora de _PATH_PARAM_KEYS e por isso nao passam pelo escopo: stt_transcrever('caminho') e filebrowser_envia('origem'). NAO corrigido: incluir essas chaves passaria a negar /tmp, decisao de politica do dono (registrado no TODO).",
+    "regressao": "tests/test_scope_audit.py (novo, 8 testes): nenhuma action negada com defaults (admin); canario dos params de caminho; isencao so para metrica de sistema; escopo nao afrouxou (filesystem_* com /etc/passwd negados); disco mede qualquer montagem. Teste do teste por mutacao: sem disk_usage em SCOPE_EXEMPT_ACTIONS, 2 testes falham; arquivo restaurado bit a bit.",
+    "testes": "Gate completo 4525 passed / 17 skipped / 0 falha (176,99 s). So teste novo entrou — nenhum codigo de producao mudou.",
+    "deploy": "Sem restart: od-core segue no MainPID 3810200, NRestarts=0.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§4)",
+    "updated_at": "2026-11-12T10:22:00-03:00"
+  },
   "buracos_de_intencao_disco_memoria_cpu_2026_11_12": {
     "pedido": "Dono (12/11): 'qual o uso de disco' deveria acionar a action de disco, como 'quanto de espaço livre' ja faz.",
     "buraco_deteccao": "Regras de disco/memoria/cpu exigiam usado|livre|quanto|como esta e nao aceitavam uso/ocupa/cheio/disponivel/quantos. Medido: 'qual o uso de disco', 'uso de disco', 'qual o uso de hd', 'quanto de memoria livre' e 'qual o uso de cpu' -> None.",
