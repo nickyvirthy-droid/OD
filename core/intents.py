@@ -478,6 +478,15 @@ def _detect_operational(text: str) -> Optional[str]:
         r"(cust|compr|pre[çc]o|barat|or[çc]amento|modelo|marca)", low
     ):
         return "disk_usage"
+    # PRONTIDÃO (12/11): "como estamos preparados", "o que falta para
+    # resistir", "modo colapso". A resposta é a MEDIDA do sistema (energia,
+    # disco, acervo offline, IA local, backup, comunicação) — nunca prosa.
+    if re.search(
+        r"(\bprontid[aã]o\b|readiness|\bcolapso\b|sobrevivencialista|"
+        r"resistir\b|o que falta para (resistir|sobreviver)|estamos preparados)",
+        low,
+    ):
+        return "readiness_report"
     # uptime
     if re.search(r"(uptime|h[aá] quanto tempo|tempo\s+(de\s+)?(ligado|no ar|atividade))", low):
         return "uptime"
@@ -1828,6 +1837,22 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
         for r in readings[:5]:
             lines.append(f"  • {r.get('type', r.get('zone', '?'))}: {r.get('celsius')}°C")
         return "\n".join(lines)
+
+    if action == "readiness_report":
+        itens = data.get("itens") or []
+        if not itens:
+            return None
+        linhas = [
+            f"🛡️ Prontidão: {data.get('pontos', 0)}/{data.get('total', 0)} "
+            f"({data.get('percent', 0)}%)"
+        ]
+        for i in itens:
+            marco = "✅" if i.get("ok") else "⚠️"
+            linhas.append(f"{marco} {i.get('nome', '?')}: {i.get('detalhe', '')}")
+        pendentes = data.get("pendentes") or []
+        if pendentes:
+            linhas.append("Pendente: " + ", ".join(pendentes))
+        return "\n".join(linhas)
 
     if action == "disk_usage":
         percent = data.get("percent", 0)

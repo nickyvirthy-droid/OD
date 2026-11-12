@@ -171,6 +171,178 @@ def disk_usage(path: str = "/") -> dict[str, Any]:
     }
 
 
+def readiness_report(
+    zim_dir: str = "",
+    backup_dir: str = "",
+    llm_host: str = "127.0.0.1",
+    llm_port: int = 8081,
+) -> dict[str, Any]:
+    """Prontidão medida para operar sem internet e sem energia estável.
+
+    Pedido do dono (12/11, `txt.txt`): *"prepare o Omega Drakon para
+    resistir... busque todas as alternativas para continuar funcionando e se
+    comunicando"*. O relatório é MEDIDO no sistema — nada de opinião: cada
+    item diz o número que o sustenta, `ok` quando a condição de sobrevivência
+    está cumprida e o que falta quando não está.
+
+    Nada aqui faz chamada de rede que dependa de serviço externo; a única
+    sondagem é um TCP curto para saber se a internet está no ar AGORA (o que
+    é justamente o recurso que pode faltar).
+    """
+    itens: list[dict[str, Any]] = []
+
+    def item(nome: str, ok: bool, detalhe: str) -> None:
+        itens.append({"nome": nome, "ok": bool(ok), "detalhe": detalhe})
+
+    # 1. Energia: nobreak/UPS visível ao SO (sem isso o servidor morre no apagão)
+    nomes_energia: list[str] = []
+    try:
+        nomes_energia = sorted(os.listdir("/sys/class/power_supply"))
+    except OSError:
+        pass
+    ups = [n for n in nomes_energia if n.lower().startswith(("ups", "hid"))]
+    bateria = [n for n in nomes_energia if n.upper().startswith("BAT")]
+    if ups:
+        item("energia", True, f"UPS visível: {', '.join(ups)}")
+    elif bateria:
+        item("energia", True, f"bateria visível: {', '.join(bateria)}")
+    else:
+        item("energia", False, "sem UPS/bateria no SO — apagão derruba o servidor sem shutdown")
+
+    # 2. Disco: espaço para conteúdo offline novo
+    try:
+        uso = shutil.disk_usage("/")
+        livres_gb = uso.free / 1024**3
+        percentual = 100.0 * uso.used / uso.total
+        item(
+            "disco",
+            livres_gb >= 20.0,
+            f"{livres_gb:.1f} GB livres ({percentual:.1f}% usado) — reserva útil pede 20 GB",
+        )
+    except OSError as exc:
+        item("disco", False, f"não consegui medir: {type(exc).__name__}")
+
+    # 3. Memória: a IA local precisa de folga
+    livre_mb = 0.0
+    try:
+        with open("/proc/meminfo", encoding="utf-8") as fh:
+            for linha in fh:
+                if linha.startswith("MemAvailable:"):
+                    livre_mb = float(linha.split()[1]) / 1024.0
+                    break
+    except OSError:
+        pass
+    item("memória", livre_mb >= 2048.0, f"{livre_mb:.0f} MB disponíveis (piso 2048 MB)")
+
+    # 4. Conhecimento offline (Kiwix/ZIM): o acervo que sobrevive sem rede
+    alvo_zim = Path(
+        zim_dir
+        or os.environ.get("OD_KIWIX_ZIM_DIR")
+        or "/home/alex/omegadrakon-tools/zim"
+    )
+    zims: list[str] = []
+    total_zim_gb = 0.0
+    try:
+        for arquivo in alvo_zim.glob("*.zim"):
+            zims.append(arquivo.name)
+            total_zim_gb += arquivo.stat().st_size / 1024**3
+    except OSError:
+        pass
+    dica_zim = (
+        "faltam acervos: medicina, reparos, agricultura, mapas"
+        if total_zim_gb < 30
+        else "acervo de base presente"
+    )
+    item(
+        "conhecimento",
+        total_zim_gb >= 30.0,
+        f"{len(zims)} ZIM(s), {total_zim_gb:.1f} GB em {alvo_zim} ({dica_zim})",
+    )
+
+    # 5. IA local (sem internet): o provider de reserva precisa estar de pé
+    ia_ok = False
+    try:
+        with socket.create_connection((llm_host, int(llm_port)), timeout=1.0):
+            ia_ok = True
+    except OSError:
+        pass
+    item("ia_local", ia_ok, f"{'respondendo' if ia_ok else 'MUDO'} em {llm_host}:{llm_port}")
+
+    # 6. Internet AGORA (o recurso que pode acabar)
+    net_ok = False
+    for host, porta in (("1.1.1.1", 443), ("8.8.8.8", 53)):
+        try:
+            with socket.create_connection((host, porta), timeout=1.0):
+                net_ok = True
+                break
+        except OSError:
+            continue
+    item("internet", net_ok, "no ar agora" if net_ok else "SEM saída — em modo local")
+
+    # 7. Backup recente (sem backup verificado, colapso = perda)
+    alvo_backup = Path(backup_dir) if backup_dir else Path("backups")
+    ultimo_backup: Optional[float] = None
+    try:
+        carimbos = [
+            p.stat().st_mtime for p in alvo_backup.rglob("*") if p.is_file()
+        ]
+        if carimbos:
+            ultimo_backup = max(carimbos)
+    except OSError:
+        pass
+    idade_h = (time.time() - ultimo_backup) / 3600.0 if ultimo_backup else None
+    item(
+        "backup",
+        idade_h is not None and idade_h <= 48.0,
+        (f"último arquivo em {idade_h:.0f} h" if idade_h is not None else "nenhum backup encontrado")
+        + " (piso: 48 h; cópia fora da máquina ainda não automatizada)",
+    )
+
+    # 8. Comunicação alternativa: outro nó na malha privada
+    pares = 0
+    try:
+        saida = subprocess.run(
+            ["tailscale", "status"], capture_output=True, text=True, timeout=5
+        )
+        if saida.returncode == 0:
+            pares = sum(
+                1
+                for linha in saida.stdout.splitlines()
+                if "offline" not in linha.lower() and "100." in linha and "nicky-server" not in linha
+            )
+    except (OSError, subprocess.SubprocessError):
+        pass
+    item(
+        "comunicacao",
+        pares >= 1,
+        f"{pares} nó(s) online na malha privada além do servidor — "
+        f"{'há caminho alternativo ao Telegram' if pares else 'Telegram/celular é o único canal hoje'}",
+    )
+
+    # 9. Dependência de nuvem (informativo: quanto do cérebro vive fora)
+    chaves = [
+        nome
+        for nome in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY")
+        if (os.environ.get(nome) or "").strip()
+    ]
+    item(
+        "nuvem",
+        True,  # informativo: não reprova sozinho
+        f"{len(chaves)} provedor(es) de IA na nuvem configurado(s) — sem internet quem responde é o local",
+    )
+
+    pontos = sum(1 for i in itens if i["ok"])
+    total = len(itens)
+    return {
+        "ok": True,
+        "pontos": pontos,
+        "total": total,
+        "percent": round(100.0 * pontos / total, 1),
+        "itens": itens,
+        "pendentes": [i["nome"] for i in itens if not i["ok"]],
+    }
+
+
 def memory_usage() -> dict[str, Any]:
     """Memória RAM + swap (bytes), via /proc/meminfo."""
     raw = _read_proc("meminfo")
@@ -3866,6 +4038,16 @@ CATALOG: list[dict[str, Any]] = [
     _spec("uptime", "system", "Uptime do sistema", uptime),
     _spec("disk_usage", "system", "Uso de disco", disk_usage,
           {"path": {**S, "default": "/"}}),
+    _spec("readiness_report", "system", "Prontidão para operar sem internet/energia",
+          readiness_report, {
+              "required": [],
+              "properties": {
+                  "zim_dir": {**S, "default": ""},
+                  "backup_dir": {**S, "default": ""},
+                  "llm_host": {**S, "default": "127.0.0.1"},
+                  "llm_port": {**I, "default": 8081},
+              },
+          }),
     _spec("memory_usage", "system", "Uso de memória RAM/swap", memory_usage),
     _spec("cpu_info", "system", "Núcleos/modelo/carga da CPU", cpu_info),
     _spec("cpu_temp", "system", "Temperatura do servidor (zones térmicos)", cpu_temp),
