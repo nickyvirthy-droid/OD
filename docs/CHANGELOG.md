@@ -12,6 +12,30 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Espelho offline de pacotes e imagens (2026-11-12, sem bump)
+
+**Resumo:** o item "espelho de pacotes" do plano de continuidade foi
+executado. Em `/home/alex/dados/od-mirror` (HD USB, **fora do repo**) ficam os
+artefatos para reinstalar o OD sem internet, com restauração documentada e
+checksums.
+
+| Item | Medida |
+|---|---|
+| `pip/` — wheels de `requirements.txt` (cp312 manylinux x86_64) | **47 wheels, 71 MB** |
+| `docker/` — 11 containers em uso + `postgres:16-alpine` | **12 tars, 3,2 GB** |
+| `README.md` + `MANIFEST.txt` + cópias de `requirements.txt`/`tools-compose.yaml` | 3 arquivos |
+| Total | **3,3 GB** |
+
+**Verificação:** `pip install --no-index --find-links …/pip -r requirements.txt
+--dry-run` resolveu os **47 pacotes** sem rede; todos os 12 tar abrem com
+`manifest.json`; `sha256sum -c MANIFEST.txt` **OK** em todos os arquivos.
+O `docker save` deu 3,2 GB (não a soma nominal) por causa das camadas
+compartilhadas — o compose acha as imagens pelas tags preservadas.
+
+**Limites registrados no README:** os wheels são para Python 3.12/Linux x86_64;
+código, `.gguf`, ZIMs e `.env` **não** estão no espelho (cada um tem seu
+lugar próprio). **Sem bump:** 1.44.0/2080.
+
 ## 7B × 3B medido no mesmo benchmark: 3B permanece (2026-11-12, sem bump)
 
 **Resumo:** o TODO pedia medir o `qwen2.5-coder-7b` q4_K_M contra o 3B servido e

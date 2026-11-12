@@ -688,7 +688,16 @@ esperar o timeout.
 - [ ] **IA local (reteste):** 7B em quant menor (Q3_K_M) ou `-c 4096` quando
       houver mais RAM; repetir este mesmo benchmark e só promover se o p50
       ficar perto de 2× o do 3B
-- [ ] **Espelho de pacotes:** `pip download` + `docker save` das 11 imagens
+- [x] **Espelho de pacotes:** `pip download` + `docker save` das 11 imagens
+      — **FEITO 12/11: `/home/alex/dados/od-mirror`, 3,3 GB (47 wheels +
+      12 imagens + README/MANIFEST com sha256); pip offline validado com
+      `--no-index --dry-run`**
+- [ ] **Espelho (restauração real):** criar um venv limpo e subir um container
+      a partir de `od-mirror` sem rede — hoje a prova é resolução de
+      dependências + integridade, não um boot completo
+- [ ] **Espelho (modelos):** copiar o `.gguf` do 3B e o binário do llama.cpp
+      para o acervo, com o mesmo MANIFEST — hoje eles só existem em
+      `/home/alex/llama.cpp`
 - [ ] **Fila de download resumable** de acervo (padrão NOMAD, progresso por SSE)
 
 > Turno de 12/11 10:35 (plano de continuidade): as sugestões não escolhidas

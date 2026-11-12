@@ -87,10 +87,24 @@ Hoje: 15 GB. **Faltam ~25 GB.**
 
 ### 3.3 Pacotes e imagens (reinstalar sem internet)
 
-- `pip download -r requirements.txt -d vendor/pip` (~1 GB).
-- `docker save` das 11 imagens em uso (~3–5 GB) + os `compose` no repo.
-- `apt` não vale o esforço agora (espelho completo é caro); priorizar o que o
+**FEITO em 12/11** — espelho em `/home/alex/dados/od-mirror` (HD USB, fora do
+repo), **3,3 GB** no total, com `README.md` de restauração e `MANIFEST.txt`
+com `sha256` verificado:
+
+- `pip/`: **47 wheels** de `requirements.txt` (cp312 manylinux x86_64),
+  **71 MB**. Resolução offline testada com `pip install --no-index
+  --find-links … --dry-run` (47 pacotes resolvidos, nenhuma rede).
+- `docker/`: **12 imagens** em `docker save` — os 11 containers em uso +
+  `postgres:16-alpine`, **3,2 GB** (camadas compartilhadas; a soma nominal é
+  maior). Todos os tar têm `manifest.json` e checksum conferido.
+- `requirements.txt` + `tools-compose.yaml` copiados junto: se o repo se
+  perder, a restauração continua possível.
+- `apt` segue fora de escopo (espelho completo é caro); prioridade é o que o
   OD usa em Python/Docker.
+
+Restaurar: `python3.12 -m venv .venv && .venv/bin/pip install --no-index
+--find-links …/pip -r requirements.txt`; `for f in …/docker/*.tar; do docker
+load -i "$f"; done`. Detalhes no README do espelho.
 
 ### 3.4 Credenciais e dados que só existem aqui
 

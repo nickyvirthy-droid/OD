@@ -1,4 +1,14 @@
 {
+  "espelho_offline_2026_11_12": {
+    "pedido": "Dono (12/11): 'prossiga' — proximo item do plano: reinstalar sem internet.",
+    "feito": "Espelho em /home/alex/dados/od-mirror (HD USB, fora do git), 3,3 GB: pip/ com 47 wheels de requirements.txt (71 MB, cp312 manylinux x86_64); docker/ com 12 tars (11 containers em uso + postgres:16-alpine; 3,2 GB por camadas compartilhadas); README.md, MANIFEST.txt (sha256), requirements.txt e tools-compose.yaml copiados.",
+    "verificacao": "pip install --no-index --find-links .../pip -r requirements.txt --dry-run --ignore-installed -> 47 pacotes resolvidos sem rede; 12/12 tar com manifest.json; sha256sum -c MANIFEST.txt OK.",
+    "decisoes": "1) Espelho no HD USB, nao no SSD (sobrevive a falha do SSD). 2) Copias de requirements e compose dentro do espelho para restauracao sem repo. 3) Fora: requirements-dev, apt, .gguf, ZIMs e .env (cada um tem lugar proprio; segredo nunca em midia espelhada).",
+    "restante": "Testar uma restauracao real em ambiente limpo (container/pasta) — hoje a verificacao e resolucao de dependencias + integridade, nao um boot completo.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§9)",
+    "updated_at": "2026-11-12T14:00:00-03:00"
+  },
   "benchmark_7b_vs_3b_2026_11_12": {
     "pedido": "Dono (12/11): 'Meça o Qwen2.5-7B q4 contra o 3B atual e troque se valer a pena'.",
     "metodo": "7B ja estava em disco (4,7 GB), sem download. Medidos em sequencia (nao cabem juntos): 3B no od-llm, depois unit transiente od-llm-bench com o 7B, mesmas flags (ctx 8192, -t 4, temp 0.7, top_p 0.9, repeat 1.15). System prompt real build_identity_prompt('drakon') 2992 chars, 6 perguntas, max_tokens=400.",

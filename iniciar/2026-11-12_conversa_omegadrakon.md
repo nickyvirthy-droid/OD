@@ -494,3 +494,42 @@ O 7B fica em disco como opção consciente: com mais RAM, ou Q3_K_M com
 `od-llm-bench` removida (`--collect`); `/health` **27/27**; `/llms` com
 gemini, groq e gemma-local. Benchmarks em `/tmp` (fora do repo) e números
 gravados em `docs/IAS_DISPONIVEIS.md` §5. **Sem bump.**
+
+## §9 — Espelho de pacotes criado e verificado (12/11 ~14:00)
+
+**Pedido:** "prossiga" — próximo item do plano de continuidade: reinstalar sem
+internet.
+
+### 1. O que foi espelhado
+
+Destino: **`/home/alex/dados/od-mirror`** (HD USB, fora do git), **3,3 GB**:
+
+| Item | Medida |
+|---|---|
+| `pip/` — wheels de `requirements.txt` | **47 wheels**, 71 MB (cp312, manylinux x86_64) |
+| `docker/` — 11 containers em uso + `postgres:16-alpine` | **12 tars**, 3,2 GB |
+| `README.md`, `MANIFEST.txt`, `requirements.txt`, `tools-compose.yaml` | cópias e `sha256` de tudo |
+
+`docker save` deu 3,2 GB, não a soma nominal das imagens (~13 GB), porque as
+camadas são compartilhadas nos tar; as tags originais foram preservadas.
+
+### 2. Verificação (não só cópia)
+
+- **pip offline de verdade:** `.venv/bin/pip install --no-index --find-links
+  /home/alex/dados/od-mirror/pip -r requirements.txt --dry-run
+  --ignore-installed` → “Would install” os **47 pacotes**, sem rede.
+- **tar íntegros:** todos os 12 abrem `manifest.json`.
+- **checksums:** `sha256sum -c MANIFEST.txt` → **OK** em todos.
+- README com os comandos de restauração de pip e Docker, e o que **não** está
+  no espelho (código, `.gguf`, ZIMs, `.env`).
+
+### 3. Decisões
+
+1. Espelho no **HD USB**, não no SSD: se o SSD morrer, o espelho não morre com
+   ele (e o plano já manda usar os HDs para o que não é prioridade).
+2. Copiar `requirements.txt` e `tools-compose.yaml` **para dentro** do espelho:
+   num desastre o repo pode não estar à mão e os comandos precisam existir ali.
+3. Não espelhar `requirements-dev.txt` nem `apt`: o alvo é rodar o OD, não
+   desenvolver nele.
+
+**Sem bump:** app segue 1.44.0/2080.
