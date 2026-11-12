@@ -16,7 +16,7 @@ from tools.actions.actions import readiness_report
 
 class TestReadinessReport:
     def test_relatorio_tem_os_nove_checks(self, tmp_path) -> None:
-        r = readiness_report(zim_dir=str(tmp_path), backup_dir=str(tmp_path))
+        r = readiness_report(zim_dir=str(tmp_path), zim_dir_frio=str(tmp_path), backup_dir=str(tmp_path))
         nomes = [i["nome"] for i in r["itens"]]
         assert nomes == [
             "energia",
@@ -31,7 +31,7 @@ class TestReadinessReport:
         ]
 
     def test_pontuacao_bate_com_os_itens(self, tmp_path) -> None:
-        r = readiness_report(zim_dir=str(tmp_path), backup_dir=str(tmp_path))
+        r = readiness_report(zim_dir=str(tmp_path), zim_dir_frio=str(tmp_path), backup_dir=str(tmp_path))
         assert r["pontos"] == sum(1 for i in r["itens"] if i["ok"])
         assert r["total"] == len(r["itens"])
         assert r["percent"] == pytest.approx(100.0 * r["pontos"] / r["total"], abs=0.1)
@@ -40,7 +40,7 @@ class TestReadinessReport:
     def test_acervo_offline_pequeno_reprova(self, tmp_path) -> None:
         """Sem ZIM o item de conhecimento não passa — e o detalhe diz o porquê."""
         (tmp_path / "dummy.zim").write_bytes(b"0" * 1024)
-        r = readiness_report(zim_dir=str(tmp_path), backup_dir=str(tmp_path))
+        r = readiness_report(zim_dir=str(tmp_path), zim_dir_frio=str(tmp_path), backup_dir=str(tmp_path))
         conhecimento = next(i for i in r["itens"] if i["nome"] == "conhecimento")
         assert conhecimento["ok"] is False
         assert "ZIM" in conhecimento["detalhe"]
@@ -48,7 +48,7 @@ class TestReadinessReport:
     def test_sem_backup_reprova(self, tmp_path) -> None:
         vazio = tmp_path / "sem_backup"
         vazio.mkdir()
-        r = readiness_report(zim_dir=str(tmp_path), backup_dir=str(vazio))
+        r = readiness_report(zim_dir=str(tmp_path), zim_dir_frio=str(vazio), backup_dir=str(vazio))
         backup = next(i for i in r["itens"] if i["nome"] == "backup")
         assert backup["ok"] is False
         assert "nenhum backup" in backup["detalhe"]

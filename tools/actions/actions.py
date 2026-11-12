@@ -173,6 +173,7 @@ def disk_usage(path: str = "/") -> dict[str, Any]:
 
 def readiness_report(
     zim_dir: str = "",
+    zim_dir_frio: str = "",
     backup_dir: str = "",
     llm_host: str = "127.0.0.1",
     llm_port: int = 8081,
@@ -234,20 +235,30 @@ def readiness_report(
         pass
     item("memória", livre_mb >= 2048.0, f"{livre_mb:.0f} MB disponíveis (piso 2048 MB)")
 
-    # 4. Conhecimento offline (Kiwix/ZIM): o acervo que sobrevive sem rede
+    # 4. Conhecimento offline (Kiwix/ZIM): o acervo que sobrevive sem rede.
+    #    O acervo pode estar dividido entre o SSD (quente, servido pelo Kiwix)
+    #    e o HD USB (frio) — o que importa para sobreviver é o TOTAL, então os
+    #    dois diretórios somam (ordem do dono, 12/11: "use os HDs USB para o
+    #    que não for prioridade").
     alvo_zim = Path(
         zim_dir
         or os.environ.get("OD_KIWIX_ZIM_DIR")
         or "/home/alex/omegadrakon-tools/zim"
     )
+    frio = Path(
+        zim_dir_frio
+        or os.environ.get("OD_KIWIX_ZIM_DIR_FRIO")
+        or "/home/alex/dados/od-zim"
+    )
     zims: list[str] = []
     total_zim_gb = 0.0
-    try:
-        for arquivo in alvo_zim.glob("*.zim"):
-            zims.append(arquivo.name)
-            total_zim_gb += arquivo.stat().st_size / 1024**3
-    except OSError:
-        pass
+    for pasta in (alvo_zim, frio):
+        try:
+            for arquivo in pasta.glob("*.zim"):
+                zims.append(arquivo.name)
+                total_zim_gb += arquivo.stat().st_size / 1024**3
+        except OSError:
+            continue
     dica_zim = (
         "faltam acervos: medicina, reparos, agricultura, mapas"
         if total_zim_gb < 30
@@ -256,7 +267,7 @@ def readiness_report(
     item(
         "conhecimento",
         total_zim_gb >= 30.0,
-        f"{len(zims)} ZIM(s), {total_zim_gb:.1f} GB em {alvo_zim} ({dica_zim})",
+        f"{len(zims)} ZIM(s), {total_zim_gb:.1f} GB (quente: {alvo_zim}; frio: {frio}) ({dica_zim})",
     )
 
     # 5. IA local (sem internet): o provider de reserva precisa estar de pé
@@ -4043,6 +4054,7 @@ CATALOG: list[dict[str, Any]] = [
               "required": [],
               "properties": {
                   "zim_dir": {**S, "default": ""},
+                  "zim_dir_frio": {**S, "default": ""},
                   "backup_dir": {**S, "default": ""},
                   "llm_host": {**S, "default": "127.0.0.1"},
                   "llm_port": {**I, "default": 8081},
