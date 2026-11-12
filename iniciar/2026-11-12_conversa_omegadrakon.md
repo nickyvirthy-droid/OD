@@ -435,3 +435,62 @@ página com **0 referências a unpkg**; JS inline `node --check` OK. Sem restart
 **Limitação honesta:** não há navegador nesta máquina, então não houve prova
 visual do mapa renderizado; a prova é HTTP + tile real + sintaxe. Só glifos
 latinos foram embutidos (cobre pt-BR).
+
+## §8 — 7B × 3B medido: o 3B permanece (12/11 ~13:45)
+
+**Pedido:** "Meça o Qwen2.5-7B q4 contra o 3B atual e troque se valer a pena."
+
+### 1. Método
+
+O 7B **já estava em disco** (`qwen2.5-coder-7b-instruct-q4_k_m.gguf`, 4,7 GB);
+não foi preciso baixar. Como os dois não cabem juntos na RAM (5,3 GB livres e
+swap em 4,4 GB), medi em sequência:
+
+1. 3B no ar (unit `od-llm`, flags atuais);
+2. `systemctl --user stop od-llm` + unit transiente `od-llm-bench` com o 7B,
+   mesmas flags (ctx 8192, `-t 4`, temp 0,7, top_p 0,9, repeat 1,15);
+3. mesmo script: system prompt **real** (`build_identity_prompt('drakon')`,
+   2.992 chars) + 6 perguntas (Turing, Omega Drakon, e-mail de orçamento, Ada
+   Lovelace, RAM × disco, água em emergência), `max_tokens=400`;
+4. serviço restaurado com o 3B ao fim.
+
+### 2. Números
+
+| | 3B (atual) | 7B |
+|---|---|---|
+| p50 | **16,26 s** | 60,15 s |
+| pior caso | 72,54 s | 105,19 s |
+| acertos (critério objetivo) | 3/6 | **5/6** |
+| truncados | 0 | 0 |
+| tokens de saída | 728 | 986 |
+| RAM disponível com o modelo no ar | 5,9 GB | **2,3 GB** |
+
+### 3. Leitura manual (o que o critério automático não vê)
+
+- **Turing:** os dois corretos; o 7B é mais preciso (1936, fita, limites da
+  computação). O critério exigia "Enigma" e puniu ambos — erro do teste, não
+  do modelo.
+- **Água:** 7B correto (filtrar, cloro, esperar); 3B mandou **"ferver a água
+  com álcool 70%"** — perigoso. Ponto forte do 7B.
+- **Ada:** 3B mais seguro (erros de português, sem invenção); 7B inventou
+  "Algoritmo da Damasciana". Ponto do 3B.
+- **Omega / e-mail / RAM×disco:** ambos aceitáveis.
+
+### 4. Decisão: NÃO trocar o padrão
+
+O ganho de qualidade (5/6 × 3/6) não paga **3,7× de latência** num modelo que
+é o *fallback offline* do chat, e o 7B deixa **2,3 GB** livres numa máquina de
+7,7 GB que já operava com 4,4 GB de swap — o comentário do próprio
+`od-llm.service` registra que o llama-server "derrete sob pressão de RAM".
+Trocar aumentaria o risco de o chat inteiro travar justamente no cenário
+(offline) em que o local é a última linha.
+
+O 7B fica em disco como opção consciente: com mais RAM, ou Q3_K_M com
+`-c 4096`, o reteste está no TODO e o critério é p50 ≤ 2× o do 3B.
+
+### 5. Estado final
+
+`od-llm` de volta com o 3B (`MainPID 4036016`, `NRestarts=0`); unit transiente
+`od-llm-bench` removida (`--collect`); `/health` **27/27**; `/llms` com
+gemini, groq e gemma-local. Benchmarks em `/tmp` (fora do repo) e números
+gravados em `docs/IAS_DISPONIVEIS.md` §5. **Sem bump.**

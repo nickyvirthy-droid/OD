@@ -681,8 +681,13 @@ esperar o timeout.
       Postgres + `data/` + cofre exportado; testar a restauração
 - [ ] **Modo colapso declarado:** trocar para a cadeia local e avisar no chat/UI
       quando a nuvem falhar N vezes (ou por ordem do dono)
-- [ ] **IA local melhor:** medir Qwen2.5-7B q4_K_M contra o 3B atual (mesmo
-      benchmark de 11/11) e só então trocar
+- [x] **IA local melhor:** medir Qwen2.5-7B q4_K_M contra o 3B atual (mesmo
+      benchmark de 11/11) e só então trocar — **MEDIDO 12/11: 7B 5/6 × 3B 3/6,
+      mas 60,15 s × 16,26 s de p50 e só 2,3 GB livres com ele no ar. NÃO trocado;
+      números em `docs/IAS_DISPONIVEIS.md` §5**
+- [ ] **IA local (reteste):** 7B em quant menor (Q3_K_M) ou `-c 4096` quando
+      houver mais RAM; repetir este mesmo benchmark e só promover se o p50
+      ficar perto de 2× o do 3B
 - [ ] **Espelho de pacotes:** `pip download` + `docker save` das 11 imagens
 - [ ] **Fila de download resumable** de acervo (padrão NOMAD, progresso por SSE)
 

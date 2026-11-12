@@ -15,7 +15,7 @@
 |---|---|---|---|
 | `od-llm.service` | `llama-server` em `127.0.0.1:8081`, modelo `qwen2.5-coder-3b-instruct-q4_k_m` | `POST /v1/chat/completions` (API OpenAI-compat) | ativo; é o LLM do OD (chat/persona) |
 | `/home/alex/llama.cpp/models/gemma-4-E4B-it-Q4_K_M.gguf` | 4,9 GB | — | **não cabe** com latência útil em 8 GB (provado 01/10: ~5 tok/s e resposta vazia no limite do OD) |
-| `qwen2.5-coder-7b-instruct-q4_k_m.gguf` | 4,7 GB | — | não servido (RAM) |
+| `qwen2.5-coder-7b-instruct-q4_k_m.gguf` | 4,7 GB | — | **medido em 12/11**: melhor qualidade (5/6 × 3/6), 3,7× mais lento — não promovido (ver §5) |
 | `qwen2.5-3b-instruct-q4_k_m.gguf` | 2,1 GB | — | não servido (alternativa "generalista" ao coder de 3B) |
 | `Qwen2.5-0.5B-Instruct` | 0,5 GB | — | não servido (tarefas triviais) |
 | `whisper.cpp` (`ggml-base`) | transcrição de voz | `tools/audio/stt.py` | em uso no bot/action `stt_transcrever` |
@@ -127,4 +127,5 @@ que a nuvem sempre responde) é o que sustenta o chat.
 | 2026-11-05 | inventário inicial + benchmark (Gemini 3 Flash escolhido; Groq reserva; OpenAI sem créditos; CLIs sem login) |
 | 2026-11-06 | `GEMINI_API_KEY` do `.env` passou a devolver `400 API_KEY_INVALID` com header e em `/v1beta/models` (3×) — chave revogada/expirada; Groq segue 200. Cadeia efetiva hoje: Groq → local. Nenhuma IA identifica artista só pelo título (Groq e local devolveram `Desconhecido` para "Tempo Perdido") |
 | 2026-11-11 | **Chat do core na cadeia completa**: Gemini → Groq → local (`OD_CHAT_PROVIDERS`). Gemini p50 ≈ 2,4 s × local p50 ≈ 7,7 s nos mesmos 6 prompts; Groq 0,48 s; OpenAI segue sem créditos (429 nas duas chaves). Cota gratuita do Gemini estoura em rajada (429 na 2ª chamada). |
+| 2026-11-12 | **7B × 3B no mesmo benchmark de chat** (system de 2.992 chars, 6 perguntas, `max_tokens=400`, mesmas flags do `od-llm`): 3B p50 **16,26 s** / pior 72,54 s / **3/6** acertos; 7B p50 **60,15 s** / pior 105,19 s / **5/6**. Manualmente: 7B acerta melhor Turing e água (o 3B mandou "ferver com álcool 70%" — perigoso); o 3B erra menos em Ada (o 7B inventou "Algoritmo da Damasciana"). Com o 7B no ar sobram **2,3 GB** disponíveis (swap já em 4,4 GB antes do teste) — o próprio unit documenta que o llama-server "derrete sob pressão de RAM". **Decisão: manter o 3B como padrão**; o 7B fica como opção de qualidade quando houver mais RAM (ou quant menor, ex. Q3_K_M, com `-c 4096`). |
 | 2026-11-09 | **Chave volta a autenticar**: 3 chaves testadas, todas 200 em `generateContent` e `/v1beta/models` (inclusive a do `.env`). `OD_IA_ORDEM` restaurado para `gemini,groq,local`; no prompt real do pipeline o Gemini respondeu em **2,87 s**, sem fallback. O `400` de um teste manual era chave velha exportada no shell (pegadinha 6). Console do AI Studio: as 3 chaves pertencem ao **mesmo projeto** `gen-lang-client-0888452285` (nível gratuito) — cota compartilhada, rotação entre chaves sem ganho; para mais cota só outro projeto ou faturamento |

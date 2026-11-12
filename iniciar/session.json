@@ -1,4 +1,16 @@
 {
+  "benchmark_7b_vs_3b_2026_11_12": {
+    "pedido": "Dono (12/11): 'Meça o Qwen2.5-7B q4 contra o 3B atual e troque se valer a pena'.",
+    "metodo": "7B ja estava em disco (4,7 GB), sem download. Medidos em sequencia (nao cabem juntos): 3B no od-llm, depois unit transiente od-llm-bench com o 7B, mesmas flags (ctx 8192, -t 4, temp 0.7, top_p 0.9, repeat 1.15). System prompt real build_identity_prompt('drakon') 2992 chars, 6 perguntas, max_tokens=400.",
+    "numeros": "3B: p50 16,26 s, pior 72,54 s, 3/6, 728 tokens. 7B: p50 60,15 s, pior 105,19 s, 5/6, 986 tokens. RAM disponivel com 7B: 2,3 GB (swap ja em 4,4 GB antes).",
+    "qualidade": "Manual: 7B melhor em Turing (1936/fita/limites) e agua (filtrar+cloro); 3B mandou 'ferver com alcool 70%' (perigoso). Em Ada o 3B e mais seguro e o 7B inventou 'Algoritmo da Damasciana'. O criterio automatico exigia 'Enigma' em Turing e puniu os dois — erro do teste.",
+    "decisao": "NAO trocar o padrao: ganho 5/6 x 3/6 nao paga 3,7x de latencia no fallback offline e o 7B deixa so 2,3 GB livres numa maquina de 7,7 GB com swap alto (risco documentado no unit). 7B fica como opcao; reteste com Q3_K_M/-c 4096 no TODO, criterio p50 <= 2x o do 3B.",
+    "estado_final": "od-llm restaurado com o 3B (MainPID 4036016, NRestarts=0), unit od-llm-bench removida, /health 27/27, /llms gemini/groq/gemma-local.",
+    "registro": "docs/IAS_DISPONIVEIS.md §5 (linha 12/11), docs/CONTINUIDADE.md §3.2 e TODO atualizados; benchmarks em /tmp (fora do repo).",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§8)",
+    "updated_at": "2026-11-12T13:45:00-03:00"
+  },
   "mapa_offline_brasil_pmtiles_2026_11_12": {
     "pedido": "Dono (12/11): 'prossiga' — proximo item do backlog (recorte .pmtiles do Brasil).",
     "medido": "Build diario protomaps 20261112 (planeta 139 GB). Dry-run bbox (-74,-34,-32,5.5) maxzoom=14: 2.811.716 tiles, 3,1 GB, 3,2 GB de trafego. Disco 66 GB livres. Extracao real 2,9 GB em 1m38s (95 requests).",

@@ -12,6 +12,38 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## 7B × 3B medido no mesmo benchmark: 3B permanece (2026-11-12, sem bump)
+
+**Resumo:** o TODO pedia medir o `qwen2.5-coder-7b` q4_K_M contra o 3B servido e
+só trocar se valesse. Os dois rodaram o **mesmo** benchmark de chat (system de
+2.992 chars — o prompt real de identidade —, 6 perguntas, `max_tokens=400`,
+mesmas flags do `od-llm`: ctx 8192, `-t 4`, temp 0,7, top_p 0,9).
+
+| | 3B (atual) | 7B |
+|---|---|---|
+| p50 | **16,26 s** | 60,15 s |
+| pior caso | 72,54 s | 105,19 s |
+| acertos (critério objetivo) | 3/6 | **5/6** |
+| tokens de saída | 728 | 986 |
+| RAM disponível com o modelo no ar | 5,9 GB | **2,3 GB** |
+
+**Leitura manual das respostas:** o 7B é claramente melhor em Turing (1936,
+fita, limites) e em água (filtragem + cloro); o 3B mandou "ferver a água com
+álcool 70%", o que é perigoso. Em Ada Lovelace o 3B é mais seguro (erros de
+português, mas sem invenção) e o 7B **inventou** o "Algoritmo da Damasciana".
+
+**Decisão: não trocar o padrão.** O ganho de qualidade não compensa 3,7× de
+latência num chat de fallback offline e, principalmente, o 7B deixa só 2,3 GB
+livres numa máquina de 7,7 GB que já estava com 4,4 GB de swap — o próprio
+`od-llm.service` documenta que o llama-server "derrete sob pressão de RAM".
+O 7B continua em disco como opção de qualidade; o reteste com quant menor
+(Q3_K_M) ou `-c 4096` ficou como checkbox no TODO.
+
+**Registro:** `docs/IAS_DISPONIVEIS.md` §5 ganhou a linha de 12/11 e
+`docs/CONTINUIDADE.md` §3.2 deixou de recomendar o teste. Serviço restaurado:
+`od-llm` com o 3B (`MainPID 4036016`), `/health` 27/27, `/llms` com os 3
+providers. **Sem bump:** 1.44.0/2080.
+
 ## Mapa offline real: Brasil em PMTiles + libs e glifos locais (2026-11-12, sem bump)
 
 **Resumo:** o modo offline da página de mapas deixou de ser promessa. O recorte

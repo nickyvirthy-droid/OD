@@ -78,9 +78,10 @@ Hoje: 15 GB. **Faltam ~25 GB.**
 
 ### 3.2 Modelos locais melhores (hoje o local é 3B — o mais fraco da cadeia)
 
-- Testar `Qwen2.5-7B-Instruct` q4_K_M (~4,4 GB) — cabe nos 7,7 GB de RAM com
-  `-c 4096`. Ganho real de qualidade sobre o 3B; medir com o mesmo benchmark
-  de 11/11 antes de trocar.
+- ~~Testar `Qwen2.5-7B-Instruct` q4_K_M (~4,4 GB)~~ **MEDIDO 12/11**: 5/6 × 3/6
+  em qualidade, mas p50 60,15 s × 16,26 s (3,7× mais lento) e só 2,3 GB de RAM
+  disponíveis durante o teste. **Não promovido** — manter o 3B até haver mais
+  RAM (ou um quant menor com `-c 4096`). Números em `docs/IAS_DISPONIVEIS.md` §5.
 - `whisper small` (~500 MB) para transcrição melhor sem rede.
 - Guardar os `.gguf` **e** o binário do llama.cpp no mesmo diretório de acervo.
 
