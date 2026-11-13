@@ -714,6 +714,80 @@ esperar o timeout.
       `docker/tools-compose.yaml` com os arquivos presentes nos dois diretórios
       — hoje um ZIM novo só entra na busca se alguém lembrar do `command`
 
+### Análise de `analise/` — NV e Projeti (13/11, regra 22)
+
+> Análise completa das duas pastas que restaram em `analise/` após a limpeza
+> dos relatórios. Inventário medido, serventia, duplicação vs. Legado/OD,
+> pros/contras e destinos. Itens que pedem ação ficam aqui.
+
+**`analise/NV/` — 1,2 GB, 19.915 arquivos: o projeto predecessor Nicky
+Virthy Runtime, 11 versões (v0.1.0 → v1.9.X).** É o que gerou o esqueleto
+do OD (tool runtime, security layer, workflows — linha do tempo do Legado,
+§2). Comparação medida: o `Legado/NV/docs/` (84 KB) tem os docs **canônicos
+mais novos** (v1.11.0-security-enforcement, homologação de agosto); o
+`analise/NV` tem os mesmos docs em versões antigas (v1.7.0) **mais o código
+das 11 versões, que não existe em mais lugar nenhum**.
+
+- [ ] **NV → referência de DAG/scheduler para o grafo:** o
+      `nested-workflows.tar.gz` (v1.9.2) traz `dag_engine.py` (347 linhas,
+      execução em grafo com paralelismo), `scheduler_engine.py` (413 linhas,
+      cron/interval com persistência) e **8 testes** de scheduler — o
+      `core/workflows.py` atual do OD é só sequencial. Candidato a inspirar
+      a Semana 9-10/R1 quando um workflow real do OD precisar de
+      dependência entre passos ou agendamento interno (hoje os timers
+      systemd cobrem). **Não portar agora: sem demanda medida.**
+- [ ] **NV → decidir destino dos 1,2 GB:** opções (a) manter em `analise/`
+      como arquivo morto, (b) zipar para `backups/` e limpar, (c) mover para
+      `/home/alex/Legado/NV-codigo/` (o Legado tem só os docs; o código das
+      versões só existe aqui — apagar = perder o único exemplar). 501 MB são
+      `.venv` puro (4 venvs) e 69 MB `.git` — **lixo seguro de zipar
+      fora**, mas a limpeza espera sua aprovação (regra 7/9). Nota: docs
+      duplicados com o Legado **não** são para merge/remoção (mapa do
+      Legado: camadas geológicas).
+- [ ] **NV → `SECURITY_LAYER_ARCHITECTURE.md` (v1.7.0):** resumo executivo
+      da security layer (fluxo Action→SecurityManager→Policy→Permission→
+      Scope→Approval→Execute→Audit). O OD já implementou tudo isso em
+      `core/security/` (1.742 linhas) — o doc serve como **referência de
+      intenção** para revisitar a arquitetura, não como código a incorporar.
+
+**`analise/Projeti/` — 235 MB, 953 arquivos: material de trabalho seu
+(PMESP — 42.BPM/I) + ferramentas Windows.** Notebooks `pyautogui` que
+automatizam o preenchimento do mapa de força no site Orion
+(`orion.intranet.policiamilitar.sp.gov.br`) — 124 chamadas de `pyautogui`
+no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
+
+- [ ] **Projeti → automatizar o mapa de força como action do OD (ou
+      referência):** os notebooks são RPA puro (abrir site, tabular,
+      inserir data/turno). O OD já tem a action engine, o CoderEngine
+      sandbox e o RAG — um fluxo "cadastrar turno no Orion" poderia virar
+      action/workflow. **Uso hoje: referência de padrão RPA** (o jeito
+      `pyautogui` tabula é frágil; se algum dia automatizar de verdade, o
+      caminho é API/scraping autorizado, não tabulação cega). Nota: os
+      arquivos contêm **dados pessoais de policiais** (nomes, matrículas,
+      viaturas) — não publicar em lugar nenhum, não entrar no git.
+- [ ] **Projeti → instalar as ferramentas Windows no desktop:** há
+      `FileZillaPortable`, `PuTTYPortable`, `MQTT-Explorer-0.4.0-beta.6.exe`
+      e `tailscale-setup-1.92.5.exe` — o desktop Windows está na tailnet
+      (`desktop-4icaj6f`, ativo). Se quiser, copio os `.exe` para ele
+      (o `tailscale` do servidor já é 1.92.5? medir antes).
+- [ ] **Projeti → `google-services.json` é IDÊNTICO ao do app** (sha256
+      bate: `5e64634c…`): projeto Firebase `nicky-e4f99`, `com.omegadrakon.
+      nicky`. Cópia redundante — lixo candidato com sua aprovação. O
+      `app.txt` é o export do console Firebase (contém o mesmo projeto);
+      útil como ficha de referência, mas o oficial é o do
+      `app/android/app/`.
+- [ ] **Projeti → `OmegaDrakon.apk` (51 MB) não bate com nenhum backup**
+      (sha256 `b845c044…` ≠ nenhum em `backups/apk-*`): é um build mais
+      antigo que os arquivados (o mais recente é v1.39.3-2075 de 17/10; o
+      app atual é 1.44.0+2080). Não consegui extrair a versão do
+      Manifesto. **Candidato a lixo com sua aprovação** — ou me diga de
+      onde veio que eu arquivo direito.
+- [ ] **Projeti → dados do Orion viram action de leitura (opcional):**
+      `Mapa.csv`, `MapaForcaTudo.txt` e `ler.ipynb` leem a tabela de
+      escala — se algum dia precisar "qual o turno de amanhã" no chat, a
+      referência de parsing está aqui (formato tab-delimited com colunas
+      de viatura/efetivo). **Hoje: sem demanda, fica como referência.**
+
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
 - [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder reranker)

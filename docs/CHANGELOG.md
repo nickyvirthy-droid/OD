@@ -12,6 +12,32 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Regra 22: análise completa de tudo que entra em `analise/` + veredito em NV e Projeti (2026-11-13, sem bump)
+
+**Resumo:** o dono pediu para formalizar o fluxo de análise da caixa de
+entrada `analise/` como regra — "saber o que tem na pasta, para que serve,
+se posso usar no sistema, se já existe, o que posso melhorar".
+
+**Regra nova (`iniciar/RULES.md`, regra 22):** todo conteúdo depositado em
+`analise/` passa por **análise completa antes de destino**: inventário
+medido → serventia lida no conteúdo → uso/incorporação no sistema →
+equivalente já existente (medido, não presumido) → pros/contras → destino
+proposto. Incorporação/referência vira checkbox no
+`docs/ANALISE_SISTEMA_TODO.md` no mesmo passo; destino que altera o que é
+do dono (apagar/mover para fora) só com aprovação (regra 7).
+
+**Análise entregue:** `analise/NV/` (1,2 GB — 11 versões do predecessor
+Nicky Virthy Runtime; docs canônicos mais novos estão no Legado, mas o
+**código** das versões só existe lá; único achado de incorporação: DAG
+engine + workflow scheduler do `nested-workflows.tar.gz`, que o OD não tem)
+e `analise/Projeti/` (235 MB — RPA pyautogui do site Orion, dados de
+escala de policiais, ferramentas Windows; `google-services.json` idêntico
+byte a byte ao do app, APK órfão sem backup correspondente). 6 checkboxes
+novos no TODO; destinos finais aguardam aprovação do dono.
+
+**Testes:** nada de código alterado (só docs/RULES/TODO/transcrição) —
+gate não re-executado, confirmado por `git diff`.
+
 ## Relatórios do Vigia saem de `analise/` e vão para `data/relatorios/` (2026-11-13, sem bump)
 
 **Resumo:** `relatorio_chat_audit_*.json` e `relatorio_vigia_mensagens_*.json`
