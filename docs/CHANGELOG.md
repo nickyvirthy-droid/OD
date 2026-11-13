@@ -12,6 +12,44 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Auditoria de `backups/` antes da HD do dono + achado: Postgres sem dump automático (2026-11-13, sem bump)
+
+**Resumo:** o dono vai levar tudo de `backups/` para a HD externa e limpar
+a pasta ("lugar intermediário antes de eu salvar em uma HD"). Auditoria
+com prova de que **nada precisa permanecer no servidor** — não houve o que
+transferir para fora de `backups/`.
+
+**Veredito por categoria (tudo pode ir para a HD):** `auto/` (7 tars
+diários) e `auto-capturas/` (4 semanais) — o `core/backup.py` faz
+`mkdir(parents=True, exist_ok=True)` antes de gravar (apagar até o
+diretório é seguro) e **hoje os dois já foram enviados ao canal do
+Telegram** pelo offsite (`od-2026-11-13_0314.tar.gz` +
+`od-capturas-2026-11-13_0414.tar.gz` em 11 partes, sha conferido em
+`data/offsite_state.json` — redundância HD + canal); `apk-v1.24.1…v1.39.3`
+(APKs antigos de bump — o atual é servido de `site/`, verificado ao vivo:
+`/app/version` anuncia 1.44.0/2080 com sha256 do arquivo do site);
+`backup_od_2026-10-16/` (16,7 GB, histórico); os 2 zips de `analise/`
+(única cópia — destino certo é a HD); arquivos soltos (caches,
+`env-backup-*.env` com segredos — ok na HD do dono, nunca publicar,
+snapshots do tailscale, yml do azuracast). O snapshot diário para as HDs
+(`core/hd_backup.py`) **exclui `backups/` de propósito** e vai para
+`/home/alex/dados/od_snapshots/` + `/mnt/Arquivos/od_snapshots/` — a
+limpeza não o afeta.
+
+**Achado da auditoria:** o **Postgres `od` não tem dump automático em
+lugar nenhum** (medido: `pg_dump` só em `runtime/install_postgres.sh` =
+instalação; sem crontab/timer; o tar diário cobre `.env` + `data/`
+(SQLite) e o snapshot das HDs cobre 3D/repo/tools/srv/fstab —
+`/var/lib/postgresql` não entra em nenhum). O único dump existente era o
+manual de 16/10. **Ação:** gerado `backups/postgres_od_2026-11-13.sql.gz`
+(32 KB, gzip OK, 14 tabelas, banco de 8,9 MB, sha256 `f5467dcc…d9336`)
+para viajar na HD de hoje; a pendência de virar job diário entrou como
+checkbox no TODO §4 (Continuidade, junto de "Backup fora da máquina").
+
+**Testes:** gate **4579 passed / 17 skipped / 0 falha** (mudança só de
+registro `.md`/`.json`). **Sem bump:** app segue 1.44.0/2080; sem restart
+do od-core.
+
 ## Tabela `pessoas` no Postgres (92 policiais) + zips de `analise/` em `backups/` (2026-11-13, sem bump)
 
 **Resumo:** as duas pendências da análise de `analise/` (§2 do checkpoint)

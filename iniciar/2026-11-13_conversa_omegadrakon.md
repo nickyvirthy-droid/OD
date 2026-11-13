@@ -244,3 +244,68 @@ apagou é ele; nada foi movido/apagado por mim).
 
 **Sem bump:** app segue **1.44.0/2080**; mudança só de arquivos de
 registro (`.md`/`.json`), sem código — sem restart do od-core.
+
+## §5 — Auditoria de `backups/` antes da HD do dono (13/11 ~14:00)
+
+**Pedido do dono:** "a pasta backups é um lugar intermediário antes de eu
+salvar em uma HD externa. Se existe algum arquivo lá que deva permanecer
+no servidor transfira para outro lugar porque hoje vou colocar tudo que
+estiver no backups na minha HD e limpar a pasta."
+
+### 1. Veredito: **nada precisa ficar** — não houve o que transferir
+
+Auditoria categoria a categoria, com prova (nada foi movido por mim):
+
+- **`auto/` (7 tars diários, ~4 MB)** — o `core/backup.py` faz
+  `raiz.mkdir(parents=True, exist_ok=True)` antes de gravar: apagar até o
+  diretório inteiro é seguro, o próximo nasce sozinho (03:00). E o
+  offsite **já enviou o de hoje** para o canal do Telegram
+  (`od-2026-11-13_0314.tar.gz`, sha conferido em
+  `data/offsite_state.json`) — redundância HD + canal.
+- **`auto-capturas/` (4 semanais, ~1,67 GB)** — idem:
+  `od-capturas-2026-11-13_0414.tar.gz` (11 partes) já está no canal;
+  próximo snapshot domingo 04:00.
+- **`apk-v1.24.1 … v1.39.3` (6 pastas, ~400 MB)** — APKs antigos de
+  bump; o APK **atual é servido de `site/`** (fora de `backups/`),
+  verificado ao vivo: `/app/version` anuncia 1.44.0/2080 com sha256 =
+  arquivo do site (mtime 20/10 = data do bump 1.44.0 no CHANGELOG).
+  `app/build_apk.sh` não escreve em `backups/`.
+- **`backup_od_2026-10-16/` (~16,7 GB)** — backup completo pontual.
+- **2 zips de `analise/` (1 GB)** — única cópia → destino certo é a HD.
+- **arquivos soltos** (caches pre-guarda, llm-cache, `env-backup` de
+  04/11 — **contém segredos**, ok na HD do dono, nunca publicar —,
+  snapshots do tailscale-serve, yml do azuracast, SPEC, txt) — histórico
+  sem leitura pelo sistema.
+
+O snapshot diário para as HDs (`core/hd_backup.py`, 03:44, rsync com
+`--link-dest` para `/home/alex/dados/od_snapshots/` e
+`/mnt/Arquivos/od_snapshots/`) **exclui `backups/` de propósito** ("os
+tars locais têm retenção e destino próprios") — a limpeza não o afeta.
+Check de saúde do offsite usa `data/offsite_state.json` (não some com a
+pasta). Testes `test_backup.py` + `test_offsite.py`: **107 passed**.
+
+### 2. Achado: o Postgres `od` **não tem dump automático em lugar nenhum**
+
+Medido, não presumido: `pg_dump` só aparece em
+`runtime/install_postgres.sh` (script de instalação); sem crontab de
+usuário nem timer do sistema; o tar diário cobre `.env` + `data/`
+(SQLite: checkpoints.db, memory.db) e o snapshot das HDs cobre
+3D/repo/tools/srv/fstab — **`/var/lib/postgresql` (16/main) não entra em
+nenhum dos dois**. O único dump existente era o manual de 16/10
+(`postgres_od_2026-10-16.sql.gz`, 16 KB) — que agora vai para a HD.
+
+**Ações no passo:** (1) gerei o dump **atual** para viajar junto na HD de
+hoje — `backups/postgres_od_2026-11-13.sql.gz` (32 KB, gzip OK, 14
+tabelas = todas do `od`, banco de 8,9 MB, sha256
+`f5467dcc…d9336`); (2) a pendência de virar **job diário** entrou como
+checkbox no TODO §4 (Continuidade, junto de "Backup fora da máquina") —
+criar timer exige aprovação do dono.
+
+### 3. Registro
+
+session.json (chave `backups_auditoria_antes_da_hd_2026_11_13` no topo),
+esta transcrição (§5), CHANGELOG (entrada no topo, sem bump), Telegram ao
+dono. **Gate: 4579 passed / 17 skipped / 0 falha** (mudança só de
+registro `.md`/`.json`).
+
+**Sem bump:** app segue **1.44.0/2080**; sem restart do od-core.

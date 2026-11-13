@@ -679,6 +679,13 @@ esperar o timeout.
       foi embutido) e considerar zoom 15 em áreas urbanas se o uso pedir
 - [ ] **Backup fora da máquina:** SSD/pendrive criptografado com snapshot do
       Postgres + `data/` + cofre exportado; testar a restauração
+- [ ] **Backup do Postgres (dump automático):** hoje **nenhum** `pg_dump`
+      roda em lugar algum — medido 13/11: sem crontab/timer, o tar diário
+      cobre `.env` + `data/` (SQLite) e o snapshot das HDs não inclui
+      `/var/lib/postgresql`; o único dump era manual (16/10). Criar job
+      diário `pg_dump` para `backups/auto/` com retenção + offsite
+      (enquanto isso há um dump pontual de 13/11 — 32 KB, 14 tabelas —
+      que viajou para a HD do dono junto com o resto de `backups/`)
 - [ ] **Modo colapso declarado:** trocar para a cadeia local e avisar no chat/UI
       quando a nuvem falhar N vezes (ou por ordem do dono)
 - [x] **IA local melhor:** medir Qwen2.5-7B q4_K_M contra o 3B atual (mesmo
