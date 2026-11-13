@@ -1,4 +1,13 @@
 {
+  "analise_esvaziada_pelo_dono_2026_11_13": {
+    "pedido": "Dono (13/11 ~13:47): 'pasta analise já foi analisada, apaguei o conteudo atual para deixar pronto para o proximo'. Checkpoint anterior: zips_analise_e_tabela_pessoas_2026_11_13.",
+    "feito": "Verifiquei antes de registrar: analise/ existe e está VAZIA (apagado pelo próprio dono — regra 7 não se aplica, não apaguei nem movi nada); os 2 zips em backups/ são agora a ÚNICA cópia daqueles 1,4 GB — revalidados por leitura integral: analise_NV_20261113.zip OK (19.915 entradas) e analise_Projeti_20261113.zip OK (953 entradas). analise/ segue gitignored; git limpo no 99e6259.",
+    "nota": "analise/ pronta para o próximo depósito; a regra 22 (análise completa antes de destino) vale para o que entrar.",
+    "testes": "Gate: 4579 passed / 17 skipped / 0 falha (nenhum teste novo — mudança só de registro .md/.json).",
+    "sem_bump": "app segue 1.44.0/2080; sem restart do od-core.",
+    "transcricao": "iniciar/2026-11-13_conversa_omegadrakon.md (§4)",
+    "updated_at": "2026-11-13T13:55:00-03:00"
+  },
   "zips_analise_e_tabela_pessoas_2026_11_13": {
     "pedido": "Dono (13/11, retomada da §2): (1) 'zipar para backups, não tirar nada' das pastas de analise/ + 'ferramentas Windows ... apenas zipar também em backups'; (2) escolha em pergunta: salvar os dados dos policiais extraídos de analise/Projeti na tabela `pessoas` do Postgres `od` (o banco não existia). Checkpoint anterior: analise_pasta_nv_e_projeti_2026_11_13.",
     "zips": "backups/analise_NV_20261113.zip (822 MB, 19.915 entradas) e backups/analise_Projeti_20261113.zip (167 MB, 953 entradas) — testzip() íntegro nos dois via zipfile do Python (o CLI zip não existe no ambiente); originais de analise/ INTACTOS (nada tirado); backups/ é gitignored; as ferramentas Windows do Projeti entraram dentro do zip do Projeti.",

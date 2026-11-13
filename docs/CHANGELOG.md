@@ -23,7 +23,9 @@ tirar nada** de `analise/`, (2) salvar os dados dos policiais extraídos de
 `backups/analise_Projeti_20261113.zip` (167 MB, 953 entradas, inclui as
 ferramentas Windows). `testzip()` íntegro nos dois via `zipfile` do Python
 (o CLI `zip` não existe no ambiente); originais intactos; `backups/` é
-gitignored.
+gitignored. **(13/11 13:50)** o dono esvaziou `analise/` ("pronta para o
+próximo") — os zips passaram a ser a **única cópia** e foram revalidados
+por leitura integral: OK nos dois (19.915 e 953 entradas).
 
 **Tabela nova `pessoas` (Postgres `od`):** `runtime/importa_pessoas.py`
 cria a tabela (id, nome, posto, matricula, dv, viatura, unidade, fonte,

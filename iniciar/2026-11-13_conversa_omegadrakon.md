@@ -224,3 +224,23 @@ reprovado pelo teste de idempotência.
 
 **Sem bump:** app segue **1.44.0/2080**; nada desta tarefa exige restart do
 od-core (é script + banco, o serviço não muda).
+
+## §4 — Dono esvaziou `analise/` (13/11 ~13:50, verificado)
+
+**Aviso do dono:** "pasta analise já foi analisada, apaguei o conteudo atual
+para deixar pronto para o proximo" — o conteúdo de `analise/` (NV e
+Projeti) foi apagado **pelo próprio dono** (regra 7 não se aplica: quem
+apagou é ele; nada foi movido/apagado por mim).
+
+**Verificação feita antes de registrar:**
+
+- `analise/` existe e está **vazia** (pronta para o próximo depósito — a
+  regra 22 segue valendo para o que entrar).
+- Os zips são agora a **única cópia** daqueles 1,4 GB: revalidados por
+  leitura integral (`testzip()` + contagem) —
+  `analise_NV_20261113.zip` **OK, 19.915 entradas**;
+  `analise_Projeti_20261113.zip` **OK, 953 entradas**.
+- Nada mudou no git (`analise/` é gitignored; HEAD segue `99e6259`).
+
+**Sem bump:** app segue **1.44.0/2080**; mudança só de arquivos de
+registro (`.md`/`.json`), sem código — sem restart do od-core.
