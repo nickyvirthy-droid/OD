@@ -743,19 +743,21 @@ das 11 versões, que não existe em mais lugar nenhum**.
       a Semana 9-10/R1 quando um workflow real do OD precisar de
       dependência entre passos ou agendamento interno (hoje os timers
       systemd cobrem). **Não portar agora: sem demanda medida.**
-- [ ] **NV → decidir destino dos 1,2 GB:** opções (a) manter em `analise/`
-      como arquivo morto, (b) zipar para `backups/` e limpar, (c) mover para
-      `/home/alex/Legado/NV-codigo/` (o Legado tem só os docs; o código das
-      versões só existe aqui — apagar = perder o único exemplar). 501 MB são
-      `.venv` puro (4 venvs) e 69 MB `.git` — **lixo seguro de zipar
-      fora**, mas a limpeza espera sua aprovação (regra 7/9). Nota: docs
-      duplicados com o Legado **não** são para merge/remoção (mapa do
-      Legado: camadas geológicas).
+- [x] **NV → decidir destino dos 1,2 GB:** **DECIDIDO/EXECUTADO 13/11
+      (opção b, ordem sua):** zipado em `backups/analise_NV_20261113.zip`
+      (822 MB, 19.915 entradas, testzip OK) e levado para a sua HD; a
+      `analise/` foi esvaziada. O código das 11 versões agora existe **só
+      na HD** — o que este TODO precisa daqui ficou em `data/refs_todo/NV/`
+      (`nested-workflows.tar.gz`, bootstrap v1.9.2 e
+      `SECURITY_LAYER_ARCHITECTURE.md`). Docs duplicados com o Legado não
+      foram tocados (mapa: camadas geológicas).
 - [ ] **NV → `SECURITY_LAYER_ARCHITECTURE.md` (v1.7.0):** resumo executivo
       da security layer (fluxo Action→SecurityManager→Policy→Permission→
       Scope→Approval→Execute→Audit). O OD já implementou tudo isso em
       `core/security/` (1.742 linhas) — o doc serve como **referência de
-      intenção** para revisitar a arquitetura, não como código a incorporar.
+      intenção** para revisitar a arquitetura, não como código a
+      incorporar. Extraído 13/11 para
+      `data/refs_todo/NV/NV v1.7.X/SECURITY_LAYER_ARCHITECTURE.md`.
 
 **`analise/Projeti/` — 235 MB, 953 arquivos: material de trabalho seu
 (PMESP — 42.BPM/I) + ferramentas Windows.** Notebooks `pyautogui` que
@@ -771,12 +773,16 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       `pyautogui` tabula é frágil; se algum dia automatizar de verdade, o
       caminho é API/scraping autorizado, não tabulação cega). Nota: os
       arquivos contêm **dados pessoais de policiais** (nomes, matrículas,
-      viaturas) — não publicar em lugar nenhum, não entrar no git.
+      viaturas) — não publicar em lugar nenhum, não entrar no git. Refs
+      extraídas 13/11 (só no gitignored) em `data/refs_todo/Projeti/Cod/`:
+      5 notebooks + `efetivo.txt`/`Mapa*` (266 KB no total da extração).
 - [ ] **Projeti → instalar as ferramentas Windows no desktop:** há
       `FileZillaPortable`, `PuTTYPortable`, `MQTT-Explorer-0.4.0-beta.6.exe`
       e `tailscale-setup-1.92.5.exe` — o desktop Windows está na tailnet
       (`desktop-4icaj6f`, ativo). Se quiser, copio os `.exe` para ele
-      (o `tailscale` do servidor já é 1.92.5? medir antes).
+      (o `tailscale` do servidor já é 1.92.5? medir antes). **Os `.exe`
+      saíram do servidor na limpeza de 13/11 — estão só no zip da sua HD;
+      para executar, trazer de lá.**
 - [ ] **Projeti → `google-services.json` é IDÊNTICO ao do app** (sha256
       bate: `5e64634c…`): projeto Firebase `nicky-e4f99`, `com.omegadrakon.
       nicky`. Cópia redundante — lixo candidato com sua aprovação. O
@@ -794,12 +800,27 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       escala — se algum dia precisar "qual o turno de amanhã" no chat, a
       referência de parsing está aqui (formato tab-delimited com colunas
       de viatura/efetivo). **Hoje: sem demanda, fica como referência.**
+      Fontes extraídas 13/11 em `data/refs_todo/Projeti/Cod/`.
 
 ### Semana 9-10: RAG Otimizado
-- [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95)
-- [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder reranker)
-- [ ] I4: Query Router (classificador leve → estratégia: direct, rag, tool, hybrid)
-- [ ] I5: Streaming SSE para chat (`text/event-stream`)
+- [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95) — **módulo e
+      testes PRONTOS (conferido 13/11): `memory/semantic_cache.py`,
+      threshold 0.95 (`OD_SEMANTIC_CACHE_THRESHOLD`), em processo (sem
+      Redis); `tests/test_semantic_cache.py`. FALTA LIGAR: nenhum ponto da
+      produção passa `semantic_cache=` — o orquestrador roda com `None`.
+      Ligar é decisão do dono (risco: servir resposta parecida na ≥0.95)**
+- [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder
+      reranker) — **módulo e testes PRONTOS (conferido 13/11):
+      `core/hybrid_search.py` (BM25Index + `cross-encoder/ms-marco-MiniLM-L-6-v2`);
+      `tests/test_hybrid_search.py`. FALTA LIGAR: a `memory/rag.py` de
+      produção não o usa**
+- [x] I4: Query Router (classificador leve → estratégia: direct, rag, tool,
+      hybrid) — **ENTREGUE (conferido 13/11): `core/query_router.py`,
+      integrado na etapa de intenções e no grafo (CHANGELOG com prova
+      viva); `tests/test_query_router.py`**
+- [x] I5: Streaming SSE para chat (`text/event-stream`) — **ENTREGUE
+      (conferido 13/11): `GET /api/v1/chat/stream` (SSE) +
+      `process_stream_sse()`; `tests/test_sse.py`; prova viva no CHANGELOG**
 
 ### Semana 11-12: Resiliência + Eval
 - [ ] R1: Task Queue (Redis/RQ) + RetryPolicy por nó

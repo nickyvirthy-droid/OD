@@ -309,3 +309,62 @@ dono. **Gate: 4579 passed / 17 skipped / 0 falha** (mudança só de
 registro `.md`/`.json`).
 
 **Sem bump:** app segue **1.44.0/2080**; sem restart do od-core.
+
+## §6 — Digest do TODO + higiência de status (13/11 ~14:40)
+
+**Pedido do dono** (enquanto copia os 16 GB para a HD): "quando terminar
+aviso. o temos pra fazer no TODO?"
+
+### 1. Auditoria de status no código (não de memória)
+
+Dos **45 itens abertas**, conferi os que suspeitei de desatualizados:
+
+- **I4 Query Router e I5 Streaming SSE: já ENTREGUES** —
+  `core/query_router.py` integrado na etapa de intenções e no grafo
+  (CHANGELOG com prova viva), `GET /api/v1/chat/stream` (SSE) +
+  `process_stream_sse()`, testes passando (47 passed/1 skipped nos 4
+  arquivos da área). **Checkboxes marcados** (45 → 43 abertos).
+- **I1 Semantic Cache e I2 Hybrid Search: módulo pronto, NÃO LIGADOS** —
+  `memory/semantic_cache.py` (threshold 0.95, em processo — **sem Redis**)
+  e `core/hybrid_search.py` (BM25 + cross-encoder) existem e são testados,
+  mas **nenhum ponto da produção passa `semantic_cache=`** (orquestrador
+  roda com `None`) e a `memory/rag.py` não usa o hybrid. **Checkbox
+  mantido aberto** com anotação do que falta + decisão do dono (ligar muda
+  comportamento de resposta — risco de servir resposta parecida na ≥0.95).
+- **Destino do NV (1,2 GB): marcado como decidido/executado** (opção b,
+  ordem dele — zip → HD, `analise/` esvaziada).
+
+Contagem final: **42 abertos / 35 feitos** (era 45/32).
+
+### 2. Refs extraídas para `data/refs_todo/` (266 KB, gitignored)
+
+Antes de a limpeza da HD terminar, tirei dos zips o que os itens abertos
+precisam: `NV/` = `nested-workflows.tar.gz` + bootstrap v1.9.2 +
+`SECURITY_LAYER_ARCHITECTURE.md`; `Projeti/Cod/` = os 5 notebooks +
+`efetivo.txt` + `Mapa*` (dados pessoais — **só no gitignored**, nunca no
+git). Itens que dependem de `.exe` grandes (ferramentas Windows) ficaram
+anotados como "traar da HD se executar".
+
+### 3. O digest entregue (resposta ao dono)
+
+**🔴 Só ele decide/compra (8):** nobreak com USB (compra nº 1), 2º nó de
+comunicação, backup offsite em SSD criptografado, ferramentas Windows no
+desktop, descartar google-services/APK antigo, política das 20 req/dia do
+Gemini, ligar I1/I2, reteste do 7B quando houver RAM.
+
+**🟡 Eu executo (ordem sugerida):** dump automático do Postgres (fecha o
+achado de hoje), disjuntores + cota do Groq no `/health`, action de
+pesquisa web, enxugar contexto do Gemini (+ OpenAI automático), segurança
+(`stt_transcrever` + `/tmp`), rádio (formatador + sink), corpus de
+intenções, `pyproject.toml` + `ARCHITECTURE_v2.md` + Bluetooth (§8), refs
+NV→grafo e mapa-de-força→action, cache de embedding, OTel
+coletor/dashboards/alertas, Task Queue (R1), Eval no CI (R5), continuidade
+(UPS/ZIMs/espelho/fila/modo colapso/mapas não-latinos).
+
+### 4. Registro e verificação
+
+session.json (chave `todo_digest_e_higiene_2026_11_13`), esta transcrição
+(§6), CHANGELOG (entrada no topo). **Gate: 4579 passed / 17 skipped / 0
+falha.** `data/refs_todo/` confirmado gitignored (`git check-ignore`).
+
+**Sem bump:** app segue **1.44.0/2080**; sem restart do od-core.

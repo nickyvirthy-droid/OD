@@ -12,6 +12,30 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Higiência do TODO (I4/I5 marcados, I1/I2 sem ligação) + refs extraídas para `data/refs_todo/` (2026-11-13, sem bump)
+
+**Resumo:** pergunta do dono ("o que temos pra fazer no TODO?") virou
+auditoria de status **no código** dos 45 itens abertos — dois achados de
+higiene: (1) **I4 (Query Router) e I5 (SSE) já estavam entregues**
+(módulo, integração, testes, prova viva no CHANGELOG) com checkbox aberto
+→ **marcados**; (2) **I1 (Semantic Cache) e I2 (Hybrid Search) têm módulo
+e testes prontos mas NÃO estão ligados na produção** (nenhum ponto passa
+`semantic_cache=`; a `memory/rag.py` não usa o hybrid; o I1 é em processo,
+**sem Redis**) → anotados no checkbox com o que falta e a decisão
+pendente do dono (ligar muda comportamento de resposta). Destino do NV
+(opção b, ordem dele) marcado como executado; itens que dependem de
+arquivos que saíram com a limpeza da HD receberam anotação.
+
+**Refs extraídas (266 KB, 16 arquivos)** dos zips para `data/refs_todo/`
+(gitignored, `git check-ignore` confirmado) antes da limpeza da HD, para
+os itens do TODO continuarem executáveis: `nested-workflows.tar.gz` +
+bootstrap v1.9.2 + `SECURITY_LAYER_ARCHITECTURE.md` (NV) e 5 notebooks +
+`efetivo.txt`/`Mapa*` do Projeti (dados pessoais — só no gitignored,
+nunca no git).
+
+**Estado:** 42 abertos / 35 feitos (era 45/32). **Gate: 4579 passed / 17
+skipped / 0 falha.** Sem bump (1.44.0/2080); mudança só de docs.
+
 ## Auditoria de `backups/` antes da HD do dono + achado: Postgres sem dump automático (2026-11-13, sem bump)
 
 **Resumo:** o dono vai levar tudo de `backups/` para a HD externa e limpar
