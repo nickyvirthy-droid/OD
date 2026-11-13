@@ -1,4 +1,14 @@
 {
+  "retomada_leitura_iniciar_2026_11_12_tarde": {
+    "pedido": "Dono (12/11 ~14:10): 'leia iniciar' — recarregar o checkpoint antes de retomar.",
+    "lido": "iniciar/README.md, iniciar/RULES.md (21 regras), iniciar/session.json (entradas mais recentes: espelho_offline 14:00 e benchmark_7b_vs_3b 13:45), transcricao 2026-11-12 inteira (§1-§9), txt.txt (vazio) e git status/log.",
+    "estado_encontrado": "Arvore LIMPA; HEAD == origin/master == 88fa04c (docs(continuidade): espelho offline de 3,3 GB criado e verificado). od-core ativo, MainPID 3996872 (restart do §6 às 12:57:43), NRestarts=0 — depois dele so entraram estaticos (site/maps, site/vendor) e docs, nada que exija restart.",
+    "em_aberto": "1) espelho offline: falta teste de restauracao real em ambiente limpo; 2) continuidade: energia (nobreak) e comunicacao (segundo no/LoRa) dependem de compra do dono (Fase 1 ~R$2-3,5k); 3) 7B: reteste Q3_K_M/-c 4096 no TODO; 4) TODOs menores: disjuntores no /health, reserva das 20 req/dia do Gemini, prova visual do mapa.",
+    "decisao": "Nada alterado no codigo nesta troca; so leitura e registro. Sem deploy pendente.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§10)",
+    "updated_at": "2026-11-12T14:12:00-03:00"
+  },
   "espelho_offline_2026_11_12": {
     "pedido": "Dono (12/11): 'prossiga' — proximo item do plano: reinstalar sem internet.",
     "feito": "Espelho em /home/alex/dados/od-mirror (HD USB, fora do git), 3,3 GB: pip/ com 47 wheels de requirements.txt (71 MB, cp312 manylinux x86_64); docker/ com 12 tars (11 containers em uso + postgres:16-alpine; 3,2 GB por camadas compartilhadas); README.md, MANIFEST.txt (sha256), requirements.txt e tools-compose.yaml copiados.",

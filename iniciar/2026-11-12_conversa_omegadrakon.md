@@ -533,3 +533,44 @@ camadas são compartilhadas nos tar; as tags originais foram preservadas.
    desenvolver nele.
 
 **Sem bump:** app segue 1.44.0/2080.
+
+## §10 — Retomada ("leia iniciar") (12/11 ~14:10)
+
+**Pedido do dono:** *"leia iniciar"* — recarregar o checkpoint antes de retomar.
+
+### 1. O que foi lido
+
+`iniciar/README.md`, `iniciar/RULES.md` (21 regras), `iniciar/session.json`
+(entradas mais recentes: `espelho_offline_2026_11_12` 14:00 e
+`benchmark_7b_vs_3b_2026_11_12` 13:45), a transcrição
+`iniciar/2026-11-12_conversa_omegadrakon.md` inteira (§1–§9), o `txt.txt`
+(vazio) e `git status`/`git log`.
+
+### 2. Estado encontrado
+
+- Árvore **limpa**; `HEAD` = `origin/master` = **`88fa04c`**
+  (`docs(continuidade): espelho offline de 3,3 GB criado e verificado`) — o
+  registro do §9 já foi commitado e publicado.
+- `od-core` **ativo**, MainPID **3996872** (restart do §6, 12:57:43),
+  `NRestarts=0`. Depois dele só entraram arquivos estáticos (`site/maps`,
+  `site/vendor`) e docs — nada que exija restart.
+- `txt.txt` **vazio** (canal zerado; sem recado pendente do dono).
+
+### 3. O que está em aberto (nada parado na árvore)
+
+1. **Espelho offline:** falta o teste de restauração real em ambiente limpo
+   (hoje a verificação é resolução de dependências + integridade, não um boot
+   completo).
+2. **Continuidade (`docs/CONTINUIDADE.md`):** energia (nobreak com USB) e
+   comunicação (segundo nó/LoRa) dependem de compra/decisão do dono — Fase 1
+   estimada em R$ 2–3,5 mil.
+3. **7B:** reteste com `Q3_K_M`/`-c 4096` no TODO (critério p50 ≤ 2× o do 3B).
+4. Frentes menores do TODO: disjuntores visíveis no `/health`, reserva das
+   20 req/dia do Gemini, prova visual do mapa offline (sem navegador na máquina).
+
+### 4. Decisão desta troca
+
+Nada alterado no código: só leitura e registro. Não há deploy pendente (árvore
+limpa, HEAD publicado, serviço verde).
+
+**Sem bump:** app segue **1.44.0/2080**.
