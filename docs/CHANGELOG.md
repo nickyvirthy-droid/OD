@@ -12,6 +12,48 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Tabela `pessoas` no Postgres (92 policiais) + zips de `analise/` em `backups/` (2026-11-13, sem bump)
+
+**Resumo:** as duas pendências da análise de `analise/` (§2 do checkpoint)
+fechadas com aprovação do dono — (1) zipar as pastas para `backups/` **sem
+tirar nada** de `analise/`, (2) salvar os dados dos policiais extraídos de
+`analise/Projeti/Cod` numa tabela nova do banco `od`.
+
+**Zips:** `backups/analise_NV_20261113.zip` (822 MB, 19.915 entradas) e
+`backups/analise_Projeti_20261113.zip` (167 MB, 953 entradas, inclui as
+ferramentas Windows). `testzip()` íntegro nos dois via `zipfile` do Python
+(o CLI `zip` não existe no ambiente); originais intactos; `backups/` é
+gitignored.
+
+**Tabela nova `pessoas` (Postgres `od`):** `runtime/importa_pessoas.py`
+cria a tabela (id, nome, posto, matricula, dv, viatura, unidade, fonte,
+atualizado_em) e importa 6 fontes em ordem de precedência — `efetivo.txt`
+(linhas posto+matrícula+dv+nome) → `MapaForca*.txt` (tokens de colchete
+`[POSTO_PM_MAT_NOME]`) → saídas do `ler.ipynb` → `Mapa.csv`/`Mapa.txt`
+(vínculo matrícula→viatura+unidade; cabeçalho 14 campos × dados 15, vtr
+col.8, re col.11, re2 col.13). Viatura por linha: colchete → col0 tabulada
+(`SD`+dígitos, `NN-NN`) → pendente da linha anterior
+  (padrão do efetivo,
+consumida no uso). Merge idempotente por matrícula: a 1ª fonte preenche
+vazios, listas somam sem repetir, UPDATE só quando algo mudou — re-rodar
+não toca `atualizado_em` (provado: 0/0 na re-execução no banco real).
+
+**Resultado medido:** 92 pessoas (185 registros extraídos), 0 sem nome, 1
+sem viatura, 24 com dv, 26 com múltiplas viaturas, 26 com unidade (só onde
+a fonte declara — quem só aparece em MapaForca/notebook fica vazio em vez
+de presumir). Dado sensível (regra 16): testes só com fixtures sintéticas,
+nenhum dado real em arquivo commitado, tabela só no `od`.
+
+**Testes:** `tests/test_importa_pessoas.py` — 40 testes (parsers das 4
+famílias, viatura, Mapa.csv, merge idempotente, CLI). Dois defeitos pegos
+antes do gate: assert esperava string onde o parser devolve lista;
+`_lista_csv` sem `strip` no `split(',')` gerava 40 "atualizados" falsos e
+`fonte` com espaço duplo na re-execução. **Gate: 4579 passed / 17 skipped /
+0 falha** (era 4539 + 40).
+
+**Sem bump:** app segue 1.44.0/2080; script + banco, sem restart do
+od-core.
+
 ## Regra 22: análise completa de tudo que entra em `analise/` + veredito em NV e Projeti (2026-11-13, sem bump)
 
 **Resumo:** o dono pediu para formalizar o fluxo de análise da caixa de

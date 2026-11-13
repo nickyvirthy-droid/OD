@@ -150,3 +150,77 @@ parsing mas **fora de qualquer publicação**.
 lixo candidato; dados do Orion como referência de leitura.
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §3 — Zips de `analise/` em `backups/` + tabela `pessoas` no Postgres (13/11 ~05:30, fechado 06:30)
+
+**Pedido do dono:** (1) "zipar para backups, não tirar nada" das pastas que
+ficaram em `analise/` (as ferramentas Windows: "não precisa fazer nada
+apenas zipar também em backups"); (2) escolha em pergunta — salvar os dados
+dos policiais extraídos de `analise/Projeti/Cod` na **tabela `pessoas` do
+Postgres `od`** (o banco não existia; colunas aprovadas: nome, posto,
+matricula, viatura, unidade, fonte, atualizado_em — com `dv` somando).
+
+### 1. Os zips (nada tirado de `analise/`)
+
+- `backups/analise_NV_20261113.zip` — 822 MB, 19.915 entradas.
+- `backups/analise_Projeti_20261113.zip` — 167 MB, 953 entradas (inclui as
+  ferramentas Windows, conforme a ordem).
+- `testzip()` íntegro nos dois arquivos (via `zipfile` do Python — o CLI
+  `zip` não existe neste ambiente). Originais **intactos**; `backups/` é
+  gitignored.
+
+### 2. Tabela `pessoas` — 92 policiais no Postgres `od`
+
+**`runtime/importa_pessoas.py`** (novo) cria a tabela (se preciso) e importa
+o efetivo de `analise/Projeti/Cod`:
+
+- **Fontes (6, ordem de precedência do merge):** `efetivo.txt` (linhas
+  posto + matrícula + dv + nome, dv pode ser letra) → `MapaForca.txt` /
+  `MapaForcaTudo.txt` (tokens de colchete `[POSTO_PM_MAT_NOME]`, com o
+  trecho `_-_1C_` e nomes com espaço) → saídas do `ler.ipynb` (o source é
+  código, não conta) → `Mapa.csv` / `Mapa.txt` (vínculo matrícula →
+  viatura + unidade; cabeçalho tem 14 campos e os dados 15, por índice
+  0-based: unidade col.3, viatura col.8, re col.11, re2 col.13).
+- **Viatura por linha:** colchete primeiro, senão a col0 tabulada
+  (`SD`+dígitos, `NN-NN` — linhas que só têm a viatura ali), senão
+  a "pendente" da linha anterior (é o padrão do efetivo: a linha 79 traz
+  a viatura em colchete e a linha 80 traz os 2 policiais; a pendente é consumida no
+  uso, não vaza).
+- **Merge idempotente por matrícula** (fallback: nome): a 1ª fonte preenche
+  os vazios (o efetivo vem primeiro de propósito — posto legível, dv e
+  caixa mista vencem os tokens em caixa alta); listas (viatura/fonte) somam
+  sem repetir; o UPDATE só acontece quando algo mudou, então re-rodar que
+  nada muda **não toca `atualizado_em`**.
+- **Resultado medido no `od`:** 92 pessoas (185 registros extraídos), 0 sem
+  nome, 1 sem viatura, 24 com dv, 26 com múltiplas viaturas (rodou em mais
+  de uma), 26 com unidade, 0 fontes duplicadas. Re-execução no banco real:
+  **0 nova(s), 0 atualizada(s)**.
+- **Honestidade do dado:** `unidade` só onde a fonte declara (cabeçalho OPM
+  do efetivo e col.3 do Mapa) — quem só aparece em MapaForca/notebook fica
+  vazio em vez de presumir; postos guardados como a fonte traz (`CB` vs
+  `CB PM`).
+- **Sensibilidade (regra 16):** os testes usam só fixtures sintéticas
+  (matrículas e nomes inventados); nenhum dado real em arquivo commitado;
+  a tabela mora só no Postgres `od` (actions `database_*` são admin) e
+  `analise/` segue gitignored.
+
+### 3. Testes e dois defeitos pegos antes do gate
+
+`tests/test_importa_pessoas.py` (novo) — **40 testes**: parsers das 4
+famílias de fonte, viatura (colchete/col0/pendente/reset/colchete vence
+col0), Mapa.csv (aspas, cabeçalho, campos inválidos), cabeçalho OPM,
+outputs de notebook, merge idempotente (timestamp intocado, listas somando,
+fallback por nome) e a CLI (dir ausente, sem DSN, sucesso, reexecução sem
+duplicar, dir vazio).
+
+Defeitos medidos e corrigidos **antes** do gate: (1) um assert esperava
+string onde o parser devolve lista; (2) o `_lista_csv` não tirava o espaço
+do `split(',')` — os itens nunca batiam com os da memória, derrubando
+**40 "atualizados" falsos** e gravando `fonte` com espaço duplo
+(`'efetivo.txt,  Mapa.txt'`) na re-execução. Corrigido com `strip` e
+reprovado pelo teste de idempotência.
+
+**Gate completo: 4579 passed / 17 skipped / 0 falha** (era 4539 + 40).
+
+**Sem bump:** app segue **1.44.0/2080**; nada desta tarefa exige restart do
+od-core (é script + banco, o serviço não muda).
