@@ -12,6 +12,35 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Relatórios do Vigia saem de `analise/` e vão para `data/relatorios/` (2026-11-13, sem bump)
+
+**Resumo:** `relatorio_chat_audit_*.json` e `relatorio_vigia_mensagens_*.json`
+eram gravados em `analise/` — pasta que, pela **regra 17**, é a caixa de
+entrada de arquivos do dono para análise. O código escolheu `analise/` pela
+comodidade de ser gitignorado (motivo registrado em `chat_audit.py`), sem
+respeitar o significado da pasta: saíam **2 arquivos por dia** (timer 04:30)
+e sujavam a caixa dele.
+
+**Mudança:** destino passa a ser **`data/relatorios/`** (`data/` já é
+gitignorado inteiro — sem mudança de `.gitignore`; semântica correta: dado
+gerado pelo sistema). Foram alterados o default de `--destino` do
+`core/chat_audit.py` e os dois caminhos hardcoded do
+`core/vigia_mensagens.py`, mais docstrings. Os **9 relatórios acumulados**
+(07/11→12/12) foram movidos para lá — `analise/` ficou só com `NV/` e
+`Projeti/`, do dono.
+
+**Prova viva:** CLI do chat_audit sem `--destino` gravou em
+`data/relatorios/relatorio_chat_audit_20261113-035633.json` (arquivo de
+prova removido depois).
+
+**Testes:** gate completo **4539 passed / 17 skipped / 0 falha** (186,08 s);
+`test_salvar_relatorio_em_analise` renomeado para
+`test_salvar_relatorio_no_destino` (o teste já usava `tmp_path`, só o nome
+mentia).
+
+**Nota:** o `od-vigia-mensagens` é oneshot via timer — próxima execução
+(04:30) já usa o caminho novo; nenhum serviço residente precisa reiniciar.
+
 ## Teste de restauração do espelho: aprovado com 4 correções (2026-11-12, sem bump)
 
 **Resumo:** o espelho offline passou no primeiro teste de restauração real e

@@ -34,7 +34,7 @@ O que o job faz (uma vez por dia, `od-vigia-mensagens.timer` 04:30):
      seguida o GATE COMPLETO roda uma vez. Verde → commit + push +
      restart verde + aviso. Vermelho → ROLLBACK bit a bit
      (`git checkout --` só nos arquivos que EU alterei) + fila + alerta.
-  4. REGISTRA — relatório JSON em `analise/` e resumo no Telegram
+  4. REGISTRA — relatório JSON em `data/relatorios/` e resumo no Telegram
      (regra 15). Falha de qualquer etapa vira item de fila: nunca
      silêncio.
 
@@ -753,7 +753,7 @@ def _auditar_janela(horas: float) -> dict[str, Any]:
         relatorio["erro"] = f"juiz indisponível: {exc}"[:300]
         return relatorio
     completo = ca.gerar_relatorio(resultados, fonte=fonte)
-    caminho = ca.salvar_relatorio(completo, RAIZ / "analise")
+    caminho = ca.salvar_relatorio(completo, RAIZ / "data" / "relatorios")
     relatorio.update(completo)
     relatorio["caminho"] = str(caminho)
     return relatorio
@@ -981,7 +981,7 @@ async def rodar(*, horas: float = 24.0, reparar: bool = True,
             _avisar, _resumo_telegram(relatorio))
 
     relatorio["duracao_s"] = round(time.time() - inicio, 1)
-    caminho = RAIZ / "analise" / (
+    caminho = RAIZ / "data" / "relatorios" / (
         f"relatorio_vigia_mensagens_{time.strftime('%Y%m%d-%H%M%S')}.json")
     relatorio["relatorio"] = str(caminho)
     try:
@@ -1003,7 +1003,7 @@ async def rodar(*, horas: float = 24.0, reparar: bool = True,
 
 
 def _resumo_telegram(relatorio: dict[str, Any]) -> str:
-    """Resumo curto para o Telegram (o JSON completo fica em analise/)."""
+    """Resumo curto para o Telegram (o JSON completo fica em data/relatorios/)."""
     aud = relatorio.get("auditoria", {})
     linhas = ["🔭 Vigia das Mensagens — ciclo diário",
               f"Janela: {aud.get('janela_horas', '?')} h · turnos: "

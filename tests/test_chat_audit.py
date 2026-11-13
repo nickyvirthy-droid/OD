@@ -445,7 +445,7 @@ class TestAuditoria:
         assert rel["problematicos"] == 2
         assert rel["fonte"] == "legado"
 
-    def test_salvar_relatorio_em_analise(self, tmp_path: Path) -> None:
+    def test_salvar_relatorio_no_destino(self, tmp_path: Path) -> None:
         rel = gerar_relatorio([], fonte="vazia")
         caminho = salvar_relatorio(rel, tmp_path)
         assert caminho.parent == tmp_path

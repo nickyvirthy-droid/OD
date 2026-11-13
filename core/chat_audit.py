@@ -20,7 +20,9 @@ local = gemma-local. A reserva é **por turno**: se o juiz online falhar
 num turno, o local assume na hora; se os dois falharem, o turno vira
 `erro` com o motivo — nunca silêncio. Cada turno é classificado
 `ok | resposta_errada | devaneio | inconsistente` + justificativa, e o
-relatório JSON sai em `analise/` (gitignorado — não entra no repo).
+relatório JSON sai em `data/relatorios/` (gitignorado — não entra no repo;
+`analise/` é a caixa de entrada do dono, regra 17, e não recebe lixo do
+sistema).
 
 CLI (ferramenta de análise, não sobe com o od-core):
     python -m core.chat_audit --fonte auto --limite 200
@@ -555,7 +557,7 @@ def gerar_relatorio(resultados: list[dict[str, Any]], *, fonte: str) -> dict[str
 
 
 def salvar_relatorio(relatorio: dict[str, Any], destino: Path) -> Path:
-    """Grava o relatório JSON em `destino` (pasta analise/, gitignorado)."""
+    """Grava o relatório JSON em `destino` (padrão: data/relatorios/)."""
     destino = Path(destino)
     destino.mkdir(parents=True, exist_ok=True)
     carimbo = time.strftime("%Y%m%d-%H%M%S")
@@ -593,8 +595,10 @@ def main(argv: Optional[list[str]] = None) -> int:
                              "(0 = sem corte; fonte de sistema)")
     parser.add_argument("--throttle", type=float, default=0.0,
                         help="pausa em segundos entre juizadas (evita 429)")
-    parser.add_argument("--destino", default=str(raiz / "analise"),
-                        help="pasta do relatório JSON (padrão: analise/)")
+    parser.add_argument("--destino",
+                        default=str(raiz / "data" / "relatorios"),
+                        help="pasta do relatório JSON "
+                             "(padrão: data/relatorios/)")
     args = parser.parse_args(argv)
 
     limite = args.limite or None

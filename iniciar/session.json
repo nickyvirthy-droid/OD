@@ -1,4 +1,16 @@
 {
+  "relatorios_vigia_fora_de_analise_2026_11_13": {
+    "pedido": "Dono (13/11): por que relatorio_chat_audit_* e relatorio_vigia_mensagens_* estao em analise/ — a pasta e a caixa de entrada dele (regra 17); esses arquivos 'nao estao sendo analisados'.",
+    "causa": "Timer od-vigia-mensagens (04:30 diario) roda core/vigia_mensagens.py que chama core/chat_audit.py — 2 JSONs por ciclo, destino hardcoded em RAIZ/'analise' (motivo registrado: 'gitignorado'). Escolha de 22/10 e 26/10, DEPOIS da regra 17 (12/10). Acumulo desde 07/11.",
+    "correcao": "Destino -> data/relatorios/ (data/ ja gitignorado inteiro, sem mudar .gitignore). chat_audit.py: default --destino + 2 docstrings. vigia_mensagens.py: 2 usos de RAIZ/'data'/'relatorios' + 2 docstrings. teste renomeado test_salvar_relatorio_em_analise -> test_salvar_relatorio_no_destino. 9 arquivos movidos de analise/ para data/relatorios/; analise/ so com NV/ e Projeti/.",
+    "nao_mudou": "analise/AIML/... segue como INPUT (fonte de logs legados do chat_audit) — e do dono, nao e saida do sistema.",
+    "testes": "104 passed nos suites afetados; gate completo 4539 passed / 17 skipped / 0 falha (186,08 s).",
+    "prova_viva": "CLI sem --destino gravou em data/relatorios/relatorio_chat_audit_20261113-035633.json (prova removida).",
+    "deploy": "Nenhum: vigia e oneshot via timer, proxima execucao 04:30 ja usa o caminho novo.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-13_conversa_omegadrakon.md (§1)",
+    "updated_at": "2026-11-13T04:05:00-03:00"
+  },
   "teste_restauracao_espelho_2026_11_12": {
     "pedido": "Dono (12/11): 'faça o teste completo então' — restauracao real do espelho offline (venv + gate + docker).",
     "fase1_python": "venv novo python3.12 em /tmp/od-restore + pip install --no-index do espelho -> 47 wheels em 14,6 s sem rede. Smoke corrigido (fastapi nao existe no projeto; API e http.server) com os modulos reais: OK. Gate completo com deps SO do espelho: 4539 passed / 17 skipped / 0 falha (174,9 s).",
