@@ -1,4 +1,17 @@
 {
+  "teste_restauracao_espelho_2026_11_12": {
+    "pedido": "Dono (12/11): 'faça o teste completo então' — restauracao real do espelho offline (venv + gate + docker).",
+    "fase1_python": "venv novo python3.12 em /tmp/od-restore + pip install --no-index do espelho -> 47 wheels em 14,6 s sem rede. Smoke corrigido (fastapi nao existe no projeto; API e http.server) com os modulos reais: OK. Gate completo com deps SO do espelho: 4539 passed / 17 skipped / 0 falha (174,9 s).",
+    "achado_dev": "requirements-dev.txt (pytest) estava fora do espelho por decisao do §9 — espelhado (10 wheels) para o gate rodar offline.",
+    "fase2_docker_4_buracos": "1) 5 imagens OTel declaradas no compose nunca puxadas (compose up offline falharia) -> espelhadas; 2) tag otel/...-contrib:0.115.0 REMOVIDA do Docker Hub -> compose migrado para 0.165.0; config usava exporter logging (deprecado) -> migrado para debug e PROVADO rodando ('Everything is ready'); 3) 6 configs bind-mount do compose fora do espelho (loki/tempo/prometheus/otel-collector/grafana-datasources/filebrowser-settings) -> copiados; 4) AzuraCast e HA sem receita (docker run) -> extras-compose.yaml gerado do docker inspect com name: fixo nos 15 volumes.",
+    "estado_final_espelho": "3,3 -> 3,7 GB: 57 wheels (47 prod + 10 dev), 17 tars, 12 arquivos, MANIFEST 83 itens sha256 OK. Cobertura: 16/16 imagens dos composes com tar (17º = postgres do od-core).",
+    "verificacao": "145 passed nos 3 suites dos arquivos docker alterados; compose config -q limpo no repo e no espelho (repo exige --env-file do .env do cofre — documentado no README do espelho).",
+    "limites_declarados": "Maquina limpa de verdade, clone git offline e DADOS de volume continuam fora do teste (imagens e receitas sim).",
+    "repo": "docker/tools-compose.yaml (tag 0.165.0) e docker/otel-collector-config.yaml (debug) alterados; CHANGELOG com a entrada do teste.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-12_conversa_omegadrakon.md (§11)",
+    "updated_at": "2026-11-12T14:50:00-03:00"
+  },
   "retomada_leitura_iniciar_2026_11_12_tarde": {
     "pedido": "Dono (12/11 ~14:10): 'leia iniciar' — recarregar o checkpoint antes de retomar.",
     "lido": "iniciar/README.md, iniciar/RULES.md (21 regras), iniciar/session.json (entradas mais recentes: espelho_offline 14:00 e benchmark_7b_vs_3b 13:45), transcricao 2026-11-12 inteira (§1-§9), txt.txt (vazio) e git status/log.",

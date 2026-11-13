@@ -40,7 +40,9 @@ exporters:
     # headers:
     #   Authorization: "Bearer ${GRAFANA_CLOUD_TOKEN}"
   # Debug: stdout (as pipelines abaixo referenciam este exporter)
-  logging:
+  # `logging` foi deprecado pelo collector (teste do espelho 12/11/2026):
+  # a partir de ~0.120 o nome é `debug`.
+  debug:
     verbosity: normal
 
 service:
@@ -48,12 +50,12 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch, resource]
-      exporters: [otlphttp/tempo, logging]
+      exporters: [otlphttp/tempo, debug]
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch, resource]
-      exporters: [prometheusremotewrite, logging]
+      exporters: [prometheusremotewrite, debug]
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch, resource]
-      exporters: [otlphttp/loki, logging]
+      exporters: [otlphttp/loki, debug]

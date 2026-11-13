@@ -574,3 +574,77 @@ Nada alterado no código: só leitura e registro. Não há deploy pendente (árv
 limpa, HEAD publicado, serviço verde).
 
 **Sem bump:** app segue **1.44.0/2080**.
+
+## §11 — Teste de restauração do espelho: aprovado com 4 correções (12/11 ~14:45)
+
+**Pedido do dono:** "faça o teste completo" — restauração real do espelho
+offline (venv novo + gate + docker), depois de eu perguntar como seria feito.
+
+### 1. Fase 1 — Python 100% offline
+
+1. `python3.12 -m venv /tmp/od-restore/venv` (mesma versão dos wheels cp312).
+2. `pip install --no-index --find-links od-mirror/pip -r requirements.txt` →
+   **47 wheels em 14,6 s, sem rede** (a prova: `--no-index` proíbe índice).
+3. **Achado:** meu smoke inicial importou `fastapi` — não existe no projeto
+   (API é `http.server` do stdlib; `requirements.txt` é enxuto por desenho).
+   Smoke corrigido com os módulos reais: **OK** (pg8000, google-auth,
+   websockets, dotenv, requests, qrcode, edge-tts, otel, sklearn + core,
+   actions e api).
+4. **Achado:** o gate precisa de `requirements-dev.txt` (pytest), que estava
+   **fora** do espelho por decisão do §9. Para o teste ser completo,
+   espelhei os dev-wheels também (10 wheels, ainda com internet — regra do
+   plano de usar o máximo dela).
+5. **Gate completo com o venv restaurado** (deps só do espelho):
+   **4539 passed / 17 skipped / 0 falha** (174,9 s).
+
+### 2. Fase 2 — Docker: 3 buracos achados
+
+`docker load` dos tars: 12/12 OK. Mas o `compose config` e a checagem de
+cobertura revelaram:
+
+| # | Buraco | Risco se não pegasse |
+|---|---|---|
+| 1 | **5 imagens do stack OTel declaradas no compose mas nunca puxadas** (grafana, loki, tempo, prometheus, otel-collector) | `compose up` offline falharia nelas |
+| 2 | **Tag `otel/…-contrib:0.115.0` removida do Docker Hub** | impossível baixar; compose morto |
+| 3 | **6 configs em bind mount do compose fora do espelho** (`loki.yaml`, `tempo.yaml`, `prometheus.yml`, `otel-collector-config.yaml`, `grafana-datasources.yaml`, `filebrowser-settings.json`) | containers sem config |
+| 4 | **AzuraCast e Home Assistant sem receita** (rodavam via `docker run`, fora do compose) | tar existia mas ninguém sabia como subir |
+
+Correções: puxei e salvei as 5 imagens; migrei o compose para
+**0.165.0** (a estável mais próxima); o config usava o exporter `logging`
+(deprecado) → migrado para `debug` e **provado rodando** ("Everything is
+ready" no log); copiei os 6 configs; gerei **`extras-compose.yaml`** do
+`docker inspect` dos dois containers, com `name:` fixo nos 15 volumes para
+reaproveitar os dados existentes.
+
+Também: `compose config -q` do repo exige variáveis de senha → o README do
+espelho agora documenta `--env-file` apontando para o `.env` **do cofre**
+(segredo segue fora da mídia espelhada).
+
+### 3. Estado final do espelho
+
+| Item | Antes | Depois |
+|---|---|---|
+| Wheels | 47 (só prod) | **57** (prod + dev) |
+| Tars | 12 | **17** |
+| Arquivos | 4 | **12** (composes, configs, extras) |
+| Tamanho | 3,3 GB | **3,7 GB** |
+| MANIFEST | 63 linhas | **83 itens, sha256 todos OK** |
+
+Cobertura final: **16/16 imagens declaradas nos dois composes têm tar** (o
+17º é o `postgres:16-alpine`, dependência do od-core).
+
+### 4. Verificação
+
+- Gate (deps do espelho): 4539/17/0.
+- 145 passed nos 3 suites que cobrem os arquivos docker alterados.
+- `docker compose config -q` limpo nos dois composes (repo e espelho).
+- Coletor OTel: subiu com o config espelhado e logou "Everything is ready".
+
+### 5. Limites declarados (README do espelho)
+
+Máquina limpa de verdade, clone do git offline e **dados dos volumes** (imagens
+e receitas sim; conteúdo é fluxo de backup) continuam fora do teste — o teste
+provou "restauro o OD desta mídia nesta classe de máquina", não "restauro em
+qualquer máquina com os dados antigos".
+
+**Sem bump:** app segue **1.44.0/2080**.

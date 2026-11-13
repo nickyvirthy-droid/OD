@@ -294,9 +294,11 @@ services:
 # 10. OpenTelemetry Collector — recebe OTLP/HTTP (4318) e exporta para
 #     Tempo (traces), Loki (logs), Prometheus (metrics).
 #     OD_OTEL_ENDPOINT=http://127.0.0.1:4318 no .env do od-core.
+#     Tag 0.115.0 foi removida do Docker Hub (teste do espelho 12/11/2026);
+#     0.165.0 é a estável mais próxima — stack segue não implantado.
 # ---------------------------------------------------------------------------
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.115.0
+    image: otel/opentelemetry-collector-contrib:0.165.0
     container_name: od-otel-collector
     restart: unless-stopped
     ports:

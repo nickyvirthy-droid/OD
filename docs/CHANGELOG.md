@@ -12,6 +12,49 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Teste de restauração do espelho: aprovado com 4 correções (2026-11-12, sem bump)
+
+**Resumo:** o espelho offline passou no primeiro teste de restauração real e
+o teste **achou e corrigiu 4 buracos** que fariam a restauração falhar.
+
+**O que foi provado (tudo sem rede no passo decisivo):**
+
+| Etapa | Resultado |
+|---|---|
+| venv novo + `pip install --no-index` do espelho | **57 wheels em 14,6 s** |
+| Gate completo com as deps só do espelho | **4539 passed / 17 skipped / 0 falha** (174,9 s) |
+| `docker load` dos tars | 17/17 com tags certas |
+| `compose config -q` (ambos os composes) | OK |
+| Coletor OTel subindo com o config espelhado | "Everything is ready" |
+
+**Buracos achados e corrigidos:**
+
+1. **5 imagens do stack OTel declaradas no compose mas nunca baixadas** —
+   `compose up` offline falharia nelas → espelhadas (5 tars novos).
+2. **Tag `otel/opentelemetry-collector-contrib:0.115.0` removida do Docker
+   Hub** → compose migrado para `0.165.0`; o config usava o exporter
+   `logging` (deprecado) → migrado para `debug` e **provado rodando**.
+3. **6 arquivos de config em bind mount do compose** (`loki.yaml`,
+   `tempo.yaml`, `prometheus.yml`, `otel-collector-config.yaml`,
+   `grafana-datasources.yaml`, `filebrowser-settings.json`) ficaram fora do
+   espelho → agora presentes.
+4. **AzuraCast e Home Assistant** rodavam via `docker run`, sem receita de
+   restauração → gerado `extras-compose.yaml` do `docker inspect`, com
+   `name:` fixo nos 15 volumes para reaproveitar os dados.
+
+**Também:** `requirements-dev.txt` (pytest etc., 10 wheels) passou a ser
+espelhado — sem ele o gate não roda offline. Espelho: 3,3 → **3,7 GB**, 83
+itens no `MANIFEST.txt` (sha256 todos OK).
+
+**Fora do alcance do teste (declarado no README do espelho):** máquina limpa
+de verdade, clone do git offline e os **dados** dos volumes (imagens e
+receitas sim; conteúdo de volume é fluxo de backup). O `.env` continua vindo
+do cofre — segredo nunca em mídia espelhada.
+
+**Testes:** 145 passed nos suites que cobrem os arquivos docker alterados
+(`test_nomad_tools`, `test_filebrowser`, `test_nomad_tools_actions`);
+`docker compose config -q` limpo nos dois composes.
+
 ## Espelho offline de pacotes e imagens (2026-11-12, sem bump)
 
 **Resumo:** o item "espelho de pacotes" do plano de continuidade foi
