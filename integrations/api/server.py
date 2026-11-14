@@ -1662,6 +1662,16 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       <button id="tq-refresh">↻ Carregar</button>
       <span class="muted msg" id="tq-msg"></span>
     </div>
+    <!-- Criação de task (14/11, backlog §4): a mesma coisa que o
+         POST /admin/tasks aceita — action do catálogo + payload JSON
+         objeto. O servidor valida; aqui só enfileira e pinta. -->
+    <div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap;align-items:center">
+      <select id="tq-nova-action" title="action do catálogo (GET /actions)"></select>
+      <input type="text" id="tq-nova-payload"
+             placeholder='payload JSON (objeto) — ex.: {"path": "data/x.txt"}'
+             style="flex:1;min-width:240px;font-size:0.78rem">
+      <button id="tq-nova" title="POST /admin/tasks">＋ Enfileirar</button>
+    </div>
     <div class="row" id="tq-resumo" style="font-size:0.78rem;gap:14px;margin-top:8px;align-items:center">
       <span class="muted">carregando…</span>
     </div>
@@ -2926,6 +2936,59 @@ async function tqAcao(id, acao) {
   } catch (e) { tqSetMsg("Falha: " + e.message, "err"); }
 }
 
+// Criação de task pelo painel (14/11 — item 2 do backlog §4): action do
+// catálogo (mesmo GET /actions do cartão de Ações) + payload JSON objeto.
+// Enfileira e já pinta na tabela — o SSE task_created repete o MESMO id,
+// então não duplica.
+async function tqCarregarActions() {
+  const sel = document.getElementById("tq-nova-action");
+  if (!sel) return;
+  try {
+    const resp = await fetch("/actions", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !Array.isArray(data.actions)) return;
+    const escolhida = sel.value;
+    sel.innerHTML = data.actions
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(a => '<option value="' + esc(a.name) + '">' + esc(a.name) +
+                (a.description ? " — " + esc(String(a.description).slice(0, 60)) : "") +
+                "</option>")
+      .join("");
+    if (escolhida) sel.value = escolhida;
+  } catch (e) { /* select vazio: o POST continua válido se a action existir */ }
+}
+
+async function tqCriar() {
+  const sel = document.getElementById("tq-nova-action");
+  const campo = document.getElementById("tq-nova-payload");
+  const action = sel ? sel.value : "";
+  if (!action) { tqSetMsg("Escolha uma action no catálogo.", "err"); return; }
+  let payload = {};
+  const bruto = campo ? campo.value.trim() : "";
+  if (bruto) {
+    try { payload = JSON.parse(bruto); }
+    catch (e) { tqSetMsg("Payload não é JSON válido: " + e.message, "err"); return; }
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    tqSetMsg("Payload deve ser um objeto JSON {…}.", "err");
+    return;
+  }
+  try {
+    const resp = await fetch("/admin/tasks", {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ action: action, payload: payload })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { tqSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    tqTasks[data.task.task_id] = data.task;
+    if (campo) campo.value = "";
+    tqSetMsg("✓ " + data.task.task_id + " enfileirada (" + action + ")", "ok");
+    tqRender();
+  } catch (e) { tqSetMsg("Falha: " + e.message, "err"); }
+}
+
 // SSE: snapshot (tasks + métricas) e cada transição. Queda do stream volta ao
 // botão ↻ (a seção não fica atualizando sozinha em segundo plano).
 function tqSse() {
@@ -3406,6 +3469,7 @@ document.getElementById("dl-refresh").onclick = dlLoad;
 document.getElementById("dl-url").addEventListener("keydown", e => { if (e.key === "Enter") dlAdd(); });
 document.getElementById("tq-refresh").onclick = tqLoad;
 document.getElementById("tq-status").onchange = tqRender;
+document.getElementById("tq-nova").onclick = tqCriar;
 document.getElementById("au-dry").onclick = auDry;
 document.getElementById("au-refresh").onclick = auLoad;
 document.getElementById("fr-add").onclick = frAdd;
@@ -3415,7 +3479,7 @@ document.getElementById("fr-import-btn").onclick = () =>
   document.getElementById("fr-import").click();
 document.getElementById("fr-import").addEventListener("change", frImportFile);
 document.getElementById("fr-nome").addEventListener("keydown", e => { if (e.key === "Enter") frAdd(); });
-whoAmI().then(u => { if (u) { carregarTudo(); dlSse(); tqSse(); } });
+whoAmI().then(u => { if (u) { carregarTudo(); dlSse(); tqSse(); tqCarregarActions(); } });
 // a sessão roda fora do od-core: o painel acompanha de 5 em 5 s
 setInterval(async () => {
   const estado = await sessaoStatus();

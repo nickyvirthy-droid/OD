@@ -1346,6 +1346,33 @@ class OdApi {
     );
   }
 
+  /// POST /admin/tasks — enfileira uma task NOVA (ação + payload JSON).
+  ///
+  /// Mesmo contrato do painel (`{action, payload}`): o servidor responde
+  /// **201** com a task criada em `pending`; fila desligada responde 503
+  /// (mensagem legível, como no listTasks). Payload vazio vira `{}`.
+  Future<OdTask> createTask(
+    String action, {
+    Map<String, dynamic> payload = const {},
+  }) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/admin/tasks'),
+      body: jsonEncode({'action': action, 'payload': payload}),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 201 && data?['ok'] == true) {
+      return OdTask.fromJson(data!['task'] as Map<String, dynamic>);
+    }
+    throw OdApiError(
+      response.statusCode == 503
+          ? 'Fila de tarefas desligada no servidor '
+              '(OD_TASK_QUEUE_ENABLED=0).'
+          : 'Criação falhou: ${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
   /// POST /admin/tasks/{id}/retry — reenfileira falha/dead letter.
   ///
   /// O servidor cria uma task NOVA (mesma action/payload/retry_policy) e

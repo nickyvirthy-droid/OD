@@ -591,10 +591,15 @@ esperar o timeout.
       14/11: bloco "Tarefas (Task Queue)" no `/admin` e aba "Tarefas" no app,
       com status, tentativas, duração, resultado/erro, filtro, retry e apagar;
       Python 4678 e flutter 223 verdes**
-- [ ] App: **publicar o APK com a aba Tarefas** — o código está pronto mas o
-      apk servido em `site/` continua 1.44.0+2080; exige bump SemVer + 
-      `app/build_apk.sh` (deploy do app, precisa de ordem do dono)
-      (sugestão de 14/11 não escolhida)
+- [x] App: **publicar o APK com a aba Tarefas** — **JÁ ENTREGUE; verificado e
+      fechado em 14/11 ~17:50 a pedido do dono.** O item nasceu desatualizado:
+      o release `a1f362a` (14/11 13:22) já tinha bump + `app/build_apk.sh` +
+      publicação. Prova: os 2 APKs de `site/` (build 13:07) são
+      **1.45.0+2081** (aapt2), a aba está **dentro do binário** (`Tarefas`×3,
+      `listTasks`, `tasks_screen` em `libapp.so`), o `sha256` do
+      `GET /app/version` bate com o arquivo, não há mudança em `app/` depois
+      do build e `flutter analyze` 0 issues + 223 testes verdes reexecutados
+      em 14/11.
 - [ ] Task Queue: **criar tarefa pelo painel/app** (formulário com action +
       payload JSON em cima do `POST /admin/tasks`) — hoje só dá para ver,
       retentar e apagar (sugestão de 14/11 não escolhida)

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
@@ -174,6 +175,11 @@ class _TasksScreenState extends State<TasksScreen> {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip: 'Enfileirar tarefa',
+                onPressed: _novaTarefa,
+                icon: const Icon(Icons.add_task),
               ),
               IconButton(
                 tooltip: 'Atualizar agora',
