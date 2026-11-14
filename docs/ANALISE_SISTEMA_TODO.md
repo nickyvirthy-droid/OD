@@ -684,7 +684,11 @@ esperar o timeout.
       231 MB; rajada de 50 tasks reais 14,03% CPU, +0,1 MB, 68 ms/task, p50 de
       execução 0,7 ms; retry real com dead letter em 6,01 s). Achado e
       corrigido no caminho: o `task_queue` nunca chegava ao `APIConfig`
-      (503 permanente). 52 registros de teste removidos no fim. O gate também
+      (503 permanente). 52 registros de teste removidos no fim. Custo com action
+      de LLM longa (fila sandbox + llama-server real): task de 600 tokens levou
+      105 s, com **312% de 1 core no llama-server** e **0,23% no processo da
+      fila**; com 1 worker, task curta atrás de uma LLM de 14,9 s esperou
+      14,5 s — action longa serializa a fila (avaliar 2 workers para LLM). O gate também
       acusou o pool do RAG no limite (alvo na 24ª posição): `TOP_K_CANDIDATOS`
       24 → **32**, medido com grid (600 células válidas, 8/8 + 8/8 + 6/6)
 - [x] Task Queue: **task concluída some da API** (achado de 14/11) — **ENTREGUE

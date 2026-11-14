@@ -1,4 +1,14 @@
 {
+  "task_queue_custo_llm_2026_11_14": {
+    "pedido": "Dono (14/11 ~18:10): 'Meça o custo da fila com uma action de LLM longa para completar o quadro'. Checkpoint anterior: task_queue_ligada_producao_2026_11_14.",
+    "contexto": "O catalogo de actions (tools/actions/actions.py, 125 actions) nao tem action de LLM. Medido com fila em sandbox (1 worker, queue_dir em /tmp) cuja action faz a MESMA chamada HTTP do orchestrator (OpenAICompatProvider._post_chat) no llama-server local qwen2.5-coder-3b-instruct-q4_k_m, 4 threads, porta 8081; /proc amostrado a cada 0,5 s em fila, llama-server e od-core.",
+    "resultado": "Longa (max_tokens=600): task 105,36 s, 111->600 tokens (2119 chars), llama-server 333,2 s de CPU = 312,0% de 1 core (78% da maquina), RSS max 1915 MB. Curta (150): 19,19 s, 71,1 s = 337,8% de 1 core, RSS 1943 MB. Processo da fila na janela da longa: 0,25 s = 0,23% de 1 core, RSS 27 MB. ~0,56 s de CPU por token, ~5,7 tok/s.",
+    "serializacao": "Com 1 worker, task curta enfileirada 0,4 s depois de uma action de LLM de 14,89 s esperou 14,49 s na fila e rodou em ~0 ms: action longa segura a fila (avaliar 2 workers ou prioridade dedicada para LLM).",
+    "ruido": "Repouso do od-core medido em 8,53% num intervalo (antes 3,2%) — investigado no journal: TTS da radio sintetizando locucoes a cada ~3 min (rajadas de 10-29% por segundo). Nao e a fila; RSS estavel em ~262 MB.",
+    "conclusao": "Custo de infraestrutura da fila desprezivel (0,23% de core por 105 s de task; +5,1 MB em repouso); custo de action de LLM integralmente no llama-server (~3,1 dos 4 threads). Sem bump: nenhuma mudanca de codigo.",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§14)",
+    "updated_at": "2026-11-14T18:45:00-03:00"
+  },
   "task_queue_ligada_producao_2026_11_14": {
     "pedido": "Dono (14/11 ~16:20): 'Ligue a fila em produção com 1 worker e meça o custo real de CPU/RAM'. Checkpoint anterior: release_1_45_0_2026_11_14.",
     "ligacao": "OD_TASK_QUEUE_ENABLED=1 e OD_TASK_QUEUE_WORKERS=1 no .env (gitignored, backup em /tmp/od_env_backup_<ts>); defaults mantidos (3 retries, backoff 5 s, 200 concluidas). od-core e unidade de USUARIO (systemctl --user restart od-core). Boot: TaskQueue iniciado | workers=1 | pending=0; GET /admin/tasks 200 (antes 503).",

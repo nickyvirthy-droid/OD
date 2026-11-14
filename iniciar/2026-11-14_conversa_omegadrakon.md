@@ -626,3 +626,50 @@ irrelevantes e 6/6 parafrases, piso (0.399/0.036) dentro da região
   action de LLM longa (aí o custo é do modelo, não da fila).
 - O pool 32 tem folga medida até a 26ª posição; novas seções diárias de
   CHANGELOG/transcrição continuam empurrando alvos — o gate é o alarme.
+
+## §14 — Custo da fila com action de LLM longa (14/11 ~18:10–18:40)
+
+**Pedido do dono:** "Meça o custo da fila com uma action de LLM longa para
+completar o quadro".
+
+### 1. O que existe hoje
+
+O catálogo de actions (`tools/actions/actions.py`) tem **125 actions e nenhuma
+de LLM** (são sistema/IoT/arquivos/cloud). A medição usou o caminho real de uma
+action desse tipo: fila em **sandbox** (1 worker, `queue_dir` em `/tmp`) cuja
+action chama o `OpenAICompatProvider._post_chat` — **a mesma chamada HTTP** que
+o orchestrator faz — no llama-server local
+(`qwen2.5-coder-3b-instruct-q4_k_m`, 4 threads, porta 8081).
+
+### 2. Medição (`/proc` a cada 0,5 s nos três processos)
+
+| action | duração | tokens (prompt→resposta) | llama-server | RSS máx |
+|---|---|---|---|---|
+| longa, `max_tokens=600` | **105,36 s** | 111 → 600 (2.119 chars) | 333,2 s = **312,0% de 1 core** | 1.915 MB |
+| curta, `max_tokens=150` | **19,19 s** | 111 → 150 (600 chars) | 71,1 s = 337,8% de 1 core | 1.943 MB |
+| processo **da fila** | mesma janela | — | 0,25 s = **0,23% de 1 core** | 27 MB |
+
+- ~0,56 s de CPU por token gerado (~5,7 tok/s): **o custo é do modelo, não
+  da fila**.
+- RSS do modelo ~1,9 GB (já residente, não cresce por task).
+
+### 3. O custo real de 1 worker: serialização
+
+Task curta (`filesystem_exists`) enfileirada **0,4 s depois** de uma action de
+LLM de **14,89 s**: **esperou 14,49 s** na fila e executou em ~0 ms. Com 1
+worker, toda action longa segura as demais.
+
+### 4. Ruído identificado (honestidade da medição)
+
+O repouso do `od-core` subiu de 3,2% para 8,5% num intervalo — investigado no
+journal: **TTS da rádio** gerando locuções a cada ~3 min (rajadas de 10–29%
+por segundo). Não é a fila; o RSS seguiu estável em ~262 MB.
+
+### 5. Conclusão
+
+- Custo de infraestrutura da fila: desprezível (0,23% de core por 105 s de
+  task; +5,1 MB de RSS em repouso).
+- Custo de uma action de LLM: integralmente no llama-server (~3,1 dos 4
+  threads durante a geração).
+- Limitação/risco: **1 worker + action longa = fila parada**; para LLM o
+  desenho pede prioridade dedicada ou 2 workers.

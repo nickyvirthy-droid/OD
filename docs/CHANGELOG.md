@@ -88,6 +88,33 @@ repassava ao `APIConfig`**. Corrigido + guarda (`test_build_api_server_repassa_a
   rajada e não passa de **~208 MB**; a máquina tem **4.190 MB disponíveis** e
   4 vCPUs — folga larga para 1 worker.
 
+#### Custo com action de LLM longa (14/11, medido)
+
+O catálogo (`tools/actions/actions.py`, 125 actions) **não tem** action de LLM —
+as dezenas de ferramentas são de sistema/IoT/arquivos. Medido então o caminho
+real de uma action assim: fila em sandbox (1 worker) cuja action faz a MESMA
+chamada HTTP do orchestrator (`OpenAICompatProvider._post_chat`) no
+llama-server local (`qwen2.5-coder-3b-instruct-q4_k_m`, 4 threads), com
+amostragem de `/proc` nos três processos:
+
+| action | duração da task | tokens (prompt→resposta) | CPU do **llama-server** | RSS máx do modelo |
+|---|---|---|---|---|
+| longa (`max_tokens=600`) | **105,36 s** | 111 → 600 (2.119 chars) | **333,2 s = 312,0% de 1 core** | 1.915 MB |
+| curta (`max_tokens=150`) | **19,19 s** | 111 → 150 (600 chars) | 71,1 s = 337,8% de 1 core | 1.943 MB |
+| processo **da fila** (a mesma janela) | — | — | **0,25 s = 0,23% de 1 core** | 27 MB |
+
+- **Onde o custo está:** todo no llama-server (~0,56 s de CPU por token,
+  ~5,7 tok/s); o processo da fila gasta 0,23% de um core para orquestrar
+  105 s de task — a fila é irrelevante no custo.
+- **Serialização (o custo real de 1 worker):** uma task curta enfileirada
+  **0,4 s depois** de uma action de LLM de 14,9 s **esperou 14,5 s** na fila
+  e só então rodou em ~0 ms. Com 1 worker, action longa segura todas as
+  outras — para LLM vale enfileirar com prioridade e/ou avaliar 2 workers.
+- **Efeito no serviço:** `od-core` não participa da geração (RSS estável em
+  ~262 MB); o repouso medido de 3,2% pode parecer maior em alguns minutos
+  porque o **TTS da rádio** (feature à parte) sintetiza locuções e gera
+  rajadas de 10–29% por segundo — não é a fila.
+
 **Achado do gate (RAG, sem bump):** ao rodar a suíte com esta seção nova,
 `TestCalibracaoCorpusReal` falhou — o alvo da pergunta "projeto nômade"
 (o chunk `[1.26.0]` deste arquivo) estava **exatamente na 24ª posição** e as

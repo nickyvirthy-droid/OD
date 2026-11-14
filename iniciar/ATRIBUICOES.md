@@ -9,6 +9,38 @@
 
 ---
 
+## 14/11/2026 — Custo da fila com action de LLM longa
+
+**Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.
+
+### Criados
+
+- Nenhum arquivo versionado (harness de medição em `/tmp`, descartado).
+
+### Modificados
+
+- `docs/CHANGELOG.md` (subseção de custo com LLM na entrada da fila),
+  `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/session.json`,
+  `iniciar/2026-11-14_conversa_omegadrakon.md` (§14).
+
+### Intenção e estado
+
+- **Intenção:** completar o quadro de custo com o cenário mais pesado — uma
+  action que chama o LLM local pela fila.
+- **Método:** o catálogo (125 actions) não tem action de LLM; medido com fila
+  em sandbox (1 worker) cuja action faz a mesma chamada HTTP do orchestrator
+  (`OpenAICompatProvider._post_chat`) no llama-server local
+  (qwen2.5-coder-3b-q4, 4 threads).
+- **Resultado:** task de 600 tokens → **105,36 s**, **312% de 1 core no
+  llama-server** (333,2 s de CPU), RSS ~1,9 GB; o processo **da fila** gastou
+  **0,23% de 1 core** na mesma janela. Custo é do modelo, não da fila.
+- **Custo de 1 worker:** task curta atrás de uma LLM de 14,89 s esperou
+  **14,49 s**; action longa serializa a fila (avaliar 2 workers/prioridade).
+- **Ruído declarado:** repouso do `od-core` de 3,2% → 8,5% no intervalo era o
+  TTS da rádio (rajadas de 10–29%/s), não a fila; RSS estável ~262 MB.
+
+---
+
 ## 14/11/2026 — Task Queue LIGADA em produção (1 worker), custo medido e pool do RAG
 
 **Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.
