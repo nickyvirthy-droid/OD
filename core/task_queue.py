@@ -512,8 +512,16 @@ class TaskQueue:
                     pass
         return None
 
-    def list_tasks(self, status: Optional[TaskStatus] = None, limit: int = 100) -> list[Task]:
-        """Lista tasks por status."""
+    def list_tasks(self, status: Optional[TaskStatus] = None, limit: int = 100, sort_by_finished: bool = False) -> list[Task]:
+        """Lista tasks por status.
+
+        Args:
+            status: filtra por status (None = todos)
+            limit: máximo de tasks a retornar
+            sort_by_finished: se True, ordena tasks concluídas/dead_letter por
+                finished_ts (mais recente primeiro). Tasks pendentes/rodando
+                continuam ordenadas por prioridade/created_ts.
+        """
         tasks = []
         with self._lock:
             for t in self._running.values():
@@ -532,7 +540,16 @@ class TaskQueue:
                         tasks.append(task)
                 except Exception:
                     pass
-        tasks.sort(key=lambda t: (-t.priority, t.created_ts))
+        if sort_by_finished:
+            # Para tasks terminais (completed/failed/dead_letter), usa finished_ts;
+            # para as demais, mantém prioridade/created_ts
+            tasks.sort(key=lambda t: (
+                0 if t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.DEAD_LETTER) else 1,
+                -(t.finished_ts or t.created_ts) if t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.DEAD_LETTER) else -t.priority,
+                t.created_ts if t.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.DEAD_LETTER) else 0,
+            ))
+        else:
+            tasks.sort(key=lambda t: (-t.priority, t.created_ts))
         return tasks[:limit]
 
     def metrics(self) -> dict[str, int]:

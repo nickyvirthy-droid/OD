@@ -7927,7 +7927,8 @@ class APIHandler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             raise APIError(400, "limit_invalido")
         limit = max(1, min(limit, 1000))
-        tasks = tq.list_tasks(status=status, limit=limit)
+        sort_by_finished = query.get("sort_by_finished", ["0"])[0] == "1"
+        tasks = tq.list_tasks(status=status, limit=limit, sort_by_finished=sort_by_finished)
         # `queue` = snapshot da fila (14/11): o painel desenha workers, fila,
         # dead letter e retenção sem precisar de outra requisição.
         self._json(200, {
@@ -7957,7 +7958,7 @@ class APIHandler(BaseHTTPRequestHandler):
         self.close_connection = True
 
         # Snapshot inicial
-        tasks = tq.list_tasks(limit=200)
+        tasks = tq.list_tasks(limit=200, sort_by_finished=True)
         self._sse({"evento": "snapshot", "tasks": [t.to_dict() for t in tasks],
                    "metrics": tq.metrics(), "queue": tq.snapshot()})
         ultimo = time.time()
@@ -7966,7 +7967,7 @@ class APIHandler(BaseHTTPRequestHandler):
         seen: dict[str, str] = {t.task_id: t.status.value for t in tasks}
         while not self.api.encerrando.is_set():
             try:
-                tasks = tq.list_tasks(limit=200)
+                tasks = tq.list_tasks(limit=200, sort_by_finished=True)
                 for t in tasks:
                     atual = t.status.value
                     if t.task_id not in seen:

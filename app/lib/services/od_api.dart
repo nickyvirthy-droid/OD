@@ -1324,10 +1324,17 @@ class OdApi {
   /// [status] vazio traz tudo; o servidor também aceita
   /// `pending|running|completed|failed|dead_letter`. A fila desligada no
   /// servidor responde 503 (vira mensagem legível, não lista vazia).
-  Future<List<OdTask>> listTasks({String status = '', int limit = 100}) async {
+  /// [sortByFinished] se true, ordena tasks concluídas/dead_letter por
+  /// finished_ts (mais recente primeiro).
+  Future<List<OdTask>> listTasks({
+    String status = '',
+    int limit = 100,
+    bool sortByFinished = false,
+  }) async {
     final query = <String>[
       if (status.isNotEmpty) 'status=$status',
       'limit=$limit',
+      if (sortByFinished) 'sort_by_finished=1',
     ].join('&');
     final response =
         await _send('GET', Uri.parse('$baseUrl/admin/tasks?$query'));

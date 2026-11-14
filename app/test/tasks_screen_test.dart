@@ -73,12 +73,33 @@ class _Cenario {
       apiKey: 'od_teste',
       client: MockClient((r) async {
         chamadas.add('${r.method} ${r.url.path}');
+        final query = r.url.queryParameters;
+        final sortByFinished = query['sort_by_finished'] == '1';
         if (statusForcado != null) {
           return _json({'ok': false, 'error': 'task_queue_indisponivel'},
               statusForcado!);
         }
         if (r.method == 'GET' && r.url.path == '/admin/tasks') {
-          return _json({'ok': true, 'tasks': tarefas, 'count': tarefas.length});
+          var resultado = List<Map<String, dynamic>>.from(tarefas);
+          if (sortByFinished) {
+            // Ordena: concluídas/falhas/dead_letter por finished_ts desc,
+            // pendentes/rodando por prioridade/created_ts
+            resultado.sort((a, b) {
+              final aTerm = ['completed', 'failed', 'dead_letter'].contains(a['status']);
+              final bTerm = ['completed', 'failed', 'dead_letter'].contains(b['status']);
+              if (aTerm && !bTerm) return -1;
+              if (!aTerm && bTerm) return 1;
+              if (aTerm && bTerm) {
+                return (b['finished_ts'] as double).compareTo(a['finished_ts'] as double);
+              }
+              // Ambos não-terminais: prioridade desc, created_ts asc
+              final priA = (a['priority'] as int?) ?? 0;
+              final priB = (b['priority'] as int?) ?? 0;
+              if (priA != priB) return priB.compareTo(priA);
+              return (a['created_ts'] as double).compareTo(b['created_ts'] as double);
+            });
+          }
+          return _json({'ok': true, 'tasks': resultado, 'count': resultado.length});
         }
         if (r.method == 'GET' && r.url.path == '/admin/tasks/events') {
           // SSE: retorna snapshot válido + fecha (sem keepalive) -> sem polling

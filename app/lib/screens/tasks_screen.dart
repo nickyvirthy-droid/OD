@@ -30,6 +30,7 @@ class _TasksScreenState extends State<TasksScreen> {
   String _filtro = '';
   String? _erro;
   bool _carregando = true;
+  bool _ordenarPorConclusao = true; // default: mais recentes primeiro
 
   // -- Ao vivo (SSE) + fallback de polling + nova tentativa de assinatura --
   StreamSubscription<OdTaskEvent>? _sse;
@@ -57,7 +58,10 @@ class _TasksScreenState extends State<TasksScreen> {
   // ------------------------------------------------------------------//
   Future<void> _carregar({bool silencioso = false}) async {
     try {
-      final tarefas = await widget.api.listTasks(limit: 200);
+      final tarefas = await widget.api.listTasks(
+        limit: 200,
+        sortByFinished: _ordenarPorConclusao,
+      );
       if (!mounted) return;
       setState(() {
         _tarefas = tarefas;
@@ -260,8 +264,9 @@ class _TasksScreenState extends State<TasksScreen> {
     final lista = _filtro.isEmpty
         ? _tarefas
         : _tarefas.where((t) => t.status == _filtro).toList();
-    // Mais recentes primeiro: o histórico é para olhar o que acabou de rodar.
-    lista.sort((a, b) => b.createdTs.compareTo(a.createdTs));
+    // O servidor já ordena (created_ts para pendentes/rodando,
+    // finished_ts para concluídas/falhas/dead_letter se _ordenarPorConclusao).
+    // Mantemos a ordem recebida.
     return lista;
   }
 
@@ -322,6 +327,19 @@ class _TasksScreenState extends State<TasksScreen> {
                 tooltip: 'Atualizar agora',
                 onPressed: _carregar,
                 icon: const Icon(Icons.refresh),
+              ),
+              IconButton(
+                tooltip: _ordenarPorConclusao
+                    ? 'Ordenar por data de criação (padrão)'
+                    : 'Ordenar por data de conclusão (concluídas mais recentes)',
+                onPressed: () => setState(() {
+                  _ordenarPorConclusao = !_ordenarPorConclusao;
+                  _carregar();
+                }),
+                icon: Icon(
+                  _ordenarPorConclusao ? Icons.schedule : Icons.access_time,
+                  color: _ordenarPorConclusao ? Colors.greenAccent : null,
+                ),
               ),
             ],
           ),
