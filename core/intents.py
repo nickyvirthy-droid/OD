@@ -279,6 +279,54 @@ def resolver_item_segredo(
     return None, ganhadores
 
 
+# ---------------------------------------------------------------------------
+# Pesquisa web — extração do termo (14/11)
+#
+# A pessoa fala o comando em língua natural:
+#   "pesquise na internet sobre python 3.13"
+#   "busque no google a cotação do café"
+#   "procure por notícias do INMET"
+# O termo é o que sobra depois de tirar o verbo, o veículo (internet/web/
+# google) e o conector (sobre/por/de). Frase sem termo ("pesquise na
+# internet") não casa: a action responderia `query_vazia` e o LLM responderia
+# melhor pedindo o que pesquisar.
+# ---------------------------------------------------------------------------
+
+_VERBO_BUSCA_RE = re.compile(
+    r"^\s*(?:por\s+favor[,\s]+|ei[,\s]+|oi[,\s]+|od[,\s]+|buffy[,\s]+)?"
+    r"(?:pesquis(?:e|a|ar|em)|busqu(?:e|a|ar)|procur(?:e|a|ar)|"
+    r"(?:d[êe]|fa[çc]a)\s+uma\s+busca)\b(.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_VEICULO_BUSCA_RE = re.compile(
+    r"^\s*(?:(?:n[ao]|pel[ao]|da|do)\s+(?:internet|web|rede|google)|internet|online)\b",
+    re.IGNORECASE,
+)
+_CONECTOR_BUSCA_RE = re.compile(
+    r"^\s*(?:sobre|por|acerca\s+de|a\s+respeito\s+de|de)\b",
+    re.IGNORECASE,
+)
+
+
+def _extrai_busca_web(text: str) -> str:
+    """Devolve o termo de busca de um comando de pesquisa (ou '')."""
+    casou = _VERBO_BUSCA_RE.match(text or "")
+    if not casou:
+        return ""
+    resto = casou.group(1)
+    # Tira veículo e conector em qualquer ordem ("na internet sobre X",
+    # "sobre X na internet" não — aí o veículo fica no termo, o que é aceitável).
+    for _ in range(3):
+        antes = resto
+        resto = _VEICULO_BUSCA_RE.sub("", resto, count=1)
+        resto = _CONECTOR_BUSCA_RE.sub("", resto, count=1)
+        if resto == antes:
+            break
+    resto = resto.strip().strip("\"'“”‘’").strip()
+    resto = resto.lstrip(":-–— ").rstrip("?!.;, ")
+    return resto if len(resto) >= 2 else ""
+
+
 def _detect_operational(text: str) -> Optional[str]:
     """Padrões operacionais diretos (processos/memória/cpu/disco/uptime/ip/portas)."""
     low = text.lower()
@@ -308,6 +356,14 @@ def _detect_operational(text: str) -> Optional[str]:
         low,
     ):
         return "exchange_rate", {"moeda": _moeda.group(1)}
+    # PESQUISA WEB (14/11): "pesquise na internet …" era a queixa literal do
+    # dono em 11/11 ("não está pesquisando") e caía no LLM, que recusava
+    # alegando não ter internet. A action web_search existe desde 13/11; este
+    # bloco liga a intenção a ela. Exige VERBO de busca no início da frase —
+    # "a pesquisa mostrou…" (substantivo) segue para o LLM de propósito.
+    _pesquisa = _extrai_busca_web(text)
+    if _pesquisa:
+        return "web_search", {"query": _pesquisa}
     # processos
     if re.search(r"(quantos|lista|ver).{0,12}processos", low):
         return "process_list"
@@ -1519,6 +1575,32 @@ def _formata_saude(action: str, data: dict[str, Any]) -> str:
     return "\n".join(["🩺 Referência indisponível por enquanto.", SAUDE_AVISO])
 
 
+def _formata_web_search(data: dict[str, Any]) -> Optional[str]:
+    """Resposta da pesquisa web: resultados reais ou degradação declarada."""
+    if data.get("ok") is not True:
+        motivo = data.get("message") or data.get("error") or "falha na fonte"
+        return f"🌐 Não consegui pesquisar agora: {motivo}"
+    consulta = data.get("query") or ""
+    resultados = data.get("results") or []
+    if not resultados:
+        return f"🌐 Nenhum resultado encontrado para \"{consulta}\"."
+    linhas = [f"🌐 Resultados para \"{consulta}\":"]
+    for i, r in enumerate(resultados[:5], start=1):
+        titulo = (r.get("title") or "(sem título)").strip()
+        url = (r.get("url") or "").strip()
+        linhas.append(f"{i}. {titulo}")
+        if url:
+            linhas.append(f"   {url}")
+        trecho = (r.get("snippet") or "").strip()
+        if trecho:
+            if len(trecho) > 180:
+                trecho = trecho[:177].rstrip() + "…"
+            linhas.append(f"   {trecho}")
+    fonte = data.get("source") or "fonte web"
+    linhas.append(f"  • Fonte: {fonte} — resultados reais, sem interpretação.")
+    return "\n".join(linhas)
+
+
 def _formata_radio(action: str, data: dict[str, Any]) -> Optional[str]:
     """Resposta da rádio a partir do retorno real do player (sem inventar)."""
     if data.get("ok") is False:
@@ -1582,6 +1664,11 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
     # sucesso" sem nenhum áudio (11/11).
     if action.startswith("radio_"):
         return _formata_radio(action, data)
+    # PESQUISA WEB: a resposta é o que a fonte devolveu. Sem rede ou sem
+    # termo, a resposta é a degradação honesta — NUNCA cair no LLM, que é
+    # exatamente onde ele inventava resultado de busca.
+    if action == "web_search":
+        return _formata_web_search(data)
     if (
         ok is not True
         and action != "ha_device_control"

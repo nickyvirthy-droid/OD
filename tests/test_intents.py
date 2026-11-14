@@ -1029,3 +1029,107 @@ class TestFormataRadio:
         assert tocando is not None and "1234" in tocando
         parado = format_intent_result("radio_status", {"ok": True, "status": "parado"})
         assert parado == "📻 Rádio parada."
+
+
+class TestPesquisaWeb:
+    """Intenção de pesquisa (14/11): a queixa "não está pesquisando" do dono.
+
+    A action `web_search` existe desde 13/11; até aqui nenhuma frase do chat
+    a disparava — "pesquise na internet …" caía no LLM, que recusava dizendo
+    não ter internet (ou inventava resultado).
+    """
+
+    @pytest.mark.parametrize(
+        "texto, esperado",
+        [
+            ("pesquise na internet sobre python 3.13", "python 3.13"),
+            ("pesquise na internet quem foi Alan Turing", "quem foi Alan Turing"),
+            ("Pesquise na web: preço do café", "preço do café"),
+            ("busque no google notícias do INMET", "notícias do INMET"),
+            ("procure por vacina da gripe", "vacina da gripe"),
+            ("pesquise sobre a Reforma Tributária", "a Reforma Tributária"),
+            ("faça uma busca por placa solar", "placa solar"),
+        ],
+    )
+    def test_detecta_e_extrai_o_termo(self, texto: str, esperado: str) -> None:
+        from core.intents import detect_action_intent
+
+        acao, params = detect_action_intent(texto)
+        assert acao == "web_search"
+        assert params["query"] == esperado
+
+    @pytest.mark.parametrize(
+        "texto",
+        [
+            "pesquise na internet",          # sem termo — o LLM pergunta o quê
+            "a pesquisa mostrou que subiu",  # substantivo, não comando
+            "minha pesquisa de campo acabou",
+            "quanto custa uma placa solar",  # compra/conversa, não busca
+        ],
+    )
+    def test_nao_dispara_sem_termo_ou_sem_comando(self, texto: str) -> None:
+        from core.intents import detect_action_intent
+
+        acao = detect_action_intent(texto)
+        assert acao is None or acao[0] != "web_search"
+
+    def test_cotacao_de_moeda_continua_na_action_de_cambio(self) -> None:
+        """Moeda + valor é dado real de câmbio: não vira busca web."""
+        from core.intents import detect_action_intent
+
+        acao, params = detect_action_intent("pesquise na web: preço do bitcoin")
+        assert acao == "exchange_rate"
+        assert params["moeda"] == "bitcoin"
+
+    def test_resposta_com_resultados(self) -> None:
+        from core.intents import format_intent_result
+
+        txt = format_intent_result(
+            "web_search",
+            {
+                "ok": True,
+                "query": "python",
+                "results": [
+                    {"title": "Python", "url": "https://python.org",
+                     "snippet": "site oficial"},
+                    {"title": "Docs", "url": "https://docs.python.org",
+                     "snippet": "documentação"},
+                ],
+                "source": "DuckDuckGo (HTML lite)",
+            },
+        )
+        assert txt is not None
+        assert "Resultados para \"python\"" in txt
+        assert "python.org" in txt and "docs.python.org" in txt
+        assert "DuckDuckGo" in txt
+
+    def test_resposta_vazia_nao_inventa(self) -> None:
+        from core.intents import format_intent_result
+
+        txt = format_intent_result(
+            "web_search", {"ok": True, "query": "xyz", "results": [],
+                           "source": "DuckDuckGo (HTML lite)"}
+        )
+        assert txt is not None
+        assert "Nenhum resultado" in txt
+        assert "Fonte" not in txt  # sem resultado, sem fonte inventada
+
+    def test_falha_da_fonte_e_declarada(self) -> None:
+        """Sem rede a resposta é a degradação honesta — nunca o LLM."""
+        from core.intents import format_intent_result
+
+        txt = format_intent_result(
+            "web_search",
+            {"ok": False, "error": "fonte_indisponivel",
+             "message": "Serviço de busca indisponível agora — não invento resultados."},
+        )
+        assert txt is not None
+        assert txt.startswith("🌐 Não consegui pesquisar agora:")
+        assert "não invento resultados" in txt
+
+    def test_resultado_nao_ok_nao_cai_no_llm(self) -> None:
+        """format_intent_result não pode devolver None para web_search."""
+        from core.intents import format_intent_result
+
+        assert format_intent_result("web_search", {"ok": False}) is not None
+        assert format_intent_result("web_search", {"ok": True}) is not None
