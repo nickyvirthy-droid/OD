@@ -92,6 +92,10 @@ class TestAuditoriaDoGateDeEscopo:
             "filesystem_hash",
             "filesystem_archive",
             "filesystem_extract",
+            "stt_transcrever",
+            "filebrowser_envia",
+            "filebrowser_lista",
+            "kiwix_leitura",
         }
         assert com_caminho == esperado, (
             "novas actions com parâmetro de caminho: "

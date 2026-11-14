@@ -75,6 +75,10 @@ _PATH_PARAM_KEYS = (
     "path", "paths", "file", "directory", "dir", "folder", "source", "src",
     "destination", "dest", "target", "target_path", "archive", "backup_path",
     "cwd", "workdir",
+    # STT e FileBrowser usam nomes próprios (auditoria 12/11): sem estes,
+    # os caminhos passam fora do escopo. Adicionados para fechar o bypass,
+    # mas /tmp precisa estar em allowed_roots para funcionar.
+    "caminho", "origem",
 )
 
 
@@ -131,10 +135,17 @@ class ScopeEngine:
     ) -> None:
         # Raiz padrão: diretório do projeto OmegaDrakon (pai do pacote core/)
         default_root = Path(__file__).resolve().parent.parent.parent
+        roots = allowed_roots or [default_root]
         self._allowed_roots: list[Path] = [
-            Path(p).expanduser().resolve()
-            for p in (allowed_roots or [default_root])
+            Path(p).expanduser().resolve() for p in roots
         ]
+        # /tmp é permitido por padrão APENAS quando usa a raiz padrão do projeto
+        # (para STT e FileBrowser funcionarem com /tmp). Se o caller passou
+        # allowed_roots explícito, não adicionamos /tmp automaticamente.
+        if allowed_roots is None:
+            tmp_path = Path("/tmp").resolve()
+            if tmp_path not in self._allowed_roots:
+                self._allowed_roots.append(tmp_path)
         default_protected = [self._allowed_roots[0] / ".git"]
         self._protected_paths: list[Path] = [
             Path(p).expanduser().resolve()
