@@ -23,7 +23,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.task_queue import RetryPolicy, TaskQueue, TaskStatus
+from core.task_queue import RetryPolicy, Task, TaskQueue, TaskStatus
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +149,36 @@ class TestWorkers:
         assert fila.metrics()["completed"] == 1
         # Task concluída não fica no disco.
         assert not (fila.queue_dir / f"{t.task_id}.json").exists()
+
+    @pytest.mark.asyncio
+    async def test_task_real_no_action_registry_real(self, tmp_path: Path) -> None:
+        """Contrato com o ActionRegistry REAL (regressão medida em 14/11).
+
+        O registry falso aceita `**kwargs`; o real não. A fila passava
+        `request_id=` e TODA task morria com `TypeError` — em sandbox, 2/2
+        tasks em dead letter e 0 concluídas. Aqui a task usa o catálogo de
+        verdade e tem de concluir escrevendo o arquivo.
+        """
+        from core.security import SecurityManager
+        from tools.actions import build_registry
+
+        registry = build_registry(security=SecurityManager(mode="strict"))
+        fila = TaskQueue(queue_dir=tmp_path / "fila", action_registry=registry,
+                         workers=1)
+        alvo = tmp_path / "saida" / "prova.txt"
+        t = fila.enqueue(
+            "filesystem_write",
+            {"path": str(alvo), "content": "ok\n"},
+            metadata={"role": "admin"},
+            retry_policy=RetryPolicy(max_retries=0, backoff_base=0.0),
+        )
+        await fila.start()
+        await asyncio.sleep(1.0)
+        await fila.stop()
+
+        assert t.status == TaskStatus.COMPLETED, t.last_error
+        assert t.result is not None and alvo.read_text() == "ok\n"
+        assert fila.metrics()["dead_letter"] == 0
 
     @pytest.mark.asyncio
     async def test_sem_registry_vai_para_dead_letter(self, tmp_path: Path) -> None:
@@ -287,6 +317,24 @@ class TestTaskQueueAPI:
                                  api_key="segredo123")
         assert status == 409
         assert _json_body(corpo)["error"] == "task_nao_terminal"
+
+    def test_delete_dead_letter_usa_o_queue_dir_da_instancia(self, servidor_tasks) -> None:
+        """REGRESSÃO (14/11): o DELETE apagava em `data/task_queue/dead_letter`
+        fixo — respondia 200, o arquivo continuava lá e o GET seguia devolvendo
+        a task (medido em sandbox antes da correção)."""
+        srv, fila = servidor_tasks
+        t = Task(action_name="system_info")
+        t.status = TaskStatus.DEAD_LETTER
+        caminho = fila.dead_letter_dir / f"{t.task_id}.json"
+        caminho.write_text(json.dumps(t.to_dict()), encoding="utf-8")
+
+        status, _ = _request(srv.bound_port, "DELETE",
+                             f"/admin/tasks/{t.task_id}", api_key="segredo123")
+        assert status == 200
+        assert not caminho.exists()
+        status, _ = _request(srv.bound_port, "GET",
+                             f"/admin/tasks/{t.task_id}", api_key="segredo123")
+        assert status == 404
 
     def test_fila_desligada_503(self, tmp_path: Path) -> None:
         from integrations.api import APIConfig, APIServer

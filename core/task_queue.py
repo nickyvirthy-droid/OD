@@ -357,7 +357,11 @@ class TaskQueue:
                         task.action_name,
                         params=task.payload,
                         role=task.metadata.get("role", "admin"),
-                        request_id=task.task_id,
+                        # ActionRegistry.execute usa `session_id` (era
+                        # `request_id`: TypeError em TODA task real — o teste
+                        # antigo passava porque o registry falso aceita
+                        # **kwargs).
+                        session_id=task.task_id,
                     ),
                     timeout=retry_policy.timeout_seconds,
                 )
@@ -366,7 +370,7 @@ class TaskQueue:
                     task.action_name,
                     params=task.payload,
                     role=task.metadata.get("role", "admin"),
-                    request_id=task.task_id,
+                    session_id=task.task_id,
                 )
 
             if result.status == "ok":
