@@ -600,12 +600,19 @@ esperar o timeout.
       `GET /app/version` bate com o arquivo, não há mudança em `app/` depois
       do build e `flutter analyze` 0 issues + 223 testes verdes reexecutados
       em 14/11.
-- [ ] Task Queue: **criar tarefa pelo painel/app** (formulário com action +
-      payload JSON em cima do `POST /admin/tasks`) — hoje só dá para ver,
-      retentar e apagar (sugestão de 14/11 não escolhida)
+- [x] Task Queue: **criar tarefa pelo painel/app** — **ENTREGUE 14/11:
+      painel `/admin` (HTML/JS `tqCriar` + select de actions do catálogo +
+      payload JSON + botão Enfileirar) + app aba Tarefas (botão ＋ chama
+      `OdApi.createTask`) + endpoint `POST /admin/tasks` valida action/payload
+      e responde 201 com task em `pending`; SSE `task_created` repete o id;
+      fila desligada = 503 legível. Commit `da19eb3`, testes: task_queue 27
+      + api 202 verdes**
 - [ ] App: usar **SSE** (`/admin/tasks/events`) na aba Tarefas em vez do polling
-      de 5 s — mesmo contrato já usado em Downloads, menos requisições
-      (sugestão de 14/11 não escolhida)
+      de 5 s — **painel `/admin` JÁ USA SSE** (`tqSse` emite
+      `task_created`/`task_running`/`task_completed`/`task_failed`/`task_dead_letter`);
+      app `TasksScreen` faz `_carregar()` a cada 5 s + polling manual;
+      mesmo contrato do Downloads (`dlSse`), menos requisições (sugestão de 14/11
+      não escolhida)
 - [ ] Task Queue: filtro/paginação por data no histórico de concluídas — a
       lista atual corta por prioridade/data de criação, não por conclusão
       (sugestão de 14/11 não escolhida)
