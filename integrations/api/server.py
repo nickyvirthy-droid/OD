@@ -5237,21 +5237,37 @@ class APIHandler(BaseHTTPRequestHandler):
                     }
                 self.api._health_cache = (agora, result)
             result["uptime_s"] = int(time.time() - self.api.started_at)
+            # Task Queue (14/11): números da fila no agregado. Fica FORA do
+            # cache de 8s de propósito — é só leitura de memória + contagem
+            # de arquivos, e o dono quer ver o avanço da fila sem esperar.
+            tq = getattr(self.api.config, "task_queue", None)
+            if tq is not None:
+                try:
+                    result["task_queue"] = tq.snapshot()
+                except Exception as exc:  # fila quebrada não derruba o /health
+                    result["task_queue"] = {
+                        "enabled": True,
+                        "error": type(exc).__name__,
+                    }
+            else:
+                result.setdefault("task_queue", {"enabled": False})
             self._json(200, result)
             return
         orch = self.api.orchestrator
         llms = self._provider_names()
         ok = orch is not None
-        self._json(
-            200,
-            {
-                "ok": ok,
-                "status": "up" if ok else "degraded",
-                "orchestrator": ok,
-                "llms": llms,
-                "uptime_s": int(time.time() - self.api.started_at),
-            },
+        corpo = {
+            "ok": ok,
+            "status": "up" if ok else "degraded",
+            "orchestrator": ok,
+            "llms": llms,
+            "uptime_s": int(time.time() - self.api.started_at),
+        }
+        tq = getattr(self.api.config, "task_queue", None)
+        corpo["task_queue"] = (
+            tq.snapshot() if tq is not None else {"enabled": False}
         )
+        self._json(200, corpo)
 
     def profiles(self) -> None:
         items = []

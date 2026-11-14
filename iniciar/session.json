@@ -1,4 +1,13 @@
 {
+  "task_queue_metricas_health_2026_11_14": {
+    "pedido": "Dono (14/11 ~19:05): 'Exponha queue_depth, workers, dead_letter e a retenção da fila no /health', escolhida da lista de próximos do TODO.",
+    "codigo": "core/task_queue.py: snapshot() (enabled, running, workers, queue_depth, running_tasks, dead_letter em disco, completed_on_disk, keep_completed, pruned, metrics) + contador pruned em _metrics + _contar() best-effort. runtime/launcher.py: register_task_queue_health() com check nao-critico, chamado no _run_api_forever depois do task_queue.start(). integrations/api/server.py: bloco task_queue no GET /health nos dois caminhos (monitor agregado e fallback), montado fora do cache de 8 s.",
+    "decisao": "dead_letter = arquivos em queue_dir/dead_letter (pede atencao); o acumulado de falhas continua em metrics[\"dead_letter\"]. Mutations no cache do /health: o bloco e sobrescrito a cada request, nunca serve snapshot velho.",
+    "testes": "5 novos em tests/test_task_queue.py: snapshot com fila/workers/dead_letter/retencao, pasta ilegivel -> 0, poda alimenta pruned + completed_on_disk/keep_completed, check no HealthMonitor (parado degraded / rodando up / dead letter ok degradado, critical=False) e bloco no /health da API. tests/test_task_queue.py 26 passed; test_api/test_launcher_health_external/test_io_monitor/test_health 254 passed.",
+    "sem_bump": "Entrega so de servidor (contrato do app/APK intacto): 1.45.0+2081, subsecao datada no CHANGELOG.",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§15)",
+    "updated_at": "2026-11-14T19:40:00-03:00"
+  },
   "task_queue_custo_llm_2026_11_14": {
     "pedido": "Dono (14/11 ~18:10): 'Meça o custo da fila com uma action de LLM longa para completar o quadro'. Checkpoint anterior: task_queue_ligada_producao_2026_11_14.",
     "contexto": "O catalogo de actions (tools/actions/actions.py, 125 actions) nao tem action de LLM. Medido com fila em sandbox (1 worker, queue_dir em /tmp) cuja action faz a MESMA chamada HTTP do orchestrator (OpenAICompatProvider._post_chat) no llama-server local qwen2.5-coder-3b-instruct-q4_k_m, 4 threads, porta 8081; /proc amostrado a cada 0,5 s em fila, llama-server e od-core.",

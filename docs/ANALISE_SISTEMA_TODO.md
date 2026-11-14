@@ -574,9 +574,12 @@ esperar o timeout.
 - [x] Task Queue: manter as tasks **concluídas visíveis** na API com retenção
       limitada — **ENTREGUE 14/11** (histórico em `completed/`, poda automática,
       `OD_TASK_QUEUE_KEEP_COMPLETED=200`)
-- [ ] Task Queue: expor `queue_depth`, `workers`, `dead_letter` e as métricas
-      no `/health`/painel — hoje a fila só se enxerga pelas rotas `/admin`
-      (sugestão de 14/11 não escolhida)
+- [x] Task Queue: expor `queue_depth`, `workers`, `dead_letter` e as métricas
+      no `/health`/painel — **ENTREGUE 14/11: bloco `task_queue` no `GET
+      /health` (fila, executando, workers, dead letter em disco, retenção
+      `concluidas/keep` e contador `pruned`), fora do cache de 8 s, mais check
+      `task_queue` não-crítico no HealthMonitor (degradado com workers parados
+      ou dead letter); 5 testes novos em `tests/test_task_queue.py`**
 - [ ] Task Queue: avaliar ligar em produção com **1 worker** e medir o custo
       real (CPU/RAM) no servidor de 7,7 GB por uma semana — é o número que
       falta para decidir `OD_TASK_QUEUE_ENABLED=1` (sugestão de 14/11 não

@@ -115,6 +115,36 @@ amostragem de `/proc` nos três processos:
   porque o **TTS da rádio** (feature à parte) sintetiza locuções e gera
   rajadas de 10–29% por segundo — não é a fila.
 
+#### Métricas da fila no `/health` (14/11, sem bump)
+
+A fila estava ligada em produção e só se enxergava pelas rotas `/admin` —
+nenhum número no agregado de saúde. Agora o `GET /health` publica um bloco
+`task_queue`:
+
+```json
+"task_queue": {
+  "enabled": true, "running": true, "workers": 1,
+  "queue_depth": 0, "running_tasks": 0,
+  "dead_letter": 0, "completed_on_disk": 0, "keep_completed": 200,
+  "pruned": 0, "metrics": {"enqueued": 0, "completed": 0, "failed": 0,
+                          "dead_letter": 0, "retried": 0, "pruned": 0}
+}
+```
+
+- **`queue_depth`** = tasks esperando; **`running_tasks`** = em execução;
+  **`workers`** = tamanho do pool.
+- **`dead_letter`** = arquivos em `queue_dir/dead_letter/` (o que pede
+  atenção); o acumulado de falhas continua em `metrics["dead_letter"]`.
+- **Retenção:** `completed_on_disk` / `keep_completed` (teto de 200) e
+  **`pruned`** — contador novo de quantas concluídas a poda já removeu, para
+  ver a poda funcionando sem abrir o journal.
+- O bloco é montado **fora do cache de 8 s** do `/health` (é leitura de
+  memória + contagem de arquivos): o dono vê a fila andar na hora.
+- Check `task_queue` **não-crítico** no HealthMonitor (registrado no
+  `_run_api_forever`, onde a fila nasce): workers parados ou dead letter em
+  disco → `degraded`; nunca derruba o core.
+- Contagem best-effort: pasta ilegível vira 0, nunca exceção.
+
 **Achado do gate (RAG, sem bump):** ao rodar a suíte com esta seção nova,
 `TestCalibracaoCorpusReal` falhou — o alvo da pergunta "projeto nômade"
 (o chunk `[1.26.0]` deste arquivo) estava **exatamente na 24ª posição** e as

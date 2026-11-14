@@ -1315,6 +1315,42 @@ def build_health(
     return monitor
 
 
+def register_task_queue_health(monitor: Any, task_queue: Any) -> None:
+    """Check `task_queue` (14/11): fila, workers, dead letter e retenção.
+
+    Não-crítico: fila quebrada degrada o /health, não derruba o core (a
+    mesma regra dos outros componentes operacionais). O resumo vai no
+    `detail`; os números estruturados o /health monta direto do snapshot.
+    """
+
+    def _check_task_queue(mon: Any) -> dict[str, Any]:
+        try:
+            s = task_queue.snapshot()
+        except Exception as exc:  # fila quebrada não pode derrubar o monitor
+            return {
+                "ok": False,
+                "status": "degraded",
+                "detail": f"fila ilegível: {type(exc).__name__}",
+            }
+        detalhe = (
+            f"workers={s['workers']} fila={s['queue_depth']} "
+            f"executando={s['running_tasks']} dead_letter={s['dead_letter']} "
+            f"concluidas={s['completed_on_disk']}/{s['keep_completed']} "
+            f"podadas={s['pruned']}"
+        )
+        if not s["running"]:
+            return {"ok": False, "status": "degraded", "detail": "workers parados — " + detalhe}
+        if s["dead_letter"]:
+            return {
+                "ok": True,
+                "status": "degraded",
+                "detail": f"{s['dead_letter']} task(s) em dead letter — {detalhe}",
+            }
+        return {"ok": True, "status": "up", "detail": detalhe}
+
+    monitor.register("task_queue", _check_task_queue, critical=False)
+
+
 def _check_circuit_breakers(mon: Any) -> dict[str, Any]:
     """Check dos circuit breakers: lista todos e avisa se algum está aberto."""
     from core.resilience import status_breakers
@@ -1750,6 +1786,11 @@ async def _run_api_forever(
     task_queue = build_task_queue(action_registry)
     if task_queue is not None:
         await task_queue.start()
+        # Métricas da fila no /health (14/11): só é possível registrar o
+        # check AQUI — a fila nasce depois do build_health() (que roda no
+        # main) e antes do build_api_server().
+        if health is not None:
+            register_task_queue_health(health, task_queue)
     # Conecta o ActionRegistry ao Orchestrador TAMBÉM no caminho da API:
     # sem isto o fast path de intenções (Etapa 3.5) fica desligado no chat —
     # "qual o ip do servidor?" caía no LLM em vez da action real (v1.6.1).

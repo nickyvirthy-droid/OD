@@ -673,3 +673,44 @@ por segundo). Não é a fila; o RSS seguiu estável em ~262 MB.
   threads durante a geração).
 - Limitação/risco: **1 worker + action longa = fila parada**; para LLM o
   desenho pede prioridade dedicada ou 2 workers.
+
+## §15 — Métricas da fila no /health (14/11 ~19:05–19:40)
+
+**Pedido do dono:** "Exponha queue_depth, workers, dead_letter e a retenção da
+fila no /health" (escolhido da lista de próximos do TODO).
+
+### 1. Por que
+
+A fila estava LIGADA em produção (14/11) e só se enxergava por `/admin/tasks`;
+o agregado de saúde não dizia nada sobre ela — nem se os workers estavam de pé.
+
+### 2. O que entrou
+
+- `core/task_queue.py`: `snapshot()` com `enabled`, `running`, `workers`,
+  `queue_depth`, `running_tasks`, `dead_letter` (arquivos em disco),
+  `completed_on_disk`, `keep_completed`, `pruned` e o dicionário `metrics`.
+  Novo contador `pruned` em `_metrics`, incrementado pela própria poda.
+  `_contar()` best-effort: pasta ilegível → 0, sem exceção.
+- `runtime/launcher.py`: `register_task_queue_health(monitor, fila)` registra
+  o check `task_queue` **não-crítico** (workers parados ou dead letter →
+  `degraded`; nunca derruba o core) e é chamado no `_run_api_forever`, logo
+  depois do `task_queue.start()` — a fila nasce depois do `build_health()`.
+- `integrations/api/server.py`: `GET /health` passa a trazer o bloco
+  `task_queue` (nos dois caminhos: com monitor agregado e no fallback),
+  montado **fora do cache de 8 s** — leitura de memória + contagem de
+  arquivos, o dono vê a fila andar na hora.
+
+### 3. Testes (5 novos, `tests/test_task_queue.py`)
+
+- `snapshot()` com fila, workers, dead letter em disco vs acumulado, retenção;
+- pasta ilegível não explode;
+- poda alimenta `completed_on_disk` / `keep_completed` / `pruned` (e `metrics`);
+- check no HealthMonitor: parado → degraded, rodando → up, dead letter → ok
+  degradado (`critical=False`);
+- `/health` da API traz o bloco com os números da instância.
+
+### 4. Sem bump
+
+Entrega **só de servidor** (contrato do app/APK intacto): versão segue
+**1.45.0+2081**, com subseção datada no CHANGELOG — a mesma convenção do lote
+de 14/11.

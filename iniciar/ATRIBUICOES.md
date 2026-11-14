@@ -9,6 +9,32 @@
 
 ---
 
+## 14/11/2026 — Métricas da fila no /health
+
+**Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.
+
+### Modificados
+
+- `core/task_queue.py` — `snapshot()`, contador `pruned`, `_contar()`.
+- `runtime/launcher.py` — `register_task_queue_health()` + chamada no
+  `_run_api_forever`.
+- `integrations/api/server.py` — bloco `task_queue` no `GET /health`.
+- `tests/test_task_queue.py` — 5 testes novos.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/session.json`,
+  `iniciar/2026-11-14_conversa_omegadrakon.md` (§15).
+
+### Intenção e estado
+
+- **Intenção:** a fila ligada em produção desde hoje só se enxergava por
+  `/admin/tasks`; expor profundidade, workers, dead letter e retenção no
+  agregado de saúde.
+- **Estado:** bloco `task_queue` no `/health` (fora do cache de 8 s) +
+  check não-crítico no HealthMonitor (workers parados/dead letter → degraded).
+  `dead_letter` é o que está em disco; o acumulado segue em `metrics`.
+- **Sem bump** (só servidor, contrato do app intacto): 1.45.0+2081.
+
+---
+
 ## 14/11/2026 — Custo da fila com action de LLM longa
 
 **Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.

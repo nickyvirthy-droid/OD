@@ -122,6 +122,33 @@ class TestFila:
         assert nova._load_pending() == 1
         assert [x.task_id for x in nova.list_tasks()] == [t.task_id]
 
+    def test_snapshot_expoe_fila_workers_e_dead_letter(self, tmp_path: Path) -> None:
+        """`snapshot()` é o que o /health publica (14/11): profundidade da
+        fila, workers, dead letter em disco e retenção do histórico."""
+        fila = TaskQueue(queue_dir=tmp_path / "fila", action_registry=_RegistryFalso(),
+                         workers=2, keep_completed=5)
+        fila.enqueue("system_info", {"a": 1})
+        fila.enqueue("system_info", {"a": 2}, priority=9)
+        (fila.dead_letter_dir / "morta.json").write_text("{}", encoding="utf-8")
+
+        s = fila.snapshot()
+        assert s["enabled"] is True
+        assert s["running"] is False  # ninguém chamou start()
+        assert s["workers"] == 2
+        assert s["queue_depth"] == 2
+        assert s["running_tasks"] == 0
+        assert s["dead_letter"] == 1        # arquivos em disco
+        assert s["metrics"]["dead_letter"] == 0  # acumulado de falhas
+        assert s["completed_on_disk"] == 0
+        assert s["keep_completed"] == 5
+        assert s["pruned"] == 0
+
+    def test_snapshot_sem_diretorios_legiveis_nao_explode(self, tmp_path: Path) -> None:
+        """Contagem best-effort: pasta ilegível vira 0, nunca exceção."""
+        fila = TaskQueue(queue_dir=tmp_path / "fila", action_registry=_RegistryFalso())
+        fila.dead_letter_dir = tmp_path / "nao_existe"
+        assert fila.snapshot()["dead_letter"] == 0
+
     def test_status_invalido_no_disco_e_ignorado(self, tmp_path: Path) -> None:
         fila = TaskQueue(queue_dir=tmp_path / "fila", action_registry=_RegistryFalso())
         (fila.queue_dir / "quebrada.json").write_text("{nao e json", encoding="utf-8")
@@ -173,6 +200,12 @@ class TestWorkers:
 
         restantes = {p.stem for p in fila.completed_dir.glob("*.json")}
         assert restantes == {concluidas[-1].task_id, concluidas[-2].task_id}
+        # Retenção visível no /health: quantas restam, o teto e quantas saíram.
+        s = fila.snapshot()
+        assert s["completed_on_disk"] == 2
+        assert s["keep_completed"] == 2
+        assert s["pruned"] == 2
+        assert fila.metrics()["pruned"] == 2
         assert fila.get_task(concluidas[-1].task_id).status == TaskStatus.COMPLETED
         assert fila.get_task(concluidas[0].task_id) is None
         lista = fila.list_tasks(status=TaskStatus.COMPLETED)
@@ -306,6 +339,43 @@ class TestFiacaoNoLauncher:
         build_api_server(None, task_queue=marca)
         assert capturado.get("task_queue") is marca
 
+    def test_check_da_fila_no_health(self, tmp_path: Path) -> None:
+        """Métricas da fila no agregado do /health (14/11)."""
+        from observability.health import HealthMonitor
+        from runtime.launcher import register_task_queue_health
+
+        fila = TaskQueue(queue_dir=tmp_path / "fila", action_registry=_RegistryFalso(),
+                         workers=1, keep_completed=3)
+        monitor = HealthMonitor()
+        register_task_queue_health(monitor, fila)
+        assert "task_queue" in monitor.components
+
+        async def cenario() -> None:
+            # Workers parados: o check degrada (não derruba: não é crítico).
+            agregado = await monitor.health()
+            assert agregado["status"] == "degraded"
+            check = agregado["checks"]["task_queue"]
+            assert check["ok"] is False and check["critical"] is False
+            assert "workers parados" in check["detail"]
+
+            # Rodando e sem dead letter: up, com os números no detail.
+            await fila.start()
+            try:
+                check = (await monitor.health())["checks"]["task_queue"]
+                assert check["status"] == "up", check
+                assert "workers=1" in check["detail"]
+                assert "concluidas=0/3" in check["detail"]
+
+                # Dead letter em disco pede atenção: degrada, mas segue ok.
+                (fila.dead_letter_dir / "morta.json").write_text("{}", encoding="utf-8")
+                check = (await monitor.health())["checks"]["task_queue"]
+                assert check["ok"] is True and check["status"] == "degraded"
+                assert "dead letter" in check["detail"]
+            finally:
+                await fila.stop()
+
+        asyncio.run(cenario())
+
 
 # ---------------------------------------------------------------------------
 # API /admin/tasks*
@@ -423,6 +493,21 @@ class TestTaskQueueAPI:
         status, _ = _request(srv.bound_port, "GET",
                              f"/admin/tasks/{t.task_id}", api_key="segredo123")
         assert status == 404
+
+    def test_health_traz_o_bloco_da_fila(self, servidor_tasks) -> None:
+        """`/health` publica os números da fila (14/11) — sem abrir /admin."""
+        srv, fila = servidor_tasks
+        status, corpo = _request(srv.bound_port, "GET", "/health",
+                                 api_key="segredo123")
+        assert status == 200
+        dados = _json_body(corpo)
+        bloco = dados["task_queue"]
+        assert bloco["enabled"] is True
+        assert bloco["workers"] == fila._workers
+        assert bloco["queue_depth"] == 0
+        assert bloco["dead_letter"] == 0
+        assert bloco["keep_completed"] == fila._keep_completed
+        assert "pruned" in bloco
 
     def test_painel_traz_a_secao_de_tarefas(self, servidor_tasks) -> None:
         """O painel /admin mostra a fila com status e resultado (14/11)."""

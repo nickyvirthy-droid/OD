@@ -201,6 +201,7 @@ class TaskQueue:
             "failed": 0,
             "dead_letter": 0,
             "retried": 0,
+            "pruned": 0,
         }
 
     def set_action_registry(self, registry: "ActionRegistry") -> None:
@@ -469,6 +470,9 @@ class TaskQueue:
                 removidas += 1
             except OSError:
                 pass
+        if removidas:
+            with self._lock:
+                self._metrics["pruned"] += removidas
         return removidas
 
     async def _handle_failure(self, task: Task) -> None:
@@ -543,6 +547,42 @@ class TaskQueue:
                 "workers": self._workers,
                 "metrics": dict(self._metrics),
             }
+
+    @staticmethod
+    def _contar(pasta: Path) -> int:
+        """Conta os registros JSON de uma pasta (0 se ilegível)."""
+        try:
+            return sum(1 for _ in pasta.glob("*.json"))
+        except OSError:
+            return 0
+
+    def snapshot(self) -> dict[str, Any]:
+        """Retrato para o `/health` (14/11): fila, workers, dead letter e
+        retenção do histórico — antes a fila só se enxergava pelas rotas
+        `/admin`, sem número nenhum no agregado de saúde.
+
+        `dead_letter` aqui é o que está EM DISCO (o que pede atenção); o
+        acumulado de falhas segue em `metrics["dead_letter"]`.
+        """
+        with self._lock:
+            pendentes = len(self._pending)
+            executando = len(self._running)
+            workers = self._workers
+            rodando = self._running_flag
+            metrics = dict(self._metrics)
+            limite = self._keep_completed
+        return {
+            "enabled": True,
+            "running": rodando,
+            "workers": workers,
+            "queue_depth": pendentes,
+            "running_tasks": executando,
+            "dead_letter": self._contar(self.dead_letter_dir),
+            "completed_on_disk": self._contar(self.completed_dir),
+            "keep_completed": limite,
+            "pruned": metrics["pruned"],
+            "metrics": metrics,
+        }
 
 
 # Instância global (lazy init)
