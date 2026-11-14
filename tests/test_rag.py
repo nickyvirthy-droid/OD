@@ -711,7 +711,7 @@ def rag_real(tmp_path_factory) -> RAGPipeline:
     store = VectorStore(
         store_dir=store_dir,
         provider=ProviderSemStopwords(HashEmbeddingProvider()),
-        top_k=24,  # coerente com TOP_K_CANDIDATOS (medição real: alvo em 15º)
+        top_k=32,  # coerente com TOP_K_CANDIDATOS (14/11: alvo caía no 26º)
     )
     rag = RAGPipeline(store, fontes=fontes_padrao(REPO))
     rag.sync()
@@ -727,9 +727,16 @@ class TestCalibracaoCorpusReal:
     `iniciar/*.md` (memória histórica) e o grid (ms 0.380..0.420 ×
     mo 0.000..0.060, passo 0.001) achou 780 células válidas — este gate
     8/8 + 8/8 COM 6/8 de parafrases (TestRecallParafrases) —; o centro
-    medido é (0.399, 0.036). Fronteira: irrelevante "previsão do tempo"
+    medido é (0.399, 0.036).    Fronteira: irrelevante "previsão do tempo"
     comb 0.3929 vs REL "projeto nômade" 0.4057 → margem ±0.006 no
     PISO_SCORE; as irr. de ov 0.000 (bolo, marte) caem no PISO_OVERLAP.
+
+    Recalibração 2026-11-14 (piso intocado, pool medido): o corpus chegou
+    a 3323 chunks e o alvo do "projeto nômade" caiu para a 24ª posição —
+    borda do pool — até duas seções novas do CHANGELOG o empurrarem para
+    26ª (gate falhou). TOP_K_CANDIDATOS 24 → 32 (ver memory/rag.py); grid
+    refeito: ms 0.394..0.403 × mo 0.001..0.060 = 600 células válidas com
+    8/8 rel. + 8/8 irr. + 6/6 parafrases, piso vigente dentro da região.
     """
 
     @pytest.mark.parametrize("pergunta", RELEVANTES)

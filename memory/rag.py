@@ -190,8 +190,14 @@ PISO_OVERLAP = 0.036     # overlap-IDF mínimo (ov=0 nunca injeta; teto 0.071:
                          # acima disso a parafrase "contêiner" cai)
 # oversample: o reranker reordena depois do floor. Era 12; a prova de fogo
 # no serviço (2026-10-14) mostrou o chunk certo do doc na posição 15 da
-# busca — fora do pool — com 0 trechos no prompt. 24 cobre o alvo medido.
-TOP_K_CANDIDATOS = 24
+# busca — fora do pool — com 0 trechos no prompt. 24 cobria o alvo medido.
+# 2026-11-14 (medição, piso intocado): com o corpus em 3323 chunks o alvo
+# da pergunta "projeto nômade" — o chunk [1.26.0] de docs/CHANGELOG.md —
+# estava EXATAMENTE em 24º (cos 0.4112, comb 0.4038) e duas seções novas do
+# CHANGELOG o jogaram para 26º: `GET` sem trecho no gate. 32 devolve o alvo
+# ao pool e o grid (ms 0.394..0.403 × mo 0.001..0.060) volta a 600 células
+# válidas com 8/8 rel. + 8/8 irr. + 6/6 parafrases, piso (0.399/0.036) dentro.
+TOP_K_CANDIDATOS = 32
 MAX_TRECHOS = 4          # trechos que podem entrar no bloco
 MAX_TOKENS_BLOCO = 768   # teto do bloco de referência dentro da janela
 FOLGA_DATETIME = 64      # tokens da linha de data/hora + margem
