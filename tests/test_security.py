@@ -315,6 +315,14 @@ class TestPermissionEngine:
         assert engine.is_allowed("user", "weather_city") is True
         assert engine.is_allowed("user", "exchange_rate") is True
 
+    def test_user_e_familia_podem_pesquisar_na_web(self) -> None:
+        """14/11: a família perguntava "pesquise …" e caía em permission
+        denied → o LLM voltava a inventar. `web_search` é leitura pública da
+        fonte (DuckDuckGo lite, sem chave), como weather_city/exchange_rate."""
+        engine = PermissionEngine()
+        assert engine.is_allowed("user", "web_search") is True
+        assert engine.is_allowed("familia", "web_search") is True
+
     def test_user_continua_sem_superficie_sensivel(self) -> None:
         """O conserto NÃO abre furo: infraestrutura, segredo, escrita e
         resumo do lar continuam fora do papel user (menor privilégio)."""
@@ -323,6 +331,9 @@ class TestPermissionEngine:
             "ip_address", "listening_ports", "network_hosts",
             "system_env", "ha_summary", "ha_device_control",
             "google_gmail_send", "database_query",
+            # 14/11: pesquisa é liberada, mas a action de dado sensível
+            # (nomes/matrículas de policiais) continua só do dono.
+            "mapa_forca_consulta",
         ):
             assert engine.is_allowed("user", acao) is False, acao
 

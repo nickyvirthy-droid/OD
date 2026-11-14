@@ -71,6 +71,12 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
         # 'USD 5.478 (USD/CLP)'). As duas actions nasceram para o chat
         # do usuário (v1.12.0/v1.14.0) e esqueceram da lista daqui.
         "weather_city", "exchange_rate",
+        # Pesquisa web (14/11): a action devolve resultados da fonte (DuckDuckGo
+        # lite, sem chave) e degrada honestamente quando não há rede. Mesma
+        # natureza de weather_city/exchange_rate — leitura pública, sem
+        # credencial, sem escrita e sem segredo. Sem isto, a família perguntava
+        # "pesquise …" e caía em permission denied (o LLM voltava a inventar).
+        "web_search",
         # Saúde — referência (Parte C NOMAD, v1.25.0): leitura de curadoria
         # de domínio público (CDC/NIH/NCCIH) + bula FDA (openFDA). NATUREZA
         # DE LEITURA como ha_weather: sem escrita, sem credencial, sem
