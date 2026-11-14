@@ -581,9 +581,20 @@ esperar o timeout.
       real (CPU/RAM) no servidor de 7,7 GB por uma semana — é o número que
       falta para decidir `OD_TASK_QUEUE_ENABLED=1` (sugestão de 14/11 não
       escolhida)
-- [ ] Task Queue: mostrar o **histórico de concluídas no painel/app** (aba de
-      tarefas com status e resultado) — a API já responde `completed` com
-      `result` desde 14/11; falta a tela (sugestão de 14/11 não escolhida)
+- [x] Task Queue: mostrar o **histórico de concluídas no painel/app** — **ENTREGUE
+      14/11: bloco "Tarefas (Task Queue)" no `/admin` e aba "Tarefas" no app,
+      com status, tentativas, duração, resultado/erro, filtro, retry e apagar;
+      Python 4678 e flutter 223 verdes**
+- [ ] App: **publicar o APK com a aba Tarefas** — o código está pronto mas o
+      apk servido em `site/` continua 1.44.0+2080; exige bump SemVer + 
+      `app/build_apk.sh` (deploy do app, precisa de ordem do dono)
+      (sugestão de 14/11 não escolhida)
+- [ ] Task Queue: **criar tarefa pelo painel/app** (formulário com action +
+      payload JSON em cima do `POST /admin/tasks`) — hoje só dá para ver,
+      retentar e apagar (sugestão de 14/11 não escolhida)
+- [ ] App: usar **SSE** (`/admin/tasks/events`) na aba Tarefas em vez do polling
+      de 5 s — mesmo contrato já usado em Downloads, menos requisições
+      (sugestão de 14/11 não escolhida)
 - [ ] Task Queue: filtro/paginação por data no histórico de concluídas — a
       lista atual corta por prioridade/data de criação, não por conclusão
       (sugestão de 14/11 não escolhida)

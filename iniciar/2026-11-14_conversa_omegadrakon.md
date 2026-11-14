@@ -449,3 +449,48 @@ Commits `4a11491` (feat) e `f54cbcf` (docs) publicados. Restart do `od-core`:
 **MainPID 2635416**, `NRestarts=0`; `/health` **ok=true, 28 itens, nenhum
 falhando**; journal `-p err` **0 entradas**; `GET /admin/tasks` = **503**
 (fila desligada, esperado). Telegram do dono: `ok=true`, msg 3997.
+
+---
+
+## §11 — Histórico de tasks no painel `/admin` e no app (14/11 ~14:00–15:10)
+
+**Pedido do dono:** "Mostre o histórico de tasks no painel/app com status e
+resultado."
+
+**Autor:** Freebuff (Buffy).
+
+### 1. Painel `/admin`
+
+Novo bloco **"Tarefas (Task Queue)"**: tabela com ação, status (pendente /
+rodando / concluída / falha / dead letter), tentativas `n/max`, criação,
+**duração** (relógio correndo em `running`), resultado em JSON curto ou o erro
+da última tentativa, e as ações ⟳ (reenfileirar falha/dead letter) e 🗑 (apagar
+registro terminal). Filtro por status, resumo da fila pelo `snapshot` do SSE
+(`/admin/tasks/events`) e aviso explícito quando a fila responde 503.
+
+### 2. App Flutter
+
+`TasksScreen` como 8ª aba (depois de Downloads): os mesmos campos, filtro em
+chips, retry, apagar com confirmação, releitura a cada 5 s e mensagem legível
+para fila desligada. `OdApi.listTasks/retryTask/deleteTask` + modelo `OdTask`.
+
+### 3. Verificação
+
+| gate | resultado |
+|---|---|
+| Python | **4678 passed / 16 skipped / 0 falha** (197,44 s) |
+| `flutter analyze` | **No issues found** |
+| `flutter test` | **223 passed / 2 skipped** (inclui `tasks_api_test` 5 e `tasks_screen_test` 5) |
+| JS do painel | `node --check` OK — pegou 1 aspa errada antes de publicar |
+
+O teste de widget achou dois defeitos antes do commit: o chip de filtro ficava
+clipado no tamanho padrão de teste (800×600) e o estado vazio aparecia junto
+com o erro de 503 (agora o 503 mostra "sem dados" em vez de "nenhuma tarefa").
+
+### 4. Limitações declaradas
+
+- **APK não recompilado:** a aba só chega ao celular no próximo build/versão
+  (bump SemVer + `app/build_apk.sh`, que é deploy do app e não foi autorizado).
+- **Sem prova visual:** não há navegador na máquina; a verificação foi por
+  teste, `node --check` e `flutter analyze`.
+- Fila continua **desligada** em produção.

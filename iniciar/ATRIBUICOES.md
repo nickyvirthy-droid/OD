@@ -9,6 +9,43 @@
 
 ---
 
+## 14/11/2026 — Task Queue no painel `/admin` e no app (histórico com status e resultado)
+
+**Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.
+
+### Criados
+
+- `app/lib/screens/tasks_screen.dart` (aba "Tarefas")
+- `app/test/tasks_api_test.dart` (5 testes)
+- `app/test/tasks_screen_test.dart` (5 testes)
+
+### Modificados
+
+- `integrations/api/server.py` — bloco "Tarefas (Task Queue)" no
+  `_ADMIN_PAGE_HTML` + JS `tqLoad/tqSse/tqAcao/tqRender` (filtro, retry, apagar,
+  aviso de 503) e ligação no `carregarTudo`.
+- `app/lib/services/od_api.dart` — `listTasks`, `retryTask`, `deleteTask` e o
+  modelo `OdTask`.
+- `app/lib/main.dart` — import, `TasksScreen` na posição 6 e a 8ª aba (Config
+  foi para 7 no modo avançado).
+- `tests/test_task_queue.py` — teste do painel com a seção nova.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/session.json`,
+  `iniciar/2026-11-14_conversa_omegadrakon.md` (§11).
+
+### Intenção e estado
+
+- **Intenção:** tornar o histórico da fila visível fora das rotas `/admin`,
+  com status e resultado, e permitir retry/apagar sem curl.
+- **Pronto/validado:** painel e app implementados; **Python 4678 passed / 16
+  skipped**; **`flutter analyze` sem issues**; **`flutter test` 223 passed / 2
+  skipped**; JS do painel passou `node --check` (pegou uma aspa errada antes da
+  publicação).
+- **Pela metade (deliberado):** o **APK não foi recompilado** (deploy do app
+  exige bump + ordem); sem prova visual (não há navegador na máquina). Fila
+  segue desligada em produção.
+
+---
+
 ## 14/11/2026 — Task Queue: histórico de concluídas com poda automática
 
 **Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.

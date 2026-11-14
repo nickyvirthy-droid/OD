@@ -1,4 +1,15 @@
 {
+  "task_queue_painel_app_2026_11_14": {
+    "pedido": "Dono (14/11 ~14:00): 'Mostre o historico de tasks no painel/app com status e resultado'. Checkpoint anterior: task_queue_historico_concluidas_2026_11_14.",
+    "painel": "Bloco 'Tarefas (Task Queue)' no _ADMIN_PAGE_HTML: tabela com acao, status (pendente/rodando/concluida/falha/dead letter), tentativas n/max, criacao, duracao, resultado JSON curto ou erro; filtro por status; resumo da fila pelo snapshot do SSE; acoes retry e apagar; 503 vira aviso. JS tqLoad/tqSse/tqAcao/tqRender ligado no carregarTudo.",
+    "app": "Nova aba 'Tarefas' (TasksScreen, 8a aba) com os mesmos campos, filtro em chips, retry, apagar com confirmacao, releitura de 5 s e mensagem de 503; OdApi.listTasks/retryTask/deleteTask + modelo OdTask; Config passa ao indice 7 no modo avancado.",
+    "testes": "Python: 4678 passed / 16 skipped / 0 falha (197,44 s), com test_painel_traz_a_secao_de_tarefas. Flutter: analyze 'No issues found'; flutter test 223 passed / 2 skipped (tasks_api_test 5 e tasks_screen_test 5 novos). JS do painel: node --check OK (pegou 1 aspa errada antes de publicar).",
+    "defeitos_pegos_nos_testes": "(1) chip de filtro clipado no tamanho padrao de teste (800x600) -> teste usa tela 1400x900; (2) estado vazio 'Nenhuma tarefa' aparecia junto com o erro de 503 -> agora com erro mostra 'Sem dados da fila agora'.",
+    "limitacoes": "APK NAO recompilado: a aba so chega ao celular no proximo build/versao (bump SemVer + app/build_apk.sh = deploy do app, sem autorizacao). Sem prova visual (maquina sem navegador). Fila segue DESLIGADA em producao.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§11)",
+    "updated_at": "2026-11-14T15:10:00-03:00"
+  },
   "task_queue_historico_concluidas_2026_11_14": {
     "pedido": "Dono (14/11 ~13:00): 'Faca as tasks concluidas continuarem visiveis na API, com retencao limitada e poda automatica'. Checkpoint anterior: task_queue_provada_sandbox_2026_11_14.",
     "desenho": "Concluida sai de queue_dir/*.json (nao vira pendente no restart) e vai para queue_dir/completed/{id}.json. GET /admin/tasks/{id} e ?status=completed devolvem completed com result; DELETE apaga o registro. Retencao por OD_TASK_QUEUE_KEEP_COMPLETED (200); poda no start() e a cada conclusao, mantendo as N mais recentes por finished_ts (mtime como reserva). _load_pending continua vendo so queue_dir/*.json.",

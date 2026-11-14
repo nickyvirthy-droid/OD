@@ -12,6 +12,46 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Task Queue no painel e no app: histórico com status e resultado (2026-11-14, sem bump)
+
+**Pedido do dono:** mostrar o histórico de tasks no painel/app com status e
+resultado.
+
+### Painel `/admin` (novo bloco "Tarefas (Task Queue)")
+
+- Tabela com ação, status (pendente/rodando/concluída/falha/dead letter),
+  tentativas `n/max`, criação, **duração**, resultado (JSON curto) ou o erro da
+  última tentativa, e ações ⟳ (reenfileirar falha/dead letter) / 🗑 (apagar
+  registro terminal).
+- Filtro por status e resumo da fila (recebidas, concluídas, retentativas,
+  dead letter, pendentes, workers) vindos do `snapshot` do SSE.
+- SSE `/admin/tasks/events` ao vivo, com o botão ↻ como plano B; fila
+  desligada (503) aparece como aviso, não como tabela vazia.
+
+### App Flutter (nova aba "Tarefas")
+
+- `TasksScreen` (8ª aba, depois de Downloads) com os mesmos campos, filtro em
+  chips, ⟳ retry e 🗑 apagar com confirmação; relê a cada 5 s enquanto aberta e
+  trata o 503 com mensagem legível.
+- `OdApi.listTasks/retryTask/deleteTask` + modelo `OdTask` (status legível,
+  duração com relógio correndo em `running`, detalhe curto de resultado/erro).
+
+### Verificação
+
+| gate | resultado |
+|---|---|
+| Python | **4678 passed / 16 skipped / 0 falha** (197,44 s) — painel coberto em `test_painel_traz_a_secao_de_tarefas` |
+| `flutter analyze` | **No issues found** |
+| `flutter test` | **223 passed / 2 skipped** — `tasks_api_test.dart` (5) e `tasks_screen_test.dart` (5) novos |
+| JS do painel | `node --check` OK (pegou 1 aspa errada antes de ir para o ar) |
+
+**Limitação declarada:** o **APK não foi recompilado** — a aba Tarefas só chega
+ao celular no próximo build/versão (bump SemVer + `app/build_apk.sh`), que é
+deploy do app e não foi autorizado nesta troca. Não houve prova visual (sem
+navegador na máquina); a verificação foi por teste e `node --check`.
+
+**Sem bump:** app continua 1.44.0+2080; fila continua desligada em produção.
+
 ## Task Queue: histórico de concluídas visível com poda automática (2026-11-14, sem bump)
 
 **Pedido do dono:** fazer as tasks concluídas continuarem visíveis na API, com
