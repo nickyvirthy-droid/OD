@@ -7,6 +7,57 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.45.0] — TASK QUEUE NO PAINEL E NO APP: A FILA COM STATUS E RESULTADO 🜂 (2026-11-14)
+
+### 1. O que foi feito
+
+**Bump MINOR** (funcionalidade nova compatível), versionCode **2081**. A fila
+assíncrona R1 saiu do "existe mas nunca rodou" para **provada com task real**,
+ganhou **histórico com retenção** e virou **tela** nos dois clientes.
+
+- **Dois defeitos reais corrigidos** (medidos em sandbox, não supostos): a fila
+  chamava `registry.execute(..., request_id=)`, mas o `ActionRegistry` aceita
+  `session_id` — **toda** task real morria com TypeError e ia para dead letter;
+  e o `DELETE /admin/tasks/{id}` apagava em `data/task_queue/dead_letter` fixo,
+  respondendo 200 sem remover o registro.
+- **Prova com task real** (API + registry + catálogo reais, isolado em `/tmp`):
+  `filesystem_write` concluída em **1,0 s** com o arquivo escrito; task que
+  falha retentou e caiu em dead letter em **6,5 s** (attempts 3, backoff com
+  jitter medido 1,7 s e 3,8 s); `DELETE` removeu o arquivo e o `GET` voltou 404.
+- **Histórico de concluídas**: saem do diretório da fila (não viram pendentes
+  num restart) para `queue_dir/completed/`, visíveis em `GET /admin/tasks/{id}`
+  e `?status=completed`, com `OD_TASK_QUEUE_KEEP_COMPLETED` (**200**) e poda
+  automática das mais antigas por `finished_ts`.
+- **Painel `/admin`**: bloco "Tarefas (Task Queue)" com ação, status, tentativas
+  `n/max`, criação, duração, resultado curto ou erro, filtro por status, ⟳
+  retry e 🗑 apagar, ao vivo por SSE; fila desligada = aviso (503).
+- **App**: aba **Tarefas** (8ª, depois de Downloads) com os mesmos campos,
+  filtro em chips, retry, apagar com confirmação e releitura de 5 s;
+  `OdApi.listTasks/retryTask/deleteTask` + modelo `OdTask`.
+
+### 2. Validação
+
+- **Python:** 4678 passed / 16 skipped / 0 falha (197,44 s) — painel coberto
+  por `test_painel_traz_a_secao_de_tarefas`; `tests/test_task_queue.py` em 20.
+- **Flutter:** `flutter analyze` **0 issues**; `flutter test` **223 passed / 2
+  skipped** (10 novos: `tasks_api_test` e `tasks_screen_test`).
+- **JS do painel:** `node --check` OK — pegou uma aspa errada antes da
+  publicação.
+- **APK:** `aapt` confirma **1.45.0 / 2081**; completo 72.143.782 B
+  (sha256 `08992…08436`) e arm64 26.906.437 B (sha256 `bcb1d46…51b8`)
+  publicados em `site/`, com `/app/version` anunciando o mesmo build.
+
+### 3. Decisões e pendências
+
+- **Poda com limite, não histórico infinito:** 200 concluídas por padrão
+  (`OD_TASK_QUEUE_KEEP_COMPLETED`), podando na conclusão e no boot. O histórico
+  é para diagnóstico recente; o `DELETE` permite remover um registro antes.
+- **Fila continua desligada em produção** (`OD_TASK_QUEUE_ENABLED=0`): ligar
+  exige decisão do dono sobre workers (servidor de 7,7 GB).
+- **Sem prova visual** do painel/aba (máquina sem navegador): a garantia é
+  teste de widget, `node --check` e `flutter analyze`; o teste de tela real é
+  no aparelho do dono.
+
 ## [1.44.0] — CÂMERA QR: O COMPRADOR REGISTRA A PEÇA LENDO O CARTÃO 🜂 (2026-10-20)
 
 ### 1. O que foi feito

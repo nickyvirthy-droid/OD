@@ -12,6 +12,50 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.45.0] — TASK QUEUE NO PAINEL E NO APP: A FILA COM STATUS E RESULTADO 🜂 (2026-11-14)
+
+**Tipo de bump:** MINOR (feature nova compatível — painel/aba novas; a API já
+existia). VersionCode **2081**.
+
+### O que entrou
+
+1. **Fila provada de verdade** — dois defeitos medidos e corrigidos: a fila
+   passava `request_id=` ao `ActionRegistry` (TypeError em TODA task real) e o
+   `DELETE /admin/tasks/{id}` apagava no caminho global do dead letter. Prova
+   em sandbox com task real: concluída em 1,0 s; retry 1,0 s → 2,7 s → dead
+   letter em 6,5 s. (seção datada de 14/11)
+2. **Histórico de concluídas** — saem do diretório da fila para
+   `queue_dir/completed/`, visíveis em `GET /admin/tasks/{id}` e
+   `?status=completed`, com `OD_TASK_QUEUE_KEEP_COMPLETED` (200) e poda
+   automática das mais antigas. (seção datada de 14/11)
+3. **Painel `/admin`** — bloco "Tarefas (Task Queue)": status, tentativas
+   `n/max`, duração, resultado curto ou erro, filtro, retry e apagar, ao vivo
+   por SSE; 503 aparece como aviso.
+4. **App** — nova aba **Tarefas** (8ª) com os mesmos campos, filtro em chips,
+   retry, apagar com confirmação e releitura a cada 5 s; `OdApi.listTasks`,
+   `retryTask`, `deleteTask` e o modelo `OdTask`.
+
+### Validação
+
+| fonte | resultado |
+|---|---|
+| Python | **4678 passed / 16 skipped / 0 falha** (197,44 s) |
+| `flutter analyze` | **No issues found** |
+| `flutter test` | **223 passed / 2 skipped** |
+| JS do painel | `node --check` OK |
+| APK | `aapt`: versionName **1.45.0**, versionCode **2081** — completo **72.143.782 B** (sha256 `08992119314b3896a68b19a4ec6e67c47e08c8489ff7d1fa3bf03d7ad6008436`) e arm64 **26.906.437 B** (sha256 `bcb1d466f6cffcb0cc9fa84cfebca734109c29e64699f93a471f6590114851b8`) em `site/` |
+
+### Bump (7 fontes — `docs/VERSIONAMENTO.md` §5)
+
+`.env` → `OD_VERSION=1.45.0` · fallback congelado em `core/capabilities.py` ·
+`app/pubspec.yaml` → `1.45.0+2081` · `_APP_VERSION_CODE = 2081` ·
+`site/index.html` (badge, card, versionCode) + `site/historico.html` · esta
+seção · `docs/README_VERSAO.md` §1.45.0.
+
+**Estado:** APK publicado em `site/` e anunciado por `/app/version`; a fila
+continua **desligada** em produção (`OD_TASK_QUEUE_ENABLED=0`) — ligar é
+decisão do dono.
+
 ## Task Queue no painel e no app: histórico com status e resultado (2026-11-14, sem bump)
 
 **Pedido do dono:** mostrar o histórico de tasks no painel/app com status e
