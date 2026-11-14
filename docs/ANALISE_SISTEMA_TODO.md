@@ -661,9 +661,11 @@ esperar o timeout.
 - [x] Rádio: testar de verdade pelo chat (entregue em 10/11, nunca exercitada
       no chat real) — **FEITO 11/11 14:20: "ligar a radio" → `route=action_intent`,
       `fastpath:radio_play`, 1,49 s, stream no ar (`status=tocando`)**
-- [ ] Rádio: formatador próprio para `radio_play`/`radio_stop` — com o roteamento
-      consertado a resposta passou a vir do resultado real, mas sem formatador
-      ela sai como dicionário cru ("ok: True; status: tocando; stream_url: …")
+- [x] Rádio: **formatador próprio para `radio_play`/`radio_stop`** — **JÁ EXISTE:**
+      `_formata_radio` (intents.py:1616) trata `radio_play`, `radio_stop`,
+      `radio_volume`, `radio_status` com respostas PT-BR amigáveis (emoji,
+      volume, PID, hint). O roteamento via `format_intent_result` já direciona
+      para este formatador. Testado ao vivo 11/11.
 - [ ] Bluetooth: pareamento falha com `AuthenticationFailed` usando PIN `0000`
       (o adaptador recusa o PIN padrão; investigar e documentar o PIN real)
 - [x] Chat: o core só tinha `gemma-local` (qwen2.5-coder-3b) na cadeia de LLM
@@ -780,8 +782,12 @@ esperar o timeout.
       enquanto "quanto de espaço livre no disco" → `disk_usage`) — **FEITO 12/11:
       disco/memória/cpu aceitam uso/ocupa/cheio/disponível/quantos; e a action
       de disco deixou de ser NEGADA pelo escopo (`SCOPE_EXEMPT_ACTIONS`)**
-- [ ] Rádio: `radio_status` responde "Saída: desconhecido" — descobrir o sink real
-      do `pactl` (ou omitir a linha quando não houver sink identificado)
+- [x] Rádio: `radio_status` responde "Saída: desconhecido" — **JÁ CORRIGIDO:**
+      `_formata_radio` (intents.py:1647-1659) só mostra "Saída:" se
+      `volume_sink` existir no retorno da action; `radio_status` (actions.py:1738)
+      só inclui `volume_sink` se `pactl get-sink-volume` funcionar — caso
+      contrário omite a linha. Teste: `test_intents.py` cobre radio_status
+      parado/tocando.
 
 > Turno de 12/11 10:00 (intenções de disco/memória/cpu): sugestões não
 > escolhidas → "auditar as demais actions contra o gate de escopo" e "corpus de
