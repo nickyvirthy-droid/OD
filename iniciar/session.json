@@ -1,4 +1,16 @@
 {
+  "task_queue_provada_sandbox_2026_11_14": {
+    "pedido": "Dono (14/11 ~12:00): 'Ligue a Task Queue num teste controlado com OD_TASK_QUEUE_ENABLED=1 e prove com uma task real, medindo retry e dead letter'. Checkpoint anterior: retomada_leitura_iniciar_2026_11_14_turno2.",
+    "defeitos_medidos": "(1) TaskQueue passava request_id= para ActionRegistry.execute, que aceita session_id -> TypeError em TODA task real (sandbox: 2/2 em dead letter, 0 concluidas, 4 retries); o teste antigo escondia porque o _RegistryFalso aceita **kwargs. (2) DELETE /admin/tasks/{id} apagava em data/task_queue/dead_letter fixo -> 200 mas arquivo ficava e GET continuava 200.",
+    "correcoes": "core/task_queue.py: session_id=task.task_id. integrations/api/server.py: tq.dead_letter_dir no DELETE.",
+    "prova_sandbox": "API + ActionRegistry + catalogo REAIS, OD_TASK_QUEUE_DIR=/tmp/od-tq-sandbox, 1 worker, backoff 1 s: filesystem_write via POST /admin/tasks = 201 e arquivo escrito em 1,0 s (completed=1); filesystem_read de inexistente = tentativa 1 em 1,0 s, tentativa 2 em 2,7 s, dead_letter em 6,5 s (attempts 3, max_retries 3, backoff 1,7 s e 3,8 s); dead letter no queue_dir da instancia; DELETE 200 -> arquivo removido -> GET 404; metrics enqueued 2/completed 1/failed 1/dead_letter 1/retried 2.",
+    "testes": "tests/test_task_queue.py 16 -> 18 (task real no registry real; DELETE do dead letter no queue_dir da instancia). GATE COMPLETO: 4675 passed / 16 skipped / 0 falha (193,28 s).",
+    "limitacao": "Task CONCLUIDA some da API: JSON apagado no finally e fora de memoria -> GET /admin/tasks/{id} = 404 e a listagem nunca mostra completed. Checkbox novo no TODO: decidir retencao de historico antes de ligar em producao.",
+    "decisao": "Fila CONTINUA desligada em producao (OD_TASK_QUEUE_ENABLED=0): ligar exige decisao do dono (workers no servidor de 7,7 GB). Nada de .env alterado. Codigo corrigido publicado e od-core reiniciado com prova viva.",
+    "sem_bump": "app segue 1.44.0/2080 (correcao interna de servidor).",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§9)",
+    "updated_at": "2026-11-14T12:50:00-03:00"
+  },
   "retomada_leitura_iniciar_2026_11_14_turno2": {
     "pedido": "Dono (14/11 ~11:50): 'leia iniciar' — recarregar o checkpoint antes de retomar. Checkpoint anterior: medicao_llmcache_exato_2026_11_14 (10:25).",
     "lido": "iniciar/README.md, iniciar/RULES.md (23 regras), iniciar/session.json (entradas de 12-14/11), iniciar/ATRIBUICOES.md, transcricao 2026-11-14 inteira (§1-§7), txt.txt (vazio) e git status/log/servico.",

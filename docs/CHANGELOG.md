@@ -12,6 +12,49 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Task Queue provada em sandbox com task real (2026-11-14, sem bump)
+
+**Pedido do dono:** ligar a Task Queue (R1) num teste controlado com
+`OD_TASK_QUEUE_ENABLED=1` e provar com uma task real, medindo retry e dead
+letter.
+
+**Dois defeitos medidos antes da prova (não supostos):**
+
+| # | defeito | efeito real | correção |
+|---|---|---|---|
+| 1 | `TaskQueue` chamava `registry.execute(..., request_id=...)`, mas o `ActionRegistry` aceita `session_id` | **TODA** task real morria com `TypeError` e ia para dead letter — em sandbox, 2/2 tasks em dead letter e 0 concluídas | passa `session_id=task.task_id` (`core/task_queue.py`) |
+| 2 | `DELETE /admin/tasks/{id}` apagava em `data/task_queue/dead_letter` fixo | respondia 200, o arquivo continuava e o `GET` seguia devolvendo a task | usa `tq.dead_letter_dir` da instância (`integrations/api/server.py`) |
+
+O teste antigo escondia o defeito 1 porque o registry falso aceita
+`**kwargs`; o registry real não. O defeito 2 também passava no gate porque só
+um `queue_dir` customizado o expõe.
+
+**Prova em sandbox (API + registry + catálogo REAIS, `OD_TASK_QUEUE_DIR=/tmp`,
+1 worker, backoff base 1 s, nada em produção):**
+
+| passo | medida |
+|---|---|
+| task real `filesystem_write` via `POST /admin/tasks` | 201; arquivo escrito com o conteúdo pedido em **1,0 s**; `metrics.completed = 1` |
+| task real que falha (`filesystem_read` de arquivo inexistente) | tentativa 1 em 1,0 s → tentativa 2 em 2,7 s → **dead_letter** em 6,5 s (attempts 3, `max_retries` 3; backoff com jitter medido 1,7 s e 3,8 s) |
+| dead letter | JSON dentro do `queue_dir` da instância (`/tmp/od-tq-sandbox/fila/dead_letter/`) |
+| `DELETE /admin/tasks/{id}` | 200 → arquivo **removido** → `GET` **404** |
+| métricas finais | `enqueued 2 · completed 1 · failed 1 · dead_letter 1 · retried 2` |
+
+**Testes:** `tests/test_task_queue.py` 16 → 18: task real no
+`ActionRegistry` real (regressão do `request_id`) e `DELETE` do dead letter no
+`queue_dir` da instância. **Gate completo: 4675 passed / 16 skipped / 0
+falha** (193,28 s).
+
+**Limitação medida:** uma task **concluída** desaparece da API — o JSON é
+apagado no `finally` e ela não está mais em memória, então `GET
+/admin/tasks/{id}` devolve 404 e a listagem não mostra `completed` (o
+CHANGELOG do lote de 13/11 prometia "criar → running → completed"). Fica como
+checkbox no TODO; não foi alterado por ser decisão de retenção de histórico.
+
+**Não ligada em produção:** `od-core` segue com
+`OD_TASK_QUEUE_ENABLED=0`. Ligar exige decisão do dono (custo de workers e
+retenção do histórico acima). O código foi reiniciado com as duas correções.
+
 ## Medição do LLMCache exato no uso real (2026-11-14, sem bump)
 
 **Pergunta do dono:** medir o hit rate do cache exato **antes** de investir em

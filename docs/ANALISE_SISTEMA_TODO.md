@@ -571,6 +571,17 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
+- [ ] Task Queue: manter as tasks **concluídas visíveis** na API com retenção
+      limitada (hoje o registro é apagado e `GET /admin/tasks/{id}` dá 404) —
+      resolve o buraco medido em 14/11 e torna "criar → running → completed"
+      verificável pelo painel (sugestão de 14/11 não escolhida)
+- [ ] Task Queue: expor `queue_depth`, `workers`, `dead_letter` e as métricas
+      no `/health`/painel — hoje a fila só se enxerga pelas rotas `/admin`
+      (sugestão de 14/11 não escolhida)
+- [ ] Task Queue: avaliar ligar em produção com **1 worker** e medir o custo
+      real (CPU/RAM) no servidor de 7,7 GB por uma semana — é o número que
+      falta para decidir `OD_TASK_QUEUE_ENABLED=1` (sugestão de 14/11 não
+      escolhida)
 - [x] F1: fazer o `execute_parallel` executar as actions reais do registry, com
       timeout por ferramenta (hoje o `process()` responde actions pelo fast
       path e o grafo só orquestra conversa) — **ENTREGUE 10/11: nós `select_tools` e `execute_parallel` no grafo usam `execute_action` do orchestrator**
@@ -644,10 +655,16 @@ esperar o timeout.
 > (checkbox I1 da Semana 9-10) e "provar a Task Queue com um job real" (novo
 > checkbox abaixo). Nenhuma perdida.
 
-- [ ] Task Queue: ligar com `OD_TASK_QUEUE_ENABLED=1` num teste controlado e
-      provar um job real (criar → running → completed) pela API, medindo o
-      custo de workers no servidor de 7,7 GB — hoje a única prova é do gate
-      (`tests/test_task_queue.py`), a fila está desligada em produção
+- [ ] Task Queue: **ligar em produção** com `OD_TASK_QUEUE_ENABLED=1` — o
+      teste controlado foi feito em 14/11 (sandbox, API + registry + catálogo
+      reais): task real concluída em 1,0 s, retry medido (1,0 s → 2,7 s →
+      dead letter em 6,5 s) e DELETE limpando o dead letter. Falta a decisão
+      do dono sobre workers/custo no servidor de 7,7 GB (`OD_TASK_QUEUE_WORKERS`)
+- [ ] Task Queue: **task concluída some da API** (achado de 14/11) — o JSON é
+      apagado no `finally` e ela não fica em memória, então `GET
+      /admin/tasks/{id}` dá 404 e a listagem nunca mostra `completed`. Decidir
+      retenção (manter N concluídas em disco com poda, ou histórico só em
+      memória) antes de ligar a fila em produção
 
 > Turno de 14/11 08:30 (registro da regra 21): sugestões mostradas e não
 > escolhidas → "fechar o lote pendente (gate, commits, push, restart)",

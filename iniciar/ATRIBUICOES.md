@@ -9,6 +9,39 @@
 
 ---
 
+## 14/11/2026 — Task Queue provada em sandbox (task real, retry e dead letter)
+
+**Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.
+
+### Criados
+
+- `/tmp/od_tq_prova.py` (harness da prova — **fora do repo**, descartável)
+
+### Modificados
+
+- `core/task_queue.py` — `registry.execute(..., request_id=)` → `session_id=`.
+  O registry real não aceita `request_id`; **toda** task morria com `TypeError`.
+- `integrations/api/server.py` — `DELETE /admin/tasks/{id}` passou a apagar em
+  `tq.dead_letter_dir` (antes usava o caminho global e deixava o arquivo).
+- `tests/test_task_queue.py` — 16 → 18 testes (task real no registry real;
+  DELETE do dead letter no `queue_dir` da instância).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox novo do achado,
+  item da fila atualizado), `iniciar/session.json` e
+  `iniciar/2026-11-14_conversa_omegadrakon.md` (§9). Nenhuma regra alterada.
+
+### Intenção e estado
+
+- **Intenção:** ligar a fila num teste controlado, provar task real, medir
+  retry e dead letter — e não confiar no gate, que usava um registry falso.
+- **Pronto/validado:** gate **4675 passed / 16 skipped / 0 falha**; sandbox
+  com API + registry + catálogo reais (completed 1,0 s; retry 1,0 s → 2,7 s →
+  dead letter 6,5 s; DELETE remove o arquivo e o `GET` volta 404).
+- **Pela metade (deliberado):** a fila **continua desligada em produção**
+  (`OD_TASK_QUEUE_ENABLED=0`) — ligar é decisão do dono. Task concluída some
+  da API (retenção de histórico a decidir) — checkbox no TODO.
+
+---
+
 ## 14/11/2026 — Fechamento do lote de 13/11 (Task Queue, Semantic Cache, OpenAI, web_search, escopo, pg_dump)
 
 **Autor:** Freebuff (Buffy) — sessão de 14/11.

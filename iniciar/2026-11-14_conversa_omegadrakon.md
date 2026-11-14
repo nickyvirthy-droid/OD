@@ -337,3 +337,60 @@ liberada a `user`/`família`).
    scheduler) e Projeti.
 
 **Sem bump / sem restart:** app segue 1.44.0/2080; nada de código mudou.
+
+---
+
+## §9 — Task Queue provada em sandbox com task real (14/11 ~12:00–12:50)
+
+**Pedido do dono:** "Ligue a Task Queue num teste controlado com
+`OD_TASK_QUEUE_ENABLED=1` e prove com uma task real, medindo retry e dead
+letter."
+
+**Autor:** Freebuff (Buffy).
+
+### 1. Defeitos medidos antes da prova
+
+Antes de rodar, a leitura do contrato apontou o problema: `TaskQueue` chama
+`registry.execute(..., request_id=...)`, mas o `ActionRegistry` aceita
+`session_id`. O teste antigo não pegava porque o `_RegistryFalso` dos testes
+declara `**kwargs`.
+
+O sandbox confirmou (2 tasks, 0 concluídas, 2 em dead letter, 4 retries):
+
+```
+ActionRegistry.execute() got an unexpected keyword argument 'request_id'
+```
+
+O segundo achado veio do próprio teste: `DELETE /admin/tasks/{id}` apagava em
+`data/task_queue/dead_letter` **fixo** — respondia 200, o arquivo continuava e
+o `GET` seguia devolvendo a task.
+
+Correções: `session_id=task.task_id` em `core/task_queue.py`; `tq.dead_letter_dir`
+em `integrations/api/server.py`.
+
+### 2. Prova (sandbox: API + ActionRegistry + catálogo reais, `/tmp`, 1 worker)
+
+| passo | medida |
+|---|---|
+| `POST /admin/tasks` `filesystem_write` | **201**; arquivo com o conteúdo em **1,0 s**; `completed = 1` |
+| `filesystem_read` de arquivo inexistente | tentativa 1 em **1,0 s** → tentativa 2 em **2,7 s** → **dead letter** em **6,5 s** (attempts 3; backoff medido 1,7 s e 3,8 s, com jitter) |
+| dead letter | JSON em `/tmp/od-tq-sandbox/fila/dead_letter/` (queue_dir da instância) |
+| `DELETE /admin/tasks/{id}` | 200 → arquivo removido → `GET` **404** |
+| métricas | `enqueued 2 · completed 1 · failed 1 · dead_letter 1 · retried 2` |
+
+### 3. Gate e testes
+
+`tests/test_task_queue.py` 16 → **18** (task real no registry real; DELETE do
+dead letter no `queue_dir` da instância). **Gate completo: 4675 passed / 16
+skipped / 0 falha** (193,28 s).
+
+### 4. Limitação e decisão
+
+Task **concluída** some da API: o JSON é apagado no `finally` e ela não está
+mais em memória — `GET /admin/tasks/{id}` devolve 404 e a listagem nunca mostra
+`completed`. Vira checkbox no TODO (decisão de retenção de histórico).
+
+A fila **continua desligada em produção** (`OD_TASK_QUEUE_ENABLED=0`); ligar é
+decisão do dono. O código corrigido entra no ar com restart verde.
+
+**Sem bump:** app segue 1.44.0/2080 (correção interna de servidor).
