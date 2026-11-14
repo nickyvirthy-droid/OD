@@ -165,6 +165,63 @@ irrelevantes + 6/6 parafrases**, piso vigente dentro da região (margem
 **Sem bump:** correção/ligação de servidor — o APK e o contrato do app não
 mudaram; o número da release continua **1.45.0+2081**.
 
+## Conserto do "menos inteligente": recusa, Query Router e papéis do OD (2026-11-14, sem bump)
+
+**Pedido do dono:** "resolva o problema, faça o que for necessário" — os três
+diagnósticos da §18/§19: resposta errada sobre os próprios papéis, 11 refazs
+no dia e Query Router sem persistência.
+
+### O que mudou
+
+1. **Query Router persiste** — causa raiz reproduzida em sandbox: o
+   `TfidfVectorizer` recebia o **método vinculado** `extrator._tokenize` como
+   tokenizer, e o pickle de método vinculado leva a instância inteira (que
+   tem `threading.Lock()`) → `TypeError: cannot pickle '_thread.lock'` no
+   save; o `open("wb")` já tinha truncado o arquivo → `Ran out of input` no
+   boot seguinte — o router recomeçava do zero com 26 exemplos a cada
+   reinício. Agora: `tokenizar_pt()` + `STOPWORDS_PT` de **módulo** (pickle
+   por referência) e `_dump_atomic()` (tmp + `os.replace`). **Teste de
+   persistência real novo** — o antigo era cego: passava mesmo com o save
+   falhando, porque o bootstrap re-treinava sozinho no boot seguinte.
+2. **Detector de recusa contido** — a guard v1.15.0 caçava a etiqueta de log
+   em QUALQUER posição: **11 refazs em 14/11** (7 seguidas às 15:28–15:32),
+   2 chamadas de LLM e 4–8 s por pergunta. Contrato novo (o teste do
+   contrato antigo foi reescrito com o caso real da v1.15.0 preservado):
+   etiqueta **NO INÍCIO** refaz (log no lugar da resposta); no meio só refaz
+   **com frase de recusa**; no meio sem recusa → `limpa_etiquetas_resposta()`
+   remove as etiquetas em 7 pontos (grafo, stream, não-stream, retry, REST)
+   sem 2ª chamada. **Em recusa a resposta fica CRUA de propósito** — é ela
+   que `_cacheable` baniria; limpada, a falha viraria "resposta normal" e
+   entraria no cache (o gate pegou: `test_falha_nao_e_cacheada`). O prompt
+   agora proíbe escrever as etiquetas na resposta ao usuário (raiz do
+   vazamento).
+3. **Papéis do OD saem do código** — action `role_list` (125 → **126**)
+   lendo `DEFAULT_ROLE_PERMISSIONS`, `ROLE_HIERARQUIA`, `UNKNOWN_ROLE_POLICY`
+   e `PAPEIS_CONTA_VALIDOS`; a intenção exige menção a od/omega
+   drakon/drakon ("tipos de usuário do linux" segue para o LLM de propósito);
+   permissão `role_list` nos papéis `user`/`familia` (mesma natureza do
+   `action_list`). Contagens 125 → 126 em 5 arquivos de teste.
+
+### Validação
+
+| fonte | resultado |
+|---|---|
+| Python | **4700 passed / 16 skipped / 0 falha** (195 s) — 16 testes novos |
+| `/health` vivo | `ok=true`, **29 checks**, 3 breakers fechados |
+| chat vivo | "quais os tipos de usuários de OD" → `route=action_intent`, `llm=fastpath:role_list`, **28,9 ms**, os 5 papéis reais (antes: 13,6 s no groq com 5 papéis inventados) |
+| journal pós-restart | `Query Router model loaded` sem bootstrap nem erro de save; **0 "Recusa indevida"**; resposta LLM sem etiqueta |
+
+**Achado do gate (RAG, sem bump):** o título da §18 da transcrição colidiu
+com a irrelevante "quanto é 15% de 380 reais" (comb 0.4718 vs piso 0.399;
+overlap 0.3195 = **4× o teto medido 0.071** — nenhum grid recalibrava sem
+matar parafrases). Pelo precedente de 20/10 (**rewording do NOSSO texto,
+piso intocado**): reescrito só o título nosso — a citação verbatim do dono
+ficou intacta — → comb **0.3827 < 0.399**; `TestCalibracaoCorpusReal` 8/8
+relevantes + 8/8 irrelevantes, parafrases verdes.
+
+**Sem bump:** correção de servidor — o contrato do app não mudou; a release
+continua **1.45.0+2081**.
+
 ## Task Queue no painel e no app: histórico com status e resultado (2026-11-14, sem bump)
 
 **Pedido do dono:** mostrar o histórico de tasks no painel/app com status e

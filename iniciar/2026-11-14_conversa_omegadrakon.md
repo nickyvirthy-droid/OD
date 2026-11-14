@@ -808,3 +808,163 @@ criar task pelo painel; SSE na aba Tarefas do app; ~47 checkboxes no TODO.
 
 Só servidor/painel/docs: **1.45.0+2081**. Sem restart — o processo em ar
 (15:07) já roda exatamente o código publicado.
+
+## §18 — Por que "melhorar o sistema deixa ele menos inteligente"? (14/11 ~15:50)
+
+**Pergunta do dono:** "porque parece que quanto mais eu tento melhorar o
+sistema, menos inteligente ele fica?"
+
+### 1. Medição (journal do od-core, sem achismo)
+
+- **Cota do Gemini estourou às 15:42** (HTTP 429, `retryDelay=21600s` —
+  primeiro 429 da janela: 12/11 e 13/11 = 0). Circuito `llm:gemini` aberto
+  por 6 h; a mensagem das 15:42 respondeu pelo **groq** em **13,6 s**
+  (`route=fallback`). A cadeia troca de cérebro sozinho, sem aviso no chat.
+- **Detector de recusa atirando em quase tudo:** "Recusa indevida —
+  etiqueta de log no lugar da resposta ([info])": **11 em 14/11**, 5 em
+  13/11, 4 em 12/11, 6 em 11/11 (em Set/Out era 1–2 esporádicos). Das
+  15:28 às 15:32 **7 mensagens seguidas do dono** passaram por refaz —
+  2 chamadas de LLM por pergunta, 4,1–7,7 s cada. O guardião v1.15.0
+  (caça etiqueta em qualquer posição) está atirando em resposta legítima.
+- **Query Router não persiste:** 15:42 load falhou (`Ran out of input` =
+  pickle vazio), treinou com **só 26 exemplos** e o save falhou
+  (`cannot pickle '_thread.lock'`) → a cada boot recomeça do zero.
+- **Volume de hoje:** 7 fastpath (ações), 11 fallback (conversa) — 0 no
+  caminho `route=llm` limpo: **nenhuma resposta veio direto do provider
+  principal sem retrabalho**.
+- **O que entrou em 13–14/11 foi operação, não inteligência:** fila,
+  retry/dead letter, métricas, painel, aba do app, pg_dump, escopo, pool
+  do RAG — nenhum deles melhora resposta; todos acrescentam lugar onde a
+  resposta pode desviar em silêncio.
+
+### 2. Leitura
+
+Confiabilidade ≠ inteligência. A percepção piorou porque (a) o cérebro
+principal foi cortado por cota e caiu para reserva, (b) quase toda
+resposta custa um refaz, (c) o roteador não acumula nada e (d) agora dá
+para VER a degradação (health/fila/métricas) — antes ela existia sem
+instrumentação.
+
+### 3. Próximo passo proposto (ordem)
+
+1. Medir/furar o falso positivo do detector de etiqueta de log;
+2. Reserva/transparência da cota do Gemini (mostrar qual modelo respondeu);
+3. Consertar ou desligar o Query Router (save/load);
+4. Rodar `evals --modo e2e --comparar` antes/depois de cada mudança —
+   nota objetiva em vez de sensação. **Escolha do dono.**
+
+## §19 — Verificação: o que o OD respondeu sobre "tipos de usuário" (14/11 ~16:00)
+
+**Pedido do dono:** "me responda: quais os tipos de usuários de OD. agora
+verifique o que OD me respondeu…" + hipótese dele: seria "uma resposta
+conjunta entre Nicky (segurança) e Athenae (guarda as informações)".
+
+### 1. A verdade (código, `core/security/permissions.py` — Permission Engine)
+
+Cinco papéis, tudo o mais é negado por política (`unknown_role_policy=deny`):
+
+| papel | o que é |
+|---|---|
+| `admin` | `*` — dono, confirmado pela `OD_API_KEY` |
+| `user` | conta comum: conversa + leitura; **sem** escrita, segredo, `filesystem_read`, `database_*`, `network_hosts`, `ip_address` |
+| `familia` | herda o `user` **por código** + a única escrita do lar: `ha_device_control` |
+| `agent` | leitura interna (`system.*`, `filesystem.*` leitura, `memory.*`, `knowledge.*`, `config.read`) |
+| `router` | só `router.*` (interno) |
+
+O painel de contas só alterna `user`/`familia` (`PAPEIS_CONTA_VALIDOS`) e o
+banco tem **2 contas, ambas `user`**. Perfis (`guardian`, `vox`, `Athenae`,
+`Regulus`, `Luma`, `Nyx`) são **personas/vozes** (`agents/profiles.py`), não
+papéis de permissão.
+
+### 2. O que o OD respondeu (msg 1320, `llm_used=groq`, 15:42:08)
+
+1. Administrador (admin) — **existe** ✔
+2. Operador (operator) — **não existe** ✘
+3. Desenvolvedor (developer) — **não existe** ✘
+4. Auditor (auditor) — **não existe** ✘
+5. Conta de serviço (service account) — **não existe** ✘
+6. Convidado (guest) — **não existe** ✘
+7. "Estado verificado." — **falso**: nada foi verificado.
+
+**Acerto: 1 de 6.** Resposta genérica de RBAC de internet, não do OD.
+
+### 3. A trilha real (journal, mesma mensagem)
+
+`Enciclopédia: título fora do assunto recusado` (assunto=tipos de usuários
+de OD, sem artigo) → `Nota de fonte (4.6b): pergunta de fato sem artigo` →
+**Gemini HTTP 429** (cota, circuito aberto 6 h) → `Recusa indevida — etiqueta
+de log ([info])` refaz → **`route=fallback llm=groq`, 13,6 s**, resposta
+fria sem fonte e sem contexto do OD.
+
+### 4. Sobre a hipótese do dono (Nicky + Athenae)
+
+O desenho existe e está certo: a **Athenae/Enciclopédia foi consultada** e
+respondeu "não tenho artigo"; o **Nicky** entrou só como guardião de formato
+(detecção da etiqueta de log). Mas **ninguém respondeu junto** — sem fonte
+interna, o LLM frio improvisou. O elo que falta: pergunta sobre o **próprio
+OD** deveria cair em fastpath de autoconhecimento lendo o código (como
+`system_info` faz com o disco). Checkbox novo no TODO §4.
+
+---
+
+## §20 — Resolvido: o lote do "menos inteligente" (14/11 ~17:10)
+
+**Pedido do dono:** "resolva o problema, faça o que for necessário"
+(continuação da §18/§19).
+
+### 1. Query Router persiste — causa raiz reproduzida em sandbox
+
+`pickle.dumps(TfidfVectorizer(tokenizer=extrator._tokenize))` →
+`TypeError: cannot pickle '_thread.lock'`: o tokenizador era um **método
+vinculado**, e o pickle de método vinculado leva a instância inteira do
+extrator — que tem `threading.Lock()`. O `open("wb")` já tinha truncado o
+arquivo antes do dump falhar → boot seguinte `Ran out of input`. Correção:
+`tokenizar_pt()` + `STOPWORDS_PT` de **módulo** (picklada por referência) e
+`_dump_atomic()` (tmp + `os.replace` — dump falho só deixa `.tmp` pela
+metade). O teste de persistência antigo era **cego**: passava mesmo com o
+save falhando (o bootstrap re-treinava sozinho no boot seguinte); o novo
+exige arquivos > 0 e boot que carrega **sem re-treinar**.
+
+### 2. Detector de recusa medido e contido (11 refazs → contrato novo)
+
+Medição: 11 refazs em 14/11 (7 seguidas às 15:28–15:32), 2 chamadas de LLM
+e 4–8 s por pergunta — a guard v1.15.0 caçava a etiqueta em qualquer
+posição. Contrato novo (teste do contrato antigo reescrito, caso real da
+v1.15.0 preservado):
+
+- etiqueta **NO INÍCIO** (log no lugar da resposta) → refaz;
+- etiqueta no meio **+ frase de recusa** → refaz (as listas de frases já
+  existiam);
+- etiqueta no meio, **sem recusa** → não refaz: `limpa_etiquetas_resposta()`
+  remove as etiquetas deterministicamente (grafo, stream, não-stream, retry,
+  REST — 7 pontos), sem 2ª chamada de LLM;
+- em **RECUSA** a resposta fica **crua de propósito** — é ela que
+  `_cacheable` baniria; limpada, a falha viraria "resposta normal" e entraria
+  no cache (caiu no gate: `test_falha_nao_e_cacheada`);
+- prompt (`personality.py`): a linha do protocolo agora proíbe escrever as
+  etiquetas na resposta ao usuário — a raiz do vazamento.
+
+### 3. Papéis do OD saem do código — fastpath `role_list`
+
+Action nova (catálogo 125 → **126**) lendo `DEFAULT_ROLE_PERMISSIONS`,
+`ROLE_HIERARQUIA`, `UNKNOWN_ROLE_POLICY` e `PAPEIS_CONTA_VALIDOS`; detecção
+exige menção a **od/omega drakon/drakon** (sem ela, "tipos de usuário do
+linux" segue para o LLM de propósito — provado como negativo); permissão
+`role_list` para `user`/`familia` (mesma natureza do `action_list`).
+Contagens 125 → 126 atualizadas em 5 arquivos de teste; 16 testes novos.
+
+### 4. Validação e prova viva
+
+- **Gate completo: 4700 passed / 16 skipped / 0 falha** (195 s).
+- **RAG (achado do gate):** o título da §18 colidiu com a irrelevante
+  "quanto é 15% de 380 reais" (comb 0.4718 vs piso 0.399; overlap 0.3195,
+  4× o teto histórico 0.071 — **nenhum grid recalibrava**). Correção pela
+  via do precedente 20/10: reescrito **só o título nosso** (citação verbatim
+  do dono intacta) → comb **0.3827**; piso intocado.
+- **Provas pós-restart (`od-core` 17:03, MainPID 2945652):**
+  `/health` `ok=true`, **29 checks**, 3 breakers fechados;
+  "quais os tipos de usuários de OD" → `route=action_intent`,
+  `llm=fastpath:role_list`, **28,9 ms** (antes: 13,6 s no groq, 1 de 6
+  acertos); mensagem LLM normal → `route=llm llm=gemini`, resposta sem
+  etiqueta e **0 "Recusa indevida"** no journal; `Query Router model loaded |
+  model=data/query_router/model.pkl` **sem bootstrap e sem erro de save**.

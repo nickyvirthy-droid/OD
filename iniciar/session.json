@@ -1,4 +1,38 @@
 {
+  "conserto_inteligencia_2026_11_14": {
+    "pedido": "Dono (14/11 ~16:10): 'resolva o problema, faça o que for necessário' — os 3 diagnósticos da §18/§19 (detector de recusa refazendo tudo, Query Router sem persistência, resposta errada sobre os papéis do OD).",
+    "query_router": "Causa raiz reproduzida em sandbox: pickle.dumps(TfidfVectorizer(tokenizer=extrator._tokenize)) -> TypeError cannot pickle '_thread.lock' (método vinculado leva a instância inteira, que tem threading.Lock) e o open('wb') já truncou o arquivo -> 'Ran out of input' no boot. Correção: tokenizar_pt()+STOPWORDS_PT de módulo + _dump_atomic (tmp+os.replace). Teste antigo era cego (bootstrap escondia o save falhando) — teste novo exige arquivos > 0 e boot sem re-treinar.",
+    "recusa": "Contrato novo: etiqueta só NO INÍCIO refaz (era qualquer posição: 11 refazs em 14/11, 7 seguidas, 2 LLM por pergunta); no meio só refaz com frase de recusa (caso v1.15.0 preservado); no meio sem recusa -> limpa_etiquetas_resposta() remove em 7 pontos sem 2ª chamada. Em RECUSA a resposta fica CRUA (limpada entraria no cache — caiu no gate: test_falha_nao_e_cacheada). Prompt proíbe a etiqueta na resposta.",
+    "role_list": "Action nova 125 -> 126 lendo o Permission Engine + PAPEIS_CONTA_VALIDOS; detecção exige menção a od/omega drakon/drakon (negativos: 'tipos de usuário do linux' etc.); permissão user/familia. Contagens 125 -> 126 em 5 arquivos de teste; 16 testes novos.",
+    "gate": "4700 passed / 16 skipped / 0 falha (195 s).",
+    "achado_rag": "O título da §18 colidiu com a irrelevante 'quanto é 15% de 380 reais' (comb 0.4718, overlap 0.3195 = 4× o teto 0.071, nenhum grid recalibrava). Pelo precedente 20/10: reescrito só o título nosso (citação do dono intacta) -> comb 0.3827 < piso 0.399; piso intocado.",
+    "prova_viva": "/health ok=true 29 checks, 3 breakers fechados; 'quais os tipos de usuários de OD' -> route=action_intent llm=fastpath:role_list 28,9 ms (antes 13,6 s no groq, 1 de 6); mensagem LLM -> route=llm llm=gemini sem etiqueta e 0 refazs; 'Query Router model loaded' sem bootstrap nem erro de save.",
+    "commits": "868a3ad fix(query_router), 809b7fc fix(recusa), 3c134fb feat(autoconhecimento) em origin/master; od-core reiniciado 17:03 (MainPID 2945652).",
+    "sem_bump": "1.45.0+2081 (correção de servidor, contrato do app intacto).",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§20)",
+    "updated_at": "2026-11-14T17:12:00-03:00"
+  },
+  "verifica_resposta_od_papeis_2026_11_14": {
+    "pedido": "Dono (14/11 ~16:00): 'me responda: quais os tipos de usuários de OD. agora verifique o que OD me respondeu' + hipotese: seria resposta conjunta entre Nicky (seguranca) e Athenae (guarda as informacoes).",
+    "verdade_codigo": "core/security/permissions.py: 5 papéis - admin (*), user (leitura, sem segredo/escrita), familia (herda user por código + ha_device_control), agent (leitura interna), router (router.*); unknown_role_policy=deny. Painel so alterna user/familia (PAPEIS_CONTA_VALIDOS); banco com 2 contas, ambas user. Perfis guardian/vox/Athenae/Regulus/Luma/Nyx sao personas (agents/profiles.py), nao papeis.",
+    "resposta_do_od": "msg 1320 (llm_used=groq, 15:42:08): admin (existe) + operator, developer, auditor, service account, guest (NENHUM existe) + 'Estado verificado.' falso. Acerto 1 de 6 - RBAC generico de internet.",
+    "trilha": "Enciclopedia recusou (sem artigo) -> nota de fonte 'pergunta de fato sem artigo' -> Gemini 429 (cota, circuito 6 h) -> recusa indevida etiqueta de log refaz -> route=fallback llm=groq 13,6 s sem fonte.",
+    "hipotese_dono": "Desenho existe (Athenae consultada e respondeu 'sem artigo'; Nicky so guardiao de formato) mas NINGUEM respondeu junto - faltou fastpath de autoconhecimento lendo o codigo.",
+    "todo": "3 checkboxes novos no §4: detector de recusa (11 refaz hoje), Query Router sem persistencia, autoconhecimento fastpath de papeis.",
+    "sem_bump": "1.45.0+2081; nenhum codigo alterado (so verificacao e registro).",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§19)",
+    "updated_at": "2026-11-14T16:05:00-03:00"
+  },
+  "diagnostico_inteligencia_2026_11_14": {
+    "pedido": "Dono (14/11 ~15:50): 'porque parece que quanto mais eu tento melhorar o sistema, menos inteligente ele fica?'.",
+    "medido": "(1) Cota do Gemini estourou 15:42 (429, 6 h de circuito aberto; 12/11 e 13/11 = 0 x 429) -> resposta do dono caiu no groq, 13,6 s, route=fallback. (2) 'Recusa indevida - etiqueta de log ([info])': 11 hoje, 5 em 13/11, 4 em 12/11, 6 em 11/11 (Set-Out: 1-2 esporadicos); 7 mensagens seguidas do dono 15:28-15:32 refizeram (4,1-7,7 s, 2 chamadas por pergunta). (3) Query Router: load falhou (pickle vazio), treinou com 26 exemplos, save falhou (cannot pickle '_thread.lock') -> nunca persiste. (4) Hoje: 7 fastpath, 11 fallback, 0 route=llm limpo. (5) Lote de 13-14/11 foi operacao (fila/metricas/painel/backup), nao inteligencia.",
+    "leitura": "Confiabilidade != inteligencia: o cerebro principal foi cortado por cota, quase toda resposta custa refaz, o roteador nao acumula e agora a degradacao e visivel (antes nao tinha instrumentacao).",
+    "proposta": "1) medir/furar falso positivo do detector de etiqueta de log; 2) reserva/transparencia da cota do Gemini (qual modelo respondeu); 3) consertar ou desligar o Query Router; 4) rodar evals --comparar antes/depois de cada mudanca. Escolha do dono.",
+    "pendencias_registradas": "2 checkboxes novos no docs/ANALISE_SISTEMA_TODO.md (detector de recusa e Query Router).",
+    "sem_bump": "1.45.0+2081; nenhum codigo alterado (so diagnosico e registro).",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§18)",
+    "updated_at": "2026-11-14T15:55:00-03:00"
+  },
   "retomada_leitura_iniciar_2026_11_14_turno3": {
     "pedido": "Dono (14/11 ~15:33): 'leia iniciar' — recarregar o checkpoint antes de retomar. Checkpoint anterior: task_queue_metricas_painel_2026_11_14 (§16).",
     "lido": "iniciar/README.md, iniciar/RULES.md (23 regras), iniciar/session.json (entradas de 12-14/11), iniciar/ATRIBUICOES.md, transcricao 2026-11-14 inteira (§1-§16), txt.txt (vazio), git status/log e o servico.",

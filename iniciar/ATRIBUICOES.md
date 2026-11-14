@@ -9,6 +9,55 @@
 
 ---
 
+## 14/11/2026 — Conserto do "menos inteligente": recusa, Query Router e papéis do OD
+
+**Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — sessão de 14/11
+~16:10, a pedido do dono ("resolva o problema, faça o que for necessário").
+
+### Criados
+
+- Nenhum arquivo novo.
+
+### Modificados
+
+- `core/query_router.py` — `tokenizar_pt()`/`STOPWORDS_PT` de módulo (o
+  tokenizer era método vinculado e derrubava o pickle) + `_dump_atomic`
+  (tmp + `os.replace`).
+- `core/orchestrator.py` — `_refusal_reason` só no início +
+  `limpa_etiquetas_resposta()` em 7 pontos (em recusa, crua para o cache
+  banir).
+- `agents/nicky_virthy/personality.py` — linha do protocolo proíbe a
+  etiqueta na resposta ao usuário.
+- `tools/actions/actions.py` — action `role_list` (125 → 126);
+  `core/intents.py` — detecção (com menção ao OD) e formatter;
+  `core/security/permissions.py` — `role_list` para `user`/`familia`.
+- Testes: `test_query_router.py` (persistência real — o antigo era cego),
+  `test_resposta_transparente.py` (contrato novo + `limpa_etiquetas`),
+  `test_intents.py` (`TestPapeisOD`), `test_security.py`,
+  `test_actions_catalog.py` (handler) e contagens 125 → 126 em
+  `test_actions_catalog/test_capabilities/test_mcp_od/test_orchestrator/
+  test_orchestrator_action_registry`.
+- Registro: `iniciar/session.json`, transcrição (§20), `docs/CHANGELOG.md`,
+  `docs/ANALISE_SISTEMA_TODO.md` (3 checkboxes entregues).
+
+### Intenção e estado
+
+- **Intenção:** fechar os 3 diagnósticos da §18/§19 que faziam o OD parecer
+  "menos inteligente": resposta errada sobre os próprios papéis (1 de 6),
+  11 refazs/dia pelo detector de etiqueta e Query Router sem persistência.
+- **Estado:** **gate completo 4700 passed / 16 skipped / 0 falha** (195 s);
+  3 commits publicados (`868a3ad`, `809b7fc`, `3c134fb`); `od-core`
+  reiniciado 17:03 (MainPID 2945652) com prova viva — `/health` ok=true
+  (29 checks), "quais os tipos de usuários de OD" → `fastpath:role_list` em
+  **28,9 ms**, mensagem LLM sem etiqueta e **0 refazs**, `Query Router model
+  loaded` sem bootstrap.
+- **Achado do gate:** o título da §18 colidiu no RAG com a irrelevante
+  "quanto é 15% de 380 reais" (nenhum grid recalibrava) — reescrito só o
+  título nosso (citação do dono intacta), piso intocado (precedente 20/10).
+- **Sem bump:** 1.45.0+2081 — correção de servidor, contrato do app intacto.
+
+---
+
 ## 14/11/2026 — Retomada: publicação do lote da §16 e higiene do TODO
 
 **Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — sessão de 14/11 ~15:33,

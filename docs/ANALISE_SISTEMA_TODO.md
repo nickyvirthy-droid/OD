@@ -608,6 +608,31 @@ esperar o timeout.
       disco, quantas podadas por ciclo) — **ENTREGUE 14/11 (§15): bloco
       `task_queue` traz `completed_on_disk/keep_completed` e o contador
       `pruned` acumulado, fora do cache de 8 s**
+- [x] Detector de recusa "etiqueta de log" refazendo quase toda resposta do
+      dono — **11 em 14/11** (5 em 13/11, 4 em 12/11; 7 seguidas às
+      15:28–15:32), cada uma com 2 chamadas de LLM e 4–8 s: medir falso
+      positivo do gatilho v1.15.0 (caça a etiqueta em qualquer posição) e
+      relaxar (14/11, §18) — **ENTREGUE 14/11 (§20): etiqueta só NO INÍCIO
+      refaz; no meio sem frase de recusa só limpa (`limpa_etiquetas_resposta`,
+      7 pontos); em recusa a resposta fica crua p/ o cache banir; prompt
+      proíbe a etiqueta na resposta — prova pós-restart com 0 refazs**
+- [x] Query Router não persiste: load falhou (`Ran out of input` = pickle
+      vazio), re-treina com **26 exemplos** e o save falhou
+      (`cannot pickle '_thread.lock'`) → recomeça do zero a cada boot —
+      consertar ou desligar (14/11, §18) — **ENTREGUE 14/11 (§20): causa
+      raiz reproduzida (tokenizer era método vinculado → pickla o extrator
+      com `threading.Lock`); `tokenizar_pt` de módulo + `_dump_atomic`;
+      teste de persistência real (boot sem re-treinar) e prova viva
+      `Query Router model loaded` sem bootstrap**
+- [x] Autoconhecimento fastpath: pergunta sobre os **próprios papéis e
+      capacidades do OD** deve responder do CÓDIGO
+      (`core/security/permissions.py` / `capabilities.py`), não do LLM
+      frio — em 14/11 15:42 o OD respondeu "operator/developer/auditor/
+      service account/guest", papéis que **não existem**, e ainda declarou
+      "Estado verificado" (14/11, §19) — **ENTREGUE 14/11 (§20): action
+      `role_list` (126) + intenção com menção obrigatória ao OD + permissão
+      user/familia; prova viva `fastpath:role_list` em 28,9 ms com os 5
+      papéis reais**
 - [x] F1: fazer o `execute_parallel` executar as actions reais do registry, com
       timeout por ferramenta (hoje o `process()` responde actions pelo fast
       path e o grafo só orquestra conversa) — **ENTREGUE 10/11: nós `select_tools` e `execute_parallel` no grafo usam `execute_action` do orchestrator**
