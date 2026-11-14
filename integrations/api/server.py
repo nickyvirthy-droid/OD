@@ -317,6 +317,10 @@ class APIConfig:
     # (OD_OFFSITE=0 ou sem OD_OFFSITE_CHAT) e o bloco offsite some do
     # /dashboard/stats.
     offsite: Optional[Any] = None
+    # Task Queue (R1, 2026-11-13): core.task_queue.TaskQueue — workers assíncronos
+    # com RetryPolicy exponencial + jitter, dead letter, persistência JSON.
+    # None = fila desligada (OD_TASK_QUEUE_ENABLED=0).
+    task_queue: Optional[Any] = None
     # URL pública absoluta (Etapa 4): base do QR de posse — o QR precisa
     # de URL com esquema/hospedeiro (o site em si é relativo). Padrão =
     # hostname do Funnel; o launcher pode sobrescrever (OD_PUBLIC_URL).
@@ -468,6 +472,15 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/admin/downloads/{job_id}", "admin_downloads_detail", True),
     ("POST", "/admin/downloads/{job_id}/cancel", "admin_downloads_cancel", True),
     ("DELETE", "/admin/downloads/{job_id}", "admin_downloads_delete", True),
+
+    # Task Queue (R1, 2026-11-13) — workers assíncronos + RetryPolicy exponencial
+    # + dead letter + persistência JSON. /events = SSE do progresso.
+    ("POST", "/admin/tasks", "admin_tasks_create", True),
+    ("GET", "/admin/tasks", "admin_tasks_list", True),
+    ("GET", "/admin/tasks/events", "admin_tasks_events", True),
+    ("GET", "/admin/tasks/{task_id}", "admin_tasks_detail", True),
+    ("POST", "/admin/tasks/{task_id}/retry", "admin_tasks_retry", True),
+    ("DELETE", "/admin/tasks/{task_id}", "admin_tasks_delete", True),
 
     # Auto-update de modelos/conteúdo (Parte E do NOMAD, 2026-10-14) —
     # estado por alvo, dry-run do pipeline (o MESMO caminho do ciclo) e
@@ -4404,6 +4417,10 @@ class APIServer(ThreadingHTTPServer):
                 "od_api_errors_total",
                 "Erros respondidos pela API REST.",
             )
+        # Off-site (core/offsite.py)
+        self._offsite = self.config.offsite
+        # Task Queue (R1) — core.task_queue.TaskQueue
+        self._task_queue = self.config.task_queue
         super().__init__((self.config.host, self.config.port), APIHandler)
 
     def _owner_user(self) -> Optional[Any]:
@@ -7404,6 +7421,13 @@ class APIHandler(BaseHTTPRequestHandler):
             raise APIError(503, "downloads_indisponivel")
         return fila
 
+    def _task_queue_or_503(self) -> Any:
+        """Valida TaskQueue (R1) ou levanta 503."""
+        tq = self.api.config.task_queue
+        if tq is None:
+            raise APIError(503, "task_queue_indisponivel")
+        return tq
+
     def admin_downloads_create(self) -> None:
         """POST /admin/downloads — enfileira; dedup devolve 200 (não 201).
 
@@ -7513,6 +7537,174 @@ class APIHandler(BaseHTTPRequestHandler):
             raise APIError(409 if codigo == "job_ativo" else 404,
                            codigo) from exc
         self._json(200, {"ok": True, "removido": job_id})
+
+    # ------------------------------------------------------------------#
+    # Task Queue (R1, 2026-11-13) — workers + RetryPolicy + dead letter  #
+    # ------------------------------------------------------------------#
+    def admin_tasks_create(self) -> None:
+        """POST /admin/tasks — enfileira task.
+
+        Body: {
+            "action": "filesystem_write",
+            "payload": {"path": "data/test.txt", "content": "x"},
+            "priority"?: 0,
+            "metadata"?: {"role": "admin"},
+            "retry_policy"?: {"max_retries": 3, "backoff_base": 5.0}
+        }
+        """
+        self._require_admin()
+        tq = self._task_queue_or_503()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        action = str(data.get("action") or "")
+        if not action:
+            raise APIError(400, "action_obrigatoria")
+        payload = data.get("payload") or {}
+        if not isinstance(payload, dict):
+            raise APIError(400, "payload_deve_ser_objeto")
+        priority = int(data.get("priority") or 0)
+        metadata = data.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            raise APIError(400, "metadata_deve_ser_objeto")
+
+        retry_policy = None
+        rp_data = data.get("retry_policy")
+        if isinstance(rp_data, dict):
+            from core.task_queue import RetryPolicy
+            retry_policy = RetryPolicy(
+                max_retries=int(rp_data.get("max_retries", 3)),
+                backoff_base=float(rp_data.get("backoff_base", 5.0)),
+            )
+
+        task = tq.enqueue(
+            action_name=action,
+            payload=payload,
+            priority=priority,
+            metadata=metadata,
+            retry_policy=retry_policy,
+        )
+        self._json(201, {"ok": True, "task": task.to_dict()})
+
+    def admin_tasks_list(self) -> None:
+        """GET /admin/tasks — lista tasks (filtra por status opcional).
+
+        Query: ?status=pending|running|completed|failed|dead_letter&limit=100
+        """
+        self._require_admin()
+        tq = self._task_queue_or_503()
+        from urllib.parse import parse_qs, urlsplit
+
+        query = parse_qs(urlsplit(self.path).query)
+        status_str = (query.get("status", [""])[0] or "").strip()
+        status = None
+        if status_str:
+            from core.task_queue import TaskStatus
+            try:
+                status = TaskStatus(status_str)
+            except ValueError:
+                raise APIError(400, "status_invalido")
+        try:
+            limit = int(query.get("limit", ["100"])[0])
+        except (TypeError, ValueError):
+            raise APIError(400, "limit_invalido")
+        limit = max(1, min(limit, 1000))
+        tasks = tq.list_tasks(status=status, limit=limit)
+        self._json(200, {"ok": True, "tasks": [t.to_dict() for t in tasks], "count": len(tasks)})
+
+    def admin_tasks_events(self) -> None:
+        """GET /admin/tasks/events — SSE de progresso das tasks.
+
+        Abre com snapshot da fila; depois emite eventos `task_created`,
+        `task_started`, `task_completed`, `task_failed`, `task_retried`,
+        `task_dead_letter`. Keepalive `: ping` a cada 15s sem eventos.
+        """
+        self._require_admin()
+        tq = self._task_queue_or_503()
+        # Para SSE, usamos polling simples já que TaskQueue não tem pub/sub nativo
+        # (pode evoluir para asyncio.Queue + subscribe no futuro)
+        self.send_response(200)
+        self._send_cors()
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+
+        # Snapshot inicial
+        tasks = tq.list_tasks(limit=200)
+        self._sse({"evento": "snapshot", "tasks": [t.to_dict() for t in tasks],
+                   "metrics": tq.metrics()})
+        ultimo = time.time()
+        # `seen` guarda o último status emitido por task: sem isso o snapshot
+        # repetia `task_running`/`task_completed` a cada segundo de polling.
+        seen: dict[str, str] = {t.task_id: t.status.value for t in tasks}
+        while not self.api.encerrando.is_set():
+            try:
+                tasks = tq.list_tasks(limit=200)
+                for t in tasks:
+                    atual = t.status.value
+                    if t.task_id not in seen:
+                        self._sse({"evento": "task_created", "task": t.to_dict()})
+                        seen[t.task_id] = atual
+                    elif seen[t.task_id] != atual:
+                        self._sse({"evento": f"task_{atual}", "task": t.to_dict()})
+                        seen[t.task_id] = atual
+                if time.time() - ultimo >= 15.0:
+                    self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+                    ultimo = time.time()
+                time.sleep(1.0)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                return
+            except Exception:
+                return
+
+    def admin_tasks_detail(self, task_id: str) -> None:
+        """GET /admin/tasks/{task_id} — detalhes de uma task."""
+        self._require_admin()
+        tq = self._task_queue_or_503()
+        task = tq.get_task(task_id)
+        if task is None:
+            raise APIError(404, "task_inexistente")
+        self._json(200, {"ok": True, "task": task.to_dict()})
+
+    def admin_tasks_retry(self, task_id: str) -> None:
+        """POST /admin/tasks/{task_id}/retry — re-enfileira task falha/dead_letter."""
+        self._require_admin()
+        tq = self._task_queue_or_503()
+        task = tq.get_task(task_id)
+        if task is None:
+            raise APIError(404, "task_inexistente")
+        if task.status.value not in ("failed", "dead_letter"):
+            raise APIError(409, "task_nao_terminal")
+        # Re-enfileira com mesma prioridade/metadata, zera attempts
+        new_task = tq.enqueue(
+            action_name=task.action_name,
+            payload=task.payload,
+            priority=task.priority,
+            metadata=task.metadata,
+            retry_policy=task.retry_policy,
+        )
+        self._json(200, {"ok": True, "task": new_task.to_dict(), "retried_from": task_id})
+
+    def admin_tasks_delete(self, task_id: str) -> None:
+        """DELETE /admin/tasks/{task_id} — remove do dead letter (apenas terminal)."""
+        self._require_admin()
+        tq = self._task_queue_or_503()
+        task = tq.get_task(task_id)
+        if task is None:
+            raise APIError(404, "task_inexistente")
+        if task.status.value not in ("completed", "failed", "dead_letter"):
+            raise APIError(409, "task_nao_terminal")
+        # Para dead letter, apaga o arquivo
+        if task.status == "dead_letter":
+            try:
+                from pathlib import Path
+                (Path("data/task_queue/dead_letter") / f"{task_id}.json").unlink(missing_ok=True)
+            except Exception:
+                pass
+        self._json(200, {"ok": True, "removido": task_id})
 
     # ------------------------------------------------------------------#
     # Auto-update de modelos/conteúdo (Parte E do NOMAD, 2026-10-14)     #

@@ -474,6 +474,26 @@ def build_download_queue() -> Optional[Any]:
         return None
 
 
+def build_task_queue(action_registry: Any = None) -> Optional[Any]:
+    """Task Queue (R1) — fila de tarefas assíncronas com RetryPolicy.
+
+    Habilitada via OD_TASK_QUEUE_ENABLED=1. Workers processam tasks
+    enfileiradas via ActionRegistry com retry exponencial + jitter.
+    Dead letter para tasks que esgotam retries.
+    Persistência em data/task_queue/ (JSON) — recupera após restart.
+    """
+    try:
+        from core.task_queue import build_task_queue as _build_task_queue
+
+        queue = _build_task_queue(action_registry)
+        if queue is not None:
+            log.info("TaskQueue (R1) construído", workers=queue._workers)
+        return queue
+    except Exception as exc:
+        log.warn("TaskQueue (R1) desabilitado", error=str(exc))
+        return None
+
+
 def build_auto_update(
     orchestrator: Any = None, fila: Any = None, health: Any = None,
     push: Any = None,
@@ -881,7 +901,7 @@ def build_api_server(
     user_store: Any = None, registry: Any = None, chat_notify: Any = None,
     vector: Any = None, downloads: Any = None, auto_update: Any = None,
     supply_depot: Any = None, nomad_tools: Any = None, notifier: Any = None,
-    backups: Any = None, offsite: Any = None,
+    backups: Any = None, offsite: Any = None, task_queue: Any = None,
 ):
     """APIServer (integrations/api) sobre o Orchestrator real."""
     from integrations.api import APIConfig, APIServer
@@ -1636,6 +1656,11 @@ async def _run_api_forever(
     # Fila de downloads resumable (Parte D do NOMAD) — worker próprio.
     # No modo all ela vem de fora compartilhada com o auto-update (Parte E).
     downloads = downloads if downloads is not None else build_download_queue()
+    # Task Queue (R1) — fila de tarefas assíncronas com RetryPolicy.
+    # Habilitada via OD_TASK_QUEUE_ENABLED=1. Inicia workers se disponível.
+    task_queue = build_task_queue(action_registry)
+    if task_queue is not None:
+        await task_queue.start()
     # Conecta o ActionRegistry ao Orchestrador TAMBÉM no caminho da API:
     # sem isto o fast path de intenções (Etapa 3.5) fica desligado no chat —
     # "qual o ip do servidor?" caía no LLM em vez da action real (v1.6.1).
@@ -1653,6 +1678,7 @@ async def _run_api_forever(
         notifier=notifier,  # métricas do notifier no /dashboard/stats
         backups=backups,  # TODO §3.6: um bloco por perfil no stats
         offsite=offsite,  # off-site: bloco no stats (canal privado)
+        task_queue=task_queue,
     )
     server.serve_background()
     log.info("API REST no ar", port=server.bound_port)

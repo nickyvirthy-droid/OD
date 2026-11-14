@@ -153,8 +153,9 @@ class TestAPIRoutes:
         GET /api/radio/agora ("Tocando agora" da rádio, Item 1, 02/11) +
         /radio-pro e /api/radio/pro/* (área do ouvinte logado, 04/11) +
         /api/radio/cantores (lista de cantores indesejados, 05/11) +
-        export/import do catálogo do Supply Depot (TODO §3.1, 09/11)."""
-        assert len(ROUTES) == 124
+        export/import do catálogo do Supply Depot (TODO §3.1, 09/11) +
+        Task Queue R1 (create/list/events/detail/retry/delete, 13/11)."""
+        assert len(ROUTES) == 130
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -208,6 +209,12 @@ class TestAPIRoutes:
             ("GET", "/admin/downloads/{job_id}"),
             ("POST", "/admin/downloads/{job_id}/cancel"),
             ("DELETE", "/admin/downloads/{job_id}"),
+            # Task Queue (R1, 13/11) — só o dono enfileira/consulta
+            ("POST", "/admin/tasks"), ("GET", "/admin/tasks"),
+            ("GET", "/admin/tasks/events"),
+            ("GET", "/admin/tasks/{task_id}"),
+            ("POST", "/admin/tasks/{task_id}/retry"),
+            ("DELETE", "/admin/tasks/{task_id}"),
             # Auto-update de modelos/conteúdo (Parte E do NOMAD)
             ("GET", "/admin/auto-update"),
             ("POST", "/admin/auto-update/dry-run"),
@@ -311,6 +318,12 @@ class TestAPIRoutes:
             ("GET", "/admin/downloads/{job_id}"),
             ("POST", "/admin/downloads/{job_id}/cancel"),
             ("DELETE", "/admin/downloads/{job_id}"),
+            # Task Queue (R1, 13/11) — só o dono enfileira/consulta
+            ("POST", "/admin/tasks"), ("GET", "/admin/tasks"),
+            ("GET", "/admin/tasks/events"),
+            ("GET", "/admin/tasks/{task_id}"),
+            ("POST", "/admin/tasks/{task_id}/retry"),
+            ("DELETE", "/admin/tasks/{task_id}"),
             # Auto-update de modelos/conteúdo (Parte E do NOMAD)
             ("GET", "/admin/auto-update"),
             ("POST", "/admin/auto-update/dry-run"),
