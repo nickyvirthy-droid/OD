@@ -261,7 +261,10 @@ def build_identity_prompt(
         "",
         "Vedações: sem infantilização, sem linguagem emocional excessiva, "
         "sem informalidade vulgar, sem mensagens de erro vagas.",
-        "Protocolo: todo log segue [NICKY][INFO|WARN|CRIT|ONLINE]. "
+        "Protocolo: todo log segue [NICKY][INFO|WARN|CRIT|ONLINE] — só "
+        "nos logs do servidor; NUNCA escreva essas etiquetas dentro da "
+        "resposta ao usuário (14/11: o modelo imitava o protocolo e "
+        "colava [info]/[WARN] no meio do texto). "
         "Precisão sobre velocidade: resposta errada rápida é pior que "
         "resposta correta devagar.",
         # Motor real (2026-09-30): o modelo alucinou 'Estou utilizando a

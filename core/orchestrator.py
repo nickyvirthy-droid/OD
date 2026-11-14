@@ -287,6 +287,30 @@ _CACHE_ETIQUETA_EM_QUALQUER_POSICAO = re.compile(
     r"\[(?:nicky\])?(?:crit|warn|online|info)\]", re.IGNORECASE
 )
 
+# 14/11: a etiqueta no MEIO da resposta NÃO refaz mais (só no início vira
+# recusa, em `_refusal_reason`) — aqui ela é removida deterministicmente,
+# sem 2ª chamada de LLM, antes de chegar ao histórico, ao cache e ao dono.
+_ETIQUETA_LOG_RE = re.compile(
+    r"\s*(?:\[nicky\]\s*)?\[(?:crit|warn|online|error|info)"
+    r"(?:\|(?:crit|warn|online|error|info))*\]\s*",
+    re.IGNORECASE,
+)
+
+
+def limpa_etiquetas_resposta(texto: str, strip: bool = True) -> str:
+    """Remove etiquetas de log (`[info]`, `[NICKY][WARN]`…) de uma resposta.
+
+    Medido em 14/11: com o refaz em qualquer posição, 11 mensagens do dono
+    passaram por 2 chamadas de LLM (7 seguidas, 4–8 s cada). A remoção é
+    barata e determinística; `strip=False` preserva as bordas quando o
+    texto chega em chunks de streaming.
+    """
+    if not texto:
+        return texto
+    limpo = _ETIQUETA_LOG_RE.sub(" ", texto)
+    limpo = re.sub(r"[ \t]{2,}", " ", limpo)
+    return limpo.strip() if strip else limpo
+
 # v1.15.0 (§15): frase SECA de execução do lar ('Acesse a luz do corredor!')
 # também é ESTADO DE CONVERSA — o ban da v1.9.1 só pegava '💡 Confirmar:' e
 # '✅ ' no início. Imperativo + alvo do lar = execução, nunca conhecimento.
@@ -1138,7 +1162,11 @@ class Orchestrator:
                 
                 # Rende tokens simulados (o LLM já gerou completo no nó)
                 # Para streaming real, precisaríamos modificar o nó gerar
-                yield {"type": "token", "content": full_response}
+                yield {
+                    "type": "token",
+                    "content": limpa_etiquetas_resposta(full_response,
+                                                        strip=False),
+                }
 
             # Verifica pausa humana
             if estado.get("pending_human_input") and not estado.get("human_decision"):
@@ -1156,7 +1184,14 @@ class Orchestrator:
             if refusal:
                 log.warn("Recusa indevida detectada — refazendo", reason=refusal)
                 # Em streaming, não refazemos — logamos e seguimos
-            
+            else:
+                # 14/11: etiqueta de log no MEIO sai daqui (histórico/cache).
+                # Em RECUSA a resposta fica CRUA de propósito: é ela que
+                # `_cacheable`/`cache_failure_reason` banem — limpada, a
+                # falha viraria "resposta normal" e entraria no cache
+                # (prova: test_falha_nao_e_cacheada).
+                full_response = limpa_etiquetas_resposta(full_response)
+
             fake = fake_action_reason(full_response)
             if fake:
                 log.warn("Resposta do LLM fingia executar ação — substituída", reason=fake)
@@ -1618,7 +1653,11 @@ class Orchestrator:
                     prompt, timeout=self._config.llm_timeout_s
                 ):
                     full_response += chunk
-                    yield {"type": "token", "content": chunk}
+                    yield {
+                        "type": "token",
+                        "content": limpa_etiquetas_resposta(chunk,
+                                                            strip=False),
+                    }
                 break  # Sucesso, sair do loop
             except Exception as exc:
                 log.warn(
@@ -1633,8 +1672,15 @@ class Orchestrator:
                 except Exception:
                     continue
                 if message:
+                    # O CRU vai para `full_response` — a Etapa 6.5 precisa
+                    # ver a etiqueta no início para acionar o refaz. O
+                    # cliente recebe já limpo.
                     full_response = message
-                    yield {"type": "token", "content": message}
+                    yield {
+                        "type": "token",
+                        "content": limpa_etiquetas_resposta(message,
+                                                            strip=False),
+                    }
                     break
         else:
             # Todos os providers falharam
@@ -1680,7 +1726,16 @@ class Orchestrator:
                 full_response, llm_used = retry[0], retry[1]
                 fallback_used = True
                 route = ROUTE_FALLBACK
-                yield {"type": "token", "content": full_response}
+                yield {
+                    "type": "token",
+                    "content": limpa_etiquetas_resposta(full_response,
+                                                        strip=False),
+                }
+        if not refusal:
+            # 14/11: etiqueta de log no meio da resposta sai daqui — antes
+            # do histórico, do cache e do evento `done` (sem 2ª chamada de
+            # LLM). Em RECUSA a resposta segue crua para o `_cacheable` banir.
+            full_response = limpa_etiquetas_resposta(full_response)
 
         # Etapa 6.7 — Anti-FALSO-SUCESSO (08/10, IDs 769-782): a gemma
         # emitiu '✍️ Confirmar: …' e 'Compromisso criado com sucesso' sem
@@ -3070,6 +3125,12 @@ class Orchestrator:
             if retry is not None:
                 message, llm_used = retry
                 fallback_used = True
+        if not refusal:
+            # 14/11: etiqueta de log no meio da resposta sai daqui — antes do
+            # histórico, do cache e da resposta ao cliente (REST). Em RECUSA
+            # a resposta fica crua: é ela que o `_cacheable` baniria de
+            # qualquer jeito (limpada, a falha viraria resposta normal).
+            message = limpa_etiquetas_resposta(message)
 
         # Etapa 6.7 — Anti-FALSO-SUCESSO (espelho do stream): a resposta
         # que fingia confirmar/executar ação é trocada pela honesta antes
@@ -3141,11 +3202,18 @@ class Orchestrator:
         from core.intents import detect_external_intent
 
         low = response.lower()
-        # Etiqueta de log em QUALQUER posição (o gemma entregava
-        # '[NICKY][WARN] Não posso...' — startswith deixava passar quando
-        # o modelo embutia a etiqueta depois de um texto) (2026-09-27).
+        # Etiqueta de log NO INÍCIO = o modelo respondeu com um log no lugar
+        # da resposta → refaz. (14/11: com "qualquer posição" o refaz
+        # acionou 11× no dia, 7 seguidas — 2 chamadas de LLM por pergunta,
+        # 4–8 s; no meio da frase a etiqueta é conteúdo legítimo e o refaz
+        # só custava latência.) O caso da v1.15.0 — '[NICKY][WARN] Não
+        # posso…' depois de texto — continua pegando pelas frases de recusa
+        # abaixo; a etiqueta em qualquer posição segue BANIDA DO CACHE
+        # (cache_failure_reason) e é removida da resposta final por
+        # `limpa_etiquetas_resposta()` — sem 2ª chamada de LLM.
+        inicio = low.lstrip()
         for etiqueta in ("[crit]", "[warn]", "[info]", "[online]", "[nicky]"):
-            if etiqueta in low:
+            if inicio.startswith(etiqueta):
                 return f"etiqueta de log no lugar da resposta ({etiqueta})"
         if role != "admin":
             # Só interessa quando a pergunta é do MUNDO EXTERNO: recusa

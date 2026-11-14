@@ -144,17 +144,59 @@ class TestAntiRecusaAdmin:
         assert Orchestrator._refusal_reason("", "admin") == ""
 
     def test_etiqueta_embutida_no_meio_e_recusa(self) -> None:
-        """Bug do ar (27/09): o gemma entregou '[NICKY][WARN] Não posso
-        fornecer informações sobre o clima...' — startswith pegava só
-        etiqueta no INÍCIO; a guard vale em qualquer posição."""
-        respostas = [
+        """Contrato atualizado (14/11).
+
+        Bug do ar (27/09): '[NICKY][WARN] Não posso fornecer…' com a
+        etiqueta depois de um texto — o `startswith` pegava só no início,
+        então a guard foi alargada para QUALQUER posição. Medido em 14/11:
+        11 refazs no dia (7 seguidas), 2 chamadas de LLM por pergunta —
+        no meio da frase a etiqueta é conteúdo legítimo e o refaz só
+        custava latência. Contrato novo:
+          * etiqueta NO INÍCIO (log no lugar da resposta) → refaz;
+          * etiqueta no meio + frase de recusa → refaz (caso real da
+            v1.15.0, agora coberto pelas frases de recusa);
+          * etiqueta no meio, SEM recusa → NÃO refaz — a etiqueta é
+            removida da resposta final por `limpa_etiquetas_resposta`
+            (barato, determinístico, sem 2ª chamada de LLM).
+        """
+        # Etiqueta no início → refaz.
+        assert Orchestrator._refusal_reason(
             "[NICKY][WARN] Não posso fornecer informações sobre o clima ou "
             "localização geográfica de um país específico.",
-            "Entendo. [NICKY][INFO] segue a resposta",
-        ]
-        for resposta in respostas:
-            motivo = Orchestrator._refusal_reason(resposta, "admin")
-            assert motivo, f"etiqueta embutida não detectada: {resposta}"
+            "admin",
+        )
+        # Etiqueta no MEIO + frase de recusa → refaz (caso da v1.15.0).
+        assert Orchestrator._refusal_reason(
+            "Desculpe. [NICKY][WARN] Não posso fornecer informações sobre "
+            "o clima de um país específico.",
+            "admin",
+        )
+        # Etiqueta no meio, SEM recusa → conteúdo, não refaz…
+        resposta = "Entendo. [NICKY][INFO] segue a resposta"
+        assert Orchestrator._refusal_reason(resposta, "admin") == ""
+        # …mas a etiqueta sai da resposta final sem 2ª chamada de LLM.
+        from core.orchestrator import limpa_etiquetas_resposta
+
+        assert limpa_etiquetas_resposta(resposta) == "Entendo. segue a resposta"
+
+    def test_limpa_etiquetas_resposta_remove_e_preserva_texto(self) -> None:
+        from core.orchestrator import limpa_etiquetas_resposta
+
+        assert limpa_etiquetas_resposta("[info] O disco está em 66%") == (
+            "O disco está em 66%"
+        )
+        assert limpa_etiquetas_resposta("Aqui [NICKY][WARN] olha aqui") == (
+            "Aqui olha aqui"
+        )
+        assert limpa_etiquetas_resposta("texto normal sem etiqueta") == (
+            "texto normal sem etiqueta"
+        )
+        assert limpa_etiquetas_resposta("") == ""
+        # Chunks de streaming preservam a borda (strip=False) para não
+        # colar palavras de um chunk no outro.
+        assert limpa_etiquetas_resposta("resposta [info]", strip=False) == (
+            "resposta "
+        )
 
     def test_bloqueio_falso_de_infra_para_dono_e_recusa(self) -> None:
         """O modelo imitando a vedação do sistema ('restrita ao dono')
