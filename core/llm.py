@@ -513,3 +513,43 @@ class GroqProvider(OpenAICompatProvider):
 
     def is_available(self) -> bool:
         return self.configurado and self._breaker.estado() != "aberto"
+
+
+class OpenAIProvider(OpenAICompatProvider):
+    """OpenAI pela porta OpenAI nativa (entra na cadeia se houver crédito).
+
+    As duas chaves do `.env` devolvem 429 `no credits remaining` (remensurado
+    11/11). Quando houver saldo, basta incluir `openai` no
+    `OD_CHAT_PROVIDERS` (ex.: `gemini,groq,openai,local`) ou o boot detecta
+    crédito automaticamente via teste de 1 request (OD_OPENAI_AUTO=1).
+    """
+
+    def __init__(
+        self,
+        name: str = "openai",
+        *,
+        model: str = "",
+        api_key: str = "",
+        base_url: str = "https://api.openai.com/v1",
+        timeout: float = 60.0,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        temperature: float = DEFAULT_TEMPERATURE,
+    ) -> None:
+        chave = api_key or os.getenv("OPENAI_API_KEY", "").strip()
+        super().__init__(
+            name=name,
+            base_url=(base_url or "https://api.openai.com/v1").rstrip("/"),
+            model=(model or "gpt-4o-mini").strip(),
+            api_key=chave,
+            timeout=timeout,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            chat_path="/chat/completions",
+        )
+
+    @property
+    def configurado(self) -> bool:
+        return bool(self.api_key)
+
+    def is_available(self) -> bool:
+        return self.configurado and self._breaker.estado() != "aberto"

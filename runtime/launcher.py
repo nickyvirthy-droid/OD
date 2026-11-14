@@ -241,14 +241,15 @@ def build_llm_providers() -> list[Any]:
     Padrão `gemini,groq,local` (ordem medida em docs/IAS_DISPONIVEIS.md):
     Gemini primeiro (modelo do dono), Groq como segunda nuvem e o
     llama-server local por ÚLTIMO — é o "sem internet" do dono, não a
-    primeira escolha. OpenAI fica fora da cadeia: as duas chaves do `.env`
-    devolvem 429 `no credits remaining` (remensurado 11/11).
+    primeira escolha. OpenAI entra na cadeia quando há crédito
+    (OD_OPENAI_AUTO=1 testa no boot) ou quando explícito em
+    `OD_CHAT_PROVIDERS`.
 
     `OD_CHAT_PROVIDERS` (lista separada por vírgula) troca a ordem;
     `local` sozinho reproduz o comportamento anterior a 11/11. Valor
     desconhecido é ignorado com warn; se nada sobrar, entra o local.
     """
-    from core.llm import GeminiProvider, GroqProvider, OpenAICompatProvider
+    from core.llm import GeminiProvider, GroqProvider, OpenAICompatProvider, OpenAIProvider
 
     llm_timeout = float(env("OD_LLM_TIMEOUT_S", "240"))
     max_tokens = int(env("OD_LLM_MAX_TOKENS", "512"))
@@ -262,11 +263,7 @@ def build_llm_providers() -> list[Any]:
         if nome in ("gemini", "gemini-online", "online"):
             gemini = GeminiProvider(
                 model=env("OD_GEMINI_MODEL", "gemini-3-flash-preview"),
-                # `env()` (snapshot do .env) e não os.getenv: rodando fora do
-                # systemd a chave pode existir só no .env carregado.
                 api_key=env("GEMINI_API_KEY", ""),
-                # Gemini em nuvem responde em segundos: 20% do teto do
-                # local basta e libera a cadeia rápido quando dá erro.
                 timeout=float(env("OD_GEMINI_TIMEOUT_S", "30")),
                 max_tokens=max_tokens,
             )
@@ -286,19 +283,45 @@ def build_llm_providers() -> list[Any]:
                 log.warn("Groq sem GROQ_API_KEY — fora da cadeia do chat")
                 continue
             providers.append(groq)
+        elif nome in ("openai",):
+            openai = OpenAIProvider(
+                model=env("OD_OPENAI_MODEL", "gpt-4o-mini"),
+                api_key=env("OPENAI_API_KEY", ""),
+                base_url=env("OD_OPENAI_URL", "https://api.openai.com/v1"),
+                timeout=float(env("OD_OPENAI_TIMEOUT_S", "60")),
+                max_tokens=max_tokens,
+            )
+            if not openai.configurado:
+                log.warn("OpenAI sem OPENAI_API_KEY — fora da cadeia do chat")
+                continue
+            providers.append(openai)
         elif nome in ("local", "gemma-local", "llama"):
             providers.append(
                 OpenAICompatProvider(
                     name="gemma-local",
                     base_url=env("OD_LLM_URL", "http://127.0.0.1:8081"),
                     timeout=llm_timeout,
-                    # 512: resposta completa em CPU (~5 tok/s) mantém pior
-                    # caso < 2min
                     max_tokens=max_tokens,
                 )
             )
         else:
             log.warn("Provider de chat desconhecido ignorado", provider=nome)
+
+    # OpenAI automático no boot (OD_OPENAI_AUTO=1): testa crédito e inclui se houver
+    if env("OD_OPENAI_AUTO", "0") != "0" and "openai" not in ordem:
+        # Só testa se a chave existe
+        if env("OPENAI_API_KEY", "").strip():
+            openai = OpenAIProvider(
+                model=env("OD_OPENAI_MODEL", "gpt-4o-mini"),
+                api_key=env("OPENAI_API_KEY", ""),
+                base_url=env("OD_OPENAI_URL", "https://api.openai.com/v1"),
+                timeout=float(env("OD_OPENAI_TIMEOUT_S", "60")),
+                max_tokens=max_tokens,
+            )
+            if openai.configurado:
+                providers.append(openai)
+                log.info("OpenAI incluído automaticamente (OD_OPENAI_AUTO=1)")
+
     if not providers:
         log.warn("Nenhum provider válido em OD_CHAT_PROVIDERS — usando o local")
         providers.append(
@@ -321,6 +344,7 @@ def build_orchestrator(database: Any = None) -> Any:
     from core.orchestrator import Orchestrator, OrchestratorConfig
     from memory.cache import LLMCache
     from memory.history import ConversationHistory
+    from memory.semantic_cache import SemanticCache
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     llm_timeout = float(env("OD_LLM_TIMEOUT_S", "240"))
@@ -344,6 +368,24 @@ def build_orchestrator(database: Any = None) -> Any:
     enciclopedia = build_enciclopedia()
     from memory.rag import janela_do_modelo
 
+    # Semantic Cache (I1) — cache de respostas LLM por similaridade de embeddings
+    # Threshold padrão 0.95 (configurável via OD_SEMANTIC_CACHE_THRESHOLD)
+    semantic_cache = SemanticCache(
+        cache_dir=DATA_DIR / "semantic_cache",
+        profile=profile,
+        max_entries=int(env("OD_SEMANTIC_CACHE_MAX_ENTRIES", "5000")),
+        ttl_seconds=float(env("OD_SEMANTIC_CACHE_TTL", "86400")),
+        similarity_threshold=float(env("OD_SEMANTIC_CACHE_THRESHOLD", "0.95")),
+        llm_cache=None,  # pode injetar LLMCache se quiser fallback exato
+    )
+    loaded = semantic_cache.load()
+    log.info(
+        "Semantic Cache montado",
+        entries=loaded,
+        threshold=float(env("OD_SEMANTIC_CACHE_THRESHOLD", "0.95")),
+        max_entries=int(env("OD_SEMANTIC_CACHE_MAX_ENTRIES", "5000")),
+    )
+
     orchestrator = Orchestrator(
         providers=providers,
         history=ConversationHistory(
@@ -355,6 +397,7 @@ def build_orchestrator(database: Any = None) -> Any:
             max_entries=int(env("OD_CACHE_ENTRIES", "2000")),
             **db_kwargs,
         ),
+        semantic_cache=semantic_cache,
         rag=rag,
         enciclopedia=enciclopedia,
         config=OrchestratorConfig(
@@ -376,6 +419,7 @@ def build_orchestrator(database: Any = None) -> Any:
         backend="db" if database else "json",
         rag=rag.dump() if rag is not None else "desligado",
         enciclopedia="ligada" if enciclopedia is not None else "desligada",
+        semantic_cache=semantic_cache.stats(),
     )
     return orchestrator
 
@@ -1255,7 +1299,40 @@ def build_health(
     monitor.register("loops", _check_loops, critical=False)
     monitor.register("telemetria", _check_telemetria, critical=False)
     monitor.register("latencia", check_latencia, critical=False)
+    monitor.register("circuit_breakers", _check_circuit_breakers, critical=False)
     return monitor
+
+
+def _check_circuit_breakers(mon: Any) -> dict[str, Any]:
+    """Check dos circuit breakers: lista todos e avisa se algum está aberto."""
+    from core.resilience import status_breakers
+
+    breakers = status_breakers()
+    if not breakers:
+        return {"ok": True, "status": "up", "detail": "nenhum circuito registrado"}
+    abertos = [b for b in breakers if b.get("estado") == "aberto"]
+    meio_abertos = [b for b in breakers if b.get("estado") == "meia_aberto"]
+    detalhes = []
+    for b in breakers:
+        estado = b.get("estado", "?")
+        nome = b.get("nome", "?")
+        falhas = b.get("falhas", 0)
+        limite = b.get("falhas_limite", 0)
+        recuperacao = b.get("recuperacao_s", 0)
+        detalhes.append(f"{nome}:{estado}(falhas={falhas}/{limite},rec={recuperacao:.0f}s)")
+    if abertos:
+        return {
+            "ok": False,
+            "status": "degraded",
+            "detail": f"{len(abertos)} aberto(s) — {'; '.join(detalhes)}",
+        }
+    if meio_abertos:
+        return {
+            "ok": True,
+            "status": "up",
+            "detail": f"{len(meio_abertos)} meia-abertos — {'; '.join(detalhes)}",
+        }
+    return {"ok": True, "status": "up", "detail": f"{len(breakers)} fechados — {'; '.join(detalhes)}"}
 
 
 def check_latencia(mon: Any) -> dict[str, Any]:
