@@ -275,6 +275,39 @@ class TestWorkers:
 
 
 # ---------------------------------------------------------------------------
+# Fiação no launcher
+# ---------------------------------------------------------------------------
+
+class TestFiacaoNoLauncher:
+    def test_build_api_server_repassa_a_fila(self, monkeypatch) -> None:
+        """REGRESSÃO (14/11, medida em produção): a fila subia no boot
+        (`TaskQueue iniciado | workers=1`), mas `/admin/tasks` respondia 503
+        — `build_api_server` recebia `task_queue` na assinatura e não o
+        passava ao `APIConfig`. Stubs no lugar de servidor/porta: o teste
+        olha só o repasse."""
+        import integrations.api as api_mod
+
+        capturado: dict = {}
+
+        class _Config:
+            def __init__(self, **kwargs) -> None:
+                capturado.update(kwargs)
+
+        class _Server:
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+        monkeypatch.setattr(api_mod, "APIConfig", _Config)
+        monkeypatch.setattr(api_mod, "APIServer", _Server)
+
+        from runtime.launcher import build_api_server
+
+        marca = object()
+        build_api_server(None, task_queue=marca)
+        assert capturado.get("task_queue") is marca
+
+
+# ---------------------------------------------------------------------------
 # API /admin/tasks*
 # ---------------------------------------------------------------------------
 

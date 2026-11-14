@@ -1020,6 +1020,10 @@ def build_api_server(
             # Conta do dono: a OD_API_KEY é a chave dele (o dono pode tudo,
             # com confirmação nas destrutivas).
             owner_username=env("OD_OWNER_USERNAME", "alex"),
+            # Task Queue (R1): sem este repasse a fila era CONSTRUÍDA e
+            # iniciada no boot, mas as rotas /admin/tasks ficavam em 503
+            # para sempre (o parâmetro chegava e morria na assinatura).
+            task_queue=task_queue,
         ),
         vector=vector,  # Parte B: /memory/{uid}/search com store real
     )
