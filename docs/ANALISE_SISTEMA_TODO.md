@@ -606,11 +606,10 @@ esperar o timeout.
       (DuckDuckGo lite) no catálogo E ligada à intenção do chat (`core/intents`
       reconhece pesquise/busque/procure + veículo + conector); prova viva
       1,05 s / 0,74 s com 5 resultados reais; sem fonte, degradação honesta**
-- [ ] Pesquisa web nos papéis `user`/`família`: `web_search` não está nas listas
-      de `core/security/permissions.py` (só admin), então fora do dono a frase
-      cai em negação silenciosa e volta ao LLM. É leitura pública como
-      `exchange_rate` e `weather_city` (que já foram incluídas) — incluir é
-      decisão do dono sobre expor busca para a família
+- [x] Pesquisa web nos papéis `user`/`família` — **FEITO 14/11 (commit
+      13ac90d): `web_search` na lista do papel user (família herda); prova viva
+      com conta comum: 1,00 s no papel user e 0,68 s no família, resultados
+      reais; `mapa_forca_consulta` segue só do dono**
       (DuckDuckGo lite) existe no catálogo (123→125); FALTA a intenção em
       `core/intents.py`, que não foi alterado — a frase ainda não a dispara**
 - [ ] R1: Task Queue (Redis/RQ) — sugestão recorrente de 11/11; segue aberta no
@@ -620,6 +619,11 @@ esperar o timeout.
 > escolhidas → "colocar o Gemini como 1º provider do chat", "criar action de
 > pesquisa web" e "formatador de radio_play/radio_stop" — todas já estão como
 > checkbox acima; nenhuma perdida.
+
+> Turno de 14/11 10:05 (registro da regra 21): sugestões mostradas e não
+> escolhidas → "liberar a pesquisa para família/user" (feita neste turno),
+> "provar account comum no chat" e "medir o acerto do cache exato" (checkbox
+> do cache exato já aberto). Nenhuma perdida.
 
 > Turno de 14/11 09:45 (registro da regra 21): sugestões mostradas e não
 > escolhidas → "expor a pesquisa web para família/user" (checkbox novo de

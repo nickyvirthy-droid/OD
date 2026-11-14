@@ -222,3 +222,36 @@ para ele render exigiria aceitar trocas erradas — "liga a luz da cozinha" e
 Recomendação: **manter desligado** (é o default atual,
 `OD_SEMANTIC_CACHE_ENABLED=0`); o ganho real viria de cache exato (já existe) e
 de aproveitar as 20 req/dia com critério. A decisão continua do dono.
+
+## §6 — Pesquisa web liberada para user/família, provada com conta comum (14/11 ~10:00)
+
+**Pedido do dono:** "Exponha a pesquisa web aos papéis família/user e teste com
+uma conta comum."
+
+**Autor:** Freebuff (Buffy). **Arquivos:** `core/security/permissions.py` e
+`tests/test_security.py` (modificados); `docs/CHANGELOG.md`,
+`docs/ANALISE_SISTEMA_TODO.md` e esta transcrição (registro).
+
+- **Mudança:** `web_search` na lista do papel `user` (o `familia` herda por
+  código). Justificativa: é leitura pública da fonte, sem chave/escrita/segredo
+  — mesma natureza de `weather_city`/`exchange_rate`. Sem isso, quem não é o
+  dono caía em **negação silenciosa** e o LLM voltava a inventar.
+- **Fronteira preservada:** `mapa_forca_consulta` (nomes/matrículas de
+  policiais) continua só do dono — acrescentado ao teste de menor privilégio.
+- **Testes:** `test_user_e_familia_podem_pesquisar_na_web` + o item de dado
+  sensível. **Gate: 4673 passed / 16 skipped / 0 falha (188,36 s).**
+- **Publicado:** `13ac90d`. **Restart:** MainPID **2464540**, NRestarts=0,
+  journal `-p err` **0**.
+
+**Prova viva com conta comum** (não-dono), criada por `/auth/register`:
+
+| papel | frase | resultado |
+|---|---|---|
+| `user` | "pesquise na internet quem foi Ada Lovelace" | `fastpath:web_search`, **1,00 s**, 4 resultados (Wikipédia, Brasil Escola…) |
+| `família` | "pesquise na internet sobre o ENEM 2026" | `fastpath:web_search`, **0,68 s**, resultados reais (G1) |
+
+**Limpeza:** conta `teste_pesquisa_14` apagada por `DELETE /admin/users`
+(confirmado ausente na listagem) e as **4 mensagens** que ela gravou em
+`conversation_messages` removidas por SQL — nenhum resíduo no banco.
+
+**Sem bump:** app segue 1.44.0/2080.

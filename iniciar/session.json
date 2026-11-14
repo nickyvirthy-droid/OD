@@ -1,4 +1,16 @@
 {
+  "pesquisa_web_para_user_e_familia_2026_11_14": {
+    "pedido": "Dono: 'Exponha a pesquisa web aos papéis família/user e teste com uma conta comum'. Checkpoint anterior: pesquisa_web_ligada_e_semantic_cache_2026_11_14.",
+    "feito": "core/security/permissions.py: 'web_search' entrou na lista do papel user (familia herda por codigo). Justificativa: leitura publica da fonte (DuckDuckGo lite, sem chave/escrita/segredo), mesma natureza de weather_city/exchange_rate. Antes, fora do dono, a frase caia em negacao silenciosa e o LLM inventava.",
+    "fronteira": "mapa_forca_consulta (dado sensivel) CONTINUA so do dono — incluido no teste de menor privilegio.",
+    "testes": "test_security.py: test_user_e_familia_podem_pesquisar_na_web + mapa_forca_consulta no teste de negacao. GATE: 4673 passed / 16 skipped / 0 falha (188,36 s).",
+    "deploy": "commit 13ac90d publicado (c12694d..13ac90d); restart od-core MainPID 2464540, NRestarts=0, journal -p err 0.",
+    "prova_viva": "Conta comum teste_pesquisa_14 criada por /auth/register: papel user -> 'pesquise na internet quem foi Ada Lovelace' = fastpath:web_search 1,00 s, 4 resultados; papel familia (PUT /admin/users/.../role) -> 'pesquise na internet sobre o ENEM 2026' = fastpath:web_search 0,68 s, resultados G1.",
+    "limpeza": "Conta apagada por DELETE /admin/users (ausente na listagem) e 4 mensagens em conversation_messages removidas por SQL (delete -> 0). Nenhum residuo.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§6)",
+    "updated_at": "2026-11-14T10:10:00-03:00"
+  },
   "pesquisa_web_ligada_e_semantic_cache_2026_11_14": {
     "pedido": "Dono: 'Ligue a action web_search à intenção \"pesquise na internet…\" e teste no chat real'. Durante o turno perguntou 'o que faz semantic cache? qual a melhor alternativa, ligado ou desligado?'. Checkpoint anterior: lote_13_11_fechado_2026_11_14.",
     "feito_intencao": "core/intents.py: _extrai_busca_web (verbo pesquise/busque/procure/faça uma busca no INÍCIO + veículo na internet/no google/na web/online + conector sobre/por/de) -> ('web_search', {'query': ...}); substantivo ('a pesquisa mostrou') e comando sem termo NAO casam; cambio continua em exchange_rate (preço do bitcoin). _formata_web_search: até 5 resultados com título/URL/trecho/fonte; sem resultado = 'Nenhum resultado'; sem fonte = '🌐 Não consegui pesquisar agora' — NUNCA cai no LLM.",

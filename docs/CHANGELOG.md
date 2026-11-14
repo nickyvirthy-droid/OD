@@ -12,6 +12,32 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Pesquisa web liberada para os papéis user e família (2026-11-14, sem bump)
+
+**Resumo:** a pesquisa estava ligada ao chat, mas `web_search` só existia na
+lista do papel `admin` — fora da conta do dono, "pesquise …" caía em
+**permission denied silencioso** e o LLM voltava a responder sem dado (ou
+inventando), que é a queixa original de 11/11.
+
+**Mudança:** `web_search` entra na lista do papel `user` (e o `familia` herda
+por código). É leitura pública da fonte — DuckDuckGo lite, sem chave, sem
+escrita, sem segredo — mesma natureza de `weather_city` e `exchange_rate`, que
+já estão lá desde a v1.12/v1.14. O dado sensível do Mapa de Força
+(`mapa_forca_consulta`) **continua só do dono**, coberto por teste.
+
+**Testes:** `test_user_e_familia_podem_pesquisar_na_web` e o dado sensível
+acrescentado ao teste de menor privilégio. **Gate: 4673 passed / 16 skipped /
+0 falha (188,36 s).**
+
+**Prova viva com conta comum** (criada via `/auth/register` e depois apagada
+com `DELETE /admin/users`, sem resíduo em `conversation_messages`):
+- papel `user`: "pesquise na internet quem foi Ada Lovelace" →
+  `action_intent / fastpath:web_search`, **1,00 s**, 4 resultados;
+- papel `família`: "pesquise na internet sobre o ENEM 2026" → mesmo fastpath,
+  **0,68 s**, resultados reais (G1).
+
+**Sem bump:** app segue **1.44.0/2080**.
+
 ## Pesquisa web ligada à intenção do chat (2026-11-14, sem bump)
 
 **Resumo:** a action `web_search` existia desde 13/11, mas **nenhuma frase do
