@@ -394,3 +394,12 @@ A fila **continua desligada em produção** (`OD_TASK_QUEUE_ENABLED=0`); ligar �
 decisão do dono. O código corrigido entra no ar com restart verde.
 
 **Sem bump:** app segue 1.44.0/2080 (correção interna de servidor).
+
+### 5. Deploy e prova viva
+
+Commits `f583fb2` (fix) e `eda77b9` (docs) publicados. `systemctl --user
+restart od-core`: **MainPID 2618250**, `NRestarts=0`, ativo desde 12:12:25;
+`/health` **ok=true, 28 itens, nenhum falhando**; journal `-p err` **0
+entradas**. Boot registra `TaskQueue desabilitado (OD_TASK_QUEUE_ENABLED=0)` e
+`GET /admin/tasks` responde **503 `task_queue_indisponivel`** — o esperado com a
+fila desligada. Resumo enviado ao Telegram do dono (`ok=true`, msg 3996).

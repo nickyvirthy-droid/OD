@@ -7,6 +7,8 @@
     "testes": "tests/test_task_queue.py 16 -> 18 (task real no registry real; DELETE do dead letter no queue_dir da instancia). GATE COMPLETO: 4675 passed / 16 skipped / 0 falha (193,28 s).",
     "limitacao": "Task CONCLUIDA some da API: JSON apagado no finally e fora de memoria -> GET /admin/tasks/{id} = 404 e a listagem nunca mostra completed. Checkbox novo no TODO: decidir retencao de historico antes de ligar em producao.",
     "decisao": "Fila CONTINUA desligada em producao (OD_TASK_QUEUE_ENABLED=0): ligar exige decisao do dono (workers no servidor de 7,7 GB). Nada de .env alterado. Codigo corrigido publicado e od-core reiniciado com prova viva.",
+    "deploy": "commits f583fb2 (fix) e eda77b9 (docs) publicados em origin/master; systemctl --user restart od-core: MainPID 2618250, NRestarts=0, active desde 12:12:25; /health ok=true com 28 itens e nenhum falhando; journal -p err 0 entradas.",
+    "prova_viva": "boot: 'TaskQueue desabilitado (OD_TASK_QUEUE_ENABLED=0)' e 'API REST no ar | port=8000'; GET /admin/tasks com X-API-Key = 503 task_queue_indisponivel (esperado com a fila desligada). Telegram do dono: ok=true msg_id=3996.",
     "sem_bump": "app segue 1.44.0/2080 (correcao interna de servidor).",
     "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§9)",
     "updated_at": "2026-11-14T12:50:00-03:00"
