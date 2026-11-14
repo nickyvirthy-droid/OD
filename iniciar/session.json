@@ -6,6 +6,7 @@
     "testes": "Python: 4678 passed / 16 skipped / 0 falha (197,44 s), com test_painel_traz_a_secao_de_tarefas. Flutter: analyze 'No issues found'; flutter test 223 passed / 2 skipped (tasks_api_test 5 e tasks_screen_test 5 novos). JS do painel: node --check OK (pegou 1 aspa errada antes de publicar).",
     "defeitos_pegos_nos_testes": "(1) chip de filtro clipado no tamanho padrao de teste (800x600) -> teste usa tela 1400x900; (2) estado vazio 'Nenhuma tarefa' aparecia junto com o erro de 503 -> agora com erro mostra 'Sem dados da fila agora'.",
     "limitacoes": "APK NAO recompilado: a aba so chega ao celular no proximo build/versao (bump SemVer + app/build_apk.sh = deploy do app, sem autorizacao). Sem prova visual (maquina sem navegador). Fila segue DESLIGADA em producao.",
+    "deploy": "commits dbf6abf (painel), 6741ef8 (app) e 21b0ff7 (docs) em origin/master; restart od-core MainPID 2670206, NRestarts=0; /health ok=true 28 itens nenhum falhando; journal -p err 0 entradas; /admin 200 com a secao 'Tarefas (Task Queue)', '/admin/tasks/events' e tqLoad/tqSse no HTML; GET /admin/tasks = 503 (fila desligada, esperado). Telegram: ok=true msg_id=3998.",
     "sem_bump": "app segue 1.44.0/2080.",
     "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§11)",
     "updated_at": "2026-11-14T15:10:00-03:00"

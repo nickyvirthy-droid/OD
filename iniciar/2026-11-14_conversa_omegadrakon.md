@@ -494,3 +494,13 @@ com o erro de 503 (agora o 503 mostra "sem dados" em vez de "nenhuma tarefa").
 - **Sem prova visual:** não há navegador na máquina; a verificação foi por
   teste, `node --check` e `flutter analyze`.
 - Fila continua **desligada** em produção.
+
+### 5. Deploy e prova viva
+
+Commits `dbf6abf` (painel), `6741ef8` (app) e `21b0ff7` (docs) publicados.
+Restart do `od-core`: **MainPID 2670206**, `NRestarts=0`; `/health`
+**ok=true, 28 itens, nenhum falhando**; journal `-p err` **0 entradas**.
+`GET /admin` = **200** com a seção `Tarefas (Task Queue)`, o caminho
+`/admin/tasks/events` e as funções `tqLoad`/`tqSse` no HTML;
+`GET /admin/tasks` = **503** (fila desligada, esperado). Telegram do dono:
+`ok=true`, msg 3998.
