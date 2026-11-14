@@ -9,6 +9,40 @@
 
 ---
 
+## 14/11/2026 — Release v1.45.0+2081 (APK com a aba Tarefas)
+
+**Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.
+
+### Criados
+
+- Nenhum arquivo de código novo (bump + build + registro).
+
+### Modificados
+
+- `.env` → `OD_VERSION=1.45.0` (gitignored)
+- `core/capabilities.py` — fallback congelado
+- `app/pubspec.yaml` — `1.45.0+2081`
+- `integrations/api/server.py` — `_APP_VERSION_CODE = 2081`
+- `site/index.html` (badge, card, versionCode), `site/historico.html`
+  (1.45.0 + contagens 76 releases/10 na era final)
+- `docs/CHANGELOG.md` → seção `## [1.45.0]`; `docs/README_VERSAO.md` → §1.45.0
+- `site/OmegaDrakon.apk` e `site/OmegaDrakon-arm64.apk` (gitignored) —
+  recompilados por `app/build_apk.sh`
+
+### Intenção e estado
+
+- **Intenção:** publicar a aba Tarefas no aparelho do dono, com o bump SemVer
+  e o checklist de release completo.
+- **Pronto/validado:** APK com versionName **1.45.0** / versionCode **2081**
+  (`aapt`), completo 72.143.782 B e arm64 26.906.437 B; `/app/version`
+  anuncia o mesmo build **com o sha256 do binário publicado**; gates Python
+  **4678/16/0** e Flutter **analyze 0 issues / 223 passed**; `od-core`
+  reiniciado (MainPID 2699533, `/health` 28/28, 0 erros).
+- **Pendência:** ligar a fila em produção (`OD_TASK_QUEUE_ENABLED=1`) segue
+  sendo decisão do dono.
+
+---
+
 ## 14/11/2026 — Task Queue no painel `/admin` e no app (histórico com status e resultado)
 
 **Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.

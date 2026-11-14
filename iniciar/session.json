@@ -1,4 +1,15 @@
 {
+  "release_1_45_0_2026_11_14": {
+    "pedido": "Dono (14/11 ~15:20): 'Publique o APK com a aba Tarefas, fazendo o bump SemVer e o checklist de release'. Checkpoint anterior: task_queue_painel_app_2026_11_14.",
+    "bump": "MINOR 1.44.0 -> 1.45.0, versionCode 2080 -> 2081, nas 7 fontes do docs/VERSIONAMENTO.md §5: .env OD_VERSION, fallback congelado (core/capabilities.py), app/pubspec.yaml, _APP_VERSION_CODE (server.py), site/index.html (badge+card+versionCode), site/historico.html (linha + contagens 76/10), docs/CHANGELOG.md ([1.45.0]) e docs/README_VERSAO.md (§1.45.0).",
+    "apk": "app/build_apk.sh com JAVA_HOME=/home/alex/jdk e ANDROID_HOME=/home/alex/android-sdk (fora do PATH), EXIT=0. aapt: versionName 1.45.0, versionCode 2081. Completo 72.143.782 B sha256 08992119314b3896a68b19a4ec6e67c47e08c8489ff7d1fa3bf03d7ad6008436; arm64 26.906.437 B sha256 bcb1d466f6cffcb0cc9fa84cfebca734109c29e64699f93a471f6590114851b8.",
+    "testes": "Gate Python 4678 passed / 16 skipped / 0 falha (199,29 s) rodado depois do bump e dos documentos; test_version_policy 9/9; TestAPISite 12/12 (a guarda do historico pegou as contagens velhas 75/9 e foram corrigidas para 76/10 no kicker, meta, span da era, card do index e 'Ver os 76 releases'). Flutter: analyze 0 issues; test 223 passed / 2 skipped.",
+    "deploy": "commit a1f362a publicado; restart od-core MainPID 2699533, NRestarts=0, journal -p err 0 entradas.",
+    "prova_viva": "/app/version 1.45.0/2081 com size=72143782 e sha256 IGUAL ao binario em site/; /health ok=true 28 itens nenhum falhando; /site/index.html v1.45.0 x3 + versionCode 2081; /site/historico.html 1.45.0 e 'Os 76 Lancamentos'; /admin/tasks 503 (fila desligada, esperado). Telegram ok=true msg_id=3999.",
+    "pendente": "Ligar a fila em producao (OD_TASK_QUEUE_ENABLED=1) segue sendo decisao do dono.",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§12)",
+    "updated_at": "2026-11-14T16:10:00-03:00"
+  },
   "task_queue_painel_app_2026_11_14": {
     "pedido": "Dono (14/11 ~14:00): 'Mostre o historico de tasks no painel/app com status e resultado'. Checkpoint anterior: task_queue_historico_concluidas_2026_11_14.",
     "painel": "Bloco 'Tarefas (Task Queue)' no _ADMIN_PAGE_HTML: tabela com acao, status (pendente/rodando/concluida/falha/dead letter), tentativas n/max, criacao, duracao, resultado JSON curto ou erro; filtro por status; resumo da fila pelo snapshot do SSE; acoes retry e apagar; 503 vira aviso. JS tqLoad/tqSse/tqAcao/tqRender ligado no carregarTudo.",

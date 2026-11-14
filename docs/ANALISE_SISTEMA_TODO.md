@@ -668,6 +668,11 @@ esperar o timeout.
       70% do tráfego é comando e nunca deve ser cacheado). Conclusão: manter o
       exato; semântico não paga o investimento com a amostra atual**
 
+> Turno de 14/11 16:10 (registro da regra 21): sugestões mostradas e não
+> escolhidas → "ligar a fila em produção com 1 worker", "criar tarefa pelo
+> painel/app" e "SSE na aba Tarefas do app" — as três já têm checkbox neste
+> backlog/bloco da fila. Nenhuma duplicada, nenhuma perdida.
+
 > Turno de 14/11 09:15 (registro da regra 21): sugestões mostradas e não
 > escolhidas → "ligar a `web_search` à intenção de pesquisa" (já no bloco do
 > lote / checkbox de pesquisa web), "decidir e ligar o I1 medindo o impacto"

@@ -504,3 +504,65 @@ Restart do `od-core`: **MainPID 2670206**, `NRestarts=0`; `/health`
 `/admin/tasks/events` e as funções `tqLoad`/`tqSse` no HTML;
 `GET /admin/tasks` = **503** (fila desligada, esperado). Telegram do dono:
 `ok=true`, msg 3998.
+
+---
+
+## §12 — Release v1.45.0+2081: APK com a aba Tarefas (14/11 ~15:20–16:10)
+
+**Pedido do dono:** "Publique o APK com a aba Tarefas, fazendo o bump SemVer e
+o checklist de release."
+
+**Autor:** Freebuff (Buffy).
+
+### 1. Bump (MINOR — feature nova compatível)
+
+Seguindo `docs/VERSIONAMENTO.md` §5, **1.44.0 → 1.45.0**, versionCode
+**2080 → 2081**, nas 7 fontes:
+
+| fonte | valor |
+|---|---|
+| `.env` (gitignored) | `OD_VERSION=1.45.0` |
+| `core/capabilities.py` | fallback congelado `1.45.0` |
+| `app/pubspec.yaml` | `version: 1.45.0+2081` |
+| `integrations/api/server.py` | `_APP_VERSION_CODE = 2081` |
+| `site/index.html` | badge, card e `versionCode 2081` |
+| `site/historico.html` | linha da 1.45.0 (76 releases; era final 10) |
+| `docs/CHANGELOG.md` + `docs/README_VERSAO.md` | `## [1.45.0]` e §1.45.0 |
+
+### 2. Build do APK
+
+`app/build_apk.sh` canônico (completo + `--split-per-abi`), com o toolchain que
+não está no PATH: `JAVA_HOME=/home/alex/jdk`,
+`ANDROID_HOME=/home/alex/android-sdk`. `EXIT=0`.
+
+| artefato | tamanho | sha256 |
+|---|---|---|
+| `site/OmegaDrakon.apk` | 72.143.782 B | `08992119314b3896a68b19a4ec6e67c47e08c8489ff7d1fa3bf03d7ad6008436` |
+| `site/OmegaDrakon-arm64.apk` | 26.906.437 B | `bcb1d466f6cffcb0cc9fa84cfebca734109c29e64699f93a471f6590114851b8` |
+
+`aapt dump badging`: `versionCode='2081' versionName='1.45.0'`.
+
+### 3. Validação
+
+- **Gate Python:** 4678 passed / 16 skipped / 0 falha (199,29 s), rodado depois
+  do bump e dos documentos.
+- **Defeito pego pelo gate:** a guarda do `historico.html` acusou as contagens
+  desatualizadas após inserir a linha nova (75 → **76** lançamentos, era final
+  9 → **10**); corrigidas kicker, meta, span da era, card do index e o
+  "Ver os 76 releases". `TestAPISite` 12/12.
+- **Flutter:** `analyze` 0 issues; `flutter test` **223 passed / 2 skipped**.
+- **`test_version_policy`:** 9/9 (7 fontes coerentes).
+
+### 4. Deploy e prova viva
+
+Commit `a1f362a` publicado; `od-core` reiniciado: **MainPID 2699533**,
+`NRestarts=0`, journal `-p err` **0 entradas**. Provas ao vivo:
+
+- `/app/version` → **1.45.0 / 2081**, `size=72143782` e **sha256 igual** ao
+  binário em `site/`;
+- `/health` → **ok=true, 28 itens, nenhum falhando**;
+- `/site/index.html` → `v1.45.0` ×3 e `versionCode 2081`;
+- `/site/historico.html` → 1.45.0 e "Os 76 Lançamentos";
+- `/admin/tasks` → **503** (fila desligada, esperado).
+
+Telegram do dono: `ok=true`, msg 3999.
