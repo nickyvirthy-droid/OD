@@ -614,9 +614,12 @@ esperar o timeout.
       polling 5 s + reconexão 15 s; testes flutter 223 verdes. Painel `/admin`
       JÁ USAVA SSE (`tqSse` emite `task_created`/`task_started`/
       `task_completed`/`task_failed`/`task_retried`/`task_dead_letter`).
-- [ ] Task Queue: filtro/paginação por data no histórico de concluídas — a
-      lista atual corta por prioridade/data de criação, não por conclusão
-      (sugestão de 14/11 não escolhida)
+- [x] Task Queue: **filtro/paginação por data no histórico de concluídas** — **ENTREGUE
+      14/11:** `list_tasks(sort_by_finished=True)` no `TaskQueue` + `?sort_by_finished=1`
+      no `GET /admin/tasks` e SSE; app `TasksScreen` com toggle
+      `Ordenar por conclusão` (ícone 🕒/⏱️) que recarrega a lista; concluídas/falhas/
+      dead_letter ordenadas por `finished_ts` desc, pendentes/rodando por prioridade/
+      `created_ts`. Testes: flutter 223 + Python 229 verdes. Commit `ce643a2`.
 - [x] Task Queue: métricas de retenção no `/health` (quantas concluídas em
       disco, quantas podadas por ciclo) — **ENTREGUE 14/11 (§15): bloco
       `task_queue` traz `completed_on_disk/keep_completed` e o contador
