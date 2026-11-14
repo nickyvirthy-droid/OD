@@ -1316,6 +1316,71 @@ class OdApi {
   }
 
   // ---------------------------------------------------------------------//
+  // Task Queue (R1 — 14/11)                                              //
+  // ---------------------------------------------------------------------//
+
+  /// GET /admin/tasks — tarefas da fila + histórico de concluídas.
+  ///
+  /// [status] vazio traz tudo; o servidor também aceita
+  /// `pending|running|completed|failed|dead_letter`. A fila desligada no
+  /// servidor responde 503 (vira mensagem legível, não lista vazia).
+  Future<List<OdTask>> listTasks({String status = '', int limit = 100}) async {
+    final query = <String>[
+      if (status.isNotEmpty) 'status=$status',
+      'limit=$limit',
+    ].join('&');
+    final response =
+        await _send('GET', Uri.parse('$baseUrl/admin/tasks?$query'));
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) {
+      return ((data!['tasks'] as List?) ?? [])
+          .map((t) => OdTask.fromJson(t as Map<String, dynamic>))
+          .toList();
+    }
+    throw OdApiError(
+      response.statusCode == 503
+          ? 'Fila de tarefas desligada no servidor '
+              '(OD_TASK_QUEUE_ENABLED=0).'
+          : 'Tarefas indisponíveis: ${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// POST /admin/tasks/{id}/retry — reenfileira falha/dead letter.
+  ///
+  /// O servidor cria uma task NOVA (mesma action/payload/retry_policy) e
+  /// devolve o registro novo; a original fica no histórico até a poda.
+  Future<OdTask> retryTask(String id) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/admin/tasks/$id/retry'),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) {
+      return OdTask.fromJson(data!['task'] as Map<String, dynamic>);
+    }
+    throw OdApiError(
+      'Retry falhou: ${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// DELETE /admin/tasks/{id} — apaga o registro terminal (concluída ou
+  /// dead letter). Task ainda ativa responde 409 no servidor.
+  Future<void> deleteTask(String id) async {
+    final response =
+        await _send('DELETE', Uri.parse('$baseUrl/admin/tasks/$id'));
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return;
+    throw OdApiError(
+      response.statusCode == 409
+          ? 'Esta tarefa ainda está ativa — espere terminar.'
+          : 'Remoção falhou: ${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
+  // ---------------------------------------------------------------------//
   // Fila de downloads resumable (Parte D do NOMAD — 14/10)               //
   // ---------------------------------------------------------------------//
 
@@ -1725,6 +1790,90 @@ class OdDownloadEvent {
           ? null
           : OdDownloadsResumo.fromJson(json['resumo'] as Map<String, dynamic>),
     );
+  }
+}
+
+/// Uma task da Task Queue (R1) — da fila ou do histórico de concluídas.
+///
+/// O servidor devolve `status` em pt-BR técnico (`pending`, `running`,
+/// `completed`, `failed`, `dead_letter`), e o histórico de concluídas é
+/// limitado por `OD_TASK_QUEUE_KEEP_COMPLETED` (poda automática).
+class OdTask {
+  final String id;
+  final String actionName;
+  final String status;
+  final int attempts;
+  final int maxRetries;
+  final double createdTs;
+  final double startedTs;
+  final double finishedTs;
+  final String lastError;
+
+  /// Retorno do handler (quando `completed`); pode ser objeto, lista ou
+  /// escalar — a tela mostra um JSON curto.
+  final Object? result;
+
+  OdTask({
+    required this.id,
+    required this.actionName,
+    required this.status,
+    required this.attempts,
+    required this.maxRetries,
+    required this.createdTs,
+    required this.startedTs,
+    required this.finishedTs,
+    required this.lastError,
+    required this.result,
+  });
+
+  factory OdTask.fromJson(Map<String, dynamic> json) {
+    double ts(String chave) => (json[chave] as num?)?.toDouble() ?? 0;
+    return OdTask(
+      id: (json['task_id'] as String?) ?? '',
+      actionName: (json['action_name'] as String?) ?? '',
+      status: (json['status'] as String?) ?? 'pending',
+      attempts: (json['attempts'] as num?)?.toInt() ?? 0,
+      maxRetries: (json['max_retries'] as num?)?.toInt() ?? 0,
+      createdTs: ts('created_ts'),
+      startedTs: ts('started_ts'),
+      finishedTs: ts('finished_ts'),
+      lastError: (json['last_error'] as String?) ?? '',
+      result: json['result'],
+    );
+  }
+
+  bool get terminal =>
+      status == 'completed' || status == 'failed' || status == 'dead_letter';
+
+  /// Só falha/dead letter viram task nova (o servidor responde 409 fora dai).
+  bool get podeRetentar => status == 'failed' || status == 'dead_letter';
+
+  String get statusLabel => switch (status) {
+        'running' => 'Rodando',
+        'completed' => 'Concluída',
+        'failed' => 'Falha',
+        'dead_letter' => 'Dead letter',
+        _ => 'Pendente',
+      };
+
+  /// Duração de execução; em task rodando o relógio continua correndo.
+  String get duracaoLabel {
+    if (startedTs <= 0) return '—';
+    final fim = finishedTs > 0
+        ? finishedTs
+        : DateTime.now().millisecondsSinceEpoch / 1000.0;
+    final segundos = (fim - startedTs).clamp(0, 1e9);
+    return segundos < 1
+        ? '${(segundos * 1000).round()} ms'
+        : '${segundos.toStringAsFixed(1)} s';
+  }
+
+  /// Resultado (JSON curto) ou o erro da última tentativa.
+  String get detalheLabel {
+    if (status == 'failed' || status == 'dead_letter') return lastError;
+    if (result == null) return '';
+    final bruto = result is String ? result as String : result.toString();
+    return bruto.length <= 160 ? bruto : '${bruto.substring(0, 160)}…';
   }
 }
 
