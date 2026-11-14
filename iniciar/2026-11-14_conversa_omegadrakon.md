@@ -303,3 +303,37 @@ janela limitada pela rotação do journal; histórico retido pode podar mensagen
 antigas. Os arquivos temporários com texto de conversa foram apagados.
 
 **Sem bump:** app segue 1.44.0/2080; sem restart (nenhum código mudou).
+
+---
+
+## §8 — Retomada: "leia iniciar" (14/11 ~11:50)
+
+**Pedido do dono:** "leia iniciar" (segunda retomada do dia, regra 3).
+
+**Autor:** Freebuff (Buffy). **Nenhum código alterado** — leitura e registro.
+
+### 1. O que foi lido
+
+`iniciar/README.md`, `iniciar/RULES.md` (23 regras), `iniciar/session.json`
+(entradas de 12–14/11), `iniciar/ATRIBUICOES.md`, esta transcrição inteira
+(§1–§7), `txt.txt` (vazio) e `git status`/`git log`/estado do serviço.
+
+### 2. Estado encontrado
+
+Árvore **limpa**; `HEAD == origin/master == 8370c7b`. `od-core` ativo,
+MainPID 2464540, `NRestarts=0` — roda o código de `13ac90d` (web_search
+liberada a `user`/`família`).
+
+### 3. O que ficou aberto
+
+1. `OD_TASK_QUEUE_ENABLED=0` — a fila R1 existe e tem teste, mas nunca rodou
+   em produção.
+2. I1 (Semantic Cache) **desligado** por default, aguardando decisão do dono —
+   e agora com número: não acrescentaria acerto no tráfego medido (§7).
+3. OpenAI fora da cadeia automática por falta de crédito (o `OD_OPENAI_AUTO`
+   só testa a existência da chave).
+4. Backlog do `docs/ANALISE_SISTEMA_TODO.md`: cota do Gemini, disjuntores no
+   `/health`, rádio/Bluetooth, energia/comunicação (compra do dono), NV (DAG/
+   scheduler) e Projeti.
+
+**Sem bump / sem restart:** app segue 1.44.0/2080; nada de código mudou.

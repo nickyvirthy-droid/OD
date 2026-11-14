@@ -1,4 +1,15 @@
 {
+  "retomada_leitura_iniciar_2026_11_14_turno2": {
+    "pedido": "Dono (14/11 ~11:50): 'leia iniciar' — recarregar o checkpoint antes de retomar. Checkpoint anterior: medicao_llmcache_exato_2026_11_14 (10:25).",
+    "lido": "iniciar/README.md, iniciar/RULES.md (23 regras), iniciar/session.json (entradas de 12-14/11), iniciar/ATRIBUICOES.md, transcricao 2026-11-14 inteira (§1-§7), txt.txt (vazio) e git status/log/servico.",
+    "estado_encontrado": "Arvore LIMPA; HEAD == origin/master == 8370c7b (docs(medicao): hit rate do LLMCache exato). od-core ativo, MainPID 2464540, NRestarts=0 — roda o codigo de 13ac90d (web_search liberada a user/familia).",
+    "fechado_na_sessao_de_hoje": "Lote de 13/11 fechado (7 defeitos, test_task_queue.py novo, gate 4656/16/0); web_search ligada a intencao 'pesquise na internet...' e liberada aos papeis user/familia com prova em conta comum; I1 segue DESLIGADO por default (decisao do dono pendente); medido o hit rate do cache exato (10,6%, 12/113; ~33 s por hit) e o semantico nao acrescentaria acerto (0/24 em 0,95/0,90/0,85).",
+    "em_aberto": "(1) OD_TASK_QUEUE_ENABLED=0 — fila nunca rodou em producao; (2) I1 Semantic Cache desligado esperando decisao do dono; (3) OpenAI sem credito (OD_OPENAI_AUTO so testa existencia da chave); (4) 42+ checkboxes no docs/ANALISE_SISTEMA_TODO.md, incluindo reserva da cota do Gemini, disjuntores no /health (entregue, checkbox a conferir), radios/bluetooth, energia/comunicacao (compra do dono), NV/DAG e Projeti.",
+    "decisao": "Turno de leitura: nenhum codigo alterado, sem gate e sem restart. So registro (session.json + transcricao §8) e push. Aguardando a ordem do dono sobre onde retomar.",
+    "sem_bump": "app segue 1.44.0/2080.",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§8)",
+    "updated_at": "2026-11-14T11:52:00-03:00"
+  },
   "medicao_llmcache_exato_2026_11_14": {
     "pedido": "Dono: 'Meça o hit rate do LLMCache exato no uso real antes de investir em cache semântico'. Checkpoint anterior: pesquisa_web_para_user_e_familia_2026_11_14.",
     "metodo": "Journal do od-core (janela ~29 dias, 16/10->14/11): logs 'Message processed' classificados por route; tabela llm_cache para acumulado; conversation_messages (24 elegiveis) para potencial de parafrase com MiniLM, janela 24h, mesmo usuario.",
