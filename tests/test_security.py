@@ -242,6 +242,16 @@ class TestPermissionEngine:
         assert engine.is_allowed("agent", "system.shutdown") is False
         assert engine.is_allowed("agent", "filesystem.write") is False
 
+    def test_role_list_visivel_para_user_e_familia(self) -> None:
+        """Autoconhecimento (14/11): `role_list` é da mesma natureza do
+        `action_list` — descreve o sistema, não dado sensível. Sem isto a
+        pergunta "quais os tipos de usuário de OD" caía em negação
+        silenciosa para o user (mesmo corte do web_search, 13/11)."""
+        engine = PermissionEngine()
+        assert engine.is_allowed("user", "role_list") is True
+        assert engine.is_allowed("familia", "role_list") is True
+        assert engine.is_allowed("admin", "role_list") is True
+
     def test_admin_has_wildcard(self) -> None:
         engine = PermissionEngine()
         assert engine.is_allowed("admin", "anything.at.all") is True

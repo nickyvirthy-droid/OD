@@ -38,7 +38,7 @@ from tools.actions import (
 from tools.registry import ActionRegistry
 
 EXPECTED_CATEGORIES = {
-    "system": 19,  # + network_hosts (v0.27.5) + listening_ports (v1.6.1) + cpu_temp (v1.7.1) + exchange_rate (v1.14.0) + readiness_report (12/11) + web_search (13/11)
+    "system": 20,  # + network_hosts (v0.27.5) + listening_ports (v1.6.1) + cpu_temp (v1.7.1) + exchange_rate (v1.14.0) + readiness_report (12/11) + web_search (13/11) + role_list (14/11)
     "iot": 10,  # ha_weather/ha_lights/ha_summary (v1.8.0) + weather_city (v1.12.0) + radio_play/stop/volume/status (10/11) + mapa_forca_consulta (13/11)
     "process": 4,
     "docker": 4,
@@ -76,10 +76,10 @@ class TestActionsCatalog:
     """123 ações catalogadas por categoria com metadados consistentes."""
 
     def test_catalog_count_and_categories(self) -> None:
-        assert ACTIONS_COUNT == 125
-        assert len(CATALOG) == 125
+        assert ACTIONS_COUNT == 126
+        assert len(CATALOG) == 126
         assert CATEGORIES == EXPECTED_CATEGORIES
-        assert sum(CATEGORIES.values()) == 125
+        assert sum(CATEGORIES.values()) == 126
 
     def test_names_unique_and_dotted_clean(self) -> None:
         names = [spec["name"] for spec in CATALOG]
@@ -134,8 +134,8 @@ class TestActionsRegistration:
 
     def test_build_registry_registers_123(self) -> None:
         registry = build_registry()
-        assert len(registry.list_actions()) == 125
-        assert registry.metrics.actions == 125
+        assert len(registry.list_actions()) == 126
+        assert registry.metrics.actions == 126
 
     def test_every_action_has_permission_and_schema(self) -> None:
         registry = build_registry()
@@ -150,7 +150,7 @@ class TestActionsRegistration:
         registry = ActionRegistry()
         first = register_all(registry)
         second = register_all(registry)
-        assert first == 125
+        assert first == 126
         assert second == 0
 
     def test_find_by_category(self) -> None:
@@ -184,6 +184,19 @@ class TestSystemActions:
         dt = await registry.execute("datetime", role="admin")
         assert dt.status == "ok"
         assert dt.data["iso"]
+
+    async def test_role_list(self) -> None:
+        """Autoconhecimento (14/11): os 5 papéis vêm do Permission Engine
+        — nunca do LLM (que inventou operator/auditor em 14/11)."""
+        registry = self._registry()
+        result = await registry.execute("role_list", role="admin")
+        assert result.status == "ok"
+        assert result.data["total"] == 5
+        nomes = {p["name"] for p in result.data["roles"]}
+        assert nomes == {"admin", "user", "familia", "agent", "router"}
+        # user precisa poder perguntar (ver test_security).
+        user = await registry.execute("role_list", role="user")
+        assert user.status == "ok"
 
     async def test_uptime_memory_cpu_hostname_user(self) -> None:
         registry = self._registry()
@@ -225,7 +238,7 @@ class TestSystemActions:
         registry = self._registry()
         listed = await registry.execute("action_list", role="admin")
         assert listed.status == "ok"
-        assert listed.data["count"] == 125
+        assert listed.data["count"] == 126
         info = await registry.execute(
             "action_info", params={"name": "git_status"}, role="admin"
         )
@@ -578,7 +591,7 @@ class TestActionsSecurity:
         assert snap["ok"] == 1
         assert snap["denied"] == 1
         assert registry.history[0]["status"] == "denied"
-        assert registry.dump()["actions"] == 125
+        assert registry.dump()["actions"] == 126
 
 
 # ===========================================================================

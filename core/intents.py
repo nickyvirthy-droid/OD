@@ -550,6 +550,18 @@ def _detect_operational(text: str) -> Optional[str]:
     if re.search(r"(informa[çc][õo]es|info|sobre|dados).{0,12}(do|da|sobre).{0,8}sistema", low) or \
        re.search(r"(qual|o que).{0,12}(sistema|m[aá]quina|servidor).{0,12}(tem|roda|usa)", low):
         return "system_info"
+    # PAPEIS DO OD (14/11): pergunta sobre o PRÓPIO sistema → resposta do
+    # CÓDIGO (Permission Engine), nunca do LLM frio. Em 14/11 15:42 o
+    # Gemini estava na cota, o groq respondeu frio e INVENTOU operator/
+    # developer/auditor/service account/guest (acerto 1 de 6) com "Estado
+    # verificado.". Exige menção ao OD: sem ela a frase é de outro sistema
+    # ("tipos de usuário do linux" segue para o LLM de propósito).
+    if re.search(
+        r"\b(pap[eé](?:is?|l)|roles?|tipos?\s+de\s+usu[aá]rios?|"
+        r"contas?\s+de\s+usu[aá]rio)\b",
+        low,
+    ) and re.search(r"\b(od|omega\s*drakon|drakon)\b", low):
+        return "role_list"
 
     # RÁDIO local (v1.0): stream direto na placa de som via ffplay + pactl
     # Comandos: "liga a rádio", "toca a rádio", "para a rádio", "desliga a rádio",
@@ -1958,6 +1970,30 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
         return (f"🖥️ {data.get('system')} {data.get('release')} "
                 f"({data.get('node')}) · {data.get('cores')} núcleos · "
                 f"Python {data.get('python')}")
+
+    if action == "role_list":
+        linhas = ["🔐 Papéis do OD (lidos do código — permissions.py):"]
+        for papel in data.get("roles", []):
+            linhas.append(f"  • {papel.get('name')} — {papel.get('desc')}")
+        hier = data.get("hierarquia") or {}
+        if hier:
+            linhas.append(
+                "Herança: "
+                + ", ".join(f"{filho} herda {pai}" for filho, pai in hier.items())
+                + "."
+            )
+        contas = data.get("contas") or []
+        if contas:
+            linhas.append("Contas no painel: " + " | ".join(contas) + ".")
+        linhas.append(
+            f"Papel desconhecido: {data.get('desconhecido', 'deny')} "
+            "(negado por padrão)."
+        )
+        linhas.append(
+            "Perfis (guardian, vox, Athenae…) são VOZES/personas, não "
+            "permissão."
+        )
+        return "\n".join(linhas)
 
     if action == "ip_address":
         addresses = data.get("addresses") or []

@@ -129,6 +129,52 @@ def system_info() -> dict[str, Any]:
     }
 
 
+def role_list() -> dict[str, Any]:
+    """Papéis de usuário do OD — lido do Permission Engine (código).
+
+    14/11: "quais os tipos de usuários de OD" foi para o LLM frio (Gemini
+    na cota → groq) e o modelo INVENTOU operator/developer/auditor/service
+    account/guest — acerto 1 de 6 — terminando com "Estado verificado.".
+    Papel é dado de sistema: sai do próprio `core/security/permissions.py`.
+    """
+    from core.security.permissions import (
+        DEFAULT_ROLE_PERMISSIONS,
+        ROLE_HIERARQUIA,
+        UNKNOWN_ROLE_POLICY,
+    )
+
+    descricoes = {
+        "admin": "dono: tudo (*), confirmado pela OD_API_KEY",
+        "user": "conta comum: conversa + leitura; sem escrita nem segredo",
+        "familia": "herda o user + a única escrita do lar (ha_device_control)",
+        "agent": "leitura interna (system, filesystem leitura, memory, "
+                 "knowledge, config.read)",
+        "router": "uso interno do roteador (router.*)",
+    }
+    papeis = [
+        {
+            "name": nome,
+            "desc": descricoes.get(nome, ""),
+            "permissoes": len(padroes),
+        }
+        for nome, padroes in sorted(DEFAULT_ROLE_PERMISSIONS.items())
+    ]
+    contas: list[str] = []
+    try:
+        from integrations.api.auth import PAPEIS_CONTA_VALIDOS
+        contas = list(PAPEIS_CONTA_VALIDOS)
+    except Exception:
+        pass
+    return {
+        "roles": papeis,
+        "total": len(papeis),
+        "hierarquia": dict(ROLE_HIERARQUIA),
+        "desconhecido": UNKNOWN_ROLE_POLICY,
+        "contas": contas,
+        "ts": time.time(),
+    }
+
+
 def datetime_now() -> dict[str, Any]:
     """Data/hora atual (UTC e local, ISO 8601)."""
     now = datetime.datetime.now()
@@ -4274,8 +4320,10 @@ F = {"type": "float"}
 L = {"type": "list"}
 
 CATALOG: list[dict[str, Any]] = [
-    # --- Sistema (13) ---
+    # --- Sistema (20) ---
     _spec("system_info", "system", "Informações gerais do sistema", system_info),
+    _spec("role_list", "system", "Papéis de usuário do OD (Permission Engine)",
+          role_list),
     _spec("datetime", "system", "Data/hora atual (ISO)", datetime_now),
     _spec("uptime", "system", "Uptime do sistema", uptime),
     _spec("disk_usage", "system", "Uso de disco", disk_usage,

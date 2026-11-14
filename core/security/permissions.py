@@ -100,6 +100,10 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "filesystem_tree", "filesystem_hash", "filesystem_search",
         "git_status", "git_branch", "git_log", "git_diff",
         "action_list", "action_info", "action_schema",
+        # Papéis do OD (14/11): autoconhecimento não é segredo — mesma
+        # natureza do action_list (só descreve o sistema). Evita a pergunta
+        # "quais os tipos de usuário de OD" cair negada em silêncio.
+        "role_list",
     ],
     # Papel FAMÍLIA (23/10, frente C da fila do dono): a conta comum de
     # casa que pode LIGAR/DESLIGAR aparelhos e luzes, mas nada além disso.

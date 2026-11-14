@@ -1133,3 +1133,78 @@ class TestPesquisaWeb:
 
         assert format_intent_result("web_search", {"ok": False}) is not None
         assert format_intent_result("web_search", {"ok": True}) is not None
+
+
+class TestPapeisOD:
+    """Autoconhecimento de papéis (14/11).
+
+    A pergunta "quais os tipos de usuários de OD" foi para o LLM frio
+    (Gemini na cota → groq) e o modelo INVENTOU operator/developer/
+    auditor/service account/guest — acerto 1 de 6, com "Estado verificado."
+    no fim (msg 1320, 15:42). Papel é dado de sistema: fastpath que lê o
+    Permission Engine, sem LLM.
+    """
+
+    @pytest.mark.parametrize(
+        "texto",
+        [
+            "quais os tipos de usuários de OD",
+            "quais os papéis do Omega Drakon",
+            "que roles existem no od?",
+            "qual o papel do drakon",
+            "quais são os tipos de conta de usuário do OD",
+        ],
+    )
+    def test_detecta_pergunta_sobre_papeis(self, texto: str) -> None:
+        from core.intents import detect_action_intent
+
+        achado = detect_action_intent(texto)
+        acao = achado[0] if achado else None
+        assert acao == "role_list", texto
+
+    @pytest.mark.parametrize(
+        "texto",
+        [
+            "quais os tipos de usuário do linux",   # outro sistema
+            "meu papel no sistema",                # sem menção ao OD
+            "quais os perfis do guardian",          # personas ≠ papéis
+            "quais os papéis de impressora",        # papel de impressora
+            "quem pode o que no omega drakon",      # pergunta de poder, não de papéis
+        ],
+    )
+    def test_fora_do_assunto_nao_dispara(self, texto: str) -> None:
+        from core.intents import detect_action_intent
+
+        achado = detect_action_intent(texto)
+        acao = achado[0] if achado else None
+        assert acao != "role_list", texto
+
+    def test_formatador_lista_os_cinco_papeis_do_codigo(self) -> None:
+        from core.intents import detect_action_intent, format_intent_result
+        from tools.actions.actions import role_list
+
+        acao, _params = detect_action_intent("quais os tipos de usuários de OD")
+        assert acao == "role_list"
+
+        txt = format_intent_result("role_list", role_list())
+        assert txt is not None
+        for papel in ("admin", "user", "familia", "agent", "router"):
+            assert papel in txt, papel
+        assert "familia herda user" in txt      # hierarquia
+        assert "deny" in txt                    # papel desconhecido negado
+        assert "personas" in txt                # perfis ≠ papel
+        # O que o LLM inventou em 14/11 — nunca pode aparecer aqui.
+        assert "operator" not in txt
+        assert "auditor" not in txt
+        assert "Estado verificado" not in txt
+
+    def test_handler_devolve_papel_real_do_codigo(self) -> None:
+        from tools.actions.actions import role_list
+
+        data = role_list()
+        assert data["total"] == 5
+        assert data["hierarquia"] == {"familia": "user"}
+        assert data["desconhecido"] == "deny"
+        assert data["contas"] == ["user", "familia"]
+        nomes = {p["name"] for p in data["roles"]}
+        assert nomes == {"admin", "user", "familia", "agent", "router"}
