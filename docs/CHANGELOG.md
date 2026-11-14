@@ -12,6 +12,54 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Lote de 13/11 fechado: R1 Task Queue, I1 no boot, web_search, escopo e pg_dump diário (2026-11-14, sem bump)
+
+**Resumo:** o lote produzido em 13/11 **depois** do checkpoint das 14:45
+estava na árvore sem commit, sem teste e sem registro — 8 arquivos
+modificados (+716/−27) e 8 novos. Fechado nesta data: defeitos corrigidos,
+cobertura própria, commits por assunto, publicação e restart do `od-core`.
+
+**O que entrou de fato:**
+
+- **R1 Task Queue** (`core/task_queue.py`): fila com prioridade, workers,
+  `RetryPolicy` exponencial com jitter, dead letter e persistência JSON
+  (recupera após restart). Seis rotas `/admin/tasks*` (criar, listar, SSE de
+  progresso, detalhe, retry, remover), só para o dono. Desligada por padrão
+  (`OD_TASK_QUEUE_ENABLED=0`).
+- **I1 Semantic Cache** montado no `build_orchestrator` (threshold 0.95
+  configurável, em processo, sem Redis) e exposto nas stats do boot.
+- **OpenAI** na cadeia por `OD_CHAT_PROVIDERS` e `OD_OPENAI_AUTO` (só checa a
+  existência da chave; crédito continua sem teste automático).
+- **Actions novas** (catálogo **123 → 125**): `web_search` (DuckDuckGo lite,
+  sem chave, degrada sem inventar) e `mapa_forca_consulta` (dado sensível,
+  nunca para LLM externo).
+- **Escopo:** `caminho`/`origem` entram em `_PATH_PARAM_KEYS` e `/tmp` passa a
+  ser raiz permitida **só** quando o caller não passa `allowed_roots` — fecha o
+  bypass da auditoria de 12/11.
+- **/health:** check `circuit_breakers` (27 → 28 itens), visível pela primeira
+  vez desde 11/11.
+- **pg_dump diário:** `runtime/pg_dump_diario.py` + `od-pg-dump.timer` (02:50),
+  gravando em `data/pg_dumps/` (entra no tar das 03:00, no offsite e no
+  snapshot das HDs), retenção de 14, aviso no Telegram a cada 6 h em falha.
+  Já estava vivo desde 13/11 (dumps de 13/11 17:32/17:33 e 14/11 02:50).
+- **Docs:** `docs/ARCHITECTURE_v2.md` e `docs/NV_DAG_SCHEDULER_REFERENCE.md`.
+
+**Defeitos medidos e corrigidos antes de publicar:** (1) a mesma task rodava
+**duas vezes** no `start()` (o disco era recarregado por cima da memória);
+(2) o JSON da task era apagado no `finally` justamente quando ela voltava para
+retry; (3) o dead letter ignorava o `queue_dir` da instância; (4)
+`GET /admin/tasks` estourava `AttributeError` (`_query_param` não existe);
+(5) o SSE repetia `task_running`/`task_completed` a cada segundo; (6)
+`_task_queue_or_503` estava definido duas vezes; (7) 14 falhas de gate por
+contagens fixas (123 ações / 124 rotas) que o lote não atualizou.
+
+**Testes:** `tests/test_task_queue.py` novo (16) + contagens atualizadas.
+**Gate: 4656 passed / 16 skipped / 0 falha (191,38 s).**
+
+**Sem bump:** app segue **1.44.0/2080** (mudanças de servidor/infra).
+**Regra nova:** 23 — atribuição obrigatória (autor, arquivos, intenção) em
+`iniciar/ATRIBUICOES.md`.
+
 ## Higiência do TODO (I4/I5 marcados, I1/I2 sem ligação) + refs extraídas para `data/refs_todo/` (2026-11-13, sem bump)
 
 **Resumo:** pergunta do dono ("o que temos pra fazer no TODO?") virou
