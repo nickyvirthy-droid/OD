@@ -595,11 +595,16 @@ esperar o timeout.
       hoje o prompt real devolve `429 quota exceeded` e quem responde é o Groq
 - [ ] Chat: incluir OpenAI na cadeia automaticamente quando as chaves tiverem
       saldo (hoje as duas dão `429 no credits remaining`; teste de crédito no boot)
+      — **13/11, não commitado: `OpenAIProvider` + `OD_OPENAI_AUTO`** (o auto
+      só checa se a chave existe, não se há crédito — o teste de crédito real
+      continua faltando)
 - [ ] Chat: cota do Groq visível/alertada no `/health` — sem alerta, o próximo
       limite cai no 3B local em silêncio
 - [ ] Pesquisa web: criar action de busca ("pesquise na internet …" hoje cai
       no LLM e ele recusa alegando não ter internet) — é a queixa literal do dono
-      em 11/11: "não está pesquisando"
+      em 11/11: "não está pesquisando" — **13/11, não commitado: `web_search`
+      (DuckDuckGo lite) existe no catálogo (123→125); FALTA a intenção em
+      `core/intents.py`, que não foi alterado — a frase ainda não a dispara**
 - [ ] R1: Task Queue (Redis/RQ) — sugestão recorrente de 11/11; segue aberta no
       roadmap da Semana 11-12
 
@@ -607,6 +612,13 @@ esperar o timeout.
 > escolhidas → "colocar o Gemini como 1º provider do chat", "criar action de
 > pesquisa web" e "formatador de radio_play/radio_stop" — todas já estão como
 > checkbox acima; nenhuma perdida.
+
+> Turno de 14/11 08:30 (registro da regra 21): sugestões mostradas e não
+> escolhidas → "fechar o lote pendente (gate, commits, push, restart)",
+> "remover a duplicata de `_task_queue_or_503` e testar a Task Queue" e
+> "ligar a `web_search` à intenção de pesquisa" — as três já estão no bloco
+> "Lote de 13/11 fora do registro" e nos checkboxes de R1/pesquisa web.
+> Nenhuma duplicada.
 
 > Turno de 11/11 15:35 (registro da regra 21): o texto exato das 3 sugestões
 > não foi persistido (são cartões efêmeros) — o que ficou registrado é o que o
@@ -679,13 +691,18 @@ esperar o timeout.
       foi embutido) e considerar zoom 15 em áreas urbanas se o uso pedir
 - [ ] **Backup fora da máquina:** SSD/pendrive criptografado com snapshot do
       Postgres + `data/` + cofre exportado; testar a restauração
-- [ ] **Backup do Postgres (dump automático):** hoje **nenhum** `pg_dump`
+- [x] **Backup do Postgres (dump automático):** hoje **nenhum** `pg_dump`
       roda em lugar algum — medido 13/11: sem crontab/timer, o tar diário
       cobre `.env` + `data/` (SQLite) e o snapshot das HDs não inclui
       `/var/lib/postgresql`; o único dump era manual (16/10). Criar job
       diário `pg_dump` para `backups/auto/` com retenção + offsite
       (enquanto isso há um dump pontual de 13/11 — 32 KB, 14 tabelas —
       que viajou para a HD do dono junto com o resto de `backups/`)
+      — **FEITO 13/11 e VERIFICADO VIVO em 14/11: `runtime/pg_dump_diario.py`
+      + `systemd/od-pg-dump.{service,timer}` (02:50, 10 min antes do tar);
+      timer instalado e rodando: dumps de 13/11 17:32/17:33 e 14/11 02:50 em
+      `data/pg_dumps/` (33 KB, 14 tabelas), journal `OD // PG DUMP OK`.**
+      **Falta:** commit do código da unit (hoje está só na árvore)
 - [ ] **Modo colapso declarado:** trocar para a cadeia local e avisar no chat/UI
       quando a nuvem falhar N vezes (ou por ordem do dono)
 - [x] **IA local melhor:** medir Qwen2.5-7B q4_K_M contra o 3B atual (mesmo
@@ -802,6 +819,19 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       de viatura/efetivo). **Hoje: sem demanda, fica como referência.**
       Fontes extraídas 13/11 em `data/refs_todo/Projeti/Cod/`.
 
+### Lote de 13/11 fora do registro (levantado na retomada de 14/11)
+
+> Trabalho feito depois do checkpoint das 14:45 de 13/11: 8 modificados
+> (+716/−27) + 8 novos, **sem commit, sem registro e sem gate**. Detalhe em
+> `iniciar/2026-11-14_conversa_omegadrakon.md` §1. Só o `pg_dump` está vivo.
+
+- [ ] Fechar o lote: gate completo, commits por assunto, push e restart verde
+      com prova viva (hoje o `od-core` segue no código de 12/11)
+- [ ] R1: remover a duplicata de `_task_queue_or_503` e cobrir a Task Queue com
+      teste próprio (não existe `tests/test_task_queue.py`)
+- [ ] Resolver a decisão do `semantic_cache=` no boot (I1 já está passado no
+      launcher, mas a ligação em produção não foi validada nem aprovada)
+
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95) — **módulo e
       testes PRONTOS (conferido 13/11): `memory/semantic_cache.py`,
@@ -823,7 +853,12 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       `process_stream_sse()`; `tests/test_sse.py`; prova viva no CHANGELOG**
 
 ### Semana 11-12: Resiliência + Eval
-- [ ] R1: Task Queue (Redis/RQ) + RetryPolicy por nó
+- [ ] R1: Task Queue (Redis/RQ) + RetryPolicy por nó — **em 14/11 há um
+      `core/task_queue.py` NÃO COMMITADO (Task/Queue/Worker/RetryPolicy/
+      dead letter/persistência JSON, `OD_TASK_QUEUE_ENABLED=0` por padrão) com
+      rotas `/admin/tasks*` em `integrations/api/server.py`; ainda **sem
+      teste** e com `_task_queue_or_503` definido duas vezes no server. Não
+      está no ar (od-core roda o código de 12/11); decisão de ligar é do dono
 - [x] R2: Circuit Breaker em chamadas externas — feito sem `pybreaker`, por
       provider de LLM (`core/resilience.py`); bulkhead dispensado (ver §3)
 - [ ] R5: Eval Framework (LOCOMO subset + custom benchmarks) rodando no CI
