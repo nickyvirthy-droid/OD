@@ -755,11 +755,19 @@ esperar o timeout.
 > não foi persistido (são cartões efêmeros) — o que ficou registrado é o que o
 > próprio turno declarou em aberto, virando os checkboxes abaixo.
 
-- [ ] Chat: decidir se as **20 requisições/dia** do Gemini devem ser reservadas
-      para o que exige mais qualidade (rota/custo), em vez de serem gastas na
-      primeira mensagem do dia e abrirem o disjuntor
-- [ ] Chat: expor o **status dos disjuntores** (aberto/fechado + reativação) no
-      `/health` — hoje a decisão de quando o Gemini volta só existe no journal
+- [x] Chat: **reservar 20 req/dia do Gemini** — **ENTREGUE 14/11:** `QuotaTracker`
+      em `core/resilience.py` rastreia uso diário por provider (padrão: gemini=20,
+      groq=1000, openai=100, demais=ilimitado); persiste em `data/llm_quota.json`;
+      `_provider_tem_quota()` no Orchestrator pula provider sem cota antes de
+      tentar; `record_usage()` registra sucesso; `reserve()` permite reservar
+      para rotas prioritárias; providers desconhecidos têm cota ilimitada (não
+      quebram testes). Commit `ddf7b88`.
+- [x] Chat: expor o **status dos disjuntores** (aberto/fechado + reativação) no
+      `/health` — **JÁ ENTREGUE:** check `circuit_breakers` no HealthMonitor
+      (14/11, §15) mostra `llm:groq/gemini/gemma-local` com estado, falhas,
+      limite e tempo de recuperação. Exemplo: `3 fechados — llm:groq:fechado
+      (falhas=0/5,rec=30s); llm:gemini:fechado...` (não-crítico, degrada se
+      algum aberto).
 - [ ] Chat: `llm_cache` ainda pode servir resposta inventada de **conversa
       comum** (o guarda atual só bloqueia comando de action)
 
