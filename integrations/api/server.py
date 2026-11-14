@@ -7697,12 +7697,17 @@ class APIHandler(BaseHTTPRequestHandler):
             raise APIError(404, "task_inexistente")
         if task.status.value not in ("completed", "failed", "dead_letter"):
             raise APIError(409, "task_nao_terminal")
-        # Para dead letter, apaga o arquivo — DENTRO do queue_dir da
-        # instância (o caminho global deixava o arquivo para trás: o DELETE
-        # respondia 200 e o GET continuava devolvendo a task).
-        if task.status == "dead_letter":
+        # Apaga o arquivo terminal no diretório da INSTÂNCIA: dead letter em
+        # `dead_letter_dir`, concluída no histórico em `completed_dir` (o
+        # caminho global deixava o arquivo para trás: o DELETE respondia 200
+        # e o GET continuava devolvendo a task).
+        pasta = {
+            "dead_letter": tq.dead_letter_dir,
+            "completed": getattr(tq, "completed_dir", tq.queue_dir / "completed"),
+        }.get(task.status.value)
+        if pasta is not None:
             try:
-                (tq.dead_letter_dir / f"{task_id}.json").unlink(missing_ok=True)
+                (pasta / f"{task_id}.json").unlink(missing_ok=True)
             except Exception:
                 pass
         self._json(200, {"ok": True, "removido": task_id})

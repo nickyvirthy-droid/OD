@@ -22,6 +22,8 @@ Configuração via env:
 - OD_TASK_QUEUE_WORKERS=2
 - OD_TASK_QUEUE_MAX_RETRIES=3
 - OD_TASK_QUEUE_BACKOFF_BASE=5 (seconds)
+- OD_TASK_QUEUE_KEEP_COMPLETED=200 (histórico de concluídas em disco; poda
+  automática das mais antigas ao concluir e no start)
 """
 
 from __future__ import annotations
@@ -52,6 +54,7 @@ ENABLED = os.getenv("OD_TASK_QUEUE_ENABLED", "0") != "0"
 DEFAULT_WORKERS = int(os.getenv("OD_TASK_QUEUE_WORKERS", "2"))
 DEFAULT_MAX_RETRIES = int(os.getenv("OD_TASK_QUEUE_MAX_RETRIES", "3"))
 DEFAULT_BACKOFF_BASE = float(os.getenv("OD_TASK_QUEUE_BACKOFF_BASE", "5.0"))
+DEFAULT_KEEP_COMPLETED = int(os.getenv("OD_TASK_QUEUE_KEEP_COMPLETED", "200"))
 QUEUE_DIR = Path(os.getenv("OD_TASK_QUEUE_DIR", "data/task_queue"))
 
 
@@ -164,6 +167,7 @@ class TaskQueue:
         action_registry: Optional["ActionRegistry"] = None,
         workers: int = DEFAULT_WORKERS,
         default_retry_policy: Optional[RetryPolicy] = None,
+        keep_completed: int = DEFAULT_KEEP_COMPLETED,
     ) -> None:
         self.queue_dir = Path(queue_dir)
         self.queue_dir.mkdir(parents=True, exist_ok=True)
@@ -172,6 +176,12 @@ class TaskQueue:
         # em `data/task_queue/dead_letter` mesmo usando tmp_path.
         self.dead_letter_dir = self.queue_dir / "dead_letter"
         self.dead_letter_dir.mkdir(parents=True, exist_ok=True)
+        # Histórico de concluídas em subdiretório próprio: `_load_pending`
+        # faz glob de `queue_dir/*.json` e não pode ver concluídas como
+        # pendentes. A poda mantém só as `keep_completed` mais recentes.
+        self.completed_dir = self.queue_dir / "completed"
+        self.completed_dir.mkdir(parents=True, exist_ok=True)
+        self._keep_completed = max(0, keep_completed)
 
         self._action_registry = action_registry
         self._workers = max(1, workers)
@@ -276,6 +286,9 @@ class TaskQueue:
         loaded = self._load_pending()
         if loaded:
             log.info("TaskQueue: tasks recuperadas do disco", count=loaded)
+        podadas = self._prune_completed()
+        if podadas:
+            log.info("TaskQueue: histórico de concluídas podado", removidas=podadas)
 
         self._running_flag = True
         self._shutdown_event.clear()
@@ -379,6 +392,9 @@ class TaskQueue:
                 task.finished_ts = time.time()
                 with self._lock:
                     self._metrics["completed"] += 1
+                # Histórico: fica visível em GET/lista até a poda (antes o
+                # registro era apagado e a task recém-concluída virava 404).
+                self._persist_completed(task)
             else:
                 raise RuntimeError(f"Action falhou: {result.error} ({result.status})")
 
@@ -399,14 +415,61 @@ class TaskQueue:
                 await self._handle_failure(task)
         finally:
             self._running.pop(task.task_id, None)
-            # Remove o arquivo SÓ quando a task terminou: em retry ela volta
-            # para a fila e o JSON é a garantia de sobreviver a um restart
-            # (antes o finally apagava o arquivo recém-persistido).
+            # Remove o arquivo da fila SÓ quando a task terminou: em retry ela
+            # volta para a fila e o JSON é a garantia de sobreviver a um
+            # restart (antes o finally apagava o arquivo recém-persistido).
+            # A concluída é preservada em `completed/`; o dead letter é
+            # preservado em `dead_letter/`.
             if task.status in (TaskStatus.COMPLETED, TaskStatus.DEAD_LETTER):
                 try:
                     (self.queue_dir / f"{task.task_id}.json").unlink(missing_ok=True)
                 except Exception:
                     pass
+            if task.status == TaskStatus.COMPLETED:
+                self._prune_completed()
+
+    def _persist_completed(self, task: Task) -> None:
+        """Grava o registro da task concluída no histórico (best-effort)."""
+        try:
+            path = self.completed_dir / f"{task.task_id}.json"
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(task.to_dict(), ensure_ascii=False, indent=2),
+                           encoding="utf-8")
+            tmp.replace(path)
+        except Exception as exc:
+            log.warn("TaskQueue: falha ao arquivar task concluída",
+                     task_id=task.task_id, error=str(exc))
+
+    def _prune_completed(self) -> int:
+        """Mantém só as `_keep_completed` concluídas mais recentes (por
+        `finished_ts`; mtime do arquivo como reserva). Devolve quantas saíram."""
+        limite = self._keep_completed
+        try:
+            caminhos = list(self.completed_dir.glob("*.json"))
+        except OSError:
+            return 0
+        if len(caminhos) <= limite:
+            return 0
+
+        def ordem(path: Path) -> float:
+            try:
+                return float(json.loads(path.read_text(encoding="utf-8"))
+                             .get("finished_ts") or path.stat().st_mtime)
+            except Exception:
+                try:
+                    return path.stat().st_mtime
+                except OSError:
+                    return 0.0
+
+        caminhos.sort(key=ordem)
+        removidas = 0
+        for path in caminhos[: len(caminhos) - limite]:
+            try:
+                path.unlink(missing_ok=True)
+                removidas += 1
+            except OSError:
+                pass
+        return removidas
 
     async def _handle_failure(self, task: Task) -> None:
         """Move task para dead letter após esgotar retries."""
@@ -425,7 +488,7 @@ class TaskQueue:
         log.error("Task movida para dead letter", task_id=task.task_id, error=task.last_error)
 
     def get_task(self, task_id: str) -> Optional[Task]:
-        """Busca task por ID (running, pending ou dead letter)."""
+        """Busca task por ID (running, pending, concluída ou dead letter)."""
         with self._lock:
             if task_id in self._running:
                 return self._running[task_id]
@@ -433,7 +496,11 @@ class TaskQueue:
                 if t.task_id == task_id:
                     return t
         # Tenta carregar do disco
-        for path in [self.queue_dir / f"{task_id}.json", self.dead_letter_dir / f"{task_id}.json"]:
+        for path in [
+            self.queue_dir / f"{task_id}.json",
+            self.completed_dir / f"{task_id}.json",
+            self.dead_letter_dir / f"{task_id}.json",
+        ]:
             if path.exists():
                 try:
                     return Task.from_dict(json.loads(path.read_text(encoding="utf-8")))
@@ -451,14 +518,16 @@ class TaskQueue:
             for t in self._pending:
                 if status is None or t.status == status:
                     tasks.append(t)
-        # Dead letter do disco
-        for path in self.dead_letter_dir.glob("*.json"):
-            try:
-                task = Task.from_dict(json.loads(path.read_text(encoding="utf-8")))
-                if status is None or task.status == status:
-                    tasks.append(task)
-            except Exception:
-                pass
+        # Histórico de concluídas + dead letter do disco (mais recente no
+        # arquivo; a ordenação final é prioridade/created_ts como o resto).
+        for pasta in (self.completed_dir, self.dead_letter_dir):
+            for path in pasta.glob("*.json"):
+                try:
+                    task = Task.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                    if status is None or task.status == status:
+                        tasks.append(task)
+                except Exception:
+                    pass
         tasks.sort(key=lambda t: (-t.priority, t.created_ts))
         return tasks[:limit]
 
@@ -501,6 +570,7 @@ def build_task_queue(action_registry: Optional["ActionRegistry"] = None) -> Opti
                 max_retries=DEFAULT_MAX_RETRIES,
                 backoff_base=DEFAULT_BACKOFF_BASE,
             ),
+            keep_completed=DEFAULT_KEEP_COMPLETED,
         )
         if action_registry:
             queue.set_action_registry(action_registry)

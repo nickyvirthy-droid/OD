@@ -147,8 +147,36 @@ class TestWorkers:
         assert t.result == {"echo": "system_info"}
         assert registry.chamadas[0]["role"] == "admin"
         assert fila.metrics()["completed"] == 1
-        # Task concluída não fica no disco.
+        # Não fica no diretório da fila (nada de virar "pendente" no
+        # restart), mas fica no histórico de concluídas.
         assert not (fila.queue_dir / f"{t.task_id}.json").exists()
+        assert (fila.completed_dir / f"{t.task_id}.json").exists()
+        assert fila.get_task(t.task_id).status == TaskStatus.COMPLETED
+
+    @pytest.mark.asyncio
+    async def test_historico_de_concluidas_visivel_e_podado(self, tmp_path: Path) -> None:
+        """Concluídas ficam consultáveis e a poda mantém só as N recentes."""
+        fila = TaskQueue(queue_dir=tmp_path / "fila", action_registry=_RegistryFalso(),
+                         workers=1, keep_completed=2)
+        await fila.start()
+        concluidas = []
+        for i in range(4):
+            t = fila.enqueue("system_info", {"i": i},
+                             retry_policy=RetryPolicy(max_retries=0, backoff_base=0.0))
+            for _ in range(150):
+                if t.status == TaskStatus.COMPLETED:
+                    break
+                await asyncio.sleep(0.02)
+            assert t.status == TaskStatus.COMPLETED, t.last_error
+            concluidas.append(t)
+        await fila.stop()
+
+        restantes = {p.stem for p in fila.completed_dir.glob("*.json")}
+        assert restantes == {concluidas[-1].task_id, concluidas[-2].task_id}
+        assert fila.get_task(concluidas[-1].task_id).status == TaskStatus.COMPLETED
+        assert fila.get_task(concluidas[0].task_id) is None
+        lista = fila.list_tasks(status=TaskStatus.COMPLETED)
+        assert {t.task_id for t in lista} == restantes
 
     @pytest.mark.asyncio
     async def test_task_real_no_action_registry_real(self, tmp_path: Path) -> None:
@@ -327,6 +355,33 @@ class TestTaskQueueAPI:
         t.status = TaskStatus.DEAD_LETTER
         caminho = fila.dead_letter_dir / f"{t.task_id}.json"
         caminho.write_text(json.dumps(t.to_dict()), encoding="utf-8")
+
+        status, _ = _request(srv.bound_port, "DELETE",
+                             f"/admin/tasks/{t.task_id}", api_key="segredo123")
+        assert status == 200
+        assert not caminho.exists()
+        status, _ = _request(srv.bound_port, "GET",
+                             f"/admin/tasks/{t.task_id}", api_key="segredo123")
+        assert status == 404
+
+    def test_task_concluida_visivel_e_delete_remove(self, servidor_tasks) -> None:
+        """Concluída responde em GET/lista e o DELETE apaga o histórico."""
+        srv, fila = servidor_tasks
+        t = Task(action_name="system_info")
+        t.status = TaskStatus.COMPLETED
+        t.finished_ts = 1.0
+        caminho = fila.completed_dir / f"{t.task_id}.json"
+        caminho.write_text(json.dumps(t.to_dict()), encoding="utf-8")
+
+        status, corpo = _request(srv.bound_port, "GET",
+                                 f"/admin/tasks/{t.task_id}", api_key="segredo123")
+        assert status == 200
+        assert _json_body(corpo)["task"]["status"] == "completed"
+
+        status, corpo = _request(srv.bound_port, "GET",
+                                 "/admin/tasks?status=completed", api_key="segredo123")
+        assert status == 200
+        assert any(x["task_id"] == t.task_id for x in _json_body(corpo)["tasks"])
 
         status, _ = _request(srv.bound_port, "DELETE",
                              f"/admin/tasks/{t.task_id}", api_key="segredo123")
