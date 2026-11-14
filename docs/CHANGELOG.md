@@ -26,8 +26,10 @@ cobertura própria, commits por assunto, publicação e restart do `od-core`.
   (recupera após restart). Seis rotas `/admin/tasks*` (criar, listar, SSE de
   progresso, detalhe, retry, remover), só para o dono. Desligada por padrão
   (`OD_TASK_QUEUE_ENABLED=0`).
-- **I1 Semantic Cache** montado no `build_orchestrator` (threshold 0.95
-  configurável, em processo, sem Redis) e exposto nas stats do boot.
+- **I1 Semantic Cache** passível de ligação no `build_orchestrator`
+  (`OD_SEMANTIC_CACHE_ENABLED=1`; threshold 0.95, em processo, sem Redis) —
+  **desligado por padrão**, porque ligar muda o comportamento das respostas e
+  a decisão é do dono (TODO §Semana 9-10).
 - **OpenAI** na cadeia por `OD_CHAT_PROVIDERS` e `OD_OPENAI_AUTO` (só checa a
   existência da chave; crédito continua sem teste automático).
 - **Actions novas** (catálogo **123 → 125**): `web_search` (DuckDuckGo lite,

@@ -368,23 +368,29 @@ def build_orchestrator(database: Any = None) -> Any:
     enciclopedia = build_enciclopedia()
     from memory.rag import janela_do_modelo
 
-    # Semantic Cache (I1) — cache de respostas LLM por similaridade de embeddings
-    # Threshold padrão 0.95 (configurável via OD_SEMANTIC_CACHE_THRESHOLD)
-    semantic_cache = SemanticCache(
-        cache_dir=DATA_DIR / "semantic_cache",
-        profile=profile,
-        max_entries=int(env("OD_SEMANTIC_CACHE_MAX_ENTRIES", "5000")),
-        ttl_seconds=float(env("OD_SEMANTIC_CACHE_TTL", "86400")),
-        similarity_threshold=float(env("OD_SEMANTIC_CACHE_THRESHOLD", "0.95")),
-        llm_cache=None,  # pode injetar LLMCache se quiser fallback exato
-    )
-    loaded = semantic_cache.load()
-    log.info(
-        "Semantic Cache montado",
-        entries=loaded,
-        threshold=float(env("OD_SEMANTIC_CACHE_THRESHOLD", "0.95")),
-        max_entries=int(env("OD_SEMANTIC_CACHE_MAX_ENTRIES", "5000")),
-    )
+    # Semantic Cache (I1) — DESLIGADO por padrão (OD_SEMANTIC_CACHE_ENABLED=1).
+    # A decisão de ligar é do dono (TODO §Semana 9-10): na similaridade ≥ 0.95
+    # uma pergunta parecida pode receber a resposta da anterior, e isso muda o
+    # comportamento do chat. O código fica pronto; quem liga é o `.env`.
+    semantic_cache = None
+    if env("OD_SEMANTIC_CACHE_ENABLED", "0") not in ("0", "", "false"):
+        semantic_cache = SemanticCache(
+            cache_dir=DATA_DIR / "semantic_cache",
+            profile=profile,
+            max_entries=int(env("OD_SEMANTIC_CACHE_MAX_ENTRIES", "5000")),
+            ttl_seconds=float(env("OD_SEMANTIC_CACHE_TTL", "86400")),
+            similarity_threshold=float(env("OD_SEMANTIC_CACHE_THRESHOLD", "0.95")),
+            llm_cache=None,  # pode injetar LLMCache se quiser fallback exato
+        )
+        loaded = semantic_cache.load()
+        log.info(
+            "Semantic Cache montado",
+            entries=loaded,
+            threshold=float(env("OD_SEMANTIC_CACHE_THRESHOLD", "0.95")),
+            max_entries=int(env("OD_SEMANTIC_CACHE_MAX_ENTRIES", "5000")),
+        )
+    else:
+        log.info("Semantic Cache desligado (OD_SEMANTIC_CACHE_ENABLED=0)")
 
     orchestrator = Orchestrator(
         providers=providers,
@@ -419,7 +425,9 @@ def build_orchestrator(database: Any = None) -> Any:
         backend="db" if database else "json",
         rag=rag.dump() if rag is not None else "desligado",
         enciclopedia="ligada" if enciclopedia is not None else "desligada",
-        semantic_cache=semantic_cache.stats(),
+        semantic_cache=(
+            semantic_cache.stats() if semantic_cache is not None else "desligado"
+        ),
     )
     return orchestrator
 
