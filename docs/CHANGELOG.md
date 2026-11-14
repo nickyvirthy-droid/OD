@@ -52,9 +52,53 @@ existia). VersionCode **2081**.
 `site/index.html` (badge, card, versionCode) + `site/historico.html` · esta
 seção · `docs/README_VERSAO.md` §1.45.0.
 
-**Estado:** APK publicado em `site/` e anunciado por `/app/version`; a fila
-continua **desligada** em produção (`OD_TASK_QUEUE_ENABLED=0`) — ligar é
-decisão do dono.
+**Estado:** APK publicado em `site/` e anunciado por `/app/version`.
+
+### Task Queue LIGADA em produção — custo medido (14/11, sem bump)
+
+**Ordem do dono:** ligar a fila com **1 worker** e medir o custo real de
+CPU/RAM. `OD_TASK_QUEUE_ENABLED=1` e `OD_TASK_QUEUE_WORKERS=1` no `.env`
+(gitignored); restam os defaults (3 retries, backoff 5 s, 200 concluídas).
+
+**Defeito real achado na medição:** com a fila ligada, o boot logava
+`TaskQueue iniciado | workers=1`, mas `GET /admin/tasks` respondia **503 para
+sempre** — `build_api_server` recebia `task_queue` na assinatura e **não o
+repassava ao `APIConfig`**. Corrigido + guarda (`test_build_api_server_repassa_a_fila`).
+
+**Custo medido** (mesmo método: `/proc/<pid>` a cada 1 s; máquina de 7,8 GB,
+4 vCPUs):
+
+| cenário | CPU do processo | RSS mediano | RSS máx | delta RSS |
+|---|---|---|---|---|
+| fila **desligada** (60 s ociosos) | 3,65% | 226,0 MB | 233,1 MB | — |
+| fila **ligada, 1 worker** (60 s ociosos) | 3,20% | 231,1 MB | 245,3 MB | +5,1 MB |
+| **rajada de 50 tasks reais** (`filesystem_exists`) | **14,03%** | — | — | **+0,1 MB** |
+| depois da rajada + limpeza (60 s ociosos) | 3,25% | 200,7 MB | 207,7 MB | +7,0 MB no boot |
+
+- **Rajada:** 50 tasks em **3,42 s** (68 ms por task incluindo o `POST` e o
+  polling), execução da action **p50 0,7 ms / máx 3,5 ms**, todas `completed`.
+- **Retry em produção:** task com `max_retries=2` / backoff 2 s → tentativa 1
+  em 1,4 s e **dead letter em 6,01 s** (2 tentativas, jitter 2–4 s), erro real
+  (`FileNotFoundError`) preservado.
+- **Retry pela rota:** `POST /admin/tasks/{id}/retry` devolveu 200 com task
+  nova (e 409 ao apagar task ainda ativa — comportamento correto).
+- **Limpeza:** 52 registros de teste removidos por `DELETE`, 0 restantes,
+  `data/task_queue/completed/` e `dead_letter/` vazios.
+- **Custo no contexto:** com 1 worker o processo gasta ~0,13 core durante a
+  rajada e não passa de **~208 MB**; a máquina tem **4.190 MB disponíveis** e
+  4 vCPUs — folga larga para 1 worker.
+
+**Achado do gate (RAG, sem bump):** ao rodar a suíte com esta seção nova,
+`TestCalibracaoCorpusReal` falhou — o alvo da pergunta "projeto nômade"
+(o chunk `[1.26.0]` deste arquivo) estava **exatamente na 24ª posição** e as
+duas seções novas o empurraram para 26ª, fora do pool. **Piso intocado**
+(0.399/0.036); `TOP_K_CANDIDATOS` 24 → **32**, com grid refeito: 600 células
+válidas (ms 0.394..0.403 × mo 0.001..0.060), **8/8 relevantes + 8/8
+irrelevantes + 6/6 parafrases**, piso vigente dentro da região (margem
+0.4038 vs 0.3936 da irrelevante mais alta).
+
+**Sem bump:** correção/ligação de servidor — o APK e o contrato do app não
+mudaram; o número da release continua **1.45.0+2081**.
 
 ## Task Queue no painel e no app: histórico com status e resultado (2026-11-14, sem bump)
 

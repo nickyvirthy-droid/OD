@@ -679,11 +679,14 @@ esperar o timeout.
 > (checkbox I1 da Semana 9-10) e "provar a Task Queue com um job real" (novo
 > checkbox abaixo). Nenhuma perdida.
 
-- [ ] Task Queue: **ligar em produção** com `OD_TASK_QUEUE_ENABLED=1` — o
-      teste controlado foi feito em 14/11 (sandbox, API + registry + catálogo
-      reais): task real concluída em 1,0 s, retry medido (1,0 s → 2,7 s →
-      dead letter em 6,5 s) e DELETE limpando o dead letter. Falta a decisão
-      do dono sobre workers/custo no servidor de 7,7 GB (`OD_TASK_QUEUE_WORKERS`)
+- [x] Task Queue: **ligar em produção** — **LIGADA em 14/11** com
+      `OD_TASK_QUEUE_WORKERS=1`: custo medido com `/proc` (ocioso 3,20% CPU /
+      231 MB; rajada de 50 tasks reais 14,03% CPU, +0,1 MB, 68 ms/task, p50 de
+      execução 0,7 ms; retry real com dead letter em 6,01 s). Achado e
+      corrigido no caminho: o `task_queue` nunca chegava ao `APIConfig`
+      (503 permanente). 52 registros de teste removidos no fim. O gate também
+      acusou o pool do RAG no limite (alvo na 24ª posição): `TOP_K_CANDIDATOS`
+      24 → **32**, medido com grid (600 células válidas, 8/8 + 8/8 + 6/6)
 - [x] Task Queue: **task concluída some da API** (achado de 14/11) — **ENTREGUE
       14/11: histórico em `queue_dir/completed/`, visível no `GET`/lista, com
       `OD_TASK_QUEUE_KEEP_COMPLETED` (200) e poda automática das mais antigas;

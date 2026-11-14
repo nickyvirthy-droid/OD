@@ -566,3 +566,63 @@ Commit `a1f362a` publicado; `od-core` reiniciado: **MainPID 2699533**,
 - `/admin/tasks` → **503** (fila desligada, esperado).
 
 Telegram do dono: `ok=true`, msg 3999.
+
+## §13 — Fila LIGADA em produção (1 worker) com custo medido + achado do RAG (14/11 ~16:20–18:00)
+
+**Pedido do dono:** "Ligue a fila em produção com 1 worker e meça o custo real
+de CPU/RAM".
+
+### 1. Ligação
+
+- `.env` (gitignored, backup em `/tmp/od_env_backup_<ts>`):
+  `OD_TASK_QUEUE_ENABLED=1` e `OD_TASK_QUEUE_WORKERS=1`; defaults mantidos
+  (3 retries, backoff 5 s, 200 concluídas).
+- `od-core` é unidade **de usuário** (`systemctl --user`), não de sistema.
+- Boot: `TaskQueue iniciado | workers=1 | pending=0`; `GET /admin/tasks` 200.
+
+### 2. Custo medido (`/proc/<pid>`, 1 s de amostragem)
+
+| cenário | CPU | RSS mediano | RSS máx | delta |
+|---|---|---|---|---|
+| fila desligada | 3,65% | 226,0 MB | 233,1 MB | — |
+| ligada ociosa | 3,20% | 231,1 MB | 245,3 MB | +5,1 MB |
+| rajada 50 tasks reais | **14,03%** | — | — | +0,1 MB |
+| pós-rajada ociosa | 3,25% | 200,7 MB | 207,7 MB | — |
+
+- Rajada: 50 tasks em 3,42 s (68 ms/task com POST + polling), execução
+  p50 0,7 ms / máx 3,5 ms; máquina 7845 MB (4190 livres), 4 vCPUs.
+- Retry em produção: `max_retries=2`/backoff 2 s → tentativa 1 em 1,4 s,
+  **dead letter em 6,01 s**; `POST .../retry` 200; `DELETE` de task ativa 409.
+- Limpeza: 52 registros de teste por `DELETE` → 0 restantes.
+
+### 3. Defeito real achado na medição
+
+Boot logava a fila iniciada mas `GET /admin/tasks` devolvia **503 para
+sempre**: `build_api_server` recebia `task_queue` na assinatura e **não o
+repassava ao `APIConfig`**. Corrigido em `runtime/launcher.py` + guarda
+`test_build_api_server_repassa_a_fila` (commit `459decb`).
+
+### 4. Achado do gate e correção medida (RAG)
+
+Com a seção nova do CHANGELOG, `TestCalibracaoCorpusReal` falhou: o alvo do
+"projeto nômade" (`[1.26.0]` do CHANGELOG) estava **na 24ª posição** e os dois
+chunks novos o moveram para 26ª — fora do pool de 24. Medição mostrou que o
+piso estava certo e o **pool** no limite: grid com `TOP_K=32` → 600 células
+válidas (ms 0.394..0.403 × mo 0.001..0.060), 8/8 relevantes, 8/8
+irrelevantes e 6/6 parafrases, piso (0.399/0.036) dentro da região
+(margem 0.4038 vs 0.3936). `TOP_K_CANDIDATOS` 24 → 32, piso intocado.
+
+### 5. Validação e prova viva
+
+- Gate completo: **4679 passed / 16 skipped / 0 falha** (198,27 s);
+  `tests/test_rag.py` 93/93.
+- `od-core` reiniciado: MainPID **2752075**, `NRestarts=0`, journal `-p err`
+  0 entradas; `/health` **ok=true, 28 itens**; `/admin/tasks` **200** com
+  `count=0`.
+
+### 6. Limitações declaradas
+
+- Custo medido é de 1 worker ocioso + rajada de `filesystem_exists`; não cobre
+  action de LLM longa (aí o custo é do modelo, não da fila).
+- O pool 32 tem folga medida até a 26ª posição; novas seções diárias de
+  CHANGELOG/transcrição continuam empurrando alvos — o gate é o alarme.

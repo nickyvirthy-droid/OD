@@ -9,6 +9,47 @@
 
 ---
 
+## 14/11/2026 — Task Queue LIGADA em produção (1 worker), custo medido e pool do RAG
+
+**Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.
+
+### Criados
+
+- Nenhum arquivo novo versionado (medição em `/tmp`, descartada).
+
+### Modificados
+
+- `runtime/launcher.py` — `build_api_server` repassa `task_queue` ao
+  `APIConfig` (fix do 503 permanente, commit `459decb`).
+- `tests/test_task_queue.py` — `test_build_api_server_repassa_a_fila`.
+- `memory/rag.py` — `TOP_K_CANDIDATOS` 24 → **32** (medição do gate; piso
+  0.399/0.036 intocado).
+- `tests/test_rag.py` — fixture `rag_real` com `top_k=32` + nota da
+  recalibração de 14/11.
+- `.env` (gitignored) — `OD_TASK_QUEUE_ENABLED=1`, `OD_TASK_QUEUE_WORKERS=1`.
+- `docs/CHANGELOG.md` (§Task Queue, com a medição e o achado do RAG),
+  `docs/ANALISE_SISTEMA_TODO.md` (checkbox da fila fechado),
+  `iniciar/session.json`, `iniciar/2026-11-14_conversa_omegadrakon.md` (§13).
+
+### Intenção e estado
+
+- **Intenção:** ligar a fila com 1 worker e medir o custo real de CPU/RAM,
+  sem bump (servidor não mudou o APK nem o contrato do app).
+- **Custo medido** (`/proc`, 1 s): ocioso ligado 3,20% CPU / 231,1 MB (mediana)
+  contra 3,65% / 226,0 MB desligado (+5,1 MB); rajada de 50 tasks reais
+  14,03% CPU, +0,1 MB, 68 ms/task (execução p50 0,7 ms); retry real com dead
+  letter em 6,01 s. Máquina: 4190 MB livres, 4 vCPUs.
+- **Achados:** (1) `GET /admin/tasks` respondia 503 com a fila ligada —
+  `task_queue` não chegava ao `APIConfig`; (2) o gate do RAG caiu porque o
+  chunk-alvo estava na 24ª posição do pool (medição → 32).
+- **Estado entregue:** gate **4679 passed / 16 skipped / 0 falha**,
+  `test_rag.py` 93/93, `od-core` (unidade de usuário) reiniciado com MainPID
+  2752075, `/health` 28/28, `/admin/tasks` 200 com 0 tarefas, journal 0 erros.
+- **Limitação:** o custo medido não cobre action de LLM longa (o custo ali é
+  do modelo, não da fila).
+
+---
+
 ## 14/11/2026 — Release v1.45.0+2081 (APK com a aba Tarefas)
 
 **Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.

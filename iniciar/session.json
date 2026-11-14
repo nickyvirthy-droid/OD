@@ -1,4 +1,17 @@
 {
+  "task_queue_ligada_producao_2026_11_14": {
+    "pedido": "Dono (14/11 ~16:20): 'Ligue a fila em produção com 1 worker e meça o custo real de CPU/RAM'. Checkpoint anterior: release_1_45_0_2026_11_14.",
+    "ligacao": "OD_TASK_QUEUE_ENABLED=1 e OD_TASK_QUEUE_WORKERS=1 no .env (gitignored, backup em /tmp/od_env_backup_<ts>); defaults mantidos (3 retries, backoff 5 s, 200 concluidas). od-core e unidade de USUARIO (systemctl --user restart od-core). Boot: TaskQueue iniciado | workers=1 | pending=0; GET /admin/tasks 200 (antes 503).",
+    "custo_medido": "Metodo /proc/<pid> a cada 1 s, mesma maquina (7845 MB, 4190 livres, 4 vCPUs). Desligada: 3,65% CPU, RSS mediano 226,0 MB, max 233,1 MB. Ligada ociosa: 3,20% CPU, 231,1 MB mediano, 245,3 MB max (+5,1 MB). Rajada de 50 tasks reais (filesystem_exists): 14,03% CPU, +0,1 MB, 3,42 s total (68 ms/task com POST+polling), execucao p50 0,7 ms / max 3,5 ms. Pos-rajada ociosa: 3,25% CPU, 200,7 MB / 207,7 MB.",
+    "retry_producao": "task com max_retries=2 e backoff 2 s: tentativa 1 em 1,4 s, dead letter em 6,01 s (FileNotFoundError preservado); POST /admin/tasks/{id}/retry = 200 com task nova; DELETE de task ativa = 409 (correto). 52 registros de teste removidos por DELETE -> 0 restantes, completed/ e dead_letter/ vazios.",
+    "defeito_503": "Com a fila ligada o boot logava 'TaskQueue iniciado | workers=1' mas GET /admin/tasks respondia 503 permanente: build_api_server recebia task_queue na assinatura e nao o repassava ao APIConfig. Corrigido em runtime/launcher.py + guarda test_build_api_server_repassa_a_fila (commit 459decb).",
+    "achado_rag": "Com a secao nova do CHANGELOG o gate TestCalibracaoCorpusReal falhou: o chunk-alvo ([1.26.0] do CHANGELOG) estava exatamente na 24a posicao e os 2 chunks novos o jogaram para 26a, fora do pool. Medicao: piso certo (0.399/0.036 intocado), pool no limite. TOP_K_CANDIDATOS 24 -> 32; grid refeito: 600 celulas validas (ms 0.394..0.403 x mo 0.001..0.060), 8/8 relevantes + 8/8 irrelevantes + 6/6 parafrases, piso dentro da regiao (margem 0.4038 vs 0.3936).",
+    "testes": "Gate completo 4679 passed / 16 skipped / 0 falha (198,27 s); tests/test_rag.py 93/93. Sem bump: servidor nao mudou APK nem contrato do app; release segue 1.45.0+2081.",
+    "deploy": "restart od-core (unidade de usuario) MainPID 2752075, NRestarts=0, journal -p err 0 entradas; /health ok=true 28 itens; /admin/tasks 200 com count=0; X-API-Key = OD_API_KEY.",
+    "limitacoes": "O custo medido cobre worker ocioso e rajada de action rapida; nao cobre action de LLM longa (custo e do modelo). O pool 32 tem folga medida ate a 26a posicao; novas secoes diarias continuam empurrando alvos - o gate e o alarme.",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§13)",
+    "updated_at": "2026-11-14T18:00:00-03:00"
+  },
   "release_1_45_0_2026_11_14": {
     "pedido": "Dono (14/11 ~15:20): 'Publique o APK com a aba Tarefas, fazendo o bump SemVer e o checklist de release'. Checkpoint anterior: task_queue_painel_app_2026_11_14.",
     "bump": "MINOR 1.44.0 -> 1.45.0, versionCode 2080 -> 2081, nas 7 fontes do docs/VERSIONAMENTO.md §5: .env OD_VERSION, fallback congelado (core/capabilities.py), app/pubspec.yaml, _APP_VERSION_CODE (server.py), site/index.html (badge+card+versionCode), site/historico.html (linha + contagens 76/10), docs/CHANGELOG.md ([1.45.0]) e docs/README_VERSAO.md (§1.45.0).",
