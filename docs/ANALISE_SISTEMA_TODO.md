@@ -600,9 +600,17 @@ esperar o timeout.
       continua faltando)
 - [ ] Chat: cota do Groq visível/alertada no `/health` — sem alerta, o próximo
       limite cai no 3B local em silêncio
-- [ ] Pesquisa web: criar action de busca ("pesquise na internet …" hoje cai
+- [x] Pesquisa web: criar action de busca ("pesquise na internet …" hoje cai
       no LLM e ele recusa alegando não ter internet) — é a queixa literal do dono
-      em 11/11: "não está pesquisando" — **13/11, não commitado: `web_search`
+      em 11/11: "não está pesquisando" — **ENTREGUE 14/11: `web_search`
+      (DuckDuckGo lite) no catálogo E ligada à intenção do chat (`core/intents`
+      reconhece pesquise/busque/procure + veículo + conector); prova viva
+      1,05 s / 0,74 s com 5 resultados reais; sem fonte, degradação honesta**
+- [ ] Pesquisa web nos papéis `user`/`família`: `web_search` não está nas listas
+      de `core/security/permissions.py` (só admin), então fora do dono a frase
+      cai em negação silenciosa e volta ao LLM. É leitura pública como
+      `exchange_rate` e `weather_city` (que já foram incluídas) — incluir é
+      decisão do dono sobre expor busca para a família
       (DuckDuckGo lite) existe no catálogo (123→125); FALTA a intenção em
       `core/intents.py`, que não foi alterado — a frase ainda não a dispara**
 - [ ] R1: Task Queue (Redis/RQ) — sugestão recorrente de 11/11; segue aberta no
@@ -612,6 +620,16 @@ esperar o timeout.
 > escolhidas → "colocar o Gemini como 1º provider do chat", "criar action de
 > pesquisa web" e "formatador de radio_play/radio_stop" — todas já estão como
 > checkbox acima; nenhuma perdida.
+
+> Turno de 14/11 09:45 (registro da regra 21): sugestões mostradas e não
+> escolhidas → "expor a pesquisa web para família/user" (checkbox novo de
+> `web_search` nos papéis), "provar a fila com um job real" (checkbox da Task
+> Queue) e "medir o acerto do LLMCache exato" (novo checkbox abaixo). Nenhuma
+> perdida.
+
+- [ ] Cache exato: medir o hit rate do `LLMCache` no uso real (quantas
+      mensagens repetem texto literal) antes de investir em qualquer cache
+      semântico — hoje não há número, só a impressão de que repetem pouco
 
 > Turno de 14/11 09:15 (registro da regra 21): sugestões mostradas e não
 > escolhidas → "ligar a `web_search` à intenção de pesquisa" (já no bloco do
@@ -849,7 +867,14 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       threshold 0.95 (`OD_SEMANTIC_CACHE_THRESHOLD`), em processo (sem
       Redis); `tests/test_semantic_cache.py`. FALTA LIGAR: nenhum ponto da
       produção passa `semantic_cache=` — o orquestrador roda com `None`.
-      Ligar é decisão do dono (risco: servir resposta parecida na ≥0.95)**
+      Ligar é decisão do dono (risco: servir resposta parecida na ≥0.95)** —
+      **MEDIDO 14/11 (decisão recomendada: DESLIGADO):** com MiniLM local,
+      só "quem foi Alan Turing" × "…?" passa de 0,95 (0,979); "uso de disco" ×
+      "uso do disco" fica em 0,921 e "python" × "python 3.13" em 0,913 —
+      abaixo do corte. Baixar para 0,85–0,90 acertaria mais, mas "liga a luz
+      da cozinha" × "… da sala" = 0,887 acenderia o cômodo errado. Custo do
+      embedding ~17 ms/mensagem. Fica desligado até decisão; para ganhar
+      latência o `LLMCache` exato já resolve
 - [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder
       reranker) — **módulo e testes PRONTOS (conferido 13/11):
       `core/hybrid_search.py` (BM25Index + `cross-encoder/ms-marco-MiniLM-L-6-v2`);

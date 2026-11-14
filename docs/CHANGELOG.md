@@ -12,6 +12,38 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Pesquisa web ligada à intenção do chat (2026-11-14, sem bump)
+
+**Resumo:** a action `web_search` existia desde 13/11, mas **nenhuma frase do
+chat a disparava** — "pesquise na internet …" (queixa literal do dono em
+11/11) caía no LLM, que recusava alegando não ter internet ou inventava
+resultado. Agora a intenção reconhece o comando e chama a action.
+
+**Como reconhece:** verbo de busca **no início** da frase (`pesquise`,
+`busque`, `procure`, `faça uma busca`), tirando veículo (`na internet`,
+`no google`, `na web`, `online`) e conector (`sobre`, `por`, `de`). O
+substantivo não casa de propósito ("a pesquisa mostrou…" segue para o LLM) e
+sem termo ("pesquise na internet") também não — o LLM pergunta o quê.
+
+**Resposta:** o formatador próprio mostra até 5 resultados com título, URL e
+trecho, sempre com a fonte. Sem resultado ou com a fonte fora do ar, a resposta
+é a degradação honesta ("🌐 Não consegui pesquisar agora: …") — **nunca o LLM**,
+que era exatamente onde o resultado era inventado.
+
+**Câmbio preservado:** "pesquise na web: preço do bitcoin" continua indo para
+`exchange_rate` (dado real), não para a busca.
+
+**Testes:** `TestPesquisaWeb` em `tests/test_intents.py` (+16): extração do
+termo (7 frases), não-disparo (4), câmbio preservado, resposta com resultados,
+resultado vazio e falha da fonte. **Gate: 4672 passed / 16 skipped / 0 falha.**
+
+**Prova viva (chat real):** "pesquise na internet sobre a Reforma Tributária
+2026" → `action_intent / fastpath:web_search`, **1,05 s**, 5 resultados com
+fonte; "quem foi Alan Turing" → **0,74 s**, 5 resultados. Restart com
+MainPID 2448964, NRestarts=0, journal sem erro.
+
+**Sem bump:** app segue **1.44.0/2080**.
+
 ## Lote de 13/11 fechado: R1 Task Queue, I1 no boot, web_search, escopo e pg_dump diário (2026-11-14, sem bump)
 
 **Resumo:** o lote produzido em 13/11 **depois** do checkpoint das 14:45

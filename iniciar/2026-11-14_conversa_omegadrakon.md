@@ -164,3 +164,61 @@ passo que falta. Commit `f2c784a`.
   `💾 Disco /: 66.2% usado · 67.7 GB livres de 231.2 GB` (dado medido, sem LLM).
 
 **Sem bump:** app segue **1.44.0/2080** (servidor/infra).
+
+## §4 — Pesquisa web ligada à intenção e provada no chat (14/11 ~09:20–09:35)
+
+**Pedido do dono:** "Ligue a action web_search à intenção 'pesquise na
+internet…' e teste no chat real."
+
+- **`core/intents.py`**: `_extrai_busca_web` reconhece verbo de busca no
+  início (`pesquise`, `busque`, `procure`, `faça uma busca`), tira veículo
+  (`na internet`, `no google`, `na web`, `online`) e conector (`sobre`, `por`,
+  `de`); substantivo ("a pesquisa mostrou…") e comando sem termo **não** casam.
+  `_formata_web_search` responde com até 5 resultados (título, URL, trecho,
+  fonte) e **degrada honestamente** sem rede — nunca cai no LLM.
+- **Câmbio preservado**: "pesquise na web: preço do bitcoin" continua em
+  `exchange_rate`.
+- **Testes**: `TestPesquisaWeb` (+16) em `tests/test_intents.py`.
+  **Gate: 4672 passed / 16 skipped / 0 falha (189,78 s).**
+- **Publicado**: `6d1e49b` (`2218c01..6d1e49b`).
+- **Restart**: MainPID **2448964**, NRestarts=0, journal `-p err` **0**.
+- **Prova viva**: "pesquise na internet sobre a Reforma Tributária 2026" →
+  `action_intent / fastpath:web_search`, **1,05 s**, 5 resultados com fonte;
+  "quem foi Alan Turing" → **0,74 s**, 5 resultados (Wikipédia, TecnoBlog,
+  Brasil Escola…).
+
+**Sem bump:** app segue 1.44.0/2080.
+
+## §5 — Pergunta do dono: Semantic Cache ligado ou desligado? (14/11)
+
+**Pergunta:** "o que faz semantic cache? qual a melhor alternativa para ele,
+ficar ligado ou desligado?"
+
+**O que é (código lido):** `memory/semantic_cache.py` guarda
+`prompt → resposta` com o embedding do prompt (MiniLM local, 384 dims) e, na
+leitura, devolve a resposta da entrada mais parecida **se o cosseno ≥ 0,95**
+(TTL 24 h, 5000 entradas, por perfil). É um cache de *significado*, não de
+texto exato — o `LLMCache` já cobre o exato.
+
+**Medido neste turno** (`all-MiniLM-L6-v2`, modelo já em cache local):
+
+| par | similaridade |
+|---|---|
+| "quem foi Alan Turing" × "quem foi Alan Turing?" | **0,979** |
+| "qual o uso de disco" × "qual o uso do disco" | 0,921 |
+| "pesquise … sobre python" × "… sobre python 3.13" | 0,913 |
+| "liga a luz da cozinha" × "liga a luz da sala" | 0,887 |
+| "bom dia" × "bom dia, tudo bem?" | 0,816 |
+| "quem foi Alan Turing" × "quem foi Ada Lovelace" | 0,550 |
+
+Custo medido do embedding: **~17 ms por mensagem** (medido com o gate rodando
+em paralelo, portanto pessimista).
+
+**Conclusão:** com 0,95 o cache é **seguro e quase inútil** — só acerta
+diferença de pontuação/erro de digitação (0,979), e o gargalo real do chat hoje
+é a **cota diária** do Gemini, não o tempo de resposta. Abaixar para 0,85–0,90
+para ele render exigiria aceitar trocas erradas — "liga a luz da cozinha" e
+"liga a luz da sala" ficam em 0,887, ou seja, **acenderia o cômodo errado**.
+Recomendação: **manter desligado** (é o default atual,
+`OD_SEMANTIC_CACHE_ENABLED=0`); o ganho real viria de cache exato (já existe) e
+de aproveitar as 20 req/dia com critério. A decisão continua do dono.
