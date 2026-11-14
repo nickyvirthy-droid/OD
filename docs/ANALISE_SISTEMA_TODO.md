@@ -631,9 +631,12 @@ esperar o timeout.
 > Queue) e "medir o acerto do LLMCache exato" (novo checkbox abaixo). Nenhuma
 > perdida.
 
-- [ ] Cache exato: medir o hit rate do `LLMCache` no uso real (quantas
-      mensagens repetem texto literal) antes de investir em qualquer cache
-      semântico — hoje não há número, só a impressão de que repetem pouco
+- [x] Cache exato: medir o hit rate do `LLMCache` no uso real — **MEDIDO
+      14/11: 12/113 = 10,6% (30 dias; 13,6% nos últimos 7); cada hit custa
+      10,4 ms contra 33,5 s do LLM (p50). Potencial do semântico no tráfego
+      real: 0 acertos extras em 0,95, 0,90 e 0,85 (24 mensagens elegíveis;
+      70% do tráfego é comando e nunca deve ser cacheado). Conclusão: manter o
+      exato; semântico não paga o investimento com a amostra atual**
 
 > Turno de 14/11 09:15 (registro da regra 21): sugestões mostradas e não
 > escolhidas → "ligar a `web_search` à intenção de pesquisa" (já no bloco do

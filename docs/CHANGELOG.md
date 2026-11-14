@@ -12,6 +12,50 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Medição do LLMCache exato no uso real (2026-11-14, sem bump)
+
+**Pergunta do dono:** medir o hit rate do cache exato **antes** de investir em
+cache semântico.
+
+**Método (dados de produção, não teste):** logs `Message processed` do
+`od-core` no journal (janela de ~29 dias, 16/10→14/11) classificados por
+`route`; tabela `llm_cache` para o acumulado; e as mensagens reais gravadas em
+`conversation_messages` para medir o **potencial** de paráfrase.
+
+**Resultado — cache exato:**
+
+| métrica | valor |
+|---|---|
+| mensagens processadas (29 d) | 210 |
+| comandos de action (bypass do cache, por projeto) | 95 |
+| fastpath `datetime` | 2 |
+| conversa (llm 73 + fallback 28 + cache 12) | 113 |
+| **hit rate do cache exato** | **12/113 = 10,6%** |
+| hit rate nos últimos 7 dias | 9/66 = 13,6% |
+| latência p50 com cache | **10,4 ms** |
+| latência p50 sem cache (llm+fallback) | **33.532 ms** (~33,5 s) |
+| tabela `llm_cache` (acumulado) | 136 entradas · 177 usos · 41 reúsos · média 1,30 |
+
+**Resultado — potencial do cache semântico (mensagens reais):** das 81
+mensagens de usuário em 30 dias, **57 (70%) são comandos** de action (nunca
+devem ser cacheados); restam **24 elegíveis**. Dentro da janela de 24 h e do
+mesmo usuário: **4/24 (16,7%) são repetição exata**. Dessas 24, o número que
+passaria do corte semântico é **0 em 0,95, 0 em 0,90 e 0 em 0,85**. Normalizar
+caixa/acento/pontuação no cache exato também não acrescentou hit nenhum
+(4/24 → 4/24).
+
+**Conclusão:** o cache exato já entrega ~11% de acerto com ~33 s economizados
+por hit — é útil e deve ficar. O cache semântico, no tráfego real medido, não
+teria acertado **nenhuma** mensagem adicional, com qualquer corte razoável:
+investir nele agora é esforço sem retorno medido. O ganho seguinte está em
+volume de conversa (a amostra é pequena) ou em reduzir a cota/latência do LLM,
+não em cache.
+
+**Limitações declaradas:** amostra pequena (113 mensagens de conversa, 24
+elegíveis), janela limitada pela rotação do journal e pelo histórico retido.
+
+**Sem bump:** app segue **1.44.0/2080**; nenhum código mudou.
+
 ## Pesquisa web liberada para os papéis user e família (2026-11-14, sem bump)
 
 **Resumo:** a pesquisa estava ligada ao chat, mas `web_search` só existia na

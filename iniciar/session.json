@@ -1,4 +1,15 @@
 {
+  "medicao_llmcache_exato_2026_11_14": {
+    "pedido": "Dono: 'Meça o hit rate do LLMCache exato no uso real antes de investir em cache semântico'. Checkpoint anterior: pesquisa_web_para_user_e_familia_2026_11_14.",
+    "metodo": "Journal do od-core (janela ~29 dias, 16/10->14/11): logs 'Message processed' classificados por route; tabela llm_cache para acumulado; conversation_messages (24 elegiveis) para potencial de parafrase com MiniLM, janela 24h, mesmo usuario.",
+    "cache_exato": "210 mensagens processadas: 95 action_intent (bypass proposital) + 2 datetime + 113 conversa (73 llm + 28 fallback + 12 cache). HIT RATE = 12/113 = 10,6% (7 dias: 9/66 = 13,6%). Latencia p50: cache 10,4 ms x llm/fallback 33.532 ms (~33,5 s economizados por hit). Tabela llm_cache: 136 entradas, 177 usos, 41 reusos, media 1,30.",
+    "potencial_semantico": "81 mensagens de usuario em 30 dias: 57 (70%) sao comandos de action (nunca cacheados); 24 elegiveis. Repeticao exata em 24h: 4/24 (16,7%). Parafrases acima do corte: 0 em 0,95, 0 em 0,90 e 0 em 0,85. Normalizar caixa/acento/pontuacao no exato: 4/24 -> 4/24 (nenhum ganho).",
+    "conclusao": "Manter o cache exato (paga: ~11% de acerto, ~33 s por hit). NAO investir no semantico agora: 0 acertos adicionais no trafego real medido. Decisao do dono fica com numero; I1 segue desligado por default.",
+    "limitacoes": "Amostra pequena (113 mensagens de conversa, 24 elegiveis); janela limitada pela rotacao do journal; historico retido pode podar. Arquivos temporarios com texto de conversa apagados.",
+    "sem_bump": "app segue 1.44.0/2080; nenhum codigo alterado; sem restart.",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§7)",
+    "updated_at": "2026-11-14T10:25:00-03:00"
+  },
   "pesquisa_web_para_user_e_familia_2026_11_14": {
     "pedido": "Dono: 'Exponha a pesquisa web aos papéis família/user e teste com uma conta comum'. Checkpoint anterior: pesquisa_web_ligada_e_semantic_cache_2026_11_14.",
     "feito": "core/security/permissions.py: 'web_search' entrou na lista do papel user (familia herda por codigo). Justificativa: leitura publica da fonte (DuckDuckGo lite, sem chave/escrita/segredo), mesma natureza de weather_city/exchange_rate. Antes, fora do dono, a frase caia em negacao silenciosa e o LLM inventava.",

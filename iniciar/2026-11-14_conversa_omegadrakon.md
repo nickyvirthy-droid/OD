@@ -255,3 +255,51 @@ uma conta comum."
 `conversation_messages` removidas por SQL — nenhum resíduo no banco.
 
 **Sem bump:** app segue 1.44.0/2080.
+
+## §7 — Hit rate do LLMCache exato no uso real (14/11 ~10:20)
+
+**Pedido do dono:** "Meça o hit rate do LLMCache exato no uso real antes de
+investir em cache semântico."
+
+**Autor:** Freebuff (Buffy). **Nenhum código alterado** — só medição e
+registro (`docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/`).
+
+**Método:** logs `Message processed` do journal (janela de ~29 dias,
+16/10→14/11) classificados por `route`; tabela `llm_cache` para o acumulado; as
+mensagens reais de `conversation_messages` para o potencial de paráfrase
+(MiniLM + janela de 24 h, mesmo usuário).
+
+### 1. Cache exato
+
+| métrica | valor |
+|---|---|
+| mensagens processadas | 210 |
+| comandos de action (bypass proposital) | 95 |
+| `datetime` fastpath | 2 |
+| conversa (llm 73 + fallback 28 + cache 12) | 113 |
+| **hit rate** | **12/113 = 10,6%** |
+| últimos 7 dias | 9/66 = 13,6% |
+| p50 com cache | **10,4 ms** |
+| p50 sem cache | **33.532 ms** |
+| tabela `llm_cache` | 136 entradas · 177 usos · 41 reúsos · média 1,30 |
+
+### 2. Potencial do semântico (dados reais)
+
+81 mensagens de usuário em 30 dias: **57 (70%) são comandos**, que o pipeline
+não cacheia de propósito; **24 elegíveis**. Repetição exata em 24 h: **4/24
+(16,7%)**. Paráfrases que passariam do corte: **0 em 0,95**, **0 em 0,90**,
+**0 em 0,85**. Normalizar caixa/acento/pontuação não acrescentou hit (4/24 →
+4/24).
+
+### 3. Conclusão
+
+O cache exato paga: ~11% de acerto e ~33 s por hit. O semântico **não teria
+acertado nenhuma mensagem adicional** no tráfego medido, com qualquer corte
+razoável — investir nele agora é esforço sem retorno medido. Fica desligado
+(default) e a decisão tem número.
+
+**Limitações:** amostra pequena (113 mensagens de conversa, 24 elegíveis);
+janela limitada pela rotação do journal; histórico retido pode podar mensagens
+antigas. Os arquivos temporários com texto de conversa foram apagados.
+
+**Sem bump:** app segue 1.44.0/2080; sem restart (nenhum código mudou).
