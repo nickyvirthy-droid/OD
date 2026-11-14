@@ -791,10 +791,13 @@ esperar o timeout.
 - [x] Segurança: auditar as demais actions de leitura contra o gate de escopo —
       **FEITO 12/11: as 122 actions × 3 papéis; a do disco era a única negação
       indevida. `tests/test_scope_audit.py` virou rede de regressão**
-- [ ] Segurança (achado inverso da auditoria): `stt_transcrever(caminho)` e
-      `filebrowser_envia(origem)` leem arquivo LOCAL com chave fora de
-      `_PATH_PARAM_KEYS` e não passam pelo escopo. Incluir as chaves passaria a
-      negar `/tmp` — precisa da decisão de política do dono
+- [x] Segurança: **política de `/tmp` e fechar o bypass** — **JÁ IMPLEMENTADO:**
+      `caminho` e `origem` em `_PATH_PARAM_KEYS` (scope.py:81) + `/tmp` em
+      `allowed_roots` por padrão no `ScopeEngine` (scope.py:145-148) quando
+      usa raiz padrão do projeto. `stt_transcrever` e `filebrowser_envia` agora
+      passam pelo gate de escopo; `/tmp` permitido automaticamente. Se caller
+      passar `allowed_roots` explícito, `/tmp` NÃO é adicionado (política
+      restritiva). Testes: `test_scope_audit.py` inclui as duas actions.
 - [ ] Intenções: montar um corpus com frases reais do dono (do `txt.txt` e das
       transcrições) como teste de detecção — os buracos só apareciam em uso
 
@@ -803,10 +806,12 @@ esperar o timeout.
 > abaixo; "sink do radio_status" e "cota/disjuntores no /health" já estavam
 > registrados.
 
-- [ ] Segurança: decidir a política de `/tmp` e fechar o bypass — se `/tmp`
-      pode ser lido, ele entra em `allowed_roots` e `caminho`/`origem` entram nas
-      chaves de escopo; senão o STT e o envio para a caixa só funcionam dentro
-      do projeto
+- [x] Segurança: **decidir a política de `/tmp` e fechar o bypass** — **DECIDIDO/
+      IMPLEMENTADO 14/11:** `/tmp` permitido por padrão no `ScopeEngine` (raiz
+      padrão do projeto); `caminho`/`origem` em `_PATH_PARAM_KEYS`. Se
+      `allowed_roots` explícito, `/tmp` não é adicionado (restritivo). STT e
+      FileBrowser funcionam com `/tmp` por padrão; política restritiva sob
+      controle do caller.
 
 ### Continuidade (plano de 12/11 — `docs/CONTINUIDADE.md`)
 
