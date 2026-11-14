@@ -1,4 +1,14 @@
 {
+  "task_queue_historico_concluidas_2026_11_14": {
+    "pedido": "Dono (14/11 ~13:00): 'Faca as tasks concluidas continuarem visiveis na API, com retencao limitada e poda automatica'. Checkpoint anterior: task_queue_provada_sandbox_2026_11_14.",
+    "desenho": "Concluida sai de queue_dir/*.json (nao vira pendente no restart) e vai para queue_dir/completed/{id}.json. GET /admin/tasks/{id} e ?status=completed devolvem completed com result; DELETE apaga o registro. Retencao por OD_TASK_QUEUE_KEEP_COMPLETED (200); poda no start() e a cada conclusao, mantendo as N mais recentes por finished_ts (mtime como reserva). _load_pending continua vendo so queue_dir/*.json.",
+    "arquivos": "core/task_queue.py (completed_dir, keep_completed, _persist_completed, _prune_completed, get_task/list_tasks); integrations/api/server.py (DELETE apaga tambem completed_dir); tests/test_task_queue.py 18 -> 20.",
+    "prova_sandbox": "API + registry + catalogo reais com KEEP_COMPLETED=2: 3 tasks reais filesystem_exists concluidas com result=true; GET da recente = 200 completed result=true; ?status=completed = count 2; ?status=dead_letter = 0; historico em disco = 2 arquivos; GET da mais antiga (podada) = 404.",
+    "testes": "tests/test_task_queue.py 20 (historico visivel + poda com keep=2; concluida na API e DELETE removendo o historico). GATE COMPLETO: 4677 passed / 16 skipped / 0 falha (196,06 s).",
+    "sem_bump": "app segue 1.44.0/2080 (correcao interna de servidor); fila segue DESLIGADA em producao (decisao do dono).",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§10)",
+    "updated_at": "2026-11-14T13:45:00-03:00"
+  },
   "task_queue_provada_sandbox_2026_11_14": {
     "pedido": "Dono (14/11 ~12:00): 'Ligue a Task Queue num teste controlado com OD_TASK_QUEUE_ENABLED=1 e prove com uma task real, medindo retry e dead letter'. Checkpoint anterior: retomada_leitura_iniciar_2026_11_14_turno2.",
     "defeitos_medidos": "(1) TaskQueue passava request_id= para ActionRegistry.execute, que aceita session_id -> TypeError em TODA task real (sandbox: 2/2 em dead letter, 0 concluidas, 4 retries); o teste antigo escondia porque o _RegistryFalso aceita **kwargs. (2) DELETE /admin/tasks/{id} apagava em data/task_queue/dead_letter fixo -> 200 mas arquivo ficava e GET continuava 200.",

@@ -12,6 +12,35 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Task Queue: histórico de concluídas visível com poda automática (2026-11-14, sem bump)
+
+**Pedido do dono:** fazer as tasks concluídas continuarem visíveis na API, com
+retenção limitada e poda automática.
+
+**Como ficou:** ao concluir, a task sai do diretório da fila (não vira
+"pendente" num restart) e passa para `queue_dir/completed/`. `GET
+/admin/tasks/{id}` e `GET /admin/tasks?status=completed` passam a devolver
+`completed` com `result`; o `DELETE` apaga o registro do histórico.
+
+- Retenção configurável: `OD_TASK_QUEUE_KEEP_COMPLETED` (**200** por padrão).
+- Poda automática: ao concluir e no `start()`, mantém as N mais recentes por
+  `finished_ts` (mtime do arquivo como reserva) e apaga as mais antigas.
+- `_load_pending` continua vendo só `queue_dir/*.json` — concluídas em
+  subdiretório não são confundidas com pendentes.
+
+**Prova em sandbox (API + registry + catálogo reais, `KEEP_COMPLETED=2`):**
+3 tasks reais de `filesystem_exists` concluídas → `GET` da mais recente **200**
+com `status=completed` e `result=true`; `?status=completed` **count=2**;
+`?status=dead_letter` **0**; o histórico em disco ficou com as **2 mais
+recentes** e a mais antiga foi podada (o `GET` dela volta **404**).
+
+**Testes:** `tests/test_task_queue.py` 18 → **20** (histórico visível + poda
+com `keep_completed=2`; concluída respondendo na API e `DELETE` removendo o
+histórico). **Gate completo: 4677 passed / 16 skipped / 0 falha** (196,06 s).
+
+**Sem bump / sem ligar a fila:** app segue 1.44.0/2080; produção continua com
+`OD_TASK_QUEUE_ENABLED=0` (ligar é decisão do dono).
+
 ## Task Queue provada em sandbox com task real (2026-11-14, sem bump)
 
 **Pedido do dono:** ligar a Task Queue (R1) num teste controlado com

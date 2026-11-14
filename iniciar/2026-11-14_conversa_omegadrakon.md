@@ -403,3 +403,42 @@ restart od-core`: **MainPID 2618250**, `NRestarts=0`, ativo desde 12:12:25;
 entradas**. Boot registra `TaskQueue desabilitado (OD_TASK_QUEUE_ENABLED=0)` e
 `GET /admin/tasks` responde **503 `task_queue_indisponivel`** — o esperado com a
 fila desligada. Resumo enviado ao Telegram do dono (`ok=true`, msg 3996).
+
+---
+
+## §10 — Task Queue: concluídas visíveis com retenção e poda (14/11 ~13:00–13:45)
+
+**Pedido do dono:** "Faça as tasks concluídas continuarem visíveis na API, com
+retenção limitada e poda automática."
+
+**Autor:** Freebuff (Buffy).
+
+### 1. Desenho
+
+- Concluída sai de `queue_dir/*.json` (para `_load_pending` não a tratar como
+  pendente num restart) e vai para `queue_dir/completed/{id}.json`.
+- `GET /admin/tasks/{id}` e `?status=completed` devolvem `completed` com
+  `result`; `DELETE` apaga o registro do histórico.
+- Retenção por `OD_TASK_QUEUE_KEEP_COMPLETED` (**200**); poda no `start()` e a
+  cada conclusão, mantendo as N mais recentes por `finished_ts` (mtime como
+  reserva).
+
+### 2. Prova em sandbox (API + registry + catálogo reais, KEEP_COMPLETED=2)
+
+| passo | medida |
+|---|---|
+| 3 tasks reais `filesystem_exists` | concluídas, `result=true` |
+| `GET /admin/tasks/{recente}` | **200**, `status=completed`, `result=true` |
+| `GET /admin/tasks?status=completed` | **count = 2** |
+| `GET /admin/tasks?status=dead_letter` | count = 0 |
+| histórico em disco | 2 arquivos (os 2 mais recentes) |
+| `GET` da mais antiga (podada) | **404** |
+
+### 3. Gate
+
+`tests/test_task_queue.py` 18 → **20** (histórico visível + poda; concluída na
+API e `DELETE` removendo o histórico). **Gate completo: 4677 passed / 16
+skipped / 0 falha** (196,06 s).
+
+**Sem bump / fila segue desligada em produção** (decisão do dono). Tela de
+histórico no painel/app e filtro por data viraram checkboxes no TODO.

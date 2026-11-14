@@ -9,6 +9,40 @@
 
 ---
 
+## 14/11/2026 — Task Queue: histórico de concluídas com poda automática
+
+**Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.
+
+### Criados
+
+- Nenhum arquivo novo (subdiretório `completed/` é criado em runtime).
+- Harness `/tmp/od_tq_historico.py` (fora do repo, descartado após a prova).
+
+### Modificados
+
+- `core/task_queue.py` — `completed_dir`, `keep_completed`
+  (`OD_TASK_QUEUE_KEEP_COMPLETED`, 200), `_persist_completed`,
+  `_prune_completed` (no `start()` e ao concluir), `get_task`/`list_tasks`
+  passam a ler o histórico.
+- `integrations/api/server.py` — `DELETE /admin/tasks/{id}` agora apaga também
+  o registro de concluída (`tq.completed_dir`).
+- `tests/test_task_queue.py` — 18 → 20 testes.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/session.json`,
+  `iniciar/2026-11-14_conversa_omegadrakon.md` (§10).
+
+### Intenção e estado
+
+- **Intenção:** fechar o buraco medido no turno anterior — a task concluída
+  virava 404 e a listagem nunca mostrava `completed`.
+- **Pronto/validado:** sandbox com API + registry + catálogo reais e
+  `KEEP_COMPLETED=2`: 3 tasks reais → `GET` da recente 200 `completed` com
+  `result=true`, `?status=completed` count=2, mais antiga podada (404). Gate
+  **4677 passed / 16 skipped / 0 falha**.
+- **Pela metade (deliberado):** a fila continua **desligada em produção**;
+  mostrar o histórico no painel/app fica no TODO.
+
+---
+
 ## 14/11/2026 — Task Queue provada em sandbox (task real, retry e dead letter)
 
 **Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.
