@@ -14,8 +14,9 @@ import '../services/od_api.dart';
 ///   - filtro por status, sem refazer a chamada (a lista já vem inteira);
 ///   - ⟳ reenfileira falha/dead letter como task NOVA;
 ///   - 🗑 apaga o registro terminal (task ativa responde 409 no servidor);
-///   - atualiza sozinha a cada 5 s enquanto a aba está aberta; fila
-///     desligada no servidor aparece como aviso, não como lista vazia.
+///   - **SSE ao vivo** (`/admin/tasks/events`) com fallback para polling
+///     de 5 s e reconexão automática (mesmo contrato dos Downloads);
+///   - fila desligada no servidor aparece como aviso, não como lista vazia.
 class TasksScreen extends StatefulWidget {
   final OdApi api;
   const TasksScreen({super.key, required this.api});
@@ -29,35 +30,31 @@ class _TasksScreenState extends State<TasksScreen> {
   String _filtro = '';
   String? _erro;
   bool _carregando = true;
-  Timer? _poller;
 
-  static const _filtros = <String, String>{
-    '': 'todas',
-    'pending': 'pendentes',
-    'running': 'rodando',
-    'completed': 'concluídas',
-    'failed': 'falhas',
-    'dead_letter': 'dead letter',
-  };
+  // -- Ao vivo (SSE) + fallback de polling + nova tentativa de assinatura --
+  StreamSubscription<OdTaskEvent>? _sse;
+  Timer? _poller;
+  Timer? _reconectar;
+  bool _sseAtivo = false;
 
   @override
   void initState() {
     super.initState();
     _carregar();
-    // A fila muda fora do app (chat/automações): reler de 5 em 5 s evita
-    // depender de SSE só para esta aba.
-    _poller = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _carregar(silencioso: true),
-    );
+    _assinar();
   }
 
   @override
   void dispose() {
+    _sse?.cancel();
     _poller?.cancel();
+    _reconectar?.cancel();
     super.dispose();
   }
 
+  // ------------------------------------------------------------------//
+  // Dados                                                              //
+  // ------------------------------------------------------------------//
   Future<void> _carregar({bool silencioso = false}) async {
     try {
       final tarefas = await widget.api.listTasks(limit: 200);
@@ -74,6 +71,135 @@ class _TasksScreenState extends State<TasksScreen> {
         _erro = _descrever(e);
         _carregando = false;
       });
+    }
+  }
+
+  void _assinar() {
+    _sse?.cancel();
+    _sse = widget.api.streamTasks().listen(
+      (evento) {
+        if (!mounted) return;
+        // Voltou ao vivo: o polling e o reagendamento saem do caminho.
+        _sseAtivo = true;
+        _reconectar?.cancel();
+        _reconectar = null;
+        _poller?.cancel();
+        _poller = null;
+        _aplicar(evento);
+      },
+      onError: (_) => _sseCaiu(),
+      onDone: () => _sseCaiu(),
+    );
+  }
+
+  void _sseCaiu() {
+    if (!mounted) return;
+    _sseAtivo = false;
+    _poller ??= Timer.periodic(const Duration(seconds: 5), (_) => _carregar());
+    _carregar();
+    _reconectar ??= Timer(const Duration(seconds: 15), () {
+      _reconectar = null;
+      if (mounted) _assinar();
+    });
+  }
+
+  void _aplicar(OdTaskEvent evento) {
+    setState(() {
+      if (evento.evento == 'snapshot') {
+        _tarefas
+          ..clear()
+          ..addAll(evento.tasks);
+        _erro = null;
+        return;
+      }
+      final task = evento.task;
+      if (task == null) return;
+      if (evento.evento == 'removido' || evento.evento == 'task_deleted') {
+        _tarefas.removeWhere((t) => t.id == task.id);
+      } else {
+        _substituirLocal(task);
+      }
+      _erro = null;
+    });
+  }
+
+  void _substituirLocal(OdTask task) {
+    final i = _tarefas.indexWhere((t) => t.id == task.id);
+    if (i >= 0) {
+      _tarefas[i] = task;
+    } else {
+      _tarefas.add(task);
+    }
+  }
+
+  // ------------------------------------------------------------------//
+  // Ações                                                              //
+  // ------------------------------------------------------------------//
+  Future<void> _novaTarefa() async {
+    // Abre diálogo simples para escolher action + payload JSON
+    final actionCtrl = TextEditingController();
+    final payloadCtrl = TextEditingController(text: '{}');
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enfileirar tarefa'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: actionCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Action (do catálogo)',
+                hintText: 'ex.: filesystem_write',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: payloadCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Payload JSON (objeto)',
+                hintText: '{"path": "data/x.txt", "content": "olá"}',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(actionCtrl.text.trim()),
+            child: const Text('Enfileirar'),
+          ),
+        ],
+      ),
+    );
+    if (action == null || action.isEmpty || !mounted) return;
+    Map<String, dynamic> payload = {};
+    final bruto = payloadCtrl.text.trim();
+    if (bruto.isNotEmpty) {
+      try {
+        payload = jsonDecode(bruto) as Map<String, dynamic>;
+      } catch (e) {
+        _aviso('Payload não é JSON válido: $e');
+        return;
+      }
+    }
+    if (payload.isEmpty) {
+      _aviso('Payload deve ser um objeto JSON {…}.');
+      return;
+    }
+    try {
+      final criada = await widget.api.createTask(action, payload: payload);
+      if (!mounted) return;
+      setState(() => _tarefas = [..._tarefas, criada]);
+      _aviso('✓ $action enfileirada (${criada.id})');
+      // O SSE task_created já vai atualizar; o reload silencioso garante.
+      await _carregar(silencioso: true);
+    } catch (e) {
+      _aviso(_descrever(e));
     }
   }
 
@@ -146,6 +272,15 @@ class _TasksScreenState extends State<TasksScreen> {
         '${contar('dead_letter')} dead letter · ${_tarefas.length} no total';
   }
 
+  static const _filtros = <String, String>{
+    '': 'todas',
+    'pending': 'pendentes',
+    'running': 'rodando',
+    'completed': 'concluídas',
+    'failed': 'falhas',
+    'dead_letter': 'dead letter',
+  };
+
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
@@ -169,9 +304,11 @@ class _TasksScreenState extends State<TasksScreen> {
                       _carregando ? 'Consultando a fila…' : _resumo,
                       style: tema.textTheme.bodySmall,
                     ),
-                    const Text(
-                      '↻ relê a cada 5 s',
-                      style: TextStyle(fontSize: 11),
+                    Text(
+                      _sseAtivo ? '📡 ao vivo (SSE)' : '↻ consultando (5 s)',
+                      style: tema.textTheme.bodySmall?.copyWith(
+                        color: _sseAtivo ? Colors.greenAccent : Colors.amber,
+                      ),
                     ),
                   ],
                 ),

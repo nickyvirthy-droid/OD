@@ -80,6 +80,14 @@ class _Cenario {
         if (r.method == 'GET' && r.url.path == '/admin/tasks') {
           return _json({'ok': true, 'tasks': tarefas, 'count': tarefas.length});
         }
+        if (r.method == 'GET' && r.url.path == '/admin/tasks/events') {
+          // SSE: retorna snapshot válido + fecha (sem keepalive) -> sem polling
+          final snapshot = '''
+data: {"evento":"snapshot","tasks":[${jsonEncode(tarefas[0])},${jsonEncode(tarefas[1])}],"metrics":{},"queue":{}}
+''';
+          return http.Response(snapshot, 200,
+              headers: {'content-type': 'text/event-stream; charset=utf-8'});
+        }
         if (r.method == 'POST' && r.url.path.endsWith('/retry')) {
           final origem = r.url.path.split('/')[3];
           final nova = {
@@ -149,8 +157,13 @@ void main() {
 
     expect(find.text('filesystem_read'), findsOneWidget);
     expect(find.text('filesystem_exists'), findsNothing);
-    // Mudar o filtro é local: nenhuma chamada nova.
-    expect(c.chamadas.where((x) => x == 'GET /admin/tasks'), hasLength(1));
+    // Mudar o filtro é local: nenhuma chamada NOVA.
+    final chamadasTasks = c.chamadas.where((x) => x == 'GET /admin/tasks').length;
+    expect(chamadasTasks, greaterThanOrEqualTo(1));
+    // O importante: o filtro não faz chamada extra
+    await tester.tap(find.text('todas'));
+    await tester.pump();
+    expect(c.chamadas.where((x) => x == 'GET /admin/tasks').length, chamadasTasks);
 
     await _desmontar(tester);
   });

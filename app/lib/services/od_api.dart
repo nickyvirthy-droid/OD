@@ -1538,6 +1538,59 @@ class OdApi {
       if (owned) client.close();
     }
   }
+
+  /// SSE da Task Queue (GET /admin/tasks/events).
+  ///
+  /// Mesmo contrato dos downloads: abre com `snapshot` (fila inteira +
+  /// métricas) e depois empurra `task_created`/`task_started`/
+  /// `task_completed`/`task_failed`/`task_retried`/`task_dead_letter`
+  /// a cada transição; keepalive `: ping` a cada 15 s. Quando o stream
+  /// cai (restart do od-core, troca de rede), termina sozinho — a tela
+  /// volta para polling de 5 s e tenta reassinar.
+  Stream<OdTaskEvent> streamTasks() async* {
+    final owned = _injectedClient == null;
+    final client = _injectedClient ??
+        IOClient(HttpClient()..connectionTimeout = connectTimeout);
+    try {
+      final request = http.Request(
+        'GET',
+        Uri.parse('$baseUrl/admin/tasks/events'),
+      )..headers.addAll(_headers);
+      final streamed = await client.send(request).timeout(
+            requestTimeout,
+            onTimeout: () => throw TimeoutException(
+              'sem resposta do servidor em ${requestTimeout.inSeconds}s',
+            ),
+          );
+      if (streamed.statusCode != 200) {
+        final corpo = await streamed.stream.bytesToString();
+        final data = _tryJson(corpo);
+        throw OdApiError(
+          'Stream de tarefas recusado: '
+          '${data?['error'] ?? streamed.statusCode}',
+          statusCode: streamed.statusCode,
+        );
+      }
+      var buffer = '';
+      await for (final pedaco in streamed.stream.transform(utf8.decoder)) {
+        buffer += pedaco;
+        final partes = buffer.split('\n\n');
+        buffer = partes.removeLast();
+        for (final parte in partes) {
+          final linha = parte
+              .split('\n')
+              .firstWhere((l) => l.startsWith('data: '), orElse: () => '');
+          if (linha.isEmpty) continue; // ": ping" — mantém o canal vivo
+          final pacote = _tryJson(linha.substring(6));
+          if (pacote != null) {
+            yield OdTaskEvent.fromJson(pacote);
+          }
+        }
+      }
+    } finally {
+      if (owned) client.close();
+    }
+  }
 }
 
 /// Mensagem vinda do histórico da conta (GET /history/{user_id}).
@@ -1816,6 +1869,40 @@ class OdDownloadEvent {
       resumo: json['resumo'] == null
           ? null
           : OdDownloadsResumo.fromJson(json['resumo'] as Map<String, dynamic>),
+    );
+  }
+}
+
+/// Um pacote do SSE (GET /admin/tasks/events).
+///
+/// `snapshot` traz a fila inteira na abertura (+ métricas e queue); os
+/// demais trazem uma task: `task_created`, `task_started`,
+/// `task_completed`, `task_failed`, `task_retried`, `task_dead_letter`.
+class OdTaskEvent {
+  final String evento;
+  final OdTask? task;
+  final List<OdTask> tasks;
+  final Map<String, dynamic>? queue;
+  final Map<String, dynamic>? metrics;
+
+  OdTaskEvent({
+    required this.evento,
+    required this.task,
+    required this.tasks,
+    required this.queue,
+    required this.metrics,
+  });
+
+  factory OdTaskEvent.fromJson(Map<String, dynamic> json) {
+    final taskJson = json['task'] as Map<String, dynamic>?;
+    return OdTaskEvent(
+      evento: (json['evento'] as String?) ?? '',
+      task: taskJson == null ? null : OdTask.fromJson(taskJson),
+      tasks: ((json['tasks'] as List?) ?? [])
+          .map((j) => OdTask.fromJson(j as Map<String, dynamic>))
+          .toList(),
+      queue: json['queue'] as Map<String, dynamic>?,
+      metrics: json['metrics'] as Map<String, dynamic>?,
     );
   }
 }
