@@ -5,6 +5,7 @@
     "arquivos": "core/task_queue.py (completed_dir, keep_completed, _persist_completed, _prune_completed, get_task/list_tasks); integrations/api/server.py (DELETE apaga tambem completed_dir); tests/test_task_queue.py 18 -> 20.",
     "prova_sandbox": "API + registry + catalogo reais com KEEP_COMPLETED=2: 3 tasks reais filesystem_exists concluidas com result=true; GET da recente = 200 completed result=true; ?status=completed = count 2; ?status=dead_letter = 0; historico em disco = 2 arquivos; GET da mais antiga (podada) = 404.",
     "testes": "tests/test_task_queue.py 20 (historico visivel + poda com keep=2; concluida na API e DELETE removendo o historico). GATE COMPLETO: 4677 passed / 16 skipped / 0 falha (196,06 s).",
+    "deploy": "commits 4a11491 (feat) e f54cbcf (docs) publicados em origin/master; restart od-core: MainPID 2635416, NRestarts=0, /health ok=true 28 itens nenhum falhando, journal -p err 0 entradas; GET /admin/tasks = 503 (fila desligada, esperado). Telegram: ok=true msg_id=3997.",
     "sem_bump": "app segue 1.44.0/2080 (correcao interna de servidor); fila segue DESLIGADA em producao (decisao do dono).",
     "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§10)",
     "updated_at": "2026-11-14T13:45:00-03:00"

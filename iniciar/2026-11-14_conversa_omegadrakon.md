@@ -442,3 +442,10 @@ skipped / 0 falha** (196,06 s).
 
 **Sem bump / fila segue desligada em produção** (decisão do dono). Tela de
 histórico no painel/app e filtro por data viraram checkboxes no TODO.
+
+### 4. Deploy e prova viva
+
+Commits `4a11491` (feat) e `f54cbcf` (docs) publicados. Restart do `od-core`:
+**MainPID 2635416**, `NRestarts=0`; `/health` **ok=true, 28 itens, nenhum
+falhando**; journal `-p err` **0 entradas**; `GET /admin/tasks` = **503**
+(fila desligada, esperado). Telegram do dono: `ok=true`, msg 3997.
