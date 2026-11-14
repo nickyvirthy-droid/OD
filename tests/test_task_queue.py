@@ -519,6 +519,25 @@ class TestTaskQueueAPI:
         assert "Tarefas (Task Queue)" in html
         assert "/admin/tasks/events" in html
         assert "tqLoad" in html
+        # Métricas da fila no topo da seção (14/11): os números do /health
+        # chegam no snapshot da própria lista/SSE.
+        assert 'id="tq-resumo"' in html
+        assert "tqResumoFila" in html
+
+    def test_lista_traz_o_snapshot_da_fila(self, servidor_tasks) -> None:
+        """A lista entrega `queue` (fila, workers, dead letter, retenção)
+        para o painel — mesmo retrato do bloco `task_queue` do /health."""
+        srv, fila = servidor_tasks
+        fila.enqueue("system_info", {})
+        status, corpo = _request(srv.bound_port, "GET", "/admin/tasks",
+                                 api_key="segredo123")
+        assert status == 200
+        dados = _json_body(corpo)
+        fila_snap = dados["queue"]
+        assert fila_snap["queue_depth"] == 1
+        assert fila_snap["workers"] == fila._workers
+        assert fila_snap["keep_completed"] == fila._keep_completed
+        assert "pruned" in fila_snap and "dead_letter" in fila_snap
 
     def test_fila_desligada_503(self, tmp_path: Path) -> None:
         from integrations.api import APIConfig, APIServer

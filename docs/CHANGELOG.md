@@ -144,6 +144,14 @@ nenhum número no agregado de saúde. Agora o `GET /health` publica um bloco
   `_run_api_forever`, onde a fila nasce): workers parados ou dead letter em
   disco → `degraded`; nunca derruba o core.
 - Contagem best-effort: pasta ilegível vira 0, nunca exceção.
+- **Painel `/admin`** — a seção "Tarefas (Task Queue)" ganhou a linha de
+  resumo com os mesmos números: na fila, executando, workers, dead letter,
+  concluídas/teto, podadas e o total acumulado. Os dados vêm no snapshot
+  `queue` que `GET /admin/tasks` e o `snapshot` do SSE agora devolvem (sem
+  requisição extra); fila/execução são contadas das próprias tasks da tabela
+  (atualizadas pelo SSE) e as verdades de disco vêm do snapshot. Workers
+  parados aparecem como pill vermelha. Fila desligada (503) mostra "métricas
+  indisponíveis" em vez de quebrar a seção.
 
 **Achado do gate (RAG, sem bump):** ao rodar a suíte com esta seção nova,
 `TestCalibracaoCorpusReal` falhou — o alvo da pergunta "projeto nômade"

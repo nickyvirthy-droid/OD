@@ -1662,6 +1662,9 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       <button id="tq-refresh">↻ Carregar</button>
       <span class="muted msg" id="tq-msg"></span>
     </div>
+    <div class="row" id="tq-resumo" style="font-size:0.78rem;gap:14px;margin-top:8px;align-items:center">
+      <span class="muted">carregando…</span>
+    </div>
     <table style="margin-top:10px">
       <thead><tr>
         <th>Tarefa</th><th>Status</th><th>Tentativas</th><th>Criada</th>
@@ -2773,7 +2776,8 @@ const TQ_STATUS = {
   failed: "Falha", dead_letter: "Dead letter"
 };
 let tqTasks = {};     // task_id → task
-let tqMetrics = null;
+let tqMetrics = null; // contadores acumulados (metrics)
+let tqQueue = null;   // snapshot: fila, workers, dead letter e retenção
 let tqSseAtiva = false;
 
 function tqSetMsg(t, cls) {
@@ -2839,14 +2843,43 @@ function tqRender() {
     b.addEventListener("click", () => tqAcao(b.dataset.id, "retry")));
   document.querySelectorAll(".tq-del").forEach(b =>
     b.addEventListener("click", () => tqAcao(b.dataset.id, "del")));
-  if (tqMetrics) {
-    tqSetMsg("fila: " + (tqMetrics.metrics.enqueued || 0) + " recebida(s) · " +
-             (tqMetrics.metrics.completed || 0) + " concluída(s) · " +
-             (tqMetrics.metrics.retried || 0) + " retentativa(s) · " +
-             (tqMetrics.metrics.dead_letter || 0) + " dead letter · " +
-             (tqMetrics.pending || 0) + " pendente(s) · " +
-             (tqMetrics.workers || 0) + " worker(s)", "");
+  tqResumoFila();
+}
+
+// Resumo do topo (14/11): os MESMOS números do bloco `task_queue` do
+// /health — aqui vêm no snapshot da própria lista/SSE, sem outra chamada.
+function tqResumoFila() {
+  const alvo = document.getElementById("tq-resumo");
+  if (!alvo) return;
+  if (!tqQueue) {
+    alvo.innerHTML = '<span class="muted">métricas indisponíveis</span>';
+    return;
   }
+  const q = tqQueue;
+  const m = q.metrics || {};
+  // Fila e execução contadas das PRÓPRIAS tasks da tabela (o SSE atualiza
+  // cada linha; o snapshot só abre e o ↻ recarrega), com o teto de 200 da
+  // lista. Dead letter, histórico e poda vêm do disco (snapshot).
+  const vivas = Object.values(tqTasks);
+  const pendentes = vivas.filter(t => t.status === "pending").length;
+  const rodando = vivas.filter(t => t.status === "running").length;
+  const peca = (rotulo, valor, dica) =>
+    '<span title="' + esc(dica || "") + '"><b>' + esc(String(valor)) +
+    '</b> <span class="muted">' + esc(rotulo) + "</span></span>";
+  let html = peca("na fila", pendentes, "tasks esperando um worker (até 200 listadas)") +
+    peca("executando", rodando, "tasks rodando agora") +
+    peca("workers", q.workers || 0, "tamanho do pool") +
+    peca("dead letter", q.dead_letter || 0,
+         "arquivos em dead_letter/ — o que pede atenção") +
+    peca("concluídas", (q.completed_on_disk || 0) + "/" + (q.keep_completed || 0),
+         "histórico em disco / teto de OD_TASK_QUEUE_KEEP_COMPLETED") +
+    peca("podadas", q.pruned || 0, "concluídas que a poda já removeu") +
+    '<span class="muted" style="font-size:0.72rem">total: ' +
+    (m.enqueued || 0) + " recebida(s) · " + (m.completed || 0) + " ok · " +
+    (m.retried || 0) + " retry · " + (m.dead_letter || 0) + " falha(s) final(is)</span>";
+  if (q.running === false)
+    html += '<span class="pill err">workers parados</span>';
+  alvo.innerHTML = html;
 }
 
 function tqLoad() {
@@ -2854,7 +2887,7 @@ function tqLoad() {
     .then(async resp => {
       const data = await resp.json().catch(() => ({}));
       if (resp.status === 503) {
-        tqTasks = {}; tqMetrics = null;
+        tqTasks = {}; tqMetrics = null; tqQueue = null;
         tqSetMsg("Fila desligada (OD_TASK_QUEUE_ENABLED=0).", "err");
         tqRender();
         return;
@@ -2865,6 +2898,8 @@ function tqLoad() {
       }
       tqTasks = {};
       (data.tasks || []).forEach(t => { tqTasks[t.task_id] = t; });
+      tqQueue = data.queue || tqQueue;
+      tqMetrics = (data.queue && data.queue.metrics) || tqMetrics;
       tqRender();
     })
     .catch(e => tqSetMsg("Falha: " + e.message, "err"));
@@ -2916,6 +2951,7 @@ function tqSse() {
               tqTasks = {};
               (pacote.tasks || []).forEach(t => { tqTasks[t.task_id] = t; });
               tqMetrics = pacote.metrics || tqMetrics;
+              tqQueue = pacote.queue || tqQueue;
             } else if (pacote.task) {
               tqTasks[pacote.task.task_id] = pacote.task;
             }
@@ -7828,7 +7864,14 @@ class APIHandler(BaseHTTPRequestHandler):
             raise APIError(400, "limit_invalido")
         limit = max(1, min(limit, 1000))
         tasks = tq.list_tasks(status=status, limit=limit)
-        self._json(200, {"ok": True, "tasks": [t.to_dict() for t in tasks], "count": len(tasks)})
+        # `queue` = snapshot da fila (14/11): o painel desenha workers, fila,
+        # dead letter e retenção sem precisar de outra requisição.
+        self._json(200, {
+            "ok": True,
+            "tasks": [t.to_dict() for t in tasks],
+            "count": len(tasks),
+            "queue": tq.snapshot(),
+        })
 
     def admin_tasks_events(self) -> None:
         """GET /admin/tasks/events — SSE de progresso das tasks.
@@ -7852,7 +7895,7 @@ class APIHandler(BaseHTTPRequestHandler):
         # Snapshot inicial
         tasks = tq.list_tasks(limit=200)
         self._sse({"evento": "snapshot", "tasks": [t.to_dict() for t in tasks],
-                   "metrics": tq.metrics()})
+                   "metrics": tq.metrics(), "queue": tq.snapshot()})
         ultimo = time.time()
         # `seen` guarda o último status emitido por task: sem isso o snapshot
         # repetia `task_running`/`task_completed` a cada segundo de polling.
