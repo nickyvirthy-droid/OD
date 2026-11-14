@@ -720,6 +720,96 @@ def exchange_rate(moeda: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# WEB SEARCH — pesquisa na web (sem chave, via DuckDuckGo HTML)
+#
+# Motivação (2026-11-13, dono): 'pesquise na internet ...' hoje cai no LLM
+# e ele recusa alegando não ter internet. Esta action usa o endpoint
+# lite.duckduckgo.com (HTML simples, sem JS, sem chave) para devolver
+# resultados reais com título, URL e snippet.
+# ---------------------------------------------------------------------------
+
+
+def web_search(query: str, max_results: int = 5) -> dict[str, Any]:
+    """Pesquisa na web via DuckDuckGo HTML (sem chave de API).
+
+    Devolve lista de resultados com título, URL e snippet. Sem rede, degrada
+    com mensagem clara — nunca inventa resultados.
+    """
+    import urllib.parse
+    import urllib.request
+    import re
+
+    q = (query or "").strip()
+    if not q:
+        return {"ok": False, "error": "query_vazia",
+                "message": "Informe o termo de busca: 'pesquise sobre python'."}
+
+    url = "https://lite.duckduckgo.com/lite/?" + urllib.parse.urlencode({
+        "q": q,
+        "kl": "br-pt",
+    })
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            html = resp.read().decode("utf-8")
+    except Exception as exc:
+        log.warn("web_search: falha na chamada externa", url=url, error=str(exc))
+        return {"ok": False, "error": "fonte_indisponivel",
+                "message": "Serviço de busca indisponível agora — não invento resultados."}
+
+    # Parse do HTML do DuckDuckGo lite
+    # Estrutura dos resultados principais:
+    # <a rel="nofollow" href="//duckduckgo.com/l/?uddg=URL_REAL&..." class='result-link'>Título</a>
+    #
+    # Extrai links com class='result-link' (resultados numerados)
+    resultados = []
+
+    for match in re.finditer(
+        r'href="([^"]+)"\s+class=\'result-link\'[^>]*>([^<]+)</a>',
+        html,
+        re.IGNORECASE,
+    ):
+        link_url, titulo = match.groups()
+
+        # Resolve URL de redirecionamento do DuckDuckGo se necessário
+        if link_url.startswith("//duckduckgo.com/l/?uddg="):
+            parsed = urllib.parse.urlparse(link_url)
+            params = urllib.parse.parse_qs(parsed.query)
+            if "uddg" in params:
+                link_url = params["uddg"][0]
+
+        # Tenta extrair snippet do contexto anterior (texto no <td> anterior)
+        contexto_inicio = max(0, match.start() - 500)
+        contexto = html[contexto_inicio:match.start()]
+        snippet_match = re.search(r'<td[^>]*>([^<]{20,})</td>', contexto[::-1])
+        snippet = ""
+        if snippet_match:
+            snippet = snippet_match.group(1)[::-1].strip()
+            # Limpa tags HTML
+            snippet = re.sub(r'<[^>]+>', '', snippet).strip()
+
+        resultados.append({
+            "title": titulo.strip(),
+            "url": link_url.strip(),
+            "snippet": snippet,
+        })
+        if len(resultados) >= max_results:
+            break
+
+    if not resultados:
+        return {"ok": True, "query": q, "results": [],
+                "message": "Nenhum resultado encontrado."}
+
+    return {
+        "ok": True,
+        "query": q,
+        "results": resultados,
+        "source": "DuckDuckGo (HTML lite)",
+    }
+
+
+# ---------------------------------------------------------------------------
 # SAÚDE — referência médica determinística (Parte C NOMAD, v1.25.0)
 #
 # Espelha o "affirmative gate" do NOMAD: consulta SÓ fonte curada de
@@ -1610,22 +1700,163 @@ def radio_status() -> dict[str, Any]:
             return {"ok": True, "status": "parado", "stream_url": _RADIO_STREAM_URL}
 
         pid = vivos[0]
-        # Volume atual do sink
-        rc, out, err = _run(["pactl", "get-sink-volume", _RADIO_SINK])
-        vol_atual = out.strip() if rc == 0 else "desconhecido"
+        # Volume atual do sink — tenta o sink configurado, cai no default se falhar
+        vol_atual = ""
+        for sink_tentativa in (_RADIO_SINK, "@DEFAULT_SINK@"):
+            rc, out, err = _run(["pactl", "get-sink-volume", sink_tentativa])
+            if rc == 0 and out.strip():
+                vol_atual = out.strip()
+                break
+        # Se não conseguiu volume, omite a linha "Saída:" no formatador
 
     resultado = {
         "ok": True,
         "status": "tocando",
         "stream_url": _RADIO_STREAM_URL,
         "pid": pid,
-        "volume_sink": vol_atual,
     }
+    if vol_atual:
+        resultado["volume_sink"] = vol_atual
     if len(vivos) > 1:
-        # Duplicata não é silenciada no status: o chat pede para parar/limpar.
         resultado["instancias"] = vivos
         resultado["hint"] = f"{len(vivos)} players da rádio no ar — fale 'desliga a rádio' para encerrar todos"
     return resultado
+
+
+# ---------------------------------------------------------------------------
+# Mapa de Força (referência Projeti) — leitura de escalas/viaturas
+#
+# Dados extraídos de analise/Projeti/Cod/ para data/refs_todo/Projeti/Cod/
+# (Mapa.csv, MapaForca.txt, MapaForcaTudo.txt, Mapa.txt, efetivo.txt)
+# Contém dados pessoais de policiais — NÃO PUBLICAR, NÃO ENVIAR PARA LLM.
+# Action somente para consulta local via chat do dono.
+# ---------------------------------------------------------------------------
+
+
+def mapa_forca_consulta(
+    tipo: str = "resumo",
+    filtro: str = "",
+    limite: int = 20,
+) -> dict[str, Any]:
+    """Consulta dados do Mapa de Força (escalas, viaturas, policiais).
+
+    Fontes (data/refs_todo/Projeti/Cod/):
+      - Mapa.csv: CSV estruturado (inicio, final, cmd, municipio, setor, sub, local, vtr, escala, mod, re, func, re2, func2)
+      - MapaForca.txt: Turnos com tokens [ID] [TPD...] [Policiais] + viatura/tipo/atividade
+      - MapaForcaTudo.txt: Todas as viaturas com status (DISPONÍVEL, OP ESPECIAL, RESERVA, etc.)
+      - Mapa.txt: Versão tabular simplificada
+      - efetivo.txt: Lista de efetivo (posto + matrícula + dv + nome)
+
+    Args:
+        tipo: "resumo" | "viaturas" | "policiais" | "escalas" | "disponiveis"
+        filtro: Termo de busca (viatura, nome, matrícula, município, status)
+        limite: Máximo de resultados
+
+    Dados sensíveis: contém nomes, matrículas, viaturas de policiais.
+    NÃO enviar para LLM externo. Usar apenas localmente.
+    """
+    from pathlib import Path
+    import csv
+    import re
+
+    base = Path("data/refs_todo/Projeti/Cod")
+    if not base.exists():
+        return {"ok": False, "error": "dados_nao_disponiveis",
+                "message": "Arquivos de referência não encontrados em data/refs_todo/Projeti/Cod/"}
+
+    resultados = []
+
+    try:
+        if tipo in ("resumo", "escalas", "viaturas"):
+            # Mapa.csv — CSV estruturado
+            csv_path = base / "Mapa.csv"
+            if csv_path.exists():
+                with open(csv_path, encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        if not filtro or any(filtro.lower() in str(v).lower() for v in row.values()):
+                            resultados.append({"fonte": "Mapa.csv", **row})
+                            if len(resultados) >= limite:
+                                break
+
+        if tipo in ("resumo", "policiais", "viaturas") and len(resultados) < limite:
+            # MapaForca.txt — tokens com colchetes
+            txt_path = base / "MapaForca.txt"
+            if txt_path.exists():
+                conteudo = txt_path.read_text(encoding="utf-8")
+                # Padrão: [I-XXXXX] [TPD:...] [Posto_Matricula_NOME] [Posto_Matricula_NOME] ...
+                for linha in conteudo.splitlines():
+                    if not filtro or filtro.lower() in linha.lower():
+                        # Extrai viatura (primeiro token antes do primeiro colchete ou código)
+                        match_vtr = re.search(r'^(\S+)\s', linha)
+                        vtr = match_vtr.group(1) if match_vtr else ""
+                        # Extrai IDs entre colchetes
+                        ids = re.findall(r'\[([^\]]+)\]', linha)
+                        resultados.append({
+                            "fonte": "MapaForca.txt",
+                            "linha": linha.strip(),
+                            "viatura": vtr,
+                            "ids": ids,
+                        })
+                        if len(resultados) >= limite:
+                            break
+
+        if tipo in ("resumo", "disponiveis", "viaturas") and len(resultados) < limite:
+            # MapaForcaTudo.txt — todas viaturas com status
+            txt_path = base / "MapaForcaTudo.txt"
+            if txt_path.exists():
+                conteudo = txt_path.read_text(encoding="utf-8")
+                secao_atual = ""
+                for linha in conteudo.splitlines():
+                    linha = linha.strip()
+                    if not linha:
+                        continue
+                    # Seção (ex: 608420000)
+                    if re.match(r'^\d{9}$', linha):
+                        secao_atual = linha
+                        continue
+                    if not filtro or filtro.lower() in linha.lower():
+                        # Extrai viatura (primeiro token)
+                        match_vtr = re.match(r'^(\S+)', linha)
+                        vtr = match_vtr.group(1) if match_vtr else ""
+                        # Extrai status (DISPONÍVEL, OP ESPECIAL, RESERVA, EM ATENDIMENTO, etc.)
+                        match_status = re.search(r'^(?:\S+\s+)?(DISPONÍVEL|OP ESPECIAL|RESERVA|EM ATENDIMENTO|SUPERVISÃO|PROC DESCARGA)', linha)
+                        status = match_status.group(1) if match_status else ""
+                        # Extrai IDs entre colchetes
+                        ids = re.findall(r'\[([^\]]+)\]', linha)
+                        resultados.append({
+                            "fonte": "MapaForcaTudo.txt",
+                            "secao": secao_atual,
+                            "viatura": vtr,
+                            "status": status,
+                            "ids": ids,
+                            "linha": linha,
+                        })
+                        if len(resultados) >= limite:
+                            break
+
+        if tipo in ("resumo", "policiais") and len(resultados) < limite:
+            # efetivo.txt — lista de efetivo
+            txt_path = base / "efetivo.txt"
+            if txt_path.exists():
+                conteudo = txt_path.read_text(encoding="utf-8")
+                for linha in conteudo.splitlines():
+                    if not filtro or filtro.lower() in linha.lower():
+                        resultados.append({"fonte": "efetivo.txt", "linha": linha.strip()})
+                        if len(resultados) >= limite:
+                            break
+
+    except Exception as exc:
+        return {"ok": False, "error": "erro_leitura", "message": str(exc)}
+
+    return {
+        "ok": True,
+        "tipo": tipo,
+        "filtro": filtro,
+        "count": len(resultados),
+        "resultados": resultados[:limite],
+        "aviso": "Dados sensíveis (nomes, matrículas, viaturas de policiais). Não publicar, não enviar para LLM externo.",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -4068,6 +4299,8 @@ CATALOG: list[dict[str, Any]] = [
           {"required": ["city"], "properties": {"city": S}}),
     _spec("exchange_rate", "system", "Cotação real de moeda contra o real (AwesomeAPI, sem chave)", exchange_rate,
           {"required": ["moeda"], "properties": {"moeda": S}}),
+    _spec("web_search", "system", "Pesquisa na web (DuckDuckGo HTML, sem chave)", web_search,
+          {"required": ["query"], "properties": {"query": S, "max_results": {**I, "default": 5}}}),
     _spec("ha_lights", "iot", "Estado das luzes e interruptores (Home Assistant)", ha_lights),
     _spec("ha_summary", "iot", "Raio-X do lar: clima, luzes, pessoas, bateria, rede", ha_summary),
     _spec("ha_device_control", "iot", "Liga/desliga UMA luz ou tomada específica (dono, com confirmação)", ha_device_control,
@@ -4099,6 +4332,12 @@ CATALOG: list[dict[str, Any]] = [
               "sink": {**S, "default": ""},
           }}),
     _spec("radio_status", "iot", "Status atual da rádio (tocando/parado, PID, volume)", radio_status),
+    _spec("mapa_forca_consulta", "iot", "Consulta escalas/viaturas do Mapa de Força (dados Projeti)", mapa_forca_consulta,
+          {"properties": {
+              "tipo": {**S, "default": "resumo", "enum": ["resumo", "viaturas", "policiais", "escalas", "disponiveis"]},
+              "filtro": {**S, "default": ""},
+              "limite": {**I, "default": 20},
+          }}),
     # --- Google Workspace (leitura) ---
     _spec("google_drive_list", "google", "Lista/busca arquivos do Google Drive", google_drive_list,
           {"query": {**S, "default": ""}, "limit": {**I, "default": 20}}),

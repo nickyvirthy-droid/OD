@@ -38,8 +38,8 @@ from tools.actions import (
 from tools.registry import ActionRegistry
 
 EXPECTED_CATEGORIES = {
-    "system": 18,  # + network_hosts (v0.27.5) + listening_ports (v1.6.1) + cpu_temp (v1.7.1) + exchange_rate (v1.14.0) + readiness_report (12/11)
-    "iot": 9,  # ha_weather/ha_lights/ha_summary (v1.8.0) + weather_city (v1.12.0) + radio_play/stop/volume/status (10/11)
+    "system": 19,  # + network_hosts (v0.27.5) + listening_ports (v1.6.1) + cpu_temp (v1.7.1) + exchange_rate (v1.14.0) + readiness_report (12/11) + web_search (13/11)
+    "iot": 10,  # ha_weather/ha_lights/ha_summary (v1.8.0) + weather_city (v1.12.0) + radio_play/stop/volume/status (10/11) + mapa_forca_consulta (13/11)
     "process": 4,
     "docker": 4,
     "service": 3,
@@ -76,10 +76,10 @@ class TestActionsCatalog:
     """123 ações catalogadas por categoria com metadados consistentes."""
 
     def test_catalog_count_and_categories(self) -> None:
-        assert ACTIONS_COUNT == 123
-        assert len(CATALOG) == 123
+        assert ACTIONS_COUNT == 125
+        assert len(CATALOG) == 125
         assert CATEGORIES == EXPECTED_CATEGORIES
-        assert sum(CATEGORIES.values()) == 123
+        assert sum(CATEGORIES.values()) == 125
 
     def test_names_unique_and_dotted_clean(self) -> None:
         names = [spec["name"] for spec in CATALOG]
@@ -134,8 +134,8 @@ class TestActionsRegistration:
 
     def test_build_registry_registers_123(self) -> None:
         registry = build_registry()
-        assert len(registry.list_actions()) == 123
-        assert registry.metrics.actions == 123
+        assert len(registry.list_actions()) == 125
+        assert registry.metrics.actions == 125
 
     def test_every_action_has_permission_and_schema(self) -> None:
         registry = build_registry()
@@ -150,7 +150,7 @@ class TestActionsRegistration:
         registry = ActionRegistry()
         first = register_all(registry)
         second = register_all(registry)
-        assert first == 123
+        assert first == 125
         assert second == 0
 
     def test_find_by_category(self) -> None:
@@ -225,7 +225,7 @@ class TestSystemActions:
         registry = self._registry()
         listed = await registry.execute("action_list", role="admin")
         assert listed.status == "ok"
-        assert listed.data["count"] == 123
+        assert listed.data["count"] == 125
         info = await registry.execute(
             "action_info", params={"name": "git_status"}, role="admin"
         )
@@ -578,7 +578,7 @@ class TestActionsSecurity:
         assert snap["ok"] == 1
         assert snap["denied"] == 1
         assert registry.history[0]["status"] == "denied"
-        assert registry.dump()["actions"] == 123
+        assert registry.dump()["actions"] == 125
 
 
 # ===========================================================================

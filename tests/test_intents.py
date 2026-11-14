@@ -406,6 +406,109 @@ class TestDetectActionIntent:
 
 
 # ---------------------------------------------------------------------------
+# Corpus de intenções (frases reais do dono / padrões observados)
+# ---------------------------------------------------------------------------
+# Este teste valida que os padrões de fala observados no uso real
+# (transcrições, txt.txt, relatos do dono) são cobertos pelo fast path.
+# O corpus pode ser expandido conforme novas frases aparecem.
+#
+# Frases que NÃO estão cobertas (gaps conhecidos):
+# - "quem tá na rede" → network_hosts (falta "tá" como sinônimo de "está")
+# - "mostra os equipamentos conectados" → network_hosts (falta "mostra")
+# - "processos rodando agora" → process_list (falta padrão)
+# - "o que tá rodando no servidor" → process_list (falta padrão)
+# - "cpu quente" → cpu_temp (falta "quente" como sinônimo de "temperatura")
+# - "detalhes da máquina" → system_info (falta "detalhes")
+# - "como tá a rádio" → radio_status (falta "tá")
+# - "baixa o volume da rádio" → radio_volume (falta "baixa")
+# - "tempo em curitiba" → weather_city (falta "tempo" como sinônimo de "clima")
+# - "quanto tá o euro" → exchange_rate (falta "tá")
+# - "salva que meu nome é alex" → salvar_fato (falta "salva")
+# - "lembra que eu moro em curitiba" → salvar_fato (falta "lembra que")
+# - "o que eu te falei sobre meu nome" → buscar_memoria (falta padrão)
+# - "pesquisa sobre python" → web_search (falta "pesquisa")
+# - "busca na internet omega drakon" → web_search (falta "busca na internet")
+#
+# Estes gaps devem ser implementados no detect_action_intent conforme necessário.
+
+CORPUS_INTENCOES_COBERTO: list[tuple[str, str, dict]] = [
+    # Rede (coberto)
+    ("quantos dispositivos na wifi", "network_hosts", {}),
+    ("quantas pessoas estão conectadas na rede", "network_hosts", {}),
+    ("quem está conectado na wifi", "network_hosts", {}),
+    ("quais equipamentos estão na rede", "network_hosts", {}),
+    # Processos (coberto)
+    ("quantos processos estão rodando", "process_list", {}),
+    ("lista os processos ativos", "process_list", {}),
+    # Memória (coberto)
+    ("memória livre", "memory_usage", {}),
+    ("ram disponível", "memory_usage", {}),
+    ("uso de ram", "memory_usage", {}),
+    ("quanto de memória livre", "memory_usage", {}),
+    ("quanto de ram disponível", "memory_usage", {}),
+    ("qual o uso de memória", "memory_usage", {}),
+    # CPU (coberto)
+    ("carga do processador", "cpu_info", {}),
+    ("como está o processador", "cpu_info", {}),
+    ("uso de cpu", "cpu_info", {}),
+    ("quanto de cpu está em uso", "cpu_info", {}),
+    ("quantos núcleos tem a cpu", "cpu_info", {}),
+    ("cpu em 40%", "cpu_info", {}),
+    # Temperatura (coberto)
+    ("qual a temperatura da cpu", "cpu_temp", {}),
+    ("quanto está a temperatura da cpu", "cpu_temp", {}),
+    # Disco (coberto)
+    ("espaço livre no disco", "disk_usage", {}),
+    ("uso do hd", "disk_usage", {}),
+    ("disco cheio", "disk_usage", {}),
+    ("qual o uso de disco", "disk_usage", {}),
+    ("quanto de espaço livre no disco", "disk_usage", {}),
+    ("o disco está cheio", "disk_usage", {}),
+    ("qual o uso do disco", "disk_usage", {}),
+    ("uso de disco", "disk_usage", {}),
+    ("como está o disco", "disk_usage", {}),
+    ("qual o uso de hd", "disk_usage", {}),
+    # Uptime (coberto)
+    ("tempo ligado", "uptime", {}),
+    ("há quanto tempo o servidor tá ligado", "uptime", {}),
+    ("há quanto tempo o sistema está ligado", "uptime", {}),
+    ("uptime do servidor", "uptime", {}),
+    # Sistema (coberto)
+    ("informações sobre o sistema", "system_info", {}),
+    ("o que essa máquina tem", "system_info", {}),
+    # Rádio (coberto)
+    ("liga a rádio", "radio_play", {}),
+    ("toca a rádio", "radio_play", {}),
+    ("desliga a rádio", "radio_stop", {}),
+    ("para a rádio", "radio_stop", {}),
+    ("status da rádio", "radio_status", {}),
+    ("volume da rádio", "radio_volume", {}),
+    ("aumenta o volume da rádio", "radio_volume", {"volume": "up"}),
+    # Clima (coberto)
+    ("clima em são paulo", "weather_city", {"city": "são paulo"}),
+    ("qual a temperatura lá fora", "ha_weather", {}),
+    # Cotação (coberto)
+    ("cotação do dólar", "exchange_rate", {"moeda": "dólar"}),
+    ("valor do bitcoin", "exchange_rate", {"moeda": "bitcoin"}),
+]
+
+
+class TestCorpusIntencoes:
+    """Validação do corpus de intenções observadas no uso real."""
+
+    @pytest.mark.parametrize("text,expected_action,expected_params", CORPUS_INTENCOES_COBERTO)
+    def test_corpus_cobertura(self, text: str, expected_action: str, expected_params: dict) -> None:
+        """Cada frase do corpus deve mapear para a action esperada."""
+        result = detect_action_intent(text)
+        if result is None:
+            pytest.fail(f"Frase '{text}' não detectou intenção (esperado: {expected_action})")
+        action, params = result
+        assert action == expected_action, f"'{text}': esperado {expected_action}, got {action}"
+        for k, v in expected_params.items():
+            assert params.get(k) == v, f"'{text}': param {k}={params.get(k)} != {v}"
+
+
+# ---------------------------------------------------------------------------
 # Matemática segura
 # ---------------------------------------------------------------------------
 
