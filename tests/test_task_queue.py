@@ -391,6 +391,17 @@ class TestTaskQueueAPI:
                              f"/admin/tasks/{t.task_id}", api_key="segredo123")
         assert status == 404
 
+    def test_painel_traz_a_secao_de_tarefas(self, servidor_tasks) -> None:
+        """O painel /admin mostra a fila com status e resultado (14/11)."""
+        srv, _ = servidor_tasks
+        status, corpo = _request(srv.bound_port, "GET", "/admin",
+                                 api_key="segredo123")
+        html = corpo.decode()
+        assert status == 200
+        assert "Tarefas (Task Queue)" in html
+        assert "/admin/tasks/events" in html
+        assert "tqLoad" in html
+
     def test_fila_desligada_503(self, tmp_path: Path) -> None:
         from integrations.api import APIConfig, APIServer
 

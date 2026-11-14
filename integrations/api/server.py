@@ -1642,6 +1642,41 @@ _ADMIN_PAGE_HTML = """<!doctype html>
   </section>
 
   <section>
+    <h2>Tarefas (Task Queue)</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Fila assíncrona do servidor (R1): a task roda pelo catálogo de actions
+      com retry exponencial + jitter e cai em <b>dead letter</b> quando
+      esgota. O histórico de concluídas é limitado por
+      <code>OD_TASK_QUEUE_KEEP_COMPLETED</code> (200 por padrão) e podado
+      sozinho pelas mais antigas. Fila desligada responde 503.
+    </p>
+    <div class="row">
+      <select id="tq-status" title="filtrar por status">
+        <option value="">todas</option>
+        <option value="pending">pendentes</option>
+        <option value="running">rodando</option>
+        <option value="completed">concluídas</option>
+        <option value="failed">falhas</option>
+        <option value="dead_letter">dead letter</option>
+      </select>
+      <button id="tq-refresh">↻ Carregar</button>
+      <span class="muted msg" id="tq-msg"></span>
+    </div>
+    <table style="margin-top:10px">
+      <thead><tr>
+        <th>Tarefa</th><th>Status</th><th>Tentativas</th><th>Criada</th>
+        <th>Duração</th><th>Resultado / erro</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="tq-tasks"><tr><td colspan="7" class="muted">Carregando…</td></tr></tbody>
+    </table>
+    <p class="muted" style="font-size:0.75rem;margin-top:6px">
+      📡 ao vivo por SSE (<code>/admin/tasks/events</code>). ⟳ reenfileira
+      falha/dead letter como task nova; 🗑 apaga o registro terminal
+      (concluída ou dead letter) — o histórico é o que a poda consome.
+    </p>
+  </section>
+
+  <section>
     <h2>Auto-update (modelos/conteúdo)</h2>
     <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
       Parte E do NOMAD: o servidor atualiza o que consome sozinho, mas só
@@ -2729,6 +2764,171 @@ function dlSse() {
     .catch(() => { dlSseAtiva = false; });
 }
 
+// --- Task Queue (R1) — histórico com status e resultado (14/11) ------------
+// Fonte: GET /admin/tasks (lista) e GET /admin/tasks/events (SSE). O SSE abre
+// com `snapshot` (tasks + metrics) e depois empurra task_created/task_<status>.
+// Fila desligada = 503: a seção avisa em vez de quebrar o painel.
+const TQ_STATUS = {
+  pending: "Pendente", running: "Rodando", completed: "Concluída",
+  failed: "Falha", dead_letter: "Dead letter"
+};
+let tqTasks = {};     // task_id → task
+let tqMetrics = null;
+let tqSseAtiva = false;
+
+function tqSetMsg(t, cls) {
+  const el = document.getElementById("tq-msg");
+  if (el) { el.textContent = t; el.className = "muted msg " + (cls || ""); }
+}
+
+function tqData(ts) {
+  return ts ? new Date(ts * 1000).toLocaleString("pt-BR") : "—";
+}
+
+function tqDuracao(t) {
+  if (!t.started_ts) return "—";
+  const fim = t.finished_ts || (Date.now() / 1000);
+  const s = Math.max(0, fim - t.started_ts);
+  return s < 1 ? Math.round(s * 1000) + " ms" : s.toFixed(1) + " s";
+}
+
+// Resultado (JSON curto) ou o erro da última tentativa; nada de despejar
+// objeto inteiro na tabela.
+function tqResumo(t) {
+  if (t.status === "dead_letter" || t.status === "failed") {
+    return t.last_error
+      ? '<span style="color:var(--err)">' + esc(t.last_error) + "</span>"
+      : '<span class="muted">—</span>';
+  }
+  if (t.result == null) return '<span class="muted">—</span>';
+  let bruto = typeof t.result === "string" ? t.result : JSON.stringify(t.result);
+  if (bruto.length > 160) bruto = bruto.slice(0, 160) + "…";
+  return '<code style="font-size:0.72rem">' + esc(bruto) + "</code>";
+}
+
+function tqRender() {
+  const filtroEl = document.getElementById("tq-status");
+  const filtro = filtroEl ? filtroEl.value : "";
+  const tarefas = Object.values(tqTasks)
+    .filter(t => !filtro || t.status === filtro)
+    .sort((a, b) => (b.created_ts || 0) - (a.created_ts || 0));
+  const corpo = tarefas.map(t => {
+    const pill = t.status === "completed" ? "ok"
+      : (t.status === "failed" || t.status === "dead_letter" ? "err" : "");
+    const terminal = ["completed", "failed", "dead_letter"].indexOf(t.status) >= 0;
+    let acoes = "";
+    if (t.status === "failed" || t.status === "dead_letter")
+      acoes += '<button class="tq-retry" data-id="' + esc(t.task_id) +
+               '" title="reenfileirar como task nova">⟳</button> ';
+    acoes += '<button class="tq-del" data-id="' + esc(t.task_id) + '"' +
+             (terminal ? "" : " disabled") + ' title="apagar registro terminal">🗑</button>';
+    return "<tr><td><b>" + esc(t.action_name) + "</b>" +
+      '<div class="muted" style="font-size:0.7rem">' + esc(t.task_id) + "</div></td>" +
+      '<td><span class="pill ' + pill + '">' + (TQ_STATUS[t.status] || esc(t.status)) + "</span></td>" +
+      '<td class="muted">' + (t.attempts || 0) + "/" + (t.max_retries || 0) + "</td>" +
+      '<td class="muted">' + tqData(t.created_ts) + "</td>" +
+      '<td class="muted">' + tqDuracao(t) + "</td>" +
+      "<td>" + tqResumo(t) + "</td>" +
+      "<td>" + acoes + "</td></tr>";
+  }).join("");
+  document.getElementById("tq-tasks").innerHTML = corpo ||
+    '<tr><td colspan="7" class="muted">Nenhuma tarefa' +
+    (filtro ? " com status " + esc(TQ_STATUS[filtro] || filtro) : "") +
+    ". A fila enche por POST /admin/tasks (chat/automações) ou pelos botões aqui.</td></tr>";
+  document.querySelectorAll(".tq-retry").forEach(b =>
+    b.addEventListener("click", () => tqAcao(b.dataset.id, "retry")));
+  document.querySelectorAll(".tq-del").forEach(b =>
+    b.addEventListener("click", () => tqAcao(b.dataset.id, "del")));
+  if (tqMetrics) {
+    tqSetMsg("fila: " + (tqMetrics.metrics.enqueued || 0) + " recebida(s) · " +
+             (tqMetrics.metrics.completed || 0) + " concluída(s) · " +
+             (tqMetrics.metrics.retried || 0) + " retentativa(s) · " +
+             (tqMetrics.metrics.dead_letter || 0) + " dead letter · " +
+             (tqMetrics.pending || 0) + " pendente(s) · " +
+             (tqMetrics.workers || 0) + " worker(s)", "");
+  }
+}
+
+function tqLoad() {
+  fetch("/admin/tasks?limit=200", { headers: authHeaders() })
+    .then(async resp => {
+      const data = await resp.json().catch(() => ({}));
+      if (resp.status === 503) {
+        tqTasks = {}; tqMetrics = null;
+        tqSetMsg("Fila desligada (OD_TASK_QUEUE_ENABLED=0).", "err");
+        tqRender();
+        return;
+      }
+      if (!resp.ok) {
+        tqSetMsg(data.error || "Erro HTTP " + resp.status, "err");
+        return;
+      }
+      tqTasks = {};
+      (data.tasks || []).forEach(t => { tqTasks[t.task_id] = t; });
+      tqRender();
+    })
+    .catch(e => tqSetMsg("Falha: " + e.message, "err"));
+}
+
+async function tqAcao(id, acao) {
+  const url = "/admin/tasks/" + encodeURIComponent(id) +
+              (acao === "retry" ? "/retry" : "");
+  try {
+    const resp = await fetch(url, {
+      method: acao === "retry" ? "POST" : "DELETE",
+      headers: authHeaders()
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { tqSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    if (acao === "retry" && data.task) {
+      tqTasks[data.task.task_id] = data.task;
+      tqSetMsg("⟳ Reenfileirada como " + data.task.task_id, "ok");
+    } else {
+      delete tqTasks[id];
+      tqSetMsg("🗑 Registro removido " + id, "ok");
+    }
+    tqRender();
+  } catch (e) { tqSetMsg("Falha: " + e.message, "err"); }
+}
+
+// SSE: snapshot (tasks + métricas) e cada transição. Queda do stream volta ao
+// botão ↻ (a seção não fica atualizando sozinha em segundo plano).
+function tqSse() {
+  if (tqSseAtiva || typeof ReadableStream === "undefined") return;
+  tqSseAtiva = true;
+  fetch("/admin/tasks/events", { headers: authHeaders() })
+    .then(resp => {
+      if (!resp.ok || !resp.body) { tqSseAtiva = false; return null; }
+      const leitor = resp.body.getReader();
+      const decodificador = new TextDecoder();
+      let buffer = "";
+      const pacotes = () => leitor.read().then(res => {
+        if (res.done) { tqSseAtiva = false; return; }
+        buffer += decodificador.decode(res.value, { stream: true });
+        const partes = buffer.split("\\n\\n");
+        buffer = partes.pop();
+        partes.forEach(p => {
+          const linha = p.split("\\n").find(l => l.indexOf("data: ") === 0);
+          if (!linha) return;
+          try {
+            const pacote = JSON.parse(linha.slice(6));
+            if (pacote.evento === "snapshot") {
+              tqTasks = {};
+              (pacote.tasks || []).forEach(t => { tqTasks[t.task_id] = t; });
+              tqMetrics = pacote.metrics || tqMetrics;
+            } else if (pacote.task) {
+              tqTasks[pacote.task.task_id] = pacote.task;
+            }
+            tqRender();
+          } catch (e) { /* linha parcial — o próximo pacote completa */ }
+        });
+        return pacotes();
+      }).catch(() => { tqSseAtiva = false; });
+      return pacotes();
+    })
+    .catch(() => { tqSseAtiva = false; });
+}
+
 // --- Auto-update de modelos/conteúdo — Parte E do NOMAD (2026-10-14) --------
 // Estado do serviço: config (janela/cool-off/cap), alvos do manifesto +
 // índice RAG, e o estado por alvo (falhas/auto-disable). Dry-run mostra o
@@ -3158,7 +3358,7 @@ function linkGoogle() {
   });
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); cantoresLoad(); regLoad(); colLoad(); dlLoad(); auLoad(); frLoad(); linkGoogle(); };
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); cantoresLoad(); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
@@ -3168,6 +3368,8 @@ document.getElementById("reg-nome").addEventListener("keydown", e => { if (e.key
 document.getElementById("dl-add").onclick = dlAdd;
 document.getElementById("dl-refresh").onclick = dlLoad;
 document.getElementById("dl-url").addEventListener("keydown", e => { if (e.key === "Enter") dlAdd(); });
+document.getElementById("tq-refresh").onclick = tqLoad;
+document.getElementById("tq-status").onchange = tqRender;
 document.getElementById("au-dry").onclick = auDry;
 document.getElementById("au-refresh").onclick = auLoad;
 document.getElementById("fr-add").onclick = frAdd;
@@ -3177,7 +3379,7 @@ document.getElementById("fr-import-btn").onclick = () =>
   document.getElementById("fr-import").click();
 document.getElementById("fr-import").addEventListener("change", frImportFile);
 document.getElementById("fr-nome").addEventListener("keydown", e => { if (e.key === "Enter") frAdd(); });
-whoAmI().then(u => { if (u) { carregarTudo(); dlSse(); } });
+whoAmI().then(u => { if (u) { carregarTudo(); dlSse(); tqSse(); } });
 // a sessão roda fora do od-core: o painel acompanha de 5 em 5 s
 setInterval(async () => {
   const estado = await sessaoStatus();
