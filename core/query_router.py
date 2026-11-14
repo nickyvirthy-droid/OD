@@ -100,33 +100,50 @@ class QueryFeatures:
     extracted_at: float = field(default_factory=time.time)
 
 
+# Stopwords PT — conjunto de MÓDULO, compartilhado por todas as extrações.
+STOPWORDS_PT: frozenset[str] = frozenset({
+    'a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos',
+    'e', 'em', 'na', 'no', 'nas', 'nos', 'um', 'uma',
+    'para', 'com', 'por', 'que', 'qual', 'quais',
+    'é', 'são', 'foi', 'era', 'tem', 'têm', 'ter',
+    'se', 'não', 'mais', 'muito', 'bem', 'mal',
+    'uns', 'umas',
+})
+
+
+def tokenizar_pt(text: str) -> list[str]:
+    """Tokenização simples PT — FUNÇÃO DE MÓDULO (14/11).
+
+    O `TfidfVectorizer` guardava o método vinculado `extrator._tokenize`; o
+    pickle de um método vinculado leva a instância INTEIRA do extrator, que
+    tem `threading.Lock()` → o save morria com ``cannot pickle '_thread.lock'``
+    (reproduzido em sandbox) e o ``open("wb")`` já tinha truncado o arquivo —
+    o boot seguinte falhava com ``Ran out of input`` e o router recomeçava do
+    zero a cada reinício (medido em produção, 14/11 15:42). Como função de
+    módulo o pickle a referencia por nome, sem levar estado nenhum.
+    """
+    import re
+    text = text.lower()
+    text = re.sub(r'[^\w\s]', ' ', text)
+    return [t for t in text.split() if t not in STOPWORDS_PT and len(t) > 2]
+
+
 class FeatureExtractor:
     """Extrator de features para o Query Router."""
-    
+
     def __init__(self, config: RouterConfig, embedder: Optional[EmbeddingProvider] = None):
         self.config = config
         self._embedder = embedder or get_embedding_provider()
         self._tfidf_vectorizer = None
         self._tfidf_fitted = False
         self._lock = threading.Lock()
-        
-        # Stopwords PT para tokenização
-        self._stopwords = {
-            'a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos',
-            'e', 'em', 'na', 'no', 'nas', 'nos', 'um', 'uma',
-            'para', 'com', 'por', 'que', 'qual', 'quais',
-            'é', 'são', 'foi', 'era', 'tem', 'têm', 'ter',
-            'se', 'não', 'mais', 'muito', 'bem', 'mal',
-            'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas',
-        }
-    
+
+        # Stopwords PT para tokenização (módulo — ver tokenizar_pt).
+        self._stopwords = STOPWORDS_PT
+
     def _tokenize(self, text: str) -> list[str]:
-        """Tokenização simples PT."""
-        import re
-        text = text.lower()
-        text = re.sub(r'[^\w\s]', ' ', text)
-        tokens = [t for t in text.split() if t not in self._stopwords and len(t) > 2]
-        return tokens
+        """Tokenização simples PT (delega para a função de módulo)."""
+        return tokenizar_pt(text)
     
     def _detect_action_intent(self, text: str) -> bool:
         """Detecta intenção de action (heurística simples)."""
@@ -168,12 +185,17 @@ class FeatureExtractor:
         return False
     
     def fit_tfidf(self, texts: list[str]) -> None:
-        """Ajusta TF-IDF vectorizer nos textos de treino."""
+        """Ajusta TF-IDF vectorizer nos textos de treino.
+
+        `tokenizer` é a função de MÓDULO `tokenizar_pt` — nunca o método
+        vinculado `self._tokenize` (o pickle do vinculado derruba o save;
+        ver o docstring de `tokenizar_pt`).
+        """
         from sklearn.feature_extraction.text import TfidfVectorizer
         with self._lock:
             self._tfidf_vectorizer = TfidfVectorizer(
                 max_features=self.config.max_tfidf_features,
-                tokenizer=self._tokenize,
+                tokenizer=tokenizar_pt,
                 lowercase=True,
                 ngram_range=(1, 2),
             )
@@ -222,6 +244,25 @@ class FeatureExtractor:
                 _log.debug("Embedding extraction failed", error=str(exc))
         
         return features
+
+
+def _dump_atomic(path: Path, payload: dict[str, Any]) -> None:
+    """Grava um pickle em tmp e troca por `os.replace` (nunca trunca o vivo).
+
+    Se o dump falhar, só o `.tmp` fica pela metade — o arquivo anterior
+    continua íntegro e o próximo boot consegue carregar o modelo.
+    """
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        with open(tmp, "wb") as f:
+            pickle.dump(payload, f)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 class QueryRouter:
@@ -279,26 +320,31 @@ class QueryRouter:
             return False
     
     def _save_model(self) -> None:
-        """Salva modelo e vectorizer no disco."""
+        """Salva modelo e vectorizer no disco (gravação ATÔMICA).
+
+        Escrita atômica (tmp + os.replace) porque o `open("wb")` TRUNCA o
+        arquivo vivo antes do dump: com o save falhando no meio, o
+        `features.pkl` ficava incompleto e o próximo boot morria com
+        ``Ran out of input`` (EOFError do pickle) — o router perdia o
+        modelo a cada reinício (medido em produção, 14/11 15:42).
+        """
         model_path = Path(self.config.model_path)
         features_path = Path(self.config.features_path)
-        
+
         try:
             model_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(model_path, "wb") as f:
-                pickle.dump({
-                    "model": self._model,
-                    "classes": self._classes,
-                    "saved_at": time.time(),
-                }, f)
-            
-            with open(features_path, "wb") as f:
-                pickle.dump({
-                    "tfidf_vectorizer": self._extractor._tfidf_vectorizer,
-                    "tfidf_fitted": self._extractor._tfidf_fitted,
-                }, f)
-            
+
+            _dump_atomic(model_path, {
+                "model": self._model,
+                "classes": self._classes,
+                "saved_at": time.time(),
+            })
+
+            _dump_atomic(features_path, {
+                "tfidf_vectorizer": self._extractor._tfidf_vectorizer,
+                "tfidf_fitted": self._extractor._tfidf_fitted,
+            })
+
             _log.info("Query Router model saved", model=str(model_path))
         except Exception as exc:
             _log.error("Failed to save Query Router model", error=str(exc))

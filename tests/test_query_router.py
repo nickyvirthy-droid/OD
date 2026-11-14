@@ -194,6 +194,49 @@ class TestQueryRouter:
         assert router2._model is not None
         assert router2._classes is not None
 
+    def test_save_grava_arquivos_e_boot_seguinte_carrega(
+        self, router_config, mock_embedder, monkeypatch
+    ):
+        """Persistência REAL (14/11) — o teste acima é cego: se o save
+        falha, o bootstrap re-treina sozinho e o assert passa na mesma.
+
+        Bug de produção: o `TfidfVectorizer` recebia o método vinculado
+        `extrator._tokenize` como tokenizer; o pickle do método vinculado
+        leva a instância inteira, que tem `threading.Lock()` →
+        "cannot pickle '_thread.lock'" no save, e o `open("wb")` já tinha
+        truncado o arquivo → "Ran out of input" no boot seguinte (router
+        recomeçava do zero a cada reinício)."""
+        router1 = QueryRouter(config=router_config, embedder=mock_embedder)
+        assert router1._model is not None  # bootstrap treinou (26 exemplos)
+        router1._save_model()
+
+        model_path = Path(router_config.model_path)
+        features_path = Path(router_config.features_path)
+        assert model_path.stat().st_size > 0, "model.pkl vazio/truncado"
+        assert features_path.stat().st_size > 0, "features.pkl vazio/truncado"
+        assert not model_path.with_name(model_path.name + ".tmp").exists()
+        assert not features_path.with_name(features_path.name + ".tmp").exists()
+
+        # Boot seguinte carrega do disco SEM re-treinar: se o bootstrap
+        # rodar, a persistência está quebrada (era o bug de produção).
+        bootstrap: list = []
+        monkeypatch.setattr(
+            "core.query_router._bootstrap_training",
+            lambda r: bootstrap.append(r),
+        )
+        router2 = QueryRouter(config=router_config, embedder=mock_embedder)
+        assert bootstrap == [], "boot re-treinou: o save não persistiu"
+        assert router2._model is not None
+        assert router2._classes is not None
+        # O vectorizer (tokenizador de módulo) voltou do disco íntegro.
+        assert router2._extractor._tfidf_fitted is True
+        # Round-trip funcional com o modelo carregado.
+        assert router2.classify("qual a capital do brasil") in (
+            STRATEGY_RAG,
+            STRATEGY_HYBRID,
+            STRATEGY_LLM_ONLY,
+        )
+
     def test_export_import_training_data(self, tmp_path, query_router):
         """Exporta e importa dados de treino."""
         export_path = tmp_path / "export_training.jsonl"
