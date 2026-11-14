@@ -580,10 +580,13 @@ esperar o timeout.
       `concluidas/keep` e contador `pruned`), fora do cache de 8 s, mais check
       `task_queue` não-crítico no HealthMonitor (degradado com workers parados
       ou dead letter); 5 testes novos em `tests/test_task_queue.py`**
-- [ ] Task Queue: avaliar ligar em produção com **1 worker** e medir o custo
-      real (CPU/RAM) no servidor de 7,7 GB por uma semana — é o número que
-      falta para decidir `OD_TASK_QUEUE_ENABLED=1` (sugestão de 14/11 não
-      escolhida)
+- [x] Task Queue: avaliar ligar em produção com **1 worker** e medir o custo
+      real (CPU/RAM) — **ENTREGUE 14/11: `OD_TASK_QUEUE_ENABLED=1` e
+      `WORKERS=1` no `.env`; ocioso ligado 3,20% CPU / 231 MB vs 3,65% /
+      226 MB desligado (+5,1 MB), rajada de 50 tasks 14% CPU / 68 ms por
+      task, retry real com dead letter em 6 s, e action de LLM longa
+      (105 s) custando 0,23% de core na fila — o custo é do modelo. A
+      "por uma semana" virou contínuo: fila ligada desde 14/11**
 - [x] Task Queue: mostrar o **histórico de concluídas no painel/app** — **ENTREGUE
       14/11: bloco "Tarefas (Task Queue)" no `/admin` e aba "Tarefas" no app,
       com status, tentativas, duração, resultado/erro, filtro, retry e apagar;
@@ -601,9 +604,10 @@ esperar o timeout.
 - [ ] Task Queue: filtro/paginação por data no histórico de concluídas — a
       lista atual corta por prioridade/data de criação, não por conclusão
       (sugestão de 14/11 não escolhida)
-- [ ] Task Queue: métricas de retenção no `/health` (quantas concluídas em
-      disco, quantas podadas por ciclo) para ver a poda funcionando sem abrir
-      o journal (sugestão de 14/11 não escolhida)
+- [x] Task Queue: métricas de retenção no `/health` (quantas concluídas em
+      disco, quantas podadas por ciclo) — **ENTREGUE 14/11 (§15): bloco
+      `task_queue` traz `completed_on_disk/keep_completed` e o contador
+      `pruned` acumulado, fora do cache de 8 s**
 - [x] F1: fazer o `execute_parallel` executar as actions reais do registry, com
       timeout por ferramenta (hoje o `process()` responde actions pelo fast
       path e o grafo só orquestra conversa) — **ENTREGUE 10/11: nós `select_tools` e `execute_parallel` no grafo usam `execute_action` do orchestrator**

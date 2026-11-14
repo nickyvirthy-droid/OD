@@ -1,4 +1,26 @@
 {
+  "retomada_leitura_iniciar_2026_11_14_turno3": {
+    "pedido": "Dono (14/11 ~15:33): 'leia iniciar' — recarregar o checkpoint antes de retomar. Checkpoint anterior: task_queue_metricas_painel_2026_11_14 (§16).",
+    "lido": "iniciar/README.md, iniciar/RULES.md (23 regras), iniciar/session.json (entradas de 12-14/11), iniciar/ATRIBUICOES.md, transcricao 2026-11-14 inteira (§1-§16), txt.txt (vazio), git status/log e o servico.",
+    "estado_encontrado": "HEAD == origin/master == b98de68 (metricas da fila no /health, 14:55), mas ARVORE SUJA com o lote da §16 (metricas no painel /admin) concluido e testado e NUNCA commitado: server.py + test + CHANGELOG + 3 de iniciar/. Codigo ja VIVO (restart 15:07:44 > edicao 15:03:51): /admin com #tq-resumo, /admin/tasks e SSE com queue. od-core MainPID 2822359, NRestarts=0, /health ok=true 29 checks com bloco task_queue up; journal -p err 0; fila LIGADA (OD_TASK_QUEUE_ENABLED=1, WORKERS=1). Nota: horários ~19:05/~20:00 dos registros anteriores estao a frente do relogio real (commits 14:11-15:07).",
+    "validacao": "GATE COMPLETO: 4684 passed / 16 skipped / 0 falha (200,26 s), exit 0, com o lote na arvore. Prova viva: /admin 200 com #tq-resumo/tqResumoFila; GET /admin/tasks com queue (queue_depth/workers/dead_letter/keep_completed/pruned/metrics); SSE snapshot com queue.",
+    "publicado": "2 commits em origin/master: feat(painel) do lote da §16 (server.py + tests/test_task_queue.py + CHANGELOG) e docs(iniciar) (session.json + transcricao §17 + ATRIBUICOES + TODO).",
+    "higiene_todo": "2 checkboxes entregues mas abertos marcados com evidencia: fila ligada com 1 worker + custo medido (§13) e metricas de retencao no /health (§15). Contagem: 47 abertos / 46 feitos.",
+    "autor": "OpenCode (agente, modelo MiMo-V2.6-Flash); a §16 em si e de Freebuff (Buffy) — ver ATRIBUICOES.md.",
+    "em_aberto": "fila ligada desde 14/11 (avaliacao semanal no TODO); I1 Semantic Cache desligado (decisao do dono); OpenAI sem credito; APK 1.45.0+2081 nao publicado (deploy do app exige ordem); criar task pelo painel; SSE na aba Tarefas; ~47 checkboxes no TODO.",
+    "decisao": "Turno de leitura + fechamento do lote pendente (regras 7.1/7.2: validar, commitar, publicar). Nada de restart (o servico ja roda o codigo publicado) e nenhum codigo novo alem do que ja estava na arvore.",
+    "sem_bump": "servidor/painel segue 1.45.0+2081.",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§17)",
+    "updated_at": "2026-11-14T15:45:00-03:00"
+  },
+  "task_queue_metricas_painel_2026_11_14": {
+    "pedido": "Dono (14/11 ~20:00): 'Mostre as métricas da fila também no painel /admin'.",
+    "codigo": "integrations/api/server.py: GET /admin/tasks devolve queue=tq.snapshot(); snapshot do SSE /admin/tasks/events inclui queue; secao Tarefas ganhou #tq-resumo desenhada por tqResumoFila() (na fila, executando, workers, dead_letter, concluidas/teto, podadas e totais). Fila/execucao contadas das tasks da tabela (SSE); disk-truths do snapshot. tqMetrics orfao (esperava pending/workers que a API nunca mandava) substituido.",
+    "testes": "test_lista_traz_o_snapshot_da_fila (novo) + teste do painel com #tq-resumo/tqResumoFila; tests/test_task_queue.py 27 passed.",
+    "sem_bump": "So servidor/painel: 1.45.0+2081.",
+    "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§16)",
+    "updated_at": "2026-11-14T20:30:00-03:00"
+  },
   "task_queue_metricas_health_2026_11_14": {
     "pedido": "Dono (14/11 ~19:05): 'Exponha queue_depth, workers, dead_letter e a retenção da fila no /health', escolhida da lista de próximos do TODO.",
     "codigo": "core/task_queue.py: snapshot() (enabled, running, workers, queue_depth, running_tasks, dead_letter em disco, completed_on_disk, keep_completed, pruned, metrics) + contador pruned em _metrics + _contar() best-effort. runtime/launcher.py: register_task_queue_health() com check nao-critico, chamado no _run_api_forever depois do task_queue.start(). integrations/api/server.py: bloco task_queue no GET /health nos dois caminhos (monitor agregado e fallback), montado fora do cache de 8 s.",

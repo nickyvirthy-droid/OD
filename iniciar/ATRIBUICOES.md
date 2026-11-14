@@ -9,6 +9,63 @@
 
 ---
 
+## 14/11/2026 — Retomada: publicação do lote da §16 e higiene do TODO
+
+**Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — sessão de 14/11 ~15:33,
+a pedido do dono ("leia iniciar").
+
+### Criados
+
+- Nenhum arquivo novo.
+
+### Modificados
+
+- `docs/ANALISE_SISTEMA_TODO.md` — 2 checkboxes **entregues mas abertos**
+  marcados com evidência: fila ligada com 1 worker + custo medido (§13) e
+  métricas de retenção no `/health` (§15).
+- `iniciar/session.json`, `iniciar/2026-11-14_conversa_omegadrakon.md` (§17),
+  `iniciar/ATRIBUICOES.md` — registro desta retomada.
+- **Publicou o lote órfão da §16** (autor: Freebuff/Buffy, feito e registrado
+  mas nunca commitado): `integrations/api/server.py`,
+  `tests/test_task_queue.py`, `docs/CHANGELOG.md`.
+
+### Intenção e estado
+
+- **Intenção:** a sessão anterior terminou antes de publicar a entrega da §16
+  (métricas da fila no painel `/admin`) — risco de perda (regra 23). Fechar o
+  ciclo: **validar → commitar → publicar** (regras 7.1/7.2).
+- **Estado:** **gate completo 4684 passed / 16 skipped / 0 falha** com o lote
+  na árvore; 2 commits em `origin/master`; prova viva (`/admin` com
+  `#tq-resumo`, `/admin/tasks` e SSE com `queue`).
+- **Sem bump / sem restart:** 1.45.0+2081; o `od-core` (15:07:44) já roda
+  exatamente o código publicado.
+
+---
+
+## 14/11/2026 — Métricas da fila no painel /admin
+
+**Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.
+
+### Modificados
+
+- `integrations/api/server.py` — `queue` (snapshot) no `GET /admin/tasks` e
+  no `snapshot` do SSE; linha `#tq-resumo` + `tqResumoFila()` na seção
+  "Tarefas (Task Queue)".
+- `tests/test_task_queue.py` — `test_lista_traz_o_snapshot_da_fila` + painel.
+- `docs/CHANGELOG.md`, `iniciar/session.json`,
+  `iniciar/2026-11-14_conversa_omegadrakon.md` (§16).
+
+### Intenção e estado
+
+- **Intenção:** os números do `/health` (14/11) também no painel, onde o dono
+  já opera a fila.
+- **Estado:** resumo no topo da seção (fila, executando, workers, dead letter,
+  concluídas/teto, podadas, totais). Fila/execução contadas das tasks da
+  tabela (SSE); disco vem do snapshot. Painel testado (27 testes na suíte).
+- **Sem bump:** 1.45.0+2081.
+
+---
+
 ## 14/11/2026 — Métricas da fila no /health
 
 **Autor:** Freebuff (Buffy) — sessão de 14/11, a pedido do dono.

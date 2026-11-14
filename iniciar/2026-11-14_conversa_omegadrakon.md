@@ -714,3 +714,97 @@ o agregado de saúde não dizia nada sobre ela — nem se os workers estavam de 
 Entrega **só de servidor** (contrato do app/APK intacto): versão segue
 **1.45.0+2081**, com subseção datada no CHANGELOG — a mesma convenção do lote
 de 14/11.
+
+## §16 — As mesmas métricas no painel /admin (14/11 ~20:00–20:30)
+
+**Pedido do dono:** "Mostre as métricas da fila também no painel /admin".
+
+### 1. O que entrou
+
+- `GET /admin/tasks` e o `snapshot` do SSE `/admin/tasks/events` passaram a
+  devolver `queue` = `TaskQueue.snapshot()` — o MESMO retrato do `/health`,
+  sem uma requisição extra para o painel.
+- Seção "Tarefas (Task Queue)" ganhou a linha `#tq-resumo`: **na fila**,
+  **executando**, **workers**, **dead letter**, **concluídas/teto**,
+  **podadas** e o total acumulado (recebidas · ok · retry · falhas finais).
+- Fila e execução são contadas das PRÓPRIAS tasks da tabela (o SSE atualiza
+  cada linha em tempo real); dead letter, histórico e poda vêm do disco pelo
+  snapshot. Workers parados → pill vermelha "workers parados".
+- Fila desligada (503): "métricas indisponíveis", sem quebrar a seção; o
+  aviso de fila desligada continua no `#tq-msg`.
+- Substituído o `tqMetrics` órfão (o render antigo esperava `pending`/`workers`
+  que a API nunca mandava — mostrava sempre 0).
+
+### 2. Testes
+
+- `test_lista_traz_o_snapshot_da_fila` (novo) e o teste do painel agora
+  verifica `#tq-resumo` e `tqResumoFila`. `tests/test_task_queue.py`: 27 passed.
+
+### 3. Sem bump
+
+Só servidor/painel; contrato do app e APK intactos → 1.45.0+2081.
+
+## §17 — Retomada ("leia iniciar") + publicação do lote da §16 (14/11 ~15:33–15:45)
+
+**Pedido do dono:** "leia iniciar" — recarregar o checkpoint antes de retomar.
+
+### 1. Lido
+
+`iniciar/README.md`, `iniciar/RULES.md` (23 regras), `iniciar/session.json`
+(entradas de 12–14/11), `iniciar/ATRIBUICOES.md`, transcrição
+`2026-11-14` inteira (§1–§16), `txt.txt` (vazio), `git status`/`log` e o
+serviço.
+
+### 2. Estado encontrado
+
+- **HEAD == origin/master == `b98de68`** ("feat(task-queue): métricas da
+  fila no /health", 14:55) — a árvore estava **suja com o lote da §16**:
+  6 arquivos modificados, **nunca commitados** (`integrations/api/server.py`,
+  `tests/test_task_queue.py`, `docs/CHANGELOG.md` + os 3 de `iniciar/`).
+  A sessão anterior concluiu e registrou a entrega (painel com `#tq-resumo`,
+  suíte da fila 27) mas **parou antes de publicar** — exatamente o cenário
+  da regra 23 (crédito acabando no meio).
+- O código do lote **já estava vivo**: `od-core` reiniciado às **15:07:44**
+  (MainPID 2822359, `NRestarts=0`) depois da última edição do `server.py`
+  (15:03:51) — `/admin` servia `#tq-resumo`/`tqResumoFila` e
+  `GET /admin/tasks` + SSE devolviam `queue`.
+- **Serviço:** `/health` **ok=true, 29 checks**, bloco `task_queue` up
+  (`workers=1 fila=0 executando=0 dead_letter=0 concluidas=0/200 podadas=0`);
+  journal `-p err` sem entradas; fila **LIGADA** em produção
+  (`OD_TASK_QUEUE_ENABLED=1`, `WORKERS=1`).
+- **Nota de relógio:** os horários "~19:05"/"~20:00" das entradas anteriores
+  ficam à frente do relógio real; os commits reais são das **14:11–15:07**
+  (`git log`). Este registro usa hora real.
+
+### 3. Validado antes de publicar
+
+- **GATE COMPLETO: 4684 passed / 16 skipped / 0 falha (200,26 s), exit 0** —
+  rodado com os arquivos do lote na árvore.
+- Prova viva: `/admin` 200 com `#tq-resumo` + `tqResumoFila`;
+  `/admin/tasks` 200 com `queue` (`queue_depth`, `workers`, `dead_letter`,
+  `keep_completed`, `pruned`, `metrics`); SSE `snapshot` com `queue`.
+
+### 4. Publicado
+
+- `feat(painel): métricas da fila no /admin` (server.py + test + CHANGELOG)
+  e `docs(iniciar): retomada e fechamento do lote da §16` (iniciar/ + TODO)
+  em `origin/master`.
+
+### 5. Higiene do TODO (mesmo passo)
+
+Dois checkboxes **entregues mas abertos** marcados com a evidência:
+(a) ligar a fila com 1 worker e medir o custo (§13 — entregue, agora
+contínuo em produção); (b) métricas de retenção no `/health` (§15 —
+`completed_on_disk/keep` + `pruned`). Contagem: **47 abertos / 46 feitos**.
+
+### 6. Em aberto (nada disto mudou neste turno)
+
+Fila ligada desde 14/11 (avaliação de custo por semana segue no TODO);
+**I1 Semantic Cache desligado** esperando decisão do dono; OpenAI sem
+crédito; APK 1.45.0+2081 ainda não publicado (deploy do app = ordem dele);
+criar task pelo painel; SSE na aba Tarefas do app; ~47 checkboxes no TODO.
+
+### 7. Sem bump / sem restart
+
+Só servidor/painel/docs: **1.45.0+2081**. Sem restart — o processo em ar
+(15:07) já roda exatamente o código publicado.
