@@ -66,6 +66,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 
 from core.logger import get_logger
+from core.resilience import obter_quota_tracker
 
 if TYPE_CHECKING:  # pragma: no cover — só tipagem (evita ciclo de import)
     pass
@@ -1642,6 +1643,10 @@ class Orchestrator:
         route = ROUTE_LLM
 
         for index, provider in enumerate(self._providers):
+            # Pula provider sem cota disponível
+            if not self._provider_tem_quota(provider.name):
+                log.info("Provider sem cota — pulando", provider=provider.name)
+                continue
             try:
                 llm_used = provider.name
                 fallback_used = index > 0
@@ -1658,6 +1663,11 @@ class Orchestrator:
                         "content": limpa_etiquetas_resposta(chunk,
                                                             strip=False),
                     }
+                # Registra uso bem-sucedido
+                try:
+                    obter_quota_tracker().record_usage(provider.name)
+                except Exception:
+                    pass
                 break  # Sucesso, sair do loop
             except Exception as exc:
                 log.warn(
@@ -1681,6 +1691,11 @@ class Orchestrator:
                         "content": limpa_etiquetas_resposta(message,
                                                             strip=False),
                     }
+                    # Registra uso bem-sucedido no fallback
+                    try:
+                        obter_quota_tracker().record_usage(provider.name)
+                    except Exception:
+                        pass
                     break
         else:
             # Todos os providers falharam
@@ -3623,13 +3638,31 @@ class Orchestrator:
             raise RuntimeError("provider retornou vazio")
         return str(output)
 
+    def _provider_tem_quota(self, provider_name: str) -> bool:
+        """Verifica se o provider tem cota disponível para uso normal."""
+        try:
+            tracker = obter_quota_tracker()
+            return tracker.can_use(provider_name)
+        except Exception:
+            # Se falhar a verificação, permite (não bloqueia por bug de quota)
+            return True
+
     async def _generate(self, prompt: str) -> tuple[Optional[str], str, bool]:
         """Tenta providers em ordem; retorna (texto, nome, usou_fallback)."""
         if not self._providers:
             return None, "", False
         for index, provider in enumerate(self._providers):
+            # Pula provider sem cota disponível
+            if not self._provider_tem_quota(provider.name):
+                log.info("Provider sem cota — pulando", provider=provider.name)
+                continue
             try:
                 output = await self._generate_one(provider, prompt)
+                # Registra uso bem-sucedido
+                try:
+                    obter_quota_tracker().record_usage(provider.name)
+                except Exception:
+                    pass
                 return output, provider.name, index > 0
             except asyncio.TimeoutError:
                 log.warn(

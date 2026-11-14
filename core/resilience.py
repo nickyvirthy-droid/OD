@@ -292,3 +292,185 @@ def resetar_breakers() -> None:
         for breaker in _breakers.values():
             breaker.resetar()
         _breakers.clear()
+
+
+# ---------------------------------------------------------------------------
+# Quota Tracker — rastreamento de cota diária por provider
+# ---------------------------------------------------------------------------
+
+import json
+from pathlib import Path
+from datetime import date
+from dataclasses import dataclass, asdict
+from typing import Optional
+
+_QUOTA_FILE = Path(os.environ.get("OD_QUOTA_FILE", "data/llm_quota.json"))
+_QUOTA_LOCK = threading.Lock()
+_QUOTA_DEFAULTS = {
+    "gemini": 20,
+    "groq": 1000,  # generoso
+    "openai": 100,  # estimado
+}
+
+_DEFAULT_UNLIMITED = 10**9  # "ilimitado" para providers desconhecidos
+
+
+@dataclass
+class ProviderQuota:
+    """Cota de um provider para o dia atual."""
+    provider: str
+    date: str  # ISO format YYYY-MM-DD
+    used: int = 0
+    limit: int = 0
+    reserved: int = 0  # reservado para rotas prioritárias
+
+    @property
+    def available(self) -> int:
+        return max(0, self.limit - self.used - self.reserved)
+
+    @property
+    def is_exhausted(self) -> bool:
+        return self.limit > 0 and self.available <= 0
+
+
+class QuotaTracker:
+    """Rastreia uso diário de cota por provider."""
+
+    def __init__(self, quota_file: Optional[Path] = None) -> None:
+        self._file = quota_file or _QUOTA_FILE
+        self._file.parent.mkdir(parents=True, exist_ok=True)
+        self._data: dict[str, ProviderQuota] = {}
+        self._load()
+
+    def _load(self) -> None:
+        """Carrega do arquivo JSON."""
+        with _QUOTA_LOCK:
+            if self._file.exists():
+                try:
+                    raw = json.loads(self._file.read_text(encoding="utf-8"))
+                    today = date.today().isoformat()
+                    for provider, info in raw.items():
+                        if info.get("date") == today:
+                            self._data[provider] = ProviderQuota(
+                                provider=provider,
+                                date=info["date"],
+                                used=info.get("used", 0),
+                                limit=info.get("limit", _QUOTA_DEFAULTS.get(provider, _DEFAULT_UNLIMITED)),
+                                reserved=info.get("reserved", 0),
+                            )
+                        else:
+                            # Dia diferente: zera
+                            self._data[provider] = ProviderQuota(
+                                provider=provider,
+                                date=today,
+                                limit=_QUOTA_DEFAULTS.get(provider, _DEFAULT_UNLIMITED),
+                            )
+                except Exception:
+                    pass
+            # Garante que todos os providers conhecidos existam
+            today = date.today().isoformat()
+            for provider, limit in _QUOTA_DEFAULTS.items():
+                if provider not in self._data:
+                    self._data[provider] = ProviderQuota(
+                        provider=provider, date=today, limit=limit
+                    )
+
+    def _save(self) -> None:
+        """Salva no arquivo JSON (escrita atômica)."""
+        with _QUOTA_LOCK:
+            tmp = self._file.with_suffix(".tmp")
+            today = date.today().isoformat()
+            raw = {}
+            for provider, quota in self._data.items():
+                if quota.date == today:
+                    raw[provider] = asdict(quota)
+            tmp.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(self._file)
+
+    def get_quota(self, provider: str) -> ProviderQuota:
+        """Retorna a cota do provider (cria se não existir)."""
+        today = date.today().isoformat()
+        with _QUOTA_LOCK:
+            if provider not in self._data or self._data[provider].date != today:
+                self._data[provider] = ProviderQuota(
+                    provider=provider,
+                    date=today,
+                    limit=_QUOTA_DEFAULTS.get(provider, _DEFAULT_UNLIMITED),
+                )
+            return self._data[provider]
+
+    def can_use(self, provider: str, reserve: int = 0) -> bool:
+        """Verifica se há cota disponível (considerando reserva)."""
+        quota = self.get_quota(provider)
+        return quota.available >= reserve + 1
+
+    def reserve(self, provider: str, amount: int) -> bool:
+        """Reserva cota para uso prioritário. Retorna True se conseguiu reservar."""
+        with _QUOTA_LOCK:
+            quota = self.get_quota(provider)
+            if quota.available >= amount:
+                quota.reserved += amount
+                self._save()
+                return True
+            return False
+
+    def release_reservation(self, provider: str, amount: int) -> None:
+        """Libera reserva não usada."""
+        with _QUOTA_LOCK:
+            quota = self.get_quota(provider)
+            quota.reserved = max(0, quota.reserved - amount)
+            self._save()
+
+    def record_usage(self, provider: str, count: int = 1) -> None:
+        """Registra uso efetivo (após sucesso)."""
+        with _QUOTA_LOCK:
+            quota = self.get_quota(provider)
+            quota.used += count
+            # Usa da reserva primeiro
+            if quota.reserved >= count:
+                quota.reserved -= count
+            else:
+                quota.reserved = 0
+            self._save()
+
+    def set_limit(self, provider: str, limit: int) -> None:
+        """Define limite diário customizado."""
+        with _QUOTA_LOCK:
+            quota = self.get_quota(provider)
+            quota.limit = max(0, limit)
+            self._save()
+
+    def status_all(self) -> list[dict]:
+        """Status de todos os providers."""
+        today = date.today().isoformat()
+        with _QUOTA_LOCK:
+            return [
+                {
+                    "provider": q.provider,
+                    "date": q.date,
+                    "used": q.used,
+                    "limit": q.limit,
+                    "reserved": q.reserved,
+                    "available": q.available,
+                    "exhausted": q.is_exhausted,
+                }
+                for q in self._data.values()
+                if q.date == today
+            ]
+
+
+_QUOTA_TRACKER: Optional[QuotaTracker] = None
+
+
+def obter_quota_tracker() -> QuotaTracker:
+    """Singleton do quota tracker."""
+    global _QUOTA_TRACKER
+    if _QUOTA_TRACKER is None:
+        _QUOTA_TRACKER = QuotaTracker()
+    return _QUOTA_TRACKER
+
+
+def resetar_quota_tracker() -> None:
+    """Reset para testes."""
+    global _QUOTA_TRACKER
+    _QUOTA_TRACKER = None
