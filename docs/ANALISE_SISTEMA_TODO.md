@@ -607,12 +607,13 @@ esperar o timeout.
       e responde 201 com task em `pending`; SSE `task_created` repete o id;
       fila desligada = 503 legível. Commit `da19eb3`, testes: task_queue 27
       + api 202 verdes**
-- [ ] App: usar **SSE** (`/admin/tasks/events`) na aba Tarefas em vez do polling
-      de 5 s — **painel `/admin` JÁ USA SSE** (`tqSse` emite
-      `task_created`/`task_running`/`task_completed`/`task_failed`/`task_dead_letter`);
-      app `TasksScreen` faz `_carregar()` a cada 5 s + polling manual;
-      mesmo contrato do Downloads (`dlSse`), menos requisições (sugestão de 14/11
-      não escolhida)
+- [x] App: usar **SSE** (`/admin/tasks/events`) na aba Tarefas em vez do polling
+      de 5 s — **ENTREGUE 14/11:** `streamTasks()` + `OdTaskEvent` no `OdApi` +
+      `TasksScreen` com `_assinar()`/`_sseCaiu()`/`_aplicar()` (mesmo contrato do
+      Downloads); indicador `📡 ao vivo (SSE)` / `↻ consultando (5 s)`; fallback
+      polling 5 s + reconexão 15 s; testes flutter 223 verdes. Painel `/admin`
+      JÁ USAVA SSE (`tqSse` emite `task_created`/`task_started`/
+      `task_completed`/`task_failed`/`task_retried`/`task_dead_letter`).
 - [ ] Task Queue: filtro/paginação por data no histórico de concluídas — a
       lista atual corta por prioridade/data de criação, não por conclusão
       (sugestão de 14/11 não escolhida)
