@@ -1,0 +1,21 @@
+[Unit]
+Description=Omega Drakon - pg_dump diário do banco od
+Documentation=https://github.com/OmegaDrakon
+After=od-core.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alex/OmegaDrakon
+# Dump do Postgres `od` para data/pg_dumps/ (entra no tar diário + offsite + HDs)
+# O unit carrega o .env via EnvironmentFile; roda manual: .venv/bin/python -m runtime.pg_dump_diario
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python -m runtime.pg_dump_diario
+EnvironmentFile=/home/alex/OmegaDrakon/.env
+TimeoutStartSec=120
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=od-pg-dump
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/home/alex/OmegaDrakon/data

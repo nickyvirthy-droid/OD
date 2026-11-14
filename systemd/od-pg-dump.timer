@@ -1,0 +1,14 @@
+[Unit]
+Description=Timer diário do pg_dump do banco od
+Requires=od-pg-dump.service
+
+[Timer]
+# Diário 02:50 (10 min antes do tar das 03:00); com folga de 10 min.
+# Se a máquina estava desligada no horário, o Persistent dispara na próxima subida.
+OnCalendar=*-*-* 02:50
+AccuracySec=10min
+Persistent=true
+Unit=od-pg-dump.service
+
+[Install]
+WantedBy=timers.target
