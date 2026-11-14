@@ -165,6 +165,30 @@ irrelevantes + 6/6 parafrases**, piso vigente dentro da região (margem
 **Sem bump:** correção/ligação de servidor — o APK e o contrato do app não
 mudaram; o número da release continua **1.45.0+2081**.
 
+## Cadeia de IA invertida: Groq antes do Gemini (2026-11-14, sem bump)
+
+**Pedido do dono:** "inverta o chamado, coloque o Groq antes do Gemini" — a
+cota gratuita do Gemini zera e o disjuntor abre por 6 h; com o Groq na
+frente a cadeia responde direto na nuvem que está de pé.
+
+### O que mudou
+
+1. **`.env` → `OD_CHAT_PROVIDERS=groq,gemini,local`** — a única variável
+   que `runtime/launcher.py::build_llm_providers()` lê (o default era
+   `gemini,groq,local`; nada de código mudou).
+2. **`.env` → `OD_IA_ORDEM=groq,gemini,local`** — variável **dormante**
+   (só o `musica.py` de `.od_sandbox/` a lia); invertida por consistência,
+   sem efeito no serviço.
+
+### Prova viva (14/11 17:25)
+
+| fonte | resultado |
+|---|---|
+| restart | `od-core` MainPID 2967186, NRestarts=0 |
+| `/health` | `ok=true`, **29 checks** |
+| journal | `Cadeia de LLM do chat montada \| ordem=['groq', 'gemini', 'gemma-local']` |
+| mensagem ao vivo | `route=llm`, **`llm_used=groq`** (16,5 s), sem etiqueta e sem refaz |
+
 ## Conserto do "menos inteligente": recusa, Query Router e papéis do OD (2026-11-14, sem bump)
 
 **Pedido do dono:** "resolva o problema, faça o que for necessário" — os três

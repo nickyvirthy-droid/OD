@@ -968,3 +968,81 @@ Contagens 125 → 126 atualizadas em 5 arquivos de teste; 16 testes novos.
   acertos); mensagem LLM normal → `route=llm llm=gemini`, resposta sem
   etiqueta e **0 "Recusa indevida"** no journal; `Query Router model loaded |
   model=data/query_router/model.pkl` **sem bootstrap e sem erro de save**.
+
+## §21 — Groq antes do Gemini + o TODO, o Caderno e a aba Tarefas (14/11 ~17:20)
+
+**Pedido (verbatim):** "porque voce é inteligente e o sistema não consegue
+chegar nisso. inverta o chamado, coloque o Groq antes do Gemini. Quais as
+proximas atualizações, deixa eu ver esse TODO. No Caderno também tem algumas
+listas TODO, esta uma bagunça, nem sei o que tem, o que falta, como está.
+Essa nova aba chamada Tarefas faz o que? achei que seria o TODO?"
+
+### 1. Cadeia invertida (Groq → Gemini → local)
+
+- A cadeia **viva** do chat é `runtime/launcher.py::build_llm_providers()`,
+  que lê `OD_CHAT_PROVIDERS` (default `gemini,groq,local`). O `OD_IA_ORDEM`
+  do `.env` **não é lido por nenhum código de produção** (o `musica.py` que
+  o citava só existe em `.od_sandbox/`) — é variável dormante; invertida
+  junto, por consistência, sem efeito no serviço.
+- `.env` novo: `OD_CHAT_PROVIDERS=groq,gemini,local`; decisão do dono
+  registrada em comentário ao lado.
+- **Prova:** restart 17:25, MainPID 2967186, NRestarts=0; `/health`
+  `ok=true` com **29 checks**; journal `Cadeia de LLM do chat montada |
+  ordem=['groq', 'gemini', 'gemma-local']`; mensagem ao vivo ("me conta uma
+  curiosidade curta sobre polvos") → `route=llm`, **`llm_used=groq`**
+  (16,5 s), sem etiqueta e sem refaz.
+
+### 2. O TODO — 47 checkboxes abertas (`docs/ANALISE_SISTEMA_TODO.md`)
+
+Agrupadas por área: **observabilidade** (OTel Collector + dashboards,
+alertas), **Task Queue** (APK da aba publicar, criar tarefa pelo painel/SSE,
+filtro do histórico), **RAG** (cache de embedding, hybrid search I2, decidir
+`semantic_cache=`), **chat/cota** (enxugar prompt do Gemini p/ caber na cota,
+OpenAI automático, cota do Groq e disjuntores no `/health`, 20 req/dia do
+Gemini, `llm_cache` de conversa), **energia/continuidade** (nobreak 1200–1500
+VA com USB, UPS no `readiness_report`, backup fora da máquina, modo colapso,
+reteste da IA local 7B), **espelho** (venv limpo + container, `.gguf` e
+binário), **mapas** (rótulos não-latinos), **rádio** (formatador, sink),
+**bluetooth** (PIN `0000`), **segurança** (`stt_transcrever` com caminho,
+política de `/tmp`), **NV/Projeti** (DAG/scheduler, SECURITY_LAYER, force map
+como action, Orion, APK divergente), **lote de 13/11** (gate completo,
+duplicata `_task_queue_or_503`) e o **R1 do grafo** + eval framework.
+
+### 3. Caderno (FlatNotes) — inventário lido hoje (só leitura)
+
+11 notas no total; **7 são listas TODO**:
+
+| nota | abertos | feitos | estado |
+|---|---|---|---|
+| TODO 1 — Stack Nômade | 0 | — | ✅ tabela dos serviços, tudo no ar |
+| TODO 1b — Decisão final | 0 | — | fechada (só resta ProtoMaps) |
+| TODO 2 — Pendências do dono | 0 | — | zerada na auditoria de 20/10 |
+| **TODO 3 — Melhoramentos técnicos** | **17** | 22 | última edição 09/11 — o vivo |
+| TODO 4 — Dívida técnica | 0 | — | toda paga |
+| **TODO 5 — Parking lot** | **2** | 0 | Kiwix no chat; as outras 4 na internet pública |
+| **TODO 6 — Definition of Done** | **12** | 0 | checklist de release inteiro por marcar |
+| TODO 7 — Fila de ordens | 0 | — | zerada |
+| Regras e linhas vermelhas / Interligação / Auditoria 01/11 | — | — | sem checkboxes (referência) |
+
+**Nada foi apagado nem reescrito** — leitura pela API
+(`GET /api/search?term=*` + `GET /api/notes/{título}`), sem `DELETE` (que
+nem existe no catálogo).
+
+### 4. Aba "Tarefas" ≠ TODO
+
+A aba **Tarefas** é o **histórico da Task Queue**: as ações que rodam em
+background (status, tentativas, duração, retry, apagar), atualizado a cada
+5 s. O TODO do projeto vive em `docs/ANALISE_SISTEMA_TODO.md` (+ as listas
+do Caderno acima). O APK com a aba ainda não foi publicado (código pronto,
+deploy não autorizado).
+
+### 5. Por que o agente é inteligente e o sistema "não chega lá"
+
+O agente roda com modelo grande, ferramentas, o código-fonte na mão e
+minutos de raciocínio por tarefa; o OD em produção roda com cota gratuita
+(Gemini de poucas dezenas de requisições/dia → disjuntor de 6 h), prompt
+enxuto (512 tokens) e pressa (responder em segundos). A inteligência dele
+então vem das **rotas rápidas verdade** (fastpaths lendo o código de
+verdade, ex.: `role_list` em 29 ms) e da cadeia de fallback — não de
+raciocínio livre. Cada conserto de hoje é exatamente isso: fazer o sistema
+achar a resposta no lugar certo em vez de improvisar.

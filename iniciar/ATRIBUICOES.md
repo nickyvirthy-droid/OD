@@ -9,6 +9,42 @@
 
 ---
 
+## 14/11/2026 — Inversão da cadeia de IA (Groq → Gemini) e inventário do TODO/Caderno
+
+**Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — sessão de 14/11
+~17:20, a pedido do dono ("inverta o chamado, coloque o Groq antes do
+Gemini").
+
+### Criados
+
+- Nenhum arquivo novo.
+
+### Modificados
+
+- `.env` — `OD_CHAT_PROVIDERS=groq,gemini,local` (novo; é a variável que
+  `runtime/launcher.py::build_llm_providers()` realmente lê) +
+  `OD_IA_ORDEM` invertido (variável **dormante** — só o `musica.py` de
+  `.od_sandbox/` a lia — trocada por consistência).
+- `iniciar/2026-11-14_conversa_omegadrakon.md` — §21 (pedido + cadeia +
+  inventários + aba Tarefas).
+- `iniciar/session.json` — chave `inversao_cadeia_ia_2026_11_14`.
+- `docs/CHANGELOG.md` — seção "Cadeia de IA invertida … (sem bump)".
+
+### Intenção e estado
+
+Intenção: honrar a ordem pedida — o Groq na frente porque a cota gratuita do
+Gemini zera e abre disjuntor de 6 h. Estado: **verde** — restart 17:25
+(MainPID 2967186, NRestarts=0), `/health` ok com 29 checks, journal
+`ordem=['groq', 'gemini', 'gemma-local']` e mensagem ao vivo com
+`llm_used=groq`. Também entregues nesta sessão (leitura pura): inventário
+das **47 checkboxes abertas** do `docs/ANALISE_SISTEMA_TODO.md`, mapa das
+**11 notas / 7 listas TODO** do Caderno (só TODO 3 = 17 abertos, TODO 5 = 2
+e TODO 6 = 12 têm itens em aberto) e a explicação da aba **Tarefas**
+(histórico da Task Queue, não o TODO). Nenhuma nota do Caderno foi
+alterada.
+
+---
+
 ## 14/11/2026 — Conserto do "menos inteligente": recusa, Query Router e papéis do OD
 
 **Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — sessão de 14/11

@@ -1,4 +1,14 @@
 {
+  "inversao_cadeia_ia_2026_11_14": {
+    "pedido": "Dono (14/11 ~17:20): 'inverta o chamado, coloque o Groq antes do Gemini. Quais as proximas atualizações, deixa eu ver esse TODO. No Caderno também tem algumas listas TODO, esta uma bagunça... Essa nova aba chamada Tarefas faz o que? achei que seria o TODO?'",
+    "cadeia": "OD_CHAT_PROVIDERS=groq,gemini,local novo no .env — runtime/launcher.py::build_llm_providers() é o único construtor vivo (default gemini,groq,local); OD_IA_ORDEM invertido por consistência (dormante, só musica.py de .od_sandbox lia).",
+    "prova": "restart 17:25 MainPID 2967186 NRestarts=0; /health ok=true 29 checks; journal 'Cadeia de LLM do chat montada | ordem=[groq, gemini, gemma-local]'; mensagem ao vivo route=llm llm_used=groq (16,5 s), sem etiqueta e sem refaz.",
+    "todo_docs": "docs/ANALISE_SISTEMA_TODO.md: 47 checkboxes abertas (observabilidade, Task Queue, RAG, chat/cota, energia, espelho, mapas, rádio, bluetooth, segurança, NV/Projeti, lote 13/11, grafo/eval).",
+    "caderno": "FlatNotes 11 notas / 7 listas TODO lidas via API (só leitura): TODO 1, 1b, 2, 4, 7 zeradas; TODO 3 = 17 abertos/22 feitos (09/11); TODO 5 = 2 abertos; TODO 6 = 12 abertos (DoD); regras/interligação/auditoria sem checkboxes.",
+    "aba_tarefas": "Histórico da Task Queue (ações em background: status, tentativas, duração, retry, delete; polling 5 s) — NÃO é o TODO, que vive em docs/ANALISE_SISTEMA_TODO.md + Caderno.",
+    "por_que_agente_inteligente": "Agente = modelo grande + ferramentas + código na mão + minutos por tarefa; OD em produção = cota gratuita, prompt 512 tokens e segundos. A inteligência do OD vem das fastpaths verdade (role_list 29 ms) e da cadeia de fallback — cada conserto de hoje foi fechar a improvisação.",
+    "estado": "verde — sem bump (só .env + registro)"
+  },
   "conserto_inteligencia_2026_11_14": {
     "pedido": "Dono (14/11 ~16:10): 'resolva o problema, faça o que for necessário' — os 3 diagnósticos da §18/§19 (detector de recusa refazendo tudo, Query Router sem persistência, resposta errada sobre os papéis do OD).",
     "query_router": "Causa raiz reproduzida em sandbox: pickle.dumps(TfidfVectorizer(tokenizer=extrator._tokenize)) -> TypeError cannot pickle '_thread.lock' (método vinculado leva a instância inteira, que tem threading.Lock) e o open('wb') já truncou o arquivo -> 'Ran out of input' no boot. Correção: tokenizar_pt()+STOPWORDS_PT de módulo + _dump_atomic (tmp+os.replace). Teste antigo era cego (bootstrap escondia o save falhando) — teste novo exige arquivos > 0 e boot sem re-treinar.",
