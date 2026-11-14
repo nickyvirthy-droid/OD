@@ -15,7 +15,12 @@
     "regra_nova": "Regra 23 em iniciar/RULES.md: toda entrega de qualquer IA declara autor, arquivos criados/modificados e intenção + estado (o que ficou pela metade e o próximo passo), em iniciar/ATRIBUICOES.md + session.json + transcrição no mesmo passo.",
     "sem_bump": "app segue 1.44.0/2080 (servidor/infra).",
     "transcricao": "iniciar/2026-11-14_conversa_omegadrakon.md (§2)",
-    "updated_at": "2026-11-14T10:05:00-03:00"
+    "updated_at": "2026-11-14T09:10:00-03:00",
+    "gate_final": "4656 passed / 16 skipped / 0 falha (189,29 s), exit 0 — rodado de novo DEPOIS do ajuste do I1 e antes do restart.",
+    "decisao_i1": "O lote ligava o I1 no boot sem aprovação: agora depende de OD_SEMANTIC_CACHE_ENABLED=1 (default 0). Commit f2c784a. Ligar é decisão do dono.",
+    "deploy": "systemctl --user restart od-core (regra 7.3). MainPID 2424782, NRestarts=0, active desde 09:03:49; journal -p err 0 entradas; /health ok=true com 28 itens (circuit_breakers no ar); GET /admin/tasks 503 (fila desligada, esperado); /llms gemini,groq,gemma-local.",
+    "prova_viva": "'qual o uso de disco' -> route=action_intent, llm_used=fastpath:disk_usage, 35,9 ms, resposta real 'Disco /: 66.2% usado · 67.7 GB livres de 231.2 GB'. Boot: 'Semantic Cache desligado', 'TaskQueue desabilitado', 'API REST no ar'.",
+    "commit": "f2c784a (HEAD == origin/master)."
   },
   "retomada_leitura_iniciar_2026_11_14": {
     "pedido": "Dono (14/11 ~08:20): 'leia iniciar' — recarregar o checkpoint antes de retomar. Checkpoint anterior: todo_digest_e_higiene_2026_11_13 (13/11 14:45).",

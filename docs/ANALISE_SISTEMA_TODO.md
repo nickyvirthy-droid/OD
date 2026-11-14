@@ -613,6 +613,17 @@ esperar o timeout.
 > pesquisa web" e "formatador de radio_play/radio_stop" — todas já estão como
 > checkbox acima; nenhuma perdida.
 
+> Turno de 14/11 09:15 (registro da regra 21): sugestões mostradas e não
+> escolhidas → "ligar a `web_search` à intenção de pesquisa" (já no bloco do
+> lote / checkbox de pesquisa web), "decidir e ligar o I1 medindo o impacto"
+> (checkbox I1 da Semana 9-10) e "provar a Task Queue com um job real" (novo
+> checkbox abaixo). Nenhuma perdida.
+
+- [ ] Task Queue: ligar com `OD_TASK_QUEUE_ENABLED=1` num teste controlado e
+      provar um job real (criar → running → completed) pela API, medindo o
+      custo de workers no servidor de 7,7 GB — hoje a única prova é do gate
+      (`tests/test_task_queue.py`), a fila está desligada em produção
+
 > Turno de 14/11 08:30 (registro da regra 21): sugestões mostradas e não
 > escolhidas → "fechar o lote pendente (gate, commits, push, restart)",
 > "remover a duplicata de `_task_queue_or_503` e testar a Task Queue" e

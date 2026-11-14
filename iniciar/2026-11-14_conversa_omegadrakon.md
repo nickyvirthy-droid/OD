@@ -126,3 +126,41 @@ próximo passo). Origem desconhecida é registrada como desconhecida — o lote 
 
 Ver §3 desta transcrição (preenchido após o restart).
 
+## §3 — Publicação e restart verde (14/11 ~09:03)
+
+### 1. Uma decisão tomada no fechamento (não no lote)
+
+O lote ligava o **I1 Semantic Cache** no boot sem aprovação. Como a decisão de
+ligar é do dono (risco de servir resposta parecida na ≥ 0.95), a ligação ficou
+**desligada por padrão**: `OD_SEMANTIC_CACHE_ENABLED=1` no `.env` é o único
+passo que falta. Commit `f2c784a`.
+
+### 2. Publicação
+
+- `git push origin master` → **`a5ccb96..f2c784a`**; árvore limpa,
+  `HEAD == origin/master == f2c784a`.
+- Nove commits por assunto (oito do lote + o ajuste do I1), com o
+  `runtime/launcher.py` separado por hunk entre fila e IA.
+
+### 3. Gate antes do restart (executado de novo após o ajuste do I1)
+
+`pytest tests/ -q` → **4656 passed / 16 skipped / 0 falha (189,29 s)**, exit 0.
+
+### 4. Restart e prova viva (`systemctl --user restart od-core`)
+
+- **MainPID 2424782**, **NRestarts=0**, `active`, subido **09:03:49**.
+- `journal -p err` desde o restart: **No entries**.
+- Boot no journal: `Semantic Cache desligado (OD_SEMANTIC_CACHE_ENABLED=0)`,
+  `Orchestrator real montado | llm=['gemini','groq','gemma-local'] … 
+  semantic_cache=desligado`, `TaskQueue desabilitado (OD_TASK_QUEUE_ENABLED=0)`,
+  `API REST no ar`.
+- **`/health`: `ok=true` com 28 itens** — o check `circuit_breakers` está no ar
+  (era o item invisível desde 11/11).
+- **`GET /admin/tasks` → 503 `task_queue_indisponivel`** — rota viva e a fila
+  desligada por padrão, como documentado.
+- **`/llms`**: gemini, groq, gemma-local (ordem correta).
+- **Chat real**: "qual o uso de disco" → `route=action_intent`,
+  `llm_used=fastpath:disk_usage`, **35,9 ms**, resposta
+  `💾 Disco /: 66.2% usado · 67.7 GB livres de 231.2 GB` (dado medido, sem LLM).
+
+**Sem bump:** app segue **1.44.0/2080** (servidor/infra).
