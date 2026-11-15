@@ -305,14 +305,32 @@ from dataclasses import dataclass, asdict
 from typing import Optional
 
 _QUOTA_FILE = Path(os.environ.get("OD_QUOTA_FILE", "data/llm_quota.json"))
-_QUOTA_LOCK = threading.Lock()
+# RLock (não Lock): métodos públicos como record_usage/reserve seguram o
+# lock e chamam get_quota, que readquire o mesmo lock na mesma thread —
+# com Lock simples isso é deadlock (achado pelos testes do check llm_quota,
+# 14/11).
+_QUOTA_LOCK = threading.RLock()
 _QUOTA_DEFAULTS = {
     "gemini": 20,
-    "groq": 1000,  # generoso
+    # 14/11: limite inicial conservador e PROVASIONAL — o dono não sabe a cota
+    # real da chave; vamos rodando e, quando bloquear (429), ajustamos para o
+    # valor verdadeiro. Ajustável sem mexer no código via OD_QUOTA_GROQ_LIMIT.
+    "groq": 500,
     "openai": 100,  # estimado
 }
 
 _DEFAULT_UNLIMITED = 10**9  # "ilimitado" para providers desconhecidos
+
+
+def _limite_de(provider: str) -> int:
+    """Limite diário do provider: OD_QUOTA_<PROVIDER>_LIMIT > default interno."""
+    env = os.environ.get(f"OD_QUOTA_{provider.upper()}_LIMIT")
+    if env:
+        try:
+            return max(0, int(env))
+        except ValueError:
+            pass
+    return _QUOTA_DEFAULTS.get(provider, _DEFAULT_UNLIMITED)
 
 
 @dataclass
@@ -355,7 +373,7 @@ class QuotaTracker:
                                 provider=provider,
                                 date=info["date"],
                                 used=info.get("used", 0),
-                                limit=info.get("limit", _QUOTA_DEFAULTS.get(provider, _DEFAULT_UNLIMITED)),
+                                limit=info.get("limit", _limite_de(provider)),
                                 reserved=info.get("reserved", 0),
                             )
                         else:
@@ -363,16 +381,16 @@ class QuotaTracker:
                             self._data[provider] = ProviderQuota(
                                 provider=provider,
                                 date=today,
-                                limit=_QUOTA_DEFAULTS.get(provider, _DEFAULT_UNLIMITED),
+                                limit=_limite_de(provider),
                             )
                 except Exception:
                     pass
             # Garante que todos os providers conhecidos existam
             today = date.today().isoformat()
-            for provider, limit in _QUOTA_DEFAULTS.items():
+            for provider in _QUOTA_DEFAULTS:
                 if provider not in self._data:
                     self._data[provider] = ProviderQuota(
-                        provider=provider, date=today, limit=limit
+                        provider=provider, date=today, limit=_limite_de(provider)
                     )
 
     def _save(self) -> None:
@@ -395,7 +413,7 @@ class QuotaTracker:
                 self._data[provider] = ProviderQuota(
                     provider=provider,
                     date=today,
-                    limit=_QUOTA_DEFAULTS.get(provider, _DEFAULT_UNLIMITED),
+                    limit=_limite_de(provider),
                 )
             return self._data[provider]
 
@@ -474,3 +492,18 @@ def resetar_quota_tracker() -> None:
     """Reset para testes."""
     global _QUOTA_TRACKER
     _QUOTA_TRACKER = None
+
+
+def status_quota() -> list[dict[str, Any]]:
+    """Status de cota de TODOS os providers (para /health).
+
+    14/11: inclui o percentual usado — o /health usa isso para degradar
+    quando algum provider passa de 80% da cota diária (ver
+    OD_QUOTA_ALERTA_PCT em runtime/launcher.py).
+    """
+    hoje = date.today().isoformat()
+    resultado: list[dict[str, Any]] = []
+    for q in obter_quota_tracker().status_all():
+        pct = (100.0 * q["used"] / q["limit"]) if q["limit"] > 0 else 0.0
+        resultado.append({**q, "date": hoje, "pct_used": round(pct, 1)})
+    return resultado

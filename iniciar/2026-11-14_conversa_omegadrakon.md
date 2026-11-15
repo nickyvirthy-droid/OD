@@ -1046,3 +1046,35 @@ então vem das **rotas rápidas verdade** (fastpaths lendo o código de
 verdade, ex.: `role_list` em 29 ms) e da cadeia de fallback — não de
 raciocínio livre. Cada conserto de hoje é exatamente isso: fazer o sistema
 achar a resposta no lugar certo em vez de improvisar.
+
+---
+
+## §22 — TODO 681: cota dos providers de LLM visível/alertada no /health (14/11 ~23:00–23:35)
+
+**Pedido do dono:** "comece pelo que achar melhor… nunca suponha, verifique sempre". Escolhido o item 681 do TODO: *cota do Groq visível/alertada no /health* — porque, quando a cota esgota, a resposta cai silenciosamente para o modelo local 3B e ninguém sabe por quê.
+
+### Discussão e decisões do dono (perguntas feitas em pt-BR, regra 1)
+
+1. **Quem aparece no /health?** → **Todos** os providers (gemini, groq, openai), não só o Groq.
+2. **Limite de alerta?** → **80%** (perfeito).
+3. **Limite real do Groq?** → Dono não sabe (achou que a IA pesquisou na internet). Decisão: **limite provisório 500**, ajustável sem código via `OD_QUOTA_GROQ_LIMIT`; quando um 429 real bloquear, ajustamos para o valor medido e no dia seguinte continuamos até ter certeza.
+4. **Onde?** → **Só o /health**; detalhes internos não precisam de log extra.
+5. **Fechar checkbox 681 + CHANGELOG?** → **Sim**, após prova viva.
+
+### Implementação (verificada no código, não suposta)
+
+- `core/resilience.py` — `status_quota()` nova (acrescenta `pct_used` por provider); `_limite_de()` nova (env `OD_QUOTA_<PROVIDER>_LIMIT` sobre os defaults); Groq provisório **500** em `_QUOTA_DEFAULTS`; **`_QUOTA_LOCK` virou `RLock`** — com `Lock` simples `record_usage → get_quota` re-adquiria o lock na mesma thread e dava deadlock (os testes do check travaram; achado e corrigido 14/11).
+- `runtime/launcher.py` — check **não-crítico** `llm_quota` registrado ao lado de `circuit_breakers`: lista todos (`nome: pct% (used/limit)`), fica `degraded` se algum passa de `OD_QUOTA_ALERTA_PCT` (padrão 80) ou esgota (`ESGOTADA`); degradado não derruba o health geral.
+- `tests/test_llm_quota_health.py` — **novo**, 11 testes (registro no `build_health`, pct, alerta 80%, esgotada, env override, env inválido, provider desconhecido ilimitado).
+
+### Prova viva
+
+- Testes: `test_llm_quota_health.py + test_resilience.py + test_health.py + test_launcher_health_external.py` = **66 passed**; `py_compile` OK nos dois arquivos.
+- Serviço reiniciado verde (regra 7.3): `od-core` active, MainPID 3322791, NRestarts=0.
+- `/health` HTTP 200 (com X-API-Key): **30 checks** (era 29), `llm_quota up` — `gemini: 0.0% (0/20); groq: 0.0% (0/500); openai: 0.0% (0/100)`; nenhum degradado; journal limpo. `data/llm_quota.json` ainda não existe (esperado — grava no primeiro `record_usage`).
+
+### Encerramento
+
+- Checkbox **681 marcado [x]** em `docs/ANALISE_SISTEMA_TODO.md` com nota de entrega.
+- Entrada **sem bump** no topo de `docs/CHANGELOG.md` (1.45.0/2081 mantido — mudança só de backend, sem app/APK/painel novo; precedente dos lotes de 14/11 "sem bump"). Sem toolchain Android nesta máquina (sem flutter/aapt), e o app não mudou — nada a rebuildar.
+- `iniciar/session.json`, `iniciar/ATRIBUICOES.md` atualizados; commit + push (regra 7.1); resumo no Telegram (regra 15).

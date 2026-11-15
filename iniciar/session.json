@@ -2207,7 +2207,7 @@
     "sem_mudanca": "Regras vivas (SSH/HTTP/Controle) mantidas por escolha do dono — hoje inertes sob CGNAT, sao o mapa se um dia houver IP publico. UPnP mantido (Tailscale precisa para NAT traversal).",
     "transcricao": "iniciar/2026-10-21_conversa_omegadrakon.md (§3)"
   },
-  "updated_at": "2026-11-10T17:43:31-03:00",
+  "updated_at": "2026-11-14T21:24:31-03:00",
   "auditoria_pendencias_2026_10_20": {
     "pedido": "Dono (~01:45 de 20/10): 'analise melhor porque acho que essas pendencias ja foram resolvidas, pelo menos a maior parte' — refaz a lista de pendencias contra a FONTE VIVA, nao contra os registros.",
     "vereditos": {
@@ -3311,7 +3311,7 @@
       "agents": "profiles (7 perfis Plêiade) + nicky_virthy identity/soul"
     }
   },
-  "topic": "OmegaDrakon v1.44.0+2080 — LISTA DO YOUTUBE EM LOTES (05/11): o resto da lista morria no timeout de 1200 s do download unico (6 de 97 baixadas); agora lotes de 10 com timeout proporcional, falha de lote nao derruba o resto e o dono e avisado; 5 faixas orfas recuperadas + 6 corrigidas para Legiao Urbana (267 -> 273); gate 4169; GEMINI_API_KEY invalida (400) e analise das 11 faixas longas/multi-musica aguardando decisao do dono sobre cortar ou remover",
+  "topic": "OmegaDrakon — Sessão retomada em 14/11 ~21:20 via 'leia iniciar' + pasta OmegaDrakon. Estado verificado: od-core ativo (MainPID 2967186, restart 17:25 após inversão da cadeia Groq→Gemini), /health ok=true 29 checks (401 sem chave é esperado), rádio gerando locuções (última 21:17), HEAD f88a843, 47 checkboxes abertas no TODO, Caderno com TODO 3 (17 abertos), TODO 5 (2), TODO 6 (12).",
   "estado_2026_09_19": {
     "git": "HEAD com alterações no working tree (app/ + iniciar/)",
     "od_core": "active desde 2026-09-18 05:55:15 (PID 413665, NRestarts=0). :8000 e :8001 escutando.",
@@ -5927,5 +5927,45 @@
     "sem_bump": "app segue 1.44.0/2080.",
     "transcricao": "iniciar/2026-11-10_conversa_omegadrakon.md (§28)",
     "updated_at": "2026-11-10T23:28:49.739802-03:00"
+  },
+  "next": "Aguardando próxima ordem do dono — pontos abertos: análise das 11 faixas longas (cortar ou remover), quota Gemini, TODO 3/5/6 do Caderno.",
+  "retomada_leitura_iniciar_2026_11_14_turno4": {
+    "pedido": "Dono: 'leia iniciar' na pasta engine, depois indicou a pasta OmegaDrakon ('estou trabalhando em outra pasta...') e digitou 'OmegaDdrakon'.",
+    "acao": "Localizada pasta /home/alex/OmegaDrakon; lidos iniciar/README.md, RULES.md, session.json, transcrição 2026-11-14 (§1–§21).",
+    "estado_verificado": {
+      "od_core": "active (running) desde 14/11 17:25:03, MainPID 2967186, NRestarts=0",
+      "health": "HTTP 401 sem X-API-Key (esperado — autenticação ativa); porta 8000 ouvindo no processo do od-core",
+      "journal": "sem erros desde 20:00; locuções de rádio geradas normalmente até 21:17 (TTS dii_pt-BR)",
+      "git": "HEAD f88a843 (docs todo); árvore limpa no momento da checagem",
+      "llama_local": "llama-server ouvindo em 127.0.0.1:8081"
+    },
+    "ultimo_ponto_sessao": "§21 da transcrição de hoje: cadeia de IA invertida (OD_CHAT_PROVIDERS=groq,gemini,local), TODO inspecionado (47 abertas), Caderno inventariado (TODO 3/5/6 vivos), aba Tarefas explicada (= histórico da Task Queue, não o TODO).",
+    "registrado_em": "2026-11-14T21:24:31-03:00"
+  },
+  "cota_llm_health_2026_11_14": {
+    "inicio": "2026-11-14 ~23:00",
+    "fim": "2026-11-14 ~23:40",
+    "tarefa": "TODO 681 — cota dos providers de LLM (gemini/groq/openai) visível e alertada no /health, check não-crítico llm_quota (30 checks), alerta em OD_QUOTA_ALERTA_PCT=80%, Groq provisório 500 com OD_QUOTA_GROQ_LIMIT, _QUOTA_LOCK→RLock (deadlock corrigido)",
+    "decisoes_dono": "todos os providers; 80%; limite Groq provisório aprendido no 429 real; só /health; fechar checkbox 681 + CHANGELOG",
+    "arquivos_criados": [
+      "tests/test_llm_quota_health.py"
+    ],
+    "arquivos_modificados": [
+      "core/resilience.py",
+      "runtime/launcher.py",
+      "docs/ANALISE_SISTEMA_TODO.md",
+      "docs/CHANGELOG.md",
+      "iniciar/session.json",
+      "iniciar/2026-11-14_conversa_omegadrakon.md",
+      "iniciar/ATRIBUICOES.md"
+    ],
+    "testes": "66 passed (llm_quota_health + resilience + health + launcher_health_external); py_compile OK",
+    "prova_viva": "od-core verde (MainPID 3322791, NRestarts=0); /health HTTP 200, 30 checks, llm_quota up: gemini 0% (0/20); groq 0% (0/500); openai 0% (0/100)",
+    "versao": "sem bump — 1.45.0/2081 mantido (só backend, sem app/APK novo)",
+    "estado": "ENTREGUE — checkbox 681 [x], CHANGELOG sem bump no topo, ATRIBUICOES + transcrição §22, pronto para commit/push + Telegram"
+  },
+  "proxima_sessao": {
+    "tarefa": "Aguardando próxima orientação do dono (ou próximo item do TODO §3 — 17 abertos em TODO 3 no Caderno)",
+    "lembrete": "Limite real do Groq é provisório (500): se um 429 bloquear, ajustar OD_QUOTA_GROQ_LIMIT no .env com o valor medido"
   }
 }

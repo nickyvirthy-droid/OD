@@ -1312,6 +1312,7 @@ def build_health(
     monitor.register("telemetria", _check_telemetria, critical=False)
     monitor.register("latencia", check_latencia, critical=False)
     monitor.register("circuit_breakers", _check_circuit_breakers, critical=False)
+    monitor.register("llm_quota", _check_llm_quota, critical=False)
     return monitor
 
 
@@ -1381,6 +1382,56 @@ def _check_circuit_breakers(mon: Any) -> dict[str, Any]:
             "detail": f"{len(meio_abertos)} meia-abertos — {'; '.join(detalhes)}",
         }
     return {"ok": True, "status": "up", "detail": f"{len(breakers)} fechados — {'; '.join(detalhes)}"}
+
+
+def _check_llm_quota(mon: Any) -> dict[str, Any]:
+    """Check `llm_quota` (14/11): cota diária dos providers de LLM no /health.
+
+    Não-crítico: cota no talo degrada o /health, não derruba o core — o
+    orchestrator já cai para o próximo provider da cadeia. O que este check
+    resolve é a falha silenciosa: sem ele, quando a cota do Groq estoura,
+    a resposta cai no 3B local sem ninguém saber por quê.
+
+    Regras:
+      * sempre lista TODOS os providers com uso/limite e pct;
+      * qualquer provider acima de `OD_QUOTA_ALERTA_PCT` (padrão 80%) —
+        degraded, destacando quem passou;
+      * provider esgotado (available == 0 com limite conhecido) também
+        degrada, mesmo abaixo do alerta se o limite for baixo.
+    """
+    from core.resilience import status_quota
+
+    try:
+        alerta_pct = float(os.environ.get("OD_QUOTA_ALERTA_PCT", "80"))
+    except ValueError:
+        alerta_pct = 80.0
+    try:
+        quotas = status_quota()
+    except Exception as exc:
+        return {"ok": True, "status": "up", "detail": f"cota indisponível: {type(exc).__name__}"}
+    if not quotas:
+        return {"ok": True, "status": "up", "detail": "nenhum provider registrado"}
+    detalhes = []
+    acima = []
+    esgotados = []
+    for q in quotas:
+        nome = q.get("provider", "?")
+        usado = q.get("used", 0)
+        limite = q.get("limit", 0)
+        pct = q.get("pct_used", 0.0)
+        detalhes.append(f"{nome}: {pct}% ({usado}/{limite})")
+        if q.get("exhausted"):
+            esgotados.append(f"{nome}: ESGOTADA ({usado}/{limite})")
+        elif pct >= alerta_pct:
+            acima.append(f"{nome}: {pct}% da cota ({usado}/{limite})")
+    if esgotados or acima:
+        partes = esgotados + acima
+        return {
+            "ok": False,
+            "status": "degraded",
+            "detail": f"alerta de cota (>= {alerta_pct:.0f}%) — {'; '.join(partes)} | todos: {'; '.join(detalhes)}",
+        }
+    return {"ok": True, "status": "up", "detail": "; ".join(detalhes)}
 
 
 def check_latencia(mon: Any) -> dict[str, Any]:

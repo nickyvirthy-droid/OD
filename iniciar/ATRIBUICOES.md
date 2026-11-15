@@ -449,3 +449,27 @@ O projeto não tinha este livro-caixa. O histórico anterior está em
 `iniciar/session.json` e nas transcrições `iniciar/YYYY-MM-DD_conversa_omegadrakon.md`
 (que registram pedido, feito, testes e decisões, mas **não** nomeiam o autor de
 cada lote).
+
+---
+
+## 14/11/2026 — Cota dos providers de LLM visível/alertada no /health (TODO 681, sem bump)
+
+**Autor:** OpenClaude — sessão de 14/11, a pedido do dono ("comece pelo que achar melhor… verifique sempre").
+
+### Criados
+
+- `tests/test_llm_quota_health.py` — 11 testes do check `llm_quota` e de `_limite_de`/`status_quota`.
+
+### Modificados
+
+- `core/resilience.py` — `status_quota()` nova (com `pct_used`); `_limite_de()` nova (env `OD_QUOTA_<PROVIDER>_LIMIT`); Groq provisório **500** em `_QUOTA_DEFAULTS` (cota real desconhecida — aprende no 429 real, ajustável via `OD_QUOTA_GROQ_LIMIT`); `_QUOTA_LOCK` `Lock` → **`RLock`** (deadlock `record_usage → get_quota` na mesma thread, achado pelos testes).
+- `runtime/launcher.py` — check não-crítico `llm_quota` no `/health` (29 → 30 checks): todos os providers com `pct_used`, `degraded` acima de `OD_QUOTA_ALERTA_PCT` (padrão 80%) ou esgotado.
+- `docs/ANALISE_SISTEMA_TODO.md` — checkbox 681 marcado [x] com nota de entrega.
+- `docs/CHANGELOG.md` — entrada "sem bump" no topo (1.45.0/2081 mantido: só backend, sem app/APK/painel novo; sem toolchain Android na máquina e o app não mudou).
+- `iniciar/session.json`, `iniciar/2026-11-14_conversa_omegadrakon.md` (§22).
+
+### Intenção e estado
+
+- **Intenção:** quando a cota de um provider esgota, a resposta caía silenciosamente para o modelo local 3B sem ninguém saber por quê — tornar a cota visível e alertada no `/health` (decisões do dono: todos os providers, alerta 80%, limite Groq provisório 500 aprendido no bloqueio real, só o /health).
+- **Pronto/validado:** 66 testes passed (`test_llm_quota_health` + `test_resilience` + `test_health` + `test_launcher_health_external`); `py_compile` OK; od-core reiniciado verde (MainPID 3322791, NRestarts=0); `/health` HTTP 200 com 30 checks e `llm_quota up`: `gemini 0% (0/20); groq 0% (0/500); openai 0% (0/100)`; journal limpo. `data/llm_quota.json` ainda não existe (grava no primeiro uso real).
+- **Pela metade (deliberado):** o limite real do Groq (500 é provisório) — será ajustado via `OD_QUOTA_GROQ_LIMIT` quando um 429 bloquear de verdade.

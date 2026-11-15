@@ -678,8 +678,14 @@ esperar o timeout.
       — **13/11, não commitado: `OpenAIProvider` + `OD_OPENAI_AUTO`** (o auto
       só checa se a chave existe, não se há crédito — o teste de crédito real
       continua faltando)
-- [ ] Chat: cota do Groq visível/alertada no `/health` — sem alerta, o próximo
-      limite cai no 3B local em silêncio
+- [x] Chat: cota do Groq visível/alertada no `/health` — **ENTREGUE 14/11:
+      check não-crítico `llm_quota` no `/health` (30º check) lista TODOS os
+      providers com `pct_used` e degrada quando algum passa de
+      `OD_QUOTA_ALERTA_PCT` (padrão 80%) ou esgota; limite do Groq provisório
+      500 ajustável sem código via `OD_QUOTA_GROQ_LIMIT` (quando um 429 real
+      bloquear, ajustamos para o valor verdadeiro medido); prova viva no
+      serviço reiniciado: `llm_quota: gemini 0% (0/20); groq 0% (0/500);
+      openai 0% (0/100)`**
 - [x] Pesquisa web: criar action de busca ("pesquise na internet …" hoje cai
       no LLM e ele recusa alegando não ter internet) — é a queixa literal do dono
       em 11/11: "não está pesquisando" — **ENTREGUE 14/11: `web_search`

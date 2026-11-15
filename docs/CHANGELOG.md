@@ -12,6 +12,50 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Cota dos providers de LLM visível/alertada no `/health` (2026-11-14, sem bump)
+
+**Resumo:** o chat agora mostra no `/health` a cota diária de **todos** os
+providers de LLM (gemini, groq, openai) com percentual usado — antes a cota do
+Groq era invisível e, quando esgotava, a resposta caía silenciosamente para o
+modelo local 3B sem ninguém saber por quê (item 681 do TODO, fechado).
+
+**O que entrou:**
+
+- **`core/resilience.py`** — `status_quota()` expõe cada provider com
+  `pct_used`; `_limite_de()` lê `OD_QUOTA_<PROVIDER>_LIMIT` (sem mexer no
+  código) sobre os defaults internos; limite do **Groq provisório 500**
+  (`OD_QUOTA_GROQ_LIMIT` — a cota real da chave é desconhecida; quando um 429
+  bloquear de verdade, ajustamos para o valor medido e no dia seguinte
+  continuamos). `_QUOTA_LOCK` virou `RLock`: com `Lock` simples
+  `record_usage → get_quota` re-adquiria o lock na mesma thread e dava
+  deadlock (achado pelos testes do check, 14/11).
+- **`runtime/launcher.py`** — check **não-crítico** `llm_quota` no `/health`
+  (29 → 30 checks): lista todos os providers (`nome: pct% (used/limit)`) e
+  fica `degraded` quando algum passa de `OD_QUOTA_ALERTA_PCT` (padrão **80%**
+  — limite aprovado pelo dono) ou esgota (`ESGOTADA`). Degradado não derruba
+  o health geral.
+- **`tests/test_llm_quota_health.py`** (novo, 11 testes): registro do check no
+  `build_health`, cálculo do percentual, alerta aos 80%, cota esgotada,
+  limite via env (`OD_QUOTA_GROQ_LIMIT=1234`), env inválido volta ao default,
+  provider desconhecido = ilimitado.
+
+**Testes:** `tests/test_llm_quota_health.py` + `tests/test_resilience.py` =
+**27 passed**; `tests/test_health.py` + `tests/test_launcher_health_external.py`
+= **55 passed**; `py_compile` nos dois arquivos editados.
+
+**Prova viva (od-core reiniciado verde, MainPID 3322791, NRestarts=0):**
+`/health` HTTP 200 com 30 checks, `llm_quota` `up` —
+`gemini: 0.0% (0/20); groq: 0.0% (0/500); openai: 0.0% (0/100)`; nenhum check
+degradado; journal limpo nos últimos 5 min. `data/llm_quota.json` ainda não
+existe (esperado — é gravado no primeiro `record_usage`).
+
+**Decisões do dono (14/11):** mostrar TODOS os providers (não só o Groq);
+alerta em 80%; limite do Groq provisório aprendido empiricamente no bloqueio
+real; só o `/health`, sem log extra de detalhes internos.
+
+**Sem bump:** 1.45.0/2081 (mudança só de backend, sem app/APK/painel novo —
+seguindo o precedente dos lotes de 14/11 registrados "sem bump").
+
 ## [1.45.0] — TASK QUEUE NO PAINEL E NO APP: A FILA COM STATUS E RESULTADO 🜂 (2026-11-14)
 
 **Tipo de bump:** MINOR (feature nova compatível — painel/aba novas; a API já
