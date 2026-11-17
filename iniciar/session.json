@@ -6005,6 +6005,7 @@
     "registro": "docs/CHANGELOG.md (secao datada sem bump), docs/ANALISE_SISTEMA_TODO.md (checkbox do lote fechado + item da radio anotado), iniciar/2026-11-17_conversa_omegadrakon.md (§4), iniciar/ATRIBUICOES.md, esta entrada.",
     "pendente": "rotas de API + painel /admin + /radio-pro para excluir musica e gerenciar excecoes (so a biblioteca existe).",
     "sem_bump": "1.45.0+2081 (sem mudanca de contrato do app publicado).",
+    "deploy": "5 commits por assunto (eaa7ffe radio, 76314ba api, 975a96b supply_depot, b08289f app, b579203 tests, d3a07fa docs) em origin/master (HEAD == origin/master == d3a07fa), arvore limpa. Restart od-core: MainPID 2210721, NRestarts=0, /health ok=true 30 checks nenhum falhando, journal 0 erros. Telegram ok=true msg_id=4015.",
     "updated_at": "2026-11-17T03:40:00-03:00"
   },
   "retomada_leitura_iniciar_2026_11_17_turno2": {
