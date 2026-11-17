@@ -5984,21 +5984,21 @@ class APIHandler(BaseHTTPRequestHandler):
     def _exige_admin_do_acervo(self) -> bool:
         """Gate das rotas de curadoria; False quando já respondeu o erro.
 
-        Aceita o que o navegador consegue mandar (cookie od_sessao), o
-        Bearer do app e o X-API-Key do painel — exatamente a régua do
-        `_sessao_do_ouvinte`, mais o papel `admin`. Servidor SEM contas
-        (sandbox/dev, auth desligada) libera, como o `_role()` faz.
+        Três portas, na ordem:
+          1. sessão do navegador (cookie `od_sessao`) ou Bearer do app —
+             `_sessao_do_ouvinte`, que também aceita a chave de CONTA;
+          2. `X-API-Key` do SERVIDOR (`OD_API_KEY`) — `_check_api_key`, a
+             mesma porta do resto da API (o painel usa essa);
+          3. servidor sem chave e sem contas (sandbox/dev), como o `_role()`.
+        Em todas, o papel exigido é `admin`: conta comum leva 403 e quem não
+        tem credencial nenhuma leva 401 (escrito pelo `_check_api_key`).
         """
-        if not self._sessao_do_ouvinte():
-            if self.api._user_store is None:
-                return True
-            self._json(401, {"ok": False, "error": "login_necessario",
-                             "entrar": "/chat?next=/radio-pro"})
-            return False
-        if self._role() != "admin":
-            self._json(403, {"ok": False, "error": "acesso_negado"})
-            return False
-        return True
+        if self._sessao_do_ouvinte() or self._check_api_key():
+            if self._role() != "admin":
+                self._json(403, {"ok": False, "error": "acesso_negado"})
+                return False
+            return True
+        return False
 
     def _par_artista_titulo(self) -> tuple[str, str]:
         """(artista, titulo) do corpo JSON, aparados e limitados."""

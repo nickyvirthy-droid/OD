@@ -271,7 +271,38 @@ class TestRotasDeCuradoria:
 
     def test_sem_credencial_401(self, servidor) -> None:
         status, d = _request(servidor.bound_port, "GET", "/api/radio/musicas")
-        assert status == 401 and d["error"] == "login_necessario"
+        assert status == 401 and d["ok"] is False
+
+    def test_chave_do_servidor_tambem_entra(self, tmp_path, monkeypatch) -> None:
+        """O painel usa a X-API-Key do servidor: ela precisa valer aqui."""
+        from integrations import radio_pro as rp
+        from integrations.api import APIConfig, APIServer
+
+        monkeypatch.setattr(rc, "LISTA_BLOQUEADAS", tmp_path / "b.txt")
+        monkeypatch.setattr(rc, "LISTA_EXCECOES", tmp_path / "e.txt")
+        monkeypatch.setattr(rp, "BANCO_ACERVO",
+                            _acervo(tmp_path / "acervo.db", [
+                                ("acervo/Rock/A - B.mp3", "A", "B")]))
+        store = _StoreFalso({"od_chave_de_conta":
+                             SimpleNamespace(username="fulano", role="user")})
+        srv = APIServer(None, config=APIConfig(
+            port=0, rate_limit_max=0, api_key="chave-do-operador",
+            user_store=store))
+        srv.serve_background()
+        try:
+            status, d = _request(srv.bound_port, "GET", "/api/radio/musicas",
+                                 api_key="chave-do-operador")
+            assert status == 200 and d["ok"] is True
+            # chave de CONTA comum continua barrada
+            status, _d = _request(srv.bound_port, "GET", "/api/radio/musicas",
+                                  api_key="od_chave_de_conta")
+            assert status == 403
+            # chave errada não passa
+            status, _d = _request(srv.bound_port, "GET", "/api/radio/musicas",
+                                  api_key="errada")
+            assert status == 401
+        finally:
+            srv.stop()
 
     def test_conta_comum_403(self, servidor) -> None:
         status, d = _request(servidor.bound_port, "GET",
