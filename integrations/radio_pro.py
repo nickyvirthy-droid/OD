@@ -514,22 +514,34 @@ def link_do_youtube(valor: str) -> str:
     caminho = partes.path.rstrip("/") or "/"
     if host in ("youtu.be", "www.youtu.be"):
         video = caminho.strip("/").split("/")[0]
-        return (f"https://www.youtube.com/watch?v={video}"
-                if _ID_VIDEO.match(video) else "")
+        v_ok = video if _ID_VIDEO.match(video) else ""
+        if lista:
+            return (f"https://www.youtube.com/playlist?list={lista}&v={v_ok}"
+                    if v_ok else f"https://www.youtube.com/playlist?list={lista}")
+        return f"https://www.youtube.com/watch?v={v_ok}" if v_ok else ""
     if caminho == "/watch":
         video = str((query.get("v") or [""])[0]).strip()
-        if _ID_VIDEO.match(video):
-            return f"https://www.youtube.com/watch?v={video}"
+        v_ok = video if _ID_VIDEO.match(video) else ""
         if lista:
-            return f"https://www.youtube.com/playlist?list={lista}"
+            return (f"https://www.youtube.com/playlist?list={lista}&v={v_ok}"
+                    if v_ok else f"https://www.youtube.com/playlist?list={lista}")
+        if v_ok:
+            return f"https://www.youtube.com/watch?v={v_ok}"
         return ""
     if caminho == "/playlist":
-        return (f"https://www.youtube.com/playlist?list={lista}"
-                if lista else "")
+        video = str((query.get("v") or [""])[0]).strip()
+        v_ok = video if _ID_VIDEO.match(video) else ""
+        if lista:
+            return (f"https://www.youtube.com/playlist?list={lista}&v={v_ok}"
+                    if v_ok else f"https://www.youtube.com/playlist?list={lista}")
+        return ""
     achado = re.match(r"^/(?:shorts|embed|live)/([A-Za-z0-9_-]{11})(?:/|$)",
                       caminho)
     if achado:
-        return f"https://www.youtube.com/watch?v={achado.group(1)}"
+        v_ok = achado.group(1)
+        if lista:
+            return f"https://www.youtube.com/playlist?list={lista}&v={v_ok}"
+        return f"https://www.youtube.com/watch?v={v_ok}"
     return ""
 
 

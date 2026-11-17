@@ -12,6 +12,51 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Correção: links do YouTube de reprodução com &list preservam a playlist inteira (2026-11-17, sem bump)
+
+**Contexto:** ao pedir música por link do YouTube a partir de uma playlist em reprodução (`/watch?v=...&list=...` ou `youtu.be/...&list=...`), a sanitização de `link_do_youtube()` descartava o parâmetro `&list` se houvesse `v=`, transformando a playlist em vídeo individual (foi o que causou o download de apenas 1 música no pedido do Raul Seixas).
+
+### O que mudou
+
+1. **`integrations/radio_pro.py` (`link_do_youtube`):** preserva `list=` mesmo quando a URL contém `v=` ou vem de `youtu.be` (normalizando para `https://www.youtube.com/playlist?list={lista}&v={video}`).
+2. **`integrations/radio_link.py` (`processar_pedido`):** se a playlist trouxer um vídeo específico no parâmetro `v=`, esse vídeo é movido para o topo (`entradas[0]`) para tocar imediatamente na rádio, enquanto as demais faixas da playlist são baixadas em segundo plano pela rotina `_baixar_resto()`.
+3. **`tests/test_radio_link.py`:** teste atualizado e novo teste `test_playlist_com_video_especifico_toca_ele_primeiro` cobrindo o fluxo completo.
+
+## Item 2 do backlog fechado: correção do payload vazio + cobertura de testes (2026-11-15, sem bump)
+
+**Contexto:** o lote da noite de 14/11 (outro agente) entregou os itens 2–4
+do backlog (criar tarefa, SSE, filtro por data) e **os commits pegaram meu
+rascunho em voo** (`da19eb3`) — mas sem testes de criação e sem registro
+no livro-caixa. Esta rodada validou o que mudou, corrigiu um defeito e
+completou a cobertura. 1.45.0/2081 mantido (só repo — o APK publicado não
+leva isto; publicação continua sendo ordem à parte do dono).
+
+### O que mudou
+
+1. **Correção:** o diálogo "Enfileirar tarefa" rejeitava payload vazio `{}`
+   — action sem parâmetros (`system_info`, `ha_weather`) não passava,
+   embora a API aceite (`payload or {}`). Agora só **não-objeto**
+   (array/scalar/caixa) é recusado.
+2. **+5 testes:** `createTask` (POST com body exato `{action,payload}` →
+   201; `{}` por omissão; 503 → "desligada no servidor"), diálogo da tela
+   (POST `/admin/tasks` + sucesso + id na lista; JSON inválido **não**
+   POSTa) e o formulário do painel (ids + `tqCriar`/`tqCarregarActions` no
+   HTML).
+3. **Ideia do dono registrada no TODO (aguardando decisão):** "app está
+   ficando complicado… dividir em vários apps ou esconder abas?" —
+   recomendação: **1 app com abas por papel** (o recorte de permissões já é
+   do servidor) + nova aba **"Casa"** com botões data-driven de luz.
+
+### Validação (15/11)
+
+| fonte | resultado |
+|---|---|
+| `flutter analyze` | 0 issues |
+| `flutter test` | **228 passed** (223 + 5 novos) |
+| lote `test_task_queue + test_api` | **229 passed** |
+| gate completo `--cov-fail-under=90` | PENDENTE |
+| `/health` vivo | `ok=true`, **30 checks** (`llm_quota up`), journal 0 erros desde 15/11 |
+
 ## Cota dos providers de LLM visível/alertada no `/health` (2026-11-14, sem bump)
 
 **Resumo:** o chat agora mostra no `/health` a cota diária de **todos** os
@@ -280,7 +325,7 @@ no dia e Query Router sem persistência.
 | journal pós-restart | `Query Router model loaded` sem bootstrap nem erro de save; **0 "Recusa indevida"**; resposta LLM sem etiqueta |
 
 **Achado do gate (RAG, sem bump):** o título da §18 da transcrição colidiu
-com a irrelevante "quanto é 15% de 380 reais" (comb 0.4718 vs piso 0.399;
+com a irrelevante de aritmética (a pergunta sintética de porcentagem; comb 0.4718 vs piso 0.399;
 overlap 0.3195 = **4× o teto medido 0.071** — nenhum grid recalibrava sem
 matar parafrases). Pelo precedente de 20/10 (**rewording do NOSSO texto,
 piso intocado**): reescrito só o título nosso — a citação verbatim do dono

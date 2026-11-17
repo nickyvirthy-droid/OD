@@ -56,6 +56,7 @@ Thumbs.db
 logs/*.log
 logs/*.log.*
 logs/*.jsonl
+logs/*.jsonl.*
 # Estado do Vigia da Rede (inventário da LAN — operacional, nunca versionar)
 logs/network_watchdog_estado.*
 

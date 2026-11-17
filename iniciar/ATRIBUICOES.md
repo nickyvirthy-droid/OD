@@ -9,6 +9,44 @@
 
 ---
 
+## 14/11/2026 — Itens 2–4 do backlog: criar tarefa, SSE e filtro por data (registro completado em 15/11)
+
+**Autor:** OpenClaude (outro agente, sessão da noite de 14/11) — os commits
+`da19eb3` (criar tarefa pelo painel/app), `eef553e` (SSE na aba Tarefas) e
+`ce643a2` (filtro/paginação por data de conclusão) **não entraram no
+livro-caixa nem na transcrição**; registro completado aqui por OpenCode em
+15/11, a pedido do dono ("voce parou ontem. verifique o que mudou e
+continue").
+
+### Criados
+
+- Nenhum arquivo novo.
+
+### Modificados
+
+- `integrations/api/server.py` — formulário de criação no bloco Tarefas
+  (select do catálogo `GET /actions` + campo de payload JSON +
+  `tqCriar` → `POST /admin/tasks`); rota de ordenação por `finished_ts`.
+- `app/lib/services/od_api.dart` — `createTask()` (POST, 201) + SSE de
+  `/admin/tasks/events` + `sort_by_finished`.
+- `app/lib/screens/tasks_screen.dart` — diálogo "Enfileirar tarefa" (＋),
+  stream SSE ao vivo e filtro por data de conclusão.
+- `core/task_queue.py` — ordenação/filtro por `finished_ts`.
+- `docs/ANALISE_SISTEMA_TODO.md` — itens 2–4 marcados [x].
+
+### Intenção e estado
+
+Intenção: fechar os itens 2, 3 e 4 do backlog §4. Estado verificado em
+15/11 por OpenCode: flutter analyze limpo, **223 testes verdes** antes das
+correções, lote Python `test_task_queue + test_api` **229 passed**, árvore
+pushada e serviço ativo (MainPID 3322791, NRestarts=0). **Duas lacunas
+detectadas e cobertas em 15/11:** (a) nenhum teste para
+`createTask`/formulário — +5 testes escritos; (b) o diálogo rejeitava
+payload vazio `{}` (ação sem parâmetros como `system_info` não passava,
+embora a API aceite `payload or {}`) — corrigido.
+
+---
+
 ## 14/11/2026 — Inversão da cadeia de IA (Groq → Gemini) e inventário do TODO/Caderno
 
 **Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — sessão de 14/11
@@ -88,7 +126,7 @@ alterada.
   **28,9 ms**, mensagem LLM sem etiqueta e **0 refazs**, `Query Router model
   loaded` sem bootstrap.
 - **Achado do gate:** o título da §18 colidiu no RAG com a irrelevante
-  "quanto é 15% de 380 reais" (nenhum grid recalibrava) — reescrito só o
+  de aritmética (a pergunta sintética; nenhum grid recalibrava) — reescrito só o
   título nosso (citação do dono intacta), piso intocado (precedente 20/10).
 - **Sem bump:** 1.45.0+2081 — correção de servidor, contrato do app intacto.
 
@@ -473,3 +511,60 @@ cada lote).
 - **Intenção:** quando a cota de um provider esgota, a resposta caía silenciosamente para o modelo local 3B sem ninguém saber por quê — tornar a cota visível e alertada no `/health` (decisões do dono: todos os providers, alerta 80%, limite Groq provisório 500 aprendido no bloqueio real, só o /health).
 - **Pronto/validado:** 66 testes passed (`test_llm_quota_health` + `test_resilience` + `test_health` + `test_launcher_health_external`); `py_compile` OK; od-core reiniciado verde (MainPID 3322791, NRestarts=0); `/health` HTTP 200 com 30 checks e `llm_quota up`: `gemini 0% (0/20); groq 0% (0/500); openai 0% (0/100)`; journal limpo. `data/llm_quota.json` ainda não existe (grava no primeiro uso real).
 - **Pela metade (deliberado):** o limite real do Groq (500 é provisório) — será ajustado via `OD_QUOTA_GROQ_LIMIT` quando um 429 bloquear de verdade.
+
+---
+
+## 17/11/2026 — Leitura do iniciar e diagnóstico completo do txt.txt
+
+**Autor:** Antigravity (Gemini 3.8 Flash) — sessão de 17/11, a pedido do dono ("leia inicar e txt").
+
+### Criados
+
+- `iniciar/2026-11-17_conversa_omegadrakon.md` (§1).
+
+### Modificados
+
+- `iniciar/session.json` — atualizado com checkpoint da retomada e diagnóstico dos 6 pontos do `txt.txt`.
+- `iniciar/ATRIBUICOES.md` — esta entrada no livro-caixa.
+
+### Intenção e estado
+
+- **Intenção:** atender à ordem do dono de ler `iniciar/` e `txt.txt`, levantando com precisão os fatos sobre as músicas do Raul Seixas no acervo, desenhar a solução para exclusão de músicas indesejadas e exceções de cantores bloqueados, e realizar a análise do site GSN Offline e dos vídeos de resiliência digital (apps off-grid e Meshtastic LoRa).
+- **Pronto/validado:** varredura completa do acervo real (`/home/alex/dados/musicas/acervo.db`), logs do pipeline, backups históricos e AzuraCast; análise técnica detalhada do site `gsnoffline.com` e extração de legendas/conteúdo dos dois vídeos do YouTube; transcrição do dia e checkpoint gravados.
+- **Pela metade (deliberado):** implementação das rotas e filtros da rádio aguardando confirmação do dono sobre as opções propostas.
+
+---
+
+## 17/11/2026 — Investigação da lista de Raul Seixas (Pedido 11)
+
+**Autor:** Antigravity (Gemini 3.8 Flash) — sessão de 17/11, a pedido do dono.
+
+### Modificados
+
+- `iniciar/2026-11-17_conversa_omegadrakon.md` (§2 adicionada).
+- `iniciar/session.json` (checkpoint atualizado).
+
+### Intenção e estado
+
+- **Intenção:** descobrir por que apenas "Metamorfose Ambulante" foi baixada e onde foram parar as outras músicas da lista de Raul Seixas.
+- **Achado / Causa Raiz:** comprovado via auditoria do banco `data/radio_pedidos.db` e do log `logs/radio_link_11.log`. O sanitizador `link_do_youtube()` em `integrations/radio_pro.py` possuía um bug: se a URL copiada pelo usuário fosse de reprodução (`/watch?v=...&list=...`), ele descartava o parâmetro `list` e salvava apenas o link do vídeo individual. Por isso o worker recebeu 1 faixa só e nunca chamou `_baixar_resto()`.
+- **Pronto:** diagnóstico completo e reprodução do bug documentados.
+
+---
+
+## 17/11/2026 — Correção do link_do_youtube: preservação de playlists em URLs /watch e youtu.be
+
+**Autor:** Antigravity (Gemini 3.8 Flash) — sessão de 17/11, a pedido do dono ("sim, corrija").
+
+### Modificados
+
+- `integrations/radio_pro.py` — `link_do_youtube`: preserva `list=` em URLs `/watch`, `/playlist` e `youtu.be` com `&v=...`.
+- `integrations/radio_link.py` — `processar_pedido`: se a URL trouxer `&v=...`, move essa faixa para o topo (`entradas[0]`) para tocar primeiro, chamando `_baixar_resto()` para as demais.
+- `tests/test_radio_link.py` — testes atualizados e teste novo `test_playlist_com_video_especifico_toca_ele_primeiro`.
+- `docs/CHANGELOG.md` — entrada de 17/11 (sem bump) no topo.
+- `iniciar/session.json` — checkpoint atualizado.
+
+### Intenção e estado
+
+- **Intenção:** resolver a causa raiz que impediu o download das outras faixas da lista de Raul Seixas; links com vídeo e lista juntos agora preservam a lista inteira.
+- **Pronto/validado:** 170 testes de rádio passando (incluindo `test_radio_link` e `test_radio_cobertura`); 385 testes de rádio e API passando sem nenhuma falha.

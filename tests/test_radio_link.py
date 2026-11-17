@@ -89,11 +89,16 @@ class TestLinkYoutube:
     def test_recusa_o_que_nao_e_youtube(self, entrada) -> None:
         assert rp.link_do_youtube(entrada) == ""
 
-    def test_video_dentro_de_lista_continua_video(self) -> None:
-        """Compartilhar vídeo com &list não vira "baixa a lista toda"."""
+    def test_video_dentro_de_lista_preserva_playlist(self) -> None:
+        """Compartilhar vídeo com &list preserva a lista e o vídeo (baixa todas, toca a indicada)."""
+        esperado = f"https://www.youtube.com/playlist?list=PL1234567890abcdef&v={VIDEO_ID}"
         assert rp.link_do_youtube(
             f"https://www.youtube.com/watch?v={VIDEO_ID}"
-            "&list=PL1234567890abcdef&index=2") == VIDEO
+            "&list=PL1234567890abcdef&index=2") == esperado
+        # Funciona também pelo encurtador youtu.be
+        assert rp.link_do_youtube(
+            f"https://youtu.be/{VIDEO_ID}?list=PL1234567890abcdef") == esperado
+
 
 
 class TestCriarPedidoLink:
@@ -287,6 +292,31 @@ class TestProcessarPedido:
         assert chamadas[0] == [VIDEO], "só a primeira toca agora"
         assert chamadas[1] == urls[1:], "as outras baixam em segundo plano"
         assert any("restante" in a for a in avisos)
+
+    def test_playlist_com_video_especifico_toca_ele_primeiro(self, bancos) -> None:
+        """Quando a playlist veio de watch?v=B&list=..., o vídeo B toca primeiro."""
+        url_a = f"https://www.youtube.com/watch?v=aaaaaaaaaaa"
+        url_b = f"https://www.youtube.com/watch?v=bbbbbbbbbbb"
+        url_c = f"https://www.youtube.com/watch?v=ccccccccccc"
+        urls = [url_a, url_b, url_c]
+        link = f"{LISTA}&v=bbbbbbbbbbb"
+        p = _criar(bancos, link=link)
+        chamadas: list[list[str]] = []
+
+        def rodar(lista, **_kw):
+            chamadas.append(list(lista))
+            _adicionar(bancos["acervo"], "acervo/Rock/B - FaixaB.mp3", "B", "FaixaB")
+            return 0
+
+        r = rl.processar_pedido(
+            p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
+            extrair=self._extrair(*urls, titulo="B - FaixaB"),
+            rodar=rodar, lancar=self._na_fila(bancos),
+            notificar=lambda _: None, trava=contextlib.nullcontext,
+        )
+        assert r["fila"] is True
+        assert chamadas[0] == [url_b], "o vídeo B foi priorizado para tocar primeiro"
+        assert chamadas[1] == [url_a, url_c], "as outras faixas vão para o acervo"
 
     def test_resto_vai_em_lotes_com_timeout_proporcional(self, bancos) -> None:
         # 25 entradas: a 1ª toca, as 24 restantes vão em lotes de 10/10/4.

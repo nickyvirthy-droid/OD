@@ -50,6 +50,7 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Optional
+from urllib.parse import parse_qs, urlsplit
 
 from core.logger import get_logger
 from integrations import radio_pro as rp
@@ -576,6 +577,15 @@ def processar_pedido(
     if not entradas:
         return _rejeitar(pedido, "link_invalido", banco=banco,
                          notificar=notificar)
+
+    # Se a URL trazia um vídeo específico da playlist (&v=...), ele toca agora
+    alvo_v = str((parse_qs(urlsplit(link).query).get("v") or [""])[0]).strip()
+    if alvo_v:
+        for idx, ent in enumerate(entradas):
+            if alvo_v in str(ent.get("url") or ""):
+                if idx > 0:
+                    entradas.insert(0, entradas.pop(idx))
+                break
 
     primeira = entradas[0]
     # Cantor indesejado (ordem do dono 05/11): o link JÁ diz o artista antes

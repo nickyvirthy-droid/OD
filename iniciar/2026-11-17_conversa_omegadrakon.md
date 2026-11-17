@@ -1,0 +1,113 @@
+# Transcrição — conversa com o dono (17/11/2026)
+
+> Arquivo do dia: `iniciar/2026-11-17_conversa_omegadrakon.md`.
+> Continua a série de `2026-11-15_conversa_omegadrakon.md` e `2026-11-14_conversa_omegadrakon.md`.
+
+## §1 — Retomada: "leia inicar e txt" (17/11 ~02:30)
+
+**Pedido (verbatim):** `leia inicar e txt`
+
+### 1. Leitura do `txt.txt` (conteúdo encontrado)
+
+1. `onde foi parar a lista de musicas do raul seixas.`
+2. `quero poder excluir musicas que nao gosto.`
+3. `tambem quero poder deixar algumas musicas de cantores bloqueados.`
+4. `Site para analise: https://gsnoffline.com/`
+5. `https://youtu.be/DRPBIftVb1Q?is=5odBXlk4BEA7f4DB`
+6. `https://youtu.be/mso8YnboVEo?is=l7Werfu3k2flo0Vb`
+
+---
+
+### 2. Diagnóstico e Resposta aos 6 Pontos
+
+#### Ponto 1 — Lista de músicas do Raul Seixas
+- **Achado real no acervo:** O banco `acervo.db` possui atualmente **apenas 1 música** de Raul Seixas:
+  - Arquivo: `/home/alex/dados/musicas/acervo/Rock/Raul Seixas - Metamorfose Ambulante.mp3`
+  - Gênero: Rock | Duração: 231 s | Inclusa em `Rock.m3u` e `Mix_Radio.m3u`.
+  - Histórico de download: baixada em 09/11/2026 04:40 (`logs/musica_2026-11-09.log`) a partir de uma playlist de 1 única música (`Metamorfose Ambulante`).
+  - No ar no AzuraCast: tocou em 17/11 às 10:32 e 21:55 (`tocadas.txt`).
+- **Verificação de backups:** O banco anterior (`acervo-antes-limpeza-20261104.db`) e o snapshot tarball (`acervo-20261031-antes-reset.tar.gz`) foram checados e **não continham** outras faixas de Raul Seixas.
+- **Conclusão:** Nenhuma música ou lista de Raul Seixas foi apagada por erro ou sumiu do sistema; o acervo só recebeu até hoje essa faixa isolada. Se houver uma lista/discografia para baixar, basta passar a playlist ou os links do YouTube.
+
+#### Ponto 2 — Excluir músicas que não gosta
+- **Situação:** O sistema possui hoje apenas o descarte automático por *cantor indesejado* (`integrations/radio_cantores.py`) que apaga a faixa após tocar. Não há exclusão direta de faixa única pela API/App/Painel.
+- **Proposta de implementação:**
+  1. Criar lista negra de músicas: `data/musicas_bloqueadas.txt` (armazenando `artista | titulo`).
+  2. Criar rota protegida na API: `POST /admin/radio/musica/excluir` ou `DELETE /api/radio/musica`.
+  3. Ação executada:
+     - Deleta o arquivo `.mp3` de `/home/alex/dados/musicas/acervo/`.
+     - Remove do `acervo.db`, refaz os `.m3u` e dispara o sync do AzuraCast (`azuracast:media:sync`).
+     - Registra o título/artista em `musicas_bloqueadas.txt` para rejeitar downloads futuros caso alguém peça via YouTube.
+
+#### Ponto 3 — Deixar algumas músicas de cantores bloqueados (Whitelist de exceções)
+- **Situação:** Em `integrations/radio_cantores.py`, a função `indesejado(artista)` verifica apenas o artista. Se o cantor estiver em `cantores_indesejados.txt`, qualquer faixa dele entra na fila de descarte pós-tocagem.
+- **Proposta de implementação:**
+  1. Criar `data/cantores_excecoes.txt` (formato `artista | titulo`).
+  2. Atualizar `indesejado(artista, titulo)`: antes de checar se o cantor está na lista indesejada, verifica se a combinação `(artista, titulo)` está nas exceções permitidas. Se estiver, retorna `False` e a música é mantida de forma definitiva no acervo.
+
+#### Ponto 4 — Análise do site `https://gsnoffline.com/` (Regra 22)
+- **Inventário:** GSN Offline (GSN Terminal). Empresa que comercializa drives físicos (50GB, 128GB, 512GB) com inteligências artificiais pré-instaladas para execução 100% offline (sem internet, sem assinatura, privacidade total).
+- **Recursos:** Chat local, RAG em documentos locais, chat IA-para-IA, comparação paralela de respostas entre modelos, monitor de consumo de hardware (CPU/GPU/VRAM).
+- **Relação com o OmegaDrakon:**
+  - O OD já adota a mesma filosofia com o `llama-server` local (Qwen2.5-Coder-3B em 127.0.0.1:8081), busca híbrida vetorial/BM25, cofre e acervo offline.
+  - **Ideias a incorporar no OD:** tela de comparação lado a lado de modelos (Gemini vs Groq vs Local) e exibição do uso de hardware no `/health` ou `/admin`.
+
+#### Pontos 5 e 6 — Análise dos Vídeos do YouTube
+- **Vídeo 1 (`DRPBIftVb1Q`):** *"BAIXE ESTES 5 APPS antes que sejam banidos"* (Jonata Ribas).
+  - Guia de sobrevivência digital e resiliência offline para situações de colapso/apagão.
+  - 5 ferramentas cruciais:
+    1. **PocketPal AI**: Execução de LLMs locais no celular sem necessidade de rede.
+    2. **Organic Maps**: Navegação geográfica offline baseada em OpenStreetMap (aderente ao nosso Protomaps).
+    3. **Bitchat / Meshtastic**: Comunicação sem infraestrutura (Bluetooth mesh e rádio LoRa).
+    4. **Cake Wallet**: Soberania financeira com autocustódia cripto (Monero/Bitcoin).
+    5. **Session**: Mensageria privada criptografada sem vínculo com operadora ou número de telefone.
+- **Vídeo 2 (`mso8YnboVEo`):** *"Comunicação Off-Grid: Sem Internet, Sem Operadora! Descubra o Meshtastic e a Rede Mesh LoRa"* (Eduardo Germano).
+  - Explicação prática e hardware do protocolo Meshtastic em 915 MHz com módulos Heltec, LilyGO T-Echo e WisBlock.
+  - Comunicação de texto, telemetria e GPS ponto a ponto em malha criptografada sem depender de internet.
+  - Forte sinergia com o OmegaDrakon para futura estação base de telemetria e mensageria local.
+
+---
+
+### 3. Estado ao fechar
+
+- Checklist de regras verificado: PT-BR estrito, salvamento a cada troca (`session.json`, transcrição e `ATRIBUICOES.md`).
+- Aguardando direcionamento do dono para iniciar as implementações nos itens da rádio.
+
+## §2 — Causa Raiz: Por que a lista de Raul Seixas não baixou as outras faixas? (17/11 ~02:55)
+
+**Pergunta do dono:** *"quero saber onde foi parar a lista do raul seixas, quando pedi a musica era uma lista, baixou e executou a primeira, metamorfose..., onde estão as outras, porque não baixou?"*
+
+### 1. Auditoria do Pedido 11 (09/11/2026 04:40:31)
+
+1. **Registro no banco (`data/radio_pedidos.db`):**
+   - `id`: 11
+   - `usuario`: alex
+   - `link`: `https://www.youtube.com/watch?v=CmB4sfoZkwo`
+   - `artista`: Raul Seixas | `titulo`: Metamorfose Ambulante
+2. **Log de execução (`logs/radio_link_11.log`):**
+   - O worker `radio_link.py` recebeu essa URL e o yt-dlp detectou:
+     `Playlist detectada: 1 músicas | Já processadas: 0 | Faltam: 1`
+   - Baixou apenas `Metamorfose Ambulante`, normalizou, classificou e tocou.
+   - Como `len(entradas)` era 1, a rotina `_baixar_resto()` nunca foi acionada.
+
+### 2. A Causa Raiz do Defeito
+
+- **Local:** `integrations/radio_pro.py`, linhas 519–525 (função `link_do_youtube`):
+  ```python
+  if caminho == "/watch":
+      video = str((query.get("v") or [""])[0]).strip()
+      if _ID_VIDEO.match(video):
+          return f"https://www.youtube.com/watch?v={video}"
+      if lista:
+          return f"https://www.youtube.com/playlist?list={lista}"
+      return ""
+  ```
+- **O Bug:** Quando o usuário copia o link de uma playlist do YouTube que já está reproduzindo no navegador ou app, o YouTube gera a URL com ambos os parâmetros:
+  `https://www.youtube.com/watch?v=CmB4sfoZkwo&list=PL...`
+  Como o código testava `video` primeiro (`if _ID_VIDEO.match(video)`), ele **jogava fora o parâmetro `&list=...`**, normalizando a URL para um vídeo individual.
+  O mesmo acontecia com `youtu.be/ID?list=...`.
+- **Por que com Legião Urbana (Pedido 8) funcionou:** O link colado foi no formato puro `/playlist?list=PLk_SH7F8Y60WEjS87AGhEPBNvyjd3lvxh` (sem `/watch` e sem `v=`), preservando a extração das 99 faixas.
+- **Destino da lista original:** Como a URL foi decepada antes de salvar no banco `radio_pedidos.db`, o identificador da playlist não ficou persistido no sistema.
+
+### 3. Ação Corretiva
+- Ajustar `link_do_youtube` em `integrations/radio_pro.py` para priorizar `lista` (ou preservar o parâmetro `list=`) quando presente, permitindo que URLs de reprodução de playlist baixem todas as faixas conforme a regra do dono.
