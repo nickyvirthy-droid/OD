@@ -58,6 +58,9 @@ HORAS_LIMITE = int(os.environ.get("OD_CANTORES_HORAS_LIMITE", "48"))
 #: bloqueado OU música bloqueada, ele é avisado e tem 24 h para permitir;
 #: sem decisão, a faixa é apagada automaticamente.
 HORAS_DECISAO = int(os.environ.get("OD_CANTORES_HORAS_DECISAO", "24"))
+#: Lembrete de push antes do fim da janela (ordem de 17/11): "faltam
+#: HORAS_LEMBRETE horas para a faixa ser apagada".
+HORAS_LEMBRETE = int(os.environ.get("OD_CANTORES_HORAS_LEMBRETE", "2"))
 MUSICA_PYTHON = Path(os.environ.get("OD_MUSICA_PYTHON",
                                     str(BASE_MUSICAS / "venv/bin/python")))
 
@@ -448,6 +451,34 @@ def _avisar_push_de_decisao(
         return False
 
 
+def _avisar_push_de_lembrete(
+    item: dict[str, Any], horas: int, push: Any = None,
+) -> bool:
+    """Push de "faltam N horas" — mesmo desenho do aviso de entrada."""
+    try:
+        if push is None:
+            from core.push import build_push_service, configure_push, current_push
+            push = current_push()
+            if push is None:
+                raiz = Path(__file__).resolve().parents[1]
+                push = build_push_service(raiz / "data")
+                configure_push(push)
+        if push is None:
+            return False
+        nome = f"{item.get('artista') or ''} — {item.get('titulo') or ''}"
+        resumo = push.notify(
+            f"Faltam {horas} h para decidir — rádio",
+            f"{nome}: se você não permitir, ela é apagada em menos de {horas} h.",
+            data={"origem": "radio-lembrete",
+                  "artista": str(item.get("artista") or ""),
+                  "titulo": str(item.get("titulo") or "")},
+        )
+        return bool((resumo or {}).get("ok"))
+    except Exception as exc:          # push degrada sozinho
+        log.warn("push do lembrete falhou", error=type(exc).__name__)
+        return False
+
+
 def aviso_de_decisao(item: Optional[dict[str, Any]]) -> str:
     """Texto do aviso ao dono (Telegram/painel) para uma faixa pendente."""
     if not item:
@@ -607,6 +638,7 @@ def limpar_tocados(
     apagar: Optional[Callable[[str], bool]] = None,
     ressincronizar: Optional[Callable[[], bool]] = None,
     agora: Optional[datetime] = None,
+    push: Any = None,
 ) -> dict[str, Any]:
     """Apaga as faixas cuja JANELA DE DECISÃO venceu (ordem de 17/11).
 
@@ -615,32 +647,51 @@ def limpar_tocados(
     decisão, ela sai aqui — este é o relógio do prazo. Registro antigo, sem
     ``decidir_ate``, usa o prazo legado ``HORAS_LIMITE``.
 
-    Devolve ``{"apagadas": n, "restantes": n, "sync": bool}``. Nunca
-    levanta: o webhook da rádio não pode cair por causa da limpeza.
+    Também manda o LEMBRETE de push quando faltam ``HORAS_LEMBRETE`` (2 h)
+    para o prazo — uma vez por faixa (campo ``lembrete_em``).
+
+    Devolve ``{"apagadas": n, "restantes": n, "sync": bool,
+    "lembretes": n}``. Nunca levanta: o webhook da rádio não pode cair por
+    causa da limpeza.
     """
     itens = _ler_registro(registro)
     if not itens:
-        return {"apagadas": 0, "restantes": 0, "sync": False}
+        return {"apagadas": 0, "restantes": 0, "sync": False,
+                "lembretes": 0}
     apagar = apagar or _apagar_arquivo
     agora = agora or datetime.now(timezone.utc)
     legado = agora - timedelta(hours=HORAS_LIMITE)
     apagadas = 0
+    lembretes = 0
     restantes: list[dict[str, Any]] = []
     mudou = False
     for item in itens:
         if str(item.get("status") or "") != "aguardando":
             continue
         venceu = False
+        restante: Optional[float] = None
         try:
             prazo = str(item.get("decidir_ate") or "")
             if prazo:
-                venceu = datetime.fromisoformat(prazo) < agora
+                fim = datetime.fromisoformat(prazo)
+                venceu = fim < agora
+                restante = (fim - agora).total_seconds()
             else:
                 venceu = datetime.fromisoformat(
                     str(item.get("criado_em"))) < legado
         except ValueError:
             venceu = False
         if not venceu:
+            # Lembrete de véspera: só dentro da última janela, uma vez.
+            if (restante is not None and 0 < restante <= HORAS_LEMBRETE * 3600
+                    and not item.get("lembrete_em")
+                    and _avisar_push_de_lembrete(item, HORAS_LEMBRETE, push)):
+                item["lembrete_em"] = _agora()
+                lembretes += 1
+                mudou = True
+                log.info("lembrete da decisao enviado",
+                         artista=item.get("artista"),
+                         titulo=item.get("titulo"))
             restantes.append(item)
             continue
         try:
@@ -665,7 +716,7 @@ def limpar_tocados(
             log.warn("sincronizacao apos limpeza falhou",
                      error=type(exc).__name__)
     return {"apagadas": apagadas, "restantes": len(restantes),
-            "sync": sincronizado}
+            "sync": sincronizado, "lembretes": lembretes}
 
 
 def excluir_musica_do_acervo(
@@ -745,7 +796,7 @@ def linhas_do_arquivo(*, caminho: Optional[Path] = None) -> str:
 
 __all__ = [
     "LISTA", "LISTA_EXCECOES", "LISTA_BLOQUEADAS", "REGISTRO", "HORAS_LIMITE",
-    "HORAS_DECISAO", "decidir", "aviso_de_decisao",
+    "HORAS_DECISAO", "HORAS_LEMBRETE", "decidir", "aviso_de_decisao",
     "normalizar", "listar", "adicionar", "remover", "indesejado",
     "eh_excecao", "listar_excecoes", "adicionar_excecao", "remover_excecao", "linhas_excecoes",
     "musica_bloqueada", "listar_musicas_bloqueadas", "adicionar_musica_bloqueada",

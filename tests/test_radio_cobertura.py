@@ -1426,7 +1426,8 @@ class TestLimparTocadosComplementar:
 
         r = rc.limpar_tocados(registro=reg,
                               ressincronizar=nao_deve, apagar=nao_deve)
-        assert r == {"apagadas": 0, "restantes": 0, "sync": False}
+        assert r == {"apagadas": 0, "restantes": 0, "sync": False,
+                     "lembretes": 0}
 
     def test_aguardando_nao_e_apagado_antes_das_24h(
             self, tmp_path: Path) -> None:
@@ -1447,7 +1448,8 @@ class TestLimparTocadosComplementar:
         r = rc.limpar_tocados(registro=reg,
                               ressincronizar=nao_deve,
                               apagar=nao_deve)
-        assert r == {"apagadas": 0, "restantes": 0, "sync": False}
+        assert r == {"apagadas": 0, "restantes": 0, "sync": False,
+                     "lembretes": 0}
 
     def test_criado_em_invalido_nao_vence_o_prazo(
             self, tmp_path: Path) -> None:

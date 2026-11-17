@@ -244,6 +244,62 @@ def test_sem_servico_de_push_nao_quebra(registro: Path) -> None:
     assert item is not None
 
 
+def test_lembrete_de_push_duas_horas_antes(registro: Path) -> None:
+    """Faltando <= HORAS_LEMBRETE, o dono recebe um push — uma vez só."""
+    push = _PushFalso()
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             motivo="musica", push=_PushFalso())
+    quase = datetime.now(timezone.utc) + timedelta(
+        hours=rc.HORAS_DECISAO - rc.HORAS_LEMBRETE + 0.5)
+    r = rc.limpar_tocados(registro=registro, push=push, agora=quase,
+                          ressincronizar=lambda: True, apagar=lambda _c: True)
+    assert r["lembretes"] == 1 and r["apagadas"] == 0
+    titulo, corpo, dados = push.envios[0]
+    assert f"Faltam {rc.HORAS_LEMBRETE} h" in titulo
+    assert "Annita — X" in corpo
+    assert dados["origem"] == "radio-lembrete"
+    # segunda passada: já lembrado, não repete
+    r = rc.limpar_tocados(registro=registro, push=push, agora=quase,
+                          ressincronizar=lambda: True, apagar=lambda _c: True)
+    assert r["lembretes"] == 0 and len(push.envios) == 1
+
+
+def test_sem_lembrete_fora_da_janela(registro: Path) -> None:
+    push = _PushFalso()
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             push=_PushFalso())
+    cedo = datetime.now(timezone.utc) + timedelta(hours=1)
+    r = rc.limpar_tocados(registro=registro, push=push, agora=cedo,
+                          ressincronizar=lambda: True, apagar=lambda _c: True)
+    assert r["lembretes"] == 0 and push.envios == []
+
+
+def test_lembrete_que_falha_nao_marca_e_nao_apaga(registro: Path) -> None:
+    class _Quebrado:
+        def notify(self, *_a, **_k):
+            raise RuntimeError("FCM fora")
+
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             push=_PushFalso())
+    quase = datetime.now(timezone.utc) + timedelta(
+        hours=rc.HORAS_DECISAO - rc.HORAS_LEMBRETE + 0.5)
+    r = rc.limpar_tocados(registro=registro, push=_Quebrado(), agora=quase,
+                          ressincronizar=lambda: True, apagar=lambda _c: True)
+    assert r["lembretes"] == 0 and r["apagadas"] == 0
+    assert "lembrete_em" not in rc.pendentes(registro=registro)[0]
+
+
+def test_faixa_permitida_nao_recebe_lembrete(registro: Path) -> None:
+    push = _PushFalso()
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             push=_PushFalso())
+    rc.decidir("Annita", "X", permitir=True, registro=registro)
+    quase = datetime.now(timezone.utc) + timedelta(hours=23)
+    r = rc.limpar_tocados(registro=registro, push=push, agora=quase,
+                          ressincronizar=lambda: True, apagar=lambda _c: True)
+    assert r["lembretes"] == 0 and push.envios == []
+
+
 def test_aviso_de_decisao_para_cantor_e_musica() -> None:
     cantor = rc.aviso_de_decisao(
         {"artista": "Annita", "titulo": "X", "motivo": "cantor",
