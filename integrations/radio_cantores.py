@@ -373,7 +373,7 @@ def _gravar_registro(itens: list[dict[str, Any]],
 def registrar_para_apagar(
     artista: str, titulo: str, caminho: str = "",
     *, registro: Optional[Path] = None, motivo: str = "cantor",
-    usuario: str = "",
+    usuario: str = "", push: Any = None,
 ) -> Optional[dict[str, Any]]:
     """Marca a faixa para a DECISÃO do dono (24 h) — idempotente.
 
@@ -405,7 +405,47 @@ def registrar_para_apagar(
     log.info("faixa aguardando decisao do dono",
              artista=artista, titulo=titulo, motivo=item["motivo"],
              decidir_ate=item["decidir_ate"])
+    # Só na PRIMEIRA marcação: faixa repetida não vira spam de push.
+    _avisar_push_de_decisao(item, push)
     return item
+
+
+def _avisar_push_de_decisao(
+    item: dict[str, Any], push: Any = None,
+) -> bool:
+    """Push FCM na hora em que a faixa entra na janela (ordem de 17/11).
+
+    `push` é injetável nos testes; sem serviço configurado (`current_push()`
+    devolve None) nada é enviado. Nunca levanta — aviso é caminho, não
+    portão do registro.
+    """
+    try:
+        if push is None:
+            from core.push import build_push_service, configure_push, current_push
+            push = current_push()
+            if push is None:
+                # Processo sem launcher (o worker do link roda em
+                # subprocesso próprio): monta o serviço aqui uma vez e
+                # deixa configurado para as próximas faixas.
+                raiz = Path(__file__).resolve().parents[1]
+                push = build_push_service(raiz / "data")
+                configure_push(push)
+        if push is None:
+            return False
+        motivo = ("cantor bloqueado" if item.get("motivo") == "cantor"
+                  else "música bloqueada")
+        nome = f"{item.get('artista') or ''} — {item.get('titulo') or ''}"
+        resumo = push.notify(
+            f"Decisão de 24 h — {motivo}",
+            f"{nome}: permita no Painel do app ou ela é apagada sozinha.",
+            data={"origem": "radio-decisao",
+                  "artista": str(item.get("artista") or ""),
+                  "titulo": str(item.get("titulo") or "")},
+        )
+        return bool((resumo or {}).get("ok"))
+    except Exception as exc:          # push degrada sozinho
+        log.warn("push da decisao falhou", error=type(exc).__name__)
+        return False
 
 
 def aviso_de_decisao(item: Optional[dict[str, Any]]) -> str:

@@ -176,6 +176,74 @@ def test_decidir_faixa_que_nao_esta_pendente(registro: Path) -> None:
     assert r == {"ok": False, "motivo": "nao_encontrado"}
 
 
+class _PushFalso:
+    """Dublê do PushService: registra os envios, não fala com o FCM."""
+
+    def __init__(self) -> None:
+        self.envios: list[tuple[str, str, dict]] = []
+
+    def notify(self, titulo: str, corpo: str, data=None) -> dict:
+        self.envios.append((titulo, corpo, data or {}))
+        return {"ok": True, "sent": 1, "failed": 0}
+
+
+def test_push_avisa_quando_a_faixa_entra_na_janela(registro: Path) -> None:
+    push = _PushFalso()
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             motivo="musica", usuario="fulano", push=push)
+    assert len(push.envios) == 1
+    titulo, corpo, dados = push.envios[0]
+    assert "24 h" in titulo and "música bloqueada" in titulo
+    assert "Annita — X" in corpo and "apagada sozinha" in corpo
+    assert dados == {"origem": "radio-decisao", "artista": "Annita",
+                    "titulo": "X"}
+
+
+def test_push_nao_repete_na_marcacao_idempotente(registro: Path) -> None:
+    push = _PushFalso()
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             push=push)
+    rc.registrar_para_apagar("annitá", "x", "", registro=registro,
+                             push=push)
+    assert len(push.envios) == 1
+
+
+def test_push_que_falha_nao_impede_o_registro(registro: Path) -> None:
+    class _Quebrado:
+        def notify(self, *_a, **_k):
+            raise RuntimeError("FCM fora")
+
+    item = rc.registrar_para_apagar("Annita", "X", "x.mp3",
+                                    registro=registro, push=_Quebrado())
+    assert item and item["status"] == "aguardando"
+    assert len(rc.pendentes(registro=registro)) == 1
+
+
+def test_push_construido_quando_nao_ha_servico_global(
+        registro: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """O worker do link roda em subprocesso sem launcher: sem serviço
+    configurado, `radio_cantores` monta um e deixa pronto para as próximas."""
+    import core.push as cp
+
+    push = _PushFalso()
+    configurados: list[object] = []
+    monkeypatch.setattr(cp, "current_push", lambda: None)
+    monkeypatch.setattr(cp, "build_push_service",
+                        lambda *_a, **_k: push)
+    monkeypatch.setattr(cp, "configure_push", configurados.append)
+
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro)
+    assert len(push.envios) == 1
+    assert configurados == [push]
+
+
+def test_sem_servico_de_push_nao_quebra(registro: Path) -> None:
+    # push=None + current_push() devolve None no teste (nada configurado).
+    item = rc.registrar_para_apagar("Annita", "X", "x.mp3",
+                                    registro=registro)
+    assert item is not None
+
+
 def test_aviso_de_decisao_para_cantor_e_musica() -> None:
     cantor = rc.aviso_de_decisao(
         {"artista": "Annita", "titulo": "X", "motivo": "cantor",
