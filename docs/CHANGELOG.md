@@ -12,6 +12,37 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Curiosidade da música de volta no `/radio-pro` (2026-11-17, sem bump)
+
+**Contexto:** pedido do dono no `txt.txt` — "radio-pro não esta mostrando a
+curiosidade da musica". O `/radio-pro` (área do ouvinte logado) nasceu depois
+da página pública `site/radio.html` e nunca ganhou o campo: `grep -i
+curiosidade site/radio-pro.html` dava **0 ocorrências**, embora
+`GET /api/radio/agora` já devolvesse `tocando.curiosidade` (montado por
+`integrations/radio_agora.py::montar_agora()` a partir do `acervo.db`, em
+modo somente leitura, com o placeholder "curiosidade pendente" filtrado).
+
+### O que mudou
+
+1. **`site/radio-pro.html`** — o card "Tocando agora" ganhou
+   `<div id="agoraCurio">` e `desenhaAgora()` pinta `t.curiosidade`; quando a
+   faixa não tem curiosidade (ou ainda é pendência), o espaço fica vazio em
+   vez de mostrar placeholder.
+2. **`tests/test_radio_pro.py`** — `test_pagina_mostra_a_curiosidade_da_musica`
+   guarda o contrato: o elemento existe e a página lê `t.curiosidade`.
+
+### Validação
+
+- `tests/test_radio_pro.py` **58 passed**; rádio completo
+  (`test_radio_curadoria` + `test_radio_link` + `test_radio_cobertura`)
+  **216 passed**, 0 falha.
+- Nenhum restart necessário: `_serve_site_file` lê o HTML do disco a cada
+  requisição (ETag por mtime, `max-age=60`).
+- Sem bump: **1.45.1+2082** (mudança de página web; contrato do app e APK
+  intactos).
+
+---
+
 ## Resumo diário das faixas que a janela de 24 h apagou sozinha (2026-11-17, sem bump)
 
 **Contexto:** a janela apagava faixas sem decisão do dono em silêncio — só

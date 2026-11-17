@@ -279,6 +279,21 @@ class TestRotas:
         # a área do ouvinte não publica áudio próprio: o stream é o mesmo
         assert "radio.mp3" not in html
 
+    def test_pagina_mostra_a_curiosidade_da_musica(self) -> None:
+        """A curiosidade já vem no /api/radio/agora — falta a página exibir.
+
+        Pedido do dono (17/11): "radio-pro não esta mostrando a curiosidade
+        da musica". O dado é montado por radio_agora.
+        curiosidade_da_musica() em tocando.curiosidade; antes a página
+        simplesmente não tinha onde pintar.
+        """
+        from integrations.api import server
+
+        pagina = Path(server.__file__).resolve().parents[2] / "site" / "radio-pro.html"
+        html = pagina.read_text(encoding="utf-8")
+        assert 'id="agoraCurio"' in html
+        assert "t.curiosidade" in html
+
     def test_handler_da_pagina_redireciona_anonimo(self) -> None:
         fonte = Path(rp.__file__).resolve().parents[1] / "integrations" / "api" / "server.py"
         texto = fonte.read_text(encoding="utf-8")

@@ -6117,5 +6117,15 @@
     "sem_bump": "1.45.1+2082 (nenhum código alterado).",
     "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§13)",
     "updated_at": "2026-11-17T19:25:00-03:00"
+  },
+  "curiosidade_no_radio_pro_2026_11_17": {
+    "pedido": "Dono (17/11): 'Fazer o /radio-pro mostrar a curiosidade da música atual'.",
+    "diagnostico": "grep -i curiosidade site/radio-pro.html = 0 ocorrências. O dado já vinha pronto: GET /api/radio/agora devolve tocando.curiosidade (radio_agora.montar_agora -> curiosidade_da_musica, leitura mode=ro do acervo.db, placeholder 'curiosidade pendente' filtrado) e GET /api/radio/pro/dados repassa o bloco em 'agora'. Faltava só a página pintar.",
+    "codigo": "site/radio-pro.html: <div id='agoraCurio'> no card 'Tocando agora' + desenhaAgora() com texto('agoraCurio', t && t.curiosidade ? t.curiosidade : ''). tests/test_radio_pro.py: test_pagina_mostra_a_curiosidade_da_musica.",
+    "testes": "tests/test_radio_pro.py 58 passed; test_radio_curadoria + test_radio_link + test_radio_cobertura 216 passed, 0 falha.",
+    "deploy": "Sem restart: _serve_site_file lê o HTML do disco a cada requisição (ETag por mtime, max-age=60) — a mudança já está no ar.",
+    "sem_bump": "1.45.1+2082 (página web; APK e contrato do app intactos).",
+    "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§14)",
+    "updated_at": "2026-11-17T19:45:00-03:00"
   }
 }

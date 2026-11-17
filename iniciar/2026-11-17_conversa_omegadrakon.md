@@ -610,3 +610,36 @@ nada durável mora só no `txt.txt`).
 - Nenhum código alterado, sem gate e sem restart — turno de leitura, mesmo
   padrão dos turnos 2 e 3 de 17/11.
 - Sem bump: **1.45.1+2082**.
+
+## §14 — Curiosidade da música de volta no `/radio-pro` (17/11, sem bump)
+
+**Pedido (verbatim):** `Fazer o /radio-pro mostrar a curiosidade da música
+atual`
+
+### 1. Diagnóstico
+
+- `grep -i curiosidade site/radio-pro.html` = **0 ocorrências**.
+- `GET /api/radio/agora` já devolve `tocando.curiosidade`; quem monta é
+  `integrations/radio_agora.py::montar_agora()` chamando
+  `curiosidade_da_musica()` (lê o `acervo.db` em `mode=ro` e devolve `""` para
+  o placeholder "curiosidade pendente").
+- `GET /api/radio/pro/dados` repassa esse mesmo bloco em `agora`, então a rota
+  não precisou mudar: faltava só a página pintar.
+
+### 2. O que mudou
+
+- `site/radio-pro.html` — card "Tocando agora" ganhou
+  `<div id="agoraCurio">` e `desenhaAgora()` faz
+  `texto("agoraCurio", t && t.curiosidade ? t.curiosidade : "")` (sem
+  placeholder quando a faixa não tem curiosidade).
+- `tests/test_radio_pro.py` — `test_pagina_mostra_a_curiosidade_da_musica`
+  guarda o contrato (elemento existe e a página lê `t.curiosidade`).
+
+### 3. Validação
+
+- `tests/test_radio_pro.py` **58 passed**; rádio completo
+  (`test_radio_curadoria` + `test_radio_link` + `test_radio_cobertura`)
+  **216 passed**, 0 falha.
+- Sem restart: `_serve_site_file` lê o HTML do disco a cada requisição (ETag
+  por mtime, `max-age=60`) — o arquivo já está no ar.
+- Sem bump: **1.45.1+2082**.

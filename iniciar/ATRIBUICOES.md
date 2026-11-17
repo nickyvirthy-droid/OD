@@ -9,6 +9,36 @@
 
 ---
 
+## 17/11/2026 — Curiosidade da música de volta no `/radio-pro`
+
+**Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("Fazer o
+/radio-pro mostrar a curiosidade da música atual").
+
+### Criados
+
+- Nenhum arquivo novo.
+
+### Modificados
+
+- `site/radio-pro.html` — `<div id="agoraCurio">` no card "Tocando agora" e
+  `desenhaAgora()` pintando `t.curiosidade` (vazio quando não há).
+- `tests/test_radio_pro.py` — `test_pagina_mostra_a_curiosidade_da_musica`.
+- `docs/CHANGELOG.md` (entrada datada, sem bump),
+  `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado),
+  `iniciar/2026-11-17_conversa_omegadrakon.md` (§14), `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** o dado já existia na API (`tocando.curiosidade` de
+  `radio_agora.curiosidade_da_musica()`, leitura do `acervo.db`); a página nova
+  simplesmente nunca teve onde exibi-lo — 0 ocorrências de "curiosidade" no
+  HTML, medido antes da correção.
+- **Pronto/validado:** `test_radio_pro.py` 58 passed e rádio completo 216
+  passed / 0 falha; sem restart (o HTML é servido do disco a cada requisição).
+- **Sem bump:** 1.45.1+2082 (página web; APK e contrato do app intactos).
+
+---
+
 ## 17/11/2026 — Retomada "leia iniciar": checkpoint relido e 2 pedidos novos do `txt.txt` registrados
 
 **Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("leia

@@ -45,6 +45,7 @@
     <div class="card" id="agoraCard" style="padding:24px 20px;">
       <div class="kicker">Tocando agora</div>
       <div id="agoraMusica" style="font-size:1.12rem;font-weight:600;margin-top:10px;">Carregando…</div>
+      <div id="agoraCurio" style="color:var(--muted);margin-top:10px;font-size:.9rem;line-height:1.55;"></div>
       <div id="agoraProxima" style="color:var(--muted);margin-top:6px;font-size:.9rem;">Próxima: —</div>
       <div id="ouvintes" style="color:var(--muted);margin-top:6px;font-size:.88rem;"></div>
     </div>
@@ -166,6 +167,8 @@
     } else {
       texto("agoraMusica", t.titulo);
     }
+    // curiosidade vem do acervo.db pelo /api/radio/agora; vazia = pendente
+    texto("agoraCurio", t && t.curiosidade ? t.curiosidade : "");
     var p = agora.proxima;
     texto("agoraProxima", p && p.titulo
       ? "Próxima: " + (p.artista ? p.artista + " — " : "") + p.titulo

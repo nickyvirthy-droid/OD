@@ -648,14 +648,18 @@ esperar o timeout.
       gerenciar exceções só existe no painel `/admin` e no `/radio-pro` (web);
       a aba "Tarefas" já é SSE no app. Resolve: fazer a curadoria pelo celular
       sem abrir o navegador. (sugestão de 17/11)
-- [ ] **`/radio-pro` volta a mostrar a curiosidade da música** (pedido do dono
-      no `txt.txt`, 17/11) — medido: `grep -i curiosidade site/radio-pro.html`
-      = **0 ocorrências**, enquanto `GET /api/radio/agora` já devolve
-      `tocando.curiosidade` por `integrations/radio_agora.py::
+- [x] **`/radio-pro` volta a mostrar a curiosidade da música** — **ENTREGUE
+      17/11:** `site/radio-pro.html` ganhou `<div id="agoraCurio">` no card
+      "Tocando agora" e `desenhaAgora()` pinta `t.curiosidade` (vazio quando a
+      faixa não tem, sem placeholder). Teste novo em `tests/test_radio_pro.py`
+      (58 passed) e rádio completo 216 passed. Sem restart (o HTML é servido
+      do disco a cada requisição). Pedido do dono no `txt.txt` (17/11).
+      Diagnóstico medido antes da correção: `grep -i curiosidade
+      site/radio-pro.html` = **0 ocorrências**, enquanto `GET /api/radio/agora`
+      já devolvia `tocando.curiosidade` por `integrations/radio_agora.py::
       curiosidade_da_musica()` (lê o `acervo.db` em modo ro e filtra o
-      placeholder "curiosidade pendente"). O dado existe na API e não aparece
-      na página nova. Resolve: mostrar o texto no card do "tocando agora",
-      escondido quando vier vazio. (pedido de 17/11)
+      placeholder "curiosidade pendente") — o dado existia na API e a página
+      nova não o exibia.
 - [ ] **Letra com tradução lado a lado para música internacional** (pedido do
       dono no `txt.txt`, 17/11: "letra de musica internacional poderia ter uma
       lista paralela com a tradução"). Resolve: exibir original e tradução em
