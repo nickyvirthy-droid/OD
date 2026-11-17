@@ -9,6 +9,44 @@
 
 ---
 
+## 17/11/2026 — Letra internacional com tradução em lista paralela no `/radio-pro`
+
+**Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("Mostrar a
+letra internacional com a tradução em lista paralela no /radio-pro").
+
+### Criados
+
+- `integrations/radio_traducao.py` — `montar_traducao()` pela cadeia de LLM do
+  OD, cache com hash da letra, marca `JA_PT`.
+- `tests/test_radio_traducao.py` — 25 testes.
+
+### Modificados
+
+- `integrations/api/server.py` — rota `GET /api/radio/pro/traducao` (ROUTES,
+  `_ROUTE_SPECS`, `AUTH_EXEMPT_PATHS`) e o handler com o gate de sessão.
+- `site/radio-pro.html` — card "Letra" em duas colunas + `pedeTraducao()` /
+  `desenhaTraducao()`; descarta resposta de faixa que já trocou.
+- `tests/test_radio_pro.py` — rota nova nos conjuntos + teste das colunas.
+- `tests/test_api.py` — rotas 137 → **138**.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado),
+  `iniciar/2026-11-17_conversa_omegadrakon.md` (§15), `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** o dono queria ler a letra internacional com a tradução ao lado;
+  sem serviço pago e sem dependência nova — quem traduz é a cadeia do próprio
+  OD.
+- **Pronto/validado:** gate completo **5374 passed / 19 skipped / 0 falha**
+  (218,8 s, exit 0); coleção 5391 contra 5365 do HEAD em worktree (delta exato
+  de +26 testes); `node --check` OK; prova viva do Groq traduzindo "The Sound
+  of Silence".
+- **Limite declarado:** tradução é uma chamada de LLM por faixa (depois só
+  cache); sem internet e sem llama-server no ar, a coluna simplesmente não
+  aparece.
+- **Sem bump:** 1.45.1+2082.
+
+---
+
 ## 17/11/2026 — Curiosidade da música de volta no `/radio-pro`
 
 **Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("Fazer o

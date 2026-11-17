@@ -12,6 +12,53 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Letra internacional com a tradução em lista paralela no `/radio-pro` (2026-11-17, sem bump)
+
+**Contexto:** pedido do dono no `txt.txt` — "letra de musica internacional
+poderia ter uma lista paralela com a tradução". A área do ouvinte mostrava só
+o original.
+
+### O que mudou
+
+1. **`integrations/radio_traducao.py` (novo)** — `montar_traducao(artista,
+   titulo, letra)` traduz a letra do ar para o português do Brasil pela
+   **cadeia de LLM do próprio OD** (regra 19: `OD_TRADUCAO_PROVIDERS`, herdando
+   `OD_CHAT_PROVIDERS`; Gemini → Groq → llama-server local), sem serviço pago e
+   sem dependência nova. Cache em `data/radio_traducao.json` chaveado por
+   `artista|título` **mais hash curto da letra** — letra de outra versão não
+   reaproveita tradução velha; acerto vale 30 dias, falha 10 min (a página
+   sonda de 15 s em 15 s e não pode chamar o modelo toda vez). Letra que já
+   está em português recebe a marca `JA_PT` do modelo e vira
+   `motivo="ja_em_portugues"` — a página esconde a coluna em vez de repetir o
+   original. Nunca levanta exceção.
+2. **`GET /api/radio/pro/traducao` (novo)** — mesma sessão do ouvinte do
+   `/dados`; devolve a música do ar e a tradução (ou o motivo). Rota separada
+   de propósito: a tradução pode esperar alguns segundos e o `/dados` (que
+   alimenta a página inteira) não pode ficar preso atrás do modelo.
+3. **`site/radio-pro.html`** — o card "Letra" virou duas colunas
+   (`grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))`, empilha no
+   celular): "Original" sempre, "Tradução" quando há texto. A página mostra
+   "Traduzindo…" e descarta a resposta se a faixa trocou enquanto o modelo
+   pensava.
+4. **Contagem de rotas:** 137 → **138** (`tests/test_api.py`).
+
+### Validação
+
+- **`tests/test_radio_traducao.py` (novo, 25 testes):** contrato, cache,
+  invalidação por hash da letra, `JA_PT` em 5 grafias, fallback entre
+  providers, cache negativo com TTL, cache corrompido, prompt e ordem da
+  cadeia.
+- **Prova viva (17/11):** cadeia em produção `['groq', 'gemini', 'gemma-local']`;
+  "Hello darkness, my old friend / I've come to talk with you again" →
+  "Olá, escuridão, minha velha amiga / Vim conversar contigo outra vez"
+  (`ok=true`, quebras de linha preservadas).
+- `node --check` no JS inline da página: OK. Gate completo rodado após a
+  mudança (ver saída registrada em `iniciar/`).
+- Sem bump: **1.45.1+2082** (página web + rota nova do servidor; contrato do
+  app Android intacto).
+
+---
+
 ## Curiosidade da música de volta no `/radio-pro` (2026-11-17, sem bump)
 
 **Contexto:** pedido do dono no `txt.txt` — "radio-pro não esta mostrando a

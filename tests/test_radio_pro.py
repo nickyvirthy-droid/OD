@@ -254,8 +254,10 @@ class TestRotas:
 
         rotas = {r.path: r for r in server.ROUTES
                  if r.path in {"/radio-pro", "/api/radio/pro/dados",
+                               "/api/radio/pro/traducao",
                                "/api/radio/pro/pedido"}}
         assert set(rotas) == {"/radio-pro", "/api/radio/pro/dados",
+                              "/api/radio/pro/traducao",
                               "/api/radio/pro/pedido"}
         # o gate é do handler: nenhuma delas exige chave no dispatch
         assert all(r.auth is False for r in rotas.values())
@@ -264,6 +266,7 @@ class TestRotas:
         from integrations.api import server
 
         for caminho in ("/radio-pro", "/api/radio/pro/dados",
+                        "/api/radio/pro/traducao",
                         "/api/radio/pro/pedido"):
             assert caminho in server.AUTH_EXEMPT_PATHS, caminho
 
@@ -274,6 +277,7 @@ class TestRotas:
         assert pagina.exists(), "site/radio-pro.html não encontrado"
         html = pagina.read_text(encoding="utf-8")
         assert "/api/radio/pro/dados" in html
+        assert "/api/radio/pro/traducao" in html
         assert "/api/radio/pro/pedido" in html
         assert "radio.html" in html, "a página pública continua acessível"
         # a área do ouvinte não publica áudio próprio: o stream é o mesmo
@@ -293,6 +297,22 @@ class TestRotas:
         html = pagina.read_text(encoding="utf-8")
         assert 'id="agoraCurio"' in html
         assert "t.curiosidade" in html
+
+    def test_pagina_tem_as_duas_colunas_da_letra(self) -> None:
+        """Lista paralela (17/11): original e tradução lado a lado.
+
+        `.testa` o desenho: o original sempre aparece; a coluna da tradução só
+        quando o servidor devolve texto (letra em português não ganha
+        "tradução" igual ao original).
+        """
+        from integrations.api import server
+
+        pagina = Path(server.__file__).resolve().parents[2] / "site" / "radio-pro.html"
+        html = pagina.read_text(encoding="utf-8")
+        assert 'id="letraGrade"' in html
+        assert 'id="traducaoCol"' in html
+        assert 'id="traducao"' in html
+        assert "desenhaTraducao" in html
 
     def test_handler_da_pagina_redireciona_anonimo(self) -> None:
         fonte = Path(rp.__file__).resolve().parents[1] / "integrations" / "api" / "server.py"

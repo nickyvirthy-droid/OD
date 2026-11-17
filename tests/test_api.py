@@ -156,8 +156,9 @@ class TestAPIRoutes:
         export/import do catálogo do Supply Depot (TODO §3.1, 09/11) +
         Task Queue R1 (create/list/events/detail/retry/delete, 13/11) +
         curadoria do acervo da rádio (excluir música, bloqueadas e
-        exceções de cantores, 17/11)."""
-        assert len(ROUTES) == 137
+        exceções de cantores, 17/11) + /api/radio/pro/traducao (lista
+        paralela da letra, 17/11)."""
+        assert len(ROUTES) == 138
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -172,6 +173,7 @@ class TestAPIRoutes:
             # Área do ouvinte logado (04/11): gate de sessão no handler.
             ("GET", "/radio-pro"),
             ("GET", "/api/radio/pro/dados"),
+            ("GET", "/api/radio/pro/traducao"),
             ("POST", "/api/radio/pro/pedido"),
             # Cantores indesejados (05/11): leitura e escrita só do dono.
             ("GET", "/api/radio/cantores"),
@@ -414,6 +416,7 @@ class TestAPIRoutes:
             # Área do ouvinte logado (04/11): gate de sessão no handler.
             ("GET", "/radio-pro"),
             ("GET", "/api/radio/pro/dados"),
+            ("GET", "/api/radio/pro/traducao"),  # lista paralela (17/11)
             ("POST", "/api/radio/pro/pedido"),
             # Curadoria do acervo (17/11): gate do dono no handler.
             ("GET", "/api/radio/musicas"),

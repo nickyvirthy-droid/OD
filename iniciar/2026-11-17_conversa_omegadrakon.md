@@ -643,3 +643,45 @@ atual`
 - Sem restart: `_serve_site_file` lê o HTML do disco a cada requisição (ETag
   por mtime, `max-age=60`) — o arquivo já está no ar.
 - Sem bump: **1.45.1+2082**.
+
+## §15 — Letra internacional com tradução em lista paralela (17/11, sem bump)
+
+**Pedido (verbatim):** `Mostrar a letra internacional com a tradução em lista
+paralela no /radio-pro`
+
+### 1. Desenho
+
+- **`integrations/radio_traducao.py` (novo)** — sem serviço pago e sem
+  dependência nova: traduz pela **cadeia de LLM do OD** (regra 19;
+  `OD_TRADUCAO_PROVIDERS` herda `OD_CHAT_PROVIDERS`), Gemini → Groq →
+  llama-server local, com `asyncio.run` no handler (que já roda fora do event
+  loop).
+- **Cache em `data/radio_traducao.json`**, chave `artista|título` + hash curto
+  da letra: versão diferente da letra não reaproveita tradução velha. Acerto
+  30 dias, falha 10 min (a página sonda de 15 s em 15 s).
+- **Português não ganha "tradução"**: o modelo responde `JA_PT`, vira
+  `motivo="ja_em_portugues"` e a página esconde a coluna.
+- **Rota separada** `GET /api/radio/pro/traducao` (mesma sessão do `/dados`):
+  o `/dados` alimenta a página inteira e não pode ficar preso atrás do modelo.
+- **Página:** card "Letra" em duas colunas com
+  `repeat(auto-fit, minmax(260px, 1fr))` (empilha no celular), "Traduzindo…"
+  enquanto espera e descarte da resposta se a faixa trocou no meio.
+
+### 2. Validação
+
+- `tests/test_radio_traducao.py` (novo) — **25 testes**: contrato, cache,
+  invalidação por hash, `JA_PT` em 5 grafias, fallback entre providers, cache
+  negativo com TTL, cache corrompido, prompt e ordem da cadeia.
+- `tests/test_radio_traducao.py` + `test_radio_pro.py` + `test_api.py`:
+  **285 passed**.
+- `node --check` no JS inline do `/radio-pro`: OK.
+- **Prova viva:** cadeia `['groq', 'gemini', 'gemma-local']`; "Hello darkness,
+  my old friend / I've come to talk with you again" →
+  "Olá, escuridão, minha velha amiga / Vim conversar contigo outra vez".
+- **Gate completo:** **5374 passed / 19 skipped / 0 falha** (218,8 s, exit 0)
+  com docs e código no lugar. Coleção: **5391 testes** contra **5365** do HEAD
+  (`e51b5f2`) medidos em worktree limpo — exatamente os 26 novos. Os 19 skips
+  são dependências opcionais ausentes (cv2, opentelemetry, sentence_transformers
+  e `OD_TEST_POSTGRES_DSN`), não código novo.
+- Rotas: **137 → 138** (`tests/test_api.py`).
+- Sem bump: **1.45.1+2082**.

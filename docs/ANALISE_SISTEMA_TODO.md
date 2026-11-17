@@ -660,11 +660,17 @@ esperar o timeout.
       curiosidade_da_musica()` (lê o `acervo.db` em modo ro e filtra o
       placeholder "curiosidade pendente") — o dado existia na API e a página
       nova não o exibia.
-- [ ] **Letra com tradução lado a lado para música internacional** (pedido do
-      dono no `txt.txt`, 17/11: "letra de musica internacional poderia ter uma
-      lista paralela com a tradução"). Resolve: exibir original e tradução em
-      duas colunas (ou par por linha) no `/radio-pro`, guardando a tradução no
-      acervo para não gastar LLM a cada faixa.
+- [x] **Letra com tradução lado a lado para música internacional** —
+      **ENTREGUE 17/11:** `integrations/radio_traducao.py` traduz pela cadeia
+      de LLM do OD (Gemini → Groq → local) com cache em
+      `data/radio_traducao.json` chaveado por artista|título + hash da letra
+      (letra em português vira `JA_PT` e não mostra coluna); rota nova
+      `GET /api/radio/pro/traducao` (rotas 137 → 138) e o card "Letra" do
+      `/radio-pro` em duas colunas (empilha no celular). 25 testes novos em
+      `tests/test_radio_traducao.py`; prova viva com "The Sound of Silence"
+      → "Olá, escuridão, minha velha amiga". Pedido do dono no `txt.txt`
+      (17/11: "letra de musica internacional poderia ter uma lista paralela
+      com a tradução").
 - [ ] **Comparador de modelos lado a lado + monitor de hardware** — ideia
       trazida do GSN Offline (17/11): mesmo prompt no Gemini, Groq e Local ao
       mesmo tempo, com CPU/RAM/VRAM por modelo no painel. Resolve: ver na

@@ -180,6 +180,7 @@ AUTH_EXEMPT_PATHS = frozenset(
      # Área do ouvinte logado (04/11): o gate é a sessão do ouvinte no
      # handler (cookie od_sessao / Bearer) — o dispatch não exige header.
      "/radio-pro", "/api/radio/pro/dados", "/api/radio/pro/pedido",
+     "/api/radio/pro/traducao",
      # Curadoria do acervo (17/11): mesma régua da área do ouvinte — o
      # gate (sessão do dono + papel admin) é do handler, no dispatch não
      # há header (a página /radio-pro opera por cookie).
@@ -378,6 +379,10 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     # não manda header e a página redireciona o anônimo para o login.
     ("GET", "/radio-pro", "radio_pro_page", False),
     ("GET", "/api/radio/pro/dados", "api_radio_pro_dados", False),
+    # Lista paralela da letra (ordem do dono, 17/11): a tradução vem da
+    # cadeia de LLM do OD e fica em cache — o gate é a mesma sessão do
+    # ouvinte, no handler.
+    ("GET", "/api/radio/pro/traducao", "api_radio_pro_traducao", False),
     ("POST", "/api/radio/pro/pedido", "api_radio_pro_pedido", False),
     # Cantores indesejados (ordem do dono, 05/11): a lista mora em
     # data/cantores_indesejados.txt (editável à mão) e o dono também pode
@@ -5900,6 +5905,49 @@ class APIHandler(BaseHTTPRequestHandler):
             "letra": letra,
             "catalogo": catalogo_musicas(termo),
             "pedidos": meus_pedidos(usuario),
+        })
+
+    def api_radio_pro_traducao(self) -> None:
+        """GET /api/radio/pro/traducao — a lista paralela da letra do ar.
+
+        Só com sessão do ouvinte, como o /dados. A letra original continua
+        vindo de `letra_da_musica()`; a tradução é da cadeia de LLM do OD
+        (`radio_traducao.montar_traducao`) e fica em cache de arquivo — a
+        página sonda de 15 s em 15 s e não pode chamar o modelo toda vez.
+        Sem letra não há tradução: o motivo volta e a página mantém só a
+        coluna original.
+        """
+        if not self._sessao_do_ouvinte():
+            self._json(401, {"ok": False, "error": "login_necessario",
+                             "entrar": "/chat?next=/radio-pro"})
+            return
+        from integrations.radio_agora import montar_agora
+        from integrations.radio_pro import letra_da_musica
+        from integrations.radio_traducao import montar_traducao
+
+        try:
+            agora = montar_agora()
+        except Exception:                     # fonte fora não derruba a tela
+            agora = {}
+        tocando = (agora or {}).get("tocando") or {}
+        artista = str(tocando.get("artista") or "")
+        titulo = str(tocando.get("titulo") or "")
+        letra = letra_da_musica(artista, titulo)
+        if not letra.get("ok"):
+            self._json(200, {
+                "ok": True,
+                "artista": artista,
+                "titulo": titulo,
+                "traducao": {"ok": False,
+                             "motivo": letra.get("motivo") or "sem_letra"},
+            })
+            return
+        traducao = montar_traducao(artista, titulo, letra.get("letra") or "")
+        self._json(200, {
+            "ok": True,
+            "artista": artista,
+            "titulo": titulo,
+            "traducao": traducao,
         })
 
     def api_radio_pro_pedido(self) -> None:

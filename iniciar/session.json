@@ -6127,5 +6127,15 @@
     "sem_bump": "1.45.1+2082 (página web; APK e contrato do app intactos).",
     "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§14)",
     "updated_at": "2026-11-17T19:45:00-03:00"
+  },
+  "traducao_letra_radio_pro_2026_11_17": {
+    "pedido": "Dono (17/11): 'Mostrar a letra internacional com a tradução em lista paralela no /radio-pro'.",
+    "codigo": "integrations/radio_traducao.py (novo): montar_traducao() usa a cadeia de LLM do OD (OD_TRADUCAO_PROVIDERS herda OD_CHAT_PROVIDERS; Gemini -> Groq -> llama-server local), cache data/radio_traducao.json chaveado por artista|titulo + sha1 curto da letra (30 dias acerto, 10 min falha), marca JA_PT para letra já em português, nunca levanta. Rota nova GET /api/radio/pro/traducao (mesma sessão do /dados, separada para não prender a página atrás do modelo). site/radio-pro.html: card Letra em duas colunas (repeat(auto-fit,minmax(260px,1fr))), 'Traduzindo…' e descarte se a faixa trocar no meio.",
+    "testes": "tests/test_radio_traducao.py novo com 25 testes + 1 teste de página em test_radio_pro.py. Gate completo: 5374 passed / 19 skipped / 0 falha (218,8 s, exit 0); coleção 5391 contra 5365 do HEAD medidos em worktree — delta exato de +26. node --check OK no JS inline.",
+    "prova_viva": "Cadeia em produção ['groq','gemini','gemma-local']; 'Hello darkness, my old friend / I've come to talk with you again' -> 'Olá, escuridão, minha velha amiga / Vim conversar contigo outra vez' (ok=true, quebras preservadas).",
+    "rotas": "137 -> 138 (tests/test_api.py atualizado).",
+    "sem_bump": "1.45.1+2082 (página web + rota de servidor; contrato do app intacto).",
+    "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§15)",
+    "updated_at": "2026-11-17T20:30:00-03:00"
   }
 }

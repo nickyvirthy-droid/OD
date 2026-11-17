@@ -54,7 +54,17 @@
       <div class="kicker">Letra</div>
       <h2 style="margin-top:8px;">Letra da música</h2>
       <div id="letraStatus" style="color:var(--muted);font-size:.9rem;">Buscando…</div>
-      <pre id="letra" style="white-space:pre-wrap;font-family:inherit;line-height:1.6;margin:14px 0 0;font-size:.98rem;"></pre>
+      <div id="letraGrade" style="display:none;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;margin-top:14px;">
+        <div>
+          <div class="kicker">Original</div>
+          <pre id="letra" style="white-space:pre-wrap;font-family:inherit;line-height:1.6;margin:8px 0 0;font-size:.98rem;"></pre>
+        </div>
+        <div id="traducaoCol" style="display:none;">
+          <div class="kicker">Tradução</div>
+          <div id="traducaoStatus" style="color:var(--muted);font-size:.85rem;margin-top:8px;"></div>
+          <pre id="traducao" style="white-space:pre-wrap;font-family:inherit;line-height:1.6;margin:8px 0 0;font-size:.98rem;"></pre>
+        </div>
+      </div>
     </div>
 
     <div class="card" style="margin-top:24px;padding:24px 20px;">
@@ -154,12 +164,16 @@
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var pedidoEmCurso = false;
+  var traducaoEmCurso = false;
+  var traducaoChave = "";
+  var musicaAtual = "";
 
   function texto(id, valor) { var el = $(id); if (el) el.textContent = valor; }
 
   function desenhaAgora(d) {
     var agora = (d && d.agora) || {};
     var t = agora.tocando || null;
+    musicaAtual = t ? ((t.artista || "") + "|" + (t.titulo || "")) : "";
     if (!t || !t.titulo) {
       texto("agoraMusica", "Nada tocando no momento");
     } else if (t.artista) {
@@ -179,6 +193,8 @@
 
   function desenhaLetra(l) {
     var el = $("letra");
+    var grade = $("letraGrade");
+    var col = $("traducaoCol");
     if (!l || !l.ok) {
       var motivo = (l && l.motivo) || "nao_encontrada";
       texto("letraStatus", motivo === "indisponivel"
@@ -187,10 +203,59 @@
           ? "Neste instante a rádio está com a locução no ar, sem música."
           : "Não encontrei a letra desta música."));
       if (el) el.textContent = "";
+      if (grade) grade.style.display = "none";
+      if (col) col.style.display = "none";
+      texto("traducao", "");
+      texto("traducaoStatus", "");
       return;
     }
     texto("letraStatus", l.cache ? "Letra guardada em cache." : "");
     if (el) el.textContent = l.letra || "";
+    if (grade) grade.style.display = "grid";
+    // Lista paralela (17/11): só pede de novo quando a música do ar muda.
+    if (traducaoChave !== musicaAtual) {
+      texto("traducao", "");
+      if (col) col.style.display = "none";
+      pedeTraducao();
+    }
+  }
+
+  function desenhaTraducao(t) {
+    var col = $("traducaoCol");
+    var pre = $("traducao");
+    var ok = !!(t && t.ok && t.texto);
+    if (col) col.style.display = ok ? "" : "none";
+    if (pre) pre.textContent = ok ? t.texto : "";
+    texto("traducaoStatus", "");
+  }
+
+  function pedeTraducao() {
+    if (traducaoEmCurso || !musicaAtual) return;
+    var pedida = musicaAtual;
+    traducaoEmCurso = true;
+    var col = $("traducaoCol");
+    if (col) col.style.display = "";
+    texto("traducaoStatus", "Traduzindo…");
+    fetch("/api/radio/pro/traducao", {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" }
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        traducaoEmCurso = false;
+        if (!d || !d.ok) { desenhaTraducao(null); return; }
+        // trocou a faixa enquanto o modelo pensava: descarta e tenta depois
+        if (((d.artista || "") + "|" + (d.titulo || "")) !== pedida) {
+          desenhaTraducao(null);
+          return;
+        }
+        traducaoChave = pedida;
+        desenhaTraducao(d.traducao);
+      })
+      .catch(function () {
+        traducaoEmCurso = false;
+        desenhaTraducao(null);
+      });
   }
 
   function desenhaCatalogo(itens) {
