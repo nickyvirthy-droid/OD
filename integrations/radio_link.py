@@ -445,6 +445,58 @@ def _do_cantor_indesejado(entrada: dict[str, Any],
         return False
 
 
+def _artista_e_titulo_do_link(entrada: dict[str, Any]) -> tuple[str, str]:
+    """Separa "Artista - Título" do título do link, sem baixar nada.
+
+    O yt-dlp entrega ``title`` como o canal escreveu: "Annita - Envolver
+    (Clipe Oficial)". Sem separador, o título todo é o título (artista vazio).
+    """
+    titulo = str(entrada.get("title") or "").strip()
+    if not titulo:
+        return "", ""
+    partes = re.split(r"\s+[-\u2013\u2014]\s+", titulo, maxsplit=1)
+    if len(partes) == 2:
+        return partes[0].strip(), partes[1].strip()
+    return "", titulo
+
+
+def _bloqueada_no_link(
+    entrada: dict[str, Any], lista: Optional[Path] = None
+) -> tuple[bool, str]:
+    """A música do link está na lista de bloqueadas do dono? (nem baixa)
+
+    Cruza o par do próprio título ("Artista - Título") e as pistas de
+    artista do link (canal/uploader em ``_pistas_de_artista``) com
+    ``data/musicas_bloqueadas.txt``. A comparação ignora caixa e acento e
+    aceita o título com sufixo ("(Clipe Oficial)", "(Ao Vivo)").
+
+    Devolve ``(True, "Artista - Título")`` quando bate — o nome vai para o
+    registro e para o aviso. Qualquer falha da lista NÃO bloqueia o pedido:
+    a lista é regra do dono, não portão de infraestrutura.
+    """
+    try:
+        from integrations import radio_cantores
+
+        artista_titulo = _artista_e_titulo_do_link(entrada)
+        titulo = artista_titulo[1]
+        candidatos: list[tuple[str, str]] = []
+        if artista_titulo[0] and titulo:
+            candidatos.append(artista_titulo)
+        if titulo:
+            for pista in _pistas_de_artista(entrada):
+                par = (pista, titulo)
+                if par not in candidatos:
+                    candidatos.append(par)
+        for artista, titulo_candidato in candidatos:
+            if radio_cantores.musica_bloqueada(
+                    artista, titulo_candidato, caminho=lista):
+                return True, f"{artista} - {titulo_candidato}"
+    except Exception as exc:                  # lista é regra, não portão
+        log.warn("checagem de musica bloqueada falhou",
+                 error=type(exc).__name__)
+    return False, ""
+
+
 def _baixar_resto(
     restantes: list[dict[str, str]],
     pedido: dict[str, Any],
@@ -454,6 +506,7 @@ def _baixar_resto(
     notificar: Optional[Callable[[str], Any]],
     lote: Optional[int] = None,
     lista: Optional[Path] = None,
+    musicas_bloqueadas: Optional[Path] = None,
 ) -> None:
     """Lista: baixa as outras faixas ACEITAS em segundo plano (só a 1ª toca).
 
@@ -466,25 +519,31 @@ def _baixar_resto(
     os seguintes.
     """
     com_url = [item for item in restantes if item.get("url")]
-    aceitas = [item for item in com_url
-               if not _do_cantor_indesejado(item, lista)]
+    aceitas: list[dict[str, str]] = []
+    for item in com_url:
+        if _do_cantor_indesejado(item, lista):
+            continue
+        # Música bloqueada pelo dono (17/11) também não entra pelo resto.
+        if _bloqueada_no_link(item, musicas_bloqueadas)[0]:
+            continue
+        aceitas.append(item)
     ignoradas = len(com_url) - len(aceitas)
     if ignoradas:
-        log.info("faixas de cantor indesejado nem baixadas",
+        log.info("faixas fora da lista do dono nem baixadas",
                  quantidade=ignoradas, pedido=int(pedido.get("id") or 0))
     urls = [str(item["url"]) for item in aceitas]
     if not urls:
         if ignoradas:
             _avisar(
                 f"🚫 Lista de @{pedido.get('usuario')}: as {ignoradas}"
-                " faixa(s) restante(s) são de cantor indesejado — nenhuma"
-                " foi baixada.",
+                " faixa(s) restante(s) estão bloqueadas ou são de cantor"
+                " indesejado — nenhuma foi baixada.",
                 notificar,
             )
         return
     tamanho = max(1, int(lote or LOTE_RESTO))
-    extra = (f" ({ignoradas} de cantor indesejado nem baixada(s))"
-             if ignoradas else "")
+    extra = (f" ({ignoradas} bloqueada(s) ou de cantor indesejado nem"
+             " baixada(s))" if ignoradas else "")
     _avisar(
         f"📥 Lista de @{pedido.get('usuario')}: {len(urls)} faixa(s)"
         " restante(s) baixando em segundo plano, em lotes de"
@@ -524,8 +583,8 @@ def _baixar_resto(
             f"📥 Lista de @{pedido.get('usuario')}: as {len(urls)} faixa(s)"
             f" restantes foram processadas em {lotes} lote(s) (as repetidas"
             " o dedupe descarta)" +
-            (f"; {ignoradas} de cantor indesejado nem baixada(s)."
-             if ignoradas else "."),
+            (f"; {ignoradas} bloqueada(s) ou de cantor indesejado nem"
+             " baixada(s)." if ignoradas else "."),
             notificar,
         )
 
@@ -542,6 +601,7 @@ def processar_pedido(
     trava: Optional[Callable[[], Any]] = None,
     cantores_lista: Optional[Path] = None,
     cantores_registro: Optional[Path] = None,
+    musicas_bloqueadas: Optional[Path] = None,
 ) -> dict[str, Any]:
     """Baixa/classifica o link do pedido e o devolve à fila.
 
@@ -578,6 +638,31 @@ def processar_pedido(
         return _rejeitar(pedido, "link_invalido", banco=banco,
                          notificar=notificar)
 
+    # Música bloqueada pelo dono (ordem dele, 17/11): nem é baixada. Vale
+    # para a faixa do pedido e para o resto da lista — se sobrou alguma, o
+    # pedido segue com ela; se todas estavam bloqueadas, é recusado.
+    liberadas: list[dict[str, Any]] = []
+    bloqueadas_no_link = 0
+    for item in entradas:
+        bloqueada, nome = _bloqueada_no_link(item, musicas_bloqueadas)
+        if bloqueada:
+            bloqueadas_no_link += 1
+            log.info("musica bloqueada pelo dono nem baixada",
+                     pedido=int(pedido_id), musica=nome)
+            continue
+        liberadas.append(item)
+    if not liberadas:
+        return _rejeitar(pedido, "musica_bloqueada", banco=banco,
+                         notificar=notificar)
+    if bloqueadas_no_link:
+        _avisar(
+            f"🚫 Pedido por link de @{pedido.get('usuario')}:"
+            f" {bloqueadas_no_link} música(s) da sua lista de bloqueadas"
+            " nem baixada(s).",
+            notificar,
+        )
+    entradas = liberadas
+
     # Se a URL trazia um vídeo específico da playlist (&v=...), ele toca agora
     alvo_v = str((parse_qs(urlsplit(link).query).get("v") or [""])[0]).strip()
     if alvo_v:
@@ -609,7 +694,8 @@ def processar_pedido(
                               notificar=notificar)
         if len(entradas) > 1:
             _baixar_resto(entradas[1:], pedido, trava=trava, rodar=rodar,
-                          notificar=notificar, lista=cantores_lista)
+                          notificar=notificar, lista=cantores_lista,
+                          musicas_bloqueadas=musicas_bloqueadas)
         return resultado
     codigo = 1
     try:
@@ -630,10 +716,43 @@ def processar_pedido(
                               notificar=notificar)
         if codigo == 0 and len(entradas) > 1:
             _baixar_resto(entradas[1:], pedido, trava=trava, rodar=rodar,
-                          notificar=notificar, lista=cantores_lista)
+                          notificar=notificar, lista=cantores_lista,
+                          musicas_bloqueadas=musicas_bloqueadas)
         return resultado
 
     musica = _escolher(novas, str(primeira.get("title") or ""))
+
+    # O link pode ESCONDER o nome ("Clipe oficial", "Vídeo novo"): agora
+    # que o acervo diz artista e título, confere de novo. Bateu com a lista
+    # de bloqueadas, a faixa sai na hora e o pedido é recusado.
+    try:
+        from integrations import radio_cantores
+        entrou_bloqueada = radio_cantores.musica_bloqueada(
+            str(musica.get("artista") or ""),
+            str(musica.get("titulo") or ""),
+            caminho=musicas_bloqueadas,
+        )
+    except Exception as exc:                  # lista é regra, não portão
+        log.warn("checagem de musica bloqueada pos-download falhou",
+                 error=type(exc).__name__)
+        entrou_bloqueada = False
+    if entrou_bloqueada:
+        try:
+            radio_cantores.excluir_musica_do_acervo(
+                str(musica.get("caminho") or ""), bloquear=False,
+                banco=banco_acervo,
+            )
+        except Exception as exc:
+            log.warn("exclusao da musica bloqueada falhou",
+                     error=type(exc).__name__)
+        resultado = _rejeitar(pedido, "musica_bloqueada", banco=banco,
+                              notificar=notificar)
+        if len(entradas) > 1:
+            _baixar_resto(entradas[1:], pedido, trava=trava, rodar=rodar,
+                          notificar=notificar, lista=cantores_lista,
+                          musicas_bloqueadas=musicas_bloqueadas)
+        return resultado
+
     pedido = rp.atualizar_pedido(
         int(pedido_id), artista=musica["artista"], titulo=musica["titulo"],
         caminho=musica["caminho"], status="pendente", motivo="",
@@ -664,7 +783,8 @@ def processar_pedido(
 
     if len(entradas) > 1:
         _baixar_resto(entradas[1:], pedido, trava=trava, rodar=rodar,
-                      notificar=notificar, lista=cantores_lista)
+                      notificar=notificar, lista=cantores_lista,
+                      musicas_bloqueadas=musicas_bloqueadas)
     return {"ok": True, "pedido": pedido,
             "fila": pedido.get("status") == "na_fila",
             "motivo": pedido.get("motivo") or ""}
