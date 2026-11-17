@@ -571,3 +571,42 @@ automaticamente pela janela de 24 h`
 - O resumo vai só para o Telegram (não por push) — é digest, não alerta.
 - Não há envio sob demanda pela API/painel: `resumo_diario()` existe na
   biblioteca, mas ainda não tem rota.
+
+## §13 — Retomada "leia iniciar" (17/11, leitura)
+
+**Pedido (verbatim):** `leia iniciar`
+
+### 1. Estado encontrado
+
+- Árvore **limpa**, `HEAD == origin/master == e51b5f2` ("docs: registrar o
+  resumo diário da janela de 24 h").
+- `od-core` **active**, MainPID **2433306**, NRestarts=0.
+- Checkpoint anterior: `resumo_diario_janela_2026_11_17` (06:35). A **janela de
+  decisão de 24 h** está fechada de ponta a ponta: push FCM na entrada,
+  lembrete de 2 h antes do prazo, timer próprio de 60 s no core (vencimentos +
+  lembretes, em `to_thread`) e resumo diário às 9 h no Telegram.
+- Gate mais recente: **5388 passed / 16 skipped / 0 falha** (216,17 s).
+- Versão **1.45.1+2082** (APK com o card "Decisões pendentes (24 h)").
+
+### 2. Novidade no `txt.txt`
+
+Dois pedidos do dono que ainda não estavam registrados em lugar nenhum:
+
+1. `radio-pro não esta mostrando a curiosidade da musica.`
+2. `letra de musica internacional poderia tem uma lista paralela com a tradução.`
+
+**Medido, não suposto:** `grep -i curiosidade site/radio-pro.html` = **0
+ocorrências** — a página não exibe o campo. O backend já serve o dado:
+`integrations/radio_agora.py::curiosidade_da_musica()` lê o `acervo.db`
+(mode=ro) e filtra o placeholder "curiosidade pendente", e
+`GET /api/radio/agora` devolve `tocando.curiosidade`. Ou seja, falta a página
+mostrar, não falta o dado.
+
+Os dois viraram checkbox no §4 de `docs/ANALISE_SISTEMA_TODO.md` (regra 20:
+nada durável mora só no `txt.txt`).
+
+### 3. O que não foi feito
+
+- Nenhum código alterado, sem gate e sem restart — turno de leitura, mesmo
+  padrão dos turnos 2 e 3 de 17/11.
+- Sem bump: **1.45.1+2082**.

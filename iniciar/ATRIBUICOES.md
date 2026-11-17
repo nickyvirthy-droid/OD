@@ -9,6 +9,41 @@
 
 ---
 
+## 17/11/2026 — Retomada "leia iniciar": checkpoint relido e 2 pedidos novos do `txt.txt` registrados
+
+**Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("leia
+iniciar").
+
+### Criados
+
+- Nenhum arquivo novo.
+
+### Modificados
+
+- `iniciar/session.json` — checkpoint
+  `retomada_leitura_iniciar_2026_11_17_turno3`.
+- `iniciar/2026-11-17_conversa_omegadrakon.md` — §13 (estado encontrado,
+  novidades do `txt.txt`, o que não foi feito).
+- `docs/ANALISE_SISTEMA_TODO.md` — 2 checkboxes novos no §4 (curiosidade da
+  música no `/radio-pro`; letra com tradução paralela).
+- `iniciar/ATRIBUICOES.md` — esta entrada.
+
+### Intenção e estado
+
+- **Intenção:** cumprir a regra 3 (ler o checkpoint antes de retomar) e não
+  deixar pedido do dono morar só no `txt.txt` (regra 20).
+- **Estado encontrado:** árvore limpa, `HEAD == origin/master == e51b5f2`,
+  `od-core` active (MainPID 2433306, NRestarts=0), gate mais recente 5388
+  passed, versão 1.45.1+2082.
+- **Achado medido:** `site/radio-pro.html` tem **0 ocorrências** de
+  "curiosidade", embora `GET /api/radio/agora` já devolva
+  `tocando.curiosidade` (de `radio_agora.py::curiosidade_da_musica()`) — falta
+  a página exibir, o dado existe.
+- **Pela metade (deliberado):** nenhum código alterado, sem gate e sem
+  restart; os dois pedidos aguardam ordem do dono. Sem bump (1.45.1+2082).
+
+---
+
 ## 17/11/2026 — Bloqueio de música vale no pedido por link do YouTube
 
 **Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono

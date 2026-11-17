@@ -648,6 +648,19 @@ esperar o timeout.
       gerenciar exceções só existe no painel `/admin` e no `/radio-pro` (web);
       a aba "Tarefas" já é SSE no app. Resolve: fazer a curadoria pelo celular
       sem abrir o navegador. (sugestão de 17/11)
+- [ ] **`/radio-pro` volta a mostrar a curiosidade da música** (pedido do dono
+      no `txt.txt`, 17/11) — medido: `grep -i curiosidade site/radio-pro.html`
+      = **0 ocorrências**, enquanto `GET /api/radio/agora` já devolve
+      `tocando.curiosidade` por `integrations/radio_agora.py::
+      curiosidade_da_musica()` (lê o `acervo.db` em modo ro e filtra o
+      placeholder "curiosidade pendente"). O dado existe na API e não aparece
+      na página nova. Resolve: mostrar o texto no card do "tocando agora",
+      escondido quando vier vazio. (pedido de 17/11)
+- [ ] **Letra com tradução lado a lado para música internacional** (pedido do
+      dono no `txt.txt`, 17/11: "letra de musica internacional poderia ter uma
+      lista paralela com a tradução"). Resolve: exibir original e tradução em
+      duas colunas (ou par por linha) no `/radio-pro`, guardando a tradução no
+      acervo para não gastar LLM a cada faixa.
 - [ ] **Comparador de modelos lado a lado + monitor de hardware** — ideia
       trazida do GSN Offline (17/11): mesmo prompt no Gemini, Groq e Local ao
       mesmo tempo, com CPU/RAM/VRAM por modelo no painel. Resolve: ver na

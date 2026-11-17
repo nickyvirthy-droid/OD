@@ -6104,5 +6104,18 @@
     "sem_bump": "1.45.1+2082 (só servidor; APK intacto).",
     "limitacao": "Resumo vai só por Telegram (não push) e não tem rota sob demanda.",
     "updated_at": "2026-11-17T06:35:00-03:00"
+  },
+  "retomada_leitura_iniciar_2026_11_17_turno3": {
+    "pedido": "Dono (17/11): 'leia iniciar' — recarregar o checkpoint antes de retomar. Checkpoint anterior: resumo_diario_janela_2026_11_17 (06:35).",
+    "lido": "iniciar/README.md, iniciar/RULES.md (23 regras), iniciar/ATRIBUICOES.md, iniciar/session.json (checkpoints de 14/11 a 17/11), transcrição iniciar/2026-11-17_conversa_omegadrakon.md (§1–§12), txt.txt, git status/log e o serviço.",
+    "estado_encontrado": "Árvore LIMPA, HEAD == origin/master == e51b5f2 ('docs: registrar o resumo diário da janela de 24 h'). od-core ativo, MainPID 2433306, NRestarts=0. A janela de decisão de 24 h está fechada de ponta a ponta: push FCM na entrada, lembrete de 2 h, timer próprio de 60 s no core (vencimentos + lembretes) e resumo diário às 9 h no Telegram. Gate mais recente: 5388 passed / 16 skipped / 0 falha. Versão 1.45.1+2082 (APK com o card das decisões no app).",
+    "novo_no_txt": "Dois pedidos novos do dono no txt.txt, ainda sem registro em lugar nenhum: (1) 'radio-pro não esta mostrando a curiosidade da musica'; (2) 'letra de musica internacional poderia tem uma lista paralela com a tradução'.",
+    "medido_curiosidade": "grep -i curiosidade em site/radio-pro.html = 0 ocorrências: a página não exibe o campo. O backend já serve o dado — integrations/radio_agora.py::curiosidade_da_musica() lê o acervo.db (mode=ro) e filtra o placeholder 'curiosidade pendente'; /api/radio/agora devolve tocando.curiosidade. Ou seja: o dado existe na API, a página /radio-pro não o mostra.",
+    "registro": "Os dois pedidos viraram checkbox no §4 de docs/ANALISE_SISTEMA_TODO.md (backlog de sugestões) — nada durável mora só no txt.txt (regra 20).",
+    "decisao": "Turno de leitura (mesmo padrão dos turnos 2 e 3 de 17/11): nenhum código alterado, sem gate e sem restart. Só registro (session.json + transcrição §13 + ATRIBUICOES.md) e commit/push (regra 7.1).",
+    "em_aberto": "(1) curiosidade da música no /radio-pro; (2) letra com tradução paralela; (3) curadoria do acervo no app Android; (4) comparador de modelos/monitor de hardware (ideia do GSN Offline); (5) fila em produção com 1 worker desde 14/11; (6) I1 Semantic Cache desligado (decisão do dono); (7) OpenAI sem crédito.",
+    "sem_bump": "1.45.1+2082 (nenhum código alterado).",
+    "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§13)",
+    "updated_at": "2026-11-17T19:25:00-03:00"
   }
 }
