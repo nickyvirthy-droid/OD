@@ -2129,6 +2129,10 @@ async def _run_radio_decisoes_forever(
                         lembretes=resumo.get("lembretes"),
                         restantes=resumo.get("restantes"),
                     )
+            # Resumo diário das faixas que a janela apagou sozinha: uma vez
+            # por dia, depois da HORA_RESUMO; sem apagadas, o dia é marcado
+            # em silêncio.
+            await _asyncio.to_thread(api.enviar_resumo_se_devido)
         except Exception as exc:      # janela é aviso, não portão
             log.warn("checagem da janela de decisao falhou",
                      error=f"{type(exc).__name__}")

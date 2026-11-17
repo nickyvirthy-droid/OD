@@ -187,6 +187,7 @@ class _RadioFalsa:
                                  "sync": False, "lembretes": 0}
         self.quebra = quebra
         self.limpezas = 0
+        self.resumos = 0
 
     def pendentes(self):
         if self.quebra:
@@ -196,6 +197,10 @@ class _RadioFalsa:
     def limpar_tocados(self):
         self.limpezas += 1
         return self.resumo
+
+    def enviar_resumo_se_devido(self):
+        self.resumos += 1
+        return False
 
 
 @pytest.mark.asyncio
@@ -212,6 +217,7 @@ async def test_timer_da_janela_roda_a_cada_intervalo() -> None:
         60, api=radio, dormir=dormir, ciclos=3)
 
     assert radio.limpezas == 3
+    assert radio.resumos == 3       # o resumo diário também é conferido
     assert esperas == [60, 60]      # não dorme depois da última passada
 
 

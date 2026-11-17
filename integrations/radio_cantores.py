@@ -52,6 +52,12 @@ LISTA_BLOQUEADAS = Path(os.environ.get("OD_MUSICAS_BLOQUEADAS",
                                       str(RAIZ / "data" / "musicas_bloqueadas.txt")))
 REGISTRO = Path(os.environ.get("OD_CANTORES_REGISTRO",
                                str(RAIZ / "data" / "radio_apagar_depois.json")))
+#: Estado do resumo diário (último dia enviado) — evita repetir no dia.
+RESUMO_ESTADO = Path(os.environ.get(
+    "OD_RADIO_RESUMO_ESTADO",
+    str(RAIZ / "data" / "radio_decisoes_resumo.json")))
+#: Hora local a partir da qual o resumo diário pode sair.
+HORA_RESUMO = int(os.environ.get("OD_RADIO_RESUMO_HORA", "9"))
 #: Pedido que nunca tocou não fica pendurado para sempre.
 HORAS_LIMITE = int(os.environ.get("OD_CANTORES_HORAS_LIMITE", "48"))
 #: Janela de decisão do dono (ordem de 17/11): quando entra faixa de cantor
@@ -562,6 +568,8 @@ def decidir(
     except Exception as exc:              # arquivo travado/não existe
         log.warn("apagar faixa negada falhou", error=type(exc).__name__)
     alvo["status"] = "apagada"
+    alvo["motivo_fim"] = "negada"     # decisão do dono, fora do resumo
+    alvo["apagada_em"] = _agora()
     alvo["decidido_em"] = _agora()
     _gravar_registro(itens, registro)
     sincronizado = False
@@ -700,6 +708,8 @@ def limpar_tocados(
             log.warn("apagar faixa indesejada falhou",
                      error=type(exc).__name__)
         item["status"] = "apagada"
+        item["motivo_fim"] = "prazo"      # resumo diário conta só estes
+        item["apagada_em"] = agora.isoformat(timespec="seconds")
         item["tocou_em"] = item.get("tocou_em") or _agora()
         apagadas += 1
         mudou = True
@@ -786,6 +796,116 @@ def excluir_musica_do_acervo(
     }
 
 
+def resumo_diario(
+    *,
+    registro: Optional[Path] = None,
+    agora: Optional[datetime] = None,
+    horas: int = 24,
+) -> dict[str, Any]:
+    """Faixas que a JANELA apagou sozinha nas últimas ``horas`` (padrão 24).
+
+    Só entram ``status="apagada"`` com ``motivo_fim="prazo"`` — faixa que o
+    dono negou (``motivo_fim="negada"``) é decisão dele, não esquecimento, e
+    fica fora do resumo. Devolve ``{"total", "faixas", "texto"}``; o texto já
+    vem pronto para Telegram/painel (string vazia quando nada foi apagado).
+    """
+    agora = agora or datetime.now(timezone.utc)
+    limite = agora - timedelta(hours=horas)
+    faixas: list[dict[str, str]] = []
+    for item in _ler_registro(registro):
+        if str(item.get("status") or "") != "apagada":
+            continue
+        if str(item.get("motivo_fim") or "") != "prazo":
+            continue
+        try:
+            quando = datetime.fromisoformat(str(item.get("apagada_em") or ""))
+        except ValueError:
+            continue
+        if quando < limite:
+            continue
+        faixas.append({
+            "artista": str(item.get("artista") or ""),
+            "titulo": str(item.get("titulo") or ""),
+            "motivo": str(item.get("motivo") or "cantor"),
+            "apagada_em": quando.isoformat(timespec="seconds"),
+        })
+    if not faixas:
+        return {"total": 0, "faixas": [], "texto": ""}
+    linhas = [
+        f"• {f['artista']} — {f['titulo']}" if f["artista"] else f"• {f['titulo']}"
+        for f in faixas
+    ]
+    plural = "faixa apagada" if len(faixas) == 1 else "faixas apagadas"
+    texto = (
+        f"🗑️ Resumo da janela de 24 h: {len(faixas)} {plural} "
+        "sem decisão sua.\n" + "\n".join(linhas)
+    )
+    return {"total": len(faixas), "faixas": faixas, "texto": texto}
+
+
+def _ler_estado_resumo(caminho: Optional[Path] = None) -> dict[str, Any]:
+    arquivo = Path(caminho or RESUMO_ESTADO)
+    try:
+        dados = json.loads(arquivo.read_text(encoding="utf-8") or "{}")
+    except (OSError, ValueError):
+        return {}
+    return dados if isinstance(dados, dict) else {}
+
+
+def _gravar_estado_resumo(dados: dict[str, Any],
+                          caminho: Optional[Path] = None) -> None:
+    arquivo = Path(caminho or RESUMO_ESTADO)
+    arquivo.parent.mkdir(parents=True, exist_ok=True)
+    temporario = arquivo.with_suffix(".tmp")
+    temporario.write_text(json.dumps(dados, ensure_ascii=False, indent=1),
+                          encoding="utf-8")
+    temporario.replace(arquivo)
+
+
+def enviar_resumo_se_devido(
+    *,
+    registro: Optional[Path] = None,
+    estado: Optional[Path] = None,
+    agora: Optional[datetime] = None,
+    hora: Optional[int] = None,
+    enviar: Optional[Callable[[str], Any]] = None,
+) -> bool:
+    """Manda o resumo diário UMA vez por dia, depois da ``HORA_RESUMO``.
+
+    Sem faixa apagada pela janela, o dia é marcado em silêncio (não manda
+    "nada aconteceu"). Se o envio falhar, NÃO marca: a próxima passada do
+    timer tenta de novo. Nunca levanta.
+    """
+    try:
+        agora = agora or datetime.now(timezone.utc)
+        hora = HORA_RESUMO if hora is None else hora
+        local = agora.astimezone()
+        if local.hour < hora:
+            return False
+        hoje = local.date().isoformat()
+        chave = str(Path(registro or REGISTRO))
+        dados = _ler_estado_resumo(estado)
+        if dados.get("ultimo_dia") == hoje and dados.get("registro") == chave:
+            return False
+        resumo = resumo_diario(registro=registro, agora=agora)
+        if resumo["total"]:
+            if enviar is not None:
+                enviar(resumo["texto"])
+            else:
+                from integrations.radio_link import notificar_dono
+                if not notificar_dono(resumo["texto"]):
+                    return False
+        _gravar_estado_resumo({"ultimo_dia": hoje, "registro": chave,
+                               "total": resumo["total"],
+                               "enviado_em": _agora()}, estado)
+        log.info("resumo diario da janela", dia=hoje,
+                 apagadas=resumo["total"])
+        return bool(resumo["total"])
+    except Exception as exc:          # resumo é aviso, não portão
+        log.warn("resumo diario da janela falhou", error=type(exc).__name__)
+        return False
+
+
 def linhas_do_arquivo(*, caminho: Optional[Path] = None) -> str:
     """Conteúdo cru da lista (para a API mostrar o arquivo como ele é)."""
     arquivo = _arquivo(caminho)
@@ -796,7 +916,9 @@ def linhas_do_arquivo(*, caminho: Optional[Path] = None) -> str:
 
 __all__ = [
     "LISTA", "LISTA_EXCECOES", "LISTA_BLOQUEADAS", "REGISTRO", "HORAS_LIMITE",
-    "HORAS_DECISAO", "HORAS_LEMBRETE", "decidir", "aviso_de_decisao",
+    "HORAS_DECISAO", "HORAS_LEMBRETE", "HORA_RESUMO", "RESUMO_ESTADO",
+    "resumo_diario", "enviar_resumo_se_devido",
+    "decidir", "aviso_de_decisao",
     "normalizar", "listar", "adicionar", "remover", "indesejado",
     "eh_excecao", "listar_excecoes", "adicionar_excecao", "remover_excecao", "linhas_excecoes",
     "musica_bloqueada", "listar_musicas_bloqueadas", "adicionar_musica_bloqueada",

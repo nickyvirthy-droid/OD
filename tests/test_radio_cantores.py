@@ -300,6 +300,121 @@ def test_faixa_permitida_nao_recebe_lembrete(registro: Path) -> None:
     assert r["lembretes"] == 0 and push.envios == []
 
 
+def _item_apagado(artista: str, titulo: str, quando: datetime,
+                  motivo_fim: str = "prazo", motivo: str = "cantor") -> dict:
+    return {"artista": artista, "titulo": titulo, "status": "apagada",
+            "motivo_fim": motivo_fim, "motivo": motivo,
+            "apagada_em": quando.isoformat(timespec="seconds")}
+
+
+def test_resumo_diario_conta_so_o_que_a_janela_apagou(registro: Path) -> None:
+    agora = datetime.now(timezone.utc)
+    dados = [
+        _item_apagado("Annita", "Velha", agora - timedelta(hours=2)),
+        _item_apagado("Raul", "Negada", agora - timedelta(hours=1),
+                      motivo_fim="negada"),
+        _item_apagado("Annita", "Antiga", agora - timedelta(hours=30)),
+        {"artista": "X", "titulo": "Pendente", "status": "aguardando"},
+    ]
+    registro.write_text(json.dumps(dados), encoding="utf-8")
+    r = rc.resumo_diario(registro=registro, agora=agora)
+    assert r["total"] == 1
+    assert r["faixas"][0]["titulo"] == "Velha"
+    assert "1 faixa apagada" in r["texto"]
+    assert "Annita — Velha" in r["texto"]
+    assert "Negada" not in r["texto"]
+
+
+def test_resumo_diario_vazio_nao_monta_texto(registro: Path) -> None:
+    registro.write_text("[]", encoding="utf-8")
+    assert rc.resumo_diario(registro=registro) == {
+        "total": 0, "faixas": [], "texto": ""}
+
+
+def test_prazo_marcado_como_motivo_fim_prazo(registro: Path) -> None:
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             push=_PushFalso())
+    depois = datetime.now(timezone.utc) + timedelta(
+        hours=rc.HORAS_DECISAO + 1)
+    rc.limpar_tocados(registro=registro, agora=depois,
+                      ressincronizar=lambda: True, apagar=lambda _c: True,
+                      push=_PushFalso())
+    dados = json.loads(registro.read_text(encoding="utf-8"))
+    assert dados[0]["motivo_fim"] == "prazo"
+    assert dados[0]["apagada_em"]
+    # a janela do resumo já pega a faixa que acabou de sair
+    assert rc.resumo_diario(registro=registro,
+                            agora=depois)["total"] == 1
+
+
+def test_resumo_so_sai_depois_da_hora_e_uma_vez_por_dia(
+        registro: Path, tmp_path: Path) -> None:
+    estado = tmp_path / "resumo_estado.json"
+    # A hora do resumo é LOCAL — monta 12:00 de hoje no fuso da máquina.
+    local = datetime.now().astimezone().replace(
+        hour=12, minute=0, second=0, microsecond=0)
+    agora = local.astimezone(timezone.utc)
+    registro.write_text(
+        json.dumps([_item_apagado("Annita", "X", agora)]), encoding="utf-8")
+    enviados: list[str] = []
+
+    cedo = local.replace(hour=0, minute=30).astimezone(timezone.utc)
+    assert rc.enviar_resumo_se_devido(
+        registro=registro, estado=estado, agora=cedo, hora=9,
+        enviar=enviados.append) is False
+    assert enviados == []
+
+    assert rc.enviar_resumo_se_devido(
+        registro=registro, estado=estado, agora=agora, hora=9,
+        enviar=enviados.append) is True
+    assert len(enviados) == 1 and "Annita — X" in enviados[0]
+    # segunda passada no mesmo dia não reenvia
+    assert rc.enviar_resumo_se_devido(
+        registro=registro, estado=estado, agora=agora, hora=9,
+        enviar=enviados.append) is False
+    assert len(enviados) == 1
+    # dia seguinte: volta a sair (a faixa ainda está dentro das 24 h)
+    amanha = agora + timedelta(days=1)
+    assert rc.enviar_resumo_se_devido(
+        registro=registro, estado=estado, agora=amanha, hora=9,
+        enviar=enviados.append) is True
+
+
+def test_resumo_sem_apagadas_marca_o_dia_em_silencio(
+        registro: Path, tmp_path: Path) -> None:
+    estado = tmp_path / "estado.json"
+    registro.write_text("[]", encoding="utf-8")
+    agora = datetime.now(timezone.utc)
+    enviados: list[str] = []
+    assert rc.enviar_resumo_se_devido(
+        registro=registro, estado=estado, agora=agora, hora=0,
+        enviar=enviados.append) is False
+    assert enviados == []
+    assert rc._ler_estado_resumo(estado)["ultimo_dia"] == agora.date().isoformat()
+
+
+def test_resumo_que_falha_nao_marca_e_tenta_de_novo(
+        registro: Path, tmp_path: Path) -> None:
+    estado = tmp_path / "estado.json"
+    agora = datetime.now(timezone.utc)
+    registro.write_text(
+        json.dumps([_item_apagado("Annita", "X", agora)]), encoding="utf-8")
+
+    def quebra(_texto):
+        raise RuntimeError("Telegram fora")
+
+    assert rc.enviar_resumo_se_devido(
+        registro=registro, estado=estado, agora=agora, hora=0,
+        enviar=quebra) is False
+    assert rc._ler_estado_resumo(estado) == {}
+
+    enviados: list[str] = []
+    assert rc.enviar_resumo_se_devido(
+        registro=registro, estado=estado, agora=agora, hora=0,
+        enviar=enviados.append) is True
+    assert len(enviados) == 1
+
+
 def test_aviso_de_decisao_para_cantor_e_musica() -> None:
     cantor = rc.aviso_de_decisao(
         {"artista": "Annita", "titulo": "X", "motivo": "cantor",
