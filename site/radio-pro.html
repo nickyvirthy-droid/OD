@@ -82,6 +82,48 @@
       <div id="meusPedidos" style="margin-top:16px;font-size:.9rem;color:var(--muted);"></div>
     </div>
 
+    <!-- Curadoria do acervo (pedidos 2 e 3 do txt.txt, 17/11): só o DONO
+         vê — o servidor responde 403 para as outras contas e o card nunca
+         aparece. Sem esconder por CSS dados que a API entregaria. -->
+    <div class="card" id="curadoriaCard" style="margin-top:24px;padding:24px 20px;display:none;">
+      <div class="kicker">Só para o dono</div>
+      <h2 style="margin-top:8px;">Curadoria do acervo</h2>
+      <p style="color:var(--muted);font-size:.9rem;margin-top:6px;">
+        Excluir uma música do servidor inteiro (disco, banco e playlists —
+        ela fica bloqueada e não volta em pedido) e liberar uma música
+        específica de um cantor da lista de indesejados.
+      </p>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+        <input id="crBusca" type="search" placeholder="Buscar no acervo por artista ou música"
+               style="flex:1;min-width:220px;padding:10px 12px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;">
+        <button id="crBuscarBtn" class="btn" type="button">Buscar</button>
+      </div>
+      <div id="crMusicas" style="margin-top:10px;max-height:300px;overflow:auto;font-size:.9rem;">— carregando… —</div>
+      <div id="crStatus" style="color:var(--muted);font-size:.85rem;margin-top:8px;"></div>
+
+      <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:18px;">
+        <div style="flex:1;min-width:250px;">
+          <h3 style="font-size:.95rem;">Músicas bloqueadas</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+            <input id="crBlqArtista" placeholder="Artista" style="width:120px;padding:8px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;">
+            <input id="crBlqTitulo" placeholder="Título" style="width:120px;padding:8px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;">
+            <button id="crBlqAdd" class="btn" type="button">＋ Bloquear</button>
+          </div>
+          <div id="crBloqueadas" style="margin-top:8px;font-size:.88rem;">—</div>
+        </div>
+        <div style="flex:1;min-width:250px;">
+          <h3 style="font-size:.95rem;">Exceções (cantor bloqueado)</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+            <input id="crExcArtista" placeholder="Artista" style="width:120px;padding:8px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;">
+            <input id="crExcTitulo" placeholder="Título" style="width:120px;padding:8px;border-radius:8px;border:1px solid var(--line,#3a3a3a);background:transparent;color:inherit;">
+            <button id="crExcAdd" class="btn" type="button">＋ Liberar</button>
+          </div>
+          <div id="crExcecoes" style="margin-top:8px;font-size:.88rem;">—</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </section>
 
@@ -254,6 +296,164 @@
       .then(function () { pedidoEmCurso = false; });
   }
 
+  // --- Curadoria do acervo (só o dono; o servidor é quem decide) --------
+  // 403/401 esconde o card: conta comum e anônimo nem veem a seção.
+  function crStatus(t) { texto("crStatus", t || ""); }
+
+  function crPilulas(id, itens, tituloBotao, rota) {
+    var alvo = $(id);
+    if (!alvo) return;
+    alvo.innerHTML = "";
+    if (!itens || !itens.length) {
+      var vazio = document.createElement("span");
+      vazio.style.color = "var(--muted)";
+      vazio.textContent = "— nenhuma —";
+      alvo.appendChild(vazio);
+      return;
+    }
+    itens.forEach(function (p) {
+      var span = document.createElement("span");
+      span.className = "pill";
+      span.style.margin = "0 6px 6px 0";
+      span.textContent = (p.artista || "?") + " — " + (p.titulo || "?") + " ";
+      var b = document.createElement("button");
+      b.textContent = "✕";
+      b.title = tituloBotao;
+      b.addEventListener("click", function () { crRemover(p, rota); });
+      span.appendChild(b);
+      alvo.appendChild(span);
+    });
+  }
+
+  function crPinta(d) {
+    var alvo = $("crMusicas");
+    if (!alvo) return;
+    alvo.innerHTML = "";
+    var musicas = (d && d.musicas) || [];
+    if (!musicas.length) {
+      var vazio = document.createElement("div");
+      vazio.style.color = "var(--muted)";
+      vazio.textContent = "— nenhuma música encontrada —";
+      alvo.appendChild(vazio);
+    }
+    musicas.forEach(function (m) {
+      var linha = document.createElement("div");
+      linha.style.cssText = "display:flex;gap:10px;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line,#333)";
+      var nome = document.createElement("span");
+      nome.textContent = (m.artista ? m.artista + " — " : "") + (m.titulo || "?");
+      if (m.bloqueada) {
+        nome.textContent += "  ⛔ bloqueada";
+        nome.style.color = "#e74c3c";
+      } else if (m.artista_bloqueado) {
+        nome.textContent += "  ⏳ cantor bloqueado (toca 1× e apaga)";
+        nome.style.color = "#e0a526";
+      }
+      var b = document.createElement("button");
+      b.className = "btn";
+      b.type = "button";
+      b.textContent = "🚫 Excluir";
+      b.addEventListener("click", function () { crExcluir(m); });
+      linha.appendChild(nome);
+      linha.appendChild(b);
+      alvo.appendChild(linha);
+    });
+    crPilulas("crBloqueadas", d && d.bloqueadas, "Desbloquear",
+      "/api/radio/musicas/bloqueadas");
+    crPilulas("crExcecoes", d && d.excecoes, "Tirar a exceção",
+      "/api/radio/musicas/excecoes");
+  }
+
+  function crCarrega(termo) {
+    var url = "/api/radio/musicas" + (termo ? "?q=" + encodeURIComponent(termo) : "");
+    return fetch(url, { credentials: "same-origin",
+                        headers: { "Accept": "application/json" } })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) {
+          var card = $("curadoriaCard");
+          if (card) card.style.display = "none";
+          return null;
+        }
+        return r.json().then(function (d) {
+          if (!r.ok) throw new Error((d && d.error) || "falhou");
+          var card = $("curadoriaCard");
+          if (card) card.style.display = "block";
+          crPinta(d);
+          return d;
+        });
+      })
+      .catch(function (e) {
+        crStatus("Não consegui carregar a curadoria agora.");
+        console.warn("curadoria:", e);
+      });
+  }
+
+  function crExcluir(m) {
+    var nome = (m.artista ? m.artista + " — " : "") + (m.titulo || "");
+    if (!window.confirm("EXCLUIR " + nome + " do acervo?\n\n" +
+        "Sai do disco, do acervo.db e das playlists, e fica BLOQUEADA " +
+        "para não voltar num pedido. Não tem como desfazer.")) return;
+    crStatus("Excluindo…");
+    fetch("/api/radio/musicas/excluir", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caminho: m.caminho, bloquear: true })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d || {} }; }); })
+      .then(function (res) {
+        if (res.status !== 200 || !res.d.ok) {
+          crStatus(res.d.motivo === "musica_nao_encontrada"
+            ? "Essa música não está mais no acervo."
+            : "Não deu para excluir agora.");
+          return;
+        }
+        crCarrega("");
+        carrega("");
+        crStatus("✕ \"" + nome + "\" excluída" +
+          (res.d.sync ? " e sincronizada com o AzuraCast."
+                      : " (o sync do AzuraCast falhou; a exclusão local valeu)."));
+      })
+      .catch(function () { crStatus("Falha de rede — tente de novo."); });
+  }
+
+  function crAdd(rota, campoArt, campoTit) {
+    var a = (($(campoArt) || {}).value || "").trim();
+    var t = (($(campoTit) || {}).value || "").trim();
+    if (!a || !t) { crStatus("Preencha artista e título."); return; }
+    fetch(rota, {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ artista: a, titulo: t })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d || {} }; }); })
+      .then(function (res) {
+        if (res.status !== 200 || !res.d.ok) {
+          crStatus(res.d.error === "artista_e_titulo_obrigatorios"
+            ? "Preencha artista e título." : "Não deu para salvar agora.");
+          return;
+        }
+        if ($(campoArt)) $(campoArt).value = "";
+        if ($(campoTit)) $(campoTit).value = "";
+        crCarrega("");
+        crStatus(res.d.novo ? "＋ salvo na lista." : "Já estava na lista.");
+      })
+      .catch(function () { crStatus("Falha de rede — tente de novo."); });
+  }
+
+  function crRemover(p, rota) {
+    fetch(rota, {
+      method: "DELETE", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ artista: p.artista, titulo: p.titulo })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d || {} }; }); })
+      .then(function (res) {
+        if (res.status !== 200 || !res.d.ok) { crStatus("Não deu para remover agora."); return; }
+        crCarrega("");
+        crStatus("✕ removida da lista.");
+      })
+      .catch(function () { crStatus("Falha de rede — tente de novo."); });
+  }
+
   // Menu, tema, player e botão de topo são do od-nav.js (um handler só).
   document.addEventListener("DOMContentLoaded", function () {
     if ($("btnPedir")) $("btnPedir").addEventListener("click", pedir);
@@ -263,7 +463,25 @@
     if ($("busca")) $("busca").addEventListener("keydown", function (ev) {
       if (ev.key === "Enter") { ev.preventDefault(); carrega($("busca").value || ""); }
     });
+    if ($("crBuscarBtn")) $("crBuscarBtn").addEventListener("click", function () {
+      crCarrega(($("crBusca") || {}).value || "");
+    });
+    if ($("crBusca")) $("crBusca").addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        crCarrega($("crBusca").value || "");
+      }
+    });
+    if ($("crBlqAdd")) $("crBlqAdd").addEventListener("click", function () {
+      crAdd("/api/radio/musicas/bloqueadas", "crBlqArtista", "crBlqTitulo");
+    });
+    if ($("crExcAdd")) $("crExcAdd").addEventListener("click", function () {
+      crAdd("/api/radio/musicas/excecoes", "crExcArtista", "crExcTitulo");
+    });
     carrega("");
+    // A curadoria NÃO entra no polling: só o dono carrega, e só uma vez
+    // por abertura/ a cada ação (evita uma chamada admin de 15 em 15 s).
+    crCarrega("");
     setInterval(function () { carrega(($("busca") || {}).value || ""); }, 15000);
   });
 })();
