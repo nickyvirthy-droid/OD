@@ -12,6 +12,34 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Push FCM no instante em que a faixa entra na decisão de 24 h (2026-11-17, sem bump)
+
+**Contexto:** o aviso da janela de decisão saía só no Telegram; o dono podia
+demorar a abrir o app e a faixa vencer o prazo sem ele ver.
+
+### O que mudou
+
+1. **`integrations/radio_cantores.py`** — `registrar_para_apagar()` dispara um
+   push FCM (`PushService.notify`) **só na primeira marcação** (faixa repetida
+   não vira spam): título "Decisão de 24 h — cantor/música bloqueada", corpo
+   com "Artista — Título … permita no Painel do app ou ela é apagada sozinha"
+   e `data` com `origem=radio-decisao`, `artista` e `titulo`.
+2. **Subprocesso coberto** — o worker do link roda sem launcher (sem
+   `configure_push`); nesse caso o módulo monta o serviço uma vez
+   (`build_push_service(<raiz>/data)`) e deixa configurado para as próximas
+   faixas. Push jamais derruba o registro: qualquer falha vira log.
+3. **Sem mudança no app**: a mensagem leva bloco `notification`, então o
+   Android exibe na bandeja com o app fechado (canal já existente).
+
+### Validação
+
+- **Gate completo:** 5375 passed / 16 skipped / 0 falha (218,56 s, exit 0) —
+  eram 5370; +5 testes em `tests/test_radio_cantores.py` (envio único, dados
+  do payload, idempotência, falha do FCM sem perder o registro, construção do
+  serviço no subprocesso).
+- **No ar:** `GET /push/devices` → `enabled: true`, projeto `nicky-e4f99`,
+  1 aparelho; push de teste entregue após o restart.
+
 ## [1.45.1] — DECISÕES DA RÁDIO NO APP: o dono decide em 24 h pelo celular (2026-11-17)
 
 **Bump PATCH** (capacidade nova no app, compatível), versionCode **2082**.

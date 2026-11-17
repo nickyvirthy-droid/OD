@@ -6068,5 +6068,15 @@
     "apk": "versionName 1.45.1 / versionCode 2082; completo 72176786 B sha256 c1ba63b2e05775d1198c6db8ba779e5feac1df2c5b922f08b57473a9955b8b9c; arm64 26906673 B sha256 f323e4308286c83b07c132b60578894104e8ccf7971f9b7f309287ab5379778f.",
     "bump": "checklist VERSIONAMENTO §5 completo: .env OD_VERSION=1.45.1, fallback capabilities, pubspec 1.45.1+2082, _APP_VERSION_CODE=2082, site/index.html (badge+card), CHANGELOG [1.45.1], README_VERSAO [1.45.1].",
     "updated_at": "2026-11-17T05:25:00-03:00"
+  },
+  "push_decisao_radio_2026_11_17": {
+    "pedido": "Dono (17/11): 'Enviar push FCM quando uma faixa entrar na janela de decisão de 24 h'.",
+    "codigo": "radio_cantores.registrar_para_apagar dispara PushService.notify na primeira marcação (titulo 'Decisão de 24 h — cantor/música bloqueada', corpo com artista/titulo e data origem=radio-decisao). Sem current_push() (worker do link em subprocesso), monta build_push_service(<raiz>/data) + configure_push. Falha do push nunca derruba o registro.",
+    "app": "Sem mudança no app: o FCM manda bloco notification e o Android mostra na bandeja com o app fechado.",
+    "testes": "+5 em tests/test_radio_cantores.py (envio único + payload, idempotência, FCM que explode, construção do serviço no subprocesso). GATE COMPLETO: 5375 passed / 16 skipped / 0 falha (218,56 s, exit 0; eram 5370).",
+    "no_ar": "GET /push/devices -> enabled=true, projeto nicky-e4f99, 1 aparelho; push de teste entregue após restart.",
+    "sem_bump": "1.45.1+2082 (só servidor; APK intacto).",
+    "limitacao": "O app ainda não interpreta o data (origem/artista/titulo) para abrir a faixa; o aviso leva ao Painel. Sem lembrete 2 h antes do prazo.",
+    "updated_at": "2026-11-17T05:50:00-03:00"
   }
 }

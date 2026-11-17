@@ -811,3 +811,25 @@ decisões pendentes também no app Android"*.
 - **Pronto/validado:** `flutter analyze` 0 issues · `flutter test` 237 passed
   / 2 skipped · gate Python 5370 passed · APKs 1.45.1+2082 publicados em
   `site/` (antigos em `backups/apk-v1.45.0-2081/`).
+
+---
+
+## 17/11/2026 — Push FCM ao entrar na decisão de 24 h
+
+**Autor:** Codebuff (Buffy) — sessão de 17/11, a pedido do dono: *"Enviar
+push FCM quando uma faixa entrar na janela de decisão de 24 h"*.
+
+### Modificados
+
+- `integrations/radio_cantores.py` — push na primeira marcação, com data
+  `origem=radio-decisao`, e monta o serviço quando o processo não tem launcher.
+- `tests/test_radio_cantores.py` — +5 testes (envio único/payload,
+  idempotência, falha do FCM, serviço construído no subprocesso).
+- Registro: `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`,
+  `iniciar/2026-11-17_conversa_omegadrakon.md` §9, `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** o dono saber na hora, no celular, que tem 24 h para decidir.
+- **Pronto/validado:** gate **5375 passed / 16 skipped / 0 falha**; push
+  `enabled` com 1 aparelho e notificação de teste entregue após o restart.

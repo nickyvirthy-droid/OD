@@ -429,3 +429,40 @@ baixadas, posso apagar simplesmeste por achar uma versão melhor`.
   o dono (a API responde 403 para conta comum — provado no teste).
 - Sem push FCM dedicado a "decisão pendente": o aviso chega pelo Telegram e
   o app mostra a pendência ao abrir/atualizar o Painel.
+
+## §9 — Push FCM ao entrar na decisão de 24 h (17/11, sem bump)
+
+**Pedido (verbatim):** `Enviar push FCM quando uma faixa entrar na janela de
+decisão de 24 h`
+
+### 1. O que mudou
+
+1. **`integrations/radio_cantores.py`** — `registrar_para_apagar()` agora
+   chama `PushService.notify` **só na primeira marcação**: título
+   "Decisão de 24 h — cantor/música bloqueada", corpo com "Artista — Título:
+   permita no Painel do app ou ela é apagada sozinha" e `data`
+   `{origem: radio-decisao, artista, titulo}`. Repetir a mesma faixa não
+   reenvia (idempotência já existente + push no ramo do item novo).
+2. **Fallback de serviço** — o worker do link (`python -m
+   integrations.radio_link`) roda em subprocesso sem launcher; sem
+   `current_push()`, o módulo monta `build_push_service(<raiz>/data)`, chama
+   `configure_push` e segue com o serviço pronto para as próximas faixas.
+3. **Sem mudança no app** — o FCM manda o bloco `notification`, então o
+   Android mostra na bandeja com o app fechado, no canal já existente.
+
+### 2. Validação
+
+- **Gate completo:** **5375 passed / 16 skipped / 0 falha** (218,56 s, exit
+  0; eram 5370). +5 testes em `tests/test_radio_cantores.py`: envio único com
+  título/corpo/data corretos, idempotência sem segundo push, FCM que explode
+  não impede o registro, construção do serviço quando não há global.
+- **Serviço no ar:** `GET /push/devices` → `enabled: true`, projeto
+  `nicky-e4f99`, 1 aparelho.
+- Push de teste disparado pelo `/push/test` após o restart (prova de ponta a
+  ponta no aparelho).
+
+### 3. O que não foi feito
+
+- O push leva para o Painel (não abre a faixa direto): o app não interpreta o
+  `data` ainda — só exibe a notificação e o card no Painel.
+- Sem lembrete intermediário (ex.: 2 h antes do prazo); só o aviso de entrada.

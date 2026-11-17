@@ -611,6 +611,10 @@ esperar o timeout.
       ao vencer o prazo (tocar não apaga mais). API `POST
       /api/radio/musicas/decisao`, bloco no painel e no `/radio-pro`. Gate
       5370 passed; +14 testes.
+- [x] **Push FCM ao entrar na decisão de 24 h** — **ENTREGUE 17/11:**
+      `registrar_para_apagar()` avisa no celular na primeira marcação
+      (data `origem=radio-decisao`); subprocesso do link monta o
+      serviço sozinho; gate 5375 passed.
 - [x] **Decisões da rádio no app Android** — **ENTREGUE 17/11 (1.45.1+2082):**
       card "Decisões pendentes (24 h)" no Painel (só admin) com prazo,
       quem pediu e os botões Permitir / Apagar já; `flutter test` 237
