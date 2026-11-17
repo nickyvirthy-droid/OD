@@ -12,6 +12,51 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Curadoria do acervo na interface: excluir música e liberar exceções pela API, painel e /radio-pro (2026-11-17, sem bump)
+
+**Contexto:** os pedidos 2 e 3 do `txt.txt` ("quero poder excluir músicas que
+não gosto" e "quero poder deixar algumas músicas de cantores bloqueados")
+tinham só a camada de biblioteca. Esta entrega leva a curadoria até onde o
+dono opera: API, painel `/admin` e a página `/radio-pro`.
+
+### O que mudou
+
+1. **Rotas novas (6):** `GET /api/radio/musicas?q=` (acervo com `bloqueada` e
+   `artista_bloqueado` por faixa + as listas), `POST /api/radio/musicas/excluir`
+   (apaga do disco, do `acervo.db`, bloqueia e ressincroniza o AzuraCast),
+   `POST|DELETE /api/radio/musicas/bloqueadas` e `POST|DELETE
+   /api/radio/musicas/excecoes`. Tabela de rotas: **130 → 136**.
+2. **Gate do dono no handler** (`_exige_admin_do_acervo`): aceita a sessão do
+   navegador (cookie `od_sessao`), Bearer do app e `X-API-Key` do painel — é o
+   que permite a MESMA regra servir a página e o painel. Conta comum recebe 403
+   e anônimo 401 (provado em teste); servidor sem contas (sandbox) libera, como
+   o `_role()` faz. As 4 rotas entraram em `AUTH_EXEMPT_PATHS`.
+3. **Painel `/admin`:** a seção virou "Rádio — acervo e cantores" — lista de
+   músicas com busca e botão 🚫 Excluir (com confirmação e aviso do sync),
+   "Músicas bloqueadas" e "Exceções (cantor bloqueado)" com inclusão/remoção;
+   a lista de cantores indesejados continua abaixo, intacta (mesmos endpoints
+   de 05/11).
+4. **Página `/radio-pro`:** card "Curadoria do acervo" que só o dono vê — o
+   servidor responde 403 para as outras contas e o card nem aparece. Excluir,
+   bloquear, desbloquear, criar e tirar exceção direto do celular.
+5. **Testes:** `tests/test_radio_curadoria.py` novo (28 testes — listas de
+   pares, exceção vencendo bloqueio, `excluir_musica_do_acervo` com
+   acervo.db de mentira, sync falhando sem desfazer a exclusão, as 6 rotas com
+   gate 401/403, páginas) + contagem de rotas no `tests/test_api.py`.
+
+### Validação
+
+- **Gate Python completo:** 5347 passed / 16 skipped / 0 falha (205,23 s,
+  exit 0) — eram 5319.
+- **Sandbox contra o acervo REAL (só leitura):** `GET /api/radio/musicas`
+  devolveu 200 faixas, `?q=raul` achou "Raul Seixas — Metamorfose Ambulante"
+  desbloqueada; bloqueio/desbloqueio e exceção criar/remover gravaram em
+  arquivos temporários; `excluir` de faixa inexistente devolveu 404
+  `musica_nao_encontrada`. Nenhuma música real foi tocada ou apagada.
+- **Pendência declarada:** o `radio_link.py` ainda não recusa o download de
+  faixa bloqueada — o bloqueio hoje impede o retorno pelo painel/página, não
+  o pedido por link (checkbox no TODO).
+
 ## Lote órfão fechado: exclusão/bloqueio de músicas, exceções de cantores, reboot pela API e cobertura (2026-11-17, sem bump)
 
 **Contexto:** a árvore carregava um lote posterior ao commit `fccb6bc`, sem

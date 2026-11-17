@@ -211,3 +211,64 @@ botão não. Anotado no TODO §4.
 - Sem bump: **1.45.0+2081** (servidor + biblioteca; o APK publicado não muda).
 - Registro: `docs/CHANGELOG.md` (seção datada), TODO §4, esta §4,
   `session.json` e `ATRIBUICOES.md`.
+
+## §5 — Pedidos 2 e 3 na interface: API, painel e /radio-pro (17/11)
+
+**Pedido (verbatim):** `Implemente as rotas de API, o painel e a página
+/radio-pro para excluir música e gerenciar exceções de cantores`
+
+### 1. O que foi construído
+
+A biblioteca já existia (publicada na §4); faltava o que o dono usa.
+
+1. **API (6 rotas novas, 130 → 136):**
+   - `GET /api/radio/musicas?q=` — acervo com `bloqueada` e
+     `artista_bloqueado` por faixa, mais `bloqueadas`, `excecoes` e
+     `cantores` numa chamada só;
+   - `POST /api/radio/musicas/excluir` — `{caminho, bloquear}`: apaga do
+     disco, do `acervo.db`, bloqueia e ressincroniza o AzuraCast (aceita
+     também `"Artista - Título"`);
+   - `POST|DELETE /api/radio/musicas/bloqueadas`;
+   - `POST|DELETE /api/radio/musicas/excecoes`.
+2. **Gate do dono no handler** (`_exige_admin_do_acervo`) — a mesma régua
+   aceita cookie `od_sessao` (navegador), Bearer (app) e `X-API-Key`
+   (painel); conta comum 403, anônimo 401. Sem isso a página `/radio-pro`
+   não conseguiria operar (navegador não manda header) e a rota ficaria
+   aberta se confiasse só no `_role()` — que devolve admin quando não há
+   usuário (auth desligada em dev).
+3. **Painel `/admin`:** seção "Rádio — acervo e cantores" com busca no
+   acervo, botão 🚫 Excluir (confirmação + aviso do sync), listas de
+   bloqueadas e de exceções com inclusão/remoção; a lista de cantores
+   indesejados continua abaixo, com os endpoints de 05/11 intactos.
+4. **`/radio-pro`:** card "Curadoria do acervo" que só aparece para o dono
+   — o servidor responde 403 e a página esconde. Excluir/bloquear/liberar
+   direto do celular.
+5. **Testes:** `tests/test_radio_curadoria.py` novo (**28 testes**) +
+   contagem de rotas no `test_api.py`.
+
+### 2. Validação
+
+- **Gate completo:** **5347 passed / 16 skipped / 0 falha** (205,23 s,
+  exit 0; eram 5319).
+- **Sandbox contra o acervo REAL, só leitura:** `GET /api/radio/musicas`
+  → 200 faixas; `?q=raul` → "Raul Seixas — Metamorfose Ambulante"
+  desbloqueada; bloquear/desbloquear e exceção criar/remover gravaram em
+  arquivos de `/tmp`; excluir faixa inexistente → 404
+  `musica_nao_encontrada`. **Nenhuma música real foi apagada.**
+- **Pegos no caminho:** (a) `admin` não está em `PAPEIS_CONTA_VALIDOS` —
+  quem é admin é a conta do `OD_OWNER_USERNAME`, e o teste precisou disso;
+  (b) o JS do painel quebrou no `node --check` por aspas escapadas dentro
+  do HTML em string Python — corrigido antes de publicar.
+
+### 3. O que continua faltando
+
+O `radio_link.py` **não recusa** baixar uma faixa que está em
+`data/musicas_bloqueadas.txt` — o bloqueio vale para o painel/página, não
+para o pedido por link. Checkbox novo no TODO §4.
+
+### 4. Estado ao fechar
+
+- Sem bump: **1.45.0+2081** (servidor + site; o APK publicado não muda).
+- Registro: `docs/CHANGELOG.md`, TODO §4, esta §5, `session.json`,
+  `ATRIBUICOES.md`; commits publicados e `od-core` reiniciado com prova
+  viva (MainPID e `/health` na entrada do `session.json`).

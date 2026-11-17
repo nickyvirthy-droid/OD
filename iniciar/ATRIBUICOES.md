@@ -9,6 +9,48 @@
 
 ---
 
+## 17/11/2026 — Pedidos 2 e 3 na interface: rotas, painel /admin e página /radio-pro
+
+**Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono
+("Implemente as rotas de API, o painel e a página /radio-pro para excluir
+música e gerenciar exceções de cantores").
+
+### Criados
+
+- `tests/test_radio_curadoria.py` — 28 testes (listas de pares, exceção
+  vencendo o bloqueio, `excluir_musica_do_acervo`, as 6 rotas e as páginas).
+
+### Modificados
+
+- `integrations/api/server.py` — 6 rotas de curadoria (`GET
+  /api/radio/musicas`, `POST /api/radio/musicas/excluir`,
+  `POST|DELETE /api/radio/musicas/bloqueadas`, `POST|DELETE
+  /api/radio/musicas/excecoes`), `_exige_admin_do_acervo`,
+  `_par_artista_titulo`, `_listas_de_curadoria`, entradas em
+  `AUTH_EXEMPT_PATHS` e no `_ROUTE_SPECS`, seção nova no `_ADMIN_PAGE_HTML`
+  (HTML + JS) e `musCarregar` no `carregarTudo`.
+- `site/radio-pro.html` — card "Curadoria do acervo" (só o dono vê) com
+  buscar, excluir, bloquear/desbloquear e exceções.
+- `tests/test_api.py` — contagem de rotas **130 → 136** e as 6 rotas nos
+  conjuntos esperados (privado/público).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`,
+  `iniciar/2026-11-17_conversa_omegadrakon.md` (§5) e `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** fechar os pedidos 2 e 3 do `txt.txt` até o ponto onde o
+  dono opera — até agora só existia a biblioteca.
+- **Pronto/validado:** gate completo **5347 passed / 16 skipped / 0 falha**
+  (205,23 s, exit 0); sandbox contra o acervo real **em leitura** (200
+  faixas, `?q=raul` correto, CRUD em listas de `/tmp`, 404 de faixa
+  inexistente); nenhuma música real apagada.
+- **Pela metade (declarado):** `radio_link.py` ainda baixa faixa bloqueada
+  pedida por link — o bloqueio só vale pelo painel/página. Checkbox criado
+  no TODO §4 com o próximo passo exato.
+- **Sem bump:** 1.45.0+2081.
+
+---
+
 ## 17/11/2026 — Lote órfão validado e publicado: exclusão/bloqueio de músicas, exceções de cantores, reboot, staging e cobertura
 
 **Autor do lote:** **ORIGEM NÃO IDENTIFICADA** (achado na árvore em 17/11,

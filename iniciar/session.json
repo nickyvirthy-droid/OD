@@ -5997,6 +5997,19 @@
     ],
     "testes": "385 passed (test_radio_link + test_radio_cobertura + test_radio + test_api)"
   },
+  "curadoria_radio_interface_2026_11_17": {
+    "pedido": "Dono (17/11): 'Implemente as rotas de API, o painel e a pagina /radio-pro para excluir musica e gerenciar excecoes de cantores'.",
+    "rotas": "6 novas (130 -> 136): GET /api/radio/musicas?q= (acervo com bloqueada/artista_bloqueado + as listas), POST /api/radio/musicas/excluir, POST|DELETE /api/radio/musicas/bloqueadas, POST|DELETE /api/radio/musicas/excecoes; todas auth=False em AUTH_EXEMPT_PATHS com gate do dono no handler.",
+    "gate": "_exige_admin_do_acervo: cookie od_sessao (navegador), Bearer (app) ou X-API-Key (painel); conta comum 403, anonimo 401, servidor sem contas libera. Sem esse gate o _role() devolveria admin para requisicao sem usuario.",
+    "painel": "secao 'Radio - acervo e cantores': busca no acervo + botao Excluir com confirmacao, listas de bloqueadas e excecoes com inclusao/remocao; cantores indesejados intactos (endpoints de 05/11).",
+    "pagina": "site/radio-pro.html: card 'Curadoria do acervo' que so aparece para o dono (403 esconde); buscar, excluir, bloquear, desbloquear, excecoes.",
+    "testes": "tests/test_radio_curadoria.py novo com 28 testes; test_api.py 130 -> 136 e as 6 rotas nos conjuntos esperado/publico. GATE COMPLETO: 5347 passed / 16 skipped / 0 falha (205,23 s, exit 0; eram 5319).",
+    "sandbox": "Contra o acervo REAL em leitura: GET -> 200 faixas; ?q=raul -> Raul Seixas/Metamorfose desbloqueada; bloquear/desbloquear e excecao criar/remover gravaram em /tmp; excluir inexistente -> 404 musica_nao_encontrada. Nenhuma musica real apagada.",
+    "achados": "(1) 'admin' nao esta em PAPEIS_CONTA_VALIDOS — quem e admin e a conta do OD_OWNER_USERNAME (o teste precisou de owner_username). (2) JS do painel quebrou no node --check por aspas escapadas dentro de HTML em string Python — corrigido antes de publicar.",
+    "pendente": "radio_link.py ainda baixa faixa de data/musicas_bloqueadas.txt pedida por link — checkbox novo no TODO §4.",
+    "sem_bump": "1.45.0+2081 (servidor + site; APK publicado nao muda).",
+    "updated_at": "2026-11-17T04:10:00-03:00"
+  },
   "lote_orfao_fechado_2026_11_17": {
     "pedido": "Dono (17/11): 'Rode o gate completo e commite o lote orfao que esta na arvore (radio, coverage, supply_depot, app)'.",
     "gate": "Python completo: 5319 passed / 16 skipped / 0 falha (210,60 s, exit 0). App: flutter analyze 'No issues found'; flutter test 228 passed / 2 skipped (antes do lote: 223).",

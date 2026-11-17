@@ -583,16 +583,23 @@ esperar o timeout.
       entrega nova: aba **"Casa"** com botões data-driven (luzes/tomadas via
       `ha_device_control`) e filtro de abas no `OdHome` por `role`.
       **Aguardando decisão do dono.**
-- [ ] **Rádio: excluir música e liberar músicas de cantores bloqueados**
-      (pedidos 2 e 3 do `txt.txt`, 17/11) — a **camada de biblioteca está
-      PRONTA e publicada (17/11)** em `integrations/radio_cantores.py` (listas
-      `data/musicas_bloqueadas.txt` e `data/cantores_excecoes.txt`,
-      `excluir_musica_do_acervo`, `eh_excecao`, `indesejado()` consultando a
-      exceção antes do bloqueio). **Falta o que o dono usa:** rotas de API
-      (`/admin/radio/musica/excluir`, exceções), botão no painel `/admin` e na
-      página `/radio-pro`, e a recusa de download de faixa bloqueada no
-      `radio_link.py`. Resolve: "quero poder excluir músicas que não gosto" e
-      "deixar algumas músicas de cantores bloqueados".
+- [x] **Rádio: excluir música e liberar músicas de cantores bloqueados**
+      (pedidos 2 e 3 do `txt.txt`, 17/11) — **ENTREGUE 17/11:**
+      `integrations/radio_cantores.py` (listas `data/musicas_bloqueadas.txt` e
+      `data/cantores_excecoes.txt`, `excluir_musica_do_acervo`, `eh_excecao`,
+      `indesejado()` consultando a exceção antes do bloqueio) **mais** as 6
+      rotas (`GET /api/radio/musicas`, `POST …/excluir`, `POST|DELETE
+      …/bloqueadas`, `POST|DELETE …/excecoes`), a seção "Rádio — acervo e
+      cantores" no painel `/admin` e o card "Curadoria do acervo" no
+      `/radio-pro` (só o dono vê; 403 para conta comum). Gate 5347 passed e
+      sandbox contra o acervo real sem alterar nenhuma faixa.
+      **Sobrou um passo:** o `radio_link.py` ainda não recusa o download de
+      faixa bloqueada — hoje o bloqueio impede o retorno pelo painel/página,
+      não o pedido por link do YouTube (checkbox abaixo).
+- [ ] **`radio_link.py`: não baixar faixa de `data/musicas_bloqueadas.txt`**
+      — o pedido por link de uma música bloqueada ainda é baixado e
+      classificado (a exclusão pelo painel não é barrada no pedido). Resolve:
+      o bloqueio do dono valer também para o caminho do YouTube.
 - [x] **Fechar o lote órfão da árvore (17/11)** — **ENTREGUE 17/11:** gate
       completo **5319 passed / 16 skipped / 0 falha** (210,60 s, exit 0) e
       `flutter analyze` 0 issues + `flutter test` **228 passed / 2 skipped**
