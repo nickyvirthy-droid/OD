@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import unicodedata
 from datetime import datetime, timedelta, timezone
@@ -43,6 +44,10 @@ RAIZ = Path(__file__).resolve().parents[1]
 BASE_MUSICAS = Path(os.environ.get("OD_BASE_MUSICAS", "/home/alex/dados/musicas"))
 LISTA = Path(os.environ.get("OD_CANTORES_LISTA",
                             str(RAIZ / "data" / "cantores_indesejados.txt")))
+LISTA_EXCECOES = Path(os.environ.get("OD_CANTORES_EXCECOES",
+                                    str(RAIZ / "data" / "cantores_excecoes.txt")))
+LISTA_BLOQUEADAS = Path(os.environ.get("OD_MUSICAS_BLOQUEADAS",
+                                      str(RAIZ / "data" / "musicas_bloqueadas.txt")))
 REGISTRO = Path(os.environ.get("OD_CANTORES_REGISTRO",
                                str(RAIZ / "data" / "radio_apagar_depois.json")))
 #: Pedido que nunca tocou não fica pendurado para sempre.
@@ -55,6 +60,18 @@ CABECALHO = """# Cantores que o dono NAO quer no acervo (05/11/2026).
 # Regra: se um ouvinte pedir, a musica TOCA UMA VEZ e depois e apagada.
 # Exemplo (descomente para valer):
 # Annita
+"""
+
+CABECALHO_EXCECOES = """# Musicas permitidas de cantores bloqueados (ordem do dono, 17/11/2026).
+# Formato: Artista | Titulo (uma por linha. Linha com # e comentario).
+# Exemplo:
+# Annita | Envolver
+"""
+
+CABECALHO_BLOQUEADAS = """# Musicas que o dono NAO quer no acervo (excluidas e bloqueadas individualmente).
+# Formato: Artista | Titulo (uma por linha. Linha com # e comentario).
+# Exemplo:
+# Fulano | Musica Chata
 """
 
 
@@ -133,14 +150,180 @@ def remover(nome: str, *, caminho: Optional[Path] = None) -> bool:
     return True
 
 
-def indesejado(artista: str, *, caminho: Optional[Path] = None) -> bool:
+# ---------------------------------------------------------------------------
+#  Pares Artista | Titulo (Exceções permitidas e Músicas bloqueadas)
+# ---------------------------------------------------------------------------
+
+def _ler_pares(caminho: Path) -> list[tuple[str, str]]:
+    if not caminho.exists():
+        return []
+    pares: list[tuple[str, str]] = []
+    for linha in caminho.read_text(encoding="utf-8").splitlines():
+        texto = linha.strip()
+        if not texto or texto.startswith("#") or "|" not in texto:
+            continue
+        partes = [p.strip() for p in texto.split("|", 1)]
+        if len(partes) == 2 and partes[0] and partes[1]:
+            pares.append((partes[0], partes[1]))
+    return pares
+
+
+def _casa_par(artista: str, titulo: str, pares: list[tuple[str, str]]) -> bool:
+    art = normalizar(artista)
+    tit = normalizar(titulo)
+    if not art or not tit:
+        return False
+    for p_art, p_tit in pares:
+        par_art = normalizar(p_art)
+        par_tit = normalizar(p_tit)
+        if not par_art or not par_tit:
+            continue
+        art_bate = (par_art == art or par_art in art or art in par_art or
+                    f" {par_art} " in f" {art} ")
+        tit_bate = (par_tit == tit or par_tit in tit or tit in par_tit)
+        if art_bate and tit_bate:
+            return True
+    return False
+
+
+def _adicionar_par(arquivo: Path, cabecalho: str, artista: str, titulo: str) -> bool:
+    artista = (artista or "").strip()
+    titulo = (titulo or "").strip()
+    if not artista or not titulo or len(artista) > 80 or len(titulo) > 120:
+        return False
+    for p_art, p_tit in _ler_pares(arquivo):
+        if normalizar(p_art) == normalizar(artista) and normalizar(p_tit) == normalizar(titulo):
+            return False
+    arquivo.parent.mkdir(parents=True, exist_ok=True)
+    if not arquivo.exists():
+        arquivo.write_text(cabecalho, encoding="utf-8")
+    with arquivo.open("a", encoding="utf-8") as f:
+        f.write(f"{artista} | {titulo}\n")
+    return True
+
+
+def _remover_par(arquivo: Path, artista: str, titulo: str) -> bool:
+    if not arquivo.exists():
+        return False
+    alvo_art = normalizar(artista)
+    alvo_tit = normalizar(titulo)
+    linhas = arquivo.read_text(encoding="utf-8").splitlines()
+    restantes = []
+    removido = False
+    for l in linhas:
+        texto = l.strip()
+        if texto.startswith("#") or "|" not in texto:
+            restantes.append(l)
+            continue
+        p = [x.strip() for x in texto.split("|", 1)]
+        if len(p) == 2 and normalizar(p[0]) == alvo_art and normalizar(p[1]) == alvo_tit:
+            removido = True
+            continue
+        restantes.append(l)
+    if not removido:
+        return False
+    arquivo.write_text("\n".join(restantes).rstrip("\n") + "\n", encoding="utf-8")
+    return True
+
+
+# ---------------------------------------------------------------------------
+#  Exceções de cantores bloqueados (músicas permitidas que não são apagadas)
+# ---------------------------------------------------------------------------
+
+def eh_excecao(artista: str, titulo: str, *, caminho: Optional[Path] = None) -> bool:
+    """True se (artista, titulo) é uma exceção permitida de cantor indesejado."""
+    arquivo = Path(caminho or LISTA_EXCECOES)
+    return _casa_par(artista, titulo, _ler_pares(arquivo))
+
+
+def listar_excecoes(*, caminho: Optional[Path] = None) -> list[dict[str, str]]:
+    arquivo = Path(caminho or LISTA_EXCECOES)
+    return [{"artista": a, "titulo": t} for a, t in _ler_pares(arquivo)]
+
+
+def adicionar_excecao(artista: str, titulo: str, *, caminho: Optional[Path] = None) -> bool:
+    arquivo = Path(caminho or LISTA_EXCECOES)
+    ok = _adicionar_par(arquivo, CABECALHO_EXCECOES, artista, titulo)
+    if ok:
+        log.info("excecao de cantor indesejado incluida", artista=artista, titulo=titulo)
+    return ok
+
+
+def remover_excecao(artista: str, titulo: str, *, caminho: Optional[Path] = None) -> bool:
+    arquivo = Path(caminho or LISTA_EXCECOES)
+    ok = _remover_par(arquivo, artista, titulo)
+    if ok:
+        log.info("excecao de cantor indesejado removida", artista=artista, titulo=titulo)
+    return ok
+
+
+def linhas_excecoes(*, caminho: Optional[Path] = None) -> str:
+    arquivo = Path(caminho or LISTA_EXCECOES)
+    if not arquivo.exists():
+        return CABECALHO_EXCECOES
+    return arquivo.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+#  Músicas indesejadas (bloqueadas no acervo e na rádio)
+# ---------------------------------------------------------------------------
+
+def musica_bloqueada(artista: str, titulo: str = "", *, caminho: Optional[Path] = None) -> bool:
+    """True se a música específica está na lista de bloqueadas."""
+    arquivo = Path(caminho or LISTA_BLOQUEADAS)
+    pares = _ler_pares(arquivo)
+    if not titulo:
+        alvo = normalizar(artista)
+        return any(normalizar(f"{p_art} {p_tit}") in alvo or alvo in normalizar(f"{p_art} {p_tit}")
+                   for p_art, p_tit in pares)
+    return _casa_par(artista, titulo, pares)
+
+
+def listar_musicas_bloqueadas(*, caminho: Optional[Path] = None) -> list[dict[str, str]]:
+    arquivo = Path(caminho or LISTA_BLOQUEADAS)
+    return [{"artista": a, "titulo": t} for a, t in _ler_pares(arquivo)]
+
+
+def adicionar_musica_bloqueada(artista: str, titulo: str, *, caminho: Optional[Path] = None) -> bool:
+    arquivo = Path(caminho or LISTA_BLOQUEADAS)
+    ok = _adicionar_par(arquivo, CABECALHO_BLOQUEADAS, artista, titulo)
+    if ok:
+        log.info("musica bloqueada incluida", artista=artista, titulo=titulo)
+    return ok
+
+
+def remover_musica_bloqueada(artista: str, titulo: str, *, caminho: Optional[Path] = None) -> bool:
+    arquivo = Path(caminho or LISTA_BLOQUEADAS)
+    ok = _remover_par(arquivo, artista, titulo)
+    if ok:
+        log.info("musica bloqueada removida", artista=artista, titulo=titulo)
+    return ok
+
+
+def linhas_bloqueadas(*, caminho: Optional[Path] = None) -> str:
+    arquivo = Path(caminho or LISTA_BLOQUEADAS)
+    if not arquivo.exists():
+        return CABECALHO_BLOQUEADAS
+    return arquivo.read_text(encoding="utf-8")
+
+
+def indesejado(
+    artista: str,
+    titulo: str = "",
+    *,
+    caminho: Optional[Path] = None,
+    caminho_excecoes: Optional[Path] = None,
+) -> bool:
     """True quando o artista (ou um dos artistas do campo) está na lista.
 
     Compara sem caixa/acento. Vale tanto ``Annita`` quanto
     ``Annita e Fulano`` / ``Fulano ft. Annita`` — a lista casa por pessoa.
+    EXCEÇÃO: se (artista, titulo) for exceção permitida, devolve False.
     """
     alvo = normalizar(artista)
     if not alvo:
+        return False
+    if titulo and eh_excecao(artista, titulo, caminho=caminho_excecoes):
         return False
     tokens = set(alvo.split())
     for nome in _ler(caminho):
@@ -333,6 +516,68 @@ def limpar_tocados(
             "sync": sincronizado}
 
 
+def excluir_musica_do_acervo(
+    identificador: str,
+    *,
+    bloquear: bool = True,
+    banco: Optional[Path] = None,
+    caminho_bloqueadas: Optional[Path] = None,
+    apagar: Optional[Callable[[str], bool]] = None,
+    ressincronizar: Optional[Callable[[], bool]] = None,
+) -> dict[str, Any]:
+    """Exclui uma música do acervo (disco + acervo.db) e opcionalmente bloqueia."""
+    banco = Path(banco or (BASE_MUSICAS / "acervo.db"))
+    if not banco.exists():
+        return {"ok": False, "motivo": "banco_acervo_inexistente"}
+    conn = sqlite3.connect(str(banco))
+    try:
+        cur = conn.cursor()
+        linha = cur.execute(
+            "SELECT caminho, artista, titulo FROM musicas WHERE caminho = ? OR caminho LIKE ?",
+            (identificador, f"%{identificador}%"),
+        ).fetchone()
+        if not linha and " - " in identificador:
+            art, tit = identificador.split(" - ", 1)
+            linha = cur.execute(
+                "SELECT caminho, artista, titulo FROM musicas WHERE artista LIKE ? AND titulo LIKE ?",
+                (f"%{art.strip()}%", f"%{tit.strip()}%"),
+            ).fetchone()
+        if not linha:
+            return {"ok": False, "motivo": "musica_nao_encontrada"}
+        caminho_rel, artista, titulo = str(linha[0]), str(linha[1] or ""), str(linha[2] or "")
+        cur.execute("DELETE FROM musicas WHERE caminho = ?", (caminho_rel,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    apagar_fn = apagar or _apagar_arquivo
+    try:
+        apagar_fn(caminho_rel)
+    except Exception as exc:
+        log.warn("apagar arquivo da musica falhou", caminho=caminho_rel, error=type(exc).__name__)
+
+    bloqueada_ok = False
+    if bloquear and artista and titulo:
+        bloqueada_ok = adicionar_musica_bloqueada(artista, titulo, caminho=caminho_bloqueadas)
+
+    sync_fn = ressincronizar or _ressincronizar
+    sync_ok = False
+    try:
+        sync_ok = bool(sync_fn())
+    except Exception as exc:
+        log.warn("sync apos exclusao falhou", error=type(exc).__name__)
+
+    log.info("musica excluida do acervo", artista=artista, titulo=titulo, caminho=caminho_rel, bloqueada=bloquear)
+    return {
+        "ok": True,
+        "caminho": caminho_rel,
+        "artista": artista,
+        "titulo": titulo,
+        "bloqueada": bloquear,
+        "sync": sync_ok,
+    }
+
+
 def linhas_do_arquivo(*, caminho: Optional[Path] = None) -> str:
     """Conteúdo cru da lista (para a API mostrar o arquivo como ele é)."""
     arquivo = _arquivo(caminho)
@@ -342,7 +587,12 @@ def linhas_do_arquivo(*, caminho: Optional[Path] = None) -> str:
 
 
 __all__ = [
-    "LISTA", "REGISTRO", "HORAS_LIMITE", "normalizar", "listar", "adicionar",
-    "remover", "indesejado", "registrar_para_apagar", "pendentes",
+    "LISTA", "LISTA_EXCECOES", "LISTA_BLOQUEADAS", "REGISTRO", "HORAS_LIMITE",
+    "normalizar", "listar", "adicionar", "remover", "indesejado",
+    "eh_excecao", "listar_excecoes", "adicionar_excecao", "remover_excecao", "linhas_excecoes",
+    "musica_bloqueada", "listar_musicas_bloqueadas", "adicionar_musica_bloqueada",
+    "remover_musica_bloqueada", "linhas_bloqueadas",
+    "excluir_musica_do_acervo", "registrar_para_apagar", "pendentes",
     "historico_azuracast", "limpar_tocados", "linhas_do_arquivo",
 ]
+
