@@ -180,6 +180,11 @@ AUTH_EXEMPT_PATHS = frozenset(
      # Área do ouvinte logado (04/11): o gate é a sessão do ouvinte no
      # handler (cookie od_sessao / Bearer) — o dispatch não exige header.
      "/radio-pro", "/api/radio/pro/dados", "/api/radio/pro/pedido",
+     # Curadoria do acervo (17/11): mesma régua da área do ouvinte — o
+     # gate (sessão do dono + papel admin) é do handler, no dispatch não
+     # há header (a página /radio-pro opera por cookie).
+     "/api/radio/musicas", "/api/radio/musicas/excluir",
+     "/api/radio/musicas/bloqueadas", "/api/radio/musicas/excecoes",
      # /f/*: o gate é o cookie od_sessao + papel admin no handler
      # (APIHandler.ferramentas) — o dispatch não exige header.
      ROTA_FERRAMENTAS,
@@ -379,6 +384,22 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/api/radio/cantores", "api_radio_cantores", True),
     ("POST", "/api/radio/cantores", "api_radio_cantores_add", True),
     ("DELETE", "/api/radio/cantores", "api_radio_cantores_remove", True),
+    # Curadoria do acervo (pedidos 2 e 3 do txt.txt, 17/11): excluir a
+    # música que o dono não gosta, bloquear a faixa para não voltar e
+    # liberar músicas escolhidas de cantores indesejados. auth=False de
+    # propósito: o gate é do handler (_exige_admin_do_acervo) porque a
+    # MESMA página /radio-pro opera por cookie od_sessao — navegador não
+    # manda X-API-Key. Todas em AUTH_EXEMPT_PATHS pelo mesmo motivo.
+    ("GET", "/api/radio/musicas", "api_radio_musicas", False),
+    ("POST", "/api/radio/musicas/excluir", "api_radio_musicas_excluir", False),
+    ("POST", "/api/radio/musicas/bloqueadas",
+     "api_radio_musicas_bloqueadas_add", False),
+    ("DELETE", "/api/radio/musicas/bloqueadas",
+     "api_radio_musicas_bloqueadas_remove", False),
+    ("POST", "/api/radio/musicas/excecoes",
+     "api_radio_musicas_excecoes_add", False),
+    ("DELETE", "/api/radio/musicas/excecoes",
+     "api_radio_musicas_excecoes_remove", False),
     # Registro Mestre: consulta pública de autenticidade de peças — o ID
     # vem GRAVADO na peça; público sem credencial (mesma natureza de
     # /app/version, v. AUTH_EXEMPT_PATHS). /registry (lista) alimenta a
@@ -1481,11 +1502,59 @@ _ADMIN_PAGE_HTML = """<!doctype html>
   </section>
 
   <section>
-    <h2>Rádio — cantores indesejados</h2>
+    <h2>Rádio — acervo e cantores</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Curadoria do acervo (ordem do dono, 17/11): <b>excluir</b> a música que
+      você não gosta (sai do disco, do banco e das playlists, e não volta em
+      pedido futuro) e <b>liberar</b> uma música específica de um cantor da
+      lista de indesejados — a lista negra é por música
+      (<code>data/musicas_bloqueadas.txt</code>) e a exceção também
+      (<code>data/cantores_excecoes.txt</code>). Tudo funciona igual na
+      <a href="/radio-pro">área do ouvinte</a>, que também é sua.
+    </p>
+
+    <h3 style="font-size:0.95rem;margin-bottom:6px">Músicas do acervo</h3>
+    <div class="row">
+      <input id="mus-busca" placeholder="Buscar por artista ou música" style="flex:1;min-width:200px">
+      <button id="mus-buscar">🔎 Buscar</button>
+      <button id="mus-refresh">↻ Carregar</button>
+      <span class="muted msg" id="mus-msg"></span>
+    </div>
+    <div id="mus-lista" style="margin-top:10px;max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px">— carregando… —</div>
+
+    <div style="display:flex;gap:22px;flex-wrap:wrap;margin-top:14px">
+      <div style="flex:1;min-width:280px">
+        <h3 style="font-size:0.95rem;margin-bottom:6px">Músicas bloqueadas</h3>
+        <p class="muted" style="font-size:0.78rem;margin-bottom:6px">
+          Não voltam ao acervo nem por pedido de link.
+        </p>
+        <div class="row">
+          <input id="blq-artista" placeholder="Artista" style="width:132px">
+          <input id="blq-titulo" placeholder="Título" style="width:132px">
+          <button id="blq-add" style="border-color:var(--accent);color:var(--accent)">＋ Bloquear</button>
+        </div>
+        <div id="blq-lista" style="margin-top:8px">— carregando… —</div>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <h3 style="font-size:0.95rem;margin-bottom:6px">Exceções (cantor bloqueado)</h3>
+        <p class="muted" style="font-size:0.78rem;margin-bottom:6px">
+          O cantor continua bloqueado, mas ESTA música fica no acervo.
+        </p>
+        <div class="row">
+          <input id="exc-artista" placeholder="Artista" style="width:132px">
+          <input id="exc-titulo" placeholder="Título" style="width:132px">
+          <button id="exc-add" style="border-color:var(--accent);color:var(--accent)">＋ Liberar</button>
+        </div>
+        <div id="exc-lista" style="margin-top:8px">— carregando… —</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:0.95rem;margin:18px 0 6px">Cantores indesejados</h3>
     <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
       Lista do dono (fila A2, 05/11): se um ouvinte pedir música de um
       artista daqui, ela <b>toca uma vez</b> para ele e depois sai do acervo
-      (arquivo, banco e playlists). A mesma lista mora em
+      (arquivo, banco e playlists) — a não ser que a música esteja nas
+      exceções acima. A mesma lista mora em
       <code>data/cantores_indesejados.txt</code> — dá para editar à mão; aqui
       é o atalho, inclusive do celular.
     </p>
@@ -3447,6 +3516,185 @@ document.getElementById("cantor-add").onclick = cantorAdd;
 document.getElementById("cantor-refresh").onclick = cantoresLoad;
 document.getElementById("cantor-nome").addEventListener("keydown", e => { if (e.key === "Enter") cantorAdd(); });
 
+// --- Rádio: curadoria do acervo (pedidos 2 e 3 do txt.txt, 17/11) -----
+// Excluir música (disco + banco + playlists, opcionalmente bloqueando) e
+// liberar uma faixa de cantor bloqueado. O gate é o do servidor (dono);
+// nomes nunca vão para atributo HTML — o índice é a chave das ações.
+let musicasAtuais = [];
+let bloqueadasAtuais = [];
+let excecoesAtuais = [];
+
+function musSetMsg(t, cls) {
+  const el = document.getElementById("mus-msg");
+  el.textContent = t;
+  el.className = "muted msg " + (cls || "");
+}
+
+function musPintarListas(data) {
+  bloqueadasAtuais = data.bloqueadas || [];
+  excecoesAtuais = data.excecoes || [];
+  const pilulas = (itens, classe, titulo) => itens.length
+    ? itens.map((p, i) =>
+        '<span class="pill" style="margin:0 6px 6px 0">' + esc(p.artista) +
+        " — " + esc(p.titulo) + ' <button class="' + classe + '" data-i="' + i +
+        '" title="' + titulo + '">✕</button></span>').join("")
+    : '<span class="muted">— nenhuma —</span>';
+  document.getElementById("blq-lista").innerHTML =
+    pilulas(bloqueadasAtuais, "blq-del", "Desbloquear");
+  document.getElementById("exc-lista").innerHTML =
+    pilulas(excecoesAtuais, "exc-del", "Tirar a exceção");
+  document.querySelectorAll(".blq-del").forEach(b => {
+    b.onclick = () => blqRemove(bloqueadasAtuais[Number(b.getAttribute("data-i"))]);
+  });
+  document.querySelectorAll(".exc-del").forEach(b => {
+    b.onclick = () => excRemove(excecoesAtuais[Number(b.getAttribute("data-i"))]);
+  });
+}
+
+function musPintar(data) {
+  musicasAtuais = data.musicas || [];
+  const alvo = document.getElementById("mus-lista");
+  if (!musicasAtuais.length) {
+    alvo.innerHTML = '<span class="muted">— nenhuma música encontrada —</span>';
+  } else {
+    alvo.innerHTML = musicasAtuais.map((m, i) => {
+      const selo = m.bloqueada
+        ? ' <span class="pill" style="border-color:#c0392b;color:#e74c3c">bloqueada</span>'
+        : (m.artista_bloqueado
+          ? ' <span class="pill" style="border-color:#c0392b;color:#e74c3c">cantor bloqueado</span>'
+          : "");
+      return '<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;' +
+        'padding:4px 0;border-bottom:1px solid var(--border)">' +
+        '<span style="font-size:0.85rem">' + esc(m.artista || "?") + " — " +
+        esc(m.titulo || "?") + selo +
+        ' <span class="muted" style="font-size:0.75rem">' + esc(m.genero || "") + '</span></span>' +
+        '<button class="mus-del" data-i="' + i + '" style="white-space:nowrap">🚫 Excluir</button>' +
+        '</div>';
+    }).join("");
+  }
+  document.querySelectorAll(".mus-del").forEach(b => {
+    b.onclick = () => musExcluir(musicasAtuais[Number(b.getAttribute("data-i"))]);
+  });
+  musPintarListas(data);
+}
+
+async function musCarregar(termo) {
+  const q = termo === undefined
+    ? ((document.getElementById("mus-busca") || {}).value || "").trim()
+    : termo;
+  try {
+    const resp = await fetch("/api/radio/musicas" +
+      (q ? "?q=" + encodeURIComponent(q) : ""), { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      musSetMsg(data.error === "acesso_negado"
+        ? "Só o dono pode ver a curadoria do acervo."
+        : (data.error || "Erro HTTP " + resp.status), "err");
+      return;
+    }
+    musPintar(data);
+    musSetMsg(musicasAtuais.length + " música(s).", "");
+  } catch (e) { musSetMsg("Falha ao carregar: " + e.message, "err"); }
+}
+
+async function musExcluir(m) {
+  if (!m || !m.caminho) return;
+  const nome = (m.artista ? m.artista + " — " : "") + (m.titulo || "");
+  if (!window.confirm("EXCLUIR " + nome + " do acervo?\\n\\n" +
+      "Sai do disco, do acervo.db e das playlists, e é BLOQUEADA para não " +
+      "voltar num pedido futuro. Não tem como desfazer.")) return;
+  try {
+    const resp = await fetch("/api/radio/musicas/excluir", {
+      method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ caminho: m.caminho, bloquear: true })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      musSetMsg(data.motivo || data.error || "Erro HTTP " + resp.status, "err");
+      return;
+    }
+    musPintar(data.musicas ? data : { musicas: musicasAtuais, bloqueadas: data.bloqueadas, excecoes: data.excecoes });
+    await musCarregar();
+    musSetMsg("✕ " + nome + " excluída" +
+      (data.bloqueada ? " e bloqueada" : "") +
+      (data.sync ? " (AzuraCast sincronizado)." : " (sync do AzuraCast falhou)."),
+      data.sync ? "ok" : "err");
+  } catch (e) { musSetMsg("Falha ao excluir: " + e.message, "err"); }
+}
+
+async function musPar(rota, metodo, artista, titulo, campoArt, campoTit) {
+  const a = (document.getElementById(campoArt).value || "").trim();
+  const t = (document.getElementById(campoTit).value || "").trim();
+  if (!a || !t) { musSetMsg("Preencha artista e título.", "err"); return null; }
+  try {
+    const resp = await fetch(rota, {
+      method: metodo, headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ artista: a, titulo: t })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      musSetMsg(data.error === "nao_estava_na_lista"
+        ? "Essa música não estava na lista."
+        : (data.error || "Erro HTTP " + resp.status), "err");
+      return null;
+    }
+    document.getElementById(campoArt).value = "";
+    document.getElementById(campoTit).value = "";
+    musPintarListas(data);
+    musCarregar();
+    return data;
+  } catch (e) { musSetMsg("Falha: " + e.message, "err"); return null; }
+}
+
+async function blqAdd() {
+  const d = await musPar("/api/radio/musicas/bloqueadas", "POST", null, null,
+    "blq-artista", "blq-titulo");
+  if (d) musSetMsg(d.novo ? "＋ música bloqueada." : "Essa música já estava bloqueada.", "ok");
+}
+
+async function blqRemove(p) {
+  if (!p) return;
+  try {
+    const resp = await fetch("/api/radio/musicas/bloqueadas", {
+      method: "DELETE", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ artista: p.artista, titulo: p.titulo })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { musSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    musPintarListas(data);
+    musCarregar();
+    musSetMsg("✕ " + p.titulo + " desbloqueada.", "ok");
+  } catch (e) { musSetMsg("Falha: " + e.message, "err"); }
+}
+
+async function excAdd() {
+  const d = await musPar("/api/radio/musicas/excecoes", "POST", null, null,
+    "exc-artista", "exc-titulo");
+  if (d) musSetMsg(d.novo ? "＋ exceção criada — a música fica no acervo."
+                          : "Essa exceção já existia.", "ok");
+}
+
+async function excRemove(p) {
+  if (!p) return;
+  try {
+    const resp = await fetch("/api/radio/musicas/excecoes", {
+      method: "DELETE", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ artista: p.artista, titulo: p.titulo })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { musSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    musPintarListas(data);
+    musCarregar();
+    musSetMsg("✕ exceção de " + p.titulo + " removida.", "ok");
+  } catch (e) { musSetMsg("Falha: " + e.message, "err"); }
+}
+
+document.getElementById("mus-buscar").onclick = () => musCarregar();
+document.getElementById("mus-refresh").onclick = () => musCarregar("");
+document.getElementById("mus-busca").addEventListener("keydown", e => { if (e.key === "Enter") musCarregar(); });
+document.getElementById("blq-add").onclick = blqAdd;
+document.getElementById("exc-add").onclick = excAdd;
+
 // Páginas internas do Google: o link precisa do token da sessão na query
 // porque o navegador navega sem header — o handler valida e exige dono.
 function linkGoogle() {
@@ -3457,7 +3705,7 @@ function linkGoogle() {
   });
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); cantoresLoad(); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); };
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); cantoresLoad(); musCarregar(""); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
@@ -5731,6 +5979,169 @@ class APIHandler(BaseHTTPRequestHandler):
             self._json(404, {"ok": False, "error": "nao_estava_na_lista"})
             return
         self._json(200, {"ok": True, "cantores": radio_cantores.listar()})
+
+    # -- Rádio: curadoria do acervo (pedidos 2 e 3 do txt.txt, 17/11) ------
+    def _exige_admin_do_acervo(self) -> bool:
+        """Gate das rotas de curadoria; False quando já respondeu o erro.
+
+        Aceita o que o navegador consegue mandar (cookie od_sessao), o
+        Bearer do app e o X-API-Key do painel — exatamente a régua do
+        `_sessao_do_ouvinte`, mais o papel `admin`. Servidor SEM contas
+        (sandbox/dev, auth desligada) libera, como o `_role()` faz.
+        """
+        if not self._sessao_do_ouvinte():
+            if self.api._user_store is None:
+                return True
+            self._json(401, {"ok": False, "error": "login_necessario",
+                             "entrar": "/chat?next=/radio-pro"})
+            return False
+        if self._role() != "admin":
+            self._json(403, {"ok": False, "error": "acesso_negado"})
+            return False
+        return True
+
+    def _par_artista_titulo(self) -> tuple[str, str]:
+        """(artista, titulo) do corpo JSON, aparados e limitados."""
+        corpo = self._read_json() or {}
+        return (str(corpo.get("artista") or "").strip()[:80],
+                str(corpo.get("titulo") or "").strip()[:120])
+
+    def _listas_de_curadoria(self) -> dict[str, Any]:
+        """As três listas da curadoria, no formato que a UI repinta."""
+        from integrations import radio_cantores
+
+        return {
+            "cantores": radio_cantores.listar(),
+            "bloqueadas": radio_cantores.listar_musicas_bloqueadas(),
+            "excecoes": radio_cantores.listar_excecoes(),
+        }
+
+    def api_radio_musicas(self) -> None:
+        """GET /api/radio/musicas?q= — acervo + listas de curadoria (dono).
+
+        Cada faixa vem com `bloqueada` (a música específica está na lista
+        negra) e `artista_bloqueado` (o cantor está na lista de indesejados),
+        para a UI mostrar por que aquela faixa sairia do ar. As listas
+        acompanham para a tela pintar tudo numa chamada só.
+        """
+        if not self._exige_admin_do_acervo():
+            return
+        from integrations import radio_cantores
+        from integrations.radio_pro import catalogo_musicas
+
+        query = parse_qs(urlsplit(self.path).query)
+        termo = (query.get("q") or [""])[0].strip()[:80]
+        try:
+            limite = int((query.get("limite") or ["200"])[0])
+        except (TypeError, ValueError):
+            limite = 200
+        musicas = catalogo_musicas(termo, limite)
+        for musica in musicas:
+            musica["bloqueada"] = radio_cantores.musica_bloqueada(
+                musica["artista"], musica["titulo"])
+            musica["artista_bloqueado"] = bool(
+                radio_cantores.indesejado(musica["artista"]))
+        self._json(200, {"ok": True, "musicas": musicas,
+                         **self._listas_de_curadoria()})
+
+    def api_radio_musicas_excluir(self) -> None:
+        """POST /api/radio/musicas/excluir — apaga a faixa do acervo (dono).
+
+        Body: {"caminho": "acervo/Gospel/...", "bloquear": true}. O caminho
+        é o MESMO do catálogo; por conveniência aceita também
+        "Artista - Título". `bloquear` (padrão true) grava a música em
+        data/musicas_bloqueadas.txt para ela não voltar num pedido futuro.
+        """
+        if not self._exige_admin_do_acervo():
+            return
+        from integrations import radio_cantores
+
+        corpo = self._read_json() or {}
+        identificador = str(corpo.get("caminho")
+                            or corpo.get("identificador") or "").strip()
+        if not identificador:
+            self._json(400, {"ok": False, "error": "caminho_obrigatorio"})
+            return
+        bloquear = corpo.get("bloquear", True)
+        resultado = radio_cantores.excluir_musica_do_acervo(
+            identificador, bloquear=bool(bloquear))
+        if not resultado.get("ok"):
+            motivo = str(resultado.get("motivo") or "falha")
+            status = {"musica_nao_encontrada": 404,
+                      "banco_acervo_inexistente": 503}.get(motivo, 400)
+            self._json(status, resultado)
+            return
+        self._json(200, {**resultado, **self._listas_de_curadoria()})
+
+    def api_radio_musicas_bloqueadas_add(self) -> None:
+        """POST /api/radio/musicas/bloqueadas — bloqueia uma faixa (dono).
+
+        Body: {"artista": ..., "titulo": ...}. Idempotente (`novo=false`).
+        """
+        if not self._exige_admin_do_acervo():
+            return
+        from integrations import radio_cantores
+
+        artista, titulo = self._par_artista_titulo()
+        if not artista or not titulo:
+            self._json(400, {"ok": False,
+                             "error": "artista_e_titulo_obrigatorios"})
+            return
+        novo = radio_cantores.adicionar_musica_bloqueada(artista, titulo)
+        self._json(200, {"ok": True, "novo": novo,
+                         **self._listas_de_curadoria()})
+
+    def api_radio_musicas_bloqueadas_remove(self) -> None:
+        """DELETE /api/radio/musicas/bloqueadas — libera a faixa (dono)."""
+        if not self._exige_admin_do_acervo():
+            return
+        from integrations import radio_cantores
+
+        artista, titulo = self._par_artista_titulo()
+        if not artista or not titulo:
+            self._json(400, {"ok": False,
+                             "error": "artista_e_titulo_obrigatorios"})
+            return
+        if not radio_cantores.remover_musica_bloqueada(artista, titulo):
+            self._json(404, {"ok": False, "error": "nao_estava_na_lista"})
+            return
+        self._json(200, {"ok": True, **self._listas_de_curadoria()})
+
+    def api_radio_musicas_excecoes_add(self) -> None:
+        """POST /api/radio/musicas/excecoes — libera faixa de cantor
+        bloqueado (dono). Body: {"artista": ..., "titulo": ...}.
+
+        É o inverso do bloqueio: o cantor continua na lista de indesejados,
+        mas ESTA música não é apagada depois de tocar.
+        """
+        if not self._exige_admin_do_acervo():
+            return
+        from integrations import radio_cantores
+
+        artista, titulo = self._par_artista_titulo()
+        if not artista or not titulo:
+            self._json(400, {"ok": False,
+                             "error": "artista_e_titulo_obrigatorios"})
+            return
+        novo = radio_cantores.adicionar_excecao(artista, titulo)
+        self._json(200, {"ok": True, "novo": novo,
+                         **self._listas_de_curadoria()})
+
+    def api_radio_musicas_excecoes_remove(self) -> None:
+        """DELETE /api/radio/musicas/excecoes — tira a exceção (dono)."""
+        if not self._exige_admin_do_acervo():
+            return
+        from integrations import radio_cantores
+
+        artista, titulo = self._par_artista_titulo()
+        if not artista or not titulo:
+            self._json(400, {"ok": False,
+                             "error": "artista_e_titulo_obrigatorios"})
+            return
+        if not radio_cantores.remover_excecao(artista, titulo):
+            self._json(404, {"ok": False, "error": "nao_estava_na_lista"})
+            return
+        self._json(200, {"ok": True, **self._listas_de_curadoria()})
 
     def registry_list(self) -> None:
         """GET /registry — lista PÚBLICA das peças (loja do site).
