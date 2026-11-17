@@ -12,6 +12,51 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Lote órfão fechado: exclusão/bloqueio de músicas, exceções de cantores, reboot pela API e cobertura (2026-11-17, sem bump)
+
+**Contexto:** a árvore carregava um lote posterior ao commit `fccb6bc`, sem
+registro no livro-caixa e sem commit (origem não identificada — o dono opera
+várias IAs e os créditos caem no meio). O trabalho estava **verde** e foi
+validado e publicado nesta rodada; 1.45.0/2081 mantido (só servidor/biblioteca,
+contrato do app intacto).
+
+### O que mudou
+
+1. **`integrations/radio_cantores.py` (pedidos 2 e 3 do `txt.txt`) — camada de
+   biblioteca pronta:** `data/musicas_bloqueadas.txt` e
+   `data/cantores_excecoes.txt` (formato `Artista | Título`, comparação sem
+   caixa/acento); `eh_excecao`/`adicionar_excecao`/`remover_excecao`/
+   `linhas_excecoes`, `musica_bloqueada`/`adicionar_musica_bloqueada`/
+   `remover_musica_bloqueada`/`linhas_bloqueadas` e
+   `excluir_musica_do_acervo` (apaga o arquivo, remove do `acervo.db`, bloqueia
+   a faixa e ressincroniza o AzuraCast). `indesejado()` ganhou `titulo=` e agora
+   **consulta a exceção antes** — música liberada de cantor bloqueado não é
+   mais apagada no "toca uma vez e apaga".
+2. **`integrations/api/server.py`:** `POST /admin/os-updater/reboot` chama
+   `updater._reboot()` (instância real do updater) em vez da função de módulo.
+3. **`tools/supply_depot.py`:** o código publicado vai para a **área de
+   staging**, onde `instalar`/`remover` procuram; gravar em `codigos_dir`
+   quebrava o roundtrip para sempre com `codigo_ausente_no_staging`.
+4. **`app/lib/screens/tasks_screen.dart`:** payload `{}` é válido (actions sem
+   parâmetros, ex.: `system_info`); só não-objeto é recusado.
+5. **Cobertura (+10 arquivos de teste):** `test_radio_cobertura`,
+   `test_actions_cobertura`, `test_embed_hybrid_cobertura`,
+   `test_marketplace_cobertura`, `test_os_updater`,
+   `test_rota_reboot_os_updater`, `test_server_rotas_novas_cobertura`,
+   `test_supply_depot_cobertura`, `test_tools_diversos_cobertura`,
+   `test_tools_telemetry`, mais 8 testes de borda da Task Queue em
+   `tests/test_task_queue.py`.
+
+### Validação
+
+- **Gate Python completo:** 5319 passed / 16 skipped / 0 falha (210,60 s,
+  exit 0).
+- **App:** `flutter analyze` sem issues; `flutter test` 228 passed / 2 skipped.
+- **Pendência declarada:** as **rotas de API, o painel `/admin` e a página
+  `/radio-pro`** para excluir música e gerenciar exceções ainda **não
+existem** — só a biblioteca. O dono ainda não consegue operar isso pela
+  interface (checkbox no TODO).
+
 ## Correção: links do YouTube de reprodução com &list preservam a playlist inteira (2026-11-17, sem bump)
 
 **Contexto:** ao pedir música por link do YouTube a partir de uma playlist em reprodução (`/watch?v=...&list=...` ou `youtu.be/...&list=...`), a sanitização de `link_do_youtube()` descartava o parâmetro `&list` se houvesse `v=`, transformando a playlist em vídeo individual (foi o que causou o download de apenas 1 música no pedido do Raul Seixas).

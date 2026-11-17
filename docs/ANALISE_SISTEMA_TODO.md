@@ -584,20 +584,24 @@ esperar o timeout.
       `ha_device_control`) e filtro de abas no `OdHome` por `role`.
       **Aguardando decisão do dono.**
 - [ ] **Rádio: excluir música e liberar músicas de cantores bloqueados**
-      (pedidos 2 e 3 do `txt.txt`, 17/11) — a **camada de biblioteca já
-      existe** em `integrations/radio_cantores.py` (listas
+      (pedidos 2 e 3 do `txt.txt`, 17/11) — a **camada de biblioteca está
+      PRONTA e publicada (17/11)** em `integrations/radio_cantores.py` (listas
       `data/musicas_bloqueadas.txt` e `data/cantores_excecoes.txt`,
-      `musica_bloqueada`, `listar_musicas_bloqueadas`; 682 testes verdes no
-      lote ainda não commitado). **Falta o que o dono usa:** rotas de API
+      `excluir_musica_do_acervo`, `eh_excecao`, `indesejado()` consultando a
+      exceção antes do bloqueio). **Falta o que o dono usa:** rotas de API
       (`/admin/radio/musica/excluir`, exceções), botão no painel `/admin` e na
       página `/radio-pro`, e a recusa de download de faixa bloqueada no
       `radio_link.py`. Resolve: "quero poder excluir músicas que não gosto" e
       "deixar algumas músicas de cantores bloqueados".
-- [ ] **Fechar o lote órfão da árvore (17/11)** — `radio_cantores.py`,
-      `server.py` (reboot via `updater._reboot()`), `supply_depot.py`
-      (staging), `tasks_screen.dart` (`{}` válido) e 10 arquivos de cobertura
-      estão **verdes em 682 testes** mas sem registro de origem e sem commit
-      (regra 23). Resolve: trabalho pronto que pode ser perdido num reset.
+- [x] **Fechar o lote órfão da árvore (17/11)** — **ENTREGUE 17/11:** gate
+      completo **5319 passed / 16 skipped / 0 falha** (210,60 s, exit 0) e
+      `flutter analyze` 0 issues + `flutter test` **228 passed / 2 skipped**
+      (antes do lote eram 223); commits por assunto publicados em
+      `origin/master` e `od-core` reiniciado com prova viva. O lote era
+      `radio_cantores.py`, `server.py` (reboot via `updater._reboot()`),
+      `supply_depot.py` (staging), `tasks_screen.dart` (`{}` válido),
+      `test_task_queue.py` e **10 arquivos de cobertura** — autor de origem
+      não identificada (regra 23), registro completo no CHANGELOG.
 - [ ] **Comparador de modelos lado a lado + monitor de hardware** — ideia
       trazida do GSN Offline (17/11): mesmo prompt no Gemini, Groq e Local ao
       mesmo tempo, com CPU/RAM/VRAM por modelo no painel. Resolve: ver na

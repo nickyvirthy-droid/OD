@@ -158,3 +158,56 @@ além do `txt.txt` atual (pedidos 1–6 + resposta já entregue).
 - **Aguardando ordem do dono** para (a) validar com gate completo + commitar
   o lote verde achado na árvore e (b) fechar as rotas de exclusão/exceções
   da rádio.
+
+## §4 — Ordem cumprida: gate completo e commit do lote órfão (17/11)
+
+**Pedido (verbatim):** `Rode o gate completo e commite o lote órfão que está
+na árvore (rádio, coverage, supply_depot, app)`
+
+### 1. Validação (executada antes de qualquer commit)
+
+- **Gate Python completo** (`.venv/bin/python -m pytest tests/ -q`):
+  **5319 passed / 16 skipped / 0 falha**, 210,60 s, **exit 0**.
+- **App:** `/home/alex/flutter/bin/flutter analyze` → `No issues found!`;
+  `flutter test` → **228 passed / 2 skipped** (antes do lote: 223; os +5
+  são os testes do diálogo de payload).
+- `flutter` não está no `PATH` desta shell — usado o caminho absoluto
+  `/home/alex/flutter/bin/flutter`.
+
+### 2. O que o lote entregava (agora publicado)
+
+1. `integrations/radio_cantores.py` — **pedidos 2 e 3 do `txt.txt` na camada
+   de biblioteca:** `data/musicas_bloqueadas.txt` e
+   `data/cantores_excecoes.txt` (`Artista | Título`, sem caixa/acento),
+   `eh_excecao`/`adicionar_excecao`/`remover_excecao`/`linhas_excecoes`,
+   `musica_bloqueada`/`adicionar_musica_bloqueada`/
+   `remover_musica_bloqueada`/`linhas_bloqueadas`,
+   `excluir_musica_do_acervo` (arquivo + `acervo.db` + bloqueio + sync do
+   AzuraCast) e `indesejado(artista, titulo=)` consultando a **exceção antes**
+   do bloqueio — é isso que permite manter uma música de cantor bloqueado.
+2. `integrations/api/server.py` — reboot do OS updater pela instância
+   (`updater._reboot()`), não mais pela função de módulo.
+3. `tools/supply_depot.py` — código gerado vai para o **staging** (era o
+   defeito do roundtrip: `codigo_ausente_no_staging` permanente).
+4. `app/lib/screens/tasks_screen.dart` — payload `{}` válido (o defeito que
+   eu havia corrigido em 15/11 e ficou sem commit).
+5. **Cobertura:** 10 arquivos novos (`test_radio_cobertura`,
+   `test_actions_cobertura`, `test_embed_hybrid_cobertura`,
+   `test_marketplace_cobertura`, `test_os_updater`,
+   `test_rota_reboot_os_updater`, `test_server_rotas_novas_cobertura`,
+   `test_supply_depot_cobertura`, `test_tools_diversos_cobertura`,
+   `test_tools_telemetry`) e 8 testes de borda da Task Queue
+   (`TestCoberturaDeBorda`, `_RegistryPresa`).
+
+### 3. O que continua faltando
+
+As **rotas de API**, o painel `/admin` e a página `/radio-pro` para excluir
+música e gerenciar exceções **não existem** — o dono ainda não consegue
+operar nada disso pela interface. A biblioteca está pronta e testada, o
+botão não. Anotado no TODO §4.
+
+### 4. Estado ao fechar
+
+- Sem bump: **1.45.0+2081** (servidor + biblioteca; o APK publicado não muda).
+- Registro: `docs/CHANGELOG.md` (seção datada), TODO §4, esta §4,
+  `session.json` e `ATRIBUICOES.md`.

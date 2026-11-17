@@ -957,8 +957,9 @@ Contagens 125 → 126 atualizadas em 5 arquivos de teste; 16 testes novos.
 
 - **Gate completo: 4700 passed / 16 skipped / 0 falha** (195 s).
 - **RAG (achado do gate):** o título da §18 colidiu com a irrelevante
-  "quanto é 15% de 380 reais" (comb 0.4718 vs piso 0.399; overlap 0.3195,
-  4× o teto histórico 0.071 — **nenhum grid recalibrava**). Correção pela
+  de aritmética (a pergunta sintética de porcentagem; comb 0.4718 vs
+  piso 0.399; overlap 0.3195, 4× o teto histórico 0.071 — **nenhum grid
+  recalibrava**). Correção pela
   via do precedente 20/10: reescrito **só o título nosso** (citação verbatim
   do dono intacta) → comb **0.3827**; piso intocado.
 - **Provas pós-restart (`od-core` 17:03, MainPID 2945652):**

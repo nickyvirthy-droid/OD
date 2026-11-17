@@ -9,6 +9,61 @@
 
 ---
 
+## 17/11/2026 — Lote órfão validado e publicado: exclusão/bloqueio de músicas, exceções de cantores, reboot, staging e cobertura
+
+**Autor do lote:** **ORIGEM NÃO IDENTIFICADA** (achado na árvore em 17/11,
+sem commit, sem transcrição e sem entrada neste livro-caixa — regra 23).
+**Validação, registro e publicação:** Freebuff (Buffy), a pedido do dono
+("Rode o gate completo e commite o lote órfão").
+
+### Criados
+
+- Confirmados no commit (os 10 arquivos de cobertura já existiam na árvore):
+  `tests/test_radio_cobertura.py`, `tests/test_actions_cobertura.py`,
+  `tests/test_embed_hybrid_cobertura.py`,
+  `tests/test_marketplace_cobertura.py`, `tests/test_os_updater.py`,
+  `tests/test_rota_reboot_os_updater.py`,
+  `tests/test_server_rotas_novas_cobertura.py`,
+  `tests/test_supply_depot_cobertura.py`,
+  `tests/test_tools_diversos_cobertura.py`, `tests/test_tools_telemetry.py`
+  e `iniciar/2026-11-15_conversa_omegadrakon.md`.
+
+### Modificados
+
+- `integrations/radio_cantores.py` — listas `data/musicas_bloqueadas.txt` e
+  `data/cantores_excecoes.txt`, `eh_excecao`/`adicionar_excecao`/
+  `remover_excecao`/`linhas_excecoes`, `musica_bloqueada`/
+  `adicionar_musica_bloqueada`/`remover_musica_bloqueada`/`linhas_bloqueadas`,
+  `excluir_musica_do_acervo` e `indesejado(artista, titulo=)` consultando a
+  exceção **antes** do bloqueio.
+- `integrations/api/server.py` — `POST /admin/os-updater/reboot` usa
+  `updater._reboot()`.
+- `tools/supply_depot.py` — código gerado gravado no **staging** (conserta o
+  `codigo_ausente_no_staging` do roundtrip).
+- `app/lib/screens/tasks_screen.dart`, `app/test/tasks_api_test.dart`,
+  `app/test/tasks_screen_test.dart` — payload `{}` válido + 5 testes.
+- `tests/test_task_queue.py` — +8 testes de borda (`TestCoberturaDeBorda`).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/session.json`,
+  `iniciar/2026-11-17_conversa_omegadrakon.md` (registro desta rodada).
+
+### Intenção e estado
+
+- **Intenção do lote:** fechar os pedidos 2 e 3 do `txt.txt` (excluir músicas
+  que o dono não gosta; manter músicas escolhidas de cantores bloqueados), o
+  reboot do OS updater pela API, o staging do `supply_depot`, o payload `{}`
+  do app e a dívida de cobertura acumulada desde 02/11.
+- **Validado:** gate Python completo **5319 passed / 16 skipped / 0 falha**
+  (210,60 s, exit 0); `flutter analyze` sem issues; `flutter test`
+  **228 passed / 2 skipped**.
+- **Pela metade (declarado):** as **rotas de API, o painel `/admin` e o
+  `/radio-pro`** da exclusão/exceções **não existem** — só a biblioteca. O
+  dono não consegue operar pela interface ainda; próximo passo exato: criar
+  `POST /admin/radio/musica/excluir`, rotas de exceções e os botões nas duas
+  páginas.
+- **Sem bump:** 1.45.0+2081.
+
+---
+
 ## 17/11/2026 — Retomada "leia iniciar": lote órfão verde encontrado na árvore
 
 **Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("leia
