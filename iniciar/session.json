@@ -6078,5 +6078,13 @@
     "sem_bump": "1.45.1+2082 (só servidor; APK intacto).",
     "limitacao": "O app ainda não interpreta o data (origem/artista/titulo) para abrir a faixa; o aviso leva ao Painel. Sem lembrete 2 h antes do prazo.",
     "updated_at": "2026-11-17T05:50:00-03:00"
+  },
+  "lembrete_decisao_radio_2026_11_17": {
+    "pedido": "Dono (17/11): 'Enviar um lembrete de push 2 horas antes do prazo vencer'.",
+    "codigo": "radio_cantores: HORAS_LEMBRETE=2 (env OD_CANTORES_HORAS_LEMBRETE); limpar_tocados manda push 'Faltam 2 h para decidir — rádio' quando 0 < restante <= 2 h e sem lembrete_em, com data origem=radio-lembrete; lembrete_em só grava quando o push sai; retorno ganhou 'lembretes'.",
+    "testes": "+4 em tests/test_radio_cantores.py (na janela e uma vez só, fora da janela silencioso, FCM que falha não marca, permitida não recebe). GATE COMPLETO: 5379 passed / 16 skipped / 0 falha (217,91 s, exit 0; eram 5375).",
+    "limite": "O lembrete anda com o webhook da rádio (troca de faixa): pode sair minutos depois do marco e não sai se a estação ficar sem tocar; o apagamento continua acontecendo na próxima passagem.",
+    "sem_bump": "1.45.1+2082 (só servidor; APK intacto).",
+    "updated_at": "2026-11-17T06:05:00-03:00"
   }
 }

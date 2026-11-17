@@ -466,3 +466,34 @@ decisão de 24 h`
 - O push leva para o Painel (não abre a faixa direto): o app não interpreta o
   `data` ainda — só exibe a notificação e o card no Painel.
 - Sem lembrete intermediário (ex.: 2 h antes do prazo); só o aviso de entrada.
+
+## §10 — Lembrete de push 2 h antes do prazo (17/11, sem bump)
+
+**Pedido (verbatim):** `Enviar um lembrete de push 2 horas antes do prazo
+vencer`
+
+### 1. O que mudou
+
+- **`integrations/radio_cantores.py`** — `HORAS_LEMBRETE` (2, env
+  `OD_CANTORES_HORAS_LEMBRETE`) e o lembrete dentro de `limpar_tocados()` (o
+  relógio da janela, chamado pelo webhook a cada troca de faixa): quando falta
+  até 2 h, sai o push **"Faltam 2 h para decidir — rádio"** com
+  `{Artista} — {Título}: se você não permitir, ela é apagada em menos de 2 h.`
+  e `data.origem=radio-lembrete`.
+- **Uma vez por faixa** — campo `lembrete_em`, gravado **só quando o push sai**
+  (falha do FCM tenta de novo no próximo ciclo e não interfere no vencimento).
+- `limpar_tocados()` devolve `lembretes` junto de `apagadas`/`restantes`/`sync`.
+
+### 2. Validação
+
+- **Gate completo:** **5379 passed / 16 skipped / 0 falha** (217,91 s, exit 0;
+  eram 5375). +4 testes: lembrete dentro da janela e sem repetir, silêncio
+  fora da janela (> 2 h), FCM que explodiu não grava `lembrete_em`, faixa já
+  permitida não recebe lembrete.
+- Webhook e `od-core` seguem verdes (`/health` 30 checks).
+
+### 3. O que não foi feito
+
+- Sem agendador próprio: o lembrete depende da troca de faixa (webhook). Rádio
+  parada por horas pode fazer o aviso não sair — o apagamento, esse, continua
+  acontecendo na próxima passagem.

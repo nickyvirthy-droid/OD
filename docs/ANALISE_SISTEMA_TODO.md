@@ -611,6 +611,10 @@ esperar o timeout.
       ao vencer o prazo (tocar não apaga mais). API `POST
       /api/radio/musicas/decisao`, bloco no painel e no `/radio-pro`. Gate
       5370 passed; +14 testes.
+- [x] **Lembrete de push 2 h antes do prazo** — **ENTREGUE 17/11:**
+      `limpar_tocados()` manda "Faltam 2 h para decidir — rádio" uma vez
+      por faixa (`lembrete_em`, env `OD_CANTORES_HORAS_LEMBRETE`); gate
+      5379 passed.
 - [x] **Push FCM ao entrar na decisão de 24 h** — **ENTREGUE 17/11:**
       `registrar_para_apagar()` avisa no celular na primeira marcação
       (data `origem=radio-decisao`); subprocesso do link monta o

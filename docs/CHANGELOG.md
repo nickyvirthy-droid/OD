@@ -12,6 +12,33 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Lembrete de push 2 h antes do prazo da decisão (2026-11-17, sem bump)
+
+**Contexto:** a faixa entrava na janela com um push, mas quem não olhasse o
+celular na hora só descobria o prazo quando ela já tinha sido apagada.
+
+### O que mudou
+
+- **`integrations/radio_cantores.py`** — `HORAS_LEMBRETE` (2 h, env
+  `OD_CANTORES_HORAS_LEMBRETE`). `limpar_tocados()` (o relógio da janela, roda
+  no webhook a cada troca de faixa) manda um push quando faltam até 2 h:
+  "Faltam 2 h para decidir — rádio" + "{Artista} — {Título}: se você não
+  permitir, ela é apagada em menos de 2 h.", com `data.origem=radio-lembrete`.
+- **Uma vez por faixa** (campo `lembrete_em`): só é gravado quando o push
+  sai de fato — falha do FCM volta a tentar no próximo ciclo e nunca impede o
+  vencimento/apagamento.
+- O retorno de `limpar_tocados()` ganhou `lembretes` (observabilidade do
+  webhook).
+
+### Validação
+
+- **Gate completo:** 5379 passed / 16 skipped / 0 falha (217,91 s, exit 0) —
+  eram 5375; +4 testes (lembrete na janela e uma única vez, silêncio fora da
+  janela, FCM que falha não marca `lembrete_em`, faixa permitida não recebe).
+- **Limite:** o lembrete anda com o webhook da rádio (troca de faixa), então
+  pode sair minutos depois do marco das 2 h; se a estação ficar sem tocar,
+  pode não sair.
+
 ## Push FCM no instante em que a faixa entra na decisão de 24 h (2026-11-17, sem bump)
 
 **Contexto:** o aviso da janela de decisão saía só no Telegram; o dono podia

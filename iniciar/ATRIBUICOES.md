@@ -833,3 +833,26 @@ push FCM quando uma faixa entrar na janela de decisão de 24 h"*.
 - **Intenção:** o dono saber na hora, no celular, que tem 24 h para decidir.
 - **Pronto/validado:** gate **5375 passed / 16 skipped / 0 falha**; push
   `enabled` com 1 aparelho e notificação de teste entregue após o restart.
+
+---
+
+## 17/11/2026 — Lembrete de push 2 h antes do prazo da decisão
+
+**Autor:** Codebuff (Buffy) — sessão de 17/11, a pedido do dono: *"Enviar um
+lembrete de push 2 horas antes do prazo vencer"*.
+
+### Modificados
+
+- `integrations/radio_cantores.py` — `HORAS_LEMBRETE`, lembrete dentro de
+  `limpar_tocados()` (uma vez por faixa, `lembrete_em`) e o campo `lembretes`
+  no retorno.
+- `tests/test_radio_cantores.py` (+4) e `tests/test_radio_cobertura.py`
+  (retorno com `lembretes`).
+- Registro: `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`,
+  `iniciar/2026-11-17_conversa_omegadrakon.md` §10, `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** avisar no celular quando o prazo está perto, para o dono não
+  perder a faixa por esquecimento.
+- **Pronto/validado:** gate **5379 passed / 16 skipped / 0 falha**.
