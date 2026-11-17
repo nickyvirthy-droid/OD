@@ -764,3 +764,52 @@ O arquivo real ficou intacto (mtime conferido).
   (**gemini 20/20**, cota real do dia) — pré-existente, não vem desta entrega.
 - **Site:** `/site/index.html` anuncia **v1.46.0** e `/site/historico.html`
   anuncia **Os 78 Lançamentos**.
+
+## §18 — Revisão das checkboxes abertas do TODO (17/11, sem bump)
+
+**Pedido (verbatim):** `Revisar as checkboxes abertas do TODO e priorizar as
+próximas entregas`
+
+### 1. Inventário medido (conferido no código, não na memória)
+
+- Antes: **38 abertas / 73 fechadas**. Depois da higiene: **32 abertas / 78
+  fechadas**.
+- Fechadas com evidência (dívida de registro, não entrega nova):
+  1. "Fechar o lote de 13/11" — gate 4656 e commits de 14/11.
+  2. "Remover a duplicata de `_task_queue_or_503` + teste da fila" —
+     `grep -c` = **1** e `tests/test_task_queue.py` (35 KB, 28 testes).
+  3. "Decisão do `semantic_cache=` no boot" — commit `f2c784a`,
+     `OD_SEMANTIC_CACHE_ENABLED` padrão **0** (boot loga "desligado").
+  4. "`docs/ARCHITECTURE_v2.md`" — 300 linhas, commit `93aadd7`.
+  5. "Fila de download resumable" — `core/downloads.py` já retoma com
+     `Range: bytes=N-`, confere sha256 e publica por SSE; é o que alimenta a
+     aba Downloads do app.
+- Removida **duplicata** de "Task Queue (Redis/RQ)" (dois lugares do roadmap) e
+  reescopado o que ficou: a fila própria já está em produção desde 14/11; o que
+  resta é fila **distribuída**, sem demanda neste servidor.
+- Corrigido **texto órfão** embaixo do item de `web_search` (sobra de edição).
+- Reescopado "enxugar o prompt do Gemini": a cota gratuita é por
+  **requisição** (20/dia), não por byte — o ganho real do item é latência e
+  contexto útil.
+
+### 2. Priorização registrada no TODO
+
+Seção nova `### 📍 Revisão de 17/11/2026` em `docs/ANALISE_SISTEMA_TODO.md` §2:
+
+- **P0 (esta semana):** guarda do `llm_cache` para conversa comum; corpus de
+  frases reais do dono; teste ZIM ↔ compose; `.gguf` 3B + llama.cpp no espelho.
+- **P1 (duas semanas):** ligar I2 (Hybrid Search) com medição; modo colapso
+  declarado; backup fora da máquina **com teste de restauração**; comparador
+  de modelos + monitor de hardware.
+- **P2 (decisão/compra do dono):** nobreak com USB + monitor de UPS; segundo
+  nó/LoRa; app por papel; OpenAI com crédito / I1 definitivamente desligado;
+  limpeza do Projeti.
+- **P3 (infra/demanda):** OTel Collector + Grafana; R5 eval no CI; cache de
+  embedding do RAG; rótulos não-latinos; reteste do 7B; restauração do
+  espelho; referências NV/Orion.
+
+### 3. Validação
+
+- `python3 -m pytest tests/test_rag.py -q` → **93 passed** (a calibração do RAG
+  lê `docs/`; o texto novo não criou falso-amigo).
+- Nenhum código alterado, sem bump (**1.46.0+2083**), sem restart.

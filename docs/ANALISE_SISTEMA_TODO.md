@@ -63,6 +63,71 @@
 | **P4** | Supply chain security (SBOM, cosign, SLSA) | Médio | 🔥 |
 | **P5** | UI/UX: painel admin em React/Next.js (substituir HTML servido) | Alto | 🔥 |
 
+### 📍 Revisão de 17/11/2026 — o que está aberto e a ordem das próximas entregas
+
+> Pedido do dono: "Revisar as checkboxes abertas do TODO e priorizar as
+> próximas entregas". Cada item foi conferido **no código e nos commits**, não
+> de memória. Resultado da auditoria: **38 abertas** → **32 abertas / 78
+> fechadas**; toda prioridade abaixo tem evidência (arquivo, commit ou
+> medição) e nenhum item foi inventado.
+
+**Higiene feita nesta revisão** (não são entregas novas — são dívidas de
+registro):
+
+1. Fechados com evidência: "fechar o lote de 13/11" (gate 4656 e commits de
+   14/11), "remover a duplicata de `_task_queue_or_503` + teste da fila"
+   (duplicata = 1, `tests/test_task_queue.py` 35 KB), "decisão do
+   `semantic_cache=` no boot" (`f2c784a`, desligado por padrão),
+   "`docs/ARCHITECTURE_v2.md`" (300 linhas, commit `93aadd7`) e "fila de
+   download resumable" (`core/downloads.py` com `Range` + SSE, já usada pelo
+   app).
+2. Removida a **duplicata** de "Task Queue (Redis/RQ)" (existia em dois
+   lugares do roadmap) e reescopada a que ficou.
+3. Corrigido o texto órfão que sobrou embaixo do item de `web_search`.
+4. Reescopado "enxugar o prompt do Gemini": a cota é por **requisição**
+   (20/dia), não por byte — o item agora fala do ganho real (latência e
+   contexto útil).
+
+#### P0 — esta semana (barato, risco real, evidência na mão)
+
+| # | Entrega | Por que agora | Esforço |
+|---|---------|---------------|---------|
+| 1 | **Guarda do `llm_cache` para conversa comum** | Hoje o cache pode devolver resposta **inventada** de conversa (o guarda só barra comando de action). É a classe de defeito que faz o OD "parecer menos inteligente" e agora fica gravada em cache. | Baixo–médio |
+| 2 | **Corpus de frases reais do dono** (`txt.txt` + transcrições) como teste de intenção | Os buracos de casamento só aparecem em uso (disco, papéis, rádio) e cada um custou um turno de conserto. Custo: nenhum — as frases já existem. | Baixo |
+| 3 | **Teste ZIM ↔ compose** (acervo offline) | Um ZIM novo só entra na busca se alguém lembrar do `command`; 14 ZIMs/40,3 GB já hoje sem guarda. | Baixo |
+| 4 | **Espelho: `.gguf` 3B + binário do llama.cpp com MANIFEST** | O "offline" do OD depende de `/home/alex/llama.cpp` sobreviver; o resto do espelho já está pronto em `od-mirror`. | Baixo |
+
+#### P1 — próximas duas semanas (valor alto, escopo médio)
+
+| # | Entrega | Por que agora | Esforço |
+|---|---------|---------------|---------|
+| 5 | **Ligar o I2 (Hybrid Search) no RAG com medição antes/depois** | Módulo e testes prontos (`core/hybrid_search.py`); falta fiação em `memory/rag.py` e o número que prove ganho. É a única melhoria de inteligência já paga. | Médio |
+| 6 | **Modo colapso declarado** | Hoje, sem nuvem, a resposta cai no 3B **em silêncio**. Trocar para a cadeia local e avisar no chat/UI é barato e é a diferença entre degradar e parecer quebrado. | Médio |
+| 7 | **Backup fora da máquina + teste de restauração real** | É o DoD do plano de continuidade: o dump do Postgres e o snapshot já existem, mas **nunca foram restaurados**. | Médio |
+| 8 | **Comparador de modelos lado a lado + monitor de hardware** | Ideia do GSN Offline (17/11) e o dono já pediu para "usar a melhor IA": hoje a escolha é por log, não por comparação ao vivo. | Médio |
+
+#### P2 — depende de decisão ou compra do dono
+
+| # | Entrega | O que trava |
+|---|---------|-------------|
+| 9 | **Nobreak 1200–1500 VA com USB** + monitor de UPS no `readiness_report` | Compra. `readiness_report` mede **6/9** e energia é o buraco nº 1 — sem ela nada mais sobrevive ao apagão. |
+| 10 | **Segundo nó na LAN / rádios LoRa** | Compra/arquitetura. Hoje o Telegram é o único canal externo. |
+| 11 | **App por papel (abas escondidas por papel)** | Decisão do dono; recomendação escrita (1 app, recorte no `role`, aba "Casa" data-driven). |
+| 12 | **OpenAI com crédito real** / **I1 definitivamente desligado** | Saldo do dono / decisão. I1: recomendação medida é manter desligado (0 acerto extra). |
+| 13 | **Projeti** (lixo do `google-services.json`, APK órfão, ferramentas Windows, dados do Orion) | Regra 7: apagar/mover é só com aprovação; os `.exe` já estão só no zip da HD. |
+
+#### P3 — infra e "quando houver demanda"
+
+| # | Entrega | Nota |
+|---|---------|------|
+| 14 | OTel Collector + Grafana + alertas | SDK já exporta; falta só a infra e onde hospedar. |
+| 15 | R5 Eval framework no CI | Ganha valor junto do item 5 (comparar antes/depois sem palpite). |
+| 16 | RAG: cache de embedding de documento | Ganho local, sem risco. |
+| 17 | Mapas: rótulos não-latinos e zoom 15 urbano | Só se o uso pedir. |
+| 18 | IA local: reteste do 7B Q3_K_M / `-c 4096` | Depende de RAM livre; 60 s × 16 s hoje. |
+| 19 | Espelho: restauração real (venv limpo + container) | Prova de boot offline do espelho. |
+| 20 | NV (DAG/scheduler, security layer) e dados do Orion | Referência arquivada; **sem demanda medida** — não portar. |
+
 ---
 
 ## 3. DETALHAMENTO DOS ITENS CRÍTICOS
@@ -782,7 +847,11 @@ esperar o timeout.
       — **ENTREGUE 11/11: cadeia `gemini,groq,local` via `OD_CHAT_PROVIDERS`,
       `GeminiProvider`/`GroqProvider` em `core/llm.py`; local por último**
 - [ ] Chat: enxugar o prompt/contexto para o Gemini caber na cota gratuita —
-      hoje o prompt real devolve `429 quota exceeded` e quem responde é o Groq
+      **premissa revista 17/11:** a cota gratuita é **20 requisições/dia** (não
+      é bytes): enxugar o prompt economiza token, não requisição. A cadeia do
+      chat já é `groq,gemini,local` desde 14/11 e o `/health` alerta em 80% da
+      cota. O ganho real deste item virou **menos latência e mais contexto útil**
+      (o prompt medido é ~3,3 mil caracteres por mensagem no log).
 - [ ] Chat: incluir OpenAI na cadeia automaticamente quando as chaves tiverem
       saldo (hoje as duas dão `429 no credits remaining`; teste de crédito no boot)
       — **13/11, não commitado: `OpenAIProvider` + `OD_OPENAI_AUTO`** (o auto
@@ -806,10 +875,6 @@ esperar o timeout.
       13ac90d): `web_search` na lista do papel user (família herda); prova viva
       com conta comum: 1,00 s no papel user e 0,68 s no família, resultados
       reais; `mapa_forca_consulta` segue só do dono**
-      (DuckDuckGo lite) existe no catálogo (123→125); FALTA a intenção em
-      `core/intents.py`, que não foi alterado — a frase ainda não a dispara**
-- [ ] R1: Task Queue (Redis/RQ) — sugestão recorrente de 11/11; segue aberta no
-      roadmap da Semana 11-12
 
 > Turno de 11/11 14:25 (registro da regra 21): sugestões mostradas e não
 > escolhidas → "colocar o Gemini como 1º provider do chat", "criar action de
@@ -988,7 +1053,11 @@ esperar o timeout.
 - [ ] **Espelho (modelos):** copiar o `.gguf` do 3B e o binário do llama.cpp
       para o acervo, com o mesmo MANIFEST — hoje eles só existem em
       `/home/alex/llama.cpp`
-- [ ] **Fila de download resumable** de acervo (padrão NOMAD, progresso por SSE)
+- [x] **Fila de download resumable** de acervo (padrão NOMAD, progresso por
+      SSE) — **JÁ EXISTE desde a Parte D:** `core/downloads.py` retoma com
+      `Range: bytes=N-` a partir do `.part`, confere sha256 e publica por SSE
+      (`/admin/downloads/events`); é o que alimenta a aba **Downloads** do app
+      e a auto-atualização do APK.
 
 > Turno de 12/11 10:35 (plano de continuidade): as sugestões não escolhidas
 > (baixar o acervo, modo colapso e medir o 7B) já estão como checkbox acima —
@@ -1091,12 +1160,20 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
 > (+716/−27) + 8 novos, **sem commit, sem registro e sem gate**. Detalhe em
 > `iniciar/2026-11-14_conversa_omegadrakon.md` §1. Só o `pg_dump` está vivo.
 
-- [ ] Fechar o lote: gate completo, commits por assunto, push e restart verde
-      com prova viva (hoje o `od-core` segue no código de 12/11)
-- [ ] R1: remover a duplicata de `_task_queue_or_503` e cobrir a Task Queue com
-      teste próprio (não existe `tests/test_task_queue.py`)
-- [ ] Resolver a decisão do `semantic_cache=` no boot (I1 já está passado no
-      launcher, mas a ligação em produção não foi validada nem aprovada)
+- [x] Fechar o lote: gate completo, commits por assunto, push e restart verde
+      com prova viva — **FECHADO 14/11:** gate **4656 passed / 16 skipped / 0
+      falha**, commits por assunto (`f9949b2`, `8229a5d`, `81ea83f`, `93aadd7`,
+      `85b2177` + docs), `origin/master` atualizado e `od-core` reiniciado com
+      prova viva (MainPID 2424782, `/health` 28 itens, journal sem erro).
+- [x] R1: remover a duplicata de `_task_queue_or_503` e cobrir a Task Queue com
+      teste próprio — **FEITO 14/11:** `grep -c 'def _task_queue_or_503'` = 1 e
+      `tests/test_task_queue.py` existe (35 KB, 28 testes: prioridade,
+      persistência, retry→dead letter, SSE, rotas e snapshot da fila).
+- [x] Resolver a decisão do `semantic_cache=` no boot — **DECIDIDO 14/11
+      (commit `f2c784a`):** o launcher só monta o cache com
+      `OD_SEMANTIC_CACHE_ENABLED=1`; padrão **desligado** e o boot loga
+      `Semantic Cache desligado`. Ligar continua sendo decisão do dono (item
+      I1 abaixo).
 
 ### Semana 9-10: RAG Otimizado
 - [ ] I1: Semantic Cache (Redis + embedding similarity ≥0.95) — **módulo e
@@ -1111,7 +1188,8 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       abaixo do corte. Baixar para 0,85–0,90 acertaria mais, mas "liga a luz
       da cozinha" × "… da sala" = 0,887 acenderia o cômodo errado. Custo do
       embedding ~17 ms/mensagem. Fica desligado até decisão; para ganhar
-      latência o `LLMCache` exato já resolve
+      latência o `LLMCache` exato já resolve. **17/11: recomendação mantida —
+      desligado (0 acerto adicional no tráfego real medido)**
 - [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder
       reranker) — **módulo e testes PRONTOS (conferido 13/11):
       `core/hybrid_search.py` (BM25Index + `cross-encoder/ms-marco-MiniLM-L-6-v2`);
@@ -1126,16 +1204,20 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       `process_stream_sse()`; `tests/test_sse.py`; prova viva no CHANGELOG**
 
 ### Semana 11-12: Resiliência + Eval
-- [ ] R1: Task Queue (Redis/RQ) + RetryPolicy por nó — **em 14/11 há um
-      `core/task_queue.py` NÃO COMMITADO (Task/Queue/Worker/RetryPolicy/
-      dead letter/persistência JSON, `OD_TASK_QUEUE_ENABLED=0` por padrão) com
-      rotas `/admin/tasks*` em `integrations/api/server.py`; ainda **sem
-      teste** e com `_task_queue_or_503` definido duas vezes no server. Não
-      está no ar (od-core roda o código de 12/11); decisão de ligar é do dono
+- [ ] R1: Task Queue **durável em Redis/RQ (ou Celery)** — **reescopado 17/11:**
+      a fila própria já está **em produção desde 14/11** (`core/task_queue.py`
+      com `RetryPolicy`, backoff, dead letter, persistência JSON, poda de
+      concluídas, rotas `/admin/tasks*`, SSE e aba no app; 1 worker, custo
+      medido de +5,1 MB e 0,23% de core por task de LLM). O que sobra do item
+      original é só **fila distribuída/multi-processo** — desnecessária para
+      este servidor enquanto houver um processo. Reabrir se aparecer segundo
+      nó ou volume que a fila de arquivo não dê conta.
 - [x] R2: Circuit Breaker em chamadas externas — feito sem `pybreaker`, por
       provider de LLM (`core/resilience.py`); bulkhead dispensado (ver §3)
 - [ ] R5: Eval Framework (LOCOMO subset + custom benchmarks) rodando no CI
-- [ ] Documentação de arquitetura atualizada (`docs/ARCHITECTURE_v2.md`)
+- [x] Documentação de arquitetura atualizada (`docs/ARCHITECTURE_v2.md`) —
+      **FEITO 13/11:** arquivo com 300 linhas (grafo, memória, fila, segurança,
+      observabilidade) publicado em `origin/master` no lote `93aadd7`.
 
 ---
 

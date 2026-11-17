@@ -9,6 +9,35 @@
 
 ---
 
+## 17/11/2026 — Revisão do TODO: 6 dívidas de registro fechadas e priorização P0–P3
+
+**Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("Revisar as
+checkboxes abertas do TODO e priorizar as próximas entregas").
+
+### Criados
+
+- Nenhum arquivo novo.
+
+### Modificados
+
+- `docs/ANALISE_SISTEMA_TODO.md` — 5 checkboxes fechadas com evidência,
+  duplicata de "Task Queue (Redis/RQ)" removida, item reescopado, texto órfão
+  do `web_search` corrigido e a seção nova `📍 Revisão de 17/11/2026` (P0–P3).
+- `iniciar/2026-11-17_conversa_omegadrakon.md` (§18), `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** o TODO já tinha 38 abertas, das quais várias já estavam
+  entregues — revisar sem conferir código é o que gera "parece que nada anda".
+- **Pronto/validado:** **32 abertas / 78 fechadas**; `tests/test_rag.py` 93
+  passed (calibração lê `docs/`).
+- **Prioridades:** P0 (llm_cache, corpus de frases reais, ZIM↔compose, gguf no
+  espelho), P1 (I2 com medição, modo colapso, backup com restauração,
+  comparador de modelos), P2 (compras/decisões do dono), P3 (infra/demanda).
+- **Sem bump:** 1.46.0+2083; nenhum código alterado.
+
+---
+
 ## 17/11/2026 — Curadoria do acervo no app Android (1.46.0+2083)
 
 **Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("Fechar a

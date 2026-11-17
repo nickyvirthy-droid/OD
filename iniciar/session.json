@@ -6149,5 +6149,15 @@
     "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§17)",
     "deploy": "Restart od-core (regra 7.3): MainPID 3259841, NRestarts=0, journal -p err sem entradas. GET /app/version = 1.46.0 / 2083 / size 72406606 / sha256 dec326b5…f9d0e (bate com site/OmegaDrakon.apk). /health 30 checks, único degradado llm_quota (gemini 20/20, pré-existente). Site ao vivo: index v1.46.0 e historico 'Os 78 Lançamentos'. Commit ffcbe0e em origin/master.",
     "updated_at": "2026-11-17T21:40:00-03:00"
+  },
+  "revisao_todo_2026_11_17": {
+    "pedido": "Dono (17/11): 'Revisar as checkboxes abertas do TODO e priorizar as próximas entregas'.",
+    "inventario": "38 abertas / 73 fechadas -> 32 abertas / 78 fechadas. Cada item conferido no código/commits.",
+    "higiene": "5 checkboxes fechadas com evidência (lote de 13/11, duplicata _task_queue_or_503 + test_task_queue.py, decisão semantic_cache f2c784a, ARCHITECTURE_v2 300 linhas/93aadd7, fila resumable em core/downloads.py); duplicata de Task Queue (Redis/RQ) removida e a restante reescopada; texto órfão do item web_search corrigido; 'enxugar prompt do Gemini' reescopado (cota é 20 req/dia, não bytes).",
+    "priorizacao": "Seção nova '📍 Revisão de 17/11/2026' no §2 do docs/ANALISE_SISTEMA_TODO.md: P0 guarda do llm_cache/corpus de frases reais/teste ZIM-compose/gguf no espelho; P1 I2 Hybrid Search com medição/modo colapso/backup com restauração/comparador de modelos; P2 nobreak+UPS/segundo nó-LoRa/app por papel/OpenAI-I1/Projeti; P3 OTel-Grafana/R5 eval/cache de embedding/mapas não-latinos/7B Q3/restauração do espelho/NV-Orion.",
+    "testes": "tests/test_rag.py 93 passed (calibração lê docs/, sem falso-amigo com o texto novo). Nenhum código alterado.",
+    "sem_bump": "1.46.0+2083; sem restart.",
+    "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§18)",
+    "updated_at": "2026-11-17T22:10:00-03:00"
   }
 }
