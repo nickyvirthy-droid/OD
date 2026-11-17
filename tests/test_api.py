@@ -154,8 +154,10 @@ class TestAPIRoutes:
         /radio-pro e /api/radio/pro/* (área do ouvinte logado, 04/11) +
         /api/radio/cantores (lista de cantores indesejados, 05/11) +
         export/import do catálogo do Supply Depot (TODO §3.1, 09/11) +
-        Task Queue R1 (create/list/events/detail/retry/delete, 13/11)."""
-        assert len(ROUTES) == 130
+        Task Queue R1 (create/list/events/detail/retry/delete, 13/11) +
+        curadoria do acervo da rádio (excluir música, bloqueadas e
+        exceções de cantores, 17/11)."""
+        assert len(ROUTES) == 136
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -179,6 +181,14 @@ class TestAPIRoutes:
             ("POST", "/api/v1/chat/decision"),
             ("POST", "/api/radio/cantores"),
             ("DELETE", "/api/radio/cantores"),
+            # Curadoria do acervo (17/11): excluir música, bloqueadas e
+            # exceções de cantores — gate do dono no handler.
+            ("GET", "/api/radio/musicas"),
+            ("POST", "/api/radio/musicas/excluir"),
+            ("POST", "/api/radio/musicas/bloqueadas"),
+            ("DELETE", "/api/radio/musicas/bloqueadas"),
+            ("POST", "/api/radio/musicas/excecoes"),
+            ("DELETE", "/api/radio/musicas/excecoes"),
             # Páginas internas do dono (2026-10-10): saíram de /site/ (onde
             # qualquer um as alcançava pelo Funnel) para site_admin/. A rota
             # é pública porque a navegação é de navegador; o gate real é o
@@ -404,6 +414,13 @@ class TestAPIRoutes:
             ("GET", "/radio-pro"),
             ("GET", "/api/radio/pro/dados"),
             ("POST", "/api/radio/pro/pedido"),
+            # Curadoria do acervo (17/11): gate do dono no handler.
+            ("GET", "/api/radio/musicas"),
+            ("POST", "/api/radio/musicas/excluir"),
+            ("POST", "/api/radio/musicas/bloqueadas"),
+            ("DELETE", "/api/radio/musicas/bloqueadas"),
+            ("POST", "/api/radio/musicas/excecoes"),
+            ("DELETE", "/api/radio/musicas/excecoes"),
             ("GET", "/registry"),  # lista pública da loja (Etapa 4)
             ("GET", "/registry/collections"),  # ciclos NV (16/10)
             ("GET", "/registry/{codigo}"),
@@ -4927,9 +4944,14 @@ class TestAdminCantoresIndesejados:
         from integrations.api.server import _ADMIN_PAGE_HTML
 
         html = _ADMIN_PAGE_HTML
-        assert "Rádio — cantores indesejados" in html
+        assert "Rádio — acervo e cantores" in html
         for ident in ("cantor-nome", "cantor-add", "cantor-lista",
                       "cantor-pendentes", "cantor-arquivo"):
+            assert f'id="{ident}"' in html, ident
+        # Curadoria (17/11): excluir música e as duas listas de pares.
+        for ident in ("mus-busca", "mus-lista", "blq-artista", "blq-titulo",
+                      "blq-add", "blq-lista", "exc-artista", "exc-titulo",
+                      "exc-add", "exc-lista"):
             assert f'id="{ident}"' in html, ident
 
         js = self._js_da_secao()
