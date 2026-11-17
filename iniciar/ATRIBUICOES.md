@@ -844,7 +844,7 @@ lembrete de push 2 horas antes do prazo vencer"*.
 ### Modificados
 
 - `integrations/radio_cantores.py` — `HORAS_LEMBRETE`, lembrete dentro de
-  `limpar_tocados()` (uma vez por faixa, `lembrete_em`) e o campo `lembretes`
+  `limpar_tocados()` (uma vez por faixa, `lembrete_em`) e a chave `lembretes`
   no retorno.
 - `tests/test_radio_cantores.py` (+4) e `tests/test_radio_cobertura.py`
   (retorno com `lembretes`).
@@ -856,3 +856,27 @@ lembrete de push 2 horas antes do prazo vencer"*.
 - **Intenção:** avisar no celular quando o prazo está perto, para o dono não
   perder a faixa por esquecimento.
 - **Pronto/validado:** gate **5379 passed / 16 skipped / 0 falha**.
+
+---
+
+## 17/11/2026 — Timer próprio da janela de decisão no core
+
+**Autor:** Codebuff (Buffy) — sessão de 17/11, a pedido do dono: *"Mover a
+checagem de lembretes e vencimentos para um timer periódico do core"*.
+
+### Modificados
+
+- `runtime/launcher.py` — `_run_radio_decisoes_forever` e o loop
+  supervisionado `radio-decisoes` (60 s, `asyncio.to_thread`, erro contido).
+- `tests/test_launcher_supervisor.py` — +3 testes do timer.
+- Redação dos docs desta sessão: "campo `X`" → "chave `X`" (colisão com a
+  calibração do RAG, corrigida na causa).
+- Registro: `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`,
+  `iniciar/2026-11-17_conversa_omegadrakon.md` §11, `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** lembrete e vencimento com relógio próprio, sem depender de a
+  rádio trocar de faixa.
+- **Pronto/validado:** gate **5382 passed / 16 skipped / 0 falha**; loop no ar
+  após o restart.

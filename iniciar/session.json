@@ -6086,5 +6086,14 @@
     "limite": "O lembrete anda com o webhook da rádio (troca de faixa): pode sair minutos depois do marco e não sai se a estação ficar sem tocar; o apagamento continua acontecendo na próxima passagem.",
     "sem_bump": "1.45.1+2082 (só servidor; APK intacto).",
     "updated_at": "2026-11-17T06:05:00-03:00"
+  },
+  "timer_decisao_radio_2026_11_17": {
+    "pedido": "Dono (17/11): 'Mover a checagem de lembretes e vencimentos para um timer periódico do core'.",
+    "codigo": "runtime/launcher.py: _run_radio_decisoes_forever + loop supervisionado 'radio-decisoes' no modo all; intervalo OD_RADIO_DECISOES_INTERVALO_S (60s), desliga com OD_RADIO_DECISOES_TIMER=0; pendentes()/limpar_tocados() em asyncio.to_thread (push HTTP não trava o event loop); erro vira log e o loop segue.",
+    "convivencia": "O webhook da rádio continua chamando limpar_tocados na troca de faixa (resposta imediata); ambas idempotentes.",
+    "testes": "+3 em tests/test_launcher_supervisor.py (cadência/última passada, sem pendência não limpa, erro não mata). GATE COMPLETO: 5382 passed / 16 skipped / 0 falha (215,73 s, exit 0; eram 5379).",
+    "achado": "TestCalibracaoCorpusReal falhou com a documentação nova por colisão da palavra 'campo' com a query irrelevante 'previsão do tempo em campo grande'; corrigido na causa (docs passaram a dizer 'chave X'), sem afrouxar piso.",
+    "sem_bump": "1.45.1+2082 (só servidor; APK intacto).",
+    "updated_at": "2026-11-17T06:20:00-03:00"
   }
 }

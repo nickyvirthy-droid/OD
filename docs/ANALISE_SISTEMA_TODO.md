@@ -603,7 +603,7 @@ esperar o timeout.
       `_baixar_resto()` filtra o resto; lista toda bloqueada vira `rejeitada /
       musica_bloqueada`. Pedido **avulso** de faixa bloqueada baixa e entra na
       janela de decisão — o único bloqueio de download é o limite de
-      tamanho/tempo.
+      tamanho/duração.
 - [x] **Janela de decisão de 24 h (cantor ou música bloqueada)** —
       **ENTREGUE 17/11:** ao entrar faixa de cantor bloqueado **ou** de música
       bloqueada, o dono é avisado e tem `HORAS_DECISAO` (24 h) para permitir;
@@ -611,6 +611,10 @@ esperar o timeout.
       ao vencer o prazo (tocar não apaga mais). API `POST
       /api/radio/musicas/decisao`, bloco no painel e no `/radio-pro`. Gate
       5370 passed; +14 testes.
+- [x] **Timer próprio da janela de decisão** — **ENTREGUE 17/11:**
+      loop `radio-decisoes` no launcher checa a cada 60 s
+      (`OD_RADIO_DECISOES_INTERVALO_S`) e roda vencimentos/lembretes em
+      `to_thread`; gate 5382 passed.
 - [x] **Lembrete de push 2 h antes do prazo** — **ENTREGUE 17/11:**
       `limpar_tocados()` manda "Faltam 2 h para decidir — rádio" uma vez
       por faixa (`lembrete_em`, env `OD_CANTORES_HORAS_LEMBRETE`); gate

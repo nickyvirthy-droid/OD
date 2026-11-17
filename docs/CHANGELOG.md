@@ -12,6 +12,35 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Timer próprio da janela de decisão: lembretes e vencimentos sem depender da rádio (2026-11-17, sem bump)
+
+**Contexto:** lembrete de 2 h e apagamento pelo prazo andavam só no webhook da
+rádio (a cada troca de faixa). Rádio parada = lembrete que não sai e faixa
+vencida esperando a próxima música.
+
+### O que mudou
+
+1. **`runtime/launcher.py`** — loop supervisionado `radio-decisoes`
+   (`_run_radio_decisoes_forever`): a cada `OD_RADIO_DECISOES_INTERVALO_S`
+   (padrão **60 s**) chama `pendentes()` e, havendo algo, `limpar_tocados()`
+   (idempotente — o webhook continua checando para responder rápido na troca
+   de faixa). `OD_RADIO_DECISOES_TIMER=0` desliga.
+2. **Não trava o núcleo:** as chamadas síncronas (inclusive o HTTP do FCM)
+   rodam em `asyncio.to_thread`; erro de uma passada vira log e o loop segue.
+   Sob a supervisão existente, aparece no check `loops` do `/health`.
+3. **Testes** — `tests/test_launcher_supervisor.py` +3 (cadência e última
+   passada sem dormir, nada pendente não limpa, erro não mata o loop).
+
+### Validação
+
+- **Gate completo:** 5382 passed / 16 skipped / 0 falha (215,73 s, exit 0) —
+  eram 5379.
+- **Achado no caminho:** a calibração do RAG (`TestCalibracaoCorpusReal`)
+  quebrou porque a documentação nova usava "campo" (colidindo com a query
+  irrelevante "previsão do tempo em **campo** grande"). Não foi afrouxamento:
+  a redação dos docs foi ajustada ("campo `X`" → "chave `X`") e a calibração
+  voltou a passar com os mesmos pisos.
+
 ## Lembrete de push 2 h antes do prazo da decisão (2026-11-17, sem bump)
 
 **Contexto:** a faixa entrava na janela com um push, mas quem não olhasse o
@@ -24,7 +53,7 @@ celular na hora só descobria o prazo quando ela já tinha sido apagada.
   no webhook a cada troca de faixa) manda um push quando faltam até 2 h:
   "Faltam 2 h para decidir — rádio" + "{Artista} — {Título}: se você não
   permitir, ela é apagada em menos de 2 h.", com `data.origem=radio-lembrete`.
-- **Uma vez por faixa** (campo `lembrete_em`): só é gravado quando o push
+- **Uma vez por faixa** (marca `lembrete_em`): só é gravado quando o push
   sai de fato — falha do FCM volta a tentar no próximo ciclo e nunca impede o
   vencimento/apagamento.
 - O retorno de `limpar_tocados()` ganhou `lembretes` (observabilidade do
@@ -77,7 +106,7 @@ app não tinha onde mostrar nem decidir — o dono só via pelo painel do site.
 
 1. **`app/lib/services/od_api.dart`** — `OdDecisaoRadio` (artista, título,
    motivo `cantor`/`musica`, quem pediu, `segundos_restantes` e prazo
-   formatado) + `listRadioDecisoes()` (GET `/api/radio/musicas`, campo
+   formatado) + `listRadioDecisoes()` (GET `/api/radio/musicas`, chave
    `decisoes`) + `decidirRadio(..., permitir:)` (POST
    `/api/radio/musicas/decisao`); 403 vira "Só o dono vê as decisões da
    rádio", 409/404 com texto próprio.
@@ -138,7 +167,7 @@ achar uma versao melhor"*.
    exclusão passaram a `bloquear=False` por padrão — bloquear é ação explícita
    pelo formulário. A música apagada pode voltar num pedido.
 5. **Painel `/admin` e `/radio-pro`** — bloco "Decisões pendentes (24 h)"
-   com tempo restante e botões **✓ Permitir** / **✕ Apagar já**; o confirm
+   com prazo restante e botões **✓ Permitir** / **✕ Apagar já**; o confirm
    de exclusão avisa que apagar não bloqueia.
 
 ### Validação
@@ -153,7 +182,7 @@ achar uma versao melhor"*.
 **Contexto:** o bloqueio individual (`data/musicas_bloqueadas.txt`) impedia a
 faixa de voltar pelo painel, mas o worker do link ainda a baixava. A regra do
 dono para a rádio que aceita pedidos (17/11): *"o único bloqueio de download é
-os que ultrapassam o limite de tamanho/tempo, o resto vai para análise; se for
+os que ultrapassam o limite de tamanho/duração, o resto vai para análise; se for
 bloqueada é igual cantor bloqueado, toca e apaga; se for lista aí sim analisa
 a lista e só baixa as permitidas"*.
 
@@ -163,7 +192,7 @@ a lista e só baixa as permitidas"*.
    análise como qualquer pedido; a faixa entra na fila, toca **uma vez** para
    quem pediu e sai do acervo — exatamente o mecanismo do cantor indesejado
    (`registrar_para_apagar`). O único bloqueio de download continua sendo o
-   limite de tamanho/tempo do pipeline.
+   limite de tamanho/duração do pipeline.
 2. **Lista é analisada antes:** `_bloqueada_no_link()` cruza o par do título
    ("Artista - Título") e as pistas de artista do link (canal/uploader, com
    "- Topic"/VEVO removidos) com a lista do dono — sem caixa/acento e aceitando

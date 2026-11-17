@@ -300,7 +300,7 @@ está na lista de bloqueadas`
    de download é os que ultrapassam o limite de tamanho tempo, o resto vai
    para análise, se for bloqueada é igual cantor bloqueado"*): baixa, entra
    na fila, toca para quem pediu e abre a janela de decisão (§7). O único
-   bloqueio de download é o limite de tamanho/tempo do pipeline.
+   bloqueio de download é o limite de tamanho/duração do pipeline.
 6. **Conferência pós-download** — quando o título esconde o nome
    ("Clipe oficial"), o acervo é consultado depois: se a faixa que acabou de
    entrar está bloqueada, ela é **marcada para a decisão** (não é apagada na
@@ -378,7 +378,7 @@ baixadas, posso apagar simplesmeste por achar uma versão melhor`.
 
 - **Gate completo:** **5370 passed / 16 skipped / 0 falha** (203,89 s, exit
   0; eram 5356 depois da §6). +14 testes: decisão (permitir/negar/já
-  decidida/não pendente/400/403/401), prazo e tempo restante, registro
+  decidida/não pendente/400/403/401), prazo e segundos restantes, registro
   legado, e o toque **não** apagando mais; na curadoria, exclusão sem
   bloqueio e com `bloquear=True` explícito; no `radio_pro`, música bloqueada
   marcada e dono avisado.
@@ -399,7 +399,7 @@ baixadas, posso apagar simplesmeste por achar uma versão melhor`.
 1. **`app/lib/services/od_api.dart`** — `OdDecisaoRadio` (artista, título,
    `motivo` cantor|musica, @quem pediu, `segundos_restantes` e prazo
    formatado) e dois métodos: `listRadioDecisoes()` (GET
-   `/api/radio/musicas` → campo `decisoes`) e `decidirRadio(artista, titulo,
+   `/api/radio/musicas` → chave `decisoes`) e `decidirRadio(artista, titulo,
    permitir:)` (POST `/api/radio/musicas/decisao`). 403 → "Só o dono vê as
    decisões da rádio"; 409 `ja_decidida` e 404 `nao_encontrado` com texto
    próprio.
@@ -480,7 +480,7 @@ vencer`
   até 2 h, sai o push **"Faltam 2 h para decidir — rádio"** com
   `{Artista} — {Título}: se você não permitir, ela é apagada em menos de 2 h.`
   e `data.origem=radio-lembrete`.
-- **Uma vez por faixa** — campo `lembrete_em`, gravado **só quando o push sai**
+- **Uma vez por faixa** — marca `lembrete_em`, gravado **só quando o push sai**
   (falha do FCM tenta de novo no próximo ciclo e não interfere no vencimento).
 - `limpar_tocados()` devolve `lembretes` junto de `apagadas`/`restantes`/`sync`.
 
@@ -497,3 +497,41 @@ vencer`
 - Sem agendador próprio: o lembrete depende da troca de faixa (webhook). Rádio
   parada por horas pode fazer o aviso não sair — o apagamento, esse, continua
   acontecendo na próxima passagem.
+
+## §11 — Timer próprio da janela de decisão no core (17/11, sem bump)
+
+**Pedido (verbatim):** `Mover a checagem de lembretes e vencimentos para um
+timer periódico do core`
+
+### 1. O que mudou
+
+- **`runtime/launcher.py`** — `_run_radio_decisoes_forever(intervalo_s)` e o
+  loop supervisionado **`radio-decisoes`** no modo `all`: a cada
+  `OD_RADIO_DECISOES_INTERVALO_S` (padrão 60 s) confere `pendentes()` e roda
+  `limpar_tocados()` — lembretes de 2 h e vencimentos deixam de depender da
+  troca de faixa. `OD_RADIO_DECISOES_TIMER=0` desliga.
+- **Sem travar o event loop:** `pendentes()`/`limpar_tocados()` (que fazem
+  HTTP do FCM) rodam em `asyncio.to_thread`; erro de uma passada vira log e o
+  loop continua. Sob a supervisão existente ele aparece no check `loops` do
+  `/health`.
+- **`tests/test_launcher_supervisor.py`** — +3 testes com dublê de rádio e
+  `dormir`/`ciclos` injetados: cadência e última passada sem dormir, sem
+  pendência não limpa, erro não mata o loop.
+
+### 2. Validação
+
+- **Gate completo:** **5382 passed / 16 skipped / 0 falha** (215,73 s, exit 0;
+  eram 5379).
+- **Achado no caminho (corrigido na causa):** `TestCalibracaoCorpusReal`
+  passou a falhar porque os docs desta sessão diziam "campo `lembretes`" —
+  "campo" colide com a query irrelevante *"previsão do tempo em **campo**
+  grande"*. Reescrito para "chave `X`"; a calibração voltou a passar com os
+  mesmos pisos (nada de afrouxar o teste).
+- **Prova de implantação:** log `Timer da janela de decisão da rádio
+  habilitado` e check `loops` verde no `/health` após o restart.
+
+### 3. O que não foi feito
+
+- O webhook continua chamando `limpar_tocados()` na troca de faixa (resposta
+  imediata); as duas rotas são idempotentes.
+- Sem métrica dedicada no `/health` para quantos lembretes saíram — só log.
