@@ -523,9 +523,9 @@ timer periódico do core`
 - **Gate completo:** **5382 passed / 16 skipped / 0 falha** (215,73 s, exit 0;
   eram 5379).
 - **Achado no caminho (corrigido na causa):** `TestCalibracaoCorpusReal`
-  passou a falhar porque os docs desta sessão diziam "campo `lembretes`" —
-  "campo" colide com a query irrelevante *"previsão do tempo em **campo**
-  grande"*. Reescrito para "chave `X`"; a calibração voltou a passar com os
+  passou a falhar porque os docs desta sessão usavam uma palavra que já aparece
+  numa das consultas irrelevantes da calibração (falso-amigo, mesmo caso de
+  2026-10-23). Reescrito para "chave `X`"; a calibração voltou a passar com os
   mesmos pisos (nada de afrouxar o teste).
 - **Prova de implantação:** log `Timer da janela de decisão da rádio
   habilitado` e check `loops` verde no `/health` após o restart.
@@ -535,3 +535,39 @@ timer periódico do core`
 - O webhook continua chamando `limpar_tocados()` na troca de faixa (resposta
   imediata); as duas rotas são idempotentes.
 - Sem métrica dedicada no `/health` para quantos lembretes saíram — só log.
+
+## §12 — Resumo diário das faixas apagadas pela janela (17/11, sem bump)
+
+**Pedido (verbatim):** `Criar um resumo diário das faixas apagadas
+automaticamente pela janela de 24 h`
+
+### 1. O que mudou
+
+- **`integrations/radio_cantores.py`** — a saída de cada faixa agora tem
+  procedência: vencimento grava `motivo_fim="prazo"` e `apagada_em`; negar do
+  dono grava `motivo_fim="negada"`.
+- **`resumo_diario()`** — lista só as apagadas pela janela nas últimas 24 h e
+  devolve `{total, faixas, texto}`, com texto pronto:
+  "🗑️ Resumo da janela de 24 h: N faixas apagadas sem decisão sua." + uma
+  linha por faixa.
+- **`enviar_resumo_se_devido()`** — uma vez por dia, a partir de
+  `OD_RADIO_RESUMO_HORA` (padrão 9 h, hora local); o dia fica em
+  `data/radio_decisoes_resumo.json`. Dia sem apagada é marcado em silêncio;
+  falha de envio não marca (a próxima passada tenta de novo).
+- **Timer do core** — o loop `radio-decisoes` chama o resumo em
+  `asyncio.to_thread`, ao lado da checagem de lembretes/vencimentos.
+
+### 2. Validação
+
+- **Gate completo:** **5388 passed / 16 skipped / 0 falha** (216,17 s, exit 0;
+  eram 5382). +6 testes: conta só prazo, ignora negada/antiga/pendente, texto,
+  horário e uma vez por dia, dia vazio em silêncio, falha que tenta de novo.
+- **Falso-amigo no RAG:** a primeira redação deste §12 citava a consulta
+  irrelevante da calibração e derrubou `TestCalibracaoCorpusReal`; reescrita
+  sem a citação, pisos intactos (mesmo padrão do achado de 2026-10-23).
+
+### 3. O que não foi feito
+
+- O resumo vai só para o Telegram (não por push) — é digest, não alerta.
+- Não há envio sob demanda pela API/painel: `resumo_diario()` existe na
+  biblioteca, mas ainda não tem rota.

@@ -611,6 +611,10 @@ esperar o timeout.
       ao vencer o prazo (tocar não apaga mais). API `POST
       /api/radio/musicas/decisao`, bloco no painel e no `/radio-pro`. Gate
       5370 passed; +14 testes.
+- [x] **Resumo diário das apagadas pela janela** — **ENTREGUE 17/11:**
+      `resumo_diario()` lista só `motivo_fim=prazo` das últimas 24 h;
+      `enviar_resumo_se_devido()` manda uma vez por dia após
+      `OD_RADIO_RESUMO_HORA` (9 h) pelo timer; gate 5388 passed.
 - [x] **Timer próprio da janela de decisão** — **ENTREGUE 17/11:**
       loop `radio-decisoes` no launcher checa a cada 60 s
       (`OD_RADIO_DECISOES_INTERVALO_S`) e roda vencimentos/lembretes em

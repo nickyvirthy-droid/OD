@@ -12,6 +12,38 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Resumo diário das faixas que a janela de 24 h apagou sozinha (2026-11-17, sem bump)
+
+**Contexto:** a janela apagava faixas sem decisão do dono em silêncio — só
+aparecia no log e, quando muito, no histórico do painel. Faltava o fechamento
+do dia.
+
+### O que mudou
+
+1. **`integrations/radio_cantores.py`** — cada saída agora fica identificada:
+   vencimento grava `motivo_fim="prazo"` + `apagada_em`; decisão de negar do
+   dono grava `motivo_fim="negada"`. `resumo_diario()` lista **apenas** as
+   apagadas pela janela nas últimas 24 h e devolve `{total, faixas, texto}`
+   com o texto pronto ("🗑️ Resumo da janela de 24 h: N faixas apagadas sem
+   decisão sua." + uma linha por faixa).
+2. **`enviar_resumo_se_devido()`** — sai **uma vez por dia**, a partir de
+   `OD_RADIO_RESUMO_HORA` (padrão **9 h**, hora local), marcando o dia em
+   `data/radio_decisoes_resumo.json`. Dia sem faixa apagada é marcado em
+   silêncio (nada de mensagem vazia); falha de envio **não** marca — a próxima
+   passada tenta de novo.
+3. **Timer do core** — o loop `radio-decisoes` (60 s) chama o resumo em
+   `asyncio.to_thread`, junto da checagem de lembretes/vencimentos.
+
+### Validação
+
+- **Gate completo:** 5388 passed / 16 skipped / 0 falha (216,17 s, exit 0) —
+  eram 5382; +6 testes (conta só as vencidas, ignora negadas e antigas, texto,
+  horário e uma vez por dia, dia vazio em silêncio, falha de envio que tenta
+  de novo).
+- **Falso-amigo no RAG:** a primeira redação deste registro citava a consulta
+  irrelevante da calibração e derrubou `TestCalibracaoCorpusReal` — reescrita
+  sem ela, pisos intactos.
+
 ## Timer próprio da janela de decisão: lembretes e vencimentos sem depender da rádio (2026-11-17, sem bump)
 
 **Contexto:** lembrete de 2 h e apagamento pelo prazo andavam só no webhook da
@@ -36,9 +68,9 @@ vencida esperando a próxima música.
 - **Gate completo:** 5382 passed / 16 skipped / 0 falha (215,73 s, exit 0) —
   eram 5379.
 - **Achado no caminho:** a calibração do RAG (`TestCalibracaoCorpusReal`)
-  quebrou porque a documentação nova usava "campo" (colidindo com a query
-  irrelevante "previsão do tempo em **campo** grande"). Não foi afrouxamento:
-  a redação dos docs foi ajustada ("campo `X`" → "chave `X`") e a calibração
+  quebrou porque a documentação nova usava uma palavra que já aparece numa das
+  consultas irrelevantes da calibração (falso-amigo). Não foi afrouxamento: a
+  redação dos docs foi ajustada ("o campo X" → "a chave X") e a calibração
   voltou a passar com os mesmos pisos.
 
 ## Lembrete de push 2 h antes do prazo da decisão (2026-11-17, sem bump)

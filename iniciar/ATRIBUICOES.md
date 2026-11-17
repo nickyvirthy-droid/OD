@@ -880,3 +880,27 @@ checagem de lembretes e vencimentos para um timer periódico do core"*.
   rádio trocar de faixa.
 - **Pronto/validado:** gate **5382 passed / 16 skipped / 0 falha**; loop no ar
   após o restart.
+
+---
+
+## 17/11/2026 — Resumo diário das faixas apagadas pela janela
+
+**Autor:** Codebuff (Buffy) — sessão de 17/11, a pedido do dono: *"Criar um
+resumo diário das faixas apagadas automaticamente pela janela de 24 h"*.
+
+### Modificados
+
+- `integrations/radio_cantores.py` — `motivo_fim`/`apagada_em` no registro,
+  `resumo_diario()` e `enviar_resumo_se_devido()` (uma vez por dia, hora
+  configurável, estado em `data/`).
+- `runtime/launcher.py` — o loop `radio-decisoes` chama o resumo.
+- `tests/test_radio_cantores.py` (+6) e `tests/test_launcher_supervisor.py`
+  (dublê com `enviar_resumo_se_devido`).
+- Registro: `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`,
+  `iniciar/2026-11-17_conversa_omegadrakon.md` §12, `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** fechar o dia com o que a janela apagou sem decisão do dono,
+  em vez de deixar isso só no log.
+- **Pronto/validado:** gate **5388 passed / 16 skipped / 0 falha**.

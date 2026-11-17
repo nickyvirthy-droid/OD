@@ -6092,8 +6092,17 @@
     "codigo": "runtime/launcher.py: _run_radio_decisoes_forever + loop supervisionado 'radio-decisoes' no modo all; intervalo OD_RADIO_DECISOES_INTERVALO_S (60s), desliga com OD_RADIO_DECISOES_TIMER=0; pendentes()/limpar_tocados() em asyncio.to_thread (push HTTP não trava o event loop); erro vira log e o loop segue.",
     "convivencia": "O webhook da rádio continua chamando limpar_tocados na troca de faixa (resposta imediata); ambas idempotentes.",
     "testes": "+3 em tests/test_launcher_supervisor.py (cadência/última passada, sem pendência não limpa, erro não mata). GATE COMPLETO: 5382 passed / 16 skipped / 0 falha (215,73 s, exit 0; eram 5379).",
-    "achado": "TestCalibracaoCorpusReal falhou com a documentação nova por colisão da palavra 'campo' com a query irrelevante 'previsão do tempo em campo grande'; corrigido na causa (docs passaram a dizer 'chave X'), sem afrouxar piso.",
+    "achado": "TestCalibracaoCorpusReal falhou com a documentação nova por falso-amigo: a palavra usada nos docs aparecia numa das consultas irrelevantes da calibração. Corrigido na causa (docs passaram a dizer 'chave X'), sem afrouxar piso.",
     "sem_bump": "1.45.1+2082 (só servidor; APK intacto).",
     "updated_at": "2026-11-17T06:20:00-03:00"
+  },
+  "resumo_diario_janela_2026_11_17": {
+    "pedido": "Dono (17/11): 'Criar um resumo diário das faixas apagadas automaticamente pela janela de 24 h'.",
+    "codigo": "radio_cantores: vencimento grava motivo_fim='prazo' + apagada_em; negar grava 'negada'. resumo_diario() filtra status apagada + motivo_fim prazo nas últimas 24 h e devolve {total, faixas, texto}. enviar_resumo_se_devido() manda 1x/dia a partir de OD_RADIO_RESUMO_HORA (9h local), estado em data/radio_decisoes_resumo.json; dia vazio marca em silêncio; falha não marca. Loop radio-decisoes do launcher chama em asyncio.to_thread.",
+    "testes": "+6 em tests/test_radio_cantores.py. GATE COMPLETO: 5388 passed / 16 skipped / 0 falha (216,17 s, exit 0; eram 5382).",
+    "achado": "A primeira redação deste registro citava a consulta irrelevante da calibração do RAG e derrubou TestCalibracaoCorpusReal; reescrita sem a citação, pisos intactos.",
+    "sem_bump": "1.45.1+2082 (só servidor; APK intacto).",
+    "limitacao": "Resumo vai só por Telegram (não push) e não tem rota sob demanda.",
+    "updated_at": "2026-11-17T06:35:00-03:00"
   }
 }
