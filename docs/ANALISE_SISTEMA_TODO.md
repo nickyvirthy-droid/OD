@@ -571,6 +571,37 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
+- [ ] **App por papel: 1 app com abas escondidas vs vários apps** — ideia do
+      dono (15/11): "o APP está ficando complicado para os usuários… um
+      usuário comum não precisa da aba admin; um familiar seria bom ter uma
+      aba de botões para ligar as luzes, outra coisa que o comum não pode
+      ter; o admin terá tudo". Recomendação do agente: **um só app com abas
+      por papel** — o recorte já é do servidor (`user` = só leitura;
+      `familia` = herda + a única escrita do lar `ha_device_control`;
+      `admin` = `*`; `/auth/me` já devolve `role`), separar em vários apps
+      triplicaria build/versionamento/política 9/9 sem ganho de segurança;
+      entrega nova: aba **"Casa"** com botões data-driven (luzes/tomadas via
+      `ha_device_control`) e filtro de abas no `OdHome` por `role`.
+      **Aguardando decisão do dono.**
+- [ ] **Rádio: excluir música e liberar músicas de cantores bloqueados**
+      (pedidos 2 e 3 do `txt.txt`, 17/11) — a **camada de biblioteca já
+      existe** em `integrations/radio_cantores.py` (listas
+      `data/musicas_bloqueadas.txt` e `data/cantores_excecoes.txt`,
+      `musica_bloqueada`, `listar_musicas_bloqueadas`; 682 testes verdes no
+      lote ainda não commitado). **Falta o que o dono usa:** rotas de API
+      (`/admin/radio/musica/excluir`, exceções), botão no painel `/admin` e na
+      página `/radio-pro`, e a recusa de download de faixa bloqueada no
+      `radio_link.py`. Resolve: "quero poder excluir músicas que não gosto" e
+      "deixar algumas músicas de cantores bloqueados".
+- [ ] **Fechar o lote órfão da árvore (17/11)** — `radio_cantores.py`,
+      `server.py` (reboot via `updater._reboot()`), `supply_depot.py`
+      (staging), `tasks_screen.dart` (`{}` válido) e 10 arquivos de cobertura
+      estão **verdes em 682 testes** mas sem registro de origem e sem commit
+      (regra 23). Resolve: trabalho pronto que pode ser perdido num reset.
+- [ ] **Comparador de modelos lado a lado + monitor de hardware** — ideia
+      trazida do GSN Offline (17/11): mesmo prompt no Gemini, Groq e Local ao
+      mesmo tempo, com CPU/RAM/VRAM por modelo no painel. Resolve: ver na
+      prática qual IA responde melhor e quanto custa, hoje só medido por log.
 - [x] Task Queue: manter as tasks **concluídas visíveis** na API com retenção
       limitada — **ENTREGUE 14/11** (histórico em `completed/`, poda automática,
       `OD_TASK_QUEUE_KEEP_COMPLETED=200`)
