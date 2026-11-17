@@ -23,6 +23,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from core import task_queue as tq_mod
 from core.task_queue import RetryPolicy, Task, TaskQueue, TaskStatus
 
 
@@ -523,6 +524,13 @@ class TestTaskQueueAPI:
         # chegam no snapshot da própria lista/SSE.
         assert 'id="tq-resumo"' in html
         assert "tqResumoFila" in html
+        # Formulário de criação (item 2 do backlog §4, 14/11): action do
+        # catálogo (GET /actions) + payload JSON em cima do POST /admin/tasks.
+        assert 'id="tq-nova-action"' in html
+        assert 'id="tq-nova-payload"' in html
+        assert 'id="tq-nova"' in html
+        assert "tqCriar" in html
+        assert "tqCarregarActions" in html
 
     def test_lista_traz_o_snapshot_da_fila(self, servidor_tasks) -> None:
         """A lista entrega `queue` (fila, workers, dead letter, retenção)
@@ -553,3 +561,258 @@ class TestTaskQueueAPI:
             assert _json_body(corpo)["error"] == "task_queue_indisponivel"
         finally:
             srv.stop()
+
+
+# ---------------------------------------------------------------------------
+# Bordas sem teste — dívida de cobertura fechada em 15/11
+# (caminhos que existiam no código desde 14/11 e nunca rodam nos testes:
+# persistência falha, recuperação de disco, filtros de listagem e factories
+# do launcher. Gate --cov-fail-under=90.)
+# ---------------------------------------------------------------------------
+
+class _RegistryPresa(_RegistryFalso):
+    """Registry que nunca termina — prende a worker para provar o cancel."""
+
+    async def execute(self, action_name, params=None, role="admin",
+                      request_id="", **kwargs):
+        self.chamadas.append({"action": action_name})
+        await asyncio.sleep(3600)
+
+
+class TestCoberturaDeBorda:
+    def test_from_dict_restaura_retry_policy(self) -> None:
+        base = Task(action_name="system_info").to_dict()
+        base["retry_policy"] = {"max_retries": 7, "backoff_base": 0.25}
+        t = Task.from_dict(base)
+        assert t.retry_policy is not None
+        assert t.retry_policy.max_retries == 7
+        assert t.retry_policy.backoff_base == 0.25
+
+    def test_set_action_registry_troca_o_registry(self, fila: TaskQueue) -> None:
+        novo = _RegistryFalso()
+        fila.set_action_registry(novo)
+        assert fila._action_registry is novo
+
+    def test_falha_de_gravacao_nao_derruba_enqueue(
+        self, fila: TaskQueue, monkeypatch
+    ) -> None:
+        def _explode(self, *args, **kwargs):
+            raise OSError("disco cheio")
+
+        monkeypatch.setattr(Path, "write_text", _explode)
+        t = fila.enqueue("system_info", {})
+        assert t.status == TaskStatus.PENDING
+
+    def test_load_pending_ignora_dead_letter_legado_e_recarrega_falhadas(
+        self, fila: TaskQueue
+    ) -> None:
+        def _grava(path: Path, task: Task) -> None:
+            path.write_text(
+                json.dumps(task.to_dict(), ensure_ascii=False), encoding="utf-8"
+            )
+
+        # dead letter legado na RAIZ da fila: pulado antes do parse
+        _grava(fila.queue_dir / "dead_letter_antigo.json",
+               Task(action_name="x"))
+        # failed com tentativas restantes volta como pending
+        falhou = Task(action_name="system_info", status=TaskStatus.FAILED,
+                      attempts=1, max_retries=3)
+        _grava(fila.queue_dir / f"{falhou.task_id}.json", falhou)
+        # pendente normal
+        pendente = Task(action_name="system_info")
+        _grava(fila.queue_dir / f"{pendente.task_id}.json", pendente)
+
+        carregadas = fila._load_pending()
+        assert carregadas == 2  # o dead letter legado não conta
+        ids = {t.task_id for t in fila._pending}
+        assert falhou.task_id in ids
+        assert pendente.task_id in ids
+        recarregada = next(
+            t for t in fila._pending if t.task_id == falhou.task_id
+        )
+        assert recarregada.status == TaskStatus.PENDING  # arquivo volta ativo
+
+    @pytest.mark.asyncio
+    async def test_start_recupera_poda_e_eh_idempotente(
+        self, tmp_path: Path
+    ) -> None:
+        fila = TaskQueue(queue_dir=tmp_path / "fila",
+                         action_registry=_RegistryFalso(), workers=1,
+                         keep_completed=2)
+        falhou = Task(action_name="system_info", status=TaskStatus.FAILED,
+                      attempts=1, max_retries=3)
+        (fila.queue_dir / f"{falhou.task_id}.json").write_text(
+            json.dumps(falhou.to_dict(), ensure_ascii=False), encoding="utf-8")
+        for i in range(3):
+            c = Task(action_name="system_info", status=TaskStatus.COMPLETED,
+                     finished_ts=1700000000.0 + i)
+            (fila.completed_dir / f"{c.task_id}.json").write_text(
+                json.dumps(c.to_dict(), ensure_ascii=False), encoding="utf-8")
+        # arquivo corrompido no histórico: o ordenador cai no mtime
+        (fila.completed_dir / "corrompida.json").write_text(
+            "{isso não é json", encoding="utf-8")
+
+        await fila.start()   # recarrega 1 failed + poda histórico (2 de 4)
+        await fila.start()   # segunda chamada: early return
+        assert {t.task_id for t in fila._pending} == {falhou.task_id}
+        assert len(list(fila.completed_dir.glob("*.json"))) == 2
+        await fila.stop()
+
+    @pytest.mark.asyncio
+    async def test_stop_sem_inicio_e_cancel_de_worker_presa(
+        self, tmp_path: Path
+    ) -> None:
+        fila = TaskQueue(queue_dir=tmp_path / "fila",
+                         action_registry=_RegistryPresa(), workers=1)
+        await fila.stop()  # nunca iniciada: early return
+        fila.enqueue("system_info", {},
+                     retry_policy=RetryPolicy(max_retries=0, backoff_base=0.0))
+        await fila.start()
+        for _ in range(100):
+            if fila._running:
+                break
+            await asyncio.sleep(0.01)
+        assert fila._running  # worker realmente dentro da task presa
+        await fila.stop(timeout=0.0)  # wait estoura → cancel + CancelledError
+        assert not fila._running
+
+    @pytest.mark.asyncio
+    async def test_retry_policy_com_timeout_usa_wait_for(
+        self, tmp_path: Path
+    ) -> None:
+        fila = TaskQueue(queue_dir=tmp_path / "fila",
+                         action_registry=_RegistryFalso(), workers=1)
+        t = fila.enqueue(
+            "system_info", {},
+            retry_policy=RetryPolicy(max_retries=0, backoff_base=0.0,
+                                     timeout_seconds=5.0),
+        )
+        await fila._execute_task(t)
+        assert t.status == TaskStatus.COMPLETED
+
+    @pytest.mark.asyncio
+    async def test_historico_ilegivel_nao_derruba_a_conclusao(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """completed/ vira arquivo: gravar e podar dão OSError, a task
+        conclui mesmo assim."""
+        fila = TaskQueue(queue_dir=tmp_path / "fila",
+                         action_registry=_RegistryFalso(), workers=1,
+                         keep_completed=1)
+        fila.completed_dir.rmdir()
+        fila.completed_dir.write_text("não é diretório", encoding="utf-8")
+        t = fila.enqueue("system_info", {})
+        await fila._execute_task(t)
+        assert t.status == TaskStatus.COMPLETED
+
+        def _glob_explode(self, *args, **kwargs):
+            raise OSError("sem disco")
+
+        monkeypatch.setattr(Path, "glob", _glob_explode)
+        assert fila._prune_completed() == 0  # glob ilegível: devolve 0
+
+    @pytest.mark.asyncio
+    async def test_dead_letter_com_pasta_bloqueada_nao_derruba(
+        self, tmp_path: Path
+    ) -> None:
+        fila = TaskQueue(queue_dir=tmp_path / "fila",
+                         action_registry=_RegistryFalso())
+        fila.dead_letter_dir.rmdir()
+        fila.dead_letter_dir.write_text("não é diretório", encoding="utf-8")
+        t = fila.enqueue("system_info", {},
+                         retry_policy=RetryPolicy(max_retries=0,
+                                                  backoff_base=0.0))
+        await fila._handle_failure(t)
+        assert t.status == TaskStatus.DEAD_LETTER
+
+    @pytest.mark.asyncio
+    async def test_falha_ao_apagar_json_da_fila_nao_derruba(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        fila = TaskQueue(queue_dir=tmp_path / "fila",
+                         action_registry=_RegistryFalso(), workers=1)
+
+        def _recusa(self, *args, **kwargs):
+            raise PermissionError("só leitura")
+
+        monkeypatch.setattr(Path, "unlink", _recusa)
+        t = fila.enqueue("system_info", {})
+        await fila._execute_task(t)
+        assert t.status == TaskStatus.COMPLETED
+
+    def test_poda_tolera_dispositivo_ocupado(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        fila = TaskQueue(queue_dir=tmp_path / "fila",
+                         action_registry=_RegistryFalso(), keep_completed=1)
+        for i in range(2):
+            c = Task(action_name="system_info", status=TaskStatus.COMPLETED,
+                     finished_ts=1700000000.0 + i)
+            (fila.completed_dir / f"{c.task_id}.json").write_text(
+                json.dumps(c.to_dict(), ensure_ascii=False), encoding="utf-8"
+            )
+
+        def _recusa(self, *args, **kwargs):
+            raise PermissionError("só leitura")
+
+        monkeypatch.setattr(Path, "unlink", _recusa)
+        assert fila._prune_completed() == 0
+
+    def test_get_list_e_stats_com_running_e_arquivo_corrompido(
+        self, fila: TaskQueue
+    ) -> None:
+        rodando = fila.enqueue("system_info", {})
+        rodando.status = TaskStatus.RUNNING
+        fila._running[rodando.task_id] = rodando
+        (fila.completed_dir / "corrompida.json").write_text(
+            "{isso não é json", encoding="utf-8")
+
+        assert fila.get_task(rodando.task_id) is rodando
+        assert fila.get_task("corrompida") is None
+        em_lista = fila.list_tasks(status=TaskStatus.RUNNING)
+        assert rodando in em_lista
+        todos = fila.list_tasks()
+        assert rodando in todos
+        assert all(t.task_id != "corrompida" for t in todos)
+        ordenada = fila.list_tasks(sort_by_finished=True)
+        assert rodando in ordenada
+        s = fila.stats()
+        assert s["running"] == 1
+        assert s["pending"] >= 1
+
+    def test_contar_aceita_caminho_invalido(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        arq = tmp_path / "nao_diretorio.txt"
+        arq.write_text("x", encoding="utf-8")
+        assert TaskQueue._contar(arq) == 0
+
+        def _explode(self, *args, **kwargs):
+            raise OSError("sem disco")
+
+        monkeypatch.setattr(Path, "glob", _explode)
+        assert TaskQueue._contar(tmp_path) == 0
+
+    def test_factories_globais_do_launcher(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(tq_mod, "_global_queue", None)
+        q1 = tq_mod.get_task_queue()
+        q2 = tq_mod.get_task_queue()
+        assert q1 is q2
+
+        # Desligada (OD_TASK_QUEUE_ENABLED=0): factory devolve None
+        monkeypatch.setattr(tq_mod, "ENABLED", False)
+        assert tq_mod.build_task_queue() is None
+
+        monkeypatch.setattr(tq_mod, "ENABLED", True)
+        q3 = tq_mod.build_task_queue(_RegistryFalso())
+        assert isinstance(q3, TaskQueue)
+        q4 = tq_mod.build_task_queue()
+        assert isinstance(q4, TaskQueue)
+
+        def _explodir(**_kwargs):
+            raise RuntimeError("sem memória")
+
+        monkeypatch.setattr(tq_mod, "TaskQueue", _explodir)
+        assert tq_mod.build_task_queue() is None
