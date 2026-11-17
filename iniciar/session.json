@@ -6008,7 +6008,9 @@
     "achados": "(1) 'admin' nao esta em PAPEIS_CONTA_VALIDOS — quem e admin e a conta do OD_OWNER_USERNAME (o teste precisou de owner_username). (2) JS do painel quebrou no node --check por aspas escapadas dentro de HTML em string Python — corrigido antes de publicar.",
     "pendente": "radio_link.py ainda baixa faixa de data/musicas_bloqueadas.txt pedida por link — checkbox novo no TODO §4.",
     "sem_bump": "1.45.0+2081 (servidor + site; APK publicado nao muda).",
-    "updated_at": "2026-11-17T04:10:00-03:00"
+    "deploy": "5 commits publicados (df1161e rotas+painel, 487c76e pagina /radio-pro, 8bf65f7 testes, 83cb623 docs, 06ff193 fix do gate da chave do servidor). Gate final 5348 passed / 16 skipped / 0 falha. od-core reiniciado: MainPID 2250304, NRestarts=0, /health ok=true 30 checks, journal 0 erros.",
+    "prova_viva": "Com a OD_API_KEY (dono): GET /api/radio/musicas -> 200; ?q=raul -> Raul Seixas/Metamorfose livre, listas vazias. Sem chave -> 401. POST/DELETE de excecao real (Teste Curadoria | Prova 17-11) criou data/cantores_excecoes.txt e removeu em seguida (restam=[]). Painel servido com a secao e musCarregar. Conta comum criada por /auth/register: GET /api/radio/musicas -> 403 acesso_negado e pagina /radio-pro 200 (card so visual, API nega); conta apagada por DELETE /admin/users (sumiu da lista). /radio-pro anonimo -> 302 /chat?next=/radio-pro.",
+    "updated_at": "2026-11-17T04:35:00-03:00"
   },
   "lote_orfao_fechado_2026_11_17": {
     "pedido": "Dono (17/11): 'Rode o gate completo e commite o lote orfao que esta na arvore (radio, coverage, supply_depot, app)'.",
