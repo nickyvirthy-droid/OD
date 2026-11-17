@@ -187,14 +187,13 @@ class _TasksScreenState extends State<TasksScreen> {
       try {
         payload = jsonDecode(bruto) as Map<String, dynamic>;
       } catch (e) {
-        _aviso('Payload não é JSON válido: $e');
+        // array/scalar/caixa alta de aspas: o cast falha ou o parser reclama
+        _aviso('Payload deve ser um objeto JSON {…}: $e');
         return;
       }
     }
-    if (payload.isEmpty) {
-      _aviso('Payload deve ser um objeto JSON {…}.');
-      return;
-    }
+    // Payload vazio é VÁLIDO na API (actions sem parâmetros, ex.:
+    // system_info) — o servidor faz `or {}`. Só objeto passa; `{}` roda.
     try {
       final criada = await widget.api.createTask(action, payload: payload);
       if (!mounted) return;

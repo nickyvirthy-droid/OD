@@ -157,5 +157,79 @@ void main() {
             .having((e) => e.message, 'message', contains('ainda está ativa'))),
       );
     });
+
+    test('createTask POSTa action+payload e devolve a task criada (201)',
+        () async {
+      final api = _api(MockClient((r) async {
+        expect(r.method, 'POST');
+        expect(r.url.path, '/admin/tasks');
+        expect(r.headers['content-type'], contains('application/json'));
+        final corpo = jsonDecode(r.body) as Map<String, dynamic>;
+        expect(corpo['action'], 'system_info');
+        expect(corpo['payload'], {'lang': 'pt'});
+        return _json({
+          'ok': true,
+          'task': {
+            ..._concluida,
+            'task_id': 't-nova-0009',
+            'action_name': 'system_info',
+            'payload': {'lang': 'pt'},
+            'status': 'pending',
+            'started_ts': 0.0,
+            'finished_ts': 0.0,
+            'attempts': 0,
+            'last_error': '',
+            'result': null,
+          },
+        }, 201);
+      }));
+
+      final nova =
+          await api.createTask('system_info', payload: {'lang': 'pt'});
+      expect(nova.id, 't-nova-0009');
+      expect(nova.actionName, 'system_info');
+      expect(nova.status, 'pending');
+      expect(nova.statusLabel, 'Pendente');
+    });
+
+    test('createTask sem payload envia {} (ações sem parâmetros)', () async {
+      String? corpoVisto;
+      final api = _api(MockClient((r) async {
+        corpoVisto = r.body;
+        return _json({
+          'ok': true,
+          'task': {
+            ..._concluida,
+            'task_id': 't-nova-0010',
+            'action_name': 'system_info',
+            'payload': <String, dynamic>{},
+            'status': 'pending',
+            'attempts': 0,
+            'last_error': '',
+            'result': null,
+          },
+        }, 201);
+      }));
+
+      final nova = await api.createTask('system_info');
+      expect(nova.id, 't-nova-0010');
+      expect(corpoVisto, '{"action":"system_info","payload":{}}');
+    });
+
+    test('createTask com fila desligada (503) vira mensagem legível',
+        () async {
+      final api = _api(MockClient((r) async => _json(
+            {'ok': false, 'error': 'task_queue_indisponivel'},
+            503,
+          )));
+
+      await expectLater(
+        api.createTask('system_info'),
+        throwsA(isA<OdApiError>()
+            .having((e) => e.statusCode, 'statusCode', 503)
+            .having((e) => e.message, 'message',
+                contains('desligada no servidor'))),
+      );
+    });
   });
 }

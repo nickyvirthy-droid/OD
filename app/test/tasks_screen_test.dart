@@ -109,6 +109,27 @@ data: {"evento":"snapshot","tasks":[${jsonEncode(tarefas[0])},${jsonEncode(taref
           return http.Response(snapshot, 200,
               headers: {'content-type': 'text/event-stream; charset=utf-8'});
         }
+        if (r.method == 'POST' && r.url.path == '/admin/tasks') {
+          // Criação (item 2 do backlog): body {action, payload} → 201.
+          final corpo = jsonDecode(r.body) as Map<String, dynamic>;
+          final nova = {
+            'task_id': 't-nova-0009',
+            'action_name': corpo['action'],
+            'payload': corpo['payload'],
+            'metadata': <String, dynamic>{},
+            'priority': 0,
+            'status': 'pending',
+            'created_ts': 1794663000.0,
+            'started_ts': 0.0,
+            'finished_ts': 0.0,
+            'attempts': 0,
+            'max_retries': 3,
+            'last_error': '',
+            'result': null,
+          };
+          tarefas.add(nova);
+          return _json({'ok': true, 'task': nova}, 201);
+        }
         if (r.method == 'POST' && r.url.path.endsWith('/retry')) {
           final origem = r.url.path.split('/')[3];
           final nova = {
@@ -234,6 +255,47 @@ void main() {
 
     expect(find.textContaining('desligada no servidor'), findsOneWidget);
     expect(find.textContaining('Nenhuma tarefa'), findsNothing);
+
+    await _desmontar(tester);
+  });
+
+  testWidgets('＋ enfileira: o diálogo valida e POSTa action+payload',
+      (tester) async {
+    final c = _Cenario();
+    await tester.pumpWidget(_wrap(TasksScreen(api: c.api)));
+    await _carregar(tester);
+
+    await tester.tap(find.byTooltip('Enfileirar tarefa'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enfileirar tarefa'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).at(0), 'system_info');
+    await tester.enterText(find.byType(TextField).at(1), '{}');
+    await tester.tap(find.text('Enfileirar'));
+    await tester.pumpAndSettle();
+
+    expect(c.chamadas, contains('POST /admin/tasks'));
+    expect(find.textContaining('enfileirada'), findsOneWidget);
+    // o 201 entra na lista (tile + aviso citam o id)
+    expect(find.textContaining('t-nova-0009'), findsWidgets);
+
+    await _desmontar(tester);
+  });
+
+  testWidgets('payload que não é JSON avisa e NÃO enfileira', (tester) async {
+    final c = _Cenario();
+    await tester.pumpWidget(_wrap(TasksScreen(api: c.api)));
+    await _carregar(tester);
+
+    await tester.tap(find.byTooltip('Enfileirar tarefa'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'system_info');
+    await tester.enterText(find.byType(TextField).at(1), 'isso nao e json');
+    await tester.tap(find.text('Enfileirar'));
+    await tester.pumpAndSettle();
+
+    expect(c.chamadas, isNot(contains('POST /admin/tasks')));
+    expect(find.textContaining('Payload deve ser um objeto'), findsOneWidget);
 
     await _desmontar(tester);
   });
