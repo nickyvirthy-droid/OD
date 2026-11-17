@@ -23,7 +23,24 @@ a fixture só muda o DEFAULT; quem fizer chdir sobrepõe.
 
 from __future__ import annotations
 
+import os
+import tempfile
+from pathlib import Path
+
 import pytest
+
+# Guarda da cota de LLM (17/11/2026): a suíte NÃO pode depender do consumo
+# real do dia. `core.resilience` lê `OD_QUOTA_FILE` no import; sem esta
+# linha, `data/llm_quota.json` (o arquivo do dono) vira estado de teste —
+# com o Gemini esgotado (20/20) o Orchestrator pula o provider e testes de
+# fallback/cota quebram sem nenhum código errado (foi o que derrubou o gate
+# de 17/11 depois de um dia de uso real). O conftest é importado ANTES dos
+# módulos de teste, então o caminho temporário vale para toda a suíte.
+# Testes que querem controlar a cota usam `OD_QUOTA_FILE` + tracker próprio
+# (ver tests/test_llm_quota_health.py).
+os.environ["OD_QUOTA_FILE"] = str(
+    Path(tempfile.mkdtemp(prefix="od-quota-testes-")) / "llm_quota.json"
+)
 
 
 @pytest.fixture(autouse=True)

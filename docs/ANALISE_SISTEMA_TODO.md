@@ -644,10 +644,16 @@ esperar o timeout.
       `supply_depot.py` (staging), `tasks_screen.dart` (`{}` válido),
       `test_task_queue.py` e **10 arquivos de cobertura** — autor de origem
       não identificada (regra 23), registro completo no CHANGELOG.
-- [ ] **Curadoria do acervo também no app Android** — hoje excluir música e
-      gerenciar exceções só existe no painel `/admin` e no `/radio-pro` (web);
-      a aba "Tarefas" já é SSE no app. Resolve: fazer a curadoria pelo celular
-      sem abrir o navegador. (sugestão de 17/11)
+- [x] **Curadoria do acervo também no app Android** — **ENTREGUE 17/11
+      (1.46.0+2083):** tela "Curadoria do acervo"
+      (`app/lib/screens/curadoria_screen.dart`) aberta pelo card novo do
+      Painel (só admin, via `Navigator.push` — sem nona aba): busca no acervo,
+      selo `bloqueada`/`cantor bloqueado`, excluir (com e sem bloquear),
+      bloquear/desbloquear e liberar/tirar exceção de cantor bloqueado, tudo
+      nas rotas `/api/radio/musicas*`. `OdApi` ganhou `OdMusicaAcervo`,
+      `OdParMusica`, `OdCuradoria` e 6 métodos. 20 testes novos de app;
+      `flutter analyze` 0 issues e `flutter test` **257 passed / 2 skipped**;
+      APK publicado em `site/`.
 - [x] **`/radio-pro` volta a mostrar a curiosidade da música** — **ENTREGUE
       17/11:** `site/radio-pro.html` ganhou `<div id="agoraCurio">` no card
       "Tocando agora" e `desenhaAgora()` pinta `t.curiosidade` (vazio quando a

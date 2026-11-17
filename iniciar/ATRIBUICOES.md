@@ -9,6 +9,45 @@
 
 ---
 
+## 17/11/2026 — Curadoria do acervo no app Android (1.46.0+2083)
+
+**Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("Fechar a
+pendência da curadoria do acervo no app Android").
+
+### Criados
+
+- `app/lib/screens/curadoria_screen.dart` — tela de curadoria do acervo.
+- `app/test/curadoria_api_test.dart` (10 testes) e
+  `app/test/curadoria_screen_test.dart` (10 testes).
+
+### Modificados
+
+- `app/lib/services/od_api.dart` — `OdMusicaAcervo`, `OdParMusica`,
+  `OdCuradoria` e 6 métodos REST da curadoria.
+- `app/lib/screens/dashboard_screen.dart` — card "Curadoria do acervo" (admin)
+  + `_abrirCuradoria()` por `Navigator.push`.
+- Bump 1.46.0+2083: `.env` (gitignored), `core/capabilities.py`,
+  `app/pubspec.yaml`, `integrations/api/server.py` (`_APP_VERSION_CODE`),
+  `site/index.html`, `site/historico.html` (78 lançamentos / Era 9 = 12).
+- `tests/conftest.py` — `OD_QUOTA_FILE` da suíte para temporário (isolamento
+  da cota real que derrubou 2 testes do gate).
+- `docs/CHANGELOG.md` ([1.46.0]), `docs/README_VERSAO.md` ([1.46.0]),
+  `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado),
+  `iniciar/2026-11-17_conversa_omegadrakon.md` (§17), `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** o dono não precisa mais abrir o navegador no celular para
+  excluir/bloquear música e liberar faixas de cantores bloqueados.
+- **Pronto/validado:** `flutter analyze` 0 issues, `flutter test` **257
+  passed / 2 skipped**, gate Python **5374 passed / 19 skipped / 0 falha**;
+  APK **1.46.0+2083** conferido por `aapt2` e publicado em `site/`.
+- **Pela metade (deliberado):** sem prova visual no aparelho (máquina sem
+  navegador/emulador); a tela é provada pelos 20 testes de widget/API.
+- **Bump MINOR:** 1.45.1+2082 → **1.46.0+2083**.
+
+---
+
 ## 17/11/2026 — Letra internacional com tradução em lista paralela no `/radio-pro`
 
 **Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("Mostrar a

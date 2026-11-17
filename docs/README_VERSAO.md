@@ -7,6 +7,46 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.46.0] — CURADORIA DO ACERVO NO APP: EXCLUIR, BLOQUEAR E LIBERAR PELO CELULAR 🜂 (2026-11-17)
+
+**Bump MINOR** (capacidade nova compatível), versionCode **2083**.
+
+### 1. Pedido
+
+O item do TODO "Curadoria do acervo também no app Android": excluir músicas e
+gerenciar exceções só existia no painel `/admin` e no `/radio-pro` (web).
+
+### 2. O que entrou
+
+- `OdApi.buscarCuradoria` / `excluirMusicaDoAcervo(caminho, bloquear:)` /
+  `bloquearMusica` / `desbloquearMusica` / `adicionarExcecao` /
+  `removerExcecao`, com os modelos `OdMusicaAcervo`, `OdParMusica` e
+  `OdCuradoria`.
+- Tela **"Curadoria do acervo"** (`app/lib/screens/curadoria_screen.dart`):
+  busca, selos por faixa, menu de ações com confirmação (excluir **não**
+  bloqueia — a faixa pode voltar num pedido) e as listas de bloqueadas e
+  exceções com desfazer.
+- Card **"Curadoria do acervo"** no Painel (só admin), abrindo a tela por
+  `Navigator.push` — sem nona aba no rodapé.
+
+### 3. Testes
+
+- `app/test/curadoria_api_test.dart` — 10 testes do contrato REST.
+- `app/test/curadoria_screen_test.dart` — 10 testes da tela e da entrada pelo
+  Painel.
+- `flutter analyze` 0 issues; `flutter test` **257 passed / 2 skipped**.
+
+### 4. Versão
+
+- `.env` `OD_VERSION=1.46.0`; fallback em `core/capabilities.py`;
+  `app/pubspec.yaml` `1.46.0+2083`; `_APP_VERSION_CODE = 2083`;
+  `site/index.html` (badge, card e versionCode); `site/historico.html`
+  (78 lançamentos, Era 9 com 12 releases).
+- APKs publicados em `site/` (completo e arm64); antigos guardados em
+  `backups/apk-v1.45.1-2082/`.
+
+---
+
 ## [1.45.1] — DECISÕES DA RÁDIO NO APP: O DONO DECIDE EM 24 H PELO CELULAR 🜂 (2026-11-17)
 
 **Bump PATCH** (capacidade nova compatível), versionCode **2082**.

@@ -701,3 +701,54 @@ paralela no /radio-pro`
 - Página: `site/radio-pro.html` é servida do disco a cada requisição, então a
   mudança visual já valia antes do restart; o restart foi necessário só para
   a rota nova.
+
+## §17 — Curadoria do acervo no app Android (1.46.0+2083, 17/11)
+
+**Pedido (verbatim):** `Fechar a pendência da curadoria do acervo no app
+Android`
+
+### 1. O que mudou
+
+- **`app/lib/services/od_api.dart`** — `OdMusicaAcervo`, `OdParMusica` e
+  `OdCuradoria` (acervo + bloqueadas + exceções + decisões + `horas_decisao`)
+  e 6 métodos: `buscarCuradoria`, `excluirMusicaDoAcervo(caminho, bloquear:)`,
+  `bloquearMusica`, `desbloquearMusica`, `adicionarExcecao`, `removerExcecao`
+  — com as mensagens de dono (403), faixa que sumiu e item que já saiu da
+  lista.
+- **`app/lib/screens/curadoria_screen.dart` (nova)** — busca, selo por faixa
+  (`bloqueada` / `cantor bloqueado`), menu de ações com confirmação (e o
+  aviso de que **excluir não bloqueia**), listas de bloqueadas e exceções com
+  desfazer.
+- **Painel** — card "Curadoria do acervo" (só admin) com botão **Abrir**
+  (`Navigator.push`). Não virou nona aba: o rodapé já está cheio e curadoria
+  é coisa de dono.
+- **Bump MINOR 1.46.0+2083** nas 8 fontes do checklist (`docs/VERSIONAMENTO.md`
+  §5): `.env`, `core/capabilities.py`, `app/pubspec.yaml`,
+  `_APP_VERSION_CODE`, `site/index.html`, `site/historico.html` (78
+  lançamentos / Era 9 com 12 releases), `docs/CHANGELOG.md` e
+  `docs/README_VERSAO.md`.
+
+### 2. Validação
+
+- **App:** `app/test/curadoria_api_test.dart` (10) e
+  `app/test/curadoria_screen_test.dart` (10) novos; `flutter analyze`
+  **0 issues**; `flutter test` **257 passed / 2 skipped**.
+- **APK:** `aapt2` → `versionName 1.46.0`, `versionCode 2083`; completo
+  **72.406.606 B** sha256 `dec326b5…f9d0e`, arm64 **26.972.653 B** sha256
+  `9c22542c…27c1`. Os antigos foram para `backups/apk-v1.45.1-2082/`.
+- **Gate Python:** **5374 passed / 19 skipped / 0 falha** (224,5 s, exit 0).
+
+### 3. Achado no caminho (corrigido na causa)
+
+O primeiro gate desta entrega falhou em `test_llm` e `test_orchestrator` —
+nada a ver com o app: a suíte lia o **`data/llm_quota.json` real**. Com o
+Gemini esgotado no dia (20/20), o Orchestrator pulava o provider e o fallback
+esperado não acontecia. `tests/conftest.py` agora aponta `OD_QUOTA_FILE` para
+um temporário da rodada (mesma régua da guarda do `limitacoes.txt` de 01/10).
+O arquivo real ficou intacto (mtime conferido).
+
+### 4. O que não foi feito
+
+- Sem prova visual no aparelho (a máquina não tem navegador nem emulador); a
+  prova é o binário 1.46.0+2083 em `site/` + os 20 testes de app.
+- A curadoria continua só para o papel admin (decisão do servidor).

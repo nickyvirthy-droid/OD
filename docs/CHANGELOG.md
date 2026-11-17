@@ -12,6 +12,61 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.46.0] — CURADORIA DO ACERVO NO APP: EXCLUIR, BLOQUEAR E LIBERAR PELO CELULAR 🜂 (2026-11-17)
+
+**Bump MINOR** (capacidade nova compatível), versionCode **2083**.
+
+**Contexto:** os pedidos 2 e 3 do `txt.txt` (excluir músicas que o dono não
+gosta e manter músicas escolhidas de cantores bloqueados) estavam entregues no
+painel `/admin` e no `/radio-pro`, mas **não no app Android** — o dono tinha
+que abrir o navegador no celular para curar o acervo.
+
+### O que mudou
+
+1. **`app/lib/services/od_api.dart`** — modelos `OdMusicaAcervo`, `OdParMusica`
+   e `OdCuradoria` (o bloco que toda rota de curadoria devolve: acervo +
+   bloqueadas + exceções + decisões + `horas_decisao`) e os métodos
+   `buscarCuradoria`, `excluirMusicaDoAcervo(caminho, bloquear:)`,
+   `bloquearMusica`, `desbloquearMusica`, `adicionarExcecao` e
+   `removerExcecao`, com as mensagens de erro do dono (403, faixa que sumiu,
+   item que já saiu da lista).
+2. **`app/lib/screens/curadoria_screen.dart` (nova)** — busca por artista ou
+   música, selo por faixa (`bloqueada` / `cantor bloqueado`), menu de ações
+   (excluir, excluir e bloquear, bloquear, liberar exceção de cantor
+   bloqueado) com confirmação explicando que **excluir não bloqueia**, e as
+   listas de bloqueadas e exceções com desfazer.
+3. **Painel** — card "Curadoria do acervo" (só admin) com botão **Abrir**, que
+   empurra a tela. Não virou nona aba de propósito: o rodapé já está cheio e
+   curadoria é coisa de dono (mesma régua do app por papel no TODO).
+
+### Validação
+
+- **`app/test/curadoria_api_test.dart`** (10 testes): query `q`/`limite`,
+  campos por faixa, corpo de cada rota (POST/DELETE), 403 e mensagens de erro.
+- **`app/test/curadoria_screen_test.dart`** (10 testes): leitura da tela,
+  confirmação da exclusão (e que o padrão é **não** bloquear), excluir e
+  bloquear, bloquear, liberar exceção, desbloquear, tirar exceção, 403 e a
+  entrada pelo Painel (admin vê, conta comum não vê).
+- `flutter analyze` **0 issues**; `flutter test` **257 passed / 2 skipped**.
+- APK 1.46.0+2083 publicado em `site/` (completo e arm64).
+- **Gate Python:** **5374 passed / 19 skipped / 0 falha** (224,5 s, exit 0).
+
+### Defeito de isolamento corrigido no caminho
+
+O primeiro gate desta entrega falhou em **dois testes que não têm relação
+com o app** (`test_llm` e `test_orchestrator`), e a causa não era o código: a
+suíte lia o **`data/llm_quota.json` REAL** do dono. Com o Gemini esgotado no
+dia (20/20), o Orchestrator pulava o provider (`Provider sem cota —
+pulando`) e o fallback esperado nunca acontecia — o gate ficava vermelho ou
+verde dependendo de quantas mensagens o dono tinha mandado naquele dia.
+`tests/conftest.py` agora aponta `OD_QUOTA_FILE` (lido no import de
+`core.resilience`) para um arquivo temporário da própria rodada, na mesma
+linha da guarda do `limitacoes.txt` de 01/10: **pytest não depende nem suja o
+estado real do sistema**. Testes que controlam a cota continuam usando o
+próprio `OD_QUOTA_FILE` + tracker (ver `tests/test_llm_quota_health.py`).
+
+---
+
 ## Letra internacional com a tradução em lista paralela no `/radio-pro` (2026-11-17, sem bump)
 
 **Contexto:** pedido do dono no `txt.txt` — "letra de musica internacional

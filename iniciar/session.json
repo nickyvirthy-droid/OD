@@ -6138,5 +6138,15 @@
     "sem_bump": "1.45.1+2082 (página web + rota de servidor; contrato do app intacto).",
     "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§15)",
     "updated_at": "2026-11-17T20:30:00-03:00"
+  },
+  "curadoria_no_app_1_46_0_2026_11_17": {
+    "pedido": "Dono (17/11): 'Fechar a pendência da curadoria do acervo no app Android'.",
+    "app": "od_api.dart: OdMusicaAcervo, OdParMusica, OdCuradoria + buscarCuradoria/excluirMusicaDoAcervo(caminho,bloquear:)/bloquearMusica/desbloquearMusica/adicionarExcecao/removerExcecao. screens/curadoria_screen.dart nova (busca, selos, menu com confirmação, listas com desfazer). Card 'Curadoria do acervo' no Painel (admin) abrindo por Navigator.push — sem nona aba.",
+    "bump": "MINOR 1.46.0+2083 nas 8 fontes do docs/VERSIONAMENTO.md §5 (.env, capabilities, pubspec, _APP_VERSION_CODE, site/index.html, site/historico.html 78 lancamentos/Era 9 com 12, CHANGELOG [1.46.0], README_VERSAO [1.46.0]).",
+    "apk": "aapt2: versionName 1.46.0 / versionCode 2083. Completo 72.406.606 B sha256 dec326b5433e092da8a071d9268de0f0ceaf6e6ef889270a86f0c22fcb7f9d0e; arm64 26.972.653 B sha256 9c22542cad4fe890d817dfe11d0c9964b457371f6cc4b746e505b64308f827c1. Antigos (1.45.1+2082) em backups/apk-v1.45.1-2082/.",
+    "testes": "app/test/curadoria_api_test.dart (10) + app/test/curadoria_screen_test.dart (10); flutter analyze 0 issues; flutter test 257 passed / 2 skipped; gate Python 5374 passed / 19 skipped / 0 falha (224,5 s, exit 0).",
+    "achado_corrigido": "O primeiro gate falhou em test_llm e test_orchestrator por isolamento: a suite lia data/llm_quota.json REAL (gemini 20/20 no dia) e o Orchestrator pulava o provider. tests/conftest.py agora aponta OD_QUOTA_FILE para temporario da rodada; arquivo real intacto (mtime conferido).",
+    "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§17)",
+    "updated_at": "2026-11-17T21:20:00-03:00"
   }
 }

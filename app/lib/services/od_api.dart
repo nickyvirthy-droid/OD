@@ -1550,6 +1550,108 @@ class OdApi {
     );
   }
 
+  // ---------------------------------------------------------------------//
+  // Curadoria do acervo (pedido do dono, 17/11): excluir música que não     //
+  // gosta, impedir que ela volte e liberar músicas escolhidas de cantores //
+  // bloqueados. Só o dono (papel admin) — o servidor recusa 403.         //
+  // ---------------------------------------------------------------------//
+
+  /// Resposta comum das rotas de curadoria (todas devolvem as listas).
+  OdCuradoria _curadoriaDa(http.Response response) {
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) {
+      return OdCuradoria.fromJson(data!);
+    }
+    throw OdApiError(
+      response.statusCode == 403 || response.statusCode == 401
+          ? 'Só o dono pode curar o acervo da rádio.'
+          : switch (data?['motivo']) {
+              'musica_nao_encontrada' => 'Essa faixa não está mais no acervo.',
+              'banco_acervo_inexistente' =>
+                'O acervo não está acessível agora — tente de novo.',
+              _ => switch (data?['error']) {
+                  'nao_estava_na_lista' => 'Esse item não está mais na lista.',
+                  'artista_e_titulo_obrigatorios' =>
+                    'Preencha artista e título.',
+                  'caminho_obrigatorio' => 'Escolha a faixa do acervo.',
+                  final outro => 'Curadoria falhou '
+                      '(${outro ?? response.statusCode}).',
+                },
+            },
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// GET /api/radio/musicas?q= — acervo filtrado + as três listas.
+  Future<OdCuradoria> buscarCuradoria({String termo = '', int limite = 200}) async {
+    final params = <String, String>{'limite': '$limite'};
+    final busca = termo.trim();
+    if (busca.isNotEmpty) params['q'] = busca;
+    final response = await _send(
+      'GET',
+      Uri.parse('$baseUrl/api/radio/musicas').replace(queryParameters: params),
+    );
+    return _curadoriaDa(response);
+  }
+
+  /// POST /api/radio/musicas/excluir — apaga a faixa do acervo.
+  ///
+  /// `bloquear: true` também grava o par na lista negra (na tela: "Excluir e
+  /// bloquear"). Apagar SEM bloquear é a ordem do dono de 17/11 — a faixa
+  /// pode ser baixada de novo num pedido futuro.
+  Future<OdCuradoria> excluirMusicaDoAcervo(
+    String caminho, {
+    bool bloquear = false,
+  }) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/api/radio/musicas/excluir'),
+      body: jsonEncode({'caminho': caminho, 'bloquear': bloquear}),
+    );
+    return _curadoriaDa(response);
+  }
+
+  /// POST /api/radio/musicas/bloqueadas — a música não toca mais.
+  Future<OdCuradoria> bloquearMusica(String artista, String titulo) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/api/radio/musicas/bloqueadas'),
+      body: jsonEncode({'artista': artista, 'titulo': titulo}),
+    );
+    return _curadoriaDa(response);
+  }
+
+  /// DELETE /api/radio/musicas/bloqueadas — devolve a música à rádio.
+  Future<OdCuradoria> desbloquearMusica(String artista, String titulo) async {
+    final response = await _send(
+      'DELETE',
+      Uri.parse('$baseUrl/api/radio/musicas/bloqueadas'),
+      body: jsonEncode({'artista': artista, 'titulo': titulo}),
+    );
+    return _curadoriaDa(response);
+  }
+
+  /// POST /api/radio/musicas/excecoes — o cantor segue bloqueado, mas ESTA
+  /// música não é apagada depois de tocar.
+  Future<OdCuradoria> adicionarExcecao(String artista, String titulo) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/api/radio/musicas/excecoes'),
+      body: jsonEncode({'artista': artista, 'titulo': titulo}),
+    );
+    return _curadoriaDa(response);
+  }
+
+  /// DELETE /api/radio/musicas/excecoes — tira a exceção.
+  Future<OdCuradoria> removerExcecao(String artista, String titulo) async {
+    final response = await _send(
+      'DELETE',
+      Uri.parse('$baseUrl/api/radio/musicas/excecoes'),
+      body: jsonEncode({'artista': artista, 'titulo': titulo}),
+    );
+    return _curadoriaDa(response);
+  }
+
   /// SSE GET /admin/downloads/events — progresso AO VIVO (Parte D).
   ///
   /// O servidor abre com um evento `snapshot` (fila inteira) e depois
@@ -1851,6 +1953,100 @@ class OdDownload {
 /// `motivo` diz por que entrou: `cantor` (artista na lista de indesejados) ou
 /// `musica` (só aquela faixa bloqueada). `segundosRestantes` vem pronto do
 /// servidor; o app só formata — nada de relógio próprio divergindo do prazo.
+/// Faixa do acervo como a curadoria vê (GET /api/radio/musicas).
+///
+/// `bloqueada` = a MÚSICA está na lista negra; `artistaBloqueado` = o CANTOR
+/// está na lista de indesejados. É o que a tela mostra para o dono entender
+/// por que aquela faixa sairia do ar.
+class OdMusicaAcervo {
+  final String caminho;
+  final String artista;
+  final String titulo;
+  final bool bloqueada;
+  final bool artistaBloqueado;
+
+  OdMusicaAcervo({
+    required this.caminho,
+    required this.artista,
+    required this.titulo,
+    required this.bloqueada,
+    required this.artistaBloqueado,
+  });
+
+  factory OdMusicaAcervo.fromJson(Map<String, dynamic> json) => OdMusicaAcervo(
+        caminho: (json['caminho'] as String?) ?? '',
+        artista: (json['artista'] as String?) ?? '',
+        titulo: (json['titulo'] as String?) ?? '',
+        bloqueada: json['bloqueada'] == true,
+        artistaBloqueado: json['artista_bloqueado'] == true,
+      );
+
+  String get nome =>
+      artista.isEmpty ? titulo : '$artista — $titulo';
+
+  /// Selo curto do estado da faixa ("bloqueada", "cantor bloqueado" ou "").
+  String get selo => bloqueada
+      ? 'bloqueada'
+      : (artistaBloqueado ? 'cantor bloqueado' : '');
+}
+
+/// Par Artista/Título das listas de curadoria (bloqueadas e exceções).
+class OdParMusica {
+  final String artista;
+  final String titulo;
+
+  OdParMusica({required this.artista, required this.titulo});
+
+  factory OdParMusica.fromJson(Map<String, dynamic> json) => OdParMusica(
+        artista: (json['artista'] as String?) ?? '',
+        titulo: (json['titulo'] as String?) ?? '',
+      );
+
+  String get nome =>
+      artista.isEmpty ? titulo : '$artista — $titulo';
+}
+
+/// Resposta inteira da curadoria: o acervo da busca + as três listas.
+///
+/// Toda rota de curadoria devolve este mesmo bloco (o servidor repinta tudo
+/// numa chamada só), então a tela nunca fica com metade velha.
+class OdCuradoria {
+  final List<OdMusicaAcervo> musicas;
+  final List<OdParMusica> bloqueadas;
+  final List<OdParMusica> excecoes;
+  final List<OdDecisaoRadio> decisoes;
+  final int horasDecisao;
+
+  OdCuradoria({
+    required this.musicas,
+    required this.bloqueadas,
+    required this.excecoes,
+    required this.decisoes,
+    required this.horasDecisao,
+  });
+
+  factory OdCuradoria.fromJson(Map<String, dynamic> json) {
+    List<OdParMusica> pares(String campo) =>
+        ((json[campo] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(OdParMusica.fromJson)
+            .toList();
+    return OdCuradoria(
+      musicas: ((json['musicas'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(OdMusicaAcervo.fromJson)
+          .toList(),
+      bloqueadas: pares('bloqueadas'),
+      excecoes: pares('excecoes'),
+      decisoes: ((json['decisoes'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(OdDecisaoRadio.fromJson)
+          .toList(),
+      horasDecisao: (json['horas_decisao'] as num?)?.toInt() ?? 24,
+    );
+  }
+}
+
 class OdDecisaoRadio {
   final String artista;
   final String titulo;

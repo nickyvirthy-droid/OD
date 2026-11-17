@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/od_api.dart';
+import 'curadoria_screen.dart';
 
 /// Tela "Painel" — mesmas funcionalidades do /dashboard e /admin do site:
 ///
@@ -472,6 +473,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Text('Admin', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             _buildRadioDecisoesCard(),
+            const SizedBox(height: 16),
+            _buildCuradoriaCard(),
             const SizedBox(height: 16),
             _buildAdminCard(),
             const SizedBox(height: 16),
@@ -943,6 +946,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } on OdApiError catch (e) {
       _snack(e.message);
     }
+  }
+
+  // -- Rádio: curadoria do acervo (ordem do dono, 17/11) -----------------
+  //
+  // Mesma curadoria do painel /admin e do /radio-pro, agora no celular:
+  // excluir a música que ele não gosta, impedir que ela volte e liberar
+  // músicas escolhidas de cantores bloqueados. A tela é empurrada (não é
+  // nona aba): o rodapé já está cheio e isso é coisa de dono.
+  Widget _buildCuradoriaCard() => Card(
+        child: ListTile(
+          leading: const Icon(Icons.library_music_outlined),
+          title: const Text('Curadoria do acervo'),
+          subtitle: const Text(
+            'Excluir músicas que você não gosta, bloquear faixas e liberar '
+            'músicas de cantores bloqueados.',
+          ),
+          trailing: FilledButton.tonal(
+            onPressed: _abrirCuradoria,
+            child: const Text('Abrir'),
+          ),
+        ),
+      );
+
+  Future<void> _abrirCuradoria() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CuradoriaScreen(api: widget.api),
+      ),
+    );
+    // Decisões/exceções podem ter mudado enquanto a curadoria estava aberta.
+    if (mounted) await _refresh();
   }
 
   // -- Rádio: decisões pendentes (ordem do dono, 17/11) -------------------
