@@ -1492,6 +1492,64 @@ class OdApi {
     );
   }
 
+  // ---------------------------------------------------------------------//
+  // Rádio — decisões de 24 h (17/11)                                     //
+  // ---------------------------------------------------------------------//
+
+  /// GET /api/radio/musicas — só o campo `decisoes` importa aqui.
+  ///
+  /// Faixa de cantor bloqueado **ou** de música bloqueada que tocou para o
+  /// ouvinte e espera o dono: ele decide em 24 h e, sem decisão, o servidor
+  /// apaga. Conta comum recebe 403 — a tela só chama para admin.
+  Future<List<OdDecisaoRadio>> listRadioDecisoes() async {
+    final response =
+        await _send('GET', Uri.parse('$baseUrl/api/radio/musicas'));
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200) {
+      return ((data?['decisoes'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(OdDecisaoRadio.fromJson)
+          .toList();
+    }
+    throw OdApiError(
+      response.statusCode == 403 || response.statusCode == 401
+          ? 'Só o dono vê as decisões da rádio.'
+          : 'Decisões da rádio indisponíveis: '
+              '${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// POST /api/radio/musicas/decisao — permitir (fica no acervo e vira
+  /// exceção) ou apagar agora (sem esperar as 24 h).
+  Future<void> decidirRadio(
+    String artista,
+    String titulo, {
+    required bool permitir,
+  }) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/api/radio/musicas/decisao'),
+      body: jsonEncode({
+        'artista': artista,
+        'titulo': titulo,
+        'permitir': permitir,
+      }),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) return;
+    final motivo = data?['motivo'];
+    throw OdApiError(
+      switch (motivo) {
+        'nao_encontrado' => 'Essa faixa não está mais esperando decisão.',
+        'ja_decidida' => 'Essa faixa já foi decidida.',
+        _ => 'Não deu para decidir agora '
+            '(${data?['error'] ?? response.statusCode}).',
+      },
+      statusCode: response.statusCode,
+    );
+  }
+
   /// SSE GET /admin/downloads/events — progresso AO VIVO (Parte D).
   ///
   /// O servidor abre com um evento `snapshot` (fila inteira) e depois
@@ -1786,6 +1844,59 @@ class OdDownload {
       '${bytesTotal > 0 ? ' / ${formatarBytes(bytesTotal)}' : ''}';
 
   String get pctLabel => pct != null ? '${(pct! * 100).round()}%' : '';
+}
+
+/// Faixa esperando a decisão de 24 h do dono (GET /api/radio/musicas).
+///
+/// `motivo` diz por que entrou: `cantor` (artista na lista de indesejados) ou
+/// `musica` (só aquela faixa bloqueada). `segundosRestantes` vem pronto do
+/// servidor; o app só formata — nada de relógio próprio divergindo do prazo.
+class OdDecisaoRadio {
+  final String artista;
+  final String titulo;
+  final String caminho;
+  final String motivo;
+  final String usuario;
+  final int? segundosRestantes;
+
+  OdDecisaoRadio({
+    required this.artista,
+    required this.titulo,
+    required this.caminho,
+    required this.motivo,
+    required this.usuario,
+    required this.segundosRestantes,
+  });
+
+  factory OdDecisaoRadio.fromJson(Map<String, dynamic> json) => OdDecisaoRadio(
+        artista: (json['artista'] as String?) ?? '',
+        titulo: (json['titulo'] as String?) ?? '',
+        caminho: (json['caminho'] as String?) ?? '',
+        motivo: (json['motivo'] as String?) ?? 'cantor',
+        usuario: (json['usuario'] as String?) ?? '',
+        segundosRestantes: (json['segundos_restantes'] as num?)?.toInt(),
+      );
+
+  String get nome =>
+      artista.isEmpty ? titulo : '$artista — $titulo';
+
+  String get motivoLabel =>
+      motivo == 'musica' ? 'música bloqueada' : 'cantor bloqueado';
+
+  /// "apaga em 23h 12min", como o painel e a página mostram.
+  String get prazoLabel {
+    final seg = segundosRestantes;
+    if (seg == null) return 'sem prazo';
+    if (seg <= 0) return 'prazo vencido — sai na próxima limpeza';
+    final h = seg ~/ 3600;
+    final m = (seg % 3600) ~/ 60;
+    return 'apaga em ${h}h ${m}min';
+  }
+
+  String get detalhe {
+    final quem = usuario.isEmpty ? '' : ' · pedido de @$usuario';
+    return '$motivoLabel$quem · $prazoLabel';
+  }
 }
 
 /// Resumo da fila (GET /admin/downloads → campo `resumo`).

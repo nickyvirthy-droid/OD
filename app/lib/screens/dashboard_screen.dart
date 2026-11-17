@@ -37,6 +37,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _caixa = const [];
   String _ideias = '';
   List<Map<String, dynamic>> _limitacoes = const [];
+  List<OdDecisaoRadio> _decisoesRadio = const [];
+  String? _erroDecisoes;
   final TextEditingController _ideiasController = TextEditingController();
   final TextEditingController _respostaController = TextEditingController();
   String _cli = 'auto';
@@ -81,6 +83,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _isAdmin = (me['role'] as String?) == 'admin';
       });
       if (_isAdmin) {
+        // Rádio (17/11): faixas de cantor/música bloqueada esperando a
+        // decisão de 24 h. Best-effort — falha não derruba o painel.
+        try {
+          final decisoes = await widget.api.listRadioDecisoes();
+          if (!mounted) return;
+          setState(() {
+            _decisoesRadio = decisoes;
+            _erroDecisoes = null;
+          });
+        } catch (e) {
+          if (!mounted) return;
+          setState(() {
+            _decisoesRadio = const [];
+            _erroDecisoes = e is OdApiError
+                ? e.message
+                : 'Não consegui carregar as decisões da rádio.';
+          });
+        }
         // Best-effort: falha aqui não derruba o painel do usuário.
         try {
           final admin = await widget.api.getAdminUsers();
@@ -451,6 +471,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 16),
             Text('Admin', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
+            _buildRadioDecisoesCard(),
+            const SizedBox(height: 16),
             _buildAdminCard(),
             const SizedBox(height: 16),
             _buildIdeiasCard(),
@@ -920,6 +942,128 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await _refreshDev();
     } on OdApiError catch (e) {
       _snack(e.message);
+    }
+  }
+
+  // -- Rádio: decisões pendentes (ordem do dono, 17/11) -------------------
+  //
+  // O ouvinte pode gostar de um cantor que o dono não gosta (e o contrário:
+  // cantor liberado com UMA música bloqueada). A faixa toca uma vez e o dono
+  // decide em 24 h: permitir mantém no acervo (vira exceção) e, sem decisão,
+  // o servidor apaga. Mesma regra do painel /admin e do /radio-pro.
+  Widget _buildRadioDecisoesCard() {
+    final tema = Theme.of(context);
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.radio_outlined),
+            title: Text(
+              _decisoesRadio.isEmpty
+                  ? 'Decisões pendentes (24 h)'
+                  : 'Decisões pendentes (24 h) — ${_decisoesRadio.length}',
+            ),
+            subtitle: Text(
+              _erroDecisoes ??
+                  (_decisoesRadio.isEmpty
+                      ? 'Nenhuma faixa esperando decisão agora.'
+                      : 'Permitir mantém no acervo; sem decisão em 24 h, '
+                          'é apagada.')
+                      .trimRight(),
+            ),
+            trailing: IconButton(
+              tooltip: 'Atualizar decisões',
+              icon: const Icon(Icons.refresh),
+              onPressed: _refresh,
+            ),
+          ),
+          for (final d in _decisoesRadio)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(d.nome, style: tema.textTheme.bodyMedium),
+                  Text(
+                    d.detalhe,
+                    style: tema.textTheme.bodySmall?.copyWith(
+                      color: tema.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: () => _decidirRadio(d, true),
+                        icon: const Icon(Icons.check, size: 18),
+                        label: const Text('Permitir'),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _decidirRadio(d, false),
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: const Text('Apagar já'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _decidirRadio(OdDecisaoRadio item, bool permitir) async {
+    if (!permitir) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Apagar já?'),
+          content: Text(
+            '"${item.nome}" sai do disco, do banco e das playlists agora, '
+            'sem esperar as 24 h.\n\n'
+            'Pode ser baixada de novo num pedido futuro se você quiser.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Apagar'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    try {
+      await widget.api.decidirRadio(
+        item.artista,
+        item.titulo,
+        permitir: permitir,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(permitir
+              ? '✓ "${item.nome}" permitida — fica no acervo.'
+              : '✕ "${item.nome}" apagada.'),
+        ),
+      );
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e is OdApiError
+              ? e.message
+              : 'Falha ao decidir: tente de novo.'),
+        ),
+      );
     }
   }
 
