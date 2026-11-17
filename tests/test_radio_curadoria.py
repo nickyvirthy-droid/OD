@@ -137,14 +137,20 @@ class TestExcluirMusica:
             syncs.append(True)
             return True
 
+        # Ordem de 17/11: apagar NÃO bloqueia (pode ser baixada de novo).
         r = rc.excluir_musica_do_acervo(
             "acervo/Rock/Annita - Envolver.mp3", banco=banco,
             apagar=apagar, ressincronizar=sync)
         assert r["ok"] is True and r["artista"] == "Annita"
-        assert r["bloqueada"] is True and r["sync"] is True
+        assert r["bloqueada"] is False and r["sync"] is True
+        assert rc.musica_bloqueada("Annita", "Envolver") is False
         assert apagados == ["acervo/Rock/Annita - Envolver.mp3"]
         assert syncs == [True]
-        assert rc.musica_bloqueada("Annita", "Envolver") is True
+        # com bloquear=True explícito aí sim entra na lista
+        r = rc.excluir_musica_do_acervo(
+            "acervo/Rock/Annita - Envolver.mp3", banco=banco,
+            bloquear=True, apagar=apagar, ressincronizar=sync)
+        assert r["ok"] is False or rc.musica_bloqueada("Annita", "Envolver") is True
         conn = sqlite3.connect(str(banco))
         restantes = conn.execute("SELECT caminho FROM musicas").fetchall()
         conn.close()
@@ -363,12 +369,23 @@ class TestRotasDeCuradoria:
             api_key="chave-dono",
             body={"caminho": "acervo/Rock/Annita - Envolver.mp3"})
         assert status == 200, d
-        assert d["ok"] is True and d["bloqueada"] is True
-        assert d["bloqueadas"] == [{"artista": "Annita", "titulo": "Envolver"}]
+        # Ordem de 17/11: excluir não bloqueia — pode ser baixada de novo.
+        assert d["ok"] is True and d["bloqueada"] is False
+        assert d["bloqueadas"] == []
 
         status, d = _request(servidor.bound_port, "GET", "/api/radio/musicas",
                              api_key="chave-dono")
         assert [m["titulo"] for m in d["musicas"]] == ["Metamorfose"]
+
+        status, d = _request(
+            servidor.bound_port, "POST", "/api/radio/musicas/excluir",
+            api_key="chave-dono",
+            body={"caminho": "acervo/Rock/Raul - Metamorfose.mp3",
+                  "bloquear": True})
+        assert status == 200, d
+        assert d["bloqueada"] is True
+        assert d["bloqueadas"] == [{"artista": "Raul Seixas",
+                                   "titulo": "Metamorfose"}]
 
     def test_excluir_sem_caminho_400(self, servidor) -> None:
         status, d = _request(
@@ -390,13 +407,105 @@ class TestRotasDeCuradoria:
         assert status == 403
 
 
+class TestDecisoesDe24h:
+    """Ordem de 17/11: cantor/música bloqueada → aviso + 24 h para permitir."""
+
+    @pytest.fixture()
+    def pendente(self, tmp_path, monkeypatch):
+        registro = tmp_path / "radio_apagar_depois.json"
+        monkeypatch.setattr(rc, "REGISTRO", registro)
+        item = rc.registrar_para_apagar(
+            "Annita", "Envolver", "acervo/Rock/Annita - Envolver.mp3",
+            registro=registro, motivo="musica", usuario="fulano")
+        assert item and item["status"] == "aguardando"
+        return registro
+
+    def test_get_lista_decisoes_pendentes(self, servidor, pendente) -> None:
+        status, d = _request(servidor.bound_port, "GET",
+                             "/api/radio/musicas", api_key="chave-dono")
+        assert status == 200, d
+        assert d["horas_decisao"] == rc.HORAS_DECISAO
+        assert len(d["decisoes"]) == 1
+        decisao = d["decisoes"][0]
+        assert decisao["motivo"] == "musica"
+        assert decisao["usuario"] == "fulano"
+        assert decisao["segundos_restantes"] > 0
+
+    def test_permitir_mantem_no_acervo_e_cria_excecao(
+            self, servidor, pendente, listas) -> None:
+        status, d = _request(
+            servidor.bound_port, "POST", "/api/radio/musicas/decisao",
+            api_key="chave-dono",
+            body={"artista": "Annita", "titulo": "Envolver",
+                  "permitir": True})
+        assert status == 200, d
+        assert d["permitida"] is True and d["decisoes"] == []
+        assert d["excecoes"] == [{"artista": "Annita",
+                                  "titulo": "Envolver"}]
+
+    def test_negar_apaga_na_hora(self, servidor, pendente, listas) -> None:
+        status, d = _request(
+            servidor.bound_port, "POST", "/api/radio/musicas/decisao",
+            api_key="chave-dono",
+            body={"artista": "Annita", "titulo": "Envolver",
+                  "permitir": False})
+        assert status == 200, d
+        assert d["permitida"] is False and d["decisoes"] == []
+        assert d["excecoes"] == []
+
+    def test_decidir_duas_vezes_409(self, servidor, pendente) -> None:
+        corpo = {"artista": "Annita", "titulo": "Envolver",
+                 "permitir": True}
+        status, _ = _request(servidor.bound_port, "POST",
+                             "/api/radio/musicas/decisao",
+                             api_key="chave-dono", body=corpo)
+        assert status == 200
+        status, d = _request(servidor.bound_port, "POST",
+                             "/api/radio/musicas/decisao",
+                             api_key="chave-dono", body=corpo)
+        assert status == 409 and d["motivo"] == "ja_decidida"
+
+    def test_nao_pendente_404(self, servidor, pendente) -> None:
+        status, d = _request(
+            servidor.bound_port, "POST", "/api/radio/musicas/decisao",
+            api_key="chave-dono",
+            body={"artista": "Raul Seixas", "titulo": "Metamorfose",
+                  "permitir": True})
+        assert status == 404 and d["motivo"] == "nao_encontrado"
+
+    def test_sem_permitir_400(self, servidor, pendente) -> None:
+        status, d = _request(
+            servidor.bound_port, "POST", "/api/radio/musicas/decisao",
+            api_key="chave-dono",
+            body={"artista": "Annita", "titulo": "Envolver"})
+        assert status == 400 and d["error"] == "permitir_obrigatorio"
+
+    def test_sem_artista_ou_titulo_400(self, servidor, pendente) -> None:
+        status, d = _request(
+            servidor.bound_port, "POST", "/api/radio/musicas/decisao",
+            api_key="chave-dono", body={"permitir": True})
+        assert status == 400 and d["error"] == "artista_e_titulo_obrigatorios"
+
+    def test_conta_comum_403_e_sem_chave_401(self, servidor, pendente) -> None:
+        corpo = {"artista": "Annita", "titulo": "Envolver",
+                 "permitir": True}
+        status, _ = _request(servidor.bound_port, "POST",
+                             "/api/radio/musicas/decisao",
+                             api_key="chave-comum", body=corpo)
+        assert status == 403
+        status, _ = _request(servidor.bound_port, "POST",
+                             "/api/radio/musicas/decisao", body=corpo)
+        assert status == 401
+
+
 class TestPaginaERotas:
     def test_rotas_registradas_e_isentas(self) -> None:
         from integrations.api import server
 
         caminhos = {"/api/radio/musicas", "/api/radio/musicas/excluir",
                     "/api/radio/musicas/bloqueadas",
-                    "/api/radio/musicas/excecoes"}
+                    "/api/radio/musicas/excecoes",
+                    "/api/radio/musicas/decisao"}
         rotas = {r.path: r for r in server.ROUTES if r.path in caminhos}
         assert set(rotas) == caminhos
         # o gate é do handler (cookie do navegador), não do dispatch
@@ -414,12 +523,15 @@ class TestPaginaERotas:
         assert "/api/radio/musicas/excluir" in html
         assert "/api/radio/musicas/bloqueadas" in html
         assert "/api/radio/musicas/excecoes" in html
+        assert "/api/radio/musicas/decisao" in html
         assert 'id="curadoriaCard"' in html
+        assert 'id="crDecisoes"' in html
 
     def test_painel_tem_a_secao(self) -> None:
         from integrations.api import server
 
         html = server._ADMIN_PAGE_HTML
         for marca in ("mus-busca", "mus-lista", "blq-add", "exc-add",
+                      "dec-lista", "/api/radio/musicas/decisao",
                       "/api/radio/musicas"):
             assert marca in html, marca

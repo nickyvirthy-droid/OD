@@ -12,13 +12,15 @@ Desenho (mínimo e honesto):
 - A LISTA é um arquivo de texto simples, uma pessoa por linha, editável à
   mão ou pela API — ``data/cantores_indesejados.txt`` (linha com ``#`` é
   comentário). Vazia por padrão: o dono vai preenchendo.
-- A REGRA vale para o pedido do ouvinte: se o artista está na lista, a
-  música **toca normalmente** (o ouvinte pediu) e entra num registro
-  ``data/radio_apagar_depois.json``. Quando o AzuraCast informa que ela
-  tocou — ou passadas ``HORAS_LIMITE`` sem tocar (pedido que morreu) — o
-  arquivo sai do acervo, o banco e as playlists são refeitos e o AzuraCast
-  é sincronizado (mesmo caminho do pipeline; ``azuracast:media:sync``
-  remove o que não existe mais em disco).
+- A REGRA vale para o pedido do ouvinte: se o artista está na lista (ou a
+  MÚSICA está na lista de bloqueadas), a música **toca normalmente** (o
+  ouvinte pediu) e entra num registro ``data/radio_apagar_depois.json``.
+- **Janela de decisão (ordem de 17/11):** o dono é avisado na hora e tem
+  ``HORAS_DECISAO`` (24 h) para **permitir** a faixa — ela fica no acervo e
+  o par vai para ``data/cantores_excecoes.txt``. Sem decisão, passada a
+  janela, o arquivo sai do acervo, o banco e as playlists são refeitos e o
+  AzuraCast é sincronizado (mesmo caminho do pipeline;
+  ``azuracast:media:sync`` remove o que não existe mais em disco).
 - Nada é apagado sem passar por esse registro: quem apaga é
   ``limpar_tocados()``, chamado no webhook da rádio (a cada troca de
   faixa) — nunca no meio de um download.
@@ -52,6 +54,10 @@ REGISTRO = Path(os.environ.get("OD_CANTORES_REGISTRO",
                                str(RAIZ / "data" / "radio_apagar_depois.json")))
 #: Pedido que nunca tocou não fica pendurado para sempre.
 HORAS_LIMITE = int(os.environ.get("OD_CANTORES_HORAS_LIMITE", "48"))
+#: Janela de decisão do dono (ordem de 17/11): quando entra faixa de cantor
+#: bloqueado OU música bloqueada, ele é avisado e tem 24 h para permitir;
+#: sem decisão, a faixa é apagada automaticamente.
+HORAS_DECISAO = int(os.environ.get("OD_CANTORES_HORAS_DECISAO", "24"))
 MUSICA_PYTHON = Path(os.environ.get("OD_MUSICA_PYTHON",
                                     str(BASE_MUSICAS / "venv/bin/python")))
 
@@ -366,9 +372,18 @@ def _gravar_registro(itens: list[dict[str, Any]],
 
 def registrar_para_apagar(
     artista: str, titulo: str, caminho: str = "",
-    *, registro: Optional[Path] = None,
+    *, registro: Optional[Path] = None, motivo: str = "cantor",
+    usuario: str = "",
 ) -> Optional[dict[str, Any]]:
-    """Marca a faixa para sair do acervo depois de tocar (idempotente)."""
+    """Marca a faixa para a DECISÃO do dono (24 h) — idempotente.
+
+    Ordem de 17/11: faixa de cantor bloqueado ou música bloqueada toca uma
+    vez para quem pediu e o dono é avisado. Ele tem ``HORAS_DECISAO`` (24 h)
+    para permitir (`decidir(..., permitir=True)`); sem decisão, o webhook da
+    rádio apaga a faixa (`limpar_tocados`).
+
+    ``motivo`` é "cantor" ou "musica" (vai para o aviso e para o painel).
+    """
     if not normalizar(artista) and not normalizar(titulo):
         return None
     itens = _ler_registro(registro)
@@ -377,19 +392,117 @@ def registrar_para_apagar(
         if (normalizar(str(item.get("artista") or "")),
                 normalizar(str(item.get("titulo") or ""))) == chave:
             return item
+    agora = datetime.now(timezone.utc)
     item = {"artista": str(artista or ""), "titulo": str(titulo or ""),
-            "caminho": str(caminho or ""), "criado_em": _agora(),
+            "caminho": str(caminho or ""), "motivo": str(motivo or "cantor"),
+            "usuario": str(usuario or ""),
+            "criado_em": agora.isoformat(timespec="seconds"),
+            "decidir_ate": (agora + timedelta(hours=HORAS_DECISAO))
+            .isoformat(timespec="seconds"),
             "tocou_em": "", "status": "aguardando"}
     itens.append(item)
     _gravar_registro(itens, registro)
-    log.info("faixa marcada para apagar depois de tocar",
-             artista=artista, titulo=titulo)
+    log.info("faixa aguardando decisao do dono",
+             artista=artista, titulo=titulo, motivo=item["motivo"],
+             decidir_ate=item["decidir_ate"])
     return item
 
 
+def aviso_de_decisao(item: Optional[dict[str, Any]]) -> str:
+    """Texto do aviso ao dono (Telegram/painel) para uma faixa pendente."""
+    if not item:
+        return ""
+    artista = str(item.get("artista") or "")
+    titulo = str(item.get("titulo") or "")
+    nome = f"{artista} — {titulo}".strip(" —") or "faixa"
+    motivo = ("cantor bloqueado" if item.get("motivo") == "cantor"
+              else "música bloqueada")
+    quem = str(item.get("usuario") or "")
+    origem = f"@{quem} pediu " if quem else "Entrou "
+    return (f"⏳ Decisão necessária ({HORAS_DECISAO} h): {origem}\""
+            f"{nome}\" ({motivo}). Permita em /admin → Rádio — acervo e"
+            " cantores. Sem resposta, ela é apagada automaticamente.")
+
+
 def pendentes(*, registro: Optional[Path] = None) -> list[dict[str, Any]]:
-    return [i for i in _ler_registro(registro)
-            if str(i.get("status") or "") == "aguardando"]
+    """Itens aguardando decisão, com o prazo e o tempo restante."""
+    agora = datetime.now(timezone.utc)
+    saida: list[dict[str, Any]] = []
+    for item in _ler_registro(registro):
+        if str(item.get("status") or "") != "aguardando":
+            continue
+        restante = None
+        try:
+            prazo = datetime.fromisoformat(str(item.get("decidir_ate") or ""))
+            restante = max(0, int((prazo - agora).total_seconds()))
+        except ValueError:
+            prazo = None
+        saida.append({**item,
+                      "decidir_ate": (prazo.isoformat(timespec="seconds")
+                                      if prazo else ""),
+                      "segundos_restantes": restante})
+    return saida
+
+
+def decidir(
+    artista: str,
+    titulo: str,
+    *,
+    permitir: bool,
+    registro: Optional[Path] = None,
+    apagar: Optional[Callable[[str], bool]] = None,
+    ressincronizar: Optional[Callable[[], bool]] = None,
+    caminho_excecoes: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Decisão do dono sobre uma faixa pendente (ordem de 17/11).
+
+    ``permitir=True`` tira a faixa da fila de exclusão e grava o par em
+    ``data/cantores_excecoes.txt`` — ela fica no acervo e pedidos futuros não
+    a marcam de novo. ``permitir=False`` apaga na hora (disco + acervo.db +
+    sync) sem esperar as 24 h.
+
+    Devolve ``{"ok": bool, "motivo"?: str, "item": dict}``.
+    """
+    chave = (normalizar(artista), normalizar(titulo))
+    itens = _ler_registro(registro)
+    alvo: Optional[dict[str, Any]] = None
+    for item in itens:
+        if (normalizar(str(item.get("artista") or "")),
+                normalizar(str(item.get("titulo") or ""))) == chave:
+            alvo = item
+            break
+    if alvo is None:
+        return {"ok": False, "motivo": "nao_encontrado"}
+    if str(alvo.get("status") or "") != "aguardando":
+        return {"ok": False, "motivo": "ja_decidida", "item": alvo}
+    if permitir:
+        alvo["status"] = "permitida"
+        alvo["decidido_em"] = _agora()
+        _gravar_registro(itens, registro)
+        adicionar_excecao(str(alvo.get("artista") or ""),
+                          str(alvo.get("titulo") or ""),
+                          caminho=caminho_excecoes)
+        log.info("faixa PERMITIDA pelo dono",
+                 artista=alvo.get("artista"), titulo=alvo.get("titulo"))
+        return {"ok": True, "permitida": True, "item": alvo}
+    apagar_fn = apagar or _apagar_arquivo
+    try:
+        apagar_fn(str(alvo.get("caminho") or ""))
+    except Exception as exc:              # arquivo travado/não existe
+        log.warn("apagar faixa negada falhou", error=type(exc).__name__)
+    alvo["status"] = "apagada"
+    alvo["decidido_em"] = _agora()
+    _gravar_registro(itens, registro)
+    sincronizado = False
+    try:
+        sincronizado = bool((ressincronizar or _ressincronizar)())
+    except Exception as exc:
+        log.warn("sincronizacao apos negar falhou",
+                 error=type(exc).__name__)
+    log.info("faixa NEGADA pelo dono e apagada",
+             artista=alvo.get("artista"), titulo=alvo.get("titulo"))
+    return {"ok": True, "permitida": False, "item": alvo,
+            "sync": sincronizado}
 
 
 def historico_azuracast(limite: int = 50) -> list[dict[str, str]]:
@@ -451,12 +564,16 @@ def _apagar_arquivo(relativo: str) -> bool:
 def limpar_tocados(
     *,
     registro: Optional[Path] = None,
-    historico: Optional[Callable[[], list[dict[str, str]]]] = None,
     apagar: Optional[Callable[[str], bool]] = None,
     ressincronizar: Optional[Callable[[], bool]] = None,
     agora: Optional[datetime] = None,
 ) -> dict[str, Any]:
-    """Apaga as faixas marcadas que já tocaram (ou venceram o prazo).
+    """Apaga as faixas cuja JANELA DE DECISÃO venceu (ordem de 17/11).
+
+    Tocar não apaga mais nada: faixa de cantor/música bloqueada toca uma vez,
+    o dono é avisado e tem ``HORAS_DECISAO`` (24 h) para permitir. Sem
+    decisão, ela sai aqui — este é o relógio do prazo. Registro antigo, sem
+    ``decidir_ate``, usa o prazo legado ``HORAS_LIMITE``.
 
     Devolve ``{"apagadas": n, "restantes": n, "sync": bool}``. Nunca
     levanta: o webhook da rádio não pode cair por causa da limpeza.
@@ -464,31 +581,26 @@ def limpar_tocados(
     itens = _ler_registro(registro)
     if not itens:
         return {"apagadas": 0, "restantes": 0, "sync": False}
-    tocou = historico or historico_azuracast
     apagar = apagar or _apagar_arquivo
-    try:
-        tocadas = {(normalizar(i.get("artista", "")), normalizar(i.get("titulo", "")))
-                   for i in tocou()}
-    except Exception as exc:
-        log.warn("historico da radio indisponivel", error=type(exc).__name__)
-        tocadas = set()
     agora = agora or datetime.now(timezone.utc)
-    limite = agora - timedelta(hours=HORAS_LIMITE)
+    legado = agora - timedelta(hours=HORAS_LIMITE)
     apagadas = 0
     restantes: list[dict[str, Any]] = []
     mudou = False
     for item in itens:
-        chave = (normalizar(str(item.get("artista") or "")),
-                 normalizar(str(item.get("titulo") or "")))
         if str(item.get("status") or "") != "aguardando":
             continue
         venceu = False
         try:
-            venceu = datetime.fromisoformat(
-                str(item.get("criado_em"))) < limite
+            prazo = str(item.get("decidir_ate") or "")
+            if prazo:
+                venceu = datetime.fromisoformat(prazo) < agora
+            else:
+                venceu = datetime.fromisoformat(
+                    str(item.get("criado_em"))) < legado
         except ValueError:
             venceu = False
-        if chave not in tocadas and not venceu:
+        if not venceu:
             restantes.append(item)
             continue
         try:
@@ -519,13 +631,18 @@ def limpar_tocados(
 def excluir_musica_do_acervo(
     identificador: str,
     *,
-    bloquear: bool = True,
+    bloquear: bool = False,
     banco: Optional[Path] = None,
     caminho_bloqueadas: Optional[Path] = None,
     apagar: Optional[Callable[[str], bool]] = None,
     ressincronizar: Optional[Callable[[], bool]] = None,
 ) -> dict[str, Any]:
-    """Exclui uma música do acervo (disco + acervo.db) e opcionalmente bloqueia."""
+    """Exclui uma música do acervo (disco + acervo.db).
+
+    NÃO bloqueia por padrão (ordem de 17/11: "músicas apagadas podem voltar a
+    ser baixadas, posso apagar simplesmente por achar uma versão melhor");
+    só grava em ``musicas_bloqueadas`` com ``bloquear=True`` explícito.
+    """
     banco = Path(banco or (BASE_MUSICAS / "acervo.db"))
     if not banco.exists():
         return {"ok": False, "motivo": "banco_acervo_inexistente"}
@@ -588,6 +705,7 @@ def linhas_do_arquivo(*, caminho: Optional[Path] = None) -> str:
 
 __all__ = [
     "LISTA", "LISTA_EXCECOES", "LISTA_BLOQUEADAS", "REGISTRO", "HORAS_LIMITE",
+    "HORAS_DECISAO", "decidir", "aviso_de_decisao",
     "normalizar", "listar", "adicionar", "remover", "indesejado",
     "eh_excecao", "listar_excecoes", "adicionar_excecao", "remover_excecao", "linhas_excecoes",
     "musica_bloqueada", "listar_musicas_bloqueadas", "adicionar_musica_bloqueada",

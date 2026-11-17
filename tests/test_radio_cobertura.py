@@ -148,11 +148,21 @@ def _criar_link(bancos: dict[str, Path], usuario: str = "ana",
 
 def _item_registro(artista: str = "Annita", titulo: str = "X",
                    caminho: str = "", status: str = "aguardando",
-                   criado_em: str | None = None) -> dict:
-    return {"artista": artista, "titulo": titulo, "caminho": caminho,
+                   criado_em: str | None = None,
+                   decidir_ate: str | None = None) -> dict:
+    item = {"artista": artista, "titulo": titulo, "caminho": caminho,
             "criado_em": criado_em or datetime.now(timezone.utc)
             .isoformat(timespec="seconds"),
             "tocou_em": "", "status": status}
+    if decidir_ate is not None:
+        item["decidir_ate"] = decidir_ate
+    return item
+
+
+def _vencido() -> str:
+    """Prazo de decisão já estourado (a faixa sai na próxima limpeza)."""
+    return (datetime.now(timezone.utc) - timedelta(hours=1)) \
+        .isoformat(timespec="seconds")
 
 
 def _registro_de(tmp_path: Path, *itens: dict) -> Path:
@@ -692,6 +702,29 @@ class TestLancarFilaComListaQuebrada:
             pedido, enviar=lambda _a, _t: {"ok": True},
             banco=bancos["pedidos"])
         assert r["fila"] == "azuracast" and r["status"] == "na_fila"
+
+    def test_musica_bloqueada_marca_e_avisa_o_dono(
+            self, bancos, tmp_path: Path,
+            monkeypatch: pytest.MonkeyPatch) -> None:
+        """Cantor permitido com UMA música bloqueada (ordem de 17/11)."""
+        lista = tmp_path / "bloqueadas.txt"
+        lista.write_text("Fernandinho | Todas as Coisas\n", encoding="utf-8")
+        monkeypatch.setattr(rc, "LISTA_BLOQUEADAS", lista)
+        monkeypatch.setattr(rc, "LISTA", tmp_path / "vazia.txt")
+        monkeypatch.setattr(rc, "REGISTRO", tmp_path / "apagar.json")
+        avisos: list[str] = []
+        monkeypatch.setattr(rl, "notificar_dono", avisos.append)
+        pedido = rp.criar_pedido("fulano", CAMINHO, "x",
+                                 banco=bancos["pedidos"],
+                                 banco_acervo=bancos["acervo"])
+        assert pedido and pedido["status"] == "pendente"
+        r = rp.lancar_pedido_na_fila(
+            pedido, enviar=lambda _a, _t: {"ok": True},
+            banco=bancos["pedidos"])
+        assert r["fila"] == "azuracast" and r["status"] == "na_fila"
+        pend = rc.pendentes()
+        assert len(pend) == 1 and pend[0]["motivo"] == "musica"
+        assert avisos and "Decisão necessária" in avisos[0]
 
 
 # ---------------------------------------------------------------------------
@@ -1391,18 +1424,17 @@ class TestLimparTocadosComplementar:
         def nao_deve(*_a, **_k):
             raise AssertionError("não deveria consultar a rádio")
 
-        r = rc.limpar_tocados(registro=reg, historico=nao_deve,
+        r = rc.limpar_tocados(registro=reg,
                               ressincronizar=nao_deve, apagar=nao_deve)
         assert r == {"apagadas": 0, "restantes": 0, "sync": False}
 
-    def test_historico_indisponivel_nao_trava_a_limpeza(
+    def test_aguardando_nao_e_apagado_antes_das_24h(
             self, tmp_path: Path) -> None:
-        reg = _registro_de(tmp_path, _item_registro())
-        r = rc.limpar_tocados(
-            registro=reg,
-            historico=lambda: (_ for _ in ()).throw(
-                RuntimeError("history 500")),
-            ressincronizar=lambda: True, apagar=lambda _c: True)
+        reg = _registro_de(tmp_path, _item_registro(
+            decidir_ate=(datetime.now(timezone.utc) + timedelta(hours=20))
+            .isoformat(timespec="seconds")))
+        r = rc.limpar_tocados(registro=reg,
+                              ressincronizar=lambda: True, apagar=lambda _c: True)
         assert (r["apagadas"], r["restantes"]) == (0, 1)
 
     def test_item_ja_apagado_nao_conta_de_novo(self, tmp_path: Path) -> None:
@@ -1413,8 +1445,6 @@ class TestLimparTocadosComplementar:
             raise AssertionError("nada a sincronizar")
 
         r = rc.limpar_tocados(registro=reg,
-                              historico=lambda: [{"artista": "Annita",
-                                                  "titulo": "X"}],
                               ressincronizar=nao_deve,
                               apagar=nao_deve)
         assert r == {"apagadas": 0, "restantes": 0, "sync": False}
@@ -1423,35 +1453,34 @@ class TestLimparTocadosComplementar:
             self, tmp_path: Path) -> None:
         reg = _registro_de(tmp_path,
                            _item_registro(criado_em="ontem-qualquer"))
-        r = rc.limpar_tocados(registro=reg, historico=lambda: [],
+        r = rc.limpar_tocados(registro=reg,
                               ressincronizar=lambda: True,
                               apagar=lambda _c: True)
         assert (r["apagadas"], r["restantes"]) == (0, 1)
 
     def test_erro_ao_apagar_o_arquivo_nao_para_a_fila(
             self, tmp_path: Path) -> None:
-        reg = _registro_de(tmp_path, _item_registro(caminho="x.mp3"))
+        reg = _registro_de(tmp_path, _item_registro(caminho="x.mp3",
+                                                   decidir_ate=_vencido()))
 
         def trava(_caminho):
             raise PermissionError("arquivo travado")
 
         r = rc.limpar_tocados(
             registro=reg,
-            historico=lambda: [{"artista": "Annita", "titulo": "X"}],
             ressincronizar=lambda: True, apagar=trava)
         assert (r["apagadas"], r["restantes"], r["sync"]) == (1, 0, True)
         assert rc.pendentes(registro=reg) == []
 
     def test_erro_na_sincronizacao_devolve_sync_falso(
             self, tmp_path: Path) -> None:
-        reg = _registro_de(tmp_path, _item_registro())
+        reg = _registro_de(tmp_path, _item_registro(decidir_ate=_vencido()))
 
         def quebra():
             raise RuntimeError("sync do acervo morreu")
 
         r = rc.limpar_tocados(
             registro=reg,
-            historico=lambda: [{"artista": "Annita", "titulo": "X"}],
             ressincronizar=quebra, apagar=lambda _c: True)
         assert r["apagadas"] == 1 and r["sync"] is False
 

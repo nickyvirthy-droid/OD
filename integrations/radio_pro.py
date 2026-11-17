@@ -1120,17 +1120,27 @@ def lancar_pedido_na_fila(
         if marcar_status(int(pedido.get("id") or 0), "na_fila",
                          banco=banco):
             pedido = dict(pedido, status="na_fila")
-        # Cantores indesejados (ordem do dono, 05/11): se o artista está
-        # na lista, a música TOCA para quem pediu e é marcada para sair do
-        # acervo depois — quem apaga é o webhook da rádio (limpar_tocados).
+        # Cantor indesejado ou música bloqueada (ordens de 05/11 e 17/11):
+        # a música TOCA para quem pediu e entra na janela de decisão — o dono
+        # é avisado e tem 24 h para permitir; sem decisão, o webhook da rádio
+        # apaga (limpar_tocados).
         try:
             from integrations import radio_cantores
-            if radio_cantores.indesejado(str(pedido.get("artista") or "")):
-                radio_cantores.registrar_para_apagar(
+            cantor = radio_cantores.indesejado(
+                str(pedido.get("artista") or ""))
+            musica = radio_cantores.musica_bloqueada(
+                str(pedido.get("artista") or ""),
+                str(pedido.get("titulo") or ""))
+            if cantor or musica:
+                item = radio_cantores.registrar_para_apagar(
                     str(pedido.get("artista") or ""),
                     str(pedido.get("titulo") or ""),
                     str(pedido.get("caminho") or ""),
+                    motivo="musica" if musica else "cantor",
+                    usuario=str(pedido.get("usuario") or ""),
                 )
+                from integrations.radio_link import notificar_dono
+                notificar_dono(radio_cantores.aviso_de_decisao(item))
         except Exception as exc:          # lista é regra, não portão
             log.warn("registro de cantor indesejado falhou",
                      error=type(exc).__name__)

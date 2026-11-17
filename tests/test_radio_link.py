@@ -611,11 +611,22 @@ class TestHandlerEPagina:
         assert "musica_repetida" in pagina
 
 
+
 class TestMusicaBloqueadaNoLink:
-    """Bloqueio por música (ordem do dono, 17/11): a faixa que está em
-    data/musicas_bloqueadas.txt **nem é baixada** — nem a do pedido, nem o
-    resto da lista. Quando o link esconde o nome, o acervo é conferido
-    depois do download e a faixa sai na hora."""
+    """Música bloqueada em rádio que aceita pedidos (ordem do dono, 17/11).
+
+    Regra: o ÚNICO bloqueio de download é o limite de tamanho/tempo do
+    pipeline. Pedido AVULSO de faixa bloqueada baixa, é analisado e entra na
+    fila — toca UMA vez para quem pediu e sai, igual ao cantor indesejado.
+    Em LISTA, a lista é analisada e as bloqueadas nem são baixadas."""
+
+    @staticmethod
+    def _sem_cantores_indesejados(tmp_path: Path) -> Path:
+        """Lista de cantores VAZIA: o teste é sobre música bloqueada, não
+        sobre o arquivo real do dono (que tem Annita)."""
+        caminho = tmp_path / "cantores_indesejados.txt"
+        caminho.write_text("", encoding="utf-8")
+        return caminho
 
     def _bloqueadas(self, tmp_path: Path, *pares: tuple[str, str]) -> Path:
         caminho = tmp_path / "musicas_bloqueadas.txt"
@@ -633,65 +644,75 @@ class TestMusicaBloqueadaNoLink:
             return 0
         return rodar
 
-    def test_bloqueada_nem_baixa(self, bancos, tmp_path) -> None:
-        lista = self._bloqueadas(tmp_path, ("Annita", "Envolver"))
+    @staticmethod
+    def _na_fila(bancos):
+        return lambda ped: rp.marcar_status(
+            int(ped["id"]), "na_fila", banco=bancos["pedidos"])
+
+    def _processar_avulso(self, bancos, tmp_path, *, titulo, artistas,
+                          artista_acervo="Annita", titulo_acervo="Envolver",
+                          bloqueadas=(("Annita", "Envolver"),)):
+        lista = self._bloqueadas(tmp_path, *bloqueadas)
+        registro = tmp_path / "radio_apagar_depois.json"
+        cantores = self._sem_cantores_indesejados(tmp_path)
         p = _criar(bancos)
         chamadas: list[list[str]] = []
         avisos: list[str] = []
         r = rl.processar_pedido(
             p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
-            extrair=lambda _l: [{"url": VIDEO, "title": "Annita - Envolver",
-                                 "artistas": ["Annita"]}],
-            rodar=self._rodar(bancos["acervo"], "Annita", "Envolver",
-                              chamadas),
-            lancar=lambda ped: ped, notificar=avisos.append,
+            extrair=lambda _l: [{"url": VIDEO, "title": titulo,
+                                 "artistas": artistas}],
+            rodar=self._rodar(bancos["acervo"], artista_acervo,
+                              titulo_acervo, chamadas),
+            lancar=self._na_fila(bancos), notificar=avisos.append,
             trava=contextlib.nullcontext, musicas_bloqueadas=lista,
+            cantores_registro=registro, cantores_lista=cantores,
         )
-        assert chamadas == [], "bloqueada não gasta download"
-        assert r["ok"] is False and r["motivo"] == "musica_bloqueada"
-        guardado = rp.pedido_por_id(p["id"], banco=bancos["pedidos"])
-        assert guardado["status"] == "rejeitada"
-        assert guardado["motivo"] == "musica_bloqueada"
-        assert any("musica_bloqueada" in a for a in avisos)
+        return p, r, chamadas, avisos, registro
 
-    def test_titulo_com_sufixo_e_pego(self, bancos, tmp_path) -> None:
-        lista = self._bloqueadas(tmp_path, ("Annita", "Envolver"))
-        p = _criar(bancos)
-        chamadas: list[list[str]] = []
-        r = rl.processar_pedido(
-            p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
-            extrair=lambda _l: [{
-                "url": VIDEO,
-                "title": "Annita - Envolver (Clipe Oficial)",
-                "artistas": ["Annita - Topic"]}],
-            rodar=self._rodar(bancos["acervo"], "Annita", "Envolver",
-                              chamadas),
-            lancar=lambda ped: ped, notificar=lambda _t: None,
-            trava=contextlib.nullcontext, musicas_bloqueadas=lista,
-        )
-        assert chamadas == []
-        assert r["motivo"] == "musica_bloqueada"
+    def test_avulsa_bloqueada_baixa_e_toca_uma_vez(self, bancos,
+                                                   tmp_path) -> None:
+        p, r, chamadas, avisos, registro = self._processar_avulso(
+            bancos, tmp_path, titulo="Annita - Envolver",
+            artistas=["Annita"])
+        assert chamadas == [[VIDEO]], "pedido avulso NÃO é recusado"
+        assert r["ok"] is True and r["fila"] is True
+        assert rp.pedido_por_id(p["id"], banco=bancos["pedidos"])["status"] \
+            == "na_fila"
+        pendentes = rc.pendentes(registro=registro)
+        assert len(pendentes) == 1, "abre a janela de decisão de 24 h"
+        assert pendentes[0]["artista"] == "Annita"
+        assert pendentes[0]["titulo"] == "Envolver"
+        assert pendentes[0]["motivo"] == "musica"
+        assert pendentes[0]["decidir_ate"]
+        assert any("Decisão necessária" in a and "música bloqueada" in a
+                   for a in avisos), avisos
+        assert pendentes[0]["caminho"].endswith("Annita - Envolver.mp3")
+        assert any("na fila da rádio" in a for a in avisos)
 
-    def test_outra_musica_do_mesmo_artista_passa(self, bancos, tmp_path) -> None:
-        lista = self._bloqueadas(tmp_path, ("Annita", "Envolver"))
-        p = _criar(bancos)
-        chamadas: list[list[str]] = []
-        r = rl.processar_pedido(
-            p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
-            extrair=lambda _l: [{"url": VIDEO, "title": "Annita - Outra",
-                                 "artistas": ["Annita"]}],
-            rodar=self._rodar(bancos["acervo"], "Annita", "Outra", chamadas),
-            lancar=lambda ped: rp.marcar_status(
-                int(ped["id"]), "na_fila", banco=bancos["pedidos"]),
-            notificar=lambda _t: None, trava=contextlib.nullcontext,
-            musicas_bloqueadas=lista,
-        )
-        assert chamadas == [[VIDEO]], "só a música da lista é barrada"
+    def test_avulsa_titulo_com_sufixo_tambem_marca(self, bancos,
+                                                   tmp_path) -> None:
+        _p, r, chamadas, _avisos, registro = self._processar_avulso(
+            bancos, tmp_path,
+            titulo="Annita - Envolver (Clipe Oficial)", artistas=["Annita"])
+        assert chamadas == [[VIDEO]]
         assert r["fila"] is True
+        assert [x["titulo"] for x in rc.pendentes(registro=registro)] == \
+            ["Envolver"]
+
+    def test_outra_musica_do_mesmo_artista_nao_marca(self, bancos,
+                                                     tmp_path) -> None:
+        _p, r, chamadas, _avisos, registro = self._processar_avulso(
+            bancos, tmp_path, titulo="Annita - Outra", artistas=["Annita"],
+            titulo_acervo="Outra")
+        assert chamadas == [[VIDEO]] and r["fila"] is True
+        assert rc.pendentes(registro=registro) == []
 
     def test_lista_pula_a_bloqueada_e_baixa_a_permitida(
             self, bancos, tmp_path) -> None:
         lista = self._bloqueadas(tmp_path, ("Annita", "Faixa 0"))
+        registro = tmp_path / "apagar.json"
+        cantores = self._sem_cantores_indesejados(tmp_path)
         p = _criar(bancos, link=LISTA)
         bloqueada = "https://youtu.be/aaaaaaaaaaa"
         permitida = "https://youtu.be/bbbbbbbbbbb"
@@ -711,17 +732,42 @@ class TestMusicaBloqueadaNoLink:
         r = rl.processar_pedido(
             p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
             extrair=lambda _l: entradas, rodar=rodar,
-            lancar=lambda ped: rp.marcar_status(
-                int(ped["id"]), "na_fila", banco=bancos["pedidos"]),
-            notificar=avisos.append, trava=contextlib.nullcontext,
-            musicas_bloqueadas=lista,
+            lancar=self._na_fila(bancos), notificar=avisos.append,
+            trava=contextlib.nullcontext, musicas_bloqueadas=lista,
+            cantores_registro=registro, cantores_lista=cantores,
         )
-        assert chamadas == [[permitida]]
+        assert chamadas == [[permitida]], "lista: só a faixa permitida baixa"
         assert r["fila"] is True
         assert any("bloqueadas" in a for a in avisos)
 
+    def test_lista_toda_bloqueada_e_recusada(self, bancos, tmp_path) -> None:
+        lista = self._bloqueadas(tmp_path, ("Annita", "Envolver"))
+        cantores = self._sem_cantores_indesejados(tmp_path)
+        p = _criar(bancos, link=LISTA)
+        entradas = [
+            {"url": VIDEO, "title": "Annita - Envolver", "artistas": ["Annita"]},
+            {"url": "https://youtu.be/aaaaaaaaaaa",
+             "title": "Annita - Envolver (Ao Vivo)", "artistas": ["Annita"]},
+        ]
+        chamadas: list[list[str]] = []
+        r = rl.processar_pedido(
+            p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
+            extrair=lambda _l: entradas,
+            rodar=self._rodar(bancos["acervo"], "Annita", "Envolver",
+                              chamadas),
+            lancar=self._na_fila(bancos), notificar=lambda _t: None,
+            trava=contextlib.nullcontext, musicas_bloqueadas=lista,
+            cantores_lista=cantores,
+        )
+        assert chamadas == []
+        assert r["ok"] is False and r["motivo"] == "musica_bloqueada"
+        assert rp.pedido_por_id(p["id"], banco=bancos["pedidos"])["status"] \
+            == "rejeitada"
+
     def test_resto_bloqueado_nao_baixa(self, bancos, tmp_path) -> None:
         lista = self._bloqueadas(tmp_path, ("Annita", "Faixa 2"))
+        registro = tmp_path / "apagar.json"
+        cantores = self._sem_cantores_indesejados(tmp_path)
         p = _criar(bancos, link=LISTA)
         urls = [VIDEO, "https://youtu.be/aaaaaaaaaaa",
                 "https://youtu.be/bbbbbbbbbbb"]
@@ -744,46 +790,34 @@ class TestMusicaBloqueadaNoLink:
         rl.processar_pedido(
             p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
             extrair=lambda _l: entradas, rodar=rodar,
-            lancar=lambda ped: rp.marcar_status(
-                int(ped["id"]), "na_fila", banco=bancos["pedidos"]),
-            notificar=lambda _t: None, trava=contextlib.nullcontext,
-            musicas_bloqueadas=lista,
+            lancar=self._na_fila(bancos), notificar=lambda _t: None,
+            trava=contextlib.nullcontext, musicas_bloqueadas=lista,
+            cantores_registro=registro, cantores_lista=cantores,
         )
         assert chamadas == [[VIDEO], [urls[1]]]
         assert urls[2] not in [u for bloco in chamadas for u in bloco]
 
-    def test_link_que_esconde_o_nome_e_pego_pos_download(
-            self, bancos, tmp_path, monkeypatch) -> None:
-        """Título "Clipe oficial": só o acervo revela o nome — e a faixa que
-        acabou de entrar sai na hora."""
-        lista = self._bloqueadas(tmp_path, ("Annita", "Envolver"))
-        apagados: list[str] = []
-        sincronizados: list[bool] = []
-        monkeypatch.setattr(rc, "_apagar_arquivo",
-                            lambda rel: apagados.append(rel) or True)
-        monkeypatch.setattr(rc, "_ressincronizar",
-                            lambda: sincronizados.append(True) or True)
-        p = _criar(bancos)
-        avisos: list[str] = []
-        r = rl.processar_pedido(
-            p["id"], banco=bancos["pedidos"], banco_acervo=bancos["acervo"],
-            extrair=lambda _l: [{"url": VIDEO, "title": "Clipe oficial",
-                                 "artistas": ["Canal do fã"]}],
-            rodar=self._rodar(bancos["acervo"], "Annita", "Envolver"),
-            lancar=lambda ped: ped, notificar=avisos.append,
-            trava=contextlib.nullcontext, musicas_bloqueadas=lista,
-        )
-        assert r["ok"] is False and r["motivo"] == "musica_bloqueada"
-        assert apagados and apagados[0].endswith("Annita - Envolver.mp3")
+    def test_link_que_esconde_o_nome_marca_pos_download(
+            self, bancos, tmp_path) -> None:
+        """Título "Clipe oficial": o acervo revela o nome e a faixa nasce
+        marcada — baixou (não é recusa), mas toca uma vez e sai."""
+        p, r, chamadas, _avisos, registro = self._processar_avulso(
+            bancos, tmp_path, titulo="Clipe oficial",
+            artistas=["Canal do fã"])
+        assert chamadas == [[VIDEO]]
+        assert r["ok"] is True and r["fila"] is True
+        pendentes = rc.pendentes(registro=registro)
+        assert len(pendentes) == 1
+        assert pendentes[0]["titulo"] == "Envolver"
         conn = sqlite3.connect(str(bancos["acervo"]))
         restantes = conn.execute("SELECT caminho FROM musicas").fetchall()
         conn.close()
-        assert restantes == [], "a faixa bloqueada não fica no acervo"
-        assert rp.pedido_por_id(p["id"], banco=bancos["pedidos"])["status"] \
-            == "rejeitada"
+        assert restantes, "a faixa fica no acervo até tocar"
 
     def test_lista_ausente_nao_barra_nada(self, bancos, tmp_path) -> None:
         lista = tmp_path / "nao_existe.txt"
+        registro = tmp_path / "apagar.json"
+        cantores = self._sem_cantores_indesejados(tmp_path)
         p = _criar(bancos)
         chamadas: list[list[str]] = []
         r = rl.processar_pedido(
@@ -792,9 +826,9 @@ class TestMusicaBloqueadaNoLink:
                                  "artistas": ["Fulano"]}],
             rodar=self._rodar(bancos["acervo"], "Fulano", "Musica",
                               chamadas),
-            lancar=lambda ped: rp.marcar_status(
-                int(ped["id"]), "na_fila", banco=bancos["pedidos"]),
-            notificar=lambda _t: None, trava=contextlib.nullcontext,
-            musicas_bloqueadas=lista,
+            lancar=self._na_fila(bancos), notificar=lambda _t: None,
+            trava=contextlib.nullcontext, musicas_bloqueadas=lista,
+            cantores_registro=registro, cantores_lista=cantores,
         )
         assert chamadas == [[VIDEO]] and r["fila"] is True
+        assert rc.pendentes(registro=registro) == []

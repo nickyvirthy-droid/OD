@@ -157,7 +157,7 @@ class TestAPIRoutes:
         Task Queue R1 (create/list/events/detail/retry/delete, 13/11) +
         curadoria do acervo da rádio (excluir música, bloqueadas e
         exceções de cantores, 17/11)."""
-        assert len(ROUTES) == 136
+        assert len(ROUTES) == 137
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -189,6 +189,7 @@ class TestAPIRoutes:
             ("DELETE", "/api/radio/musicas/bloqueadas"),
             ("POST", "/api/radio/musicas/excecoes"),
             ("DELETE", "/api/radio/musicas/excecoes"),
+            ("POST", "/api/radio/musicas/decisao"),
             # Páginas internas do dono (2026-10-10): saíram de /site/ (onde
             # qualquer um as alcançava pelo Funnel) para site_admin/. A rota
             # é pública porque a navegação é de navegador; o gate real é o
@@ -421,6 +422,7 @@ class TestAPIRoutes:
             ("DELETE", "/api/radio/musicas/bloqueadas"),
             ("POST", "/api/radio/musicas/excecoes"),
             ("DELETE", "/api/radio/musicas/excecoes"),
+            ("POST", "/api/radio/musicas/decisao"),
             ("GET", "/registry"),  # lista pública da loja (Etapa 4)
             ("GET", "/registry/collections"),  # ciclos NV (16/10)
             ("GET", "/registry/{codigo}"),

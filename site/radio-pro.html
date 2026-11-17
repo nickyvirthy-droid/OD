@@ -90,9 +90,20 @@
       <h2 style="margin-top:8px;">Curadoria do acervo</h2>
       <p style="color:var(--muted);font-size:.9rem;margin-top:6px;">
         Excluir uma música do servidor inteiro (disco, banco e playlists —
-        ela fica bloqueada e não volta em pedido) e liberar uma música
+        apagar NÃO bloqueia: ela pode voltar num pedido futuro, útil quando
+        você só quer baixar uma versão melhor) e liberar uma música
         específica de um cantor da lista de indesejados.
       </p>
+
+      <div id="crDecisoesBloco" style="margin-top:18px;">
+        <h3 style="font-size:.95rem;">Decisões pendentes (24 h)</h3>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:4px;">
+          Faixa de cantor ou música bloqueada que tocou para o ouvinte:
+          <b>permitir</b> mantém no acervo; sem decisão em 24 h ela é
+          apagada automaticamente.
+        </p>
+        <div id="crDecisoes" style="margin-top:8px;font-size:.88rem;">—</div>
+      </div>
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
         <input id="crBusca" type="search" placeholder="Buscar no acervo por artista ou música"
@@ -346,7 +357,7 @@
         nome.textContent += "  ⛔ bloqueada";
         nome.style.color = "#e74c3c";
       } else if (m.artista_bloqueado) {
-        nome.textContent += "  ⏳ cantor bloqueado (toca 1× e apaga)";
+        nome.textContent += "  ⏳ cantor bloqueado (toca 1× e espera sua decisão)";
         nome.style.color = "#e0a526";
       }
       var b = document.createElement("button");
@@ -362,6 +373,84 @@
       "/api/radio/musicas/bloqueadas");
     crPilulas("crExcecoes", d && d.excecoes, "Tirar a exceção",
       "/api/radio/musicas/excecoes");
+    crDecisoesPinta(d && d.decisoes);
+  }
+
+  function crRestante(seg) {
+    if (seg === null || seg === undefined) return "sem prazo";
+    if (seg <= 0) return "vencida";
+    var h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60);
+    return h + "h " + m + "min";
+  }
+
+  function crDecisoesPinta(itens) {
+    var alvo = $("crDecisoes");
+    if (!alvo) return;
+    alvo.innerHTML = "";
+    if (!itens || !itens.length) {
+      var vazio = document.createElement("span");
+      vazio.style.color = "var(--muted)";
+      vazio.textContent = "— nenhuma pendente —";
+      alvo.appendChild(vazio);
+      return;
+    }
+    itens.forEach(function (i) {
+      var linha = document.createElement("div");
+      linha.style.cssText = "display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line,#333)";
+      var nome = document.createElement("span");
+      nome.style.flex = "1";
+      nome.textContent = (i.artista || "?") + " — " + (i.titulo || "?");
+      var detalhe = document.createElement("div");
+      detalhe.style.cssText = "color:var(--muted);font-size:.78rem";
+      detalhe.textContent = (i.motivo === "musica" ? "música bloqueada"
+                              : "cantor bloqueado") +
+        (i.usuario ? " · pedido de @" + i.usuario : "") +
+        " · apaga em " + crRestante(i.segundos_restantes);
+      nome.appendChild(detalhe);
+      var ok = document.createElement("button");
+      ok.className = "btn";
+      ok.type = "button";
+      ok.textContent = "✓ Permitir";
+      ok.addEventListener("click", function () { crDecidir(i, true); });
+      var nao = document.createElement("button");
+      nao.className = "btn";
+      nao.type = "button";
+      nao.textContent = "✕ Apagar já";
+      nao.addEventListener("click", function () { crDecidir(i, false); });
+      linha.appendChild(nome);
+      linha.appendChild(ok);
+      linha.appendChild(nao);
+      alvo.appendChild(linha);
+    });
+  }
+
+  function crDecidir(item, permitir) {
+    var nome = (item.artista ? item.artista + " — " : "") + (item.titulo || "");
+    if (!permitir && !window.confirm("APAGAR JÁ \"" + nome + "\"?\n\n" +
+        "Sai do disco, do acervo.db e das playlists agora, sem esperar as " +
+        "24 h. Pode ser baixada de novo num pedido futuro se você quiser.")) return;
+    crStatus(permitir ? "Liberando…" : "Apagando…");
+    fetch("/api/radio/musicas/decisao", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ artista: item.artista, titulo: item.titulo,
+                             permitir: permitir })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d || {} }; }); })
+      .then(function (res) {
+        if (res.status !== 200 || !res.d.ok) {
+          crStatus(res.d.motivo === "ja_decidida"
+            ? "Essa faixa já foi decidida."
+            : "Não deu para decidir agora.");
+          crCarrega("");
+          return;
+        }
+        crCarrega("");
+        carrega("");
+        crStatus(permitir ? "✓ \"" + nome + "\" liberada — fica no acervo."
+                          : "✕ \"" + nome + "\" apagada.");
+      })
+      .catch(function () { crStatus("Falha de rede — tente de novo."); });
   }
 
   function crCarrega(termo) {
@@ -391,13 +480,15 @@
   function crExcluir(m) {
     var nome = (m.artista ? m.artista + " — " : "") + (m.titulo || "");
     if (!window.confirm("EXCLUIR " + nome + " do acervo?\n\n" +
-        "Sai do disco, do acervo.db e das playlists, e fica BLOQUEADA " +
-        "para não voltar num pedido. Não tem como desfazer.")) return;
+        "Sai do disco, do acervo.db e das playlists. NÃO bloqueia: se " +
+        "alguém pedir de novo, ela pode ser baixada outra vez (útil quando " +
+        "você apaga só para baixar uma versão melhor). Para impedir de " +
+        "voltar, use \"+ Bloquear\".")) return;
     crStatus("Excluindo…");
     fetch("/api/radio/musicas/excluir", {
       method: "POST", credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ caminho: m.caminho, bloquear: true })
+      body: JSON.stringify({ caminho: m.caminho, bloquear: false })
     })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d || {} }; }); })
       .then(function (res) {

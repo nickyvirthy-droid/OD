@@ -185,6 +185,7 @@ AUTH_EXEMPT_PATHS = frozenset(
      # há header (a página /radio-pro opera por cookie).
      "/api/radio/musicas", "/api/radio/musicas/excluir",
      "/api/radio/musicas/bloqueadas", "/api/radio/musicas/excecoes",
+     "/api/radio/musicas/decisao",
      # /f/*: o gate é o cookie od_sessao + papel admin no handler
      # (APIHandler.ferramentas) — o dispatch não exige header.
      ROTA_FERRAMENTAS,
@@ -400,6 +401,10 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
      "api_radio_musicas_excecoes_add", False),
     ("DELETE", "/api/radio/musicas/excecoes",
      "api_radio_musicas_excecoes_remove", False),
+    # Janela de decisão de 24 h (ordem do dono, 17/11): permitir a faixa de
+    # cantor/música bloqueada ou apagá-la agora.
+    ("POST", "/api/radio/musicas/decisao",
+     "api_radio_musicas_decisao", False),
     # Registro Mestre: consulta pública de autenticidade de peças — o ID
     # vem GRAVADO na peça; público sem credencial (mesma natureza de
     # /app/version, v. AUTH_EXEMPT_PATHS). /registry (lista) alimenta a
@@ -1548,6 +1553,14 @@ _ADMIN_PAGE_HTML = """<!doctype html>
         <div id="exc-lista" style="margin-top:8px">— carregando… —</div>
       </div>
     </div>
+
+    <h3 style="font-size:0.95rem;margin:18px 0 6px">Decisões pendentes (24 h)</h3>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      Faixa de cantor ou música bloqueada que tocou para o ouvinte e está
+      esperando você: <b>permitir</b> mantém no acervo (vira exceção) e
+      <b>sem decisão em 24 h</b> ela é apagada automaticamente.
+    </p>
+    <div id="dec-lista" style="margin-top:6px">— nenhuma pendente —</div>
 
     <h3 style="font-size:0.95rem;margin:18px 0 6px">Cantores indesejados</h3>
     <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
@@ -3549,6 +3562,69 @@ function musPintarListas(data) {
   document.querySelectorAll(".exc-del").forEach(b => {
     b.onclick = () => excRemove(excecoesAtuais[Number(b.getAttribute("data-i"))]);
   });
+  decPintar(data);
+}
+
+function decRestante(seg) {
+  if (seg === null || seg === undefined) return "sem prazo";
+  if (seg <= 0) return "vencida";
+  const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60);
+  return h + "h " + m + "min";
+}
+
+function decPintar(data) {
+  const box = document.getElementById("dec-lista");
+  if (!box) return;
+  const itens = (data && data.decisoes) || [];
+  if (!itens.length) {
+    box.innerHTML = '<span class="muted">— nenhuma pendente —</span>';
+    return;
+  }
+  box.innerHTML = itens.map((i, n) =>
+    '<div style="display:flex;gap:8px;align-items:center;padding:6px 0;' +
+    'border-bottom:1px solid var(--border)">' +
+    '<span style="flex:1;font-size:0.85rem"><b>' + esc(i.artista || "?") +
+    " — " + esc(i.titulo || "?") + '</b><br>' +
+    '<span class="muted" style="font-size:0.76rem">' +
+    (i.motivo === "musica" ? "música bloqueada" : "cantor bloqueado") +
+    (i.usuario ? " · pedido de @" + esc(i.usuario) : "") +
+    " · apaga em " + esc(decRestante(i.segundos_restantes)) +
+    '</span></span>' +
+    '<button data-d="' + n + '" data-p="1" style="border-color:var(--accent);' +
+    'color:var(--accent);white-space:nowrap">✓ Permitir</button>' +
+    '<button data-d="' + n + '" data-p="0" style="white-space:nowrap">✕ Apagar já</button>' +
+    '</div>').join("");
+  box.querySelectorAll("button").forEach(b => {
+    b.onclick = () => decDecidir(itens[Number(b.getAttribute("data-d"))],
+                                 b.getAttribute("data-p") === "1");
+  });
+}
+
+async function decDecidir(item, permitir) {
+  if (!item) return;
+  const nome = (item.artista ? item.artista + " — " : "") + (item.titulo || "");
+  if (!permitir && !window.confirm("APAGAR JÁ " + nome + "?\\n\\n" +
+      "Sai do disco, do acervo.db e das playlists agora, sem esperar as 24 h. " +
+      "Pode ser baixada de novo num pedido futuro se você quiser.")) return;
+  try {
+    const resp = await fetch("/api/radio/musicas/decisao", {
+      method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ artista: item.artista, titulo: item.titulo,
+                             permitir: permitir })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      musSetMsg(data.motivo === "ja_decidida"
+        ? "Essa faixa já foi decidida."
+        : (data.motivo || data.error || "Erro HTTP " + resp.status), "err");
+      await musCarregar();
+      return;
+    }
+    musPintarListas(data);
+    await musCarregar();
+    musSetMsg(permitir ? "✓ " + nome + " permitida — fica no acervo."
+                       : "✕ " + nome + " apagada.", "ok");
+  } catch (e) { musSetMsg("Falha: " + e.message, "err"); }
 }
 
 function musPintar(data) {
@@ -3601,12 +3677,14 @@ async function musExcluir(m) {
   if (!m || !m.caminho) return;
   const nome = (m.artista ? m.artista + " — " : "") + (m.titulo || "");
   if (!window.confirm("EXCLUIR " + nome + " do acervo?\\n\\n" +
-      "Sai do disco, do acervo.db e das playlists, e é BLOQUEADA para não " +
-      "voltar num pedido futuro. Não tem como desfazer.")) return;
+      "Sai do disco, do acervo.db e das playlists. NÃO bloqueia: se alguém " +
+      "pedir de novo, ela pode ser baixada outra vez (útil quando você " +
+      "apaga só para baixar uma versão melhor). Para impedir de voltar, use " +
+      "'＋ Bloquear' abaixo.")) return;
   try {
     const resp = await fetch("/api/radio/musicas/excluir", {
       method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ caminho: m.caminho, bloquear: true })
+      body: JSON.stringify({ caminho: m.caminho, bloquear: false })
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
@@ -6000,9 +6078,14 @@ class APIHandler(BaseHTTPRequestHandler):
             return True
         return False
 
-    def _par_artista_titulo(self) -> tuple[str, str]:
-        """(artista, titulo) do corpo JSON, aparados e limitados."""
-        corpo = self._read_json() or {}
+    def _par_artista_titulo(
+            self, corpo: Optional[dict[str, Any]] = None) -> tuple[str, str]:
+        """(artista, titulo) do corpo JSON, aparados e limitados.
+
+        Aceita o corpo já lido (`corpo=`) — ler o stream duas vezes trava a
+        requisição até o timeout.
+        """
+        corpo = (self._read_json() or {}) if corpo is None else corpo
         return (str(corpo.get("artista") or "").strip()[:80],
                 str(corpo.get("titulo") or "").strip()[:120])
 
@@ -6014,6 +6097,8 @@ class APIHandler(BaseHTTPRequestHandler):
             "cantores": radio_cantores.listar(),
             "bloqueadas": radio_cantores.listar_musicas_bloqueadas(),
             "excecoes": radio_cantores.listar_excecoes(),
+            "decisoes": radio_cantores.pendentes(),
+            "horas_decisao": radio_cantores.HORAS_DECISAO,
         }
 
     def api_radio_musicas(self) -> None:
@@ -6047,10 +6132,12 @@ class APIHandler(BaseHTTPRequestHandler):
     def api_radio_musicas_excluir(self) -> None:
         """POST /api/radio/musicas/excluir — apaga a faixa do acervo (dono).
 
-        Body: {"caminho": "acervo/Gospel/...", "bloquear": true}. O caminho
+        Body: {"caminho": "acervo/Gospel/...", "bloquear": false}. O caminho
         é o MESMO do catálogo; por conveniência aceita também
-        "Artista - Título". `bloquear` (padrão true) grava a música em
-        data/musicas_bloqueadas.txt para ela não voltar num pedido futuro.
+        "Artista - Título". `bloquear` (padrão FALSE — ordem de 17/11:
+        "posso apagar simplesmente por achar uma versão melhor") só grava em
+        data/musicas_bloqueadas.txt quando pedido explicitamente; apagar NÃO
+        bloqueia, a faixa pode voltar num pedido futuro.
         """
         if not self._exige_admin_do_acervo():
             return
@@ -6062,7 +6149,7 @@ class APIHandler(BaseHTTPRequestHandler):
         if not identificador:
             self._json(400, {"ok": False, "error": "caminho_obrigatorio"})
             return
-        bloquear = corpo.get("bloquear", True)
+        bloquear = corpo.get("bloquear", False)
         resultado = radio_cantores.excluir_musica_do_acervo(
             identificador, bloquear=bool(bloquear))
         if not resultado.get("ok"):
@@ -6142,6 +6229,37 @@ class APIHandler(BaseHTTPRequestHandler):
             self._json(404, {"ok": False, "error": "nao_estava_na_lista"})
             return
         self._json(200, {"ok": True, **self._listas_de_curadoria()})
+
+    def api_radio_musicas_decisao(self) -> None:
+        """POST /api/radio/musicas/decisao — a decisão de 24 h (dono).
+
+        Body: {"artista": ..., "titulo": ..., "permitir": true|false}.
+        `permitir=true` mantém a faixa no acervo e grava o par nas exceções;
+        `false` apaga na hora (disco + banco + sync), sem esperar o prazo.
+        Sem corpo `permitir`, 400 — decisão implícita não existe.
+        """
+        if not self._exige_admin_do_acervo():
+            return
+        from integrations import radio_cantores
+
+        corpo = self._read_json() or {}
+        artista, titulo = self._par_artista_titulo(corpo)
+        if not artista or not titulo:
+            self._json(400, {"ok": False,
+                             "error": "artista_e_titulo_obrigatorios"})
+            return
+        permitir = corpo.get("permitir")
+        if not isinstance(permitir, bool):
+            self._json(400, {"ok": False, "error": "permitir_obrigatorio"})
+            return
+        resultado = radio_cantores.decidir(artista, titulo,
+                                           permitir=permitir)
+        if not resultado.get("ok"):
+            status = (404 if resultado.get("motivo") == "nao_encontrado"
+                      else 409)
+            self._json(status, resultado)
+            return
+        self._json(200, {**resultado, **self._listas_de_curadoria()})
 
     def registry_list(self) -> None:
         """GET /registry — lista PÚBLICA das peças (loja do site).
