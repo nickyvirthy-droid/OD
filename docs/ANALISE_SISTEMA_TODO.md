@@ -609,6 +609,10 @@ esperar o timeout.
       `supply_depot.py` (staging), `tasks_screen.dart` (`{}` válido),
       `test_task_queue.py` e **10 arquivos de cobertura** — autor de origem
       não identificada (regra 23), registro completo no CHANGELOG.
+- [ ] **Curadoria do acervo também no app Android** — hoje excluir música e
+      gerenciar exceções só existe no painel `/admin` e no `/radio-pro` (web);
+      a aba "Tarefas" já é SSE no app. Resolve: fazer a curadoria pelo celular
+      sem abrir o navegador. (sugestão de 17/11)
 - [ ] **Comparador de modelos lado a lado + monitor de hardware** — ideia
       trazida do GSN Offline (17/11): mesmo prompt no Gemini, Groq e Local ao
       mesmo tempo, com CPU/RAM/VRAM por modelo no painel. Resolve: ver na
