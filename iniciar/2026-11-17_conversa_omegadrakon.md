@@ -752,3 +752,15 @@ O arquivo real ficou intacto (mtime conferido).
 - Sem prova visual no aparelho (a máquina não tem navegador nem emulador); a
   prova é o binário 1.46.0+2083 em `site/` + os 20 testes de app.
 - A curadoria continua só para o papel admin (decisão do servidor).
+
+### 5. Implantação (regra 7.3, gate verde)
+
+- `systemctl --user restart od-core` → **active**, MainPID **3259841**,
+  NRestarts=**0**; `journalctl -p err` da janela: **No entries**.
+- **`GET /app/version`** → `version 1.46.0`, `version_code 2083`,
+  `size 72406606`, sha256 **dec326b5…f9d0e** = o binário de `site/` (o updater
+  do celular vê a versão nova).
+- **`GET /health`** → 30 checks, único degradado é `llm_quota`
+  (**gemini 20/20**, cota real do dia) — pré-existente, não vem desta entrega.
+- **Site:** `/site/index.html` anuncia **v1.46.0** e `/site/historico.html`
+  anuncia **Os 78 Lançamentos**.

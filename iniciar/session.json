@@ -6147,6 +6147,7 @@
     "testes": "app/test/curadoria_api_test.dart (10) + app/test/curadoria_screen_test.dart (10); flutter analyze 0 issues; flutter test 257 passed / 2 skipped; gate Python 5374 passed / 19 skipped / 0 falha (224,5 s, exit 0).",
     "achado_corrigido": "O primeiro gate falhou em test_llm e test_orchestrator por isolamento: a suite lia data/llm_quota.json REAL (gemini 20/20 no dia) e o Orchestrator pulava o provider. tests/conftest.py agora aponta OD_QUOTA_FILE para temporario da rodada; arquivo real intacto (mtime conferido).",
     "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§17)",
-    "updated_at": "2026-11-17T21:20:00-03:00"
+    "deploy": "Restart od-core (regra 7.3): MainPID 3259841, NRestarts=0, journal -p err sem entradas. GET /app/version = 1.46.0 / 2083 / size 72406606 / sha256 dec326b5…f9d0e (bate com site/OmegaDrakon.apk). /health 30 checks, único degradado llm_quota (gemini 20/20, pré-existente). Site ao vivo: index v1.46.0 e historico 'Os 78 Lançamentos'. Commit ffcbe0e em origin/master.",
+    "updated_at": "2026-11-17T21:40:00-03:00"
   }
 }
