@@ -611,6 +611,10 @@ esperar o timeout.
       ao vencer o prazo (tocar não apaga mais). API `POST
       /api/radio/musicas/decisao`, bloco no painel e no `/radio-pro`. Gate
       5370 passed; +14 testes.
+- [x] **Decisões da rádio no app Android** — **ENTREGUE 17/11 (1.45.1+2082):**
+      card "Decisões pendentes (24 h)" no Painel (só admin) com prazo,
+      quem pediu e os botões Permitir / Apagar já; `flutter test` 237
+      passed / 2 skipped, APK publicado em `site/`.
 - [x] **Excluir do acervo não bloqueia** — **ENTREGUE 17/11:**
       `excluir_musica_do_acervo(bloquear=False)` e a rota de exclusão só
       gravam em `musicas_bloqueadas.txt` com `bloquear: true` explícito;

@@ -784,3 +784,30 @@ versão melhor"*.
   acervo deixou de bloquear, para poder baixar uma versão melhor depois.
 - **Pronto/validado:** gate completo **5370 passed / 16 skipped / 0 falha**
   (203,89 s, exit 0), `node --check` no painel e na página.
+
+---
+
+## 17/11/2026 — Decisões da rádio no app Android (1.45.1+2082)
+
+**Autor:** Codebuff (Buffy) — sessão de 17/11, a pedido do dono: *"Mostrar as
+decisões pendentes também no app Android"*.
+
+### Modificados
+
+- `app/lib/services/od_api.dart` — `OdDecisaoRadio`,
+  `listRadioDecisoes()`, `decidirRadio()`.
+- `app/lib/screens/dashboard_screen.dart` — card "Decisões pendentes (24 h)"
+  no Painel (admin), com Permitir / Apagar já.
+- `app/test/dashboard_radio_test.dart` — 9 testes novos.
+- `app/pubspec.yaml` (1.45.1+2082), `.env` (OD_VERSION), fallback em
+  `core/capabilities.py`, `integrations/api/server.py`
+  (`_APP_VERSION_CODE`), `site/index.html`, `site/*.apk`.
+- Registro: `docs/CHANGELOG.md` [1.45.1], `docs/README_VERSAO.md` [1.45.1],
+  `iniciar/2026-11-17_conversa_omegadrakon.md` §8, `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** o dono decide a faixa em 24 h pelo celular, sem abrir o site.
+- **Pronto/validado:** `flutter analyze` 0 issues · `flutter test` 237 passed
+  / 2 skipped · gate Python 5370 passed · APKs 1.45.1+2082 publicados em
+  `site/` (antigos em `backups/apk-v1.45.0-2081/`).

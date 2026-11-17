@@ -12,6 +12,46 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.45.1] — DECISÕES DA RÁDIO NO APP: o dono decide em 24 h pelo celular (2026-11-17)
+
+**Bump PATCH** (capacidade nova no app, compatível), versionCode **2082**.
+O servidor já avisava e guardava a decisão de 24 h (ver seção abaixo), mas o
+app não tinha onde mostrar nem decidir — o dono só via pelo painel do site.
+
+### O que mudou
+
+1. **`app/lib/services/od_api.dart`** — `OdDecisaoRadio` (artista, título,
+   motivo `cantor`/`musica`, quem pediu, `segundos_restantes` e prazo
+   formatado) + `listRadioDecisoes()` (GET `/api/radio/musicas`, campo
+   `decisoes`) + `decidirRadio(..., permitir:)` (POST
+   `/api/radio/musicas/decisao`); 403 vira "Só o dono vê as decisões da
+   rádio", 409/404 com texto próprio.
+2. **`app/lib/screens/dashboard_screen.dart`** — card **"Decisões pendentes
+   (24 h)"** no Painel (só admin, junto das outras seções do dono): nome da
+   faixa, motivo, quem pediu, "apaga em 23h 0min" e os botões **Permitir** /
+   **Apagar já** (com confirmação e aviso de que a faixa pode voltar num
+   pedido futuro). Recarrega o painel após decidir; falha da rota não derruba
+   a tela.
+3. **`app/test/dashboard_radio_test.dart`** — 9 testes: leitura e tradução
+   dos motivos, prazo, 403/409/404, card só para admin, Permitir chamando a
+   API e a pendência saindo da lista, Apagar já exigindo confirmação.
+
+### Evidência
+
+- **APK:** `aapt` → versionName **1.45.1**, versionCode **2082** — completo
+  **72.176.786 B** (sha256 `c1ba63b2e05775d1198c6db8ba779e5feac1df2c5b922f08b57473a9955b8b9c`)
+  e arm64 **26.906.673 B** (sha256 `f323e4308286c83b07c132b60578894104e8ccf7971f9b7f309287ab5379778f`)
+  em `site/`; APKs anteriores preservados em `backups/apk-v1.45.0-2081/`.
+- **`flutter analyze`** → No issues found! · **`flutter test`** →
+  **237 passed / 2 skipped** (eram 228; +9).
+- **Gate Python completo:** 5370 passed / 16 skipped / 0 falha (o mesmo da
+  janela de 24 h; só testes de versão e docs mudam aqui).
+- **Checklist de bump** (`docs/VERSIONAMENTO.md` §5): `.env`
+  `OD_VERSION=1.45.1` · fallback em `core/capabilities.py` ·
+  `app/pubspec.yaml` `1.45.1+2082` · `_APP_VERSION_CODE = 2082` ·
+  `site/index.html` (badge + card) · esta seção ·
+  `docs/README_VERSAO.md` §1.45.1.
+
 ## Janela de decisão de 24 h: cantor bloqueado ou uma música só; excluir não bloqueia (2026-11-17, sem bump)
 
 **Contexto (ordem do dono, 17/11):** *"se a musica for de um cantor bloqueado,

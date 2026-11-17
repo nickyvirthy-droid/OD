@@ -7,6 +7,54 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.45.1] — DECISÕES DA RÁDIO NO APP: O DONO DECIDE EM 24 H PELO CELULAR 🜂 (2026-11-17)
+
+**Bump PATCH** (capacidade nova compatível), versionCode **2082**.
+
+### 1. O que foi feito
+
+- **Regra do dono (17/11) já no servidor** (seções abaixo): faixa de cantor
+  bloqueado **ou** de música bloqueada toca uma vez para o ouvinte, o dono é
+  avisado e tem 24 h para permitir; sem decisão, o webhook apaga. Faltava o
+  app — ele é o cliente de `/api/radio/musicas` (campo `decisoes`) e de
+  `POST /api/radio/musicas/decisao`.
+- **`app/lib/services/od_api.dart`** — `OdDecisaoRadio` (motivo, quem pediu,
+  `segundos_restantes`, prazo formatado) + `listRadioDecisoes()` +
+  `decidirRadio(..., permitir:)`, com 403 ("Só o dono vê as decisões da
+  rádio"), 409 (já decidida) e 404 (não está mais pendente) traduzidos.
+- **`app/lib/screens/dashboard_screen.dart`** — card **"Decisões pendentes
+  (24 h)"** no Painel (só admin): nome, motivo, @quem pediu, "apaga em 23h
+  0min" e os botões **Permitir** / **Apagar já** (confirmação explica que a
+  faixa pode voltar num pedido futuro). Recarrega após decidir; falha da
+  rota não derruba o painel.
+- **`app/test/dashboard_radio_test.dart`** — 9 testes (REST + card + ação).
+- **Checklist de bump** completo (`.env`, fallback, pubspec, `_APP_VERSION_CODE`,
+  `site/index.html`, CHANGELOG, este relatório) e APKs publicados em `site/`.
+
+### 2. Evidência
+
+- `flutter analyze` → **No issues found!** (3.2 s)
+- `flutter test` → **237 passed / 2 skipped** (eram 228; +9)
+- `pytest tests/ -q` → **5370 passed / 16 skipped / 0 falha**
+- APK `aapt`: versionName **1.45.1**, versionCode **2082** — completo
+  **72.176.786 B** (sha256 `c1ba63b2…9955b8b9c`) e arm64 **26.906.673 B**
+  (sha256 `f323e430…5379778f`) em `site/`; antigos em
+  `backups/apk-v1.45.0-2081/`
+- Prova viva: `GET /app/version` → `version 1.45.1`, `version_code 2082`;
+  `/health` ok; `od-core` reiniciado.
+
+### 3. O que NÃO foi feito
+
+- Sem alteração de layout além do card no Painel: a rádio continua sem aba
+  própria no app (o card só aparece para o dono, no Painel).
+- Sem push dedicado para "novo pedido aguardando decisão": o aviso continua
+  no Telegram; o app mostra a pendência quando o Painel é aberto/atualizado.
+
+### 4. Próximo passo
+
+- Se o dono quiser, um push FCM específico de decisão pendente (hoje o aviso
+  é só no Telegram) e o mesmo card na tela de Status.
+
 ## [1.45.0] — TASK QUEUE NO PAINEL E NO APP: A FILA COM STATUS E RESULTADO 🜂 (2026-11-14)
 
 ### 1. O que foi feito

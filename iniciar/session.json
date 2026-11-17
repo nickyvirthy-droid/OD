@@ -6055,8 +6055,18 @@
     "testes": "GATE COMPLETO: 5370 passed / 16 skipped / 0 falha (203,89 s, exit 0; eram 5356). +14 testes (decisao/permitir/negar/409/404/400/403/401, prazo e tempo restante, registro legado, toque nao apaga, exclusao sem bloquear, musica bloqueada marcada pelo catalogo com aviso ao dono).",
     "js": "node --check no painel e na pagina (testes de test_api.py) OK.",
     "limite": "O prazo e conferido pelo webhook da radio (limpar_tocados a cada troca de faixa): resolucao de minutos. Pedido avulso de faixa repetida (ja no acervo) segue recusado como musica_repetida, sem abrir decisao.",
-    "sem_bump": "1.45.0+2081 (servidor/worker; APK intacto).",
+    "sem_bump": "publicado no release 1.45.1+2082 junto com o card no app (detalhe em decisoes_radio_app_1_45_1).",
     "registro": "docs/CHANGELOG.md (topo), docs/ANALISE_SISTEMA_TODO.md (3 itens), iniciar/2026-11-17_conversa_omegadrakon.md §6 corrigida + §7, iniciar/ATRIBUICOES.md.",
     "updated_at": "2026-11-17T05:10:00-03:00"
+  },
+  "decisoes_radio_app_1_45_1": {
+    "pedido": "Dono (17/11): 'Mostrar as decisões pendentes também no app Android'.",
+    "versao": "1.45.1+2082 (PATCH; APK novo publicado em site/; anteriores em backups/apk-v1.45.0-2081/).",
+    "codigo": "od_api.dart: OdDecisaoRadio + listRadioDecisoes() (GET /api/radio/musicas -> decisoes) + decidirRadio(artista, titulo, permitir:) (POST /api/radio/musicas/decisao), com 403/409/404 traduzidos. dashboard_screen.dart: card 'Decisões pendentes (24 h)' no Painel (só admin) com motivo, @quem pediu, prazo e botões Permitir / Apagar já (confirmação).",
+    "testes": "app/test/dashboard_radio_test.dart (9): leitura/traducao de motivos, prazo, 403/409/404, card só para admin, Permitir chamando a API, Apagar já com confirmação. flutter analyze 0 issues; flutter test 237 passed / 2 skipped (eram 228).",
+    "gate_python": "5370 passed / 16 skipped / 0 falha.",
+    "apk": "versionName 1.45.1 / versionCode 2082; completo 72176786 B sha256 c1ba63b2e05775d1198c6db8ba779e5feac1df2c5b922f08b57473a9955b8b9c; arm64 26906673 B sha256 f323e4308286c83b07c132b60578894104e8ccf7971f9b7f309287ab5379778f.",
+    "bump": "checklist VERSIONAMENTO §5 completo: .env OD_VERSION=1.45.1, fallback capabilities, pubspec 1.45.1+2082, _APP_VERSION_CODE=2082, site/index.html (badge+card), CHANGELOG [1.45.1], README_VERSAO [1.45.1].",
+    "updated_at": "2026-11-17T05:25:00-03:00"
   }
 }

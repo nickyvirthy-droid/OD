@@ -386,6 +386,46 @@ baixadas, posso apagar simplesmeste por achar uma versão melhor`.
 
 ### 4. Estado ao fechar
 
-- Sem bump: **1.45.0+2081**.
+- Entrou no release **1.45.1+2082** (o app ganhou o card — ver §8).
 - O prazo é conferido pelo webhook da rádio (`limpar_tocados` a cada troca de
   faixa) — resolução de minutos, não de segundos.
+
+## §8 — Decisões da rádio no app Android (1.45.1+2082, 17/11)
+
+**Pedido (verbatim):** `Mostrar as decisões pendentes também no app Android`
+
+### 1. O que mudou
+
+1. **`app/lib/services/od_api.dart`** — `OdDecisaoRadio` (artista, título,
+   `motivo` cantor|musica, @quem pediu, `segundos_restantes` e prazo
+   formatado) e dois métodos: `listRadioDecisoes()` (GET
+   `/api/radio/musicas` → campo `decisoes`) e `decidirRadio(artista, titulo,
+   permitir:)` (POST `/api/radio/musicas/decisao`). 403 → "Só o dono vê as
+   decisões da rádio"; 409 `ja_decidida` e 404 `nao_encontrado` com texto
+   próprio.
+2. **`app/lib/screens/dashboard_screen.dart`** — card **"Decisões pendentes
+   (24 h)"** no Painel, junto das seções do dono (só admin): nome da faixa,
+   motivo, quem pediu, "apaga em 23h 0min" e os botões **Permitir** e
+   **Apagar já** (com confirmação e o aviso de que a faixa pode voltar num
+   pedido futuro). Depois de decidir, o painel recarrega; se a rota falhar,
+   a tela do painel continua de pé.
+3. **`app/test/dashboard_radio_test.dart`** — 9 testes (REST + card + ação).
+
+### 2. Validação
+
+- `flutter analyze` → **No issues found!**
+- `flutter test` → **237 passed / 2 skipped** (eram 228; +9).
+- `pytest tests/ -q` → **5370 passed / 16 skipped / 0 falha**.
+- **APK:** versionName **1.45.1**, versionCode **2082** — completo
+  72.176.786 B (sha256 `c1ba63b2…b8b9c`) e arm64 26.906.673 B
+  (sha256 `f323e430…778f`) em `site/`; anteriores em
+  `backups/apk-v1.45.0-2081/`.
+- Checklist de bump (`VERSIONAMENTO.md` §5) completo, inclusive
+  `site/index.html` e `_APP_VERSION_CODE = 2082`.
+
+### 3. O que não foi feito
+
+- Sem aba própria de rádio no app: o card vive no Painel e só aparece para
+  o dono (a API responde 403 para conta comum — provado no teste).
+- Sem push FCM dedicado a "decisão pendente": o aviso chega pelo Telegram e
+  o app mostra a pendência ao abrir/atualizar o Painel.
