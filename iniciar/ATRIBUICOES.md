@@ -9,6 +9,48 @@
 
 ---
 
+## 17/11/2026 — Retomada "leia iniciar": lote órfão verde encontrado na árvore
+
+**Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("leia
+iniciar").
+
+### Criados
+
+- Nenhum arquivo novo nesta troca.
+
+### Modificados
+
+- `iniciar/2026-11-17_conversa_omegadrakon.md` — §3 (estado encontrado).
+- `iniciar/session.json` — chave `retomada_leitura_iniciar_2026_11_17_turno2`.
+- `iniciar/ATRIBUICOES.md` — esta entrada.
+
+### Intenção e estado
+
+- **Intenção:** atender à regra 3 (ler o checkpoint antes de retomar) e
+  reportar com precisão onde a sessão está.
+- **Achado:** a árvore está suja com um lote **posterior ao commit
+  `fccb6bc`**, sem registro em `iniciar/`: `integrations/radio_cantores.py`
+  (+256: exceções `data/cantores_excecoes.txt` e bloqueio individual
+  `data/musicas_bloqueadas.txt`), `integrations/api/server.py` (reboot via
+  `updater._reboot()`), `tools/supply_depot.py` (staging do código),
+  `app/lib/screens/tasks_screen.dart` (payload `{}` válido) + 2 testes do
+  app, `tests/test_task_queue.py` (+263), `docs/ANALISE_SISTEMA_TODO.md` e a
+  transcrição de 15/11, mais 10 arquivos de teste de cobertura.
+- **Autor do lote: ORIGEM NÃO IDENTIFICADA** (nada no livro-caixa nem na
+  transcrição) — registrado como desconhecido, conforme regra 23.
+- **Validado agora:** os 12 arquivos de teste do lote → **682 passed em
+  8,82 s**. Falta o gate completo e o commit.
+- **Pela metade:** os pedidos 2 e 3 do `txt.txt` têm só a camada de
+  biblioteca; **não existem ainda** rotas de API, painel nem app para
+  excluir música e gerenciar exceções de cantores.
+- **Serviço:** `od-core` active, MainPID 2183349, NRestarts=0 (PID mudou em
+  relação ao 3322791 de 15/11 — restart não anotado).
+- **Nesta troca:** nenhum código alterado, só registro. Aguardando ordem do
+  dono para (a) gate completo + commit do lote e (b) fechar as rotas da
+  rádio. Sem bump (1.45.0+2081).
+
+---
+
 ## 14/11/2026 — Itens 2–4 do backlog: criar tarefa, SSE e filtro por data (registro completado em 15/11)
 
 **Autor:** OpenClaude (outro agente, sessão da noite de 14/11) — os commits

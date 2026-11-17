@@ -5996,5 +5996,18 @@
       "docs/CHANGELOG.md"
     ],
     "testes": "385 passed (test_radio_link + test_radio_cobertura + test_radio + test_api)"
+  },
+  "retomada_leitura_iniciar_2026_11_17_turno2": {
+    "pedido": "Dono (17/11): 'leia iniciar' — recarregar o checkpoint antes de retomar.",
+    "lido": "iniciar/README.md, RULES.md (23 regras), session.json, ATRIBUICOES.md, transcricao de 17/11 (§1-§2) e de 15/11 (§1-§4), txt.txt.",
+    "estado_encontrado": "HEAD == origin/master == fccb6bc (fix da playlist). ARVORE SUJA com lote posterior NAO registrado: radio_cantores.py +256 (excecoes data/cantores_excecoes.txt + bloqueio individual data/musicas_bloqueadas.txt, listar_musicas_bloqueadas, musica_bloqueada), server.py (reboot via updater._reboot), supply_depot.py (staging do codigo), app tasks_screen (payload {} valido) + 2 arquivos de teste do app, tests/test_task_queue.py +263, TODO (app por papel), transcricao 2026-11-14; novos: iniciar/2026-11-15_conversa_omegadrakon.md + 10 testes de cobertura.",
+    "validacao": "pytest dos 12 arquivos de teste do lote -> 682 passed em 8,82 s (verde, mas sem gate completo).",
+    "servico": "od-core active, MainPID 2183349, NRestarts=0 (PID diferente do 3322791 de 15/11: houve restart nao anotado).",
+    "autoria": "lote na arvore: ORIGEM NAO IDENTIFICADA (nao ha entrada no livro-caixa nem na transcricao) — registrado como desconhecido, conforme regra 23.",
+    "pela_metade": "pedidos 2 e 3 do txt.txt tem SO a camada de biblioteca em radio_cantores.py; faltam rotas de API, painel e app para excluir musica e gerenciar excecoes.",
+    "alterado_nesta_troca": "nenhum codigo — apenas registro (esta entrada, transcricao §3 e ATRIBUICOES).",
+    "sem_bump": "1.45.0+2081.",
+    "proximo": "Aguardando ordem: (a) gate completo + commit do lote verde achado na arvore; (b) fechar rotas/painel/app de exclusao de musica e excecoes de cantores.",
+    "updated_at": "2026-11-17T03:27:49-03:00"
   }
 }

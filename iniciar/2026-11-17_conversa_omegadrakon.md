@@ -111,3 +111,50 @@
 
 ### 3. Ação Corretiva
 - Ajustar `link_do_youtube` em `integrations/radio_pro.py` para priorizar `lista` (ou preservar o parâmetro `list=`) quando presente, permitindo que URLs de reprodução de playlist baixem todas as faixas conforme a regra do dono.
+
+## §3 — Retomada: "leia iniciar" (17/11, sessão atual)
+
+**Pedido (verbatim):** `leia iniciar`
+
+### 1. Lido
+`iniciar/README.md`, `iniciar/RULES.md` (23 regras), `iniciar/session.json`,
+`iniciar/ATRIBUICOES.md`, transcrição de hoje (§1–§2) e a de 15/11 (§1–§4),
+além do `txt.txt` atual (pedidos 1–6 + resposta já entregue).
+
+### 2. Estado encontrado
+
+- `git`: `HEAD == origin/master == fccb6bc` (fix da playlist do YouTube já
+  publicado). **Árvore suja** com um lote posterior, não registrado:
+  - modificados: `integrations/radio_cantores.py` (+256 — listas
+    `data/cantores_excecoes.txt` e `data/musicas_bloqueadas.txt`,
+    `_ler_pares`/`_casa_par`/`_adicionar_par`/`_remover_par`,
+    `listar_musicas_bloqueadas`, `musica_bloqueada`), `integrations/api/server.py`
+    (reboot do OS updater via `updater._reboot()`), `tools/supply_depot.py`
+    (staging do código), `app/lib/screens/tasks_screen.dart` (payload `{}`
+    válido), `app/test/tasks_api_test.dart` e `tasks_screen_test.dart`
+    (+5 testes), `tests/test_task_queue.py` (+263), `docs/ANALISE_SISTEMA_TODO.md`
+    (sugestão de app por papel) e `iniciar/2026-11-14_*.md`.
+  - novos: `iniciar/2026-11-15_conversa_omegadrakon.md` e 10 arquivos de
+    cobertura (`test_radio_cobertura`, `test_actions_cobertura`,
+    `test_embed_hybrid_cobertura`, `test_marketplace_cobertura`,
+    `test_os_updater`, `test_rota_reboot_os_updater`,
+    `test_server_rotas_novas_cobertura`, `test_supply_depot_cobertura`,
+    `test_tools_diversos_cobertura`, `test_tools_telemetry`).
+- **Verificação medida agora:** os 12 arquivos de teste acima → **682 passed
+  em 8,82 s**. O lote está verde, mas **sem registro e sem commit** — a
+  origem não é identificável pelo livro-caixa (regra 23: registrar como
+  "origem não identificada" em vez de presumir).
+- `od-core`: active, MainPID **2183349**, NRestarts=0 (PID novo em relação ao
+  3322791 registrado em 15/11 — houve restart não anotado).
+- **O que o lote ainda NÃO tem:** as rotas de API/App/painel para excluir
+  música e para gerenciar exceções (só a camada `radio_cantores.py` existe),
+  ou seja o pedido 2 e o pedido 3 do `txt.txt` estão **pela metade**:
+  biblioteca pronta, interface não.
+
+### 3. Estado ao fechar
+
+- Nenhum código alterado nesta troca (só leitura + registro).
+- Registro: esta §3, `session.json` e `ATRIBUICOES.md`.
+- **Aguardando ordem do dono** para (a) validar com gate completo + commitar
+  o lote verde achado na árvore e (b) fechar as rotas de exclusão/exceções
+  da rádio.
