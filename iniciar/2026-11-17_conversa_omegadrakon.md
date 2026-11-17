@@ -287,18 +287,25 @@ está na lista de bloqueadas`
    com `data/musicas_bloqueadas.txt`. Comparação sem caixa/acento e aceitando
    sufixo ("(Clipe Oficial)", "(Ao Vivo)"). Devolve o nome que bateu para o
    log e o aviso. Falha da lista **não** bloqueia o pedido.
-3. **`processar_pedido()`** — filtro novo antes de qualquer download: faixa
-   bloqueada nem é baixada. Se sobrar alguma entrada, o pedido segue com ela e
-   o dono é avisado de quantas ficaram de fora; se **todas** estavam
-   bloqueadas, o pedido vira `rejeitada` com motivo `musica_bloqueada`.
+3. **`processar_pedido()`** — em **lista** (mais de uma entrada), o filtro
+   novo roda antes de qualquer download: faixa bloqueada nem é baixada. Se
+   sobrar alguma entrada, o pedido segue com ela e o dono é avisado de
+   quantas ficaram de fora; se **todas** estavam bloqueadas, o pedido vira
+   `rejeitada` com motivo `musica_bloqueada`.
 4. **`_baixar_resto()`** — o resto da lista também filtra as bloqueadas
    (junto com as de cantor indesejado); as mensagens passaram a dizer
    "bloqueada(s) ou de cantor indesejado".
-5. **Conferência pós-download** — quando o título esconde o nome
+5. **Pedido avulso de faixa bloqueada NÃO é recusado** (correção do dono no
+   mesmo dia, verbatim: *"como é uma rádio e aceita pedidos o único bloqueio
+   de download é os que ultrapassam o limite de tamanho tempo, o resto vai
+   para análise, se for bloqueada é igual cantor bloqueado"*): baixa, entra
+   na fila, toca para quem pediu e abre a janela de decisão (§7). O único
+   bloqueio de download é o limite de tamanho/tempo do pipeline.
+6. **Conferência pós-download** — quando o título esconde o nome
    ("Clipe oficial"), o acervo é consultado depois: se a faixa que acabou de
-   entrar está bloqueada, `excluir_musica_do_acervo()` a tira na hora (disco +
-   banco + sync) e o pedido é recusado pelo mesmo motivo.
-6. **`site/radio-pro.html`** — o motivo `musica_bloqueada` aparece traduzido
+   entrar está bloqueada, ela é **marcada para a decisão** (não é apagada na
+   hora, não recusa o pedido).
+7. **`site/radio-pro.html`** — o motivo `musica_bloqueada` aparece traduzido
    ("música bloqueada pelo dono").
 
 ### 2. Validação
@@ -317,6 +324,68 @@ está na lista de bloqueadas`
 - Sem bump: **1.45.0+2081** (servidor/worker; APK intacto).
 - Registro: CHANGELOG, TODO (item fechado), esta §6, `session.json`,
   `ATRIBUICOES.md`.
-- **Limite conhecido:** o bloqueio pré-download é heurístico (depende do que
-  o link entrega); a rede de segurança é a conferência no acervo depois do
-  download, que apaga a faixa e recusa o pedido.
+- **Limite conhecido:** o filtro pré-download da lista é heurístico (depende
+  do que o link entrega); a rede de segurança é a conferência no acervo
+  depois do download, que abre a janela de decisão.
+
+## §7 — Janela de decisão de 24 h: cantor bloqueado ou uma música só (17/11)
+
+**Pedido (verbatim):** `se a musica for de um cantor bloqueado, vai me avisar
+
+e tenho 24 horas para decidir, se não permitir ela é automaticamente apagada`
+— completado por: `o mesmo para certas musicas, as vezes o cantor é permitido,
+mas uma musica especifica não` e `musicas apagadas podem voltar a ser
+baixadas, posso apagar simplesmeste por achar uma versão melhor`.
+
+### 1. Regra final (a que ficou no código)
+
+1. **Cantor bloqueado** com pedido de ouvinte: baixa, toca **uma vez**, e o
+   dono é avisado na hora — ele tem **24 h** para permitir. Permitiu: a faixa
+   fica no acervo e o par virou exceção (não é marcada de novo). Não
+   permitiu (ou não respondeu): apagada automaticamente ao vencer o prazo.
+2. **Música bloqueada** (cantor permitido, aquela música não): exatamente o
+   mesmo fluxo, com o motivo `musica` no aviso e no painel.
+3. **Apagar NÃO bloqueia:** a exclusão manual pelo painel/página só tira do
+   disco/banco/playlists; se alguém pedir de novo, baixa outra vez. Bloquear
+   é ação explícita (formulário "＋ Bloquear").
+
+### 2. O que mudou
+
+- **`integrations/radio_cantores.py`** — `HORAS_DECISAO` (24, env
+  `OD_CANTORES_HORAS_DECISAO`); `registrar_para_apagar()` ganhou `motivo`
+  (cantor|musica), `usuario` e `decidir_ate`; `pendentes()` devolve prazo e
+  `segundos_restantes`; `decidir(permitir=...)` mantém + cria exceção ou
+  apaga na hora com sync; `limpar_tocados()` **não apaga mais por ter
+  tocado** — só o vencimento das 24 h (registro antigo sem prazo usa
+  `HORAS_LIMITE`); `excluir_musica_do_acervo()` passou a `bloquear=False`
+  por padrão.
+- **`integrations/radio_link.py`** — ao marcar a faixa, avisa o dono
+  (`aviso_de_decisao`, prazo e quem pediu); pedido avulso não é mais recusado.
+- **`integrations/radio_pro.py`** — pedido pelo catálogo também marca música
+  bloqueada (antes só olhava o cantor) e avisa o dono.
+- **`integrations/api/server.py`** — `POST /api/radio/musicas/decisao`
+  (`{artista, titulo, permitir}`; 400 sem `permitir`, 404 se não está
+  pendente, 409 se já decidida); `GET /api/radio/musicas` agora devolve
+  `decisoes` + `horas_decisao`; exclusão com `bloquear=false` por padrão.
+  Rotas: **136 → 137**.
+- **Painel `/admin`** — bloco "Decisões pendentes (24 h)" com prazo
+  restante e botões ✓ Permitir / ✕ Apagar já; o texto de excluir avisa que
+  apagar não bloqueia.
+- **`site/radio-pro.html`** — mesmo bloco no card de curadoria; exclusão
+  manda `bloquear:false` e o confirm explica.
+
+### 3. Validação
+
+- **Gate completo:** **5370 passed / 16 skipped / 0 falha** (203,89 s, exit
+  0; eram 5356 depois da §6). +14 testes: decisão (permitir/negar/já
+  decidida/não pendente/400/403/401), prazo e tempo restante, registro
+  legado, e o toque **não** apagando mais; na curadoria, exclusão sem
+  bloqueio e com `bloquear=True` explícito; no `radio_pro`, música bloqueada
+  marcada e dono avisado.
+- **JS:** página e painel passam no `node --check` (testes de `test_api.py`).
+
+### 4. Estado ao fechar
+
+- Sem bump: **1.45.0+2081**.
+- O prazo é conferido pelo webhook da rádio (`limpar_tocados` a cada troca de
+  faixa) — resolução de minutos, não de segundos.

@@ -5999,14 +5999,15 @@
   },
   "bloqueio_no_link_2026_11_17": {
     "pedido": "Dono (17/11): 'Faca o radio_link.py recusar o download de musica que esta na lista de bloqueadas'.",
-    "codigo": "_artista_e_titulo_do_link + _bloqueada_no_link (par do titulo + pistas de canal/uploader, sem caixa/acento, aceita sufixo); filtro antes do download em processar_pedido (novo parametro musicas_bloqueadas); _baixar_resto filtra bloqueadas junto com cantor indesejado; conferencia pos-download (nome escondido) apaga a faixa do acervo e recusa o pedido; motivo musica_bloqueada traduzido no site/radio-pro.html.",
-    "comportamento": "Todas as entradas bloqueadas -> rejeitada/musica_bloqueada + aviso ao dono; lista mista -> baixa so as liberadas; lista ausente nao barra nada (a lista e regra, nao portao).",
+    "codigo": "_artista_e_titulo_do_link + _bloqueada_no_link (par do titulo + pistas de canal/uploader, sem caixa/acento, aceita sufixo); em LISTA (len>1) o filtro roda antes do download em processar_pedido (parametro musicas_bloqueadas) e _baixar_resto filtra o resto; pedido AVULSO nao e recusado: baixa, entra na fila e e marcado para a janela de decisao de 24 h; conferencia pos-download (nome escondido) marca para decisao (nao apaga na hora); motivo musica_bloqueada traduzido no site/radio-pro.html.",
+    "comportamento": "Lista toda bloqueada -> rejeitada/musica_bloqueada + aviso ao dono; lista mista -> baixa so as liberadas; avulso bloqueado -> baixa, toca uma vez e abre a decisao de 24 h (regra corrigida no mesmo dia); lista ausente nao barra nada.",
     "testes": "+7 em tests/test_radio_link.py (TestMusicaBloqueadaNoLink). GATE COMPLETO: 5355 passed / 16 skipped / 0 falha (202,45 s, exit 0; eram 5348).",
     "sandbox": "Video bloqueado -> downloads=[] e pedido rejeitada/musica_bloqueada; playlist mista -> baixou so https://youtu.be/bbbbbbbbbbb; titulo com '(Clipe Oficial)' casou; bloqueada nunca apareceu nas URLs chamadas.",
-    "limite": "Checagem pre-download e heuristica (depende do que o link entrega); a rede de seguranca e a conferencia no acervo depois do download.",
+    "limite": "Checagem pre-download da lista e heuristica (depende do que o link entrega); a rede de seguranca e a conferencia no acervo depois do download, que abre a janela de decisao.",
     "sem_bump": "1.45.0+2081 (worker/servidor; APK intacto).",
     "deploy": "3 commits publicados (fd8b2a5 codigo/testes, 086daeb pagina, 82ca67c docs); HEAD == origin/master == 82ca67c, arvore limpa. od-core reiniciado: MainPID 2270942, NRestarts=0, /health ok=true 30 checks, journal 0 erros; pagina servida traz o motivo traduzido.",
-    "updated_at": "2026-11-17T05:25:00-03:00"
+    "updated_at": "2026-11-17T05:10:00-03:00",
+    "correcao_do_dono": "'como e uma radio e aceita pedidos o unico bloqueio de download e os que ultrapassam o limite de tamanho tempo, o resto vai para analise, se for bloqueada e igual cantor bloqueado, toca e apaga. se for lista ai sim analisa a lista e so baixa as permitidas' — aplicada em 17/11; o 'toca e apaga' foi refinado depois para a janela de 24 h (ver decisao_24h_cantor_musica_2026_11_17)."
   },
   "curadoria_radio_interface_2026_11_17": {
     "pedido": "Dono (17/11): 'Implemente as rotas de API, o painel e a pagina /radio-pro para excluir musica e gerenciar excecoes de cantores'.",
@@ -6046,5 +6047,16 @@
     "sem_bump": "1.45.0+2081.",
     "proximo": "Aguardando ordem: (a) gate completo + commit do lote verde achado na arvore; (b) fechar rotas/painel/app de exclusao de musica e excecoes de cantores.",
     "updated_at": "2026-11-17T03:27:49-03:00"
+  },
+  "decisao_24h_cantor_musica_2026_11_17": {
+    "pedido": "Dono (17/11): 'se a musica for de um cantor bloqueado, vai me avisar e tenho 24 horas para decidir, se nao permitir ela e automaticamente apagada'; 'o mesmo para certas musicas, as vezes o cantor e permitido, mas uma musica especifica nao'; 'musicas apagadas podem voltar a ser baixadas, posso apagar simplesmente por achar uma versao melhor'.",
+    "regra_final": "Cantor bloqueado OU musica bloqueada no pedido: baixa, toca uma vez, dono avisado com prazo -> 24 h para permitir (fica no acervo + vira excecao) ou apaga automaticamente ao vencer. Em LISTA o filtro continua antes do download; o unico bloqueio de download e o limite de tamanho/tempo. Excluir do acervo NAO bloqueia mais (bloquear e acao explicita).",
+    "codigo": "radio_cantores: HORAS_DECISAO=24 (env OD_CANTORES_HORAS_DECISAO), registrar_para_apagar com motivo/usuario/decidir_ate, pendentes com segundos_restantes, decidir(permitir), aviso_de_decisao, limpar_tocados so apaga no vencimento (legado usa HORAS_LIMITE), excluir_musica_do_acervo(bloquear=False). radio_link/radio_pro avisam o dono e marcam musica bloqueada. server: POST /api/radio/musicas/decisao + decisoes/horas_decisao no GET (rotas 136->137). Painel e /radio-pro com bloco 'Decisoes pendentes (24 h)' (Permitir / Apagar ja) e confirm de exclusao sem bloqueio.",
+    "testes": "GATE COMPLETO: 5370 passed / 16 skipped / 0 falha (203,89 s, exit 0; eram 5356). +14 testes (decisao/permitir/negar/409/404/400/403/401, prazo e tempo restante, registro legado, toque nao apaga, exclusao sem bloquear, musica bloqueada marcada pelo catalogo com aviso ao dono).",
+    "js": "node --check no painel e na pagina (testes de test_api.py) OK.",
+    "limite": "O prazo e conferido pelo webhook da radio (limpar_tocados a cada troca de faixa): resolucao de minutos. Pedido avulso de faixa repetida (ja no acervo) segue recusado como musica_repetida, sem abrir decisao.",
+    "sem_bump": "1.45.0+2081 (servidor/worker; APK intacto).",
+    "registro": "docs/CHANGELOG.md (topo), docs/ANALISE_SISTEMA_TODO.md (3 itens), iniciar/2026-11-17_conversa_omegadrakon.md §6 corrigida + §7, iniciar/ATRIBUICOES.md.",
+    "updated_at": "2026-11-17T05:10:00-03:00"
   }
 }

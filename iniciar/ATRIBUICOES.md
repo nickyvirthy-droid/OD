@@ -744,3 +744,43 @@ cada lote).
 
 - **Intenção:** resolver a causa raiz que impediu o download das outras faixas da lista de Raul Seixas; links com vídeo e lista juntos agora preservam a lista inteira.
 - **Pronto/validado:** 170 testes de rádio passando (incluindo `test_radio_link` e `test_radio_cobertura`); 385 testes de rádio e API passando sem nenhuma falha.
+
+---
+
+## 17/11/2026 — Janela de decisão de 24 h (cantor ou música bloqueada) e excluir sem bloquear
+
+**Autor:** Codebuff (Buffy) — sessão de 17/11, a pedido do dono: *"se a musica
+for de um cantor bloqueado, vai me avisar e tenho 24 horas para decidir, se não
+permitir ela é automaticamente apagada"*, *"o mesmo para certas musicas, as
+vezes o cantor é permitido, mas uma musica especifica não"* e *"musicas
+apagadas podem voltar a ser baixadas, posso apagar simplesmente por achar uma
+versão melhor"*.
+
+### Modificados
+
+- `integrations/radio_cantores.py` — `HORAS_DECISAO` (24 h), prazo no
+  registro, `decidir()`, `aviso_de_decisao()`, `pendentes()` com tempo
+  restante, `limpar_tocados()` só apaga no vencimento, exclusão sem bloqueio.
+- `integrations/radio_link.py` — pedido avulso não é recusado; aviso ao dono
+  com prazo e quem pediu.
+- `integrations/radio_pro.py` — catálogo também marca música bloqueada.
+- `integrations/api/server.py` — `POST /api/radio/musicas/decisao`, `decisoes`
+  no GET, exclusão com `bloquear=false`, bloco "Decisões pendentes (24 h)" no
+  painel.
+- `site/radio-pro.html` — mesmo bloco no card de curadoria; confirm de
+  exclusão sem bloqueio.
+- Testes: `tests/test_radio_cantores.py`, `tests/test_radio_curadoria.py`,
+  `tests/test_radio_cobertura.py`, `tests/test_radio_link.py`,
+  `tests/test_api.py` (rotas 136 → 137).
+- Registro: `docs/CHANGELOG.md` (topo), `docs/ANALISE_SISTEMA_TODO.md`,
+  `iniciar/2026-11-17_conversa_omegadrakon.md` (§6 corrigida + §7),
+  `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** o ouvinte pode gostar de um cantor que o dono não gosta (e
+  vice-versa, o cantor é permitido mas uma música não) — a faixa toca uma vez,
+  o dono é avisado e decide em 24 h; sem decisão, sai sozinha. Excluir do
+  acervo deixou de bloquear, para poder baixar uma versão melhor depois.
+- **Pronto/validado:** gate completo **5370 passed / 16 skipped / 0 falha**
+  (203,89 s, exit 0), `node --check` no painel e na página.

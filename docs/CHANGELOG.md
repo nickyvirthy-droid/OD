@@ -12,39 +12,84 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
-## Bloqueio por música vale também no pedido por link do YouTube (2026-11-17, sem bump)
+## Janela de decisão de 24 h: cantor bloqueado ou uma música só; excluir não bloqueia (2026-11-17, sem bump)
 
-**Contexto:** o bloqueio individual (`data/musicas_bloqueadas.txt`) impedia a
-faixa de voltar pelo painel, mas o worker do link ainda a baixava quando
-alguém pedia o vídeo ou a playlist — o dono bloquear uma música não valia para
-o caminho mais usado.
+**Contexto (ordem do dono, 17/11):** *"se a musica for de um cantor bloqueado,
+voce baixa e toca e me avisa. mesmo sendo de cantor bloqueado posso gostar de
+musica e libero. tenho 24 horas pra liberar, caso contrario apaga. o contrario
+tambem pode ocorrer, um cantor que gosto tem uma musica que nao gosto"* — e
+*"musicas apagadas podem voltar a ser baixadas, posso apagar simplesmente por
+achar uma versao melhor"*.
 
-### O que mudou (`integrations/radio_link.py`)
+### O que mudou
 
-1. **Antes de baixar:** `_bloqueada_no_link()` cruza o par do título
-   ("Artista - Título") e as pistas de artista que o link já entrega
-   (canal/uploader, com "- Topic"/VEVO removidos) com a lista do dono —
-   comparação sem caixa/acento e aceitando sufixo ("(Clipe Oficial)").
-   Faixa bloqueada **nem é baixada**; se todas as entradas da lista
-   estiverem bloqueadas, o pedido é recusado com motivo
-   `musica_bloqueada` e o dono é avisado no Telegram.
-2. **No resto da lista:** `_baixar_resto()` filtra as bloqueadas junto com
-   as de cantor indesejado e os avisos dizem quantas ficaram de fora.
-3. **Depois do download (nome escondido):** quando o título não revela nada
-   ("Clipe oficial", "Vídeo novo"), o acervo é conferido depois — se a faixa
-   que acabou de entrar está bloqueada, `excluir_musica_do_acervo()` a tira
-   na hora (disco + banco + sync) e o pedido é recusado.
-4. **Página `/radio-pro`:** o motivo `musica_bloqueada` aparece traduzido nos
-   pedidos ("música bloqueada pelo dono").
+1. **`integrations/radio_cantores.py`** — `HORAS_DECISAO` (24 h, env
+   `OD_CANTORES_HORAS_DECISAO`); `registrar_para_apagar()` guarda `motivo`
+   (`cantor`|`musica`), `usuario` e `decidir_ate`; `pendentes()` devolve o
+   prazo e `segundos_restantes`; `decidir(permitir=...)` mantém a faixa e
+   grava exceção, ou apaga na hora com sync; `aviso_de_decisao()` monta o
+   texto do aviso. `limpar_tocados()` deixou de apagar por "já tocou": quem
+   apaga é o vencimento do prazo (registro antigo sem prazo usa
+   `HORAS_LIMITE`).
+2. **`integrations/radio_link.py` / `radio_pro.py`** — todo pedido de faixa
+   de cantor bloqueado **ou** de música bloqueada entra na mesma janela e o
+   dono é avisado na hora (quem pediu + prazo). O catálogo passou a olhar
+   também a lista de músicas bloqueadas.
+3. **API** — `POST /api/radio/musicas/decisao` (`{artista, titulo,
+   permitir}`; 400 sem `permitir`, 404 se não está pendente, 409 se já
+   decidida); `GET /api/radio/musicas` traz `decisoes` e `horas_decisao`.
+   Rotas: 136 → 137.
+4. **Excluir não bloqueia:** `excluir_musica_do_acervo()` e a rota de
+   exclusão passaram a `bloquear=False` por padrão — bloquear é ação explícita
+   pelo formulário. A música apagada pode voltar num pedido.
+5. **Painel `/admin` e `/radio-pro`** — bloco "Decisões pendentes (24 h)"
+   com tempo restante e botões **✓ Permitir** / **✕ Apagar já**; o confirm
+   de exclusão avisa que apagar não bloqueia.
 
 ### Validação
 
-- **Gate completo:** 5355 passed / 16 skipped / 0 falha (202,45 s, exit 0) —
-  eram 5348; +7 testes em `tests/test_radio_link.py`
-  (`TestMusicaBloqueadaNoLink`).
-- **Sandbox:** pedido de vídeo bloqueado → nenhum download, `rejeitada` /
-  `musica_bloqueada`; playlist mista → só a faixa liberada baixou; título com
-  sufixo casou; lista ausente não barra nada.
+- **Gate completo:** 5370 passed / 16 skipped / 0 falha (203,89 s, exit 0) —
+  eram 5356; +14 testes (decisão, prazo, registro legado, exclusão sem
+  bloqueio, música bloqueada marcada pelo catálogo).
+- **JS:** `node --check` na página e no painel, pelos testes de `test_api.py`.
+
+## Música bloqueada no pedido por link: toca uma vez e sai; lista baixa só as permitidas (2026-11-17, sem bump)
+
+**Contexto:** o bloqueio individual (`data/musicas_bloqueadas.txt`) impedia a
+faixa de voltar pelo painel, mas o worker do link ainda a baixava. A regra do
+dono para a rádio que aceita pedidos (17/11): *"o único bloqueio de download é
+os que ultrapassam o limite de tamanho/tempo, o resto vai para análise; se for
+bloqueada é igual cantor bloqueado, toca e apaga; se for lista aí sim analisa
+a lista e só baixa as permitidas"*.
+
+### O que mudou (`integrations/radio_link.py`)
+
+1. **Pedido avulso de faixa bloqueada NÃO é recusado:** baixa e vai para a
+   análise como qualquer pedido; a faixa entra na fila, toca **uma vez** para
+   quem pediu e sai do acervo — exatamente o mecanismo do cantor indesejado
+   (`registrar_para_apagar`). O único bloqueio de download continua sendo o
+   limite de tamanho/tempo do pipeline.
+2. **Lista é analisada antes:** `_bloqueada_no_link()` cruza o par do título
+   ("Artista - Título") e as pistas de artista do link (canal/uploader, com
+   "- Topic"/VEVO removidos) com a lista do dono — sem caixa/acento e aceitando
+   sufixo ("(Clipe Oficial)"). As bloqueadas **nem são baixadas**; se nenhuma
+   sobrar, o pedido é recusado com motivo `musica_bloqueada`.
+3. **Resto da lista:** `_baixar_resto()` também filtra as bloqueadas, junto
+   com as de cantor indesejado, e os avisos dizem quantas ficaram de fora.
+4. **Nome escondido:** quando o título não revela nada ("Clipe oficial"), o
+   par real do acervo é conferido depois — se for bloqueado, a faixa é marcada
+   para tocar uma vez e sair (não é apagada na hora).
+5. **Página `/radio-pro`:** o motivo `musica_bloqueada` aparece traduzido nos
+   pedidos ("música bloqueada pelo dono") — só acontece em lista toda
+   bloqueada.
+
+### Validação
+
+- **Gate completo:** 5356 passed / 16 skipped / 0 falha — eram 5348; +8
+  testes em `tests/test_radio_link.py` (`TestMusicaBloqueadaNoLink`).
+- **Sandbox:** avulso bloqueado → baixou e foi marcado para apagar depois de
+  tocar; playlist mista → só a faixa liberada baixou; lista toda bloqueada →
+  recusada; título com sufixo casou; lista ausente não barra nada.
 
 ## Curadoria do acervo na interface: excluir música e liberar exceções pela API, painel e /radio-pro (2026-11-17, sem bump)
 

@@ -596,13 +596,25 @@ esperar o timeout.
       **Sobrou um passo:** o `radio_link.py` ainda não recusa o download de
       faixa bloqueada — hoje o bloqueio impede o retorno pelo painel/página,
       não o pedido por link do YouTube (checkbox abaixo).
-- [x] **`radio_link.py`: não baixar faixa de `data/musicas_bloqueadas.txt`**
-      — **ENTREGUE 17/11:** `_bloqueada_no_link()` barra antes do download
-      (título "Artista - Título" + pistas de canal/uploader, sem caixa/acento
-      e com sufixo), `_baixar_resto()` filtra o resto da lista e, quando o
-      link esconde o nome, a faixa é conferida depois no acervo.db e sai na
-      hora. Pedido recusado com motivo `musica_bloqueada` (traduzido na
-      página). Gate 5355 passed; +7 testes em `TestMusicaBloqueadaNoLink`.
+- [x] **`radio_link.py`: bloqueio de música vale no pedido por link**
+      — **ENTREGUE 17/11 (regra corrigida no mesmo dia):** em **lista**,
+      `_bloqueada_no_link()` analisa antes do download (título "Artista -
+      Título" + pistas de canal/uploader, sem caixa/acento e com sufixo) e
+      `_baixar_resto()` filtra o resto; lista toda bloqueada vira `rejeitada /
+      musica_bloqueada`. Pedido **avulso** de faixa bloqueada baixa e entra na
+      janela de decisão — o único bloqueio de download é o limite de
+      tamanho/tempo.
+- [x] **Janela de decisão de 24 h (cantor ou música bloqueada)** —
+      **ENTREGUE 17/11:** ao entrar faixa de cantor bloqueado **ou** de música
+      bloqueada, o dono é avisado e tem `HORAS_DECISAO` (24 h) para permitir;
+      permitiu → fica e vira exceção; sem decisão → `limpar_tocados()` apaga
+      ao vencer o prazo (tocar não apaga mais). API `POST
+      /api/radio/musicas/decisao`, bloco no painel e no `/radio-pro`. Gate
+      5370 passed; +14 testes.
+- [x] **Excluir do acervo não bloqueia** — **ENTREGUE 17/11:**
+      `excluir_musica_do_acervo(bloquear=False)` e a rota de exclusão só
+      gravam em `musicas_bloqueadas.txt` com `bloquear: true` explícito;
+      apagar para depois baixar uma versão melhor voltou a ser possível.
 - [x] **Fechar o lote órfão da árvore (17/11)** — **ENTREGUE 17/11:** gate
       completo **5319 passed / 16 skipped / 0 falha** (210,60 s, exit 0) e
       `flutter analyze` 0 issues + `flutter test` **228 passed / 2 skipped**
