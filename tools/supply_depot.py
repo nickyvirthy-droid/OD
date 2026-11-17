@@ -1847,8 +1847,11 @@ def test_{funcao}_tipo_invalido():
         arquivo = f"{id_f}.py"
         meta_arquivo = f"{id_f}.meta.json"
 
-        # Código
-        destino = self._caminho_codigo(arquivo)
+        # Código — na ÁREA DE STAGING (o docstring promete
+        # ferramentas_staging/ e é lá que instalar/remover procuram;
+        # gravar em codigos_dir quebrava o roundtrip: a instalação
+        # morria em "codigo_ausente_no_staging" para sempre).
+        destino = staging_dir / arquivo
         tmp = destino.with_suffix(".py.tmp")
         tmp.write_text(codigo, encoding="utf-8")
         os.replace(tmp, destino)
