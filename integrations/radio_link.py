@@ -643,7 +643,7 @@ def processar_pedido(
                          notificar=notificar)
 
     # Música bloqueada (ordem do dono, 17/11 — rádio que aceita pedidos):
-    # o ÚNICO bloqueio de download é o limite de tamanho/tempo do pipeline.
+    # o ÚNICO bloqueio de download é o limite de tamanho/duração do pipeline.
     # Pedido AVULSO de faixa bloqueada baixa e vai para a análise igual a
     # qualquer outra — toca UMA vez para quem pediu e sai, como o cantor
     # indesejado. É na LISTA que a lista é analisada: as bloqueadas nem são

@@ -2089,6 +2089,55 @@ async def _run_recovery_forever(loop: Any) -> None:
     await loop.run()
 
 
+async def _run_radio_decisoes_forever(
+    intervalo_s: float = 60.0,
+    *,
+    api: Any = None,
+    dormir: Optional[Callable[[float], Any]] = None,
+    ciclos: Optional[int] = None,
+) -> None:
+    """Timer da janela de decisão da rádio: lembretes e vencimentos.
+
+    Antes (17/11) isso só andava no webhook, a cada troca de faixa — rádio
+    parada significava lembrete sem sair e faixa vencida esperando. Aqui o
+    relógio é próprio: a cada `intervalo_s` (padrão 60 s) checa se há algo
+    pendente e roda `limpar_tocados()` (idempotente — o webhook continua
+    chamando para responder rápido na troca de faixa).
+
+    `api`, `dormir` e `ciclos` existem para o teste rodar sem rede/sem
+    espera; em produção o módulo real é usado e o laço é infinito. Qualquer
+    erro vira log: a janela não pode derrubar o núcleo.
+    """
+    import asyncio as _asyncio
+
+    if api is None:
+        from integrations import radio_cantores as api
+    dormir = dormir or _asyncio.sleep
+    log.info("Timer da janela de decisão da rádio iniciando...",
+             interval_s=intervalo_s)
+    rodadas = 0
+    while True:
+        try:
+            # `to_thread`: o push é HTTP síncrono (até ~10 s por aparelho) e
+            # não pode travar o event loop da API/Telegram.
+            if await _asyncio.to_thread(api.pendentes):
+                resumo = await _asyncio.to_thread(api.limpar_tocados)
+                if resumo.get("apagadas") or resumo.get("lembretes"):
+                    log.info(
+                        "janela de decisao da radio checada",
+                        apagadas=resumo.get("apagadas"),
+                        lembretes=resumo.get("lembretes"),
+                        restantes=resumo.get("restantes"),
+                    )
+        except Exception as exc:      # janela é aviso, não portão
+            log.warn("checagem da janela de decisao falhou",
+                     error=f"{type(exc).__name__}")
+        rodadas += 1
+        if ciclos is not None and rodadas >= ciclos:
+            return
+        await dormir(intervalo_s)
+
+
 async def _run_mqtt_forever(bridge: Any) -> None:
     """Loop da ponte MQTT (reconecta sozinha se o broker cair)."""
     log.info("Ponte MQTT iniciando loop...")
@@ -2450,6 +2499,18 @@ def main() -> int:
                 _supervise("recovery", lambda: _run_recovery_forever(recovery))
             )
             log.info("RecoveryLoop habilitado (percepção + auto-reparo)")
+        # Janela de decisão da rádio (17/11): lembrete de 2 h e vencimento
+        # deixam de depender da troca de faixa. OD_RADIO_DECISOES_TIMER=0
+        # desliga o timer (o webhook continua checando na troca).
+        if env("OD_RADIO_DECISOES_TIMER", "1") != "0":
+            _intervalo_decisoes = float(
+                env("OD_RADIO_DECISOES_INTERVALO_S", "60"))
+            tasks.append(_supervise(
+                "radio-decisoes",
+                lambda: _run_radio_decisoes_forever(_intervalo_decisoes),
+            ))
+            log.info("Timer da janela de decisão da rádio habilitado",
+                     intervalo_s=_intervalo_decisoes)
         notifier = build_notifier(
             orchestrator,
             sink=build_telegram_sink("monitor"),

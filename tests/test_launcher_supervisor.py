@@ -171,3 +171,69 @@ async def test_gather_com_supervisao_nao_derruba_o_core() -> None:
         ),
         timeout=2,
     )
+
+
+# ---------------------------------------------------------------------------
+#  Timer da janela de decisão da rádio (17/11)
+# ---------------------------------------------------------------------------
+
+class _RadioFalsa:
+    """Dublê do radio_cantores: registra as passadas, sem tocar em disco."""
+
+    def __init__(self, pendentes: int = 1, resumo: dict | None = None,
+                 quebra: bool = False) -> None:
+        self.quantos = pendentes
+        self.resumo = resumo or {"apagadas": 0, "restantes": 1,
+                                 "sync": False, "lembretes": 0}
+        self.quebra = quebra
+        self.limpezas = 0
+
+    def pendentes(self):
+        if self.quebra:
+            raise RuntimeError("registro corrompido")
+        return [{"artista": "Annita", "titulo": "X"}] * self.quantos
+
+    def limpar_tocados(self):
+        self.limpezas += 1
+        return self.resumo
+
+
+@pytest.mark.asyncio
+async def test_timer_da_janela_roda_a_cada_intervalo() -> None:
+    from runtime.launcher import _run_radio_decisoes_forever
+
+    radio = _RadioFalsa()
+    esperas: list[float] = []
+
+    async def dormir(segundos: float) -> None:
+        esperas.append(segundos)
+
+    await _run_radio_decisoes_forever(
+        60, api=radio, dormir=dormir, ciclos=3)
+
+    assert radio.limpezas == 3
+    assert esperas == [60, 60]      # não dorme depois da última passada
+
+
+@pytest.mark.asyncio
+async def test_timer_sem_pendencia_nao_limpa() -> None:
+    from runtime.launcher import _run_radio_decisoes_forever
+
+    radio = _RadioFalsa(pendentes=0)
+    await _run_radio_decisoes_forever(
+        5, api=radio, dormir=_dormir_imediato, ciclos=2)
+    assert radio.limpezas == 0
+
+
+@pytest.mark.asyncio
+async def test_timer_sobrevive_a_erro_e_continua() -> None:
+    from runtime.launcher import _run_radio_decisoes_forever
+
+    radio = _RadioFalsa(quebra=True)
+    await _run_radio_decisoes_forever(
+        1, api=radio, dormir=_dormir_imediato, ciclos=3)
+    assert radio.limpezas == 0        # nunca chegou a limpar
+
+
+async def _dormir_imediato(_segundos: float) -> None:
+    return None

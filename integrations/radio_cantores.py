@@ -496,7 +496,7 @@ def aviso_de_decisao(item: Optional[dict[str, Any]]) -> str:
 
 
 def pendentes(*, registro: Optional[Path] = None) -> list[dict[str, Any]]:
-    """Itens aguardando decisão, com o prazo e o tempo restante."""
+    """Itens aguardando decisão, com o prazo e os segundos restantes."""
     agora = datetime.now(timezone.utc)
     saida: list[dict[str, Any]] = []
     for item in _ler_registro(registro):

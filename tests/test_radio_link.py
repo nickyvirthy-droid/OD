@@ -615,7 +615,7 @@ class TestHandlerEPagina:
 class TestMusicaBloqueadaNoLink:
     """Música bloqueada em rádio que aceita pedidos (ordem do dono, 17/11).
 
-    Regra: o ÚNICO bloqueio de download é o limite de tamanho/tempo do
+    Regra: o ÚNICO bloqueio de download é o limite de tamanho/duração do
     pipeline. Pedido AVULSO de faixa bloqueada baixa, é analisado e entra na
     fila — toca UMA vez para quem pediu e sai, igual ao cantor indesejado.
     Em LISTA, a lista é analisada e as bloqueadas nem são baixadas."""
