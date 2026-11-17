@@ -272,3 +272,51 @@ para o pedido por link. Checkbox novo no TODO §4.
 - Registro: `docs/CHANGELOG.md`, TODO §4, esta §5, `session.json`,
   `ATRIBUICOES.md`; commits publicados e `od-core` reiniciado com prova
   viva (MainPID e `/health` na entrada do `session.json`).
+
+## §6 — Bloqueio por música também no pedido por link (17/11)
+
+**Pedido (verbatim):** `Faça o radio_link.py recusar o download de música que
+está na lista de bloqueadas`
+
+### 1. O que mudou em `integrations/radio_link.py`
+
+1. **`_artista_e_titulo_do_link()`** — separa "Artista - Título" do título
+   que o yt-dlp entrega, sem baixar nada.
+2. **`_bloqueada_no_link()`** — cruza esse par (e as pistas de artista do
+   link: canal/uploader, com "- Topic"/VEVO limpos, de `_pistas_de_artista`)
+   com `data/musicas_bloqueadas.txt`. Comparação sem caixa/acento e aceitando
+   sufixo ("(Clipe Oficial)", "(Ao Vivo)"). Devolve o nome que bateu para o
+   log e o aviso. Falha da lista **não** bloqueia o pedido.
+3. **`processar_pedido()`** — filtro novo antes de qualquer download: faixa
+   bloqueada nem é baixada. Se sobrar alguma entrada, o pedido segue com ela e
+   o dono é avisado de quantas ficaram de fora; se **todas** estavam
+   bloqueadas, o pedido vira `rejeitada` com motivo `musica_bloqueada`.
+4. **`_baixar_resto()`** — o resto da lista também filtra as bloqueadas
+   (junto com as de cantor indesejado); as mensagens passaram a dizer
+   "bloqueada(s) ou de cantor indesejado".
+5. **Conferência pós-download** — quando o título esconde o nome
+   ("Clipe oficial"), o acervo é consultado depois: se a faixa que acabou de
+   entrar está bloqueada, `excluir_musica_do_acervo()` a tira na hora (disco +
+   banco + sync) e o pedido é recusado pelo mesmo motivo.
+6. **`site/radio-pro.html`** — o motivo `musica_bloqueada` aparece traduzido
+   ("música bloqueada pelo dono").
+
+### 2. Validação
+
+- **Gate completo:** **5355 passed / 16 skipped / 0 falha** (202,45 s,
+  exit 0; eram 5348). +7 testes em `TestMusicaBloqueadaNoLink`
+  (`tests/test_radio_link.py`): bloqueada nem baixa, título com sufixo,
+  outra música do mesmo artista passa, playlist pula a bloqueada, resto
+  bloqueado não baixa, link que esconde o nome é pego pós-download, lista
+  ausente não barra nada.
+- **Sandbox:** vídeo bloqueado → `downloads=[]`, pedido `rejeitada /
+  musica_bloqueada`; playlist mista → baixou só a liberada; avisos corretos.
+
+### 3. Estado ao fechar
+
+- Sem bump: **1.45.0+2081** (servidor/worker; APK intacto).
+- Registro: CHANGELOG, TODO (item fechado), esta §6, `session.json`,
+  `ATRIBUICOES.md`.
+- **Limite conhecido:** o bloqueio pré-download é heurístico (depende do que
+  o link entrega); a rede de segurança é a conferência no acervo depois do
+  download, que apaga a faixa e recusa o pedido.

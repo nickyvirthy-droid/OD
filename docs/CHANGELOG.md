@@ -12,6 +12,40 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Bloqueio por música vale também no pedido por link do YouTube (2026-11-17, sem bump)
+
+**Contexto:** o bloqueio individual (`data/musicas_bloqueadas.txt`) impedia a
+faixa de voltar pelo painel, mas o worker do link ainda a baixava quando
+alguém pedia o vídeo ou a playlist — o dono bloquear uma música não valia para
+o caminho mais usado.
+
+### O que mudou (`integrations/radio_link.py`)
+
+1. **Antes de baixar:** `_bloqueada_no_link()` cruza o par do título
+   ("Artista - Título") e as pistas de artista que o link já entrega
+   (canal/uploader, com "- Topic"/VEVO removidos) com a lista do dono —
+   comparação sem caixa/acento e aceitando sufixo ("(Clipe Oficial)").
+   Faixa bloqueada **nem é baixada**; se todas as entradas da lista
+   estiverem bloqueadas, o pedido é recusado com motivo
+   `musica_bloqueada` e o dono é avisado no Telegram.
+2. **No resto da lista:** `_baixar_resto()` filtra as bloqueadas junto com
+   as de cantor indesejado e os avisos dizem quantas ficaram de fora.
+3. **Depois do download (nome escondido):** quando o título não revela nada
+   ("Clipe oficial", "Vídeo novo"), o acervo é conferido depois — se a faixa
+   que acabou de entrar está bloqueada, `excluir_musica_do_acervo()` a tira
+   na hora (disco + banco + sync) e o pedido é recusado.
+4. **Página `/radio-pro`:** o motivo `musica_bloqueada` aparece traduzido nos
+   pedidos ("música bloqueada pelo dono").
+
+### Validação
+
+- **Gate completo:** 5355 passed / 16 skipped / 0 falha (202,45 s, exit 0) —
+  eram 5348; +7 testes em `tests/test_radio_link.py`
+  (`TestMusicaBloqueadaNoLink`).
+- **Sandbox:** pedido de vídeo bloqueado → nenhum download, `rejeitada` /
+  `musica_bloqueada`; playlist mista → só a faixa liberada baixou; título com
+  sufixo casou; lista ausente não barra nada.
+
 ## Curadoria do acervo na interface: excluir música e liberar exceções pela API, painel e /radio-pro (2026-11-17, sem bump)
 
 **Contexto:** os pedidos 2 e 3 do `txt.txt` ("quero poder excluir músicas que

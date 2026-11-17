@@ -5997,6 +5997,16 @@
     ],
     "testes": "385 passed (test_radio_link + test_radio_cobertura + test_radio + test_api)"
   },
+  "bloqueio_no_link_2026_11_17": {
+    "pedido": "Dono (17/11): 'Faca o radio_link.py recusar o download de musica que esta na lista de bloqueadas'.",
+    "codigo": "_artista_e_titulo_do_link + _bloqueada_no_link (par do titulo + pistas de canal/uploader, sem caixa/acento, aceita sufixo); filtro antes do download em processar_pedido (novo parametro musicas_bloqueadas); _baixar_resto filtra bloqueadas junto com cantor indesejado; conferencia pos-download (nome escondido) apaga a faixa do acervo e recusa o pedido; motivo musica_bloqueada traduzido no site/radio-pro.html.",
+    "comportamento": "Todas as entradas bloqueadas -> rejeitada/musica_bloqueada + aviso ao dono; lista mista -> baixa so as liberadas; lista ausente nao barra nada (a lista e regra, nao portao).",
+    "testes": "+7 em tests/test_radio_link.py (TestMusicaBloqueadaNoLink). GATE COMPLETO: 5355 passed / 16 skipped / 0 falha (202,45 s, exit 0; eram 5348).",
+    "sandbox": "Video bloqueado -> downloads=[] e pedido rejeitada/musica_bloqueada; playlist mista -> baixou so https://youtu.be/bbbbbbbbbbb; titulo com '(Clipe Oficial)' casou; bloqueada nunca apareceu nas URLs chamadas.",
+    "limite": "Checagem pre-download e heuristica (depende do que o link entrega); a rede de seguranca e a conferencia no acervo depois do download.",
+    "sem_bump": "1.45.0+2081 (worker/servidor; APK intacto).",
+    "updated_at": "2026-11-17T05:05:00-03:00"
+  },
   "curadoria_radio_interface_2026_11_17": {
     "pedido": "Dono (17/11): 'Implemente as rotas de API, o painel e a pagina /radio-pro para excluir musica e gerenciar excecoes de cantores'.",
     "rotas": "6 novas (130 -> 136): GET /api/radio/musicas?q= (acervo com bloqueada/artista_bloqueado + as listas), POST /api/radio/musicas/excluir, POST|DELETE /api/radio/musicas/bloqueadas, POST|DELETE /api/radio/musicas/excecoes; todas auth=False em AUTH_EXEMPT_PATHS com gate do dono no handler.",

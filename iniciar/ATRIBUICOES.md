@@ -9,6 +9,43 @@
 
 ---
 
+## 17/11/2026 — Bloqueio de música vale no pedido por link do YouTube
+
+**Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono
+("Faça o radio_link.py recusar o download de música que está na lista de
+bloqueadas").
+
+### Criados
+
+- Nenhum arquivo novo.
+
+### Modificados
+
+- `integrations/radio_link.py` — `_artista_e_titulo_do_link()`,
+  `_bloqueada_no_link()`, filtro antes do download em `processar_pedido()`
+  (novo parâmetro `musicas_bloqueadas`), filtro das bloqueadas em
+  `_baixar_resto()` e conferência pós-download (nome escondido no link →
+  `excluir_musica_do_acervo()` + pedido recusado).
+- `site/radio-pro.html` — motivo `musica_bloqueada` traduzido.
+- `tests/test_radio_link.py` — `TestMusicaBloqueadaNoLink` (7 testes).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado),
+  `iniciar/2026-11-17_conversa_omegadrakon.md` (§6), `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** fazer o bloqueio individual do dono valer para o caminho que
+  ele mais usa (pedido por link/playlist), e não só para o painel.
+- **Pronto/validado:** gate completo **5355 passed / 16 skipped / 0 falha**
+  (202,45 s, exit 0); sandbox provou bloqueada sem download, playlist mista
+  baixando só a permitida, título com sufixo casando e lista ausente sem
+  barrar nada.
+- **Limite declarado:** a checagem pré-download é heurística (depende do que o
+  link entrega); a rede de segurança é a conferência no acervo depois do
+  download, que apaga a faixa e recusa o pedido.
+- **Sem bump:** 1.45.0+2081.
+
+---
+
 ## 17/11/2026 — Pedidos 2 e 3 na interface: rotas, painel /admin e página /radio-pro
 
 **Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono
