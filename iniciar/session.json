@@ -6134,6 +6134,7 @@
     "testes": "tests/test_radio_traducao.py novo com 25 testes + 1 teste de página em test_radio_pro.py. Gate completo: 5374 passed / 19 skipped / 0 falha (218,8 s, exit 0); coleção 5391 contra 5365 do HEAD medidos em worktree — delta exato de +26. node --check OK no JS inline.",
     "prova_viva": "Cadeia em produção ['groq','gemini','gemma-local']; 'Hello darkness, my old friend / I've come to talk with you again' -> 'Olá, escuridão, minha velha amiga / Vim conversar contigo outra vez' (ok=true, quebras preservadas).",
     "rotas": "137 -> 138 (tests/test_api.py atualizado).",
+    "deploy": "Restart od-core (regra 7.3, gate verde): MainPID 3210320, NRestarts=0. GET /api/radio/pro/traducao sem sessão = 401 login_necessario (rota viva; antes seria 404). /health 30 checks, 29 up — único degradado é llm_quota (gemini 20/20 ESGOTADA, pré-existente). journal -p err: no entries.",
     "sem_bump": "1.45.1+2082 (página web + rota de servidor; contrato do app intacto).",
     "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§15)",
     "updated_at": "2026-11-17T20:30:00-03:00"

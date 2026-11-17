@@ -52,8 +52,13 @@ o original.
   "Hello darkness, my old friend / I've come to talk with you again" →
   "Olá, escuridão, minha velha amiga / Vim conversar contigo outra vez"
   (`ok=true`, quebras de linha preservadas).
-- `node --check` no JS inline da página: OK. Gate completo rodado após a
-  mudança (ver saída registrada em `iniciar/`).
+- `node --check` no JS inline da página: OK. Gate completo **5374 passed /
+  19 skipped / 0 falha** (218,8 s, exit 0); coleção 5391 contra 5365 do HEAD
+  (delta exato de +26).
+- **Implantação:** `od-core` reiniciado com prova viva — MainPID 3210320,
+  NRestarts=0, `GET /api/radio/pro/traducao` sem sessão = 401 (rota viva),
+  `/health` 29/30 (o degradado é a cota do Gemini, 20/20, pré-existente),
+  journal sem erros.
 - Sem bump: **1.45.1+2082** (página web + rota nova do servidor; contrato do
   app Android intacto).
 

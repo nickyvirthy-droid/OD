@@ -685,3 +685,19 @@ paralela no /radio-pro`
   e `OD_TEST_POSTGRES_DSN`), não código novo.
 - Rotas: **137 → 138** (`tests/test_api.py`).
 - Sem bump: **1.45.1+2082**.
+
+## §16 — Implantação da lista paralela (restart verde, 17/11)
+
+- **Restart** (`systemctl --user restart od-core`, regra 7.3 — gate verde,
+  `HEAD == origin/master`, árvore limpa): MainPID **3210320**, NRestarts=**0**.
+- **Rota nova no ar:** `GET /api/radio/pro/traducao` sem sessão responde
+  **401 `login_necessario`** (antes do restart seria 404) — o dispatch
+  reconhece a rota; a tradução em si exige a sessão do ouvinte.
+- **`/health`:** 30 checks, **29 up**; único degradado é `llm_quota`
+  (**gemini 20/20 = ESGOTADA**, cota diária) — estado **pré-existente**, não
+  vem desta mudança (a prova viva da tradução saiu pelo Groq).
+- **Journal:** `journalctl --user -u od-core --since '2 minutes ago' -p err` →
+  **No entries**.
+- Página: `site/radio-pro.html` é servida do disco a cada requisição, então a
+  mudança visual já valia antes do restart; o restart foi necessário só para
+  a rota nova.
