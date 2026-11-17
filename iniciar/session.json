@@ -6005,7 +6005,8 @@
     "sandbox": "Video bloqueado -> downloads=[] e pedido rejeitada/musica_bloqueada; playlist mista -> baixou so https://youtu.be/bbbbbbbbbbb; titulo com '(Clipe Oficial)' casou; bloqueada nunca apareceu nas URLs chamadas.",
     "limite": "Checagem pre-download e heuristica (depende do que o link entrega); a rede de seguranca e a conferencia no acervo depois do download.",
     "sem_bump": "1.45.0+2081 (worker/servidor; APK intacto).",
-    "updated_at": "2026-11-17T05:05:00-03:00"
+    "deploy": "3 commits publicados (fd8b2a5 codigo/testes, 086daeb pagina, 82ca67c docs); HEAD == origin/master == 82ca67c, arvore limpa. od-core reiniciado: MainPID 2270942, NRestarts=0, /health ok=true 30 checks, journal 0 erros; pagina servida traz o motivo traduzido.",
+    "updated_at": "2026-11-17T05:25:00-03:00"
   },
   "curadoria_radio_interface_2026_11_17": {
     "pedido": "Dono (17/11): 'Implemente as rotas de API, o painel e a pagina /radio-pro para excluir musica e gerenciar excecoes de cantores'.",
