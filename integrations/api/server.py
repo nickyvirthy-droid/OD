@@ -8510,11 +8510,11 @@ class APIHandler(BaseHTTPRequestHandler):
         """POST /admin/os-updater/reboot — força reboot se necessário."""
         self._require_admin()
         updater = self._os_updater_or_503()
-        from core.os_updater import _precisa_reboot, _reboot
+        from core.os_updater import _precisa_reboot
         if not _precisa_reboot():
             self._json(409, {"ok": False, "motivo": "reboot_nao_necessario"})
             return
-        ok, msg = _reboot()
+        ok, msg = updater._reboot()
         if ok:
             self._json(200, {"ok": True, "reboot": "agendado"})
         else:
