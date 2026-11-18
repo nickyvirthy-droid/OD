@@ -12,6 +12,51 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Convivência multi-IA + corpus de frases reais do dono (2026-11-18, sem bump)
+
+**Contexto:** ordem do dono — *"agora temos um número muito grande de IAs
+trabalhando sobre OD. garanta que todas prossigam dentro da mesma linha sem
+destruir o que existe (...) mesmo que uma pare no meio do
+caminho por cota ou outra razão a próxima deve prosseguir"*. O dia já tinha o
+caso real: outra ferramenta regrediu `orquestrador.py` de 1654 para 251 linhas
+(versão de fila removida em 08/10), sem registro, e a suíte passou a quebrar na
+coleta (`ImportError: cannot import name 'CLIS'`).
+
+**O que mudou:**
+
+- `tools/brief_multi_ia.py` (novo) — **brief único** montado do estado real:
+  versão, `HEAD` × `origin/master`, árvore suja, checkpoint vigente de
+  `iniciar/session.json` (o mais recente com retrato de turno), últimas
+  atribuições e prioridades P0/P1 abertas; mais as 8 regras de convivência.
+  `--json` para uso por ferramentas.
+- `orquestrador.py` — `montar_prompt_sessao(..., brief=)` e o brief injetado
+  no prompt de **toda** CLI da cascata; **trava anti-destruição**
+  `_reescritas_em_massa()` (arquivo rastreado com >= 100 linhas que cai para
+  menos de 30% encerra a sessão como `arquivo_reescrito_em_massa` **sem
+  commitar**, preservando a árvore) e **cascata até concluir**: gate vermelho
+  não encerra mais a sessão — a próxima CLI recebe o resumo do vermelho no
+  histórico ("preserve o que já existe e conserte a causa") e valida de novo,
+  até concluir ou acabarem as CLIs. `_encerrar()` passa a gravar `detalhe`
+  no estado (o painel/Telegram veem o motivo exato).
+- `docs/PROTOCOLO_MULTI_IA.md` (novo) — contrato de convivência: entrar (brief),
+  trabalhar (edição cirúrgica, atribuição no mesmo passo, validar antes de
+  publicar), sair mesmo por cota (trabalho parcial na árvore + próximo passo
+  exato) e como a cascata retoma.
+- `iniciar/RULES.md` — **regra 24** (protocolo multi-IA).
+- `tests/test_corpus_frases_dono.py` (novo, **32 testes**) — P0 nº 2 da revisão
+  de 17/11: 13 frases **verbatim** do dono (com o arquivo de `iniciar/` onde
+  cada uma está registrada, conferido pelo próprio teste) → ação esperada,
+  params semânticos (`city`, `moeda`, `volume`) e 2 frases de conversa que o
+  fast path **não** pode sequestrar; mais as etapas de `datetime`.
+- `tests/test_multi_ia.py` (novo, **11 testes**) — brief, checkpoint, prompt,
+  reescrita maciça detectada (repo git temporário, 300 → 3 linhas), edição
+  normal não dispara, sessão falha sem commitar, cascata continua no gate
+  vermelho e CLI sem cota não consome a vez.
+
+**Validação:** `test_multi_ia.py` + `test_orquestrador.py` **127 passed**;
+`test_corpus_frases_dono.py` **32 passed**. **Sem bump** (ferramenta de dev e
+testes; contrato do app intacto): 1.46.0+2083.
+
 ## Cascata 10 → 13 CLIs — cota nunca é motivo de exclusão (2026-11-18, sem bump)
 
 **Contexto:** régua nova do dono — "cota nunca é motivo de exclusão, a cota

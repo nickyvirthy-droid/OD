@@ -565,6 +565,95 @@ def _arvore_suja() -> list[str]:
     return linhas
 
 
+# ---------------------------------------------------------------------------
+# Briefing comum e trava anti-destruição (2026-11-18)
+# ---------------------------------------------------------------------------
+#
+# Ordem do dono: "agora temos um número muito grande de IAs trabalhando sobre
+# OD. garanta que todas prossigam dentro da mesma linha sem destruir o que
+# existe (...) mesmo que uma pare no meio do caminho por cota ou outra razão
+# a próxima deve prosseguir e assim sucessivamente até concluir".
+#
+# Caso real que motivou a trava: em 18/11 outra ferramenta regrediu o
+# `orquestrador.py` de 1654 para 251 linhas (a versão de fila removida em
+# 08/10), sem registro e sem ninguém perceber até o gate quebrar na coleta.
+#
+# Duas peças:
+#   1. `_brief_para_cli()` — o estado real do projeto entra no prompt de TODA
+#      CLI (checkpoint, árvore suja, regras de convivência);
+#   2. `_reescritas_em_massa()` — arquivo rastreado que perdeu mais de 70%
+#      das linhas NÃO é commitado: a sessão falha e preserva a árvore (nada é
+#      apagado — o trabalho da IA fica para inspeção do dono).
+
+#: Reescrita suspeita: perder mais de 70% das linhas de um arquivo grande.
+REESCRITA_LIMIAR: float = 0.30  # depois < 30% de antes
+REESCRITA_MIN_LINHAS: int = 100  # só vale a pena olhar arquivos grandes
+
+
+def _brief_para_cli() -> str:
+    """Briefing multi-IA do estado do repositório (vazio se a tool falhar)."""
+    try:
+        from tools.brief_multi_ia import montar_brief
+
+        return montar_brief()
+    except Exception as exc:  # noqa: BLE001 — brief é contexto, não requisito
+        log.warning("Brief multi-IA indisponível | erro=%s", exc)
+        return ""
+
+
+def _linhas_do_arquivo(caminho: Path) -> int:
+    try:
+        with caminho.open(encoding="utf-8", errors="ignore") as fh:
+            return sum(1 for _ in fh)
+    except OSError:
+        return 0
+
+
+def _linhas_no_head(caminho: str, repo: Path = Path(".")) -> int:
+    """Linhas do arquivo como estão em HEAD (0 quando não existe lá)."""
+    try:
+        r = subprocess.run(
+            ["git", "show", f"HEAD:{caminho}"],
+            cwd=repo, capture_output=True, text=True, timeout=15, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return 0
+    if r.returncode != 0:
+        return 0
+    return len(r.stdout.splitlines())
+
+
+def _reescritas_em_massa(repo: Path = Path(".")) -> list[str]:
+    """Arquivos rastreados que a CLI reescreveu por cima do que existia.
+
+    Devolve descrições (`arquivo: antes=N depois=M`). Lista vazia quando
+    nada foi reescrito em massa — o caso normal.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "diff", "--numstat", "--diff-filter=M"],
+            cwd=repo, capture_output=True, text=True, timeout=15, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    suspeitos: list[str] = []
+    for linha in (r.stdout or "").splitlines():
+        partes = linha.split("\t")
+        if len(partes) != 3:
+            continue
+        adicionadas, removidas, caminho = partes
+        if not adicionadas.isdigit() or not removidas.isdigit():
+            continue  # binário
+        antes = _linhas_no_head(caminho, repo)
+        if antes < REESCRITA_MIN_LINHAS or int(removidas) == 0:
+            continue
+        destino = repo / caminho
+        depois = _linhas_do_arquivo(destino) if destino.exists() else 0
+        if depois < antes * REESCRITA_LIMIAR:
+            suspeitos.append(f"{caminho}: antes={antes} depois={depois}")
+    return suspeitos
+
+
 def _montar_contexto_repositorio(ideia: str) -> str:
     """Contexto prévio para a CLI: árvore suja + termos já no código.
 
@@ -860,15 +949,25 @@ INSTRUCAO_SESSAO: str = (
 
 
 def montar_prompt_sessao(
-    ideia: str, historico: str = "", contexto: str = ""
+    ideia: str,
+    historico: str = "",
+    contexto: str = "",
+    brief: str = "",
 ) -> str:
-    """Monta o prompt do modo sessão: instrução + contexto + ideia + histórico.
+    """Monta o prompt do modo sessão: instrução + brief + contexto + ideia + histórico.
 
     `contexto` (2026-10-10) carrega avisos do repositório: árvore suja de
     uma sessão anterior e termos do pedido que já existem no código — a CLI
     sabe o que já existe antes de decidir criar algo novo.
+
+    `brief` (2026-11-18) é o BRIEF MULTI-IA (tools/brief_multi_ia.py): versão,
+    checkpoint vigente, árvore suja do trabalho de OUTRA IA e as regras de
+    convivência. É o que faz 13 CLIs diferentes puxarem a mesma carroça sem
+    uma desfazer o que a outra fez.
     """
     partes = [INSTRUCAO_SESSAO]
+    if brief.strip():
+        partes += ["", brief.strip()]
     if contexto.strip():
         partes += ["", "Contexto do repositório:", contexto.strip()]
     partes += ["", "Ideia do dono (txt.txt):", ideia.strip()]
@@ -1302,6 +1401,8 @@ def _encerrar(
     """Fecha a sessão: estado final + aviso na caixa (nunca some sem registro)."""
     estado["status"] = status
     estado["motivo"] = motivo
+    if detalhe:
+        estado["detalhe"] = detalhe
     estado["ativo"] = False
     gravar_estado(estado, arquivo_estado)
     texto = f"Sessão {status}: {motivo}"
@@ -1421,13 +1522,19 @@ def executar_sessao(
     if contexto:
         log.info("Contexto do repositório para a CLI | chars=%d", len(contexto))
 
+    # Brief multi-IA (18/11): estado real + regras de convivência no prompt de
+    # TODA CLI da cascata. Calculado uma vez: a sessão inteira vê o mesmo.
+    brief = _brief_para_cli()
+    if brief:
+        log.info("Brief multi-IA no prompt | chars=%d", len(brief))
+
     historico = ""
     resposta_cli: str | None = None
     for rodada in range(1, SESSAO_MAX_AUTORIZACOES + 2):
         estado["rodada"] = rodada
         estado["status"] = "executando"
         gravar_estado(estado, arquivo_estado)
-        prompt = montar_prompt_sessao(ideia, historico, contexto)
+        prompt = montar_prompt_sessao(ideia, historico, contexto, brief)
         resposta_cli = None
         # Batimento só durante a CLI: a autorização já tem a própria espera
         # (SESSAO_AUTORIZACAO_TIMEOUT_S) e a validação é rápida.
@@ -1484,11 +1591,66 @@ def executar_sessao(
             f"\n[Autorização pedida] {pergunta}\n[Resposta do dono] {resposta}\n"
         )
 
+    # Trava anti-destruição (18/11): antes de validar/commitar, confere se a
+    # CLI não reescreveu por cima de um arquivo existente. Nada é apagado —
+    # a sessão falha com a árvore intacta para o dono inspecionar.
+    suspeitos = _reescritas_em_massa()
+    if suspeitos:
+        return _encerrar(
+            estado, "falhou", "arquivo_reescrito_em_massa",
+            arquivo_estado, arquivo_caixa,
+            detalhe="; ".join(suspeitos)[:300],
+        )
+
     estado["status"] = "validando"
     gravar_estado(estado, arquivo_estado)
     resultado = validar()
     estado["testes"] = str(resultado.get("testes", ""))
     estado["diff"] = str(resultado.get("diff", ""))
+
+    # Cascata de conclusão (ordem do dono, 18/11): se a validação falhar, a
+    # PRÓXIMA CLI continua de onde a anterior parou — recebendo a falha no
+    # histórico — até concluir ou acabarem as CLIs. Antes, um gate vermelho
+    # encerrava a sessão inteira mesmo com 12 CLIs disponíveis.
+    restantes = [spec for spec in escolha if spec.nome != estado.get("cli_usada")]
+    while not resultado.get("ok") and restantes:
+        spec = restantes.pop(0)
+        log.info("Validação vermelha — próxima CLI continua | cli=%s | testes=%s",
+                 spec.nome, estado["testes"][:80])
+        publicar_na_caixa(
+            "sistema",
+            f"⚠️ A validação falhou com {estado.get('cli_usada') or 'a CLI anterior'}. "
+            f"A próxima IA da cascata ({spec.nome}) continua do ponto atual, "
+            "preservando o que já existe.",
+            "info",
+            arquivo_caixa,
+        )
+        historico += (
+            "\n[A validação da suíte FALHOU depois da sua rodada]\n"
+            + estado["testes"][:1000]
+            + "\nContinue a partir do estado atual do repositório: preserve o "
+            "que já existe e conserte a causa do vermelho.\n"
+        )
+        prompt = montar_prompt_sessao(ideia, historico, contexto, brief)
+        with _ComBatimento(estado, arquivo_estado):
+            resposta = executar(spec, prompt)
+        if resposta is None:
+            log.info("CLI da retomada indisponível | cli=%s", spec.nome)
+            continue
+        estado["cli_usada"] = spec.nome
+        suspeitos = _reescritas_em_massa()
+        if suspeitos:
+            return _encerrar(
+                estado, "falhou", "arquivo_reescrito_em_massa",
+                arquivo_estado, arquivo_caixa,
+                detalhe="; ".join(suspeitos)[:300],
+            )
+        estado["status"] = "validando"
+        gravar_estado(estado, arquivo_estado)
+        resultado = validar()
+        estado["testes"] = str(resultado.get("testes", ""))
+        estado["diff"] = str(resultado.get("diff", ""))
+
     if not resultado.get("ok"):
         return _encerrar(
             estado, "falhou", "testes_vermelhos",
