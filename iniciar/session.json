@@ -6348,6 +6348,8 @@
     "efeito_colateral": "O texto novo no corpus mudou o IDF e derrubou o gate (quanto e 15% de 380 reais passou a injetar trecho). Corrigido reescrevendo o nosso texto ('invenções reais' -> 'invenções de fato'); piso NÃO foi afrouxado.",
     "validacao": "Gate completo 5465 passed / 19 skipped / 0 falha (218s); test_rag 98 passed (TestHibrido 5 novos); test_hybrid_search + test_eval_oracle 16 passed. od-core reiniciado, /health ok=true, journal sem erro.",
     "sem_bump": "1.46.0+2083 (flag no default: comportamento idêntico).",
-    "docs": "docs/CHANGELOG.md (seção nova), docs/ANALISE_SISTEMA_TODO.md (P1 nº 5 marcado ENTREGUE com o resultado da medição), iniciar/2026-11-18_conversa_omegadrakon.md §13, iniciar/ATRIBUICOES.md."
+    "docs": "docs/CHANGELOG.md (seção nova), docs/ANALISE_SISTEMA_TODO.md (P1 nº 5 marcado ENTREGUE com o resultado da medição), iniciar/2026-11-18_conversa_omegadrakon.md §13, iniciar/ATRIBUICOES.md.",
+    "publicacao": "Commit 3cc1b38 em origin/master; HEAD == origin/master; arvore limpa.",
+    "telegram": "ok=true msg_id=4062 (regra 15)."
   }
 }
