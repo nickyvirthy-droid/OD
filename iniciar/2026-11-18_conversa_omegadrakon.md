@@ -132,8 +132,9 @@ própria das entregas dele que ficam (`tools/od.sh`, docs).
 
 ### 6. Resíduos do lote, catalogados (nada apagado — regra 7)
 
-- **130 arquivos `gerado_*.py`** na raiz (conteúdo `pronto`, criados
-  09:08–09:37 pela automação; 7 deles já commitados por ela); afetam
+- **171 arquivos `gerado_*.py`** na raiz (conteúdo `pronto`, gerados a
+  ~1/3 s entre 09:08 e **10:30:37**, quando a automação **parou** — medido:
+  0 novos nos 60 s seguintes; 7 deles já commitados por ela); afetam
   testes que medem a sujeira da árvore (ex. `_arvore_suja` esperava
   `['new file.py']` e via os `gerado_*`). Nada apagado sem ordem do dono.
 - **`teste_orquestrador.py` (raiz)** — nome de teste, mas é um "módulo de

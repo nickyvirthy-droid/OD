@@ -638,16 +638,17 @@ esperar o timeout.
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
 - [ ] **Limpar os resíduos do lote da madrugada de 18/11 (Cline)** — dois
       tipos medidos na raiz, nenhum apagado por conta própria (regra 7):
-      **(a)** **130 arquivos `gerado_*.py`** (conteúdo `pronto`, criados
-      09:08–09:37 como sinalização da automação; 7 já commitados) que
-      contaminam testes que medem a sujeira da árvore (ex. `_arvore_suja`
-      esperava `['new file.py']` e via os `gerado_*`); **(b)**
-      **`teste_orquestrador.py` (raiz)** — nome de teste, mas é um "módulo
-      de orquestração de tarefas genérico" **sem nenhum `test_*`** (pytest:
-      `no tests ran`), commitado como lixo gerado. Resolve: árvore limpa
-      (regra 7.2) e testes de contexto sem ruído. Risco de apagar: a
-      automação pode usar os `gerado_*` como heartbeat — confirmar com o
-      dono que a sessão Cline encerrou.
+      **(a)** **171 arquivos `gerado_*.py`** (conteúdo `pronto`, gerados em
+      ritmo de ~1/3 s entre 09:08 e **10:30**, quando a automação parou;
+      7 commitados) que contaminam testes que medem a sujeira da árvore
+      (ex. `_arvore_suja` esperava `['new file.py']` e via os `gerado_*`);
+      **(b)** **`teste_orquestrador.py` (raiz)** — nome de teste, mas é um
+      "módulo de orquestração de tarefas genérico" **sem nenhum `test_*`**
+      (pytest: `no tests ran`), commitado como lixo gerado. Resolve:
+      árvore limpa (regra 7.2) e testes de contexto sem ruído. Risco de
+      apagar: a automação pode usar os `gerado_*` como heartbeat — confirmar
+      com o dono que a sessão Cline encerrou (última checkpoint 09:29;
+      última geração 10:30; sem atividade depois).
 - [ ] **App por papel: 1 app com abas escondidas vs vários apps** — ideia do
       dono (15/11): "o APP está ficando complicado para os usuários… um
       usuário comum não precisa da aba admin; um familiar seria bom ter uma
