@@ -179,13 +179,16 @@ def _rodar(cmd: list[str], cwd: Path | str | None = None) -> tuple[int, str]:
 # Prompt e leitura de ideia
 # ---------------------------------------------------------------------------
 
-def montar_prompt_sessao(ideia: str, resposta_dono: str | None = None) -> str:
+def montar_prompt_sessao(ideia: str, contexto: str | None = None, resposta_dono: str | None = None) -> str:
     """Constrói o prompt blindado para geração de código Python."""
     linhas: list[str] = []
     linhas.append("iniciar/")
     linhas.append("docs/")
     linhas.append("txt.txt")
     linhas.append(f"Crie um arquivo Python que implemente: {ideia}")
+    if contexto:
+        linhas.append("Contexto do repositório:")
+        linhas.append(contexto)
     if resposta_dono:
         linhas.append(f"[Resposta do dono] {resposta_dono}")
     linhas.append("[AUTORIZACAO]")
@@ -417,14 +420,15 @@ def resolver_clis(cli: str = "auto") -> list[CliSpec]:
 
     - ``auto`` → todas as CLIS da lista oficial.
     - Nome específico → apenas essa CLI.
-    - String vazia ou desconhecida → lista vazia (não levanta exceção).
+    - String vazia → todas as CLIS.
+    - CLI desconhecida → levanta ValueError.
     """
     if cli == "auto" or cli == "":
         return list(CLIS)
     for spec in CLIS:
         if spec.nome.lower() == cli.lower() or spec.binario == cli.lower():
             return [spec]
-    return []
+    raise ValueError(f"CLI desconhecida: {cli}")
 
 
 # ---------------------------------------------------------------------------
@@ -488,10 +492,21 @@ def _arvore_suja() -> list[str]:
     """Verifica se a árvore git tem mudanças não commitadas.
 
     Ignora backups/ e .od_sandbox/. Retorna lista de caminhos sujos.
+    Usa subprocess.run diretamente para ser monkeypageável nos testes.
     """
-    codigo, saida = _rodar(["git", "status", "--porcelain"])
-    if codigo != 0:
+    try:
+        resultado = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        saida = (resultado.stdout or "") + (resultado.stderr or "")
+    except FileNotFoundError:
         return []
+    except Exception:
+        return []
+
     sujos: list[str] = []
     for linha in saida.splitlines():
         linha = linha.strip()
@@ -539,28 +554,28 @@ def _montar_contexto_repositorio(ideia: str) -> str:
 def extrair_autorizacao(saida: str) -> str | None:
     """Extrai autorização de uma saída de CLI.
 
-    Procura por [AUTORIZACAO] em linha própria e retorna o texto seguinte
-    até o final da linha ou próximo marcador.
+    Procura por [AUTORIZACAO] no INÍCIO de uma linha e retorna o texto
+    seguinte na mesma linha. Se não houver texto após o marcador na
+    mesma linha, retorna None.
     """
     if not saida:
         return None
     linhas = saida.splitlines()
-    for i, linha in enumerate(linhas):
-        if "[AUTORIZACAO]" in linha:
+    for linha in linhas:
+        # O marcador deve estar no início da linha (apenas espaços antes)
+        if linha.lstrip().startswith("[AUTORIZACAO]"):
             resto = linha.split("[AUTORIZACAO]", 1)[1].strip()
             if resto:
                 return resto
-            # Se não há nada na mesma linha, pega a próxima não-vazia
-            for j in range(i + 1, len(linhas)):
-                prox = linhas[j].strip()
-                if prox:
-                    return prox
-            return ""
+            return None
     return None
 
 
 def extrair_analise(conteudo: str) -> str | None:
-    """Extrai o bloco [ANALISE]...[FIM ANALISE] de um conteúdo."""
+    """Extrai o bloco [ANALISE]...[FIM ANALISE] de um conteúdo.
+
+    Retorna None se não houver marcador ou se o bloco estiver vazio.
+    """
     if not conteudo:
         return None
     inicio = conteudo.find("[ANALISE]")
@@ -568,8 +583,12 @@ def extrair_analise(conteudo: str) -> str | None:
         return None
     fim = conteudo.find("[FIM ANALISE]", inicio)
     if fim == -1:
-        return conteudo[inicio + len("[ANALISE]"):].strip()
-    return conteudo[inicio + len("[ANALISE]"):fim].strip()
+        bloco = conteudo[inicio + len("[ANALISE]"):].strip()
+    else:
+        bloco = conteudo[inicio + len("[ANALISE]"):fim].strip()
+    if not bloco:
+        return None
+    return bloco
 
 
 # ---------------------------------------------------------------------------
@@ -711,12 +730,28 @@ def validar_sessao(rodar: Any, repo: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def aguardar_resposta_dono(
-    caixa: list[dict] | None = None,
     timeout_s: float | None = None,
+    caixa: Path | str | None = None,
     intervalo_s: float = 1.0,
     dormir: Any = time.sleep,
 ) -> str | None:
-    """Aguarda uma resposta do dono (placeholder — no modo real lê de uma fonte externa)."""
+    """Aguarda uma resposta do dono.
+
+    Lê da caixa (arquivo JSON) se fornecida. Retorna a resposta ou None
+    se não houver resposta nova dentro do timeout.
+    """
+    if caixa is None:
+        return None
+    caminho = Path(caixa) if not isinstance(caixa, Path) else caixa
+    if not caminho.exists():
+        return None
+    try:
+        dados = json.loads(caminho.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    resposta = dados.get("resposta")
+    if resposta:
+        return resposta
     return None
 
 
@@ -976,16 +1011,32 @@ def publicar_na_caixa(
     origem: str,
     resposta: str,
     contexto: str,
-    caixa: list[dict],
+    caixa: Path | str | list[dict],
 ) -> None:
-    """Publica uma mensagem na caixa de respostas do dono."""
-    caixa.append({
+    """Publica uma mensagem na caixa de respostas do dono.
+
+    Se `caixa` for um Path/str, escreve JSON no arquivo. Se for uma lista,
+    adiciona um dicionário à lista.
+    """
+    entrada = {
         "tipo": "resposta",
         "origem": origem,
         "resposta": resposta,
         "contexto": contexto,
         "ts": time.time(),
-    })
+    }
+    if isinstance(caixa, (str, Path)):
+        caminho = Path(caixa) if isinstance(caixa, str) else caixa
+        try:
+            existente = []
+            if caminho.exists():
+                existente = json.loads(caminho.read_text(encoding="utf-8"))
+            existente.append(entrada)
+            caminho.write_text(json.dumps(existente, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+    elif isinstance(caixa, list):
+        caixa.append(entrada)
 
 
 # ---------------------------------------------------------------------------
