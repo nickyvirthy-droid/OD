@@ -6231,6 +6231,8 @@
     "registro": "docs/IAS_DISPONIVEIS.md (historico de medicoes), docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md (checkbox fechado).",
     "estado_encontrado": "HEAD == origin/master == 181dea1, arvore limpa, od-core ativo PID 352191 (health 30/30).",
     "sem_bump": "1.46.0+2083; nenhum codigo alterado nesta medicao (so docs/registro).",
+    "publicacao": "Commit 50f1b13 em origin/master; HEAD == origin/master; arvore limpa (arquivo de prova removido).",
+    "telegram": "ok=true msg_id=4058 (regra 15).",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§9)",
     "updated_at": "2026-11-18T17:55:00-03:00"
   },
