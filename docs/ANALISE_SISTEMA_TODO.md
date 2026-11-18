@@ -93,7 +93,7 @@ registro):
 | # | Entrega | Por que agora | Esforço |
 |---|---------|---------------|---------|
 | 1 | **Guarda do `llm_cache` para conversa comum** | Hoje o cache pode devolver resposta **inventada** de conversa (o guarda só barra comando de action). É a classe de defeito que faz o OD "parecer menos inteligente" e agora fica gravada em cache. | Baixo–médio |
-| 2 | **Corpus de frases reais do dono** (`txt.txt` + transcrições) como teste de intenção | Os buracos de casamento só aparecem em uso (disco, papéis, rádio) e cada um custou um turno de conserto. Custo: nenhum — as frases já existem. | Baixo |
+| 2 | ~~**Corpus de frases reais do dono**~~ **ENTREGUE 18/11** — `tests/test_corpus_frases_dono.py`, 32 testes, 13 frases verbatim com origem conferida | Os buracos de casamento só aparecem em uso (disco, papéis, rádio) e cada um custou um turno de conserto. Custo: nenhum — as frases já existem. | Baixo |
 | 3 | **Teste ZIM ↔ compose** (acervo offline) | Um ZIM novo só entra na busca se alguém lembrar do `command`; 14 ZIMs/40,3 GB já hoje sem guarda. | Baixo |
 | 4 | **Espelho: `.gguf` 3B + binário do llama.cpp com MANIFEST** | O "offline" do OD depende de `/home/alex/llama.cpp` sobreviver; o resto do espelho já está pronto em `od-mirror`. | Baixo |
 
@@ -636,13 +636,22 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
-- [ ] **Reverter o lote órfão que regrediu o `orquestrador.py`** (18/11
-      15:19, origem não identificada): a árvore tem a versão de **fila de
-      08/10** (251 linhas, `load_dotenv()` no nível de módulo, sem `CLIS`),
-      que quebra a coleta de `tests/test_orquestrador.py`
-      (`ImportError: cannot import name 'CLIS'`) e desfaz a cascata de 13
-      CLIs. Resolve: `git checkout -- orquestrador.py` + remover `soma.py`
-      (32 B, raiz). **Ação destrutiva: exige ordem do dono (regra 7).**
+- [ ] **Hook de pré-commit com a trava de reescrita maciça** — hoje a trava
+      (`_reescritas_em_massa`) só roda em sessões do `orquestrador --sessao`;
+      IA que trabalha fora dele pode commitar a regressão. Um hook
+      `pre-commit` que recusa a mesma proporção fecha o buraco para todas.
+- [ ] **Painel/`/health`: “IA trabalhando agora” e lote órfão visível** — o
+      brief e o `session.json` são lidos por quem lembra; expor no painel o
+      checkpoint vigente, a árvore suja e há quanto tempo ninguém registra
+      evita que um lote órfão (18/11, 15:19) passe despercebido por horas.
+- [ ] **Testar a cascata até concluir com CLI real** — a continuidade está
+      provada por teste (fakes), não com duas CLIs reais em sequência; medir
+      quanto do contexto do brief a CLI de fato usa (prompt real + diff).
+- [x] **Reverter o lote órfão que regrediu o `orquestrador.py`** — **FEITO
+      18/11** com a ordem do dono ("faça"): `git checkout -- orquestrador.py`
+      (de volta a 1654 linhas) + `rm soma.py`; `tests/test_orquestrador.py`
+      voltou a **116 passed**. A trava `_reescritas_em_massa` (regra 24) passa
+      a impedir a repetição dentro do orquestrador.
 - [ ] **Acompanhar o download da playlist do Raul Seixas até o fim** —
       unidade `od-radio-lista-raul` ativa desde 13:50 de 18/11, lote 4 de
       ~19 (acervo 354 → 382). Falta: conferir os lotes restantes (~7–8 h),
@@ -1023,8 +1032,13 @@ esperar o timeout.
       passam pelo gate de escopo; `/tmp` permitido automaticamente. Se caller
       passar `allowed_roots` explícito, `/tmp` NÃO é adicionado (política
       restritiva). Testes: `test_scope_audit.py` inclui as duas actions.
-- [ ] Intenções: montar um corpus com frases reais do dono (do `txt.txt` e das
-      transcrições) como teste de detecção — os buracos só apareciam em uso
+- [x] Intenções: **corpus com frases reais do dono** — **ENTREGUE 18/11:**
+      `tests/test_corpus_frases_dono.py` (32 testes): 13 frases verbatim, cada
+      uma com o arquivo de `iniciar/` onde está registrada (o próprio teste
+      confere que a frase está lá — corpus não vira invenção), params
+      semânticos (`city`, `moeda`, `volume`), 2 frases de conversa que o fast
+      path não pode sequestrar e as etapas de `datetime`. Crescer = acrescentar
+      a frase nova + a origem.
 
 > Turno de 12/11 10:22 (auditoria de escopo): sugestões não escolhidas →
 > "decidir a política de /tmp e fechar o bypass do escopo" virou checkbox
