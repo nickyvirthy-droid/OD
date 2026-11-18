@@ -9,6 +9,43 @@
 
 ---
 
+## 18/11/2026 — P0 nº 4 fechado: `.gguf` 3B + runtime do llama.cpp no espelho
+
+**Autor:** Freebuff (Buffy) — sessão de 18/11 ~18:50, pedido do dono ("Fechar o
+P0 nº 4 copiando o .gguf do 3B e o binário do llama.cpp para o espelho com
+MANIFEST").
+
+### Criados (fora do repositório, HD USB)
+
+- `/home/alex/dados/od-mirror/models/qwen2.5-coder-3b-instruct-q4_k_m.gguf`
+  (2,0 GB; sha256 idêntico ao original).
+- `/home/alex/dados/od-mirror/runtimes/llama/` — build 10786, 41 MB, **com as
+  `.so`** (o binário sozinho não roda).
+
+### Modificados (fora do repositório)
+
+- `od-mirror/MANIFEST.txt` — 133 entradas (82 antigas + 51 novas).
+- `od-mirror/README.md` — tabela + seção "Restaurar o LLM local".
+
+### Modificados (no repositório)
+
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (P0 nº 4 e checkbox),
+  `iniciar/session.json`, transcrição §11.
+
+### Intenção + estado
+
+- **Intenção:** o "offline" do OD não podia depender de `/home/alex/llama.cpp`
+  e `/opt/…/runtimes/llama` sobreviverem.
+- **Pronto/validado:** `sha256sum -c` **51/51 OK**; **prova real** — o runtime
+  copiado subiu de `/tmp` sem `LD_LIBRARY_PATH`, carregou o `.gguf` do espelho
+  e respondeu `/v1/models` (`model loaded` + `listening`), depois encerrado.
+- **Descoberta registrada:** o unit `od-llm.service` do repo cita gemma e está
+  inactive; o 3B realmente servido foi confirmado no `/v1/models` vivo.
+- **Limites:** só o 3B coder; symlinks `.so` fora do MANIFEST; `x86_64`.
+- **Sem bump:** 1.46.0+2083; sem restart; nenhum código do serviço alterado.
+
+---
+
 ## 18/11/2026 — P0 nº 3 fechado: guarda ZIM ↔ compose do acervo offline
 
 **Autor:** Freebuff (Buffy) — sessão de 18/11 ~18:20, pedido do dono ("Fechar o

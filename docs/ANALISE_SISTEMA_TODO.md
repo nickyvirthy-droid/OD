@@ -95,7 +95,7 @@ registro):
 | 1 | **Guarda do `llm_cache` para conversa comum** | Hoje o cache pode devolver resposta **inventada** de conversa (o guarda só barra comando de action). É a classe de defeito que faz o OD "parecer menos inteligente" e agora fica gravada em cache. | Baixo–médio |
 | 2 | ~~**Corpus de frases reais do dono**~~ **ENTREGUE 18/11** — `tests/test_corpus_frases_dono.py`, 32 testes, 13 frases verbatim com origem conferida | Os buracos de casamento só aparecem em uso (disco, papéis, rádio) e cada um custou um turno de conserto. Custo: nenhum — as frases já existem. | Baixo |
 | 3 | ~~**Teste ZIM ↔ compose**~~ **ENTREGUE 18/11** — `tests/test_zim_compose.py` (11 testes) + `tools/checar_zim_compose.py` (guarda nas duas direções, rodável no CI). Acervo real: **14 ZIMs alinhados** com o `command`. | Um ZIM novo só entra na busca se alguém lembrar do `command`; 14 ZIMs/40,3 GB já hoje sem guarda. | Baixo |
-| 4 | **Espelho: `.gguf` 3B + binário do llama.cpp com MANIFEST** | O "offline" do OD depende de `/home/alex/llama.cpp` sobreviver; o resto do espelho já está pronto em `od-mirror`. | Baixo |
+| 4 | ~~**Espelho: `.gguf` 3B + binário do llama.cpp com MANIFEST**~~ **ENTREGUE 18/11** — `od-mirror/models/` + `od-mirror/runtimes/llama/`, MANIFEST 133 entradas (51 novas, 51/51 OK) e **prova real**: o `llama-server` do espelho subiu de `/tmp` sem `LD_LIBRARY_PATH`, carregou o `.gguf` do espelho e respondeu `/v1/models`. | O "offline" do OD dependia de `/home/alex/llama.cpp` sobreviver; o resto do espelho já está pronto em `od-mirror`. | Baixo |
 
 #### P1 — próximas duas semanas (valor alto, escopo médio)
 
@@ -1114,9 +1114,13 @@ esperar o timeout.
 - [ ] **Espelho (restauração real):** criar um venv limpo e subir um container
       a partir de `od-mirror` sem rede — hoje a prova é resolução de
       dependências + integridade, não um boot completo
-- [ ] **Espelho (modelos):** copiar o `.gguf` do 3B e o binário do llama.cpp
-      para o acervo, com o mesmo MANIFEST — hoje eles só existem em
-      `/home/alex/llama.cpp`
+- [x] **Espelho (modelos):** `.gguf` do 3B + runtime do llama.cpp no acervo —
+      **FEITO 18/11:** `models/qwen2.5-coder-3b-instruct-q4_k_m.gguf` (2,0 GB,
+      sha256 idêntico ao original) + `runtimes/llama/` (build 10786, 41 MB,
+      **com as `.so`**), MANIFEST 133 entradas (51 novas, 51/51 conferidas).
+      Prova real: servidor **do espelho** rodou de `/tmp` com
+      `LD_LIBRARY_PATH` limpo, carregou o `.gguf` do espelho e respondeu
+      `/v1/models`. Espelho agora 5,7 GB; README com "Restaurar o LLM local".
 - [x] **Fila de download resumable** de acervo (padrão NOMAD, progresso por
       SSE) — **JÁ EXISTE desde a Parte D:** `core/downloads.py` retoma com
       `Range: bytes=N-` a partir do `.part`, confere sha256 e publica por SSE

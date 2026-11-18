@@ -707,3 +707,52 @@ presentes. Nenhuma correção no compose foi necessária.
 
 `test_zim_compose + test_kiwix + test_enciclopedia` **106 passed**;
 **GATE COMPLETO 5459 passed / 19 skipped / 0 falha** (212,87 s).
+
+---
+
+## §11 — P0 nº 4 fechado: `.gguf` do 3B + runtime do llama.cpp no espelho
+
+**Pedido (verbatim):** *"Fechar o P0 nº 4 copiando o .gguf do 3B e o binário do
+llama.cpp para o espelho com MANIFEST"*.
+
+### Antes de copiar, conferi quem é "o 3B"
+
+O `od-llm.service` do repo cita **gemma** e está **inactive** — não serve de
+referência. O processo no ar (PID 4036016) roda:
+
+```
+/opt/omegadrakon/ai/runtimes/llama/llama-server \
+  -m /home/alex/llama.cpp/models/qwen2.5-coder-3b-instruct-q4_k_m.gguf \
+  --port 8081 --ctx-size 8192 ...
+```
+
+E o `GET /v1/models` vivo devolve exatamente esse caminho. Além disso: o
+**binário sozinho não roda** — ele usa as `.so` do mesmo diretório (rpath
+`$ORIGIN`). Copiar só o executável teria produzido um espelho quebrado.
+
+### O que foi copiado
+
+| Destino | Conteúdo |
+|---|---|
+| `od-mirror/models/` | `qwen2.5-coder-3b-instruct-q4_k_m.gguf` — **2,0 GB**, sha256 `724fb256…` **idêntico ao original** |
+| `od-mirror/runtimes/llama/` | **build 10786**, 41 MB, 60 arquivos: `llama-server`, `llama-cli` e as `libllama`/`libggml*`/`libmtmd` |
+| `MANIFEST.txt` | **133 entradas** — 82 antigas preservadas + **51 novas** |
+| `README.md` | tabela nova + seção "Restaurar o LLM local (sem internet)" |
+
+### Prova real (e não só checksum)
+
+O `sha256sum -c` das entradas novas deu **51/51 OK**. Mas o teste que fecha o
+item é outro: o **runtime copiado do espelho** subiu a partir de `/tmp`, com
+`LD_LIBRARY_PATH` **removido**, carregou o **`.gguf` do espelho** e respondeu
+em `/v1/models` — log `model loaded` + `listening`. Processo encerrado em
+seguida (nada ficou no ar).
+
+**Medido:** espelho **3,3 GB → 5,7 GB**.
+
+### Limites declarados
+
+- Só o **3B coder** (o servido); 7B e 3B generalista ficam fora por decisão
+  medida (7B = 3,7× mais lento).
+- Symlinks das `.so` **não entram** no MANIFEST (ele hasheia arquivos reais) —
+  restaurar com `cp -a`/`rsync -a`.
+- Binário é `x86_64`/glibc desta máquina; outra arquitetura exige reespelhar.

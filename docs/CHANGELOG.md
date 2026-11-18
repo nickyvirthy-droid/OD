@@ -12,6 +12,37 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Espelho completo: `.gguf` do 3B + runtime do llama.cpp no `od-mirror` (2026-11-18, sem bump)
+
+**Contexto:** P0 nº 4 de 17/11 — o "offline" do OD dependia de
+`/home/alex/llama.cpp` e `/opt/omegadrakon/ai/runtimes/llama` **sobreviverem**;
+o resto do espelho (`od-mirror`: 57 wheels + 17 imagens) já estava pronto e
+testado. O dono: *"Fechar o P0 nº 4 copiando o .gguf do 3B e o binário do
+llama.cpp para o espelho com MANIFEST"*.
+
+**O que entrou:**
+
+| Item | Detalhe |
+|---|---|
+| `od-mirror/models/` | `qwen2.5-coder-3b-instruct-q4_k_m.gguf` (2,0 GB) — **o 3B que o `llama-server` realmente serve** em `:8081` (confirmado no `/v1/models` vivo, não no unit antigo que citava gemma) |
+| `od-mirror/runtimes/llama/` | **build 10786** (41 MB): `llama-server`, `llama-cli` e as `.so` (`libllama`, `libggml*`, `libmtmd`) — o binário sozinho não roda |
+| `MANIFEST.txt` | **133 entradas** (82 antigas preservadas + **51 novas**), `sha256` conferido: **51/51 OK** |
+| `README.md` | tabela de conteúdo + seção **"Restaurar o LLM local (sem internet)"** com os parâmetros do serviço em uso e os limites declarados |
+
+**Prova real (não resolução de dependência):** o `llama-server` **copiado do
+espelho** subiu a partir de `/tmp` com `LD_LIBRARY_PATH` limpo, carregou o
+`.gguf` **do espelho** e respondeu em `/v1/models` (`model loaded` +
+`listening`); processo encerrado depois, nada ficou no ar. O `sha256` do
+`.gguf` copiado é idêntico ao original (`724fb256…`).
+
+**Medido:** espelho passou de **3,3 GB → 5,7 GB**.
+
+**Limites declarados:** só o 3B coder (o servido) — 7B e 3B generalista ficam
+fora por decisão medida; symlinks das `.so` não entram no MANIFEST (copiar com
+`cp -a`); binário é `x86_64`/glibc desta máquina.
+
+**Sem bump:** 1.46.0+2083 (conteúdo de mídia, fora do repositório).
+
 ## Acervo offline com guarda: todo ZIM do disco no `command` do kiwix (2026-11-18, sem bump)
 
 **Contexto:** P0 nº 3 da revisão de 17/11 — o kiwix-serve **não aceita glob**;

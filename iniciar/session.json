@@ -6223,6 +6223,18 @@
     "validacao": "Gate parcial radio_link+tools+cobertura: 336 passed. Progresso: lote 1 +10 (354 -> 364), lote 2 rodando 14:23, unidade active; 190 faixas ~19 lotes ~10-13h; disco 760G livres.",
     "sem_bump": "1.46.0+2083. Fix entra no ar no proximo restart do od-core (autorizacao pendente)."
   },
+  "espelho_llm_p0_4_2026_11_18": {
+    "pedido": "Dono (18/11): 'Fechar o P0 no 4 copiando o .gguf do 3B e o binario do llama.cpp para o espelho com MANIFEST'.",
+    "problema": "O offline do OD dependia de /home/alex/llama.cpp e /opt/omegadrakon/ai/runtimes/llama sobreviverem; o od-mirror ja tinha 57 wheels + 17 imagens testadas, mas nenhum modelo nem runtime de IA.",
+    "descoberta": "O servico no ar (PID 4036016) usa /opt/omegadrakon/ai/runtimes/llama/llama-server com /home/alex/llama.cpp/models/qwen2.5-coder-3b-instruct-q4_k_m.gguf — confirmado em GET /v1/models vivo. O unit od-llm no repo cita gemma e esta inactive: nao serve de referencia. Binario sozinho nao roda: precisa das .so no mesmo diretorio (rpath $ORIGIN).",
+    "entrega": "/home/alex/dados/od-mirror/models/qwen2.5-coder-3b-instruct-q4_k_m.gguf (2,0 GB, sha256 724fb256... identico ao original) + runtimes/llama/ (build 10786, 41 MB, 60 arquivos incl. llama-server/llama-cli e libllama/libggml*/libmtmd). MANIFEST.txt: 133 entradas (82 antigas preservadas + 51 novas); README.md com tabela nova, secao 'Restaurar o LLM local (sem internet)' e limites declarados.",
+    "validacao": "sha256sum -c das 51 entradas novas: 51/51 OK. PROVA REAL: llama-server copiado do espelho subiu a partir de /tmp com LD_LIBRARY_PATH limpo (env -u), carregou o .gguf do espelho em :18099 e respondeu /v1/models com model loaded + listening; processo encerrado depois. Espelho: 3,3 GB -> 5,7 GB.",
+    "limites": "So o 3B coder (o servido); 7B e 3B generalista fora por decisao medida; symlinks .so fora do MANIFEST (usar cp -a); binario x86_64/glibc desta maquina.",
+    "estado_encontrado": "HEAD == origin/master == d28dba4, arvore limpa, od-core ativo, llama-server em :8081 servindo o 3B coder.",
+    "sem_bump": "1.46.0+2083; sem restart; mudanca fora do repositorio (midia).",
+    "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§11)",
+    "updated_at": "2026-11-18T18:55:00-03:00"
+  },
   "zim_compose_p0_3_2026_11_18": {
     "pedido": "Dono (18/11): 'Fechar o P0 nº 3 com um teste ZIM <-> compose no acervo offline'.",
     "problema": "kiwix-serve nao aceita glob: cada ZIM e argumento posicional no command de docker/tools-compose.yaml. ZIM novo no diretorio montado ficava invisivel na busca ate alguem editar o compose; o inverso tambem passava (compose citando arquivo ausente, escondido por --skipInvalid). 14 ZIMs / 40,3 GB sem guarda.",
