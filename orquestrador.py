@@ -501,7 +501,8 @@ def _arvore_suja() -> list[str]:
             text=True,
             timeout=120,
         )
-        saida = (resultado.stdout or "") + (resultado.stderr or "")
+        saida = getattr(resultado, "stdout", "") or ""
+        saida += getattr(resultado, "stderr", "") or ""
     except FileNotFoundError:
         return []
     except Exception:
