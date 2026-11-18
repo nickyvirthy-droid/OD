@@ -993,8 +993,14 @@ O `musica.py` (externo ao repo) descartava o artista que **já vinha no link**:
   reais de *A panela do Diabo* (1989) → "Marcelo Nova e Raul Seixas".
 - Log antes/depois: `logs/artista_backfill_2026-11-18.log`; rollback do banco:
   `backups/acervo_antes_backfill_artista_20261118.db`.
-- Restou **1** faixa sem título nenhum (`Desconhecido - Desconhecido.mp3`,
-  3m51) — **não foi apagada**; precisa de decisão do dono.
+- Restava **1** faixa sem título nenhum (`Desconhecido - Desconhecido.mp3`,
+  3m51). Identificada em seguida: o log de 17/11 mostra a renomeação por IA
+  trocando `Metamorfose Ambulante.mp3` por `Desconhecido - Desconhecido`; o
+  áudio decodificado tem **o mesmo MD5 PCM** e a mesma duração da faixa
+  `Raul Seixas - Metamorfose Ambulante.mp3`. Movida para
+  `revisar/duplicadas/` pela função do próprio pipeline
+  (`arquivar_duplicada(..., "exato")`) — nada apagado. Acervo (469) e
+  AzuraCast com **0** `Desconhecido`.
 
 ### 5. Validação
 

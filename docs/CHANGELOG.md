@@ -46,8 +46,14 @@ evidência da própria lista (94 Raul + 4 conferidas por título de vídeo + 8
 duetos reais de *A panela do Diabo* → "Marcelo Nova e Raul Seixas"). Log com
 antes/depois em `logs/artista_backfill_2026-11-18.log`; backup do banco em
 `backups/acervo_antes_backfill_artista_20261118.db`. Restou **1** faixa sem
-título nenhum (`Desconhecido - Desconhecido.mp3`, 3m51) — fica para decisão do
-dono; nada foi apagado.
+título nenhum (`Desconhecido - Desconhecido.mp3`, 3m51), identificada depois
+como **duplicata exata** de `Raul Seixas - Metamorfose Ambulante.mp3`: o log de
+17/11 mostra a renomeação por IA trocando o nome por `Desconhecido -
+Desconhecido`, e o áudio decodificado tem **o mesmo MD5 PCM** e a mesma duração
+(231,29 s). Foi para a quarentena do próprio pipeline
+(`arquivar_duplicada(..., "exato")` → `revisar/duplicadas/`), sem apagar nada;
+`acervo.db` reindexado (469), `.m3u` e `media:sync` refeitos — acervo e
+AzuraCast com **0** `Desconhecido`.
 
 **Validado:** download real da lista em `temp` isolado →
 `Raul Seixas - Metamorfose Ambulante.mp3` com `TPE1=Raul Seixas`; lote

@@ -38,6 +38,11 @@ como desconhecido").
   (`Raul Seixas - Metamorfose Ambulante.mp3`, `TPE1=Raul Seixas`); acervo com
   0 Desconhecido (fora um arquivo cujo título é literalmente "Desconhecido");
   AzuraCast com 108 faixas de Raul Seixas + 8 duetos.
+- **Faixa sem título resolvida:** `Desconhecido - Desconhecido.mp3` era
+  duplicata **exata** de `Raul Seixas - Metamorfose Ambulante.mp3` (mesmo MD5
+  do PCM decodificado, mesma duração; log de 17/11 mostra a renomeação por IA
+  trocando o nome). Movida para `revisar/duplicadas/` pela função do próprio
+  pipeline — nada foi apagado.
 - **Limite:** não há teste do repo para o `musica.py` (script externo, sem
   suíte); a verificação foi por execução real e consulta ao acervo/AzuraCast.
 

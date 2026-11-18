@@ -6372,10 +6372,12 @@
     "correcao": "musica.py: artistas_da_info() (artist/artists/creator/album_artist/uploader/channel, sem '- Topic'/VEVO); extrair_playlist carrega artistas; baixar_musica_individual usa extract_info(download=True), grava TPE1/TIT2 e renomeia 'Artista - Titulo.mp3' antes do dedupe; garantir_tags_basicas nao quebra em mp3 sem header ID3.",
     "backfill": "106 faixas re-tagueadas e renomeadas com evidencia da lista do YouTube (94 Raul + 4 por titulo de video + 8 duetos 'Marcelo Nova e Raul Seixas'); logs/artista_backfill_2026-11-18.log; backup backups/acervo_antes_backfill_artista_20261118.db; 1 faixa sem titulo segue Desconhecido e NAO foi apagada (decisao do dono).",
     "validacao": "Download real em temp isolado: 'Raul Seixas - Metamorfose Ambulante.mp3' com TPE1=Raul Seixas; lote seguinte do servico gravou 'Artista do link: Raul Seixas - Babilina'; acervo 470 faixas, 0 Desconhecido (fora o arquivo sem titulo), caminhos do banco todos existentes; .m3u regerados; media:sync + playlists OK; API AzuraCast 108 Raul + 8 duetos.",
+    "faixa_sem_titulo": "Desconhecido - Desconhecido.mp3 identificada como duplicata exata de Raul Seixas - Metamorfose Ambulante.mp3: log de 17/11 mostra a renomeacao por IA trocando o nome; mesmo MD5 do PCM decodificado e mesma duracao (231,29 s). Movida para revisar/duplicadas/ via arquivar_duplicada(exato), sem apagar; acervo 469, AzuraCast com 0 Desconhecido.",
     "limites": "Lote em voo terminou com codigo antigo (8 faixas, corrigidas na segunda passada); musica.py nao tem suite de testes no repo, verificacao por execucao real.",
     "sem_bump": "1.46.0+2083 (mudanca fora do repo: pipeline do acervo).",
     "docs": "docs/CHANGELOG.md (secao nova), iniciar/2026-11-18_conversa_omegadrakon.md §15, iniciar/ATRIBUICOES.md.",
     "publicacao": "Commit 70c5fd8 em origin/master; HEAD == origin/master; arvore limpa.",
-    "telegram": "ok=true msg_id=4064 (regra 15)."
+    "telegram": "ok=true msg_id=4064 (regra 15).",
+    "faixa_sem_titulo_telegram": "ok=true msg_id=4065 (regra 15)."
   }
 }
