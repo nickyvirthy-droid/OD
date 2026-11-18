@@ -630,3 +630,40 @@ projeto” mostra o estado.
 - **GATE COMPLETO** (registrado no checkpoint com o número final).
 - **Sem bump:** 1.46.0+2083. Restart do `od-core` pela regra 7.3 para a rota
   nova valer no painel (com prova viva).
+
+---
+
+## §9 — Medição: quanto do brief a CLI realmente usa
+
+**Pedido (verbatim):** *"Medir quanto do brief a CLI realmente usa, comparando o
+prompt com o diff produzido"*.
+
+### Método (medido, não presumido)
+
+Prompt **real** de sessão (`montar_prompt_sessao` + `brief_multi_ia.montar_brief`)
+com **OpenClaude** (NVIDIA NIM, free, já provado em §7/§8). Duas rodadas:
+
+1. **Só leitura** — pedi para copiar do brief: versão, HEAD, checkpoint e se
+   está sincronizado. Nenhum arquivo podia ser alterado.
+2. **Com diff real** — pedi para criar **um** arquivo novo
+   (`tools/PROVA_BRIEF.md`) com 3 linhas tiradas do brief, sem tocar em
+   arquivo existente. O arquivo foi removido depois da medição.
+
+### Resultado
+
+| Medida | Resultado |
+|---|---|
+| Prompt de sessão | **5083 chars** |
+| Brief dentro dele | **2624 chars — 51,6%** |
+| Rodada 1 (só leitura) | **4/4 corretos**, **7,8 s**, **0** arquivo tocado |
+| Rodada 2 (diff real) | **3/3 corretos**, **35,2 s**, **1 arquivo novo**, **0 existente alterado** |
+
+Conteúdo do diff conferido: `versao=1.46.0`, `head=181dea1`,
+`checkpoint=trava_git_painel_ia_cascata_real_2026_11_18` — os três do brief.
+`git status` mostrou **só** o arquivo novo (`??`), nenhum rastreado alterado.
+
+### Leitura
+
+O brief **não é enfeite**: a CLI extrai o estado sem inventar e respeita a
+instrução de não mexer no que existe. O custo é ~2,6 k chars (metade do prompt)
+e a resposta continua saindo no contrato (`[ANALISE]` incluso).

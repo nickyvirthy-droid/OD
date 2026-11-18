@@ -9,6 +9,37 @@
 
 ---
 
+## 18/11/2026 — Medição: quanto do brief a CLI realmente usa
+
+**Autor:** Freebuff (Buffy) — sessão de 18/11 ~17:50, pedido do dono ("Medir
+quanto do brief a CLI realmente usa, comparando o prompt com o diff produzido").
+
+### Criados
+
+- Nenhum arquivo versionado (arquivo de prova `tools/PROVA_BRIEF.md` criado
+  pela CLI e **removido** depois da medição).
+
+### Modificados
+
+- `docs/IAS_DISPONIVEIS.md` — linha nova no histórico de medições.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado),
+  `iniciar/session.json`, transcrição §9.
+
+### Intenção + estado
+
+- **Intenção:** provar que o brief injetado no prompt das 13 CLIs é **lido e
+  usado**, não só carregado.
+- **Medido:** prompt **5083 chars**, brief **2624 (51,6%)**. Só-leitura: **4/4
+  campos corretos em 7,8 s**, zero arquivo tocado. Com diff real: **3/3
+  corretos em 35,2 s**, **1 arquivo novo**, **0 existente alterado** (git
+  status só com o arquivo novo).
+- **Limite declarado:** amostra de 1 CLI (OpenClaude) e 2 tarefas curtas; CLIs
+  sem saldo (Interpreter/Codex/Aider) e a cascata completa não foram medidas
+  nesta rodada.
+- **Sem bump:** 1.46.0+2083; nenhum código alterado.
+
+---
+
 ## 18/11/2026 — Trava no git, painel “IAs no projeto” e prova real da cascata
 
 **Autor:** Freebuff (Buffy) — sessão de 18/11 ~17:00, três sugestões clicadas

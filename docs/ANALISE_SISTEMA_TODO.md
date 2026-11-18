@@ -653,7 +653,12 @@ esperar o timeout.
       saldo OpenAI) e OpenClaude respondeu **OK em 9,4 s**; estado final
       `concluido/implantado`, `cli_usada=OpenClaude`, **20,9 s** no total e
       árvore sem alteração feita pelas CLIs. Falta medir quanto do brief a CLI
-      usa de fato (prompt real + diff) — checkbox novo abaixo.
+      usa de fato (prompt real + diff) — checkbox abaixo.
+- [x] **Medir quanto do brief a CLI realmente usa** — **FEITO 18/11:** OpenClaude
+      com o prompt real: brief = **2624 chars de 5083 (51,6%)**; só-leitura
+      **4/4 campos corretos em 7,8 s** e **0 arquivo tocado**; com diff real
+      **3/3 corretos em 35,2 s**, **1 arquivo novo/0 existente alterado**.
+      Resultado no histórico de `docs/IAS_DISPONIVEIS.md`.
 - [x] **Reverter o lote órfão que regrediu o `orquestrador.py`** — **FEITO
       18/11** com a ordem do dono ("faça"): `git checkout -- orquestrador.py`
       (de volta a 1654 linhas) + `rm soma.py`; `tests/test_orquestrador.py`

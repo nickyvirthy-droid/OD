@@ -12,6 +12,26 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Brief multi-IA: quanto a CLI realmente usa (medido, 2026-11-18, sem bump)
+
+**Pergunta:** o brief de 2,6 k chars entra no prompt, mas a CLI **usa** o que
+está nele? Medido com **OpenClaude** (NVIDIA NIM, free) e o prompt REAL de
+sessão (`montar_prompt_sessao` + `tools.brief_multi_ia.montar_brief`).
+
+| Medida | Resultado |
+|---|---|
+| Prompt de sessão | **5083 chars** |
+| Brief dentro dele | **2624 chars (51,6%)** |
+| Só leitura: copiar versão, HEAD, checkpoint e "sincronizado" | **4/4 corretos**, **7,8 s**, **0** arquivo tocado |
+| Com diff real: criar `tools/PROVA_BRIEF.md` com 3 linhas do brief | **3/3 corretos**, **35,2 s**, **1 arquivo novo**, **0 existente alterado** |
+
+**Leitura:** a CLI não só recebe o brief — ela **extrai o estado sem inventar**
+(versão, commit, checkpoint) e respeita a instrução de não mexer no que existe.
+O custo do brief é metade do prompt; o ganho é a próxima IA começar do ponto
+certo. O arquivo de prova foi removido (árvore limpa). Nenhum código alterado
+nesta medição — registro em `docs/IAS_DISPONIVEIS.md` (histórico de medições)
+e em `iniciar/`. **Sem bump:** 1.46.0+2083.
+
 ## Trava de reescrita no git, painel “IAs no projeto” e prova real da cascata (2026-11-18, sem bump)
 
 **Contexto:** continuação da ordem de convivência entre as IAs. A trava

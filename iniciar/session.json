@@ -6223,6 +6223,17 @@
     "validacao": "Gate parcial radio_link+tools+cobertura: 336 passed. Progresso: lote 1 +10 (354 -> 364), lote 2 rodando 14:23, unidade active; 190 faixas ~19 lotes ~10-13h; disco 760G livres.",
     "sem_bump": "1.46.0+2083. Fix entra no ar no proximo restart do od-core (autorizacao pendente)."
   },
+  "medicao_uso_do_brief_2026_11_18": {
+    "pedido": "Dono (18/11): 'Medir quanto do brief a CLI realmente usa, comparando o prompt com o diff produzido'.",
+    "metodo": "Prompt REAL de sessao (montar_prompt_sessao + brief_multi_ia.montar_brief) com OpenClaude (NVIDIA NIM, free). Duas rodadas: (a) so-leitura, pedindo copiar versao/HEAD/checkpoint/sincronizado do brief; (b) diff real, pedindo criar tools/PROVA_BRIEF.md com 3 linhas do brief sem tocar em arquivo existente. Arquivo de prova removido depois.",
+    "resultado": "prompt 5083 chars | brief 2624 chars = 51,6%. (a) 4/4 campos corretos em 7,8 s, 0 arquivo tocado. (b) 3/3 corretos em 35,2 s, 1 arquivo novo e 0 existente alterado (git status so com o ??). Verificado o conteudo: versao=1.46.0, head=181dea1, checkpoint=trava_git_painel_ia_cascata_real_2026_11_18.",
+    "conclusao": "A CLI le e usa o brief: extrai o estado sem inventar e respeita a regra de nao alterar o que existe. Custo do brief = metade do prompt.",
+    "registro": "docs/IAS_DISPONIVEIS.md (historico de medicoes), docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md (checkbox fechado).",
+    "estado_encontrado": "HEAD == origin/master == 181dea1, arvore limpa, od-core ativo PID 352191 (health 30/30).",
+    "sem_bump": "1.46.0+2083; nenhum codigo alterado nesta medicao (so docs/registro).",
+    "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§9)",
+    "updated_at": "2026-11-18T17:55:00-03:00"
+  },
   "trava_git_painel_ia_cascata_real_2026_11_18": {
     "pedido": "Dono (18/11, tres sugestoes clicadas): hook de pre-commit com a trava; painel mostrando checkpoint/arvore suja/idade do registro; prova da cascata com duas CLIs reais. Pergunta junto: 'como devo trabalhar dentro do orquestrador? e so escrever em txt e clicar em ativar?'.",
     "trava_git": "tools/trava_reescrita.py (NOVO) = fonte unica da regua (>=100 linhas, cai para <30%) com --staged e --worktree; orquestrador._reescritas_em_massa delega nele. tools/instalar_hooks.sh (NOVO, +x) instala o hook pre-commit com caminho absoluto da ferramenta e fallback relativo; escape OD_TRAVA_OFF=1 / --no-verify. HOOK INSTALADO neste repo; commit real 300->1 linha bloqueado, commit normal passa (13 testes).",
