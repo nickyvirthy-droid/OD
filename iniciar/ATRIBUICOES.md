@@ -9,6 +9,50 @@
 
 ---
 
+## 18/11/2026 — Convivência multi-IA (brief + trava + cascata até concluir) e corpus de frases reais
+
+**Autor:** Freebuff (Buffy) — sessão de 18/11 ~16:10, ordens do dono: "faça"
+(executar a próxima melhoria) e *"garanta que todas [as IAs] prossigam dentro
+da mesma linha sem destruir o que existe (...) a próxima deve prosseguir e
+assim sucessivamente até concluir"*.
+
+### Criados
+
+- `tools/brief_multi_ia.py` — brief único do estado real (versão, HEAD ×
+  origin, árvore suja, checkpoint, atribuições, P0/P1, regras de convivência;
+  `--json`).
+- `docs/PROTOCOLO_MULTI_IA.md` — contrato entre as IAs.
+- `tests/test_corpus_frases_dono.py` (32 testes) e `tests/test_multi_ia.py`
+  (11 testes).
+- `iniciar/2026-11-18_conversa_omegadrakon.md` §7 (transcrição).
+
+### Modificados
+
+- `orquestrador.py` — brief no prompt de toda CLI; `_reescritas_em_massa()`
+  (trava: >70% das linhas de arquivo rastreado → falha sem commitar);
+  cascata até concluir no gate vermelho; `_encerrar()` grava `detalhe`.
+- `iniciar/RULES.md` — regra 24 (protocolo multi-IA).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (P0 nº2 fechado),
+  `iniciar/session.json`.
+
+### Intenção + estado
+
+- **Intenção:** o dia provou o risco — outra ferramenta regrediu o
+  `orquestrador.py` (1654 → 251 linhas) sem registro e a suíte passou a
+  quebrar na coleta. A resposta é estado explícito + regras iguais + travas
+  automáticas, não confiança na memória de cada IA.
+- **Lote órfão revertido** com a ordem do "faça": `orquestrador.py` de volta
+  a 1654 linhas, `soma.py` removido, `test_orquestrador.py` **116 passed**.
+- **Pronto/validado:** corpus **32 passed**; multi-IA + orquestrador **127
+  passed**; **GATE COMPLETO 5435 passed / 19 skipped / 0 falha** (220,46 s).
+- **Limite declarado:** as travas valem para sessões do `orquestrador
+  --sessao`; IA que trabalha fora dele (esta, por exemplo) segue por
+  regra/registro — o brief e o checklist do protocolo são o único cinto.
+- **Sem bump:** 1.46.0+2083. Sem restart (o `od-core` não usa o orquestrador
+  de CLIs).
+
+---
+
 ## 18/11/2026 — Retomada "leia iniciar": restart de 15:01 já no ar, download do Raul no lote 4 e lote órfão do `orquestrador.py`
 
 **Autor:** Freebuff (Buffy) — sessão de 18/11 ~15:50, a pedido do dono

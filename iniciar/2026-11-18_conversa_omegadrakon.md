@@ -471,3 +471,90 @@ raul seixas"*. Medido, não presumido:
 Nenhum código alterado: leitura, medição e registro (`session.json`,
 esta transcrição, `ATRIBUICOES.md`, checkboxes no TODO §4). **Sem bump**
 (1.46.0+2083). O lote órfão continua na árvore aguardando decisão do dono.
+
+---
+
+## §7 — "faça" + convivência multi-IA: lote órfão revertido, corpus real e cascata até concluir
+
+**Pedido 1 (verbatim):** `faça` — executar a próxima melhoria recomendada
+(P0 nº 2: corpus de frases reais do dono como teste de intenção).
+**Pedido 2 (verbatim, chegou durante o trabalho):** *"agora temos um número
+muito grande de IAs trabalhando sobre OD. garanta que todas prossigam dentro
+da mesma linha sem destruir o que existe e mantendo a coerência e melhoria do
+projeto, mesmo que uma pare no meio do caminho por cota ou outra razão a
+próxima deve prosseguir e assim sucessivamente até concluir"*.
+
+### 1. Lote órfão revertido (com a ordem do dono no "faça")
+
+`git checkout -- orquestrador.py` + `rm soma.py` — a árvore voltou a
+**1654 linhas** e `tests/test_orquestrador.py` a **116 passed** (antes:
+`ImportError: cannot import name 'CLIS'` na coleta). Nada de terceiro foi
+perdido: o conteúdo regredido está no histórico do git do próprio dia.
+
+### 2. P0 nº 2 — corpus de frases reais (`tests/test_corpus_frases_dono.py`)
+
+**32 testes.** 13 frases **verbatim** do dono, cada uma com o arquivo de
+`iniciar/` onde está registrada — e o próprio teste confere que a frase
+**existe mesmo** naquele arquivo (o corpus não pode virar invenção):
+
+| Frase real | Ação esperada |
+|---|---|
+| "qual o uso de disco" | `disk_usage` |
+| "quais os tipos de usuários de OD" | `role_list` |
+| "quais portas estão abertas?" | `listening_ports` |
+| "qual o ip do servidor?" | `ip_address` |
+| "temperatura do servidor" | `cpu_temp` |
+| "quanto esta o dolar hoje" / "quanto está o dólar" | `exchange_rate` (+`moeda`) |
+| "clima em campo grande hoje" / "temperatura em são paulo" | `weather_city` (+`city`) |
+| "quais tomadas estão ligadas" | `ha_lights` |
+| "aumenta o volume" / "abaixa o volume" | `radio_volume` (+`volume`) |
+| "para a rádio" | `radio_stop` |
+
+Negativas (o fast path **não** pode sequestrar): "bom dia" e "onde foi parar
+a lista de musicas do raul seixas". Mais `datetime` ("que horas são" →
+"Agora são …"; "bom dia" → `None`), que mora em outra etapa do pipeline e
+não é buraco de intenção.
+
+### 3. P0 nº 3 — convivência multi-IA (o pedido 2)
+
+**Diagnóstico do dia:** o problema não era falta de IA — era falta de
+**estado comum e trava**. A mesma árvore recebeu, em 10 h, três lotes de
+autores diferentes, um deles regredindo um arquivo de 1654 linhas sem
+registro. A cascata de 13 CLIs já existia, mas: (a) nenhuma CLI recebia o
+checkpoint nem as regras (só a ideia); (b) gate vermelho **encerrava** a
+sessão em vez de passar para a próxima; (c) nada impedia reescrita maciça.
+
+Implementado (tudo com teste):
+
+- **`tools/brief_multi_ia.py`** (novo) — brief único do estado real: versão,
+  `HEAD` × `origin/master`, árvore suja, checkpoint vigente (o mais recente
+  **com retrato de turno**, não uma nota de recomendação), últimas atribuições,
+  P0/P1 abertas e as 8 regras de convivência. `--json` para ferramentas.
+  Medido: **2891 chars** (cabe num prompt gratuito).
+- **`orquestrador.py`** — o brief entra no prompt de **toda** CLI;
+  **trava anti-destruição** (`_reescritas_em_massa`: arquivo rastreado com
+  >= 100 linhas que cai para menos de 30% → sessão falha como
+  `arquivo_reescrito_em_massa` **sem commitar**, árvore preservada);
+  **cascata até concluir** (gate vermelho não encerra: a próxima CLI recebe o
+  resumo do vermelho + "preserve o que já existe e conserte a causa" e valida
+  de novo, até concluir ou acabarem as CLIs); `_encerrar()` grava `detalhe` no
+  estado.
+- **`docs/PROTOCOLO_MULTI_IA.md`** (novo) — o contrato: entrar (brief),
+  trabalhar (edição cirúrgica, atribuição no mesmo passo, validar antes de
+  publicar), **sair mesmo por cota** (trabalho parcial na árvore + próximo
+  passo exato) e como a cascata retoma.
+- **`iniciar/RULES.md` — regra 24**, apontando para o protocolo.
+
+### 4. Validação
+
+- `tests/test_multi_ia.py` (novo, **11 testes**): brief do estado real,
+  checkpoint no prompt, tool quebrada não derruba a sessão, reescrita maciça
+  detectada em repo git temporário (300 → 3 linhas), edição normal não dispara,
+  sessão falha **sem commitar**, gate vermelho passa para a CLI seguinte, CLI
+  sem cota não consome a vez, histórico da falha chega na próxima.
+- `test_multi_ia + test_orquestrador`: **127 passed**;
+  `test_corpus_frases_dono`: **32 passed**.
+- **GATE COMPLETO: 5435 passed / 19 skipped / 0 falha** (220,46 s) — contra
+  5392 da abertura do turno (+43 = 32 do corpus + 11 do multi-IA).
+- **Sem bump:** 1.46.0+2083 (ferramenta de dev + testes; contrato do app
+  intacto). Nada de restart: o `od-core` não usa o orquestrador de CLIs.

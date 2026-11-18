@@ -6223,6 +6223,19 @@
     "validacao": "Gate parcial radio_link+tools+cobertura: 336 passed. Progresso: lote 1 +10 (354 -> 364), lote 2 rodando 14:23, unidade active; 190 faixas ~19 lotes ~10-13h; disco 760G livres.",
     "sem_bump": "1.46.0+2083. Fix entra no ar no proximo restart do od-core (autorizacao pendente)."
   },
+  "multi_ia_e_corpus_frases_2026_11_18": {
+    "pedido": "Dono (18/11 ~16:10): 'faça' (executar a proxima melhoria recomendada) + durante o trabalho: 'agora temos um numero muito grande de IAs trabalhando sobre OD. garanta que todas prossigam dentro da mesma linha sem destruir o que existe e mantendo a coerencia e melhoria do projeto, mesmo que uma pare no meio do caminho por cota ou outra razao a proxima deve prosseguir e assim sucessivamente até concluir'.",
+    "lote_orfao_revertido": "Com a ordem no 'faça': git checkout -- orquestrador.py + rm soma.py. Arvore de volta a 1654 linhas; tests/test_orquestrador.py 116 passed (antes: ImportError cannot import name CLIS na coleta).",
+    "corpus_p0_2": "tests/test_corpus_frases_dono.py (NOVO, 32 testes): 13 frases VERBATIM do dono com o arquivo de iniciar/ de origem — o proprio teste confere que a frase existe la — acao esperada + params semanticos (city/moeda/volume); 2 frases de conversa que o fast path NAO pode sequestrar; datetime em etapa propria. Fecha o P0 nº2 da revisao de 17/11.",
+    "multi_ia": "tools/brief_multi_ia.py (NOVO): brief unico do estado real (versao, HEAD x origin, arvore suja, checkpoint vigente com estado_encontrado, ultimas atribuicoes, P0/P1 abertas, 8 regras de convivencia; --json; 2891 chars medidos). docs/PROTOCOLO_MULTI_IA.md (NOVO) + iniciar/RULES.md regra 24.",
+    "orquestrador": "orquestrador.py: montar_prompt_sessao(brief=) injetado em TODA CLI; _brief_para_cli() tolerante a falha; trava _reescritas_em_massa() (>70% das linhas de arquivo rastreado com >=100 linhas -> falha 'arquivo_reescrito_em_massa' SEM commitar, arvore preservada); cascata ate concluir (gate vermelho entrega o resumo do vermelho a proxima CLI e revalida, em vez de encerrar); _encerrar grava 'detalhe' no estado.",
+    "validacao": "tests/test_multi_ia.py (NOVO, 11 testes) + test_orquestrador 127 passed; corpus 32 passed; GATE COMPLETO 5435 passed / 19 skipped / 0 falha (220,46 s), contra 5392 na abertura (+43).",
+    "estado_encontrado": "Na abertura do turno: arvore suja com o lote orfao (orquestrador.py 251 linhas + soma.py), HEAD == origin/master == 582756b, servico ativo desde 15:01:19 (PID 220986) com cascata 13/cgroup/router no ar, download do Raul no lote 4 (acervo 382).",
+    "em_aberto": "(1) download do Raul continua (unidade od-radio-lista-raul, ~15 lotes restantes); (2) P0 nº3 (teste ZIM<->compose) e P0 nº4 (.gguf no espelho) seguem abertos; (3) as travas novas so valem para sessoes do orquestrador --sessao — IAs que trabalham fora dele (como esta) seguem por regra/registro.",
+    "sem_bump": "1.46.0+2083; sem restart (o od-core nao usa o orquestrador de CLIs).",
+    "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§7)",
+    "updated_at": "2026-11-18T16:45:00-03:00"
+  },
   "proxima_melhoria_recomendada_2026_11_18": {
     "pedido": "Dono (18/11 ~16:00): 'qual a proxima melhoria?' — pedido de recomendacao, nao de execucao.",
     "recomendacao": "P0 nº2 da revisao de 17/11: corpus de frases reais do dono (txt.txt + transcricoes) como teste de deteccao de intencao (checkbox aberto em docs/ANALISE_SISTEMA_TODO.md linha ~1026). Custo ~zero (os dados ja existem) e ataca a classe de defeito que mais custou turnos: disco, papeis do OD, radio, playlist do Raul — cada buraco de casamento virou um turno de conserto.",
