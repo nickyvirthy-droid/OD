@@ -1075,3 +1075,32 @@ resumo diário das faixas apagadas automaticamente pela janela de 24 h"*.
 - **Intenção:** fechar o dia com o que a janela apagou sem decisão do dono,
   em vez de deixar isso só no log.
 - **Pronto/validado:** gate **5388 passed / 16 skipped / 0 falha**.
+
+---
+
+## 17/11/2026 — P0: cache de conversa não serve resposta inventada
+
+**Autor:** Codebuff (Buffy) — sessão de 17/11, a pedido do dono: *"Fechar o
+P0: impedir que o llm_cache sirva resposta inventada de conversa comum"*.
+
+### Modificados
+
+- `core/orchestrator.py` — `cache_serve_reason()` (guarda de leitura),
+  `_resposta_do_cache()` (valida, apaga a entrada inválida e devolve MISS) nos
+  dois pontos de leitura (stream e grafo, cache exato e semântico);
+  `_CACHE_BAN_VERIFICACAO_FALSA` em `cache_failure_reason()`; prefixo
+  `"⚠️ não executei nada"` em `_CACHE_BAN_PREFIXES`.
+- `tests/test_orchestrator.py` — `TestCacheDeConversa` (7 testes).
+- `tests/test_radio_cantores.py` — assertion do dia do resumo passou a usar a
+  data **local** (ficava vermelha entre 21h e meia-noite local).
+- Registro: `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox
+  fechada), `iniciar/2026-11-17_conversa_omegadrakon.md` §19, `iniciar/session.json`.
+
+### Intenção e estado
+
+- **Intenção:** o cache era lido antes das guardas do turno; sem revalidar na
+  leitura, resposta inventada (e entrada gravada antes de um ban novo) era
+  servida para sempre.
+- **Pronto/validado:** gate completo **5381 passed / 19 skipped / 0 falha**;
+  `tests/test_orchestrator.py` + `tests/test_api.py` 276 passed.
+- **Sem bump:** correção de servidor, contrato do app intacto (1.46.0+2083).

@@ -1145,3 +1145,147 @@ class TestAlvoDoPedidoDeAprovacao:
             "cria um compromisso teste_prova amanha as 15 horas",
         )
         assert pedido["detalhes"] == "criar compromisso na agenda: teste_prova"
+
+
+# ===========================================================================
+# Cache de conversa — P0 de 17/11: não servir resposta inventada
+# ===========================================================================
+
+@pytest.mark.asyncio
+class TestCacheDeConversa:
+    """O cache é lido ANTES das guardas do turno; sem checagem na leitura uma
+    resposta inventada (ou de um dia de cota estourada) voltava para sempre.
+
+    Regra do dono (17/11): "o guarda atual só bloqueia comando de action" —
+    aqui ficam os três buracos fechados: (1) invenção alegando verificação,
+    (2) resposta do modelo local (palpite do momento) entrando no cache e
+    (3) entrada envenenada já gravada sendo servida.
+    """
+
+    PERGUNTA = "me fale sobre o mar de Ubatuba"
+
+    async def test_verificacao_inventada_nao_e_cacheada(self, tmp_path: Path) -> None:
+        from core.orchestrator import cache_failure_reason
+
+        provider = RecordingProvider(
+            "gemini", "Os papéis são admin, operator e auditor. Estado verificado."
+        )
+        cache = _cache(tmp_path)
+        orch = Orchestrator(
+            providers=[provider], history=_history(tmp_path), cache=cache
+        )
+
+        await orch.process("alex", "guardian", self.PERGUNTA)
+
+        assert cache.get(self.PERGUNTA, profile="guardian") is None
+        assert "invenção" in cache_failure_reason(
+            "Os papéis são admin. Estado verificado."
+        )
+
+    async def test_guarda_nao_quebra_o_cache_normal(self, tmp_path: Path) -> None:
+        """Resposta comum (inclusive do modelo local) continua cacheável.
+
+        A guarda é sobre INVENSÃO detectável, não sobre qual modelo
+        respondeu: bloquear o 3B inteiro apagaria o cache nos dias de cota
+        estourada sem evidência de que o palpite fosse errado.
+        """
+        provider = RecordingProvider("gemma-local", "O mar está calmo hoje.")
+        cache = _cache(tmp_path)
+        orch = Orchestrator(
+            providers=[provider], history=_history(tmp_path), cache=cache
+        )
+
+        await orch.process("alex", "guardian", self.PERGUNTA)
+
+        assert cache.get(self.PERGUNTA, profile="guardian") == "O mar está calmo hoje."
+
+    async def test_resposta_de_nuvem_continua_sendo_cacheada(
+        self, tmp_path: Path
+    ) -> None:
+        provider = RecordingProvider("gemini", "O mar de Ubatuba é calmo.")
+        cache = _cache(tmp_path)
+        orch = Orchestrator(
+            providers=[provider], history=_history(tmp_path), cache=cache
+        )
+
+        await orch.process("alex", "guardian", self.PERGUNTA)
+        assert cache.get(self.PERGUNTA, profile="guardian") == "O mar de Ubatuba é calmo."
+
+        # segunda vez: não chama o modelo
+        outro = RecordingProvider("gemini", "não deveria ser chamado")
+        orch._providers = [outro]
+        result = await orch.process("alex", "guardian", self.PERGUNTA)
+        assert result.cached is True
+        assert outro.prompts == []
+
+    async def test_entrada_envenenada_e_servida_nao_mais(self, tmp_path: Path) -> None:
+        cache = _cache(tmp_path)
+        cache.set(
+            self.PERGUNTA,
+            "[INFO] Limpeza solicitada no dia 01",
+            profile="guardian",
+        )
+        provider = RecordingProvider("gemini", "resposta nova e limpa")
+        orch = Orchestrator(
+            providers=[provider], history=_history(tmp_path), cache=cache
+        )
+
+        result = await orch.process("alex", "guardian", self.PERGUNTA)
+
+        assert result.message == "resposta nova e limpa"
+        assert result.cached is not True
+        assert len(provider.prompts) == 1
+        # a entrada inválida foi APAGADA; o cache guarda a resposta NOVA
+        guardado = cache.get(self.PERGUNTA, profile="guardian")
+        assert guardado == "resposta nova e limpa"
+        assert "[INFO]" not in (guardado or "")
+
+    async def test_falso_sucesso_cacheado_nao_e_servido(self, tmp_path: Path) -> None:
+        cache = _cache(tmp_path)
+        cache.set(
+            "crie um compromisso às 15h",
+            "Compromisso criado com sucesso.",
+            profile="guardian",
+        )
+        provider = RecordingProvider("gemini", "Sobre o que você quer falar?")
+        orch = Orchestrator(
+            providers=[provider], history=_history(tmp_path), cache=cache
+        )
+
+        result = await orch.process("alex", "guardian", "crie um compromisso às 15h")
+
+        assert result.cached is not True
+
+    async def test_aviso_do_anti_falso_sucesso_nao_e_cacheado(
+        self, tmp_path: Path
+    ) -> None:
+        from core.orchestrator import _cacheable
+
+        provider = RecordingProvider("gemini", "Compromisso criado com sucesso.")
+        cache = _cache(tmp_path)
+        orch = Orchestrator(
+            providers=[provider], history=_history(tmp_path), cache=cache
+        )
+
+        await orch.process("alex", "guardian", "crie um evento de reunião")
+
+        # o usuário vê o aviso de que nada foi executado...
+        assert not _cacheable("⚠️ Não executei nada — compromisso só é criado...")
+
+    async def test_resposta_boa_do_cache_continua_instantanea(
+        self, tmp_path: Path
+    ) -> None:
+        cache = _cache(tmp_path)
+        cache.set(
+            self.PERGUNTA, "O mar de Ubatuba é calmo.", profile="guardian"
+        )
+        provider = RecordingProvider("gemini", "não deveria ser chamado")
+        orch = Orchestrator(
+            providers=[provider], history=_history(tmp_path), cache=cache
+        )
+
+        result = await orch.process("alex", "guardian", self.PERGUNTA)
+
+        assert result.route == "cache"
+        assert result.message == "O mar de Ubatuba é calmo."
+        assert provider.prompts == []

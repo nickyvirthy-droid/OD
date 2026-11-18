@@ -12,6 +12,46 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Cache de conversa não serve mais resposta inventada (2026-11-17, sem bump)
+
+**Contexto:** P0 da revisão do TODO — "`llm_cache` ainda pode servir resposta
+inventada de conversa comum (o guarda atual só bloqueia comando de action)".
+O cache é consultado **antes** das guardas do turno (anti-recusa,
+anti-falso-sucesso), então uma resposta ruim gravada voltava para sempre,
+inclusive depois do conserto.
+
+### O que mudou (`core/orchestrator.py`)
+
+1. **Guarda na LEITURA** — `_resposta_do_cache()` valida toda resposta vinda do
+   cache com as guardas **atuais** (`cache_serve_reason`: falha/etiqueta de
+   log/recusa/truncamento + falso sucesso). Entrada que hoje não seria
+   cacheável é **descartada e apagada** e vira MISS: o turno segue para o LLM
+   como se nunca tivesse sido cacheada. Vale para o cache exato e o semântico,
+   nos dois caminhos (stream e grafo).
+2. **`cache_failure_reason` ganhou a invenção de conversa medida em 14/11:**
+   alegação de verificação que o OD não fez — "Estado verificado.",
+   "já verifiquei", "verifiquei no sistema" — caso real em que o modelo
+   inventou cinco papéis de usuário e disse "Estado verificado" sem fonte.
+   Resposta legítima de fonte ("informação verificada na fonte X") continua
+   cacheável.
+3. **O aviso do anti-falso-sucesso não entra no cache:** `"⚠️ Não executei
+   nada…"` é mensagem do turno, não conhecimento — cacheada, toda repetição
+   da frase mostraria o aviso em vez de tentar a rota de ação de novo.
+
+### Validação
+
+- **7 testes novos** em `tests/test_orchestrator.py::TestCacheDeConversa`:
+  invenção de verificação não é cacheada; entrada envenenada é descartada,
+  apagada e o turno refeito; falso sucesso cacheado não é servido; aviso do
+  anti-falso-sucesso não é cacheável; cache bom continua instantâneo (route
+  `cache`, modelo não chamado); resposta comum (inclusive do modelo local)
+  continua cacheável.
+- `tests/test_orchestrator.py` + `tests/test_api.py` **276 passed**; gate
+  completo verde (número registrado em `iniciar/`).
+- **Sem bump:** 1.46.0+2083 (correção de servidor; contrato do app intacto).
+
+---
+
 ## [1.46.0] — CURADORIA DO ACERVO NO APP: EXCLUIR, BLOQUEAR E LIBERAR PELO CELULAR 🜂 (2026-11-17)
 
 **Bump MINOR** (capacidade nova compatível), versionCode **2083**.

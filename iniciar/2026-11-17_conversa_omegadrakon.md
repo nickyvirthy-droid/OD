@@ -813,3 +813,78 @@ Seção nova `### 📍 Revisão de 17/11/2026` em `docs/ANALISE_SISTEMA_TODO.md`
 - `python3 -m pytest tests/test_rag.py -q` → **93 passed** (a calibração do RAG
   lê `docs/`; o texto novo não criou falso-amigo).
 - Nenhum código alterado, sem bump (**1.46.0+2083**), sem restart.
+
+## §19 — P0: o `llm_cache` não serve mais resposta inventada (17/11, sem bump)
+
+**Pedido (verbatim):** `Fechar o P0: impedir que o llm_cache sirva resposta inventada de conversa comum`
+
+### 1. O buraco, no código
+
+O cache é consultado **antes** das guardas do turno: em `core/orchestrator.py`
+o `self.cache.get()` (stream, ~1581) e o do grafo (~2192) devolvem a resposta
+pronta e o turno nem chega ao anti-recusa nem ao anti-falso-sucesso. As guardas
+existentes (`_cacheable`, `cache_failure_reason`, `fake_action_reason`) só
+decidiam o que **gravar** — e o item do TODO já dizia isso: "o guarda atual só
+bloqueia comando de action". Duas consequências medidas na conversa de 14/11:
+
+- resposta inventada de **conversa comum** ("Estado verificado." + cinco papéis
+  de usuário que não existem) podia ser cacheada e voltar para sempre;
+- entrada envenenada gravada antes de um ban novo continuava sendo servida
+  depois do conserto, porque a leitura não revalidava nada.
+
+### 2. Direção escolhida (e a que foi descartada)
+
+Implementado:
+
+1. **Guarda na LEITURA** — `_resposta_do_cache()` valida toda resposta vinda do
+   cache exato e do semântico com `cache_serve_reason()` (as guardas **atuais**:
+   falha/etiqueta de log/recusa/truncamento/estado do lar + falso sucesso).
+   Inválida → loga o motivo, **apaga** a entrada (`cache.delete()`) e devolve
+   MISS: o turno segue para o LLM como se nunca tivesse sido cacheada. Nos dois
+   caminhos (stream e grafo).
+2. **`cache_failure_reason` ganhou a invenção de conversa** do caso de 14/11:
+   "Estado verificado.", "já verifiquei", "verifiquei no sistema/servidor/banco"
+   não são conteúdo — são alegação de verificação sem fonte. Resposta legítima
+   de fonte ("informação verificada na fonte X") continua cacheável.
+3. **O aviso do anti-falso-sucesso saiu do cache**: `"⚠️ Não executei nada…"`
+   é mensagem do turno, não conhecimento — cacheada, toda repetição da frase
+   mostraria o aviso em vez de tentar a rota de ação de novo.
+
+Descartado depois de medir: **não cachear resposta de modelo local**
+(`gemma-local`/`local`). Parecia boa ideia ("palpite do 3B vira permanente"),
+mas a evidência não sustenta: os dois casos reais de invenção foram de modelo
+de nuvem, e a regra derrubou `test_second_identical_message_hits_cache` e
+`test_resposta_normal_continua_cacheavel` — o cache normal (`route=cache`, sem
+chamar o modelo) é comportamento **desejado** e vale também nos dias de cota
+estourada. Ficou registrado no teste `test_guarda_nao_quebra_o_cache_normal`:
+a guarda é sobre invenção **detectável**, não sobre qual modelo respondeu.
+
+### 3. Testes (`TestCacheDeConversa`, 7 novos)
+
+- invenção de verificação não é cacheada;
+- entrada envenenada (`[INFO] …`) é descartada, **apagada**, e o turno é refeito
+  pelo LLM (a entrada inválida não volta; o cache passa a guardar a resposta
+  nova);
+- falso sucesso cacheado não é servido (`cached` não é True);
+- `"⚠️ Não executei nada…"` não é cacheável;
+- cache bom continua instantâneo (`route=cache`, modelo não chamado);
+- resposta comum (inclusive do modelo local) continua cacheável.
+
+### 4. Achado no gate (não é do P0, foi corrigido)
+
+O gate completo falhou em
+`tests/test_radio_cantores.py::test_resumo_sem_apagadas_marca_o_dia_em_silencio`
+às 22h: o resumo diário marca o dia **local** (correto: `OD_RADIO_RESUMO_HORA`
+é hora local), mas o teste comparava com `agora.date()` em **UTC**. Entre 21h e
+meia-noite local o UTC já virou o dia e o teste ficava vermelho sem nada mudar
+no código. Assertion corrigida para `agora.astimezone().date()`.
+
+### 5. Validação
+
+- Gate de trabalho: `tests/test_orchestrator.py` + `tests/test_api.py`
+  → **276 passed**.
+- **Gate completo: 5381 passed / 19 skipped / 0 falha** (`python3 -m pytest -q`).
+- `tests/test_radio_cantores.py` 28 passed.
+- **Sem bump** — 1.46.0+2083 (correção de servidor; contrato do app intacto).
+- Restart verde do `od-core` e prova viva registrados abaixo/organizados no
+  `session.json`.

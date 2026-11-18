@@ -951,8 +951,13 @@ esperar o timeout.
       limite e tempo de recuperação. Exemplo: `3 fechados — llm:groq:fechado
       (falhas=0/5,rec=30s); llm:gemini:fechado...` (não-crítico, degrada se
       algum aberto).
-- [ ] Chat: `llm_cache` ainda pode servir resposta inventada de **conversa
-      comum** (o guarda atual só bloqueia comando de action)
+- [x] Chat: `llm_cache` ainda pode servir resposta inventada de **conversa
+      comum** (o guarda atual só bloqueia comando de action) — **ENTREGUE 17/11:**
+      `_resposta_do_cache()` valida na LEITURA com as guardas atuais e apaga a
+      entrada inválida (vira MISS); `cache_failure_reason` ganhou a invenção
+      "Estado verificado / já verifiquei" (caso de 14/11) e o aviso
+      "⚠️ Não executei nada" saiu do cache; 7 testes novos
+      (`TestCacheDeConversa`), gate verde, sem bump.
 
 > Turno de 12/11 09:35 (higiene de 11/11 publicada): sugestões mostradas e não
 > escolhidas → "tapar os buracos de intenção" e "resolver o `Saída:

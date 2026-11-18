@@ -256,6 +256,10 @@ _CACHE_BAN_PREFIXES = (
     # Aviso honesto de indisponibilidade de recusa (2026-09-28) — o turno
     # seguinte tem que ir de novo ao modelo, nunca servir este aviso.
     "🤔 o modelo local não conseguiu responder",
+    # 17/11: o aviso do anti-falso-sucesso é do TURNO ("não executei nada"),
+    # não conhecimento — cacheado, toda repetição da frase mostraria o aviso
+    # em vez de tentar a rota de ação de novo.
+    "⚠️ não executei nada",
 )
 
 # Recusa do modelo não é resposta cacheável (2026-09-28): o cache é
@@ -325,6 +329,22 @@ _CACHE_BAN_ESTADO_PAGINA = re.compile(
     r'^\s*["\u201c]?em constru[çc][aã]o', re.IGNORECASE
 )
 
+# 17/11 (P0 do TODO): alegação de verificação que o OD NÃO fez. Caso real de
+# 14/11 — "quais os tipos de usuários de OD" voltou com "Estado verificado."
+# e cinco papéis inventados; a frase era palpite do modelo sem fonte nenhuma.
+# Cacheada, a invenção voltava instantaneamente para sempre, inclusive depois
+# do conserto (o cache é servido ANTES do anti-recusa). Não pega resposta
+# legítima de fonte ("informação verificada na fonte X") nem fastpath de ação
+# (que não passa por aqui).
+_CACHE_BAN_VERIFICACAO_FALSA = re.compile(
+    r"\b(?:estado|sistema|status|tudo)\s+(?:j[áa]\s+)?verificad[oa]\b"
+    r"|\bj[áa]\s+verifiquei\b"
+    r"|\bverifiquei\s+(?:no|os?|as?|todos?)\s+"
+    r"(?:sistema|servidor|banco|registro|logs?)\b",
+    re.IGNORECASE,
+)
+
+
 
 def _cacheable(text: str) -> bool:
     """True quando a resposta pode ser cacheada (não é falha/truncamento)."""
@@ -368,6 +388,27 @@ def cache_failure_reason(text: str) -> str:
     # v1.15.0 (§15): placeholder do sistema como resposta ('Em construção…').
     if _CACHE_BAN_ESTADO_PAGINA.match(lowered):
         return "estado de página (Em construção) — não é conteúdo"
+    # 17/11: alegação de verificação sem fonte ("Estado verificado.").
+    if _CACHE_BAN_VERIFICACAO_FALSA.search(candidate):
+        return "verificação alegada sem fonte (invenção)"
+    return ""
+
+
+def cache_serve_reason(text: str) -> str:
+    """Motivo para NÃO SERVIR uma resposta cacheada ('' = pode servir).
+
+    O cache é consultado ANTES das guardas do turno (anti-recusa,
+    anti-falso-sucesso); sem esta checagem na leitura, entrada envenenada
+    (gravada antes de um ban novo, ou por outra rota) era servida para
+    sempre. Falso sucesso é recusado pelo MESMO motivo pelo qual não pode ir
+    ao dono.
+    """
+    motivo = cache_failure_reason(text)
+    if motivo:
+        return motivo
+    falso = fake_action_reason(text)
+    if falso:
+        return f"falso sucesso: {falso}"
     return ""
 
 
@@ -1578,10 +1619,15 @@ class Orchestrator:
         cached = None
         cache_route = ROUTE_CACHE
         if self.cache is not None:
-            cached = self.cache.get(text, profile=profile)
+            cached = self._resposta_do_cache(
+                self.cache, self.cache.get(text, profile=profile), text, profile
+            )
             cache_route = ROUTE_CACHE
         if cached is None and self.semantic_cache is not None:
-            cached = self.semantic_cache.get(text, profile=profile)
+            cached = self._resposta_do_cache(
+                self.semantic_cache,
+                self.semantic_cache.get(text, profile=profile), text, profile,
+            )
             cache_route = "semantic_cache"
         if cached is not None:
             self._metrics.cache_hits += 1
@@ -2189,10 +2235,15 @@ class Orchestrator:
         cached = None
         cache_route = ROUTE_CACHE
         if self.cache is not None and persist:
-            cached = self.cache.get(text, profile=profile)
+            cached = self._resposta_do_cache(
+                self.cache, self.cache.get(text, profile=profile), text, profile
+            )
             cache_route = ROUTE_CACHE
         if cached is None and self.semantic_cache is not None and persist:
-            cached = self.semantic_cache.get(text, profile=profile)
+            cached = self._resposta_do_cache(
+                self.semantic_cache,
+                self.semantic_cache.get(text, profile=profile), text, profile,
+            )
             cache_route = "semantic_cache"
         if cached is not None:
             result.route = cache_route
@@ -3707,6 +3758,42 @@ class Orchestrator:
                 error=f"{type(exc).__name__}: {exc}",
             )
 
+    def _resposta_do_cache(
+        self,
+        origem: Optional[Any],
+        texto: Optional[str],
+        pergunta: str,
+        profile: str,
+    ) -> Optional[str]:
+        """Resposta pronta do cache — SÓ se ela passa nas guardas ATUAIS.
+
+        O cache é lido antes das guardas do turno (anti-recusa,
+        anti-falso-sucesso, anti-invenção). Entrada envenenada (gravada antes
+        de um ban novo) era servida para sempre; aqui ela é descartada e
+        **apagada** (quando o cache sabe apagar), virando MISS: o turno segue
+        para o LLM como se nunca tivesse sido cacheado.
+        """
+        if not texto:
+            return texto
+        motivo = cache_serve_reason(texto)
+        if not motivo:
+            return texto
+        log.info(
+            "Cache descartado na leitura",
+            motivo=motivo,
+            pergunta=pergunta[:80],
+        )
+        try:
+            apagar = getattr(origem, "delete", None)
+            if apagar is not None:
+                apagar(pergunta, profile=profile)
+        except Exception as exc:              # apagar é bônus, não requisito
+            log.warn(
+                "Cache não apagou a entrada inválida",
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        return None
+
     async def _post_process(
         self,
         user_id: str,
@@ -3721,8 +3808,8 @@ class Orchestrator:
         meio) NÃO vão para o cache: cacheadas, a mesma pergunta devolvia a
         falha para sempre — "resposta de cache sem nexo" (2026-09-26).
         """
-        # LLMCache (chave exata)
-        if self.cache is not None and _cacheable(message):
+        cacheavel = _cacheable(message)
+        if self.cache is not None and cacheavel:
             try:
                 self.cache.set(
                     text,
@@ -3736,8 +3823,8 @@ class Orchestrator:
                     "Orchestrator cache write failed",
                     error=f"{type(exc).__name__}: {exc}",
                 )
-        # SemanticCache (similaridade)
-        if self.semantic_cache is not None and _cacheable(message):
+        # SemanticCache (similaridade) — mesma guarda do cache exato.
+        if self.semantic_cache is not None and cacheavel:
             try:
                 self.semantic_cache.set(
                     text,

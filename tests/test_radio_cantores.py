@@ -390,7 +390,11 @@ def test_resumo_sem_apagadas_marca_o_dia_em_silencio(
         registro=registro, estado=estado, agora=agora, hora=0,
         enviar=enviados.append) is False
     assert enviados == []
-    assert rc._ler_estado_resumo(estado)["ultimo_dia"] == agora.date().isoformat()
+    # O dia do resumo é o LOCAL (hora de Brasília), não o UTC: entre 21h e
+    # meia-noite local o UTC já virou o dia e a marca trocava (teste ficou
+    # vermelho às 22h de 17/11 sem nada ter mudado no código).
+    assert (rc._ler_estado_resumo(estado)["ultimo_dia"]
+            == agora.astimezone().date().isoformat())
 
 
 def test_resumo_que_falha_nao_marca_e_tenta_de_novo(

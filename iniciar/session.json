@@ -6159,5 +6159,17 @@
     "sem_bump": "1.46.0+2083; sem restart.",
     "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§18)",
     "updated_at": "2026-11-17T22:10:00-03:00"
+  },
+  "cache_conversa_p0_2026_11_17": {
+    "pedido": "Dono (17/11 ~22h): 'Fechar o P0: impedir que o llm_cache sirva resposta inventada de conversa comum'.",
+    "buraco": "core/orchestrator.py lia o cache (stream ~1581 e grafo ~2192) ANTES das guardas do turno; _cacheable/cache_failure_reason/fake_action_reason só decidiam a GRAVAÇÃO. Resposta inventada de conversa comum podia ser cacheada, e entrada envenenada (gravada antes de um ban novo) continuava sendo servida depois do conserto.",
+    "correcao": "cache_serve_reason() (cache_failure_reason + fake_action_reason) e _resposta_do_cache(): valida na LEITURA, loga o motivo, APAGA a entrada (cache.delete) e devolve MISS. Aplicado nos dois caminhos e nos dois caches (exato e semântico). _CACHE_BAN_VERIFICACAO_FALSA pega 'Estado verificado.'/'já verifiquei'/'verifiquei no sistema' (caso real de 14/11, cinco papéis inventados); 'informação verificada na fonte X' continua cacheável. Prefixo '⚠️ não executei nada' entrou em _CACHE_BAN_PREFIXES (aviso do turno não é conhecimento).",
+    "descartado": "Não cachear resposta de modelo local (gemma-local/local): sem evidência (as invenções reais foram de nuvem) e derrubou test_second_identical_message_hits_cache e test_resposta_normal_continua_cacheavel — o cache normal é desejado também em dia de cota estourada. Registrado em test_guarda_nao_quebra_o_cache_normal.",
+    "testes": "TestCacheDeConversa (7 novos): invenção não cacheada; entrada envenenada descartada, apagada e turno refeito; falso sucesso cacheado não servido; aviso do anti-falso-sucesso não cacheável; cache bom instantâneo (route=cache, modelo não chamado); resposta comum (inclusive local) cacheável.",
+    "achado_gate": "tests/test_radio_cantores.py::test_resumo_sem_apagadas_marca_o_dia_em_silencio falhou às 22h: o resumo marca o dia LOCAL (correto, hora local) e o teste comparava com agora.date() em UTC; entre 21h e meia-noite local o UTC já virou o dia. Assertion corrigida para agora.astimezone().date().",
+    "gate": "5381 passed / 19 skipped / 0 falha (python3 -m pytest -q); tests/test_orchestrator.py + tests/test_api.py 276 passed; tests/test_radio_cantores.py 28 passed.",
+    "sem_bump": "1.46.0+2083 (correção de servidor, contrato do app intacto).",
+    "transcricao": "iniciar/2026-11-17_conversa_omegadrakon.md (§19)",
+    "updated_at": "2026-11-17T22:40:00-03:00"
   }
 }
