@@ -12,6 +12,34 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Acervo offline com guarda: todo ZIM do disco no `command` do kiwix (2026-11-18, sem bump)
+
+**Contexto:** P0 nº 3 da revisão de 17/11 — o kiwix-serve **não aceita glob**;
+cada ZIM é argumento posicional no `command` do compose. Um ZIM baixado no
+diretório montado ficava **invisível para a busca** até alguém lembrar de
+editar o compose, e o inverso também passava (compose citando arquivo que
+sumiu, com `--skipInvalid` escondendo a falta). 14 ZIMs / 40,3 GB sem guarda.
+
+**O que mudou:**
+
+- `tools/checar_zim_compose.py` (novo) — lê só o bloco `kiwix:` de
+  `docker/tools-compose.yaml` (sem PyYAML), monta o mapa
+  container_dir → host_dir e compara nas DUAS direções:
+  `citados_ausentes_no_disco`, `citados_sem_montagem` e
+  `no_disco_fora_do_compose`. `--json`, exit 1 quando diverge e a mensagem
+  exata de correção (`up -d kiwix`).
+- `tests/test_zim_compose.py` (novo, **11 testes**) — parse do bloco (para no
+  próximo serviço), ZIM novo no disco, ZIM citado e ausente, diretório não
+  montado, `.part`/`MANIFEST` ignorados, volume inexistente não quebra — e
+  uma guarda contra o **acervo real** que pula com motivo declarado em
+  máquina sem os diretórios montados (nunca finge que verificou).
+
+**Medição:** acervo real hoje **alinhado nas duas direções** — 12 ZIMs
+quentes + 2 frios, todos citados e todos presentes (o comando do CI já
+retorna exit 0).
+
+**Sem bump:** 1.46.0+2083 (ferramenta de infraestrutura + teste).
+
 ## Brief multi-IA: quanto a CLI realmente usa (medido, 2026-11-18, sem bump)
 
 **Pergunta:** o brief de 2,6 k chars entra no prompt, mas a CLI **usa** o que

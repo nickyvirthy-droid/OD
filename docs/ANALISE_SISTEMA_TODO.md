@@ -94,7 +94,7 @@ registro):
 |---|---------|---------------|---------|
 | 1 | **Guarda do `llm_cache` para conversa comum** | Hoje o cache pode devolver resposta **inventada** de conversa (o guarda só barra comando de action). É a classe de defeito que faz o OD "parecer menos inteligente" e agora fica gravada em cache. | Baixo–médio |
 | 2 | ~~**Corpus de frases reais do dono**~~ **ENTREGUE 18/11** — `tests/test_corpus_frases_dono.py`, 32 testes, 13 frases verbatim com origem conferida | Os buracos de casamento só aparecem em uso (disco, papéis, rádio) e cada um custou um turno de conserto. Custo: nenhum — as frases já existem. | Baixo |
-| 3 | **Teste ZIM ↔ compose** (acervo offline) | Um ZIM novo só entra na busca se alguém lembrar do `command`; 14 ZIMs/40,3 GB já hoje sem guarda. | Baixo |
+| 3 | ~~**Teste ZIM ↔ compose**~~ **ENTREGUE 18/11** — `tests/test_zim_compose.py` (11 testes) + `tools/checar_zim_compose.py` (guarda nas duas direções, rodável no CI). Acervo real: **14 ZIMs alinhados** com o `command`. | Um ZIM novo só entra na busca se alguém lembrar do `command`; 14 ZIMs/40,3 GB já hoje sem guarda. | Baixo |
 | 4 | **Espelho: `.gguf` 3B + binário do llama.cpp com MANIFEST** | O "offline" do OD depende de `/home/alex/llama.cpp` sobreviver; o resto do espelho já está pronto em `od-mirror`. | Baixo |
 
 #### P1 — próximas duas semanas (valor alto, escopo médio)

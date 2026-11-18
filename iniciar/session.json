@@ -6223,6 +6223,17 @@
     "validacao": "Gate parcial radio_link+tools+cobertura: 336 passed. Progresso: lote 1 +10 (354 -> 364), lote 2 rodando 14:23, unidade active; 190 faixas ~19 lotes ~10-13h; disco 760G livres.",
     "sem_bump": "1.46.0+2083. Fix entra no ar no proximo restart do od-core (autorizacao pendente)."
   },
+  "zim_compose_p0_3_2026_11_18": {
+    "pedido": "Dono (18/11): 'Fechar o P0 nº 3 com um teste ZIM <-> compose no acervo offline'.",
+    "problema": "kiwix-serve nao aceita glob: cada ZIM e argumento posicional no command de docker/tools-compose.yaml. ZIM novo no diretorio montado ficava invisivel na busca ate alguem editar o compose; o inverso tambem passava (compose citando arquivo ausente, escondido por --skipInvalid). 14 ZIMs / 40,3 GB sem guarda.",
+    "entrega": "tools/checar_zim_compose.py (NOVO): le so o bloco kiwix: (sem PyYAML), mapa container_dir -> host_dir, compara nas duas direcoes (citados_ausentes_no_disco, citados_sem_montagem, no_disco_fora_do_compose); --json; exit 1 com a mensagem de correcao. tests/test_zim_compose.py (NOVO, 11 testes): parse para no proximo servico, ZIM novo no disco, citado ausente, diretorio nao montado, .part/MANIFEST ignorados, volume inexistente, e guarda contra o acervo real com skip declarado quando os diretorios nao estao montados.",
+    "medicao": "Acervo real ALINHADO: 12 ZIMs quentes (/data) + 2 frios (/frio), todos citados e todos presentes; tools/checar_zim_compose.py exit 0.",
+    "validacao": "test_zim_compose + test_kiwix + test_enciclopedia 106 passed; GATE COMPLETO 5459 passed / 19 skipped / 0 falha (212,87 s) — +11 sobre os 5448.",
+    "estado_encontrado": "HEAD == origin/master == d6da7b1, arvore limpa, od-core ativo PID 352191 (health 30/30).",
+    "sem_bump": "1.46.0+2083; sem restart (ferramenta/teste fora do caminho do servico).",
+    "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§10)",
+    "updated_at": "2026-11-18T18:25:00-03:00"
+  },
   "medicao_uso_do_brief_2026_11_18": {
     "pedido": "Dono (18/11): 'Medir quanto do brief a CLI realmente usa, comparando o prompt com o diff produzido'.",
     "metodo": "Prompt REAL de sessao (montar_prompt_sessao + brief_multi_ia.montar_brief) com OpenClaude (NVIDIA NIM, free). Duas rodadas: (a) so-leitura, pedindo copiar versao/HEAD/checkpoint/sincronizado do brief; (b) diff real, pedindo criar tools/PROVA_BRIEF.md com 3 linhas do brief sem tocar em arquivo existente. Arquivo de prova removido depois.",

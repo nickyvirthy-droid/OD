@@ -667,3 +667,43 @@ Conteúdo do diff conferido: `versao=1.46.0`, `head=181dea1`,
 O brief **não é enfeite**: a CLI extrai o estado sem inventar e respeita a
 instrução de não mexer no que existe. O custo é ~2,6 k chars (metade do prompt)
 e a resposta continua saindo no contrato (`[ANALISE]` incluso).
+
+---
+
+## §10 — P0 nº 3 fechado: guarda ZIM ↔ compose do acervo offline
+
+**Pedido (verbatim):** *"Fechar o P0 nº 3 com um teste ZIM ↔ compose no acervo
+offline"*.
+
+### O buraco
+
+O kiwix-serve **não aceita glob** — cada ZIM é um argumento posicional no
+`command` de `docker/tools-compose.yaml`. Consequência medida: ZIM novo
+baixado no diretório montado ficava **invisível na busca** até alguém lembrar
+de editar o compose e recriar o container; e o contrário também passava
+(compose citando arquivo que sumiu, com `--skipInvalid` escondendo a falta).
+Eram **14 ZIMs / 40,3 GB sem nenhuma guarda**.
+
+### Entrega
+
+- **`tools/checar_zim_compose.py`** (novo) — lê só o bloco `kiwix:` (sem
+  PyYAML), monta o mapa container_dir → host_dir e compara **nas duas
+direções**: ZIM citado e ausente no disco, caminho citado sem montagem e
+  **ZIM no disco fora do compose**. `--json`, exit 1 quando diverge e a
+  mensagem exata de correção.
+- **`tests/test_zim_compose.py`** (novo, **11 testes**) — parse do bloco (para
+  no próximo serviço), ZIM novo no disco, citado e ausente, diretório não
+  montado, `.part`/`MANIFEST` ignorados, volume inexistente não quebra e a
+  guarda contra o **acervo real**, que **pula com motivo declarado** em
+  máquina sem os diretórios montados (nunca finge que verificou).
+
+### Medição (real)
+
+`python3 tools/checar_zim_compose.py` → **exit 0**: acervo **alinhado** —
+12 ZIMs quentes (`/data`) + 2 frios (`/frio`), todos citados e todos
+presentes. Nenhuma correção no compose foi necessária.
+
+### Validação
+
+`test_zim_compose + test_kiwix + test_enciclopedia` **106 passed**;
+**GATE COMPLETO 5459 passed / 19 skipped / 0 falha** (212,87 s).

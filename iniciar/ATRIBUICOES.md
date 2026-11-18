@@ -9,6 +9,35 @@
 
 ---
 
+## 18/11/2026 — P0 nº 3 fechado: guarda ZIM ↔ compose do acervo offline
+
+**Autor:** Freebuff (Buffy) — sessão de 18/11 ~18:20, pedido do dono ("Fechar o
+P0 nº 3 com um teste ZIM ↔ compose no acervo offline").
+
+### Criados
+
+- `tools/checar_zim_compose.py` — guarda nas duas direções, `--json`, exit 1
+  com a correção.
+- `tests/test_zim_compose.py` (11 testes).
+
+### Modificados
+
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (P0 nº 3 fechado),
+  `iniciar/session.json`, transcrição §10.
+
+### Intenção + estado
+
+- **Intenção:** fechar o buraco de um ZIM novo ficar invisível para a busca
+  por não estar no `command` do kiwix (e da referência morta no compose).
+- **Pronto/validado:** **11 passed** no teste; acervo real **alinhado**
+  (12 quentes + 2 frios); `test_zim_compose + test_kiwix + test_enciclopedia`
+  **106 passed**; **GATE COMPLETO 5459 passed / 19 skipped / 0 falha**.
+- **Limites declarados:** a guarda olha o topo dos diretórios montados (não
+  subpastas) e não valida a integridade do ZIM — só presença/paridade.
+- **Sem bump:** 1.46.0+2083; sem restart.
+
+---
+
 ## 18/11/2026 — Medição: quanto do brief a CLI realmente usa
 
 **Autor:** Freebuff (Buffy) — sessão de 18/11 ~17:50, pedido do dono ("Medir
