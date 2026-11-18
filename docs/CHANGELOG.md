@@ -12,6 +12,41 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## "Decisão de 24 h" vencida reavisada: aviso só quando a janela ABRE (2026-11-18, sem bump)
+
+**Contexto:** relato do dono — o app "fica mandando mensagem: Decisão de
+24 h - xxxxx, já passou do prazo, deveria não aparecer".
+
+**Causa (no código, com registro vivo vazio):** `registrar_para_apagar()` é
+idempotente por (artista, título) em **qualquer** status e devolve o registro
+ANTIGO, mas os dois chamadores avisavam sempre:
+
+| Chamador | Linha |
+|---|---|
+| `integrations/radio_link.py` (`processar_pedido`) | `_avisar(aviso_de_decisao(item), notificar)` fora do "criou agora" |
+| `integrations/radio_pro.py` (pedido da rádio) | `notificar_dono(aviso_de_decisao(item))` incondicional |
+
+Então cada novo pedido/download da mesma faixa reenviava "Decisão de 24 h" de
+um prazo **já vencido** (o registro ficava `apagada` para sempre).
+
+**O que entrou:**
+
+| Arquivo | Mudança |
+|---|---|
+| `integrations/radio_cantores.py` | `registrar_para_apagar(..., ao_abrir_janela=cb)`: o callback é chamado **só quando uma janela nova começa**. `aguardando`/`permitida` → devolve o item sem avisar. `apagada` (vencida ou negada) e faixa que voltou ao acervo → **reabre** a janela (`status=aguardando`, novo `decidir_ate` em 24 h, limpa `lembrete_em`/`tocou_em`/`motivo_fim`/`apagada_em`/`decidido_em`) com **um** aviso |
+| `integrations/radio_link.py` | remove o `_avisar` incondicional; passa `ao_abrir_janela` |
+| `integrations/radio_pro.py` | idem, via `notificar_dono` |
+| `tests/test_radio_cantores.py` | 3 testes: aviso uma vez na abertura, `permitida` não reavisa, faixa vencida que volta reabre **uma** janela e não repete |
+
+**Por que reabrir em vez de ignorar:** sem reabrir, o registro vencido ficava
+mudo para sempre e a faixa baixada de novo **nunca mais seria apagada** —
+trocaria um aviso chato por um bloqueio furado. O tom agora é: uma janela por
+chegada da faixa, nunca um aviso por toque no registro.
+
+**Validação:** `test_radio_cantores`+`link`+`pro`+`cobertura`+`curadoria`
+**310 passed**; **GATE COMPLETO 5468 passed / 19 skipped / 0 falha** (221 s).
+Sem bump (1.46.0+2083): só o caminho de aviso mudou.
+
 ## I2 (Hybrid Search) fiado no RAG — medido e mantido DESLIGADO (2026-11-18, sem bump)
 
 **Contexto:** P1 nº 5 — o módulo `core/hybrid_search.py` (BM25 + denso + RRF +

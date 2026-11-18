@@ -6351,5 +6351,18 @@
     "docs": "docs/CHANGELOG.md (seção nova), docs/ANALISE_SISTEMA_TODO.md (P1 nº 5 marcado ENTREGUE com o resultado da medição), iniciar/2026-11-18_conversa_omegadrakon.md §13, iniciar/ATRIBUICOES.md.",
     "publicacao": "Commit 3cc1b38 em origin/master; HEAD == origin/master; arvore limpa.",
     "telegram": "ok=true msg_id=4062 (regra 15)."
+  },
+  "aviso_decisao_janela_unica_2026_11_18": {
+    "pedido": "Dono (18/11 ~19:35): 'app fica me mandando mensagem: Decisão de 24 h - xxxxx, ja passou do prazo, deveria não aparecer'.",
+    "causa": "registrar_para_apagar() e idempotente por (artista,titulo) em QUALQUER status e devolve o registro antigo; radio_link.aviso e radio_pro.notificar_dono avisavam sempre -> cada novo pedido/download da mesma faixa reenviava 'Decisao de 24 h' de prazo vencido.",
+    "evidencia": "data/radio_apagar_depois.json vazio (17/11 06:36); /api/radio/musicas decisoes=[]; journal so 1 push 'Decisao de 24 h - teste' em 17/11; timer da janela ativo (interval 60 s, journal 19:15).",
+    "correcao": "radio_cantores.registrar_para_apagar(..., ao_abrir_janela=cb): callback so na abertura da janela; aguardando/permitida devolvem sem avisar; apagada com faixa de volta REABRE a janela (status aguardando, novo decidir_ate 24 h, limpa lembrete/tocou/motivo_fim/apagada_em/decidido_em) e avisa uma vez. radio_link e radio_pro passaram a avisar dentro do callback (sem _avisar/notificar_dono incondicional).",
+    "por_que_reabrir": "Silenciar sem reabrir deixaria o registro vencido mudo para sempre e a faixa baixada de novo nunca mais seria apagada.",
+    "testes": "tests/test_radio_cantores.py +3: aviso unico na abertura; permitida nao reavisa; vencida que volta reabre UMA janela e repetir nao avisa.",
+    "validacao": "test_radio_cantores 31 passed; cantores+link+pro+cobertura+curadoria 310 passed; GATE COMPLETO 5468 passed / 19 skipped / 0 falha (221 s).",
+    "limites": "Mensagem ja enviada nao e apagada (historico); item vencido aparece no card por ate 60 s ate o timer limpar.",
+    "sem_bump": "1.46.0+2083.",
+    "docs": "docs/CHANGELOG.md (secao nova), iniciar/2026-11-18_conversa_omegadrakon.md §14, iniciar/ATRIBUICOES.md.",
+    "telegram": "pendente de envio (regra 15)."
   }
 }

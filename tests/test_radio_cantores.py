@@ -460,3 +460,68 @@ def test_fila_nao_marca_cantor_fora_da_lista(
     rp.lancar_pedido_na_fila(
         pedido, enviar=lambda artista, titulo: {"ok": True}, banco=Path("/nao/existe.db"))
     assert marcados == []
+
+
+# ===========================================================================
+# Aviso só na ABERTURA da janela (achado 18/11): faixa que volta ao acervo
+# depois do prazo não pode reenviar "Decisão de 24 h" de um prazo vencido.
+# ===========================================================================
+
+def test_aviso_so_na_abertura_da_janela(registro: Path) -> None:
+    avisos: list[dict] = []
+    push = _PushFalso()
+    cb = avisos.append
+
+    # 1ª vez: janela nova → avisa (Telegram uma vez + push uma vez).
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             push=push, ao_abrir_janela=cb)
+    assert len(avisos) == 1 and len(push.envios) == 1
+
+    # Idempotente: já está aguardando → não avisa de novo.
+    rc.registrar_para_apagar("annitá", "x", "", registro=registro,
+                             push=push, ao_abrir_janela=cb)
+    assert len(avisos) == 1 and len(push.envios) == 1
+
+
+def test_faixa_permitida_nao_volta_a_avisar(registro: Path) -> None:
+    avisos: list[dict] = []
+    push = _PushFalso()
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             push=push, ao_abrir_janela=avisos.append)
+    assert rc.decidir("Annita", "X", permitir=True, registro=registro)["ok"]
+
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             push=push, ao_abrir_janela=avisos.append)
+    assert len(avisos) == 1 and len(push.envios) == 1
+    assert rc.pendentes(registro=registro) == []
+
+
+def test_faixa_vencida_que_volta_reabre_uma_janela_so(registro: Path) -> None:
+    """Prazo vencido + faixa baixada de novo: UMA janela nova, não spam."""
+    avisos: list[dict] = []
+    push = _PushFalso()
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             push=push, ao_abrir_janela=avisos.append)
+    antes = rc.pendentes(registro=registro)[0]["decidir_ate"]
+
+    # Vence o prazo: a janela apaga (arquivo stub) e marca a faixa.
+    r = rc.limpar_tocados(
+        registro=registro, apagar=lambda _c: True,
+        agora=datetime.now(timezone.utc) + timedelta(hours=rc.HORAS_DECISAO + 1),
+    )
+    assert r["apagadas"] == 1
+    assert rc.pendentes(registro=registro) == []
+    assert len(avisos) == 1
+
+    # A faixa voltou ao acervo (baixada de novo): reabre a janela, uma vez.
+    item = rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                                    push=push, ao_abrir_janela=avisos.append)
+    assert item["status"] == "aguardando"
+    assert item["decidir_ate"] > antes
+    assert "motivo_fim" not in item and "apagada_em" not in item
+    assert len(avisos) == 2 and len(push.envios) == 2
+
+    # Enquanto a janela nova está aberta, repetir não avisa.
+    rc.registrar_para_apagar("Annita", "X", "x.mp3", registro=registro,
+                             push=push, ao_abrir_janela=avisos.append)
+    assert len(avisos) == 2 and len(push.envios) == 2

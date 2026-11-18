@@ -1132,15 +1132,19 @@ def lancar_pedido_na_fila(
                 str(pedido.get("artista") or ""),
                 str(pedido.get("titulo") or ""))
             if cantor or musica:
-                item = radio_cantores.registrar_para_apagar(
+                from integrations.radio_link import notificar_dono
+
+                # Aviso só na ABERTURA da janela: registro já vencido não
+                # gera outro "Decisão de 24 h" (achado de 18/11).
+                radio_cantores.registrar_para_apagar(
                     str(pedido.get("artista") or ""),
                     str(pedido.get("titulo") or ""),
                     str(pedido.get("caminho") or ""),
                     motivo="musica" if musica else "cantor",
                     usuario=str(pedido.get("usuario") or ""),
+                    ao_abrir_janela=lambda item: notificar_dono(
+                        radio_cantores.aviso_de_decisao(item)),
                 )
-                from integrations.radio_link import notificar_dono
-                notificar_dono(radio_cantores.aviso_de_decisao(item))
         except Exception as exc:          # lista é regra, não portão
             log.warn("registro de cantor indesejado falhou",
                      error=type(exc).__name__)

@@ -9,6 +9,39 @@
 
 ---
 
+## 18/11/2026 — Bug do dono: "Decisão de 24 h" chegando com prazo vencido
+
+**Autor:** Freebuff (Buffy) — sessão de 18/11 ~19:40, relato do dono ("app fica
+me mandando mensagem: Decisão de 24 h - xxxxx, já passou do prazo, deveria não
+aparecer").
+
+### Modificados
+
+- `integrations/radio_cantores.py` — `registrar_para_apagar()` ganhou
+  `ao_abrir_janela=` (callback só na abertura de janela) e **reabre** a janela
+  quando a faixa volta depois de `apagada` (vencida/negada).
+- `integrations/radio_link.py` — aviso ao dono dentro de `ao_abrir_janela`
+  (antes `_avisar` rodava a cada chamada).
+- `integrations/radio_pro.py` — idem, via `notificar_dono`.
+- `tests/test_radio_cantores.py` — 3 testes novos (abertura única, permitida
+  não reavisa, vencida reabre uma janela só).
+- `docs/CHANGELOG.md`, `iniciar/session.json`, transcrição §14.
+
+### Intenção + estado
+
+- **Intenção:** parar o spam de "Decisão de 24 h" de prazo já vencido (registro
+  idempotente devolvido a cada novo pedido/download) **sem** abrir buraco no
+  bloqueio: faixa que voltou ganha **uma** janela nova, não um aviso por toque.
+- **Pronto/validado:** 310 passed nos testes de rádio (cantores/link/pro/
+  cobertura/curadoria); **GATE COMPLETO 5468 passed / 19 skipped / 0 falha**
+  (221 s). `od-core` reiniciado, `/health` `ok=true`.
+- **Limites:** a mensagem antiga que já está no Telegram/app não é apagada
+  (é histórico); o que para é o reenvio. Faixa vencida entre o prazo e a
+  limpeza (≤ 60 s) ainda aparece no card até o timer rodar.
+- **Sem bump:** 1.46.0+2083.
+
+---
+
 ## 18/11/2026 — P0 nº 4 fechado: `.gguf` 3B + runtime do llama.cpp no espelho
 
 **Autor:** Freebuff (Buffy) — sessão de 18/11 ~18:50, pedido do dono ("Fechar o

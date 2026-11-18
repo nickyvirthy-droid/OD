@@ -383,6 +383,7 @@ def registrar_para_apagar(
     artista: str, titulo: str, caminho: str = "",
     *, registro: Optional[Path] = None, motivo: str = "cantor",
     usuario: str = "", push: Any = None,
+    ao_abrir_janela: Optional[Callable[[dict[str, Any]], Any]] = None,
 ) -> Optional[dict[str, Any]]:
     """Marca a faixa para a DECISÃO do dono (24 h) — idempotente.
 
@@ -392,6 +393,12 @@ def registrar_para_apagar(
     rádio apaga a faixa (`limpar_tocados`).
 
     ``motivo`` é "cantor" ou "musica" (vai para o aviso e para o painel).
+
+    ``ao_abrir_janela`` é chamado SÓ quando uma janela nova começa (faixa
+    inédita ou que voltou depois de apagada/negada). Antes os chamadores
+    avisavam o dono a cada chamada; como a função é idempotente e devolve o
+    registro ANTIGO, a faixa baixada de novo gerava "Decisão de 24 h" de um
+    prazo já vencido (achado de 18/11).
     """
     if not normalizar(artista) and not normalizar(titulo):
         return None
@@ -399,8 +406,41 @@ def registrar_para_apagar(
     chave = (normalizar(artista), normalizar(titulo))
     for item in itens:
         if (normalizar(str(item.get("artista") or "")),
-                normalizar(str(item.get("titulo") or ""))) == chave:
+                normalizar(str(item.get("titulo") or ""))) != chave:
+            continue
+        status = str(item.get("status") or "")
+        if status != "apagada":
+            # Aguardando (idempotente) ou já permitida: nada novo a avisar.
             return item
+        # A faixa VOLTOU depois de apagada/negada (o acervo pode ser
+        # baixado de novo por desenho — 17/11). Reabre a janela uma vez:
+        # sem isto o registro vencido ficava mudo para sempre e a faixa
+        # nunca mais seria apagada.
+        agora = datetime.now(timezone.utc)
+        item.update(
+            caminho=str(caminho or ""),
+            motivo=str(motivo or item.get("motivo") or "cantor"),
+            usuario=str(usuario or item.get("usuario") or ""),
+            criado_em=agora.isoformat(timespec="seconds"),
+            decidir_ate=(agora + timedelta(hours=HORAS_DECISAO))
+            .isoformat(timespec="seconds"),
+            tocou_em="", status="aguardando",
+        )
+        for campo in ("lembrete_em", "motivo_fim", "apagada_em",
+                      "decidido_em"):
+            item.pop(campo, None)
+        _gravar_registro(itens, registro)
+        log.info("janela de decisao reaberta (faixa voltou ao acervo)",
+                 artista=item.get("artista"), titulo=item.get("titulo"),
+                 decidir_ate=item["decidir_ate"])
+        _avisar_push_de_decisao(item, push)
+        if ao_abrir_janela is not None:
+            try:
+                ao_abrir_janela(item)
+            except Exception as exc:      # aviso é caminho, não portão
+                log.warn("aviso de decisao falhou",
+                         error=type(exc).__name__)
+        return item
     agora = datetime.now(timezone.utc)
     item = {"artista": str(artista or ""), "titulo": str(titulo or ""),
             "caminho": str(caminho or ""), "motivo": str(motivo or "cantor"),
@@ -416,6 +456,11 @@ def registrar_para_apagar(
              decidir_ate=item["decidir_ate"])
     # Só na PRIMEIRA marcação: faixa repetida não vira spam de push.
     _avisar_push_de_decisao(item, push)
+    if ao_abrir_janela is not None:
+        try:
+            ao_abrir_janela(item)
+        except Exception as exc:          # aviso é caminho, não portão
+            log.warn("aviso de decisao falhou", error=type(exc).__name__)
     return item
 
 

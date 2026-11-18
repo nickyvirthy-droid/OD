@@ -898,3 +898,54 @@ o piso é sensível a texto novo do repo — quem escrever no corpus, rode o gat
   `test_hybrid_search` + `test_eval_oracle` **16 passed**.
 - `od-core` reiniciado, `/health` `ok=true`, journal sem `ERROR`/traceback.
 - **Sem bump** (1.46.0+2083): com a flag no default o comportamento é idêntico.
+---
+
+## §14 — Bug do dono: "Decisão de 24 h" chegando com o prazo já vencido (18/11)
+
+> Relato do dono: *"app fica me mandando mensagem: Decisão de 24 h - xxxxx, ja
+> passou do prazo, deveria não aparecer"*.
+
+### 1. O que foi conferido no código e na máquina
+
+- `registrar_para_apagar()` (`integrations/radio_cantores.py`) é idempotente
+  por (artista, título) **em qualquer status** — e devolve o registro antigo.
+- Os dois chamadores avisavam **incondicionalmente** logo depois:
+  `radio_link.py` (`_avisar(aviso_de_decisao(item), notificar)`) e
+  `radio_pro.py` (`notificar_dono(...)`). Logo, cada novo pedido/download da
+  mesma faixa reenviava o aviso de um prazo que já tinha vencido.
+- Registro vivo coerente com isso: `data/radio_apagar_depois.json` **vazio**
+  (mtime 17/11 06:36), `/api/radio/musicas` com `decisoes: []` e um único push
+  "Decisão de 24 h — teste" no journal (17/11) — não havia push recente do
+  core; o repeteco vinha dos chamadores.
+- Timer da janela de decisão **está rodando** (`interval_s=60`, journal de
+  19:15) → item vencido é apagado em até 60 s; o problema era só o reaviso.
+
+### 2. Correção
+
+| Arquivo | Mudança |
+|---|---|
+| `integrations/radio_cantores.py` | `ao_abrir_janela=` chamado **só** quando a janela abre. `aguardando`/`permitida` devolvem o item sem avisar; `apagada` (vencida/negada) com faixa de volta **reabre** a janela (novo `decidir_ate` de 24 h, limpa lembrete/tocou/motivo_fim/apagada_em/decidido_em) e avisa **uma** vez |
+| `integrations/radio_link.py` | `_avisar` movido para dentro de `ao_abrir_janela` |
+| `integrations/radio_pro.py` | idem, via `notificar_dono` |
+
+Reabrir (em vez de só silenciar) é deliberado: sem isso o registro vencido
+ficava mudo para sempre e a faixa baixada de novo **nunca mais era apagada**.
+Uma janela por chegada da faixa; nunca um aviso por toque no registro.
+
+### 3. Validação
+
+- `test_radio_cantores`: **31 passed**, com 3 testes novos — aviso único na
+  abertura; `permitida` não reavisa; faixa vencida que volta reabre **uma**
+  janela (`decidir_ate` maior, campos de fim limpos) e repetir não avisa.
+- `cantores`+`link`+`pro`+`cobertura`+`curadoria`: **310 passed**.
+- **GATE COMPLETO: 5468 passed / 19 skipped / 0 falha** (221 s) — baseline era
+  5465 + 3 novos.
+- `od-core` reiniciado, `/health` `ok=true`.
+- **Sem bump** (1.46.0+2083): nenhum contrato de API/UI mudou.
+
+### 4. Limites declarados
+
+- A mensagem **já enviada** não é apagada do Telegram/app (histórico); o que
+  para é o reenvio.
+- Entre o vencimento e a limpeza (≤ 60 s) o item ainda pode aparecer no card
+  do app — janela curta do timer, não é o bug relatado.

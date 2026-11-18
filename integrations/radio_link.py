@@ -773,16 +773,20 @@ def processar_pedido(
         cantor_bloqueado = indesejado_no_link or radio_cantores.indesejado(
             str(musica.get("artista") or ""), caminho=cantores_lista)
         if cantor_bloqueado or bloqueada_baixada:
-            item = radio_cantores.registrar_para_apagar(
+            # Ordem de 17/11: o dono é avisado e decide em 24 h — mas SÓ
+            # quando a janela abre. Avisar a cada chamada reenviava
+            # "Decisão de 24 h" de um prazo já vencido quando a faixa era
+            # baixada de novo (achado de 18/11).
+            radio_cantores.registrar_para_apagar(
                 str(musica.get("artista") or ""),
                 str(musica.get("titulo") or ""),
                 str(musica.get("caminho") or ""),
                 registro=cantores_registro,
                 motivo="musica" if bloqueada_baixada else "cantor",
                 usuario=str(pedido.get("usuario") or ""),
+                ao_abrir_janela=lambda item: _avisar(
+                    radio_cantores.aviso_de_decisao(item), notificar),
             )
-            # Ordem de 17/11: o dono é avisado e decide em 24 h.
-            _avisar(radio_cantores.aviso_de_decisao(item), notificar)
     except Exception as exc:
         log.warn("registro de cantor indesejado falhou",
                  error=type(exc).__name__)
