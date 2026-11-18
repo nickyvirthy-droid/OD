@@ -16,6 +16,7 @@ Arquiteto: Alex Projeti
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -93,7 +94,8 @@ class TestCascataOficial:
         assert nomes == [
             "OpenCode", "Kilo", "Gemini", "Qwen", "Claude", "Crush",
             "Agy", "OpenClaw", "Codex", "Aider",
-        ]  # Freebuff/Cline/OpenClaude/Interpreter fora (só TUI)
+            "Cline", "OpenClaude", "Interpreter",
+        ]  # Freebuff fora (única sem modo não-interativo — nunca por cota)
         opencode, kilo, *novas = orch.CLIS
         assert opencode.binario == "opencode"
         assert opencode.args_antes[0] == "run"
@@ -119,10 +121,15 @@ class TestCascataOficial:
     def test_expansao_18_11_cada_cli_com_modo_headless_medido(self) -> None:
         """Expansão de 18/11 (ordem do dono: 'usar todas as 14 IAs').
 
-        Cada CLI nova da cascata só entra com flag de modo NÃO-INTERATIVO
+        Cada CLI da cascata só entra com flag de modo NÃO-INTERATIVO
         medida no `--help` em 18/11 (só help, sem gastar cota) — sessão
-        desanexada não responde prompt de permissão. E as 4 que NÃO têm
-        one-shot ficam de fora com motivo medido.
+        desanexada não responde prompt de permissão.
+
+        **Régua do dono (18/11, 2ª leva): cota NUNCA é motivo de
+        exclusão** — "cota volta no outro dia… é para isso que existe
+        esse número grande de IAs". Só falta de modo não-interativo tira
+        alguém da lista; por isso cline e interpreter (que tinham ficado
+        de fora misturando cota com modo) agora estão DENTRO.
         """
         por_nome = {s.nome: s for s in orch.CLIS}
         # Gemini/Qwen: -p/--prompt = headless; -y = yolo (aprova tudo)
@@ -150,8 +157,34 @@ class TestCascataOficial:
         assert "--yes-always" in aider.args_depois
         assert "--no-auto-commit" in aider.args_depois
 
-        # As 4 SEM one-shot ficaram de fora (medido no --help de 18/11)
-        de_fora = {"freebuff", "cline", "openclaude", "interpreter"}
+        # --- 2ª leva (18/11): cline, openclaude, interpreter ---
+        # Cline: prompt POSICIONAL = one-shot, auto-approve default true
+        # ("Default to start in act mode with auto-approve enabled")
+        cline = por_nome["Cline"]
+        assert cline.args_antes == () and cline.args_depois == ()
+        assert cline.caminho_candidato.endswith(".npm-global/bin/cline")
+        # OpenClaude: -p = --print (non-interactive) + yolo; o binário é
+        # o wrapper do perfil portátil (a engine fica fora do PATH)
+        oc = por_nome["OpenClaude"]
+        assert oc.args_antes == ("-p",)
+        assert "--yolo" in oc.args_depois
+        assert "--provider" in oc.args_depois and "nvidia-nim" in oc.args_depois
+        assert oc.caminho_candidato.endswith("tools/openclaude_headless.sh")
+        # Interpreter: SEM posicional — prompt vai no STDIN (--stdin)
+        interp = por_nome["Interpreter"]
+        assert interp.prompt_via_stdin is True
+        assert "--stdin" in interp.args_antes and "-y" in interp.args_antes
+        assert interp.caminho_candidato.endswith("interpreter")
+        # Os demais continuam com prompt em argv (contrato do comando)
+        assert all(
+            not s.prompt_via_stdin
+            for s in orch.CLIS if s.nome != "Interpreter"
+        )
+
+        # SÓ o freebuff continua de fora — e por MODO medido no --help
+        # (aceita apenas login/doctor; nem stdin vira prompt), nunca por
+        # cota (régua do dono de 18/11).
+        de_fora = {"freebuff"}
         assert de_fora.isdisjoint(por_nome)
         assert all(
             not any(f in (s.binario, s.nome.lower()) for s in orch.CLIS)
@@ -159,6 +192,35 @@ class TestCascataOficial:
         )
         assert de_fora.isdisjoint(orch.CLI_SESSAO_OPCOES)
         assert de_fora.isdisjoint(CLIS_SESSAO_SERVER)
+        # e as 3 novas estão nos DOIS seletores (contrato do painel)
+        for nome in ("cline", "openclaude", "interpreter"):
+            assert nome in orch.CLI_SESSAO_OPCOES
+            assert nome in CLIS_SESSAO_SERVER
+
+    def test_prompt_via_stdin_chega_de_verdade_na_cli(self) -> None:
+        """`prompt_via_stdin=True` manda o prompt para o STDIN (18/11).
+
+        O `cat` é a prova viva: sem argv de prompt, ele devolve EXATA a
+        linha recebida no stdin — que é o contrato do `--stdin` do
+        interpreter.
+        """
+        spec = orch.CliSpec(nome="Cat", binario="cat", prompt_via_stdin=True)
+        assert orch.executar_cli(spec, "linha-pelo-stdin") == "linha-pelo-stdin"
+
+    def test_wrapper_do_openclaude_existe_e_e_executavel(self) -> None:
+        """O binário do OpenClaude é o wrapper versionado e +x.
+
+        Sem ele a cascata cairia no `shutil.which("openclaude")` (fora do
+        PATH — o `.bin` do npm não existe) e a CLI nem tentaria.
+        """
+        spec = {s.nome: s for s in orch.CLIS}["OpenClaude"]
+        wrapper = Path(spec.caminho_candidato)
+        assert wrapper.is_file(), wrapper
+        assert os.access(wrapper, os.X_OK), wrapper
+        # o wrapper referencia a engine real e o perfil portátil
+        corpo = wrapper.read_text(encoding="utf-8")
+        assert "@gitlawb/openclaude" in corpo
+        assert "ai_settings.env" in corpo
 
     def test_seletor_do_painel_casa_com_o_servidor(self) -> None:
         """O seletor do runner (--cli) é o MESMO do endpoint do painel.

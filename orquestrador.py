@@ -213,12 +213,16 @@ class CliSpec:
     #: Executável procurado no PATH.
     binario: str
     #: Argumentos fixos ANTES do prompt (ex: ['run', '-m', 'modelo']).
-    args_antes: tuple[str, ...]
+    args_antes: tuple[str, ...] = ()
     #: Argumentos fixos DEPOIS do prompt (ex: ['--auto']).
     args_depois: tuple[str, ...] = ()
     #: Caminho alternativo quando o binário NÃO está no PATH do serviço
     #: (instalação com prefix de usuário, fora do PATH default).
     caminho_candidato: str = ""
+    #: Prompt vai no STDIN em vez de argv (18/11): o interpreter não tem
+    #: prompt posicional, só `--stdin` ("Run OI in stdin mode"). Quem
+    #: usa isto recebe o prompt por `communicate(input=...)`.
+    prompt_via_stdin: bool = False
 
     def comando_base(self) -> list[str]:
         """Executável resolvido: candidato primeiro, PATH depois.
@@ -243,21 +247,40 @@ class CliSpec:
 #:
 #: **Expansão de 18/11 (ordem do dono — "utilização de todas as 14 IAs")**:
 #: as 14 CLIs do inventário (`docs/IAS_DISPONIVEIS.md`) foram MEDIDAS uma a
-#: uma via `--help` em 18/11 (só help, sem gastar cota). 10 têm modo
-#: não-interativo e entraram aqui; 4 ficaram de FORA com motivo medido:
+#: uma via `--help` em 18/11 (só help, sem gastar cota). 13 têm modo
+#: não-interativo e estão aqui; 1 ficou de FORA com motivo medido.
 #:
-#: - **Freebuff** — saiu em 10/10: a 0.2.22 ficou INTERATIVA APENAS
-#:   (`freebuff --help` só aceita `login`/`doctor`); cota diária esgotada
-#:   em 18/11.
-#: - **Cline** — sem flag de prompt em lote (só TUI, `--plan`, ACP ou zen);
-#:   cota diária esgotada em 18/11 (foi o que encerrou a sessão dele).
-#: - **OpenClaude** — `start.sh` é LAUNCHER de menu (banner + update check),
-#:   não aceita prompt; a engine (claude) já está na cascata.
-#: - **Interpreter** — sem one-shot: `interpreter --help` só tem TUI,
-#:   `--server` e `--stdin` (nenhum prompt posicional).
+#: **Régua do dono (18/11, segunda leva): COTA NUNCA É MOTIVO DE
+#: EXCLUSÃO** — "cota volta no outro dia… é para isso que existe esse
+#: número grande de IAs". Uma CLI sai da cascata SÓ por não ter modo
+#: não-interativo. Isso corrigiu a primeira leva: cline e interpreter
+#: tinham ficado de fora misturando cota com modo, e o cline na verdade
+#: TEM one-shot (medido: prompt posicional, auto-approve ligado por
+#: padrão; a cota de hoje — 429, "18h 46m" — volta sozinha).
 #:
-#: Se uma delas voltar a aceitar prompt não-interativo, é só religar aqui e
-#: nos seletores (`CLI_SESSAO_OPCOES` e `APIHandler.SESSAO_CLIS`).
+#: - **Freebuff** — ÚNICA de fora, e só por modo: `freebuff --help`
+#:   aceita apenas `login`/`doctor`; nem stdin vira prompt (medido em
+#:   18/11: piped input sobe a TUI e sai sem processar). Se um dia
+#:   aceitar prompt, é só religar aqui e nos seletores.
+#:
+#: Entradas da segunda leva (18/11, todas provadas com prompt real):
+#:
+#: - **Cline** — `cline PROMPT` (posicional = one-shot; auto-approve
+#:   default true; `--json` opcional). Provado: agente inicia e sai com
+#:   **exit=1** no 429 da cota diária — fail-fast correto, amanhã volta.
+#: - **OpenClaude** — engine `@gitlawb/openclaude` (fork do Claude Code)
+#:   via `tools/openclaude_headless.sh` (o `start.sh` é menu; o wrapper
+#:   aplica o perfil portátil e executa a engine). `--yolo` aprovado por
+#:   teste real: criou arquivo e respondeu (exit=0, 3 turns, 3,5s) com
+#:   `--model nvidia/nemotron-3-ultra-550b-a55b` — o modelo do
+#:   `ai_settings.env` (deepseek-v3.1-terminus) está EOL no NIM (404).
+#: - **Interpreter** — prompt via **STDIN** (`--stdin -y -pl`, campo
+#:   `prompt_via_stdin` do CliSpec): sem posicional, o prompt vai no
+#:   stdin. Provado: falha com exit=1 no OpenAI sem crédito (igual
+#:   codex/aider — volta quando o saldo voltar).
+#:
+#: Se uma delas perder o modo não-interativo, é só tirar daqui e dos
+#: seletores (`CLI_SESSAO_OPCOES` e `APIHandler.SESSAO_CLIS`).
 CLIS: tuple[CliSpec, ...] = (
     # OpenCode: 'run --standalone PROMPT'. A flag --standalone é OBRIGATÓRIA
     # (10/10): sem ela a CLI se conecta a um `opencode serve --service`
@@ -362,6 +385,52 @@ CLIS: tuple[CliSpec, ...] = (
         args_antes=("-m",),
         args_depois=("--yes-always", "--no-auto-commit"),
         caminho_candidato="~/OmegaDrakon/.venv/bin/aider",
+    ),
+    # Cline (18/11, 2ª leva): 'cline PROMPT' posicional = one-shot
+    # ("Default to start in act mode with auto-approve enabled"; auto-
+    # approve é DEFAULT true — ninguém responde prompt na sessão
+    # desanexada). Saída em texto puro (sem --json). Provado com prompt
+    # real: exit=1 no 429 da cota diária → fail-fast, a cascata segue;
+    # a cota volta em ~18h (régua do dono: cota nunca exclui).
+    CliSpec(
+        nome="Cline",
+        binario="cline",
+        args_antes=(),
+        args_depois=(),
+        caminho_candidato="~/.npm-global/bin/cline",
+    ),
+    # OpenClaude (18/11, 2ª leva): engine @gitlawb/openclaude (fork do
+    # Claude Code) — o start.sh é menu interativo, então o binário É o
+    # wrapper tools/openclaude_headless.sh (perfil portátil + exec da
+    # engine; ver comentário no script). -p = --print (non-interactive);
+    # --yolo = dangerously-skip-permissions (sessão desanexada, igual ao
+    # claude da cascata). Modelo vivo do NIM: o do ai_settings.env está
+    # EOL (404 medido) — nvidia/nemotron-3-ultra-550b respondeu em 0,9s.
+    # PROVADO: exit=0, "ok" (3,5s) e criou arquivo real com --yolo.
+    CliSpec(
+        nome="OpenClaude",
+        binario="openclaude",
+        args_antes=("-p",),
+        args_depois=("--yolo", "--provider", "nvidia-nim",
+                     "--model", "nvidia/nemotron-3-ultra-550b-a55b"),
+        caminho_candidato=str(
+            Path(__file__).resolve().parent / "tools" / "openclaude_headless.sh"
+        ),
+    ),
+    # Interpreter (18/11, 2ª leva): SEM prompt posicional — o prompt vai
+    # no STDIN (`--stdin` = "Run OI in stdin mode"), por isso o campo
+    # prompt_via_stdin. -y = auto_run (o OI senão pede confirmação para
+    # rodar código e a sessão desanexada não responde); -pl = saída
+    # plain. OpenAI sem crédito → exit=1 rápido (igual codex/aider:
+    # falha rápido, volta quando o saldo voltar).
+    CliSpec(
+        nome="Interpreter",
+        binario="interpreter",
+        args_antes=("--stdin", "-y", "-pl"),
+        caminho_candidato=(
+            "/opt/omegadrakon/builders/open-interpreter/.venv/bin/interpreter"
+        ),
+        prompt_via_stdin=True,
     ),
 )
 
@@ -587,10 +656,16 @@ def executar_cli(spec: CliSpec, prompt: str, timeout_s: int = CLI_TIMEOUT_S) -> 
         log.info("%s indisponível (binário '%s' não encontrado)", spec.nome, spec.binario)
         return None
 
-    comando: list[str] = [*base, *spec.args_antes, prompt, *spec.args_depois]
+    comando: list[str] = [*base, *spec.args_antes]
+    if not spec.prompt_via_stdin:
+        comando.append(prompt)
+    comando.extend(spec.args_depois)
     try:
         processo = subprocess.Popen(  # noqa: S603 — comando fixo da cascata oficial
             comando,
+            # prompt_via_stdin (18/11): o interpreter lê o prompt do stdin
+            # (`--stdin`); nos demais o stdin fica como estava (herdado).
+            stdin=subprocess.PIPE if spec.prompt_via_stdin else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -619,7 +694,11 @@ def executar_cli(spec: CliSpec, prompt: str, timeout_s: int = CLI_TIMEOUT_S) -> 
         pgid = None
 
     try:
-        stdout, stderr = processo.communicate(timeout=timeout_s)
+        if spec.prompt_via_stdin:
+            stdout, stderr = processo.communicate(input=prompt,
+                                                  timeout=timeout_s)
+        else:
+            stdout, stderr = processo.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired:
         _matar_grupo(processo, pgid)
         log.warning(
@@ -729,7 +808,8 @@ SESSAO_HEARTBEAT_S: float = 15.0
 #: `APIHandler.SESSAO_CLIS` (contrato do painel, ver tests).
 CLI_SESSAO_OPCOES: tuple[str, ...] = (
     "auto", "opencode", "kilo", "gemini", "qwen", "claude", "crush",
-    "agy", "openclaw", "codex", "aider",
+    "agy", "openclaw", "codex", "aider", "cline", "openclaude",
+    "interpreter",
 )
 
 #: Instrução de sistema do modo sessão — código puro NÃO é o contrato aqui:
