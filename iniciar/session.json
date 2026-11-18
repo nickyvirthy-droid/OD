@@ -6202,5 +6202,14 @@
     "restart_pendente": "SESSAO_CLIS novo so vale para o painel apos restart do od-core (regra 7.1 exige autorizacao explicita); condicao 7.3 (gate verde + HEAD == origin/master) ja cumprida.",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§2)",
     "updated_at": "2026-11-18T14:20:00-03:00"
+  },
+  "query_router_101x485_2026_11_18": {
+    "pedido": "Dono (18/11 ~14:30): escolheu 'Voltar ao Query Router' (bug101 vs 485 escolhido antes da interrupcao sobre as 14 IAs).",
+    "diagnostico": "O aviso 'X has 101 features, but StandardScaler is expecting 485' NAO aparece no journal da producao (0 ocorrencias hoje): era da SUITE. Raiz = AMBIENTE: modelo treinado COM embedding (6+95+384=485), mas o python3 do sistema nao tem sentence-transformers (o .venv do servico tem 6.3.0) — sem o pacote embed() falha, embedding=None, vetor=101, predict levantava erro em TODA chamada -> fallback silencioso + warning. Na suite o router NUNCA classificava; na producao funcionava por sorte do .venv.",
+    "conserto": "core/query_router.py — _harmonizar_dimensao(): vetor menor que model.n_features_in_ -> cauda do embedding completada com a MEDIA de treino do proprio StandardScaler (entrada neutra, vira 0 pos-scaler); vetor maior -> fallback com UM unico aviso (_dim_aviso). Chamado em classify() antes do predict. tests/test_query_router.py — regressao com use_embeddings=False provando que o predict roda.",
+    "validacao": "test_query_router.py 20 passed; prova real no python3 do sistema com o modelo de producao: recebido=101 | esperado=485 | completado_por=media_de_treino (1x) e classificacoes direct/tool/hybrid (antes: fallback sempre); GATE COMPLETO 5385 passed / 19 skipped / 0 falha.",
+    "sem_bump": "1.46.0+2083. Entra no ar no proximo restart do od-core (o de 12:53 antecedeu este fix; producao ja se comporta igual com o codigo antigo).",
+    "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§3)",
+    "updated_at": "2026-11-18T15:05:00-03:00"
   }
 }

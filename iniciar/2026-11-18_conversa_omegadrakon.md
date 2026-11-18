@@ -246,3 +246,46 @@ provado com prompt real (respondeu `OK`, exit=0).
 - **Restart do `od-core` pendente de autorização** (regra 7.1): o
   `SESSAO_CLIS` novo só vale para o painel depois do restart — gate verde
   e `HEAD == origin/master` já são a condição 7.3.
+
+---
+
+## §3 — Query Router: 101 × 485 features consertado
+
+**Continuação do serviço (18/11 ~14:30)** — o dono escolheu "Voltar ao
+Query Router" depois de autorizar o restart da cascata.
+
+### 1. Diagnóstico (com a medição certa desta vez)
+
+O aviso `X has 101 features, but StandardScaler is expecting 485` **não
+aparece no journal da produção** (0 ocorrências hoje): ele era da
+**suíte**. A raiz é o **ambiente**:
+
+| Ambiente | `sentence-transformers` | embedding | vetor × modelo |
+|---|---|---|---|
+| Serviço (`.venv`, 6.3.0) | tem | 384 | **485 = 485** ✓ |
+| Suíte (`python3` do sistema) | **não tem** | `None` | **101 ≠ 485** → erro em toda chamada → fallback |
+
+Ou seja: na suíte o router **nunca classificava** (sempre fallback) e
+enchia o log de warning; na produção funcionava por sorte do `.venv`.
+
+### 2. Conserto
+
+- `core/query_router.py` — `_harmonizar_dimensao()`: se o vetor é menor
+  que o esperado, completa a **cauda do embedding** com a **média de
+  treino do `StandardScaler`** (entrada neutra → 0 após o scaler); se é
+  maior, fallback com **um único** aviso (`_dim_aviso`). Antes do
+  `predict`, em `classify`.
+- `tests/test_query_router.py` — regressão: classifica com
+  `use_embeddings=False` e prova que o `predict` rodou.
+
+### 3. Validação (regra 13)
+
+- `test_query_router.py` → **20 passed**.
+- Prova real no `python3` do sistema com o modelo de produção:
+  `recebido=101 | esperado=485 | completado_por=media_de_treino` (uma vez
+  só) e classificações **`direct`/`tool`/`hybrid`** (antes: fallback
+  sempre).
+- **Gate completo: 5385 passed / 19 skipped / 0 falha** (213 s).
+- **Sem bump:** 1.46.0+2083. Entrará no ar no próximo restart do
+  `od-core` (o de 12:53 antecedeu este fix; a produção já se comporta
+  igual com o código antigo — o fix é para ambientes sem o pacote).

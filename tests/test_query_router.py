@@ -7,6 +7,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from core.query_router import (
@@ -161,6 +162,31 @@ class TestQueryRouter:
         # Pode ser fallback ou uma classificação com baixa confiança
         # O importante é que não quebra
         assert strategy in ALL_STRATEGIES
+
+    def test_classify_sem_embedding_harmoniza_a_dimensao(self, query_router):
+        """Ambiente sem `sentence-transformers` não quebra o router (18/11).
+
+        Medido: sem o pacote o `embed()` falhava, o vetor ficava com **101**
+        features e o `predict` levantava "StandardScaler is expecting 485"
+        em TODA chamada — o router caía no fallback e o log enchia de
+        warning (a suíte roda com o `python3` do sistema, que não tem o
+        pacote que o `.venv` do serviço tem). Agora a cauda ausente é
+        completada com a **média de treino do próprio scaler** (entrada
+        neutra) e a classificação roda de verdade.
+        """
+        query_router.config.use_embeddings = False  # simula ambiente sem ST
+        try:
+            estrategia = query_router.classify(
+                "qual a capital do brasil", profile="guardian"
+            )
+        finally:
+            query_router.config.use_embeddings = True
+        assert estrategia in ALL_STRATEGIES
+        # Prova de que o predict RODOU (vetor harmonizado) e não só o
+        # fallback silencioso do erro de dimensão:
+        assert query_router._dim_aviso is True
+        vec = query_router._harmonizar_dimensao(np.array([0.0] * 101))
+        assert vec is not None and vec.size == query_router._model.n_features_in_
 
     def test_add_training_example(self, query_router):
         """Adiciona exemplo de treino online."""

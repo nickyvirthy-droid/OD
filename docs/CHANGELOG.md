@@ -12,6 +12,39 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Query Router: 101 × 485 features — vetor harmonizado (2026-11-18, sem bump)
+
+**Contexto:** o log da suíte enchia com `Query Router prediction failed |
+X has 101 features, but StandardScaler is expecting 485`. Medição em
+18/11: o tamanho do vetor depende do **ambiente** — o modelo em
+`data/query_router/` foi treinado **com** embedding (6 heurísticas + 95
+tfidf + 384 = 485), mas o `python3` do sistema **não tem
+`sentence-transformers`** (o `.venv` do serviço tem, 6.3.0): sem o pacote,
+`embed()` falha, o embedding sai `None` e o vetor fica **101** — o
+`predict` levantava erro em **toda chamada**, o router caía no fallback e
+nunca classificava de verdade na suíte. A produção estava salva só pelo
+`.venv` (journal: 0 falhas), mas qualquer dia sem o pacote seria o mesmo
+silêncio quebrado.
+
+### O que mudou
+
+1. **`core/query_router.py` — `_harmonizar_dimensao()`** (novo): antes de
+   predizer, se o vetor for menor que `model.n_features_in_`, a **cauda
+   ausente (bloco do embedding) é completada com a média de treino do
+   próprio `StandardScaler`** — a "entrada neutra" (vira 0 depois do
+   scaler). Se for maior (não dá para adivinhar o corte), usa o fallback,
+   com **um único** aviso no log (o flag `_dim_aviso` evita poluição).
+2. **`tests/test_query_router.py`** — teste de regressão: classifica com
+   `use_embeddings=False` (simula o ambiente sem o pacote) e prova que o
+   `predict` rodou (vetor harmonizado até a dimensão do modelo).
+
+**Validação:** `test_query_router.py` **20 passed**; prova com o modelo
+real no `python3` do sistema → `recebido=101 | esperado=485 |
+completado_por=media_de_treino` (1× só) e classificações
+`direct`/`tool`/`hybrid` (antes, fallback sempre); **gate completo 5385
+passed / 19 skipped / 0 falha**. Produção (`venv`) não muda: vetor já
+485 = 485, passa direto pela guarda. **Sem bump.**
+
 ## Cascata do orquestrador: 2 → 10 IAs (2026-11-18, sem bump)
 
 **Contexto:** ordem do dono no chat (18/11): *"acho que a função que estava

@@ -9,6 +9,37 @@
 
 ---
 
+## 18/11/2026 — Query Router: 101 × 485 features — vetor harmonizado
+
+**Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — continuação do
+serviço (18/11 ~14:30), escolha do dono ("Voltar ao Query Router").
+
+### Modificados
+
+- `core/query_router.py` — `_harmonizar_dimensao()` (novo) + chamada em
+  `classify()`: cauda do embedding completada com a média de treino do
+  `StandardScaler` quando o ambiente não tem `sentence-transformers`
+  (suíte: 101 → 485); fallback com um único aviso se o vetor for maior.
+- `tests/test_query_router.py` — regressão (`use_embeddings=False`).
+- `docs/CHANGELOG.md`, `iniciar/session.json`
+  (`query_router_101x485_2026_11_18`), transcrição §3, esta entrada.
+
+### Intenção e estado
+
+- **Diagnóstico:** o aviso era só da **suíte** (journal da produção: 0
+  ocorrências) — o `.venv` do serviço tem o pacote; o `python3` do
+  sistema não. Sem ele, `embed()` falhava e o `predict` quebrava em toda
+  chamada (router nunca classificava na suíte).
+- **Pronto/validado:** `test_query_router.py` **20 passed**; prova real
+  com o modelo de produção → `101 → 485` (1×) e classificações
+  `direct`/`tool`/`hybrid`; **gate completo 5385 passed / 19 skipped / 0
+  falha**.
+- **Sem bump:** 1.46.0+2083. **Restart pendente de autorização** (regra
+  7.1) — o fix entra no ar no próximo restart; a produção já se
+  comporta igual com o código antigo.
+
+---
+
 ## 18/11/2026 — Cascata do orquestrador: 2 → 10 IAs (ordem do dono)
 
 **Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — sessão de 18/11

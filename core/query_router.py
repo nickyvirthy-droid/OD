@@ -288,6 +288,8 @@ class QueryRouter:
         self._lock = threading.RLock()
         self._training_examples: list[tuple[str, str]] = []
         self._examples_since_retrain = 0
+        #: Aviso de dimensão já emitido? (uma vez, não poluir o log)
+        self._dim_aviso = False
         
         # Tenta carregar modelo existente
         if not self._load_model():
@@ -456,6 +458,57 @@ class QueryRouter:
             _log.info("Query Router trained", examples=len(self._training_examples), classes=list(self._classes))
             return True
     
+    def _harmonizar_dimensao(self, vec: np.ndarray) -> Optional[np.ndarray]:
+        """Alinha o vetor à dimensão que o modelo carregado espera (18/11).
+
+        O tamanho do vetor depende do AMBIENTE: sem `sentence-transformers`
+        (ex.: a suíte roda com o `python3` do sistema, sem o pacote que o
+        `.venv` do serviço tem) o `embed()` falha, o embedding sai `None` e o
+        vetor vira **101** em vez de **485** — o `predict` passava a levantar
+        "X has 101 features, but StandardScaler is expecting 485" em TODA
+        chamada, o router caía no fallback e o warning poluía o log (medido
+        em 18/11: journal da produção com 0 falhas porque lá o `.venv` tem o
+        pacote; suíte, o warning). Em vez de quebrar, completa a CAUDA
+        ausente (a parte do embedding, que é o último bloco do vetor) com a
+        **média de treino do próprio scaler** — a "entrada neutra": depois do
+        StandardScaler ela vira 0, exatamente o ponto médio do treino.
+
+        Se o vetor for MAIOR que o esperado (não dá para adivinhar o que
+        cortar), devolve `None` e o chamador usa o fallback, com um único
+        aviso no log.
+        """
+        esperado = int(getattr(self._model, "n_features_in_", 0) or 0)
+        if not esperado or vec.size == esperado:
+            return vec
+
+        if vec.size < esperado:
+            deficit = esperado - vec.size
+            try:
+                media_treino = np.asarray(
+                    self._model.named_steps["scaler"].mean_, dtype=float
+                )[-deficit:]
+                completo = np.concatenate([vec, media_treino])
+            except Exception:  # noqa: BLE001 — pipeline sem scaler nomeado
+                completo = np.concatenate([vec, np.zeros(deficit)])
+            if not self._dim_aviso:
+                _log.info(
+                    "Query Router: vetor harmonizado (embedding ausente no ambiente)",
+                    recebido=int(vec.size),
+                    esperado=esperado,
+                    completado_por="media_de_treino",
+                )
+                self._dim_aviso = True
+            return completo
+
+        if not self._dim_aviso:
+            _log.warn(
+                "Query Router: vetor maior que o modelo — usando fallback",
+                recebido=int(vec.size),
+                esperado=esperado,
+            )
+            self._dim_aviso = True
+        return None
+
     def classify(
         self,
         query: str,
@@ -482,6 +535,13 @@ class QueryRouter:
             features = self._extractor.extract(query, profile, role, recent_history)
             vec = self._features_to_vector(features)
             
+            if vec is None:
+                return self.config.fallback_strategy
+            
+            # Dimensão do vetor pode divergir do modelo quando o ambiente não
+            # tem embedding (ver _harmonizar_dimensao) — alinha antes de
+            # predizer em vez de levantar 101-vs-485 em toda chamada.
+            vec = self._harmonizar_dimensao(vec)
             if vec is None:
                 return self.config.fallback_strategy
             
