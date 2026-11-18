@@ -6233,6 +6233,8 @@
     "estado_encontrado": "Na abertura do turno: arvore suja com o lote orfao (orquestrador.py 251 linhas + soma.py), HEAD == origin/master == 582756b, servico ativo desde 15:01:19 (PID 220986) com cascata 13/cgroup/router no ar, download do Raul no lote 4 (acervo 382).",
     "em_aberto": "(1) download do Raul continua (unidade od-radio-lista-raul, ~15 lotes restantes); (2) P0 nº3 (teste ZIM<->compose) e P0 nº4 (.gguf no espelho) seguem abertos; (3) as travas novas so valem para sessoes do orquestrador --sessao — IAs que trabalham fora dele (como esta) seguem por regra/registro.",
     "sem_bump": "1.46.0+2083; sem restart (o od-core nao usa o orquestrador de CLIs).",
+    "publicacao": "Commits b7597c7 (feat multi-IA), f20bb94 (test corpus), 63236f4 (registro) em origin/master; HEAD == origin/master.",
+    "telegram": "ok=true msg_id=4056 (regra 15).",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§7)",
     "updated_at": "2026-11-18T16:45:00-03:00"
   },
