@@ -310,13 +310,30 @@ def _parece_repetida(titulo: str,
     Evita baixar o óbvio (título "Artista - Música (Clipe Oficial)"
     contém "Artista Música" do acervo). Quem decide de verdade continua
     sendo o dedupe do pipeline — aqui só se evita o download inútil.
+
+    18/11: o sentido CONTRÁRIO faltava — lista veio só com "Música" e o
+    acervo tem "Artista - Música" (Metamorfose Ambulante entrou DUAS
+    vezes no acervo: Rock com artista e MPB "Desconhecido"). Agora o
+    título sozinho também casa: igualdade exata (vale até palavra
+    única, "Gita" == "Gita") ou contido com 2+ palavras ("Metamorfose
+    Ambulante" em "Metamorfose Ambulante (Clipe Oficial)") — contido de
+    palavra solta fica de fora de propósito, para não casar "Love" em
+    qualquer título.
     """
-    alvo = f" {_normalizar(titulo)} "
-    if alvo.strip() == "":
+    alvo_norm = _normalizar(titulo)
+    if not alvo_norm:
         return False
+    alvo = f" {alvo_norm} "
     for item in acervo.values():
         nome = _normalizar(f"{item['artista']} {item['titulo']}")
         if len(nome.split()) >= 2 and f" {nome} " in alvo:
+            return True
+        so_titulo = _normalizar(str(item.get("titulo") or ""))
+        if not so_titulo:
+            continue
+        if so_titulo == alvo_norm:
+            return True
+        if len(so_titulo.split()) >= 2 and f" {so_titulo} " in alvo:
             return True
     return False
 
@@ -792,22 +809,92 @@ def processar_pedido(
 #  Disparo pelo handler (processo desanexado) e CLI
 # ---------------------------------------------------------------------------
 
-def iniciar_processamento(
-    pedido_id: int, *, popen: Optional[Callable[..., Any]] = None
-) -> Any:
-    """Sobe o worker em processo próprio, sem prender o HTTP.
+def _unit_transitoria(
+    executor: str,
+    pedido_id: int,
+    args: list[str],
+    destino: Path,
+    *,
+    rodar: Callable[..., Any] = subprocess.run,
+) -> Optional[str]:
+    """Worker como unit **irmã** do od-core via ``systemd-run --user``.
 
-    start_new_session=True desliga o worker do grupo do servidor: um
-    restart do od-core não mata o download no meio. O log fica em
-    ``logs/radio_link_<id>.log``.
+    Bug medido em 17/11 03:36: o worker morria junto com um restart do
+    ``od-core`` no meio do lote (matou o download na espera de 3 min entre
+    faixas — as 6 faixas já baixadas ficaram presas no /tmp). O
+    ``start_new_session`` tira o worker da **sessão** do servidor, mas ele
+    continua dentro do **cgroup** do serviço, e o stop do systemd derruba
+    o cgroup inteiro (KillMode padrão). Unit transitoria criada aqui é
+    filha do user manager, **irmã** do ``od-core.service``: restart do
+    serviço não toca nela.
+
+    Devolve o nome da unit (sucesso) ou ``None`` — aí o chamador cai no
+    Popen antigo, para nunca deixar de agendar o pedido.
+    """
+    unit = f"od-radio-link-{int(pedido_id)}"
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.touch(exist_ok=True)
+    comando = [
+        executor, "--user", "--collect", f"--unit={unit}",
+        "--property=Type=exec",
+        f"--property=WorkingDirectory={RAIZ}",
+        f"--property=EnvironmentFile={RAIZ / '.env'}",
+        f"--property=StandardOutput=append:{destino}",
+        f"--property=StandardError=append:{destino}",
+        *args,
+    ]
+    try:
+        proc = rodar(comando, capture_output=True, text=True, timeout=30)
+    except Exception as exc:                  # noqa: BLE001 — nunca travar o pedido
+        log.warn("systemd-run indisponivel; worker cai no Popen antigo",
+                 error=type(exc).__name__)
+        return None
+    if int(getattr(proc, "returncode", 1) or 0) != 0:
+        log.warn("systemd-run recusou a unit; worker cai no Popen antigo",
+                 unit=unit,
+                 erro=str(getattr(proc, "stderr", "") or "")[-200:])
+        return None
+    log.info("worker do pedido em unit propria (sobrevive a restart)",
+             pedido=int(pedido_id), unit=unit)
+    return unit
+
+
+def iniciar_processamento(
+    pedido_id: int,
+    *,
+    popen: Optional[Callable[..., Any]] = None,
+    run: Optional[Callable[..., Any]] = None,
+    unit: Optional[str] = None,
+) -> Any:
+    """Sobe o worker em **unit própria do systemd** (irmã do od-core).
+
+    Caminho padrão: ``systemd-run --unit=od-radio-link_<id>`` — o stop ou
+    restart do ``od-core`` **não mata o download no meio** (bug de 17/11,
+    medido: o lote morreu na espera de 3 min porque o worker ficava no
+    cgroup do serviço). Se o ``systemd-run`` não existir ou recusar a
+    unit, cai no Popen com ``start_new_session`` (comportamento antigo,
+    que sobrevive só a coisas que não mexem no cgroup). O log fica em
+    ``logs/radio_link_<id>.log`` nos dois caminhos.
+
+    Parâmetros de teste: ``popen``/``run`` trocam os executores;
+    ``unit=""`` desliga o caminho do systemd na marra.
     """
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     destino = LOG_DIR / f"radio_link_{int(pedido_id)}.log"
+    args = [sys.executable, "-m", "integrations.radio_link",
+            "--pedido", str(int(pedido_id))]
+    if unit is not None:
+        executor = unit or None               # "" = desligado de propósito
+    else:
+        executor = shutil.which("systemd-run") if popen is None else None
+    if executor:
+        nome = _unit_transitoria(executor, int(pedido_id), args, destino,
+                                 rodar=run or subprocess.run)
+        if nome:
+            return nome
     with destino.open("a", encoding="utf-8") as logf:
         proc = (popen or subprocess.Popen)(
-            [sys.executable, "-m", "integrations.radio_link",
-             "--pedido", str(int(pedido_id))],
-            cwd=str(RAIZ), stdout=logf, stderr=subprocess.STDOUT,
+            args, cwd=str(RAIZ), stdout=logf, stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL, start_new_session=True,
         )
     return proc

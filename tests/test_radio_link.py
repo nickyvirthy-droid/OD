@@ -15,6 +15,7 @@ import sqlite3
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -583,6 +584,85 @@ class TestAvisoEDisparo:
         assert "integrations.radio_link" in visto["args"]
         assert visto["start_new_session"] is True
         assert (tmp_path / "logs" / "radio_link_7.log").exists()
+
+    def test_disparo_prefere_unit_transitoria_do_systemd(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Worker vira unit irmã do od-core — restart não mata (bug 17/11).
+
+        Medido em 17/11 03:36: o stop do od-core derrubava o cgroup
+        inteiro e matava o download na espera de 3 min entre faixas (as 6
+        já baixadas ficaram presas no /tmp). Com ``systemd-run --user`` a
+        unit é filha do user manager, irmã do ``od-core.service`` — o
+        serviço pode reiniciar que o lote continua.
+        """
+        monkeypatch.setattr(rl, "LOG_DIR", tmp_path / "logs")
+        visto: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            visto["cmd"] = cmd
+            visto.update(kwargs)
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        nome = rl.iniciar_processamento(
+            9, run=fake_run, unit="/usr/bin/systemd-run")
+        assert nome == "od-radio-link-9"
+        cmd = visto["cmd"]
+        assert cmd[0] == "/usr/bin/systemd-run"
+        assert "--user" in cmd and "--collect" in cmd
+        assert "--unit=od-radio-link-9" in cmd
+        assert "--property=Type=exec" in cmd
+        assert any("StandardOutput=append:" in c for c in cmd)
+        assert any("StandardError=append:" in c for c in cmd)
+        assert any("EnvironmentFile=" in c for c in cmd)
+        assert any("WorkingDirectory=" in c for c in cmd)
+        assert cmd[-2:] == ["--pedido", "9"]
+        # o caminho do systemd não usa Popen: o arquivo de log nasce pela
+        # unit (StandardOutput=append) e não pela abertura aqui
+        assert not (tmp_path / "logs" / "radio_link_9.log").read_text()
+
+    def test_unit_recusada_cai_no_popen_desanexado(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """systemd-run fora do ar não pode deixar o pedido sem agendar."""
+        monkeypatch.setattr(rl, "LOG_DIR", tmp_path / "logs")
+        visto: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            return SimpleNamespace(
+                returncode=1, stdout="", stderr="Unit already exists.")
+
+        def fake_popen(args, **kwargs):
+            visto["args"] = args
+            visto.update(kwargs)
+            return SimpleNamespace(pid=4242)
+
+        proc = rl.iniciar_processamento(
+            11, run=fake_run, unit="/usr/bin/systemd-run", popen=fake_popen)
+        assert proc.pid == 4242
+        assert visto["start_new_session"] is True
+        assert visto["args"][-2:] == ["--pedido", "11"]
+
+    def test_unit_desligada_pela_env_usa_so_o_popen(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """``unit=""`` força o caminho antigo (o systemd nem é consultado)."""
+        monkeypatch.setattr(rl, "LOG_DIR", tmp_path / "logs")
+        chamadas: dict = {}
+
+        def nao_roda(cmd, **kwargs):
+            chamadas["cmd"] = cmd
+            return SimpleNamespace(returncode=0)
+
+        def fake_popen(args, **kwargs):
+            chamadas["popen"] = args
+            return SimpleNamespace(pid=1)
+
+        proc = rl.iniciar_processamento(
+            12, run=nao_roda, unit="", popen=fake_popen)
+        assert proc.pid == 1
+        assert "cmd" not in chamadas
+        assert chamadas["popen"][-2:] == ["--pedido", "12"]
 
 
 class TestHandlerEPagina:

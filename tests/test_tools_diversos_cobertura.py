@@ -537,7 +537,7 @@ class TestMainDoRestoDaLista:
         rc = brl.main()
         assert rc == 1
         assert cenario_baixar.avisos == [
-            "Lista do Legiao: extracao vazia, nada a fazer."
+            "Lista do Legiao Urbana: extracao vazia, nada a fazer."
         ]
         # nenhum lote, nenhuma trava, playlist fake passou pela extração
         assert cenario_baixar.estado["lotes"] == []
@@ -549,6 +549,21 @@ class TestMainDoRestoDaLista:
         log = brl.LOG.read_text(encoding="utf-8")
         assert "=== inicio: resto da lista do Legiao Urbana ===" in log
         assert "entradas na lista: 0" in log
+
+    def test_nome_da_lista_e_configuravel(self, cenario_baixar,
+                                          monkeypatch) -> None:
+        """OD_LISTA_NOME troca o artista das notificações (18/11: Raul Seixas).
+
+        A ferramenta não é mais fixa no Legião — o nome vem da env (padrão
+        preservado: "Legiao Urbana", o que os outros testes garantem).
+        """
+        monkeypatch.setattr(brl, "NOME_LISTA", "Raul Seixas")
+        _preparar(cenario_baixar, entradas=[])
+        rc = brl.main()
+        assert rc == 1
+        assert cenario_baixar.avisos == [
+            "Lista do Raul Seixas: extracao vazia, nada a fazer."
+        ]
 
     def test_tudo_repetido_nao_roda_nenhum_lote(self, cenario_baixar) -> None:
         _preparar(
@@ -592,7 +607,7 @@ class TestMainDoRestoDaLista:
         assert cenario_baixar.avisos[1] == (
             "Legiao Urbana (resto da lista) concluido sem falhas: 2 lote(s),"
             " acervo agora com 13 faixas."
-            " Detalhe: logs/radio_link_lista_legiao_v2.log"
+            " Detalhe: logs/lista.log"
         )
         log = brl.LOG.read_text(encoding="utf-8")
         linhas = [

@@ -894,6 +894,31 @@ class TestPareceRepetida:
         assert rl._parece_repetida(
             "Fernandinho - Todas as Coisas (Ao Vivo)", acervo) is True
 
+    def test_lista_bare_x_acervo_com_artista_casa(self) -> None:
+        """18/11: lista só com "Música" × acervo "Artista - Música".
+
+        Foi o buraco que deixou a Metamorfose Ambulante entrar DUAS
+        vezes no acervo (Rock com artista + MPB "Desconhecido" — o
+        pipeline renomeou falhando a detecção de artista).
+        """
+        acervo = {"a": {"caminho": "acervo/Rock/Raul Seixas - Metamorfose"
+                                   " Ambulante.mp3",
+                        "artista": "Raul Seixas",
+                        "titulo": "Metamorfose Ambulante"}}
+        assert rl._parece_repetida("Metamorfose Ambulante", acervo) is True
+        assert rl._parece_repetida(
+            "Metamorfose Ambulante (Clipe Oficial)", acervo) is True
+        # Igualdade exata vale até para palavra única
+        gita = {"g": {"caminho": "y.mp3", "artista": "Raul Seixas",
+                      "titulo": "Gita"}}
+        assert rl._parece_repetida("Gita", gita) is True
+        # Contido de palavra solta NÃO casa (anti falso positivo:
+        # "Love" do acervo não pode matar "Love Fool" da lista)
+        love = {"l": {"caminho": "z.mp3", "artista": "X", "titulo": "Love"}}
+        assert rl._parece_repetida("Love Fool", love) is False
+        # Título totalmente diferente continua liberado
+        assert rl._parece_repetida("Alvorada da Terra", acervo) is False
+
 
 # ---------------------------------------------------------------------------
 #  radio_link — aviso ao dono e resultado do pedido

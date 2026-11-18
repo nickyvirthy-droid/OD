@@ -8,12 +8,20 @@ rodar_pipeline, timeout_do_lote e notificar_dono. Lotes de 10, um lote por
 execucao do pipeline — o acervo cresce a cada lote e um lote que falha nao
 derruba os seguintes.
 
-Uso (desanexado): setsid nohup <venv>/bin/python /tmp/baixar_resto_legiao.py
+Lista generica desde 18/11/2026 (o nome nao e mais fixo no codigo — o
+primeiro uso foi o Raul Seixas, que parou no restart do od-core de 17/11):
+
+- ``OD_LISTA_URL``   — URL da playlist (padrao: a lista do Legiao Urbana)
+- ``OD_LISTA_NOME``  — nome nas notificacoes do Telegram
+- ``OD_LISTA_LOG``   — arquivo de log (padrao: logs/radio_link_lista_<slug>.log)
+
+Uso (desanexado): setsid nohup <venv>/bin/python tools/baixar_resto_lista.py
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -21,12 +29,21 @@ from pathlib import Path
 RAIZ = Path("/home/alex/OmegaDrakon")
 sys.path.insert(0, str(RAIZ))
 
-#: Lista do dono (Legiao Urbana). Para outra lista, troque aqui ou por env.
+
+def _slug(texto: str) -> str:
+    """Legiao Urbana → legiao_urbana (nome de arquivo de log)."""
+    return re.sub(r"[^a-z0-9]+", "_", texto.lower()).strip("_")
+
+
+#: Nome da lista nas notificacoes (ordem do dono: generico, sem fixar artista).
+NOME_LISTA = os.environ.get("OD_LISTA_NOME", "Legiao Urbana")
+#: Lista do dono (Legiao Urbana). Para outra lista, troque por env.
 PLAYLIST = os.environ.get(
     "OD_LISTA_URL",
     "https://www.youtube.com/playlist?list=PLk_SH7F8Y60WEjS87AGhEPBNvyjd3lvxh",
 )
-LOG = RAIZ / "logs" / "radio_link_lista_legiao_v2.log"
+LOG = RAIZ / "logs" / os.environ.get(
+    "OD_LISTA_LOG", f"radio_link_lista_{_slug(NOME_LISTA)}.log")
 LOTE = 10
 
 
@@ -51,12 +68,13 @@ def main() -> int:
     from integrations import radio_link as rl
 
     LOG.parent.mkdir(parents=True, exist_ok=True)
-    registra("=== inicio: resto da lista do Legiao Urbana ===")
+    registra(f"=== inicio: resto da lista do {NOME_LISTA} ===")
 
     entradas = rl.extrair_entradas(PLAYLIST)
     registra(f"entradas na lista: {len(entradas)}")
     if not entradas:
-        rl.notificar_dono("Lista do Legiao: extracao vazia, nada a fazer.")
+        rl.notificar_dono(
+            f"Lista do {NOME_LISTA}: extracao vazia, nada a fazer.")
         return 1
 
     acervo = rl._musicas_do_acervo(rl.BASE_MUSICAS / "acervo.db")
@@ -64,7 +82,7 @@ def main() -> int:
     repetidas = len(entradas) - len(pendentes)
     registra(f"ja no acervo (puladas): {repetidas} | a baixar: {len(pendentes)}")
     rl.notificar_dono(
-        f"Legiao Urbana: {len(pendentes)} faixa(s) a baixar"
+        f"{NOME_LISTA}: {len(pendentes)} faixa(s) a baixar"
         f" ({repetidas} ja estavam no acervo). Lotes de {min(LOTE, len(pendentes))}."
     )
     if not pendentes:
@@ -99,8 +117,8 @@ def main() -> int:
     registra(f"=== fim: {lotes} lote(s), {falhas} com falha, acervo {len(final)} ===")
     estado = "com falhas" if falhas else "sem falhas"
     rl.notificar_dono(
-        f"Legiao Urbana (resto da lista) concluido {estado}: {lotes} lote(s),"
-        f" acervo agora com {len(final)} faixas. Detalhe: logs/radio_link_lista_legiao_v2.log"
+        f"{NOME_LISTA} (resto da lista) concluido {estado}: {lotes} lote(s),"
+        f" acervo agora com {len(final)} faixas. Detalhe: logs/{LOG.name}"
     )
     return 0 if not falhas else 1
 
