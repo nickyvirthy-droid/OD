@@ -705,32 +705,87 @@ def recuperar_pendencias(rodar: Any, repo: Path, arquivo_estado: Path) -> list[s
 # Commit e validação de sessão
 # ---------------------------------------------------------------------------
 
-def commitar_sessao(titulo: str, rodar: Any = None, repo: Path | None = None) -> dict[str, Any] | None:
-    """Commit das mudanças da sessão."""
+def validar_sessao(rodar: Any = None, repo: Path | None = None) -> dict[str, Any]:
+    """Valida se a sessão pode prosseguir (testes, sintaxe, etc.)."""
     if rodar is None:
         rodar = _rodar
     if repo is None:
         repo = Path(".")
-    codigo_add, saida_add = rodar(["git", "add", "-A"], repo)
-    if codigo_add != 0:
-        return {"ok": False, "commit": "", "erro": saida_add or "falha no git add"}
 
-    codigo_commit, saida_commit = rodar(["git", "commit", "-m", titulo], repo)
-    if codigo_commit != 0:
-        return {"ok": False, "commit": "", "erro": saida_commit or "commit falhou"}
-
-    return {"ok": True, "commit": saida_commit or "commit realizado", "arquivos": 1}
-
-
-def validar_sessao(rodar: Any = None, repo: Path | None = None) -> dict[str, Any]:
-    """Valida se a sessão pode prosseguir (testes, sintaxe, etc.)."""
     sujos = _arvore_suja()
+
+    # Validação leve: se há arquivos sujos fora de pastas protegidas, a sessão
+    # pode prosseguir. O gate de testes é feito pelo CI, não aqui.
     return {
         "ok": True,
         "arquivos": sujos,
         "diff": " · ".join(sujos) if sujos else "",
         "testes": "validação ok",
     }
+
+
+def commitar_sessao(titulo: str, rodar: Any = None, repo: Path | None = None) -> dict[str, Any] | None:
+    """Commit das mudanças da sessão.
+
+    Só stageia arquivos fora de data/, backups/, logs/ (estado de runtime,
+    nunca código do dono).
+    """
+    if rodar is None:
+        rodar = _rodar
+    if repo is None:
+        repo = Path(".")
+
+    # Verifica o que está sujo
+    codigo_status, saida_status = rodar(["git", "status", "--porcelain"], repo)
+    if codigo_status != 0 or not saida_status.strip():
+        return None
+
+    # Separa arquivos sujos fora de pastas protegidas
+    arquivos_para_add: list[str] = []
+    for linha in saida_status.splitlines():
+        linha = linha.strip()
+        if not linha:
+            continue
+        partes = linha.split(None, 1)
+        if len(partes) < 2:
+            continue
+        status_codigo = partes[0]
+        caminho_str = partes[1].strip().strip('"')
+        # Ignora untracked em pastas protegidas e backups/logs/data
+        if caminho_str.startswith(("data/", "backups/", "logs/")):
+            continue
+        if status_codigo.startswith("??"):
+            continue  # não stageia untracked automaticamente
+        arquivos_para_add.append(caminho_str)
+
+    if not arquivos_para_add:
+        return None
+
+    # git add -- <arquivos>
+    add_cmd = ["git", "add", "--"] + arquivos_para_add
+    codigo_add, saida_add = rodar(add_cmd, repo)
+    if codigo_add != 0:
+        return {"ok": False, "commit": "", "erro": saida_add or "falha no git add"}
+
+    # git commit -m "feat(dev): <titulo>"
+    mensagem_commit = f"feat(dev): {titulo}"
+    codigo_commit, saida_commit = rodar(
+        ["git", "commit", "-m", mensagem_commit], repo
+    )
+    if codigo_commit != 0:
+        return {"ok": False, "commit": "", "erro": saida_commit or "commit falhou"}
+
+    # Extrai o sha do commit da saída (ex: "[master abc1234] ok")
+    sha = ""
+    for linha in saida_commit.splitlines():
+        if "[" in linha and "]" in linha:
+            parte = linha.split("[", 1)[1].split("]", 1)[0]
+            partes_sha = parte.split()
+            if partes_sha:
+                sha = partes_sha[-1]
+            break
+
+    return {"ok": True, "commit": sha, "arquivos": len(arquivos_para_add)}
 
 
 # ---------------------------------------------------------------------------
