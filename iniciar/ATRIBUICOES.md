@@ -9,7 +9,58 @@
 
 ---
 
-## 17/11/2026 — Revisão do TODO: 6 dívidas de registro fechadas e priorização P0–P3
+## 18/11/2026 — Retomada "leia iniciar": gate vermelho do lote da madrugada diagnosticado e consertado
+
+**Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — sessão de 18/11 ~09:33,
+a pedido do dono ("leia iniciar").
+**Origem do lote trabalhado:** **Cline** (commits de autor "Nicky Virthy",
+18/11 09:08–09:15, mensagem `implementa: ideia default`; sessão Cline
+visível em `refs/cline/checkpoints/`, última checkpoint 09:29).
+
+### Criados
+
+- `iniciar/2026-11-18_conversa_omegadrakon.md` (§1 — esta retomada).
+
+### Modificados
+
+- `orquestrador.py` — **revertido para `96040ba`** (versão de 17/11). O
+  refactor do Cline (2297 linhas) tinha: `load_dotenv()` no nível de módulo
+  (linha 53, vazava **56 chaves** do `.env` no `os.environ` na **coleta**
+  da suíte via `tests/test_orquestrador.py`) + 10 funções do modo sessão
+  removidas (`ler_caixa`, `gravar_caixa`, `_batimento`, `_matar_grupo`…)
+  + funções de fila adicionadas que o próprio docstring declara removidas.
+  No commit anterior ao revert (antes da reversão) foi feito também o fix
+  cirúrgico de `load_dotenv` em `main()` — subsumido pelo revert.
+- `iniciar/session.json` (checkpoint de 18/11),
+  `iniciar/ATRIBUICOES.md` (esta entrada), transcrição do dia.
+
+### Intenção e estado
+
+- **Intenção:** cumprir as regras 3/4/23 (ler, registrar, atribuir) e fechar
+  o ciclo do gate vermelho encontrado (regra 13: causa raiz, correção e
+  reexecução até não haver erros).
+- **Diagnóstico:** gate completo **80 failed / 5302 passed / 19 skipped**,
+  idêntico em 2 rodadas (`diff` = 0). Bissect progressivo (subconjuntos →
+  `--ignore-glob` → um arquivo por vez) isolou o gatilho como a **coleta**
+  de `tests/test_orquestrador.py`; prova direta do vazamento (56 chaves) e
+  confirmação de que cada arquivo falhava só no conjunto.
+- **Pronto/validado:** `import orquestrador` → 0 chaves vazadas; os 536
+  testes das 8 classes afetadas rodados juntos → **536 passed**; **gate
+  completo pós-revert: 5382 passed / 19 skipped / 0 falha** (212,33 s) —
+  contra 80 failed / 5302 passed na abertura do turno.
+- **Pela metade (declarado, da outra ferramenta):** o refactor do
+  `orquestrador.py` ficou incompleto e sem registro (sem CHANGELOG, sem
+  `iniciar/`); revertido. As entregas do Cline que **ficam**: `tools/od.sh`
+  (menu de 14 CLIs), `docs/OD_MENU_CLIS.md`, entrada no CHANGELOG, remoção
+  da regra `_CACHE_BAN_VERIFICACAO_FALSA` em `core/orchestrator.py`
+  (edição de 17/11 21:24 commitada pelo lote) e os docs de 18/11.
+- **Resíduos registrados, nada apagado (regra 7):** 130 `gerado_*.py` na
+  raiz (7 commitados) e `teste_orquestrador.py` (raiz, sem nenhum `test_*`)
+  → checkbox novo no TODO §4 para o dono decidir a limpeza.
+- **Sem bump:** 1.46.0+2083. **Serviço:** sem restart nesta troca até a
+  prova verde do gate (o `od-core` roda desde 17/11 21:15).
+
+---
 
 **Autor:** Freebuff (Buffy) — sessão de 17/11, a pedido do dono ("Revisar as
 checkboxes abertas do TODO e priorizar as próximas entregas").
