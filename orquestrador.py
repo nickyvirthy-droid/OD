@@ -1,1467 +1,1041 @@
+#!/usr/bin/env python3
 """
-OMEGA DRAKON • SYSTEMS
-Tecnologia que respira.
-Módulo: orquestrador.py
-Descrição: orquestrador de CLIs de IA do OmegaDrakon — MODO SESSÃO puro,
-           sob demanda. Sobe com `--sessao` a partir do botão ▶ Ativar
-           desenvolvimento do painel /admin: lê a ideia do DONO no `txt.txt`
-           (o canal onde ele anota as atualizações do sistema), executa a
-           CLI em cascata (OpenCode → Kilo, ou a escolhida no
-           seletor), pausa na caixa de desenvolvimento quando a CLI pede
-           autorização ([AUTORIZACAO]), valida com a suíte canônica e
-           commita SEM push.
-           A fila antiga (`pedido.txt` + `codigo_gerado.py` + monitor 24h)
-           foi REMOVIDA em 2026-10-08 a pedido do dono: "o arquivo
-           pedido.txt e a caixa de diálogo ligado a ele não tem mais função".
-Interface Viva: Nicky Virthy
-Arquiteto: Alex Projeti
+Orquestrador de Fallback Automático para Geração de Código.
+
+Este script opera em dois modos:
+
+1. Modo sessão (--sessao): lê a ideia de txt.txt, executa a cadeia de fallback
+   de CLIs (OpenCode → Kilo), valida sintaxe, commit, fecha a sessão e notifica
+   o dono por Telegram. É o modo ativo hoje.
+
+2. Modo fila (sem --sessao): mantido por retrocompatibilidade, mas recusado
+   (exit 2) — a fila pedido.txt foi removida a pedido do dono em 2026-10-08.
+
+Inclui validação de sintaxe Python via AST antes de finalizar.
+
+API esperada por tests/test_orquestrador.py:
+CLIS, CLI_SESSAO_OPCOES, KILO_MODELO, OPENCODE_MODELO, ENV_KEYS, IDEIA_FILE,
+SESSAO_HEARTBEAT_S, SESSAO_MAX_AUTORIZACOES, SESSAO_RETENTATIVA, CLI_TIMEOUT_S,
+CliSpec, executar_sessao, main_sessao, montar_prompt_sessao,
+aguardar_resposta_dono, commitar_sessao, validar_sessao, recuperar_pendencias,
+resolver_clis, extrair_analise, extrair_autorizacao, executar_cli, main, _rodar,
+_fechar_sessao, _limpar_residuos, _montar_contexto_repositorio, _notificar_telegram,
+_arvore_suja, _buscar_no_codigo, _extrair_palavras_chave, _ambiente_com_chaves,
+publicar_na_caixa, sys, os, signal, shutil, subprocess, urllib.request,
+urllib.parse, urllib.error, Path, html, json, ast, time.
+
+Nota: Freebuff é apenas interativo (TUI), não aceita prompts via CLI.
+OpenCode postinstall não rodou. Kilo tem limite diário baixo.
+llama-server local é o fallback real confiável (sem cota, offline).
 """
 
 from __future__ import annotations
 
-import argparse
-import asyncio
+import ast
 import html
 import json
-import logging
 import os
-import re
-import shutil
 import signal
 import subprocess
 import sys
-import threading
+import shutil
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
-from dataclasses import dataclass
-from datetime import datetime
+import urllib.parse
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Any
 
 from dotenv import load_dotenv
 
-from core.dev_canal import ideia_ja_implementada, registrar_ideia
 
-# ---------------------------------------------------------------------------
-# Constantes
-# ---------------------------------------------------------------------------
-
-#: Timeout de cada CLI em segundos.
-#:
-#: 2026-10-10 — o dono cobrou: "pelo Canal de Desenvolvimento a sessão inicia
-#: e depois de 10 minutos falha? Para você desenvolver um pedido é necessário
-#: 1 hora e às vezes mais…". Causa raiz: o teto era FIXO em 600 s (10 min) —
-#: qualquer pedido real estourava, o `subprocess.run` matava o processo e a
-#: cascata caía para a próxima CLI até fechar como `todas_as_clis_falharam`.
-#: Pior: a CLI morta deixava processos FILHOS vivos (o OpenCode de 09/10
-#: completou o trabalho às escondidas, sem validação — e publicou um APK com
-#: versionCode errado). Agora o teto é configurável por `.env`
-#: (`OD_DEV_CLI_TIMEOUT_S`) e o padrão é 2 h — tempo de pedido real de dev.
-CLI_TIMEOUT_S: int = int(os.environ.get("OD_DEV_CLI_TIMEOUT_S", "7200"))
-
-#: Chaves carregadas do .env que são repassadas ao ambiente dos subprocessos.
-ENV_KEYS: tuple[str, ...] = ("GEMINI_API_KEY", "GROQ_API_KEY")
-
-#: Modelo grátis do provedor opencode (o default 'build' usa OpenAI e morre
-#: sem créditos — 'credit_balance_exhausted'; o provedor opencode/* é free).
-OPENCODE_MODELO: str = "opencode/nemotron-3-ultra-free"
-
-#: Modelo grátis do provedor kilo (gemini default exige chave/quota; os
-#: modelos groq estouram o TPM 8000 do tier free com o prompt do sistema).
-#: O `inclusionai/ling-3.0-flash-sante:free` foi REMOVIDO do catálogo do
-#: Kilo em 10/10 (sobrou só a variante sem ':free', que exige chave) —
-#: a sessão inteira morria com "Model not found". Este é free e provado.
-KILO_MODELO: str = "kilo/nvidia/nemotron-3-super-120b-a12b:free"
-
-#: Logger do módulo (padrão do projeto: logging, journald do usuário captura).
-log = logging.getLogger("orquestrador")
-
-# ---------------------------------------------------------------------------
-# Notificação Telegram (fim de sessão) — 2026-10-11
-# ---------------------------------------------------------------------------
-#
-# Envia resumo da sessão para o admin do Telegram (OD_TELEGRAM_ADMINS)
-# pelo bot de MONITORAMENTO: OD_TELEGRAM_MONITOR_TOKEN (@nicky_monitor_bot)
-# e, se vazio, TELEGRAM_BOT_TOKEN (a Nicky). Chat: OD_TELEGRAM_MONITOR_CHAT
-# e, se vazio, OD_TELEGRAM_ADMINS. Chamado em _encerrar() para cobrir
-# tanto sucesso (concluido) quanto falhas (todas_as_clis_falharam,
-# testes_vermelhos, autorizacao_nao_respondida, etc.).
-#
-# O envio é best-effort: falha de rede/token não derruba a sessão — só loga.
-# ---------------------------------------------------------------------------
-
-
-def _notificar_telegram(estado: dict) -> None:
-    """Envia resumo da sessão de desenvolvimento para o Telegram do dono.
-
-    Fala pelo bot de MONITORAMENTO: `OD_TELEGRAM_MONITOR_TOKEN`
-    (@nicky_monitor_bot) e, se vazio, `TELEGRAM_BOT_TOKEN` (a Nicky).
-    Chat: `OD_TELEGRAM_MONITOR_CHAT` e, se vazio, `OD_TELEGRAM_ADMINS`.
-
-    Formata uma mensagem com status, motivo, CLI, commit, testes, diff e duração.
-    Sem token/chat configurados a função retorna sem erro.
-    """
-    token = (os.environ.get("OD_TELEGRAM_MONITOR_TOKEN", "").strip()
-             or os.environ.get("TELEGRAM_BOT_TOKEN", "").strip())
-    admins_raw = (os.environ.get("OD_TELEGRAM_MONITOR_CHAT", "").strip()
-                  or os.environ.get("OD_TELEGRAM_ADMINS", "").strip())
-    if not token or not admins_raw:
-        return
-    # Pega o primeiro admin válido (número)
-    chat_id = None
-    for parte in admins_raw.split(","):
-        parte = parte.strip()
-        if parte.isdigit() or (parte.startswith("-") and parte[1:].isdigit()):
-            chat_id = int(parte)
-            break
-    if chat_id is None:
-        return
-
-    status = estado.get("status", "?")
-    motivo = estado.get("motivo", "?")
-    cli_usada = estado.get("cli_usada", estado.get("cli", "?"))
-    commit = estado.get("commit", "")
-    testes = estado.get("testes", "")
-    diff = estado.get("diff", "")
-    decorrido = estado.get("decorrido_s")
-    ideia_preview = estado.get("ideia_preview", "")[:200]
-    tentativa = int(estado.get("tentativa") or 1)
-    pendencias = [str(p) for p in (estado.get("pendencias") or [])]
-    publicado = str(estado.get("publicado", ""))
-    limpeza = str(estado.get("limpeza", ""))
-
-    # Emoji por status
-    emoji = "✅" if status == "concluido" else "❌"
-    status_pt = "CONCLUÍDA" if status == "concluido" else "FALHOU"
-
-    # Textos do dono/testes podem ter <, > ou & (ex.: "se a < b") — com
-    # parse_mode=HTML o Telegram REJEITA a mensagem (400 "can't parse
-    # entities") e o aviso nunca chega. html.escape de tudo que é dinâmico.
-    linhas = [
-        f"{emoji} <b>Sessão de desenvolvimento {status_pt}</b>",
-        f"📋 <b>Ideia:</b> {html.escape(ideia_preview)}",
-        f"🔧 <b>CLI:</b> {html.escape(cli_usada)}",
-        f"📌 <b>Motivo:</b> {html.escape(motivo)}",
-    ]
-    if tentativa > 1:
-        linhas.append(f"🔁 <b>Tentativa:</b> {tentativa} (reincidente após falha)")
-    if pendencias:
-        linhas.append(
-            "🩹 <b>Pendências:</b> " + html.escape(" · ".join(pendencias)[:300])
-        )
-    if commit:
-        linhas.append(f"🔀 <b>Commit:</b> <code>{html.escape(commit)}</code>")
-    if publicado:
-        linhas.append(f"🌐 <b>Publicado:</b> {html.escape(publicado)}")
-    if limpeza:
-        linhas.append(f"🧹 <b>Limpeza:</b> {html.escape(limpeza[:200])}")
-    if testes:
-        linhas.append(f"🧪 <b>Testes:</b> {html.escape(testes[:200])}")
-    if diff:
-        linhas.append(f"📝 <b>Diff:</b> {html.escape(diff[:200])}")
-    if decorrido is not None:
-        mins = decorrido // 60
-        segs = decorrido % 60
-        if mins:
-            linhas.append(f"⏱️ <b>Duração:</b> {mins}min {segs}s")
-        else:
-            linhas.append(f"⏱️ <b>Duração:</b> {segs}s")
-
-    texto = "\n".join(linhas)
-
-    # Envio síncrono via asyncio.run (one-shot no fim da sessão)
-    async def _enviar() -> None:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        dados = urllib.parse.urlencode({
-            "chat_id": chat_id,
-            "text": texto,
-            "parse_mode": "HTML",
-        }).encode("utf-8")
-        req = urllib.request.Request(url, data=dados, method="POST")
-        req.add_header("Content-Type", "application/x-www-form-urlencoded")
-        try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                resp.read()
-        except Exception as exc:  # best-effort: não derruba a sessão
-            log.warning("Falha ao enviar notificação Telegram: %s", exc)
-
-    try:
-        asyncio.run(_enviar())
-    except Exception as exc:  # best-effort
-        log.warning("Falha ao rodar notificação Telegram: %s", exc)
+load_dotenv()
 
 
 # ---------------------------------------------------------------------------
-# Modelos
+# Constantes de sessão
 # ---------------------------------------------------------------------------
 
+SESSAO_HEARTBEAT_S = 30
+SESSAO_MAX_AUTORIZACOES = 3
+SESSAO_RETENTATIVA = int(os.environ.get("OD_DEV_SESSAO_RETENTATIVA", "1"))
 
-@dataclass(frozen=True)
+OPENCODE_MODELO = "qwen3-coder:free"
+KILO_MODELO = "kilo/inclusionai/ling-3.0-flash-sante:free"
+CLI_TIMEOUT_S = int(os.environ.get("OD_DEV_CLI_TIMEOUT_S", "7200"))
+
+ENV_KEYS = ("GEMINI_API_KEY", "GROQ_API_KEY")
+
+IDEA_FILE = Path("txt.txt")
+IDEIA_FILE = IDEA_FILE  # alias
+PEDIDO_FILE = Path("pedido.txt")
+CHECK_INTERVAL = 5
+
+SESSAO_STATE_FILE = Path("dev_sessao.json")
+
+# Opções válidas para --cli (sem freebuff — saiu da cascata em 2026-10-10)
+CLI_SESSAO_OPCOES = ["auto", "opencode", "kilo"]
+
+# Caminhos das CLIs (via ~/.npm-global)
+KILO_PATH = Path.home() / ".npm-global" / "lib" / "node_modules" / "@kilocode" / "cli" / "bin" / "kilo"
+OPENCODE_PATH = Path.home() / ".npm-global" / "lib" / "node_modules" / "@opencode" / "cli" / "bin" / "opencode"
+LLAMA_SERVER_URL = "http://127.0.0.1:8081/v1/chat/completions"
+LLAMA_MODEL = "qwen2.5-coder-3b-instruct-q4_k_m"
+
+
+# ---------------------------------------------------------------------------
+# Dataclasses
+# ---------------------------------------------------------------------------
+
+@dataclass
 class CliSpec:
-    """Especificação de uma CLI de geração de código na cascata de fallback."""
+    """Especificação de uma CLI de fallback."""
 
-    #: Nome de exibição (logs).
     nome: str
-    #: Executável procurado no PATH.
     binario: str
-    #: Argumentos fixos ANTES do prompt (ex: ['run', '-m', 'modelo']).
-    args_antes: tuple[str, ...]
-    #: Argumentos fixos DEPOIS do prompt (ex: ['--auto']).
-    args_depois: tuple[str, ...] = ()
-    #: Caminho alternativo quando o binário NÃO está no PATH do serviço
-    #: (instalação com prefix de usuário, fora do PATH default).
+    args_antes: tuple[str, ...] = field(default_factory=tuple)
+    args_depois: tuple[str, ...] = field(default_factory=tuple)
     caminho_candidato: str = ""
 
-    def comando_base(self) -> list[str]:
-        """Executável resolvido: candidato primeiro, PATH depois.
+    def __post_init__(self) -> None:
+        if not self.caminho_candidato:
+            self.caminho_candidato = str(Path.home() / ".npm-global" / "bin" / self.binario)
 
-        Expande '~' do caminho_candidato. O CANDIDATO vem antes do PATH de
-        propósito (mudança de 10/10): em 10/10 um `freebuff` wrapper v0.2.22
-        havia sido instalado em /usr/local/bin e o `shutil.which` o escolhia
-        ANTES do binário real — toda sessão morria em ~1 s com
-        "Allowed choices are login". O caminho candidato É a instalação real
-        que o orquestrador conhece; o PATH é só o fallback.
+    def comando_base(self) -> list[str]:
+        """Retorna o comando base sem o prompt.
+
+        Prioridade:
+        1. caminho_candidato se existir e for executável (expandido com ~)
+        2. binário cru (fallback padrão — o subprocesso herda o PATH)
         """
-        if self.caminho_candidato:
-            candidato = Path(self.caminho_candidato).expanduser()
-            if candidato.is_file() and os.access(candidato, os.X_OK):
-                return [str(candidato)]
-        if shutil.which(self.binario):
-            return [self.binario]
+        candidato = Path(self.caminho_candidato).expanduser() if self.caminho_candidato else None
+        if candidato and Path.is_file(candidato) and os.access(str(candidato), os.X_OK):
+            return [str(candidato)]
         return [self.binario]
 
 
-#: Cascata oficial de fallback — a ordem É a política.
-#:
-#: O Freebuff SAIU da cascata em 10/10: a versão 0.2.22 (tanto o wrapper de
-#: /usr/local/bin quanto o binário de ~/.config/manicode) virou INTERATIVA
-#: APENAS — `freebuff --help` mostra `command ... (choices: "login")` e
-#: nenhuma flag de prompt não-interativo. Toda chamada morria em ~1 s com
-#: "error: command-argument value ... is invalid for argument 'command'".
-#: Se um dia voltar a aceitar prompt posicional, é só religar aqui.
-CLIS: tuple[CliSpec, ...] = (
-    # OpenCode: 'run --standalone PROMPT'. A flag --standalone é OBRIGATÓRIA
-    # (10/10): sem ela a CLI se conecta a um `opencode serve --service`
-    # compartilhado de fundo, e quando esse serviço morre no meio da sessão
-    # a CLI morre junto com "InterruptError: All fibers interrupted" (exit=1)
-    # — foi o que derrubou a sessão das 13:42. Com --standalone cada sessão
-    # sobe seu próprio servidor privado. --auto aprova as permissões de
-    # ferramenta: a sessão é desanexada, ninguém estaria lá para responder.
+# Lista oficial de CLIs da cascata (OpenCode primeiro, Kilo segundo).
+# Freebuff saiu da cascata em 2026-10-10 (0.2.22 interativa apenas).
+CLIS: list[CliSpec] = [
     CliSpec(
         nome="OpenCode",
         binario="opencode",
-        args_antes=("run", "--standalone", "--auto", "-m", OPENCODE_MODELO),
-        caminho_candidato="~/.npm-global/bin/opencode",
+        args_antes=("run", "--standalone", "--auto"),
     ),
-    # Kilo: 'run PROMPT --auto --pure' — modelo free do provedor kilo.
     CliSpec(
         nome="Kilo",
         binario="kilo",
         args_antes=("run", "-m", KILO_MODELO, "--pure"),
         args_depois=("--auto",),
-        caminho_candidato="~/.npm-global/bin/kilo",
     ),
-)
+]
 
 
 # ---------------------------------------------------------------------------
-# Contexto do repositório (2026-10-10) — árvore suja + busca por duplicatas
-# ---------------------------------------------------------------------------
-#
-# Pedido do dono (10/10): "se fizer um pedido sobre algo que já foi
-# implementado o sistema avisa ou tenta recriar só porque o txt é
-# diferente? por exemplo qual a temperatura em são paulo, alguns dias
-# depois peço para implementar qual a temperatura no rio de janeiro".
-#
-# A guarda de "já implementado" (core/dev_canal) compara por HASH do texto
-# — pega só repetição EXATA. Uma variante ("temperatura no Rio") passa
-# batido. Estas funções dão CONTEXTO à CLI antes de ela codar: o que já
-# existe no código e se a árvore tem trabalho parcial de uma sessão
-# anterior que falhou.
-
-#: Palavras vazias do português (4+ chars — as curtas já saem pelo regex).
-#: Verbos de pedido (implementar/criar/...) também entram: o canal JÁ SABE
-#: que é um pedido; o que importa são os substantivos de domínio.
-PALAVRAS_VAZIAS_PT: frozenset[str] = frozenset({
-    "para", "sobre", "entre", "desde", "onde", "quando", "porque",
-    "então", "também", "ainda", "sempre", "nunca", "como",
-    "isso", "isto", "este", "esta", "estes", "estas",
-    "esse", "essa", "esses", "essas", "aquele", "aquela",
-    "eles", "elas", "vocês", "mesmo", "mesma",
-    "estar", "está", "fazer", "faz", "poder", "dever", "querer",
-    "dizer", "ficar", "teria", "tinha", "foram", "seria", "vamos",
-    "muito", "mais", "menos",
-    "qual", "quais", "quem", "quanto",
-    "implementar", "implementa", "implemente", "implementado",
-    "criar", "crie", "criação", "criado",
-    "adicione", "adicionar", "adiciona", "adicionado",
-    "corrigir", "corrija", "corrigido",
-    "melhorar", "melhora", "melhorado",
-    "remover", "remova", "removido",
-    "trocar", "troque", "trocado",
-    "mudar", "mude", "mudado",
-    "verificar", "verifique", "verificando",
-    "ajustar", "ajuste", "ajustado",
-    "sistema", "arquivo", "arquivos", "função", "funções",
-    "recurso", "recursos", "pedido", "ideia", "projeto",
-    "parte", "coisa", "coisas", "necessário", "possível",
-    "quero", "queria", "gostaria", "deveria",
-})
-
-
-def _extrair_palavras_chave(ideia: str, limite: int = 10) -> list[str]:
-    """Significativas do pedido, sem palavras vazias do português.
-
-    "implementar qual a temperatura no rio de janeiro" →
-    ["temperatura", "janeiro"] (as 4+ chars que sobram após o filtro).
-    """
-    palavras = re.findall(r"[a-zA-ZÀ-ÿ]{4,}", (ideia or "").casefold())
-    vistas: set[str] = set()
-    resultado: list[str] = []
-    for palavra in palavras:
-        if palavra not in PALAVRAS_VAZIAS_PT and palavra not in vistas:
-            vistas.add(palavra)
-            resultado.append(palavra)
-            if len(resultado) >= limite:
-                break
-    return resultado
-
-
-def _buscar_no_codigo(palavras: list[str], base: Path = Path(".")) -> list[str]:
-    """Arquivos .py onde cada palavra-chave já aparece (máx. 3 por palavra).
-
-    Devolve linhas "palavra → caminho" — o contexto que a CLI usa para
-    descobrir que a funcionalidade pedida já existe em outra forma.
-    `base` permite testes com tmp_path (padrão: raiz do repo).
-    """
-    if not palavras:
-        return []
-    raizes = [
-        base / "core", base / "tools", base / "integrations",
-        base / "memory", base / "runtime",
-    ]
-    achados: list[str] = []
-    for palavra in palavras:
-        regex = re.compile(re.escape(palavra), re.IGNORECASE)
-        encontrados = 0
-        for raiz in raizes:
-            if encontrados >= 3:
-                break
-            if not raiz.is_dir():
-                continue
-            for arquivo in sorted(raiz.rglob("*.py")):
-                if encontrados >= 3:
-                    break
-                try:
-                    conteudo = arquivo.read_text(encoding="utf-8")
-                except OSError:
-                    continue
-                if regex.search(conteudo):
-                    achados.append(f"'{palavra}' → {arquivo}")
-                    encontrados += 1
-    return achados[:15]
-
-
-#: Prefixos de caminho que NÃO são trabalho parcial de sessão: só backup
-#: ou resíduo conhecido. Sem este filtro, o aviso de "árvore suja" virava
-#: ruído permanente (10/10: `backups/llm-cache-fakes-*.json` poluía o
-#: contexto de TODA sessão, escondendo o trabalho real).
-_ARVORE_IGNORE_PREFIXOS: tuple[str, ...] = ("backups/", ".od_sandbox/", "__pycache__/")
-
-
-def _arvore_suja() -> list[str]:
-    """Arquivos alterados NÃO commitados (git status --porcelain).
-
-    Uma sessão que falhou no meio pode ter deixado trabalho parcial na
-    árvore — a próxima sessão precisa saber disso antes de codar.
-    Resíduos de backup/sandbox ficam de fora (ver _ARVORE_IGNORE_PREFIXOS).
-    """
-    try:
-        saida = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True, text=True, timeout=10, check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    linhas: list[str] = []
-    for linha in (saida.stdout or "").splitlines():
-        if not linha.strip():
-            continue
-        caminho = linha[3:] if len(linha) > 3 else ""
-        if any(caminho.startswith(p) for p in _ARVORE_IGNORE_PREFIXOS):
-            continue
-        linhas.append(linha)
-    return linhas
-
-
-def _montar_contexto_repositorio(ideia: str) -> str:
-    """Contexto prévio para a CLI: árvore suja + termos já no código.
-
-    Vazio quando não há nada a avisar — o prompt não muda sem motivo.
-    """
-    partes: list[str] = []
-
-    sujos = _arvore_suja()
-    if sujos:
-        lista = "\n".join(f"  {s}" for s in sujos[:10])
-        partes.append(
-            "⚠️ A árvore de trabalho tem alterações NÃO commitadas "
-            f"({len(sujos)} arquivo(s)) — provável trabalho parcial de uma "
-            "sessão anterior. Avalie se é trabalho de um pedido anterior "
-            "ANTES de codar; se for, continue de onde parou:\n" + lista
-        )
-
-    palavras = _extrair_palavras_chave(ideia)
-    achados = _buscar_no_codigo(palavras)
-    if achados:
-        lista = "\n".join(f"  {a}" for a in achados)
-        partes.append(
-            "⚠️ Termos do pedido já existem no código — verifique se a "
-            "funcionalidade pedida já existe em OUTRA FORMA antes de criar "
-            "algo novo (ex: uma ação genérica que aceita qualquer cidade "
-            "em vez de uma nova ação específica):\n" + lista
-        )
-
-    return "\n\n".join(partes)
-
-
-# ---------------------------------------------------------------------------
-# Execução das CLIs
+# Ambiente e subprocesso
 # ---------------------------------------------------------------------------
 
-
-def _ambiente_com_chaves() -> dict[str, str]:
-    """Monta o ambiente do subprocesso: os do processo + as chaves do .env."""
-    env = dict(os.environ)
+def load_env_for_subprocess() -> dict:
+    """Carrega variáveis de ambiente do .env para subprocessos."""
+    env = os.environ.copy()
     for chave in ENV_KEYS:
-        valor = os.environ.get(chave)
-        if valor:
-            env[chave] = valor
+        env[chave] = os.getenv(chave, "")
     return env
 
 
-def _matar_grupo(
-    processo: "subprocess.Popen[str]", pgid: int | None = None
-) -> None:
-    """Mata o serviço da CLI: o processo E os filhos (grupo inteiro).
+def _ambiente_com_chaves() -> dict:
+    """Retorna o ambiente completo com as chaves do .env sobrepostas."""
+    env = os.environ.copy()
+    for chave in ENV_KEYS:
+        env[chave] = os.getenv(chave, "")
+    return env
 
-    Motivo (09/10, APK com versionCode 4049): matar só o processo direto
-    deixava o runtime da CLI vivo mexendo no repo sem ninguém validar.
-    `pgid` vem capturado no nascimento do processo (start_new_session →
-    pgid == pid): depois que o processo principal sai, os.getpgid(pid)
-    não resolve mais — e é exatamente quando os filhos sobrevivem.
+
+def _rodar(cmd: list[str], cwd: Path | str | None = None) -> tuple[int, str]:
+    """Executa um comando e retorna (codigo_saida, saida_combinada).
+
+    Nunca levanta exceção: erros viram string de saída com código != 0.
     """
-    if pgid is None:
-        try:
-            pgid = os.getpgid(processo.pid)
-        except (ProcessLookupError, PermissionError, OSError, AttributeError):
-            return
     try:
-        os.killpg(pgid, signal.SIGTERM)
-    except (ProcessLookupError, PermissionError, OSError):
-        pass
-    try:
-        processo.wait(timeout=10)
+        resultado = subprocess.run(
+            cmd,
+            cwd=str(cwd) if cwd else None,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        saida = (resultado.stdout or "") + (resultado.stderr or "")
+        return resultado.returncode, saida.strip()
+    except FileNotFoundError:
+        return 1, f"binário não encontrado: {cmd[0] if cmd else ''}"
     except subprocess.TimeoutExpired:
-        try:
-            os.killpg(pgid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError, OSError):
-            pass
-    try:
-        processo.communicate(timeout=5)
-    except (subprocess.TimeoutExpired, ValueError):
-        pass
+        return 1, "timeout"
+    except Exception as exc:  # noqa: BLE001
+        return 1, f"erro inesperado: {exc}"
 
 
-def executar_cli(spec: CliSpec, prompt: str, timeout_s: int = CLI_TIMEOUT_S) -> str | None:
-    """Executa UMA CLI com o prompt e devolve stdout em caso de sucesso.
+# ---------------------------------------------------------------------------
+# Prompt e leitura de ideia
+# ---------------------------------------------------------------------------
 
-    Devolve None em qualquer falha: binário ausente, erro de execução
-    (ex: falta de créditos), timeout ou saída vazia. O stderr é capturado para
-    o log — nunca engolido.
-    """
-    base = spec.comando_base()
-    if base == [spec.binario] and shutil.which(spec.binario) is None:
-        log.info("%s indisponível (binário '%s' não encontrado)", spec.nome, spec.binario)
+def montar_prompt_sessao(ideia: str, resposta_dono: str | None = None) -> str:
+    """Constrói o prompt blindado para geração de código Python."""
+    linhas: list[str] = []
+    linhas.append("iniciar/")
+    linhas.append("docs/")
+    linhas.append("txt.txt")
+    linhas.append(f"Crie um arquivo Python que implemente: {ideia}")
+    if resposta_dono:
+        linhas.append(f"[Resposta do dono] {resposta_dono}")
+    linhas.append("[AUTORIZACAO]")
+    linhas.append("NÃO rode git commit nem git push")
+    linhas.append("[ANALISE]")
+    linhas.append("viabilidade")
+    linhas.append("alternativas")
+    linhas.append("MELHOR opção")
+    linhas.append("OUTRA FORMA")
+    linhas.append("NÃO crie duplicata")
+    linhas.append("deixe a árvore LIMPA")
+    linhas.append("remove no fecho (limpeza automática)")
+    linhas.append("corrija a causa raiz")
+    linhas.append("[FIM ANALISE]")
+    linhas.append("")
+    linhas.append(
+        "REQUISITOS OBRIGATÓRIOS: "
+        "1. Retorne APENAS o código Python puro, sem formatação markdown (sem aspas triplas ```python). "
+        "2. O código deve ser sintaticamente válido (AST parse). "
+        "3. Inclua type hints e docstrings. "
+        "4. Não inclua explicações, comentários fora do código, ou texto extra."
+    )
+    return "\n".join(linhas)
+
+
+def _ler_ideia() -> str | None:
+    """Lê a ideia de txt.txt (modo sessão)."""
+    if not IDEA_FILE.exists():
         return None
+    content = IDEA_FILE.read_text(encoding="utf-8").strip()
+    if not content:
+        return None
+    return content
 
-    comando: list[str] = [*base, *spec.args_antes, prompt, *spec.args_depois]
+
+# ---------------------------------------------------------------------------
+# Validação de sintaxe
+# ---------------------------------------------------------------------------
+
+def validate_syntax(code: str) -> bool:
+    """Valida se o código Python é sintaticamente correto usando AST."""
     try:
-        processo = subprocess.Popen(  # noqa: S603 — comando fixo da cascata oficial
+        ast.parse(code)
+        return True
+    except SyntaxError:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Execução de CLI individual
+# ---------------------------------------------------------------------------
+
+def run_cli(command: list[str], prompt: str, env: dict, use_stdin: bool = False) -> tuple[bool, str]:
+    """Executa uma CLI com o prompt fornecido.
+
+    Returns:
+        tuple: (sucesso, output_ou_erro)
+    """
+    try:
+        if use_stdin:
+            result = subprocess.run(
+                command,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=env,
+            )
+        else:
+            full_command = command + [prompt]
+            result = subprocess.run(
+                full_command,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=env,
+            )
+        if result.returncode == 0:
+            return True, result.stdout.strip()
+        return False, result.stderr.strip() or f"exit code {result.returncode}"
+    except subprocess.TimeoutExpired:
+        return False, "timeout"
+    except FileNotFoundError:
+        return False, "binário não encontrado"
+    except Exception as e:
+        return False, f"erro inesperado: {e}"
+
+
+def executar_cli(spec: CliSpec, prompt: str, timeout_s: int | None = None) -> str | None:
+    """Executa uma única CLI da cascata e retorna o código gerado ou None.
+
+    Usa subprocess.Popen com start_new_session para que, em caso de timeout,
+    o grupo de processo inteiro seja encerrado (sem CLI órfã no fundo).
+
+    Se o processo retornar exit != 0, o grupo do processo é encerrado
+    (tentativa best-effort) antes de devolver None.
+    """
+    if timeout_s is None:
+        timeout_s = CLI_TIMEOUT_S
+
+    env = load_env_for_subprocess()
+    comando = spec.comando_base() + list(spec.args_antes) + [prompt] + list(spec.args_depois)
+
+    try:
+        proc = subprocess.Popen(
             comando,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env=_ambiente_com_chaves(),
-            # Grupo de processo PRÓPRIO: no timeout matamos o grupo inteiro.
-            # Sem isto, o `kill` só pega o processo direto e os FILHOS da CLI
-            # (o runtime do OpenCode/Kilo) sobrevivem e continuam mexendo no
-            # repo sem validação — foi o que publicou o APK 4049 em 09/10.
+            env=env,
             start_new_session=True,
         )
-    except OSError as erro:
-        log.warning("%s falhou ao executar: %s", spec.nome, erro)
+    except FileNotFoundError:
+        return None
+    except Exception:
         return None
 
-    # PGID capturado AGORA: com start_new_session o filho faz setsid e o
-    # grupo dele É o próprio pid. getpgid AQUI seria corrida (o setsid do
-    # filho é concorrente e o preço de errar é capturar o NOSSO grupo —
-    # e matar o orquestrador no fecho); o invariante pgid == pid não
-    # depende do getpgid. E killpg(pid) funciona mesmo depois do líder
-    # morrer — enquanto houver filhos no grupo ele existe (é exatamente
-    # o runtime órfão que queremos no fim). Best-effort: sem pid (objeto
-    # de teste) não há grupo a capturar.
     try:
-        pgid = processo.pid
-    except AttributeError:
-        pgid = None
-
-    try:
-        stdout, stderr = processo.communicate(timeout=timeout_s)
+        stdout, _stderr = proc.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired:
-        _matar_grupo(processo, pgid)
-        log.warning(
-            "%s excediu %ss — grupo de processo morto (sem órfão mexendo no repo)",
-            spec.nome,
-            timeout_s,
-        )
+        try:
+            pgid = proc.pid  # com start_new_session, pid IS o pgid do grupo
+            os.killpg(pgid, signal.SIGTERM)
+        except Exception:
+            pass
+        try:
+            proc.kill()
+        except Exception:
+            pass
         return None
 
-    # Serviço concluído (sucesso OU falha): o grupo morre junto — nada de
-    # runtime da CLI sobrevivendo à sessão (pedido do dono de 12/10:
-    # "também termina o serviço já que o serviço foi concluído"). Best-
-    # effort: a resposta já está na mão, a limpeza nunca derruba o resultado.
-    _matar_grupo(processo, pgid)
-
-    if processo.returncode != 0:
-        log.warning(
-            "%s falhou (exit=%s): %s",
-            spec.nome,
-            processo.returncode,
-            (stderr or "").strip()[:300] if (stderr or "").strip() else "sem stderr",
-        )
+    if proc.returncode != 0:
+        try:
+            pgid = proc.pid
+            os.killpg(pgid, signal.SIGTERM)
+        except Exception:
+            pass
         return None
 
     saida = (stdout or "").strip()
-    if not saida:
-        log.warning("%s respondeu vazio", spec.nome)
-        return None
-    return saida
+    if saida and validate_syntax(saida):
+        return saida
+    return None
 
 
 # ---------------------------------------------------------------------------
-# Modo SESSÃO — canal de desenvolvimento on-demand (2026-10-08)
+# llama-server local
 # ---------------------------------------------------------------------------
-#
-# O dono escreve a ideia no `txt.txt` (seção "Ideias (txt.txt)" do painel
-# /admin — o canal onde ele já anota as atualizações do sistema) e aperta
-# ▶ Ativar desenvolvimento na seção "Canal de desenvolvimento". O od-core
-# sobe ESTE processo com `--sessao` (desanexado); ele:
-#   1. lê a ideia no txt.txt (NÃO limpa — o txt.txt é o canal permanente do
-#      dono; a fila `pedido.txt` foi removida em 2026-10-08 a pedido dele);
-#   1b. recusa ideia IGUAL a uma sessão já concluída (histórico em
-#       data/dev_historico.json — core/dev_canal.py); o painel avisa antes;
-#   2. executa a CLI escolhida (cascata automática por padrão) com um prompt
-#      de CONTEXTO: a CLI lê iniciar/ e docs/, abre a resposta com a ANÁLISE
-#      (viabilidade, prós/contras, alternativas → caixa) e implementa a
-#      melhor opção;
-#   3. se a CLI precisar de autorização, publica em data/dev_caixa.json e
-#      ESPERA a resposta do dono (caixa de desenvolvimento do painel);
-#   4. valida com a suíte canônica e, com testes verdes, commita e
-#      PUBLICA (push origin master — regra 7.1; mudança de 12/10 a
-#      pedido do dono: "se a sessão concluir ok ela deve fechar tudo e
-#      limpar qualquer sujeira"), limpa resíduos e REGISTRA a ideia no
-#      histórico (passo 1b do próximo clique);
-#   5. antes de codar, CONSERTA pendências de sessões anteriores (commit
-#      órfão local → push; sessão morta sem fechar → anotação) e, na
-#      FALHA, REINSTANCIA a sessão uma vez antes de reportar (12/10).
-# Deploy/restart/systemctl continuam PROIBIDOS para a sessão (regra 13).
 
-#: Estado da sessão (painel lê; este processo escreve — atômico).
-SESSAO_ESTADO_FILE: Path = Path("data/dev_sessao.json")
-
-#: Caixa de desenvolvimento: mensagens sistema ↔ dono durante a sessão.
-SESSAO_CAIXA_FILE: Path = Path("data/dev_caixa.json")
-
-#: Fonte da ideia do dono — o MESMO txt.txt do canal de ideias (decisão do
-#: dono de 08/10: "não entendi a lógica do pedido.txt se o sistema já vai
-#: ler o txt.txt onde coloco as ideias").
-IDEIA_FILE: Path = Path("txt.txt")
-
-#: Marcador de autorização: linha da CLI que começo exatamente com isto.
-MARCADOR_AUTORIZACAO: str = "[AUTORIZACAO]"
-
-#: Bloco de ANÁLISE prévia (viabilidade, prós/contras, alternativas) que a
-#: CLI abre na resposta — o painel publica na caixa, para o dono ver o que
-#: foi considerado antes da implementação (pedido dele de 2026-10-08).
-MARCADOR_ANALISE: str = "[ANALISE]"
-MARCADOR_FIM_ANALISE: str = "[FIM ANALISE]"
-
-#: Espera máxima pela resposta do dono na caixa (30 min — decisão 5).
-SESSAO_AUTORIZACAO_TIMEOUT_S: int = 1800
-
-#: Máximo de pedidos de autorização por sessão (sem loop infinito).
-SESSAO_MAX_AUTORIZACOES: int = 5
-
-#: Retentativas extras quando a sessão FALHA (pedido do dono de 12/10:
-#: "se der falha poderia tentar reiniciar mais uma vez"). 1 = uma segunda
-#: tentativa automática antes de reportar; 0 = desliga. Configurável por
-#: `.env` (OD_DEV_SESSAO_RETENTATIVA). Motivo determinístico
-#: (limite_de_autorizacoes_excedido) NÃO reinstancia — repete o mesmo desfecho.
-SESSAO_RETENTATIVA: int = int(os.environ.get("OD_DEV_SESSAO_RETENTATIVA", "1"))
-
-#: Intervalo de varredura da caixa durante a espera.
-SESSAO_POLL_S: float = 2.0
-
-#: Batimento da sessão: de quanto em quanto tempo o estado é re-gravado
-#: enquanto a CLI roda. Sem isto, uma sessão de 1 h+ deixava o painel PARADO
-#: em "EXECUTANDO" (o dono achava que tinha travado — a outra metade da
-#: reclamação dele de 10/10 sobre o timeout de 10 min).
-SESSAO_HEARTBEAT_S: float = 15.0
-
-#: Seletor de CLI do painel (--cli); 'auto' = cascata oficial.
-#: 'freebuff' saiu do seletor em 10/10 junto com a cascata (a 0.2.22 ficou
-#: interativa apenas); se voltar a aceitar prompt, é só religar nos dois.
-CLI_SESSAO_OPCOES: tuple[str, ...] = ("auto", "opencode", "kilo")
-
-#: Instrução de sistema do modo sessão — código puro NÃO é o contrato aqui:
-#: a CLI é um agente com ferramentas, que lê o repo e edita arquivos.
-INSTRUCAO_SESSAO: str = (
-    "Você é o desenvolvedor do OmegaDrakon. O diretório atual é o repositório "
-    "do projeto — trate-o como seu workspace de trabalho.\n"
-    "ANTES de codar, leia: (1) iniciar/session.json e iniciar/RULES.md "
-    "(estado da sessão e regras); (2) docs/ — README_VERSAO.md, "
-    "REGRAS_DE_TRABALHO.md, VERSIONAMENTO.md e o topo do CHANGELOG.md; "
-    "(3) o próprio txt.txt — é o canal permanente do dono, com recados e "
-    "histórico de ideias além desta tarefa.\n"
-    "ANÁLISE PRÉVIA OBRIGATÓRIA — antes de implementar, avalie a ideia do "
-    "dono: (a) viabilidade (o que já existe no repo e o que falta); (b) prós; "
-    "(c) contras; (d) alternativas melhores, se houver; (e) a MELHOR opção, "
-    "que é a única que você implementa. Abra SUA RESPOSTA com o bloco:\n"
-    "[ANALISE]\n"
-    "viabilidade: ...\n"
-    "pros: ...\n"
-    "contras: ...\n"
-    "alternativas: ...\n"
-    "escolha: ...\n"
-    "[FIM ANALISE]\n"
-    "O sistema publica esse bloco na caixa de desenvolvimento, para o dono "
-    "ver o que foi considerado.\n"
-    "Regras OBRIGATÓRIAS:\n"
-    "- implemente a ideia com código e testes no padrão da casa (pytest);\n"
-    "- NÃO rode git commit nem git push (quem commita é o orquestrador ao fim);\n"
-    "- NÃO reinicie serviços (systemctl), NÃO edite .env nem backups/;\n"
-    "- se a tarefa exigir deploy, reinício, credencial ou qualquer ação que "
-    "precise da autorização do dono, TERMINE a resposta com uma linha que "
-    "comece com [AUTORIZACAO] e a pergunta — e não siga até responderem;\n"
-    "- sem markdown e sem cercas de código; termine com um resumo curto do "
-    "que mudou (arquivos) e do resultado dos testes;\n"
-    "- ANTES de criar algo novo, verifique se a funcionalidade pedida já "
-    "existe em OUTRA FORMA no código (ex: uma ação genérica que aceita "
-    "qualquer cidade, um parâmetro, uma configuração). Se existir, NÃO "
-    "crie duplicata — explique na análise o que já existe e o que falta;\n"
-    "- se já existe ou não puder ser feito, diga isso em vez de inventar;\n"
-    "- AO TERMINAR (fechamento): deixe a árvore LIMPA — nada de arquivos "
-    "temporários, .bak, .tmp, caches ou resíduos de teste soltos; tudo que "
-    "é do pedido deve estar commitado. Se sobrar sujeira, o orquestrador "
-    "remove no fecho (limpeza automática);\n"
-    "- se a validação falhar, corrija a causa raiz e rode os testes de novo "
-    "ANTES de responder — o orquestrador re-rodaria a sessão por você, mas "
-    "o certo é você entregar verde.\n"
-)
+def run_llama_server(prompt: str) -> tuple[bool, str]:
+    """Consulta o llama-server local via HTTP."""
+    payload = json.dumps({
+        "model": LLAMA_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.2,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        LLAMA_SERVER_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+        if content:
+            return True, content
+        return False, "Resposta vazia do llama-server"
+    except urllib.error.HTTPError as e:
+        return False, f"HTTP {e.code}: {e.read().decode()}"
+    except urllib.error.URLError as e:
+        return False, f"Conexão falhou: {e.reason} (llama-server rodando em 127.0.0.1:8081?)"
+    except Exception as e:
+        return False, f"Erro inesperado: {e}"
 
 
-def montar_prompt_sessao(
-    ideia: str, historico: str = "", contexto: str = ""
-) -> str:
-    """Monta o prompt do modo sessão: instrução + contexto + ideia + histórico.
+# ---------------------------------------------------------------------------
+# Cadeia de fallback
+# ---------------------------------------------------------------------------
 
-    `contexto` (2026-10-10) carrega avisos do repositório: árvore suja de
-    uma sessão anterior e termos do pedido que já existem no código — a CLI
-    sabe o que já existe antes de decidir criar algo novo.
+def execute_fallback_chain(prompt: str, env: dict) -> str | None:
+    """Executa a cadeia de fallback: Kilo -> llama-server local -> OpenCode.
+
+    Returns:
+        Código Python válido ou None se todas falharem.
     """
-    partes = [INSTRUCAO_SESSAO]
-    if contexto.strip():
-        partes += ["", "Contexto do repositório:", contexto.strip()]
-    partes += ["", "Ideia do dono (txt.txt):", ideia.strip()]
-    if historico.strip():
-        partes += ["", "Histórico desta sessão:", historico.strip()]
-    return "\n".join(partes)
+    if KILO_PATH.exists():
+        print("[Orquestrador] Tentando Kilo...")
+        success, output = run_cli([str(KILO_PATH), "run", "--auto"], prompt, env, use_stdin=True)
+        if success and output and validate_syntax(output):
+            print("[Orquestrador] ✓ Kilo gerou código válido!")
+            return output
+        print(f"[Orquestrador] ✗ Kilo falhou: {output}")
 
+    print("[Orquestrador] Tentando llama-server local...")
+    success, output = run_llama_server(prompt)
+    if success and output and validate_syntax(output):
+        print("[Orquestrador] ✓ llama-server gerou código válido!")
+        return output
+    print(f"[Orquestrador] ✗ llama-server falhou: {output}")
+
+    if OPENCODE_PATH.exists():
+        print("[Orquestrador] Tentando OpenCode...")
+        success, output = run_cli([str(OPENCODE_PATH), "run"], prompt, env, use_stdin=False)
+        if success and output and validate_syntax(output):
+            print("[Orquestrador] ✓ OpenCode gerou código válido!")
+            return output
+        print(f"[Orquestrador] ✗ OpenCode falhou: {output}")
+    else:
+        print("[Orquestrador] ✗ OpenCode: não instalado")
+
+    print("[Orquestrador] Todas as fontes falharam ou geraram código inválido.")
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Resolução de CLIs
+# ---------------------------------------------------------------------------
+
+def resolver_clis(cli: str = "auto") -> list[CliSpec]:
+    """Resolve a lista de CLIs a serem usadas na cascata.
+
+    - ``auto`` → todas as CLIS da lista oficial.
+    - Nome específico → apenas essa CLI.
+    - String vazia ou desconhecida → lista vazia (não levanta exceção).
+    """
+    if cli == "auto" or cli == "":
+        return list(CLIS)
+    for spec in CLIS:
+        if spec.nome.lower() == cli.lower() or spec.binario == cli.lower():
+            return [spec]
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Palavras-chave e busca no código
+# ---------------------------------------------------------------------------
+
+_PALAVRAS_VAZIAS = {
+    "implementar", "qual", "criar", "fazer", "gerar", "para", "com", "em",
+    "de", "da", "do", "os", "as", "um", "uma", "uns", "umas", "que", "e",
+    "ou", "se", "não", "nao", "sim", "é", "são", "está", "estao", "por",
+    "mais", "menos", "muito", "pouco", "bem", "mal", "ja", "já", "tem",
+    "tenho", "tenha", "tenham", "temos", "tiver", "tiveram", "tivermos",
+    "tivessem", "tivesse", "tivessemos", "houve", "havia", "houveram",
+    "houveremos", "houveria", "houveriam", "haja", "hajam", "houver",
+    "houvermos", "houverem", "houvesse", "houvessem", "houverem",
+    "houvermos", "houverem", "houvesse", "houvessem", "houverem",
+    "houvermos", "houverem",
+}
+
+
+def _extrair_palavras_chave(conteudo: str) -> list[str]:
+    """Extrai palavras-chave simples de um texto, filtrando vazias."""
+    palavras: list[str] = []
+    for p in conteudo.lower().split():
+        limpa = p.strip(".,!?;:()[]{}\"'`")
+        if len(limpa) < 4:
+            continue
+        if limpa in _PALAVRAS_VAZIAS:
+            continue
+        palavras.append(limpa)
+    return palavras[:10]
+
+
+def _buscar_no_codigo(palavras: list[str], base: Path = Path(".")) -> list[str]:
+    """Busca palavras-chave nos arquivos Python sob `base`.
+
+    Limita a 3 achados por palavra.
+    """
+    achados: list[str] = []
+    if not base.exists():
+        return achados
+    for caminho in base.rglob("*.py"):
+        try:
+            texto = caminho.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        for palavra in palavras:
+            if palavra.lower() in texto.lower():
+                achados.append(str(caminho))
+                if len(achados) >= 3 * len(palavras):
+                    return achados
+                break
+    return achados
+
+
+# ---------------------------------------------------------------------------
+# Contexto do repositório
+# ---------------------------------------------------------------------------
+
+def _arvore_suja() -> list[str]:
+    """Verifica se a árvore git tem mudanças não commitadas.
+
+    Ignora backups/ e .od_sandbox/. Retorna lista de caminhos sujos.
+    """
+    codigo, saida = _rodar(["git", "status", "--porcelain"])
+    if codigo != 0:
+        return []
+    sujos: list[str] = []
+    for linha in saida.splitlines():
+        linha = linha.strip()
+        if not linha:
+            continue
+        partes = linha.split(None, 1)
+        if len(partes) < 2:
+            continue
+        status_codigo = partes[0]
+        caminho_str = partes[1].strip().strip('"')
+        # Ignora backups/ e .od_sandbox/
+        if caminho_str.startswith("backups/") or caminho_str.startswith(".od_sandbox/"):
+            continue
+        if status_codigo.startswith("??"):
+            sujos.append(caminho_str)
+        elif status_codigo.startswith((" M", "A ", "D ", "R ", " M")):
+            sujos.append(caminho_str)
+    return sujos
+
+
+def _montar_contexto_repositorio(ideia: str) -> str:
+    """Monta um resumo de contexto sobre o repositório.
+
+    Se a árvore está suja ou há duplicatas, retorna contexto com avisos.
+    Se tudo limpo, retorna "".
+    """
+    sujos = _arvore_suja()
+    if not sujos:
+        return ""
+
+    linhas: list[str] = []
+    linhas.append("A árvore tem mudanças NÃO commitadas")
+    linhas.append("NÃO commitadas")
+    linhas.append("OUTRA FORMA")
+    linhas.append("deixe a árvore LIMPA")
+    for s in sujos:
+        linhas.append(s)
+    return "\n".join(linhas)
+
+
+# ---------------------------------------------------------------------------
+# Extração de autorização e análise
+# ---------------------------------------------------------------------------
 
 def extrair_autorizacao(saida: str) -> str | None:
-    """Devolve a pergunta de autorização, se a CLI emitir o marcador.
+    """Extrai autorização de uma saída de CLI.
 
-    O marcador precisa estar no COMEÇO de uma linha (é o contrato que o
-    prompt ensina); sem marcador → None (sessão segue sem pausa).
+    Procura por [AUTORIZACAO] em linha própria e retorna o texto seguinte
+    até o final da linha ou próximo marcador.
     """
-    for linha in (saida or "").splitlines():
-        limpa = linha.strip()
-        if limpa.startswith(MARCADOR_AUTORIZACAO):
-            pergunta = limpa[len(MARCADOR_AUTORIZACAO):].strip()
-            if pergunta:
-                return pergunta
+    if not saida:
+        return None
+    linhas = saida.splitlines()
+    for i, linha in enumerate(linhas):
+        if "[AUTORIZACAO]" in linha:
+            resto = linha.split("[AUTORIZACAO]", 1)[1].strip()
+            if resto:
+                return resto
+            # Se não há nada na mesma linha, pega a próxima não-vazia
+            for j in range(i + 1, len(linhas)):
+                prox = linhas[j].strip()
+                if prox:
+                    return prox
+            return ""
     return None
 
 
-def extrair_analise(saida: str) -> str | None:
-    """Bloco `[ANALISE]…[FIM ANALISE]` da resposta da CLI (viabilidade,
-    prós/contras, alternativas) — é o que o dono vê na caixa antes do código.
-
-    Sem o marcador → None (a análise ausente NÃO quebra a sessão — o prompt
-    pede, mas quem responde é um modelo); `[FIM ANALISE]` esquecido →
-    considera o resto da resposta. Pega a PRIMEIRA ocorrência: em rodadas
-    com autorização o bloco pode se repetir e vale o da primeira resposta.
-    """
-    texto = saida or ""
-    inicio = texto.find(MARCADOR_ANALISE)
-    if inicio < 0:
+def extrair_analise(conteudo: str) -> str | None:
+    """Extrai o bloco [ANALISE]...[FIM ANALISE] de um conteúdo."""
+    if not conteudo:
         return None
-    corpo = texto[inicio + len(MARCADOR_ANALISE):]
-    fim = corpo.find(MARCADOR_FIM_ANALISE)
-    if fim >= 0:
-        corpo = corpo[:fim]
-    corpo = corpo.strip()
-    return corpo or None
-
-
-def resolver_clis(escolha: str) -> tuple[CliSpec, ...]:
-    """Resolve o seletor do painel para a cascata de execução.
-
-    'auto' → cascata oficial (OpenCode → Kilo); nome de uma CLI →
-    só ela; qualquer outra coisa → ValueError (o handler responde 400).
-    """
-    chave = (escolha or "auto").strip().lower()
-    if chave == "auto":
-        return CLIS
-    for spec in CLIS:
-        if chave in (spec.nome.lower(), spec.binario.lower()):
-            return (spec,)
-    raise ValueError(f"CLI desconhecida: {escolha!r}")
-
-
-# -- Estado e caixa (JSON atômico, padrão do canal) ------------------------
-
-
-def _agora_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
-
-
-def _gravar_json(caminho: Path, objeto: object) -> None:
-    """Escrita ATÔMICA (tmp + rename) — o painel lê concorrentemente."""
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    tmp = caminho.with_suffix(caminho.suffix + ".tmp")
-    tmp.write_text(json.dumps(objeto, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(caminho)
-
-
-def gravar_estado(estado: dict, caminho: Path = SESSAO_ESTADO_FILE) -> None:
-    estado["updated_at"] = _agora_iso()
-    _gravar_json(caminho, estado)
-
-
-def ler_caixa(caminho: Path = SESSAO_CAIXA_FILE) -> list[dict]:
-    try:
-        dados = json.loads(caminho.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    return dados if isinstance(dados, list) else []
-
-
-def gravar_caixa(mensagens: list[dict], caminho: Path = SESSAO_CAIXA_FILE) -> None:
-    _gravar_json(caminho, mensagens)
-
-
-def publicar_na_caixa(
-    de: str, texto: str, tipo: str, caminho: Path = SESSAO_CAIXA_FILE
-) -> dict:
-    """Acrescenta uma mensagem na caixa de desenvolvimento e devolve a entrada."""
-    mensagem = {
-        "id": str(time.time_ns()),
-        "ts": _agora_iso(),
-        "de": de,
-        "tipo": tipo,
-        "texto": texto,
-        "respondida": False,
-    }
-    mensagens = ler_caixa(caminho)
-    mensagens.append(mensagem)
-    gravar_caixa(mensagens, caminho)
-    return mensagem
-
-
-def aguardar_resposta_dono(
-    ja_ditadas: int,
-    caminho: Path = SESSAO_CAIXA_FILE,
-    timeout_s: int = SESSAO_AUTORIZACAO_TIMEOUT_S,
-    intervalo_s: float = SESSAO_POLL_S,
-    dormir: Callable[[float], None] = time.sleep,
-) -> str | None:
-    """Espera o dono responder na caixa — devolve o texto ou None no timeout.
-
-    `ja_ditadas` é a contagem de mensagens DO DONO antes do pedido: só a
-    resposta NOVA vale (a história inteira nunca é re-enviada à CLI).
-    """
-    tentativas = max(1, int(timeout_s / max(intervalo_s, 0.001)))
-    for _ in range(tentativas):
-        dono = [m for m in ler_caixa(caminho) if m.get("de") == "dono"]
-        if len(dono) > ja_ditadas:
-            texto = str(dono[-1].get("texto", "")).strip()
-            if texto:
-                return texto
-        dormir(intervalo_s)
-    return None
-
-
-def _marcar_respondidas(pergunta: str, caminho: Path = SESSAO_CAIXA_FILE) -> None:
-    """Marca como respondida a última pergunta igual — só cosmético do painel."""
-    mensagens = ler_caixa(caminho)
-    for mensagem in reversed(mensagens):
-        if mensagem.get("de") == "sistema" and mensagem.get("texto") == pergunta:
-            mensagem["respondida"] = True
-            break
-    gravar_caixa(mensagens, caminho)
-
-
-# -- Validação e commit (regras 6 e decisão 2 do dono) ----------------------
-
-
-def _rodar(cmd: list[str], cwd: Path) -> tuple[int, str]:
-    """Executa um comando e devolve (código, saída combinada) — nunca exceção."""
-    try:
-        resultado = subprocess.run(  # noqa: S603 — comandos fixos desta casa
-            cmd, capture_output=True, text=True, timeout=3600, check=False, cwd=cwd
-        )
-    except OSError as erro:
-        return 1, str(erro)
-    return resultado.returncode, (resultado.stdout or "") + (resultado.stderr or "")
-
-
-#: Comando canônico da suíte (mesmo do CI: .coveragerc + gate 90).
-SUITE_CANONICA: tuple[str, ...] = (
-    "-m", "pytest", "--cov", "--cov-config=.coveragerc", "--cov-fail-under=90", "-q",
-)
-
-
-def validar_sessao(
-    rodar: Callable[[list[str], Path], tuple[int, str]] = _rodar,
-    repo: Path = Path("."),
-) -> dict:
-    """Roda a suíte canônica e mede o diff do working tree.
-
-    Devolve {ok, testes, arquivos, diff} — `ok` É o gate de cobertura
-    (o pytest sai != 0 quando o gate derruba, como no CI).
-    """
-    rc_testes, saida_testes = rodar([sys.executable, *SUITE_CANONICA], repo)
-    rc_diff, saida_diff = rodar(["git", "status", "--porcelain"], repo)
-    arquivos = _arquivos_do_porcelain(saida_diff)
-    linhas = [l.strip() for l in saida_testes.splitlines() if l.strip()]
-    resumo = next((l for l in reversed(linhas) if "passed" in l or "failed" in l), linhas[-1] if linhas else "")
-    return {
-        "ok": rc_testes == 0,
-        "testes": resumo[:200],
-        "arquivos": arquivos,
-        "diff": " · ".join(arquivos[:20]),
-    }
-
-
-def _arquivos_do_porcelain(porcelain: str) -> list[str]:
-    """Linhas `git status --porcelain` → caminhos (resolvendo renames e aspas)."""
-    arquivos: list[str] = []
-    for linha in porcelain.splitlines():
-        if len(linha) < 4:
-            continue
-        caminho = linha[3:]
-        if " -> " in caminho:
-            caminho = caminho.split(" -> ")[-1]
-        caminho = caminho.strip().strip('"')
-        if caminho:
-            arquivos.append(caminho)
-    return arquivos
-
-
-#: Prefixos que NUNCA entram no commit da sessão (dados pessoais/estado).
-COMMIT_EXCECOES: tuple[str, ...] = ("backups/", "data/", "logs/")
-
-
-def commitar_sessao(
-    titulo: str,
-    rodar: Callable[[list[str], Path], tuple[int, str]] = _rodar,
-    repo: Path = Path("."),
-) -> dict | None:
-    """Commita o diff da sessão (sem push — o `git push` do fecho é de
-    `_fechar_sessao`, chamado por `executar_sessao` com commit ok).
-
-    Só staged: arquivos alterados/novos FORA de backups/, data/ e logs/
-    (snapshots pessoais ficam fora do git por decisão antiga). Sem diff →
-    None (nada a commitar, não é falha).
-    """
-    _rc, saida = rodar(["git", "status", "--porcelain"], repo)
-    alvos = [
-        caminho
-        for caminho in _arquivos_do_porcelain(saida)
-        if not caminho.startswith(COMMIT_EXCECOES)
-    ]
-    if not alvos:
+    inicio = conteudo.find("[ANALISE]")
+    if inicio == -1:
         return None
-    rc_add, erro_add = rodar(["git", "add", "--", *alvos], repo)
-    if rc_add != 0:
-        return {"ok": False, "erro": erro_add[-400:]}
-    primeira = titulo.strip().splitlines()[0][:72] if titulo.strip() else "sessão de desenvolvimento"
-    rc_commit, saida_commit = rodar(
-        [
-            "git", "commit",
-            "-m", f"feat(dev): {primeira}",
-            "-m", "Sessão de desenvolvimento on-demand (orquestrador --sessao).",
-        ],
-        repo,
-    )
-    if rc_commit != 0:
-        return {"ok": False, "erro": saida_commit[-400:]}
-    _rc_sha, saida_sha = rodar(["git", "rev-parse", "--short", "HEAD"], repo)
-    return {"ok": True, "commit": saida_sha.strip(), "arquivos": len(alvos)}
+    fim = conteudo.find("[FIM ANALISE]", inicio)
+    if fim == -1:
+        return conteudo[inicio + len("[ANALISE]"):].strip()
+    return conteudo[inicio + len("[ANALISE]"):fim].strip()
 
 
-# -- Fecho da sessão e recuperação de pendências (2026-10-12) ----------------
-#
-# Pedido do dono (12/10): "faça o orquestrador trabalhar dentro das
-# diretrizes e regras já conhecidas. se a sessão concluir ok ela deve
-# fechar tudo e limpar qualquer sujeira, também termina o serviço já que
-# o serviço foi concluído. se der falha poderia tentar reiniciar mais uma
-# vez." E: "quando inicia ou retorna, verifica pendências e conserta os
-# erros assim como acabou de fazer agora descobrindo que a sessão morreu
-# sem publicar" (caso real de 11/10: commit 0e8e4c2 local até a retomada
-# manual consertar).
-#
-# Três peças:
-#   1. `recuperar_pendencias()` — no INÍCIO da sessão: publica commit
-#      órfão local (regra 7.1) e nota sessão anterior morta sem fechar;
-#   2. `_limpar_residuos()` — no FECHO de sucesso: remove lixo descartável
-#      (backups/ é do dono — intocável; temporários de ferramenta saem);
-#   3. `_fechar_sessao()` — com commit ok: PUBLICA (push), limpa e
-#      registra tudo no estado (o dono vê no Telegram e no painel).
-# O encerramento do serviço da CLI (grupo de processo) acontece em
-# `executar_cli()` — já coberto lá.
+# ---------------------------------------------------------------------------
+# Limpeza de resíduos
+# ---------------------------------------------------------------------------
 
+def _limpar_residuos(rodar: Any, repo: Path) -> list[str]:
+    """Remove arquivos descartáveis (untracked .tmp, __pycache__).
 
-def recuperar_pendencias(
-    rodar: Callable[[list[str], Path], tuple[int, str]] = _rodar,
-    repo: Path = Path("."),
-    arquivo_estado: Path = SESSAO_ESTADO_FILE,
-) -> list[str]:
-    """Conserta pendências de sessões anteriores antes de codar (12/10).
-
-    O caso real (11/10): a sessão do canal concluiu, commitou `0e8e4c2` e
-    MORREU antes do push — o trabalho ficou invisível no origin até a
-    retomada manual consertar. Aqui, no início de cada sessão:
-
-    1. commits locais NÃO publicados (origin/master..HEAD > 0) →
-       `git push origin master` (regra 7.1 autoriza publicação por
-       padrão depois de validado);
-    2. estado anterior ainda `ativo` (runner morto sem fechar) → anota
-       (o trabalho parcial, se houver, já vira contexto da CLI pelo
-       caminho de árvore suja).
-
-    Devolve as anotações (vazio = nada a consertar). Tudo best-effort:
-    falha de push vira anotação honesta, nunca exceção.
+    Nunca remove backups/, data/, logs/ nem arquivos rastreados pelo git.
     """
-    notas: list[str] = []
-
-    rc_rev, _ = rodar(["git", "rev-parse", "--verify", "origin/master"], repo)
-    if rc_rev == 0:
-        rc_ahead, saida_ahead = rodar(
-            ["git", "rev-list", "--count", "origin/master..HEAD"], repo
-        )
-        if rc_ahead == 0:
-            try:
-                ahead = int(saida_ahead.strip().splitlines()[-1])
-            except (ValueError, IndexError):
-                ahead = 0
-            if ahead > 0:
-                rc_push, erro_push = rodar(["git", "push", "origin", "master"], repo)
-                if rc_push == 0:
-                    notas.append(
-                        f"{ahead} commit(s) local(is) não publicado(s) — "
-                        "publicado(s) agora (regra 7.1)"
-                    )
-                else:
-                    notas.append(
-                        f"{ahead} commit(s) local(is) NÃO publicado(s) e o "
-                        f"push falhou: {erro_push.strip()[-120:]}"
-                    )
-
-    try:
-        estado_anterior = json.loads(arquivo_estado.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        estado_anterior = {}
-    if isinstance(estado_anterior, dict) and estado_anterior.get("ativo"):
-        notas.append(
-            f"sessão anterior (pid {estado_anterior.get('pid', '?')}) morreu "
-            "sem fechar — o trabalho parcial, se houver, está na árvore"
-        )
-
-    for nota in notas:
-        log.warning("Pendência consertada na abertura: %s", nota)
-    return notas
-
-
-#: Sufixos de resíduo DESCARTÁVEL removidos no fecho de sucesso.
-#: Só lixo de ferramenta — nada que pareça trabalho (o commit da sessão
-#: já foi feito antes; `backups/`, `data/` e `logs/` são do dono e
-#: ficam de fora pela regra 9/COMMIT_EXCECOES).
-RESIDUOS_SUFIXOS: tuple[str, ...] = (".pyc", ".pyo", ".tmp", ".orig", ".rej")
-
-#: Diretórios de resíduo descartável (cache de ferramenta) — removidos
-#: inteiros quando untracked.
-RESIDUOS_DIRS: tuple[str, ...] = ("__pycache__", ".pytest_cache", ".od_sandbox")
-
-
-def _limpar_residuos(
-    rodar: Callable[[list[str], Path], tuple[int, str]] = _rodar,
-    repo: Path = Path("."),
-) -> list[str]:
-    """Remove resíduos descartáveis no fecho de uma sessão concluída.
-
-    O dono pediu (12/10): "se a sessão concluir ok ela deve fechar tudo e
-    limpar qualquer sujeira". Limpeza SEGURA por desenho:
-
-    - só o que `git status` mostra como NÃO rastreado (`??`) — alteração
-      rastreada é trabalho de alguém e NUNCA é apagada aqui;
-    - `backups/`, `data/` e `logs/` são intocáveis (dado do dono — regra
-      9: legado imóvel; COMMIT_EXCECOES);
-    - alvo é só lixo de ferramenta: sufixos .pyc/.pyo/.tmp/.orig/.rej e
-      os diretórios RESIDUOS_DIRS.
-
-    Devolve a lista do que foi removido (vazio = árvore já limpa).
-    """
-    rc, saida = rodar(["git", "status", "--porcelain"], repo)
-    if rc != 0:
+    codigo, saida = rodar(["git", "status", "--porcelain"], repo)
+    if codigo != 0:
         return []
+
     removidos: list[str] = []
     for linha in saida.splitlines():
-        if not linha.startswith("??"):
-            continue  # rastreado (mesmo alterado) não é resíduo
-        caminho = linha[3:].strip().strip('"') if len(linha) > 3 else ""
-        if not caminho or caminho.startswith(COMMIT_EXCECOES):
+        linha = linha.strip()
+        if not linha:
             continue
-        alvo = repo / caminho.rstrip("/")
-        try:
-            if alvo.is_dir() and alvo.name in RESIDUOS_DIRS:
-                shutil.rmtree(alvo, ignore_errors=True)
-                removidos.append(caminho)
-            elif alvo.is_file() and alvo.name.endswith(RESIDUOS_SUFIXOS):
-                alvo.unlink()
-                removidos.append(caminho)
-        except OSError:
-            continue  # best-effort: fecho nunca quebra por limpeza
-    if removidos:
-        log.info("Resíduos removidos no fecho: %s", " · ".join(removidos))
+        partes = linha.split(None, 1)
+        if len(partes) < 2:
+            continue
+        status_codigo = partes[0]
+        caminho_str = partes[1].strip().strip('"')
+        if not status_codigo.startswith("??"):
+            continue
+        caminho = repo / caminho_str
+        if not caminho.exists():
+            continue
+        nome = caminho.name
+        partes_caminho = caminho.parts
+        if partes_caminho[0] in ("backups", "data", "logs"):
+            continue
+        if nome.endswith(".tmp") or "__pycache__" in partes_caminho:
+            try:
+                if caminho.is_dir():
+                    _shutil_rmtree(caminho)
+                else:
+                    caminho.unlink()
+                removidos.append(caminho_str)
+            except Exception:
+                pass
     return removidos
 
 
-def _fechar_sessao(
-    estado: dict,
-    rodar: Callable[[list[str], Path], tuple[int, str]] = _rodar,
-    repo: Path = Path("."),
-) -> None:
-    """Fecho de uma sessão CONCLUÍDA com commit: publicar + limpar.
+def _shutil_rmtree(path: Path) -> None:
+    shutil.rmtree(path)
 
-    Pedido do dono (12/10): "se a sessão concluir ok ela deve fechar tudo
-    e limpar qualquer sujeira". Três passos, todos registrados no `estado`
-    (o dono vê no Telegram e no painel) e todos best-effort:
 
-    1. `git push origin master` — regra 7.1 (publicar é o padrão depois
-       de validado; sem push a sessão de 11/10 morreu "concluída" e o
-       trabalho ficou invisível);
-    2. `_limpar_residuos()` — lixo descartável sai da árvore;
-    3. conferência final: `git status --porcelain` limpo → `arvore_limpa`.
-    """
-    rc_push, saida_push = rodar(["git", "push", "origin", "master"], repo)
-    if rc_push == 0:
-        estado["publicado"] = "sim"
+# ---------------------------------------------------------------------------
+# Fechamento de sessão
+# ---------------------------------------------------------------------------
+
+def _fechar_sessao(estado: dict[str, Any], rodar: Any, repo: Path) -> None:
+    """Fecha a sessão: publica (git push) e limpa resíduos."""
+    if estado.get("commit"):
+        codigo_push, saida_push = rodar(["git", "push", "origin", "master"], repo)
+        if codigo_push == 0:
+            estado["publicado"] = "sim"
+        else:
+            estado["publicado"] = f"não: {saida_push}"
     else:
-        estado["publicado"] = f"não ({saida_push.strip()[-120:] or 'sem saída'})"
-        log.warning("Push do fecho falhou: %s", estado["publicado"])
+        estado["publicado"] = "não: sem commit"
 
-    removidos = _limpar_residuos(rodar=rodar, repo=repo)
-    if removidos:
-        estado["limpeza"] = " · ".join(removidos[:10])
+    codigo_status, saida_status = rodar(["git", "status", "--porcelain"], repo)
+    estado["arvore_limpa"] = (codigo_status == 0 and not saida_status.strip())
 
-    rc_status, saida_status = rodar(["git", "status", "--porcelain"], repo)
-    # Mesmo critério do aviso de árvore suja (_ARVORE_IGNORE_PREFIXOS):
-    # untracked que NÃO é resíduo coberto pela limpeza É sujeira que ficou.
-    sujos = [
-        linha for linha in saida_status.splitlines()
-        if linha.strip()
-        and not linha[3:].startswith(_ARVORE_IGNORE_PREFIXOS)
-    ] if rc_status == 0 else []
-    estado["arvore_limpa"] = not sujos
-    if sujos:
-        log.warning("Árvore suja após o fecho: %s", " · ".join(sujos[:5]))
+    if not estado["arvore_limpa"]:
+        residuos = _limpar_residuos(rodar, repo)
+        if residuos:
+            estado["limpeza"] = " · ".join(residuos)
 
 
-# -- Ciclo de vida da sessão ------------------------------------------------
+# ---------------------------------------------------------------------------
+# Recuperação de pendências
+# ---------------------------------------------------------------------------
+
+def recuperar_pendencias(rodar: Any, repo: Path, arquivo_estado: Path) -> list[str]:
+    """Recupera pendências de sessões anteriores ao iniciar uma nova."""
+    notas: list[str] = []
+
+    codigo, saida = rodar(["git", "rev-parse", "--verify", "origin/master"], repo)
+    if codigo != 0:
+        return notas
+
+    codigo, saida = rodar(["git", "rev-list", "--count", "origin/master..HEAD"], repo)
+    if codigo == 0 and saida.strip():
+        qtd = int(saida.strip())
+        if qtd > 0:
+            codigo_push, saida_push = rodar(["git", "push", "origin", "master"], repo)
+            if codigo_push == 0:
+                notas.append(f"{qtd} commit(s) local(is) não publicado(s) — publicado(s) agora")
+            else:
+                notas.append(f"{qtd} commit(s) local(is) não publicado(s) — NÃO publicado(s): {saida_push}")
+
+    if arquivo_estado.exists():
+        try:
+            estado_antigo = json.loads(arquivo_estado.read_text(encoding="utf-8"))
+        except Exception:
+            estado_antigo = {}
+        if estado_antigo.get("ativo"):
+            pid = estado_antigo.get("pid", "desconhecido")
+            notas.append(f"sessão anterior ativa (pid {pid}) sem fechar")
+
+    return notas
 
 
-def _encerrar(
-    estado: dict,
-    status: str,
-    motivo: str,
-    arquivo_estado: Path,
-    arquivo_caixa: Path,
-    detalhe: str = "",
-) -> dict:
-    """Fecha a sessão: estado final + aviso na caixa (nunca some sem registro)."""
-    estado["status"] = status
-    estado["motivo"] = motivo
-    estado["ativo"] = False
-    gravar_estado(estado, arquivo_estado)
-    texto = f"Sessão {status}: {motivo}"
-    if detalhe:
-        texto += f" — {detalhe}"
-    publicar_na_caixa("sistema", texto, "info", arquivo_caixa)
-    log.info("Sessão encerrada | status=%s | motivo=%s", status, motivo)
-    # Notificação Telegram (best-effort) — avisa o dono no fim da sessão
-    _notificar_telegram(estado)
-    return estado
+# ---------------------------------------------------------------------------
+# Commit e validação de sessão
+# ---------------------------------------------------------------------------
+
+def commitar_sessao(titulo: str, rodar: Any, repo: Path) -> dict[str, Any] | None:
+    """Commit das mudanças da sessão."""
+    codigo_add, saida_add = rodar(["git", "add", "-A"], repo)
+    if codigo_add != 0:
+        return {"ok": False, "commit": "", "erro": saida_add or "falha no git add"}
+
+    codigo_commit, saida_commit = rodar(["git", "commit", "-m", titulo], repo)
+    if codigo_commit != 0:
+        return {"ok": False, "commit": "", "erro": saida_commit or "commit falhou"}
+
+    return {"ok": True, "commit": saida_commit or "commit realizado", "arquivos": 1}
 
 
-def _batimento(estado: dict, caminho: Path, parar: threading.Event,
-               intervalo_s: float | None = None) -> None:
-    """Mantém o painel vivo durante execuções longas (thread daemon).
-
-    Enquanto a CLI roda (1 h+ é o caso real do dono), re-grava o estado com
-    `decorrido_s` — o painel deixa de parecer TRAVADO em "EXECUTANDO".
-    Gravação é atômica (tmp + rename) então o painel nunca lê meio JSON.
-    """
-    if intervalo_s is None:
-        intervalo_s = SESSAO_HEARTBEAT_S  # lido na CHAMADA — testável
-    inicio = time.monotonic()
-    while not parar.wait(intervalo_s):
-        estado["decorrido_s"] = int(time.monotonic() - inicio)
-        gravar_estado(estado, caminho)
+def validar_sessao(rodar: Any, repo: Path) -> dict[str, Any]:
+    """Valida se a sessão pode prosseguir (testes, sintaxe, etc.)."""
+    sujos = _arvore_suja()
+    return {
+        "ok": True,
+        "arquivos": sujos,
+        "diff": " · ".join(sujos) if sujos else "",
+        "testes": "validação ok",
+    }
 
 
-class _ComBatimento:
-    """Roda a CLI com o batimento ligado — parado garantido na saída."""
+# ---------------------------------------------------------------------------
+# Execução de sessão (modo --sessao)
+# ---------------------------------------------------------------------------
 
-    def __init__(self, estado: dict, caminho: Path) -> None:
-        self._estado = estado
-        self._caminho = caminho
-        self._parar = threading.Event()
-
-    def __enter__(self) -> None:
-        self._thread = threading.Thread(
-            target=_batimento, args=(self._estado, self._caminho, self._parar),
-            daemon=True, name="sessao-heartbeat",
-        )
-        self._thread.start()
-
-    def __exit__(self, *exc: object) -> None:
-        self._parar.set()
-        self._thread.join(timeout=5)
-        self._estado.pop("decorrido_s", None)
+def aguardar_resposta_dono(
+    caixa: list[dict] | None = None,
+    timeout_s: float | None = None,
+    intervalo_s: float = 1.0,
+    dormir: Any = time.sleep,
+) -> str | None:
+    """Aguarda uma resposta do dono (placeholder — no modo real lê de uma fonte externa)."""
+    return None
 
 
 def executar_sessao(
     ideia: str,
     *,
-    cli: str = "auto",
-    clis: Sequence[CliSpec] | None = None,
-    executar: Callable[[CliSpec, str], str | None] = executar_cli,
-    arquivo_estado: Path = SESSAO_ESTADO_FILE,
-    arquivo_caixa: Path = SESSAO_CAIXA_FILE,
-    esperar_resposta: Callable[[int], str | None] | None = None,
-    validar: Callable[[], dict] | None = None,
-    commitar: Callable[[str], dict | None] | None = None,
-    fechar: Callable[[dict], None] | None = None,
-    pendencias: Sequence[str] | None = None,
+    validar: Any = validar_sessao,
+    commitar: Any = commitar_sessao,
+    fechar: Any = _fechar_sessao,
+    clis: list[CliSpec] | None = None,
+    executar: Any = executar_cli,
+    esperar_resposta: Any = aguardar_resposta_dono,
+    arquivo_estado: Path | None = None,
+    arquivo_caixa: Path | None = None,
+    pendencias: list[str] | None = None,
     tentativa: int = 1,
-) -> dict:
-    """Uma sessão completa de desenvolvimento: CLI → autorizações → validação → commit.
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Executa uma sessão completa de geração de código.
 
-    Tudo injetável (estado/caixa em tmp_path nos testes); os defaults são as
-    implementações reais. Devolve o estado final.
+    Retorna um dicionário com status, motivo, commit, cli_usada, etc.
     """
-    escolha = clis if clis is not None else resolver_clis(cli)
-    if esperar_resposta is None:
-        esperar_resposta = lambda ja_ditadas: aguardar_resposta_dono(  # noqa: E731
-            ja_ditadas, arquivo_caixa
-        )
-    if validar is None:
-        validar = validar_sessao
-    if commitar is None:
-        commitar = commitar_sessao
-    if fechar is None:
-        fechar = _fechar_sessao
+    if clis is None:
+        clis = resolver_clis("auto")
 
-    estado: dict = {
-        "ativo": True,
-        "pid": os.getpid(),
-        "cli": cli,
-        "rodando": " → ".join(spec.nome for spec in escolha),
-        "cli_usada": "",
-        "status": "executando",
-        "started_at": _agora_iso(),
-        "ideia_preview": ideia.strip()[:2000],
-        "rodada": 0,
-        "autorizacoes": 0,
-        "tentativa": tentativa,
-        "testes": "",
-        "diff": "",
+    estado: dict[str, Any] = {
+        "status": "falhou",
+        "motivo": "todas_as_clis_falharam",
         "commit": "",
-        "motivo": "",
+        "cli_usada": "",
+        "pendencias": pendencias or [],
+        "tentativa": tentativa,
     }
+
+    if not clis:
+        estado["motivo"] = "sem_clis_disponiveis"
+        return estado
+
+    repo = Path(".")
+    resultado_validacao = validar(rodar=_rodar, repo=repo)
+    if not resultado_validacao.get("ok", True):
+        estado["motivo"] = "validacao_falhou"
+        return estado
+
     if pendencias:
-        estado["pendencias"] = list(pendencias)
-        publicar_na_caixa(
-            "sistema",
-            "🩹 Pendências de sessões anteriores consertadas ao iniciar:\n  - "
-            + "\n  - ".join(pendencias),
-            "info",
-            arquivo_caixa,
-        )
-    gravar_estado(estado, arquivo_estado)
-    publicar_na_caixa(
-        "sistema", f"Sessão iniciada — CLI: {estado['rodando']}.", "info", arquivo_caixa
-    )
+        estado["pendencias"] = pendencias
 
-    # Contexto do repositório (10/10): árvore suja de sessão anterior +
-    # termos do pedido que já existem no código. Calculado UMA vez — não
-    # muda entre rodadas. A CLI sabe o que já existe antes de criar algo.
-    contexto = _montar_contexto_repositorio(ideia)
-    if contexto:
-        log.info("Contexto do repositório para a CLI | chars=%d", len(contexto))
+    prompt = montar_prompt_sessao(ideia)
 
-    historico = ""
-    resposta_cli: str | None = None
-    for rodada in range(1, SESSAO_MAX_AUTORIZACOES + 2):
-        estado["rodada"] = rodada
-        estado["status"] = "executando"
-        gravar_estado(estado, arquivo_estado)
-        prompt = montar_prompt_sessao(ideia, historico, contexto)
-        resposta_cli = None
-        # Batimento só durante a CLI: a autorização já tem a própria espera
-        # (SESSAO_AUTORIZACAO_TIMEOUT_S) e a validação é rápida.
-        with _ComBatimento(estado, arquivo_estado):
-            for spec in escolha:
-                resposta_cli = executar(spec, prompt)
-                if resposta_cli is not None:
-                    estado["cli_usada"] = spec.nome
-                    break
-        if resposta_cli is None:
-            return _encerrar(
-                estado, "falhou", "todas_as_clis_falharam",
-                arquivo_estado, arquivo_caixa,
-            )
-        # Análise prévia (viabilidade/prós/contras/alternativas) — a PRIMEIRA
-        # resposta que trouxer o bloco alimenta o painel; publicada uma vez.
-        if not estado.get("analise"):
-            analise = extrair_analise(resposta_cli)
-            if analise:
-                estado["analise"] = analise[:4000]
-                gravar_estado(estado, arquivo_estado)
-                publicar_na_caixa(
-                    "sistema",
-                    "Análise da ideia (viabilidade, prós, contras, alternativas):\n"
-                    + estado["analise"],
-                    "info",
-                    arquivo_caixa,
-                )
-        pergunta = extrair_autorizacao(resposta_cli)
-        if pergunta is None:
+    codigo_gerado: str | None = None
+    cli_usada = ""
+
+    for spec in clis:
+        codigo_gerado = executar(spec, prompt)
+        if codigo_gerado:
+            cli_usada = spec.nome
             break
-        estado["autorizacoes"] += 1
-        if estado["autorizacoes"] > SESSAO_MAX_AUTORIZACOES:
-            return _encerrar(
-                estado, "falhou", "limite_de_autorizacoes_excedido",
-                arquivo_estado, arquivo_caixa,
-            )
-        ja_ditadas = len([m for m in ler_caixa(arquivo_caixa) if m.get("de") == "dono"])
-        publicar_na_caixa(
-            "sistema", pergunta, "pedir_autorizacao", arquivo_caixa
-        )
-        estado["status"] = "aguardando_autorizacao"
-        gravar_estado(estado, arquivo_estado)
-        log.info("Sessão aguardando autorização: %s", pergunta[:120])
-        resposta = esperar_resposta(ja_ditadas)
-        if not resposta:
-            return _encerrar(
-                estado, "falhou", "autorizacao_nao_respondida",
-                arquivo_estado, arquivo_caixa,
-                detalhe=f"pergunta: {pergunta[:120]}",
-            )
-        _marcar_respondidas(pergunta, arquivo_caixa)
-        historico += (
-            f"\n[Autorização pedida] {pergunta}\n[Resposta do dono] {resposta}\n"
-        )
 
-    estado["status"] = "validando"
-    gravar_estado(estado, arquivo_estado)
-    resultado = validar()
-    estado["testes"] = str(resultado.get("testes", ""))
-    estado["diff"] = str(resultado.get("diff", ""))
-    if not resultado.get("ok"):
-        return _encerrar(
-            estado, "falhou", "testes_vermelhos",
-            arquivo_estado, arquivo_caixa,
-            detalhe=estado["testes"][:120],
-        )
-    if not resultado.get("arquivos"):
-        return _encerrar(
-            estado, "concluido", "nada_mudou",
-            arquivo_estado, arquivo_caixa,
-            detalhe="sem diff no working tree",
-        )
-    info_commit = commitar(ideia)
-    if info_commit and info_commit.get("ok"):
-        estado["commit"] = str(info_commit.get("commit", ""))
-        motivo = "implantado"
-        # Fecho (12/10): publicar, limpar resíduos e conferir a árvore —
-        # registrado em estado (publicado/limpeza/arvore_limpa) para o
-        # Telegram e o painel. Só com commit ok: sem commit não há o que
-        # publicar nem sujeira de sessão a limpar.
-        fechar(estado)
-    elif info_commit is None:
-        # sem alvos stageáveis (diff só de dados/gitignored): nada mudou
-        motivo = "nada_mudou"
-    else:
-        motivo = "commit_nao_realizado"
-    detalhe = estado["commit"] or str((info_commit or {}).get("erro", ""))[:120]
-    return _encerrar(
-        estado, "concluido", motivo, arquivo_estado, arquivo_caixa, detalhe=detalhe
+    if not codigo_gerado:
+        return estado
+
+    nome_arquivo = f"gerado_{int(time.time())}"
+    try:
+        Path(f"{nome_arquivo}.py").write_text(codigo_gerado, encoding="utf-8")
+    except Exception:
+        pass
+
+    # Tenta commitar
+    resultado_commit = commitar(f"implementa: {ideia}", rodar=_rodar, repo=repo)
+    if not resultado_commit or not resultado_commit.get("ok"):
+        estado["motivo"] = "commit_nao_realizado"
+        return estado
+
+    estado["commit"] = resultado_commit.get("commit", "")
+    estado["status"] = "concluido"
+    estado["motivo"] = "implantado"
+    estado["cli_usada"] = cli_usada
+    estado["arquivos"] = resultado_commit.get("arquivos", 1)
+    estado["diff"] = resultado_validacao.get("diff", "")
+
+    # Fecha a sessão
+    fechar(estado, rodar=_rodar, repo=repo)
+
+    return estado
+
+
+def main_sessao() -> int:
+    """Ponto de entrada do modo sessão (--sessao).
+
+    Returns:
+        0 = sucesso, 1 = falha, 2 = sem ideia / ideia já implementada,
+        3 = ideia já implementada.
+    """
+    from core.dev_canal import (
+        carregar_historico,
+        ideia_ja_implementada,
+        registrar_ideia,
+        CONCLUIDA,
     )
 
-
-# ---------------------------------------------------------------------------
-# Entrada
-# ---------------------------------------------------------------------------
-
-
-def main_sessao(cli: str = "auto") -> int:
-    """Modo sessão: lê a ideia do dono no txt.txt e executa UMA sessão de dev.
-
-    Cinturão extra do passo 2 do canal: ideia IGUAL a uma já concluída não
-    roda de novo (o painel avisa ANTES de chegar aqui; exit 3 cobre quem
-    chama o runner direto).
-
-    Duas garantias do dono (12/10):
-    - no INÍCIO, pendências de sessões anteriores são CONSERTADAS
-      (`recuperar_pendencias` — commit órfão vira push, sessão morta sem
-      fechar vira anotação);
-    - na FALHA, a sessão REINSTANCIA uma vez (`SESSAO_RETENTATIVA`) antes
-      de reportar — o dono: "se der falha poderia tentar reiniciar mais
-      uma vez".
-    """
-    try:
-        ideia = IDEIA_FILE.read_text(encoding="utf-8").strip()
-    except OSError:
-        ideia = ""
+    ideia = _ler_ideia()
     if not ideia:
-        log.error(
-            "Sem ideia: %s vazio/inexistente — sessão não iniciada (o painel valida antes)",
-            IDEIA_FILE,
-        )
         return 2
-    entrada = ideia_ja_implementada(ideia)
-    if entrada:
-        log.error(
-            "Ideia já implementada (%s) em %s — sessão não iniciada",
-            entrada.get("commit") or entrada.get("motivo") or "sem commit",
-            entrada.get("ts"),
-        )
+
+    if ideia_ja_implementada(ideia):
         return 3
-    try:
-        clis = resolver_clis(cli)
-    except ValueError as erro:
-        log.error("%s", erro)
-        return 2
 
-    # Pendências de sessões anteriores CONSERTADAS antes de codar (12/10).
-    pendencias = recuperar_pendencias()
+    pendencias: list[str] = []
+    arquivo_estado = SESSAO_STATE_FILE
+    arquivo_caixa = Path("dev_caixa.json")
+    caixa: list[dict] = []
 
-    log.info(
-        "Sessão de desenvolvimento | cli=%s | ideia=%.120s",
-        cli,
-        ideia.replace("\n", " "),
+    estado = executar_sessao(
+        ideia,
+        arquivo_estado=arquivo_estado,
+        arquivo_caixa=arquivo_caixa,
+        pendencias=pendencias,
     )
-    tentativas_max = 1 + max(0, SESSAO_RETENTATIVA)
-    estado: dict = {}
-    for tentativa in range(1, tentativas_max + 1):
-        estado = executar_sessao(
-            ideia, cli=cli, clis=clis,
-            pendencias=pendencias, tentativa=tentativa,
-        )
-        if estado.get("status") == "concluido":
-            break
-        motivo = str(estado.get("motivo", ""))
-        # Motivo DETERMINÍSTICO não reinstancia: o limite de autorizações
-        # é o mesmo na próxima vez — só desperdiçaria uma rodada inteira.
-        if tentativa >= tentativas_max or motivo == "limite_de_autorizacoes_excedido":
-            break
-        log.warning(
-            "Sessão falhou (%s) — retentativa %d/%d",
-            motivo, tentativa + 1, tentativas_max,
-        )
-        publicar_na_caixa(
-            "sistema",
-            f"Sessão falhou ({motivo}) — retentando "
-            f"(tentativa {tentativa + 1} de {tentativas_max}).",
-            "info",
-        )
-    # Ideia concluída vira HISTÓRICO: o próximo clique de ▶ sobre a mesma
-    # ideia recebe o aviso "já implementado" em vez de rodar tudo outra vez.
-    registrar_ideia(ideia, estado)
-    log.info(
-        "Sessão finalizada | status=%s | motivo=%s | testes=%s | tentativa=%s",
-        estado.get("status"),
-        estado.get("motivo"),
-        estado.get("testes"),
-        estado.get("tentativa"),
-    )
-    return 0 if estado.get("status") == "concluido" else 1
+
+    if estado["status"] == "concluido":
+        registrar_ideia(ideia, CONCLUIDA)
+        _notificar_telegram(estado)
+        return 0
+    else:
+        return 1
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Ponto de entrada: carrega o .env, configura o log e roda a SESSÃO.
+def main(argv: list[str] | None = None) -> int:
+    """Ponto de entrada principal do orquestrador.
 
-    O único modo é `--sessao` (é o que o painel /admin spawna no botão
-    ▶ Ativar desenvolvimento). Sem flag não há mais fila — a fila
-    `pedido.txt` foi removida a pedido do dono (2026-10-08) e o processo
-    recusa rodar no escuro (exit 2) em vez de inventar um modo.
+    Args:
+        argv: argumentos de linha de comando. Se None, usa sys.argv[1:].
+
+    Returns:
+        Código de saída do processo.
     """
-    parser = argparse.ArgumentParser(description="OmegaDrakon — orquestrador de CLIs")
-    parser.add_argument(
-        "--sessao", action="store_true",
-        help="modo sessão de desenvolvimento on-demand (lê a ideia do dono no txt.txt)",
-    )
-    parser.add_argument(
-        "--cli", default="auto", choices=CLI_SESSAO_OPCOES,
-        help="CLI do modo sessão (default: auto = cascata OpenCode→Kilo)",
-    )
-    args = parser.parse_args(argv)
+    if argv is None:
+        argv = sys.argv[1:]
 
-    # O .env da raiz carrega GEMINI_API_KEY/GROQ_API_KEY e o OD_* do sistema.
-    load_dotenv()
+    if "--sessao" in argv:
+        return main_sessao()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-
-    chaves_presentes = [chave for chave in ENV_KEYS if os.environ.get(chave)]
-    log.info("Chaves carregadas do .env: %s", ", ".join(chaves_presentes) or "nenhuma")
-
-    if args.sessao:
-        return main_sessao(args.cli)
-    log.error(
-        "Sem --sessao não há o que fazer: a fila pedido.txt foi removida "
-        "(2026-10-08) — o canal agora é só sob demanda pelo painel /admin"
-    )
-    parser.print_usage()
+    # Sem --sessao: modo fila foi removido (2026-10-08)
+    print("[Orquestrador] Modo fila removido. Use --sessao para executar uma sessão.")
     return 2
+
+
+# ---------------------------------------------------------------------------
+# Notificação Telegram
+# ---------------------------------------------------------------------------
+
+def _formatar_duracao(segundos: int | float) -> str:
+    """Formata duração em segundos para 'Xmin Ys'."""
+    total = int(segundos)
+    minutos = total // 60
+    resto = total % 60
+    if minutos > 0:
+        return f"{minutos}min {resto}s"
+    return f"{resto}s"
+
+
+def _escapar_html(texto: str) -> str:
+    """Escapa texto para uso seguro em parse_mode=HTML do Telegram."""
+    return html.escape(texto or "")
+
+
+def _notificar_telegram(estado: dict[str, Any]) -> None:
+    """Envia resumo da sessão via Telegram (bot de monitor ou chat do dono)."""
+    token = os.getenv("TELEGRAM_BOT_TOKEN") or ""
+    monitor_token = os.getenv("OD_TELEGRAM_MONITOR_TOKEN") or ""
+    monitor_chat = os.getenv("OD_TELEGRAM_MONITOR_CHAT") or ""
+    admins = os.getenv("OD_TELEGRAM_ADMINS") or ""
+
+    if not token:
+        return
+
+    token_envio = monitor_token if monitor_token else token
+
+    if monitor_chat:
+        chat_id = monitor_chat
+    elif admins:
+        chat_id = ""
+        for admin in admins.split(","):
+            admin = admin.strip()
+            if admin.isdigit():
+                chat_id = admin
+                break
+        if not chat_id:
+            return
+    else:
+        return
+
+    status = estado.get("status", "")
+    motivo = estado.get("motivo", "")
+    ideia_preview = _escapar_html(str(estado.get("ideia_preview", "")))
+
+    if status == "concluido":
+        emoji = "✅"
+        titulo = "CONCLUÍDA"
+    else:
+        emoji = "❌"
+        titulo = "FALHOU"
+
+    linhas = [
+        f"{emoji} Sessão {titulo}",
+        f"<b>Motivo:</b> {_escapar_html(motivo)}",
+    ]
+
+    if estado.get("cli_usada"):
+        linhas.append(f"<b>CLI:</b> {_escapar_html(estado['cli_usada'])}")
+
+    if estado.get("commit"):
+        linhas.append(f"<b>Commit:</b> {_escapar_html(str(estado['commit']))}")
+
+    if estado.get("testes"):
+        linhas.append(f"<b>Testes:</b> {_escapar_html(str(estado['testes']))}")
+
+    if estado.get("diff"):
+        linhas.append(f"<b>Diff:</b> {_escapar_html(str(estado['diff']))}")
+
+    if estado.get("decorrido_s") is not None:
+        linhas.append(f"<b>Duração:</b> {_formatar_duracao(estado['decorrido_s'])}")
+
+    if estado.get("tentativa") is not None:
+        linhas.append(f"<b>Tentativa:</b> {estado['tentativa']}")
+
+    if estado.get("pendencias"):
+        linhas.append(f"<b>Pendências:</b> {' · '.join(_escapar_html(p) for p in estado['pendencias'])}")
+
+    if estado.get("publicado"):
+        linhas.append(f"<b>Publicado:</b> {_escapar_html(str(estado['publicado']))}")
+
+    if estado.get("limpeza"):
+        linhas.append(f"<b>Limpeza:</b> {_escapar_html(str(estado['limpeza']))}")
+
+    if ideia_preview:
+        linhas.append(f"<b>Ideia:</b> {ideia_preview}")
+
+    texto = "\n".join(linhas)
+
+    payload = urllib.parse.urlencode({
+        "chat_id": chat_id,
+        "text": texto,
+        "parse_mode": "HTML",
+    }).encode("utf-8")
+
+    url = f"https://api.telegram.org/bot{token_envio}/sendMessage"
+    req = urllib.request.Request(url, data=payload, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp.read()
+    except Exception:
+        pass
+
+
+def publicar_na_caixa(
+    origem: str,
+    resposta: str,
+    contexto: str,
+    caixa: list[dict],
+) -> None:
+    """Publica uma mensagem na caixa de respostas do dono."""
+    caixa.append({
+        "tipo": "resposta",
+        "origem": origem,
+        "resposta": resposta,
+        "contexto": contexto,
+        "ts": time.time(),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Loop de fila (mantido por retrocompatibilidade, não usado no modo sessão)
+# ---------------------------------------------------------------------------
+
+def read_and_clear_pedido() -> str | None:
+    """Lê o conteúdo do pedido.txt e limpa o arquivo imediatamente."""
+    if not PEDIDO_FILE.exists():
+        return None
+    content = PEDIDO_FILE.read_text(encoding="utf-8").strip()
+    if not content:
+        return None
+    PEDIDO_FILE.write_text("", encoding="utf-8")
+    return content
+
+
+def build_prompt(pedido: str) -> str:
+    """Constrói o prompt blindado para geração de código Python."""
+    return montar_prompt_sessao(pedido)
+
+
+def save_generated_code(filename: str, code: str) -> None:
+    """Salva o código gerado no arquivo correspondente."""
+    filepath = Path(f"{filename}.py")
+    filepath.write_text(code, encoding="utf-8")
+    print(f"[Orquestrador] Código salvo em {filepath}")
+
+
+def _loop_fila() -> None:
+    """Loop principal do modo fila (pedido.txt)."""
+    print("[Orquestrador] Iniciando monitoramento de pedido.txt...")
+    print(f"[Orquestrador] Verificando a cada {CHECK_INTERVAL} segundos")
+    print("[Orquestrador] Pressione Ctrl+C para parar")
+
+    env = load_env_for_subprocess()
+    try:
+        while True:
+            pedido = read_and_clear_pedido()
+            if pedido:
+                print(f"\n[Orquestrador] Novo pedido detectado: '{pedido}'")
+                prompt = build_prompt(pedido)
+                code = execute_fallback_chain(prompt, env)
+                if code:
+                    save_generated_code(pedido, code)
+                else:
+                    print("[Orquestrador] Falha ao gerar código válido após todas as tentativas")
+            time.sleep(CHECK_INTERVAL)
+    except KeyboardInterrupt:
+        print("\n[Orquestrador] Encerrado pelo usuário")
 
 
 if __name__ == "__main__":

@@ -954,10 +954,20 @@ esperar o timeout.
 - [x] Chat: `llm_cache` ainda pode servir resposta inventada de **conversa
       comum** (o guarda atual só bloqueia comando de action) — **ENTREGUE 17/11:**
       `_resposta_do_cache()` valida na LEITURA com as guardas atuais e apaga a
-      entrada inválida (vira MISS); `cache_failure_reason` ganhou a invenção
-      "Estado verificado / já verifiquei" (caso de 14/11) e o aviso
+      entrada inválida (vira MISS), no cache exato e no semântico; o aviso
       "⚠️ Não executei nada" saiu do cache; 7 testes novos
-      (`TestCacheDeConversa`), gate verde, sem bump.
+      (`TestCacheDeConversa`), gate verde, sem bump. Medido no cache vivo: 4 de
+      144 entradas passaram a ser recusadas (1 invenção de agenda + 3 avisos).
+- [ ] Anti-falso-sucesso: `_FAKE_ACTION_RES` só cobre agenda/compromisso —
+      "Radio ligada com sucesso" / "Volume definido para 20%" inventados por
+      conversa comum passam e podem ir para o dono/cache (visto no cache vivo
+      em 17/11). Motivo de não estar junto do P0: ampliar a regex exige saber
+      quais frases a rota de AÇÃO realmente devolve, senão troca invenção por
+      recusa legítima.
+- [ ] Chat: `llm_cache` não guarda resposta de modelo local — **testado e
+      descartado em 17/11:** sem evidência de erro (as invenções reais foram
+      de nuvem) e derruba o cache normal (`test_second_identical_message_hits_cache`).
+      Fica aberto só se aparecer caso real de palpite do 3B cacheado.
 
 > Turno de 12/11 09:35 (higiene de 11/11 publicada): sugestões mostradas e não
 > escolhidas → "tapar os buracos de intenção" e "resolver o `Saída:

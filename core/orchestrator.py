@@ -329,20 +329,13 @@ _CACHE_BAN_ESTADO_PAGINA = re.compile(
     r'^\s*["\u201c]?em constru[çc][aã]o', re.IGNORECASE
 )
 
-# 17/11 (P0 do TODO): alegação de verificação que o OD NÃO fez. Caso real de
-# 14/11 — "quais os tipos de usuários de OD" voltou com "Estado verificado."
-# e cinco papéis inventados; a frase era palpite do modelo sem fonte nenhuma.
-# Cacheada, a invenção voltava instantaneamente para sempre, inclusive depois
-# do conserto (o cache é servido ANTES do anti-recusa). Não pega resposta
-# legítima de fonte ("informação verificada na fonte X") nem fastpath de ação
-# (que não passa por aqui).
-_CACHE_BAN_VERIFICACAO_FALSA = re.compile(
-    r"\b(?:estado|sistema|status|tudo)\s+(?:j[áa]\s+)?verificad[oa]\b"
-    r"|\bj[áa]\s+verifiquei\b"
-    r"|\bverifiquei\s+(?:no|os?|as?|todos?)\s+"
-    r"(?:sistema|servidor|banco|registro|logs?)\b",
-    re.IGNORECASE,
-)
+# 17/11 (P0 do TODO) — NÃO banir "Estado verificado.": a frase é a
+# assinatura da Guardian no prompt de personalidade
+# (agents/nicky_virthy/personality.py: "Frase-assinatura para relatos de
+# estado"). Medido no cache vivo: a regra recusava 28 de 145 entradas e
+# barraria quase toda resposta nova — mataria o cache em troca de nada. O que
+# distingue invenção é o CONTEÚDO sem fonte (ex.: "Radio ligada com sucesso"
+# sem ação nenhuma), e isso o anti-falso-sucesso já pega.
 
 
 
@@ -388,9 +381,6 @@ def cache_failure_reason(text: str) -> str:
     # v1.15.0 (§15): placeholder do sistema como resposta ('Em construção…').
     if _CACHE_BAN_ESTADO_PAGINA.match(lowered):
         return "estado de página (Em construção) — não é conteúdo"
-    # 17/11: alegação de verificação sem fonte ("Estado verificado.").
-    if _CACHE_BAN_VERIFICACAO_FALSA.search(candidate):
-        return "verificação alegada sem fonte (invenção)"
     return ""
 
 

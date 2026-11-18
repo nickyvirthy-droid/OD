@@ -1,7 +1,7 @@
 # IAs disponíveis nesta máquina — inventário e medição
 
 > **Antes de pesquisar IAs de novo, leia este documento.** Ele foi medido em
-> **05/11/2026** e existe para não repetir a pesquisa (ordem do dono:
+> **18/11/2026** e existe para não repetir a pesquisa (ordem do dono:
 > *"sempre guarde essas informações para não ser preciso refazer essas
 > pesquisas"*). Só reavalie quando: (a) entrar chave/crédito novo; (b) mudar o
 > hardware; (c) um provedor mudar de comportamento (registre a data da nova
@@ -35,17 +35,34 @@ há chave de IA adicional lá.
 
 ### CLIs de agente de código instalados
 
-Estão em `/home/alex/.npm-global/bin` (fora do `PATH` padrão) e no venv do OD.
+Estão em `/home/alex/.npm-global/bin`, em `/opt/omegadrakon/builders` e no
+venv do OD. O menu `od` (`tools/od.sh`, doc em `docs/OD_MENU_CLIS.md`) abre
+todas elas em janelas tmux persistentes.
 
 | CLI | Caminho | Versão / estado | Uso em lote |
 |---|---|---|---|
-| `freebuff` | `/usr/local/bin/freebuff` | 0.2.36 | agente interativo (TUI); `--help` só expõe `login`/`doctor` — não serve como API |
-| `opencode` | `~/.npm-global/bin/opencode` | instalado | `opencode run --standalone --model <provider/modelo> "..."`; **a chave Google dele está inválida** (`API key not valid`) e o modelo `opencode/nemotron-3-ultra-free` citado no `orquestrador.py` **não existe mais** |
-| `kilo` / `kilocode` | `~/.npm-global/bin/kilo` | 7.8.1 | `kilo run --model <id> "..."`; **pede login** (`You need to sign in to use this model`); ids mudaram (`kilo/~google/gemini-flash-latest` etc.) |
-| `aider` | `OmegaDrakon/.venv/bin/aider` | instalado | precisa de modelo/credencial utilizável (OpenAI está sem créditos) |
+| `freebuff` | `/usr/local/bin/freebuff` | 0.2.36 | **LIMITE DIÁRIO ATINGIDO 18/11** — só TUI interativo (`login`/`doctor`); não aceita prompt via CLI/argumento; não serve como API |
+| `opencode` | `~/.npm-global/bin/opencode` → `@opencode/cli/bin/opencode.exe` | **2.3.2 (consertado 18/11)** | `opencode run --standalone --model <provider/modelo> "..."`; postinstall foi refeito e os pacotes de plataforma truncados, reinstalados; chave Google/modelo `opencode/nemotron-3-ultra-free` continuam inválidos |
+| `kilo` / `kilocode` | `~/.npm-global/lib/node_modules/@kilocode/cli/bin/kilo` | 7.8.27 | `kilo run --auto "..."` **FUNCIONOU 18/11** (gerou `previsao_tempo.py` válido); **limite diário atingido após 1 uso**; pede login para modelos (`You need to sign in`); ids mudam (`kilo/~google/gemini-flash-latest` etc.) |
+| `aider` | `OmegaDrakon/.venv/bin/aider` | 0.86.2 | precisa de modelo/credencial utilizável (OpenAI está sem créditos) |
+| `agy` | `~/.local/bin/agy` | 1.5.9 | CLI de agente (TUI); modelo/credencial conforme configuração local |
+| `openclaude` | `~/OpenClaude-Portable-main/start.sh` | engine 0.32.0 | launcher portátil (menu próprio); provedor em `data/ai_settings.env` |
+| `openclaw` | `/opt/omegadrakon/builders/openclaw/bin/openclaw` | 2026.7.1-2 | `openclaw chat` (TUI) / `agent`; gateway próprio |
+| `interpreter` | `/opt/omegadrakon/builders/open-interpreter/.venv/bin/interpreter` | 0.4.3 | TUI do Open Interpreter |
+| `claude` | `~/.npm-global/bin/claude` | **2.1.327 (instalado 18/11)** | TUI do Claude Code |
+| `codex` | `~/.npm-global/bin/codex` | **0.170.0 (instalado 18/11)** | TUI do OpenAI Codex |
+| `gemini` | `~/.npm-global/bin/gemini` | **0.68.0 (instalado 18/11)** | TUI do Gemini CLI |
+| `qwen` | `~/.npm-global/bin/qwen` | **0.28.0 (instalado 18/11)** | TUI do Qwen Code |
+| `crush` | `~/.npm-global/bin/crush` | **0.101.0 (instalado 18/11)** | TUI do Crush |
+| `cline` | `~/.npm-global/bin/cline` | **3.0.74 (instalado 18/11)** | TUI do Cline |
+
+**Nenhuma CLI de código ausente:** `od doctor` fecha em 14/14. As CLIs npm
+rodam com o Node 22.23.5 por usuário (`~/.local/opt/node`), porque o Node 18
+do sistema não suporta Gemini/Codex/Claude; o Node do sistema não foi mexido.
 
 > Conclusão: os CLIs são ferramentas de **código**, não motor de lote. Hoje
 > nenhum deles está pronto para ser chamado dezenas de vezes por um pipeline.
+> **freebuff e kilo têm limite diário baixo (1-5 req/dia)** — esgotados em 18/11.
 
 ## 2. Medição (o que decidiu a escolha)
 
@@ -124,6 +141,7 @@ que a nuvem sempre responde) é o que sustenta o chat.
 
 | Data | O que mudou |
 |---|---|
+| 2026-11-18 | **Limites diários de CLIs atingidos**: freebuff (só TUI, sem API CLI), kilo (1 uso = limite diário excedido), opencode (postinstall falhou). Testado kilo run --auto → gerou previsao_tempo.py válido com AST. Orquestrador atualizado para usar Kilo (caminho absoluto) + llama-server local como fallback real. freebuff removido da cadeia (não suporta prompt via argumento). **No mesmo dia o opencode foi reinstalado (2.3.2), o menu virou `od` (antes `oc`), o Claude Code 2.1.327 foi instalado e depois Codex/Gemini/Qwen/Crush/Cline (14/14), com Node 22 por usuário** — ver `docs/OD_MENU_CLIS.md`. |
 | 2026-11-05 | inventário inicial + benchmark (Gemini 3 Flash escolhido; Groq reserva; OpenAI sem créditos; CLIs sem login) |
 | 2026-11-06 | `GEMINI_API_KEY` do `.env` passou a devolver `400 API_KEY_INVALID` com header e em `/v1beta/models` (3×) — chave revogada/expirada; Groq segue 200. Cadeia efetiva hoje: Groq → local. Nenhuma IA identifica artista só pelo título (Groq e local devolveram `Desconhecido` para "Tempo Perdido") |
 | 2026-11-11 | **Chat do core na cadeia completa**: Gemini → Groq → local (`OD_CHAT_PROVIDERS`). Gemini p50 ≈ 2,4 s × local p50 ≈ 7,7 s nos mesmos 6 prompts; Groq 0,48 s; OpenAI segue sem créditos (429 nas duas chaves). Cota gratuita do Gemini estoura em rajada (429 na 2ª chamada). |

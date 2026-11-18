@@ -1087,9 +1087,11 @@ P0: impedir que o llm_cache sirva resposta inventada de conversa comum"*.
 
 - `core/orchestrator.py` — `cache_serve_reason()` (guarda de leitura),
   `_resposta_do_cache()` (valida, apaga a entrada inválida e devolve MISS) nos
-  dois pontos de leitura (stream e grafo, cache exato e semântico);
-  `_CACHE_BAN_VERIFICACAO_FALSA` em `cache_failure_reason()`; prefixo
-  `"⚠️ não executei nada"` em `_CACHE_BAN_PREFIXES`.
+  dois pontos de leitura (stream e grafo, cache exato e semântico); prefixo
+  `"⚠️ não executei nada"` em `_CACHE_BAN_PREFIXES`. **Não** foi banida a frase
+  "Estado verificado." (é a assinatura da Guardian no prompt de personalidade)
+  nem a resposta de modelo local — as duas regras foram testadas, medidas e
+  retiradas (ver transcrição §19).
 - `tests/test_orchestrator.py` — `TestCacheDeConversa` (7 testes).
 - `tests/test_radio_cantores.py` — assertion do dia do resumo passou a usar a
   data **local** (ficava vermelha entre 21h e meia-noite local).
@@ -1102,5 +1104,6 @@ P0: impedir que o llm_cache sirva resposta inventada de conversa comum"*.
   leitura, resposta inventada (e entrada gravada antes de um ban novo) era
   servida para sempre.
 - **Pronto/validado:** gate completo **5381 passed / 19 skipped / 0 falha**;
-  `tests/test_orchestrator.py` + `tests/test_api.py` 276 passed.
+  `tests/test_orchestrator.py` + `tests/test_api.py` 277 passed. Cache vivo:
+  4 de 144 entradas recusadas pelas guardas (invenção de agenda + avisos).
 - **Sem bump:** correção de servidor, contrato do app intacto (1.46.0+2083).

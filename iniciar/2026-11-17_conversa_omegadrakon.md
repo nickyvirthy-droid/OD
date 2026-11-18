@@ -842,33 +842,37 @@ Implementado:
    Inválida → loga o motivo, **apaga** a entrada (`cache.delete()`) e devolve
    MISS: o turno segue para o LLM como se nunca tivesse sido cacheada. Nos dois
    caminhos (stream e grafo).
-2. **`cache_failure_reason` ganhou a invenção de conversa** do caso de 14/11:
-   "Estado verificado.", "já verifiquei", "verifiquei no sistema/servidor/banco"
-   não são conteúdo — são alegação de verificação sem fonte. Resposta legítima
-   de fonte ("informação verificada na fonte X") continua cacheável.
-3. **O aviso do anti-falso-sucesso saiu do cache**: `"⚠️ Não executei nada…"`
+2. **O aviso do anti-falso-sucesso saiu do cache**: `"⚠️ Não executei nada…"`
    é mensagem do turno, não conhecimento — cacheada, toda repetição da frase
    mostraria o aviso em vez de tentar a rota de ação de novo.
 
-Descartado depois de medir: **não cachear resposta de modelo local**
-(`gemma-local`/`local`). Parecia boa ideia ("palpite do 3B vira permanente"),
-mas a evidência não sustenta: os dois casos reais de invenção foram de modelo
-de nuvem, e a regra derrubou `test_second_identical_message_hits_cache` e
-`test_resposta_normal_continua_cacheavel` — o cache normal (`route=cache`, sem
-chamar o modelo) é comportamento **desejado** e vale também nos dias de cota
-estourada. Ficou registrado no teste `test_guarda_nao_quebra_o_cache_normal`:
-a guarda é sobre invenção **detectável**, não sobre qual modelo respondeu.
+**Duas regras foram escritas e depois RETIRADAS, com medição na mão:**
+
+- **Banir "Estado verificado."** parecia o alvo natural (foi a frase do caso de
+  14/11). Errado: `agents/nicky_virthy/personality.py:79` define a frase como
+  *"Frase-assinatura para relatos de estado"* da Guardian. O modelo a repete
+  por instrução — `grep` nos relatórios de auditoria mostra a assinatura em
+  quase toda resposta do Groq. Medido no cache vivo: a regra recusava **28 de
+  145** entradas e barraria praticamente toda resposta nova; o cache morreria
+  em troca de nada. O que denuncia invenção é o CONTEÚDO sem fonte.
+- **Não cachear resposta de modelo local** (`gemma-local`/`local`): sem
+  evidência (as invenções reais foram de nuvem) e derrubou
+  `test_second_identical_message_hits_cache` e
+  `test_resposta_normal_continua_cacheavel` — o cache normal (`route=cache`,
+  sem chamar o modelo) é comportamento **desejado** e vale também nos dias de
+  cota estourada. Virou o teste `test_guarda_nao_quebra_o_cache_normal` e um
+  checkbox no TODO (reabrir só com caso real).
 
 ### 3. Testes (`TestCacheDeConversa`, 7 novos)
 
-- invenção de verificação não é cacheada;
-- entrada envenenada (`[INFO] …`) é descartada, **apagada**, e o turno é refeito
-  pelo LLM (a entrada inválida não volta; o cache passa a guardar a resposta
-  nova);
+- entrada envenenada (`[INFO] …`) é descartada, **apagada**, e o turno é
+  refeito pelo LLM (a entrada inválida não volta; o cache passa a guardar a
+  resposta nova);
+- aviso do turno (`⚠️ Não executei nada…`) cacheado vira MISS e é apagado;
 - falso sucesso cacheado não é servido (`cached` não é True);
-- `"⚠️ Não executei nada…"` não é cacheável;
 - cache bom continua instantâneo (`route=cache`, modelo não chamado);
-- resposta comum (inclusive do modelo local) continua cacheável.
+- resposta comum (inclusive do modelo local) continua cacheável;
+- a assinatura "Estado verificado." **não** bloqueia o cache.
 
 ### 4. Achado no gate (não é do P0, foi corrigido)
 
@@ -879,10 +883,17 @@ O gate completo falhou em
 meia-noite local o UTC já virou o dia e o teste ficava vermelho sem nada mudar
 no código. Assertion corrigida para `agora.astimezone().date()`.
 
-### 5. Validação
+### 5. Medição no cache vivo (PostgreSQL)
+
+Varredura das entradas existentes com `cache_serve_reason()`: **144
+entradas, 4 recusadas** — uma invenção de agenda ("📅 Marquei o compromisso…"
+sem ação) e três avisos do turno. São exatamente as que voltavam para o dono
+sem passar por guarda nenhuma.
+
+### 6. Validação
 
 - Gate de trabalho: `tests/test_orchestrator.py` + `tests/test_api.py`
-  → **276 passed**.
+  → **277 passed**.
 - **Gate completo: 5381 passed / 19 skipped / 0 falha** (`python3 -m pytest -q`).
 - `tests/test_radio_cantores.py` 28 passed.
 - **Sem bump** — 1.46.0+2083 (correção de servidor; contrato do app intacto).

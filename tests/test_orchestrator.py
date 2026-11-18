@@ -1164,12 +1164,17 @@ class TestCacheDeConversa:
 
     PERGUNTA = "me fale sobre o mar de Ubatuba"
 
-    async def test_verificacao_inventada_nao_e_cacheada(self, tmp_path: Path) -> None:
+    async def test_assinatura_da_guardia_nao_bloqueia_o_cache(
+        self, tmp_path: Path
+    ) -> None:
+        """"Estado verificado." é a assinatura da Guardian no prompt de
+        personalidade (agents/nicky_virthy/personality.py), não prova de
+        invenção: banir a frase recusava 28 de 145 entradas do cache vivo.
+        """
         from core.orchestrator import cache_failure_reason
 
-        provider = RecordingProvider(
-            "gemini", "Os papéis são admin, operator e auditor. Estado verificado."
-        )
+        resposta = "Os papéis são admin, agent, familia, user e router. Estado verificado."
+        provider = RecordingProvider("gemini", resposta)
         cache = _cache(tmp_path)
         orch = Orchestrator(
             providers=[provider], history=_history(tmp_path), cache=cache
@@ -1177,10 +1182,30 @@ class TestCacheDeConversa:
 
         await orch.process("alex", "guardian", self.PERGUNTA)
 
-        assert cache.get(self.PERGUNTA, profile="guardian") is None
-        assert "invenção" in cache_failure_reason(
-            "Os papéis são admin. Estado verificado."
+        assert cache_failure_reason(resposta) == ""
+        assert cache.get(self.PERGUNTA, profile="guardian") == resposta
+
+    async def test_aviso_do_turno_cacheado_vira_miss_e_e_apagado(
+        self, tmp_path: Path
+    ) -> None:
+        """"⚠️ Não executei nada…" não é conhecimento: cacheado, repetir a
+        frase mostraria o aviso em vez de tentar a rota de ação de novo."""
+        aviso = (
+            "⚠️ Não executei nada — compromisso só é criado pela rota de ação: "
+            "você vê a confirmação e responde 'sim'."
         )
+        cache = _cache(tmp_path)
+        cache.set(self.PERGUNTA, aviso, profile="guardian")
+        provider = RecordingProvider("gemini", "resposta nova")
+        orch = Orchestrator(
+            providers=[provider], history=_history(tmp_path), cache=cache
+        )
+
+        result = await orch.process("alex", "guardian", self.PERGUNTA)
+
+        assert result.message == "resposta nova"
+        assert len(provider.prompts) == 1
+        assert cache.get(self.PERGUNTA, profile="guardian") == "resposta nova"
 
     async def test_guarda_nao_quebra_o_cache_normal(self, tmp_path: Path) -> None:
         """Resposta comum (inclusive do modelo local) continua cacheável.

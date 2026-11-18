@@ -118,6 +118,7 @@ node_modules/
 # versionado. Logs (incl. Home Assistant) já caem no *.log.
 /codigo_gerado.py
 /instrucoes_projeto.txt
+/pedido.txt
 
 # Temporary files
 *.tmp

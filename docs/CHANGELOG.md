@@ -12,6 +12,56 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## `od` vira menu de CLIs e OpenCode é consertado (2026-11-18, sem bump; script 1.2.0)
+
+**Contexto:** o comando `oc` abria só o OpenCode e procurava o binário em
+`~/.npm-global/bin/opencode`, caminho que não existia; a instalação do
+OpenCode estava com postinstall pendente e pacotes de plataforma truncados.
+O nome `oc` vinha de *OpenCode*; para alinhar ao OmegaDrakon, o comando foi
+renomeado para **`od`**.
+
+### O que mudou
+
+1. **`tools/od.sh` (novo, canônico; antes `tools/oc.sh`)** — `~/bin/od` é
+   symlink para ele e o antigo `~/bin/oc` foi removido; variáveis passaram de
+   `OC_*` para `OD_*`. Sem argumentos abre menu com as CLIs instaladas
+   (OpenCode, Kilo, Freebuff, Aider, `agy`, OpenClaude, OpenClaw, Open
+   Interpreter, Claude Code, Codex, Gemini, Qwen, Crush, Cline) e as ausentes
+   com a instrução de instalação. Cada CLI roda em janela tmux própria,
+   persistente. O nome `od` sombreia `/usr/bin/od` (octal dump) quando
+   `~/bin` vem antes no `PATH`; o doc registra o caminho absoluto.
+2. **OpenCode 2.3.2** — reinstalado com `--prefix "$HOME/.npm-global"` após
+   remover o diretório temporário `.cli-LSFT7WqA` (915 MB) que bloqueava o
+   npm com `ENOTEMPTY`; postinstall executado e `opencode --version` verde.
+3. **OpenClaude Portable** — `start.sh` passou a exportar
+   `NVIDIA_API_KEY="${NVIDIA_API_KEY:-$OPENAI_API_KEY}"` quando o provedor é
+   NVIDIA NIM, destravando o engine.
+4. **Claude Code 2.1.327** — instalado pela própria receita do menu
+   (`@anthropic-ai/claude-code` com `--prefix "$HOME/.npm-global"`).
+5. **Codex, Gemini, Qwen, Crush e Cline** — instalados no mesmo prefixo
+   (0.170.0, 0.68.0, 0.28.0, 0.101.0 e 3.0.74). Fecha o inventário em
+   **14/14**; o menu não lista mais nenhuma ausente.
+6. **Node 22.23.5 por usuário** — o Gemini quebrava no Node 18 do sistema
+   (`SyntaxError: Invalid regular expression flags`, regex `/v` exige >=20),
+   e Claude/Codex pedem >=22. Instalado em `~/.local/opt/node` (tarball
+   oficial com SHA-256 conferido), com `PATH` no `.bashrc` e no `od`, que
+   também atualiza o ambiente do servidor tmux. O Node do sistema (18.19.1)
+   permanece intacto.
+
+### Evidência
+
+- `od doctor`: 14 instaladas, 0 ausentes; OpenCode `v2.3.2`, Kilo `7.8.27`,
+  Freebuff `0.2.36`, Aider `0.86.2`, `agy` `1.5.9`, OpenClaw `2026.7.1-2`,
+  Claude Code `2.1.327`, Codex `0.170.0`, Gemini `0.68.0`, Qwen `0.28.0`,
+  Crush `0.101.0`, Cline `3.0.74`.
+- As cinco novas CLIs foram abertas em sessões tmux descartáveis e chegaram
+  à tela inicial (login do Codex/Cline, trust do Gemini, onboarding do Qwen,
+  inicialização do Crush), sem erro de runtime.
+- Janela tmux real do OpenCode aberta em sessão de teste e capturada com a
+  TUI 2.3.2; janela do OpenClaude passou da checagem de chave e chegou ao
+  engine (só falhou o raw mode por não haver TTY no teste).
+- Documentação: `docs/OD_MENU_CLIS.md` e `docs/IAS_DISPONIVEIS.md`.
+
 ## Cache de conversa não serve mais resposta inventada (2026-11-17, sem bump)
 
 **Contexto:** P0 da revisão do TODO — "`llm_cache` ainda pode servir resposta
@@ -28,24 +78,42 @@ inclusive depois do conserto.
    cacheável é **descartada e apagada** e vira MISS: o turno segue para o LLM
    como se nunca tivesse sido cacheada. Vale para o cache exato e o semântico,
    nos dois caminhos (stream e grafo).
-2. **`cache_failure_reason` ganhou a invenção de conversa medida em 14/11:**
-   alegação de verificação que o OD não fez — "Estado verificado.",
-   "já verifiquei", "verifiquei no sistema" — caso real em que o modelo
-   inventou cinco papéis de usuário e disse "Estado verificado" sem fonte.
-   Resposta legítima de fonte ("informação verificada na fonte X") continua
-   cacheável.
-3. **O aviso do anti-falso-sucesso não entra no cache:** `"⚠️ Não executei
+2. **O aviso do anti-falso-sucesso não entra no cache:** `"⚠️ Não executei
    nada…"` é mensagem do turno, não conhecimento — cacheada, toda repetição
    da frase mostraria o aviso em vez de tentar a rota de ação de novo.
+
+**Medição no cache vivo (PostgreSQL, 144 entradas):** 4 são recusadas pelas
+regras de hoje — uma invenção de agenda ("📅 Marquei o compromisso…" sem
+ação) e três avisos do turno. Eram exatamente as que voltavam para o dono.
+
+### O que foi descartado (e por quê)
+
+Cheguei a banir "Estado verificado." como prova de invenção e a não cachear
+resposta de modelo local. **As duas caíram depois de medir:**
+
+- "Estado verificado." é a **frase-assinatura da Guardian no prompt de
+  personalidade** (`agents/nicky_virthy/personality.py`), não sinal de
+  invenção — a regra recusava **28 de 145** entradas e barraria quase toda
+  resposta nova (o cache morreria em troca de nada). O que denuncia invenção
+  é o CONTEÚDO sem fonte, e isso o anti-falso-sucesso já pega quando é ação.
+- bloquear o modelo local (`gemma-local`) derrubou
+  `test_second_identical_message_hits_cache` e
+  `test_resposta_normal_continua_cacheavel`: cache normal (`route=cache`, sem
+  chamar o modelo) é comportamento desejado também em dia de cota estourada.
+  Ficou registrado em `test_guarda_nao_quebra_o_cache_normal`.
 
 ### Validação
 
 - **7 testes novos** em `tests/test_orchestrator.py::TestCacheDeConversa`:
-  invenção de verificação não é cacheada; entrada envenenada é descartada,
-  apagada e o turno refeito; falso sucesso cacheado não é servido; aviso do
-  anti-falso-sucesso não é cacheável; cache bom continua instantâneo (route
-  `cache`, modelo não chamado); resposta comum (inclusive do modelo local)
-  continua cacheável.
+  entrada envenenada (`[INFO] …`) é descartada, apagada e o turno refeito;
+  aviso do turno cacheado vira MISS; falso sucesso cacheado não é servido;
+  cache bom continua instantâneo (route `cache`, modelo não chamado);
+  resposta comum (inclusive do modelo local) continua cacheável; e a
+  assinatura "Estado verificado." **não** bloqueia o cache.
+- Achado no caminho: o anti-falso-sucesso (`_FAKE_ACTION_RES`) só cobre
+  agenda/compromisso — "Radio ligada com sucesso" inventado por conversa não
+  é pego. Registrado como checkbox novo no `docs/ANALISE_SISTEMA_TODO.md`
+  (fora do escopo deste P0).
 - `tests/test_orchestrator.py` + `tests/test_api.py` **276 passed**; gate
   completo verde (número registrado em `iniciar/`).
 - **Sem bump:** 1.46.0+2083 (correção de servidor; contrato do app intacto).
