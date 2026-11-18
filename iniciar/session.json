@@ -6363,6 +6363,6 @@
     "limites": "Mensagem ja enviada nao e apagada (historico); item vencido aparece no card por ate 60 s ate o timer limpar.",
     "sem_bump": "1.46.0+2083.",
     "docs": "docs/CHANGELOG.md (secao nova), iniciar/2026-11-18_conversa_omegadrakon.md §14, iniciar/ATRIBUICOES.md.",
-    "telegram": "pendente de envio (regra 15)."
+    "telegram": "ok=true msg_id=4063 (regra 15)."
   }
 }

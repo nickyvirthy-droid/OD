@@ -38,7 +38,7 @@ aparecer").
 - **Limites:** a mensagem antiga que já está no Telegram/app não é apagada
   (é histórico); o que para é o reenvio. Faixa vencida entre o prazo e a
   limpeza (≤ 60 s) ainda aparece no card até o timer rodar.
-- **Sem bump:** 1.46.0+2083.
+- **Sem bump:** 1.46.0+2083; commit `02a1a31` em `origin/master`; Telegram `4063` (regra 15).
 
 ---
 
@@ -177,7 +177,7 @@ reais) e a pergunta de como operar o orquestrador.
   alterar a árvore.
 - **Pela metade (declarado):** medir quanto do brief a CLI realmente usa; a
   rota nova do painel só vale após restart do `od-core` (regra 7.3).
-- **Sem bump:** 1.46.0+2083.
+- **Sem bump:** 1.46.0+2083; commit `02a1a31` em `origin/master`; Telegram `4063` (regra 15).
 
 ---
 
