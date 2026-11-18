@@ -12,6 +12,51 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## I2 (Hybrid Search) fiado no RAG — medido e mantido DESLIGADO (2026-11-18, sem bump)
+
+**Contexto:** P1 nº 5 — o módulo `core/hybrid_search.py` (BM25 + denso + RRF +
+reranker) existia e estava testado, mas o RAG (`memory/rag.py`) só usava o
+cosseno do store. O item pedia fiação **com medição antes/depois**; a medição
+é justamente o que decidiu o default.
+
+**O que entrou:**
+
+| Item | Detalhe |
+|---|---|
+| `core/hybrid_search.py` | `tokenizar()` e `fundir_rrf()` viraram funções de módulo — o RAG precisa do MESMO tokenizador do BM25 (tokenizar consulta e documento de jeitos diferentes quebra o índice sem erro) |
+| `memory/vector.py` | propriedade pública `provider` — o candidato lexical precisa ser embedado pelo MESMO provider da indexação para o cosseno ser comparável |
+| `memory/rag.py` | `hibrido=` (env `OD_RAG_HIBRIDO`, padrão **0**): o `sync()` monta `BM25Index` sobre os mesmos chunks (sem reembeddar nem persistir) e o `_consultar()` une os candidatos lexicais por `doc_id`, **calculando o cosseno real** de cada um. O piso duplo e o reranker ficam intactos |
+| `tools/medir_rag_hibrido.py` | medidor reproduzível: mesmo store/corpus, desligado × ligado, com as perguntas do gate + as 2 paráfrases estruturais |
+| `tests/test_rag.py` | `TestHibrido` (5 testes): default OFF, índice com os mesmos chunks, env, união lexical e não-união quando desligado |
+
+**Medição (corpus real, 3815 chunks; 394 candidatos lexicais adicionados):**
+
+| Grupo | Desligado | Ligado |
+|---|---|---|
+| 8 relevantes com trecho | 8/8 | 8/8 |
+| 8 irrelevantes bloqueadas | **8/8** | **6/8** (2 injetaram trecho) |
+| 6 paráfrases com trecho | 6/6 | 6/6 |
+| 2 estruturais (perdidas declaradas) | 2/2 | 2/2 |
+
+Ganho real encontrado: numa pergunta relevante (eval do assistente) o chunk
+`[1.24.2] — EVAL DO ASSISTENTE` entrou no bloco e duas paráfrases ganharam
+mais trechos. Mas o custo é o gate: **um termo raro presente no chunk sem
+responder à pergunta dá `overlap=1.0`** ("basquete" num release) e o piso
+combinado aprova. Sem recalibrar o piso com grid medido, ligar seria trocar
+precisão por recall no escuro — então o default é **OFF**.
+
+**Efeito colateral medido e corrigido:** o texto novo deste registro mudou o
+IDF do corpus e **derrubou o gate de calibração** (a pergunta de porcentagem
+do gate passou a injetar trecho da própria entrega). Seguindo o precedente
+do `rag.py` (reescrever o NOSSO texto, não afrouxar o piso), "invenções reais"
+virou "invenções de fato" e o gate voltou a 8/8 + 8/8.
+
+**Verificação:** gate completo **5465 passed / 19 skipped / 0 falha**
+(218 s); `tests/test_rag.py` 98 passed; `test_hybrid_search` +
+`test_eval_oracle` 16 passed. `od-core` reiniciado, `/health` `ok=true`,
+journal sem erro. **Sem bump** (1.46.0+2083): comportamento idêntico com
+a flag no default.
+
 ## Anti-falso-sucesso também para mídia e casa (2026-11-18, sem bump)
 
 **Contexto:** fecho do P0 nº 1. A guarda de leitura do `llm_cache` (17/11)
@@ -35,7 +80,7 @@ na forma "definido/ajustado para N%" também não existe na saída real.
 | `tests/test_orchestrator.py` | `test_falso_sucesso_de_midia_e_casa_tambem_e_pego`: 7 frases inventadas recusadas e 7 respostas **reais** da rota aceitas |
 
 **Medido no cache vivo (145 entradas, somente leitura):** 4 já eram recusadas
-pela regex antiga; a ampliação recusa **3 novas** — todas invenções reais
+pela regex antiga; a ampliação recusa **3 novas** — todas invenções de fato
 ("Volume definido para 20%. Estado verificado." e 2× "Radio ligada com
 sucesso."); **0 respostas legítimas** passaram a ser recusadas. As entradas
 não foram apagadas à mão: a guarda de leitura as descarta no próximo uso.

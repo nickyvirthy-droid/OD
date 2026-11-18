@@ -470,8 +470,26 @@ class RAGPipeline:
         janela: int = JANELA_PADRAO,
         tokens_resposta: int = 512,
         chars_per_token: float = DEFAULT_CHARS_PER_TOKEN,
+        hibrido: Optional[bool] = None,
+        bm25_top_k: int = 20,
     ) -> None:
         self._store = store
+        # I2 (Hybrid Search): o lado LEXICAL (BM25) é o que o cosseno do
+        # HashEmbedding não enxerga — termo raro presente no chunk mas sem
+        # peso vetorial. A fiação NÃO troca o piso calibrado: o BM25 só
+        # AUMENTA o pool de candidatos, e cada candidato lexical entra com
+        # o cosseno real (mesmo provider da indexação) e passa pelo mesmo
+        # floor duplo + reranker de sempre.
+        # `hibrido=None` → env OD_RAG_HIBRIDO (padrão "0": medido, ver
+        # docs/CHANGELOG.md). O índice é construído no sync().
+        if hibrido is None:
+            import os
+            hibrido = os.getenv("OD_RAG_HIBRIDO", "0").strip().lower() in (
+                "1", "true", "yes", "on",
+            )
+        self._hibrido = bool(hibrido)
+        self._bm25_top_k = max(1, int(bm25_top_k))
+        self._bm25: Any = None
         self._fontes = list(fontes or [])
         self._namespace = namespace
         self._min_score = min_score
@@ -494,6 +512,7 @@ class RAGPipeline:
             "descartados_orcamento": 0,
             "tokens_bloco": 0,
             "tokens_descartados": 0,
+            "lexicais": 0,
         }
         self._lock = threading.RLock()
         # Estado da sincronização (v1.36.1): o boot pode servi-lo antes do
@@ -540,6 +559,7 @@ class RAGPipeline:
         }
         df: dict[str, int] = {}
         esperados: set[str] = set()
+        bm25_docs: list[tuple[str, str]] = []
         n_docs = 0
         pendentes: dict[str, list[tuple[str, str, dict[str, Any]]]] = {}
         para_apagar: list[str] = []  # substituídos/órfãos — lote único (v1.36.1)
@@ -575,6 +595,7 @@ class RAGPipeline:
                         sha=sha,
                     )
                     esperados.add(doc_id)
+                    bm25_docs.append((doc_id, texto))
                     stats["chunks"] += 1
                     n_docs += 1
                     existente = self._store.get(doc_id)
@@ -627,6 +648,18 @@ class RAGPipeline:
                     metadata_list=[meta for _, _, meta in itens],
                     doc_ids=[doc_id for doc_id, _, _ in itens],
                 )
+            # I2: índice lexical sobre os MESMOS chunks (sem reembeddar nada
+            # e sem persistência própria — o BM25 é derivado do corpus, não
+            # uma segunda fonte de verdade).
+            if self._hibrido:
+                from core.hybrid_search import BM25Index, Document, tokenizar
+
+                indice = BM25Index()
+                for doc_id, texto in bm25_docs:
+                    indice.add(Document(
+                        doc_id=doc_id, content=texto, bm25_tokens=tokenizar(texto)
+                    ))
+                self._bm25 = indice
             self._df = df
             self._n_docs = n_docs
             self._sync_stats = dict(stats)
@@ -790,6 +823,41 @@ class RAGPipeline:
             candidatos = self._store.search(
                 self._namespace, consulta, top_k=self._top_k
             )
+            # I2 — lado LEXICAL: o cosseno do HashEmbedding não vê termo raro;
+            # o BM25 vê. A união é feita por doc_id e cada candidato lexical
+            # entra com o cosseno REAL (mesmo provider da indexação), então o
+            # piso duplo abaixo continua valendo sem recalibrar.
+            if self._hibrido and self._bm25 is not None and len(self._bm25):
+                from core.hybrid_search import tokenizar
+                from memory.vector import SearchResult, cosine_similarity
+
+                vistos = {c.doc_id for c in candidatos}
+                lexicais = [
+                    doc_id for doc_id, _ in self._bm25.search(
+                        tokenizar(consulta), top_k=self._bm25_top_k
+                    ) if doc_id not in vistos
+                ]
+                if lexicais:
+                    provider = getattr(self._store, "provider", None)
+                    vetor_consulta = (
+                        provider.embed([consulta])[0] if provider is not None else []
+                    )
+                    for doc_id in lexicais:
+                        doc = self._store.get(doc_id)
+                        if not doc or doc.get("namespace") != self._namespace:
+                            continue
+                        score = 0.0
+                        if provider is not None and vetor_consulta:
+                            vetor = provider.embed([doc["text"]])[0]
+                            score = cosine_similarity(vetor_consulta, vetor)
+                        candidatos.append(SearchResult(
+                            doc_id=doc_id,
+                            namespace=self._namespace,
+                            text=doc["text"],
+                            score=score,
+                            metadata=dict(doc.get("metadata") or {}),
+                        ))
+                self._metricas["lexicais"] += len(candidatos) - len(vistos)
             resultado.candidatos = len(candidatos)
             self._metricas["candidatos"] += len(candidatos)
 

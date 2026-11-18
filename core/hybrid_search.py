@@ -45,6 +45,41 @@ DEFAULT_RERANK_TOP_K = int(os.getenv("OD_HYBRID_RERANK_TOP_K", "10"))
 DEFAULT_FINAL_TOP_K = int(os.getenv("OD_HYBRID_FINAL_TOP_K", "3"))
 
 
+# Stopwords PT-BR da casa. Vive em nível de módulo porque o RAG (memory/rag.py)
+# usa o MESMO tokenizador para o lado lexical — tokenizar a consulta de um jeito
+# e o documento de outro quebraria o BM25 sem dar erro.
+STOPWORDS_PT: frozenset[str] = frozenset({
+    'a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos',
+    'e', 'em', 'na', 'no', 'nas', 'nos', 'um', 'uma',
+    'para', 'com', 'por', 'que', 'qual', 'quais',
+    'é', 'são', 'foi', 'era', 'tem', 'têm', 'ter',
+    'se', 'não', 'mais', 'muito', 'bem', 'mal',
+})
+
+
+def tokenizar(texto: str) -> list[str]:
+    """Tokenização BM25 (português): lowercase, sem pontuação/stopwords."""
+    import re
+    texto = texto.lower()
+    texto = re.sub(r'[^\w\s]', ' ', texto)
+    return [t for t in texto.split() if t not in STOPWORDS_PT and len(t) > 2]
+
+
+def fundir_rrf(
+    listas: list[list[tuple[str, float]]], k: int = 60
+) -> list[tuple[str, float]]:
+    """Reciprocal Rank Fusion de listas ranqueadas (doc_id, score).
+
+    Score de cada lista ignorado de propósito: o RRF soma 1/(k+rank), que
+    é o que comparabiliza BM25 e cosseno (escalas diferentes).
+    """
+    rrf_scores: dict[str, float] = defaultdict(float)
+    for resultados in listas:
+        for rank, (doc_id, _) in enumerate(resultados):
+            rrf_scores[doc_id] += 1.0 / (k + rank + 1)
+    return sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
+
+
 @dataclass(slots=True)
 class HybridSearchConfig:
     """Configuração do Hybrid Search."""
@@ -350,20 +385,7 @@ class HybridRetriever:
 
     def _tokenize(self, text: str) -> list[str]:
         """Tokenização simples para BM25 (português)."""
-        import re
-        # Lowercase, remove pontuação, split
-        text = text.lower()
-        text = re.sub(r'[^\w\s]', ' ', text)
-        tokens = text.split()
-        # Remove stopwords básicas PT
-        stopwords = {
-            'a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos',
-            'e', 'em', 'na', 'no', 'nas', 'nos', 'um', 'uma',
-            'para', 'com', 'por', 'que', 'qual', 'quais',
-            'é', 'são', 'foi', 'era', 'tem', 'têm', 'ter',
-            'se', 'não', 'mais', 'muito', 'bem', 'mal',
-        }
-        return [t for t in tokens if t not in stopwords and len(t) > 2]
+        return tokenizar(text)
 
     def add_document(
         self,
@@ -483,20 +505,7 @@ class HybridRetriever:
         dense_results: list[tuple[str, float]],
     ) -> list[tuple[str, float]]:
         """Reciprocal Rank Fusion merge."""
-        rrf_scores = defaultdict(float)
-        k = self.config.rrf_k
-
-        # BM25 ranks
-        for rank, (doc_id, _) in enumerate(bm25_results):
-            rrf_scores[doc_id] += 1.0 / (k + rank + 1)
-
-        # Dense ranks
-        for rank, (doc_id, _) in enumerate(dense_results):
-            rrf_scores[doc_id] += 1.0 / (k + rank + 1)
-
-        # Ordena por score RRF
-        merged = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
-        return merged
+        return fundir_rrf([bm25_results, dense_results], k=self.config.rrf_k)
 
     def _persist(self) -> None:
         if not self._index_dir:

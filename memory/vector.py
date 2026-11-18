@@ -180,6 +180,16 @@ class VectorStore:
             from memory.adapters import VECTOR_DOCUMENTS_SCHEMA
             self._database.create_table("vector_documents", VECTOR_DOCUMENTS_SCHEMA)
 
+    @property
+    def provider(self) -> EmbeddingProvider:
+        """Provider de embeddings do store.
+
+        Público desde 18/11: o RAG híbrido precisa embedar um texto que veio
+        do lado LEXICAL (BM25) com o MESMO provider usado na indexação — só
+        assim o cosseno dele é comparável ao dos vizinhos do store.
+        """
+        return self._provider
+
     # -- Escrita -------------------------------------------------------------
 
     def add(

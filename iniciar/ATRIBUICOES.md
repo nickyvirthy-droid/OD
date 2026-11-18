@@ -1570,3 +1570,40 @@ P0: impedir que o llm_cache sirva resposta inventada de conversa comum"*.
   `od-core` reiniciado (PID 459066), `/health` `ok=true`, journal limpo.
 - **Limite:** estado sem "com sucesso" ("Radio ligada.") continua passando —
   pode ser leitura verdadeira.
+
+## 2026-11-18 — I2 (Hybrid Search) fiado no RAG, medido e mantido OFF (sem bump)
+
+**Autor:** Buffy (Codebuff) — P1 nº 5 do backlog.
+
+### Arquivos
+
+- `core/hybrid_search.py` — `tokenizar()` e `fundir_rrf()` em nível de módulo;
+  `HybridRetriever` passou a usá-los (comportamento igual).
+- `memory/vector.py` — propriedade pública `provider` (o candidato lexical
+  precisa do MESMO provider da indexação para o cosseno ser comparável).
+- `memory/rag.py` — `hibrido=` / `OD_RAG_HIBRIDO` (padrão `0`); `sync()` monta
+  `BM25Index` sobre os mesmos chunks; `_consultar()` une os candidatos
+  lexicais por `doc_id` com cosseno real; métrica `lexicais`.
+- `tools/medir_rag_hibrido.py` (novo) — medidor reproduzível antes/depois.
+- `tests/test_rag.py` — `TestHibrido` (5 testes).
+- Registro: `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`,
+  `iniciar/2026-11-18_conversa_omegadrakon.md` §13, `iniciar/session.json`
+  (`i2_rag_hibrido_2026_11_18`).
+
+### Intenção e estado
+
+- **Intenção:** o HashEmbedding não vê termo raro; o BM25 vê. O item pedia
+  fiação **com** medição — e a medição é o que decide o default.
+- **Medido (3815 chunks):** relevantes 8/8 → 8/8; paráfrases 6/6 → 6/6;
+  **irrelevantes bloqueadas 8/8 → 6/8**. Ganho pontual: o chunk
+  `[1.24.2] — EVAL DO ASSISTENTE` passou a entrar no bloco do golden de eval.
+- **Causa da regressão:** candidato lexical com `overlap=1.0` só por conter o
+  termo raro (ex.: "basquete" num chunk de release); o overlap-IDF foi
+  calibrado para candidatos densos.
+- **Decisão:** fiação pronta, **OFF por padrão**. Ligar exige recalibrar o
+  piso com grid medido — não se afrouxa asserção para a novidade caber.
+- **Efeito colateral:** o texto novo no corpus mexeu no IDF e derrubou o gate;
+  corrigido reescrevendo o nosso texto ("invenções reais" → "invenções de
+  fato"), sem tocar no piso.
+- **Validado:** gate completo **5465 passed / 19 skipped / 0 falha**;
+  `test_rag` 98 passed; `od-core` reiniciado, `/health` `ok=true`.

@@ -980,3 +980,59 @@ class TestOrcamentoDeHistorico:
             assert orch.metrics.contexto_descartados == 0
         finally:
             shutil.rmtree(self.HIST_DIR, ignore_errors=True)
+
+
+# ===========================================================================
+# I2 — Hybrid Search: lado lexical (BM25) na recuperação (18/11)
+# ===========================================================================
+
+class TestHibrido:
+    """Fiação do I2 no RAG — e por que ela fica DESLIGADA por padrão.
+
+    Medido com `tools/medir_rag_hibrido.py` no corpus real (3815 chunks):
+    ligar o BM25 adiciona candidatos que o cosseno não via (o alvo do eval
+    do assistente passou a entrar no bloco), MAS derruba o gate de
+    calibração — 2 irrelevantes passaram a injetar trecho porque o overlap
+    IDF satura (\"basquete\" existe num chunk de release → overlap 1.0) sem
+    o chunk responder à pergunta. Sem recalibrar o piso com evidência, a
+    opção segura é: fiação pronta, env OD_RAG_HIBRIDO, padrão OFF.
+    """
+
+    def test_desligado_por_padrao(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("OD_RAG_HIBRIDO", raising=False)
+        rag = _pipeline(tmp_path)
+        assert rag._hibrido is False
+        rag.sync()
+        assert rag._bm25 is None
+        assert rag.metricas()["lexicais"] == 0
+
+    def test_ligado_constroi_indice_com_os_mesmos_chunks(self, tmp_path):
+        rag = _pipeline(tmp_path, hibrido=True)
+        stats = rag.sync()
+        assert rag._bm25 is not None
+        assert len(rag._bm25) == stats["chunks"]
+
+    def test_ligado_usa_o_env(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_RAG_HIBRIDO", "1")
+        rag = _pipeline(tmp_path)
+        assert rag._hibrido is True
+
+    def test_ligado_une_candidato_lexical_que_o_denso_perdeu(
+        self, tmp_path, monkeypatch
+    ):
+        """Pool denso vazio (simulado) → o BM25 ainda traz o chunk."""
+        rag = _pipeline(tmp_path, hibrido=True)
+        rag.sync()
+        # Denso "perdeu" tudo: o lexical é a única fonte de candidatos.
+        monkeypatch.setattr(rag._store, "search", lambda *a, **k: [])
+        r = rag.consult("orçamento de contexto descartado métrica", papel="admin")
+        assert r.candidatos > 0
+        assert rag.metricas()["lexicais"] > 0
+
+    def test_desligado_nao_tem_candidato_sem_denso(self, tmp_path, monkeypatch):
+        rag = _pipeline(tmp_path, hibrido=False)
+        rag.sync()
+        monkeypatch.setattr(rag._store, "search", lambda *a, **k: [])
+        r = rag.consult("orçamento de contexto descartado métrica", papel="admin")
+        assert r.candidatos == 0
+        assert rag.metricas()["lexicais"] == 0

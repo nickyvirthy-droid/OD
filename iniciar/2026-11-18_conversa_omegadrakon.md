@@ -818,3 +818,83 @@ turno vai ao LLM).
 - **Sem bump** (1.46.0+2083) — correção de servidor, contrato do app intacto.
 - **Limite:** a prova foi unitária + medição no cache; não disparei um turno
   real pelo Telegram para não gastar cota nem injetar conversa no histórico.
+
+---
+
+## §13 — I2 (Hybrid Search) no RAG: fiação feita, medição reprovou o default (18/11)
+
+**Pedido (verbatim):** `Ligar o I2 Hybrid Search no RAG e medir o ganho antes/depois (P1 nº 5)`.
+
+### 1. O que existia e o que faltava
+
+`core/hybrid_search.py` tinha BM25, índice denso, RRF e cross-encoder — com
+testes. O RAG (`memory/rag.py`) recuperava só por cosseno do `VectorStore`
+(HashEmbedding). O buraco é real e conhecido: o HashEmbedding **não vê termo
+raro**; o BM25 vê.
+
+### 2. Desenho escolhido: união lexical, piso INTACTO
+
+A tentação era trocar a recuperação pelo `HybridRetriever` pronto. Não dá: ele
+devolve `Document` **sem cosseno**, e o piso calibrado do RAG é
+`0.35·cosseno + 0.65·overlap-IDF`. Trocar a fonte de score exigiria recalibrar
+o grid inteiro (8 rel + 8 irr + 6 paráfrases) — decisão grande, não efeito
+colateral de fiação.
+
+Então:
+
+1. `sync()` monta um `BM25Index` sobre os **mesmos chunks** (sem reembeddar,
+   sem persistir segundo índice).
+2. `_consultar()` busca os top-k lexicais, ignora os `doc_id` já vindos do
+   denso, e para os novos **calcula o cosseno real** com o mesmo provider da
+   indexação (`VectorStore.provider`, propriedade nova).
+3. Esses candidatos entram no mesmo piso duplo + reranker de sempre.
+
+Para isso o módulo expôs `tokenizar()` e `fundir_rrf()` (o RAG precisa do
+MESMO tokenizador do BM25; tokenizar consulta e documento de jeitos diferentes
+quebraria o índice **sem dar erro**).
+
+### 3. Medição antes/depois (`tools/medir_rag_hibrido.py`)
+
+Mesmo store, mesmo corpus (**3815 chunks**), flag desligada × ligada,
+**394 candidatos lexicais** adicionados no total:
+
+| Grupo | Desligado | Ligado |
+|---|---|---|
+| 8 relevantes com trecho | 8/8 | 8/8 |
+| 8 irrelevantes **bloqueadas** | **8/8** | **6/8** |
+| 6 paráfrases com trecho | 6/6 | 6/6 |
+| 2 estruturais (perdidas declaradas) | 2/2 | 2/2 |
+
+Ganho concreto: na pergunta do eval do assistente, o chunk
+`[1.24.2] — EVAL DO ASSISTENTE` **passou a entrar** no bloco (antes vinham só
+seções genéricas). Duas paráfrases ganharam trechos extras.
+
+Regressão: **2 irrelevantes passaram a injetar trecho** — uma pergunta de
+previsão do tempo e uma de esporte. Causa medida: candidato lexical
+com `overlap = 1.0` porque o termo raro da pergunta existe no chunk, com
+cosseno 0.309/0.372 — o piso combinado (0.447/0.438) aprova. O overlap-IDF foi
+calibrado para candidatos **densos**; sozinho ele não distingue "menciona o
+termo" de "responde à pergunta".
+
+### 4. Decisão
+
+**Fiação pronta, default OFF** (`OD_RAG_HIBRIDO`, padrão `0`). Ligar de verdade
+exige recalibrar o piso com grid medido — item separado, com evidência, não um
+efeito colateral. Não afrouxei nem mudei o gate para "caber" na novidade.
+
+### 5. Efeito colateral medido (e consertado)
+
+O texto deste registro mudou o IDF do corpus e **derrubou o gate de
+calibração**: a pergunta de porcentagem do gate passou a injetar trecho da própria
+entrega (a palavra "reais" ficou menos rara). Precedente do `rag.py`:
+reescrever o **nosso** texto novo, não afrouxar o piso. "invenções reais" →
+"invenções de fato" e o gate voltou a 8/8 + 8/8. É a demonstração viva de que
+o piso é sensível a texto novo do repo — quem escrever no corpus, rode o gate.
+
+### 6. Validação
+
+- Gate completo: **5465 passed / 19 skipped / 0 falha** (218 s).
+- `tests/test_rag.py` **98 passed** (`TestHibrido`, 5 testes novos);
+  `test_hybrid_search` + `test_eval_oracle` **16 passed**.
+- `od-core` reiniciado, `/health` `ok=true`, journal sem `ERROR`/traceback.
+- **Sem bump** (1.46.0+2083): com a flag no default o comportamento é idêntico.
