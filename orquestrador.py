@@ -643,8 +643,12 @@ def _shutil_rmtree(path: Path) -> None:
 # Fechamento de sessão
 # ---------------------------------------------------------------------------
 
-def _fechar_sessao(estado: dict[str, Any], rodar: Any, repo: Path) -> None:
+def _fechar_sessao(estado: dict[str, Any], rodar: Any = None, repo: Path | None = None) -> None:
     """Fecha a sessão: publica (git push) e limpa resíduos."""
+    if rodar is None:
+        rodar = _rodar
+    if repo is None:
+        repo = Path(".")
     if estado.get("commit"):
         codigo_push, saida_push = rodar(["git", "push", "origin", "master"], repo)
         if codigo_push == 0:
@@ -701,8 +705,12 @@ def recuperar_pendencias(rodar: Any, repo: Path, arquivo_estado: Path) -> list[s
 # Commit e validação de sessão
 # ---------------------------------------------------------------------------
 
-def commitar_sessao(titulo: str, rodar: Any, repo: Path) -> dict[str, Any] | None:
+def commitar_sessao(titulo: str, rodar: Any = None, repo: Path | None = None) -> dict[str, Any] | None:
     """Commit das mudanças da sessão."""
+    if rodar is None:
+        rodar = _rodar
+    if repo is None:
+        repo = Path(".")
     codigo_add, saida_add = rodar(["git", "add", "-A"], repo)
     if codigo_add != 0:
         return {"ok": False, "commit": "", "erro": saida_add or "falha no git add"}
@@ -714,7 +722,7 @@ def commitar_sessao(titulo: str, rodar: Any, repo: Path) -> dict[str, Any] | Non
     return {"ok": True, "commit": saida_commit or "commit realizado", "arquivos": 1}
 
 
-def validar_sessao(rodar: Any, repo: Path) -> dict[str, Any]:
+def validar_sessao(rodar: Any = None, repo: Path | None = None) -> dict[str, Any]:
     """Valida se a sessão pode prosseguir (testes, sintaxe, etc.)."""
     sujos = _arvore_suja()
     return {
@@ -790,14 +798,21 @@ def executar_sessao(
         estado["motivo"] = "sem_clis_disponiveis"
         return estado
 
-    repo = Path(".")
-    resultado_validacao = validar(rodar=_rodar, repo=repo)
+    resultado_validacao = validar()
     if not resultado_validacao.get("ok", True):
         estado["motivo"] = "validacao_falhou"
+        estado["testes"] = resultado_validacao.get("testes", "")
+        estado["arquivos"] = resultado_validacao.get("arquivos", [])
+        estado["diff"] = resultado_validacao.get("diff", "")
         return estado
 
     if pendencias:
         estado["pendencias"] = pendencias
+
+    # Copia dados da validação para o estado
+    estado["testes"] = resultado_validacao.get("testes", "")
+    estado["arquivos"] = resultado_validacao.get("arquivos", [])
+    estado["diff"] = resultado_validacao.get("diff", "")
 
     prompt = montar_prompt_sessao(ideia)
 
@@ -819,8 +834,8 @@ def executar_sessao(
     except Exception:
         pass
 
-    # Tenta commitar
-    resultado_commit = commitar(f"implementa: {ideia}", rodar=_rodar, repo=repo)
+    # Tenta commitar (apenas título, sem rodar/repo)
+    resultado_commit = commitar(f"implementa: {ideia}")
     if not resultado_commit or not resultado_commit.get("ok"):
         estado["motivo"] = "commit_nao_realizado"
         return estado
@@ -829,11 +844,10 @@ def executar_sessao(
     estado["status"] = "concluido"
     estado["motivo"] = "implantado"
     estado["cli_usada"] = cli_usada
-    estado["arquivos"] = resultado_commit.get("arquivos", 1)
-    estado["diff"] = resultado_validacao.get("diff", "")
+    estado["arquivos"] = resultado_commit.get("arquivos", len(estado.get("arquivos", [])) or 1)
 
     # Fecha a sessão
-    fechar(estado, rodar=_rodar, repo=repo)
+    fechar(estado)
 
     return estado
 
