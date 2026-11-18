@@ -9173,7 +9173,13 @@ class APIHandler(BaseHTTPRequestHandler):
     #: CLIs aceitas no seletor do painel (mesmas opções do `--cli` do runner).
     #: 'freebuff' saiu em 10/10: a 0.2.22 ficou interativa apenas (ver
     #: orquestrador.CLIS) — aceitá-la aqui devolveria 400 em todo clique.
-    SESSAO_CLIS = ("auto", "opencode", "kilo")
+    #: Em 18/11 acompanhou a expansão da cascata (10 CLIs com modo
+    #: não-interativo medido no --help) — tem que casar com
+    #: orquestrador.CLI_SESSAO_OPCOES (teste de contrato).
+    SESSAO_CLIS = (
+        "auto", "opencode", "kilo", "gemini", "qwen", "claude", "crush",
+        "agy", "openclaw", "codex", "aider",
+    )
 
     def admin_dev_sessao(self) -> None:
         """POST /admin/dev/sessao — ativa/para UMA sessão de desenvolvimento.

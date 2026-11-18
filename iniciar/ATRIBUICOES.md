@@ -9,6 +9,55 @@
 
 ---
 
+## 18/11/2026 — Cascata do orquestrador: 2 → 10 IAs (ordem do dono)
+
+**Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — sessão de 18/11
+~13:50, pedido do dono no chat ("usar todas as 14 IAs, não só as três
+atuais"; confirmou "Sim: expandir a cascata").
+
+### Criados
+
+- `iniciar/2026-11-18_conversa_omegadrakon.md` **§2** (transcrição desta
+  entrega).
+
+### Modificados
+
+- `orquestrador.py` — `CLIS` **2 → 10** (Gemini, Qwen, Claude, Crush, Agy,
+  OpenClaw, Codex, Aider — cada flag de modo não-interativo medida no
+  `--help` de 18/11; medição e as 4 exclusões em comentário no código);
+  `OPENCODE_MODELO` trocado (o `nemotron-3-ultra-free` sumiu do catálogo —
+  a primeira da cascata morria com model-not-found — → provado
+  `opencode/deepseek-v4.1-flash-free`, exit=0); `CLI_SESSAO_OPCOES`
+  2 → 10; help do `--cli`.
+- `integrations/api/server.py` — `SESSAO_CLIS` 2 → 10 (seletor do painel).
+- `tests/test_orquestrador.py` — contrato da cascata atualizado + 2
+  testes novos (flags headless de cada CLI nova; exclusão das 4 só-TUI
+  freebuff/cline/openclaude/interpreter; seletor do runner × servidor).
+- `docs/CHANGELOG.md` — entrada "Cascata do orquestrador: 2 → 10 IAs".
+- `docs/IAS_DISPONIVEIS.md` — conclusão das 14 atualizada (10 na cascata,
+  4 fora com motivo) + linha no histórico de medições.
+- `iniciar/session.json` (checkpoint `cascata_14_ias_2026_11_18`), esta
+  entrada.
+
+### Intenção e estado
+
+- **Intenção:** cumprir a ordem do dono de usar as 14 IAs no orquestrador;
+  a hipótese dele foi testada primeiro (o refactor da madrugada **não**
+  fez isso — media 2 CLIs; os "3 atuais" são providers de LLM do chat,
+  camada diferente das CLIs de código).
+- **Medição antes de mexer:** `--help` das 14 (sem cota); 10 com one-shot
+  entraram, 4 ficaram de fora com motivo documentado; `opencode models`
+  para o catálogo de modelos.
+- **Pronto/validado:** `test_orquestrador.py` **114 passed**;
+  `test_api.py -k sessao` **21 passed**; **gate completo 5384 passed / 19
+  skipped / 0 falha**; comando seco das 10 conferido.
+- **Sem bump:** 1.46.0+2083. **Restart pendente de autorização** (regra
+  7.1): o `SESSAO_CLIS` novo só vale no painel depois do restart do
+  `od-core` (condição 7.3 — gate verde + `HEAD == origin/master` — já
+  cumprida).
+
+---
+
 ## 18/11/2026 — Retomada "leia iniciar": gate vermelho do lote da madrugada diagnosticado e consertado
 
 **Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — sessão de 18/11 ~09:33,

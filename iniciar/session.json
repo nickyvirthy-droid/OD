@@ -6190,5 +6190,17 @@
     "telegram": "ok=true msg_id=4053 (regra 15).",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§1)",
     "updated_at": "2026-11-18T10:42:00-03:00"
+  },
+  "cascata_14_ias_2026_11_18": {
+    "pedido": "Dono (18/11 ~13:50): 'acho que a função que estava sendo implementada no orquestrador é a utilização de todas as 14 IAs e não apenas as três atuais' — confirmou depois 'Sim: expandir a cascata'.",
+    "medicao_da_hipotese": "Duas camadas distintas: os '3 atuais' sao os providers de LLM do chat (OD_CHAT_PROVIDERS=groq,gemini,local); as '14 IAs' sao as CLIs de codigo do inventario. O refactor revertido do Cline NAO expandiu nada (CLIS dele media exatamente 2); as 14 so existiam no menu od + IAS_DISPONIVEIS.md. Obstaculo documentado: nenhuma pronta para lote + cota de freebuff/kilo esgotada em 18/11.",
+    "medicao_das_14": "So --help, sem gastar cota. ENTRARAM 10 (flag medida): OpenCode (run --standalone --auto, ja era), Kilo (ja era), Gemini (gemini -p PROMPT -y), Qwen (qwen PROMPT -y, posicional=one-shot), Claude (claude -p PROMPT --dangerously-skip-permissions), Crush (crush run PROMPT -y), Agy (agy -p PROMPT --dangerously-skip-permissions), OpenClaw (openclaw agent -m PROMPT --json), Codex (codex exec -s workspace-write --approve-for-me PROMPT — no exec nao existe --full-auto), Aider (aider -m PROMPT --yes-always --no-auto-commit). FORA 4 com motivo medido: freebuff (só login/doctor), cline (so TUI/ACP, cota esgotada), openclaude (launcher de menu), interpreter (so TUI/--server/--stdin, sem one-shot).",
+    "achado_extra": "O modelo do OpenCode opencode/nemotron-3-ultra-free NAO existe mais no catálogo (opencode models medido: so nemotron-3.5-*); qwen3-coder:free do refactor revertido tambem sumiu — a PRIMEIRA da cascata morria com model-not-found. Trocado por opencode/deepseek-v4.1-flash-free, provado com prompt real (respondeu OK, exit=0).",
+    "arquivos": "orquestrador.py (CLIS 2->10 com medicao em comentario, OPENCODE_MODELO, CLI_SESSAO_OPCOES 2->10, help --cli); integrations/api/server.py (SESSAO_CLIS 2->10); tests/test_orquestrador.py (contrato atualizado + 2 testes novos: flags headless por CLI e exclusao das 4 so-TUI, seletor x servidor); docs/CHANGELOG.md (entrada 'Cascata do orquestrador: 2 -> 10 IAs'); docs/IAS_DISPONIVEIS.md (conclusao das 14 + historico de medicoes).",
+    "validacao": "tests/test_orquestrador.py 114 passed; test_api.py -k sessao 21 passed; GATE COMPLETO 5384 passed / 19 skipped / 0 falha (213 s); comando seco das 10 conferido (prompt no lugar certo).",
+    "sem_bump": "1.46.0+2083 (ferramenta de canal de dev; contrato do app intacto).",
+    "restart_pendente": "SESSAO_CLIS novo so vale para o painel apos restart do od-core (regra 7.1 exige autorizacao explicita); condicao 7.3 (gate verde + HEAD == origin/master) ja cumprida.",
+    "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§2)",
+    "updated_at": "2026-11-18T14:20:00-03:00"
   }
 }

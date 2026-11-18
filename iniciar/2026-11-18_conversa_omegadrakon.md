@@ -177,3 +177,72 @@ lugares (`session.json`, esta transcrição, `ATRIBUICOES.md`).
 - **Telegram do dono** enviado (regra 15): resumo da conclusão.
 - **Sem bump:** 1.46.0+2083 (ferramenta de dev + correção de servidor;
   contrato do app intacto).
+
+---
+
+## §2 — Cascata do orquestrador: 2 → 10 IAs (ordem do dono)
+
+**Pedido do dono (18/11 ~13:50):** *"acho que a função que estava sendo
+implementada no orquestrador é a utilização de todas as 14 IAs e não apenas
+as três atuais"* → depois, confirmação: *"Sim: expandir a cascata"*.
+
+### 1. O que a medição mostrou da hipótese
+
+- **Duas camadas distintas:** os "3 atuais" são os **providers de LLM do
+  chat** (`OD_CHAT_PROVIDERS=groq,gemini,local`); as "14 IAs" são as
+  **CLIs de código** do inventário. O refactor da madrugada (que reverti)
+  **não** expandiu nada — a `CLIS` dele media exatamente **2** (OpenCode,
+  Kilo); as 14 só existiam no menu `od` + `docs/IAS_DISPONIVEIS.md`.
+- **Obstáculo do próprio inventário:** "nenhuma pronta para lote" + cota
+  diária de freebuff/kilo esgotada em 18/11 (foi o que matou o Cline).
+
+### 2. Medição das 14 (só `--help`, sem gastar cota de ninguém)
+
+| Entrou (10) | Flag não-interativo medida |
+|---|---|
+| OpenCode | `run --standalone --auto -m …` (já era da cascata) |
+| Kilo | `run … --auto --pure` (já era da cascata) |
+| Gemini | `gemini -p PROMPT -y` (`-p` = headless, `-y` = yolo) |
+| Qwen | `qwen PROMPT -y` (posicional = one-shot) |
+| Claude | `claude -p PROMPT --dangerously-skip-permissions` |
+| Crush | `crush run PROMPT -y` ("Run non-interactively") |
+| Agy | `agy -p PROMPT --dangerously-skip-permissions` |
+| OpenClaw | `openclaw agent -m PROMPT --json` |
+| Codex | `codex exec -s workspace-write --approve-for-me PROMPT` |
+| Aider | `aider -m PROMPT --yes-always --no-auto-commit` |
+
+**Ficaram de FORA (4), com motivo medido:** **freebuff** (só
+`login`/`doctor`), **cline** (só TUI/ACP — cota esgotada 18/11),
+**openclaude** (`start.sh` é launcher de menu) e **interpreter** (só
+TUI/`--server`/`--stdin` — sem one-shot).
+
+### 3. Achado extra: a primeira da cascata estava morta
+
+`opencode/nemotron-3-ultra-free` (o modelo do `orquestrador.py` desde
+sempre) **não existe mais** no catálogo — `opencode models` medido em
+18/11 mostra só `nemotron-3.5-*`; o `qwen3-coder:free` do refactor
+revertido também sumiu. Trocado por **`opencode/deepseek-v4.1-flash-free`**,
+provado com prompt real (respondeu `OK`, exit=0).
+
+### 4. Arquivos alterados
+
+- `orquestrador.py` — `CLIS` 2→10 (com a medição em comentário), modelo do
+  OpenCode, `CLI_SESSAO_OPCOES` 2→10, help do `--cli`.
+- `integrations/api/server.py` — `SESSAO_CLIS` 2→10 (painel).
+- `tests/test_orquestrador.py` — contrato atualizado + 2 testes novos
+  (flags headless de cada CLI; exclusão das 4 só-TUI; seletor × servidor).
+- `docs/CHANGELOG.md` — entrada "Cascata do orquestrador: 2 → 10 IAs".
+- `docs/IAS_DISPONIVEIS.md` — conclusão das 14 + linha no histórico.
+
+### 5. Validação (regra 13)
+
+- `tests/test_orquestrador.py` → **114 passed**; `test_api.py -k sessao`
+  → **21 passed**.
+- **Gate completo: 5384 passed / 19 skipped / 0 falha** (213 s).
+- Comando seco de todas as 10 impresso e conferido (prompt no lugar certo
+  em cada uma).
+- **Sem bump:** 1.46.0+2083 (ferramenta de canal de dev; contrato do app
+  intacto).
+- **Restart do `od-core` pendente de autorização** (regra 7.1): o
+  `SESSAO_CLIS` novo só vale para o painel depois do restart — gate verde
+  e `HEAD == origin/master` já são a condição 7.3.

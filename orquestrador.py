@@ -66,7 +66,13 @@ ENV_KEYS: tuple[str, ...] = ("GEMINI_API_KEY", "GROQ_API_KEY")
 
 #: Modelo grátis do provedor opencode (o default 'build' usa OpenAI e morre
 #: sem créditos — 'credit_balance_exhausted'; o provedor opencode/* é free).
-OPENCODE_MODELO: str = "opencode/nemotron-3-ultra-free"
+#: Modelo FREE do catálogo `opencode models` — medido em 18/11: o
+#: `opencode/nemotron-3-ultra-free` antigo NÃO existe mais no catálogo
+#: (só `nemotron-3.5-*`), toda chamada morria com model-not-found; o
+#: `qwen3-coder:free` também sumiu. Trocado por
+#: `opencode/deepseek-v4.1-flash-free`, PROVADO com prompt real em 18/11
+#: (respondeu e exit=0).
+OPENCODE_MODELO: str = "opencode/deepseek-v4.1-flash-free"
 
 #: Modelo grátis do provedor kilo (gemini default exige chave/quota; os
 #: modelos groq estouram o TPM 8000 do tier free com o prompt do sistema).
@@ -235,12 +241,23 @@ class CliSpec:
 
 #: Cascata oficial de fallback — a ordem É a política.
 #:
-#: O Freebuff SAIU da cascata em 10/10: a versão 0.2.22 (tanto o wrapper de
-#: /usr/local/bin quanto o binário de ~/.config/manicode) virou INTERATIVA
-#: APENAS — `freebuff --help` mostra `command ... (choices: "login")` e
-#: nenhuma flag de prompt não-interativo. Toda chamada morria em ~1 s com
-#: "error: command-argument value ... is invalid for argument 'command'".
-#: Se um dia voltar a aceitar prompt posicional, é só religar aqui.
+#: **Expansão de 18/11 (ordem do dono — "utilização de todas as 14 IAs")**:
+#: as 14 CLIs do inventário (`docs/IAS_DISPONIVEIS.md`) foram MEDIDAS uma a
+#: uma via `--help` em 18/11 (só help, sem gastar cota). 10 têm modo
+#: não-interativo e entraram aqui; 4 ficaram de FORA com motivo medido:
+#:
+#: - **Freebuff** — saiu em 10/10: a 0.2.22 ficou INTERATIVA APENAS
+#:   (`freebuff --help` só aceita `login`/`doctor`); cota diária esgotada
+#:   em 18/11.
+#: - **Cline** — sem flag de prompt em lote (só TUI, `--plan`, ACP ou zen);
+#:   cota diária esgotada em 18/11 (foi o que encerrou a sessão dele).
+#: - **OpenClaude** — `start.sh` é LAUNCHER de menu (banner + update check),
+#:   não aceita prompt; a engine (claude) já está na cascata.
+#: - **Interpreter** — sem one-shot: `interpreter --help` só tem TUI,
+#:   `--server` e `--stdin` (nenhum prompt posicional).
+#:
+#: Se uma delas voltar a aceitar prompt não-interativo, é só religar aqui e
+#: nos seletores (`CLI_SESSAO_OPCOES` e `APIHandler.SESSAO_CLIS`).
 CLIS: tuple[CliSpec, ...] = (
     # OpenCode: 'run --standalone PROMPT'. A flag --standalone é OBRIGATÓRIA
     # (10/10): sem ela a CLI se conecta a um `opencode serve --service`
@@ -262,6 +279,89 @@ CLIS: tuple[CliSpec, ...] = (
         args_antes=("run", "-m", KILO_MODELO, "--pure"),
         args_depois=("--auto",),
         caminho_candidato="~/.npm-global/bin/kilo",
+    ),
+    # Gemini (18/11): 'gemini -p PROMPT -y'. -p = modo não-interativo
+    # ("Run in non-interactive (headless) mode"); -y/yolo aprova tudo —
+    # a sessão é desanexada, ninguém responderia prompt de permissão.
+    # Chave GEMINI_API_KEY já está no .env (herdada pelo subprocesso).
+    CliSpec(
+        nome="Gemini",
+        binario="gemini",
+        args_antes=("-p",),
+        args_depois=("-y",),
+        caminho_candidato="~/.npm-global/bin/gemini",
+    ),
+    # Qwen Code (18/11): 'qwen PROMPT -y'. Prompt POSICIONAL = one-shot
+    # ("Positional prompt. Defaults to one-shot"); -y/yolo aprova ações.
+    CliSpec(
+        nome="Qwen",
+        binario="qwen",
+        args_antes=(),
+        args_depois=("-y",),
+        caminho_candidato="~/.npm-global/bin/qwen",
+    ),
+    # Claude Code (18/11): 'claude -p PROMPT --dangerously-skip-permissions'.
+    # -p = --print (non-interactive output); a flag longa é o auto-approve
+    # oficial da Anthropic para uso em CI.
+    CliSpec(
+        nome="Claude",
+        binario="claude",
+        args_antes=("-p",),
+        args_depois=("--dangerously-skip-permissions",),
+        caminho_candidato="~/.npm-global/bin/claude",
+    ),
+    # Crush (18/11): 'crush run PROMPT -y'. `crush run` = "Run
+    # non-interactively" (exemplo do próprio --help); -y pula os prompts de
+    # permissão e ainda bloqueia comandos perigosos (-yy liberaria tudo).
+    CliSpec(
+        nome="Crush",
+        binario="crush",
+        args_antes=("run",),
+        args_depois=("-y",),
+        caminho_candidato="~/.npm-global/bin/crush",
+    ),
+    # Agy/Antigravity (18/11): 'agy -p PROMPT --dangerously-skip-permissions'.
+    # -p = --print ("Run a single prompt non-interactively and print the
+    # response"); a flag de skip espelha a do Gemini CLI (agy é da Google).
+    CliSpec(
+        nome="Agy",
+        binario="agy",
+        args_antes=("-p",),
+        args_depois=("--dangerously-skip-permissions",),
+        caminho_candidato="~/.local/bin/agy",
+    ),
+    # OpenClaw (18/11): 'openclaw agent -m PROMPT --json'. Um turno de
+    # agente via gateway (--json devolve a resposta parseável). Sem gateway
+    # vivo ele falha rápido e a cascata segue para a próxima CLI.
+    CliSpec(
+        nome="OpenClaw",
+        binario="openclaw",
+        args_antes=("agent", "-m"),
+        args_depois=("--json",),
+        caminho_candidato="/opt/omegadrakon/builders/openclaw/bin/openclaw",
+    ),
+    # Codex (18/11): 'codex exec -s workspace-write --approve-for-me PROMPT'.
+    # exec = "Run Codex non-interactively"; neste subcomando NÃO existe
+    # --full-auto — o par equivalente é sandbox workspace-write +
+    # --approve-for-me (aprovação automática revisada pelo sandbox).
+    # OpenAI está sem crédito (429 credit_balance_exhausted): deve falhar
+    # rápido e passar adiante até o saldo voltar.
+    CliSpec(
+        nome="Codex",
+        binario="codex",
+        args_antes=("exec", "-s", "workspace-write", "--approve-for-me"),
+        caminho_candidato="~/.npm-global/bin/codex",
+    ),
+    # Aider (18/11): 'aider -m PROMPT --yes-always --no-auto-commit'.
+    # -m = --message (roda uma mensagem e SAI); --no-auto-commit mantém o
+    # commit nas mãos da validação da sessão, não do aider. OpenAI sem
+    # crédito → falha rápido, como o codex.
+    CliSpec(
+        nome="Aider",
+        binario="aider",
+        args_antes=("-m",),
+        args_depois=("--yes-always", "--no-auto-commit"),
+        caminho_candidato="~/OmegaDrakon/.venv/bin/aider",
     ),
 )
 
@@ -624,7 +724,13 @@ SESSAO_HEARTBEAT_S: float = 15.0
 #: Seletor de CLI do painel (--cli); 'auto' = cascata oficial.
 #: 'freebuff' saiu do seletor em 10/10 junto com a cascata (a 0.2.22 ficou
 #: interativa apenas); se voltar a aceitar prompt, é só religar nos dois.
-CLI_SESSAO_OPCOES: tuple[str, ...] = ("auto", "opencode", "kilo")
+#: Em 18/11 o seletor acompanhou a expansão da cascata (todas as CLIs com
+#: modo não-interativo medido no `--help`) — a lista tem que casar com
+#: `APIHandler.SESSAO_CLIS` (contrato do painel, ver tests).
+CLI_SESSAO_OPCOES: tuple[str, ...] = (
+    "auto", "opencode", "kilo", "gemini", "qwen", "claude", "crush",
+    "agy", "openclaw", "codex", "aider",
+)
 
 #: Instrução de sistema do modo sessão — código puro NÃO é o contrato aqui:
 #: a CLI é um agente com ferramentas, que lê o repo e edita arquivos.
@@ -1439,7 +1545,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--cli", default="auto", choices=CLI_SESSAO_OPCOES,
-        help="CLI do modo sessão (default: auto = cascata OpenCode→Kilo)",
+        help="CLI do modo sessão (default: auto = cascata completa OpenCode→Kilo→…→Aider)",
     )
     args = parser.parse_args(argv)
 

@@ -12,6 +12,49 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Cascata do orquestrador: 2 → 10 IAs (2026-11-18, sem bump)
+
+**Contexto:** ordem do dono no chat (18/11): *"acho que a função que estava
+sendo implementada no orquestrador é a utilização de todas as 14 IAs e não
+apenas as três atuais"* — medido, o refactor da madrugada **não** fez isso
+(a cascata dele seguiu com 2 CLIs); o trabalho das 14 tinha ficado só no
+menu `od` + inventário. Implementado agora: as 14 foram medidas uma a uma
+pelo `--help` (só help, **sem gastar cota**) e as **10 com modo
+não-interativo** entraram na cascata oficial do orquestrador.
+
+### O que mudou
+
+1. **`orquestrador.py` — `CLIS` de 2 para 10**, ordem = política:
+   OpenCode → Kilo → **Gemini** (`gemini -p … -y`), **Qwen** (`qwen PROMPT
+   -y`, posicional = one-shot), **Claude** (`claude -p …
+   --dangerously-skip-permissions`), **Crush** (`crush run … -y`), **Agy**
+   (`agy -p … --dangerously-skip-permissions`), **OpenClaw** (`openclaw
+   agent -m … --json`), **Codex** (`codex exec -s workspace-write
+   --approve-for-me …` — no `exec` não existe `--full-auto`), **Aider**
+   (`aider -m … --yes-always --no-auto-commit` — commit fica com a
+   validação da sessão). Cada flag veio do `--help` medido em 18/11.
+2. **4 ficaram de FORA com motivo medido:** **freebuff** (só
+   `login`/`doctor`), **cline** (só TUI/ACP — e a cota dele acabou hoje),
+   **openclaude** (launcher de menu, sem prompt) e **interpreter** (só
+   TUI/`--server`/`--stdin`, sem one-shot). religar = 1 linha em `CLIS`.
+3. **Seletor acompanhou:** `CLI_SESSAO_OPCOES` (argparse `--cli`) e
+   `APIHandler.SESSAO_CLIS` (painel) agora têm as 10 + `auto` — o
+   contrato entre os dois virou teste.
+4. **Modelo do OpenCode consertado:** `opencode/nemotron-3-ultra-free`
+   **não existe mais** no catálogo (`opencode models` medido em 18/11 —
+   só `nemotron-3.5-*`) — a primeira da cascata morria com
+   model-not-found. Trocado por `opencode/deepseek-v4.1-flash-free`,
+   **provado com prompt real** (respondeu e `exit=0`).
+5. **`docs/IAS_DISPONIVEIS.md`** — conclusão das 14 atualizada (10 na
+   cascata, 4 fora com motivo) + linha nova no histórico de medições.
+
+**Validação:** `tests/test_orquestrador.py` **114 passed** (2 testes
+novos: flags headless de cada CLI + exclusões; seletor × servidor);
+`tests/test_api.py -k sessao` **21 passed**; gate completo no fecho da
+entrega. **Sem bump** (ferramenta de canal de desenvolvimento; contrato
+do app intacto). Serviço: `SESSAO_CLIS` novo só valer depois de restart
+do `od-core`.
+
 ## `od` vira menu de CLIs e OpenCode é consertado (2026-11-18, sem bump; script 1.2.0)
 
 **Contexto:** o comando `oc` abria só o OpenCode e procurava o binário em

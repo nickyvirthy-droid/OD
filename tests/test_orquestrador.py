@@ -85,10 +85,16 @@ class TestCascataOficial:
           (sobrou só a variante sem ':free', que exige chave) — toda sessão
           morria com "Model not found".
         - Freebuff SAIU (10/10): a 0.2.22 virou interativa apenas.
+        - Expansão de 18/11 (ordem do dono: usar as 14 IAs): +8 CLIs com
+          modo não-interativo MEDIDO no --help — ver
+          `test_expansao_18_11_cada_cli_com_modo_headless_medido`.
         """
         nomes = [spec.nome for spec in orch.CLIS]
-        assert nomes == ["OpenCode", "Kilo"]  # Freebuff fora
-        opencode, kilo = orch.CLIS
+        assert nomes == [
+            "OpenCode", "Kilo", "Gemini", "Qwen", "Claude", "Crush",
+            "Agy", "OpenClaw", "Codex", "Aider",
+        ]  # Freebuff/Cline/OpenClaude/Interpreter fora (só TUI)
+        opencode, kilo, *novas = orch.CLIS
         assert opencode.binario == "opencode"
         assert opencode.args_antes[0] == "run"
         assert "--standalone" in opencode.args_antes  # sem ele: exit=1 no meio
@@ -109,6 +115,61 @@ class TestCascataOficial:
         assert all("freebuff" not in (s.binario, s.nome.lower()) for s in orch.CLIS)
         assert "freebuff" not in orch.CLI_SESSAO_OPCOES
         assert "freebuff" not in CLIS_SESSAO_SERVER
+
+    def test_expansao_18_11_cada_cli_com_modo_headless_medido(self) -> None:
+        """Expansão de 18/11 (ordem do dono: 'usar todas as 14 IAs').
+
+        Cada CLI nova da cascata só entra com flag de modo NÃO-INTERATIVO
+        medida no `--help` em 18/11 (só help, sem gastar cota) — sessão
+        desanexada não responde prompt de permissão. E as 4 que NÃO têm
+        one-shot ficam de fora com motivo medido.
+        """
+        por_nome = {s.nome: s for s in orch.CLIS}
+        # Gemini/Qwen: -p/--prompt = headless; -y = yolo (aprova tudo)
+        assert por_nome["Gemini"].args_antes == ("-p",)
+        assert por_nome["Gemini"].args_depois == ("-y",)
+        assert por_nome["Qwen"].args_depois == ("-y",)  # posicional = one-shot
+        # Claude: -p = --print; auto-approve oficial de CI
+        assert por_nome["Claude"].args_antes == ("-p",)
+        assert "--dangerously-skip-permissions" in por_nome["Claude"].args_depois
+        # Crush: `crush run` = "Run non-interactively"; -y pula prompts
+        assert por_nome["Crush"].args_antes == ("run",)
+        assert "-y" in por_nome["Crush"].args_depois
+        # Agy: -p = "Run a single prompt non-interactively"
+        assert por_nome["Agy"].args_antes == ("-p",)
+        # OpenClaw: um turno de agente via gateway
+        assert por_nome["OpenClaw"].args_antes == ("agent", "-m")
+        # Codex: `exec` = "Run Codex non-interactively" + sandbox + auto
+        codex = por_nome["Codex"]
+        assert codex.args_antes[0] == "exec"
+        assert "workspace-write" in codex.args_antes
+        assert "--approve-for-me" in codex.args_antes
+        # Aider: -m = --message (roda e sai); commit fica com a sessão
+        aider = por_nome["Aider"]
+        assert aider.args_antes == ("-m",)
+        assert "--yes-always" in aider.args_depois
+        assert "--no-auto-commit" in aider.args_depois
+
+        # As 4 SEM one-shot ficaram de fora (medido no --help de 18/11)
+        de_fora = {"freebuff", "cline", "openclaude", "interpreter"}
+        assert de_fora.isdisjoint(por_nome)
+        assert all(
+            not any(f in (s.binario, s.nome.lower()) for s in orch.CLIS)
+            for f in de_fora
+        )
+        assert de_fora.isdisjoint(orch.CLI_SESSAO_OPCOES)
+        assert de_fora.isdisjoint(CLIS_SESSAO_SERVER)
+
+    def test_seletor_do_painel_casa_com_o_servidor(self) -> None:
+        """O seletor do runner (--cli) é o MESMO do endpoint do painel.
+
+        Divergindo, o painel manda um valor que o argparse recusa (ou
+        vice-versa) e todo clique vira erro em vez de sessão.
+        """
+        assert orch.CLI_SESSAO_OPCOES == CLIS_SESSAO_SERVER
+        # Todo nome do seletor resolve em resolver_clis (auto ou spec)
+        for escolha in orch.CLI_SESSAO_OPCOES:
+            assert resolver_clis(escolha)  # ValueError se não casar
 
     def test_kilo_modelo_gratuito_de_provedor_conhecido(self) -> None:
         """Guarda de regressão (10/10): modelo que EXISTE no catálogo do Kilo.
