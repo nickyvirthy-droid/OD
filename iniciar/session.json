@@ -6213,5 +6213,23 @@
     "telegram": "ok=true msg_id=4054 (regra 15, cobre cascata + router).",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§3)",
     "updated_at": "2026-11-18T15:05:00-03:00"
+  },
+  "download_lista_raul_cgroup_2026_11_18": {
+    "pedido": "Dono (18/11): txt.txt com a playlist do Raul Seixas — 'Sim, baixar agora' + 'Conserta agora tambem' (bug que mata download em voo).",
+    "diagnostico": "Pedido 12 de 17/11 morreu as 03:36:51 quando o od-core parou: start_new_session tira do grupo, NAO tira do cgroup — o kill do systemd levou o yt-dlp no meio da espera de 3 min. 6 mp3s presos em /tmp/od_link_x6q62edm/. Playlist real: 190 entradas (17/11 so tinha detectado 10).",
+    "conserto": "integrations/radio_link.py — _unit_transitoria(): worker em unidade transitoria systemd-run --user (od-radio-link-<id>, irmão do od-core em app.slice, prova od-probe-cgroup.service) com fallback para o Popen antigo; unit='' desliga. Download lanancado como od-radio-lista-raul.service (sobrevive a restart do od-core), log logs/radio_link_lista_raul_seixas.log.",
+    "tool": "tools/baixar_resto_lista.py generalizado (OD_LISTA_URL/OD_LISTA_NOME/OD_LISTA_LOG, slug default) — serve para qualquer playlist. tests/test_tools_diversos_cobertura.py 37 passed.",
+    "duplicata": "Metamorfose Ambulante entrou 2x: playlist com titulo SÓ x acervo 'Raul Seixas - ...' ( _parece_repetida so testava o sentido artista+titulo no titulo da lista) e depois pipeline renomeou p/ 'Desconhecido' (dedupe por artista+titulo nao casou). Limpeza: linha 789 removida, arquivo p/ revisar/duplicadas/ (acervo 364 -> 363). Endurecimento: _parece_repetida agora casa o titulo sozinho (igualdade exata ou contido 2+ palavras; palavra solta so por igualdade) + teste novo.",
+    "validacao": "Gate parcial radio_link+tools+cobertura: 336 passed. Progresso: lote 1 +10 (354 -> 364), lote 2 rodando 14:23, unidade active; 190 faixas ~19 lotes ~10-13h; disco 760G livres.",
+    "sem_bump": "1.46.0+2083. Fix entra no ar no proximo restart do od-core (autorizacao pendente)."
+  },
+  "cascata_13_cota_nunca_exclui_2026_11_18": {
+    "pedido": "Dono (18/11): 'voce retirou o cline do orquestrador pelo motivo de cota e TUI... cota nunca e motivo de exclusao, a cota sempre acaba por isso esse numero grande de IAs.'",
+    "regua": "TUI = Terminal User Interface (interativo; sessao desanexada nao responde prompt). Nova regua: so FALTA de modo nao-interativo exclui. Cota esgota e volta (~18h) — cota NUNCA e motivo de exclusao.",
+    "remediacao": "As 4 excluidas re-meditadas com ajuda + prompt real: cline 3.0.74 posicional one-shot (exit=1 no 429, '18h 46m' — fail-fast); interpreter 0.4.3 --stdin -y -pl (exit=1 OpenAI sem credito); openclaude 0.32.0 engine -p --yolo (exit=0, 'ok' em 3,5s, criou arquivo real; modelo do app deepseek-v3.1-terminus EOL no NIM 404 -> nvidia/nemotron-3-ultra-550b, 200 em 0,9s); freebuff 0.2.36 so login/doctor + stdin sobe TUI -> UNICA fora, e por MODO.",
+    "implementacao": "orquestrador.py: campo CliSpec.prompt_via_stdin + executar_cli via communicate(input=...); CLIS 10 -> 13 (Cline, OpenClaude, Interpreter); bloco de politica reescrito com a regua do dono; CLI_SESSAO_OPCOES 10 -> 13. tools/openclaude_headless.sh (novo, +x): perfil portavel + exec da engine. integrations/api/server.py: SESSAO_CLIS 10 -> 13. docs/IAS_DISPONIVEIS.md: 13/14, cota fora dos motivos de exclusao, historico com a 2a leva.",
+    "validacao": "test_orquestrador + test_api: 318 passed; bloco alvo: 336 passed; GATE COMPLETO 5392 passed / 19 skipped / 0 falha (223s). Prova viva: executar_cli(OpenClaude) -> SAIDA: ok.",
+    "sem_bump": "1.46.0+2083. Entra no ar no proximo restart do od-core (autorizacao pendente, regra 7.1).",
+    "pendente": "Restart do od-core (liberar cascata 13 + fix do cgroup no servico) e decisao do dono: continuar/parar download de 190 faixas (od-radio-lista-raul)."
   }
 }

@@ -9,6 +9,82 @@
 
 ---
 
+## 18/11/2026 — Cascata 10 → 13 CLIs: cota nunca é motivo de exclusão
+
+**Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — continuação do
+serviço (18/11 ~17:00), ordem do dono ("cota nunca é motivo de exclusão… a
+cota sempre acaba por isso esse número grande de IAs").
+
+### Criados
+
+- `tools/openclaude_headless.sh` (+x) — wrapper headless do OpenClaude:
+  aplica o perfil portátil (`ai_settings.env`, `CLAUDE_CONFIG_DIR` etc.,
+  mesmos exports do `start.sh`) e executa a engine `@gitlawb/openclaude`.
+
+### Modificados
+
+- `orquestrador.py` — campo novo `CliSpec.prompt_via_stdin` +
+  `executar_cli()` enviando o prompt por `communicate(input=…)`; `CLIS`
+  **10 → 13** (Cline posicional one-shot, OpenClaude `-p --yolo`,
+  Interpreter `--stdin`); bloco de política reescrito com a régua do
+  dono; `CLI_SESSAO_OPCOES` 10 → 13.
+- `integrations/api/server.py` — `SESSAO_CLIS` 10 → 13 (contrato do
+  painel).
+- `tests/test_orquestrador.py` — contrato da cascata atualizado (13
+  CLIs; freebuff única de fora e **só por modo**; testes novos de
+  `prompt_via_stdin` e do wrapper).
+- `docs/IAS_DISPONIVEIS.md` — conclusão 13/14; cota removida dos
+  motivos de exclusão; histórico com a 2ª leva.
+
+### Intenção + estado
+
+Reavaliar as 4 exclusões sob a nova régua: cline, openclaude e
+interpreter **tinham** one-shot (provado com prompt real — os dois
+primeiros falham só por cota/saldo, que volta; openclaude respondeu e
+criou arquivo, exit=0); freebuff continua fora por modo medido. Validado:
+318 + 336 testes do bloco e **gate completo 5392 passed / 19 skipped /
+0 failed**; `executar_cli(OpenClaude)` → `SAIDA: ok`. **Sem bump**
+(1.46.0+2083); entra no ar no próximo restart do `od-core` (autorização
+do dono pendente — regra 7.1).
+
+---
+
+## 18/11/2026 — Playlist do Raul Seixas: download em unidade própria + fix do cgroup
+
+**Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — ordem do dono
+("Sim, baixar agora" + "Conserta agora também", 18/11).
+
+### Criados
+
+- `tools/baixar_resto_lista.py` — retoma QUALQUER playlist
+  (`OD_LISTA_URL`, `OD_LISTA_NOME`, `OD_LISTA_LOG`; slug default).
+
+### Modificados
+
+- `integrations/radio_link.py` — `_unit_transitoria()` (novo):
+  `iniciar_processamento()` passa a rodar o worker em unidade transitória
+  `systemd-run --user --unit=od-radio-link-<id>` (irmão do od-core em
+  `app.slice`), com fallback para o `Popen` + `start_new_session` antigo
+  (`unit=""` desliga); e `_parece_repetida()` endurecido (casa o título
+  sozinho — a Metamorfose Ambulante tinha entrado duplicada no acervo).
+- `tests/test_radio_link.py` — 3 testes da unidade systemd.
+- `tests/test_radio_cobertura.py` — teste novo da pré-checagem no
+  sentido contrário (lista bare × acervo com artista).
+- `tests/test_tools_diversos_cobertura.py` — expectativas + teste
+  `test_nome_da_lista_e_configuravel` (37 passed).
+
+### Intenção + estado
+
+O worker morria com qualquer restart do od-core (mesmo cgroup). Agora o
+download roda em unidade própria — `od-radio-lista-raul.service` **ativa**
+desde 13:53, lote 1 fechou +10 (354 → 364), lote 2 rodando; 190 faixas ≈
+19 lotes ≈ 10–13 h. A duplicata da Metamorfose foi removida (linha 789 →
+`revisar/duplicadas/`, acervo 363). **Sem bump** (1.46.0+2083); o fix do
+radio_link entra no ar no próximo restart do `od-core` (autorização
+pendente) — a unidade do download já protegida desde agora.
+
+---
+
 ## 18/11/2026 — Query Router: 101 × 485 features — vetor harmonizado
 
 **Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — continuação do

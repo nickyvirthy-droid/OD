@@ -289,3 +289,112 @@ enchia o log de warning; na produção funcionava por sorte do `.venv`.
 - **Sem bump:** 1.46.0+2083. Entrará no ar no próximo restart do
   `od-core` (o de 12:53 antecedeu este fix; a produção já se comporta
   igual com o código antigo — o fix é para ambientes sem o pacote).
+
+## §4 — Playlist do Raul Seixas (txt.txt): download em unidade própria + fix do cgroup
+
+**Pedido do dono (18/11, tarde):** o `txt.txt` traz o link da playlist do
+Raul Seixas. Dono autorizou "Sim, baixar agora" e, em seguida, "Conserta
+agora também" — o bug que mata download em voo.
+
+### Diagnóstico (reabrindo o pedido 12 de 17/11)
+
+- O worker morreu às 03:36:51 quando o od-core parou: com
+  `start_new_session` o processo sai do grupo, mas **não sai do cgroup** —
+  o `kill` do systemd levou o `yt-dlp` no meio da espera de 3 min entre
+  lotes.
+- 6 mp3s já baixados ficaram presos em `/tmp/od_link_x6q62edm/`.
+- A playlist tem **190 entradas** (a extração de 17/11 só tinha detectado 10).
+
+### Conserto (cgroup — regra 7.1 respeitada: nada foi reiniciado)
+
+- `integrations/radio_link.py` — `_unit_transitoria()`: o worker roda em
+  unidade transitória `systemd-run --user --unit=od-radio-link-<id>`
+  (Type=exec, WorkingDirectory, EnvironmentFile=.env, stdout/stderr em
+  append, `--collect`). O processo nasce como **irmão** do od-core em
+  `app.slice` (prova: probe `od-probe-cgroup.service`) — restart do
+  od-core não alcança mais quem está baixando.
+- Fallback preservado: sem `systemd-run` ou recusando, cai no `Popen` +
+  `start_new_session` antigo; `unit=""` desliga a unidade.
+- Download lanchado como `od-radio-lista-raul.service` (unidade própria,
+  log `logs/radio_link_lista_raul_seixas.log`) — **não depende do
+  od-core**.
+
+### Tool generalizado
+
+- `tools/baixar_resto_lista.py`: `OD_LISTA_URL`, `OD_LISTA_NOME`,
+  `OD_LISTA_LOG` (slug default) — mesma tool para QUALQUER playlist.
+- `tests/test_tools_diversos_cobertura.py` atualizado + teste novo
+  (`test_nome_da_lista_e_configuravel`) → **37 passed**.
+
+### Acidente de qualidade: Metamorfose Ambulante entrou duplicada
+
+- **Causa:** a playlist veio só com "Metamorfose Ambulante" e o acervo
+  tinha "Raul Seixas - Metamorfose Ambulante" — `_parece_repetida` só
+  testava o sentido "artista+título do acervo ∈ título da lista"; o
+  contrário passava reto. Depois o pipeline renomeou para "Desconhecido -
+  …" (detecção de artista falhou) e o dedupe por artista+título não casou
+  → 2ª linha no acervo (MPB).
+- **Limpeza:** linha 789 removida do `acervo.db`; arquivo movido para
+  `revisar/duplicadas/Desconhecido - Metamorfose Ambulante (duplicada
+  18-11).mp3` (acervo 364 → 363, uma linha só para a música).
+- **Endurecimento:** `_parece_repetida` ganhou o sentido contrário —
+  casa o TÍTULO sozinho (igualdade exata, ou contido com 2+ palavras;
+  palavra solta só por igualdade, anti-falso-positivo). Teste novo em
+  `tests/test_radio_cobertura.py`.
+
+### Validação e progresso
+
+- radio_link + tools + cobertura: **336 passed** (bloco alvo da §5).
+- Lote 1 fechou **+10** (354 → 364, log "lote 1 codigo=0"); lote 2
+  rodando desde 14:23; unidade `od-radio-lista-raul` **active**.
+- 190 faixas ≈ 19 lotes ≈ 10–13 h; disco 760 G livres.
+
+## §5 — Régua do dono: cota NUNCA é motivo de exclusão — cascata 10 → 13
+
+**Pedido do dono (18/11):** "você retirou o cline do orquestrador pelo
+motivo de cota e TUI, não sei o que quer dizer com tui, mas cota volta no
+outro dia, então cota nunca é motivo de exclusão, a cota sempre acaba por
+isso esse número grande de IAs."
+
+- **TUI explicada ao dono:** *Terminal User Interface* — modo interativo
+  que precisa de alguém respondendo prompt; a sessão desanexada não
+  responde. Não é defeito, é modo de uso: o que importa é existir (ou não)
+  modo **não-interativo**.
+- **Nova régua aplicada:** só a falta de modo não-interativo exclui.
+  Cota esgota e volta (~18 h) — por isso existe o número grande de IAs.
+
+### Re-mediação das 4 excluídas (ajuda + prompt real, 18/11)
+
+| CLI | Prova | Resultado |
+|---|---|---|
+| cline 3.0.74 | `cline "prompt" --json` (posicional = one-shot, auto-approve default true) | agente inicia e sai com **exit=1** no 429 da cota ("18h 46m") — fail-fast, a cascata segue |
+| interpreter 0.4.3 | `--stdin -y -pl` (prompt no stdin) | **exit=1** — OpenAI sem crédito (igual codex/aider) |
+| openclaude 0.32.0 | engine `@gitlawb/openclaude` `-p --yolo --provider nvidia-nim` | **exit=0**, "ok" em 3,5 s; depois **criou arquivo real** com `--yolo` (3 turns). Modelo do app (`deepseek-v3.1-terminus`) está **EOL no NIM** (404) → usar `nvidia/nemotron-3-ultra-550b` (200 em 0,9 s) |
+| freebuff 0.2.36 | `--help` + stdin pipeado | só `login`/`doctor`; stdin sobe a TUI e sai sem processar → **única que continua FORA, e por MODO** |
+
+### Implementação
+
+- `orquestrador.py`: campo novo `CliSpec.prompt_via_stdin` + `executar_cli`
+  manda o prompt por `communicate(input=…)` quando pedido; `CLIS`
+  **10 → 13** (Cline, OpenClaude, Interpreter — nesta ordem, depois do
+  Aider); bloco de política reescrito com a régua do dono;
+  `CLI_SESSAO_OPCOES` 10 → 13.
+- `tools/openclaude_headless.sh` (novo, +x): aplica o perfil portátil do
+  OpenClaude-Portable (`ai_settings.env`, `CLAUDE_CONFIG_DIR`, exports do
+  `start.sh`) e executa a engine — o `start.sh` é menu e não aceita
+  prompt.
+- `integrations/api/server.py`: `SESSAO_CLIS` 10 → 13 (contrato do
+  painel).
+- `docs/IAS_DISPONIVEIS.md`: conclusão **13/14**; cota removida como
+  motivo de exclusão (freebuff passa a ser a única fora **por modo**);
+  histórico com a 2ª leva; linhas das 3 CLIs atualizadas.
+
+### Validação (regra 13)
+
+- `test_orquestrador.py + test_api.py`: **318 passed**.
+- Bloco alvo (orquestrador + radio + tools): **336 passed**.
+- **Gate completo: 5392 passed / 19 skipped / 0 falha** (223 s).
+- Prova viva do caminho completo: `executar_cli(OpenClaude)` →
+  `SAIDA: ok`.
+- **Sem bump:** 1.46.0+2083. Entra no ar no próximo restart do `od-core`
+  (**autorização do dono pendente** — regra 7.1).

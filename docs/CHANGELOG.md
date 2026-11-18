@@ -12,6 +12,65 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Cascata 10 → 13 CLIs — cota nunca é motivo de exclusão (2026-11-18, sem bump)
+
+**Contexto:** régua nova do dono — "cota nunca é motivo de exclusão, a cota
+sempre acaba por isso esse número grande de IAs". As 4 exclusões da 1ª leva
+(cline, freebuff, openclaude, interpreter) foram reavaliadas com `--help` +
+prompt real: **3 tinham one-shot** e entraram; **só o freebuff** continua
+fora, e por modo medido (só `login`/`doctor`; stdin sobe a TUI).
+
+**O que mudou:**
+
+- `orquestrador.py` — campo novo `CliSpec.prompt_via_stdin` (o interpreter
+  não tem prompt posicional, só `--stdin`) + `executar_cli()` enviando o
+  prompt por stdin quando pedido; `CLIS` **10 → 13**: Cline (`cline PROMPT`
+  posicional, auto-approve default — provado exit=1 no 429 da cota),
+  OpenClaude (engine `@gitlawb/openclaude` via wrapper, `-p --yolo` —
+  provado exit=0 **criando arquivo real**; modelo do app EOL no NIM →
+  `nvidia/nemotron-3-ultra-550b`, 3,5 s) e Interpreter (`--stdin -y -pl` —
+  provado exit=1 sem saldo, igual codex/aider). Bloco de política
+  reescrito com a régua; `CLI_SESSAO_OPCOES` 10 → 13.
+- `tools/openclaude_headless.sh` (novo, +x) — perfil portátil do
+  OpenClaude-Portable + exec da engine (o `start.sh` é menu).
+- `integrations/api/server.py` — `SESSAO_CLIS` 10 → 13 (contrato do
+  painel).
+- `docs/IAS_DISPONIVEIS.md` — conclusão **13/14**; cota removida como
+  motivo de exclusão; histórico com a 2ª leva.
+
+**Testes:** `test_orquestrador + test_api` 318 passed; bloco alvo 336;
+**gate completo 5392 passed / 19 skipped / 0 failed** (223 s). Prova viva:
+`executar_cli(OpenClaude)` → `SAIDA: ok`. Sem bump (1.46.0+2083); entra no
+ar no próximo restart do `od-core` (autorização pendente).
+
+## Download da playlist do Raul Seixas + fix do cgroup (2026-11-18, sem bump)
+
+**Contexto:** o pedido de 17/11 morreu às 03:36 quando o od-core parou —
+`start_new_session` tira o worker do grupo, mas **não do cgroup**; o kill do
+levou o `yt-dlp` no meio da espera entre lotes (6 mp3s presos em `/tmp`).
+Playlist real: **190 entradas** (17/11 só viau 10). Dono autorizou baixar e
+consertar.
+
+**O que mudou:**
+
+- `integrations/radio_link.py` — `_unit_transitoria()`: worker roda em
+  unidade transitória `systemd-run --user --unit=od-radio-link-<id>`
+  (irmão do od-core em `app.slice`, prova `od-probe-cgroup.service`) com
+  fallback para o `Popen` antigo; `unit=""` desliga. E
+  `_parece_repetida()` endurecido: casa o **título sozinho** (igualdade
+  exata ou contido com 2+ palavras) — a Metamorfose Ambulante tinha
+  entrado 2× no acervo (lista bare × acervo "Artista - Título"; pipeline
+  renomeou p/ "Desconhecido" e o dedupe não casou). Duplicata arquivada
+  em `revisar/duplicadas/` (acervo 363).
+- `tools/baixar_resto_lista.py` (novo) — retoma qualquer playlist
+  (`OD_LISTA_URL`/`OD_LISTA_NOME`/`OD_LISTA_LOG`).
+
+**Testes:** `test_tools_diversos_cobertura` 37; radio_link + tools +
+cobertura 336; **gate completo 5392 passed / 19 skipped / 0 failed**.
+Download ativo em `od-radio-lista-raul.service` (lote 2 desde 14:23; ~19
+lotes ≈ 10–13 h). Sem bump (1.46.0+2083); fix entra no ar no próximo
+restart do `od-core` (autorização pendente).
+
 ## Query Router: 101 × 485 features — vetor harmonizado (2026-11-18, sem bump)
 
 **Contexto:** o log da suíte enchia com `Query Router prediction failed |

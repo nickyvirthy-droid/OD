@@ -41,20 +41,20 @@ todas elas em janelas tmux persistentes.
 
 | CLI | Caminho | Versão / estado | Uso em lote |
 |---|---|---|---|
-| `freebuff` | `/usr/local/bin/freebuff` | 0.2.36 | **LIMITE DIÁRIO ATINGIDO 18/11** — só TUI interativo (`login`/`doctor`); não aceita prompt via CLI/argumento; não serve como API |
+| `freebuff` | `/usr/local/bin/freebuff` | 0.2.36 | **só TUI interativo** (`login`/`doctor`); não aceita prompt via CLI/argumento; não serve como API — única das 14 FORA da cascata, e **só por modo** (régua do dono 18/11: cota nunca é motivo de exclusão) |
 | `opencode` | `~/.npm-global/bin/opencode` → `@opencode/cli/bin/opencode.exe` | **2.3.2 (consertado 18/11)** | `opencode run --standalone --model <provider/modelo> "..."`; postinstall foi refeito e os pacotes de plataforma truncados, reinstalados; chave Google segue inválida; o modelo `opencode/nemotron-3-ultra-free` **sumiu do catálogo** e foi trocado por `opencode/deepseek-v4.1-flash-free` (provado 18/11, exit=0) |
 | `kilo` / `kilocode` | `~/.npm-global/lib/node_modules/@kilocode/cli/bin/kilo` | 7.8.27 | `kilo run --auto "..."` **FUNCIONOU 18/11** (gerou `previsao_tempo.py` válido); **limite diário atingido após 1 uso**; pede login para modelos (`You need to sign in`); ids mudam (`kilo/~google/gemini-flash-latest` etc.) |
 | `aider` | `OmegaDrakon/.venv/bin/aider` | 0.86.2 | precisa de modelo/credencial utilizável (OpenAI está sem créditos) |
 | `agy` | `~/.local/bin/agy` | 1.5.9 | CLI de agente (TUI); modelo/credencial conforme configuração local |
-| `openclaude` | `~/OpenClaude-Portable-main/start.sh` | engine 0.32.0 | launcher portátil (menu próprio); provedor em `data/ai_settings.env` |
+| `openclaude` | `~/OpenClaude-Portable-main/start.sh` (menu) + `OmegaDrakon/tools/openclaude_headless.sh` (cascata) | engine 0.32.0 | `start.sh` é launcher de menu; o orquestrador usa o wrapper headless (`-p` = non-interactive + `--yolo`), provedor em `data/ai_settings.env` (NVIDIA NIM) |
 | `openclaw` | `/opt/omegadrakon/builders/openclaw/bin/openclaw` | 2026.7.1-2 | `openclaw chat` (TUI) / `agent`; gateway próprio |
-| `interpreter` | `/opt/omegadrakon/builders/open-interpreter/.venv/bin/interpreter` | 0.4.3 | TUI do Open Interpreter |
+| `interpreter` | `/opt/omegadrakon/builders/open-interpreter/.venv/bin/interpreter` | 0.4.3 | `--stdin -y -pl` = prompt pelo stdin (entrada da cascata); sem isso, TUI |
 | `claude` | `~/.npm-global/bin/claude` | **2.1.327 (instalado 18/11)** | TUI do Claude Code |
 | `codex` | `~/.npm-global/bin/codex` | **0.170.0 (instalado 18/11)** | TUI do OpenAI Codex |
 | `gemini` | `~/.npm-global/bin/gemini` | **0.68.0 (instalado 18/11)** | TUI do Gemini CLI |
 | `qwen` | `~/.npm-global/bin/qwen` | **0.28.0 (instalado 18/11)** | TUI do Qwen Code |
 | `crush` | `~/.npm-global/bin/crush` | **0.101.0 (instalado 18/11)** | TUI do Crush |
-| `cline` | `~/.npm-global/bin/cline` | **3.0.74 (instalado 18/11)** | TUI do Cline |
+| `cline` | `~/.npm-global/bin/cline` | **3.0.74 (instalado 18/11)** | `cline PROMPT` posicional = one-shot (auto-approve default true) — entrada da cascata |
 
 **Nenhuma CLI de código ausente:** `od doctor` fecha em 14/14. As CLIs npm
 rodam com o Node 22.23.5 por usuário (`~/.local/opt/node`), porque o Node 18
@@ -62,16 +62,25 @@ do sistema não suporta Gemini/Codex/Claude; o Node do sistema não foi mexido.
 
 > Conclusão: os CLIs são ferramentas de **código**, não motor de lote. Hoje
 > nenhum deles está pronto para ser chamado dezenas de vezes por um pipeline.
-> **freebuff e kilo têm limite diário baixo (1-5 req/dia)** — esgotados em 18/11.
+> **freebuff e kilo têm limite diário baixo (1-5 req/dia)** — esgotados em
+> 18/11; pela régua do dono isso **nunca** é motivo de exclusão da cascata
+> (cota volta no outro dia).
 >
 > **Atualização 18/11 (ordem do dono — "usar todas as 14 IAs"):** o `--help`
-> de cada uma foi medido (só help, sem cota) e **10 das 14 têm modo
-> não-interativo** e entraram na cascata do `orquestrador.py` (sessão de
-> dev): OpenCode, Kilo, Gemini, Qwen, Claude, Crush, Agy, OpenClaw, Codex,
-> Aider. As 4 de fora, com motivo medido: **freebuff** (só `login`/`doctor`),
-> **cline** (só TUI/ACP), **openclaude** (launcher de menu) e
-> **interpreter** (só TUI/`--server`/`--stdin`, sem one-shot). Contrato e
-> flags: `tests/test_orquestrador.py::TestCascataOficial`.
+> de cada uma foi medido (só help) e **13 das 14 têm modo não-interativo**
+> e entraram na cascata do `orquestrador.py` (sessão de dev): OpenCode,
+> Kilo, Gemini, Qwen, Claude, Crush, Agy, OpenClaw, Codex, Aider, Cline,
+> OpenClaude e Interpreter. A única de fora é **freebuff** (só
+> `login`/`doctor` — sem modo não-interativo, medido no `--help`).
+>
+> **Régua do dono (18/11, 2ª leva): COTA NUNCA É MOTIVO DE EXCLUSÃO** —
+> "cota volta no outro dia… é para isso que existe esse número grande de
+> IAs". Só a falta de modo não-interativo tira alguém da lista; foi o que
+> corrigiu a 1ª leva (cline, openclaude e interpreter tinham ficado de
+> fora misturando cota com modo e na verdade TODOS têm one-shot — provado
+> com prompt real: cline posicional exit=1 no 429 da cota, interpreter
+> `--stdin` exit=1 sem crédito, openclaude `-p --yolo` exit=0 criando
+> arquivo). Contrato e flags: `tests/test_orquestrador.py::TestCascataOficial`.
 
 ## 2. Medição (o que decidiu a escolha)
 
@@ -150,7 +159,8 @@ que a nuvem sempre responde) é o que sustenta o chat.
 
 | Data | O que mudou |
 |---|---|
-| 2026-11-18 (tarde) | **Cascata do orquestrador: 2 → 10 CLIs** (ordem do dono — "utilização de todas as 14 IAs"). `--help` medido um a um (sem cota): 10 com modo não-interativo entraram no `orquestrador.CLIS` (+ `CLI_SESSAO_OPCOES` e `SESSAO_CLIS` do painel); 4 fora com motivo (freebuff, cline, openclaude, interpreter — sem one-shot). Modelo do OpenCode `nemotron-3-ultra-free` confirmado **fora do catálogo** e trocado por `deepseek-v4.1-flash-free` (provado, exit=0). |
+| 2026-11-18 (tarde, 2ª leva) | **Cascata 10 → 13 CLIs — cota deixa de ser motivo de exclusão** (régua do dono: "cota nunca é motivo de exclusão, a cota sempre acaba"). Cline (`cline PROMPT` posicional = one-shot), OpenClaude (engine headless via `tools/openclaude_headless.sh`, `-p --yolo` — **provado criando arquivo real**; modelo do app `deepseek-v3.1-terminus` está EOL no NIM → `nvidia/nemotron-3-ultra-550b`, 3,5s) e Interpreter (`--stdin -y -pl`, campo novo `prompt_via_stdin` no `CliSpec`) entraram no `CLIS` + `CLI_SESSAO_OPCOES` + `SESSAO_CLIS`. Só o **freebuff** continua fora (único sem modo não-interativo). |
+| 2026-11-18 (tarde) | **Cascata do orquestrador: 2 → 10 CLIs** (ordem do dono — "utilização de todas as 14 IAs"). `--help` medido um a um (só help): 10 com modo não-interativo entraram no `orquestrador.CLIS` (+ `CLI_SESSAO_OPCOES` e `SESSAO_CLIS` do painel); 4 fora — **corrigido na 2ª leva logo acima**: cline/openclaude/interpreter TINHAM one-shot e entraram; freebuff continua por modo. Modelo do OpenCode `nemotron-3-ultra-free` confirmado **fora do catálogo** e trocado por `deepseek-v4.1-flash-free` (provado, exit=0). |
 | 2026-11-18 | **Limites diários de CLIs atingidos**: freebuff (só TUI, sem API CLI), kilo (1 uso = limite diário excedido), opencode (postinstall falhou). Testado kilo run --auto → gerou previsao_tempo.py válido com AST. Orquestrador atualizado para usar Kilo (caminho absoluto) + llama-server local como fallback real. freebuff removido da cadeia (não suporta prompt via argumento). **No mesmo dia o opencode foi reinstalado (2.3.2), o menu virou `od` (antes `oc`), o Claude Code 2.1.327 foi instalado e depois Codex/Gemini/Qwen/Crush/Cline (14/14), com Node 22 por usuário** — ver `docs/OD_MENU_CLIS.md`. |
 | 2026-11-05 | inventário inicial + benchmark (Gemini 3 Flash escolhido; Groq reserva; OpenAI sem créditos; CLIs sem login) |
 | 2026-11-06 | `GEMINI_API_KEY` do `.env` passou a devolver `400 API_KEY_INVALID` com header e em `/v1beta/models` (3×) — chave revogada/expirada; Groq segue 200. Cadeia efetiva hoje: Groq → local. Nenhuma IA identifica artista só pelo título (Groq e local devolveram `Desconhecido` para "Tempo Perdido") |
