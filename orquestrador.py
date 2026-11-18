@@ -50,7 +50,11 @@ from typing import Any
 from dotenv import load_dotenv
 
 
-load_dotenv()
+# NÃO chamar load_dotenv() aqui: no nível de módulo ele derrama o .env
+# inteiro no os.environ de QUALQUER processo que importar este módulo —
+# inclusive a COLETA da suíte (tests/test_orquestrador.py importa este
+# arquivo), o que mudava as rotas dos testes seguintes e derrubava 80 deles.
+# O .env é carregado em main() (contrato da versão 1.0, preservado).
 
 
 # ---------------------------------------------------------------------------
@@ -1053,6 +1057,11 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         Código de saída do processo.
     """
+    # O .env da raiz carrega GEMINI_API_KEY/GROQ_API_KEY e o OD_* do
+    # sistema. Só aqui (e não no import): quem importa o módulo não
+    # deve ter o ambiente do dono derramado nele.
+    load_dotenv()
+
     if argv is None:
         argv = sys.argv[1:]
 
