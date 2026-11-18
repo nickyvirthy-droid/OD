@@ -9,6 +9,40 @@
 
 ---
 
+## 18/11/2026 — Faixas do Raul em "Desconhecido": artista descartado no download
+
+**Autor:** Freebuff (Buffy) — sessão de 18/11 ~20:10, relato do dono ("o sistema
+acha o nome da música mas não o cantor; muitas do Raul Seixas estão aparecendo
+como desconhecido").
+
+### Modificados (pipeline oficial, fora do repo)
+
+- `/home/alex/dados/musicas/musica.py` — `artistas_da_info()` (novo: lê
+  `artist`/`artists`/`creator`/`uploader`/`channel`, sem "- Topic"/VEVO);
+  `extrair_playlist()` carrega `artistas`; `baixar_musica_individual()` usa
+  `extract_info(download=True)`, grava `TPE1`/`TIT2` e renomeia
+  `Artista - Título.mp3` antes do dedupe; `garantir_tags_basicas()` não quebra
+  mais em mp3 sem header ID3.
+- Backfill: 106 faixas re-tagueadas/renomeadas com evidência da lista
+  (`logs/artista_backfill_2026-11-18.log`, rollback em
+  `backups/acervo_antes_backfill_artista_20261118.db`).
+- Registro: `docs/CHANGELOG.md`, `iniciar/2026-11-18_conversa_omegadrakon.md`
+  §15, `iniciar/session.json` (`artista_desconhecido_raul_2026_11_18`).
+
+### Intenção e estado
+
+- **Intenção:** o artista existe na origem (canal do vídeo); o pipeline o
+  jogava fora e a IA só repetia "Desconhecido". Capturar na fonte, sem IA,
+  resolve downloads novos; o acervo já gravado precisa de backfill.
+- **Estado:** corrigido e aplicado. Download real validado
+  (`Raul Seixas - Metamorfose Ambulante.mp3`, `TPE1=Raul Seixas`); acervo com
+  0 Desconhecido (fora um arquivo cujo título é literalmente "Desconhecido");
+  AzuraCast com 108 faixas de Raul Seixas + 8 duetos.
+- **Limite:** não há teste do repo para o `musica.py` (script externo, sem
+  suíte); a verificação foi por execução real e consulta ao acervo/AzuraCast.
+
+---
+
 ## 18/11/2026 — Bug do dono: "Decisão de 24 h" chegando com prazo vencido
 
 **Autor:** Freebuff (Buffy) — sessão de 18/11 ~19:40, relato do dono ("app fica

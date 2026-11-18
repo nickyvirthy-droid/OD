@@ -12,6 +12,55 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Faixas do Raul em "Desconhecido": o artista era descartado no download (2026-11-18, sem bump)
+
+**Contexto:** relato do dono — "o sistema acha o nome da música mas não o
+cantor; muitas do Raul Seixas estão aparecendo como desconhecido".
+
+**Medição no acervo real:** 107 de 462 faixas com `artista='Desconhecido'`;
+**103 nasceram só em 18/11** (log do pipeline), no lote da lista do Raul. Todas
+no formato `Desconhecido - Título.mp3`, com título, gênero, ano e curiosidade
+certos. Prova de que o artista veio da IA e não do arquivo: `TCOM` gravado como
+"Desconécido" (e "Nau Quero Mais Andár Na Contrá Mão" em `TEXT`).
+
+**Causa (no pipeline oficial, `/home/alex/dados/musicas/musica.py`):**
+
+| Etapa | O que acontecia |
+|---|---|
+| `extrair_playlist()` | guardava só `title` + `url` — `uploader`/`channel`/`artist` do YouTube era descartado |
+| `baixar_musica_individual()` | `ydl.download()` sem postprocessor de metadados e `outtmpl=%(title)s`: vídeo postado como "Gita" gerava `Gita.mp3` **sem `TPE1`** |
+| `extrair_artista_titulo()` | sem tag e sem `" - "` no nome → `artista="desconhecido"` |
+| enriquecimento por IA | recebia `… | Desconhecido | Gita | ano` e **devolvia "Desconhecido"** (só repetia a evidência; o prompt não manda inferir) |
+
+**O que entrou:**
+
+| Arquivo | Mudança |
+|---|---|
+| `musica.py` — `artistas_da_info()` (novo) | lê `artist`/`artists`/`creator`/`album_artist`/`uploader`/`channel`, tirando `"- Topic"` e `VEVO` |
+| `musica.py` — `extrair_playlist()` | entradas passam a carregar `artistas` (evidência do link, sem IA) |
+| `musica.py` — `baixar_musica_individual()` | `extract_info(download=True)` (mesmas requisições) para pegar os metadados completos; grava `TPE1`/`TIT2` e renomeia para `Artista - Título.mp3` **antes** do dedupe |
+| `musica.py` — `garantir_tags_basicas()` | mp3 sem header ID3 levantava de novo em `EasyID3(path)`; agora salva o objeto vazio no arquivo |
+
+**Backfill das já baixadas:** 106 faixas re-tagueadas e renomeadas com
+evidência da própria lista (94 Raul + 4 conferidas por título de vídeo + 8
+duetos reais de *A panela do Diabo* → "Marcelo Nova e Raul Seixas"). Log com
+antes/depois em `logs/artista_backfill_2026-11-18.log`; backup do banco em
+`backups/acervo_antes_backfill_artista_20261118.db`. Restou **1** faixa sem
+título nenhum (`Desconhecido - Desconhecido.mp3`, 3m51) — fica para decisão do
+dono; nada foi apagado.
+
+**Validado:** download real da lista em `temp` isolado →
+`Raul Seixas - Metamorfose Ambulante.mp3` com `TPE1=Raul Seixas`; lote
+seguinte do serviço gravou `Artista do link: Raul Seixas — Raul Seixas -
+Babilina.mp3`; acervo com **0** Desconhecido (fora o arquivo sem título),
+`acervo.db` reindexado (470), `.m3u` regerados, `media:sync` da estação e
+playlists por gênero OK; API do AzuraCast mostra 108 faixas de Raul Seixas e
+8 duetos. Nenhum teste do repo foi alterado (a mudança é no pipeline externo,
+que não tem suíte no repo).
+
+**Limite:** lote que já estava em voo terminou com o código antigo (8 faixas,
+re-tagueadas na segunda passada).
+
 ## "Decisão de 24 h" vencida reavisada: aviso só quando a janela ABRE (2026-11-18, sem bump)
 
 **Contexto:** relato do dono — o app "fica mandando mensagem: Decisão de

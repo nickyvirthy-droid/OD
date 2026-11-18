@@ -949,3 +949,68 @@ Uma janela por chegada da faixa; nunca um aviso por toque no registro.
   para é o reenvio.
 - Entre o vencimento e a limpeza (≤ 60 s) o item ainda pode aparecer no card
   do app — janela curta do timer, não é o bug relatado.
+
+## §15 — Faixas do Raul em "Desconhecido": o artista era jogado fora no download (18/11)
+
+> Relato do dono: *"porque o sistema acha o nome da musica mas não o cantor?
+> muitas do raul seixas estão aparecendo como desconhecido"* — e, na sequência,
+> *"corrigir a extração de artista no musica.py e re-taguear as 107"*.
+
+### 1. O que a máquina mostrava
+
+- Acervo: **107 de 462** linhas com `artista='Desconhecido'`; **103 criadas só
+  em 18/11**, no lote da lista do Raul. Todas `Desconhecido - Título.mp3`, com
+  título, gênero, ano e curiosidade corretos.
+- `TCOM` (pronúncia do artista) gravado como **"Desconécido"** e `TEXT` como
+  "Nau Quero Mais Andár Na Contrá Mão": é saída de modelo, não nome de arquivo
+  — ou seja, a IA recebeu "Desconhecido" e repetiu.
+
+### 2. Causa, no pipeline oficial
+
+O `musica.py` (externo ao repo) descartava o artista que **já vinha no link**:
+
+| Etapa | O que acontecia |
+|---|---|
+| `extrair_playlist()` | guardava só `title` + `url`; `uploader`/`channel`/`artist` iam para o lixo |
+| `baixar_musica_individual()` | `ydl.download()` sem postprocessor e `outtmpl=%(title)s` → vídeo postado como "Gita" virava `Gita.mp3` **sem `TPE1`** |
+| `extrair_artista_titulo()` | sem tag e sem `" - "` → `artista="desconhecido"` |
+| enriquecimento (IA) | recebia `… · Desconhecido · Gita · ano` e devolvia "Desconhecido" (só repete a evidência) |
+
+### 3. Correção
+
+| Arquivo | Mudança |
+|---|---|
+| `musica.py` — `artistas_da_info()` (novo) | `artist`/`artists`/`creator`/`album_artist`/`uploader`/`channel`, sem "- Topic"/VEVO |
+| `musica.py` — `extrair_playlist()` | entradas carregam `artistas` |
+| `musica.py` — `baixar_musica_individual()` | `extract_info(download=True)` (mesmas requisições), grava `TPE1`/`TIT2` e renomeia `Artista - Título.mp3` **antes** do dedupe |
+| `musica.py` — `garantir_tags_basicas()` | mp3 sem header ID3 levantava de novo em `EasyID3(path)`; agora salva o objeto vazio no arquivo |
+
+### 4. Backfill
+
+- 106 faixas re-tagueadas e renomeadas com **evidência da própria lista**:
+  94 Raul Seixas + 4 conferidas pelo título do vídeo ("Canceriano sem Lar",
+  "Peixuxa", "Quando Acabar o Maluco Sou Eu", "How Could I Know") + 8 duetos
+  reais de *A panela do Diabo* (1989) → "Marcelo Nova e Raul Seixas".
+- Log antes/depois: `logs/artista_backfill_2026-11-18.log`; rollback do banco:
+  `backups/acervo_antes_backfill_artista_20261118.db`.
+- Restou **1** faixa sem título nenhum (`Desconhecido - Desconhecido.mp3`,
+  3m51) — **não foi apagada**; precisa de decisão do dono.
+
+### 5. Validação
+
+- Download real da lista em `temp` isolado:
+  `Raul Seixas - Metamorfose Ambulante.mp3`, `TPE1=Raul Seixas`.
+- Lote seguinte do serviço (já com o código novo): `Artista do link: Raul
+  Seixas — Raul Seixas - Babilina.mp3`.
+- Acervo: 470 faixas, **0 Desconhecido** (fora o arquivo sem título); todos os
+  caminhos do banco existem; `.m3u` regerados.
+- `media:sync` da estação + playlists por gênero OK; API do AzuraCast:
+  **108** faixas de Raul Seixas e **8** duetos.
+
+### 6. Limites declarados
+
+- O lote que já estava em voo terminou com o código antigo (8 faixas) —
+  re-tagueadas na segunda passada.
+- O `musica.py` não tem suíte de testes no repo: a verificação foi por execução
+  real e consulta ao acervo/AzuraCast, não por teste automatizado.
+- **Sem bump** (1.46.0+2083): a mudança é do pipeline do acervo, fora do repo.
