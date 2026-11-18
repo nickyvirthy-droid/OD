@@ -6185,7 +6185,10 @@
     "residuos": "NADA apagado (regra 7): 130 gerado_*.py na raiz (conteudo 'pronto', 09:08-09:37, 7 commitados) + teste_orquestrador.py na raiz (NENHUM test_*, pytest 'no tests ran', lixo gerado) -> checkbox novo no TODO Backlog (§4) para o dono decidir.",
     "validacao": "GATE COMPLETO POS-CONSCERTO: 5382 passed / 19 skipped / 0 falha (212,33 s) — contra 80 failed / 5302 passed na abertura do turno. Prova do mecanismo: import orquestrador = 0 chaves vazadas; as 8 classes afetadas juntas = 536 passed.",
     "sem_bump": "1.46.0+2083 (correcao de ferramenta de dev; contrato do app intacto).",
+    "publicacao": "Commits 2775d3b (fix orquestrador) + 4648271 (docs iniciar/TODO) em origin/master, sem divergencia.",
+    "restart_verde": "Regra 7.3: reiniciado 10:37:13, MainPID 4133749, NRestarts=0; journal -p err = 0 entradas; boot limpo (Orchestrator real montado, llm=[groq,gemini,gemma-local], semantic_cache=desligado); /health ok=true 30/30 up (mqtt nao-up nos primeiros 6 s, reconectou sozinho na releitura). Necessario porque o servico rodava desde 17/11 21:15 e a retirada da regra _CACHE_BAN_VERIFICACAO_FALSA so foi publicada hoje.",
+    "telegram": "ok=true msg_id=4053 (regra 15).",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§1)",
-    "updated_at": "2026-11-18T10:30:00-03:00"
+    "updated_at": "2026-11-18T10:42:00-03:00"
   }
 }

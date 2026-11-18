@@ -57,8 +57,11 @@ visível em `refs/cline/checkpoints/`, última checkpoint 09:29).
 - **Resíduos registrados, nada apagado (regra 7):** 130 `gerado_*.py` na
   raiz (7 commitados) e `teste_orquestrador.py` (raiz, sem nenhum `test_*`)
   → checkbox novo no TODO §4 para o dono decidir a limpeza.
-- **Sem bump:** 1.46.0+2083. **Serviço:** sem restart nesta troca até a
-  prova verde do gate (o `od-core` roda desde 17/11 21:15).
+- **Sem bump:** 1.46.0+2083. **Commits:** `2775d3b` (fix) + `4648271`
+  (docs) em `origin/master`. **Restart verde (regra 7.3):** 10:37:13,
+  MainPID 4133749, NRestarts=0, `journal -p err` = 0, `/health` ok=true
+  30/30 up (mqtt transitório reconectou em 8 s). **Telegram:** ok=true
+  msg_id=4053.
 
 ---
 

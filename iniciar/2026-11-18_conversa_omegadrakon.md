@@ -157,3 +157,24 @@ O turno virou fechamento de ciclo (regras 7.1/7.2/13): o lote da outra
 ferramenta estava publicado com o gate vermelho — causa raiz provada,
 corrigida no menor ponto possível e validada. Registro completo nos três
 lugares (`session.json`, esta transcrição, `ATRIBUICOES.md`).
+
+### 9. Publicação e restart verde (regras 7.1 / 7.3)
+
+- **Commits em `origin/master`:** `2775d3b` (fix: `orquestrador.py` de
+  volta à versão de 17/11) e `4648271` (docs do `iniciar/` + TODO).
+  `git status -sb`: `master...origin/master`, sem divergência.
+- **Restart autorizado pelo 7.3** (gate verde 5382/19/0 + HEAD ==
+  origin/master + sem resíduos das minhas mudanças) — necessário porque o
+  serviço rodava desde 17/11 21:15 e o código publicado hoje traz a
+  retirada da regra `_CACHE_BAN_VERIFICACAO_FALSA` do `core/orchestrator.py`
+  (ainda não no ar).
+- **Prova viva:** `systemctl --user restart od-core` → **MainPID 4133749,
+  NRestarts=0**, ativo desde **10:37:13**; `journalctl -p err` desde o
+  restart → **0 entradas**; boot limpo (`Orchestrator real montado |
+  llm=['groq','gemini','gemma-local']`, `API REST no ar`, `semantic_cache=
+  desligado`); `/health` → **ok=true, 30 checks, 0 não-up** (o check `mqtt`
+  apareceu não-up nos primeiros segundos pós-restart e reconectou sozinho
+  — releitura 8 s depois: 30/30 up).
+- **Telegram do dono** enviado (regra 15): resumo da conclusão.
+- **Sem bump:** 1.46.0+2083 (ferramenta de dev + correção de servidor;
+  contrato do app intacto).
