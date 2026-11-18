@@ -54,10 +54,10 @@ visível em `refs/cline/checkpoints/`, última checkpoint 09:29).
   (menu de 14 CLIs), `docs/OD_MENU_CLIS.md`, entrada no CHANGELOG, remoção
   da regra `_CACHE_BAN_VERIFICACAO_FALSA` em `core/orchestrator.py`
   (edição de 17/11 21:24 commitada pelo lote) e os docs de 18/11.
-- **Resíduos registrados, nada apagado (regra 7):** 171 `gerado_*.py` na
-  raiz (7 commitados; automação gerando de 09:08 a 10:30:37, quando parou)
-  e `teste_orquestrador.py` (raiz, sem nenhum `test_*`) → checkbox novo no
-  TODO §4 para o dono decidir a limpeza.
+- **Resíduos LIMPOS com ordem do dono** (~10:50, "encerrou por falta de
+  crédito"): 171 `gerado_*.py` + `teste_orquestrador.py` (raiz) removidos;
+  árvore com **0 não-rastreados**; gate pós-limpeza **5382 passed / 19
+  skipped / 0 falha**; checkbox do TODO §4 marcado `[x]`.
 - **Sem bump:** 1.46.0+2083. **Commits:** `2775d3b` (fix) + `4648271`
   (docs) em `origin/master`. **Restart verde (regra 7.3):** 10:37:13,
   MainPID 4133749, NRestarts=0, `journal -p err` = 0, `/health` ok=true

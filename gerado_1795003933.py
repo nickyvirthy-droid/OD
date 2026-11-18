@@ -1,1 +1,0 @@
-pronto, sem marcador

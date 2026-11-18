@@ -132,15 +132,13 @@ própria das entregas dele que ficam (`tools/od.sh`, docs).
 
 ### 6. Resíduos do lote, catalogados (nada apagado — regra 7)
 
-- **171 arquivos `gerado_*.py`** na raiz (conteúdo `pronto`, gerados a
-  ~1/3 s entre 09:08 e **10:30:37**, quando a automação **parou** — medido:
-  0 novos nos 60 s seguintes; 7 deles já commitados por ela); afetam
-  testes que medem a sujeira da árvore (ex. `_arvore_suja` esperava
-  `['new file.py']` e via os `gerado_*`). Nada apagado sem ordem do dono.
-- **`teste_orquestrador.py` (raiz)** — nome de teste, mas é um "módulo de
-  orquestração de tarefas genérico" **sem nenhum `test_*`** (pytest:
-  `no tests ran`); lixo gerado commitado pelo lote.
-- Checkbox novo no TODO (§4) para decidir limpeza dos dois.
+- **171 arquivos `gerado_*.py`** na raiz + **`teste_orquestrador.py`
+  (raiz)** (158 linhas, 0 `test_*`) — **LIMPOS em 18/11 ~10:50 com ordem
+  do dono** ("encerrou por falta de crédito, cota diária acabou"). Medição
+  prévia: só marcadores `pronto`/`[AUTORIZACAO]` (47+47+72…), gerados
+  09:08–10:30; 7 `gerado_*` commitados (`git rm`) + 164 não-rastreados
+  (`rm`). Pós-limpeza: **0 não-rastreados**, gate completo **5382 passed /
+  19 skipped / 0 falha**. Checkbox do TODO §4 marcado `[x]`.
 
 ### 7. Validação final
 

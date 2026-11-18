@@ -636,19 +636,13 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
-- [ ] **Limpar os resíduos do lote da madrugada de 18/11 (Cline)** — dois
-      tipos medidos na raiz, nenhum apagado por conta própria (regra 7):
-      **(a)** **171 arquivos `gerado_*.py`** (conteúdo `pronto`, gerados em
-      ritmo de ~1/3 s entre 09:08 e **10:30**, quando a automação parou;
-      7 commitados) que contaminam testes que medem a sujeira da árvore
-      (ex. `_arvore_suja` esperava `['new file.py']` e via os `gerado_*`);
-      **(b)** **`teste_orquestrador.py` (raiz)** — nome de teste, mas é um
-      "módulo de orquestração de tarefas genérico" **sem nenhum `test_*`**
-      (pytest: `no tests ran`), commitado como lixo gerado. Resolve:
-      árvore limpa (regra 7.2) e testes de contexto sem ruído. Risco de
-      apagar: a automação pode usar os `gerado_*` como heartbeat — confirmar
-      com o dono que a sessão Cline encerrou (última checkpoint 09:29;
-      última geração 10:30; sem atividade depois).
+- [x] **Limpar os resíduos do lote da madrugada de 18/11 (Cline)** — fechado
+      em 18/11 ~10:50 com **ordem do dono** ("encerrou por falta de crédito,
+      cota diária acabou"): removidos **171 `gerado_*.py`** (7 commitados +
+      164 não-rastreados; conteúdo medido antes: só marcadores `pronto` /
+      `[AUTORIZACAO]`, gerados 09:08–10:30) e **`teste_orquestrador.py`
+      (raiz)** (158 linhas, 0 `test_*`). Árvore medida depois: **0 não
+      rastreados**; gate completo = **5382 passed / 19 skipped / 0 falha**.
 - [ ] **App por papel: 1 app com abas escondidas vs vários apps** — ideia do
       dono (15/11): "o APP está ficando complicado para os usuários… um
       usuário comum não precisa da aba admin; um familiar seria bom ter uma
