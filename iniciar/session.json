@@ -6223,6 +6223,15 @@
     "validacao": "Gate parcial radio_link+tools+cobertura: 336 passed. Progresso: lote 1 +10 (354 -> 364), lote 2 rodando 14:23, unidade active; 190 faixas ~19 lotes ~10-13h; disco 760G livres.",
     "sem_bump": "1.46.0+2083. Fix entra no ar no proximo restart do od-core (autorizacao pendente)."
   },
+  "proxima_melhoria_recomendada_2026_11_18": {
+    "pedido": "Dono (18/11 ~16:00): 'qual a proxima melhoria?' — pedido de recomendacao, nao de execucao.",
+    "recomendacao": "P0 nº2 da revisao de 17/11: corpus de frases reais do dono (txt.txt + transcricoes) como teste de deteccao de intencao (checkbox aberto em docs/ANALISE_SISTEMA_TODO.md linha ~1026). Custo ~zero (os dados ja existem) e ataca a classe de defeito que mais custou turnos: disco, papeis do OD, radio, playlist do Raul — cada buraco de casamento virou um turno de conserto.",
+    "forma": "tests/test_corpus_frases_dono.py (ou classe nova em test_intents.py): lista de frases verbatim com a rota/action esperada; falha quando uma frase real cai em route=llm ou em fastpath errado. Medir no primeiro run quantas frases reais ja estao fora do fastpath — esse numero e a linha de base.",
+    "por_que_nao_as_outras": "P0 nº1 (guarda do llm_cache) ja foi entregue em 17/11 (§19); P0 nº3 (teste ZIM<->compose) e a 2ª opcao (14 ZIMs / 40,3 GB sem guarda, esforco baixo, mas o dano e silencioso e menos frequente); P0 nº4 (.gguf + llama.cpp no espelho) depende de espaco e nao muda o dia a dia; P1 nº5 (I2 Hybrid Search) e a melhoria de inteligencia mais cara e pede medicao antes/depois.",
+    "bloqueio_antes": "Reverter ou avaliar o lote orfao do orquestrador.py (regra 7: exige ordem do dono) — com ele na arvore o gate nem coleta tests/test_orquestrador.py.",
+    "estado": "recomendacao registrada, nada executado; sem bump (1.46.0+2083)",
+    "updated_at": "2026-11-18T16:02:00-03:00"
+  },
   "retomada_leitura_iniciar_2026_11_18_turno2": {
     "pedido": "Dono (18/11 ~15:50): 'leia iniciar' — recarregar o checkpoint antes de retomar. Checkpoint anterior: cascata_13_cota_nunca_exclui_2026_11_18 (15:05).",
     "lido": "iniciar/README.md, RULES.md (23 regras), ATRIBUICOES.md (topo: cascata 13, download do Raul, Query Router, cascata 10), session.json (ultima entrada cascata_13...), transcricao de 18/11 (§1-§5), txt.txt, git status/log/diff, servico, /health e a unidade do download.",
