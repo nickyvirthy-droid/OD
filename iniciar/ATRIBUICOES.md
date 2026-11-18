@@ -177,7 +177,7 @@ reais) e a pergunta de como operar o orquestrador.
   alterar a árvore.
 - **Pela metade (declarado):** medir quanto do brief a CLI realmente usa; a
   rota nova do painel só vale após restart do `od-core` (regra 7.3).
-- **Sem bump:** 1.46.0+2083; commit `02a1a31` em `origin/master`; Telegram `4063` (regra 15).
+- **Sem bump:** 1.46.0+2083.
 
 ---
 
