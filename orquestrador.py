@@ -847,28 +847,43 @@ def executar_sessao(
         "cli_usada": "",
         "pendencias": pendencias or [],
         "tentativa": tentativa,
+        "ativo": True,
     }
 
     if not clis:
         estado["motivo"] = "sem_clis_disponiveis"
+        estado["ativo"] = False
         return estado
 
+    # --- Validação ---
     resultado_validacao = validar()
     if not resultado_validacao.get("ok", True):
-        estado["motivo"] = "validacao_falhou"
+        estado["motivo"] = "testes_vermelhos"
         estado["testes"] = resultado_validacao.get("testes", "")
         estado["arquivos"] = resultado_validacao.get("arquivos", [])
         estado["diff"] = resultado_validacao.get("diff", "")
+        estado["ativo"] = False
+        _gravar_estado(arquivo_estado, estado)
+        return estado
+
+    estado["testes"] = resultado_validacao.get("testes", "")
+    estado["arquivos"] = resultado_validacao.get("arquivos", [])
+    estado["diff"] = resultado_validacao.get("diff", "")
+
+    # Se não há diff (nada mudou), não commitamos
+    if not estado.get("diff") and not estado.get("arquivos"):
+        estado["status"] = "concluido"
+        estado["motivo"] = "nada_mudou"
+        estado["commit"] = ""
+        estado["ativo"] = False
+        _gravar_estado(arquivo_estado, estado)
+        _publicar_caixa(arquivo_caixa, "info", "sessão iniciada: nada mudou", estado)
         return estado
 
     if pendencias:
         estado["pendencias"] = pendencias
 
-    # Copia dados da validação para o estado
-    estado["testes"] = resultado_validacao.get("testes", "")
-    estado["arquivos"] = resultado_validacao.get("arquivos", [])
-    estado["diff"] = resultado_validacao.get("diff", "")
-
+    # --- Execução da CLI ---
     prompt = montar_prompt_sessao(ideia)
 
     codigo_gerado: str | None = None
@@ -881,30 +896,103 @@ def executar_sessao(
             break
 
     if not codigo_gerado:
+        estado["motivo"] = "todas_as_clis_falharam"
+        estado["ativo"] = False
+        _gravar_estado(arquivo_estado, estado)
         return estado
 
+    # --- Extrai análise do código gerado ---
+    analise = extrair_analise(codigo_gerado)
+    if analise:
+        estado["analise"] = analise
+
+    # --- Salva o código gerado ---
     nome_arquivo = f"gerado_{int(time.time())}"
     try:
         Path(f"{nome_arquivo}.py").write_text(codigo_gerado, encoding="utf-8")
     except Exception:
         pass
 
-    # Tenta commitar (apenas título, sem rodar/repo)
+    # --- Commit ---
     resultado_commit = commitar(f"implementa: {ideia}")
-    if not resultado_commit or not resultado_commit.get("ok"):
+    if not resultado_commit:
+        # commitar devolveu None → nada mudou
+        estado["status"] = "concluido"
+        estado["motivo"] = "nada_mudou"
+        estado["commit"] = ""
+        estado["cli_usada"] = cli_usada
+        estado["ativo"] = False
+        _gravar_estado(arquivo_estado, estado)
+        _publicar_caixa(arquivo_caixa, "info", "sessão concluída: nada mudou", estado)
+        return estado
+
+    if not resultado_commit.get("ok"):
+        estado["status"] = "concluido"
         estado["motivo"] = "commit_nao_realizado"
+        estado["commit"] = ""
+        estado["cli_usada"] = cli_usada
+        estado["ativo"] = False
+        _gravar_estado(arquivo_estado, estado)
         return estado
 
     estado["commit"] = resultado_commit.get("commit", "")
     estado["status"] = "concluido"
     estado["motivo"] = "implantado"
     estado["cli_usada"] = cli_usada
-    estado["arquivos"] = resultado_commit.get("arquivos", len(estado.get("arquivos", [])) or 1)
+    estado["arquivos"] = resultado_commit.get(
+        "arquivos", len(estado.get("arquivos", [])) or 1
+    )
+    estado["ativo"] = False
 
-    # Fecha a sessão
+    # --- Fecha a sessão ---
     fechar(estado)
 
+    _gravar_estado(arquivo_estado, estado)
+    _publicar_caixa(arquivo_caixa, "info", "sessão concluída: implantado", estado)
+
     return estado
+
+
+def _gravar_estado(arquivo_estado: Path | None, estado: dict[str, Any]) -> None:
+    """Grava o estado da sessão em disco (JSON atômico)."""
+    if arquivo_estado is None:
+        return
+    try:
+        dados = dict(estado)
+        dados["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        tmp = arquivo_estado.with_suffix(arquivo_estado.suffix + ".tmp")
+        tmp.write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(arquivo_estado)
+    except Exception:
+        pass
+
+
+def _publicar_caixa(
+    arquivo_caixa: Path | None,
+    tipo: str,
+    texto: str,
+    estado: dict[str, Any],
+) -> None:
+    """Publica uma mensagem na caixa de respostas (arquivo JSON)."""
+    if arquivo_caixa is None:
+        return
+    try:
+        existente: list[dict] = []
+        if arquivo_caixa.exists():
+            existente = json.loads(arquivo_caixa.read_text(encoding="utf-8"))
+        existente.append(
+            {
+                "tipo": tipo,
+                "texto": texto,
+                "ts": time.time(),
+                "estado": estado.get("status"),
+            }
+        )
+        arquivo_caixa.write_text(
+            json.dumps(existente, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except Exception:
+        pass
 
 
 def main_sessao(cli: str = "auto") -> int:
