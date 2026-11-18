@@ -6231,6 +6231,8 @@
     "validacao": "test_zim_compose + test_kiwix + test_enciclopedia 106 passed; GATE COMPLETO 5459 passed / 19 skipped / 0 falha (212,87 s) — +11 sobre os 5448.",
     "estado_encontrado": "HEAD == origin/master == d6da7b1, arvore limpa, od-core ativo PID 352191 (health 30/30).",
     "sem_bump": "1.46.0+2083; sem restart (ferramenta/teste fora do caminho do servico).",
+    "publicacao": "Commit 9bcbede em origin/master; HEAD == origin/master; arvore limpa.",
+    "telegram": "ok=true msg_id=4059 (regra 15).",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§10)",
     "updated_at": "2026-11-18T18:25:00-03:00"
   },
