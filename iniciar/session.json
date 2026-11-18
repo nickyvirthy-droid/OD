@@ -6232,7 +6232,9 @@
     "validacao": "test_trava_reescrita.py 13 passed; test_api.py 202 passed; multi_ia+orquestrador+trava 140 passed; GATE COMPLETO 5448 passed / 19 skipped / 0 falha (219,82 s) — +13 sobre os 5435 da abertura.",
     "estado_encontrado": "Abertura do turno: HEAD == origin/master == bdceb4d, arvore limpa, hook ainda nao existia, painel sem secao de IAs.",
     "em_aberto": "(1) medir quanto do brief a CLI realmente usa (prompt real + diff); (2) download do Raul em andamento; (3) P0 nº3 (ZIM<->compose) e P0 nº4 (.gguf no espelho) abertos.",
-    "sem_bump": "1.46.0+2083; sem restart do od-core (painel e HTML sao servidos do processo; a rota nova SO vale apos restart — PENDENTE de autorizacao, regra 7.1).",
+    "sem_bump": "1.46.0+2083; restart do od-core feito pela regra 7.3 (gate verde + HEAD == origin/master + arvore limpa) as 17:2x: MainPID 352191, NRestarts=0, journal -p err 0 entradas, /health ok=true 30/30 (mqtt transitorio no boot reconectou), GET /admin/estado-ia 200 com o checkpoint vigente e /admin com a secao 'IAs no projeto'.",
+    "publicacao": "Commit 0e8c219 (feat) em origin/master, passando pelo proprio hook novo; HEAD == origin/master.",
+    "telegram": "ok=true msg_id=4057 (regra 15).",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§8)",
     "updated_at": "2026-11-18T17:20:00-03:00"
   },
