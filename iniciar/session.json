@@ -6233,6 +6233,8 @@
     "txt_novo": "txt.txt (2 linhas, escrito depois do checkpoint): 'onde foi parar a lista de musicas do raul seixas.' + o link da playlist — pergunta do dono, respondida neste turno com o estado medido do download (regra 20: resposta tambem no chat e no registro).",
     "em_aberto": "(1) lote orfao do orquestrador.py + soma.py na arvore — decidir reverter para c4943e2 ou avaliar; (2) download do Raul em andamento (~15 lotes restantes, ~7-8 h); (3) 33 checkboxes no TODO; (4) OpenAI sem credito e freebuff fora da cascata por modo.",
     "sem_bump": "1.46.0+2083; neste turno nenhum codigo alterado (so leitura + registro).",
+    "telegram": "ok=true msg_id=4055 (regra 15).",
+    "publicacao": "Commit dea5ff0 (registro) em origin/master; HEAD == origin/master.",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§6)",
     "updated_at": "2026-11-18T15:55:00-03:00"
   },
