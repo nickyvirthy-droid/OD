@@ -6334,6 +6334,8 @@
     "validacao": "tests/test_orchestrator.py = 76 passed. od-core reiniciado (PID 459066), /health ok=true, journal sem ERROR/TRACEBACK.",
     "limite": "Afirmação de estado SEM 'com sucesso' ('Radio ligada.') continua passando — pode ser leitura verdadeira, sem evidência para banir.",
     "sem_bump": "1.46.0+2083 (sem deploy de versão; restart feito para a guarda valer).",
-    "docs": "docs/CHANGELOG.md (seção nova), docs/ANALISE_SISTEMA_TODO.md (P0 nº1 riscado como ENTREGUE, checkbox 1005 marcado), iniciar/2026-11-18_conversa_omegadrakon.md §12, iniciar/ATRIBUICOES.md."
+    "docs": "docs/CHANGELOG.md (seção nova), docs/ANALISE_SISTEMA_TODO.md (P0 nº1 riscado como ENTREGUE, checkbox 1005 marcado), iniciar/2026-11-18_conversa_omegadrakon.md §12, iniciar/ATRIBUICOES.md.",
+    "publicacao": "Commit 550db53 em origin/master; HEAD == origin/master; arvore limpa.",
+    "telegram": "ok=true msg_id=4061 (regra 15)."
   }
 }
