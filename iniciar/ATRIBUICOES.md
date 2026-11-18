@@ -9,6 +9,47 @@
 
 ---
 
+## 18/11/2026 — Retomada "leia iniciar": restart de 15:01 já no ar, download do Raul no lote 4 e lote órfão do `orquestrador.py`
+
+**Autor:** Freebuff (Buffy) — sessão de 18/11 ~15:50, a pedido do dono
+("leia iniciar"). **Origem do lote órfão:** **NÃO IDENTIFICADA** (arquivo
+reescrito às 15:19:11, sem registro em `iniciar/` nem no CHANGELOG).
+
+### Criados
+
+- Nenhum arquivo novo (só registro).
+
+### Modificados
+
+- `iniciar/session.json` — checkpoint
+  `retomada_leitura_iniciar_2026_11_18_turno2`.
+- `iniciar/2026-11-18_conversa_omegadrakon.md` — §6 (estado medido).
+- `docs/ANALISE_SISTEMA_TODO.md` — checkboxes do §4 (sugestões não
+  escolhidas deste turno).
+- `iniciar/ATRIBUICOES.md` — esta entrada.
+
+### Intenção + estado
+
+- **Intenção:** cumprir as regras 3/4/23 (ler antes de assumir contexto,
+  salvar a cada troca, atribuir) e responder ao `txt.txt` com medição.
+- **Achado 1 — restart não registrado:** o serviço foi reiniciado às
+  **15:01:19** (MainPID 220986, NRestarts=0) DEPOIS dos commits de 14:56:55;
+  logo a **cascata 13**, o **fix do cgroup** e o **Query Router 101×485**
+  já estão no ar — o "restart pendente" do checkpoint anterior está
+  vencido. `/health` ok=true 30/30.
+- **Achado 2 — lote órfão destruidor:** `orquestrador.py` na árvore foi
+  regredido para a versão de **fila de 08/10** (251 linhas), com
+  `load_dotenv()` no nível de módulo; `pytest tests/test_orquestrador.py`
+  quebra na **coleta** (`ImportError: cannot import name 'CLIS'`). `soma.py`
+  (32 B) apareceu na raiz. **Não revertido** (regra 7 exige ordem).
+  Próximo passo exato: `git checkout -- orquestrador.py && rm soma.py`
+  **com ordem do dono**.
+- **Achado 3 — download do Raul:** unidade ativa desde 13:50, lote 3
+  fechado (+10; acervo **382**, +28 desde 354), lote 4 de ~19 rodando.
+- **Sem bump:** 1.46.0+2083. Nenhum código alterado nesta troca.
+
+---
+
 ## 18/11/2026 — Cascata 10 → 13 CLIs: cota nunca é motivo de exclusão
 
 **Autor:** OpenCode (agente, modelo MiMo-V2.6-Flash) — continuação do

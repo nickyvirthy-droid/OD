@@ -6223,6 +6223,19 @@
     "validacao": "Gate parcial radio_link+tools+cobertura: 336 passed. Progresso: lote 1 +10 (354 -> 364), lote 2 rodando 14:23, unidade active; 190 faixas ~19 lotes ~10-13h; disco 760G livres.",
     "sem_bump": "1.46.0+2083. Fix entra no ar no proximo restart do od-core (autorizacao pendente)."
   },
+  "retomada_leitura_iniciar_2026_11_18_turno2": {
+    "pedido": "Dono (18/11 ~15:50): 'leia iniciar' — recarregar o checkpoint antes de retomar. Checkpoint anterior: cascata_13_cota_nunca_exclui_2026_11_18 (15:05).",
+    "lido": "iniciar/README.md, RULES.md (23 regras), ATRIBUICOES.md (topo: cascata 13, download do Raul, Query Router, cascata 10), session.json (ultima entrada cascata_13...), transcricao de 18/11 (§1-§5), txt.txt, git status/log/diff, servico, /health e a unidade do download.",
+    "estado_encontrado": "HEAD == origin/master == c4943e2 (registros de 18/11 14:56:55); versao 1.46.0+2083; od-core active, MainPID 220986, NRestarts=0, ativo desde 15:01:19, /health ok=true 30/30; TODO 33 abertas / 79 fechadas (revisao de 17/11).",
+    "restart_nao_registrado": "O checkpoint anterior dava o restart como PENDENTE, mas o servico foi reiniciado as 15:01:19 (PID 220986, contra 83842 do restart das 12:53) — DEPOIS dos commits adadacb/8efdbb0/c4943e2 (14:56:55) e de fd5801e (13:06). Consequencia medida: cascata de 13 CLIs, fix do cgroup no radio_link e harmonizacao 101x485 do Query Router JA estao no ar. Quem reiniciou nao registrou (origem nao identificada).",
+    "lote_orfao_na_arvore": "OUTRA ferramenta mexeu na arvore depois do checkpoint: orquestrador.py MODIFICADO as 15:19:11 — regredido de 1654 para 251 linhas, virou o orquestrador de FILA (pedido.txt, Freebuff->OpenCode->Kilo) que o docstring do proprio repo declara REMOVIDO em 08/10, com load_dotenv() no nivel de modulo (o defeito que o gate de hoje de manha consertou) e SEM CLIS/CLI_SESSAO_OPCOES. Prova do dano: pytest tests/test_orquestrador.py = ImportError na coleta ('cannot import name CLIS') — os 114 testes do contrato e o seletor do painel (SESSAO_CLIS) ficam sem par. Tambem apareceu soma.py na raiz (32 B, 'def soma(a, b)') as 15:23:47, nao rastreado. AUTOR: origem nao identificada (nada em iniciar/ nem no CHANGELOG) — registrado como desconhecido (regra 23); NAO revertido (acao destrutiva sobre trabalho de terceiro exige ordem do dono, regra 7).",
+    "download_raul": "od-radio-lista-raul.service ACTIVE (transient, desde 13:50:11, MainPID 142554): lote 3 fechou 15:25:09 com acervo 382 (+10; +28 no total desde 354), lote 4 de ~19 em andamento (faixas 31-40, 9/10 as 15:50, espera de 3 min entre lotes). Sobrevive a restart do od-core (unidade propria em app.slice) — fix do cgroup provado em producao.",
+    "txt_novo": "txt.txt (2 linhas, escrito depois do checkpoint): 'onde foi parar a lista de musicas do raul seixas.' + o link da playlist — pergunta do dono, respondida neste turno com o estado medido do download (regra 20: resposta tambem no chat e no registro).",
+    "em_aberto": "(1) lote orfao do orquestrador.py + soma.py na arvore — decidir reverter para c4943e2 ou avaliar; (2) download do Raul em andamento (~15 lotes restantes, ~7-8 h); (3) 33 checkboxes no TODO; (4) OpenAI sem credito e freebuff fora da cascata por modo.",
+    "sem_bump": "1.46.0+2083; neste turno nenhum codigo alterado (so leitura + registro).",
+    "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§6)",
+    "updated_at": "2026-11-18T15:55:00-03:00"
+  },
   "cascata_13_cota_nunca_exclui_2026_11_18": {
     "pedido": "Dono (18/11): 'voce retirou o cline do orquestrador pelo motivo de cota e TUI... cota nunca e motivo de exclusao, a cota sempre acaba por isso esse numero grande de IAs.'",
     "regua": "TUI = Terminal User Interface (interativo; sessao desanexada nao responde prompt). Nova regua: so FALTA de modo nao-interativo exclui. Cota esgota e volta (~18h) — cota NUNCA e motivo de exclusao.",

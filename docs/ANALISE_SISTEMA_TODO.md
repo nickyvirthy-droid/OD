@@ -636,6 +636,22 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
+- [ ] **Reverter o lote órfão que regrediu o `orquestrador.py`** (18/11
+      15:19, origem não identificada): a árvore tem a versão de **fila de
+      08/10** (251 linhas, `load_dotenv()` no nível de módulo, sem `CLIS`),
+      que quebra a coleta de `tests/test_orquestrador.py`
+      (`ImportError: cannot import name 'CLIS'`) e desfaz a cascata de 13
+      CLIs. Resolve: `git checkout -- orquestrador.py` + remover `soma.py`
+      (32 B, raiz). **Ação destrutiva: exige ordem do dono (regra 7).**
+- [ ] **Acompanhar o download da playlist do Raul Seixas até o fim** —
+      unidade `od-radio-lista-raul` ativa desde 13:50 de 18/11, lote 4 de
+      ~19 (acervo 354 → 382). Falta: conferir os lotes restantes (~7–8 h),
+      checar duplicatas e fechar o acervo com o dedupe endurecido da §4.
+- [ ] **Auto-registro de restart do `od-core`** — o restart das 15:01:19 de
+      18/11 (PID 220986) não entrou em `iniciar/`; o checkpoint anterior
+      ainda o dava como pendente. Um gancho no boot do serviço que grava
+      PID/commit/horário no `session.json` evita que o registro dependa de
+      quem reiniciou lembrar (regra 4).
 - [x] **Limpar os resíduos do lote da madrugada de 18/11 (Cline)** — fechado
       em 18/11 ~10:50 com **ordem do dono** ("encerrou por falta de crédito,
       cota diária acabou"): removidos **171 `gerado_*.py`** (7 commitados +

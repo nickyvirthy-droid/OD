@@ -398,3 +398,76 @@ isso esse número grande de IAs."
   `SAIDA: ok`.
 - **Sem bump:** 1.46.0+2083. Entra no ar no próximo restart do `od-core`
   (**autorização do dono pendente** — regra 7.1).
+
+---
+
+## §6 — Retomada "leia iniciar" (15:50): o que está no ar, o que está baixando e o lote órfão do `orquestrador.py`
+
+**Pedido (verbatim):** `leia iniciar`
+
+### 1. O que foi lido (regra 3)
+
+`iniciar/README.md`, `RULES.md` (23 regras), `ATRIBUICOES.md` (topo),
+`session.json` (última entrada `cascata_13_cota_nunca_exclui_2026_11_18`),
+transcrição de 18/11 (§1–§5), `txt.txt`, `git status/log/diff`,
+`systemctl --user status od-core`, `/health` e a unidade do download.
+
+### 2. Estado medido (18/11 15:50)
+
+| Item | Medição |
+|---|---|
+| Git | `HEAD == origin/master == c4943e2` (14:56:55) |
+| Versão | **1.46.0+2083** |
+| `od-core` | **active**, MainPID **220986**, NRestarts=0, desde **15:01:19** |
+| `/health` | `ok=true`, **30/30** checks up |
+| TODO | 33 abertas / 79 fechadas |
+
+### 3. O restart "pendente" do checkpoint JÁ ACONTECEU (não registrado)
+
+O checkpoint anterior (15:05) dava o restart como pendente de autorização.
+Medição: o serviço foi reiniciado às **15:01:19** — PID **220986**, contra
+**83842** do restart registrado das 12:53 — **depois** dos commits
+`adadacb`/`8efdbb0`/`c4943e2` (14:56:55) e de `fd5801e` (13:06).
+
+Consequência medida: **cascata de 13 CLIs**, **fix do cgroup do
+`radio_link`** e **harmonização 101×485 do Query Router** já estão no ar.
+Quem reiniciou não deixou registro — **origem não identificada** (regra 23).
+
+### 4. Lote órfão na árvore: `orquestrador.py` regredido + `soma.py`
+
+**Outra ferramenta** mexeu na árvore depois do checkpoint:
+
+- `orquestrador.py` — **modificado às 15:19:11**: de 1654 → **251 linhas**,
+  virou o orquestrador de **fila** (`pedido.txt`, cascata
+  Freebuff → OpenCode → Kilo) que o próprio docstring do repo declara
+  **removido em 08/10**; com `load_dotenv()` no **nível de módulo** (o
+  defeito que o gate desta manhã consertou) e **sem** `CLIS` /
+  `CLI_SESSAO_OPCOES`.
+- **Dano provado:** `pytest tests/test_orquestrador.py` → **`ImportError:
+  cannot import name 'CLIS'` na coleta**. Os 114 testes do contrato, o
+  seletor do painel (`SESSAO_CLIS` 13) e a cascata de 13 ficam **sem par**.
+- `soma.py` — não rastreado, 32 B (`def soma(a, b)`), criado 15:23:47.
+- **Autor: origem não identificada** (nada em `iniciar/`, nada no
+  CHANGELOG). **Não revertido** — derrubar trabalho de terceiro é ação
+  destrutiva e exige ordem do dono (regra 7).
+
+### 5. Playlist do Raul Seixas: onde está (resposta ao `txt.txt`)
+
+O `txt.txt` desta tarde pergunta *"onde foi parar a lista de músicas do
+raul seixas"*. Medido, não presumido:
+
+- Unidade **`od-radio-lista-raul.service`**: **active (running)** desde
+  **13:50:11** (transient, MainPID 142554, ~303 MB) — roda **fora** do
+  cgroup do `od-core`.
+- **Lote 3 fechou 15:25:09**: acervo **382** faixas (+10 no lote; **+28**
+  desde as 354 do início).
+- **Lote 4 de ~19 em andamento** (faixas 31-40; 9/10 às 15:50, com a espera
+  de 3 min entre lotes). Ritmo medido ≈ 30 min/lote → ~7–8 h restantes.
+- A unidade **sobreviveu** ao restart do `od-core` das 15:01 — o fix do
+  cgroup está provado em produção, não só em teste.
+
+### 6. Nesta troca
+
+Nenhum código alterado: leitura, medição e registro (`session.json`,
+esta transcrição, `ATRIBUICOES.md`, checkboxes no TODO §4). **Sem bump**
+(1.46.0+2083). O lote órfão continua na árvore aguardando decisão do dono.
