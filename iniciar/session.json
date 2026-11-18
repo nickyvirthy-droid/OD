@@ -6232,6 +6232,8 @@
     "limites": "So o 3B coder (o servido); 7B e 3B generalista fora por decisao medida; symlinks .so fora do MANIFEST (usar cp -a); binario x86_64/glibc desta maquina.",
     "estado_encontrado": "HEAD == origin/master == d28dba4, arvore limpa, od-core ativo, llama-server em :8081 servindo o 3B coder.",
     "sem_bump": "1.46.0+2083; sem restart; mudanca fora do repositorio (midia).",
+    "publicacao": "Commit cba2610 em origin/master; HEAD == origin/master; arvore limpa.",
+    "telegram": "ok=true msg_id=4060 (regra 15).",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§11)",
     "updated_at": "2026-11-18T18:55:00-03:00"
   },
