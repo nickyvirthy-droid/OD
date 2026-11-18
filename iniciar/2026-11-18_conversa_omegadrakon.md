@@ -558,3 +558,75 @@ Implementado (tudo com teste):
   5392 da abertura do turno (+43 = 32 do corpus + 11 do multi-IA).
 - **Sem bump:** 1.46.0+2083 (ferramenta de dev + testes; contrato do app
   intacto). Nada de restart: o `od-core` não usa o orquestrador de CLIs.
+
+---
+
+## §8 — Trava no git, painel “IAs no projeto” e prova real da cascata
+
+**Pedidos (verbatim, três sugestões clicadas):** *"Adicionar hook de pré-commit
+com a trava de reescrita maciça, para valer também fora do orquestrador"* ·
+*"Mostrar no painel o checkpoint vigente, a árvore suja e há quanto tempo
+ninguém registra"* · *"Provar a cascata até concluir com duas CLIs reais em
+sequência"*. **Pergunta junto:** *"como devo trabalhar dentro do orquestrador
+para manter tudo organizado? é só escrever em txt e clicar em ativar dentro do
+painel do app?"*.
+
+### 1. Trava no git (hook pre-commit)
+
+- **`tools/trava_reescrita.py`** (novo) — a régua virou **fonte única**:
+  arquivo rastreado com >= 100 linhas que cai para menos de 30%; `--staged`
+  (hook) e `--worktree` (orquestrador). `OD_TRAVA_LIMIAR`,
+  `OD_TRAVA_MIN_LINHAS`, escape consciente `OD_TRAVA_OFF=1` /
+  `git commit --no-verify` registrado na mensagem.
+- **`tools/instalar_hooks.sh`** (novo, +x) — instala o hook com o **caminho
+  absoluto** da ferramenta (funciona em clone/repo de teste; fallback
+  relativo), preserva hook anterior e não quebra commit se faltar python3.
+  **Instalado neste repositório.**
+- O `orquestrador._reescritas_em_massa` passou a **delegar** na mesma régua -
+  uma régua, dois pontos de guarda.
+- **Prova:** `tests/test_trava_reescrita.py` (13) inclui **commit real** de
+  300 → 1 linha **bloqueado** pelo hook e commit normal **passando**.
+
+### 2. Painel “IAs no projeto”
+
+- Rota **owner-only** `GET /admin/estado-ia` (ROUTES **138 → 139**) montada por
+  `tools/brief_multi_ia.estado_para_painel()`.
+- Seção nova no `/admin`: versão/`HEAD` × `origin`, **checkpoint vigente**,
+  **árvore suja**, **idade do último registro** (acima de 6 h em vermelho —
+  registro parado + árvore suja = lote órfão, como o de 15:19) e P0/P1
+  abertas. `iaLoad()` entrou no `carregarTudo`.
+- `node --check` no script do painel: **OK** (pegou dois `\n` literais antes de
+  ir ao ar). `tests/test_api.py` **202 passed**.
+
+### 3. Prova real da cascata (duas CLIs de verdade)
+
+`executar_sessao` com `executar=executar_cli` real e as CLIs
+**Interpreter → OpenClaude**:
+
+| CLI | Resultado | Tempo |
+|---|---|---|
+| Interpreter | falhou (exit=1, sem saldo OpenAI) — fail-fast | **11,4 s** |
+| OpenClaude (NIM) | respondeu `OK` | **9,4 s** |
+
+Estado final: **`concluido / implantado`**, `cli_usada=OpenClaude`, **20,9 s**
+no total, e a árvore **sem nenhuma alteração** feita pelas CLIs. É a
+continuidade real: uma parou, a próxima concluiu.
+
+### 4. Resposta ao dono (também no protocolo, §6.1)
+
+Sim — o caminho normal é: **escrever o pedido no `txt.txt`** e clicar em
+**▶ Ativar desenvolvimento** no `/admin`. O orquestrador lê o txt, injeta o
+brief, roda as 13 CLIs, pausa na caixa quando precisa de `[AUTORIZACAO]`,
+valida a suíte e commita (push do fecho é automático); o resumo chega no
+Telegram. Nada de copiar texto, escolher IA ou commitar. O que continua sendo
+decisão do dono: aprovar `[AUTORIZACAO]`, escolher prioridade e autorizar
+deploy/restart/ação destrutiva. Para conferir sem ativar nada, a seção “IAs no
+projeto” mostra o estado.
+
+### 5. Validação
+
+- `test_trava_reescrita.py` **13 passed**; `test_api.py` **202 passed**;
+  `multi_ia + orquestrador + trava` **140 passed**.
+- **GATE COMPLETO** (registrado no checkpoint com o número final).
+- **Sem bump:** 1.46.0+2083. Restart do `od-core` pela regra 7.3 para a rota
+  nova valer no painel (com prova viva).

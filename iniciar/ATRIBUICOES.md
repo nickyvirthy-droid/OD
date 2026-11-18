@@ -9,6 +9,48 @@
 
 ---
 
+## 18/11/2026 — Trava no git, painel “IAs no projeto” e prova real da cascata
+
+**Autor:** Freebuff (Buffy) — sessão de 18/11 ~17:00, três sugestões clicadas
+pelo dono (hook de pré-commit, painel do estado das IAs, cascata com CLIs
+reais) e a pergunta de como operar o orquestrador.
+
+### Criados
+
+- `tools/trava_reescrita.py` — fonte única da régua de reescrita maciça
+  (`--staged` / `--worktree`, escapes configuráveis).
+- `tools/instalar_hooks.sh` (+x) — instala o hook `pre-commit`.
+- `tests/test_trava_reescrita.py` (13 testes).
+
+### Modificados
+
+- `orquestrador.py` — `_reescritas_em_massa` delega em
+  `tools.trava_reescrita.verificar` (uma régua, dois pontos de guarda).
+- `integrations/api/server.py` — `GET /admin/estado-ia` (ROUTES 138 → 139) e
+  seção “IAs no projeto” no `/admin` (checkpoint, árvore suja, idade do
+  registro, P0/P1).
+- `tools/brief_multi_ia.py` — `estado_para_painel()`.
+- `tests/test_api.py` — contagem de rotas e as duas listas esperadas.
+- `docs/PROTOCOLO_MULTI_IA.md` (§6.1 — como o dono opera), `docs/CHANGELOG.md`,
+  `docs/ANALISE_SISTEMA_TODO.md` (3 checkboxes fechados),
+  `iniciar/session.json`.
+
+### Intenção + estado
+
+- **Intenção:** fechar o buraco da trava fora do orquestrador (hook instalado
+  neste repositório), tornar visível o que a próxima IA encontra e provar a
+  continuidade com binários de verdade.
+- **Pronto/validado:** trava **13 passed** (inclui commit real bloqueado e
+  commit normal passando); `test_api.py` **202 passed**; bloco multi-IA **140
+  passed**; **prova real** Interpreter falhou em **11,4 s** e OpenClaude
+  respondeu `OK` em **9,4 s**, sessão `concluido/implantado` em **20,9 s** sem
+  alterar a árvore.
+- **Pela metade (declarado):** medir quanto do brief a CLI realmente usa; a
+  rota nova do painel só vale após restart do `od-core` (regra 7.3).
+- **Sem bump:** 1.46.0+2083.
+
+---
+
 ## 18/11/2026 — Convivência multi-IA (brief + trava + cascata até concluir) e corpus de frases reais
 
 **Autor:** Freebuff (Buffy) — sessão de 18/11 ~16:10, ordens do dono: "faça"

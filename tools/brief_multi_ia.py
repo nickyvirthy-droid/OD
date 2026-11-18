@@ -210,6 +210,60 @@ def montar_brief(incluir_prioridades: bool = True) -> str:
     return texto
 
 
+def _idade_s(quando: str) -> Optional[int]:
+    """Segundos desde um `updated_at` ISO (None quando não dá para ler)."""
+    if not quando:
+        return None
+    try:
+        from datetime import datetime
+
+        instante = datetime.fromisoformat(quando)
+        if instante.tzinfo is None:
+            from datetime import timezone
+
+            instante = instante.replace(tzinfo=timezone.utc)
+        agora = datetime.now(instante.tzinfo)
+        return max(0, int((agora - instante).total_seconds()))
+    except (TypeError, ValueError):
+        return None
+
+
+def estado_para_painel() -> dict[str, Any]:
+    """Versão do brief para o painel `/admin` (JSON simples, sem markdown)."""
+    checkpoint = _checkpoint()
+    commit = _rodar(["git", "rev-parse", "--short", "HEAD"])
+    origin = _rodar(["git", "rev-parse", "--short", "origin/master"])
+    atualizado = str(checkpoint.get("updated_at") or "")
+    idade = _idade_s(atualizado)
+    if idade is None:
+        # Sem `updated_at` legível: usa o mtime do próprio session.json.
+        try:
+            idade = max(0, int(
+                __import__("time").time() - SESSION_FILE.stat().st_mtime
+            ))
+        except OSError:
+            idade = None
+    return {
+        "ok": True,
+        "versao": _versao(),
+        "head": commit,
+        "origin": origin,
+        "sincronizado": bool(commit) and commit == origin,
+        "arvore_suja": _arvore_suja(),
+        "checkpoint": {
+            "chave": checkpoint.get("chave", ""),
+            "pedido": str(checkpoint.get("pedido", ""))[:400],
+            "em_aberto": str(
+                checkpoint.get("em_aberto", checkpoint.get("pendente", ""))
+            )[:400],
+            "updated_at": atualizado,
+            "idade_s": idade,
+        },
+        "ultimas_entregas": _atribuicoes(3),
+        "prioridades": _prioridades()[:6],
+    }
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if "--json" in argv:

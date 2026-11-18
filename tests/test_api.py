@@ -158,7 +158,7 @@ class TestAPIRoutes:
         curadoria do acervo da rádio (excluir música, bloqueadas e
         exceções de cantores, 17/11) + /api/radio/pro/traducao (lista
         paralela da letra, 17/11)."""
-        assert len(ROUTES) == 138
+        assert len(ROUTES) == 139
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -228,6 +228,8 @@ class TestAPIRoutes:
             ("GET", "/admin/tasks/{task_id}"),
             ("POST", "/admin/tasks/{task_id}/retry"),
             ("DELETE", "/admin/tasks/{task_id}"),
+            # Brief multi-IA no painel (18/11, regra 24)
+            ("GET", "/admin/estado-ia"),
             # Auto-update de modelos/conteúdo (Parte E do NOMAD)
             ("GET", "/admin/auto-update"),
             ("POST", "/admin/auto-update/dry-run"),
@@ -337,6 +339,8 @@ class TestAPIRoutes:
             ("GET", "/admin/tasks/{task_id}"),
             ("POST", "/admin/tasks/{task_id}/retry"),
             ("DELETE", "/admin/tasks/{task_id}"),
+            # Brief multi-IA no painel (18/11, regra 24)
+            ("GET", "/admin/estado-ia"),
             # Auto-update de modelos/conteúdo (Parte E do NOMAD)
             ("GET", "/admin/auto-update"),
             ("POST", "/admin/auto-update/dry-run"),

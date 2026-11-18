@@ -6223,6 +6223,19 @@
     "validacao": "Gate parcial radio_link+tools+cobertura: 336 passed. Progresso: lote 1 +10 (354 -> 364), lote 2 rodando 14:23, unidade active; 190 faixas ~19 lotes ~10-13h; disco 760G livres.",
     "sem_bump": "1.46.0+2083. Fix entra no ar no proximo restart do od-core (autorizacao pendente)."
   },
+  "trava_git_painel_ia_cascata_real_2026_11_18": {
+    "pedido": "Dono (18/11, tres sugestoes clicadas): hook de pre-commit com a trava; painel mostrando checkpoint/arvore suja/idade do registro; prova da cascata com duas CLIs reais. Pergunta junto: 'como devo trabalhar dentro do orquestrador? e so escrever em txt e clicar em ativar?'.",
+    "trava_git": "tools/trava_reescrita.py (NOVO) = fonte unica da regua (>=100 linhas, cai para <30%) com --staged e --worktree; orquestrador._reescritas_em_massa delega nele. tools/instalar_hooks.sh (NOVO, +x) instala o hook pre-commit com caminho absoluto da ferramenta e fallback relativo; escape OD_TRAVA_OFF=1 / --no-verify. HOOK INSTALADO neste repo; commit real 300->1 linha bloqueado, commit normal passa (13 testes).",
+    "painel": "GET /admin/estado-ia (owner-only; ROUTES 138 -> 139) + secao 'IAs no projeto' no /admin: versao/HEAD x origin, checkpoint vigente, arvore suja, idade do ultimo registro (>6h em vermelho) e P0/P1. tools/brief_multi_ia.estado_para_painel() monta o JSON; iaLoad() no carregarTudo; node --check OK.",
+    "prova_real": "executar_sessao com binarios reais: Interpreter falhou em 11,4 s (exit=1, sem saldo OpenAI) e OpenClaude respondeu 'OK' em 9,4 s; estado concluido/implantado, cli_usada=OpenClaude, 20,9 s total; arvore sem alteracao das CLIs (git status igual ao antes).",
+    "explicacao_ao_dono": "Documentada em docs/PROTOCOLO_MULTI_IA.md sec.6.1: escrever no txt.txt -> /admin -> botao Ativar desenvolvimento; a cascata roda as 13 CLIs, pausa em [AUTORIZACAO], valida e commita; resumo no Telegram. O dono nao precisa copiar texto, escolher IA nem commitar.",
+    "validacao": "test_trava_reescrita.py 13 passed; test_api.py 202 passed; multi_ia+orquestrador+trava 140 passed; GATE COMPLETO 5448 passed / 19 skipped / 0 falha (219,82 s) — +13 sobre os 5435 da abertura.",
+    "estado_encontrado": "Abertura do turno: HEAD == origin/master == bdceb4d, arvore limpa, hook ainda nao existia, painel sem secao de IAs.",
+    "em_aberto": "(1) medir quanto do brief a CLI realmente usa (prompt real + diff); (2) download do Raul em andamento; (3) P0 nº3 (ZIM<->compose) e P0 nº4 (.gguf no espelho) abertos.",
+    "sem_bump": "1.46.0+2083; sem restart do od-core (painel e HTML sao servidos do processo; a rota nova SO vale apos restart — PENDENTE de autorizacao, regra 7.1).",
+    "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§8)",
+    "updated_at": "2026-11-18T17:20:00-03:00"
+  },
   "multi_ia_e_corpus_frases_2026_11_18": {
     "pedido": "Dono (18/11 ~16:10): 'faça' (executar a proxima melhoria recomendada) + durante o trabalho: 'agora temos um numero muito grande de IAs trabalhando sobre OD. garanta que todas prossigam dentro da mesma linha sem destruir o que existe e mantendo a coerencia e melhoria do projeto, mesmo que uma pare no meio do caminho por cota ou outra razao a proxima deve prosseguir e assim sucessivamente até concluir'.",
     "lote_orfao_revertido": "Com a ordem no 'faça': git checkout -- orquestrador.py + rm soma.py. Arvore de volta a 1654 linhas; tests/test_orquestrador.py 116 passed (antes: ImportError cannot import name CLIS na coleta).",

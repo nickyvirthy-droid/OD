@@ -585,11 +585,6 @@ def _arvore_suja() -> list[str]:
 #      das linhas NÃO é commitado: a sessão falha e preserva a árvore (nada é
 #      apagado — o trabalho da IA fica para inspeção do dono).
 
-#: Reescrita suspeita: perder mais de 70% das linhas de um arquivo grande.
-REESCRITA_LIMIAR: float = 0.30  # depois < 30% de antes
-REESCRITA_MIN_LINHAS: int = 100  # só vale a pena olhar arquivos grandes
-
-
 def _brief_para_cli() -> str:
     """Briefing multi-IA do estado do repositório (vazio se a tool falhar)."""
     try:
@@ -601,57 +596,23 @@ def _brief_para_cli() -> str:
         return ""
 
 
-def _linhas_do_arquivo(caminho: Path) -> int:
-    try:
-        with caminho.open(encoding="utf-8", errors="ignore") as fh:
-            return sum(1 for _ in fh)
-    except OSError:
-        return 0
-
-
-def _linhas_no_head(caminho: str, repo: Path = Path(".")) -> int:
-    """Linhas do arquivo como estão em HEAD (0 quando não existe lá)."""
-    try:
-        r = subprocess.run(
-            ["git", "show", f"HEAD:{caminho}"],
-            cwd=repo, capture_output=True, text=True, timeout=15, check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return 0
-    if r.returncode != 0:
-        return 0
-    return len(r.stdout.splitlines())
-
-
 def _reescritas_em_massa(repo: Path = Path(".")) -> list[str]:
     """Arquivos rastreados que a CLI reescreveu por cima do que existia.
 
     Devolve descrições (`arquivo: antes=N depois=M`). Lista vazia quando
     nada foi reescrito em massa — o caso normal.
+
+    A régua mora em `tools/trava_reescrita.py` (fonte única): o mesmo limiar
+    vale aqui e no hook `pre-commit` (tools/instalar_hooks.sh), que protege
+    até as IAs que trabalham fora do orquestrador.
     """
     try:
-        r = subprocess.run(
-            ["git", "diff", "--numstat", "--diff-filter=M"],
-            cwd=repo, capture_output=True, text=True, timeout=15, check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+        from tools.trava_reescrita import verificar
+
+        return verificar(repo, staged=False)
+    except Exception as exc:  # noqa: BLE001 — trava é guarda, não requisito
+        log.warning("Trava de reescrita indisponível | erro=%s", exc)
         return []
-    suspeitos: list[str] = []
-    for linha in (r.stdout or "").splitlines():
-        partes = linha.split("\t")
-        if len(partes) != 3:
-            continue
-        adicionadas, removidas, caminho = partes
-        if not adicionadas.isdigit() or not removidas.isdigit():
-            continue  # binário
-        antes = _linhas_no_head(caminho, repo)
-        if antes < REESCRITA_MIN_LINHAS or int(removidas) == 0:
-            continue
-        destino = repo / caminho
-        depois = _linhas_do_arquivo(destino) if destino.exists() else 0
-        if depois < antes * REESCRITA_LIMIAR:
-            suspeitos.append(f"{caminho}: antes={antes} depois={depois}")
-    return suspeitos
 
 
 def _montar_contexto_repositorio(ideia: str) -> str:

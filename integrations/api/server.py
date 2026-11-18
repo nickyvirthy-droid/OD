@@ -506,6 +506,10 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
 
     # Task Queue (R1, 2026-11-13) — workers assíncronos + RetryPolicy exponencial
     # + dead letter + persistência JSON. /events = SSE do progresso.
+    # Brief multi-IA no painel (18/11, regra 24): checkpoint vigente, árvore
+    # suja e há quanto tempo ninguém registra — o que a próxima IA encontra.
+    ("GET", "/admin/estado-ia", "admin_estado_ia", True),
+
     ("POST", "/admin/tasks", "admin_tasks_create", True),
     ("GET", "/admin/tasks", "admin_tasks_list", True),
     ("GET", "/admin/tasks/events", "admin_tasks_events", True),
@@ -1419,6 +1423,19 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       <button id="btn-refresh">↻ Atualizar</button>
       <span class="muted msg" id="sys-msg"></span>
     </div>
+  </section>
+
+  <section>
+    <h2>IAs no projeto <span class="pill" id="ia-resumo">…</span></h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      O que a PRÓXIMA IA vai encontrar: checkpoint vigente, árvore suja e
+      há quanto tempo ninguém registra (regra 24 · tools/brief_multi_ia.py).
+      Registro parado há horas com árvore suja é lote órfão.
+    </p>
+    <div class="grid" id="iaCards"></div>
+    <details style="margin-top:10px"><summary>Árvore de trabalho (git status)</summary>
+      <pre id="iaArvore">—</pre></details>
+    <details><summary>Prioridades P0/P1 abertas</summary><pre id="iaPrio">—</pre></details>
   </section>
 
   <section>
@@ -3788,7 +3805,51 @@ function linkGoogle() {
   });
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); cantoresLoad(); musCarregar(""); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); };
+// Brief multi-IA no painel (18/11): checkpoint, árvore suja e idade do registro.
+function iaIdade(s) {
+  if (s === null || s === undefined) return "sem registro legível";
+  if (s < 90) return "agora há pouco";
+  if (s < 3600) return Math.round(s / 60) + " min atrás";
+  const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+  return h + " h" + (m ? " " + m + " min" : "") + " atrás";
+}
+async function iaLoad() {
+  const cards = document.getElementById("iaCards");
+  const resumo = document.getElementById("ia-resumo");
+  if (!cards) return;
+  try {
+    const resp = await fetch("/admin/estado-ia", { headers: authHeaders() });
+    const d = await resp.json().catch(() => ({}));
+    if (!resp.ok) { resumo.textContent = d.error || ("HTTP " + resp.status); return; }
+    const cp = d.checkpoint || {};
+    const sujos = d.arvore_suja || [];
+    cards.innerHTML = "";
+    const add = (k, v, cls) => {
+      const el = document.createElement("div");
+      el.className = "card";
+      el.innerHTML = "<div class='k'></div><div class='v'></div>";
+      el.querySelector(".k").textContent = k;
+      const val = el.querySelector(".v");
+      val.textContent = v;
+      if (cls) val.classList.add(cls);
+      cards.appendChild(el);
+    };
+    add("Versão · build", d.versao + " · " + (d.head || "?"),
+        d.sincronizado ? "ok" : "err");
+    add("Último registro", iaIdade(cp.idade_s),
+        (cp.idade_s !== null && cp.idade_s > 6 * 3600) ? "err" : "ok");
+    add("Árvore suja", sujos.length ? sujos.length + " arquivo(s)" : "limpa",
+        sujos.length ? "" : "ok");
+    add("Checkpoint", cp.chave || "—");
+    resumo.textContent = d.sincronizado ? "sincronizado" : "DIVERGENTE";
+    document.getElementById("iaArvore").textContent =
+      sujos.length ? sujos.join("\\n") : "limpa";
+    document.getElementById("iaPrio").textContent =
+      (d.prioridades || []).join("\\n") || "—";
+  } catch (e) { resumo.textContent = "falha: " + e.message; }
+}
+
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); cantoresLoad(); musCarregar(""); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); iaLoad(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
@@ -8480,6 +8541,17 @@ class APIHandler(BaseHTTPRequestHandler):
             retry_policy=retry_policy,
         )
         self._json(201, {"ok": True, "task": task.to_dict()})
+
+    def admin_estado_ia(self) -> None:
+        """GET /admin/estado-ia — brief multi-IA para o painel (regra 24).
+
+        Devolve checkpoint vigente, árvore suja, HEAD × origin e idade do
+        último registro — o que a próxima IA vai encontrar.
+        """
+        self._require_admin()
+        from tools.brief_multi_ia import estado_para_painel
+
+        self._json(200, estado_para_painel())
 
     def admin_tasks_list(self) -> None:
         """GET /admin/tasks — lista tasks (filtra por status opcional).

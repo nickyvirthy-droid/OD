@@ -12,6 +12,43 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Trava de reescrita no git, painel “IAs no projeto” e prova real da cascata (2026-11-18, sem bump)
+
+**Contexto:** continuação da ordem de convivência entre as IAs. A trava
+nascida no orquestrador só valia para sessões `--sessao`; o painel não
+mostrava o que a próxima IA encontraria; e a continuidade da cascata só
+tinha prova com fakes.
+
+**O que mudou:**
+
+- `tools/trava_reescrita.py` (novo) — **fonte única** da régua de reescrita
+  maciça (arquivo rastreado com >= 100 linhas que cai para menos de 30%), com
+  `--staged` (hook) e `--worktree` (orquestrador). `OD_TRAVA_LIMIAR`,
+  `OD_TRAVA_MIN_LINHAS` e escape consciente `OD_TRAVA_OFF=1` /
+  `git commit --no-verify`. O `orquestrador._reescritas_em_massa` passou a
+  delegar nele (uma régua, dois pontos de guarda).
+- `tools/instalar_hooks.sh` (novo, +x) — instala o hook `pre-commit` com o
+  caminho absoluto da ferramenta (fallback relativo) e preserva hook
+  anterior. **Instalado neste repositório**: commit real com 300 → 1 linha é
+  bloqueado, commit normal passa.
+- `integrations/api/server.py` — rota owner-only `GET /admin/estado-ia`
+  (139 rotas) e seção **“IAs no projeto”** no `/admin`: versão/`HEAD` ×
+  `origin`, checkpoint vigente, árvore suja, idade do último registro (>
+  6 h em vermelho) e P0/P1 abertas. `tools/brief_multi_ia.estado_para_painel()`
+  monta o JSON.
+- `docs/PROTOCOLO_MULTI_IA.md` — §6.1 “Como o DONO opera” (txt.txt → ▶ Ativar
+  desenvolvimento → caixa/Telegram) e a prova da trava no §7.
+
+**Prova real da cascata:** `executar_sessao` com os binários de verdade —
+Interpreter falhou em **11,4 s** (exit=1, sem saldo OpenAI) e **OpenClaude
+respondeu `OK` em 9,4 s**; estado final `concluido/implantado`,
+`cli_usada=OpenClaude`, **20,9 s** no total, árvore sem alteração das CLIs.
+
+**Validação:** `test_trava_reescrita.py` **13 passed** (+ commit real
+bloqueado/passando), `test_api.py` **202 passed**, `test_multi_ia +
+test_orquestrador + test_trava_reescrita` **140 passed**. **Sem bump:**
+1.46.0+2083 (ferramenta de dev, painel admin e testes).
+
 ## Convivência multi-IA + corpus de frases reais do dono (2026-11-18, sem bump)
 
 **Contexto:** ordem do dono — *"agora temos um número muito grande de IAs

@@ -636,17 +636,24 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
-- [ ] **Hook de pré-commit com a trava de reescrita maciça** — hoje a trava
-      (`_reescritas_em_massa`) só roda em sessões do `orquestrador --sessao`;
-      IA que trabalha fora dele pode commitar a regressão. Um hook
-      `pre-commit` que recusa a mesma proporção fecha o buraco para todas.
-- [ ] **Painel/`/health`: “IA trabalhando agora” e lote órfão visível** — o
-      brief e o `session.json` são lidos por quem lembra; expor no painel o
-      checkpoint vigente, a árvore suja e há quanto tempo ninguém registra
-      evita que um lote órfão (18/11, 15:19) passe despercebido por horas.
-- [ ] **Testar a cascata até concluir com CLI real** — a continuidade está
-      provada por teste (fakes), não com duas CLIs reais em sequência; medir
-      quanto do contexto do brief a CLI de fato usa (prompt real + diff).
+- [x] **Hook de pré-commit com a trava de reescrita maciça** — **FEITO 18/11:**
+      `tools/trava_reescrita.py` virou a fonte única da régua (o orquestrador
+      passou a delegar nele) e `tools/instalar_hooks.sh` instala o hook
+      `pre-commit` (caminho absoluto da ferramenta, fallback relativo, escape
+      `OD_TRAVA_OFF=1`/`--no-verify`). 13 testes, inclusive commit real
+      bloqueado e commit normal passando. Instalado neste repositório.
+- [x] **Painel/`/health`: “IA trabalhando agora” e lote órfão visível** —
+      **FEITO 18/11** no `/admin`: seção “IAs no projeto” + rota owner-only
+      `GET /admin/estado-ia` (versão/HEAD × origin, checkpoint vigente, árvore
+      suja, idade do último registro e P0/P1). Registro parado há > 6 h com
+      árvore suja aparece em vermelho — o lote órfão de 15:19 teria aparecido.
+- [x] **Testar a cascata até concluir com CLI real** — **FEITO 18/11:**
+      `executar_sessao` com as CLIs reais Interpreter → OpenClaude e
+      `executar_cli` de verdade: Interpreter falhou em **11,4 s** (exit=1, sem
+      saldo OpenAI) e OpenClaude respondeu **OK em 9,4 s**; estado final
+      `concluido/implantado`, `cli_usada=OpenClaude`, **20,9 s** no total e
+      árvore sem alteração feita pelas CLIs. Falta medir quanto do brief a CLI
+      usa de fato (prompt real + diff) — checkbox novo abaixo.
 - [x] **Reverter o lote órfão que regrediu o `orquestrador.py`** — **FEITO
       18/11** com a ordem do dono ("faça"): `git checkout -- orquestrador.py`
       (de volta a 1654 linhas) + `rm soma.py`; `tests/test_orquestrador.py`

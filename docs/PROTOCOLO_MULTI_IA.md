@@ -95,10 +95,37 @@ Não há necessidade de ninguém "tomar posse": a fonte da verdade é o reposit�
 ponto. O que **não** é permitido é: apagar trabalho alheio, inventar estado,
 publicar vermelho ou sair sem deixar o próximo passo.
 
+## 6.1 Como o DONO opera (o caminho normal)
+
+Sim — para o uso do dia a dia é só isso:
+
+1. Escrever o pedido no **`txt.txt`** (raiz), com as palavras dele. É o canal
+   de conversa e de ideia; não é arquivo de registro (regra 20).
+2. Abrir o painel **`/admin`** e clicar em **▶ Ativar desenvolvimento**
+   (`POST /admin/dev/sessao`). O `orquestrador.py --sessao` lê o `txt.txt`,
+   monta o brief, roda a cascata de 13 CLIs, pausa na caixa quando a CLI pedir
+   `[AUTORIZACAO]`, valida a suíte e commita (o push do fecho é automático).
+3. Acompanhar na própria caixa do painel: análise, pergunta de autorização,
+   validação e commit. No fim chega o resumo no Telegram.
+4. Se uma CLI acabar a cota, nada precisa ser feito: a próxima continua do
+   ponto atual. Se TODAS caírem, o motivo exato fica na caixa, no estado e no
+   Telegram — aí é só escrever o próximo passo no `txt.txt` e ativar de novo.
+
+O que **não** é obrigação sua: copiar texto entre janelas, escolher qual IA
+usa, commitar ou reiniciar. O que continua sendo decisão sua: aprovar
+`[AUTORIZACAO]`, escolher prioridade, autorizar deploy/restart e qualquer ação
+destrutiva.
+
+Para conferir o estado sem ativar nada, a seção **“IAs no projeto”** do
+`/admin` mostra o checkpoint vigente, a árvore suja e há quanto tempo ninguém
+registra (registro parado + árvore suja = lote órfão, em vermelho).
+
 ## 7. Como provar que está funcionando
 
 - `python3 -m pytest tests/test_multi_ia.py -q` — brief, trava de reescrita e
   continuidade da cascata.
 - `python3 -m pytest tests/test_corpus_frases_dono.py -q` — as frases reais do
   dono como linha de base das intenções (P0 nº 2).
+- `python3 -m pytest tests/test_trava_reescrita.py -q` — a régua e o hook
+  `pre-commit` (inclusive um commit real bloqueado e outro passando).
 - `python3 tools/brief_multi_ia.py` — o estado que a próxima IA verá.
