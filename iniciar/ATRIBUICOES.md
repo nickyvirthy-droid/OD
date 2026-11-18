@@ -82,10 +82,9 @@ atuais"; confirmou "Sim: expandir a cascata").
 - **Pronto/validado:** `test_orquestrador.py` **114 passed**;
   `test_api.py -k sessao` **21 passed**; **gate completo 5384 passed / 19
   skipped / 0 falha**; comando seco das 10 conferido.
-- **Sem bump:** 1.46.0+2083. **Restart pendente de autorização** (regra
-  7.1): o `SESSAO_CLIS` novo só vale no painel depois do restart do
-  `od-core` (condição 7.3 — gate verde + `HEAD == origin/master` — já
-  cumprida).
+- **Sem bump:** 1.46.0+2083. **Restart feito com autorização do dono às
+  12:53** (MainPID 83842, NRestarts=0, `journal -p err` = 0, `/health`
+  30/30) — `SESSAO_CLIS` novo valendo no painel.
 
 ---
 

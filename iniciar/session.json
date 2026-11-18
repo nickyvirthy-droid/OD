@@ -6199,7 +6199,8 @@
     "arquivos": "orquestrador.py (CLIS 2->10 com medicao em comentario, OPENCODE_MODELO, CLI_SESSAO_OPCOES 2->10, help --cli); integrations/api/server.py (SESSAO_CLIS 2->10); tests/test_orquestrador.py (contrato atualizado + 2 testes novos: flags headless por CLI e exclusao das 4 so-TUI, seletor x servidor); docs/CHANGELOG.md (entrada 'Cascata do orquestrador: 2 -> 10 IAs'); docs/IAS_DISPONIVEIS.md (conclusao das 14 + historico de medicoes).",
     "validacao": "tests/test_orquestrador.py 114 passed; test_api.py -k sessao 21 passed; GATE COMPLETO 5384 passed / 19 skipped / 0 falha (213 s); comando seco das 10 conferido (prompt no lugar certo).",
     "sem_bump": "1.46.0+2083 (ferramenta de canal de dev; contrato do app intacto).",
-    "restart_pendente": "SESSAO_CLIS novo so vale para o painel apos restart do od-core (regra 7.1 exige autorizacao explicita); condicao 7.3 (gate verde + HEAD == origin/master) ja cumprida.",
+    "restart_pendente": "SESSAO_CLIS novo so vale para o painel apos restart do od-core (regra 7.1 exige autorizacao explicita); condicao 7.3 (gate verde + HEAD == origin/master) ja cumprida. RESTART FEITO 12:53 (PID 83842, NRestarts=0, 0 erros, health 30/30).",
+    "telegram": "ok=true msg_id=4054 (regra 15, cobre cascata + router).",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§2)",
     "updated_at": "2026-11-18T14:20:00-03:00"
   },
@@ -6209,6 +6210,7 @@
     "conserto": "core/query_router.py — _harmonizar_dimensao(): vetor menor que model.n_features_in_ -> cauda do embedding completada com a MEDIA de treino do proprio StandardScaler (entrada neutra, vira 0 pos-scaler); vetor maior -> fallback com UM unico aviso (_dim_aviso). Chamado em classify() antes do predict. tests/test_query_router.py — regressao com use_embeddings=False provando que o predict roda.",
     "validacao": "test_query_router.py 20 passed; prova real no python3 do sistema com o modelo de producao: recebido=101 | esperado=485 | completado_por=media_de_treino (1x) e classificacoes direct/tool/hybrid (antes: fallback sempre); GATE COMPLETO 5385 passed / 19 skipped / 0 falha.",
     "sem_bump": "1.46.0+2083. Entra no ar no proximo restart do od-core (o de 12:53 antecedeu este fix; producao ja se comporta igual com o codigo antigo).",
+    "telegram": "ok=true msg_id=4054 (regra 15, cobre cascata + router).",
     "transcricao": "iniciar/2026-11-18_conversa_omegadrakon.md (§3)",
     "updated_at": "2026-11-18T15:05:00-03:00"
   }
